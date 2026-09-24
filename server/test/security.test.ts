@@ -326,3 +326,23 @@ test('ICS stable externalId + content fingerprint: a feed that regenerates UID/D
     globalThis.fetch = realFetch;
   }
 });
+
+test('oauth: reconnecting the same account refreshes its tokens instead of adding a duplicate', async () => {
+  const env = makeEnv();
+  const { saveOAuthAccount } = await import('../src/routes/oauth.ts');
+  const { decryptConfig } = await import('../src/crypto.ts');
+
+  const first = await saveOAuthAccount(env, 'google', 'mom@gmail.com', { refresh_token: 'old' });
+  const again = await saveOAuthAccount(env, 'google', 'Mom@Gmail.com', { refresh_token: 'new' });
+  assert.equal(again, first, 'same provider + email (any case) reuses the account');
+
+  const other = await saveOAuthAccount(env, 'google', 'dad@gmail.com', { refresh_token: 'x' });
+  const sameEmailOtherProvider = await saveOAuthAccount(env, 'microsoft', 'mom@gmail.com', { refresh_token: 'y' });
+  assert.notEqual(other, first);
+  assert.notEqual(sameEmailOtherProvider, first);
+
+  const { results } = await env.DB.prepare('SELECT id, config FROM accounts').all<{ id: string; config: string }>();
+  assert.equal(results.length, 3);
+  const row = results.find((r) => r.id === first)!;
+  assert.equal((await decryptConfig(env, first, row.config)).refresh_token, 'new');
+});

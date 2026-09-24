@@ -23,7 +23,7 @@ export function authUrl(env: ProviderEnv, redirectUri: string, state: string, co
     response_type: 'code',
     scope: SCOPES,
     access_type: 'offline',
-    prompt: 'consent',
+    prompt: 'select_account consent', // account chooser every time, so a second Google account can be added
     state,
     code_challenge: codeChallenge,
     code_challenge_method: 'S256',

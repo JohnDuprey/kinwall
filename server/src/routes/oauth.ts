@@ -110,17 +110,31 @@ oauthRoutes.openapi(
       return c.json({ error: err instanceof Error ? err.message : 'oauth exchange failed' }, 400);
     }
 
-    const id = crypto.randomUUID();
-    let config: string;
+    let id: string;
     try {
-      config = await encryptConfig(c.env, id, exchanged.config);
+      id = await saveOAuthAccount(c.env, kind, exchanged.name, exchanged.config);
     } catch (err) {
       return c.json({ error: err instanceof Error ? err.message : 'encryption not configured' }, 500);
     }
-    await c.env.DB.prepare('INSERT INTO accounts (id, kind, name, config, created_at) VALUES (?,?,?,?,?)')
-      .bind(id, kind, exchanged.name, config, new Date().toISOString())
-      .run();
     emit(c, 'calendar.changed', { accountId: id });
     return c.redirect(`${c.env.PUBLIC_URL ?? ''}/#/settings?account=${id}`, 302);
   },
 );
+
+/** Reconnecting an account that already exists (same provider + email, e.g. after a revoked
+ * token) refreshes its tokens in place, keeping its calendars; only a new email adds an account. */
+export async function saveOAuthAccount(env: Env, kind: string, name: string, tokens: unknown): Promise<string> {
+  const existing = await env.DB.prepare('SELECT id FROM accounts WHERE kind = ? AND lower(name) = lower(?)')
+    .bind(kind, name)
+    .first<{ id: string }>();
+  const id = existing?.id ?? crypto.randomUUID();
+  const config = await encryptConfig(env, id, tokens); // row id is the AAD, so encrypt per row
+  if (existing) {
+    await env.DB.prepare('UPDATE accounts SET config = ? WHERE id = ?').bind(config, id).run();
+  } else {
+    await env.DB.prepare('INSERT INTO accounts (id, kind, name, config, created_at) VALUES (?,?,?,?,?)')
+      .bind(id, kind, name, config, new Date().toISOString())
+      .run();
+  }
+  return id;
+}

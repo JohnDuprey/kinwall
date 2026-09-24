@@ -24,6 +24,7 @@ export function authUrl(env: ProviderEnv, redirectUri: string, state: string, co
     response_type: 'code',
     response_mode: 'query',
     scope: SCOPES,
+    prompt: 'select_account', // otherwise Microsoft silently reuses whoever is signed in
     state,
     code_challenge: codeChallenge,
     code_challenge_method: 'S256',
