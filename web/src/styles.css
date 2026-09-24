@@ -351,7 +351,7 @@ button {
   z-index: 4; /* above .now-line (3) and events, below .fab (5) */
 }
 :root[data-density="compact"] .allday-row { top: 48px; }
-.allday-cell { padding: 3px; display: flex; flex-direction: column; gap: 3px; border-left: 1px solid var(--border); }
+.allday-cell { padding: 3px; display: flex; flex-direction: column; gap: 3px; border-left: 1px solid var(--border); min-width: 0; }
 .allday-cell:first-child { border-left: none; }
 
 .timegrid {

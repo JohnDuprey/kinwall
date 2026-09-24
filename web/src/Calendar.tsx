@@ -334,7 +334,7 @@ function WeekView({ days, events, tz, members, onTap, onSlotTap }: {
 
   return (
     <div className="grid-scroll" ref={scrollRef}>
-      <div className="week-header" style={{ gridTemplateColumns: `50px repeat(${days.length}, 1fr)` }}>
+      <div className="week-header" style={{ gridTemplateColumns: `50px repeat(${days.length}, minmax(0, 1fr))` }}>
         <div />
         {days.map((d, i) => (
           <div key={i} className={`week-header-cell ${dateKey(d) === todayStr ? 'today' : ''}`}>
@@ -344,7 +344,7 @@ function WeekView({ days, events, tz, members, onTap, onSlotTap }: {
         ))}
       </div>
       {maxAllDay > 0 && (
-        <div className="allday-row" style={{ gridTemplateColumns: `50px repeat(${days.length}, 1fr)`, minHeight: maxAllDay * 26 + 6 }}>
+        <div className="allday-row" style={{ gridTemplateColumns: `50px repeat(${days.length}, minmax(0, 1fr))`, minHeight: maxAllDay * 26 + 6 }}>
           <div />
           {allDayByDay.map((list, i) => (
             <div className="allday-cell" key={i}>
@@ -353,7 +353,7 @@ function WeekView({ days, events, tz, members, onTap, onSlotTap }: {
           ))}
         </div>
       )}
-      <div className="timegrid" style={{ gridTemplateColumns: `50px repeat(${days.length}, 1fr)`, height: 24 * HOUR_PX }}>
+      <div className="timegrid" style={{ gridTemplateColumns: `50px repeat(${days.length}, minmax(0, 1fr))`, height: 24 * HOUR_PX }}>
         <div className="time-gutter">
           {Array.from({ length: 24 }, (_, h) => <div className="time-label" key={h}>{h === 0 ? '' : format(new Date(2000, 0, 1, h), 'h a')}</div>)}
         </div>
@@ -410,7 +410,7 @@ function DayView({ anchor, events, tz, members, onTap, onSlotTap }: {
 
   return (
     <div className="grid-scroll" ref={scrollRef}>
-      <div className="week-header" style={{ gridTemplateColumns: `50px repeat(${cols.length}, 1fr)` }}>
+      <div className="week-header" style={{ gridTemplateColumns: `50px repeat(${cols.length}, minmax(0, 1fr))` }}>
         <div />
         {cols.map(m => (
           <div key={m.id} className="week-header-cell">
@@ -420,7 +420,7 @@ function DayView({ anchor, events, tz, members, onTap, onSlotTap }: {
         ))}
       </div>
       {allDay.length > 0 && (
-        <div className="allday-row" style={{ gridTemplateColumns: `50px repeat(${cols.length}, 1fr)` }}>
+        <div className="allday-row" style={{ gridTemplateColumns: `50px repeat(${cols.length}, minmax(0, 1fr))` }}>
           <div />
           {cols.map(m => (
             <div className="allday-cell" key={m.id}>
@@ -431,7 +431,7 @@ function DayView({ anchor, events, tz, members, onTap, onSlotTap }: {
           ))}
         </div>
       )}
-      <div className="timegrid" style={{ gridTemplateColumns: `50px repeat(${cols.length}, 1fr)`, height: 24 * HOUR_PX }}>
+      <div className="timegrid" style={{ gridTemplateColumns: `50px repeat(${cols.length}, minmax(0, 1fr))`, height: 24 * HOUR_PX }}>
         <div className="time-gutter">
           {Array.from({ length: 24 }, (_, h) => <div className="time-label" key={h}>{h === 0 ? '' : format(new Date(2000, 0, 1, h), 'h a')}</div>)}
         </div>
