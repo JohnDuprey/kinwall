@@ -3,6 +3,7 @@ import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
 import { resolveKey } from '../auth.ts';
 import { MeSchema } from '../schemas.ts';
+import { VERSION } from '../version.ts';
 
 export const meRoutes = createRouter();
 
@@ -19,6 +20,6 @@ meRoutes.openapi(
     // requireAuth already validated the key; re-resolving here is cheap and avoids threading
     // Variables typing through every route file just for this one endpoint.
     const resolved = await resolveKey(c);
-    return c.json({ scope: resolved?.scope ?? 'admin', keyName: resolved?.name ?? '', kind: resolved?.kind ?? 'api' }, 200);
+    return c.json({ scope: resolved?.scope ?? 'admin', keyName: resolved?.name ?? '', kind: resolved?.kind ?? 'api', version: VERSION }, 200);
   },
 );

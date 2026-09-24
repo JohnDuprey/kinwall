@@ -83,7 +83,7 @@ export function createApp() {
 
   app.doc('/openapi.json', {
     openapi: '3.0.0',
-    info: { title: 'Kinwall API', version: '1.0.0' },
+    info: { title: 'Kinwall API', version: '1' }, // API contract version, not the build (docs are public)
   });
 
   app.get('/docs', swaggerUI({ url: '/openapi.json' }));

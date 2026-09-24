@@ -9,6 +9,7 @@
     "verbatimModuleSyntax": true,
     "erasableSyntaxOnly": true,
     "skipLibCheck": true,
+    "resolveJsonModule": true,
     "types": ["node", "@cloudflare/workers-types"]
   },
   "include": ["src", "test"]

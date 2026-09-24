@@ -136,6 +136,7 @@ export interface Me {
   scope: KeyScope
   keyName: string
   kind: 'api' | 'session'
+  version?: string
 }
 
 export interface Webhook {

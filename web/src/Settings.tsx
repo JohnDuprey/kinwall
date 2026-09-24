@@ -50,6 +50,7 @@ export default function SettingsView() {
           <AppearanceSection settings={settings} onSaved={reloadCore} toast={toast} />
           <ThisDisplaySection keyName={me.keyName} />
           <MembersSection members={members} onChanged={reloadCore} toast={toast} canManage={false} />
+          {me.version && <div className="settings-version">Kinwall v{me.version}</div>}
         </div>
       </div>
     )
@@ -67,6 +68,7 @@ export default function SettingsView() {
         <PasskeysSection me={me} toast={toast} />
         <KeysSection toast={toast} />
         <WebhooksSection toast={toast} />
+        {me.version && <div className="settings-version">Kinwall v{me.version}</div>}
       </div>
     </div>
   )

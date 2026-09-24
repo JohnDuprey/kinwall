@@ -43,6 +43,10 @@ test('auth: /api/members requires a bearer key, health does not', async () => {
 
   const health = await app.request('/api/health', {}, env);
   assert.equal(health.status, 200);
+  assert.deepEqual(await health.json(), { ok: true }); // public: no build version to fingerprint
+
+  const me = await (await app.request('/api/me', { headers: { Authorization: `Bearer ${ADMIN_KEY}` } }, env)).json() as any;
+  assert.match(me.version, /^\d+\.\d+\.\d+/);
 
   const withAuth = await app.request('/api/members', { headers: { Authorization: `Bearer ${ADMIN_KEY}` } }, env);
   assert.equal(withAuth.status, 200);

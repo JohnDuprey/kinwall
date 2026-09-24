@@ -101,7 +101,7 @@ pairings(id, code, poll_token_hash, approved, key_id, key_name, encrypted_key, c
 Every route declares a zod-openapi schema with `tags` and `summary` so `/docs` is useful. Errors: `{ error: string }` with proper status.
 
 ```
-GET    /api/health                                   (no auth) {ok, version}
+GET    /api/health                                   (no auth) {ok} — deliberately no version (fingerprinting)
 GET    /api/settings            PATCH /api/settings
 
 GET    /api/members             POST /api/members

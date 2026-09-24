@@ -15,6 +15,7 @@ import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import type { Env } from './env.ts';
+import { VERSION } from './version.ts';
 import { resolveKey } from './auth.ts';
 
 type App = OpenAPIHono<{ Bindings: Env }>;
@@ -348,7 +349,7 @@ export async function handleMcp(c: Context<{ Bindings: Env }>, app: App): Promis
     });
   }
 
-  const server = new McpServer({ name: 'kinwall', version: '1.0.0' });
+  const server = new McpServer({ name: 'kinwall', version: VERSION });
   registerTools(server, app, c.env, auth);
   // enableJsonResponse: plain JSON responses (no SSE stream) - simplest thing that works for a
   // stateless, request/response tool server; a client is free to ask for SSE and still gets it

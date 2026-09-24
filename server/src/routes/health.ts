@@ -11,8 +11,8 @@ healthRoutes.openapi(
     tags: ['System'],
     summary: 'Health check (no auth required)',
     responses: {
-      200: { description: 'ok', content: { 'application/json': { schema: z.object({ ok: z.boolean(), version: z.string() }) } } },
+      200: { description: 'ok', content: { 'application/json': { schema: z.object({ ok: z.boolean() }) } } },
     },
   }),
-  (c) => c.json({ ok: true, version: '1.0.0' }, 200),
+  (c) => c.json({ ok: true }, 200), // no version here: this endpoint is public
 );
