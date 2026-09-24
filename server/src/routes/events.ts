@@ -163,13 +163,19 @@ function instanceFrom(
 ) {
   let memberIds: string[];
   let memberScope: MemberScope;
+  let localTags: string[] = [];
   if (cal.kind === 'local') {
     try {
-      memberIds = JSON.parse(row.member_ids || '[]');
+      localTags = JSON.parse(row.member_ids || '[]');
     } catch {
-      memberIds = [];
+      localTags = [];
     }
-    memberScope = 'none';
+  }
+  // Local events carry their own tags (a recurring local event is one series row); synced events use
+  // overrides. Either way, untagged events fall back to the calendar's member.
+  if (localTags.length > 0) {
+    memberIds = localTags;
+    memberScope = row.rrule ? 'series' : 'occurrence';
   } else if (occurrenceOverride) {
     memberIds = occurrenceOverride;
     memberScope = 'occurrence';

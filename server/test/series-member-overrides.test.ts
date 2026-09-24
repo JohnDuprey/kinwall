@@ -261,3 +261,25 @@ test('series: an ICS RRULE feed gets a stable seriesId across two fetches with r
   // externalId is also stable across the UID change (existing behavior), independently of seriesId.
   assert.deepEqual(eventsA.map((e) => e.externalId).sort(), eventsB.map((e) => e.externalId).sort());
 });
+
+test('local events: tags report their scope, and untagged events fall back to the calendar member', async () => {
+  const env = makeEnv();
+  const app = createApp();
+  const req = (p: string, init: RequestInit = {}) =>
+    app.request(p, { ...init, headers: { Authorization: `Bearer ${ADMIN_KEY}`, 'Content-Type': 'application/json', ...(init.headers ?? {}) } }, env);
+
+  const mom = await (await req('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Mom', color: '#C3B1E1', avatar: '🌻' }) })).json() as any;
+  const kid = await (await req('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Kid', color: '#F7B7C3', avatar: '🦄' }) })).json() as any;
+  const cal = await (await req('/api/calendars', { method: 'POST', body: JSON.stringify({ kind: 'local', name: 'Family', memberId: mom.id }) })).json() as any;
+  const base = { calendarId: cal.id, allDay: false };
+  await req('/api/events', { method: 'POST', body: JSON.stringify({ ...base, title: 'Untagged', start: '2026-10-01T15:00:00.000Z', end: '2026-10-01T16:00:00.000Z' }) });
+  await req('/api/events', { method: 'POST', body: JSON.stringify({ ...base, title: 'Single', start: '2026-10-02T15:00:00.000Z', end: '2026-10-02T16:00:00.000Z', memberIds: [kid.id] }) });
+  await req('/api/events', { method: 'POST', body: JSON.stringify({ ...base, title: 'Weekly', start: '2026-10-03T15:00:00.000Z', end: '2026-10-03T16:00:00.000Z', memberIds: [kid.id], rrule: 'FREQ=WEEKLY' }) });
+
+  const events = await (await req('/api/events?from=2026-10-01T00:00:00Z&to=2026-10-05T00:00:00Z')).json() as any[];
+  const by = (t: string) => events.find((e) => e.title === t);
+  assert.deepEqual(by('Untagged').memberIds, [mom.id]);
+  assert.equal(by('Untagged').memberScope, 'calendar');
+  assert.equal(by('Single').memberScope, 'occurrence');
+  assert.equal(by('Weekly').memberScope, 'series');
+});
