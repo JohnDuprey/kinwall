@@ -50,6 +50,25 @@ async function pointsFor(db: D1Database, memberId: string, tz: string, weekStart
   return { pointsToday: todayRow?.total ?? 0, pointsWeek: weekRow?.total ?? 0 };
 }
 
+// All members' today/week points in one query (grouped + conditional SUM) instead of two
+// queries per member - what GET /api/members uses instead of pointsFor() in a loop.
+async function pointsByMember(db: D1Database, tz: string, weekStart: 0 | 1): Promise<Map<string, { pointsToday: number; pointsWeek: number }>> {
+  const today = todayInTz(tz);
+  const weekFrom = weekStartDate(tz, weekStart);
+  const { results } = await db
+    .prepare(
+      `SELECT cc.member_id AS member_id,
+              COALESCE(SUM(CASE WHEN cc.date = ? THEN c.points ELSE 0 END), 0) AS today,
+              COALESCE(SUM(CASE WHEN cc.date >= ? AND cc.date <= ? THEN c.points ELSE 0 END), 0) AS week
+       FROM chore_completions cc JOIN chores c ON c.id = cc.chore_id
+       WHERE cc.member_id IS NOT NULL
+       GROUP BY cc.member_id`,
+    )
+    .bind(today, weekFrom, today)
+    .all<{ member_id: string; today: number; week: number }>();
+  return new Map(results.map((r) => [r.member_id, { pointsToday: r.today, pointsWeek: r.week }]));
+}
+
 function toApi(row: MemberRow, points: { pointsToday: number; pointsWeek: number }) {
   return { id: row.id, name: row.name, color: row.color, avatar: row.avatar, sort: row.sort, ...points };
 }
@@ -64,11 +83,18 @@ membersRoutes.openapi(
     responses: { 200: { description: 'ok', content: { 'application/json': { schema: z.array(MemberSchema) } } } },
   }),
   async (c) => {
-    const { tz, weekStart } = await household(c.env.DB);
-    const { results } = await c.env.DB.prepare('SELECT * FROM members ORDER BY sort, created_at').all<MemberRow>();
-    const out = [];
-    for (const row of results) out.push(toApi(row, await pointsFor(c.env.DB, row.id, tz, weekStart)));
-    return c.json(out, 200);
+    // household settings + the member list are independent reads - one batch, one round trip.
+    const [settingsRes, membersRes] = await c.env.DB.batch<unknown>([
+      c.env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('timezone','weekStart')"),
+      c.env.DB.prepare('SELECT * FROM members ORDER BY sort, created_at'),
+    ]);
+    const settingsMap = new Map((settingsRes.results as { key: string; value: string }[]).map((r) => [r.key, r.value]));
+    const tz = settingsMap.get('timezone') ?? hostTimezone();
+    const weekStart = (Number(settingsMap.get('weekStart') ?? 0) as 0 | 1);
+    const results = membersRes.results as unknown as MemberRow[];
+
+    const points = await pointsByMember(c.env.DB, tz, weekStart);
+    return c.json(results.map((row) => toApi(row, points.get(row.id) ?? { pointsToday: 0, pointsWeek: 0 })), 200);
   },
 );
 

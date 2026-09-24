@@ -174,15 +174,18 @@ choresRoutes.openapi(
   }),
   async (c) => {
     const { date } = c.req.valid('query');
-    const tzRow = await c.env.DB.prepare("SELECT value FROM settings WHERE key = 'timezone'").first<{ value: string }>();
-    const tz = tzRow?.value ?? hostTimezone();
 
-    const { results: chores } = await c.env.DB.prepare('SELECT * FROM chores WHERE active = 1 ORDER BY sort, created_at').all<ChoreRow>();
+    // tz, chores and completions are all independent reads - one batch, one round trip.
+    const [tzRes, choresRes, completionsRes] = await c.env.DB.batch<unknown>([
+      c.env.DB.prepare("SELECT value FROM settings WHERE key = 'timezone'"),
+      c.env.DB.prepare('SELECT * FROM chores WHERE active = 1 ORDER BY sort, created_at'),
+      c.env.DB.prepare('SELECT * FROM chore_completions WHERE date = ?').bind(date),
+    ]);
+    const tz = (tzRes.results[0] as { value: string } | undefined)?.value ?? hostTimezone();
+    const chores = choresRes.results as unknown as ChoreRow[];
+    const completions = completionsRes.results as unknown as { chore_id: string; member_id: string | null; completed_at: string }[];
+
     const due = chores.filter((row) => dueOnDate(row, date, tz));
-
-    const { results: completions } = await c.env.DB.prepare('SELECT * FROM chore_completions WHERE date = ?')
-      .bind(date)
-      .all<{ chore_id: string; member_id: string | null; completed_at: string }>();
     const byChore = new Map(completions.map((row) => [row.chore_id, row]));
 
     return c.json(

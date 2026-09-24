@@ -17,9 +17,13 @@ export function sqlStatements(sql: string): string[] {
 }
 
 export async function runMigrations(db: D1Database, migrations: Migration[]): Promise<void> {
-  await db.prepare('CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY, applied_at TEXT)').run();
-  const { results } = await db.prepare('SELECT name FROM _migrations').all<{ name: string }>();
-  const applied = new Set(results.map((r) => r.name));
+  // One round trip for the steady-state case (table already exists, nothing new to apply),
+  // which is what every isolate after the first hits.
+  const [, existing] = await db.batch<{ name: string }>([
+    db.prepare('CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY, applied_at TEXT)'),
+    db.prepare('SELECT name FROM _migrations'),
+  ]);
+  const applied = new Set(existing.results.map((r) => r.name));
   for (const m of [...migrations].sort((a, b) => a.name.localeCompare(b.name))) {
     if (applied.has(m.name)) continue;
     // One atomic batch per file: its statements plus the bookkeeping row.

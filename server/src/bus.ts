@@ -14,14 +14,18 @@ export type BusEventType =
   | 'settings.changed'
   | 'display.paired';
 
-async function bumpRev(db: D1Database): Promise<number> {
-  const row = await db.prepare("SELECT value FROM settings WHERE key = 'rev'").first<{ value: string }>();
-  const next = (Number(row?.value) || 0) + 1;
-  await db
-    .prepare("INSERT INTO settings (key, value) VALUES ('rev', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
-    .bind(String(next))
-    .run();
-  return next;
+type WebhookRow = { id: string; url: string; events: string; secret: string };
+
+// Bumps rev and fetches enabled webhooks in a single D1 round trip: the increment is done
+// entirely in SQL (no read-then-write) so it can sit in the same batch as the webhook lookup.
+async function bumpRevAndListWebhooks(db: D1Database): Promise<WebhookRow[]> {
+  const [, webhooks] = await db.batch<WebhookRow>([
+    db.prepare(
+      "INSERT INTO settings (key, value) VALUES ('rev', '1') ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + 1",
+    ),
+    db.prepare('SELECT id, url, events, secret FROM webhooks WHERE enabled = 1'),
+  ]);
+  return webhooks.results;
 }
 
 async function hmacHex(secret: string, body: string): Promise<string> {
@@ -32,12 +36,9 @@ async function hmacHex(secret: string, body: string): Promise<string> {
   return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-async function fireWebhooks(env: Env, type: BusEventType, data: unknown): Promise<void> {
-  const { results } = await env.DB
-    .prepare('SELECT id, url, events, secret FROM webhooks WHERE enabled = 1')
-    .all<{ id: string; url: string; events: string; secret: string }>();
+async function deliverWebhooks(env: Env, type: BusEventType, data: unknown, webhooks: WebhookRow[]): Promise<void> {
   const payload = JSON.stringify({ type, data, at: new Date().toISOString() });
-  for (const hook of results) {
+  for (const hook of webhooks) {
     let events: string[] = [];
     try {
       events = JSON.parse(hook.events);
@@ -76,8 +77,8 @@ export function publish(env: Env, execCtx: WaitCtx | undefined, type: BusEventTy
   waitUntil(
     execCtx,
     (async () => {
-      await bumpRev(env.DB);
-      await fireWebhooks(env, type, data);
+      const webhooks = await bumpRevAndListWebhooks(env.DB);
+      await deliverWebhooks(env, type, data, webhooks);
     })(),
   );
 }

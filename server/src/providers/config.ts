@@ -20,6 +20,18 @@ async function getSetting(db: D1Database, key: string): Promise<string | undefin
   return row?.value ?? undefined;
 }
 
+// Reads several settings keys in one D1 round trip - used wherever more than one of them is
+// needed at once (providerEnv, providerSources) instead of a query per key.
+async function getSettingsMap(db: D1Database, keys: string[]): Promise<Map<string, string>> {
+  if (keys.length === 0) return new Map();
+  const placeholders = keys.map(() => '?').join(',');
+  const { results } = await db
+    .prepare(`SELECT key, value FROM settings WHERE key IN (${placeholders})`)
+    .bind(...keys)
+    .all<{ key: string; value: string }>();
+  return new Map(results.map((r) => [r.key, r.value]));
+}
+
 async function setSetting(db: D1Database, key: string, value: string): Promise<void> {
   await db
     .prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
@@ -68,6 +80,23 @@ export async function providerSource(env: Env, db: D1Database, kind: ProviderKin
   return stored.clientId ? 'ui' : null;
 }
 
+// Both providers' sources in one D1 round trip (instead of two providerSource() calls) - only
+// the clientId keys are needed to answer "configured or not", never the secrets. Used by
+// GET /api/setup, which is on the unauthenticated hot path.
+export async function providerSources(env: Env, db: D1Database): Promise<{ google: Source; microsoft: Source }> {
+  const envGoogle = envConfigured(env, 'google');
+  const envMicrosoft = envConfigured(env, 'microsoft');
+  if (envGoogle && envMicrosoft) return { google: 'env', microsoft: 'env' };
+  const keys: string[] = [];
+  if (!envGoogle) keys.push(SETTING_KEYS.google.clientId);
+  if (!envMicrosoft) keys.push(SETTING_KEYS.microsoft.clientId);
+  const map = await getSettingsMap(db, keys);
+  return {
+    google: envGoogle ? 'env' : map.get(SETTING_KEYS.google.clientId) ? 'ui' : null,
+    microsoft: envMicrosoft ? 'env' : map.get(SETTING_KEYS.microsoft.clientId) ? 'ui' : null,
+  };
+}
+
 export async function storedPublicUrl(db: D1Database): Promise<string | undefined> {
   return getSetting(db, PUBLIC_URL_KEY);
 }
@@ -88,20 +117,31 @@ export async function effectivePublicUrl(env: Env, db: D1Database): Promise<{ va
 
 // The one merge point: env var wins, else UI-configured value. Used everywhere provider
 // credentials or PUBLIC_URL are read (OAuth start/callback, token refresh, redirect URIs,
-// setup flags, passkey rpID).
+// setup flags, passkey rpID). Reads every settings key it might need in a single D1 round trip
+// (settings is tiny) rather than the old readStoredProvider(google)+readStoredProvider(microsoft)
+// +effectivePublicUrl, which was up to 7 sequential queries.
 export async function providerEnv(env: Env, db: D1Database): Promise<ProviderEnv> {
-  const [google, microsoft, publicUrl] = await Promise.all([
-    readStoredProvider(env, db, 'google'),
-    readStoredProvider(env, db, 'microsoft'),
-    effectivePublicUrl(env, db),
+  const map = await getSettingsMap(db, [
+    SETTING_KEYS.google.clientId,
+    SETTING_KEYS.google.clientSecret,
+    SETTING_KEYS.microsoft.clientId,
+    SETTING_KEYS.microsoft.clientSecret,
+    SETTING_KEYS.microsoft.tenant,
+    PUBLIC_URL_KEY,
+  ]);
+  const googleSecretBlob = map.get(SETTING_KEYS.google.clientSecret);
+  const msSecretBlob = map.get(SETTING_KEYS.microsoft.clientSecret);
+  const [googleSecret, msSecret] = await Promise.all([
+    googleSecretBlob ? decrypt(env, googleSecretBlob, SETTING_KEYS.google.clientSecret) : undefined,
+    msSecretBlob ? decrypt(env, msSecretBlob, SETTING_KEYS.microsoft.clientSecret) : undefined,
   ]);
   return {
-    PUBLIC_URL: publicUrl.value,
-    GOOGLE_CLIENT_ID: env.GOOGLE_CLIENT_ID || google.clientId,
-    GOOGLE_CLIENT_SECRET: env.GOOGLE_CLIENT_SECRET || google.clientSecret,
-    MS_CLIENT_ID: env.MS_CLIENT_ID || microsoft.clientId,
-    MS_CLIENT_SECRET: env.MS_CLIENT_SECRET || microsoft.clientSecret,
-    MS_TENANT: env.MS_TENANT || microsoft.tenant || 'common',
+    PUBLIC_URL: env.PUBLIC_URL || map.get(PUBLIC_URL_KEY),
+    GOOGLE_CLIENT_ID: env.GOOGLE_CLIENT_ID || map.get(SETTING_KEYS.google.clientId),
+    GOOGLE_CLIENT_SECRET: env.GOOGLE_CLIENT_SECRET || googleSecret,
+    MS_CLIENT_ID: env.MS_CLIENT_ID || map.get(SETTING_KEYS.microsoft.clientId),
+    MS_CLIENT_SECRET: env.MS_CLIENT_SECRET || msSecret,
+    MS_TENANT: env.MS_TENANT || map.get(SETTING_KEYS.microsoft.tenant) || 'common',
   };
 }
 

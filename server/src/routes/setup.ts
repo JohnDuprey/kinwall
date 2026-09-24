@@ -9,7 +9,7 @@ import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
 import { createApiKey, sha256Hex } from '../auth.ts';
 import { emit } from '../bus.ts';
-import { effectivePublicUrl, providerSource } from '../providers/config.ts';
+import { effectivePublicUrl, providerSources } from '../providers/config.ts';
 import { ErrorSchema } from '../schemas.ts';
 import { hasAnyPasskey } from './passkeys.ts';
 
@@ -130,7 +130,7 @@ setupRoutes.openapi(
   async (c) => {
     const claimed = await isClaimed(c.env.DB);
     if (!claimed) await ensureSetupCode(c.env);
-    const [google, microsoft] = await Promise.all([providerSource(c.env, c.env.DB, 'google'), providerSource(c.env, c.env.DB, 'microsoft')]);
+    const { google, microsoft } = await providerSources(c.env, c.env.DB);
     return c.json(
       {
         claimed,

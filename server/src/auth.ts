@@ -1,5 +1,8 @@
 import type { Context, Next } from 'hono';
-import type { Env } from './env.ts';
+import type { Env, WaitCtx } from './env.ts';
+import { waitUntil } from './env.ts';
+
+const LAST_USED_STALE_MS = 60 * 60 * 1000; // don't write last_used_at more than once an hour
 
 export async function sha256Hex(input: string): Promise<string> {
   const data = new TextEncoder().encode(input);
@@ -12,7 +15,7 @@ export function generateApiKey(): string {
 }
 
 export type KeyScope = 'admin' | 'display';
-export type ResolvedKey = { id?: string; scope: KeyScope; name: string; kind: 'api' | 'session' };
+export type ResolvedKey = { id?: string; scope: KeyScope; name: string; kind: 'api' | 'session'; lastUsedAt?: string | null };
 
 // Shared by POST /api/keys and the pairing-approval flow (routes/pair.ts) so key creation +
 // hashing lives in exactly one place. `kind` defaults to 'api' (permanent automation keys);
@@ -79,12 +82,18 @@ export async function resolveKey(c: Context<{ Bindings: Env }>): Promise<Resolve
   }
 
   const hash = await sha256Hex(key);
-  const row = await c.env.DB.prepare('SELECT id, name, scope, expires_at, kind FROM api_keys WHERE hash = ?')
+  const row = await c.env.DB.prepare('SELECT id, name, scope, expires_at, kind, last_used_at FROM api_keys WHERE hash = ?')
     .bind(hash)
-    .first<{ id: string; name: string; scope: string | null; expires_at: string | null; kind: string | null }>();
+    .first<{ id: string; name: string; scope: string | null; expires_at: string | null; kind: string | null; last_used_at: string | null }>();
   if (!row) return null;
   if (row.expires_at && row.expires_at < new Date().toISOString()) return null; // expired session key
-  return { id: row.id, name: row.name, scope: row.scope === 'display' ? 'display' : 'admin', kind: row.kind === 'session' ? 'session' : 'api' };
+  return {
+    id: row.id,
+    name: row.name,
+    scope: row.scope === 'display' ? 'display' : 'admin',
+    kind: row.kind === 'session' ? 'session' : 'api',
+    lastUsedAt: row.last_used_at,
+  };
 }
 
 export async function requireAuth(c: Context<{ Bindings: Env }>, next: Next) {
@@ -97,10 +106,20 @@ export async function requireAuth(c: Context<{ Bindings: Env }>, next: Next) {
     return c.json({ error: 'display key cannot access this route' }, 403);
   }
 
-  if (resolved.id) {
-    await c.env.DB.prepare('UPDATE api_keys SET last_used_at = ? WHERE id = ?')
-      .bind(new Date().toISOString(), resolved.id)
-      .run();
+  // Tracking last_used_at is best-effort telemetry, not something any request should wait on:
+  // skip the write entirely when it was already refreshed within the last hour, and otherwise
+  // fire it in the background instead of blocking the response on it.
+  if (resolved.id && (!resolved.lastUsedAt || Date.parse(resolved.lastUsedAt) < Date.now() - LAST_USED_STALE_MS)) {
+    let ctx: WaitCtx | undefined;
+    try {
+      ctx = c.executionCtx;
+    } catch {
+      ctx = undefined; // Node: no ExecutionContext
+    }
+    waitUntil(
+      ctx,
+      Promise.resolve(c.env.DB.prepare('UPDATE api_keys SET last_used_at = ? WHERE id = ?').bind(new Date().toISOString(), resolved.id).run()),
+    );
   }
   return next();
 }

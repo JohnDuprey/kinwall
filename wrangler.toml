@@ -17,6 +17,11 @@ enabled = true
 [triggers]
 crons = ["*/10 * * * *"]
 
+# Runs the Worker in the datacenter nearest its D1 database instead of nearest the request, so a
+# handler making several sequential D1 round trips stays low-latency to the DB it's actually using.
+[placement]
+mode = "smart"
+
 # No database_id: wrangler creates the D1 database on the first deploy and keeps it linked to this
 # Worker on later deploys. The Worker applies server/migrations itself (server/src/migrate.ts).
 [[d1_databases]]
