@@ -5,6 +5,7 @@ import type { Account, ApiKey, CalendarEntry, Density, Me, Member, Passkey, Prov
 import { ProviderForm, PublicUrlRow } from './ProviderConfig.tsx'
 import { ACCENT_PRESETS, BACKGROUND_DARK_PRESETS, BACKGROUND_LIGHT_PRESETS, MEMBER_EMOJI, MEMBER_PALETTE, nextPaletteColor } from './types.ts'
 import Sheet from './Sheet.tsx'
+import { MemberPicker } from './MemberPicker.tsx'
 import { AnyEmojiField } from './AnyEmojiField.tsx'
 import { isValidAvatar } from './emoji.ts'
 import { inkFor } from './color.ts'
@@ -311,6 +312,7 @@ function CalendarsSection({ openAccountId, onOpenedAccount, toast }: { openAccou
   const [icsSheet, setIcsSheet] = useState(false)
   const [caldavSheet, setCaldavSheet] = useState(false)
   const [pickerAccountId, setPickerAccountId] = useState<string | null>(null)
+  const [editCal, setEditCal] = useState<CalendarEntry | null>(null)
   const [oauth, setOauth] = useState({ google: false, microsoft: false })
 
   const load = () => {
@@ -331,7 +333,7 @@ function CalendarsSection({ openAccountId, onOpenedAccount, toast }: { openAccou
   return (
     <Section title="Calendars" icon={<LinkIcon width={16} height={16} />}>
       {calendars.map(c => (
-        <div key={c.id} className="cal-list-item">
+        <div key={c.id} className="cal-list-item" onClick={() => setEditCal(c)} style={{ cursor: 'pointer' }}>
           <div className="cal-list-top">
             <div className="cal-dot" style={{ background: c.color ?? '#888' }} />
             <div className="cal-name">{c.name}</div>
@@ -340,7 +342,7 @@ function CalendarsSection({ openAccountId, onOpenedAccount, toast }: { openAccou
           <div className={`cal-sub ${c.lastError ? 'error' : ''}`}>
             {c.lastError ? c.lastError : c.kind === 'local' ? 'Local calendar' : c.lastSyncedAt ? `Synced ${new Date(c.lastSyncedAt).toLocaleString()}` : 'Never synced'}
           </div>
-          <div className="cal-actions">
+          <div className="cal-actions" onClick={e => e.stopPropagation()}>
             {c.kind !== 'local' && <button className="link-btn" onClick={() => sync(c.id)}>Sync now</button>}
             <button className="link-btn" style={{ color: 'var(--danger)' }} onClick={() => remove(c.id)}>Remove</button>
           </div>
@@ -371,7 +373,55 @@ function CalendarsSection({ openAccountId, onOpenedAccount, toast }: { openAccou
         <RemoteCalendarPicker accountId={pickerAccountId} accountName={accounts.find(a => a.id === pickerAccountId)?.name ?? 'Account'}
           onClose={() => setPickerAccountId(null)} onAdded={load} toast={toast} />
       )}
+      {editCal && (
+        <EditCalendarSheet calendar={editCal} onClose={() => setEditCal(null)}
+          onSaved={() => { setEditCal(null); load() }}
+          onSync={() => sync(editCal.id)}
+          onRemove={() => { setEditCal(null); remove(editCal.id) }}
+          toast={toast} />
+      )}
     </Section>
+  )
+}
+
+function EditCalendarSheet({ calendar, onClose, onSaved, onSync, onRemove, toast }: {
+  calendar: CalendarEntry; onClose: () => void; onSaved: () => void; onSync: () => void; onRemove: () => void; toast: (m: string) => void
+}) {
+  const { members } = useApp()
+  const [name, setName] = useState(calendar.name)
+  const [color, setColor] = useState(calendar.color ?? MEMBER_PALETTE[0])
+  const [memberIds, setMemberIds] = useState(calendar.memberIds)
+  const [enabled, setEnabled] = useState(calendar.enabled)
+
+  const save = async () => {
+    if (!name.trim()) return
+    try {
+      await api.updateCalendar(calendar.id, { name: name.trim(), color, memberIds, enabled })
+      onSaved()
+    } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save calendar') }
+  }
+
+  return (
+    <Sheet title="Edit calendar" onClose={onClose} actions={<button className="btn btn-primary btn-block" onClick={save}>Save</button>}>
+      <div className="field"><label>Name</label><input type="text" value={name} onChange={e => setName(e.target.value)} autoFocus /></div>
+      <div className="field">
+        <label>Color</label>
+        <div className="color-swatch-row">
+          {MEMBER_PALETTE.map(c => <button key={c} className={`color-swatch ${color === c ? 'active' : ''}`} style={{ background: c }} onClick={() => setColor(c)} />)}
+          <input type="color" className="color-swatch" value={/^#[0-9a-f]{6}$/i.test(color) ? color : '#888888'}
+            onChange={e => setColor(e.target.value)} style={{ padding: 0, border: '2px solid var(--border)', cursor: 'pointer' }} aria-label="Custom calendar color" />
+        </div>
+      </div>
+      <MemberPicker members={members} selected={memberIds} onChange={setMemberIds} />
+      <div className="settings-row" style={{ paddingLeft: 0, paddingRight: 0 }}>
+        <div className="settings-row-label">Enabled</div>
+        <input type="checkbox" checked={enabled} onChange={e => setEnabled(e.target.checked)} />
+      </div>
+      <div className="cal-actions" style={{ marginTop: 4 }}>
+        {calendar.kind !== 'local' && <button className="link-btn" onClick={onSync}>Sync now</button>}
+        <button className="link-btn" style={{ color: 'var(--danger)' }} onClick={onRemove}>Remove</button>
+      </div>
+    </Sheet>
   )
 }
 
@@ -390,17 +440,20 @@ function LocalCalendarSheet({ usedColors, onClose, onSaved, toast }: { usedColor
 }
 
 function IcsSheet({ usedColors, onClose, onSaved, toast }: { usedColors: (string | null | undefined)[]; onClose: () => void; onSaved: () => void; toast: (m: string) => void }) {
+  const { members } = useApp()
   const [name, setName] = useState('')
   const [url, setUrl] = useState('')
+  const [memberIds, setMemberIds] = useState<string[]>([])
   const save = async () => {
     if (!name.trim() || !url.trim()) return
-    try { await api.createCalendar({ kind: 'ics', name: name.trim(), url: url.trim(), color: nextPaletteColor(usedColors) }); onSaved() }
+    try { await api.createCalendar({ kind: 'ics', name: name.trim(), url: url.trim(), color: nextPaletteColor(usedColors), memberIds }); onSaved() }
     catch (e) { toast(e instanceof ApiError ? e.message : 'Could not add calendar') }
   }
   return (
     <Sheet title="Add ICS calendar" onClose={onClose} actions={<button className="btn btn-primary btn-block" onClick={save}>Add</button>}>
       <div className="field"><label>Name</label><input type="text" value={name} onChange={e => setName(e.target.value)} autoFocus /></div>
       <div className="field"><label>ICS URL</label><input type="url" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://…" /></div>
+      <MemberPicker members={members} selected={memberIds} onChange={setMemberIds} />
     </Sheet>
   )
 }
@@ -433,16 +486,16 @@ function RemoteCalendarPicker({ accountId, accountName, onClose, onAdded, toast 
   const { members } = useApp()
   const [remotes, setRemotes] = useState<RemoteCalendar[] | null>(null)
   const [added, setAdded] = useState<Set<string>>(new Set())
-  const [choice, setChoice] = useState<Record<string, { memberId: string | null; color: string }>>({})
+  const [choice, setChoice] = useState<Record<string, { memberIds: string[]; color: string }>>({})
 
   useEffect(() => {
     api.getRemoteCalendars(accountId).then(setRemotes).catch(() => { toast('Could not list remote calendars'); setRemotes([]) })
   }, [accountId, toast])
 
   const addOne = async (rc: RemoteCalendar) => {
-    const c = choice[rc.remoteId] ?? { memberId: null, color: rc.color ?? MEMBER_PALETTE[0] }
+    const c = choice[rc.remoteId] ?? { memberIds: [], color: rc.color ?? MEMBER_PALETTE[0] }
     try {
-      await api.createCalendar({ kind: 'caldav', accountId, remoteId: rc.remoteId, name: rc.name, color: c.color, memberId: c.memberId ?? undefined })
+      await api.createCalendar({ kind: 'caldav', accountId, remoteId: rc.remoteId, name: rc.name, color: c.color, memberIds: c.memberIds })
       setAdded(s => new Set(s).add(rc.remoteId))
       onAdded()
     } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not add calendar') }
@@ -453,7 +506,7 @@ function RemoteCalendarPicker({ accountId, accountName, onClose, onAdded, toast 
       {remotes === null ? <div className="state-card">Loading…</div> : remotes.length === 0 ? (
         <div className="empty-card">No remote calendars found.</div>
       ) : remotes.map(rc => {
-        const c = choice[rc.remoteId] ?? { memberId: null, color: rc.color ?? MEMBER_PALETTE[0] }
+        const c = choice[rc.remoteId] ?? { memberIds: [], color: rc.color ?? MEMBER_PALETTE[0] }
         const isAdded = added.has(rc.remoteId)
         return (
           <div key={rc.remoteId} className="cal-list-item">
@@ -462,13 +515,7 @@ function RemoteCalendarPicker({ accountId, accountName, onClose, onAdded, toast 
               <div className="cal-name">{rc.name}</div>
               {!rc.writable && <div className="cal-kind-badge">read-only</div>}
             </div>
-            <div className="chip-row" style={{ marginTop: 8 }}>
-              <button className={`chip ${c.memberId === null ? 'active' : ''}`} onClick={() => setChoice(s => ({ ...s, [rc.remoteId]: { ...c, memberId: null } }))}>Unassigned</button>
-              {members.map(m => (
-                <button key={m.id} className={`chip ${c.memberId === m.id ? 'active' : ''}`} style={{ ['--chip-color' as string]: m.color }}
-                  onClick={() => setChoice(s => ({ ...s, [rc.remoteId]: { ...c, memberId: m.id, color: m.color } }))}>{m.avatar} {m.name}</button>
-              ))}
-            </div>
+            <MemberPicker members={members} selected={c.memberIds} onChange={ids => setChoice(s => ({ ...s, [rc.remoteId]: { ...c, memberIds: ids } }))} />
             <div className="cal-actions">
               <button className="link-btn" disabled={isAdded} onClick={() => addOne(rc)}>{isAdded ? 'Added ✓' : 'Add calendar'}</button>
             </div>

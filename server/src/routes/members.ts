@@ -4,6 +4,7 @@ import type { Env } from '../env.ts';
 import { emit } from '../bus.ts';
 import { hostTimezone } from '../env.ts';
 import { ErrorSchema, MemberInputSchema, MemberSchema } from '../schemas.ts';
+import { parseMemberIds } from '../calendar-members.ts';
 
 export const membersRoutes = createRouter();
 
@@ -178,8 +179,24 @@ membersRoutes.openapi(
   }),
   async (c) => {
     const { id } = c.req.valid('param');
-    const result = await c.env.DB.prepare('DELETE FROM members WHERE id = ?').bind(id).run();
-    if (result.meta.changes === 0) return c.json({ error: 'not found' }, 404);
+    const exists = await c.env.DB.prepare('SELECT id FROM members WHERE id = ?').bind(id).first<{ id: string }>();
+    if (!exists) return c.json({ error: 'not found' }, 404);
+    // Which calendars have this member assigned - needs its own read since member_ids is JSON,
+    // not something a DELETE/UPDATE WHERE clause can filter on. Batched together with the member
+    // delete itself so the member row and its calendar assignments disappear atomically (the
+    // adapter's batch() doesn't report per-statement changes, hence the exists check above).
+    const { results: cals } = await c.env.DB.prepare('SELECT id, member_ids FROM calendars WHERE member_ids LIKE ?')
+      .bind(`%${id}%`)
+      .all<{ id: string; member_ids: string }>();
+    const updates = cals
+      .map((cal) => {
+        const before = parseMemberIds(cal.member_ids);
+        const after = before.filter((m) => m !== id);
+        return { id: cal.id, before, after };
+      })
+      .filter((cal) => cal.after.length !== cal.before.length) // the LIKE above can false-positive on a substring match
+      .map((cal) => c.env.DB.prepare('UPDATE calendars SET member_ids = ? WHERE id = ?').bind(JSON.stringify(cal.after), cal.id));
+    await c.env.DB.batch<unknown>([c.env.DB.prepare('DELETE FROM members WHERE id = ?').bind(id), ...updates]);
     emit(c, 'member.changed', { id });
     return c.json({ ok: true }, 200);
   },

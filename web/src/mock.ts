@@ -31,8 +31,8 @@ const members: Member[] = [
 ]
 
 const calendars: CalendarEntry[] = [
-  { id: 'c1', kind: 'local', accountId: null, remoteId: null, name: 'Family', color: '#B39DFF', memberId: null, writable: true, enabled: true, lastSyncedAt: null, lastError: null },
-  { id: 'c2', kind: 'ics', accountId: null, remoteId: null, name: 'School (ICS)', color: '#FFD166', memberId: null, writable: false, enabled: true, lastSyncedAt: new Date().toISOString(), lastError: null },
+  { id: 'c1', kind: 'local', accountId: null, remoteId: null, name: 'Family', color: '#B39DFF', memberId: null, memberIds: [], writable: true, enabled: true, lastSyncedAt: null, lastError: null },
+  { id: 'c2', kind: 'ics', accountId: null, remoteId: null, name: 'School (ICS)', color: '#FFD166', memberId: null, memberIds: [], writable: false, enabled: true, lastSyncedAt: new Date().toISOString(), lastError: null },
 ]
 
 function at(daysFromToday: number, hh: number, mm = 0) {
@@ -88,9 +88,10 @@ export const mock = {
 
   getCalendars: async () => [...calendars],
   createCalendar: async (c: Partial<CalendarEntry>) => {
+    const memberIds = c.memberIds ?? (c.memberId ? [c.memberId] : [])
     const nc: CalendarEntry = {
       id: uid(), kind: c.kind ?? 'local', accountId: c.accountId ?? null, remoteId: c.remoteId ?? null,
-      name: c.name ?? 'New Calendar', color: c.color ?? '#7AB8FF', memberId: c.memberId ?? null,
+      name: c.name ?? 'New Calendar', color: c.color ?? '#7AB8FF', memberId: memberIds[0] ?? null, memberIds,
       writable: c.kind === 'local' || c.kind === undefined, enabled: true, lastSyncedAt: null, lastError: null,
     }
     calendars.push(nc); bump(); return nc

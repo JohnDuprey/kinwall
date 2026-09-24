@@ -10,6 +10,7 @@ import { errorMessage } from '../redact.ts';
 import { hostTimezone } from '../env.ts';
 import { ErrorSchema, EventInputSchema, EventInstanceSchema } from '../schemas.ts';
 import { deterministicEventId } from '../event-id.ts';
+import { parseMemberIds } from '../calendar-members.ts';
 
 export const eventsRoutes = createRouter();
 
@@ -36,7 +37,7 @@ type CalendarRow = {
   remote_id: string | null;
   name: string;
   color: string | null;
-  member_id: string | null;
+  member_ids: string;
   config: string;
   writable: number;
   enabled: number;
@@ -198,12 +199,15 @@ function instanceFrom(
   } else if (seriesOverride) {
     memberIds = seriesOverride;
     memberScope = 'series';
-  } else if (cal.member_id) {
-    memberIds = [cal.member_id];
-    memberScope = 'calendar';
   } else {
-    memberIds = [];
-    memberScope = 'none';
+    const calMemberIds = parseMemberIds(cal.member_ids);
+    if (calMemberIds.length > 0) {
+      memberIds = calMemberIds;
+      memberScope = 'calendar';
+    } else {
+      memberIds = [];
+      memberScope = 'none';
+    }
   }
   const color = (memberIds[0] && memberColors.get(memberIds[0])) || cal.color || '#888';
   return {
@@ -407,7 +411,7 @@ type EventCalRow = EventRow & {
   cal_remote_id: string | null;
   cal_name: string;
   cal_color: string | null;
-  cal_member_id: string | null;
+  cal_member_ids: string;
   cal_config: string;
   cal_writable: number;
   cal_enabled: number;
@@ -418,7 +422,7 @@ async function loadEventAndCalendar(db: D1Database, id: string): Promise<{ row: 
   const joined = await db
     .prepare(
       `SELECT e.*, c.kind AS cal_kind, c.account_id AS cal_account_id, c.remote_id AS cal_remote_id, c.name AS cal_name,
-              c.color AS cal_color, c.member_id AS cal_member_id, c.config AS cal_config, c.writable AS cal_writable, c.enabled AS cal_enabled
+              c.color AS cal_color, c.member_ids AS cal_member_ids, c.config AS cal_config, c.writable AS cal_writable, c.enabled AS cal_enabled
        FROM events e JOIN calendars c ON c.id = e.calendar_id WHERE e.id = ?`,
     )
     .bind(id)
@@ -431,7 +435,7 @@ async function loadEventAndCalendar(db: D1Database, id: string): Promise<{ row: 
     remote_id: joined.cal_remote_id,
     name: joined.cal_name,
     color: joined.cal_color,
-    member_id: joined.cal_member_id,
+    member_ids: joined.cal_member_ids,
     config: joined.cal_config,
     writable: joined.cal_writable,
     enabled: joined.cal_enabled,

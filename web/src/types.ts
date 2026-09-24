@@ -43,7 +43,8 @@ export interface CalendarEntry {
   remoteId: string | null
   name: string
   color: string | null
-  memberId: string | null
+  memberId: string | null // legacy - first element of memberIds, kept for compat
+  memberIds: string[]
   writable: boolean
   enabled: boolean
   lastSyncedAt: string | null

@@ -6,6 +6,7 @@ import { syncCalendar } from '../sync.ts';
 import { encryptConfig } from '../crypto.ts';
 import { errorMessage } from '../redact.ts';
 import { CalendarInputSchema, CalendarSchema, ErrorSchema } from '../schemas.ts';
+import { parseMemberIds, resolveMemberIds } from '../calendar-members.ts';
 
 export const calendarsRoutes = createRouter();
 
@@ -16,7 +17,7 @@ type CalendarRow = {
   remote_id: string | null;
   name: string;
   color: string | null;
-  member_id: string | null;
+  member_ids: string;
   config: string;
   writable: number;
   enabled: number;
@@ -25,6 +26,7 @@ type CalendarRow = {
 };
 
 function toApi(row: CalendarRow) {
+  const memberIds = parseMemberIds(row.member_ids);
   return {
     id: row.id,
     kind: row.kind,
@@ -32,12 +34,19 @@ function toApi(row: CalendarRow) {
     remoteId: row.remote_id,
     name: row.name,
     color: row.color,
-    memberId: row.member_id,
+    memberId: memberIds[0] ?? null, // legacy - first assigned member, for compat
+    memberIds,
     writable: !!row.writable,
     enabled: !!row.enabled,
     lastSyncedAt: row.last_synced_at,
     lastError: row.last_error,
   };
+}
+
+// POST body's memberIds wins when present; else legacy memberId (null/undefined -> []).
+async function memberIdsFromInput(db: D1Database, body: { memberId?: string | null; memberIds?: string[] }): Promise<string[]> {
+  const raw = body.memberIds !== undefined ? body.memberIds : body.memberId ? [body.memberId] : [];
+  return resolveMemberIds(db, raw);
 }
 
 calendarsRoutes.openapi(
@@ -84,6 +93,7 @@ calendarsRoutes.openapi(
       return c.json({ error: errorMessage(err, 'encryption not configured') }, 500);
     }
     const writable = body.kind === 'local' || body.kind === 'google' || body.kind === 'microsoft' || body.kind === 'caldav' ? 1 : 0;
+    const memberIds = await memberIdsFromInput(c.env.DB, body);
     const row: CalendarRow = {
       id,
       kind: body.kind,
@@ -91,7 +101,7 @@ calendarsRoutes.openapi(
       remote_id: body.remoteId ?? null,
       name: body.name,
       color: body.color ?? null,
-      member_id: body.memberId ?? null,
+      member_ids: JSON.stringify(memberIds),
       config,
       writable,
       enabled: 1,
@@ -99,9 +109,9 @@ calendarsRoutes.openapi(
       last_error: null,
     };
     await c.env.DB.prepare(
-      'INSERT INTO calendars (id, kind, account_id, remote_id, name, color, member_id, config, writable, enabled) VALUES (?,?,?,?,?,?,?,?,?,?)',
+      'INSERT INTO calendars (id, kind, account_id, remote_id, name, color, member_ids, config, writable, enabled) VALUES (?,?,?,?,?,?,?,?,?,?)',
     )
-      .bind(row.id, row.kind, row.account_id, row.remote_id, row.name, row.color, row.member_id, row.config, row.writable, row.enabled)
+      .bind(row.id, row.kind, row.account_id, row.remote_id, row.name, row.color, row.member_ids, row.config, row.writable, row.enabled)
       .run();
     emit(c, 'calendar.changed', { id: row.id });
     return c.json(toApi(row), 201);
@@ -109,7 +119,13 @@ calendarsRoutes.openapi(
 );
 
 const CalendarPatchSchema = z
-  .object({ name: z.string().min(1).optional(), color: z.string().nullable().optional(), memberId: z.string().nullable().optional(), enabled: z.boolean().optional() })
+  .object({
+    name: z.string().min(1).optional(),
+    color: z.string().nullable().optional(),
+    memberId: z.string().nullable().optional(), // legacy - use memberIds
+    memberIds: z.array(z.string()).optional(),
+    enabled: z.boolean().optional(),
+  })
   .openapi('CalendarPatch');
 
 calendarsRoutes.openapi(
@@ -130,15 +146,19 @@ calendarsRoutes.openapi(
     const body = c.req.valid('json');
     const existing = await c.env.DB.prepare('SELECT * FROM calendars WHERE id = ?').bind(id).first<CalendarRow>();
     if (!existing) return c.json({ error: 'not found' }, 404);
+    const memberIds =
+      body.memberIds !== undefined || body.memberId !== undefined
+        ? await memberIdsFromInput(c.env.DB, body)
+        : parseMemberIds(existing.member_ids);
     const updated: CalendarRow = {
       ...existing,
       name: body.name ?? existing.name,
       color: body.color !== undefined ? body.color : existing.color,
-      member_id: body.memberId !== undefined ? body.memberId : existing.member_id,
+      member_ids: JSON.stringify(memberIds),
       enabled: body.enabled !== undefined ? (body.enabled ? 1 : 0) : existing.enabled,
     };
-    await c.env.DB.prepare('UPDATE calendars SET name = ?, color = ?, member_id = ?, enabled = ? WHERE id = ?')
-      .bind(updated.name, updated.color, updated.member_id, updated.enabled, id)
+    await c.env.DB.prepare('UPDATE calendars SET name = ?, color = ?, member_ids = ?, enabled = ? WHERE id = ?')
+      .bind(updated.name, updated.color, updated.member_ids, updated.enabled, id)
       .run();
     emit(c, 'calendar.changed', { id });
     return c.json(toApi(updated), 200);

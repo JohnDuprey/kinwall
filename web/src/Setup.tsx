@@ -12,6 +12,7 @@ import { inkFor } from './color.ts'
 import { passkeysSupported, registerPasskey } from './webauthn.ts'
 import { ProviderForm } from './ProviderConfig.tsx'
 import type { Providers } from './types.ts'
+import { MemberPicker } from './MemberPicker.tsx'
 import './setup.css'
 
 type Step = 'welcome' | 'role' | 'passkey' | 'household' | 'members' | 'calendars' | 'chores' | 'done'
@@ -308,7 +309,7 @@ function MembersStep({ useAdmin, onNext, onBack }: { useAdmin: boolean; onNext: 
 
 function IcsForm({ members, onDone }: { members: Member[]; onDone: () => void }) {
   const [url, setUrl] = useState('')
-  const [memberId, setMemberId] = useState<string | null>(null)
+  const [memberIds, setMemberIds] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState('')
   const [error, setError] = useState('')
@@ -317,7 +318,7 @@ function IcsForm({ members, onDone }: { members: Member[]; onDone: () => void })
     if (!url.trim()) return
     setBusy(true); setError(''); setResult('')
     try {
-      const cal = await api.createCalendar({ kind: 'ics', name: 'Subscribed calendar', url: url.trim(), color: nextPaletteColor([]), memberId: memberId ?? undefined })
+      const cal = await api.createCalendar({ kind: 'ics', name: 'Subscribed calendar', url: url.trim(), color: nextPaletteColor([]), memberIds })
       const sync = await api.syncCalendar(cal.id, true)
       setResult(`Added — ${sync.count} events synced`)
     } catch (e) { setError(e instanceof ApiError ? e.message : 'Could not add calendar') } finally { setBusy(false) }
@@ -326,13 +327,7 @@ function IcsForm({ members, onDone }: { members: Member[]; onDone: () => void })
   return (
     <div className="setup-provider-form">
       <div className="field"><label>ICS URL</label><input type="url" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://…" autoFocus /></div>
-      <div className="field">
-        <label>Who is this for?</label>
-        <div className="chip-row">
-          <button className={`chip ${memberId === null ? 'active' : ''}`} onClick={() => setMemberId(null)}>Everyone</button>
-          {members.map(m => <button key={m.id} className={`chip ${memberId === m.id ? 'active' : ''}`} onClick={() => setMemberId(m.id)}>{m.avatar} {m.name}</button>)}
-        </div>
-      </div>
+      <MemberPicker members={members} selected={memberIds} onChange={setMemberIds} label="Who is this for?" />
       {result && <p className="setup-success">{result}</p>}
       {error && <p className="setup-error">{error}</p>}
       <button className={`btn ${result ? '' : 'btn-primary'} setup-btn`} onClick={result ? onDone : save} disabled={busy || !url.trim()}>

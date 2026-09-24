@@ -95,6 +95,7 @@ export const CalendarSchema = z
     name: z.string(),
     color: z.string().nullable(),
     memberId: z.string().nullable(),
+    memberIds: z.array(z.string()),
     writable: z.boolean(),
     enabled: z.boolean(),
     lastSyncedAt: z.string().nullable(),
@@ -107,7 +108,8 @@ export const CalendarInputSchema = z
     kind: z.enum(['local', 'ics', 'google', 'microsoft', 'caldav']),
     name: z.string().min(1),
     color: z.string().nullable().optional(),
-    memberId: z.string().nullable().optional(),
+    memberId: z.string().nullable().optional(), // legacy - use memberIds
+    memberIds: z.array(z.string()).optional(),
     accountId: z.string().nullable().optional(),
     remoteId: z.string().nullable().optional(),
     url: z.string().url().optional(),

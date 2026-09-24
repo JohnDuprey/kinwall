@@ -588,7 +588,7 @@ function ScheduleView({ anchor, events, tz, members, onTap }: { anchor: Date; ev
 function memberScopeLabel(scope: EventInstance['memberScope']): string | null {
   if (scope === 'series') return 'Tagged for the whole series'
   if (scope === 'occurrence') return 'Tagged for this event'
-  if (scope === 'calendar') return "From the calendar's owner"
+  if (scope === 'calendar') return 'From the calendar'
   return null
 }
 
