@@ -173,8 +173,10 @@ button {
 
 /* ---------- Tab bar ---------- */
 .tab-bar {
-  height: calc(var(--tab-h) + var(--safe-b));
-  padding-bottom: var(--safe-b);
+  /* min-height, not height: at large text sizes the icon + label outgrow --tab-h, and a fixed
+     height pushed them down into the home-indicator area. */
+  min-height: calc(var(--tab-h) + var(--safe-b));
+  padding: 4px 0 calc(var(--safe-b) + 4px);
   display: flex;
   border-top: 1px solid var(--border);
   background: var(--card);
@@ -319,14 +321,17 @@ button {
 .swipe-area { flex: 1; min-height: 0; overflow: hidden; position: relative; }
 .grid-scroll { height: 100%; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain; }
 
-.week-header {
-  display: grid;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
+/* Day header + all-day row stick as one block, so the all-day row never needs a hard-coded
+   offset that larger text or compact density could get wrong (it used to cover today's circle). */
+.grid-head {
   position: sticky;
   top: 0;
   background: var(--bg);
   z-index: 4; /* above .now-line (3) and events, below .fab (5) */
+}
+.week-header {
+  display: grid;
+  border-bottom: 1px solid var(--border);
 }
 .week-header-cell {
   padding: calc(var(--gap) * 0.65) 4px calc(var(--gap) * 0.8);
@@ -345,13 +350,7 @@ button {
   display: grid;
   border-bottom: 1px solid var(--border);
   min-height: 30px;
-  flex-shrink: 0;
-  position: sticky;
-  top: 68px;
-  background: var(--bg);
-  z-index: 4; /* above .now-line (3) and events, below .fab (5) */
 }
-:root[data-density="compact"] .allday-row { top: 48px; }
 .allday-cell { padding: 3px; display: flex; flex-direction: column; gap: 3px; border-left: 1px solid var(--border); min-width: 0; }
 .allday-cell:first-child { border-left: none; }
 
@@ -930,7 +929,7 @@ button {
     justify-content: flex-start;
     gap: 3px;
     min-height: 0;
-    padding: calc(var(--safe-t) + 8px) 14px 6px;
+    padding: calc(var(--safe-t) + 16px) 14px 6px;
   }
   .header-phone-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0; }
   .header-phone-left { display: flex; align-items: baseline; gap: 8px; min-width: 0; overflow: hidden; flex: 1; }
