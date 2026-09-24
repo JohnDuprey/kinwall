@@ -64,7 +64,7 @@ export function ProviderForm({ kind, providers, toast, onChanged }: {
             <input type="password" value={clientSecret} onChange={e => setClientSecret(e.target.value)} placeholder={status.secretSet ? '••••• set — leave blank to keep' : ''} />
           </div>
           {kind === 'microsoft' && <div className="field"><label>Tenant</label><input type="text" value={tenant} onChange={e => setTenant(e.target.value)} placeholder="common" /></div>}
-          <div className="cal-actions">
+          <div className="form-actions">
             <button className="btn btn-primary" onClick={save}>Save</button>
             {status.configured && <button className="link-btn" style={{ color: 'var(--danger)' }} onClick={remove}>Remove</button>}
           </div>

@@ -351,9 +351,9 @@ function CalendarsSection({ openAccountId, onOpenedAccount, toast }: { openAccou
       <div className="connect-buttons" style={{ marginTop: 14 }}>
         <button className="connect-btn" onClick={() => setLocalSheet(true)}>+ Local calendar</button>
         <button className="connect-btn" onClick={() => setIcsSheet(true)}>+ ICS URL</button>
+        <button className="connect-btn" onClick={() => setCaldavSheet(true)}>+ CalDAV</button>
         <button className="connect-btn" disabled={!oauth.google} onClick={() => location.href = api.oauthStartUrl('google')}>Connect Google</button>
         <button className="connect-btn" disabled={!oauth.microsoft} onClick={() => location.href = api.oauthStartUrl('microsoft')}>Connect Outlook</button>
-        <button className="connect-btn" onClick={() => setCaldavSheet(true)}>+ CalDAV</button>
       </div>
       {(!oauth.google || !oauth.microsoft) && (
         <p className="settings-row-sub" style={{ marginTop: 8 }}>Google/Outlook greyed out? Set them up in Calendar providers above.</p>
@@ -658,7 +658,7 @@ function KeysSection({ toast }: { toast: (m: string) => void }) {
         <div key={k.id} className="key-item">
           <div>
             <div className="settings-row-label">{k.name} <span className="cal-kind-badge">{k.scope}</span></div>
-            <div className="settings-row-sub">{k.prefix ? `${k.prefix}… ` : ''}{k.lastUsedAt ? `· used ${new Date(k.lastUsedAt).toLocaleDateString()}` : '· never used'}</div>
+            <div className="settings-row-sub">{[k.prefix && `${k.prefix}…`, k.lastUsedAt ? `used ${new Date(k.lastUsedAt).toLocaleDateString()}` : 'never used'].filter(Boolean).join(' · ')}</div>
           </div>
           <button className="icon-btn" onClick={() => del(k.id)}><TrashIcon width={16} height={16} /></button>
         </div>
@@ -704,15 +704,14 @@ function DisplaysSection({ toast }: { toast: (m: string) => void }) {
 
   return (
     <Section title="Displays" icon={<MonitorIcon width={16} height={16} />}>
-      <p className="settings-row-sub" style={{ marginBottom: 10 }}>Pair a display</p>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+      <div className="pair-form">
         <div className="field" style={{ margin: 0 }}>
           <label>Code</label>
           <input
             type="text" inputMode="numeric" pattern="[0-9]*" maxLength={6}
             value={code} onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
             placeholder="123456"
-            style={{ fontSize: 22, fontWeight: 800, letterSpacing: '0.12em', width: 130, textAlign: 'center' }}
+            style={{ fontSize: 22, fontWeight: 800, letterSpacing: '0.12em', width: 130, textAlign: 'center', height: 52, paddingBlock: 0 }}
           />
         </div>
         <div className="field" style={{ margin: 0, flex: 1, minWidth: 140 }}>
