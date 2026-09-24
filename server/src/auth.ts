@@ -1,0 +1,95 @@
+import type { Context, Next } from 'hono';
+import type { Env } from './env.ts';
+
+export async function sha256Hex(input: string): Promise<string> {
+  const data = new TextEncoder().encode(input);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+export function generateApiKey(): string {
+  return `kw_${crypto.randomUUID().replace(/-/g, '')}`;
+}
+
+export type KeyScope = 'admin' | 'display';
+export type ResolvedKey = { id?: string; scope: KeyScope; name: string };
+
+// Shared by POST /api/keys and the pairing-approval flow (routes/pair.ts) so key creation +
+// hashing lives in exactly one place.
+export async function createApiKey(db: D1Database, name: string, scope: KeyScope): Promise<{ id: string; key: string }> {
+  const key = generateApiKey();
+  const id = crypto.randomUUID();
+  await db
+    .prepare('INSERT INTO api_keys (id, name, hash, prefix, scope, created_at) VALUES (?,?,?,?,?,?)')
+    .bind(id, name, await sha256Hex(key), key.slice(0, 8), scope, new Date().toISOString())
+    .run();
+  return { id, key };
+}
+
+// No-auth routes: health check, the OAuth callback (browser redirect from the provider), and
+// the two display-pairing routes a not-yet-paired display calls before it has any key.
+const PUBLIC_PATH = /^\/api\/health$|^\/api\/oauth\/[^/]+\/callback$|^\/api\/pair$|^\/api\/pair\/poll$|^\/api\/setup$|^\/api\/setup\/claim$/;
+
+// Central allow-list of what a 'display' scoped key may do (the wall iPad). Anything not
+// listed here is denied for display keys - deny by default, not scattered checks.
+const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
+  { method: 'GET', pattern: /^\/api\/me$/ },
+  { method: 'GET', pattern: /^\/api\/members$/ },
+  { method: 'PATCH', pattern: /^\/api\/members\/[^/]+$/ },
+  { method: 'GET', pattern: /^\/api\/calendars$/ },
+  { method: 'GET', pattern: /^\/api\/events(\/[^/]+)?$/ },
+  { method: 'POST', pattern: /^\/api\/events$/ },
+  { method: 'PATCH', pattern: /^\/api\/events\/[^/]+$/ },
+  { method: 'DELETE', pattern: /^\/api\/events\/[^/]+$/ },
+  { method: 'GET', pattern: /^\/api\/chores$/ },
+  { method: 'GET', pattern: /^\/api\/chores\/day$/ },
+  { method: 'POST', pattern: /^\/api\/chores$/ },
+  { method: 'PATCH', pattern: /^\/api\/chores\/[^/]+$/ },
+  { method: 'POST', pattern: /^\/api\/chores\/[^/]+\/complete$/ },
+  { method: 'DELETE', pattern: /^\/api\/chores\/[^/]+\/complete$/ },
+  { method: 'GET', pattern: /^\/api\/leaderboard$/ },
+  { method: 'GET', pattern: /^\/api\/settings$/ },
+  { method: 'PATCH', pattern: /^\/api\/settings$/ },
+  { method: 'GET', pattern: /^\/api\/rev$/ },
+];
+
+function isDisplayAllowed(method: string, path: string): boolean {
+  return DISPLAY_ALLOWED.some((rule) => rule.method === method && rule.pattern.test(path));
+}
+
+// Shared by requireAuth and GET /api/me: resolves the bearer key (or ?key= for the OAuth
+// start browser nav) to its scope. Returns null if the key is missing/unknown.
+export async function resolveKey(c: Context<{ Bindings: Env }>): Promise<ResolvedKey | null> {
+  const header = c.req.header('Authorization') ?? '';
+  const key = header.startsWith('Bearer ') ? header.slice('Bearer '.length).trim() : c.req.query('key') ?? '';
+  if (!key) return null;
+
+  if (c.env.ADMIN_API_KEY && key === c.env.ADMIN_API_KEY) {
+    return { scope: 'admin', name: 'ADMIN_API_KEY' };
+  }
+
+  const hash = await sha256Hex(key);
+  const row = await c.env.DB.prepare('SELECT id, name, scope FROM api_keys WHERE hash = ?')
+    .bind(hash)
+    .first<{ id: string; name: string; scope: string | null }>();
+  if (!row) return null;
+  return { id: row.id, name: row.name, scope: row.scope === 'display' ? 'display' : 'admin' };
+}
+
+export async function requireAuth(c: Context<{ Bindings: Env }>, next: Next) {
+  if (PUBLIC_PATH.test(c.req.path)) return next();
+
+  const resolved = await resolveKey(c);
+  if (!resolved) return c.json({ error: 'unauthorized' }, 401);
+
+  if (resolved.scope === 'display' && !isDisplayAllowed(c.req.method, c.req.path)) {
+    return c.json({ error: 'display key cannot access this route' }, 403);
+  }
+
+  if (resolved.id) {
+    await c.env.DB.prepare('UPDATE api_keys SET last_used_at = ? WHERE id = ?')
+      .bind(new Date().toISOString(), resolved.id)
+      .run();
+  }
+  return next();
+}

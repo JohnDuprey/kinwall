@@ -1,0 +1,12 @@
+services:
+  familycal:
+    build: .
+    restart: unless-stopped
+    ports: ["8080:8080"]
+    volumes: ["./data:/data"]
+    environment:
+      PUBLIC_URL: http://localhost:8080
+      TZ: America/New_York
+      # ADMIN_API_KEY: fc_change-me          # else a key is generated and logged on first boot
+      # GOOGLE_CLIENT_ID: / GOOGLE_CLIENT_SECRET:
+      # MS_CLIENT_ID: / MS_CLIENT_SECRET:

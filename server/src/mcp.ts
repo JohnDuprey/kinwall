@@ -1,0 +1,359 @@
+// MCP (Model Context Protocol) endpoint: POST/GET/DELETE /mcp, stateless Streamable HTTP.
+//
+// Library: @modelcontextprotocol/sdk's WebStandardStreamableHTTPServerTransport - it's built on
+// Request/Response/ReadableStream (no node:* imports), so the same code runs on Workers and Node.
+// Confirmed Workers-compatible via `wrangler deploy --dry-run` (see README).
+//
+// Every tool is a thin wrapper around the existing REST routes, called in-process via
+// `app.request()` with the caller's own Authorization header forwarded unchanged - so auth,
+// scope enforcement (display vs admin), bus events/webhooks and rev bumps all happen exactly as
+// they would for a real HTTP request. No route logic is duplicated here.
+import type { Context } from 'hono';
+import type { OpenAPIHono } from '@hono/zod-openapi';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import { z } from 'zod';
+import type { Env } from './env.ts';
+import { resolveKey } from './auth.ts';
+
+type App = OpenAPIHono<{ Bindings: Env }>;
+
+async function call(app: App, env: Env, auth: string, method: string, path: string, body?: unknown) {
+  const init: RequestInit = { method, headers: { Authorization: auth } };
+  if (body !== undefined) {
+    init.headers = { ...init.headers, 'Content-Type': 'application/json' };
+    init.body = JSON.stringify(body);
+  }
+  const res = await app.request(path, init, env);
+  const text = await res.text();
+  let json: unknown = null;
+  if (text) {
+    try {
+      json = JSON.parse(text);
+    } catch {
+      json = text;
+    }
+  }
+  return { status: res.status, json };
+}
+
+// REST errors (4xx/5xx) become MCP tool results with isError: true and the route's `{error}`
+// text - never a thrown McpError, so the client always gets a readable message.
+function errorResult(json: unknown, fallback: string): CallToolResult {
+  const message = json && typeof json === 'object' && 'error' in json ? String((json as { error: unknown }).error) : fallback;
+  return { content: [{ type: 'text', text: message }], isError: true };
+}
+
+function okResult(summary: string, structuredContent: Record<string, unknown>): CallToolResult {
+  return {
+    content: [{ type: 'text', text: summary }, { type: 'text', text: '```json\n' + JSON.stringify(structuredContent, null, 2) + '\n```' }],
+    structuredContent,
+  };
+}
+
+class MemberResolutionError extends Error {}
+
+// Members may be referenced by name (case-insensitive) instead of id, per SPEC - this makes
+// the tools usable from a chat window without the caller ever seeing a member id.
+async function resolveMember(app: App, env: Env, auth: string, ref: string): Promise<string> {
+  const { status, json } = await call(app, env, auth, 'GET', '/api/members');
+  if (status >= 400) throw new MemberResolutionError('failed to list members');
+  const members = json as { id: string; name: string }[];
+  const byId = members.find((m) => m.id === ref);
+  if (byId) return byId.id;
+  const exact = members.filter((m) => m.name.toLowerCase() === ref.toLowerCase());
+  if (exact.length === 1) return exact[0].id;
+  const partial = members.filter((m) => m.name.toLowerCase().includes(ref.toLowerCase()));
+  if (partial.length === 1) return partial[0].id;
+  if (partial.length > 1) throw new MemberResolutionError(`"${ref}" matches multiple members: ${partial.map((m) => m.name).join(', ')}`);
+  throw new MemberResolutionError(`no member found matching "${ref}"`);
+}
+
+async function resolveMemberIds(app: App, env: Env, auth: string, refs: string[] | undefined): Promise<string[]> {
+  if (!refs || refs.length === 0) return [];
+  const out: string[] = [];
+  for (const ref of refs) out.push(await resolveMember(app, env, auth, ref));
+  return out;
+}
+
+function registerTools(server: McpServer, app: App, env: Env, auth: string) {
+  const tool = server.registerTool.bind(server);
+
+  tool(
+    'get_household',
+    {
+      title: 'Get household',
+      description:
+        'Household settings (family name, timezone, week start), members, and a summary of calendars. Always check the ' +
+        'returned timezone before interpreting or producing dates/times for this household.',
+      inputSchema: {},
+    },
+    async () => {
+      const [settingsRes, membersRes, calendarsRes] = await Promise.all([
+        call(app, env, auth, 'GET', '/api/settings'),
+        call(app, env, auth, 'GET', '/api/members'),
+        call(app, env, auth, 'GET', '/api/calendars'),
+      ]);
+      if (settingsRes.status >= 400) return errorResult(settingsRes.json, 'failed to load settings');
+      const settings = settingsRes.json as { familyName: string; timezone: string | null };
+      return okResult(
+        `${settings.familyName}, timezone ${settings.timezone ?? '(not set - server default applies)'}, ` +
+          `${(membersRes.json as unknown[]).length} member(s), ${(calendarsRes.json as unknown[]).length} calendar(s).`,
+        { settings: settingsRes.json, members: membersRes.json, calendars: calendarsRes.json },
+      );
+    },
+  );
+
+  tool(
+    'list_events',
+    {
+      title: 'List events',
+      description: 'List calendar events (merged across all calendars) overlapping a date range. Defaults to today through +7 days.',
+      inputSchema: {
+        from: z.string().optional().describe('ISO date/datetime, inclusive. Default: today.'),
+        to: z.string().optional().describe('ISO date/datetime, exclusive. Default: 7 days after `from`.'),
+        member: z.string().optional().describe('Member name (case-insensitive) or id to filter by.'),
+        calendarId: z.string().optional(),
+      },
+    },
+    async ({ from, to, member, calendarId }) => {
+      const fromDate = from ?? new Date().toISOString().slice(0, 10);
+      const toDate = to ?? new Date(Date.parse(`${fromDate}T00:00:00Z`) + 7 * 86400000).toISOString().slice(0, 10);
+      let memberId: string | undefined;
+      try {
+        if (member) memberId = await resolveMember(app, env, auth, member);
+      } catch (err) {
+        return errorResult(null, err instanceof Error ? err.message : 'member lookup failed');
+      }
+      const query = new URLSearchParams({ from: fromDate, to: toDate });
+      if (memberId) query.set('memberId', memberId);
+      if (calendarId) query.set('calendarId', calendarId);
+      const res = await call(app, env, auth, 'GET', `/api/events?${query}`);
+      if (res.status >= 400) return errorResult(res.json, 'failed to list events');
+      const events = res.json as unknown[];
+      return okResult(`${events.length} event(s) from ${fromDate} to ${toDate}.`, { events });
+    },
+  );
+
+  tool(
+    'create_event',
+    {
+      title: 'Create event',
+      description: 'Create a calendar event. Writes through to the provider for remote (Google/Microsoft/CalDAV) calendars.',
+      inputSchema: {
+        calendarId: z.string().describe('Target calendar id (see get_household for writable calendars).'),
+        title: z.string(),
+        start: z.string().describe('ISO datetime (UTC), or YYYY-MM-DD for an all-day event.'),
+        end: z.string().describe('ISO datetime (UTC), exclusive, or YYYY-MM-DD for an all-day event.'),
+        allDay: z.boolean().default(false),
+        location: z.string().optional(),
+        description: z.string().optional(),
+        members: z.array(z.string()).optional().describe('Member names or ids to attach to this event.'),
+        rrule: z.string().nullable().optional().describe('Recurrence rule, e.g. FREQ=WEEKLY;BYDAY=TU. Local calendars only.'),
+      },
+    },
+    async ({ members, ...input }) => {
+      let memberIds: string[] = [];
+      try {
+        memberIds = await resolveMemberIds(app, env, auth, members);
+      } catch (err) {
+        return errorResult(null, err instanceof Error ? err.message : 'member lookup failed');
+      }
+      const res = await call(app, env, auth, 'POST', '/api/events', { ...input, memberIds });
+      if (res.status >= 400) return errorResult(res.json, 'failed to create event');
+      const event = res.json as { title: string; start: string };
+      return okResult(`Created "${event.title}" starting ${event.start}.`, { event: res.json as Record<string, unknown> });
+    },
+  );
+
+  tool(
+    'update_event',
+    {
+      title: 'Update event',
+      description: 'Update an event (whole series for recurring local events). Only provided fields change.',
+      inputSchema: {
+        id: z.string(),
+        title: z.string().optional(),
+        start: z.string().optional(),
+        end: z.string().optional(),
+        allDay: z.boolean().optional(),
+        location: z.string().optional(),
+        description: z.string().optional(),
+        members: z.array(z.string()).optional().describe('Member names or ids; replaces the current list.'),
+        rrule: z.string().nullable().optional(),
+      },
+    },
+    async ({ id, members, ...input }) => {
+      let memberIds: string[] | undefined;
+      try {
+        if (members) memberIds = await resolveMemberIds(app, env, auth, members);
+      } catch (err) {
+        return errorResult(null, err instanceof Error ? err.message : 'member lookup failed');
+      }
+      const res = await call(app, env, auth, 'PATCH', `/api/events/${encodeURIComponent(id)}`, { ...input, memberIds });
+      if (res.status >= 400) return errorResult(res.json, 'failed to update event');
+      const event = res.json as { title: string };
+      return okResult(`Updated "${event.title}".`, { event: res.json as Record<string, unknown> });
+    },
+  );
+
+  tool(
+    'delete_event',
+    {
+      title: 'Delete event',
+      description: 'Delete an event (whole series for recurring local events).',
+      inputSchema: { id: z.string() },
+    },
+    async ({ id }) => {
+      const res = await call(app, env, auth, 'DELETE', `/api/events/${encodeURIComponent(id)}`);
+      if (res.status >= 400) return errorResult(res.json, 'failed to delete event');
+      return okResult('Event deleted.', { ok: true });
+    },
+  );
+
+  tool(
+    'list_chores',
+    {
+      title: 'List chores for a day',
+      description: 'List chores due on a date (household timezone), with each chore\'s completion state. Defaults to today.',
+      inputSchema: { date: z.string().optional().describe('YYYY-MM-DD, household timezone. Default: today.') },
+    },
+    async ({ date }) => {
+      const day = date ?? new Date().toISOString().slice(0, 10);
+      const res = await call(app, env, auth, 'GET', `/api/chores/day?date=${encodeURIComponent(day)}`);
+      if (res.status >= 400) return errorResult(res.json, 'failed to list chores');
+      const chores = res.json as { completed: boolean }[];
+      const done = chores.filter((c) => c.completed).length;
+      return okResult(`${day}: ${done}/${chores.length} chore(s) complete.`, { date: day, chores });
+    },
+  );
+
+  tool(
+    'create_chore',
+    {
+      title: 'Create chore',
+      description: 'Create a recurring or one-off chore.',
+      inputSchema: {
+        title: z.string(),
+        emoji: z.string().optional(),
+        member: z.string().optional().describe('Assign to a member by name or id; omit for "anyone".'),
+        points: z.number().optional(),
+        rrule: z.string().optional().describe('Recurrence, e.g. FREQ=DAILY or FREQ=WEEKLY;BYDAY=MO,WE,FR. Omit for a one-off chore.'),
+        dueDate: z.string().optional().describe('YYYY-MM-DD. Required if rrule is omitted (one-off); anchors the recurrence otherwise.'),
+        dueTime: z.string().optional(),
+      },
+    },
+    async ({ member, ...input }) => {
+      let memberId: string | undefined;
+      try {
+        if (member) memberId = await resolveMember(app, env, auth, member);
+      } catch (err) {
+        return errorResult(null, err instanceof Error ? err.message : 'member lookup failed');
+      }
+      const res = await call(app, env, auth, 'POST', '/api/chores', { ...input, memberId });
+      if (res.status >= 400) return errorResult(res.json, 'failed to create chore');
+      const chore = res.json as { title: string };
+      return okResult(`Created chore "${chore.title}".`, { chore: res.json as Record<string, unknown> });
+    },
+  );
+
+  tool(
+    'complete_chore',
+    {
+      title: 'Complete chore',
+      description: 'Mark a chore complete for a date. Defaults to today.',
+      inputSchema: {
+        choreId: z.string(),
+        date: z.string().optional().describe('YYYY-MM-DD. Default: today.'),
+        member: z.string().optional().describe('Who completed it, by name or id; defaults to the chore\'s assigned member.'),
+      },
+    },
+    async ({ choreId, date, member }) => {
+      let memberId: string | undefined;
+      try {
+        if (member) memberId = await resolveMember(app, env, auth, member);
+      } catch (err) {
+        return errorResult(null, err instanceof Error ? err.message : 'member lookup failed');
+      }
+      const day = date ?? new Date().toISOString().slice(0, 10);
+      const res = await call(app, env, auth, 'POST', `/api/chores/${encodeURIComponent(choreId)}/complete`, { date: day, memberId });
+      if (res.status >= 400) return errorResult(res.json, 'failed to complete chore');
+      return okResult(`Marked chore complete for ${day}.`, { ok: true });
+    },
+  );
+
+  tool(
+    'uncomplete_chore',
+    {
+      title: 'Uncomplete chore',
+      description: 'Undo a chore completion for a date. Defaults to today.',
+      inputSchema: { choreId: z.string(), date: z.string().optional().describe('YYYY-MM-DD. Default: today.') },
+    },
+    async ({ choreId, date }) => {
+      const day = date ?? new Date().toISOString().slice(0, 10);
+      const res = await call(app, env, auth, 'DELETE', `/api/chores/${encodeURIComponent(choreId)}/complete?date=${encodeURIComponent(day)}`);
+      if (res.status >= 400) return errorResult(res.json, 'failed to uncomplete chore');
+      return okResult(`Undid completion for ${day}.`, { ok: true });
+    },
+  );
+
+  tool(
+    'get_leaderboard',
+    {
+      title: 'Get chore leaderboard',
+      description: 'Chore leaderboard: points, completions and streaks by member for a period. Default: week.',
+      inputSchema: { period: z.enum(['today', 'week', 'month']).optional() },
+    },
+    async ({ period }) => {
+      const res = await call(app, env, auth, 'GET', `/api/leaderboard?period=${period ?? 'week'}`);
+      if (res.status >= 400) return errorResult(res.json, 'failed to load leaderboard');
+      const entries = res.json as { name: string; points: number }[];
+      const summary = entries.map((e) => `${e.name}: ${e.points}pt`).join(', ') || 'no members';
+      return okResult(`Leaderboard (${period ?? 'week'}): ${summary}.`, { period: period ?? 'week', leaderboard: entries });
+    },
+  );
+
+  tool(
+    'add_member',
+    {
+      title: 'Add family member',
+      description: 'Add a new family member.',
+      inputSchema: {
+        name: z.string(),
+        color: z.string().describe('Hex color, e.g. #ff6b6b - drives their calendar/chore color.'),
+        avatar: z.string().optional().describe('Emoji or initial.'),
+      },
+    },
+    async (input) => {
+      const res = await call(app, env, auth, 'POST', '/api/members', input);
+      if (res.status >= 400) return errorResult(res.json, 'failed to add member');
+      const member = res.json as { name: string };
+      return okResult(`Added member "${member.name}".`, { member: res.json as Record<string, unknown> });
+    },
+  );
+}
+
+// Mounted as `app.all('/mcp', ...)` in app.ts, passing the app itself so tools can call back
+// into it. Auth: same bearer keys as REST, checked once up front (401 + WWW-Authenticate if
+// missing/invalid) via the same resolveKey() requireAuth uses - scope enforcement itself still
+// happens per-tool-call via the forwarded Authorization header hitting the real REST route.
+export async function handleMcp(c: Context<{ Bindings: Env }>, app: App): Promise<Response> {
+  const resolved = await resolveKey(c);
+  const auth = c.req.header('Authorization') ?? '';
+  if (!resolved || !auth) {
+    return c.body(JSON.stringify({ error: 'unauthorized' }), 401, {
+      'Content-Type': 'application/json',
+      'WWW-Authenticate': 'Bearer',
+    });
+  }
+
+  const server = new McpServer({ name: 'kinwall', version: '1.0.0' });
+  registerTools(server, app, c.env, auth);
+  // enableJsonResponse: plain JSON responses (no SSE stream) - simplest thing that works for a
+  // stateless, request/response tool server; a client is free to ask for SSE and still gets it
+  // for server-initiated messages mid-request, this only affects the final response framing.
+  const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
+  await server.connect(transport);
+  return transport.handleRequest(c.req.raw);
+}
