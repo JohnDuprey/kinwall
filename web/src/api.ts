@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { mock } from './mock.ts'
 import type {
   Account, ApiKey, Appearance, CalendarEntry, Chore, ChoreDay, EventInstance, LeaderboardEntry, LeaderboardPeriod, Member,
-  Me, Passkey, RemoteCalendar, Settings, Webhook,
+  Me, Passkey, Providers, RemoteCalendar, Settings, Webhook,
 } from './types.ts'
 
 const MOCK = import.meta.env.VITE_MOCK === '1'
@@ -80,6 +80,7 @@ async function req<T>(path: string, opts: RequestInit & { useAdmin?: boolean } =
 const get = <T,>(path: string, useAdmin?: boolean) => req<T>(path, { useAdmin })
 const post = <T,>(path: string, body?: unknown, useAdmin?: boolean) => req<T>(path, { method: 'POST', body: body === undefined ? undefined : JSON.stringify(body), useAdmin })
 const patch = <T,>(path: string, body: unknown, useAdmin?: boolean) => req<T>(path, { method: 'PATCH', body: JSON.stringify(body), useAdmin })
+const put = <T,>(path: string, body: unknown, useAdmin?: boolean) => req<T>(path, { method: 'PUT', body: JSON.stringify(body), useAdmin })
 const del = <T,>(path: string, useAdmin?: boolean) => req<T>(path, { method: 'DELETE', useAdmin })
 
 export const api = {
@@ -118,6 +119,12 @@ export const api = {
   updateCalendar: (id: string, body: Partial<CalendarEntry>) => MOCK ? mock.updateCalendar(id, body) : patch<CalendarEntry>(`api/calendars/${id}`, body),
   deleteCalendar: (id: string) => MOCK ? mock.deleteCalendar(id) : del(`api/calendars/${id}`, true),
   syncCalendar: (id: string, useAdmin?: boolean) => MOCK ? mock.syncCalendar(id) : post<{ ok: boolean; count: number }>(`api/calendars/${id}/sync`, undefined, useAdmin),
+
+  getProviders: () => MOCK ? mock.getProviders() : get<Providers>('api/providers', true),
+  saveProvider: (kind: 'google' | 'microsoft', body: { clientId: string; clientSecret?: string; tenant?: string }) =>
+    MOCK ? mock.saveProvider(kind, body) : put<Providers['google']>(`api/providers/${kind}`, body, true),
+  deleteProvider: (kind: 'google' | 'microsoft') => MOCK ? mock.deleteProvider(kind) : del(`api/providers/${kind}`, true),
+  savePublicUrl: (value: string) => MOCK ? mock.savePublicUrl(value) : put<{ value: string; warning?: string }>('api/providers/public-url', { value }, true),
 
   getAccounts: () => MOCK ? mock.getAccounts() : get<Account[]>('api/accounts', true),
   deleteAccount: (id: string) => MOCK ? mock.deleteAccount(id) : del(`api/accounts/${id}`, true),

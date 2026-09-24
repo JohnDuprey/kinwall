@@ -217,3 +217,25 @@ export const WebhookSchema = z
 export const WebhookInputSchema = z
   .object({ url: z.string().url(), events: z.array(z.string()), secret: z.string().optional(), enabled: z.boolean().optional() })
   .openapi('WebhookInput');
+
+const SourceSchema = z.enum(['env', 'ui']).nullable();
+
+export const ProviderStatusSchema = z
+  .object({ configured: z.boolean(), source: SourceSchema, clientId: z.string().optional(), tenant: z.string().optional(), secretSet: z.boolean() })
+  .openapi('ProviderStatus');
+
+export const ProvidersSchema = z
+  .object({
+    publicUrl: z.object({ value: z.string().optional(), source: SourceSchema }),
+    redirectUris: z.object({ google: z.string(), microsoft: z.string() }),
+    google: ProviderStatusSchema,
+    microsoft: ProviderStatusSchema,
+  })
+  .openapi('Providers');
+
+export const ProviderInputSchema = z
+  .object({ clientId: z.string().min(1), clientSecret: z.string().min(1).optional(), tenant: z.string().min(1).optional() })
+  .openapi('ProviderInput');
+
+export const PublicUrlInputSchema = z.object({ value: z.string().min(1) }).openapi('PublicUrlInput');
+export const PublicUrlResultSchema = z.object({ value: z.string(), warning: z.string().optional() }).openapi('PublicUrlResult');

@@ -8,6 +8,7 @@ import {
   verifyRegistrationResponse as realVerifyRegistrationResponse,
 } from '@simplewebauthn/server';
 import type { Env } from './env.ts';
+import { effectivePublicUrl } from './providers/config.ts';
 
 export { generateAuthenticationOptions, generateRegistrationOptions };
 
@@ -40,8 +41,9 @@ function isIpAddress(hostname: string): boolean {
 /** rpID = hostname of PUBLIC_URL if set, else the request's own Host. Throws RpIdIsIpError for
  * an IP address (WebAuthn RP IDs must be a registrable domain, and Chrome silently rejects IPs
  * other than localhost). */
-export function resolveRpId(env: Env, requestUrl: string): { rpID: string; origin: string } {
-  const url = new URL(env.PUBLIC_URL || requestUrl);
+export async function resolveRpId(env: Env, requestUrl: string): Promise<{ rpID: string; origin: string }> {
+  const publicUrl = await effectivePublicUrl(env, env.DB);
+  const url = new URL(publicUrl.value || requestUrl);
   const rpID = url.hostname;
   if (rpID !== 'localhost' && isIpAddress(rpID)) throw new RpIdIsIpError();
   return { rpID, origin: url.origin };

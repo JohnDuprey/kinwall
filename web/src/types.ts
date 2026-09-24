@@ -114,6 +114,23 @@ export interface RemoteCalendar {
   writable: boolean
 }
 
+export type ProviderSource = 'env' | 'ui' | null
+
+export interface ProviderStatus {
+  configured: boolean
+  source: ProviderSource
+  clientId?: string
+  tenant?: string
+  secretSet: boolean
+}
+
+export interface Providers {
+  publicUrl: { value?: string; source: ProviderSource }
+  redirectUris: { google: string; microsoft: string }
+  google: ProviderStatus
+  microsoft: ProviderStatus
+}
+
 export type KeyScope = 'admin' | 'display'
 
 export interface ApiKey {

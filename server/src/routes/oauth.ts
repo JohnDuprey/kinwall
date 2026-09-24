@@ -5,15 +5,12 @@ import { emit } from '../bus.ts';
 import { encryptConfig } from '../crypto.ts';
 import * as google from '../providers/google.ts';
 import * as microsoft from '../providers/microsoft.ts';
+import { providerEnv, redirectUri } from '../providers/config.ts';
 import { ErrorSchema } from '../schemas.ts';
 
 export const oauthRoutes = createRouter();
 
 const KindSchema = z.enum(['google', 'microsoft']);
-
-function redirectUri(env: Env, kind: string): string {
-  return `${env.PUBLIC_URL ?? ''}/api/oauth/${kind}/callback`;
-}
 
 const STATE_TTL_MS = 10 * 60 * 1000;
 
@@ -77,7 +74,8 @@ oauthRoutes.openapi(
     const challenge = await s256Challenge(verifier);
     await saveState(c.env.DB, state, kind, verifier);
     const impl = kind === 'google' ? google : microsoft;
-    const url = impl.authUrl(c.env, redirectUri(c.env, kind), state, challenge);
+    const penv = await providerEnv(c.env, c.env.DB);
+    const url = impl.authUrl(penv, redirectUri(penv.PUBLIC_URL, kind), state, challenge);
     return c.redirect(url, 302);
   },
 );
@@ -103,9 +101,10 @@ oauthRoutes.openapi(
     if (!verifier) return c.json({ error: 'invalid or expired state' }, 400);
 
     const impl = kind === 'google' ? google : microsoft;
+    const penv = await providerEnv(c.env, c.env.DB);
     let exchanged: { name: string; config: unknown };
     try {
-      exchanged = await impl.exchangeCode(c.env, code, redirectUri(c.env, kind), verifier);
+      exchanged = await impl.exchangeCode(penv, code, redirectUri(penv.PUBLIC_URL, kind), verifier);
     } catch (err) {
       return c.json({ error: err instanceof Error ? err.message : 'oauth exchange failed' }, 400);
     }
@@ -117,7 +116,7 @@ oauthRoutes.openapi(
       return c.json({ error: err instanceof Error ? err.message : 'encryption not configured' }, 500);
     }
     emit(c, 'calendar.changed', { accountId: id });
-    return c.redirect(`${c.env.PUBLIC_URL ?? ''}/#/settings?account=${id}`, 302);
+    return c.redirect(`${penv.PUBLIC_URL ?? ''}/#/settings?account=${id}`, 302);
   },
 );
 

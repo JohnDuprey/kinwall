@@ -48,11 +48,23 @@ On a display, Settings shows Household, Appearance, This display (navigation pos
 
 ## Connect calendars
 
+Google and Microsoft OAuth credentials can be set up entirely in the UI now — no env vars or
+restart needed. Go to **Settings → Calendar providers** (admin only): set a Public URL (used to
+build the redirect URI — prefilled from the page's own origin), then open the Google or Microsoft
+card, paste in a client ID/secret, and hit Save. Each card shows the exact redirect URI (with a
+copy button) and a short numbered setup guide for that provider's console. The first-run setup
+wizard offers the same form inline if you get to the calendars step before configuring a provider.
+
+Environment variables (`GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`, `MS_CLIENT_ID`/`MS_CLIENT_SECRET`/`MS_TENANT`,
+`PUBLIC_URL`) still work and always win over the UI-configured values — handy for a fleet-managed
+or Home Assistant add-on install. When a provider is set via env var, its card shows "Configured
+by server" and is read-only in the UI.
+
 | Source | How |
 |---|---|
 | Any ICS URL | Settings → Calendars → Add ICS. Works with Google's "secret address in iCal format", Outlook's published calendars, school/sports feeds. Read-only. |
-| Google | Create an OAuth client (Web application) in Google Cloud Console with redirect URI `<PUBLIC_URL>/api/oauth/google/callback`, then set `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`. Google requires HTTPS or `localhost` redirect URIs, so a bare LAN IP won't work. Use Workers, a domain with HTTPS, or complete sign-in from `http://localhost:8080` on the server itself. |
-| Microsoft / Outlook | Register an app in Entra ID with redirect URI `<PUBLIC_URL>/api/oauth/microsoft/callback` and delegated permissions `Calendars.ReadWrite`, `User.Read`, `offline_access`. Then set `MS_CLIENT_ID` / `MS_CLIENT_SECRET` (and `MS_TENANT` if not `common`). |
+| Google | Settings → Calendar providers → Google (see above), or set `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`. Either way, create an OAuth client (Web application) in Google Cloud Console with the redirect URI shown on the card. Google requires HTTPS or `localhost` redirect URIs, so a bare LAN IP won't work. Use Workers, a domain with HTTPS, or complete sign-in from `http://localhost:8080` on the server itself. |
+| Microsoft / Outlook | Settings → Calendar providers → Microsoft (see above), or set `MS_CLIENT_ID` / `MS_CLIENT_SECRET` (and `MS_TENANT` if not `common`). Register an app in Entra ID with the redirect URI shown on the card and delegated permissions `Calendars.ReadWrite`, `User.Read`, `offline_access`. |
 | iCloud / CalDAV | Settings → Calendars → CalDAV. For iCloud use `https://caldav.icloud.com` and an [app-specific password](https://support.apple.com/102654). Note: Apple app-specific passwords can't be limited to calendars. If you only need to read, use a public ICS link instead. |
 
 ## API & automation
@@ -98,11 +110,11 @@ Use a **display** key for a read-mostly assistant (it can still add/complete eve
 
 | Variable | Default | |
 |---|---|---|
-| `PUBLIC_URL` | | Base URL used for OAuth redirects |
+| `PUBLIC_URL` | | Base URL used for OAuth redirects and the passkey rpID. Also settable in Settings → Calendar providers; the env var always wins |
 | `ADMIN_API_KEY` | | Bootstrap admin key. If unset (Docker), one is generated and logged on first boot |
 | `ENCRYPTION_KEY` / `ENCRYPTION_KEY_FILE` | generated into `DATA_DIR` | 32 random bytes, base64. Required on Workers |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | | Google sign-in |
-| `MS_CLIENT_ID`, `MS_CLIENT_SECRET`, `MS_TENANT` | `common` | Microsoft sign-in |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | | Google sign-in. Also settable in Settings → Calendar providers; the env vars always win |
+| `MS_CLIENT_ID`, `MS_CLIENT_SECRET`, `MS_TENANT` | `common` | Microsoft sign-in. Also settable in Settings → Calendar providers; the env vars always win |
 | `SYNC_INTERVAL_MINUTES` | `10` | Docker only; Workers uses the cron in `wrangler.toml` |
 | `CORS_ORIGINS` | | Comma-separated origins allowed to call the API from a browser |
 | `PORT`, `DATA_DIR` | `8080`, `./data` | Docker/Node only |

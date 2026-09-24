@@ -6,6 +6,7 @@ import { getProvider } from '../providers/index.ts';
 import { verifyAccount } from '../providers/caldav.ts';
 import { revokeToken } from '../providers/google.ts';
 import { decryptConfig, encryptConfig } from '../crypto.ts';
+import { providerEnv } from '../providers/config.ts';
 import { errorMessage } from '../redact.ts';
 import { AccountSchema, ErrorSchema } from '../schemas.ts';
 
@@ -138,7 +139,7 @@ accountsRoutes.openapi(
     try {
       const config = await decryptConfig(c.env, account.id, account.config);
       const calendars = await provider.listCalendars({
-        env: c.env,
+        env: await providerEnv(c.env, c.env.DB),
         account: { id: account.id, config },
         saveAccountConfig: async (nextConfig: unknown) => {
           const encrypted = await encryptConfig(c.env, account.id, nextConfig);

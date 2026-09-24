@@ -776,6 +776,17 @@ button {
 
 .connect-buttons { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
 .connect-btn { flex: 1; min-width: 140px; background: var(--bg-alt); border: 2px solid var(--border); border-radius: var(--radius-sm); padding: 14px; font-weight: 800; color: var(--text); min-height: 52px; }
+.connect-btn:disabled { opacity: 0.5; }
+
+.provider-card { border-top: 1px solid var(--border); padding: 14px 4px; }
+.provider-card:first-of-type { border-top: none; }
+.provider-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.provider-chip { font-size: 0.6875rem; font-weight: 800; padding: 3px 8px; border-radius: 999px; text-transform: uppercase; color: var(--text-dim); background: var(--bg-alt); }
+.provider-chip.env { color: var(--accent-strong); background: color-mix(in srgb, var(--accent) 18%, var(--bg-alt)); }
+.provider-chip.ui { color: var(--accent-strong); background: color-mix(in srgb, var(--accent) 18%, var(--bg-alt)); }
+.provider-redirect { display: flex; align-items: center; gap: 8px; }
+.provider-redirect code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.75rem; background: var(--bg-alt); padding: 8px 10px; border-radius: 10px; }
+.provider-guide { margin: 8px 0 12px; padding-left: 20px; font-size: 0.8125rem; color: var(--text-dim); display: flex; flex-direction: column; gap: 4px; }
 
 .key-item, .webhook-item { padding: 12px 4px; border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .key-item:first-of-type, .webhook-item:first-of-type { border-top: none; }

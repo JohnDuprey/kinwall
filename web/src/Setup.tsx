@@ -10,6 +10,8 @@ import { AnyEmojiField } from './AnyEmojiField.tsx'
 import { isValidAvatar } from './emoji.ts'
 import { inkFor } from './color.ts'
 import { passkeysSupported, registerPasskey } from './webauthn.ts'
+import { ProviderForm } from './ProviderConfig.tsx'
+import type { Providers } from './types.ts'
 import './setup.css'
 
 type Step = 'welcome' | 'role' | 'passkey' | 'household' | 'members' | 'calendars' | 'chores' | 'done'
@@ -386,6 +388,10 @@ function CalendarsStep({ members, oauth, deviceRole, onNext, onBack, onOAuthStar
 }) {
   const [open, setOpen] = useState<'google' | 'microsoft' | 'icloud' | 'ics' | null>(null)
   const [unlocked, setUnlocked] = useState(() => deviceRole === 'admin' || !!getAdminKey())
+  const [providers, setProviders] = useState<Providers | null>(null)
+  const [providerMsg, setProviderMsg] = useState<string | null>(null)
+  const loadProviders = () => { api.getProviders().then(setProviders).catch(() => {}) }
+  useEffect(() => { if (unlocked) loadProviders() }, [unlocked])
 
   if (!unlocked) {
     return (
@@ -408,13 +414,15 @@ function CalendarsStep({ members, oauth, deviceRole, onNext, onBack, onOAuthStar
         <button className="setup-provider-card" onClick={() => setOpen(open === 'ics' ? null : 'ics')}>🔗 Subscribe to a link</button>
       </div>
 
+      {providerMsg && <p className="setup-note">{providerMsg}</p>}
+
       {open === 'google' && (oauth.google ? (
         <div className="setup-provider-form"><button className="btn btn-primary setup-btn" onClick={() => onOAuthStart('google')}>Connect Google</button></div>
-      ) : <p className="setup-note">Google isn't configured on this server yet — set <code>GOOGLE_CLIENT_ID</code> / <code>GOOGLE_CLIENT_SECRET</code> (see the README) and try again from Settings later.</p>)}
+      ) : providers && <ProviderForm kind="google" providers={providers} toast={setProviderMsg} onChanged={loadProviders} />)}
 
       {open === 'microsoft' && (oauth.microsoft ? (
         <div className="setup-provider-form"><button className="btn btn-primary setup-btn" onClick={() => onOAuthStart('microsoft')}>Connect Outlook</button></div>
-      ) : <p className="setup-note">Outlook isn't configured on this server yet — set <code>MS_CLIENT_ID</code> / <code>MS_CLIENT_SECRET</code> (see the README) and try again from Settings later.</p>)}
+      ) : providers && <ProviderForm kind="microsoft" providers={providers} toast={setProviderMsg} onChanged={loadProviders} />)}
 
       {open === 'icloud' && <CaldavForm onDone={() => setOpen(null)} />}
       {open === 'ics' && <IcsForm members={members} onDone={() => setOpen(null)} />}

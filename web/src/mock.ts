@@ -1,7 +1,7 @@
 // Dev-only in-memory fixture, used when VITE_MOCK=1. Excluded from prod by the env check in api.ts.
 import type {
   Account, ApiKey, CalendarEntry, Chore, ChoreDay, EventInstance, LeaderboardEntry, LeaderboardPeriod, Member,
-  RemoteCalendar, Settings, Webhook,
+  Providers, RemoteCalendar, Settings, Webhook,
 } from './types.ts'
 
 const uid = () => crypto.randomUUID()
@@ -99,6 +99,16 @@ export const mock = {
   },
   deleteCalendar: async (id: string) => { const i = calendars.findIndex(x => x.id === id); if (i >= 0) calendars.splice(i, 1); bump() },
   syncCalendar: async (id: string) => { const c = calendars.find(x => x.id === id); if (c) c.lastSyncedAt = new Date().toISOString(); return { ok: true, count: events.filter(e => e.calendarId === id).length } },
+
+  getProviders: async (): Promise<Providers> => ({
+    publicUrl: { value: location.origin, source: null },
+    redirectUris: { google: `${location.origin}/api/oauth/google/callback`, microsoft: `${location.origin}/api/oauth/microsoft/callback` },
+    google: { configured: false, source: null, secretSet: false },
+    microsoft: { configured: false, source: null, secretSet: false },
+  }),
+  saveProvider: async (_kind: 'google' | 'microsoft', _body: { clientId: string; clientSecret?: string; tenant?: string }): Promise<Providers['google']> => ({ configured: true, source: 'ui', clientId: _body.clientId, tenant: _body.tenant, secretSet: true }),
+  deleteProvider: async (_kind: 'google' | 'microsoft') => { bump() },
+  savePublicUrl: async (value: string): Promise<{ value: string; warning?: string }> => ({ value }),
 
   getAccounts: async (): Promise<Account[]> => [],
   deleteAccount: async (_id: string) => { bump() },

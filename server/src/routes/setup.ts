@@ -9,6 +9,7 @@ import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
 import { createApiKey, sha256Hex } from '../auth.ts';
 import { emit } from '../bus.ts';
+import { effectivePublicUrl, providerSource } from '../providers/config.ts';
 import { ErrorSchema } from '../schemas.ts';
 import { hasAnyPasskey } from './passkeys.ts';
 
@@ -71,7 +72,8 @@ export async function regenerateSetupCode(db: D1Database, url: string): Promise<
 async function ensureSetupCode(env: Env): Promise<void> {
   const existing = await env.DB.prepare("SELECT value FROM settings WHERE key = 'setupCodeHash'").first();
   if (existing) return;
-  await regenerateSetupCode(env.DB, env.PUBLIC_URL || '(this server)');
+  const publicUrl = await effectivePublicUrl(env, env.DB);
+  await regenerateSetupCode(env.DB, publicUrl.value || '(this server)');
 }
 
 async function verifyCode(env: Env, code: string): Promise<boolean> {
@@ -128,10 +130,11 @@ setupRoutes.openapi(
   async (c) => {
     const claimed = await isClaimed(c.env.DB);
     if (!claimed) await ensureSetupCode(c.env);
+    const [google, microsoft] = await Promise.all([providerSource(c.env, c.env.DB, 'google'), providerSource(c.env, c.env.DB, 'microsoft')]);
     return c.json(
       {
         claimed,
-        oauth: { google: !!(c.env.GOOGLE_CLIENT_ID && c.env.GOOGLE_CLIENT_SECRET), microsoft: !!(c.env.MS_CLIENT_ID && c.env.MS_CLIENT_SECRET) },
+        oauth: { google: google !== null, microsoft: microsoft !== null },
         passkeys: await hasAnyPasskey(c.env.DB),
       },
       200,

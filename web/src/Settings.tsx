@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useApp } from './AppContext.tsx'
 import { api, ApiError, clearKey } from './api.ts'
-import type { Account, ApiKey, CalendarEntry, Density, Me, Member, Passkey, RemoteCalendar, Settings, TextScale, ThemeMode, Webhook } from './types.ts'
+import type { Account, ApiKey, CalendarEntry, Density, Me, Member, Passkey, Providers, RemoteCalendar, Settings, TextScale, ThemeMode, Webhook } from './types.ts'
+import { ProviderForm, PublicUrlRow } from './ProviderConfig.tsx'
 import { ACCENT_PRESETS, BACKGROUND_DARK_PRESETS, BACKGROUND_LIGHT_PRESETS, MEMBER_EMOJI, MEMBER_PALETTE, nextPaletteColor } from './types.ts'
 import Sheet from './Sheet.tsx'
 import { AnyEmojiField } from './AnyEmojiField.tsx'
@@ -63,6 +64,7 @@ export default function SettingsView() {
         <AppearanceSection settings={settings} onSaved={reloadCore} toast={toast} />
         <ThisDisplaySection />
         <MembersSection members={members} onChanged={reloadCore} toast={toast} />
+        <CalendarProvidersSection toast={toast} />
         <CalendarsSection openAccountId={openAccountId} onOpenedAccount={() => setOpenAccountId(null)} toast={toast} />
         <DisplaysSection toast={toast} />
         <PasskeysSection me={me} toast={toast} />
@@ -288,6 +290,20 @@ function MemberEditSheet({ member, canDelete, onClose, onSaved, toast }: { membe
   )
 }
 
+function CalendarProvidersSection({ toast }: { toast: (m: string) => void }) {
+  const [providers, setProviders] = useState<Providers | null>(null)
+  const load = () => { api.getProviders().then(setProviders).catch(() => {}) }
+  useEffect(load, [])
+  if (!providers) return null
+  return (
+    <Section title="Calendar providers" icon={<LinkIcon width={16} height={16} />}>
+      <PublicUrlRow providers={providers} toast={toast} onChanged={load} />
+      <ProviderForm kind="google" providers={providers} toast={toast} onChanged={load} />
+      <ProviderForm kind="microsoft" providers={providers} toast={toast} onChanged={load} />
+    </Section>
+  )
+}
+
 function CalendarsSection({ openAccountId, onOpenedAccount, toast }: { openAccountId: string | null; onOpenedAccount: () => void; toast: (m: string) => void }) {
   const [calendars, setCalendars] = useState<CalendarEntry[]>([])
   const [accounts, setAccounts] = useState<Account[]>([])
@@ -295,8 +311,13 @@ function CalendarsSection({ openAccountId, onOpenedAccount, toast }: { openAccou
   const [icsSheet, setIcsSheet] = useState(false)
   const [caldavSheet, setCaldavSheet] = useState(false)
   const [pickerAccountId, setPickerAccountId] = useState<string | null>(null)
+  const [oauth, setOauth] = useState({ google: false, microsoft: false })
 
-  const load = () => { api.getCalendars().then(setCalendars).catch(() => {}); api.getAccounts().then(setAccounts).catch(() => {}) }
+  const load = () => {
+    api.getCalendars().then(setCalendars).catch(() => {})
+    api.getAccounts().then(setAccounts).catch(() => {})
+    api.getProviders().then(p => setOauth({ google: p.google.configured, microsoft: p.microsoft.configured })).catch(() => {})
+  }
   useEffect(load, [])
   useEffect(() => { if (openAccountId) { setPickerAccountId(openAccountId); onOpenedAccount() } }, [openAccountId, onOpenedAccount])
 
@@ -328,10 +349,13 @@ function CalendarsSection({ openAccountId, onOpenedAccount, toast }: { openAccou
       <div className="connect-buttons" style={{ marginTop: 14 }}>
         <button className="connect-btn" onClick={() => setLocalSheet(true)}>+ Local calendar</button>
         <button className="connect-btn" onClick={() => setIcsSheet(true)}>+ ICS URL</button>
-        <button className="connect-btn" onClick={() => location.href = api.oauthStartUrl('google')}>Connect Google</button>
-        <button className="connect-btn" onClick={() => location.href = api.oauthStartUrl('microsoft')}>Connect Outlook</button>
+        <button className="connect-btn" disabled={!oauth.google} onClick={() => location.href = api.oauthStartUrl('google')}>Connect Google</button>
+        <button className="connect-btn" disabled={!oauth.microsoft} onClick={() => location.href = api.oauthStartUrl('microsoft')}>Connect Outlook</button>
         <button className="connect-btn" onClick={() => setCaldavSheet(true)}>+ CalDAV</button>
       </div>
+      {(!oauth.google || !oauth.microsoft) && (
+        <p className="settings-row-sub" style={{ marginTop: 8 }}>Google/Outlook greyed out? Set them up in Calendar providers above.</p>
+      )}
 
       {localSheet && (
         <LocalCalendarSheet usedColors={calendars.map(c => c.color)} onClose={() => setLocalSheet(false)} onSaved={() => { setLocalSheet(false); load() }} toast={toast} />

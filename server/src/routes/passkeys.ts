@@ -133,7 +133,7 @@ passkeysRoutes.openapi(
 
     let rpID: string, origin: string;
     try {
-      ({ rpID, origin } = resolveRpId(c.env, c.req.url));
+      ({ rpID, origin } = await resolveRpId(c.env, c.req.url));
     } catch (err) {
       return c.json({ error: errorMessage(err) }, 400);
     }
@@ -200,7 +200,7 @@ passkeysRoutes.openapi(
 
     let rpID: string, origin: string;
     try {
-      ({ rpID, origin } = resolveRpId(c.env, c.req.url));
+      ({ rpID, origin } = await resolveRpId(c.env, c.req.url));
     } catch (err) {
       return c.json({ error: errorMessage(err) }, 400);
     }
@@ -269,7 +269,7 @@ passkeysRoutes.openapi(
   async (c) => {
     let rpID: string;
     try {
-      ({ rpID } = resolveRpId(c.env, c.req.url));
+      ({ rpID } = await resolveRpId(c.env, c.req.url));
     } catch (err) {
       return c.json({ error: errorMessage(err) }, 400);
     }
@@ -315,7 +315,7 @@ passkeysRoutes.openapi(
 
     let rpID: string, origin: string;
     try {
-      ({ rpID, origin } = resolveRpId(c.env, c.req.url));
+      ({ rpID, origin } = await resolveRpId(c.env, c.req.url));
     } catch (err) {
       return c.json({ error: errorMessage(err) }, 400);
     }

@@ -69,6 +69,14 @@ Dockerfile, docker-compose.yml, README.md
 
 Workers: `[vars]` in wrangler.toml + `wrangler secret put` for secrets. Node: process env. `PORT` (8080, Node only), `DATA_DIR` (./data, Node only), `PUBLIC_URL` (e.g. `https://cal.home.example` — used for OAuth redirects), `ADMIN_API_KEY` (optional bootstrap key; if unset and no keys exist, generate one and log it once), `SYNC_INTERVAL_MINUTES` (10; Workers uses the cron instead), `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `MS_CLIENT_ID`, `MS_CLIENT_SECRET`, `MS_TENANT` (`common`).
 
+`PUBLIC_URL` and the Google/Microsoft OAuth credentials can also be configured from the UI
+(Settings → Calendar providers, admin only — see `GET/PUT/DELETE /api/providers*` below), stored
+as `settings` rows (client secrets AES-256-GCM encrypted, AAD = the settings key). One resolver,
+`providerEnv(env, db)` in `server/src/providers/config.ts` (plus its `effectivePublicUrl`), merges
+the two everywhere a provider credential or `PUBLIC_URL` is read: the env var always wins when
+set, the UI-configured value is the fallback. `PUT`/`DELETE` on an env-configured provider (or
+`PUBLIC_URL`) returns 409 — it's read-only from the UI in that case.
+
 ## Data model (SQLite)
 
 All ids are text (`crypto.randomUUID()`). Timestamps are ISO 8601 strings. Timed events stored in UTC ISO (`2026-09-24T14:00:00.000Z`); all-day events stored as `YYYY-MM-DD` dates with `end` exclusive.
@@ -107,6 +115,14 @@ GET    /api/settings            PATCH /api/settings
 GET    /api/members             POST /api/members
 PATCH  /api/members/:id         DELETE /api/members/:id
          member response includes pointsToday, pointsWeek
+
+GET    /api/providers            -> { publicUrl: {value, source}, redirectUris: {google, microsoft},
+         google: {configured, source: 'env'|'ui'|null, clientId, secretSet}, microsoft: {...+tenant} }
+         (admin only; secrets never returned)
+PUT    /api/providers/:kind      {clientId, clientSecret?, tenant?}   (omit clientSecret to keep it; 409 if env-configured)
+DELETE /api/providers/:kind      (409 if env-configured)
+PUT    /api/providers/public-url {value}   (absolute http(s), trailing slash stripped; 409 if PUBLIC_URL env set;
+         warns on a bare-IP host or plain http on a non-localhost host)
 
 GET    /api/accounts            DELETE /api/accounts/:id          (config stripped)
 GET    /api/oauth/:kind/start?key=  -> 302 to Google/Microsoft consent (kind google|microsoft; key via query since it's a browser nav; state = signed/random value stored in settings with 10-min expiry)

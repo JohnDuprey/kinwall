@@ -5,6 +5,7 @@ import { getProvider, type ProviderKind } from './providers/index.ts';
 import type { ProviderCtx, NormalizedEvent } from './providers/types.ts';
 import { parseIcsEvents, fetchIcsConditional, icsFingerprint } from './providers/ics.ts';
 import { decryptConfig, encryptConfig } from './crypto.ts';
+import { providerEnv } from './providers/config.ts';
 import { redact } from './redact.ts';
 
 const SYNC_WINDOW_PAST_DAYS = 30;
@@ -53,8 +54,9 @@ async function buildProviderCtx(env: Env, cal: CalendarRow): Promise<ProviderCtx
     account = await env.DB.prepare('SELECT * FROM accounts WHERE id = ?').bind(cal.account_id).first<AccountRow>();
   }
   const tz = await householdTz(env.DB);
+  const penv = await providerEnv(env, env.DB);
   return {
-    env: { ...env, TIMEZONE: tz },
+    env: { ...penv, TIMEZONE: tz },
     account: account ? { id: account.id, config: await decryptConfig(env, account.id, account.config) } : undefined,
     calendar: { id: cal.id, remoteId: cal.remote_id, config: await decryptConfig(env, cal.id, cal.config) },
     saveAccountConfig: async (config: unknown) => {
