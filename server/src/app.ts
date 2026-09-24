@@ -5,6 +5,7 @@ import { requireAuth } from './auth.ts';
 import { healthRoutes } from './routes/health.ts';
 import { meRoutes } from './routes/me.ts';
 import { settingsRoutes } from './routes/settings.ts';
+import { appearanceRoutes } from './routes/appearance.ts';
 import { membersRoutes } from './routes/members.ts';
 import { accountsRoutes } from './routes/accounts.ts';
 import { oauthRoutes } from './routes/oauth.ts';
@@ -13,6 +14,7 @@ import { eventsRoutes } from './routes/events.ts';
 import { choresRoutes } from './routes/chores.ts';
 import { leaderboardRoutes } from './routes/leaderboard.ts';
 import { keysRoutes } from './routes/keys.ts';
+import { passkeysRoutes } from './routes/passkeys.ts';
 import { pairRoutes } from './routes/pair.ts';
 import { setupRoutes } from './routes/setup.ts';
 import { webhooksRoutes } from './routes/webhooks.ts';
@@ -56,6 +58,7 @@ export function createApp() {
   app.route('/', meRoutes);
   app.route('/', revRoutes);
   app.route('/', settingsRoutes);
+  app.route('/', appearanceRoutes);
   app.route('/', membersRoutes);
   app.route('/', accountsRoutes);
   app.route('/', oauthRoutes);
@@ -64,6 +67,7 @@ export function createApp() {
   app.route('/', choresRoutes);
   app.route('/', leaderboardRoutes);
   app.route('/', keysRoutes);
+  app.route('/', passkeysRoutes);
   app.route('/', pairRoutes);
   app.route('/', webhooksRoutes);
 

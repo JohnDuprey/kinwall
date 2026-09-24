@@ -12,30 +12,38 @@ export function generateApiKey(): string {
 }
 
 export type KeyScope = 'admin' | 'display';
-export type ResolvedKey = { id?: string; scope: KeyScope; name: string };
+export type ResolvedKey = { id?: string; scope: KeyScope; name: string; kind: 'api' | 'session' };
 
 // Shared by POST /api/keys and the pairing-approval flow (routes/pair.ts) so key creation +
-// hashing lives in exactly one place.
-export async function createApiKey(db: D1Database, name: string, scope: KeyScope): Promise<{ id: string; key: string }> {
+// hashing lives in exactly one place. `kind` defaults to 'api' (permanent automation keys);
+// passkey login mints 'session' keys with an expiry instead.
+export async function createApiKey(
+  db: D1Database,
+  name: string,
+  scope: KeyScope,
+  opts: { kind?: 'api' | 'session'; expiresAt?: string; passkeyId?: string } = {},
+): Promise<{ id: string; key: string }> {
   const key = generateApiKey();
   const id = crypto.randomUUID();
   await db
-    .prepare('INSERT INTO api_keys (id, name, hash, prefix, scope, created_at) VALUES (?,?,?,?,?,?)')
-    .bind(id, name, await sha256Hex(key), key.slice(0, 8), scope, new Date().toISOString())
+    .prepare('INSERT INTO api_keys (id, name, hash, prefix, scope, created_at, kind, expires_at, passkey_id) VALUES (?,?,?,?,?,?,?,?,?)')
+    .bind(id, name, await sha256Hex(key), key.slice(0, 8), scope, new Date().toISOString(), opts.kind ?? 'api', opts.expiresAt ?? null, opts.passkeyId ?? null)
     .run();
   return { id, key };
 }
 
-// No-auth routes: health check, the OAuth callback (browser redirect from the provider), and
-// the two display-pairing routes a not-yet-paired display calls before it has any key.
-const PUBLIC_PATH = /^\/api\/health$|^\/api\/oauth\/[^/]+\/callback$|^\/api\/pair$|^\/api\/pair\/poll$|^\/api\/setup$|^\/api\/setup\/claim$/;
+// No-auth routes: health check, the OAuth callback (browser redirect from the provider), the
+// two display-pairing routes a not-yet-paired display calls before it has any key, and the
+// passkey ceremony routes that authenticate a not-yet-signed-in browser by other means
+// (a one-time registration token in the body, or the WebAuthn assertion itself).
+const PUBLIC_PATH =
+  /^\/api\/health$|^\/api\/appearance$|^\/api\/oauth\/[^/]+\/callback$|^\/api\/pair$|^\/api\/pair\/poll$|^\/api\/setup$|^\/api\/setup\/claim$|^\/api\/passkeys\/register\/options$|^\/api\/passkeys\/register\/verify$|^\/api\/passkeys\/login\/options$|^\/api\/passkeys\/login\/verify$/;
 
 // Central allow-list of what a 'display' scoped key may do (the wall iPad). Anything not
 // listed here is denied for display keys - deny by default, not scattered checks.
 const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'GET', pattern: /^\/api\/me$/ },
   { method: 'GET', pattern: /^\/api\/members$/ },
-  { method: 'PATCH', pattern: /^\/api\/members\/[^/]+$/ },
   { method: 'GET', pattern: /^\/api\/calendars$/ },
   { method: 'GET', pattern: /^\/api\/events(\/[^/]+)?$/ },
   { method: 'POST', pattern: /^\/api\/events$/ },
@@ -45,11 +53,11 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'GET', pattern: /^\/api\/chores\/day$/ },
   { method: 'POST', pattern: /^\/api\/chores$/ },
   { method: 'PATCH', pattern: /^\/api\/chores\/[^/]+$/ },
+  { method: 'DELETE', pattern: /^\/api\/chores\/[^/]+$/ },
   { method: 'POST', pattern: /^\/api\/chores\/[^/]+\/complete$/ },
   { method: 'DELETE', pattern: /^\/api\/chores\/[^/]+\/complete$/ },
   { method: 'GET', pattern: /^\/api\/leaderboard$/ },
   { method: 'GET', pattern: /^\/api\/settings$/ },
-  { method: 'PATCH', pattern: /^\/api\/settings$/ },
   { method: 'GET', pattern: /^\/api\/rev$/ },
 ];
 
@@ -65,15 +73,16 @@ export async function resolveKey(c: Context<{ Bindings: Env }>): Promise<Resolve
   if (!key) return null;
 
   if (c.env.ADMIN_API_KEY && key === c.env.ADMIN_API_KEY) {
-    return { scope: 'admin', name: 'ADMIN_API_KEY' };
+    return { scope: 'admin', name: 'ADMIN_API_KEY', kind: 'api' };
   }
 
   const hash = await sha256Hex(key);
-  const row = await c.env.DB.prepare('SELECT id, name, scope FROM api_keys WHERE hash = ?')
+  const row = await c.env.DB.prepare('SELECT id, name, scope, expires_at, kind FROM api_keys WHERE hash = ?')
     .bind(hash)
-    .first<{ id: string; name: string; scope: string | null }>();
+    .first<{ id: string; name: string; scope: string | null; expires_at: string | null; kind: string | null }>();
   if (!row) return null;
-  return { id: row.id, name: row.name, scope: row.scope === 'display' ? 'display' : 'admin' };
+  if (row.expires_at && row.expires_at < new Date().toISOString()) return null; // expired session key
+  return { id: row.id, name: row.name, scope: row.scope === 'display' ? 'display' : 'admin', kind: row.kind === 'session' ? 'session' : 'api' };
 }
 
 export async function requireAuth(c: Context<{ Bindings: Env }>, next: Next) {

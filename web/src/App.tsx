@@ -9,6 +9,35 @@ import Chores from './Chores.tsx'
 import SettingsView from './Settings.tsx'
 import Setup, { readSetupResume } from './Setup.tsx'
 import { useIsPhone } from './useIsPhone.ts'
+import { useNavMode, type NavMode } from './useNavMode.ts'
+import { useTheme } from './useTheme.ts'
+import { inkFor } from './color.ts'
+import { loginWithPasskey, passkeysSupported, registerPasskey } from './webauthn.ts'
+
+const NAV_ITEMS = [
+  { key: 'calendar', href: '#/calendar', label: 'Calendar', Icon: CalendarIcon },
+  { key: 'chores', href: '#/chores', label: 'Chores', Icon: ChoreIcon },
+  { key: 'settings', href: '#/settings', label: 'Settings', Icon: SettingsIcon },
+] as const
+
+function Nav({ tab, mode }: { tab: string; mode: NavMode }) {
+  if (mode === 'bottom') {
+    return (
+      <nav className="tab-bar">
+        {NAV_ITEMS.map(item => (
+          <a key={item.key} href={item.href} className={`tab-btn ${tab === item.key ? 'active' : ''}`}><item.Icon /> {item.label}</a>
+        ))}
+      </nav>
+    )
+  }
+  return (
+    <nav className={`nav-rail nav-rail-${mode}`}>
+      {NAV_ITEMS.map(item => (
+        <a key={item.key} href={item.href} className={`nav-rail-btn ${tab === item.key ? 'active' : ''}`}><item.Icon /><span>{item.label}</span></a>
+      ))}
+    </nav>
+  )
+}
 
 const IDLE_MS = 2 * 60 * 1000
 export const IDLE_RESET_EVENT = 'kinwall:idle-reset'
@@ -96,6 +125,20 @@ function PairingGate({ onKey }: { onKey: () => void }) {
   const [pairing, setPairing] = useState<{ pairingId: string; code: string; pollToken: string; expiresAt: string } | null>(null)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
+  const [passkeyBusy, setPasskeyBusy] = useState(false)
+
+  const signInWithPasskey = async () => {
+    setPasskeyBusy(true); setError('')
+    try {
+      const session = await loginWithPasskey()
+      setKey(session.key)
+      onKey()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Passkey sign-in failed')
+    } finally {
+      setPasskeyBusy(false)
+    }
+  }
 
   const start = useCallback(async () => {
     setError('')
@@ -165,6 +208,7 @@ function PairingGate({ onKey }: { onKey: () => void }) {
         </div>
         {error && <p style={{ color: 'var(--danger)' }}>{error}</p>}
         <p className="settings-row-sub">Scan with your phone, or enter the code in Settings → Displays. This code refreshes on its own if it expires.</p>
+        {passkeysSupported() && <button className="link-btn" onClick={signInWithPasskey} disabled={passkeyBusy}>{passkeyBusy ? 'Checking…' : 'Admin? Sign in with passkey'}</button>}
         <button className="link-btn" onClick={() => setManual(true)}>Enter a key manually</button>
       </div>
     </div>
@@ -179,6 +223,7 @@ function PairingGate({ onKey }: { onKey: () => void }) {
 function PairPhoneScreen({ code }: { code: string }) {
   const [checkingAdmin, setCheckingAdmin] = useState(true)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [useAdminField, setUseAdminField] = useState(false)
   const [adminKeyValue, setAdminKeyValue] = useState('')
   const [name, setName] = useState('Wall display')
   const [busy, setBusy] = useState(false)
@@ -199,6 +244,19 @@ function PairPhoneScreen({ code }: { code: string }) {
       setIsAdmin(true)
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Admin key rejected')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const unlockWithPasskey = async () => {
+    setBusy(true); setError('')
+    try {
+      const session = await loginWithPasskey()
+      setAdminKey(session.key)
+      setIsAdmin(true)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Passkey sign-in failed')
     } finally {
       setBusy(false)
     }
@@ -242,7 +300,7 @@ function PairPhoneScreen({ code }: { code: string }) {
           <label>Name</label>
           <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Wall display" />
         </div>
-        {!checkingAdmin && !isAdmin && (
+        {!checkingAdmin && !isAdmin && (useAdminField || !passkeysSupported()) && (
           <div className="field" style={{ textAlign: 'left' }}>
             <label>Admin key</label>
             <input type="password" value={adminKeyValue} onChange={e => setAdminKeyValue(e.target.value)}
@@ -256,11 +314,72 @@ function PairPhoneScreen({ code }: { code: string }) {
           <button className="btn btn-primary btn-block" onClick={approve} disabled={busy || code.length !== 6 || !name.trim()}>
             {busy ? 'Pairing…' : 'Approve'}
           </button>
+        ) : passkeysSupported() && !useAdminField ? (
+          <>
+            <button className="btn btn-primary btn-block" onClick={unlockWithPasskey} disabled={busy}>
+              {busy ? 'Checking…' : 'Approve with passkey'}
+            </button>
+            <button className="link-btn" style={{ marginTop: 10 }} onClick={() => setUseAdminField(true)}>Use an admin key</button>
+          </>
         ) : (
           <button className="btn btn-primary btn-block" onClick={unlockAdmin} disabled={busy || !adminKeyValue.trim()}>
             {busy ? 'Checking…' : 'Continue'}
           </button>
         )}
+      </div>
+    </div>
+  )
+}
+
+/** Landing screen for `#/admin-setup?token=…` — reached by scanning the QR code from the wall
+ * display's setup wizard ("finish on your phone"). Registers a passkey using the one-time
+ * register-token (this device has no key at all yet), then stores the session key it gets back
+ * and becomes the admin device. Must be handled before the key gate, like `#/pair`. */
+function AdminSetupScreen({ token }: { token: string }) {
+  const [name, setName] = useState('My phone')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [done, setDone] = useState(false)
+
+  const create = async () => {
+    if (!name.trim()) return
+    setBusy(true); setError('')
+    try {
+      const result = await registerPasskey(name.trim(), token)
+      if (!result.session) throw new Error('No session was issued — try again')
+      setKey(result.session.key)
+      setDone(true)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not create your passkey')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (done) {
+    return (
+      <div className="gate-screen">
+        <div className="gate-card">
+          <h1>You're the admin on this device 🎉</h1>
+          <button className="btn btn-primary btn-block" onClick={() => { location.hash = '#/calendar' }}>Continue</button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="gate-screen">
+      <div className="gate-card">
+        <h1>Create your Kinwall passkey</h1>
+        <p>Use Face ID, Touch ID, or your device's screen lock to become the admin for this Kinwall.</p>
+        <div className="field" style={{ textAlign: 'left' }}>
+          <label>Name this passkey</label>
+          <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="My phone" autoFocus />
+        </div>
+        {error && <p style={{ color: 'var(--danger)' }}>{error}</p>}
+        <button className="btn btn-primary btn-block" onClick={create} disabled={busy || !name.trim()}>
+          {busy ? 'Creating…' : 'Create passkey'}
+        </button>
       </div>
     </div>
   )
@@ -275,7 +394,7 @@ function MemberAvatars({ members, selectedMemberId, setSelectedMemberId }: {
         <button
           key={m.id}
           className={`member-avatar ${selectedMemberId && selectedMemberId !== m.id ? 'dim' : ''} ${selectedMemberId === m.id ? 'selected' : ''}`}
-          style={{ background: m.color }}
+          style={{ background: m.color, color: inkFor(m.color) }}
           onClick={() => setSelectedMemberId(selectedMemberId === m.id ? null : m.id)}
           aria-label={m.name}
         >
@@ -364,6 +483,7 @@ export default function App() {
   const [toastMsg, setToastMsg] = useState<string | null>(null)
   const [loadError, setLoadError] = useState(false)
   const tab = useHashTab()
+  const { mode: navMode } = useNavMode()
   const { tick: pollTick, unauthorized } = usePoll()
   const [manualTick, setManualTick] = useState(0)
 
@@ -392,9 +512,7 @@ export default function App() {
     setHasKey(false)
   }, [unauthorized])
 
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', settings?.theme === 'dark' ? 'dark' : 'light')
-  }, [settings?.theme])
+  useTheme(settings)
 
   // idle reset: 2 min of no touch/pointer activity -> back to today's calendar, close sheets
   useEffect(() => {
@@ -436,6 +554,13 @@ export default function App() {
     return <PairPhoneScreen code={code} />
   }
 
+  // #/admin-setup?token=… is reached by scanning the QR code from the wall display's setup
+  // wizard ("finish on your phone") — also handled before the key gate, this device has no key.
+  if (tab === 'admin-setup') {
+    const token = new URLSearchParams(location.hash.split('?')[1] || '').get('token') ?? ''
+    return <AdminSetupScreen token={token} />
+  }
+
   if (!hasKey) return <PairingGate onKey={() => setHasKey(true)} />
   if (!settings) {
     return (
@@ -452,16 +577,16 @@ export default function App() {
       reloadCore: () => setManualTick(t => t + 1),
       toast: setToastMsg,
     }}>
-      <div className="app-shell">
-        <Header settings={settings} members={members} selectedMemberId={selectedMemberId} setSelectedMemberId={setSelectedMemberId} />
-        <div className="content">
-          {tab === 'chores' ? <Chores /> : tab === 'settings' ? <SettingsView /> : <CalendarView />}
+      <div className={`app-shell ${navMode !== 'bottom' ? `app-shell-rail app-shell-rail-${navMode}` : ''}`}>
+        {navMode === 'left' && <Nav tab={tab} mode={navMode} />}
+        <div className="main-col">
+          <Header settings={settings} members={members} selectedMemberId={selectedMemberId} setSelectedMemberId={setSelectedMemberId} />
+          <div className="content">
+            {tab === 'chores' ? <Chores /> : tab === 'settings' ? <SettingsView /> : <CalendarView />}
+          </div>
+          {navMode === 'bottom' && <Nav tab={tab} mode={navMode} />}
         </div>
-        <nav className="tab-bar">
-          <a href="#/calendar" className={`tab-btn ${tab === 'calendar' ? 'active' : ''}`}><CalendarIcon /> Calendar</a>
-          <a href="#/chores" className={`tab-btn ${tab === 'chores' ? 'active' : ''}`}><ChoreIcon /> Chores</a>
-          <a href="#/settings" className={`tab-btn ${tab === 'settings' ? 'active' : ''}`}><SettingsIcon /> Settings</a>
-        </nav>
+        {navMode === 'right' && <Nav tab={tab} mode={navMode} />}
         {toastMsg && <div className="toast">{toastMsg}</div>}
       </div>
     </AppContext.Provider>

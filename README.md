@@ -44,7 +44,7 @@ Set `PUBLIC_URL` in `wrangler.toml` `[vars]` to your `*.workers.dev` URL or cust
 2. Tap Share, then **Add to Home Screen**, and launch it from there (full screen).
 3. iPad Settings: set Display → Auto-Lock to Never and turn on Guided Access (Accessibility) to lock the iPad to Kinwall.
 
-The admin sections in Settings (calendar accounts, API keys, webhooks) are locked on a display key. Unlocking them asks for an admin key, which is held for 5 minutes.
+A display key's Settings tab shows only a minimal "This display" card (paired-as, nav position, unpair) — no admin sections render at all. Manage members, calendars, accounts, API keys and webhooks from an admin device.
 
 ## Connect calendars
 
@@ -58,7 +58,7 @@ The admin sections in Settings (calendar accounts, API keys, webhooks) are locke
 ## API & automation
 
 - Interactive docs: `/docs`. OpenAPI spec: `/openapi.json` (import it into n8n, Power Automate, Postman).
-- Auth: `Authorization: Bearer <key>`. Keys are `admin` (everything) or `display` (calendar, chores, members, settings; no accounts, keys or webhooks).
+- Auth: `Authorization: Bearer <key>`. Keys are `admin` (everything) or `display` (read household settings/members/calendars, full read+write on events and chores; no accounts, keys, webhooks, member/calendar management, or settings changes).
 - Change detection: `GET /api/rev` returns a counter that increments on every write.
 - Chore leaderboard: `GET /api/leaderboard?period=today|week|month` (default week) returns each member's points, completions and current streak for the period, ranked with tie handling.
 - Webhooks: `POST /api/webhooks {url, events, secret}` sends `{type, data, at}` with header `X-Kinwall-Signature: sha256=<HMAC of body>`. Event types: `member.changed`, `calendar.changed`, `calendar.synced`, `events.changed`, `chore.changed`, `chore.completed`, `chore.uncompleted`, `settings.changed`.

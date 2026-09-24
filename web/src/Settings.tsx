@@ -1,10 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useApp } from './AppContext.tsx'
-import { api, ApiError, getAdminKey, setAdminKey } from './api.ts'
-import type { Account, ApiKey, CalendarEntry, KeyScope, Member, RemoteCalendar, Webhook } from './types.ts'
-import { MEMBER_EMOJI, MEMBER_PALETTE, nextPaletteColor } from './types.ts'
+import { api, ApiError, clearKey } from './api.ts'
+import type { Account, ApiKey, CalendarEntry, Density, Me, Member, Passkey, RemoteCalendar, Settings, TextScale, ThemeMode, Webhook } from './types.ts'
+import { ACCENT_PRESETS, BACKGROUND_DARK_PRESETS, BACKGROUND_LIGHT_PRESETS, MEMBER_EMOJI, MEMBER_PALETTE, nextPaletteColor } from './types.ts'
 import Sheet from './Sheet.tsx'
-import { KeyIcon, LinkIcon, LockIcon, MonitorIcon, MoonIcon, PlusIcon, SunIcon, TrashIcon, WebhookIcon } from './icons.tsx'
+import { AnyEmojiField } from './AnyEmojiField.tsx'
+import { isValidAvatar } from './emoji.ts'
+import { inkFor } from './color.ts'
+import { KeyIcon, LinkIcon, MonitorIcon, PaletteIcon, PlusIcon, TrashIcon, WebhookIcon } from './icons.tsx'
+import { useIsPhone } from './useIsPhone.ts'
+import { useNavMode, setNavPref, type NavPref } from './useNavMode.ts'
+import { passkeysSupported, registerPasskey } from './webauthn.ts'
+import { QrCode } from './App.tsx'
 
 const BUS_EVENTS = ['member.changed', 'calendar.changed', 'calendar.synced', 'events.changed', 'chore.changed', 'chore.completed', 'chore.uncompleted', 'settings.changed']
 
@@ -21,8 +28,9 @@ export function timezoneList() {
 export default function SettingsView() {
   const { settings, members, toast, reloadCore } = useApp()
   const [openAccountId, setOpenAccountId] = useState<string | null>(null)
-  const [scope, setScope] = useState<KeyScope>('admin') // fails open to 'admin' until /api/me answers
-  const [adminUnlocked, setAdminUnlocked] = useState(() => !!getAdminKey()) // shared across all 3 admin sections
+  // Fails CLOSED to the display-only view until /api/me answers — a display key must never see
+  // admin sections, even briefly, if the check is slow or fails.
+  const [me, setMe] = useState<Me>({ scope: 'display', keyName: '', kind: 'api' })
 
   useEffect(() => {
     const q = new URLSearchParams(location.hash.split('?')[1] || '')
@@ -30,64 +38,30 @@ export default function SettingsView() {
     if (account) setOpenAccountId(account)
   }, [])
 
-  useEffect(() => { api.getMe().then(me => setScope(me.scope)).catch(() => {}) }, [])
+  useEffect(() => { api.meStrict().then(setMe).catch(() => setMe({ scope: 'display', keyName: '', kind: 'api' })) }, [])
+
+  if (me.scope === 'display') {
+    return (
+      <div className="content scroll-y">
+        <div className="settings-scroll">
+          <ThisDisplaySection keyName={me.keyName} />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="content scroll-y">
       <div className="settings-scroll">
         <GeneralSection settings={settings} onSaved={reloadCore} toast={toast} />
+        <AppearanceSection settings={settings} onSaved={reloadCore} toast={toast} />
+        <ThisDisplaySection />
         <MembersSection members={members} onChanged={reloadCore} toast={toast} />
-        <AdminGate locked={scope === 'display'} unlocked={adminUnlocked} onUnlocked={() => setAdminUnlocked(true)} title="Calendars" toast={toast}>
-          <CalendarsSection openAccountId={openAccountId} onOpenedAccount={() => setOpenAccountId(null)} toast={toast} />
-        </AdminGate>
-        <AdminGate locked={scope === 'display'} unlocked={adminUnlocked} onUnlocked={() => setAdminUnlocked(true)} title="Displays" toast={toast}>
-          <DisplaysSection toast={toast} />
-        </AdminGate>
-        <AdminGate locked={scope === 'display'} unlocked={adminUnlocked} onUnlocked={() => setAdminUnlocked(true)} title="API Keys" toast={toast}>
-          <KeysSection toast={toast} />
-        </AdminGate>
-        <AdminGate locked={scope === 'display'} unlocked={adminUnlocked} onUnlocked={() => setAdminUnlocked(true)} title="Webhooks" toast={toast}>
-          <WebhooksSection toast={toast} />
-        </AdminGate>
-      </div>
-    </div>
-  )
-}
-
-/** Wraps an admin-only Settings section. Display keys see a lock + a prompt to paste an admin
- * key, which is kept in sessionStorage for 5 min (see api.ts) and used only for those calls.
- * `unlocked` is shared across all three gated sections so entering the key once opens them all. */
-function AdminGate({ locked, unlocked, onUnlocked, title, toast, children }: {
-  locked: boolean; unlocked: boolean; onUnlocked: () => void; title: string; toast: (m: string) => void; children: React.ReactNode
-}) {
-  const [value, setValue] = useState('')
-  const [busy, setBusy] = useState(false)
-
-  if (!locked || unlocked) return <>{children}</>
-
-  const unlock = async () => {
-    if (!value.trim()) return
-    setBusy(true)
-    setAdminKey(value.trim())
-    try {
-      const me = await api.checkAdminKey()
-      if (me.scope !== 'admin') throw new ApiError(403, 'That key is not admin-scoped')
-      onUnlocked()
-    } catch (e) {
-      toast(e instanceof ApiError ? e.message : 'Admin key rejected')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <div className="settings-section">
-      <div className="settings-section-title"><LockIcon width={16} height={16} />{title} — locked</div>
-      <p className="settings-row-sub">This key is display-scoped. Enter an admin key to manage this section for the next 5 minutes.</p>
-      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-        <input type="password" value={value} onChange={e => setValue(e.target.value)} placeholder="Admin API key" style={{ flex: 1 }}
-          onKeyDown={e => e.key === 'Enter' && unlock()} />
-        <button className="btn btn-primary" onClick={unlock} disabled={busy}>Unlock</button>
+        <CalendarsSection openAccountId={openAccountId} onOpenedAccount={() => setOpenAccountId(null)} toast={toast} />
+        <DisplaysSection toast={toast} />
+        <PasskeysSection me={me} toast={toast} />
+        <KeysSection toast={toast} />
+        <WebhooksSection toast={toast} />
       </div>
     </div>
   )
@@ -128,13 +102,121 @@ function GeneralSection({ settings, onSaved, toast }: { settings: ReturnType<typ
           <option value={1}>Monday</option>
         </select>
       </div>
-      <div className="settings-row">
-        <div className="settings-row-label">Theme</div>
-        <div className="theme-toggle">
-          <button className={settings.theme !== 'dark' ? 'active' : ''} onClick={() => save({ theme: 'light' })}><SunIcon width={18} height={18} /></button>
-          <button className={settings.theme === 'dark' ? 'active' : ''} onClick={() => save({ theme: 'dark' })}><MoonIcon width={18} height={18} /></button>
+    </Section>
+  )
+}
+
+const THEME_MODES: { key: ThemeMode; label: string }[] = [
+  { key: 'light', label: 'Light' }, { key: 'dark', label: 'Dark' }, { key: 'auto', label: 'Auto' }, { key: 'scheduled', label: 'Scheduled' },
+]
+const TEXT_SCALES: { key: TextScale; label: string }[] = [
+  { key: 's', label: 'S' }, { key: 'm', label: 'M' }, { key: 'l', label: 'L' }, { key: 'xl', label: 'XL' },
+]
+const DENSITIES: { key: Density; label: string }[] = [
+  { key: 'comfortable', label: 'Comfortable' }, { key: 'compact', label: 'Compact' },
+]
+
+function AppearanceSection({ settings, onSaved, toast }: { settings: Settings; onSaved: () => void; toast: (m: string) => void }) {
+  const save = async (patch: Partial<Settings>) => {
+    try { await api.updateSettings(patch); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save settings') }
+  }
+  return (
+    <Section title="Appearance" icon={<PaletteIcon width={16} height={16} />}>
+      <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+        <div className="settings-row-label">Mode</div>
+        <div className="segmented">
+          {THEME_MODES.map(o => <button key={o.key} className={settings.themeMode === o.key ? 'active' : ''} onClick={() => save({ themeMode: o.key })}>{o.label}</button>)}
+        </div>
+        {settings.themeMode === 'scheduled' && (
+          <div className="row-2" style={{ marginTop: 4 }}>
+            <div className="field" style={{ margin: 0 }}><label>Dark from</label><input type="time" value={settings.darkFrom} onChange={e => save({ darkFrom: e.target.value })} /></div>
+            <div className="field" style={{ margin: 0 }}><label>Dark to</label><input type="time" value={settings.darkTo} onChange={e => save({ darkTo: e.target.value })} /></div>
+          </div>
+        )}
+      </div>
+      <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+        <div className="settings-row-label">Accent color</div>
+        <div className="color-swatch-row">
+          {ACCENT_PRESETS.map(c => <button key={c} className={`color-swatch ${settings.accent === c ? 'active' : ''}`} style={{ background: c }} onClick={() => save({ accent: c })} />)}
+          <input type="color" className="color-swatch" value={/^#[0-9a-f]{6}$/i.test(settings.accent) ? settings.accent : '#888888'}
+            onChange={e => save({ accent: e.target.value })} style={{ padding: 0, border: '2px solid var(--border)', cursor: 'pointer' }} aria-label="Custom accent color" />
         </div>
       </div>
+      <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+        <div className="settings-row-label">Light background</div>
+        <div className="chip-row">
+          {BACKGROUND_LIGHT_PRESETS.map(o => (
+            <button key={o.key} className={`chip ${settings.backgroundLight === o.key ? 'active' : ''}`} onClick={() => save({ backgroundLight: o.key })}>
+              <span className="bg-preview-dot" style={{ background: o.preview }} />{o.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+        <div className="settings-row-label">Dark background</div>
+        <div className="chip-row">
+          {BACKGROUND_DARK_PRESETS.map(o => (
+            <button key={o.key} className={`chip ${settings.backgroundDark === o.key ? 'active' : ''}`} onClick={() => save({ backgroundDark: o.key })}>
+              <span className="bg-preview-dot" style={{ background: o.preview }} />{o.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="settings-row">
+        <div className="settings-row-label">Text size</div>
+        <div className="segmented">
+          {TEXT_SCALES.map(o => <button key={o.key} className={settings.textScale === o.key ? 'active' : ''} onClick={() => save({ textScale: o.key })}>{o.label}</button>)}
+        </div>
+      </div>
+      <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+        <div className="settings-row-label">Density</div>
+        <div className="segmented">
+          {DENSITIES.map(o => <button key={o.key} className={settings.density === o.key ? 'active' : ''} onClick={() => save({ density: o.key })}>{o.label}</button>)}
+        </div>
+        <div className="settings-row-sub">Compact tightens spacing and fits more on screen — handy for a smaller display.</div>
+      </div>
+    </Section>
+  )
+}
+
+const NAV_PREF_OPTIONS: { key: NavPref; label: string }[] = [
+  { key: 'auto', label: 'Auto' }, { key: 'bottom', label: 'Bottom' }, { key: 'left', label: 'Left' }, { key: 'right', label: 'Right' },
+]
+
+/** Per-device nav position (bottom tab bar vs. a side rail) — kept in localStorage, not synced
+ * settings, so each wall display / phone / tablet can pick its own. When `keyName` is passed
+ * (display-scoped key), this is the ONLY Settings section a display ever sees — it also shows
+ * what this display is paired as and an unpair action. */
+function ThisDisplaySection({ keyName }: { keyName?: string }) {
+  const isPhone = useIsPhone()
+  const { pref } = useNavMode()
+  const unpair = () => {
+    if (!confirm('Unpair this display? You\'ll need to pair it again from an admin device to use it here.')) return
+    clearKey()
+    location.reload()
+  }
+  return (
+    <Section title="This display" icon={<MonitorIcon width={16} height={16} />}>
+      {keyName !== undefined && (
+        <div className="settings-row">
+          <div className="settings-row-label">Paired as {keyName || 'this display'}</div>
+        </div>
+      )}
+      <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+        <div className="settings-row-label">Navigation position</div>
+        <div className="segmented" style={isPhone ? { opacity: 0.5 } : undefined}>
+          {NAV_PREF_OPTIONS.map(o => (
+            <button key={o.key} className={pref === o.key ? 'active' : ''} disabled={isPhone} onClick={() => setNavPref(o.key)}>{o.label}</button>
+          ))}
+        </div>
+        <div className="settings-row-sub">{isPhone ? 'Phones always use the bottom bar.' : 'Saved on this device only.'}</div>
+      </div>
+      {keyName !== undefined && (
+        <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+          <button className="btn btn-danger" onClick={unpair}>Unpair this display</button>
+          <div className="settings-row-sub">Clears the key stored on this device and returns to the pairing screen. This doesn't revoke the key — do that from an admin device under Settings → Displays.</div>
+        </div>
+      )}
     </Section>
   )
 }
@@ -146,7 +228,7 @@ function MembersSection({ members, onChanged, toast }: { members: Member[]; onCh
       <div className="member-row-list">
         {members.map(m => (
           <div key={m.id} className="member-list-item" onClick={() => setEdit(m)}>
-            <div className="member-avatar-sm" style={{ background: m.color }}>{m.avatar}</div>
+            <div className="member-avatar-sm" style={{ background: m.color, color: inkFor(m.color) }}>{m.avatar}</div>
             <div className="name">{m.name}</div>
           </div>
         ))}
@@ -165,7 +247,7 @@ function MemberEditSheet({ member, onClose, onSaved, toast }: { member: Member |
   const [color, setColor] = useState(member?.color ?? MEMBER_PALETTE[0])
   const [avatar, setAvatar] = useState(member?.avatar ?? MEMBER_EMOJI[0])
   const save = async () => {
-    if (!name.trim()) return
+    if (!name.trim() || !isValidAvatar(avatar)) return
     try {
       if (member) await api.updateMember(member.id, { name: name.trim(), color, avatar })
       else await api.createMember({ name: name.trim(), color, avatar })
@@ -178,12 +260,14 @@ function MemberEditSheet({ member, onClose, onSaved, toast }: { member: Member |
   }
   return (
     <Sheet title={member ? 'Edit member' : 'Add member'} onClose={onClose}
-      actions={<>{member && <button className="btn btn-danger" onClick={del}><TrashIcon width={18} height={18} /></button>}<button className="btn btn-primary" onClick={save}>Save</button></>}>
+      actions={<>{member && <button className="btn btn-danger" onClick={del}><TrashIcon width={18} height={18} /></button>}<button className="btn btn-primary" onClick={save} disabled={!name.trim() || !isValidAvatar(avatar)}>Save</button></>}>
       <div className="field"><label>Name</label><input type="text" value={name} onChange={e => setName(e.target.value)} autoFocus /></div>
       <div className="field">
         <label>Color</label>
         <div className="color-swatch-row">
           {MEMBER_PALETTE.map(c => <button key={c} className={`color-swatch ${color === c ? 'active' : ''}`} style={{ background: c }} onClick={() => setColor(c)} />)}
+          <input type="color" className="color-swatch" value={/^#[0-9a-f]{6}$/i.test(color) ? color : '#888888'}
+            onChange={e => setColor(e.target.value)} style={{ padding: 0, border: '2px solid var(--border)', cursor: 'pointer' }} aria-label="Custom member color" />
         </div>
       </div>
       <div className="field">
@@ -191,6 +275,7 @@ function MemberEditSheet({ member, onClose, onSaved, toast }: { member: Member |
         <div className="emoji-swatch-row">
           {MEMBER_EMOJI.map(e => <button key={e} className={`emoji-swatch ${avatar === e ? 'active' : ''}`} onClick={() => setAvatar(e)}>{e}</button>)}
         </div>
+        <AnyEmojiField value={avatar} onChange={setAvatar} allowInitials />
       </div>
     </Sheet>
   )
@@ -360,6 +445,101 @@ function RemoteCalendarPicker({ accountId, accountName, onClose, onAdded, toast 
         )
       })}
     </Sheet>
+  )
+}
+
+function PasskeysSection({ me, toast }: { me: Me; toast: (m: string) => void }) {
+  const [passkeys, setPasskeys] = useState<Passkey[]>([])
+  const [creating, setCreating] = useState(false)
+  const [name, setName] = useState('This device')
+  const [qr, setQr] = useState<{ token: string; expiresAt: string } | null>(null)
+  const [renaming, setRenaming] = useState<Passkey | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+  const load = () => { api.getPasskeys().then(setPasskeys).catch(() => {}) }
+  useEffect(load, [])
+
+  const create = async () => {
+    if (!name.trim()) return
+    try {
+      await registerPasskey(name.trim()) // bearer flow: this device already has an admin key/session, so the returned session is ignored
+      setCreating(false); setName('This device')
+      load()
+    } catch (e) { toast(e instanceof Error ? e.message : 'Could not create passkey') }
+  }
+  const startAnotherDevice = async () => {
+    try { setQr(await api.passkeyRegisterToken()) }
+    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not start pairing') }
+  }
+  const rename = async () => {
+    if (!renaming || !renameValue.trim()) return
+    try { await api.renamePasskey(renaming.id, renameValue.trim()); setRenaming(null); load() }
+    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not rename passkey') }
+  }
+  const remove = async (p: Passkey) => {
+    const msg = passkeys.length === 1
+      ? `Remove "${p.name}"? This is your last passkey — you'll need an admin key to sign in until you add another.`
+      : `Remove "${p.name}"?`
+    if (!confirm(msg)) return
+    try { await api.deletePasskey(p.id); load() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not remove passkey') }
+  }
+  const signOut = async () => {
+    try { await api.sessionLogout() } catch { /* ignore - clearing locally either way */ }
+    clearKey()
+    location.reload()
+  }
+
+  if (!passkeysSupported()) {
+    return (
+      <Section title="Passkeys" icon={<KeyIcon width={16} height={16} />}>
+        <p className="settings-row-sub">Passkeys need HTTPS — using an admin key instead.</p>
+      </Section>
+    )
+  }
+
+  return (
+    <Section title="Passkeys" icon={<KeyIcon width={16} height={16} />}>
+      {me.kind === 'session' && (
+        <div className="settings-row">
+          <div className="settings-row-label">Signed in with a passkey</div>
+          <button className="link-btn" style={{ color: 'var(--danger)' }} onClick={signOut}>Sign out</button>
+        </div>
+      )}
+      {passkeys.map(p => (
+        <div key={p.id} className="key-item">
+          {renaming?.id === p.id ? (
+            <div style={{ display: 'flex', gap: 8, flex: 1 }}>
+              <input type="text" value={renameValue} onChange={e => setRenameValue(e.target.value)} autoFocus style={{ flex: 1 }} />
+              <button className="btn btn-primary" onClick={rename}>Save</button>
+            </div>
+          ) : (
+            <div style={{ cursor: 'pointer', flex: 1 }} onClick={() => { setRenaming(p); setRenameValue(p.name) }}>
+              <div className="settings-row-label">{p.name}</div>
+              <div className="settings-row-sub">
+                created {new Date(p.createdAt).toLocaleDateString()}
+                {p.lastUsedAt ? ` · used ${new Date(p.lastUsedAt).toLocaleDateString()}` : ' · never used'}
+              </div>
+            </div>
+          )}
+          <button className="icon-btn" onClick={() => remove(p)}><TrashIcon width={16} height={16} /></button>
+        </div>
+      ))}
+      {creating ? (
+        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+          <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Passkey name" autoFocus style={{ flex: 1 }} />
+          <button className="btn btn-primary" onClick={create}>Create</button>
+        </div>
+      ) : (
+        <button className="add-row-btn" onClick={() => setCreating(true)}><PlusIcon width={20} height={20} />Add a passkey on this device</button>
+      )}
+      {qr ? (
+        <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+          <QrCode value={new URL(`#/admin-setup?token=${qr.token}`, document.baseURI).href} size={168} />
+          <div className="settings-row-sub">Scan with another phone or computer to add a passkey there.</div>
+        </div>
+      ) : (
+        <button className="add-row-btn" onClick={startAnotherDevice}><PlusIcon width={20} height={20} />Add a passkey on another device</button>
+      )}
+    </Section>
   )
 }
 

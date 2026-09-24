@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { mock } from './mock.ts'
 import type {
-  Account, ApiKey, CalendarEntry, Chore, ChoreDay, EventInstance, LeaderboardEntry, LeaderboardPeriod, Member,
-  Me, RemoteCalendar, Settings, Webhook,
+  Account, ApiKey, Appearance, CalendarEntry, Chore, ChoreDay, EventInstance, LeaderboardEntry, LeaderboardPeriod, Member,
+  Me, Passkey, RemoteCalendar, Settings, Webhook,
 } from './types.ts'
 
 const MOCK = import.meta.env.VITE_MOCK === '1'
@@ -86,26 +86,24 @@ export const api = {
   getRev: () => MOCK ? mock.getRev() : get<{ rev: number }>('api/rev'),
 
   // First-run setup (no auth). MOCK always reports claimed so the mock UI never shows the wizard.
-  getSetup: (): Promise<{ claimed: boolean; oauth: { google: boolean; microsoft: boolean } }> =>
-    MOCK ? Promise.resolve({ claimed: true, oauth: { google: false, microsoft: false } }) : get('api/setup'),
+  getSetup: (): Promise<{ claimed: boolean; oauth: { google: boolean; microsoft: boolean }; passkeys: boolean }> =>
+    MOCK ? Promise.resolve({ claimed: true, oauth: { google: false, microsoft: false }, passkeys: false }) : get('api/setup'),
   claimSetup: (code: string, deviceRole: 'admin' | 'display', deviceName: string) =>
-    post<{ adminKey: string; displayKey?: string }>('api/setup/claim', { code, deviceRole, deviceName }),
+    post<{ adminKey: string; adminKeyId: string; displayKey?: string }>('api/setup/claim', { code, deviceRole, deviceName }),
 
-  // Display keys are fully usable here; falls back to 'admin' if /api/me isn't available yet
-  // (older server, or the bootstrap ADMIN_API_KEY) so the UI doesn't lock itself out.
-  getMe: (): Promise<Me> => {
-    if (MOCK) return Promise.resolve({ scope: 'admin', keyName: 'mock' })
-    return get<Me>('api/me').catch(() => ({ scope: 'admin' as const, keyName: '' }))
-  },
   // Strict check (no fail-open) against the sessionStorage admin key — used by the
   // "Unlock with admin key" prompt to verify what was just typed in.
-  checkAdminKey: (): Promise<Me> => MOCK ? Promise.resolve({ scope: 'admin', keyName: 'mock' }) : get<Me>('api/me', true),
+  checkAdminKey: (): Promise<Me> => MOCK ? Promise.resolve({ scope: 'admin', keyName: 'mock', kind: 'api' }) : get<Me>('api/me', true),
   // Strict check (no fail-open) against whatever key is currently stored — used by the QR-pairing
-  // "confirm" screen, which must treat 401/no key as not-admin rather than assuming admin.
-  meStrict: (): Promise<Me> => MOCK ? Promise.resolve({ scope: 'admin', keyName: 'mock' }) : get<Me>('api/me'),
+  // "confirm" screen and Settings (which must fail closed to the display view, not assume admin).
+  meStrict: (): Promise<Me> => MOCK ? Promise.resolve({ scope: 'admin', keyName: 'mock', kind: 'api' }) : get<Me>('api/me'),
 
   getSettings: () => MOCK ? mock.getSettings() : get<Settings>('api/settings'),
-  updateSettings: (body: Partial<Settings>) => MOCK ? mock.updateSettings(body) : patch<Settings>('api/settings', body),
+  // useAdmin: the setup wizard saves household settings with the in-memory admin key when this
+  // device only just claimed a display-scope key (settings PATCH isn't display-allowed).
+  updateSettings: (body: Partial<Settings>, useAdmin?: boolean) => MOCK ? mock.updateSettings(body) : patch<Settings>('api/settings', body, useAdmin),
+  // No-auth subset of Settings for the pre-pairing screen (useTheme.ts) — see GET /api/appearance.
+  getAppearance: (): Promise<Appearance> => MOCK ? mock.getSettings() : get<Appearance>('api/appearance'),
 
   getMembers: () => MOCK ? mock.getMembers() : get<Member[]>('api/members'),
   // useAdmin: the setup wizard creates/removes members with the in-memory admin key when this
@@ -169,6 +167,23 @@ export const api = {
     MOCK ? mock.createWebhook(url, events) : post<Webhook>('api/webhooks', { url, events, secret }, true),
   updateWebhook: (id: string, body: Partial<Webhook>) => MOCK ? mock.updateWebhook(id, body) : patch<Webhook>(`api/webhooks/${id}`, body, true),
   deleteWebhook: (id: string) => MOCK ? mock.deleteWebhook(id) : del(`api/webhooks/${id}`, true),
+
+  // Passkeys (WebAuthn). register/options+verify take `useAdmin` when called with the in-memory
+  // setup-wizard admin key (see webauthn.ts's registerPasskey, called from Setup.tsx); a `token`
+  // instead authorizes a not-yet-signed-in device (the QR "finish on your phone" flow), so those
+  // two calls skip the bearer key entirely and go straight through `req`.
+  passkeyRegisterOptions: (token?: string, useAdmin?: boolean) =>
+    token ? post<Record<string, unknown>>('api/passkeys/register/options', { token }) : post<Record<string, unknown>>('api/passkeys/register/options', {}, useAdmin),
+  passkeyRegisterVerify: (body: { token?: string; name: string; response: unknown }, useAdmin?: boolean) =>
+    body.token ? post<{ id: string; name: string; session?: { key: string; expiresAt: string } }>('api/passkeys/register/verify', body)
+      : post<{ id: string; name: string; session?: { key: string; expiresAt: string } }>('api/passkeys/register/verify', body, useAdmin),
+  passkeyRegisterToken: () => post<{ token: string; expiresAt: string }>('api/passkeys/register-token', undefined, true),
+  passkeyLoginOptions: () => post<Record<string, unknown>>('api/passkeys/login/options'),
+  passkeyLoginVerify: (response: unknown) => post<{ key: string; expiresAt: string }>('api/passkeys/login/verify', { response }),
+  getPasskeys: () => get<Passkey[]>('api/passkeys', true),
+  renamePasskey: (id: string, name: string) => patch<Passkey>(`api/passkeys/${id}`, { name }, true),
+  deletePasskey: (id: string) => del(`api/passkeys/${id}`, true),
+  sessionLogout: () => post<{ ok: boolean }>('api/sessions/logout'),
 }
 
 /** Provider event descriptions are often HTML (Google/Outlook). Never render as HTML — this

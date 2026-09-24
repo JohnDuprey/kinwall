@@ -10,6 +10,7 @@ import type { Env } from '../env.ts';
 import { createApiKey, sha256Hex } from '../auth.ts';
 import { emit } from '../bus.ts';
 import { ErrorSchema } from '../schemas.ts';
+import { hasAnyPasskey } from './passkeys.ts';
 
 export const setupRoutes = createRouter();
 
@@ -113,7 +114,7 @@ async function clearSetupCode(db: D1Database): Promise<void> {
 }
 
 const SetupStatusSchema = z
-  .object({ claimed: z.boolean(), oauth: z.object({ google: z.boolean(), microsoft: z.boolean() }) })
+  .object({ claimed: z.boolean(), oauth: z.object({ google: z.boolean(), microsoft: z.boolean() }), passkeys: z.boolean() })
   .openapi('SetupStatus');
 
 setupRoutes.openapi(
@@ -131,6 +132,7 @@ setupRoutes.openapi(
       {
         claimed,
         oauth: { google: !!(c.env.GOOGLE_CLIENT_ID && c.env.GOOGLE_CLIENT_SECRET), microsoft: !!(c.env.MS_CLIENT_ID && c.env.MS_CLIENT_SECRET) },
+        passkeys: await hasAnyPasskey(c.env.DB),
       },
       200,
     );
@@ -145,7 +147,9 @@ const ClaimInputSchema = z
   })
   .openapi('SetupClaimInput');
 
-const ClaimResponseSchema = z.object({ adminKey: z.string(), displayKey: z.string().optional() }).openapi('SetupClaimResponse');
+// adminKeyId lets the client delete the just-issued admin key after it upgrades to a passkey
+// session (see routes/passkeys.ts + Setup.tsx) so no long-lived admin key is left lying around.
+const ClaimResponseSchema = z.object({ adminKey: z.string(), adminKeyId: z.string(), displayKey: z.string().optional() }).openapi('SetupClaimResponse');
 
 setupRoutes.openapi(
   createRoute({
@@ -177,6 +181,6 @@ setupRoutes.openapi(
       displayKey = (await createApiKey(c.env.DB, deviceName, 'display')).key;
     }
     emit(c, 'settings.changed', {});
-    return c.json({ adminKey: admin.key, displayKey }, 200);
+    return c.json({ adminKey: admin.key, adminKeyId: admin.id, displayKey }, 200);
   },
 );

@@ -1,13 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { api, ApiError, getAdminKey, setAdminKey, setKey } from './api.ts'
+import { api, ApiError, getAdminKey, setAdminKey, clearAdminKey, setKey } from './api.ts'
 import { QrCode } from './App.tsx'
 import { timezoneList } from './Settings.tsx'
 import { MEMBER_EMOJI, MEMBER_PALETTE, nextPaletteColor } from './types.ts'
-import type { Member } from './types.ts'
+import type { Member, Settings } from './types.ts'
 import { CheckIcon, PlusIcon, TrashIcon } from './icons.tsx'
+import { useTheme } from './useTheme.ts'
+import { AnyEmojiField } from './AnyEmojiField.tsx'
+import { isValidAvatar } from './emoji.ts'
+import { inkFor } from './color.ts'
+import { passkeysSupported, registerPasskey } from './webauthn.ts'
 import './setup.css'
 
-type Step = 'welcome' | 'role' | 'household' | 'members' | 'calendars' | 'chores' | 'done'
+type Step = 'welcome' | 'role' | 'passkey' | 'household' | 'members' | 'calendars' | 'chores' | 'done'
 type DeviceRole = 'admin' | 'display'
 const PROGRESS_STEPS: Step[] = ['household', 'members', 'calendars', 'chores', 'done']
 
@@ -140,7 +145,43 @@ function RoleStep({ busy, error, onChoose }: { busy: boolean; error: string; onC
   )
 }
 
-function HouseholdStep({ onNext, onBack }: { onNext: () => void; onBack: () => void }) {
+/** Admin device role, right after claim: swap the just-issued admin key for a passkey + session,
+ * so no long-lived admin key is left stored on this device. Registers using the device's current
+ * key (the raw admin key from claim), then on success deletes that claim key server-side. */
+function PasskeyStep({ adminKeyId, onDone, onSkip }: { adminKeyId: string | null; onDone: () => void; onSkip: () => void }) {
+  const [name, setName] = useState('My phone')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  const create = async () => {
+    if (!name.trim()) return
+    setBusy(true); setError('')
+    try {
+      const result = await registerPasskey(name.trim())
+      if (result.session) {
+        setKey(result.session.key)
+        if (adminKeyId) await api.deleteKey(adminKeyId).catch(() => {}) // best-effort - the passkey itself is already saved
+      }
+      onDone()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not create passkey')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="setup-step">
+      <h1>Create a passkey for this device</h1>
+      <p className="setup-sub">Use Face ID, Touch ID, or your device's screen lock instead of saving a key.</p>
+      <div className="field"><label>Name this passkey</label><input type="text" value={name} onChange={e => setName(e.target.value)} autoFocus /></div>
+      {error && <p className="setup-error">{error}</p>}
+      <StepNav onNext={create} nextDisabled={busy || !name.trim()} nextLabel={busy ? 'Creating…' : 'Create passkey'} onSkip={onSkip} />
+    </div>
+  )
+}
+
+function HouseholdStep({ useAdmin, onNext, onBack }: { useAdmin: boolean; onNext: () => void; onBack: () => void }) {
   const tzs = useMemo(timezoneList, [])
   const [familyName, setFamilyName] = useState('Our Family')
   const [timezone, setTimezone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone)
@@ -151,7 +192,7 @@ function HouseholdStep({ onNext, onBack }: { onNext: () => void; onBack: () => v
   const save = async () => {
     setBusy(true); setError('')
     try {
-      await api.updateSettings({ familyName: familyName.trim() || 'Our Family', timezone, weekStart })
+      await api.updateSettings({ familyName: familyName.trim() || 'Our Family', timezone, weekStart }, useAdmin)
       onNext()
     } catch (e) { setError(e instanceof ApiError ? e.message : 'Could not save') } finally { setBusy(false) }
   }
@@ -224,14 +265,15 @@ function MembersStep({ useAdmin, onNext, onBack }: { useAdmin: boolean; onNext: 
         <div className="emoji-swatch-row">
           {MEMBER_EMOJI.map(e => <button key={e} className={`emoji-swatch ${avatar === e ? 'active' : ''}`} onClick={() => setAvatar(e)}>{e}</button>)}
         </div>
+        <AnyEmojiField value={avatar} onChange={setAvatar} allowInitials />
       </div>
-      <button className="add-row-btn setup-add-btn" onClick={add} disabled={!name.trim()}><PlusIcon width={20} height={20} />Add another</button>
+      <button className="add-row-btn setup-add-btn" onClick={add} disabled={!name.trim() || !isValidAvatar(avatar)}><PlusIcon width={20} height={20} />Add another</button>
       {error && <p className="setup-error">{error}</p>}
       {members.length > 0 && (
         <div className="member-row-list setup-member-list">
           {members.map(m => (
             <div key={m.id} className="member-list-item">
-              <div className="member-avatar-sm" style={{ background: m.color }}>{m.avatar}</div>
+              <div className="member-avatar-sm" style={{ background: m.color, color: inkFor(m.color) }}>{m.avatar}</div>
               <div className="name">{m.name}</div>
               <button className="icon-btn" onClick={() => remove(m.id)}><TrashIcon width={16} height={16} /></button>
             </div>
@@ -435,32 +477,95 @@ function ChoresStep({ members, onNext, onBack }: { members: Member[]; onNext: ()
   )
 }
 
-function DoneStep({ deviceRole, adminKey, onGoToCalendar }: { deviceRole: DeviceRole; adminKey: string | null; onGoToCalendar: () => void }) {
+const SETUP_PASSKEY_POLL_MS = 3000
+
+/** Wall-display role's final screen: offers "finish on your phone" (a QR code carrying a
+ * one-time register-token — see `#/admin-setup` in App.tsx) instead of showing the raw admin
+ * key. Polls GET /api/setup for its `passkeys` flag to notice when the phone finishes, then
+ * drops this display's temporary in-memory admin key and deletes the claim key server-side. The
+ * "Show admin key instead" fallback keeps today's reveal-the-key screen verbatim. */
+function DisplayDoneStep({ adminKey, adminKeyId, onGoToCalendar }: { adminKey: string | null; adminKeyId: string | null; onGoToCalendar: () => void }) {
+  const [fallback, setFallback] = useState(!passkeysSupported())
+  const [reg, setReg] = useState<{ token: string; expiresAt: string } | null>(null)
+  const [phoneDone, setPhoneDone] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (fallback || reg) return
+    api.passkeyRegisterToken().then(setReg).catch(() => setError('Could not start "finish on your phone" — try the admin key instead.'))
+  }, [fallback, reg])
+
+  useEffect(() => {
+    if (fallback || !reg || phoneDone) return
+    let cancelled = false
+    const tick = async () => {
+      try {
+        const s = await api.getSetup()
+        if (cancelled || !s.passkeys) return
+        setPhoneDone(true)
+        if (adminKeyId) await api.deleteKey(adminKeyId).catch(() => {}) // temp admin key still valid (sessionStorage, 5 min TTL)
+        clearAdminKey()
+      } catch { /* offline / transient - next tick retries */ }
+    }
+    const id = setInterval(tick, SETUP_PASSKEY_POLL_MS)
+    return () => { cancelled = true; clearInterval(id) }
+  }, [fallback, reg, phoneDone, adminKeyId])
+
   const copy = async () => {
     if (!adminKey) return
     try { await navigator.clipboard.writeText(adminKey); setCopied(true) } catch { /* ignore */ }
   }
 
-  if (deviceRole === 'display') {
+  if (phoneDone) {
     return (
       <div className="setup-step">
-        <h1>All set! 🎉</h1>
-        {adminKey ? (
-          <>
-            <div className="setup-admin-reveal">
-              <p className="setup-warning">Save this admin key now — it won't be shown again. You'll need it to manage Kinwall and pair more displays.</p>
-              <div className="setup-key-row">
-                <QrCode value={adminKey} size={140} />
-                <div className="setup-key-value">{adminKey}</div>
-              </div>
-              <button className="btn btn-secondary setup-btn" onClick={copy}>{copied ? 'Copied ✓' : 'Copy key'}</button>
-            </div>
-          </>
-        ) : <p className="setup-sub">Your admin key was shown earlier in this session — if you missed it, create a new admin key from Settings → API Keys once you're in.</p>}
+        <h1>Passkey created on your phone! 🎉</h1>
+        <p className="setup-sub">This display no longer holds an admin key — manage Kinwall from your phone's Settings.</p>
         <StepNav onNext={onGoToCalendar} nextLabel="Continue to calendar" />
       </div>
     )
+  }
+
+  if (!fallback) {
+    const qrValue = reg ? new URL(`#/admin-setup?token=${reg.token}`, document.baseURI).href : ''
+    return (
+      <div className="setup-step">
+        <h1>Finish on your phone</h1>
+        <p className="setup-sub">Scan this with your phone to create your admin passkey (Face ID / Touch ID).</p>
+        <div className="setup-key-row">
+          {reg ? <QrCode value={qrValue} size={168} /> : <p className="setup-sub">Preparing…</p>}
+        </div>
+        {error && <p className="setup-error">{error}</p>}
+        <p className="settings-row-sub">Waiting for the passkey to be created…</p>
+        <button className="link-btn" onClick={() => setFallback(true)}>Show admin key instead</button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="setup-step">
+      <h1>All set! 🎉</h1>
+      {adminKey ? (
+        <>
+          <div className="setup-admin-reveal">
+            <p className="setup-warning">Save this admin key now — it won't be shown again. You'll need it to manage Kinwall and pair more displays.</p>
+            <div className="setup-key-row">
+              <QrCode value={adminKey} size={140} />
+              <div className="setup-key-value">{adminKey}</div>
+            </div>
+            <button className="btn btn-secondary setup-btn" onClick={copy}>{copied ? 'Copied ✓' : 'Copy key'}</button>
+          </div>
+        </>
+      ) : <p className="setup-sub">Your admin key was shown earlier in this session — if you missed it, create a new admin key from Settings → API Keys once you're in.</p>}
+      <StepNav onNext={onGoToCalendar} nextLabel="Continue to calendar" />
+    </div>
+  )
+}
+
+function DoneStep({ deviceRole, adminKey, adminKeyId, onGoToCalendar }: { deviceRole: DeviceRole; adminKey: string | null; adminKeyId: string | null; onGoToCalendar: () => void }) {
+  if (deviceRole === 'display') {
+    return <DisplayDoneStep adminKey={adminKey} adminKeyId={adminKeyId} onGoToCalendar={onGoToCalendar} />
   }
 
   return (
@@ -483,10 +588,17 @@ export default function Setup({ oauth, onDone }: { oauth: { google: boolean; mic
   const [step, setStep] = useState<Step>(resume?.step ?? 'welcome')
   const [deviceRole, setDeviceRole] = useState<DeviceRole | null>(resume?.deviceRole ?? null)
   const [adminKey, setAdminKeyMem] = useState<string | null>(() => (resume ? getAdminKey() : null))
+  const [adminKeyId, setAdminKeyId] = useState<string | null>(null)
   const [members, setMembers] = useState<Member[]>([])
   const [code, setCode] = useState('')
   const [claimBusy, setClaimBusy] = useState(false)
   const [claimError, setClaimError] = useState('')
+
+  // Once this device has a key (just claimed, or mid-wizard resume), pick up household theming
+  // so the rest of the wizard - and the app it hands off to - looks consistent from the start.
+  const [themeSettings, setThemeSettings] = useState<Settings | null>(null)
+  useTheme(themeSettings)
+  useEffect(() => { if (deviceRole) api.getSettings().then(setThemeSettings).catch(() => {}) }, [deviceRole, step])
 
   useEffect(() => {
     saveResume(deviceRole && step !== 'welcome' && step !== 'role' && step !== 'done' ? { step, deviceRole } : null)
@@ -502,14 +614,17 @@ export default function Setup({ oauth, onDone }: { oauth: { google: boolean; mic
       const deviceName = role === 'display' ? 'Wall display' : 'My device'
       const res = await api.claimSetup(code, role, deviceName)
       setDeviceRole(role)
+      setAdminKeyId(res.adminKeyId)
       if (role === 'display') {
         setKey(res.displayKey!)
         setAdminKey(res.adminKey)
         setAdminKeyMem(res.adminKey)
+        setStep('household')
       } else {
         setKey(res.adminKey)
+        setAdminKeyMem(res.adminKey)
+        setStep(passkeysSupported() ? 'passkey' : 'household')
       }
-      setStep('household')
     } catch (e) {
       setClaimError(e instanceof ApiError ? e.message : 'Could not claim this instance')
     } finally { setClaimBusy(false) }
@@ -526,7 +641,8 @@ export default function Setup({ oauth, onDone }: { oauth: { google: boolean; mic
         <Progress step={step} />
         {step === 'welcome' && <WelcomeStep code={code} setCode={setCode} onNext={() => setStep('role')} />}
         {step === 'role' && <RoleStep busy={claimBusy} error={claimError} onChoose={claim} />}
-        {step === 'household' && <HouseholdStep onBack={() => setStep('role')} onNext={() => setStep('members')} />}
+        {step === 'passkey' && <PasskeyStep adminKeyId={adminKeyId} onDone={() => setStep('household')} onSkip={() => setStep('household')} />}
+        {step === 'household' && <HouseholdStep useAdmin={deviceRole === 'display'} onBack={() => setStep('role')} onNext={() => setStep('members')} />}
         {step === 'members' && (
           <MembersStep useAdmin={deviceRole === 'display'} onBack={() => setStep('household')} onNext={async () => { setMembers(await api.getMembers().catch(() => members)); setStep('calendars') }} />
         )}
@@ -536,7 +652,7 @@ export default function Setup({ oauth, onDone }: { oauth: { google: boolean; mic
             onOAuthStart={startOAuth} />
         )}
         {step === 'chores' && <ChoresStep members={members} onBack={() => setStep('calendars')} onNext={() => setStep('done')} />}
-        {step === 'done' && <DoneStep deviceRole={deviceRole ?? 'admin'} adminKey={adminKey} onGoToCalendar={() => { saveResume(null); onDone() }} />}
+        {step === 'done' && <DoneStep deviceRole={deviceRole ?? 'admin'} adminKey={adminKey} adminKeyId={adminKeyId} onGoToCalendar={() => { saveResume(null); onDone() }} />}
       </div>
     </div>
   )

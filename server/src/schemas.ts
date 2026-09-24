@@ -1,7 +1,14 @@
 // Shared zod-openapi schemas, reused across route files.
 import { z } from '@hono/zod-openapi';
+import { isSingleEmoji, isValidAvatar } from './emoji.ts';
 
 export const ErrorSchema = z.object({ error: z.string() }).openapi('Error');
+
+const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+const HHMM_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+export const AvatarSchema = z.string().refine(isValidAvatar, 'must be a single emoji or a 1-2 letter initial');
+export const EmojiSchema = z.string().refine(isSingleEmoji, 'must be a single emoji');
 
 export const MemberSchema = z
   .object({
@@ -19,7 +26,7 @@ export const MemberInputSchema = z
   .object({
     name: z.string().min(1),
     color: z.string().min(1),
-    avatar: z.string().nullable().optional(),
+    avatar: AvatarSchema.nullable().optional(),
     sort: z.number().optional(),
   })
   .openapi('MemberInput');
@@ -29,9 +36,46 @@ export const SettingsSchema = z
     familyName: z.string(),
     timezone: z.string().nullable(),
     weekStart: z.union([z.literal(0), z.literal(1)]),
-    theme: z.string(),
+    themeMode: z.enum(['light', 'dark', 'auto', 'scheduled']),
+    darkFrom: z.string(),
+    darkTo: z.string(),
+    accent: z.string(),
+    backgroundLight: z.enum(['warm', 'white', 'gray', 'sage']),
+    backgroundDark: z.enum(['cocoa', 'charcoal', 'midnight']),
+    textScale: z.enum(['s', 'm', 'l', 'xl']),
+    density: z.enum(['comfortable', 'compact']),
   })
   .openapi('Settings');
+
+export const SettingsPatchSchema = z
+  .object({
+    familyName: z.string().min(1).optional(),
+    timezone: z.string().min(1).optional(),
+    weekStart: z.union([z.literal(0), z.literal(1)]).optional(),
+    theme: z.enum(['light', 'dark']).optional(), // legacy - mapped into themeMode
+    themeMode: z.enum(['light', 'dark', 'auto', 'scheduled']).optional(),
+    darkFrom: z.string().regex(HHMM_RE, 'must be HH:MM').optional(),
+    darkTo: z.string().regex(HHMM_RE, 'must be HH:MM').optional(),
+    accent: z.string().regex(HEX_COLOR_RE, 'must be a hex color like #RRGGBB').optional(),
+    backgroundLight: z.enum(['warm', 'white', 'gray', 'sage']).optional(),
+    backgroundDark: z.enum(['cocoa', 'charcoal', 'midnight']).optional(),
+    textScale: z.enum(['s', 'm', 'l', 'xl']).optional(),
+    density: z.enum(['comfortable', 'compact']).optional(),
+  })
+  .openapi('SettingsPatch');
+
+// Subset of Settings safe to expose with no auth, for the pre-pairing screen / setup wizard
+// (which have no API key yet) — no familyName or anything else household-identifying.
+export const AppearanceSchema = SettingsSchema.pick({
+  themeMode: true,
+  darkFrom: true,
+  darkTo: true,
+  accent: true,
+  backgroundLight: true,
+  backgroundDark: true,
+  textScale: true,
+  density: true,
+}).openapi('Appearance');
 
 export const AccountSchema = z
   .object({
@@ -120,7 +164,7 @@ export const ChoreSchema = z
 export const ChoreInputSchema = z
   .object({
     title: z.string().min(1),
-    emoji: z.string().nullable().optional(),
+    emoji: EmojiSchema.nullable().optional(),
     memberId: z.string().nullable().optional(),
     points: z.number().optional(),
     rrule: z.string().nullable().optional(),
@@ -164,7 +208,7 @@ export const ApiKeyCreatedSchema = z
   .object({ id: z.string(), name: z.string(), scope: z.enum(['admin', 'display']), key: z.string() })
   .openapi('ApiKeyCreated');
 
-export const MeSchema = z.object({ scope: z.enum(['admin', 'display']), keyName: z.string() }).openapi('Me');
+export const MeSchema = z.object({ scope: z.enum(['admin', 'display']), keyName: z.string(), kind: z.enum(['api', 'session']) }).openapi('Me');
 
 export const WebhookSchema = z
   .object({ id: z.string(), url: z.string(), events: z.array(z.string()), enabled: z.boolean(), createdAt: z.string() })

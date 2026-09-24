@@ -1,18 +1,25 @@
-import { createRoute, z } from '@hono/zod-openapi';
+import { createRoute } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
 import { emit } from '../bus.ts';
-import { ErrorSchema, SettingsSchema } from '../schemas.ts';
+import { ErrorSchema, SettingsPatchSchema, SettingsSchema } from '../schemas.ts';
 
 export const settingsRoutes = createRouter();
 
 const DEFAULTS: Record<string, string> = {
   familyName: 'Our Family',
   weekStart: '0',
-  theme: 'light',
+  themeMode: 'light',
+  darkFrom: '20:00',
+  darkTo: '07:00',
+  accent: '#FF9E7A',
+  backgroundLight: 'warm',
+  backgroundDark: 'cocoa',
+  textScale: 'm',
+  density: 'comfortable',
 };
 
-async function readSettings(db: D1Database) {
+export async function readSettings(db: D1Database) {
   const { results } = await db.prepare('SELECT key, value FROM settings').all<{ key: string; value: string }>();
   const map = new Map(results.map((r) => [r.key, r.value]));
   return {
@@ -21,7 +28,14 @@ async function readSettings(db: D1Database) {
     // PATCHed by the web UI on first load with the browser's Intl timezone.
     timezone: map.get('timezone') ?? null,
     weekStart: Number(map.get('weekStart') ?? DEFAULTS.weekStart) as 0 | 1,
-    theme: map.get('theme') ?? DEFAULTS.theme,
+    themeMode: (map.get('themeMode') ?? DEFAULTS.themeMode) as 'light' | 'dark' | 'auto' | 'scheduled',
+    darkFrom: map.get('darkFrom') ?? DEFAULTS.darkFrom,
+    darkTo: map.get('darkTo') ?? DEFAULTS.darkTo,
+    accent: map.get('accent') ?? DEFAULTS.accent,
+    backgroundLight: (map.get('backgroundLight') ?? DEFAULTS.backgroundLight) as 'warm' | 'white' | 'gray' | 'sage',
+    backgroundDark: (map.get('backgroundDark') ?? DEFAULTS.backgroundDark) as 'cocoa' | 'charcoal' | 'midnight',
+    textScale: (map.get('textScale') ?? DEFAULTS.textScale) as 's' | 'm' | 'l' | 'xl',
+    density: (map.get('density') ?? DEFAULTS.density) as 'comfortable' | 'compact',
   };
 }
 
@@ -37,15 +51,6 @@ settingsRoutes.openapi(
   async (c) => c.json(await readSettings(c.env.DB), 200),
 );
 
-const PatchSettingsSchema = z
-  .object({
-    familyName: z.string().min(1).optional(),
-    timezone: z.string().min(1).optional(),
-    weekStart: z.union([z.literal(0), z.literal(1)]).optional(),
-    theme: z.string().min(1).optional(),
-  })
-  .openapi('SettingsPatch');
-
 settingsRoutes.openapi(
   createRoute({
     method: 'patch',
@@ -53,18 +58,24 @@ settingsRoutes.openapi(
     tags: ['Settings'],
     summary: 'Update household settings',
     security: [{ Bearer: [] }],
-    request: { body: { content: { 'application/json': { schema: PatchSettingsSchema } } } },
+    request: { body: { content: { 'application/json': { schema: SettingsPatchSchema } } } },
     responses: {
       200: { description: 'ok', content: { 'application/json': { schema: SettingsSchema } } },
       400: { description: 'invalid', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
-    const body = c.req.valid('json');
+    const { theme, ...body } = c.req.valid('json');
+    const patch: Record<string, string> = {};
     for (const [key, value] of Object.entries(body)) {
       if (value === undefined) continue;
+      patch[key] = String(value);
+    }
+    // Legacy 'theme': 'light'|'dark' -> themeMode, unless an explicit themeMode was also sent.
+    if (theme && patch.themeMode === undefined) patch.themeMode = theme;
+    for (const [key, value] of Object.entries(patch)) {
       await c.env.DB.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
-        .bind(key, String(value))
+        .bind(key, value)
         .run();
     }
     emit(c, 'settings.changed', {});

@@ -59,6 +59,9 @@ export const LinkIcon = (p: P) => (
 export const LockIcon = (p: P) => (
   <svg {...base(p)}><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V7a4 4 0 018 0v4" /></svg>
 )
+export const PaletteIcon = (p: P) => (
+  <svg {...base(p)}><path d="M12 3a9 9 0 100 18c1.5 0 2-1 2-2s-.5-1.5-.5-2 .5-1 1.5-1H17a4 4 0 004-4c0-5-4-9-9-9z" /><circle cx="7.5" cy="10.5" r="1.2" fill="currentColor" stroke="none" /><circle cx="10.5" cy="7" r="1.2" fill="currentColor" stroke="none" /><circle cx="15" cy="7.5" r="1.2" fill="currentColor" stroke="none" /></svg>
+)
 export const MonitorIcon = (p: P) => (
   <svg {...base(p)}><rect x="3" y="4" width="18" height="13" rx="2" /><path d="M8 21h8M12 17v4" /></svg>
 )

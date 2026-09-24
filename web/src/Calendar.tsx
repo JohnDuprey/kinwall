@@ -4,6 +4,7 @@ import { useApp } from './AppContext.tsx'
 import { api, ApiError, stripHtmlToText } from './api.ts'
 import type { CalendarEntry, EventInstance } from './types.ts'
 import { dateKey, formatTime, minutesSinceMidnight, zonedDayKey } from './date.ts'
+import { inkFor } from './color.ts'
 import Sheet from './Sheet.tsx'
 import { ChevronLeft, ChevronRight, LocationIcon, PlusIcon, RepeatIcon, TrashIcon, EditIcon } from './icons.tsx'
 import { IDLE_RESET_EVENT } from './App.tsx'
@@ -12,7 +13,11 @@ import { useIsPhone } from './useIsPhone.ts'
 const PHONE_WEEK_DAYS = 3
 
 type ViewMode = 'week' | 'day' | 'month' | 'schedule'
-const HOUR_PX = 60
+// Matches --hour-h in styles.css (comfortable/compact) so JS-computed pixel offsets in the time
+// grid line up with the CSS row heights.
+function hourPx(density: 'comfortable' | 'compact' | undefined): number {
+  return density === 'compact' ? 40 : 60
+}
 
 function isAllDayOnDate(ev: EventInstance, key: string) {
   // all-day start/end are date strings, end exclusive
@@ -50,14 +55,14 @@ function useNowMinutes(tz: string) {
 }
 
 /** Scrolls a time-grid to the current time (1/3 down from the top) when `isToday`, else to 7am. */
-function useGridAutoScroll(scrollRef: React.RefObject<HTMLDivElement>, nowMinutes: number, isToday: boolean, dep: unknown) {
+function useGridAutoScroll(scrollRef: React.RefObject<HTMLDivElement>, nowMinutes: number, isToday: boolean, dep: unknown, hourPx: number) {
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return
-    if (isToday) el.scrollTop = Math.max(0, (nowMinutes / 60) * HOUR_PX - el.clientHeight / 3)
-    else el.scrollTop = 7 * HOUR_PX
+    if (isToday) el.scrollTop = Math.max(0, (nowMinutes / 60) * hourPx - el.clientHeight / 3)
+    else el.scrollTop = 7 * hourPx
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isToday, dep])
+  }, [isToday, dep, hourPx])
 }
 
 function useSwipe(onLeft: () => void, onRight: () => void) {
@@ -244,12 +249,18 @@ type ChipMember = { id: string; color: string; avatar: string }
 
 /** Solid member color for a single-member event, calendar/event color for zero members, or
  * diagonal stripes cycling through each assigned member's color (in family sort order, so a
- * shared pair always stripes the same way) for 2+. Single helper used by every view. */
-function eventVisual(ev: EventInstance, members: ChipMember[], stripeWidth: number): { background: string; avatars: string[] } {
+ * shared pair always stripes the same way) for 2+. Single helper used by every view. `ink` is
+ * the best-contrast text color for that background (any member/custom color can be very light
+ * or very dark) - for stripes it's picked across all assigned colors, with the title's
+ * translucent pill (see EventTitle) as an extra safety net. */
+function eventVisual(ev: EventInstance, members: ChipMember[], stripeWidth: number): { background: string; avatars: string[]; ink: string } {
   const assigned = members.filter(m => ev.memberIds.includes(m.id))
-  if (assigned.length <= 1) return { background: assigned[0]?.color ?? ev.color, avatars: [] }
+  if (assigned.length <= 1) {
+    const color = assigned[0]?.color ?? ev.color
+    return { background: color, avatars: [], ink: inkFor(color) }
+  }
   const stops = assigned.map((m, i) => `${m.color} ${i * stripeWidth}px ${(i + 1) * stripeWidth}px`).join(', ')
-  return { background: `repeating-linear-gradient(135deg, ${stops})`, avatars: assigned.map(m => m.avatar) }
+  return { background: `repeating-linear-gradient(135deg, ${stops})`, avatars: assigned.map(m => m.avatar), ink: inkFor(assigned.map(m => m.color)) }
 }
 
 /** Title text (truncating) plus, for striped multi-member events, an inline avatar row and a
@@ -265,9 +276,9 @@ function EventTitle({ title, avatars }: { title: string; avatars: string[] }) {
 }
 
 function EventChip({ ev, members, small, onTap }: { ev: EventInstance; members: ChipMember[]; small?: boolean; onTap: () => void }) {
-  const { background, avatars } = eventVisual(ev, members, small ? 7 : 10)
+  const { background, avatars, ink } = eventVisual(ev, members, small ? 7 : 10)
   return (
-    <div className={small ? 'allday-chip' : 'event-chip'} style={{ background }} onClick={onTap}>
+    <div className={small ? 'allday-chip' : 'event-chip'} style={{ background, color: ink }} onClick={onTap}>
       <EventTitle title={ev.title} avatars={avatars} />
     </div>
   )
@@ -280,11 +291,13 @@ function WeekView({ days, events, tz, members, onTap, onSlotTap }: {
   days: Date[]; events: EventInstance[]; tz: string; members: ChipMember[]
   onTap: (e: EventInstance) => void; onSlotTap: (prefill: Partial<EventInstance>) => void
 }) {
+  const { settings } = useApp()
+  const HOUR_PX = hourPx(settings.density)
   const todayStr = dateKey(new Date())
   const isCurrentWeek = days.some(d => dateKey(d) === todayStr)
   const scrollRef = useRef<HTMLDivElement>(null)
   const nowMinutes = useNowMinutes(tz)
-  useGridAutoScroll(scrollRef, nowMinutes, isCurrentWeek, days[0].getTime())
+  useGridAutoScroll(scrollRef, nowMinutes, isCurrentWeek, days[0].getTime(), HOUR_PX)
 
   const dayKeys = days.map(dateKey)
   const allDayByDay = dayKeys.map(k => events.filter(e => e.allDay && isAllDayOnDate(e, k)))
@@ -331,13 +344,13 @@ function WeekView({ days, events, tz, members, onTap, onSlotTap }: {
               {Array.from({ length: 24 }, (_, h) => <div className="hour-line" key={h} />)}
               {dateKey(d) === todayStr && <div className="now-line" style={{ top: (nowMinutes / 60) * HOUR_PX }}><span className="now-dot" /></div>}
               {laidOut.map(({ ev, s, e, col, totalCols }) => {
-                const { background, avatars } = eventVisual(ev, members, 10)
+                const { background, avatars, ink } = eventVisual(ev, members, 10)
                 return (
                   <div key={ev.id} className="timed-event"
                     style={{
                       top: (s / 60) * HOUR_PX, height: Math.max(((e - s) / 60) * HOUR_PX - 2, 16),
                       left: `calc(${(col / totalCols) * 100}% + 2px)`, width: `calc(${100 / totalCols}% - 4px)`,
-                      background,
+                      background, color: ink,
                     }}
                     onClick={ev2 => { ev2.stopPropagation(); onTap(ev) }}>
                     <div className="event-title-row"><EventTitle title={ev.title} avatars={avatars} /></div>
@@ -357,13 +370,15 @@ function DayView({ anchor, events, tz, members, onTap, onSlotTap }: {
   anchor: Date; events: EventInstance[]; tz: string; members: { id: string; name: string; color: string; avatar: string }[]
   onTap: (e: EventInstance) => void; onSlotTap: (prefill: Partial<EventInstance>) => void
 }) {
+  const { settings } = useApp()
+  const HOUR_PX = hourPx(settings.density)
   const cols = members.length > 0 ? members : [{ id: '__none', name: 'Everyone', color: '#888', avatar: '' }]
   const key = dateKey(anchor)
   const isToday = key === dateKey(new Date())
   const allDay = events.filter(e => e.allDay && isAllDayOnDate(e, key))
   const scrollRef = useRef<HTMLDivElement>(null)
   const nowMinutes = useNowMinutes(tz)
-  useGridAutoScroll(scrollRef, nowMinutes, isToday, key)
+  useGridAutoScroll(scrollRef, nowMinutes, isToday, key, HOUR_PX)
 
   return (
     <div className="grid-scroll" ref={scrollRef}>
@@ -371,7 +386,7 @@ function DayView({ anchor, events, tz, members, onTap, onSlotTap }: {
         <div />
         {cols.map(m => (
           <div key={m.id} className="week-header-cell">
-            <div style={{ width: 28, height: 28, borderRadius: '50%', background: m.color, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>{m.avatar}</div>
+            <div style={{ width: 28, height: 28, borderRadius: '50%', background: m.color, color: inkFor(m.color), margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>{m.avatar}</div>
             <div className="wd" style={{ marginTop: 4 }}>{m.name}</div>
           </div>
         ))}
@@ -408,10 +423,10 @@ function DayView({ anchor, events, tz, members, onTap, onSlotTap }: {
               }}>
               {Array.from({ length: 24 }, (_, h) => <div className="hour-line" key={h} />)}
               {laidOut.map(({ ev, s, e, col, totalCols }) => {
-                const { background, avatars } = eventVisual(ev, members, 10)
+                const { background, avatars, ink } = eventVisual(ev, members, 10)
                 return (
                   <div key={ev.id} className="timed-event"
-                    style={{ top: (s / 60) * HOUR_PX, height: Math.max(((e - s) / 60) * HOUR_PX - 2, 16), left: `calc(${(col / totalCols) * 100}% + 2px)`, width: `calc(${100 / totalCols}% - 4px)`, background }}
+                    style={{ top: (s / 60) * HOUR_PX, height: Math.max(((e - s) / 60) * HOUR_PX - 2, 16), left: `calc(${(col / totalCols) * 100}% + 2px)`, width: `calc(${100 / totalCols}% - 4px)`, background, color: ink }}
                     onClick={ev2 => { ev2.stopPropagation(); onTap(ev) }}>
                     <div className="event-title-row"><EventTitle title={ev.title} avatars={avatars} /></div>
                     <span style={{ opacity: 0.85 }}>{formatTime(ev.start, tz)}</span>
@@ -485,9 +500,9 @@ function MonthView({ anchor, events, tz, weekStart, members, onTap, onDayTap }: 
             <div key={i} className={`month-cell ${isSameMonth(d, anchor) ? '' : 'dim'}`} onClick={() => onDayTap(d)}>
               <div className={`month-daynum ${key === todayStr ? 'today' : ''}`}>{format(d, 'd')}</div>
               {shown.map(ev => {
-                const { background, avatars } = eventVisual(ev, members, 6)
+                const { background, avatars, ink } = eventVisual(ev, members, 6)
                 return (
-                  <div key={ev.id} className="month-chip" style={{ background }} onClick={e => { e.stopPropagation(); onTap(ev) }}>
+                  <div key={ev.id} className="month-chip" style={{ background, color: ink }} onClick={e => { e.stopPropagation(); onTap(ev) }}>
                     <EventTitle title={`${ev.allDay ? '' : formatTime(ev.start, tz) + ' '}${ev.title}`} avatars={avatars} />
                   </div>
                 )

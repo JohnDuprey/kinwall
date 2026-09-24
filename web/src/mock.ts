@@ -14,7 +14,14 @@ const settings: Settings = {
   familyName: 'The Duprey Family',
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   weekStart: 0,
-  theme: 'light',
+  themeMode: 'light',
+  darkFrom: '20:00',
+  darkTo: '07:00',
+  accent: '#FF9E7A',
+  backgroundLight: 'warm',
+  backgroundDark: 'cocoa',
+  textScale: 'm',
+  density: 'comfortable',
 }
 
 const members: Member[] = [

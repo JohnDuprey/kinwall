@@ -1,14 +1,28 @@
 // Shapes mirror SPEC.md "API". Assumption: JSON keys are camelCase throughout
 // (SPEC shows this explicitly for EventInstance / chores/day; applied consistently here).
 
-export type Theme = 'light' | 'dark'
+export type ThemeMode = 'light' | 'dark' | 'auto' | 'scheduled'
+export type BackgroundLight = 'warm' | 'white' | 'gray' | 'sage'
+export type BackgroundDark = 'cocoa' | 'charcoal' | 'midnight'
+export type TextScale = 's' | 'm' | 'l' | 'xl'
+export type Density = 'comfortable' | 'compact'
 
 export interface Settings {
   familyName: string
   timezone: string | null
   weekStart: 0 | 1
-  theme: Theme
+  themeMode: ThemeMode
+  darkFrom: string // HH:MM, household timezone
+  darkTo: string // HH:MM, household timezone
+  accent: string // hex
+  backgroundLight: BackgroundLight
+  backgroundDark: BackgroundDark
+  textScale: TextScale
+  density: Density
 }
+
+/** Subset of Settings the pre-pairing screen can read with no key — see GET /api/appearance. */
+export type Appearance = Pick<Settings, 'themeMode' | 'darkFrom' | 'darkTo' | 'accent' | 'backgroundLight' | 'backgroundDark' | 'textScale' | 'density'>
 
 export interface Member {
   id: string
@@ -111,9 +125,17 @@ export interface ApiKey {
   lastUsedAt: string | null
 }
 
+export interface Passkey {
+  id: string
+  name: string
+  createdAt: string
+  lastUsedAt: string | null
+}
+
 export interface Me {
   scope: KeyScope
   keyName: string
+  kind: 'api' | 'session'
 }
 
 export interface Webhook {
@@ -130,6 +152,32 @@ export const MEMBER_PALETTE = [
 ]
 
 export const MEMBER_EMOJI = ['🦊', '🐻', '🐱', '🐶', '🐰', '🦁', '🐼', '🦄', '🐨', '🐵']
+
+// 6-8 accent presets incl. the current default orange. Custom accents come from a native
+// <input type="color"> in Settings, so this list stays short.
+export const ACCENT_PRESETS = [
+  '#FF9E7A', // current default orange
+  '#FF6B6B', // coral red
+  '#FFD166', // amber
+  '#6FCF97', // green
+  '#4DA3FF', // blue
+  '#B39DFF', // violet
+  '#FF8FA3', // pink
+  '#2FBFB0', // teal
+]
+
+export const BACKGROUND_LIGHT_PRESETS: { key: 'warm' | 'white' | 'gray' | 'sage'; label: string; preview: string }[] = [
+  { key: 'warm', label: 'Warm', preview: '#FFFBF5' },
+  { key: 'white', label: 'White', preview: '#FFFFFF' },
+  { key: 'gray', label: 'Gray', preview: '#F1F2F4' },
+  { key: 'sage', label: 'Sage', preview: '#F3F6F1' },
+]
+
+export const BACKGROUND_DARK_PRESETS: { key: 'cocoa' | 'charcoal' | 'midnight'; label: string; preview: string }[] = [
+  { key: 'cocoa', label: 'Cocoa', preview: '#1C1712' },
+  { key: 'charcoal', label: 'Charcoal', preview: '#191A1C' },
+  { key: 'midnight', label: 'Midnight', preview: '#0F1420' },
+]
 
 /** First palette color not already in use (by members/calendars), so a new calendar with no
  * explicit color doesn't fall back to the server's grey #888. Cycles back to the first color

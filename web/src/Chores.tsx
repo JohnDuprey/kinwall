@@ -6,6 +6,9 @@ import type { Chore, ChoreDay, LeaderboardEntry, LeaderboardPeriod } from './typ
 import { MEMBER_EMOJI } from './types.ts'
 import { dateKey } from './date.ts'
 import Sheet from './Sheet.tsx'
+import { AnyEmojiField } from './AnyEmojiField.tsx'
+import { isSingleEmoji } from './emoji.ts'
+import { inkFor } from './color.ts'
 import { CheckIcon, PlusIcon } from './icons.tsx'
 import { IDLE_RESET_EVENT } from './App.tsx'
 
@@ -61,7 +64,7 @@ function Leaderboard() {
             <div className="lb-rank">#{e.rank}</div>
             <div
               className={`lb-avatar ${bounceId === e.memberId ? 'crown-bounce' : ''}`}
-              style={{ background: e.color, ['--lb-color' as string]: e.color }}
+              style={{ background: e.color, color: inkFor(e.color), ['--lb-color' as string]: e.color }}
             >{e.avatar}</div>
             <div className="lb-info">
               <div className="lb-name-row">
@@ -108,7 +111,7 @@ function ProgressRing({ pct, color, avatar }: { pct: number; color: string; avat
         <circle cx="32" cy="32" r={r} fill="none" stroke={color} strokeWidth="5" strokeLinecap="round"
           strokeDasharray={c} strokeDashoffset={c * (1 - pct)} style={{ transition: 'stroke-dashoffset 0.4s ease' }} />
       </svg>
-      <div className="avatar" style={{ background: color, width: 44, height: 44, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{avatar}</div>
+      <div className="avatar" style={{ background: color, color: inkFor(color), width: 44, height: 44, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{avatar}</div>
     </div>
   )
 }
@@ -253,7 +256,7 @@ function ChoreEditSheet({ chore, onClose, onSaved }: { chore: Chore | null; onCl
   const [dueDate, setDueDate] = useState(chore?.dueDate ?? dateKey(new Date()))
 
   const submit = async () => {
-    if (!title.trim()) return
+    if (!title.trim() || !isSingleEmoji(emoji)) return
     const rrule = repeat === 'daily' ? 'FREQ=DAILY' : repeat === 'weekly' ? 'FREQ=WEEKLY' : null
     const body = { title: title.trim(), emoji, points, memberId, rrule, dueDate: rrule ? null : dueDate }
     try {
@@ -274,7 +277,7 @@ function ChoreEditSheet({ chore, onClose, onSaved }: { chore: Chore | null; onCl
       actions={
         <>
           {chore && <button className="btn btn-danger" onClick={del}>Delete</button>}
-          <button className="btn btn-primary" onClick={submit}>{chore ? 'Save' : 'Add chore'}</button>
+          <button className="btn btn-primary" onClick={submit} disabled={!title.trim() || !isSingleEmoji(emoji)}>{chore ? 'Save' : 'Add chore'}</button>
         </>
       }>
       <div className="field">
@@ -288,6 +291,7 @@ function ChoreEditSheet({ chore, onClose, onSaved }: { chore: Chore | null; onCl
             <button key={e} className={`emoji-swatch ${emoji === e ? 'active' : ''}`} onClick={() => setEmoji(e)}>{e}</button>
           ))}
         </div>
+        <AnyEmojiField value={emoji} onChange={setEmoji} />
       </div>
       <div className="field">
         <label>Points</label>

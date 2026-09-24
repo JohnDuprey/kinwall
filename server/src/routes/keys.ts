@@ -23,7 +23,9 @@ keysRoutes.openapi(
     responses: { 200: { description: 'ok', content: { 'application/json': { schema: z.array(ApiKeySchema) } } } },
   }),
   async (c) => {
-    const { results } = await c.env.DB.prepare('SELECT id, name, scope, created_at, last_used_at FROM api_keys ORDER BY created_at').all<KeyRow>();
+    // Passkey-login sessions (kind='session') are a separate concept (see Settings → Passkeys),
+    // not automation keys - keep them out of this listing.
+    const { results } = await c.env.DB.prepare("SELECT id, name, scope, created_at, last_used_at FROM api_keys WHERE kind = 'api' ORDER BY created_at").all<KeyRow>();
     return c.json(results.map(toApi), 200);
   },
 );
