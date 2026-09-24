@@ -47,11 +47,11 @@ npx wrangler secret put ADMIN_API_KEY     # optional; also works as the setup co
 npx wrangler deploy                       # from the repo root: builds, creates the database, deploys
 ```
 
-Set the public URL in **Settings → Calendar providers** (or `PUBLIC_URL` in `wrangler.toml` `[vars]`) to your `*.workers.dev` URL or custom domain. The free tier is 100k requests/day, and each request or cron run gets 10 ms of CPU. Sync stays inside that limit: feeds that haven't changed are skipped by fingerprint, and Google/Microsoft/CalDAV sync in 31-day slices. If a very large ICS feed hits the CPU limit, move to Workers Paid ($5/mo).
+Set the public URL in **Settings → Calendars → Calendar providers** (or `PUBLIC_URL` in `wrangler.toml` `[vars]`) to your `*.workers.dev` URL or custom domain. The free tier is 100k requests/day, and each request or cron run gets 10 ms of CPU. Sync stays inside that limit: feeds that haven't changed are skipped by fingerprint, and Google/Microsoft/CalDAV sync in 31-day slices. If a very large ICS feed hits the CPU limit, move to Workers Paid ($5/mo).
 
 ## Put it on the wall
 
-1. On the iPad, open `https://<your-kinwall>` in Safari. It shows a pairing code and QR code: scan it with your phone (approve with your passkey) or enter the code under Settings → Displays on an admin device.
+1. On the iPad, open `https://<your-kinwall>` in Safari and tap **Set up as a wall display**. It shows a pairing code and QR code: scan it with your phone (approve with your passkey) or enter the code under Settings → Access → Add a display on an admin device.
 2. Tap Share, then **Add to Home Screen**, and launch it from there (full screen).
 3. iPad Settings: set Display → Auto-Lock to Never and turn on Guided Access (Accessibility) to lock the iPad to Kinwall.
 
@@ -60,7 +60,7 @@ On a display, Settings shows Household, Appearance, This display (navigation pos
 ## Connect calendars
 
 Google and Microsoft OAuth credentials can be set up entirely in the UI now — no env vars or
-restart needed. Go to **Settings → Calendar providers** (admin only): set a Public URL (used to
+restart needed. Go to **Settings → Calendars → Calendar providers** (admin only): set a Public URL (used to
 build the redirect URI — prefilled from the page's own origin), then open the Google or Microsoft
 card, paste in a client ID/secret, and hit Save. Each card shows the exact redirect URI (with a
 copy button) and a short numbered setup guide for that provider's console. The first-run setup
@@ -73,7 +73,7 @@ by server" and is read-only in the UI.
 
 | Source | How |
 |---|---|
-| Any ICS URL | Settings → Calendars → Add ICS. Works with Google's "secret address in iCal format", Outlook's published calendars, school/sports feeds. Read-only. |
+| Any ICS URL | Settings → Calendars → + ICS URL. Works with Google's "secret address in iCal format", Outlook's published calendars, school/sports feeds. Read-only. |
 | Google | Settings → Calendar providers → Google (see above), or set `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`. Either way, create an OAuth client (Web application) in Google Cloud Console with the redirect URI shown on the card. Google requires HTTPS or `localhost` redirect URIs, so a bare LAN IP won't work. Use Workers, a domain with HTTPS, or complete sign-in from `http://localhost:8080` on the server itself. |
 | Microsoft / Outlook | Settings → Calendar providers → Microsoft (see above), or set `MS_CLIENT_ID` / `MS_CLIENT_SECRET` (and `MS_TENANT` if not `common`). Register an app in Entra ID with the redirect URI shown on the card and delegated permissions `Calendars.ReadWrite`, `User.Read`, `offline_access`. |
 | iCloud / CalDAV | Settings → Calendars → CalDAV. For iCloud use `https://caldav.icloud.com` and an [app-specific password](https://support.apple.com/102654). Note: Apple app-specific passwords can't be limited to calendars. If you only need to read, use a public ICS link instead. |

@@ -103,7 +103,7 @@ function ListEditSheet({ list, onClose, onSaved, onDeleted }: {
       }>
       <div className="field">
         <label>Name</label>
-        <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="List name" autoFocus />
+        <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="List name" autoFocus={!existing} />
       </div>
       <div className="field">
         <label>Kind</label>
@@ -184,7 +184,7 @@ function ItemEditSheet({ listId, item, kind, members, suggestions, siblingIds, o
       </>}>
       <div className="field">
         <label>Title</label>
-        <input type="text" value={title} onChange={e => setTitle(e.target.value)} autoFocus />
+        <input type="text" value={title} onChange={e => setTitle(e.target.value)} />
       </div>
       <div className="field">
         <label>Quantity</label>
@@ -405,19 +405,21 @@ function ListDetailPane({ listId, isPhone, onBack, onArchivedOrDeleted, onLoaded
 
       {list.kind === 'shopping' && (
         <>
-          <div className="segmented list-groupby">
-            {(['store', 'category', 'none'] as ListGroupBy[]).map(g => (
-              <button key={g} className={list.groupBy === g ? 'active' : ''} onClick={() => setGroupBy(g)}>{g === 'store' ? 'Store' : g === 'category' ? 'Category' : 'None'}</button>
-            ))}
+          <div className="list-toolbar">
+            <div className="segmented list-groupby">
+              {(['store', 'category', 'none'] as ListGroupBy[]).map(g => (
+                <button key={g} className={list.groupBy === g ? 'active' : ''} onClick={() => setGroupBy(g)}>{g === 'store' ? 'Store' : g === 'category' ? 'Category' : 'None'}</button>
+              ))}
+            </div>
+            {list.groupBy !== 'none' && reorderableNames.length > 1 && (
+              <button className="link-btn" onClick={() => setReorderGroups(true)}>Reorder</button>
+            )}
           </div>
           {stores.length > 0 && (
             <div className="chip-row list-store-chips">
               <button className={`chip ${selectedStore === null ? 'active' : ''}`} onClick={() => setSelectedStore(null)}>All</button>
               {stores.map(s => <button key={s} className={`chip ${selectedStore === s ? 'active' : ''}`} onClick={() => setSelectedStore(s)}>{s}</button>)}
             </div>
-          )}
-          {list.groupBy !== 'none' && reorderableNames.length > 1 && (
-            <button className="link-btn" onClick={() => setReorderGroups(true)}>Reorder {list.groupBy === 'store' ? 'stores' : 'categories'}</button>
           )}
         </>
       )}
@@ -448,7 +450,14 @@ function ListDetailPane({ listId, isPhone, onBack, onArchivedOrDeleted, onLoaded
 
         {doneItems.length > 0 && (
           <div className="list-done-section">
-            <button className="list-done-toggle" onClick={() => setShowDone(s => !s)}>{showDone ? '▾' : '▸'} Done ({doneItems.length})</button>
+            {/* Clear/Reset only matter once something is checked, so they live here rather than
+                in a permanent footer that cost a phone a row of items. */}
+            <div className="list-done-head">
+              <button className="list-done-toggle" onClick={() => setShowDone(s => !s)}>{showDone ? '▾' : '▸'} Done ({doneItems.length})</button>
+              {list.kind === 'reusable'
+                ? <button className="link-btn" onClick={reset}>Reset list</button>
+                : <button className="link-btn" onClick={clearChecked}>Clear checked</button>}
+            </div>
             {showDone && doneItems.slice().sort((a, b) => a.sort - b.sort).map(item => (
               <ItemRow key={item.id} item={item} kind={list.kind} groupBy={list.groupBy} members={members} onToggle={() => toggle(item)} onOpen={() => setEditItem(item)} />
             ))}
@@ -456,13 +465,6 @@ function ListDetailPane({ listId, isPhone, onBack, onArchivedOrDeleted, onLoaded
         )}
       </div>
 
-      {items.length > 0 && (
-        <div className="list-detail-footer">
-          {list.kind === 'reusable'
-            ? <button className="btn btn-secondary" onClick={reset} disabled={doneItems.length === 0}>Reset</button>
-            : <button className="btn btn-secondary" onClick={clearChecked} disabled={doneItems.length === 0}>Clear checked</button>}
-        </div>
-      )}
 
       {editItem && (
         <ItemEditSheet listId={listId} item={editItem} kind={list.kind} members={members} suggestions={suggestions} siblingIds={siblingIds}

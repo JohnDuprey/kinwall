@@ -579,7 +579,7 @@ function DisplayDoneStep({ adminKey, adminKeyId, onGoToCalendar }: { adminKey: s
             <button className="btn btn-secondary setup-btn" onClick={copy}>{copied ? 'Copied ✓' : 'Copy key'}</button>
           </div>
         </>
-      ) : <p className="setup-sub">Your admin key was shown earlier in this session — if you missed it, create a new admin key from Settings → API Keys once you're in.</p>}
+      ) : <p className="setup-sub">Your admin key was shown earlier in this session — if you missed it, create a new admin key from Settings → Access → API Keys once you're in.</p>}
       <StepNav onNext={onGoToCalendar} nextLabel="Continue to calendar" />
     </div>
   )
@@ -598,7 +598,7 @@ function DoneStep({ deviceRole, adminKey, adminKeyId, onGoToCalendar }: { device
         <li>Open <strong>{location.origin}{location.pathname}</strong> in Safari on the wall iPad</li>
         <li>Tap Share → <strong>Add to Home Screen</strong></li>
         <li>Open it from the home screen — it'll show a pairing code / QR</li>
-        <li>Scan that code with this phone, or enter it in Settings → Displays</li>
+        <li>Scan that code with this phone, or enter it in Settings → Access → Add a display</li>
       </ol>
       <StepNav onNext={onGoToCalendar} nextLabel="Go to calendar" />
     </div>

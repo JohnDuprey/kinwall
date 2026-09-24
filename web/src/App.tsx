@@ -120,13 +120,14 @@ const PAIR_POLL_MS = 3000
 
 /** Device-flow pairing screen (like pairing a TV app): shows a 6-digit code, polls
  * /api/pair/poll every 3s (paused while the tab is hidden) until an admin approves it from
- * Settings → Displays elsewhere, then stores the new display key. Falls back to a manual
+ * Settings → Access elsewhere, then stores the new display key. Falls back to a manual
  * "paste an API key" form via a small link, for automation/advanced setup. */
+/** First screen for a signed-out device. Admins (usually on a phone) sign in with a passkey;
+ * a wall display is set up from here via a pairing code. Without passkey support (plain HTTP),
+ * pairing is the only way in, so it opens straight to that. */
 function PairingGate({ onKey }: { onKey: () => void }) {
-  const [manual, setManual] = useState(false)
-  const [pairing, setPairing] = useState<{ pairingId: string; code: string; pollToken: string; expiresAt: string } | null>(null)
+  const [mode, setMode] = useState<'choose' | 'pair' | 'manual'>(() => (passkeysSupported() ? 'choose' : 'pair'))
   const [error, setError] = useState('')
-  const [success, setSuccess] = useState(false)
   const [passkeyBusy, setPasskeyBusy] = useState(false)
 
   const signInWithPasskey = async () => {
@@ -141,6 +142,27 @@ function PairingGate({ onKey }: { onKey: () => void }) {
       setPasskeyBusy(false)
     }
   }
+
+  if (mode === 'manual') return <ManualKeyGate onKey={onKey} onBack={() => setMode(passkeysSupported() ? 'choose' : 'pair')} />
+  if (mode === 'pair') return <DisplayPairing onKey={onKey} onManual={() => setMode('manual')} onBack={passkeysSupported() ? () => setMode('choose') : undefined} />
+  return (
+    <div className="gate-screen">
+      <div className="gate-card">
+        <h1>Welcome home 👋</h1>
+        <p>Sign in to manage your family's calendar, chores and lists.</p>
+        {error && <p style={{ color: 'var(--danger)' }}>{error}</p>}
+        <button className="btn btn-primary btn-block" onClick={signInWithPasskey} disabled={passkeyBusy}>{passkeyBusy ? 'Checking…' : 'Sign in with passkey'}</button>
+        <button className="btn btn-secondary btn-block" style={{ marginTop: 12 }} onClick={() => setMode('pair')}>Set up as a wall display</button>
+        <button className="link-btn" style={{ marginTop: 8 }} onClick={() => setMode('manual')}>Enter a key manually</button>
+      </div>
+    </div>
+  )
+}
+
+function DisplayPairing({ onKey, onManual, onBack }: { onKey: () => void; onManual: () => void; onBack?: () => void }) {
+  const [pairing, setPairing] = useState<{ pairingId: string; code: string; pollToken: string; expiresAt: string } | null>(null)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState(false)
 
   const start = useCallback(async () => {
     setError('')
@@ -181,8 +203,6 @@ function PairingGate({ onKey }: { onKey: () => void }) {
     return () => { cancelled = true; clearInterval(id) }
   }, [pairing, success, onKey, start])
 
-  if (manual) return <ManualKeyGate onKey={onKey} onBack={() => setManual(false)} />
-
   if (success) {
     return (
       <div className="gate-screen">
@@ -200,8 +220,8 @@ function PairingGate({ onKey }: { onKey: () => void }) {
   return (
     <div className="gate-screen">
       <div className="gate-card pairing-card">
-        <h1>Welcome home 👋</h1>
-        <p>On your phone or computer, open Kinwall → Settings → Displays → Pair a display, and enter this code:</p>
+        <h1>Set up this display</h1>
+        <p>On your phone or computer, open Kinwall → Settings → Access → Add a display, and enter this code:</p>
         <div className="pairing-body">
           <div className="pairing-code" aria-label={digits ? digits.split('').join(' ') : undefined}>
             {digits ? `${digits.slice(0, 3)} ${digits.slice(3)}` : '⋯'}
@@ -209,9 +229,11 @@ function PairingGate({ onKey }: { onKey: () => void }) {
           {pairing && <QrCode value={qrValue} />}
         </div>
         {error && <p style={{ color: 'var(--danger)' }}>{error}</p>}
-        <p className="settings-row-sub">Scan with your phone, or enter the code in Settings → Displays. This code refreshes on its own if it expires.</p>
-        {passkeysSupported() && <button className="link-btn" onClick={signInWithPasskey} disabled={passkeyBusy}>{passkeyBusy ? 'Checking…' : 'Admin? Sign in with passkey'}</button>}
-        <button className="link-btn" onClick={() => setManual(true)}>Enter a key manually</button>
+        <p className="settings-row-sub">Scan with your phone, or enter the code in Settings → Access. This code refreshes on its own if it expires.</p>
+        <div className="gate-links">
+          {onBack && <button className="link-btn" onClick={onBack}>Back to sign in</button>}
+          <button className="link-btn" onClick={onManual}>Enter a key manually</button>
+        </div>
       </div>
     </div>
   )
@@ -521,7 +543,7 @@ export default function App() {
 
   useEffect(() => { loadCore() }, [loadCore, pollTick, manualTick])
 
-  // Key revoked elsewhere (e.g. Settings → Displays → Revoke) — the poll's own 401 catches it
+  // Key revoked elsewhere (e.g. Settings → Access → Displays) — the poll's own 401 catches it
   // even when nothing else is calling the API right now.
   useEffect(() => {
     if (!unauthorized) return

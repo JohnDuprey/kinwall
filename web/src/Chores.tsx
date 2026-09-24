@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { addDays, format, isSameDay } from 'date-fns'
+import { useIsPhone } from './useIsPhone.ts'
 import { useApp } from './AppContext.tsx'
 import { api, ApiError } from './api.ts'
 import type { Chore, ChoreDay, LeaderboardEntry, LeaderboardPeriod } from './types.ts'
@@ -149,6 +150,7 @@ function ChoreCard({ chore, onToggle, onEdit }: { chore: ChoreDay; onToggle: () 
 }
 
 export default function Chores() {
+  const isPhone = useIsPhone()
   const { members, selectedMemberId, toast, reloadCore, refreshTick } = useApp()
   const [selectedDate, setSelectedDate] = useState(() => new Date())
   const [chores, setChores] = useState<ChoreDay[]>([])
@@ -230,6 +232,9 @@ export default function Chores() {
               </div>
             )
           })}
+          {/* Tap toggles done (kid-friendly), so editing is a long press - say so on phones,
+              where an admin is the one looking. On the iPad grid this would become a column. */}
+          {isPhone && <p className="chores-hint">Press and hold a chore to edit it.</p>}
         </div>
       )}
 
@@ -269,6 +274,7 @@ function ChoreEditSheet({ chore, onClose, onSaved }: { chore: Chore | null; onCl
   }
   const del = async () => {
     if (!chore) return
+    if (!confirm(`Delete "${chore.title}"? Its history and points go with it.`)) return
     try { await api.deleteChore(chore.id); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not delete chore') }
   }
 
@@ -282,7 +288,7 @@ function ChoreEditSheet({ chore, onClose, onSaved }: { chore: Chore | null; onCl
       }>
       <div className="field">
         <label>Title</label>
-        <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="Chore title" autoFocus />
+        <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="Chore title" autoFocus={!chore} />
       </div>
       <div className="field">
         <label>Emoji</label>

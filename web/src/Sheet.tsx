@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { XIcon } from './icons.tsx'
 
 export default function Sheet({ title, onClose, children, actions }: {
@@ -7,8 +8,30 @@ export default function Sheet({ title, onClose, children, actions }: {
   children: ReactNode
   actions?: ReactNode
 }) {
-  return (
-    <div className="sheet-backdrop" onClick={onClose}>
+  const backdropRef = useRef<HTMLDivElement>(null)
+
+  // iOS Safari keeps position:fixed tied to the full layout viewport when the keyboard opens, so a
+  // bottom sheet's action buttons end up under the keyboard. Pin the backdrop to the *visible*
+  // viewport instead (Safari ignores interactive-widget=resizes-content, so this is the only way).
+  useEffect(() => {
+    const vv = window.visualViewport
+    const el = backdropRef.current
+    if (!vv || !el) return
+    const fit = () => {
+      el.style.top = `${vv.offsetTop}px`
+      el.style.height = `${vv.height}px`
+      el.style.bottom = 'auto'
+    }
+    fit()
+    vv.addEventListener('resize', fit)
+    vv.addEventListener('scroll', fit)
+    return () => { vv.removeEventListener('resize', fit); vv.removeEventListener('scroll', fit) }
+  }, [])
+
+  // Portal to <body>: iOS clips position:fixed to a touch-scrolling ancestor (Settings, Lists), which
+  // left the tab bar drawn over the sheet's action buttons.
+  return createPortal(
+    <div className="sheet-backdrop" ref={backdropRef} onClick={onClose}>
       <div className="sheet" onClick={e => e.stopPropagation()}>
         <div className="sheet-grabber" />
         <div className="sheet-header">
@@ -18,6 +41,7 @@ export default function Sheet({ title, onClose, children, actions }: {
         <div className="sheet-body scroll-y">{children}</div>
         {actions && <div className="sheet-actions">{actions}</div>}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

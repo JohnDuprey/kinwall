@@ -548,7 +548,7 @@ button {
   background: var(--card);
   width: 100%;
   max-width: 560px;
-  max-height: 86vh;
+  max-height: 86%; /* of the backdrop, which Sheet.tsx pins to the visible viewport (keyboard-aware) */
   border-radius: 26px 26px 0 0;
   box-shadow: var(--shadow-lg);
   display: flex;
@@ -583,9 +583,12 @@ button {
   min-height: 52px;
 }
 .field textarea { min-height: 70px; font-weight: 600; resize: none; }
-.row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.row-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 /* Timed events: Starts [date][time] / Ends [date][time] */
-.row-datetime { display: grid; grid-template-columns: 3fr 2fr; column-gap: 12px; }
+.row-datetime { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); column-gap: 12px; }
+/* iOS gives date/time inputs an intrinsic min width that overflows a two-column row on a phone. */
+.field input[type="date"], .field input[type="time"] { min-width: 0; -webkit-appearance: none; appearance: none; display: block; }
+.field input::-webkit-date-and-time-value { text-align: left; }
 .field-error { color: var(--danger); font-size: 0.875rem; font-weight: 700; margin: -6px 0 14px; }
 
 /* Selects: our own chevron at the same inset as the date/time field icons, instead of the native one */
@@ -763,11 +766,12 @@ button {
 
 /* ---------- Settings ---------- */
 .settings-scroll { padding: 16px var(--pad) 100px; display: flex; flex-direction: column; gap: var(--gap); max-width: 720px; margin: 0 auto; width: 100%; }
+.settings-tabs { position: sticky; top: 0; z-index: 3; background: var(--bg); margin: -16px calc(var(--pad) * -1) 0; padding: 16px var(--pad) 4px; }
 .settings-section { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: calc(var(--gap) * 1.5) calc(var(--gap) * 1.5) calc(var(--gap) * 0.65); }
 .settings-section-title { font-size: 0.8125rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.03em; padding-bottom: 12px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
 /* The title carries the divider, so the first item never doubles it; bare content gets breathing room. */
 .settings-section-title + * { border-top: none !important; }
-.settings-section-title + :is(.field, p, .pair-form) { margin-top: 14px; }
+.settings-section-title + :is(.field, p) { margin-top: 14px; }
 .settings-section-title + .member-row-list { margin-top: 6px; }
 .settings-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 2px; border-top: 1px solid var(--border); gap: 12px; }
 .settings-row:first-of-type { border-top: none; }
@@ -794,7 +798,6 @@ button {
 .cal-sub.error { color: var(--danger); }
 .cal-actions { display: flex; gap: 16px; margin-top: 4px; padding-left: 22px; }
 .form-actions { display: flex; align-items: center; gap: 16px; margin: 4px 0 18px; }
-.pair-form { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 14px; }
 .link-btn { background: none; border: none; color: var(--accent-strong); font-weight: 800; font-size: 0.8125rem; padding: 6px 2px; min-height: 36px; }
 
 .connect-buttons { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
@@ -888,7 +891,8 @@ button {
 .list-done-section { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 4px; }
 .list-done-toggle { background: none; border: none; color: var(--text-dim); font-weight: 800; font-size: 0.8125rem; padding: 8px 4px; min-height: 36px; }
 
-.list-detail-footer { flex-shrink: 0; display: flex; justify-content: flex-end; padding-top: 4px; }
+.list-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-shrink: 0; }
+.list-done-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 
 /* ---------- Key gate ---------- */
 .gate-screen { height: 100dvh; display: flex; align-items: center; justify-content: center; padding: 24px; }
@@ -969,7 +973,10 @@ button {
   .settings-row { flex-direction: column; align-items: stretch; gap: 6px; }
   .settings-row .settings-select, .settings-row select, .settings-row .theme-toggle { width: 100%; }
   .settings-select { width: 100%; }
-  .family-name-input { text-align: left; width: 100%; min-width: 0; }
+  .family-name-input { text-align: left; width: 100%; min-width: 0; padding: 10px 12px; border-radius: 10px; border: 2px solid var(--border); background: var(--bg-alt); min-height: 44px; }
+  /* Four tabs across a phone: stretch the segmented control to the full width. */
+  .settings-tabs .segmented { width: 100%; }
+  .settings-tabs .segmented button { flex: 1; padding-inline: 4px; }
 
   /* ---------- Global: no horizontal scroll ---------- */
   .connect-btn { min-width: 0; }
@@ -1006,3 +1013,6 @@ button {
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2s; } }
 :root[data-saving] .btn-primary { pointer-events: none; opacity: 0.7; }
+
+.chores-hint { text-align: center; font-size: 0.8125rem; font-weight: 600; color: var(--text-dim); margin: 0; padding: 4px var(--pad) 8px; }
+.gate-links { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; }

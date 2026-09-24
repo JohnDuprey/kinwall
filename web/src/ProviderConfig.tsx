@@ -36,6 +36,7 @@ export function ProviderForm({ kind, providers, toast, onChanged }: {
     } catch (e) { toast(e instanceof ApiError ? e.message : `Could not save ${label}`) }
   }
   const remove = async () => {
+    if (!confirm(`Remove the ${kind === 'google' ? 'Google' : 'Microsoft'} sign-in settings? Connected calendars stop syncing until they are set up again.`)) return
     try { await api.deleteProvider(kind); setClientId(''); setClientSecret(''); onChanged() }
     catch (e) { toast(e instanceof ApiError ? e.message : `Could not remove ${label}`) }
   }

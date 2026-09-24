@@ -71,7 +71,7 @@ Dockerfile, docker-compose.yml, README.md
 Workers: `[vars]` in wrangler.toml + `wrangler secret put` for secrets. Node: process env. `PORT` (8080, Node only), `DATA_DIR` (./data, Node only), `PUBLIC_URL` (e.g. `https://cal.home.example` — used for OAuth redirects), `ADMIN_API_KEY` (optional bootstrap key; if unset and no keys exist, generate one and log it once), `SYNC_INTERVAL_MINUTES` (10; Workers uses the cron instead), `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `MS_CLIENT_ID`, `MS_CLIENT_SECRET`, `MS_TENANT` (`common`).
 
 `PUBLIC_URL` and the Google/Microsoft OAuth credentials can also be configured from the UI
-(Settings → Calendar providers, admin only — see `GET/PUT/DELETE /api/providers*` below), stored
+(Settings → Calendars → Calendar providers, admin only — see `GET/PUT/DELETE /api/providers*` below), stored
 as `settings` rows (client secrets AES-256-GCM encrypted, AAD = the settings key). One resolver,
 `providerEnv(env, db)` in `server/src/providers/config.ts` (plus its `effectivePublicUrl`), merges
 the two everywhere a provider credential or `PUBLIC_URL` is read: the env var always wins when

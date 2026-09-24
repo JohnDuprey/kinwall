@@ -34,14 +34,22 @@ function layoutColumns(evs: EventInstance[], tz: string) {
   const withMin = evs
     .map(ev => ({ ev, s: minutesSinceMidnight(ev.start, tz), e: Math.max(minutesSinceMidnight(ev.end, tz), minutesSinceMidnight(ev.start, tz) + 20) }))
     .sort((a, b) => a.s - b.s)
-  const colEnds: number[] = []
-  const placed = withMin.map(item => {
+  // Columns are counted per cluster of overlapping events, not per day - otherwise one 9am
+  // clash would halve the width of every other event that day.
+  const out: ((typeof withMin)[number] & { col: number; totalCols: number })[] = []
+  let cluster: ((typeof withMin)[number] & { col: number })[] = []
+  let colEnds: number[] = []
+  let clusterEnd = -1
+  const flush = () => { for (const p of cluster) out.push({ ...p, totalCols: Math.max(1, colEnds.length) }) }
+  for (const item of withMin) {
+    if (item.s >= clusterEnd) { flush(); cluster = []; colEnds = [] }
     let col = colEnds.findIndex(end => end <= item.s)
     if (col === -1) { col = colEnds.length; colEnds.push(item.e) } else { colEnds[col] = item.e }
-    return { ...item, col }
-  })
-  const totalCols = Math.max(1, colEnds.length)
-  return placed.map(p => ({ ...p, totalCols }))
+    cluster.push({ ...item, col })
+    clusterEnd = Math.max(clusterEnd, item.e)
+  }
+  flush()
+  return out
 }
 
 /** Current minute-of-day in `tz`, refreshed every minute (for the now-line + auto-scroll). */
@@ -108,13 +116,14 @@ export default function CalendarView() {
 
   const range = useMemo(() => {
     if (viewMode === 'week') return { from: weekDays[0], to: addDays(weekDays[weekDays.length - 1], 1) }
-    if (viewMode === 'day') return { from: anchor, to: addDays(anchor, 1) }
+    // anchor is "now" after Today/initial load - start at midnight so today's earlier events show.
+    if (viewMode === 'day') return { from: startOfDay(anchor), to: addDays(startOfDay(anchor), 1) }
     if (viewMode === 'month') {
       const from = startOfWeek(startOfMonth(anchor), { weekStartsOn: settings.weekStart })
       const to = addDays(startOfWeek(endOfMonth(anchor), { weekStartsOn: settings.weekStart }), 7)
       return { from, to }
     }
-    return { from: anchor, to: addDays(anchor, 30) } // schedule: rolling 30-day agenda
+    return { from: startOfDay(anchor), to: addDays(startOfDay(anchor), 30) } // schedule: rolling 30-day agenda
   }, [viewMode, anchor, settings.weekStart, weekDays])
 
   useEffect(() => {
@@ -201,6 +210,7 @@ export default function CalendarView() {
   }
 
   const deleteEvent = async (id: string) => {
+    if (!confirm('Delete this event? If it came from Google or Outlook it is deleted there too.')) return
     try {
       await api.deleteEvent(id)
       setDetail(null)
@@ -498,6 +508,7 @@ function MonthView({ anchor, events, tz, weekStart, members, categories, onTap, 
   anchor: Date; events: EventInstance[]; tz: string; weekStart: 0 | 1; members: ChipMember[]; categories: ChipCategory[]
   onTap: (e: EventInstance) => void; onDayTap: (d: Date) => void
 }) {
+  const isPhone = useIsPhone()
   const days = useMemo(() => {
     const from = startOfWeek(startOfMonth(anchor), { weekStartsOn: weekStart })
     const to = addDays(startOfWeek(endOfMonth(anchor), { weekStartsOn: weekStart }), 6)
@@ -549,7 +560,8 @@ function MonthView({ anchor, events, tz, weekStart, members, categories, onTap, 
                 const { background, avatars, ink, emoji } = eventVisual(ev, members, categories, 6)
                 return (
                   <div key={ev.id} className="month-chip" style={{ background, color: ink }} onClick={e => { e.stopPropagation(); onTap(ev) }}>
-                    <EventTitle title={`${ev.allDay ? '' : formatTime(ev.start, tz) + ' '}${ev.title}`} avatars={avatars} emoji={emoji} />
+                    {/* A phone's month cell is ~50px wide: the time alone filled it, so show just the title. */}
+                    <EventTitle title={`${ev.allDay || isPhone ? '' : formatTime(ev.start, tz) + ' '}${ev.title}`} avatars={avatars} emoji={emoji} />
                   </div>
                 )
               })}
@@ -795,7 +807,7 @@ function EventEditSheet({ event, prefill, calendars, members, categories, onClos
       actions={<button className="btn btn-primary btn-block" onClick={submit} disabled={endBeforeStart}>{event ? 'Save changes' : 'Add event'}</button>}>
       <div className="field">
         <label>Title</label>
-        <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="Event title" autoFocus />
+        <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="Event title" autoFocus={!event} /* new events only: on a phone, opening Edit shouldn't throw up the keyboard */ />
       </div>
       <div className="toggle-row">
         <label>All day</label>

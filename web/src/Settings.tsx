@@ -27,9 +27,26 @@ export function timezoneList() {
   }
 }
 
+type SettingsTab = 'general' | 'family' | 'calendars' | 'access'
+const SETTINGS_TABS: { key: SettingsTab; label: string; admin?: boolean }[] = [
+  { key: 'general', label: 'General' },
+  { key: 'family', label: 'Family' },
+  { key: 'calendars', label: 'Calendars', admin: true },
+  { key: 'access', label: 'Access', admin: true },
+]
+
 export default function SettingsView() {
   const { settings, members, categories, toast, reloadCore } = useApp()
   const [openAccountId, setOpenAccountId] = useState<string | null>(null)
+  // The tab rides in the hash query (#/settings?tab=family) so reloads and links keep it; an OAuth
+  // return (?account=...) lands on Calendars, where the new account's calendar picker opens.
+  const [tab, setTab] = useState<SettingsTab>(() => {
+    const q = new URLSearchParams(location.hash.split('?')[1] || '')
+    if (q.get('account')) return 'calendars'
+    const t = q.get('tab')
+    return SETTINGS_TABS.some(x => x.key === t) ? (t as SettingsTab) : 'general'
+  })
+  const pickTab = (t: SettingsTab) => { setTab(t); history.replaceState(null, '', `#/settings?tab=${t}`) }
   // Fails CLOSED to the display-only view until /api/me answers — a display key must never see
   // admin sections, even briefly, if the check is slow or fails.
   const [me, setMe] = useState<Me>({ scope: 'display', keyName: '', kind: 'api' })
@@ -44,36 +61,40 @@ export default function SettingsView() {
 
   // Display keys get the everyday settings; admin-only sections (calendar accounts, displays,
   // passkeys, API keys, webhooks) aren't rendered at all.
-  if (me.scope === 'display') {
-    return (
-      <div className="content scroll-y">
-        <div className="settings-scroll">
-          <GeneralSection settings={settings} onSaved={reloadCore} toast={toast} />
-          <AppearanceSection settings={settings} onSaved={reloadCore} toast={toast} />
-          <ThisDisplaySection keyName={me.keyName} />
-          <MembersSection members={members} onChanged={reloadCore} toast={toast} canManage={false} />
-          <CategoriesSection categories={categories} onChanged={reloadCore} toast={toast} />
-          {me.version && <div className="settings-version">Kinwall v{me.version}</div>}
-        </div>
-      </div>
-    )
-  }
+  // Display keys get the everyday tabs; the admin-only ones (calendar accounts, displays,
+  // passkeys, API keys, webhooks) aren't rendered at all.
+  const isDisplay = me.scope === 'display'
+  const tabs = SETTINGS_TABS.filter(t => !t.admin || !isDisplay)
+  const current = tabs.some(t => t.key === tab) ? tab : 'general'
 
   return (
     <div className="content scroll-y">
       <div className="settings-scroll">
-        <GeneralSection settings={settings} onSaved={reloadCore} toast={toast} />
-        <AppearanceSection settings={settings} onSaved={reloadCore} toast={toast} />
-        <ThisDisplaySection />
-        <MembersSection members={members} onChanged={reloadCore} toast={toast} />
-        <CategoriesSection categories={categories} onChanged={reloadCore} toast={toast} />
-        <CalendarProvidersSection toast={toast} />
-        <CalendarsSection openAccountId={openAccountId} onOpenedAccount={() => setOpenAccountId(null)} toast={toast} />
-        <DisplaysSection toast={toast} />
-        <PasskeysSection me={me} toast={toast} />
-        <KeysSection toast={toast} />
-        <WebhooksSection toast={toast} />
-        {me.version && <div className="settings-version">Kinwall v{me.version}</div>}
+        <div className="settings-tabs">
+          <div className="segmented">
+            {tabs.map(t => <button key={t.key} className={current === t.key ? 'active' : ''} onClick={() => pickTab(t.key)}>{t.label}</button>)}
+          </div>
+        </div>
+        {current === 'general' && <>
+          <GeneralSection settings={settings} onSaved={reloadCore} toast={toast} />
+          <AppearanceSection settings={settings} onSaved={reloadCore} toast={toast} />
+          {isDisplay ? <ThisDisplaySection keyName={me.keyName} /> : <ThisDisplaySection />}
+        </>}
+        {current === 'family' && <>
+          <MembersSection members={members} onChanged={reloadCore} toast={toast} canManage={!isDisplay} />
+          <CategoriesSection categories={categories} onChanged={reloadCore} toast={toast} />
+        </>}
+        {current === 'calendars' && <>
+          <CalendarsSection openAccountId={openAccountId} onOpenedAccount={() => setOpenAccountId(null)} toast={toast} />
+          <CalendarProvidersSection toast={toast} />
+        </>}
+        {current === 'access' && <>
+          <DisplaysSection toast={toast} />
+          <PasskeysSection me={me} toast={toast} />
+          <KeysSection toast={toast} />
+          <WebhooksSection toast={toast} />
+        </>}
+        {me.version && current === 'general' && <div className="settings-version">Kinwall v{me.version}</div>}
       </div>
     </div>
   )
@@ -226,7 +247,7 @@ function ThisDisplaySection({ keyName }: { keyName?: string }) {
       {keyName !== undefined && (
         <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
           <button className="btn btn-danger" onClick={unpair}>Unpair this display</button>
-          <div className="settings-row-sub">Clears the key stored on this device and returns to the pairing screen. This doesn't revoke the key — do that from an admin device under Settings → Displays.</div>
+          <div className="settings-row-sub">Clears the key stored on this device and returns to the pairing screen. This doesn't revoke the key — do that from an admin device under Settings → Access → Displays.</div>
         </div>
       )}
     </Section>
@@ -268,12 +289,13 @@ function MemberEditSheet({ member, canDelete, onClose, onSaved, toast }: { membe
   }
   const del = async () => {
     if (!member) return
+    if (!confirm(`Remove ${member.name}? Their chores and tags are unassigned.`)) return
     try { await api.deleteMember(member.id); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not delete member') }
   }
   return (
     <Sheet title={member ? 'Edit member' : 'Add member'} onClose={onClose}
       actions={<>{member && canDelete && <button className="btn btn-danger" onClick={del}><TrashIcon width={18} height={18} /></button>}<button className="btn btn-primary" onClick={save} disabled={!name.trim() || !isValidAvatar(avatar)}>Save</button></>}>
-      <div className="field"><label>Name</label><input type="text" value={name} onChange={e => setName(e.target.value)} autoFocus /></div>
+      <div className="field"><label>Name</label><input type="text" value={name} onChange={e => setName(e.target.value)} autoFocus={!member} /></div>
       <div className="field">
         <label>Color</label>
         <div className="color-swatch-row">
@@ -365,13 +387,14 @@ function CategoryEditSheet({ category, initial, onClose, onSaved, toast }: {
   }
   const del = async () => {
     if (!category) return
+    if (!confirm(`Delete the ${category.name} category? Events fall back to their automatic colour.`)) return
     try { await api.deleteCategory(category.id); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not delete category') }
   }
 
   return (
     <Sheet title={category ? 'Edit category' : 'Add category'} onClose={onClose}
       actions={<>{category && <button className="btn btn-danger" onClick={del}><TrashIcon width={18} height={18} /></button>}<button className="btn btn-primary" onClick={save} disabled={!name.trim()}>Save</button></>}>
-      <div className="field"><label>Name</label><input type="text" value={name} onChange={e => setName(e.target.value)} autoFocus /></div>
+      <div className="field"><label>Name</label><input type="text" value={name} onChange={e => setName(e.target.value)} autoFocus={!category} /></div>
       <div className="field">
         <label>Emoji</label>
         <div className="emoji-swatch-row">
@@ -433,6 +456,7 @@ function CalendarsSection({ openAccountId, onOpenedAccount, toast }: { openAccou
     try { await api.syncCalendar(id); load(); toast('Synced') } catch (e) { toast(e instanceof ApiError ? e.message : 'Sync failed') }
   }
   const remove = async (id: string) => {
+    if (!confirm('Remove this calendar and its events from Kinwall? Nothing is deleted from the original calendar.')) return
     try { await api.deleteCalendar(id); load() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not remove calendar') }
   }
 
@@ -462,7 +486,7 @@ function CalendarsSection({ openAccountId, onOpenedAccount, toast }: { openAccou
         <button className="connect-btn" disabled={!oauth.microsoft} onClick={() => location.href = api.oauthStartUrl('microsoft')}>Connect Outlook</button>
       </div>
       {(!oauth.google || !oauth.microsoft) && (
-        <p className="settings-row-sub" style={{ marginTop: 8 }}>Google/Outlook greyed out? Set them up in Calendar providers above.</p>
+        <p className="settings-row-sub" style={{ marginTop: 8 }}>Google/Outlook greyed out? Set them up in Calendar providers below.</p>
       )}
 
       {localSheet && (
@@ -510,7 +534,7 @@ function EditCalendarSheet({ calendar, onClose, onSaved, onSync, onRemove, toast
 
   return (
     <Sheet title="Edit calendar" onClose={onClose} actions={<button className="btn btn-primary btn-block" onClick={save}>Save</button>}>
-      <div className="field"><label>Name</label><input type="text" value={name} onChange={e => setName(e.target.value)} autoFocus /></div>
+      <div className="field"><label>Name</label><input type="text" value={name} onChange={e => setName(e.target.value)} /></div>
       <div className="field">
         <label>Color</label>
         <div className="color-swatch-row">
@@ -757,7 +781,7 @@ function KeysSection({ toast }: { toast: (m: string) => void }) {
       load()
     } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not create key') }
   }
-  const del = async (id: string) => { try { await api.deleteKey(id); load() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not delete key') } }
+  const del = async (id: string) => { if (!confirm('Delete this API key? Anything using it stops working immediately.')) return; try { await api.deleteKey(id); load() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not delete key') } }
   const copy = async (key: string) => { try { await navigator.clipboard.writeText(key); toast('Key copied') } catch { toast('Could not copy — select and copy manually') } }
 
   return (
@@ -798,6 +822,7 @@ function DisplaysSection({ toast }: { toast: (m: string) => void }) {
   const [code, setCode] = useState('')
   const [name, setName] = useState('Wall display')
   const [busy, setBusy] = useState(false)
+  const [adding, setAdding] = useState(false)
   const load = () => { api.getKeys().then(ks => setKeys(ks.filter(k => k.scope === 'display'))).catch(() => {}) }
   useEffect(load, [])
 
@@ -807,6 +832,7 @@ function DisplaysSection({ toast }: { toast: (m: string) => void }) {
     try {
       await api.pairApprove(code, name.trim())
       setCode('')
+      setAdding(false)
       toast('Display paired')
       load()
     } catch (e) {
@@ -815,27 +841,14 @@ function DisplaysSection({ toast }: { toast: (m: string) => void }) {
       setBusy(false)
     }
   }
-  const revoke = async (id: string) => { try { await api.deleteKey(id); load() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not revoke display') } }
+  const revoke = async (k: ApiKey) => {
+    if (!confirm(`Remove "${k.name}"? It will be signed out and need pairing again.`)) return
+    try { await api.deleteKey(k.id); load() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not revoke display') }
+  }
 
   return (
     <Section title="Displays" icon={<MonitorIcon width={16} height={16} />}>
-      <div className="pair-form">
-        <div className="field" style={{ margin: 0 }}>
-          <label>Code</label>
-          <input
-            type="text" inputMode="numeric" pattern="[0-9]*" maxLength={6}
-            value={code} onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-            placeholder="123456"
-            style={{ fontSize: 22, fontWeight: 800, letterSpacing: '0.12em', width: 130, textAlign: 'center', height: 52, paddingBlock: 0 }}
-          />
-        </div>
-        <div className="field" style={{ margin: 0, flex: 1, minWidth: 140 }}>
-          <label>Name</label>
-          <input type="text" value={name} onChange={e => setName(e.target.value)} />
-        </div>
-        <button className="btn btn-primary" onClick={pair} disabled={busy || code.length !== 6 || !name.trim()}>Pair</button>
-      </div>
-
+      {keys.length === 0 && <p className="settings-row-sub">No displays yet. Open Kinwall on the wall screen and choose "Set up as a wall display" to get a code.</p>}
       {keys.map(k => (
         <div key={k.id} className="key-item">
           <div>
@@ -845,9 +858,33 @@ function DisplaysSection({ toast }: { toast: (m: string) => void }) {
               {k.lastUsedAt ? ` · used ${new Date(k.lastUsedAt).toLocaleDateString()}` : ' · never used'}
             </div>
           </div>
-          <button className="icon-btn" onClick={() => revoke(k.id)}><TrashIcon width={16} height={16} /></button>
+          <button className="icon-btn" onClick={() => revoke(k)} aria-label={`Remove ${k.name}`}><TrashIcon width={16} height={16} /></button>
         </div>
       ))}
+      <button className="add-row-btn" onClick={() => setAdding(true)}><PlusIcon width={20} height={20} />Add a display</button>
+
+      {adding && (
+        <Sheet title="Add a display" onClose={() => setAdding(false)}
+          actions={<button className="btn btn-primary btn-block" onClick={pair} disabled={busy || code.length !== 6 || !name.trim()}>{busy ? 'Pairing…' : 'Pair display'}</button>}>
+          <p className="settings-row-sub" style={{ marginBottom: 14 }}>On the wall screen, choose "Set up as a wall display", then enter the 6-digit code it shows. Scanning its QR code with your phone works too.</p>
+          <div className="row-2">
+            <div className="field">
+              <label>Code</label>
+              <input
+                type="text" inputMode="numeric" pattern="[0-9]*" maxLength={6}
+                value={code} onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="123456"
+                autoFocus
+                style={{ letterSpacing: '0.2em', fontVariantNumeric: 'tabular-nums' }}
+              />
+            </div>
+            <div className="field">
+              <label>Name</label>
+              <input type="text" value={name} onChange={e => setName(e.target.value)} />
+            </div>
+          </div>
+        </Sheet>
+      )}
     </Section>
   )
 }
@@ -865,7 +902,7 @@ function WebhooksSection({ toast }: { toast: (m: string) => void }) {
     try { await api.createWebhook(url.trim(), evs); setAdding(false); setUrl(''); setEvs([]); load() }
     catch (e) { toast(e instanceof ApiError ? e.message : 'Could not add webhook') }
   }
-  const del = async (id: string) => { try { await api.deleteWebhook(id); load() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not delete webhook') } }
+  const del = async (id: string) => { if (!confirm('Delete this webhook?')) return; try { await api.deleteWebhook(id); load() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not delete webhook') } }
 
   return (
     <Section title="Webhooks" icon={<WebhookIcon width={16} height={16} />}>
