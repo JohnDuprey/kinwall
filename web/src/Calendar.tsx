@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { addDays, addMonths, endOfMonth, endOfWeek, format, isSameMonth, startOfDay, startOfMonth, startOfWeek } from 'date-fns'
 import { useApp } from './AppContext.tsx'
 import { api, ApiError, stripHtmlToText } from './api.ts'
-import type { CalendarEntry, EventInstance } from './types.ts'
+import type { CalendarEntry, Category, EventInstance } from './types.ts'
 import { dateKey, formatTime, minutesSinceMidnight, zonedDayKey } from './date.ts'
 import { inkFor } from './color.ts'
 import Sheet from './Sheet.tsx'
@@ -81,7 +81,7 @@ function useSwipe(onLeft: () => void, onRight: () => void) {
 }
 
 export default function CalendarView() {
-  const { settings, members, selectedMemberId, toast, reloadCore, refreshTick } = useApp()
+  const { settings, members, categories, selectedMemberId, toast, reloadCore, refreshTick } = useApp()
   const isPhone = useIsPhone()
   const tz = settings.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone
   // Phones default to the agenda view (a 7-day grid is unreadable that narrow); the wall iPad
@@ -161,10 +161,11 @@ export default function CalendarView() {
   const openAdd = (prefill?: Partial<EventInstance>) => setEditState({ event: null, prefill })
   const openEdit = (ev: EventInstance) => { setDetail(null); setEditState({ event: ev }) }
 
-  const saveEvent = async (body: Partial<EventInstance>, id: string | null) => {
+  const saveEvent = async (body: Partial<EventInstance>, id: string | null, seriesCategory?: { categoryId: string | null; scope: 'occurrence' | 'series' }) => {
     try {
       if (id) await api.updateEvent(id, body)
       else await api.createEvent(body)
+      if (id && seriesCategory) await api.updateEvent(id, seriesCategory)
       setEditState(null)
       reloadCore()
       setEvents(evs => [...evs]) // no-op to be explicit; real refetch happens via refreshTick after reloadCore bump isn't guaranteed for mock — force refetch:
@@ -234,13 +235,13 @@ export default function CalendarView() {
         ) : !loading && visibleEvents.length === 0 && viewMode === 'schedule' ? (
           <div className="empty-card"><span className="emoji">🗓️</span>No events in the next 30 days.</div>
         ) : viewMode === 'week' ? (
-          <WeekView days={weekDays} events={visibleEvents} tz={tz} members={members} onTap={setDetail} onSlotTap={openAdd} />
+          <WeekView days={weekDays} events={visibleEvents} tz={tz} members={members} categories={categories} onTap={setDetail} onSlotTap={openAdd} />
         ) : viewMode === 'day' ? (
-          <DayView anchor={anchor} events={visibleEvents} tz={tz} members={members} onTap={setDetail} onSlotTap={openAdd} />
+          <DayView anchor={anchor} events={visibleEvents} tz={tz} members={members} categories={categories} onTap={setDetail} onSlotTap={openAdd} />
         ) : viewMode === 'month' ? (
-          <MonthView anchor={anchor} events={visibleEvents} tz={tz} weekStart={settings.weekStart} members={members} onTap={setDetail} onDayTap={d => { setAnchor(d); setViewMode('day') }} />
+          <MonthView anchor={anchor} events={visibleEvents} tz={tz} weekStart={settings.weekStart} members={members} categories={categories} onTap={setDetail} onDayTap={d => { setAnchor(d); setViewMode('day') }} />
         ) : (
-          <ScheduleView anchor={anchor} events={visibleEvents} tz={tz} members={members} onTap={setDetail} />
+          <ScheduleView anchor={anchor} events={visibleEvents} tz={tz} members={members} categories={categories} onTap={setDetail} />
         )}
       </div>
 
@@ -250,6 +251,7 @@ export default function CalendarView() {
         <EventDetailSheet
           event={detail}
           members={members}
+          categories={categories}
           calendars={calendars}
           tz={tz}
           onClose={() => setDetail(null)}
@@ -265,6 +267,7 @@ export default function CalendarView() {
           prefill={editState.prefill}
           calendars={calendars}
           members={members}
+          categories={categories}
           onClose={() => setEditState(null)}
           onSave={saveEvent}
         />
@@ -274,40 +277,51 @@ export default function CalendarView() {
 }
 
 type ChipMember = { id: string; color: string; avatar: string }
+type ChipCategory = { id: string; color: string; emoji: string | null }
 
-/** Solid member color for a single-member event, calendar/event color for zero members, or
- * diagonal stripes cycling through each assigned member's color (in family sort order, so a
- * shared pair always stripes the same way) for 2+. Single helper used by every view. `ink` is
- * the best-contrast text color for that background (any member/custom color can be very light
- * or very dark) - for stripes it's picked across all assigned colors, with the title's
- * translucent pill (see EventTitle) as an extra safety net. */
-function eventVisual(ev: EventInstance, members: ChipMember[], stripeWidth: number): { background: string; avatars: string[]; ink: string } {
+/** Solid category color (overrides member color entirely) when the event has one, else: solid
+ * member color for a single-member event, calendar/event color for zero members, or diagonal
+ * stripes cycling through each assigned member's color (in family sort order, so a shared pair
+ * always stripes the same way) for 2+. Single helper used by every view - routes the category
+ * override through the same place every view already gets its background/avatars/ink from.
+ * `ink` is the best-contrast text color for that background (any member/category/custom color
+ * can be very light or very dark) - for stripes it's picked across all assigned colors, with the
+ * title's translucent pill (see EventTitle) as an extra safety net. */
+function eventVisual(ev: EventInstance, members: ChipMember[], categories: ChipCategory[], stripeWidth: number): { background: string; avatars: string[]; ink: string; emoji: string | null } {
   const assigned = members.filter(m => ev.memberIds.includes(m.id))
+  const category = ev.categoryId ? categories.find(c => c.id === ev.categoryId) : undefined
+  if (category) {
+    // Category color always wins, but member avatars stay visible - without stripes, a solid
+    // category color alone wouldn't say who's assigned.
+    return { background: category.color, avatars: assigned.map(m => m.avatar), ink: inkFor(category.color), emoji: category.emoji }
+  }
   if (assigned.length <= 1) {
     const color = assigned[0]?.color ?? ev.color
-    return { background: color, avatars: [], ink: inkFor(color) }
+    return { background: color, avatars: [], ink: inkFor(color), emoji: null }
   }
   const stops = assigned.map((m, i) => `${m.color} ${i * stripeWidth}px ${(i + 1) * stripeWidth}px`).join(', ')
-  return { background: `repeating-linear-gradient(135deg, ${stops})`, avatars: assigned.map(m => m.avatar), ink: inkFor(assigned.map(m => m.color)) }
+  return { background: `repeating-linear-gradient(135deg, ${stops})`, avatars: assigned.map(m => m.avatar), ink: inkFor(assigned.map(m => m.color)), emoji: null }
 }
 
-/** Title text (truncating) plus, for striped multi-member events, an inline avatar row and a
- * translucent backing pill so text stays readable over the stripes. */
-function EventTitle({ title, avatars }: { title: string; avatars: string[] }) {
-  if (avatars.length === 0) return <span className="event-title-text">{title}</span>
+/** Title text (truncating), optionally prefixed with a category emoji, plus - for striped
+ * multi-member or categorized events - an inline avatar row and a translucent backing pill so
+ * text stays readable over the stripes/category color. */
+function EventTitle({ title, avatars, emoji }: { title: string; avatars: string[]; emoji?: string | null }) {
+  const text = emoji ? `${emoji} ${title}` : title
+  if (avatars.length === 0) return <span className="event-title-text">{text}</span>
   return (
     <>
-      <span className="event-title-text event-title-pill">{title}</span>
+      <span className="event-title-text event-title-pill">{text}</span>
       <span className="event-avatars">{avatars.join(' ')}</span>
     </>
   )
 }
 
-function EventChip({ ev, members, small, onTap }: { ev: EventInstance; members: ChipMember[]; small?: boolean; onTap: () => void }) {
-  const { background, avatars, ink } = eventVisual(ev, members, small ? 7 : 10)
+function EventChip({ ev, members, categories, small, onTap }: { ev: EventInstance; members: ChipMember[]; categories: ChipCategory[]; small?: boolean; onTap: () => void }) {
+  const { background, avatars, ink, emoji } = eventVisual(ev, members, categories, small ? 7 : 10)
   return (
     <div className={small ? 'allday-chip' : 'event-chip'} style={{ background, color: ink }} onClick={onTap}>
-      <EventTitle title={ev.title} avatars={avatars} />
+      <EventTitle title={ev.title} avatars={avatars} emoji={emoji} />
     </div>
   )
 }
@@ -315,8 +329,8 @@ function EventChip({ ev, members, small, onTap }: { ev: EventInstance; members: 
 /** Renders an N-day time grid (all-day row, now-line, auto-scroll, overlap columns). Used for
  * both the wall iPad's 7-day Week and the phone's 3-day view — `days` is the only thing that
  * changes between them, decided by the caller (CalendarView's `weekDays`). */
-function WeekView({ days, events, tz, members, onTap, onSlotTap }: {
-  days: Date[]; events: EventInstance[]; tz: string; members: ChipMember[]
+function WeekView({ days, events, tz, members, categories, onTap, onSlotTap }: {
+  days: Date[]; events: EventInstance[]; tz: string; members: ChipMember[]; categories: ChipCategory[]
   onTap: (e: EventInstance) => void; onSlotTap: (prefill: Partial<EventInstance>) => void
 }) {
   const { settings } = useApp()
@@ -348,7 +362,7 @@ function WeekView({ days, events, tz, members, onTap, onSlotTap }: {
           <div />
           {allDayByDay.map((list, i) => (
             <div className="allday-cell" key={i}>
-              {list.map(ev => <EventChip key={ev.id} ev={ev} members={members} small onTap={() => onTap(ev)} />)}
+              {list.map(ev => <EventChip key={ev.id} ev={ev} members={members} categories={categories} small onTap={() => onTap(ev)} />)}
             </div>
           ))}
         </div>
@@ -372,7 +386,7 @@ function WeekView({ days, events, tz, members, onTap, onSlotTap }: {
               {Array.from({ length: 24 }, (_, h) => <div className="hour-line" key={h} />)}
               {dateKey(d) === todayStr && <div className="now-line" style={{ top: (nowMinutes / 60) * HOUR_PX }}><span className="now-dot" /></div>}
               {laidOut.map(({ ev, s, e, col, totalCols }) => {
-                const { background, avatars, ink } = eventVisual(ev, members, 10)
+                const { background, avatars, ink, emoji } = eventVisual(ev, members, categories, 10)
                 return (
                   <div key={ev.id} className="timed-event"
                     style={{
@@ -381,7 +395,7 @@ function WeekView({ days, events, tz, members, onTap, onSlotTap }: {
                       background, color: ink,
                     }}
                     onClick={ev2 => { ev2.stopPropagation(); onTap(ev) }}>
-                    <div className="event-title-row"><EventTitle title={ev.title} avatars={avatars} /></div>
+                    <div className="event-title-row"><EventTitle title={ev.title} avatars={avatars} emoji={emoji} /></div>
                     <span style={{ opacity: 0.85 }}>{formatTime(ev.start, tz)}</span>
                   </div>
                 )
@@ -394,8 +408,8 @@ function WeekView({ days, events, tz, members, onTap, onSlotTap }: {
   )
 }
 
-function DayView({ anchor, events, tz, members, onTap, onSlotTap }: {
-  anchor: Date; events: EventInstance[]; tz: string; members: { id: string; name: string; color: string; avatar: string }[]
+function DayView({ anchor, events, tz, members, categories, onTap, onSlotTap }: {
+  anchor: Date; events: EventInstance[]; tz: string; members: { id: string; name: string; color: string; avatar: string }[]; categories: ChipCategory[]
   onTap: (e: EventInstance) => void; onSlotTap: (prefill: Partial<EventInstance>) => void
 }) {
   const { settings } = useApp()
@@ -425,7 +439,7 @@ function DayView({ anchor, events, tz, members, onTap, onSlotTap }: {
           {cols.map(m => (
             <div className="allday-cell" key={m.id}>
               {allDay.filter(e => m.id === '__none' || e.memberIds.includes(m.id) || e.memberIds.length === 0).map(ev => (
-                <EventChip key={ev.id} ev={ev} members={members} small onTap={() => onTap(ev)} />
+                <EventChip key={ev.id} ev={ev} members={members} categories={categories} small onTap={() => onTap(ev)} />
               ))}
             </div>
           ))}
@@ -451,12 +465,12 @@ function DayView({ anchor, events, tz, members, onTap, onSlotTap }: {
               }}>
               {Array.from({ length: 24 }, (_, h) => <div className="hour-line" key={h} />)}
               {laidOut.map(({ ev, s, e, col, totalCols }) => {
-                const { background, avatars, ink } = eventVisual(ev, members, 10)
+                const { background, avatars, ink, emoji } = eventVisual(ev, members, categories, 10)
                 return (
                   <div key={ev.id} className="timed-event"
                     style={{ top: (s / 60) * HOUR_PX, height: Math.max(((e - s) / 60) * HOUR_PX - 2, 16), left: `calc(${(col / totalCols) * 100}% + 2px)`, width: `calc(${100 / totalCols}% - 4px)`, background, color: ink }}
                     onClick={ev2 => { ev2.stopPropagation(); onTap(ev) }}>
-                    <div className="event-title-row"><EventTitle title={ev.title} avatars={avatars} /></div>
+                    <div className="event-title-row"><EventTitle title={ev.title} avatars={avatars} emoji={emoji} /></div>
                     <span style={{ opacity: 0.85 }}>{formatTime(ev.start, tz)}</span>
                   </div>
                 )
@@ -476,8 +490,8 @@ function DayView({ anchor, events, tz, members, onTap, onSlotTap }: {
 const MONTH_CHIP_ROW_PX = 21
 const MONTH_DAYNUM_ROW_PX = 32
 
-function MonthView({ anchor, events, tz, weekStart, members, onTap, onDayTap }: {
-  anchor: Date; events: EventInstance[]; tz: string; weekStart: 0 | 1; members: ChipMember[]
+function MonthView({ anchor, events, tz, weekStart, members, categories, onTap, onDayTap }: {
+  anchor: Date; events: EventInstance[]; tz: string; weekStart: 0 | 1; members: ChipMember[]; categories: ChipCategory[]
   onTap: (e: EventInstance) => void; onDayTap: (d: Date) => void
 }) {
   const days = useMemo(() => {
@@ -528,10 +542,10 @@ function MonthView({ anchor, events, tz, weekStart, members, onTap, onDayTap }: 
             <div key={i} className={`month-cell ${isSameMonth(d, anchor) ? '' : 'dim'}`} onClick={() => onDayTap(d)}>
               <div className={`month-daynum ${key === todayStr ? 'today' : ''}`}>{format(d, 'd')}</div>
               {shown.map(ev => {
-                const { background, avatars, ink } = eventVisual(ev, members, 6)
+                const { background, avatars, ink, emoji } = eventVisual(ev, members, categories, 6)
                 return (
                   <div key={ev.id} className="month-chip" style={{ background, color: ink }} onClick={e => { e.stopPropagation(); onTap(ev) }}>
-                    <EventTitle title={`${ev.allDay ? '' : formatTime(ev.start, tz) + ' '}${ev.title}`} avatars={avatars} />
+                    <EventTitle title={`${ev.allDay ? '' : formatTime(ev.start, tz) + ' '}${ev.title}`} avatars={avatars} emoji={emoji} />
                   </div>
                 )
               })}
@@ -544,7 +558,7 @@ function MonthView({ anchor, events, tz, weekStart, members, onTap, onDayTap }: 
   )
 }
 
-function ScheduleView({ anchor, events, tz, members, onTap }: { anchor: Date; events: EventInstance[]; tz: string; members: ChipMember[]; onTap: (e: EventInstance) => void }) {
+function ScheduleView({ anchor, events, tz, members, categories, onTap }: { anchor: Date; events: EventInstance[]; tz: string; members: ChipMember[]; categories: ChipCategory[]; onTap: (e: EventInstance) => void }) {
   const byDay = useMemo(() => {
     const map = new Map<string, EventInstance[]>()
     for (let i = 0; i < 30; i++) {
@@ -565,13 +579,13 @@ function ScheduleView({ anchor, events, tz, members, onTap }: { anchor: Date; ev
           <div className="schedule-day-label">{format(new Date(key + 'T00:00:00'), 'EEEE, MMMM d')}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
             {list.map(ev => {
-              const { background, avatars } = eventVisual(ev, members, 8)
+              const { background, avatars, emoji } = eventVisual(ev, members, categories, 8)
               return (
               <div key={ev.id} className="schedule-item" onClick={() => onTap(ev)}>
                 <div className="schedule-color-bar" style={{ background }} />
                 <div className="schedule-time">{ev.allDay ? 'All day' : formatTime(ev.start, tz)}</div>
                 <div>
-                  <div className="schedule-title">{ev.title}{avatars.length > 0 && <span className="event-avatars schedule-avatars">{avatars.join(' ')}</span>}</div>
+                  <div className="schedule-title">{emoji ? `${emoji} ` : ''}{ev.title}{avatars.length > 0 && <span className="event-avatars schedule-avatars">{avatars.join(' ')}</span>}</div>
                   {ev.location && <div className="schedule-loc">{ev.location}</div>}
                 </div>
               </div>
@@ -592,8 +606,20 @@ function memberScopeLabel(scope: EventInstance['memberScope']): string | null {
   return null
 }
 
-function EventDetailSheet({ event, members, calendars, tz, onClose, onEdit, onDelete, onToggleMember, onSaveScopedMembers }: {
-  event: EventInstance; members: { id: string; name: string; color: string; avatar: string }[]; calendars: CalendarEntry[]; tz: string
+// "🎂 Birthdays · auto" / "🎂 Birthdays · from calendar" when the category came from a keyword
+// match or the calendar default, or just "🎂 Birthdays" for an explicit override.
+function categoryLabel(event: EventInstance, categories: Category[]): string | null {
+  if (!event.categoryId) return null
+  const cat = categories.find(c => c.id === event.categoryId)
+  if (!cat) return null
+  const name = `${cat.emoji ? cat.emoji + ' ' : ''}${cat.name}`
+  if (event.categorySource === 'keyword') return `${name} · auto`
+  if (event.categorySource === 'calendar') return `${name} · from calendar`
+  return name
+}
+
+function EventDetailSheet({ event, members, categories, calendars, tz, onClose, onEdit, onDelete, onToggleMember, onSaveScopedMembers }: {
+  event: EventInstance; members: { id: string; name: string; color: string; avatar: string }[]; categories: Category[]; calendars: CalendarEntry[]; tz: string
   onClose: () => void; onEdit: () => void; onDelete: () => void; onToggleMember: (memberId: string) => void
   onSaveScopedMembers: (id: string, memberIds: string[], scope: 'occurrence' | 'series') => void
 }) {
@@ -609,9 +635,10 @@ function EventDetailSheet({ event, members, calendars, tz, onClose, onEdit, onDe
     if (event.seriesId) setPendingMemberIds(next)
     else onToggleMember(memberId)
   }
-  const { background: detailBar } = eventVisual(event, members, 10)
+  const { background: detailBar } = eventVisual(event, members, categories, 10)
   const calendarName = calendars.find(c => c.id === event.calendarId)?.name ?? 'another calendar'
   const scopeLabel = memberScopeLabel(event.memberScope)
+  const catLabel = categoryLabel(event, categories)
   return (
     <Sheet title={event.title} onClose={onClose}
       actions={!event.readOnly ? (
@@ -643,6 +670,7 @@ function EventDetailSheet({ event, members, calendars, tz, onClose, onEdit, onDe
             <RepeatIcon width={18} height={18} />Repeats
           </div>
         )}
+        {catLabel && <div style={{ color: 'var(--text-dim)', fontSize: 13, fontWeight: 700 }}>{catLabel}</div>}
         {members.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <div className="chip-row">
@@ -686,10 +714,11 @@ function EventDetailSheet({ event, members, calendars, tz, onClose, onEdit, onDe
   )
 }
 
-function EventEditSheet({ event, prefill, calendars, members, onClose, onSave }: {
+function EventEditSheet({ event, prefill, calendars, members, categories, onClose, onSave }: {
   event: EventInstance | null; prefill?: Partial<EventInstance>; calendars: CalendarEntry[]
-  members: { id: string; name: string; color: string; avatar: string }[]
-  onClose: () => void; onSave: (body: Partial<EventInstance>, id: string | null) => void
+  members: { id: string; name: string; color: string; avatar: string }[]; categories: Category[]
+  onClose: () => void
+  onSave: (body: Partial<EventInstance>, id: string | null, seriesCategory?: { categoryId: string | null; scope: 'occurrence' | 'series' }) => void
 }) {
   const writable = calendars.filter(c => c.writable)
   const base = event ?? prefill ?? {}
@@ -697,8 +726,20 @@ function EventEditSheet({ event, prefill, calendars, members, onClose, onSave }:
   const [allDay, setAllDay] = useState(!!base.allDay)
   const [calendarId, setCalendarId] = useState(base.calendarId ?? writable[0]?.id ?? '')
   const [memberIds, setMemberIds] = useState<string[]>(base.memberIds ?? [])
+  // Only an explicit override (categorySource 'event'/'series') pre-selects a category here - a
+  // keyword/calendar-resolved categoryId shows as "Automatic" with a hint (see autoHint below),
+  // same as how the detail sheet's memberScope label distinguishes an explicit tag from a fallback.
+  const initialCategoryId = event && (event.categorySource === 'event' || event.categorySource === 'series') ? event.categoryId : null
+  const [categoryId, setCategoryId] = useState<string | null>(initialCategoryId)
+  // A category on a recurring event usually means every occurrence (a yearly birthday), so the
+  // series is the default; the choice only appears once the category actually changes.
+  const categoryChanged = categoryId !== initialCategoryId
+  const inSeries = !!event?.seriesId
+  const [categoryScope, setCategoryScope] = useState<'occurrence' | 'series'>(event?.categorySource === 'event' ? 'occurrence' : 'series')
+  const autoHint = event && categoryId === null ? categoryLabel(event, categories) : null
   const [location, setLocation] = useState(base.location ?? '')
-  const [rrule, setRrule] = useState<'' | 'daily' | 'weekly' | 'monthly'>(base.rrule?.includes('DAILY') ? 'daily' : base.rrule?.includes('WEEKLY') ? 'weekly' : base.rrule?.includes('MONTHLY') ? 'monthly' : '')
+  const initialRepeat: '' | 'daily' | 'weekly' | 'monthly' = base.rrule?.includes('DAILY') ? 'daily' : base.rrule?.includes('WEEKLY') ? 'weekly' : base.rrule?.includes('MONTHLY') ? 'monthly' : ''
+  const [rrule, setRrule] = useState(initialRepeat)
 
   // All-day values are plain dates ('YYYY-MM-DD', end exclusive): read them as local days, never via
   // new Date('YYYY-MM-DD'), which is UTC midnight and shows the previous day west of UTC.
@@ -719,7 +760,10 @@ function EventEditSheet({ event, prefill, calendars, members, onClose, onSave }:
 
   const submit = () => {
     if (!title.trim() || !calendarId) return
-    const rruleStr = rrule === 'daily' ? 'FREQ=DAILY' : rrule === 'weekly' ? 'FREQ=WEEKLY' : rrule === 'monthly' ? 'FREQ=MONTHLY' : null
+    // The menu only knows plain daily/weekly/monthly: an untouched menu keeps the real rule
+    // (e.g. FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR) instead of flattening it.
+    const rruleStr = rrule === initialRepeat && base.rrule ? base.rrule
+      : rrule === 'daily' ? 'FREQ=DAILY' : rrule === 'weekly' ? 'FREQ=WEEKLY' : rrule === 'monthly' ? 'FREQ=MONTHLY' : null
     if (endBeforeStart) return
     let start: string, end: string
     if (allDay) {
@@ -730,7 +774,16 @@ function EventEditSheet({ event, prefill, calendars, members, onClose, onSave }:
       end = new Date(`${endDate}T${endTime}:00`).toISOString()
     }
     // Server's EventInput.location is string|undefined (not nullable) — send undefined, not null, when empty.
-    onSave({ title: title.trim(), calendarId, allDay, start, end, location: location.trim() || undefined, memberIds, rrule: rruleStr }, event?.id ?? null)
+    // Only send categoryId when it changed, so saving an unrelated edit never pins the auto category.
+    // On a series it goes as its own scoped PATCH, leaving the rest of the edit on this occurrence.
+    const body: Partial<EventInstance> = { title: title.trim(), calendarId, location: location.trim() || undefined, memberIds, rrule: rruleStr }
+    // A repeating event opens on one occurrence; sending its dates back unchanged would restart the
+    // whole series there and drop the earlier occurrences. Only send the timing when it was edited.
+    const timingChanged = !event || allDay !== !!event.allDay || start !== (event.allDay ? event.start : new Date(event.start).toISOString())
+      || end !== (event.allDay ? event.end : new Date(event.end).toISOString())
+    if (timingChanged) Object.assign(body, { allDay, start, end })
+    if (categoryChanged && !inSeries) body.categoryId = categoryId
+    onSave(body, event?.id ?? null, categoryChanged && inSeries ? { categoryId, scope: categoryScope } : undefined)
   }
 
   return (
@@ -795,6 +848,20 @@ function EventEditSheet({ event, prefill, calendars, members, onClose, onSave }:
           <option value="weekly">Weekly</option>
           <option value="monthly">Monthly</option>
         </select>
+      </div>
+      <div className="field">
+        <label>Category</label>
+        <select value={categoryId ?? ''} onChange={e => setCategoryId(e.target.value || null)}>
+          <option value="">Automatic</option>
+          {categories.map(c => <option key={c.id} value={c.id}>{c.emoji ? `${c.emoji} ` : ''}{c.name}</option>)}
+        </select>
+        {autoHint && <div className="settings-row-sub">{autoHint}</div>}
+        {inSeries && categoryChanged && (
+          <div className="segmented" style={{ marginTop: 10 }}>
+            <button className={categoryScope === 'series' ? 'active' : ''} onClick={() => setCategoryScope('series')}>All events</button>
+            <button className={categoryScope === 'occurrence' ? 'active' : ''} onClick={() => setCategoryScope('occurrence')}>This event</button>
+          </div>
+        )}
       </div>
     </Sheet>
   )

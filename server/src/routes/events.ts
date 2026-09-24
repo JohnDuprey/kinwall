@@ -11,6 +11,7 @@ import { hostTimezone } from '../env.ts';
 import { ErrorSchema, EventInputSchema, EventInstanceSchema } from '../schemas.ts';
 import { deterministicEventId } from '../event-id.ts';
 import { parseMemberIds } from '../calendar-members.ts';
+import { matchCategoryByKeyword, type CategoryRow } from '../calendar-categories.ts';
 
 export const eventsRoutes = createRouter();
 
@@ -28,6 +29,7 @@ type EventRow = {
   member_ids: string;
   updated_at: string;
   series_id: string | null;
+  category_id: string | null;
 };
 
 type CalendarRow = {
@@ -38,6 +40,7 @@ type CalendarRow = {
   name: string;
   color: string | null;
   member_ids: string;
+  category_id: string | null;
   config: string;
   writable: number;
   enabled: number;
@@ -48,11 +51,6 @@ type AccountRow = { id: string; kind: string; name: string; config: string };
 async function householdTz(db: D1Database): Promise<string> {
   const row = await db.prepare("SELECT value FROM settings WHERE key = 'timezone'").first<{ value: string }>();
   return row?.value ?? hostTimezone();
-}
-
-async function colorsByMember(db: D1Database): Promise<Map<string, string>> {
-  const { results } = await db.prepare('SELECT id, color FROM members').all<{ id: string; color: string }>();
-  return new Map(results.map((r) => [r.id, r.color]));
 }
 
 function overrideKey(calendarId: string, externalId: string): string {
@@ -124,17 +122,36 @@ async function remoteOverrides(
   cal: CalendarRow,
   externalId: string | null,
   seriesId: string | null,
-): Promise<{ override?: string[]; seriesOverride?: string[] }> {
+): Promise<{ override?: string[]; seriesOverride?: string[]; categoryOverride?: string; categorySeriesOverride?: string }> {
   if (cal.kind === 'local') return {};
-  const [overrideRes, seriesRes] = await db.batch<unknown>([
+  const [overrideRes, seriesRes, categoryOverrideRes, categorySeriesRes] = await db.batch<unknown>([
     db.prepare('SELECT calendar_id, external_id, member_ids FROM event_member_overrides WHERE calendar_id = ?').bind(cal.id),
     db.prepare('SELECT calendar_id, series_id, member_ids FROM event_series_member_overrides WHERE calendar_id = ?').bind(cal.id),
+    db.prepare('SELECT calendar_id, external_id, category_id FROM event_category_overrides WHERE calendar_id = ?').bind(cal.id),
+    db.prepare('SELECT calendar_id, series_id, category_id FROM event_series_category_overrides WHERE calendar_id = ?').bind(cal.id),
   ]);
   const overrideMap = buildOverrideMap(overrideRes.results as OverrideRow[]);
   const seriesMap = buildSeriesOverrideMap(seriesRes.results as SeriesOverrideRow[]);
+  const categoryOverrideMap = buildCategoryOverrideMap(categoryOverrideRes.results as CategoryOverrideRow[]);
+  const categorySeriesMap = buildCategorySeriesOverrideMap(categorySeriesRes.results as CategorySeriesOverrideRow[]);
   return {
     override: externalId ? overrideMap.get(overrideKey(cal.id, externalId)) : undefined,
     seriesOverride: seriesId ? seriesMap.get(seriesOverrideKey(cal.id, seriesId)) : undefined,
+    categoryOverride: externalId ? categoryOverrideMap.get(categoryOverrideKey(cal.id, externalId)) : undefined,
+    categorySeriesOverride: seriesId ? categorySeriesMap.get(categorySeriesOverrideKey(cal.id, seriesId)) : undefined,
+  };
+}
+
+// Member colors + categories are independent reads needed by nearly every response below -
+// one batch instead of two standalone round trips.
+async function colorsAndCategories(db: D1Database): Promise<{ memberColors: Map<string, string>; categories: CategoryRow[] }> {
+  const [membersRes, categoriesRes] = await db.batch<unknown>([
+    db.prepare('SELECT id, color FROM members'),
+    db.prepare('SELECT * FROM categories ORDER BY sort, created_at'),
+  ]);
+  return {
+    memberColors: new Map((membersRes.results as { id: string; color: string }[]).map((r) => [r.id, r.color])),
+    categories: categoriesRes.results as unknown as CategoryRow[],
   };
 }
 
@@ -166,7 +183,93 @@ async function clearOccurrenceOverridesForSeries(db: D1Database, calendarId: str
     .run();
 }
 
+// Same override-table pattern as event_member_overrides/event_series_member_overrides, but for a
+// single categoryId instead of a member_ids array - see migration 0011.
+function categoryOverrideKey(calendarId: string, externalId: string): string {
+  return `${calendarId}\u0000${externalId}`;
+}
+
+type CategoryOverrideRow = { calendar_id: string; external_id: string; category_id: string };
+
+function buildCategoryOverrideMap(rows: CategoryOverrideRow[]): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const r of rows) map.set(categoryOverrideKey(r.calendar_id, r.external_id), r.category_id);
+  return map;
+}
+
+// null clears the override (falls back to the next source) rather than storing a null value.
+async function setCategoryOverride(db: D1Database, calendarId: string, externalId: string, categoryId: string | null): Promise<void> {
+  if (categoryId === null) {
+    await db.prepare('DELETE FROM event_category_overrides WHERE calendar_id = ? AND external_id = ?').bind(calendarId, externalId).run();
+    return;
+  }
+  await db
+    .prepare(
+      'INSERT INTO event_category_overrides (calendar_id, external_id, category_id, updated_at) VALUES (?,?,?,?) ' +
+        'ON CONFLICT(calendar_id, external_id) DO UPDATE SET category_id = excluded.category_id, updated_at = excluded.updated_at',
+    )
+    .bind(calendarId, externalId, categoryId, new Date().toISOString())
+    .run();
+}
+
+function categorySeriesOverrideKey(calendarId: string, seriesId: string): string {
+  return `${calendarId}\u0000${seriesId}`;
+}
+
+type CategorySeriesOverrideRow = { calendar_id: string; series_id: string; category_id: string };
+
+function buildCategorySeriesOverrideMap(rows: CategorySeriesOverrideRow[]): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const r of rows) map.set(categorySeriesOverrideKey(r.calendar_id, r.series_id), r.category_id);
+  return map;
+}
+
+async function setSeriesCategoryOverride(db: D1Database, calendarId: string, seriesId: string, categoryId: string | null): Promise<void> {
+  if (categoryId === null) {
+    await db.prepare('DELETE FROM event_series_category_overrides WHERE calendar_id = ? AND series_id = ?').bind(calendarId, seriesId).run();
+    return;
+  }
+  await db
+    .prepare(
+      'INSERT INTO event_series_category_overrides (calendar_id, series_id, category_id, updated_at) VALUES (?,?,?,?) ' +
+        'ON CONFLICT(calendar_id, series_id) DO UPDATE SET category_id = excluded.category_id, updated_at = excluded.updated_at',
+    )
+    .bind(calendarId, seriesId, categoryId, new Date().toISOString())
+    .run();
+}
+
+// "All events in the series" means all - see clearOccurrenceOverridesForSeries above for the same
+// reasoning applied to member tags.
+async function clearOccurrenceCategoryOverridesForSeries(db: D1Database, calendarId: string, seriesId: string): Promise<void> {
+  await db
+    .prepare(
+      'DELETE FROM event_category_overrides WHERE calendar_id = ? AND external_id IN ' +
+        '(SELECT external_id FROM events WHERE calendar_id = ? AND series_id = ?)',
+    )
+    .bind(calendarId, calendarId, seriesId)
+    .run();
+}
+
 type MemberScope = 'occurrence' | 'series' | 'calendar' | 'none';
+type CategorySource = 'event' | 'series' | 'keyword' | 'calendar' | null;
+
+// Resolution order (highest first): occurrence override -> series override -> keyword match ->
+// calendar default -> none. `categories` must be sorted by sort (first keyword match by sort
+// order wins) - callers always fetch it that way.
+function resolveCategory(
+  title: string,
+  categories: CategoryRow[],
+  occurrenceOverride: string | undefined,
+  seriesOverride: string | undefined,
+  calendarDefaultCategoryId: string | null,
+): { categoryId: string | null; categorySource: CategorySource } {
+  if (occurrenceOverride) return { categoryId: occurrenceOverride, categorySource: 'event' };
+  if (seriesOverride) return { categoryId: seriesOverride, categorySource: 'series' };
+  const keywordMatch = matchCategoryByKeyword(title, categories);
+  if (keywordMatch) return { categoryId: keywordMatch.id, categorySource: 'keyword' };
+  if (calendarDefaultCategoryId) return { categoryId: calendarDefaultCategoryId, categorySource: 'calendar' };
+  return { categoryId: null, categorySource: null };
+}
 
 function instanceFrom(
   row: EventRow,
@@ -177,6 +280,9 @@ function instanceFrom(
   end: string,
   occurrenceOverride?: string[],
   seriesOverride?: string[],
+  categories: CategoryRow[] = [],
+  categoryOccurrenceOverride?: string,
+  categorySeriesOverride?: string,
 ) {
   let memberIds: string[];
   let memberScope: MemberScope;
@@ -210,6 +316,17 @@ function instanceFrom(
     }
   }
   const color = (memberIds[0] && memberColors.get(memberIds[0])) || cal.color || '#888';
+
+  let categoryId: string | null;
+  let categorySource: CategorySource;
+  const localCategory = cal.kind === 'local' ? row.category_id : null;
+  if (localCategory) {
+    categoryId = localCategory;
+    categorySource = row.rrule ? 'series' : 'event';
+  } else {
+    ({ categoryId, categorySource } = resolveCategory(row.title, categories, categoryOccurrenceOverride, categorySeriesOverride, cal.category_id));
+  }
+
   return {
     id: row.id,
     calendarId: row.calendar_id,
@@ -226,6 +343,8 @@ function instanceFrom(
     readOnly: !cal.writable,
     seriesId: row.series_id,
     memberScope,
+    categoryId,
+    categorySource,
   };
 }
 
@@ -264,34 +383,43 @@ eventsRoutes.openapi(
     const fromDate = new Date(from);
     const toDate = new Date(to);
 
-    // calendars, household timezone and member colors are independent reads - one batch.
+    // calendars, household timezone, member colors and categories (for keyword matching) are
+    // independent reads - one batch.
     const calendarsStmt = calendarId
       ? c.env.DB.prepare('SELECT * FROM calendars WHERE id = ?').bind(calendarId)
       : c.env.DB.prepare('SELECT * FROM calendars');
-    const [calendarsRes, tzRes, membersRes] = await c.env.DB.batch<unknown>([
+    const [calendarsRes, tzRes, membersRes, categoriesRes] = await c.env.DB.batch<unknown>([
       calendarsStmt,
       c.env.DB.prepare("SELECT value FROM settings WHERE key = 'timezone'"),
       c.env.DB.prepare('SELECT id, color FROM members'),
+      c.env.DB.prepare('SELECT * FROM categories ORDER BY sort, created_at'),
     ]);
     const calendars = calendarsRes.results as unknown as CalendarRow[];
     const calById = new Map(calendars.map((cal) => [cal.id, cal]));
     if (calendars.length === 0) return c.json([], 200);
     const tz = (tzRes.results[0] as { value: string } | undefined)?.value ?? hostTimezone();
     const memberColors = new Map((membersRes.results as { id: string; color: string }[]).map((r) => [r.id, r.color]));
+    const categories = categoriesRes.results as unknown as CategoryRow[];
 
-    // events + both override tables, all filtered by the same calendar id set - another batch.
+    // events + all four override tables, all filtered by the same calendar id set - another batch.
     const calIds = calendars.map((cal) => cal.id);
     const placeholders = calIds.map(() => '?').join(',');
-    const [eventsRes, overridesRes, seriesOverridesRes] = await c.env.DB.batch<unknown>([
+    const [eventsRes, overridesRes, seriesOverridesRes, categoryOverridesRes, categorySeriesOverridesRes] = await c.env.DB.batch<unknown>([
       c.env.DB.prepare(`SELECT * FROM events WHERE calendar_id IN (${placeholders})`).bind(...calIds),
       c.env.DB.prepare(`SELECT calendar_id, external_id, member_ids FROM event_member_overrides WHERE calendar_id IN (${placeholders})`).bind(...calIds),
       c.env.DB
         .prepare(`SELECT calendar_id, series_id, member_ids FROM event_series_member_overrides WHERE calendar_id IN (${placeholders})`)
         .bind(...calIds),
+      c.env.DB.prepare(`SELECT calendar_id, external_id, category_id FROM event_category_overrides WHERE calendar_id IN (${placeholders})`).bind(...calIds),
+      c.env.DB
+        .prepare(`SELECT calendar_id, series_id, category_id FROM event_series_category_overrides WHERE calendar_id IN (${placeholders})`)
+        .bind(...calIds),
     ]);
     const rows = eventsRes.results as unknown as EventRow[];
     const overrides = buildOverrideMap(overridesRes.results as OverrideRow[]);
     const seriesOverrides = buildSeriesOverrideMap(seriesOverridesRes.results as SeriesOverrideRow[]);
+    const categoryOverrides = buildCategoryOverrideMap(categoryOverridesRes.results as CategoryOverrideRow[]);
+    const categorySeriesOverrides = buildCategorySeriesOverrideMap(categorySeriesOverridesRes.results as CategorySeriesOverrideRow[]);
     const out: ReturnType<typeof instanceFrom>[] = [];
 
     for (const row of rows) {
@@ -299,10 +427,12 @@ eventsRoutes.openapi(
       if (!cal) continue;
       const override = row.external_id ? overrides.get(overrideKey(cal.id, row.external_id)) : undefined;
       const seriesOverride = row.series_id ? seriesOverrides.get(seriesOverrideKey(cal.id, row.series_id)) : undefined;
+      const categoryOverride = row.external_id ? categoryOverrides.get(categoryOverrideKey(cal.id, row.external_id)) : undefined;
+      const categorySeriesOverride = row.series_id ? categorySeriesOverrides.get(categorySeriesOverrideKey(cal.id, row.series_id)) : undefined;
 
       if (cal.kind === 'local' && row.rrule) {
         for (const inst of expand(row.rrule, row.start, row.end, !!row.all_day, tz, fromDate, toDate)) {
-          out.push(instanceFrom(row, cal, memberColors, inst.start, inst.start, inst.end, override, seriesOverride));
+          out.push(instanceFrom(row, cal, memberColors, inst.start, inst.start, inst.end, override, seriesOverride, categories, categoryOverride, categorySeriesOverride));
         }
         continue;
       }
@@ -311,7 +441,7 @@ eventsRoutes.openapi(
       const startMs = row.all_day ? Date.parse(`${row.start}T00:00:00Z`) : Date.parse(row.start);
       const endMs = row.all_day ? Date.parse(`${row.end}T00:00:00Z`) : Date.parse(row.end);
       if (endMs <= fromDate.getTime() || startMs >= toDate.getTime()) continue;
-      out.push(instanceFrom(row, cal, memberColors, null, row.start, row.end, override, seriesOverride));
+      out.push(instanceFrom(row, cal, memberColors, null, row.start, row.end, override, seriesOverride, categories, categoryOverride, categorySeriesOverride));
     }
 
     let filtered = out;
@@ -391,17 +521,18 @@ eventsRoutes.openapi(
       member_ids: JSON.stringify(body.memberIds ?? []),
       updated_at: new Date().toISOString(),
       series_id: seriesId,
+      category_id: body.categoryId ?? null,
     };
     await c.env.DB.prepare(
-      'INSERT INTO events (id, calendar_id, external_id, title, start, end, all_day, location, description, rrule, member_ids, updated_at, series_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      'INSERT INTO events (id, calendar_id, external_id, title, start, end, all_day, location, description, rrule, member_ids, updated_at, series_id, category_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
     )
-      .bind(row.id, row.calendar_id, row.external_id, row.title, row.start, row.end, row.all_day, row.location, row.description, row.rrule, row.member_ids, row.updated_at, row.series_id)
+      .bind(row.id, row.calendar_id, row.external_id, row.title, row.start, row.end, row.all_day, row.location, row.description, row.rrule, row.member_ids, row.updated_at, row.series_id, row.category_id)
       .run();
     emit(c, 'events.changed', { calendarId: cal.id });
 
-    const memberColors = await colorsByMember(c.env.DB);
-    const { seriesOverride } = await remoteOverrides(c.env.DB, cal, null, row.series_id);
-    return c.json(instanceFrom(row, cal, memberColors, null, row.start, row.end, undefined, seriesOverride), 201);
+    const { memberColors, categories } = await colorsAndCategories(c.env.DB);
+    const { seriesOverride, categorySeriesOverride } = await remoteOverrides(c.env.DB, cal, null, row.series_id);
+    return c.json(instanceFrom(row, cal, memberColors, null, row.start, row.end, undefined, seriesOverride, categories, undefined, categorySeriesOverride), 201);
   },
 );
 
@@ -412,6 +543,7 @@ type EventCalRow = EventRow & {
   cal_name: string;
   cal_color: string | null;
   cal_member_ids: string;
+  cal_category_id: string | null;
   cal_config: string;
   cal_writable: number;
   cal_enabled: number;
@@ -422,7 +554,7 @@ async function loadEventAndCalendar(db: D1Database, id: string): Promise<{ row: 
   const joined = await db
     .prepare(
       `SELECT e.*, c.kind AS cal_kind, c.account_id AS cal_account_id, c.remote_id AS cal_remote_id, c.name AS cal_name,
-              c.color AS cal_color, c.member_ids AS cal_member_ids, c.config AS cal_config, c.writable AS cal_writable, c.enabled AS cal_enabled
+              c.color AS cal_color, c.member_ids AS cal_member_ids, c.category_id AS cal_category_id, c.config AS cal_config, c.writable AS cal_writable, c.enabled AS cal_enabled
        FROM events e JOIN calendars c ON c.id = e.calendar_id WHERE e.id = ?`,
     )
     .bind(id)
@@ -436,6 +568,7 @@ async function loadEventAndCalendar(db: D1Database, id: string): Promise<{ row: 
     name: joined.cal_name,
     color: joined.cal_color,
     member_ids: joined.cal_member_ids,
+    category_id: joined.cal_category_id,
     config: joined.cal_config,
     writable: joined.cal_writable,
     enabled: joined.cal_enabled,
@@ -460,9 +593,12 @@ eventsRoutes.openapi(
     const { id } = c.req.valid('param');
     const found = await loadEventAndCalendar(c.env.DB, id);
     if (!found) return c.json({ error: 'not found' }, 404);
-    const memberColors = await colorsByMember(c.env.DB);
-    const { override, seriesOverride } = await remoteOverrides(c.env.DB, found.cal, found.row.external_id, found.row.series_id);
-    return c.json(instanceFrom(found.row, found.cal, memberColors, null, found.row.start, found.row.end, override, seriesOverride), 200);
+    const { memberColors, categories } = await colorsAndCategories(c.env.DB);
+    const { override, seriesOverride, categoryOverride, categorySeriesOverride } = await remoteOverrides(c.env.DB, found.cal, found.row.external_id, found.row.series_id);
+    return c.json(
+      instanceFrom(found.row, found.cal, memberColors, null, found.row.start, found.row.end, override, seriesOverride, categories, categoryOverride, categorySeriesOverride),
+      200,
+    );
   },
 );
 
@@ -501,13 +637,13 @@ eventsRoutes.openapi(
       body.location !== undefined ||
       body.description !== undefined ||
       body.rrule !== undefined;
-    // Member assignment on a remote-kind event is a local-only annotation (event-member-overrides,
-    // keyed by external_id - the row is wiped wholesale on every sync). A memberIds-only patch
-    // never touches the provider, so it works even on a read-only calendar (ICS) or when the
-    // calendar isn't writable.
-    const memberOnlyPatch = cal.kind !== 'local' && !otherFieldsPresent && body.memberIds !== undefined;
+    // Member assignment and category assignment on a remote-kind event are local-only annotations
+    // (event-member-overrides / event-category-overrides, keyed by external_id - the row is wiped
+    // wholesale on every sync). A memberIds/categoryId-only patch never touches the provider, so it
+    // works even on a read-only calendar (ICS) or when the calendar isn't writable.
+    const annotationOnlyPatch = cal.kind !== 'local' && !otherFieldsPresent && (body.memberIds !== undefined || body.categoryId !== undefined);
 
-    if (!memberOnlyPatch && !cal.writable) return c.json({ error: 'calendar is not writable' }, 400);
+    if (!annotationOnlyPatch && !cal.writable) return c.json({ error: 'calendar is not writable' }, 400);
 
     let title = body.title ?? row.title;
     let start = body.start ?? row.start;
@@ -550,6 +686,18 @@ eventsRoutes.openapi(
       }
     }
 
+    if (cal.kind !== 'local' && body.categoryId !== undefined) {
+      const scope = body.scope ?? 'occurrence';
+      if (scope === 'series') {
+        if (!row.series_id) return c.json({ error: 'event has no series to tag' }, 400);
+        await setSeriesCategoryOverride(c.env.DB, cal.id, row.series_id, body.categoryId);
+        await clearOccurrenceCategoryOverridesForSeries(c.env.DB, cal.id, row.series_id);
+      } else {
+        if (!row.external_id) return c.json({ error: 'event has no external id' }, 400);
+        await setCategoryOverride(c.env.DB, cal.id, row.external_id, body.categoryId);
+      }
+    }
+
     const updatedRow: EventRow = {
       ...row,
       title,
@@ -560,15 +708,17 @@ eventsRoutes.openapi(
       description,
       rrule: cal.kind === 'local' && body.rrule !== undefined ? body.rrule : row.rrule,
       member_ids: cal.kind === 'local' && body.memberIds !== undefined ? JSON.stringify(body.memberIds) : row.member_ids,
+      category_id: cal.kind === 'local' && body.categoryId !== undefined ? body.categoryId : row.category_id,
       updated_at: new Date().toISOString(),
     };
-    // The UPDATE (when needed) and the member-colors lookup for the response are independent of
-    // each other - batch them into one round trip instead of running them back to back.
+    // The UPDATE (when needed) and the member-colors/categories lookups for the response are
+    // independent of each other - batch them into one round trip instead of running them back to back.
     let memberColors: Map<string, string>;
-    if (otherFieldsPresent || (cal.kind === 'local' && body.memberIds !== undefined)) {
+    let categories: CategoryRow[];
+    if (otherFieldsPresent || (cal.kind === 'local' && (body.memberIds !== undefined || body.categoryId !== undefined))) {
       const updateStmt = c.env.DB
         .prepare(
-          'UPDATE events SET title = ?, start = ?, end = ?, all_day = ?, location = ?, description = ?, rrule = ?, member_ids = ?, updated_at = ? WHERE id = ?',
+          'UPDATE events SET title = ?, start = ?, end = ?, all_day = ?, location = ?, description = ?, rrule = ?, member_ids = ?, category_id = ?, updated_at = ? WHERE id = ?',
         )
         .bind(
           updatedRow.title,
@@ -579,18 +729,27 @@ eventsRoutes.openapi(
           updatedRow.description,
           updatedRow.rrule,
           updatedRow.member_ids,
+          updatedRow.category_id,
           updatedRow.updated_at,
           id,
         );
-      const [, colorsRes] = await c.env.DB.batch<unknown>([updateStmt, c.env.DB.prepare('SELECT id, color FROM members')]);
+      const [, colorsRes, categoriesRes] = await c.env.DB.batch<unknown>([
+        updateStmt,
+        c.env.DB.prepare('SELECT id, color FROM members'),
+        c.env.DB.prepare('SELECT * FROM categories ORDER BY sort, created_at'),
+      ]);
       memberColors = new Map((colorsRes.results as { id: string; color: string }[]).map((r) => [r.id, r.color]));
+      categories = categoriesRes.results as unknown as CategoryRow[];
     } else {
-      memberColors = await colorsByMember(c.env.DB);
+      ({ memberColors, categories } = await colorsAndCategories(c.env.DB));
     }
     emit(c, 'events.changed', { calendarId: cal.id });
 
-    const { override, seriesOverride } = await remoteOverrides(c.env.DB, cal, updatedRow.external_id, updatedRow.series_id);
-    return c.json(instanceFrom(updatedRow, cal, memberColors, null, updatedRow.start, updatedRow.end, override, seriesOverride), 200);
+    const { override, seriesOverride, categoryOverride, categorySeriesOverride } = await remoteOverrides(c.env.DB, cal, updatedRow.external_id, updatedRow.series_id);
+    return c.json(
+      instanceFrom(updatedRow, cal, memberColors, null, updatedRow.start, updatedRow.end, override, seriesOverride, categories, categoryOverride, categorySeriesOverride),
+      200,
+    );
   },
 );
 

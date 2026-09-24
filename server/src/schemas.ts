@@ -31,6 +31,30 @@ export const MemberInputSchema = z
   })
   .openapi('MemberInput');
 
+export const CategorySchema = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    emoji: z.string().nullable(),
+    color: z.string(),
+    keywords: z.array(z.string()),
+    sort: z.number(),
+    createdAt: z.string(),
+  })
+  .openapi('Category');
+
+export const CategoryInputSchema = z
+  .object({
+    name: z.string().min(1),
+    emoji: EmojiSchema.nullable().optional(),
+    color: z.string().min(1),
+    keywords: z.array(z.string()).optional(),
+    sort: z.number().optional(),
+  })
+  .openapi('CategoryInput');
+
+export const CategoryReorderSchema = z.object({ ids: z.array(z.string()) }).openapi('CategoryReorder');
+
 export const SettingsSchema = z
   .object({
     familyName: z.string(),
@@ -96,6 +120,7 @@ export const CalendarSchema = z
     color: z.string().nullable(),
     memberId: z.string().nullable(),
     memberIds: z.array(z.string()),
+    categoryId: z.string().nullable(), // default category for events with no override/keyword match
     writable: z.boolean(),
     enabled: z.boolean(),
     lastSyncedAt: z.string().nullable(),
@@ -110,6 +135,7 @@ export const CalendarInputSchema = z
     color: z.string().nullable().optional(),
     memberId: z.string().nullable().optional(), // legacy - use memberIds
     memberIds: z.array(z.string()).optional(),
+    categoryId: z.string().nullable().optional(),
     accountId: z.string().nullable().optional(),
     remoteId: z.string().nullable().optional(),
     url: z.string().url().optional(),
@@ -133,6 +159,8 @@ export const EventInstanceSchema = z
     readOnly: z.boolean(),
     seriesId: z.string().nullable(),
     memberScope: z.enum(['occurrence', 'series', 'calendar', 'none']),
+    categoryId: z.string().nullable(),
+    categorySource: z.enum(['event', 'series', 'keyword', 'calendar']).nullable(),
   })
   .openapi('EventInstance');
 
@@ -147,6 +175,7 @@ export const EventInputSchema = z
     description: z.string().optional(),
     memberIds: z.array(z.string()).optional(),
     rrule: z.string().nullable().optional(),
+    categoryId: z.string().nullable().optional(),
   })
   .openapi('EventInput');
 

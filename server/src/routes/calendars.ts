@@ -18,6 +18,7 @@ type CalendarRow = {
   name: string;
   color: string | null;
   member_ids: string;
+  category_id: string | null;
   config: string;
   writable: number;
   enabled: number;
@@ -36,6 +37,7 @@ function toApi(row: CalendarRow) {
     color: row.color,
     memberId: memberIds[0] ?? null, // legacy - first assigned member, for compat
     memberIds,
+    categoryId: row.category_id,
     writable: !!row.writable,
     enabled: !!row.enabled,
     lastSyncedAt: row.last_synced_at,
@@ -110,6 +112,7 @@ calendarsRoutes.openapi(
       name: body.name,
       color: body.color ?? null,
       member_ids: JSON.stringify(memberIds),
+      category_id: body.categoryId ?? null,
       config,
       writable,
       enabled: 1,
@@ -117,9 +120,9 @@ calendarsRoutes.openapi(
       last_error: null,
     };
     await c.env.DB.prepare(
-      'INSERT INTO calendars (id, kind, account_id, remote_id, name, color, member_ids, config, writable, enabled) VALUES (?,?,?,?,?,?,?,?,?,?)',
+      'INSERT INTO calendars (id, kind, account_id, remote_id, name, color, member_ids, category_id, config, writable, enabled) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
     )
-      .bind(row.id, row.kind, row.account_id, row.remote_id, row.name, row.color, row.member_ids, row.config, row.writable, row.enabled)
+      .bind(row.id, row.kind, row.account_id, row.remote_id, row.name, row.color, row.member_ids, row.category_id, row.config, row.writable, row.enabled)
       .run();
     emit(c, 'calendar.changed', { id: row.id });
     return c.json(toApi(row), 201);
@@ -132,6 +135,7 @@ const CalendarPatchSchema = z
     color: z.string().nullable().optional(),
     memberId: z.string().nullable().optional(), // legacy - use memberIds
     memberIds: z.array(z.string()).optional(),
+    categoryId: z.string().nullable().optional(),
     enabled: z.boolean().optional(),
   })
   .openapi('CalendarPatch');
@@ -163,10 +167,11 @@ calendarsRoutes.openapi(
       name: body.name ?? existing.name,
       color: body.color !== undefined ? body.color : existing.color,
       member_ids: JSON.stringify(memberIds),
+      category_id: body.categoryId !== undefined ? body.categoryId : existing.category_id,
       enabled: body.enabled !== undefined ? (body.enabled ? 1 : 0) : existing.enabled,
     };
-    await c.env.DB.prepare('UPDATE calendars SET name = ?, color = ?, member_ids = ?, enabled = ? WHERE id = ?')
-      .bind(updated.name, updated.color, updated.member_ids, updated.enabled, id)
+    await c.env.DB.prepare('UPDATE calendars SET name = ?, color = ?, member_ids = ?, category_id = ?, enabled = ? WHERE id = ?')
+      .bind(updated.name, updated.color, updated.member_ids, updated.category_id, updated.enabled, id)
       .run();
     emit(c, 'calendar.changed', { id });
     return c.json(toApi(updated), 200);

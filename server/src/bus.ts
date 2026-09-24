@@ -13,6 +13,7 @@ export type BusEventType =
   | 'chore.uncompleted'
   | 'list.changed'
   | 'list.item.changed'
+  | 'category.changed'
   | 'settings.changed'
   | 'display.paired';
 

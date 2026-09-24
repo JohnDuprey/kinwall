@@ -1,6 +1,6 @@
 // Dev-only in-memory fixture, used when VITE_MOCK=1. Excluded from prod by the env check in api.ts.
 import type {
-  Account, ApiKey, CalendarEntry, Chore, ChoreDay, EventInstance, LeaderboardEntry, LeaderboardPeriod, List, ListGroup,
+  Account, ApiKey, CalendarEntry, Category, Chore, ChoreDay, EventInstance, LeaderboardEntry, LeaderboardPeriod, List, ListGroup,
   ListItem, ListItemInput, Member, Providers, RemoteCalendar, Settings, Webhook,
 } from './types.ts'
 
@@ -31,8 +31,13 @@ const members: Member[] = [
 ]
 
 const calendars: CalendarEntry[] = [
-  { id: 'c1', kind: 'local', accountId: null, remoteId: null, name: 'Family', color: '#B39DFF', memberId: null, memberIds: [], writable: true, enabled: true, lastSyncedAt: null, lastError: null },
-  { id: 'c2', kind: 'ics', accountId: null, remoteId: null, name: 'School (ICS)', color: '#FFD166', memberId: null, memberIds: [], writable: false, enabled: true, lastSyncedAt: new Date().toISOString(), lastError: null },
+  { id: 'c1', kind: 'local', accountId: null, remoteId: null, name: 'Family', color: '#B39DFF', memberId: null, memberIds: [], categoryId: null, writable: true, enabled: true, lastSyncedAt: null, lastError: null },
+  { id: 'c2', kind: 'ics', accountId: null, remoteId: null, name: 'School (ICS)', color: '#FFD166', memberId: null, memberIds: [], categoryId: null, writable: false, enabled: true, lastSyncedAt: new Date().toISOString(), lastError: null },
+]
+
+const categories: Category[] = [
+  { id: 'cat1', name: 'Birthdays', emoji: '🎂', color: '#FF9E7A', keywords: ['birthday', 'bday', 'b-day'], sort: 0, createdAt: new Date().toISOString() },
+  { id: 'cat2', name: 'Sports', emoji: '⚽', color: '#7ED9A6', keywords: ['practice', 'game', 'soccer'], sort: 1, createdAt: new Date().toISOString() },
 ]
 
 function at(daysFromToday: number, hh: number, mm = 0) {
@@ -50,14 +55,15 @@ function dateOnly(daysFromToday: number) {
 
 // seriesId/memberScope: mock data has no synced recurring events, so every fixture is 'none'/null
 // (matches how a local event or a non-recurring synced event reports these fields for real).
+// e1/e7 demo a keyword auto-match (Sports/Birthdays); the rest have no category.
 const events: EventInstance[] = [
-  { id: 'e1', calendarId: 'c1', title: 'Soccer Practice', start: at(0, 16), end: at(0, 17, 30), allDay: false, location: 'Park field', description: null, memberIds: ['m2'], color: '#FF8FA3', rrule: null, occurrenceStart: null, readOnly: false, seriesId: null, memberScope: 'none' },
-  { id: 'e2', calendarId: 'c1', title: 'Team Meeting', start: at(0, 16, 30), end: at(0, 17), allDay: false, location: null, description: null, memberIds: ['m1'], color: '#7AB8FF', rrule: null, occurrenceStart: null, readOnly: false, seriesId: null, memberScope: 'none' },
-  { id: 'e3', calendarId: 'c2', title: 'Teacher In-Service (No School)', start: dateOnly(1), end: dateOnly(2), allDay: true, location: null, description: null, memberIds: ['m3'], color: '#FFD166', rrule: null, occurrenceStart: null, readOnly: true, seriesId: null, memberScope: 'none' },
-  { id: 'e4', calendarId: 'c1', title: 'Family Dinner', start: at(2, 18), end: at(2, 19), allDay: false, location: 'Home', description: null, memberIds: [], color: '#B39DFF', rrule: null, occurrenceStart: null, readOnly: false, seriesId: null, memberScope: 'none' },
-  { id: 'e5', calendarId: 'c1', title: 'Piano Lesson', start: at(3, 15), end: at(3, 15, 45), allDay: false, location: null, description: null, memberIds: ['m3'], color: '#7ED9A6', rrule: null, occurrenceStart: null, readOnly: false, seriesId: null, memberScope: 'none' },
-  { id: 'e6', calendarId: 'c1', title: 'Book Club', start: at(-1, 19), end: at(-1, 20), allDay: false, location: null, description: null, memberIds: ['m1'], color: '#7AB8FF', rrule: 'FREQ=WEEKLY', occurrenceStart: at(-1, 19), readOnly: false, seriesId: null, memberScope: 'none' },
-  { id: 'e7', calendarId: 'c1', title: "Sam's Birthday", start: dateOnly(4), end: dateOnly(5), allDay: true, location: null, description: null, memberIds: ['m2'], color: '#FF8FA3', rrule: null, occurrenceStart: null, readOnly: false, seriesId: null, memberScope: 'none' },
+  { id: 'e1', calendarId: 'c1', title: 'Soccer Practice', start: at(0, 16), end: at(0, 17, 30), allDay: false, location: 'Park field', description: null, memberIds: ['m2'], color: '#FF8FA3', rrule: null, occurrenceStart: null, readOnly: false, seriesId: null, memberScope: 'none', categoryId: 'cat2', categorySource: 'keyword' },
+  { id: 'e2', calendarId: 'c1', title: 'Team Meeting', start: at(0, 16, 30), end: at(0, 17), allDay: false, location: null, description: null, memberIds: ['m1'], color: '#7AB8FF', rrule: null, occurrenceStart: null, readOnly: false, seriesId: null, memberScope: 'none', categoryId: null, categorySource: null },
+  { id: 'e3', calendarId: 'c2', title: 'Teacher In-Service (No School)', start: dateOnly(1), end: dateOnly(2), allDay: true, location: null, description: null, memberIds: ['m3'], color: '#FFD166', rrule: null, occurrenceStart: null, readOnly: true, seriesId: null, memberScope: 'none', categoryId: null, categorySource: null },
+  { id: 'e4', calendarId: 'c1', title: 'Family Dinner', start: at(2, 18), end: at(2, 19), allDay: false, location: 'Home', description: null, memberIds: [], color: '#B39DFF', rrule: null, occurrenceStart: null, readOnly: false, seriesId: null, memberScope: 'none', categoryId: null, categorySource: null },
+  { id: 'e5', calendarId: 'c1', title: 'Piano Lesson', start: at(3, 15), end: at(3, 15, 45), allDay: false, location: null, description: null, memberIds: ['m3'], color: '#7ED9A6', rrule: null, occurrenceStart: null, readOnly: false, seriesId: null, memberScope: 'none', categoryId: null, categorySource: null },
+  { id: 'e6', calendarId: 'c1', title: 'Book Club', start: at(-1, 19), end: at(-1, 20), allDay: false, location: null, description: null, memberIds: ['m1'], color: '#7AB8FF', rrule: 'FREQ=WEEKLY', occurrenceStart: at(-1, 19), readOnly: false, seriesId: null, memberScope: 'none', categoryId: null, categorySource: null },
+  { id: 'e7', calendarId: 'c1', title: "Sam's Birthday", start: dateOnly(4), end: dateOnly(5), allDay: true, location: null, description: null, memberIds: ['m2'], color: '#FF8FA3', rrule: null, occurrenceStart: null, readOnly: false, seriesId: null, memberScope: 'none', categoryId: 'cat1', categorySource: 'keyword' },
 ]
 
 const chores: Chore[] = [
@@ -119,7 +125,7 @@ export const mock = {
     const memberIds = c.memberIds ?? (c.memberId ? [c.memberId] : [])
     const nc: CalendarEntry = {
       id: uid(), kind: c.kind ?? 'local', accountId: c.accountId ?? null, remoteId: c.remoteId ?? null,
-      name: c.name ?? 'New Calendar', color: c.color ?? '#7AB8FF', memberId: memberIds[0] ?? null, memberIds,
+      name: c.name ?? 'New Calendar', color: c.color ?? '#7AB8FF', memberId: memberIds[0] ?? null, memberIds, categoryId: c.categoryId ?? null,
       writable: c.kind === 'local' || c.kind === undefined, enabled: true, lastSyncedAt: null, lastError: null,
     }
     calendars.push(nc); bump(); return nc
@@ -159,6 +165,7 @@ export const mock = {
       location: body.location ?? null, description: body.description ?? null,
       memberIds: body.memberIds ?? [], color: (body.memberIds?.length && members.find(m => m.id === body.memberIds![0])?.color) || cal?.color || '#888',
       rrule: body.rrule ?? null, occurrenceStart: null, readOnly: false, seriesId: null, memberScope: 'none',
+      categoryId: body.categoryId ?? null, categorySource: body.categoryId ? 'event' : null,
     }
     events.push(ev); bump(); return ev
   },
@@ -215,6 +222,26 @@ export const mock = {
       if (i > 0 && !(e.points === entries[i - 1].points && e.completed === entries[i - 1].completed)) rank = i + 1
       return { ...e, rank }
     })
+  },
+
+  getCategories: async () => [...categories].sort((a, b) => a.sort - b.sort),
+  createCategory: async (body: Partial<Category>): Promise<Category> => {
+    const nc: Category = { id: uid(), name: body.name ?? 'New category', emoji: body.emoji ?? null, color: body.color ?? '#FF9E7A', keywords: body.keywords ?? [], sort: categories.length, createdAt: new Date().toISOString() }
+    categories.push(nc); bump(); return nc
+  },
+  updateCategory: async (id: string, patch: Partial<Category>) => {
+    const c = categories.find(x => x.id === id); if (!c) throw new Error('not found')
+    Object.assign(c, patch); bump(); return c
+  },
+  deleteCategory: async (id: string) => {
+    const i = categories.findIndex(x => x.id === id); if (i >= 0) categories.splice(i, 1)
+    events.forEach(e => { if (e.categoryId === id) { e.categoryId = null; e.categorySource = null } })
+    calendars.forEach(c => { if (c.categoryId === id) c.categoryId = null })
+    bump()
+  },
+  reorderCategories: async (ids: string[]) => {
+    ids.forEach((id, idx) => { const c = categories.find(x => x.id === id); if (c) c.sort = idx })
+    bump(); return { ok: true }
   },
 
   getKeys: async (): Promise<ApiKey[]> => [{ id: 'k1', name: 'iPad Wall Display', prefix: 'fc_live_ab12', scope: 'display', createdAt: new Date().toISOString(), lastUsedAt: new Date().toISOString() }],

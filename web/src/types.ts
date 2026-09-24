@@ -45,6 +45,7 @@ export interface CalendarEntry {
   color: string | null
   memberId: string | null // legacy - first element of memberIds, kept for compat
   memberIds: string[]
+  categoryId: string | null // default category for events with no override/keyword match
   writable: boolean
   enabled: boolean
   lastSyncedAt: string | null
@@ -67,7 +68,29 @@ export interface EventInstance {
   readOnly: boolean
   seriesId: string | null // set for occurrences of a recurring synced event
   memberScope: 'occurrence' | 'series' | 'calendar' | 'none' // where memberIds came from
+  categoryId: string | null
+  categorySource: 'event' | 'series' | 'keyword' | 'calendar' | null // where categoryId came from
 }
+
+export interface Category {
+  id: string
+  name: string
+  emoji: string | null
+  color: string // overrides the assigned member's color on the calendar
+  keywords: string[] // literal phrases, case-insensitive whole-word/phrase match against the event title
+  sort: number
+  createdAt: string
+}
+
+/** One-tap starter presets offered by "Add category" in Settings - prefill the edit sheet, don't
+ * create anything until the user saves. */
+export const CATEGORY_PRESETS: { name: string; emoji: string; keywords: string[] }[] = [
+  { name: 'Birthdays', emoji: '🎂', keywords: ['birthday', 'bday', 'b-day'] },
+  { name: 'Appointments', emoji: '🏥', keywords: ['dentist', 'doctor', 'appt', 'appointment', 'orthodontist'] },
+  { name: 'Sports', emoji: '⚽', keywords: ['practice', 'game', 'soccer', 'baseball', 'basketball', 'swim'] },
+  { name: 'School', emoji: '🏫', keywords: ['school', 'pta', 'conference', 'field trip'] },
+  { name: 'Travel', emoji: '✈️', keywords: ['flight', 'trip', 'hotel', 'vacation'] },
+]
 
 export interface Chore {
   id: string
@@ -239,6 +262,8 @@ export const MEMBER_PALETTE = [
 ]
 
 export const MEMBER_EMOJI = ['🦊', '🐻', '🐱', '🐶', '🐰', '🦁', '🐼', '🦄', '🐨', '🐵']
+
+export const CATEGORY_EMOJI = ['🎂', '🏥', '⚽', '🏫', '✈️', '🎉', '🎵', '📅', '❤️', '⭐']
 
 // 6-8 accent presets incl. the current default orange. Custom accents come from a native
 // <input type="color"> in Settings, so this list stays short.

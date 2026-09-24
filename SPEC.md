@@ -88,13 +88,22 @@ members(id, name, color, avatar, sort, created_at)
 accounts(id, kind  'google'|'microsoft'|'caldav', name, config JSON, created_at)
        -- config holds tokens / creds; NEVER returned by the API
 calendars(id, kind 'local'|'ics'|'google'|'microsoft'|'caldav', account_id NULL, remote_id NULL,
-          name, color NULL, member_id NULL, config JSON, writable INT, enabled INT,
+          name, color NULL, member_id NULL, category_id NULL, config JSON, writable INT, enabled INT,
           last_synced_at NULL, last_error NULL)
           -- ics: config.url. remote_id = provider calendar id / caldav URL
+          -- category_id = default category for events on this calendar with no override/keyword match
 events(id, calendar_id, external_id NULL, title, start, end, all_day INT, location, description,
-       rrule NULL, member_ids JSON '[]', updated_at)
+       rrule NULL, member_ids JSON '[]', category_id NULL, updated_at)
        -- remote kinds: rows are already-expanded instances replaced wholesale on each sync
        -- local kind: one row per series; rrule expanded at query time
+       -- category_id is read only for local-kind rows; synced-kind category comes from the override tables below
+categories(id, name, emoji NULL, color, keywords JSON '[]', sort, created_at)
+       -- color overrides the assigned member's color; keywords = literal phrases, case-insensitive
+       -- whole-word/phrase match against an event title, computed at read time (not stored)
+event_category_overrides(calendar_id, external_id, category_id, updated_at, PK(calendar_id, external_id))
+event_series_category_overrides(calendar_id, series_id, category_id, updated_at, PK(calendar_id, series_id))
+       -- per-occurrence / per-series category override for synced events, keyed the same way (and
+       -- for the same reason - deterministic ids survive re-sync) as the member-tag override tables
 chores(id, title, emoji, member_id NULL, points INT, rrule NULL, due_date NULL, due_time NULL,
        active INT, sort, created_at)
        -- rrule NULL + due_date => one-off. rrule e.g. 'FREQ=DAILY' or 'FREQ=WEEKLY;BYDAY=MO,WE,FR'
@@ -137,17 +146,27 @@ GET    /api/oauth/:kind/callback -> creates account, 302 to /#/settings?account=
 POST   /api/accounts/caldav     {name, serverUrl, username, password} -> account
 GET    /api/accounts/:id/remote-calendars   -> [{remoteId, name, color, writable}]
 
-GET    /api/calendars           POST /api/calendars   {kind, name, color?, memberId?, accountId?, remoteId?, url?}
+GET    /api/calendars           POST /api/calendars   {kind, name, color?, memberId?, categoryId?, accountId?, remoteId?, url?}
 PATCH  /api/calendars/:id       DELETE /api/calendars/:id
 POST   /api/calendars/:id/sync  -> {ok, count} | 502 {error}
 
+GET    /api/categories          -> Category[] (ordered by sort)
+POST   /api/categories          {name, emoji?, color, keywords?, sort?}
+PATCH  /api/categories/:id      DELETE /api/categories/:id   (clears every reference: events fall back to the next source)
+POST   /api/categories/reorder  {ids} -> sort = index
+         Category = {id, name, emoji, color, keywords, sort, createdAt}
+
 GET    /api/events?from&to[&memberId][&calendarId]   -> EventInstance[] (sorted by start)
-POST   /api/events              {calendarId, title, start, end, allDay, location?, description?, memberIds?, rrule?}
+POST   /api/events              {calendarId, title, start, end, allDay, location?, description?, memberIds?, rrule?, categoryId?}
 GET    /api/events/:id          PATCH /api/events/:id     DELETE /api/events/:id
          EventInstance = {id, calendarId, title, start, end, allDay, location, description,
-                          memberIds, color, rrule, occurrenceStart, readOnly}
+                          memberIds, color, rrule, occurrenceStart, readOnly, categoryId, categorySource}
          memberIds: event.member_ids, else [calendar.member_id], else []
          color: first member's color, else calendar.color, else '#888'
+         categoryId/categorySource resolve in order: occurrence override ('event') -> series override
+         ('series') -> keyword match against the title, case-insensitive whole-word/phrase ('keyword')
+         -> calendar default ('calendar') -> null/null. PATCH .../categoryId accepts string|null (null
+         clears the override) with the same `scope: 'occurrence'|'series'` semantics as memberIds.
          writes to remote calendars go through the provider first; failure -> 502, nothing stored
 
 GET    /api/chores              POST /api/chores   PATCH /api/chores/:id   DELETE /api/chores/:id
@@ -191,7 +210,7 @@ GET    /api/rev                 -> {rev}  (integer bumped on every write; UI pol
 
 `POST/GET/DELETE /mcp` - MCP **Streamable HTTP** transport, stateless (no sessions/Durable Objects), same bearer keys as the REST API (401 + `WWW-Authenticate: Bearer` without one). Implemented with `@modelcontextprotocol/sdk`'s `WebStandardStreamableHTTPServerTransport` (Web Standards - Request/Response/ReadableStream, no `node:*`; runs on Workers and Node unchanged). See `server/src/mcp.ts`.
 
-Every tool is a thin wrapper that calls the REST routes above in-process via `app.request()`, forwarding the caller's `Authorization` header - so validation, scope enforcement (display vs admin), bus events/webhooks and rev bumps happen exactly as for REST. A REST 4xx/5xx becomes a tool result with `isError: true` and the route's `{error}` text. Tools: `get_household`, `list_events`, `create_event`, `update_event`, `delete_event`, `list_chores`, `complete_chore`, `uncomplete_chore`, `create_chore`, `get_leaderboard`, `add_member`, `list_lists`, `get_list`, `add_list_items`, `set_list_item_done`. Members may be referenced by name in tool args (resolved case-insensitively to id in the tool layer; ambiguous -> error listing matches); lists likewise by name in `get_list`/`add_list_items`.
+Every tool is a thin wrapper that calls the REST routes above in-process via `app.request()`, forwarding the caller's `Authorization` header - so validation, scope enforcement (display vs admin), bus events/webhooks and rev bumps happen exactly as for REST. A REST 4xx/5xx becomes a tool result with `isError: true` and the route's `{error}` text. Tools: `get_household`, `list_events`, `create_event`, `update_event`, `delete_event`, `list_chores`, `complete_chore`, `uncomplete_chore`, `create_chore`, `get_leaderboard`, `add_member`, `list_lists`, `get_list`, `add_list_items`, `set_list_item_done`, `list_categories`, `set_event_category`. Members may be referenced by name in tool args (resolved case-insensitively to id in the tool layer; ambiguous -> error listing matches); lists and categories likewise by name in `get_list`/`add_list_items` and `set_event_category`.
 
 Bus event types (webhooks; every emit also bumps `rev`): `member.changed`, `calendar.changed`, `calendar.synced`, `events.changed`, `chore.changed`, `chore.completed`, `chore.uncompleted`, `list.changed`, `list.item.changed`, `settings.changed`, `display.paired`. Webhook POST body `{type, data, at}`, header `X-Kinwall-Signature: sha256=<hex hmac of body>`; sent via `waitUntil`, 5s timeout, no retries.
 

@@ -1,9 +1,10 @@
 import { createContext, useContext } from 'react'
-import type { Member, Settings } from './types.ts'
+import type { Category, Member, Settings } from './types.ts'
 
 export interface AppCtx {
   settings: Settings
   members: Member[]
+  categories: Category[]
   selectedMemberId: string | null
   setSelectedMemberId: (id: string | null) => void
   refreshTick: number

@@ -93,6 +93,22 @@ async function resolveList(app: App, env: Env, auth: string, ref: string): Promi
   throw new MemberResolutionError(`no list found matching "${ref}"`);
 }
 
+// Categories may be referenced by name (case-insensitive) instead of id, same convention as
+// members/lists.
+async function resolveCategory(app: App, env: Env, auth: string, ref: string): Promise<{ id: string; name: string }> {
+  const { status, json } = await call(app, env, auth, 'GET', '/api/categories');
+  if (status >= 400) throw new MemberResolutionError('failed to list categories');
+  const categories = json as { id: string; name: string }[];
+  const byId = categories.find((cat) => cat.id === ref);
+  if (byId) return byId;
+  const exact = categories.filter((cat) => cat.name.toLowerCase() === ref.toLowerCase());
+  if (exact.length === 1) return exact[0];
+  const partial = categories.filter((cat) => cat.name.toLowerCase().includes(ref.toLowerCase()));
+  if (partial.length === 1) return partial[0];
+  if (partial.length > 1) throw new MemberResolutionError(`"${ref}" matches multiple categories: ${partial.map((cat) => cat.name).join(', ')}`);
+  throw new MemberResolutionError(`no category found matching "${ref}"`);
+}
+
 function registerTools(server: McpServer, app: App, env: Env, auth: string) {
   const tool = server.registerTool.bind(server);
 
@@ -446,6 +462,52 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       if (res.status >= 400) return errorResult(res.json, 'failed to add list items');
       const added = res.json as unknown[];
       return okResult(`Added ${added.length} item(s).`, { items: res.json as Record<string, unknown>[] });
+    },
+  );
+
+  tool(
+    'list_categories',
+    {
+      title: 'List event categories',
+      description: 'List event categories (name, emoji, color, keywords), ordered by sort. A category\'s color overrides the assigned member\'s color on the calendar.',
+      inputSchema: {},
+    },
+    async () => {
+      const res = await call(app, env, auth, 'GET', '/api/categories');
+      if (res.status >= 400) return errorResult(res.json, 'failed to list categories');
+      const categories = res.json as { name: string }[];
+      const summary = categories.map((cat) => cat.name).join(', ') || 'no categories';
+      return okResult(`${categories.length} categor${categories.length === 1 ? 'y' : 'ies'}: ${summary}.`, { categories: res.json as Record<string, unknown>[] });
+    },
+  );
+
+  tool(
+    'set_event_category',
+    {
+      title: 'Set event category',
+      description: 'Set or clear an event\'s category override. Clearing (omit category) falls back to a keyword match or the calendar\'s default category.',
+      inputSchema: {
+        id: z.string(),
+        category: z.string().optional().describe('Category name or id. Omit to clear the override.'),
+        scope: z
+          .enum(['occurrence', 'series'])
+          .optional()
+          .describe('For a recurring synced event: apply to just this occurrence, or every occurrence in the series. Default: occurrence.'),
+      },
+    },
+    async ({ id, category, scope }) => {
+      let categoryId: string | null = null;
+      if (category) {
+        try {
+          categoryId = (await resolveCategory(app, env, auth, category)).id;
+        } catch (err) {
+          return errorResult(null, err instanceof Error ? err.message : 'category lookup failed');
+        }
+      }
+      const res = await call(app, env, auth, 'PATCH', `/api/events/${encodeURIComponent(id)}`, { categoryId, scope });
+      if (res.status >= 400) return errorResult(res.json, 'failed to set event category');
+      const event = res.json as { title: string };
+      return okResult(categoryId ? `Set "${event.title}"'s category.` : `Cleared "${event.title}"'s category override.`, { event: res.json as Record<string, unknown> });
     },
   );
 

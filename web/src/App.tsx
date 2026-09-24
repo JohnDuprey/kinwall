@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { encode } from 'uqr'
 import { api, clearKey, getKey, setAdminKey, setKey, usePoll, useSaveState, ApiError } from './api.ts'
 import { AppContext } from './AppContext.tsx'
-import type { Member, Settings } from './types.ts'
+import type { Category, Member, Settings } from './types.ts'
 import { CalendarIcon, ChoreIcon, ListIcon, SettingsIcon } from './icons.tsx'
 import CalendarView from './Calendar.tsx'
 import Chores from './Chores.tsx'
@@ -494,6 +494,7 @@ export default function App() {
   }, [])
   const [settings, setSettings] = useState<Settings | null>(null)
   const [members, setMembers] = useState<Member[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null)
   const [toastMsg, setToastMsg] = useState<string | null>(null)
   const [loadError, setLoadError] = useState(false)
@@ -505,11 +506,12 @@ export default function App() {
   const loadCore = useCallback(async () => {
     if (!hasKey) return
     try {
-      const [s, m] = await Promise.all([api.getSettings(), api.getMembers()])
+      const [s, m, cats] = await Promise.all([api.getSettings(), api.getMembers(), api.getCategories()])
       // First-run default for a fresh household: no timezone set yet, so adopt this display's.
       const settings = s.timezone ? s : await api.updateSettings({ timezone: Intl.DateTimeFormat().resolvedOptions().timeZone }).catch(() => s)
       setSettings(settings)
       setMembers(m)
+      setCategories(cats)
       setLoadError(false)
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) { clearKey(); setHasKey(false); return }
@@ -587,7 +589,7 @@ export default function App() {
 
   return (
     <AppContext.Provider value={{
-      settings, members, selectedMemberId, setSelectedMemberId,
+      settings, members, categories, selectedMemberId, setSelectedMemberId,
       refreshTick: pollTick + manualTick,
       reloadCore: () => setManualTick(t => t + 1),
       toast: setToastMsg,

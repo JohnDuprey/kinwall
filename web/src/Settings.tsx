@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useApp } from './AppContext.tsx'
 import { api, ApiError, clearKey } from './api.ts'
-import type { Account, ApiKey, CalendarEntry, Density, Me, Member, Passkey, Providers, RemoteCalendar, Settings, TextScale, ThemeMode, Webhook } from './types.ts'
+import type { Account, ApiKey, CalendarEntry, Category, Density, Me, Member, Passkey, Providers, RemoteCalendar, Settings, TextScale, ThemeMode, Webhook } from './types.ts'
 import { ProviderForm, PublicUrlRow } from './ProviderConfig.tsx'
-import { ACCENT_PRESETS, BACKGROUND_DARK_PRESETS, BACKGROUND_LIGHT_PRESETS, MEMBER_EMOJI, MEMBER_PALETTE, nextPaletteColor } from './types.ts'
+import { ACCENT_PRESETS, BACKGROUND_DARK_PRESETS, BACKGROUND_LIGHT_PRESETS, CATEGORY_EMOJI, CATEGORY_PRESETS, MEMBER_EMOJI, MEMBER_PALETTE, nextPaletteColor } from './types.ts'
 import Sheet from './Sheet.tsx'
 import { MemberPicker } from './MemberPicker.tsx'
 import { AnyEmojiField } from './AnyEmojiField.tsx'
@@ -15,7 +15,7 @@ import { useNavMode, setNavPref, type NavPref } from './useNavMode.ts'
 import { passkeysSupported, registerPasskey } from './webauthn.ts'
 import { QrCode } from './App.tsx'
 
-const BUS_EVENTS = ['member.changed', 'calendar.changed', 'calendar.synced', 'events.changed', 'chore.changed', 'chore.completed', 'chore.uncompleted', 'settings.changed']
+const BUS_EVENTS = ['member.changed', 'calendar.changed', 'calendar.synced', 'events.changed', 'chore.changed', 'chore.completed', 'chore.uncompleted', 'category.changed', 'settings.changed']
 
 export function timezoneList() {
   // Intl.supportedValuesOf('timeZone') doesn't include 'UTC' itself (the server's default
@@ -28,7 +28,7 @@ export function timezoneList() {
 }
 
 export default function SettingsView() {
-  const { settings, members, toast, reloadCore } = useApp()
+  const { settings, members, categories, toast, reloadCore } = useApp()
   const [openAccountId, setOpenAccountId] = useState<string | null>(null)
   // Fails CLOSED to the display-only view until /api/me answers — a display key must never see
   // admin sections, even briefly, if the check is slow or fails.
@@ -52,6 +52,7 @@ export default function SettingsView() {
           <AppearanceSection settings={settings} onSaved={reloadCore} toast={toast} />
           <ThisDisplaySection keyName={me.keyName} />
           <MembersSection members={members} onChanged={reloadCore} toast={toast} canManage={false} />
+          <CategoriesSection categories={categories} onChanged={reloadCore} toast={toast} />
           {me.version && <div className="settings-version">Kinwall v{me.version}</div>}
         </div>
       </div>
@@ -65,6 +66,7 @@ export default function SettingsView() {
         <AppearanceSection settings={settings} onSaved={reloadCore} toast={toast} />
         <ThisDisplaySection />
         <MembersSection members={members} onChanged={reloadCore} toast={toast} />
+        <CategoriesSection categories={categories} onChanged={reloadCore} toast={toast} />
         <CalendarProvidersSection toast={toast} />
         <CalendarsSection openAccountId={openAccountId} onOpenedAccount={() => setOpenAccountId(null)} toast={toast} />
         <DisplaysSection toast={toast} />
@@ -291,6 +293,110 @@ function MemberEditSheet({ member, canDelete, onClose, onSaved, toast }: { membe
   )
 }
 
+function CategoriesSection({ categories, onChanged, toast }: { categories: Category[]; onChanged: () => void; toast: (m: string) => void }) {
+  const [edit, setEdit] = useState<Category | null>(null)
+  const [draft, setDraft] = useState<Partial<Category> | null>(null) // non-null while creating (blank, or preset-prefilled)
+  const [showPresets, setShowPresets] = useState(false)
+  const sorted = [...categories].sort((a, b) => a.sort - b.sort)
+
+  const move = async (id: string, dir: -1 | 1) => {
+    const idx = sorted.findIndex(c => c.id === id)
+    const swapWith = idx + dir
+    if (swapWith < 0 || swapWith >= sorted.length) return
+    const ids = sorted.map(c => c.id)
+    const tmp = ids[idx]; ids[idx] = ids[swapWith]; ids[swapWith] = tmp
+    try { await api.reorderCategories(ids); onChanged() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not reorder categories') }
+  }
+
+  return (
+    <Section title="Categories">
+      <div className="member-row-list">
+        {sorted.map((c, i) => (
+          <div key={c.id} className="member-list-item" onClick={() => setEdit(c)}>
+            <div className="member-avatar-sm" style={{ background: c.color, color: inkFor(c.color) }}>{c.emoji ?? '🏷️'}</div>
+            <div className="name">
+              {c.name}
+              {c.keywords.length > 0 && <div className="settings-row-sub">{c.keywords.join(', ')}</div>}
+            </div>
+            <div className="cal-actions" onClick={e => e.stopPropagation()}>
+              <button className="icon-btn" disabled={i === 0} onClick={() => move(c.id, -1)} aria-label="Move up">↑</button>
+              <button className="icon-btn" disabled={i === sorted.length - 1} onClick={() => move(c.id, 1)} aria-label="Move down">↓</button>
+            </div>
+          </div>
+        ))}
+        {!showPresets && <button className="add-row-btn" onClick={() => setShowPresets(true)}><PlusIcon width={20} height={20} />Add category</button>}
+        {showPresets && (
+          <div className="chip-row" style={{ marginTop: 8 }}>
+            {CATEGORY_PRESETS.map(p => (
+              <button key={p.name} className="chip" onClick={() => { setShowPresets(false); setDraft({ name: p.name, emoji: p.emoji, keywords: p.keywords }) }}>
+                {p.emoji} {p.name}
+              </button>
+            ))}
+            <button className="chip" onClick={() => { setShowPresets(false); setDraft({}) }}>Custom</button>
+          </div>
+        )}
+      </div>
+      {(edit || draft) && (
+        <CategoryEditSheet category={edit} initial={draft ?? undefined}
+          onClose={() => { setEdit(null); setDraft(null) }}
+          onSaved={() => { setEdit(null); setDraft(null); onChanged() }} toast={toast} />
+      )}
+    </Section>
+  )
+}
+
+function CategoryEditSheet({ category, initial, onClose, onSaved, toast }: {
+  category: Category | null; initial?: Partial<Category>; onClose: () => void; onSaved: () => void; toast: (m: string) => void
+}) {
+  const base = category ?? initial ?? {}
+  const [name, setName] = useState(base.name ?? '')
+  const [emoji, setEmoji] = useState(base.emoji ?? CATEGORY_EMOJI[0])
+  const [color, setColor] = useState(base.color ?? MEMBER_PALETTE[0])
+  const [keywordsText, setKeywordsText] = useState((base.keywords ?? []).join(', '))
+
+  const save = async () => {
+    if (!name.trim()) return
+    const keywords = keywordsText.split(',').map(k => k.trim()).filter(Boolean)
+    try {
+      if (category) await api.updateCategory(category.id, { name: name.trim(), emoji, color, keywords })
+      else await api.createCategory({ name: name.trim(), emoji, color, keywords })
+      onSaved()
+    } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save category') }
+  }
+  const del = async () => {
+    if (!category) return
+    try { await api.deleteCategory(category.id); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not delete category') }
+  }
+
+  return (
+    <Sheet title={category ? 'Edit category' : 'Add category'} onClose={onClose}
+      actions={<>{category && <button className="btn btn-danger" onClick={del}><TrashIcon width={18} height={18} /></button>}<button className="btn btn-primary" onClick={save} disabled={!name.trim()}>Save</button></>}>
+      <div className="field"><label>Name</label><input type="text" value={name} onChange={e => setName(e.target.value)} autoFocus /></div>
+      <div className="field">
+        <label>Emoji</label>
+        <div className="emoji-swatch-row">
+          {CATEGORY_EMOJI.map(e => <button key={e} className={`emoji-swatch ${emoji === e ? 'active' : ''}`} onClick={() => setEmoji(e)}>{e}</button>)}
+        </div>
+        <AnyEmojiField value={emoji} onChange={setEmoji} />
+      </div>
+      <div className="field">
+        <label>Color</label>
+        <div className="color-swatch-row">
+          {MEMBER_PALETTE.map(c => <button key={c} className={`color-swatch ${color === c ? 'active' : ''}`} style={{ background: c }} onClick={() => setColor(c)} />)}
+          <input type="color" className="color-swatch" value={/^#[0-9a-f]{6}$/i.test(color) ? color : '#888888'}
+            onChange={e => setColor(e.target.value)} style={{ padding: 0, border: '2px solid var(--border)', cursor: 'pointer' }} aria-label="Custom category color" />
+        </div>
+        <div className="settings-row-sub">This color overrides the member color on the calendar.</div>
+      </div>
+      <div className="field">
+        <label>Keywords</label>
+        <input type="text" value={keywordsText} onChange={e => setKeywordsText(e.target.value)} placeholder="e.g. birthday, bday, b-day" />
+        <div className="settings-row-sub">Comma-separated. Matches whole words/phrases in an event's title, case-insensitive.</div>
+      </div>
+    </Sheet>
+  )
+}
+
 function CalendarProvidersSection({ toast }: { toast: (m: string) => void }) {
   const [providers, setProviders] = useState<Providers | null>(null)
   const load = () => { api.getProviders().then(setProviders).catch(() => {}) }
@@ -387,16 +493,17 @@ function CalendarsSection({ openAccountId, onOpenedAccount, toast }: { openAccou
 function EditCalendarSheet({ calendar, onClose, onSaved, onSync, onRemove, toast }: {
   calendar: CalendarEntry; onClose: () => void; onSaved: () => void; onSync: () => void; onRemove: () => void; toast: (m: string) => void
 }) {
-  const { members } = useApp()
+  const { members, categories } = useApp()
   const [name, setName] = useState(calendar.name)
   const [color, setColor] = useState(calendar.color ?? MEMBER_PALETTE[0])
   const [memberIds, setMemberIds] = useState(calendar.memberIds)
+  const [categoryId, setCategoryId] = useState(calendar.categoryId)
   const [enabled, setEnabled] = useState(calendar.enabled)
 
   const save = async () => {
     if (!name.trim()) return
     try {
-      await api.updateCalendar(calendar.id, { name: name.trim(), color, memberIds, enabled })
+      await api.updateCalendar(calendar.id, { name: name.trim(), color, memberIds, categoryId, enabled })
       onSaved()
     } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save calendar') }
   }
@@ -413,6 +520,14 @@ function EditCalendarSheet({ calendar, onClose, onSaved, onSync, onRemove, toast
         </div>
       </div>
       <MemberPicker members={members} selected={memberIds} onChange={setMemberIds} />
+      <div className="field">
+        <label>Default category</label>
+        <select value={categoryId ?? ''} onChange={e => setCategoryId(e.target.value || null)}>
+          <option value="">None</option>
+          {categories.map(c => <option key={c.id} value={c.id}>{c.emoji ? `${c.emoji} ` : ''}{c.name}</option>)}
+        </select>
+        <div className="settings-row-sub">Applied to events here with no keyword match or their own category.</div>
+      </div>
       <div className="settings-row" style={{ paddingLeft: 0, paddingRight: 0 }}>
         <div className="settings-row-label">Enabled</div>
         <input type="checkbox" checked={enabled} onChange={e => setEnabled(e.target.checked)} />

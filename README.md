@@ -3,6 +3,7 @@
 An open-source, self-hosted family wall calendar and chore chart, built for a wall-mounted iPad.
 
 - **One calendar for the family**: Google, Outlook/Microsoft 365, iCloud (CalDAV) and any ICS subscription URL, merged and color-coded per family member. Two-way for Google, Microsoft and CalDAV.
+- **Categories**: custom event categories (🎂 Birthdays, 🏥 Appointments, ...) whose color overrides the member color, with keyword auto-matching against the event title and a per-calendar default.
 - **Chores**: recurring or one-off, per person or "anyone", with points and a satisfying tap-to-complete.
 - **Lists**: shopping, todo and reusable lists, grouped by store or category, with items that remember where they go.
 - **Touch-first UI**: week, day, month and schedule views, swipe to page, big targets, and it returns to today after 2 minutes idle.
@@ -83,7 +84,7 @@ by server" and is read-only in the UI.
 - Auth: `Authorization: Bearer <key>`. Keys are `admin` (everything) or `display` (household settings and member edits, full read+write on events and chores; no accounts, keys, webhooks, passkeys, displays, calendar management, or adding/removing members).
 - Change detection: `GET /api/rev` returns a counter that increments on every write.
 - Chore leaderboard: `GET /api/leaderboard?period=today|week|month` (default week) returns each member's points, completions and current streak for the period, ranked with tie handling.
-- Webhooks: `POST /api/webhooks {url, events, secret}` sends `{type, data, at}` with header `X-Kinwall-Signature: sha256=<HMAC of body>`. Event types: `member.changed`, `calendar.changed`, `calendar.synced`, `events.changed`, `chore.changed`, `chore.completed`, `chore.uncompleted`, `settings.changed`.
+- Webhooks: `POST /api/webhooks {url, events, secret}` sends `{type, data, at}` with header `X-Kinwall-Signature: sha256=<HMAC of body>`. Event types: `member.changed`, `calendar.changed`, `calendar.synced`, `events.changed`, `chore.changed`, `chore.completed`, `chore.uncompleted`, `category.changed`, `settings.changed`.
 
 ```bash
 # Mark a chore done from any automation

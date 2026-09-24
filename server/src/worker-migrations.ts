@@ -11,6 +11,7 @@ import m0007 from '../migrations/0007_series_member_overrides.sql';
 import m0008 from '../migrations/0008_calendar_multi_member.sql';
 import m0009 from '../migrations/0009_calendar_kind_from_account.sql';
 import m0010 from '../migrations/0010_lists.sql';
+import m0011 from '../migrations/0011_categories.sql';
 
 export const MIGRATIONS: Migration[] = [
   { name: '0001_init.sql', sql: m0001 },
@@ -23,4 +24,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0008_calendar_multi_member.sql', sql: m0008 },
   { name: '0009_calendar_kind_from_account.sql', sql: m0009 },
   { name: '0010_lists.sql', sql: m0010 },
+  { name: '0011_categories.sql', sql: m0011 },
 ];

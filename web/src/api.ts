@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { mock } from './mock.ts'
 import type {
-  Account, ApiKey, Appearance, CalendarEntry, Chore, ChoreDay, EventInstance, LeaderboardEntry, LeaderboardPeriod, List,
+  Account, ApiKey, Appearance, CalendarEntry, Category, Chore, ChoreDay, EventInstance, LeaderboardEntry, LeaderboardPeriod, List,
   ListDetail, ListGroup, ListItem, ListItemInput, Member, Me, Passkey, Providers, RemoteCalendar, Settings, Webhook,
 } from './types.ts'
 
@@ -207,6 +207,12 @@ export const api = {
     MOCK ? mock.reorderListItems(listId, itemIds) : post<{ ok: boolean }>(`api/lists/${listId}/reorder`, { itemIds }),
   setListGroups: (listId: string, groups: { kind: 'store' | 'category'; name: string }[]) =>
     MOCK ? mock.setListGroups(listId, groups) : put<ListGroup[]>(`api/lists/${listId}/groups`, { groups }),
+
+  getCategories: () => MOCK ? mock.getCategories() : get<Category[]>('api/categories'),
+  createCategory: (body: Partial<Category>) => MOCK ? mock.createCategory(body) : post<Category>('api/categories', body),
+  updateCategory: (id: string, body: Partial<Category>) => MOCK ? mock.updateCategory(id, body) : patch<Category>(`api/categories/${id}`, body),
+  deleteCategory: (id: string) => MOCK ? mock.deleteCategory(id) : del(`api/categories/${id}`),
+  reorderCategories: (ids: string[]) => MOCK ? mock.reorderCategories(ids) : post<{ ok: boolean }>('api/categories/reorder', { ids }),
 
   getKeys: () => MOCK ? mock.getKeys() : get<ApiKey[]>('api/keys', true),
   createKey: (name: string, scope: 'admin' | 'display' = 'display') =>
