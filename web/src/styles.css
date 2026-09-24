@@ -893,3 +893,19 @@ button {
 .any-emoji-error { flex-basis: 100%; color: var(--danger); }
 
 .settings-version { text-align: center; font-size: 0.8125rem; color: var(--text-dim); padding: 4px 0 12px; }
+
+/* Saving indicator: top-center pill driven by in-flight changes (api.ts useSaveState) */
+.save-indicator {
+  position: fixed; top: calc(var(--safe-t) + 10px); left: 50%; transform: translateX(-50%); z-index: 60;
+  display: flex; align-items: center; gap: 8px; padding: 7px 14px; border-radius: 999px;
+  background: var(--card); color: var(--text); border: 1px solid var(--border); box-shadow: var(--shadow-lg);
+  font-size: 0.875rem; font-weight: 700; pointer-events: none;
+}
+.save-indicator.saved { color: var(--accent-strong); }
+.spinner {
+  width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--border); border-top-color: var(--accent-strong);
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2s; } }
+:root[data-saving] .btn-primary { pointer-events: none; opacity: 0.7; }

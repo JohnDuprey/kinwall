@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { encode } from 'uqr'
-import { api, clearKey, getKey, setAdminKey, setKey, usePoll, ApiError } from './api.ts'
+import { api, clearKey, getKey, setAdminKey, setKey, usePoll, useSaveState, ApiError } from './api.ts'
 import { AppContext } from './AppContext.tsx'
 import type { Member, Settings } from './types.ts'
 import { CalendarIcon, ChoreIcon, SettingsIcon } from './icons.tsx'
@@ -463,6 +463,19 @@ function captureKeyFromUrl() {
   history.replaceState(null, '', url.pathname + url.search + url.hash)
 }
 
+/** Small pill while a change is being saved, then a brief "Saved". Also marks <html> so primary
+ * buttons can't be tapped again mid-save (no double submits on a slow connection). */
+function SaveIndicator() {
+  const state = useSaveState()
+  useEffect(() => { document.documentElement.toggleAttribute('data-saving', state === 'saving') }, [state])
+  if (state === 'idle') return null
+  return (
+    <div className={`save-indicator ${state}`} role="status" aria-live="polite">
+      {state === 'saving' ? <><span className="spinner" aria-hidden="true" />Saving…</> : <>✓ Saved</>}
+    </div>
+  )
+}
+
 export default function App() {
   const [hasKey, setHasKey] = useState(() => { captureKeyFromUrl(); return !!getKey() })
   // First-run setup wizard: checked once on mount (not re-checked as hasKey flips mid-wizard,
@@ -587,6 +600,7 @@ export default function App() {
           {navMode === 'bottom' && <Nav tab={tab} mode={navMode} />}
         </div>
         {navMode === 'right' && <Nav tab={tab} mode={navMode} />}
+        <SaveIndicator />
         {toastMsg && <div className="toast">{toastMsg}</div>}
       </div>
     </AppContext.Provider>

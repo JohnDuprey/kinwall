@@ -52,7 +52,41 @@ function apiUrl(path: string): string {
   return new URL(path, document.baseURI).toString()
 }
 
+// In-flight changes (non-GET requests) drive the "Saving… / Saved" indicator. Background polling
+// is all GET, and the pairing screen's poll isn't a change, so neither shows as saving.
+let savesInFlight = 0
+let lastSavedAt = 0
+const saveListeners = new Set<() => void>()
+const notifySaves = () => saveListeners.forEach(l => l())
+function trackSave<T>(p: Promise<T>): Promise<T> {
+  savesInFlight++
+  notifySaves()
+  return p.then(v => { lastSavedAt = Date.now(); return v }).finally(() => { savesInFlight--; notifySaves() })
+}
+
+/** 'saving' while any change is in flight, then 'saved' for a moment after a successful one. */
+export function useSaveState(): 'idle' | 'saving' | 'saved' {
+  const [, rerender] = useState(0)
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const onChange = () => {
+      rerender(n => n + 1)
+      clearTimeout(timer)
+      if (savesInFlight === 0 && Date.now() - lastSavedAt < 100) timer = setTimeout(() => rerender(n => n + 1), 1500)
+    }
+    saveListeners.add(onChange)
+    return () => { saveListeners.delete(onChange); clearTimeout(timer) }
+  }, [])
+  if (savesInFlight > 0) return 'saving'
+  return Date.now() - lastSavedAt < 1500 ? 'saved' : 'idle'
+}
+
 async function req<T>(path: string, opts: RequestInit & { useAdmin?: boolean } = {}): Promise<T> {
+  const isChange = !!opts.method && opts.method !== 'GET' && path !== 'api/pair/poll'
+  return isChange ? trackSave(send<T>(path, opts)) : send<T>(path, opts)
+}
+
+async function send<T>(path: string, opts: RequestInit & { useAdmin?: boolean }): Promise<T> {
   const { useAdmin, ...init } = opts
   const key = useAdmin ? (getAdminKey() ?? getKey()) : getKey()
   const res = await fetch(apiUrl(path), {
