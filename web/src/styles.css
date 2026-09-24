@@ -770,7 +770,7 @@ button {
 .settings-row:first-of-type { border-top: none; }
 .settings-row-label { font-weight: 800; font-size: 0.9375rem; }
 .settings-row-sub { font-size: 0.78125rem; color: var(--text-dim); font-weight: 600; margin-top: 2px; }
-.settings-select { padding: 10px 12px; border-radius: 10px; border: 2px solid var(--border); background: var(--bg-alt); font-weight: 700; color: var(--text); font-size: 0.875rem; min-height: 44px; max-width: 100%; }
+.settings-select { padding: 10px 44px 10px 12px; border-radius: 10px; border: 2px solid var(--border); background-color: var(--bg-alt); font-weight: 700; color: var(--text); font-size: 0.875rem; min-height: 44px; max-width: 100%; }
 .family-name-input { text-align: right; border: none; background: none; font-weight: 800; font-size: 0.9375rem; color: var(--text); min-width: 140px; }
 .theme-toggle { display: flex; background: var(--bg-alt); border-radius: 999px; padding: 3px; }
 .theme-toggle button { border: none; background: none; padding: 8px 14px; border-radius: 999px; color: var(--text-dim); display: flex; align-items: center; min-height: 40px; }
