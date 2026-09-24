@@ -9,7 +9,8 @@ crons = ["*/10 * * * *"]
 [[d1_databases]]
 binding = "DB"
 database_name = "kinwall"
-# Placeholder - run `wrangler d1 create kinwall` and paste the returned id here.
+# Placeholder. Git-connected Cloudflare builds fill this in from the D1_DATABASE_ID build variable
+# (see scripts/cloudflare-build.sh); for CLI deploys run `wrangler d1 create kinwall` and paste the id.
 database_id = "00000000-0000-0000-0000-000000000000"
 migrations_dir = "migrations"
 

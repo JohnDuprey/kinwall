@@ -28,15 +28,28 @@ Or use [`docker-compose.yml`](docker-compose.yml). All state lives in `/data`: t
 
 ### Cloudflare Workers
 
+**From GitHub (recommended):** fork the repo, then in the Cloudflare dashboard:
+
+1. **Storage & Databases → D1 → Create** a database named `kinwall` and copy its **Database ID**.
+2. **Workers & Pages → Create → Import a repository**, pick your fork, then under the Worker's **Settings → Build**:
+   - Root directory: `server`
+   - Build command: `sh scripts/cloudflare-build.sh`
+   - Deploy command: `npx wrangler d1 migrations apply kinwall --remote && npx wrangler deploy`
+   - Build variable: `D1_DATABASE_ID` = the ID from step 1. The build writes it into its own copy of `wrangler.toml`, so it never has to be committed.
+3. **Settings → Variables and Secrets**, as type *Secret*: `ENCRYPTION_KEY` (value from `openssl rand -base64 32`) and optionally `ADMIN_API_KEY` (any long random string, which also works as the first-run setup code).
+4. Open your `*.workers.dev` URL. Without `ADMIN_API_KEY`, the setup code is printed in the Worker's live logs on the first visit.
+
+**From the CLI:**
+
 ```bash
 cd server && npm ci && (cd ../web && npm ci && npm run build)
 npx wrangler d1 create kinwall            # paste the database_id into wrangler.toml
 npx wrangler secret put ENCRYPTION_KEY    # value: openssl rand -base64 32
-npx wrangler secret put ADMIN_API_KEY     # value: fc_ + a long random string
+npx wrangler secret put ADMIN_API_KEY     # optional; also works as the setup code
 npm run deploy                            # applies migrations + deploys
 ```
 
-Set `PUBLIC_URL` in `wrangler.toml` `[vars]` to your `*.workers.dev` URL or custom domain. The free tier is 100k requests/day, and each request or cron run gets 10 ms of CPU. Sync stays inside that limit: feeds that haven't changed are skipped by fingerprint, and Google/Microsoft/CalDAV sync in 31-day slices. If a very large ICS feed hits the CPU limit, move to Workers Paid ($5/mo).
+Set the public URL in **Settings → Calendar providers** (or `PUBLIC_URL` in `wrangler.toml` `[vars]`) to your `*.workers.dev` URL or custom domain. The free tier is 100k requests/day, and each request or cron run gets 10 ms of CPU. Sync stays inside that limit: feeds that haven't changed are skipped by fingerprint, and Google/Microsoft/CalDAV sync in 31-day slices. If a very large ICS feed hits the CPU limit, move to Workers Paid ($5/mo).
 
 ## Put it on the wall
 
