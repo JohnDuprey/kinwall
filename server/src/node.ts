@@ -115,6 +115,13 @@ const RESERVED_PATH = /^\/api\/|^\/docs$|^\/openapi\.json$/;
 const indexPath = join(WEB_DIST, 'index.html');
 
 if (existsSync(WEB_DIST)) {
+  // Hashed build assets never change; everything else (index.html, manifest, icons) must be
+  // revalidated so a wall display picks up a new version instead of running a cached old app.
+  app.use('*', async (c, next) => {
+    await next();
+    if (RESERVED_PATH.test(c.req.path) || c.res.headers.has('Cache-Control')) return;
+    c.res.headers.set('Cache-Control', c.req.path.startsWith('/assets/') ? 'public, max-age=31536000, immutable' : 'no-cache');
+  });
   app.use('*', serveStatic({ root: WEB_DIST }));
 }
 app.get('*', (c) => {

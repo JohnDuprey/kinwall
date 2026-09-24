@@ -198,7 +198,7 @@ button {
    (an absolutely-positioned child's offsets are measured from the padding edge). */
 /* Rail mode: content, FAB and the rail's last item sit close to the bottom edge (taps near the home
    indicator are fine, and Guided Access disables the swipe gesture on a wall display) */
-.app-shell-rail .content { padding-bottom: 0; }
+.app-shell-rail .content { padding-bottom: 10px; }
 .app-shell-rail .fab { bottom: 10px; right: 14px; }
 .app-shell-rail .toast { bottom: calc(var(--safe-b) + 16px); }
 
@@ -208,7 +208,7 @@ button {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: calc(var(--safe-t) + 12px) 6px 6px;
+  padding: calc(var(--safe-t) + 12px) 6px 10px;
   background: var(--card);
   overflow-y: auto;
 }
@@ -866,3 +866,17 @@ button {
   /* ---------- Global: no horizontal scroll ---------- */
   .connect-btn { min-width: 0; }
 }
+
+
+/* iOS Home Screen apps report a 100dvh that stops short of the bottom edge; the large-viewport unit
+   covers the full screen there. Browser tabs keep 100dvh so nothing hides under Safari's toolbar. */
+@media (display-mode: standalone) {
+  .app-shell, .gate-screen { height: 100lvh; }
+}
+
+/* "Any emoji" row: current choice as a selected tile + labelled input for the emoji keyboard */
+.any-emoji { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; margin-top: 10px; }
+.any-emoji-current { width: 56px; height: 56px; font-size: 1.75rem; flex-shrink: 0; }
+.any-emoji-field { flex: 1; min-width: 180px; display: flex; flex-direction: column; gap: 4px; }
+.any-emoji-field span { font-size: 0.75rem; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; }
+.any-emoji-error { flex-basis: 100%; color: var(--danger); }

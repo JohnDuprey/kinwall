@@ -118,3 +118,8 @@
   .setup-card { padding: 24px 18px; }
   .setup-provider-grid { grid-template-columns: 1fr; }
 }
+
+
+@media (display-mode: standalone) {
+  .setup-screen { height: 100lvh; }
+}
