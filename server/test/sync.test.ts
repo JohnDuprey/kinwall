@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createApp } from '../src/app.ts';
 import { openDb, applyMigrations } from '../src/d1-sqlite.ts';
-import { syncCalendarTick } from '../src/sync.ts';
+import { replaceSlice, syncCalendarTick } from '../src/sync.ts';
 import type { Env } from '../src/env.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -182,4 +182,20 @@ test('sync: a display key can set memberIds on a synced event', async () => {
   } finally {
     globalThis.fetch = realFetch;
   }
+});
+
+// Providers return events that OVERLAP a window (e.g. a multi-day event that started before it),
+// but a slice only clears events that START inside it - so a slice can write an id that's still
+// stored from an earlier slice. That must refresh the row, not fail the whole sync.
+test('sync: a slice re-writing an event that started before its window upserts it', async () => {
+  const env = makeEnv();
+  await env.DB.prepare("INSERT INTO calendars (id, kind, name, config, writable, enabled) VALUES ('c1', 'google', 'G', '{}', 1, 1)").run();
+  const offsite = { externalId: 'offsite', title: 'Offsite', start: '2026-10-24', end: '2026-11-01', allDay: true };
+  const provider = { listEvents: async () => [offsite] } as any;
+  const cal = { id: 'c1' } as any;
+  await replaceSlice(env, provider, cal, {} as any, new Date('2026-10-01T00:00:00Z'), new Date('2026-10-26T00:00:00Z'));
+  // Next slice starts after the event's start, so its DELETE doesn't touch it.
+  await replaceSlice(env, provider, cal, {} as any, new Date('2026-10-26T00:00:00Z'), new Date('2026-11-20T00:00:00Z'));
+  const { results } = await env.DB.prepare("SELECT title FROM events WHERE calendar_id = 'c1'").all();
+  assert.equal(results.length, 1);
 });

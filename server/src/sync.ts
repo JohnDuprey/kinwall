@@ -70,7 +70,11 @@ async function buildProviderCtx(env: Env, cal: CalendarRow): Promise<ProviderCtx
 
 function insertEventStmt(env: Env, calendarId: string, ev: NormalizedEvent, now: Date, id: string) {
   return env.DB.prepare(
-    'INSERT INTO events (id, calendar_id, external_id, title, start, end, all_day, location, description, rrule, member_ids, updated_at, series_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    // Upsert: ids are deterministic and a slice's DELETE only covers events that START inside it,
+    // so an overlapping event from an earlier slice can still be stored - refresh it in place.
+    'INSERT INTO events (id, calendar_id, external_id, title, start, end, all_day, location, description, rrule, member_ids, updated_at, series_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?) ' +
+      'ON CONFLICT(id) DO UPDATE SET title = excluded.title, start = excluded.start, end = excluded.end, all_day = excluded.all_day, ' +
+      'location = excluded.location, description = excluded.description, updated_at = excluded.updated_at, series_id = excluded.series_id',
   ).bind(
     id,
     calendarId,
@@ -157,7 +161,7 @@ function farSliceBounds(now: Date, index: number): { from: Date; to: Date } {
 // same as chronologically - but an all-day event can fall a day outside its "true" slice at
 // the boundary). Acceptable slop given slices overlap by design; tighten with a numeric epoch
 // column if an event ever gets dropped between slices.
-async function replaceSlice(env: Env, provider: ReturnType<typeof getProvider>, cal: CalendarRow, ctx: ProviderCtx, from: Date, to: Date): Promise<number> {
+export async function replaceSlice(env: Env, provider: ReturnType<typeof getProvider>, cal: CalendarRow, ctx: ProviderCtx, from: Date, to: Date): Promise<number> {
   const events = await provider.listEvents(ctx, from, to);
   const ids = await deterministicEventIds(cal.id, events.map((ev) => ev.externalId));
   const stmts = [
