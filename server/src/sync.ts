@@ -7,6 +7,7 @@ import { parseIcsEvents, fetchIcsConditional, icsFingerprint } from './providers
 import { decryptConfig, encryptConfig } from './crypto.ts';
 import { providerEnv } from './providers/config.ts';
 import { redact } from './redact.ts';
+import { deterministicEventIds } from './event-id.ts';
 
 const SYNC_WINDOW_PAST_DAYS = 30;
 const SYNC_WINDOW_FUTURE_DAYS = 365;
@@ -67,11 +68,11 @@ async function buildProviderCtx(env: Env, cal: CalendarRow): Promise<ProviderCtx
   };
 }
 
-function insertEventStmt(env: Env, calendarId: string, ev: NormalizedEvent, now: Date) {
+function insertEventStmt(env: Env, calendarId: string, ev: NormalizedEvent, now: Date, id: string) {
   return env.DB.prepare(
     'INSERT INTO events (id, calendar_id, external_id, title, start, end, all_day, location, description, rrule, member_ids, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
   ).bind(
-    crypto.randomUUID(),
+    id,
     calendarId,
     ev.externalId,
     ev.title,
@@ -103,10 +104,11 @@ export async function syncCalendar(env: Env, calendarId: string, execCtx?: WaitC
 
   try {
     const events = await provider.listEvents(ctx, from, to);
+    const ids = await deterministicEventIds(cal.id, events.map((ev) => ev.externalId));
 
     const stmts = [
       env.DB.prepare('DELETE FROM events WHERE calendar_id = ?').bind(cal.id),
-      ...events.map((ev) => insertEventStmt(env, cal.id, ev, now)),
+      ...events.map((ev, i) => insertEventStmt(env, cal.id, ev, now, ids[i])),
       env.DB.prepare('UPDATE calendars SET last_synced_at = ?, last_error = NULL WHERE id = ?').bind(now.toISOString(), cal.id),
     ];
     await env.DB.batch(stmts);
@@ -156,9 +158,10 @@ function farSliceBounds(now: Date, index: number): { from: Date; to: Date } {
 // column if an event ever gets dropped between slices.
 async function replaceSlice(env: Env, provider: ReturnType<typeof getProvider>, cal: CalendarRow, ctx: ProviderCtx, from: Date, to: Date): Promise<number> {
   const events = await provider.listEvents(ctx, from, to);
+  const ids = await deterministicEventIds(cal.id, events.map((ev) => ev.externalId));
   const stmts = [
     env.DB.prepare('DELETE FROM events WHERE calendar_id = ? AND start >= ? AND start < ?').bind(cal.id, from.toISOString(), to.toISOString()),
-    ...events.map((ev) => insertEventStmt(env, cal.id, ev, new Date())),
+    ...events.map((ev, i) => insertEventStmt(env, cal.id, ev, new Date(), ids[i])),
   ];
   await env.DB.batch(stmts);
   return events.length;
@@ -221,10 +224,11 @@ async function syncIcsTick(env: Env, cal: CalendarRow, now: Date, execCtx: WaitC
   const from = new Date(now.getTime() - SYNC_WINDOW_PAST_DAYS * 24 * 60 * 60 * 1000);
   const to = new Date(now.getTime() + SYNC_WINDOW_FUTURE_DAYS * 24 * 60 * 60 * 1000);
   const events = await parseIcsEvents(result.text, from, to, tz);
+  const ids = await deterministicEventIds(cal.id, events.map((ev) => ev.externalId));
 
   const stmts = [
     env.DB.prepare('DELETE FROM events WHERE calendar_id = ?').bind(cal.id),
-    ...events.map((ev) => insertEventStmt(env, cal.id, ev, now)),
+    ...events.map((ev, i) => insertEventStmt(env, cal.id, ev, now, ids[i])),
     env.DB.prepare('UPDATE calendars SET last_synced_at = ?, last_error = NULL, etag = ?, last_modified = ?, content_hash = ? WHERE id = ?').bind(
       now.toISOString(),
       result.etag,

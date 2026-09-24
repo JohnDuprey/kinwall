@@ -9,6 +9,7 @@ import { decryptConfig, encryptConfig } from '../crypto.ts';
 import { errorMessage } from '../redact.ts';
 import { hostTimezone } from '../env.ts';
 import { ErrorSchema, EventInputSchema, EventInstanceSchema } from '../schemas.ts';
+import { deterministicEventId } from '../event-id.ts';
 
 export const eventsRoutes = createRouter();
 
@@ -52,6 +53,48 @@ async function colorsByMember(db: D1Database): Promise<Map<string, string>> {
   return new Map(results.map((r) => [r.id, r.color]));
 }
 
+function overrideKey(calendarId: string, externalId: string): string {
+  return `${calendarId}\u0000${externalId}`;
+}
+
+// Per-instance member assignment for synced (remote-kind) events - keyed by (calendar_id,
+// external_id) rather than the event row's own id, since remote rows are deleted/reinserted
+// wholesale on every sync. Overrides a row's member_ids (which sync always writes as '[]') for
+// GET, and is what PATCH .../memberIds writes to for a remote calendar instead of the row.
+async function overridesMap(db: D1Database, calendarIds: string[]): Promise<Map<string, string[]>> {
+  const map = new Map<string, string[]>();
+  if (calendarIds.length === 0) return map;
+  const placeholders = calendarIds.map(() => '?').join(',');
+  const { results } = await db
+    .prepare(`SELECT calendar_id, external_id, member_ids FROM event_member_overrides WHERE calendar_id IN (${placeholders})`)
+    .bind(...calendarIds)
+    .all<{ calendar_id: string; external_id: string; member_ids: string }>();
+  for (const r of results) {
+    try {
+      map.set(overrideKey(r.calendar_id, r.external_id), JSON.parse(r.member_ids));
+    } catch {
+      // malformed row - ignore, falls back to calendar member like no override at all
+    }
+  }
+  return map;
+}
+
+// '[]' clears the override (falls back to the calendar member again) rather than storing an
+// empty array forever.
+async function setMemberOverride(db: D1Database, calendarId: string, externalId: string, memberIds: string[]): Promise<void> {
+  if (memberIds.length === 0) {
+    await db.prepare('DELETE FROM event_member_overrides WHERE calendar_id = ? AND external_id = ?').bind(calendarId, externalId).run();
+    return;
+  }
+  await db
+    .prepare(
+      'INSERT INTO event_member_overrides (calendar_id, external_id, member_ids, updated_at) VALUES (?,?,?,?) ' +
+        'ON CONFLICT(calendar_id, external_id) DO UPDATE SET member_ids = excluded.member_ids, updated_at = excluded.updated_at',
+    )
+    .bind(calendarId, externalId, JSON.stringify(memberIds), new Date().toISOString())
+    .run();
+}
+
 function instanceFrom(
   row: EventRow,
   cal: CalendarRow,
@@ -59,12 +102,15 @@ function instanceFrom(
   occurrenceStart: string | null,
   start: string,
   end: string,
+  overrideMemberIds?: string[],
 ) {
-  let memberIds: string[] = [];
-  try {
-    memberIds = JSON.parse(row.member_ids || '[]');
-  } catch {
-    memberIds = [];
+  let memberIds: string[] = overrideMemberIds ?? [];
+  if (!overrideMemberIds) {
+    try {
+      memberIds = JSON.parse(row.member_ids || '[]');
+    } catch {
+      memberIds = [];
+    }
   }
   if (memberIds.length === 0 && cal.member_id) memberIds = [cal.member_id];
   const color = (memberIds[0] && memberColors.get(memberIds[0])) || cal.color || '#888';
@@ -133,15 +179,17 @@ eventsRoutes.openapi(
 
     const tz = await householdTz(c.env.DB);
     const memberColors = await colorsByMember(c.env.DB);
+    const overrides = await overridesMap(c.env.DB, calendars.map((cal) => cal.id));
     const out: ReturnType<typeof instanceFrom>[] = [];
 
     for (const row of rows) {
       const cal = calById.get(row.calendar_id);
       if (!cal) continue;
+      const override = row.external_id ? overrides.get(overrideKey(cal.id, row.external_id)) : undefined;
 
       if (cal.kind === 'local' && row.rrule) {
         for (const inst of expand(row.rrule, row.start, row.end, !!row.all_day, tz, fromDate, toDate)) {
-          out.push(instanceFrom(row, cal, memberColors, inst.start, inst.start, inst.end));
+          out.push(instanceFrom(row, cal, memberColors, inst.start, inst.start, inst.end, override));
         }
         continue;
       }
@@ -150,7 +198,7 @@ eventsRoutes.openapi(
       const startMs = row.all_day ? Date.parse(`${row.start}T00:00:00Z`) : Date.parse(row.start);
       const endMs = row.all_day ? Date.parse(`${row.end}T00:00:00Z`) : Date.parse(row.end);
       if (endMs <= fromDate.getTime() || startMs >= toDate.getTime()) continue;
-      out.push(instanceFrom(row, cal, memberColors, null, row.start, row.end));
+      out.push(instanceFrom(row, cal, memberColors, null, row.start, row.end, override));
     }
 
     let filtered = out;
@@ -212,7 +260,10 @@ eventsRoutes.openapi(
     }
 
     const row: EventRow = {
-      id: crypto.randomUUID(),
+      // Remote calendars get the same deterministic id sync would assign this externalId, so a
+      // freshly write-through-created event keeps its id across the next sync instead of
+      // colliding with (or being orphaned by) the row sync inserts.
+      id: externalId ? await deterministicEventId(cal.id, externalId) : crypto.randomUUID(),
       calendar_id: cal.id,
       external_id: externalId,
       title,
@@ -263,7 +314,8 @@ eventsRoutes.openapi(
     const found = await loadEventAndCalendar(c.env.DB, id);
     if (!found) return c.json({ error: 'not found' }, 404);
     const memberColors = await colorsByMember(c.env.DB);
-    return c.json(instanceFrom(found.row, found.cal, memberColors, null, found.row.start, found.row.end), 200);
+    const override = found.row.external_id ? (await overridesMap(c.env.DB, [found.cal.id])).get(overrideKey(found.cal.id, found.row.external_id)) : undefined;
+    return c.json(instanceFrom(found.row, found.cal, memberColors, null, found.row.start, found.row.end, override), 200);
   },
 );
 
@@ -290,7 +342,22 @@ eventsRoutes.openapi(
     const found = await loadEventAndCalendar(c.env.DB, id);
     if (!found) return c.json({ error: 'not found' }, 404);
     const { row, cal } = found;
-    if (!cal.writable) return c.json({ error: 'calendar is not writable' }, 400);
+
+    const otherFieldsPresent =
+      body.title !== undefined ||
+      body.start !== undefined ||
+      body.end !== undefined ||
+      body.allDay !== undefined ||
+      body.location !== undefined ||
+      body.description !== undefined ||
+      body.rrule !== undefined;
+    // Member assignment on a remote-kind event is a local-only annotation (event-member-overrides,
+    // keyed by external_id - the row is wiped wholesale on every sync). A memberIds-only patch
+    // never touches the provider, so it works even on a read-only calendar (ICS) or when the
+    // calendar isn't writable.
+    const memberOnlyPatch = cal.kind !== 'local' && !otherFieldsPresent && body.memberIds !== undefined;
+
+    if (!memberOnlyPatch && !cal.writable) return c.json({ error: 'calendar is not writable' }, 400);
 
     let title = body.title ?? row.title;
     let start = body.start ?? row.start;
@@ -298,7 +365,7 @@ eventsRoutes.openapi(
     let location = body.location !== undefined ? body.location : row.location;
     let description = body.description !== undefined ? body.description : row.description;
 
-    if (cal.kind !== 'local') {
+    if (cal.kind !== 'local' && otherFieldsPresent) {
       const provider = getProvider(cal.kind as 'ics' | 'google' | 'microsoft' | 'caldav');
       if (!provider.updateEvent || !row.external_id) return c.json({ error: `${cal.kind} calendars are read-only` }, 400);
       const ctx = await buildCtx(c.env.DB, cal, c.env);
@@ -321,6 +388,11 @@ eventsRoutes.openapi(
       }
     }
 
+    if (cal.kind !== 'local' && body.memberIds !== undefined) {
+      if (!row.external_id) return c.json({ error: 'event has no external id' }, 400);
+      await setMemberOverride(c.env.DB, cal.id, row.external_id, body.memberIds);
+    }
+
     const updatedRow: EventRow = {
       ...row,
       title,
@@ -330,29 +402,35 @@ eventsRoutes.openapi(
       location,
       description,
       rrule: cal.kind === 'local' && body.rrule !== undefined ? body.rrule : row.rrule,
-      member_ids: body.memberIds !== undefined ? JSON.stringify(body.memberIds) : row.member_ids,
+      member_ids: cal.kind === 'local' && body.memberIds !== undefined ? JSON.stringify(body.memberIds) : row.member_ids,
       updated_at: new Date().toISOString(),
     };
-    await c.env.DB.prepare(
-      'UPDATE events SET title = ?, start = ?, end = ?, all_day = ?, location = ?, description = ?, rrule = ?, member_ids = ?, updated_at = ? WHERE id = ?',
-    )
-      .bind(
-        updatedRow.title,
-        updatedRow.start,
-        updatedRow.end,
-        updatedRow.all_day,
-        updatedRow.location,
-        updatedRow.description,
-        updatedRow.rrule,
-        updatedRow.member_ids,
-        updatedRow.updated_at,
-        id,
+    if (otherFieldsPresent || (cal.kind === 'local' && body.memberIds !== undefined)) {
+      await c.env.DB.prepare(
+        'UPDATE events SET title = ?, start = ?, end = ?, all_day = ?, location = ?, description = ?, rrule = ?, member_ids = ?, updated_at = ? WHERE id = ?',
       )
-      .run();
+        .bind(
+          updatedRow.title,
+          updatedRow.start,
+          updatedRow.end,
+          updatedRow.all_day,
+          updatedRow.location,
+          updatedRow.description,
+          updatedRow.rrule,
+          updatedRow.member_ids,
+          updatedRow.updated_at,
+          id,
+        )
+        .run();
+    }
     emit(c, 'events.changed', { calendarId: cal.id });
 
     const memberColors = await colorsByMember(c.env.DB);
-    return c.json(instanceFrom(updatedRow, cal, memberColors, null, updatedRow.start, updatedRow.end), 200);
+    const override =
+      cal.kind !== 'local' && updatedRow.external_id
+        ? (await overridesMap(c.env.DB, [cal.id])).get(overrideKey(cal.id, updatedRow.external_id))
+        : undefined;
+    return c.json(instanceFrom(updatedRow, cal, memberColors, null, updatedRow.start, updatedRow.end, override), 200);
   },
 );
 

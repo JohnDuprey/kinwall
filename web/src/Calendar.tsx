@@ -174,6 +174,20 @@ export default function CalendarView() {
       toast(e instanceof ApiError ? e.message : 'Could not save event')
     }
   }
+  // Member chips in the detail sheet save immediately via a memberIds-only PATCH - works even on
+  // read-only (ICS) events, since it's a local-only annotation that never touches the provider.
+  const toggleDetailMember = async (memberId: string) => {
+    if (!detail) return
+    const memberIds = detail.memberIds.includes(memberId) ? detail.memberIds.filter(x => x !== memberId) : [...detail.memberIds, memberId]
+    try {
+      const updated = await api.updateEvent(detail.id, { memberIds })
+      setDetail(updated)
+      setEvents(evs => evs.map(e => e.id === updated.id ? updated : e))
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : 'Could not update members')
+    }
+  }
+
   const deleteEvent = async (id: string) => {
     try {
       await api.deleteEvent(id)
@@ -225,10 +239,12 @@ export default function CalendarView() {
         <EventDetailSheet
           event={detail}
           members={members}
+          calendars={calendars}
           tz={tz}
           onClose={() => setDetail(null)}
           onEdit={() => openEdit(detail)}
           onDelete={() => deleteEvent(detail.id)}
+          onToggleMember={toggleDetailMember}
         />
       )}
       {editState && (
@@ -556,13 +572,13 @@ function ScheduleView({ anchor, events, tz, members, onTap }: { anchor: Date; ev
   )
 }
 
-function EventDetailSheet({ event, members, tz, onClose, onEdit, onDelete }: {
-  event: EventInstance; members: { id: string; name: string; color: string; avatar: string }[]; tz: string
-  onClose: () => void; onEdit: () => void; onDelete: () => void
+function EventDetailSheet({ event, members, calendars, tz, onClose, onEdit, onDelete, onToggleMember }: {
+  event: EventInstance; members: { id: string; name: string; color: string; avatar: string }[]; calendars: CalendarEntry[]; tz: string
+  onClose: () => void; onEdit: () => void; onDelete: () => void; onToggleMember: (memberId: string) => void
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false)
-  const evMembers = members.filter(m => event.memberIds.includes(m.id))
   const { background: detailBar } = eventVisual(event, members, 10)
+  const calendarName = calendars.find(c => c.id === event.calendarId)?.name ?? 'another calendar'
   return (
     <Sheet title={event.title} onClose={onClose}
       actions={!event.readOnly ? (
@@ -594,15 +610,21 @@ function EventDetailSheet({ event, members, tz, onClose, onEdit, onDelete }: {
             <RepeatIcon width={18} height={18} />Repeats
           </div>
         )}
-        {evMembers.length > 0 && (
+        {members.length > 0 && (
           <div className="chip-row">
-            {evMembers.map(m => (
-              <div key={m.id} className="chip active" style={{ ['--chip-color' as string]: m.color }}>{m.avatar} {m.name}</div>
+            {members.map(m => (
+              <button key={m.id} className={`chip ${event.memberIds.includes(m.id) ? 'active' : ''}`} style={{ ['--chip-color' as string]: m.color }} onClick={() => onToggleMember(m.id)}>
+                {m.avatar} {m.name}
+              </button>
             ))}
           </div>
         )}
         {event.description && <div style={{ color: 'var(--text-dim)', fontWeight: 600, whiteSpace: 'pre-line' }}>{stripHtmlToText(event.description)}</div>}
-        {event.readOnly && <div style={{ color: 'var(--text-dim)', fontSize: 13, fontWeight: 700 }}>Read-only calendar — synced from an external source.</div>}
+        {event.readOnly && (
+          <div style={{ color: 'var(--text-dim)', fontSize: 13, fontWeight: 700 }}>
+            Only the family members are saved in Kinwall — the event itself comes from {calendarName}.
+          </div>
+        )}
       </div>
     </Sheet>
   )
