@@ -30,9 +30,12 @@ Or use [`docker-compose.yml`](docker-compose.yml). All state lives in `/data`: t
 
 **From GitHub (recommended):** fork the repo, then in the Cloudflare dashboard:
 
-1. **Workers & Pages → Create → Import a repository** and pick your fork. Keep the default settings: root directory `/`, no build command, deploy command `npx wrangler deploy`. The build (UI + dependencies) runs from `wrangler.toml`, the D1 database is created automatically on the first deploy and stays linked afterwards, and the Worker applies its own database migrations.
-2. **Settings → Variables and Secrets**, as type *Secret*: `ENCRYPTION_KEY` (value from `openssl rand -base64 32`) and optionally `ADMIN_API_KEY` (any long random string, which also works as the first-run setup code).
-3. Open your `*.workers.dev` URL. Without `ADMIN_API_KEY`, the setup code is printed in the Worker's live logs on the first visit.
+1. **Workers & Pages → Create → Import a repository** and pick your fork. Keep the default root directory `/` and deploy command `npx wrangler deploy`. The UI build runs from `wrangler.toml`, and the Worker applies its own database migrations.
+2. **Settings → Build → Build command:** `sh scripts/cloudflare-config.sh`. It writes your account's settings, taken from **Build variables** on the same page, into the build's copy of `wrangler.toml`, so nothing account-specific is committed:
+   - `D1_DATABASE_ID`: create a D1 database under Storage & Databases and paste its ID. If you leave it out, the first deploy creates one automatically, but setting it is more robust: dashboard edits such as adding a secret create Worker versions that can lose track of an auto-created database.
+   - `CUSTOM_DOMAIN` (optional): e.g. `kinwall.example.com` on a zone in your account. It's served as a custom domain and `workers.dev` is turned off. Set domains this way, not only in the dashboard: each deploy applies `wrangler.toml`, which would remove a dashboard-only domain.
+3. **Settings → Variables and Secrets**, as type *Secret*: `ENCRYPTION_KEY` (value from `openssl rand -base64 32`) and optionally `ADMIN_API_KEY` (any long random string, which also works as the first-run setup code).
+4. Open your URL. Without `ADMIN_API_KEY`, the setup code is printed in the Worker's logs on the first visit.
 
 **From the CLI:**
 
