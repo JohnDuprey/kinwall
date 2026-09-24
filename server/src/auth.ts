@@ -44,6 +44,7 @@ const PUBLIC_PATH =
 const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'GET', pattern: /^\/api\/me$/ },
   { method: 'GET', pattern: /^\/api\/members$/ },
+  { method: 'PATCH', pattern: /^\/api\/members\/[^/]+$/ },
   { method: 'GET', pattern: /^\/api\/calendars$/ },
   { method: 'GET', pattern: /^\/api\/events(\/[^/]+)?$/ },
   { method: 'POST', pattern: /^\/api\/events$/ },
@@ -58,6 +59,7 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'DELETE', pattern: /^\/api\/chores\/[^/]+\/complete$/ },
   { method: 'GET', pattern: /^\/api\/leaderboard$/ },
   { method: 'GET', pattern: /^\/api\/settings$/ },
+  { method: 'PATCH', pattern: /^\/api\/settings$/ },
   { method: 'GET', pattern: /^\/api\/rev$/ },
 ];
 

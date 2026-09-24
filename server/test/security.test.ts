@@ -73,16 +73,16 @@ test('key scopes: display key is 403 on admin-only routes, 200 on display-allowe
   const completeRes = await display(`/api/chores/${chore.id}/complete`, { method: 'POST', body: JSON.stringify({ date: '2026-05-01' }) });
   assert.equal(completeRes.status, 200);
 
-  // A display key is wall-only: it can run the calendar/chore workflow but can't touch
-  // household settings or family members (that's an admin-device job now).
-  const settingsPatch = await display('/api/settings', { method: 'PATCH', body: JSON.stringify({ familyName: 'Nope' }) });
-  assert.equal(settingsPatch.status, 403);
+  // A display key keeps the everyday settings (household, appearance, editing members) but not
+  // admin functions (creating/deleting members, accounts, keys, webhooks - checked above).
+  const settingsPatch = await display('/api/settings', { method: 'PATCH', body: JSON.stringify({ familyName: 'Wall edit' }) });
+  assert.equal(settingsPatch.status, 200);
 
   const member = await (await admin('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Sam', color: '#ff6b6b', avatar: '🙂' }) })).json() as any;
   const memberCreate = await display('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Nope', color: '#000000', avatar: '🙂' }) });
   assert.equal(memberCreate.status, 403);
-  const memberPatch = await display(`/api/members/${member.id}`, { method: 'PATCH', body: JSON.stringify({ name: 'Nope' }) });
-  assert.equal(memberPatch.status, 403);
+  const memberPatch = await display(`/api/members/${member.id}`, { method: 'PATCH', body: JSON.stringify({ name: 'Sammy' }) });
+  assert.equal(memberPatch.status, 200);
   const memberDelete = await display(`/api/members/${member.id}`, { method: 'DELETE' });
   assert.equal(memberDelete.status, 403);
 

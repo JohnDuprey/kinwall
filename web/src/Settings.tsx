@@ -40,11 +40,16 @@ export default function SettingsView() {
 
   useEffect(() => { api.meStrict().then(setMe).catch(() => setMe({ scope: 'display', keyName: '', kind: 'api' })) }, [])
 
+  // Display keys get the everyday settings; admin-only sections (calendar accounts, displays,
+  // passkeys, API keys, webhooks) aren't rendered at all.
   if (me.scope === 'display') {
     return (
       <div className="content scroll-y">
         <div className="settings-scroll">
+          <GeneralSection settings={settings} onSaved={reloadCore} toast={toast} />
+          <AppearanceSection settings={settings} onSaved={reloadCore} toast={toast} />
           <ThisDisplaySection keyName={me.keyName} />
+          <MembersSection members={members} onChanged={reloadCore} toast={toast} canManage={false} />
         </div>
       </div>
     )
@@ -221,7 +226,7 @@ function ThisDisplaySection({ keyName }: { keyName?: string }) {
   )
 }
 
-function MembersSection({ members, onChanged, toast }: { members: Member[]; onChanged: () => void; toast: (m: string) => void }) {
+function MembersSection({ members, onChanged, toast, canManage = true }: { members: Member[]; onChanged: () => void; toast: (m: string) => void; canManage?: boolean }) {
   const [edit, setEdit] = useState<Member | 'new' | null>(null)
   return (
     <Section title="Members">
@@ -232,17 +237,17 @@ function MembersSection({ members, onChanged, toast }: { members: Member[]; onCh
             <div className="name">{m.name}</div>
           </div>
         ))}
-        <button className="add-row-btn" onClick={() => setEdit('new')}><PlusIcon width={20} height={20} />Add member</button>
+        {canManage && <button className="add-row-btn" onClick={() => setEdit('new')}><PlusIcon width={20} height={20} />Add member</button>}
       </div>
       {edit && (
-        <MemberEditSheet member={edit === 'new' ? null : edit} onClose={() => setEdit(null)}
+        <MemberEditSheet member={edit === 'new' ? null : edit} canDelete={canManage} onClose={() => setEdit(null)}
           onSaved={() => { setEdit(null); onChanged() }} toast={toast} />
       )}
     </Section>
   )
 }
 
-function MemberEditSheet({ member, onClose, onSaved, toast }: { member: Member | null; onClose: () => void; onSaved: () => void; toast: (m: string) => void }) {
+function MemberEditSheet({ member, canDelete, onClose, onSaved, toast }: { member: Member | null; canDelete: boolean; onClose: () => void; onSaved: () => void; toast: (m: string) => void }) {
   const [name, setName] = useState(member?.name ?? '')
   const [color, setColor] = useState(member?.color ?? MEMBER_PALETTE[0])
   const [avatar, setAvatar] = useState(member?.avatar ?? MEMBER_EMOJI[0])
@@ -260,7 +265,7 @@ function MemberEditSheet({ member, onClose, onSaved, toast }: { member: Member |
   }
   return (
     <Sheet title={member ? 'Edit member' : 'Add member'} onClose={onClose}
-      actions={<>{member && <button className="btn btn-danger" onClick={del}><TrashIcon width={18} height={18} /></button>}<button className="btn btn-primary" onClick={save} disabled={!name.trim() || !isValidAvatar(avatar)}>Save</button></>}>
+      actions={<>{member && canDelete && <button className="btn btn-danger" onClick={del}><TrashIcon width={18} height={18} /></button>}<button className="btn btn-primary" onClick={save} disabled={!name.trim() || !isValidAvatar(avatar)}>Save</button></>}>
       <div className="field"><label>Name</label><input type="text" value={name} onChange={e => setName(e.target.value)} autoFocus /></div>
       <div className="field">
         <label>Color</label>

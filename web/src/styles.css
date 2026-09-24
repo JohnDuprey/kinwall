@@ -196,7 +196,10 @@ button {
 .main-col { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
 /* No tab bar to reserve bottom safe-area space in rail mode — give it to the FAB instead
    (an absolutely-positioned child's offsets are measured from the padding edge). */
-.app-shell-rail .content { padding-bottom: var(--safe-b); }
+/* Rail mode: content, FAB and the rail's last item sit close to the bottom edge (taps near the home
+   indicator are fine, and Guided Access disables the swipe gesture on a wall display) */
+.app-shell-rail .content { padding-bottom: 0; }
+.app-shell-rail .fab { bottom: 10px; right: 14px; }
 .app-shell-rail .toast { bottom: calc(var(--safe-b) + 16px); }
 
 .nav-rail {
@@ -205,7 +208,7 @@ button {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: calc(var(--safe-t) + 12px) 6px calc(var(--safe-b) + 12px);
+  padding: calc(var(--safe-t) + 12px) 6px 6px;
   background: var(--card);
   overflow-y: auto;
 }
