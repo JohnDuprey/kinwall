@@ -14,6 +14,7 @@ import { calendarsRoutes } from './routes/calendars.ts';
 import { eventsRoutes } from './routes/events.ts';
 import { choresRoutes } from './routes/chores.ts';
 import { leaderboardRoutes } from './routes/leaderboard.ts';
+import { listsRoutes } from './routes/lists.ts';
 import { keysRoutes } from './routes/keys.ts';
 import { passkeysRoutes } from './routes/passkeys.ts';
 import { pairRoutes } from './routes/pair.ts';
@@ -68,6 +69,7 @@ export function createApp() {
   app.route('/', eventsRoutes);
   app.route('/', choresRoutes);
   app.route('/', leaderboardRoutes);
+  app.route('/', listsRoutes);
   app.route('/', keysRoutes);
   app.route('/', passkeysRoutes);
   app.route('/', pairRoutes);

@@ -3,9 +3,10 @@ import { encode } from 'uqr'
 import { api, clearKey, getKey, setAdminKey, setKey, usePoll, useSaveState, ApiError } from './api.ts'
 import { AppContext } from './AppContext.tsx'
 import type { Member, Settings } from './types.ts'
-import { CalendarIcon, ChoreIcon, SettingsIcon } from './icons.tsx'
+import { CalendarIcon, ChoreIcon, ListIcon, SettingsIcon } from './icons.tsx'
 import CalendarView from './Calendar.tsx'
 import Chores from './Chores.tsx'
+import Lists from './Lists.tsx'
 import SettingsView from './Settings.tsx'
 import Setup, { readSetupResume } from './Setup.tsx'
 import { useIsPhone } from './useIsPhone.ts'
@@ -17,6 +18,7 @@ import { loginWithPasskey, passkeysSupported, registerPasskey } from './webauthn
 const NAV_ITEMS = [
   { key: 'calendar', href: '#/calendar', label: 'Calendar', Icon: CalendarIcon },
   { key: 'chores', href: '#/chores', label: 'Chores', Icon: ChoreIcon },
+  { key: 'lists', href: '#/lists', label: 'Lists', Icon: ListIcon },
   { key: 'settings', href: '#/settings', label: 'Settings', Icon: SettingsIcon },
 ] as const
 
@@ -595,7 +597,7 @@ export default function App() {
         <div className="main-col">
           <Header settings={settings} members={members} selectedMemberId={selectedMemberId} setSelectedMemberId={setSelectedMemberId} />
           <div className="content">
-            {tab === 'chores' ? <Chores /> : tab === 'settings' ? <SettingsView /> : <CalendarView />}
+            {tab === 'chores' ? <Chores /> : tab === 'lists' ? <Lists /> : tab === 'settings' ? <SettingsView /> : <CalendarView />}
           </div>
           {navMode === 'bottom' && <Nav tab={tab} mode={navMode} />}
         </div>

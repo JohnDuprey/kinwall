@@ -4,6 +4,7 @@ An open-source, self-hosted family wall calendar and chore chart, built for a wa
 
 - **One calendar for the family**: Google, Outlook/Microsoft 365, iCloud (CalDAV) and any ICS subscription URL, merged and color-coded per family member. Two-way for Google, Microsoft and CalDAV.
 - **Chores**: recurring or one-off, per person or "anyone", with points and a satisfying tap-to-complete.
+- **Lists**: shopping, todo and reusable lists, grouped by store or category, with items that remember where they go.
 - **Touch-first UI**: week, day, month and schedule views, swipe to page, big targets, and it returns to today after 2 minutes idle.
 - **API-first**: everything the UI does is in the REST API (OpenAPI docs at `/docs`), with signed webhooks for automations. Home Assistant integration: [kinwall-homeassistant](https://github.com/JohnDuprey/kinwall-homeassistant).
 - **Runs anywhere**: Cloudflare Workers free tier, Docker (amd64/arm64), or the Home Assistant add-on.

@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { mock } from './mock.ts'
 import type {
-  Account, ApiKey, Appearance, CalendarEntry, Chore, ChoreDay, EventInstance, LeaderboardEntry, LeaderboardPeriod, Member,
-  Me, Passkey, Providers, RemoteCalendar, Settings, Webhook,
+  Account, ApiKey, Appearance, CalendarEntry, Chore, ChoreDay, EventInstance, LeaderboardEntry, LeaderboardPeriod, List,
+  ListDetail, ListGroup, ListItem, ListItemInput, Member, Me, Passkey, Providers, RemoteCalendar, Settings, Webhook,
 } from './types.ts'
 
 const MOCK = import.meta.env.VITE_MOCK === '1'
@@ -190,6 +190,23 @@ export const api = {
 
   getLeaderboard: (period: LeaderboardPeriod) =>
     MOCK ? mock.getLeaderboard(period) : get<LeaderboardEntry[]>(`api/leaderboard?period=${period}`),
+
+  getLists: (archived?: boolean) => MOCK ? mock.getLists(archived) : get<List[]>(`api/lists${archived ? '?archived=true' : ''}`),
+  createList: (body: Partial<List>) => MOCK ? mock.createList(body) : post<List>('api/lists', body),
+  getList: (id: string) => MOCK ? mock.getList(id) : get<ListDetail>(`api/lists/${id}`),
+  updateList: (id: string, body: Partial<List>) => MOCK ? mock.updateList(id, body) : patch<List>(`api/lists/${id}`, body),
+  deleteList: (id: string) => MOCK ? mock.deleteList(id) : del(`api/lists/${id}`),
+  addListItems: (listId: string, items: ListItemInput | ListItemInput[]) =>
+    MOCK ? mock.addListItems(listId, items) : post<ListItem[]>(`api/lists/${listId}/items`, items),
+  updateListItem: (listId: string, itemId: string, body: Partial<ListItem>) =>
+    MOCK ? mock.updateListItem(listId, itemId, body) : patch<ListItem>(`api/lists/${listId}/items/${itemId}`, body),
+  deleteListItem: (listId: string, itemId: string) => MOCK ? mock.deleteListItem(listId, itemId) : del(`api/lists/${listId}/items/${itemId}`),
+  clearListCompleted: (listId: string) => MOCK ? mock.clearListCompleted(listId) : post<{ deleted: number }>(`api/lists/${listId}/clear-completed`),
+  resetList: (listId: string) => MOCK ? mock.resetList(listId) : post<{ reset: number }>(`api/lists/${listId}/reset`),
+  reorderListItems: (listId: string, itemIds: string[]) =>
+    MOCK ? mock.reorderListItems(listId, itemIds) : post<{ ok: boolean }>(`api/lists/${listId}/reorder`, { itemIds }),
+  setListGroups: (listId: string, groups: { kind: 'store' | 'category'; name: string }[]) =>
+    MOCK ? mock.setListGroups(listId, groups) : put<ListGroup[]>(`api/lists/${listId}/groups`, { groups }),
 
   getKeys: () => MOCK ? mock.getKeys() : get<ApiKey[]>('api/keys', true),
   createKey: (name: string, scope: 'admin' | 'display' = 'display') =>

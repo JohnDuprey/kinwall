@@ -185,6 +185,121 @@ export const ChoreDaySchema = ChoreSchema.extend({
   completedBy: z.string().nullable(),
 }).openapi('ChoreDay');
 
+export const ListSchema = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    emoji: z.string().nullable(),
+    color: z.string().nullable(),
+    kind: z.enum(['todo', 'shopping', 'reusable']),
+    memberIds: z.array(z.string()),
+    groupBy: z.enum(['store', 'category', 'none']),
+    sort: z.number(),
+    archived: z.boolean(),
+    createdAt: z.string(),
+    itemCount: z.number(),
+    openCount: z.number(),
+  })
+  .openapi('List');
+
+export const ListInputSchema = z
+  .object({
+    name: z.string().min(1),
+    kind: z.enum(['todo', 'shopping', 'reusable']),
+    emoji: EmojiSchema.nullable().optional(),
+    color: z.string().nullable().optional(),
+    memberIds: z.array(z.string()).optional(),
+    groupBy: z.enum(['store', 'category', 'none']).optional(),
+  })
+  .openapi('ListInput');
+
+export const ListPatchSchema = z
+  .object({
+    name: z.string().min(1).optional(),
+    emoji: EmojiSchema.nullable().optional(),
+    color: z.string().nullable().optional(),
+    kind: z.enum(['todo', 'shopping', 'reusable']).optional(),
+    memberIds: z.array(z.string()).optional(),
+    groupBy: z.enum(['store', 'category', 'none']).optional(),
+    sort: z.number().optional(),
+    archived: z.boolean().optional(),
+  })
+  .openapi('ListPatch');
+
+export const ListItemSchema = z
+  .object({
+    id: z.string(),
+    listId: z.string(),
+    title: z.string(),
+    notes: z.string().nullable(),
+    quantity: z.string().nullable(),
+    store: z.string().nullable(),
+    category: z.string().nullable(),
+    memberId: z.string().nullable(),
+    dueDate: z.string().nullable(),
+    done: z.boolean(),
+    doneAt: z.string().nullable(),
+    doneBy: z.string().nullable(),
+    sort: z.number(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .openapi('ListItem');
+
+const ListItemInputSchema = z.object({
+  title: z.string().min(1).refine((s) => s.trim().length > 0, 'must not be empty'),
+  notes: z.string().nullable().optional(),
+  quantity: z.string().nullable().optional(),
+  store: z.string().nullable().optional(),
+  category: z.string().nullable().optional(),
+  memberId: z.string().nullable().optional(),
+  dueDate: z.string().nullable().optional(),
+});
+
+// POST /api/lists/:id/items accepts a single item or an array (always returns an array).
+export const ListItemInputBodySchema = z.union([ListItemInputSchema, z.array(ListItemInputSchema)]).openapi('ListItemInputBody');
+
+export const ListItemPatchSchema = z
+  .object({
+    title: z
+      .string()
+      .min(1)
+      .refine((s) => s.trim().length > 0, 'must not be empty')
+      .optional(),
+    notes: z.string().nullable().optional(),
+    quantity: z.string().nullable().optional(),
+    store: z.string().nullable().optional(),
+    category: z.string().nullable().optional(),
+    memberId: z.string().nullable().optional(),
+    dueDate: z.string().nullable().optional(),
+    done: z.boolean().optional(),
+    doneBy: z.string().nullable().optional(),
+  })
+  .openapi('ListItemPatch');
+
+export const ListGroupSchema = z
+  .object({
+    kind: z.enum(['store', 'category']),
+    name: z.string(),
+    sort: z.number(),
+  })
+  .openapi('ListGroup');
+
+export const ListDetailSchema = z
+  .object({
+    list: ListSchema,
+    items: z.array(ListItemSchema),
+    groups: z.array(ListGroupSchema),
+    suggestions: z.object({ stores: z.array(z.string()), categories: z.array(z.string()) }),
+  })
+  .openapi('ListDetail');
+
+export const ListReorderSchema = z.object({ itemIds: z.array(z.string()) }).openapi('ListReorder');
+
+export const ListGroupsInputSchema = z
+  .object({ groups: z.array(z.object({ kind: z.enum(['store', 'category']), name: z.string() })) })
+  .openapi('ListGroupsInput');
+
 export const LeaderboardEntrySchema = z
   .object({
     memberId: z.string(),

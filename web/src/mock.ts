@@ -1,7 +1,7 @@
 // Dev-only in-memory fixture, used when VITE_MOCK=1. Excluded from prod by the env check in api.ts.
 import type {
-  Account, ApiKey, CalendarEntry, Chore, ChoreDay, EventInstance, LeaderboardEntry, LeaderboardPeriod, Member,
-  Providers, RemoteCalendar, Settings, Webhook,
+  Account, ApiKey, CalendarEntry, Chore, ChoreDay, EventInstance, LeaderboardEntry, LeaderboardPeriod, List, ListGroup,
+  ListItem, ListItemInput, Member, Providers, RemoteCalendar, Settings, Webhook,
 } from './types.ts'
 
 const uid = () => crypto.randomUUID()
@@ -68,6 +68,34 @@ const chores: Chore[] = [
   { id: 'ch5', title: 'Vacuum living room', emoji: '🧹', memberId: 'm2', points: 15, rrule: 'FREQ=WEEKLY', dueDate: null, dueTime: null, active: true, sort: 4 },
 ]
 const completions = new Map<string, { completedAt: string; memberId: string | null }>() // key `${choreId}:${date}`
+
+const lists: List[] = [
+  { id: 'l1', name: 'Groceries', emoji: '🛒', color: '#7ED9A6', kind: 'shopping', memberIds: [], groupBy: 'category', sort: 0, archived: false, createdAt: new Date().toISOString(), itemCount: 5, openCount: 4 },
+  { id: 'l2', name: 'Weekend To-Dos', emoji: '✅', color: '#7AB8FF', kind: 'todo', memberIds: ['m1'], groupBy: 'none', sort: 1, archived: false, createdAt: new Date().toISOString(), itemCount: 3, openCount: 2 },
+  { id: 'l3', name: 'Camping Packing List', emoji: '🎒', color: '#FFD166', kind: 'reusable', memberIds: [], groupBy: 'none', sort: 2, archived: false, createdAt: new Date().toISOString(), itemCount: 4, openCount: 4 },
+]
+let listItems: ListItem[] = [
+  { id: 'li1', listId: 'l1', title: 'Milk', notes: null, quantity: '1', store: null, category: 'Dairy', memberId: null, dueDate: null, done: false, doneAt: null, doneBy: null, sort: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: 'li2', listId: 'l1', title: 'Eggs', notes: null, quantity: '1 dozen', store: null, category: 'Dairy', memberId: null, dueDate: null, done: false, doneAt: null, doneBy: null, sort: 1, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: 'li3', listId: 'l1', title: 'Bread', notes: null, quantity: null, store: null, category: 'Bakery', memberId: null, dueDate: null, done: true, doneAt: new Date().toISOString(), doneBy: 'm1', sort: 2, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: 'li4', listId: 'l1', title: 'Apples', notes: null, quantity: '6', store: null, category: 'Produce', memberId: null, dueDate: null, done: false, doneAt: null, doneBy: null, sort: 3, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: 'li5', listId: 'l1', title: 'Paper towels', notes: null, quantity: null, store: null, category: 'Household', memberId: null, dueDate: null, done: false, doneAt: null, doneBy: null, sort: 4, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: 'li6', listId: 'l2', title: 'Mow the lawn', notes: null, quantity: null, store: null, category: null, memberId: 'm1', dueDate: todayISO(), done: false, doneAt: null, doneBy: null, sort: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: 'li7', listId: 'l2', title: 'Return library books', notes: null, quantity: null, store: null, category: null, memberId: 'm2', dueDate: null, done: false, doneAt: null, doneBy: null, sort: 1, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: 'li8', listId: 'l2', title: 'Book dentist appointment', notes: null, quantity: null, store: null, category: null, memberId: null, dueDate: null, done: true, doneAt: new Date().toISOString(), doneBy: 'm1', sort: 2, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: 'li9', listId: 'l3', title: 'Tent', notes: null, quantity: null, store: null, category: null, memberId: null, dueDate: null, done: false, doneAt: null, doneBy: null, sort: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: 'li10', listId: 'l3', title: 'Sleeping bags', notes: null, quantity: null, store: null, category: null, memberId: null, dueDate: null, done: false, doneAt: null, doneBy: null, sort: 1, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: 'li11', listId: 'l3', title: 'Flashlight', notes: null, quantity: null, store: null, category: null, memberId: null, dueDate: null, done: false, doneAt: null, doneBy: null, sort: 2, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: 'li12', listId: 'l3', title: 'Bug spray', notes: null, quantity: null, store: null, category: null, memberId: null, dueDate: null, done: false, doneAt: null, doneBy: null, sort: 3, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+]
+let listGroups: ListGroup[] = []
+
+function recomputeListCounts(id: string) {
+  const l = lists.find(x => x.id === id); if (!l) return
+  const items = listItems.filter(i => i.listId === id)
+  l.itemCount = items.length
+  l.openCount = items.filter(i => !i.done).length
+}
 
 export const mock = {
   getRev: async () => ({ rev }),
@@ -192,6 +220,87 @@ export const mock = {
   getKeys: async (): Promise<ApiKey[]> => [{ id: 'k1', name: 'iPad Wall Display', prefix: 'fc_live_ab12', scope: 'display', createdAt: new Date().toISOString(), lastUsedAt: new Date().toISOString() }],
   createKey: async (name: string) => ({ id: uid(), name, key: 'fc_live_' + uid().replace(/-/g, '').slice(0, 24) }),
   deleteKey: async (_id: string) => {},
+
+  getLists: async (archived?: boolean) => lists.filter(l => archived ? true : !l.archived).sort((a, b) => a.sort - b.sort),
+  createList: async (body: Partial<List>): Promise<List> => {
+    const nl: List = {
+      id: uid(), name: body.name ?? 'New list', emoji: body.emoji ?? '📝', color: body.color ?? '#FF9E7A',
+      kind: body.kind ?? 'todo', memberIds: body.memberIds ?? [], groupBy: body.groupBy ?? (body.kind === 'shopping' ? 'category' : 'none'),
+      sort: lists.length, archived: false, createdAt: new Date().toISOString(), itemCount: 0, openCount: 0,
+    }
+    lists.push(nl); bump(); return nl
+  },
+  getList: async (id: string) => {
+    const l = lists.find(x => x.id === id); if (!l) throw new Error('not found')
+    const items = listItems.filter(i => i.listId === id).sort((a, b) => a.sort - b.sort)
+    const groups = listGroups.filter(g => g.name) // per-list groups aren't keyed by list in this fixture; kept simple for demo
+    const stores = [...new Set(listItems.map(i => i.store).filter((v): v is string => !!v))].sort()
+    const categories = [...new Set(listItems.map(i => i.category).filter((v): v is string => !!v))].sort()
+    return { list: l, items, groups, suggestions: { stores, categories } }
+  },
+  updateList: async (id: string, patch: Partial<List>) => {
+    const l = lists.find(x => x.id === id); if (!l) throw new Error('not found')
+    Object.assign(l, patch); bump(); return l
+  },
+  deleteList: async (id: string) => {
+    const i = lists.findIndex(x => x.id === id); if (i >= 0) lists.splice(i, 1)
+    listItems = listItems.filter(x => x.listId !== id); bump()
+  },
+  addListItems: async (listId: string, body: ListItemInput | ListItemInput[]): Promise<ListItem[]> => {
+    const inputs = Array.isArray(body) ? body : [body]
+    const maxSort = Math.max(-1, ...listItems.filter(i => i.listId === listId).map(i => i.sort))
+    const created = inputs.map((input, idx) => {
+      // "remembers where things go": omitted store/category (undefined) inherit from the most
+      // recently updated same-title item anywhere; explicit null means "none".
+      const remembered = [...listItems].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+        .find(i => i.title.trim().toLowerCase() === input.title.trim().toLowerCase())
+      const item: ListItem = {
+        id: uid(), listId, title: input.title.trim(), notes: input.notes ?? null,
+        quantity: input.quantity ?? null,
+        store: input.store !== undefined ? input.store : (remembered?.store ?? null),
+        category: input.category !== undefined ? input.category : (remembered?.category ?? null),
+        memberId: input.memberId ?? null, dueDate: input.dueDate ?? null,
+        done: false, doneAt: null, doneBy: null, sort: maxSort + 1 + idx,
+        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      }
+      return item
+    })
+    listItems.push(...created); recomputeListCounts(listId); bump(); return created
+  },
+  updateListItem: async (listId: string, itemId: string, patch: Partial<ListItem>) => {
+    const i = listItems.find(x => x.id === itemId && x.listId === listId); if (!i) throw new Error('not found')
+    if (patch.done !== undefined) {
+      i.doneAt = patch.done ? new Date().toISOString() : null
+      i.doneBy = patch.done ? (patch.doneBy ?? null) : null
+    }
+    Object.assign(i, patch, { updatedAt: new Date().toISOString() })
+    recomputeListCounts(listId); bump(); return i
+  },
+  deleteListItem: async (listId: string, itemId: string) => {
+    const i = listItems.findIndex(x => x.id === itemId && x.listId === listId)
+    if (i >= 0) listItems.splice(i, 1)
+    recomputeListCounts(listId); bump()
+  },
+  clearListCompleted: async (listId: string) => {
+    const before = listItems.length
+    listItems = listItems.filter(i => !(i.listId === listId && i.done))
+    recomputeListCounts(listId); bump()
+    return { deleted: before - listItems.length }
+  },
+  resetList: async (listId: string) => {
+    const items = listItems.filter(i => i.listId === listId && i.done)
+    items.forEach(i => { i.done = false; i.doneAt = null; i.doneBy = null })
+    recomputeListCounts(listId); bump()
+    return { reset: items.length }
+  },
+  reorderListItems: async (_listId: string, itemIds: string[]) => {
+    itemIds.forEach((id, idx) => { const i = listItems.find(x => x.id === id); if (i) i.sort = idx })
+    bump(); return { ok: true }
+  },
+  setListGroups: async (_listId: string, groups: { kind: 'store' | 'category'; name: string }[]) => {
+    listGroups = groups.map((g, idx) => ({ ...g, sort: idx }))
+    bump(); return listGroups
+  },
 
   getWebhooks: async (): Promise<Webhook[]> => [],
   createWebhook: async (url: string, evs: string[]) => ({ id: uid(), url, events: evs, enabled: true, createdAt: new Date().toISOString() }),

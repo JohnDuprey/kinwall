@@ -11,12 +11,13 @@ Self-hosted, open-source family wall calendar + chore chart, displayed full-scre
 - Calendars: `local`, `ics` (read-only URL subscription — works for Google "secret iCal address", Outlook "published calendar", iCloud public calendar), `google` (OAuth, two-way), `microsoft` (OAuth / Graph, two-way), `caldav` (iCloud / Fastmail / Nextcloud via app-specific password, two-way).
 - Events: merged view across calendars, create/edit/delete (write-through to the provider).
 - Chores: recurring or one-off, assigned to a member or anyone, points, complete/uncomplete per day.
+- Lists: shopping / todo / reusable, grouped by store or category, items remember where they go, bulk add, reorder, clear-completed, reset (for reusable lists).
 - API keys (bearer), OpenAPI docs at `/docs`, near-live updates via a cheap revision poll, outbound webhooks (HMAC-signed).
 - Touch UI: Calendar (day / week / month / schedule), Chores, Settings.
 
 **Later release**: native iPad wrapper app (SwiftUI + WKWebView) to hide the status bar / home indicator and keep the key in the Keychain — needs an Apple developer account for distribution.
 
-**Out of v1** (add when asked): meal planning, lists, photo frame, weather, rewards shop, multi-household, webhook retries, SSE/push (would need Durable Objects on Workers), editing a single occurrence of a *local* recurring event.
+**Out of v1** (add when asked): meal planning, photo frame, weather, rewards shop, multi-household, webhook retries, SSE/push (would need Durable Objects on Workers), editing a single occurrence of a *local* recurring event.
 
 ## Tech (fixed — don't swap)
 
@@ -98,6 +99,12 @@ chores(id, title, emoji, member_id NULL, points INT, rrule NULL, due_date NULL, 
        active INT, sort, created_at)
        -- rrule NULL + due_date => one-off. rrule e.g. 'FREQ=DAILY' or 'FREQ=WEEKLY;BYDAY=MO,WE,FR'
 chore_completions(id, chore_id, date 'YYYY-MM-DD', member_id NULL, completed_at, UNIQUE(chore_id, date))
+lists(id, name, emoji NULL, color NULL, kind 'todo'|'shopping'|'reusable', member_ids JSON '[]',
+      group_by 'store'|'category'|'none', sort, archived INT, created_at)
+list_items(id, list_id, title, notes NULL, quantity NULL, store NULL, category NULL, member_id NULL,
+           due_date NULL, done INT, done_at NULL, done_by NULL, sort, created_at, updated_at)
+list_groups(list_id, kind 'store'|'category', name, sort, PK(list_id, kind, name))
+       -- user ordering of a list's store/category groups; not every store/category needs a row
 api_keys(id, name, hash, prefix, scope 'admin'|'display', created_at, last_used_at)     -- sha256 of key; key shown once
 webhooks(id, url, events JSON, secret, enabled, created_at)
 pairings(id, code, poll_token_hash, approved, key_id, key_name, encrypted_key, created_at, expires_at)
@@ -148,6 +155,20 @@ GET    /api/chores/day?date=YYYY-MM-DD  -> [{...chore, completed, completedAt, c
          (chores due that date in the household timezone, grouped client-side by member)
 POST   /api/chores/:id/complete   {date, memberId?}      DELETE /api/chores/:id/complete?date=
 
+GET    /api/lists[?archived=true]   POST /api/lists   {name, kind, emoji?, color?, memberIds?, groupBy?}
+         List = {..., memberIds, groupBy 'store'|'category'|'none' (default: shopping -> category, else none),
+                 sort, archived, itemCount, openCount}   -- archived excluded unless archived=true
+GET    /api/lists/:id   -> {list, items, groups, suggestions: {stores, categories}}   (suggestions = distinct
+         non-null store/category values across all list_items, household-wide)
+PATCH  /api/lists/:id       DELETE /api/lists/:id   (cascades items + groups)
+POST   /api/lists/:id/items   body: ItemInput | ItemInput[] -> 201 ListItem[] (always an array)
+         "Remembers where things go": store/category omitted (not explicit null) -> filled from the
+         most recently updated list_item (any list) with a matching lower(trim(title))
+PATCH  /api/lists/:id/items/:itemId   partial; done:true sets doneAt/doneBy, done:false clears both
+DELETE /api/lists/:id/items/:itemId
+POST   /api/lists/:id/clear-completed -> {deleted}     POST /api/lists/:id/reset -> {reset}
+POST   /api/lists/:id/reorder   {itemIds} -> sort = index      PUT /api/lists/:id/groups   {groups} -> replaces ordering
+
 GET    /api/leaderboard?period=today|week|month   (default week; household timezone, week respects settings.weekStart)
          -> [{memberId, name, color, avatar, points, completed, streak, rank}]
          sorted by points desc, then completed desc, then name; rank ties on equal points+completed.
@@ -170,9 +191,9 @@ GET    /api/rev                 -> {rev}  (integer bumped on every write; UI pol
 
 `POST/GET/DELETE /mcp` - MCP **Streamable HTTP** transport, stateless (no sessions/Durable Objects), same bearer keys as the REST API (401 + `WWW-Authenticate: Bearer` without one). Implemented with `@modelcontextprotocol/sdk`'s `WebStandardStreamableHTTPServerTransport` (Web Standards - Request/Response/ReadableStream, no `node:*`; runs on Workers and Node unchanged). See `server/src/mcp.ts`.
 
-Every tool is a thin wrapper that calls the REST routes above in-process via `app.request()`, forwarding the caller's `Authorization` header - so validation, scope enforcement (display vs admin), bus events/webhooks and rev bumps happen exactly as for REST. A REST 4xx/5xx becomes a tool result with `isError: true` and the route's `{error}` text. Tools: `get_household`, `list_events`, `create_event`, `update_event`, `delete_event`, `list_chores`, `complete_chore`, `uncomplete_chore`, `create_chore`, `get_leaderboard`, `add_member`. Members may be referenced by name in tool args (resolved case-insensitively to id in the tool layer; ambiguous -> error listing matches).
+Every tool is a thin wrapper that calls the REST routes above in-process via `app.request()`, forwarding the caller's `Authorization` header - so validation, scope enforcement (display vs admin), bus events/webhooks and rev bumps happen exactly as for REST. A REST 4xx/5xx becomes a tool result with `isError: true` and the route's `{error}` text. Tools: `get_household`, `list_events`, `create_event`, `update_event`, `delete_event`, `list_chores`, `complete_chore`, `uncomplete_chore`, `create_chore`, `get_leaderboard`, `add_member`, `list_lists`, `get_list`, `add_list_items`, `set_list_item_done`. Members may be referenced by name in tool args (resolved case-insensitively to id in the tool layer; ambiguous -> error listing matches); lists likewise by name in `get_list`/`add_list_items`.
 
-Bus event types (webhooks; every emit also bumps `rev`): `member.changed`, `calendar.changed`, `calendar.synced`, `events.changed`, `chore.changed`, `chore.completed`, `chore.uncompleted`, `settings.changed`, `display.paired`. Webhook POST body `{type, data, at}`, header `X-Kinwall-Signature: sha256=<hex hmac of body>`; sent via `waitUntil`, 5s timeout, no retries.
+Bus event types (webhooks; every emit also bumps `rev`): `member.changed`, `calendar.changed`, `calendar.synced`, `events.changed`, `chore.changed`, `chore.completed`, `chore.uncompleted`, `list.changed`, `list.item.changed`, `settings.changed`, `display.paired`. Webhook POST body `{type, data, at}`, header `X-Kinwall-Signature: sha256=<hex hmac of body>`; sent via `waitUntil`, 5s timeout, no retries.
 
 ## Provider contract (`server/src/providers/types.ts`)
 
@@ -184,7 +205,7 @@ Sync window: now − 30 days → now + 365 days. `syncCalendar` replaces all eve
 
 **Encryption at rest**: `accounts.config`, `calendars.config`, `webhooks.secret` are AES-256-GCM encrypted (Web Crypto) with `ENCRYPTION_KEY` (32 random bytes, base64). Stored as `v1:<iv b64>:<ciphertext b64>`; the row id is the AAD so blobs can't be swapped between rows. Key source: Workers secret; Docker `ENCRYPTION_KEY` / `ENCRYPTION_KEY_FILE`, else generated once into `$DATA_DIR/encryption.key` (0600) with a startup warning.
 
-**Key scopes**: `admin` = everything. `display` = GET on me/members/calendars (config-free)/events/chores/leaderboard/settings/rev, settings PATCH, member update, event create/update/delete, chore create/update/delete/complete/uncomplete. `display` can NOT touch accounts, oauth, keys, webhooks, passkeys, displays, calendar create/delete, or member create/delete. Wall iPad uses a display key; its Settings tab shows Household, Appearance, This display (paired-as, nav position, unpair) and Members (edit only) — admin sections (calendar accounts, displays, passkeys, API keys, webhooks) don't render at all. The setup wizard's display-role flow and the phone `#/pair?code=` approval screen still use a temporary in-memory/sessionStorage admin key to finish setup/pairing. `ADMIN_API_KEY` env is admin.
+**Key scopes**: `admin` = everything. `display` = GET on me/members/calendars (config-free)/events/chores/leaderboard/settings/rev, settings PATCH, member update, event create/update/delete, chore create/update/delete/complete/uncomplete, and all of `/api/lists*` (lists are display-safe end to end - create/update/delete a list, its items, clear-completed, reset, reorder, groups). `display` can NOT touch accounts, oauth, keys, webhooks, passkeys, displays, calendar create/delete, or member create/delete. Wall iPad uses a display key; its Settings tab shows Household, Appearance, This display (paired-as, nav position, unpair) and Members (edit only) — admin sections (calendar accounts, displays, passkeys, API keys, webhooks) don't render at all. The setup wizard's display-role flow and the phone `#/pair?code=` approval screen still use a temporary in-memory/sessionStorage admin key to finish setup/pairing. `ADMIN_API_KEY` env is admin.
 
 **OAuth**: PKCE + single-use state; Google scopes `calendar.events calendar.readonly openid email` (not full `calendar`); revoke Google token on account delete.
 

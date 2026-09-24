@@ -71,6 +71,7 @@ test('mcp: tools/list returns the tools', async () => {
   const body = await res.json() as any;
   const names = body.result.tools.map((t: any) => t.name).sort();
   assert.deepEqual(names, [
+    'add_list_items',
     'add_member',
     'complete_chore',
     'create_chore',
@@ -78,8 +79,11 @@ test('mcp: tools/list returns the tools', async () => {
     'delete_event',
     'get_household',
     'get_leaderboard',
+    'get_list',
     'list_chores',
     'list_events',
+    'list_lists',
+    'set_list_item_done',
     'uncomplete_chore',
     'update_event',
   ]);
@@ -133,6 +137,24 @@ test('mcp: member name resolution - exact, ambiguous, and not found', async () =
   const exact = await mcp('tools/call', { name: 'complete_chore', arguments: { choreId: chore.id, date: '2026-05-01', member: 'Emma' } });
   const exactBody = await exact.json() as any;
   assert.equal(exactBody.result.isError, undefined);
+});
+
+test('mcp: add_list_items resolves a list by name and a member by name, and returns the created items', async () => {
+  const env = makeEnv();
+  const { rest, mcp } = makeApp(env);
+  const member = await (await rest('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Max', color: '#ff0000' }) })).json() as any;
+  const list = await (await rest('/api/lists', { method: 'POST', body: JSON.stringify({ name: 'Groceries', kind: 'shopping' }) })).json() as any;
+
+  const res = await mcp('tools/call', {
+    name: 'add_list_items',
+    arguments: { listName: 'groceries', items: ['Milk', { title: 'Eggs', quantity: '1 dozen', member: 'max' }] },
+  });
+  const body = await res.json() as any;
+  assert.equal(body.result.isError, undefined);
+  const items = body.result.structuredContent.items;
+  assert.equal(items.length, 2);
+  assert.equal(items[0].listId, list.id);
+  assert.equal(items[1].memberId, member.id);
 });
 
 test('mcp: a display key calling an admin-only action gets isError, not a thrown error', async () => {

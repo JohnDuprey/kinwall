@@ -142,4 +142,12 @@ test('round trips: hot GET/write paths stay within budget', async () => {
     4,
     200,
   );
+
+  // Uses the top-level `request` (ADMIN_API_KEY bootstrap key, zero auth DB reads - see the
+  // `auth` comment above) so the measured count is exactly the route's own D1 round trips.
+  const list = (await (await request('/api/lists', { method: 'POST', body: JSON.stringify({ name: 'Groceries', kind: 'shopping' }) })).json()) as any;
+  await request(`/api/lists/${list.id}/items`, { method: 'POST', body: JSON.stringify({ title: 'Milk', store: 'Costco', category: 'Dairy' }) });
+
+  await measure('GET /api/lists', () => request('/api/lists'), 1, 200);
+  await measure('GET /api/lists/{id}', () => request(`/api/lists/${list.id}`), 1, 200);
 });

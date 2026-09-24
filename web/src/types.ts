@@ -167,6 +167,72 @@ export interface Webhook {
   createdAt: string
 }
 
+export type ListKind = 'todo' | 'shopping' | 'reusable'
+export type ListGroupBy = 'store' | 'category' | 'none'
+
+export interface List {
+  id: string
+  name: string
+  emoji: string | null
+  color: string | null
+  kind: ListKind
+  memberIds: string[] // owners; [] = whole family
+  groupBy: ListGroupBy
+  sort: number
+  archived: boolean
+  createdAt: string
+  itemCount: number // computed
+  openCount: number // computed
+}
+
+export interface ListItem {
+  id: string
+  listId: string
+  title: string
+  notes: string | null
+  quantity: string | null // free text: "2", "1 lb", "x3"
+  store: string | null
+  category: string | null
+  memberId: string | null // assignee
+  dueDate: string | null // YYYY-MM-DD
+  done: boolean
+  doneAt: string | null
+  doneBy: string | null
+  sort: number
+  createdAt: string
+  updatedAt: string
+}
+
+/** User ordering of stores/categories within a list (drives group-header sort). */
+export interface ListGroup {
+  kind: 'store' | 'category'
+  name: string
+  sort: number
+}
+
+/** GET /api/lists/{id} response. suggestions are distinct store/category values used anywhere
+ * in the household, for <datalist> autocomplete on the item sheet. */
+export interface ListDetail {
+  list: List
+  items: ListItem[]
+  groups: ListGroup[]
+  suggestions: { stores: string[]; categories: string[] }
+}
+
+/** POST /api/lists/{id}/items body shape - store/category are OMITTED (not sent) unless the
+ * user explicitly set them, so the server can fill them in from a remembered matching title. */
+export interface ListItemInput {
+  title: string
+  notes?: string | null
+  quantity?: string | null
+  store?: string | null
+  category?: string | null
+  memberId?: string | null
+  dueDate?: string | null
+}
+
+export const LIST_EMOJI = ['📝', '🛒', '✅', '🧳', '🎒', '📋', '🧺', '🍽️', '🧹', '🎁']
+
 export const MEMBER_PALETTE = [
   '#FF9E7A', '#FFD166', '#7ED9A6', '#7AB8FF', '#B39DFF',
   '#FF8FA3', '#8FE0D6', '#FFB6D9', '#C7E27A', '#A0AEC0',

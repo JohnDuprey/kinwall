@@ -78,6 +78,21 @@ async function resolveMemberIds(app: App, env: Env, auth: string, refs: string[]
   return out;
 }
 
+// Lists may be referenced by name (case-insensitive) instead of id, same convention as members.
+async function resolveList(app: App, env: Env, auth: string, ref: string): Promise<{ id: string; name: string }> {
+  const { status, json } = await call(app, env, auth, 'GET', '/api/lists?archived=true');
+  if (status >= 400) throw new MemberResolutionError('failed to list lists');
+  const lists = json as { id: string; name: string }[];
+  const byId = lists.find((l) => l.id === ref);
+  if (byId) return byId;
+  const exact = lists.filter((l) => l.name.toLowerCase() === ref.toLowerCase());
+  if (exact.length === 1) return exact[0];
+  const partial = lists.filter((l) => l.name.toLowerCase().includes(ref.toLowerCase()));
+  if (partial.length === 1) return partial[0];
+  if (partial.length > 1) throw new MemberResolutionError(`"${ref}" matches multiple lists: ${partial.map((l) => l.name).join(', ')}`);
+  throw new MemberResolutionError(`no list found matching "${ref}"`);
+}
+
 function registerTools(server: McpServer, app: App, env: Env, auth: string) {
   const tool = server.registerTool.bind(server);
 
@@ -335,6 +350,116 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       if (res.status >= 400) return errorResult(res.json, 'failed to add member');
       const member = res.json as { name: string };
       return okResult(`Added member "${member.name}".`, { member: res.json as Record<string, unknown> });
+    },
+  );
+
+  tool(
+    'list_lists',
+    {
+      title: 'List lists',
+      description: 'List all lists (shopping/todo/reusable) with item and open counts.',
+      inputSchema: { archived: z.boolean().optional().describe('Include archived lists. Default: false.') },
+    },
+    async ({ archived }) => {
+      const res = await call(app, env, auth, 'GET', `/api/lists${archived ? '?archived=true' : ''}`);
+      if (res.status >= 400) return errorResult(res.json, 'failed to list lists');
+      const lists = res.json as { name: string; itemCount: number; openCount: number }[];
+      const summary = lists.map((l) => `${l.name} (${l.openCount}/${l.itemCount} open)`).join(', ') || 'no lists';
+      return okResult(`${lists.length} list(s): ${summary}.`, { lists: res.json as Record<string, unknown>[] });
+    },
+  );
+
+  tool(
+    'get_list',
+    {
+      title: 'Get list',
+      description: 'Get a list by id or name (case-insensitive), including its items, group ordering, and store/category suggestions.',
+      inputSchema: { list: z.string().describe('List id or name.') },
+    },
+    async ({ list }) => {
+      let id: string;
+      try {
+        id = (await resolveList(app, env, auth, list)).id;
+      } catch (err) {
+        return errorResult(null, err instanceof Error ? err.message : 'list lookup failed');
+      }
+      const res = await call(app, env, auth, 'GET', `/api/lists/${encodeURIComponent(id)}`);
+      if (res.status >= 400) return errorResult(res.json, 'failed to get list');
+      const detail = res.json as { list: { name: string }; items: unknown[] };
+      return okResult(`"${detail.list.name}": ${detail.items.length} item(s).`, detail as Record<string, unknown>);
+    },
+  );
+
+  tool(
+    'add_list_items',
+    {
+      title: 'Add list items',
+      description: 'Add one or more items to a list. Provide plain titles, or objects for more detail (notes, quantity, store, category, member, dueDate).',
+      inputSchema: {
+        listId: z.string().optional().describe('List id (use this or listName).'),
+        listName: z.string().optional().describe('List name, case-insensitive (use this or listId).'),
+        items: z.array(
+          z.union([
+            z.string().describe('Plain item title.'),
+            z.object({
+              title: z.string(),
+              notes: z.string().optional(),
+              quantity: z.string().optional().describe('Free text, e.g. "2" or "1 lb".'),
+              store: z.string().optional(),
+              category: z.string().optional(),
+              member: z.string().optional().describe('Member name or id to assign this item to.'),
+              dueDate: z.string().optional().describe('YYYY-MM-DD.'),
+            }),
+          ]),
+        ),
+      },
+    },
+    async ({ listId, listName, items }) => {
+      let resolvedListId: string;
+      try {
+        if (listId) {
+          resolvedListId = listId;
+        } else if (listName) {
+          resolvedListId = (await resolveList(app, env, auth, listName)).id;
+        } else {
+          return errorResult(null, 'listId or listName is required');
+        }
+      } catch (err) {
+        return errorResult(null, err instanceof Error ? err.message : 'list lookup failed');
+      }
+      const body: Record<string, unknown>[] = [];
+      for (const item of items) {
+        if (typeof item === 'string') {
+          body.push({ title: item });
+          continue;
+        }
+        const { member, ...rest } = item;
+        let memberId: string | undefined;
+        try {
+          if (member) memberId = await resolveMember(app, env, auth, member);
+        } catch (err) {
+          return errorResult(null, err instanceof Error ? err.message : 'member lookup failed');
+        }
+        body.push({ ...rest, memberId });
+      }
+      const res = await call(app, env, auth, 'POST', `/api/lists/${encodeURIComponent(resolvedListId)}/items`, body);
+      if (res.status >= 400) return errorResult(res.json, 'failed to add list items');
+      const added = res.json as unknown[];
+      return okResult(`Added ${added.length} item(s).`, { items: res.json as Record<string, unknown>[] });
+    },
+  );
+
+  tool(
+    'set_list_item_done',
+    {
+      title: 'Set list item done',
+      description: 'Mark a list item done or not done.',
+      inputSchema: { listId: z.string(), itemId: z.string(), done: z.boolean() },
+    },
+    async ({ listId, itemId, done }) => {
+      const res = await call(app, env, auth, 'PATCH', `/api/lists/${encodeURIComponent(listId)}/items/${encodeURIComponent(itemId)}`, { done });
+      if (res.status >= 400) return errorResult(res.json, 'failed to update item');
+      return okResult(done ? 'Marked item done.' : 'Marked item not done.', { item: res.json as Record<string, unknown> });
     },
   );
 }
