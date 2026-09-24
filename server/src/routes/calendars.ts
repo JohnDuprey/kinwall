@@ -80,23 +80,31 @@ calendarsRoutes.openapi(
   }),
   async (c) => {
     const body = c.req.valid('json');
-    if (body.kind === 'ics' && !body.url) return c.json({ error: 'ics calendars require url' }, 400);
-    if (['google', 'microsoft', 'caldav'].includes(body.kind) && (!body.accountId || !body.remoteId)) {
-      return c.json({ error: `${body.kind} calendars require accountId and remoteId` }, 400);
+    // A calendar from an account always uses that account's provider, whatever kind the client sent
+    // (the Settings picker used to send 'caldav' for Google/Outlook calendars, which then failed to sync).
+    let kind = body.kind;
+    if (body.accountId) {
+      const account = await c.env.DB.prepare('SELECT kind FROM accounts WHERE id = ?').bind(body.accountId).first<{ kind: CalendarRow['kind'] }>();
+      if (!account) return c.json({ error: 'unknown accountId' }, 400);
+      kind = account.kind;
+    }
+    if (kind === 'ics' && !body.url) return c.json({ error: 'ics calendars require url' }, 400);
+    if (['google', 'microsoft', 'caldav'].includes(kind) && (!body.accountId || !body.remoteId)) {
+      return c.json({ error: `${kind} calendars require accountId and remoteId` }, 400);
     }
     const id = crypto.randomUUID();
-    const rawConfig = body.kind === 'ics' ? { url: body.url } : {};
+    const rawConfig = kind === 'ics' ? { url: body.url } : {};
     let config: string;
     try {
       config = await encryptConfig(c.env, id, rawConfig);
     } catch (err) {
       return c.json({ error: errorMessage(err, 'encryption not configured') }, 500);
     }
-    const writable = body.kind === 'local' || body.kind === 'google' || body.kind === 'microsoft' || body.kind === 'caldav' ? 1 : 0;
+    const writable = kind === 'local' || kind === 'google' || kind === 'microsoft' || kind === 'caldav' ? 1 : 0;
     const memberIds = await memberIdsFromInput(c.env.DB, body);
     const row: CalendarRow = {
       id,
-      kind: body.kind,
+      kind: kind,
       account_id: body.accountId ?? null,
       remote_id: body.remoteId ?? null,
       name: body.name,

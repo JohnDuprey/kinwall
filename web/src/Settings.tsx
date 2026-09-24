@@ -370,7 +370,7 @@ function CalendarsSection({ openAccountId, onOpenedAccount, toast }: { openAccou
           onAccountCreated={id => { setCaldavSheet(false); setPickerAccountId(id); load() }} toast={toast} />
       )}
       {pickerAccountId && (
-        <RemoteCalendarPicker accountId={pickerAccountId} accountName={accounts.find(a => a.id === pickerAccountId)?.name ?? 'Account'}
+        <RemoteCalendarPicker accountId={pickerAccountId} accountKind={accounts.find(a => a.id === pickerAccountId)?.kind ?? 'caldav'} accountName={accounts.find(a => a.id === pickerAccountId)?.name ?? 'Account'}
           onClose={() => setPickerAccountId(null)} onAdded={load} toast={toast} />
       )}
       {editCal && (
@@ -480,8 +480,8 @@ function CaldavSheet({ onClose, onAccountCreated, toast }: { onClose: () => void
   )
 }
 
-function RemoteCalendarPicker({ accountId, accountName, onClose, onAdded, toast }: {
-  accountId: string; accountName: string; onClose: () => void; onAdded: () => void; toast: (m: string) => void
+function RemoteCalendarPicker({ accountId, accountKind, accountName, onClose, onAdded, toast }: {
+  accountId: string; accountKind: Account['kind']; accountName: string; onClose: () => void; onAdded: () => void; toast: (m: string) => void
 }) {
   const { members } = useApp()
   const [remotes, setRemotes] = useState<RemoteCalendar[] | null>(null)
@@ -495,7 +495,7 @@ function RemoteCalendarPicker({ accountId, accountName, onClose, onAdded, toast 
   const addOne = async (rc: RemoteCalendar) => {
     const c = choice[rc.remoteId] ?? { memberIds: [], color: rc.color ?? MEMBER_PALETTE[0] }
     try {
-      await api.createCalendar({ kind: 'caldav', accountId, remoteId: rc.remoteId, name: rc.name, color: c.color, memberIds: c.memberIds })
+      await api.createCalendar({ kind: accountKind, accountId, remoteId: rc.remoteId, name: rc.name, color: c.color, memberIds: c.memberIds })
       setAdded(s => new Set(s).add(rc.remoteId))
       onAdded()
     } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not add calendar') }

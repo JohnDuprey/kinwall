@@ -346,3 +346,27 @@ test('oauth: reconnecting the same account refreshes its tokens instead of addin
   const row = results.find((r) => r.id === first)!;
   assert.equal((await decryptConfig(env, first, row.config)).refresh_token, 'new');
 });
+
+test('calendars from an account take the account provider, and mis-typed ones are repaired', async () => {
+  const env = makeEnv();
+  const request = makeApp(env);
+  const { saveOAuthAccount } = await import('../src/routes/oauth.ts');
+  const accountId = await saveOAuthAccount(env, 'google', 'kid@gmail.com', { refresh_token: 'r' });
+
+  // The Settings picker used to send kind 'caldav' for a Google account's calendar.
+  const res = await request('/api/calendars', {
+    method: 'POST',
+    body: JSON.stringify({ kind: 'caldav', accountId, remoteId: 'abc@group.calendar.google.com', name: 'Kid' }),
+  });
+  assert.equal(res.status, 201);
+  assert.equal(((await res.json()) as any).kind, 'google');
+  assert.equal((await request('/api/calendars', { method: 'POST', body: JSON.stringify({ kind: 'google', accountId: 'nope', remoteId: 'x', name: 'x' }) })).status, 400);
+
+  // Data fix for rows saved before: 0009 retypes them from their account.
+  await env.DB.prepare("UPDATE calendars SET kind = 'caldav', last_error = 'CalDAV error: Invalid URL string.'").run();
+  const sql = readFileSync(path.join(__dirname, '..', 'migrations', '0009_calendar_kind_from_account.sql'), 'utf8');
+  await env.DB.prepare(sql.split('\n').filter((l) => !l.startsWith('--')).join('\n')).run();
+  const row = await env.DB.prepare('SELECT kind, last_error FROM calendars').first<{ kind: string; last_error: string | null }>();
+  assert.equal(row?.kind, 'google');
+  assert.equal(row?.last_error, null);
+});

@@ -9,6 +9,7 @@ import m0005 from '../migrations/0005_passkeys.sql';
 import m0006 from '../migrations/0006_event_member_overrides.sql';
 import m0007 from '../migrations/0007_series_member_overrides.sql';
 import m0008 from '../migrations/0008_calendar_multi_member.sql';
+import m0009 from '../migrations/0009_calendar_kind_from_account.sql';
 
 export const MIGRATIONS: Migration[] = [
   { name: '0001_init.sql', sql: m0001 },
@@ -19,4 +20,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0006_event_member_overrides.sql', sql: m0006 },
   { name: '0007_series_member_overrides.sql', sql: m0007 },
   { name: '0008_calendar_multi_member.sql', sql: m0008 },
+  { name: '0009_calendar_kind_from_account.sql', sql: m0009 },
 ];
