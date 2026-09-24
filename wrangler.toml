@@ -7,7 +7,8 @@ compatibility_flags = ["nodejs_compat"] # tsdav needs it
 
 # Runs on every `wrangler deploy` (including Cloudflare's git builds): build the UI, install server deps.
 [build]
-command = "npm ci --prefix web && npm run build --prefix web && npm ci --prefix server"
+# Starts from the repo root even if the Cloudflare project's root directory is set to server/.
+command = "[ -d web ] || cd ..; npm ci --prefix web && npm run build --prefix web && npm ci --prefix server"
 
 [triggers]
 crons = ["*/10 * * * *"]
