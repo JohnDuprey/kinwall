@@ -23,9 +23,9 @@ Self-hosted, open-source family wall calendar + chore chart, displayed full-scre
 | Concern | Choice | Why |
 |---|---|---|
 | HTTP | **Hono** + `@hono/zod-openapi` + `zod` + `@hono/swagger-ui` | same app runs on Workers and Node; OpenAPI from route schemas |
-| Workers target | `server/src/worker.ts` → `export default { fetch, scheduled }`, `wrangler.toml` with D1 binding `DB`, cron `*/10 * * * *`, static assets from `../web/dist` (SPA fallback) | free tier |
+| Workers target | `server/src/worker.ts` → `export default { fetch, scheduled }`, root `wrangler.toml` (builds the UI via `[build]`, D1 binding `DB` auto-provisioned), cron `*/10 * * * *`, static assets from `../web/dist` (SPA fallback) | free tier |
 | Node target | `server/src/node.ts` → `@hono/node-server` + `serveStatic` for `web/dist`, `setInterval` sync loop, `node:sqlite` wrapped by `server/src/d1-sqlite.ts` which implements the **D1 API subset** (`prepare().bind().all()/first()/run()`, `batch()`) | app code only ever sees `D1Database` |
-| Migrations | `server/migrations/NNNN_name.sql` — applied by `wrangler d1 migrations apply` on Workers, and by the Node entry on boot (tracks applied files in `_migrations`) | one set of SQL |
+| Migrations | `server/migrations/NNNN_name.sql` — applied at runtime on both targets, tracked in `_migrations`: the Node entry on boot, the Worker on its first request/cron per isolate (`server/src/migrate.ts`, files bundled via `server/src/worker-migrations.ts`) | one set of SQL |
 | TS | Node runs `.ts` directly (native type stripping); wrangler bundles with esbuild. Rules: `import ... from './x.ts'` (with extension), `import type` for types, **no enums, no namespaces, no constructor parameter properties**. `tsc --noEmit` for typecheck | no build step for server |
 | Runtime APIs | **Workers-compatible only** in shared code: `fetch`, Web Crypto (`crypto.subtle`, `crypto.randomUUID`), `Intl`. No `fs`, `node:crypto`, `process` outside `node.ts`/`d1-sqlite.ts`. Config comes from Hono `c.env` (Node entry passes `process.env` + adapted DB as env) | |
 | Background work | `waitUntil` helper: `c.executionCtx.waitUntil` when present, else fire-and-forget | webhooks |

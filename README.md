@@ -30,23 +30,16 @@ Or use [`docker-compose.yml`](docker-compose.yml). All state lives in `/data`: t
 
 **From GitHub (recommended):** fork the repo, then in the Cloudflare dashboard:
 
-1. **Storage & Databases → D1 → Create** a database named `kinwall` and copy its **Database ID**.
-2. **Workers & Pages → Create → Import a repository**, pick your fork, then under the Worker's **Settings → Build**:
-   - Root directory: `server`
-   - Build command: `sh scripts/cloudflare-build.sh`
-   - Deploy command: `npx wrangler d1 migrations apply kinwall --remote && npx wrangler deploy`
-   - Build variable: `D1_DATABASE_ID` = the ID from step 1. The build writes it into its own copy of `wrangler.toml`, so it never has to be committed.
-3. **Settings → Variables and Secrets**, as type *Secret*: `ENCRYPTION_KEY` (value from `openssl rand -base64 32`) and optionally `ADMIN_API_KEY` (any long random string, which also works as the first-run setup code).
-4. Open your `*.workers.dev` URL. Without `ADMIN_API_KEY`, the setup code is printed in the Worker's live logs on the first visit.
+1. **Workers & Pages → Create → Import a repository** and pick your fork. Keep the default settings: root directory `/`, no build command, deploy command `npx wrangler deploy`. The build (UI + dependencies) runs from `wrangler.toml`, the D1 database is created automatically on the first deploy and stays linked afterwards, and the Worker applies its own database migrations.
+2. **Settings → Variables and Secrets**, as type *Secret*: `ENCRYPTION_KEY` (value from `openssl rand -base64 32`) and optionally `ADMIN_API_KEY` (any long random string, which also works as the first-run setup code).
+3. Open your `*.workers.dev` URL. Without `ADMIN_API_KEY`, the setup code is printed in the Worker's live logs on the first visit.
 
 **From the CLI:**
 
 ```bash
-cd server && npm ci && (cd ../web && npm ci && npm run build)
-npx wrangler d1 create kinwall            # paste the database_id into wrangler.toml
 npx wrangler secret put ENCRYPTION_KEY    # value: openssl rand -base64 32
 npx wrangler secret put ADMIN_API_KEY     # optional; also works as the setup code
-npm run deploy                            # applies migrations + deploys
+npx wrangler deploy                       # from the repo root: builds, creates the database, deploys
 ```
 
 Set the public URL in **Settings → Calendar providers** (or `PUBLIC_URL` in `wrangler.toml` `[vars]`) to your `*.workers.dev` URL or custom domain. The free tier is 100k requests/day, and each request or cron run gets 10 ms of CPU. Sync stays inside that limit: feeds that haven't changed are skipped by fingerprint, and Google/Microsoft/CalDAV sync in 31-day slices. If a very large ICS feed hits the CPU limit, move to Workers Paid ($5/mo).
@@ -147,7 +140,7 @@ cd server && npm ci && npm run dev          # API on :8080 (Node, SQLite in ./da
 cd web && npm ci && npm run dev             # UI on :5173, proxies /api; reachable from an iPad on your LAN
 VITE_MOCK=1 npm run dev                     # UI with in-memory fake data, no server needed
 cd server && npm run dev:worker             # same API on the Workers runtime with local D1
-                                            # (first: npx wrangler d1 migrations apply kinwall --local, and put ENCRYPTION_KEY in .dev.vars)
+                                            # (put ENCRYPTION_KEY in a .dev.vars file at the repo root)
 cd server && npm test && npm run typecheck
 ```
 

@@ -1,0 +1,27 @@
+# Cloudflare Workers config. Lives at the repo root so a git-connected Cloudflare project works with
+# the default settings (root directory "/", deploy command `npx wrangler deploy`).
+name = "kinwall"
+main = "server/src/worker.ts"
+compatibility_date = "2026-09-24"
+compatibility_flags = ["nodejs_compat"] # tsdav needs it
+
+# Runs on every `wrangler deploy` (including Cloudflare's git builds): build the UI, install server deps.
+[build]
+command = "npm ci --prefix web && npm run build --prefix web && npm ci --prefix server"
+
+[triggers]
+crons = ["*/10 * * * *"]
+
+# No database_id: wrangler creates the D1 database on the first deploy and keeps it linked to this
+# Worker on later deploys. The Worker applies server/migrations itself (server/src/migrate.ts).
+[[d1_databases]]
+binding = "DB"
+
+[assets]
+directory = "web/dist"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*", "/docs", "/openapi.json", "/mcp"]
+
+[vars]
+SYNC_INTERVAL_MINUTES = "10"
+MS_TENANT = "common"

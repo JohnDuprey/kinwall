@@ -5,11 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "node --watch src/node.ts",
-    "dev:worker": "wrangler dev",
+    "dev:worker": "wrangler dev --config ../wrangler.toml",
     "start": "node src/node.ts",
     "test": "node --test",
     "typecheck": "tsc --noEmit",
-    "deploy": "wrangler d1 migrations apply kinwall --remote && wrangler deploy"
+    "deploy": "wrangler deploy --config ../wrangler.toml"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.1",
