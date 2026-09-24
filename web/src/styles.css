@@ -60,6 +60,7 @@ html { font-size: calc(16px * var(--text-scale)); }
 }
 
 :root[data-theme="dark"] {
+  color-scheme: dark;
   --bg: #1C1712;
   --bg-alt: #241D17;
   --card: #2A221B;
@@ -584,6 +585,23 @@ button {
 }
 .field textarea { min-height: 70px; font-weight: 600; resize: none; }
 .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+/* Timed events: Starts [date][time] / Ends [date][time] */
+.row-datetime { display: grid; grid-template-columns: 3fr 2fr; column-gap: 12px; }
+.field-error { color: var(--danger); font-size: 0.875rem; font-weight: 700; margin: -6px 0 14px; }
+
+/* Selects: our own chevron at the same inset as the date/time field icons, instead of the native one */
+.field select, .settings-select {
+  -webkit-appearance: none; appearance: none; padding-right: 44px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%237a7068' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 16px center; background-size: 14px;
+}
+:root[data-theme="dark"] .field select, :root[data-theme="dark"] .settings-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23b0a79c' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+}
+/* Date/time icon: same 16px inset as the select chevron */
+.field input[type="date"], .field input[type="time"] { padding-right: 14px; }
+.field input::-webkit-calendar-picker-indicator { margin: 0 2px 0 8px; opacity: 0.75; cursor: pointer; }
+
 
 .toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 2px; }
 .toggle-row label { font-size: 0.9375rem; font-weight: 800; color: var(--text); text-transform: none; margin: 0; }

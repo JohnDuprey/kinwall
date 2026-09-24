@@ -700,25 +700,34 @@ function EventEditSheet({ event, prefill, calendars, members, onClose, onSave }:
   const [location, setLocation] = useState(base.location ?? '')
   const [rrule, setRrule] = useState<'' | 'daily' | 'weekly' | 'monthly'>(base.rrule?.includes('DAILY') ? 'daily' : base.rrule?.includes('WEEKLY') ? 'weekly' : base.rrule?.includes('MONTHLY') ? 'monthly' : '')
 
-  const seedDate = base.start ? new Date(base.start) : new Date()
-  const [dateStr, setDateStr] = useState(format(seedDate, 'yyyy-MM-dd'))
-  const [startTime, setStartTime] = useState(format(seedDate, 'HH:mm'))
-  const seedEnd = base.end ? new Date(base.end) : new Date(seedDate.getTime() + 3600000)
-  const [endTime, setEndTime] = useState(format(seedEnd, 'HH:mm'))
-  const [endDateStr, setEndDateStr] = useState(format(seedEnd, 'yyyy-MM-dd'))
+  // All-day values are plain dates ('YYYY-MM-DD', end exclusive): read them as local days, never via
+  // new Date('YYYY-MM-DD'), which is UTC midnight and shows the previous day west of UTC.
+  const localDay = (d: string) => new Date(d + 'T00:00:00')
+  const seedStart = base.start ? (base.allDay ? localDay(base.start) : new Date(base.start)) : new Date()
+  const seedEnd = base.end
+    ? (base.allDay ? addDays(localDay(base.end), -1) : new Date(base.end)) // all-day end shown inclusive
+    : new Date(seedStart.getTime() + 3600000)
+  const [startDate, setStartDate] = useState(format(seedStart, 'yyyy-MM-dd'))
+  const [startTime, setStartTime] = useState(base.allDay ? '09:00' : format(seedStart, 'HH:mm'))
+  const [endDate, setEndDate] = useState(format(seedEnd, 'yyyy-MM-dd'))
+  const [endTime, setEndTime] = useState(base.allDay ? '10:00' : format(seedEnd, 'HH:mm'))
+  // Moving the start past the end drags the end along, so the range never inverts.
+  const changeStartDate = (d: string) => { setStartDate(d); if (d > endDate) setEndDate(d) }
+  const endBeforeStart = allDay ? endDate < startDate : `${endDate}T${endTime}` <= `${startDate}T${startTime}`
 
   const toggleMember = (id: string) => setMemberIds(ids => ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id])
 
   const submit = () => {
     if (!title.trim() || !calendarId) return
     const rruleStr = rrule === 'daily' ? 'FREQ=DAILY' : rrule === 'weekly' ? 'FREQ=WEEKLY' : rrule === 'monthly' ? 'FREQ=MONTHLY' : null
+    if (endBeforeStart) return
     let start: string, end: string
     if (allDay) {
-      start = dateStr
-      end = format(addDays(new Date(dateStr + 'T00:00:00'), 1), 'yyyy-MM-dd')
+      start = startDate
+      end = format(addDays(localDay(endDate), 1), 'yyyy-MM-dd') // stored exclusive
     } else {
-      start = new Date(`${dateStr}T${startTime}:00`).toISOString()
-      end = new Date(`${endDateStr}T${endTime}:00`).toISOString()
+      start = new Date(`${startDate}T${startTime}:00`).toISOString()
+      end = new Date(`${endDate}T${endTime}:00`).toISOString()
     }
     // Server's EventInput.location is string|undefined (not nullable) — send undefined, not null, when empty.
     onSave({ title: title.trim(), calendarId, allDay, start, end, location: location.trim() || undefined, memberIds, rrule: rruleStr }, event?.id ?? null)
@@ -726,7 +735,7 @@ function EventEditSheet({ event, prefill, calendars, members, onClose, onSave }:
 
   return (
     <Sheet title={event ? 'Edit event' : 'New event'} onClose={onClose}
-      actions={<button className="btn btn-primary btn-block" onClick={submit}>{event ? 'Save changes' : 'Add event'}</button>}>
+      actions={<button className="btn btn-primary btn-block" onClick={submit} disabled={endBeforeStart}>{event ? 'Save changes' : 'Add event'}</button>}>
       <div className="field">
         <label>Title</label>
         <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="Event title" autoFocus />
@@ -735,29 +744,29 @@ function EventEditSheet({ event, prefill, calendars, members, onClose, onSave }:
         <label>All day</label>
         <button className={`switch ${allDay ? 'on' : ''}`} onClick={() => setAllDay(v => !v)}><span className="knob" /></button>
       </div>
-      {allDay ? (
+      <div className={allDay ? 'row-2' : 'row-datetime'}>
         <div className="field">
-          <label>Date</label>
-          <input type="date" value={dateStr} onChange={e => setDateStr(e.target.value)} />
+          <label>Starts</label>
+          <input type="date" value={startDate} onChange={e => changeStartDate(e.target.value)} />
         </div>
-      ) : (
-        <>
+        {!allDay && (
           <div className="field">
-            <label>Date</label>
-            <input type="date" value={dateStr} onChange={e => { setDateStr(e.target.value); setEndDateStr(e.target.value) }} />
+            <label>&nbsp;</label>
+            <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} aria-label="Start time" />
           </div>
-          <div className="row-2">
-            <div className="field">
-              <label>Starts</label>
-              <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} />
-            </div>
-            <div className="field">
-              <label>Ends</label>
-              <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} />
-            </div>
+        )}
+        <div className="field">
+          <label>Ends</label>
+          <input type="date" value={endDate} min={startDate} onChange={e => setEndDate(e.target.value)} />
+        </div>
+        {!allDay && (
+          <div className="field">
+            <label>&nbsp;</label>
+            <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} aria-label="End time" />
           </div>
-        </>
-      )}
+        )}
+      </div>
+      {endBeforeStart && <p className="field-error">The end has to be after the start.</p>}
       <div className="field">
         <label>Calendar</label>
         <select value={calendarId} onChange={e => setCalendarId(e.target.value)}>
