@@ -53,6 +53,11 @@
   color: var(--text);
   margin-bottom: 8px;
 }
+/* ADMIN_API_KEY alternative: same box, normal text size for a long secret */
+.setup-key-input {
+  display: block; width: 100%; font-size: max(1.125rem, 16px); padding: 18px 14px; text-align: center;
+  border-radius: var(--radius-sm); border: 2px solid var(--border); background: var(--bg-alt); color: var(--text); margin-bottom: 8px;
+}
 .setup-hint-toggle { display: block; margin: 4px auto 0; }
 .setup-hint-box { margin-top: 14px; background: var(--bg-alt); border-radius: var(--radius-sm); padding: 14px 16px; text-align: left; font-size: 0.84375rem; color: var(--text-dim); font-weight: 600; }
 .setup-hint-box p { margin: 4px 0; }

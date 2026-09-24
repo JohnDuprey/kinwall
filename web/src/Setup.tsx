@@ -100,26 +100,45 @@ function AdminUnlockInline({ onUnlocked }: { onUnlocked: () => void }) {
 
 function WelcomeStep({ code, setCode, onNext }: { code: string; setCode: (v: string) => void; onNext: () => void }) {
   const [hint, setHint] = useState(false)
+  // The setup code is 6 digits; the server also accepts the ADMIN_API_KEY secret, which is long.
+  const [useKey, setUseKey] = useState(false)
+  const ready = useKey ? code.length >= 6 : code.length === 6
+  const switchMode = () => { setUseKey(k => !k); setCode('') }
   return (
     <div className="setup-step">
       <h1>Welcome to Kinwall 👋</h1>
-      <p className="setup-sub">Let's get your family wall set up. Enter the setup code from your server log to begin.</p>
-      <input
-        className="setup-code-input"
-        type="text" inputMode="numeric" pattern="[0-9]*" maxLength={6} autoFocus
-        value={code} onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-        onKeyDown={e => e.key === 'Enter' && code.length === 6 && onNext()}
-        placeholder="000 000"
-      />
-      <button className="link-btn setup-hint-toggle" onClick={() => setHint(h => !h)}>Where do I find this?</button>
-      {hint && (
+      <p className="setup-sub">
+        {useKey ? 'Enter the ADMIN_API_KEY you set on the server.' : "Let's get your family wall set up. Enter the setup code from your server log to begin."}
+      </p>
+      {useKey ? (
+        <input
+          className="setup-key-input"
+          type="password" autoComplete="off" autoCapitalize="off" spellCheck={false} autoFocus
+          value={code} onChange={e => setCode(e.target.value.trim())}
+          onKeyDown={e => e.key === 'Enter' && ready && onNext()}
+          placeholder="ADMIN_API_KEY"
+        />
+      ) : (
+        <input
+          className="setup-code-input"
+          type="text" inputMode="numeric" pattern="[0-9]*" maxLength={6} autoFocus
+          value={code} onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+          onKeyDown={e => e.key === 'Enter' && ready && onNext()}
+          placeholder="000 000"
+        />
+      )}
+      <button className="link-btn setup-hint-toggle" onClick={switchMode}>
+        {useKey ? 'Use a 6-digit setup code instead' : 'Use your ADMIN_API_KEY instead'}
+      </button>
+      {!useKey && <button className="link-btn setup-hint-toggle" onClick={() => setHint(h => !h)}>Where do I find this?</button>}
+      {hint && !useKey && (
         <div className="setup-hint-box">
           <p><strong>Docker:</strong> <code>docker logs kinwall</code></p>
           <p><strong>Home Assistant add-on:</strong> Settings → Add-ons → Kinwall → Log</p>
-          <p><strong>Cloudflare Workers:</strong> your <code>ADMIN_API_KEY</code> secret works as the code</p>
+          <p><strong>Cloudflare Workers:</strong> the Worker's logs, or use your <code>ADMIN_API_KEY</code> secret instead</p>
         </div>
       )}
-      <StepNav onNext={onNext} nextDisabled={code.length !== 6} nextLabel="Continue" />
+      <StepNav onNext={onNext} nextDisabled={!ready} nextLabel="Continue" />
     </div>
   )
 }
