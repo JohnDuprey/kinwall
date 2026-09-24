@@ -141,6 +141,7 @@ function toNormalized(item: any): NormalizedEvent {
     allDay,
     location: item.location || undefined,
     description: item.description || undefined,
+    seriesId: item.recurringEventId || undefined,
   };
 }
 

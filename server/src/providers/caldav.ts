@@ -111,7 +111,7 @@ export const provider: Provider = {
       const events: NormalizedEvent[] = [];
       for (const obj of objects) {
         if (!obj.data) continue;
-        for (const instance of expandICS(obj.data, from, to, ctx.env.TIMEZONE ?? 'UTC')) {
+        for (const instance of await expandICS(obj.data, from, to, ctx.env.TIMEZONE ?? 'UTC')) {
           events.push({ ...instance, externalId: `${obj.url}::${instance.externalId}` });
         }
       }
@@ -158,7 +158,7 @@ export const provider: Provider = {
       const uid = uidMatch?.[1] ?? crypto.randomUUID();
       // Best-effort merge: pull the current field values from the existing object (via the
       // shared ICS parser) so a partial update doesn't blank out fields the caller didn't pass.
-      const base = existing?.data ? expandICS(existing.data, new Date(0), new Date(8640000000000000), ctx.env.TIMEZONE ?? 'UTC')[0] : undefined;
+      const base = existing?.data ? (await expandICS(existing.data, new Date(0), new Date(8640000000000000), ctx.env.TIMEZONE ?? 'UTC'))[0] : undefined;
       const merged: EventInput = {
         title: ev.title ?? base?.title ?? '',
         start: ev.start ?? base?.start ?? '',

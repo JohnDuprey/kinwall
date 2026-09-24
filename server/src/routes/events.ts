@@ -26,6 +26,7 @@ type EventRow = {
   rrule: string | null;
   member_ids: string;
   updated_at: string;
+  series_id: string | null;
 };
 
 type CalendarRow = {
@@ -95,6 +96,61 @@ async function setMemberOverride(db: D1Database, calendarId: string, externalId:
     .run();
 }
 
+function seriesOverrideKey(calendarId: string, seriesId: string): string {
+  return `${calendarId}\u0000${seriesId}`;
+}
+
+// Series-wide member assignment for recurring synced events - keyed by (calendar_id, series_id),
+// same "survives wholesale re-sync" reasoning as overridesMap above. Falls in between the
+// occurrence override and the calendar's own member in the resolution order (see instanceFrom).
+async function seriesOverridesMap(db: D1Database, calendarIds: string[]): Promise<Map<string, string[]>> {
+  const map = new Map<string, string[]>();
+  if (calendarIds.length === 0) return map;
+  const placeholders = calendarIds.map(() => '?').join(',');
+  const { results } = await db
+    .prepare(`SELECT calendar_id, series_id, member_ids FROM event_series_member_overrides WHERE calendar_id IN (${placeholders})`)
+    .bind(...calendarIds)
+    .all<{ calendar_id: string; series_id: string; member_ids: string }>();
+  for (const r of results) {
+    try {
+      map.set(seriesOverrideKey(r.calendar_id, r.series_id), JSON.parse(r.member_ids));
+    } catch {
+      // malformed row - ignore, falls back to calendar member like no override at all
+    }
+  }
+  return map;
+}
+
+// '[]' clears the series override back to the calendar member fallback, same as setMemberOverride.
+async function setSeriesMemberOverride(db: D1Database, calendarId: string, seriesId: string, memberIds: string[]): Promise<void> {
+  if (memberIds.length === 0) {
+    await db.prepare('DELETE FROM event_series_member_overrides WHERE calendar_id = ? AND series_id = ?').bind(calendarId, seriesId).run();
+    return;
+  }
+  await db
+    .prepare(
+      'INSERT INTO event_series_member_overrides (calendar_id, series_id, member_ids, updated_at) VALUES (?,?,?,?) ' +
+        'ON CONFLICT(calendar_id, series_id) DO UPDATE SET member_ids = excluded.member_ids, updated_at = excluded.updated_at',
+    )
+    .bind(calendarId, seriesId, JSON.stringify(memberIds), new Date().toISOString())
+    .run();
+}
+
+// "All events in the series" means all: an occurrence-level tag left over from before the event
+// was tagged at series level would otherwise still win (occurrence beats series in the resolution
+// order) and make the series tag look like it didn't apply to that occurrence.
+async function clearOccurrenceOverridesForSeries(db: D1Database, calendarId: string, seriesId: string): Promise<void> {
+  await db
+    .prepare(
+      'DELETE FROM event_member_overrides WHERE calendar_id = ? AND external_id IN ' +
+        '(SELECT external_id FROM events WHERE calendar_id = ? AND series_id = ?)',
+    )
+    .bind(calendarId, calendarId, seriesId)
+    .run();
+}
+
+type MemberScope = 'occurrence' | 'series' | 'calendar' | 'none';
+
 function instanceFrom(
   row: EventRow,
   cal: CalendarRow,
@@ -102,17 +158,31 @@ function instanceFrom(
   occurrenceStart: string | null,
   start: string,
   end: string,
-  overrideMemberIds?: string[],
+  occurrenceOverride?: string[],
+  seriesOverride?: string[],
 ) {
-  let memberIds: string[] = overrideMemberIds ?? [];
-  if (!overrideMemberIds) {
+  let memberIds: string[];
+  let memberScope: MemberScope;
+  if (cal.kind === 'local') {
     try {
       memberIds = JSON.parse(row.member_ids || '[]');
     } catch {
       memberIds = [];
     }
+    memberScope = 'none';
+  } else if (occurrenceOverride) {
+    memberIds = occurrenceOverride;
+    memberScope = 'occurrence';
+  } else if (seriesOverride) {
+    memberIds = seriesOverride;
+    memberScope = 'series';
+  } else if (cal.member_id) {
+    memberIds = [cal.member_id];
+    memberScope = 'calendar';
+  } else {
+    memberIds = [];
+    memberScope = 'none';
   }
-  if (memberIds.length === 0 && cal.member_id) memberIds = [cal.member_id];
   const color = (memberIds[0] && memberColors.get(memberIds[0])) || cal.color || '#888';
   return {
     id: row.id,
@@ -128,6 +198,8 @@ function instanceFrom(
     rrule: row.rrule,
     occurrenceStart,
     readOnly: !cal.writable,
+    seriesId: row.series_id,
+    memberScope,
   };
 }
 
@@ -180,16 +252,18 @@ eventsRoutes.openapi(
     const tz = await householdTz(c.env.DB);
     const memberColors = await colorsByMember(c.env.DB);
     const overrides = await overridesMap(c.env.DB, calendars.map((cal) => cal.id));
+    const seriesOverrides = await seriesOverridesMap(c.env.DB, calendars.map((cal) => cal.id));
     const out: ReturnType<typeof instanceFrom>[] = [];
 
     for (const row of rows) {
       const cal = calById.get(row.calendar_id);
       if (!cal) continue;
       const override = row.external_id ? overrides.get(overrideKey(cal.id, row.external_id)) : undefined;
+      const seriesOverride = row.series_id ? seriesOverrides.get(seriesOverrideKey(cal.id, row.series_id)) : undefined;
 
       if (cal.kind === 'local' && row.rrule) {
         for (const inst of expand(row.rrule, row.start, row.end, !!row.all_day, tz, fromDate, toDate)) {
-          out.push(instanceFrom(row, cal, memberColors, inst.start, inst.start, inst.end, override));
+          out.push(instanceFrom(row, cal, memberColors, inst.start, inst.start, inst.end, override, seriesOverride));
         }
         continue;
       }
@@ -198,7 +272,7 @@ eventsRoutes.openapi(
       const startMs = row.all_day ? Date.parse(`${row.start}T00:00:00Z`) : Date.parse(row.start);
       const endMs = row.all_day ? Date.parse(`${row.end}T00:00:00Z`) : Date.parse(row.end);
       if (endMs <= fromDate.getTime() || startMs >= toDate.getTime()) continue;
-      out.push(instanceFrom(row, cal, memberColors, null, row.start, row.end, override));
+      out.push(instanceFrom(row, cal, memberColors, null, row.start, row.end, override, seriesOverride));
     }
 
     let filtered = out;
@@ -234,6 +308,7 @@ eventsRoutes.openapi(
     let end = body.end;
     let location = body.location ?? null;
     let description = body.description ?? null;
+    let seriesId: string | null = null;
 
     if (cal.kind !== 'local') {
       const provider = getProvider(cal.kind as 'ics' | 'google' | 'microsoft' | 'caldav');
@@ -254,6 +329,7 @@ eventsRoutes.openapi(
         end = created.end;
         location = created.location ?? null;
         description = created.description ?? null;
+        seriesId = created.seriesId ?? null;
       } catch (err) {
         return c.json({ error: errorMessage(err, 'provider write failed') }, 502);
       }
@@ -275,16 +351,18 @@ eventsRoutes.openapi(
       rrule: cal.kind === 'local' ? (body.rrule ?? null) : null,
       member_ids: JSON.stringify(body.memberIds ?? []),
       updated_at: new Date().toISOString(),
+      series_id: seriesId,
     };
     await c.env.DB.prepare(
-      'INSERT INTO events (id, calendar_id, external_id, title, start, end, all_day, location, description, rrule, member_ids, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+      'INSERT INTO events (id, calendar_id, external_id, title, start, end, all_day, location, description, rrule, member_ids, updated_at, series_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
     )
-      .bind(row.id, row.calendar_id, row.external_id, row.title, row.start, row.end, row.all_day, row.location, row.description, row.rrule, row.member_ids, row.updated_at)
+      .bind(row.id, row.calendar_id, row.external_id, row.title, row.start, row.end, row.all_day, row.location, row.description, row.rrule, row.member_ids, row.updated_at, row.series_id)
       .run();
     emit(c, 'events.changed', { calendarId: cal.id });
 
     const memberColors = await colorsByMember(c.env.DB);
-    return c.json(instanceFrom(row, cal, memberColors, null, row.start, row.end), 201);
+    const seriesOverride = row.series_id ? (await seriesOverridesMap(c.env.DB, [cal.id])).get(seriesOverrideKey(cal.id, row.series_id)) : undefined;
+    return c.json(instanceFrom(row, cal, memberColors, null, row.start, row.end, undefined, seriesOverride), 201);
   },
 );
 
@@ -315,11 +393,15 @@ eventsRoutes.openapi(
     if (!found) return c.json({ error: 'not found' }, 404);
     const memberColors = await colorsByMember(c.env.DB);
     const override = found.row.external_id ? (await overridesMap(c.env.DB, [found.cal.id])).get(overrideKey(found.cal.id, found.row.external_id)) : undefined;
-    return c.json(instanceFrom(found.row, found.cal, memberColors, null, found.row.start, found.row.end, override), 200);
+    const seriesOverride = found.row.series_id ? (await seriesOverridesMap(c.env.DB, [found.cal.id])).get(seriesOverrideKey(found.cal.id, found.row.series_id)) : undefined;
+    return c.json(instanceFrom(found.row, found.cal, memberColors, null, found.row.start, found.row.end, override, seriesOverride), 200);
   },
 );
 
-const EventPatchSchema = EventInputSchema.omit({ calendarId: true }).partial().openapi('EventPatch');
+const EventPatchSchema = EventInputSchema.omit({ calendarId: true })
+  .partial()
+  .extend({ scope: z.enum(['occurrence', 'series']).optional() })
+  .openapi('EventPatch');
 
 eventsRoutes.openapi(
   createRoute({
@@ -389,8 +471,15 @@ eventsRoutes.openapi(
     }
 
     if (cal.kind !== 'local' && body.memberIds !== undefined) {
-      if (!row.external_id) return c.json({ error: 'event has no external id' }, 400);
-      await setMemberOverride(c.env.DB, cal.id, row.external_id, body.memberIds);
+      const scope = body.scope ?? 'occurrence';
+      if (scope === 'series') {
+        if (!row.series_id) return c.json({ error: 'event has no series to tag' }, 400);
+        await setSeriesMemberOverride(c.env.DB, cal.id, row.series_id, body.memberIds);
+        await clearOccurrenceOverridesForSeries(c.env.DB, cal.id, row.series_id);
+      } else {
+        if (!row.external_id) return c.json({ error: 'event has no external id' }, 400);
+        await setMemberOverride(c.env.DB, cal.id, row.external_id, body.memberIds);
+      }
     }
 
     const updatedRow: EventRow = {
@@ -430,7 +519,11 @@ eventsRoutes.openapi(
       cal.kind !== 'local' && updatedRow.external_id
         ? (await overridesMap(c.env.DB, [cal.id])).get(overrideKey(cal.id, updatedRow.external_id))
         : undefined;
-    return c.json(instanceFrom(updatedRow, cal, memberColors, null, updatedRow.start, updatedRow.end, override), 200);
+    const seriesOverride =
+      cal.kind !== 'local' && updatedRow.series_id
+        ? (await seriesOverridesMap(c.env.DB, [cal.id])).get(seriesOverrideKey(cal.id, updatedRow.series_id))
+        : undefined;
+    return c.json(instanceFrom(updatedRow, cal, memberColors, null, updatedRow.start, updatedRow.end, override, seriesOverride), 200);
   },
 );
 

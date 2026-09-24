@@ -70,7 +70,7 @@ async function buildProviderCtx(env: Env, cal: CalendarRow): Promise<ProviderCtx
 
 function insertEventStmt(env: Env, calendarId: string, ev: NormalizedEvent, now: Date, id: string) {
   return env.DB.prepare(
-    'INSERT INTO events (id, calendar_id, external_id, title, start, end, all_day, location, description, rrule, member_ids, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+    'INSERT INTO events (id, calendar_id, external_id, title, start, end, all_day, location, description, rrule, member_ids, updated_at, series_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
   ).bind(
     id,
     calendarId,
@@ -84,6 +84,7 @@ function insertEventStmt(env: Env, calendarId: string, ev: NormalizedEvent, now:
     null,
     '[]',
     now.toISOString(),
+    ev.seriesId ?? null,
   );
 }
 

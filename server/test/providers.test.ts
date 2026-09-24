@@ -15,8 +15,8 @@ const fixture = readFileSync(path.join(__dirname, 'fixtures/sample.ics'), 'utf-8
 const FROM = new Date('2026-01-01T00:00:00Z');
 const TO = new Date('2026-04-01T00:00:00Z');
 
-test('ics: weekly RRULE honors EXDATE and a RECURRENCE-ID override', () => {
-  const all = expandICS(fixture, FROM, TO);
+test('ics: weekly RRULE honors EXDATE and a RECURRENCE-ID override', async () => {
+  const all = await expandICS(fixture, FROM, TO);
   const weekly = all.filter((e) => e.externalId.startsWith('weekly-1@familycal.test'));
   assert.equal(weekly.length, 5, 'Jan19 excluded by EXDATE, 6 - 1 = 5');
   assert.ok(!weekly.some((e) => e.start === '2026-01-19T15:00:00.000Z'));
@@ -28,8 +28,8 @@ test('ics: weekly RRULE honors EXDATE and a RECURRENCE-ID override', () => {
   assert.equal(weekly.filter((e) => e.title === 'Weekly Standup').length, 4);
 });
 
-test('ics: all-day event uses YYYY-MM-DD with exclusive end', () => {
-  const all = expandICS(fixture, FROM, TO);
+test('ics: all-day event uses YYYY-MM-DD with exclusive end', async () => {
+  const all = await expandICS(fixture, FROM, TO);
   const allday = all.find((e) => e.externalId.startsWith('allday-1@familycal.test'));
   assert.ok(allday);
   assert.equal(allday!.allDay, true);
@@ -37,8 +37,8 @@ test('ics: all-day event uses YYYY-MM-DD with exclusive end', () => {
   assert.equal(allday!.end, '2026-02-16');
 });
 
-test('ics: TZID event expands correctly across a DST change', () => {
-  const all = expandICS(fixture, FROM, TO);
+test('ics: TZID event expands correctly across a DST change', async () => {
+  const all = await expandICS(fixture, FROM, TO);
   const dst = all
     .filter((e) => e.externalId.startsWith('dst-1@familycal.test'))
     .sort((a, b) => a.start.localeCompare(b.start));
@@ -50,8 +50,8 @@ test('ics: TZID event expands correctly across a DST change', () => {
   assert.equal(mar10!.start, '2026-03-10T13:00:00.000Z');
 });
 
-test('ics: cancelled events are skipped', () => {
-  const all = expandICS(fixture, FROM, TO);
+test('ics: cancelled events are skipped', async () => {
+  const all = await expandICS(fixture, FROM, TO);
   assert.ok(!all.some((e) => e.externalId.startsWith('cancelled-1@familycal.test')));
 });
 
@@ -136,6 +136,7 @@ test('google: refreshes an expired token, saves it, and maps events (timed + all
       allDay: false,
       location: undefined,
       description: undefined,
+      seriesId: undefined,
     });
     assert.equal(events[1].allDay, true);
     assert.equal(events[1].start, '2026-02-01');

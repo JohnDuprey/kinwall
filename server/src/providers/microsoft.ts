@@ -138,6 +138,7 @@ function toNormalized(item: any): NormalizedEvent {
     allDay,
     location: item.location?.displayName || undefined,
     description: item.bodyPreview || undefined,
+    seriesId: item.seriesMasterId || undefined,
   };
 }
 
@@ -174,7 +175,7 @@ export const provider: Provider = {
       startDateTime: from.toISOString(),
       endDateTime: to.toISOString(),
       $top: '500',
-      $select: 'id,subject,start,end,isAllDay,location,bodyPreview',
+      $select: 'id,subject,start,end,isAllDay,location,bodyPreview,seriesMasterId',
     });
     let url: string | undefined =
       `${GRAPH}/me/calendars/${encodeURIComponent(ctx.calendar.remoteId ?? '')}/calendarView?${params}`;

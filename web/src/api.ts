@@ -141,7 +141,8 @@ export const api = {
     return get<EventInstance[]>(`api/events?${q}`)
   },
   createEvent: (body: Partial<EventInstance>) => MOCK ? mock.createEvent(body) : post<EventInstance>('api/events', body),
-  updateEvent: (id: string, body: Partial<EventInstance>) => MOCK ? mock.updateEvent(id, body) : patch<EventInstance>(`api/events/${id}`, body),
+  updateEvent: (id: string, body: Partial<EventInstance> & { scope?: 'occurrence' | 'series' }) =>
+    MOCK ? mock.updateEvent(id, body) : patch<EventInstance>(`api/events/${id}`, body),
   deleteEvent: (id: string) => MOCK ? mock.deleteEvent(id) : del(`api/events/${id}`),
 
   getChoresDay: (date: string) => MOCK ? mock.getChoresDay(date) : get<ChoreDay[]>(`api/chores/day?date=${date}`),

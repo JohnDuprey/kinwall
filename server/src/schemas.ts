@@ -129,6 +129,8 @@ export const EventInstanceSchema = z
     rrule: z.string().nullable(),
     occurrenceStart: z.string().nullable(),
     readOnly: z.boolean(),
+    seriesId: z.string().nullable(),
+    memberScope: z.enum(['occurrence', 'series', 'calendar', 'none']),
   })
   .openapi('EventInstance');
 

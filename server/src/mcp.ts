@@ -183,6 +183,10 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         description: z.string().optional(),
         members: z.array(z.string()).optional().describe('Member names or ids; replaces the current list.'),
         rrule: z.string().nullable().optional(),
+        scope: z
+          .enum(['occurrence', 'series'])
+          .optional()
+          .describe('For a member-only update on a recurring synced event: tag just this occurrence, or every occurrence in the series. Default: occurrence.'),
       },
     },
     async ({ id, members, ...input }) => {

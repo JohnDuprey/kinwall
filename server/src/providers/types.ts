@@ -9,6 +9,9 @@ export type NormalizedEvent = {
   allDay: boolean;
   location?: string;
   description?: string;
+  // Set only for occurrences of a recurring event - see providers/{google,microsoft,caldav,ics}.ts
+  // for how each provider derives it. Used to apply a series-wide member tag to every occurrence.
+  seriesId?: string;
 };
 
 export type EventInput = Omit<NormalizedEvent, 'externalId'>;

@@ -109,7 +109,7 @@ test('secrets never appear in a GET response body, even as raw text', async () =
   assert.ok(!webhooksText.includes(webhookSecret));
 });
 
-test('ics: prefilter drops a clearly-old non-recurring event but keeps a RECURRENCE-ID override of a kept master', () => {
+test('ics: prefilter drops a clearly-old non-recurring event but keeps a RECURRENCE-ID override of a kept master', async () => {
   const from = new Date('2026-06-01T00:00:00Z');
   const ics = [
     'BEGIN:VCALENDAR',
@@ -144,11 +144,11 @@ test('ics: prefilter drops a clearly-old non-recurring event but keeps a RECURRE
   assert.ok(filtered.includes('Old override of an ongoing series'), 'RECURRENCE-ID override survives even though it looks old');
 
   // Still parses cleanly (no corrupted BEGIN/END pairing from the filter).
-  const events = expandICS(filtered, new Date('2026-01-01T00:00:00Z'), new Date('2026-02-01T00:00:00Z'));
+  const events = await expandICS(filtered, new Date('2026-01-01T00:00:00Z'), new Date('2026-02-01T00:00:00Z'));
   assert.ok(events.length > 0);
 });
 
-test('ics: floating (no TZID, no Z) times are interpreted in the household timezone', () => {
+test('ics: floating (no TZID, no Z) times are interpreted in the household timezone', async () => {
   const ics = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
@@ -164,8 +164,8 @@ test('ics: floating (no TZID, no Z) times are interpreted in the household timez
   const from = new Date('2026-06-01T00:00:00Z');
   const to = new Date('2026-07-01T00:00:00Z');
 
-  const utc = expandICS(ics, from, to, 'UTC');
-  const ny = expandICS(ics, from, to, 'America/New_York');
+  const utc = await expandICS(ics, from, to, 'UTC');
+  const ny = await expandICS(ics, from, to, 'America/New_York');
   assert.equal(utc[0].start, '2026-06-15T09:00:00.000Z');
   // June 15 2026 09:00 America/New_York is EDT (UTC-4) -> 13:00Z, 4 hours later than the UTC reading.
   assert.equal(ny[0].start, '2026-06-15T13:00:00.000Z');

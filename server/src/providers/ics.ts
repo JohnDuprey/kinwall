@@ -91,7 +91,7 @@ async function withStableExternalIds(events: NormalizedEvent[]): Promise<Normali
 // Shared by provider.listEvents (full sync) and sync.ts's chunked tick (conditional sync), so
 // the prefilter + expand + stable-id pipeline only lives in one place.
 export async function parseIcsEvents(icsText: string, from: Date, to: Date, tz = 'UTC'): Promise<NormalizedEvent[]> {
-  const raw = expandICS(prefilterIcs(icsText, from), from, to, tz);
+  const raw = await expandICS(prefilterIcs(icsText, from), from, to, tz, { seriesIdMode: 'content' });
   return withStableExternalIds(raw);
 }
 
@@ -106,7 +106,22 @@ export async function icsFingerprint(icsText: string): Promise<string> {
 
 // Shared by caldav.ts so recurrence expansion isn't duplicated: CalDAV objects are plain
 // iCalendar text (one VEVENT series per object, but a full VCALENDAR can also contain many).
-export function expandICS(icsText: string, from: Date, to: Date, tz = 'UTC'): NormalizedEvent[] {
+//
+// seriesId (only set for occurrences of a recurring VEVENT): default mode 'uid' uses the VEVENT's
+// own UID, which is what CalDAV needs (it's the real, stable object identity used for writes too).
+// ICS subscriptions can't rely on UID staying stable across fetches (some feeds regenerate it -
+// see withStableExternalIds above), so parseIcsEvents passes mode 'content' instead, which derives
+// a hash from fields that actually describe the series (SUMMARY + RRULE text) - ponytail: renaming
+// the series or changing its recurrence rule loses the series tag; a real ceiling of "unknowable
+// per fetch", not a bug.
+export async function expandICS(
+  icsText: string,
+  from: Date,
+  to: Date,
+  tz = 'UTC',
+  opts?: { seriesIdMode?: 'uid' | 'content' },
+): Promise<NormalizedEvent[]> {
+  const seriesIdMode = opts?.seriesIdMode ?? 'uid';
   let root: ICAL.Component;
   try {
     root = new ICAL.Component(ICAL.parse(icsText));
@@ -152,6 +167,14 @@ export function expandICS(icsText: string, from: Date, to: Date, tz = 'UTC'): No
       continue;
     }
 
+    const seriesId =
+      seriesIdMode === 'uid'
+        ? uid
+        : 'ics:' +
+          (await sha256Hex(
+            `${(master.getFirstPropertyValue('summary') as string | null) || ''}\n${master.getFirstProperty('rrule')?.toICALString() ?? ''}`,
+          ));
+
     let iterator: ICAL.RecurExpansion;
     try {
       iterator = event.iterator();
@@ -178,6 +201,7 @@ export function expandICS(icsText: string, from: Date, to: Date, tz = 'UTC'): No
         allDay,
         location: item.location || undefined,
         description: item.description || undefined,
+        seriesId,
       });
     }
   }

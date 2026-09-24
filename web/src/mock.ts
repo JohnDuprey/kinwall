@@ -48,14 +48,16 @@ function dateOnly(daysFromToday: number) {
   return d.toISOString().slice(0, 10)
 }
 
+// seriesId/memberScope: mock data has no synced recurring events, so every fixture is 'none'/null
+// (matches how a local event or a non-recurring synced event reports these fields for real).
 const events: EventInstance[] = [
-  { id: 'e1', calendarId: 'c1', title: 'Soccer Practice', start: at(0, 16), end: at(0, 17, 30), allDay: false, location: 'Park field', description: null, memberIds: ['m2'], color: '#FF8FA3', rrule: null, occurrenceStart: null, readOnly: false },
-  { id: 'e2', calendarId: 'c1', title: 'Team Meeting', start: at(0, 16, 30), end: at(0, 17), allDay: false, location: null, description: null, memberIds: ['m1'], color: '#7AB8FF', rrule: null, occurrenceStart: null, readOnly: false },
-  { id: 'e3', calendarId: 'c2', title: 'Teacher In-Service (No School)', start: dateOnly(1), end: dateOnly(2), allDay: true, location: null, description: null, memberIds: ['m3'], color: '#FFD166', rrule: null, occurrenceStart: null, readOnly: true },
-  { id: 'e4', calendarId: 'c1', title: 'Family Dinner', start: at(2, 18), end: at(2, 19), allDay: false, location: 'Home', description: null, memberIds: [], color: '#B39DFF', rrule: null, occurrenceStart: null, readOnly: false },
-  { id: 'e5', calendarId: 'c1', title: 'Piano Lesson', start: at(3, 15), end: at(3, 15, 45), allDay: false, location: null, description: null, memberIds: ['m3'], color: '#7ED9A6', rrule: null, occurrenceStart: null, readOnly: false },
-  { id: 'e6', calendarId: 'c1', title: 'Book Club', start: at(-1, 19), end: at(-1, 20), allDay: false, location: null, description: null, memberIds: ['m1'], color: '#7AB8FF', rrule: 'FREQ=WEEKLY', occurrenceStart: at(-1, 19), readOnly: false },
-  { id: 'e7', calendarId: 'c1', title: "Sam's Birthday", start: dateOnly(4), end: dateOnly(5), allDay: true, location: null, description: null, memberIds: ['m2'], color: '#FF8FA3', rrule: null, occurrenceStart: null, readOnly: false },
+  { id: 'e1', calendarId: 'c1', title: 'Soccer Practice', start: at(0, 16), end: at(0, 17, 30), allDay: false, location: 'Park field', description: null, memberIds: ['m2'], color: '#FF8FA3', rrule: null, occurrenceStart: null, readOnly: false, seriesId: null, memberScope: 'none' },
+  { id: 'e2', calendarId: 'c1', title: 'Team Meeting', start: at(0, 16, 30), end: at(0, 17), allDay: false, location: null, description: null, memberIds: ['m1'], color: '#7AB8FF', rrule: null, occurrenceStart: null, readOnly: false, seriesId: null, memberScope: 'none' },
+  { id: 'e3', calendarId: 'c2', title: 'Teacher In-Service (No School)', start: dateOnly(1), end: dateOnly(2), allDay: true, location: null, description: null, memberIds: ['m3'], color: '#FFD166', rrule: null, occurrenceStart: null, readOnly: true, seriesId: null, memberScope: 'none' },
+  { id: 'e4', calendarId: 'c1', title: 'Family Dinner', start: at(2, 18), end: at(2, 19), allDay: false, location: 'Home', description: null, memberIds: [], color: '#B39DFF', rrule: null, occurrenceStart: null, readOnly: false, seriesId: null, memberScope: 'none' },
+  { id: 'e5', calendarId: 'c1', title: 'Piano Lesson', start: at(3, 15), end: at(3, 15, 45), allDay: false, location: null, description: null, memberIds: ['m3'], color: '#7ED9A6', rrule: null, occurrenceStart: null, readOnly: false, seriesId: null, memberScope: 'none' },
+  { id: 'e6', calendarId: 'c1', title: 'Book Club', start: at(-1, 19), end: at(-1, 20), allDay: false, location: null, description: null, memberIds: ['m1'], color: '#7AB8FF', rrule: 'FREQ=WEEKLY', occurrenceStart: at(-1, 19), readOnly: false, seriesId: null, memberScope: 'none' },
+  { id: 'e7', calendarId: 'c1', title: "Sam's Birthday", start: dateOnly(4), end: dateOnly(5), allDay: true, location: null, description: null, memberIds: ['m2'], color: '#FF8FA3', rrule: null, occurrenceStart: null, readOnly: false, seriesId: null, memberScope: 'none' },
 ]
 
 const chores: Chore[] = [
@@ -127,7 +129,7 @@ export const mock = {
       start: body.start!, end: body.end!, allDay: !!body.allDay,
       location: body.location ?? null, description: body.description ?? null,
       memberIds: body.memberIds ?? [], color: (body.memberIds?.length && members.find(m => m.id === body.memberIds![0])?.color) || cal?.color || '#888',
-      rrule: body.rrule ?? null, occurrenceStart: null, readOnly: false,
+      rrule: body.rrule ?? null, occurrenceStart: null, readOnly: false, seriesId: null, memberScope: 'none',
     }
     events.push(ev); bump(); return ev
   },

@@ -176,11 +176,22 @@ export default function CalendarView() {
   }
   // Member chips in the detail sheet save immediately via a memberIds-only PATCH - works even on
   // read-only (ICS) events, since it's a local-only annotation that never touches the provider.
+  // Recurring synced events (event.seriesId set) don't save immediately - see saveDetailMembers.
   const toggleDetailMember = async (memberId: string) => {
     if (!detail) return
     const memberIds = detail.memberIds.includes(memberId) ? detail.memberIds.filter(x => x !== memberId) : [...detail.memberIds, memberId]
     try {
       const updated = await api.updateEvent(detail.id, { memberIds })
+      setDetail(updated)
+      setEvents(evs => evs.map(e => e.id === updated.id ? updated : e))
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : 'Could not update members')
+    }
+  }
+  // Used once the user picks "This event" / "All events in the series" for a recurring synced event.
+  const saveDetailMembers = async (id: string, memberIds: string[], scope: 'occurrence' | 'series') => {
+    try {
+      const updated = await api.updateEvent(id, { memberIds, scope })
       setDetail(updated)
       setEvents(evs => evs.map(e => e.id === updated.id ? updated : e))
     } catch (e) {
@@ -245,6 +256,7 @@ export default function CalendarView() {
           onEdit={() => openEdit(detail)}
           onDelete={() => deleteEvent(detail.id)}
           onToggleMember={toggleDetailMember}
+          onSaveScopedMembers={saveDetailMembers}
         />
       )}
       {editState && (
@@ -572,13 +584,34 @@ function ScheduleView({ anchor, events, tz, members, onTap }: { anchor: Date; ev
   )
 }
 
-function EventDetailSheet({ event, members, calendars, tz, onClose, onEdit, onDelete, onToggleMember }: {
+// Text for "where did these tags come from" - shown when the chips aren't mid-edit.
+function memberScopeLabel(scope: EventInstance['memberScope']): string | null {
+  if (scope === 'series') return 'Tagged for the whole series'
+  if (scope === 'occurrence') return 'Tagged for this event'
+  if (scope === 'calendar') return "From the calendar's owner"
+  return null
+}
+
+function EventDetailSheet({ event, members, calendars, tz, onClose, onEdit, onDelete, onToggleMember, onSaveScopedMembers }: {
   event: EventInstance; members: { id: string; name: string; color: string; avatar: string }[]; calendars: CalendarEntry[]; tz: string
   onClose: () => void; onEdit: () => void; onDelete: () => void; onToggleMember: (memberId: string) => void
+  onSaveScopedMembers: (id: string, memberIds: string[], scope: 'occurrence' | 'series') => void
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false)
+  // Recurring synced events don't save a member-chip change immediately - the chips stay
+  // "pending" until the user picks This event / All events in the series (see the scope-choice
+  // block below). Everything else (local events, non-recurring synced events) keeps the old
+  // save-immediately behavior via onToggleMember.
+  const [pendingMemberIds, setPendingMemberIds] = useState<string[] | null>(null)
+  const chipMemberIds = pendingMemberIds ?? event.memberIds
+  const toggleChip = (memberId: string) => {
+    const next = chipMemberIds.includes(memberId) ? chipMemberIds.filter(x => x !== memberId) : [...chipMemberIds, memberId]
+    if (event.seriesId) setPendingMemberIds(next)
+    else onToggleMember(memberId)
+  }
   const { background: detailBar } = eventVisual(event, members, 10)
   const calendarName = calendars.find(c => c.id === event.calendarId)?.name ?? 'another calendar'
+  const scopeLabel = memberScopeLabel(event.memberScope)
   return (
     <Sheet title={event.title} onClose={onClose}
       actions={!event.readOnly ? (
@@ -611,12 +644,35 @@ function EventDetailSheet({ event, members, calendars, tz, onClose, onEdit, onDe
           </div>
         )}
         {members.length > 0 && (
-          <div className="chip-row">
-            {members.map(m => (
-              <button key={m.id} className={`chip ${event.memberIds.includes(m.id) ? 'active' : ''}`} style={{ ['--chip-color' as string]: m.color }} onClick={() => onToggleMember(m.id)}>
-                {m.avatar} {m.name}
-              </button>
-            ))}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div className="chip-row">
+              {members.map(m => (
+                <button key={m.id} className={`chip ${chipMemberIds.includes(m.id) ? 'active' : ''}`} style={{ ['--chip-color' as string]: m.color }} onClick={() => toggleChip(m.id)}>
+                  {m.avatar} {m.name}
+                </button>
+              ))}
+            </div>
+            {pendingMemberIds === null && scopeLabel && (
+              <div style={{ color: 'var(--text-dim)', fontSize: 13, fontWeight: 700 }}>{scopeLabel}</div>
+            )}
+            {pendingMemberIds !== null && (
+              <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                <button
+                  className="btn btn-secondary btn-block"
+                  style={{ minHeight: 56 }}
+                  onClick={() => { onSaveScopedMembers(event.id, pendingMemberIds, 'occurrence'); setPendingMemberIds(null) }}
+                >
+                  This event
+                </button>
+                <button
+                  className="btn btn-primary btn-block"
+                  style={{ minHeight: 56 }}
+                  onClick={() => { onSaveScopedMembers(event.id, pendingMemberIds, 'series'); setPendingMemberIds(null) }}
+                >
+                  All events in the series
+                </button>
+              </div>
+            )}
           </div>
         )}
         {event.description && <div style={{ color: 'var(--text-dim)', fontWeight: 600, whiteSpace: 'pre-line' }}>{stripHtmlToText(event.description)}</div>}

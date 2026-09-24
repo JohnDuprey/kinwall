@@ -64,6 +64,8 @@ export interface EventInstance {
   rrule: string | null
   occurrenceStart: string | null
   readOnly: boolean
+  seriesId: string | null // set for occurrences of a recurring synced event
+  memberScope: 'occurrence' | 'series' | 'calendar' | 'none' // where memberIds came from
 }
 
 export interface Chore {
