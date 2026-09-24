@@ -487,7 +487,7 @@ button {
 .month-more { font-size: 0.625rem; color: var(--text-dim); font-weight: 700; cursor: pointer; }
 
 /* ---------- Schedule view ---------- */
-.schedule-list { padding: 8px var(--pad) 100px; display: flex; flex-direction: column; gap: var(--gap); }
+.schedule-list { height: 100%; padding: 8px var(--pad) 100px; display: flex; flex-direction: column; gap: var(--gap); }
 .schedule-day-label { font-size: 0.875rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; padding-top: 6px; }
 .schedule-item {
   display: flex;
