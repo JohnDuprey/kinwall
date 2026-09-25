@@ -5,17 +5,18 @@ An open-source, self-hosted family wall calendar and chore chart, built for a wa
 ![Week view on a wall-mounted iPad](docs/screenshots/ipad-week.png)
 
 <p align="center">
-  <img src="docs/screenshots/phone-schedule.png" width="24%" alt="Schedule on a phone" />
-  <img src="docs/screenshots/phone-event.png" width="24%" alt="Event details" />
-  <img src="docs/screenshots/phone-groceries.png" width="24%" alt="Shopping list grouped by category" />
-  <img src="docs/screenshots/phone-chores-dark.png" width="24%" alt="Chores in dark mode" />
+  <img src="docs/screenshots/phone-3day.png" width="19%" alt="3-day view on a phone" />
+  <img src="docs/screenshots/phone-schedule.png" width="19%" alt="Schedule on a phone" />
+  <img src="docs/screenshots/phone-event.png" width="19%" alt="Event details" />
+  <img src="docs/screenshots/phone-groceries.png" width="19%" alt="Shopping list grouped by category" />
+  <img src="docs/screenshots/phone-chores-dark.png" width="19%" alt="Chores in dark mode" />
 </p>
 
 - **One calendar for the family**: Google, Outlook/Microsoft 365, iCloud (CalDAV) and any ICS subscription URL, merged and color-coded per family member. Two-way for Google, Microsoft and CalDAV.
-- **Categories**: custom event categories (🎂 Birthdays, 🏥 Appointments, ...) whose color overrides the member color, with keyword auto-matching against the event title and a per-calendar default.
+- **Categories**: custom event categories (🎂 Birthdays, 🏥 Appointments, ...) whose color overrides the member color, with keyword auto-matching against the event title, a per-calendar default, and a multi-select filter on the calendar.
 - **Chores**: recurring or one-off, per person or "anyone", with points and a satisfying tap-to-complete.
-- **Lists**: shopping, todo and reusable lists, grouped by store or category, with items that remember where they go.
-- **Touch-first UI**: week, day, month and schedule views, swipe to page, big targets, and it returns to today after 2 minutes idle.
+- **Lists**: shopping, todo and reusable lists, grouped by store or category, with items that remember where they go, can be assigned to a member, and drag to reorder.
+- **Touch-first UI**: week, day, month and schedule views (week becomes a 3-day view on phones), swipe to page, big targets, and it returns to today after 2 minutes idle.
 - **API-first**: everything the UI does is in the REST API (OpenAPI docs at `/docs`), with signed webhooks for automations. Home Assistant integration: [kinwall-homeassistant](https://github.com/JohnDuprey/kinwall-homeassistant).
 - **Runs anywhere**: Cloudflare Workers free tier, Docker (amd64/arm64), or the Home Assistant add-on.
 - **Push notifications**: event reminders, a daily summary, chore nudges and list updates, per device — Settings → Notifications. iPhone needs iOS 16.4+ and Kinwall added to the Home Screen first (Safari tabs can't receive push). Android works in Chrome, Firefox or Samsung Internet, installed or not.
@@ -90,8 +91,10 @@ On a display, Settings shows Household, Appearance, This display (navigation pos
 Settings → Notifications, on any device: **Turn on notifications**, then choose event reminders, a
 daily summary (with a time), a chore reminder (with a time), list updates, and which family members
 to follow. Each event can set its own reminder (Settings has a household default for events with
-none); the event detail sheet shows it as "🔔 30 min before". An admin device's Settings → Access →
-Notifications lists every subscribed device and can send a one-off message to any of them right now.
+none); the event detail sheet shows it as "🔔 30 min before", and for Google/Outlook events it's
+written through to the provider so their own apps honor it too. Tapping a reminder notification
+opens that event. An admin device's Settings → Access → Notifications lists every subscribed
+device and can send a one-off message to any of them right now.
 
 iPhone needs **iOS 16.4+** and Kinwall added to the Home Screen (Share → Add to Home Screen) —
 Safari tabs can't receive push notifications at all, and Settings explains this if it detects Safari.
@@ -123,7 +126,7 @@ by server" and is read-only in the UI.
 - Auth: `Authorization: Bearer <key>`. Keys are `admin` (everything) or `display` (household settings and member edits, full read+write on events and chores; no accounts, keys, webhooks, passkeys, displays, calendar management, or adding/removing members).
 - Change detection: `GET /api/rev` returns a counter that increments on every write.
 - Chore leaderboard: `GET /api/leaderboard?period=today|week|month` (default week) returns each member's points, completions and current streak for the period, ranked with tie handling.
-- Webhooks: `POST /api/webhooks {url, events, secret}` sends `{type, data, at}` with header `X-Kinwall-Signature: sha256=<HMAC of body>`. Event types: `member.changed`, `calendar.changed`, `calendar.synced`, `events.changed`, `chore.changed`, `chore.completed`, `chore.uncompleted`, `category.changed`, `settings.changed`.
+- Webhooks: `POST /api/webhooks {url, events, secret}` sends `{type, data, at}` with header `X-Kinwall-Signature: sha256=<HMAC of body>`. Event types: `member.changed`, `calendar.changed`, `calendar.synced`, `events.changed`, `chore.changed`, `chore.completed`, `chore.uncompleted`, `list.changed`, `list.item.changed`, `category.changed`, `settings.changed`, `display.paired`.
 - Push notifications: `POST /api/notify {title, body, memberIds?, url?}` (admin only) sends a message right now to every device following any of `memberIds` (omit it to reach every device).
 
 ```bash
@@ -171,6 +174,7 @@ Use a **display** key for a read-mostly assistant (it can still add/complete eve
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | | Google sign-in. Also settable in Settings → Calendar providers; the env vars always win |
 | `MS_CLIENT_ID`, `MS_CLIENT_SECRET`, `MS_TENANT` | `common` | Microsoft sign-in. Also settable in Settings → Calendar providers; the env vars always win |
 | `SYNC_INTERVAL_MINUTES` | `10` | Docker only; Workers uses the cron in `wrangler.toml` |
+| `VAPID_SUBJECT`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | generated, stored encrypted | Web Push signing keys. Optional — a key pair is generated on first use and kept encrypted in settings; set all three to pin your own |
 | `CORS_ORIGINS` | | Comma-separated origins allowed to call the API from a browser |
 | `PORT`, `DATA_DIR` | `8080`, `./data` | Docker/Node only |
 

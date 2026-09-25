@@ -31,6 +31,35 @@ async function bumpRevAndListWebhooks(db: D1Database): Promise<WebhookRow[]> {
   return webhooks.results;
 }
 
+// SSRF guard for webhook targets. Checks the literal host only: Workers can't resolve DNS, so a
+// public name that resolves to a private address is not caught here. URL() already normalises
+// IPv4 shorthand (http://2130706433, 0x7f.1) into dotted quads.
+export function isSafeWebhookUrl(raw: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return false;
+  const host = url.hostname.toLowerCase().replace(/\.$/, '');
+  if (host === 'localhost' || /\.(localhost|local|internal)$/.test(host)) return false;
+  const v4 = host.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+  if (v4) {
+    const [a, b] = [Number(v4[1]), Number(v4[2])];
+    return !(
+      a === 0 || a === 10 || a === 127 || a >= 224 || // this-net, private, loopback, multicast + reserved
+      (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127)
+    );
+  }
+  if (host.startsWith('[')) {
+    const v6 = host.slice(1, -1);
+    // unspecified, loopback, v4-mapped, fc00::/7 unique-local, fe80::/10 link-local
+    return !(v6 === '::' || v6 === '::1' || v6.startsWith('::ffff:') || /^f[cd][0-9a-f]{2}:/.test(v6) || /^fe[89ab][0-9a-f]:/.test(v6));
+  }
+  return true;
+}
+
 async function hmacHex(secret: string, body: string): Promise<string> {
   const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, [
     'sign',
@@ -49,6 +78,10 @@ async function deliverWebhooks(env: Env, type: BusEventType, data: unknown, webh
       // ignore malformed events list
     }
     if (events.length > 0 && !events.includes(type)) continue;
+    if (!isSafeWebhookUrl(hook.url)) {
+      console.error(`webhook ${hook.id} skipped: url is not a public address`);
+      continue;
+    }
     let secret: string;
     try {
       secret = await decrypt(env, hook.secret, hook.id);
@@ -64,6 +97,7 @@ async function deliverWebhooks(env: Env, type: BusEventType, data: unknown, webh
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Kinwall-Signature': signature },
         body: payload,
+        redirect: 'manual', // a redirect must not bounce the POST into private address space
         signal: controller.signal,
       });
     } catch (err) {

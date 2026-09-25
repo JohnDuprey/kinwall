@@ -9,6 +9,30 @@ export default function Sheet({ title, onClose, children, actions }: {
   actions?: ReactNode
 }) {
   const backdropRef = useRef<HTMLDivElement>(null)
+  const sheetRef = useRef<HTMLDivElement>(null)
+  const onCloseRef = useRef(onClose)
+  const [opener] = useState(() => document.activeElement as HTMLElement | null) // at first render, before the sheet takes focus
+  onCloseRef.current = onClose
+
+  // Dialog basics: focus moves in on open and back on close, Escape closes, Tab wraps inside.
+  useEffect(() => {
+    const sheet = sheetRef.current!
+    const focusables = () => [...sheet.querySelectorAll<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')]
+      .filter(el => !(el as HTMLButtonElement).disabled)
+    sheet.focus({ preventScroll: true }) // the panel, not its first input: that would pop the keyboard on touch
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { e.stopPropagation(); onCloseRef.current(); return }
+      if (e.key !== 'Tab') return
+      const els = focusables()
+      if (!els.length) return
+      const first = els[0], last = els[els.length - 1]
+      if (e.shiftKey && (document.activeElement === first || !sheet.contains(document.activeElement))) { e.preventDefault(); last.focus() }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
+    }
+    sheet.addEventListener('keydown', onKey)
+    return () => { sheet.removeEventListener('keydown', onKey); opener?.focus?.({ preventScroll: true }) }
+  }, [opener])
+
   // Keyboard up: the visible viewport is much shorter than the window. The sheet then drops its
   // home-indicator padding (the keyboard covers that area) and may use the whole visible height.
   const [keyboard, setKeyboard] = useState(false)
@@ -36,7 +60,7 @@ export default function Sheet({ title, onClose, children, actions }: {
   // left the tab bar drawn over the sheet's action buttons.
   return createPortal(
     <div className="sheet-backdrop" ref={backdropRef} onClick={onClose}>
-      <div className="sheet" onClick={e => e.stopPropagation()}
+      <div className="sheet" ref={sheetRef} role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} onClick={e => e.stopPropagation()}
         style={keyboard ? { paddingBottom: 8, maxHeight: '100%', borderRadius: '20px 20px 0 0' } : undefined}>
         <div className="sheet-grabber" />
         <div className="sheet-header">

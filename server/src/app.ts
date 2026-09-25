@@ -89,7 +89,7 @@ export function createApp() {
   app.openAPIRegistry.registerComponent('securitySchemes', 'Bearer', {
     type: 'http',
     scheme: 'bearer',
-    description: 'API key, e.g. fc_xxxxx. Also accepted as ?key= on the OAuth start route.',
+    description: 'API key, e.g. kw_xxxxx. Also accepted as ?key= on the OAuth start route.',
   });
 
   app.doc('/openapi.json', {

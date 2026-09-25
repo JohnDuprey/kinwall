@@ -6,7 +6,7 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
-import { createApiKey } from '../auth.ts';
+import { createApiKey, timingSafeEqual } from '../auth.ts';
 import { encrypt, decrypt } from '../crypto.ts';
 import { emit } from '../bus.ts';
 import { ErrorSchema } from '../schemas.ts';
@@ -16,6 +16,7 @@ export const pairRoutes = createRouter();
 const CODE_DIGITS = 6;
 const TTL_MS = 10 * 60 * 1000;
 const MAX_PENDING = 20;
+const MAX_PENDING_PER_IP = 5;
 
 // Uniform digit via rejection sampling (no modulo bias): 256 % 10 == 6, so reject the top 6
 // byte values (250-255) before reducing mod 10.
@@ -41,14 +42,6 @@ function randomPollToken(): string {
 async function sha256Hex(input: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input));
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
-}
-
-// Fixed-length hex hashes, so a plain char-by-char XOR is a real constant-time comparison here.
-function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
 }
 
 type PairingRow = {
@@ -87,6 +80,13 @@ pairRoutes.openapi(
     if ((pending?.n ?? 0) >= MAX_PENDING) {
       return c.json({ error: 'too many pending pairings, try again shortly' }, 429);
     }
+    // Stored on the row (not in memory) because Worker isolates don't share state. With no client
+    // address header (Docker without a proxy) only the global cap applies.
+    const ip = c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for')?.split(',')[0].trim() ?? null;
+    if (ip) {
+      const mine = await c.env.DB.prepare('SELECT COUNT(*) as n FROM pairings WHERE approved = 0 AND ip = ?').bind(ip).first<{ n: number }>();
+      if ((mine?.n ?? 0) >= MAX_PENDING_PER_IP) return c.json({ error: 'too many pending pairings, try again shortly' }, 429);
+    }
 
     let code = randomCode();
     // Uniqueness among pending (unapproved, unexpired) pairings only - approved/expired codes
@@ -103,9 +103,9 @@ pairRoutes.openapi(
     const id = crypto.randomUUID();
     const expiresAt = new Date(now.getTime() + TTL_MS).toISOString();
     await c.env.DB.prepare(
-      'INSERT INTO pairings (id, code, poll_token_hash, approved, created_at, expires_at) VALUES (?,?,?,0,?,?)',
+      'INSERT INTO pairings (id, code, poll_token_hash, approved, created_at, expires_at, ip) VALUES (?,?,?,0,?,?,?)',
     )
-      .bind(id, code, await sha256Hex(pollToken), nowIso, expiresAt)
+      .bind(id, code, await sha256Hex(pollToken), nowIso, expiresAt, ip)
       .run();
 
     return c.json({ pairingId: id, code, pollToken, expiresAt }, 201);

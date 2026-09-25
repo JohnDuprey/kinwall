@@ -15,6 +15,7 @@ import m0011 from '../migrations/0011_categories.sql';
 import m0012 from '../migrations/0012_sort_order.sql';
 import m0013 from '../migrations/0013_push.sql';
 import m0014 from '../migrations/0014_oauth.sql';
+import m0015 from '../migrations/0015_pairings_ip.sql';
 
 export const MIGRATIONS: Migration[] = [
   { name: '0001_init.sql', sql: m0001 },
@@ -31,4 +32,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0012_sort_order.sql', sql: m0012 },
   { name: '0013_push.sql', sql: m0013 },
   { name: '0014_oauth.sql', sql: m0014 },
+  { name: '0015_pairings_ip.sql', sql: m0015 },
 ];

@@ -279,7 +279,7 @@ function MembersStep({ useAdmin, onNext, onBack }: { useAdmin: boolean; onNext: 
       <div className="field">
         <label>Color</label>
         <div className="color-swatch-row">
-          {MEMBER_PALETTE.map(c => <button key={c} className={`color-swatch ${color === c ? 'active' : ''}`} style={{ background: c }} onClick={() => setColor(c)} />)}
+          {MEMBER_PALETTE.map(c => <button key={c} className={`color-swatch ${color === c ? 'active' : ''}`} style={{ background: c }} onClick={() => setColor(c)} aria-label={`Color ${c}`} />)}
         </div>
       </div>
       <div className="field">
@@ -297,7 +297,7 @@ function MembersStep({ useAdmin, onNext, onBack }: { useAdmin: boolean; onNext: 
             <div key={m.id} className="member-list-item">
               <div className="member-avatar-sm" style={{ background: m.color, color: inkFor(m.color) }}>{m.avatar}</div>
               <div className="name">{m.name}</div>
-              <button className="icon-btn" onClick={() => remove(m.id)}><TrashIcon width={16} height={16} /></button>
+              <button className="icon-btn" onClick={() => remove(m.id)} aria-label={`Remove ${m.name}`}><TrashIcon width={16} height={16} /></button>
             </div>
           ))}
         </div>

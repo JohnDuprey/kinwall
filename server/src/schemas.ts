@@ -1,6 +1,7 @@
 // Shared zod-openapi schemas, reused across route files.
 import { z } from '@hono/zod-openapi';
 import { isSingleEmoji, isValidAvatar } from './emoji.ts';
+import { isSafeWebhookUrl } from './bus.ts';
 
 export const ErrorSchema = z.object({ error: z.string() }).openapi('Error');
 
@@ -369,7 +370,7 @@ export const WebhookSchema = z
   .openapi('Webhook');
 
 export const WebhookInputSchema = z
-  .object({ url: z.string().url(), events: z.array(z.string()), secret: z.string().optional(), enabled: z.boolean().optional() })
+  .object({ url: z.string().url().refine(isSafeWebhookUrl, 'Webhook URL must be a public https/http address'), events: z.array(z.string()), secret: z.string().optional(), enabled: z.boolean().optional() })
   .openapi('WebhookInput');
 
 const SourceSchema = z.enum(['env', 'ui']).nullable();

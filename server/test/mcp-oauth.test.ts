@@ -144,6 +144,10 @@ test('oauth: only a signed-in admin (not a display, not an OAuth token) can appr
   assert.equal((await t.req('/api/authorizations/approve', { method: 'POST', body }, tok.access_token)).status, 403, 'display-scoped OAuth token');
   const admin = await (await exchange(t, await authorize(t))).json() as any;
   assert.equal((await t.req('/api/authorizations/approve', { method: 'POST', body }, admin.access_token)).status, 403, 'admin OAuth token still cannot approve');
+  assert.equal((await t.req('/api/authorizations', {}, admin.access_token)).status, 403, 'admin OAuth token cannot list grants');
+  const grants = await (await t.req('/api/authorizations', {}, ADMIN_KEY)).json() as any[];
+  assert.equal((await t.req(`/api/authorizations/${grants[0].id}`, { method: 'DELETE' }, admin.access_token)).status, 403, 'admin OAuth token cannot revoke grants');
+  assert.equal(((await (await t.req('/api/authorizations', {}, ADMIN_KEY)).json()) as any[]).length, grants.length, 'real admin key still lists; nothing was revoked');
 
   const add = await (await t.mcp(tok.access_token, 'tools/call', { name: 'add_member', arguments: { name: 'X', color: '#000000' } })).json() as any;
   assert.equal(add.result.isError, true, 'everyday access cannot add members');

@@ -246,8 +246,8 @@ export const mock = {
     bump(); return { ok: true }
   },
 
-  getKeys: async (): Promise<ApiKey[]> => [{ id: 'k1', name: 'iPad Wall Display', prefix: 'fc_live_ab12', scope: 'display', createdAt: new Date().toISOString(), lastUsedAt: new Date().toISOString() }],
-  createKey: async (name: string) => ({ id: uid(), name, key: 'fc_live_' + uid().replace(/-/g, '').slice(0, 24) }),
+  getKeys: async (): Promise<ApiKey[]> => [{ id: 'k1', name: 'iPad Wall Display', prefix: 'kw_ab12', scope: 'display', createdAt: new Date().toISOString(), lastUsedAt: new Date().toISOString() }],
+  createKey: async (name: string) => ({ id: uid(), name, key: 'kw_' + uid().replace(/-/g, '').slice(0, 24) }),
   deleteKey: async (_id: string) => {},
 
   getLists: async (archived?: boolean) => lists.filter(l => archived ? true : !l.archived).sort((a, b) => a.sort - b.sort),

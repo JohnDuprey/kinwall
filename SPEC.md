@@ -17,7 +17,7 @@ Self-hosted, open-source family wall calendar + chore chart, displayed full-scre
 
 **Later release**: native iPad wrapper app (SwiftUI + WKWebView) to hide the status bar / home indicator and keep the key in the Keychain — needs an Apple developer account for distribution.
 
-**Out of v1** (add when asked): meal planning, photo frame, weather, rewards shop, multi-household, webhook retries, SSE/push (would need Durable Objects on Workers), editing a single occurrence of a *local* recurring event.
+**Out of v1** (add when asked): meal planning, photo frame, weather, rewards shop, multi-household, webhook retries, SSE/live-updates (would need Durable Objects on Workers; `/api/rev` polling covers it for now), editing a single occurrence of a *local* recurring event.
 
 ## Tech (fixed — don't swap)
 
@@ -235,7 +235,7 @@ POST   /api/notify   (admin only)   {title, body, memberIds?, url?} -> {ok, sent
 
 Every tool is a thin wrapper that calls the REST routes above in-process via `app.request()`, forwarding the caller's `Authorization` header - so validation, scope enforcement (display vs admin), bus events/webhooks and rev bumps happen exactly as for REST. A REST 4xx/5xx becomes a tool result with `isError: true` and the route's `{error}` text. Tools: `get_household`, `list_events`, `create_event`, `update_event`, `delete_event`, `list_chores`, `complete_chore`, `uncomplete_chore`, `create_chore`, `get_leaderboard`, `add_member`, `list_lists`, `create_list`, `update_list`, `get_list`, `add_list_items`, `update_list_item`, `set_list_item_done`, `list_categories`, `set_event_category`, `send_notification`. Members may be referenced by name in tool args (resolved case-insensitively to id in the tool layer; ambiguous -> error listing matches); lists and categories likewise by name in `get_list`/`add_list_items` and `set_event_category`.
 
-Bus event types (webhooks; every emit also bumps `rev`): `member.changed`, `calendar.changed`, `calendar.synced`, `events.changed`, `chore.changed`, `chore.completed`, `chore.uncompleted`, `list.changed`, `list.item.changed`, `settings.changed`, `display.paired`. Webhook POST body `{type, data, at}`, header `X-Kinwall-Signature: sha256=<hex hmac of body>`; sent via `waitUntil`, 5s timeout, no retries.
+Bus event types (webhooks; every emit also bumps `rev`): `member.changed`, `calendar.changed`, `calendar.synced`, `events.changed`, `chore.changed`, `chore.completed`, `chore.uncompleted`, `list.changed`, `list.item.changed`, `category.changed`, `settings.changed`, `display.paired`. Webhook POST body `{type, data, at}`, header `X-Kinwall-Signature: sha256=<hex hmac of body>`; sent via `waitUntil`, 5s timeout, no retries.
 
 ## Provider contract (`server/src/providers/types.ts`)
 
@@ -293,7 +293,7 @@ Target: iPad landscape (1180×820 and 1024×768) first, portrait must work. Safa
 - **Look**: white/very light warm background, big rounded cards (16–20px radius), soft shadows, pastel member colors, friendly rounded sans (Nunito via Google Fonts, fallback system-ui). Events are colored rounded chips tinted by member color. Dark theme via `settings.theme` for night.
 - **Header**: family name, large clock + date, member avatar row (tap to filter; tap again to clear).
 - **Bottom tab bar**: Calendar · Chores · Settings. Big icons + labels.
-- **Calendar**: Week (default, 7 columns with all-day row + timed events), Day (time grid, a column per member), Month (grid with dots/chips), Schedule (agenda list). Segmented control to switch. Swipe left/right to page, "Today" button. Tap event → bottom sheet with details / Edit / Delete (hidden when readOnly). Floating "+" and tap-on-empty-slot → add sheet prefilled with that time.
+- **Calendar**: Week (default, 7 columns with all-day row + timed events; a 3-day window on phones), Day (time grid, a column per member), Month (grid with dots/chips), Schedule (agenda list). Segmented control to switch. Swipe left/right to page, "Today" button. Tap event → bottom sheet with details / Edit / Delete (hidden when readOnly). Floating "+" and tap-on-empty-slot → add sheet prefilled with that time.
 - **Add/Edit sheet**: large inputs, native `<input type="date|time">`, all-day toggle, calendar picker (writable only), member avatars as toggle chips, repeat (none/daily/weekly/monthly).
 - **Chores**: one column per member (+ "Anyone"), avatar + progress ring at top, chore cards (emoji, title, points). Tap = complete with a satisfying check + small confetti burst; tap again = undo. Date strip to look at other days. "+" to add; long-press (500ms) to edit.
 - **Settings**: family name / timezone / week start / theme; members (add/edit color from a fixed pastel palette + emoji); calendars (add ICS URL, "Connect Google", "Connect Outlook", CalDAV form → pick remote calendars → assign member + color; sync now; last error shown); API keys (create shows key once); webhooks.

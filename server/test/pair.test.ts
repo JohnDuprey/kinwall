@@ -145,3 +145,13 @@ test('pairing: 429 after 20 pending', async () => {
   const res = await anon('/api/pair', { method: 'POST' });
   assert.equal(res.status, 429);
 });
+
+test('pairing: 429 after 5 pending from one address; other addresses unaffected', async () => {
+  const anon = makeAnon(makeEnv());
+  const start = (ip: string) => anon('/api/pair', { method: 'POST', headers: { 'cf-connecting-ip': ip } });
+  for (let i = 0; i < 5; i++) assert.equal((await start('203.0.113.7')).status, 201);
+  const res = await start('203.0.113.7');
+  assert.equal(res.status, 429);
+  assert.ok(((await res.json()) as any).error);
+  assert.equal((await start('198.51.100.2')).status, 201);
+});

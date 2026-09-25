@@ -289,8 +289,11 @@ mcpOAuthRoutes.post('/oauth/revoke', async (c) => {
   return c.body(null, 200);
 });
 
-// Settings → Access: connected apps.
+// Settings → Access: connected apps. Like approve, only a person manages these - an OAuth
+// token must not be able to list or revoke other apps' grants.
 mcpOAuthRoutes.get('/api/authorizations', async (c) => {
+  const caller = await resolveKey(c);
+  if (!caller || caller.scope !== 'admin' || caller.kind === 'oauth') return c.json({ error: 'sign in as an admin to manage connected apps' }, 403);
   const { results } = await c.env.DB.prepare(
     'SELECT g.id, g.scope, g.approved_by, g.created_at, g.last_used_at, cl.name AS client_name FROM oauth_grants g JOIN oauth_clients cl ON cl.id = g.client_id ORDER BY g.created_at',
   ).all<{ id: string; scope: string; approved_by: string | null; created_at: string; last_used_at: string | null; client_name: string }>();
@@ -298,6 +301,8 @@ mcpOAuthRoutes.get('/api/authorizations', async (c) => {
 });
 
 mcpOAuthRoutes.delete('/api/authorizations/:id', async (c) => {
+  const caller = await resolveKey(c);
+  if (!caller || caller.scope !== 'admin' || caller.kind === 'oauth') return c.json({ error: 'sign in as an admin to manage connected apps' }, 403);
   await revokeGrant(c.env.DB, c.req.param('id'));
   return c.json({ ok: true });
 });

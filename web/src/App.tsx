@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { encode } from 'uqr'
 import { api, clearKey, getKey, setAdminKey, setKey, usePoll, useSaveState, ApiError } from './api.ts'
 import { AppContext } from './AppContext.tsx'
@@ -53,6 +53,35 @@ function useHashTab() {
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
   return tab
+}
+
+/** A new server build deployed while this tab stayed open (sw.js caches nothing, so a reload is all
+ * it takes). Polls /api/me's version; a wall display reloads itself on its next idle reset. */
+function useUpdateAvailable(enabled: boolean) {
+  const [stale, setStale] = useState(false)
+  const scope = useRef('')
+  useEffect(() => {
+    if (!enabled) return
+    let first: string | undefined
+    const check = () => api.meStrict().then(me => {
+      scope.current = me.scope
+      if (!me.version) return
+      first ??= me.version
+      if (me.version !== first) setStale(true)
+    }).catch(() => { /* offline: try again later */ })
+    const onVis = () => { if (document.visibilityState === 'visible') check() }
+    check()
+    const id = setInterval(check, 10 * 60 * 1000)
+    document.addEventListener('visibilitychange', onVis)
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVis) }
+  }, [enabled])
+  useEffect(() => {
+    if (!stale) return
+    const onIdle = () => { if (scope.current === 'display' && !document.querySelector('.sheet')) location.reload() }
+    window.addEventListener(IDLE_RESET_EVENT, onIdle)
+    return () => window.removeEventListener(IDLE_RESET_EVENT, onIdle)
+  }, [stale])
+  return stale
 }
 
 function ManualKeyGate({ onKey, onBack }: { onKey: () => void; onBack: () => void }) {
@@ -525,6 +554,7 @@ export default function App() {
   const { mode: navMode } = useNavMode()
   const { tick: pollTick, unauthorized } = usePoll()
   const [manualTick, setManualTick] = useState(0)
+  const updateAvailable = useUpdateAvailable(hasKey)
 
   const loadCore = useCallback(async () => {
     if (!hasKey) return
@@ -634,6 +664,7 @@ export default function App() {
         {navMode === 'right' && <Nav tab={tab} mode={navMode} />}
         <SaveIndicator />
         {toastMsg && <div className="toast">{toastMsg}</div>}
+        {updateAvailable && <button className="toast update-banner" onClick={() => location.reload()}>Kinwall updated — tap to reload</button>}
       </div>
     </AppContext.Provider>
   )

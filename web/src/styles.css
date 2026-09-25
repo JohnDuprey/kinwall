@@ -222,6 +222,7 @@ button {
 .app-shell-rail .content { padding-bottom: 10px; }
 .app-shell-rail .fab { bottom: 10px; right: 14px; }
 .app-shell-rail .toast { bottom: calc(var(--safe-b) + 16px); }
+.toast.update-banner { top: calc(var(--safe-t) + 12px); bottom: auto; border: none; font-family: inherit; cursor: pointer; }
 
 .nav-rail {
   width: var(--rail-w);
@@ -574,6 +575,7 @@ button {
   padding-bottom: calc(var(--safe-b) + 10px);
   overflow: hidden;
 }
+.sheet:focus { outline: none; } /* focused programmatically on open (Sheet.tsx) */
 .sheet-grabber { width: 42px; height: 5px; border-radius: 3px; background: var(--border); margin: 10px auto 4px; flex-shrink: 0; }
 .sheet-header {
   display: flex; align-items: center; justify-content: space-between;
@@ -796,7 +798,8 @@ button {
 .settings-row-label { font-weight: 800; font-size: 0.9375rem; }
 .settings-row-sub { font-size: 0.78125rem; color: var(--text-dim); font-weight: 600; margin-top: 2px; }
 .settings-select { padding: 10px 44px 10px 12px; border-radius: 10px; border: 2px solid var(--border); background-color: var(--bg-alt); font-weight: 700; color: var(--text); font-size: 0.875rem; min-height: 44px; max-width: 100%; }
-.family-name-input { text-align: right; border: none; background: none; font-weight: 800; font-size: 0.9375rem; color: var(--text); min-width: 140px; }
+/* Field look comes from the :where() input base rule (same box as .settings-select); just right-aligned in the row. */
+.family-name-input { text-align: right; min-width: 140px; padding: 10px 12px; border-radius: 10px; }
 .theme-toggle { display: flex; background: var(--bg-alt); border-radius: 999px; padding: 3px; }
 .theme-toggle button { border: none; background: none; padding: 8px 14px; border-radius: 999px; color: var(--text-dim); display: flex; align-items: center; min-height: 40px; }
 .theme-toggle button.active { background: var(--card); box-shadow: var(--shadow); color: var(--text); }
@@ -968,10 +971,10 @@ button {
   .calendar-toolbar { padding: 10px 14px; gap: 8px; }
   .segmented { padding: 3px; gap: 1px; }
   .segmented button { padding: 7px 10px; font-size: 0.78125rem; min-height: 34px; }
-  .toolbar-nav { gap: 6px; flex-wrap: wrap; }
-  .icon-btn { width: 36px; height: 36px; }
-  .today-btn { padding: 7px 14px; font-size: 0.8125rem; min-height: 36px; }
-  .period-label { font-size: 0.875rem; }
+  .toolbar-nav { gap: 4px; flex-wrap: nowrap; min-width: 0; max-width: 100%; }
+  .icon-btn { width: 44px; height: 44px; } /* smaller than wall, but never below a 44px hit area */
+  .today-btn { padding: 7px 10px; font-size: 0.8125rem; min-height: 36px; }
+  .period-label { font-size: 0.875rem; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
   /* ---------- FAB clearance: last item in a scrolling list must clear the FAB ---------- */
   .schedule-list, .chore-columns, .settings-scroll {
@@ -991,7 +994,7 @@ button {
   .settings-row { flex-direction: column; align-items: stretch; gap: 6px; }
   .settings-row .settings-select, .settings-row select, .settings-row .theme-toggle { width: 100%; }
   .settings-select { width: 100%; }
-  .family-name-input { text-align: left; width: 100%; min-width: 0; padding: 10px 12px; border-radius: 10px; border: 2px solid var(--border); background: var(--bg-alt); min-height: 44px; }
+  .family-name-input { text-align: left; width: 100%; min-width: 0; }
   /* Four tabs across a phone: stretch the segmented control to the full width. */
   .settings-tabs .segmented { width: 100%; }
   .settings-tabs .segmented button { flex: 1; padding-inline: 4px; }
@@ -1030,7 +1033,7 @@ button {
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2s; } }
-:root[data-saving] .btn-primary { pointer-events: none; opacity: 0.7; }
+:root[data-saving] .btn-primary, :root[data-saving] .btn-danger { pointer-events: none; opacity: 0.7; }
 
 .chores-hint { text-align: center; font-size: 0.8125rem; font-weight: 600; color: var(--text-dim); margin: 0; padding: 4px var(--pad) 8px; }
 .gate-links { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; }

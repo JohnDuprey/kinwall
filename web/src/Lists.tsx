@@ -97,7 +97,7 @@ function ListEditSheet({ list, onClose, onSaved, onDeleted }: {
     <Sheet title={existing ? 'Edit list' : 'New list'} onClose={onClose}
       actions={
         <>
-          {existing && <button className="btn btn-danger" onClick={del}><TrashIcon width={18} height={18} /></button>}
+          {existing && <button className="btn btn-danger" onClick={del} aria-label="Delete"><TrashIcon width={18} height={18} /></button>}
           <button className="btn btn-primary" onClick={submit} disabled={!name.trim() || !isSingleEmoji(emoji)}>{existing ? 'Save' : 'Create list'}</button>
         </>
       }>
@@ -123,7 +123,7 @@ function ListEditSheet({ list, onClose, onSaved, onDeleted }: {
       <div className="field">
         <label>Color</label>
         <div className="color-swatch-row">
-          {MEMBER_PALETTE.map(c => <button key={c} className={`color-swatch ${color === c ? 'active' : ''}`} style={{ background: c }} onClick={() => setColor(c)} />)}
+          {MEMBER_PALETTE.map(c => <button key={c} className={`color-swatch ${color === c ? 'active' : ''}`} style={{ background: c }} onClick={() => setColor(c)} aria-label={`Color ${c}`} />)}
           <input type="color" className="color-swatch" value={/^#[0-9a-f]{6}$/i.test(color) ? color : '#888888'}
             onChange={e => setColor(e.target.value)} style={{ padding: 0, border: '2px solid var(--border)', cursor: 'pointer' }} aria-label="Custom list color" />
         </div>
@@ -164,6 +164,7 @@ function ItemEditSheet({ listId, item, kind, members, suggestions, siblingIds, o
     catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save item') }
   }
   const del = async () => {
+    if (!confirm(`Delete "${item.title}"?`)) return
     try { await api.deleteListItem(listId, item.id); onSaved() }
     catch (e) { toast(e instanceof ApiError ? e.message : 'Could not delete item') }
   }
@@ -181,7 +182,7 @@ function ItemEditSheet({ listId, item, kind, members, suggestions, siblingIds, o
   return (
     <Sheet title="Edit item" onClose={onClose}
       actions={<>
-        <button className="btn btn-danger" onClick={del}><TrashIcon width={18} height={18} /></button>
+        <button className="btn btn-danger" onClick={del} aria-label="Delete"><TrashIcon width={18} height={18} /></button>
         <button className="btn btn-primary" onClick={submit} disabled={!title.trim()}>Save</button>
       </>}>
       <div className="field">

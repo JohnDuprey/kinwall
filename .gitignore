@@ -5,3 +5,4 @@ data/
 .dev.vars
 *.db
 data-fresh/
+.claude/

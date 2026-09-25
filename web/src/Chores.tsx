@@ -192,6 +192,9 @@ export default function Chores() {
   // being legible - .chore-card switches to a stacked layout under that via a container query).
   // Past the floor the row overflows and .chore-columns' overflow-x/scroll-snap take over.
   const columnsGridStyle = { gridTemplateColumns: `repeat(${visibleColumns.length}, minmax(110px, 1fr))` }
+  // Phone stacks members vertically, so an empty member would be a whole blank card - list them on one line instead.
+  const hasChores = (id: string) => chores.some(c => id === '__anyone' ? !c.memberId : c.memberId === id)
+  const idle = isPhone && !loading ? visibleColumns.filter(m => !hasChores(m.id)) : []
 
   return (
     <div className="content">
@@ -215,7 +218,7 @@ export default function Chores() {
         <div className="empty-card"><span className="emoji">✨</span>No chores for this day.</div>
       ) : (
         <div className="chore-columns" style={columnsGridStyle}>
-          {visibleColumns.map(col => {
+          {visibleColumns.filter(m => !idle.includes(m)).map(col => {
             const list = chores.filter(c => col.id === '__anyone' ? !c.memberId : c.memberId === col.id)
             const done = list.filter(c => c.completed).length
             const pct = list.length ? done / list.length : 0
@@ -234,6 +237,7 @@ export default function Chores() {
           })}
           {/* Tap toggles done (kid-friendly), so editing is a long press - say so on phones,
               where an admin is the one looking. On the iPad grid this would become a column. */}
+          {idle.length > 0 && <p className="chores-hint">Nothing due: {idle.map(m => m.name).join(', ')}</p>}
           {isPhone && <p className="chores-hint">Press and hold a chore to edit it.</p>}
         </div>
       )}

@@ -42,12 +42,18 @@ export default function SettingsView() {
   const [openAccountId, setOpenAccountId] = useState<string | null>(null)
   // The tab rides in the hash query (#/settings?tab=family) so reloads and links keep it; an OAuth
   // return (?account=...) lands on Calendars, where the new account's calendar picker opens.
-  const [tab, setTab] = useState<SettingsTab>(() => {
+  const tabFromHash = (): SettingsTab => {
     const q = new URLSearchParams(location.hash.split('?')[1] || '')
     if (q.get('account')) return 'calendars'
     const t = q.get('tab')
     return SETTINGS_TABS.some(x => x.key === t) ? (t as SettingsTab) : 'general'
-  })
+  }
+  const [tab, setTab] = useState<SettingsTab>(tabFromHash)
+  useEffect(() => {
+    const onHash = () => { if (location.hash.startsWith('#/settings')) setTab(tabFromHash()) }
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
   const pickTab = (t: SettingsTab) => { setTab(t); history.replaceState(null, '', `#/settings?tab=${t}`) }
   // Fails CLOSED to the display-only view until /api/me answers — a display key must never see
   // admin sections, even briefly, if the check is slow or fails.
@@ -192,7 +198,7 @@ function AppearanceSection({ settings, onSaved, toast }: { settings: Settings; o
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
         <div className="settings-row-label">Accent color</div>
         <div className="color-swatch-row">
-          {ACCENT_PRESETS.map(c => <button key={c} className={`color-swatch ${settings.accent === c ? 'active' : ''}`} style={{ background: c }} onClick={() => save({ accent: c })} />)}
+          {ACCENT_PRESETS.map(c => <button key={c} className={`color-swatch ${settings.accent === c ? 'active' : ''}`} style={{ background: c }} onClick={() => save({ accent: c })} aria-label={`Accent ${c}`} />)}
           <input type="color" className="color-swatch" value={/^#[0-9a-f]{6}$/i.test(settings.accent) ? settings.accent : '#888888'}
             onChange={e => save({ accent: e.target.value })} style={{ padding: 0, border: '2px solid var(--border)', cursor: 'pointer' }} aria-label="Custom accent color" />
         </div>
@@ -266,7 +272,8 @@ function NotificationsSection({ toast }: { toast: (m: string) => void }) {
   const [busy, setBusy] = useState(false)
 
   const reconcile = async () => {
-    const storedId = localStorage.getItem(PUSH_SUB_ID_KEY)
+    let storedId: string | null = null
+    try { storedId = localStorage.getItem(PUSH_SUB_ID_KEY) } catch { /* storage blocked */ }
     if (!storedId) { setSub(null); return }
     try {
       const reg = await navigator.serviceWorker.ready
@@ -305,10 +312,11 @@ function NotificationsSection({ toast }: { toast: (m: string) => void }) {
       const existing = await reg.pushManager.getSubscription()
       if (existing) await existing.unsubscribe()
       if (sub) await api.deletePushSubscription(sub.id)
-    } catch { /* best effort - clear locally regardless */ }
-    localStorage.removeItem(PUSH_SUB_ID_KEY)
-    setSub(null)
-    setBusy(false)
+    } catch { /* best effort - clear locally regardless */ } finally {
+      try { localStorage.removeItem(PUSH_SUB_ID_KEY) } catch { /* storage blocked */ }
+      setSub(null)
+      setBusy(false)
+    }
   }
 
   const savePrefs = async (patch: Partial<PushSubscription['prefs']>) => {
@@ -353,25 +361,25 @@ function NotificationsSection({ toast }: { toast: (m: string) => void }) {
         <>
           <div className="toggle-row">
             <label>Event reminders</label>
-            <button className={`switch ${prefs.eventReminders ? 'on' : ''}`} onClick={() => savePrefs({ eventReminders: !prefs.eventReminders })}><span className="knob" /></button>
+            <button className={`switch ${prefs.eventReminders ? 'on' : ''}`} role="switch" aria-checked={prefs.eventReminders} aria-label="Event reminders" onClick={() => savePrefs({ eventReminders: !prefs.eventReminders })}><span className="knob" /></button>
           </div>
           <div className="settings-row">
             <div className="toggle-row" style={{ flex: 1 }}>
               <label>Daily summary</label>
-              <button className={`switch ${prefs.dailySummary ? 'on' : ''}`} onClick={() => savePrefs({ dailySummary: !prefs.dailySummary })}><span className="knob" /></button>
+              <button className={`switch ${prefs.dailySummary ? 'on' : ''}`} role="switch" aria-checked={prefs.dailySummary} aria-label="Daily summary" onClick={() => savePrefs({ dailySummary: !prefs.dailySummary })}><span className="knob" /></button>
             </div>
             {prefs.dailySummary && <input type="time" value={prefs.summaryTime} onChange={e => savePrefs({ summaryTime: e.target.value })} />}
           </div>
           <div className="settings-row">
             <div className="toggle-row" style={{ flex: 1 }}>
               <label>Chore reminder</label>
-              <button className={`switch ${prefs.choreNudge ? 'on' : ''}`} onClick={() => savePrefs({ choreNudge: !prefs.choreNudge })}><span className="knob" /></button>
+              <button className={`switch ${prefs.choreNudge ? 'on' : ''}`} role="switch" aria-checked={prefs.choreNudge} aria-label="Chore reminder" onClick={() => savePrefs({ choreNudge: !prefs.choreNudge })}><span className="knob" /></button>
             </div>
             {prefs.choreNudge && <input type="time" value={prefs.choreNudgeTime} onChange={e => savePrefs({ choreNudgeTime: e.target.value })} />}
           </div>
           <div className="toggle-row">
             <label>List updates</label>
-            <button className={`switch ${prefs.listUpdates ? 'on' : ''}`} onClick={() => savePrefs({ listUpdates: !prefs.listUpdates })}><span className="knob" /></button>
+            <button className={`switch ${prefs.listUpdates ? 'on' : ''}`} role="switch" aria-checked={prefs.listUpdates} aria-label="List updates" onClick={() => savePrefs({ listUpdates: !prefs.listUpdates })}><span className="knob" /></button>
           </div>
           <MemberPicker members={members} selected={sub.memberIds} onChange={saveMembers} label="Which family members?" noneLabel="Everyone" />
           <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
@@ -413,7 +421,7 @@ function NotificationDevicesSection({ toast }: { toast: (m: string) => void }) {
   return (
     <Section title="Notifications" icon={<BellIcon width={16} height={16} />}>
       {subs.length === 0 ? (
-        <p className="settings-row-sub">No devices have turned on notifications yet. Each phone turns them on in Settings → General.</p>
+        <p className="settings-row-sub">No devices have turned on notifications yet. Each phone turns them on in <a href="#/settings?tab=general">Settings → General</a>.</p>
       ) : subs.map(s => (
         <div key={s.id} className="key-item">
           <div>
@@ -422,7 +430,7 @@ function NotificationDevicesSection({ toast }: { toast: (m: string) => void }) {
               added {new Date(s.createdAt).toLocaleDateString()}{s.lastSuccessAt ? ` · delivered ${new Date(s.lastSuccessAt).toLocaleDateString()}` : ' · never delivered'}
             </div>
           </div>
-          <button className="icon-btn" onClick={() => remove(s)}><TrashIcon width={16} height={16} /></button>
+          <button className="icon-btn" onClick={() => remove(s)} aria-label={`Remove ${s.deviceName}`}><TrashIcon width={16} height={16} /></button>
         </div>
       ))}
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8, marginTop: 10 }}>
@@ -578,12 +586,12 @@ function MemberEditSheet({ member, canDelete, onClose, onSaved, toast }: { membe
   }
   return (
     <Sheet title={member ? 'Edit member' : 'Add member'} onClose={onClose}
-      actions={<>{member && canDelete && <button className="btn btn-danger" onClick={del}><TrashIcon width={18} height={18} /></button>}<button className="btn btn-primary" onClick={save} disabled={!name.trim() || !isValidAvatar(avatar)}>Save</button></>}>
+      actions={<>{member && canDelete && <button className="btn btn-danger" onClick={del} aria-label="Delete"><TrashIcon width={18} height={18} /></button>}<button className="btn btn-primary" onClick={save} disabled={!name.trim() || !isValidAvatar(avatar)}>Save</button></>}>
       <div className="field"><label>Name</label><input type="text" value={name} onChange={e => setName(e.target.value)} autoFocus={!member} /></div>
       <div className="field">
         <label>Color</label>
         <div className="color-swatch-row">
-          {MEMBER_PALETTE.map(c => <button key={c} className={`color-swatch ${color === c ? 'active' : ''}`} style={{ background: c }} onClick={() => setColor(c)} />)}
+          {MEMBER_PALETTE.map(c => <button key={c} className={`color-swatch ${color === c ? 'active' : ''}`} style={{ background: c }} onClick={() => setColor(c)} aria-label={`Color ${c}`} />)}
           <input type="color" className="color-swatch" value={/^#[0-9a-f]{6}$/i.test(color) ? color : '#888888'}
             onChange={e => setColor(e.target.value)} style={{ padding: 0, border: '2px solid var(--border)', cursor: 'pointer' }} aria-label="Custom member color" />
         </div>
@@ -677,7 +685,7 @@ function CategoryEditSheet({ category, initial, onClose, onSaved, toast }: {
 
   return (
     <Sheet title={category ? 'Edit category' : 'Add category'} onClose={onClose}
-      actions={<>{category && <button className="btn btn-danger" onClick={del}><TrashIcon width={18} height={18} /></button>}<button className="btn btn-primary" onClick={save} disabled={!name.trim()}>Save</button></>}>
+      actions={<>{category && <button className="btn btn-danger" onClick={del} aria-label="Delete"><TrashIcon width={18} height={18} /></button>}<button className="btn btn-primary" onClick={save} disabled={!name.trim()}>Save</button></>}>
       <div className="field"><label>Name</label><input type="text" value={name} onChange={e => setName(e.target.value)} autoFocus={!category} /></div>
       <div className="field">
         <label>Emoji</label>
@@ -689,7 +697,7 @@ function CategoryEditSheet({ category, initial, onClose, onSaved, toast }: {
       <div className="field">
         <label>Color</label>
         <div className="color-swatch-row">
-          {MEMBER_PALETTE.map(c => <button key={c} className={`color-swatch ${color === c ? 'active' : ''}`} style={{ background: c }} onClick={() => setColor(c)} />)}
+          {MEMBER_PALETTE.map(c => <button key={c} className={`color-swatch ${color === c ? 'active' : ''}`} style={{ background: c }} onClick={() => setColor(c)} aria-label={`Color ${c}`} />)}
           <input type="color" className="color-swatch" value={/^#[0-9a-f]{6}$/i.test(color) ? color : '#888888'}
             onChange={e => setColor(e.target.value)} style={{ padding: 0, border: '2px solid var(--border)', cursor: 'pointer' }} aria-label="Custom category color" />
         </div>
@@ -822,7 +830,7 @@ function EditCalendarSheet({ calendar, onClose, onSaved, onSync, onRemove, toast
       <div className="field">
         <label>Color</label>
         <div className="color-swatch-row">
-          {MEMBER_PALETTE.map(c => <button key={c} className={`color-swatch ${color === c ? 'active' : ''}`} style={{ background: c }} onClick={() => setColor(c)} />)}
+          {MEMBER_PALETTE.map(c => <button key={c} className={`color-swatch ${color === c ? 'active' : ''}`} style={{ background: c }} onClick={() => setColor(c)} aria-label={`Color ${c}`} />)}
           <input type="color" className="color-swatch" value={/^#[0-9a-f]{6}$/i.test(color) ? color : '#888888'}
             onChange={e => setColor(e.target.value)} style={{ padding: 0, border: '2px solid var(--border)', cursor: 'pointer' }} aria-label="Custom calendar color" />
         </div>
@@ -1022,7 +1030,7 @@ function PasskeysSection({ me, toast }: { me: Me; toast: (m: string) => void }) 
               </div>
             </div>
           )}
-          <button className="icon-btn" onClick={() => remove(p)}><TrashIcon width={16} height={16} /></button>
+          <button className="icon-btn" onClick={() => remove(p)} aria-label={`Remove passkey ${p.name}`}><TrashIcon width={16} height={16} /></button>
         </div>
       ))}
       {creating ? (
@@ -1114,7 +1122,7 @@ function KeysSection({ toast }: { toast: (m: string) => void }) {
             <div className="settings-row-label">{k.name} <span className="cal-kind-badge">{k.scope}</span></div>
             <div className="settings-row-sub">{[k.prefix && `${k.prefix}…`, k.lastUsedAt ? `used ${new Date(k.lastUsedAt).toLocaleDateString()}` : 'never used'].filter(Boolean).join(' · ')}</div>
           </div>
-          <button className="icon-btn" onClick={() => del(k.id)}><TrashIcon width={16} height={16} /></button>
+          <button className="icon-btn" onClick={() => del(k.id)} aria-label={`Delete ${k.name}`}><TrashIcon width={16} height={16} /></button>
         </div>
       ))}
       {creating ? (
@@ -1228,7 +1236,7 @@ function WebhooksSection({ toast }: { toast: (m: string) => void }) {
             <div className="settings-row-label" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{h.url}</div>
             <div className="settings-row-sub">{h.events.join(', ')}</div>
           </div>
-          <button className="icon-btn" onClick={() => del(h.id)}><TrashIcon width={16} height={16} /></button>
+          <button className="icon-btn" onClick={() => del(h.id)} aria-label={`Delete webhook ${h.url}`}><TrashIcon width={16} height={16} /></button>
         </div>
       ))}
       {adding ? (

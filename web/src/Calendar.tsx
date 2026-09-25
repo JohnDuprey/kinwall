@@ -940,7 +940,7 @@ function EventEditSheet({ event, prefill, calendars, members, categories, onClos
       </div>
       <div className="toggle-row">
         <label>All day</label>
-        <button className={`switch ${allDay ? 'on' : ''}`} onClick={() => setAllDay(v => !v)}><span className="knob" /></button>
+        <button className={`switch ${allDay ? 'on' : ''}`} role="switch" aria-checked={allDay} aria-label="All day" onClick={() => setAllDay(v => !v)}><span className="knob" /></button>
       </div>
       <div className={allDay ? 'row-2' : 'row-datetime'}>
         <div className="field">

@@ -10,6 +10,14 @@ export async function sha256Hex(input: string): Promise<string> {
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+// Callers pass fixed-length hex hashes, so a plain char-by-char XOR is a real constant-time comparison.
+export function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
 export function generateApiKey(): string {
   return `kw_${crypto.randomUUID().replace(/-/g, '')}`;
 }
@@ -100,11 +108,11 @@ export async function resolveKey(c: Context<{ Bindings: Env }>): Promise<Resolve
   const key = header.startsWith('Bearer ') ? header.slice('Bearer '.length).trim() : c.req.query('key') ?? '';
   if (!key) return null;
 
-  if (c.env.ADMIN_API_KEY && key === c.env.ADMIN_API_KEY) {
+  const hash = await sha256Hex(key);
+  if (c.env.ADMIN_API_KEY && timingSafeEqual(hash, await sha256Hex(c.env.ADMIN_API_KEY))) {
     return { scope: 'admin', name: 'ADMIN_API_KEY', kind: 'api' };
   }
 
-  const hash = await sha256Hex(key);
   const row = await c.env.DB.prepare('SELECT id, name, scope, expires_at, kind, last_used_at FROM api_keys WHERE hash = ?')
     .bind(hash)
     .first<{ id: string; name: string; scope: string | null; expires_at: string | null; kind: string | null; last_used_at: string | null }>();

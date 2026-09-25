@@ -7,7 +7,7 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
-import { createApiKey, sha256Hex } from '../auth.ts';
+import { createApiKey, sha256Hex, timingSafeEqual } from '../auth.ts';
 import { emit } from '../bus.ts';
 import { effectivePublicUrl, providerSources } from '../providers/config.ts';
 import { ErrorSchema } from '../schemas.ts';
@@ -32,14 +32,6 @@ function randomCode(): string {
 }
 function formatCode(code: string): string {
   return `${code.slice(0, 3)} ${code.slice(3)}`;
-}
-
-// Fixed-length hex hashes, so a plain char-by-char XOR is a real constant-time comparison here.
-function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
 }
 
 async function upsertSetting(db: D1Database, key: string, value: string): Promise<void> {
