@@ -269,3 +269,14 @@ test('categories: deleting a category clears every reference - events fall back 
   const calendars = await json<any[]>(await request('/api/calendars'));
   assert.equal(calendars.find((c) => c.id === cal.id)?.categoryId, null);
 });
+
+test('categories and members created without a sort go last, not all at 0', async () => {
+  const env = makeEnv();
+  const request = makeApp(env);
+  const a = await (await request('/api/categories', { method: 'POST', body: JSON.stringify({ name: 'A', color: '#111111' }) })).json() as any;
+  const b = await (await request('/api/categories', { method: 'POST', body: JSON.stringify({ name: 'B', color: '#222222' }) })).json() as any;
+  assert.ok(b.sort > a.sort);
+  const m1 = await (await request('/api/members', { method: 'POST', body: JSON.stringify({ name: 'One', color: '#111111' }) })).json() as any;
+  const m2 = await (await request('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Two', color: '#222222' }) })).json() as any;
+  assert.ok(m2.sort > m1.sort);
+});

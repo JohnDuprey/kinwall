@@ -43,7 +43,8 @@ categoriesRoutes.openapi(
       emoji: body.emoji ?? null,
       color: body.color,
       keywords: JSON.stringify(body.keywords ?? []),
-      sort: body.sort ?? 0,
+      // New ones go last; a flat 0 made every row tie, so the saved order couldn't hold.
+      sort: body.sort ?? ((await c.env.DB.prepare('SELECT MAX(sort) AS m FROM categories').first<{ m: number | null }>())?.m ?? -1) + 1,
       created_at: new Date().toISOString(),
     };
     await c.env.DB.prepare('INSERT INTO categories (id, name, emoji, color, keywords, sort, created_at) VALUES (?,?,?,?,?,?,?)')

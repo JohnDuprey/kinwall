@@ -14,6 +14,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
+import { hostTimezone } from './env.ts';
 import type { Env } from './env.ts';
 import { VERSION } from './version.ts';
 import { resolveKey } from './auth.ts';
@@ -109,6 +110,13 @@ async function resolveCategory(app: App, env: Env, auth: string, ref: string): P
   throw new MemberResolutionError(`no category found matching "${ref}"`);
 }
 
+// "Today" for defaults means the household's day, not UTC's - in the evening west of UTC those differ.
+async function todayInHousehold(env: Env): Promise<string> {
+  const row = await env.DB.prepare("SELECT value FROM settings WHERE key = 'timezone'").first<{ value: string }>();
+  const tz = row?.value || hostTimezone();
+  return new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date());
+}
+
 function registerTools(server: McpServer, app: App, env: Env, auth: string) {
   const tool = server.registerTool.bind(server);
 
@@ -150,7 +158,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       },
     },
     async ({ from, to, member, calendarId }) => {
-      const fromDate = from ?? new Date().toISOString().slice(0, 10);
+      const fromDate = from ?? await todayInHousehold(env);
       const toDate = to ?? new Date(Date.parse(`${fromDate}T00:00:00Z`) + 7 * 86400000).toISOString().slice(0, 10);
       let memberId: string | undefined;
       try {
@@ -256,7 +264,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       inputSchema: { date: z.string().optional().describe('YYYY-MM-DD, household timezone. Default: today.') },
     },
     async ({ date }) => {
-      const day = date ?? new Date().toISOString().slice(0, 10);
+      const day = date ?? await todayInHousehold(env);
       const res = await call(app, env, auth, 'GET', `/api/chores/day?date=${encodeURIComponent(day)}`);
       if (res.status >= 400) return errorResult(res.json, 'failed to list chores');
       const chores = res.json as { completed: boolean }[];
@@ -312,7 +320,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       } catch (err) {
         return errorResult(null, err instanceof Error ? err.message : 'member lookup failed');
       }
-      const day = date ?? new Date().toISOString().slice(0, 10);
+      const day = date ?? await todayInHousehold(env);
       const res = await call(app, env, auth, 'POST', `/api/chores/${encodeURIComponent(choreId)}/complete`, { date: day, memberId });
       if (res.status >= 400) return errorResult(res.json, 'failed to complete chore');
       return okResult(`Marked chore complete for ${day}.`, { ok: true });
@@ -327,7 +335,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       inputSchema: { choreId: z.string(), date: z.string().optional().describe('YYYY-MM-DD. Default: today.') },
     },
     async ({ choreId, date }) => {
-      const day = date ?? new Date().toISOString().slice(0, 10);
+      const day = date ?? await todayInHousehold(env);
       const res = await call(app, env, auth, 'DELETE', `/api/chores/${encodeURIComponent(choreId)}/complete?date=${encodeURIComponent(day)}`);
       if (res.status >= 400) return errorResult(res.json, 'failed to uncomplete chore');
       return okResult(`Undid completion for ${day}.`, { ok: true });

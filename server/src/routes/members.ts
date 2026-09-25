@@ -116,7 +116,8 @@ membersRoutes.openapi(
       name: body.name,
       color: body.color,
       avatar: body.avatar ?? null,
-      sort: body.sort ?? 0,
+      // New ones go last; a flat 0 made every row tie, so the saved order couldn't hold.
+      sort: body.sort ?? ((await c.env.DB.prepare('SELECT MAX(sort) AS m FROM members').first<{ m: number | null }>())?.m ?? -1) + 1,
       created_at: new Date().toISOString(),
     };
     await c.env.DB.prepare('INSERT INTO members (id, name, color, avatar, sort, created_at) VALUES (?,?,?,?,?,?)')
