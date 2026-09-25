@@ -171,7 +171,8 @@ async function runEventReminders(env: Env, db: D1Database, now: Date, tz: string
       const emoji = cand.categoryId ? categoryEmojis.get(cand.categoryId) : null;
       const when = cand.minutes === 0 ? 'Now' : cand.minutes % 60 === 0 ? `In ${cand.minutes / 60} hour${cand.minutes === 60 ? '' : 's'}` : `In ${cand.minutes} minutes`;
       const timeLabel = cand.allDay ? 'All day' : fmtTime(cand.start, tz);
-      await sendToSub(env, db, sub, { title: when, body: `${emoji ? emoji + ' ' : ''}${cand.title} · ${timeLabel}`, url: '/', tag: `event:${cand.eventId}` });
+      // Event name as the title: it's what you scan for, and iOS already adds "from Kinwall" under it.
+      await sendToSub(env, db, sub, { title: `${emoji ? emoji + ' ' : ''}${cand.title}`, body: `${when} · ${timeLabel}`, url: '/', tag: `event:${cand.eventId}` });
       await markSent(db, key, now);
     }
   }

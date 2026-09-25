@@ -187,7 +187,7 @@ pushRoutes.openapi(
     const row = await c.env.DB.prepare('SELECT * FROM push_subscriptions WHERE id = ?').bind(id).first<PushSubRow>();
     if (!row) return c.json({ error: 'not found' }, 404);
     if (!ownsOrAdmin(await resolveKey(c), row)) return c.json({ error: 'forbidden' }, 403);
-    const result = await sendWebPush(c.env, c.env.DB, row, { title: 'Kinwall', body: 'Test notification — push is working.', url: '/' });
+    const result = await sendWebPush(c.env, c.env.DB, row, { title: 'Notifications are on 🎉', body: 'This device will get the reminders you picked in Settings.', url: '/' });
     if (result.ok) await c.env.DB.prepare('UPDATE push_subscriptions SET last_success_at = ? WHERE id = ?').bind(new Date().toISOString(), id).run();
     else if (result.gone) await c.env.DB.prepare('DELETE FROM push_subscriptions WHERE id = ?').bind(id).run();
     return c.json({ ok: result.ok }, 200);
