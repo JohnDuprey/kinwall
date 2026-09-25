@@ -228,6 +228,21 @@ function ThisDisplaySection({ keyName }: { keyName?: string }) {
     clearKey()
     location.reload()
   }
+  // For a Home Screen app stuck on an old build: iOS can keep the page alive in memory, and a plain
+  // reload may be served from HTTP cache. Drop any Cache Storage / service workers, re-fetch the page
+  // bypassing the cache, then load it under a fresh URL. Keeps the stored key and preferences.
+  const [refreshing, setRefreshing] = useState(false)
+  const hardReload = async () => {
+    setRefreshing(true)
+    try {
+      if ('caches' in window) await Promise.all((await caches.keys()).map(k => caches.delete(k)))
+      if ('serviceWorker' in navigator) await Promise.all((await navigator.serviceWorker.getRegistrations()).map(r => r.unregister()))
+      await fetch(location.pathname, { cache: 'reload' })
+    } catch { /* best effort - reload regardless */ }
+    const url = new URL(location.href)
+    url.searchParams.set('v', Date.now().toString(36))
+    location.replace(url.toString())
+  }
   return (
     <Section title="This display" icon={<MonitorIcon width={16} height={16} />}>
       {keyName !== undefined && (
@@ -243,6 +258,10 @@ function ThisDisplaySection({ keyName }: { keyName?: string }) {
           ))}
         </div>
         <div className="settings-row-sub">{isPhone ? 'Phones always use the bottom bar.' : 'Saved on this device only.'}</div>
+      </div>
+      <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+        <button className="btn btn-secondary" onClick={hardReload} disabled={refreshing}>{refreshing ? 'Reloading…' : 'Clear cache and reload'}</button>
+        <div className="settings-row-sub">Loads the latest version of Kinwall if this device seems stuck on an old one. You stay signed in.</div>
       </div>
       {keyName !== undefined && (
         <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
