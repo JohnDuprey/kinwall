@@ -208,3 +208,23 @@ test('mcp: send_notification resolves member names and wraps POST /api/notify', 
   assert.match(body.result.content[0].text, /Sent to 0 device/); // no subscriptions registered - still a valid, non-erroring call
   void member;
 });
+
+test('mcp: array arguments sent as JSON text are accepted, and still advertised as arrays', async () => {
+  const env = makeEnv();
+  const { rest, mcp } = makeApp(env);
+  const cal = await (await rest('/api/calendars', { method: 'POST', body: JSON.stringify({ kind: 'local', name: 'Fam' }) })).json() as any;
+  await rest('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Max', color: '#ff0000' }) });
+
+  const res = await (await mcp('tools/call', {
+    name: 'create_event',
+    arguments: { calendarId: cal.id, title: 't', start: '2030-01-01T10:00:00Z', end: '2030-01-01T11:00:00Z', reminders: '[15]', members: '["max"]' },
+  })).json() as any;
+  assert.equal(res.result.isError, undefined, JSON.stringify(res));
+  assert.deepEqual(res.result.structuredContent.event.reminders, [15]);
+  assert.equal(res.result.structuredContent.event.memberIds.length, 1);
+
+  const list = await (await mcp('tools/list', {})).json() as any;
+  const schema = list.result.tools.find((t: any) => t.name === 'create_event').inputSchema;
+  assert.equal(schema.properties.reminders.type === 'array' || schema.properties.reminders.anyOf?.some((s: any) => s.type === 'array'), true, JSON.stringify(schema.properties.reminders));
+  assert.equal(schema.properties.members.type, 'array', JSON.stringify(schema.properties.members));
+});

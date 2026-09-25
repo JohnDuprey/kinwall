@@ -117,6 +117,20 @@ async function todayInHousehold(env: Env): Promise<string> {
   return new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date());
 }
 
+// Lists given as JSON text ("[15]") are parsed rather than rejected: clients holding a stale tool list,
+// and some model-driven clients generally, send arrays that way.
+function jsonList<T extends z.ZodTypeAny>(schema: T) {
+  return z.preprocess((v) => {
+    if (typeof v !== 'string') return v;
+    try {
+      const parsed = JSON.parse(v);
+      return Array.isArray(parsed) ? parsed : v;
+    } catch {
+      return v;
+    }
+  }, schema);
+}
+
 function registerTools(server: McpServer, app: App, env: Env, auth: string) {
   const tool = server.registerTool.bind(server);
 
@@ -189,9 +203,9 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         allDay: z.boolean().default(false),
         location: z.string().optional(),
         description: z.string().optional(),
-        members: z.array(z.string()).optional().describe('Member names or ids to attach to this event.'),
+        members: jsonList(z.array(z.string())).optional().describe('Member names or ids to attach to this event.'),
         rrule: z.string().nullable().optional().describe('Recurrence rule, e.g. FREQ=WEEKLY;BYDAY=TU. Local calendars only.'),
-        reminders: z.array(z.number().int().min(0)).nullable().optional().describe('Reminder minutes before start, e.g. [30] or [10, 1440]. [] = no reminders, null = default. Written to Google/Outlook for synced events.'),
+        reminders: jsonList(z.array(z.number().int().min(0)).nullable()).optional().describe('Reminder minutes before start, e.g. [30] or [10, 1440]. [] = no reminders, null = default. Written to Google/Outlook for synced events.'),
       },
     },
     async ({ members, ...input }) => {
@@ -221,9 +235,9 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         allDay: z.boolean().optional(),
         location: z.string().optional(),
         description: z.string().optional(),
-        members: z.array(z.string()).optional().describe('Member names or ids; replaces the current list.'),
+        members: jsonList(z.array(z.string())).optional().describe('Member names or ids; replaces the current list.'),
         rrule: z.string().nullable().optional(),
-        reminders: z.array(z.number().int().min(0)).nullable().optional().describe('Reminder minutes before start, e.g. [30] or [10, 1440]. [] = no reminders, null = default. Written to Google/Outlook for synced events.'),
+        reminders: jsonList(z.array(z.number().int().min(0)).nullable()).optional().describe('Reminder minutes before start, e.g. [30] or [10, 1440]. [] = no reminders, null = default. Written to Google/Outlook for synced events.'),
         scope: z
           .enum(['occurrence', 'series'])
           .optional()
@@ -404,7 +418,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         name: z.string().describe('List name, e.g. "Groceries".'),
         kind: z.enum(['shopping', 'todo', 'reusable']).optional().describe('Default: todo.'),
         emoji: z.string().optional().describe('A single emoji shown with the list.'),
-        members: z.array(z.string()).optional().describe('Owner member names or ids. Default: the whole family.'),
+        members: jsonList(z.array(z.string())).optional().describe('Owner member names or ids. Default: the whole family.'),
       },
     },
     async ({ name, kind, emoji, members }) => {
@@ -450,7 +464,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       inputSchema: {
         listId: z.string().optional().describe('List id (use this or listName).'),
         listName: z.string().optional().describe('List name, case-insensitive (use this or listId).'),
-        items: z.array(
+        items: jsonList(z.array(
           z.union([
             z.string().describe('Plain item title.'),
             z.object({
@@ -463,7 +477,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
               dueDate: z.string().optional().describe('YYYY-MM-DD.'),
             }),
           ]),
-        ),
+        )),
       },
     },
     async ({ listId, listName, items }) => {
@@ -555,7 +569,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       inputSchema: {
         title: z.string(),
         body: z.string(),
-        members: z.array(z.string()).optional().describe('Member names or ids to target; omit to notify every device.'),
+        members: jsonList(z.array(z.string())).optional().describe('Member names or ids to target; omit to notify every device.'),
       },
     },
     async ({ title, body, members }) => {
