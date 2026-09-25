@@ -226,6 +226,11 @@ export const api = {
   pairPoll: (pairingId: string, pollToken: string) =>
     post<{ status: 'pending' | 'approved'; key?: string }>('api/pair/poll', { pairingId, pollToken }),
   pairApprove: (code: string, name: string) => post<{ keyId: string; name: string }>('api/pair/approve', { code, name }, true),
+  // OAuth consent (#/authorize) and Settings → Access → Connected apps.
+  authorizationRequest: (qs: string) => get<{ clientName: string; redirectHost: string; requestedScope: 'admin' | 'display' }>(`api/authorizations/request?${qs}`, true),
+  decideAuthorization: (body: Record<string, string | undefined>) => post<{ redirect: string }>('api/authorizations/approve', body, true),
+  getAuthorizations: () => MOCK ? Promise.resolve([]) : get<{ id: string; clientName: string; scope: 'admin' | 'display'; approvedBy: string | null; createdAt: string; lastUsedAt: string | null }[]>('api/authorizations'),
+  revokeAuthorization: (id: string) => del(`api/authorizations/${id}`),
 
   getWebhooks: () => MOCK ? mock.getWebhooks() : get<Webhook[]>('api/webhooks', true),
   createWebhook: (url: string, events: string[], secret?: string) =>

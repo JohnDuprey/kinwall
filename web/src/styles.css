@@ -1049,3 +1049,10 @@ button {
 @keyframes kw-from-left { from { opacity: 0; transform: translateX(-28px); } to { opacity: 1; transform: none; } }
 @keyframes kw-toast-in { from { opacity: 0; transform: translate(-50%, 12px); } to { opacity: 1; transform: translate(-50%, 0); } }
 @keyframes kw-pop { 0% { transform: scale(0.8); } 60% { transform: scale(1.12); } 100% { transform: scale(1); } }
+.authorize-card { text-align: left; }
+.authorize-card h1, .authorize-card > p:first-of-type { text-align: center; }
+.authorize-scopes { display: flex; flex-direction: column; gap: 10px; margin: 4px 0 18px; }
+.authorize-scope { display: flex; flex-direction: column; gap: 3px; text-align: left; padding: 14px 16px; border-radius: var(--radius-sm); border: 2px solid var(--border); background: var(--bg-alt); color: var(--text); font: inherit; }
+.authorize-scope span { font-size: 0.8125rem; color: var(--text-dim); font-weight: 600; }
+.authorize-scope.active { border-color: var(--accent-strong); background: color-mix(in srgb, var(--accent) 16%, var(--bg-alt)); }
+.authorize-card .link-btn { display: block; margin-left: auto; margin-right: auto; }

@@ -93,6 +93,7 @@ export default function SettingsView() {
           <DisplaysSection toast={toast} />
           <NotificationDevicesSection toast={toast} />
           <PasskeysSection me={me} toast={toast} />
+          <ConnectedAppsSection toast={toast} />
           <KeysSection toast={toast} />
           <WebhooksSection toast={toast} />
         </>}
@@ -1001,6 +1002,34 @@ function PasskeysSection({ me, toast }: { me: Me; toast: (m: string) => void }) 
 // so there's one place to mint each kind of key instead of two overlapping ones. Revoking a
 // display key still works here-or-there since both call the same DELETE /api/keys/:id, but this
 // list only shows admin keys to keep that one job in Displays.
+/** OAuth connections (e.g. a Claude connector) - approved on the consent screen, revoked here. */
+function ConnectedAppsSection({ toast }: { toast: (m: string) => void }) {
+  const [apps, setApps] = useState<Awaited<ReturnType<typeof api.getAuthorizations>>>([])
+  const load = () => { api.getAuthorizations().then(setApps).catch(() => {}) }
+  useEffect(load, [])
+  const revoke = async (id: string, name: string) => {
+    if (!confirm(`Disconnect ${name}? It will need to be approved again to use Kinwall.`)) return
+    try { await api.revokeAuthorization(id); load() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not disconnect') }
+  }
+  return (
+    <Section title="Connected apps" icon={<LinkIcon width={16} height={16} />}>
+      {apps.length === 0 && <p className="settings-row-sub">Apps you connect with sign-in (like a Claude connector) appear here. Point them at {location.origin}/mcp.</p>}
+      {apps.map(a => (
+        <div key={a.id} className="key-item">
+          <div>
+            <div className="settings-row-label">{a.clientName}</div>
+            <div className="settings-row-sub">
+              {a.scope === 'admin' ? 'Full access' : 'Everyday access'} · connected {new Date(a.createdAt).toLocaleDateString()}
+              {a.lastUsedAt ? ` · used ${new Date(a.lastUsedAt).toLocaleDateString()}` : ''}
+            </div>
+          </div>
+          <button className="icon-btn" onClick={() => revoke(a.id, a.clientName)} aria-label={`Disconnect ${a.clientName}`}><TrashIcon width={16} height={16} /></button>
+        </div>
+      ))}
+    </Section>
+  )
+}
+
 function KeysSection({ toast }: { toast: (m: string) => void }) {
   const [keys, setKeys] = useState<ApiKey[]>([])
   const [newKey, setNewKey] = useState<{ name: string; key: string } | null>(null)

@@ -362,7 +362,7 @@ export const ApiKeyCreatedSchema = z
   .object({ id: z.string(), name: z.string(), scope: z.enum(['admin', 'display']), key: z.string() })
   .openapi('ApiKeyCreated');
 
-export const MeSchema = z.object({ scope: z.enum(['admin', 'display']), keyName: z.string(), kind: z.enum(['api', 'session']), version: z.string() }).openapi('Me');
+export const MeSchema = z.object({ scope: z.enum(['admin', 'display']), keyName: z.string(), kind: z.enum(['api', 'session', 'oauth']), version: z.string() }).openapi('Me');
 
 export const WebhookSchema = z
   .object({ id: z.string(), url: z.string(), events: z.array(z.string()), enabled: z.boolean(), createdAt: z.string() })

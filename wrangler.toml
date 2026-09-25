@@ -32,7 +32,7 @@ binding = "DB"
 [assets]
 directory = "web/dist"
 not_found_handling = "single-page-application"
-run_worker_first = ["/api/*", "/docs", "/openapi.json", "/mcp"]
+run_worker_first = ["/api/*", "/docs", "/openapi.json", "/mcp", "/oauth/*", "/.well-known/*"]
 
 [vars]
 SYNC_INTERVAL_MINUTES = "10"

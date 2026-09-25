@@ -8,6 +8,7 @@ import CalendarView from './Calendar.tsx'
 import Chores from './Chores.tsx'
 import Lists from './Lists.tsx'
 import SettingsView from './Settings.tsx'
+import AuthorizeScreen from './Authorize.tsx'
 import Setup, { readSetupResume } from './Setup.tsx'
 import { useIsPhone } from './useIsPhone.ts'
 import { useNavMode, type NavMode } from './useNavMode.ts'
@@ -560,7 +561,8 @@ export default function App() {
       clearTimeout(timer)
       timer = setTimeout(() => {
         window.dispatchEvent(new CustomEvent(IDLE_RESET_EVENT))
-        if (location.hash !== '#/calendar' && location.hash !== '') location.hash = '#/calendar'
+        // Idle wall display drifts back to the calendar - but never away from an OAuth consent screen.
+        if (location.hash !== '#/calendar' && location.hash !== '' && !location.hash.startsWith('#/authorize')) location.hash = '#/calendar'
       }, IDLE_MS)
     }
     reset()
@@ -592,6 +594,10 @@ export default function App() {
     const code = new URLSearchParams(location.hash.split('?')[1] || '').get('code')?.replace(/\D/g, '').slice(0, 6) ?? ''
     return <PairPhoneScreen code={code} />
   }
+
+  // #/authorize?… is an MCP client's OAuth consent (via /oauth/authorize) - handled before the key
+  // gate too, since it signs in on its own and must not be sent to pairing.
+  if (tab === 'authorize') return <AuthorizeScreen />
 
   // #/admin-setup?token=… is reached by scanning the QR code from the wall display's setup
   // wizard ("finish on your phone") — also handled before the key gate, this device has no key.

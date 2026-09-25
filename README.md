@@ -134,7 +134,11 @@ curl -X POST https://kinwall.example/api/chores/<id>/complete \
 
 ## MCP
 
-Kinwall exposes an [MCP](https://modelcontextprotocol.io) server at `POST/GET/DELETE /mcp` (Streamable HTTP), so an AI assistant can answer "what's on Saturday?", add events, complete chores, or check the leaderboard - using the same bearer keys and scopes as the REST API. Tools: `get_household`, `list_events`, `create_event`, `update_event`, `delete_event`, `list_chores`, `complete_chore`, `uncomplete_chore`, `create_chore`, `get_leaderboard`, `add_member`, `send_notification`. Family members can be referenced by name (e.g. `"member": "Max"`) instead of an id.
+Kinwall exposes an [MCP](https://modelcontextprotocol.io) server at `POST/GET/DELETE /mcp` (Streamable HTTP), so an AI assistant can answer "what's on Saturday?", add events, complete chores, or check the leaderboard - using the same bearer keys and scopes as the REST API. Tools cover events, chores, lists, categories, members and notifications (each tagged read-only / write / delete, so clients can set permissions per group). Family members, lists and categories can be referenced by name (e.g. `"member": "Max"`) instead of an id.
+
+Two ways to authenticate:
+- **OAuth (sign-in)** - for clients that can't send a header, like **Claude connectors** (Settings → Connectors → Add custom connector → `https://<host>/mcp`). You approve the app on Kinwall's consent screen with your passkey, choosing *Full* or *Everyday* access; connected apps are listed (and revocable) under Settings → Access.
+- **Bearer key** - any API key in an `Authorization` header, as below.
 
 **Claude Code:**
 

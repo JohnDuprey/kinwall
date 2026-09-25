@@ -15,6 +15,7 @@ import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { hostTimezone } from './env.ts';
+import { effectivePublicUrl } from './providers/config.ts';
 import type { Env } from './env.ts';
 import { VERSION } from './version.ts';
 import { resolveKey } from './auth.ts';
@@ -693,9 +694,12 @@ export async function handleMcp(c: Context<{ Bindings: Env }>, app: App): Promis
   const resolved = await resolveKey(c);
   const auth = c.req.header('Authorization') ?? '';
   if (!resolved || !auth) {
+    // resource_metadata is how an OAuth-capable client (e.g. a Claude connector) discovers where to
+    // sign in (MCP authorization spec / RFC 9728). Header-based API keys keep working as before.
+    const base = ((await effectivePublicUrl(c.env, c.env.DB)).value || new URL(c.req.url).origin).replace(/\/$/, '');
     return c.body(JSON.stringify({ error: 'unauthorized' }), 401, {
       'Content-Type': 'application/json',
-      'WWW-Authenticate': 'Bearer',
+      'WWW-Authenticate': `Bearer resource_metadata="${base}/.well-known/oauth-protected-resource"`,
     });
   }
 

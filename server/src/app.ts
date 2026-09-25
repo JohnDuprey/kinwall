@@ -22,6 +22,7 @@ import { pairRoutes } from './routes/pair.ts';
 import { setupRoutes } from './routes/setup.ts';
 import { webhooksRoutes } from './routes/webhooks.ts';
 import { pushRoutes } from './routes/push.ts';
+import { mcpOAuthRoutes } from './routes/mcp-oauth.ts';
 import { revRoutes } from './routes/rev.ts';
 import { handleMcp } from './mcp.ts';
 
@@ -82,6 +83,8 @@ export function createApp() {
   // MCP endpoint: stateless Streamable HTTP (see src/mcp.ts). Not under /api/* - it does its
   // own auth (same bearer keys) and every tool re-enters the REST routes via app.request().
   app.all('/mcp', (c) => handleMcp(c, app));
+  // OAuth for /mcp: /.well-known + /oauth/* are public; /api/authorizations* go through requireAuth.
+  app.route('/', mcpOAuthRoutes);
 
   app.openAPIRegistry.registerComponent('securitySchemes', 'Bearer', {
     type: 'http',

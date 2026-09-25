@@ -48,7 +48,7 @@ test('mcp: 401 without a key, with WWW-Authenticate: Bearer', async () => {
   const { mcp } = makeApp(env);
   const res = await mcp('tools/list', {}, '');
   assert.equal(res.status, 401);
-  assert.equal(res.headers.get('WWW-Authenticate'), 'Bearer');
+  assert.match(res.headers.get('WWW-Authenticate') ?? '', /^Bearer resource_metadata="http[^"]+\/\.well-known\/oauth-protected-resource"$/);
 });
 
 test('mcp: initialize handshake', async () => {

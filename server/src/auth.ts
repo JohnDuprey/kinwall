@@ -15,7 +15,7 @@ export function generateApiKey(): string {
 }
 
 export type KeyScope = 'admin' | 'display';
-export type ResolvedKey = { id?: string; scope: KeyScope; name: string; kind: 'api' | 'session'; lastUsedAt?: string | null };
+export type ResolvedKey = { id?: string; scope: KeyScope; name: string; kind: 'api' | 'session' | 'oauth'; lastUsedAt?: string | null };
 
 // Shared by POST /api/keys and the pairing-approval flow (routes/pair.ts) so key creation +
 // hashing lives in exactly one place. `kind` defaults to 'api' (permanent automation keys);
@@ -24,7 +24,7 @@ export async function createApiKey(
   db: D1Database,
   name: string,
   scope: KeyScope,
-  opts: { kind?: 'api' | 'session'; expiresAt?: string; passkeyId?: string } = {},
+  opts: { kind?: 'api' | 'session' | 'oauth'; expiresAt?: string; passkeyId?: string } = {},
 ): Promise<{ id: string; key: string }> {
   const key = generateApiKey();
   const id = crypto.randomUUID();
@@ -114,7 +114,7 @@ export async function resolveKey(c: Context<{ Bindings: Env }>): Promise<Resolve
     id: row.id,
     name: row.name,
     scope: row.scope === 'display' ? 'display' : 'admin',
-    kind: row.kind === 'session' ? 'session' : 'api',
+    kind: row.kind === 'session' ? 'session' : row.kind === 'oauth' ? 'oauth' : 'api',
     lastUsedAt: row.last_used_at,
   };
 }
