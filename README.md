@@ -18,7 +18,7 @@ An open-source, self-hosted family wall calendar and chore chart, built for a wa
 - **Touch-first UI**: week, day, month and schedule views, swipe to page, big targets, and it returns to today after 2 minutes idle.
 - **API-first**: everything the UI does is in the REST API (OpenAPI docs at `/docs`), with signed webhooks for automations. Home Assistant integration: [kinwall-homeassistant](https://github.com/JohnDuprey/kinwall-homeassistant).
 - **Runs anywhere**: Cloudflare Workers free tier, Docker (amd64/arm64), or the Home Assistant add-on.
-- **Push notifications**: event reminders, a daily summary, chore nudges and list updates, per device — Settings → Notifications. iPhone needs iOS 16.4+ and Kinwall added to the Home Screen first (Safari tabs can't receive push).
+- **Push notifications**: event reminders, a daily summary, chore nudges and list updates, per device — Settings → Notifications. iPhone needs iOS 16.4+ and Kinwall added to the Home Screen first (Safari tabs can't receive push). Android works in Chrome, Firefox or Samsung Internet, installed or not.
 
 <details>
 <summary>More screenshots</summary>
