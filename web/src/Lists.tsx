@@ -156,7 +156,9 @@ function ItemEditSheet({ listId, item, kind, members, suggestions, siblingIds, o
     const body = {
       title: title.trim(), quantity: quantity.trim() || null, notes: notes.trim() || null,
       ...(kind === 'shopping' ? { store: store.trim() || null, category: category.trim() || null } : {}),
-      ...(kind === 'todo' ? { memberId, dueDate: dueDate || null } : {}),
+      // Assignees on to-do and reusable lists (a routine has each person's jobs); due dates are to-do only.
+      ...(kind !== 'shopping' ? { memberId } : {}),
+      ...(kind === 'todo' ? { dueDate: dueDate || null } : {}),
     }
     try { await api.updateListItem(listId, item.id, body); onSaved() }
     catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save item') }
@@ -204,8 +206,7 @@ function ItemEditSheet({ listId, item, kind, members, suggestions, siblingIds, o
           </div>
         </>
       )}
-      {kind === 'todo' && (
-        <>
+      {kind !== 'shopping' && (
           <div className="field">
             <label>Assign to</label>
             <div className="chip-row">
@@ -215,11 +216,12 @@ function ItemEditSheet({ listId, item, kind, members, suggestions, siblingIds, o
               ))}
             </div>
           </div>
+      )}
+      {kind === 'todo' && (
           <div className="field">
             <label>Due date</label>
             <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} />
           </div>
-        </>
       )}
       <div className="field">
         <label>Notes</label>
@@ -271,7 +273,7 @@ function ReorderGroupsSheet({ listId, groupBy, names, onClose, onSaved }: {
 function ItemRow({ item, kind, groupBy, members, onToggle, onOpen }: {
   item: ListItem; kind: ListKind; groupBy: ListGroupBy; members: Member[]; onToggle: () => void; onOpen: () => void
 }) {
-  const assignee = kind === 'todo' && item.memberId ? members.find(m => m.id === item.memberId) : null
+  const assignee = kind !== 'shopping' && item.memberId ? members.find(m => m.id === item.memberId) : null
   const showStore = kind === 'shopping' && groupBy !== 'store' && item.store
   const showCategory = kind === 'shopping' && groupBy !== 'category' && item.category
   return (

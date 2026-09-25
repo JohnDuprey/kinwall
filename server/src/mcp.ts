@@ -131,8 +131,29 @@ function jsonList<T extends z.ZodTypeAny>(schema: T) {
   }, schema);
 }
 
+// Permission groups. readOnly: only reads. destructive: removes something. openWorld: reaches
+// outside Kinwall (writes to Google/Outlook, or pushes to phones). idempotent: repeating the same
+// call changes nothing more.
+const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
+const WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false };
+const SET = { ...WRITE, idempotentHint: true };
+const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boolean; idempotentHint: boolean; openWorldHint: boolean }> = {
+  get_household: READ, list_events: READ, list_chores: READ, get_leaderboard: READ, list_lists: READ, get_list: READ, list_categories: READ,
+  create_event: { ...WRITE, openWorldHint: true }, update_event: { ...SET, openWorldHint: true }, set_event_category: SET,
+  create_chore: WRITE, complete_chore: SET, uncomplete_chore: SET, add_member: WRITE,
+  create_list: WRITE, update_list: SET, add_list_items: WRITE, update_list_item: SET, set_list_item_done: SET,
+  send_notification: { ...WRITE, openWorldHint: true },
+  delete_event: { ...WRITE, destructiveHint: true, idempotentHint: true, openWorldHint: true },
+};
+
 function registerTools(server: McpServer, app: App, env: Env, auth: string) {
-  const tool = server.registerTool.bind(server);
+  // Every tool gets its MCP annotations from TOOL_HINTS, so clients (e.g. Claude's connector
+  // settings) can group them into read-only / write / delete for permissions.
+  const tool: typeof server.registerTool = (name, config, cb) => {
+    const hints = TOOL_HINTS[name];
+    if (!hints) throw new Error(`MCP tool ${name} has no entry in TOOL_HINTS`);
+    return server.registerTool(name, { ...config, annotations: { title: config.title, ...hints } }, cb);
+  };
 
   tool(
     'get_household',
@@ -599,6 +620,69 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       return okResult(done ? 'Marked item done.' : 'Marked item not done.', { item: res.json as Record<string, unknown> });
     },
   );
+
+  tool(
+    'update_list',
+    {
+      title: 'Update list',
+      description: 'Change a list: rename it, switch its kind (todo / shopping / reusable), emoji, owners, or archive it. Only provided fields change.',
+      inputSchema: {
+        list: z.string().describe('List id or name.'),
+        name: z.string().optional(),
+        kind: z.enum(['shopping', 'todo', 'reusable']).optional(),
+        emoji: z.string().optional(),
+        members: jsonList(z.array(z.string())).optional().describe('Owner member names or ids; [] = the whole family.'),
+        archived: z.boolean().optional(),
+      },
+    },
+    async ({ list, members, ...input }) => {
+      let listId: string;
+      let memberIds: string[] | undefined;
+      try {
+        listId = (await resolveList(app, env, auth, list)).id;
+        if (members) memberIds = await resolveMemberIds(app, env, auth, members);
+      } catch (err) {
+        return errorResult(null, err instanceof Error ? err.message : 'lookup failed');
+      }
+      const res = await call(app, env, auth, 'PATCH', `/api/lists/${encodeURIComponent(listId)}`, { ...input, ...(memberIds ? { memberIds } : {}) });
+      if (res.status >= 400) return errorResult(res.json, 'failed to update list');
+      const updated = res.json as { name: string; kind: string };
+      return okResult(`Updated ${updated.kind} list "${updated.name}".`, { list: res.json as Record<string, unknown> });
+    },
+  );
+
+  tool(
+    'update_list_item',
+    {
+      title: 'Update list item',
+      description: 'Edit a list item: title, notes, quantity, store, category, assignee, due date. Only provided fields change; pass member: null to unassign.',
+      inputSchema: {
+        list: z.string().describe('List id or name.'),
+        itemId: z.string(),
+        title: z.string().optional(),
+        notes: z.string().nullable().optional(),
+        quantity: z.string().nullable().optional(),
+        store: z.string().nullable().optional(),
+        category: z.string().nullable().optional(),
+        member: z.string().nullable().optional().describe('Member name or id to assign; null to unassign.'),
+        dueDate: z.string().nullable().optional().describe('YYYY-MM-DD, or null to clear.'),
+      },
+    },
+    async ({ list, itemId, member, ...input }) => {
+      let listId: string;
+      let memberId: string | null | undefined;
+      try {
+        listId = (await resolveList(app, env, auth, list)).id;
+        if (member !== undefined) memberId = member === null ? null : await resolveMember(app, env, auth, member);
+      } catch (err) {
+        return errorResult(null, err instanceof Error ? err.message : 'lookup failed');
+      }
+      const body = { ...input, ...(memberId !== undefined ? { memberId } : {}) };
+      const res = await call(app, env, auth, 'PATCH', `/api/lists/${encodeURIComponent(listId)}/items/${encodeURIComponent(itemId)}`, body);
+      if (res.status >= 400) return errorResult(res.json, 'failed to update item');
+      return okResult(`Updated "${(res.json as { title: string }).title}".`, { item: res.json as Record<string, unknown> });
+    },
+  );
 }
 
 // Mounted as `app.all('/mcp', ...)` in app.ts, passing the app itself so tools can call back
@@ -615,7 +699,19 @@ export async function handleMcp(c: Context<{ Bindings: Env }>, app: App): Promis
     });
   }
 
-  const server = new McpServer({ name: 'kinwall', version: VERSION });
+  // Icon + website let clients show Kinwall's own icon instead of a letter placeholder.
+  const origin = new URL(c.req.url).origin;
+  const server = new McpServer({
+    name: 'kinwall',
+    title: 'Kinwall',
+    version: VERSION,
+    websiteUrl: origin,
+    icons: [
+      { src: `${origin}/icon-512.png`, mimeType: 'image/png', sizes: ['512x512'] },
+      { src: `${origin}/icon-192.png`, mimeType: 'image/png', sizes: ['192x192'] },
+      { src: `${origin}/icon.svg`, mimeType: 'image/svg+xml', sizes: ['any'] },
+    ],
+  });
   registerTools(server, app, c.env, auth);
   // enableJsonResponse: plain JSON responses (no SSE stream) - simplest thing that works for a
   // stateless, request/response tool server; a client is free to ask for SSE and still gets it

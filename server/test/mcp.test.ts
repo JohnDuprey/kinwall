@@ -90,6 +90,8 @@ test('mcp: tools/list returns the tools', async () => {
     'set_list_item_done',
     'uncomplete_chore',
     'update_event',
+    'update_list',
+    'update_list_item',
   ]);
 });
 
@@ -227,4 +229,35 @@ test('mcp: array arguments sent as JSON text are accepted, and still advertised 
   const schema = list.result.tools.find((t: any) => t.name === 'create_event').inputSchema;
   assert.equal(schema.properties.reminders.type === 'array' || schema.properties.reminders.anyOf?.some((s: any) => s.type === 'array'), true, JSON.stringify(schema.properties.reminders));
   assert.equal(schema.properties.members.type, 'array', JSON.stringify(schema.properties.members));
+});
+
+test('mcp: update_list switches kind; update_list_item assigns by member name and unassigns with null', async () => {
+  const env = makeEnv();
+  const { rest, mcp } = makeApp(env);
+  const june = await (await rest('/api/members', { method: 'POST', body: JSON.stringify({ name: 'June', color: '#ff0000' }) })).json() as any;
+  const list = await (await rest('/api/lists', { method: 'POST', body: JSON.stringify({ name: 'Living room reset', kind: 'todo' }) })).json() as any;
+  const [item] = await (await rest(`/api/lists/${list.id}/items`, { method: 'POST', body: JSON.stringify({ title: 'Socks' }) })).json() as any[];
+
+  const upd = await (await mcp('tools/call', { name: 'update_list', arguments: { list: 'living room reset', kind: 'reusable' } })).json() as any;
+  assert.equal(upd.result.structuredContent.list.kind, 'reusable');
+
+  const a = await (await mcp('tools/call', { name: 'update_list_item', arguments: { list: list.id, itemId: item.id, member: 'june' } })).json() as any;
+  assert.equal(a.result.structuredContent.item.memberId, june.id);
+  const b = await (await mcp('tools/call', { name: 'update_list_item', arguments: { list: list.id, itemId: item.id, member: null } })).json() as any;
+  assert.equal(b.result.structuredContent.item.memberId, null);
+});
+
+test('mcp: every tool declares permission hints, and the server advertises its icon', async () => {
+  const env = makeEnv();
+  const { mcp } = makeApp(env);
+  const tools = (await (await mcp('tools/list', {})).json() as any).result.tools as any[];
+  for (const t of tools) assert.equal(typeof t.annotations?.readOnlyHint, 'boolean', `${t.name} has no hints`);
+  const byName = Object.fromEntries(tools.map((t) => [t.name, t.annotations]));
+  assert.equal(byName.list_events.readOnlyHint, true);
+  assert.equal(byName.create_list.readOnlyHint, false);
+  assert.equal(byName.delete_event.destructiveHint, true);
+
+  const init = await (await mcp('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 't', version: '1' } })).json() as any;
+  assert.match(init.result.serverInfo.icons[0].src, /\/icon-512\.png$/);
+  assert.equal(init.result.serverInfo.title, 'Kinwall');
 });
