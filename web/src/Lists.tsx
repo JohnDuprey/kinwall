@@ -270,8 +270,9 @@ function ReorderGroupsSheet({ listId, groupBy, names, onClose, onSaved }: {
   )
 }
 
-function ItemRow({ item, kind, groupBy, members, onToggle, onOpen }: {
+function ItemRow({ item, kind, groupBy, members, onToggle, onOpen, handle }: {
   item: ListItem; kind: ListKind; groupBy: ListGroupBy; members: Member[]; onToggle: () => void; onOpen: () => void
+  handle?: React.ReactNode
 }) {
   const assignee = kind !== 'shopping' && item.memberId ? members.find(m => m.id === item.memberId) : null
   const showStore = kind === 'shopping' && groupBy !== 'store' && item.store
@@ -288,6 +289,68 @@ function ItemRow({ item, kind, groupBy, members, onToggle, onOpen }: {
       {item.quantity && <div className="list-item-chip">{item.quantity}</div>}
       {kind === 'todo' && item.dueDate && <div className="list-item-chip list-item-due">{format(new Date(item.dueDate + 'T00:00:00'), 'EEE, MMM d')}</div>}
       {assignee && <div className="member-avatar-sm" style={{ background: assignee.color, color: inkFor(assignee.color) }}>{assignee.avatar || assignee.name[0]}</div>}
+      {handle}
+    </div>
+  )
+}
+
+/** Rows reorderable by dragging their grip (mouse, touch or pen). The grip alone starts a drag, so
+ * tapping the row still ticks/opens it and swiping elsewhere still scrolls. The dragged row follows
+ * the pointer and a line marks where it will land; dropping reports the new order of these ids. */
+function DragList({ items, renderRow, onReorder }: {
+  items: ListItem[]
+  renderRow: (item: ListItem, handle: React.ReactNode) => React.ReactNode
+  onReorder: (ids: string[]) => void
+}) {
+  const rowsRef = useRef<HTMLDivElement>(null)
+  const [drag, setDrag] = useState<{ id: string; startY: number; dy: number; mids: number[]; from: number; to: number } | null>(null)
+
+  const start = (e: React.PointerEvent, id: string) => {
+    const rows = [...(rowsRef.current?.children ?? [])] as HTMLElement[]
+    const mids = rows.map(r => { const b = r.getBoundingClientRect(); return b.top + b.height / 2 })
+    const from = items.findIndex(i => i.id === id)
+    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+    setDrag({ id, startY: e.clientY, dy: 0, mids, from, to: from })
+  }
+  const move = (e: React.PointerEvent) => {
+    if (!drag) return
+    const y = drag.mids[drag.from] + (e.clientY - drag.startY)
+    // Slot = how many other rows' midpoints the dragged row's midpoint is below.
+    const to = drag.mids.filter((m, i) => i !== drag.from && m < y).length
+    setDrag({ ...drag, dy: e.clientY - drag.startY, to })
+  }
+  const end = () => {
+    if (!drag) return
+    if (drag.to !== drag.from) {
+      const ids = items.map(i => i.id).filter(id => id !== drag.id)
+      ids.splice(drag.to, 0, drag.id)
+      onReorder(ids)
+    }
+    setDrag(null)
+  }
+
+  return (
+    <div ref={rowsRef}>
+      {items.map((item, i) => {
+        const dragging = drag?.id === item.id
+        const handle = (
+          <button className="list-item-grip" aria-label={`Drag to reorder ${item.title}`}
+            onPointerDown={e => start(e, item.id)} onPointerMove={move} onPointerUp={end} onPointerCancel={end}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              {[3, 8, 13].flatMap(y => [5, 11].map(x => <circle key={`${x}-${y}`} cx={x} cy={y} r="1.5" />))}
+            </svg>
+          </button>
+        )
+        // Drop marker above the row the item will land before (or below the last row).
+        const markBefore = drag && !dragging && drag.to !== drag.from && i === (drag.to > drag.from ? drag.to + 1 : drag.to)
+        const markAfter = drag && !dragging && drag.to !== drag.from && drag.to === items.length - 1 && i === items.length - 1
+        return (
+          <div key={item.id} className={`drag-row ${dragging ? 'dragging' : ''} ${markBefore ? 'drop-before' : ''} ${markAfter ? 'drop-after' : ''}`}
+            style={dragging ? { transform: `translateY(${drag!.dy}px)` } : undefined}>
+            {renderRow(item, handle)}
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -346,6 +409,19 @@ function ListDetailPane({ listId, isPhone, onBack, onArchivedOrDeleted, onLoaded
     try { await api.addListItems(listId, { title }); load() }
     catch (e) { toast(e instanceof ApiError ? e.message : 'Could not add item') }
     inputRef.current?.focus() // keep the keyboard open for the next item
+  }
+
+  // A drag reorders one group's rows; slot them back into the positions that group held in the whole
+  // list, so other groups (and done items) keep their places. Shown immediately, then saved.
+  const reorderWithin = async (groupIds: string[]) => {
+    if (!detail) return
+    const all = detail.items.slice().sort((a, b) => a.sort - b.sort).map(i => i.id)
+    const moved = new Set(groupIds)
+    const queue = [...groupIds]
+    const order = all.map(id => (moved.has(id) ? queue.shift()! : id))
+    setDetail({ ...detail, items: detail.items.map(i => ({ ...i, sort: order.indexOf(i.id) })) })
+    try { await api.reorderListItems(listId, order) }
+    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not reorder'); load() }
   }
 
   const toggle = async (item: ListItem) => {
@@ -433,9 +509,8 @@ function ListDetailPane({ listId, isPhone, onBack, onArchivedOrDeleted, onLoaded
           openItems.length === 0 ? (
             <div className="empty-card"><span className="emoji">✨</span>All done!</div>
           ) : (
-            openItems.slice().sort((a, b) => a.sort - b.sort).map(item => (
-              <ItemRow key={item.id} item={item} kind={list.kind} groupBy={list.groupBy} members={members} onToggle={() => toggle(item)} onOpen={() => setEditItem(item)} />
-            ))
+            <DragList items={openItems.slice().sort((a, b) => a.sort - b.sort)} onReorder={reorderWithin}
+              renderRow={(item, handle) => <ItemRow item={item} kind={list.kind} groupBy={list.groupBy} members={members} onToggle={() => toggle(item)} onOpen={() => setEditItem(item)} handle={handle} />} />
           )
         ) : groupedOpen.length === 0 ? (
           <div className="empty-card"><span className="emoji">✨</span>All done!</div>
@@ -443,9 +518,8 @@ function ListDetailPane({ listId, isPhone, onBack, onArchivedOrDeleted, onLoaded
           groupedOpen.map(g => (
             <div key={g.name} className="list-group">
               <div className="list-group-title">{g.name}</div>
-              {g.items.map(item => (
-                <ItemRow key={item.id} item={item} kind={list.kind} groupBy={list.groupBy} members={members} onToggle={() => toggle(item)} onOpen={() => setEditItem(item)} />
-              ))}
+              <DragList items={g.items} onReorder={reorderWithin}
+                renderRow={(item, handle) => <ItemRow item={item} kind={list.kind} groupBy={list.groupBy} members={members} onToggle={() => toggle(item)} onOpen={() => setEditItem(item)} handle={handle} />} />
             </div>
           ))
         )}

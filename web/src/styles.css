@@ -1060,3 +1060,13 @@ button {
 .inline-form input { flex: 1; min-width: 0; padding: 10px 14px; border-radius: var(--radius-sm); border: 2px solid var(--border); background: var(--bg-alt); color: var(--text); font: inherit; font-size: max(1rem, 16px); font-weight: 700; min-height: 48px; }
 .inline-form .btn { flex: none; min-height: 48px; padding-block: 0; padding-inline: 22px; }
 .key-item .inline-form { margin-top: 0; }
+.list-item-grip { flex-shrink: 0; width: 36px; height: 44px; margin-right: -6px; display: flex; align-items: center; justify-content: center; border: none; background: none; color: var(--text-dim); opacity: 0.6; cursor: grab; touch-action: none; }
+.list-item-grip:active { cursor: grabbing; }
+.drag-row { position: relative; }
+.drag-row.dragging { z-index: 5; background: var(--card); box-shadow: var(--shadow-lg); border-radius: var(--radius-sm); opacity: 0.95; pointer-events: none; }
+.drag-row.dragging .list-item-grip { pointer-events: auto; }
+.drag-row.drop-before::before, .drag-row.drop-after::after { content: ''; position: absolute; left: 0; right: 0; height: 3px; border-radius: 2px; background: var(--accent-strong); z-index: 4; }
+.drag-row.drop-before::before { top: -2px; }
+.drag-row.drop-after::after { bottom: -2px; }
+/* Rows sit inside .drag-row wrappers: draw the divider between wrappers, not on every (first-child) row. */
+.drag-row + .drag-row .list-item-row { border-top: 1px solid var(--border); }
