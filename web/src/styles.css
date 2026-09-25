@@ -1056,3 +1056,7 @@ button {
 .authorize-scope span { font-size: 0.8125rem; color: var(--text-dim); font-weight: 600; }
 .authorize-scope.active { border-color: var(--accent-strong); background: color-mix(in srgb, var(--accent) 16%, var(--bg-alt)); }
 .authorize-card .link-btn { display: block; margin-left: auto; margin-right: auto; }
+.inline-form { display: flex; gap: 10px; align-items: stretch; margin-top: 10px; }
+.inline-form input { flex: 1; min-width: 0; padding: 10px 14px; border-radius: var(--radius-sm); border: 2px solid var(--border); background: var(--bg-alt); color: var(--text); font: inherit; font-size: max(1rem, 16px); font-weight: 700; min-height: 48px; }
+.inline-form .btn { flex: none; min-height: 48px; padding-block: 0; padding-inline: 22px; }
+.key-item .inline-form { margin-top: 0; }

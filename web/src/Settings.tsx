@@ -15,7 +15,8 @@ import { useNavMode, setNavPref, type NavPref } from './useNavMode.ts'
 import { passkeysSupported, registerPasskey } from './webauthn.ts'
 import { QrCode } from './App.tsx'
 
-const BUS_EVENTS = ['member.changed', 'calendar.changed', 'calendar.synced', 'events.changed', 'chore.changed', 'chore.completed', 'chore.uncompleted', 'category.changed', 'settings.changed']
+// Mirrors BusEventType in server/src/bus.ts.
+const BUS_EVENTS = ['member.changed', 'calendar.changed', 'calendar.synced', 'events.changed', 'chore.changed', 'chore.completed', 'chore.uncompleted', 'list.changed', 'list.item.changed', 'category.changed', 'settings.changed', 'display.paired']
 
 export function timezoneList() {
   // Intl.supportedValuesOf('timeZone') doesn't include 'UTC' itself (the server's default
@@ -406,7 +407,7 @@ function NotificationDevicesSection({ toast }: { toast: (m: string) => void }) {
   return (
     <Section title="Notifications" icon={<BellIcon width={16} height={16} />}>
       {subs.length === 0 ? (
-        <div className="empty-card">No devices have turned on notifications yet.</div>
+        <p className="settings-row-sub">No devices have turned on notifications yet. Each phone turns them on in Settings → General.</p>
       ) : subs.map(s => (
         <div key={s.id} className="key-item">
           <div>
@@ -420,8 +421,14 @@ function NotificationDevicesSection({ toast }: { toast: (m: string) => void }) {
       ))}
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8, marginTop: 10 }}>
         <div className="settings-row-label">Send a message</div>
-        <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="Title" />
-        <input type="text" value={body} onChange={e => setBody(e.target.value)} placeholder="Message" />
+        <div className="field" style={{ margin: 0 }}>
+          <label>Title</label>
+          <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="Dinner's ready" />
+        </div>
+        <div className="field" style={{ margin: 0 }}>
+          <label>Message</label>
+          <input type="text" value={body} onChange={e => setBody(e.target.value)} placeholder="Come to the kitchen 🍝" />
+        </div>
         <MemberPicker members={members} selected={memberIds} onChange={setMemberIds} label="To" noneLabel="Everyone" />
         <button className="btn btn-primary" onClick={send} disabled={sending || !title.trim() || !body.trim()}>Send now</button>
       </div>
@@ -962,8 +969,8 @@ function PasskeysSection({ me, toast }: { me: Me; toast: (m: string) => void }) 
       {passkeys.map(p => (
         <div key={p.id} className="key-item">
           {renaming?.id === p.id ? (
-            <div style={{ display: 'flex', gap: 8, flex: 1 }}>
-              <input type="text" value={renameValue} onChange={e => setRenameValue(e.target.value)} autoFocus style={{ flex: 1 }} />
+            <div className="inline-form" style={{ flex: 1 }}>
+              <input type="text" value={renameValue} onChange={e => setRenameValue(e.target.value)} autoFocus aria-label="Passkey name" />
               <button className="btn btn-primary" onClick={rename}>Save</button>
             </div>
           ) : (
@@ -979,8 +986,8 @@ function PasskeysSection({ me, toast }: { me: Me; toast: (m: string) => void }) 
         </div>
       ))}
       {creating ? (
-        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-          <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Passkey name" autoFocus style={{ flex: 1 }} />
+        <div className="inline-form">
+          <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Passkey name" autoFocus />
           <button className="btn btn-primary" onClick={create}>Create</button>
         </div>
       ) : (
@@ -1069,8 +1076,8 @@ function KeysSection({ toast }: { toast: (m: string) => void }) {
         </div>
       ))}
       {creating ? (
-        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-          <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Key name" autoFocus style={{ flex: 1 }} />
+        <div className="inline-form">
+          <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Key name" autoComplete="off" autoFocus />
           <button className="btn btn-primary" onClick={create}>Create</button>
         </div>
       ) : (
