@@ -24,7 +24,7 @@ services:
 
 * `./data` holds `kinwall.sqlite` and `encryption.key`. See [Backups](../your-data/backups.md).
 * Set `PUBLIC_URL` to the address people actually use. It matters for OAuth redirects and passkeys.
-* The container runs as the unprivileged `node` user. Make sure `./data` is writable by it (UID 1000).
+* The server runs as the unprivileged `node` user (UID 1000). The container starts as root only to make `/data` writable by that user, then drops privileges; set `user: "1000:1000"` in Compose to skip the root step entirely (then `./data` must already be writable by UID 1000).
 * `/api/health` returns `{ok}` without authentication and is used by the healthcheck. It deliberately doesn't report a version.
 * The image also has a built-in `HEALTHCHECK`.
 
