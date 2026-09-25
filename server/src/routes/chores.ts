@@ -155,7 +155,9 @@ choresRoutes.openapi(
 // for "which chores are due on date X".
 export function dueOnDate(row: ChoreRow, date: string, tz: string): boolean {
   if (!row.rrule) return row.due_date === date;
-  const anchor = row.due_date ?? row.created_at.slice(0, 10);
+  // The creation *day* in the household tz: created_at is UTC, so an evening chore west of UTC
+  // would otherwise anchor on tomorrow and not show up until then.
+  const anchor = row.due_date ?? new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date(row.created_at));
   const dayStart = new Date(`${date}T00:00:00Z`);
   const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
   const instances = expand(row.rrule, anchor, anchor, true, tz, dayStart, dayEnd);

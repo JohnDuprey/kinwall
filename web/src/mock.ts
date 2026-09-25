@@ -11,7 +11,7 @@ let rev = 1
 const bump = () => { rev++ }
 
 const settings: Settings = {
-  familyName: 'The Duprey Family',
+  familyName: 'Our Family',
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   weekStart: 0,
   themeMode: 'light',
@@ -25,7 +25,7 @@ const settings: Settings = {
 }
 
 const members: Member[] = [
-  { id: 'm1', name: 'John', color: '#7AB8FF', avatar: '🦊', sort: 0, pointsToday: 10, pointsWeek: 40 },
+  { id: 'm1', name: 'Alex', color: '#7AB8FF', avatar: '🦊', sort: 0, pointsToday: 10, pointsWeek: 40 },
   { id: 'm2', name: 'Sam', color: '#FF8FA3', avatar: '🐰', sort: 1, pointsToday: 5, pointsWeek: 25 },
   { id: 'm3', name: 'Riley', color: '#7ED9A6', avatar: '🐻', sort: 2, pointsToday: 0, pointsWeek: 15 },
 ]

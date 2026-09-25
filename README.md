@@ -2,6 +2,15 @@
 
 An open-source, self-hosted family wall calendar and chore chart, built for a wall-mounted iPad.
 
+![Week view on a wall-mounted iPad](docs/screenshots/ipad-week.png)
+
+<p align="center">
+  <img src="docs/screenshots/phone-schedule.png" width="24%" alt="Schedule on a phone" />
+  <img src="docs/screenshots/phone-event.png" width="24%" alt="Event details" />
+  <img src="docs/screenshots/phone-groceries.png" width="24%" alt="Shopping list grouped by category" />
+  <img src="docs/screenshots/phone-chores-dark.png" width="24%" alt="Chores in dark mode" />
+</p>
+
 - **One calendar for the family**: Google, Outlook/Microsoft 365, iCloud (CalDAV) and any ICS subscription URL, merged and color-coded per family member. Two-way for Google, Microsoft and CalDAV.
 - **Categories**: custom event categories (🎂 Birthdays, 🏥 Appointments, ...) whose color overrides the member color, with keyword auto-matching against the event title and a per-calendar default.
 - **Chores**: recurring or one-off, per person or "anyone", with points and a satisfying tap-to-complete.
@@ -9,6 +18,24 @@ An open-source, self-hosted family wall calendar and chore chart, built for a wa
 - **Touch-first UI**: week, day, month and schedule views, swipe to page, big targets, and it returns to today after 2 minutes idle.
 - **API-first**: everything the UI does is in the REST API (OpenAPI docs at `/docs`), with signed webhooks for automations. Home Assistant integration: [kinwall-homeassistant](https://github.com/JohnDuprey/kinwall-homeassistant).
 - **Runs anywhere**: Cloudflare Workers free tier, Docker (amd64/arm64), or the Home Assistant add-on.
+
+<details>
+<summary>More screenshots</summary>
+
+| | |
+|---|---|
+| ![Month view](docs/screenshots/ipad-month.png) | ![Chores with leaderboard and streaks](docs/screenshots/ipad-chores.png) |
+| ![Lists](docs/screenshots/ipad-lists.png) | ![Dark mode](docs/screenshots/ipad-week-dark.png) |
+
+</details>
+
+## Try it with demo data
+
+`scripts/seed-demo.mjs` fills a fresh instance with a fictional family: members, a month of events, categories, chores with a week of history, and lists. It only runs against an instance with no members yet.
+
+```bash
+KINWALL_URL=http://localhost:8080 KINWALL_KEY=<admin key> node scripts/seed-demo.mjs
+```
 
 ## Deploy
 

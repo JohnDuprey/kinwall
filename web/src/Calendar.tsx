@@ -862,7 +862,11 @@ function EventEditSheet({ event, prefill, calendars, members, categories, onClos
     // Server's EventInput.location is string|undefined (not nullable) — send undefined, not null, when empty.
     // Only send categoryId when it changed, so saving an unrelated edit never pins the auto category.
     // On a series it goes as its own scoped PATCH, leaving the rest of the edit on this occurrence.
-    const body: Partial<EventInstance> = { title: title.trim(), calendarId, location: location.trim() || undefined, memberIds, rrule: rruleStr }
+    const body: Partial<EventInstance> = { title: title.trim(), calendarId, location: location.trim() || undefined, rrule: rruleStr }
+    // Only send people when they changed: re-sending the inherited list would pin it as a per-event
+    // tag, so "From the calendar" events stopped following the calendar after any unrelated edit.
+    const initialMembers = base.memberIds ?? []
+    if (!event || memberIds.length !== initialMembers.length || memberIds.some(id => !initialMembers.includes(id))) body.memberIds = memberIds
     // A repeating event opens on one occurrence; sending its dates back unchanged would restart the
     // whole series there and drop the earlier occurrences. Only send the timing when it was edited.
     const timingChanged = !event || allDay !== !!event.allDay || start !== (event.allDay ? event.start : new Date(event.start).toISOString())

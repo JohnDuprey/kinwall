@@ -176,3 +176,11 @@ test('leaderboard: display key may call it', async () => {
   const res = await app.request('/api/leaderboard', { headers: { Authorization: `Bearer ${key}` } }, env);
   assert.equal(res.status, 200);
 });
+
+test('chores: a daily chore created in the evening is due that same local day', async () => {
+  const { dueOnDate } = await import('../src/routes/chores.ts');
+  // 9pm in New York on Sep 24 is already Sep 25 in UTC.
+  const row = { rrule: 'FREQ=DAILY', due_date: null, created_at: '2026-09-25T01:00:00.000Z' } as any;
+  assert.equal(dueOnDate(row, '2026-09-24', 'America/New_York'), true);
+  assert.equal(dueOnDate(row, '2026-09-23', 'America/New_York'), false);
+});
