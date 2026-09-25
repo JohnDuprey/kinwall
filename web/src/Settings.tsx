@@ -653,7 +653,7 @@ function RemoteCalendarPicker({ accountId, accountKind, accountName, onClose, on
   const addOne = async (rc: RemoteCalendar) => {
     const c = choice[rc.remoteId] ?? { memberIds: [], color: rc.color ?? MEMBER_PALETTE[0] }
     try {
-      await api.createCalendar({ kind: accountKind, accountId, remoteId: rc.remoteId, name: rc.name, color: c.color, memberIds: c.memberIds })
+      await api.createCalendar({ kind: accountKind, accountId, remoteId: rc.remoteId, name: rc.name, color: c.color, memberIds: c.memberIds, writable: rc.writable })
       setAdded(s => new Set(s).add(rc.remoteId))
       onAdded()
     } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not add calendar') }

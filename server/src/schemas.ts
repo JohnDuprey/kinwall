@@ -139,6 +139,7 @@ export const CalendarInputSchema = z
     accountId: z.string().nullable().optional(),
     remoteId: z.string().nullable().optional(),
     url: z.string().url().optional(),
+    writable: z.boolean().optional(), // false marks a provider calendar read-only (can only lower access)
   })
   .openapi('CalendarInput');
 

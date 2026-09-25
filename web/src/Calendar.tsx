@@ -806,7 +806,7 @@ function EventEditSheet({ event, prefill, calendars, members, categories, onClos
   onClose: () => void
   onSave: (body: Partial<EventInstance>, id: string | null, seriesCategory?: { categoryId: string | null; scope: 'occurrence' | 'series' }) => void
 }) {
-  const writable = calendars.filter(c => c.writable)
+  const writable = calendars.filter(c => c.writable && c.enabled) // no read-only (holiday/shared) or switched-off calendars
   const base = event ?? prefill ?? {}
   const [title, setTitle] = useState(base.title ?? '')
   const [allDay, setAllDay] = useState(!!base.allDay)

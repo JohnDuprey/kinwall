@@ -103,6 +103,7 @@ export async function syncCalendar(env: Env, calendarId: string, execCtx?: WaitC
   const provider = getProvider(cal.kind as ProviderKind);
   const ctx = await buildProviderCtx(env, cal);
 
+  await refreshWritable(env, provider, cal, ctx);
   const now = new Date();
   const from = new Date(now.getTime() - SYNC_WINDOW_PAST_DAYS * 24 * 60 * 60 * 1000);
   const to = new Date(now.getTime() + SYNC_WINDOW_FUTURE_DAYS * 24 * 60 * 60 * 1000);
@@ -161,6 +162,20 @@ function farSliceBounds(now: Date, index: number): { from: Date; to: Date } {
 // same as chronologically - but an all-day event can fall a day outside its "true" slice at
 // the boundary). Acceptable slop given slices overlap by design; tighten with a numeric epoch
 // column if an event ever gets dropped between slices.
+// Providers say per calendar whether we can write to it (Google accessRole, Graph canEdit). Keep ours
+// in step so the event form never offers a calendar you can only read - e.g. a shared or holiday
+// calendar, or one whose sharing changed after it was added. Best effort: a failed listing is ignored.
+export async function refreshWritable(env: Env, provider: ReturnType<typeof getProvider>, cal: CalendarRow, ctx: ProviderCtx): Promise<void> {
+  if (!provider.listCalendars || !cal.remote_id) return;
+  try {
+    const remote = (await provider.listCalendars(ctx)).find((r) => r.remoteId === cal.remote_id);
+    const writable = remote?.writable ? 1 : 0;
+    if (remote && writable !== cal.writable) await env.DB.prepare('UPDATE calendars SET writable = ? WHERE id = ?').bind(writable, cal.id).run();
+  } catch {
+    // keep the current flag; the next refresh tries again
+  }
+}
+
 export async function replaceSlice(env: Env, provider: ReturnType<typeof getProvider>, cal: CalendarRow, ctx: ProviderCtx, from: Date, to: Date): Promise<number> {
   const events = await provider.listEvents(ctx, from, to);
   const ids = await deterministicEventIds(cal.id, events.map((ev) => ev.externalId));
@@ -184,6 +199,7 @@ async function syncRemoteTick(env: Env, cal: CalendarRow, now: Date, execCtx: Wa
   const dueForFar = !cursor.farSyncedAt || Date.now() - new Date(cursor.farSyncedAt).getTime() > FAR_REFRESH_MS;
   let nextCursor = cursor;
   if (dueForFar) {
+    await refreshWritable(env, provider, cal, ctx); // piggybacks on the 6-hourly far refresh
     const totalSlices = Math.max(farSliceCount(), 1);
     const index = cursor.farIndex % totalSlices;
     const bounds = farSliceBounds(now, index);

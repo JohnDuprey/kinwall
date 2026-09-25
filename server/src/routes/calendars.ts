@@ -102,7 +102,9 @@ calendarsRoutes.openapi(
     } catch (err) {
       return c.json({ error: errorMessage(err, 'encryption not configured') }, 500);
     }
-    const writable = kind === 'local' || kind === 'google' || kind === 'microsoft' || kind === 'caldav' ? 1 : 0;
+    // `writable: false` (from the remote-calendar listing) can only lower access; sync re-checks it
+    // against the provider either way (refreshWritable in sync.ts).
+    const writable = (kind === 'local' || kind === 'google' || kind === 'microsoft' || kind === 'caldav') && body.writable !== false ? 1 : 0;
     const memberIds = await memberIdsFromInput(c.env.DB, body);
     const row: CalendarRow = {
       id,

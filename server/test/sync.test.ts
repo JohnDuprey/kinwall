@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createApp } from '../src/app.ts';
 import { openDb, applyMigrations } from '../src/d1-sqlite.ts';
-import { replaceSlice, syncCalendarTick } from '../src/sync.ts';
+import { refreshWritable, replaceSlice, syncCalendarTick } from '../src/sync.ts';
 import type { Env } from '../src/env.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -198,4 +198,21 @@ test('sync: a slice re-writing an event that started before its window upserts i
   await replaceSlice(env, provider, cal, {} as any, new Date('2026-10-26T00:00:00Z'), new Date('2026-11-20T00:00:00Z'));
   const { results } = await env.DB.prepare("SELECT title FROM events WHERE calendar_id = 'c1'").all();
   assert.equal(results.length, 1);
+});
+
+test('sync: a provider calendar that became read-only is marked not writable (and back)', async () => {
+  const env = makeEnv();
+  await env.DB.prepare("INSERT INTO calendars (id, kind, remote_id, name, config, writable, enabled) VALUES ('c1', 'google', 'holidays', 'Holidays', '{}', 1, 1)").run();
+  const cal = async () => (await env.DB.prepare("SELECT * FROM calendars WHERE id = 'c1'").first()) as any;
+  let remoteWritable = false;
+  const provider = { listCalendars: async () => [{ remoteId: 'holidays', name: 'Holidays', writable: remoteWritable }] } as any;
+  await refreshWritable(env, provider, await cal(), {} as any);
+  assert.equal((await cal()).writable, 0);
+  remoteWritable = true;
+  await refreshWritable(env, provider, await cal(), {} as any);
+  assert.equal((await cal()).writable, 1);
+  // A listing failure leaves the flag alone rather than failing the sync.
+  const broken = { listCalendars: async () => { throw new Error('offline'); } } as any;
+  await refreshWritable(env, broken, await cal(), {} as any);
+  assert.equal((await cal()).writable, 1);
 });
