@@ -1,0 +1,28 @@
+# Deploys to Cloudflare Workers on tagged releases only (v1.2.3), instead of Cloudflare's
+# git-connected build running on every push. To use it, disconnect the repo under
+# Workers & Pages -> kinwall -> Settings -> Build (or never connect it), and add two repository
+# secrets: CLOUDFLARE_API_TOKEN (Workers Scripts:Edit, D1:Edit, Workers Routes:Edit) and
+# CLOUDFLARE_ACCOUNT_ID. Account-specific settings come from the same variables
+# scripts/cloudflare-config.sh reads (D1_DATABASE_ID, CUSTOM_DOMAIN) set as repository variables.
+name: Deploy to Cloudflare
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ vars.CLOUDFLARE_DEPLOY == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: npm, cache-dependency-path: '**/package-lock.json' }
+      - run: sh scripts/cloudflare-config.sh
+        env:
+          D1_DATABASE_ID: ${{ vars.D1_DATABASE_ID }}
+          CUSTOM_DOMAIN: ${{ vars.CUSTOM_DOMAIN }}
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy

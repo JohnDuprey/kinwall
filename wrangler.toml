@@ -1,0 +1,39 @@
+# Cloudflare Workers config. Lives at the repo root so a git-connected Cloudflare project works with
+# the default settings (root directory "/", deploy command `npx wrangler deploy`).
+name = "kinwall"
+main = "server/src/worker.ts"
+compatibility_date = "2026-09-24"
+compatibility_flags = ["nodejs_compat"] # tsdav needs it
+
+# Runs on every `wrangler deploy` (including Cloudflare's git builds): build the UI, install server deps.
+[build]
+# Starts from the repo root even if the Cloudflare project's root directory is set to server/.
+command = "[ -d web ] || cd ..; npm ci --prefix web && npm run build --prefix web && npm ci --prefix server"
+
+# Worker logs (the first-run setup code is printed there when ADMIN_API_KEY isn't set).
+[observability]
+enabled = true
+
+[triggers]
+# Every 5 min so a push reminder/summary/nudge doesn't wait on the (much coarser) sync interval.
+# syncDue self-throttles per calendar against SYNC_INTERVAL_MINUTES, so this doesn't double sync cost.
+crons = ["*/5 * * * *"]
+
+# Runs the Worker in the datacenter nearest its D1 database instead of nearest the request, so a
+# handler making several sequential D1 round trips stays low-latency to the DB it's actually using.
+[placement]
+mode = "smart"
+
+# No database_id: wrangler creates the D1 database on the first deploy and keeps it linked to this
+# Worker on later deploys. The Worker applies server/migrations itself (server/src/migrate.ts).
+[[d1_databases]]
+binding = "DB"
+
+[assets]
+directory = "web/dist"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*", "/docs", "/openapi.json", "/mcp", "/oauth/*", "/.well-known/*"]
+
+[vars]
+SYNC_INTERVAL_MINUTES = "10"
+MS_TENANT = "common"

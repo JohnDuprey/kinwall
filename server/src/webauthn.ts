@@ -1,0 +1,55 @@
+// WebAuthn (passkey) primitives, isolated in one small module so tests can mock just
+// `verifyRegistrationResponse` / `verifyAuthenticationResponse` (real ceremonies need a browser +
+// authenticator) while everything else (rpID/origin derivation, challenge storage) runs for real.
+import {
+  generateAuthenticationOptions,
+  generateRegistrationOptions,
+  verifyAuthenticationResponse as realVerifyAuthenticationResponse,
+  verifyRegistrationResponse as realVerifyRegistrationResponse,
+} from '@simplewebauthn/server';
+import type { Env } from './env.ts';
+import { effectivePublicUrl } from './providers/config.ts';
+
+export { generateAuthenticationOptions, generateRegistrationOptions };
+
+// Overridable for tests (node:test has no `jest.mock` - this is the seam instead). Production
+// code always calls through `verifyRegistrationResponse`/`verifyAuthenticationResponse` below.
+export let verifyRegistrationResponse = realVerifyRegistrationResponse;
+export let verifyAuthenticationResponse = realVerifyAuthenticationResponse;
+export function __setVerifiers(overrides: { registration?: typeof realVerifyRegistrationResponse; authentication?: typeof realVerifyAuthenticationResponse }) {
+  if (overrides.registration) verifyRegistrationResponse = overrides.registration;
+  if (overrides.authentication) verifyAuthenticationResponse = overrides.authentication;
+}
+export function __resetVerifiers() {
+  verifyRegistrationResponse = realVerifyRegistrationResponse;
+  verifyAuthenticationResponse = realVerifyAuthenticationResponse;
+}
+
+export class RpIdIsIpError extends Error {
+  constructor() {
+    super('This server is addressed by IP - passkeys need a real hostname (set PUBLIC_URL, or use a DNS name).');
+    this.name = 'RpIdIsIpError';
+  }
+}
+
+const IPV4_RE = /^\d{1,3}(\.\d{1,3}){3}$/;
+
+function isIpAddress(hostname: string): boolean {
+  return IPV4_RE.test(hostname) || hostname === '[::1]' || hostname.includes(':'); // IPv6 literal
+}
+
+/** rpID = WEBAUTHN_RP_ID if set, else the hostname of PUBLIC_URL if set, else the request's own
+ * Host; origin is always PUBLIC_URL's (or the request's). WEBAUTHN_RP_ID lets a multi-tenant host
+ * share one rpID across families on subdomains, so the origin must be that host or under it.
+ * Throws RpIdIsIpError for an IP address (WebAuthn RP IDs must be a registrable domain, and Chrome
+ * silently rejects IPs other than localhost). */
+export async function resolveRpId(env: Env, requestUrl: string): Promise<{ rpID: string; origin: string }> {
+  const publicUrl = await effectivePublicUrl(env, env.DB);
+  const url = new URL(publicUrl.value || requestUrl);
+  const rpID = env.WEBAUTHN_RP_ID || url.hostname;
+  if (rpID !== 'localhost' && isIpAddress(rpID)) throw new RpIdIsIpError();
+  if (url.hostname !== rpID && !url.hostname.endsWith('.' + rpID)) {
+    throw new Error(`${url.hostname} is not ${rpID} or a subdomain of it (WEBAUTHN_RP_ID)`);
+  }
+  return { rpID, origin: url.origin };
+}

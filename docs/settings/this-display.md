@@ -1,0 +1,34 @@
+# Settings → This display
+
+The last section of **Settings → General**. Everything here applies to **this device only** and is stored in the browser, not on the server.
+
+| Item | Notes |
+|---|---|
+| **Paired as *name*** | Shown on paired displays. |
+| **Appearance on this device** | Overrides for Mode, Text size, Density, Accent, Light bg and Dark bg. Leave any of them on **Household** to follow the family setting. See [Appearance](../using/appearance.md#per-device-overrides). |
+| **Navigation position** | **Auto**, **Bottom**, **Left** or **Right**: a bottom tab bar or a side rail. "Phones always use the bottom bar." |
+| **Clear cache and reload** | "Loads the latest version of Kinwall if this device seems stuck on an old one. You stay signed in." It clears caches, asks the service worker to update (without removing it, since push depends on it) and reloads from the network. |
+| **Unpair this display** | On displays. Removes the key from this device. You'll need to pair it again from an admin device. |
+
+## Behaviour on this device
+
+Also under **This display**, and also local to the browser:
+
+| Item | Notes |
+|---|---|
+| **Show only** | Pin this screen to one member — handy for a display in a bedroom. Picks a member, or **Everyone**. |
+| **Also show things for everyone** | Only shown once a member is picked. On (default): shared events, chores and lists (nobody assigned) still show alongside that member's own. Off: only their items. |
+| **Lock view** | Fixes the calendar to one view (Week/3 Day, Day, Month, Schedule) and hides the view switcher, so a pinned display can't be bumped into a different view. **Off** leaves the switcher free. |
+| **Now / Next card** | On by default. What's on now and what's next today, with a countdown, above the calendar. |
+| **Transition warnings** | Off, or one or more of 10, 5, 1 minute(s) before the next event (or its leave-by time). A calm banner; never shows during quiet hours. With any minute picked, a **Sound** toggle appears. |
+
+A paired wall display also locks its own viewport (no pinch-zoom), so it can't be zoomed by a stray touch.
+
+## What a display sees in Settings
+
+A device with a display key gets two tabs:
+
+* **General**: Household (without Default reminder), Appearance, Notifications, This display.
+* **Family**: Members (read-only) and Categories.
+
+**Calendars** and **Access** are never shown to a display, not even briefly. Settings shows the display view until the server confirms the device is an admin.

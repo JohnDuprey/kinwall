@@ -1,0 +1,293 @@
+import type { KinwallDb } from '../db.ts';
+import { createRoute, z } from '@hono/zod-openapi';
+import { createRouter } from '../router.ts';
+import { waitUntil, type Env, type WaitCtx } from '../env.ts';
+import { emit } from '../bus.ts';
+import { syncCalendar } from '../sync.ts';
+import type { Context } from 'hono';
+import { encryptConfig } from '../crypto.ts';
+import { FEED_URL_ERROR, isSafeFeedUrl } from '../outbound.ts';
+import { errorMessage } from '../redact.ts';
+import { CalendarInputSchema, CalendarSchema, ErrorSchema } from '../schemas.ts';
+import { parseMemberIds, resolveMemberIds } from '../calendar-members.ts';
+
+export const calendarsRoutes = createRouter();
+
+type CalendarRow = {
+  id: string;
+  kind: 'local' | 'ics' | 'google' | 'microsoft' | 'caldav';
+  account_id: string | null;
+  remote_id: string | null;
+  name: string;
+  color: string | null;
+  member_ids: string;
+  category_id: string | null;
+  config: string;
+  writable: number;
+  enabled: number;
+  last_synced_at: string | null;
+  last_error: string | null;
+};
+
+function toApi(row: CalendarRow) {
+  const memberIds = parseMemberIds(row.member_ids);
+  return {
+    id: row.id,
+    kind: row.kind,
+    accountId: row.account_id,
+    remoteId: row.remote_id,
+    name: row.name,
+    color: row.color,
+    memberId: memberIds[0] ?? null, // legacy - first assigned member, for compat
+    memberIds,
+    categoryId: row.category_id,
+    writable: !!row.writable,
+    enabled: !!row.enabled,
+    lastSyncedAt: row.last_synced_at,
+    lastError: row.last_error,
+    needsReconnect: row.kind !== 'local' && row.config === '',
+  };
+}
+
+function execCtxOf(c: Context): WaitCtx | undefined {
+  try {
+    return c.executionCtx;
+  } catch {
+    return undefined; // Node: no ExecutionContext
+  }
+}
+
+// After a reconnect, fetch events in the background so imported overrides show up right away.
+function syncInBackground(c: Context<{ Bindings: Env }>, id: string) {
+  const ctx = execCtxOf(c);
+  waitUntil(ctx, syncCalendar(c.env, id, ctx));
+}
+
+// POST body's memberIds wins when present; else legacy memberId (null/undefined -> []).
+async function memberIdsFromInput(db: KinwallDb, body: { memberId?: string | null; memberIds?: string[] }): Promise<string[]> {
+  const raw = body.memberIds !== undefined ? body.memberIds : body.memberId ? [body.memberId] : [];
+  return resolveMemberIds(db, raw);
+}
+
+calendarsRoutes.openapi(
+  createRoute({
+    method: 'get',
+    path: '/api/calendars',
+    tags: ['Calendars'],
+    summary: 'List calendars (config never returned)',
+    security: [{ Bearer: [] }],
+    responses: { 200: { description: 'ok', content: { 'application/json': { schema: z.array(CalendarSchema) } } } },
+  }),
+  async (c) => {
+    const { results } = await c.env.DB.prepare('SELECT * FROM calendars ORDER BY name').all<CalendarRow>();
+    return c.json(results.map(toApi), 200);
+  },
+);
+
+calendarsRoutes.openapi(
+  createRoute({
+    method: 'post',
+    path: '/api/calendars',
+    tags: ['Calendars'],
+    summary: 'Create a calendar (local, or attached to an ics url / provider account+remoteId)',
+    security: [{ Bearer: [] }],
+    request: { body: { content: { 'application/json': { schema: CalendarInputSchema } } } },
+    responses: {
+      200: { description: 'reconnected an imported calendar with the same kind + remoteId', content: { 'application/json': { schema: CalendarSchema } } },
+      201: { description: 'created', content: { 'application/json': { schema: CalendarSchema } } },
+      400: { description: 'invalid', content: { 'application/json': { schema: ErrorSchema } } },
+      500: { description: 'server misconfigured', content: { 'application/json': { schema: ErrorSchema } } },
+    },
+  }),
+  async (c) => {
+    const body = c.req.valid('json');
+    // A calendar from an account always uses that account's provider, whatever kind the client sent
+    // (the Settings picker used to send 'caldav' for Google/Outlook calendars, which then failed to sync).
+    let kind = body.kind;
+    if (body.accountId) {
+      const account = await c.env.DB.prepare('SELECT kind FROM accounts WHERE id = ?').bind(body.accountId).first<{ kind: CalendarRow['kind'] }>();
+      if (!account) return c.json({ error: 'unknown accountId' }, 400);
+      kind = account.kind;
+    }
+    if (kind === 'ics' && !body.url) return c.json({ error: 'ics calendars require url' }, 400);
+    if (kind === 'ics' && !isSafeFeedUrl(c.env, body.url!)) return c.json({ error: FEED_URL_ERROR }, 400);
+    if (kind === 'caldav' && body.remoteId && !isSafeFeedUrl(c.env, body.remoteId)) return c.json({ error: FEED_URL_ERROR }, 400);
+    if (['google', 'microsoft', 'caldav'].includes(kind) && (!body.accountId || !body.remoteId)) {
+      return c.json({ error: `${kind} calendars require accountId and remoteId` }, 400);
+    }
+    // `writable: false` (from the remote-calendar listing) can only lower access; sync re-checks it
+    // against the provider either way (refreshWritable in sync.ts).
+    const writable = (kind === 'local' || kind === 'google' || kind === 'microsoft' || kind === 'caldav') && body.writable !== false ? 1 : 0;
+
+    // An imported placeholder for this provider calendar: re-attach it (keeping its id, colour,
+    // members, category and per-event overrides) instead of creating a duplicate.
+    if (body.accountId && body.remoteId) {
+      const placeholder = await c.env.DB.prepare('SELECT * FROM calendars WHERE kind = ? AND remote_id = ? AND account_id IS NULL')
+        .bind(kind, body.remoteId)
+        .first<CalendarRow>();
+      if (placeholder) {
+        let config: string;
+        try {
+          config = await encryptConfig(c.env, placeholder.id, {});
+        } catch (err) {
+          return c.json({ error: errorMessage(err, 'encryption not configured') }, 500);
+        }
+        await c.env.DB.prepare(
+          'UPDATE calendars SET account_id = ?, config = ?, writable = ?, last_error = NULL, last_synced_at = NULL, sync_cursor = NULL WHERE id = ?',
+        )
+          .bind(body.accountId, config, writable, placeholder.id)
+          .run();
+        emit(c, 'calendar.changed', { id: placeholder.id });
+        syncInBackground(c, placeholder.id);
+        return c.json(toApi({ ...placeholder, account_id: body.accountId, config, writable, last_error: null, last_synced_at: null }), 200);
+      }
+    }
+
+    const id = crypto.randomUUID();
+    const rawConfig = kind === 'ics' ? { url: body.url } : {};
+    let config: string;
+    try {
+      config = await encryptConfig(c.env, id, rawConfig);
+    } catch (err) {
+      return c.json({ error: errorMessage(err, 'encryption not configured') }, 500);
+    }
+    const memberIds = await memberIdsFromInput(c.env.DB, body);
+    const row: CalendarRow = {
+      id,
+      kind: kind,
+      account_id: body.accountId ?? null,
+      remote_id: body.remoteId ?? null,
+      name: body.name,
+      color: body.color ?? null,
+      member_ids: JSON.stringify(memberIds),
+      category_id: body.categoryId ?? null,
+      config,
+      writable,
+      enabled: 1,
+      last_synced_at: null,
+      last_error: null,
+    };
+    await c.env.DB.prepare(
+      'INSERT INTO calendars (id, kind, account_id, remote_id, name, color, member_ids, category_id, config, writable, enabled) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+    )
+      .bind(row.id, row.kind, row.account_id, row.remote_id, row.name, row.color, row.member_ids, row.category_id, row.config, row.writable, row.enabled)
+      .run();
+    emit(c, 'calendar.changed', { id: row.id });
+    return c.json(toApi(row), 201);
+  },
+);
+
+const CalendarPatchSchema = z
+  .object({
+    name: z.string().min(1).optional(),
+    color: z.string().nullable().optional(),
+    memberId: z.string().nullable().optional(), // legacy - use memberIds
+    memberIds: z.array(z.string()).optional(),
+    categoryId: z.string().nullable().optional(),
+    enabled: z.boolean().optional(),
+    url: z.string().url().optional(), // ICS only: set/replace the feed URL (reconnects an imported ICS calendar)
+  })
+  .openapi('CalendarPatch');
+
+calendarsRoutes.openapi(
+  createRoute({
+    method: 'patch',
+    path: '/api/calendars/{id}',
+    tags: ['Calendars'],
+    summary: 'Update a calendar',
+    security: [{ Bearer: [] }],
+    request: { params: z.object({ id: z.string() }), body: { content: { 'application/json': { schema: CalendarPatchSchema } } } },
+    responses: {
+      200: { description: 'ok', content: { 'application/json': { schema: CalendarSchema } } },
+      400: { description: 'invalid', content: { 'application/json': { schema: ErrorSchema } } },
+      404: { description: 'not found', content: { 'application/json': { schema: ErrorSchema } } },
+      500: { description: 'server misconfigured', content: { 'application/json': { schema: ErrorSchema } } },
+    },
+  }),
+  async (c) => {
+    const { id } = c.req.valid('param');
+    const body = c.req.valid('json');
+    const existing = await c.env.DB.prepare('SELECT * FROM calendars WHERE id = ?').bind(id).first<CalendarRow>();
+    if (!existing) return c.json({ error: 'not found' }, 404);
+    if (body.url !== undefined) {
+      if (existing.kind !== 'ics') return c.json({ error: 'url only applies to ics calendars' }, 400);
+      if (!isSafeFeedUrl(c.env, body.url)) return c.json({ error: FEED_URL_ERROR }, 400);
+      try {
+        existing.config = await encryptConfig(c.env, id, { url: body.url });
+      } catch (err) {
+        return c.json({ error: errorMessage(err, 'encryption not configured') }, 500);
+      }
+      existing.last_error = null;
+      existing.last_synced_at = null;
+      // New feed: drop the old one's conditional-fetch state so the first sync fetches in full.
+      await c.env.DB.prepare(
+        'UPDATE calendars SET config = ?, last_error = NULL, last_synced_at = NULL, etag = NULL, last_modified = NULL, content_hash = NULL WHERE id = ?',
+      )
+        .bind(existing.config, id)
+        .run();
+    }
+    const memberIds =
+      body.memberIds !== undefined || body.memberId !== undefined
+        ? await memberIdsFromInput(c.env.DB, body)
+        : parseMemberIds(existing.member_ids);
+    const updated: CalendarRow = {
+      ...existing,
+      name: body.name ?? existing.name,
+      color: body.color !== undefined ? body.color : existing.color,
+      member_ids: JSON.stringify(memberIds),
+      category_id: body.categoryId !== undefined ? body.categoryId : existing.category_id,
+      enabled: body.enabled !== undefined ? (body.enabled ? 1 : 0) : existing.enabled,
+    };
+    await c.env.DB.prepare('UPDATE calendars SET name = ?, color = ?, member_ids = ?, category_id = ?, enabled = ? WHERE id = ?')
+      .bind(updated.name, updated.color, updated.member_ids, updated.category_id, updated.enabled, id)
+      .run();
+    emit(c, 'calendar.changed', { id });
+    if (body.url !== undefined) syncInBackground(c, id);
+    return c.json(toApi(updated), 200);
+  },
+);
+
+calendarsRoutes.openapi(
+  createRoute({
+    method: 'delete',
+    path: '/api/calendars/{id}',
+    tags: ['Calendars'],
+    summary: 'Delete a calendar (and its cached events)',
+    security: [{ Bearer: [] }],
+    request: { params: z.object({ id: z.string() }) },
+    responses: {
+      200: { description: 'ok', content: { 'application/json': { schema: z.object({ ok: z.boolean() }) } } },
+      404: { description: 'not found', content: { 'application/json': { schema: ErrorSchema } } },
+    },
+  }),
+  async (c) => {
+    const { id } = c.req.valid('param');
+    // Its events' notes threads go too (events cascade via FK; notes have none - see migration 0024).
+    await c.env.DB.prepare("DELETE FROM notes WHERE target_type = 'event' AND target_id IN (SELECT id FROM events WHERE calendar_id = ?)").bind(id).run();
+    const result = await c.env.DB.prepare('DELETE FROM calendars WHERE id = ?').bind(id).run();
+    if (result.meta.changes === 0) return c.json({ error: 'not found' }, 404);
+    emit(c, 'calendar.changed', { id });
+    return c.json({ ok: true }, 200);
+  },
+);
+
+calendarsRoutes.openapi(
+  createRoute({
+    method: 'post',
+    path: '/api/calendars/{id}/sync',
+    tags: ['Calendars'],
+    summary: 'Sync a calendar now (full window replace - on Workers this can exceed the free-tier CPU budget for large feeds; the cron tick uses chunked slices instead)',
+    security: [{ Bearer: [] }],
+    request: { params: z.object({ id: z.string() }) },
+    responses: {
+      200: { description: 'ok', content: { 'application/json': { schema: z.object({ ok: z.literal(true), count: z.number() }) } } },
+      502: { description: 'sync failed', content: { 'application/json': { schema: ErrorSchema } } },
+    },
+  }),
+  async (c) => {
+    const { id } = c.req.valid('param');
+    const result = await syncCalendar(c.env, id, execCtxOf(c));
+    if (!result.ok) return c.json({ error: result.error }, 502);
+    return c.json(result, 200);
+  },
+);
