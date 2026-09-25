@@ -1020,3 +1020,32 @@ button {
 .filter-btn.active { background: var(--accent-strong); color: var(--accent-ink); }
 .filter-badge { position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--text); color: var(--bg); font-size: 0.6875rem; font-weight: 800; display: flex; align-items: center; justify-content: center; }
 .location-link { color: var(--accent-strong); text-decoration: underline; text-underline-offset: 3px; overflow-wrap: anywhere; }
+
+/* ---------- Motion ----------
+   Short, decelerating entrances; nothing loops or blocks input. Skipped entirely under Reduce Motion. */
+.view-anim { height: 100%; }
+.btn, .chip, .icon-btn, .today-btn, .connect-btn, .emoji-swatch, .color-swatch {
+  transition: transform 0.12s ease, background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+.segmented button, .tab-btn, .nav-rail-btn, .theme-toggle button { transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease; }
+.list-item-check { transition: background-color 0.2s ease, border-color 0.2s ease; }
+@media (prefers-reduced-motion: no-preference) {
+  .sheet-backdrop { animation: kw-fade 0.2s ease; }
+  .sheet { animation: kw-sheet-up 0.32s cubic-bezier(0.2, 0.9, 0.25, 1); }
+  /* .content only fades: a transform, even mid-animation, would re-anchor its fixed children (FAB). */
+  .content { animation: kw-fade 0.2s ease; }
+  .settings-section { animation: kw-page-in 0.22s ease both; }
+  .view-anim { animation: kw-fade 0.2s ease; }
+  .view-anim.from-right { animation: kw-from-right 0.26s cubic-bezier(0.2, 0.9, 0.25, 1); }
+  .view-anim.from-left { animation: kw-from-left 0.26s cubic-bezier(0.2, 0.9, 0.25, 1); }
+  .toast { animation: kw-toast-in 0.25s cubic-bezier(0.2, 0.9, 0.25, 1); }
+  .list-item-check.done { animation: kw-pop 0.3s ease; }
+  .list-item-row, .schedule-item, .chore-card { animation: kw-fade 0.2s ease; }
+}
+@keyframes kw-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes kw-sheet-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes kw-page-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes kw-from-right { from { opacity: 0; transform: translateX(28px); } to { opacity: 1; transform: none; } }
+@keyframes kw-from-left { from { opacity: 0; transform: translateX(-28px); } to { opacity: 1; transform: none; } }
+@keyframes kw-toast-in { from { opacity: 0; transform: translate(-50%, 12px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes kw-pop { 0% { transform: scale(0.8); } 60% { transform: scale(1.12); } 100% { transform: scale(1); } }

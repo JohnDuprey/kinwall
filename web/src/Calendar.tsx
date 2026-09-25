@@ -166,7 +166,10 @@ export default function CalendarView() {
     [events, selectedMemberId, activeCategoryFilter.join()],
   )
 
+  // Which way the last period change went, so the new period slides in from that side.
+  const [slideDir, setSlideDir] = useState<1 | -1 | 0>(0)
   const step = (dir: 1 | -1) => {
+    setSlideDir(dir)
     if (viewMode === 'week') setAnchor(a => addDays(a, dir * (isPhone ? PHONE_WEEK_DAYS : 7)))
     else if (viewMode === 'day') setAnchor(a => addDays(a, dir))
     else if (viewMode === 'month') setAnchor(a => addMonths(a, dir))
@@ -252,7 +255,7 @@ export default function CalendarView() {
         </div>
         <div className="toolbar-nav">
           <button className="icon-btn" onClick={() => step(-1)} aria-label="Previous"><ChevronLeft width={20} height={20} /></button>
-          <button className="today-btn" onClick={() => setAnchor(new Date())}>Today</button>
+          <button className="today-btn" onClick={() => { setSlideDir(0); setAnchor(new Date()) }}>Today</button>
           <button className="icon-btn" onClick={() => step(1)} aria-label="Next"><ChevronRight width={20} height={20} /></button>
           <div className="period-label">{periodLabel}</div>
           {categories.length > 0 && (
@@ -287,6 +290,8 @@ export default function CalendarView() {
       )}
 
       <div className="swipe-area" {...swipe}>
+        {/* Keyed by view + period so each change re-mounts and plays the slide/fade in. */}
+        <div key={`${viewMode}:${dateKey(range.from)}`} className={`view-anim ${slideDir === 1 ? 'from-right' : slideDir === -1 ? 'from-left' : ''}`}>
         {error ? (
           <div className="state-card">Couldn't load events. Pull to retry or check your connection.</div>
         ) : !loading && visibleEvents.length === 0 && viewMode === 'schedule' ? (
@@ -300,6 +305,7 @@ export default function CalendarView() {
         ) : (
           <ScheduleView anchor={anchor} events={visibleEvents} tz={tz} members={members} categories={categories} onTap={setDetail} />
         )}
+        </div>
       </div>
 
       <button className="fab" onClick={() => openAdd()} aria-label="Add event"><PlusIcon /></button>
@@ -649,7 +655,11 @@ function ScheduleView({ anchor, events, tz, members, categories, onTap }: { anch
                 <div className="schedule-time">{ev.allDay ? 'All day' : formatTime(ev.start, tz)}</div>
                 <div>
                   <div className="schedule-title">{emoji ? `${emoji} ` : ''}{ev.title}{avatars.length > 0 && <span className="event-avatars schedule-avatars">{avatars.join(' ')}</span>}</div>
-                  {ev.location && <div className="schedule-loc">{ev.location}</div>}
+                  {ev.location && (() => {
+                    const href = locationHref(ev.location)
+                    // stopPropagation: tapping the address opens maps; the rest of the row opens the event.
+                    return <div className="schedule-loc">{href ? <a className="location-link" href={href} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}>{ev.location}</a> : ev.location}</div>
+                  })()}
                 </div>
               </div>
               )
