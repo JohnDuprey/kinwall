@@ -678,6 +678,18 @@ function categoryLabel(event: EventInstance, categories: Category[]): string | n
   return `${cat.emoji ? cat.emoji + ' ' : ''}${cat.name}`
 }
 
+/** Where an event's location should link: the URL itself if it is one (a Zoom link), else a maps
+ * search - Apple Maps on Apple devices, Google Maps elsewhere. Obviously non-physical locations
+ * ("Microsoft Teams Meeting", "TBD") stay plain text. */
+function locationHref(location: string): string | null {
+  const text = location.trim()
+  const url = text.match(/https?:\/\/\S+/)
+  if (url) return url[0]
+  if (/\b(zoom|teams|google meet|webex|online|virtual|tbd|tba)\b/i.test(text)) return null
+  const q = encodeURIComponent(text)
+  return /iPhone|iPad|Macintosh/.test(navigator.userAgent) ? `https://maps.apple.com/?q=${q}` : `https://www.google.com/maps/search/?api=1&query=${q}`
+}
+
 function EventDetailSheet({ event, members, categories, calendars, tz, onClose, onEdit, onDelete, onToggleMember, onSaveScopedMembers }: {
   event: EventInstance; members: { id: string; name: string; color: string; avatar: string }[]; categories: Category[]; calendars: CalendarEntry[]; tz: string
   onClose: () => void; onEdit: () => void; onDelete: () => void; onToggleMember: (memberId: string) => void
@@ -720,11 +732,15 @@ function EventDetailSheet({ event, members, categories, calendars, tz, onClose, 
           {event.allDay ? `${format(new Date(event.start + 'T00:00:00'), 'EEE, MMM d')}${event.end !== addDays(new Date(event.start + 'T00:00:00'), 1).toISOString().slice(0, 10) ? ' – ' + format(addDays(new Date(event.end + 'T00:00:00'), -1), 'EEE, MMM d') : ''} · All day`
             : `${format(new Date(event.start), 'EEE, MMM d')} · ${formatTime(event.start, tz)} – ${formatTime(event.end, tz)}`}
         </div>
-        {event.location && (
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', color: 'var(--text-dim)', fontWeight: 700 }}>
-            <LocationIcon width={18} height={18} />{event.location}
-          </div>
-        )}
+        {event.location && (() => {
+          const href = locationHref(event.location)
+          return (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', color: 'var(--text-dim)', fontWeight: 700 }}>
+              <LocationIcon width={18} height={18} style={{ flexShrink: 0 }} />
+              {href ? <a className="location-link" href={href} target="_blank" rel="noopener noreferrer">{event.location}</a> : event.location}
+            </div>
+          )
+        })()}
         {event.rrule && (
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', color: 'var(--text-dim)', fontWeight: 700 }}>
             <RepeatIcon width={18} height={18} />Repeats
