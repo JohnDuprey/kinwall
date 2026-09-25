@@ -139,7 +139,7 @@ function toNormalized(item: any): NormalizedEvent {
     location: item.location?.displayName || undefined,
     description: item.bodyPreview || undefined,
     seriesId: item.seriesMasterId || undefined,
-    reminders: item.isReminderOn && typeof item.reminderMinutesBeforeStart === 'number' ? [item.reminderMinutesBeforeStart] : null,
+    reminders: item.isReminderOn === false ? [] : typeof item.reminderMinutesBeforeStart === 'number' ? [item.reminderMinutesBeforeStart] : null,
   };
 }
 
@@ -151,6 +151,11 @@ function fromInput(ev: Partial<EventInput>): Record<string, unknown> {
   if (ev.allDay !== undefined) body.isAllDay = ev.allDay;
   if (ev.start !== undefined) body.start = { dateTime: normalizeForGraph(ev.start, ev.allDay), timeZone: 'UTC' };
   if (ev.end !== undefined) body.end = { dateTime: normalizeForGraph(ev.end, ev.allDay), timeZone: 'UTC' };
+  // Outlook keeps a single reminder per event: the first (earliest-listed) one wins.
+  if (ev.reminders !== undefined && ev.reminders !== null) {
+    body.isReminderOn = ev.reminders.length > 0;
+    if (ev.reminders.length > 0) body.reminderMinutesBeforeStart = ev.reminders[0];
+  }
   return body;
 }
 

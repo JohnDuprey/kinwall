@@ -333,3 +333,17 @@ test('notify: provider (own) reminders take priority over the household default'
   assert.equal(push.sent.length, 1);
   push.restore();
 });
+
+test('reminders: an event with reminders turned off stays silent; source says where reminders came from', async () => {
+  const env = makeEnv();
+  const request = makeApp(env);
+  await request('/api/settings', { method: 'PATCH', body: JSON.stringify({ defaultReminderMinutes: [30] }) });
+  const cal = await (await request('/api/calendars', { method: 'POST', body: JSON.stringify({ kind: 'local', name: 'Fam' }) })).json() as any;
+  const mk = async (reminders?: number[] | null) => (await (await request('/api/events', { method: 'POST', body: JSON.stringify({ calendarId: cal.id, title: 't', start: '2030-01-01T10:00:00Z', end: '2030-01-01T11:00:00Z', allDay: false, ...(reminders !== undefined ? { reminders } : {}) }) })).json()) as any;
+  const dflt = await mk()
+  assert.deepEqual([dflt.reminders, dflt.reminderSource], [[30], 'default']);
+  const own = await mk([10]);
+  assert.deepEqual([own.reminders, own.reminderSource], [[10], 'event']);
+  const off = await mk([]);
+  assert.deepEqual([off.reminders, off.reminderSource], [null, null]);
+});

@@ -143,8 +143,9 @@ async function remoteOverrides(
   };
 }
 
+// Never saved = 30 min, matching what Settings shows and what notify.ts sends.
 function parseDefaultReminderMinutes(value: string | undefined): number[] {
-  if (!value) return [];
+  if (!value) return [30];
   try {
     const parsed = JSON.parse(value);
     return Array.isArray(parsed) ? parsed.filter((n): n is number => typeof n === 'number') : [];
@@ -340,7 +341,9 @@ function instanceFrom(
       ownReminders = null;
     }
   }
-  const reminders = ownReminders && ownReminders.length > 0 ? ownReminders : defaultReminderMinutes.length > 0 ? defaultReminderMinutes : null;
+  // An explicit [] (reminders turned off on the event) stays silent rather than taking the default.
+  const reminders = ownReminders ?? (defaultReminderMinutes.length > 0 ? defaultReminderMinutes : null);
+  const reminderSource: 'event' | 'default' | null = ownReminders ? 'event' : reminders ? 'default' : null;
 
   let categoryId: string | null;
   let categorySource: CategorySource;
@@ -370,7 +373,8 @@ function instanceFrom(
     memberScope,
     categoryId,
     categorySource,
-    reminders,
+    reminders: reminders && reminders.length > 0 ? reminders : null,
+    reminderSource: reminders && reminders.length > 0 ? reminderSource : null,
   };
 }
 
@@ -519,6 +523,7 @@ eventsRoutes.openapi(
           allDay: body.allDay,
           location: location ?? undefined,
           description: description ?? undefined,
+          ...(body.reminders !== undefined ? { reminders: body.reminders } : {}),
         });
         externalId = created.externalId;
         title = created.title;
@@ -550,7 +555,7 @@ eventsRoutes.openapi(
       updated_at: new Date().toISOString(),
       series_id: seriesId,
       category_id: body.categoryId ?? null,
-      reminders: cal.kind === 'local' && body.reminders && body.reminders.length > 0 ? JSON.stringify(body.reminders) : null,
+      reminders: Array.isArray(body.reminders) ? JSON.stringify(body.reminders) : null,
     };
     await c.env.DB.prepare(
       'INSERT INTO events (id, calendar_id, external_id, title, start, end, all_day, location, description, rrule, member_ids, updated_at, series_id, category_id, reminders) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
@@ -665,7 +670,9 @@ eventsRoutes.openapi(
       body.allDay !== undefined ||
       body.location !== undefined ||
       body.description !== undefined ||
-      body.rrule !== undefined;
+      body.rrule !== undefined ||
+      // Reminders live on the provider's event, so on Google/Outlook changing them is a real write.
+      body.reminders !== undefined;
     // Member assignment and category assignment on a remote-kind event are local-only annotations
     // (event-member-overrides / event-category-overrides, keyed by external_id - the row is wiped
     // wholesale on every sync). A memberIds/categoryId-only patch never touches the provider, so it
@@ -680,9 +687,11 @@ eventsRoutes.openapi(
     let location = body.location !== undefined ? body.location : row.location;
     let description = body.description !== undefined ? body.description : row.description;
 
+    let remoteReminders: string | null | undefined;
     if (cal.kind !== 'local' && otherFieldsPresent) {
       const provider = getProvider(cal.kind as 'ics' | 'google' | 'microsoft' | 'caldav');
       if (!provider.updateEvent || !row.external_id) return c.json({ error: `${cal.kind} calendars are read-only` }, 400);
+      if (body.reminders !== undefined && cal.kind === 'caldav') return c.json({ error: 'reminders can only be changed on Google and Outlook calendars' }, 400);
       const ctx = await buildCtx(c.env.DB, cal, c.env);
       try {
         const updated = await provider.updateEvent(ctx, row.external_id, {
@@ -692,7 +701,9 @@ eventsRoutes.openapi(
           allDay: body.allDay ?? !!row.all_day,
           location: location ?? undefined,
           description: description ?? undefined,
+          ...(body.reminders !== undefined ? { reminders: body.reminders } : {}),
         });
+        if (body.reminders !== undefined) remoteReminders = Array.isArray(updated.reminders) ? JSON.stringify(updated.reminders) : null;
         title = updated.title;
         start = updated.start;
         end = updated.end;
@@ -738,7 +749,7 @@ eventsRoutes.openapi(
       rrule: cal.kind === 'local' && body.rrule !== undefined ? body.rrule : row.rrule,
       member_ids: cal.kind === 'local' && body.memberIds !== undefined ? JSON.stringify(body.memberIds) : row.member_ids,
       category_id: cal.kind === 'local' && body.categoryId !== undefined ? body.categoryId : row.category_id,
-      reminders: cal.kind === 'local' && body.reminders !== undefined ? (body.reminders && body.reminders.length > 0 ? JSON.stringify(body.reminders) : null) : row.reminders,
+      reminders: remoteReminders !== undefined ? remoteReminders : cal.kind === 'local' && body.reminders !== undefined ? (Array.isArray(body.reminders) ? JSON.stringify(body.reminders) : null) : row.reminders,
       updated_at: new Date().toISOString(),
     };
     // The UPDATE (when needed) and the member-colors/categories lookups for the response are

@@ -134,12 +134,13 @@ async function api(
 // item.reminders: {useDefault, overrides: [{method, minutes}]}. Only 'popup' reminders count
 // (per SPEC - 'email' reminders aren't a push notification). useDefault falls back to the
 // calendar's own defaultReminders (fetched once per sync in listEvents, passed in here).
+// [] means the event explicitly has no reminders (it must not fall back to the household default);
+// null means Google didn't say.
 function reminderMinutes(item: any, calendarDefaults: number[]): number[] | null {
-  if (item.reminders?.useDefault) return calendarDefaults.length ? calendarDefaults : null;
-  const overrides = item.reminders?.overrides as { method: string; minutes: number }[] | undefined;
-  if (!overrides) return null;
-  const minutes = overrides.filter((o) => o.method === 'popup').map((o) => o.minutes);
-  return minutes.length ? minutes : null;
+  if (!item.reminders) return null;
+  if (item.reminders.useDefault) return calendarDefaults;
+  const overrides = (item.reminders.overrides ?? []) as { method: string; minutes: number }[];
+  return overrides.filter((o) => o.method === 'popup').map((o) => o.minutes);
 }
 
 function toNormalized(item: any, calendarDefaults: number[] = []): NormalizedEvent {
@@ -170,6 +171,12 @@ function fromInput(ev: Partial<EventInput>): Record<string, unknown> {
       if (ev.start !== undefined) body.start = { dateTime: ev.start };
       if (ev.end !== undefined) body.end = { dateTime: ev.end };
     }
+  }
+  // null = the calendar's own default reminders; [] = none; else pop-up reminders at those minutes.
+  if (ev.reminders !== undefined) {
+    body.reminders = ev.reminders === null
+      ? { useDefault: true }
+      : { useDefault: false, overrides: ev.reminders.map((minutes) => ({ method: 'popup', minutes })) };
   }
   return body;
 }

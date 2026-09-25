@@ -234,7 +234,7 @@ test('microsoft: a revoked refresh token produces a human-readable error', async
   }
 });
 
-test('microsoft: isReminderOn + reminderMinutesBeforeStart map to reminders; off means null', async () => {
+test('microsoft: isReminderOn + reminderMinutesBeforeStart map to reminders; off means none', async () => {
   const { restore } = stubFetch({
     'login.microsoftonline.com': () => Response.json({ access_token: 'tok', refresh_token: 'r2', expires_in: 3600 }),
     calendarView: () =>
@@ -254,7 +254,7 @@ test('microsoft: isReminderOn + reminderMinutesBeforeStart map to reminders; off
     } as ProviderCtx;
     const events = await msProvider.listEvents(ctx, FROM, TO);
     assert.deepEqual(events[0].reminders, [15]);
-    assert.equal(events[1].reminders, null);
+    assert.deepEqual(events[1].reminders, []); // off = explicitly none, not the household default
   } finally {
     restore();
   }
@@ -292,4 +292,24 @@ test('ics: a VALARM with a relative TRIGGER maps to reminders (DISPLAY/AUDIO onl
   const noAlarm = events.find((e) => e.externalId.startsWith('noalarm'))!;
   assert.deepEqual(withAlarm.reminders, [15]); // only the DISPLAY alarm counts, not the EMAIL one
   assert.equal(noAlarm.reminders, null);
+});
+
+test('google: writing reminders sends popup overrides, null uses the calendar default, [] turns them off', async () => {
+  const bodies: any[] = [];
+  const { restore } = stubFetch({
+    'oauth2.googleapis.com': () => Response.json({ access_token: 'tok', expires_in: 3600 }),
+    '/events/': (init?: RequestInit) => { bodies.push(JSON.parse(String(init?.body))); return Response.json({ id: 'ev1', summary: 'x', start: { dateTime: '2030-01-01T10:00:00Z' }, end: { dateTime: '2030-01-01T11:00:00Z' }, reminders: JSON.parse(String(init?.body)).reminders }); },
+  });
+  try {
+    const ctx = { env: {}, account: { id: 'a1', config: { access_token: 'tok', refresh_token: 'r', expires_at: Date.now() + 3600e3 } }, calendar: { id: 'c1', remoteId: 'cal1', config: {} }, saveAccountConfig: async () => {} } as unknown as ProviderCtx;
+    const updated = await googleProvider.updateEvent!(ctx, 'ev1', { reminders: [10, 1440] });
+    assert.deepEqual(bodies[0].reminders, { useDefault: false, overrides: [{ method: 'popup', minutes: 10 }, { method: 'popup', minutes: 1440 }] });
+    assert.deepEqual(updated.reminders, [10, 1440]);
+    await googleProvider.updateEvent!(ctx, 'ev1', { reminders: null });
+    assert.deepEqual(bodies[1].reminders, { useDefault: true });
+    await googleProvider.updateEvent!(ctx, 'ev1', { reminders: [] });
+    assert.deepEqual(bodies[2].reminders, { useDefault: false, overrides: [] });
+  } finally {
+    restore();
+  }
 });

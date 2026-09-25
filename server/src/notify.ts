@@ -138,7 +138,7 @@ async function runEventReminders(env: Env, db: D1Database, now: Date, tz: string
         reminders = null;
       }
     }
-    const effective = reminders && reminders.length > 0 ? reminders : defaultReminders;
+    const effective = reminders ?? defaultReminders; // [] = turned off on the event: stays silent
     if (!effective || effective.length === 0) continue;
 
     if (cal.kind === 'local' && row.rrule) {

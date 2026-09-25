@@ -71,7 +71,8 @@ export interface EventInstance {
   memberScope: 'occurrence' | 'series' | 'calendar' | 'none' // where memberIds came from
   categoryId: string | null
   categorySource: 'event' | 'series' | 'keyword' | 'calendar' | null // where categoryId came from
-  reminders: number[] | null // minutes-before; effective value (own, or the household default)
+  reminders: number[] | null // minutes-before in effect (the event's own, or the household default)
+  reminderSource?: 'event' | 'default' | null
 }
 
 /** Reminder select options shared by the event edit sheet and Settings' household default. */
@@ -87,10 +88,8 @@ export const REMINDER_OPTIONS: { value: string; label: string; minutes: number[]
 
 export function reminderLabel(minutes: number[] | null | undefined): string | null {
   if (!minutes || minutes.length === 0) return null
-  const m = Math.min(...minutes)
-  if (m % 1440 === 0) return `${m / 1440} day${m === 1440 ? '' : 's'} before`
-  if (m % 60 === 0) return `${m / 60} hour${m === 60 ? '' : 's'} before`
-  return `${m} min before`
+  const one = (m: number) => m % 1440 === 0 ? `${m / 1440} day${m === 1440 ? '' : 's'}` : m % 60 === 0 ? `${m / 60} hour${m === 60 ? '' : 's'}` : `${m} min`
+  return [...new Set(minutes)].sort((a, b) => a - b).map(one).join(', ') + ' before'
 }
 
 export interface Category {

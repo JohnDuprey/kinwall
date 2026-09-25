@@ -12,6 +12,7 @@ import { IDLE_RESET_EVENT } from './App.tsx'
 import { useIsPhone } from './useIsPhone.ts'
 
 const PHONE_WEEK_DAYS = 3
+const NEW_LOCAL_CALENDAR = '__new_local'
 const CATEGORY_FILTER_KEY = 'kinwall.categoryFilter'
 const NO_CATEGORY = '__none'
 
@@ -195,6 +196,11 @@ export default function CalendarView() {
 
   const saveEvent = async (body: Partial<EventInstance>, id: string | null, seriesCategory?: { categoryId: string | null; scope: 'occurrence' | 'series' }) => {
     try {
+      if (body.calendarId === NEW_LOCAL_CALENDAR) {
+        const cal = await api.createCalendar({ kind: 'local', name: 'Kinwall', color: '#F2A27A' })
+        setCalendars(cs => [...cs, cal])
+        body = { ...body, calendarId: cal.id }
+      }
       if (id) await api.updateEvent(id, body)
       else await api.createEvent(body)
       if (id && seriesCategory) await api.updateEvent(id, seriesCategory)
@@ -760,7 +766,7 @@ function EventDetailSheet({ event, members, categories, calendars, tz, onClose, 
         {catLabel && <div style={{ color: 'var(--text-dim)', fontSize: 13, fontWeight: 700 }}>{catLabel}</div>}
         {reminderLabel(event.reminders) && (
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', color: 'var(--text-dim)', fontSize: 13, fontWeight: 700 }}>
-            🔔 {reminderLabel(event.reminders)}
+            🔔 {reminderLabel(event.reminders)}{event.reminderSource === 'default' ? ' · default' : ''}
           </div>
         )}
         {members.length > 0 && (
@@ -816,7 +822,9 @@ function EventEditSheet({ event, prefill, calendars, members, categories, onClos
   const base = event ?? prefill ?? {}
   const [title, setTitle] = useState(base.title ?? '')
   const [allDay, setAllDay] = useState(!!base.allDay)
-  const [calendarId, setCalendarId] = useState(base.calendarId ?? writable[0]?.id ?? '')
+  const [calendarId, setCalendarId] = useState(base.calendarId ?? writable[0]?.id ?? NEW_LOCAL_CALENDAR)
+  const calKind = calendarId === NEW_LOCAL_CALENDAR ? 'local' : calendars.find(c => c.id === calendarId)?.kind
+  const remindersEditable = calKind === 'local' || calKind === 'google' || calKind === 'microsoft'
   const [memberIds, setMemberIds] = useState<string[]>(base.memberIds ?? [])
   // Only an explicit override (categorySource 'event'/'series') pre-selects a category here - a
   // keyword/calendar-resolved categoryId shows as "Automatic" with a hint (see autoHint below),
@@ -832,11 +840,14 @@ function EventEditSheet({ event, prefill, calendars, members, categories, onClos
   const [location, setLocation] = useState(base.location ?? '')
   const initialRepeat: '' | 'daily' | 'weekly' | 'monthly' = base.rrule?.includes('DAILY') ? 'daily' : base.rrule?.includes('WEEKLY') ? 'weekly' : base.rrule?.includes('MONTHLY') ? 'monthly' : ''
   const [rrule, setRrule] = useState(initialRepeat)
-  // The server returns the *effective* reminders (own, or the household default) - there's no way
-  // to tell "explicitly none" from "using the default" from that alone, so a value matching one of
-  // the presets pre-selects it and anything else (including no value) shows as "Default".
-  const initialReminder = base.reminders && base.reminders.length === 1 && REMINDER_OPTIONS.some(o => o.minutes[0] === base.reminders![0])
-    ? String(base.reminders[0]) : 'default'
+  // reminderSource says whether the reminders are the event's own or the default. The event's own
+  // ones pre-select a matching preset, or show as "keep" when they don't fit one (e.g. 10 min + 1 day
+  // from Google); no reminders on an existing event means they were turned off.
+  const ownReminders = base.reminderSource === 'event' ? base.reminders ?? [] : null
+  const initialReminder = !event || base.reminderSource === 'default' ? 'default'
+    : ownReminders === null || ownReminders.length === 0 ? 'none'
+    : ownReminders.length === 1 && REMINDER_OPTIONS.some(o => o.minutes[0] === ownReminders[0]) ? String(ownReminders[0])
+    : 'keep'
   const [reminder, setReminder] = useState(initialReminder)
 
   // All-day values are plain dates ('YYYY-MM-DD', end exclusive): read them as local days, never via
@@ -885,9 +896,9 @@ function EventEditSheet({ event, prefill, calendars, members, categories, onClos
       || end !== (event.allDay ? event.end : new Date(event.end).toISOString())
     if (timingChanged) Object.assign(body, { allDay, start, end })
     if (categoryChanged && !inSeries) body.categoryId = categoryId
-    // Reminders are a local-events-only annotation (see SPEC) - only send it for a local calendar,
-    // and only when it actually changed, same "don't pin an inherited value" reasoning as memberIds.
-    if (calendars.find(c => c.id === calendarId)?.kind === 'local' && reminder !== initialReminder) {
+    // Only when changed (same "don't pin an inherited value" reasoning as memberIds). On Google and
+    // Outlook this writes the reminder to the event there.
+    if (remindersEditable && reminder !== initialReminder && reminder !== 'keep') {
       body.reminders = reminder === 'default' ? null : reminder === 'none' ? [] : [Number(reminder)]
     }
     onSave(body, event?.id ?? null, categoryChanged && inSeries ? { categoryId, scope: categoryScope } : undefined)
@@ -931,6 +942,8 @@ function EventEditSheet({ event, prefill, calendars, members, categories, onClos
         <label>Calendar</label>
         <select value={calendarId} onChange={e => setCalendarId(e.target.value)}>
           {writable.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          {/* No local calendar yet: offer one, created on save, for events that live only in Kinwall */}
+          {!event && !writable.some(c => c.kind === 'local') && <option value={NEW_LOCAL_CALENDAR}>Kinwall only (not synced)</option>}
         </select>
       </div>
       <div className="field">
@@ -947,11 +960,13 @@ function EventEditSheet({ event, prefill, calendars, members, categories, onClos
           ))}
         </div>
       </div>
-      {calendars.find(c => c.id === calendarId)?.kind === 'local' && (
+      {remindersEditable && (
         <div className="field">
           <label>Reminder</label>
           <select value={reminder} onChange={e => setReminder(e.target.value)}>
-            <option value="default">Default</option>
+            {initialReminder === 'keep' && <option value="keep">{reminderLabel(ownReminders)}</option>}
+            {/* Outlook has no "use the default" setting to write back */}
+            {calKind !== 'microsoft' && <option value="default">{calKind === 'google' ? 'Google calendar default' : 'Household default'}</option>}
             {REMINDER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </div>

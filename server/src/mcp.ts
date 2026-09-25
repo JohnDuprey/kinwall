@@ -191,6 +191,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         description: z.string().optional(),
         members: z.array(z.string()).optional().describe('Member names or ids to attach to this event.'),
         rrule: z.string().nullable().optional().describe('Recurrence rule, e.g. FREQ=WEEKLY;BYDAY=TU. Local calendars only.'),
+        reminders: z.array(z.number().int().min(0)).nullable().optional().describe('Reminder minutes before start, e.g. [30] or [10, 1440]. [] = no reminders, null = default. Written to Google/Outlook for synced events.'),
       },
     },
     async ({ members, ...input }) => {
@@ -222,6 +223,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         description: z.string().optional(),
         members: z.array(z.string()).optional().describe('Member names or ids; replaces the current list.'),
         rrule: z.string().nullable().optional(),
+        reminders: z.array(z.number().int().min(0)).nullable().optional().describe('Reminder minutes before start, e.g. [30] or [10, 1440]. [] = no reminders, null = default. Written to Google/Outlook for synced events.'),
         scope: z
           .enum(['occurrence', 'series'])
           .optional()

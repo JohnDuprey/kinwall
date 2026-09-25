@@ -89,7 +89,7 @@ function insertEventStmt(env: Env, calendarId: string, ev: NormalizedEvent, now:
     '[]',
     now.toISOString(),
     ev.seriesId ?? null,
-    ev.reminders && ev.reminders.length > 0 ? JSON.stringify(ev.reminders) : null,
+    Array.isArray(ev.reminders) ? JSON.stringify(ev.reminders) : null, // '[]' = explicitly none
   );
 }
 

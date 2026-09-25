@@ -164,7 +164,8 @@ export const EventInstanceSchema = z
     memberScope: z.enum(['occurrence', 'series', 'calendar', 'none']),
     categoryId: z.string().nullable(),
     categorySource: z.enum(['event', 'series', 'keyword', 'calendar']).nullable(),
-    reminders: z.array(z.number()).nullable(), // minutes-before; effective value (own, or the household default)
+    reminders: z.array(z.number()).nullable(), // minutes-before in effect: the event's own, else the household default
+    reminderSource: z.enum(['event', 'default']).nullable(), // where `reminders` came from; null = no reminders at all
   })
   .openapi('EventInstance');
 
@@ -180,7 +181,7 @@ export const EventInputSchema = z
     memberIds: z.array(z.string()).optional(),
     rrule: z.string().nullable().optional(),
     categoryId: z.string().nullable().optional(),
-    reminders: z.array(z.number()).nullable().optional(), // local calendars only; null = use the household default
+    reminders: z.array(z.number().int().min(0).max(40320)).nullable().optional(), // [] = none; null = default (household, or the Google calendar's own). Written through to Google/Outlook
   })
   .openapi('EventInput');
 

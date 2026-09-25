@@ -202,7 +202,8 @@ test('webhook receives an HMAC-signed payload on a mutation', async () => {
     });
 
     await request('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Dee', color: '#123456' }) });
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    // Delivery is fire-and-forget; wait for it rather than guessing a delay (flaky under load).
+    for (let i = 0; i < 100 && !received; i++) await new Promise((resolve) => setTimeout(resolve, 20));
 
     assert.ok(received, 'webhook was called');
     const hook = received as { body: string; signature: string };

@@ -99,6 +99,10 @@ events(id, calendar_id, external_id NULL, title, start, end, all_day INT, locati
        -- category_id is read only for local-kind rows; synced-kind category comes from the override tables below
        -- reminders = minutes-before array from the provider (Google popup / Graph / ICS VALARM), or
        -- set directly for local events; NULL = none known, falls back to settings.defaultReminderMinutes
+       -- (30 when unset); '[]' = explicitly none (turned off on the event), never takes the default.
+       -- API: events return `reminders` (in effect) + `reminderSource` ('event' | 'default' | null);
+       -- PATCH `reminders` writes through to Google (popup overrides; null = calendar default) and
+       -- Outlook (single reminder); CalDAV/ICS reminders are read-only.
 categories(id, name, emoji NULL, color, keywords JSON '[]', sort, created_at)
        -- color overrides the assigned member's color; keywords = literal phrases, case-insensitive
        -- whole-word/phrase match against an event title, computed at read time (not stored)
