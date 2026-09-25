@@ -140,6 +140,33 @@ export default function CalendarView() {
     return () => { cancelled = true }
   }, [range.from, range.to, refreshTick])
 
+  // #/calendar?event=<id>&at=<start> (a tapped notification): jump to that day, then open the event
+  // once it's loaded. Also handled on hashchange, for when the app was already open.
+  const [pendingEventId, setPendingEventId] = useState<string | null>(null)
+  useEffect(() => {
+    const read = () => {
+      const q = new URLSearchParams(location.hash.split('?')[1] || '')
+      const id = q.get('event')
+      if (!id) return
+      const at = q.get('at')
+      if (at) setAnchor(at.length === 10 ? new Date(at + 'T00:00:00') : new Date(at))
+      setViewMode(v => (v === 'month' ? 'schedule' : v))
+      setPendingEventId(id)
+      history.replaceState(null, '', '#/calendar')
+    }
+    read()
+    window.addEventListener('hashchange', read)
+    return () => window.removeEventListener('hashchange', read)
+  }, [])
+  // Kept until the event shows up in a load (the jump above triggers a new fetch); give up after 10s.
+  useEffect(() => {
+    if (!pendingEventId) return
+    const ev = events.find(e => e.id === pendingEventId)
+    if (ev) { setDetail(ev); setPendingEventId(null); return }
+    const t = setTimeout(() => setPendingEventId(null), 10000)
+    return () => clearTimeout(t)
+  }, [pendingEventId, events])
+
   useEffect(() => {
     const onIdle = () => { setDetail(null); setEditState(null); setViewMode('week'); setAnchor(new Date()) }
     window.addEventListener(IDLE_RESET_EVENT, onIdle)

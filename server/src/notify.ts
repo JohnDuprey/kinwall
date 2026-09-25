@@ -81,9 +81,11 @@ type EventRow = {
   member_ids: string;
   category_id: string | null;
   reminders: string | null;
+  location: string | null;
+  description: string | null;
 };
 
-type CalRow = { id: string; kind: string; member_ids: string; enabled: number };
+type CalRow = { id: string; kind: string; name: string; member_ids: string; enabled: number };
 
 function fireTime(startIso: string, allDay: boolean, minutes: number, tz: string): number {
   if (!allDay) return Date.parse(startIso) - minutes * 60000;
@@ -108,16 +110,18 @@ async function runEventReminders(env: Env, db: D1Database, now: Date, tz: string
   const from = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   const to = new Date(now.getTime() + SEARCH_WINDOW_MS);
 
-  const [calsRes, eventsRes, categoriesRes] = await db.batch<unknown>([
-    db.prepare("SELECT id, kind, member_ids, enabled FROM calendars WHERE enabled = 1"),
+  const [calsRes, eventsRes, categoriesRes, membersRes] = await db.batch<unknown>([
+    db.prepare("SELECT id, kind, name, member_ids, enabled FROM calendars WHERE enabled = 1"),
     db.prepare('SELECT * FROM events WHERE calendar_id IN (SELECT id FROM calendars WHERE enabled = 1)'),
     db.prepare('SELECT id, emoji FROM categories'),
+    db.prepare('SELECT id, name FROM members'),
   ]);
+  const memberNames = new Map((membersRes.results as unknown as { id: string; name: string }[]).map((m) => [m.id, m.name]));
   const cals = new Map((calsRes.results as unknown as CalRow[]).map((c) => [c.id, c]));
   const categoryEmojis = new Map((categoriesRes.results as unknown as { id: string; emoji: string | null }[]).map((c) => [c.id, c.emoji]));
   const events = eventsRes.results as unknown as EventRow[];
 
-  type Candidate = { eventId: string; occurrenceKey: string; title: string; start: string; allDay: boolean; memberIds: string[]; categoryId: string | null; minutes: number };
+  type Candidate = { eventId: string; occurrenceKey: string; title: string; start: string; allDay: boolean; memberIds: string[]; categoryId: string | null; minutes: number; row: EventRow; calName: string };
   const candidates: Candidate[] = [];
 
   for (const row of events) {
@@ -144,7 +148,7 @@ async function runEventReminders(env: Env, db: D1Database, now: Date, tz: string
     if (cal.kind === 'local' && row.rrule) {
       for (const inst of expand(row.rrule, row.start, row.end, !!row.all_day, tz, from, to)) {
         for (const minutes of effective) {
-          candidates.push({ eventId: row.id, occurrenceKey: inst.start, title: row.title, start: inst.start, allDay: !!row.all_day, memberIds, categoryId: row.category_id, minutes });
+          candidates.push({ eventId: row.id, occurrenceKey: inst.start, title: row.title, start: inst.start, allDay: !!row.all_day, memberIds, categoryId: row.category_id, minutes, row, calName: cal.name });
         }
       }
       continue;
@@ -152,7 +156,7 @@ async function runEventReminders(env: Env, db: D1Database, now: Date, tz: string
     const startMs = row.all_day ? Date.parse(`${row.start}T00:00:00Z`) : Date.parse(row.start);
     if (startMs < from.getTime() || startMs >= to.getTime()) continue;
     for (const minutes of effective) {
-      candidates.push({ eventId: row.id, occurrenceKey: row.start, title: row.title, start: row.start, allDay: !!row.all_day, memberIds, categoryId: row.category_id, minutes });
+      candidates.push({ eventId: row.id, occurrenceKey: row.start, title: row.title, start: row.start, allDay: !!row.all_day, memberIds, categoryId: row.category_id, minutes, row, calName: cal.name });
     }
   }
 
@@ -172,7 +176,23 @@ async function runEventReminders(env: Env, db: D1Database, now: Date, tz: string
       const when = cand.minutes === 0 ? 'Now' : cand.minutes % 60 === 0 ? `In ${cand.minutes / 60} hour${cand.minutes === 60 ? '' : 's'}` : `In ${cand.minutes} minutes`;
       const timeLabel = cand.allDay ? 'All day' : fmtTime(cand.start, tz);
       // Event name as the title: it's what you scan for, and iOS already adds "from Kinwall" under it.
-      await sendToSub(env, db, sub, { title: `${emoji ? emoji + ' ' : ''}${cand.title}`, body: `${when} · ${timeLabel}`, url: '/', tag: `event:${cand.eventId}` });
+      // First line is what shows collapsed; the rest appears when the notification is long-pressed.
+      const who = cand.memberIds.map((id) => memberNames.get(id)).filter(Boolean).join(', ');
+      const notes = cand.row.description?.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      const lines = [
+        `${when} · ${timeLabel}`,
+        cand.row.location && `📍 ${cand.row.location.replace(/\s*\n\s*/g, ', ')}`,
+        who && `👥 ${who}`,
+        `🗓 ${cand.calName}`,
+        notes && (notes.length > 140 ? `${notes.slice(0, 139)}…` : notes),
+      ].filter(Boolean);
+      const at = cand.allDay ? cand.occurrenceKey : new Date(cand.start).toISOString();
+      await sendToSub(env, db, sub, {
+        title: `${emoji ? emoji + ' ' : ''}${cand.title}`,
+        body: lines.join('\n'),
+        url: `/#/calendar?event=${encodeURIComponent(cand.eventId)}&at=${encodeURIComponent(at)}`, // tap opens this event
+        tag: `event:${cand.eventId}`,
+      });
       await markSent(db, key, now);
     }
   }

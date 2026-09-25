@@ -216,10 +216,10 @@ test('push: POST /api/notify is admin-only', async () => {
 // an expired subscription.
 function stubPush(goneEndpoints: Set<string> = new Set()) {
   const realFetch = globalThis.fetch;
-  const sent: { url: string }[] = [];
-  globalThis.fetch = (async (url: any) => {
+  const sent: { url: string; body?: Uint8Array }[] = [];
+  globalThis.fetch = (async (url: any, init?: RequestInit) => {
     const u = String(url);
-    sent.push({ url: u });
+    sent.push({ url: u, body: init?.body instanceof Uint8Array ? init.body : undefined });
     if ([...goneEndpoints].some((e) => u.includes(e))) return new Response('', { status: 410 });
     return new Response('', { status: 201 });
   }) as typeof fetch;
@@ -346,4 +346,32 @@ test('reminders: an event with reminders turned off stays silent; source says wh
   assert.deepEqual([own.reminders, own.reminderSource], [[10], 'event']);
   const off = await mk([]);
   assert.deepEqual([off.reminders, off.reminderSource], [null, null]);
+});
+
+test('notify: a reminder carries long-press details and a link that opens the event', async () => {
+  const env = makeEnv();
+  const request = makeApp(env);
+  const ava = (await (await request('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Ava', color: '#e57' }) })).json()) as any;
+  const cal = (await (await request('/api/calendars', { method: 'POST', body: JSON.stringify({ kind: 'local', name: 'Home' }) })).json()) as any;
+  const now = new Date();
+  const start = new Date(now.getTime() + 15 * 60 * 1000);
+  const ev = (await (await request('/api/events', {
+    method: 'POST',
+    body: JSON.stringify({ calendarId: cal.id, title: 'Dentist', start: start.toISOString(), end: new Date(start.getTime() + 1800e3).toISOString(), allDay: false, memberIds: [ava.id], reminders: [15], location: '210 Oak St\nSpringfield', description: 'Bring the <b>insurance</b> card' }),
+  })).json()) as any;
+  const { keys } = await subscribe(request, ADMIN_KEY, 'phone', { eventReminders: true });
+
+  const push = stubPush();
+  await runNotifications(env, now);
+  push.restore();
+  assert.equal(push.sent.length, 1);
+  const payload = JSON.parse(await referenceDecrypt(push.sent[0].body!, keys.privateKey, keys.p256dh, keys.auth));
+  assert.equal(payload.title, 'Dentist');
+  const lines = payload.body.split('\n');
+  assert.match(lines[0], /^In 15 minutes · /);
+  assert.ok(lines.includes('📍 210 Oak St, Springfield'), payload.body);
+  assert.ok(lines.includes('👥 Ava'), payload.body);
+  assert.ok(lines.includes('🗓 Home'), payload.body);
+  assert.ok(lines.includes('Bring the insurance card'), payload.body);
+  assert.ok(payload.url.startsWith(`/#/calendar?event=${ev.id}&at=`), payload.url);
 });
