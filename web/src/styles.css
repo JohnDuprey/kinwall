@@ -86,6 +86,24 @@ html { font-size: calc(16px * var(--text-scale)); }
 :root[data-bg="charcoal"] { --bg: #191A1C; --bg-alt: #212327; --card: #25272B; --card-soft: #2B2E33; --border: #35383D; --text: #EDEEF0; --text-dim: #A2A6AC; }
 :root[data-bg="midnight"] { --bg: #0F1420; --bg-alt: #161D2C; --card: #1B2333; --card-soft: #212A3C; --border: #2C3750; --text: #E7ECF7; --text-dim: #9AA6BF; }
 
+/* Base look for every text-like control. :where() keeps specificity at zero, so any component
+   class (.field, .inline-form, .settings-select, …) still wins - but nothing can fall back to the
+   browser's native grey box. */
+:where(input:not([type="checkbox"], [type="radio"], [type="color"], [type="range"], [type="file"], [type="hidden"]), select, textarea) {
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  border: 2px solid var(--border);
+  background-color: var(--bg-alt);
+  color: var(--text);
+  font: inherit;
+  font-size: max(1rem, 16px); /* below 16px iOS zooms on focus */
+  font-weight: 700;
+  min-height: 44px;
+  max-width: 100%;
+}
+:where(input, select, textarea)::placeholder { color: var(--text-dim); opacity: 0.8; font-weight: 600; }
+:where(input, select, textarea):focus-visible { outline: none; border-color: var(--accent-strong); }
+
 * { box-sizing: border-box; }
 
 html, body, #root {
@@ -1070,3 +1088,4 @@ button {
 .drag-row.drop-after::after { bottom: -2px; }
 /* Rows sit inside .drag-row wrappers: draw the divider between wrappers, not on every (first-child) row. */
 .drag-row + .drag-row .list-item-row { border-top: 1px solid var(--border); }
+.inline-form .link-btn { flex: none; align-self: center; }

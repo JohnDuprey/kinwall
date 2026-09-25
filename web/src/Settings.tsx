@@ -972,6 +972,7 @@ function PasskeysSection({ me, toast }: { me: Me; toast: (m: string) => void }) 
             <div className="inline-form" style={{ flex: 1 }}>
               <input type="text" value={renameValue} onChange={e => setRenameValue(e.target.value)} autoFocus aria-label="Passkey name" />
               <button className="btn btn-primary" onClick={rename}>Save</button>
+              <button className="link-btn" onClick={() => setRenaming(null)}>Cancel</button>
             </div>
           ) : (
             <div style={{ cursor: 'pointer', flex: 1 }} onClick={() => { setRenaming(p); setRenameValue(p.name) }}>
@@ -987,8 +988,9 @@ function PasskeysSection({ me, toast }: { me: Me; toast: (m: string) => void }) 
       ))}
       {creating ? (
         <div className="inline-form">
-          <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Passkey name" autoFocus />
+          <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Passkey name" autoComplete="off" autoFocus />
           <button className="btn btn-primary" onClick={create}>Create</button>
+          <button className="link-btn" onClick={() => setCreating(false)}>Cancel</button>
         </div>
       ) : (
         <button className="add-row-btn" onClick={() => setCreating(true)}><PlusIcon width={20} height={20} />Add a passkey on this device</button>
@@ -997,6 +999,7 @@ function PasskeysSection({ me, toast }: { me: Me; toast: (m: string) => void }) 
         <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'center', gap: 10 }}>
           <QrCode value={new URL(`#/admin-setup?token=${qr.token}`, document.baseURI).href} size={168} />
           <div className="settings-row-sub">Scan with another phone or computer to add a passkey there.</div>
+          <button className="link-btn" onClick={() => setQr(null)}>Done</button>
         </div>
       ) : (
         <button className="add-row-btn" onClick={startAnotherDevice}><PlusIcon width={20} height={20} />Add a passkey on another device</button>
@@ -1079,6 +1082,7 @@ function KeysSection({ toast }: { toast: (m: string) => void }) {
         <div className="inline-form">
           <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Key name" autoComplete="off" autoFocus />
           <button className="btn btn-primary" onClick={create}>Create</button>
+          <button className="link-btn" onClick={() => setCreating(false)}>Cancel</button>
         </div>
       ) : (
         <button className="add-row-btn" onClick={() => setCreating(true)}><PlusIcon width={20} height={20} />New admin key</button>
