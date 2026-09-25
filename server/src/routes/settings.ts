@@ -17,6 +17,7 @@ const DEFAULTS: Record<string, string> = {
   backgroundDark: 'cocoa',
   textScale: 'm',
   density: 'comfortable',
+  defaultReminderMinutes: '[30]',
 };
 
 export async function readSettings(db: D1Database) {
@@ -36,7 +37,17 @@ export async function readSettings(db: D1Database) {
     backgroundDark: (map.get('backgroundDark') ?? DEFAULTS.backgroundDark) as 'cocoa' | 'charcoal' | 'midnight',
     textScale: (map.get('textScale') ?? DEFAULTS.textScale) as 's' | 'm' | 'l' | 'xl',
     density: (map.get('density') ?? DEFAULTS.density) as 'comfortable' | 'compact',
+    defaultReminderMinutes: parseReminderMinutes(map.get('defaultReminderMinutes') ?? DEFAULTS.defaultReminderMinutes),
   };
+}
+
+function parseReminderMinutes(raw: string): number[] {
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((n): n is number => typeof n === 'number') : [];
+  } catch {
+    return [];
+  }
 }
 
 settingsRoutes.openapi(
@@ -69,7 +80,7 @@ settingsRoutes.openapi(
     const patch: Record<string, string> = {};
     for (const [key, value] of Object.entries(body)) {
       if (value === undefined) continue;
-      patch[key] = String(value);
+      patch[key] = Array.isArray(value) ? JSON.stringify(value) : String(value);
     }
     // Legacy 'theme': 'light'|'dark' -> themeMode, unless an explicit themeMode was also sent.
     if (theme && patch.themeMode === undefined) patch.themeMode = theme;

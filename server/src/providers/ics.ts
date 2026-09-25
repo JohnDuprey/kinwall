@@ -202,6 +202,7 @@ export async function expandICS(
         location: item.location || undefined,
         description: item.description || undefined,
         seriesId,
+        reminders: minutesFromValarms(item.component),
       });
     }
   }
@@ -230,7 +231,26 @@ function pushSingle(
     allDay,
     location: event.location || undefined,
     description: event.description || undefined,
+    reminders: minutesFromValarms(event.component),
   });
+}
+
+// VALARM reminders: only ACTION:DISPLAY/AUDIO (an EMAIL alarm isn't a push notification), and
+// only a relative TRIGGER (e.g. -PT15M, -P1D) - an absolute TRIGGER;VALUE=DATE-TIME is ignored
+// (ponytail: rare in practice; upgrade if a feed needs it). A positive trigger (after the start)
+// is also ignored - "reminders" here means "before".
+function minutesFromValarms(component: ICAL.Component): number[] | null {
+  const out: number[] = [];
+  for (const alarm of component.getAllSubcomponents('valarm')) {
+    const action = (alarm.getFirstPropertyValue('action') as string | null)?.toString().toUpperCase();
+    if (action !== 'DISPLAY' && action !== 'AUDIO') continue;
+    const triggerProp = alarm.getFirstProperty('trigger');
+    if (!triggerProp || triggerProp.getParameter('value') === 'DATE-TIME') continue;
+    const dur = triggerProp.getFirstValue() as { toSeconds?: () => number } | null;
+    const seconds = dur?.toSeconds?.();
+    if (typeof seconds === 'number' && seconds < 0) out.push(Math.round(-seconds / 60));
+  }
+  return out.length ? out : null;
 }
 
 function isCancelled(component: ICAL.Component): boolean {

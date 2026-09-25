@@ -1,6 +1,7 @@
 import { createApp } from './app.ts';
 import type { Env } from './env.ts';
 import { syncDue } from './sync.ts';
+import { runNotifications } from './notify.ts';
 import { runMigrations } from './migrate.ts';
 import { MIGRATIONS } from './worker-migrations.ts';
 
@@ -22,6 +23,11 @@ export default {
     return app.fetch(request, env, ctx);
   },
   async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
-    ctx.waitUntil(ready(env).then(() => syncDue(env, ctx)));
+    // Cron runs every 5 min (wrangler.toml); syncDue self-throttles per calendar against
+    // syncIntervalMinutes, so the more frequent tick only adds a cheap "anything due?" query, not
+    // more actual syncing. Notifications run on every tick - they need the finer cadence.
+    ctx.waitUntil(
+      ready(env).then(() => Promise.all([syncDue(env, ctx), runNotifications(env, new Date(), ctx)])),
+    );
   },
 };

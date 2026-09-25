@@ -137,6 +137,7 @@ test('google: refreshes an expired token, saves it, and maps events (timed + all
       location: undefined,
       description: undefined,
       seriesId: undefined,
+      reminders: null,
     });
     assert.equal(events[1].allDay, true);
     assert.equal(events[1].start, '2026-02-01');
@@ -231,4 +232,64 @@ test('microsoft: a revoked refresh token produces a human-readable error', async
   } finally {
     restore();
   }
+});
+
+test('microsoft: isReminderOn + reminderMinutesBeforeStart map to reminders; off means null', async () => {
+  const { restore } = stubFetch({
+    'login.microsoftonline.com': () => Response.json({ access_token: 'tok', refresh_token: 'r2', expires_in: 3600 }),
+    calendarView: () =>
+      Response.json({
+        value: [
+          { id: 'ev1', subject: 'On', isAllDay: false, isReminderOn: true, reminderMinutesBeforeStart: 15, start: { dateTime: '2026-01-05T15:00:00.0000000' }, end: { dateTime: '2026-01-05T16:00:00.0000000' } },
+          { id: 'ev2', subject: 'Off', isAllDay: false, isReminderOn: false, reminderMinutesBeforeStart: 15, start: { dateTime: '2026-01-05T15:00:00.0000000' }, end: { dateTime: '2026-01-05T16:00:00.0000000' } },
+        ],
+      }),
+  });
+  try {
+    const ctx = {
+      env: { MS_TENANT: 'common' },
+      account: { id: 'a1', config: { access_token: 'old', refresh_token: 'r1', expires_at: 0 } },
+      calendar: { id: 'c1', remoteId: 'cal1', config: {} },
+      saveAccountConfig: async () => {},
+    } as ProviderCtx;
+    const events = await msProvider.listEvents(ctx, FROM, TO);
+    assert.deepEqual(events[0].reminders, [15]);
+    assert.equal(events[1].reminders, null);
+  } finally {
+    restore();
+  }
+});
+
+test('ics: a VALARM with a relative TRIGGER maps to reminders (DISPLAY/AUDIO only, absolute/positive triggers ignored)', async () => {
+  const ics = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'BEGIN:VEVENT',
+    'UID:alarm1@test',
+    'DTSTART:20260115T150000Z',
+    'DTEND:20260115T160000Z',
+    'SUMMARY:With alarm',
+    'BEGIN:VALARM',
+    'ACTION:DISPLAY',
+    'TRIGGER:-PT15M',
+    'END:VALARM',
+    'BEGIN:VALARM',
+    'ACTION:EMAIL',
+    'TRIGGER:-P1D',
+    'END:VALARM',
+    'END:VEVENT',
+    'BEGIN:VEVENT',
+    'UID:noalarm@test',
+    'DTSTART:20260116T150000Z',
+    'DTEND:20260116T160000Z',
+    'SUMMARY:No alarm',
+    'END:VEVENT',
+    'END:VCALENDAR',
+    '',
+  ].join('\r\n');
+  const events = await expandICS(ics, FROM, TO);
+  const withAlarm = events.find((e) => e.externalId.startsWith('alarm1'))!;
+  const noAlarm = events.find((e) => e.externalId.startsWith('noalarm'))!;
+  assert.deepEqual(withAlarm.reminders, [15]); // only the DISPLAY alarm counts, not the EMAIL one
+  assert.equal(noAlarm.reminders, null);
 });

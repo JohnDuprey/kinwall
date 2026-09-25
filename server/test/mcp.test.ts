@@ -85,6 +85,7 @@ test('mcp: tools/list returns the tools', async () => {
     'list_chores',
     'list_events',
     'list_lists',
+    'send_notification',
     'set_event_category',
     'set_list_item_done',
     'uncomplete_chore',
@@ -187,4 +188,23 @@ test('mcp: a display key calling an admin-only action gets isError, not a thrown
   const body = await res.json() as any;
   assert.equal(body.result.isError, true);
   assert.match(body.result.content[0].text, /display key cannot access/);
+});
+
+test('mcp: send_notification resolves member names and wraps POST /api/notify', async () => {
+  const env = makeEnv();
+  const { rest, mcp } = makeApp(env);
+  const member = await (await rest('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Ava', color: '#e57' }) })).json() as any;
+
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async () => new Response('', { status: 201 })) as typeof fetch;
+  let res: Response;
+  try {
+    res = await mcp('tools/call', { name: 'send_notification', arguments: { title: 'Hi', body: 'There', members: ['Ava'] } });
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+  const body = await res.json() as any;
+  assert.equal(body.result.isError, undefined);
+  assert.match(body.result.content[0].text, /Sent to 0 device/); // no subscriptions registered - still a valid, non-erroring call
+  void member;
 });

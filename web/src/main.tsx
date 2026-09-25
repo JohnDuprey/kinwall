@@ -9,6 +9,12 @@ const keepAwake = () => { if (document.visibilityState === 'visible') navigator.
 keepAwake()
 document.addEventListener('visibilitychange', keepAwake)
 
+// Push notifications need the SW registered before Settings can call pushManager.subscribe().
+// Scope '/' (not sw.js's own directory) so it can control the whole app.
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register(new URL('sw.js', document.baseURI), { scope: new URL('.', document.baseURI).pathname }).catch(() => {})
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />

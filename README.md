@@ -18,6 +18,7 @@ An open-source, self-hosted family wall calendar and chore chart, built for a wa
 - **Touch-first UI**: week, day, month and schedule views, swipe to page, big targets, and it returns to today after 2 minutes idle.
 - **API-first**: everything the UI does is in the REST API (OpenAPI docs at `/docs`), with signed webhooks for automations. Home Assistant integration: [kinwall-homeassistant](https://github.com/JohnDuprey/kinwall-homeassistant).
 - **Runs anywhere**: Cloudflare Workers free tier, Docker (amd64/arm64), or the Home Assistant add-on.
+- **Push notifications**: event reminders, a daily summary, chore nudges and list updates, per device — Settings → Notifications. iPhone needs iOS 16.4+ and Kinwall added to the Home Screen first (Safari tabs can't receive push).
 
 <details>
 <summary>More screenshots</summary>
@@ -84,6 +85,17 @@ Set the public URL in **Settings → Calendars → Calendar providers** (or `PUB
 
 On a display, Settings shows Household, Appearance, This display (navigation position, unpair) and Members (edit only). Admin functions (calendar accounts, displays, passkeys, API keys, webhooks, adding or removing members) don't appear; use an admin device for those.
 
+## Notifications
+
+Settings → Notifications, on any device: **Turn on notifications**, then choose event reminders, a
+daily summary (with a time), a chore reminder (with a time), list updates, and which family members
+to follow. Each event can set its own reminder (Settings has a household default for events with
+none); the event detail sheet shows it as "🔔 30 min before". An admin device's Settings → Access →
+Notifications lists every subscribed device and can send a one-off message to any of them right now.
+
+iPhone needs **iOS 16.4+** and Kinwall added to the Home Screen (Share → Add to Home Screen) —
+Safari tabs can't receive push notifications at all, and Settings explains this if it detects Safari.
+
 ## Connect calendars
 
 Google and Microsoft OAuth credentials can be set up entirely in the UI now — no env vars or
@@ -112,6 +124,7 @@ by server" and is read-only in the UI.
 - Change detection: `GET /api/rev` returns a counter that increments on every write.
 - Chore leaderboard: `GET /api/leaderboard?period=today|week|month` (default week) returns each member's points, completions and current streak for the period, ranked with tie handling.
 - Webhooks: `POST /api/webhooks {url, events, secret}` sends `{type, data, at}` with header `X-Kinwall-Signature: sha256=<HMAC of body>`. Event types: `member.changed`, `calendar.changed`, `calendar.synced`, `events.changed`, `chore.changed`, `chore.completed`, `chore.uncompleted`, `category.changed`, `settings.changed`.
+- Push notifications: `POST /api/notify {title, body, memberIds?, url?}` (admin only) sends a message right now to every device following any of `memberIds` (omit it to reach every device).
 
 ```bash
 # Mark a chore done from any automation
@@ -121,7 +134,7 @@ curl -X POST https://kinwall.example/api/chores/<id>/complete \
 
 ## MCP
 
-Kinwall exposes an [MCP](https://modelcontextprotocol.io) server at `POST/GET/DELETE /mcp` (Streamable HTTP), so an AI assistant can answer "what's on Saturday?", add events, complete chores, or check the leaderboard - using the same bearer keys and scopes as the REST API. Tools: `get_household`, `list_events`, `create_event`, `update_event`, `delete_event`, `list_chores`, `complete_chore`, `uncomplete_chore`, `create_chore`, `get_leaderboard`, `add_member`. Family members can be referenced by name (e.g. `"member": "Max"`) instead of an id.
+Kinwall exposes an [MCP](https://modelcontextprotocol.io) server at `POST/GET/DELETE /mcp` (Streamable HTTP), so an AI assistant can answer "what's on Saturday?", add events, complete chores, or check the leaderboard - using the same bearer keys and scopes as the REST API. Tools: `get_household`, `list_events`, `create_event`, `update_event`, `delete_event`, `list_chores`, `complete_chore`, `uncomplete_chore`, `create_chore`, `get_leaderboard`, `add_member`, `send_notification`. Family members can be referenced by name (e.g. `"member": "Max"`) instead of an id.
 
 **Claude Code:**
 

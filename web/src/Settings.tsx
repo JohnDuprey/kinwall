@@ -1,15 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useApp } from './AppContext.tsx'
 import { api, ApiError, clearKey } from './api.ts'
-import type { Account, ApiKey, CalendarEntry, Category, Density, Me, Member, Passkey, Providers, RemoteCalendar, Settings, TextScale, ThemeMode, Webhook } from './types.ts'
+import type { Account, ApiKey, CalendarEntry, Category, Density, Me, Member, Passkey, Providers, PushSubscription, RemoteCalendar, Settings, TextScale, ThemeMode, Webhook } from './types.ts'
 import { ProviderForm, PublicUrlRow } from './ProviderConfig.tsx'
-import { ACCENT_PRESETS, BACKGROUND_DARK_PRESETS, BACKGROUND_LIGHT_PRESETS, CATEGORY_EMOJI, CATEGORY_PRESETS, MEMBER_EMOJI, MEMBER_PALETTE, nextPaletteColor } from './types.ts'
+import { ACCENT_PRESETS, BACKGROUND_DARK_PRESETS, BACKGROUND_LIGHT_PRESETS, CATEGORY_EMOJI, CATEGORY_PRESETS, MEMBER_EMOJI, MEMBER_PALETTE, nextPaletteColor, REMINDER_OPTIONS } from './types.ts'
 import Sheet from './Sheet.tsx'
 import { MemberPicker } from './MemberPicker.tsx'
 import { AnyEmojiField } from './AnyEmojiField.tsx'
 import { isValidAvatar } from './emoji.ts'
 import { inkFor } from './color.ts'
-import { KeyIcon, LinkIcon, MonitorIcon, PaletteIcon, PlusIcon, TrashIcon, WebhookIcon } from './icons.tsx'
+import { BellIcon, KeyIcon, LinkIcon, MonitorIcon, PaletteIcon, PlusIcon, TrashIcon, WebhookIcon } from './icons.tsx'
 import { useIsPhone } from './useIsPhone.ts'
 import { useNavMode, setNavPref, type NavPref } from './useNavMode.ts'
 import { passkeysSupported, registerPasskey } from './webauthn.ts'
@@ -76,8 +76,9 @@ export default function SettingsView() {
           </div>
         </div>
         {current === 'general' && <>
-          <GeneralSection settings={settings} onSaved={reloadCore} toast={toast} />
+          <GeneralSection settings={settings} onSaved={reloadCore} toast={toast} isDisplay={isDisplay} />
           <AppearanceSection settings={settings} onSaved={reloadCore} toast={toast} />
+          <NotificationsSection toast={toast} />
           {isDisplay ? <ThisDisplaySection keyName={me.keyName} /> : <ThisDisplaySection />}
         </>}
         {current === 'family' && <>
@@ -90,6 +91,7 @@ export default function SettingsView() {
         </>}
         {current === 'access' && <>
           <DisplaysSection toast={toast} />
+          <NotificationDevicesSection toast={toast} />
           <PasskeysSection me={me} toast={toast} />
           <KeysSection toast={toast} />
           <WebhooksSection toast={toast} />
@@ -109,7 +111,7 @@ function Section({ title, icon, children }: { title: string; icon?: React.ReactN
   )
 }
 
-function GeneralSection({ settings, onSaved, toast }: { settings: ReturnType<typeof useApp>['settings']; onSaved: () => void; toast: (m: string) => void }) {
+function GeneralSection({ settings, onSaved, toast, isDisplay }: { settings: ReturnType<typeof useApp>['settings']; onSaved: () => void; toast: (m: string) => void; isDisplay: boolean }) {
   const tzs = useMemo(timezoneList, [])
   const save = async (patch: Partial<typeof settings>) => {
     try { await api.updateSettings(patch); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save settings') }
@@ -135,6 +137,18 @@ function GeneralSection({ settings, onSaved, toast }: { settings: ReturnType<typ
           <option value={1}>Monday</option>
         </select>
       </div>
+      {!isDisplay && (
+        <div className="settings-row">
+          <div>
+            <div className="settings-row-label">Default reminder</div>
+            <div className="settings-row-sub">Used for events with no reminder of their own.</div>
+          </div>
+          <select className="settings-select" value={settings.defaultReminderMinutes[0] !== undefined ? String(settings.defaultReminderMinutes[0]) : 'none'}
+            onChange={e => save({ defaultReminderMinutes: e.target.value === 'none' ? [] : [Number(e.target.value)] })}>
+            {REMINDER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </div>
+      )}
     </Section>
   )
 }
@@ -212,6 +226,208 @@ function AppearanceSection({ settings, onSaved, toast }: { settings: Settings; o
   )
 }
 
+const PUSH_SUB_ID_KEY = 'kinwall.pushSubId'
+
+function pushSupported(): boolean {
+  return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
+}
+
+// iOS Safari (not yet added to the Home Screen) can't do push at all - detect that specifically
+// so the message tells the user the actual fix instead of a generic "not supported".
+function iosNeedsHomeScreen(): boolean {
+  const isIos = /iPhone|iPad|iPod/.test(navigator.userAgent) && !(window as any).MSStream
+  const isStandalone = (navigator as any).standalone === true || window.matchMedia('(display-mode: standalone)').matches
+  return isIos && !isStandalone
+}
+
+function urlBase64ToUint8Array(base64url: string): Uint8Array {
+  const padded = base64url + '='.repeat((4 - (base64url.length % 4)) % 4)
+  const base64 = padded.replace(/-/g, '+').replace(/_/g, '/')
+  const raw = atob(base64)
+  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)))
+}
+
+const DEFAULT_PUSH_PREFS = { eventReminders: true, dailySummary: false, summaryTime: '07:30', choreNudge: false, choreNudgeTime: '08:00', listUpdates: false }
+
+/** "This display" → Notifications: subscribe/unsubscribe this device, and its own reminder/
+ * summary/nudge/list-update preferences. Works for any key scope (display or admin) - it's
+ * per-device, not a household setting. */
+function NotificationsSection({ toast }: { toast: (m: string) => void }) {
+  const { members } = useApp()
+  const [sub, setSub] = useState<PushSubscription | null | undefined>(undefined) // undefined = still checking
+  const [busy, setBusy] = useState(false)
+
+  const reconcile = async () => {
+    const storedId = localStorage.getItem(PUSH_SUB_ID_KEY)
+    if (!storedId) { setSub(null); return }
+    try {
+      const reg = await navigator.serviceWorker.ready
+      const existing = await reg.pushManager.getSubscription()
+      if (!existing) { localStorage.removeItem(PUSH_SUB_ID_KEY); setSub(null); return }
+      const mine = await api.getPushSubscriptions()
+      setSub(mine.find(s => s.id === storedId) ?? null)
+    } catch {
+      setSub(null)
+    }
+  }
+  useEffect(() => { if (pushSupported()) reconcile() }, [])
+
+  const turnOn = async () => {
+    setBusy(true)
+    try {
+      const perm = await Notification.requestPermission() // must run from this tap
+      if (perm !== 'granted') { toast('Notifications permission was not granted'); return }
+      const { publicKey } = await api.getVapidPublicKey()
+      const reg = await navigator.serviceWorker.ready
+      const pushSub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(publicKey) as BufferSource })
+      const created = await api.subscribePush({ subscription: pushSub.toJSON() as PushSubscriptionJSON, deviceName: navigator.platform || 'This device' })
+      localStorage.setItem(PUSH_SUB_ID_KEY, created.id)
+      setSub(created)
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : 'Could not turn on notifications')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const turnOff = async () => {
+    setBusy(true)
+    try {
+      const reg = await navigator.serviceWorker.ready
+      const existing = await reg.pushManager.getSubscription()
+      if (existing) await existing.unsubscribe()
+      if (sub) await api.deletePushSubscription(sub.id)
+    } catch { /* best effort - clear locally regardless */ }
+    localStorage.removeItem(PUSH_SUB_ID_KEY)
+    setSub(null)
+    setBusy(false)
+  }
+
+  const savePrefs = async (patch: Partial<PushSubscription['prefs']>) => {
+    if (!sub) return
+    try {
+      const updated = await api.updatePushSubscription(sub.id, { prefs: patch })
+      setSub(updated)
+    } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save') }
+  }
+  const saveMembers = async (memberIds: string[]) => {
+    if (!sub) return
+    try { setSub(await api.updatePushSubscription(sub.id, { memberIds })) } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save') }
+  }
+  const sendTest = async () => {
+    if (!sub) return
+    try { await api.testPush(sub.id); toast('Test notification sent') } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not send test') }
+  }
+
+  if (!pushSupported()) {
+    return (
+      <Section title="Notifications" icon={<BellIcon width={16} height={16} />}>
+        <p className="settings-row-sub">
+          {iosNeedsHomeScreen()
+            ? 'Add Kinwall to your Home Screen first (Share → Add to Home Screen) — iPhone only supports notifications for installed apps, on iOS 16.4 or later.'
+            : 'This browser doesn\'t support push notifications.'}
+        </p>
+      </Section>
+    )
+  }
+
+  const prefs = sub?.prefs ?? DEFAULT_PUSH_PREFS
+
+  return (
+    <Section title="Notifications" icon={<BellIcon width={16} height={16} />}>
+      {sub === undefined ? (
+        <div className="settings-row-sub">Checking…</div>
+      ) : !sub ? (
+        <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+          <button className="btn btn-primary" onClick={turnOn} disabled={busy}>Turn on notifications</button>
+        </div>
+      ) : (
+        <>
+          <div className="toggle-row">
+            <label>Event reminders</label>
+            <button className={`switch ${prefs.eventReminders ? 'on' : ''}`} onClick={() => savePrefs({ eventReminders: !prefs.eventReminders })}><span className="knob" /></button>
+          </div>
+          <div className="settings-row">
+            <div className="toggle-row" style={{ flex: 1 }}>
+              <label>Daily summary</label>
+              <button className={`switch ${prefs.dailySummary ? 'on' : ''}`} onClick={() => savePrefs({ dailySummary: !prefs.dailySummary })}><span className="knob" /></button>
+            </div>
+            {prefs.dailySummary && <input type="time" value={prefs.summaryTime} onChange={e => savePrefs({ summaryTime: e.target.value })} />}
+          </div>
+          <div className="settings-row">
+            <div className="toggle-row" style={{ flex: 1 }}>
+              <label>Chore reminder</label>
+              <button className={`switch ${prefs.choreNudge ? 'on' : ''}`} onClick={() => savePrefs({ choreNudge: !prefs.choreNudge })}><span className="knob" /></button>
+            </div>
+            {prefs.choreNudge && <input type="time" value={prefs.choreNudgeTime} onChange={e => savePrefs({ choreNudgeTime: e.target.value })} />}
+          </div>
+          <div className="toggle-row">
+            <label>List updates</label>
+            <button className={`switch ${prefs.listUpdates ? 'on' : ''}`} onClick={() => savePrefs({ listUpdates: !prefs.listUpdates })}><span className="knob" /></button>
+          </div>
+          <MemberPicker members={members} selected={sub.memberIds} onChange={saveMembers} label="Which family members?" noneLabel="Everyone" />
+          <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+            <button className="btn btn-secondary" onClick={sendTest}>Send test</button>
+            <button className="btn btn-danger" onClick={turnOff} disabled={busy}>Turn off</button>
+          </div>
+        </>
+      )}
+    </Section>
+  )
+}
+
+// Admin Access tab: subscribed devices (read-only list + remove) and a "send a message now" form.
+function NotificationDevicesSection({ toast }: { toast: (m: string) => void }) {
+  const { members } = useApp()
+  const [subs, setSubs] = useState<PushSubscription[]>([])
+  const load = () => { api.getPushSubscriptions().then(setSubs).catch(() => {}) }
+  useEffect(load, [])
+
+  const remove = async (s: PushSubscription) => {
+    if (!confirm(`Remove "${s.deviceName}"? That device stops getting notifications.`)) return
+    try { await api.deletePushSubscription(s.id); load() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not remove device') }
+  }
+
+  const [title, setTitle] = useState('')
+  const [body, setBody] = useState('')
+  const [memberIds, setMemberIds] = useState<string[]>([])
+  const [sending, setSending] = useState(false)
+  const send = async () => {
+    if (!title.trim() || !body.trim()) return
+    setSending(true)
+    try {
+      const result = await api.sendNotification({ title: title.trim(), body: body.trim(), memberIds: memberIds.length ? memberIds : undefined })
+      toast(`Sent to ${result.sent} device${result.sent === 1 ? '' : 's'}`)
+      setTitle(''); setBody('')
+    } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not send') } finally { setSending(false) }
+  }
+
+  return (
+    <Section title="Notifications" icon={<BellIcon width={16} height={16} />}>
+      {subs.length === 0 ? (
+        <div className="empty-card">No devices have turned on notifications yet.</div>
+      ) : subs.map(s => (
+        <div key={s.id} className="key-item">
+          <div>
+            <div className="settings-row-label">{s.deviceName}</div>
+            <div className="settings-row-sub">
+              added {new Date(s.createdAt).toLocaleDateString()}{s.lastSuccessAt ? ` · delivered ${new Date(s.lastSuccessAt).toLocaleDateString()}` : ' · never delivered'}
+            </div>
+          </div>
+          <button className="icon-btn" onClick={() => remove(s)}><TrashIcon width={16} height={16} /></button>
+        </div>
+      ))}
+      <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8, marginTop: 10 }}>
+        <div className="settings-row-label">Send a message</div>
+        <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="Title" />
+        <input type="text" value={body} onChange={e => setBody(e.target.value)} placeholder="Message" />
+        <MemberPicker members={members} selected={memberIds} onChange={setMemberIds} label="To" noneLabel="Everyone" />
+        <button className="btn btn-primary" onClick={send} disabled={sending || !title.trim() || !body.trim()}>Send now</button>
+      </div>
+    </Section>
+  )
+}
+
 const NAV_PREF_OPTIONS: { key: NavPref; label: string }[] = [
   { key: 'auto', label: 'Auto' }, { key: 'bottom', label: 'Bottom' }, { key: 'left', label: 'Left' }, { key: 'right', label: 'Right' },
 ]
@@ -236,7 +452,9 @@ function ThisDisplaySection({ keyName }: { keyName?: string }) {
     setRefreshing(true)
     try {
       if ('caches' in window) await Promise.all((await caches.keys()).map(k => caches.delete(k)))
-      if ('serviceWorker' in navigator) await Promise.all((await navigator.serviceWorker.getRegistrations()).map(r => r.unregister()))
+      // Don't unregister the service worker - it's what push notifications run through. Just make
+      // sure it's re-checked for an update instead.
+      if ('serviceWorker' in navigator) await Promise.all((await navigator.serviceWorker.getRegistrations()).map(r => r.update().catch(() => {})))
       await fetch(location.pathname, { cache: 'reload' })
     } catch { /* best effort - reload regardless */ }
     const url = new URL(location.href)

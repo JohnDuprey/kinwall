@@ -68,6 +68,7 @@ export const SettingsSchema = z
     backgroundDark: z.enum(['cocoa', 'charcoal', 'midnight']),
     textScale: z.enum(['s', 'm', 'l', 'xl']),
     density: z.enum(['comfortable', 'compact']),
+    defaultReminderMinutes: z.array(z.number()),
   })
   .openapi('Settings');
 
@@ -85,6 +86,7 @@ export const SettingsPatchSchema = z
     backgroundDark: z.enum(['cocoa', 'charcoal', 'midnight']).optional(),
     textScale: z.enum(['s', 'm', 'l', 'xl']).optional(),
     density: z.enum(['comfortable', 'compact']).optional(),
+    defaultReminderMinutes: z.array(z.number()).optional(),
   })
   .openapi('SettingsPatch');
 
@@ -162,6 +164,7 @@ export const EventInstanceSchema = z
     memberScope: z.enum(['occurrence', 'series', 'calendar', 'none']),
     categoryId: z.string().nullable(),
     categorySource: z.enum(['event', 'series', 'keyword', 'calendar']).nullable(),
+    reminders: z.array(z.number()).nullable(), // minutes-before; effective value (own, or the household default)
   })
   .openapi('EventInstance');
 
@@ -177,6 +180,7 @@ export const EventInputSchema = z
     memberIds: z.array(z.string()).optional(),
     rrule: z.string().nullable().optional(),
     categoryId: z.string().nullable().optional(),
+    reminders: z.array(z.number()).nullable().optional(), // local calendars only; null = use the household default
   })
   .openapi('EventInput');
 
@@ -388,3 +392,54 @@ export const ProviderInputSchema = z
 
 export const PublicUrlInputSchema = z.object({ value: z.string().min(1) }).openapi('PublicUrlInput');
 export const PublicUrlResultSchema = z.object({ value: z.string(), warning: z.string().optional() }).openapi('PublicUrlResult');
+
+export const PushSubscriptionPrefsSchema = z
+  .object({
+    eventReminders: z.boolean(),
+    dailySummary: z.boolean(),
+    summaryTime: z.string().regex(HHMM_RE),
+    choreNudge: z.boolean(),
+    choreNudgeTime: z.string().regex(HHMM_RE),
+    listUpdates: z.boolean(),
+  })
+  .openapi('PushSubscriptionPrefs');
+
+export const PushSubscriptionSchema = z
+  .object({
+    id: z.string(),
+    deviceName: z.string(),
+    memberIds: z.array(z.string()),
+    prefs: PushSubscriptionPrefsSchema,
+    createdAt: z.string(),
+    lastSuccessAt: z.string().nullable(),
+  })
+  .openapi('PushSubscription');
+
+export const PushSubscriptionInputSchema = z
+  .object({
+    subscription: z.object({
+      endpoint: z.string().url(),
+      keys: z.object({ p256dh: z.string(), auth: z.string() }),
+    }),
+    deviceName: z.string().min(1),
+    memberIds: z.array(z.string()).optional(),
+    prefs: PushSubscriptionPrefsSchema.partial().optional(),
+  })
+  .openapi('PushSubscriptionInput');
+
+export const PushSubscriptionPatchSchema = z
+  .object({
+    deviceName: z.string().min(1).optional(),
+    memberIds: z.array(z.string()).optional(),
+    prefs: PushSubscriptionPrefsSchema.partial().optional(),
+  })
+  .openapi('PushSubscriptionPatch');
+
+export const NotifyInputSchema = z
+  .object({
+    title: z.string().min(1),
+    body: z.string().min(1),
+    memberIds: z.array(z.string()).optional(),
+    url: z.string().optional(),
+  })
+  .openapi('NotifyInput');

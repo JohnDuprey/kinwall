@@ -2,6 +2,7 @@ import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
 import { emit } from '../bus.ts';
+import { notifyListUpdate } from '../notify.ts';
 import { parseMemberIds, resolveMemberIds } from '../calendar-members.ts';
 import {
   ErrorSchema,
@@ -284,7 +285,7 @@ listsRoutes.openapi(
     const body = c.req.valid('json');
     const inputs = Array.isArray(body) ? body : [body];
 
-    const list = await c.env.DB.prepare('SELECT id FROM lists WHERE id = ?').bind(id).first<{ id: string }>();
+    const list = await c.env.DB.prepare('SELECT id, name FROM lists WHERE id = ?').bind(id).first<{ id: string; name: string }>();
     if (!list) return c.json({ error: 'not found' }, 404);
 
     // memberId validated against members up front, like calendars' resolveMemberIds - unknown ids drop to null.
@@ -355,6 +356,13 @@ listsRoutes.openapi(
       ),
     );
     emit(c, 'list.item.changed', { listId: id, ids: rows.map((r) => r.id) });
+    let execCtx: Parameters<typeof notifyListUpdate>[1];
+    try {
+      execCtx = c.executionCtx;
+    } catch {
+      execCtx = undefined; // Node: no ExecutionContext
+    }
+    notifyListUpdate(c.env, execCtx, id, list.name);
     return c.json(rows.map(toItemApi), 201);
   },
 );

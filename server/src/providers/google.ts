@@ -131,7 +131,18 @@ async function api(
   return res.json();
 }
 
-function toNormalized(item: any): NormalizedEvent {
+// item.reminders: {useDefault, overrides: [{method, minutes}]}. Only 'popup' reminders count
+// (per SPEC - 'email' reminders aren't a push notification). useDefault falls back to the
+// calendar's own defaultReminders (fetched once per sync in listEvents, passed in here).
+function reminderMinutes(item: any, calendarDefaults: number[]): number[] | null {
+  if (item.reminders?.useDefault) return calendarDefaults.length ? calendarDefaults : null;
+  const overrides = item.reminders?.overrides as { method: string; minutes: number }[] | undefined;
+  if (!overrides) return null;
+  const minutes = overrides.filter((o) => o.method === 'popup').map((o) => o.minutes);
+  return minutes.length ? minutes : null;
+}
+
+function toNormalized(item: any, calendarDefaults: number[] = []): NormalizedEvent {
   const allDay = !!item.start?.date;
   return {
     externalId: item.id,
@@ -142,6 +153,7 @@ function toNormalized(item: any): NormalizedEvent {
     location: item.location || undefined,
     description: item.description || undefined,
     seriesId: item.recurringEventId || undefined,
+    reminders: reminderMinutes(item, calendarDefaults),
   };
 }
 
@@ -175,6 +187,17 @@ export const provider: Provider = {
 
   async listEvents(ctx: ProviderCtx, from: Date, to: Date): Promise<NormalizedEvent[]> {
     const calId = encodeURIComponent(ctx.calendar.remoteId ?? '');
+    // Cheap single lookup, reused for every item in this call - only needed for items with
+    // reminders.useDefault: true.
+    let calendarDefaults: number[] = [];
+    try {
+      const calInfo = await api(ctx, `/users/me/calendarList/${calId}`);
+      calendarDefaults = ((calInfo.defaultReminders ?? []) as { method: string; minutes: number }[])
+        .filter((r) => r.method === 'popup')
+        .map((r) => r.minutes);
+    } catch {
+      // best-effort - events with useDefault just get no reminders instead
+    }
     const events: NormalizedEvent[] = [];
     let pageToken: string | undefined;
     do {
@@ -188,7 +211,7 @@ export const provider: Provider = {
       const data = await api(ctx, `/calendars/${calId}/events?${params}`);
       for (const item of data.items ?? []) {
         if (item.status === 'cancelled') continue;
-        events.push(toNormalized(item));
+        events.push(toNormalized(item, calendarDefaults));
       }
       pageToken = data.nextPageToken;
     } while (pageToken);

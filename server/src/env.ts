@@ -11,6 +11,9 @@ export type Env = {
   MS_CLIENT_SECRET?: string;
   MS_TENANT?: string;
   ENCRYPTION_KEY?: string;
+  VAPID_SUBJECT?: string;
+  VAPID_PUBLIC_KEY?: string;
+  VAPID_PRIVATE_KEY?: string;
 };
 
 export function syncIntervalMinutes(env: Env): number {

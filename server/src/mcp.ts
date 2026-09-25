@@ -546,6 +546,31 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
   );
 
   tool(
+    'send_notification',
+    {
+      title: 'Send push notification',
+      description: 'Send a custom push notification now to devices following the given members (or all devices if none given). Admin only.',
+      inputSchema: {
+        title: z.string(),
+        body: z.string(),
+        members: z.array(z.string()).optional().describe('Member names or ids to target; omit to notify every device.'),
+      },
+    },
+    async ({ title, body, members }) => {
+      let memberIds: string[] = [];
+      try {
+        memberIds = await resolveMemberIds(app, env, auth, members);
+      } catch (err) {
+        return errorResult(null, err instanceof Error ? err.message : 'member lookup failed');
+      }
+      const res = await call(app, env, auth, 'POST', '/api/notify', { title, body, memberIds: memberIds.length ? memberIds : undefined });
+      if (res.status >= 400) return errorResult(res.json, 'failed to send notification');
+      const result = res.json as { sent: number };
+      return okResult(`Sent to ${result.sent} device(s).`, { result });
+    },
+  );
+
+  tool(
     'set_list_item_done',
     {
       title: 'Set list item done',

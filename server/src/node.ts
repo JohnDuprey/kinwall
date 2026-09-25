@@ -11,6 +11,7 @@ import { syncIntervalMinutes } from './env.ts';
 import { openDb, applyMigrations } from './d1-sqlite.ts';
 import { isClaimed, regenerateSetupCode } from './routes/setup.ts';
 import { syncDue } from './sync.ts';
+import { runNotifications } from './notify.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -27,6 +28,7 @@ const HA_ENV_MAP: Record<string, string> = {
   public_url: 'PUBLIC_URL',
   admin_api_key: 'ADMIN_API_KEY',
   encryption_key: 'ENCRYPTION_KEY',
+  vapid_subject: 'VAPID_SUBJECT',
 };
 
 function loadHaOptions(): Record<string, unknown> | null {
@@ -107,6 +109,9 @@ const env: Env = {
   MS_CLIENT_SECRET: process.env.MS_CLIENT_SECRET,
   MS_TENANT: process.env.MS_TENANT,
   ENCRYPTION_KEY,
+  VAPID_SUBJECT: process.env.VAPID_SUBJECT,
+  VAPID_PUBLIC_KEY: process.env.VAPID_PUBLIC_KEY,
+  VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY,
 };
 
 const app = createApp();
@@ -138,3 +143,10 @@ const intervalMs = syncIntervalMinutes(env) * 60 * 1000;
 setInterval(() => {
   syncDue(env).catch((err) => console.error('sync loop failed', err));
 }, intervalMs);
+
+// Notifications run on their own short cadence (independent of the sync interval, which can be
+// much longer) so a reminder isn't held up waiting for the next sync tick.
+const NOTIFY_INTERVAL_MS = 2 * 60 * 1000;
+setInterval(() => {
+  runNotifications(env, new Date()).catch((err) => console.error('notification loop failed', err));
+}, NOTIFY_INTERVAL_MS);

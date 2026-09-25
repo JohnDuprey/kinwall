@@ -3,6 +3,7 @@ import { addDays, addMonths, endOfMonth, endOfWeek, format, isSameMonth, startOf
 import { useApp } from './AppContext.tsx'
 import { api, ApiError, stripHtmlToText } from './api.ts'
 import type { CalendarEntry, Category, EventInstance } from './types.ts'
+import { REMINDER_OPTIONS, reminderLabel } from './types.ts'
 import { dateKey, formatTime, minutesSinceMidnight, zonedDayKey } from './date.ts'
 import { inkFor } from './color.ts'
 import Sheet from './Sheet.tsx'
@@ -757,6 +758,11 @@ function EventDetailSheet({ event, members, categories, calendars, tz, onClose, 
           </div>
         )}
         {catLabel && <div style={{ color: 'var(--text-dim)', fontSize: 13, fontWeight: 700 }}>{catLabel}</div>}
+        {reminderLabel(event.reminders) && (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', color: 'var(--text-dim)', fontSize: 13, fontWeight: 700 }}>
+            🔔 {reminderLabel(event.reminders)}
+          </div>
+        )}
         {members.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <div className="chip-row">
@@ -826,6 +832,12 @@ function EventEditSheet({ event, prefill, calendars, members, categories, onClos
   const [location, setLocation] = useState(base.location ?? '')
   const initialRepeat: '' | 'daily' | 'weekly' | 'monthly' = base.rrule?.includes('DAILY') ? 'daily' : base.rrule?.includes('WEEKLY') ? 'weekly' : base.rrule?.includes('MONTHLY') ? 'monthly' : ''
   const [rrule, setRrule] = useState(initialRepeat)
+  // The server returns the *effective* reminders (own, or the household default) - there's no way
+  // to tell "explicitly none" from "using the default" from that alone, so a value matching one of
+  // the presets pre-selects it and anything else (including no value) shows as "Default".
+  const initialReminder = base.reminders && base.reminders.length === 1 && REMINDER_OPTIONS.some(o => o.minutes[0] === base.reminders![0])
+    ? String(base.reminders[0]) : 'default'
+  const [reminder, setReminder] = useState(initialReminder)
 
   // All-day values are plain dates ('YYYY-MM-DD', end exclusive): read them as local days, never via
   // new Date('YYYY-MM-DD'), which is UTC midnight and shows the previous day west of UTC.
@@ -873,6 +885,11 @@ function EventEditSheet({ event, prefill, calendars, members, categories, onClos
       || end !== (event.allDay ? event.end : new Date(event.end).toISOString())
     if (timingChanged) Object.assign(body, { allDay, start, end })
     if (categoryChanged && !inSeries) body.categoryId = categoryId
+    // Reminders are a local-events-only annotation (see SPEC) - only send it for a local calendar,
+    // and only when it actually changed, same "don't pin an inherited value" reasoning as memberIds.
+    if (calendars.find(c => c.id === calendarId)?.kind === 'local' && reminder !== initialReminder) {
+      body.reminders = reminder === 'default' ? null : reminder === 'none' ? [] : [Number(reminder)]
+    }
     onSave(body, event?.id ?? null, categoryChanged && inSeries ? { categoryId, scope: categoryScope } : undefined)
   }
 
@@ -930,6 +947,15 @@ function EventEditSheet({ event, prefill, calendars, members, categories, onClos
           ))}
         </div>
       </div>
+      {calendars.find(c => c.id === calendarId)?.kind === 'local' && (
+        <div className="field">
+          <label>Reminder</label>
+          <select value={reminder} onChange={e => setReminder(e.target.value)}>
+            <option value="default">Default</option>
+            {REMINDER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </div>
+      )}
       <div className="field">
         <label>Repeat</label>
         <select value={rrule} onChange={e => setRrule(e.target.value as typeof rrule)}>

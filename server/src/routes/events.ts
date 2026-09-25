@@ -30,6 +30,7 @@ type EventRow = {
   updated_at: string;
   series_id: string | null;
   category_id: string | null;
+  reminders: string | null;
 };
 
 type CalendarRow = {
@@ -142,16 +143,28 @@ async function remoteOverrides(
   };
 }
 
-// Member colors + categories are independent reads needed by nearly every response below -
-// one batch instead of two standalone round trips.
-async function colorsAndCategories(db: D1Database): Promise<{ memberColors: Map<string, string>; categories: CategoryRow[] }> {
-  const [membersRes, categoriesRes] = await db.batch<unknown>([
+function parseDefaultReminderMinutes(value: string | undefined): number[] {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter((n): n is number => typeof n === 'number') : [];
+  } catch {
+    return [];
+  }
+}
+
+// Member colors + categories + the household's default reminder minutes are independent reads
+// needed by nearly every response below - one batch instead of separate round trips.
+async function colorsAndCategories(db: D1Database): Promise<{ memberColors: Map<string, string>; categories: CategoryRow[]; defaultReminderMinutes: number[] }> {
+  const [membersRes, categoriesRes, settingsRes] = await db.batch<unknown>([
     db.prepare('SELECT id, color FROM members'),
     db.prepare('SELECT * FROM categories ORDER BY sort, created_at'),
+    db.prepare("SELECT value FROM settings WHERE key = 'defaultReminderMinutes'"),
   ]);
   return {
     memberColors: new Map((membersRes.results as { id: string; color: string }[]).map((r) => [r.id, r.color])),
     categories: categoriesRes.results as unknown as CategoryRow[],
+    defaultReminderMinutes: parseDefaultReminderMinutes((settingsRes.results[0] as { value: string } | undefined)?.value),
   };
 }
 
@@ -283,6 +296,7 @@ function instanceFrom(
   categories: CategoryRow[] = [],
   categoryOccurrenceOverride?: string,
   categorySeriesOverride?: string,
+  defaultReminderMinutes: number[] = [],
 ) {
   let memberIds: string[];
   let memberScope: MemberScope;
@@ -317,6 +331,17 @@ function instanceFrom(
   }
   const color = (memberIds[0] && memberColors.get(memberIds[0])) || cal.color || '#888';
 
+  // Own reminders if set, else the household default - "from provider or default" per SPEC.
+  let ownReminders: number[] | null = null;
+  if (row.reminders) {
+    try {
+      ownReminders = JSON.parse(row.reminders);
+    } catch {
+      ownReminders = null;
+    }
+  }
+  const reminders = ownReminders && ownReminders.length > 0 ? ownReminders : defaultReminderMinutes.length > 0 ? defaultReminderMinutes : null;
+
   let categoryId: string | null;
   let categorySource: CategorySource;
   const localCategory = cal.kind === 'local' ? row.category_id : null;
@@ -345,6 +370,7 @@ function instanceFrom(
     memberScope,
     categoryId,
     categorySource,
+    reminders,
   };
 }
 
@@ -388,16 +414,18 @@ eventsRoutes.openapi(
     const calendarsStmt = calendarId
       ? c.env.DB.prepare('SELECT * FROM calendars WHERE id = ?').bind(calendarId)
       : c.env.DB.prepare('SELECT * FROM calendars');
-    const [calendarsRes, tzRes, membersRes, categoriesRes] = await c.env.DB.batch<unknown>([
+    const [calendarsRes, settingsRes, membersRes, categoriesRes] = await c.env.DB.batch<unknown>([
       calendarsStmt,
-      c.env.DB.prepare("SELECT value FROM settings WHERE key = 'timezone'"),
+      c.env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('timezone', 'defaultReminderMinutes')"),
       c.env.DB.prepare('SELECT id, color FROM members'),
       c.env.DB.prepare('SELECT * FROM categories ORDER BY sort, created_at'),
     ]);
     const calendars = calendarsRes.results as unknown as CalendarRow[];
     const calById = new Map(calendars.map((cal) => [cal.id, cal]));
     if (calendars.length === 0) return c.json([], 200);
-    const tz = (tzRes.results[0] as { value: string } | undefined)?.value ?? hostTimezone();
+    const settingsMap = new Map((settingsRes.results as { key: string; value: string }[]).map((r) => [r.key, r.value]));
+    const tz = settingsMap.get('timezone') ?? hostTimezone();
+    const defaultReminderMinutes = parseDefaultReminderMinutes(settingsMap.get('defaultReminderMinutes'));
     const memberColors = new Map((membersRes.results as { id: string; color: string }[]).map((r) => [r.id, r.color]));
     const categories = categoriesRes.results as unknown as CategoryRow[];
 
@@ -432,7 +460,7 @@ eventsRoutes.openapi(
 
       if (cal.kind === 'local' && row.rrule) {
         for (const inst of expand(row.rrule, row.start, row.end, !!row.all_day, tz, fromDate, toDate)) {
-          out.push(instanceFrom(row, cal, memberColors, inst.start, inst.start, inst.end, override, seriesOverride, categories, categoryOverride, categorySeriesOverride));
+          out.push(instanceFrom(row, cal, memberColors, inst.start, inst.start, inst.end, override, seriesOverride, categories, categoryOverride, categorySeriesOverride, defaultReminderMinutes));
         }
         continue;
       }
@@ -441,7 +469,7 @@ eventsRoutes.openapi(
       const startMs = row.all_day ? Date.parse(`${row.start}T00:00:00Z`) : Date.parse(row.start);
       const endMs = row.all_day ? Date.parse(`${row.end}T00:00:00Z`) : Date.parse(row.end);
       if (endMs <= fromDate.getTime() || startMs >= toDate.getTime()) continue;
-      out.push(instanceFrom(row, cal, memberColors, null, row.start, row.end, override, seriesOverride, categories, categoryOverride, categorySeriesOverride));
+      out.push(instanceFrom(row, cal, memberColors, null, row.start, row.end, override, seriesOverride, categories, categoryOverride, categorySeriesOverride, defaultReminderMinutes));
     }
 
     let filtered = out;
@@ -522,17 +550,18 @@ eventsRoutes.openapi(
       updated_at: new Date().toISOString(),
       series_id: seriesId,
       category_id: body.categoryId ?? null,
+      reminders: cal.kind === 'local' && body.reminders && body.reminders.length > 0 ? JSON.stringify(body.reminders) : null,
     };
     await c.env.DB.prepare(
-      'INSERT INTO events (id, calendar_id, external_id, title, start, end, all_day, location, description, rrule, member_ids, updated_at, series_id, category_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      'INSERT INTO events (id, calendar_id, external_id, title, start, end, all_day, location, description, rrule, member_ids, updated_at, series_id, category_id, reminders) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
     )
-      .bind(row.id, row.calendar_id, row.external_id, row.title, row.start, row.end, row.all_day, row.location, row.description, row.rrule, row.member_ids, row.updated_at, row.series_id, row.category_id)
+      .bind(row.id, row.calendar_id, row.external_id, row.title, row.start, row.end, row.all_day, row.location, row.description, row.rrule, row.member_ids, row.updated_at, row.series_id, row.category_id, row.reminders)
       .run();
     emit(c, 'events.changed', { calendarId: cal.id });
 
-    const { memberColors, categories } = await colorsAndCategories(c.env.DB);
+    const { memberColors, categories, defaultReminderMinutes } = await colorsAndCategories(c.env.DB);
     const { seriesOverride, categorySeriesOverride } = await remoteOverrides(c.env.DB, cal, null, row.series_id);
-    return c.json(instanceFrom(row, cal, memberColors, null, row.start, row.end, undefined, seriesOverride, categories, undefined, categorySeriesOverride), 201);
+    return c.json(instanceFrom(row, cal, memberColors, null, row.start, row.end, undefined, seriesOverride, categories, undefined, categorySeriesOverride, defaultReminderMinutes), 201);
   },
 );
 
@@ -593,10 +622,10 @@ eventsRoutes.openapi(
     const { id } = c.req.valid('param');
     const found = await loadEventAndCalendar(c.env.DB, id);
     if (!found) return c.json({ error: 'not found' }, 404);
-    const { memberColors, categories } = await colorsAndCategories(c.env.DB);
+    const { memberColors, categories, defaultReminderMinutes } = await colorsAndCategories(c.env.DB);
     const { override, seriesOverride, categoryOverride, categorySeriesOverride } = await remoteOverrides(c.env.DB, found.cal, found.row.external_id, found.row.series_id);
     return c.json(
-      instanceFrom(found.row, found.cal, memberColors, null, found.row.start, found.row.end, override, seriesOverride, categories, categoryOverride, categorySeriesOverride),
+      instanceFrom(found.row, found.cal, memberColors, null, found.row.start, found.row.end, override, seriesOverride, categories, categoryOverride, categorySeriesOverride, defaultReminderMinutes),
       200,
     );
   },
@@ -709,16 +738,18 @@ eventsRoutes.openapi(
       rrule: cal.kind === 'local' && body.rrule !== undefined ? body.rrule : row.rrule,
       member_ids: cal.kind === 'local' && body.memberIds !== undefined ? JSON.stringify(body.memberIds) : row.member_ids,
       category_id: cal.kind === 'local' && body.categoryId !== undefined ? body.categoryId : row.category_id,
+      reminders: cal.kind === 'local' && body.reminders !== undefined ? (body.reminders && body.reminders.length > 0 ? JSON.stringify(body.reminders) : null) : row.reminders,
       updated_at: new Date().toISOString(),
     };
     // The UPDATE (when needed) and the member-colors/categories lookups for the response are
     // independent of each other - batch them into one round trip instead of running them back to back.
     let memberColors: Map<string, string>;
     let categories: CategoryRow[];
-    if (otherFieldsPresent || (cal.kind === 'local' && (body.memberIds !== undefined || body.categoryId !== undefined))) {
+    let defaultReminderMinutes: number[];
+    if (otherFieldsPresent || (cal.kind === 'local' && (body.memberIds !== undefined || body.categoryId !== undefined || body.reminders !== undefined))) {
       const updateStmt = c.env.DB
         .prepare(
-          'UPDATE events SET title = ?, start = ?, end = ?, all_day = ?, location = ?, description = ?, rrule = ?, member_ids = ?, category_id = ?, updated_at = ? WHERE id = ?',
+          'UPDATE events SET title = ?, start = ?, end = ?, all_day = ?, location = ?, description = ?, rrule = ?, member_ids = ?, category_id = ?, reminders = ?, updated_at = ? WHERE id = ?',
         )
         .bind(
           updatedRow.title,
@@ -730,24 +761,27 @@ eventsRoutes.openapi(
           updatedRow.rrule,
           updatedRow.member_ids,
           updatedRow.category_id,
+          updatedRow.reminders,
           updatedRow.updated_at,
           id,
         );
-      const [, colorsRes, categoriesRes] = await c.env.DB.batch<unknown>([
+      const [, colorsRes, categoriesRes, settingsRes] = await c.env.DB.batch<unknown>([
         updateStmt,
         c.env.DB.prepare('SELECT id, color FROM members'),
         c.env.DB.prepare('SELECT * FROM categories ORDER BY sort, created_at'),
+        c.env.DB.prepare("SELECT value FROM settings WHERE key = 'defaultReminderMinutes'"),
       ]);
       memberColors = new Map((colorsRes.results as { id: string; color: string }[]).map((r) => [r.id, r.color]));
       categories = categoriesRes.results as unknown as CategoryRow[];
+      defaultReminderMinutes = parseDefaultReminderMinutes((settingsRes.results[0] as { value: string } | undefined)?.value);
     } else {
-      ({ memberColors, categories } = await colorsAndCategories(c.env.DB));
+      ({ memberColors, categories, defaultReminderMinutes } = await colorsAndCategories(c.env.DB));
     }
     emit(c, 'events.changed', { calendarId: cal.id });
 
     const { override, seriesOverride, categoryOverride, categorySeriesOverride } = await remoteOverrides(c.env.DB, cal, updatedRow.external_id, updatedRow.series_id);
     return c.json(
-      instanceFrom(updatedRow, cal, memberColors, null, updatedRow.start, updatedRow.end, override, seriesOverride, categories, categoryOverride, categorySeriesOverride),
+      instanceFrom(updatedRow, cal, memberColors, null, updatedRow.start, updatedRow.end, override, seriesOverride, categories, categoryOverride, categorySeriesOverride, defaultReminderMinutes),
       200,
     );
   },

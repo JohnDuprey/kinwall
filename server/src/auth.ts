@@ -81,6 +81,12 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'GET', pattern: /^\/api\/settings$/ },
   { method: 'PATCH', pattern: /^\/api\/settings$/ },
   { method: 'GET', pattern: /^\/api\/rev$/ },
+  { method: 'GET', pattern: /^\/api\/push\/vapid-public-key$/ },
+  { method: 'GET', pattern: /^\/api\/push\/subscriptions$/ },
+  { method: 'POST', pattern: /^\/api\/push\/subscriptions$/ },
+  { method: 'PATCH', pattern: /^\/api\/push\/subscriptions\/[^/]+$/ },
+  { method: 'DELETE', pattern: /^\/api\/push\/subscriptions\/[^/]+$/ },
+  { method: 'POST', pattern: /^\/api\/push\/test\/[^/]+$/ },
 ];
 
 function isDisplayAllowed(method: string, path: string): boolean {

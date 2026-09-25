@@ -93,10 +93,12 @@ calendars(id, kind 'local'|'ics'|'google'|'microsoft'|'caldav', account_id NULL,
           -- ics: config.url. remote_id = provider calendar id / caldav URL
           -- category_id = default category for events on this calendar with no override/keyword match
 events(id, calendar_id, external_id NULL, title, start, end, all_day INT, location, description,
-       rrule NULL, member_ids JSON '[]', category_id NULL, updated_at)
+       rrule NULL, member_ids JSON '[]', category_id NULL, reminders JSON NULL, updated_at)
        -- remote kinds: rows are already-expanded instances replaced wholesale on each sync
        -- local kind: one row per series; rrule expanded at query time
        -- category_id is read only for local-kind rows; synced-kind category comes from the override tables below
+       -- reminders = minutes-before array from the provider (Google popup / Graph / ICS VALARM), or
+       -- set directly for local events; NULL = none known, falls back to settings.defaultReminderMinutes
 categories(id, name, emoji NULL, color, keywords JSON '[]', sort, created_at)
        -- color overrides the assigned member's color; keywords = literal phrases, case-insensitive
        -- whole-word/phrase match against an event title, computed at read time (not stored)
@@ -118,6 +120,11 @@ api_keys(id, name, hash, prefix, scope 'admin'|'display', created_at, last_used_
 webhooks(id, url, events JSON, secret, enabled, created_at)
 pairings(id, code, poll_token_hash, approved, key_id, key_name, encrypted_key, created_at, expires_at)
        -- short-lived display-pairing rows; encrypted_key is AES-256-GCM (AAD = id), deleted once the display polls it
+push_subscriptions(id, api_key_id NULL, endpoint UNIQUE, p256dh, auth, device_name, member_ids JSON '[]',
+       prefs JSON, created_at, last_success_at NULL)
+       -- one row per device; endpoint/p256dh/auth are the browser's PushSubscription, never returned by the API
+       -- prefs = {eventReminders, dailySummary, summaryTime, choreNudge, choreNudgeTime, listUpdates}
+sent_notifications(key PK, sent_at)   -- dedupe rows (rem:<sub>:<event>:<occurrence>:<minutes>, sum:<sub>:<date>, ...); pruned after ~3 days
 ```
 
 ## API (`/api`, JSON, `Authorization: Bearer <key>`)
@@ -204,13 +211,23 @@ POST   /api/pair/poll     {pairingId, pollToken}   (no auth) -> {status:'pending
 GET    /api/webhooks   POST /api/webhooks {url, events[], secret?}   PATCH/DELETE /api/webhooks/:id
 
 GET    /api/rev                 -> {rev}  (integer bumped on every write; UI polls every 15s and refetches on change)
+
+GET    /api/push/vapid-public-key   -> {publicKey}
+POST   /api/push/subscriptions   {subscription: PushSubscriptionJSON, deviceName, memberIds?, prefs?} -> upsert by endpoint
+PATCH  /api/push/subscriptions/:id  {deviceName?, memberIds?, prefs?}      DELETE /api/push/subscriptions/:id
+         a key may only touch subscriptions it created, unless admin
+GET    /api/push/subscriptions   (admin: every device; display: only its own; endpoint/keys never returned)
+POST   /api/push/test/:id        -> {ok}   (sends a test push to that device)
+POST   /api/notify   (admin only)   {title, body, memberIds?, url?} -> {ok, sent}
+         sends now to every device following any of memberIds (device with no memberIds follows everyone;
+         omitting memberIds targets every device)
 ```
 
 ## MCP (`/mcp`)
 
 `POST/GET/DELETE /mcp` - MCP **Streamable HTTP** transport, stateless (no sessions/Durable Objects), same bearer keys as the REST API (401 + `WWW-Authenticate: Bearer` without one). Implemented with `@modelcontextprotocol/sdk`'s `WebStandardStreamableHTTPServerTransport` (Web Standards - Request/Response/ReadableStream, no `node:*`; runs on Workers and Node unchanged). See `server/src/mcp.ts`.
 
-Every tool is a thin wrapper that calls the REST routes above in-process via `app.request()`, forwarding the caller's `Authorization` header - so validation, scope enforcement (display vs admin), bus events/webhooks and rev bumps happen exactly as for REST. A REST 4xx/5xx becomes a tool result with `isError: true` and the route's `{error}` text. Tools: `get_household`, `list_events`, `create_event`, `update_event`, `delete_event`, `list_chores`, `complete_chore`, `uncomplete_chore`, `create_chore`, `get_leaderboard`, `add_member`, `list_lists`, `create_list`, `get_list`, `add_list_items`, `set_list_item_done`, `list_categories`, `set_event_category`. Members may be referenced by name in tool args (resolved case-insensitively to id in the tool layer; ambiguous -> error listing matches); lists and categories likewise by name in `get_list`/`add_list_items` and `set_event_category`.
+Every tool is a thin wrapper that calls the REST routes above in-process via `app.request()`, forwarding the caller's `Authorization` header - so validation, scope enforcement (display vs admin), bus events/webhooks and rev bumps happen exactly as for REST. A REST 4xx/5xx becomes a tool result with `isError: true` and the route's `{error}` text. Tools: `get_household`, `list_events`, `create_event`, `update_event`, `delete_event`, `list_chores`, `complete_chore`, `uncomplete_chore`, `create_chore`, `get_leaderboard`, `add_member`, `list_lists`, `create_list`, `get_list`, `add_list_items`, `set_list_item_done`, `list_categories`, `set_event_category`, `send_notification`. Members may be referenced by name in tool args (resolved case-insensitively to id in the tool layer; ambiguous -> error listing matches); lists and categories likewise by name in `get_list`/`add_list_items` and `set_event_category`.
 
 Bus event types (webhooks; every emit also bumps `rev`): `member.changed`, `calendar.changed`, `calendar.synced`, `events.changed`, `chore.changed`, `chore.completed`, `chore.uncompleted`, `list.changed`, `list.item.changed`, `settings.changed`, `display.paired`. Webhook POST body `{type, data, at}`, header `X-Kinwall-Signature: sha256=<hex hmac of body>`; sent via `waitUntil`, 5s timeout, no retries.
 
@@ -219,6 +236,31 @@ Bus event types (webhooks; every emit also bumps `rev`): `member.changed`, `cale
 Defined in **`server/src/providers/types.ts`** (source of truth). OAuth helpers take `env` as first arg.
 
 Sync window: now − 30 days → now + 365 days. `syncCalendar` replaces all events of that calendar in one `db.batch()` (atomic on D1 and in the adapter), sets `last_synced_at`/`last_error`, emits `calendar.synced` + `events.changed`. `syncDue(env)` syncs enabled non-local calendars whose `last_synced_at` is older than the interval, stalest first, stopping after ~20 s wall time (Workers cron) — called by the cron on Workers and by `setInterval` on Node.
+
+## Notifications (Web Push)
+
+Standard Web Push - RFC 8291 payload encryption (`aes128gcm`) + RFC 8292 VAPID auth, both via Web
+Crypto (no `web-push` npm package - it's Node-only and this needs to run on the Workers free tier).
+See `server/src/webpush.ts` (crypto + send), `server/src/notify.ts` (scheduling), `server/src/routes/push.ts` (API).
+
+VAPID keys are generated once on first need and stored in `settings` (private key encrypted at rest
+the same way as `accounts.config`); `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/`VAPID_SUBJECT` env vars
+override. `runNotifications(env, now)` runs from the Workers cron (every 5 min) and a Node
+`setInterval` (~2 min), independent of `SYNC_INTERVAL_MINUTES`:
+
+- **Event reminders**: for each event occurrence (recurring local events expanded the same way as
+  `GET /api/events`) whose reminder fire time (`start - minutes`, or start-of-day-in-household-tz
+  minus minutes for an all-day event) falls in `(now - 10min, now]`, notify every subscription with
+  `eventReminders` on and a matching `memberIds` follow-list, deduped via `sent_notifications`.
+- **Daily summary** at each subscription's `prefs.summaryTime` (household tz): event/chore counts.
+- **Chore nudge** at `prefs.choreNudgeTime`: incomplete chores due today, for followed members.
+- **List updates** (default off): fired inline from `POST /api/lists/:id/items` (not the periodic
+  tick), debounced to one notification per list per 10 minutes.
+
+`Notification.requestPermission()` must run from a user tap; `web/public/sw.js` handles `push` and
+`notificationclick` and deliberately has **no fetch handler and caches nothing** (the app relies on
+network + `Cache-Control`, not a caching SW). iPhone needs iOS 16.4+ and the app added to the Home
+Screen first — Safari tabs can't receive push at all.
 
 ## Security
 

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { mock } from './mock.ts'
 import type {
   Account, ApiKey, Appearance, CalendarEntry, Category, Chore, ChoreDay, EventInstance, LeaderboardEntry, LeaderboardPeriod, List,
-  ListDetail, ListGroup, ListItem, ListItemInput, Member, Me, Passkey, Providers, RemoteCalendar, Settings, Webhook,
+  ListDetail, ListGroup, ListItem, ListItemInput, Member, Me, Passkey, Providers, PushSubscription, PushSubscriptionPrefs, RemoteCalendar, Settings, Webhook,
 } from './types.ts'
 
 const MOCK = import.meta.env.VITE_MOCK === '1'
@@ -249,6 +249,19 @@ export const api = {
   renamePasskey: (id: string, name: string) => patch<Passkey>(`api/passkeys/${id}`, { name }, true),
   deletePasskey: (id: string) => del(`api/passkeys/${id}`, true),
   sessionLogout: () => post<{ ok: boolean }>('api/sessions/logout'),
+
+  // Web Push. MOCK has no service worker / push manager to stand in for, so these skip the
+  // mock-mode branch other calls use - the Settings UI itself checks `pushSupported()` first.
+  getVapidPublicKey: () => get<{ publicKey: string }>('api/push/vapid-public-key'),
+  subscribePush: (body: { subscription: PushSubscriptionJSON; deviceName: string; memberIds?: string[]; prefs?: Partial<PushSubscriptionPrefs> }) =>
+    post<PushSubscription>('api/push/subscriptions', body),
+  updatePushSubscription: (id: string, body: { deviceName?: string; memberIds?: string[]; prefs?: Partial<PushSubscriptionPrefs> }) =>
+    patch<PushSubscription>(`api/push/subscriptions/${id}`, body),
+  deletePushSubscription: (id: string) => del<{ ok: boolean }>(`api/push/subscriptions/${id}`),
+  getPushSubscriptions: () => get<PushSubscription[]>('api/push/subscriptions', true),
+  testPush: (id: string) => post<{ ok: boolean }>(`api/push/test/${id}`),
+  sendNotification: (body: { title: string; body: string; memberIds?: string[]; url?: string }) =>
+    post<{ ok: boolean; sent: number }>('api/notify', body, true),
 }
 
 /** Provider event descriptions are often HTML (Google/Outlook). Never render as HTML — this

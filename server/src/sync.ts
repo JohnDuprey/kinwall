@@ -72,9 +72,9 @@ function insertEventStmt(env: Env, calendarId: string, ev: NormalizedEvent, now:
   return env.DB.prepare(
     // Upsert: ids are deterministic and a slice's DELETE only covers events that START inside it,
     // so an overlapping event from an earlier slice can still be stored - refresh it in place.
-    'INSERT INTO events (id, calendar_id, external_id, title, start, end, all_day, location, description, rrule, member_ids, updated_at, series_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?) ' +
+    'INSERT INTO events (id, calendar_id, external_id, title, start, end, all_day, location, description, rrule, member_ids, updated_at, series_id, reminders) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) ' +
       'ON CONFLICT(id) DO UPDATE SET title = excluded.title, start = excluded.start, end = excluded.end, all_day = excluded.all_day, ' +
-      'location = excluded.location, description = excluded.description, updated_at = excluded.updated_at, series_id = excluded.series_id',
+      'location = excluded.location, description = excluded.description, updated_at = excluded.updated_at, series_id = excluded.series_id, reminders = excluded.reminders',
   ).bind(
     id,
     calendarId,
@@ -89,6 +89,7 @@ function insertEventStmt(env: Env, calendarId: string, ev: NormalizedEvent, now:
     '[]',
     now.toISOString(),
     ev.seriesId ?? null,
+    ev.reminders && ev.reminders.length > 0 ? JSON.stringify(ev.reminders) : null,
   );
 }
 

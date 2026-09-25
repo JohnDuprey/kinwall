@@ -68,6 +68,9 @@ export const PaletteIcon = (p: P) => (
 export const MonitorIcon = (p: P) => (
   <svg {...base(p)}><rect x="3" y="4" width="18" height="13" rx="2" /><path d="M8 21h8M12 17v4" /></svg>
 )
+export const BellIcon = (p: P) => (
+  <svg {...base(p)}><path d="M6 8a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6" /><path d="M10 20a2 2 0 0 0 4 0" /></svg>
+)
 export const FilterIcon = (p: P) => (
   <svg {...base(p)}><path d="M3 5h18l-7 8.5V19l-4 2v-7.5z" /></svg>
 )

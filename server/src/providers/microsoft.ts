@@ -139,6 +139,7 @@ function toNormalized(item: any): NormalizedEvent {
     location: item.location?.displayName || undefined,
     description: item.bodyPreview || undefined,
     seriesId: item.seriesMasterId || undefined,
+    reminders: item.isReminderOn && typeof item.reminderMinutesBeforeStart === 'number' ? [item.reminderMinutesBeforeStart] : null,
   };
 }
 
@@ -175,7 +176,7 @@ export const provider: Provider = {
       startDateTime: from.toISOString(),
       endDateTime: to.toISOString(),
       $top: '500',
-      $select: 'id,subject,start,end,isAllDay,location,bodyPreview,seriesMasterId',
+      $select: 'id,subject,start,end,isAllDay,location,bodyPreview,seriesMasterId,isReminderOn,reminderMinutesBeforeStart',
     });
     let url: string | undefined =
       `${GRAPH}/me/calendars/${encodeURIComponent(ctx.calendar.remoteId ?? '')}/calendarView?${params}`;

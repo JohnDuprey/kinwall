@@ -12,6 +12,9 @@ export type NormalizedEvent = {
   // Set only for occurrences of a recurring event - see providers/{google,microsoft,caldav,ics}.ts
   // for how each provider derives it. Used to apply a series-wide member tag to every occurrence.
   seriesId?: string;
+  // Minutes-before reminders, from the provider's own alarm/reminder config. Undefined/null means
+  // "the provider gave none" - notify.ts falls back to the household default in that case.
+  reminders?: number[] | null;
 };
 
 export type EventInput = Omit<NormalizedEvent, 'externalId'>;

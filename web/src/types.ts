@@ -19,6 +19,7 @@ export interface Settings {
   backgroundDark: BackgroundDark
   textScale: TextScale
   density: Density
+  defaultReminderMinutes: number[]
 }
 
 /** Subset of Settings the pre-pairing screen can read with no key — see GET /api/appearance. */
@@ -70,6 +71,26 @@ export interface EventInstance {
   memberScope: 'occurrence' | 'series' | 'calendar' | 'none' // where memberIds came from
   categoryId: string | null
   categorySource: 'event' | 'series' | 'keyword' | 'calendar' | null // where categoryId came from
+  reminders: number[] | null // minutes-before; effective value (own, or the household default)
+}
+
+/** Reminder select options shared by the event edit sheet and Settings' household default. */
+export const REMINDER_OPTIONS: { value: string; label: string; minutes: number[] }[] = [
+  { value: 'none', label: 'None', minutes: [] },
+  { value: '5', label: '5 minutes', minutes: [5] },
+  { value: '10', label: '10 minutes', minutes: [10] },
+  { value: '15', label: '15 minutes', minutes: [15] },
+  { value: '30', label: '30 minutes', minutes: [30] },
+  { value: '60', label: '1 hour', minutes: [60] },
+  { value: '1440', label: '1 day', minutes: [1440] },
+]
+
+export function reminderLabel(minutes: number[] | null | undefined): string | null {
+  if (!minutes || minutes.length === 0) return null
+  const m = Math.min(...minutes)
+  if (m % 1440 === 0) return `${m / 1440} day${m === 1440 ? '' : 's'} before`
+  if (m % 60 === 0) return `${m / 60} hour${m === 60 ? '' : 's'} before`
+  return `${m} min before`
 }
 
 export interface Category {
@@ -297,4 +318,22 @@ export const BACKGROUND_DARK_PRESETS: { key: 'cocoa' | 'charcoal' | 'midnight'; 
 export function nextPaletteColor(usedColors: (string | null | undefined)[]): string {
   const taken = new Set(usedColors.filter(Boolean))
   return MEMBER_PALETTE.find(c => !taken.has(c)) ?? MEMBER_PALETTE[0]
+}
+
+export interface PushSubscriptionPrefs {
+  eventReminders: boolean
+  dailySummary: boolean
+  summaryTime: string // HH:MM, household timezone
+  choreNudge: boolean
+  choreNudgeTime: string
+  listUpdates: boolean
+}
+
+export interface PushSubscription {
+  id: string
+  deviceName: string
+  memberIds: string[]
+  prefs: PushSubscriptionPrefs
+  createdAt: string
+  lastSuccessAt: string | null
 }

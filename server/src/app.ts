@@ -21,6 +21,7 @@ import { passkeysRoutes } from './routes/passkeys.ts';
 import { pairRoutes } from './routes/pair.ts';
 import { setupRoutes } from './routes/setup.ts';
 import { webhooksRoutes } from './routes/webhooks.ts';
+import { pushRoutes } from './routes/push.ts';
 import { revRoutes } from './routes/rev.ts';
 import { handleMcp } from './mcp.ts';
 
@@ -76,6 +77,7 @@ export function createApp() {
   app.route('/', passkeysRoutes);
   app.route('/', pairRoutes);
   app.route('/', webhooksRoutes);
+  app.route('/', pushRoutes);
 
   // MCP endpoint: stateless Streamable HTTP (see src/mcp.ts). Not under /api/* - it does its
   // own auth (same bearer keys) and every tool re-enters the REST routes via app.request().

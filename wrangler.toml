@@ -15,7 +15,9 @@ command = "[ -d web ] || cd ..; npm ci --prefix web && npm run build --prefix we
 enabled = true
 
 [triggers]
-crons = ["*/10 * * * *"]
+# Every 5 min so a push reminder/summary/nudge doesn't wait on the (much coarser) sync interval.
+# syncDue self-throttles per calendar against SYNC_INTERVAL_MINUTES, so this doesn't double sync cost.
+crons = ["*/5 * * * *"]
 
 # Runs the Worker in the datacenter nearest its D1 database instead of nearest the request, so a
 # handler making several sequential D1 round trips stays low-latency to the DB it's actually using.
