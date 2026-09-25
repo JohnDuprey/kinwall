@@ -288,7 +288,7 @@ function ChoreEditSheet({ chore, onClose, onSaved }: { chore: Chore | null; onCl
       }>
       <div className="field">
         <label>Title</label>
-        <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="Chore title" autoFocus={!chore} />
+        <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="Chore title" autoComplete="off" autoFocus={!chore} />
       </div>
       <div className="field">
         <label>Emoji</label>

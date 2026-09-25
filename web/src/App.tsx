@@ -88,7 +88,7 @@ function ManualKeyGate({ onKey, onBack }: { onKey: () => void; onBack: () => voi
         </div>
         {error && <p style={{ color: 'var(--danger)' }}>{error}</p>}
         <button className="btn btn-primary btn-block" onClick={submit} disabled={busy}>{busy ? 'Checking…' : 'Unlock'}</button>
-        <button className="link-btn" style={{ marginTop: 14 }} onClick={onBack}>Back to pairing code</button>
+        <button className="link-btn" style={{ marginTop: 14 }} onClick={onBack}>Back</button>
       </div>
     </div>
   )

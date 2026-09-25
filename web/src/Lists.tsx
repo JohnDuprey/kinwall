@@ -103,7 +103,7 @@ function ListEditSheet({ list, onClose, onSaved, onDeleted }: {
       }>
       <div className="field">
         <label>Name</label>
-        <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="List name" autoFocus={!existing} />
+        <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="List name" autoComplete="off" autoFocus={!existing} />
       </div>
       <div className="field">
         <label>Kind</label>

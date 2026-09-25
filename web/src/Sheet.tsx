@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { XIcon } from './icons.tsx'
 
@@ -9,6 +9,9 @@ export default function Sheet({ title, onClose, children, actions }: {
   actions?: ReactNode
 }) {
   const backdropRef = useRef<HTMLDivElement>(null)
+  // Keyboard up: the visible viewport is much shorter than the window. The sheet then drops its
+  // home-indicator padding (the keyboard covers that area) and may use the whole visible height.
+  const [keyboard, setKeyboard] = useState(false)
 
   // iOS Safari keeps position:fixed tied to the full layout viewport when the keyboard opens, so a
   // bottom sheet's action buttons end up under the keyboard. Pin the backdrop to the *visible*
@@ -21,6 +24,7 @@ export default function Sheet({ title, onClose, children, actions }: {
       el.style.top = `${vv.offsetTop}px`
       el.style.height = `${vv.height}px`
       el.style.bottom = 'auto'
+      setKeyboard(document.documentElement.clientHeight - vv.height > 120) // layout height; iOS shrinks innerHeight too
     }
     fit()
     vv.addEventListener('resize', fit)
@@ -32,7 +36,8 @@ export default function Sheet({ title, onClose, children, actions }: {
   // left the tab bar drawn over the sheet's action buttons.
   return createPortal(
     <div className="sheet-backdrop" ref={backdropRef} onClick={onClose}>
-      <div className="sheet" onClick={e => e.stopPropagation()}>
+      <div className="sheet" onClick={e => e.stopPropagation()}
+        style={keyboard ? { paddingBottom: 8, maxHeight: '100%', borderRadius: '20px 20px 0 0' } : undefined}>
         <div className="sheet-grabber" />
         <div className="sheet-header">
           <div className="sheet-title">{title}</div>
