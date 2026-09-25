@@ -4,9 +4,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createApp } from '../src/app.ts';
 import { openDb, applyMigrations } from '../src/d1-sqlite.ts';
-import { isSafeWebhookUrl, publish } from '../src/bus.ts';
+import { publish } from '../src/bus.ts';
 import { createHmac } from 'node:crypto';
-import { feedFetch, isSafeFeedUrl } from '../src/outbound.ts';
+import { feedFetch, isSafeFeedUrl, isSafeWebhookUrl } from '../src/outbound.ts';
 import { syncCalendar } from '../src/sync.ts';
 import type { Env } from '../src/env.ts';
 
@@ -35,6 +35,12 @@ test('webhooks: private/loopback targets are refused on create and update; publi
   assert.equal(ok.status, 201);
   const { id } = (await ok.json()) as any;
   assert.equal((await request(`/api/webhooks/${id}`, { method: 'PATCH', body: JSON.stringify({ url: 'http://localhost:8123/api/webhook' }) })).status, 400);
+
+  // ALLOW_PRIVATE_WEBHOOK_URLS=1 (what the Home Assistant add-on sets): LAN receivers are fine, non-http still isn't.
+  const lan = makeApp({ ALLOW_PRIVATE_WEBHOOK_URLS: '1' });
+  assert.equal((await lan('/api/webhooks', { method: 'POST', body: JSON.stringify({ url: 'http://homeassistant.local:8123/api/webhook/abc', events: [] }) })).status, 201);
+  assert.equal((await lan('/api/webhooks', { method: 'POST', body: JSON.stringify({ url: 'http://192.168.1.10:8123/api/webhook/abc', events: [] }) })).status, 201);
+  assert.equal((await lan('/api/webhooks', { method: 'POST', body: JSON.stringify({ url: 'ftp://192.168.1.10/x', events: [] }) })).status, 400);
 });
 
 test('webhooks: secret is returned once on create and rotate, never on list; rotate re-keys the signature', async () => {
@@ -84,9 +90,9 @@ test('isSafeWebhookUrl', () => {
     'http://127.0.0.1/', 'http://2130706433/', 'http://10.0.0.5/', 'http://172.16.0.1/', 'http://192.168.1.10:8123/',
     'http://0.0.0.0/', 'http://224.0.0.1/', 'http://100.64.0.1/', 'http://[::1]/', 'http://[fd00::1]/', 'http://[fe80::1]/',
     'http://[::ffff:127.0.0.1]/', 'not a url',
-  ]) assert.equal(isSafeWebhookUrl(url), false, url);
+  ]) assert.equal(isSafeWebhookUrl({}, url), false, url);
   for (const url of ['https://example.com/hook', 'http://8.8.8.8/', 'http://172.32.0.1/', 'http://[2001:db8::1]/'])
-    assert.equal(isSafeWebhookUrl(url), true, url);
+    assert.equal(isSafeWebhookUrl({}, url), true, url);
 });
 
 // Calendar feeds share the webhook guard (outbound.ts), with a self-hosted LAN opt-out.

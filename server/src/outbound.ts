@@ -30,6 +30,16 @@ export function isSafeOutboundUrl(raw: string): boolean {
 }
 
 export type FeedEnv = { ALLOW_PRIVATE_FEED_URLS?: string };
+export type WebhookEnv = { ALLOW_PRIVATE_WEBHOOK_URLS?: string };
+
+export const WEBHOOK_URL_ERROR = 'Webhook URL must be a public https/http address (self-hosted: set ALLOW_PRIVATE_WEBHOOK_URLS=1 to reach a LAN receiver such as Home Assistant)';
+
+// Webhook targets. ALLOW_PRIVATE_WEBHOOK_URLS=1 lets a self-hoster point webhooks at a LAN
+// receiver - the Home Assistant add-on turns it on, since HA itself is the receiver there.
+export function isSafeWebhookUrl(env: WebhookEnv, raw: string): boolean {
+  if (env.ALLOW_PRIVATE_WEBHOOK_URLS === '1') { try { const u = new URL(raw); return u.protocol === 'https:' || u.protocol === 'http:'; } catch { return false; } }
+  return isSafeOutboundUrl(raw);
+}
 
 export const FEED_URL_ERROR = 'Calendar URL must be a public http(s) address (self-hosted: set ALLOW_PRIVATE_FEED_URLS=1 to reach a LAN server)';
 

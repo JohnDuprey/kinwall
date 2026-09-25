@@ -4,6 +4,7 @@ import type { Env } from '../env.ts';
 import { encrypt } from '../crypto.ts';
 import { errorMessage } from '../redact.ts';
 import { ErrorSchema, WebhookCreatedSchema, WebhookInputSchema, WebhookSchema } from '../schemas.ts';
+import { isSafeWebhookUrl, WEBHOOK_URL_ERROR } from '../outbound.ts';
 
 export const webhooksRoutes = createRouter();
 
@@ -44,11 +45,13 @@ webhooksRoutes.openapi(
     request: { body: { content: { 'application/json': { schema: WebhookInputSchema } } } },
     responses: {
       201: { description: 'created', content: { 'application/json': { schema: WebhookCreatedSchema } } },
+      400: { description: 'blocked URL', content: { 'application/json': { schema: ErrorSchema } } },
       500: { description: 'server misconfigured', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
     const body = c.req.valid('json');
+    if (!isSafeWebhookUrl(c.env, body.url)) return c.json({ error: WEBHOOK_URL_ERROR }, 400);
     const id = crypto.randomUUID();
     const plainSecret = body.secret ?? crypto.randomUUID();
     let secret: string;
@@ -113,6 +116,7 @@ webhooksRoutes.openapi(
     request: { params: z.object({ id: z.string() }), body: { content: { 'application/json': { schema: WebhookInputSchema.partial() } } } },
     responses: {
       200: { description: 'ok', content: { 'application/json': { schema: WebhookSchema } } },
+      400: { description: 'blocked URL', content: { 'application/json': { schema: ErrorSchema } } },
       404: { description: 'not found', content: { 'application/json': { schema: ErrorSchema } } },
       500: { description: 'server misconfigured', content: { 'application/json': { schema: ErrorSchema } } },
     },
@@ -120,6 +124,7 @@ webhooksRoutes.openapi(
   async (c) => {
     const { id } = c.req.valid('param');
     const body = c.req.valid('json');
+    if (body.url !== undefined && !isSafeWebhookUrl(c.env, body.url)) return c.json({ error: WEBHOOK_URL_ERROR }, 400);
     const existing = await c.env.DB.prepare('SELECT * FROM webhooks WHERE id = ?').bind(id).first<WebhookRow>();
     if (!existing) return c.json({ error: 'not found' }, 404);
     let secret = existing.secret;

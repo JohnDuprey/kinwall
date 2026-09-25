@@ -18,6 +18,7 @@ export type Env = {
   VAPID_PRIVATE_KEY?: string;
   WEBAUTHN_RP_ID?: string; // passkey rpID shared by subdomains (multi-tenant hosts); see webauthn.ts
   ALLOW_PRIVATE_FEED_URLS?: string; // '1' lets ICS/CalDAV reach LAN hosts (see outbound.ts)
+  ALLOW_PRIVATE_WEBHOOK_URLS?: string; // '1' lets webhooks target LAN receivers (Home Assistant add-on sets it)
   REQUIRE_PASSKEY_SETUP?: string; // '1': setup wizard can't skip the passkey (hosts with no other way back in); see routes/setup.ts
   HOST_PORTAL_URL?: string; // host-run page for managing/deleting this family; linked from Settings -> Access (via /api/me)
 };

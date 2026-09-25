@@ -18,7 +18,8 @@ Kinwall is configured with environment variables. On Docker and Node they're pro
 | `SYNC_INTERVAL_MINUTES` | `10` | How stale a calendar must be before it syncs again. On Docker it's also the sync loop period. On Workers the cron runs every 5 minutes and uses this as the threshold. |
 | `VAPID_SUBJECT`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | generated, stored encrypted | Web Push signing keys. A key pair is created the first time it's needed. Set all three to pin your own. |
 | `CORS_ORIGINS` | — | Comma-separated origins allowed to call the API from a browser. CORS is off otherwise. |
-| `ALLOW_PRIVATE_FEED_URLS` | — | `1` lets ICS and CalDAV URLs point at private/LAN addresses. Webhooks stay public-only. See [Private / LAN feeds](../calendars/private-feeds.md). |
+| `ALLOW_PRIVATE_FEED_URLS` | — | `1` lets ICS and CalDAV URLs point at private/LAN addresses. See [Private / LAN feeds](../calendars/private-feeds.md). |
+| `ALLOW_PRIVATE_WEBHOOK_URLS` | — (`1` under the Home Assistant add-on) | `1` lets webhooks target private/LAN receivers, e.g. Home Assistant on the same network. |
 | `REQUIRE_PASSKEY_SETUP` | — | `1` makes the setup wizard's passkey step required (no **Skip**), for hosts where there's no `ADMIN_API_KEY` or server log to fall back on. A claimed instance with no passkey yet reopens the wizard at that step. `GET /api/setup` reports `passkeyRequired` and `hasPasskey`. |
 | `HOST_PORTAL_URL` | — | For hosts running Kinwall for other families: a page where a family can manage or delete their instance. It's linked from **Settings → Access → Your data**. |
 | `PORT` | `8080` | Docker/Node only. |

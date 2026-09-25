@@ -3,7 +3,7 @@ import type { Context } from 'hono';
 import type { Env, WaitCtx } from './env.ts';
 import { waitUntil } from './env.ts';
 import { decrypt } from './crypto.ts';
-import { isSafeOutboundUrl } from './outbound.ts';
+import { isSafeWebhookUrl } from './outbound.ts';
 
 export type BusEventType =
   | 'member.changed'
@@ -36,7 +36,6 @@ async function bumpRevAndListWebhooks(db: KinwallDb): Promise<WebhookRow[]> {
 
 // SSRF guard for webhook targets lives in outbound.ts (shared with calendar feeds). Webhooks never
 // honour ALLOW_PRIVATE_FEED_URLS.
-export { isSafeOutboundUrl as isSafeWebhookUrl } from './outbound.ts';
 
 async function hmacHex(secret: string, body: string): Promise<string> {
   const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, [
@@ -56,8 +55,8 @@ async function deliverWebhooks(env: Env, type: BusEventType, data: unknown, webh
       // ignore malformed events list
     }
     if (events.length > 0 && !events.includes(type)) continue;
-    if (!isSafeOutboundUrl(hook.url)) {
-      console.error(`webhook ${hook.id} skipped: url is not a public address`);
+    if (!isSafeWebhookUrl(env, hook.url)) {
+      console.error(`webhook ${hook.id} skipped: url is not a public address (ALLOW_PRIVATE_WEBHOOK_URLS=1 permits LAN receivers)`);
       continue;
     }
     let secret: string;

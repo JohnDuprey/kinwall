@@ -13,7 +13,7 @@ If you don't pass a `secret`, Kinwall generates a random one. Either way, the cr
 
 Lost the secret, or want a new one? **Rotate secret** next to the webhook (or `POST /api/webhooks/{id}/rotate`) generates a new one and shows it once. The old secret stops working immediately, so update your receiver. Each rotation is logged on the server (`webhook <id> secret rotated`).
 
-URLs must be public `http(s)` addresses. Private and LAN addresses are refused, even with `ALLOW_PRIVATE_FEED_URLS`.
+URLs must be public `http(s)` addresses. Private and LAN addresses are refused unless the server runs with `ALLOW_PRIVATE_WEBHOOK_URLS=1` (the Home Assistant add-on sets it, since Home Assistant is the receiver). `ALLOW_PRIVATE_FEED_URLS` does not affect webhooks.
 
 ## Events
 

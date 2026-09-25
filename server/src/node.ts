@@ -25,6 +25,8 @@ const HA_ENV_MAP: Record<string, string> = {
   google_client_secret: 'GOOGLE_CLIENT_SECRET',
   ms_client_id: 'MS_CLIENT_ID',
   ms_client_secret: 'MS_CLIENT_SECRET',
+  microsoft_client_id: 'MS_CLIENT_ID', // the add-on's config.yaml option names
+  microsoft_client_secret: 'MS_CLIENT_SECRET',
   public_url: 'PUBLIC_URL',
   admin_api_key: 'ADMIN_API_KEY',
   encryption_key: 'ENCRYPTION_KEY',
@@ -48,6 +50,8 @@ if (haOptions) {
     if (typeof value === 'string' && value && !process.env[envName]) process.env[envName] = value;
   }
   if (typeof haOptions.timezone === 'string' && haOptions.timezone) haTimezone = haOptions.timezone;
+  // Home Assistant is the webhook receiver and lives on the same LAN (often the same box).
+  process.env.ALLOW_PRIVATE_WEBHOOK_URLS ??= '1';
 }
 
 const DATA_DIR = process.env.DATA_DIR ?? (haOptions ? '/data' : './data');
@@ -114,6 +118,7 @@ const env: Env = {
   VAPID_PUBLIC_KEY: process.env.VAPID_PUBLIC_KEY,
   VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY,
   ALLOW_PRIVATE_FEED_URLS: process.env.ALLOW_PRIVATE_FEED_URLS,
+  ALLOW_PRIVATE_WEBHOOK_URLS: process.env.ALLOW_PRIVATE_WEBHOOK_URLS,
   WEBAUTHN_RP_ID: process.env.WEBAUTHN_RP_ID,
   HOST_PORTAL_URL: process.env.HOST_PORTAL_URL,
   REQUIRE_PASSKEY_SETUP: process.env.REQUIRE_PASSKEY_SETUP,
