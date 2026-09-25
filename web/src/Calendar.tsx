@@ -6,11 +6,13 @@ import type { CalendarEntry, Category, EventInstance } from './types.ts'
 import { dateKey, formatTime, minutesSinceMidnight, zonedDayKey } from './date.ts'
 import { inkFor } from './color.ts'
 import Sheet from './Sheet.tsx'
-import { ChevronLeft, ChevronRight, LocationIcon, PlusIcon, RepeatIcon, TrashIcon, EditIcon } from './icons.tsx'
+import { ChevronLeft, ChevronRight, FilterIcon, LocationIcon, PlusIcon, RepeatIcon, TrashIcon, EditIcon } from './icons.tsx'
 import { IDLE_RESET_EVENT } from './App.tsx'
 import { useIsPhone } from './useIsPhone.ts'
 
 const PHONE_WEEK_DAYS = 3
+const CATEGORY_FILTER_KEY = 'kinwall.categoryFilter'
+const NO_CATEGORY = '__none'
 
 type ViewMode = 'week' | 'day' | 'month' | 'schedule'
 // Matches --hour-h in styles.css (comfortable/compact) so JS-computed pixel offsets in the time
@@ -142,9 +144,26 @@ export default function CalendarView() {
     return () => window.removeEventListener(IDLE_RESET_EVENT, onIdle)
   }, [])
 
+  // Category filter: [] shows everything; otherwise only the picked categories ('__none' = events
+  // with no category). Saved per device, since a wall display may want e.g. work events hidden for
+  // good. Applied here, so every view (week/3-day, day, month, schedule) honours it.
+  const [categoryFilter, setCategoryFilterState] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem(CATEGORY_FILTER_KEY) || '[]') } catch { return [] }
+  })
+  const setCategoryFilter = (ids: string[]) => {
+    setCategoryFilterState(ids)
+    try { localStorage.setItem(CATEGORY_FILTER_KEY, JSON.stringify(ids)) } catch { /* private mode */ }
+  }
+  const [filterOpen, setFilterOpen] = useState(false)
+  // Ignore ids of categories that have since been deleted, or a stale filter could hide everything.
+  const activeCategoryFilter = categoryFilter.filter(id => id === NO_CATEGORY || categories.some(c => c.id === id))
+
   const visibleEvents = useMemo(
-    () => selectedMemberId ? events.filter(e => e.memberIds.includes(selectedMemberId)) : events,
-    [events, selectedMemberId],
+    () => events.filter(e =>
+      (!selectedMemberId || e.memberIds.includes(selectedMemberId)) &&
+      (activeCategoryFilter.length === 0 || activeCategoryFilter.includes(e.categoryId ?? NO_CATEGORY))),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [events, selectedMemberId, activeCategoryFilter.join()],
   )
 
   const step = (dir: 1 | -1) => {
@@ -236,14 +255,42 @@ export default function CalendarView() {
           <button className="today-btn" onClick={() => setAnchor(new Date())}>Today</button>
           <button className="icon-btn" onClick={() => step(1)} aria-label="Next"><ChevronRight width={20} height={20} /></button>
           <div className="period-label">{periodLabel}</div>
+          {categories.length > 0 && (
+            <button className={`icon-btn filter-btn ${activeCategoryFilter.length ? 'active' : ''}`} onClick={() => setFilterOpen(true)}
+              aria-label={activeCategoryFilter.length ? `Filter: ${activeCategoryFilter.length} categories` : 'Filter by category'}>
+              <FilterIcon width={20} height={20} />
+              {activeCategoryFilter.length > 0 && <span className="filter-badge">{activeCategoryFilter.length}</span>}
+            </button>
+          )}
         </div>
       </div>
+
+      {filterOpen && (
+        <Sheet title="Show categories" onClose={() => setFilterOpen(false)}
+          actions={<>
+            <button className="btn btn-secondary" onClick={() => setCategoryFilter([])} disabled={activeCategoryFilter.length === 0}>Show all</button>
+            <button className="btn btn-primary" onClick={() => setFilterOpen(false)}>Done</button>
+          </>}>
+          <p className="settings-row-sub" style={{ margin: '0 0 12px' }}>Pick one or more. With none picked, every event shows.</p>
+          <div className="chip-row">
+            {[...categories.map(c => ({ id: c.id, label: `${c.emoji ? c.emoji + ' ' : ''}${c.name}`, color: c.color })), { id: NO_CATEGORY, label: 'No category', color: undefined }].map(c => {
+              const on = activeCategoryFilter.includes(c.id)
+              return (
+                <button key={c.id} className={`chip ${on ? 'active' : ''}`} style={c.color ? { ['--chip-color' as string]: c.color } : undefined}
+                  onClick={() => setCategoryFilter(on ? activeCategoryFilter.filter(x => x !== c.id) : [...activeCategoryFilter, c.id])}>
+                  {c.label}
+                </button>
+              )
+            })}
+          </div>
+        </Sheet>
+      )}
 
       <div className="swipe-area" {...swipe}>
         {error ? (
           <div className="state-card">Couldn't load events. Pull to retry or check your connection.</div>
         ) : !loading && visibleEvents.length === 0 && viewMode === 'schedule' ? (
-          <div className="empty-card"><span className="emoji">🗓️</span>No events in the next 30 days.</div>
+          <div className="empty-card"><span className="emoji">🗓️</span>{activeCategoryFilter.length ? 'No events in the next 30 days match the category filter.' : 'No events in the next 30 days.'}</div>
         ) : viewMode === 'week' ? (
           <WeekView days={weekDays} events={visibleEvents} tz={tz} members={members} categories={categories} onTap={setDetail} onSlotTap={openAdd} />
         ) : viewMode === 'day' ? (
@@ -560,8 +607,8 @@ function MonthView({ anchor, events, tz, weekStart, members, categories, onTap, 
                 const { background, avatars, ink, emoji } = eventVisual(ev, members, categories, 6)
                 return (
                   <div key={ev.id} className="month-chip" style={{ background, color: ink }} onClick={e => { e.stopPropagation(); onTap(ev) }}>
-                    {/* A phone's month cell is ~50px wide: the time alone filled it, so show just the title. */}
-                    <EventTitle title={`${ev.allDay || isPhone ? '' : formatTime(ev.start, tz) + ' '}${ev.title}`} avatars={avatars} emoji={emoji} />
+                    {/* A phone's month cell is ~50px wide: time or avatars alone filled it, so show just the title. */}
+                    <EventTitle title={`${ev.allDay || isPhone ? '' : formatTime(ev.start, tz) + ' '}${ev.title}`} avatars={isPhone ? [] : avatars} emoji={emoji} />
                   </div>
                 )
               })}
@@ -628,10 +675,7 @@ function categoryLabel(event: EventInstance, categories: Category[]): string | n
   if (!event.categoryId) return null
   const cat = categories.find(c => c.id === event.categoryId)
   if (!cat) return null
-  const name = `${cat.emoji ? cat.emoji + ' ' : ''}${cat.name}`
-  if (event.categorySource === 'keyword') return `${name} · auto`
-  if (event.categorySource === 'calendar') return `${name} · from calendar`
-  return name
+  return `${cat.emoji ? cat.emoji + ' ' : ''}${cat.name}`
 }
 
 function EventDetailSheet({ event, members, categories, calendars, tz, onClose, onEdit, onDelete, onToggleMember, onSaveScopedMembers }: {
