@@ -1,9 +1,40 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import type { Appearance, Settings, TextScale } from './types.ts'
 import { accentFill } from './color.ts'
 import { api, getKey } from './api.ts'
 
 const SCALE: Record<TextScale, string> = { s: '0.9', m: '1', l: '1.15', xl: '1.3' }
+
+// Per-device overrides of the household appearance (a wall iPad read from across the room and a
+// phone in the hand want different sizes). Absent key = follow the household setting. Kept in
+// localStorage like the nav position; a same-tab event re-applies, since 'storage' is cross-tab only.
+const DEVICE_KEY = 'kinwall.deviceAppearance'
+const DEVICE_EVENT = 'kinwall:device-appearance'
+export type DeviceAppearance = Partial<Pick<Appearance, 'themeMode' | 'textScale' | 'density'>>
+
+export function readDeviceAppearance(): DeviceAppearance {
+  try {
+    const v = JSON.parse(localStorage.getItem(DEVICE_KEY) || '{}')
+    return v && typeof v === 'object' ? v : {}
+  } catch { return {} }
+}
+
+export function setDeviceAppearance(next: DeviceAppearance) {
+  const clean = Object.fromEntries(Object.entries(next).filter(([, v]) => v !== undefined))
+  try { localStorage.setItem(DEVICE_KEY, JSON.stringify(clean)) } catch { /* private mode */ }
+  window.dispatchEvent(new Event(DEVICE_EVENT))
+}
+
+export function useDeviceAppearance(): DeviceAppearance {
+  const [v, setV] = useState(readDeviceAppearance)
+  useEffect(() => {
+    const on = () => setV(readDeviceAppearance())
+    window.addEventListener(DEVICE_EVENT, on)
+    window.addEventListener('storage', on)
+    return () => { window.removeEventListener(DEVICE_EVENT, on); window.removeEventListener('storage', on) }
+  }, [])
+  return v
+}
 
 /** Is `now` inside the [from, to) HH:MM window (household-local clock time)? Handles ranges that
  * cross midnight (e.g. 20:00 -> 07:00). */
@@ -67,12 +98,13 @@ function applyAppearance(a: Appearance) {
  * fields, so the wall doesn't show default colors until paired. Once a key exists (mid-wizard, or
  * a display key with no local settings yet), it no-ops and leaves styles.css's defaults. */
 export function useTheme(settings: Settings | null) {
+  const device = useDeviceAppearance()
   useEffect(() => {
-    if (settings) return applyAppearance(settings)
+    if (settings) return applyAppearance({ ...settings, ...device })
     if (getKey()) return undefined
 
     let cancelled = false
-    api.getAppearance().then(a => { if (!cancelled) applyAppearance(a) }).catch(() => {})
+    api.getAppearance().then(a => { if (!cancelled) applyAppearance({ ...a, ...device }) }).catch(() => {})
     return () => { cancelled = true }
-  }, [settings])
+  }, [settings, device])
 }

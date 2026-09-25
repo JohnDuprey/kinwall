@@ -12,6 +12,7 @@ import { inkFor } from './color.ts'
 import { BellIcon, KeyIcon, LinkIcon, MonitorIcon, PaletteIcon, PlusIcon, TrashIcon, WebhookIcon } from './icons.tsx'
 import { useIsPhone } from './useIsPhone.ts'
 import { useNavMode, setNavPref, type NavPref } from './useNavMode.ts'
+import { setDeviceAppearance, useDeviceAppearance, type DeviceAppearance } from './useTheme.ts'
 import { passkeysSupported, registerPasskey } from './webauthn.ts'
 import { QrCode } from './App.tsx'
 
@@ -166,11 +167,16 @@ const DENSITIES: { key: Density; label: string }[] = [
 ]
 
 function AppearanceSection({ settings, onSaved, toast }: { settings: Settings; onSaved: () => void; toast: (m: string) => void }) {
+  const device = useDeviceAppearance()
+  const overridden = [device.themeMode && 'mode', device.textScale && 'text size', device.density && 'density'].filter(Boolean)
   const save = async (patch: Partial<Settings>) => {
     try { await api.updateSettings(patch); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save settings') }
   }
   return (
     <Section title="Appearance" icon={<PaletteIcon width={16} height={16} />}>
+      <p className="settings-row-sub" style={{ margin: '10px 2px 0' }}>
+        For the whole family.{overridden.length > 0 && <> This device overrides its {overridden.join(', ')} — see This display below.</>}
+      </p>
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
         <div className="settings-row-label">Mode</div>
         <div className="segmented">
@@ -444,6 +450,38 @@ const NAV_PREF_OPTIONS: { key: NavPref; label: string }[] = [
  * settings, so each wall display / phone / tablet can pick its own. When `keyName` is passed
  * (display-scoped key), this is the ONLY Settings section a display ever sees — it also shows
  * what this display is paired as and an unpair action. */
+/** "On this device" overrides of the household appearance - each defaults to the household value. */
+function DeviceAppearanceRows() {
+  const { settings } = useApp()
+  const device = useDeviceAppearance()
+  const set = (patch: DeviceAppearance) => setDeviceAppearance({ ...device, ...patch })
+  const rows = [
+    { key: 'themeMode' as const, label: 'Mode', options: THEME_MODES },
+    { key: 'textScale' as const, label: 'Text size', options: TEXT_SCALES.map(o => ({ ...o, label: { s: 'Small', m: 'Medium', l: 'Large', xl: 'Extra large' }[o.key] })) },
+    { key: 'density' as const, label: 'Density', options: DENSITIES },
+  ]
+  return (
+    <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
+      <div>
+        <div className="settings-row-label">Appearance on this device</div>
+        <div className="settings-row-sub">Leave on Household to follow the family setting; pick a value to override it here only.</div>
+      </div>
+      {rows.map(r => {
+        const household = r.options.find(o => o.key === settings[r.key])?.label ?? ''
+        return (
+          <div key={r.key} className="device-pref-row">
+            <span>{r.label}</span>
+            <select className="settings-select" value={device[r.key] ?? ''} onChange={e => set({ [r.key]: e.target.value || undefined })}>
+              <option value="">Household ({household})</option>
+              {r.options.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+            </select>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 function ThisDisplaySection({ keyName }: { keyName?: string }) {
   const isPhone = useIsPhone()
   const { pref } = useNavMode()
@@ -476,6 +514,7 @@ function ThisDisplaySection({ keyName }: { keyName?: string }) {
           <div className="settings-row-label">Paired as {keyName || 'this display'}</div>
         </div>
       )}
+      <DeviceAppearanceRows />
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
         <div className="settings-row-label">Navigation position</div>
         <div className="segmented" style={isPhone ? { opacity: 0.5 } : undefined}>

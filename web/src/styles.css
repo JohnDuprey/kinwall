@@ -1089,3 +1089,6 @@ button {
 /* Rows sit inside .drag-row wrappers: draw the divider between wrappers, not on every (first-child) row. */
 .drag-row + .drag-row .list-item-row { border-top: 1px solid var(--border); }
 .inline-form .link-btn { flex: none; align-self: center; }
+.device-pref-row { display: grid; grid-template-columns: 5.5em minmax(0, 1fr); align-items: center; gap: 12px; }
+.device-pref-row > span { font-weight: 700; font-size: 0.9375rem; white-space: nowrap; }
+.device-pref-row .settings-select { width: 100%; min-width: 0; text-overflow: ellipsis; }
