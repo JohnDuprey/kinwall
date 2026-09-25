@@ -394,6 +394,32 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
   );
 
   tool(
+    'create_list',
+    {
+      title: 'Create list',
+      description: 'Create a list. Kinds: shopping (grouped by store/category), todo (items can have an assignee and due date), reusable (packing lists, routines - can be reset).',
+      inputSchema: {
+        name: z.string().describe('List name, e.g. "Groceries".'),
+        kind: z.enum(['shopping', 'todo', 'reusable']).optional().describe('Default: todo.'),
+        emoji: z.string().optional().describe('A single emoji shown with the list.'),
+        members: z.array(z.string()).optional().describe('Owner member names or ids. Default: the whole family.'),
+      },
+    },
+    async ({ name, kind, emoji, members }) => {
+      let memberIds: string[];
+      try {
+        memberIds = await resolveMemberIds(app, env, auth, members);
+      } catch (err) {
+        return errorResult(null, err instanceof Error ? err.message : 'member lookup failed');
+      }
+      const res = await call(app, env, auth, 'POST', '/api/lists', { name, kind: kind ?? 'todo', emoji, memberIds });
+      if (res.status >= 400) return errorResult(res.json, 'failed to create list');
+      const list = res.json as { name: string; kind: string };
+      return okResult(`Created ${list.kind} list "${list.name}".`, { list: res.json as Record<string, unknown> });
+    },
+  );
+
+  tool(
     'get_list',
     {
       title: 'Get list',

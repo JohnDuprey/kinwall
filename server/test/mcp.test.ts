@@ -76,6 +76,7 @@ test('mcp: tools/list returns the tools', async () => {
     'complete_chore',
     'create_chore',
     'create_event',
+    'create_list',
     'delete_event',
     'get_household',
     'get_leaderboard',
@@ -157,6 +158,23 @@ test('mcp: add_list_items resolves a list by name and a member by name, and retu
   assert.equal(items.length, 2);
   assert.equal(items[0].listId, list.id);
   assert.equal(items[1].memberId, member.id);
+});
+
+test('mcp: create_list makes a list that add_list_items can then use by name', async () => {
+  const env = makeEnv();
+  const { rest, mcp } = makeApp(env);
+  const member = await (await rest('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Max', color: '#ff0000' }) })).json() as any;
+
+  const created = await (await mcp('tools/call', { name: 'create_list', arguments: { name: 'Costco run', kind: 'shopping', emoji: '🛒', members: ['max'] } })).json() as any;
+  assert.equal(created.result.isError, undefined);
+  assert.equal(created.result.structuredContent.list.kind, 'shopping');
+  assert.deepEqual(created.result.structuredContent.list.memberIds, [member.id]);
+
+  const added = await (await mcp('tools/call', { name: 'add_list_items', arguments: { listName: 'costco run', items: ['Milk'] } })).json() as any;
+  assert.equal(added.result.structuredContent.items.length, 1);
+
+  const bad = await (await mcp('tools/call', { name: 'create_list', arguments: { name: 'X', members: ['nobody'] } })).json() as any;
+  assert.equal(bad.result.isError, true);
 });
 
 test('mcp: a display key calling an admin-only action gets isError, not a thrown error', async () => {
