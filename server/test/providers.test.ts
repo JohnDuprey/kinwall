@@ -313,3 +313,17 @@ test('google: writing reminders sends popup overrides, null uses the calendar de
     restore();
   }
 });
+
+test('google: useDefault with unknown calendar defaults is null (default applies), not "no reminders"', async () => {
+  const { restore } = stubFetch({
+    'oauth2.googleapis.com': () => Response.json({ access_token: 'tok', expires_in: 3600 }),
+    '/events/': () => Response.json({ id: 'ev1', summary: 'x', start: { dateTime: '2030-01-01T10:00:00Z' }, end: { dateTime: '2030-01-01T11:00:00Z' }, reminders: { useDefault: true } }),
+  });
+  try {
+    const ctx = { env: {}, account: { id: 'a1', config: { access_token: 'tok', refresh_token: 'r', expires_at: Date.now() + 3600e3 } }, calendar: { id: 'c1', remoteId: 'cal1', config: {} }, saveAccountConfig: async () => {} } as unknown as ProviderCtx;
+    const updated = await googleProvider.updateEvent!(ctx, 'ev1', { reminders: null });
+    assert.equal(updated.reminders, null);
+  } finally {
+    restore();
+  }
+});

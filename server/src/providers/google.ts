@@ -136,14 +136,16 @@ async function api(
 // calendar's own defaultReminders (fetched once per sync in listEvents, passed in here).
 // [] means the event explicitly has no reminders (it must not fall back to the household default);
 // null means Google didn't say.
-function reminderMinutes(item: any, calendarDefaults: number[]): number[] | null {
+// calendarDefaults null = not known (lookup failed, or a single-event write response): useDefault then
+// stays null so the household default applies, instead of looking like reminders were turned off.
+function reminderMinutes(item: any, calendarDefaults: number[] | null): number[] | null {
   if (!item.reminders) return null;
   if (item.reminders.useDefault) return calendarDefaults;
   const overrides = (item.reminders.overrides ?? []) as { method: string; minutes: number }[];
   return overrides.filter((o) => o.method === 'popup').map((o) => o.minutes);
 }
 
-function toNormalized(item: any, calendarDefaults: number[] = []): NormalizedEvent {
+function toNormalized(item: any, calendarDefaults: number[] | null = null): NormalizedEvent {
   const allDay = !!item.start?.date;
   return {
     externalId: item.id,
@@ -196,7 +198,7 @@ export const provider: Provider = {
     const calId = encodeURIComponent(ctx.calendar.remoteId ?? '');
     // Cheap single lookup, reused for every item in this call - only needed for items with
     // reminders.useDefault: true.
-    let calendarDefaults: number[] = [];
+    let calendarDefaults: number[] | null = null;
     try {
       const calInfo = await api(ctx, `/users/me/calendarList/${calId}`);
       calendarDefaults = ((calInfo.defaultReminders ?? []) as { method: string; minutes: number }[])
