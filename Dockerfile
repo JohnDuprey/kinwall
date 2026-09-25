@@ -1,11 +1,11 @@
-FROM node:24-slim AS web
+FROM node:25-slim AS web
 WORKDIR /app/web
 COPY web/package*.json ./
 RUN npm ci
 COPY web/ ./
 RUN npm run build
 
-FROM node:24-slim
+FROM node:25-slim
 ENV NODE_ENV=production DATA_DIR=/data PORT=8080
 WORKDIR /app/server
 COPY server/package*.json ./
