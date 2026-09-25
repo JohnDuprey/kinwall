@@ -16,6 +16,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { hostTimezone } from './env.ts';
 import { effectivePublicUrl } from './providers/config.ts';
+import { CalendarSchema, CategorySchema, ChoreDaySchema, ChoreSchema, EventInstanceSchema, LeaderboardEntrySchema, ListDetailSchema, ListItemSchema, ListSchema, MemberSchema, SettingsSchema } from './schemas.ts';
 import type { Env } from './env.ts';
 import { VERSION } from './version.ts';
 import { resolveKey } from './auth.ts';
@@ -138,6 +139,31 @@ function jsonList<T extends z.ZodTypeAny>(schema: T) {
 const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
 const WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false };
 const SET = { ...WRITE, idempotentHint: true };
+const OK = { ok: z.boolean() };
+const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
+  get_household: { settings: SettingsSchema, members: z.array(MemberSchema), calendars: z.array(CalendarSchema) },
+  list_events: { events: z.array(EventInstanceSchema) },
+  create_event: { event: EventInstanceSchema },
+  update_event: { event: EventInstanceSchema },
+  set_event_category: { event: EventInstanceSchema },
+  delete_event: OK,
+  list_chores: { date: z.string(), chores: z.array(ChoreDaySchema) },
+  create_chore: { chore: ChoreSchema },
+  complete_chore: OK,
+  uncomplete_chore: OK,
+  get_leaderboard: { period: z.string(), leaderboard: z.array(LeaderboardEntrySchema) },
+  add_member: { member: MemberSchema },
+  list_lists: { lists: z.array(ListSchema) },
+  create_list: { list: ListSchema },
+  update_list: { list: ListSchema },
+  get_list: ListDetailSchema.shape,
+  add_list_items: { items: z.array(ListItemSchema) },
+  update_list_item: { item: ListItemSchema },
+  set_list_item_done: { item: ListItemSchema },
+  list_categories: { categories: z.array(CategorySchema) },
+  send_notification: { result: z.object({ ok: z.boolean(), sent: z.number() }) },
+};
+
 const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boolean; idempotentHint: boolean; openWorldHint: boolean }> = {
   get_household: READ, list_events: READ, list_chores: READ, get_leaderboard: READ, list_lists: READ, get_list: READ, list_categories: READ,
   create_event: { ...WRITE, openWorldHint: true }, update_event: { ...SET, openWorldHint: true }, set_event_category: SET,
@@ -153,7 +179,9 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
   const tool: typeof server.registerTool = (name, config, cb) => {
     const hints = TOOL_HINTS[name];
     if (!hints) throw new Error(`MCP tool ${name} has no entry in TOOL_HINTS`);
-    return server.registerTool(name, { ...config, annotations: { title: config.title, ...hints } }, cb);
+    // Output schemas (shapes the REST routes already declare) tell the model what comes back; the
+    // SDK validates successful results against them, and tests exercise every tool.
+    return server.registerTool(name, { ...config, outputSchema: TOOL_OUTPUT[name], annotations: { title: config.title, ...hints } }, cb);
   };
 
   tool(
@@ -171,7 +199,9 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         call(app, env, auth, 'GET', '/api/members'),
         call(app, env, auth, 'GET', '/api/calendars'),
       ]);
-      if (settingsRes.status >= 400) return errorResult(settingsRes.json, 'failed to load settings');
+      for (const [res, what] of [[settingsRes, 'settings'], [membersRes, 'members'], [calendarsRes, 'calendars']] as const) {
+        if (res.status >= 400) return errorResult(res.json, `failed to load ${what}`);
+      }
       const settings = settingsRes.json as { familyName: string; timezone: string | null };
       return okResult(
         `${settings.familyName}, timezone ${settings.timezone ?? '(not set - server default applies)'}, ` +

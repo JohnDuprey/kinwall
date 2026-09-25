@@ -261,3 +261,43 @@ test('mcp: every tool declares permission hints, and the server advertises its i
   assert.match(init.result.serverInfo.icons[0].src, /\/icon-512\.png$/);
   assert.equal(init.result.serverInfo.title, 'Kinwall');
 });
+
+test('mcp: every tool declares an output schema, and real results pass it', async () => {
+  const env = makeEnv();
+  const { rest, mcp } = makeApp(env);
+  const tools = (await (await mcp('tools/list', {})).json() as any).result.tools as any[];
+  for (const t of tools) assert.equal(t.outputSchema?.type, 'object', `${t.name} has no output schema`);
+
+  // A small but realistic household, then every tool once.
+  await rest('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Ava', color: '#ff0000', avatar: '🦄' }) });
+  await rest('/api/categories', { method: 'POST', body: JSON.stringify({ name: 'School', emoji: '🏫', color: '#3366ff', keywords: ['school'] }) });
+  const cal = await (await rest('/api/calendars', { method: 'POST', body: JSON.stringify({ kind: 'local', name: 'Home' }) })).json() as any;
+  const call = async (name: string, args: Record<string, unknown> = {}) => {
+    const body = await (await mcp('tools/call', { name, arguments: args })).json() as any;
+    assert.equal(body.error, undefined, `${name}: ${JSON.stringify(body.error)}`);
+    assert.notEqual(body.result.isError, true, `${name}: ${JSON.stringify(body.result.content)}`);
+    return body.result.structuredContent;
+  };
+  const today = new Date().toISOString().slice(0, 10);
+  const ev = (await call('create_event', { calendarId: cal.id, title: 'School play', start: `${today}T18:00:00Z`, end: `${today}T19:00:00Z`, members: ['ava'], reminders: [30] })).event;
+  await call('get_household');
+  await call('list_events', { from: today });
+  await call('update_event', { id: ev.id, title: 'School play!' });
+  await call('set_event_category', { id: ev.id, category: 'school' });
+  await call('list_categories');
+  const chore = (await call('create_chore', { title: 'Feed cat', emoji: '🐱', member: 'ava', rrule: 'FREQ=DAILY', points: 2 })).chore;
+  await call('complete_chore', { choreId: chore.id, date: today });
+  await call('list_chores', { date: today });
+  await call('uncomplete_chore', { choreId: chore.id, date: today });
+  await call('get_leaderboard', { period: 'week' });
+  await call('add_member', { name: 'Bo', color: '#00aa00', avatar: '🦖' });
+  const list = (await call('create_list', { name: 'Groceries', kind: 'shopping', emoji: '🛒' })).list;
+  const [item] = (await call('add_list_items', { listName: 'groceries', items: [{ title: 'Milk', store: 'Costco', category: 'Dairy', quantity: '2' }] })).items;
+  await call('update_list_item', { list: list.id, itemId: item.id, member: 'ava' });
+  await call('set_list_item_done', { listId: list.id, itemId: item.id, done: true });
+  await call('update_list', { list: 'groceries', emoji: '🥛' });
+  await call('get_list', { list: 'groceries' });
+  await call('list_lists');
+  await call('send_notification', { title: 'Hi', body: 'Dinner' });
+  await call('delete_event', { id: ev.id });
+});
