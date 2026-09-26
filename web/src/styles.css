@@ -208,7 +208,7 @@ button {
   /* min-height, not height: at large text sizes the icon + label outgrow --tab-h, and a fixed
      height pushed them down into the home-indicator area. */
   min-height: calc(var(--tab-h) + var(--safe-b));
-  padding: 6px 0 calc(var(--safe-b) + 4px);
+  padding: 6px 0 calc(var(--safe-b) + 10px); /* standalone iPhone: keep the labels clear of the home indicator */
   display: flex;
   border-top: 1px solid var(--border);
   background: var(--card);
