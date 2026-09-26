@@ -1,7 +1,7 @@
 import legacy from '@vitejs/plugin-legacy'
 import react from '@vitejs/plugin-react'
 import { createHash } from 'node:crypto'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { defineConfig, type Plugin } from 'vite'
 
 // plugin-legacy guards the modern build with `import 'data:text/javascript,...'` modules, which our
@@ -22,7 +22,8 @@ function selfHostedLegacyGuard(): Plugin {
       order: 'post',
       handler(html) {
         html = html.replace(DATA_GUARD, "import'./assets/legacy-guard.js?detect'")
-        const csps = ['public/_headers', '../server/src/app.ts'].map(f => readFileSync(new URL(f, import.meta.url), 'utf8'))
+        // The Docker web stage has no server/ folder; CI and local builds still check both.
+        const csps = ['public/_headers', '../server/src/app.ts'].map(f => new URL(f, import.meta.url)).filter(existsSync).map(u => readFileSync(u, 'utf8'))
         const hashes = [...html.matchAll(/<script\b[^>]*>([^<]+)<\/script>/g)].map(([, code]) => `'sha256-${createHash('sha256').update(code).digest('base64')}'`)
         if (!csps.every(c => hashes.every(h => c.includes(h)))) throw new Error(`script-src in web/public/_headers and server/src/app.ts must allow the inline scripts: 'self' ${hashes.join(' ')}`)
         return html
