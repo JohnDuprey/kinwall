@@ -208,7 +208,7 @@ button {
   /* min-height, not height: at large text sizes the icon + label outgrow --tab-h, and a fixed
      height pushed them down into the home-indicator area. */
   min-height: calc(var(--tab-h) + var(--safe-b));
-  padding: 4px 0 calc(var(--safe-b) + 4px);
+  padding: 6px 0 calc(var(--safe-b) + 4px);
   display: flex;
   border-top: 1px solid var(--border);
   background: var(--card);
@@ -222,6 +222,7 @@ button {
   color: var(--text-dim);
   font-size: 0.8125rem; font-weight: 700;
   min-height: var(--ctl-h);
+  padding-top: 8px; /* keeps the active indicator (inset box-shadow) clear of the icon */
   text-decoration: none;
 }
 .tab-btn.active { color: var(--accent-text); box-shadow: inset 0 3px 0 var(--accent-text); } /* not colour alone */
@@ -1051,7 +1052,7 @@ button {
     justify-content: flex-start;
     gap: 3px;
     min-height: 0;
-    padding: calc(var(--safe-t) + 16px) 14px 6px;
+    padding: calc(var(--safe-t) + 24px) 14px 6px; /* the status bar needs breathing room above the clock */
   }
   .header-phone-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0; }
   .header-phone-left { display: flex; align-items: baseline; gap: 8px; min-width: 0; overflow: hidden; flex: 1; }
