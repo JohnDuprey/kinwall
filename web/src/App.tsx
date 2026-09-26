@@ -2,10 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { encode } from 'uqr'
 import { api, clearKey, getKey, setAdminKey, setKey, usePoll, useSaveState, ApiError, MOCK } from './api.ts'
 import { AppContext, useApp } from './AppContext.tsx'
-import type { Category, Member, Settings } from './types.ts'
-import { BrushIcon, CalendarIcon, ChoreIcon, ListIcon, SettingsIcon } from './icons.tsx'
+import type { Category, ChoreDay, Member, Settings } from './types.ts'
+import { BrushIcon, CalendarIcon, CheckIcon, ChevronRight, ChoreIcon, ListIcon, SettingsIcon } from './icons.tsx'
 import CalendarView from './Calendar.tsx'
-import Chores from './Chores.tsx'
+import Chores, { ChecklistSheet } from './Chores.tsx'
 import Lists from './Lists.tsx'
 import Activities from './Activities.tsx'
 import SettingsView from './Settings.tsx'
@@ -15,6 +15,7 @@ import { useIsPhone } from './useIsPhone.ts'
 import { useNavMode, type NavMode } from './useNavMode.ts'
 import { inTimeWindow, useDeviceAppearance, useTheme } from './useTheme.ts'
 import { inkFor } from './color.ts'
+import { dateKey } from './date.ts'
 import { loginWithPasskey, passkeysSupported, registerPasskey } from './webauthn.ts'
 import { announce } from './a11y.tsx'
 import { DialogProvider } from './dialog.tsx'
@@ -589,9 +590,9 @@ function MemberAvatars({ members, selectedMemberId }: { members: Member[]; selec
   )
 }
 
-/** Phone header: the family name and a pile of faces as one button. It opens a sheet listing
- * everyone (tap a person for their snapshot), so the header is the same size for a family of
- * three or nine and the name is never squeezed out by the avatars. */
+/** Phone header: the family name and a pile of faces as one button. It opens the family sheet:
+ * tap a person to show only them, "Their day" for the snapshot, and today's chores under each
+ * person to tick off. Same size for a family of three or nine, and the name is never squeezed. */
 function FamilyButton({ name, members, selectedMemberId }: { name: string; members: Member[]; selectedMemberId: string | null }) {
   const { setSelectedMemberId } = useApp()
   const [open, setOpen] = useState(false)
@@ -615,27 +616,91 @@ function FamilyButton({ name, members, selectedMemberId }: { name: string; membe
         </span>
         <span className="family-name-sm">{name}</span>
       </button>
-      {open && (
-        <Sheet title={name} onClose={() => setOpen(false)}>
-          <div className="family-list">
-            {selected && (
-              <button className="family-row" onClick={() => { setSelectedMemberId(null); setOpen(false) }}>
-                <span className="member-avatar-sm family-everyone" aria-hidden="true">👪</span>
-                <span className="family-row-name">Everyone</span>
-                <span className="family-row-sub">Show the whole family again</span>
-              </button>
-            )}
-            {members.map(m => (
-              <button key={m.id} className="family-row" aria-haspopup="dialog" onClick={() => { setOpen(false); setSnap(m) }}>
-                <span className={`member-avatar-sm ${m.id === selectedMemberId ? 'selected' : ''}`} style={{ background: m.color, color: inkFor(m.color) }} aria-hidden="true">{m.avatar || m.name[0]}</span>
-                <span className="family-row-name">{m.name}</span>
-                <span className="family-row-sub">{m.id === selectedMemberId ? 'Calendar shows only them' : `${m.pointsToday} pts today`}</span>
-              </button>
-            ))}
-          </div>
-        </Sheet>
-      )}
+      {open && <FamilySheet name={name} members={members} selectedMemberId={selectedMemberId} onClose={() => setOpen(false)}
+        onFilter={id => setSelectedMemberId(id)} onSnapshot={m => { setOpen(false); setSnap(m) }} />}
       {snap && <SnapshotSheet member={members.find(m => m.id === snap.id) ?? snap} onClose={() => setSnap(null)} />}
+    </>
+  )
+}
+
+function FamilySheet({ name, members, selectedMemberId, onClose, onFilter, onSnapshot }: {
+  name: string; members: Member[]; selectedMemberId: string | null
+  onClose: () => void; onFilter: (id: string | null) => void; onSnapshot: (m: Member) => void
+}) {
+  const { toast, reloadCore, refreshTick } = useApp()
+  const today = dateKey(new Date())
+  const [chores, setChores] = useState<ChoreDay[] | null>(null)
+  const [checklistFor, setChecklistFor] = useState<ChoreDay | null>(null)
+  const load = () => api.getChoresDay(today).then(setChores).catch(() => toast('Could not load chores', true))
+  useEffect(() => { load() }, [refreshTick]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Same rules as the Chores tab for today: a checklist with open items gates completion.
+  const toggle = async (c: ChoreDay) => {
+    if (!c.completed && c.checklist && c.checklist.done < c.checklist.total) { setChecklistFor(c); return }
+    setChores(list => list && list.map(x => x.id === c.id ? { ...x, completed: !x.completed } : x))
+    announce(c.completed ? `${c.title} not done` : `${c.title} done, ${c.points} point${c.points === 1 ? '' : 's'}`)
+    try {
+      if (c.completed) await api.uncompleteChore(c.id, today)
+      else await api.completeChore(c.id, today, c.memberId ?? undefined)
+      reloadCore()
+    } catch (e) {
+      setChores(list => list && list.map(x => x.id === c.id ? { ...x, completed: c.completed } : x))
+      toast(e instanceof ApiError ? e.message : 'Could not update chore', true)
+    }
+  }
+  const choreRows = (list: ChoreDay[]) => list.length > 0 && (
+    <ul className="family-chores">
+      {list.map(c => (
+        <li key={c.id}>
+          <button className={`family-chore ${c.completed ? 'done' : ''}`} role="checkbox" aria-checked={c.completed} onClick={() => toggle(c)}
+            aria-label={`${c.title}, ${c.points} points${c.checklist ? `, checklist ${c.checklist.done} of ${c.checklist.total} done` : ''}`}>
+            <span className="family-chore-emoji" aria-hidden="true">{c.emoji || '⭐'}</span>
+            <span className="family-chore-title">{c.title}</span>
+            <span className="family-chore-pts">{c.checklist ? `${c.checklist.done}/${c.checklist.total} · ` : ''}{c.points} pts</span>
+            <span className={`chore-check ${c.completed ? 'done' : ''}`} aria-hidden="true">{c.completed && <CheckIcon width={18} height={18} />}</span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  )
+  const groups = [...members.map(m => ({ m, chores: (chores ?? []).filter(c => c.memberId === m.id) })),
+    { m: null, chores: (chores ?? []).filter(c => !c.memberId) }]
+  return (
+    <>
+      <Sheet title={name} onClose={onClose}>
+        <div className="family-list">
+          {selectedMemberId && (
+            <button className="family-row" onClick={() => onFilter(null)}>
+              <span className="member-avatar-sm family-everyone" aria-hidden="true">👪</span>
+              <span className="family-row-name">Everyone</span>
+              <span className="family-row-sub">Show the whole family again</span>
+            </button>
+          )}
+          {groups.map(({ m, chores: list }) => (
+            <div key={m?.id ?? 'anyone'} className="family-group">
+              {m ? (
+                <div className="family-row-wrap">
+                  <button className={`family-row ${m.id === selectedMemberId ? 'on' : ''}`} aria-pressed={m.id === selectedMemberId}
+                    onClick={() => onFilter(m.id === selectedMemberId ? null : m.id)}>
+                    <span className={`member-avatar-sm ${m.id === selectedMemberId ? 'selected' : ''}`} style={{ background: m.color, color: inkFor(m.color) }} aria-hidden="true">{m.avatar || m.name[0]}</span>
+                    <span className="family-row-name">{m.name}</span>
+                    <span className="family-row-sub">{m.id === selectedMemberId ? 'Calendar shows only them' : `${m.pointsToday} pts today`}</span>
+                  </button>
+                  <button className="family-day-btn" aria-haspopup="dialog" onClick={() => onSnapshot(m)} aria-label={`${m.name}'s day`}>Their day <ChevronRight width={16} height={16} /></button>
+                </div>
+              ) : list.length > 0 && (
+                <div className="family-row-wrap"><div className="family-row static"><span className="member-avatar-sm family-everyone" aria-hidden="true">🌟</span><span className="family-row-name">Anyone</span><span className="family-row-sub">Up for grabs today</span></div></div>
+              )}
+              {choreRows(list)}
+            </div>
+          ))}
+          {chores && chores.length === 0 && <p className="family-empty">No chores today.</p>}
+        </div>
+      </Sheet>
+      {checklistFor?.checklist && (
+        <ChecklistSheet chore={checklistFor} onClose={() => { setChecklistFor(null); load() }}
+          onComplete={async () => { const c = checklistFor; setChecklistFor(null); await toggle({ ...c, checklist: null }) }} />
+      )}
     </>
   )
 }

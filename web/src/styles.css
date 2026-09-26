@@ -1076,16 +1076,35 @@ button {
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
   }
   .family-list { display: flex; flex-direction: column; }
+  .family-group { border-top: 1px solid var(--border); padding-bottom: 6px; }
+  .family-group:first-child, .family-list > .family-row:first-child + .family-group { border-top: none; }
+  .family-row-wrap { display: flex; align-items: center; gap: 6px; }
   .family-row {
     display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 12px; align-items: center; text-align: left;
-    padding: 10px 2px; min-height: 56px; border: none; border-top: 1px solid var(--border); background: none; color: var(--text);
+    padding: 10px 2px; min-height: 56px; border: none; background: none; color: var(--text); flex: 1; min-width: 0; border-radius: var(--radius-sm);
   }
-  .family-row:first-child { border-top: none; }
+  .family-row.on { background: var(--bg-alt); padding-left: 8px; }
+  .family-row:active:not(.static) { transform: scale(0.98); }
+  .family-day-btn {
+    display: flex; align-items: center; gap: 2px; flex-shrink: 0; min-height: 44px; padding: 0 8px 0 12px;
+    border: none; border-radius: 999px; background: var(--card); box-shadow: var(--shadow); color: var(--text); font-size: 0.8125rem; font-weight: 800;
+  }
+  .family-chores { list-style: none; margin: 0 0 0 52px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+  .family-chore {
+    display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 4px 0 4px 2px;
+    border: none; background: none; color: var(--text); text-align: left;
+  }
+  .family-chore-emoji { font-size: 1.25rem; flex-shrink: 0; }
+  .family-chore-title { flex: 1; min-width: 0; font-weight: 800; font-size: 0.9375rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .family-chore.done .family-chore-title { color: var(--text-dim); text-decoration: line-through; }
+  .family-chore-pts { font-size: 0.75rem; font-weight: 700; color: var(--text-dim); flex-shrink: 0; }
+  .family-chore .chore-check { width: 30px; height: 30px; }
+  .family-empty { margin: 8px 0; color: var(--text-dim); font-weight: 700; font-size: 0.875rem; }
   .family-row .member-avatar-sm { grid-row: 1 / span 2; width: 40px; height: 40px; font-size: 1.25rem; }
   .family-row .member-avatar-sm.selected { box-shadow: 0 0 0 2px var(--text); }
   .family-everyone { background: var(--bg-alt); }
   .family-row-name { font-weight: 800; font-size: 1rem; }
-  .family-row-sub { font-size: 0.8125rem; font-weight: 700; color: var(--text-dim); }
+  .family-row-sub { font-size: 0.75rem; font-weight: 700; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
   /* ---------- Calendar toolbar ---------- */
   .calendar-toolbar { padding: 6px 14px 4px; gap: 6px; }

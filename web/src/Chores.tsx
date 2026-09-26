@@ -352,7 +352,7 @@ export default function Chores() {
  * unassigned ones (an "anyone" chore sees the whole list). Ticks land on the list items
  * themselves - an unassigned item is genuinely shared between siblings' routines - and the
  * Complete button unlocks once nothing here is left open. Closing leaves the chore as it was. */
-function ChecklistSheet({ chore, onClose, onComplete }: { chore: ChoreDay; onClose: () => void; onComplete: () => void }) {
+export function ChecklistSheet({ chore, onClose, onComplete }: { chore: ChoreDay; onClose: () => void; onComplete: () => void }) {
   const { members, toast } = useApp()
   const listId = chore.checklist!.listId
   const name = chore.checklist?.name ?? 'Checklist'
