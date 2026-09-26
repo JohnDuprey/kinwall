@@ -613,13 +613,16 @@ function Header({ settings, members, selectedMemberId, isAdmin }: {
             <span className="family-name-sm">{settings.familyName || 'Our Family'}</span>
             <span className="clock-sm">{timeStr}</span>
           </div>
+          <div className="date-text-sm">{dateStr}</div>
+        </div>
+        {/* People and the buttons get their own row: a phone is too narrow to share one with the clock. */}
+        <div className="header-phone-row header-phone-people">
+          <MemberAvatars members={members} selectedMemberId={selectedMemberId} />
           <div className="header-right">
-            <MemberAvatars members={members} selectedMemberId={selectedMemberId} />
             <NotificationBell isAdmin={isAdmin} />
             <HelpButton />
           </div>
         </div>
-        <div className="date-text-sm">{dateStr}</div>
       </header>
     )
   }

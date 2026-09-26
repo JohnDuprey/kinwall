@@ -1060,8 +1060,9 @@ button {
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
   }
   .clock-sm { font-size: 1.25rem; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; flex-shrink: 0; }
-  .date-text-sm { font-size: 0.71875rem; font-weight: 700; color: var(--text-dim); padding-left: 1px; }
-  .header-phone .member-filter-row { gap: 6px; padding: 0; flex-shrink: 0; max-width: 45vw; }
+  .date-text-sm { font-size: 0.71875rem; font-weight: 700; color: var(--text-dim); padding-left: 1px; white-space: nowrap; flex-shrink: 0; }
+  .header-phone-people { margin-top: 6px; }
+  .header-phone .member-filter-row { gap: 6px; padding: 0; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
   .header-phone .member-avatar { width: 36px; height: 36px; font-size: 0.9375rem; border-width: 2px; box-shadow: none; }
 
   /* ---------- Calendar toolbar ---------- */
