@@ -55,6 +55,8 @@ const PUBLIC_PATH =
 // Central allow-list of what a 'display' scoped key may do (the wall iPad). Anything not
 // listed here is denied for display keys - deny by default, not scattered checks.
 const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
+  { method: 'POST', pattern: /^\/api\/device-keys$/ }, // an app's widgets / watch key (everyday access only)
+  { method: 'DELETE', pattern: /^\/api\/device-keys\/self$/ },
   { method: 'GET', pattern: /^\/api\/me$/ },
   { method: 'GET', pattern: /^\/api\/members$/ },
   { method: 'GET', pattern: /^\/api\/calendars$/ },
