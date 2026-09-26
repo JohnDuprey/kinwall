@@ -270,7 +270,8 @@ export default function Chores() {
 
   const columns = [...members, { id: '__anyone', name: 'Anyone', color: '#C7B8A8', avatar: '🌟', pointsToday: 0, pointsWeek: 0, sort: 999 }]
   const visibleColumns = selectedMemberId
-    ? columns.filter(m => m.id === selectedMemberId || (focusMemberId && focusShowsShared && m.id === '__anyone'))
+    // Anyone's chores stay beside the filtered person; only a display pinned to someone can hide them.
+    ? columns.filter(m => m.id === selectedMemberId || (m.id === '__anyone' && (!focusMemberId || focusShowsShared)))
     : columns
   // Columns share the width equally down to a 110px floor (below which a card's contents stop
   // being legible - .chore-card switches to a stacked layout under that via a container query).
