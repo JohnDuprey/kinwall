@@ -708,6 +708,16 @@ button {
 .color-swatch-custom { position: relative; display: grid; place-items: center; color: #fff; cursor: pointer; background: conic-gradient(#ff6b6b, #ffd166, #6fcf97, #4da3ff, #b39dff, #ff8fa3, #ff6b6b); }
 .color-swatch-custom svg { filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45)); pointer-events: none; }
 .color-swatch-custom input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+/* Color scheme (skin) picker - Settings > Appearance > "Appearance on this device". */
+.skin-dots { display: inline-flex; gap: 2px; }
+.skin-dots span { width: 10px; height: 10px; border-radius: 50%; border: 1px solid var(--border); display: inline-block; }
+.contrast-badge { font-size: 0.75rem; font-weight: 800; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
+.contrast-badge.ok { color: var(--success); background: color-mix(in srgb, var(--success) 18%, var(--bg-alt)); }
+.contrast-badge.bad { color: var(--danger); background: color-mix(in srgb, var(--danger) 18%, var(--bg-alt)); }
+.settings-disclosure summary { min-height: 44px; box-sizing: border-box; padding: 10px 4px; font-weight: 800; font-size: 0.9375rem; color: var(--text); cursor: pointer; list-style: revert; }
+.settings-disclosure[open] summary { margin-bottom: 4px; }
+.custom-color-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.custom-color-row input[type="color"] { width: 44px; height: 44px; padding: 2px; border-radius: 12px; border: 2px solid var(--border); background: var(--bg-alt); cursor: pointer; }
 .emoji-swatch-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .emoji-swatch { width: 44px; height: 44px; border-radius: 12px; background: var(--bg-alt); border: 2px solid var(--border); font-size: 1.375rem; display: flex; align-items: center; justify-content: center; }
 .emoji-swatch.active { border-color: var(--accent-strong); background: color-mix(in srgb, var(--accent) 22%, var(--bg-alt)); }
