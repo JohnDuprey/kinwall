@@ -274,7 +274,8 @@ const PAIR_POLL_MS = 3000
  * a wall display is set up from here via a pairing code. Without passkey support (plain HTTP),
  * pairing is the only way in, so it opens straight to that. */
 function PairingGate({ onKey }: { onKey: (banner?: string) => void }) {
-  const [mode, setMode] = useState<'choose' | 'pair' | 'manual' | 'recovery'>(() => (passkeysSupported() ? 'choose' : 'pair'))
+  // The app's own "Pair with a code" opens the page with ?start=pair: straight to the code, no second tap.
+  const [mode, setMode] = useState<'choose' | 'pair' | 'manual' | 'recovery'>(() => (inNativeApp() && new URLSearchParams(location.search).get('start') === 'pair') || !passkeysSupported() ? 'pair' : 'choose')
   const [error, setError] = useState('')
   const [passkeyBusy, setPasskeyBusy] = useState(false)
 
