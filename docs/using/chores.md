@@ -93,6 +93,8 @@ A per-device **Chore reminder** at a set time lists chores still open today for 
 * `GET /api/members/{id}/points`
 * MCP: `list_chores`, `create_chore`, `update_chore`, `complete_chore`, `uncomplete_chore`, `get_leaderboard`, `get_points`
 
-## Ticking chores off from the family sheet
+## Ticking chores off from someone's day
 
-On a phone, tap the family button at the top left. The family sheet lists today's chores under each person, plus **Anyone** chores. Tap a chore to mark it done or not done, the same as on the Chores tab. A chore with a checklist that still has open items opens the checklist first.
+A person's day (their snapshot) lists their chores for today, plus **Anyone** chores. Tap a chore to mark it done or not done, the same as on the Chores tab. An **Anyone** chore done from someone's day counts for that person. A chore with a checklist that still has open items opens the checklist first.
+
+On a phone, open someone's day from the family button at the top left, then **Their day**.

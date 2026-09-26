@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
-import type { Member, Snapshot, SnapshotBirthday, SnapshotChore, SnapshotEvent, SnapshotItem, WeatherDay } from './types.ts'
+import type { ChoreDay, Member, Snapshot, SnapshotBirthday, SnapshotChore, SnapshotEvent, SnapshotItem, WeatherDay } from './types.ts'
+import { ChecklistSheet } from './Chores.tsx'
+import { CheckIcon } from './icons.tsx'
 import Sheet from './Sheet.tsx'
 import { Segmented, announce } from './a11y.tsx'
 import { inkFor } from './color.ts'
@@ -28,7 +30,7 @@ const eventHash = (e: SnapshotEvent) => `#/calendar?event=${encodeURIComponent(e
 
 /** Header avatar tap: one member's day (or week) - weather, their events, chores, due items, birthdays. */
 export default function SnapshotSheet({ member, onClose }: { member: Member; onClose: () => void }) {
-  const { settings, refreshTick, selectedMemberId, setSelectedMemberId, focusMemberId } = useApp()
+  const { settings, refreshTick, selectedMemberId, setSelectedMemberId, focusMemberId, reloadCore, toast } = useApp()
   const tz = settings.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone
   const [range, setRange] = useState<Range>('day')
   const [snap, setSnap] = useState<Snapshot | null>(null)
@@ -52,6 +54,29 @@ export default function SnapshotSheet({ member, onClose }: { member: Member; onC
   }
   const shown = snap?.range === range ? snap : null // no flash of the other range's data
 
+  // Chores tick off right here, like on the Chores tab. An "Anyone" chore done from someone's day
+  // counts for them. The server refuses a chore whose checklist has open items (409): open the
+  // checklist instead, and complete the chore from there.
+  const [checklistFor, setChecklistFor] = useState<ChoreDay | null>(null)
+  const setDone = (id: string, done: boolean) => setSnap(s => s && { ...s, chores: s.chores.map(x => x.id === id ? { ...x, done } : x) })
+  const toggleChore = async (c: SnapshotChore) => {
+    setDone(c.id, !c.done)
+    try {
+      if (c.done) await api.uncompleteChore(c.id, c.date)
+      else await api.completeChore(c.id, c.date, member.id)
+      announce(c.done ? `${c.title} not done` : `${c.title} done, ${c.points} point${c.points === 1 ? '' : 's'}`)
+      reloadCore()
+    } catch (e) {
+      setDone(c.id, c.done)
+      if (e instanceof ApiError && e.status === 409) {
+        const day = await api.getChoresDay(c.date).catch(() => [] as ChoreDay[])
+        const full = day.find(x => x.id === c.id)
+        if (full?.checklist) { setChecklistFor(full); return }
+      }
+      toast(e instanceof ApiError ? e.message : 'Could not update chore', true)
+    }
+  }
+
   return (
     <Sheet title={range === 'day' ? `${member.name}'s day` : `${member.name}'s week`} onClose={onClose}>
       <div className="snap-hero">
@@ -65,12 +90,19 @@ export default function SnapshotSheet({ member, onClose }: { member: Member; onC
         options={[{ key: 'day', label: 'Day' }, { key: 'week', label: 'Week' }]} />
       {error && <p className="snap-empty" role="alert">{error}</p>}
       {!shown && !error && <p className="snap-empty">Loading…</p>}
-      {shown && (range === 'day' ? <DayView snap={shown} tz={tz} close={onClose} /> : <WeekView snap={shown} tz={tz} close={onClose} />)}
+      {shown && (range === 'day' ? <DayView snap={shown} tz={tz} close={onClose} onToggle={toggleChore} /> : <WeekView snap={shown} tz={tz} close={onClose} />)}
       {!focusMemberId && (
         <div className="toggle-row snap-filter">
           <label id={`snap-filter-${member.id}`}>Show only {member.name} on the calendar</label>
           <button className={`switch ${filtered ? 'on' : ''}`} role="switch" aria-checked={filtered} aria-labelledby={`snap-filter-${member.id}`} onClick={toggleFilter}><span className="knob" /></button>
         </div>
+      )}
+      {checklistFor?.checklist && (
+        <ChecklistSheet chore={checklistFor} onClose={() => setChecklistFor(null)}
+          onComplete={async () => {
+            const c = checklistFor; setChecklistFor(null)
+            await toggleChore({ id: c.id, title: c.title, emoji: c.emoji, points: c.points, dueTime: c.dueTime, date: today, done: false, shared: !c.memberId })
+          }} />
       )}
     </Sheet>
   )
@@ -116,15 +148,17 @@ function EventRow({ e, tz, close }: { e: SnapshotEvent; tz: string; close: () =>
   )
 }
 
-function ChoreRow({ c, close }: { c: SnapshotChore; close: () => void }) {
+function ChoreRow({ c, onToggle }: { c: SnapshotChore; onToggle: (c: SnapshotChore) => void }) {
   return (
     <li>
-      <button className={`snap-row ${c.done ? 'done' : ''}`} onClick={() => go('#/chores', close)}>
-        <span className="snap-time snap-emoji" aria-hidden="true">{c.done ? '✅' : c.emoji || '⭐'}</span>
-        <span className="snap-main">
-          <span className="snap-title">{c.done && <span className="sr-only">Done: </span>}{c.title}</span>
+      <button className={`snap-row snap-chore ${c.done ? 'done' : ''}`} role="checkbox" aria-checked={c.done} onClick={() => onToggle(c)}
+        aria-label={[c.title, c.shared && 'anyone', c.points > 0 && `${c.points} points`].filter(Boolean).join(', ')}>
+        <span className="snap-time snap-emoji" aria-hidden="true">{c.emoji || '⭐'}</span>
+        <span className="snap-main" aria-hidden="true">
+          <span className="snap-title">{c.title}</span>
           <span className="snap-meta">{[c.shared && 'Anyone', c.points > 0 && `${c.points} pts`].filter(Boolean).join(' · ')}</span>
         </span>
+        <span className={`chore-check ${c.done ? 'done' : ''}`} aria-hidden="true">{c.done && <CheckIcon width={18} height={18} />}</span>
       </button>
     </li>
   )
@@ -163,7 +197,7 @@ export function BirthdayRow({ b, you, close }: { b: SnapshotBirthday; you: strin
   return <li>{b.eventId ? <button className="snap-row" onClick={() => go(`#/calendar?event=${encodeURIComponent(b.eventId!)}&at=${b.date}`, close)}>{text}</button> : <div className="snap-row">{text}</div>}</li>
 }
 
-function DayView({ snap, tz, close }: { snap: Snapshot; tz: string; close: () => void }) {
+function DayView({ snap, tz, close, onToggle }: { snap: Snapshot; tz: string; close: () => void; onToggle: (c: SnapshotChore) => void }) {
   const today = snap.from
   const t = snap.tomorrow
   const tw = snap.weather?.days.find(d => d.date === t?.date)
@@ -185,7 +219,7 @@ function DayView({ snap, tz, close }: { snap: Snapshot; tz: string; close: () =>
       <Section title={snap.chores.length ? `Chores · ${openChores ? `${openChores} left` : 'all done 🎉'}` : 'Chores'}>
         {snap.chores.length === 0
           ? <p className="snap-empty">No chores today.</p>
-          : <ul className="snap-list">{snap.chores.map(c => <ChoreRow key={c.id} c={c} close={close} />)}</ul>}
+          : <ul className="snap-list">{snap.chores.map(c => <ChoreRow key={c.id} c={c} onToggle={onToggle} />)}</ul>}
       </Section>
       <Section title="To do">
         {snap.items.length === 0
