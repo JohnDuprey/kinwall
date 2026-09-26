@@ -6,7 +6,8 @@ export const ErrorSchema = z.object({ error: z.string() }).openapi('Error');
 
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 // The web app's color schemes (web/src/skins.ts), plus 'seasonal' (the scheme follows the date).
-export const COLOR_SCHEMES = ['meadow', 'autumn', 'winter', 'spring', 'summer', 'ocean', 'midnight', 'lavender', 'harvest', 'festive', 'seasonal'] as const;
+// 'meadow' is the default, shown as Peach; 'field' is the green one shown as Meadow.
+export const COLOR_SCHEMES = ['meadow', 'field', 'autumn', 'winter', 'spring', 'summer', 'ocean', 'midnight', 'lavender', 'harvest', 'festive', 'seasonal'] as const;
 const hex = () => z.string().regex(HEX_COLOR_RE, 'must be a hex color like #RRGGBB');
 // Household custom colors layered on the scheme. The accent lives in `accent` (its default means
 // "use the scheme's accent"), so only the surfaces are here.

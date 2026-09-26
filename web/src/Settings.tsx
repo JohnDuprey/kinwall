@@ -681,7 +681,7 @@ function ColorControls({ scheme, householdScheme, onScheme, household, device, s
   const groups: { label: string; chips: ReactNode[] }[] = [
     ...(householdScheme ? [{ label: 'Follow the family', chips: [chip(undefined, <>Household · {nameOf(householdScheme)}</>, 'Household')] }] : []),
     { label: 'Automatic', chips: [chip('seasonal', <><span aria-hidden="true">🗓️</span>Seasonal</>, 'Seasonal')] },
-    { label: 'Everyday', chips: ['meadow', 'ocean', 'lavender', 'midnight'].map(skinChip) },
+    { label: 'Everyday', chips: ['meadow', 'field', 'ocean', 'lavender', 'midnight'].map(skinChip) },
     { label: 'Seasons', chips: ['spring', 'summer', 'autumn', 'winter'].map(skinChip) },
     { label: 'Holidays', chips: ['harvest', 'festive'].map(skinChip) },
   ]

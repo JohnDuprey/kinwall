@@ -18,6 +18,9 @@ export const SKINS: Skin[] = [
   { id: 'meadow', name: 'Peach', emoji: '🍑', // the default look (shown as Peach; the id stays 'meadow' so stored choices keep working) - must stay byte-for-byte the pre-skin colors
     light: { bg: '#FFFBF5', bgAlt: '#FFF4E8', card: '#FFFFFF', border: '#F1E4D6', text: '#3A2E27', textDim: '#7A6B60', accent: '#FF9E7A' },
     dark: { bg: '#1C1712', bgAlt: '#241D17', card: '#2A221B', border: '#3A3028', text: '#F3EAE0', textDim: '#B3A395', accent: '#FF9E7A' } },
+  { id: 'field', name: 'Meadow', emoji: '🌿', // soft greens (id 'field': 'meadow' is Peach's id from before the rename)
+    light: { bg: '#F3F7EE', bgAlt: '#E8F0E0', card: '#FFFFFF', border: '#D5E2CA', text: '#1F2E1C', textDim: '#51634B', accent: '#4A8A3A' },
+    dark: { bg: '#111A11', bgAlt: '#172217', card: '#1C281B', border: '#2C3B2A', text: '#E6F0E1', textDim: '#A7BC9F', accent: '#6FB35C' } },
   { id: 'autumn', name: 'Autumn', emoji: '🍂',
     light: { bg: '#FDF3E7', bgAlt: '#F7E8D4', card: '#FFFFFF', border: '#EAD9BE', text: '#3B2A18', textDim: '#7A5C3E', accent: '#C2571C' },
     dark: { bg: '#211509', bgAlt: '#2B1C0E', card: '#32220F', border: '#4A3520', text: '#F5E6D3', textDim: '#C7A87E', accent: '#C2571C' } },

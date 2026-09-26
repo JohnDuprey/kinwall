@@ -17,7 +17,7 @@ Quiet hours are a separate card, right after Appearance. See [Quiet hours](quiet
 |---|---|---|
 | **Mode** | Light, Dark, Auto (follows the device's system setting), Scheduled | Light |
 | **Dark from / Dark to** (Scheduled) | Two times. The window can cross midnight. | 20:00 → 07:00 |
-| **Color scheme** | Seasonal, one of ten skins, or one of the family's own schemes. See [Color schemes](#color-schemes). | Peach |
+| **Color scheme** | Seasonal, one of eleven skins, or one of the family's own schemes. See [Color schemes](#color-schemes). | Peach |
 | **Text size** | Small, Medium, Large, Extra large | Medium |
 | **Density** | Comfortable, Compact (shorter hour rows in the time grid) | Comfortable |
 
@@ -44,11 +44,12 @@ Overrides are saved in the browser's local storage on that device. They're never
 
 A color scheme (a "skin") changes the whole palette: backgrounds, cards, text and accent. The household picks one for every device under **Appearance**. Any device can follow it or pick its own under **Appearance on this device**, so the kitchen wall can use Midnight while phones keep the family's scheme.
 
-**Color scheme** offers ten skins, each with its own light and dark palette:
+**Color scheme** offers eleven skins, each with its own light and dark palette:
 
 | Skin | Notes |
 |---|---|
 | 🍑 Peach | The default look: warm cream with a coral accent, and cocoa brown in dark mode. |
+| 🌿 Meadow | Soft greens, with a grass-green accent. |
 | 🍂 Autumn, ❄️ Winter, 🌸 Spring, ☀️ Summer | The four seasons. |
 | 🌊 Ocean, 💜 Lavender | |
 | 🌌 Midnight | A deep navy that looks the same in light and dark mode. |
