@@ -61,7 +61,6 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
     return () => { canceled = true }
   }, [onlineOn, dayKey, JSON.stringify(settings.tidbits)]) // eslint-disable-line react-hooks/exhaustive-deps
   const tidbit = tidbitFor(new Date(p.year, p.month - 1, p.day), Math.floor((p.hour * 60 + p.minute) / 30), settings.tidbits, onlineOn ? online : null)
-  const revealAnswer = p.minute % 30 >= 15 // trivia: the answer shows for the second half of its half hour
 
   if (!data) return error ? <div className="state-card">Couldn't load the board. Check your connection.</div> : null
   const byId = new Map(members.map(m => [m.id, m]))
@@ -168,15 +167,15 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
 
         <PhotoCard />
 
-        {tidbit && <TidbitCard key={tidbit.kind === 'trivia' ? tidbit.question : tidbit.text} tidbit={tidbit} reveal={revealAnswer} />}
+        {tidbit && <TidbitCard key={tidbit.kind === 'trivia' ? tidbit.question : tidbit.text} tidbit={tidbit} />}
       </div>
     </div>
   )
 }
 
-/** The quote / fact card. Trivia shows its question and choices; the answer appears when tapped or
- *  halfway through the half hour. Online tidbits credit their source. */
-function TidbitCard({ tidbit, reveal }: { tidbit: Tidbit; reveal: boolean }) {
+/** The quote / fact card. Trivia shows its question and choices; a tap shows the answer and
+ *  another hides it again. Online tidbits credit their source. */
+function TidbitCard({ tidbit }: { tidbit: Tidbit }) {
   const [shown, setShown] = useState(false) // resets with each tidbit: the parent keys the card by it
   const key = tidbit.kind === 'trivia' ? tidbit.question : tidbit.text
   const label = tidbit.kind === 'quote' ? 'Quote' : tidbit.kind === 'trivia' ? 'Trivia' : tidbit.kind === 'onthisday' ? 'On this day' : 'Did you know?'
@@ -192,11 +191,10 @@ function TidbitCard({ tidbit, reveal }: { tidbit: Tidbit; reveal: boolean }) {
         {tidbit.kind === 'trivia' && <>
           <p><span className="board-tidbit-tag">🧠 Trivia · {tidbit.category}</span> {tidbit.question}</p>
           <ul className="board-trivia-choices">
-            {tidbit.choices.map(c => <li key={c} className={(reveal || shown) && c === tidbit.answer ? 'correct' : ''}>{c}</li>)}
+            {tidbit.choices.map(c => <li key={c} className={shown && c === tidbit.answer ? 'correct' : ''}>{c}</li>)}
           </ul>
-          {reveal || shown
-            ? <p className="board-tidbit-source" role="status">Answer: {tidbit.answer} · From Open Trivia DB</p>
-            : <button className="btn btn-secondary" onClick={() => setShown(true)}>Show the answer</button>}
+          <p className="board-tidbit-source" role="status">{shown ? `Answer: ${tidbit.answer} · ` : ''}From Open Trivia DB</p>
+          <button className="btn btn-secondary" aria-pressed={shown} onClick={() => setShown(v => !v)}>{shown ? 'Hide the answer' : 'Show the answer'}</button>
         </>}
       </div>
     </section>

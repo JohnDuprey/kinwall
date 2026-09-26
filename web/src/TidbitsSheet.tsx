@@ -22,7 +22,7 @@ const SOURCES: { key: TidbitSource; sub: string }[] = [
   { key: 'quotes', sub: 'Built in: authors, scientists and storytellers.' },
   { key: 'facts', sub: 'Built in, for all ages.' },
   { key: 'onthisday', sub: 'From Wikipedia: today’s holidays, birthdays and history.' },
-  { key: 'trivia', sub: 'From Open Trivia DB, with the answer shown halfway through its half hour (or tap to see it).' },
+  { key: 'trivia', sub: 'From Open Trivia DB, multiple choice. Tap to show the answer, and again to hide it.' },
 ]
 
 export default function TidbitsSheet({ value, onClose, onSave }: { value: TidbitSettings; onClose: () => void; onSave: (t: TidbitSettings) => Promise<void> }) {
