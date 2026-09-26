@@ -1871,3 +1871,10 @@ button.snap-row:active { transform: scale(0.99); }
 
 /* Settings → Quotes & facts sheet: one block per source, its options under its switch. */
 .tidbit-source { display: grid; gap: 8px; padding: 12px 0; border-top: 1px solid var(--border); }
+
+/* Phone bottom bar overflow (App.tsx Nav): the screens past the fourth, as big rows. */
+.more-list { display: grid; gap: 8px; }
+.more-row { display: flex; align-items: center; gap: 14px; min-height: 56px; padding: 10px 16px; border-radius: var(--radius-sm); background: var(--bg-alt); color: var(--text); font-weight: 800; font-size: 1.0625rem; text-decoration: none; }
+.more-row svg { width: 26px; height: 26px; }
+.more-row.active { color: var(--accent-text); box-shadow: inset 3px 0 0 var(--accent-text); }
+button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: pointer; }

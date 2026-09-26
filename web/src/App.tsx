@@ -3,7 +3,7 @@ import { encode } from 'uqr'
 import { api, clearKey, getKey, setAdminKey, setKey, usePoll, useSaveState, ApiError, MOCK } from './api.ts'
 import { AppContext, useApp } from './AppContext.tsx'
 import type { Category, Member, Settings } from './types.ts'
-import { BrushIcon, CalendarIcon, ChevronRight, ChoreIcon, ListIcon, SettingsIcon } from './icons.tsx'
+import { MoreIcon, BrushIcon, CalendarIcon, ChevronRight, ChoreIcon, ListIcon, SettingsIcon } from './icons.tsx'
 import CalendarView from './Calendar.tsx'
 import Chores from './Chores.tsx'
 import Lists from './Lists.tsx'
@@ -48,13 +48,39 @@ function featureRedirect(s: Settings, section: string, sub: string | undefined):
   return null
 }
 
+/** A phone's bottom bar fits five tabs: past that, the first four plus More, which lists the rest. */
+const MAX_TABS = 5
+
 function Nav({ tab, mode, items }: { tab: string; mode: NavMode; items: ReturnType<typeof navItems> }) {
+  const [more, setMore] = useState(false)
   if (mode === 'bottom') {
+    const overflow = items.length > MAX_TABS
+    const shown = overflow ? items.slice(0, MAX_TABS - 1) : items
+    const rest = overflow ? items.slice(MAX_TABS - 1) : []
+    const inRest = rest.some(i => i.key === tab)
     return (
       <nav className="tab-bar" aria-label="Main">
-        {items.map(item => (
+        {shown.map(item => (
           <a key={item.key} href={item.href} className={`tab-btn ${tab === item.key ? 'active' : ''}`} aria-current={tab === item.key ? 'page' : undefined}><item.Icon /> {item.label}</a>
         ))}
+        {overflow && (
+          <button className={`tab-btn ${inRest ? 'active' : ''}`} aria-haspopup="dialog" aria-expanded={more} onClick={() => setMore(true)}
+            aria-label={inRest ? `More, showing ${rest.find(i => i.key === tab)!.label}` : 'More'}>
+            <MoreIcon /> More
+          </button>
+        )}
+        {more && (
+          <Sheet title="More" onClose={() => setMore(false)}>
+            <div className="more-list">
+              {rest.map(item => (
+                <a key={item.key} href={item.href} className={`more-row ${tab === item.key ? 'active' : ''}`} aria-current={tab === item.key ? 'page' : undefined}
+                  onClick={() => setMore(false)}>
+                  <item.Icon /> <span>{item.label}</span>
+                </a>
+              ))}
+            </div>
+          </Sheet>
+        )}
       </nav>
     )
   }
