@@ -28,7 +28,7 @@ Every device opens on **Board**; the view switcher runs Board, Day, Week (3 Day 
 
 ![Board view in dark mode](../screenshots/ipad-board-dark.png)
 
-The board carries its own large clock and date, so while it's showing the header keeps only the family name, avatars and buttons.
+The board carries its own large clock and date, so while it's showing the wall's header keeps only the family name, avatars and buttons. On a phone the header is always one row: the family button (name and a pile of faces, which opens the family sheet), the bell and Help, with the Now / Next line beneath it on every view.
 
 **Board** turns the calendar into a bulletin board to read from across the room. It always shows today onward, so it has no ◀ ▶ or swipe paging. Its cards:
 

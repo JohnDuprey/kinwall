@@ -30,7 +30,7 @@ const timed = (evs: EventInstance[]) => evs.filter(e => !e.allDay)
 
 /** "Now: Soccer Practice · ends in 42 min" / "Next: Piano at 5:00 PM · in 1 h 10 min · leave by 4:40 PM".
  * `events` = today's timed + all-day instances; hidden when nothing is on or left today. */
-export function NowNextCard({ events, tz }: { events: EventInstance[]; tz: string }) {
+export function NowNextCard({ events, tz, placeholder }: { events: EventInstance[]; tz: string; placeholder?: boolean }) {
   const now = useNow(30000)
   const list = timed(events)
   const current = list.filter(e => Date.parse(e.start) <= now && now < Date.parse(e.end)).sort((a, b) => a.end.localeCompare(b.end))[0]
@@ -47,7 +47,9 @@ export function NowNextCard({ events, tz }: { events: EventInstance[]; tz: strin
     if (msg !== lastSaid.current) { lastSaid.current = msg; announce(msg) }
   }, [target?.what, mins]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!current && !next) return null
+  // On phones the card is a fixed slot (`placeholder`), so the header never shifts as the day
+  // empties out; the wall keeps hiding it when there's nothing to say.
+  if (!current && !next) return placeholder ? <section className="now-next empty" aria-label="Now and next">Nothing more today</section> : null
   return (
     <section className="now-next" aria-label="Now and next">
       {current && (
@@ -61,8 +63,8 @@ export function NowNextCard({ events, tz }: { events: EventInstance[]; tz: strin
         <div className="now-next-row">
           <span className="now-next-tag next">Next</span>
           <span className="now-next-title">{next.title}</span>
-          <span className="now-next-meta">at {formatTime(next.start, tz)} · in {durationLabel(Date.parse(next.start) - now)}</span>
-          {next.leaveAt && <span className="now-next-meta">· 🚗 leave by {formatTime(next.leaveAt, tz)}</span>}
+          <span className="now-next-meta"><span className="nn-long">at </span>{formatTime(next.start, tz)} · <span className="nn-long">in </span>{durationLabel(Date.parse(next.start) - now)}</span>
+          {next.leaveAt && <span className="now-next-meta">· 🚗 <span className="nn-long">leave by </span>{formatTime(next.leaveAt, tz)}</span>}
         </div>
       )}
     </section>

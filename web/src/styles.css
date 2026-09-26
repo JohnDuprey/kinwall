@@ -1061,12 +1061,31 @@ button {
     min-height: 0;
     padding: calc(var(--safe-t) + 10px) 14px 4px;
   }
+  .family-btn {
+    display: flex; align-items: center; gap: 8px; min-width: 0; flex: 0 1 auto; min-height: 44px;
+    padding: 4px 12px 4px 4px; border: none; border-radius: 999px; background: var(--card); box-shadow: var(--shadow); color: var(--text);
+  }
+  .family-btn:active { transform: scale(0.97); }
+  .family-pile { display: flex; align-items: center; flex-shrink: 0; }
+  .family-pile .member-avatar-sm { width: 32px; height: 32px; font-size: 1rem; border: 2px solid var(--card); }
+  .family-pile .member-avatar-sm + .member-avatar-sm { margin-left: -10px; }
+  .family-pile .member-avatar-sm.selected { border-color: var(--text); z-index: 1; }
+  .family-more { background: var(--bg-alt); color: var(--text-dim); font-size: 0.6875rem; font-weight: 900; }
   .family-name-sm {
     font-size: 0.75rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.02em;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 1 auto;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
   }
-  .header-phone .member-filter-row { gap: 4px; padding: 0; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
-  .header-phone .member-avatar { width: 30px; height: 30px; font-size: 0.8125rem; border-width: 2px; box-shadow: none; }
+  .family-list { display: flex; flex-direction: column; }
+  .family-row {
+    display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 12px; align-items: center; text-align: left;
+    padding: 10px 2px; min-height: 56px; border: none; border-top: 1px solid var(--border); background: none; color: var(--text);
+  }
+  .family-row:first-child { border-top: none; }
+  .family-row .member-avatar-sm { grid-row: 1 / span 2; width: 40px; height: 40px; font-size: 1.25rem; }
+  .family-row .member-avatar-sm.selected { box-shadow: 0 0 0 2px var(--text); }
+  .family-everyone { background: var(--bg-alt); }
+  .family-row-name { font-weight: 800; font-size: 1rem; }
+  .family-row-sub { font-size: 0.8125rem; font-weight: 700; color: var(--text-dim); }
 
   /* ---------- Calendar toolbar ---------- */
   .calendar-toolbar { padding: 6px 14px 4px; gap: 6px; }
@@ -1313,9 +1332,15 @@ button.toast { border: none; font-family: inherit; cursor: pointer; } /* errors:
 /* Phones: a quiet ticker under the header, not a third card that reads like another schedule row. */
 @media (max-width: 600px) {
   .now-next { margin: 0 12px 4px; padding: 4px 4px 8px; background: none; box-shadow: none; border-radius: 0; border-bottom: 1px solid var(--border); gap: 2px; }
-  .now-next-row { font-size: 0.8125rem; color: var(--text-dim); }
-  .now-next-title { color: var(--text); }
-  .now-next-meta { font-weight: 600; }
+  /* A fixed two-line slot: the rows never wrap ("at"/"in"/"leave by" drop, titles ellipsize), and
+     an empty day shows "Nothing more today" instead of collapsing, so the switcher never moves. */
+  .now-next { min-height: calc(2 * 1.3 * 0.8125rem + 2px + 12px); justify-content: center; }
+  .now-next.empty { font-size: 0.8125rem; font-weight: 700; color: var(--text-dim); padding-left: 8px; }
+  .now-next-row { font-size: 0.8125rem; color: var(--text-dim); flex-wrap: nowrap; white-space: nowrap; overflow: hidden; }
+  .now-next-title { color: var(--text); overflow: hidden; text-overflow: ellipsis; min-width: 3ch; }
+  .now-next-meta { font-weight: 600; flex-shrink: 0; }
+  .now-next-tag { flex-shrink: 0; }
+  .nn-long { display: none; }
 }
 
 .leave-by { font-size: 0.8125rem; font-weight: 700; color: var(--text-dim); }

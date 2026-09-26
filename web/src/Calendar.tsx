@@ -327,7 +327,7 @@ export default function CalendarView() {
 
   return (
     <div className="content">
-      {showNowNext && !(isPhone && viewMode === 'board') && <NowNextCard events={todayEvents} tz={tz} />}
+      {showNowNext && <NowNextCard events={todayEvents} tz={tz} placeholder={isPhone} />}
       {!!device.warnings?.length && <TransitionWarnings events={todayEvents} minutes={device.warnings} sound={!!device.warningSound} settings={settings} />}
       {(!device.lockView || viewMode !== 'board' || categories.length > 0) && <div className="calendar-toolbar">
         {!device.lockView && (

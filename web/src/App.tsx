@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { encode } from 'uqr'
 import { api, clearKey, getKey, setAdminKey, setKey, usePoll, useSaveState, ApiError, MOCK } from './api.ts'
-import { AppContext } from './AppContext.tsx'
+import { AppContext, useApp } from './AppContext.tsx'
 import type { Category, Member, Settings } from './types.ts'
 import { BrushIcon, CalendarIcon, ChoreIcon, ListIcon, SettingsIcon } from './icons.tsx'
 import CalendarView from './Calendar.tsx'
@@ -22,6 +22,7 @@ import NotificationBell from './Notifications.tsx'
 import { HelpButton } from './Help.tsx'
 import Slideshow, { SAVER_PREVIEW_EVENT } from './Screensaver.tsx'
 import SnapshotSheet from './Snapshot.tsx'
+import Sheet from './Sheet.tsx'
 
 const NAV_ITEMS = [
   { key: 'calendar', href: '#/calendar', label: 'Calendar', Icon: CalendarIcon },
@@ -588,6 +589,57 @@ function MemberAvatars({ members, selectedMemberId }: { members: Member[]; selec
   )
 }
 
+/** Phone header: the family name and a pile of faces as one button. It opens a sheet listing
+ * everyone (tap a person for their snapshot), so the header is the same size for a family of
+ * three or nine and the name is never squeezed out by the avatars. */
+function FamilyButton({ name, members, selectedMemberId }: { name: string; members: Member[]; selectedMemberId: string | null }) {
+  const { setSelectedMemberId } = useApp()
+  const [open, setOpen] = useState(false)
+  const [snap, setSnap] = useState<Member | null>(null)
+  useEffect(() => {
+    const close = () => { setOpen(false); setSnap(null) }
+    window.addEventListener(IDLE_RESET_EVENT, close)
+    return () => window.removeEventListener(IDLE_RESET_EVENT, close)
+  }, [])
+  const selected = members.find(m => m.id === selectedMemberId)
+  // The filtered person always shows in the pile, then the others in order, three faces at most.
+  const shown = [...(selected ? [selected] : []), ...members.filter(m => m.id !== selectedMemberId)].slice(0, 3)
+  const more = members.length - shown.length
+  return (
+    <>
+      <button className="family-btn" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}
+        aria-label={`${name}: ${members.length} people${selected ? `, calendar shows only ${selected.name}` : ''}`}>
+        <span className="family-pile" aria-hidden="true">
+          {shown.map(m => <span key={m.id} className={`member-avatar-sm ${m.id === selectedMemberId ? 'selected' : ''}`} style={{ background: m.color, color: inkFor(m.color) }}>{m.avatar || m.name[0]}</span>)}
+          {more > 0 && <span className="member-avatar-sm family-more">+{more}</span>}
+        </span>
+        <span className="family-name-sm">{name}</span>
+      </button>
+      {open && (
+        <Sheet title={name} onClose={() => setOpen(false)}>
+          <div className="family-list">
+            {selected && (
+              <button className="family-row" onClick={() => { setSelectedMemberId(null); setOpen(false) }}>
+                <span className="member-avatar-sm family-everyone" aria-hidden="true">👪</span>
+                <span className="family-row-name">Everyone</span>
+                <span className="family-row-sub">Show the whole family again</span>
+              </button>
+            )}
+            {members.map(m => (
+              <button key={m.id} className="family-row" aria-haspopup="dialog" onClick={() => { setOpen(false); setSnap(m) }}>
+                <span className={`member-avatar-sm ${m.id === selectedMemberId ? 'selected' : ''}`} style={{ background: m.color, color: inkFor(m.color) }} aria-hidden="true">{m.avatar || m.name[0]}</span>
+                <span className="family-row-name">{m.name}</span>
+                <span className="family-row-sub">{m.id === selectedMemberId ? 'Calendar shows only them' : `${m.pointsToday} pts today`}</span>
+              </button>
+            ))}
+          </div>
+        </Sheet>
+      )}
+      {snap && <SnapshotSheet member={members.find(m => m.id === snap.id) ?? snap} onClose={() => setSnap(null)} />}
+    </>
+  )
+}
+
 function Header({ settings, members, selectedMemberId, isAdmin }: {
   settings: Settings
   members: Member[]
@@ -608,8 +660,7 @@ function Header({ settings, members, selectedMemberId, isAdmin }: {
   if (isPhone) {
     return (
       <header className="header header-phone">
-        <span className="family-name-sm">{settings.familyName || 'Our Family'}</span>
-        <MemberAvatars members={members} selectedMemberId={selectedMemberId} />
+        <FamilyButton name={settings.familyName || 'Our Family'} members={members} selectedMemberId={selectedMemberId} />
         <div className="header-right">
           <NotificationBell isAdmin={isAdmin} />
           <HelpButton />
