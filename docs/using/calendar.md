@@ -17,7 +17,7 @@ Use the segmented control at the top to switch views.
 | **Schedule** | An agenda of the next 30 days, grouped by day. Location lines link to maps. | ±30 days |
 | **Board** | A family bulletin board for today and the week ahead. See [Board view](#board-view). | None: always today onward |
 
-Phones open on **Schedule**. The wall display opens on **Week**. You can switch views any time.
+Every device opens on **Board**; the view switcher lists Board first. You can switch views any time, and a display can be locked to any view (Settings → This display).
 
 <p>
   <img src="../screenshots/phone-3day.png" width="32%" alt="3 Day view on a phone" />
@@ -25,6 +25,8 @@ Phones open on **Schedule**. The wall display opens on **Week**. You can switch 
 </p>
 
 ## Board view
+
+The board carries its own large clock and date, so while it's showing the header keeps only the family name, avatars and buttons.
 
 **Board** turns the calendar into a bulletin board to read from across the room. It always shows today onward, so it has no ◀ ▶ or swipe paging. Its cards:
 

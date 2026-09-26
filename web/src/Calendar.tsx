@@ -114,8 +114,10 @@ export default function CalendarView() {
   // Phones default to the agenda view (a 7-day grid is unreadable that narrow); the wall iPad
   // keeps Week. Only the initial default differs — switching views afterward still works either way.
   // A device can lock the view (This display → Lock view): the switcher goes and it never changes.
-  const [chosenView, setViewMode] = useState<ViewMode>(() => (isPhone ? 'schedule' : 'week'))
+  const [chosenView, setViewMode] = useState<ViewMode>('board') // the board is the default everywhere; a display can still lock any view
   const viewMode: ViewMode = device.lockView ?? chosenView
+  // The board carries its own big clock, so the header drops its clock while it's showing.
+  useEffect(() => { document.documentElement.dataset.view = viewMode; return () => { delete document.documentElement.dataset.view } }, [viewMode])
   const [anchor, setAnchor] = useState(() => new Date())
   const [events, setEvents] = useState<EventInstance[]>([])
   const [calendars, setCalendars] = useState<CalendarEntry[]>([])
@@ -330,7 +332,7 @@ export default function CalendarView() {
       {(!device.lockView || viewMode !== 'board' || categories.length > 0) && <div className="calendar-toolbar">
         {!device.lockView && (
           <Segmented tabs idBase="calview" label="Calendar view" value={viewMode} onChange={setViewMode}
-            options={(['week', 'day', 'month', 'schedule', 'board'] as ViewMode[]).map(v => ({ key: v, label: viewLabel(v, isPhone) }))} />
+            options={(['board', 'week', 'day', 'month', 'schedule'] as ViewMode[]).map(v => ({ key: v, label: viewLabel(v, isPhone) }))} />
         )}
         <div className="toolbar-nav">
           {/* The board always shows today onward: no paging. */}

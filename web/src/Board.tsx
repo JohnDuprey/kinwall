@@ -64,8 +64,10 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
     <div className="board-scroll">
       <div className="board">
         {/* The header already shows the clock and date, so this card is the forecast alone. */}
-        <section className="board-card board-clock" aria-label="Weather">
-          <h3 className="board-card-title">Weather{w ? <span className="snap-dim"> · {w.location}</span> : ''}</h3>
+        <section className="board-card board-clock" aria-label="Time and weather">
+          <div className="board-time">{new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', timeZone: tz }).format(now)}</div>
+          <div className="board-date">{new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric', timeZone: tz }).format(now)}</div>
+          {w && <div className="board-wx-where snap-dim">{w.location}</div>}
           {w ? (
             <div className="board-weather" role="group" aria-label={`Weather in ${w.location}`}>
               <div className="board-weather-now">

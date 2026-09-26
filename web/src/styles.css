@@ -1681,7 +1681,7 @@ button.snap-row:active { transform: scale(0.99); }
 @container board (min-width: 880px) {
   .board {
     height: 100%; grid-template-columns: repeat(3, minmax(0, 1fr));
-    grid-template-rows: minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.15fr); /* 1024x768 fits without scrolling; weather and tidbit scroll inside if they must */
+    grid-template-rows: minmax(0, 1.75fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.05fr); /* 1024x768 fits without scrolling; weather and tidbit scroll inside if they must */
     grid-template-areas: "clock today coming" "photo today coming" "photo chores due" "tidbit chores due";
   }
   .board-tidbit blockquote p, .board-tidbit-body > p { font-size: 0.875rem; }
@@ -1689,6 +1689,12 @@ button.snap-row:active { transform: scale(0.99); }
   .board-clock .board-card-title { font-size: 0.9375rem; margin-bottom: 2px; }
 }
 
+.board-time { font-size: min(3.25rem, 17cqi); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.board-date { margin-top: 2px; font-weight: 800; color: var(--text-dim); font-size: 0.9375rem; }
+.board-wx-where { margin-top: 8px; font-size: 0.8125rem; font-weight: 700; }
+/* On the board the header hands the clock over to the big card */
+:root[data-view="board"] .header .clock-row, :root[data-view="board"] .header-phone .clock-sm, :root[data-view="board"] .header-phone .date-text-sm { display: none; }
+:root[data-view="board"] .header .family-name { font-size: 1.5rem; }
 .board-wx-big { font-size: 1.75rem; line-height: 1; margin-right: 6px; vertical-align: middle; }
 .board-wx-temp { font-size: 1.5rem; }
 .board-weather { margin-top: 4px; display: flex; flex-direction: column; gap: 4px; font-weight: 700; }
@@ -1698,7 +1704,7 @@ button.snap-row:active { transform: scale(0.99); }
 @container board-clock (max-width: 300px) { .board-wx-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); } } /* too narrow: screen readers only */
 .board-wx-emoji { font-size: 1.25rem; line-height: 1; margin-right: 4px; }
 .board-forecast { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
-.board-forecast li { display: flex; flex-wrap: nowrap; align-items: center; justify-content: center; gap: 0 4px; padding: 3px 4px; border-radius: 10px; background: var(--bg-alt); font-size: 0.75rem; white-space: nowrap; overflow: hidden; }
+.board-forecast li { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 4px 2px; border-radius: 10px; background: var(--bg-alt); font-size: 0.75rem; line-height: 1.15; text-align: center; }
 .board-forecast li .board-wx-emoji { font-size: 1rem; margin: 0; }
 .board-forecast-day { font-size: 0.75rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; }
 
