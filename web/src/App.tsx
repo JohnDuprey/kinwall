@@ -744,6 +744,8 @@ function Header({ settings, members, selectedMemberId, isAdmin }: {
     <header className="header">
       <div className="header-left">
         <div className="family-name">{settings.familyName || 'Our Family'}</div>
+        {/* Board view only (CSS): the name, big, over the space the hidden clock row keeps. */}
+        <div className="family-name-big" aria-hidden="true"><span>{settings.familyName || 'Our Family'}</span></div>
         <div className="clock-row">
           <div className="clock">{timeStr}</div>
           <div className="date-text">{dateStr}</div>

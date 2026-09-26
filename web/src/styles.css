@@ -1795,6 +1795,21 @@ button.snap-row:active { transform: scale(0.99); }
 .board-wx-where { margin-top: 8px; font-size: 0.8125rem; font-weight: 700; }
 /* On the board the header hands the clock over to the big card */
 :root[data-view="board"] .header .clock-row { visibility: hidden; } /* keeps the header the same size on every view, so nothing jumps when switching */
+/* The Board has its own big clock, so the family name takes the header clock's place: a copy laid
+   over the (hidden) name + clock rows, as big as they are tall, no wider than the header allows.
+   The rows keep their space, so the header is the same height on every view. */
+.family-name-big { display: none; }
+:root[data-view="board"] .header .header-left { position: relative; flex: 1; }
+:root[data-view="board"] .header .family-name { visibility: hidden; }
+:root[data-view="board"] .header .family-name-big {
+  position: absolute; inset: 0; display: flex; align-items: center; overflow: hidden; container-type: size;
+}
+/* Width caps one line; height caps two (2 × 1.1 line-height ≤ the header's height). */
+:root[data-view="board"] .header .family-name-big > span {
+  font-size: min(calc(1.25 * var(--header-clock) * var(--text-scale)), 8cqi, 45cqh); line-height: 1.1; font-weight: 800;
+  letter-spacing: 0.02em; text-transform: uppercase; color: var(--text);
+  overflow-wrap: anywhere; text-wrap: balance;
+}
 .board-wx-big { font-size: 1.75rem; line-height: 1; margin-right: 6px; vertical-align: middle; }
 .board-wx-temp { font-size: 1.5rem; }
 .board-weather { margin-top: 4px; display: flex; flex-direction: column; gap: 4px; font-weight: 700; }
