@@ -49,8 +49,6 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
     return () => { cancelled = true }
   }, [refreshTick, tick])
 
-  const time = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', timeZone: tz }).format(now)
-  const date = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric', timeZone: tz }).format(now)
   const p = zonedParts(now.toISOString(), tz)
   const tidbit = tidbitFor(new Date(p.year, p.month - 1, p.day), Math.floor((p.hour * 60 + p.minute) / 30))
 
@@ -65,17 +63,17 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
   return (
     <div className="board-scroll">
       <div className="board">
-        <section className="board-card board-clock" aria-label="Time and weather">
-          <div className="board-time">{time}</div>
-          <div className="board-date">{date}</div>
-          {w && (
+        {/* The header already shows the clock and date, so this card is the forecast alone. */}
+        <section className="board-card board-clock" aria-label="Weather">
+          <h3 className="board-card-title">Weather{w ? <span className="snap-dim"> · {w.location}</span> : ''}</h3>
+          {w ? (
             <div className="board-weather" role="group" aria-label={`Weather in ${w.location}`}>
               <div className="board-weather-now">
-                {w.now && <><span className="board-wx-emoji" aria-hidden="true">{w.now.emoji}</span><strong>{w.now.temp}°</strong> <span className="board-wx-text">{w.now.text}</span></>}
+                {w.now && <><span className="board-wx-emoji board-wx-big" aria-hidden="true">{w.now.emoji}</span><strong className="board-wx-temp">{w.now.temp}°</strong> <span className="board-wx-text">{w.now.text}</span></>}
                 {wToday && <span className="snap-dim"> · <span className="sr-only">high </span>{wToday.high}° / <span className="sr-only">low </span>{wToday.low}°{wToday.rainChance ? ` · 💧${wToday.rainChance}%` : ''}</span>}
               </div>
               <ul className="board-forecast">
-                {w.days.filter(d => d.date > today).slice(0, 3).map(d => (
+                {w.days.filter(d => d.date > today).slice(0, 4).map(d => (
                   <li key={d.date}>
                     <span className="board-forecast-day">{dayName(d.date, { weekday: 'short' })}</span>
                     <span className="board-wx-emoji" aria-hidden="true">{d.emoji}</span>
@@ -85,7 +83,7 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
                 ))}
               </ul>
             </div>
-          )}
+          ) : <p className="snap-empty">No forecast — set the family's location in Settings → General.</p>}
         </section>
 
         <Card title="Today" area="today">

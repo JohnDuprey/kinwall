@@ -1638,13 +1638,13 @@ button.snap-row:active { transform: scale(0.99); }
 }
 .board-card > .snap-heading { flex-shrink: 0; }
 .board-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; }
-.board-clock { grid-area: clock; container: board-clock / inline-size; min-height: auto; }
+.board-clock { grid-area: clock; container: board-clock / inline-size; min-height: auto; overflow-y: auto; }
 .board-today { grid-area: today; }
 .board-coming { grid-area: coming; }
 .board-due { grid-area: due; }
 .board-chores { grid-area: chores; }
 .board-photo { grid-area: photo; }
-.board-tidbit { grid-area: tidbit; min-height: auto; }
+.board-tidbit { grid-area: tidbit; min-height: auto; overflow-y: auto; }
 
 @container board (min-width: 620px) {
   .board { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: "clock photo" "today coming" "due chores" "tidbit tidbit"; }
@@ -1652,22 +1652,24 @@ button.snap-row:active { transform: scale(0.99); }
 @container board (min-width: 880px) {
   .board {
     height: 100%; grid-template-columns: repeat(3, minmax(0, 1fr));
-    grid-template-rows: auto minmax(32px, 1fr) minmax(32px, 1fr) auto; /* 1024x768 fits without scrolling */
+    grid-template-rows: minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.15fr); /* 1024x768 fits without scrolling; weather and tidbit scroll inside if they must */
     grid-template-areas: "clock today coming" "photo today coming" "photo chores due" "tidbit chores due";
   }
-  .board-tidbit blockquote p, .board-tidbit-body > p { font-size: 0.9375rem; }
+  .board-tidbit blockquote p, .board-tidbit-body > p { font-size: 0.875rem; }
+  .board-clock, .board-tidbit { padding: 8px 12px; }
+  .board-clock .board-card-title { font-size: 0.9375rem; margin-bottom: 2px; }
 }
 
-.board-time { font-size: min(4rem, 19cqi); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
-.board-date { margin-top: 4px; font-weight: 800; color: var(--text-dim); font-size: 1.0625rem; }
-.board-weather { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; font-weight: 700; }
+.board-wx-big { font-size: 1.75rem; line-height: 1; margin-right: 6px; vertical-align: middle; }
+.board-wx-temp { font-size: 1.5rem; }
+.board-weather { margin-top: 4px; display: flex; flex-direction: column; gap: 4px; font-weight: 700; }
 .board-weather-now { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .board-weather-now strong { font-size: 1.25rem; }
 .board-wx-text { color: var(--text-dim); font-weight: 600; }
 @container board-clock (max-width: 300px) { .board-wx-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); } } /* too narrow: screen readers only */
 .board-wx-emoji { font-size: 1.25rem; line-height: 1; margin-right: 4px; }
-.board-forecast { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
-.board-forecast li { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0 4px; padding: 4px; border-radius: 10px; background: var(--bg-alt); font-size: 0.8125rem; }
+.board-forecast { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.board-forecast li { display: flex; flex-wrap: nowrap; align-items: center; justify-content: center; gap: 0 4px; padding: 3px 4px; border-radius: 10px; background: var(--bg-alt); font-size: 0.75rem; white-space: nowrap; overflow: hidden; }
 .board-forecast li .board-wx-emoji { font-size: 1rem; margin: 0; }
 .board-forecast-day { font-size: 0.75rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; }
 
