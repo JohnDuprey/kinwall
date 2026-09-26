@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Appearance, ColorScheme, CustomColors, DeviceDensity, Settings, TextScale } from './types.ts'
 import { accentFill, readableOn } from './color.ts'
 import { api, getKey } from './api.ts'
-import { DEFAULT_SKIN_ID, findSkin, seasonalSkinId, tokensFor } from './skins.ts'
+import { findSkin, seasonalSkinId, tokensFor } from './skins.ts'
 
 const SCALE: Record<TextScale, string> = { s: '0.9', m: '1', l: '1.15', xl: '1.3' }
 
@@ -141,15 +141,15 @@ function applyAppearance(household: Appearance, device: DeviceAppearance) {
     else dark = inTimeWindow(a.darkFrom, a.darkTo)
 
     root.setAttribute('data-theme', dark ? 'dark' : 'light')
-    root.setAttribute('data-bg', dark ? a.backgroundDark : a.backgroundLight)
+    root.removeAttribute('data-bg') // old background presets: replaced by color schemes (see Settings' earlier-version note)
     root.setAttribute('data-density', a.density)
 
     // Color scheme (skins.ts) and custom colors, household or this device's (resolveColors).
-    // Meadow is styles.css's own palette, so it sets no tokens and the legacy household background
-    // presets above still apply under it. Custom surfaces are skipped in low-stim mode, which
-    // wants a calm, pre-vetted palette; a custom accent still applies.
+    // Every scheme sets its tokens, Peach (the default) included, so a screen always looks like its chip. Custom
+    // surfaces are skipped in low-stim mode, which wants a calm, pre-vetted palette; a custom
+    // accent still applies.
     const { skin, custom: picked } = resolveColors(household, device)
-    const t = skin.id !== DEFAULT_SKIN_ID ? tokensFor(skin, dark) : null
+    const t = tokensFor(skin, dark)
     const custom = a.lowStim ? { accent: picked.accent } : picked
     const setOrClear = (prop: string, val?: string) => { if (val) root.style.setProperty(prop, val); else root.style.removeProperty(prop) }
     setOrClear('--bg', custom.bg || t?.bg)

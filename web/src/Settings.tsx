@@ -14,7 +14,7 @@ import { CustomColorSwatch } from './ColorSwatch.tsx'
 import { useIsPhone } from './useIsPhone.ts'
 import { useNavMode, setNavPref, type NavPref } from './useNavMode.ts'
 import { DEFAULT_ACCENT, resolveColors, setDeviceAppearance, useDeviceAppearance, type DeviceAppearance, type FontChoice, type LockedView, type SaverSource } from './useTheme.ts'
-import { baseFromPalette, findSkin, getSkin, paletteChecks, paletteOf, seasonalSkinId, SKINS, tokensFor, type CustomScheme, type Palette } from './skins.ts'
+import { baseFromPalette, findSkin, getSkin, OLD_BACKGROUNDS, paletteChecks, paletteOf, seasonalSkinId, tokensFor, type CustomScheme, type Palette } from './skins.ts'
 import { SAVER_PREVIEW_EVENT } from './Screensaver.tsx'
 import { countDrawings } from './drawings-db.ts'
 import { passkeysSupported, registerPasskey } from './webauthn.ts'
@@ -321,8 +321,9 @@ function AppearanceSection({ settings, onSaved, toast }: { settings: Settings; o
         onScheme={id => { if (id) save({ colorScheme: id }) }}
         household={settings} device={{}} saveSettings={save}
         legacy={{ ...(settings.customColors ?? {}), ...(settings.accent.toUpperCase() !== DEFAULT_ACCENT ? { accent: settings.accent } : {}) }}
-        legacyClear={{ customColors: null, accent: DEFAULT_ACCENT }}
-        resetLabel="Reset to Meadow"
+        legacyBackgrounds={{ light: settings.backgroundLight, dark: settings.backgroundDark }}
+        legacyClear={{ customColors: null, accent: DEFAULT_ACCENT, backgroundLight: 'warm', backgroundDark: 'cocoa' }}
+        resetLabel="Reset to Peach"
         onReset={() => save({ colorScheme: 'meadow', customColors: null, accent: DEFAULT_ACCENT, backgroundLight: 'warm', backgroundDark: 'cocoa' })}
       />
       <div className="settings-row">
@@ -646,13 +647,14 @@ const newSchemeId = () => `custom-${Math.random().toString(36).slice(2, 10)}` as
  * household and for one device, plus Customize / Edit, which open the scheme editor sheet. On a
  * device, `scheme` undefined means "follow the household" and the first chip says so. Saved
  * schemes belong to the household, so a device's editor saves through `saveSettings` too. */
-function ColorControls({ scheme, householdScheme, onScheme, household, device, saveSettings, legacy, legacyClear, onClearLegacy, resetLabel, onReset }: {
+function ColorControls({ scheme, householdScheme, onScheme, household, device, saveSettings, legacy, legacyBackgrounds, legacyClear, onClearLegacy, resetLabel, onReset }: {
   scheme: ColorScheme | undefined
   householdScheme?: ColorScheme // set on a device: shows the Household chip
   onScheme: (id: ColorScheme | undefined) => void
   household: Settings; device: DeviceAppearance
   saveSettings: (patch: Partial<Settings>) => Promise<void>
   legacy: CustomColors // loose custom colors from before saved schemes, at this level
+  legacyBackgrounds?: { light: string; dark: string } // household: the old background presets
   legacyClear?: Partial<Settings> // household: the patch that clears them
   onClearLegacy?: () => void // device: clears them locally
   resetLabel: string; onReset: () => void
@@ -665,20 +667,31 @@ function ColorControls({ scheme, householdScheme, onScheme, household, device, s
   const dotsFor = (id: ColorScheme) => { const k = tokensFor(id === 'seasonal' ? getSkin(seasonalSkinId()) : findSkin(id, customs), dark); return [k.bg, k.card, k.accent] }
   const chip = (id: ColorScheme | undefined, label: ReactNode, ariaName: string) => {
     const active = scheme === id
-    const dots = dotsFor(id ?? householdScheme ?? 'meadow')
+    const [bg, , accent] = dotsFor(id ?? householdScheme ?? 'meadow')
     return (
-      <button key={id ?? 'household'} className={`chip ${active ? 'active' : ''}`} aria-pressed={active}
-        style={{ '--chip-color': dots[2] } as CSSProperties}
+      <button key={id ?? 'household'} className={`chip scheme-chip ${active ? 'active' : ''}`} aria-pressed={active}
+        style={{ '--chip-color': accent } as CSSProperties}
         onClick={() => { onScheme(id); announce(`${ariaName} color scheme`) }}>
-        <span className="skin-dots" aria-hidden="true">{dots.map((c, i) => <span key={i} style={{ background: c }} />)}</span>
+        <span className="scheme-swatch" aria-hidden="true" style={{ background: `linear-gradient(135deg, ${bg} 50%, ${accent} 50%)` }} />
         {label}
       </button>
     )
   }
+  const skinChip = (id: string) => { const k = getSkin(id); return chip(k.id as ColorScheme, <><span aria-hidden="true">{k.emoji}</span>{k.name}</>, k.name) }
+  const groups: { label: string; chips: ReactNode[] }[] = [
+    ...(householdScheme ? [{ label: 'Follow the family', chips: [chip(undefined, <>Household · {nameOf(householdScheme)}</>, 'Household')] }] : []),
+    { label: 'Automatic', chips: [chip('seasonal', <><span aria-hidden="true">🗓️</span>Seasonal</>, 'Seasonal')] },
+    { label: 'Everyday', chips: ['meadow', 'ocean', 'lavender', 'midnight'].map(skinChip) },
+    { label: 'Seasons', chips: ['spring', 'summer', 'autumn', 'winter'].map(skinChip) },
+    { label: 'Holidays', chips: ['harvest', 'festive'].map(skinChip) },
+  ]
   const activeCustom = customs.find(c => c.id === skin.id)
   const startFrom = (base: typeof skin, name: string): CustomScheme =>
     ({ id: newSchemeId(), name: name.slice(0, 30), emoji: base.emoji, light: paletteOf(base, false), dark: paletteOf(base, true) })
-  const hasLegacy = Object.keys(legacy).length > 0
+  const oldLight = legacyBackgrounds && legacyBackgrounds.light !== 'warm' ? OLD_BACKGROUNDS[legacyBackgrounds.light] : undefined
+  const oldDark = legacyBackgrounds && legacyBackgrounds.dark !== 'cocoa' ? OLD_BACKGROUNDS[legacyBackgrounds.dark] : undefined
+  const hasLegacy = Object.keys(legacy).length > 0 || !!oldLight || !!oldDark
+  const oldNames = [oldLight && `${oldLight.name} (light)`, oldDark && `${oldDark.name} (dark)`].filter(Boolean).join(' and ')
   const saveScheme = async (c: CustomScheme, isNew: boolean, fromLegacy?: boolean) => {
     const list = isNew ? [...customs, c] : customs.map(x => x.id === c.id ? c : x)
     const selectHere = isNew && !householdScheme // household editor: a new scheme becomes the family's
@@ -697,29 +710,46 @@ function ColorControls({ scheme, householdScheme, onScheme, household, device, s
   return (
     <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
       <div className="settings-row-label" aria-hidden="true">Color scheme</div>
-      <div className="chip-row" role="group" aria-label="Color scheme">
-        {householdScheme && chip(undefined, <>Household · {nameOf(householdScheme)}</>, 'Household')}
-        {chip('seasonal', <><span aria-hidden="true">🗓️</span>Seasonal</>, 'Seasonal')}
-        {SKINS.map(k => chip(k.id as ColorScheme, <><span aria-hidden="true">{k.emoji}</span>{k.name}</>, k.name))}
-        {customs.map(c => chip(c.id as ColorScheme, <><span aria-hidden="true">{c.emoji || '🎨'}</span>{c.name}</>, c.name))}
+      <div className="scheme-groups" role="group" aria-label="Color scheme">
+        {groups.map(g => (
+          <div key={g.label} className="scheme-group" role="group" aria-label={g.label}>
+            <span className="scheme-group-label" aria-hidden="true">{g.label}</span>
+            <div className="chip-row">{g.chips}</div>
+          </div>
+        ))}
+        <div className="scheme-group" role="group" aria-label="Your schemes">
+          <span className="scheme-group-label" aria-hidden="true">Your schemes</span>
+          <div className="chip-row">
+            {customs.map(c => chip(c.id as ColorScheme, <><span aria-hidden="true">{c.emoji || '🎨'}</span>{c.name}</>, c.name))}
+            {customs.length < 10 && (
+              <button className="chip scheme-new" onClick={() => setEditing({ draft: startFrom(skin, activeCustom ? `${skin.name} copy` : `My ${skin.name}`), isNew: true })}>
+                <span aria-hidden="true">＋</span>New scheme
+              </button>
+            )}
+          </div>
+          {customs.length >= 10 && <span className="settings-row-sub">The family has 10 saved schemes, the most it can keep. Delete one to make another.</span>}
+        </div>
       </div>
       {scheme === 'seasonal' && <div className="settings-row-sub">Switches on its own through the year: Winter, Spring, Summer and Autumn, plus Harvest and Festive around the holidays.</div>}
-      <div className="scheme-actions">
-        {activeCustom && <button className="btn btn-secondary" onClick={() => setEditing({ draft: activeCustom, isNew: false })}>Edit {activeCustom.name}</button>}
-        {customs.length < 10
-          ? <button className="btn btn-secondary" onClick={() => setEditing({ draft: startFrom(skin, activeCustom ? `${skin.name} copy` : `My ${skin.name}`), isNew: true })}>{activeCustom ? 'Duplicate' : 'Customize'}</button>
-          : <span className="settings-row-sub">The family has 10 saved schemes, the most it can keep. Delete one to make another.</span>}
-      </div>
+      {activeCustom && (
+        <div className="scheme-actions">
+          <button className="btn btn-secondary" onClick={() => setEditing({ draft: activeCustom, isNew: false })}>Edit {activeCustom.name}</button>
+        </div>
+      )}
       {hasLegacy && (
         <div className="scheme-legacy" role="note">
-          <span>Custom colors from an earlier version are applied on top of this scheme{householdScheme ? ' on this device' : ''}.</span>
+          {Object.keys(legacy).length > 0 && <span>Custom colors from an earlier version are applied on top of this scheme{householdScheme ? ' on this device' : ''}.</span>}
+          {oldNames && <span>The family also chose the {oldNames} background in an earlier version. It no longer shows; save it as a scheme to keep that look.</span>}
           <div className="scheme-actions">
             <button className="btn btn-secondary" onClick={() => {
-              const light = { ...paletteOf(skin, false), ...legacy } as Palette
-              const darkP = { ...paletteOf(skin, true), ...(legacy.accent ? { accent: legacy.accent } : {}) }
-              setEditing({ draft: { id: newSchemeId(), name: 'Custom', emoji: '🎨', light, dark: darkP }, isNew: true, fromLegacy: true })
+              const meadow = getSkin('meadow')
+              const light = { ...(oldLight ? { ...paletteOf(meadow, false), bg: oldLight.bg, card: oldLight.card, text: oldLight.text } : paletteOf(skin, false)), ...legacy } as Palette
+              const darkBase = oldDark ? { ...paletteOf(meadow, true), bg: oldDark.bg, card: oldDark.card, text: oldDark.text } : paletteOf(oldLight ? meadow : skin, true)
+              const darkP = { ...darkBase, ...(legacy.accent ? { accent: legacy.accent } : {}) }
+              const name = oldLight?.name ?? oldDark?.name ?? 'Custom'
+              setEditing({ draft: { id: newSchemeId(), name, emoji: oldLight?.name === 'Sage' ? '🌿' : '🎨', light, dark: darkP }, isNew: true, fromLegacy: true })
             }}>Save as a scheme</button>
-            <button className="btn btn-secondary" onClick={() => { if (legacyClear) void saveSettings(legacyClear); onClearLegacy?.(); announce('Custom colors removed') }}>Remove them</button>
+            <button className="btn btn-secondary" onClick={() => { if (legacyClear) void saveSettings(legacyClear); onClearLegacy?.(); announce('Old colors removed') }}>Remove them</button>
           </div>
         </div>
       )}
@@ -751,7 +781,7 @@ function SchemeSheet({ draft, isNew, onClose, onSave, onDelete }: {
     <Sheet title={isNew ? 'New color scheme' : `Edit ${draft.name}`} onClose={onClose}
       actions={<>
         {onDelete && <button className="btn btn-danger" disabled={busy} onClick={async () => {
-          if (await dialog.confirm({ title: `Delete ${draft.name}?`, body: 'Screens using it go back to Meadow.', confirmLabel: 'Delete', danger: true })) run(onDelete)
+          if (await dialog.confirm({ title: `Delete ${draft.name}?`, body: 'Screens using it go back to Peach.', confirmLabel: 'Delete', danger: true })) run(onDelete)
         }}>Delete</button>}
         <button className="btn btn-primary" disabled={!canSave} onClick={() => run(() => onSave({ ...c, name: c.name.trim() }))}>{isNew ? 'Save and use' : 'Save'}</button>
       </>}>

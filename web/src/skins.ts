@@ -15,7 +15,7 @@ export type SkinTokens = SkinBase & { accentStrong: string; accentInk: string; a
 export type Skin = { id: string; name: string; emoji: string; light: SkinBase; dark: SkinBase }
 
 export const SKINS: Skin[] = [
-  { id: 'meadow', name: 'Meadow', emoji: '🌿', // today's default look - must stay byte-for-byte the pre-skin colors
+  { id: 'meadow', name: 'Peach', emoji: '🍑', // the default look (shown as Peach; the id stays 'meadow' so stored choices keep working) - must stay byte-for-byte the pre-skin colors
     light: { bg: '#FFFBF5', bgAlt: '#FFF4E8', card: '#FFFFFF', border: '#F1E4D6', text: '#3A2E27', textDim: '#7A6B60', accent: '#FF9E7A' },
     dark: { bg: '#1C1712', bgAlt: '#241D17', card: '#2A221B', border: '#3A3028', text: '#F3EAE0', textDim: '#B3A395', accent: '#FF9E7A' } },
   { id: 'autumn', name: 'Autumn', emoji: '🍂',
@@ -48,6 +48,18 @@ export const SKINS: Skin[] = [
 ]
 
 export const DEFAULT_SKIN_ID = 'meadow'
+
+/** The household background presets from before color schemes (styles.css's old [data-bg] rules).
+ * Warm and Cocoa are Peach's own colors; any other one is offered as "Save as a scheme". */
+export const OLD_BACKGROUNDS: Record<string, { name: string; bg: string; card: string; text: string }> = {
+  warm: { name: 'Warm', bg: '#FFFBF5', card: '#FFFFFF', text: '#3A2E27' },
+  white: { name: 'White', bg: '#FFFFFF', card: '#FFFFFF', text: '#232323' },
+  gray: { name: 'Gray', bg: '#F1F2F4', card: '#FFFFFF', text: '#25282C' },
+  sage: { name: 'Sage', bg: '#F3F6F1', card: '#FFFFFF', text: '#263024' },
+  cocoa: { name: 'Cocoa', bg: '#1C1712', card: '#2A221B', text: '#F3EAE0' },
+  charcoal: { name: 'Charcoal', bg: '#191A1C', card: '#25272B', text: '#EDEEF0' },
+  midnight: { name: 'Midnight', bg: '#0F1420', card: '#1B2333', text: '#E7ECF7' },
+}
 export const getSkin = (id?: string): Skin => SKINS.find(s => s.id === id) ?? SKINS[0]
 
 // ---- The family's own schemes (Settings -> Appearance -> Customize) ----
@@ -74,7 +86,7 @@ export function baseFromPalette(p: Palette, dark: boolean): SkinBase {
 export const skinFromCustom = (c: CustomScheme): Skin =>
   ({ id: c.id, name: c.name, emoji: c.emoji || '🎨', light: baseFromPalette(c.light, false), dark: baseFromPalette(c.dark, true) })
 
-/** A built-in skin or one of the family's schemes; unknown ids (a deleted scheme) fall back to Meadow. */
+/** A built-in skin or one of the family's schemes; unknown ids (a deleted scheme) fall back to Peach (id 'meadow'). */
 export function findSkin(id: string | undefined, custom: CustomScheme[] = []): Skin {
   const c = custom.find(s => s.id === id)
   return c ? skinFromCustom(c) : getSkin(id)

@@ -17,7 +17,7 @@ Quiet hours are a separate card, right after Appearance. See [Quiet hours](quiet
 |---|---|---|
 | **Mode** | Light, Dark, Auto (follows the device's system setting), Scheduled | Light |
 | **Dark from / Dark to** (Scheduled) | Two times. The window can cross midnight. | 20:00 → 07:00 |
-| **Color scheme** | Seasonal, one of ten skins, or one of the family's own schemes. See [Color schemes](#color-schemes). | Meadow |
+| **Color scheme** | Seasonal, one of ten skins, or one of the family's own schemes. See [Color schemes](#color-schemes). | Peach |
 | **Text size** | Small, Medium, Large, Extra large | Medium |
 | **Density** | Comfortable, Compact (shorter hour rows in the time grid) | Comfortable |
 
@@ -48,7 +48,7 @@ A color scheme (a "skin") changes the whole palette: backgrounds, cards, text an
 
 | Skin | Notes |
 |---|---|
-| 🌿 Meadow | The default look. Nothing changes if you never touch this. |
+| 🍑 Peach | The default look: warm cream with a coral accent, and cocoa brown in dark mode. |
 | 🍂 Autumn, ❄️ Winter, 🌸 Spring, ☀️ Summer | The four seasons. |
 | 🌊 Ocean, 💜 Lavender | |
 | 🌌 Midnight | A deep navy that looks the same in light and dark mode. |
@@ -66,7 +66,7 @@ Every skin meets WCAG AA contrast (4.5:1) for text on its backgrounds.
 
 It checks once an hour, so it switches on the same day a season changes.
 
-**Reset to Meadow** (household) sets the family back to the default look. **Use household colors** (device) sets the device back to following the family.
+**Reset to Peach** (household) sets the family back to the default look. **Use household colors** (device) sets the device back to following the family.
 
 ## Your own color schemes
 
@@ -81,13 +81,13 @@ Give it a name and an emoji and save. The scheme is saved for the whole family a
 * Made from **Appearance**, it becomes the family's scheme.
 * Made from **Appearance on this device**, only this device switches to it. Other devices can still pick it.
 
-When a saved scheme is selected, **Edit *name*** reopens it, and **Duplicate** starts a new one from it. Deleting a scheme (in the sheet) moves any screen using it back to Meadow. A family can keep up to 10 schemes.
+When a saved scheme is selected, **Edit *name*** reopens it, and **Duplicate** starts a new one from it. Deleting a scheme (in the sheet) moves any screen using it back to Peach. A family can keep up to 10 schemes.
 
 ### Custom colors from an earlier version
 
-Kinwall used to let you set single custom colors on top of a scheme, the same in light and dark mode. If you set any, a note under the scheme chips says so:
+Kinwall used to let you set single custom colors on top of a scheme, the same in light and dark mode, and pick a light and a dark background (Warm, White, Gray or Sage; Cocoa, Charcoal or Midnight). If you set any of these, a note under the scheme chips says so. Old backgrounds no longer show, so Peach always looks like its chip. Leftover custom colors still apply until you choose:
 
-* **Save as a scheme** opens the editor with those colors in light mode and the scheme's own dark colors, so you can check both and save them as a scheme.
+* **Save as a scheme** opens the editor with those colors (and the old background, if you had one) so you can check both modes and save them as a scheme.
 * **Remove them** goes back to the plain scheme.
 
 Low-stimulation mode always uses the scheme's own backgrounds, cards and text, without any leftover custom colors from an earlier version.
