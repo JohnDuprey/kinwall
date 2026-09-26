@@ -26,4 +26,4 @@ Update from the add-on page like any other add-on.
 
 ## If a device shows an old version
 
-Home Screen apps can hang on to an old build. Use **Settings → General → This display → Clear cache and reload**. See [Troubleshooting](troubleshooting.md#stale-app-after-an-update).
+Home Screen apps can hang on to an old build. Use **Settings → General → Troubleshooting → Clear cache and reload**. See [Troubleshooting](troubleshooting.md#stale-app-after-an-update).

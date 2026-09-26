@@ -17,7 +17,7 @@ Use the segmented control at the top to switch views.
 | **Month** | A month grid with event chips. When a day is full, it shows "+N more". | ±1 month |
 | **Schedule** | An agenda of the next 30 days, grouped by day. Location lines link to maps. | ±30 days |
 
-Every device opens on **Board**; the view switcher runs Board, Day, Week (3 Day on phones), Month, Schedule. You can switch views any time, and a display can be locked to any view (Settings → This display).
+Every device opens on **Board**; the view switcher runs Board, Day, Week (3 Day on phones), Month, Schedule. You can switch views any time, and a display can be locked to any view (Settings → General → This display → Lock view).
 
 <p>
   <img src="../screenshots/phone-3day.png" width="32%" alt="3 Day view on a phone" />
@@ -70,7 +70,7 @@ A strip above the calendar shows what's on now and what's next today, with a cou
 * On a wall display it hides when nothing is left today.
 * On a phone it's always two lines, so the screen never jumps. When the day is done it reads "Nothing more today".
 
-You can turn it off per device in [This display](../settings/this-display.md#behavior-on-this-device).
+You can turn it off per device under [Time cues](../settings/this-display.md#time-cues).
 
 ## Navigating
 

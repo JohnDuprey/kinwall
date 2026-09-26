@@ -4,7 +4,7 @@
 
 Home Screen apps on iOS can keep an old version in memory.
 
-1. On the affected device: **Settings → General → This display → Clear cache and reload**. It clears caches, re-checks the service worker and reloads from the network. You stay signed in.
+1. On the affected device: **Settings → General → Troubleshooting → Clear cache and reload**. It clears caches, re-checks the service worker and reloads from the network. You stay signed in.
 2. Still stuck? Close the app from the app switcher and reopen it.
 3. Last resort: delete the Home Screen icon and add it again. This signs the device out, so a display then needs pairing again.
 

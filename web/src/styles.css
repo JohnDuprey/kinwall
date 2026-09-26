@@ -843,6 +843,10 @@ button {
 /* ---------- Settings ---------- */
 .settings-scroll { padding: 16px var(--pad) 100px; display: flex; flex-direction: column; gap: var(--gap); max-width: 720px; margin: 0 auto; width: 100%; }
 .settings-tabs { position: sticky; top: 0; z-index: 3; background: var(--bg); margin: -16px calc(var(--pad) * -1) 0; padding: 16px var(--pad) 4px; }
+.settings-group-head { padding: 10px 4px 0; }
+.settings-group-head:first-child { padding-top: 0; }
+.settings-group-title { margin: 0; font-size: 1.125rem; font-weight: 800; color: var(--text); }
+.settings-group-sub { margin: 2px 0 0; font-size: 0.8125rem; font-weight: 600; color: var(--text-dim); }
 .settings-section { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: calc(var(--gap) * 1.5) calc(var(--gap) * 1.5) calc(var(--gap) * 0.65); }
 .settings-section-title { font-size: 0.8125rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.03em; padding-bottom: 12px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
 /* The title carries the divider, so the first item never doubles it; bare content gets breathing room. */
@@ -1262,7 +1266,7 @@ button {
 .focus-reveal:focus { position: static; }
 main:focus { outline: none; } /* focused by the skip link, not a control */
 /* Headings that look like the labels they replaced. */
-h2.settings-section-title, h2.sheet-title, h2.period-label, h2.list-detail-name { margin: 0; }
+.settings-section-title, h2.sheet-title, h2.period-label, h2.list-detail-name { margin: 0; }
 h2.settings-section-title:focus { outline: none; } /* focused by "jump to section", not a control */
 .settings-panel { display: flex; flex-direction: column; gap: var(--gap); }
 /* Day cells/numbers and row titles (schedule, calendars, categories, passkeys) became buttons: keep their old look. */

@@ -27,9 +27,9 @@ In Safari, tap **Share → Add to Home Screen**, then always launch Kinwall from
 * After 2 minutes without a touch it goes back to today's calendar and closes any open sheet.
 * It checks for changes every 30 seconds (`GET /api/rev`), so edits from phones show up within about 30 seconds.
 * When a new version is deployed, a **Kinwall updated — tap to reload** banner appears.
-* **Settings** on a display shows **General** (Household, Appearance, Notifications, This display) and **Family** (Members read-only, Categories). The **Calendars** and **Access** tabs are hidden. See [This display](../settings/this-display.md).
+* **Settings** on a display shows **General** (the family cards and this device's cards) and **Family** (Members read-only, Categories). The **Calendars** and **Access** tabs are hidden. See [This display](../settings/this-display.md).
 
 ## Unpair or replace a display
 
-* On the display: **Settings → General → This display → Unpair this display**.
+* On the display: **Settings → General → Troubleshooting → Unpair this display**.
 * From an admin device: **Settings → Access → Displays**, then remove the display. It's signed out at once and needs pairing again.

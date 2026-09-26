@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useApp } from './AppContext.tsx'
 import { api, ApiError, clearKey } from './api.ts'
 import type { Account, ApiKey, CalendarEntry, Category, ColorScheme, CustomColors, Density, DeviceDensity, GeocodeResult, HostEvent, Me, Member, Passkey, Providers, PushSubscription, RemoteCalendar, Settings, TextScale, ThemeMode, Webhook } from './types.ts'
@@ -103,10 +103,20 @@ export default function SettingsView() {
         </div>
         <div className="settings-panel" role="tabpanel" aria-labelledby={`settings-tab-${current}`}>
         {current === 'general' && <>
-          <GeneralSection settings={settings} onSaved={reloadCore} toast={toast} isDisplay={isDisplay} />
-          <AppearanceSection settings={settings} onSaved={reloadCore} toast={toast} />
-          <NotificationsSection toast={toast} />
-          {isDisplay ? <ThisDisplaySection keyName={me.keyName} /> : <ThisDisplaySection />}
+          <SettingsGroup title="For the whole family" sub="Every screen and phone in the household uses these.">
+            <GeneralSection settings={settings} onSaved={reloadCore} toast={toast} isDisplay={isDisplay} />
+            <WeatherSection settings={settings} onSaved={reloadCore} toast={toast} />
+            <AppearanceSection settings={settings} onSaved={reloadCore} toast={toast} />
+            <QuietHoursSection settings={settings} onSaved={reloadCore} toast={toast} />
+          </SettingsGroup>
+          <SettingsGroup title="Only on this device" sub="Saved on this screen or phone. Other devices aren't affected.">
+            {isDisplay ? <ThisDisplaySection keyName={me.keyName} /> : <ThisDisplaySection />}
+            <Section title="Appearance on this device" icon={<PaletteIcon width={16} height={16} />}><DeviceAppearanceRows /></Section>
+            <Section title="Time cues"><TimeCueRows /></Section>
+            <Section title="Night screen"><ScreensaverRows /></Section>
+            <NotificationsSection toast={toast} />
+            <TroubleshootSection keyName={isDisplay ? me.keyName : undefined} />
+          </SettingsGroup>
         </>}
         {current === 'family' && <>
           <MembersSection members={members} onChanged={reloadCore} toast={toast} canManage={!isDisplay} />
@@ -139,11 +149,23 @@ export default function SettingsView() {
   )
 }
 
+// Cards under a group heading (General tab) drop a heading level, so the outline reads group > card.
+const HeadingLevel = createContext<2 | 3>(2)
+function SettingsGroup({ title, sub: note, children }: { title: string; sub: string; children: ReactNode }) {
+  return (
+    <>
+      <div className="settings-group-head"><h2 className="settings-group-title">{title}</h2><p className="settings-group-sub">{note}</p></div>
+      <HeadingLevel.Provider value={3}>{children}</HeadingLevel.Provider>
+    </>
+  )
+}
+
 function Section({ id, title, icon, children }: { id?: string; title: string; icon?: React.ReactNode; children: React.ReactNode }) {
   const headingId = (id ?? title).toLowerCase().replace(/[^a-z0-9]+/g, '-') // an IDREF can't contain spaces
+  const H = useContext(HeadingLevel) === 3 ? 'h3' : 'h2'
   return (
     <section className="settings-section" id={id} aria-labelledby={`${headingId}-title`}>
-      <h2 className="settings-section-title" id={`${headingId}-title`} tabIndex={-1}>{icon}{title}</h2>
+      <H className="settings-section-title" id={`${headingId}-title`} tabIndex={-1}>{icon}{title}</H>
       {children}
     </section>
   )
@@ -175,7 +197,6 @@ function GeneralSection({ settings, onSaved, toast, isDisplay }: { settings: Ret
           <option value={1}>Monday</option>
         </select>
       </div>
-      <WeatherLocationRows settings={settings} save={save} toast={toast} />
       {!isDisplay && (
         <div className="settings-row">
           <div>
@@ -190,6 +211,13 @@ function GeneralSection({ settings, onSaved, toast, isDisplay }: { settings: Ret
       )}
     </Section>
   )
+}
+
+function WeatherSection({ settings, onSaved, toast }: { settings: Settings; onSaved: () => void; toast: (m: string, persist?: boolean) => void }) {
+  const save = async (patch: Partial<Settings>) => {
+    try { await api.updateSettings(patch); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save settings', true) }
+  }
+  return <Section title="Weather"><WeatherLocationRows settings={settings} save={save} toast={toast} /></Section>
 }
 
 /** Weather location for the snapshots. The server does the lookup (GET /api/geocode), so this
@@ -273,11 +301,10 @@ function AppearanceSection({ settings, onSaved, toast }: { settings: Settings; o
   const save = async (patch: Partial<Settings>) => {
     try { await api.updateSettings(patch); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save settings', true) }
   }
-  const quietOn = !!settings.quietFrom && !!settings.quietTo
   return (
     <Section title="Appearance" icon={<PaletteIcon width={16} height={16} />}>
       <p className="settings-row-sub" style={{ margin: '10px 2px 0' }}>
-        For the whole family.{overridden.length > 0 && <> This device overrides its {overridden.join(', ')} — see This display below.</>}
+        For the whole family.{overridden.length > 0 && <> This device overrides its {overridden.join(', ')}. See Appearance on this device, below.</>}
       </p>
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
         <div className="settings-row-label" aria-hidden="true">Mode</div>
@@ -308,11 +335,22 @@ function AppearanceSection({ settings, onSaved, toast }: { settings: Settings; o
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
         <div className="settings-row-label" aria-hidden="true">Density</div>
         <Segmented label="Density" value={settings.density} onChange={v => save({ density: v })} options={DENSITIES} />
-        <div className="settings-row-sub">Compact tightens spacing and fits more on screen — handy for a smaller display. Icon-first is set per device, under This display.</div>
+        <div className="settings-row-sub">Compact tightens spacing and fits more on screen, handy for a smaller display. Icon-first is set per device, under Appearance on this device.</div>
       </div>
+    </Section>
+  )
+}
+
+function QuietHoursSection({ settings, onSaved, toast }: { settings: Settings; onSaved: () => void; toast: (m: string, persist?: boolean) => void }) {
+  const save = async (patch: Partial<Settings>) => {
+    try { await api.updateSettings(patch); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save settings', true) }
+  }
+  const quietOn = !!settings.quietFrom && !!settings.quietTo
+  return (
+    <Section title="Quiet hours">
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-        <div className="settings-row-label" aria-hidden="true">Quiet hours (displays)</div>
-        <Segmented label="Quiet hours (displays)" value={quietOn ? 'on' : 'off'}
+        <div className="settings-row-label" aria-hidden="true">Quiet hours</div>
+        <Segmented label="Quiet hours" value={quietOn ? 'on' : 'off'}
           onChange={v => { if (v === 'off') save({ quietFrom: null, quietTo: null }); else if (!quietOn) save({ quietFrom: '22:00', quietTo: '06:00' }) }}
           options={[{ key: 'off', label: 'Off' }, { key: 'on', label: 'On' }]} />
         {quietOn && (
@@ -321,7 +359,7 @@ function AppearanceSection({ settings, onSaved, toast }: { settings: Settings; o
             <div className="field" style={{ margin: 0 }}><label>Quiet to</label><input type="time" value={settings.quietTo ?? ''} onChange={e => e.target.value && save({ quietFrom: settings.quietFrom, quietTo: e.target.value })} /></div>
           </div>
         )}
-        <div className="settings-row-sub">Paired wall displays show only a dim clock between these times (or a dim slideshow, set per display under This display). Tap the screen to wake it for five minutes. Phones are never affected.</div>
+        <div className="settings-row-sub">Paired wall displays show only a dim clock between these times (or a dim slideshow, set per display under Night screen). Tap the screen to wake it for five minutes. Phones are never affected.</div>
       </div>
     </Section>
   )
@@ -687,10 +725,7 @@ function DeviceAppearanceRows() {
   ]
   return (
     <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
-      <div>
-        <div className="settings-row-label">Appearance on this device</div>
-        <div className="settings-row-sub">Leave on Household to follow the family setting; pick a value to override it here only.</div>
-      </div>
+      <div className="settings-row-sub">Leave a setting on Household to follow the family's. Pick anything else to change it on this device only.</div>
 
       {rows.slice(0, 1).map(r => {
         const household = r.options.find(o => o.key === settings[r.key])?.label ?? ''
@@ -744,18 +779,12 @@ function DeviceAppearanceRows() {
 
 /** Device-only behavior for this screen: member focus, locked calendar view, Now / Next card and
  * transition warnings. Stored alongside the device appearance. */
-function DeviceBehaviourRows() {
+function ScreenFocusRows() {
   const { members } = useApp()
   const isPhone = useIsPhone()
   const device = useDeviceAppearance()
   const set = (patch: DeviceAppearance) => setDeviceAppearance({ ...device, ...patch })
   const focus = members.find(m => m.id === device.focusMemberId)
-  const warnings = device.warnings ?? []
-  const toggleWarning = (m: number) => {
-    const next = warnings.includes(m) ? warnings.filter(x => x !== m) : [...warnings, m].sort((a, b) => b - a)
-    set({ warnings: next.length ? next : undefined })
-  }
-  const nowNext = device.nowNext ?? true
   const views: { key: LockedView | ''; label: string }[] = [
     { key: '', label: 'Off' }, { key: 'week', label: isPhone ? '3 Day' : 'Week' }, { key: 'day', label: 'Day' }, { key: 'month', label: 'Month' }, { key: 'schedule', label: 'Schedule' }, { key: 'board', label: 'Board' },
   ]
@@ -785,9 +814,25 @@ function DeviceBehaviourRows() {
           </select>
         </div>
       </div>
+    </>
+  )
+}
+
+/** Now / Next and transition warnings on this device. */
+function TimeCueRows() {
+  const device = useDeviceAppearance()
+  const set = (patch: DeviceAppearance) => setDeviceAppearance({ ...device, ...patch })
+  const warnings = device.warnings ?? []
+  const toggleWarning = (m: number) => {
+    const next = warnings.includes(m) ? warnings.filter(x => x !== m) : [...warnings, m].sort((a, b) => b - a)
+    set({ warnings: next.length ? next : undefined })
+  }
+  const nowNext = device.nowNext ?? true
+  return (
+    <>
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
         <div className="toggle-row">
-          <label id="nownext-label">Now / Next card</label>
+          <label id="nownext-label">Now / Next</label>
           <button className={`switch ${nowNext ? 'on' : ''}`} role="switch" aria-checked={nowNext} aria-labelledby="nownext-label" onClick={() => set({ nowNext: !nowNext })}><span className="knob" /></button>
         </div>
         <div className="settings-row-sub">What's on now and what's next today, with a countdown, above the calendar.</div>
@@ -864,9 +909,28 @@ function ScreensaverRows() {
 }
 
 function ThisDisplaySection({ keyName }: { keyName?: string }) {
-  const dialog = useDialog()
   const isPhone = useIsPhone()
   const { pref } = useNavMode()
+  return (
+    <Section title="This display" icon={<MonitorIcon width={16} height={16} />}>
+      {keyName !== undefined && (
+        <div className="settings-row">
+          <div className="settings-row-label">Paired as {keyName || 'this display'}</div>
+        </div>
+      )}
+      <ScreenFocusRows />
+      <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+        <div className="settings-row-label" aria-hidden="true">Navigation position</div>
+        <Segmented label="Navigation position" value={pref} onChange={setNavPref} options={NAV_PREF_OPTIONS} disabled={isPhone} style={isPhone ? { opacity: 0.5 } : undefined} />
+        <div className="settings-row-sub">{isPhone ? 'Phones always use the bottom bar.' : 'Where the Calendar, Chores and Lists buttons sit.'}</div>
+      </div>
+    </Section>
+  )
+}
+
+/** Stuck-build reload, and unpairing for a display key. */
+function TroubleshootSection({ keyName }: { keyName?: string }) {
+  const dialog = useDialog()
   const unpair = async () => {
     if (!await dialog.confirm({ title: 'Unpair this display?', body: 'You\'ll need to pair it again from an admin device to use it here.', confirmLabel: 'Unpair', danger: true })) return
     clearKey()
@@ -890,20 +954,7 @@ function ThisDisplaySection({ keyName }: { keyName?: string }) {
     location.replace(url.toString())
   }
   return (
-    <Section title="This display" icon={<MonitorIcon width={16} height={16} />}>
-      {keyName !== undefined && (
-        <div className="settings-row">
-          <div className="settings-row-label">Paired as {keyName || 'this display'}</div>
-        </div>
-      )}
-      <DeviceAppearanceRows />
-      <DeviceBehaviourRows />
-      <ScreensaverRows />
-      <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-        <div className="settings-row-label" aria-hidden="true">Navigation position</div>
-        <Segmented label="Navigation position" value={pref} onChange={setNavPref} options={NAV_PREF_OPTIONS} disabled={isPhone} style={isPhone ? { opacity: 0.5 } : undefined} />
-        <div className="settings-row-sub">{isPhone ? 'Phones always use the bottom bar.' : 'Saved on this device only.'}</div>
-      </div>
+    <Section title="Troubleshooting">
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
         <button className="btn btn-secondary" onClick={hardReload} disabled={refreshing}>{refreshing ? 'Reloading…' : 'Clear cache and reload'}</button>
         <div className="settings-row-sub">Loads the latest version of Kinwall if this device seems stuck on an old one. You stay signed in.</div>
@@ -911,7 +962,7 @@ function ThisDisplaySection({ keyName }: { keyName?: string }) {
       {keyName !== undefined && (
         <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
           <button className="btn btn-danger" onClick={unpair}>Unpair this display</button>
-          <div className="settings-row-sub">Clears the key stored on this device and returns to the pairing screen. This doesn't revoke the key — do that from an admin device under Settings → Access → Displays.</div>
+          <div className="settings-row-sub">Clears the key stored on this device and returns to the pairing screen. This doesn't revoke the key. Do that from an admin device under Settings → Access → Displays.</div>
         </div>
       )}
     </Section>

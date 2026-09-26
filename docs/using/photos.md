@@ -41,7 +41,7 @@ JPEG, PNG, WebP and anything else your browser can open. HEIC photos straight fr
 ## Where photos show up
 
 * **Board view**: the picture card rotates through this display's screensaver sources. If none are chosen, it shows your family photos (or nature photos until you add some).
-* **Screensaver**: turn on **Family photos** in **Settings → General → This display → During quiet hours show**.
+* **Screensaver**: turn on **Family photos** in **Settings → General → Night screen → During quiet hours show**.
 
 ## Backing up and moving photos
 

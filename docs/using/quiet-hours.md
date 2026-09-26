@@ -4,7 +4,7 @@ Quiet hours turn a wall display into a dim, slowly drifting clock overnight. Tha
 
 ## Set it up
 
-**Settings → General → Appearance → Quiet hours (displays)**: choose **On**, then set **Quiet from** and **Quiet to**. Turning it on starts you at 22:00 → 06:00. The window can cross midnight.
+**Settings → General → Quiet hours**: choose **On**, then set **Quiet from** and **Quiet to**. Turning it on starts you at 22:00 → 06:00. The window can cross midnight.
 
 ## Behavior
 
@@ -15,7 +15,7 @@ Quiet hours turn a wall display into a dim, slowly drifting clock overnight. Tha
 
 ## Screensaver
 
-Instead of the bare clock, a display can show a slow, dim slideshow overnight. It's set **per display**: **Settings → General → This display → During quiet hours show**. Turn on one or more sources. With more than one on, the pictures take turns (drawing, then family photo, then art, then nature, and so on). **Clock only** (the default) turns them all off.
+Instead of the bare clock, a display can show a slow, dim slideshow overnight. It's set **per display**: **Settings → General → Night screen → During quiet hours show**. Turn on one or more sources. With more than one on, the pictures take turns (drawing, then family photo, then art, then nature, and so on). **Clock only** (the default) turns them all off.
 
 * **Drawings**: pictures from this display's own [Paint gallery](activities.md#my-drawings), shuffled. If there are none yet, the display skips drawings (or shows the clock if drawings is the only source).
 * **Family photos**: your family's [photos](photos.md), shuffled, with their captions. They come from your own Kinwall server.

@@ -7,9 +7,11 @@
 Appearance works on two levels:
 
 * **Household**: **Settings → General → Appearance**. It applies to every device, and it's also used on the sign-in and pairing screens before a device has a key.
-* **Per device**: **Settings → General → This display → Appearance on this device**. It overrides the household value on this device only.
+* **Per device**: **Settings → General → Appearance on this device**. It overrides the household value on this device only.
 
 ## Household settings
+
+Quiet hours are a separate card, right after Appearance. See [Quiet hours](quiet-hours.md).
 
 | Setting | Options | Default |
 |---|---|---|
@@ -19,7 +21,6 @@ Appearance works on two levels:
 | **Custom colors** | Your own accent, background, card and text colors on top of the scheme | None |
 | **Text size** | Small, Medium, Large, Extra large | Medium |
 | **Density** | Comfortable, Compact (shorter hour rows in the time grid) | Comfortable |
-| **Quiet hours (displays)** | Off / On, with Quiet from and Quiet to | Off. See [Quiet hours](quiet-hours.md). |
 
 Changes save as you make them, and other devices pick them up within about 30 seconds.
 
@@ -29,7 +30,7 @@ Changes save as you make them, and other devices pick them up within about 30 se
 
 ## Per-device overrides
 
-Under **This display → Appearance on this device**:
+Under **Appearance on this device**:
 
 * **Mode**, **Text size** and **Density** are menus. The first option is **Household (*current value*)**, which follows the family setting.
 * **Color scheme** has the same chips as the household setting, plus a first chip, **Household · *scheme***, which follows the family setting. **Custom colors** work the same way too. See [Color schemes](#color-schemes).
@@ -38,11 +39,11 @@ Under **This display → Appearance on this device**:
 
 Overrides are saved in the browser's local storage on that device. They're never sent to the server and aren't in exports. A kitchen iPad can use Extra large text and the Midnight scheme while phones stay on the household defaults.
 
-The same section has **Navigation position** (Auto, Bottom, Left, Right) for tablets and desktops. Phones always use the bottom bar. See [This display](../settings/this-display.md).
+**Navigation position** (Auto, Bottom, Left, Right) for tablets and desktops is in the **This display** card. Phones always use the bottom bar. See [This device](../settings/this-display.md).
 
 ## Color schemes
 
-A color scheme (a "skin") changes the whole palette: backgrounds, cards, text and accent. The household picks one for every device under **Appearance**. Any device can follow it or pick its own under **This display → Appearance on this device**, so the kitchen wall can use Midnight while phones keep the family's scheme.
+A color scheme (a "skin") changes the whole palette: backgrounds, cards, text and accent. The household picks one for every device under **Appearance**. Any device can follow it or pick its own under **Appearance on this device**, so the kitchen wall can use Midnight while phones keep the family's scheme.
 
 **Color scheme** offers ten skins, each with its own light and dark palette:
 

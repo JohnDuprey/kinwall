@@ -43,7 +43,7 @@
 * [Family](settings/family.md)
 * [Calendars](settings/calendars.md)
 * [Access](settings/access.md)
-* [This display](settings/this-display.md)
+* [This device](settings/this-display.md)
 
 ## Integrations
 
