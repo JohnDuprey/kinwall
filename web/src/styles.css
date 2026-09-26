@@ -1209,6 +1209,13 @@ button {
   font-size: 0.875rem; font-weight: 700; pointer-events: none;
 }
 .save-indicator.saved { color: var(--accent-text); }
+@media (max-width: 600px) { .save-indicator { top: calc(var(--safe-t) + 76px); } }
+/* Inside the iPhone/iPad app the status bar is hidden: no gap under it, just clear of the notch or island. */
+:root[data-native] .header-phone { padding-top: calc(var(--safe-t) + 4px); }
+:root[data-native] .toast.update-banner { top: calc(var(--safe-t) + 8px); }
+@media (max-width: 600px) { :root[data-native] .save-indicator { top: calc(var(--safe-t) + 62px); } } /* below the phone header row, clear of the family button */
+.gate-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 20px; margin-top: 12px; }
+.gate-note { margin: 10px 0 0; font-size: 0.875rem; color: var(--text-dim); }
 .spinner {
   width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--border); border-top-color: var(--accent-strong);
   animation: spin 0.7s linear infinite;

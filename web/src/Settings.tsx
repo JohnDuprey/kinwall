@@ -20,6 +20,7 @@ import { countDrawings } from './drawings-db.ts'
 import { passkeysSupported, registerPasskey } from './webauthn.ts'
 import { QrCode } from './App.tsx'
 import { InstallRow } from './Install.tsx'
+import { inNativeApp } from './native.ts'
 import { useDialog } from './dialog.tsx'
 import { announce, pressable, reducedMotion, Segmented } from './a11y.tsx'
 
@@ -511,6 +512,13 @@ function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean)
     try { await api.testPush(sub.id); toast('Test notification sent') } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not send test', true) }
   }
 
+  if (inNativeApp()) {
+    return (
+      <Section title="Notifications" icon={<BellIcon width={16} height={16} />}>
+        <p className="settings-row-sub">The Kinwall app can't show notifications yet. Everything still arrives in the bell at the top. To get notifications on this phone for now, open Kinwall in Safari and add it to your Home Screen.</p>
+      </Section>
+    )
+  }
   if (!pushSupported()) {
     return (
       <Section title="Notifications" icon={<BellIcon width={16} height={16} />}>

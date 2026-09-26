@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react'
 import Sheet from './Sheet.tsx'
 import { MOCK } from './api.ts'
+import { inNativeApp } from './native.ts'
 
 type InstallEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }> }
 
@@ -15,7 +16,7 @@ const getDeferred = () => (window as W).__kinwallInstall ?? null
 const clearDeferred = () => { (window as W).__kinwallInstall = null }
 
 export const isStandalone = () =>
-  (navigator as Navigator & { standalone?: boolean }).standalone === true || matchMedia('(display-mode: standalone)').matches
+  inNativeApp() || (navigator as Navigator & { standalone?: boolean }).standalone === true || matchMedia('(display-mode: standalone)').matches
 /** iPhone, iPad (iPadOS reports a Mac with touch), or iPod. */
 export const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
 

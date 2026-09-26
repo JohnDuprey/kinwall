@@ -1,6 +1,8 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './styles.css'
+import { markNativeApp } from './native.ts'
+markNativeApp()
 
 // Android / Chrome / Edge offer to install once the page qualifies, often before the App chunk
 // has loaded, so keep the event here for Install.tsx's "Install" button.

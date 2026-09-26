@@ -20,6 +20,7 @@ import { announce } from './a11y.tsx'
 import { DialogProvider } from './dialog.tsx'
 import NotificationBell from './Notifications.tsx'
 import { InstallNudge } from './Install.tsx'
+import { inNativeApp } from './native.ts'
 import { HelpButton } from './Help.tsx'
 import Slideshow, { SAVER_PREVIEW_EVENT } from './Screensaver.tsx'
 import SnapshotSheet from './Snapshot.tsx'
@@ -300,10 +301,18 @@ function PairingGate({ onKey }: { onKey: (banner?: string) => void }) {
         <h1>Welcome home 👋</h1>
         <p>Sign in to manage your family's calendar, chores and lists.</p>
         {error && <p role="alert" style={{ color: 'var(--danger)' }}>{error}</p>}
-        <button className="btn btn-primary btn-block" onClick={signInWithPasskey} disabled={passkeyBusy}>{passkeyBusy ? 'Checking…' : 'Sign in with passkey'}</button>
-        <button className="btn btn-secondary btn-block" style={{ marginTop: 12 }} onClick={() => setMode('pair')}>Set up as a wall display</button>
-        <button className="link-btn" style={{ marginTop: 8 }} onClick={() => setMode('manual')}>Enter a key manually</button>
-        <button className="link-btn" style={{ marginTop: 8 }} onClick={() => setMode('recovery')}>Use a recovery code</button>
+        {inNativeApp() ? <>
+          {/* Passkeys need the app to be tied to this server's domain, which a self-hosted server can't be. */}
+          <button className="btn btn-primary btn-block" onClick={() => setMode('pair')}>Pair this app</button>
+          <p className="gate-note">Signing in with a passkey works in Safari. Here, pair with a code an admin approves under Settings → Access.</p>
+        </> : <>
+          <button className="btn btn-primary btn-block" onClick={signInWithPasskey} disabled={passkeyBusy}>{passkeyBusy ? 'Checking…' : 'Sign in with passkey'}</button>
+          <button className="btn btn-secondary btn-block" style={{ marginTop: 12 }} onClick={() => setMode('pair')}>Set up as a wall display</button>
+        </>}
+        <div className="gate-links">
+          <button className="link-btn" onClick={() => setMode('manual')}>Enter a key manually</button>
+          <button className="link-btn" onClick={() => setMode('recovery')}>Use a recovery code</button>
+        </div>
       </div>
     </div>
   )
