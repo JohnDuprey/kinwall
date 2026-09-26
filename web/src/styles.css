@@ -1059,7 +1059,7 @@ button {
   .header-phone {
     flex-direction: row; align-items: center; gap: 8px;
     min-height: 0;
-    padding: calc(var(--safe-t) + 10px) 14px 4px;
+    padding: calc(var(--safe-t) + 18px) 14px 4px; /* the PWA status bar fades into the top edge; keep the family button clear of it */
   }
   .family-btn {
     display: flex; align-items: center; gap: 8px; min-width: 0; flex: 0 1 auto; min-height: 44px;
