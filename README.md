@@ -62,7 +62,7 @@ Download everything your family entered as one JSON file and import it into anot
 
 ## Built with Claude
 
-Kinwall is built by John Duprey with [Claude Code](https://claude.com/claude-code).
+Kinwall is built by John Duprey with [Claude Code](https://claude.com/claude-code), with UI/UX design decisions by Ashley Duprey.
 
 ## Support the project
 
