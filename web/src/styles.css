@@ -51,7 +51,7 @@
   --avatar: 56px;      /* header member-avatar diameter */
   --header-clock: 40px; /* header clock font-size (family name/date derive from this) */
   --rail-w: 88px;      /* nav rail width */
-  --font: 'Nunito';    /* per-device typeface: useTheme.ts swaps in Atkinson Hyperlegible Next / Lexend */
+  --font: 'Nunito';    /* per-device typeface: useTheme.ts swaps in the one picked in Settings (FONTS there) */
 }
 
 /* rem is relative to this, so every text/spacing value expressed in rem scales with it. */

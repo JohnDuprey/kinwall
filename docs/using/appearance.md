@@ -33,7 +33,7 @@ Under **Appearance on this device**:
 
 * **Mode**, **Text size** and **Density** are menus. The first option is **Household (*current value*)**, which follows the family setting.
 * **Color scheme** has the same chips as the household setting, plus a first chip, **Household · *scheme***, which follows the family setting. The family's own schemes are there too. See [Color schemes](#color-schemes).
-* **Typeface**: Default (Nunito), Hyperlegible (Atkinson Hyperlegible Next) or Dyslexia-friendly (Lexend).
+* **Typeface**: Default (Nunito), Hyperlegible (Atkinson Hyperlegible Next), Dyslexia-friendly (Lexend), Modern (Figtree), Playful (Fredoka), Storybook (Literata) or Handwritten (Kalam). A typeface other than the default is loaded from Google Fonts the first time this device picks it.
 * **Low-stimulation mode**: a toggle that reduces motion and visual noise on this device.
 
 Overrides are saved in the browser's local storage on that device. They're never sent to the server and aren't in exports. A kitchen iPad can use Extra large text and the Midnight scheme while phones stay on the household defaults.

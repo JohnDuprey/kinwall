@@ -13,7 +13,7 @@ const DEVICE_KEY = 'kinwall.deviceAppearance'
 const DEVICE_EVENT = 'kinwall:device-appearance'
 // The same object also carries this device's other preferences (focus, warnings, locked view…),
 // so every per-device choice lives in one place and one event re-renders whoever reads it.
-export type FontChoice = 'hyperlegible' | 'dyslexia'
+export type FontChoice = 'hyperlegible' | 'dyslexia' | 'modern' | 'playful' | 'storybook' | 'handwritten'
 export type LockedView = 'week' | 'day' | 'month' | 'schedule' | 'board'
 export type DeviceAppearance = Partial<Pick<Appearance, 'themeMode' | 'textScale'>> & {
   density?: DeviceDensity // 'icons' (icon-first) exists per device only
@@ -111,6 +111,10 @@ export function effectiveDensity(household: Appearance['density'], device: Devic
 const FONTS: Record<FontChoice, { family: string; query: string }> = {
   hyperlegible: { family: "'Atkinson Hyperlegible Next'", query: 'Atkinson+Hyperlegible+Next:wght@400;600;700;800' },
   dyslexia: { family: "'Lexend'", query: 'Lexend:wght@400;600;700;800' },
+  modern: { family: "'Figtree'", query: 'Figtree:wght@400;600;700;800' },
+  playful: { family: "'Fredoka'", query: 'Fredoka:wght@400;500;600;700' }, // tops out at 700; 800 text renders at 700
+  storybook: { family: "'Literata'", query: 'Literata:opsz,wght@7..72,400;7..72,600;7..72,700;7..72,800' },
+  handwritten: { family: "'Kalam'", query: 'Kalam:wght@400;700' }, // 400 and 700 only; heavier weights use 700
 }
 function applyFont(font: FontChoice | undefined) {
   const root = document.documentElement

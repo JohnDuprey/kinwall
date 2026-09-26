@@ -292,7 +292,8 @@ const DENSITIES: { key: Density; label: string }[] = [
 // Icon-first is per device: the household setting (server) only knows comfortable/compact.
 const DEVICE_DENSITIES: { key: DeviceDensity; label: string }[] = [...DENSITIES, { key: 'icons', label: 'Icon-first' }]
 const FONTS: { key: FontChoice | ''; label: string }[] = [
-  { key: '', label: 'Default (Nunito)' }, { key: 'hyperlegible', label: 'Hyperlegible' }, { key: 'dyslexia', label: 'Dyslexia-friendly (Lexend)' },
+  { key: '', label: 'Default (Nunito)' }, { key: 'hyperlegible', label: 'Hyperlegible (Atkinson)' }, { key: 'dyslexia', label: 'Dyslexia-friendly (Lexend)' },
+  { key: 'modern', label: 'Modern (Figtree)' }, { key: 'playful', label: 'Playful (Fredoka)' }, { key: 'storybook', label: 'Storybook (Literata)' }, { key: 'handwritten', label: 'Handwritten (Kalam)' },
 ]
 
 function AppearanceSection({ settings, onSaved, toast }: { settings: Settings; onSaved: () => void; toast: (m: string, persist?: boolean) => void }) {
