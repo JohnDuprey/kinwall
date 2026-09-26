@@ -50,6 +50,7 @@
 * [Webhooks](integrations/webhooks.md)
 * [MCP server](integrations/mcp.md)
 * [Home Assistant](integrations/home-assistant.md)
+* [n8n](integrations/n8n.md)
 
 ## Your data
 
