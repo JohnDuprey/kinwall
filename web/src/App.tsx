@@ -628,13 +628,6 @@ function FamilySheet({ name, members, selectedMemberId, onClose, onFilter, onSna
   return (
     <Sheet title={name} onClose={onClose}>
       <div className="family-list">
-        {selectedMemberId && (
-          <button className="family-row" onClick={() => onFilter(null)}>
-            <span className="member-avatar-sm family-everyone" aria-hidden="true">👪</span>
-            <span className="family-row-name">Everyone</span>
-            <span className="family-row-sub">Show the whole family again</span>
-          </button>
-        )}
         {members.map(m => (
           <div key={m.id} className="family-row-wrap">
             <button className={`family-row ${m.id === selectedMemberId ? 'on' : ''}`} aria-pressed={m.id === selectedMemberId}

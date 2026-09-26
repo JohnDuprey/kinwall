@@ -21,7 +21,7 @@ A row for each of the next 7 days with its weather emoji and high/low, then that
 ## Taps
 
 * An event opens it in the calendar. An item opens its list. A chore line opens Chores.
-* **Show only Maya on the calendar** (at the bottom) filters the calendar and chores to that person, like tapping an avatar used to. The avatar keeps its ring while the filter is on, On a phone, the family sheet does this directly: tap a person to show only them, tap them again or **Everyone** to show the whole family. Not shown on a display pinned to one member.
+* **Show only Maya on the calendar** (at the bottom) filters the calendar and chores to that person, like tapping an avatar used to. The avatar keeps its ring while the filter is on, On a phone, the family sheet does this directly: tap a person to show only them, and tap them again to show the whole family. Not shown on a display pinned to one member.
 * An idle wall closes the snapshot with everything else.
 
 ## Assigning items to someone
