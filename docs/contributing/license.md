@@ -8,7 +8,7 @@ In practice: you can use, modify and self-host it freely. If you run a modified 
 
 ## Built with Claude
 
-Kinwall is built by John Duprey with [Claude Code](https://claude.com/claude-code).
+Kinwall is built by John Duprey with [Claude Code](https://claude.com/claude-code), with UI/UX design decisions by Ashley Duprey.
 
 ## Support the project
 
