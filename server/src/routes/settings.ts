@@ -77,11 +77,17 @@ export const DEFAULT_TIDBITS: z.infer<typeof TidbitSettingsSchema> = {
   onThisDay: ['holidays', 'births'],
   birthsAfter: 1900,
   triviaCategories: [27, 17, 22, 9], // Animals, Science & Nature, Geography, General Knowledge
-  triviaDifficulty: 'easy',
+  triviaDifficulties: ['easy'],
 };
 function parseTidbits(raw: string | undefined): z.infer<typeof TidbitSettingsSchema> {
   try {
-    const parsed = TidbitSettingsSchema.safeParse({ ...DEFAULT_TIDBITS, ...JSON.parse(raw ?? '{}') });
+    const saved = JSON.parse(raw ?? '{}');
+    // Saved before difficulty was a multi-select: one level, or 'any' for all three.
+    if (typeof saved.triviaDifficulty === 'string' && !saved.triviaDifficulties) {
+      saved.triviaDifficulties = saved.triviaDifficulty === 'any' ? ['easy', 'medium', 'hard'] : [saved.triviaDifficulty];
+    }
+    delete saved.triviaDifficulty;
+    const parsed = TidbitSettingsSchema.safeParse({ ...DEFAULT_TIDBITS, ...saved });
     return parsed.success ? parsed.data : DEFAULT_TIDBITS;
   } catch { return DEFAULT_TIDBITS; }
 }

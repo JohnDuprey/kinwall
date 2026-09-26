@@ -77,11 +77,11 @@ export function shapeOnThisDay(feed: OtdFeed | null, kinds: readonly string[], b
 
 // MARK: Trivia
 
-type TriviaResponse = { response_code: number; results?: { category: string; question: string; correct_answer: string; incorrect_answers?: string[] }[] };
+type TriviaResponse = { response_code: number; results?: { category: string; difficulty?: string; question: string; correct_answer: string; incorrect_answers?: string[] }[] };
 
-function triviaUrl(category: number, difficulty: string): string {
-  const q = new URLSearchParams({ amount: '10', category: String(category), type: 'multiple', encode: 'url3986' });
-  if (difficulty !== 'any') q.set('difficulty', difficulty);
+function triviaUrl(category: number, difficulty: string | null, amount = 10): string {
+  const q = new URLSearchParams({ amount: String(amount), category: String(category), type: 'multiple', encode: 'url3986' });
+  if (difficulty) q.set('difficulty', difficulty);
   return `https://opentdb.com/api.php?${q}`;
 }
 
@@ -119,9 +119,15 @@ export async function getTidbits(db: KinwallDb, now = new Date()): Promise<Tidbi
     // One category a day, taking turns through the family's picks (one request a day, gentle on a free API).
     const dayIndex = Math.floor(Date.parse(`${date}T00:00:00Z`) / DAY_MS);
     const category = t.triviaCategories[dayIndex % t.triviaCategories.length];
-    const res = await cachedJson<TriviaResponse>(db, `tidbits:trivia:${category}:${t.triviaDifficulty}:${date}`, now, async () => {
-      let r = (await getJson(triviaUrl(category, t.triviaDifficulty))) as TriviaResponse;
-      if (r.response_code === 1 && t.triviaDifficulty !== 'any') r = (await getJson(triviaUrl(category, 'any'))) as TriviaResponse; // too few at that level
+    const levels = t.triviaDifficulties;
+    const res = await cachedJson<TriviaResponse>(db, `tidbits:trivia:${category}:${[...levels].sort().join('+')}:${date}`, now, async () => {
+      // One level: ask for it. Two or three: one mixed batch, keeping the picked levels.
+      let r = (await getJson(levels.length === 1 ? triviaUrl(category, levels[0]) : triviaUrl(category, null, 30))) as TriviaResponse;
+      if (levels.length > 1 && r.response_code === 0) {
+        const kept = (r.results ?? []).filter((q) => levels.includes(q.difficulty as (typeof levels)[number])).slice(0, 10);
+        r = kept.length ? { ...r, results: kept } : ((await getJson(triviaUrl(category, levels[0]))) as TriviaResponse);
+      }
+      if (r.response_code === 1) r = (await getJson(triviaUrl(category, null))) as TriviaResponse; // too few at that level: any level
       if (r.response_code !== 0) throw new Error(`Open Trivia DB response_code ${r.response_code}`);
       return r;
     });

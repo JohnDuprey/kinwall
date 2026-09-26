@@ -2,7 +2,6 @@
 // draws from, and the categories within each. A sheet of its own so the settings list stays short.
 import { useState } from 'react'
 import Sheet from './Sheet.tsx'
-import { Segmented } from './a11y.tsx'
 import { FACT_CATEGORY_LABELS, SOURCE_TITLES } from './tidbits.ts'
 import type { FactCategory, OnThisDayKind, TidbitSettings, TidbitSource } from './types.ts'
 
@@ -15,6 +14,7 @@ const TRIVIA_CATEGORIES: { id: number; label: string }[] = [
   { id: 32, label: '📺 Cartoons' }, { id: 15, label: '🎮 Video games' }, { id: 16, label: '🎲 Board games' },
   { id: 18, label: '💻 Computers' }, { id: 28, label: '🚗 Vehicles' },
 ]
+const DIFFICULTIES: { key: 'easy' | 'medium' | 'hard'; label: string }[] = [{ key: 'easy', label: '🙂 Easy' }, { key: 'medium', label: '🤔 Medium' }, { key: 'hard', label: '🧐 Hard' }]
 const ON_THIS_DAY: { key: OnThisDayKind; label: string }[] = [
   { key: 'holidays', label: '🎉 Holidays & observances' }, { key: 'births', label: '🎂 Birthdays' }, { key: 'events', label: '📜 History' },
 ]
@@ -22,7 +22,7 @@ const SOURCES: { key: TidbitSource; sub: string }[] = [
   { key: 'quotes', sub: 'Built in: authors, scientists and storytellers.' },
   { key: 'facts', sub: 'Built in, for all ages.' },
   { key: 'onthisday', sub: 'From Wikipedia: today’s holidays, birthdays and history.' },
-  { key: 'trivia', sub: 'From Open Trivia DB, multiple choice. Tap to show the answer, and again to hide it.' },
+  { key: 'trivia', sub: 'From Open Trivia DB, multiple choice. Tap an answer to see if it’s right; Try again resets it.' },
 ]
 
 export default function TidbitsSheet({ value, onClose, onSave }: { value: TidbitSettings; onClose: () => void; onSave: (t: TidbitSettings) => Promise<void> }) {
@@ -33,7 +33,7 @@ export default function TidbitsSheet({ value, onClose, onSave }: { value: Tidbit
   const chip = (active: boolean, label: string, onClick: () => void) => (
     <button key={label} type="button" className={`chip ${active ? 'active' : ''}`} aria-pressed={active} onClick={onClick}>{label}</button>
   )
-  const valid = t.onThisDay.length > 0 && t.triviaCategories.length > 0
+  const valid = t.onThisDay.length > 0 && t.triviaCategories.length > 0 && t.triviaDifficulties.length > 0
   return (
     <Sheet title="Quotes & facts" onClose={onClose}
       actions={<button className="btn btn-primary" disabled={!valid || busy} onClick={async () => { setBusy(true); try { await onSave(t) } finally { setBusy(false) } }}>Save</button>}>
@@ -77,8 +77,10 @@ export default function TidbitsSheet({ value, onClose, onSave }: { value: Tidbit
               {TRIVIA_CATEGORIES.map(c => chip(t.triviaCategories.includes(c.id), c.label, () => setT(x => ({ ...x, triviaCategories: toggle(x.triviaCategories, c.id) }))))}
             </div>
             {t.triviaCategories.length === 0 && <p className="settings-row-sub">Pick at least one. One category is used each day, taking turns.</p>}
-            <Segmented label="Difficulty" value={t.triviaDifficulty} onChange={v => setT(x => ({ ...x, triviaDifficulty: v }))}
-              options={[{ key: 'easy', label: 'Easy' }, { key: 'medium', label: 'Medium' }, { key: 'hard', label: 'Hard' }, { key: 'any', label: 'Mixed' }]} />
+            <div className="chip-row" role="group" aria-label="Difficulty">
+              {DIFFICULTIES.map(d => chip(t.triviaDifficulties.includes(d.key), d.label, () => setT(x => ({ ...x, triviaDifficulties: toggle(x.triviaDifficulties, d.key) }))))}
+            </div>
+            {t.triviaDifficulties.length === 0 && <p className="settings-row-sub">Pick at least one difficulty.</p>}
           </>}
         </div>
       ))}

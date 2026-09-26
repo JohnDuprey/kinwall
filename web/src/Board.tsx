@@ -173,10 +173,11 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
   )
 }
 
-/** The quote / fact card. Trivia shows its question and choices; a tap shows the answer and
- *  another hides it again. Online tidbits credit their source. */
+/** The quote / fact card. Trivia shows its question as tappable choices: a tap marks that guess
+ *  right or wrong and highlights the answer, and Try again resets it for the next person. Online
+ *  tidbits credit their source. */
 function TidbitCard({ tidbit }: { tidbit: Tidbit }) {
-  const [shown, setShown] = useState(false) // resets with each tidbit: the parent keys the card by it
+  const [guess, setGuess] = useState<string | null>(null) // resets with each tidbit: the parent keys the card by it
   const key = tidbit.kind === 'trivia' ? tidbit.question : tidbit.text
   const label = tidbit.kind === 'quote' ? 'Quote' : tidbit.kind === 'trivia' ? 'Trivia' : tidbit.kind === 'onthisday' ? 'On this day' : 'Did you know?'
   return (
@@ -191,10 +192,21 @@ function TidbitCard({ tidbit }: { tidbit: Tidbit }) {
         {tidbit.kind === 'trivia' && <>
           <p><span className="board-tidbit-tag">🧠 Trivia · {tidbit.category}</span> {tidbit.question}</p>
           <ul className="board-trivia-choices">
-            {tidbit.choices.map(c => <li key={c} className={shown && c === tidbit.answer ? 'correct' : ''}>{c}</li>)}
+            {tidbit.choices.map(c => (
+              <li key={c}>
+                <button type="button" disabled={guess !== null} onClick={() => setGuess(c)}
+                  className={guess === null ? '' : c === tidbit.answer ? 'correct' : c === guess ? 'wrong' : ''}>
+                  {guess !== null && c === tidbit.answer && <span aria-hidden="true">✓ </span>}
+                  {guess === c && c !== tidbit.answer && <span aria-hidden="true">✗ </span>}
+                  {c}
+                </button>
+              </li>
+            ))}
           </ul>
-          <p className="board-tidbit-source" role="status">{shown ? `Answer: ${tidbit.answer} · ` : ''}From Open Trivia DB</p>
-          <button className="btn btn-secondary" aria-pressed={shown} onClick={() => setShown(v => !v)}>{shown ? 'Hide the answer' : 'Show the answer'}</button>
+          <p className="board-tidbit-source" role="status">
+            {guess === null ? 'Tap an answer · ' : guess === tidbit.answer ? '🎉 That’s right! · ' : `Not quite: it’s ${tidbit.answer} · `}From Open Trivia DB
+          </p>
+          {guess !== null && <button className="btn btn-secondary" onClick={() => setGuess(null)}>Try again</button>}
         </>}
       </div>
     </section>

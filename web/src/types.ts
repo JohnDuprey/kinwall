@@ -50,7 +50,7 @@ export interface TidbitSettings {
   onThisDay: OnThisDayKind[]
   birthsAfter: number | null // birthdays only for people born in or after this year; null = any
   triviaCategories: number[] // Open Trivia DB category ids
-  triviaDifficulty: 'easy' | 'medium' | 'hard' | 'any'
+  triviaDifficulties: ('easy' | 'medium' | 'hard')[] // one or more
 }
 /** Today's online tidbits (GET /api/tidbits); sources that are off come back empty. */
 export interface OnlineTidbits {

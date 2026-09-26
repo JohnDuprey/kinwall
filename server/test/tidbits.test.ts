@@ -28,7 +28,7 @@ const FEED = {
   selected: [{ text: 'A war begins somewhere.', year: 1900 }, { text: 'The first bridge opens.', year: 1950 }],
   events: [],
 };
-const TRIVIA = { response_code: 0, results: [{ category: 'Animals', question: 'Wombats%20are%20native%20to%20which%20country%3F', correct_answer: 'Australia', incorrect_answers: ['Palau', 'Chile', 'Peru'] }] };
+const TRIVIA = { response_code: 0, results: [{ category: 'Animals', difficulty: 'easy', question: 'Wombats%20are%20native%20to%20which%20country%3F', correct_answer: 'Australia', incorrect_answers: ['Palau', 'Chile', 'Peru'] }] };
 
 test('tidbits: online sources are off by default and fetch nothing', async () => {
   const req = setup();
@@ -57,7 +57,7 @@ test('tidbits: On this day filters feast days and grim events; trivia decodes wi
     return new Response(JSON.stringify(u.host === 'opentdb.com' ? TRIVIA : FEED), { status: 200 });
   }) as typeof fetch;
   try {
-    const patch = await req('/api/settings', 'PATCH', { tidbits: { sources: ['quotes', 'onthisday', 'trivia'], factCategories: [], onThisDay: ['holidays', 'births', 'events'], birthsAfter: 1900, triviaCategories: [27], triviaDifficulty: 'easy' } });
+    const patch = await req('/api/settings', 'PATCH', { tidbits: { sources: ['quotes', 'onthisday', 'trivia'], factCategories: [], onThisDay: ['holidays', 'births', 'events'], birthsAfter: 1900, triviaCategories: [27], triviaDifficulties: ['easy'] } });
     assert.equal(patch.status, 200);
     const t = (await (await req('/api/tidbits')).json()) as any;
     assert.deepEqual(t.onThisDay.filter((x: any) => x.kind === 'holidays').map((x: any) => x.text), ['European Day of Languages (European Union)']);
@@ -77,8 +77,29 @@ test('tidbits: On this day filters feast days and grim events; trivia decodes wi
 test('tidbits: settings reject unknown sources and empty trivia categories', async () => {
   const req = setup();
   const bad = [
-    { sources: ['horoscopes'], factCategories: [], onThisDay: ['holidays'], birthsAfter: null, triviaCategories: [9], triviaDifficulty: 'easy' },
-    { sources: ['trivia'], factCategories: [], onThisDay: ['holidays'], birthsAfter: null, triviaCategories: [], triviaDifficulty: 'easy' },
+    { sources: ['horoscopes'], factCategories: [], onThisDay: ['holidays'], birthsAfter: null, triviaCategories: [9], triviaDifficulties: ['easy'] },
+    { sources: ['trivia'], factCategories: [], onThisDay: ['holidays'], birthsAfter: null, triviaCategories: [], triviaDifficulties: ['easy'] },
   ];
   for (const tidbits of bad) assert.equal((await req('/api/settings', 'PATCH', { tidbits })).status, 400);
 });
+
+test('tidbits: a saved single difficulty carries over; several levels fetch one mixed batch and keep only those', async () => {
+  const req = setup();
+  const realFetch = globalThis.fetch;
+  const urls: string[] = [];
+  const mixed = { response_code: 0, results: ['easy', 'medium', 'hard'].map((d) => ({ category: 'Animals', difficulty: d, question: `A%20${d}%20one%3F`, correct_answer: 'Yes', incorrect_answers: ['No', 'Maybe', 'Never'] })) };
+  globalThis.fetch = (async (url: unknown) => { urls.push(String(url)); return new Response(JSON.stringify(mixed), { status: 200 }); }) as typeof fetch;
+  try {
+    await req('/api/settings', 'PATCH', { tidbits: { sources: ['trivia'], factCategories: [], onThisDay: ['holidays'], birthsAfter: null, triviaCategories: [27], triviaDifficulties: ['easy', 'hard'] } });
+    const t = (await (await req('/api/tidbits')).json()) as any;
+    assert.deepEqual(t.trivia.map((q: any) => q.question), ['A easy one?', 'A hard one?']);
+    assert.equal(urls.length, 1);
+    assert.ok(!urls[0].includes('difficulty='));
+    // A single level round-trips as a one-item list.
+    const s = (await (await req('/api/settings', 'PATCH', { tidbits: { sources: ['trivia'], factCategories: [], onThisDay: ['holidays'], birthsAfter: null, triviaCategories: [27], triviaDifficulties: ['medium'] } })).json()) as any;
+    assert.deepEqual(s.tidbits.triviaDifficulties, ['medium']);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
