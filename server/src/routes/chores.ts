@@ -267,10 +267,10 @@ choresRoutes.openapi(
     const { id } = c.req.valid('param');
     const { date, memberId } = c.req.valid('json');
     const [choreRes, settingsRes] = await c.env.DB.batch<unknown>([
-      c.env.DB.prepare('SELECT id, member_id, points, list_id FROM chores WHERE id = ?').bind(id),
+      c.env.DB.prepare('SELECT id, title, member_id, points, list_id FROM chores WHERE id = ?').bind(id),
       c.env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('timezone', 'lateCompletionCredit')"),
     ]);
-    const chore = choreRes.results[0] as { id: string; member_id: string | null; points: number; list_id: string | null } | undefined;
+    const chore = choreRes.results[0] as { id: string; title: string; member_id: string | null; points: number; list_id: string | null } | undefined;
     if (!chore) return c.json({ error: 'not found' }, 404);
     // The checklist gates completion: the list's items for this chore's member (or whoever is
     // completing an "anyone" chore) plus unassigned ones. An empty set doesn't gate.
@@ -294,7 +294,8 @@ choresRoutes.openapi(
     )
       .bind(crypto.randomUUID(), id, date, memberId ?? chore.member_id, new Date().toISOString(), pointsAwarded)
       .run();
-    emit(c, 'chore.completed', { id, date });
+    // Title and member ride along so a receiver (Home Assistant, n8n) can act without a lookup.
+    emit(c, 'chore.completed', { id, date, title: chore.title, memberId: memberId ?? chore.member_id, points: pointsAwarded });
     // A reusable checklist starts fresh for the next time the chore comes round - just this
     // member's items and the shared ones, so a sibling's ticks on the same list survive.
     if (chore.list_id && checklistKind === 'reusable') {
@@ -318,8 +319,9 @@ choresRoutes.openapi(
   async (c) => {
     const { id } = c.req.valid('param');
     const { date } = c.req.valid('query');
+    const chore = await c.env.DB.prepare('SELECT title, member_id FROM chores WHERE id = ?').bind(id).first<{ title: string; member_id: string | null }>();
     await c.env.DB.prepare('DELETE FROM chore_completions WHERE chore_id = ? AND date = ?').bind(id, date).run();
-    emit(c, 'chore.uncompleted', { id, date });
+    emit(c, 'chore.uncompleted', { id, date, title: chore?.title ?? null, memberId: chore?.member_id ?? null });
     return c.json({ ok: true }, 200);
   },
 );

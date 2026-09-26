@@ -24,7 +24,7 @@ URLs must be public `http(s)` addresses. Private and LAN addresses are refused u
 | `calendar.synced` | A calendar finished syncing (includes `error` on failure). |
 | `events.changed` | Events were created, edited, deleted or re-synced. |
 | `chore.changed` | A chore is added, edited or deleted. |
-| `chore.completed` | A chore is marked done for a date. |
+| `chore.completed` | A chore is marked done for a date. `data`: `{ id, date, title, memberId, points }` (points as awarded, so late completions show the reduced amount). |
 | `chore.uncompleted` | A completion is undone. |
 | `list.changed` | A list is created, edited, archived, deleted, cleared, reset or reordered. |
 | `list.item.changed` | A list item is added, edited, ticked or deleted. |
