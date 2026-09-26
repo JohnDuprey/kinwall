@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { useApp } from './AppContext.tsx'
 import { api, ApiError, clearKey } from './api.ts'
 import type { Account, ApiKey, CalendarEntry, Category, Density, DeviceDensity, GeocodeResult, HostEvent, Me, Member, Passkey, Providers, PushSubscription, RemoteCalendar, Settings, TextScale, ThemeMode, Webhook } from './types.ts'
@@ -8,12 +8,13 @@ import Sheet from './Sheet.tsx'
 import { MemberPicker } from './MemberPicker.tsx'
 import { AnyEmojiField } from './AnyEmojiField.tsx'
 import { isValidAvatar } from './emoji.ts'
-import { colorName, inkFor } from './color.ts'
+import { accentFill, colorName, inkFor } from './color.ts'
 import { BellIcon, KeyIcon, LinkIcon, LockIcon, MonitorIcon, PaletteIcon, PlusIcon, TrashIcon, WebhookIcon } from './icons.tsx'
 import { CustomColorSwatch } from './ColorSwatch.tsx'
 import { useIsPhone } from './useIsPhone.ts'
 import { useNavMode, setNavPref, type NavPref } from './useNavMode.ts'
 import { setDeviceAppearance, useDeviceAppearance, type DeviceAppearance, type FontChoice, type LockedView, type SaverSource } from './useTheme.ts'
+import { contrast, DEFAULT_SKIN_ID, getSkin, seasonalSkinId, SKINS, tokensFor } from './skins.ts'
 import { SAVER_PREVIEW_EVENT } from './Screensaver.tsx'
 import { countDrawings } from './drawings-db.ts'
 import { passkeysSupported, registerPasskey } from './webauthn.ts'
@@ -624,6 +625,26 @@ function DeviceAppearanceRows() {
   const { settings } = useApp()
   const device = useDeviceAppearance()
   const set = (patch: DeviceAppearance) => setDeviceAppearance({ ...device, ...patch })
+  const skinId = device.seasonal ? seasonalSkinId() : (device.skin ?? DEFAULT_SKIN_ID)
+  const skin = getSkin(skinId)
+  const dark = document.documentElement.getAttribute('data-theme') === 'dark'
+  const tokens = tokensFor(skin, dark)
+  const custom = device.custom ?? {}
+  const effAccent = custom.accent || device.accent || tokens.accent
+  const effBg = custom.bg || tokens.bg
+  const effCard = custom.card || tokens.card
+  const effText = custom.text || tokens.text
+  const setCustom = (key: 'accent' | 'bg' | 'card' | 'text', value: string | undefined) => {
+    const next = { ...custom, [key]: value }
+    if (!next[key]) delete next[key]
+    set({ custom: Object.keys(next).length ? next : undefined })
+  }
+  const CUSTOM_FIELDS: { key: 'accent' | 'bg' | 'card' | 'text'; label: string; value: string; ratio: number }[] = [
+    { key: 'accent', label: 'Accent', value: effAccent, ratio: contrast('#ffffff', accentFill(effAccent)) },
+    { key: 'bg', label: 'Background', value: effBg, ratio: contrast(effText, effBg) },
+    { key: 'card', label: 'Card', value: effCard, ratio: contrast(effText, effCard) },
+    { key: 'text', label: 'Text', value: effText, ratio: Math.min(contrast(effText, effBg), contrast(effText, effCard)) },
+  ]
   const rows = [
     { key: 'themeMode' as const, label: 'Mode', options: THEME_MODES },
     { key: 'textScale' as const, label: 'Text size', options: TEXT_SCALES.map(o => ({ ...o, label: TEXT_SCALE_NAMES[o.key] })) },
@@ -635,6 +656,55 @@ function DeviceAppearanceRows() {
         <div className="settings-row-label">Appearance on this device</div>
         <div className="settings-row-sub">Leave on Household to follow the family setting; pick a value to override it here only.</div>
       </div>
+
+      <div className="device-pref-row tall">
+        <span aria-hidden="true">Color scheme</span>
+        <div className="chip-row" role="group" aria-label="Color scheme">
+          {SKINS.map(s => {
+            const active = !device.seasonal && (device.skin ?? DEFAULT_SKIN_ID) === s.id
+            const t = tokensFor(s, dark)
+            return (
+              <button key={s.id} className={`chip ${active ? 'active' : ''}`} aria-pressed={active}
+                style={{ '--chip-color': t.accent } as CSSProperties}
+                onClick={() => { set({ skin: s.id === DEFAULT_SKIN_ID ? undefined : s.id, seasonal: undefined }); announce(`${s.name} color scheme`) }}>
+                <span className="skin-dots" aria-hidden="true">
+                  <span style={{ background: t.bg }} /><span style={{ background: t.card }} /><span style={{ background: t.accent }} />
+                </span>
+                <span aria-hidden="true">{s.emoji}</span>{s.name}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+      <div className="toggle-row">
+        <label id="seasonal-label">Follow the seasons</label>
+        <button className={`switch ${device.seasonal ? 'on' : ''}`} role="switch" aria-checked={!!device.seasonal} aria-labelledby="seasonal-label" aria-describedby="seasonal-sub"
+          onClick={() => { set({ seasonal: !device.seasonal || undefined }); announce(device.seasonal ? 'Seasonal color scheme off' : `Seasonal color scheme on — currently ${getSkin(seasonalSkinId()).name}`) }}><span className="knob" /></button>
+      </div>
+      <div className="settings-row-sub" id="seasonal-sub" style={{ marginTop: -8 }}>Switches on its own through the year — Winter, Spring, Summer, Autumn — plus Harvest and Festive around the holidays.</div>
+
+      <details className="settings-disclosure">
+        <summary>Custom colors</summary>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 4 }}>
+          {CUSTOM_FIELDS.map(f => {
+            const ok = f.ratio >= 4.5
+            const set_ = custom[f.key]
+            return (
+              <div key={f.key} className="device-pref-row tall">
+                <span>{f.label}</span>
+                <div className="custom-color-row">
+                  <input type="color" value={/^#[0-9a-f]{6}$/i.test(f.value) ? f.value : '#888888'} aria-label={`Custom ${f.label.toLowerCase()} color`}
+                    onChange={e => { setCustom(f.key, e.target.value); announce(`Custom ${f.label.toLowerCase()} color set`) }} />
+                  <span className={`contrast-badge ${ok ? 'ok' : 'bad'}`}>{ok ? 'AA ✓' : 'Low contrast'} ({f.ratio.toFixed(1)}:1)</span>
+                  {set_ && <button className="link-btn" onClick={() => { setCustom(f.key, undefined); announce(`Custom ${f.label.toLowerCase()} color reset`) }}>Reset</button>}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </details>
+      <button className="btn btn-secondary" onClick={() => { set({ skin: undefined, seasonal: undefined, custom: undefined }); announce('Color scheme reset to Meadow') }}>Reset to Meadow</button>
+
       {rows.map(r => {
         const household = r.options.find(o => o.key === settings[r.key])?.label ?? ''
         return (

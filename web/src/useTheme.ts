@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Appearance, DeviceDensity, Settings, TextScale } from './types.ts'
 import { accentFill, readableOn } from './color.ts'
 import { api, getKey } from './api.ts'
+import { getSkin, seasonalSkinId, tokensFor } from './skins.ts'
 
 const SCALE: Record<TextScale, string> = { s: '0.9', m: '1', l: '1.15', xl: '1.3' }
 
@@ -28,6 +29,9 @@ export type DeviceAppearance = Partial<Pick<Appearance, 'themeMode' | 'textScale
   saverEvery?: number // minutes between pictures; absent = 5
   saverBright?: 'medium' // absent = low
   saverClock?: false // corner clock; absent = shown
+  skin?: string // preset id from skins.ts; absent = meadow (today's look)
+  seasonal?: boolean // skin follows the date (see skins.ts's seasonalSkinId) instead of `skin`
+  custom?: { accent?: string; bg?: string; card?: string; text?: string } // hex, layered on the skin; ignored in low-stim
 }
 export type SaverSource = 'drawings' | 'photos' | 'art' | 'nature'
 
@@ -116,13 +120,33 @@ function applyAppearance(household: Appearance, device: DeviceAppearance) {
     root.setAttribute('data-theme', dark ? 'dark' : 'light')
     root.setAttribute('data-bg', dark ? a.backgroundDark : a.backgroundLight)
     root.setAttribute('data-density', a.density)
-    root.style.setProperty('--accent', a.accent)
-    root.style.setProperty('--accent-strong', accentFill(a.accent))
+
+    // Skin: a device-only preset palette (skins.ts) layered over the household look. Absent skin
+    // (and absent seasonal) leaves --bg/--card/--text/etc. untouched, so the existing
+    // backgroundLight/backgroundDark presets above keep working exactly as before. Custom colors
+    // (also device-only) layer on top of the skin, but are skipped in low-stim mode, which wants a
+    // calm, pre-vetted palette rather than an arbitrary user pick.
+    const skinId = device.seasonal ? seasonalSkinId() : device.skin
+    const skin = skinId ? getSkin(skinId) : null
+    const custom = a.lowStim ? undefined : device.custom
+    const t = skin ? tokensFor(skin, dark) : null
+    const setOrClear = (prop: string, val?: string) => { if (val) root.style.setProperty(prop, val); else root.style.removeProperty(prop) }
+    setOrClear('--bg', t ? (custom?.bg || t.bg) : undefined)
+    setOrClear('--bg-alt', t?.bgAlt)
+    setOrClear('--card', t ? (custom?.card || t.card) : undefined)
+    setOrClear('--card-soft', t ? 'color-mix(in srgb, var(--card) 90%, var(--bg))' : undefined)
+    setOrClear('--border', t?.border)
+    setOrClear('--text', t ? (custom?.text || t.text) : undefined)
+    setOrClear('--text-dim', t?.textDim)
+
+    const accent = custom?.accent || device.accent || t?.accent || a.accent
+    root.style.setProperty('--accent', accent)
+    root.style.setProperty('--accent-strong', accentFill(accent))
     root.style.setProperty('--accent-ink', '#ffffff')
     // Accent as text/focus ring: 4.5:1 on the theme's lowest-contrast surface (bg-alt in light,
     // card-soft in dark), so links, active tabs and focus outlines read in either mode.
     const surface = getComputedStyle(root).getPropertyValue(dark ? '--card-soft' : '--bg-alt').trim()
-    if (/^#[0-9a-f]{6}$/i.test(surface)) root.style.setProperty('--accent-text', readableOn(a.accent, surface))
+    if (/^#[0-9a-f]{6}$/i.test(surface)) root.style.setProperty('--accent-text', readableOn(accent, surface))
     root.style.setProperty('--text-scale', SCALE[a.textScale])
 
     let meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
@@ -136,22 +160,29 @@ function applyAppearance(household: Appearance, device: DeviceAppearance) {
 
   apply()
 
+  const cleanups: (() => void)[] = []
   if (a.themeMode === 'auto') {
     const mql = matchMedia('(prefers-color-scheme: dark)')
     mql.addEventListener('change', apply)
-    return () => mql.removeEventListener('change', apply)
+    cleanups.push(() => mql.removeEventListener('change', apply))
   }
   if (a.themeMode === 'scheduled') {
     const id = setInterval(apply, 60000)
-    return () => clearInterval(id)
+    cleanups.push(() => clearInterval(id))
   }
-  return undefined
+  if (device.seasonal) {
+    // The date-driven skin only needs to re-check once a day, not every minute like scheduled dark mode.
+    const id = setInterval(apply, 60 * 60 * 1000)
+    cleanups.push(() => clearInterval(id))
+  }
+  return cleanups.length ? () => cleanups.forEach(fn => fn()) : undefined
 }
 
 /** Applies household theming (mode -> data-theme, background preset -> data-bg, density,
  * accent + its computed ink, text scale) to <html> from ONE place, so the pairing screen, setup
- * wizard and app all render the same way. Re-evaluates every minute in 'scheduled' mode and on
- * prefers-color-scheme change in 'auto' mode. Before `settings` is available (pairing gate / setup
+ * wizard and app all render the same way. Also applies this device's skin (skins.ts) and any custom
+ * colors on top. Re-evaluates every minute in 'scheduled' mode, hourly when the skin follows the
+ * season, and on prefers-color-scheme change in 'auto' mode. Before `settings` is available (pairing gate / setup
  * wizard, no key stored yet) it falls back to GET /api/appearance, the same no-auth subset of
  * fields, so the wall doesn't show default colors until paired. Once a key exists (mid-wizard, or
  * a display key with no local settings yet), it no-ops and leaves styles.css's defaults. */
