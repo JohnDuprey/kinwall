@@ -25,7 +25,7 @@ In Safari, tap **Share → Add to Home Screen**, then always launch Kinwall from
 ## How the wall display behaves
 
 * After 2 minutes without a touch it goes back to today's calendar and closes any open sheet.
-* It checks for changes every 15 seconds (`GET /api/rev`), so edits from phones show up almost immediately.
+* It checks for changes every 30 seconds (`GET /api/rev`), so edits from phones show up within about 30 seconds.
 * When a new version is deployed, a **Kinwall updated — tap to reload** banner appears.
 * **Settings** on a display shows **General** (Household, Appearance, Notifications, This display) and **Family** (Members read-only, Categories). The **Calendars** and **Access** tabs are hidden. See [This display](../settings/this-display.md).
 

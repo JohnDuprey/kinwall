@@ -8,8 +8,14 @@ The Chores tab shows one column per family member plus **🌟 Anyone**. Each col
 
 * **Tap** a card to mark it done (with a check and a small confetti burst). Tap again to undo.
 * A **date strip** lets you look at 4 days back and 9 days ahead. You can complete chores for any day shown.
-* Completing a chore credits the chore's assignee. An **Anyone** chore is recorded without a member.
+* Completing a chore credits the chore's assignee. An **Anyone** chore ticked off on the Chores tab is recorded without a member.
 * To edit a chore, **press and hold** (half a second), right-click, or tab to it and use its **Edit** button.
+
+## Ticking chores off from someone's day
+
+A person's day (their snapshot) lists their chores for today, plus **Anyone** chores. Tap a chore to mark it done or not done, the same as on the Chores tab. An **Anyone** chore done from someone's day counts for that person. A chore with a checklist that still has open items opens the checklist first.
+
+On a phone, open someone's day from the family button at the top left, then **Their day**.
 
 ## Creating and editing
 
@@ -24,7 +30,7 @@ Tap **+** (Add chore). The sheet has:
 | **On** (Weekly) | Pick weekdays. With none picked, it repeats on the weekday it was created. A new chore pre-selects today. |
 | **Ends (optional)** (Daily/Weekly) | The last date it's due. It's stored as `UNTIL` in the rule. |
 | **Due date** (Once) | The day a one-off chore is due. |
-| **Checklist (optional)** | A list that has to be fully ticked before the chore can be completed. See below. |
+| **Checklist (optional)** | A list that has to be fully ticked before the chore can be completed. See [Checklists](#checklists). |
 
 Chores created through the API or MCP can use any RRULE (for example `FREQ=MONTHLY` or `INTERVAL=2`). The sheet shows those as "Custom schedule (…)" and leaves them alone unless you pick another option. A recurring chore without a due date starts on the day it was created, in the household timezone.
 
@@ -32,9 +38,26 @@ Chores created through the API or MCP can use any RRULE (for example `FREQ=MONTH
 
 ## Checklists
 
-A chore can carry a **checklist**: one of your [lists](lists.md) (any kind, but a **reusable** list is the natural fit — "Bedtime routine: pick out clothes, shower, pajamas, brush teeth"). The chore card shows the progress (`☑ 2/4 Bedtime`), and tapping it while items are still open opens the checklist right there in a sheet instead of completing the chore. Its **Complete** button unlocks once every item is ticked; a reusable checklist then resets to unticked, ready for the next time the chore comes round. Other list kinds are left as they are.
+A chore can have a **checklist**: one of your [lists](lists.md). Any kind of list works, but a **reusable** list fits best, such as "Bedtime routine: pick out clothes, shower, pajamas, brush teeth". Pick it under **Checklist (optional)** when you add or edit the chore.
 
-**One list, several members.** A chore's checklist is the list's items **assigned to the chore's member, plus the unassigned ones** (a chore for *Anyone* sees the whole list). So one "Bedtime" list can back June's and Maggie's bedtime chores: give each kid their own "Shower" and "Brush teeth" items (the item's owner, in the item sheet), and leave genuinely shared steps like "Turn off the hall light" unassigned. Ticks land on the list itself, so an unassigned item ticked by one child is ticked for the other too; per-child steps stay separate. Completing the chore resets only that member's items and the shared ones. Steps added from the chore's sheet are assigned to its member. **Edit the list** at the bottom of the sheet opens the full list (reorder, notes, sub-steps). Via the API: `listId` on `POST/PATCH /api/chores`, `checklist` progress on `GET /api/chores/day`, and `POST /api/chores/{id}/complete` answers **409** with `remaining` while items are open. MCP: the `list` argument on `create_chore` / `update_chore`.
+* The chore card shows the progress, for example `☑ 2/4 Bedtime`.
+* Tapping the chore while items are still open opens the checklist in a sheet instead of completing it. Tick items off there, or add one with **Add a step…**.
+* The button at the bottom says how many are left ("2 left on Bedtime"). Once every item is ticked it becomes **Complete *chore***.
+* Completing the chore resets a reusable checklist, ready for next time. Other kinds of list stay as they are.
+* **Edit the *list* list** at the bottom of the sheet opens the full list, where you can reorder items, add notes and add sub-steps.
+
+### One list for several people
+
+A chore's checklist shows the list's items **assigned to the chore's person, plus the unassigned ones**. A chore for **Anyone** shows the whole list.
+
+So one "Bedtime" list can serve both Maya's and Leo's bedtime chores:
+
+* Give each child their own "Shower" and "Brush teeth" items (set **Assign to** in the item sheet).
+* Leave shared steps, like "Turn off the hall light", unassigned.
+
+Ticks are saved on the list itself. A shared item ticked by one child is ticked for the other too, while each child's own steps stay separate. Completing the chore resets only that person's items and the shared ones. Steps added from the chore's sheet are assigned to the chore's person.
+
+**API and MCP:** `listId` on `POST/PATCH /api/chores`, `checklist` progress on `GET /api/chores/day`, and `POST /api/chores/{id}/complete` answers **409** with `remaining` while items are open. In MCP, use the `list` argument on `create_chore` and `update_chore`.
 
 ## Points, late completion credit
 
@@ -92,9 +115,3 @@ A per-device **Chore reminder** at a set time lists chores still open today for 
 * `GET /api/leaderboard?period=today|week|month`
 * `GET /api/members/{id}/points`
 * MCP: `list_chores`, `create_chore`, `update_chore`, `complete_chore`, `uncomplete_chore`, `get_leaderboard`, `get_points`
-
-## Ticking chores off from someone's day
-
-A person's day (their snapshot) lists their chores for today, plus **Anyone** chores. Tap a chore to mark it done or not done, the same as on the Chores tab. An **Anyone** chore done from someone's day counts for that person. A chore with a checklist that still has open items opens the checklist first.
-
-On a phone, open someone's day from the family button at the top left, then **Their day**.

@@ -15,7 +15,7 @@ Everyone who shows up on the wall. Each member has:
 
 ## Categories
 
-Add, edit, reorder (↑ / ↓) and delete event categories. Both admin and display devices can do this. See [Categories & auto-categorising](../using/categories.md).
+Add, edit, reorder (↑ / ↓) and delete event categories. Both admin and display devices can do this. See [Categories & auto-categorizing](../using/categories.md).
 
 ## Chores
 

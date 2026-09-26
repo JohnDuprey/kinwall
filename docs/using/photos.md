@@ -6,17 +6,19 @@
 
 ## Adding photos
 
-Tap **Add photos** and pick one or more pictures. On an iPhone or iPad this opens your Photos library.
+<img src="../screenshots/phone-photos.png" width="32%" alt="Photos on a phone" />
+
+Tap **Add photos** (the button at the top, or the **Add photos** tile at the start of the grid) and pick one or more pictures. On an iPhone or iPad this opens your Photos library.
 
 Before uploading, your browser shrinks each photo to at most 1280 pixels on its long edge and saves it as WebP (or JPEG on browsers that can't make WebP). A typical phone photo ends up around 150–300 KB. The original stays on your device.
 
-Adding, captioning and deleting photos needs a parent (admin) sign-in. A paired wall display can look at the photos but not change them.
+Adding photos from the Photos page, and captioning and deleting them, needs a parent (admin) sign-in. A paired wall display can look at the photos but not change them.
 
-A drawing made in [Paint](activities.md) can be sent here with its **♥ Save to family photos** button; it's captioned with the picture's name and who drew it.
+The one exception is [Paint](activities.md): its **♥ Save to family photos** button adds the drawing here, and it works on wall displays too. The photo is captioned with the drawing's name and who drew it. Only a parent can edit or delete it afterward.
 
 ## Captions and owners
 
-Tap a photo to see it full size. There you can:
+Tap a photo to see it full size. Swipe, tap **‹** and **›**, or use the arrow keys to move to the previous or next photo. A parent can also:
 
 * add or edit a **caption** (shown under the picture on the Board and the screensaver),
 * mark who it's **for**, or leave it for **Everyone**,

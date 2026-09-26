@@ -187,7 +187,7 @@ export default function CalendarView() {
   }, [pendingEventId, events])
 
   useEffect(() => {
-    const onIdle = () => { setDetail(null); setEditState(null); setViewMode('week'); setAnchor(new Date()) }
+    const onIdle = () => { setDetail(null); setEditState(null); setViewMode('board'); setAnchor(new Date()) } // back to the default view
     window.addEventListener(IDLE_RESET_EVENT, onIdle)
     return () => window.removeEventListener(IDLE_RESET_EVENT, onIdle)
   }, [])

@@ -22,8 +22,8 @@ Add buttons:
 | **+ Local calendar** | A Kinwall-only calendar (**Add local calendar**: a name; it gets the next unused color, and you can change the rest in **Edit calendar**). |
 | **+ ICS URL** | [ICS feed](../calendars/ics-feeds.md). |
 | **+ CalDAV** | [iCloud & CalDAV](../calendars/icloud-caldav.md). |
-| **Connect Google** | [Google](../calendars/google.md). Greyed out until a Google client is configured. |
-| **Connect Outlook** | [Microsoft / Outlook](../calendars/microsoft.md). Greyed out until configured. |
+| **Connect Google** | [Google](../calendars/google.md). Grayed out until a Google client is configured. |
+| **Connect Outlook** | [Microsoft / Outlook](../calendars/microsoft.md). Grayed out until configured. |
 
 After connecting an account, **Calendars for *account*** lists its calendars. Pick members, then **Add calendar** on each one you want.
 

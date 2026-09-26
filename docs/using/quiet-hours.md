@@ -6,7 +6,7 @@ Quiet hours turn a wall display into a dim, slowly drifting clock overnight. Tha
 
 **Settings → General → Appearance → Quiet hours (displays)**: choose **On**, then set **Quiet from** and **Quiet to**. Turning it on starts you at 22:00 → 06:00. The window can cross midnight.
 
-## Behaviour
+## Behavior
 
 * It applies **only to paired wall displays** (devices using a display key). Phones and admin devices are never dimmed.
 * During the window, the display shows only the time on a dark screen. The clock moves slightly now and then so no pixels stay lit in one place.

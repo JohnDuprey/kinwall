@@ -15,9 +15,13 @@ Fill in **Client ID**, **Client secret** and **Tenant** (default `common`, which
 
 Or use environment variables: `MS_CLIENT_ID`, `MS_CLIENT_SECRET` and `MS_TENANT`. The same precedence as Google applies: the UI wins, and variables-only configuration shows "Provided by your host".
 
+If the card already says **Provided by your host**, someone else set up the Microsoft app for you (hosted Kinwall will work this way). Skip to step 2.
+
 ## 2. Connect
 
 **Settings → Calendars → Connect Outlook**, sign in, then tick the calendars you want in **Calendars for *account*** and tap **Add N calendars**.
+
+If you cancel the Microsoft sign-in, or it fails, you land back on **Settings → Calendars** with a message saying what happened (for example "Microsoft sign-in canceled — nothing was connected"). Nothing is connected, so you can just try again.
 
 ## Reminders
 

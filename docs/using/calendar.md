@@ -28,7 +28,7 @@ Every device opens on **Board**; the view switcher runs Board, Day, Week (3 Day 
 
 ![Board view in dark mode](../screenshots/ipad-board-dark.png)
 
-The board carries its own large clock and date, so while it's showing the wall's header keeps only the family name, avatars and buttons. On a phone the header is always one row: the family button (name and a pile of faces, which opens the family sheet), the bell and Help, with the Now / Next line beneath it on every view.
+The board carries its own large clock and date, so while it's showing, the wall's header hides its clock and keeps only the family name, avatars and buttons.
 
 **Board** turns the calendar into a bulletin board to read from across the room. It always shows today onward, so it has no ◀ ▶ or swipe paging. Its cards:
 
@@ -38,13 +38,39 @@ The board carries its own large clock and date, so while it's showing the wall's
 * **Due soon**: open list items due in the next week, overdue ones first in red, plus urgent and important items with no date. Each shows its list's emoji and the owner's avatar.
 * **Chores today**: a bar per member showing how many of today's chores are left.
 * **Picture**: a new picture every minute, from the same sources as this display's [screensaver](quiet-hours.md#screensaver): drawings, [family photos](photos.md) (with their captions), art (with the painting's title and artist) or nature photos. With no screensaver pictures chosen, it shows your family photos, or nature photos until you've added some.
-* **Quote or fact**: a short quote or an interesting fact. It changes every 30 minutes, alternating between the two. Every display shows the same one at the same time, and no internet is needed.
+* **Quote or fact**: a short quote, or an interesting fact marked **💡 Did you know?**. It changes every 30 minutes, alternating between the two. Every display shows the same one at the same time, and no internet is needed.
 
 Tap an event to open it, an item to open its list, or a chore bar to go to Chores. The member and category filters apply to the board's events too. The board refreshes every 10 minutes and whenever something changes. With low-stimulation mode or reduced motion on, the picture and quote change without fading.
 
 On a wall display the cards fill the screen in three columns, and long cards scroll on their own. On phones they stack in one column, with a smaller picture.
 
+<img src="../screenshots/phone-board.png" width="32%" alt="Board view on a phone" />
+
 To keep a display on the board, set **Lock view** to **Board** in [This display](../settings/this-display.md).
+
+## The header
+
+On a wall display or tablet, the header shows the family name, the time and date, everyone's avatars, the [notification bell](notifications.md#notification-feed) and **Help**.
+
+On a phone, the header is one row:
+
+* The **family button** on the left: a pile of faces and the family name. Tap it to open the family sheet. See [On a phone](#on-a-phone).
+* The **bell** and **Help** on the right.
+
+There's no clock on a phone, since the phone already shows the time.
+
+**Help** (the **?** button) is in the same spot on every screen. It opens a short sheet with links to these docs, accessibility notes and where to report a problem, plus the Kinwall version.
+
+The browser tab or window title shows the screen and your family name, for example "Chores · Our Family".
+
+### Now / Next
+
+A strip above the calendar shows what's on now and what's next today, with a countdown and any 🚗 leave-by time. It shows on every view.
+
+* On a wall display it hides when nothing is left today.
+* On a phone it's always two lines, so the screen never jumps. When the day is done it reads "Nothing more today".
+
+You can turn it off per device in [This display](../settings/this-display.md#behavior-on-this-device).
 
 ## Navigating
 
@@ -54,13 +80,25 @@ To keep a display on the board, set **Lock view** to **Board** in [This display]
 * Tap an **empty slot** in the time grid to add an event at that time, or tap the **+** button.
 * Tap an **event** to open its detail sheet. See [Events](events.md).
 * Keyboard: arrow keys move between day headers, and Enter opens the day.
-* After 2 minutes idle, the app returns to today and closes any open sheet.
+* After 2 minutes idle, the app goes back to the Board (or the locked view) on today and closes any open sheet.
 
 ## Filters
 
 ### By family member
 
-Tap a member's avatar in the header to open [their snapshot](snapshot.md). Its **Show only … on the calendar** switch shows only their events; the other avatars dim. Turn it off to clear the filter. This filter also applies to the Chores tab.
+Tap a member's avatar in the header to open [their snapshot](snapshot.md). Its **Show only … on the calendar** switch shows only their events; the other avatars dim. Turn it off to clear the filter.
+
+While the filter is on, the Day view shows only that person's column, so an event they share with others doesn't repeat in other columns. The filter also applies to the Board and the Chores tab.
+
+#### On a phone
+
+Tap the family button at the top left. The family sheet lists everyone, with how many points they've earned today.
+
+* **Tap a person** to show only them. The row says "Calendar shows only them", and their face moves to the front of the pile on the family button.
+* **Tap them again** to show the whole family.
+* **Their day** opens [their snapshot](snapshot.md), where you can also tick off their chores.
+
+On phones, the view switcher spans the full width, just under the header.
 
 ### By category
 

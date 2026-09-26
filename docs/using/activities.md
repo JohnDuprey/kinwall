@@ -13,7 +13,7 @@ A drawing app for kids. Tap **Activities → Paint**. The canvas fills the scree
 * **Eraser**: paints white paper back.
 * **Fill bucket**: tap an area to fill it with the chosen color. It also covers most of the soft edge along a line, so outlines don't leave a white ring.
 * **Sizes**: seven dots, from Tiny to Giant.
-* **Colors**: sixteen colors, including the family member colors plus black, white, brown and grey. Picking a color while the eraser or rainbow brush is on switches back to the brush.
+* **Colors**: sixteen colors, including the family member colors plus black, white, brown and gray. Picking a color while the eraser or rainbow brush is on switches back to the brush.
 * **Undo / Redo**: up to 20 steps. With a keyboard, use Ctrl/⌘+Z and Ctrl/⌘+Shift+Z (or Ctrl+Y).
 * **Clear**: wipes the picture after you confirm. You can undo a clear.
 * **Who's drawing?**: optionally tag the picture with a family member. You can skip it.
@@ -36,6 +36,7 @@ A device holds up to **50 drawings**. When it's full, Paint says so and stops sa
 
 ### Save, share and print
 
+* **♥ Save to family photos** adds the drawing to the family's [photos](photos.md), captioned with its name and who drew it (for example "Drawing 3 by Maya"). It then turns up on the Board's picture card and in the screensaver.
 * **Save** downloads the picture as a PNG. On an iPhone or iPad it opens the share sheet instead, so you can choose **Save Image** to put it in Photos. If sharing isn't available, the picture opens in a new tab: press and hold it to save.
 * **Print** prints just the picture, scaled to fit the page, with its name and date in small type at the bottom.
 
@@ -46,7 +47,7 @@ A device holds up to **50 drawings**. When it's full, Paint says so and stops sa
 
 ## Where drawings are stored
 
-Drawings are stored **only on the device you drew them on**, in the browser's IndexedDB storage. They aren't sent to your Kinwall server, aren't part of [export & backups](../your-data/export-import.md), and don't sync to other devices. Clearing the browser's website data, or removing a home-screen app on iOS, deletes them. To keep a picture, use **Save** or **Print** — or tap the **♥ Save to family photos** button, which uploads it to the family's shared [photo library](photos.md) (it then shows on every device, on the Board and in the screensaver). Wall displays can do this too; deleting from the library is for admins.
+Drawings are stored **only on the device you drew them on**, in the browser's IndexedDB storage. They aren't sent to your Kinwall server, aren't part of [export & backups](../your-data/export-import.md), and don't sync to other devices. Clearing the browser's website data, or removing a home-screen app on iOS, deletes them. To keep a picture, use **Save** or **Print**, or tap **♥ Save to family photos**. That uploads it to the family's shared [photos](photos.md), where it shows on every device, on the Board and in the screensaver. Wall displays can do this too. Only a parent (admin) can delete it from the photos later.
 
 ## Sticker book
 

@@ -1,4 +1,4 @@
-# Categories & auto-categorising
+# Categories & auto-categorizing
 
 Categories (🎂 Birthdays, 🏥 Appointments, ⚽ Sports…) give events an emoji and a color. **A category's color overrides the member color**, and member avatars still show on the event.
 

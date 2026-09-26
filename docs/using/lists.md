@@ -18,6 +18,8 @@ The Lists tab shows your lists and their open-item counts. On the wall display, 
 
 You can change a list's kind later.
 
+A list can also be a chore's **checklist**, so a routine like "Bedtime" has to be ticked off before the chore counts. A reusable checklist resets itself each time the chore is completed. See [Chores → Checklists](chores.md#checklists).
+
 ## Editing a list
 
 **Edit** opens **Name**, **Kind**, **Emoji**, **Color** and **Owners (nobody = whole family)**. It also has **Archive** (next to delete) and delete, which removes all the list's items too. Archived lists are hidden from the main Lists view and collect in a collapsed **Archived (*N*)** section at the bottom of the list overview. Expand it to **Restore** a list or delete it for good. The API returns them with `GET /api/lists?archived=true`; `PATCH /api/lists/{id} {archived}` archives or restores.

@@ -1,6 +1,6 @@
 # n8n
 
-There's no dedicated Kinwall node for n8n yet — everything here uses n8n's **built-in** HTTP Request and Webhook nodes. A native node may come later.
+There's no dedicated Kinwall node for n8n yet. Everything here uses n8n's **built-in** HTTP Request and Webhook nodes. A native node may come later.
 
 Since Kinwall is just a [REST API](rest-api.md) with [webhooks](webhooks.md), n8n can read and write anything the touch UI can.
 
@@ -26,6 +26,8 @@ Attach it to each HTTP Request node's **Authentication → Generic Credential Ty
 2. **Code** node — verify `X-Kinwall-Signature` against the webhook secret before trusting the payload.
 3. A "send a message" step of your choice (email, chat, SMS — whatever notifier you already use in n8n).
 
+The payload's `data` carries the chore's `title`, `memberId` and the `points` awarded, so the message can say who did what ("Maya finished Feed the dog, +5") without another call. Look up the member's name with `GET /api/members` if you need it. See [Webhooks](webhooks.md#events).
+
 Signature check (Code node, JavaScript, "Run Once for Each Item"):
 
 ```js
@@ -38,7 +40,7 @@ if (expected !== got) throw new Error('bad signature');
 return $input.item;
 ```
 
-This round-trips because Kinwall signs the compact JSON it sends and n8n parses it losslessly. If you turn on the Webhook node's **Raw Body** option, hash the raw body it gives you instead of re-serialising `body`.
+This round-trips because Kinwall signs the compact JSON it sends and n8n parses it losslessly. If you turn on the Webhook node's **Raw Body** option, hash the raw body it gives you instead of re-serializing `body`.
 
 Note: n8n's Webhook node re-serializes the parsed JSON, so the bytes you hash may not exactly match what Kinwall signed if you need byte-for-byte verification. For strict verification, set the Webhook node's **Response Data** to raw and read `$input.item.binary` instead — this snippet is the common-case version.
 

@@ -20,7 +20,9 @@ Or set `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` as environment variables. A c
 
 ## 2. Connect an account
 
-**Settings → Calendars → Connect Google** (greyed out until a client is configured). After you consent, you land back on **Calendars for *account***, where you tick the calendars to show (and who each is for), then tap **Add N calendars**. Tapping outside the sheet doesn't close it; use **Cancel**. Calendars you can't write to are marked **read-only**.
+**Settings → Calendars → Connect Google** (grayed out until a client is configured). After you consent, you land back on **Calendars for *account***, where you tick the calendars to show (and who each is for), then tap **Add N calendars**. Tapping outside the sheet doesn't close it; use **Cancel**. Calendars you can't write to are marked **read-only**.
+
+If you cancel the Google sign-in, or it fails, you land back on **Settings → Calendars** with a message saying what happened (for example "Google sign-in canceled — nothing was connected"). Nothing is connected, so you can just try again.
 
 ## Scopes and tokens
 

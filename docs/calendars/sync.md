@@ -29,4 +29,4 @@ Turn **Enabled** off in the calendar's **Edit calendar** sheet to stop syncing a
 
 ## Live updates in the UI
 
-The apps poll `GET /api/rev` every 15 seconds and when they come back into view. The number goes up on every write, including syncs, and the apps then refetch.
+The apps poll `GET /api/rev` every 30 seconds and when they come back into view. The number goes up on every write, including syncs, and the apps then refetch.

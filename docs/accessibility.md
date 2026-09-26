@@ -62,7 +62,7 @@ We'd rather list these than pretend they aren't there:
 
 ## Finding help
 
-Help is in the same place on every screen (WCAG 2.2 SC 3.2.6 *Consistent Help*): the **?** button at the top right of the header on the wall and on phones, of the sign-in screen and of the setup wizard opens a Help sheet with the docs, the accessibility page, where to report a problem and, on hosted Kinwall, your hosting portal. Hosted pages (sign-up, sign-in, family portal, admin) carry a **Help & docs** link first in the footer.
+Help is in the same place on every screen (WCAG 2.2 SC 3.2.6 *Consistent Help*): the **?** button at the top right of the header on the wall and on phones, of the sign-in screen and of the setup wizard opens a Help sheet with the docs, the accessibility page, where to report a problem and, on hosted Kinwall, your hosting portal. Hosted Kinwall (coming soon) will carry a **Help & docs** link first in the footer of its own pages.
 
 ## Reporting a problem
 

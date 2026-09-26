@@ -22,7 +22,7 @@ Authorization: Bearer <key>
 * `GET /api/me` returns the caller's `scope`, `keyName`, `kind` (`api` / `session` / `oauth`) and the server `version`.
 * A few routes need no key: `/api/health`, `/api/appearance`, `/api/setup*`, `/api/pair` and `/api/pair/poll`, the passkey and recovery login ceremonies, and the OAuth callback.
 * `GET /api/oauth/{kind}/start?key=…`, `GET /api/photos/export.zip?key=…` and `GET /api/photos/{id}/image?key=…` also take the key as a query parameter, because they're browser navigations and an `<img src>`. No other route does.
-* Uploading a photo: `POST /api/photos` with the image itself as the body (`Content-Type: image/webp`, `image/jpeg` or `image/png`, at most 600 KB), its pixel size in `X-Photo-Width` / `X-Photo-Height`, and an optional `?caption=`. Too large is `413`, another type is `415`, and a full album is `409` with the quota. Photo writes, the zip export and the zip import need an admin key.
+* Uploading a photo: `POST /api/photos` with the image itself as the body (`Content-Type: image/webp`, `image/jpeg` or `image/png`, at most 600 KB), its pixel size in `X-Photo-Width` / `X-Photo-Height`, and an optional `?caption=`. Too large is `413`, another type is `415`, and a full album is `409` with the quota. Display keys can upload (so a wall display can save a Paint drawing to the family photos). Editing, deleting, the zip export and the zip import need an admin key.
 
 ## Errors
 
@@ -57,7 +57,7 @@ On Workers, the free-tier quota (100k requests/day) is the practical ceiling. Se
 
 ## Change detection
 
-`GET /api/rev` returns `{rev}`, a counter that goes up on every write. Poll it cheaply and refetch when it changes. The apps do this every 15 seconds. For push-style updates, use [webhooks](webhooks.md).
+`GET /api/rev` returns `{rev}`, a counter that goes up on every write. Poll it cheaply and refetch when it changes. The apps do this every 30 seconds. For push-style updates, use [webhooks](webhooks.md).
 
 ## Route groups
 
@@ -79,7 +79,7 @@ On Workers, the free-tier quota (100k requests/day) is the practical ceiling. Se
 | Passkeys & recovery | `/api/passkeys*`, `/api/sessions/logout`, `GET/POST /api/recovery-codes`, `POST /api/recovery/login` |
 | Connected apps | `GET /api/authorizations`, `GET /api/authorizations/request`, `POST /api/authorizations/approve`, `DELETE /api/authorizations/{id}` |
 | Webhooks | `GET/POST /api/webhooks`, `PATCH/DELETE /api/webhooks/{id}`, `POST /api/webhooks/{id}/rotate` |
-| Push | `GET /api/push/vapid-public-key`, `/api/push/subscriptions*`, `POST /api/push/test/{id}`, `POST /api/notify`, `GET /api/notifications` |
+| Push | `GET /api/push/vapid-public-key`, `/api/push/subscriptions*`, `POST /api/push/test/{id}`, `POST /api/notify`, `GET /api/notifications`, `DELETE /api/notifications[/{id}]` |
 | Stickers | `GET /api/members/{id}/points`, `GET /api/stickers/packs`, `POST /api/stickers/packs/{packId}/buy`, `GET/POST /api/stickers/scrapbook/{memberId}`, `PATCH/DELETE /api/stickers/scrapbook/{memberId}/{id}` |
 | Photos | `GET/POST /api/photos` (POST body: the raw image), `GET /api/photos/quota`, `PATCH/DELETE /api/photos/{id}`, `GET /api/photos/{id}/image`, `GET /api/photos/export.zip`, `POST /api/photos/import` (body: the zip) |
 | Notes | `GET/POST /api/notes`, `PATCH/DELETE /api/notes/{id}` |

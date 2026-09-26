@@ -16,13 +16,17 @@ Kinwall's service worker deliberately caches nothing, and the server sends `no-c
 * After 10 wrong attempts in an hour you'll see "too many attempts — try again later".
 * You can always use `ADMIN_API_KEY` instead, via **Use your ADMIN_API_KEY instead**.
 
-## Google/Outlook buttons are greyed out
+## Google/Outlook buttons are grayed out
 
 No OAuth client is configured yet. Set one up under **Settings → Calendars → Calendar providers**. See [Google](../calendars/google.md) and [Microsoft](../calendars/microsoft.md).
 
 ## Google says `redirect_uri_mismatch`
 
 The redirect URI registered with Google must match the one on the provider card exactly. Check **Public URL**: scheme, host, port, no trailing path. Google also rejects bare LAN IPs, so use HTTPS or `localhost`.
+
+## "Google connection failed" or "Microsoft connection failed"
+
+When a sign-in goes wrong, Kinwall sends you back to **Settings → Calendars** with the reason in a message. "Sign-in canceled" means consent was declined, and nothing was connected. A reason starting with `server:` points to the server side: check the client secret and **Public URL** on the provider card, then try again.
 
 ## Sync errors
 

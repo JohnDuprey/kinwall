@@ -43,12 +43,30 @@ The same section has **Navigation position** (Auto, Bottom, Left, Right) for tab
 
 ## Color schemes
 
-Also under **This display → Appearance on this device**, per device only — there's no household-wide skin.
+A color scheme (a "skin") changes the whole palette: backgrounds, cards, text and accent. It's set **per device** under **This display → Appearance on this device**. There's no household-wide skin, so the kitchen wall can use Midnight while phones keep the default look.
 
-**Color scheme** picks one of ten preset "skins", each with its own light and dark palette: Meadow (the default look — nothing changes if you never touch this), Autumn, Winter, Spring, Summer, Ocean, Midnight (a deep navy that looks the same in light and dark mode), Lavender, and two holiday ones, Harvest and Festive. Every skin passes WCAG AA contrast (4.5:1) for text on its backgrounds.
+**Color scheme** offers ten skins, each with its own light and dark palette:
 
-**Follow the seasons** switches the skin automatically through the year instead of using a fixed pick: Winter (Dec–Feb), Spring (Mar–May), Summer (Jun–Aug), Autumn (Sep–Nov), with Harvest taking over Nov 15–30 and Festive from Dec 15 to Jan 2. It re-checks once an hour, so it catches up the same day a season turns over.
+| Skin | Notes |
+|---|---|
+| 🌿 Meadow | The default look. Nothing changes if you never touch this. |
+| 🍂 Autumn, ❄️ Winter, 🌸 Spring, ☀️ Summer | The four seasons. |
+| 🌊 Ocean, 💜 Lavender | |
+| 🌌 Midnight | A deep navy that looks the same in light and dark mode. |
+| 🎃 Harvest, 🎄 Festive | For the holidays. |
 
-**Custom colors** (a disclosure under the skin picker) lets you override the accent, background, card and text colors with your own hex values, layered on top of whichever skin is active. Each field shows a live "AA ✓" or "Low contrast" badge with the actual ratio, so you can see before saving whether it stays readable; the accent field is always safe since buttons darken it automatically to keep white text legible. **Reset** clears one field, and **Reset to Meadow** clears the skin, seasonal switch and all custom colors on this device.
+Every skin meets WCAG AA contrast (4.5:1) for text on its backgrounds.
 
-Low-stimulation mode always uses the flat, pre-vetted skin colors — custom colors don't apply while it's on.
+**Follow the seasons** changes the skin through the year for you:
+
+* Winter: December to February
+* Spring: March to May
+* Summer: June to August
+* Autumn: September to November
+* Harvest takes over from November 15 to 30, and Festive from December 15 to January 2.
+
+It checks once an hour, so it switches on the same day a season changes.
+
+**Custom colors** (tap to open it under the skin picker) lets you set your own accent, background, card and text colors as hex values, on top of whichever skin is active. Each field shows a live badge with the contrast ratio: "AA ✓" when it's readable, or "Low contrast". The accent is always safe, because buttons darken it as needed to keep white text readable. **Reset** clears one field. **Reset to Meadow** clears the skin, the seasonal switch and all custom colors on this device.
+
+Low-stimulation mode always uses the skin's own, pre-checked colors. Custom colors don't apply while it's on.

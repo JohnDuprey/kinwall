@@ -16,7 +16,7 @@
 * [Calendar](using/calendar.md)
 * [Daily & weekly snapshot](using/snapshot.md)
 * [Events](using/events.md)
-* [Categories & auto-categorising](using/categories.md)
+* [Categories & auto-categorizing](using/categories.md)
 * [Chores](using/chores.md)
 * [Lists](using/lists.md)
 * [Activities (Paint)](using/activities.md)

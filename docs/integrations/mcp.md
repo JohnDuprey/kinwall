@@ -70,6 +70,7 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 | `get_leaderboard` | Points, completions and streaks per member for today, week (default) or month. |
 | `get_points` | One member's points (by name or ID): balance left to spend, all-time earned and spent, and recent purchases. Read-only. Stickers are bought on the wall, not over MCP. |
 | `get_snapshot` | One member's day (`range`: `day`, default) or next 7 days (`week`), by name or ID: greeting, weather (if a location is set), their and everyone's events, their chores, their due or high/urgent list items, family birthdays, and (day) tomorrow at a glance. The same data as tapping their avatar. |
+| `get_board` | The whole household's bulletin board for today and the next `days` days (default 7, max 14): everyone's events plus untagged ones, open list items due soon, overdue or high/urgent, today's chores per member, and birthdays. The same data as the calendar's Board view. |
 | `list_lists` | All lists with item and open counts. |
 | `get_list` | One list by ID or name, with items (in the list's sort order, each with its steps), group order and store/category suggestions. |
 | `list_categories` | Categories (name, emoji, color, keywords) in order. |
@@ -83,9 +84,9 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 | `create_event` | Creates an event. Writes to Google, Outlook or CalDAV for those calendars. Accepts `travelMinutes` and `remindBeforeLeave`. |
 | `update_event` | Changes only the fields you give it (the whole series for recurring local events). |
 | `set_event_category` | Sets or clears an event's category (by name). Clearing falls back to keyword or calendar default. |
-| `create_chore` | Creates a recurring or one-off chore. |
-| `update_chore` | Changes title, emoji, assignee, points, recurrence (`RRULE`, optional `UNTIL`), due date or time, or active state. |
-| `complete_chore` | Marks a chore done for a date (default today). |
+| `create_chore` | Creates a recurring or one-off chore. `list` links a checklist (a list by name or ID) that has to be ticked off before the chore completes. |
+| `update_chore` | Changes title, emoji, assignee, points, recurrence (`RRULE`, optional `UNTIL`), due date or time, checklist (`list`, or `null` to unlink), or active state. |
+| `complete_chore` | Marks a chore done for a date (default today). Refused while the chore's checklist has open items. |
 | `uncomplete_chore` | Undoes a completion. |
 | `add_member` | Adds a family member (admin), optionally with a `birthday` (`YYYY-MM-DD`, or `--MM-DD` without a year). |
 | `update_member` | Changes a member's name, color, avatar or `birthday` (admin; `null` clears it). |
