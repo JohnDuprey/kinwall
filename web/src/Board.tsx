@@ -273,7 +273,14 @@ function PhotoCard() {
     <section className="board-card board-photo" aria-label="Picture">
       {!failed && current ? (
         <>
-          {pics.map(p => <img key={p.key} className={`board-photo-img ${p.caption ? 'art' : ''}`} src={p.src} alt={p.caption ?? ''} />)}
+          {/* The whole picture, never cropped (drawings and tall photos lose too much to cover), over a
+              blurred, cropped copy of itself so the leftover space isn't empty bars. */}
+          {pics.map(p => (
+            <div key={p.key} className="board-photo-frame">
+              <img className="board-photo-fill" src={p.src} alt="" aria-hidden="true" />
+              <img className="board-photo-img" src={p.src} alt={p.caption ?? ''} />
+            </div>
+          ))}
           {current.caption && <div className="board-caption">{current.caption}</div>}
         </>
       ) : <div className="board-photo-empty" aria-hidden="true">🖼️</div>}

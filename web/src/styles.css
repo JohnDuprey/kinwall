@@ -1823,15 +1823,16 @@ button.snap-row:active { transform: scale(0.99); }
 .board-photo { position: relative; overflow: hidden; padding: 0; aspect-ratio: 16 / 10; max-height: 240px; background: var(--bg-alt); }
 @container board (min-width: 620px) { .board-photo { aspect-ratio: auto; max-height: none; } }
 @container board (min-width: 620px) and (max-width: 879.98px) { .board-photo { min-height: 220px; } }
-.board-photo-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.board-photo-img.art { object-fit: contain; background: #1a1714; }
+.board-photo-frame { position: absolute; inset: 0; overflow: hidden; }
+.board-photo-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.board-photo-fill { position: absolute; inset: -24px; width: calc(100% + 48px); height: calc(100% + 48px); object-fit: cover; filter: blur(20px) saturate(1.1); opacity: 0.55; }
 .board-caption {
   position: absolute; left: 0; right: 0; bottom: 0; padding: 22px 12px 8px; font-size: 0.8125rem; font-weight: 700; color: #fff;
   background: linear-gradient(transparent, rgba(0, 0, 0, 0.7)); overflow-wrap: anywhere;
 }
 .board-photo-empty { margin: auto; font-size: 2.5rem; opacity: 0.5; }
 @media (prefers-reduced-motion: no-preference) {
-  .board-photo-img { animation: kw-fade 2.5s ease; }
+  .board-photo-frame { animation: kw-fade 2.5s ease; }
   .board-tidbit-body { animation: kw-fade 1s ease; }
 }
 
