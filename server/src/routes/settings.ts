@@ -4,7 +4,7 @@ import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
 import { emit } from '../bus.ts';
 import { schemeContrastFailures } from '../colors.ts';
-import { COLOR_SCHEMES, CUSTOM_SCHEME_ID_RE, CustomSchemeSchema, ErrorSchema, LocationSchema, SettingsPatchSchema, SettingsSchema } from '../schemas.ts';
+import { COLOR_SCHEMES, CUSTOM_SCHEME_ID_RE, CustomSchemeSchema, ErrorSchema, LocationSchema, SettingsPatchSchema, SettingsSchema, TidbitSettingsSchema } from '../schemas.ts';
 
 export const settingsRoutes = createRouter();
 
@@ -60,6 +60,7 @@ export async function readSettings(db: KinwallDb) {
     stickerPriceScale: Number(map.get('stickerPriceScale') ?? DEFAULTS.stickerPriceScale),
     location,
     temperatureUnit: (map.get('temperatureUnit') || defaultUnit(location, map.get('timezone'))) as 'celsius' | 'fahrenheit',
+    tidbits: parseTidbits(map.get('tidbits')),
   };
 }
 
@@ -68,6 +69,20 @@ const FAHRENHEIT_COUNTRIES = ['US', 'LR', 'MM', 'BS', 'BZ', 'KY', 'PW', 'FM', 'M
 function defaultUnit(location: Location | null, tz: string | undefined): 'celsius' | 'fahrenheit' {
   if (location?.countryCode) return FAHRENHEIT_COUNTRIES.includes(location.countryCode.toUpperCase()) ? 'fahrenheit' : 'celsius';
   return /^(America\/(New_York|Chicago|Denver|Los_Angeles|Phoenix|Anchorage|Juneau|Detroit|Boise|Indiana|Kentucky|North_Dakota)|Pacific\/Honolulu|US\/)/.test(tz ?? '') ? 'fahrenheit' : 'celsius';
+}
+
+export const DEFAULT_TIDBITS: z.infer<typeof TidbitSettingsSchema> = {
+  sources: ['quotes', 'facts'], // the online sources are opt-in: the server only reaches out once a family asks it to
+  factCategories: [],
+  onThisDay: ['holidays', 'births'],
+  triviaCategories: [27, 17, 22, 9], // Animals, Science & Nature, Geography, General Knowledge
+  triviaDifficulty: 'easy',
+};
+function parseTidbits(raw: string | undefined): z.infer<typeof TidbitSettingsSchema> {
+  try {
+    const parsed = TidbitSettingsSchema.safeParse({ ...DEFAULT_TIDBITS, ...JSON.parse(raw ?? '{}') });
+    return parsed.success ? parsed.data : DEFAULT_TIDBITS;
+  } catch { return DEFAULT_TIDBITS; }
 }
 
 function parseColorScheme(raw: string | undefined): string {

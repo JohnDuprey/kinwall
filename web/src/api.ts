@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { tellAppSignedIn, tellAppSignedOut } from './native.ts'
 import { mock } from './mock.ts'
 import type { PasskeyAuthenticator } from './webauthn.ts'
-import type {
+import type { OnlineTidbits,
   StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota,
   Account, ApiKey, AppNotification, Appearance, CalendarEntry, Category, Chore, ChoreDay, EventInstance, LeaderboardEntry, LeaderboardPeriod, List,
   GeocodeResult, HostEvent, ImportResult, ListDetail, ListGroup, ListItem, ListItemInput, Member, Me, Note, NoteTarget, Passkey, Providers, PushSubscription, PushSubscriptionPrefs, RemoteCalendar, Settings, Snapshot, Board, Webhook, WebhookWithSecret,
@@ -159,6 +159,7 @@ export const api = {
     MOCK ? mock.getSnapshot(memberId, range) : get<Snapshot>(`api/snapshot?member=${encodeURIComponent(memberId)}&range=${range}`),
   // Server-side lookup (Open-Meteo): the browser never talks to the geocoder itself.
   getBoard: (days = 7) => MOCK ? mock.getBoard(days) : get<Board>(`api/board?days=${days}`),
+  getTidbits: () => MOCK ? mock.getTidbits() : get<OnlineTidbits>('api/tidbits'),
 
   geocode: (q: string) => MOCK ? mock.geocode(q) : get<GeocodeResult[]>(`api/geocode?q=${encodeURIComponent(q)}`),
 

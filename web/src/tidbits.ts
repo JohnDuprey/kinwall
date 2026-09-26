@@ -1,7 +1,7 @@
-// The Board's rotating quote / fact. Bundled (no network), and picked from the date and a 30-minute
-// slot, so every display in the house shows the same one at the same time.
-
-export type Tidbit = { kind: 'quote'; text: string; by: string } | { kind: 'fact'; text: string }
+// The Board's rotating quote / fact card: the built-in quotes and facts (no network), plus the
+// online sources the family turned on in Settings -> Quotes & facts. Picked from the date and a
+// 30-minute slot, so every display in the house shows the same one at the same time.
+import type { FactCategory, OnlineTidbits, OnThisDayKind, TidbitSettings, TidbitSource } from './types.ts'
 
 export const QUOTES: { text: string; by: string }[] = [
   { text: 'Not all those who wander are lost.', by: 'J.R.R. Tolkien' },
@@ -89,96 +89,130 @@ export const QUOTES: { text: string; by: string }[] = [
   { text: 'Many hands make light work.', by: 'Proverb' },
 ]
 
-export const FACTS: string[] = [
-  'Octopuses have three hearts and blue blood.',
-  'A day on Venus is longer than its whole year.',
-  'Bananas are berries, but strawberries are not.',
-  'Sharks have been around longer than trees.',
-  'Sunlight takes about 8 minutes to reach Earth.',
-  'A group of flamingos is called a flamboyance.',
-  'Sea otters often hold paws while they sleep so they don’t drift apart.',
-  'Wombats make cube-shaped poop.',
-  'The Eiffel Tower grows up to about 15 cm taller on hot summer days, as the iron expands.',
-  'There are more trees on Earth than stars in the Milky Way.',
-  'A bolt of lightning is about five times hotter than the surface of the Sun.',
-  'Butterflies taste with their feet.',
-  'The word “alphabet” comes from alpha and beta, the first two Greek letters.',
-  'Saturn is so light for its size that it’s less dense than water.',
-  'Koalas can sleep up to 20 hours a day.',
-  'Your heart beats about 100,000 times a day.',
-  'Babies are born with around 300 bones; adults have 206, because some fuse together.',
-  'Jupiter’s Great Red Spot is a storm bigger than the whole Earth.',
-  'Neptune was found using maths before anyone saw it through a telescope.',
-  'The Moon drifts about 3.8 cm farther from Earth every year.',
-  'Footprints on the Moon could last millions of years, because there’s no wind to blow them away.',
-  'A polar bear’s fur is actually see-through, and its skin is black.',
-  'A giraffe has seven neck bones, the same number as you.',
-  'The blue whale is the largest animal known to have ever lived.',
-  'Tiny tardigrades, or “water bears”, have survived being exposed to outer space.',
-  'Venus is the hottest planet, even though Mercury is closer to the Sun.',
-  'Mount Everest grows a few millimetres taller every year.',
-  'The Pacific Ocean covers about a third of Earth’s surface.',
-  'Honeybees do a “waggle dance” to tell each other where to find flowers.',
-  'An ostrich’s eye is bigger than its brain.',
-  'Every dog’s nose print is unique, like a fingerprint.',
-  'Owls can’t move their eyes, so they turn their heads up to 270 degrees instead.',
-  'A baby kangaroo is called a joey.',
-  'Sea stars have no brain and no blood.',
-  'Some turtles can breathe through their bottoms.',
-  'The word “robot” comes from a Czech word for hard work, and first appeared in a 1920 play.',
-  '“Goodbye” started out as “God be with ye”.',
-  'The dot over a lowercase i or j is called a tittle.',
-  'The word “run” has hundreds of different meanings in the Oxford English Dictionary.',
-  '“The quick brown fox jumps over the lazy dog” uses every letter of the alphabet.',
-  'Shakespeare is the first known writer to use the words “eyeball” and “bedroom”.',
-  'The word “muscle” comes from the Latin for “little mouse”.',
-  '“Astronaut” means “star sailor” in Greek.',
-  '“Dinosaur” means “terrible lizard”.',
-  '“Hippopotamus” means “river horse” in Greek.',
-  'Rainbows are really full circles; from the ground we usually see only the top arc.',
-  'Almost every snowflake has six sides.',
-  'Lightning flashes about 40 to 50 times every second somewhere on Earth.',
-  'Thousands of years ago the Sahara was green, with lakes, grasslands and hippos.',
-  'Antarctica is the world’s largest desert, because so little snow or rain falls there.',
-  'Earth’s inner core is about as hot as the surface of the Sun.',
-  'The International Space Station circles Earth about every 90 minutes, so astronauts see around 16 sunrises a day.',
-  'Olympus Mons on Mars is about two and a half times as tall as Mount Everest.',
-  'A year on Mercury lasts just 88 Earth days.',
-  'About a million Earths could fit inside the Sun.',
-  'Mars is red because its dust is full of iron oxide: rust.',
-  'Pluto is smaller than our Moon.',
-  'Uranus spins on its side, like a rolling ball.',
-  'Astronauts can grow up to about 5 cm taller in space, because their spines stretch out.',
-  'Venus spins backwards compared with most planets, so its Sun rises in the west.',
-  'Frogs don’t drink with their mouths; they soak up water through their skin.',
-  'Garden snails have thousands of tiny teeth.',
-  'Emperor penguin dads keep their egg warm on their feet for about two months.',
-  'A peregrine falcon can dive at over 320 km/h (200 mph), faster than any other animal.',
-  'Some bamboo can grow almost a metre in a single day.',
-  'Some bristlecone pine trees are more than 4,800 years old.',
-  'Young sunflowers turn to follow the Sun across the sky.',
-  'Some mushrooms glow in the dark.',
-  'Your brain uses about a fifth of all your body’s energy.',
-  'Fingernails grow faster than toenails.',
-  'Sound travels about four times faster in water than in air.',
-  'Diamonds and pencil “lead” are both made of carbon.',
-  'Axolotls can regrow whole legs.',
-  'Seahorse dads are the ones who carry the babies.',
-  'Goats have rectangle-shaped pupils.',
-  'A shrimp’s heart is in its head.',
-  'No two zebras have exactly the same stripes.',
-  'Apples float because about a quarter of an apple is air.',
-  'Peanuts aren’t nuts: they’re legumes, like peas and beans.',
-  'A “googol” is 1 followed by 100 zeros, and a nine-year-old came up with the name.',
+export const FACTS: { text: string; category: FactCategory }[] = [
+  { text: 'Octopuses have three hearts and blue blood.', category: 'animals' },
+  { text: 'A day on Venus is longer than its whole year.', category: 'space' },
+  { text: 'Bananas are berries, but strawberries are not.', category: 'plants' },
+  { text: 'Sharks have been around longer than trees.', category: 'animals' },
+  { text: 'Sunlight takes about 8 minutes to reach Earth.', category: 'space' },
+  { text: 'A group of flamingos is called a flamboyance.', category: 'animals' },
+  { text: 'Sea otters often hold paws while they sleep so they don’t drift apart.', category: 'animals' },
+  { text: 'Wombats make cube-shaped poop.', category: 'animals' },
+  { text: 'The Eiffel Tower grows up to about 15 cm taller on hot summer days, as the iron expands.', category: 'science' },
+  { text: 'There are more trees on Earth than stars in the Milky Way.', category: 'plants' },
+  { text: 'A bolt of lightning is about five times hotter than the surface of the Sun.', category: 'science' },
+  { text: 'Butterflies taste with their feet.', category: 'animals' },
+  { text: 'The word “alphabet” comes from alpha and beta, the first two Greek letters.', category: 'words' },
+  { text: 'Saturn is so light for its size that it’s less dense than water.', category: 'space' },
+  { text: 'Koalas can sleep up to 20 hours a day.', category: 'animals' },
+  { text: 'Your heart beats about 100,000 times a day.', category: 'body' },
+  { text: 'Babies are born with around 300 bones; adults have 206, because some fuse together.', category: 'body' },
+  { text: 'Jupiter’s Great Red Spot is a storm bigger than the whole Earth.', category: 'space' },
+  { text: 'Neptune was found using math before anyone saw it through a telescope.', category: 'space' },
+  { text: 'The Moon drifts about 3.8 cm farther from Earth every year.', category: 'space' },
+  { text: 'Footprints on the Moon could last millions of years, because there’s no wind to blow them away.', category: 'space' },
+  { text: 'A polar bear’s fur is actually see-through, and its skin is black.', category: 'animals' },
+  { text: 'A giraffe has seven neck bones, the same number as you.', category: 'animals' },
+  { text: 'The blue whale is the largest animal known to have ever lived.', category: 'animals' },
+  { text: 'Tiny tardigrades, or “water bears”, have survived being exposed to outer space.', category: 'animals' },
+  { text: 'Venus is the hottest planet, even though Mercury is closer to the Sun.', category: 'space' },
+  { text: 'Mount Everest grows a few millimeters taller every year.', category: 'science' },
+  { text: 'The Pacific Ocean covers about a third of Earth’s surface.', category: 'science' },
+  { text: 'Honeybees do a “waggle dance” to tell each other where to find flowers.', category: 'animals' },
+  { text: 'An ostrich’s eye is bigger than its brain.', category: 'animals' },
+  { text: 'Every dog’s nose print is unique, like a fingerprint.', category: 'animals' },
+  { text: 'Owls can’t move their eyes, so they turn their heads up to 270 degrees instead.', category: 'animals' },
+  { text: 'A baby kangaroo is called a joey.', category: 'animals' },
+  { text: 'Sea stars have no brain and no blood.', category: 'animals' },
+  { text: 'Some turtles can breathe through their bottoms.', category: 'animals' },
+  { text: 'The word “robot” comes from a Czech word for hard work, and first appeared in a 1920 play.', category: 'words' },
+  { text: '“Goodbye” started out as “God be with ye”.', category: 'words' },
+  { text: 'The dot over a lowercase i or j is called a tittle.', category: 'words' },
+  { text: 'The word “run” has hundreds of different meanings in the Oxford English Dictionary.', category: 'words' },
+  { text: '“The quick brown fox jumps over the lazy dog” uses every letter of the alphabet.', category: 'words' },
+  { text: 'Shakespeare is the first known writer to use the words “eyeball” and “bedroom”.', category: 'words' },
+  { text: 'The word “muscle” comes from the Latin for “little mouse”.', category: 'words' },
+  { text: '“Astronaut” means “star sailor” in Greek.', category: 'words' },
+  { text: '“Dinosaur” means “terrible lizard”.', category: 'words' },
+  { text: '“Hippopotamus” means “river horse” in Greek.', category: 'words' },
+  { text: 'Rainbows are really full circles; from the ground we usually see only the top arc.', category: 'science' },
+  { text: 'Almost every snowflake has six sides.', category: 'science' },
+  { text: 'Lightning flashes about 40 to 50 times every second somewhere on Earth.', category: 'science' },
+  { text: 'Thousands of years ago the Sahara was green, with lakes, grasslands and hippos.', category: 'science' },
+  { text: 'Antarctica is the world’s largest desert, because so little snow or rain falls there.', category: 'science' },
+  { text: 'Earth’s inner core is about as hot as the surface of the Sun.', category: 'science' },
+  { text: 'The International Space Station circles Earth about every 90 minutes, so astronauts see around 16 sunrises a day.', category: 'space' },
+  { text: 'Olympus Mons on Mars is about two and a half times as tall as Mount Everest.', category: 'space' },
+  { text: 'A year on Mercury lasts just 88 Earth days.', category: 'space' },
+  { text: 'About a million Earths could fit inside the Sun.', category: 'space' },
+  { text: 'Mars is red because its dust is full of iron oxide: rust.', category: 'space' },
+  { text: 'Pluto is smaller than our Moon.', category: 'space' },
+  { text: 'Uranus spins on its side, like a rolling ball.', category: 'space' },
+  { text: 'Astronauts can grow up to about 5 cm taller in space, because their spines stretch out.', category: 'space' },
+  { text: 'Venus spins backwards compared with most planets, so its Sun rises in the west.', category: 'space' },
+  { text: 'Frogs don’t drink with their mouths; they soak up water through their skin.', category: 'animals' },
+  { text: 'Garden snails have thousands of tiny teeth.', category: 'animals' },
+  { text: 'Emperor penguin dads keep their egg warm on their feet for about two months.', category: 'animals' },
+  { text: 'A peregrine falcon can dive at over 320 km/h (200 mph), faster than any other animal.', category: 'animals' },
+  { text: 'Some bamboo can grow almost a meter in a single day.', category: 'plants' },
+  { text: 'Some bristlecone pine trees are more than 4,800 years old.', category: 'plants' },
+  { text: 'Young sunflowers turn to follow the Sun across the sky.', category: 'plants' },
+  { text: 'Some mushrooms glow in the dark.', category: 'plants' },
+  { text: 'Your brain uses about a fifth of all your body’s energy.', category: 'body' },
+  { text: 'Fingernails grow faster than toenails.', category: 'body' },
+  { text: 'Sound travels about four times faster in water than in air.', category: 'science' },
+  { text: 'Diamonds and pencil “lead” are both made of carbon.', category: 'science' },
+  { text: 'Axolotls can regrow whole legs.', category: 'animals' },
+  { text: 'Seahorse dads are the ones who carry the babies.', category: 'animals' },
+  { text: 'Goats have rectangle-shaped pupils.', category: 'animals' },
+  { text: 'A shrimp’s heart is in its head.', category: 'animals' },
+  { text: 'No two zebras have exactly the same stripes.', category: 'animals' },
+  { text: 'Apples float because about a quarter of an apple is air.', category: 'plants' },
+  { text: 'Peanuts aren’t nuts: they’re legumes, like peas and beans.', category: 'plants' },
+  { text: 'A “googol” is 1 followed by 100 zeros, and a nine-year-old came up with the name.', category: 'words' },
 ]
 
-/** The tidbit for a day (its local calendar date) and a 30-minute `slot` of that day (0-47).
- * Alternates quote / fact, stepping through each list with a stride coprime to its length, so
- * neighbouring slots jump between topics and every entry comes round before any repeats. */
-export function tidbitFor(date: Date, slot: number): Tidbit {
+export const SOURCE_TITLES: Record<TidbitSource, string> = { quotes: 'Quotes', facts: 'Fun facts', onthisday: 'On this day', trivia: 'Trivia question' }
+
+/** Settings row summary: which sources are on. */
+export function tidbitSummary(t: TidbitSettings): string {
+  if (!t.sources.length) return 'Off: the Board has no quote card.'
+  return (Object.keys(SOURCE_TITLES) as TidbitSource[]).filter(s => t.sources.includes(s)).map(s => SOURCE_TITLES[s]).join(', ')
+}
+
+export const FACT_CATEGORY_LABELS: Record<FactCategory, string> = {
+  animals: '🐾 Animals', space: '🚀 Space', science: '🔬 Earth & science', body: '🫀 Human body', plants: '🌱 Plants & food', words: '🔤 Words',
+}
+
+/** What the card can show. Built-in quotes and facts ship with the app; On this day and trivia
+ *  come from the server (GET /api/tidbits), fetched once a day. */
+export type Tidbit =
+  | { kind: 'quote'; text: string; by: string }
+  | { kind: 'fact'; text: string }
+  | { kind: 'onthisday'; type: OnThisDayKind; text: string; year: number | null }
+  | { kind: 'trivia'; question: string; answer: string; choices: string[]; category: string }
+
+/** The tidbit for a day (its local calendar date) and a 30-minute `slot` of that day (0-47), or
+ *  null when no source is on. Takes turns through the sources that have anything, stepping
+ *  through each list with a stride coprime to its length, so neighboring slots jump between
+ *  topics and every entry comes round before any repeats. Every display computes the same one. */
+export function tidbitFor(date: Date, slot: number, settings: TidbitSettings, online: OnlineTidbits | null): Tidbit | null {
+  const facts = FACTS.filter(f => settings.factCategories.length === 0 || settings.factCategories.includes(f.category))
+  const pools: Tidbit[][] = []
+  for (const source of ['quotes', 'facts', 'onthisday', 'trivia'] as const) {
+    if (!settings.sources.includes(source)) continue
+    const pool: Tidbit[] =
+      source === 'quotes' ? QUOTES.map(q => ({ kind: 'quote', ...q }))
+      : source === 'facts' ? facts.map(f => ({ kind: 'fact', text: f.text }))
+      : source === 'onthisday' ? (online?.onThisDay ?? []).map(o => ({ kind: 'onthisday', type: o.kind, text: o.text, year: o.year }))
+      : (online?.trivia ?? []).map(t => ({ kind: 'trivia', ...t }))
+    if (pool.length) pools.push(pool)
+  }
+  // Nothing online yet (first load, or offline) but online sources are on: fall back to the built-in lists.
+  if (!pools.length && settings.sources.length) pools.push(QUOTES.map(q => ({ kind: 'quote', ...q })), FACTS.map(f => ({ kind: 'fact', text: f.text })))
+  if (!pools.length) return null
   const day = Math.floor(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86_400_000)
   const n = day * 48 + slot
-  const i = Math.floor(n / 2)
-  if (n % 2 === 0) return { kind: 'quote', ...QUOTES[(i * 37) % QUOTES.length] }
-  return { kind: 'fact', text: FACTS[(i * 37) % FACTS.length] }
+  const pool = pools[n % pools.length]
+  return pool[(Math.floor(n / pools.length) * 37) % pool.length]
 }

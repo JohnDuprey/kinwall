@@ -100,6 +100,20 @@ export const LocationSchema = z
   })
   .openapi('Location');
 
+// The Board's quote / fact card (Settings -> For the whole family -> Quotes & facts).
+export const TIDBIT_SOURCES = ['quotes', 'facts', 'onthisday', 'trivia'] as const;
+export const FACT_CATEGORIES = ['animals', 'space', 'science', 'body', 'plants', 'words'] as const;
+export const ON_THIS_DAY_KINDS = ['holidays', 'births', 'events'] as const;
+export const TidbitSettingsSchema = z
+  .object({
+    sources: z.array(z.enum(TIDBIT_SOURCES)).max(TIDBIT_SOURCES.length), // [] = no card on the Board
+    factCategories: z.array(z.enum(FACT_CATEGORIES)).max(FACT_CATEGORIES.length), // built-in facts; [] = every category
+    onThisDay: z.array(z.enum(ON_THIS_DAY_KINDS)).min(1).max(ON_THIS_DAY_KINDS.length), // Wikipedia's On this day
+    triviaCategories: z.array(z.number().int().min(9).max(32)).min(1).max(24), // Open Trivia DB category ids
+    triviaDifficulty: z.enum(['easy', 'medium', 'hard', 'any']),
+  })
+  .openapi('TidbitSettings');
+
 export const SettingsSchema = z
   .object({
     familyName: z.string(),
@@ -128,6 +142,7 @@ export const SettingsSchema = z
     stickerPriceScale: z.number(), // percent applied to every sticker pack's price; 0 = all free
     location: LocationSchema.nullable(), // for the snapshot's weather; null = no weather
     temperatureUnit: z.enum(['celsius', 'fahrenheit']), // default: fahrenheit for a US location (or US timezone), else celsius
+    tidbits: TidbitSettingsSchema,
   })
   .openapi('Settings');
 
@@ -162,6 +177,7 @@ export const SettingsPatchSchema = z
     stickerPriceScale: z.number().int().min(0).max(200).optional(),
     location: LocationSchema.nullable().optional(),
     temperatureUnit: z.enum(['celsius', 'fahrenheit']).optional(),
+    tidbits: TidbitSettingsSchema.optional(),
   })
   // Quiet hours are a pair: send both, and either both set or both cleared ('' / null).
   .refine((p) => (p.quietFrom === undefined) === (p.quietTo === undefined) && !p.quietFrom === !p.quietTo, {
@@ -730,3 +746,12 @@ export const BoardSchema = z
     birthdays: z.array(SnapshotBirthdaySchema),
   })
   .openapi('Board');
+
+export const TidbitsSchema = z
+  .object({
+    date: z.string(), // household-local YYYY-MM-DD these are for
+    onThisDay: z.array(z.object({ kind: z.enum(ON_THIS_DAY_KINDS), text: z.string(), year: z.number().nullable() })),
+    trivia: z.array(z.object({ question: z.string(), answer: z.string(), choices: z.array(z.string()), category: z.string() })),
+  })
+  .openapi('Tidbits');
+

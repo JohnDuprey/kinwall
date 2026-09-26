@@ -8,7 +8,7 @@ Kinwall is a family calendar, chore chart and list app you host yourself. The ma
 
 | Area | In short | Read more |
 |---|---|---|
-| Board | The first screen: a big clock, the weather and forecast, today, coming up, chores, items due soon, a family photo and a "Did you know?" fact. | [Board view](../using/calendar.md#board-view) |
+| Board | The first screen: a big clock, the weather and forecast, today, coming up, chores, items due soon, a family photo and a quote, fun fact, "On this day" or trivia question. | [Board view](../using/calendar.md#board-view) |
 | Calendar | Board, Day, Week, Month and Schedule views. On phones the week becomes a 3-day view. Color-coded by family member or category. | [Calendar](../using/calendar.md) |
 | Events | Create and edit events. Changes go back to Google, Outlook and CalDAV. You can add reminders, a travel time with a leave-by time, members, a category and linked tasks. | [Events](../using/events.md) |
 | Calendars | Google, Microsoft 365 / Outlook, iCloud and other CalDAV servers, and any ICS URL. | [Connecting calendars](../calendars/google.md) |

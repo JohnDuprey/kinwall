@@ -38,6 +38,24 @@ export interface Settings {
   stickerPriceScale: number // percent applied to sticker pack prices; 0 = all free
   location: WeatherLocation | null // for the snapshot's weather; null = no weather
   temperatureUnit: 'celsius' | 'fahrenheit'
+  tidbits: TidbitSettings // the Board's quote / fact card
+}
+
+export type TidbitSource = 'quotes' | 'facts' | 'onthisday' | 'trivia'
+export type FactCategory = 'animals' | 'space' | 'science' | 'body' | 'plants' | 'words'
+export type OnThisDayKind = 'holidays' | 'births' | 'events'
+export interface TidbitSettings {
+  sources: TidbitSource[] // [] = no card on the Board
+  factCategories: FactCategory[] // built-in facts; [] = every category
+  onThisDay: OnThisDayKind[]
+  triviaCategories: number[] // Open Trivia DB category ids
+  triviaDifficulty: 'easy' | 'medium' | 'hard' | 'any'
+}
+/** Today's online tidbits (GET /api/tidbits); sources that are off come back empty. */
+export interface OnlineTidbits {
+  date: string
+  onThisDay: { kind: OnThisDayKind; text: string; year: number | null }[]
+  trivia: { question: string; answer: string; choices: string[]; category: string }[]
 }
 
 export interface WeatherLocation { name: string; lat: number; lon: number; countryCode?: string }

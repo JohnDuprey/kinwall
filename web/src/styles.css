@@ -1840,6 +1840,11 @@ button.snap-row:active { transform: scale(0.99); }
 .board-tidbit footer { margin-top: 6px; color: var(--text-dim); font-weight: 800; font-size: 0.875rem; }
 .board-tidbit-body > p { font-size: 1.0625rem; font-weight: 700; line-height: 1.4; }
 .board-tidbit-tag { display: block; margin-bottom: 4px; font-size: 0.8125rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.02em; }
+.board-tidbit-body > p.board-tidbit-source { margin-top: 6px; font-size: 0.8125rem; font-weight: 700; color: var(--text-dim); }
+.board-trivia-choices { list-style: none; margin: 8px 0 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.board-trivia-choices li { padding: 6px 10px; border-radius: 10px; background: var(--card-soft, var(--card)); border: 1.5px solid var(--border); font-weight: 700; font-size: 0.9375rem; }
+.board-trivia-choices li.correct { border-color: var(--accent); background: var(--accent-soft); }
+.board-tidbit .btn { margin-top: 8px; padding: 6px 14px; min-height: 0; font-size: 0.875rem; }
 :root[data-density="icons"] .board-avatar { width: 36px; height: 36px; font-size: 1.25rem; }
 
 /* Photos: the add tile and the sheet's prev/next */
@@ -1859,3 +1864,6 @@ button.snap-row:active { transform: scale(0.99); }
 @supports not (aspect-ratio: 1) {
   .board-photo { height: 200px; } /* its image is absolutely positioned, so it would collapse to 0 */
 }
+
+/* Settings → Quotes & facts sheet: one block per source, its options under its switch. */
+.tidbit-source { display: grid; gap: 8px; padding: 12px 0; border-top: 1px solid var(--border); }

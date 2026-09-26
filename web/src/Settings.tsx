@@ -5,6 +5,8 @@ import type { Account, ApiKey, CalendarEntry, Category, ColorScheme, CustomColor
 import { ProviderForm, PublicUrlRow } from './ProviderConfig.tsx'
 import { CATEGORY_EMOJI, CATEGORY_PRESETS, MEMBER_EMOJI, MEMBER_PALETTE, nextPaletteColor, REMINDER_OPTIONS } from './types.ts'
 import Sheet from './Sheet.tsx'
+import TidbitsSheet from './TidbitsSheet.tsx'
+import { tidbitSummary } from './tidbits.ts'
 import { MemberPicker } from './MemberPicker.tsx'
 import { AnyEmojiField } from './AnyEmojiField.tsx'
 import { isValidAvatar } from './emoji.ts'
@@ -108,6 +110,7 @@ export default function SettingsView() {
           <SettingsGroup title="For the whole family" sub="Every screen and phone in the household uses these.">
             <GeneralSection settings={settings} onSaved={reloadCore} toast={toast} isDisplay={isDisplay} />
             <WeatherSection settings={settings} onSaved={reloadCore} toast={toast} />
+            <TidbitsSection settings={settings} onSaved={reloadCore} toast={toast} />
             <AppearanceSection settings={settings} onSaved={reloadCore} toast={toast} />
             <QuietHoursSection settings={settings} onSaved={reloadCore} toast={toast} />
           </SettingsGroup>
@@ -211,6 +214,27 @@ function GeneralSection({ settings, onSaved, toast, isDisplay }: { settings: Ret
           </select>
         </div>
       )}
+    </Section>
+  )
+}
+
+/** The Board's quote card sources: a summary here, the choices in their own sheet. */
+function TidbitsSection({ settings, onSaved, toast }: { settings: Settings; onSaved: () => void; toast: (m: string, persist?: boolean) => void }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <Section title="Quotes & facts">
+      <div className="settings-row">
+        <div>
+          <div className="settings-row-label">On the Board</div>
+          <div className="settings-row-sub">{tidbitSummary(settings.tidbits)}</div>
+        </div>
+        <div className="settings-inline-btns">
+          <button className="btn btn-secondary" onClick={() => setOpen(true)}>Change</button>
+        </div>
+      </div>
+      {open && <TidbitsSheet value={settings.tidbits} onClose={() => setOpen(false)} onSave={async tidbits => {
+        try { await api.updateSettings({ tidbits }); onSaved(); setOpen(false) } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save settings', true) }
+      }} />}
     </Section>
   )
 }

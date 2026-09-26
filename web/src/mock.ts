@@ -1,5 +1,5 @@
 // Dev-only in-memory fixture, used when VITE_MOCK=1. Excluded from prod by the env check in api.ts.
-import type {
+import type { OnlineTidbits,
   Account, ApiKey, AppNotification, CalendarEntry, Category, Chore, ChoreDay, EventInstance, LeaderboardEntry, LeaderboardPeriod, List, ListGroup,
   Photo, PhotoQuota, GeocodeResult, ListItem, ListItemInput, ListItemStep, Member, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook,
 } from './types.ts'
@@ -37,6 +37,7 @@ const settings: Settings = {
   stickerPriceScale: 100,
   location: { name: 'Portland', lat: 45.5152, lon: -122.6784, countryCode: 'US' },
   temperatureUnit: 'fahrenheit',
+  tidbits: { sources: ['quotes', 'facts', 'onthisday', 'trivia'], factCategories: [], onThisDay: ['holidays', 'births'], triviaCategories: [27, 17, 22, 9], triviaDifficulty: 'easy' },
 }
 
 const members: Member[] = [
@@ -263,6 +264,19 @@ export const mock = {
 
   getSnapshot: async (memberId: string, range: 'day' | 'week'): Promise<Snapshot> => mockSnapshot(memberId, range),
   getBoard: async (days: number): Promise<Board> => mockBoard(days),
+  // The demo shows the online sources with a fixed sample (it never calls Wikipedia or Open Trivia DB).
+  getTidbits: async (): Promise<OnlineTidbits> => ({
+    date: new Date().toISOString().slice(0, 10),
+    onThisDay: [
+      { kind: 'holidays', text: 'European Day of Languages', year: null },
+      { kind: 'births', text: 'George Gershwin, American composer and pianist', year: 1898 },
+      { kind: 'births', text: 'Serena Williams, American tennis player', year: 1981 },
+    ],
+    trivia: [
+      { question: 'Wombats are native to which country?', answer: 'Australia', choices: ['New Zealand', 'Australia', 'Papua New Guinea', 'Palau'], category: 'Animals' },
+      { question: 'What is the closest planet to the Sun?', answer: 'Mercury', choices: ['Venus', 'Mars', 'Mercury', 'Earth'], category: 'Science & Nature' },
+    ],
+  }),
   geocode: async (q: string): Promise<GeocodeResult[]> => DEMO_PLACES.filter(p => p.label.toLowerCase().includes(q.trim().toLowerCase())),
 
   getCalendars: async () => [...calendars],
