@@ -312,7 +312,7 @@ button {
   flex-shrink: 0;
   flex-wrap: wrap;
 }
-.toolbar-nav { display: flex; align-items: center; gap: 8px; }
+.toolbar-nav { display: flex; align-items: center; gap: 8px; margin-left: auto; } /* with the filter after it, both sit at the right */
 .icon-btn {
   width: var(--ctl-h); height: var(--ctl-h);
   border-radius: 50%;
@@ -1104,11 +1104,13 @@ button {
   .calendar-toolbar .segmented button { flex: 1; padding: 7px 4px; font-size: 0.8125rem; min-height: 38px; }
   .toolbar-nav { gap: 4px; flex-wrap: nowrap; min-width: 0; width: 100%; }
   .toolbar-nav .period-label { flex: 1; }
-  .toolbar-nav .filter-btn { margin-left: auto; }
-  /* The board has no paging, so its only nav control (the filter) shares the switcher's row. */
-  :root[data-view="board"] .calendar-toolbar .segmented { width: auto; flex: 1; min-width: 0; }
-  :root[data-view="board"] .toolbar-nav { width: auto; }
-  :root[data-view="board"] .toolbar-nav:empty { display: none; }
+  /* Switcher and filter share the first row on every view (the tabs never change width), day
+     navigation gets the second row to itself; the Board has no paging, so no second row. */
+  .calendar-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+  .calendar-toolbar .segmented { grid-column: 1; }
+  .calendar-toolbar .filter-btn { grid-column: 2; grid-row: 1; }
+  .calendar-toolbar .toolbar-nav { grid-column: 1 / -1; }
+  .toolbar-nav:empty { display: none; }
   .icon-btn { width: 44px; height: 44px; } /* smaller than wall, but never below a 44px hit area */
   .calendar-toolbar .icon-btn { width: 40px; height: 40px; }
   .today-btn { padding: 7px 10px; font-size: 0.8125rem; min-height: 36px; }

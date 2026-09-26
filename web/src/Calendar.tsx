@@ -342,14 +342,14 @@ export default function CalendarView() {
           <button className="icon-btn" onClick={() => step(1)} aria-label={`Next ${viewMode === 'schedule' ? '30 days' : viewMode === 'week' && isPhone ? '3 days' : viewMode}`}><ChevronRight width={20} height={20} /></button>
           <h2 className="period-label" aria-live="polite" ref={periodRef} tabIndex={-1}>{periodLabel}</h2>
           </>}
-          {categories.length > 0 && (
-            <button className={`icon-btn filter-btn ${activeCategoryFilter.length ? 'active' : ''}`} onClick={() => setFilterOpen(true)}
-              aria-label={activeCategoryFilter.length ? `Filter: ${activeCategoryFilter.length} categories` : 'Filter by category'}>
-              <FilterIcon width={20} height={20} />
-              {activeCategoryFilter.length > 0 && <span className="filter-badge">{activeCategoryFilter.length}</span>}
-            </button>
-          )}
         </div>
+        {categories.length > 0 && (
+          <button className={`icon-btn filter-btn ${activeCategoryFilter.length ? 'active' : ''}`} onClick={() => setFilterOpen(true)}
+            aria-label={activeCategoryFilter.length ? `Filter: ${activeCategoryFilter.length} categories` : 'Filter by category'}>
+            <FilterIcon width={20} height={20} />
+            {activeCategoryFilter.length > 0 && <span className="filter-badge">{activeCategoryFilter.length}</span>}
+          </button>
+        )}
       </div>}
 
       {filterOpen && (
