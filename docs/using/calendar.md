@@ -1,6 +1,6 @@
 # Calendar
 
-The Calendar tab is the main screen. It merges every enabled calendar into one view. Each event is coloured by its [category](categories.md), or by its family member if it has no category.
+The Calendar tab is the main screen. It merges every enabled calendar into one view. Each event is colored by its [category](categories.md), or by its family member if it has no category.
 
 ![Week view on the wall iPad](../screenshots/ipad-week.png)
 
@@ -29,7 +29,7 @@ Phones open on **Schedule**. The wall display opens on **Week**. You can switch 
 **Board** turns the calendar into a bulletin board to read from across the room. It always shows today onward, so it has no ◀ ▶ or swipe paging. Its cards:
 
 * **Clock**: a big clock and the date, with the weather now, today's high and low, and the next 3 days. The weather needs a weather location in [General settings](../settings/general.md).
-* **Today**: everyone's events for today, with times or "All day", a bar in each member's colour and their avatars. Birthdays 🎂 come first. Events that have finished fade.
+* **Today**: everyone's events for today, with times or "All day", a bar in each member's color and their avatars. Birthdays 🎂 come first. Events that have finished fade.
 * **Coming up**: the next 6 days, grouped by day, with each day's weather and birthdays.
 * **Due soon**: open list items due in the next week, overdue ones first in red, plus urgent and important items with no date. Each shows its list's emoji and the owner's avatar.
 * **Chores today**: a bar per member showing how many of today's chores are left.
@@ -68,16 +68,16 @@ When any categories exist, a **filter** button appears in the toolbar. It opens 
 * The filter is saved **per device**. A wall display can hide work events for good while phones still see everything.
 * Categories deleted since you picked them are ignored, so a stale filter can't hide everything.
 
-The member and category filters combine, and every view honours both.
+The member and category filters combine, and every view honors both.
 
-## How events are coloured
+## How events are colored
 
-* **Category set**: the category colour, with the category emoji before the title. Member avatars still show.
-* **One member**: that member's colour.
-* **Two or more members**: diagonal stripes in each member's colour, with their avatars.
-* **No member**: the calendar's colour.
+* **Category set**: the category color, with the category emoji before the title. Member avatars still show.
+* **One member**: that member's color.
+* **Two or more members**: diagonal stripes in each member's color, with their avatars.
+* **No member**: the calendar's color.
 
-Who an event is for never depends on telling colours apart: the avatars always show too.
+Who an event is for never depends on telling colors apart: the avatars always show too.
 
 ## Opening from a notification
 

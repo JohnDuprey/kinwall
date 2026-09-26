@@ -1,4 +1,4 @@
-# Sync behaviour & intervals
+# Sync behavior & intervals
 
 ## What gets synced
 

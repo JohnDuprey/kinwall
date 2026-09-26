@@ -172,7 +172,7 @@ stickersRoutes.openapi(
     method: 'post',
     path: '/api/stickers/scrapbook/{memberId}',
     tags: ['Stickers'],
-    summary: "Place a sticker on a member's page (it must be from a pack they've unlocked). Defaults: centre, scale 1, on top.",
+    summary: "Place a sticker on a member's page (it must be from a pack they've unlocked). Defaults: center, scale 1, on top.",
     security: [{ Bearer: [] }],
     request: { params: scrapParams, body: { content: { 'application/json': { schema: StickerPlacementInputSchema } } } },
     responses: {

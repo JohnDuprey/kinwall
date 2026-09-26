@@ -1,4 +1,4 @@
-// Notes threads on events and list items (migration 0024): short, colour-coded messages from
+// Notes threads on events and list items (migration 0024): short, color-coded messages from
 // family members. Event notes hang off the Kinwall event id (the series row for a recurring local
 // event); a thread goes when its target is deleted (routes/events.ts, routes/lists.ts).
 import { createRoute, z } from '@hono/zod-openapi';

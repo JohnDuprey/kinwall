@@ -1,6 +1,6 @@
 # Embedding the server
 
-Kinwall's server can be hosted by something other than the bundled Worker or Node entry points, for example one Durable Object per household, with this repo as a submodule. The authoritative reference is the "Embedding the server" section of [SPEC.md](../../SPEC.md). This page summarises it.
+Kinwall's server can be hosted by something other than the bundled Worker or Node entry points, for example one Durable Object per household, with this repo as a submodule. The authoritative reference is the "Embedding the server" section of [SPEC.md](../../SPEC.md). This page summarizes it.
 
 ```ts
 import { createKinwall } from './server/src/entry.ts';

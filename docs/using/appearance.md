@@ -13,7 +13,7 @@ Appearance works on two levels:
 |---|---|---|
 | **Mode** | Light, Dark, Auto (follows the device's system setting), Scheduled | Light |
 | **Dark from / Dark to** (Scheduled) | Two times. The window can cross midnight. | 20:00 → 07:00 |
-| **Accent color** | Preset swatches, or a custom colour (the rainbow swatch) | `#FF9E7A` |
+| **Accent color** | Preset swatches, or a custom color (the rainbow swatch) | `#FF9E7A` |
 | **Light background** | Warm, White, Gray, Sage | Warm |
 | **Dark background** | Cocoa, Charcoal, Midnight | Cocoa |
 | **Text size** | Small, Medium, Large, Extra large | Medium |

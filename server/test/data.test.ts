@@ -287,7 +287,7 @@ test('reconnect: adding the same provider calendar from an account re-attaches t
   const realFetch = globalThis.fetch;
   globalThis.fetch = (async () => new Response('nope', { status: 500 })) as typeof fetch;
   try {
-    // The picker sends the remote calendar's own name/colour; the placeholder's settings win.
+    // The picker sends the remote calendar's own name/color; the placeholder's settings win.
     const res = await request('/api/calendars', { method: 'POST', body: JSON.stringify({ kind: 'google', accountId: 'acc', remoteId: 'primary', name: 'primary@gmail', color: '#000000', memberIds: [] }) });
     assert.equal(res.status, 200);
     const cal = (await res.json()) as any;

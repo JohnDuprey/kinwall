@@ -1,6 +1,6 @@
 # Reconnecting after import
 
-An [import](../your-data/export-import.md) brings back every calendar's **name, colour, members and default category**, plus the member, category and travel-time tags on its events, including tags set for a whole series of a recurring event. What it can't bring back is **logins**: the export contains no passwords or OAuth tokens.
+An [import](../your-data/export-import.md) brings back every calendar's **name, color, members and default category**, plus the member, category and travel-time tags on its events, including tags set for a whole series of a recurring event. What it can't bring back is **logins**: the export contains no passwords or OAuth tokens.
 
 ## How calendars come back
 

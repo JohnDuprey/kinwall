@@ -50,9 +50,9 @@ test('ics: TZID event expands correctly across a DST change', async () => {
   assert.equal(mar10!.start, '2026-03-10T13:00:00.000Z');
 });
 
-test('ics: cancelled events are skipped', async () => {
+test('ics: canceled events are skipped', async () => {
   const all = await expandICS(fixture, FROM, TO);
-  assert.ok(!all.some((e) => e.externalId.startsWith('cancelled-1@familycal.test')));
+  assert.ok(!all.some((e) => e.externalId.startsWith('canceled-1@familycal.test')));
 });
 
 test('ics provider: listEvents fetches the url (webcal -> https) and parses it', async () => {
@@ -127,7 +127,7 @@ test('google: refreshes an expired token, saves it, and maps events (timed + all
       },
     } as ProviderCtx;
     const events = await googleProvider.listEvents(ctx, FROM, TO);
-    assert.equal(events.length, 2, 'cancelled event excluded');
+    assert.equal(events.length, 2, 'canceled event excluded');
     assert.deepEqual(events[0], {
       externalId: 'evt1',
       title: 'Dentist',

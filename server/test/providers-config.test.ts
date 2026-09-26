@@ -240,7 +240,7 @@ test('oauth: OAUTH_REDIRECT_URI -> shared redirect + "<hostLabel>.<kind>.<random
     assert.match(bad.headers.get('Location')!, /#\/settings\?tab=calendars&oauthError=google%3Ainvalid/);
     const declined = await request(`/api/oauth/google/callback?error=access_denied&state=${encodeURIComponent(state)}`, { redirect: 'manual' });
     assert.equal(declined.status, 302);
-    assert.match(declined.headers.get('Location')!, /oauthError=google%3Acancelled$/);
+    assert.match(declined.headers.get('Location')!, /oauthError=google%3Acanceled$/);
     const ok = await request(`/api/oauth/google/callback?code=c&state=${encodeURIComponent(state)}`, { redirect: 'manual' });
     assert.equal(ok.status, 302);
     assert.match(ok.headers.get('Location')!, /^https:\/\/smiths\.host\.example\/#\/settings\?account=/);

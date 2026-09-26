@@ -604,18 +604,18 @@ function DisplayDoneStep({ adminKey, adminKeyId, onGoToCalendar }: { adminKey: s
 
   useEffect(() => {
     if (fallback || !reg || phoneDone) return
-    let cancelled = false
+    let canceled = false
     const tick = async () => {
       try {
         const s = await api.getSetup()
-        if (cancelled || !s.passkeys) return
+        if (canceled || !s.passkeys) return
         setPhoneDone(true)
         if (adminKeyId) await api.deleteKey(adminKeyId).catch(() => {}) // temp admin key still valid (sessionStorage, 5 min TTL)
         clearAdminKey()
       } catch { /* offline / transient - next tick retries */ }
     }
     const id = setInterval(tick, SETUP_PASSKEY_POLL_MS)
-    return () => { cancelled = true; clearInterval(id) }
+    return () => { canceled = true; clearInterval(id) }
   }, [fallback, reg, phoneDone, adminKeyId])
 
   const copy = async () => {

@@ -99,7 +99,7 @@ oauthRoutes.openapi(
     summary: 'OAuth callback (no auth; called by the provider). Creates the account and redirects to the UI.',
     request: { params: z.object({ kind: KindSchema }), query: z.object({ code: z.string().optional(), state: z.string().optional(), error: z.string().optional() }) },
     responses: {
-      302: { description: 'redirect to the UI: Settings → Calendars, with ?account=<id> on success or ?oauthError=<kind>:<reason> otherwise (a declined consent is "cancelled")' },
+      302: { description: 'redirect to the UI: Settings → Calendars, with ?account=<id> on success or ?oauthError=<kind>:<reason> otherwise (a declined consent is "canceled")' },
     },
   }),
   async (c) => {
@@ -110,7 +110,7 @@ oauthRoutes.openapi(
     // (Settings → Calendars shows it), never a bare JSON page. A declined consent is the common case.
     const back = (message: string, status: 400 | 500 = 400) =>
       c.redirect(`${penv.PUBLIC_URL ?? ''}/#/settings?tab=calendars&oauthError=${encodeURIComponent(`${kind}:${status === 500 ? 'server: ' : ''}${message}`)}`, 302);
-    if (error) return back(error === 'access_denied' || error === 'consent_required' ? 'cancelled' : error);
+    if (error) return back(error === 'access_denied' || error === 'consent_required' ? 'canceled' : error);
     if (!code || !state) return back('missing code/state');
     const stored = await consumeState(c.env.DB, state, kind);
     if (!stored) return back('invalid or expired state');

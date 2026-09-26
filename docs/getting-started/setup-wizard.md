@@ -14,7 +14,7 @@ A new instance is *unclaimed*. The first browser to open it gets the setup wizar
 3. **Create a passkey for this device** (phone/computer only, when passkeys are supported). You sign in with Face ID, Touch ID or your screen lock instead of saving a key. You can **Skip** this step, except on hosted Kinwall (or any server with `REQUIRE_PASSKEY_SETUP=1`), where the passkey is how you sign back in. There, if the page reloads before the passkey is made, the wizard reopens at this step.
 4. **Save your recovery codes**: 8 one-time codes with **Copy all** and **Download .txt** buttons. They're your way back in if every passkey device is lost. See [Sign-in & security](../using/sign-in-and-security.md#recovery-codes).
 5. **Your household**: family name, timezone, and whether the week starts on Sunday or Monday.
-6. **Who's in the family?** Add each person with a name, colour and avatar (an emoji or 1–2 letter initial). You need at least one member.
+6. **Who's in the family?** Add each person with a name, color and avatar (an emoji or 1–2 letter initial). You need at least one member.
 7. **Connect a calendar** (optional): 📆 Google, 📧 Outlook, 🍎 iCloud (CalDAV) or 🔗 Subscribe to a link. If Google or Outlook isn't configured yet, the wizard shows the provider form inline. **Continue without calendars** skips the step.
 8. **Set up some chores**: tap starter chores and pick who does each one, or **Anyone**.
 9. **All set! 🎉**

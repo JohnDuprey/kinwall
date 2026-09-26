@@ -45,7 +45,7 @@ When you edit, only the fields you changed are sent. An unrelated edit never pin
 A reminder fires at *start − minutes*. For all-day events it counts back from the start of the day in the household timezone. Reminders are:
 
 * stored on the event for local calendars,
-* written through to **Google** (popup reminders) and **Outlook** (a single reminder), so their own apps honour them,
+* written through to **Google** (popup reminders) and **Outlook** (a single reminder), so their own apps honor them,
 * read-only for CalDAV and ICS events, which use whatever the feed says.
 
 Events without their own reminder use the household **Default reminder** (30 minutes unless changed). See [General](../settings/general.md). An event whose reminder was set to **None** never uses the default. For delivery, see [Notifications](notifications.md).
@@ -79,7 +79,7 @@ The **Tasks** block in the detail sheet lists [list items](lists.md) linked to t
 
 ## Notes
 
-Anyone can leave a note on an event: "Bring shin guards", "I can drive", a link to the snack sign-up. Notes sit under **Tasks** in the detail sheet, oldest first, each with the poster's avatar and name in their colour and a coloured bar down the side, plus when it was posted ("5 min. ago") and "· edited" once changed. Links in a note open in a new tab.
+Anyone can leave a note on an event: "Bring shin guards", "I can drive", a link to the snack sign-up. Notes sit under **Tasks** in the detail sheet, oldest first, each with the poster's avatar and name in their color and a colored bar down the side, plus when it was posted ("5 min. ago") and "· edited" once changed. Links in a note open in a new tab.
 
 * **+ Add note** opens a text box and **Post as** chips. The chip starts on the person selected in the header, else whoever you posted as last. **Someone** posts without a name. Separate thoughts are separate notes.
 * Tap a note (or its **Edit**) to change the text, then **Save**, **Cancel** or **Delete** (which asks first). Escape cancels.

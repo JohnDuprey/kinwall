@@ -219,7 +219,7 @@ export const provider: Provider = {
       if (pageToken) params.set('pageToken', pageToken);
       const data = await api(ctx, `/calendars/${calId}/events?${params}`);
       for (const item of data.items ?? []) {
-        if (item.status === 'cancelled') continue;
+        if (item.status === 'cancelled') continue; // Google's API spelling
         events.push(toNormalized(item, calendarDefaults));
       }
       pageToken = data.nextPageToken;

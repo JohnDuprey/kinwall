@@ -36,7 +36,7 @@ async function bumpRevAndListWebhooks(db: KinwallDb): Promise<WebhookRow[]> {
 }
 
 // SSRF guard for webhook targets lives in outbound.ts (shared with calendar feeds). Webhooks never
-// honour ALLOW_PRIVATE_FEED_URLS.
+// honor ALLOW_PRIVATE_FEED_URLS.
 
 async function hmacHex(secret: string, body: string): Promise<string> {
   const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, [

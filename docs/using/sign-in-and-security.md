@@ -23,7 +23,7 @@ Passkey sign-in attempts are rate-limited to 20 per 10 minutes per address.
 **Settings → Access → Passkeys**:
 
 * **Add a passkey on this device**: uses this phone or computer's built-in authenticator.
-* **Use a security key or another device**: a hardware key (USB/NFC/Bluetooth) or a phone nearby over the hybrid flow. Passkeys created this way are labelled "Security key".
+* **Use a security key or another device**: a hardware key (USB/NFC/Bluetooth) or a phone nearby over the hybrid flow. Passkeys created this way are labeled "Security key".
 * **Add a passkey on another device**: shows a QR code with a one-time token, valid for 15 minutes, that lets another device register exactly one passkey.
 * Rename a passkey, or remove it. Removing a passkey also signs out every session created with it. Removing the last one warns you first.
 * **Sign out** ends this device's passkey session.

@@ -5,7 +5,7 @@
 Everyone who shows up on the wall. Each member has:
 
 * **Name**
-* **Color**: from the palette or a custom colour. It colours their events, chore column and avatar.
+* **Color**: from the palette or a custom color. It colors their events, chore column and avatar.
 * **Avatar**: an emoji from the row, any emoji, or a 1–2 letter initial.
 * **Birthday** (optional): a date. Turn on **I don't know the year** to keep just the month and day. It shows 🎂 in everyone's [snapshot](../using/snapshot.md) that day, with the age they turn when the year is known. API: `birthday` as `YYYY-MM-DD`, or `--MM-DD` without a year, or `null`.
 

@@ -8,12 +8,12 @@ A drawing app for kids. Tap **Activities → Paint**. The canvas fills the scree
 
 ### Tools
 
-* **Brush**: a round, smooth brush in the chosen colour.
-* **Rainbow brush**: the colour changes as you draw.
+* **Brush**: a round, smooth brush in the chosen color.
+* **Rainbow brush**: the color changes as you draw.
 * **Eraser**: paints white paper back.
-* **Fill bucket**: tap an area to fill it with the chosen colour. It also covers most of the soft edge along a line, so outlines don't leave a white ring.
+* **Fill bucket**: tap an area to fill it with the chosen color. It also covers most of the soft edge along a line, so outlines don't leave a white ring.
 * **Sizes**: seven dots, from Tiny to Giant.
-* **Colours**: sixteen colours, including the family member colours plus black, white, brown and grey. Picking a colour while the eraser or rainbow brush is on switches back to the brush.
+* **Colors**: sixteen colors, including the family member colors plus black, white, brown and grey. Picking a color while the eraser or rainbow brush is on switches back to the brush.
 * **Undo / Redo**: up to 20 steps. With a keyboard, use Ctrl/⌘+Z and Ctrl/⌘+Shift+Z (or Ctrl+Y).
 * **Clear**: wipes the picture after you confirm. You can undo a clear.
 * **Who's drawing?**: optionally tag the picture with a family member. You can skip it.

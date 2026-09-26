@@ -119,7 +119,7 @@ calendarsRoutes.openapi(
     // against the provider either way (refreshWritable in sync.ts).
     const writable = (kind === 'local' || kind === 'google' || kind === 'microsoft' || kind === 'caldav') && body.writable !== false ? 1 : 0;
 
-    // An imported placeholder for this provider calendar: re-attach it (keeping its id, colour,
+    // An imported placeholder for this provider calendar: re-attach it (keeping its id, color,
     // members, category and per-event overrides) instead of creating a duplicate.
     if (body.accountId && body.remoteId) {
       const placeholder = await c.env.DB.prepare('SELECT * FROM calendars WHERE kind = ? AND remote_id = ? AND account_id IS NULL')

@@ -8,7 +8,7 @@ export default function Sheet({ title, onClose, children, actions, variant, role
   onClose: () => void
   children: ReactNode
   actions?: ReactNode
-  variant?: 'dialog' // compact card, centred on wide screens (still a bottom sheet on phones) - see dialog.tsx
+  variant?: 'dialog' // compact card, centered on wide screens (still a bottom sheet on phones) - see dialog.tsx
   role?: 'dialog' | 'alertdialog'
   describedBy?: string
   // false: a stray backdrop tap or drag can't close it (the sheet nudges instead); only the X,

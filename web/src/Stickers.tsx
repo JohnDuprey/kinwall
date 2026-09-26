@@ -63,11 +63,11 @@ export default function Stickers() {
   // A poll tick reloads too, but never under a drag or a change still waiting to save.
   useEffect(() => {
     if (!memberId || drag.current || pending.current.size) return
-    let cancelled = false
+    let canceled = false
     Promise.all([api.getStickerPacks(memberId), api.getScrapbook(memberId)])
-      .then(([p, s]) => { if (!cancelled) { setPacks(p); setPlaced(s) } })
-      .catch(() => { if (!cancelled) toast("Couldn't load the sticker book.", true) })
-    return () => { cancelled = true }
+      .then(([p, s]) => { if (!canceled) { setPacks(p); setPlaced(s) } })
+      .catch(() => { if (!canceled) toast("Couldn't load the sticker book.", true) })
+    return () => { canceled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [memberId, refreshTick])
 
@@ -115,7 +115,7 @@ export default function Stickers() {
     try { await api.removeSticker(member.id, s.id) } catch { toast("Couldn't remove that sticker.", true) }
   }
 
-  // Drag: the grab offset keeps the sticker from jumping its centre to the finger.
+  // Drag: the grab offset keeps the sticker from jumping its center to the finger.
   const pagePoint = (e: { clientX: number; clientY: number }, dx = 0, dy = 0) => {
     const box = pageRef.current!.getBoundingClientRect()
     return { x: clamp((e.clientX - dx - box.left) / box.width, 0, 1), y: clamp((e.clientY - dy - box.top) / box.height, 0, 1) }

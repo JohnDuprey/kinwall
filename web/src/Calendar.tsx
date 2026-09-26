@@ -148,13 +148,13 @@ export default function CalendarView() {
   }, [viewMode, anchor, settings.weekStart, weekDays])
 
   useEffect(() => {
-    let cancelled = false
+    let canceled = false
     setLoading(true)
     api.getEvents(range.from.toISOString(), range.to.toISOString())
-      .then(evs => { if (!cancelled) { setEvents(evs); setError(false) } })
-      .catch(() => { if (!cancelled) setError(true) })
-      .finally(() => { if (!cancelled) setLoading(false) })
-    return () => { cancelled = true }
+      .then(evs => { if (!canceled) { setEvents(evs); setError(false) } })
+      .catch(() => { if (!canceled) setError(true) })
+      .finally(() => { if (!canceled) setLoading(false) })
+    return () => { canceled = true }
   }, [range.from, range.to, refreshTick])
 
   // #/calendar?event=<id>&at=<start> (a tapped notification): jump to that day, then open the event
@@ -192,7 +192,7 @@ export default function CalendarView() {
 
   // Category filter: [] shows everything; otherwise only the picked categories ('__none' = events
   // with no category). Saved per device, since a wall display may want e.g. work events hidden for
-  // good. Applied here, so every view (week/3-day, day, month, schedule) honours it.
+  // good. Applied here, so every view (week/3-day, day, month, schedule) honors it.
   const [categoryFilter, setCategoryFilterState] = useState<string[]>(() => {
     try { return JSON.parse(localStorage.getItem(CATEGORY_FILTER_KEY) || '[]') } catch { return [] }
   })
@@ -454,7 +454,7 @@ function eventVisual(ev: EventInstance, members: ChipMember[], categories: ChipC
   }
   if (assigned.length <= 1) {
     const color = assigned[0]?.color ?? ev.color
-    // The avatar too, not just the colour: who it's for must not depend on telling colours apart.
+    // The avatar too, not just the color: who it's for must not depend on telling colors apart.
     return { background: color, avatars: assigned.map(m => m.avatar || m.name[0]), ink: inkFor(color), emoji: null, pill: false, solid: color }
   }
   const stops = assigned.map((m, i) => `${m.color} ${i * stripeWidth}px ${(i + 1) * stripeWidth}px`).join(', ')
@@ -462,10 +462,10 @@ function eventVisual(ev: EventInstance, members: ChipMember[], categories: ChipC
 }
 
 /** Inline fill for an event block. `--ev-bg` lets low-stimulation mode (styles.css) swap the filled
- * block for a neutral card with just a thin bar of the same colour/stripes. */
+ * block for a neutral card with just a thin bar of the same color/stripes. */
 const evFill = (background: string, ink: string) => ({ background, color: ink, ['--ev-bg' as string]: background })
 
-/** Dashed line across an event's column at its leave-by time (same day only), in its colour. */
+/** Dashed line across an event's column at its leave-by time (same day only), in its color. */
 function LeaveMarker({ ev, tz, dayKey, hourPx, left, width, color }: { ev: EventInstance; tz: string; dayKey: string; hourPx: number; left: string; width: string; color: string }) {
   if (!ev.leaveAt || zonedDayKey(ev.leaveAt, tz) !== dayKey) return null
   return <div className="leave-marker" aria-hidden="true" style={{ top: (minutesSinceMidnight(ev.leaveAt, tz) / 60) * hourPx, left, width, borderColor: color }}><span>🚗</span></div>
@@ -716,7 +716,7 @@ function MonthView({ anchor, events, tz, weekStart, members, categories, onTap, 
           wrapper is a plain scrollable block, so give the grid an explicit height here instead;
           otherwise its minmax(0, 1fr) rows collapse to content height instead of filling the area. */}
       <div className="month-grid" ref={gridRef} style={{ height: '100%', gridTemplateRows: `24px repeat(${weeks}, minmax(0, 1fr))` }} onKeyDown={roving.onKeyDown}>
-        {/* From the real first week, so a Monday-start week is labelled M T W… (was always S M T…). */}
+        {/* From the real first week, so a Monday-start week is labeled M T W… (was always S M T…). */}
         {days.slice(0, 7).map((d, i) => (
           <div key={i} aria-hidden="true" style={{ textAlign: 'center', fontSize: '0.6875rem', fontWeight: 800, color: 'var(--text-dim)', paddingTop: 4 }}>{format(d, 'EEEEE')}</div>
         ))}

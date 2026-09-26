@@ -107,7 +107,7 @@ export function pressable(onPress: () => void) {
 }
 
 if (firstLoad) {
-  // Picker rows (colour/emoji swatches, chips, day toggles, member avatars): arrow keys move focus
+  // Picker rows (color/emoji swatches, chips, day toggles, member avatars): arrow keys move focus
   // along the row, Enter/Space picks as usual. One listener instead of a handler on every row.
   document.addEventListener('keydown', e => {
     if (e.altKey || e.ctrlKey || e.metaKey || !(e.target instanceof HTMLElement)) return

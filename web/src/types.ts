@@ -178,7 +178,7 @@ export interface StickerPack {
   unlocked: boolean
 }
 
-/** A sticker on a member's scrapbook page. x/y: the sticker's centre as 0-1 fractions of the page. */
+/** A sticker on a member's scrapbook page. x/y: the sticker's center as 0-1 fractions of the page. */
 export interface StickerPlacement {
   id: string
   memberId: string

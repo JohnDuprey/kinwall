@@ -334,22 +334,22 @@ function DisplayPairing({ onKey, onManual, onBack, onRecovery }: { onKey: () => 
 
   useEffect(() => {
     if (!pairing || success) return
-    let cancelled = false
+    let canceled = false
     const tick = async () => {
       if (document.hidden) return
       try {
         const res = await api.pairPoll(pairing.pairingId, pairing.pollToken)
-        if (cancelled || res.status !== 'approved' || !res.key) return
+        if (canceled || res.status !== 'approved' || !res.key) return
         setKey(res.key)
         setSuccess(true)
         setTimeout(onKey, 1200)
       } catch (e) {
         // Pairing gone (expired / already consumed) on the server — get a fresh code.
-        if (!cancelled && e instanceof ApiError && e.status === 404) start()
+        if (!canceled && e instanceof ApiError && e.status === 404) start()
       }
     }
     const id = setInterval(tick, PAIR_POLL_MS)
-    return () => { cancelled = true; clearInterval(id) }
+    return () => { canceled = true; clearInterval(id) }
   }, [pairing, success, onKey, start])
 
   if (success) {

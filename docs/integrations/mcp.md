@@ -72,7 +72,7 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 | `get_snapshot` | One member's day (`range`: `day`, default) or next 7 days (`week`), by name or ID: greeting, weather (if a location is set), their and everyone's events, their chores, their due or high/urgent list items, family birthdays, and (day) tomorrow at a glance. The same data as tapping their avatar. |
 | `list_lists` | All lists with item and open counts. |
 | `get_list` | One list by ID or name, with items (in the list's sort order, each with its steps), group order and store/category suggestions. |
-| `list_categories` | Categories (name, emoji, colour, keywords) in order. |
+| `list_categories` | Categories (name, emoji, color, keywords) in order. |
 | `list_notes` | The notes thread on an event or list item (`target`: `event:<id>` or `list_item:<id>`), oldest first. `memberId` null means "Someone". |
 | `list_notifications` | Recent notifications Kinwall sent (reminders, summaries, chore nudges, list updates, messages), newest first. The same feed as the bell in the app. Takes `limit` and `before`. |
 
@@ -88,7 +88,7 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 | `complete_chore` | Marks a chore done for a date (default today). |
 | `uncomplete_chore` | Undoes a completion. |
 | `add_member` | Adds a family member (admin), optionally with a `birthday` (`YYYY-MM-DD`, or `--MM-DD` without a year). |
-| `update_member` | Changes a member's name, colour, avatar or `birthday` (admin; `null` clears it). |
+| `update_member` | Changes a member's name, color, avatar or `birthday` (admin; `null` clears it). |
 | `create_list` | Creates a shopping, to-do or reusable list. |
 | `update_list` | Renames, changes kind, emoji, owners or item sort (`sortBy`: `manual`, `added`, `due`, `priority`, `alpha`), or archives a list. |
 | `add_list_items` | Adds items: plain titles or objects (notes, quantity, store, category, member, dueDate, eventId, priority, steps). `steps` is a list of step titles in order. |
@@ -97,7 +97,7 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 | `set_step_done` | Ticks or unticks one step of an item (step IDs come from `get_list`). Ticking the last open step completes the item; unticking a step of a done item re-opens it. |
 | `add_note` | Adds a note to an event's or list item's thread, posted as a member (by name or ID) or "Someone". |
 | `update_note` | Replaces a note's text (note IDs come from `list_notes`). |
-| `update_category` | Changes a category's name, emoji, colour or keywords. |
+| `update_category` | Changes a category's name, emoji, color or keywords. |
 | `send_notification` | Pushes a message now to devices following given members, or all devices (admin). It also appears in the in-app notification feed. |
 
 ### Delete

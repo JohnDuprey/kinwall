@@ -192,8 +192,8 @@ export function useTheme(settings: Settings | null) {
     if (settings) return applyAppearance(settings, device)
     if (getKey()) return undefined
 
-    let cancelled = false
-    api.getAppearance().then(a => { if (!cancelled) applyAppearance(a, device) }).catch(() => {})
-    return () => { cancelled = true }
+    let canceled = false
+    api.getAppearance().then(a => { if (!canceled) applyAppearance(a, device) }).catch(() => {})
+    return () => { canceled = true }
   }, [settings, device])
 }

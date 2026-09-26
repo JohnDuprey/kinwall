@@ -347,7 +347,7 @@ test('mcp: update_chore/update_member/update_category match their REST routes\' 
   const choreRes = await (await mcp('tools/call', { name: 'update_chore', arguments: { choreId: chore.id, points: 3 } }, displayKey.key)).json() as any;
   assert.equal(choreRes.result.isError, undefined, JSON.stringify(choreRes));
 
-  // Members are admin-only for displays: the wall can't rename people or change their colours.
+  // Members are admin-only for displays: the wall can't rename people or change their colors.
   const memberRes = await (await mcp('tools/call', { name: 'update_member', arguments: { member: member.id, color: '#00ff00' } }, displayKey.key)).json() as any;
   assert.equal(memberRes.result.isError, true, JSON.stringify(memberRes));
 

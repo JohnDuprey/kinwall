@@ -225,7 +225,7 @@ button {
   padding-top: 8px; /* keeps the active indicator (inset box-shadow) clear of the icon */
   text-decoration: none;
 }
-.tab-btn.active { color: var(--accent-text); box-shadow: inset 0 3px 0 var(--accent-text); } /* not colour alone */
+.tab-btn.active { color: var(--accent-text); box-shadow: inset 0 3px 0 var(--accent-text); } /* not color alone */
 
 /* ---------- Nav rail (landscape wall-iPad alternative to the bottom tab bar) ---------- */
 .app-shell-rail { flex-direction: row; }
@@ -1119,7 +1119,7 @@ button {
   .app-shell, .gate-screen { height: 100lvh; }
 }
 
-/* "Any emoji" row: current choice as a selected tile + labelled input for the emoji keyboard */
+/* "Any emoji" row: current choice as a selected tile + labeled input for the emoji keyboard */
 .any-emoji { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; margin-top: 10px; }
 .any-emoji-current { width: 56px; height: 56px; font-size: 1.75rem; flex-shrink: 0; }
 .any-emoji-field { flex: 1; min-width: 180px; display: flex; flex-direction: column; gap: 4px; }
@@ -1251,7 +1251,7 @@ button.month-daynum:not(.today) { background: none; }
 .plain-btn { display: block; text-align: left; }
 :where(.plain-btn) { font-size: inherit; font-weight: inherit; } /* zero specificity: a size class on the button wins */
 .schedule-item, .timed-event, .event-chip, .allday-chip, .month-chip, .member-list-item, .cal-list-item { cursor: pointer; }
-/* Selected state carried by shape as well as colour. */
+/* Selected state carried by shape as well as color. */
 .chip.active::before { content: '✓' / ''; font-weight: 900; } /* empty alt: aria-pressed already says it */
 .emoji-swatch.active, .day-toggles button.active, .setup-choice.active, .authorize-scope.active { box-shadow: 0 0 0 2px var(--accent-text); }
 .week-header-cell.today .wd, .month-daynum.today { font-weight: 900; }
@@ -1289,7 +1289,7 @@ button.month-daynum:not(.today) { background: none; }
 }
 
 /* ---------- In-app confirm/prompt/alert (dialog.tsx) ----------
-   A bottom sheet on phones, a compact centred card on anything wider. */
+   A bottom sheet on phones, a compact centered card on anything wider. */
 .dialog-body { margin: 0 0 12px; color: var(--text-dim); font-weight: 600; line-height: 1.45; }
 .sheet-dialog .sheet-actions .btn { min-height: 44px; }
 @media (min-width: 601px) {
@@ -1327,9 +1327,9 @@ button.toast { border: none; font-family: inherit; cursor: pointer; } /* errors:
 @media (prefers-reduced-motion: no-preference) { .transition-banner { animation: kw-fade 0.6s ease; } }
 
 /* ---------- Low-stimulation mode (per device, [data-lowstim] from useTheme.ts) ----------
-   Flat surfaces, one neutral card colour, no motion, more room. Event fills become a neutral card
-   with a thin bar of the member/category colour (--ev-bg, set inline by Calendar.tsx) - who it's for
-   is still carried by the avatar. Text colours stay the theme's, so contrast rules still hold. */
+   Flat surfaces, one neutral card color, no motion, more room. Event fills become a neutral card
+   with a thin bar of the member/category color (--ev-bg, set inline by Calendar.tsx) - who it's for
+   is still carried by the avatar. Text colors stay the theme's, so contrast rules still hold. */
 :root[data-lowstim] { --shadow: none; --shadow-lg: 0 0 0 1px var(--border); --card-soft: var(--card); --gap: 16px; --pad: 24px; }
 :root[data-lowstim] *, :root[data-lowstim] *::before, :root[data-lowstim] *::after { animation: none !important; transition: none !important; }
 :root[data-lowstim] .timed-event, :root[data-lowstim] .event-chip, :root[data-lowstim] .allday-chip, :root[data-lowstim] .month-chip {
@@ -1409,7 +1409,7 @@ a.activity-card:active { transform: scale(0.98); }
   /* One scrolling row on phones so the canvas keeps its height. */
   .paint-toolbar { flex-wrap: nowrap; overflow-x: auto; padding: 6px 12px; }
   .paint-colors { flex-basis: auto; overflow: visible; }
-  /* Colours right after the tools, where a kid looks first; sizes and actions scroll in after. */
+  /* Colors right after the tools, where a kid looks first; sizes and actions scroll in after. */
   .paint-toolbar > .paint-group { order: 2; }
   .paint-toolbar > .paint-group:first-child { order: 0; }
   .paint-toolbar > .paint-colors { order: 1; }

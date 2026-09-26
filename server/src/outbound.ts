@@ -1,7 +1,7 @@
 // SSRF guards for server-side fetches of user-supplied URLs (webhooks, ICS feeds, CalDAV).
 
 // Checks the literal host only: Workers can't resolve DNS, so a public name that resolves to a
-// private address is not caught here. URL() already normalises IPv4 shorthand (http://2130706433,
+// private address is not caught here. URL() already normalizes IPv4 shorthand (http://2130706433,
 // 0x7f.1) into dotted quads.
 export function isSafeOutboundUrl(raw: string): boolean {
   let url: URL;

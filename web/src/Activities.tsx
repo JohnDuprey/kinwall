@@ -7,7 +7,7 @@ import { BrushIcon, ImagesIcon, StickerIcon } from './icons.tsx'
 // Activities for the wall (everything here works with a display key). Add a card here and a
 // sub-route below for the next one.
 const ACTIVITIES = [
-  { key: 'paint', title: 'Paint', blurb: 'Draw, colour in and save your pictures', Icon: BrushIcon, color: '#FF9E7A' },
+  { key: 'paint', title: 'Paint', blurb: 'Draw, color in and save your pictures', Icon: BrushIcon, color: '#FF9E7A' },
   { key: 'stickers', title: 'Sticker book', blurb: 'Spend chore points on stickers and decorate your page', Icon: StickerIcon, color: '#B39DFF' },
   { key: 'photos', title: 'Photos', blurb: 'Family pictures for the board and the screensaver', Icon: ImagesIcon, color: '#7ED9A6' },
 ]

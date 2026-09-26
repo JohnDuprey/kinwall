@@ -4,7 +4,7 @@
 
 ## Calendars
 
-Each calendar row shows its colour, name, kind and status: "Synced *time*", "Never synced", "Local calendar", or the last error. Row actions:
+Each calendar row shows its color, name, kind and status: "Synced *time*", "Never synced", "Local calendar", or the last error. Row actions:
 
 * **Sync now**: synced calendars only.
 * **Reconnect**: for an imported ICS calendar that has no URL. See [Reconnecting after import](../calendars/reconnecting-after-import.md).
@@ -19,7 +19,7 @@ Add buttons:
 
 | Button | Does |
 |---|---|
-| **+ Local calendar** | A Kinwall-only calendar (**Add local calendar**: a name; it gets the next unused colour, and you can change the rest in **Edit calendar**). |
+| **+ Local calendar** | A Kinwall-only calendar (**Add local calendar**: a name; it gets the next unused color, and you can change the rest in **Edit calendar**). |
 | **+ ICS URL** | [ICS feed](../calendars/ics-feeds.md). |
 | **+ CalDAV** | [iCloud & CalDAV](../calendars/icloud-caldav.md). |
 | **Connect Google** | [Google](../calendars/google.md). Greyed out until a Google client is configured. |

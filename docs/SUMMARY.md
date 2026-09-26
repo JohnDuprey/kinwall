@@ -33,7 +33,7 @@
 * [iCloud & CalDAV](calendars/icloud-caldav.md)
 * [ICS feeds](calendars/ics-feeds.md)
 * [Writable vs read-only](calendars/writable-vs-read-only.md)
-* [Sync behaviour & intervals](calendars/sync.md)
+* [Sync behavior & intervals](calendars/sync.md)
 * [Reconnecting after import](calendars/reconnecting-after-import.md)
 * [Private / LAN feeds](calendars/private-feeds.md)
 

@@ -14,7 +14,7 @@
 | Points spent, sticker packs unlocked and sticker book pages | |
 | Lists, items, group order | Push subscriptions |
 | Local calendars **with their events** (reminders, travel time) | Synced events themselves (they're fetched again) |
-| Every synced calendar's name, colour, members and default category | Per-device appearance (it lives in each browser) |
+| Every synced calendar's name, color, members and default category | Per-device appearance (it lives in each browser) |
 | Per-event member, category and travel-time tags on synced events, and series-wide member and category tags on synced recurring events | |
 | Notes threads on local events and list items | Notes on synced events |
 | ICS feed URLs | |

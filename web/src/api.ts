@@ -359,16 +359,16 @@ export function usePoll(intervalMs = 30000) {
   const lastRev = useRef<number | null>(null)
 
   useEffect(() => {
-    let cancelled = false
+    let canceled = false
     const check = async () => {
       if (!getKey()) return // no key yet (pairing screen) - nothing to poll, and a 401 here is meaningless
       try {
         const { rev } = await api.getRev()
-        if (cancelled) return
+        if (canceled) return
         if (lastRev.current !== null && rev !== lastRev.current) setTick(t => t + 1)
         lastRev.current = rev
       } catch (e) {
-        if (!cancelled && e instanceof ApiError && e.status === 401) setUnauthorized(true)
+        if (!canceled && e instanceof ApiError && e.status === 401) setUnauthorized(true)
         // otherwise offline / transient — ignore, next poll will retry
       }
     }
@@ -376,7 +376,7 @@ export function usePoll(intervalMs = 30000) {
     const id = setInterval(check, intervalMs)
     const onVis = () => { if (document.visibilityState === 'visible') check() }
     document.addEventListener('visibilitychange', onVis)
-    return () => { cancelled = true; clearInterval(id); document.removeEventListener('visibilitychange', onVis) }
+    return () => { canceled = true; clearInterval(id); document.removeEventListener('visibilitychange', onVis) }
   }, [intervalMs])
 
   return { tick, unauthorized }

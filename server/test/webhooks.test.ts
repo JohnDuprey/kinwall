@@ -145,7 +145,7 @@ test('calendar feeds: ALLOW_PRIVATE_FEED_URLS=1 permits LAN feeds; a stored priv
   } finally {
     f.restore();
   }
-  // Webhooks never honour the flag.
+  // Webhooks never honor the flag.
   const hooks = makeApp({ ALLOW_PRIVATE_FEED_URLS: '1' });
   assert.equal((await hooks('/api/webhooks', { method: 'POST', body: JSON.stringify({ url: 'http://192.168.1.10/hook', events: [] }) })).status, 400);
 });

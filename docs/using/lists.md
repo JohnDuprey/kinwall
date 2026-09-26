@@ -28,7 +28,7 @@ You can change a list's kind later.
 * **It remembers where things go**: if you don't give a store or category, Kinwall copies them from the most recently updated item with the same title, on any list.
 * Tap the circle to tick an item off. Ticked items move to **Done (*N*)**, which you can expand. Use **Clear checked** to delete them, or **Reset list** on reusable lists.
 * Long titles wrap to two lines on the row (three in icon-first density); the item sheet always shows the whole title.
-* A coloured dot before the title shows the item's **Priority** (see below), and a note icon after it means the item has **Notes** or a **Discussion**.
+* A colored dot before the title shows the item's **Priority** (see below), and a note icon after it means the item has **Notes** or a **Discussion**.
 * An item with a due date shows it in small text under the title: "Due today", "Due Fri, Oct 3", or "Overdue · Sep 22" in red.
 * Tap an item to edit it: **Title**, **Priority**, **Steps**, **Quantity** ("2, 1 lb, x3"), **Store** and **Category** (shopping; suggestions come from every list), **Assign to** (to-do and reusable), **Due date** (to-do, with **Clear**), **Linked event**, **Notes** (the item's own description), **Discussion** (see below), and **Order** (**Move up** / **Move down**, manual sort only).
 
@@ -92,7 +92,7 @@ A recurring local event links by its series, so the task follows every occurrenc
 
 ## Discussion
 
-Below the item's **Notes** field, **Discussion** is a thread of notes from the family, each with the poster's avatar and name in their colour ("Remote was under the cushion again"). It works exactly like [notes on events](events.md#notes): **+ Add note**, **Post as** a member (or **Someone**), tap a note to edit or delete it. The item's own **Notes** field stays a single description; the discussion is for separate back-and-forth.
+Below the item's **Notes** field, **Discussion** is a thread of notes from the family, each with the poster's avatar and name in their color ("Remote was under the cushion again"). It works exactly like [notes on events](events.md#notes): **+ Add note**, **Post as** a member (or **Someone**), tap a note to edit or delete it. The item's own **Notes** field stays a single description; the discussion is for separate back-and-forth.
 
 Deleting an item (or clearing checked items, or deleting the list) deletes its discussion. Export and import include it.
 

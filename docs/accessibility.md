@@ -4,13 +4,13 @@ Kinwall is used by whole families: kids, grandparents, people with low vision, m
 
 ## Keyboard
 
-Everything in the app can be reached and operated without a mouse or touch screen. Focused controls show a 2px ring in your accent colour (4.5:1 against the background in light and dark mode).
+Everything in the app can be reached and operated without a mouse or touch screen. Focused controls show a 2px ring in your accent color (4.5:1 against the background in light and dark mode).
 
 | Where | Keys |
 | --- | --- |
 | Anywhere | **Tab** / **Shift+Tab** move between controls. The first stop is **Skip to content**. |
 | View switchers and option groups (Week/Day/Month/Schedule, Settings sections, Mode, Text size, Repeat…) | One Tab stop. **←/→** (or **↑/↓**) move and select, **Home/End** jump to the ends. |
-| Colour and emoji pickers, chips, day toggles, the family avatars, the Chores date strip | **←/→** move along the row, **Enter** or **Space** picks. |
+| Color and emoji pickers, chips, day toggles, the family avatars, the Chores date strip | **←/→** move along the row, **Enter** or **Space** picks. |
 | Calendar week and month | Tab to the day headers (week) or day numbers (month). **←/→** move a day, **↑/↓** a week (month view), **Home/End** jump to the ends, **Enter** opens that day. Events are buttons: **Enter** or **Space** opens one. |
 | Chores | **Space** or **Enter** ticks a chore off or back on. To edit it, press **Tab** once more to reach its **Edit** button, or use **Shift+F10** / the Menu key. |
 | Lists | **Space** ticks an item; **Enter** on an item opens its editor. To reorder, focus an item's grip and press **Alt+↑** / **Alt+↓** (the new position is announced). The item editor also has **Move up** / **Move down**. |
@@ -22,7 +22,7 @@ Dragging is never the only way to do something: sheets have a Close button, the 
 ## Screen readers
 
 - Landmarks: a header, a "Main" navigation (the current page is marked), and the main content, which starts with a heading for the page. Settings sections, sheet titles and list names are headings too.
-- Every control has a name. Event blocks read as a sentence: "4:00 PM Soccer Practice, Sam, Park field, Sports". Day cells read like "Friday, September 25, 2 events. Open day". Colour swatches are named ("Peach", "Sky blue"), not hex codes.
+- Every control has a name. Event blocks read as a sentence: "4:00 PM Soccer Practice, Sam, Park field, Sports". Day cells read like "Friday, September 25, 2 events. Open day". Color swatches are named ("Peach", "Sky blue"), not hex codes.
 - Selected states are exposed: segmented controls as radio buttons or tabs, chips and swatches as pressed toggle buttons, on/off settings as switches, chores and list items as checkboxes.
 - Messages are announced: saving and saved, confirmations ("Event added"), a completed chore ("Make bed done, 5 points"), a moved list item, the "Signed in with a recovery code" banner, and import results. Errors are announced immediately and stay on screen until you tap them away.
 - Confirmations and prompts ("Delete this event?", the ICS feed-URL prompt) are in-app dialogs with proper dialog semantics, not browser pop-ups.
@@ -30,8 +30,8 @@ Dragging is never the only way to do something: sheets have a Close button, the 
 
 ## Seeing the screen
 
-- **Contrast**: body text, secondary ("dim") text, links, buttons and error text meet 4.5:1 on every background preset, light and dark. Buttons filled with your accent colour are deepened automatically so their white text stays at 4.5:1, whatever accent you pick.
-- **Not colour alone**: events show the family member's avatar or initial as well as their colour; selected chips carry a check mark; the current page's tab has a bar as well as a colour; done chores and list items show a tick.
+- **Contrast**: body text, secondary ("dim") text, links, buttons and error text meet 4.5:1 on every background preset, light and dark. Buttons filled with your accent color are deepened automatically so their white text stays at 4.5:1, whatever accent you pick.
+- **Not color alone**: events show the family member's avatar or initial as well as their color; selected chips carry a check mark; the current page's tab has a bar as well as a color; done chores and list items show a tick.
 - **Increased contrast**: with your device's "Increase contrast" setting on, dim text becomes full-strength, borders and dividers get stronger, and links are underlined.
 - **Text size and zoom**: pinch-zoom is never blocked. Settings → Appearance → Text size (or per device, under This display) scales all text up to 130%, and layouts hold at 200% browser zoom. Text never goes below 16px in form fields.
 - **Dark mode**: follows the device, a schedule, or a fixed choice, per household or per device.
@@ -44,7 +44,7 @@ Dragging is never the only way to do something: sheets have a Close button, the 
 
 ## Touch
 
-Controls are at least 44 × 44 px on phones (colour swatches, switches, list checkboxes and the list grips included), except the month-view chips noted below. Week-view events are at least 24px tall.
+Controls are at least 44 × 44 px on phones (color swatches, switches, list checkboxes and the list grips included), except the month-view chips noted below. Week-view events are at least 24px tall.
 
 ## Known gaps
 
@@ -55,7 +55,7 @@ We'd rather list these than pretend they aren't there:
 - In the default look, input, chip and card borders are softer than the 3:1 WCAG asks for non-text boundaries. Turn on your device's Increase contrast setting to get solid borders.
 - The quiet-hours clock is deliberately dim (it's a night light, not a screen to read).
 - Scrollbars are hidden and text outside form fields can't be selected, because the app is designed for a wall-mounted touch screen.
-- The quick-add fields in a list ("Add an item…") and on an event ("Add task…") are labelled for screen readers but show only a placeholder on screen.
+- The quick-add fields in a list ("Add an item…") and on an event ("Add task…") are labeled for screen readers but show only a placeholder on screen.
 - Emoji avatars are read by their Unicode names ("fox", "bear face").
 - Testing so far has used the browser's accessibility tree and keyboard-only runs. It has not yet been tested end to end with VoiceOver, TalkBack or NVDA.
 - Shipped since this audit, per device under Settings: a low-stimulation mode, a typeface choice (Nunito, Atkinson Hyperlegible, Lexend), an icon-first density, and time-blindness aids (Now / Next countdown, leave-by times, transition warnings). See [Appearance](using/appearance.md) and [Calendar](using/calendar.md).

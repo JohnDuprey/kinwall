@@ -49,7 +49,7 @@ export function readableOn(color: string, bg: string, min = 4.5): string {
 export const accentFill = (accent: string) => readableOn(accent, LIGHT_INK)
 
 // Spoken names for the preset swatches (MEMBER_PALETTE / ACCENT_PRESETS in types.ts): a screen
-// reader saying "#FF9E7A" helps nobody. Custom colours fall back to their hex.
+// reader saying "#FF9E7A" helps nobody. Custom colors fall back to their hex.
 const COLOR_NAMES: Record<string, string> = {
   '#FF9E7A': 'Peach', '#FFD166': 'Amber', '#7ED9A6': 'Mint', '#7AB8FF': 'Sky blue', '#B39DFF': 'Lavender',
   '#FF8FA3': 'Pink', '#8FE0D6': 'Aqua', '#FFB6D9': 'Rose', '#C7E27A': 'Lime', '#A0AEC0': 'Slate',

@@ -38,11 +38,11 @@ export default function SnapshotSheet({ member, onClose }: { member: Member; onC
   useEffect(() => markSeen(member.id, today), [member.id, today])
 
   useEffect(() => {
-    let cancelled = false
+    let canceled = false
     api.getSnapshot(member.id, range)
-      .then(s => { if (!cancelled) { setSnap(s); setError('') } })
-      .catch(e => { if (!cancelled) setError(e instanceof ApiError ? e.message : "Couldn't load this snapshot.") })
-    return () => { cancelled = true }
+      .then(s => { if (!canceled) { setSnap(s); setError('') } })
+      .catch(e => { if (!canceled) setError(e instanceof ApiError ? e.message : "Couldn't load this snapshot.") })
+    return () => { canceled = true }
   }, [member.id, range, refreshTick])
 
   const filtered = selectedMemberId === member.id

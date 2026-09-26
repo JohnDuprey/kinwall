@@ -32,7 +32,7 @@ function readPostAs(): string | null {
   try { return localStorage.getItem(POST_AS_KEY) } catch { return null }
 }
 
-/** The notes thread on an event or list item: who said what, in their colour. Tap a note to edit or
+/** The notes thread on an event or list item: who said what, in their color. Tap a note to edit or
  * delete it; "+ Add note" (folded, like "+ Add task") posts a new one as the chosen member. */
 export default function NotesThread({ target, title = 'Notes' }: { target: NoteTarget; title?: string }) {
   const { members, selectedMemberId, refreshTick, toast } = useApp()
@@ -48,7 +48,7 @@ export default function NotesThread({ target, title = 'Notes' }: { target: NoteT
   })
   const addBtnRef = useRef<HTMLButtonElement>(null)
   const byId = new Map(members.map(m => [m.id, m]))
-  // Names are drawn in the member's colour, darkened/lightened just enough to read on the sheet.
+  // Names are drawn in the member's color, darkened/lightened just enough to read on the sheet.
   const cardBg = getComputedStyle(document.documentElement).getPropertyValue('--card').trim()
   const nameInk = (m: Member | undefined) => m && /^#[0-9a-f]{6}$/i.test(cardBg) ? readableOn(m.color, cardBg) : undefined
   const who = (n: Note) => byId.get(n.memberId ?? '')?.name ?? 'Someone'

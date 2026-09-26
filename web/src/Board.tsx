@@ -42,11 +42,11 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
   const [data, setData] = useState<BoardData | null>(null)
   const [error, setError] = useState(false)
   useEffect(() => {
-    let cancelled = false
+    let canceled = false
     api.getBoard(7)
-      .then(b => { if (!cancelled) { setData(b); setError(false) } })
-      .catch(() => { if (!cancelled) setError(true) }) // keep showing the last board, if any
-    return () => { cancelled = true }
+      .then(b => { if (!canceled) { setData(b); setError(false) } })
+      .catch(() => { if (!canceled) setError(true) }) // keep showing the last board, if any
+    return () => { canceled = true }
   }, [refreshTick, tick])
 
   const p = zonedParts(now.toISOString(), tz)
@@ -167,7 +167,7 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
   )
 }
 
-/** One event: a bar in the member's colour (stripes for several), time, title, avatars. */
+/** One event: a bar in the member's color (stripes for several), time, title, avatars. */
 function EventLine({ e, tz, byId, onTap, past }: { e: SnapshotEvent; tz: string; byId: Map<string, Member>; onTap: (e: EventInstance) => void; past?: boolean }) {
   const who = e.memberIds.map(id => byId.get(id)).filter((m): m is Member => !!m)
   const bar = who.length > 1

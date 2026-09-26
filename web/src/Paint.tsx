@@ -46,7 +46,7 @@ function newMeta(): Meta {
 // ---------- Canvas helpers ----------
 const toBlob = (c: HTMLCanvasElement) => new Promise<Blob>((resolve, reject) => c.toBlob(b => b ? resolve(b) : reject(new Error('toBlob failed')), 'image/png'))
 
-/** Paper, then `src` scaled to fit and centred. */
+/** Paper, then `src` scaled to fit and centered. */
 function drawContained(c: HTMLCanvasElement, src?: HTMLCanvasElement | ImageBitmap) {
   const ctx = c.getContext('2d')!
   ctx.fillStyle = PAPER
@@ -414,7 +414,7 @@ export default function Paint() {
             <span>{meta?.name}</span><EditIcon width={18} height={18} />
           </button>
         </div>
-        <div className="paint-group paint-colors color-swatch-row" role="group" aria-label="Colours">
+        <div className="paint-group paint-colors color-swatch-row" role="group" aria-label="Colors">
           {COLORS.map(c => (
             <button key={c} className={`color-swatch ${color === c && tool !== 'eraser' && tool !== 'rainbow' ? 'active' : ''}`} style={{ backgroundColor: c }}
               aria-pressed={color === c && tool !== 'eraser' && tool !== 'rainbow'} aria-label={colorName(c)} title={colorName(c)} onClick={() => pickColor(c)} />

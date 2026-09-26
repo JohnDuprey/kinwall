@@ -23,7 +23,7 @@ import { useDialog } from './dialog.tsx'
 import { announce, pressable, reducedMotion, Segmented } from './a11y.tsx'
 
 // Mirrors BusEventType in server/src/bus.ts.
-const BUS_EVENTS = ['member.changed', 'calendar.changed', 'calendar.synced', 'events.changed', 'chore.changed', 'chore.completed', 'chore.uncompleted', 'list.changed', 'list.item.changed', 'category.changed', 'settings.changed', 'sticker.changed', 'display.paired']
+const BUS_EVENTS = ['member.changed', 'calendar.changed', 'calendar.synced', 'events.changed', 'chore.changed', 'chore.completed', 'chore.uncompleted', 'list.changed', 'list.item.changed', 'category.changed', 'settings.changed', 'sticker.changed', 'photo.changed', 'display.paired']
 
 export function timezoneList() {
   // Intl.supportedValuesOf('timeZone') doesn't include 'UTC' itself (the server's default
@@ -79,7 +79,7 @@ export default function SettingsView() {
       const [kind, ...rest] = oauthError.split(':')
       const reason = rest.join(':').trim()
       const who = kind === 'google' ? 'Google' : 'Microsoft'
-      toast(reason === 'cancelled' ? `${who} sign-in cancelled — nothing was connected` : `${who} connection failed: ${reason}`, true)
+      toast(reason === 'canceled' ? `${who} sign-in canceled — nothing was connected` : `${who} connection failed: ${reason}`, true)
       q.delete('oauthError')
       history.replaceState(null, '', `#/settings${q.toString() ? `?${q}` : ''}`)
     }
@@ -753,12 +753,12 @@ function DeviceAppearanceRows() {
         <button className={`switch ${device.lowStim ? 'on' : ''}`} role="switch" aria-checked={!!device.lowStim} aria-labelledby="lowstim-label" aria-describedby="lowstim-sub"
           onClick={() => { set({ lowStim: !device.lowStim || undefined }); announce(device.lowStim ? 'Low-stimulation mode off' : 'Low-stimulation mode on') }}><span className="knob" /></button>
       </div>
-      <div className="settings-row-sub" id="lowstim-sub" style={{ marginTop: -8 }}>Flat, calm colours, no motion and more room. Colours become a thin bar beside each event.</div>
+      <div className="settings-row-sub" id="lowstim-sub" style={{ marginTop: -8 }}>Flat, calm colors, no motion and more room. Colors become a thin bar beside each event.</div>
     </div>
   )
 }
 
-/** Device-only behaviour for this screen: member focus, locked calendar view, Now / Next card and
+/** Device-only behavior for this screen: member focus, locked calendar view, Now / Next card and
  * transition warnings. Stored alongside the device appearance. */
 function DeviceBehaviourRows() {
   const { members } = useApp()
@@ -1084,7 +1084,7 @@ function CategoryEditSheet({ category, initial, onClose, onSaved, toast }: {
   }
   const del = async () => {
     if (!category) return
-    if (!await dialog.confirm({ title: `Delete the ${category.name} category?`, body: 'Events fall back to their automatic colour.', confirmLabel: 'Delete', danger: true })) return
+    if (!await dialog.confirm({ title: `Delete the ${category.name} category?`, body: 'Events fall back to their automatic color.', confirmLabel: 'Delete', danger: true })) return
     try { await api.deleteCategory(category.id); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not delete category', true) }
   }
 
@@ -1154,7 +1154,7 @@ function CalendarsSection({ openAccountId, onOpenedAccount, toast }: { openAccou
   }
   const reconnectIcs = async (c: CalendarEntry) => {
     const url = await dialog.prompt({
-      title: `Reconnect ${c.name}`, label: `Feed URL for ${c.name}`, body: 'Its colour, members and event tags are kept.',
+      title: `Reconnect ${c.name}`, label: `Feed URL for ${c.name}`, body: 'Its color, members and event tags are kept.',
       type: 'url', placeholder: 'https://…', confirmLabel: 'Reconnect',
       validate: v => (/^(https?|webcal):\/\/\S+$/i.test(v) ? null : 'Enter the full feed address, starting with https:// or webcal://'),
     })
@@ -1196,7 +1196,7 @@ function CalendarsSection({ openAccountId, onOpenedAccount, toast }: { openAccou
         <button className="connect-btn" disabled={!oauth.microsoft} onClick={() => location.href = api.oauthStartUrl('microsoft')}>Connect Outlook</button>
       </div>
       {(!oauth.google || !oauth.microsoft) && (
-        <p className="settings-row-sub" style={{ marginTop: 8 }}>Google/Outlook greyed out? Set them up in Calendar providers below.</p>
+        <p className="settings-row-sub" style={{ marginTop: 8 }}>Google/Outlook grayed out? Set them up in Calendar providers below.</p>
       )}
 
       {localSheet && (
@@ -1332,7 +1332,7 @@ function CaldavSheet({ onClose, onAccountCreated, toast }: { onClose: () => void
 const PROVIDER_LABEL: Record<string, string> = { google: 'Google', microsoft: 'Outlook', caldav: 'CalDAV' }
 
 /** One row of an account's calendar picker (Settings and the setup wizard): a 44px checkbox row
- * with the calendar's colour, name and badges. `added` rows are shown checked and locked. */
+ * with the calendar's color, name and badges. `added` rows are shown checked and locked. */
 export function CalendarCheckRow({ name, color, checked, added, badge, readOnly, onChange }: {
   name: string; color: string; checked: boolean; added?: boolean; badge?: string; readOnly?: boolean; onChange: (v: boolean) => void
 }) {
@@ -1920,7 +1920,7 @@ function YourDataSection({ hostPortalUrl, toast, onImported }: { hostPortalUrl?:
   }
   return (
     <Section title="Your data" icon={<LockIcon width={16} height={16} />}>
-      <p className="settings-row-sub">Everything your family entered (members, chores, lists, your own calendars' events and settings) as one JSON file. Passwords and calendar logins aren't included. Importing merges a file back in: synced calendars keep their colours, members and event tags but need reconnecting once; passkeys and webhooks need setting up again.</p>
+      <p className="settings-row-sub">Everything your family entered (members, chores, lists, your own calendars' events and settings) as one JSON file. Passwords and calendar logins aren't included. Importing merges a file back in: synced calendars keep their colors, members and event tags but need reconnecting once; passkeys and webhooks need setting up again.</p>
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
         <button className="btn btn-secondary" onClick={download} disabled={busy}>{busy ? 'Preparing…' : 'Download export'}</button>
         <button className="btn btn-secondary" onClick={() => fileInput.current?.click()} disabled={importing}>{importing ? 'Importing…' : 'Import from a Kinwall export'}</button>

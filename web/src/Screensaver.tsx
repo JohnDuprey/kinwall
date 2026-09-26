@@ -92,13 +92,13 @@ export function useSlideshowPictures(sources: SaverSource[], everySeconds: numbe
     const list = sourceKey.split(',') as SaverSource[]
     const nexts = list.map(k => SOURCES[k]())
     let turn = 0
-    let cancelled = false
+    let canceled = false
     let busy = false
     const change = async () => {
       if (busy || document.hidden) return // pause while the screen is off / tab hidden
       busy = true
       let pic: Omit<Pic, 'key'> | null = null
-      for (let i = 0; i < list.length && !pic && !cancelled; i++) {
+      for (let i = 0; i < list.length && !pic && !canceled; i++) {
         const k = turn++ % list.length
         try {
           pic = await nexts[k]()
@@ -110,7 +110,7 @@ export function useSlideshowPictures(sources: SaverSource[], everySeconds: numbe
         }
       }
       busy = false
-      if (cancelled) { if (pic?.revoke) URL.revokeObjectURL(pic.src); return }
+      if (canceled) { if (pic?.revoke) URL.revokeObjectURL(pic.src); return }
       setFailed(!pic) // try again next change: a wifi blip shouldn't end the slideshow for the night
       if (!pic) return
       const key = Date.now()
@@ -121,7 +121,7 @@ export function useSlideshowPictures(sources: SaverSource[], everySeconds: numbe
     const id = setInterval(change, every)
     const onVis = () => { if (!document.hidden) change() }
     document.addEventListener('visibilitychange', onVis)
-    return () => { cancelled = true; clearInterval(id); document.removeEventListener('visibilitychange', onVis) }
+    return () => { canceled = true; clearInterval(id); document.removeEventListener('visibilitychange', onVis) }
   }, [sourceKey, every])
 
   // Drop (and free) the picture underneath once the crossfade is done.
