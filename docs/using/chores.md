@@ -32,7 +32,7 @@ Chores created through the API or MCP can use any RRULE (for example `FREQ=MONTH
 
 ## Checklists
 
-A chore can carry a **checklist**: one of your [lists](lists.md) (any kind, but a **reusable** list is the natural fit — "Clean room: make bed, vacuum, put clothes away"). The chore card shows the progress (`☑ 2/3 Clean room`), and tapping it while items are still open takes you to that list instead of completing the chore. Once every item is ticked, the chore completes as usual; a reusable checklist then resets to unticked, ready for the next time the chore comes round. Other list kinds are left as they are.
+A chore can carry a **checklist**: one of your [lists](lists.md) (any kind, but a **reusable** list is the natural fit — "Clean room: make bed, vacuum, put clothes away"). The chore card shows the progress (`☑ 2/3 Clean room`), and tapping it while items are still open opens the checklist right there (a sheet with the list: tick, add, reorder) instead of completing the chore. Its **Complete** button unlocks once every item is ticked; a reusable checklist then resets to unticked, ready for the next time the chore comes round. Other list kinds are left as they are.
 
 The same list can be the checklist for several chores. Via the API: `listId` on `POST/PATCH /api/chores`, `checklist` progress on `GET /api/chores/day`, and `POST /api/chores/{id}/complete` answers **409** with `remaining` while items are open. MCP: the `list` argument on `create_chore` / `update_chore`.
 

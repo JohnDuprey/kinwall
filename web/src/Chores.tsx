@@ -14,6 +14,7 @@ import { CheckIcon, PlusIcon } from './icons.tsx'
 import { IDLE_RESET_EVENT } from './App.tsx'
 import { announce, Segmented } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
+import { ListDetailPane } from './Lists.tsx'
 
 const CONFETTI_COLORS = ['#FF9E7A', '#FFD166', '#7ED9A6', '#7AB8FF', '#B39DFF', '#FF8FA3']
 
@@ -229,6 +230,7 @@ export default function Chores() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [editChore, setEditChore] = useState<Chore | 'new' | null>(null)
+  const [checklistFor, setChecklistFor] = useState<ChoreDay | null>(null) // the chore whose checklist sheet is open
 
   const key = dateKey(selectedDate)
   // Keep the selected chip visible when the day changes programmatically (e.g. after adding a chore).
@@ -241,7 +243,7 @@ export default function Chores() {
   useEffect(load, [key, refreshTick])
 
   useEffect(() => {
-    const onIdle = () => { setSelectedDate(new Date()); setEditChore(null) }
+    const onIdle = () => { setSelectedDate(new Date()); setEditChore(null); setChecklistFor(null) }
     window.addEventListener(IDLE_RESET_EVENT, onIdle)
     return () => window.removeEventListener(IDLE_RESET_EVENT, onIdle)
   }, [])
@@ -249,13 +251,8 @@ export default function Chores() {
   const strip = useMemo(() => Array.from({ length: 14 }, (_, i) => addDays(new Date(), i - 4)), [])
 
   const toggle = async (c: ChoreDay) => {
-    // A checklist with open items gates completion: go tick it off instead.
-    if (!c.completed && c.checklist && c.checklist.done < c.checklist.total) {
-      const left = c.checklist.total - c.checklist.done
-      toast(`Finish the ${c.checklist.name} checklist first (${left} left)`)
-      location.hash = `#/lists?list=${c.checklist.listId}`
-      return
-    }
+    // A checklist with open items gates completion: open it here to tick off instead.
+    if (!c.completed && c.checklist && c.checklist.done < c.checklist.total) { setChecklistFor(c); return }
     setChores(list => list.map(x => x.id === c.id ? { ...x, completed: !x.completed } : x)) // optimistic
     // Ticked off for a past day: earns the household's late-completion share (rounded like the server).
     const late = !c.completed && key < dateKey(new Date())
@@ -332,6 +329,10 @@ export default function Chores() {
 
       <button className="fab" onClick={() => setEditChore('new')} aria-label="Add chore"><PlusIcon /></button>
 
+      {checklistFor?.checklist && (
+        <ChecklistSheet chore={checklistFor} isPhone={isPhone} onClose={() => { setChecklistFor(null); load() }}
+          onComplete={async () => { const c = checklistFor; setChecklistFor(null); await toggle({ ...c, checklist: null }) }} />
+      )}
       {editChore && (
         <ChoreEditSheet
           chore={editChore === 'new' ? null : editChore}
@@ -345,6 +346,20 @@ export default function Chores() {
         />
       )}
     </div>
+  )
+}
+
+/** A chore's checklist, in place: the list itself (add, tick, reorder) plus a Complete button that
+ * unlocks once nothing is left open. Closing without finishing just leaves the chore as it was. */
+function ChecklistSheet({ chore, isPhone, onClose, onComplete }: { chore: ChoreDay; isPhone: boolean; onClose: () => void; onComplete: () => void }) {
+  const [open, setOpen] = useState(chore.checklist ? chore.checklist.total - chore.checklist.done : 0)
+  const name = chore.checklist?.name ?? 'Checklist'
+  return (
+    <Sheet title={`${chore.emoji ? `${chore.emoji} ` : ''}${chore.title}`} onClose={onClose}
+      actions={<button className="btn btn-primary" onClick={onComplete} disabled={open > 0}>{open > 0 ? `${open} left on ${name}` : `Complete ${chore.title}`}</button>}>
+      <p className="field-hint checklist-hint">Tick everything on <strong>{name}</strong> to complete this chore.</p>
+      <ListDetailPane listId={chore.checklist!.listId} isPhone={isPhone} embedded onBack={onClose} onArchivedOrDeleted={onClose} onLoaded={l => setOpen(l.openCount)} />
+    </Sheet>
   )
 }
 
