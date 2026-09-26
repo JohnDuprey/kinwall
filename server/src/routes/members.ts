@@ -213,7 +213,8 @@ membersRoutes.openapi(
       })
       .filter((cal) => cal.after.length !== cal.before.length) // the LIKE above can false-positive on a substring match
       .map((cal) => c.env.DB.prepare('UPDATE calendars SET member_ids = ? WHERE id = ?').bind(JSON.stringify(cal.after), cal.id));
-    await c.env.DB.batch<unknown>([c.env.DB.prepare('DELETE FROM members WHERE id = ?').bind(id), ...updates]);
+    // A device owned by this member becomes a shared one (still locked; an admin can re-assign it).
+    await c.env.DB.batch<unknown>([c.env.DB.prepare('DELETE FROM members WHERE id = ?').bind(id), ...updates, c.env.DB.prepare("UPDATE api_keys SET owner = 'shared' WHERE owner = ?").bind(id)]);
     emit(c, 'member.changed', { id });
     return c.json({ ok: true }, 200);
   },

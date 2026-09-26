@@ -485,6 +485,7 @@ export const ApiKeySchema = z
     scope: z.enum(['admin', 'display']),
     createdAt: z.string(),
     lastUsedAt: z.string().nullable(),
+    owner: z.string().nullable().openapi({ description: "Who the device belongs to: 'shared' (the whole family), a member id, or null (paired before owners; the device picks)" }),
   })
   .openapi('ApiKey');
 
@@ -492,7 +493,7 @@ export const ApiKeyCreatedSchema = z
   .object({ id: z.string(), name: z.string(), scope: z.enum(['admin', 'display']), key: z.string() })
   .openapi('ApiKeyCreated');
 
-export const MeSchema = z.object({ scope: z.enum(['admin', 'display']), keyName: z.string(), kind: z.enum(['api', 'session', 'oauth']), version: z.string(), hostPortalUrl: z.string().optional() }).openapi('Me');
+export const MeSchema = z.object({ scope: z.enum(['admin', 'display']), keyName: z.string(), kind: z.enum(['api', 'session', 'oauth']), owner: z.string().nullable().optional(), version: z.string(), hostPortalUrl: z.string().optional() }).openapi('Me');
 
 export const WebhookSchema = z
   .object({ id: z.string(), url: z.string(), events: z.array(z.string()), enabled: z.boolean(), createdAt: z.string() })

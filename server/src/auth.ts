@@ -24,7 +24,7 @@ export function generateApiKey(): string {
 }
 
 export type KeyScope = 'admin' | 'display';
-export type ResolvedKey = { id?: string; scope: KeyScope; name: string; kind: 'api' | 'session' | 'oauth'; lastUsedAt?: string | null };
+export type ResolvedKey = { id?: string; scope: KeyScope; name: string; kind: 'api' | 'session' | 'oauth'; lastUsedAt?: string | null; owner?: string | null };
 
 // Shared by POST /api/keys and the pairing-approval flow (routes/pair.ts) so key creation +
 // hashing lives in exactly one place. `kind` defaults to 'api' (permanent automation keys);
@@ -33,15 +33,21 @@ export async function createApiKey(
   db: KinwallDb,
   name: string,
   scope: KeyScope,
-  opts: { kind?: 'api' | 'session' | 'oauth'; expiresAt?: string; passkeyId?: string } = {},
+  opts: { kind?: 'api' | 'session' | 'oauth'; expiresAt?: string; passkeyId?: string; owner?: string | null } = {},
 ): Promise<{ id: string; key: string }> {
   const key = generateApiKey();
   const id = crypto.randomUUID();
   await db
-    .prepare('INSERT INTO api_keys (id, name, hash, prefix, scope, created_at, kind, expires_at, passkey_id) VALUES (?,?,?,?,?,?,?,?,?)')
-    .bind(id, name, await sha256Hex(key), key.slice(0, 8), scope, new Date().toISOString(), opts.kind ?? 'api', opts.expiresAt ?? null, opts.passkeyId ?? null)
+    .prepare('INSERT INTO api_keys (id, name, hash, prefix, scope, created_at, kind, expires_at, passkey_id, owner) VALUES (?,?,?,?,?,?,?,?,?,?)')
+    .bind(id, name, await sha256Hex(key), key.slice(0, 8), scope, new Date().toISOString(), opts.kind ?? 'api', opts.expiresAt ?? null, opts.passkeyId ?? null, opts.owner ?? null)
     .run();
   return { id, key };
+}
+
+/** A device owner from an admin: 'shared' or an existing member's id. Null when it's neither. */
+export async function validOwner(db: KinwallDb, owner: string): Promise<string | null> {
+  if (owner === 'shared') return owner;
+  return (await db.prepare('SELECT id FROM members WHERE id = ?').bind(owner).first<{ id: string }>())?.id ?? null;
 }
 
 // No-auth routes: health check, the OAuth callback (browser redirect from the provider), the
@@ -143,9 +149,9 @@ export async function resolveKey(c: Context<{ Bindings: Env }>): Promise<Resolve
     return { scope: 'admin', name: 'ADMIN_API_KEY', kind: 'api' };
   }
 
-  const row = await c.env.DB.prepare('SELECT id, name, scope, expires_at, kind, last_used_at FROM api_keys WHERE hash = ?')
+  const row = await c.env.DB.prepare('SELECT id, name, scope, expires_at, kind, last_used_at, owner FROM api_keys WHERE hash = ?')
     .bind(hash)
-    .first<{ id: string; name: string; scope: string | null; expires_at: string | null; kind: string | null; last_used_at: string | null }>();
+    .first<{ id: string; name: string; scope: string | null; expires_at: string | null; kind: string | null; last_used_at: string | null; owner: string | null }>();
   if (!row) return null;
   if (row.expires_at && row.expires_at < new Date().toISOString()) return null; // expired session key
   return {
@@ -154,6 +160,7 @@ export async function resolveKey(c: Context<{ Bindings: Env }>): Promise<Resolve
     scope: row.scope === 'display' ? 'display' : 'admin',
     kind: row.kind === 'session' ? 'session' : row.kind === 'oauth' ? 'oauth' : 'api',
     lastUsedAt: row.last_used_at,
+    owner: row.owner,
   };
 }
 

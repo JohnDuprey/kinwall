@@ -20,6 +20,6 @@ meRoutes.openapi(
     // requireAuth already validated the key; re-resolving here is cheap and avoids threading
     // Variables typing through every route file just for this one endpoint.
     const resolved = await resolveKey(c);
-    return c.json({ scope: resolved?.scope ?? 'admin', keyName: resolved?.name ?? '', kind: resolved?.kind ?? 'api', version: VERSION, ...(c.env.HOST_PORTAL_URL ? { hostPortalUrl: c.env.HOST_PORTAL_URL } : {}) }, 200);
+    return c.json({ scope: resolved?.scope ?? 'admin', keyName: resolved?.name ?? '', kind: resolved?.kind ?? 'api', owner: resolved?.owner ?? null, version: VERSION, ...(c.env.HOST_PORTAL_URL ? { hostPortalUrl: c.env.HOST_PORTAL_URL } : {}) }, 200);
   },
 );

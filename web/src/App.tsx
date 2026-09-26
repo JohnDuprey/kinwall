@@ -8,7 +8,7 @@ import CalendarView from './Calendar.tsx'
 import Chores from './Chores.tsx'
 import Lists from './Lists.tsx'
 import Activities from './Activities.tsx'
-import SettingsView from './Settings.tsx'
+import SettingsView, { OwnerSelect } from './Settings.tsx'
 import AuthorizeScreen from './Authorize.tsx'
 import Setup, { readSetupResume, resumeAtPasskey } from './Setup.tsx'
 import { useIsPhone } from './useIsPhone.ts'
@@ -416,10 +416,14 @@ function PairPhoneScreen({ code }: { code: string }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [done, setDone] = useState(false)
+  const [owner, setOwner] = useState('shared')
+  const [members, setMembers] = useState<Member[]>([])
 
   useEffect(() => {
     api.meStrict().then(me => setIsAdmin(me.scope === 'admin')).catch(() => setIsAdmin(false)).finally(() => setCheckingAdmin(false))
   }, [])
+  // Who it belongs to needs the family's members, readable once this phone is signed in as an admin.
+  useEffect(() => { if (isAdmin) api.getMembers(true).then(setMembers).catch(() => {}) }, [isAdmin])
 
   const unlockAdmin = async () => {
     if (!adminKeyValue.trim()) return
@@ -453,7 +457,7 @@ function PairPhoneScreen({ code }: { code: string }) {
     if (code.length !== 6 || !name.trim()) return
     setBusy(true); setError('')
     try {
-      await api.pairApprove(code, name.trim())
+      await api.pairApprove(code, name.trim(), owner)
       setDone(true)
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Could not pair display')
@@ -487,6 +491,13 @@ function PairPhoneScreen({ code }: { code: string }) {
           <label>Name</label>
           <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Wall display" />
         </div>
+        {isAdmin && (
+          <div className="field" style={{ textAlign: 'left' }}>
+            <label htmlFor="pair-owner">Belongs to</label>
+            <OwnerSelect id="pair-owner" value={owner} onChange={setOwner} members={members} />
+            <p className="settings-row-sub">A display for one person shows only their events, chores and lists. Only an admin can change this later.</p>
+          </div>
+        )}
         {!checkingAdmin && !isAdmin && (useAdminField || !passkeysSupported()) && (
           <div className="field" style={{ textAlign: 'left' }}>
             <label>Admin key</label>
@@ -770,6 +781,7 @@ function AppRoutes() {
   const [members, setMembers] = useState<Member[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null)
+  const [owner, setOwner] = useState<string | null>(null) // who an admin says this device belongs to (GET /api/me)
   // `persist`: errors and results worth reading stay until tapped; confirmations fade after 4s.
   const [toastMsg, setToastMsg] = useState<{ msg: string; persist: boolean } | null>(null)
   // Sticky banner-style toast (tap to dismiss), e.g. after a recovery-code sign-in.
@@ -795,12 +807,13 @@ function AppRoutes() {
   const loadCore = useCallback(async () => {
     if (!hasKey) return
     try {
-      const [s, m, cats] = await Promise.all([api.getSettings(), api.getMembers(), api.getCategories()])
+      const [s, m, cats, me] = await Promise.all([api.getSettings(), api.getMembers(), api.getCategories(), api.meStrict().catch(() => null)])
       // First-run default for a fresh household: no timezone set yet, so adopt this display's.
       const settings = s.timezone ? s : await api.updateSettings({ timezone: Intl.DateTimeFormat().resolvedOptions().timeZone }).catch(() => s)
       setSettings(settings)
       setMembers(m)
       setCategories(cats)
+      if (me) setOwner(me.owner ?? null)
       setLoadError(false)
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) { clearKey('rejected'); setHasKey(false); return }
@@ -820,10 +833,12 @@ function AppRoutes() {
 
   useTheme(settings)
 
-  // A display pinned to one member (This display → Show only): that member is always the selected
-  // one and the header shows only them. A member deleted since falls back to everyone.
+  // A display pinned to one member: that member is always the selected one and the header shows
+  // only them. An admin-set owner wins and locks it ('shared' = nobody); devices paired before
+  // owners existed (owner null) pick their own under This display → Show only. A member deleted
+  // since falls back to everyone.
   const device = useDeviceAppearance()
-  const focusMember = members.find(m => m.id === device.focusMemberId)
+  const focusMember = members.find(m => m.id === (owner ? owner : device.focusMemberId))
   const effectiveMemberId = focusMember?.id ?? selectedMemberId
   const setMemberId = focusMember ? () => {} : setSelectedMemberId
 
@@ -902,7 +917,7 @@ function AppRoutes() {
   return (
     <AppContext.Provider value={{
       settings, members, categories, selectedMemberId: effectiveMemberId, setSelectedMemberId: setMemberId,
-      focusMemberId: focusMember?.id ?? null, focusShowsShared: !device.focusHideShared,
+      focusMemberId: focusMember?.id ?? null, focusShowsShared: !device.focusHideShared, focusLocked: !!owner,
       refreshTick: pollTick + manualTick,
       reloadCore: () => setManualTick(t => t + 1),
       toast: (msg, persist = false) => setToastMsg({ msg, persist }),

@@ -19,7 +19,8 @@ Authorization: Bearer <key>
   * Create admin keys in **Settings → Access → API Keys**.
   * `POST /api/keys {name, scope?}` defaults to `display` (least privilege).
 * A display key calling an admin-only route gets `403 {"error":"display key cannot access this route"}`.
-* `GET /api/me` returns the caller's `scope`, `keyName`, `kind` (`api` / `session` / `oauth`) and the server `version`.
+* `GET /api/me` returns the caller's `scope`, `keyName`, `kind` (`api` / `session` / `oauth`), `owner` and the server `version`.
+* A paired device's `owner` is `shared` (the whole family), a member id it's pinned to, or `null` (paired before owners existed). `POST /api/pair/approve {code, name, owner?}` sets it (default `shared`); only an admin can change it with `PATCH /api/keys/{id} {owner}`. A device key minted with `POST /api/device-keys` inherits the caller's owner.
 * A few routes need no key: `/api/health`, `/api/appearance`, `/api/setup*`, `/api/pair` and `/api/pair/poll`, the passkey and recovery login ceremonies, and the OAuth callback.
 * `GET /api/oauth/{kind}/start?key=…`, `GET /api/photos/export.zip?key=…` and `GET /api/photos/{id}/image?key=…` also take the key as a query parameter, because they're browser navigations and an `<img src>`. No other route does.
 * Uploading a photo: `POST /api/photos` with the image itself as the body (`Content-Type: image/webp`, `image/jpeg` or `image/png`, at most 600 KB), its pixel size in `X-Photo-Width` / `X-Photo-Height`, and an optional `?caption=`. Too large is `413`, another type is `415`, and a full album is `409` with the quota. Display keys can upload (so a wall display can save a Paint drawing to the family photos). Editing, deleting, the zip export and the zip import need an admin key.
@@ -77,7 +78,7 @@ Color settings on `PATCH /api/settings`: `colorScheme` is a built-in id (`meadow
 | Leaderboard | `GET /api/leaderboard?period=today\|week\|month` |
 | Lists | `GET/POST /api/lists`, `GET/PATCH/DELETE /api/lists/{id}`, items, steps (`POST/PATCH/DELETE .../steps[/{stepId}]`, `POST .../steps/reorder`), `clear-completed`, `reset`, `reorder`, `groups` |
 | Snapshot & weather | `GET /api/snapshot?member=&range=day\|week`, `GET /api/board?days=`, `GET /api/weather`, `GET /api/geocode?q=` |
-| Keys & pairing | `GET/POST /api/keys`, `DELETE /api/keys/{id}`, `POST /api/pair`, `/api/pair/approve`, `/api/pair/poll` |
+| Keys & pairing | `GET/POST /api/keys`, `PATCH/DELETE /api/keys/{id}`, `POST /api/pair`, `/api/pair/approve`, `/api/pair/poll` |
 | Passkeys & recovery | `/api/passkeys*`, `/api/sessions/logout`, `GET/POST /api/recovery-codes`, `POST /api/recovery/login` |
 | Connected apps | `GET /api/authorizations`, `GET /api/authorizations/request`, `POST /api/authorizations/approve`, `DELETE /api/authorizations/{id}` |
 | Webhooks | `GET/POST /api/webhooks`, `PATCH/DELETE /api/webhooks/{id}`, `POST /api/webhooks/{id}/rotate` |

@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
-import { useApp } from './AppContext.tsx'
+import { AppContext, useApp } from './AppContext.tsx'
 import { api, ApiError, clearKey } from './api.ts'
 import type { Account, ApiKey, CalendarEntry, Category, ColorScheme, CustomColors, Density, DeviceDensity, GeocodeResult, HostEvent, Me, Member, Passkey, Providers, PushSubscription, RemoteCalendar, Settings, TextScale, ThemeMode, Webhook } from './types.ts'
 import { ProviderForm, PublicUrlRow } from './ProviderConfig.tsx'
@@ -901,11 +901,11 @@ function DeviceAppearanceRows() {
 /** Device-only behavior for this screen: member focus, locked calendar view, Now / Next card and
  * transition warnings. Stored alongside the device appearance. */
 function ScreenFocusRows() {
-  const { members } = useApp()
+  const { members, focusMemberId, focusLocked } = useApp()
   const isPhone = useIsPhone()
   const device = useDeviceAppearance()
   const set = (patch: DeviceAppearance) => setDeviceAppearance({ ...device, ...patch })
-  const focus = members.find(m => m.id === device.focusMemberId)
+  const focus = members.find(m => m.id === focusMemberId)
   const views: { key: LockedView | ''; label: string }[] = [
     { key: '', label: 'Off' }, { key: 'week', label: isPhone ? '3 Day' : 'Week' }, { key: 'day', label: 'Day' }, { key: 'month', label: 'Month' }, { key: 'schedule', label: 'Schedule' }, { key: 'board', label: 'Board' },
   ]
@@ -914,11 +914,13 @@ function ScreenFocusRows() {
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
         <div className="device-pref-row">
           <span>Show only</span>
+          {focusLocked ? <span className="settings-row-sub" style={{ margin: 0 }}>{focus ? `${focus.avatar} ${focus.name}` : 'Everyone'} · Set by an admin</span> : (
           <select className="settings-select" aria-label="Show only" value={focus?.id ?? ''}
             onChange={e => { set({ focusMemberId: e.target.value || undefined }); announce(e.target.value ? `Showing only ${members.find(m => m.id === e.target.value)?.name}` : 'Showing everyone') }}>
             <option value="">Everyone</option>
             {members.map(m => <option key={m.id} value={m.id}>{m.avatar} {m.name}</option>)}
           </select>
+          )}
         </div>
         {focus && (
           <div className="toggle-row">
@@ -927,7 +929,7 @@ function ScreenFocusRows() {
               onClick={() => set({ focusHideShared: !device.focusHideShared || undefined })}><span className="knob" /></button>
           </div>
         )}
-        <div className="settings-row-sub">{focus ? `Only ${focus.name}'s events, chores and lists show here${device.focusHideShared ? '' : ', plus ones with nobody assigned'}.` : 'Pin this screen to one person — handy for a display in a bedroom.'}</div>
+        <div className="settings-row-sub">{focus ? `Only ${focus.name}'s events, chores and lists show here${device.focusHideShared ? '' : ', plus ones with nobody assigned'}.` : focusLocked ? 'This display is shared by the whole family. An admin can change who it belongs to under Settings → Access → Displays.' : 'Pin this screen to one person — handy for a display in a bedroom.'}</div>
         <div className="device-pref-row">
           <span>Lock view</span>
           <select className="settings-select" aria-label="Lock calendar view" value={device.lockView ?? ''} onChange={e => set({ lockView: (e.target.value || undefined) as LockedView | undefined })}>
@@ -1898,8 +1900,23 @@ function KeysSection({ toast }: { toast: (m: string, persist?: boolean) => void 
 // Display keys are minted only via pairing (device-flow: a display shows a code, this form
 // approves it) rather than a raw "create key" button — see the API Keys section comment above
 // for why. Listing + Revoke reuse the same GET/DELETE /api/keys the API Keys section uses.
+/** Who a device belongs to: the whole family, or one member it's pinned to. `legacy` adds the
+ * "chosen on the device" state of displays paired before owners existed. */
+export function OwnerSelect({ value, onChange, members, id, label, legacy }: { value: string; onChange: (v: string) => void; members?: Member[]; id?: string; label?: string; legacy?: boolean }) {
+  const ctx = useContext(AppContext)
+  const list = members ?? ctx?.members ?? []
+  return (
+    <select className="settings-select" id={id} aria-label={label} value={value} onChange={e => onChange(e.target.value)}>
+      {legacy && <option value="" disabled>Chosen on the device</option>}
+      <option value="shared">Shared (the whole family)</option>
+      {list.map(m => <option key={m.id} value={m.id}>{m.avatar} {m.name}</option>)}
+    </select>
+  )
+}
+
 function DisplaysSection({ toast }: { toast: (m: string, persist?: boolean) => void }) {
   const dialog = useDialog()
+  const { reloadCore } = useApp()
   const [keys, setKeys] = useState<ApiKey[]>([])
   const [code, setCode] = useState('')
   const [name, setName] = useState('Wall display')
@@ -1908,11 +1925,12 @@ function DisplaysSection({ toast }: { toast: (m: string, persist?: boolean) => v
   const load = () => { api.getKeys().then(ks => setKeys(ks.filter(k => k.scope === 'display'))).catch(() => {}) }
   useEffect(load, [])
 
+  const [owner, setOwner] = useState('shared')
   const pair = async () => {
     if (code.length !== 6 || !name.trim()) return
     setBusy(true)
     try {
-      await api.pairApprove(code, name.trim())
+      await api.pairApprove(code, name.trim(), owner)
       setCode('')
       setAdding(false)
       toast('Display paired')
@@ -1922,6 +1940,9 @@ function DisplaysSection({ toast }: { toast: (m: string, persist?: boolean) => v
     } finally {
       setBusy(false)
     }
+  }
+  const changeOwner = async (k: ApiKey, next: string) => {
+    try { await api.setKeyOwner(k.id, next); load(); reloadCore() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not change who it belongs to', true) }
   }
   const revoke = async (k: ApiKey) => {
     if (!await dialog.confirm({ title: `Remove "${k.name}"?`, body: 'It will be signed out and need pairing again.', confirmLabel: 'Remove', danger: true })) return
@@ -1940,6 +1961,7 @@ function DisplaysSection({ toast }: { toast: (m: string, persist?: boolean) => v
               {k.lastUsedAt ? ` · used ${new Date(k.lastUsedAt).toLocaleDateString()}` : ' · never used'}
             </div>
           </div>
+          <OwnerSelect value={k.owner ?? ''} onChange={v => changeOwner(k, v)} label={`Who ${k.name} belongs to`} legacy={!k.owner} />
           <button className="icon-btn" onClick={() => revoke(k)} aria-label={`Remove ${k.name}`}><TrashIcon width={16} height={16} /></button>
         </div>
       ))}
@@ -1964,6 +1986,11 @@ function DisplaysSection({ toast }: { toast: (m: string, persist?: boolean) => v
               <label>Name</label>
               <input type="text" value={name} onChange={e => setName(e.target.value)} />
             </div>
+          </div>
+          <div className="field">
+            <label htmlFor="pair-owner">Belongs to</label>
+            <OwnerSelect id="pair-owner" value={owner} onChange={setOwner} />
+            <p className="settings-row-sub">A display for one person shows only their events, chores and lists. Only an admin can change this later.</p>
           </div>
         </Sheet>
       )}

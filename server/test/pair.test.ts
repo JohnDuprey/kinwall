@@ -155,3 +155,60 @@ test('pairing: 429 after 5 pending from one address; other addresses unaffected'
   assert.ok(((await res.json()) as any).error);
   assert.equal((await start('198.51.100.2')).status, 201);
 });
+
+// Pair a display through the real flow and return its key.
+async function pairDisplay(env: Env, owner?: string) {
+  const admin = makeApp(env);
+  const anon = makeAnon(env);
+  const start = await (await anon('/api/pair', { method: 'POST' })).json() as any;
+  const res = await admin('/api/pair/approve', { method: 'POST', body: JSON.stringify({ code: start.code, name: 'Maya room', ...(owner ? { owner } : {}) }) });
+  assert.equal(res.status, 200);
+  const approved = await res.json() as any;
+  const polled = await (await anon('/api/pair/poll', { method: 'POST', body: JSON.stringify({ pairingId: start.pairingId, pollToken: start.pollToken }) })).json() as any;
+  return { keyId: approved.keyId as string, key: polled.key as string };
+}
+
+test('device owner: set at approval, visible to the device, locked for the device, admin can change it', async () => {
+  const env = makeEnv();
+  const admin = makeApp(env);
+  const maya = await (await admin('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Maya', color: '#7C9CFF' }) })).json() as any;
+  const leo = await (await admin('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Leo', color: '#FF9E7A' }) })).json() as any;
+
+  // unknown member is rejected before anything is approved
+  const anon = makeAnon(env);
+  const start = await (await anon('/api/pair', { method: 'POST' })).json() as any;
+  const bad = await admin('/api/pair/approve', { method: 'POST', body: JSON.stringify({ code: start.code, name: 'X', owner: 'nobody' }) });
+  assert.equal(bad.status, 400);
+
+  const { keyId, key } = await pairDisplay(env, maya.id);
+  const device = makeApp(env, key);
+  assert.equal(((await (await device('/api/me')).json()) as any).owner, maya.id);
+  const listed = ((await (await admin('/api/keys')).json()) as any[]).find((k) => k.id === keyId);
+  assert.equal(listed.owner, maya.id);
+
+  // the device can't re-assign itself (or anyone)
+  const selfPatch = await device(`/api/keys/${keyId}`, { method: 'PATCH', body: JSON.stringify({ owner: 'shared' }) });
+  assert.equal(selfPatch.status, 403);
+  assert.equal(((await (await device('/api/me')).json()) as any).owner, maya.id);
+
+  // widgets minted by the device belong to the same person
+  const widget = await (await device('/api/device-keys', { method: 'POST', body: JSON.stringify({ name: 'Widgets' }) })).json() as any;
+  assert.equal(((await (await makeApp(env, widget.key)('/api/me')).json()) as any).owner, maya.id);
+
+  // admin can change it; unknown members and non-device keys are refused
+  assert.equal((await admin(`/api/keys/${keyId}`, { method: 'PATCH', body: JSON.stringify({ owner: 'nope' }) })).status, 400);
+  const changed = await admin(`/api/keys/${keyId}`, { method: 'PATCH', body: JSON.stringify({ owner: leo.id }) });
+  assert.equal(changed.status, 200);
+  assert.equal(((await changed.json()) as any).owner, leo.id);
+  assert.equal(((await (await device('/api/me')).json()) as any).owner, leo.id);
+  const adminKey = await (await admin('/api/keys', { method: 'POST', body: JSON.stringify({ name: 'Automation', scope: 'admin' }) })).json() as any;
+  assert.equal((await admin(`/api/keys/${adminKey.id}`, { method: 'PATCH', body: JSON.stringify({ owner: 'shared' }) })).status, 404);
+
+  // deleting the owner leaves the device shared (still locked)
+  await admin(`/api/members/${leo.id}`, { method: 'DELETE' });
+  assert.equal(((await (await device('/api/me')).json()) as any).owner, 'shared');
+
+  // omitted owner = shared
+  const shared = await pairDisplay(env);
+  assert.equal(((await (await makeApp(env, shared.key)('/api/me')).json()) as any).owner, 'shared');
+});

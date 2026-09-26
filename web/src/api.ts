@@ -148,7 +148,7 @@ export const api = {
   // No-auth subset of Settings for the pre-pairing screen (useTheme.ts) — see GET /api/appearance.
   getAppearance: (): Promise<Appearance> => MOCK ? mock.getSettings() : get<Appearance>('api/appearance'),
 
-  getMembers: () => MOCK ? mock.getMembers() : get<Member[]>('api/members'),
+  getMembers: (useAdmin?: boolean) => MOCK ? mock.getMembers() : get<Member[]>('api/members', useAdmin),
   // useAdmin: the setup wizard creates/removes members with the in-memory admin key when this
   // device only just claimed a display-scope key (member create/delete aren't display-allowed).
   createMember: (body: Partial<Member>, useAdmin?: boolean) => MOCK ? mock.createMember(body) : post<Member>('api/members', body, useAdmin),
@@ -283,7 +283,8 @@ export const api = {
   pairStart: () => post<{ pairingId: string; code: string; pollToken: string; expiresAt: string }>('api/pair'),
   pairPoll: (pairingId: string, pollToken: string) =>
     post<{ status: 'pending' | 'approved'; key?: string }>('api/pair/poll', { pairingId, pollToken }),
-  pairApprove: (code: string, name: string) => post<{ keyId: string; name: string }>('api/pair/approve', { code, name }, true),
+  pairApprove: (code: string, name: string, owner: string) => post<{ keyId: string; name: string }>('api/pair/approve', { code, name, owner }, true),
+  setKeyOwner: (id: string, owner: string) => patch<ApiKey>(`api/keys/${id}`, { owner }, true),
   // OAuth consent (#/authorize) and Settings → Access → Connected apps.
   authorizationRequest: (qs: string) => get<{ clientName: string; redirectHost: string; requestedScope: 'admin' | 'display' }>(`api/authorizations/request?${qs}`, true),
   decideAuthorization: (body: Record<string, string | undefined>) => post<{ redirect: string }>('api/authorizations/approve', body, true),

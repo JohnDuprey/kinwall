@@ -255,6 +255,7 @@ export interface ApiKey {
   scope: KeyScope
   createdAt: string
   lastUsedAt: string | null
+  owner?: string | null // devices: 'shared', a member id, or null (paired before owners; the device picks)
 }
 
 export interface Passkey {
@@ -269,6 +270,7 @@ export interface Me {
   scope: KeyScope
   keyName: string
   kind: 'api' | 'session'
+  owner?: string | null // who this device belongs to (see ApiKey.owner); set by an admin only
   version?: string
   hostPortalUrl?: string // set by a host serving this family (HOST_PORTAL_URL)
 }

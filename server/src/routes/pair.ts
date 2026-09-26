@@ -6,7 +6,7 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
-import { createApiKey, timingSafeEqual } from '../auth.ts';
+import { createApiKey, timingSafeEqual, validOwner } from '../auth.ts';
 import { encrypt, decrypt } from '../crypto.ts';
 import { emit } from '../bus.ts';
 import { ErrorSchema } from '../schemas.ts';
@@ -113,7 +113,9 @@ pairRoutes.openapi(
   },
 );
 
-const PairApproveInputSchema = z.object({ code: z.string().length(CODE_DIGITS), name: z.string().min(1) }).openapi('PairApproveInput');
+// owner: 'shared' (the whole family) or a member id the display is pinned to. Only an admin can
+// change it later (PATCH /api/keys/{id}); omitted = shared.
+const PairApproveInputSchema = z.object({ code: z.string().length(CODE_DIGITS), name: z.string().min(1), owner: z.string().min(1).optional() }).openapi('PairApproveInput');
 const PairApproveResponseSchema = z.object({ keyId: z.string(), name: z.string() }).openapi('PairApproveResponse');
 
 pairRoutes.openapi(
@@ -126,18 +128,21 @@ pairRoutes.openapi(
     request: { body: { content: { 'application/json': { schema: PairApproveInputSchema } } } },
     responses: {
       200: { description: 'ok', content: { 'application/json': { schema: PairApproveResponseSchema } } },
+      400: { description: 'unknown owner', content: { 'application/json': { schema: ErrorSchema } } },
       404: { description: 'not found or expired', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
-    const { code, name } = c.req.valid('json');
+    const { code, name, owner: ownerIn } = c.req.valid('json');
+    const owner = await validOwner(c.env.DB, ownerIn ?? 'shared');
+    if (!owner) return c.json({ error: 'unknown family member' }, 400);
     const nowIso = new Date().toISOString();
     const pairing = await c.env.DB.prepare('SELECT * FROM pairings WHERE code = ? AND approved = 0 AND expires_at > ?')
       .bind(code, nowIso)
       .first<PairingRow>();
     if (!pairing) return c.json({ error: 'Code not found or expired' }, 404);
 
-    const { id: keyId, key } = await createApiKey(c.env.DB, name, 'display');
+    const { id: keyId, key } = await createApiKey(c.env.DB, name, 'display', { owner });
     const encryptedKey = await encrypt(c.env, key, pairing.id);
 
     await c.env.DB.prepare('UPDATE pairings SET approved = 1, key_id = ?, key_name = ?, encrypted_key = ? WHERE id = ?')

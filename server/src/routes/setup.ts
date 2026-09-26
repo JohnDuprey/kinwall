@@ -161,7 +161,7 @@ setupRoutes.openapi(
     const admin = await createApiKey(c.env.DB, deviceRole === 'admin' ? deviceName : `${deviceName} (admin)`, 'admin');
     let displayKey: string | undefined;
     if (deviceRole === 'display') {
-      displayKey = (await createApiKey(c.env.DB, deviceName, 'display')).key;
+      displayKey = (await createApiKey(c.env.DB, deviceName, 'display', { owner: 'shared' })).key; // the family's wall
     }
     emit(c, 'settings.changed', {});
     return c.json({ adminKey: admin.key, adminKeyId: admin.id, displayKey }, 200);

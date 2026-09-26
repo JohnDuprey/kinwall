@@ -9,6 +9,7 @@ export interface AppCtx {
   setSelectedMemberId: (id: string | null) => void
   focusMemberId: string | null // this display is pinned to one member (selectedMemberId is then that member)
   focusShowsShared: boolean // ...and still shows events/chores/lists assigned to nobody
+  focusLocked: boolean // an admin set who this device belongs to, so it can't pick its own
   refreshTick: number
   reloadCore: () => void
   toast: (msg: string, persist?: boolean) => void // persist: stays until tapped (errors, results)

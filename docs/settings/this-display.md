@@ -9,7 +9,7 @@ What this screen shows and how you get around it.
 | Item | Notes |
 |---|---|
 | **Paired as *name*** | Shown on paired displays. |
-| **Show only** | Pin this screen to one member, which is handy for a display in a bedroom. Picks a member, or **Everyone**. |
+| **Show only** | Pin this screen to one member, which is handy for a display in a bedroom. On a display an admin paired, this follows who it **Belongs to** and reads "Set by an admin": change it under [Access → Displays](access.md#displays). Displays paired before that option existed pick a member, or **Everyone**, here. |
 | **Also show things for everyone** | Only shown once a member is picked. On (default): shared events, chores and lists (nobody assigned) still show alongside that member's own. Off: only their items. |
 | **Lock view** | Fixes the calendar to one view (Board, Day, Week/3 Day, Month, Schedule) and hides the view switcher, so a pinned display can't be bumped into a different view. **Off** leaves the switcher free. |
 | **Navigation position** | **Auto**, **Bottom**, **Left** or **Right**: where the Calendar, Chores and Lists buttons sit, as a bottom tab bar or a side rail. Phones always use the bottom bar. |

@@ -6,7 +6,7 @@ When you have only one way in, a banner at the top suggests **Passkeys** or **Re
 
 ## Displays
 
-Paired wall screens, each with its display key. **Add a display** opens a sheet asking for the 6-digit **Code** shown on the screen and a **Name**, then **Pair display**. Scanning the display's QR code with your phone works too. Removing a display signs it out. See [Put it on the wall](../getting-started/put-it-on-the-wall.md).
+Paired wall screens, each with its display key. **Add a display** opens a sheet asking for the 6-digit **Code** shown on the screen and a **Name**, and who it **Belongs to**: **Shared (the whole family)** or one member, then **Pair display**. Scanning the display's QR code with your phone works too. A display that belongs to one member shows only their events, chores and lists, and credits "Anyone" chores done there to them. The display itself can't change this; each display in the list has a picker to change it here. Displays paired before this option show "Chosen on the device" until you pick one. Removing a display signs it out. See [Put it on the wall](../getting-started/put-it-on-the-wall.md).
 
 ## Notifications
 

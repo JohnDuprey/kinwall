@@ -8,6 +8,8 @@
 2. Approve it from an admin device, either way:
    * scan the QR code with your phone and approve with your passkey, or
    * on your phone or computer, open **Settings → Access → Displays → Add a display**, then enter the **Code** and a **Name** (default "Wall display") and tap **Pair display**.
+
+   Either way you also pick who it **Belongs to**: **Shared (the whole family)** for a kitchen wall, or one member (say Maya, for her bedroom) to show only their things. Only an admin can change it later, under **Settings → Access → Displays**.
 3. The display shows "You're connected! 🎉" and loads the calendar. It now holds a **display** key, which can't manage members, accounts, keys or webhooks.
 
 You can also tap **Enter a key manually** on the sign-in screen and paste any API key.

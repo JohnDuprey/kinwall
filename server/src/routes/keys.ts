@@ -1,16 +1,16 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
-import { createApiKey, resolveKey } from '../auth.ts';
+import { createApiKey, resolveKey, validOwner } from '../auth.ts';
 import { emit } from '../bus.ts';
 import { ApiKeyCreatedSchema, ApiKeySchema, ErrorSchema } from '../schemas.ts';
 
 export const keysRoutes = createRouter();
 
-type KeyRow = { id: string; name: string; scope: string; created_at: string; last_used_at: string | null };
+type KeyRow = { id: string; name: string; scope: string; created_at: string; last_used_at: string | null; owner: string | null };
 
 function toApi(row: KeyRow) {
-  return { id: row.id, name: row.name, scope: (row.scope === 'display' ? 'display' : 'admin') as 'admin' | 'display', createdAt: row.created_at, lastUsedAt: row.last_used_at };
+  return { id: row.id, name: row.name, scope: (row.scope === 'display' ? 'display' : 'admin') as 'admin' | 'display', createdAt: row.created_at, lastUsedAt: row.last_used_at, owner: row.owner };
 }
 
 keysRoutes.openapi(
@@ -25,7 +25,7 @@ keysRoutes.openapi(
   async (c) => {
     // Passkey-login sessions (kind='session') are a separate concept (see Settings → Passkeys),
     // not automation keys - keep them out of this listing.
-    const { results } = await c.env.DB.prepare("SELECT id, name, scope, created_at, last_used_at FROM api_keys WHERE kind = 'api' ORDER BY created_at").all<KeyRow>();
+    const { results } = await c.env.DB.prepare("SELECT id, name, scope, created_at, last_used_at, owner FROM api_keys WHERE kind = 'api' ORDER BY created_at").all<KeyRow>();
     return c.json(results.map(toApi), 200);
   },
 );
@@ -52,6 +52,37 @@ keysRoutes.openapi(
     const { id, key } = await createApiKey(c.env.DB, name, keyScope);
     emit(c, 'settings.changed', { keyId: id });
     return c.json({ id, name, scope: keyScope, key }, 201);
+  },
+);
+
+// Who a device belongs to. Admin only (not in auth.ts DISPLAY_ALLOWED), so a device can never
+// re-assign itself; the device reads its owner from GET /api/me.
+keysRoutes.openapi(
+  createRoute({
+    method: 'patch',
+    path: '/api/keys/{id}',
+    tags: ['API Keys'],
+    summary: "Set a device's owner: 'shared' (the whole family) or a member id it's pinned to",
+    security: [{ Bearer: [] }],
+    request: {
+      params: z.object({ id: z.string() }),
+      body: { content: { 'application/json': { schema: z.object({ owner: z.string().min(1) }) } } },
+    },
+    responses: {
+      200: { description: 'ok', content: { 'application/json': { schema: ApiKeySchema } } },
+      400: { description: 'unknown owner', content: { 'application/json': { schema: ErrorSchema } } },
+      404: { description: 'not found', content: { 'application/json': { schema: ErrorSchema } } },
+    },
+  }),
+  async (c) => {
+    const { id } = c.req.valid('param');
+    const owner = await validOwner(c.env.DB, c.req.valid('json').owner);
+    if (!owner) return c.json({ error: 'unknown family member' }, 400);
+    const result = await c.env.DB.prepare("UPDATE api_keys SET owner = ? WHERE id = ? AND kind = 'api' AND scope = 'display'").bind(owner, id).run();
+    if (result.meta.changes === 0) return c.json({ error: 'not found' }, 404);
+    const row = await c.env.DB.prepare('SELECT id, name, scope, created_at, last_used_at, owner FROM api_keys WHERE id = ?').bind(id).first<KeyRow>();
+    emit(c, 'settings.changed', { keyId: id });
+    return c.json(toApi(row!), 200);
   },
 );
 
@@ -98,9 +129,11 @@ keysRoutes.openapi(
   }),
   async (c) => {
     const { name } = c.req.valid('json');
+    const me = await resolveKey(c);
     const count = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM api_keys WHERE kind = 'api'").first<{ n: number }>();
     if (Number(count?.n ?? 0) >= MAX_KEYS) return c.json({ error: 'This household has too many keys. Remove some under Settings → Access.' }, 429);
-    const { id, key } = await createApiKey(c.env.DB, name, 'display');
+    // An owned display's widgets belong to the same person (and stay locked to them).
+    const { id, key } = await createApiKey(c.env.DB, name, 'display', { owner: me?.owner ?? null });
     emit(c, 'settings.changed', { keyId: id });
     return c.json({ id, name, scope: 'display' as const, key }, 201);
   },
