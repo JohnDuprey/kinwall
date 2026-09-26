@@ -11,8 +11,8 @@ Kinwall has no usernames or passwords. Every request carries a **key**, and each
 
 A device without a key shows **Welcome home 👋** with these options:
 
-* **Sign in with passkey**: Face ID, Touch ID, your screen lock or a security key. This gives a **30-day admin session**.
-* **Set up as a wall display**: starts pairing. See [Put it on the wall](../getting-started/put-it-on-the-wall.md).
+* **Sign in as a parent**: with your passkey (Face ID, Touch ID, your screen lock or a security key). This makes it a parent device, with a **30-day admin session**.
+* **Set up a wall screen or kid's device**: starts pairing; a parent approves it with a code. See [Put it on the wall](../getting-started/put-it-on-the-wall.md).
 * **Enter a key manually**: paste any API key.
 * **Use a recovery code**: see below.
 

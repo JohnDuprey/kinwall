@@ -655,7 +655,7 @@ function DisplayDoneStep({ adminKey, adminKeyId, onGoToCalendar }: { adminKey: s
       {adminKey ? (
         <>
           <div className="setup-admin-reveal">
-            <p className="setup-warning">Save this admin key now — it won't be shown again. You'll need it to manage Kinwall and pair more displays.</p>
+            <p className="setup-warning">Save this admin key now — it won't be shown again. You'll need it to manage Kinwall and add wall screens or kids' devices.</p>
             <div className="setup-key-row">
               <QrCode value={adminKey} size={140} />
               <div className="setup-key-value">{adminKey}</div>
@@ -682,7 +682,7 @@ function DoneStep({ deviceRole, adminKey, adminKeyId, onGoToCalendar }: { device
         <li>Open <strong>{location.origin}{location.pathname}</strong> in Safari on the wall iPad</li>
         <li>Tap Share → <strong>Add to Home Screen</strong></li>
         <li>Open it from the home screen — it'll show a pairing code / QR</li>
-        <li>Scan that code with this phone, or enter it in Settings → Access → Add a display</li>
+        <li>Scan that code with this phone, or enter it in Settings → Access → Add a wall screen or kid's device</li>
       </ol>
       <StepNav onNext={onGoToCalendar} nextLabel="Go to calendar" />
     </div>

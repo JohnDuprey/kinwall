@@ -321,10 +321,12 @@ function PairingGate({ onKey }: { onKey: (banner?: string) => void }) {
         {inNativeApp() ? <>
           {/* Passkeys need the app to be tied to this server's domain, which a self-hosted server can't be. */}
           <button className="btn btn-primary btn-block" onClick={() => setMode('pair')}>Pair this app</button>
-          <p className="gate-note">Signing in with a passkey works in Safari. Here, pair with a code an admin approves under Settings → Access.</p>
+          <p className="gate-note">Parents sign in with a passkey in Safari. Here, pair with a code a parent approves under Settings → Access.</p>
         </> : <>
-          <button className="btn btn-primary btn-block" onClick={signInWithPasskey} disabled={passkeyBusy}>{passkeyBusy ? 'Checking…' : 'Sign in with passkey'}</button>
-          <button className="btn btn-secondary btn-block" style={{ marginTop: 12 }} onClick={() => setMode('pair')}>Set up as a wall display</button>
+          <button className="btn btn-primary btn-block" onClick={signInWithPasskey} disabled={passkeyBusy}>{passkeyBusy ? 'Checking…' : 'Sign in as a parent'}</button>
+          <p className="gate-note">With your passkey. Parents can change everything.</p>
+          <button className="btn btn-secondary btn-block" style={{ marginTop: 12 }} onClick={() => setMode('pair')}>Set up a wall screen or kid's device</button>
+          <p className="gate-note">A parent approves it with a code. It gets the calendar, chores and lists, but not settings.</p>
         </>}
         <div className="gate-links">
           <button className="link-btn" onClick={() => setMode('manual')}>Enter a key manually</button>
@@ -397,8 +399,8 @@ function DisplayPairing({ onKey, onManual, onBack, onRecovery }: { onKey: () => 
   return (
     <div className="gate-screen" role="main">
       <div className="gate-card pairing-card">
-        <h1>Set up this display</h1>
-        <p>On your phone or computer, open Kinwall → Settings → Access → Add a display, and enter this code:</p>
+        <h1>Set up this screen</h1>
+        <p>On a parent's phone or computer, open Kinwall → Settings → Access → Add a wall screen or kid's device, and enter this code:</p>
         <div className="pairing-body">
           <div className="pairing-code">
             <span aria-hidden="true">{digits ? `${digits.slice(0, 3)} ${digits.slice(3)}` : '⋯'}</span>
@@ -407,7 +409,7 @@ function DisplayPairing({ onKey, onManual, onBack, onRecovery }: { onKey: () => 
           {pairing && <QrCode value={qrValue} />}
         </div>
         {error && <p role="alert" style={{ color: 'var(--danger)' }}>{error}</p>}
-        <p className="settings-row-sub">Scan with your phone, or enter the code in Settings → Access. This code refreshes on its own if it expires.</p>
+        <p className="settings-row-sub">Or scan it with a parent's phone. The code refreshes on its own if it expires.</p>
         <div className="gate-links">
           {onBack && <button className="link-btn" onClick={onBack}>Back to sign in</button>}
           <button className="link-btn" onClick={onManual}>Enter a key manually</button>
@@ -428,7 +430,7 @@ function PairPhoneScreen({ code }: { code: string }) {
   const [isAdmin, setIsAdmin] = useState(false)
   const [useAdminField, setUseAdminField] = useState(false)
   const [adminKeyValue, setAdminKeyValue] = useState('')
-  const [name, setName] = useState('Wall display')
+  const [name, setName] = useState('Wall screen')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [done, setDone] = useState(false)
@@ -496,8 +498,8 @@ function PairPhoneScreen({ code }: { code: string }) {
   return (
     <div className="gate-screen" role="main">
       <div className="gate-card">
-        <h1>Pair a display</h1>
-        <p>Approve this display so it can join your Kinwall.</p>
+        <h1>Add a wall screen or kid's device</h1>
+        <p>Approve it to join your family's Kinwall. It gets the calendar, chores and lists, but not settings.</p>
         <div className="field" style={{ textAlign: 'left' }}>
           <label>Code</label>
           <input type="text" value={code} readOnly
@@ -505,13 +507,13 @@ function PairPhoneScreen({ code }: { code: string }) {
         </div>
         <div className="field" style={{ textAlign: 'left' }}>
           <label>Name</label>
-          <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Wall display" />
+          <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Kitchen wall, Maya's tablet…" />
         </div>
         {isAdmin && (
           <div className="field" style={{ textAlign: 'left' }}>
-            <label htmlFor="pair-owner">Belongs to</label>
+            <label htmlFor="pair-owner">Who uses it</label>
             <OwnerSelect id="pair-owner" value={owner} onChange={setOwner} members={members} />
-            <p className="settings-row-sub">A display for one person shows only their events, chores and lists. Only an admin can change this later.</p>
+            <p className="settings-row-sub">A kid's device shows only their events, chores and lists. Only a parent can change this later.</p>
           </div>
         )}
         {!checkingAdmin && !isAdmin && (useAdminField || !passkeysSupported()) && (
@@ -531,7 +533,7 @@ function PairPhoneScreen({ code }: { code: string }) {
         ) : passkeysSupported() && !useAdminField ? (
           <>
             <button className="btn btn-primary btn-block" onClick={unlockWithPasskey} disabled={busy}>
-              {busy ? 'Checking…' : 'Approve with passkey'}
+              {busy ? 'Checking…' : 'Approve as a parent'}
             </button>
             <button className="link-btn" style={{ marginTop: 10 }} onClick={() => setUseAdminField(true)}>Use an admin key</button>
           </>

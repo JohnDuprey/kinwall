@@ -2,19 +2,19 @@
 
 *Admin only.* This tab is hidden on displays. It's everything about who and what can reach your Kinwall.
 
-When you have only one way in, a banner at the top suggests **Passkeys** or **Recovery codes**. **Not now** hides it for 30 days on that device.
+When you have only one way in, a banner at the top suggests a second parent device (**Parent devices**) or **Recovery codes**. **Not now** hides it for 30 days on that device.
 
-## Displays
+## Wall screens & kids' devices
 
-Paired wall screens, each with its display key. **Add a display** opens a sheet asking for the 6-digit **Code** shown on the screen and a **Name**, and who it **Belongs to**: **Shared (the whole family)** or one member, then **Pair display**. Scanning the display's QR code with your phone works too. A display that belongs to one member shows only their events, chores and lists, and credits "Anyone" chores done there to them. The display itself can't change this; each display in the list has a picker to change it here. Displays paired before this option show "Chosen on the device" until you pick one. Removing a display signs it out. See [Put it on the wall](../getting-started/put-it-on-the-wall.md).
+Shared wall screens and kids' tablets or phones, paired with a code. Each has a display key: the calendar, chores and lists, but not settings. **Add a wall screen or kid's device** opens a sheet asking for the 6-digit **Code** shown on the screen and a **Name**, and **Who uses it**: **Shared (the whole family)** or one member, then **Add it**. Scanning the screen's QR code with your phone works too. A device that belongs to one member shows only their events, chores and lists, and credits "Anyone" chores done there to them. The display itself can't change this; each display in the list has a picker to change it here. Displays paired before this option show "Chosen on the device" until you pick one. Removing a display signs it out. See [Put it on the wall](../getting-started/put-it-on-the-wall.md).
 
 ## Notifications
 
 Every device that has turned on push, with when it was added and when it last received a notification. You can remove devices here. **Send a message** (Title, Message, To, **Send now**) pushes a one-off message. See [Notifications](../using/notifications.md#sending-a-message-now).
 
-## Passkeys
+## Parent devices
 
-Add a passkey on this device, **Use a security key or another device**, **Add a passkey on another device** (QR), rename, remove, and **Sign out**. See [Sign-in & security](../using/sign-in-and-security.md#passkeys).
+Phones and computers that sign in with a passkey. Parents (admins) can change everything. **Add a passkey on this phone or computer**, **Use a security key or another device**, **Add another parent's phone or computer** (a QR code to scan there), rename, remove, and **Sign out**. See [Sign-in & security](../using/sign-in-and-security.md#passkeys).
 
 ## Recovery codes
 

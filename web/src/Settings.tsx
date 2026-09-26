@@ -971,7 +971,7 @@ function ScreenFocusRows() {
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
         <div className="device-pref-row">
           <span>Show only</span>
-          {focusLocked ? <span className="settings-row-sub" style={{ margin: 0 }}>{focus ? `${focus.avatar} ${focus.name}` : 'Everyone'} · Set by an admin</span> : (
+          {focusLocked ? <span className="settings-row-sub" style={{ margin: 0 }}>{focus ? `${focus.avatar} ${focus.name}` : 'Everyone'} · Set by a parent</span> : (
           <select className="settings-select" aria-label="Show only" value={focus?.id ?? ''}
             onChange={e => { set({ focusMemberId: e.target.value || undefined }); announce(e.target.value ? `Showing only ${members.find(m => m.id === e.target.value)?.name}` : 'Showing everyone') }}>
             <option value="">Everyone</option>
@@ -1152,7 +1152,7 @@ function TroubleshootSection({ keyName }: { keyName?: string }) {
       ) : keyName !== undefined && (
         <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
           <button className="btn btn-danger" onClick={unpair}>Unpair this display</button>
-          <div className="settings-row-sub">Clears the key stored on this device and returns to the pairing screen. This doesn't revoke the key. Do that from an admin device under Settings → Access → Displays.</div>
+          <div className="settings-row-sub">Clears the key stored on this device and returns to the pairing screen. This doesn't revoke the key. A parent can do that under Settings → Access → Wall screens & kids' devices.</div>
         </div>
       )}
     </Section>
@@ -1716,7 +1716,8 @@ function PasskeysSection({ me, toast, onChanged }: { me: Me; toast: (m: string, 
   }
 
   return (
-    <Section id="passkeys" title="Passkeys" icon={<KeyIcon width={16} height={16} />}>
+    <Section id="passkeys" title="Parent devices" icon={<KeyIcon width={16} height={16} />}>
+      <p className="settings-row-sub">Phones and computers that sign in with a passkey. Parents (admins) can change everything.</p>
       {me.kind === 'session' && (
         <div className="settings-row">
           <div className="settings-row-label">{me.keyName === 'Recovery code' ? 'Signed in with a recovery code' : 'Signed in with a passkey'}</div>
@@ -1755,18 +1756,18 @@ function PasskeysSection({ me, toast, onChanged }: { me: Me; toast: (m: string, 
         </div>
       ) : (
         <>
-          <button className="add-row-btn" onClick={() => { setName('This device'); setCreating('default') }}><PlusIcon width={20} height={20} />Add a passkey on this device</button>
+          <button className="add-row-btn" onClick={() => { setName('This device'); setCreating('default') }}><PlusIcon width={20} height={20} />Add a passkey on this phone or computer</button>
           <button className="link-btn" style={{ minHeight: 44 }} onClick={() => { setName('Security key'); setCreating('cross-platform') }}>Use a security key or another device</button>
         </>
       )}
       {qr ? (
         <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'center', gap: 10 }}>
           <QrCode value={new URL(`#/admin-setup?token=${qr.token}`, document.baseURI).href} size={168} />
-          <div className="settings-row-sub">Scan with another phone or computer to add a passkey there.</div>
+          <div className="settings-row-sub">Scan with the other parent's phone or computer to make it a parent device.</div>
           <button className="link-btn" onClick={() => setQr(null)}>Done</button>
         </div>
       ) : (
-        <button className="add-row-btn" onClick={startAnotherDevice}><PlusIcon width={20} height={20} />Add a passkey on another device</button>
+        <button className="add-row-btn" onClick={startAnotherDevice}><PlusIcon width={20} height={20} />Add another parent's phone or computer</button>
       )}
     </Section>
   )
@@ -1797,9 +1798,9 @@ function SecondWayInNudge({ tick }: { tick: number }) {
   }
   return (
     <div className="new-key-banner">
-      <div className="settings-row-label">Add a second way in — a second passkey or recovery codes — so losing one device doesn't lock the family out.</div>
+      <div className="settings-row-label">Add a second way in, like another parent's phone or recovery codes, so losing one device doesn't lock the family out.</div>
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-        <button className="link-btn" onClick={() => jump('passkeys')}>Passkeys</button>
+        <button className="link-btn" onClick={() => jump('passkeys')}>Parent devices</button>
         <button className="link-btn" onClick={() => jump('recovery-codes')}>Recovery codes</button>
         <button className="link-btn" style={{ marginLeft: 'auto' }} onClick={dismiss}>Not now</button>
       </div>
@@ -1977,7 +1978,7 @@ function DisplaysSection({ toast }: { toast: (m: string, persist?: boolean) => v
   const { reloadCore } = useApp()
   const [keys, setKeys] = useState<ApiKey[]>([])
   const [code, setCode] = useState('')
-  const [name, setName] = useState('Wall display')
+  const [name, setName] = useState('Wall screen')
   const [busy, setBusy] = useState(false)
   const [adding, setAdding] = useState(false)
   const load = () => { api.getKeys().then(ks => setKeys(ks.filter(k => k.scope === 'display'))).catch(() => {}) }
@@ -2008,8 +2009,9 @@ function DisplaysSection({ toast }: { toast: (m: string, persist?: boolean) => v
   }
 
   return (
-    <Section title="Displays" icon={<MonitorIcon width={16} height={16} />}>
-      {keys.length === 0 && <p className="settings-row-sub">No displays yet. Open Kinwall on the wall screen and choose "Set up as a wall display" to get a code.</p>}
+    <Section title="Wall screens & kids' devices" icon={<MonitorIcon width={16} height={16} />}>
+      <p className="settings-row-sub">Paired with a code. They get the calendar, chores and lists, but not settings, and can be shared or belong to one kid.</p>
+      {keys.length === 0 && <p className="settings-row-sub">None yet. Open Kinwall on the screen and choose "Set up a wall screen or kid's device" to get a code.</p>}
       {keys.map(k => (
         <div key={k.id} className="key-item">
           <div>
@@ -2023,12 +2025,12 @@ function DisplaysSection({ toast }: { toast: (m: string, persist?: boolean) => v
           <button className="icon-btn" onClick={() => revoke(k)} aria-label={`Remove ${k.name}`}><TrashIcon width={16} height={16} /></button>
         </div>
       ))}
-      <button className="add-row-btn" onClick={() => setAdding(true)}><PlusIcon width={20} height={20} />Add a display</button>
+      <button className="add-row-btn" onClick={() => setAdding(true)}><PlusIcon width={20} height={20} />Add a wall screen or kid's device</button>
 
       {adding && (
-        <Sheet title="Add a display" onClose={() => setAdding(false)}
-          actions={<button className="btn btn-primary btn-block" onClick={pair} disabled={busy || code.length !== 6 || !name.trim()}>{busy ? 'Pairing…' : 'Pair display'}</button>}>
-          <p className="settings-row-sub" style={{ marginBottom: 14 }}>On the wall screen, choose "Set up as a wall display", then enter the 6-digit code it shows. Scanning its QR code with your phone works too.</p>
+        <Sheet title="Add a wall screen or kid's device" onClose={() => setAdding(false)}
+          actions={<button className="btn btn-primary btn-block" onClick={pair} disabled={busy || code.length !== 6 || !name.trim()}>{busy ? 'Pairing…' : 'Add it'}</button>}>
+          <p className="settings-row-sub" style={{ marginBottom: 14 }}>On that screen, open Kinwall, choose "Set up a wall screen or kid's device", then enter the 6-digit code it shows. Scanning its QR code with your phone works too.</p>
           <div className="row-2">
             <div className="field">
               <label>Code</label>
@@ -2046,9 +2048,9 @@ function DisplaysSection({ toast }: { toast: (m: string, persist?: boolean) => v
             </div>
           </div>
           <div className="field">
-            <label htmlFor="pair-owner">Belongs to</label>
+            <label htmlFor="pair-owner">Who uses it</label>
             <OwnerSelect id="pair-owner" value={owner} onChange={setOwner} />
-            <p className="settings-row-sub">A display for one person shows only their events, chores and lists. Only an admin can change this later.</p>
+            <p className="settings-row-sub">A kid's device shows only their events, chores and lists. Only a parent can change this later.</p>
           </div>
         </Sheet>
       )}

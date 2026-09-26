@@ -4,12 +4,12 @@
 
 ## 1. Pair the display
 
-1. On the iPad, open `https://<your-kinwall>` in Safari and tap **Set up as a wall display**. It shows **Set up this display** with a 6-digit code and a QR code. The code is valid for 10 minutes.
-2. Approve it from an admin device, either way:
-   * scan the QR code with your phone and approve with your passkey, or
-   * on your phone or computer, open **Settings → Access → Displays → Add a display**, then enter the **Code** and a **Name** (default "Wall display") and tap **Pair display**.
+1. On the iPad, open `https://<your-kinwall>` in Safari and tap **Set up a wall screen or kid's device**. It shows **Set up this screen** with a 6-digit code and a QR code. The code is valid for 10 minutes.
+2. Approve it from a parent's phone or computer (a device signed in with a passkey, which has admin rights), either way:
+   * scan the QR code and tap **Approve as a parent**, or
+   * open **Settings → Access → Wall screens & kids' devices → Add a wall screen or kid's device**, then enter the **Code** and a **Name** (default "Wall screen") and tap **Add it**.
 
-   Either way you also pick who it **Belongs to**: **Shared (the whole family)** for a kitchen wall, or one member (say Maya, for her bedroom) to show only their things. Only an admin can change it later, under **Settings → Access → Displays**.
+   Either way you also pick **Who uses it**: **Shared (the whole family)** for a kitchen wall, or one kid (say Maya, for her tablet or bedroom screen) to show only their things. Only a parent can change it later, under **Settings → Access → Wall screens & kids' devices**.
 3. The display shows "You're connected! 🎉" and loads the calendar. It now holds a **display** key, which can't manage members, accounts, keys or webhooks.
 
 You can also tap **Enter a key manually** on the sign-in screen and paste any API key.
