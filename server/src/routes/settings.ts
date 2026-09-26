@@ -3,6 +3,7 @@ import { createRoute, type z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
 import { emit } from '../bus.ts';
+import { schemeContrastFailures } from '../colors.ts';
 import { COLOR_SCHEMES, CUSTOM_SCHEME_ID_RE, CustomSchemeSchema, ErrorSchema, LocationSchema, SettingsPatchSchema, SettingsSchema } from '../schemas.ts';
 
 export const settingsRoutes = createRouter();
@@ -157,7 +158,11 @@ settingsRoutes.openapi(
     },
   }),
   async (c) => {
-    const writes = settingsWrites(c.env.DB, c.req.valid('json'));
+    const body = c.req.valid('json');
+    // A saved scheme must be readable in both modes, the same bar as the app's editor.
+    const failures = (body.customSchemes ?? []).flatMap(schemeContrastFailures);
+    if (failures.length) return c.json({ error: `Not enough contrast. ${failures.join('. ')}.` }, 400);
+    const writes = settingsWrites(c.env.DB, body);
     if (writes.length) await c.env.DB.batch(writes);
     emit(c, 'settings.changed', {});
     return c.json(await readSettings(c.env.DB), 200);

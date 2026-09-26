@@ -62,7 +62,8 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 
 | Tool | Does |
 |---|---|
-| `get_household` | Settings (family name, timezone, week start), members and a calendar summary. |
+| `get_household` | Settings (family name, timezone, week start, color scheme), members and a calendar summary. |
+| `list_color_schemes` | The household's color scheme and every scheme it can use: Seasonal, the built-in schemes by the name people see (Peach is the default, Meadow the green one), and the family's own schemes with their light and dark palettes. |
 | `list_events` | Events across all calendars in a range (default: today plus 7 days). Can filter by member or calendar. |
 | `get_event` | One event by ID (the series row for a recurring local event). |
 | `get_event_items` | List items linked to an event, across all lists, open first, with list names. |
@@ -101,10 +102,14 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 | `update_category` | Changes a category's name, emoji, color or keywords. |
 | `send_notification` | Pushes a message now to devices following given members, or all devices (admin). It also appears in the in-app notification feed. |
 
+| `set_color_scheme` | Sets the household's color scheme by name ("Peach", "Meadow", "Seasonal", or one of the family's own). Devices that follow the family setting switch to it; a device that picked its own scheme in the app keeps it. |
+| `save_color_scheme` | Creates one of the family's own schemes, or overwrites one (`replace`). Takes four colors per mode (`light` and `dark`: `bg`, `card`, `text`, `accent`). Refused, with the ratios that fell short, unless text and dim text reach 4.5:1 on the background and cards in both modes. Up to 10 per family. `use: true` also makes it the household's scheme. |
+
 ### Delete
 
 | Tool | Does |
 |---|---|
+| `delete_color_scheme` | Deletes one of the family's own schemes. If the household was using it, the household goes back to Peach. |
 | `delete_event` | Deletes an event (the whole series for recurring local events). This also deletes it at the provider. |
 
 ## Output schemas

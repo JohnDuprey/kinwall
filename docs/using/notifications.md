@@ -41,7 +41,7 @@ On an admin device, **Settings → Access → Notifications** lists every subscr
 Every notification Kinwall sends is also kept in the app, whether or not any device has push turned on. Tap the **bell** next to the family avatars in the header, on the wall and on phones. The red badge counts what's new since this device last opened the feed (shown as "9+" past nine).
 
 * The **Notifications** sheet lists them newest first, grouped **Today**, **Yesterday**, then by date. Each shows an icon for its kind (🔔 reminder, ☀️ daily summary, ✅ chore reminder, 🛒 list update, 💬 message), the title, the first two lines, how long ago, and who it was for.
-* Tapping one with a link opens it, just like tapping the push: a reminder opens its event, a chore reminder opens Chores.
+* Tapping one with a link opens it, just like tapping the push: a reminder opens its event, a chore reminder opens Chores, and a list update opens that list.
 * **Read state is per device**, like the other "on this device" settings. Opening the feed clears the badge; **Mark all read** clears the unread highlight in the list. A device's first visit starts caught up.
 * The feed keeps the **household** copy: a reminder is listed once, not once per phone. The daily summary and chore reminder are listed once a day at their default times (07:30 and 08:00), or earlier if a device has picked an earlier time. They cover the whole family, since the wall isn't following anyone in particular.
 * Admins get a **Send a message** button at the bottom of the sheet, the same form as in Settings → Access.

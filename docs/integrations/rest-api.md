@@ -64,6 +64,8 @@ On Workers, the free-tier quota (100k requests/day) is the practical ceiling. Se
 | Area | Routes |
 |---|---|
 | Household | `GET/PATCH /api/settings`, `GET /api/appearance`, `GET /api/me`, `GET /api/rev`, `GET /api/health` |
+
+Color settings on `PATCH /api/settings`: `colorScheme` is a built-in id (`meadow` is shown as Peach, `field` as Meadow, plus `ocean`, `lavender`, `midnight`, `spring`, `summer`, `autumn`, `winter`, `harvest`, `festive`), `seasonal`, or a `customSchemes` id. `customSchemes` is the family's own schemes, up to 10, each `{ id: "custom-…", name, emoji, light, dark }` with `light`/`dark` as `{ bg, card, text, accent }` hex colors. A scheme whose text or derived dim text is under 4.5:1 on its background or cards, in either mode, is refused with 400 and the failing pairs. `accent`, `backgroundLight`, `backgroundDark` and `customColors` are kept for older clients.
 | Setup | `GET /api/setup`, `POST /api/setup/claim` |
 | Members | `GET/POST /api/members`, `PATCH/DELETE /api/members/{id}` |
 | Calendars | `GET/POST /api/calendars`, `PATCH/DELETE /api/calendars/{id}`, `POST /api/calendars/{id}/sync` |

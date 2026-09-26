@@ -591,7 +591,7 @@ test('feed: a list update is recorded even when no device follows list updates',
   assert.equal(rows.length, 1);
   assert.equal(rows[0].kind, 'list');
   assert.equal(rows[0].body, 'Groceries has new items');
-  assert.equal(rows[0].url, '/lists');
+  assert.equal(rows[0].url, `/#/lists?list=${list.id}`); // tap opens that list
 });
 
 test('feed: /api/notify records a message (source api) with no subscriptions; the route orders, pages, and is display-readable', async () => {

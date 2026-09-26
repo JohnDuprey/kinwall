@@ -71,7 +71,7 @@ It checks once an hour, so it switches on the same day a season changes.
 
 ## Your own color schemes
 
-Tap **Customize** under the scheme chips to make a scheme of your own. It starts as a copy of the scheme you're on, and opens in a sheet with both modes side by side:
+Tap **+ New scheme** (under **Your schemes**, the last row of chips) to make a scheme of your own. It starts as a copy of the scheme you're on, and opens in a sheet with both modes side by side:
 
 * **Light mode** and **Dark mode** each have **Background**, **Cards**, **Text** and **Accent**, plus a live preview of a card.
 * The softer background, borders and dim text are worked out from your colors.
@@ -82,7 +82,9 @@ Give it a name and an emoji and save. The scheme is saved for the whole family a
 * Made from **Appearance**, it becomes the family's scheme.
 * Made from **Appearance on this device**, only this device switches to it. Other devices can still pick it.
 
-When a saved scheme is selected, **Edit *name*** reopens it, and **Duplicate** starts a new one from it. Deleting a scheme (in the sheet) moves any screen using it back to Peach. A family can keep up to 10 schemes.
+The same contrast rule applies to schemes saved through the [REST API](../integrations/rest-api.md) or the [MCP server](../integrations/mcp.md), so a family's schemes are always readable.
+
+When a saved scheme is selected, **Edit *name*** reopens it, and **+ New scheme** starts a new one from it. Deleting a scheme (in the sheet) moves any screen using it back to Peach. A family can keep up to 10 schemes.
 
 ### Custom colors from an earlier version
 

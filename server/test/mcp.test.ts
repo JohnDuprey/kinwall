@@ -78,6 +78,7 @@ test('mcp: tools/list returns the tools', async () => {
     'create_chore',
     'create_event',
     'create_list',
+    'delete_color_scheme',
     'delete_event',
     'get_board',
     'get_event',
@@ -89,11 +90,14 @@ test('mcp: tools/list returns the tools', async () => {
     'get_snapshot',
     'list_categories',
     'list_chores',
+    'list_color_schemes',
     'list_events',
     'list_lists',
     'list_notes',
     'list_notifications',
+    'save_color_scheme',
     'send_notification',
+    'set_color_scheme',
     'set_event_category',
     'set_list_item_done',
     'set_step_done',
@@ -418,6 +422,16 @@ test('mcp: every tool declares an output schema, and real results pass it', asyn
   assert.equal((await call('get_snapshot', { member: 'ava', range: 'week' })).tomorrow, null);
   assert.match((await call('get_board', {})).board.today, /^\d{4}-\d{2}-\d{2}$/);
   await call('get_board', { days: 3 });
+  // Color schemes: pick a built-in by the name people see, save one of the family's own, delete it.
+  assert.equal((await call('set_color_scheme', { scheme: 'Meadow' })).settings.colorScheme, 'field');
+  const palette = { light: { bg: '#FFF8EE', card: '#FFFFFF', text: '#2B2118', accent: '#1F7A8C' }, dark: { bg: '#10181B', card: '#18242A', text: '#EAF2F4', accent: '#1F7A8C' } };
+  const saved = await call('save_color_scheme', { name: 'Beach house', emoji: '🏖️', ...palette, use: true });
+  assert.match(saved.scheme.id, /^custom-/);
+  assert.equal(saved.settings.colorScheme, saved.scheme.id);
+  const listed = await call('list_color_schemes');
+  assert.equal(listed.current, saved.scheme.id);
+  assert.ok(listed.schemes.some((x: any) => x.name === 'Peach' && x.id === 'meadow'));
+  assert.equal((await call('delete_color_scheme', { scheme: 'beach house' })).settings.colorScheme, 'meadow');
   const list = (await call('create_list', { name: 'Groceries', kind: 'shopping', emoji: '🛒' })).list;
   const [item] = (await call('add_list_items', { listName: 'groceries', items: [{ title: 'Milk', store: 'Costco', category: 'Dairy', quantity: '2', eventId: ev.id }] })).items;
   assert.equal(item.eventId, ev.id);
@@ -446,4 +460,14 @@ test('mcp: every tool declares an output schema, and real results pass it', asyn
   assert.equal((await call('update_note', { noteId: note.id, body: 'Bring roses' })).note.body, 'Bring roses');
   assert.deepEqual((await call('list_notes', { target: `event:${ev.id}` })).notes.map((n: any) => n.body), ['Bring roses']);
   await call('delete_event', { id: ev.id });
+});
+
+test('mcp: save_color_scheme refuses a scheme that fails contrast, and names the pair', async () => {
+  const env = makeEnv();
+  const { mcp } = makeApp(env);
+  const body = await (await mcp('tools/call', { name: 'save_color_scheme', arguments: {
+    name: 'Murky', light: { bg: '#FFFFFF', card: '#FFFFFF', text: '#BBBBBB', accent: '#1F7A8C' }, dark: { bg: '#111111', card: '#1A1A1A', text: '#EEEEEE', accent: '#1F7A8C' },
+  } })).json() as any;
+  assert.equal(body.result.isError, true);
+  assert.match(body.result.content[0].text, /Murky \(light mode\): Text on background is/);
 });

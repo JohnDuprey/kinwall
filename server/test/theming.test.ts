@@ -182,3 +182,14 @@ test('custom color schemes: save, select, validate, cap and delete', async () =>
   assert.deepEqual(body.customSchemes, []);
   assert.equal(body.colorScheme, 'meadow');
 });
+
+test('custom color schemes: the server refuses a palette that fails contrast in either mode', async () => {
+  const request = makeApp(makeEnv());
+  const ok = { id: 'custom-okay1', name: 'Fine', emoji: '', light: { bg: '#FFFFFF', card: '#FFFFFF', text: '#222222', accent: '#1F7A8C' }, dark: { bg: '#111111', card: '#1A1A1A', text: '#EEEEEE', accent: '#1F7A8C' } };
+  assert.equal((await request('/api/settings', { method: 'PATCH', body: JSON.stringify({ customSchemes: [ok] }) })).status, 200);
+  const badDark = { ...ok, id: 'custom-bad01', name: 'Murky', dark: { ...ok.dark, text: '#333333' } };
+  const res = await request('/api/settings', { method: 'PATCH', body: JSON.stringify({ customSchemes: [ok, badDark] }) });
+  assert.equal(res.status, 400);
+  assert.match(((await res.json()) as any).error, /Murky \(dark mode\): Text on background is \d/);
+  assert.deepEqual(((await (await request('/api/settings')).json()) as any).customSchemes.map((x: any) => x.id), ['custom-okay1']); // nothing saved
+});

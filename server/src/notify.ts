@@ -403,7 +403,7 @@ export function notifyListUpdate(env: Env, execCtx: WaitCtx | undefined, listId:
       const key = `list:${listId}:${bucket}`;
       if (await alreadySent(env.DB, key)) return;
       await markSent(env.DB, key, now);
-      const payload = { title: 'List updated', body: `${listName} has new items`, url: '/lists', tag: `list:${listId}` };
+      const payload = { title: 'List updated', body: `${listName} has new items`, url: `/#/lists?list=${encodeURIComponent(listId)}`, tag: `list:${listId}` }; // tap opens that list
       await recordNotification(env.DB, { kind: 'list', title: payload.title, body: payload.body, url: payload.url, source: 'system', at: now });
       const { results } = await env.DB.prepare('SELECT * FROM push_subscriptions').all<PushSubRow>();
       for (const sub of results.filter((s) => subPrefs(s).listUpdates)) await sendToSub(env, env.DB, sub, payload);

@@ -238,7 +238,7 @@ button {
 .app-shell-rail .fab { bottom: 10px; right: 14px; }
 .app-shell-rail .toast { bottom: calc(var(--safe-b) + 16px); }
 .demo-bar { position: fixed; top: 0; left: 0; right: 0; z-index: 200; height: calc(env(safe-area-inset-top, 0px) + 28px); padding-top: env(safe-area-inset-top, 0px); display: flex; align-items: center; justify-content: center; background: var(--accent-strong); color: #fff; font-size: 0.8125rem; font-weight: 700; letter-spacing: 0.01em; }
-.toast.update-banner { top: calc(var(--safe-t) + 12px); bottom: auto; border: none; font-family: inherit; cursor: pointer; }
+.toast.update-banner { top: calc(var(--safe-t) + 28px); bottom: auto; border: none; font-family: inherit; cursor: pointer; white-space: nowrap; max-width: calc(100vw - 32px); } /* below the status bar's fade, like the phone header */
 
 .nav-rail {
   width: var(--rail-w);

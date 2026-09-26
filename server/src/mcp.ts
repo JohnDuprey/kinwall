@@ -16,7 +16,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { hostTimezone } from './env.ts';
 import { effectivePublicUrl } from './providers/config.ts';
-import { BoardSchema, CalendarSchema, CategorySchema, ChoreDaySchema, ChoreSchema, EventInstanceSchema, LeaderboardEntrySchema, ListDetailSchema, ListItemSchema, ListSchema, MemberSchema, NoteSchema, NotificationSchema, PointsSchema, SettingsSchema, SnapshotSchema } from './schemas.ts';
+import { BoardSchema, CalendarSchema, CategorySchema, ChoreDaySchema, ChoreSchema, EventInstanceSchema, LeaderboardEntrySchema, ListDetailSchema, ListItemSchema, ListSchema, MemberSchema, NoteSchema, NotificationSchema, PointsSchema, SettingsSchema, SnapshotSchema, CustomSchemeSchema, MAX_CUSTOM_SCHEMES } from './schemas.ts';
 import type { Env } from './env.ts';
 import { VERSION } from './version.ts';
 import { resolveKey } from './auth.ts';
@@ -136,6 +136,17 @@ function jsonList<T extends z.ZodTypeAny>(schema: T) {
 // Permission groups. readOnly: only reads. destructive: removes something. openWorld: reaches
 // outside Kinwall (writes to Google/Outlook, or pushes to phones). idempotent: repeating the same
 // call changes nothing more.
+const PaletteOut = z.object({ bg: z.string(), card: z.string(), text: z.string(), accent: z.string() });
+
+// Built-in color schemes as people see them in Settings (web/src/skins.ts). The ids are what the
+// settings store; note 'meadow' is shown as Peach and 'field' as Meadow.
+const BUILTIN_SCHEMES: { id: string; name: string; emoji: string }[] = [
+  { id: 'meadow', name: 'Peach', emoji: '🍑' }, { id: 'field', name: 'Meadow', emoji: '🌿' }, { id: 'ocean', name: 'Ocean', emoji: '🌊' },
+  { id: 'lavender', name: 'Lavender', emoji: '💜' }, { id: 'midnight', name: 'Midnight', emoji: '🌌' }, { id: 'spring', name: 'Spring', emoji: '🌸' },
+  { id: 'summer', name: 'Summer', emoji: '☀️' }, { id: 'autumn', name: 'Autumn', emoji: '🍂' }, { id: 'winter', name: 'Winter', emoji: '❄️' },
+  { id: 'harvest', name: 'Harvest', emoji: '🎃' }, { id: 'festive', name: 'Festive', emoji: '🎄' },
+];
+
 const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
 const WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false };
 const SET = { ...WRITE, idempotentHint: true };
@@ -180,10 +191,18 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
   update_note: { note: NoteSchema },
   get_snapshot: SnapshotSchema.shape,
   get_board: { board: BoardSchema },
+  list_color_schemes: {
+    current: z.string(),
+    schemes: z.array(z.object({ id: z.string(), name: z.string(), emoji: z.string(), kind: z.enum(['built-in', 'seasonal', 'custom']), light: PaletteOut.optional(), dark: PaletteOut.optional() })),
+  },
+  set_color_scheme: { settings: SettingsSchema },
+  save_color_scheme: { scheme: CustomSchemeSchema, settings: SettingsSchema },
+  delete_color_scheme: { settings: SettingsSchema },
 };
 
 const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boolean; idempotentHint: boolean; openWorldHint: boolean }> = {
-  get_household: READ, list_events: READ, get_event: READ, list_chores: READ, get_leaderboard: READ, get_points: READ, list_lists: READ, get_list: READ, list_categories: READ, get_event_items: READ, list_notifications: READ, list_notes: READ, get_snapshot: READ, get_board: READ,
+  get_household: READ, list_events: READ, get_event: READ, list_chores: READ, get_leaderboard: READ, get_points: READ, list_lists: READ, get_list: READ, list_categories: READ, get_event_items: READ, list_notifications: READ, list_notes: READ, get_snapshot: READ, get_board: READ, list_color_schemes: READ, set_color_scheme: SET, save_color_scheme: WRITE,
+  delete_color_scheme: { ...WRITE, destructiveHint: true, idempotentHint: true },
   create_event: { ...WRITE, openWorldHint: true }, update_event: { ...SET, openWorldHint: true }, set_event_category: SET,
   create_chore: WRITE, update_chore: SET, complete_chore: SET, uncomplete_chore: SET, add_member: WRITE, update_member: SET,
   create_list: WRITE, update_list: SET, add_list_items: WRITE, update_list_item: SET, set_list_item_done: SET, set_step_done: SET, update_category: SET, add_note: WRITE, update_note: SET,
@@ -1027,6 +1046,132 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       const res = await call(app, env, auth, 'PATCH', `/api/notes/${encodeURIComponent(noteId)}`, { body });
       if (res.status >= 400) return errorResult(res.json, 'failed to update note');
       return okResult('Note updated.', { note: res.json as Record<string, unknown> });
+    },
+  );
+  // ---- Color schemes: the household's scheme and the family's own saved schemes. A device can
+  // override the scheme in the app, but that's stored on the device, so it isn't reachable here.
+  type Custom = z.infer<typeof CustomSchemeSchema>;
+  const loadSchemes = async () => {
+    const res = await call(app, env, auth, 'GET', '/api/settings');
+    if (res.status >= 400) return { ok: false as const, error: errorResult(res.json, 'failed to load settings') };
+    const settings = res.json as { colorScheme: string; customSchemes: Custom[] };
+    return { ok: true as const, settings, customs: settings.customSchemes ?? [] };
+  };
+  const findScheme = (ref: string, customs: Custom[]): { id: string; name: string } | null => {
+    const r = ref.trim().toLowerCase();
+    if (r === 'seasonal') return { id: 'seasonal', name: 'Seasonal' };
+    // Names first: "Meadow" is the green scheme, even though Peach's id is 'meadow'.
+    const all = [...BUILTIN_SCHEMES, ...customs];
+    return all.find((x) => x.name.toLowerCase() === r) ?? all.find((x) => x.id.toLowerCase() === r) ?? null;
+  };
+  const schemeNames = (customs: Custom[]) => ['Seasonal', ...BUILTIN_SCHEMES.map((b) => b.name), ...customs.map((c) => c.name)].join(', ');
+  const PaletteIn = z.object({
+    bg: z.string().describe('Background, #RRGGBB.'),
+    card: z.string().describe('Cards, #RRGGBB.'),
+    text: z.string().describe('Text, #RRGGBB.'),
+    accent: z.string().describe('Accent for buttons and highlights, #RRGGBB. Buttons deepen it as needed for readable labels.'),
+  });
+
+  tool(
+    'list_color_schemes',
+    {
+      title: 'List color schemes',
+      description:
+        "The household's color scheme and every scheme it can use: Seasonal, the built-in schemes (by the name people see, " +
+        'e.g. Peach is the default and Meadow is the green one), and the family\'s own saved schemes with their light and dark palettes.',
+      inputSchema: {},
+    },
+    async () => {
+      const got = await loadSchemes();
+      if (!got.ok) return got.error;
+      const { settings, customs } = got;
+      const schemes = [
+        { id: 'seasonal', name: 'Seasonal', emoji: '🗓️', kind: 'seasonal' as const },
+        ...BUILTIN_SCHEMES.map((b) => ({ ...b, kind: 'built-in' as const })),
+        ...customs.map((c) => ({ id: c.id, name: c.name, emoji: c.emoji, kind: 'custom' as const, light: c.light, dark: c.dark })),
+      ];
+      const current = findScheme(settings.colorScheme, customs)?.name ?? settings.colorScheme;
+      return okResult(`The household uses ${current}. ${schemes.length} schemes available (${customs.length} of the family's own).`, { current: settings.colorScheme, schemes });
+    },
+  );
+
+  tool(
+    'set_color_scheme',
+    {
+      title: 'Set color scheme',
+      description: "Set the household's color scheme, for every device that follows the family setting. Use a name from list_color_schemes (or Seasonal).",
+      inputSchema: { scheme: z.string().describe('Scheme name or id, e.g. "Peach", "Meadow", "Seasonal", or one of the family\'s own.') },
+    },
+    async ({ scheme }) => {
+      const got = await loadSchemes();
+      if (!got.ok) return got.error;
+      const found = findScheme(scheme, got.customs);
+      if (!found) return errorResult(null, `No color scheme called "${scheme}". Choose one of: ${schemeNames(got.customs)}.`);
+      const res = await call(app, env, auth, 'PATCH', '/api/settings', { colorScheme: found.id });
+      if (res.status >= 400) return errorResult(res.json, 'failed to set the color scheme');
+      return okResult(`The household now uses ${found.name}.`, { settings: res.json as Record<string, unknown> });
+    },
+  );
+
+  tool(
+    'save_color_scheme',
+    {
+      title: 'Save a color scheme',
+      description:
+        "Create one of the family's own color schemes, or replace one (pass `replace`). Give four colors for light mode and four for dark mode. " +
+        'Text must reach 4.5:1 contrast on the background and on cards in both modes (dim text is derived and checked too); a failing scheme ' +
+        `is refused with the ratios that fell short. A family can keep up to ${MAX_CUSTOM_SCHEMES}. Set use: true to make it the household's scheme.`,
+      inputSchema: {
+        name: z.string().describe('Up to 30 characters.'),
+        emoji: z.string().optional().describe('One emoji shown on its chip.'),
+        light: PaletteIn,
+        dark: PaletteIn,
+        replace: z.string().optional().describe("Name or id of one of the family's own schemes to overwrite."),
+        use: z.boolean().optional().describe("Also make it the household's scheme. Default false."),
+      },
+    },
+    async ({ name, emoji, light, dark, replace, use }) => {
+      const got = await loadSchemes();
+      if (!got.ok) return got.error;
+      const { customs } = got;
+      let id: string;
+      if (replace) {
+        const target = customs.find((c) => c.id === replace || c.name.toLowerCase() === replace.trim().toLowerCase());
+        if (!target) return errorResult(null, `The family has no scheme called "${replace}" to replace.`);
+        id = target.id;
+      } else {
+        if (customs.length >= MAX_CUSTOM_SCHEMES) return errorResult(null, `The family already has ${MAX_CUSTOM_SCHEMES} schemes. Delete one or pass replace.`);
+        if (findScheme(name, customs)) return errorResult(null, `A scheme called "${name}" already exists. Pick another name, or pass replace to overwrite one of the family's own.`);
+        id = `custom-${crypto.randomUUID().replace(/-/g, '').slice(0, 10)}`;
+      }
+      const scheme = { id, name: name.trim(), emoji: emoji ?? '🎨', light, dark };
+      const list = replace ? customs.map((c) => (c.id === id ? scheme : c)) : [...customs, scheme];
+      const res = await call(app, env, auth, 'PATCH', '/api/settings', { customSchemes: list, ...(use ? { colorScheme: id } : {}) });
+      if (res.status >= 400) return errorResult(res.json, 'failed to save the color scheme');
+      const saved = (res.json as { customSchemes: Custom[] }).customSchemes.find((c) => c.id === id)!;
+      return okResult(`Saved ${saved.name}${use ? ' and made it the household\'s scheme' : ''}.`, { scheme: saved, settings: res.json as Record<string, unknown> });
+    },
+  );
+
+  tool(
+    'delete_color_scheme',
+    {
+      title: 'Delete a color scheme',
+      description: "Delete one of the family's own color schemes. Screens using it go back to Peach, the default.",
+      inputSchema: { scheme: z.string().describe("Name or id of one of the family's own schemes.") },
+    },
+    async ({ scheme }) => {
+      const got = await loadSchemes();
+      if (!got.ok) return got.error;
+      const { settings, customs } = got;
+      const target = customs.find((c) => c.id === scheme || c.name.toLowerCase() === scheme.trim().toLowerCase());
+      if (!target) return errorResult(null, `The family has no scheme called "${scheme}". Built-in schemes can't be deleted.`);
+      const res = await call(app, env, auth, 'PATCH', '/api/settings', {
+        customSchemes: customs.filter((c) => c.id !== target.id),
+        ...(settings.colorScheme === target.id ? { colorScheme: 'meadow' } : {}),
+      });
+      if (res.status >= 400) return errorResult(res.json, 'failed to delete the color scheme');
+      return okResult(`Deleted ${target.name}.`, { settings: res.json as Record<string, unknown> });
     },
   );
 }
