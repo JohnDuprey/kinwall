@@ -94,6 +94,8 @@ While the filter is on, the Day view shows only that person's column, so an even
 
 Tap the family button at the top left. The family sheet lists everyone, with how many points they've earned today.
 
+<img src="../screenshots/phone-family.png" width="300" alt="The family sheet on a phone: each person with today's points and a Their day button" />
+
 * **Tap a person** to show only them. The row says "Calendar shows only them", and their face moves to the front of the pile on the family button.
 * **Tap them again** to show the whole family.
 * **Their day** opens [their snapshot](snapshot.md), where you can also tick off their chores.

@@ -42,6 +42,8 @@ Overrides are saved in the browser's local storage on that device. They're never
 
 ## Color schemes
 
+<img src="../screenshots/ipad-schemes.png" width="420" alt="The Appearance card: color scheme chips grouped as Automatic, Everyday, Seasons, Holidays and Your schemes" />
+
 A color scheme (a "skin") changes the whole palette: backgrounds, cards, text and accent. The household picks one for every device under **Appearance**. Any device can follow it or pick its own under **Appearance on this device**, so the kitchen wall can use Midnight while phones keep the family's scheme.
 
 **Color scheme** offers eleven skins, each with its own light and dark palette:
@@ -70,6 +72,8 @@ It checks once an hour, so it switches on the same day a season changes.
 **Reset to Peach** (household) sets the family back to the default look. **Use household colors** (device) sets the device back to following the family.
 
 ## Your own color schemes
+
+![The New color scheme sheet, with light and dark mode side by side and every contrast check passing](../screenshots/ipad-scheme-editor.png)
 
 Tap **+ New scheme** (under **Your schemes**, the last row of chips) to make a scheme of your own. It starts as a copy of the scheme you're on, and opens in a sheet with both modes side by side:
 
