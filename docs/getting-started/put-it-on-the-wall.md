@@ -1,6 +1,6 @@
 # Put it on the wall
 
-![Week view on the wall iPad](../screenshots/ipad-week.png)
+![Board view on the wall iPad](../screenshots/ipad-board.png)
 
 ## 1. Pair the display
 

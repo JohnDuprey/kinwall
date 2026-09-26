@@ -2,10 +2,11 @@
 
 Kinwall is an open-source, self-hosted family wall calendar, chore chart and shared lists app. It's built for a wall-mounted iPad and works just as well on phones. It merges Google, Outlook, iCloud/CalDAV and ICS calendars into one color-coded view and gives every family member their own chores and points.
 
-![Week view on a wall-mounted iPad](screenshots/ipad-week.png)
+![Board view on a wall-mounted iPad](screenshots/ipad-board.png)
 
 | | |
 |---|---|
+| ![Board view on a phone](screenshots/phone-board.png) | ![Week view on the wall iPad](screenshots/ipad-week.png) |
 | ![3-day view on a phone](screenshots/phone-3day.png) | ![Chores with leaderboard and streaks](screenshots/ipad-chores.png) |
 
 ## Where to start

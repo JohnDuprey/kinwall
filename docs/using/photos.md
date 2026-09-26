@@ -2,6 +2,8 @@
 
 **Activities → Photos** keeps a small album of family pictures. They show up on the calendar's [Board view](calendar.md#board-view) picture card and, if you choose, in a display's [quiet-hours screensaver](quiet-hours.md#screensaver).
 
+![Photos on the wall iPad](../screenshots/ipad-photos.png)
+
 ## Adding photos
 
 Tap **Add photos** and pick one or more pictures. On an iPhone or iPad this opens your Photos library.

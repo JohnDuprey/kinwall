@@ -2,7 +2,7 @@
 
 The Calendar tab is the main screen. It merges every enabled calendar into one view. Each event is colored by its [category](categories.md), or by its family member if it has no category.
 
-![Week view on the wall iPad](../screenshots/ipad-week.png)
+![Board view on the wall iPad](../screenshots/ipad-board.png)
 
 ## Views
 
@@ -25,6 +25,8 @@ Every device opens on **Board**; the view switcher lists Board first. You can sw
 </p>
 
 ## Board view
+
+![Board view in dark mode](../screenshots/ipad-board-dark.png)
 
 The board carries its own large clock and date, so while it's showing the header keeps only the family name, avatars and buttons.
 

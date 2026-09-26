@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { addDays, addMonths, endOfMonth, endOfWeek, format, isSameMonth, startOfDay, startOfMonth, startOfWeek } from 'date-fns'
 import { useApp } from './AppContext.tsx'
-import { api, ApiError, stripHtmlToText } from './api.ts'
+import { api, ApiError, MOCK, stripHtmlToText } from './api.ts'
 import type { CalendarEntry, Category, EventInstance, List, ListItem } from './types.ts'
 import { REMINDER_OPTIONS, reminderLabel } from './types.ts'
 import { dateKey, formatTime, minutesSinceMidnight, zonedDayKey } from './date.ts'
@@ -114,7 +114,7 @@ export default function CalendarView() {
   // Phones default to the agenda view (a 7-day grid is unreadable that narrow); the wall iPad
   // keeps Week. Only the initial default differs — switching views afterward still works either way.
   // A device can lock the view (This display → Lock view): the switcher goes and it never changes.
-  const [chosenView, setViewMode] = useState<ViewMode>('board') // the board is the default everywhere; a display can still lock any view
+  const [chosenView, setViewMode] = useState<ViewMode>(() => (MOCK && (sessionStorage.getItem('kinwall.demoView') as ViewMode | null)) || 'board') // the board is the default everywhere; a display can still lock any view
   const viewMode: ViewMode = device.lockView ?? chosenView
   // The board carries its own big clock, so the header drops its clock while it's showing.
   useEffect(() => { document.documentElement.dataset.view = viewMode; return () => { delete document.documentElement.dataset.view } }, [viewMode])

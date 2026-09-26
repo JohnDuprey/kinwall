@@ -1,5 +1,7 @@
 # Appearance
 
+![Board view with the Midnight skin](../screenshots/ipad-board-midnight.png)
+
 ![Week view in dark mode](../screenshots/ipad-week-dark.png)
 
 Appearance works on two levels:
