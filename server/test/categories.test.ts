@@ -131,8 +131,11 @@ test('categories: resolution precedence - occurrence override > series override 
   assert.deepEqual([none.categoryId, none.categorySource], [null, null]);
 });
 
+// One start for the whole file: ICS externalIds embed DTSTART, so two feeds built in different
+// seconds would be two different events (and a re-sync would orphan the first one's override).
+const FEED_START = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
 function icsFeed(uid: string, summary: string) {
-  const start = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+  const start = FEED_START;
   const end = new Date(start.getTime() + 60 * 60 * 1000);
   const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
   return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'BEGIN:VEVENT', `UID:${uid}`, `DTSTART:${fmt(start)}`, `DTEND:${fmt(end)}`, `SUMMARY:${summary}`, 'END:VEVENT', 'END:VCALENDAR', ''].join('\r\n');
