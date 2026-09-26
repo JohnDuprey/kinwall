@@ -12,6 +12,12 @@ export function markNativeApp() {
 
 /** Tells the app the page signed out (Unpair, or its key stopped working), so it can refresh an
  * expired sign-in or return to its own sign-in screen. No-op in a browser. */
+/** Tells the app the page now has a key (paired or signed in), so it can set up its widgets. */
+export function tellAppSignedIn() {
+  const w = window as Window & { webkit?: { messageHandlers?: { kinwall?: { postMessage: (m: unknown) => void } } } }
+  try { w.webkit?.messageHandlers?.kinwall?.postMessage({ type: 'signedIn' }) } catch { /* not in the app */ }
+}
+
 export function tellAppSignedOut(reason: 'signOut' | 'rejected') {
   const w = window as Window & { webkit?: { messageHandlers?: { kinwall?: { postMessage: (m: unknown) => void } } } }
   try { w.webkit?.messageHandlers?.kinwall?.postMessage({ type: 'signedOut', reason }) } catch { /* not in the app */ }

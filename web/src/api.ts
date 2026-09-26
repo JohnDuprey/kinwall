@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { tellAppSignedOut } from './native.ts'
+import { tellAppSignedIn, tellAppSignedOut } from './native.ts'
 import { mock } from './mock.ts'
 import type { PasskeyAuthenticator } from './webauthn.ts'
 import type {
@@ -19,6 +19,7 @@ export function getKey(): string | null {
 }
 export function setKey(key: string) {
   localStorage.setItem(KEY_STORAGE, key)
+  tellAppSignedIn()
 }
 /** `rejected`: the server refused the key (revoked, or an app's short-lived key lapsed);
  * `signOut`: the person chose to sign out or unpair. */
