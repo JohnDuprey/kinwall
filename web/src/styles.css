@@ -1471,7 +1471,7 @@ button.notif-item:active { transform: scale(0.99); }
 .notif-avatar:not(:first-child) { margin-left: -6px; box-shadow: 0 0 0 2px var(--bg-alt); }
 @media (max-width: 600px) {
   .header-phone .header-right { gap: 6px; flex-shrink: 0; }
-  .header-phone .header-bell { width: 44px; height: 44px; box-shadow: none; background: transparent; }
+  .header-phone .header-bell, .header-phone .help-btn { width: 44px; height: 44px; box-shadow: none; background: transparent; }
   .bell-badge { top: 0; right: -2px; }
 }
 
