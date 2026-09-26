@@ -705,7 +705,7 @@ export const SnapshotSchema = z
     weather: WeatherSchema.nullable(), // null: no location set, or the forecast couldn't be fetched
     events: z.array(SnapshotEventSchema), // theirs + everyone's (untagged), sorted by start
     chores: z.array(
-      z.object({ id: z.string(), title: z.string(), emoji: z.string().nullable(), points: z.number(), dueTime: z.string().nullable(), date: z.string(), done: z.boolean(), shared: z.boolean() }),
+      z.object({ id: z.string(), title: z.string(), emoji: z.string().nullable(), points: z.number(), dueTime: z.string().nullable(), date: z.string(), done: z.boolean(), doneBy: z.string().nullable(), shared: z.boolean() }), // doneBy: member credited (null = nobody, or not done)
     ),
     items: z.array(SnapshotItemSchema), // assigned to them, open, due by `to` or high/urgent
     birthdays: z.array(SnapshotBirthdaySchema),

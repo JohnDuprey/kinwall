@@ -174,7 +174,10 @@ function scheduleLabel(rrule: string | null): string {
 }
 
 function ChoreCard({ chore, onToggle, onEdit }: { chore: ChoreDay; onToggle: () => void; onEdit: () => void }) {
+  const { members } = useApp()
   const schedule = scheduleLabel(chore.rrule)
+  // An Anyone chore says who got the points once it's done.
+  const by = !chore.memberId && chore.completed ? (members.find(m => m.id === chore.completedBy)?.name ?? 'nobody in particular') : null
   const cl = chore.checklist
   const checklist = cl ? `☑ ${cl.done}/${cl.total} ${cl.name}` : ''
   const [burst, setBurst] = useState(false)
@@ -205,13 +208,13 @@ function ChoreCard({ chore, onToggle, onEdit }: { chore: ChoreDay; onToggle: () 
   return (
     <>
       <div className={`chore-card ${chore.completed ? 'done' : ''}`} role="checkbox" aria-checked={chore.completed} tabIndex={0}
-        aria-label={[chore.title, `${chore.points} points`, schedule, cl ? `checklist ${cl.name} ${cl.done} of ${cl.total} done` : ''].filter(Boolean).join(', ')}
+        aria-label={[chore.title, by && `done by ${by}`, `${chore.points} points`, schedule, cl ? `checklist ${cl.name} ${cl.done} of ${cl.total} done` : ''].filter(Boolean).join(', ')}
         onKeyDown={toggleByKey} onContextMenu={e => { e.preventDefault(); onEdit() }}
         onPointerDown={handleDown} onPointerUp={handleUp} onPointerLeave={() => clearTimeout(pressTimer.current)} onClick={handleClick}>
         <div className="chore-emoji" aria-hidden="true">{chore.emoji}</div>
         <div className="chore-info">
           <div className={`chore-title ${chore.completed ? 'done' : ''}`}>{chore.title}</div>
-          <div className="chore-pts">{[`${chore.points} pts`, schedule, checklist].filter(Boolean).join(' · ')}</div>
+          <div className="chore-pts">{[by && `Done by ${by}`, `${chore.points} pts`, schedule, checklist].filter(Boolean).join(' · ')}</div>
         </div>
         <div className={`chore-check ${chore.completed ? 'done' : ''}`}>
           {chore.completed && <CheckIcon width={18} height={18} />}
@@ -263,7 +266,7 @@ export default function Chores() {
       else if (members.length > 0) { setWhoFor(c); return }
     }
     const creditTo = c.memberId ?? doneBy ?? undefined
-    setChores(list => list.map(x => x.id === c.id ? { ...x, completed: !x.completed } : x)) // optimistic
+    setChores(list => list.map(x => x.id === c.id ? { ...x, completed: !x.completed, completedBy: x.completed ? null : creditTo ?? null } : x)) // optimistic
     // Ticked off for a past day: earns the household's late-completion share (rounded like the server).
     const late = !c.completed && key < dateKey(new Date())
     const pts = late ? Math.round(c.points * settings.lateCompletionCredit / 100) : c.points

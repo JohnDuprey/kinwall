@@ -51,7 +51,7 @@ Every notification Kinwall sends is also kept in the app, whether or not any dev
 
 ## Platform notes
 
-* **iPhone / iPad**: needs **iOS 16.4 or later** and Kinwall **added to the Home Screen** (Share → Add to Home Screen), opened from there. Safari tabs can't receive push at all. Settings says so when it detects Safari.
+* **iPhone / iPad**: needs **iOS 16.4 or later** and Kinwall **added to the Home Screen** (Share → Add to Home Screen), opened from there. Safari tabs can't receive push at all. Settings says so when it detects Safari, and the **Add Kinwall to your Home Screen** card shows how (see [Put it on the wall](../getting-started/put-it-on-the-wall.md)).
 * **Android**: works in Chrome, Firefox or Samsung Internet, installed or not. The status-bar icon is a single-color badge.
 * **Desktop**: any browser with Push API support.
 * A device whose push subscription has expired (the push service answers 404/410) is removed automatically. Turn notifications on again on that device.

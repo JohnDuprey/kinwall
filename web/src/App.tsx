@@ -19,6 +19,7 @@ import { loginWithPasskey, passkeysSupported, registerPasskey } from './webauthn
 import { announce } from './a11y.tsx'
 import { DialogProvider } from './dialog.tsx'
 import NotificationBell from './Notifications.tsx'
+import { InstallNudge } from './Install.tsx'
 import { HelpButton } from './Help.tsx'
 import Slideshow, { SAVER_PREVIEW_EVENT } from './Screensaver.tsx'
 import SnapshotSheet from './Snapshot.tsx'
@@ -767,6 +768,7 @@ function AppRoutes() {
   const tab = useHashTab()
   const [section, sub] = tab.split('/') // #/activities/paint -> nav item 'activities', sub-page 'paint'
   const { mode: navMode } = useNavMode()
+  const isPhone = useIsPhone()
   const { tick: pollTick, unauthorized } = usePoll()
   const [manualTick, setManualTick] = useState(0)
   const { stale: updateAvailable, scope } = useUpdateAvailable(hasKey)
@@ -915,6 +917,7 @@ function AppRoutes() {
         {MOCK && !sessionStorage.getItem('kinwall.demoClean') && <div className="demo-bar" role="status">Demo — nothing is saved. Reload for a fresh copy.</div>}
         {bannerMsg && <button className="toast update-banner" onClick={() => setBannerMsg(null)}>{bannerMsg}</button>}
         {updateAvailable && <button className="toast update-banner" onClick={() => location.reload()}>Kinwall updated — tap to reload</button>}
+        {isPhone && <InstallNudge />}
         <QuietOverlay settings={settings} isDisplay={scope === 'display'} />
       </div>
     </AppContext.Provider>

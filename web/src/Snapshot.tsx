@@ -58,7 +58,7 @@ export default function SnapshotSheet({ member, onClose }: { member: Member; onC
   // counts for them. The server refuses a chore whose checklist has open items (409): open the
   // checklist instead, and complete the chore from there.
   const [checklistFor, setChecklistFor] = useState<ChoreDay | null>(null)
-  const setDone = (id: string, done: boolean) => setSnap(s => s && { ...s, chores: s.chores.map(x => x.id === id ? { ...x, done } : x) })
+  const setDone = (id: string, done: boolean) => setSnap(s => s && { ...s, chores: s.chores.map(x => x.id === id ? { ...x, done, doneBy: done ? member.id : null } : x) })
   const toggleChore = async (c: SnapshotChore) => {
     setDone(c.id, !c.done)
     try {
@@ -101,7 +101,7 @@ export default function SnapshotSheet({ member, onClose }: { member: Member; onC
         <ChecklistSheet chore={checklistFor} onClose={() => setChecklistFor(null)}
           onComplete={async () => {
             const c = checklistFor; setChecklistFor(null)
-            await toggleChore({ id: c.id, title: c.title, emoji: c.emoji, points: c.points, dueTime: c.dueTime, date: today, done: false, shared: !c.memberId })
+            await toggleChore({ id: c.id, title: c.title, emoji: c.emoji, points: c.points, dueTime: c.dueTime, date: today, done: false, doneBy: null, shared: !c.memberId })
           }} />
       )}
     </Sheet>
@@ -149,14 +149,17 @@ function EventRow({ e, tz, close }: { e: SnapshotEvent; tz: string; close: () =>
 }
 
 function ChoreRow({ c, onToggle }: { c: SnapshotChore; onToggle: (c: SnapshotChore) => void }) {
+  const { members } = useApp()
+  // An Anyone chore says who got the points once it's done.
+  const by = c.shared && c.done ? (members.find(m => m.id === c.doneBy)?.name ?? 'nobody in particular') : null
   return (
     <li>
       <button className={`snap-row snap-chore ${c.done ? 'done' : ''}`} role="checkbox" aria-checked={c.done} onClick={() => onToggle(c)}
-        aria-label={[c.title, c.shared && 'anyone', c.points > 0 && `${c.points} points`].filter(Boolean).join(', ')}>
+        aria-label={[c.title, c.shared && 'anyone', by && `done by ${by}`, c.points > 0 && `${c.points} points`].filter(Boolean).join(', ')}>
         <span className="snap-time snap-emoji" aria-hidden="true">{c.emoji || '⭐'}</span>
         <span className="snap-main" aria-hidden="true">
           <span className="snap-title">{c.title}</span>
-          <span className="snap-meta">{[c.shared && 'Anyone', c.points > 0 && `${c.points} pts`].filter(Boolean).join(' · ')}</span>
+          <span className="snap-meta">{[c.shared && 'Anyone', by && `Done by ${by}`, c.points > 0 && `${c.points} pts`].filter(Boolean).join(' · ')}</span>
         </span>
         <span className={`chore-check ${c.done ? 'done' : ''}`} aria-hidden="true">{c.done && <CheckIcon width={18} height={18} />}</span>
       </button>

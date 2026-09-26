@@ -2,6 +2,18 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './styles.css'
 
+// Android / Chrome / Edge offer to install once the page qualifies, often before the App chunk
+// has loaded, so keep the event here for Install.tsx's "Install" button.
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault()
+  ;(window as Window & { __kinwallInstall?: Event | null }).__kinwallInstall = e
+  window.dispatchEvent(new Event('kinwall:install-changed'))
+})
+window.addEventListener('appinstalled', () => {
+  ;(window as Window & { __kinwallInstall?: Event | null }).__kinwallInstall = null
+  window.dispatchEvent(new Event('kinwall:install-changed'))
+})
+
 // Not imported from api.ts: that would load the mock data before the demo clock below is in place.
 const MOCK = import.meta.env.VITE_MOCK === '1'
 

@@ -107,7 +107,7 @@ const isIOS = () => /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.pla
 const fmtDate = (t: number, long = false) => new Date(t).toLocaleDateString(undefined, long ? { year: 'numeric', month: 'long', day: 'numeric' } : { month: 'short', day: 'numeric' })
 
 export default function Paint() {
-  const { members, toast } = useApp()
+  const { members, toast, selectedMemberId } = useApp()
   const dialog = useDialog()
   const wrapRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -189,8 +189,13 @@ export default function Paint() {
   const saveRef = useRef(save)
   saveRef.current = save
 
+  // A new drawing asks who's drawing, unless the family is filtered (or the display pinned) to one
+  // person, who then becomes the artist.
   const startNew = () => {
-    setMeta(newMeta())
+    const m = newMeta()
+    if (selectedMemberId) m.memberId = selectedMemberId
+    else if (members.length > 0) setWho(true)
+    setMeta(m)
     r.stored = false; r.fullWarned = false; r.dirty = false; r.sinceSave = 0
     r.hist = []; r.idx = -1
     base.width = 0
@@ -452,13 +457,15 @@ export default function Paint() {
 
       {who && (
         <Sheet title="Who's drawing?" onClose={() => setWho(false)}>
-          <div className="chip-row">
-            <button className={`chip ${!meta?.memberId ? 'active' : ''}`} aria-pressed={!meta?.memberId} onClick={() => setMember(null)}>Skip</button>
+          <div className="who-grid">
             {members.map(m => (
-              <button key={m.id} className={`chip ${meta?.memberId === m.id ? 'active' : ''}`} aria-pressed={meta?.memberId === m.id}
-                style={{ ['--chip-color' as string]: m.color }} onClick={() => setMember(m.id)}>{m.avatar} {m.name}</button>
+              <button key={m.id} className={`who-btn ${meta?.memberId === m.id ? 'active' : ''}`} aria-pressed={meta?.memberId === m.id} onClick={() => setMember(m.id)}>
+                <span className="who-avatar" aria-hidden="true" style={{ background: m.color, color: inkFor(m.color) }}>{m.avatar || m.name[0]}</span>
+                {m.name}
+              </button>
             ))}
           </div>
+          <button className="btn btn-secondary btn-block" style={{ marginTop: 12 }} onClick={() => setMember(null)}>Skip</button>
         </Sheet>
       )}
 

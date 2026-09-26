@@ -475,7 +475,7 @@ export interface Weather {
 export type SnapshotEvent = EventInstance & { date: string } // the household-local day it's listed under
 export type SnapshotItem = ListItem & { listName: string; listEmoji: string | null; overdue: boolean }
 export interface SnapshotBirthday { memberId: string | null; eventId: string | null; name: string; avatar: string | null; date: string; age: number | null }
-export interface SnapshotChore { id: string; title: string; emoji: string | null; points: number; dueTime: string | null; date: string; done: boolean; shared: boolean }
+export interface SnapshotChore { id: string; title: string; emoji: string | null; points: number; dueTime: string | null; date: string; done: boolean; doneBy: string | null; shared: boolean }
 /** GET /api/snapshot - one member's day or next 7 days. */
 export interface Snapshot {
   greeting: string

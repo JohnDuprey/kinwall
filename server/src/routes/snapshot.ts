@@ -129,13 +129,14 @@ snapshotRoutes.openapi(
     const birthdays = birthdaysInRange(members, all, dates, birthdayCats);
 
     const choreDays = range === 'week' ? dates : [today];
-    const completions = new Set(
-      ((await db.prepare('SELECT chore_id, date FROM chore_completions WHERE date >= ? AND date <= ?').bind(today, to).all<{ chore_id: string; date: string }>()).results).map((r) => `${r.chore_id}:${r.date}`),
+    // chore:date -> who it was credited to (null = nobody in particular)
+    const completions = new Map(
+      ((await db.prepare('SELECT chore_id, date, member_id FROM chore_completions WHERE date >= ? AND date <= ?').bind(today, to).all<{ chore_id: string; date: string; member_id: string | null }>()).results).map((r) => [`${r.chore_id}:${r.date}`, r.member_id] as const),
     );
     const chores = choreDays.flatMap((date) =>
       (choresRes.results as unknown as ChoreRow[])
         .filter((row) => dueOnDate(row, date, tz))
-        .map((row) => ({ id: row.id, title: row.title, emoji: row.emoji, points: row.points, dueTime: row.due_time, date, done: completions.has(`${row.id}:${date}`), shared: !row.member_id })),
+        .map((row) => ({ id: row.id, title: row.title, emoji: row.emoji, points: row.points, dueTime: row.due_time, date, done: completions.has(`${row.id}:${date}`), doneBy: completions.get(`${row.id}:${date}`) ?? null, shared: !row.member_id })),
     );
 
     const steps = groupSteps(stepsRes.results as unknown as ListItemStepRow[]);

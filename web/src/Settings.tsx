@@ -19,6 +19,7 @@ import { SAVER_PREVIEW_EVENT } from './Screensaver.tsx'
 import { countDrawings } from './drawings-db.ts'
 import { passkeysSupported, registerPasskey } from './webauthn.ts'
 import { QrCode } from './App.tsx'
+import { InstallRow } from './Install.tsx'
 import { useDialog } from './dialog.tsx'
 import { announce, pressable, reducedMotion, Segmented } from './a11y.tsx'
 
@@ -1031,6 +1032,7 @@ function ThisDisplaySection({ keyName }: { keyName?: string }) {
         </div>
       )}
       <ScreenFocusRows />
+      <InstallRow />
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
         <div className="settings-row-label" aria-hidden="true">Navigation position</div>
         <Segmented label="Navigation position" value={pref} onChange={setNavPref} options={NAV_PREF_OPTIONS} disabled={isPhone} style={isPhone ? { opacity: 0.5 } : undefined} />

@@ -16,7 +16,7 @@ A drawing app for kids. Tap **Activities → Paint**. The canvas fills the scree
 * **Colors**: sixteen colors, including the family member colors plus black, white, brown and gray. Picking a color while the eraser or rainbow brush is on switches back to the brush.
 * **Undo / Redo**: up to 20 steps. With a keyboard, use Ctrl/⌘+Z and Ctrl/⌘+Shift+Z (or Ctrl+Y).
 * **Clear**: wipes the picture after you confirm. You can undo a clear.
-* **Who's drawing?**: optionally tag the picture with a family member. You can skip it.
+* **Who's drawing?**: a new drawing asks who's making it (tap a face, or **Skip**). When the family is filtered to one person, or the display is pinned to one, that person is the artist without asking. The face button in the toolbar changes it later. The artist shows in **My drawings** and in the caption when the picture is saved to family photos.
 * **Name**: tap the drawing's name (e.g. "Drawing 3") to rename it.
 
 Rotating the device or resizing the window rescales the picture to fit instead of clearing it.

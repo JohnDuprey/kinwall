@@ -16,6 +16,8 @@ You can also tap **Enter a key manually** on the sign-in screen and paste any AP
 
 In Safari, tap **Share → Add to Home Screen**, then always launch Kinwall from the home screen icon. It runs full screen with no browser bars. On Android, Chrome's **Install app** / **Add to Home screen** does the same.
 
+On phones, Kinwall also offers this itself. From the second visit in a browser, a card above the tab bar says **Add Kinwall to your Home Screen**. On Android its **Install** button opens the install dialog; on iPhone and iPad **Show me how** walks through Share → **Add to Home Screen**. **Not now** hides it for 30 days, and it never shows once Kinwall runs from the Home Screen. The same option is always under **Settings → General → This display → Add to Home Screen**.
+
 ## 3. Lock the iPad to Kinwall
 
 * **Settings → Display & Brightness → Auto-Lock → Never**.
