@@ -515,7 +515,7 @@ function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean)
   if (inNativeApp()) {
     return (
       <Section title="Notifications" icon={<BellIcon width={16} height={16} />}>
-        <p className="settings-row-sub">The Kinwall app can't show notifications yet. Everything still arrives in the bell at the top. To get notifications on this phone for now, open Kinwall in Safari and add it to your Home Screen.</p>
+        <p className="settings-row-sub">The Kinwall app reminds you about events on this device, at each event's reminder times. To turn them off, go to the device's Settings → Notifications → Kinwall. Daily summaries, chore nudges and list updates aren't sent to the app yet; they still arrive in the bell at the top.</p>
       </Section>
     )
   }
