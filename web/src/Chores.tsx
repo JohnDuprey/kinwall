@@ -151,6 +151,17 @@ function formToRrule(f: ScheduleForm): string | null {
   return r
 }
 
+/** The first day a new chore shows up on, from the form: its due date, today for daily, or the
+ * next selected weekday (today counts). Undefined when the form can't tell (custom rrule). */
+function firstScheduledDay(f: ScheduleForm, dueDate: string): Date | undefined {
+  const today = new Date()
+  if (f.custom) return undefined
+  if (f.repeat === 'once') return new Date(`${dueDate}T00:00:00`)
+  if (f.repeat === 'daily' || !f.days.length) return today
+  const offset = Math.min(...f.days.map(d => (d - today.getDay() + 7) % 7))
+  return addDays(today, offset)
+}
+
 function scheduleLabel(rrule: string | null): string {
   const f = rruleToForm(rrule)
   if (f.repeat === 'once') return f.custom ? 'Repeats' : ''
@@ -218,6 +229,8 @@ export default function Chores() {
   const [editChore, setEditChore] = useState<Chore | 'new' | null>(null)
 
   const key = dateKey(selectedDate)
+  // Keep the selected chip visible when the day changes programmatically (e.g. after adding a chore).
+  useEffect(() => { document.querySelector('.date-chip.active')?.scrollIntoView({ inline: 'center', block: 'nearest' }) }, [key])
 
   const load = () => {
     setLoading(true)
@@ -314,14 +327,19 @@ export default function Chores() {
         <ChoreEditSheet
           chore={editChore === 'new' ? null : editChore}
           onClose={() => setEditChore(null)}
-          onSaved={() => { setEditChore(null); load(); reloadCore() }}
+          onSaved={first => {
+            setEditChore(null)
+            // A new chore that isn't scheduled for the day on screen would otherwise vanish on save.
+            if (first && !isSameDay(first, selectedDate)) { setSelectedDate(first); toast(`Added — first on ${format(first, 'EEE, MMM d')}`) }
+            load(); reloadCore()
+          }}
         />
       )}
     </div>
   )
 }
 
-function ChoreEditSheet({ chore, onClose, onSaved }: { chore: Chore | null; onClose: () => void; onSaved: () => void }) {
+function ChoreEditSheet({ chore, onClose, onSaved }: { chore: Chore | null; onClose: () => void; onSaved: (firstDate?: Date) => void }) {
   const dialog = useDialog()
   const { members, toast, settings } = useApp()
   const [title, setTitle] = useState(chore?.title ?? '')
@@ -346,7 +364,7 @@ function ChoreEditSheet({ chore, onClose, onSaved }: { chore: Chore | null; onCl
     try {
       if (chore) await api.updateChore(chore.id, body)
       else await api.createChore(body)
-      onSaved()
+      onSaved(chore ? undefined : firstScheduledDay(sched, dueDate))
     } catch (e) {
       toast(e instanceof ApiError ? e.message : 'Could not save chore', true)
     }
