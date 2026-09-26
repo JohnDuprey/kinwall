@@ -283,6 +283,23 @@ export default function Chores() {
     }
   }
 
+  // #/chores?done=<id> (from the app's Chores widget): tap that chore once it's loaded, so it asks
+  // "Who did it?" or opens its checklist, just like a tap here.
+  const [hashTick, setHashTick] = useState(0) // the app may set the link while this tab is already open
+  useEffect(() => {
+    const onHash = () => setHashTick(t => t + 1)
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
+  useEffect(() => {
+    const id = new URLSearchParams(location.hash.split('?')[1] || '').get('done')
+    if (!id || loading) return
+    if (key !== dateKey(new Date())) { setSelectedDate(new Date()); return } // the widget shows today
+    history.replaceState(null, '', '#/chores')
+    const c = chores.find(x => x.id === id)
+    if (c && !c.completed) toggle(c)
+  }, [loading, chores, hashTick]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const columns = [...members, { id: '__anyone', name: 'Anyone', color: '#C7B8A8', avatar: '🌟', pointsToday: 0, pointsWeek: 0, sort: 999 }]
   const visibleColumns = selectedMemberId
     // Anyone's chores stay beside the filtered person; only a display pinned to someone can hide them.
