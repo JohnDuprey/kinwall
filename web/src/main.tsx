@@ -1,3 +1,4 @@
+import './compat.ts' // first: shims for old Safari
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './styles.css'
@@ -23,7 +24,7 @@ const MOCK = import.meta.env.VITE_MOCK === '1'
 // (no demo bar) preset a fresh copy - for screenshots and shareable links; never in real builds.
 if (MOCK) {
   const q = new URLSearchParams(location.search)
-  if (q.size) {
+  if (location.search) { // not q.size: Safari < 17 lacks URLSearchParams.size
     try {
       const prefs = JSON.parse(localStorage.getItem('kinwall.deviceAppearance') || '{}')
       if (q.get('theme')) prefs.themeMode = q.get('theme')
@@ -70,9 +71,9 @@ if ('serviceWorker' in navigator) {
 }
 
 // Imported after the demo presets above so the mock's relative sample data sees the shifted clock.
-const { default: App } = await import('./App.tsx')
-createRoot(document.getElementById('root')!).render(
+// .then(), not top-level await: the legacy (SystemJS) build for old Safari can't do top-level await.
+import('./App.tsx').then(({ default: App }) => createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />
   </StrictMode>,
-)
+))

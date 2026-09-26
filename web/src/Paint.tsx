@@ -59,13 +59,22 @@ function drawContained(c: HTMLCanvasElement, src?: HTMLCanvasElement | ImageBitm
   ctx.drawImage(src, (c.width - w) / 2, (c.height - h) / 2, w, h)
 }
 
+// createImageBitmap needs Safari 15+; older Safari decodes through an <img> instead.
+async function loadImage(png: Blob): Promise<(ImageBitmap | HTMLImageElement) & { close?: () => void }> {
+  if ('createImageBitmap' in window) return createImageBitmap(png)
+  const img = new Image()
+  img.src = URL.createObjectURL(png)
+  try { await img.decode() } finally { URL.revokeObjectURL(img.src) }
+  return img
+}
+
 async function makeThumb(png: Blob) {
-  const bm = await createImageBitmap(png)
+  const bm = await loadImage(png)
   const c = document.createElement('canvas')
   const s = Math.min(1, 320 / Math.max(bm.width, bm.height))
   c.width = Math.round(bm.width * s); c.height = Math.round(bm.height * s)
   c.getContext('2d')!.drawImage(bm, 0, 0, c.width, c.height)
-  bm.close()
+  bm.close?.()
   return toBlob(c)
 }
 
@@ -153,10 +162,10 @@ export default function Paint() {
 
   /** Show a stored picture (keeping it at its own size in `base`). */
   const show = async (png: Blob) => {
-    const bm = await createImageBitmap(png)
+    const bm = await loadImage(png)
     base.width = bm.width; base.height = bm.height
     base.getContext('2d')!.drawImage(bm, 0, 0)
-    bm.close()
+    bm.close?.()
     if (canvasRef.current) drawContained(canvasRef.current, base)
   }
 

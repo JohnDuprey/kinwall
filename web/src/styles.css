@@ -153,6 +153,7 @@ button {
 }
 
 .app-shell {
+  height: 100vh; /* Safari < 15.4: no dvh */
   height: 100dvh;
   display: flex;
   flex-direction: column;
@@ -893,7 +894,7 @@ button {
 .settings-section-title { font-size: 0.8125rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.03em; padding-bottom: 12px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
 /* The title carries the divider, so the first item never doubles it; bare content gets breathing room. */
 .settings-section-title + * { border-top: none !important; }
-.settings-section-title + :is(.field, p) { margin-top: 14px; }
+.settings-section-title + .field, .settings-section-title + p { margin-top: 14px; }
 .settings-section-title + .member-row-list { margin-top: 6px; }
 .settings-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 2px; border-top: 1px solid var(--border); gap: 12px; }
 .settings-row:first-of-type { border-top: none; }
@@ -1070,7 +1071,7 @@ button {
 .list-done-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 
 /* ---------- Key gate ---------- */
-.gate-screen { height: 100dvh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+.gate-screen { height: 100vh; height: 100dvh; display: flex; align-items: center; justify-content: center; padding: 24px; }
 .gate-card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow-lg); padding: 34px 28px; max-width: 420px; width: 100%; text-align: center; }
 .gate-card h1 { font-size: 1.375rem; margin: 0 0 6px; }
 .gate-card p { color: var(--text-dim); font-weight: 600; margin: 0 0 20px; font-size: 0.875rem; }
@@ -1789,7 +1790,7 @@ button.snap-row:active { transform: scale(0.99); }
   .board-clock .board-card-title { font-size: 0.9375rem; margin-bottom: 2px; }
 }
 
-.board-time { font-size: min(3.25rem, 17cqi); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.board-time { font-size: 2.5rem; font-size: min(3.25rem, 17cqi); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
 .board-date { margin-top: 2px; font-weight: 800; color: var(--text-dim); font-size: 0.9375rem; }
 .board-wx-where { margin-top: 8px; font-size: 0.8125rem; font-weight: 700; }
 /* On the board the header hands the clock over to the big card */
@@ -1850,3 +1851,11 @@ button.snap-row:active { transform: scale(0.99); }
 .photo-nav:disabled { opacity: .3; }
 .photo-counter { position: absolute; right: 10px; bottom: 10px; font-size: 0.75rem; font-weight: 800; padding: 2px 8px; border-radius: 999px; background: var(--card); color: var(--text-dim); box-shadow: var(--shadow); }
 
+
+/* Old Safari (iOS 12-16.1) fallbacks for features the rules above rely on. */
+@supports not (color: color-mix(in srgb, red, blue)) {
+  :root { --accent-soft: var(--bg-alt); --accent-tint: var(--bg-alt); }
+}
+@supports not (aspect-ratio: 1) {
+  .board-photo { height: 200px; } /* its image is absolutely positioned, so it would collapse to 0 */
+}

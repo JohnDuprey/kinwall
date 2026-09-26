@@ -35,8 +35,10 @@ import { handleMcp } from './mcp.ts';
 
 // Keep in sync with web/public/_headers (Workers serves the UI with that file; Node/Docker with this).
 // blob: = Paint drawings; Met + Picsum = the quiet-hours screensaver (per display, off by default).
+// script-src hashes: the inline loader scripts @vitejs/plugin-legacy adds to index.html for old
+// Safari; web/vite.config.ts fails the build (printing the new list) if they ever change.
 export const CSP_DEFAULT =
-  "default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://images.metmuseum.org https://picsum.photos https://fastly.picsum.photos; connect-src 'self' https://collectionapi.metmuseum.org; frame-ancestors 'self'";
+  "default-src 'self'; script-src 'self' 'sha256-hVuWKiiLwHwswXAaru00Ouusz3CAwXF9FKoMwru+9ts=' 'sha256-+5XkZFazzJo8n0iOP4ti/cLCMUudTf//Mzkb7xNPXIc=' 'sha256-MS6/3FCg4WjP9gwgaBGwLpRCY6fZBgwmhVCdrPrNf3E=' 'sha256-tQjf8gvb2ROOMapIxFvFAYBeUJ0v1HCbOcSmDNXGtDo='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://images.metmuseum.org https://picsum.photos https://fastly.picsum.photos; connect-src 'self' https://collectionapi.metmuseum.org; frame-ancestors 'self'";
 // /docs (Swagger UI) loads its JS/CSS from a CDN - loosen only for that path, not globally.
 const CSP_DOCS =
   "default-src 'self'; style-src 'self' 'unsafe-inline' https:; script-src 'self' 'unsafe-inline' https:; img-src 'self' data: https:; font-src 'self' https: data:; connect-src 'self' https:; frame-ancestors 'self'";

@@ -159,7 +159,7 @@ function applyAppearance(household: Appearance, device: DeviceAppearance) {
     setOrClear('--bg', custom.bg || t?.bg)
     setOrClear('--bg-alt', t?.bgAlt)
     setOrClear('--card', custom.card || t?.card)
-    setOrClear('--card-soft', t || custom.bg || custom.card ? 'color-mix(in srgb, var(--card) 90%, var(--bg))' : undefined)
+    setOrClear('--card-soft', t || custom.bg || custom.card ? (CSS.supports('color', 'color-mix(in srgb, red, blue)') ? 'color-mix(in srgb, var(--card) 90%, var(--bg))' : 'var(--card)') : undefined) // Safari < 16.2: no color-mix
     setOrClear('--border', t?.border)
     setOrClear('--text', custom.text || t?.text)
     setOrClear('--text-dim', t?.textDim)

@@ -24,11 +24,21 @@ On phones, Kinwall also offers this itself. From the second visit in a browser, 
 
 | | To run Kinwall | To add it to the Home Screen | Push notifications |
 |---|---|---|---|
-| **iPhone / iPad** | iOS / iPadOS **16.4 or later** | **Safari**: Share → **Add to Home Screen**. Chrome and Edge also offer it from their Share button. | Only from the Home Screen icon, iOS / iPadOS 16.4 or later |
+| **iPhone / iPad** | iOS / iPadOS **16.4 or later** for everything; **12 or later** in Safari with basic features (see [Older devices](#older-devices)) | iOS / iPadOS **16.4 or later**, in **Safari**: Share → **Add to Home Screen**. Chrome and Edge also offer it from their Share button. | Only from the Home Screen icon, iOS / iPadOS 16.4 or later |
 | **Android** | A current **Chrome**, **Edge**, **Samsung Internet** or **Firefox** | Chrome, Edge or Samsung Internet: **Install app** / **Add to Home screen** (or Kinwall's own **Install** button) | In the browser or installed |
-| **Computer** | Chrome or Edge 111+, Firefox 114+, Safari 16.4+ | Optional: the install icon in Chrome's or Edge's address bar | Any browser with Web Push |
+| **Computer** | Chrome or Edge 111+, Firefox 114+, Safari 16.4+ (older versions get the basic-features build) | Optional: the install icon in Chrome's or Edge's address bar | Any browser with Web Push |
 
-The web app is built for those browser versions. On anything older (an iPad that can't update past iPadOS 15, say) Kinwall isn't supported and may show a blank page, so update the browser or the device.
+### Older devices
+
+An old iPad (one stuck on iOS 12 or iPadOS 15, say) can still be a wall display: open Kinwall in **Safari** and use it in the browser tab. Kinwall detects the older browser and loads a compatibility version of the app, so the calendar, events, chores, lists, photos, Paint and settings all work. What's different before iOS / iPadOS 16.4:
+
+* **Not installable.** Home Screen web apps have existed since iOS 11.3, but Kinwall's installed-app features and push notifications need 16.4, so keep it in a Safari tab. The [notification feed](../using/notifications.md#notification-feed) under the bell still shows everything.
+* **No push notifications.**
+* **Passkeys** need iOS / iPadOS 14.5 or later, and on the oldest versions the passkey buttons don't appear at all. [Pair the display](#1-pair-the-display) from your phone instead (that works on any version), or sign in with a recovery code or **Enter a key manually**.
+* **Some visual polish is missing**, mostly before iOS 14.5: spacing between some buttons and chips can be tighter, a few tinted highlights are flat, and form fields use Safari's default look. Relative times ("5 minutes ago") are in English only before iOS 14.
+* **Slower first load.** The compatibility version is larger, and an old iPad is slower to start it.
+
+Older than iOS 12 isn't supported.
 
 ### Installed vs. in the browser
 
