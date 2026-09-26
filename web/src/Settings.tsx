@@ -49,7 +49,7 @@ export default function SettingsView() {
   // return (?account=...) lands on Calendars, where the new account's calendar picker opens.
   const tabFromHash = (): SettingsTab => {
     const q = new URLSearchParams(location.hash.split('?')[1] || '')
-    if (q.get('account')) return 'calendars'
+    if (q.get('account') || q.get('oauthError')) return 'calendars'
     const t = q.get('tab')
     return SETTINGS_TABS.some(x => x.key === t) ? (t as SettingsTab) : 'general'
   }
@@ -71,7 +71,18 @@ export default function SettingsView() {
     const q = new URLSearchParams(location.hash.split('?')[1] || '')
     const account = q.get('account')
     if (account) setOpenAccountId(account)
-  }, [])
+    // Provider sign-in that didn't finish (routes/oauth.ts sends "<kind>:<reason>"). Say so once
+    // and drop it from the hash so a reload doesn't repeat it.
+    const oauthError = q.get('oauthError')
+    if (oauthError) {
+      const [kind, ...rest] = oauthError.split(':')
+      const reason = rest.join(':').trim()
+      const who = kind === 'google' ? 'Google' : 'Microsoft'
+      toast(reason === 'cancelled' ? `${who} sign-in cancelled — nothing was connected` : `${who} connection failed: ${reason}`, true)
+      q.delete('oauthError')
+      history.replaceState(null, '', `#/settings${q.toString() ? `?${q}` : ''}`)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { api.meStrict().then(setMe).catch(() => setMe({ scope: 'display', keyName: '', kind: 'api' })) }, [])
 

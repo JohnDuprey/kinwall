@@ -99,32 +99,35 @@ oauthRoutes.openapi(
     summary: 'OAuth callback (no auth; called by the provider). Creates the account and redirects to the UI.',
     request: { params: z.object({ kind: KindSchema }), query: z.object({ code: z.string().optional(), state: z.string().optional(), error: z.string().optional() }) },
     responses: {
-      302: { description: 'redirect to UI' },
-      400: { description: 'bad request', content: { 'application/json': { schema: ErrorSchema } } },
-      500: { description: 'server misconfigured', content: { 'application/json': { schema: ErrorSchema } } },
+      302: { description: 'redirect to the UI: Settings → Calendars, with ?account=<id> on success or ?oauthError=<kind>:<reason> otherwise (a declined consent is "cancelled")' },
     },
   }),
   async (c) => {
     const { kind } = c.req.valid('param');
     const { code, state, error } = c.req.valid('query');
-    if (error || !code || !state) return c.json({ error: error ?? 'missing code/state' }, 400);
+    const penv = await providerEnv(c.env, c.env.DB);
+    // The browser lands here straight from the provider, so a failure must go back to the app
+    // (Settings → Calendars shows it), never a bare JSON page. A declined consent is the common case.
+    const back = (message: string, status: 400 | 500 = 400) =>
+      c.redirect(`${penv.PUBLIC_URL ?? ''}/#/settings?tab=calendars&oauthError=${encodeURIComponent(`${kind}:${status === 500 ? 'server: ' : ''}${message}`)}`, 302);
+    if (error) return back(error === 'access_denied' || error === 'consent_required' ? 'cancelled' : error);
+    if (!code || !state) return back('missing code/state');
     const stored = await consumeState(c.env.DB, state, kind);
-    if (!stored) return c.json({ error: 'invalid or expired state' }, 400);
+    if (!stored) return back('invalid or expired state');
 
     const impl = kind === 'google' ? google : microsoft;
-    const penv = await providerEnv(c.env, c.env.DB);
     let exchanged: { name: string; config: unknown };
     try {
       exchanged = await impl.exchangeCode(penv, code, stored.redirectUri ?? redirectUri(penv.PUBLIC_URL, kind), stored.verifier);
     } catch (err) {
-      return c.json({ error: err instanceof Error ? err.message : 'oauth exchange failed' }, 400);
+      return back(err instanceof Error ? err.message : 'oauth exchange failed');
     }
 
     let id: string;
     try {
       id = await saveOAuthAccount(c.env, kind, exchanged.name, exchanged.config);
     } catch (err) {
-      return c.json({ error: err instanceof Error ? err.message : 'encryption not configured' }, 500);
+      return back(err instanceof Error ? err.message : 'encryption not configured', 500);
     }
     emit(c, 'calendar.changed', { accountId: id });
     return c.redirect(`${penv.PUBLIC_URL ?? ''}/#/settings?account=${id}`, 302);

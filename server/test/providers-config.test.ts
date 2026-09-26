@@ -234,8 +234,13 @@ test('oauth: OAUTH_REDIRECT_URI -> shared redirect + "<hostLabel>.<kind>.<random
   }) as typeof fetch;
   try {
     // A tampered random part is rejected; the exact state is accepted once.
+    // A bad state (or a declined consent) sends the browser back to Settings with the reason, not a JSON page.
     const bad = await request(`/api/oauth/google/callback?code=c&state=${encodeURIComponent(state + 'x')}`, { redirect: 'manual' });
-    assert.equal(bad.status, 400);
+    assert.equal(bad.status, 302);
+    assert.match(bad.headers.get('Location')!, /#\/settings\?tab=calendars&oauthError=google%3Ainvalid/);
+    const declined = await request(`/api/oauth/google/callback?error=access_denied&state=${encodeURIComponent(state)}`, { redirect: 'manual' });
+    assert.equal(declined.status, 302);
+    assert.match(declined.headers.get('Location')!, /oauthError=google%3Acancelled$/);
     const ok = await request(`/api/oauth/google/callback?code=c&state=${encodeURIComponent(state)}`, { redirect: 'manual' });
     assert.equal(ok.status, 302);
     assert.match(ok.headers.get('Location')!, /^https:\/\/smiths\.host\.example\/#\/settings\?account=/);
