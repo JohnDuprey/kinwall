@@ -3,7 +3,7 @@ import { createRoute, type z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
 import { emit } from '../bus.ts';
-import { COLOR_SCHEMES, ErrorSchema, LocationSchema, SettingsPatchSchema, SettingsSchema } from '../schemas.ts';
+import { COLOR_SCHEMES, CUSTOM_SCHEME_ID_RE, CustomSchemeSchema, ErrorSchema, LocationSchema, SettingsPatchSchema, SettingsSchema } from '../schemas.ts';
 
 export const settingsRoutes = createRouter();
 
@@ -46,6 +46,7 @@ export async function readSettings(db: KinwallDb) {
     accent: map.get('accent') ?? DEFAULTS.accent,
     colorScheme: parseColorScheme(map.get('colorScheme')),
     customColors: parseCustomColors(map.get('customColors')),
+    customSchemes: parseCustomSchemes(map.get('customSchemes')),
     backgroundLight: (map.get('backgroundLight') ?? DEFAULTS.backgroundLight) as 'warm' | 'white' | 'gray' | 'sage',
     backgroundDark: (map.get('backgroundDark') ?? DEFAULTS.backgroundDark) as 'cocoa' | 'charcoal' | 'midnight',
     textScale: (map.get('textScale') ?? DEFAULTS.textScale) as 's' | 'm' | 'l' | 'xl',
@@ -68,8 +69,19 @@ function defaultUnit(location: Location | null, tz: string | undefined): 'celsiu
   return /^(America\/(New_York|Chicago|Denver|Los_Angeles|Phoenix|Anchorage|Juneau|Detroit|Boise|Indiana|Kentucky|North_Dakota)|Pacific\/Honolulu|US\/)/.test(tz ?? '') ? 'fahrenheit' : 'celsius';
 }
 
-function parseColorScheme(raw: string | undefined): (typeof COLOR_SCHEMES)[number] {
-  return (COLOR_SCHEMES as readonly string[]).includes(raw ?? '') ? (raw as (typeof COLOR_SCHEMES)[number]) : 'meadow';
+function parseColorScheme(raw: string | undefined): string {
+  return (COLOR_SCHEMES as readonly string[]).includes(raw ?? '') || CUSTOM_SCHEME_ID_RE.test(raw ?? '') ? raw! : 'meadow';
+}
+
+// Stored as JSON; anything that no longer validates is dropped rather than failing the read.
+function parseCustomSchemes(raw: string | undefined): z.infer<typeof CustomSchemeSchema>[] {
+  if (!raw) return [];
+  try {
+    const v = JSON.parse(raw);
+    return Array.isArray(v) ? v.flatMap((x) => { const p = CustomSchemeSchema.safeParse(x); return p.success ? [p.data] : []; }) : [];
+  } catch {
+    return [];
+  }
 }
 
 // Stored as JSON; an empty object or unreadable value reads back as null (no custom colors).

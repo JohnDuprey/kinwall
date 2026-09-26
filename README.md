@@ -25,7 +25,7 @@ Kinwall is an open-source, self-hosted family wall calendar, chore chart and sha
   - **Family photos**: a shared album that feeds the Board's picture card and the overnight screensaver. Photos shrink on upload and back up as a zip.
 - **Push notifications**: per-device event reminders, a morning summary, chore nudges and list updates, all also kept in an in-app notification feed behind the header bell.
 - **Made for the wall**: display pairing by code or QR, quiet hours with a dim clock or photo slideshow overnight, dark mode on a schedule, and a Now / Next strip with countdowns.
-- **Color schemes**: ten skins (Midnight, Ocean, Autumn and more) or Seasonal, and custom colors with a live contrast check, for the whole family or per device.
+- **Color schemes**: ten skins (Midnight, Ocean, Autumn and more), Seasonal, or the family's own schemes with light and dark palettes checked for contrast, for the whole family or per device.
 - **Made for phones too**: one compact header with a family button to filter the calendar to one person or open their day, and Help on every screen.
 - **Secure by default**: passkeys, recovery codes, scoped keys, and credentials encrypted at rest.
 

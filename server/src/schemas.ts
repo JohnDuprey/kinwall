@@ -11,6 +11,22 @@ const hex = () => z.string().regex(HEX_COLOR_RE, 'must be a hex color like #RRGG
 // Household custom colors layered on the scheme. The accent lives in `accent` (its default means
 // "use the scheme's accent"), so only the surfaces are here.
 const CustomColorsSchema = z.object({ bg: hex().optional(), card: hex().optional(), text: hex().optional() }).strict();
+// A family's own saved color scheme: four picked colors per mode (the app derives the rest and
+// checks contrast before it lets one be saved). Ids are 'custom-…' so they never clash with a skin.
+export const CUSTOM_SCHEME_ID_RE = /^custom-[a-z0-9]{4,16}$/;
+const PaletteSchema = z.object({ bg: hex(), card: hex(), text: hex(), accent: hex() }).strict();
+export const CustomSchemeSchema = z
+  .object({
+    id: z.string().regex(CUSTOM_SCHEME_ID_RE),
+    name: z.string().trim().min(1).max(30),
+    emoji: z.string().max(16),
+    light: PaletteSchema,
+    dark: PaletteSchema,
+  })
+  .strict()
+  .openapi('CustomScheme');
+export const MAX_CUSTOM_SCHEMES = 10;
+const ColorSchemeIdSchema = z.union([z.enum(COLOR_SCHEMES), z.string().regex(CUSTOM_SCHEME_ID_RE)]);
 const HHMM_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 export const AvatarSchema = z.string().refine(isValidAvatar, 'must be a single emoji or a 1-2 letter initial');
@@ -95,8 +111,9 @@ export const SettingsSchema = z
     quietFrom: z.string().nullable(),
     quietTo: z.string().nullable(),
     accent: z.string(), // '#FF9E7A' (the default) = the color scheme's own accent; anything else is a custom accent
-    colorScheme: z.enum(COLOR_SCHEMES),
-    customColors: CustomColorsSchema.nullable(),
+    colorScheme: ColorSchemeIdSchema, // a built-in scheme, 'seasonal', or a customSchemes id
+    customColors: CustomColorsSchema.nullable(), // legacy: surfaces layered on the scheme (no longer set by the app)
+    customSchemes: z.array(CustomSchemeSchema),
     // Legacy background presets: still applied under the Meadow scheme, no longer offered in the app.
     backgroundLight: z.enum(['warm', 'white', 'gray', 'sage']),
     backgroundDark: z.enum(['cocoa', 'charcoal', 'midnight']),
@@ -125,8 +142,13 @@ export const SettingsPatchSchema = z
     quietFrom: z.union([z.string().regex(HHMM_RE, 'must be HH:MM'), z.literal(''), z.null()]).optional(),
     quietTo: z.union([z.string().regex(HHMM_RE, 'must be HH:MM'), z.literal(''), z.null()]).optional(),
     accent: z.string().regex(HEX_COLOR_RE, 'must be a hex color like #RRGGBB').optional(),
-    colorScheme: z.enum(COLOR_SCHEMES).optional(),
+    colorScheme: ColorSchemeIdSchema.optional(),
     customColors: CustomColorsSchema.nullable().optional(),
+    customSchemes: z
+      .array(CustomSchemeSchema)
+      .max(MAX_CUSTOM_SCHEMES)
+      .refine((l) => new Set(l.map((x) => x.id)).size === l.length, 'scheme ids must be unique')
+      .optional(),
     backgroundLight: z.enum(['warm', 'white', 'gray', 'sage']).optional(),
     backgroundDark: z.enum(['cocoa', 'charcoal', 'midnight']).optional(),
     textScale: z.enum(['s', 'm', 'l', 'xl']).optional(),
@@ -156,6 +178,7 @@ export const AppearanceSchema = SettingsSchema.pick({
   accent: true,
   colorScheme: true,
   customColors: true,
+  customSchemes: true,
   backgroundLight: true,
   backgroundDark: true,
   textScale: true,

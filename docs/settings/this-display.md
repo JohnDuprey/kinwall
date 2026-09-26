@@ -18,7 +18,7 @@ A paired wall display also locks its own viewport (no pinch-zoom), so it can't b
 
 ## Appearance on this device
 
-Mode, Color scheme, Text size and Density, each starting on **Household** to follow the family's setting, plus **Typeface** and **Low-stimulation mode**. Color scheme has a **Household · *scheme*** chip, the same schemes as the family setting, **Custom colors**, and **Use household colors** to go back to the family's. See [Appearance](../using/appearance.md#per-device-overrides).
+Mode, Color scheme, Text size and Density, each starting on **Household** to follow the family's setting, plus **Typeface** and **Low-stimulation mode**. Color scheme has a **Household · *scheme*** chip, the same schemes as the family setting (including the family's own), **Customize**, and **Use household colors** to go back to the family's. See [Appearance](../using/appearance.md#per-device-overrides).
 
 ## Time cues
 

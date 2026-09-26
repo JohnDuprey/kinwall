@@ -1,10 +1,11 @@
+import type { CustomScheme } from './skins.ts'
 // Shapes mirror SPEC.md "API". Assumption: JSON keys are camelCase throughout
 // (SPEC shows this explicitly for EventInstance / chores/day; applied consistently here).
 
 export type ThemeMode = 'light' | 'dark' | 'auto' | 'scheduled'
 export type BackgroundLight = 'warm' | 'white' | 'gray' | 'sage'
 /** A skin id from skins.ts, or 'seasonal' (the scheme follows the date). */
-export type ColorScheme = 'meadow' | 'autumn' | 'winter' | 'spring' | 'summer' | 'ocean' | 'midnight' | 'lavender' | 'harvest' | 'festive' | 'seasonal'
+export type ColorScheme = 'meadow' | 'autumn' | 'winter' | 'spring' | 'summer' | 'ocean' | 'midnight' | 'lavender' | 'harvest' | 'festive' | 'seasonal' | `custom-${string}`
 export type CustomColors = { accent?: string; bg?: string; card?: string; text?: string }
 export type BackgroundDark = 'cocoa' | 'charcoal' | 'midnight'
 export type TextScale = 's' | 'm' | 'l' | 'xl'
@@ -23,7 +24,8 @@ export interface Settings {
   quietTo: string | null
   accent: string // hex; DEFAULT_ACCENT (useTheme.ts) = the color scheme's own accent
   colorScheme: ColorScheme
-  customColors: Omit<CustomColors, 'accent'> | null // household surfaces over the scheme
+  customColors: Omit<CustomColors, 'accent'> | null // legacy: household surfaces over the scheme (the app no longer sets these)
+  customSchemes: CustomScheme[] // the family's saved schemes, pickable by id in colorScheme / a device's skin
   backgroundLight: BackgroundLight
   backgroundDark: BackgroundDark
   textScale: TextScale
@@ -42,7 +44,7 @@ export interface WeatherLocation { name: string; lat: number; lon: number; count
 export interface GeocodeResult extends WeatherLocation { label: string }
 
 /** Subset of Settings the pre-pairing screen can read with no key — see GET /api/appearance. */
-export type Appearance = Pick<Settings, 'themeMode' | 'darkFrom' | 'darkTo' | 'accent' | 'colorScheme' | 'customColors' | 'backgroundLight' | 'backgroundDark' | 'textScale' | 'density'>
+export type Appearance = Pick<Settings, 'themeMode' | 'darkFrom' | 'darkTo' | 'accent' | 'colorScheme' | 'customColors' | 'customSchemes' | 'backgroundLight' | 'backgroundDark' | 'textScale' | 'density'>
 
 export interface Member {
   id: string

@@ -711,6 +711,18 @@ button {
 /* Color scheme (skin) picker - Settings > Appearance > "Appearance on this device". */
 .skin-dots { display: inline-flex; gap: 2px; }
 .skin-dots span { width: 10px; height: 10px; border-radius: 50%; border: 1px solid var(--border); display: inline-block; }
+.scheme-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.scheme-legacy { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--bg-alt); font-size: 0.875rem; font-weight: 600; }
+.scheme-emoji { max-width: 110px; }
+.scheme-modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-top: 8px; }
+.scheme-mode { display: flex; flex-direction: column; gap: 8px; }
+.scheme-mode-title { margin: 0; font-size: 0.9375rem; font-weight: 800; }
+.scheme-mode input[type="color"] { width: 44px; height: 44px; padding: 2px; border-radius: 12px; border: 2px solid var(--border); background: var(--bg-alt); cursor: pointer; }
+.scheme-preview { border: 1px solid; border-radius: var(--radius-sm); padding: 14px; }
+.scheme-preview-card { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; padding: 12px; border-radius: 12px; border: 1px solid; font-size: 0.9375rem; }
+.scheme-preview-btn { margin-top: 6px; padding: 6px 14px; border-radius: 999px; color: #fff; font-weight: 800; font-size: 0.8125rem; }
+.scheme-checks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 0.8125rem; font-weight: 600; }
+.scheme-checks li { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .contrast-badge { font-size: 0.75rem; font-weight: 800; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
 .contrast-badge.ok { color: var(--success); background: color-mix(in srgb, var(--success) 18%, var(--bg-alt)); }
 .contrast-badge.bad { color: var(--danger); background: color-mix(in srgb, var(--danger) 18%, var(--bg-alt)); }

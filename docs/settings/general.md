@@ -27,7 +27,7 @@ The Kinwall version ("Kinwall v…") shows at the bottom.
 
 ### Appearance
 
-Mode, dark schedule, color scheme, custom colors, text size and density. See [Appearance](../using/appearance.md).
+Mode, dark schedule, color scheme (including the family's own schemes), text size and density. See [Appearance](../using/appearance.md).
 
 ### Quiet hours
 

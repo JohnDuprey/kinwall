@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Appearance, ColorScheme, CustomColors, DeviceDensity, Settings, TextScale } from './types.ts'
 import { accentFill, readableOn } from './color.ts'
 import { api, getKey } from './api.ts'
-import { DEFAULT_SKIN_ID, getSkin, seasonalSkinId, tokensFor } from './skins.ts'
+import { DEFAULT_SKIN_ID, findSkin, seasonalSkinId, tokensFor } from './skins.ts'
 
 const SCALE: Record<TextScale, string> = { s: '0.9', m: '1', l: '1.15', xl: '1.3' }
 
@@ -39,7 +39,7 @@ export const DEFAULT_ACCENT = '#FF9E7A'
 /** The colors in effect, in one place for the theme and the Settings pickers. A device that picks
  * its own scheme starts from that scheme alone; a device that follows the household's scheme also
  * gets the household's custom colors, and its own custom colors go on top of those. */
-export function resolveColors(household: Pick<Appearance, 'colorScheme' | 'customColors' | 'accent'>, device: DeviceAppearance) {
+export function resolveColors(household: Pick<Appearance, 'colorScheme' | 'customColors' | 'customSchemes' | 'accent'>, device: DeviceAppearance) {
   const scheme: ColorScheme = device.skin ?? household.colorScheme ?? 'meadow'
   const skinId = scheme === 'seasonal' ? seasonalSkinId() : scheme
   const householdCustom: CustomColors = {
@@ -47,7 +47,7 @@ export function resolveColors(household: Pick<Appearance, 'colorScheme' | 'custo
     ...(household.accent && household.accent.toUpperCase() !== DEFAULT_ACCENT ? { accent: household.accent } : {}),
   }
   const custom: CustomColors = device.skin ? { ...(device.custom ?? {}) } : { ...householdCustom, ...(device.custom ?? {}) }
-  return { scheme, skinId, custom, householdCustom }
+  return { scheme, skinId, skin: findSkin(skinId, household.customSchemes), custom, householdCustom }
 }
 export type SaverSource = 'drawings' | 'photos' | 'art' | 'nature'
 
@@ -148,8 +148,8 @@ function applyAppearance(household: Appearance, device: DeviceAppearance) {
     // Meadow is styles.css's own palette, so it sets no tokens and the legacy household background
     // presets above still apply under it. Custom surfaces are skipped in low-stim mode, which
     // wants a calm, pre-vetted palette; a custom accent still applies.
-    const { skinId, custom: picked } = resolveColors(household, device)
-    const t = skinId !== DEFAULT_SKIN_ID ? tokensFor(getSkin(skinId), dark) : null
+    const { skin, custom: picked } = resolveColors(household, device)
+    const t = skin.id !== DEFAULT_SKIN_ID ? tokensFor(skin, dark) : null
     const custom = a.lowStim ? { accent: picked.accent } : picked
     const setOrClear = (prop: string, val?: string) => { if (val) root.style.setProperty(prop, val); else root.style.removeProperty(prop) }
     setOrClear('--bg', custom.bg || t?.bg)

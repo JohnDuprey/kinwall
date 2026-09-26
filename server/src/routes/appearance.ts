@@ -16,7 +16,7 @@ appearanceRoutes.openapi(
     responses: { 200: { description: 'ok', content: { 'application/json': { schema: AppearanceSchema } } } },
   }),
   async (c) => {
-    const { themeMode, darkFrom, darkTo, accent, colorScheme, customColors, backgroundLight, backgroundDark, textScale, density } = await readSettings(c.env.DB);
-    return c.json({ themeMode, darkFrom, darkTo, accent, colorScheme, customColors, backgroundLight, backgroundDark, textScale, density }, 200);
+    const { themeMode, darkFrom, darkTo, accent, colorScheme, customColors, customSchemes, backgroundLight, backgroundDark, textScale, density } = await readSettings(c.env.DB);
+    return c.json({ themeMode, darkFrom, darkTo, accent, colorScheme, customColors, customSchemes, backgroundLight, backgroundDark, textScale, density }, 200);
   },
 );

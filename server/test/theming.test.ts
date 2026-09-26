@@ -71,7 +71,7 @@ test('appearance: GET /api/appearance works with no auth and returns only appear
   const body = await res.json() as any;
   assert.equal(body.accent, '#123ABC');
   assert.equal(body.density, 'compact');
-  assert.deepEqual(Object.keys(body).sort(), ['accent', 'backgroundDark', 'backgroundLight', 'colorScheme', 'customColors', 'darkFrom', 'darkTo', 'density', 'textScale', 'themeMode']);
+  assert.deepEqual(Object.keys(body).sort(), ['accent', 'backgroundDark', 'backgroundLight', 'colorScheme', 'customColors', 'customSchemes', 'darkFrom', 'darkTo', 'density', 'textScale', 'themeMode']);
   assert.equal(body.familyName, undefined);
 });
 
@@ -158,4 +158,27 @@ test('household color scheme and custom colors: defaults, round-trip, clearing a
   assert.equal((await request('/api/settings', { method: 'PATCH', body: JSON.stringify({ colorScheme: 'neon' }) })).status, 400);
   assert.equal((await request('/api/settings', { method: 'PATCH', body: JSON.stringify({ customColors: { bg: 'red' } }) })).status, 400);
   assert.equal((await request('/api/settings', { method: 'PATCH', body: JSON.stringify({ customColors: { accent: '#123456' } }) })).status, 400);
+});
+
+test('custom color schemes: save, select, validate, cap and delete', async () => {
+  const request = makeApp(makeEnv());
+  const scheme = { id: 'custom-abc123', name: 'Beach house', emoji: '🏖️', light: { bg: '#FFF8EE', card: '#FFFFFF', text: '#2B2118', accent: '#1F7A8C' }, dark: { bg: '#10181B', card: '#18242A', text: '#EAF2F4', accent: '#1F7A8C' } };
+  let body = await json<any>(await request('/api/settings'));
+  assert.deepEqual(body.customSchemes, []);
+
+  body = await json<any>(await request('/api/settings', { method: 'PATCH', body: JSON.stringify({ customSchemes: [scheme], colorScheme: scheme.id }) }));
+  assert.equal(body.colorScheme, 'custom-abc123');
+  assert.deepEqual(body.customSchemes, [scheme]);
+  assert.deepEqual((await json<any>(await request('/api/appearance'))).customSchemes, [scheme]);
+
+  const bad = async (patch: unknown) => (await request('/api/settings', { method: 'PATCH', body: JSON.stringify(patch) })).status;
+  assert.equal(await bad({ colorScheme: 'custom-X' }), 400); // id shape
+  assert.equal(await bad({ customSchemes: [{ ...scheme, light: { ...scheme.light, bg: 'white' } }] }), 400);
+  assert.equal(await bad({ customSchemes: [{ ...scheme, dark: { bg: '#000000', card: '#111111', text: '#FFFFFF' } }] }), 400); // accent missing
+  assert.equal(await bad({ customSchemes: [scheme, scheme] }), 400); // duplicate ids
+  assert.equal(await bad({ customSchemes: Array.from({ length: 11 }, (_, i) => ({ ...scheme, id: `custom-s${1000 + i}` })) }), 400);
+
+  body = await json<any>(await request('/api/settings', { method: 'PATCH', body: JSON.stringify({ customSchemes: [], colorScheme: 'meadow' }) }));
+  assert.deepEqual(body.customSchemes, []);
+  assert.equal(body.colorScheme, 'meadow');
 });

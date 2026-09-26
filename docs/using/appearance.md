@@ -17,8 +17,7 @@ Quiet hours are a separate card, right after Appearance. See [Quiet hours](quiet
 |---|---|---|
 | **Mode** | Light, Dark, Auto (follows the device's system setting), Scheduled | Light |
 | **Dark from / Dark to** (Scheduled) | Two times. The window can cross midnight. | 20:00 → 07:00 |
-| **Color scheme** | Seasonal, or one of ten skins. See [Color schemes](#color-schemes). | Meadow |
-| **Custom colors** | Your own accent, background, card and text colors on top of the scheme | None |
+| **Color scheme** | Seasonal, one of ten skins, or one of the family's own schemes. See [Color schemes](#color-schemes). | Meadow |
 | **Text size** | Small, Medium, Large, Extra large | Medium |
 | **Density** | Comfortable, Compact (shorter hour rows in the time grid) | Comfortable |
 
@@ -33,7 +32,7 @@ Changes save as you make them, and other devices pick them up within about 30 se
 Under **Appearance on this device**:
 
 * **Mode**, **Text size** and **Density** are menus. The first option is **Household (*current value*)**, which follows the family setting.
-* **Color scheme** has the same chips as the household setting, plus a first chip, **Household · *scheme***, which follows the family setting. **Custom colors** work the same way too. See [Color schemes](#color-schemes).
+* **Color scheme** has the same chips as the household setting, plus a first chip, **Household · *scheme***, which follows the family setting. The family's own schemes are there too. See [Color schemes](#color-schemes).
 * **Typeface**: Default (Nunito), Hyperlegible (Atkinson Hyperlegible Next) or Dyslexia-friendly (Lexend).
 * **Low-stimulation mode**: a toggle that reduces motion and visual noise on this device.
 
@@ -67,12 +66,28 @@ Every skin meets WCAG AA contrast (4.5:1) for text on its backgrounds.
 
 It checks once an hour, so it switches on the same day a season changes.
 
-**Custom colors** (tap to open it under the scheme chips) lets you set your own accent, background, card and text colors on top of the scheme. Each field shows a live badge with the contrast ratio: "AA ✓" when it's readable, or "Low contrast". The accent is always safe, because buttons darken it as needed to keep white text readable. **Reset** clears one field.
+**Reset to Meadow** (household) sets the family back to the default look. **Use household colors** (device) sets the device back to following the family.
 
-How the two levels combine:
+## Your own color schemes
 
-* A device that follows the household scheme also gets the household's custom colors. Its own custom colors go on top of those.
-* A device that picks its own scheme starts from that scheme alone, and only its own custom colors apply.
-* **Reset to Meadow** (household) sets the family back to the default look. **Use household colors** (device) clears the device's scheme and custom colors so it follows the family again.
+Tap **Customize** under the scheme chips to make a scheme of your own. It starts as a copy of the scheme you're on, and opens in a sheet with both modes side by side:
 
-Low-stimulation mode always uses the scheme's own, pre-checked backgrounds, cards and text. Only a custom accent still applies while it's on.
+* **Light mode** and **Dark mode** each have **Background**, **Cards**, **Text** and **Accent**, plus a live preview of a card.
+* The softer background, borders and dim text are worked out from your colors.
+* Each mode shows four contrast checks: text and dim text, on the background and on cards. **Save and use** stays off until every check reaches 4.5:1 in both modes, so a saved scheme is readable whatever the time of day. Accent buttons adjust themselves so their labels stay readable.
+
+Give it a name and an emoji and save. The scheme is saved for the whole family and appears as a chip next to the built-in schemes on every device:
+
+* Made from **Appearance**, it becomes the family's scheme.
+* Made from **Appearance on this device**, only this device switches to it. Other devices can still pick it.
+
+When a saved scheme is selected, **Edit *name*** reopens it, and **Duplicate** starts a new one from it. Deleting a scheme (in the sheet) moves any screen using it back to Meadow. A family can keep up to 10 schemes.
+
+### Custom colors from an earlier version
+
+Kinwall used to let you set single custom colors on top of a scheme, the same in light and dark mode. If you set any, a note under the scheme chips says so:
+
+* **Save as a scheme** opens the editor with those colors in light mode and the scheme's own dark colors, so you can check both and save them as a scheme.
+* **Remove them** goes back to the plain scheme.
+
+Low-stimulation mode always uses the scheme's own backgrounds, cards and text, without any leftover custom colors from an earlier version.

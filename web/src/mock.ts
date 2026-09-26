@@ -24,6 +24,7 @@ const settings: Settings = {
   accent: '#FF9E7A',
   colorScheme: 'meadow',
   customColors: null,
+  customSchemes: [],
   backgroundLight: 'warm',
   backgroundDark: 'cocoa',
   textScale: 'm',

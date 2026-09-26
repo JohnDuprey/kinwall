@@ -50,6 +50,53 @@ export const SKINS: Skin[] = [
 export const DEFAULT_SKIN_ID = 'meadow'
 export const getSkin = (id?: string): Skin => SKINS.find(s => s.id === id) ?? SKINS[0]
 
+// ---- The family's own schemes (Settings -> Appearance -> Customize) ----
+// People pick four colors per mode; the softer background, border and dim text are derived from
+// them the way the built-in skins are shaped, and contrast is checked before a scheme can be saved.
+export type Palette = { bg: string; card: string; text: string; accent: string }
+export type CustomScheme = { id: `custom-${string}`; name: string; emoji: string; light: Palette; dark: Palette }
+
+/** `a` moved `t` (0..1) of the way toward `b`, as #rrggbb. */
+function mix(a: string, b: string, t: number): string {
+  const p = (h: string) => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16))
+  const [x, y] = [p(a), p(b)]
+  return '#' + x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, '0')).join('')
+}
+
+export function baseFromPalette(p: Palette, dark: boolean): SkinBase {
+  // Dim text: partway to the background, then pulled back until it reads on both surfaces.
+  let textDim = mix(p.text, p.bg, 0.4)
+  for (const surface of [p.bg, p.card, p.bg]) textDim = readableOn(textDim, surface)
+  return { bg: p.bg, card: p.card, text: p.text, accent: p.accent, textDim,
+    bgAlt: mix(p.bg, p.text, dark ? 0.06 : 0.04), border: mix(p.bg, p.text, dark ? 0.16 : 0.12) }
+}
+
+export const skinFromCustom = (c: CustomScheme): Skin =>
+  ({ id: c.id, name: c.name, emoji: c.emoji || '🎨', light: baseFromPalette(c.light, false), dark: baseFromPalette(c.dark, true) })
+
+/** A built-in skin or one of the family's schemes; unknown ids (a deleted scheme) fall back to Meadow. */
+export function findSkin(id: string | undefined, custom: CustomScheme[] = []): Skin {
+  const c = custom.find(s => s.id === id)
+  return c ? skinFromCustom(c) : getSkin(id)
+}
+
+export const paletteOf = (skin: Skin, dark: boolean): Palette => {
+  const b = dark ? skin.dark : skin.light
+  return { bg: b.bg, card: b.card, text: b.text, accent: b.accent }
+}
+
+/** The pairs a saved scheme must pass (4.5:1), for one mode. Accent buttons always pass: their
+ * fill is deepened for white text (accentFill), and accent-as-text is adjusted (readableOn). */
+export function paletteChecks(p: Palette, dark: boolean): { label: string; ratio: number }[] {
+  const b = baseFromPalette(p, dark)
+  return [
+    { label: 'Text on background', ratio: contrastRatio(b.text, b.bg) },
+    { label: 'Text on cards', ratio: contrastRatio(b.text, b.card) },
+    { label: 'Dim text on background', ratio: contrastRatio(b.textDim, b.bg) },
+    { label: 'Dim text on cards', ratio: contrastRatio(b.textDim, b.card) },
+  ]
+}
+
 /** Which skin `seasonal` mode picks for a given date - see useTheme.ts. Exported for the test below
  * and for Settings to preview the current pick. */
 export function seasonalSkinId(d = new Date()): string {
