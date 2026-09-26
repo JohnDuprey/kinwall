@@ -5,6 +5,7 @@ import { resolveKey } from '../auth.ts';
 import { parseMemberIds, resolveMemberIds } from '../calendar-members.ts';
 import { getVapidPublicKey, sendWebPush } from '../webpush.ts';
 import { encrypt } from '../crypto.ts';
+import { readFeatures } from './settings.ts';
 import { DEFAULT_PUSH_PREFS, memberMatch, recordNotification } from '../notify.ts';
 import { ErrorSchema, NotificationSchema, NotifyInputSchema, PushSubscriptionInputSchema, PushSubscriptionPatchSchema, PushSubscriptionSchema } from '../schemas.ts';
 
@@ -208,10 +209,14 @@ pushRoutes.openapi(
     summary: 'Send a custom message to devices following the given members (or all devices)',
     security: [{ Bearer: [] }],
     request: { body: { content: { 'application/json': { schema: NotifyInputSchema } } } },
-    responses: { 200: { description: 'ok', content: { 'application/json': { schema: z.object({ ok: z.boolean(), sent: z.number() }) } } } },
+    responses: {
+      200: { description: 'ok', content: { 'application/json': { schema: z.object({ ok: z.boolean(), sent: z.number() }) } } },
+      403: { description: 'family messages are turned off (settings.features.messages)', content: { 'application/json': { schema: ErrorSchema } } },
+    },
   }),
   async (c) => {
     const body = c.req.valid('json');
+    if (!(await readFeatures(c.env.DB)).messages) return c.json({ error: 'Family messages are turned off in Settings → Features' }, 403);
     // The MCP server calls this route in-process and tags itself; anything else is the REST API.
     const source = c.req.header('X-Kinwall-Source') === 'mcp' ? 'mcp' : 'api';
     await recordNotification(c.env.DB, { kind: 'message', title: body.title, body: body.body, url: body.url, memberIds: body.memberIds, source });

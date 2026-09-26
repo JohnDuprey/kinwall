@@ -39,6 +39,17 @@ export interface Settings {
   location: WeatherLocation | null // for the snapshot's weather; null = no weather
   temperatureUnit: 'celsius' | 'fahrenheit'
   tidbits: TidbitSettings // the Board's quote / fact card
+  features: Features // Settings → Features: what the family uses; off = hidden on every screen
+}
+
+/** Household feature switches. Off hides the feature everywhere; its data is kept. */
+export interface Features {
+  chores: boolean // Chores tab, points, leaderboard, sticker book, chore nudges
+  lists: boolean // Lists tab, "Due soon", an event's linked items, list-update notifications
+  paint: boolean // Activities → Paint
+  photos: boolean // Activities → Photos and the Board's picture card
+  notes: boolean // notes on events and list items
+  messages: boolean // sending family messages (the bell's Send a message)
 }
 
 export type TidbitSource = 'quotes' | 'facts' | 'onthisday' | 'trivia'

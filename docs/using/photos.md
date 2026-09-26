@@ -2,6 +2,8 @@
 
 **Activities → Photos** keeps a small album of family pictures. They show up on the calendar's [Board view](calendar.md#board-view) picture card and, if you choose, in a display's [quiet-hours screensaver](quiet-hours.md#screensaver).
 
+An admin can turn off **Photos** in **Settings → General → Features**: Activities → Photos and the Board's picture card are hidden, the photos are kept, and a night screen set to **Family photos** shows nature pictures instead. See [Features](../settings/general.md#features).
+
 ![Photos on the wall iPad](../screenshots/ipad-photos.png)
 
 ## Adding photos

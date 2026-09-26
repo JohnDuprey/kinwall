@@ -40,6 +40,25 @@ On this day and trivia are off until you turn them on. Your Kinwall server fetch
 
 API: `tidbits` `{ sources, factCategories, onThisDay, birthsAfter, triviaCategories, triviaDifficulties }` in `GET` / `PATCH /api/settings`, where `sources` is any of `quotes`, `facts`, `onthisday`, `trivia` (`[]` hides the card), `factCategories` any of `animals`, `space`, `science`, `body`, `plants`, `words` (`[]` = all), `onThisDay` any of `holidays`, `births`, `events`, `birthsAfter` a year or `null` for any, `triviaCategories` [Open Trivia DB category ids](https://opentdb.com/api_category.php), and `triviaDifficulties` one or more of `easy`, `medium`, `hard`. Today's online items: `GET /api/tidbits`.
 
+### Features
+
+*Admin only.* Turn off what your family doesn't use. It's hidden on every screen and phone; nothing is deleted, and turning it back on brings everything back as it was. Every feature is on by default.
+
+| Switch | When it's off |
+|---|---|
+| **Chores & points** | No **Chores** tab, no chores card on the Board, no chores or points in a member's day and the family sheet, no **Chores** card under Settings → Family, no **Chore reminder** notification setting, and no **Sticker book** (it spends chore points). The daily summary leaves chores out and the chore reminder isn't sent. The leaderboard and sticker shop keep their own switches under **Settings → Family → Chores**. |
+| **Lists** | No **Lists** tab, no **Due soon** card on the Board, no to-dos in a member's day or week, no **Tasks** in an event's detail sheet, and no **List updates** notification setting. "List updated" notifications stop, and the daily summary leaves list items out. |
+| **Paint** | No **Paint** in Activities. |
+| **Photos** | No **Photos** in Activities and no picture card on the Board. A display whose night screen shows **Family photos** shows nature pictures instead. |
+| **Notes** | No notes on events and no **Discussion** on list items, and no note counts (💬) on events or list items. A list item's own **Notes** field still shows. |
+| **Family messages** | No **Send a message** in the bell or in Settings → Access → Notifications. Messages already sent stay in the bell. `POST /api/notify` (and the MCP tool `send_notification`) answers 403. |
+
+When every activity is off (Paint, Photos, and the Sticker book, which is off when Chores or the sticker shop is), the **Activities** tab goes too. A link to a screen that's off, such as a bookmark or an old notification, opens the calendar instead. The Board rearranges its cards so a hidden one leaves no gap.
+
+Apart from sending messages, the API keeps answering for features that are off (like the leaderboard switch), so nothing is lost and integrations keep working.
+
+API: `features` `{ chores, lists, paint, photos, notes, messages }` (all booleans) in `GET` / `PATCH /api/settings`. A `PATCH` sends the whole object. Display keys can't change it (403).
+
 ### Appearance
 
 Mode, dark schedule, color scheme (including the family's own schemes), text size and density. See [Appearance](../using/appearance.md).
@@ -52,4 +71,4 @@ Mode, dark schedule, color scheme (including the family's own schemes), text siz
 
 **This display**, **Appearance on this device**, **Time cues**, **Night screen**, **Notifications** and **Troubleshooting**. See [This device](this-display.md).
 
-Chore settings (late completion credit, streak grace, leaderboard and sticker shop) live on the **Family** tab. See [Family](family.md) and [Chores](../using/chores.md).
+Chore settings (late completion credit, streak grace, leaderboard and sticker shop) live on the **Family** tab, while **Chores & points** is on. See [Family](family.md) and [Chores](../using/chores.md).

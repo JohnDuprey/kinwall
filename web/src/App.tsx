@@ -7,7 +7,7 @@ import { BrushIcon, CalendarIcon, ChevronRight, ChoreIcon, ListIcon, SettingsIco
 import CalendarView from './Calendar.tsx'
 import Chores from './Chores.tsx'
 import Lists from './Lists.tsx'
-import Activities from './Activities.tsx'
+import Activities, { shownActivities } from './Activities.tsx'
 import SettingsView, { OwnerSelect } from './Settings.tsx'
 import AuthorizeScreen from './Authorize.tsx'
 import Setup, { readSetupResume, resumeAtPasskey } from './Setup.tsx'
@@ -34,11 +34,25 @@ const NAV_ITEMS = [
   { key: 'settings', href: '#/settings', label: 'Settings', Icon: SettingsIcon },
 ] as const
 
-function Nav({ tab, mode }: { tab: string; mode: NavMode }) {
+/** The nav items this family has on (Settings → Features); Activities goes when every activity is off. */
+function navItems(s: Settings) {
+  return NAV_ITEMS.filter(i => i.key === 'chores' ? s.features.chores : i.key === 'lists' ? s.features.lists : i.key === 'activities' ? shownActivities(s).length > 0 : true)
+}
+
+/** Where to send a link to a screen whose feature is off (a bookmark, a push, an old tab), or null. */
+function featureRedirect(s: Settings, section: string, sub: string | undefined): string | null {
+  if (section === 'chores' || section === 'lists' || section === 'activities') {
+    if (!navItems(s).some(i => i.key === section)) return '#/calendar'
+    if (sub && !shownActivities(s).some(a => a.key === sub)) return '#/activities'
+  }
+  return null
+}
+
+function Nav({ tab, mode, items }: { tab: string; mode: NavMode; items: ReturnType<typeof navItems> }) {
   if (mode === 'bottom') {
     return (
       <nav className="tab-bar" aria-label="Main">
-        {NAV_ITEMS.map(item => (
+        {items.map(item => (
           <a key={item.key} href={item.href} className={`tab-btn ${tab === item.key ? 'active' : ''}`} aria-current={tab === item.key ? 'page' : undefined}><item.Icon /> {item.label}</a>
         ))}
       </nav>
@@ -46,7 +60,7 @@ function Nav({ tab, mode }: { tab: string; mode: NavMode }) {
   }
   return (
     <nav className={`nav-rail nav-rail-${mode}`} aria-label="Main">
-      {NAV_ITEMS.map(item => (
+      {items.map(item => (
         <a key={item.key} href={item.href} className={`nav-rail-btn ${tab === item.key ? 'active' : ''}`} aria-current={tab === item.key ? 'page' : undefined}><item.Icon /><span>{item.label}</span></a>
       ))}
     </nav>
@@ -133,6 +147,8 @@ function QuietOverlay({ settings, isDisplay }: { settings: Settings; isDisplay: 
     return () => clearInterval(id)
   }, [asleep])
   if (!asleep) return null
+  // Photos turned off (Settings → Features): a display that picked them shows nature pictures instead.
+  const sources = [...new Set((device.saverSources ?? []).map(src => src === 'photos' && !settings.features.photos ? 'nature' : src))]
   const { time, date } = clockStrings(now, settings.timezone)
   const clock = (small: boolean) => small
     ? <div className="saver-clock"><div className="saver-time">{time}</div><div className="saver-date">{date}</div></div>
@@ -144,7 +160,7 @@ function QuietOverlay({ settings, isDisplay }: { settings: Settings; isDisplay: 
     )
   return (
     <div className="quiet-overlay" role="button" tabIndex={0} aria-label="Wake display" onClick={() => { lastActive.current = Date.now(); setNow(new Date()) }}>
-      {device.saverSources?.length ? <Slideshow sources={device.saverSources} device={device} clock={clock} /> : clock(false)}
+      {sources.length ? <Slideshow sources={sources} device={device} clock={clock} /> : clock(false)}
     </div>
   )
 }
@@ -647,6 +663,7 @@ function FamilySheet({ name, members, selectedMemberId, onClose, onFilter, onSna
   name: string; members: Member[]; selectedMemberId: string | null
   onClose: () => void; onFilter: (id: string | null) => void; onSnapshot: (m: Member) => void
 }) {
+  const { settings } = useApp()
   return (
     <Sheet title={name} onClose={onClose}>
       <div className="family-list">
@@ -656,7 +673,7 @@ function FamilySheet({ name, members, selectedMemberId, onClose, onFilter, onSna
               onClick={() => onFilter(m.id === selectedMemberId ? null : m.id)}>
               <span className={`member-avatar-sm ${m.id === selectedMemberId ? 'selected' : ''}`} style={{ background: m.color, color: inkFor(m.color) }} aria-hidden="true">{m.avatar || m.name[0]}</span>
               <span className="family-row-name">{m.name}</span>
-              <span className="family-row-sub">{m.id === selectedMemberId ? 'Calendar shows only them' : `${m.pointsToday} pts today`}</span>
+              {(m.id === selectedMemberId || settings.features.chores) && <span className="family-row-sub">{m.id === selectedMemberId ? 'Calendar shows only them' : `${m.pointsToday} pts today`}</span>}
             </button>
             <button className="family-day-btn" aria-haspopup="dialog" onClick={() => onSnapshot(m)} aria-label={`${m.name}'s day`}>Their day <ChevronRight width={16} height={16} /></button>
           </div>
@@ -870,6 +887,8 @@ function AppRoutes() {
     return () => clearTimeout(id)
   }, [toastMsg])
   useEffect(() => { if (bannerMsg) announce(bannerMsg) }, [bannerMsg])
+  const redirect = settings && featureRedirect(settings, section, sub)
+  useEffect(() => { if (redirect) location.replace(redirect) }, [redirect])
   const tabLabel = section === 'activities' && sub === 'paint' ? 'Paint' : section === 'activities' && sub === 'stickers' ? 'Sticker book' : section === 'activities' && sub === 'photos' ? 'Photos' : NAV_ITEMS.find(i => i.key === section)?.label ?? 'Calendar'
   const inApp = hasKey && !!settings && !wizardActive && NAV_ITEMS.some(i => i.key === section)
   // "Chores · Duprey Family": the family, not the product, is what tells tabs and home-screen icons apart.
@@ -914,6 +933,7 @@ function AppRoutes() {
     )
   }
 
+  const nav = navItems(settings)
   return (
     <AppContext.Provider value={{
       settings, members, categories, selectedMemberId: effectiveMemberId, setSelectedMemberId: setMemberId,
@@ -925,16 +945,16 @@ function AppRoutes() {
       <div className={`app-shell ${navMode !== 'bottom' ? `app-shell-rail app-shell-rail-${navMode}` : ''}`}>
         {/* A button, not href="#main": the hash is the router. */}
         <button className="skip-link" onClick={() => document.getElementById('main')?.focus()}>Skip to content</button>
-        {navMode === 'left' && <Nav tab={section} mode={navMode} />}
+        {navMode === 'left' && <Nav tab={section} mode={navMode} items={nav} />}
         <div className="main-col">
           <Header settings={settings} members={focusMember ? [focusMember] : members} selectedMemberId={effectiveMemberId} isAdmin={scope === 'admin'} />
           <main className="content" id="main" tabIndex={-1}>
             <h1 className="sr-only">{tabLabel}</h1>
-            {section === 'activities' ? <Activities sub={sub} /> : tab === 'chores' ? <Chores /> : tab === 'lists' ? <Lists /> : tab === 'settings' ? <SettingsView /> : <CalendarView />}
+            {redirect ? null : section === 'activities' ? <Activities sub={sub} /> : tab === 'chores' ? <Chores /> : tab === 'lists' ? <Lists /> : tab === 'settings' ? <SettingsView /> : <CalendarView />}
           </main>
-          {navMode === 'bottom' && <Nav tab={section} mode={navMode} />}
+          {navMode === 'bottom' && <Nav tab={section} mode={navMode} items={nav} />}
         </div>
-        {navMode === 'right' && <Nav tab={section} mode={navMode} />}
+        {navMode === 'right' && <Nav tab={section} mode={navMode} items={nav} />}
         <SaveIndicator />
         {toastMsg && (toastMsg.persist
           ? <button className="toast" onClick={() => setToastMsg(null)} aria-label={`${toastMsg.msg} (dismiss)`}>{toastMsg.msg} <span aria-hidden="true">✕</span></button>

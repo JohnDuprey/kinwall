@@ -6,6 +6,8 @@
 
 ![Lists on the wall iPad](../screenshots/ipad-lists.png)
 
+Don't use lists? An admin can turn off **Lists** in **Settings → General → Features**. It's hidden on every screen; nothing is deleted. See [Features](../settings/general.md#features).
+
 The Lists tab shows your lists and their open-item counts. On the wall display, the open list sits next to them. On a phone, you tap into one. **New list** or **+** creates a list. Press and hold a list card to edit it.
 
 ## Kinds

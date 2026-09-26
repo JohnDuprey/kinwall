@@ -146,7 +146,7 @@ export default function NotificationBell({ isAdmin }: { isAdmin: boolean }) {
               </ul>
             </section>
           ))}
-          {isAdmin && (composing
+          {isAdmin && settings.features.messages && (composing
             ? <SendMessageForm onSent={() => { setComposing(false); load() }} />
             : <div className="notif-compose"><button className="btn btn-secondary" onClick={() => setComposing(true)}>💬 Send a message</button></div>)}
         </Sheet>

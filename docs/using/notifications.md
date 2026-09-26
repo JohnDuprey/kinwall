@@ -34,7 +34,7 @@ iOS shows the sending app's name under each notification, so a reminder reads as
 
 ## Sending a message now
 
-On an admin device, **Settings → Access → Notifications** lists every subscribed device ("added …, delivered …" or "never delivered"). You can remove a device there. Below the list, **Send a message** takes a **Title**, a **Message** and **To** (members, or Everyone), then **Send now**. The message also lands in everyone's [notification feed](#notification-feed). The API equivalent is `POST /api/notify {title, body, memberIds?, url?}` (admin only), and the MCP tool is `send_notification`.
+On an admin device, **Settings → Access → Notifications** lists every subscribed device ("added …, delivered …" or "never delivered"). You can remove a device there. Below the list, **Send a message** takes a **Title**, a **Message** and **To** (members, or Everyone), then **Send now**. The message also lands in everyone's [notification feed](#notification-feed). The API equivalent is `POST /api/notify {title, body, memberIds?, url?}` (admin only), and the MCP tool is `send_notification`. Turning off **Family messages** in [Settings → General → Features](../settings/general.md#features) hides **Send a message** everywhere and makes `POST /api/notify` answer 403. Turning off **Chores & points** or **Lists** there also hides the **Chore reminder** or **List updates** setting and stops those notifications.
 
 ## Notification feed
 

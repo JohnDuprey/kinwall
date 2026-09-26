@@ -26,7 +26,7 @@ See [Home Assistant add-on](../getting-started/home-assistant-add-on.md): ingres
 
 The integration uses the same public interfaces anything else can use:
 
-* **[REST API](rest-api.md)** with an API key. A **display** key is enough for reading the calendar and working with chores and lists. Use an **admin** key only if you need members or push messages (`POST /api/notify`).
+* **[REST API](rest-api.md)** with an API key. A **display** key is enough for reading the calendar and working with chores and lists. Use an **admin** key only if you need members or push messages (`POST /api/notify`, which needs **Family messages** on in [Settings → General → Features](../settings/general.md#features)).
 * **`GET /api/rev`** for cheap polling. It changes on every write.
 * **[Webhooks](webhooks.md)** into a Home Assistant webhook trigger, for instant automations on `chore.completed`, `list.item.changed` and so on. Webhooks go to public addresses only, unless the server runs with `ALLOW_PRIVATE_WEBHOOK_URLS=1`. The add-on turns that on for you. If Kinwall runs elsewhere and Home Assistant is on your home network, set it yourself (see [Configuration](../self-hosting/configuration.md)).
 

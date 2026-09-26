@@ -4,7 +4,8 @@ import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
 import { emit } from '../bus.ts';
 import { schemeContrastFailures } from '../colors.ts';
-import { COLOR_SCHEMES, CUSTOM_SCHEME_ID_RE, CustomSchemeSchema, ErrorSchema, LocationSchema, SettingsPatchSchema, SettingsSchema, TidbitSettingsSchema } from '../schemas.ts';
+import { resolveKey } from '../auth.ts';
+import { COLOR_SCHEMES, CUSTOM_SCHEME_ID_RE, CustomSchemeSchema, ErrorSchema, FeaturesSchema, LocationSchema, SettingsPatchSchema, SettingsSchema, TidbitSettingsSchema } from '../schemas.ts';
 
 export const settingsRoutes = createRouter();
 
@@ -61,6 +62,7 @@ export async function readSettings(db: KinwallDb) {
     location,
     temperatureUnit: (map.get('temperatureUnit') || defaultUnit(location, map.get('timezone'))) as 'celsius' | 'fahrenheit',
     tidbits: parseTidbits(map.get('tidbits')),
+    features: parseFeatures(map.get('features')),
   };
 }
 
@@ -90,6 +92,21 @@ function parseTidbits(raw: string | undefined): z.infer<typeof TidbitSettingsSch
     const parsed = TidbitSettingsSchema.safeParse({ ...DEFAULT_TIDBITS, ...saved });
     return parsed.success ? parsed.data : DEFAULT_TIDBITS;
   } catch { return DEFAULT_TIDBITS; }
+}
+
+export type Features = z.infer<typeof FeaturesSchema>;
+export const DEFAULT_FEATURES: Features = { chores: true, lists: true, paint: true, photos: true, notes: true, messages: true };
+// Saved over the defaults, so a switch added later starts on for families that saved before it existed.
+function parseFeatures(raw: string | undefined): Features {
+  try {
+    const parsed = FeaturesSchema.safeParse({ ...DEFAULT_FEATURES, ...JSON.parse(raw ?? '{}') });
+    return parsed.success ? parsed.data : DEFAULT_FEATURES;
+  } catch { return DEFAULT_FEATURES; }
+}
+/** Just the feature switches, for the notification ticker and routes that respect them. */
+export async function readFeatures(db: KinwallDb): Promise<Features> {
+  const row = await db.prepare("SELECT value FROM settings WHERE key = 'features'").first<{ value: string }>();
+  return parseFeatures(row?.value);
 }
 
 function parseColorScheme(raw: string | undefined): string {
@@ -177,10 +194,13 @@ settingsRoutes.openapi(
     responses: {
       200: { description: 'ok', content: { 'application/json': { schema: SettingsSchema } } },
       400: { description: 'invalid', content: { 'application/json': { schema: ErrorSchema } } },
+      403: { description: 'a display key sent features', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
     const body = c.req.valid('json');
+    // Settings PATCH is display-allowed for the everyday settings; which features exist is the admin's call.
+    if (body.features && (await resolveKey(c))?.scope === 'display') return c.json({ error: 'Only an admin can turn features on or off' }, 403);
     // A saved scheme must be readable in both modes, the same bar as the app's editor.
     const failures = (body.customSchemes ?? []).flatMap(schemeContrastFailures);
     if (failures.length) return c.json({ error: `Not enough contrast. ${failures.join('. ')}.` }, 400);

@@ -85,6 +85,7 @@ Anyone can leave a note on an event: "Bring shin guards", "I can drive", a link 
 * Tap a note (or its **Edit**) to change the text, then **Save**, **Cancel** or **Delete** (which asks first). Escape cancels.
 * In **Schedule**, an event with notes shows 💬 and the count.
 * A recurring local event keeps one thread for the whole series. A synced event's notes survive every sync, because synced events keep the same Kinwall id; if an event drops out of the feed, its notes wait and come back with it. Deleting an event in Kinwall deletes its notes.
+* An admin can turn notes off in **Settings → General → Features** (events and list items alike). They're hidden, not deleted. See [Features](../settings/general.md#features).
 * Notes are Kinwall-only and never go to Google or Outlook. Export includes notes on local events (and list items); notes on synced events are not exported.
 * API: `GET /api/notes?target=event:<id>`, `POST /api/notes` `{target, body, memberId?}` (1–2000 characters; no `memberId` = "Someone"), `PATCH /api/notes/{id}` `{body}`, `DELETE /api/notes/{id}`. Events from `GET /api/events` carry `noteCount`. Display keys can read and write notes. MCP: `list_notes`, `add_note`, `update_note`.
 

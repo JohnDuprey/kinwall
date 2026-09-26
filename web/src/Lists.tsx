@@ -188,7 +188,7 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, sibli
   onClose: () => void; onSaved: () => void
 }) {
   const dialog = useDialog()
-  const { toast } = useApp()
+  const { toast, settings } = useApp()
   const [title, setTitle] = useState(item.title)
   const [quantity, setQuantity] = useState(item.quantity ?? '')
   const [notes, setNotes] = useState(item.notes ?? '')
@@ -311,7 +311,7 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, sibli
         <label>Notes</label>
         <textarea value={notes} onChange={e => setNotes(e.target.value)} />
       </div>
-      <NotesThread target={`list_item:${item.id}`} title="Discussion" />
+      {settings.features.notes && <NotesThread target={`list_item:${item.id}`} title="Discussion" />}
       {manual && (
         <div className="field">
           <label>Order</label>
@@ -463,17 +463,18 @@ function ItemRow({ item, kind, groupBy, members, event, onToggle, onOpen, handle
   const showCategory = kind === 'shopping' && groupBy !== 'category' && item.category
   const due = dueLabel(item)
   const prio = item.priority !== 'normal' ? item.priority : null
+  const notesOn = useApp().settings.features.notes // off: an item's own notes still show, its thread's count doesn't
   return (
     <div className={`list-item-row ${item.done ? 'done' : ''} ${prio === 'urgent' && !item.done ? 'urgent' : ''}`}>
       <button className={`list-item-check ${item.done ? 'done' : ''}`} onClick={onToggle} role="checkbox" aria-checked={item.done} aria-label={item.title}>
         {item.done && <CheckIcon width={20} height={20} />}
       </button>
       <div className="list-item-body" {...pressable(onOpen)}
-        aria-label={[`Edit ${item.title}`, prio && `${PRIORITY_LABEL[prio]} priority`, due?.text, (item.notes || item.noteCount) && 'has notes', item.stepsTotal > 0 && `${item.stepsDone} of ${item.stepsTotal} steps done`].filter(Boolean).join(', ')}>
+        aria-label={[`Edit ${item.title}`, prio && `${PRIORITY_LABEL[prio]} priority`, due?.text, (item.notes || (notesOn && item.noteCount)) && 'has notes', item.stepsTotal > 0 && `${item.stepsDone} of ${item.stepsTotal} steps done`].filter(Boolean).join(', ')}>
         <div className="list-item-title-row">
           {prio && <span className={`prio-dot prio-${prio}`} role="img" aria-label={PRIORITY_LABEL[prio]} />}
           <div className="list-item-title">{item.title}</div>
-          {(item.notes || !!item.noteCount) && <NoteIcon className="list-item-note" width={14} height={14} aria-hidden={false} role="img" aria-label="Has notes" />}
+          {(item.notes || (notesOn && !!item.noteCount)) && <NoteIcon className="list-item-note" width={14} height={14} aria-hidden={false} role="img" aria-label="Has notes" />}
         </div>
         {due && <div className={`list-item-meta list-item-due ${due.overdue ? 'overdue' : ''}`} aria-hidden="true">{due.text}</div>}
         {item.stepsTotal > 0 && (

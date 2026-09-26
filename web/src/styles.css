@@ -678,7 +678,7 @@ button {
 .field input::-webkit-calendar-picker-indicator { margin: 0 2px 0 8px; opacity: 0.75; cursor: pointer; }
 
 
-.toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 2px; }
+.toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 2px; }
 .toggle-row label { font-size: 0.9375rem; font-weight: 800; color: var(--text); text-transform: none; margin: 0; }
 .switch { position: relative; width: 52px; height: 32px; border-radius: 999px; background: var(--text-dim); border: none; flex-shrink: 0; }
 .switch::after { content: ''; position: absolute; inset: -6px -2px; } /* 44px tall hit area */
@@ -1760,7 +1760,7 @@ button.snap-row:active { transform: scale(0.99); }
 .board-scroll { height: 100%; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain; container: board / inline-size; }
 .board {
   display: grid; gap: var(--gap); padding: 4px var(--pad) var(--pad); grid-template-columns: minmax(0, 1fr);
-  grid-template-areas: "clock" "today" "photo" "coming" "due" "chores" "tidbit";
+  grid-template-areas: var(--board-areas-1); /* each layout's areas come from boardAreas() in Board.tsx: only the cards shown */
 }
 .board-card {
   background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: calc(var(--pad) * 0.7);
@@ -1777,13 +1777,13 @@ button.snap-row:active { transform: scale(0.99); }
 .board-tidbit { grid-area: tidbit; min-height: auto; overflow-y: auto; }
 
 @container board (min-width: 620px) {
-  .board { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: "clock photo" "today coming" "due chores" "tidbit tidbit"; }
+  .board { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: var(--board-areas-2); }
 }
 @container board (min-width: 880px) {
   .board {
     height: 100%; grid-template-columns: repeat(3, minmax(0, 1fr));
     grid-template-rows: auto minmax(0, 1fr) minmax(0, 1fr) auto; /* 1024x768 fits without scrolling; weather and tidbit scroll inside if they must */
-    grid-template-areas: "clock today coming" "photo today coming" "photo chores due" "tidbit chores due";
+    grid-template-areas: var(--board-areas-3);
   }
   .board-tidbit blockquote p, .board-tidbit-body > p { font-size: 0.875rem; }
   .board-clock, .board-tidbit { padding: 8px 12px; }

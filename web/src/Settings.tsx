@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { AppContext, useApp } from './AppContext.tsx'
 import { api, ApiError, clearKey } from './api.ts'
-import type { Account, ApiKey, CalendarEntry, Category, ColorScheme, CustomColors, Density, DeviceDensity, GeocodeResult, HostEvent, Me, Member, Passkey, Providers, PushSubscription, RemoteCalendar, Settings, TextScale, ThemeMode, Webhook } from './types.ts'
+import type { Account, ApiKey, CalendarEntry, Category, ColorScheme, CustomColors, Density, DeviceDensity, Features, GeocodeResult, HostEvent, Me, Member, Passkey, Providers, PushSubscription, RemoteCalendar, Settings, TextScale, ThemeMode, Webhook } from './types.ts'
 import { ProviderForm, PublicUrlRow } from './ProviderConfig.tsx'
 import { CATEGORY_EMOJI, CATEGORY_PRESETS, MEMBER_EMOJI, MEMBER_PALETTE, nextPaletteColor, REMINDER_OPTIONS } from './types.ts'
 import Sheet from './Sheet.tsx'
@@ -111,6 +111,7 @@ export default function SettingsView() {
             <GeneralSection settings={settings} onSaved={reloadCore} toast={toast} isDisplay={isDisplay} />
             <WeatherSection settings={settings} onSaved={reloadCore} toast={toast} />
             <TidbitsSection settings={settings} onSaved={reloadCore} toast={toast} />
+            {!isDisplay && <FeaturesSection settings={settings} onSaved={reloadCore} toast={toast} />}
             <AppearanceSection settings={settings} onSaved={reloadCore} toast={toast} />
             <QuietHoursSection settings={settings} onSaved={reloadCore} toast={toast} />
           </SettingsGroup>
@@ -126,7 +127,7 @@ export default function SettingsView() {
         {current === 'family' && <>
           <MembersSection members={members} onChanged={reloadCore} toast={toast} canManage={!isDisplay} />
           <CategoriesSection categories={categories} onChanged={reloadCore} toast={toast} />
-          <ChoreSettingsSection settings={settings} onSaved={reloadCore} toast={toast} />
+          {settings.features.chores && <ChoreSettingsSection settings={settings} onSaved={reloadCore} toast={toast} />}
         </>}
         {current === 'calendars' && <>
           <CalendarsSection openAccountId={openAccountId} onOpenedAccount={() => setOpenAccountId(null)} toast={toast} />
@@ -214,6 +215,37 @@ function GeneralSection({ settings, onSaved, toast, isDisplay }: { settings: Ret
           </select>
         </div>
       )}
+    </Section>
+  )
+}
+
+const FEATURE_ROWS: { key: keyof Features; label: string; sub: string }[] = [
+  { key: 'chores', label: 'Chores & points', sub: 'The Chores tab, points and the sticker book. The leaderboard and sticker shop have their own switches in Family → Chores.' },
+  { key: 'lists', label: 'Lists', sub: 'The Lists tab, “Due soon” on the Board and tasks on events.' },
+  { key: 'paint', label: 'Paint', sub: 'Drawing and coloring in Activities.' },
+  { key: 'photos', label: 'Photos', sub: 'Family photos in Activities and the Board’s picture card.' },
+  { key: 'notes', label: 'Notes', sub: 'Notes and discussions on events and list items.' },
+  { key: 'messages', label: 'Family messages', sub: 'Sending a message from the bell. Messages already sent still show.' },
+]
+
+/** Household feature switches (admin only: a display key can't change them). */
+function FeaturesSection({ settings, onSaved, toast }: { settings: Settings; onSaved: () => void; toast: (m: string, persist?: boolean) => void }) {
+  const set = async (key: keyof Features) => {
+    try { await api.updateSettings({ features: { ...settings.features, [key]: !settings.features[key] } }); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save settings', true) }
+  }
+  return (
+    <Section title="Features">
+      <p className="settings-row-sub">Turn off what your family doesn't use. It's hidden on every screen; nothing is deleted.</p>
+      {FEATURE_ROWS.map(f => (
+        <div key={f.key} className="toggle-row">
+          <div>
+            <label id={`feature-${f.key}-label`}>{f.label}</label>
+            <div className="settings-row-sub" id={`feature-${f.key}-sub`}>{f.sub}</div>
+          </div>
+          <button className={`switch ${settings.features[f.key] ? 'on' : ''}`} role="switch" aria-checked={settings.features[f.key]}
+            aria-labelledby={`feature-${f.key}-label`} aria-describedby={`feature-${f.key}-sub`} onClick={() => set(f.key)}><span className="knob" /></button>
+        </div>
+      ))}
     </Section>
   )
 }
@@ -468,7 +500,7 @@ const DEFAULT_PUSH_PREFS = { eventReminders: true, dailySummary: false, summaryT
  * summary/nudge/list-update preferences. Works for any key scope (display or admin) - it's
  * per-device, not a household setting. */
 function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean) => void }) {
-  const { members } = useApp()
+  const { members, settings } = useApp()
   const [sub, setSub] = useState<PushSubscription | null | undefined>(undefined) // undefined = still checking
   const [busy, setBusy] = useState(false)
 
@@ -578,17 +610,17 @@ function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean)
             </div>
             {prefs.dailySummary && <input type="time" aria-label="Daily summary time" value={prefs.summaryTime} onChange={e => savePrefs({ summaryTime: e.target.value })} />}
           </div>
-          <div className="settings-row">
+          {settings.features.chores && <div className="settings-row">
             <div className="toggle-row" style={{ flex: 1 }}>
               <label>Chore reminder</label>
               <button className={`switch ${prefs.choreNudge ? 'on' : ''}`} role="switch" aria-checked={prefs.choreNudge} aria-label="Chore reminder" onClick={() => savePrefs({ choreNudge: !prefs.choreNudge })}><span className="knob" /></button>
             </div>
             {prefs.choreNudge && <input type="time" aria-label="Chore reminder time" value={prefs.choreNudgeTime} onChange={e => savePrefs({ choreNudgeTime: e.target.value })} />}
-          </div>
-          <div className="toggle-row">
+          </div>}
+          {settings.features.lists && <div className="toggle-row">
             <label>List updates</label>
             <button className={`switch ${prefs.listUpdates ? 'on' : ''}`} role="switch" aria-checked={prefs.listUpdates} aria-label="List updates" onClick={() => savePrefs({ listUpdates: !prefs.listUpdates })}><span className="knob" /></button>
-          </div>
+          </div>}
           <MemberPicker members={members} selected={sub.memberIds} onChange={saveMembers} label="Which family members?" noneLabel="Everyone" />
           <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
             <button className="btn btn-secondary" onClick={sendTest}>Send test</button>
@@ -602,6 +634,7 @@ function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean)
 
 // Admin Access tab: subscribed devices (read-only list + remove) and a "send a message now" form.
 function NotificationDevicesSection({ toast }: { toast: (m: string, persist?: boolean) => void }) {
+  const { settings } = useApp()
   const dialog = useDialog()
   const [subs, setSubs] = useState<PushSubscription[]>([])
   const load = () => { api.getPushSubscriptions().then(setSubs).catch(() => {}) }
@@ -627,7 +660,7 @@ function NotificationDevicesSection({ toast }: { toast: (m: string, persist?: bo
           <button className="icon-btn" onClick={() => remove(s)} aria-label={`Remove ${s.deviceName}`}><TrashIcon width={16} height={16} /></button>
         </div>
       ))}
-      <SendMessageForm />
+      {settings.features.messages && <SendMessageForm />}
     </Section>
   )
 }
@@ -1011,6 +1044,7 @@ const SAVER_OPTIONS: { key: SaverSource; label: string }[] = [
   { key: 'drawings', label: 'Drawings' }, { key: 'photos', label: 'Family photos' }, { key: 'art', label: 'Art (The Met)' }, { key: 'nature', label: 'Nature' },
 ]
 function ScreensaverRows() {
+  const { settings } = useApp()
   const device = useDeviceAppearance()
   const set = (patch: DeviceAppearance) => setDeviceAppearance({ ...device, ...patch })
   const sources = device.saverSources ?? []
@@ -1029,7 +1063,7 @@ function ScreensaverRows() {
       <div className="settings-row-label" aria-hidden="true">During quiet hours show</div>
       <div className="chip-row" role="group" aria-label="During quiet hours show">
         <button className={`chip ${sources.length === 0 ? 'active' : ''}`} aria-pressed={sources.length === 0} onClick={() => set({ saverSources: undefined })}>Clock only</button>
-        {SAVER_OPTIONS.map(o => (
+        {SAVER_OPTIONS.filter(o => o.key !== 'photos' || settings.features.photos).map(o => ( // photos off: nature pictures stand in (App.tsx)
           <button key={o.key} className={`chip ${sources.includes(o.key) ? 'active' : ''}`} aria-pressed={sources.includes(o.key)} onClick={() => toggle(o.key)}>{o.label}</button>
         ))}
       </div>

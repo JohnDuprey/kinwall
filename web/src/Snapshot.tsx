@@ -52,7 +52,14 @@ export default function SnapshotSheet({ member, onClose }: { member: Member; onC
     setSelectedMemberId(filtered ? null : member.id)
     announce(filtered ? 'Calendar shows everyone' : `Calendar shows only ${member.name}`)
   }
-  const shown = snap?.range === range ? snap : null // no flash of the other range's data
+  // No flash of the other range's data; chores and list items only while those features are on.
+  const f = settings.features
+  const shown = snap?.range === range ? {
+    ...snap,
+    chores: f.chores ? snap.chores : [],
+    items: f.lists ? snap.items : [],
+    tomorrow: snap.tomorrow && { ...snap.tomorrow, items: f.lists ? snap.tomorrow.items : [] },
+  } : null
 
   // Chores tick off right here, like on the Chores tab. An "Anyone" chore done from someone's day
   // counts for them. The server refuses a chore whose checklist has open items (409): open the
@@ -201,6 +208,7 @@ export function BirthdayRow({ b, you, close }: { b: SnapshotBirthday; you: strin
 }
 
 function DayView({ snap, tz, close, onToggle }: { snap: Snapshot; tz: string; close: () => void; onToggle: (c: SnapshotChore) => void }) {
+  const { features } = useApp().settings
   const today = snap.from
   const t = snap.tomorrow
   const tw = snap.weather?.days.find(d => d.date === t?.date)
@@ -219,16 +227,16 @@ function DayView({ snap, tz, close, onToggle }: { snap: Snapshot; tz: string; cl
           ? <p className="snap-empty">Nothing on the calendar — enjoy it.</p>
           : <ul className="snap-list">{snap.events.map(e => <EventRow key={`${e.id}:${e.start}`} e={e} tz={tz} close={close} />)}</ul>}
       </Section>
-      <Section title={snap.chores.length ? `Chores · ${openChores ? `${openChores} left` : 'all done 🎉'}` : 'Chores'}>
+      {features.chores && <Section title={snap.chores.length ? `Chores · ${openChores ? `${openChores} left` : 'all done 🎉'}` : 'Chores'}>
         {snap.chores.length === 0
           ? <p className="snap-empty">No chores today.</p>
           : <ul className="snap-list">{snap.chores.map(c => <ChoreRow key={c.id} c={c} onToggle={onToggle} />)}</ul>}
-      </Section>
-      <Section title="To do">
+      </Section>}
+      {features.lists && <Section title="To do">
         {snap.items.length === 0
           ? <p className="snap-empty">Nothing due — all caught up.</p>
           : <ul className="snap-list">{snap.items.map(i => <ItemRow key={i.id} i={i} today={today} close={close} />)}</ul>}
-      </Section>
+      </Section>}
       {snap.birthdays.length > 0 && (
         <Section title="Birthdays 🎂">
           <ul className="snap-list">{snap.birthdays.map(b => <BirthdayRow key={`${b.memberId ?? b.eventId}`} b={b} you={snap.member.id} close={close} />)}</ul>

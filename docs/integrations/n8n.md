@@ -9,7 +9,7 @@ Since Kinwall is just a [REST API](rest-api.md) with [webhooks](webhooks.md), n8
 * A reachable Kinwall URL, e.g. `https://kinwall.example`.
 * An API key from **Settings → Access → API keys**:
   * **display** scope is enough for reading events/chores/lists and adding list items or completing chores.
-  * **admin** scope is required for `POST /api/notify` (pushing a message) and for managing webhooks (`POST/PATCH/DELETE /api/webhooks*`).
+  * **admin** scope is required for `POST /api/notify` (pushing a message; it answers 403 while **Family messages** is off in [Settings → General → Features](../settings/general.md#features)) and for managing webhooks (`POST/PATCH/DELETE /api/webhooks*`).
 
 ## Credentials in n8n
 

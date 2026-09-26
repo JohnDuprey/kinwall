@@ -11,6 +11,7 @@ import { dueOnDate, type ChoreRow } from './routes/chores.ts';
 import { priorityRankSql } from './routes/lists.ts';
 import { parseMemberIds } from './calendar-members.ts';
 import { sendWebPush } from './webpush.ts';
+import { readFeatures, type Features } from './routes/settings.ts';
 
 export const DEFAULT_PUSH_PREFS = {
   eventReminders: true,
@@ -293,7 +294,8 @@ async function runEventReminders(env: Env, db: KinwallDb, now: Date, tz: string,
   }
 }
 
-async function runDailySummary(env: Env, db: KinwallDb, now: Date, tz: string, subs: PushSubRow[], windowStart: Date): Promise<void> {
+// Features turned off in Settings (chores, lists) are left out of the summary.
+async function runDailySummary(env: Env, db: KinwallDb, now: Date, tz: string, subs: PushSubRow[], windowStart: Date, features: Features): Promise<void> {
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(now);
   // null = the household-wide copy for the in-app feed (everyone's events, no device filter).
   const targets: (PushSubRow | null)[] = subs.filter((s) => subPrefs(s).dailySummary && timeInWindow(subPrefs(s).summaryTime, tz, windowStart, now));
@@ -315,7 +317,7 @@ async function runDailySummary(env: Env, db: KinwallDb, now: Date, tz: string, s
     const mark = (r: { title: string; priority: string }) => `${r.priority === 'urgent' ? '‼️ ' : r.priority === 'high' ? '⭐ ' : ''}${r.title}`;
     const top3 = (titles: string[]) => titles.slice(0, 3).join(', ') + (titles.length > 3 ? ` +${titles.length - 3} more` : '');
     const linked = new Map<string, string[]>();
-    for (const r of linkedRes.results as unknown as { event_id: string; title: string; priority: string }[]) {
+    for (const r of features.lists ? linkedRes.results as unknown as { event_id: string; title: string; priority: string }[] : []) {
       linked.set(r.event_id, [...(linked.get(r.event_id) ?? []), mark(r)]);
     }
     const events = eventsRes.results as unknown as EventRow[];
@@ -351,10 +353,11 @@ async function runDailySummary(env: Env, db: KinwallDb, now: Date, tz: string, s
     }
     const chores = (choresRes.results as unknown as ChoreRow[]).filter((row) => dueOnDate(row, today, tz));
     const first = todaysTitles.slice(0, 2).join(', ') + (todaysTitles.length > 2 ? '…' : '');
-    let body = `${eventCount} event${eventCount === 1 ? '' : 's'} · ${chores.length} chore${chores.length === 1 ? '' : 's'}${first ? ` — ${first}` : ''}`;
+    const choreCount = features.chores ? ` · ${chores.length} chore${chores.length === 1 ? '' : 's'}` : '';
+    let body = `${eventCount} event${eventCount === 1 ? '' : 's'}${choreCount}${first ? ` — ${first}` : ''}`;
     if (todo.length) body += `\nTo do for today's events:\n${todo.join('\n')}`;
     // List items due today (any list), for this device's members like the chore nudge.
-    const due = (dueRes.results as unknown as { title: string; priority: string; member_id: string | null }[]).filter((r) => memberMatch(deviceMemberIds, r.member_id ? [r.member_id] : []));
+    const due = features.lists ? (dueRes.results as unknown as { title: string; priority: string; member_id: string | null }[]).filter((r) => memberMatch(deviceMemberIds, r.member_id ? [r.member_id] : [])) : [];
     if (due.length) body += `\nDue today: ${top3(due.map(mark))}`;
     if (sub) await sendToSub(env, db, sub, { title: 'Today', body, url: '/' });
     else await recordNotification(db, { kind: 'summary', title: 'Today', body, url: '/', source: 'system', at: now });
@@ -398,6 +401,7 @@ export function notifyListUpdate(env: Env, execCtx: WaitCtx | undefined, listId:
   waitUntil(
     execCtx,
     (async () => {
+      if (!(await readFeatures(env.DB)).lists) return; // Lists turned off in Settings
       const now = new Date();
       const bucket = Math.floor(now.getTime() / (10 * 60 * 1000));
       const key = `list:${listId}:${bucket}`;
@@ -433,8 +437,9 @@ export async function runNotifications(env: Env, now: Date, _execCtx?: WaitCtx):
   const windowStart = await getTickWindowStart(env.DB, now);
 
   await runEventReminders(env, env.DB, now, tz, defaultReminders, subs);
-  await runDailySummary(env, env.DB, now, tz, subs, windowStart);
-  await runChoreNudge(env, env.DB, now, tz, subs, windowStart);
+  const features = await readFeatures(env.DB);
+  await runDailySummary(env, env.DB, now, tz, subs, windowStart, features);
+  if (features.chores) await runChoreNudge(env, env.DB, now, tz, subs, windowStart); // Chores turned off: no nudge
   await pruneSentNotifications(env.DB, now);
   await setTickWindowEnd(env.DB, now);
 }

@@ -70,9 +70,13 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
   const wToday = w?.days.find(d => d.date === today)
   const later = [...new Set([...events.map(e => e.date), ...data.birthdays.map(b => b.date)])].filter(d => d > today).sort()
 
+  const f = settings.features
+  const shown = ['clock', 'today', 'photo', 'coming', 'due', 'chores', 'tidbit'].filter(a =>
+    a === 'photo' ? f.photos : a === 'due' ? f.lists : a === 'chores' ? f.chores : a === 'tidbit' ? !!tidbit : true)
+
   return (
     <div className="board-scroll">
-      <div className="board">
+      <div className="board" style={boardAreas(shown)}>
         {/* The header already shows the clock and date, so this card is the forecast alone. */}
         <section className="board-card board-clock" aria-label="Time and weather">
           <div className="board-time">{new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', timeZone: tz }).format(now)}</div>
@@ -131,7 +135,7 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
           })}
         </Card>
 
-        <Card title="Due soon" area="due">
+        {f.lists && <Card title="Due soon" area="due">
           {data.items.length === 0 ? <p className="snap-empty">Nothing due — all caught up.</p> : (
             <ul className="snap-list">
               {data.items.map(i => {
@@ -140,9 +144,9 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
               })}
             </ul>
           )}
-        </Card>
+        </Card>}
 
-        <Card title="Chores today" area="chores">
+        {f.chores && <Card title="Chores today" area="chores">
           {data.chores.length === 0 ? <p className="snap-empty">No chores today.</p> : (
             <ul className="snap-list">
               {data.chores.map(c => {
@@ -163,14 +167,32 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
               })}
             </ul>
           )}
-        </Card>
+        </Card>}
 
-        <PhotoCard />
+        {f.photos && <PhotoCard />}
 
         {tidbit && <TidbitCard key={tidbit.kind === 'trivia' ? tidbit.question : tidbit.text} tidbit={tidbit} />}
       </div>
     </div>
   )
+}
+
+/** grid-template-areas for the cards actually on the Board, one per layout (styles.css picks one
+ * per container width), so a card that's turned off leaves no hole. `shown` is in phone order. */
+function boardAreas(shown: string[]): React.CSSProperties {
+  const has = (a: string) => shown.includes(a)
+  // Two columns: rows of two cards; a card whose partner is off spans the row.
+  const two = [['clock', 'photo'], ['today', 'coming'], ['due', 'chores'], ['tidbit', 'tidbit']]
+    .map(row => row.filter(has)).filter(row => row.length).map(([a, b = a]) => `"${a} ${b}"`)
+  // Three full-height columns: a missing card's rows go to the card above it.
+  const cols = [['clock', 'photo', 'photo', 'tidbit'], ['today', 'today', 'chores', 'chores'], ['coming', 'coming', 'due', 'due']]
+    .map(col => col.reduce<string[]>((out, a) => [...out, has(a) ? a : out[out.length - 1]], []))
+  const three = [0, 1, 2, 3].map(r => `"${cols.map(c => c[r]).join(' ')}"`)
+  return {
+    ['--board-areas-1' as string]: shown.map(a => `"${a}"`).join(' '),
+    ['--board-areas-2' as string]: two.join(' '),
+    ['--board-areas-3' as string]: three.join(' '),
+  }
 }
 
 /** The quote / fact card. Trivia shows its question as tappable choices: a tap marks that guess

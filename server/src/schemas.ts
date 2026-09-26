@@ -115,6 +115,19 @@ export const TidbitSettingsSchema = z
   })
   .openapi('TidbitSettings');
 
+// Household feature switches (Settings -> For the whole family -> Features). Off hides the feature
+// on every screen and stops its notifications; its data is kept and its API keeps answering.
+export const FeaturesSchema = z
+  .object({
+    chores: z.boolean(), // Chores tab, points, leaderboard, sticker book
+    lists: z.boolean(), // Lists tab, "Due soon", an event's linked items
+    paint: z.boolean(), // Activities -> Paint
+    photos: z.boolean(), // Activities -> Photos and the Board's picture card
+    notes: z.boolean(), // notes threads on events and list items
+    messages: z.boolean(), // family messages: POST /api/notify answers 403 while off
+  })
+  .openapi('Features');
+
 export const SettingsSchema = z
   .object({
     familyName: z.string(),
@@ -144,6 +157,7 @@ export const SettingsSchema = z
     location: LocationSchema.nullable(), // for the snapshot's weather; null = no weather
     temperatureUnit: z.enum(['celsius', 'fahrenheit']), // default: fahrenheit for a US location (or US timezone), else celsius
     tidbits: TidbitSettingsSchema,
+    features: FeaturesSchema,
   })
   .openapi('Settings');
 
@@ -179,6 +193,7 @@ export const SettingsPatchSchema = z
     location: LocationSchema.nullable().optional(),
     temperatureUnit: z.enum(['celsius', 'fahrenheit']).optional(),
     tidbits: TidbitSettingsSchema.optional(),
+    features: FeaturesSchema.optional(), // admin keys only (a display key gets 403)
   })
   // Quiet hours are a pair: send both, and either both set or both cleared ('' / null).
   .refine((p) => (p.quietFrom === undefined) === (p.quietTo === undefined) && !p.quietFrom === !p.quietTo, {

@@ -2,6 +2,8 @@
 
 The **Activities** tab holds things to do on the wall that aren't the family schedule. It works the same on every device, including paired wall displays and the demo. There are three activities: **Paint**, the **Sticker book** and [**Photos**](photos.md).
 
+An admin can turn off **Paint** or **Photos** in **Settings → General → Features**; the Sticker book goes with **Chores & points** or the sticker shop. When all three are off, the Activities tab is hidden. See [Features](../settings/general.md#features).
+
 ## Paint
 
 A drawing app for kids. Tap **Activities → Paint**. The canvas fills the screen under a row of big buttons. Draw with a finger, an Apple Pencil or a mouse. Only one finger draws at a time, so a hand resting on the screen won't scribble.

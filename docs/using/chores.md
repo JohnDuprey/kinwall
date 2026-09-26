@@ -4,6 +4,8 @@
 
 The Chores tab shows one column per family member plus **🌟 Anyone**. Each column has a progress ring, a "*N* pts today" total and that day's chore cards. On phones, members with nothing due are listed on one line ("Nothing due: Leo") instead of showing as empty cards. When the family is filtered to one person (the family sheet on a phone, or an avatar on the wall), the tab shows that person and **Anyone**. A display pinned to one person hides **Anyone** only if **Also show things for everyone** is off.
 
+Don't use chores? An admin can turn off **Chores & points** in **Settings → General → Features**. It's hidden on every screen (the sticker book too); nothing is deleted. See [Features](../settings/general.md#features).
+
 ## Completing chores
 
 * **Tap** a card to mark it done (with a check and a small confetti burst). Tap again to undo.

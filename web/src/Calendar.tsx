@@ -213,7 +213,9 @@ export default function CalendarView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [selectedMemberId, focusMemberId, focusShowsShared, activeCategoryFilter.join()],
   )
-  const visibleEvents = useMemo(() => events.filter(shows), [events, shows])
+  // Notes turned off (Settings → Features): no note counts on event blocks either.
+  const notesOn = settings.features.notes
+  const visibleEvents = useMemo(() => events.filter(shows).map(e => notesOn || !e.noteCount ? e : { ...e, noteCount: 0 }), [events, shows, notesOn])
 
   // Today's instances for Now / Next and transition warnings, taken from whatever range is loaded
   // while it covers today, and kept (not refetched) while the user pages to another week/month.
@@ -834,6 +836,7 @@ function EventDetailSheet({ event, members, categories, calendars, tz, onClose, 
   onSaveScopedMembers: (id: string, memberIds: string[], scope: 'occurrence' | 'series') => void
   onSaveTravel: (travelMinutes: number | null, remindBeforeLeave: boolean) => void
 }) {
+  const { settings } = useApp()
   const [confirmDelete, setConfirmDelete] = useState(false)
   // Recurring synced events don't save a member-chip change immediately - the chips stay
   // "pending" until the user picks This event / All events in the series (see the scope-choice
@@ -929,8 +932,8 @@ function EventDetailSheet({ event, members, categories, calendars, tz, onClose, 
           </div>
         )}
         {event.description && <div style={{ color: 'var(--text-dim)', fontWeight: 600, whiteSpace: 'pre-line' }}>{stripHtmlToText(event.description)}</div>}
-        <EventTasks eventId={event.id} />
-        <NotesThread target={`event:${event.id}`} />
+        {settings.features.lists && <EventTasks eventId={event.id} />}
+        {settings.features.notes && <NotesThread target={`event:${event.id}`} />}
         {event.readOnly && (
           <div style={{ color: 'var(--text-dim)', fontSize: '0.8125rem', fontWeight: 700 }}>
             Only the family members and travel time are saved in Kinwall — the event itself comes from {calendarName}.
