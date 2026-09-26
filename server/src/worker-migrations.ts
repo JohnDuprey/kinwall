@@ -30,6 +30,7 @@ import m0026 from '../migrations/0026_snapshot.sql';
 import m0027 from '../migrations/0027_chore_checklist.sql';
 import m0028 from '../migrations/0028_photos.sql';
 import m0029 from '../migrations/0029_device_owner.sql';
+import m0030 from '../migrations/0030_list_notification_links.sql';
 
 export const MIGRATIONS: Migration[] = [
   { name: '0001_init.sql', sql: m0001 },
@@ -61,4 +62,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0027_chore_checklist.sql', sql: m0027 },
   { name: '0028_photos.sql', sql: m0028 },
   { name: '0029_device_owner.sql', sql: m0029 },
+  { name: '0030_list_notification_links.sql', sql: m0030 },
 ];
