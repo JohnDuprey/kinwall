@@ -1057,31 +1057,31 @@ button {
 @media (max-width: 600px) {
   /* ---------- Header ---------- */
   .header-phone {
-    flex-direction: column;
-    align-items: stretch;
-    justify-content: flex-start;
-    gap: 3px;
+    flex-direction: row; align-items: center; gap: 8px;
     min-height: 0;
-    padding: calc(var(--safe-t) + 24px) 14px 6px; /* the status bar needs breathing room above the clock */
+    padding: calc(var(--safe-t) + 10px) 14px 4px;
   }
-  .header-phone-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0; }
-  .header-phone-left { display: flex; align-items: baseline; gap: 8px; min-width: 0; overflow: hidden; flex: 1; }
   .family-name-sm {
     font-size: 0.75rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.02em;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 1 auto;
   }
-  .clock-sm { font-size: 1.25rem; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; flex-shrink: 0; }
-  .date-text-sm { font-size: 0.71875rem; font-weight: 700; color: var(--text-dim); padding-left: 1px; white-space: nowrap; flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; text-align: right; }
-  .header-phone-people { margin-top: 6px; }
-  .header-phone .member-filter-row { gap: 6px; padding: 0; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
-  .header-phone .member-avatar { width: 36px; height: 36px; font-size: 0.9375rem; border-width: 2px; box-shadow: none; }
+  .header-phone .member-filter-row { gap: 4px; padding: 0; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+  .header-phone .member-avatar { width: 30px; height: 30px; font-size: 0.8125rem; border-width: 2px; box-shadow: none; }
 
   /* ---------- Calendar toolbar ---------- */
-  .calendar-toolbar { padding: 10px 14px; gap: 8px; }
-  .segmented { padding: 3px; gap: 1px; }
-  .segmented button { padding: 7px 10px; font-size: 0.78125rem; min-height: 34px; }
-  .toolbar-nav { gap: 4px; flex-wrap: nowrap; min-width: 0; max-width: 100%; }
+  .calendar-toolbar { padding: 6px 14px 4px; gap: 6px; }
+  /* The view switcher is the one control that should read at a glance: full width, equal tabs. */
+  .calendar-toolbar .segmented { width: 100%; padding: 3px; gap: 1px; }
+  .calendar-toolbar .segmented button { flex: 1; padding: 7px 4px; font-size: 0.8125rem; min-height: 38px; }
+  .toolbar-nav { gap: 4px; flex-wrap: nowrap; min-width: 0; width: 100%; }
+  .toolbar-nav .period-label { flex: 1; }
+  .toolbar-nav .filter-btn { margin-left: auto; }
+  /* The board has no paging, so its only nav control (the filter) shares the switcher's row. */
+  :root[data-view="board"] .calendar-toolbar .segmented { width: auto; flex: 1; min-width: 0; }
+  :root[data-view="board"] .toolbar-nav { width: auto; }
+  :root[data-view="board"] .toolbar-nav:empty { display: none; }
   .icon-btn { width: 44px; height: 44px; } /* smaller than wall, but never below a 44px hit area */
+  .calendar-toolbar .icon-btn { width: 40px; height: 40px; }
   .today-btn { padding: 7px 10px; font-size: 0.8125rem; min-height: 36px; }
   .period-label { font-size: 0.875rem; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
@@ -1646,7 +1646,6 @@ button.snap-row:active { transform: scale(0.99); }
    rather than cut to a couple of letters) when the clock leaves it too little room. */
 @media (max-width: 600px) {
   .header-phone .member-filter-row.many .member-avatar { width: 32px; height: 32px; font-size: 0.875rem; }
-  .header-phone-left { container-type: inline-size; }
 }
 @container (max-width: 150px) { .family-name-sm { display: none; } } /* ~6 characters left after the clock */
 
@@ -1699,7 +1698,7 @@ button.snap-row:active { transform: scale(0.99); }
 .board-date { margin-top: 2px; font-weight: 800; color: var(--text-dim); font-size: 0.9375rem; }
 .board-wx-where { margin-top: 8px; font-size: 0.8125rem; font-weight: 700; }
 /* On the board the header hands the clock over to the big card */
-:root[data-view="board"] .header .clock-row, :root[data-view="board"] .header-phone .clock-sm, :root[data-view="board"] .header-phone .date-text-sm { visibility: hidden; } /* keeps the header the same size on every view, so nothing jumps when switching */
+:root[data-view="board"] .header .clock-row { visibility: hidden; } /* keeps the header the same size on every view, so nothing jumps when switching */
 .board-wx-big { font-size: 1.75rem; line-height: 1; margin-right: 6px; vertical-align: middle; }
 .board-wx-temp { font-size: 1.5rem; }
 .board-weather { margin-top: 4px; display: flex; flex-direction: column; gap: 4px; font-weight: 700; }

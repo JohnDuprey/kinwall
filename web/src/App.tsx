@@ -602,26 +602,17 @@ function Header({ settings, members, selectedMemberId, isAdmin }: {
   }, [])
   const { time: timeStr, date: dateStr } = useMemo(() => clockStrings(now, settings.timezone), [now, settings.timezone])
 
-  // Phones get a compact one-row-plus-date layout instead of desktop's side-by-side blocks
-  // (see SPEC.md "Touch UI" + the phone plan) — kept as a fully separate render path so the
+  // Phones get one row: family name, people, bell, help. No clock or date: the phone's status bar
+  // shows the time and every view names its date. Kept as a separate render path so the
   // ≥768px wall-iPad markup below is untouched.
   if (isPhone) {
     return (
       <header className="header header-phone">
-        <div className="header-phone-row">
-          <div className="header-phone-left">
-            <span className="family-name-sm">{settings.familyName || 'Our Family'}</span>
-            <span className="clock-sm">{timeStr}</span>
-          </div>
-          <div className="date-text-sm">{dateStr}</div>
-        </div>
-        {/* People and the buttons get their own row: a phone is too narrow to share one with the clock. */}
-        <div className="header-phone-row header-phone-people">
-          <MemberAvatars members={members} selectedMemberId={selectedMemberId} />
-          <div className="header-right">
-            <NotificationBell isAdmin={isAdmin} />
-            <HelpButton />
-          </div>
+        <span className="family-name-sm">{settings.familyName || 'Our Family'}</span>
+        <MemberAvatars members={members} selectedMemberId={selectedMemberId} />
+        <div className="header-right">
+          <NotificationBell isAdmin={isAdmin} />
+          <HelpButton />
         </div>
       </header>
     )
