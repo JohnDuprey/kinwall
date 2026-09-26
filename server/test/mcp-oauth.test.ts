@@ -118,7 +118,7 @@ test('oauth: PKCE, code reuse, expiry and redirect mismatches are refused', asyn
 
 test('oauth: registration and authorize only send the browser to registered, safe addresses', async () => {
   const t = setup();
-  for (const bad of ['http://evil.example/cb', 'https://ok.example/cb#frag', 'javascript:alert(1)']) {
+  for (const bad of ['http://evil.example/cb', 'https://ok.example/cb#frag', 'javascript:alert(1)', 'data:text/html,hi', 'file:///etc/passwd', 'kinwall:/oauth', 'family.kinwall.app:/oauth#frag']) {
     const res = await t.req('/oauth/register', { method: 'POST', body: JSON.stringify({ redirect_uris: [bad] }) });
     assert.equal(res.status, 400, bad);
   }
@@ -151,4 +151,24 @@ test('oauth: only a signed-in admin (not a display, not an OAuth token) can appr
 
   const add = await (await t.mcp(tok.access_token, 'tools/call', { name: 'add_member', arguments: { name: 'X', color: '#000000' } })).json() as any;
   assert.equal(add.result.isError, true, 'everyday access cannot add members');
+});
+
+test('oauth: a native app signs in with its own reverse-domain link (RFC 8252)', async () => {
+  const t = setup();
+  const APP = 'family.kinwall.app:/oauth';
+  const reg = await (await t.req('/oauth/register', { method: 'POST', body: JSON.stringify({ client_name: 'Kinwall for iPhone', redirect_uris: [APP] }) })).json() as any;
+  assert.ok(reg.client_id, JSON.stringify(reg));
+  const { verifier, challenge } = pkce();
+  const info = await (await t.req(`/api/authorizations/request?${new URLSearchParams({ client_id: reg.client_id, redirect_uri: APP })}`, {}, ADMIN_KEY)).json() as any;
+  assert.equal(info.redirectHost, 'the app');
+  const approved = await (await t.req('/api/authorizations/approve', {
+    method: 'POST',
+    body: JSON.stringify({ decision: 'approve', client_id: reg.client_id, redirect_uri: APP, code_challenge: challenge, code_challenge_method: 'S256', state: 's1', scope: 'display' }),
+  }, ADMIN_KEY)).json() as any;
+  const back = new URL(approved.redirect);
+  assert.equal(back.protocol + back.pathname, APP);
+  assert.equal(back.searchParams.get('state'), 's1');
+  const tokens = await (await t.req('/oauth/token', t.form({ grant_type: 'authorization_code', code: back.searchParams.get('code')!, code_verifier: verifier, client_id: reg.client_id, redirect_uri: APP }))).json() as any;
+  assert.equal(tokens.scope, 'kinwall:display');
+  assert.equal((await t.req('/api/settings', {}, tokens.access_token)).status, 200);
 });

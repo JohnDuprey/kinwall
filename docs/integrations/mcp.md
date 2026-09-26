@@ -112,6 +112,10 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 | `delete_color_scheme` | Deletes one of the family's own schemes. If the household was using it, the household goes back to Peach. |
 | `delete_event` | Deletes an event (the whole series for recurring local events). This also deletes it at the provider. |
 
+## Native apps
+
+The same OAuth server signs in native apps, such as Kinwall for iPhone. Besides `https` and loopback `http` redirect addresses, registration accepts an app's own reverse-domain link scheme (RFC 8252), like `family.kinwall.app:/oauth`. Single-word schemes such as `javascript:` or `data:` are always refused. The consent screen then says you'll return to "the app".
+
 ## Output schemas
 
 Every tool declares an **output schema** that matches the REST response shapes (`EventInstance`, `ChoreDay`, `ListDetail`, `LeaderboardEntry`…). A successful call returns:

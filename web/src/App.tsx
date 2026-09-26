@@ -169,7 +169,7 @@ function ManualKeyGate({ onKey, onBack }: { onKey: () => void; onBack: () => voi
       await api.getSettings()
       onKey()
     } catch (e) {
-      clearKey()
+      clearKey('rejected')
       setError(e instanceof ApiError && e.status === 401 ? 'That key was rejected.' : 'Could not reach the server.')
     } finally {
       setBusy(false)
@@ -802,7 +802,7 @@ function AppRoutes() {
       setCategories(cats)
       setLoadError(false)
     } catch (e) {
-      if (e instanceof ApiError && e.status === 401) { clearKey(); setHasKey(false); return }
+      if (e instanceof ApiError && e.status === 401) { clearKey('rejected'); setHasKey(false); return }
       setLoadError(true)
     }
   }, [hasKey])
@@ -813,7 +813,7 @@ function AppRoutes() {
   // even when nothing else is calling the API right now.
   useEffect(() => {
     if (!unauthorized) return
-    clearKey()
+    clearKey('rejected')
     setHasKey(false)
   }, [unauthorized])
 

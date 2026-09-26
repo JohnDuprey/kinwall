@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { tellAppSignedOut } from './native.ts'
 import { mock } from './mock.ts'
 import type { PasskeyAuthenticator } from './webauthn.ts'
 import type {
@@ -19,8 +20,11 @@ export function getKey(): string | null {
 export function setKey(key: string) {
   localStorage.setItem(KEY_STORAGE, key)
 }
-export function clearKey() {
+/** `rejected`: the server refused the key (revoked, or an app's short-lived key lapsed);
+ * `signOut`: the person chose to sign out or unpair. */
+export function clearKey(reason: 'signOut' | 'rejected' = 'signOut') {
   localStorage.removeItem(KEY_STORAGE)
+  tellAppSignedOut(reason)
 }
 
 /** Temporary admin key used only for accounts/oauth/keys/webhooks/calendar-create-delete

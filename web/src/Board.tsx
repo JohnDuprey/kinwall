@@ -68,7 +68,7 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
           <div className="board-time">{new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', timeZone: tz }).format(now)}</div>
           <div className="board-date">{new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric', timeZone: tz }).format(now)}</div>
           {w && <div className="board-wx-where snap-dim">{w.location}</div>}
-          {w ? (
+          {w && (
             <div className="board-weather" role="group" aria-label={`Weather in ${w.location}`}>
               <div className="board-weather-now">
                 {w.now && <><span className="board-wx-emoji board-wx-big" aria-hidden="true">{w.now.emoji}</span><strong className="board-wx-temp">{w.now.temp}°</strong> <span className="board-wx-text">{w.now.text}</span></>}
@@ -85,7 +85,7 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
                 ))}
               </ul>
             </div>
-          ) : <p className="snap-empty">No forecast — set the family's location in Settings → General.</p>}
+          )}
         </section>
 
         <Card title="Today" area="today">

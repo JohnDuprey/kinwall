@@ -1081,7 +1081,15 @@ function TroubleshootSection({ keyName }: { keyName?: string }) {
         <button className="btn btn-secondary" onClick={hardReload} disabled={refreshing}>{refreshing ? 'Reloading…' : 'Clear cache and reload'}</button>
         <div className="settings-row-sub">Loads the latest version of Kinwall if this device seems stuck on an old one. You stay signed in.</div>
       </div>
-      {keyName !== undefined && (
+      {inNativeApp() ? (
+        <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+          <button className="btn btn-danger" onClick={async () => {
+            if (!await dialog.confirm({ title: 'Sign out of the app?', body: 'You can sign in again with your passkey, or pair with a code.', confirmLabel: 'Sign out', danger: true })) return
+            clearKey() // the app ends its sign-in and shows its own sign-in screen
+          }}>Sign out</button>
+          <div className="settings-row-sub">Signs this app out of Kinwall. An app signed in with a passkey is also removed from Connected apps.</div>
+        </div>
+      ) : keyName !== undefined && (
         <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
           <button className="btn btn-danger" onClick={unpair}>Unpair this display</button>
           <div className="settings-row-sub">Clears the key stored on this device and returns to the pairing screen. This doesn't revoke the key. Do that from an admin device under Settings → Access → Displays.</div>

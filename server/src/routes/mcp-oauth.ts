@@ -40,8 +40,13 @@ async function s256(verifier: string): Promise<string> {
   return btoa(String.fromCharCode(...digest)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-// https anywhere, or http only on loopback (native/CLI clients). No fragments (RFC 6749 3.1.2).
-function redirectUriAllowed(uri: string): boolean {
+// A native app's own link scheme (RFC 8252 7.1): reverse-domain only, like family.kinwall.app:/oauth,
+// so javascript:, data:, file: and other single-word schemes can never be a redirect.
+const APP_SCHEME = /^[a-z][a-z0-9-]*(\.[a-z0-9-]+)+:$/;
+
+// https anywhere, http only on loopback (native/CLI clients), or an app's reverse-domain scheme.
+// No fragments (RFC 6749 3.1.2).
+export function redirectUriAllowed(uri: string): boolean {
   let u: URL;
   try {
     u = new URL(uri);
@@ -50,7 +55,8 @@ function redirectUriAllowed(uri: string): boolean {
   }
   if (u.hash) return false;
   if (u.protocol === 'https:') return true;
-  return u.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(u.hostname);
+  if (u.protocol === 'http:') return ['localhost', '127.0.0.1', '[::1]'].includes(u.hostname);
+  return APP_SCHEME.test(u.protocol);
 }
 
 function scopeFrom(requested: string | undefined | null): KeyScope | null {
@@ -145,7 +151,7 @@ mcpOAuthRoutes.post('/oauth/register', async (c) => {
   }
   const uris = Array.isArray(body.redirect_uris) ? body.redirect_uris.filter((u): u is string => typeof u === 'string') : [];
   if (uris.length === 0 || uris.length > 5 || uris.some((u) => u.length > 500 || !redirectUriAllowed(u))) {
-    return oauthError(c, 'invalid_redirect_uri', 'redirect_uris must be 1-5 https (or loopback http) URLs without fragments');
+    return oauthError(c, 'invalid_redirect_uri', 'redirect_uris must be 1-5 https URLs, loopback http URLs, or reverse-domain app links (like com.example.app:/oauth), without fragments');
   }
   const name = (typeof body.client_name === 'string' && body.client_name.trim().slice(0, 80)) || 'MCP client';
   const id = crypto.randomUUID();
@@ -193,7 +199,10 @@ mcpOAuthRoutes.get('/api/authorizations/request', async (c) => {
   const client = await getClient(c.env.DB, c.req.query('client_id'));
   const redirectUri = c.req.query('redirect_uri') ?? '';
   if (!client || !clientHasRedirect(client, redirectUri)) return c.json({ error: 'unknown app or redirect address' }, 400);
-  return c.json({ clientName: client.name, redirectHost: new URL(redirectUri).host, requestedScope: scopeFrom(c.req.query('scope')) ?? 'admin' });
+  // Where the consent screen says you'll return: a web address's host, or "the app" for an app link.
+  const back = new URL(redirectUri);
+  const redirectHost = back.protocol === 'https:' || back.protocol === 'http:' ? back.host : 'the app';
+  return c.json({ clientName: client.name, redirectHost, requestedScope: scopeFrom(c.req.query('scope')) ?? 'admin' });
 });
 
 mcpOAuthRoutes.post('/api/authorizations/approve', async (c) => {

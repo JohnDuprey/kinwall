@@ -9,3 +9,10 @@ export const inNativeApp = (): boolean =>
 export function markNativeApp() {
   if (inNativeApp()) document.documentElement.dataset.native = 'ios'
 }
+
+/** Tells the app the page signed out (Unpair, or its key stopped working), so it can refresh an
+ * expired sign-in or return to its own sign-in screen. No-op in a browser. */
+export function tellAppSignedOut(reason: 'signOut' | 'rejected') {
+  const w = window as Window & { webkit?: { messageHandlers?: { kinwall?: { postMessage: (m: unknown) => void } } } }
+  try { w.webkit?.messageHandlers?.kinwall?.postMessage({ type: 'signedOut', reason }) } catch { /* not in the app */ }
+}
