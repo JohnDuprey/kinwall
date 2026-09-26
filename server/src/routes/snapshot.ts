@@ -5,7 +5,7 @@ import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import { hostTimezone } from '../env.ts';
 import { zonedTimeToUtc } from '../recurrence.ts';
-import { ErrorSchema, SnapshotSchema } from '../schemas.ts';
+import { BoardSchema, ErrorSchema, SnapshotSchema } from '../schemas.ts';
 import { readSettings } from './settings.ts';
 import { eventInstances } from './events.ts';
 import { dueOnDate, type ChoreRow } from './chores.ts';
@@ -39,6 +39,37 @@ const localMidnight = (date: string, tz: string) => {
   const [y, mo, d] = date.split('-').map(Number);
   return zonedTimeToUtc({ y, mo: mo - 1, d, h: 0, mi: 0, s: 0 }, tz);
 };
+
+type Birthday = Snapshot['birthdays'][number];
+
+// Member birthdays plus "Birthdays"-category events, within `dates`, sorted by date. Shared by
+// /api/snapshot and /api/board so the "which day a birthday falls on" logic lives in one place.
+function birthdaysInRange(
+  members: { id: string; name: string; avatar: string | null; birthday: string | null }[],
+  events: { id: string; title: string; date: string; categoryId: string | null }[],
+  dates: string[],
+  birthdayCats: Set<string>,
+): Birthday[] {
+  const birthdays: Birthday[] = [];
+  for (const m of members) {
+    if (!m.birthday) continue;
+    for (const y of new Set(dates.map((d) => Number(d.slice(0, 4))))) {
+      const date = birthdayIn(m.birthday, y);
+      if (!dates.includes(date)) continue;
+      birthdays.push({ memberId: m.id, eventId: null, name: m.name, avatar: m.avatar, date, age: m.birthday.startsWith('--') ? null : y - Number(m.birthday.slice(0, 4)) });
+    }
+  }
+  for (const ev of events) {
+    if (!ev.categoryId || !birthdayCats.has(ev.categoryId)) continue;
+    // "Sam's Birthday" on the day Sam's own birthday is already listed: once is enough.
+    if (birthdays.some((b) => b.memberId && b.date === ev.date && ev.title.toLowerCase().includes(b.name.toLowerCase()))) continue;
+    birthdays.push({ memberId: null, eventId: ev.id, name: ev.title, avatar: null, date: ev.date, age: null });
+  }
+  birthdays.sort((a, b) => a.date.localeCompare(b.date));
+  return birthdays;
+}
+
+const priorityRank = (p: string) => ({ urgent: 0, high: 1, normal: 2, low: 3 } as Record<string, number>)[p] ?? 2;
 
 snapshotRoutes.openapi(
   createRoute({
@@ -95,23 +126,7 @@ snapshotRoutes.openapi(
       .filter((ev) => ev.date <= last && (!ev.allDay || ev.end.slice(0, 10) > today)); // all-day ends are exclusive
     const events = all.filter((ev) => !(ev.categoryId && birthdayCats.has(ev.categoryId)) && (ev.memberIds.length === 0 || ev.memberIds.includes(memberId)));
 
-    type Birthday = Snapshot['birthdays'][number];
-    const birthdays: Birthday[] = [];
-    for (const m of members) {
-      if (!m.birthday) continue;
-      for (const y of new Set(dates.map((d) => Number(d.slice(0, 4))))) {
-        const date = birthdayIn(m.birthday, y);
-        if (!dates.includes(date)) continue;
-        birthdays.push({ memberId: m.id, eventId: null, name: m.name, avatar: m.avatar, date, age: m.birthday.startsWith('--') ? null : y - Number(m.birthday.slice(0, 4)) });
-      }
-    }
-    for (const ev of all) {
-      if (!ev.categoryId || !birthdayCats.has(ev.categoryId)) continue;
-      // "Sam's Birthday" on the day Sam's own birthday is already listed: once is enough.
-      if (birthdays.some((b) => b.memberId && b.date === ev.date && ev.title.toLowerCase().includes(b.name.toLowerCase()))) continue;
-      birthdays.push({ memberId: null, eventId: ev.id, name: ev.title, avatar: null, date: ev.date, age: null });
-    }
-    birthdays.sort((a, b) => a.date.localeCompare(b.date));
+    const birthdays = birthdaysInRange(members, all, dates, birthdayCats);
 
     const choreDays = range === 'week' ? dates : [today];
     const completions = new Set(
@@ -153,6 +168,90 @@ snapshotRoutes.openapi(
               birthdays: birthdays.filter((b) => b.date === tomorrow),
             }
           : null,
+    };
+    return c.json(body, 200);
+  },
+);
+
+type Board = z.infer<typeof BoardSchema>;
+
+snapshotRoutes.openapi(
+  createRoute({
+    method: 'get',
+    path: '/api/board',
+    tags: ['Snapshot'],
+    summary: 'Household bulletin board: everyone\'s events, due/important list items, chores and birthdays for the next `days` days.',
+    security: [{ Bearer: [] }],
+    request: { query: z.object({ days: z.coerce.number().int().min(1).max(14).default(7) }) },
+    responses: { 200: { description: 'ok', content: { 'application/json': { schema: BoardSchema } } } },
+  }),
+  async (c) => {
+    const { days } = c.req.valid('query');
+    const db = c.env.DB;
+    const now = new Date();
+    const settings = await readSettings(db);
+    const tz = settings.timezone ?? hostTimezone();
+    const today = todayInTz(tz, now);
+    const to = addDays(today, days - 1);
+    const dates: string[] = [];
+    for (let d = today; d <= to; d = addDays(d, 1)) dates.push(d);
+
+    const [membersRes, choresRes, completionsRes, itemsRes, stepsRes, categoriesRes] = await db.batch<unknown>([
+      db.prepare('SELECT id, name, color, avatar, birthday FROM members ORDER BY sort, created_at'),
+      db.prepare('SELECT * FROM chores WHERE active = 1 ORDER BY sort, created_at'),
+      db.prepare('SELECT chore_id FROM chore_completions WHERE date = ?').bind(today),
+      db.prepare(
+        `SELECT li.*, l.name AS list_name, l.emoji AS list_emoji FROM list_items li JOIN lists l ON l.id = li.list_id
+         WHERE l.archived = 0 AND li.done = 0 AND (li.due_date IS NOT NULL OR li.priority IN ('high', 'urgent'))
+         ORDER BY li.due_date IS NULL, li.due_date, ${priorityRankSql('li.priority')}, li.sort`,
+      ),
+      stepsQuery(db, 'done = 0'),
+      db.prepare("SELECT id FROM categories WHERE name LIKE '%birthday%'"),
+    ]);
+    const members = membersRes.results as { id: string; name: string; color: string; avatar: string | null; birthday: string | null }[];
+
+    const birthdayCats = new Set((categoriesRes.results as { id: string }[]).map((r) => r.id));
+    const dayOf = (start: string, allDay: boolean) => {
+      const d = allDay ? start.slice(0, 10) : todayInTz(tz, new Date(start));
+      return d < today ? today : d;
+    };
+    const all = (await eventInstances(db, localMidnight(today, tz), localMidnight(addDays(to, 1), tz)))
+      .map((ev) => ({ ...ev, date: dayOf(ev.start, ev.allDay) }))
+      .filter((ev) => ev.date <= to && (!ev.allDay || ev.end.slice(0, 10) > today)); // all-day ends are exclusive
+    const events = all.filter((ev) => !(ev.categoryId && birthdayCats.has(ev.categoryId)));
+
+    const birthdays = birthdaysInRange(members, all, dates, birthdayCats);
+
+    const completedToday = new Set((completionsRes.results as { chore_id: string }[]).map((r) => r.chore_id));
+    const dueToday = (choresRes.results as unknown as ChoreRow[]).filter((row) => dueOnDate(row, today, tz));
+    const byMember = new Map<string | null, ChoreRow[]>();
+    for (const row of dueToday) byMember.set(row.member_id, [...(byMember.get(row.member_id) ?? []), row]);
+    const memberById = new Map(members.map((m) => [m.id, m]));
+    const chores = [...byMember.entries()]
+      .map(([memberId, rows]) => {
+        const m = memberId ? memberById.get(memberId) : undefined;
+        return { memberId, name: m?.name ?? null, avatar: m?.avatar ?? null, color: m?.color ?? null, remaining: rows.filter((r) => !completedToday.has(r.id)).length, total: rows.length };
+      })
+      .filter((c) => c.total > 0);
+
+    const steps = groupSteps(stepsRes.results as unknown as ListItemStepRow[]);
+    const itemRows = itemsRes.results as unknown as (ListItemRow & { list_name: string; list_emoji: string | null })[];
+    const items = itemRows
+      .filter((r) => (r.due_date && r.due_date <= to) || (!r.due_date && (r.priority === 'high' || r.priority === 'urgent')))
+      .map((r) => ({ ...toItemApi(r, steps.get(r.id)), listName: r.list_name, listEmoji: r.list_emoji, overdue: !!r.due_date && r.due_date < today }))
+      .sort((a, b) => Number(b.overdue) - Number(a.overdue) || (a.dueDate ?? '9999').localeCompare(b.dueDate ?? '9999') || priorityRank(a.priority) - priorityRank(b.priority));
+
+    const weather = await getWeather(db, now);
+
+    const body: Board = {
+      today,
+      to,
+      generatedAt: now.toISOString(),
+      weather: weather && { ...weather, days: weather.days.filter((d) => dates.includes(d.date)) },
+      events,
+      items,
+      chores,
+      birthdays: birthdays.filter((b) => b.date <= to),
     };
     return c.json(body, 200);
   },

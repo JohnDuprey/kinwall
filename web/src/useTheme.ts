@@ -13,7 +13,7 @@ const DEVICE_EVENT = 'kinwall:device-appearance'
 // The same object also carries this device's other preferences (focus, warnings, locked view…),
 // so every per-device choice lives in one place and one event re-renders whoever reads it.
 export type FontChoice = 'hyperlegible' | 'dyslexia'
-export type LockedView = 'week' | 'day' | 'month' | 'schedule'
+export type LockedView = 'week' | 'day' | 'month' | 'schedule' | 'board'
 export type DeviceAppearance = Partial<Pick<Appearance, 'themeMode' | 'textScale' | 'accent' | 'backgroundLight' | 'backgroundDark'>> & {
   density?: DeviceDensity // 'icons' (icon-first) exists per device only
   lowStim?: boolean // flat, calm, no motion - see [data-lowstim] in styles.css

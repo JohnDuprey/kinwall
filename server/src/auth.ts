@@ -103,6 +103,7 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'PATCH', pattern: /^\/api\/notes\/[^/]+$/ },
   { method: 'DELETE', pattern: /^\/api\/notes\/[^/]+$/ },
   { method: 'GET', pattern: /^\/api\/snapshot$/ },
+  { method: 'GET', pattern: /^\/api\/board$/ },
   { method: 'GET', pattern: /^\/api\/weather$/ },
   { method: 'GET', pattern: /^\/api\/geocode$/ }, // Settings -> General's location search (settings PATCH is display-allowed too)
   { method: 'GET', pattern: /^\/api\/settings$/ },

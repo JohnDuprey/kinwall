@@ -73,7 +73,7 @@ On Workers, the free-tier quota (100k requests/day) is the practical ceiling. Se
 | Chores | `GET/POST /api/chores`, `PATCH/DELETE /api/chores/{id}`, `GET /api/chores/day?date=`, `POST/DELETE /api/chores/{id}/complete` |
 | Leaderboard | `GET /api/leaderboard?period=today\|week\|month` |
 | Lists | `GET/POST /api/lists`, `GET/PATCH/DELETE /api/lists/{id}`, items, steps (`POST/PATCH/DELETE .../steps[/{stepId}]`, `POST .../steps/reorder`), `clear-completed`, `reset`, `reorder`, `groups` |
-| Snapshot & weather | `GET /api/snapshot?member=&range=day\|week`, `GET /api/weather`, `GET /api/geocode?q=` |
+| Snapshot & weather | `GET /api/snapshot?member=&range=day\|week`, `GET /api/board?days=`, `GET /api/weather`, `GET /api/geocode?q=` |
 | Keys & pairing | `GET/POST /api/keys`, `DELETE /api/keys/{id}`, `POST /api/pair`, `/api/pair/approve`, `/api/pair/poll` |
 | Passkeys & recovery | `/api/passkeys*`, `/api/sessions/logout`, `GET/POST /api/recovery-codes`, `POST /api/recovery/login` |
 | Connected apps | `GET /api/authorizations`, `GET /api/authorizations/request`, `POST /api/authorizations/approve`, `DELETE /api/authorizations/{id}` |

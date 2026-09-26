@@ -16,7 +16,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { hostTimezone } from './env.ts';
 import { effectivePublicUrl } from './providers/config.ts';
-import { CalendarSchema, CategorySchema, ChoreDaySchema, ChoreSchema, EventInstanceSchema, LeaderboardEntrySchema, ListDetailSchema, ListItemSchema, ListSchema, MemberSchema, NoteSchema, NotificationSchema, PointsSchema, SettingsSchema, SnapshotSchema } from './schemas.ts';
+import { BoardSchema, CalendarSchema, CategorySchema, ChoreDaySchema, ChoreSchema, EventInstanceSchema, LeaderboardEntrySchema, ListDetailSchema, ListItemSchema, ListSchema, MemberSchema, NoteSchema, NotificationSchema, PointsSchema, SettingsSchema, SnapshotSchema } from './schemas.ts';
 import type { Env } from './env.ts';
 import { VERSION } from './version.ts';
 import { resolveKey } from './auth.ts';
@@ -179,10 +179,11 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
   add_note: { note: NoteSchema },
   update_note: { note: NoteSchema },
   get_snapshot: SnapshotSchema.shape,
+  get_board: { board: BoardSchema },
 };
 
 const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boolean; idempotentHint: boolean; openWorldHint: boolean }> = {
-  get_household: READ, list_events: READ, get_event: READ, list_chores: READ, get_leaderboard: READ, get_points: READ, list_lists: READ, get_list: READ, list_categories: READ, get_event_items: READ, list_notifications: READ, list_notes: READ, get_snapshot: READ,
+  get_household: READ, list_events: READ, get_event: READ, list_chores: READ, get_leaderboard: READ, get_points: READ, list_lists: READ, get_list: READ, list_categories: READ, get_event_items: READ, list_notifications: READ, list_notes: READ, get_snapshot: READ, get_board: READ,
   create_event: { ...WRITE, openWorldHint: true }, update_event: { ...SET, openWorldHint: true }, set_event_category: SET,
   create_chore: WRITE, update_chore: SET, complete_chore: SET, uncomplete_chore: SET, add_member: WRITE, update_member: SET,
   create_list: WRITE, update_list: SET, add_list_items: WRITE, update_list_item: SET, set_list_item_done: SET, set_step_done: SET, update_category: SET, add_note: WRITE, update_note: SET,
@@ -563,6 +564,24 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       const snap = res.json as { greeting: string; events: unknown[]; chores: unknown[]; items: unknown[]; birthdays: unknown[] };
       const n = (k: number, word: string) => `${k} ${word}${k === 1 ? '' : 's'}`;
       return okResult(`${snap.greeting}: ${n(snap.events.length, 'event')}, ${n(snap.chores.length, 'chore')}, ${n(snap.items.length, 'list item')}, ${n(snap.birthdays.length, 'birthday')}.`, res.json as Record<string, unknown>);
+    },
+  );
+
+  tool(
+    'get_board',
+    {
+      title: 'Get the household board',
+      description:
+        "The household bulletin board: everyone's events plus untagged ones, open list items due soon (or overdue) or high/urgent, " +
+        "today's chores per member, and birthdays, for today through the next `days` days. Good for \"what's coming up for the family?\".",
+      inputSchema: { days: z.number().int().min(1).max(14).optional().describe('How many days ahead, starting today (default 7).') },
+    },
+    async ({ days }) => {
+      const res = await call(app, env, auth, 'GET', `/api/board${days ? `?days=${days}` : ''}`);
+      if (res.status >= 400) return errorResult(res.json, 'failed to load board');
+      const board = res.json as { events: unknown[]; items: unknown[]; chores: unknown[]; birthdays: unknown[] };
+      const n = (k: number, word: string) => `${k} ${word}${k === 1 ? '' : 's'}`;
+      return okResult(`Board: ${n(board.events.length, 'event')}, ${n(board.items.length, 'list item')}, ${n(board.chores.length, 'chore line')}, ${n(board.birthdays.length, 'birthday')}.`, { board: res.json });
     },
   );
 

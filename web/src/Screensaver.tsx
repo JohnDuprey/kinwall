@@ -1,5 +1,6 @@
 // Quiet-hours screensaver: a dim slideshow shown inside QuietOverlay (App.tsx) instead of the bare
 // clock. Mounted only while the overlay is up, so nothing is fetched or animated otherwise.
+// useSlideshowPictures (the picture sources) is shared with the Board view's photo card.
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { drawingIds, getDrawing } from './drawings-db.ts'
 import type { DeviceAppearance, SaverSource } from './useTheme.ts'
@@ -62,12 +63,15 @@ function preload(src: string) {
   return img.decode()
 }
 
-export default function Slideshow({ sources, device, clock }: { sources: SaverSource[]; device: DeviceAppearance; clock: (small: boolean) => ReactNode }) {
+/** The slideshow's picture machinery, shared by the screensaver and the Board's photo card:
+ * round-robin over `sources`, a new picture every `everySeconds`, paused while the page is hidden.
+ * `pics` is the current picture plus the one fading out (never more than two); `n` counts changes;
+ * `failed` = every source came up empty on the last change. */
+export function useSlideshowPictures(sources: SaverSource[], everySeconds: number) {
   const [pics, setPics] = useState<Pic[]>([]) // current + the one fading out; never more than two
   const [failed, setFailed] = useState(false)
-  const [n, setN] = useState(0) // picture count: picks the clock corner
-  const [drift, setDrift] = useState({ x: 0, y: 0 })
-  const every = (device.saverEvery ?? 5) * 60_000
+  const [n, setN] = useState(0) // picture count
+  const every = everySeconds * 1000
   const reduced = useRef(matchMedia('(prefers-reduced-motion: reduce)').matches).current
 
   const sourceKey = sources.join(',')
@@ -101,14 +105,13 @@ export default function Slideshow({ sources, device, clock }: { sources: SaverSo
       const key = Date.now()
       setPics(p => [...p.slice(-1), { ...pic, key }])
       setN(c => c + 1)
-      if (!reduced) setDrift({ x: (Math.random() - 0.5) * 3, y: (Math.random() - 0.5) * 3 })
     }
     change()
     const id = setInterval(change, every)
     const onVis = () => { if (!document.hidden) change() }
     document.addEventListener('visibilitychange', onVis)
     return () => { cancelled = true; clearInterval(id); document.removeEventListener('visibilitychange', onVis) }
-  }, [sourceKey, every, reduced])
+  }, [sourceKey, every])
 
   // Drop (and free) the picture underneath once the crossfade is done.
   useEffect(() => {
@@ -120,6 +123,15 @@ export default function Slideshow({ sources, device, clock }: { sources: SaverSo
   const picsRef = useRef(pics)
   picsRef.current = pics
   useEffect(() => () => picsRef.current.forEach(p => p.revoke && URL.revokeObjectURL(p.src)), [])
+
+  return { pics, failed, n }
+}
+
+export default function Slideshow({ sources, device, clock }: { sources: SaverSource[]; device: DeviceAppearance; clock: (small: boolean) => ReactNode }) {
+  const { pics, failed, n } = useSlideshowPictures(sources, (device.saverEvery ?? 5) * 60)
+  const [drift, setDrift] = useState({ x: 0, y: 0 })
+  const reduced = useRef(matchMedia('(prefers-reduced-motion: reduce)').matches).current
+  useEffect(() => { if (n && !reduced) setDrift({ x: (Math.random() - 0.5) * 3, y: (Math.random() - 0.5) * 3 }) }, [n, reduced])
 
   if (failed || !pics.length) return <>{clock(false)}</>
   const current = pics[pics.length - 1]

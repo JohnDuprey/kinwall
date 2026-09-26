@@ -1,7 +1,7 @@
 // Dev-only in-memory fixture, used when VITE_MOCK=1. Excluded from prod by the env check in api.ts.
 import type {
   Account, ApiKey, AppNotification, CalendarEntry, Category, Chore, ChoreDay, EventInstance, LeaderboardEntry, LeaderboardPeriod, List, ListGroup,
-  GeocodeResult, ListItem, ListItemInput, ListItemStep, Member, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, StickerPack, StickerPatch, StickerPlacement, Webhook,
+  GeocodeResult, ListItem, ListItemInput, ListItemStep, Member, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook,
 } from './types.ts'
 import { compareItems } from './types.ts'
 import { dateKey } from './date.ts'
@@ -248,6 +248,7 @@ export const mock = {
   deleteMember: async (id: string) => { const i = members.findIndex(x => x.id === id); if (i >= 0) members.splice(i, 1); bump() },
 
   getSnapshot: async (memberId: string, range: 'day' | 'week'): Promise<Snapshot> => mockSnapshot(memberId, range),
+  getBoard: async (days: number): Promise<Board> => mockBoard(days),
   geocode: async (q: string): Promise<GeocodeResult[]> => DEMO_PLACES.filter(p => p.label.toLowerCase().includes(q.trim().toLowerCase())),
 
   getCalendars: async () => [...calendars],
@@ -565,12 +566,31 @@ function mockSnapshot(memberId: string, range: 'day' | 'week'): Snapshot {
   const today = inDays(0), tomorrow = inDays(1)
   const dates = Array.from({ length: range === 'week' ? 7 : 2 }, (_, i) => inDays(i))
   const last = dates[dates.length - 1], to = range === 'week' ? last : today
-  const dayOf = (e: EventInstance) => { const d = e.allDay ? e.start.slice(0, 10) : dateKey(new Date(e.start)); return d < today ? today : d }
-  const isBday = (e: EventInstance) => e.categoryId === 'cat1'
-  const all = events.map(e => ({ ...withLeave(e), date: dayOf(e) }))
-    .filter(e => e.date <= last && (e.allDay ? e.end.slice(0, 10) > today : dateKey(new Date(e.end)) >= today))
-    .sort((a, b) => a.start.localeCompare(b.start))
+  const all = eventsThrough(last)
   const mine = all.filter(e => !isBday(e) && (e.memberIds.length === 0 || e.memberIds.includes(memberId)))
+  const birthdays = birthdaysOn(dates, all)
+  const choreRows = (range === 'week' ? dates : [today]).flatMap(date => chores.filter(c => c.active && (c.memberId === memberId || !c.memberId) && dueOn(c, date, today))
+    .map(c => ({ id: c.id, title: c.title, emoji: c.emoji, points: c.points, dueTime: c.dueTime, date, done: completions.has(`${c.id}:${date}`), shared: !c.memberId })))
+  const open = openItems(today, i => i.memberId === memberId)
+  const items = open.filter(i => (i.dueDate && i.dueDate <= to) || i.priority === 'high' || i.priority === 'urgent')
+  const h = new Date().getHours()
+  return {
+    greeting: birthdays.some(b => b.memberId === memberId && b.date === today) ? `Happy birthday, ${m.name}! 🎉`
+      : `${h >= 5 && h < 12 ? 'Good morning' : h >= 12 && h < 17 ? 'Good afternoon' : 'Good evening'}, ${m.name}`,
+    member: { id: m.id, name: m.name, color: m.color, avatar: m.avatar, birthday: m.birthday },
+    range, from: today, to, generatedAt: new Date().toISOString(),
+    weather: mockWeather(dates),
+    events: mine.filter(e => e.date <= to),
+    chores: choreRows, items,
+    birthdays: birthdays.filter(b => b.date <= to),
+    tomorrow: range === 'day' ? { date: tomorrow, events: mine.filter(e => e.date === tomorrow), items: open.filter(i => i.dueDate === tomorrow), birthdays: birthdays.filter(b => b.date === tomorrow) } : null,
+  }
+}
+
+const isBday = (e: EventInstance) => e.categoryId === 'cat1'
+
+/** Members' birthdays on `dates`, plus birthday-category events, by date. */
+function birthdaysOn(dates: string[], all: (EventInstance & { date: string })[]): SnapshotBirthday[] {
   const birthdays: SnapshotBirthday[] = []
   for (const x of members) {
     const md = x.birthday?.slice(-5)
@@ -579,36 +599,65 @@ function mockSnapshot(memberId: string, range: 'day' | 'week'): Snapshot {
   }
   for (const e of all.filter(isBday)) birthdays.push({ memberId: null, eventId: e.id, name: e.title, avatar: null, date: e.date, age: null })
   birthdays.sort((a, b) => a.date.localeCompare(b.date))
-  const dueOn = (c: Chore, d: string) => {
-    if (!c.rrule) return c.dueDate === d
-    const day = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'][new Date(`${d}T12:00`).getDay()]
-    const byDay = /BYDAY=([A-Z,]+)/.exec(c.rrule)?.[1]
-    return c.rrule.includes('DAILY') || (byDay ? byDay.split(',').includes(day) : d === today)
-  }
-  const choreRows = (range === 'week' ? dates : [today]).flatMap(date => chores.filter(c => c.active && (c.memberId === memberId || !c.memberId) && dueOn(c, date))
-    .map(c => ({ id: c.id, title: c.title, emoji: c.emoji, points: c.points, dueTime: c.dueTime, date, done: completions.has(`${c.id}:${date}`), shared: !c.memberId })))
+  return birthdays
+}
+
+/** Every event from today through `last` (browser-local days), listed under its start day (or today). */
+function eventsThrough(last: string) {
+  const today = inDays(0)
+  const dayOf = (e: EventInstance) => { const d = e.allDay ? e.start.slice(0, 10) : dateKey(new Date(e.start)); return d < today ? today : d }
+  return events.map(e => ({ ...withLeave(e), date: dayOf(e) }))
+    .filter(e => e.date <= last && (e.allDay ? e.end.slice(0, 10) > today : dateKey(new Date(e.end)) >= today))
+    .sort((a, b) => a.start.localeCompare(b.start))
+}
+
+function dueOn(c: Chore, d: string, today: string) {
+  if (!c.rrule) return c.dueDate === d
+  const day = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'][new Date(`${d}T12:00`).getDay()]
+  const byDay = /BYDAY=([A-Z,]+)/.exec(c.rrule)?.[1]
+  return c.rrule.includes('DAILY') || (byDay ? byDay.split(',').includes(day) : d === today)
+}
+
+/** Open, unarchived list items, soonest due first (so overdue leads), undated last. */
+function openItems(today: string, keep: (i: ListItem) => boolean) {
   const rank = { urgent: 0, high: 1, normal: 2, low: 3 }
-  const open = listItems.filter(i => i.memberId === memberId && !i.done && !lists.find(l => l.id === i.listId)?.archived)
+  return listItems.filter(i => keep(i) && !i.done && !lists.find(l => l.id === i.listId)?.archived)
     .sort((a, b) => (a.dueDate ?? '9999').localeCompare(b.dueDate ?? '9999') || rank[a.priority] - rank[b.priority])
     .map(i => { const l = lists.find(x => x.id === i.listId)!; return { ...i, listName: l.name, listEmoji: l.emoji ?? null, overdue: !!i.dueDate && i.dueDate < today } })
-  const items = open.filter(i => (i.dueDate && i.dueDate <= to) || i.priority === 'high' || i.priority === 'urgent')
-  const h = new Date().getHours()
+}
+
+/** A fixed week of forecast, starting today. */
+function mockWeather(dates: string[]) {
+  if (!settings.location) return null
   const f = settings.temperatureUnit === 'fahrenheit', t = (n: number) => f ? n : Math.round((n - 32) * 5 / 9)
   const forecast: [number, number, number, number][] = [[2, 68, 52, 10], [61, 61, 50, 80], [0, 72, 54, 0], [3, 66, 51, 5], [80, 63, 49, 60], [0, 70, 53, 0], [1, 71, 55, 5]]
   const WX: Record<number, [string, string]> = { 0: ['☀️', 'Clear'], 1: ['🌤️', 'Mostly clear'], 2: ['⛅', 'Partly cloudy'], 3: ['☁️', 'Cloudy'], 61: ['🌧️', 'Light rain'], 80: ['🌦️', 'Showers'] }
   return {
-    greeting: birthdays.some(b => b.memberId === memberId && b.date === today) ? `Happy birthday, ${m.name}! 🎉`
-      : `${h >= 5 && h < 12 ? 'Good morning' : h >= 12 && h < 17 ? 'Good afternoon' : 'Good evening'}, ${m.name}`,
-    member: { id: m.id, name: m.name, color: m.color, avatar: m.avatar, birthday: m.birthday },
-    range, from: today, to, generatedAt: new Date().toISOString(),
-    weather: settings.location && {
-      location: settings.location.name, unit: settings.temperatureUnit,
-      now: { temp: t(64), code: 2, emoji: '⛅', text: 'Partly cloudy', rainChance: 10 },
-      days: dates.map((date, i) => { const [code, hi, lo, rain] = forecast[i]; return { date, code, emoji: WX[code][0], text: WX[code][1], high: t(hi), low: t(lo), rainChance: rain } }),
-    },
-    events: mine.filter(e => e.date <= to),
-    chores: choreRows, items,
-    birthdays: birthdays.filter(b => b.date <= to),
-    tomorrow: range === 'day' ? { date: tomorrow, events: mine.filter(e => e.date === tomorrow), items: open.filter(i => i.dueDate === tomorrow), birthdays: birthdays.filter(b => b.date === tomorrow) } : null,
+    location: settings.location.name, unit: settings.temperatureUnit,
+    now: { temp: t(64), code: 2, emoji: '⛅', text: 'Partly cloudy', rainChance: 10 },
+    days: dates.slice(0, forecast.length).map((date, i) => { const [code, hi, lo, rain] = forecast[i]; return { date, code, emoji: WX[code][0], text: WX[code][1], high: t(hi), low: t(lo), rainChance: rain } }),
+  }
+}
+
+// Mirrors GET /api/board: everyone's week, from the same fixtures as the snapshot.
+function mockBoard(days: number): Board {
+  const today = inDays(0)
+  const dates = Array.from({ length: Math.max(1, days) }, (_, i) => inDays(i))
+  const to = dates[dates.length - 1]
+  const all = eventsThrough(to)
+  const birthdays = birthdaysOn(dates, all)
+  const todays = chores.filter(c => c.active && dueOn(c, today, today))
+  const owners = [...members.map(m => m.id), null]
+  return {
+    today, to, generatedAt: new Date().toISOString(),
+    weather: mockWeather(dates),
+    events: all.filter(e => !isBday(e)),
+    items: openItems(today, () => true).filter(i => (i.dueDate && i.dueDate <= to) || i.priority === 'high' || i.priority === 'urgent'),
+    chores: owners.map(id => {
+      const mine = todays.filter(c => c.memberId === id)
+      const m = members.find(x => x.id === id)
+      return { memberId: id, name: m?.name ?? null, avatar: m?.avatar ?? null, color: m?.color ?? null, total: mine.length, remaining: mine.filter(c => !completions.has(`${c.id}:${today}`)).length }
+    }).filter(c => c.total > 0),
+    birthdays,
   }
 }

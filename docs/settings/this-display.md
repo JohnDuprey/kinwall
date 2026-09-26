@@ -18,7 +18,7 @@ Also under **This display**, and also local to the browser:
 |---|---|
 | **Show only** | Pin this screen to one member — handy for a display in a bedroom. Picks a member, or **Everyone**. |
 | **Also show things for everyone** | Only shown once a member is picked. On (default): shared events, chores and lists (nobody assigned) still show alongside that member's own. Off: only their items. |
-| **Lock view** | Fixes the calendar to one view (Week/3 Day, Day, Month, Schedule) and hides the view switcher, so a pinned display can't be bumped into a different view. **Off** leaves the switcher free. |
+| **Lock view** | Fixes the calendar to one view (Week/3 Day, Day, Month, Schedule, Board) and hides the view switcher, so a pinned display can't be bumped into a different view. **Off** leaves the switcher free. |
 | **Now / Next card** | On by default. What's on now and what's next today, with a countdown, above the calendar. |
 | **Transition warnings** | Off, or one or more of 10, 5, 1 minute(s) before the next event (or its leave-by time). A calm banner; never shows during quiet hours. With any minute picked, a **Sound** toggle appears. |
 

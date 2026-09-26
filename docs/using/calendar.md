@@ -15,6 +15,7 @@ Use the segmented control at the top to switch views.
 | **Day** | A time grid for one day, one column per family member. | ±1 day |
 | **Month** | A month grid with event chips. When a day is full, it shows "+N more". | ±1 month |
 | **Schedule** | An agenda of the next 30 days, grouped by day. Location lines link to maps. | ±30 days |
+| **Board** | A family bulletin board for today and the week ahead. See [Board view](#board-view). | None: always today onward |
 
 Phones open on **Schedule**. The wall display opens on **Week**. You can switch views any time.
 
@@ -22,6 +23,24 @@ Phones open on **Schedule**. The wall display opens on **Week**. You can switch 
   <img src="../screenshots/phone-3day.png" width="32%" alt="3 Day view on a phone" />
   <img src="../screenshots/phone-schedule.png" width="32%" alt="Schedule view on a phone" />
 </p>
+
+## Board view
+
+**Board** turns the calendar into a bulletin board to read from across the room. It always shows today onward, so it has no ◀ ▶ or swipe paging. Its cards:
+
+* **Clock**: a big clock and the date, with the weather now, today's high and low, and the next 3 days. The weather needs a weather location in [General settings](../settings/general.md).
+* **Today**: everyone's events for today, with times or "All day", a bar in each member's colour and their avatars. Birthdays 🎂 come first. Events that have finished fade.
+* **Coming up**: the next 6 days, grouped by day, with each day's weather and birthdays.
+* **Due soon**: open list items due in the next week, overdue ones first in red, plus urgent and important items with no date. Each shows its list's emoji and the owner's avatar.
+* **Chores today**: a bar per member showing how many of today's chores are left.
+* **Picture**: a new picture every minute, from the same sources as this display's [screensaver](quiet-hours.md#screensaver): drawings, art (with the painting's title and artist) or nature photos. With no screensaver pictures chosen, it shows nature photos.
+* **Quote or fact**: a short quote or an interesting fact. It changes every 30 minutes, alternating between the two. Every display shows the same one at the same time, and no internet is needed.
+
+Tap an event to open it, an item to open its list, or a chore bar to go to Chores. The member and category filters apply to the board's events too. The board refreshes every 10 minutes and whenever something changes. With low-stimulation mode or reduced motion on, the picture and quote change without fading.
+
+On a wall display the cards fill the screen in three columns, and long cards scroll on their own. On phones they stack in one column, with a smaller picture.
+
+To keep a display on the board, set **Lock view** to **Board** in [This display](../settings/this-display.md).
 
 ## Navigating
 

@@ -138,6 +138,53 @@ test('snapshot: day and week content for one member', async () => {
   assert.equal((await req('/api/weather', { key })).status, 200);
 });
 
+test('board: household-wide feed across members', async () => {
+  const { req, json } = setup();
+  await json('/api/settings', 'PATCH', { timezone: 'UTC' });
+  const maya = await json('/api/members', 'POST', { name: 'Maya', color: '#7ED9A6' });
+  const leo = await json('/api/members', 'POST', { name: 'Leo', color: '#F5A65B' });
+  const cal = await json('/api/calendars', 'POST', { kind: 'local', name: 'Home' });
+  await json('/api/categories', 'POST', { name: 'Birthdays', emoji: '🎂', color: '#FF9E7A', keywords: ['birthday'] });
+  const ev = (title: string, day: number, memberIds: string[], extra = {}) =>
+    json('/api/events', 'POST', { calendarId: cal.id, title, start: `${d(day)}T12:00:00.000Z`, end: `${d(day)}T12:30:00.000Z`, allDay: false, memberIds, ...extra });
+  await ev('Piano', 0, [maya.id]);
+  await ev('Swim', 1, [leo.id]);
+  await json('/api/events', 'POST', { calendarId: cal.id, title: "Grandma's birthday", start: d(2), end: d(3), allDay: true, memberIds: [] });
+
+  const list = await json('/api/lists', 'POST', { name: 'To-dos', kind: 'todo' });
+  const add = (title: string, extra: Record<string, unknown>) => json(`/api/lists/${list.id}/items`, 'POST', { title, ...extra });
+  await add('Overdue thing', { memberId: maya.id, dueDate: d(-1) });
+  await add('Due in range', { memberId: leo.id, dueDate: d(2) });
+  await add('Urgent no due date', { memberId: maya.id, priority: 'urgent' });
+  await add('Far future', { memberId: leo.id, dueDate: d(20) });
+
+  await json('/api/chores', 'POST', { title: 'Feed dog', memberId: maya.id, dueDate: today });
+  await json('/api/chores', 'POST', { title: 'Tidy toys', memberId: leo.id, dueDate: today });
+  await json('/api/chores', 'POST', { title: 'Water plants', dueDate: today });
+
+  const board = await json('/api/board');
+  assert.deepEqual([board.today, board.to], [today, d(6)]);
+  assert.deepEqual(board.events.map((e: any) => e.title).sort(), ['Piano', 'Swim'], 'two members\' events both appear');
+  assert.deepEqual(board.birthdays.map((b: any) => b.name), ["Grandma's birthday"], 'birthdays-category event goes to birthdays, not events');
+
+  assert.deepEqual(board.items.map((i: any) => [i.title, i.overdue]), [
+    ['Overdue thing', true],
+    ['Due in range', false],
+    ['Urgent no due date', false],
+  ]);
+  assert.equal(board.items.some((i: any) => i.title === 'Far future'), false, 'outside the range and not urgent/high');
+
+  const choresByMember = Object.fromEntries(board.chores.map((c: any) => [c.memberId, c]));
+  assert.deepEqual([choresByMember[maya.id].remaining, choresByMember[maya.id].total], [1, 1]);
+  assert.deepEqual([choresByMember[leo.id].remaining, choresByMember[leo.id].total], [1, 1]);
+  assert.deepEqual([choresByMember[null as any].remaining, choresByMember[null as any].total], [1, 1]);
+
+  const { key } = await json('/api/keys', 'POST', { name: 'Wall', scope: 'display' });
+  assert.equal((await req('/api/board', { key })).status, 200, 'display keys can open the board');
+  assert.equal((await req('/api/board?days=0')).status, 400);
+  assert.equal((await req('/api/board?days=15')).status, 400);
+});
+
 test('weather: fetched once an hour per location + unit, US defaults to fahrenheit', async () => {
   const { json, db } = setup();
   await json('/api/settings', 'PATCH', { timezone: 'UTC' });

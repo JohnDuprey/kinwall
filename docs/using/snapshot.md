@@ -28,6 +28,10 @@ A row for each of the next 7 days with its weather emoji and high/low, then that
 
 A list item's **Assign to** field decides whose snapshot it appears in. Items with nobody assigned don't show in anyone's snapshot.
 
+## Board (everyone)
+
+`GET /api/board?days=` (default 7, max 14) returns the same kind of feed for the whole household instead of one member: every member's events plus untagged ones, open list items due within the range (or overdue) or high/urgent priority regardless of due date, today's chores grouped per member (with an "anyone" group), and birthdays in the range. It's the household bulletin-board view - the MCP tool [`get_board`](../integrations/mcp.md) returns the same data.
+
 ## For assistants
 
 `GET /api/snapshot?member=<id>&range=day|week` (admin and display keys) and the MCP tool [`get_snapshot`](../integrations/mcp.md) return the same data.

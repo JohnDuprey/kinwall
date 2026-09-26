@@ -703,7 +703,7 @@ function DeviceBehaviourRows() {
   }
   const nowNext = device.nowNext ?? true
   const views: { key: LockedView | ''; label: string }[] = [
-    { key: '', label: 'Off' }, { key: 'week', label: isPhone ? '3 Day' : 'Week' }, { key: 'day', label: 'Day' }, { key: 'month', label: 'Month' }, { key: 'schedule', label: 'Schedule' },
+    { key: '', label: 'Off' }, { key: 'week', label: isPhone ? '3 Day' : 'Week' }, { key: 'day', label: 'Day' }, { key: 'month', label: 'Month' }, { key: 'schedule', label: 'Schedule' }, { key: 'board', label: 'Board' },
   ]
   return (
     <>

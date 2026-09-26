@@ -15,6 +15,7 @@ import { useDialog } from './dialog.tsx'
 import { effectiveDensity, useDeviceAppearance } from './useTheme.ts'
 import { NowNextCard, TransitionWarnings } from './NowNext.tsx'
 import NotesThread from './NotesThread.tsx'
+import Board from './Board.tsx'
 
 const PHONE_WEEK_DAYS = 3
 const NEW_LOCAL_CALENDAR = '__new_local'
@@ -22,7 +23,7 @@ const CATEGORY_FILTER_KEY = 'kinwall.categoryFilter'
 const NO_CATEGORY = '__none'
 const TASK_LIST_KEY = 'kinwall.taskList' // list the event sheet's "Add task…" last used
 
-type ViewMode = 'week' | 'day' | 'month' | 'schedule'
+type ViewMode = 'week' | 'day' | 'month' | 'schedule' | 'board'
 const viewLabel = (v: ViewMode, isPhone: boolean) => v === 'week' ? (isPhone ? '3 Day' : 'Week') : v[0].toUpperCase() + v.slice(1)
 // Matches --hour-h in styles.css (comfortable/compact) so JS-computed pixel offsets in the time
 // grid line up with the CSS row heights.
@@ -203,13 +204,14 @@ export default function CalendarView() {
   // Ignore ids of categories that have since been deleted, or a stale filter could hide everything.
   const activeCategoryFilter = categoryFilter.filter(id => id === NO_CATEGORY || categories.some(c => c.id === id))
 
-  const visibleEvents = useMemo(
-    () => events.filter(e =>
+  const shows = useMemo(
+    () => (e: EventInstance) =>
       (!selectedMemberId || e.memberIds.includes(selectedMemberId) || (!!focusMemberId && focusShowsShared && e.memberIds.length === 0)) &&
-      (activeCategoryFilter.length === 0 || activeCategoryFilter.includes(e.categoryId ?? NO_CATEGORY))),
+      (activeCategoryFilter.length === 0 || activeCategoryFilter.includes(e.categoryId ?? NO_CATEGORY)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [events, selectedMemberId, focusMemberId, focusShowsShared, activeCategoryFilter.join()],
+    [selectedMemberId, focusMemberId, focusShowsShared, activeCategoryFilter.join()],
   )
+  const visibleEvents = useMemo(() => events.filter(shows), [events, shows])
 
   // Today's instances for Now / Next and transition warnings, taken from whatever range is loaded
   // while it covers today, and kept (not refetched) while the user pages to another week/month.
@@ -325,16 +327,19 @@ export default function CalendarView() {
     <div className="content">
       {showNowNext && <NowNextCard events={todayEvents} tz={tz} />}
       {!!device.warnings?.length && <TransitionWarnings events={todayEvents} minutes={device.warnings} sound={!!device.warningSound} settings={settings} />}
-      <div className="calendar-toolbar">
+      {(!device.lockView || viewMode !== 'board' || categories.length > 0) && <div className="calendar-toolbar">
         {!device.lockView && (
           <Segmented tabs idBase="calview" label="Calendar view" value={viewMode} onChange={setViewMode}
-            options={(['week', 'day', 'month', 'schedule'] as ViewMode[]).map(v => ({ key: v, label: viewLabel(v, isPhone) }))} />
+            options={(['week', 'day', 'month', 'schedule', 'board'] as ViewMode[]).map(v => ({ key: v, label: viewLabel(v, isPhone) }))} />
         )}
         <div className="toolbar-nav">
+          {/* The board always shows today onward: no paging. */}
+          {viewMode !== 'board' && <>
           <button className="icon-btn" onClick={() => step(-1)} aria-label={`Previous ${viewMode === 'schedule' ? '30 days' : viewMode === 'week' && isPhone ? '3 days' : viewMode}`}><ChevronLeft width={20} height={20} /></button>
           <button className="today-btn" onClick={() => { setSlideDir(0); setAnchor(new Date()) }}>Today</button>
           <button className="icon-btn" onClick={() => step(1)} aria-label={`Next ${viewMode === 'schedule' ? '30 days' : viewMode === 'week' && isPhone ? '3 days' : viewMode}`}><ChevronRight width={20} height={20} /></button>
           <h2 className="period-label" aria-live="polite" ref={periodRef} tabIndex={-1}>{periodLabel}</h2>
+          </>}
           {categories.length > 0 && (
             <button className={`icon-btn filter-btn ${activeCategoryFilter.length ? 'active' : ''}`} onClick={() => setFilterOpen(true)}
               aria-label={activeCategoryFilter.length ? `Filter: ${activeCategoryFilter.length} categories` : 'Filter by category'}>
@@ -343,7 +348,7 @@ export default function CalendarView() {
             </button>
           )}
         </div>
-      </div>
+      </div>}
 
       {filterOpen && (
         <Sheet title="Show categories" onClose={() => setFilterOpen(false)}
@@ -366,11 +371,13 @@ export default function CalendarView() {
         </Sheet>
       )}
 
-      <div className="swipe-area" {...swipe} role={device.lockView ? 'region' : 'tabpanel'}
+      <div className="swipe-area" {...(viewMode === 'board' ? {} : swipe)} role={device.lockView ? 'region' : 'tabpanel'}
         aria-labelledby={device.lockView ? undefined : `calview-${viewMode}`} aria-label={device.lockView ? `${viewLabel(viewMode, isPhone)} view` : undefined}>
         {/* Keyed by view + period so each change re-mounts and plays the slide/fade in. */}
-        <div key={`${viewMode}:${dateKey(range.from)}`} className={`view-anim ${slideDir === 1 ? 'from-right' : slideDir === -1 ? 'from-left' : ''}`}>
-        {error ? (
+        <div key={viewMode === 'board' ? 'board' : `${viewMode}:${dateKey(range.from)}`} className={`view-anim ${slideDir === 1 ? 'from-right' : slideDir === -1 ? 'from-left' : ''}`}>
+        {viewMode === 'board' ? (
+          <Board show={shows} onTap={setDetail} />
+        ) : error ? (
           <div className="state-card">Couldn't load events. Pull to retry or check your connection.</div>
         ) : !loading && visibleEvents.length === 0 && viewMode === 'schedule' ? (
           <div className="empty-card"><span className="emoji">🗓️</span>{activeCategoryFilter.length ? 'No events in the next 30 days match the category filter.' : 'No events in the next 30 days.'}</div>
@@ -386,7 +393,8 @@ export default function CalendarView() {
         </div>
       </div>
 
-      <button className="fab" onClick={() => openAdd()} aria-label="Add event"><PlusIcon /></button>
+      {/* Not on the board: it would sit over the Due soon card, and the board is for reading. */}
+      {viewMode !== 'board' && <button className="fab" onClick={() => openAdd()} aria-label="Add event"><PlusIcon /></button>}
 
       {detail && (
         <EventDetailSheet

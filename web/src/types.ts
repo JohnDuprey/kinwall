@@ -496,3 +496,14 @@ export interface Snapshot {
   birthdays: SnapshotBirthday[]
   tomorrow: { date: string; events: SnapshotEvent[]; items: SnapshotItem[]; birthdays: SnapshotBirthday[] } | null
 }
+/** GET /api/board?days=N - the whole family's bulletin board, today through `to`. */
+export interface Board {
+  today: string
+  to: string
+  generatedAt: string
+  weather: Weather | null // as /api/weather, days limited to the range
+  events: SnapshotEvent[] // everyone's, sorted by start
+  items: SnapshotItem[] // open items due by `to` (overdue first), plus urgent/high ones with no date
+  chores: { memberId: string | null; name: string | null; avatar: string | null; color: string | null; remaining: number; total: number }[]
+  birthdays: SnapshotBirthday[]
+}

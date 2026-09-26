@@ -79,6 +79,7 @@ test('mcp: tools/list returns the tools', async () => {
     'create_event',
     'create_list',
     'delete_event',
+    'get_board',
     'get_event',
     'get_event_items',
     'get_household',
@@ -415,6 +416,8 @@ test('mcp: every tool declares an output schema, and real results pass it', asyn
   const snap = await call('get_snapshot', { member: 'ava' });
   assert.match(snap.greeting, /Ava/);
   assert.equal((await call('get_snapshot', { member: 'ava', range: 'week' })).tomorrow, null);
+  assert.match((await call('get_board', {})).board.today, /^\d{4}-\d{2}-\d{2}$/);
+  await call('get_board', { days: 3 });
   const list = (await call('create_list', { name: 'Groceries', kind: 'shopping', emoji: '🛒' })).list;
   const [item] = (await call('add_list_items', { listName: 'groceries', items: [{ title: 'Milk', store: 'Costco', category: 'Dairy', quantity: '2', eventId: ev.id }] })).items;
   assert.equal(item.eventId, ev.id);

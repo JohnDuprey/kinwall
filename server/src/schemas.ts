@@ -677,3 +677,18 @@ export const SnapshotSchema = z
       .nullable(), // day range only
   })
   .openapi('Snapshot');
+
+export const BoardSchema = z
+  .object({
+    today: z.string(), // YYYY-MM-DD, household tz
+    to: z.string(), // last day, inclusive
+    generatedAt: z.string(),
+    weather: WeatherSchema.nullable(),
+    events: z.array(SnapshotEventSchema), // every member's events + untagged, today..to, sorted by start
+    items: z.array(SnapshotItemSchema), // anyone's open items due by `to` (incl. overdue), plus undated urgent/high
+    chores: z.array(
+      z.object({ memberId: z.string().nullable(), name: z.string().nullable(), avatar: z.string().nullable(), color: z.string().nullable(), remaining: z.number(), total: z.number() }),
+    ),
+    birthdays: z.array(SnapshotBirthdaySchema),
+  })
+  .openapi('Board');

@@ -35,7 +35,7 @@ Your family's content: member names, events, chores, lists and settings. On Dock
 | Your webhook URLs | Change events you subscribed to. |
 | Open-Meteo (`api.open-meteo.com`, `geocoding-api.open-meteo.com`) | Only if a weather location is set: the **server** fetches the forecast for its coordinates (at most hourly) and looks up place names you search for in Settings → General. Your device's address is not sent; no account or key is used. |
 | Google Fonts | Each browser loads the Nunito font from `fonts.googleapis.com` / `fonts.gstatic.com`. |
-| The Metropolitan Museum of Art / Lorem Picsum | Only if a display's [quiet-hours screensaver](../using/quiet-hours.md#screensaver) is set to Art or Nature: that display fetches pictures directly (its IP address, nothing else). Off by default. |
+| The Metropolitan Museum of Art / Lorem Picsum | Only if a display's [quiet-hours screensaver](../using/quiet-hours.md#screensaver) is set to Art or Nature, or it shows the calendar's [Board view](../using/calendar.md#board-view) (nature photos unless the screensaver sources say otherwise): that display fetches pictures directly (its IP address, nothing else). Off by default. |
 
 ## In the browser
 

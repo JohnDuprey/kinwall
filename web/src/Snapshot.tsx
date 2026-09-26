@@ -19,7 +19,7 @@ function markSeen(memberId: string, today: string) {
   try { localStorage.setItem(SEEN_KEY, JSON.stringify({ ...readSeen(), [memberId]: today })) } catch { /* private mode */ }
 }
 
-const dayName = (date: string, opts: Intl.DateTimeFormatOptions) =>
+export const dayName = (date: string, opts: Intl.DateTimeFormatOptions) =>
   new Intl.DateTimeFormat(undefined, { ...opts, timeZone: 'UTC' }).format(new Date(`${date}T12:00:00Z`))
 
 /** Deep links: close the sheet, then go where a tap in the app would. */
@@ -137,7 +137,8 @@ function dueText(i: SnapshotItem, today: string): string | null {
   return `Due ${dayName(i.dueDate, { weekday: 'short', month: 'short', day: 'numeric' })}`
 }
 
-function ItemRow({ i, today, close }: { i: SnapshotItem; today: string; close: () => void }) {
+/** `after`: extra content at the row's end (the Board puts the owner's avatar there). */
+export function ItemRow({ i, today, close, after }: { i: SnapshotItem; today: string; close: () => void; after?: React.ReactNode }) {
   const prio = i.priority !== 'normal' ? i.priority : null
   return (
     <li>
@@ -147,6 +148,7 @@ function ItemRow({ i, today, close }: { i: SnapshotItem; today: string; close: (
           <span className="snap-title">{prio && <span className={`prio-dot prio-${prio}`} role="img" aria-label={PRIORITY_LABEL[prio]} />}{i.title}</span>
           <span className={`snap-meta ${i.overdue ? 'snap-overdue' : ''}`}>{[dueText(i, today), i.listName, i.stepsTotal > 0 && `${i.stepsDone}/${i.stepsTotal} steps`].filter(Boolean).join(' · ')}</span>
         </span>
+        {after}
       </button>
     </li>
   )
@@ -156,7 +158,7 @@ function birthdayLine(b: SnapshotBirthday, you?: string) {
   const who = b.memberId === you ? 'Your birthday 🎉' : b.memberId ? `${b.name}'s birthday` : b.name
   return `${b.avatar ? `${b.avatar} ` : ''}${who}${b.age != null ? ` — ${b.memberId === you ? "you're" : 'turns'} ${b.age}` : ''}`
 }
-function BirthdayRow({ b, you, close }: { b: SnapshotBirthday; you: string; close: () => void }) {
+export function BirthdayRow({ b, you, close }: { b: SnapshotBirthday; you: string; close: () => void }) {
   const text = <><span className="snap-time snap-emoji" aria-hidden="true">🎂</span><span className="snap-main"><span className="snap-title">{birthdayLine(b, you)}</span></span></>
   return <li>{b.eventId ? <button className="snap-row" onClick={() => go(`#/calendar?event=${encodeURIComponent(b.eventId!)}&at=${b.date}`, close)}>{text}</button> : <div className="snap-row">{text}</div>}</li>
 }
