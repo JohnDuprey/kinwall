@@ -405,16 +405,19 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         rrule: z.string().optional().describe('Recurrence, e.g. FREQ=DAILY or FREQ=WEEKLY;BYDAY=MO,WE,FR. Omit for a one-off chore.'),
         dueDate: z.string().optional().describe('YYYY-MM-DD. Required if rrule is omitted (one-off); anchors the recurrence otherwise.'),
         dueTime: z.string().optional(),
+        list: z.string().optional().describe('Checklist: a list (name or id) that must be fully ticked before the chore can be completed. A reusable list resets on completion.'),
       },
     },
-    async ({ member, ...input }) => {
+    async ({ member, list, ...input }) => {
       let memberId: string | undefined;
+      let listId: string | undefined;
       try {
         if (member) memberId = await resolveMember(app, env, auth, member);
+        if (list) listId = (await resolveList(app, env, auth, list)).id;
       } catch (err) {
-        return errorResult(null, err instanceof Error ? err.message : 'member lookup failed');
+        return errorResult(null, err instanceof Error ? err.message : 'lookup failed');
       }
-      const res = await call(app, env, auth, 'POST', '/api/chores', { ...input, memberId });
+      const res = await call(app, env, auth, 'POST', '/api/chores', { ...input, memberId, listId });
       if (res.status >= 400) return errorResult(res.json, 'failed to create chore');
       const chore = res.json as { title: string };
       return okResult(`Created chore "${chore.title}".`, { chore: res.json as Record<string, unknown> });
@@ -438,16 +441,19 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         dueDate: z.string().nullable().optional().describe('YYYY-MM-DD.'),
         dueTime: z.string().nullable().optional(),
         active: z.boolean().optional(),
+        list: z.string().nullable().optional().describe('Checklist list (name or id); null to unlink.'),
       },
     },
-    async ({ choreId, member, ...input }) => {
+    async ({ choreId, member, list, ...input }) => {
       let memberId: string | null | undefined;
+      let listId: string | null | undefined;
       try {
         if (member !== undefined) memberId = member === null ? null : await resolveMember(app, env, auth, member);
+        if (list !== undefined) listId = list === null ? null : (await resolveList(app, env, auth, list)).id;
       } catch (err) {
-        return errorResult(null, err instanceof Error ? err.message : 'member lookup failed');
+        return errorResult(null, err instanceof Error ? err.message : 'lookup failed');
       }
-      const body = { ...input, ...(memberId !== undefined ? { memberId } : {}) };
+      const body = { ...input, ...(memberId !== undefined ? { memberId } : {}), ...(listId !== undefined ? { listId } : {}) };
       const res = await call(app, env, auth, 'PATCH', `/api/chores/${encodeURIComponent(choreId)}`, body);
       if (res.status >= 400) return errorResult(res.json, 'failed to update chore');
       const chore = res.json as { title: string };

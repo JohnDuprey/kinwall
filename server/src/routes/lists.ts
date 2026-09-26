@@ -607,14 +607,21 @@ listsRoutes.openapi(
   }),
   async (c) => {
     const { id } = c.req.valid('param');
-    const result = await c.env.DB.prepare('UPDATE list_items SET done = 0, done_at = NULL, done_by = NULL, updated_at = ? WHERE list_id = ? AND done = 1')
-      .bind(new Date().toISOString(), id)
-      .run();
-    await c.env.DB.prepare('UPDATE list_item_steps SET done = 0, done_at = NULL WHERE done = 1 AND item_id IN (SELECT id FROM list_items WHERE list_id = ?)').bind(id).run();
+    const reset = await resetListItems(c.env.DB, id);
     emit(c, 'list.changed', { id });
-    return c.json({ reset: result.meta.changes }, 200);
+    return c.json({ reset }, 200);
   },
 );
+
+/** Uncheck every item and step in a list; returns how many items were ticked. Also used when a
+ * chore whose checklist is a reusable list gets completed. */
+export async function resetListItems(db: KinwallDb, id: string): Promise<number> {
+  const result = await db.prepare('UPDATE list_items SET done = 0, done_at = NULL, done_by = NULL, updated_at = ? WHERE list_id = ? AND done = 1')
+    .bind(new Date().toISOString(), id)
+    .run();
+  await db.prepare('UPDATE list_item_steps SET done = 0, done_at = NULL WHERE done = 1 AND item_id IN (SELECT id FROM list_items WHERE list_id = ?)').bind(id).run();
+  return result.meta.changes;
+}
 
 listsRoutes.openapi(
   createRoute({

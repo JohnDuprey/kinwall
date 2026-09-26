@@ -6,6 +6,7 @@ import { todayInTz } from './members.ts';
 import { emit } from '../bus.ts';
 import { expand, isValidRrule } from '../recurrence.ts';
 import { ChoreDaySchema, ChoreInputSchema, ChoreSchema, ErrorSchema } from '../schemas.ts';
+import { resetListItems } from './lists.ts';
 
 export const choresRoutes = createRouter();
 
@@ -21,6 +22,7 @@ export type ChoreRow = {
   active: number;
   sort: number;
   created_at: string;
+  list_id?: string | null; // checklist; optional so older row literals (tests) still type-check
 };
 
 export function toApi(row: ChoreRow) {
@@ -35,7 +37,15 @@ export function toApi(row: ChoreRow) {
     dueTime: row.due_time,
     active: !!row.active,
     sort: row.sort,
+    listId: row.list_id ?? null,
   };
+}
+
+// A checklist must be a real, unarchived list. Returns an error message or null.
+async function checkList(c: { env: Env }, listId: string | null | undefined): Promise<string | null> {
+  if (!listId) return null;
+  const row = await c.env.DB.prepare('SELECT id FROM lists WHERE id = ? AND archived = 0').bind(listId).first();
+  return row ? null : 'unknown list';
 }
 
 choresRoutes.openapi(
@@ -63,12 +73,14 @@ choresRoutes.openapi(
     request: { body: { content: { 'application/json': { schema: ChoreInputSchema } } } },
     responses: {
       201: { description: 'created', content: { 'application/json': { schema: ChoreSchema } } },
-      400: { description: 'invalid rrule', content: { 'application/json': { schema: ErrorSchema } } },
+      400: { description: 'invalid rrule or unknown list', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
     const body = c.req.valid('json');
     if (body.rrule && !isValidRrule(body.rrule)) return c.json({ error: 'invalid rrule' }, 400);
+    const listError = await checkList(c, body.listId);
+    if (listError) return c.json({ error: listError }, 400);
     const row: ChoreRow = {
       id: crypto.randomUUID(),
       title: body.title,
@@ -81,11 +93,12 @@ choresRoutes.openapi(
       active: body.active === false ? 0 : 1,
       sort: body.sort ?? 0,
       created_at: new Date().toISOString(),
+      list_id: body.listId ?? null,
     };
     await c.env.DB.prepare(
-      'INSERT INTO chores (id, title, emoji, member_id, points, rrule, due_date, due_time, active, sort, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+      'INSERT INTO chores (id, title, emoji, member_id, points, rrule, due_date, due_time, active, sort, created_at, list_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
     )
-      .bind(row.id, row.title, row.emoji, row.member_id, row.points, row.rrule, row.due_date, row.due_time, row.active, row.sort, row.created_at)
+      .bind(row.id, row.title, row.emoji, row.member_id, row.points, row.rrule, row.due_date, row.due_time, row.active, row.sort, row.created_at, row.list_id)
       .run();
     emit(c, 'chore.changed', { id: row.id });
     return c.json(toApi(row), 201);
@@ -102,7 +115,7 @@ choresRoutes.openapi(
     request: { params: z.object({ id: z.string() }), body: { content: { 'application/json': { schema: ChoreInputSchema.partial() } } } },
     responses: {
       200: { description: 'ok', content: { 'application/json': { schema: ChoreSchema } } },
-      400: { description: 'invalid rrule', content: { 'application/json': { schema: ErrorSchema } } },
+      400: { description: 'invalid rrule or unknown list', content: { 'application/json': { schema: ErrorSchema } } },
       404: { description: 'not found', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
@@ -110,6 +123,8 @@ choresRoutes.openapi(
     const { id } = c.req.valid('param');
     const body = c.req.valid('json');
     if (body.rrule && !isValidRrule(body.rrule)) return c.json({ error: 'invalid rrule' }, 400);
+    const listError = await checkList(c, body.listId);
+    if (listError) return c.json({ error: listError }, 400);
     const existing = await c.env.DB.prepare('SELECT * FROM chores WHERE id = ?').bind(id).first<ChoreRow>();
     if (!existing) return c.json({ error: 'not found' }, 404);
     const updated: ChoreRow = {
@@ -123,11 +138,12 @@ choresRoutes.openapi(
       due_time: body.dueTime !== undefined ? body.dueTime : existing.due_time,
       active: body.active !== undefined ? (body.active ? 1 : 0) : existing.active,
       sort: body.sort ?? existing.sort,
+      list_id: body.listId !== undefined ? body.listId : existing.list_id ?? null,
     };
     await c.env.DB.prepare(
-      'UPDATE chores SET title=?, emoji=?, member_id=?, points=?, rrule=?, due_date=?, due_time=?, active=?, sort=? WHERE id=?',
+      'UPDATE chores SET title=?, emoji=?, member_id=?, points=?, rrule=?, due_date=?, due_time=?, active=?, sort=?, list_id=? WHERE id=?',
     )
-      .bind(updated.title, updated.emoji, updated.member_id, updated.points, updated.rrule, updated.due_date, updated.due_time, updated.active, updated.sort, id)
+      .bind(updated.title, updated.emoji, updated.member_id, updated.points, updated.rrule, updated.due_date, updated.due_time, updated.active, updated.sort, updated.list_id, id)
       .run();
     emit(c, 'chore.changed', { id });
     return c.json(toApi(updated), 200);
@@ -188,11 +204,16 @@ choresRoutes.openapi(
     const { date } = c.req.valid('query');
 
     // tz, chores and completions are all independent reads - one batch, one round trip.
-    const [tzRes, choresRes, completionsRes] = await c.env.DB.batch<unknown>([
+    const [tzRes, choresRes, completionsRes, checklistRes] = await c.env.DB.batch<unknown>([
       c.env.DB.prepare("SELECT value FROM settings WHERE key = 'timezone'"),
       c.env.DB.prepare('SELECT * FROM chores WHERE active = 1 ORDER BY sort, created_at'),
       c.env.DB.prepare('SELECT * FROM chore_completions WHERE date = ?').bind(date),
+      // Progress of every list some chore uses as its checklist.
+      c.env.DB.prepare(
+        'SELECT l.id, l.name, COUNT(i.id) AS total, COALESCE(SUM(i.done), 0) AS done FROM lists l LEFT JOIN list_items i ON i.list_id = l.id WHERE l.id IN (SELECT list_id FROM chores WHERE list_id IS NOT NULL) GROUP BY l.id',
+      ),
     ]);
+    const checklists = new Map((checklistRes.results as { id: string; name: string; total: number; done: number }[]).map((r) => [r.id, r]));
     const tz = (tzRes.results[0] as { value: string } | undefined)?.value ?? hostTimezone();
     const chores = choresRes.results as unknown as ChoreRow[];
     const completions = completionsRes.results as unknown as { chore_id: string; member_id: string | null; completed_at: string }[];
@@ -203,7 +224,14 @@ choresRoutes.openapi(
     return c.json(
       due.map((row) => {
         const completion = byChore.get(row.id);
-        return { ...toApi(row), completed: !!completion, completedAt: completion?.completed_at ?? null, completedBy: completion?.member_id ?? null };
+        const cl = row.list_id ? checklists.get(row.list_id) : undefined;
+        return {
+          ...toApi(row),
+          completed: !!completion,
+          completedAt: completion?.completed_at ?? null,
+          completedBy: completion?.member_id ?? null,
+          checklist: cl ? { listId: cl.id, name: cl.name, total: Number(cl.total), done: Number(cl.done) } : null,
+        };
       }),
       200,
     );
@@ -230,17 +258,27 @@ choresRoutes.openapi(
     responses: {
       200: { description: 'ok', content: { 'application/json': { schema: z.object({ ok: z.boolean() }) } } },
       404: { description: 'not found', content: { 'application/json': { schema: ErrorSchema } } },
+      409: { description: 'checklist not finished', content: { 'application/json': { schema: ErrorSchema.extend({ remaining: z.number() }) } } },
     },
   }),
   async (c) => {
     const { id } = c.req.valid('param');
     const { date, memberId } = c.req.valid('json');
     const [choreRes, settingsRes] = await c.env.DB.batch<unknown>([
-      c.env.DB.prepare('SELECT id, member_id, points FROM chores WHERE id = ?').bind(id),
+      c.env.DB.prepare('SELECT id, member_id, points, list_id FROM chores WHERE id = ?').bind(id),
       c.env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('timezone', 'lateCompletionCredit')"),
     ]);
-    const chore = choreRes.results[0] as { id: string; member_id: string | null; points: number } | undefined;
+    const chore = choreRes.results[0] as { id: string; member_id: string | null; points: number; list_id: string | null } | undefined;
     if (!chore) return c.json({ error: 'not found' }, 404);
+    // The checklist gates completion; an empty list doesn't (nothing to tick).
+    let checklistKind: string | null = null;
+    if (chore.list_id) {
+      const list = await c.env.DB.prepare('SELECT kind, (SELECT COUNT(*) FROM list_items WHERE list_id = lists.id AND done = 0) AS remaining FROM lists WHERE id = ?')
+        .bind(chore.list_id)
+        .first<{ kind: string; remaining: number }>();
+      if (list && Number(list.remaining) > 0) return c.json({ error: `Checklist not finished (${list.remaining} left)`, remaining: Number(list.remaining) }, 409);
+      checklistKind = list?.kind ?? null;
+    }
     const settings = new Map((settingsRes.results as { key: string; value: string }[]).map((r) => [r.key, r.value]));
     const today = todayInTz(settings.get('timezone') ?? hostTimezone());
     const pointsAwarded = lateCompletionPoints(chore.points, date < today, Number(settings.get('lateCompletionCredit') ?? 50));
@@ -251,6 +289,11 @@ choresRoutes.openapi(
       .bind(crypto.randomUUID(), id, date, memberId ?? chore.member_id, new Date().toISOString(), pointsAwarded)
       .run();
     emit(c, 'chore.completed', { id, date });
+    // A reusable checklist starts fresh for the next time the chore comes round.
+    if (chore.list_id && checklistKind === 'reusable') {
+      await resetListItems(c.env.DB, chore.list_id);
+      emit(c, 'list.changed', { id: chore.list_id });
+    }
     return c.json({ ok: true }, 200);
   },
 );

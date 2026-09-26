@@ -24,10 +24,17 @@ Tap **+** (Add chore). The sheet has:
 | **On** (Weekly) | Pick weekdays. With none picked, it repeats on the weekday it was created. A new chore pre-selects today. |
 | **Ends (optional)** (Daily/Weekly) | The last date it's due. It's stored as `UNTIL` in the rule. |
 | **Due date** (Once) | The day a one-off chore is due. |
+| **Checklist (optional)** | A list that has to be fully ticked before the chore can be completed. See below. |
 
 Chores created through the API or MCP can use any RRULE (for example `FREQ=MONTHLY` or `INTERVAL=2`). The sheet shows those as "Custom schedule (…)" and leaves them alone unless you pick another option. A recurring chore without a due date starts on the day it was created, in the household timezone.
 
 **Delete** removes the chore along with its history and points.
+
+## Checklists
+
+A chore can carry a **checklist**: one of your [lists](lists.md) (any kind, but a **reusable** list is the natural fit — "Clean room: make bed, vacuum, put clothes away"). The chore card shows the progress (`☑ 2/3 Clean room`), and tapping it while items are still open takes you to that list instead of completing the chore. Once every item is ticked, the chore completes as usual; a reusable checklist then resets to unticked, ready for the next time the chore comes round. Other list kinds are left as they are.
+
+The same list can be the checklist for several chores. Via the API: `listId` on `POST/PATCH /api/chores`, `checklist` progress on `GET /api/chores/day`, and `POST /api/chores/{id}/complete` answers **409** with `remaining` while items are open. MCP: the `list` argument on `create_chore` / `update_chore`.
 
 ## Points, late completion credit
 

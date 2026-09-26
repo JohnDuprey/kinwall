@@ -27,6 +27,7 @@ import m0023 from '../migrations/0023_list_sort_priority_levels.sql';
 import m0024 from '../migrations/0024_notes.sql';
 import m0025 from '../migrations/0025_stickers.sql';
 import m0026 from '../migrations/0026_snapshot.sql';
+import m0027 from '../migrations/0027_chore_checklist.sql';
 
 export const MIGRATIONS: Migration[] = [
   { name: '0001_init.sql', sql: m0001 },
@@ -55,4 +56,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0024_notes.sql', sql: m0024 },
   { name: '0025_stickers.sql', sql: m0025 },
   { name: '0026_snapshot.sql', sql: m0026 },
+  { name: '0027_chore_checklist.sql', sql: m0027 },
 ];

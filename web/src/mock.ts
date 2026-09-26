@@ -133,12 +133,12 @@ const withLeave = (e: EventInstance): EventInstance =>
   ({ ...e, leaveAt: e.travelMinutes && !e.allDay ? new Date(new Date(e.start).getTime() - e.travelMinutes * 60000).toISOString() : null })
 
 const chores: Chore[] = [
-  { id: 'ch1', title: 'Make bed', emoji: '🛏️', memberId: 'm2', points: 5, rrule: 'FREQ=DAILY', dueDate: null, dueTime: null, active: true, sort: 0 },
-  { id: 'ch2', title: 'Feed the dog', emoji: '🐕', memberId: 'm3', points: 5, rrule: 'FREQ=DAILY', dueDate: null, dueTime: null, active: true, sort: 1 },
-  { id: 'ch3', title: 'Take out trash', emoji: '🗑️', memberId: 'm1', points: 10, rrule: 'FREQ=WEEKLY;BYDAY=MO,TH', dueDate: null, dueTime: null, active: true, sort: 2 },
-  { id: 'ch4', title: 'Water plants', emoji: '🪴', memberId: null, points: 5, rrule: null, dueDate: todayISO(), dueTime: null, active: true, sort: 3 },
-  { id: 'ch5', title: 'Vacuum living room', emoji: '🧹', memberId: 'm2', points: 15, rrule: 'FREQ=WEEKLY', dueDate: null, dueTime: null, active: true, sort: 4 },
-  { id: 'ch6', title: 'Tidy toys', emoji: '🧸', memberId: 'm4', points: 5, rrule: 'FREQ=DAILY', dueDate: null, dueTime: null, active: true, sort: 5 },
+  { id: 'ch1', title: 'Make bed', emoji: '🛏️', memberId: 'm2', points: 5, rrule: 'FREQ=DAILY', dueDate: null, dueTime: null, active: true, sort: 0, listId: null },
+  { id: 'ch2', title: 'Feed the dog', emoji: '🐕', memberId: 'm3', points: 5, rrule: 'FREQ=DAILY', dueDate: null, dueTime: null, active: true, sort: 1, listId: null },
+  { id: 'ch3', title: 'Take out trash', emoji: '🗑️', memberId: 'm1', points: 10, rrule: 'FREQ=WEEKLY;BYDAY=MO,TH', dueDate: null, dueTime: null, active: true, sort: 2, listId: null },
+  { id: 'ch4', title: 'Water plants', emoji: '🪴', memberId: null, points: 5, rrule: null, dueDate: todayISO(), dueTime: null, active: true, sort: 3, listId: null },
+  { id: 'ch5', title: 'Vacuum living room', emoji: '🧹', memberId: 'm2', points: 15, rrule: 'FREQ=WEEKLY', dueDate: null, dueTime: null, active: true, sort: 4, listId: null },
+  { id: 'ch6', title: 'Tidy toys', emoji: '🧸', memberId: 'm4', points: 5, rrule: 'FREQ=DAILY', dueDate: null, dueTime: null, active: true, sort: 5, listId: 'l4' },
 ]
 const completions = new Map<string, { completedAt: string; memberId: string | null }>() // key `${choreId}:${date}`
 
@@ -319,10 +319,12 @@ export const mock = {
 
   getChoresDay: async (date: string): Promise<ChoreDay[]> => chores.filter(c => c.active).map(c => {
     const comp = completions.get(`${c.id}:${date}`)
-    return { ...c, completed: !!comp, completedAt: comp?.completedAt ?? null, completedBy: comp?.memberId ?? null }
+    const list = c.listId ? lists.find(l => l.id === c.listId) : undefined
+    const its = list ? listItems.filter(i => i.listId === list.id) : []
+    return { ...c, completed: !!comp, completedAt: comp?.completedAt ?? null, completedBy: comp?.memberId ?? null, checklist: list ? { listId: list.id, name: list.name, total: its.length, done: its.filter(i => i.done).length } : null }
   }),
   createChore: async (body: Partial<Chore>) => {
-    const nc: Chore = { id: uid(), title: body.title ?? 'New chore', emoji: body.emoji ?? '⭐', memberId: body.memberId ?? null, points: body.points ?? 5, rrule: body.rrule ?? null, dueDate: body.dueDate ?? null, dueTime: body.dueTime ?? null, active: true, sort: chores.length }
+    const nc: Chore = { id: uid(), title: body.title ?? 'New chore', emoji: body.emoji ?? '⭐', memberId: body.memberId ?? null, points: body.points ?? 5, rrule: body.rrule ?? null, dueDate: body.dueDate ?? null, dueTime: body.dueTime ?? null, active: true, sort: chores.length, listId: body.listId ?? null }
     chores.push(nc); bump(); return nc
   },
   updateChore: async (id: string, patch: Partial<Chore>) => {
@@ -330,7 +332,15 @@ export const mock = {
     Object.assign(c, patch); bump(); return c
   },
   deleteChore: async (id: string) => { const i = chores.findIndex(x => x.id === id); if (i >= 0) chores.splice(i, 1); bump() },
-  completeChore: async (id: string, date: string, memberId?: string) => { completions.set(`${id}:${date}`, { completedAt: new Date().toISOString(), memberId: memberId ?? null }); bump() },
+  completeChore: async (id: string, date: string, memberId?: string) => {
+    const c = chores.find(x => x.id === id)
+    if (c?.listId) {
+      const open = listItems.filter(i => i.listId === c.listId && !i.done)
+      if (open.length) throw new Error(`Checklist not finished (${open.length} left)`)
+      if (lists.find(l => l.id === c.listId)?.kind === 'reusable') listItems = listItems.map(i => i.listId === c.listId ? { ...i, done: false, doneAt: null, doneBy: null } : i)
+    }
+    completions.set(`${id}:${date}`, { completedAt: new Date().toISOString(), memberId: memberId ?? null }); bump()
+  },
   uncompleteChore: async (id: string, date: string) => { completions.delete(`${id}:${date}`); bump() },
 
   // Dev fixture only - period filtering is approximate (day-count windows, no real tz/weekStart

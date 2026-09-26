@@ -251,6 +251,7 @@ export const ChoreSchema = z
     dueTime: z.string().nullable(),
     active: z.boolean(),
     sort: z.number(),
+    listId: z.string().nullable().openapi({ description: 'Checklist: a list that must be fully ticked before the chore can be completed.' }),
   })
   .openapi('Chore');
 
@@ -265,6 +266,7 @@ export const ChoreInputSchema = z
     dueTime: z.string().nullable().optional(),
     active: z.boolean().optional(),
     sort: z.number().optional(),
+    listId: z.string().nullable().optional().openapi({ description: 'Checklist list id; null to unlink. A reusable list resets when the chore is completed.' }),
   })
   .openapi('ChoreInput');
 
@@ -272,6 +274,7 @@ export const ChoreDaySchema = ChoreSchema.extend({
   completed: z.boolean(),
   completedAt: z.string().nullable(),
   completedBy: z.string().nullable(),
+  checklist: z.object({ listId: z.string(), name: z.string(), total: z.number(), done: z.number() }).nullable().openapi({ description: 'Progress on the linked checklist, when the chore has one.' }),
 }).openapi('ChoreDay');
 
 // manual: open items by priority (urgent, high, normal, low), overdue first within each, then the

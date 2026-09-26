@@ -3,7 +3,7 @@ import { addDays, format, isSameDay } from 'date-fns'
 import { useIsPhone } from './useIsPhone.ts'
 import { useApp } from './AppContext.tsx'
 import { api, ApiError } from './api.ts'
-import type { Chore, ChoreDay, LeaderboardEntry, LeaderboardPeriod } from './types.ts'
+import type { Chore, ChoreDay, LeaderboardEntry, LeaderboardPeriod, List } from './types.ts'
 import { MEMBER_EMOJI } from './types.ts'
 import { dateKey } from './date.ts'
 import Sheet from './Sheet.tsx'
@@ -175,6 +175,8 @@ function scheduleLabel(rrule: string | null): string {
 
 function ChoreCard({ chore, onToggle, onEdit }: { chore: ChoreDay; onToggle: () => void; onEdit: () => void }) {
   const schedule = scheduleLabel(chore.rrule)
+  const cl = chore.checklist
+  const checklist = cl ? `☑ ${cl.done}/${cl.total} ${cl.name}` : ''
   const [burst, setBurst] = useState(false)
   const pressTimer = useRef<ReturnType<typeof setTimeout>>()
   const longPressed = useRef(false)
@@ -201,13 +203,13 @@ function ChoreCard({ chore, onToggle, onEdit }: { chore: ChoreDay; onToggle: () 
   return (
     <>
       <div className={`chore-card ${chore.completed ? 'done' : ''}`} role="checkbox" aria-checked={chore.completed} tabIndex={0}
-        aria-label={[chore.title, `${chore.points} points`, schedule].filter(Boolean).join(', ')}
+        aria-label={[chore.title, `${chore.points} points`, schedule, cl ? `checklist ${cl.name} ${cl.done} of ${cl.total} done` : ''].filter(Boolean).join(', ')}
         onKeyDown={toggleByKey} onContextMenu={e => { e.preventDefault(); onEdit() }}
         onPointerDown={handleDown} onPointerUp={handleUp} onPointerLeave={() => clearTimeout(pressTimer.current)}>
         <div className="chore-emoji" aria-hidden="true">{chore.emoji}</div>
         <div className="chore-info">
           <div className={`chore-title ${chore.completed ? 'done' : ''}`}>{chore.title}</div>
-          <div className="chore-pts">{[`${chore.points} pts`, schedule].filter(Boolean).join(' · ')}</div>
+          <div className="chore-pts">{[`${chore.points} pts`, schedule, checklist].filter(Boolean).join(' · ')}</div>
         </div>
         <div className={`chore-check ${chore.completed ? 'done' : ''}`}>
           {chore.completed && <CheckIcon width={18} height={18} />}
@@ -247,6 +249,13 @@ export default function Chores() {
   const strip = useMemo(() => Array.from({ length: 14 }, (_, i) => addDays(new Date(), i - 4)), [])
 
   const toggle = async (c: ChoreDay) => {
+    // A checklist with open items gates completion: go tick it off instead.
+    if (!c.completed && c.checklist && c.checklist.done < c.checklist.total) {
+      const left = c.checklist.total - c.checklist.done
+      toast(`Finish the ${c.checklist.name} checklist first (${left} left)`)
+      location.hash = `#/lists?list=${c.checklist.listId}`
+      return
+    }
     setChores(list => list.map(x => x.id === c.id ? { ...x, completed: !x.completed } : x)) // optimistic
     // Ticked off for a past day: earns the household's late-completion share (rounded like the server).
     const late = !c.completed && key < dateKey(new Date())
@@ -346,6 +355,9 @@ function ChoreEditSheet({ chore, onClose, onSaved }: { chore: Chore | null; onCl
   const [emoji, setEmoji] = useState(chore?.emoji ?? MEMBER_EMOJI[0])
   const [points, setPoints] = useState(chore?.points ?? 5)
   const [memberId, setMemberId] = useState<string | null>(chore?.memberId ?? null)
+  const [listId, setListId] = useState<string | null>(chore?.listId ?? null)
+  const [lists, setLists] = useState<List[]>([])
+  useEffect(() => { api.getLists().then(setLists).catch(() => { /* picker just stays empty */ }) }, [])
   const [dueDate, setDueDate] = useState(chore?.dueDate ?? dateKey(new Date()))
   const [sched, setSched] = useState(() => {
     const f = rruleToForm(chore?.rrule ?? null)
@@ -360,7 +372,7 @@ function ChoreEditSheet({ chore, onClose, onSaved }: { chore: Chore | null; onCl
   const submit = async () => {
     if (!title.trim() || !isSingleEmoji(emoji)) return
     const rrule = schedTouched || !chore ? formToRrule(sched) : chore.rrule
-    const body = { title: title.trim(), emoji, points, memberId, rrule, dueDate: rrule ? null : dueDate }
+    const body = { title: title.trim(), emoji, points, memberId, rrule, dueDate: rrule ? null : dueDate, listId }
     try {
       if (chore) await api.updateChore(chore.id, body)
       else await api.createChore(body)
@@ -408,6 +420,14 @@ function ChoreEditSheet({ chore, onClose, onSaved }: { chore: Chore | null; onCl
             <button key={m.id} className={`chip ${memberId === m.id ? 'active' : ''}`} aria-pressed={memberId === m.id} style={{ ['--chip-color' as string]: m.color }} onClick={() => setMemberId(m.id)}>{m.avatar} {m.name}</button>
           ))}
         </div>
+      </div>
+      <div className="field">
+        <label htmlFor="chore-checklist">Checklist (optional)</label>
+        <select id="chore-checklist" value={listId ?? ''} onChange={e => setListId(e.target.value || null)}>
+          <option value="">None</option>
+          {lists.filter(l => !l.archived || l.id === listId).map(l => <option key={l.id} value={l.id}>{l.emoji ? `${l.emoji} ` : ''}{l.name}{l.kind === 'reusable' ? '' : ` (${l.kind})`}</option>)}
+        </select>
+        <p className="field-hint">Every item on the list has to be ticked before this chore can be completed. A reusable list resets once it is.</p>
       </div>
       <div className="field">
         <label>Repeat</label>

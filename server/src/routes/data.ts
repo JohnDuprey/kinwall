@@ -78,7 +78,7 @@ const ExportSchema = z
     // Series-wide tags on recurring synced events, keyed by the provider's series id (0007/0011).
     eventSeriesMemberOverrides: z.array(z.object({ calendarId: z.string(), seriesId: z.string(), memberIds: z.array(z.string()) })),
     eventSeriesCategoryOverrides: z.array(z.object({ calendarId: z.string(), seriesId: z.string(), categoryId: z.string() })),
-    chores: z.array(ChoreSchema),
+    chores: z.array(ChoreSchema.extend({ listId: z.string().nullable().optional() })), // listId: exports before 0027 lack it
     // pointsAwarded: older exports predate it - null imports as the chore's full points.
     choreCompletions: z.array(z.object({ id: z.string(), choreId: z.string(), date: z.string(), memberId: z.string().nullable(), completedAt: z.string(), pointsAwarded: z.number().nullable().default(null) })),
     lists: z.array(
@@ -152,7 +152,7 @@ dataRoutes.openapi(
       db.prepare('SELECT calendar_id, external_id, travel_minutes, remind_before_leave FROM event_travel_overrides ORDER BY calendar_id, external_id'),
       db.prepare('SELECT calendar_id, series_id, member_ids FROM event_series_member_overrides ORDER BY calendar_id, series_id'),
       db.prepare('SELECT calendar_id, series_id, category_id FROM event_series_category_overrides ORDER BY calendar_id, series_id'),
-      db.prepare('SELECT id, title, emoji, member_id, points, rrule, due_date, due_time, active, sort, created_at FROM chores ORDER BY sort, created_at'),
+      db.prepare('SELECT id, title, emoji, member_id, points, rrule, due_date, due_time, active, sort, created_at, list_id FROM chores ORDER BY sort, created_at'),
       db.prepare('SELECT id, chore_id, date, member_id, completed_at, points_awarded FROM chore_completions ORDER BY date'),
       db.prepare('SELECT id, name, emoji, color, kind, member_ids, group_by, sort_by, sort, archived, created_at FROM lists ORDER BY sort, created_at'),
       db.prepare(
@@ -517,6 +517,8 @@ dataRoutes.openapi(
           active: ch.active ? 1 : 0,
           sort: ch.sort,
           created_at: stamp(i),
+          // Only a list in this file can be the checklist; anything else would dangle.
+          list_id: ch.listId && body.lists.some((l) => l.id === ch.listId) ? ch.listId : null,
         })),
         { ...keepCreated, expr: { member_id: memberRef('member_id') } },
       ),

@@ -43,3 +43,41 @@ test('chores: API rejects a malformed rrule with 400', async () => {
   const { id } = await ok.json() as any;
   assert.equal((await req(`/api/chores/${id}`, 'PATCH', { rrule: 'garbage' })).status, 400);
 });
+
+test('chores: a linked checklist gates completion (409 until every item is ticked) and a reusable one resets afterwards', async () => {
+  const { createApp } = await import('../src/app.ts');
+  const { openDb, applyMigrations } = await import('../src/d1-sqlite.ts');
+  const path = await import('node:path');
+  const db = openDb(':memory:');
+  applyMigrations(db, path.join(import.meta.dirname, '..', 'migrations'));
+  const env = { DB: db, ADMIN_API_KEY: 'k', PUBLIC_URL: 'http://localhost', ENCRYPTION_KEY: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=' } as any;
+  const req = (p: string, method: string, body?: unknown) =>
+    createApp().request(p, { method, body: body === undefined ? undefined : JSON.stringify(body), headers: { Authorization: 'Bearer k', 'Content-Type': 'application/json' } }, env);
+  const json = async (r: Response) => (await r.json()) as any;
+
+  const list = await json(await req('/api/lists', 'POST', { name: 'Clean room', kind: 'reusable' }));
+  const items = await json(await req(`/api/lists/${list.id}/items`, 'POST', [{ title: 'Make bed' }, { title: 'Vacuum' }]));
+
+  assert.equal((await req('/api/chores', 'POST', { title: 'x', dueDate: '2026-06-01', listId: 'nope' })).status, 400);
+  const chore = await json(await req('/api/chores', 'POST', { title: 'Clean room', dueDate: '2026-06-01', points: 10, listId: list.id }));
+  assert.equal(chore.listId, list.id);
+
+  const day = await json(await req('/api/chores/day?date=2026-06-01', 'GET'));
+  assert.deepEqual(day[0].checklist, { listId: list.id, name: 'Clean room', total: 2, done: 0 });
+
+  const blocked = await req(`/api/chores/${chore.id}/complete`, 'POST', { date: '2026-06-01' });
+  assert.equal(blocked.status, 409);
+  assert.equal((await json(blocked)).remaining, 2);
+
+  for (const it of items) await req(`/api/lists/${list.id}/items/${it.id}`, 'PATCH', { done: true });
+  assert.equal((await json(await req('/api/chores/day?date=2026-06-01', 'GET')))[0].checklist.done, 2);
+  assert.equal((await req(`/api/chores/${chore.id}/complete`, 'POST', { date: '2026-06-01' })).status, 200);
+
+  // Reusable list: back to unticked for next time; the chore itself stays completed for that day.
+  const after = await json(await req('/api/chores/day?date=2026-06-01', 'GET'));
+  assert.equal(after[0].completed, true);
+  assert.equal(after[0].checklist.done, 0);
+
+  // Unlink via PATCH.
+  assert.equal((await json(await req(`/api/chores/${chore.id}`, 'PATCH', { listId: null }))).listId, null);
+});

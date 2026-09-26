@@ -145,12 +145,14 @@ export interface Chore {
   dueTime: string | null
   active: boolean
   sort: number
+  listId: string | null // checklist: a list that must be fully ticked before the chore can be completed
 }
 
 export interface ChoreDay extends Chore {
   completed: boolean
   completedAt: string | null
   completedBy: string | null
+  checklist: { listId: string; name: string; total: number; done: number } | null
 }
 
 export type LeaderboardPeriod = 'today' | 'week' | 'month'
