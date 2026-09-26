@@ -386,7 +386,7 @@ export default function CalendarView() {
         ) : viewMode === 'week' ? (
           <WeekView days={weekDays} events={visibleEvents} tz={tz} members={members} categories={categories} onTap={setDetail} onSlotTap={openAdd} onDayTap={openDay} />
         ) : viewMode === 'day' ? (
-          <DayView anchor={anchor} events={visibleEvents} tz={tz} members={members} categories={categories} onlyMemberId={focusMemberId} onTap={setDetail} onSlotTap={openAdd} />
+          <DayView anchor={anchor} events={visibleEvents} tz={tz} members={members} categories={categories} onlyMemberId={focusMemberId ?? selectedMemberId} onTap={setDetail} onSlotTap={openAdd} />
         ) : viewMode === 'month' ? (
           <MonthView anchor={anchor} events={visibleEvents} tz={tz} weekStart={settings.weekStart} members={members} categories={categories} onTap={setDetail} onDayTap={openDay} />
         ) : (
