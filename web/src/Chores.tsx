@@ -185,9 +185,11 @@ function ChoreCard({ chore, onToggle, onEdit }: { chore: ChoreDay; onToggle: () 
     longPressed.current = false
     pressTimer.current = setTimeout(() => { longPressed.current = true; onEdit() }, 500)
   }
-  const handleUp = () => {
-    clearTimeout(pressTimer.current)
-    if (longPressed.current) return
+  const handleUp = () => clearTimeout(pressTimer.current)
+  // Toggle on click, not pointerup: a sheet the toggle opens (Who did it?, a checklist) would
+  // otherwise catch the click a touch sends right after lifting the finger.
+  const handleClick = () => {
+    if (longPressed.current) { longPressed.current = false; return }
     if (!chore.completed) setBurst(true)
     onToggle()
   }
@@ -205,7 +207,7 @@ function ChoreCard({ chore, onToggle, onEdit }: { chore: ChoreDay; onToggle: () 
       <div className={`chore-card ${chore.completed ? 'done' : ''}`} role="checkbox" aria-checked={chore.completed} tabIndex={0}
         aria-label={[chore.title, `${chore.points} points`, schedule, cl ? `checklist ${cl.name} ${cl.done} of ${cl.total} done` : ''].filter(Boolean).join(', ')}
         onKeyDown={toggleByKey} onContextMenu={e => { e.preventDefault(); onEdit() }}
-        onPointerDown={handleDown} onPointerUp={handleUp} onPointerLeave={() => clearTimeout(pressTimer.current)}>
+        onPointerDown={handleDown} onPointerUp={handleUp} onPointerLeave={() => clearTimeout(pressTimer.current)} onClick={handleClick}>
         <div className="chore-emoji" aria-hidden="true">{chore.emoji}</div>
         <div className="chore-info">
           <div className={`chore-title ${chore.completed ? 'done' : ''}`}>{chore.title}</div>
@@ -249,17 +251,27 @@ export default function Chores() {
 
   const strip = useMemo(() => Array.from({ length: 14 }, (_, i) => addDays(new Date(), i - 4)), [])
 
-  const toggle = async (c: ChoreDay) => {
+  // "Who did it?" for an Anyone chore when the tab isn't filtered or pinned to one person.
+  const [whoFor, setWhoFor] = useState<ChoreDay | null>(null)
+  const toggle = async (c: ChoreDay, doneBy?: string | null) => {
     // A checklist with open items gates completion: open it here to tick off instead.
     if (!c.completed && c.checklist && c.checklist.done < c.checklist.total) { setChecklistFor(c); return }
+    // An Anyone chore credits the filtered (or pinned) person; otherwise ask who did it.
+    // `doneBy` null = "Nobody in particular" was picked.
+    if (!c.completed && !c.memberId && doneBy === undefined) {
+      if (selectedMemberId) doneBy = selectedMemberId
+      else if (members.length > 0) { setWhoFor(c); return }
+    }
+    const creditTo = c.memberId ?? doneBy ?? undefined
     setChores(list => list.map(x => x.id === c.id ? { ...x, completed: !x.completed } : x)) // optimistic
     // Ticked off for a past day: earns the household's late-completion share (rounded like the server).
     const late = !c.completed && key < dateKey(new Date())
     const pts = late ? Math.round(c.points * settings.lateCompletionCredit / 100) : c.points
-    announce(c.completed ? `${c.title} not done` : `${c.title} done, ${pts} point${pts === 1 ? '' : 's'}${late ? ', late' : ''}`)
+    const who = !c.memberId && creditTo ? members.find(m => m.id === creditTo)?.name : undefined
+    announce(c.completed ? `${c.title} not done` : `${c.title} done${who ? ` by ${who}` : ''}, ${pts} point${pts === 1 ? '' : 's'}${late ? ', late' : ''}`)
     try {
       if (c.completed) await api.uncompleteChore(c.id, key)
-      else await api.completeChore(c.id, key, c.memberId ?? undefined)
+      else await api.completeChore(c.id, key, creditTo)
       if (late) toast(`+${pts} (late)`)
       reloadCore()
     } catch (e) {
@@ -329,6 +341,20 @@ export default function Chores() {
 
       <button className="fab" onClick={() => setEditChore('new')} aria-label="Add chore"><PlusIcon /></button>
 
+      {whoFor && (
+        <Sheet title="Who did it?" onClose={() => setWhoFor(null)}>
+          <p className="settings-row-sub" style={{ margin: '0 0 12px' }}>{whoFor.emoji} {whoFor.title} · {whoFor.points} pts go to whoever you pick.</p>
+          <div className="who-grid">
+            {members.map(m => (
+              <button key={m.id} className="who-btn" onClick={() => { const c = whoFor; setWhoFor(null); toggle(c, m.id) }}>
+                <span className="who-avatar" aria-hidden="true" style={{ background: m.color, color: inkFor(m.color) }}>{m.avatar || m.name[0]}</span>
+                {m.name}
+              </button>
+            ))}
+          </div>
+          <button className="btn btn-secondary btn-block" style={{ marginTop: 12 }} onClick={() => { const c = whoFor; setWhoFor(null); toggle(c, null) }}>Nobody in particular</button>
+        </Sheet>
+      )}
       {checklistFor?.checklist && (
         <ChecklistSheet chore={checklistFor} onClose={() => { setChecklistFor(null); load() }}
           onComplete={async () => { const c = checklistFor; setChecklistFor(null); await toggle({ ...c, checklist: null }) }} />

@@ -791,6 +791,10 @@ button {
 }
 .chore-title.done { text-decoration: line-through; }
 .chore-pts { font-size: 0.75rem; color: var(--text-dim); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.who-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; }
+.who-btn { display: flex; flex-direction: column; align-items: center; gap: 8px; min-height: 44px; padding: 14px 8px; border: none; border-radius: var(--radius-sm); background: var(--bg-alt); color: var(--text); font: inherit; font-weight: 800; cursor: pointer; }
+.who-btn:active { transform: scale(0.96); }
+.who-avatar { width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.75rem; }
 .chore-check {
   width: 34px; height: 34px; border-radius: 50%;
   border: 2.5px solid var(--border);
