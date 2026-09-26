@@ -101,13 +101,15 @@ export const LocationSchema = z
   .openapi('Location');
 
 // The Board's quote / fact card (Settings -> For the whole family -> Quotes & facts).
-export const TIDBIT_SOURCES = ['quotes', 'facts', 'onthisday', 'trivia'] as const;
+export const TIDBIT_SOURCES = ['quotes', 'facts', 'tips', 'onthisday', 'trivia'] as const;
+export const TIP_CATEGORIES = ['routines', 'focus', 'organizing', 'feelings', 'sensory', 'communication'] as const;
 export const FACT_CATEGORIES = ['animals', 'space', 'science', 'body', 'plants', 'words'] as const;
 export const ON_THIS_DAY_KINDS = ['holidays', 'births', 'events'] as const;
 export const TidbitSettingsSchema = z
   .object({
     sources: z.array(z.enum(TIDBIT_SOURCES)).max(TIDBIT_SOURCES.length), // [] = no card on the Board
     factCategories: z.array(z.enum(FACT_CATEGORIES)).max(FACT_CATEGORIES.length), // built-in facts; [] = every category
+    tipCategories: z.array(z.enum(TIP_CATEGORIES)).max(TIP_CATEGORIES.length).default([]), // neurodivergent-friendly tips; [] = every category
     onThisDay: z.array(z.enum(ON_THIS_DAY_KINDS)).min(1).max(ON_THIS_DAY_KINDS.length), // Wikipedia's On this day
     birthsAfter: z.number().int().min(0).max(2100).nullable(), // birthdays only for people born in or after this year; null = any
     triviaCategories: z.array(z.number().int().min(9).max(32)).min(1).max(24), // Open Trivia DB category ids

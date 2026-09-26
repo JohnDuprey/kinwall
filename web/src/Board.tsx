@@ -201,12 +201,13 @@ function boardAreas(shown: string[]): React.CSSProperties {
 function TidbitCard({ tidbit }: { tidbit: Tidbit }) {
   const [guess, setGuess] = useState<string | null>(null) // resets with each tidbit: the parent keys the card by it
   const key = tidbit.kind === 'trivia' ? tidbit.question : tidbit.text
-  const label = tidbit.kind === 'quote' ? 'Quote' : tidbit.kind === 'trivia' ? 'Trivia' : tidbit.kind === 'onthisday' ? 'On this day' : 'Did you know?'
+  const label = tidbit.kind === 'quote' ? 'Quote' : tidbit.kind === 'trivia' ? 'Trivia' : tidbit.kind === 'onthisday' ? 'On this day' : tidbit.kind === 'tip' ? 'Try this' : 'Did you know?'
   return (
     <section className="board-card board-tidbit" aria-label={label}>
       <div key={key} className="board-tidbit-body">
         {tidbit.kind === 'quote' && <blockquote><p>“{tidbit.text}”</p><footer>— {tidbit.by}</footer></blockquote>}
         {tidbit.kind === 'fact' && <p><span className="board-tidbit-tag">💡 Did you know?</span> {tidbit.text}</p>}
+        {tidbit.kind === 'tip' && <p><span className="board-tidbit-tag">🌱 Try this</span> {tidbit.text}</p>}
         {tidbit.kind === 'onthisday' && <>
           <p><span className="board-tidbit-tag">{tidbit.type === 'holidays' ? '🎉 Today is' : tidbit.type === 'births' ? `🎂 Born on this day${tidbit.year ? ` in ${tidbit.year}` : ''}` : `📜 On this day${tidbit.year ? ` in ${tidbit.year}` : ''}`}</span> {tidbit.text}</p>
           <p className="board-tidbit-source">From Wikipedia</p>

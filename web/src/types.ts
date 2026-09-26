@@ -52,12 +52,14 @@ export interface Features {
   messages: boolean // sending family messages (the bell's Send a message)
 }
 
-export type TidbitSource = 'quotes' | 'facts' | 'onthisday' | 'trivia'
+export type TidbitSource = 'quotes' | 'facts' | 'tips' | 'onthisday' | 'trivia'
+export type TipCategory = 'routines' | 'focus' | 'organizing' | 'feelings' | 'sensory' | 'communication'
 export type FactCategory = 'animals' | 'space' | 'science' | 'body' | 'plants' | 'words'
 export type OnThisDayKind = 'holidays' | 'births' | 'events'
 export interface TidbitSettings {
   sources: TidbitSource[] // [] = no card on the Board
   factCategories: FactCategory[] // built-in facts; [] = every category
+  tipCategories: TipCategory[] // neurodivergent-friendly tips; [] = every category
   onThisDay: OnThisDayKind[]
   birthsAfter: number | null // birthdays only for people born in or after this year; null = any
   triviaCategories: number[] // Open Trivia DB category ids

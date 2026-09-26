@@ -2,8 +2,8 @@
 // draws from, and the categories within each. A sheet of its own so the settings list stays short.
 import { useState } from 'react'
 import Sheet from './Sheet.tsx'
-import { FACT_CATEGORY_LABELS, SOURCE_TITLES } from './tidbits.ts'
-import type { FactCategory, OnThisDayKind, TidbitSettings, TidbitSource } from './types.ts'
+import { FACT_CATEGORY_LABELS, SOURCE_TITLES, TIP_CATEGORY_LABELS } from './tidbits.ts'
+import type { FactCategory, OnThisDayKind, TidbitSettings, TidbitSource, TipCategory } from './types.ts'
 
 // Open Trivia DB categories that suit a family wall (ids from opentdb.com/api_category.php).
 const TRIVIA_CATEGORIES: { id: number; label: string }[] = [
@@ -21,6 +21,7 @@ const ON_THIS_DAY: { key: OnThisDayKind; label: string }[] = [
 const SOURCES: { key: TidbitSource; sub: string }[] = [
   { key: 'quotes', sub: 'Built in: authors, scientists and storytellers.' },
   { key: 'facts', sub: 'Built in, for all ages.' },
+  { key: 'tips', sub: 'Built in: small, practical ideas for routines, focus and feelings that help neurodivergent kids and grown-ups, and everyone else too.' },
   { key: 'onthisday', sub: 'From Wikipedia: today’s holidays, birthdays and history.' },
   { key: 'trivia', sub: 'From Open Trivia DB, multiple choice. Tap an answer to see if it’s right; Try again resets it.' },
 ]
@@ -53,6 +54,13 @@ export default function TidbitsSheet({ value, onClose, onSave }: { value: Tidbit
               {chip(t.factCategories.length === 0, '✨ All', () => setT(x => ({ ...x, factCategories: [] })))}
               {(Object.keys(FACT_CATEGORY_LABELS) as FactCategory[]).map(c =>
                 chip(t.factCategories.includes(c), FACT_CATEGORY_LABELS[c], () => setT(x => ({ ...x, factCategories: toggle(x.factCategories, c) }))))}
+            </div>
+          )}
+          {s.key === 'tips' && on('tips') && (
+            <div className="chip-row" role="group" aria-label="Tip categories">
+              {chip(!t.tipCategories?.length, '✨ All', () => setT(x => ({ ...x, tipCategories: [] })))}
+              {(Object.keys(TIP_CATEGORY_LABELS) as TipCategory[]).map(c =>
+                chip(!!t.tipCategories?.includes(c), TIP_CATEGORY_LABELS[c], () => setT(x => ({ ...x, tipCategories: toggle(x.tipCategories ?? [], c) }))))}
             </div>
           )}
           {s.key === 'onthisday' && on('onthisday') && <>

@@ -1,7 +1,7 @@
 // The Board's rotating quote / fact card: the built-in quotes and facts (no network), plus the
 // online sources the family turned on in Settings -> Quotes & facts. Picked from the date and a
 // 30-minute slot, so every display in the house shows the same one at the same time.
-import type { FactCategory, OnlineTidbits, OnThisDayKind, TidbitSettings, TidbitSource } from './types.ts'
+import type { FactCategory, OnlineTidbits, OnThisDayKind, TidbitSettings, TidbitSource, TipCategory } from './types.ts'
 
 export const QUOTES: { text: string; by: string }[] = [
   { text: 'Not all those who wander are lost.', by: 'J.R.R. Tolkien' },
@@ -172,7 +172,57 @@ export const FACTS: { text: string; category: FactCategory }[] = [
   { text: 'A “googol” is 1 followed by 100 zeros, and a nine-year-old came up with the name.', category: 'words' },
 ]
 
-export const SOURCE_TITLES: Record<TidbitSource, string> = { quotes: 'Quotes', facts: 'Fun facts', onthisday: 'On this day', trivia: 'Trivia question' }
+/** Neurodivergent-friendly everyday tips: practical, kind, non-medical, for kids and grown-ups. */
+export const TIPS: { text: string; category: TipCategory }[] = [
+  { text: 'Put tomorrow’s things by the door tonight: bag, shoes, keys. Mornings get one less decision.', category: 'routines' },
+  { text: 'A row of pictures for the morning routine is often easier to follow than a list of spoken steps.', category: 'routines' },
+  { text: 'Keep routines like bedtime in the same order every day. Knowing what comes next makes it easier.', category: 'routines' },
+  { text: 'Give a heads-up before a change: “Five more minutes, then shoes on.” Countdowns make switching easier.', category: 'routines' },
+  { text: 'Tie a new habit to an old one: brush teeth, then take vitamins.', category: 'routines' },
+  { text: 'A visual timer everyone can see shows time passing, which is easier than guessing how long is left.', category: 'routines' },
+  { text: 'Plan for the tricky time of day. After school, a snack and some quiet time can come before homework.', category: 'routines' },
+  { text: 'Doing a task next to someone else, even quietly, can make it easier to start. It’s called body doubling.', category: 'focus' },
+  { text: 'Shrink the first step: “Open the laptop” is easier to start than “Write the report.”', category: 'focus' },
+  { text: 'Ten minutes of tidying is easier to begin than “clean your room.” Set a timer and stop when it rings.', category: 'focus' },
+  { text: 'A quick walk or a few jumping jacks between tasks can reset attention.', category: 'focus' },
+  { text: 'Fidgets are focus tools. Something in your hands can help your mind stay on task.', category: 'focus' },
+  { text: 'If it takes less than two minutes, doing it now is often easier than remembering it later.', category: 'focus' },
+  { text: 'Fewer things in sight means fewer things pulling at your attention. Clear the table before homework.', category: 'focus' },
+  { text: 'Make a boring job more fun: music, a race against the timer, or doing it in a silly voice.', category: 'focus' },
+  { text: 'Give everything a home, and label it. “Where does this go?” gets easier to answer.', category: 'organizing' },
+  { text: 'Clear bins beat closed drawers: if you can see it, you can find it, and remember you have it.', category: 'organizing' },
+  { text: 'Write it down the moment you think of it. Brains are for having ideas, not holding them.', category: 'organizing' },
+  { text: 'Put reminders where you’ll be when you need them: a note on the door, an alarm with a label.', category: 'organizing' },
+  { text: 'A spot by the door for keys, wallet and bags saves a morning search.', category: 'organizing' },
+  { text: 'A short checklist by the door can save a trip back home. Checklists aren’t just for kids.', category: 'organizing' },
+  { text: 'Name the feeling out loud: “I’m feeling frustrated.” Naming it can make it feel smaller.', category: 'feelings' },
+  { text: 'A calm corner with soft things and quiet gives anyone a place to reset, grown-ups too.', category: 'feelings' },
+  { text: 'When someone is overwhelmed, fewer words help. Connect first, solve the problem later.', category: 'feelings' },
+  { text: 'Slow breaths calm the body: breathe in for four, hold for a moment, and breathe out for six.', category: 'feelings' },
+  { text: 'A meltdown isn’t a choice. Keep everyone safe, stay calm, and talk it through later.', category: 'feelings' },
+  { text: 'Praise the effort, not just the result: “You kept trying” builds more than “You got it right.”', category: 'feelings' },
+  { text: 'Every brain works differently, and that’s okay. Different isn’t less.', category: 'feelings' },
+  { text: 'Noise-reducing headphones can make busy places like stores and parties easier.', category: 'sensory' },
+  { text: 'Tags and seams bother some people a lot. Soft, tagless clothes can end a morning battle.', category: 'sensory' },
+  { text: 'Dimmer lights and a quieter house in the evening help bodies wind down for sleep.', category: 'sensory' },
+  { text: 'Heavy things can feel calming: a weighted blanket, a big hug, or carrying the groceries.', category: 'sensory' },
+  { text: 'Crunchy or chewy snacks help some people focus or feel calmer.', category: 'sensory' },
+  { text: 'Stepping away before it gets to be too much is a skill, not rudeness.', category: 'sensory' },
+  { text: 'Say what to do, not what not to do: “Walk, please” works better than “Don’t run.”', category: 'communication' },
+  { text: 'Give one instruction at a time, and check it landed before the next.', category: 'communication' },
+  { text: 'Talking side by side, in the car or on a walk, can be easier than talking face to face.', category: 'communication' },
+  { text: 'Give extra time to answer. A quiet pause is thinking, not ignoring.', category: 'communication' },
+  { text: 'Written or picture instructions help when spoken ones are hard to hold on to.', category: 'communication' },
+  { text: 'Ask “What would help?” People often know what they need.', category: 'communication' },
+  { text: 'Special interests are strengths. Learning through something you love makes it stick.', category: 'communication' },
+  { text: 'After asking a question, count to five in your head before asking again.', category: 'communication' },
+]
+
+export const TIP_CATEGORY_LABELS: Record<TipCategory, string> = {
+  routines: '🗓️ Routines', focus: '🎯 Focus', organizing: '🗂️ Getting organized', feelings: '💛 Feelings', sensory: '🎧 Sensory', communication: '💬 Communication',
+}
+
+export const SOURCE_TITLES: Record<TidbitSource, string> = { quotes: 'Quotes', facts: 'Fun facts', tips: 'Neurodivergent-friendly tips', onthisday: 'On this day', trivia: 'Trivia question' }
 
 /** Settings row summary: which sources are on. */
 export function tidbitSummary(t: TidbitSettings): string {
@@ -189,6 +239,7 @@ export const FACT_CATEGORY_LABELS: Record<FactCategory, string> = {
 export type Tidbit =
   | { kind: 'quote'; text: string; by: string }
   | { kind: 'fact'; text: string }
+  | { kind: 'tip'; text: string }
   | { kind: 'onthisday'; type: OnThisDayKind; text: string; year: number | null }
   | { kind: 'trivia'; question: string; answer: string; choices: string[]; category: string }
 
@@ -199,11 +250,13 @@ export type Tidbit =
 export function tidbitFor(date: Date, slot: number, settings: TidbitSettings, online: OnlineTidbits | null): Tidbit | null {
   const facts = FACTS.filter(f => settings.factCategories.length === 0 || settings.factCategories.includes(f.category))
   const pools: Tidbit[][] = []
-  for (const source of ['quotes', 'facts', 'onthisday', 'trivia'] as const) {
+  const tips = TIPS.filter(t => !settings.tipCategories?.length || settings.tipCategories.includes(t.category))
+  for (const source of ['quotes', 'facts', 'tips', 'onthisday', 'trivia'] as const) {
     if (!settings.sources.includes(source)) continue
     const pool: Tidbit[] =
       source === 'quotes' ? QUOTES.map(q => ({ kind: 'quote', ...q }))
       : source === 'facts' ? facts.map(f => ({ kind: 'fact', text: f.text }))
+      : source === 'tips' ? tips.map(t => ({ kind: 'tip', text: t.text }))
       : source === 'onthisday' ? (online?.onThisDay ?? []).map(o => ({ kind: 'onthisday', type: o.kind, text: o.text, year: o.year }))
       : (online?.trivia ?? []).map(t => ({ kind: 'trivia', ...t }))
     if (pool.length) pools.push(pool)
