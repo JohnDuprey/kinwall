@@ -335,7 +335,7 @@ export function stripHtmlToText(input: string): string {
  * /api/rev for changes. Also reports `unauthorized: true` on a 401 (e.g. this display's key was
  * revoked from another session) so App.tsx can drop back to the pairing/key-gate screen without
  * waiting for the next manual action. */
-export function usePoll(intervalMs = 15000) {
+export function usePoll(intervalMs = 30000) {
   const [tick, setTick] = useState(0)
   const [unauthorized, setUnauthorized] = useState(false)
   const lastRev = useRef<number | null>(null)

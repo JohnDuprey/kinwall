@@ -11,7 +11,7 @@ Quiet hours turn a wall display into a dim, slowly drifting clock overnight. Tha
 * It applies **only to paired wall displays** (devices using a display key). Phones and admin devices are never dimmed.
 * During the window, the display shows only the time on a dark screen. The clock moves slightly now and then so no pixels stay lit in one place.
 * **Tap the screen** to wake it. It returns to the clock after **five minutes** without a touch.
-* The times are read on the display's own clock. The setting syncs to every display within about 15 seconds.
+* The times are read on the display's own clock. The setting syncs to every display within about 30 seconds.
 
 ## Screensaver
 

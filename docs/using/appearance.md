@@ -20,7 +20,7 @@ Appearance works on two levels:
 | **Density** | Comfortable, Compact (shorter hour rows in the time grid) | Comfortable |
 | **Quiet hours (displays)** | Off / On, with Quiet from and Quiet to | Off. See [Quiet hours](quiet-hours.md). |
 
-Changes save as you make them, and other devices pick them up within about 15 seconds.
+Changes save as you make them, and other devices pick them up within about 30 seconds.
 
 ### Dark schedule
 

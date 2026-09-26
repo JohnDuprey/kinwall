@@ -6,7 +6,7 @@ For deployment steps, see [Deploy to Cloudflare Workers](../getting-started/depl
 
 | Limit | Free tier | How Kinwall fits |
 |---|---|---|
-| Requests | 100,000 / day | A wall display polling `/api/rev` every 15 s uses about 5,800/day. Phones add more while open. |
+| Requests | 100,000 / day | A wall display polling `/api/rev` every 30 s uses about 2,900/day. Phones add more while open. |
 | CPU | 10 ms per request or cron run (network wait doesn't count) | Google, Microsoft and CalDAV sync in 31-day slices, and unchanged ICS feeds are skipped by fingerprint. |
 | D1 | generous free storage and reads | One small database. |
 
