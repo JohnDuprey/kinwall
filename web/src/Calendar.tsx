@@ -327,12 +327,12 @@ export default function CalendarView() {
 
   return (
     <div className="content">
-      {showNowNext && <NowNextCard events={todayEvents} tz={tz} />}
+      {showNowNext && !(isPhone && viewMode === 'board') && <NowNextCard events={todayEvents} tz={tz} />}
       {!!device.warnings?.length && <TransitionWarnings events={todayEvents} minutes={device.warnings} sound={!!device.warningSound} settings={settings} />}
       {(!device.lockView || viewMode !== 'board' || categories.length > 0) && <div className="calendar-toolbar">
         {!device.lockView && (
           <Segmented tabs idBase="calview" label="Calendar view" value={viewMode} onChange={setViewMode}
-            options={(['board', 'week', 'day', 'month', 'schedule'] as ViewMode[]).map(v => ({ key: v, label: viewLabel(v, isPhone) }))} />
+            options={(['board', 'day', 'week', 'month', 'schedule'] as ViewMode[]).map(v => ({ key: v, label: viewLabel(v, isPhone) }))} />
         )}
         <div className="toolbar-nav">
           {/* The board always shows today onward: no paging. */}

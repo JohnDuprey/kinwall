@@ -10,14 +10,14 @@ Use the segmented control at the top to switch views.
 
 | View | Shows | Paging (◀ ▶ or swipe) |
 |---|---|---|
+| **Board** | A family bulletin board for today and the week ahead. See [Board view](#board-view). | None: always today onward |
+| **Day** | A time grid for one day, one column per family member. | ±1 day |
 | **Week** (iPad / desktop) | 7 day columns with an all-day row and a time grid. The week starts on Sunday or Monday, per [General](../settings/general.md). | ±1 week |
 | **3 Day** (phones) | The same grid, 3 days from the anchor date. | ±3 days |
-| **Day** | A time grid for one day, one column per family member. | ±1 day |
 | **Month** | A month grid with event chips. When a day is full, it shows "+N more". | ±1 month |
 | **Schedule** | An agenda of the next 30 days, grouped by day. Location lines link to maps. | ±30 days |
-| **Board** | A family bulletin board for today and the week ahead. See [Board view](#board-view). | None: always today onward |
 
-Every device opens on **Board**; the view switcher lists Board first. You can switch views any time, and a display can be locked to any view (Settings → This display).
+Every device opens on **Board**; the view switcher runs Board, Day, Week (3 Day on phones), Month, Schedule. You can switch views any time, and a display can be locked to any view (Settings → This display).
 
 <p>
   <img src="../screenshots/phone-3day.png" width="32%" alt="3 Day view on a phone" />

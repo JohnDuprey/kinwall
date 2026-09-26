@@ -60,8 +60,8 @@ export function NowNextCard({ events, tz }: { events: EventInstance[]; tz: strin
       {next && (
         <div className="now-next-row">
           <span className="now-next-tag next">Next</span>
-          <span className="now-next-title">{next.title} at {formatTime(next.start, tz)}</span>
-          <span className="now-next-meta">· in {durationLabel(Date.parse(next.start) - now)}</span>
+          <span className="now-next-title">{next.title}</span>
+          <span className="now-next-meta">at {formatTime(next.start, tz)} · in {durationLabel(Date.parse(next.start) - now)}</span>
           {next.leaveAt && <span className="now-next-meta">· 🚗 leave by {formatTime(next.leaveAt, tz)}</span>}
         </div>
       )}

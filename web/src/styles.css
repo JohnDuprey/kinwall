@@ -1310,7 +1310,13 @@ button.toast { border: none; font-family: inherit; cursor: pointer; } /* errors:
 .now-next-tag.next { background: var(--bg-alt); color: var(--text); border: 1px solid var(--border); }
 .now-next-title { font-weight: 800; }
 .now-next-meta { font-weight: 700; color: var(--text-dim); font-variant-numeric: tabular-nums; }
-@media (max-width: 600px) { .now-next { margin: 0 12px 6px; padding: 8px 12px; } .now-next-row { font-size: 0.875rem; } }
+/* Phones: a quiet ticker under the header, not a third card that reads like another schedule row. */
+@media (max-width: 600px) {
+  .now-next { margin: 0 12px 4px; padding: 4px 4px 8px; background: none; box-shadow: none; border-radius: 0; border-bottom: 1px solid var(--border); gap: 2px; }
+  .now-next-row { font-size: 0.8125rem; color: var(--text-dim); }
+  .now-next-title { color: var(--text); }
+  .now-next-meta { font-weight: 600; }
+}
 
 .leave-by { font-size: 0.8125rem; font-weight: 700; color: var(--text-dim); }
 .leave-marker { position: absolute; height: 0; border-top: 2px dashed; z-index: 2; pointer-events: none; }
