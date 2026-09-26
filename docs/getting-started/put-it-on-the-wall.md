@@ -18,6 +18,31 @@ In Safari, tap **Share → Add to Home Screen**, then always launch Kinwall from
 
 On phones, Kinwall also offers this itself. From the second visit in a browser, a card above the tab bar says **Add Kinwall to your Home Screen**. On Android its **Install** button opens the install dialog; on iPhone and iPad **Show me how** walks through Share → **Add to Home Screen**. **Not now** hides it for 30 days, and it never shows once Kinwall runs from the Home Screen. The same option is always under **Settings → General → This display → Add to Home Screen**.
 
+### Requirements
+
+| | To run Kinwall | To add it to the Home Screen | Push notifications |
+|---|---|---|---|
+| **iPhone / iPad** | iOS / iPadOS **16.4 or later** | **Safari**: Share → **Add to Home Screen**. Chrome and Edge also offer it from their Share button. | Only from the Home Screen icon, iOS / iPadOS 16.4 or later |
+| **Android** | A current **Chrome**, **Edge**, **Samsung Internet** or **Firefox** | Chrome, Edge or Samsung Internet: **Install app** / **Add to Home screen** (or Kinwall's own **Install** button) | In the browser or installed |
+| **Computer** | Chrome or Edge 111+, Firefox 114+, Safari 16.4+ | Optional: the install icon in Chrome's or Edge's address bar | Any browser with Web Push |
+
+The web app is built for those browser versions. On anything older (an iPad that can't update past iPadOS 15, say) Kinwall isn't supported and may show a blank page, so update the browser or the device.
+
+### Installed vs. in the browser
+
+Installing changes how Kinwall opens, not what it can do. Everything (calendar, events, chores, lists, photos, Paint, settings, the notification bell) works the same in a browser tab. Only these differ:
+
+| | From the Home Screen | In a browser tab |
+|---|---|---|
+| Screen | Full screen with its own icon, no address bar or tabs | Browser bars and tabs stay visible |
+| Push notifications on iPhone / iPad | Yes (iOS 16.4+) | No. Safari tabs can't receive push; the [notification feed](../using/notifications.md#notification-feed) under the bell still shows everything. |
+| Push notifications on Android and computers | Yes | Yes |
+| The **Add Kinwall to your Home Screen** card | Never shown | Shown on phones from the second visit |
+
+In both cases Kinwall asks the browser to keep the screen awake while it's showing. Browsers without that feature let the screen sleep, so on a wall iPad set **Auto-Lock → Never** (below) either way.
+
+Kinwall needs a connection to your server whether it's installed or not. It doesn't keep an offline copy.
+
 ## 3. Lock the iPad to Kinwall
 
 * **Settings → Display & Brightness → Auto-Lock → Never**.
