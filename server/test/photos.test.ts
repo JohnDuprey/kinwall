@@ -97,14 +97,14 @@ test('photos: quota count (409 with the quota object)', async () => {
   assert.deepEqual(q, { count: 200, bytes: 199 + 10, maxCount: 200, maxBytes: 104857600, maxPhotoBytes: 614400 });
 });
 
-test('photos: a display key can list and view, but not upload, edit or delete', async () => {
+test('photos: a display key can list, view and upload (Paint on the wall), but not edit or delete', async () => {
   const { raw, send, upload, displayKey } = makeApp();
   const key = await displayKey();
   const p = (await upload(bytes(100))).body;
   assert.equal((await send('GET', '/api/photos', undefined, key)).status, 200);
   assert.equal((await send('GET', '/api/photos/quota', undefined, key)).status, 200);
   assert.equal((await raw('GET', p.url, { key })).status, 200);
-  assert.equal((await upload(bytes(100), { key })).status, 403);
+  assert.equal((await upload(bytes(100), { key })).status, 201);
   assert.equal((await send('PATCH', `/api/photos/${p.id}`, { caption: 'x' }, key)).status, 403);
   assert.equal((await send('DELETE', `/api/photos/${p.id}`, undefined, key)).status, 403);
 });

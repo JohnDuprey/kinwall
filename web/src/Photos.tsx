@@ -105,6 +105,15 @@ export default function Photos() {
       )}
       {photos && photos.length > 0 && (
         <ul className="photo-grid" aria-label="Photos">
+          {isAdmin && (
+            <li>
+              {/* The first tile is the picker itself, so "where do I add one?" answers itself. */}
+              <button className="photo-tile photo-tile-add" onClick={() => input.current?.click()} disabled={!!progress} aria-label="Add photos from your library">
+                <span className="photo-add-plus" aria-hidden="true">＋</span>
+                <span>Add photos</span>
+              </button>
+            </li>
+          )}
           {photos.map(p => (
             <li key={p.id}>
               <button className="photo-tile" onClick={() => setOpenId(p.id)} aria-label={p.caption || `Photo from ${new Date(p.createdAt).toLocaleDateString()}`}>
@@ -115,14 +124,26 @@ export default function Photos() {
           ))}
         </ul>
       )}
-      {open && <PhotoSheet key={open.id} photo={open} isAdmin={isAdmin} members={members} onClose={() => setOpenId(null)} onChanged={load} />}
+      {open && photos && (
+        <PhotoSheet key={open.id} photo={open} isAdmin={isAdmin} members={members} onClose={() => setOpenId(null)} onChanged={load}
+          index={photos.findIndex(p => p.id === open.id)} count={photos.length}
+          onNav={dir => { const i = photos.findIndex(p => p.id === open.id) + dir; if (photos[i]) setOpenId(photos[i].id) }} />
+      )}
     </div>
   )
 }
 
-function PhotoSheet({ photo, isAdmin, members, onClose, onChanged }: {
+function PhotoSheet({ photo, isAdmin, members, onClose, onChanged, index, count, onNav }: {
   photo: Photo; isAdmin: boolean; members: ReturnType<typeof useApp>['members']; onClose: () => void; onChanged: () => void
+  index: number; count: number; onNav: (dir: 1 | -1) => void
 }) {
+  // Previous / next: arrows, ← →, or a swipe across the picture.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'ArrowRight') onNav(1); else if (e.key === 'ArrowLeft') onNav(-1) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onNav])
+  const touchX = useRef<number | null>(null)
   const { toast } = useApp()
   const dialog = useDialog()
   const [caption, setCaption] = useState(photo.caption ?? '')
@@ -150,7 +171,15 @@ function PhotoSheet({ photo, isAdmin, members, onClose, onChanged }: {
         <button className="btn btn-danger" onClick={remove} disabled={busy}>Delete</button>
         <button className="btn btn-primary" onClick={save} disabled={busy || !dirty}>Save</button>
       </> : undefined}>
-      <img className="photo-full" src={api.photoImageUrl(photo)} alt={photo.caption ?? ''} width={photo.width} height={photo.height} />
+      <div className="photo-stage" onTouchStart={e => { touchX.current = e.touches[0].clientX }}
+        onTouchEnd={e => { const x0 = touchX.current; touchX.current = null; if (x0 === null) return; const dx = e.changedTouches[0].clientX - x0; if (Math.abs(dx) > 50) onNav(dx < 0 ? 1 : -1) }}>
+        <img className="photo-full" src={api.photoImageUrl(photo)} alt={photo.caption ?? ''} width={photo.width} height={photo.height} />
+        {count > 1 && <>
+          <button className="icon-btn photo-nav photo-nav-prev" onClick={() => onNav(-1)} disabled={index <= 0} aria-label="Previous photo">‹</button>
+          <button className="icon-btn photo-nav photo-nav-next" onClick={() => onNav(1)} disabled={index >= count - 1} aria-label="Next photo">›</button>
+          <span className="photo-counter" aria-live="polite">{index + 1} / {count}</span>
+        </>}
+      </div>
       {isAdmin ? <>
         <div className="field">
           <label htmlFor="photo-caption">Caption</label>

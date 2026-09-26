@@ -109,6 +109,9 @@ export const PrinterIcon = (p: P) => (
 export const DownloadIcon = (p: P) => (
   <svg {...base(p)}><path d="M12 3v12M7 10l5 5 5-5M4 21h16" /></svg>
 )
+export const HeartIcon = (p: P) => (
+  <svg {...base(p)}><path d="M12 20.5s-7.5-4.6-9.3-9A5 5 0 0 1 12 6.6a5 5 0 0 1 9.3 4.9c-1.8 4.4-9.3 9-9.3 9z" /></svg>
+)
 export const ImagesIcon = (p: P) => (
   <svg {...base(p)}><rect x="3" y="3" width="18" height="18" rx="3" /><circle cx="9" cy="9" r="2" /><path d="M21 15l-5-5L5 21" /></svg>
 )

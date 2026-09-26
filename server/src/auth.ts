@@ -105,6 +105,7 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'GET', pattern: /^\/api\/snapshot$/ },
   { method: 'GET', pattern: /^\/api\/board$/ },
   { method: 'GET', pattern: /^\/api\/photos(\/quota)?$/ },
+  { method: 'POST', pattern: /^\/api\/photos$/ }, // Paint's "Save to family photos" on the wall; delete/edit stay admin-only
   { method: 'GET', pattern: /^\/api\/photos\/[^/]+\/image$/ },
   { method: 'GET', pattern: /^\/api\/weather$/ },
   { method: 'GET', pattern: /^\/api\/geocode$/ }, // Settings -> General's location search (settings PATCH is display-allowed too)

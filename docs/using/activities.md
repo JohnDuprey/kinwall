@@ -46,7 +46,7 @@ A device holds up to **50 drawings**. When it's full, Paint says so and stops sa
 
 ## Where drawings are stored
 
-Drawings are stored **only on the device you drew them on**, in the browser's IndexedDB storage. They aren't sent to your Kinwall server, aren't part of [export & backups](../your-data/export-import.md), and don't sync to other devices. Clearing the browser's website data, or removing a home-screen app on iOS, deletes them. To keep a picture, use **Save** or **Print**.
+Drawings are stored **only on the device you drew them on**, in the browser's IndexedDB storage. They aren't sent to your Kinwall server, aren't part of [export & backups](../your-data/export-import.md), and don't sync to other devices. Clearing the browser's website data, or removing a home-screen app on iOS, deletes them. To keep a picture, use **Save** or **Print** — or tap the **♥ Save to family photos** button, which uploads it to the family's shared [photo library](photos.md) (it then shows on every device, on the Board and in the screensaver). Wall displays can do this too; deleting from the library is for admins.
 
 ## Sticker book
 

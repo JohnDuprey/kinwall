@@ -12,7 +12,9 @@ import { MEMBER_PALETTE } from './types.ts'
 import { colorName, inkFor } from './color.ts'
 import { IDLE_RESET_EVENT } from './App.tsx'
 import { countDrawings, deleteDrawing, getDrawing, listDrawings, putDrawing, type Drawing, type Meta } from './drawings-db.ts'
-import { BrushIcon, BucketIcon, ChevronLeft, DownloadIcon, EditIcon, EraserIcon, ImagesIcon, PlusIcon, PrinterIcon, RedoIcon, TrashIcon, UndoIcon } from './icons.tsx'
+import { BrushIcon, BucketIcon, ChevronLeft, DownloadIcon, EditIcon, EraserIcon, HeartIcon, ImagesIcon, PlusIcon, PrinterIcon, RedoIcon, TrashIcon, UndoIcon } from './icons.tsx'
+import { preparePhoto } from './photos.ts'
+import { api, ApiError } from './api.ts'
 
 const COLORS = [...MEMBER_PALETTE, '#FF6B6B', '#4DA3FF', '#222222', '#FFFFFF', '#8B5A2B', '#8A8A8A']
 const SIZES = [3, 6, 10, 16, 24, 36, 52] // CSS px
@@ -348,6 +350,22 @@ export default function Paint() {
     window.open(url, '_blank')
     toast('Press and hold the picture, then choose Save to Photos.', true)
   }
+  // The family photo library lives on the server, so this is how a drawing leaves this device:
+  // same downscale/WebP path as an upload, captioned with the picture's name and artist.
+  const [savingPhoto, setSavingPhoto] = useState(false)
+  const saveToPhotos = async () => {
+    if (!r.meta || savingPhoto) return
+    setSavingPhoto(true)
+    try {
+      const png = await current()
+      const { blob, width, height } = await preparePhoto(new File([png], `${r.meta.name}.png`, { type: 'image/png' }))
+      const by = members.find(x => x.id === r.meta?.memberId)
+      await api.uploadPhoto(blob, width, height, by ? `${r.meta.name} by ${by.name}` : r.meta.name)
+      toast('Saved to family photos'); announce('Saved to family photos')
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : 'Could not save to family photos', true)
+    } finally { setSavingPhoto(false) }
+  }
   const print = async () => {
     const png = await current()
     if (!png || !r.meta) return
@@ -403,6 +421,7 @@ export default function Paint() {
           <button className="paint-btn" aria-label="Clear picture" title="Clear" onClick={clear}><TrashIcon /></button>
           <button className="paint-btn" aria-label="My drawings" title="My drawings" onClick={async () => { await save(); setGallery(true) }}><ImagesIcon /></button>
           <button className="paint-btn" aria-label="Save picture" title="Save" onClick={exportPng}><DownloadIcon /></button>
+          <button className="paint-btn" aria-label="Save to family photos" title="Save to family photos" disabled={savingPhoto} onClick={saveToPhotos}><HeartIcon /></button>
           <button className="paint-btn" aria-label="Print picture" title="Print" onClick={print}><PrinterIcon /></button>
           {members.length > 0 && (
             <button className="paint-btn paint-who" aria-label={member ? `Drawing by ${member.name} (change)` : "Who's drawing?"} title="Who's drawing?" onClick={() => setWho(true)}

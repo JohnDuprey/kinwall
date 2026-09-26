@@ -10,6 +10,8 @@ Before uploading, your browser shrinks each photo to at most 1280 pixels on its 
 
 Adding, captioning and deleting photos needs a parent (admin) sign-in. A paired wall display can look at the photos but not change them.
 
+A drawing made in [Paint](activities.md) can be sent here with its **♥ Save to family photos** button; it's captioned with the picture's name and who drew it.
+
 ## Captions and owners
 
 Tap a photo to see it full size. There you can:

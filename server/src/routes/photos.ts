@@ -100,7 +100,7 @@ photosRoutes.openapi(
     method: 'post',
     path: '/api/photos',
     tags: ['Photos'],
-    summary: 'Upload a photo: the raw image as the body (image/webp, image/jpeg or image/png, at most 600 KB), its size in X-Photo-Width / X-Photo-Height. Admin only.',
+    summary: 'Upload a photo: the raw image as the body (image/webp, image/jpeg or image/png, at most 600 KB), its size in X-Photo-Width / X-Photo-Height. Admin and display keys (so a drawing on the wall can be saved to the family photos); editing and deleting stay admin-only.',
     security: [{ Bearer: [] }],
     request: {
       query: z.object({ caption: z.string().max(200).optional() }),

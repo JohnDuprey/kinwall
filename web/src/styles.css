@@ -1735,3 +1735,13 @@ button.snap-row:active { transform: scale(0.99); }
 .board-tidbit-body > p { font-size: 1.0625rem; font-weight: 700; line-height: 1.4; }
 .board-tidbit-tag { display: block; margin-bottom: 4px; font-size: 0.8125rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.02em; }
 :root[data-density="icons"] .board-avatar { width: 36px; height: 36px; font-size: 1.25rem; }
+
+/* Photos: the add tile and the sheet's prev/next */
+.photo-tile-add { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border: 2px dashed var(--accent-strong); background: var(--bg-alt); color: var(--accent-text); font-weight: 800; }
+.photo-add-plus { font-size: 2rem; line-height: 1; }
+.photo-stage { position: relative; }
+.photo-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; font-size: 1.75rem; line-height: 1; background: var(--card); box-shadow: var(--shadow); }
+.photo-nav-prev { left: 8px; } .photo-nav-next { right: 8px; }
+.photo-nav:disabled { opacity: .3; }
+.photo-counter { position: absolute; right: 10px; bottom: 10px; font-size: 0.75rem; font-weight: 800; padding: 2px 8px; border-radius: 999px; background: var(--card); color: var(--text-dim); box-shadow: var(--shadow); }
+
