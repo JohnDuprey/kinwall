@@ -11,7 +11,7 @@ Kinwall has a built-in [Model Context Protocol](https://modelcontextprotocol.io)
 
 ### OAuth 2.1 (sign-in)
 
-For clients that can't send a custom header, such as Claude connectors. Kinwall is its own authorization server:
+The sign-in flow: no key to copy, and each app gets its own revocable grant. Kinwall is its own authorization server:
 
 1. Add `https://<your-kinwall>/mcp` as a custom connector in your client.
 2. The client discovers Kinwall's OAuth metadata (`/.well-known/oauth-protected-resource`, `/.well-known/oauth-authorization-server`) and registers itself automatically.
