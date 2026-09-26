@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { mock } from './mock.ts'
 import type { PasskeyAuthenticator } from './webauthn.ts'
 import type {
-  StickerPack, StickerPatch, StickerPlacement,
+  StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota,
   Account, ApiKey, AppNotification, Appearance, CalendarEntry, Category, Chore, ChoreDay, EventInstance, LeaderboardEntry, LeaderboardPeriod, List,
   GeocodeResult, HostEvent, ImportResult, ListDetail, ListGroup, ListItem, ListItemInput, Member, Me, Note, NoteTarget, Passkey, Providers, PushSubscription, PushSubscriptionPrefs, RemoteCalendar, Settings, Snapshot, Board, Webhook, WebhookWithSecret,
 } from './types.ts'
@@ -209,6 +209,24 @@ export const api = {
     MOCK ? mock.placeSticker(memberId, body) : post<StickerPlacement>(`api/stickers/scrapbook/${memberId}`, body),
   updateSticker: (memberId: string, id: string, body: StickerPatch) =>
     MOCK ? mock.updateSticker(memberId, id, body) : patch<StickerPlacement>(`api/stickers/scrapbook/${memberId}/${id}`, body),
+  // Photos: anyone can look, only admin keys change them (the admin key is used when unlocked).
+  getPhotos: () => MOCK ? mock.getPhotos() : get<Photo[]>('api/photos'),
+  getPhotoQuota: () => MOCK ? mock.getPhotoQuota() : get<PhotoQuota>('api/photos/quota'),
+  uploadPhoto: (blob: Blob, width: number, height: number, caption?: string) => MOCK ? mock.uploadPhoto(blob, width, height, caption)
+    : req<Photo>(`api/photos${caption ? `?caption=${encodeURIComponent(caption)}` : ''}`, {
+      method: 'POST', body: blob, useAdmin: true,
+      headers: { 'Content-Type': blob.type, 'X-Photo-Width': String(width), 'X-Photo-Height': String(height) },
+    }),
+  updatePhoto: (id: string, body: { caption?: string | null; memberId?: string | null }) => MOCK ? mock.updatePhoto(id, body) : patch<Photo>(`api/photos/${id}`, body, true),
+  deletePhoto: (id: string) => MOCK ? mock.deletePhoto(id) : del(`api/photos/${id}`, true),
+  /** An <img src> for a photo: it can't send the Bearer header, so the key rides as ?key= (the server
+   * accepts that on this one route). The demo's photos are plain public URLs. */
+  // Zip backup of every photo (admin). A plain download link, so the key rides as ?key= like the OAuth start.
+  photoExportUrl: () => apiUrl(`api/photos/export.zip?key=${encodeURIComponent(getAdminKey() ?? getKey() ?? '')}`),
+  importPhotos: (zip: File) => MOCK ? mock.importPhotos() : req<{ imported: number; skipped: number }>('api/photos/import', {
+    method: 'POST', body: zip, useAdmin: true, headers: { 'Content-Type': 'application/zip' },
+  }),
+  photoImageUrl: (p: Pick<Photo, 'id' | 'url'>) => MOCK ? p.url : apiUrl(`api/photos/${p.id}/image?key=${encodeURIComponent(getKey() ?? '')}`),
   removeSticker: (memberId: string, id: string) => MOCK ? mock.removeSticker(memberId, id) : del(`api/stickers/scrapbook/${memberId}/${id}`),
 
   getLists: (archived?: boolean) => MOCK ? mock.getLists(archived) : get<List[]>(`api/lists${archived ? '?archived=true' : ''}`),

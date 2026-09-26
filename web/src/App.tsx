@@ -797,7 +797,7 @@ function AppRoutes() {
     return () => clearTimeout(id)
   }, [toastMsg])
   useEffect(() => { if (bannerMsg) announce(bannerMsg) }, [bannerMsg])
-  const tabLabel = section === 'activities' && sub === 'paint' ? 'Paint' : section === 'activities' && sub === 'stickers' ? 'Sticker book' : NAV_ITEMS.find(i => i.key === section)?.label ?? 'Calendar'
+  const tabLabel = section === 'activities' && sub === 'paint' ? 'Paint' : section === 'activities' && sub === 'stickers' ? 'Sticker book' : section === 'activities' && sub === 'photos' ? 'Photos' : NAV_ITEMS.find(i => i.key === section)?.label ?? 'Calendar'
   const inApp = hasKey && !!settings && !wizardActive && NAV_ITEMS.some(i => i.key === section)
   // "Chores · Duprey Family": the family, not the product, is what tells tabs and home-screen icons apart.
   const familyName = settings?.familyName?.trim()

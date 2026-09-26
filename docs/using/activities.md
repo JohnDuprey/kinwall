@@ -1,6 +1,6 @@
 # Activities
 
-The **Activities** tab holds things to do on the wall that aren't the family schedule. It works the same on every device, including paired wall displays and the demo. There are two activities: **Paint** and the **Sticker book**.
+The **Activities** tab holds things to do on the wall that aren't the family schedule. It works the same on every device, including paired wall displays and the demo. There are three activities: **Paint**, the **Sticker book** and [**Photos**](photos.md).
 
 ## Paint
 

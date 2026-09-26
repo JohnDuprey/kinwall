@@ -20,6 +20,7 @@
 * [Chores](using/chores.md)
 * [Lists](using/lists.md)
 * [Activities (Paint)](using/activities.md)
+* [Photos](using/photos.md)
 * [Notifications](using/notifications.md)
 * [Appearance](using/appearance.md)
 * [Quiet hours](using/quiet-hours.md)

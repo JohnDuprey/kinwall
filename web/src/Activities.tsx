@@ -1,19 +1,22 @@
 import Paint from './Paint.tsx'
 import Stickers from './Stickers.tsx'
+import Photos from './Photos.tsx'
 import { useApp } from './AppContext.tsx'
-import { BrushIcon, StickerIcon } from './icons.tsx'
+import { BrushIcon, ImagesIcon, StickerIcon } from './icons.tsx'
 
 // Activities for the wall (everything here works with a display key). Add a card here and a
 // sub-route below for the next one.
 const ACTIVITIES = [
   { key: 'paint', title: 'Paint', blurb: 'Draw, colour in and save your pictures', Icon: BrushIcon, color: '#FF9E7A' },
   { key: 'stickers', title: 'Sticker book', blurb: 'Spend chore points on stickers and decorate your page', Icon: StickerIcon, color: '#B39DFF' },
+  { key: 'photos', title: 'Photos', blurb: 'Family pictures for the board and the screensaver', Icon: ImagesIcon, color: '#7ED9A6' },
 ]
 
 export default function Activities({ sub }: { sub?: string }) {
   const { settings } = useApp()
   if (sub === 'paint') return <Paint />
   if (sub === 'stickers') return <Stickers />
+  if (sub === 'photos') return <Photos />
   return (
     <div className="activities scroll-y">
       <ul className="activity-grid" aria-label="Activities">

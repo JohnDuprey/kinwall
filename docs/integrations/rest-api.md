@@ -21,7 +21,8 @@ Authorization: Bearer <key>
 * A display key calling an admin-only route gets `403 {"error":"display key cannot access this route"}`.
 * `GET /api/me` returns the caller's `scope`, `keyName`, `kind` (`api` / `session` / `oauth`) and the server `version`.
 * A few routes need no key: `/api/health`, `/api/appearance`, `/api/setup*`, `/api/pair` and `/api/pair/poll`, the passkey and recovery login ceremonies, and the OAuth callback.
-* `GET /api/oauth/{kind}/start?key=…` takes the key as a query parameter, because it's a browser navigation.
+* `GET /api/oauth/{kind}/start?key=…`, `GET /api/photos/export.zip?key=…` and `GET /api/photos/{id}/image?key=…` also take the key as a query parameter, because they're browser navigations and an `<img src>`. No other route does.
+* Uploading a photo: `POST /api/photos` with the image itself as the body (`Content-Type: image/webp`, `image/jpeg` or `image/png`, at most 600 KB), its pixel size in `X-Photo-Width` / `X-Photo-Height`, and an optional `?caption=`. Too large is `413`, another type is `415`, and a full album is `409` with the quota. Photo writes, the zip export and the zip import need an admin key.
 
 ## Errors
 
@@ -80,6 +81,7 @@ On Workers, the free-tier quota (100k requests/day) is the practical ceiling. Se
 | Webhooks | `GET/POST /api/webhooks`, `PATCH/DELETE /api/webhooks/{id}`, `POST /api/webhooks/{id}/rotate` |
 | Push | `GET /api/push/vapid-public-key`, `/api/push/subscriptions*`, `POST /api/push/test/{id}`, `POST /api/notify`, `GET /api/notifications` |
 | Stickers | `GET /api/members/{id}/points`, `GET /api/stickers/packs`, `POST /api/stickers/packs/{packId}/buy`, `GET/POST /api/stickers/scrapbook/{memberId}`, `PATCH/DELETE /api/stickers/scrapbook/{memberId}/{id}` |
+| Photos | `GET/POST /api/photos` (POST body: the raw image), `GET /api/photos/quota`, `PATCH/DELETE /api/photos/{id}`, `GET /api/photos/{id}/image`, `GET /api/photos/export.zip`, `POST /api/photos/import` (body: the zip) |
 | Notes | `GET/POST /api/notes`, `PATCH/DELETE /api/notes/{id}` |
 | Data | `GET /api/export`, `POST /api/import`, `GET /api/host-events` |
 

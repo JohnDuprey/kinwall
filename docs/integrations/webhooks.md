@@ -31,6 +31,7 @@ URLs must be public `http(s)` addresses. Private and LAN addresses are refused u
 | `category.changed` | A category is added, edited, reordered or deleted. |
 | `settings.changed` | Household settings changed. |
 | `sticker.changed` | A sticker pack is bought, or the scrapbook is edited. |
+| `photo.changed` | A photo is added, captioned, reassigned or deleted. `data`: `{ id }` (plus `deleted: true` on delete), or `{ imported }` after a zip import. |
 | `display.paired` | A wall display was paired. |
 
 ## Payload and signature

@@ -29,7 +29,7 @@ export type DeviceAppearance = Partial<Pick<Appearance, 'themeMode' | 'textScale
   saverBright?: 'medium' // absent = low
   saverClock?: false // corner clock; absent = shown
 }
-export type SaverSource = 'drawings' | 'art' | 'nature'
+export type SaverSource = 'drawings' | 'photos' | 'art' | 'nature'
 
 export function readDeviceAppearance(): DeviceAppearance {
   try {

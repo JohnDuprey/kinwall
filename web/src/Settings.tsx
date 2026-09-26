@@ -762,7 +762,7 @@ function DeviceBehaviourRows() {
 /** Quiet hours on this display: the plain clock, or a dim slideshow cycling through the picked
  * sources (Screensaver.tsx). */
 const SAVER_OPTIONS: { key: SaverSource; label: string }[] = [
-  { key: 'drawings', label: 'Drawings' }, { key: 'art', label: 'Art (The Met)' }, { key: 'nature', label: 'Nature' },
+  { key: 'drawings', label: 'Drawings' }, { key: 'photos', label: 'Family photos' }, { key: 'art', label: 'Art (The Met)' }, { key: 'nature', label: 'Nature' },
 ]
 function ScreensaverRows() {
   const device = useDeviceAppearance()

@@ -190,6 +190,20 @@ export interface StickerPlacement {
   z: number
   placedAt: string
 }
+/** A family photo (server: routes/photos.ts). Its bytes are at `url`; see api.photoImageUrl for an <img src>. */
+export interface Photo {
+  id: string
+  caption: string | null
+  mime: string
+  width: number
+  height: number
+  bytes: number
+  memberId: string | null
+  createdAt: string
+  url: string
+}
+export interface PhotoQuota { count: number; bytes: number; maxCount: number; maxBytes: number; maxPhotoBytes: number }
+
 export type StickerPatch = Partial<Pick<StickerPlacement, 'x' | 'y' | 'scale' | 'rotation' | 'z'>>
 
 export type AccountKind = 'google' | 'microsoft' | 'caldav'

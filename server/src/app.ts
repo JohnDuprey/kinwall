@@ -28,6 +28,7 @@ import { revRoutes } from './routes/rev.ts';
 import { dataRoutes } from './routes/data.ts';
 import { notesRoutes } from './routes/notes.ts';
 import { stickersRoutes } from './routes/stickers.ts';
+import { photosRoutes } from './routes/photos.ts';
 import { snapshotRoutes } from './routes/snapshot.ts';
 import { weatherRoutes } from './routes/weather.ts';
 import { handleMcp } from './mcp.ts';
@@ -84,6 +85,7 @@ export function createApp() {
   app.route('/', listsRoutes);
   app.route('/', notesRoutes);
   app.route('/', stickersRoutes);
+  app.route('/', photosRoutes);
   app.route('/', snapshotRoutes);
   app.route('/', weatherRoutes);
   app.route('/', keysRoutes);
@@ -103,7 +105,7 @@ export function createApp() {
   app.openAPIRegistry.registerComponent('securitySchemes', 'Bearer', {
     type: 'http',
     scheme: 'bearer',
-    description: 'API key, e.g. kw_xxxxx. Also accepted as ?key= on the OAuth start route.',
+    description: 'API key, e.g. kw_xxxxx. Also accepted as ?key= on the OAuth start route, GET /api/photos/export.zip and GET /api/photos/{id}/image (browser navigations and <img src>).',
   });
 
   app.doc('/openapi.json', {

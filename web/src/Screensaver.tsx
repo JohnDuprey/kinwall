@@ -3,6 +3,7 @@
 // useSlideshowPictures (the picture sources) is shared with the Board view's photo card.
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { drawingIds, getDrawing } from './drawings-db.ts'
+import { api } from './api.ts'
 import type { DeviceAppearance, SaverSource } from './useTheme.ts'
 
 interface Pic { key: number; src: string; caption?: string; revoke?: boolean }
@@ -17,6 +18,16 @@ function drawingsSource(): Source {
     if (!queue.length) queue = shuffle(await drawingIds())
     const d = await getDrawing(queue.pop()!).catch(() => undefined)
     return d ? { src: URL.createObjectURL(d.png), revoke: true } : null
+  }
+}
+
+// Family photos (Activities → Photos): one shuffled pass over the list, then fetch it again so new
+// uploads join the next pass. Served by this Kinwall, never a third party.
+function photosSource(): Source {
+  let queue: { src: string; caption?: string }[] = []
+  return async () => {
+    if (!queue.length) queue = shuffle((await api.getPhotos()).map(p => ({ src: api.photoImageUrl(p), caption: p.caption ?? undefined })))
+    return queue.pop() ?? null
   }
 }
 
@@ -49,7 +60,7 @@ async function natureNext(): Promise<Omit<Pic, 'key'>> {
   return { src: `https://picsum.photos/${Math.round(innerWidth * scale)}/${Math.round(innerHeight * scale)}?random=${Date.now()}${picsumN++}` }
 }
 
-const SOURCES: Record<SaverSource, () => Source> = { drawings: drawingsSource, art: () => artNext, nature: () => natureNext }
+const SOURCES: Record<SaverSource, () => Source> = { drawings: drawingsSource, photos: photosSource, art: () => artNext, nature: () => natureNext }
 
 const loggedFailure = new Set<SaverSource>() // one console line per source per page load
 

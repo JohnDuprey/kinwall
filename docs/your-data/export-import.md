@@ -20,6 +20,8 @@
 | ICS feed URLs | |
 | Passkey and webhook *names/URLs*, for reference | |
 
+Photos are never in this JSON export. They back up as a separate zip: **Activities → Photos → Download all (zip)**, and come back with **Import zip** on the same page. See [Photos](../using/photos.md#backing-up-and-moving-photos).
+
 API: `GET /api/export`.
 
 The file contains ICS feed URLs, which can be secret. Treat it like a password.
@@ -42,7 +44,7 @@ API: `POST /api/import` with the export JSON as the body.
 
 1. On the old instance, **Download export**.
 2. Deploy the new instance and complete the [setup wizard](../getting-started/setup-wizard.md).
-3. **Import from a Kinwall export**.
+3. **Import from a Kinwall export**. For photos, also **Download all (zip)** on the old instance and **Import zip** on the new one.
 4. Reconnect Google, Outlook and CalDAV accounts, then add a passkey and recovery codes.
 
 If you're moving between Docker hosts, copying the whole `/data` directory also works and keeps *everything*. See [Backups](backups.md).

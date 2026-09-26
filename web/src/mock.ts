@@ -1,7 +1,7 @@
 // Dev-only in-memory fixture, used when VITE_MOCK=1. Excluded from prod by the env check in api.ts.
 import type {
   Account, ApiKey, AppNotification, CalendarEntry, Category, Chore, ChoreDay, EventInstance, LeaderboardEntry, LeaderboardPeriod, List, ListGroup,
-  GeocodeResult, ListItem, ListItemInput, ListItemStep, Member, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook,
+  Photo, PhotoQuota, GeocodeResult, ListItem, ListItemInput, ListItemStep, Member, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook,
 } from './types.ts'
 import { compareItems } from './types.ts'
 import { dateKey } from './date.ts'
@@ -65,6 +65,17 @@ const scrapbook: StickerPlacement[] = [
 ]
 const packFor = (memberId: string) => (p: (typeof STICKER_PACKS)[number]): StickerPack =>
   ({ ...p, price: Math.round(p.basePrice * settings.stickerPriceScale / 100), unlocked: p.basePrice === 0 || !!unlockedPacks.get(memberId)?.has(p.id) })
+
+// Demo photos: public Picsum images (the CSP already allows them for the screensaver).
+const demoPhoto = (pic: number, caption: string | null, memberId: string | null, daysAgo: number): Photo => ({
+  id: `photo${pic}`, caption, mime: 'image/webp', width: 1280, height: 853, bytes: 180_000 + pic * 97, memberId,
+  createdAt: new Date(Date.now() - daysAgo * 86_400_000).toISOString(), url: `https://picsum.photos/id/${pic}/1280/853`,
+})
+const photos: Photo[] = [
+  demoPhoto(1015, 'River trip', null, 1), demoPhoto(1025, 'Our dog', 'm3', 3), demoPhoto(1043, null, null, 6),
+  demoPhoto(1039, 'Waterfall hike', 'm4', 9), demoPhoto(1080, 'Strawberry picking', null, 14), demoPhoto(1062, null, 'm3', 20),
+]
+const PHOTO_LIMITS = { maxCount: 200, maxBytes: 104_857_600, maxPhotoBytes: 614_400 }
 
 const accounts: Account[] = [{ id: 'demo-google', kind: 'google', name: 'Demo Google', createdAt: new Date().toISOString() }]
 
@@ -401,6 +412,20 @@ export const mock = {
     const s = scrapbook.find(x => x.id === id); if (!s) throw new Error('not found')
     Object.assign(s, body); bump(); return { ...s }
   },
+  getPhotos: async () => [...photos],
+  getPhotoQuota: async (): Promise<PhotoQuota> => ({ count: photos.length, bytes: photos.reduce((n, p) => n + p.bytes, 0), ...PHOTO_LIMITS }),
+  uploadPhoto: async (blob: Blob, width: number, height: number, caption?: string) => {
+    const p: Photo = { id: uid(), caption: caption?.trim() || null, mime: blob.type, width, height, bytes: blob.size, memberId: null, createdAt: new Date().toISOString(), url: URL.createObjectURL(blob) }
+    photos.unshift(p); bump(); return p
+  },
+  updatePhoto: async (id: string, body: { caption?: string | null; memberId?: string | null }) => {
+    const p = photos.find(x => x.id === id); if (!p) throw new Error('not found')
+    if (body.caption !== undefined) p.caption = body.caption?.trim() || null
+    if (body.memberId !== undefined) p.memberId = body.memberId
+    bump(); return { ...p }
+  },
+  importPhotos: async () => ({ imported: 0, skipped: 0 }),
+  deletePhoto: async (id: string) => { const i = photos.findIndex(x => x.id === id); if (i >= 0) photos.splice(i, 1); bump(); return { ok: true } },
   removeSticker: async (_memberId: string, id: string) => { const i = scrapbook.findIndex(x => x.id === id); if (i >= 0) scrapbook.splice(i, 1); bump() },
 
   getCategories: async () => [...categories].sort((a, b) => a.sort - b.sort),

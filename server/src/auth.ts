@@ -104,6 +104,8 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'DELETE', pattern: /^\/api\/notes\/[^/]+$/ },
   { method: 'GET', pattern: /^\/api\/snapshot$/ },
   { method: 'GET', pattern: /^\/api\/board$/ },
+  { method: 'GET', pattern: /^\/api\/photos(\/quota)?$/ },
+  { method: 'GET', pattern: /^\/api\/photos\/[^/]+\/image$/ },
   { method: 'GET', pattern: /^\/api\/weather$/ },
   { method: 'GET', pattern: /^\/api\/geocode$/ }, // Settings -> General's location search (settings PATCH is display-allowed too)
   { method: 'GET', pattern: /^\/api\/settings$/ },
@@ -122,11 +124,15 @@ function isDisplayAllowed(method: string, path: string): boolean {
   return DISPLAY_ALLOWED.some((rule) => rule.method === method && rule.pattern.test(path));
 }
 
-// Shared by requireAuth and GET /api/me: resolves the bearer key (or ?key= for the OAuth
-// start browser nav) to its scope. Returns null if the key is missing/unknown.
+// Routes that can't send a header, so they take the key as ?key=: the OAuth start and the photo zip
+// (browser navigations) and a photo's bytes (an <img src>). Nowhere else - a key in a URL ends up in logs.
+const QUERY_KEY_PATH = /^\/api\/oauth\/[^/]+\/start$|^\/api\/photos\/[^/]+\/image$|^\/api\/photos\/export\.zip$/;
+
+// Shared by requireAuth and GET /api/me: resolves the bearer key (or ?key= on QUERY_KEY_PATH)
+// to its scope. Returns null if the key is missing/unknown.
 export async function resolveKey(c: Context<{ Bindings: Env }>): Promise<ResolvedKey | null> {
   const header = c.req.header('Authorization') ?? '';
-  const key = header.startsWith('Bearer ') ? header.slice('Bearer '.length).trim() : c.req.query('key') ?? '';
+  const key = header.startsWith('Bearer ') ? header.slice('Bearer '.length).trim() : QUERY_KEY_PATH.test(c.req.path) ? c.req.query('key') ?? '' : '';
   if (!key) return null;
 
   const hash = await sha256Hex(key);

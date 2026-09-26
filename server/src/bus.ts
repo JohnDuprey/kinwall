@@ -18,6 +18,7 @@ export type BusEventType =
   | 'category.changed'
   | 'settings.changed'
   | 'sticker.changed'
+  | 'photo.changed'
   | 'display.paired';
 
 type WebhookRow = { id: string; url: string; events: string; secret: string };

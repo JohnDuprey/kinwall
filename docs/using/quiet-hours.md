@@ -15,9 +15,10 @@ Quiet hours turn a wall display into a dim, slowly drifting clock overnight. Tha
 
 ## Screensaver
 
-Instead of the bare clock, a display can show a slow, dim slideshow overnight. It's set **per display**: **Settings → General → This display → During quiet hours show**. Turn on one or more sources. With more than one on, the pictures take turns (drawing, then art, then nature, and so on). **Clock only** (the default) turns them all off.
+Instead of the bare clock, a display can show a slow, dim slideshow overnight. It's set **per display**: **Settings → General → This display → During quiet hours show**. Turn on one or more sources. With more than one on, the pictures take turns (drawing, then family photo, then art, then nature, and so on). **Clock only** (the default) turns them all off.
 
 * **Drawings**: pictures from this display's own [Paint gallery](activities.md#my-drawings), shuffled. If there are none yet, the display skips drawings (or shows the clock if drawings is the only source).
+* **Family photos**: your family's [photos](photos.md), shuffled, with their captions. They come from your own Kinwall server.
 * **Art (The Met)**: public-domain highlight paintings from [The Metropolitan Museum of Art](https://metmuseum.github.io/) open-access collection (CC0), with the title, artist and date in the corner.
 * **Nature**: photos from [Lorem Picsum](https://picsum.photos), which serves free-to-use Unsplash photos.
 
@@ -29,7 +30,7 @@ Options once any source is on:
 
 Tapping wakes the display as usual. **Preview screensaver** shows the quiet-hours screen for 20 seconds on whatever device you're using, so you can check it from a phone; tap or press Escape to end it early.
 
-**Privacy:** Art and Nature are off by default. When chosen, the display fetches pictures **directly** from that service (no Kinwall server in between), so the service sees the display's IP address. Nature makes one request per picture. Art fetches the list of highlight paintings once a night, then looks up one artwork and loads its image per change. Nothing about your household is sent. Drawings never leave the device. If a service can't be reached, the display skips it for that change and uses the next source. If none can be used, it quietly shows the clock and tries again at the next change.
+**Privacy:** Art and Nature are off by default. When chosen, the display fetches pictures **directly** from that service (no Kinwall server in between), so the service sees the display's IP address. Nature makes one request per picture. Art fetches the list of highlight paintings once a night, then looks up one artwork and loads its image per change. Nothing about your household is sent. Drawings never leave the device, and family photos come only from your Kinwall server. If a service can't be reached, the display skips it for that change and uses the next source. If none can be used, it quietly shows the clock and tries again at the next change.
 
 ## API
 

@@ -190,10 +190,15 @@ function EventLine({ e, tz, byId, onTap, past }: { e: SnapshotEvent; tz: string;
   )
 }
 
-/** The screensaver's pictures (this display's sources, or nature photos if none are picked), a new one every minute. */
+/** The screensaver's pictures, a new one every minute: this display's sources, or if none are picked
+ * the family's photos (nature photos until there are some). */
 function PhotoCard() {
   const device = useDeviceAppearance()
-  const { pics, failed } = useSlideshowPictures(device.saverSources?.length ? device.saverSources : ['nature'], 60)
+  const { refreshTick } = useApp()
+  const [hasPhotos, setHasPhotos] = useState(false)
+  const picked = !!device.saverSources?.length
+  useEffect(() => { if (!picked) api.getPhotoQuota().then(q => setHasPhotos(q.count > 0)).catch(() => {}) }, [picked, refreshTick])
+  const { pics, failed } = useSlideshowPictures(picked ? device.saverSources! : [hasPhotos ? 'photos' : 'nature'], 60)
   const current = pics[pics.length - 1]
   return (
     <section className="board-card board-photo" aria-label="Picture">
