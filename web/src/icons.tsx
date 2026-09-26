@@ -75,6 +75,9 @@ export const MonitorIcon = (p: P) => (
 export const BellIcon = (p: P) => (
   <svg {...base(p)}><path d="M6 8a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6" /><path d="M10 20a2 2 0 0 0 4 0" /></svg>
 )
+export const HelpIcon = (p: P) => (
+  <svg {...base(p)}><circle cx="12" cy="12" r="9" /><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7" /><path d="M12 17h.01" /></svg>
+)
 export const FilterIcon = (p: P) => (
   <svg {...base(p)}><path d="M3 5h18l-7 8.5V19l-4 2v-7.5z" /></svg>
 )

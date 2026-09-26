@@ -322,6 +322,12 @@ button {
   color: var(--text);
 }
 .icon-btn:active { transform: scale(0.94); }
+.help-btn { color: var(--text-dim); }
+.gate-card, .setup-card { position: relative; }
+.help-float { position: absolute; top: 10px; right: 10px; }
+.help-links { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.help-link { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--bg-alt); color: var(--text); text-decoration: none; min-height: 44px; }
+.help-link span { font-size: 0.875rem; color: var(--text-dim); font-weight: 600; }
 .today-btn {
   border: none;
   background: var(--card);

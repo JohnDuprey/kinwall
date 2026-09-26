@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { HelpButton } from './Help.tsx'
 import { api, ApiError, getAdminKey, setAdminKey, clearAdminKey, setKey } from './api.ts'
 import { QrCode } from './App.tsx'
 import { CalendarCheckRow, initialPicks, RecoveryCodesView, timezoneList } from './Settings.tsx'
@@ -754,6 +755,7 @@ export default function Setup({ oauth, setupCode, passkeyRequired, onDone }: { o
   return (
     <main className="setup-screen">
       <div className="setup-card" ref={cardRef}>
+        <HelpButton className="help-float" />
         <Progress step={step} />
         {step === 'welcome' && <WelcomeStep code={code} setCode={setCode} onNext={() => setStep('role')} />}
         {step === 'role' && <RoleStep busy={claimBusy} error={claimError} onChoose={claim} />}

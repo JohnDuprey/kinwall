@@ -19,6 +19,7 @@ import { loginWithPasskey, passkeysSupported, registerPasskey } from './webauthn
 import { announce } from './a11y.tsx'
 import { DialogProvider } from './dialog.tsx'
 import NotificationBell from './Notifications.tsx'
+import { HelpButton } from './Help.tsx'
 import Slideshow, { SAVER_PREVIEW_EVENT } from './Screensaver.tsx'
 import SnapshotSheet from './Snapshot.tsx'
 
@@ -174,6 +175,7 @@ function ManualKeyGate({ onKey, onBack }: { onKey: () => void; onBack: () => voi
   return (
     <div className="gate-screen" role="main">
       <div className="gate-card">
+        <HelpButton className="help-float" />
         <h1>Welcome home 👋</h1>
         <p>Paste the Kinwall API key for this display to unlock it.</p>
         <div className="field" style={{ textAlign: 'left' }}>
@@ -614,6 +616,7 @@ function Header({ settings, members, selectedMemberId, isAdmin }: {
           <div className="header-right">
             <MemberAvatars members={members} selectedMemberId={selectedMemberId} />
             <NotificationBell isAdmin={isAdmin} />
+            <HelpButton />
           </div>
         </div>
         <div className="date-text-sm">{dateStr}</div>
@@ -633,6 +636,7 @@ function Header({ settings, members, selectedMemberId, isAdmin }: {
       <div className="header-right">
         <MemberAvatars members={members} selectedMemberId={selectedMemberId} />
         <NotificationBell isAdmin={isAdmin} />
+        <HelpButton />
       </div>
     </header>
   )
