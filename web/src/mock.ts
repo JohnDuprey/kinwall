@@ -320,7 +320,7 @@ export const mock = {
   getChoresDay: async (date: string): Promise<ChoreDay[]> => chores.filter(c => c.active).map(c => {
     const comp = completions.get(`${c.id}:${date}`)
     const list = c.listId ? lists.find(l => l.id === c.listId) : undefined
-    const its = list ? listItems.filter(i => i.listId === list.id) : []
+    const its = list ? listItems.filter(i => i.listId === list.id && (!c.memberId || !i.memberId || i.memberId === c.memberId)) : []
     return { ...c, completed: !!comp, completedAt: comp?.completedAt ?? null, completedBy: comp?.memberId ?? null, checklist: list ? { listId: list.id, name: list.name, total: its.length, done: its.filter(i => i.done).length } : null }
   }),
   createChore: async (body: Partial<Chore>) => {
@@ -335,9 +335,10 @@ export const mock = {
   completeChore: async (id: string, date: string, memberId?: string) => {
     const c = chores.find(x => x.id === id)
     if (c?.listId) {
-      const open = listItems.filter(i => i.listId === c.listId && !i.done)
+      const mine = (i: ListItem) => i.listId === c.listId && (!c.memberId || !i.memberId || i.memberId === c.memberId)
+      const open = listItems.filter(i => mine(i) && !i.done)
       if (open.length) throw new Error(`Checklist not finished (${open.length} left)`)
-      if (lists.find(l => l.id === c.listId)?.kind === 'reusable') listItems = listItems.map(i => i.listId === c.listId ? { ...i, done: false, doneAt: null, doneBy: null } : i)
+      if (lists.find(l => l.id === c.listId)?.kind === 'reusable') listItems = listItems.map(i => mine(i) ? { ...i, done: false, doneAt: null, doneBy: null } : i)
     }
     completions.set(`${id}:${date}`, { completedAt: new Date().toISOString(), memberId: memberId ?? null }); bump()
   },

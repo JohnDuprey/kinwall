@@ -3,7 +3,7 @@ import { addDays, format, isSameDay } from 'date-fns'
 import { useIsPhone } from './useIsPhone.ts'
 import { useApp } from './AppContext.tsx'
 import { api, ApiError } from './api.ts'
-import type { Chore, ChoreDay, LeaderboardEntry, LeaderboardPeriod, List } from './types.ts'
+import type { Chore, ChoreDay, LeaderboardEntry, LeaderboardPeriod, List, ListItem } from './types.ts'
 import { MEMBER_EMOJI } from './types.ts'
 import { dateKey } from './date.ts'
 import Sheet from './Sheet.tsx'
@@ -14,7 +14,6 @@ import { CheckIcon, PlusIcon } from './icons.tsx'
 import { IDLE_RESET_EVENT } from './App.tsx'
 import { announce, Segmented } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
-import { ListDetailPane } from './Lists.tsx'
 
 const CONFETTI_COLORS = ['#FF9E7A', '#FFD166', '#7ED9A6', '#7AB8FF', '#B39DFF', '#FF8FA3']
 
@@ -330,7 +329,7 @@ export default function Chores() {
       <button className="fab" onClick={() => setEditChore('new')} aria-label="Add chore"><PlusIcon /></button>
 
       {checklistFor?.checklist && (
-        <ChecklistSheet chore={checklistFor} isPhone={isPhone} onClose={() => { setChecklistFor(null); load() }}
+        <ChecklistSheet chore={checklistFor} onClose={() => { setChecklistFor(null); load() }}
           onComplete={async () => { const c = checklistFor; setChecklistFor(null); await toggle({ ...c, checklist: null }) }} />
       )}
       {editChore && (
@@ -349,16 +348,57 @@ export default function Chores() {
   )
 }
 
-/** A chore's checklist, in place: the list itself (add, tick, reorder) plus a Complete button that
- * unlocks once nothing is left open. Closing without finishing just leaves the chore as it was. */
-function ChecklistSheet({ chore, isPhone, onClose, onComplete }: { chore: ChoreDay; isPhone: boolean; onClose: () => void; onComplete: () => void }) {
-  const [open, setOpen] = useState(chore.checklist ? chore.checklist.total - chore.checklist.done : 0)
+/** A chore's checklist, in place: the linked list's items for this chore's member plus the
+ * unassigned ones (an "anyone" chore sees the whole list). Ticks land on the list items
+ * themselves - an unassigned item is genuinely shared between siblings' routines - and the
+ * Complete button unlocks once nothing here is left open. Closing leaves the chore as it was. */
+function ChecklistSheet({ chore, onClose, onComplete }: { chore: ChoreDay; onClose: () => void; onComplete: () => void }) {
+  const { members, toast } = useApp()
+  const listId = chore.checklist!.listId
   const name = chore.checklist?.name ?? 'Checklist'
+  const [items, setItems] = useState<ListItem[] | null>(null)
+  const [draft, setDraft] = useState('')
+  const mine = (i: ListItem) => !chore.memberId || !i.memberId || i.memberId === chore.memberId
+  const load = () => api.getList(listId).then(d => setItems(d.items.filter(mine))).catch(() => toast('Could not load the checklist', true))
+  useEffect(() => { load() }, [listId]) // eslint-disable-line react-hooks/exhaustive-deps
+  const open = items ? items.filter(i => !i.done).length : 1
+  const tick = async (item: ListItem) => {
+    setItems(list => list && list.map(i => i.id === item.id ? { ...i, done: !i.done } : i))
+    try { await api.updateListItem(listId, item.id, { done: !item.done }) } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not update', true); load() }
+  }
+  const add = async () => {
+    const title = draft.trim()
+    if (!title) return
+    setDraft('')
+    try { await api.addListItems(listId, { title, memberId: chore.memberId }); load() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not add', true) }
+  }
   return (
     <Sheet title={`${chore.emoji ? `${chore.emoji} ` : ''}${chore.title}`} onClose={onClose}
       actions={<button className="btn btn-primary" onClick={onComplete} disabled={open > 0}>{open > 0 ? `${open} left on ${name}` : `Complete ${chore.title}`}</button>}>
       <p className="field-hint checklist-hint">Tick everything on <strong>{name}</strong> to complete this chore.</p>
-      <ListDetailPane listId={chore.checklist!.listId} isPhone={isPhone} embedded onBack={onClose} onArchivedOrDeleted={onClose} onLoaded={l => setOpen(l.openCount)} />
+      <div className="list-add-bar">
+        <input value={draft} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') add() }} placeholder="Add a step…" aria-label="Add a step" />
+        <button className="icon-btn" onClick={add} disabled={!draft.trim()} aria-label="Add step"><PlusIcon width={20} height={20} /></button>
+      </div>
+      {items === null ? <div className="state-card">Loading…</div>
+        : items.length === 0 ? <div className="empty-card"><span className="emoji">📝</span>Nothing on this checklist yet.</div>
+        : (
+          <div className="checklist-rows" role="group" aria-label={name}>
+            {items.map(item => {
+              const who = item.memberId ? members.find(m => m.id === item.memberId) : null
+              return (
+                <div key={item.id} className={`list-item-row ${item.done ? 'done' : ''}`}>
+                  <button className={`list-item-check ${item.done ? 'done' : ''}`} onClick={() => tick(item)} role="checkbox" aria-checked={item.done} aria-label={item.title}>
+                    {item.done && <CheckIcon width={20} height={20} />}
+                  </button>
+                  <div className="list-item-body"><div className="list-item-title-row"><div className="list-item-title">{item.title}</div></div></div>
+                  {who && <div className="member-avatar-sm" role="img" aria-label={`For ${who.name}`} style={{ background: who.color, color: inkFor(who.color) }}>{who.avatar || who.name[0]}</div>}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      <a className="text-link checklist-edit" href={`#/lists?list=${listId}`} onClick={onClose}>Edit the {name} list</a>
     </Sheet>
   )
 }

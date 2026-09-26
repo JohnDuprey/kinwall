@@ -208,12 +208,14 @@ choresRoutes.openapi(
       c.env.DB.prepare("SELECT value FROM settings WHERE key = 'timezone'"),
       c.env.DB.prepare('SELECT * FROM chores WHERE active = 1 ORDER BY sort, created_at'),
       c.env.DB.prepare('SELECT * FROM chore_completions WHERE date = ?').bind(date),
-      // Progress of every list some chore uses as its checklist.
+      // Checklist progress per chore: the linked list's items owned by the chore's member plus
+      // unassigned ones (an "anyone" chore sees the whole list), so one list can back a routine
+      // for several members.
       c.env.DB.prepare(
-        'SELECT l.id, l.name, COUNT(i.id) AS total, COALESCE(SUM(i.done), 0) AS done FROM lists l LEFT JOIN list_items i ON i.list_id = l.id WHERE l.id IN (SELECT list_id FROM chores WHERE list_id IS NOT NULL) GROUP BY l.id',
+        'SELECT ch.id AS chore_id, l.id AS list_id, l.name, COUNT(i.id) AS total, COALESCE(SUM(i.done), 0) AS done FROM chores ch JOIN lists l ON l.id = ch.list_id LEFT JOIN list_items i ON i.list_id = l.id AND (ch.member_id IS NULL OR i.member_id IS NULL OR i.member_id = ch.member_id) WHERE ch.active = 1 GROUP BY ch.id',
       ),
     ]);
-    const checklists = new Map((checklistRes.results as { id: string; name: string; total: number; done: number }[]).map((r) => [r.id, r]));
+    const checklists = new Map((checklistRes.results as { chore_id: string; list_id: string; name: string; total: number; done: number }[]).map((r) => [r.chore_id, r]));
     const tz = (tzRes.results[0] as { value: string } | undefined)?.value ?? hostTimezone();
     const chores = choresRes.results as unknown as ChoreRow[];
     const completions = completionsRes.results as unknown as { chore_id: string; member_id: string | null; completed_at: string }[];
@@ -224,13 +226,13 @@ choresRoutes.openapi(
     return c.json(
       due.map((row) => {
         const completion = byChore.get(row.id);
-        const cl = row.list_id ? checklists.get(row.list_id) : undefined;
+        const cl = row.list_id ? checklists.get(row.id) : undefined;
         return {
           ...toApi(row),
           completed: !!completion,
           completedAt: completion?.completed_at ?? null,
           completedBy: completion?.member_id ?? null,
-          checklist: cl ? { listId: cl.id, name: cl.name, total: Number(cl.total), done: Number(cl.done) } : null,
+          checklist: cl ? { listId: cl.list_id, name: cl.name, total: Number(cl.total), done: Number(cl.done) } : null,
         };
       }),
       200,
@@ -270,11 +272,15 @@ choresRoutes.openapi(
     ]);
     const chore = choreRes.results[0] as { id: string; member_id: string | null; points: number; list_id: string | null } | undefined;
     if (!chore) return c.json({ error: 'not found' }, 404);
-    // The checklist gates completion; an empty list doesn't (nothing to tick).
+    // The checklist gates completion: the list's items for this chore's member (or whoever is
+    // completing an "anyone" chore) plus unassigned ones. An empty set doesn't gate.
+    const forMember = chore.member_id ?? memberId ?? null;
     let checklistKind: string | null = null;
     if (chore.list_id) {
-      const list = await c.env.DB.prepare('SELECT kind, (SELECT COUNT(*) FROM list_items WHERE list_id = lists.id AND done = 0) AS remaining FROM lists WHERE id = ?')
-        .bind(chore.list_id)
+      const list = await c.env.DB.prepare(
+        'SELECT kind, (SELECT COUNT(*) FROM list_items WHERE list_id = lists.id AND done = 0 AND (? IS NULL OR member_id IS NULL OR member_id = ?)) AS remaining FROM lists WHERE id = ?',
+      )
+        .bind(forMember, forMember, chore.list_id)
         .first<{ kind: string; remaining: number }>();
       if (list && Number(list.remaining) > 0) return c.json({ error: `Checklist not finished (${list.remaining} left)`, remaining: Number(list.remaining) }, 409);
       checklistKind = list?.kind ?? null;
@@ -289,9 +295,10 @@ choresRoutes.openapi(
       .bind(crypto.randomUUID(), id, date, memberId ?? chore.member_id, new Date().toISOString(), pointsAwarded)
       .run();
     emit(c, 'chore.completed', { id, date });
-    // A reusable checklist starts fresh for the next time the chore comes round.
+    // A reusable checklist starts fresh for the next time the chore comes round - just this
+    // member's items and the shared ones, so a sibling's ticks on the same list survive.
     if (chore.list_id && checklistKind === 'reusable') {
-      await resetListItems(c.env.DB, chore.list_id);
+      await resetListItems(c.env.DB, chore.list_id, forMember);
       emit(c, 'list.changed', { id: chore.list_id });
     }
     return c.json({ ok: true }, 200);

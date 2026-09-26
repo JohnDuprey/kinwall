@@ -55,28 +55,38 @@ test('chores: a linked checklist gates completion (409 until every item is ticke
     createApp().request(p, { method, body: body === undefined ? undefined : JSON.stringify(body), headers: { Authorization: 'Bearer k', 'Content-Type': 'application/json' } }, env);
   const json = async (r: Response) => (await r.json()) as any;
 
+  const ava = await json(await req('/api/members', 'POST', { name: 'Ava', color: '#e57' }));
+  const ben = await json(await req('/api/members', 'POST', { name: 'Ben', color: '#57e' }));
   const list = await json(await req('/api/lists', 'POST', { name: 'Clean room', kind: 'reusable' }));
-  const items = await json(await req(`/api/lists/${list.id}/items`, 'POST', [{ title: 'Make bed' }, { title: 'Vacuum' }]));
+  // Ava's two steps, one of Ben's, one shared: Ava's chore sees three of the four.
+  const items = await json(await req(`/api/lists/${list.id}/items`, 'POST', [{ title: 'Make bed', memberId: ava.id }, { title: 'Vacuum', memberId: ava.id }, { title: 'Ben bed', memberId: ben.id }, { title: 'Lights off' }]));
+  const bens = items.find((i: any) => i.title === 'Ben bed');
+  await req(`/api/lists/${list.id}/items/${bens.id}`, 'PATCH', { done: true });
 
   assert.equal((await req('/api/chores', 'POST', { title: 'x', dueDate: '2026-06-01', listId: 'nope' })).status, 400);
-  const chore = await json(await req('/api/chores', 'POST', { title: 'Clean room', dueDate: '2026-06-01', points: 10, listId: list.id }));
+  const chore = await json(await req('/api/chores', 'POST', { title: 'Clean room', dueDate: '2026-06-01', points: 10, memberId: ava.id, listId: list.id }));
   assert.equal(chore.listId, list.id);
+  const anyone = await json(await req('/api/chores', 'POST', { title: 'Whole room', dueDate: '2026-06-01', listId: list.id }));
 
   const day = await json(await req('/api/chores/day?date=2026-06-01', 'GET'));
-  assert.deepEqual(day[0].checklist, { listId: list.id, name: 'Clean room', total: 2, done: 0 });
+  assert.deepEqual(day.find((c: any) => c.id === chore.id).checklist, { listId: list.id, name: 'Clean room', total: 3, done: 0 });
+  assert.deepEqual(day.find((c: any) => c.id === anyone.id).checklist, { listId: list.id, name: 'Clean room', total: 4, done: 1 });
 
   const blocked = await req(`/api/chores/${chore.id}/complete`, 'POST', { date: '2026-06-01' });
   assert.equal(blocked.status, 409);
-  assert.equal((await json(blocked)).remaining, 2);
+  assert.equal((await json(blocked)).remaining, 3);
 
-  for (const it of items) await req(`/api/lists/${list.id}/items/${it.id}`, 'PATCH', { done: true });
-  assert.equal((await json(await req('/api/chores/day?date=2026-06-01', 'GET')))[0].checklist.done, 2);
+  for (const it of items) if (it.title !== 'Ben bed') await req(`/api/lists/${list.id}/items/${it.id}`, 'PATCH', { done: true });
+  const mine = (day: any[]) => day.find((c: any) => c.id === chore.id);
+  assert.equal(mine(await json(await req('/api/chores/day?date=2026-06-01', 'GET'))).checklist.done, 3);
   assert.equal((await req(`/api/chores/${chore.id}/complete`, 'POST', { date: '2026-06-01' })).status, 200);
 
-  // Reusable list: back to unticked for next time; the chore itself stays completed for that day.
+  // Reusable list: Ava's items and the shared one go back to unticked; Ben's stays ticked.
   const after = await json(await req('/api/chores/day?date=2026-06-01', 'GET'));
-  assert.equal(after[0].completed, true);
-  assert.equal(after[0].checklist.done, 0);
+  assert.equal(mine(after).completed, true);
+  assert.equal(mine(after).checklist.done, 0);
+  const detail = await json(await req(`/api/lists/${list.id}`, 'GET'));
+  assert.equal(detail.items.find((i: any) => i.title === 'Ben bed').done, true);
 
   // Unlink via PATCH.
   assert.equal((await json(await req(`/api/chores/${chore.id}`, 'PATCH', { listId: null }))).listId, null);

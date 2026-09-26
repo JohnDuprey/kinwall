@@ -923,8 +923,9 @@ button {
 .lists-shell-phone .list-detail { background: none; box-shadow: none; padding: 0 var(--pad) calc(60px + var(--safe-b) + 16px); border-radius: 0; }
 .list-detail-empty { align-items: center; justify-content: center; }
 .list-detail-header { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
-.list-detail.embedded { padding: 0; min-height: 40vh; background: none; box-shadow: none; border-radius: 0; }
 .checklist-hint { margin: 0 0 10px; }
+.checklist-rows { display: flex; flex-direction: column; }
+.checklist-edit { display: block; margin-top: 12px; text-align: center; }
 .list-detail-header .btn { flex: none; padding-inline: 22px; }
 .list-detail-emoji { font-size: 1.75rem; flex-shrink: 0; }
 .list-detail-title { flex: 1; min-width: 0; }

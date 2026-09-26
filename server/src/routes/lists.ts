@@ -613,13 +613,14 @@ listsRoutes.openapi(
   },
 );
 
-/** Uncheck every item and step in a list; returns how many items were ticked. Also used when a
- * chore whose checklist is a reusable list gets completed. */
-export async function resetListItems(db: KinwallDb, id: string): Promise<number> {
-  const result = await db.prepare('UPDATE list_items SET done = 0, done_at = NULL, done_by = NULL, updated_at = ? WHERE list_id = ? AND done = 1')
-    .bind(new Date().toISOString(), id)
+/** Uncheck items (and their steps) in a list; returns how many items were ticked. With `forMember`,
+ * only that member's items and unassigned ones - what a chore's checklist covers (routes/chores.ts). */
+export async function resetListItems(db: KinwallDb, id: string, forMember: string | null = null): Promise<number> {
+  const scope = 'list_id = ? AND (? IS NULL OR member_id IS NULL OR member_id = ?)';
+  const result = await db.prepare(`UPDATE list_items SET done = 0, done_at = NULL, done_by = NULL, updated_at = ? WHERE ${scope} AND done = 1`)
+    .bind(new Date().toISOString(), id, forMember, forMember)
     .run();
-  await db.prepare('UPDATE list_item_steps SET done = 0, done_at = NULL WHERE done = 1 AND item_id IN (SELECT id FROM list_items WHERE list_id = ?)').bind(id).run();
+  await db.prepare(`UPDATE list_item_steps SET done = 0, done_at = NULL WHERE done = 1 AND item_id IN (SELECT id FROM list_items WHERE ${scope})`).bind(id, forMember, forMember).run();
   return result.meta.changes;
 }
 

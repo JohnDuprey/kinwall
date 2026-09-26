@@ -615,10 +615,8 @@ function groupItems(items: ListItem[], groupBy: ListGroupBy, savedOrder: string[
   return names.map(name => ({ name, items: byName.get(name)! }))
 }
 
-/** One list: header, add bar, toolbar, items. `embedded` drops the header (a chore's checklist
- * sheet supplies its own title) and is exported for that use. */
-export function ListDetailPane({ listId, isPhone, onBack, onArchivedOrDeleted, onLoaded, embedded = false }: {
-  listId: string; isPhone: boolean; onBack: () => void; onArchivedOrDeleted: () => void; onLoaded: (list: List) => void; embedded?: boolean
+function ListDetailPane({ listId, isPhone, onBack, onArchivedOrDeleted, onLoaded }: {
+  listId: string; isPhone: boolean; onBack: () => void; onArchivedOrDeleted: () => void; onLoaded: (list: List) => void
 }) {
   const { members, toast, refreshTick } = useApp()
   const [detail, setDetail] = useState<ListDetail | null>(null)
@@ -698,8 +696,8 @@ export function ListDetailPane({ listId, isPhone, onBack, onArchivedOrDeleted, o
   const siblingIds = items.slice().sort((a, b) => a.sort - b.sort).map(i => i.id)
 
   return (
-    <div className={`list-detail ${embedded ? 'embedded' : ''}`}>
-      {!embedded && <div className="list-detail-header">
+    <div className="list-detail">
+      <div className="list-detail-header">
         {isPhone && <button className="icon-btn" onClick={onBack} aria-label="Back to lists"><ChevronLeft width={20} height={20} /></button>}
         <div className="list-detail-emoji" aria-hidden="true">{list.emoji || '📝'}</div>
         <div className="list-detail-title">
@@ -707,7 +705,7 @@ export function ListDetailPane({ listId, isPhone, onBack, onArchivedOrDeleted, o
           <div className="list-detail-sub">{KIND_LABEL[list.kind]} · {countLabel(list)}</div>
         </div>
         <button className="btn btn-secondary" onClick={() => setEditList(true)} aria-label={`Edit list ${list.name}`}>Edit</button>
-      </div>}
+      </div>
 
       <div className="list-add-bar">
         <input
