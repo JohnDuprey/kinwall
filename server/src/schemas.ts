@@ -127,6 +127,10 @@ export const FeaturesSchema = z
     photos: z.boolean(), // Activities -> Photos and the Board's picture card
     notes: z.boolean(), // notes threads on events and list items
     messages: z.boolean(), // family messages: POST /api/notify answers 403 while off
+    // Trackers, one switch per kind (the tab goes when all three are off). Defaults: clients from before they existed.
+    trackersReading: z.boolean().default(true),
+    trackersMemories: z.boolean().default(true),
+    trackersHealth: z.boolean().default(true),
   })
   .openapi('Features');
 
@@ -647,6 +651,104 @@ export const NoteInputSchema = z
   .openapi('NoteInput');
 
 export const NotePatchSchema = z.object({ body: NoteBodySchema }).openapi('NotePatch');
+
+// Trackers (routes/trackers.ts): one table, three kinds. `date` is the entry's day (a book's start
+// date, a memory's day, a visit's day); `title` is the book, a memory's headline or a visit's reason.
+export const TRACKER_KINDS = ['reading', 'memory', 'health'] as const;
+export const TrackerKindSchema = z.enum(TRACKER_KINDS);
+const DateOnly = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'must be YYYY-MM-DD');
+const Text = (max: number) => z.string().max(max);
+const Measure = <U extends [string, ...string[]]>(units: U) => z.object({ value: z.number().positive().max(1000), unit: z.enum(units) });
+export const ReadingDataSchema = z
+  .object({
+    author: Text(200).nullable().optional(),
+    status: z.enum(['want', 'reading', 'finished']).default('reading'),
+    pagesRead: z.number().int().min(0).max(100000).nullable().optional(),
+    totalPages: z.number().int().min(1).max(100000).nullable().optional(),
+    finishedOn: DateOnly.nullable().optional(),
+    rating: z.number().int().min(1).max(5).nullable().optional(), // stars
+    notes: Text(4000).nullable().optional(),
+  })
+  .strict()
+  .openapi('ReadingData');
+export const MemoryDataSchema = z
+  .object({
+    text: Text(4000).default(''),
+    mood: Text(16).nullable().optional(), // one emoji
+  })
+  .strict()
+  .openapi('MemoryData');
+export const HEALTH_TYPES = ['checkup', 'dentist', 'specialist', 'vaccine', 'sick', 'other'] as const;
+export const HealthDataSchema = z
+  .object({
+    time: z.string().regex(/^\d{2}:\d{2}$/, 'must be HH:MM').nullable().optional(),
+    type: z.enum(HEALTH_TYPES).default('checkup'),
+    provider: Text(200).nullable().optional(),
+    notes: Text(4000).nullable().optional(),
+    height: Measure(['in', 'cm']).nullable().optional(),
+    weight: Measure(['lb', 'kg']).nullable().optional(),
+    temperature: Measure(['F', 'C']).nullable().optional(),
+    followUp: DateOnly.nullable().optional(),
+    eventId: z.string().nullable().optional(), // the calendar event made by "Add to calendar"
+  })
+  .strict()
+  .openapi('HealthData');
+export const TRACKER_DATA = { reading: ReadingDataSchema, memory: MemoryDataSchema, health: HealthDataSchema } as const;
+
+export const TrackerEntrySchema = z
+  .object({
+    id: z.string(),
+    kind: TrackerKindSchema,
+    memberId: z.string().nullable(), // null = the whole family, or a removed member (formerMember)
+    formerMember: z.string().nullable(), // the name of the member this belonged to, after they were removed
+    date: z.string(),
+    title: z.string().nullable(),
+    photoId: z.string().nullable(), // a memory's one photo (routes/photos.ts)
+    photoOwned: z.boolean(), // the photo was added for this memory (not picked from the family photos)
+    photoFamily: z.boolean().nullable(), // the photo is also a family photo; null = no photo
+    data: z.record(z.string(), z.unknown()), // ReadingData | MemoryData | HealthData, by kind
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .openapi('TrackerEntry');
+
+export const TrackerInputSchema = z
+  .object({
+    kind: TrackerKindSchema,
+    memberId: z.string().nullable().optional(),
+    date: DateOnly.optional(), // default: today in the household's timezone
+    title: Text(200).nullable().optional(), // required for reading (the book)
+    photoId: z.string().nullable().optional(), // one photo, memories only
+    photoFamily: z.boolean().optional(), // a memory's own photo: also show it in the family photos
+    data: z.record(z.string(), z.unknown()).default({}),
+  })
+  .openapi('TrackerInput');
+
+export const TrackerPatchSchema = z
+  .object({
+    memberId: z.string().nullable().optional(),
+    date: DateOnly.optional(),
+    title: Text(200).nullable().optional(),
+    photoId: z.string().nullable().optional(),
+    photoFamily: z.boolean().optional(),
+    data: z.record(z.string(), z.unknown()).optional(), // merged over the entry's data; null clears a field
+  })
+  .openapi('TrackerPatch');
+
+export const ReadingSummarySchema = z
+  .object({
+    year: z.number(),
+    members: z.array(
+      z.object({
+        memberId: z.string().nullable(),
+        formerMember: z.string().nullable(),
+        finished: z.number(), // books finished this year
+        pages: z.number(), // pages of those books, plus pages read so far in books in progress
+        reading: z.array(z.object({ id: z.string(), title: z.string().nullable(), percent: z.number().nullable() })),
+      }),
+    ),
+  })
+  .openapi('ReadingSummary');
 
 export const PointEntrySchema = z
   .object({ id: z.string(), memberId: z.string(), amount: z.number(), reason: z.string(), ref: z.string().nullable(), at: z.string() })

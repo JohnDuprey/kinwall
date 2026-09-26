@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
-import type { ChoreDay, Member, Snapshot, SnapshotBirthday, SnapshotChore, SnapshotEvent, SnapshotItem, WeatherDay } from './types.ts'
+import type { ChoreDay, Member, ReadingData, TrackerEntry, Snapshot, SnapshotBirthday, SnapshotChore, SnapshotEvent, SnapshotItem, WeatherDay } from './types.ts'
 import { ChecklistSheet } from './Chores.tsx'
 import { CheckIcon } from './icons.tsx'
 import Sheet from './Sheet.tsx'
@@ -52,6 +52,12 @@ export default function SnapshotSheet({ member, onClose }: { member: Member; onC
     setSelectedMemberId(filtered ? null : member.id)
     announce(filtered ? 'Calendar shows everyone' : `Calendar shows only ${member.name}`)
   }
+  // The books they're in the middle of (Trackers), for "Reading: Charlotte's Web — 45%".
+  const [books, setBooks] = useState<TrackerEntry<ReadingData>[]>([])
+  useEffect(() => {
+    if (!settings.features.trackersReading) return
+    api.getTrackers('reading').then(all => setBooks((all as TrackerEntry<ReadingData>[]).filter(b => b.memberId === member.id && b.data.status === 'reading'))).catch(() => {})
+  }, [member.id, refreshTick, settings.features.trackersReading])
   // No flash of the other range's data; chores and list items only while those features are on.
   const f = settings.features
   const shown = snap?.range === range ? {
@@ -97,7 +103,7 @@ export default function SnapshotSheet({ member, onClose }: { member: Member; onC
         options={[{ key: 'day', label: 'Day' }, { key: 'week', label: 'Week' }]} />
       {error && <p className="snap-empty" role="alert">{error}</p>}
       {!shown && !error && <p className="snap-empty">Loading…</p>}
-      {shown && (range === 'day' ? <DayView snap={shown} tz={tz} close={onClose} onToggle={toggleChore} /> : <WeekView snap={shown} tz={tz} close={onClose} />)}
+      {shown && (range === 'day' ? <DayView snap={shown} tz={tz} close={onClose} onToggle={toggleChore} books={settings.features.trackersReading ? books : []} /> : <WeekView snap={shown} tz={tz} close={onClose} />)}
       {!focusMemberId && (
         <div className="toggle-row snap-filter">
           <label id={`snap-filter-${member.id}`}>Show only {member.name} on the calendar</label>
@@ -207,7 +213,7 @@ export function BirthdayRow({ b, you, close }: { b: SnapshotBirthday; you: strin
   return <li>{b.eventId ? <button className="snap-row" onClick={() => go(`#/calendar?event=${encodeURIComponent(b.eventId!)}&at=${b.date}`, close)}>{text}</button> : <div className="snap-row">{text}</div>}</li>
 }
 
-function DayView({ snap, tz, close, onToggle }: { snap: Snapshot; tz: string; close: () => void; onToggle: (c: SnapshotChore) => void }) {
+function DayView({ snap, tz, close, onToggle, books }: { snap: Snapshot; tz: string; close: () => void; onToggle: (c: SnapshotChore) => void; books: TrackerEntry<ReadingData>[] }) {
   const { features } = useApp().settings
   const today = snap.from
   const t = snap.tomorrow
@@ -240,6 +246,18 @@ function DayView({ snap, tz, close, onToggle }: { snap: Snapshot; tz: string; cl
       {snap.birthdays.length > 0 && (
         <Section title="Birthdays 🎂">
           <ul className="snap-list">{snap.birthdays.map(b => <BirthdayRow key={`${b.memberId ?? b.eventId}`} b={b} you={snap.member.id} close={close} />)}</ul>
+        </Section>
+      )}
+      {books.length > 0 && (
+        <Section title="Reading 📚">
+          <ul className="snap-list">{books.map(b => (
+            <li key={b.id}>
+              <button className="snap-row" onClick={() => go('#/trackers/reading', close)}>
+                <span className="snap-time snap-emoji" aria-hidden="true">📖</span>
+                <span className="snap-main"><span className="snap-title">{b.title}{b.data.totalPages ? ` — ${Math.min(100, Math.round(((b.data.pagesRead ?? 0) / b.data.totalPages) * 100))}%` : ''}</span></span>
+              </button>
+            </li>
+          ))}</ul>
         </Section>
       )}
       {t && (

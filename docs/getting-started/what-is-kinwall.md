@@ -15,6 +15,7 @@ Kinwall is a family calendar, chore chart and list app you host yourself. The ma
 | Snapshot | Tap a person for their day or week: events, chores to tick off, things due and birthdays. | [Daily & weekly snapshot](../using/snapshot.md) |
 | Chores | One-off or recurring chores with points, streaks, a leaderboard and optional checklists. | [Chores](../using/chores.md) |
 | Lists | Shopping, to-do and reusable lists. Items remember their store and category. | [Lists](../using/lists.md) |
+| Trackers | A reading log with progress and ratings, a family memories journal, and doctor and dentist visits (health stays off the wall screen). | [Trackers](../using/trackers.md) |
 | Activities | Paint for kids, a sticker book to spend chore points on, and a shared family photo album. | [Activities](../using/activities.md), [Photos](../using/photos.md) |
 | Look and feel | Light, dark or scheduled dark mode, eleven color schemes (or seasonal) plus your own, text size and typeface, for the family or per device. | [Appearance](../using/appearance.md) |
 | Notifications | Web Push reminders, a daily summary, chore nudges and list updates, set per device. | [Notifications](../using/notifications.md) |

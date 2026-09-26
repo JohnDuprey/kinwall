@@ -10,6 +10,7 @@ Tap a family member's avatar in the header (on a phone, tap the family button, t
 * **Chores**: theirs plus **Anyone** chores due today, with how many are left. Tap one to tick it off.
 * **To do**: [list items](lists.md) assigned to them that are due today, overdue, or marked Important or Urgent (with priority dots).
 * **Birthdays 🎂**: family members' birthdays (from [Settings → Family](../settings/family.md)) and events in a category named "Birthdays".
+* **Reading 📚**: the books they're in the middle of in [Trackers](trackers.md), with how far along they are ("Charlotte's Web — 45%"). Tap one to open Trackers.
 * **Tomorrow at a glance**: tomorrow's weather, birthdays, events and items due.
 
 Every section has a friendly empty state ("Nothing on the calendar — enjoy it.").

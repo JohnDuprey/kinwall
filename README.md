@@ -20,6 +20,7 @@ Kinwall is an open-source, self-hosted family wall calendar, chore chart and sha
 - **Daily & weekly snapshot**: tap someone's avatar for their day: a greeting, the weather, their events and leave-by times, chores to tick off, due and important list items, birthdays 🎂, and tomorrow at a glance, or flip to their week.
 - **Chores**: one-off or recurring, points, streaks with grace days, late-completion credit and an optional leaderboard. Link a checklist ("Bedtime: shower, pajamas, brush teeth") that has to be ticked off before the chore counts.
 - **Lists**: shopping, to-do and reusable lists. Items remember their store and category, and you can drag to reorder.
+- **Trackers**: a reading log with progress bars, star ratings and books finished this year; a family memories journal with photos and "On this day"; and doctor and dentist visits with measurements and follow-ups. Health stays on phones and computers, never on the wall screen.
 - **Activities**: a kids' Paint app with a rainbow brush, fill bucket and undo. Drawings stay on the device and can be printed, saved, or added to the family photos.
   - **Sticker book**: kids spend chore points on emoji sticker packs and decorate their own scrapbook page.
   - **Family photos**: a shared album that feeds the Board's picture card and the overnight screensaver. Photos shrink on upload and back up as a zip.

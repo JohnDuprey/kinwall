@@ -11,7 +11,7 @@ import { runNotifications } from '../src/notify.ts';
 
 const MIGRATIONS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'migrations');
 const ADMIN_KEY = 'fc_test_admin_key';
-const ALL_ON = { chores: true, lists: true, paint: true, photos: true, notes: true, messages: true };
+const ALL_ON = { chores: true, lists: true, paint: true, photos: true, notes: true, messages: true, trackersReading: true, trackersMemories: true, trackersHealth: true };
 
 function setup() {
   const db = openDb(':memory:');

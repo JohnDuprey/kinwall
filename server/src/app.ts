@@ -32,6 +32,7 @@ import { photosRoutes } from './routes/photos.ts';
 import { snapshotRoutes } from './routes/snapshot.ts';
 import { weatherRoutes } from './routes/weather.ts';
 import { tidbitRoutes } from './routes/tidbits.ts';
+import { trackersRoutes } from './routes/trackers.ts';
 import { handleMcp } from './mcp.ts';
 
 // Keep in sync with web/public/_headers (Workers serves the UI with that file; Node/Docker with this).
@@ -92,6 +93,7 @@ export function createApp() {
   app.route('/', snapshotRoutes);
   app.route('/', weatherRoutes);
   app.route('/', tidbitRoutes);
+  app.route('/', trackersRoutes);
   app.route('/', keysRoutes);
   app.route('/', passkeysRoutes);
   app.route('/', recoveryRoutes);

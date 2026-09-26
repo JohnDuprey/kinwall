@@ -12,6 +12,7 @@ import { toApi as choreToApi, type ChoreRow } from './chores.ts';
 import { toApi as listToApi, toItemApi, toGroupApi, groupSteps, type ListRow, type ListItemRow, type ListItemStepRow, type ListGroupRow } from './lists.ts';
 import { toApi as webhookToApi, type WebhookRow } from './webhooks.ts';
 import { toNoteApi, type NoteRow } from './notes.ts';
+import { toTrackerApi, type TrackerRow } from './trackers.ts';
 import { toEntryApi, toPlacementApi, type PointEntryRow, type PlacementRow } from './stickers.ts';
 import { parseMemberIds } from '../calendar-members.ts';
 import { RECONNECT_MESSAGE } from '../sync.ts';
@@ -28,6 +29,7 @@ import {
   ErrorSchema,
   BirthdaySchema,
   MemberSchema,
+  TrackerEntrySchema,
   NoteSchema,
   PointEntrySchema,
   StickerPlacementSchema,
@@ -103,6 +105,7 @@ const ExportSchema = z
     pointEntries: z.array(PointEntrySchema),
     stickerPacks: z.array(z.object({ memberId: z.string(), packId: z.string(), unlockedAt: z.string() })),
     scrapbook: z.array(StickerPlacementSchema),
+    trackers: z.array(TrackerEntrySchema), // reading log, memories, health visits (0031)
     passkeys: z.array(z.object({ name: z.string(), createdAt: z.string() })),
     webhooks: z.array(WebhookSchema),
   })
@@ -139,7 +142,7 @@ dataRoutes.openapi(
   async (c) => {
     const db = c.env.DB;
     // Column lists are explicit (never SELECT *) so a secret column can't leak in by accident.
-    const [members, categories, calendars, events, memberOverrides, categoryOverrides, travelOverrides, seriesMemberOverrides, seriesCategoryOverrides, chores, completions, lists, items, steps, groups, notes, pointEntries, stickerPacks, scrapbook, passkeys, webhooks] = (await db.batch<unknown>([
+    const [members, categories, calendars, events, memberOverrides, categoryOverrides, travelOverrides, seriesMemberOverrides, seriesCategoryOverrides, chores, completions, lists, items, steps, groups, notes, pointEntries, stickerPacks, scrapbook, trackers, passkeys, webhooks] = (await db.batch<unknown>([
       db.prepare('SELECT id, name, color, avatar, birthday, sort FROM members ORDER BY sort, created_at'),
       db.prepare('SELECT id, name, emoji, color, keywords, sort, created_at FROM categories ORDER BY sort, created_at'),
       db.prepare('SELECT id, kind, remote_id, name, color, member_ids, category_id, enabled, config FROM calendars ORDER BY name'),
@@ -169,6 +172,7 @@ dataRoutes.openapi(
       db.prepare('SELECT id, member_id, amount, reason, ref, at FROM point_entries ORDER BY at, id'),
       db.prepare('SELECT member_id, pack_id, unlocked_at FROM member_sticker_packs ORDER BY member_id, pack_id'),
       db.prepare('SELECT id, member_id, sticker, x, y, scale, rotation, z, placed_at FROM scrapbook_stickers ORDER BY member_id, z, placed_at, id'),
+      db.prepare('SELECT t.*, p.family AS photo_family FROM tracker_entries t LEFT JOIN photos p ON p.id = t.photo_id ORDER BY t.date, t.created_at'),
       db.prepare('SELECT name, created_at FROM passkeys ORDER BY created_at'),
       db.prepare('SELECT id, url, events, enabled, created_at FROM webhooks ORDER BY created_at'),
     ])).map((r) => r.results);
@@ -252,6 +256,7 @@ dataRoutes.openapi(
         pointEntries: (pointEntries as PointEntryRow[]).map(toEntryApi),
         stickerPacks: (stickerPacks as { member_id: string; pack_id: string; unlocked_at: string }[]).map((r) => ({ memberId: r.member_id, packId: r.pack_id, unlockedAt: r.unlocked_at })),
         scrapbook: (scrapbook as PlacementRow[]).map(toPlacementApi),
+        trackers: (trackers as TrackerRow[]).map(toTrackerApi),
         passkeys: (passkeys as { name: string; created_at: string }[]).map((p) => ({ name: p.name, createdAt: p.created_at })),
         webhooks: (webhooks as WebhookRow[]).map(webhookToApi),
       },
@@ -278,6 +283,7 @@ const ImportSchema = ExportSchema.extend({
   pointEntries: ExportSchema.shape.pointEntries.default([]),
   stickerPacks: ExportSchema.shape.stickerPacks.default([]),
   scrapbook: ExportSchema.shape.scrapbook.default([]),
+  trackers: ExportSchema.shape.trackers.default([]),
 }).openapi('Import');
 
 const ImportResultSchema = z
@@ -301,6 +307,7 @@ const ImportResultSchema = z
       pointEntries: z.number(),
       stickerPacks: z.number(),
       scrapbook: z.number(),
+      trackers: z.number(),
     }),
     // Synced calendars waiting to be reconnected (imported placeholders, from this or an earlier import).
     needsReconnect: z.array(z.object({ id: z.string(), kind: z.string(), name: z.string() })),
@@ -406,6 +413,8 @@ dataRoutes.openapi(
     const pointEntries = body.pointEntries.filter((e) => fileMembers.has(e.memberId));
     const stickerPacks = body.stickerPacks.filter((p) => fileMembers.has(p.memberId));
     const scrapbook = body.scrapbook.filter((st) => fileMembers.has(st.memberId));
+    // A member's entries only with that member (they're personal); the family's and removed members' always.
+    const trackers = body.trackers.filter((t) => t.memberId === null || fileMembers.has(t.memberId));
     const steps = items.flatMap((i) => i.steps.map((st) => ({ ...st, itemId: i.id, doneAt: st.done ? (i.doneAt ?? new Date().toISOString()) : null, createdAt: i.createdAt })));
 
     // Members and chores have no createdAt in the export; stamp new rows 1 ms apart in file order so
@@ -605,6 +614,14 @@ dataRoutes.openapi(
         scrapbook.map((st) => ({ id: st.id, member_id: st.memberId, sticker: st.sticker, x: st.x, y: st.y, scale: st.scale, rotation: st.rotation, z: st.z, placed_at: st.placedAt })),
         { keep: ['member_id'] },
       ),
+      ...upserts(
+        db,
+        'tracker_entries',
+        'id',
+        trackers.map((t) => ({ id: t.id, kind: t.kind, member_id: t.memberId, former_member: t.formerMember, date: t.date, title: t.title, photo_id: t.photoId, photo_own: t.photoOwned ? 1 : 0, data: JSON.stringify(t.data), created_at: t.createdAt, updated_at: t.updatedAt })),
+        // Photos travel in their own zip: a photo not on this instance is dropped, not an FK error.
+        { keep: ['created_at', 'kind'], expr: { photo_id: "(SELECT id FROM photos WHERE id = j.value->>'photo_id')" } },
+      ),
     ];
     if (writes.length) await db.batch(writes);
 
@@ -617,6 +634,7 @@ dataRoutes.openapi(
       ['chore.changed', body.chores.length + completions.length],
       ['list.changed', body.lists.length + notes.length],
       ['sticker.changed', pointEntries.length + stickerPacks.length + scrapbook.length],
+      ['tracker.changed', trackers.length],
     ];
     for (const [type, n] of changed) if (n > 0) emit(c, type, { imported: n });
 
@@ -641,6 +659,7 @@ dataRoutes.openapi(
           pointEntries: pointEntries.length,
           stickerPacks: stickerPacks.length,
           scrapbook: scrapbook.length,
+          trackers: trackers.length,
         },
         needsReconnect: (await db.prepare("SELECT id, kind, name FROM calendars WHERE kind != 'local' AND config = '' ORDER BY name").all<{ id: string; kind: string; name: string }>()).results,
         skipped: {

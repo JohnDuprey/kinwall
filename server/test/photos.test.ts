@@ -94,7 +94,7 @@ test('photos: quota count (409 with the quota object)', async () => {
   assert.equal(full.status, 409);
   assert.deepEqual([full.body.count, full.body.maxCount, full.body.maxBytes, full.body.maxPhotoBytes], [200, 200, 104857600, 614400]);
   const q = (await send('GET', '/api/photos/quota')).body;
-  assert.deepEqual(q, { count: 200, bytes: 199 + 10, maxCount: 200, maxBytes: 104857600, maxPhotoBytes: 614400 });
+  assert.deepEqual(q, { count: 200, bytes: 199 + 10, memoryPhotos: 0, maxCount: 200, maxBytes: 104857600, maxPhotoBytes: 614400 });
 });
 
 test('photos: a display key can list, view and upload (Paint on the wall), but not edit or delete', async () => {
@@ -186,7 +186,7 @@ test('photos zip: export -> import into a fresh family keeps bytes, captions and
   const names = readZip(zip, 1e6).map((e) => e.name);
   assert.deepEqual(names, ['manifest.json', `photos/${p1.createdAt.slice(0, 10)}-${p1.id}.webp`, `photos/${p2.createdAt.slice(0, 10)}-${p2.id}.png`]);
   const manifest = JSON.parse(new TextDecoder().decode((await readZip(zip, 1e6)[0].read())!));
-  assert.deepEqual(manifest[0], { id: p1.id, file: names[1], caption: 'Zoo', memberId: maya.id, memberName: 'Maya', mime: 'image/webp', width: 640, height: 480, bytes: 3000, createdAt: p1.createdAt });
+  assert.deepEqual(manifest[0], { id: p1.id, file: names[1], caption: 'Zoo', memberId: maya.id, memberName: 'Maya', mime: 'image/webp', width: 640, height: 480, bytes: 3000, createdAt: p1.createdAt, family: true });
 
   const b = makeApp();
   const maya2 = (await b.send('POST', '/api/members', { name: 'maya ', color: '#00ff00' })).body; // different id, same name

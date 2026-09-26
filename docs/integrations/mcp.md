@@ -76,6 +76,7 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 | `get_list` | One list by ID or name, with items (in the list's sort order, each with its steps), group order and store/category suggestions. |
 | `list_categories` | Categories (name, emoji, color, keywords) in order. |
 | `list_notes` | The notes thread on an event or list item (`target`: `event:<id>` or `list_item:<id>`), oldest first. `memberId` null means "Someone". |
+| `list_tracker_entries` | [Trackers](../using/trackers.md) entries, newest first: books, memories and health visits. Filters: `kind`, `member`, `from`, `to`, `q`. Health only with an admin key. |
 | `list_notifications` | Recent notifications Kinwall sent (reminders, summaries, chore nudges, list updates, messages), newest first. The same feed as the bell in the app. Takes `limit` and `before`. |
 
 ### Write
@@ -99,6 +100,8 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 | `set_step_done` | Ticks or unticks one step of an item (step IDs come from `get_list`). Ticking the last open step completes the item; unticking a step of a done item re-opens it. |
 | `add_note` | Adds a note to an event's or list item's thread, posted as a member (by name or ID) or "Someone". |
 | `update_note` | Replaces a note's text (note IDs come from `list_notes`). |
+| `add_tracker_entry` | Logs a book, a memory or a health visit (`kind`, `member`, `date`, `title`, `data`). Health only with an admin key. |
+| `update_tracker_entry` | Edits an entry, for example pages read or a rating. `data` is merged; `null` clears a field. |
 | `update_category` | Changes a category's name, emoji, color or keywords. |
 | `send_notification` | Pushes a message now to devices following given members, or all devices (admin). It also appears in the in-app notification feed. |
 

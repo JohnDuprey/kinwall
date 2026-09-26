@@ -16,7 +16,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { hostTimezone } from './env.ts';
 import { effectivePublicUrl } from './providers/config.ts';
-import { BoardSchema, CalendarSchema, CategorySchema, ChoreDaySchema, ChoreSchema, EventInstanceSchema, LeaderboardEntrySchema, ListDetailSchema, ListItemSchema, ListSchema, MemberSchema, NoteSchema, NotificationSchema, PointsSchema, SettingsSchema, SnapshotSchema, CustomSchemeSchema, MAX_CUSTOM_SCHEMES } from './schemas.ts';
+import { BoardSchema, CalendarSchema, CategorySchema, ChoreDaySchema, ChoreSchema, EventInstanceSchema, LeaderboardEntrySchema, ListDetailSchema, ListItemSchema, ListSchema, MemberSchema, NoteSchema, TrackerEntrySchema, TRACKER_KINDS, NotificationSchema, PointsSchema, SettingsSchema, SnapshotSchema, CustomSchemeSchema, MAX_CUSTOM_SCHEMES } from './schemas.ts';
 import type { Env } from './env.ts';
 import { VERSION } from './version.ts';
 import { resolveKey } from './auth.ts';
@@ -189,6 +189,9 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
   list_notes: { notes: z.array(NoteSchema) },
   add_note: { note: NoteSchema },
   update_note: { note: NoteSchema },
+  list_tracker_entries: { entries: z.array(TrackerEntrySchema) },
+  add_tracker_entry: { entry: TrackerEntrySchema },
+  update_tracker_entry: { entry: TrackerEntrySchema },
   get_snapshot: SnapshotSchema.shape,
   get_board: { board: BoardSchema },
   list_color_schemes: {
@@ -201,7 +204,7 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
 };
 
 const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boolean; idempotentHint: boolean; openWorldHint: boolean }> = {
-  get_household: READ, list_events: READ, get_event: READ, list_chores: READ, get_leaderboard: READ, get_points: READ, list_lists: READ, get_list: READ, list_categories: READ, get_event_items: READ, list_notifications: READ, list_notes: READ, get_snapshot: READ, get_board: READ, list_color_schemes: READ, set_color_scheme: SET, save_color_scheme: WRITE,
+  get_household: READ, list_events: READ, get_event: READ, list_chores: READ, get_leaderboard: READ, get_points: READ, list_lists: READ, get_list: READ, list_categories: READ, get_event_items: READ, list_notifications: READ, list_notes: READ, get_snapshot: READ, get_board: READ, list_tracker_entries: READ, add_tracker_entry: WRITE, update_tracker_entry: SET, list_color_schemes: READ, set_color_scheme: SET, save_color_scheme: WRITE,
   delete_color_scheme: { ...WRITE, destructiveHint: true, idempotentHint: true },
   create_event: { ...WRITE, openWorldHint: true }, update_event: { ...SET, openWorldHint: true }, set_event_category: SET,
   create_chore: WRITE, update_chore: SET, complete_chore: SET, uncomplete_chore: SET, add_member: WRITE, update_member: SET,
@@ -1048,6 +1051,82 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       return okResult('Note updated.', { note: res.json as Record<string, unknown> });
     },
   );
+  // ---- Trackers: reading log, memories, health visits. Health is refused to display-scoped callers
+  // by the REST route, so these tools need no check of their own.
+  const TRACKER_DATA_DOC =
+    'The kind\'s fields. reading: {author, status: want|reading|finished, pagesRead, totalPages, finishedOn (YYYY-MM-DD), rating 1-5, notes}. ' +
+    'memory: {text, mood (one emoji)}. health: {type: checkup|dentist|specialist|vaccine|sick|other, time (HH:MM), provider, notes, ' +
+    'height {value, unit: in|cm}, weight {value, unit: lb|kg}, temperature {value, unit: F|C}, followUp (YYYY-MM-DD)}.';
+  const trackerMember = async (member: string | undefined) => (member ? await resolveMember(app, env, auth, member) : undefined);
+
+  tool(
+    'list_tracker_entries',
+    {
+      title: 'List tracker entries',
+      description: 'The family\'s trackers, newest first: reading (books, progress, ratings), memory (daily journal) and health (doctor/dentist visits; admin keys only). memberId null = the whole family.',
+      inputSchema: {
+        kind: z.enum(TRACKER_KINDS).optional(),
+        member: z.string().optional().describe('Member name or id.'),
+        from: z.string().optional().describe('YYYY-MM-DD, inclusive.'),
+        to: z.string().optional().describe('YYYY-MM-DD, inclusive.'),
+        q: z.string().optional().describe('Search titles and fields.'),
+      },
+    },
+    async ({ kind, member, from, to, q }) => {
+      let memberId: string | undefined;
+      try { memberId = await trackerMember(member); } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'member lookup failed'); }
+      const query = new URLSearchParams(Object.entries({ kind, memberId, from, to, q }).filter((e): e is [string, string] => !!e[1]));
+      const res = await call(app, env, auth, 'GET', `/api/trackers?${query}`);
+      if (res.status >= 400) return errorResult(res.json, 'failed to list tracker entries');
+      const entries = res.json as unknown[];
+      return okResult(`${entries.length} entr${entries.length === 1 ? 'y' : 'ies'}.`, { entries: res.json as Record<string, unknown>[] });
+    },
+  );
+
+  tool(
+    'add_tracker_entry',
+    {
+      title: 'Add tracker entry',
+      description: 'Log a book, a memory or a health visit. title: the book (required for reading), a memory\'s headline, or a visit\'s reason.',
+      inputSchema: {
+        kind: z.enum(TRACKER_KINDS),
+        member: z.string().optional().describe('Whose entry: member name or id. Omit for the whole family.'),
+        date: z.string().optional().describe('YYYY-MM-DD: a book\'s start, a memory\'s day, a visit\'s day. Default: today.'),
+        title: z.string().optional(),
+        data: z.record(z.string(), z.unknown()).optional().describe(TRACKER_DATA_DOC),
+      },
+    },
+    async ({ kind, member, date, title, data }) => {
+      let memberId: string | undefined;
+      try { memberId = await trackerMember(member); } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'member lookup failed'); }
+      const res = await call(app, env, auth, 'POST', '/api/trackers', { kind, memberId, date, title, data: data ?? {} });
+      if (res.status >= 400) return errorResult(res.json, 'failed to add tracker entry');
+      return okResult('Entry added.', { entry: res.json as Record<string, unknown> });
+    },
+  );
+
+  tool(
+    'update_tracker_entry',
+    {
+      title: 'Update tracker entry',
+      description: 'Edit an entry (ids from list_tracker_entries), e.g. log pages read or rate a book. data is merged over the entry\'s fields; null clears one.',
+      inputSchema: {
+        entryId: z.string(),
+        member: z.string().nullable().optional().describe('Member name or id; null = the whole family.'),
+        date: z.string().optional(),
+        title: z.string().optional(),
+        data: z.record(z.string(), z.unknown()).optional().describe(TRACKER_DATA_DOC),
+      },
+    },
+    async ({ entryId, member, date, title, data }) => {
+      let memberId: string | null | undefined = member === null ? null : undefined;
+      try { if (member) memberId = await trackerMember(member); } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'member lookup failed'); }
+      const res = await call(app, env, auth, 'PATCH', `/api/trackers/${encodeURIComponent(entryId)}`, { memberId, date, title, data });
+      if (res.status >= 400) return errorResult(res.json, 'failed to update tracker entry');
+      return okResult('Entry updated.', { entry: res.json as Record<string, unknown> });
+    },
+  );
+
   // ---- Color schemes: the household's scheme and the family's own saved schemes. A device can
   // override the scheme in the app, but that's stored on the device, so it isn't reachable here.
   type Custom = z.infer<typeof CustomSchemeSchema>;

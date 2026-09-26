@@ -6,6 +6,8 @@ An admin can turn off **Photos** in **Settings → General → Features**: Activ
 
 ![Photos on the wall iPad](../screenshots/ipad-photos.png)
 
+A [memory](trackers.md#memories)'s own photo isn't a family photo unless its **Also in family photos** switch is on. Until then it shows only in that memory, and the count here lists it separately ("+3 in memories").
+
 ## Adding photos
 
 <img src="../screenshots/phone-photos.png" width="32%" alt="Photos on a phone" />

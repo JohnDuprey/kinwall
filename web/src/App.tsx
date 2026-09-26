@@ -3,10 +3,12 @@ import { encode } from 'uqr'
 import { api, clearKey, getKey, setAdminKey, setKey, usePoll, useSaveState, ApiError, MOCK } from './api.ts'
 import { AppContext, useApp } from './AppContext.tsx'
 import type { Category, Member, Settings } from './types.ts'
-import { MoreIcon, BrushIcon, CalendarIcon, ChevronRight, ChoreIcon, ListIcon, SettingsIcon } from './icons.tsx'
+import { trackerKinds } from './types.ts'
+import { BookIcon, MoreIcon, BrushIcon, CalendarIcon, ChevronRight, ChoreIcon, ListIcon, SettingsIcon } from './icons.tsx'
 import CalendarView from './Calendar.tsx'
 import Chores from './Chores.tsx'
 import Lists from './Lists.tsx'
+import Trackers from './Trackers.tsx'
 import Activities, { shownActivities } from './Activities.tsx'
 import SettingsView, { OwnerSelect } from './Settings.tsx'
 import AuthorizeScreen from './Authorize.tsx'
@@ -30,20 +32,22 @@ const NAV_ITEMS = [
   { key: 'calendar', href: '#/calendar', label: 'Calendar', Icon: CalendarIcon },
   { key: 'chores', href: '#/chores', label: 'Chores', Icon: ChoreIcon },
   { key: 'lists', href: '#/lists', label: 'Lists', Icon: ListIcon },
+  { key: 'trackers', href: '#/trackers', label: 'Trackers', Icon: BookIcon },
   { key: 'activities', href: '#/activities', label: 'Activities', Icon: BrushIcon },
   { key: 'settings', href: '#/settings', label: 'Settings', Icon: SettingsIcon },
 ] as const
 
 /** The nav items this family has on (Settings → Features); Activities goes when every activity is off. */
 function navItems(s: Settings) {
-  return NAV_ITEMS.filter(i => i.key === 'chores' ? s.features.chores : i.key === 'lists' ? s.features.lists : i.key === 'activities' ? shownActivities(s).length > 0 : true)
+  return NAV_ITEMS.filter(i => i.key === 'chores' ? s.features.chores : i.key === 'lists' ? s.features.lists : i.key === 'trackers' ? trackerKinds(s).length > 0 : i.key === 'activities' ? shownActivities(s).length > 0 : true)
 }
 
 /** Where to send a link to a screen whose feature is off (a bookmark, a push, an old tab), or null. */
 function featureRedirect(s: Settings, section: string, sub: string | undefined): string | null {
-  if (section === 'chores' || section === 'lists' || section === 'activities') {
+  if (section === 'chores' || section === 'lists' || section === 'trackers' || section === 'activities') {
     if (!navItems(s).some(i => i.key === section)) return '#/calendar'
-    if (sub && !shownActivities(s).some(a => a.key === sub)) return '#/activities'
+    if (section === 'trackers') { const on = trackerKinds(s); return sub && !on.includes(sub) ? `#/trackers/${on[0]}` : null }
+    if (sub && section === 'activities' && !shownActivities(s).some(a => a.key === sub)) return '#/activities'
   }
   return null
 }
@@ -980,7 +984,7 @@ function AppRoutes() {
           <Header settings={settings} members={focusMember ? [focusMember] : members} selectedMemberId={effectiveMemberId} isAdmin={scope === 'admin'} />
           <main className="content" id="main" tabIndex={-1}>
             <h1 className="sr-only">{tabLabel}</h1>
-            {redirect ? null : section === 'activities' ? <Activities sub={sub} /> : tab === 'chores' ? <Chores /> : tab === 'lists' ? <Lists /> : tab === 'settings' ? <SettingsView /> : <CalendarView />}
+            {redirect ? null : section === 'activities' ? <Activities sub={sub} /> : tab === 'chores' ? <Chores /> : tab === 'lists' ? <Lists /> : section === 'trackers' ? <Trackers sub={sub} /> : tab === 'settings' ? <SettingsView /> : <CalendarView />}
           </main>
           {navMode === 'bottom' && <Nav tab={section} mode={navMode} items={nav} />}
         </div>

@@ -79,7 +79,7 @@ export default function Photos() {
         <a className="paint-btn" href="#/activities" aria-label="Back to activities"><ChevronLeft /></a>
         <div className="photos-title">
           <h2>Photos</h2>
-          {quota && <span className="photos-quota">{plural(quota.count, 'photo')} · {mb(quota.bytes)} of {mb(quota.maxBytes)}</span>}
+          {quota && <span className="photos-quota">{plural(quota.count - (quota.memoryPhotos ?? 0), 'photo')}{quota.memoryPhotos ? ` (+${quota.memoryPhotos} in memories)` : ''} · {mb(quota.bytes)} of {mb(quota.maxBytes)}</span>}
         </div>
         {isAdmin && <>
           <input ref={input} type="file" accept="image/*" multiple hidden onChange={e => { const f = [...(e.target.files ?? [])]; e.target.value = ''; upload(f) }} />

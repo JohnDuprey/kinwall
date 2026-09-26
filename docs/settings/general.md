@@ -52,13 +52,16 @@ API: `tidbits` `{ sources, factCategories, tipCategories, onThisDay, birthsAfter
 | **Paint** | No **Paint** in Activities. |
 | **Photos** | No **Photos** in Activities and no picture card on the Board. A display whose night screen shows **Family photos** shows nature pictures instead. |
 | **Notes** | No notes on events and no **Discussion** on list items, and no note counts (💬) on events or list items. A list item's own **Notes** field still shows. |
+| **Trackers: Reading** | No **Reading** in Trackers and no reading line in a member's day. |
+| **Trackers: Memories** | No **Memories** in Trackers. |
+| **Trackers: Health** | No **Health** in Trackers. (Health is never on a wall display anyway.) |
 | **Family messages** | No **Send a message** in the bell or in Settings → Access → Notifications. Messages already sent stay in the bell. `POST /api/notify` (and the MCP tool `send_notification`) answers 403. |
 
-When every activity is off (Paint, Photos, and the Sticker book, which is off when Chores or the sticker shop is), the **Activities** tab goes too. A link to a screen that's off, such as a bookmark or an old notification, opens the calendar instead. The Board rearranges its cards so a hidden one leaves no gap.
+When every activity is off (Paint, Photos, and the Sticker book, which is off when Chores or the sticker shop is), the **Activities** tab goes too, and the **Trackers** tab goes when Reading, Memories and Health are all off. A link to a screen that's off, such as a bookmark or an old notification, opens the calendar instead. The Board rearranges its cards so a hidden one leaves no gap.
 
 Apart from sending messages, the API keeps answering for features that are off (like the leaderboard switch), so nothing is lost and integrations keep working.
 
-API: `features` `{ chores, lists, paint, photos, notes, messages }` (all booleans) in `GET` / `PATCH /api/settings`. A `PATCH` sends the whole object. Display keys can't change it (403).
+API: `features` `{ chores, lists, paint, photos, notes, messages, trackersReading, trackersMemories, trackersHealth }` (all booleans) in `GET` / `PATCH /api/settings`. A `PATCH` sends the whole object (older clients may leave out the tracker switches; they then read as on). Display keys can't change it (403).
 
 ### Appearance
 

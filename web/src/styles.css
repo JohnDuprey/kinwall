@@ -1887,6 +1887,69 @@ button.snap-row:active { transform: scale(0.99); }
 /* Settings → Quotes & facts sheet: one block per source, its options under its switch. */
 .tidbit-source { display: grid; gap: 8px; padding: 12px 0; border-top: 1px solid var(--border); }
 
+/* ---------- Trackers (Trackers.tsx) ---------- */
+.trackers-head { padding: 10px var(--pad) 6px; flex-shrink: 0; }
+.trackers-head .segmented { max-width: 100%; }
+.trackers-head .segmented button { white-space: nowrap; }
+.trackers-body { flex: 1; min-height: 0; padding: 6px var(--pad) 100px; }
+.trk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: var(--gap); align-items: start; }
+.trk-card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px 16px; }
+.trk-card h3 { margin: 0; font-size: 1.0625rem; font-weight: 800; }
+.trk-card-head { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+.trk-sub { display: block; font-size: 0.8125rem; font-weight: 600; color: var(--text-dim); }
+.trk-tag { display: inline-block; width: fit-content; margin-top: 4px; padding: 2px 10px; border-radius: 999px; background: var(--bg-alt); font-size: 0.8125rem; font-weight: 700; color: var(--text); }
+.trk-books, .trk-memories, .trk-visits { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.trk-book { border-top: 1px solid var(--border); padding-top: 8px; }
+.trk-book-main, .trk-memory, .trk-visit-main { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; min-height: 44px; padding: 4px 0; border: 0; background: none; color: var(--text); text-align: left; }
+.trk-book-title { font-weight: 800; font-size: 1rem; }
+.trk-book-finished .trk-book-title { color: var(--text); }
+.trk-progress-row { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
+.trk-progress { flex: 1; height: 10px; border-radius: 999px; background: var(--bg-alt); overflow: hidden; }
+.trk-progress > div { height: 100%; border-radius: 999px; transition: width 0.3s ease; }
+.trk-pct { min-width: 3ch; text-align: right; }
+.btn.trk-small-btn { flex: none; width: auto; min-height: 44px; padding: 6px 14px; font-size: 0.875rem; }
+.trk-stars { color: #F5B301; letter-spacing: 2px; }
+.trk-stars-off { color: var(--border); }
+.trk-stars-edit { display: flex; }
+.trk-stars-edit button { width: 44px; height: 44px; border: 0; background: none; font-size: 1.625rem; line-height: 1; color: var(--border); padding: 0; }
+.trk-stars-edit button.on { color: #F5B301; }
+.trk-journal { display: flex; flex-direction: column; gap: var(--gap); max-width: 760px; margin: 0 auto; }
+.btn.trk-today-btn { flex: none; }
+.trk-onthisday h3 { margin-bottom: 6px; }
+.trk-memory { flex-direction: row; align-items: flex-start; gap: 12px; background: var(--card); border-radius: var(--radius-sm); box-shadow: var(--shadow); padding: 12px 14px; }
+.trk-onthisday .trk-memory { box-shadow: none; background: var(--card-soft); }
+.trk-memory-photo { width: 84px; height: 84px; object-fit: cover; border-radius: 12px; flex-shrink: 0; }
+.trk-memory-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.trk-memory-date { font-size: 0.8125rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.02em; display: flex; align-items: center; gap: 6px; }
+.trk-mood { font-size: 1.125rem; text-transform: none; }
+.trk-memory-text { font-weight: 600; white-space: pre-wrap; overflow-wrap: anywhere; }
+.trk-privacy { margin: 0 0 4px; padding: 10px 14px; border-radius: var(--radius-sm); background: var(--card-soft); font-size: 0.875rem; font-weight: 700; color: var(--text-dim); }
+.trk-heading { margin: 8px 0 6px; font-size: 0.875rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; }
+.trk-visit { background: var(--card); border-radius: var(--radius-sm); box-shadow: var(--shadow); padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; }
+.trk-visit-main { flex-direction: row; align-items: flex-start; gap: 12px; }
+.trk-visit-emoji { font-size: 1.75rem; line-height: 1.2; }
+.trk-on-cal { padding-left: 42px; }
+.trk-visit .trk-small-btn { align-self: flex-start; margin-left: 40px; }
+.trk-field-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+.trk-status { max-width: 100%; }
+.trk-measures { border: 0; padding: 0; margin: 0 0 16px; display: flex; flex-direction: column; gap: 8px; }
+.trk-measures legend { font-size: 0.8125rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.02em; margin-bottom: 6px; padding: 0; }
+.trk-measure { display: grid; grid-template-columns: 7.5rem 1fr 5rem; gap: 8px; align-items: center; }
+.trk-measure label { font-weight: 700; }
+.trk-measure input, .trk-measure select { min-height: 44px; padding: 8px 12px; border-radius: 12px; border: 2px solid var(--border); background: var(--bg-alt); color: var(--text); font: inherit; font-weight: 700; min-width: 0; }
+.trk-photo-pick { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+.trk-photo-pick img { width: 96px; height: 96px; object-fit: cover; border-radius: 12px; }
+.trk-photo-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.trk-photo-grid { list-style: none; margin: 10px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 6px; }
+.trk-photo-on { outline: 3px solid var(--accent-strong); outline-offset: -3px; }
+@media (max-width: 480px) {
+  .trk-grid { grid-template-columns: 1fr; }
+  .trk-measure { grid-template-columns: 6.5rem 1fr 4.5rem; }
+}
+.features-group { margin: 14px 0 0; font-size: 0.8125rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.02em; }
+.features-grouped { padding-left: 14px; }
+.trk-photo-side { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; flex: 1; min-width: 0; }
+.trk-photo-side .toggle-row { width: 100%; padding: 0; }
 /* Phone bottom bar overflow (App.tsx Nav): the screens past the fourth, as big rows. */
 .more-list { display: grid; gap: 8px; }
 .more-row { display: flex; align-items: center; gap: 14px; min-height: 56px; padding: 10px 16px; border-radius: var(--radius-sm); background: var(--bg-alt); color: var(--text); font-weight: 800; font-size: 1.0625rem; text-decoration: none; }

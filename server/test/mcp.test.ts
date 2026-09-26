@@ -74,6 +74,7 @@ test('mcp: tools/list returns the tools', async () => {
     'add_list_items',
     'add_member',
     'add_note',
+    'add_tracker_entry',
     'complete_chore',
     'create_chore',
     'create_event',
@@ -95,6 +96,7 @@ test('mcp: tools/list returns the tools', async () => {
     'list_lists',
     'list_notes',
     'list_notifications',
+    'list_tracker_entries',
     'save_color_scheme',
     'send_notification',
     'set_color_scheme',
@@ -109,6 +111,7 @@ test('mcp: tools/list returns the tools', async () => {
     'update_list_item',
     'update_member',
     'update_note',
+    'update_tracker_entry',
   ]);
 });
 
@@ -362,6 +365,15 @@ test('mcp: update_chore/update_member/update_category match their REST routes\' 
   // in place, but never members and never create new ones.
   const addRes = await (await mcp('tools/call', { name: 'add_member', arguments: { name: 'Nope', color: '#000000' } }, displayKey.key)).json() as any;
   assert.equal(addRes.result.isError, true);
+
+  // Trackers: a display key logs books, but health is refused by the route (and left out of lists).
+  const book = await (await mcp('tools/call', { name: 'add_tracker_entry', arguments: { kind: 'reading', title: 'Dog Man' } }, displayKey.key)).json() as any;
+  assert.notEqual(book.result.isError, true);
+  const visit = await (await mcp('tools/call', { name: 'add_tracker_entry', arguments: { kind: 'health', data: { type: 'dentist' } } }, displayKey.key)).json() as any;
+  assert.equal(visit.result.isError, true);
+  assert.match(visit.result.content[0].text, /never on a wall display/);
+  const health = await (await mcp('tools/call', { name: 'list_tracker_entries', arguments: { kind: 'health' } }, displayKey.key)).json() as any;
+  assert.equal(health.result.isError, true);
 });
 
 test('mcp: every tool declares permission hints, and the server advertises its icon', async () => {
@@ -459,6 +471,10 @@ test('mcp: every tool declares an output schema, and real results pass it', asyn
   await call('add_note', { target: `list_item:${item.id}`, body: 'Oat, please' });
   assert.equal((await call('update_note', { noteId: note.id, body: 'Bring roses' })).note.body, 'Bring roses');
   assert.deepEqual((await call('list_notes', { target: `event:${ev.id}` })).notes.map((n: any) => n.body), ['Bring roses']);
+  const book = (await call('add_tracker_entry', { kind: 'reading', member: 'ava', title: 'Matilda', data: { totalPages: 240 } })).entry;
+  assert.equal((await call('update_tracker_entry', { entryId: book.id, data: { pagesRead: 60, rating: 4 } })).entry.data.pagesRead, 60);
+  await call('add_tracker_entry', { kind: 'health', member: 'ava', title: 'Checkup', data: { type: 'checkup', weight: { value: 50, unit: 'lb' } } });
+  assert.deepEqual((await call('list_tracker_entries', { member: 'ava' })).entries.map((e: any) => e.kind).sort(), ['health', 'reading']);
   await call('delete_event', { id: ev.id });
 });
 

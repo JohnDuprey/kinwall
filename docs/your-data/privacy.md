@@ -23,7 +23,7 @@ None of these is ever returned by the API. Error messages have secrets redacted.
 
 ## Stored in plain form
 
-Your family's content: member names, events, chores, lists, settings and [photos](../using/photos.md) (stored in the database itself, never sent anywhere else). On Docker that's in `kinwall.sqlite`, and on Workers it's in D1. Protect the host or account accordingly.
+Your family's content: member names, events, chores, lists, settings, [trackers](../using/trackers.md) (including health visits) and [photos](../using/photos.md) (stored in the database itself, never sent anywhere else). On Docker that's in `kinwall.sqlite`, and on Workers it's in D1. Protect the host or account accordingly.
 
 ## Leaving your server
 

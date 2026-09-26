@@ -17,6 +17,7 @@
 | Every synced calendar's name, color, members and default category | Per-device appearance (it lives in each browser) |
 | Per-event member, category and travel-time tags on synced events, and series-wide member and category tags on synced recurring events | |
 | Notes threads on local events and list items | Notes on synced events |
+| [Trackers](../using/trackers.md): books, memories and health visits (including health, so keep the file private) | Photos (download them separately from Photos) |
 | ICS feed URLs | |
 | Passkey and webhook *names/URLs*, for reference | |
 

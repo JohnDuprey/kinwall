@@ -1,6 +1,9 @@
 // Family photos (migration 0028): small images stored as blobs in the database, so SQLite, D1 and
 // a Durable Object all behave the same. The web client downscales before upload (web/src/photos.ts);
 // this caps each photo and the family's total. Writes are admin-only (see DISPLAY_ALLOWED in auth.ts).
+// family = 0 (migration 0031): a memory's own photo (routes/trackers.ts). It isn't listed here, so it
+// stays off the Photos page, the Board and the screensaver; it's served by id, counts toward the
+// limits, and travels in the zip backup marked "family": false.
 import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import { emit } from '../bus.ts';
@@ -13,8 +16,8 @@ export const photosRoutes = createRouter();
 export const PHOTO_LIMITS = { maxCount: 200, maxBytes: 100 * 1024 * 1024, maxPhotoBytes: 600 * 1024 };
 const MIMES = ['image/webp', 'image/jpeg', 'image/png'];
 
-type PhotoRow = { id: string; caption: string | null; mime: string; width: number; height: number; bytes: number; member_id: string | null; created_at: string };
-const COLS = 'id, caption, mime, width, height, bytes, member_id, created_at';
+type PhotoRow = { id: string; caption: string | null; mime: string; width: number; height: number; bytes: number; member_id: string | null; created_at: string; family: number };
+const COLS = 'id, caption, mime, width, height, bytes, member_id, created_at, family';
 
 const PhotoSchema = z
   .object({
@@ -27,14 +30,15 @@ const PhotoSchema = z
     memberId: z.string().nullable(),
     createdAt: z.string(),
     url: z.string(),
+    family: z.boolean(), // false = a memory's own photo (not in the family photos)
   })
   .openapi('Photo');
 const QuotaSchema = z
-  .object({ count: z.number(), bytes: z.number(), maxCount: z.number(), maxBytes: z.number(), maxPhotoBytes: z.number() })
+  .object({ count: z.number(), bytes: z.number(), memoryPhotos: z.number(), maxCount: z.number(), maxBytes: z.number(), maxPhotoBytes: z.number() }) // count/bytes include memoryPhotos
   .openapi('PhotoQuota');
 
 const toApi = (r: PhotoRow): z.infer<typeof PhotoSchema> => ({
-  id: r.id, caption: r.caption, mime: r.mime, width: r.width, height: r.height, bytes: r.bytes, memberId: r.member_id, createdAt: r.created_at, url: `/api/photos/${r.id}/image`,
+  id: r.id, caption: r.caption, mime: r.mime, width: r.width, height: r.height, bytes: r.bytes, memberId: r.member_id, createdAt: r.created_at, url: `/api/photos/${r.id}/image`, family: r.family !== 0,
 });
 
 // D1 hands BLOBs back as number[], node:sqlite as Uint8Array, a Durable Object as ArrayBuffer.
@@ -46,18 +50,18 @@ export function blobBytes(v: unknown): Uint8Array<ArrayBuffer> {
 }
 
 async function quota(db: KinwallDb) {
-  const row = await db.prepare('SELECT COUNT(*) AS count, COALESCE(SUM(bytes), 0) AS bytes FROM photos').first<{ count: number; bytes: number }>();
-  return { count: row?.count ?? 0, bytes: row?.bytes ?? 0, ...PHOTO_LIMITS };
+  const row = await db.prepare('SELECT COUNT(*) AS count, COALESCE(SUM(bytes), 0) AS bytes, COALESCE(SUM(family = 0), 0) AS memory FROM photos').first<{ count: number; bytes: number; memory: number }>();
+  return { count: row?.count ?? 0, bytes: row?.bytes ?? 0, memoryPhotos: row?.memory ?? 0, ...PHOTO_LIMITS };
 }
 
 // One statement, so two uploads racing can't both squeeze past the quota. false = it's full.
 async function insertWithinQuota(db: KinwallDb, row: PhotoRow, data: Uint8Array): Promise<boolean> {
   const res = await db
     .prepare(
-      `INSERT INTO photos (${COLS}, data) SELECT ?,?,?,?,?,?,?,?,?
+      `INSERT INTO photos (${COLS}, data) SELECT ?,?,?,?,?,?,?,?,?,?
        WHERE (SELECT COUNT(*) FROM photos) < ? AND (SELECT COALESCE(SUM(bytes), 0) FROM photos) + ? <= ?`,
     )
-    .bind(row.id, row.caption, row.mime, row.width, row.height, row.bytes, row.member_id, row.created_at, data, PHOTO_LIMITS.maxCount, row.bytes, PHOTO_LIMITS.maxBytes)
+    .bind(row.id, row.caption, row.mime, row.width, row.height, row.bytes, row.member_id, row.created_at, row.family, data, PHOTO_LIMITS.maxCount, row.bytes, PHOTO_LIMITS.maxBytes)
     .run();
   return res.meta.changes > 0;
 }
@@ -73,12 +77,12 @@ photosRoutes.openapi(
     method: 'get',
     path: '/api/photos',
     tags: ['Photos'],
-    summary: "The family's photos, newest first (metadata only; fetch each one's bytes from its url)",
+    summary: "The family's photos, newest first (metadata only; fetch each one's bytes from its url). Memories' own photos aren't listed.",
     security: [{ Bearer: [] }],
     responses: { 200: { description: 'ok', content: json(z.array(PhotoSchema)) } },
   }),
   async (c) => {
-    const { results } = await c.env.DB.prepare(`SELECT ${COLS} FROM photos ORDER BY created_at DESC, rowid DESC`).all<PhotoRow>();
+    const { results } = await c.env.DB.prepare(`SELECT ${COLS} FROM photos WHERE family = 1 ORDER BY created_at DESC, rowid DESC`).all<PhotoRow>();
     return c.json(results.map(toApi), 200);
   },
 );
@@ -103,7 +107,10 @@ photosRoutes.openapi(
     summary: 'Upload a photo: the raw image as the body (image/webp, image/jpeg or image/png, at most 600 KB), its size in X-Photo-Width / X-Photo-Height. Admin and display keys (so a drawing on the wall can be saved to the family photos); editing and deleting stay admin-only.',
     security: [{ Bearer: [] }],
     request: {
-      query: z.object({ caption: z.string().max(200).optional() }),
+      query: z.object({
+        caption: z.string().max(200).optional(),
+        family: z.enum(['0', '1']).optional().openapi({ description: "0 = a memory's own photo: kept out of the family photos (attach it with POST /api/trackers)" }),
+      }),
       headers: z.object({ 'x-photo-width': z.coerce.number().int().min(1).max(10000), 'x-photo-height': z.coerce.number().int().min(1).max(10000) }),
       body: { required: true, content: Object.fromEntries(MIMES.map((m) => [m, { schema: z.string().openapi({ format: 'binary' }) }])) },
     },
@@ -116,7 +123,7 @@ photosRoutes.openapi(
     },
   }),
   async (c) => {
-    const { caption } = c.req.valid('query');
+    const { caption, family } = c.req.valid('query');
     const headers = c.req.valid('header');
     const mime = (c.req.header('Content-Type') ?? '').split(';')[0].trim().toLowerCase();
     if (!MIMES.includes(mime)) return c.json({ error: 'Photos must be WebP, JPEG or PNG' }, 415);
@@ -128,7 +135,7 @@ photosRoutes.openapi(
 
     const row: PhotoRow = {
       id: crypto.randomUUID(), caption: caption?.trim() || null, mime, width: headers['x-photo-width'], height: headers['x-photo-height'],
-      bytes: data.byteLength, member_id: null, created_at: new Date().toISOString(),
+      bytes: data.byteLength, member_id: null, created_at: new Date().toISOString(), family: family === '0' ? 0 : 1,
     };
     if (!(await insertWithinQuota(c.env.DB, row, data))) return c.json({ error: 'Photo storage is full — delete some photos first', ...(await quota(c.env.DB)) }, 409);
     emit(c, 'photo.changed', { id: row.id });
@@ -219,7 +226,7 @@ const MIME_OF_EXT: Record<string, string> = { webp: 'image/webp', jpg: 'image/jp
 const MAX_ZIP_BYTES = PHOTO_LIMITS.maxBytes + 10 * 1024 * 1024; // a full album plus zip overhead and manifest
 const binary = { schema: z.string().openapi({ format: 'binary' }) };
 
-type ManifestEntry = { id: string; file: string; caption: string | null; memberId: string | null; memberName: string | null; mime: string; width: number; height: number; bytes: number; createdAt: string };
+type ManifestEntry = { id: string; file: string; caption: string | null; memberId: string | null; memberName: string | null; mime: string; width: number; height: number; bytes: number; createdAt: string; family: boolean };
 
 /** Pixel size from the file header (PNG, JPEG, WebP), for zips without a manifest. */
 export function imageSize(b: Uint8Array): { width: number; height: number } | null {
@@ -255,7 +262,7 @@ photosRoutes.openapi(
     path: '/api/photos/export.zip',
     tags: ['Photos'],
     summary:
-      'Download every photo as a zip: photos/<yyyy-mm-dd>-<id>.<ext> plus manifest.json (captions, owners, sizes). Admin only. Takes the key as the Bearer header or as ?key= (so a plain download link works).',
+      'Download every photo as a zip: photos/<yyyy-mm-dd>-<id>.<ext> plus manifest.json (captions, owners, sizes; "family": false marks a memory\'s own photo). Admin only. Takes the key as the Bearer header or as ?key= (so a plain download link works).',
     security: [{ Bearer: [] }],
     request: { query: z.object({ key: z.string().optional() }) },
     responses: { 200: { description: 'the zip, streamed', content: { 'application/zip': binary } } },
@@ -263,12 +270,12 @@ photosRoutes.openapi(
   async (c) => {
     const db = c.env.DB;
     const { results } = await db
-      .prepare(`SELECT p.id, p.caption, p.mime, p.width, p.height, p.bytes, p.member_id, p.created_at, m.name AS member_name
+      .prepare(`SELECT p.id, p.caption, p.mime, p.width, p.height, p.bytes, p.member_id, p.created_at, p.family, m.name AS member_name
         FROM photos p LEFT JOIN members m ON m.id = p.member_id ORDER BY p.created_at, p.rowid`)
       .all<PhotoRow & { member_name: string | null }>();
     const fileOf = (r: PhotoRow) => `photos/${r.created_at.slice(0, 10)}-${r.id}.${EXT[r.mime] ?? 'bin'}`;
     const manifest: ManifestEntry[] = results.map((r) => ({
-      id: r.id, file: fileOf(r), caption: r.caption, memberId: r.member_id, memberName: r.member_name, mime: r.mime, width: r.width, height: r.height, bytes: r.bytes, createdAt: r.created_at,
+      id: r.id, file: fileOf(r), caption: r.caption, memberId: r.member_id, memberName: r.member_name, mime: r.mime, width: r.width, height: r.height, bytes: r.bytes, createdAt: r.created_at, family: r.family !== 0,
     }));
     // The manifest first, then one photo's bytes fetched per pull: only one photo in memory at a time.
     let i = -1;
@@ -360,7 +367,7 @@ photosRoutes.openapi(
       const memberName = str(meta.memberName, 100)?.toLowerCase();
       const member = members.find((m) => m.id === meta.memberId) ?? (memberName ? members.find((m) => m.name.trim().toLowerCase() === memberName) : undefined);
       const created = typeof meta.createdAt === 'string' && !Number.isNaN(Date.parse(meta.createdAt)) ? new Date(meta.createdAt).toISOString() : new Date().toISOString();
-      const row: PhotoRow = { id, caption: str(meta.caption, 200), mime, width: size.width, height: size.height, bytes: data.byteLength, member_id: member?.id ?? null, created_at: created };
+      const row: PhotoRow = { id, caption: str(meta.caption, 200), mime, width: size.width, height: size.height, bytes: data.byteLength, member_id: member?.id ?? null, created_at: created, family: meta.family === false ? 0 : 1 };
       if (!(await insertWithinQuota(db, row, data))) { skipped++; continue; }
       existing.add(id);
       imported++;

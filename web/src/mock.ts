@@ -1,7 +1,7 @@
 // Dev-only in-memory fixture, used when VITE_MOCK=1. Excluded from prod by the env check in api.ts.
 import type { OnlineTidbits,
   Account, ApiKey, AppNotification, CalendarEntry, Category, Chore, ChoreDay, EventInstance, LeaderboardEntry, LeaderboardPeriod, List, ListGroup,
-  Photo, PhotoQuota, GeocodeResult, ListItem, ListItemInput, ListItemStep, Member, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook,
+  Photo, PhotoQuota, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, ListItem, ListItemInput, ListItemStep, Member, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook,
 } from './types.ts'
 import { compareItems } from './types.ts'
 import { dateKey } from './date.ts'
@@ -38,7 +38,7 @@ const settings: Settings = {
   location: { name: 'Portland', lat: 45.5152, lon: -122.6784, countryCode: 'US' },
   temperatureUnit: 'fahrenheit',
   tidbits: { sources: ['quotes', 'facts', 'onthisday', 'trivia'], factCategories: [], tipCategories: [], onThisDay: ['holidays', 'births'], birthsAfter: 1900, triviaCategories: [27, 17, 22, 9], triviaDifficulties: ['easy'] },
-  features: { chores: true, lists: true, paint: true, photos: true, notes: true, messages: true },
+  features: { chores: true, lists: true, paint: true, photos: true, notes: true, messages: true, trackersReading: true, trackersMemories: true, trackersHealth: true },
 }
 
 const members: Member[] = [
@@ -238,6 +238,39 @@ const notifications: AppNotification[] = [
   { id: 'n9', at: at(-2, 16, 30), kind: 'reminder', title: '⚽ Swim Lessons', body: 'In 30 minutes · 5:00 PM\n📍 Community pool\n👥 Leo', url: `/#/calendar?event=e9&at=${encodeURIComponent(at(-2, 17))}`, memberIds: ['m4'], source: 'system' },
 ].sort((a, b) => b.at.localeCompare(a.at)) as AppNotification[]
 
+// Trackers: a few books, memories and one checkup (dates relative to today, so "On this day" has a year-ago entry).
+const daysAgo = (n: number) => dateKey(new Date(Date.now() - n * 86_400_000))
+const tracker = (kind: TrackerKind, memberId: string | null, date: string, title: string | null, data: Record<string, unknown>, photoId: string | null = null): TrackerEntry =>
+  ({ id: uid(), kind, memberId, formerMember: null, date, title, photoId, photoOwned: false, photoFamily: photoId ? true : null, data: data as never, createdAt: `${date}T18:00:00.000Z`, updatedAt: `${date}T18:00:00.000Z` })
+const trackers: TrackerEntry[] = [
+  tracker('reading', 'm3', daysAgo(12), "Charlotte's Web", { author: 'E. B. White', status: 'reading', pagesRead: 83, totalPages: 184 }),
+  tracker('reading', 'm3', daysAgo(40), 'Matilda', { author: 'Roald Dahl', status: 'finished', pagesRead: 240, totalPages: 240, finishedOn: daysAgo(20), rating: 5, notes: 'Loved Miss Honey.' }),
+  tracker('reading', 'm3', daysAgo(70), 'The Wild Robot', { author: 'Peter Brown', status: 'finished', pagesRead: 288, totalPages: 288, finishedOn: daysAgo(45), rating: 4 }),
+  tracker('reading', 'm3', daysAgo(2), 'Wonder', { author: 'R. J. Palacio', status: 'want', totalPages: 310 }),
+  tracker('reading', 'm4', daysAgo(5), 'Dragon Masters', { author: 'Tracey West', status: 'reading', pagesRead: 45, totalPages: 90 }),
+  tracker('reading', 'm4', daysAgo(30), 'Frog and Toad Are Friends', { author: 'Arnold Lobel', status: 'finished', pagesRead: 64, totalPages: 64, finishedOn: daysAgo(25), rating: 5 }),
+  tracker('reading', 'm1', daysAgo(8), 'Project Hail Mary', { author: 'Andy Weir', status: 'reading', pagesRead: 210, totalPages: 476 }),
+  tracker('memory', null, daysAgo(0), 'Pancake Saturday', { text: 'Leo flipped his first pancake and it landed in the pan!', mood: '🥞' }),
+  tracker('memory', 'm3', daysAgo(1), 'Lost a tooth', { text: 'Maya lost her top tooth at lunch. The tooth fairy owes her one.', mood: '🦷' }),
+  tracker('memory', null, daysAgo(3), 'River walk', { text: 'Found a heron standing on one leg.', mood: '😊' }, 'photo1015'),
+  tracker('memory', 'm4', daysAgo(365), 'First day of kindergarten', { text: 'Leo waved from the door and did not look back.', mood: '🎒' }),
+  tracker('health', 'm4', daysAgo(14), 'Six-year checkup', { type: 'checkup', provider: 'Dr. Patel', time: '09:30', height: { value: 45.5, unit: 'in' }, weight: { value: 46, unit: 'lb' }, notes: 'All good. Next checkup in a year.', followUp: daysAgo(-351) }),
+  tracker('health', 'm3', daysAgo(-9), 'Cleaning', { type: 'dentist', provider: 'Bright Smiles Dental', time: '15:40' }),
+]
+// Mirrors the server: a memory owns a photo uploaded for it (family false), which the toggle shares.
+const settleMockPhoto = (t: TrackerEntry, family?: boolean) => {
+  const p = photos.find(x => x.id === t.photoId)
+  if (!p) { t.photoOwned = false; t.photoFamily = null; return }
+  if (p.family === false && !t.photoOwned) t.photoOwned = true
+  if (t.photoOwned && family !== undefined) p.family = family
+  t.photoFamily = p.family !== false
+}
+// Mirrors the server: a finished book gets today's date and its last page; null clears a field.
+const trackerData = (kind: TrackerKind, data: Record<string, unknown>) => {
+  const d = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== null && v !== undefined))
+  return kind === 'reading' && d.status === 'finished' ? { ...d, finishedOn: d.finishedOn ?? todayISO(), ...(d.totalPages ? { pagesRead: d.totalPages } : {}) } : d
+}
+
 export const mock = {
   getRev: async () => ({ rev }),
   getNotifications: async () => [...notifications],
@@ -261,7 +294,11 @@ export const mock = {
     const m = members.find(x => x.id === id); if (!m) throw new Error('not found')
     Object.assign(m, patch); bump(); return m
   },
-  deleteMember: async (id: string) => { const i = members.findIndex(x => x.id === id); if (i >= 0) members.splice(i, 1); bump() },
+  deleteMember: async (id: string) => {
+    const i = members.findIndex(x => x.id === id)
+    for (const t of trackers) if (t.memberId === id) Object.assign(t, { memberId: null, formerMember: members[i]?.name ?? null }) // kept under their name
+    if (i >= 0) members.splice(i, 1); bump()
+  },
 
   getSnapshot: async (memberId: string, range: 'day' | 'week'): Promise<Snapshot> => mockSnapshot(memberId, range),
   getBoard: async (days: number): Promise<Board> => mockBoard(days),
@@ -430,10 +467,11 @@ export const mock = {
     const s = scrapbook.find(x => x.id === id); if (!s) throw new Error('not found')
     Object.assign(s, body); bump(); return { ...s }
   },
-  getPhotos: async () => [...photos],
-  getPhotoQuota: async (): Promise<PhotoQuota> => ({ count: photos.length, bytes: photos.reduce((n, p) => n + p.bytes, 0), ...PHOTO_LIMITS }),
-  uploadPhoto: async (blob: Blob, width: number, height: number, caption?: string) => {
-    const p: Photo = { id: uid(), caption: caption?.trim() || null, mime: blob.type, width, height, bytes: blob.size, memberId: null, createdAt: new Date().toISOString(), url: URL.createObjectURL(blob) }
+  getPhotos: async () => photos.filter(p => p.family !== false),
+  photoUrl: (id: string) => photos.find(p => p.id === id)?.url ?? '',
+  getPhotoQuota: async (): Promise<PhotoQuota> => ({ count: photos.length, bytes: photos.reduce((n, p) => n + p.bytes, 0), memoryPhotos: photos.filter(p => p.family === false).length, ...PHOTO_LIMITS }),
+  uploadPhoto: async (blob: Blob, width: number, height: number, caption?: string, family = true) => {
+    const p: Photo = { id: uid(), caption: caption?.trim() || null, mime: blob.type, width, height, bytes: blob.size, memberId: null, createdAt: new Date().toISOString(), url: URL.createObjectURL(blob), family }
     photos.unshift(p); bump(); return p
   },
   updatePhoto: async (id: string, body: { caption?: string | null; memberId?: string | null }) => {
@@ -528,6 +566,24 @@ export const mock = {
     if (patch.done !== undefined) { i.steps.forEach(st => { st.done = !!patch.done }); withStepCounts(i) }
     recomputeListCounts(listId); bump(); return i
   },
+  getTrackers: async (kind: TrackerKind) => trackers.filter(t => t.kind === kind).sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)),
+  addTracker: async (body: TrackerInput & { kind: TrackerKind }) => {
+    const t = tracker(body.kind, body.memberId ?? null, body.date ?? todayISO(), body.title?.trim() || null, trackerData(body.kind, body.data ?? {}), body.photoId ?? null)
+    t.createdAt = t.updatedAt = new Date().toISOString()
+    trackers.push(t); settleMockPhoto(t, body.photoFamily); bump(); return t
+  },
+  updateTracker: async (id: string, body: TrackerInput) => {
+    const t = trackers.find(x => x.id === id)
+    if (!t) throw new Error('not found')
+    Object.assign(t, {
+      ...(body.memberId !== undefined && { memberId: body.memberId }), ...(body.date && { date: body.date }),
+      ...(body.title !== undefined && { title: body.title?.trim() || null }), ...(body.photoId !== undefined && { photoId: body.photoId }),
+      ...(body.memberId !== undefined && { formerMember: null }),
+      data: trackerData(t.kind, { ...t.data, ...body.data }), updatedAt: new Date().toISOString(),
+    })
+    settleMockPhoto(t, body.photoFamily); bump(); return { ...t }
+  },
+  deleteTracker: async (id: string) => { const i = trackers.findIndex(x => x.id === id); if (i >= 0) trackers.splice(i, 1); bump() },
   getNotes: async (target: NoteTarget) => notes.filter(n => `${n.targetType}:${n.targetId}` === target),
   addNote: async (target: NoteTarget, body: string, memberId: string | null): Promise<Note> => {
     const [targetType, targetId] = target.split(/:(.*)/) as [Note['targetType'], string]

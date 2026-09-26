@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { createContext, Fragment, useContext, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { AppContext, useApp } from './AppContext.tsx'
 import { api, ApiError, clearKey } from './api.ts'
 import type { Account, ApiKey, CalendarEntry, Category, ColorScheme, CustomColors, Density, DeviceDensity, Features, GeocodeResult, HostEvent, Me, Member, Passkey, Providers, PushSubscription, RemoteCalendar, Settings, TextScale, ThemeMode, Webhook } from './types.ts'
@@ -27,7 +27,7 @@ import { useDialog } from './dialog.tsx'
 import { announce, pressable, reducedMotion, Segmented } from './a11y.tsx'
 
 // Mirrors BusEventType in server/src/bus.ts.
-const BUS_EVENTS = ['member.changed', 'calendar.changed', 'calendar.synced', 'events.changed', 'chore.changed', 'chore.completed', 'chore.uncompleted', 'list.changed', 'list.item.changed', 'category.changed', 'settings.changed', 'sticker.changed', 'photo.changed', 'display.paired']
+const BUS_EVENTS = ['member.changed', 'calendar.changed', 'calendar.synced', 'events.changed', 'chore.changed', 'chore.completed', 'chore.uncompleted', 'list.changed', 'list.item.changed', 'category.changed', 'settings.changed', 'sticker.changed', 'photo.changed', 'tracker.changed', 'display.paired']
 
 export function timezoneList() {
   // Intl.supportedValuesOf('timeZone') doesn't include 'UTC' itself (the server's default
@@ -219,13 +219,16 @@ function GeneralSection({ settings, onSaved, toast, isDisplay }: { settings: Ret
   )
 }
 
-const FEATURE_ROWS: { key: keyof Features; label: string; sub: string }[] = [
+const FEATURE_ROWS: { key: keyof Features; label: string; sub: string; group?: string }[] = [
   { key: 'chores', label: 'Chores & points', sub: 'The Chores tab, points and the sticker book. The leaderboard and sticker shop have their own switches in Family → Chores.' },
   { key: 'lists', label: 'Lists', sub: 'The Lists tab, “Due soon” on the Board and tasks on events.' },
   { key: 'paint', label: 'Paint', sub: 'Drawing and coloring in Activities.' },
   { key: 'photos', label: 'Photos', sub: 'Family photos in Activities and the Board’s picture card.' },
   { key: 'notes', label: 'Notes', sub: 'Notes and discussions on events and list items.' },
   { key: 'messages', label: 'Family messages', sub: 'Sending a message from the bell. Messages already sent still show.' },
+  { key: 'trackersReading', group: 'Trackers', label: 'Reading', sub: 'Books with progress and ratings, and the reading line in someone’s day.' },
+  { key: 'trackersMemories', group: 'Trackers', label: 'Memories', sub: 'The family journal.' },
+  { key: 'trackersHealth', group: 'Trackers', label: 'Health', sub: 'Doctor and dentist visits. Health stays on phones and computers, never on the wall screen.' },
 ]
 
 /** Household feature switches (admin only: a display key can't change them). */
@@ -236,16 +239,17 @@ function FeaturesSection({ settings, onSaved, toast }: { settings: Settings; onS
   return (
     <Section title="Features">
       <p className="settings-row-sub">Turn off what your family doesn't use. It's hidden on every screen; nothing is deleted.</p>
-      {FEATURE_ROWS.map(f => (
-        <div key={f.key} className="toggle-row">
+      {FEATURE_ROWS.map((f, i) => (<Fragment key={f.key}>
+        {f.group && FEATURE_ROWS[i - 1]?.group !== f.group && <h3 className="features-group">{f.group}</h3>}
+        <div className={`toggle-row ${f.group ? 'features-grouped' : ''}`}>
           <div>
-            <label id={`feature-${f.key}-label`}>{f.label}</label>
+            <label id={`feature-${f.key}-label`}>{f.group && <span className="sr-only">{f.group}: </span>}{f.label}</label>
             <div className="settings-row-sub" id={`feature-${f.key}-sub`}>{f.sub}</div>
           </div>
           <button className={`switch ${settings.features[f.key] ? 'on' : ''}`} role="switch" aria-checked={settings.features[f.key]}
             aria-labelledby={`feature-${f.key}-label`} aria-describedby={`feature-${f.key}-sub`} onClick={() => set(f.key)}><span className="knob" /></button>
         </div>
-      ))}
+      </Fragment>))}
     </Section>
   )
 }
@@ -1200,7 +1204,7 @@ function MemberEditSheet({ member, canDelete, onClose, onSaved, toast }: { membe
   }
   const del = async () => {
     if (!member) return
-    if (!await dialog.confirm({ title: `Remove ${member.name}?`, body: 'Their chores and tags are unassigned.', confirmLabel: 'Remove', danger: true })) return
+    if (!await dialog.confirm({ title: `Remove ${member.name}?`, body: 'Their chores and tags are unassigned. Their books, memories and health visits are kept under their name.', confirmLabel: 'Remove', danger: true })) return
     try { await api.deleteMember(member.id); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not delete member', true) }
   }
   return (

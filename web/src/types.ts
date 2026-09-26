@@ -50,7 +50,43 @@ export interface Features {
   photos: boolean // Activities → Photos and the Board's picture card
   notes: boolean // notes on events and list items
   messages: boolean // sending family messages (the bell's Send a message)
+  // Trackers, one switch per kind; the Trackers tab goes when all three are off
+  trackersReading: boolean
+  trackersMemories: boolean
+  trackersHealth: boolean
 }
+
+// Trackers (server: routes/trackers.ts). `data` holds the kind's fields; health never reaches a display key.
+export type TrackerKind = 'reading' | 'memory' | 'health'
+export type ReadingStatus = 'want' | 'reading' | 'finished'
+export interface ReadingData { author?: string; status: ReadingStatus; pagesRead?: number; totalPages?: number; finishedOn?: string; rating?: number; notes?: string }
+export interface MemoryData { text: string; mood?: string }
+export type HealthType = 'checkup' | 'dentist' | 'specialist' | 'vaccine' | 'sick' | 'other'
+export interface Measure<U extends string> { value: number; unit: U }
+export interface HealthData {
+  type: HealthType; time?: string; provider?: string; notes?: string; followUp?: string; eventId?: string
+  height?: Measure<'in' | 'cm'>; weight?: Measure<'lb' | 'kg'>; temperature?: Measure<'F' | 'C'>
+}
+export interface TrackerEntry<D = ReadingData | MemoryData | HealthData> {
+  id: string
+  kind: TrackerKind
+  memberId: string | null // null = the whole family, or a removed member (formerMember)
+  formerMember: string | null // name of the removed member this belonged to
+  date: string // YYYY-MM-DD: a book's start, a memory's day, a visit's day
+  title: string | null // the book, a memory's headline, a visit's reason
+  photoId: string | null // a memory's one photo
+  photoOwned: boolean // added for this memory (not picked from the family photos)
+  photoFamily: boolean | null // also a family photo; null = no photo
+  data: D
+  createdAt: string
+  updatedAt: string
+}
+/** The Trackers kinds this family has on, as #/trackers/<sub> keys, in tab order (App's nav, Trackers' tabs). */
+export function trackerKinds(s: Settings): string[] {
+  return ([['reading', s.features.trackersReading], ['memories', s.features.trackersMemories], ['health', s.features.trackersHealth]] as const).filter(([, on]) => on).map(([k]) => k)
+}
+/** Create/edit body: data fields set to null are cleared on edit. */
+export interface TrackerInput { kind?: TrackerKind; memberId?: string | null; date?: string; title?: string | null; photoId?: string | null; photoFamily?: boolean; data?: Record<string, unknown> }
 
 export type TidbitSource = 'quotes' | 'facts' | 'tips' | 'onthisday' | 'trivia'
 export type TipCategory = 'routines' | 'focus' | 'organizing' | 'feelings' | 'sensory' | 'communication'
@@ -240,8 +276,10 @@ export interface Photo {
   memberId: string | null
   createdAt: string
   url: string
+  family?: boolean // false = a memory's own photo (never in GET /api/photos)
 }
-export interface PhotoQuota { count: number; bytes: number; maxCount: number; maxBytes: number; maxPhotoBytes: number }
+/** count and bytes include memoryPhotos (memories' own photos count toward storage too). */
+export interface PhotoQuota { count: number; bytes: number; memoryPhotos: number; maxCount: number; maxBytes: number; maxPhotoBytes: number }
 
 export type StickerPatch = Partial<Pick<StickerPlacement, 'x' | 'y' | 'scale' | 'rotation' | 'z'>>
 

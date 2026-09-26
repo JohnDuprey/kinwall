@@ -266,7 +266,7 @@ function PhotoCard() {
   const { refreshTick } = useApp()
   const [hasPhotos, setHasPhotos] = useState(false)
   const picked = !!device.saverSources?.length
-  useEffect(() => { if (!picked) api.getPhotoQuota().then(q => setHasPhotos(q.count > 0)).catch(() => {}) }, [picked, refreshTick])
+  useEffect(() => { if (!picked) api.getPhotoQuota().then(q => setHasPhotos(q.count - (q.memoryPhotos ?? 0) > 0)).catch(() => {}) }, [picked, refreshTick])
   const { pics, failed } = useSlideshowPictures(picked ? device.saverSources! : [hasPhotos ? 'photos' : 'nature'], 60)
   const current = pics[pics.length - 1]
   return (

@@ -5,7 +5,7 @@ import type { PasskeyAuthenticator } from './webauthn.ts'
 import type { OnlineTidbits,
   StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota,
   Account, ApiKey, AppNotification, Appearance, CalendarEntry, Category, Chore, ChoreDay, EventInstance, LeaderboardEntry, LeaderboardPeriod, List,
-  GeocodeResult, HostEvent, ImportResult, ListDetail, ListGroup, ListItem, ListItemInput, Member, Me, Note, NoteTarget, Passkey, Providers, PushSubscription, PushSubscriptionPrefs, RemoteCalendar, Settings, Snapshot, Board, Webhook, WebhookWithSecret,
+  GeocodeResult, HostEvent, ImportResult, ListDetail, ListGroup, ListItem, ListItemInput, Member, Me, Note, NoteTarget, Passkey, TrackerEntry, TrackerInput, TrackerKind, Providers, PushSubscription, PushSubscriptionPrefs, RemoteCalendar, Settings, Snapshot, Board, Webhook, WebhookWithSecret,
 } from './types.ts'
 
 /** Demo build: every call is served from mock.ts in memory - no server, nothing persists. */
@@ -218,8 +218,9 @@ export const api = {
   // Photos: anyone can look, only admin keys change them (the admin key is used when unlocked).
   getPhotos: () => MOCK ? mock.getPhotos() : get<Photo[]>('api/photos'),
   getPhotoQuota: () => MOCK ? mock.getPhotoQuota() : get<PhotoQuota>('api/photos/quota'),
-  uploadPhoto: (blob: Blob, width: number, height: number, caption?: string) => MOCK ? mock.uploadPhoto(blob, width, height, caption)
-    : req<Photo>(`api/photos${caption ? `?caption=${encodeURIComponent(caption)}` : ''}`, {
+  /** family false: a memory's own photo, kept out of the family photos (attach it to the memory). */
+  uploadPhoto: (blob: Blob, width: number, height: number, caption?: string, family = true) => MOCK ? mock.uploadPhoto(blob, width, height, caption, family)
+    : req<Photo>(`api/photos?${new URLSearchParams({ ...(caption ? { caption } : {}), ...(family ? {} : { family: '0' }) })}`, {
       method: 'POST', body: blob, useAdmin: true,
       headers: { 'Content-Type': blob.type, 'X-Photo-Width': String(width), 'X-Photo-Height': String(height) },
     }),
@@ -233,6 +234,8 @@ export const api = {
     method: 'POST', body: zip, useAdmin: true, headers: { 'Content-Type': 'application/zip' },
   }),
   photoImageUrl: (p: Pick<Photo, 'id' | 'url'>) => MOCK ? p.url : apiUrl(`api/photos/${p.id}/image?key=${encodeURIComponent(getKey() ?? '')}`),
+  /** The same by id alone, for a memory's photo (its own photo isn't in getPhotos). */
+  photoImageUrlById: (id: string) => MOCK ? mock.photoUrl(id) : apiUrl(`api/photos/${id}/image?key=${encodeURIComponent(getKey() ?? '')}`),
   removeSticker: (memberId: string, id: string) => MOCK ? mock.removeSticker(memberId, id) : del(`api/stickers/scrapbook/${memberId}/${id}`),
 
   getLists: (archived?: boolean) => MOCK ? mock.getLists(archived) : get<List[]>(`api/lists${archived ? '?archived=true' : ''}`),
@@ -246,6 +249,10 @@ export const api = {
     MOCK ? mock.updateListItem(listId, itemId, body) : patch<ListItem>(`api/lists/${listId}/items/${itemId}`, body),
   getEventItems: (eventId: string) =>
     MOCK ? mock.getEventItems(eventId) : get<(ListItem & { listName: string })[]>(`api/events/${encodeURIComponent(eventId)}/items`),
+  getTrackers: (kind: TrackerKind) => MOCK ? mock.getTrackers(kind) : get<TrackerEntry[]>(`api/trackers?kind=${kind}`),
+  addTracker: (body: TrackerInput & { kind: TrackerKind }) => MOCK ? mock.addTracker(body) : post<TrackerEntry>('api/trackers', body),
+  updateTracker: (id: string, body: TrackerInput) => MOCK ? mock.updateTracker(id, body) : patch<TrackerEntry>(`api/trackers/${id}`, body),
+  deleteTracker: (id: string) => MOCK ? mock.deleteTracker(id) : del(`api/trackers/${id}`),
   getNotes: (target: NoteTarget) => MOCK ? mock.getNotes(target) : get<Note[]>(`api/notes?target=${encodeURIComponent(target)}`),
   addNote: (target: NoteTarget, body: string, memberId: string | null) => MOCK ? mock.addNote(target, body, memberId) : post<Note>('api/notes', { target, body, memberId }),
   updateNote: (id: string, body: string) => MOCK ? mock.updateNote(id, body) : patch<Note>(`api/notes/${id}`, { body }),

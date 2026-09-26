@@ -22,6 +22,10 @@ export const MoreIcon = (p: P) => (
 export const ListIcon = (p: P) => (
   <svg {...base(p)}><path d="M9 6h11M9 12h11M9 18h11" /><path d="M4.5 6l.75.75L6.5 5.25" /><path d="M4.5 12l.75.75 1.25-1.5" /><path d="M4.5 18l.75.75 1.25-1.5" /></svg>
 )
+export const BookIcon = (p: P) => (
+  // open book, after Lucide's book-open (ISC license, lucide.dev)
+  <svg {...base(p)}><path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2zM22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z" /></svg>
+)
 export const PlusIcon = (p: P) => (
   <svg {...base(p)}><path d="M12 5v14M5 12h14" /></svg>
 )
