@@ -48,6 +48,7 @@ export interface TidbitSettings {
   sources: TidbitSource[] // [] = no card on the Board
   factCategories: FactCategory[] // built-in facts; [] = every category
   onThisDay: OnThisDayKind[]
+  birthsAfter: number | null // birthdays only for people born in or after this year; null = any
   triviaCategories: number[] // Open Trivia DB category ids
   triviaDifficulty: 'easy' | 'medium' | 'hard' | 'any'
 }

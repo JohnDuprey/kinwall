@@ -57,11 +57,11 @@ test('tidbits: On this day filters feast days and grim events; trivia decodes wi
     return new Response(JSON.stringify(u.host === 'opentdb.com' ? TRIVIA : FEED), { status: 200 });
   }) as typeof fetch;
   try {
-    const patch = await req('/api/settings', 'PATCH', { tidbits: { sources: ['quotes', 'onthisday', 'trivia'], factCategories: [], onThisDay: ['holidays', 'births', 'events'], triviaCategories: [27], triviaDifficulty: 'easy' } });
+    const patch = await req('/api/settings', 'PATCH', { tidbits: { sources: ['quotes', 'onthisday', 'trivia'], factCategories: [], onThisDay: ['holidays', 'births', 'events'], birthsAfter: 1900, triviaCategories: [27], triviaDifficulty: 'easy' } });
     assert.equal(patch.status, 200);
     const t = (await (await req('/api/tidbits')).json()) as any;
     assert.deepEqual(t.onThisDay.filter((x: any) => x.kind === 'holidays').map((x: any) => x.text), ['European Day of Languages (European Union)']);
-    assert.deepEqual(t.onThisDay.filter((x: any) => x.kind === 'births').map((x: any) => x.text), ['Serena Williams, American tennis player', 'T. S. Eliot, American-English poet']);
+    assert.deepEqual(t.onThisDay.filter((x: any) => x.kind === 'births').map((x: any) => x.text), ['Serena Williams, American tennis player']); // T. S. Eliot (1888) is before birthsAfter
     assert.deepEqual(t.onThisDay.filter((x: any) => x.kind === 'events').map((x: any) => x.text), ['The first bridge opens.']);
     assert.equal(t.trivia[0].question, 'Wombats are native to which country?');
     assert.equal(t.trivia[0].answer, 'Australia');
@@ -77,8 +77,8 @@ test('tidbits: On this day filters feast days and grim events; trivia decodes wi
 test('tidbits: settings reject unknown sources and empty trivia categories', async () => {
   const req = setup();
   const bad = [
-    { sources: ['horoscopes'], factCategories: [], onThisDay: ['holidays'], triviaCategories: [9], triviaDifficulty: 'easy' },
-    { sources: ['trivia'], factCategories: [], onThisDay: ['holidays'], triviaCategories: [], triviaDifficulty: 'easy' },
+    { sources: ['horoscopes'], factCategories: [], onThisDay: ['holidays'], birthsAfter: null, triviaCategories: [9], triviaDifficulty: 'easy' },
+    { sources: ['trivia'], factCategories: [], onThisDay: ['holidays'], birthsAfter: null, triviaCategories: [], triviaDifficulty: 'easy' },
   ];
   for (const tidbits of bad) assert.equal((await req('/api/settings', 'PATCH', { tidbits })).status, 400);
 });

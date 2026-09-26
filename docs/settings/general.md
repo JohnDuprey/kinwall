@@ -33,12 +33,12 @@ What the Board's quote card shows. The row shows what's on; **Change** opens a s
 |---|---|
 | **Quotes** | Built in: authors, scientists and storytellers. On by default. |
 | **Fun facts** | Built in, for all ages. On by default. Pick categories: Animals, Space, Earth & science, Human body, Plants & food, Words, or **All**. |
-| **On this day** | From Wikipedia: today's **holidays & observances**, **birthdays**, and **history**. Holidays and birthdays are on by default when you turn this on. History leaves out wars, disasters and crimes, but it's the least kid-proof of the three. Saints' feast days are left out. Shows "From Wikipedia" on the card. |
+| **On this day** | From Wikipedia: today's **holidays & observances**, **birthdays**, and **history**. Holidays and birthdays are on by default when you turn this on. History leaves out wars, disasters and crimes, but it's the least kid-proof of the three. Saints' feast days are left out. **Birthdays of people born** limits birthdays to people born since 1800, 1900 (the default), 1950, 1970 or 1990, or any time. Shows "From Wikipedia" on the card. |
 | **Trivia question** | From [Open Trivia DB](https://opentdb.com): a multiple-choice question in one of the categories you pick (Animals, Science & nature, Geography and General knowledge by default; one category a day, taking turns), at **Easy**, **Medium**, **Hard** or **Mixed** difficulty. The answer is highlighted for the second half of its half hour, or when someone taps **Show the answer**. |
 
 On this day and trivia are off until you turn them on. Your Kinwall server fetches each once a day (they're kept with the weather cache) and screens never contact Wikipedia or Open Trivia DB themselves. Nothing about your family is sent. If they can't be reached, the built-in quotes and facts fill in.
 
-API: `tidbits` `{ sources, factCategories, onThisDay, triviaCategories, triviaDifficulty }` in `GET` / `PATCH /api/settings`, where `sources` is any of `quotes`, `facts`, `onthisday`, `trivia` (`[]` hides the card), `factCategories` any of `animals`, `space`, `science`, `body`, `plants`, `words` (`[]` = all), `onThisDay` any of `holidays`, `births`, `events`, and `triviaCategories` [Open Trivia DB category ids](https://opentdb.com/api_category.php). Today's online items: `GET /api/tidbits`.
+API: `tidbits` `{ sources, factCategories, onThisDay, birthsAfter, triviaCategories, triviaDifficulty }` in `GET` / `PATCH /api/settings`, where `sources` is any of `quotes`, `facts`, `onthisday`, `trivia` (`[]` hides the card), `factCategories` any of `animals`, `space`, `science`, `body`, `plants`, `words` (`[]` = all), `onThisDay` any of `holidays`, `births`, `events`, `birthsAfter` a year or `null` for any, and `triviaCategories` [Open Trivia DB category ids](https://opentdb.com/api_category.php). Today's online items: `GET /api/tidbits`.
 
 ### Appearance
 

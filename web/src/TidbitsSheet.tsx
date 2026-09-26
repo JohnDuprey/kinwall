@@ -60,6 +60,16 @@ export default function TidbitsSheet({ value, onClose, onSave }: { value: Tidbit
               {ON_THIS_DAY.map(k => chip(t.onThisDay.includes(k.key), k.label, () => setT(x => ({ ...x, onThisDay: toggle(x.onThisDay, k.key) }))))}
             </div>
             {t.onThisDay.length === 0 && <p className="settings-row-sub">Pick at least one.</p>}
+            {t.onThisDay.includes('births') && (
+              <div className="settings-row">
+                <label className="settings-row-label" htmlFor="births-after">Birthdays of people born</label>
+                <select id="births-after" className="settings-select" value={t.birthsAfter ?? ''}
+                  onChange={e => { const v = e.target.value; setT(x => ({ ...x, birthsAfter: v === '' ? null : Number(v) })) }}>
+                  {[1800, 1900, 1950, 1970, 1990].map(y => <option key={y} value={y}>Since {y}</option>)}
+                  <option value="">Any time</option>
+                </select>
+              </div>
+            )}
             {t.onThisDay.includes('events') && <p className="settings-row-sub">History leaves out wars, disasters and crimes, but it’s the least kid-proof of the three.</p>}
           </>}
           {s.key === 'trivia' && on('trivia') && <>

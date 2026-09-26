@@ -109,6 +109,7 @@ export const TidbitSettingsSchema = z
     sources: z.array(z.enum(TIDBIT_SOURCES)).max(TIDBIT_SOURCES.length), // [] = no card on the Board
     factCategories: z.array(z.enum(FACT_CATEGORIES)).max(FACT_CATEGORIES.length), // built-in facts; [] = every category
     onThisDay: z.array(z.enum(ON_THIS_DAY_KINDS)).min(1).max(ON_THIS_DAY_KINDS.length), // Wikipedia's On this day
+    birthsAfter: z.number().int().min(0).max(2100).nullable(), // birthdays only for people born in or after this year; null = any
     triviaCategories: z.array(z.number().int().min(9).max(32)).min(1).max(24), // Open Trivia DB category ids
     triviaDifficulty: z.enum(['easy', 'medium', 'hard', 'any']),
   })

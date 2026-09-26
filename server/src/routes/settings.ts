@@ -75,6 +75,7 @@ export const DEFAULT_TIDBITS: z.infer<typeof TidbitSettingsSchema> = {
   sources: ['quotes', 'facts'], // the online sources are opt-in: the server only reaches out once a family asks it to
   factCategories: [],
   onThisDay: ['holidays', 'births'],
+  birthsAfter: 1900,
   triviaCategories: [27, 17, 22, 9], // Animals, Science & Nature, Geography, General Knowledge
   triviaDifficulty: 'easy',
 };

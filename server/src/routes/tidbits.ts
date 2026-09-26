@@ -55,13 +55,14 @@ const GRIM = /\b(?:kill(?:s|ed|ing)?|dead|deaths?|dies|died|murder\w*|massacres?
 const FEAST = /feast day|liturgical|commemoration/i;
 const MAX_LEN = 220;
 
-export function shapeOnThisDay(feed: OtdFeed | null, kinds: readonly string[]): Tidbits['onThisDay'] {
+export function shapeOnThisDay(feed: OtdFeed | null, kinds: readonly string[], birthsAfter: number | null = null): Tidbits['onThisDay'] {
   if (!feed) return [];
   const pick = (kind: 'holidays' | 'births' | 'events', items: OtdItem[] | undefined) => {
     const ok = (items ?? [])
       .filter((i): i is OtdItem & { text: string } => typeof i.text === 'string' && !i.text.includes('\n') && i.text.length <= MAX_LEN)
       .map((i) => ({ ...i, text: i.text.replace(/\s*\((?:died|d\.) [^)]*\)\s*$/, '') })) // "(died 1978)" on births: not needed, and it's no fun on a wall
-      .filter((i) => !GRIM.test(i.text) && (kind !== 'holidays' || !FEAST.test(i.text)));
+      .filter((i) => !GRIM.test(i.text) && (kind !== 'holidays' || !FEAST.test(i.text)))
+      .filter((i) => kind !== 'births' || birthsAfter === null || (typeof i.year === 'number' && i.year >= birthsAfter));
     // Births run to hundreds: take 12 spread evenly through the list rather than the newest 12.
     const step = Math.max(1, ok.length / 12);
     const chosen = Array.from({ length: Math.min(12, ok.length) }, (_, n) => ok[Math.floor(n * step)]);
@@ -111,7 +112,7 @@ export async function getTidbits(db: KinwallDb, now = new Date()): Promise<Tidbi
       const slim = (l?: OtdItem[]) => (l ?? []).map((i) => ({ text: i.text, year: i.year })); // pages carry a lot we don't keep
       return { holidays: slim(f.holidays), births: slim(f.births), events: slim(f.events), selected: slim(f.selected) };
     });
-    out.onThisDay = shapeOnThisDay(feed, t.onThisDay);
+    out.onThisDay = shapeOnThisDay(feed, t.onThisDay, t.birthsAfter);
   }
 
   if (t.sources.includes('trivia')) {
