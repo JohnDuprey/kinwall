@@ -3,6 +3,9 @@
 
 export type ThemeMode = 'light' | 'dark' | 'auto' | 'scheduled'
 export type BackgroundLight = 'warm' | 'white' | 'gray' | 'sage'
+/** A skin id from skins.ts, or 'seasonal' (the scheme follows the date). */
+export type ColorScheme = 'meadow' | 'autumn' | 'winter' | 'spring' | 'summer' | 'ocean' | 'midnight' | 'lavender' | 'harvest' | 'festive' | 'seasonal'
+export type CustomColors = { accent?: string; bg?: string; card?: string; text?: string }
 export type BackgroundDark = 'cocoa' | 'charcoal' | 'midnight'
 export type TextScale = 's' | 'm' | 'l' | 'xl'
 export type Density = 'comfortable' | 'compact'
@@ -18,7 +21,9 @@ export interface Settings {
   darkTo: string // HH:MM, household timezone
   quietFrom: string | null // HH:MM; both null = no quiet hours (paired displays only)
   quietTo: string | null
-  accent: string // hex
+  accent: string // hex; DEFAULT_ACCENT (useTheme.ts) = the color scheme's own accent
+  colorScheme: ColorScheme
+  customColors: Omit<CustomColors, 'accent'> | null // household surfaces over the scheme
   backgroundLight: BackgroundLight
   backgroundDark: BackgroundDark
   textScale: TextScale
@@ -37,7 +42,7 @@ export interface WeatherLocation { name: string; lat: number; lon: number; count
 export interface GeocodeResult extends WeatherLocation { label: string }
 
 /** Subset of Settings the pre-pairing screen can read with no key — see GET /api/appearance. */
-export type Appearance = Pick<Settings, 'themeMode' | 'darkFrom' | 'darkTo' | 'accent' | 'backgroundLight' | 'backgroundDark' | 'textScale' | 'density'>
+export type Appearance = Pick<Settings, 'themeMode' | 'darkFrom' | 'darkTo' | 'accent' | 'colorScheme' | 'customColors' | 'backgroundLight' | 'backgroundDark' | 'textScale' | 'density'>
 
 export interface Member {
   id: string
@@ -419,32 +424,6 @@ export const MEMBER_PALETTE = [
 export const MEMBER_EMOJI = ['🦊', '🐻', '🐱', '🐶', '🐰', '🦁', '🐼', '🦄', '🐨', '🐵']
 
 export const CATEGORY_EMOJI = ['🎂', '🏥', '⚽', '🏫', '✈️', '🎉', '🎵', '📅', '❤️', '⭐']
-
-// 6-8 accent presets incl. the current default orange. Custom accents come from a native
-// <input type="color"> in Settings, so this list stays short.
-export const ACCENT_PRESETS = [
-  '#FF9E7A', // current default orange
-  '#FF6B6B', // coral red
-  '#FFD166', // amber
-  '#6FCF97', // green
-  '#4DA3FF', // blue
-  '#B39DFF', // violet
-  '#FF8FA3', // pink
-  '#2FBFB0', // teal
-]
-
-export const BACKGROUND_LIGHT_PRESETS: { key: 'warm' | 'white' | 'gray' | 'sage'; label: string; preview: string }[] = [
-  { key: 'warm', label: 'Warm', preview: '#FFFBF5' },
-  { key: 'white', label: 'White', preview: '#FFFFFF' },
-  { key: 'gray', label: 'Gray', preview: '#F1F2F4' },
-  { key: 'sage', label: 'Sage', preview: '#F3F6F1' },
-]
-
-export const BACKGROUND_DARK_PRESETS: { key: 'cocoa' | 'charcoal' | 'midnight'; label: string; preview: string }[] = [
-  { key: 'cocoa', label: 'Cocoa', preview: '#1C1712' },
-  { key: 'charcoal', label: 'Charcoal', preview: '#191A1C' },
-  { key: 'midnight', label: 'Midnight', preview: '#0F1420' },
-]
 
 /** First palette color not already in use (by members/calendars), so a new calendar with no
  * explicit color doesn't fall back to the server's grey #888. Cycles back to the first color

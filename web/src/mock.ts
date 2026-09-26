@@ -22,6 +22,8 @@ const settings: Settings = {
   quietFrom: null,
   quietTo: null,
   accent: '#FF9E7A',
+  colorScheme: 'meadow',
+  customColors: null,
   backgroundLight: 'warm',
   backgroundDark: 'cocoa',
   textScale: 'm',

@@ -71,7 +71,7 @@ test('appearance: GET /api/appearance works with no auth and returns only appear
   const body = await res.json() as any;
   assert.equal(body.accent, '#123ABC');
   assert.equal(body.density, 'compact');
-  assert.deepEqual(Object.keys(body).sort(), ['accent', 'backgroundDark', 'backgroundLight', 'darkFrom', 'darkTo', 'density', 'textScale', 'themeMode']);
+  assert.deepEqual(Object.keys(body).sort(), ['accent', 'backgroundDark', 'backgroundLight', 'colorScheme', 'customColors', 'darkFrom', 'darkTo', 'density', 'textScale', 'themeMode']);
   assert.equal(body.familyName, undefined);
 });
 
@@ -133,4 +133,29 @@ test('chores: emoji validation rejects non-emoji', async () => {
   assert.equal(bad.status, 400);
   const ok = await request('/api/chores', { method: 'POST', body: JSON.stringify({ title: 'Dishes', emoji: '🍽️' }) });
   assert.equal(ok.status, 201);
+});
+
+const json = async <T,>(res: Response) => (await res.json()) as T;
+
+test('household color scheme and custom colors: defaults, round-trip, clearing and validation', async () => {
+  const env = makeEnv();
+  const request = makeApp(env);
+  let body = await json<any>(await request('/api/settings'));
+  assert.equal(body.colorScheme, 'meadow');
+  assert.equal(body.customColors, null);
+
+  body = await json<any>(await request('/api/settings', { method: 'PATCH', body: JSON.stringify({ colorScheme: 'autumn', customColors: { bg: '#112233', text: '#EEEEEE' } }) }));
+  assert.equal(body.colorScheme, 'autumn');
+  assert.deepEqual(body.customColors, { bg: '#112233', text: '#EEEEEE' });
+  const pub = await json<any>(await request('/api/appearance'));
+  assert.equal(pub.colorScheme, 'autumn');
+  assert.deepEqual(pub.customColors, { bg: '#112233', text: '#EEEEEE' });
+
+  body = await json<any>(await request('/api/settings', { method: 'PATCH', body: JSON.stringify({ colorScheme: 'seasonal', customColors: null }) }));
+  assert.equal(body.colorScheme, 'seasonal');
+  assert.equal(body.customColors, null);
+
+  assert.equal((await request('/api/settings', { method: 'PATCH', body: JSON.stringify({ colorScheme: 'neon' }) })).status, 400);
+  assert.equal((await request('/api/settings', { method: 'PATCH', body: JSON.stringify({ customColors: { bg: 'red' } }) })).status, 400);
+  assert.equal((await request('/api/settings', { method: 'PATCH', body: JSON.stringify({ customColors: { accent: '#123456' } }) })).status, 400);
 });

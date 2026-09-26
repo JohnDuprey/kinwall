@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import type { Appearance, DeviceDensity, Settings, TextScale } from './types.ts'
+import type { Appearance, ColorScheme, CustomColors, DeviceDensity, Settings, TextScale } from './types.ts'
 import { accentFill, readableOn } from './color.ts'
 import { api, getKey } from './api.ts'
-import { getSkin, seasonalSkinId, tokensFor } from './skins.ts'
+import { DEFAULT_SKIN_ID, getSkin, seasonalSkinId, tokensFor } from './skins.ts'
 
 const SCALE: Record<TextScale, string> = { s: '0.9', m: '1', l: '1.15', xl: '1.3' }
 
@@ -15,7 +15,7 @@ const DEVICE_EVENT = 'kinwall:device-appearance'
 // so every per-device choice lives in one place and one event re-renders whoever reads it.
 export type FontChoice = 'hyperlegible' | 'dyslexia'
 export type LockedView = 'week' | 'day' | 'month' | 'schedule' | 'board'
-export type DeviceAppearance = Partial<Pick<Appearance, 'themeMode' | 'textScale' | 'accent' | 'backgroundLight' | 'backgroundDark'>> & {
+export type DeviceAppearance = Partial<Pick<Appearance, 'themeMode' | 'textScale'>> & {
   density?: DeviceDensity // 'icons' (icon-first) exists per device only
   lowStim?: boolean // flat, calm, no motion - see [data-lowstim] in styles.css
   font?: FontChoice // absent = Nunito
@@ -29,9 +29,25 @@ export type DeviceAppearance = Partial<Pick<Appearance, 'themeMode' | 'textScale
   saverEvery?: number // minutes between pictures; absent = 5
   saverBright?: 'medium' // absent = low
   saverClock?: false // corner clock; absent = shown
-  skin?: string // preset id from skins.ts; absent = meadow (today's look)
-  seasonal?: boolean // skin follows the date (see skins.ts's seasonalSkinId) instead of `skin`
-  custom?: { accent?: string; bg?: string; card?: string; text?: string } // hex, layered on the skin; ignored in low-stim
+  skin?: ColorScheme // this device's color scheme (a skins.ts id or 'seasonal'); absent = the household's
+  custom?: CustomColors // hex, layered on the scheme; surfaces ignored in low-stim
+}
+
+/** The household accent's default: it means "use the color scheme's own accent". */
+export const DEFAULT_ACCENT = '#FF9E7A'
+
+/** The colors in effect, in one place for the theme and the Settings pickers. A device that picks
+ * its own scheme starts from that scheme alone; a device that follows the household's scheme also
+ * gets the household's custom colors, and its own custom colors go on top of those. */
+export function resolveColors(household: Pick<Appearance, 'colorScheme' | 'customColors' | 'accent'>, device: DeviceAppearance) {
+  const scheme: ColorScheme = device.skin ?? household.colorScheme ?? 'meadow'
+  const skinId = scheme === 'seasonal' ? seasonalSkinId() : scheme
+  const householdCustom: CustomColors = {
+    ...(household.customColors ?? {}),
+    ...(household.accent && household.accent.toUpperCase() !== DEFAULT_ACCENT ? { accent: household.accent } : {}),
+  }
+  const custom: CustomColors = device.skin ? { ...(device.custom ?? {}) } : { ...householdCustom, ...(device.custom ?? {}) }
+  return { scheme, skinId, custom, householdCustom }
 }
 export type SaverSource = 'drawings' | 'photos' | 'art' | 'nature'
 
@@ -39,6 +55,13 @@ export function readDeviceAppearance(): DeviceAppearance {
   try {
     const v = JSON.parse(localStorage.getItem(DEVICE_KEY) || '{}')
     if (!v || typeof v !== 'object') return {}
+    // Older builds: `seasonal: true` beside the skin, and accent / background overrides from before
+    // color schemes. The accent carries over as a custom accent; the background presets had no
+    // equivalent on a device and are dropped. The next save writes the new shape.
+    if (v.seasonal) v.skin = 'seasonal'
+    delete v.seasonal
+    if (typeof v.accent === 'string') v.custom = { accent: v.accent, ...(v.custom ?? {}) }
+    delete v.accent; delete v.backgroundLight; delete v.backgroundDark
     // Older builds stored one screensaver source as `saver`; the next save writes the new shape.
     if ('saver' in v) {
       if (!v.saverSources && ['drawings', 'art', 'nature'].includes(v.saver)) v.saverSources = [v.saver]
@@ -121,25 +144,23 @@ function applyAppearance(household: Appearance, device: DeviceAppearance) {
     root.setAttribute('data-bg', dark ? a.backgroundDark : a.backgroundLight)
     root.setAttribute('data-density', a.density)
 
-    // Skin: a device-only preset palette (skins.ts) layered over the household look. Absent skin
-    // (and absent seasonal) leaves --bg/--card/--text/etc. untouched, so the existing
-    // backgroundLight/backgroundDark presets above keep working exactly as before. Custom colors
-    // (also device-only) layer on top of the skin, but are skipped in low-stim mode, which wants a
-    // calm, pre-vetted palette rather than an arbitrary user pick.
-    const skinId = device.seasonal ? seasonalSkinId() : device.skin
-    const skin = skinId ? getSkin(skinId) : null
-    const custom = a.lowStim ? undefined : device.custom
-    const t = skin ? tokensFor(skin, dark) : null
+    // Color scheme (skins.ts) and custom colors, household or this device's (resolveColors).
+    // Meadow is styles.css's own palette, so it sets no tokens and the legacy household background
+    // presets above still apply under it. Custom surfaces are skipped in low-stim mode, which
+    // wants a calm, pre-vetted palette; a custom accent still applies.
+    const { skinId, custom: picked } = resolveColors(household, device)
+    const t = skinId !== DEFAULT_SKIN_ID ? tokensFor(getSkin(skinId), dark) : null
+    const custom = a.lowStim ? { accent: picked.accent } : picked
     const setOrClear = (prop: string, val?: string) => { if (val) root.style.setProperty(prop, val); else root.style.removeProperty(prop) }
-    setOrClear('--bg', t ? (custom?.bg || t.bg) : undefined)
+    setOrClear('--bg', custom.bg || t?.bg)
     setOrClear('--bg-alt', t?.bgAlt)
-    setOrClear('--card', t ? (custom?.card || t.card) : undefined)
-    setOrClear('--card-soft', t ? 'color-mix(in srgb, var(--card) 90%, var(--bg))' : undefined)
+    setOrClear('--card', custom.card || t?.card)
+    setOrClear('--card-soft', t || custom.bg || custom.card ? 'color-mix(in srgb, var(--card) 90%, var(--bg))' : undefined)
     setOrClear('--border', t?.border)
-    setOrClear('--text', t ? (custom?.text || t.text) : undefined)
+    setOrClear('--text', custom.text || t?.text)
     setOrClear('--text-dim', t?.textDim)
 
-    const accent = custom?.accent || device.accent || t?.accent || a.accent
+    const accent = custom.accent || t?.accent || DEFAULT_ACCENT
     root.style.setProperty('--accent', accent)
     root.style.setProperty('--accent-strong', accentFill(accent))
     root.style.setProperty('--accent-ink', '#ffffff')
@@ -170,7 +191,7 @@ function applyAppearance(household: Appearance, device: DeviceAppearance) {
     const id = setInterval(apply, 60000)
     cleanups.push(() => clearInterval(id))
   }
-  if (device.seasonal) {
+  if (resolveColors(household, device).scheme === 'seasonal') {
     // The date-driven skin only needs to re-check once a day, not every minute like scheduled dark mode.
     const id = setInterval(apply, 60 * 60 * 1000)
     cleanups.push(() => clearInterval(id))
@@ -178,10 +199,9 @@ function applyAppearance(household: Appearance, device: DeviceAppearance) {
   return cleanups.length ? () => cleanups.forEach(fn => fn()) : undefined
 }
 
-/** Applies household theming (mode -> data-theme, background preset -> data-bg, density,
- * accent + its computed ink, text scale) to <html> from ONE place, so the pairing screen, setup
- * wizard and app all render the same way. Also applies this device's skin (skins.ts) and any custom
- * colors on top. Re-evaluates every minute in 'scheduled' mode, hourly when the skin follows the
+/** Applies the household look (mode -> data-theme, color scheme and custom colors, density, text
+ * scale) with this device's overrides to <html> from ONE place, so the pairing screen, setup
+ * wizard and app all render the same way. Re-evaluates every minute in 'scheduled' mode, hourly when the skin follows the
  * season, and on prefers-color-scheme change in 'auto' mode. Before `settings` is available (pairing gate / setup
  * wizard, no key stored yet) it falls back to GET /api/appearance, the same no-auth subset of
  * fields, so the wall doesn't show default colors until paired. Once a key exists (mid-wizard, or

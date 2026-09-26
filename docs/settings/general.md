@@ -15,7 +15,7 @@ Every device sees this tab. The Kinwall version ("Kinwall v…") shows at the bo
 
 ## Appearance
 
-Mode, dark schedule, accent color, backgrounds, text size, density and **Quiet hours (displays)**. See [Appearance](../using/appearance.md) and [Quiet hours](../using/quiet-hours.md).
+Mode, dark schedule, color scheme, custom colors, text size, density and **Quiet hours (displays)**. See [Appearance](../using/appearance.md) and [Quiet hours](../using/quiet-hours.md).
 
 ## Notifications
 

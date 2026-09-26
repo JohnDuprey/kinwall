@@ -3,7 +3,7 @@ import { createRoute, type z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
 import { emit } from '../bus.ts';
-import { ErrorSchema, LocationSchema, SettingsPatchSchema, SettingsSchema } from '../schemas.ts';
+import { COLOR_SCHEMES, ErrorSchema, LocationSchema, SettingsPatchSchema, SettingsSchema } from '../schemas.ts';
 
 export const settingsRoutes = createRouter();
 
@@ -14,6 +14,7 @@ const DEFAULTS: Record<string, string> = {
   darkFrom: '20:00',
   darkTo: '07:00',
   accent: '#FF9E7A',
+  colorScheme: 'meadow',
   backgroundLight: 'warm',
   backgroundDark: 'cocoa',
   textScale: 'm',
@@ -43,6 +44,8 @@ export async function readSettings(db: KinwallDb) {
     quietFrom: map.get('quietFrom') || null,
     quietTo: map.get('quietTo') || null,
     accent: map.get('accent') ?? DEFAULTS.accent,
+    colorScheme: parseColorScheme(map.get('colorScheme')),
+    customColors: parseCustomColors(map.get('customColors')),
     backgroundLight: (map.get('backgroundLight') ?? DEFAULTS.backgroundLight) as 'warm' | 'white' | 'gray' | 'sage',
     backgroundDark: (map.get('backgroundDark') ?? DEFAULTS.backgroundDark) as 'cocoa' | 'charcoal' | 'midnight',
     textScale: (map.get('textScale') ?? DEFAULTS.textScale) as 's' | 'm' | 'l' | 'xl',
@@ -63,6 +66,23 @@ const FAHRENHEIT_COUNTRIES = ['US', 'LR', 'MM', 'BS', 'BZ', 'KY', 'PW', 'FM', 'M
 function defaultUnit(location: Location | null, tz: string | undefined): 'celsius' | 'fahrenheit' {
   if (location?.countryCode) return FAHRENHEIT_COUNTRIES.includes(location.countryCode.toUpperCase()) ? 'fahrenheit' : 'celsius';
   return /^(America\/(New_York|Chicago|Denver|Los_Angeles|Phoenix|Anchorage|Juneau|Detroit|Boise|Indiana|Kentucky|North_Dakota)|Pacific\/Honolulu|US\/)/.test(tz ?? '') ? 'fahrenheit' : 'celsius';
+}
+
+function parseColorScheme(raw: string | undefined): (typeof COLOR_SCHEMES)[number] {
+  return (COLOR_SCHEMES as readonly string[]).includes(raw ?? '') ? (raw as (typeof COLOR_SCHEMES)[number]) : 'meadow';
+}
+
+// Stored as JSON; an empty object or unreadable value reads back as null (no custom colors).
+function parseCustomColors(raw: string | undefined): { bg?: string; card?: string; text?: string } | null {
+  if (!raw) return null;
+  try {
+    const v = JSON.parse(raw);
+    const out: { bg?: string; card?: string; text?: string } = {};
+    for (const k of ['bg', 'card', 'text'] as const) if (typeof v?.[k] === 'string' && /^#[0-9a-fA-F]{6}$/.test(v[k])) out[k] = v[k];
+    return Object.keys(out).length ? out : null;
+  } catch {
+    return null;
+  }
 }
 
 type Location = z.infer<typeof LocationSchema>;

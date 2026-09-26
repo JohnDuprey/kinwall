@@ -5,6 +5,12 @@ import { isSingleEmoji, isValidAvatar } from './emoji.ts';
 export const ErrorSchema = z.object({ error: z.string() }).openapi('Error');
 
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+// The web app's color schemes (web/src/skins.ts), plus 'seasonal' (the scheme follows the date).
+export const COLOR_SCHEMES = ['meadow', 'autumn', 'winter', 'spring', 'summer', 'ocean', 'midnight', 'lavender', 'harvest', 'festive', 'seasonal'] as const;
+const hex = () => z.string().regex(HEX_COLOR_RE, 'must be a hex color like #RRGGBB');
+// Household custom colors layered on the scheme. The accent lives in `accent` (its default means
+// "use the scheme's accent"), so only the surfaces are here.
+const CustomColorsSchema = z.object({ bg: hex().optional(), card: hex().optional(), text: hex().optional() }).strict();
 const HHMM_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 export const AvatarSchema = z.string().refine(isValidAvatar, 'must be a single emoji or a 1-2 letter initial');
@@ -88,7 +94,10 @@ export const SettingsSchema = z
     // Quiet hours for paired displays (HH:MM, household-local). Both null = off.
     quietFrom: z.string().nullable(),
     quietTo: z.string().nullable(),
-    accent: z.string(),
+    accent: z.string(), // '#FF9E7A' (the default) = the color scheme's own accent; anything else is a custom accent
+    colorScheme: z.enum(COLOR_SCHEMES),
+    customColors: CustomColorsSchema.nullable(),
+    // Legacy background presets: still applied under the Meadow scheme, no longer offered in the app.
     backgroundLight: z.enum(['warm', 'white', 'gray', 'sage']),
     backgroundDark: z.enum(['cocoa', 'charcoal', 'midnight']),
     textScale: z.enum(['s', 'm', 'l', 'xl']),
@@ -116,6 +125,8 @@ export const SettingsPatchSchema = z
     quietFrom: z.union([z.string().regex(HHMM_RE, 'must be HH:MM'), z.literal(''), z.null()]).optional(),
     quietTo: z.union([z.string().regex(HHMM_RE, 'must be HH:MM'), z.literal(''), z.null()]).optional(),
     accent: z.string().regex(HEX_COLOR_RE, 'must be a hex color like #RRGGBB').optional(),
+    colorScheme: z.enum(COLOR_SCHEMES).optional(),
+    customColors: CustomColorsSchema.nullable().optional(),
     backgroundLight: z.enum(['warm', 'white', 'gray', 'sage']).optional(),
     backgroundDark: z.enum(['cocoa', 'charcoal', 'midnight']).optional(),
     textScale: z.enum(['s', 'm', 'l', 'xl']).optional(),
@@ -143,6 +154,8 @@ export const AppearanceSchema = SettingsSchema.pick({
   darkFrom: true,
   darkTo: true,
   accent: true,
+  colorScheme: true,
+  customColors: true,
   backgroundLight: true,
   backgroundDark: true,
   textScale: true,

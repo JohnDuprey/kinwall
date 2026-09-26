@@ -30,7 +30,7 @@ Dragging is never the only way to do something: sheets have a Close button, the 
 
 ## Seeing the screen
 
-- **Contrast**: body text, secondary ("dim") text, links, buttons and error text meet 4.5:1 on every background preset, light and dark. Buttons filled with your accent color are deepened automatically so their white text stays at 4.5:1, whatever accent you pick.
+- **Contrast**: body text, secondary ("dim") text, links, buttons and error text meet 4.5:1 on every color scheme, light and dark. Buttons filled with your accent color are deepened automatically so their white text stays at 4.5:1, whatever accent you pick.
 - **Not color alone**: events show the family member's avatar or initial as well as their color; selected chips carry a check mark; the current page's tab has a bar as well as a color; done chores and list items show a tick.
 - **Increased contrast**: with your device's "Increase contrast" setting on, dim text becomes full-strength, borders and dividers get stronger, and links are underlined.
 - **Text size and zoom**: pinch-zoom is never blocked. Settings → Appearance → Text size (or per device, under This display) scales all text up to 130%, and layouts hold at 200% browser zoom. Text never goes below 16px in form fields.

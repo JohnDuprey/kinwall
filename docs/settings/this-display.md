@@ -5,8 +5,8 @@ The last section of **Settings → General**. Everything here applies to **this 
 | Item | Notes |
 |---|---|
 | **Paired as *name*** | Shown on paired displays. |
-| **Appearance on this device** | Overrides for Mode, Text size, Density, Accent, Light bg and Dark bg. Leave any of them on **Household** to follow the family setting. See [Appearance](../using/appearance.md#per-device-overrides). |
-| **Color scheme** | Pick a preset skin (Meadow, Autumn, Winter, Spring, Summer, Ocean, Midnight, Lavender, Harvest, Festive), turn on **Follow the seasons**, or open **Custom colors** to override accent/background/card/text with your own hex values. Per device only. See [Appearance → Color schemes](../using/appearance.md#color-schemes). |
+| **Appearance on this device** | Overrides for Mode, Color scheme, Text size and Density. Leave any of them on **Household** to follow the family setting. See [Appearance](../using/appearance.md#per-device-overrides). |
+| **Color scheme** | **Household · *scheme*** follows the family's scheme. Or pick Seasonal or a skin (Meadow, Autumn, Winter, Spring, Summer, Ocean, Midnight, Lavender, Harvest, Festive) for this device, and open **Custom colors** to set your own accent, background, card and text. **Use household colors** goes back to the family's. See [Appearance → Color schemes](../using/appearance.md#color-schemes). |
 | **Navigation position** | **Auto**, **Bottom**, **Left** or **Right**: a bottom tab bar or a side rail. "Phones always use the bottom bar." |
 | **Clear cache and reload** | "Loads the latest version of Kinwall if this device seems stuck on an old one. You stay signed in." It clears caches, asks the service worker to update (without removing it, since push depends on it) and reloads from the network. |
 | **Unpair this display** | On displays. Removes the key from this device. You'll need to pair it again from an admin device. |
