@@ -116,6 +116,8 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 
 The same OAuth server signs in native apps, such as Kinwall for iPhone. Besides `https` and loopback `http` redirect addresses, registration accepts an app's own reverse-domain link scheme (RFC 8252), like `family.kinwall.app:/oauth`. Single-word schemes such as `javascript:` or `data:` are always refused. The consent screen then says you'll return to "the app".
 
+On the consent screen, an admin can sign in with a passkey, a recovery code, or an admin API key. Someone who signs in without a passkey is offered **Create a passkey** before approving, so next time is quicker. On a server that hasn't been set up yet, the consent link runs the setup wizard first, then continues to the approval.
+
 ## Output schemas
 
 Every tool declares an **output schema** that matches the REST response shapes (`EventInstance`, `ChoreDay`, `ListDetail`, `LeaderboardEntry`…). A successful call returns:

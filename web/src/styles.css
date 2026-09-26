@@ -1214,6 +1214,12 @@ button {
 :root[data-native] .header-phone { padding-top: calc(var(--safe-t) + 4px); }
 :root[data-native] .toast.update-banner { top: calc(var(--safe-t) + 8px); }
 @media (max-width: 600px) { :root[data-native] .save-indicator { top: calc(var(--safe-t) + 62px); } } /* below the phone header row, clear of the family button */
+.authorize-more { margin-top: 14px; text-align: left; }
+.authorize-more summary { cursor: pointer; font-weight: 700; color: var(--accent-text); min-height: 44px; display: flex; align-items: center; }
+.authorize-passkey { display: flex; flex-direction: column; gap: 6px; text-align: left; padding: 12px 14px; margin: 4px 0 14px; border-radius: var(--radius-sm); background: var(--bg-alt); }
+.authorize-passkey span { font-size: 0.875rem; color: var(--text-dim); font-weight: 600; }
+.authorize-passkey-actions { display: flex; align-items: center; gap: 12px; margin-top: 4px; }
+.authorize-passkey-done { color: var(--success); font-weight: 700; }
 .gate-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 20px; margin-top: 12px; }
 .gate-note { margin: 10px 0 0; font-size: 0.875rem; color: var(--text-dim); }
 .spinner {
