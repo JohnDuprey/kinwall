@@ -8,7 +8,7 @@ import type { Meal, MealInput, Recipe, RecipeInput, ShoppingProjection } from '.
 import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginCatalogEntry,
   StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota, Reward, Redemption,
   Account, ApiKey, AppNotification, Appearance, CalendarEntry, Category, Chore, ChoreDay, PendingApproval, EventInstance, LeaderboardEntry, LeaderboardPeriod, List,
-  GeocodeResult, HostEvent, ImportResult, ListDetail, ListGroup, ListItem, ListItemInput, Member, Me, Note, NoteTarget, Passkey, TrackerEntry, TrackerInput, TrackerKind, Providers, PushSubscription, PushSubscriptionPrefs, RemoteCalendar, Settings, Snapshot, Board, Webhook, WebhookWithSecret,
+  GeocodeResult, HostEvent, ImportResult, ListDetail, ListGroup, ListItem, ListItemInput, ListItemPatch, Member, Me, Note, NoteTarget, Passkey, TrackerEntry, TrackerInput, TrackerKind, Providers, PushSubscription, PushSubscriptionPrefs, RemoteCalendar, Settings, Snapshot, Board, Webhook, WebhookWithSecret,
 } from './types.ts'
 
 /** Demo build: every call is served from mock.ts in memory - no server, nothing persists. */
@@ -397,7 +397,7 @@ export const api = {
   deleteList: (id: string) => MOCK ? mock.deleteList(id) : del(`api/lists/${id}`),
   addListItems: (listId: string, items: ListItemInput | ListItemInput[]) =>
     MOCK ? mock.addListItems(listId, items) : post<ListItem[]>(`api/lists/${listId}/items`, items),
-  updateListItem: (listId: string, itemId: string, body: Partial<ListItem>) =>
+  updateListItem: (listId: string, itemId: string, body: ListItemPatch) =>
     MOCK ? mock.updateListItem(listId, itemId, body) : patch<ListItem>(`api/lists/${listId}/items/${itemId}`, body),
   getEventItems: (eventId: string) =>
     MOCK ? mock.getEventItems(eventId) : get<(ListItem & { listName: string })[]>(`api/events/${encodeURIComponent(eventId)}/items`),
@@ -415,7 +415,7 @@ export const api = {
   // Idempotent on replay: a client-made id for a new item, "done: true/false" rather than a toggle.
   queueAddListItem: async (listId: string, input: ListItemInput): Promise<Op | null> =>
     MOCK ? (await mock.addListItems(listId, input), null) : queue('POST', `api/lists/${listId}/items`, { ...input, id: crypto.randomUUID() }),
-  queueUpdateListItem: async (listId: string, itemId: string, body: Partial<ListItem>): Promise<Op | null> =>
+  queueUpdateListItem: async (listId: string, itemId: string, body: ListItemPatch): Promise<Op | null> =>
     MOCK ? (await mock.updateListItem(listId, itemId, body), null) : queue('PATCH', `api/lists/${listId}/items/${itemId}`, body),
   queueDeleteListItem: async (listId: string, itemId: string): Promise<Op | null> =>
     MOCK ? (await mock.deleteListItem(listId, itemId), null) : queue('DELETE', `api/lists/${listId}/items/${itemId}`),
@@ -424,7 +424,8 @@ export const api = {
   queueUncompleteChore: async (id: string, date: string): Promise<unknown> =>
     MOCK ? mock.uncompleteChore(id, date) : queue('DELETE', `api/chores/${id}/complete?date=${date}`),
   // Checkout / Reset: only itemIds (still checked) when given, so a tick made meanwhile isn't swept up.
-  clearListCompleted: (listId: string, itemIds?: string[]) => MOCK ? mock.clearListCompleted(listId, itemIds) : post<{ deleted: number }>(`api/lists/${listId}/clear-completed`, itemIds ? { itemIds } : undefined),
+  // store: Checkout at the end of a shopping trip - remembered as where these were last bought.
+  clearListCompleted: (listId: string, itemIds?: string[], store?: string) => MOCK ? mock.clearListCompleted(listId, itemIds, store) : post<{ deleted: number }>(`api/lists/${listId}/clear-completed`, itemIds ? { itemIds, ...(store ? { store } : {}) } : undefined),
   resetList: (listId: string, itemIds?: string[]) => MOCK ? mock.resetList(listId, itemIds) : post<{ reset: number }>(`api/lists/${listId}/reset`, itemIds ? { itemIds } : undefined),
   // Stores & categories: rename (to) or remove (to: null) a value everywhere; a store's aisle order.
   renameListValue: (body: { field: 'store' | 'category' | 'aisle'; from: string; to: string | null; store?: string | null }) =>

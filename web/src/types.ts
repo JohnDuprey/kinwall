@@ -480,6 +480,7 @@ export interface ListItem {
   stepsTotal: number
   noteCount?: number // notes in this item's thread (list detail only)
   meals?: string[] // planned meals it was added for (list detail only)
+  places?: { store: string | null; aisle: string | null }[] // where it's been kept, per store, newest first (shopping list detail only)
   pending?: boolean // client only: changed on this device, not on the server yet (offline)
 }
 
@@ -575,6 +576,10 @@ export interface ListItemInput {
   priority?: ListItemPriority
   steps?: string[] // step titles, in order
 }
+
+/** PATCH /api/lists/{id}/items/{itemId}. aisleStore: on a shopping trip, the store `aisle` is at
+ * (remembered there; the item takes it only if planned for that store or for anywhere). */
+export type ListItemPatch = Partial<ListItem> & { aisleStore?: string }
 
 export const LIST_EMOJI = ['📝', '🛒', '✅', '🧳', '🎒', '📋', '🧺', '🍽️', '🧹', '🎁']
 

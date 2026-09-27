@@ -1,7 +1,7 @@
 // Dev-only in-memory fixture, used when VITE_MOCK=1. Excluded from prod by the env check in api.ts.
 import type { OnlineTidbits, Plugin, PluginCatalogEntry,
   Account, ApiKey, AppNotification, CalendarEntry, Category, Chore, ChoreDay, EventInstance, LeaderboardEntry, LeaderboardPeriod, List, ListGroup,
-  Photo, PhotoQuota, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, ListItem, ListItemInput, ListItemStep, Member, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption,
+  Photo, PhotoQuota, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, ListItem, ListItemInput, ListItemPatch, ListItemStep, Member, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption,
 } from './types.ts'
 import { aisleOrderMap, compareItems } from './types.ts'
 import { dateKey } from './date.ts'
@@ -247,9 +247,23 @@ let aisleOrder: { store: string | null; aisles: string[] }[] = [
 ]
 let remembered: ListItem[] = []
 const sameName = (a: string, b: string) => a.trim().toLowerCase().replace(/s$/, '') === b.trim().toLowerCase().replace(/s$/, '')
+// Where an item has been kept, per store, newest first (the server's item_memory, roughly).
+const placesOf = (title: string) => {
+  const seen = new Map<string | null, string | null>()
+  for (const i of [...listItems, ...remembered].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))) {
+    if (sameName(i.title, title) && !seen.has(i.store)) seen.set(i.store, i.aisle)
+  }
+  return [...seen].map(([store, aisle]) => ({ store, aisle }))
+}
+// The market's usual spots for things on the list that are planned for "anywhere" or the club.
+const seenAt = (title: string, store: string, aisle: string) => remembered.push(seedItem({ id: uid(), listId: '', title, notes: null, quantity: null, store, aisle, category: null, memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 0, createdAt: minsAgo(9000), updatedAt: minsAgo(9000) }))
 recomputeListCounts('l1')
 let listGroups: ListGroup[] = []
 const minsAgo = (m: number) => new Date(Date.now() - m * 60_000).toISOString()
+seenAt('Paper towels', 'Neighborhood market', 'Aisle 6')
+seenAt('Dish soap', 'Neighborhood market', 'Aisle 6')
+listItems.push(seedItem({ id: 'demo-grocery-anywhere', listId: 'l1', title: 'Dish soap', notes: null, quantity: null, store: null, category: 'Household', memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 20, createdAt: iso(), updatedAt: iso() }))
+recomputeListCounts('l1')
 let notes: Note[] = [
   { id: 'n1', targetType: 'event', targetId: 'e1', memberId: 'm1', body: 'Coach says bring a light and a dark shirt.', createdAt: minsAgo(300), updatedAt: minsAgo(300) },
   { id: 'n2', targetType: 'event', targetId: 'e1', memberId: 'm2', body: 'I can drive this week!\nPickup is by the north gate.', createdAt: minsAgo(95), updatedAt: minsAgo(40) },
@@ -607,7 +621,8 @@ export const mock = {
   getList: async (id: string) => {
     const l = lists.find(x => x.id === id); if (!l) throw new Error('not found')
     const order = aisleOrderMap({ aisleOrder })
-    const items = listItems.filter(i => i.listId === id).sort(compareItems(l.sortBy, dateKey(new Date()), { keepChecked: l.keepChecked, aisleOrder: order })).map(i => ({ ...i, noteCount: noteCount('list_item', i.id) }))
+    const items = listItems.filter(i => i.listId === id).sort(compareItems(l.sortBy, dateKey(new Date()), { keepChecked: l.keepChecked, aisleOrder: order }))
+      .map(i => ({ ...i, noteCount: noteCount('list_item', i.id), ...(l.kind === 'shopping' ? { places: placesOf(i.title) } : {}) }))
     const groups = listGroups.filter(g => g.name) // per-list groups aren't keyed by list in this fixture; kept simple for demo
     const known = [...listItems, ...remembered]
     const uniq = (v: (string | null)[]) => [...new Set(v.filter((x): x is string => !!x))].sort()
@@ -650,8 +665,14 @@ export const mock = {
     })
     listItems.push(...created); recomputeListCounts(listId); bump(); return created
   },
-  updateListItem: async (listId: string, itemId: string, patch: Partial<ListItem>) => {
+  updateListItem: async (listId: string, itemId: string, { aisleStore, ...patch }: ListItemPatch) => {
     const i = listItems.find(x => x.id === itemId && x.listId === listId); if (!i) throw new Error('not found')
+    // A trip's aisle: remembered for that store; the item takes it only if planned there or anywhere.
+    if (aisleStore && patch.aisle !== undefined) {
+      if (patch.aisle) { seenAt(i.title, aisleStore, patch.aisle); remembered.at(-1)!.updatedAt = iso() }
+      const planned = patch.store !== undefined ? patch.store : i.store
+      if (planned && planned !== aisleStore) delete patch.aisle
+    }
     if (patch.done !== undefined) {
       i.doneAt = patch.done ? new Date().toISOString() : null
       i.doneBy = patch.done ? (patch.doneBy ?? null) : null
@@ -694,10 +715,11 @@ export const mock = {
     if (i >= 0) listItems.splice(i, 1)
     recomputeListCounts(listId); bump()
   },
-  clearListCompleted: async (listId: string, itemIds?: string[]) => {
+  clearListCompleted: async (listId: string, itemIds?: string[], store?: string) => {
     const before = listItems.length
     const gone = (i: ListItem) => i.listId === listId && i.done && (!itemIds || itemIds.includes(i.id))
-    remembered.push(...listItems.filter(gone))
+    // Bought on a trip: remembered at that store, keeping the aisle known there.
+    remembered.push(...listItems.filter(gone).map(i => ({ ...i, updatedAt: iso(), ...(store ? { store, aisle: placesOf(i.title).find(p => p.store === store)?.aisle ?? null } : {}) })))
     listItems = listItems.filter(i => !gone(i))
     recomputeListCounts(listId); bump()
     return { deleted: before - listItems.length }

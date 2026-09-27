@@ -17,6 +17,7 @@ import { announce, pressable, Segmented } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
 import { CustomColorSwatch } from './ColorSwatch.tsx'
 import NotesThread from './NotesThread.tsx'
+import { aisleAt, setTripStore, tripStore, tripView } from './trip.ts'
 
 const KIND_LABEL: Record<ListKind, string> = { todo: 'To-do', shopping: 'Shopping', reusable: 'Reusable' }
 
@@ -236,9 +237,10 @@ function storeAisles(suggestions: ListDetail['suggestions'], store: string | nul
   return suggestions.aisles.filter(a => a.store === store).map(a => a.aisle).sort((a, b) => compareAisles(store, a, b, order))
 }
 
-function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisleOrder, siblingIds, upcoming, byId, onClose, onSaved }: {
+function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisleOrder, trip, siblingIds, upcoming, byId, onClose, onSaved }: {
   listId: string; item: ListItem; kind: ListKind; manual: boolean; members: Member[]
   suggestions: ListDetail['suggestions']; aisleOrder: AisleOrder
+  trip: string | null // shopping at this store: the aisle picker is this store's
   upcoming: EventInstance[]; byId: Map<string, EventInstance> // for the "Linked event" picker
   siblingIds: string[] // items in current sort order, for up/down reorder
   onClose: () => void; onSaved: () => void
@@ -250,7 +252,10 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisle
   const [notes, setNotes] = useState(item.notes ?? '')
   const [store, setStore] = useState(item.store ?? '')
   const [category, setCategory] = useState(item.category ?? '')
-  const [aisle, setAisle] = useState(item.aisle ?? '')
+  const initialAisle = (trip ? aisleAt(item, trip) : item.aisle) ?? ''
+  const [aisle, setAisle] = useState(initialAisle)
+  const aisleStore = trip ?? (store.trim() || null) // whose aisles the picker offers
+  const lastStore = item.places?.find(p => p.store)?.store // suggested, never applied for you
   const [memberId, setMemberId] = useState<string | null>(item.memberId)
   const [dueDate, setDueDate] = useState(item.dueDate ?? '')
   const [eventId, setEventId] = useState<string | null>(item.eventId)
@@ -264,7 +269,10 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisle
     if (!title.trim()) return
     const body = {
       title: title.replace(/\s+/g, ' ').trim(), quantity: quantity.trim() || null, notes: notes.trim() || null, priority,
-      ...(kind === 'shopping' ? { store: store.trim() || null, category: category.trim() || null, aisle: aisle.trim() || null } : {}),
+      ...(kind === 'shopping' ? { store: store.trim() || null, category: category.trim() || null } : {}),
+      // On a trip the aisle is the trip store's (sent only when changed, so an untouched one isn't remembered).
+      ...(kind === 'shopping' && !trip ? { aisle: aisle.trim() || null } : {}),
+      ...(kind === 'shopping' && trip && aisle.trim() !== initialAisle ? { aisle: aisle.trim() || null, aisleStore: trip } : {}),
       // Assignees on to-do and reusable lists (a routine has each person's jobs); due dates are to-do only.
       ...(kind !== 'shopping' ? { memberId } : {}),
       ...(showDue ? { dueDate: dueDate || null } : {}),
@@ -300,11 +308,14 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisle
           <ValuePicker id="item-store" label="Store" value={store} options={suggestions.stores} newLabel="New store…" placeholder="Store name"
             onChange={v => {
               setStore(v)
-              // An aisle belongs to a store: keep it only if the new store has it too.
-              if (aisle && !storeAisles(suggestions, v.trim() || null, aisleOrder).includes(aisle)) setAisle('')
+              // An aisle belongs to a store: keep it only if the new store has it too (a trip's stays the trip store's).
+              if (!trip && aisle && !storeAisles(suggestions, v.trim() || null, aisleOrder).includes(aisle)) setAisle('')
             }} />
-          <ValuePicker id="item-aisle" label={store.trim() ? `Aisle at ${store.trim()}` : 'Aisle'} value={aisle}
-            options={storeAisles(suggestions, store.trim() || null, aisleOrder)} newLabel="New aisle…" placeholder="e.g. Aisle 4, Produce, Back wall" onChange={setAisle} />
+          {!store.trim() && lastStore && (
+            <p className="field-hint item-last-store">Last bought at {lastStore}. <button type="button" className="link-btn" onClick={() => setStore(lastStore)}>Plan to buy it there</button></p>
+          )}
+          <ValuePicker id="item-aisle" label={aisleStore ? `Aisle at ${aisleStore}` : 'Aisle'} value={aisle}
+            options={storeAisles(suggestions, aisleStore, aisleOrder)} newLabel="New aisle…" placeholder="e.g. Aisle 4, Produce, Back wall" onChange={setAisle} />
           <ValuePicker id="item-category" label="Category" value={category} options={suggestions.categories} newLabel="New category…" placeholder="e.g. Produce" onChange={setCategory} />
         </>
       )}
@@ -787,28 +798,36 @@ function ListDetailPane({ listId, isPhone, onBack, onArchivedOrDeleted, onLoaded
   const { upcoming, byId } = useEventWindow(refreshTick)
 
   const load = () => api.getList(listId).then(d => { setDetail(d); setError(false); onLoaded(d.list) }).catch(() => setError(true))
-  useEffect(() => { setSelectedStore(null); setShowDone(false) }, [listId])
+  // "Shopping at": a trip in one store, kept on this device only, until Checkout (or "Not shopping").
+  const [trip, setTrip] = useState<string | null>(() => tripStore(listId))
+  useEffect(() => { setSelectedStore(null); setShowDone(false); setTrip(tripStore(listId)) }, [listId])
+  const changeTrip = (store: string | null) => { setTripStore(listId, store); setTrip(store); announce(store ? `Shopping at ${store}` : 'Not shopping') }
 
   // Checkout / Reset: the checked items go (or uncheck) at once on screen, and the server hears about
   // it after a few seconds unless Undo is tapped. Leaving the list sends it straight away.
-  const [checkout, setCheckout] = useState<{ ids: string[]; reset: boolean } | null>(null)
+  const [checkout, setCheckout] = useState<{ ids: string[]; reset: boolean; trip: string | null } | null>(null)
   const pendingCheckout = useRef<(() => void) | null>(null)
   const checkoutTimer = useRef<ReturnType<typeof setTimeout>>()
   const commitCheckout = () => { clearTimeout(checkoutTimer.current); const run = pendingCheckout.current; pendingCheckout.current = null; run?.() }
   useEffect(() => commitCheckout, [listId]) // eslint-disable-line react-hooks/exhaustive-deps
-  const startCheckout = (checked: ListItem[], kind: ListKind) => {
+  const startCheckout = (checked: ListItem[], kind: ListKind, trip: string | null = null) => {
     if (!checked.length) return
     commitCheckout()
     const ids = checked.map(i => i.id), reset = kind === 'reusable'
-    setCheckout({ ids, reset })
+    setCheckout({ ids, reset, trip })
+    if (trip) { setTripStore(listId, null); setTrip(null) } // Checkout ends the trip
     pendingCheckout.current = async () => {
-      try { await (reset ? api.resetList(listId, ids) : api.clearListCompleted(listId, ids)) }
+      try { await (reset ? api.resetList(listId, ids) : api.clearListCompleted(listId, ids, trip ?? undefined)) }
       catch (e) { toast(e instanceof ApiError ? e.message : reset ? 'Could not reset the list' : 'Could not clear checked items', true) }
       setCheckout(null); load()
     }
     checkoutTimer.current = setTimeout(commitCheckout, 5000)
   }
-  const undoCheckout = () => { clearTimeout(checkoutTimer.current); pendingCheckout.current = null; setCheckout(null); announce('Undone') }
+  const undoCheckout = () => {
+    clearTimeout(checkoutTimer.current); pendingCheckout.current = null
+    if (checkout?.trip) { setTripStore(listId, checkout.trip); setTrip(checkout.trip) }
+    setCheckout(null); announce('Undone')
+  }
   useEffect(() => { load() }, [listId, refreshTick]) // eslint-disable-line react-hooks/exhaustive-deps
   // Adds, ticks, edits and deletes are queued (api.queue*): shown at once, sent in order, kept
   // offline. A refresh after they sync clears their pending mark (App bumps refreshTick).
@@ -876,6 +895,15 @@ function ListDetailPane({ listId, isPhone, onBack, onArchivedOrDeleted, onLoaded
   const reorderable = list.groupBy === 'store' || list.groupBy === 'category'
   const reorderableNames = reorderable ? [...new Set(items.map(i => (list.groupBy === 'store' ? i.store : i.category)).filter((v): v is string => !!v))] : []
   const checkoutLabel = CHECKOUT_LABEL[list.kind]
+  // On a trip: everything, walked in that store's aisle order; checked items always stay in place.
+  const activeTrip = list.kind === 'shopping' ? trip : null
+  const view = activeTrip ? tripView(items, activeTrip, aisleOrder) : null
+  const tripChecked = items.filter(i => i.done)
+  const tripRow = (item: ListItem, other = false) => (
+    <ItemRow key={item.id} item={other ? item : { ...item, aisle: aisleAt(item, activeTrip!) }} kind={list.kind} groupBy={other ? 'none' : 'aisle'} members={members}
+      event={item.eventId ? byId.get(item.eventId) : undefined} onToggle={() => toggle(item)} onOpen={() => setEditItem(item)} />
+  )
+  const tripStores = [...new Set([...suggestions.stores, ...(activeTrip ? [activeTrip] : [])])]
 
   const siblingIds = items.slice().sort((a, b) => a.sort - b.sort).map(i => i.id)
 
@@ -905,7 +933,17 @@ function ListDetailPane({ listId, isPhone, onBack, onArchivedOrDeleted, onLoaded
         <button className="icon-btn" onClick={addItem} disabled={!draft.trim()} aria-label="Add item"><PlusIcon width={20} height={20} /></button>
       </div>
 
-      <div className="list-toolbar">
+      {list.kind === 'shopping' && tripStores.length > 0 && (
+        <div className={`list-trip ${activeTrip ? 'active' : ''}`}>
+          <label htmlFor={`list-trip-${listId}`}><span aria-hidden="true">🛒 </span>Shopping at</label>
+          <select id={`list-trip-${listId}`} value={activeTrip ?? ''} onChange={e => changeTrip(e.target.value || null)}>
+            <option value="">Not shopping</option>
+            {tripStores.map(st => <option key={st} value={st}>{st}</option>)}
+          </select>
+        </div>
+      )}
+
+      {!activeTrip && <div className="list-toolbar">
         {list.kind === 'shopping' && (
           <Segmented className="list-groupby" label="Group by" value={list.groupBy} onChange={setGroupBy}
             options={(['store', 'category', 'aisle', 'none'] as ListGroupBy[]).map(g => ({ key: g, label: GROUP_LABEL[g] }))} />
@@ -916,8 +954,8 @@ function ListDetailPane({ listId, isPhone, onBack, onArchivedOrDeleted, onLoaded
         <button className="chip list-sort-chip" onClick={() => setSorting(true)} aria-haspopup="dialog" aria-label={`Sort: ${SORT_LABEL[list.sortBy]}. Change sort`}>
           <span aria-hidden="true">⇅</span> Sort: {SORT_LABEL[list.sortBy]}
         </button>
-      </div>
-      {list.kind === 'shopping' && (
+      </div>}
+      {list.kind === 'shopping' && !activeTrip && (
         <>
           {stores.length > 0 && (
             <div className="chip-row list-store-chips" role="group" aria-label="Show store">
@@ -931,6 +969,27 @@ function ListDetailPane({ listId, isPhone, onBack, onArchivedOrDeleted, onLoaded
       <div className="list-items scroll-y">
         {items.length === 0 ? (
           <div className="empty-card"><span className="emoji">{list.kind === 'shopping' ? '🛒' : list.kind === 'reusable' ? '🧳' : '📝'}</span>Nothing here yet — add your first item above.</div>
+        ) : view ? (
+          <>
+            {view.aisles.map(g => (
+              <div key={g.aisle} className="list-group">
+                <h3 className="list-group-title" style={{ margin: 0 }}>{g.aisle}</h3>
+                {g.items.map(item => tripRow(item))}
+              </div>
+            ))}
+            {view.unknown.length > 0 && (
+              <div className="list-group">
+                <h3 className="list-group-title" style={{ margin: 0 }}>Aisle unknown</h3>
+                {view.unknown.map(item => tripRow(item))}
+              </div>
+            )}
+            {view.other.length > 0 && (
+              <div className="list-group list-trip-other">
+                <h3 className="list-group-title" style={{ margin: 0 }}>At other stores</h3>
+                {view.other.map(item => tripRow(item, true))}
+              </div>
+            )}
+          </>
         ) : list.groupBy === 'none' ? (
           openItems.length === 0 ? (
             <div className="empty-card"><span className="emoji">✨</span>All done!</div>
@@ -950,7 +1009,7 @@ function ListDetailPane({ listId, isPhone, onBack, onArchivedOrDeleted, onLoaded
           ))
         )}
 
-        {doneItems.length > 0 && (
+        {!view && doneItems.length > 0 && (
           <div className="list-done-section">
             {/* Clear/Reset only matter once something is checked, so they live here rather than
                 in a permanent footer that cost a phone a row of items. */}
@@ -965,7 +1024,13 @@ function ListDetailPane({ listId, isPhone, onBack, onArchivedOrDeleted, onLoaded
         )}
 
         {/* Mid-shop: checked items stay crossed off in place; one tap clears (or resets) them all. */}
-        {keep && checked.length > 0 && (
+        {activeTrip ? tripChecked.length > 0 && (
+          <div className="list-checkout-bar">
+            <button className="btn btn-primary list-checkout-btn" onClick={() => startCheckout(tripChecked, list.kind, activeTrip)}>
+              {checkoutLabel} ({tripChecked.length})
+            </button>
+          </div>
+        ) : keep && checked.length > 0 && (
           <div className="list-checkout-bar">
             <button className="btn btn-primary list-checkout-btn" onClick={() => startCheckout(checked, list.kind)}>
               {checkoutLabel} ({checked.length})
@@ -983,7 +1048,7 @@ function ListDetailPane({ listId, isPhone, onBack, onArchivedOrDeleted, onLoaded
 
 
       {editItem && (
-        <ItemEditSheet listId={listId} item={editItem} kind={list.kind} manual={manual} members={members} suggestions={suggestions} aisleOrder={aisleOrder} siblingIds={siblingIds} upcoming={upcoming} byId={byId}
+        <ItemEditSheet listId={listId} item={editItem} kind={list.kind} manual={manual} members={members} suggestions={suggestions} aisleOrder={aisleOrder} trip={activeTrip} siblingIds={siblingIds} upcoming={upcoming} byId={byId}
           onClose={() => { setEditItem(null); load() }} onSaved={() => { setEditItem(null); load() }} />
       )}
       {editList && (
