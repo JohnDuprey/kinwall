@@ -574,3 +574,37 @@ export interface Board {
   chores: { memberId: string | null; name: string | null; avatar: string | null; color: string | null; remaining: number; total: number }[]
   birthdays: SnapshotBirthday[]
 }
+
+/** A reviewed plugin, pinned to a version (GET /api/plugins/catalog). */
+export interface PluginCatalogEntry {
+  id: string
+  repo: string // 'owner/repo'
+  version: string
+  name: string
+  description: string
+  emoji: string
+  color?: string
+  categories: string[]
+  ages?: { min: number; max?: number }
+}
+
+/** An installed activity plugin (GET /api/plugins; server/src/routes/plugins.ts). */
+export interface Plugin {
+  id: string
+  name: string
+  version: string
+  description: string
+  entry: string
+  emoji: string
+  color?: string
+  categories: string[]
+  ages?: { min: number; max?: number }
+  author?: string
+  homepage?: string
+  source: string | null // 'owner/repo' on GitHub, or null for an uploaded package
+  enabled: boolean
+  installedAt: string
+  updatedAt: string
+  url: string // /plugins/<id>/<entry>
+}
+

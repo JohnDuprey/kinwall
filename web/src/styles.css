@@ -1887,6 +1887,26 @@ button.snap-row:active { transform: scale(0.99); }
 /* Settings → Quotes & facts sheet: one block per source, its options under its switch. */
 .tidbit-source { display: grid; gap: 8px; padding: 12px 0; border-top: 1px solid var(--border); }
 
+/* Activity plugins (Plugins.tsx): the player fills the content area; the plugin draws its own UI. */
+.plugin-player { display: flex; flex-direction: column; height: 100%; min-height: 0; gap: 8px; padding: 8px 12px 12px; }
+.plugin-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.plugin-bar-title { flex: 1; font-weight: 800; font-size: 1.0625rem; min-width: 0; }
+.plugin-frame { flex: 1; width: 100%; min-height: 0; border: 0; border-radius: var(--radius-sm, 14px); background: var(--card); }
+.activity-card-emoji { font-size: 2.6rem; line-height: 1; }
+.activity-card-more { width: 100%; height: 100%; min-height: 140px; justify-content: center; border: 3px dashed var(--border); box-shadow: none; background: none; color: var(--text); font: inherit; cursor: pointer; text-align: left; }
+.plugin-install { display: grid; gap: 6px; margin-top: 12px; }
+.plugin-install-row { display: flex; gap: 8px; }
+.plugin-install-row input { flex: 1; min-width: 0; }
+.plugin-upload { margin-top: 10px; }
+.plugin-list-title { margin: 18px 0 6px; font-size: 0.8125rem; text-transform: uppercase; letter-spacing: 0.02em; color: var(--text-dim); }
+.plugin-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.plugin-row { display: flex; gap: 12px; padding: 12px; border: 1.5px solid var(--border); border-radius: var(--radius-sm, 14px); }
+.plugin-row-icon { flex: none; width: 48px; height: 48px; border-radius: 12px; display: grid; place-items: center; font-size: 1.6rem; }
+.plugin-row-info { flex: 1; min-width: 0; display: grid; gap: 4px; }
+.plugin-version { color: var(--text-dim); font-weight: 700; font-size: 0.8125rem; }
+.plugin-row-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+.plugin-row-actions .toggle-row { padding: 0; gap: 8px; }
+.plugin-bar .btn, .plugin-row-actions .btn, .plugin-upload .btn, .plugin-install-row .btn { flex: none; min-height: 40px; padding: 8px 16px; text-decoration: none; }
 /* ---------- Trackers (Trackers.tsx) ---------- */
 .trackers-head { padding: 10px var(--pad) 6px; flex-shrink: 0; }
 .trackers-head .segmented { max-width: 100%; }

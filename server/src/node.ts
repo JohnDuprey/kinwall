@@ -122,6 +122,8 @@ const env: Env = {
   WEBAUTHN_RP_ID: process.env.WEBAUTHN_RP_ID,
   HOST_PORTAL_URL: process.env.HOST_PORTAL_URL,
   REQUIRE_PASSKEY_SETUP: process.env.REQUIRE_PASSKEY_SETUP,
+  PLUGIN_CATALOG_URL: process.env.PLUGIN_CATALOG_URL,
+  PLUGINS_CATALOG_ONLY: process.env.PLUGINS_CATALOG_ONLY,
 };
 
 // Migrations already applied above (from the fs), so no lazy migrations here.

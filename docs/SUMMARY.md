@@ -75,5 +75,6 @@
 * [Development setup](contributing/development.md)
 * [Architecture](contributing/architecture.md)
 * [Embedding the server](contributing/embedding.md)
+* [Building activity plugins](contributing/plugins.md)
 * [Accessibility](accessibility.md)
 * [License & Built with Claude](contributing/license.md)

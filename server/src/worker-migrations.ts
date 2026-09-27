@@ -32,6 +32,7 @@ import m0028 from '../migrations/0028_photos.sql';
 import m0029 from '../migrations/0029_device_owner.sql';
 import m0030 from '../migrations/0030_list_notification_links.sql';
 import m0031 from '../migrations/0031_trackers.sql';
+import m0032 from '../migrations/0032_plugins.sql';
 
 export const MIGRATIONS: Migration[] = [
   { name: '0001_init.sql', sql: m0001 },
@@ -65,4 +66,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0029_device_owner.sql', sql: m0029 },
   { name: '0030_list_notification_links.sql', sql: m0030 },
   { name: '0031_trackers.sql', sql: m0031 },
+  { name: '0032_plugins.sql', sql: m0032 },
 ];

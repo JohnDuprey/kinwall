@@ -33,6 +33,7 @@ import { snapshotRoutes } from './routes/snapshot.ts';
 import { weatherRoutes } from './routes/weather.ts';
 import { tidbitRoutes } from './routes/tidbits.ts';
 import { trackersRoutes } from './routes/trackers.ts';
+import { pluginsRoutes, servePluginFile } from './routes/plugins.ts';
 import { handleMcp } from './mcp.ts';
 
 // Keep in sync with web/public/_headers (Workers serves the UI with that file; Node/Docker with this).
@@ -59,6 +60,7 @@ export function createApp() {
     await next();
     c.header('X-Content-Type-Options', 'nosniff');
     c.header('Referrer-Policy', 'no-referrer');
+    if (c.req.path.startsWith('/plugins/')) return; // plugin files carry their own, stricter policy (routes/plugins.ts)
     const isDocs = c.req.path === '/docs' || c.req.path.startsWith('/docs/') || c.req.path === '/openapi.json';
     c.header('Content-Security-Policy', isDocs ? CSP_DOCS : CSP_DEFAULT);
   });
@@ -94,6 +96,8 @@ export function createApp() {
   app.route('/', weatherRoutes);
   app.route('/', tidbitRoutes);
   app.route('/', trackersRoutes);
+  app.route('/', pluginsRoutes);
+  app.get('/plugins/*', servePluginFile); // public: a sandboxed iframe can't send a key
   app.route('/', keysRoutes);
   app.route('/', passkeysRoutes);
   app.route('/', recoveryRoutes);

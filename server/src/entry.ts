@@ -36,7 +36,7 @@ export function createKinwall(env: Env, opts: KinwallOptions = {}) {
   return {
     /** The Hono app, for hosts that add their own routes/middleware (node.ts adds static files). */
     app,
-    /** API only (/api/*, /mcp, /oauth/*, /.well-known/*, /docs, /openapi.json); anything else 404s.
+    /** API only (/api/*, /mcp, /oauth/*, /.well-known/*, /plugins/*, /docs, /openapi.json); anything else 404s.
      * Without ctx, background work (webhooks, sync-after-write) runs fire-and-forget. */
     async fetch(request: Request, ctx?: ExecutionContext): Promise<Response> {
       await ready();

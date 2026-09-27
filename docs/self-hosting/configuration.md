@@ -22,6 +22,8 @@ Kinwall is configured with environment variables. On Docker and Node they're pro
 | `ALLOW_PRIVATE_WEBHOOK_URLS` | — (`1` under the Home Assistant add-on) | `1` lets webhooks target private/LAN receivers, e.g. Home Assistant on the same network. |
 | `REQUIRE_PASSKEY_SETUP` | — | `1` makes the setup wizard's passkey step required (no **Skip**), for hosts where there's no `ADMIN_API_KEY` or server log to fall back on. A claimed instance with no passkey yet reopens the wizard at that step. `GET /api/setup` reports `passkeyRequired` and `hasPasskey`. |
 | `HOST_PORTAL_URL` | — | For hosts running Kinwall for other families: a page where a family can manage or delete their instance. It's linked from **Settings → Access → Your data**. |
+| `PLUGIN_CATALOG_URL` | `https://app.kinwall.family/plugins/catalog.json` | Where the list of reviewed activity plugins comes from (fetched hourly). See [Building activity plugins](../contributing/plugins.md#getting-reviewed). |
+| `PLUGINS_CATALOG_ONLY` | — | `1` allows only reviewed plugins: no other repositories and no uploads. |
 | `PORT` | `8080` | Docker/Node only. |
 | `DATA_DIR` | `./data` (`/data` in the image and the Home Assistant add-on) | Docker/Node only. Holds `kinwall.sqlite` and `encryption.key`. |
 | `TZ` | system | Docker/Node: the fallback timezone until the household sets one. |

@@ -20,7 +20,10 @@ export type Env = {
   ALLOW_PRIVATE_FEED_URLS?: string; // '1' lets ICS/CalDAV reach LAN hosts (see outbound.ts)
   ALLOW_PRIVATE_WEBHOOK_URLS?: string; // '1' lets webhooks target LAN receivers (Home Assistant add-on sets it)
   REQUIRE_PASSKEY_SETUP?: string; // '1': setup wizard can't skip the passkey (hosts with no other way back in); see routes/setup.ts
-  HOST_PORTAL_URL?: string; // host-run page for managing/deleting this family; linked from Settings -> Access (via /api/me)
+  HOST_PORTAL_URL?: string;
+  PLUGIN_CATALOG_URL?: string; // the list of trusted activity plugins (default: the one kinwall.family's admins keep); see routes/plugins.ts
+  PLUGIN_CATALOG?: () => Promise<unknown[]>; // hosts that keep the list themselves hand it over directly instead (hosted reads its registry)
+  PLUGINS_CATALOG_ONLY?: string; // '1': only catalog plugins can be installed (no other repos, no uploads). Hosted sets it. // host-run page for managing/deleting this family; linked from Settings -> Access (via /api/me)
 };
 
 export function syncIntervalMinutes(env: Env): number {

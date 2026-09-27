@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { tellAppSignedIn, tellAppSignedOut } from './native.ts'
 import { mock } from './mock.ts'
 import type { PasskeyAuthenticator } from './webauthn.ts'
-import type { OnlineTidbits,
+import type { OnlineTidbits, Plugin, PluginCatalogEntry,
   StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota,
   Account, ApiKey, AppNotification, Appearance, CalendarEntry, Category, Chore, ChoreDay, EventInstance, LeaderboardEntry, LeaderboardPeriod, List,
   GeocodeResult, HostEvent, ImportResult, ListDetail, ListGroup, ListItem, ListItemInput, Member, Me, Note, NoteTarget, Passkey, TrackerEntry, TrackerInput, TrackerKind, Providers, PushSubscription, PushSubscriptionPrefs, RemoteCalendar, Settings, Snapshot, Board, Webhook, WebhookWithSecret,
@@ -160,6 +160,18 @@ export const api = {
   // Server-side lookup (Open-Meteo): the browser never talks to the geocoder itself.
   getBoard: (days = 7) => MOCK ? mock.getBoard(days) : get<Board>(`api/board?days=${days}`),
   getTidbits: () => MOCK ? mock.getTidbits() : get<OnlineTidbits>('api/tidbits'),
+
+  // Activity plugins (the demo has none: it has no server to install them on).
+  getPluginCatalog: () => MOCK ? Promise.resolve({ catalogOnly: false, plugins: [] as PluginCatalogEntry[] }) : get<{ catalogOnly: boolean; plugins: PluginCatalogEntry[] }>('api/plugins/catalog'),
+  getPlugins: () => MOCK ? Promise.resolve([] as Plugin[]) : get<Plugin[]>('api/plugins'),
+  installPlugin: (url: string) => post<Plugin>('api/plugins', { url }, true),
+  uploadPlugin: (zip: File) => req<Plugin>('api/plugins', { method: 'POST', body: zip, useAdmin: true, headers: { 'Content-Type': 'application/zip' } }),
+  updatePlugin: (id: string) => post<Plugin>(`api/plugins/${id}/update`, undefined, true),
+  setPluginEnabled: (id: string, enabled: boolean) => patch<Plugin>(`api/plugins/${id}`, { enabled }, true),
+  deletePlugin: (id: string) => del(`api/plugins/${id}`, true),
+  getPluginData: (id: string, member: string) => get<Record<string, unknown>>(`api/plugins/${id}/data?member=${encodeURIComponent(member)}`),
+  savePluginData: (id: string, member: string, key: string, value: unknown) => put<void>(`api/plugins/${id}/data`, { member, key, value }),
+  pluginUrl: (p: Pick<Plugin, 'url'>) => apiUrl(p.url.replace(/^\//, '')),
 
   geocode: (q: string) => MOCK ? mock.geocode(q) : get<GeocodeResult[]>(`api/geocode?q=${encodeURIComponent(q)}`),
 

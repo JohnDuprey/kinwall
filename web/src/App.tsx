@@ -47,7 +47,7 @@ function featureRedirect(s: Settings, section: string, sub: string | undefined):
   if (section === 'chores' || section === 'lists' || section === 'trackers' || section === 'activities') {
     if (!navItems(s).some(i => i.key === section)) return '#/calendar'
     if (section === 'trackers') { const on = trackerKinds(s); return sub && !on.includes(sub) ? `#/trackers/${on[0]}` : null }
-    if (sub && section === 'activities' && !shownActivities(s).some(a => a.key === sub)) return '#/activities'
+    if (sub && section === 'activities' && sub !== 'plugin' && !shownActivities(s).some(a => a.key === sub)) return '#/activities'
   }
   return null
 }
@@ -839,7 +839,8 @@ function AppRoutes() {
   const [bannerMsg, setBannerMsg] = useState<string | null>(null)
   const [loadError, setLoadError] = useState(false)
   const tab = useHashTab()
-  const [section, sub] = tab.split('/') // #/activities/paint -> nav item 'activities', sub-page 'paint'
+  const [section, sub, ...more] = tab.split('/') // #/activities/paint -> nav item 'activities', sub-page 'paint'
+  const rest = more.join('/') // #/activities/plugin/sight-words -> 'sight-words'
   const { mode: navMode } = useNavMode()
   const isPhone = useIsPhone()
   const { tick: pollTick, unauthorized } = usePoll()
@@ -984,7 +985,7 @@ function AppRoutes() {
           <Header settings={settings} members={focusMember ? [focusMember] : members} selectedMemberId={effectiveMemberId} isAdmin={scope === 'admin'} />
           <main className="content" id="main" tabIndex={-1}>
             <h1 className="sr-only">{tabLabel}</h1>
-            {redirect ? null : section === 'activities' ? <Activities sub={sub} /> : tab === 'chores' ? <Chores /> : tab === 'lists' ? <Lists /> : section === 'trackers' ? <Trackers sub={sub} /> : tab === 'settings' ? <SettingsView /> : <CalendarView />}
+            {redirect ? null : section === 'activities' ? <Activities sub={sub} rest={rest} /> : tab === 'chores' ? <Chores /> : tab === 'lists' ? <Lists /> : section === 'trackers' ? <Trackers sub={sub} /> : tab === 'settings' ? <SettingsView /> : <CalendarView />}
           </main>
           {navMode === 'bottom' && <Nav tab={section} mode={navMode} items={nav} />}
         </div>

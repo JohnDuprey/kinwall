@@ -2,6 +2,8 @@
 
 The **Activities** tab holds things to do on the wall that aren't the family schedule. It works the same on every device, including paired wall displays and the demo. There are three activities: **Paint**, the **Sticker book** and [**Photos**](photos.md).
 
+Families can add more activities made by others: see [Activities from others](#activities-from-others).
+
 An admin can turn off **Paint** or **Photos** in **Settings → General → Features**; the Sticker book goes with **Chores & points** or the sticker shop. When all three are off, the Activities tab is hidden. See [Features](../settings/general.md#features).
 
 ## Paint
@@ -100,3 +102,16 @@ Display keys can use all of these, so the wall can shop and decorate.
 * `GET /api/stickers/scrapbook/{memberId}` and `POST` to place a sticker `{sticker, x?, y?, scale?, rotation?}`. The sticker must come from a pack that member has unlocked.
 * `PATCH /api/stickers/scrapbook/{memberId}/{id}` `{x, y, scale, rotation, z}` and `DELETE` the same path.
 * `GET /api/members/{id}/points`: balance, all-time earned and spent, and the last 50 ledger entries.
+
+## Activities from others
+
+Admins can add activities made by others: tap **Activities → Get more activities**.
+
+- **Reviewed by Kinwall** lists activities Kinwall has checked. Tap **Install**. When a newer version has been reviewed, the activity shows **Update to v…**.
+- **From anywhere** (self-hosted only) adds any GitHub repository that publishes a Kinwall package, or an uploaded `kinwall-plugin.zip`. These haven't been reviewed, so only add ones you trust. **Update** installs the newest release.
+
+Every added activity runs in a sandbox: it has no internet and sees only who's playing (first name, emoji and color), never your calendar, chores, lists or photos. Each person's progress is saved in your Kinwall. Turning an activity off hides it; **Remove** deletes it and everyone's progress in it.
+
+When you open one, Kinwall asks **Who's playing?** unless the header is set to one person. **Just playing** plays without saving to anyone.
+
+Want to build one? See [Building activity plugins](../contributing/plugins.md).

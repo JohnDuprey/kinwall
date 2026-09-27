@@ -122,6 +122,9 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'PATCH', pattern: /^\/api\/trackers\/[^/]+$/ },
   { method: 'GET', pattern: /^\/api\/weather$/ },
   { method: 'GET', pattern: /^\/api\/tidbits$/ },
+  { method: 'GET', pattern: /^\/api\/plugins$/ },
+  { method: 'GET', pattern: /^\/api\/plugins\/[a-z0-9-]+\/data$/ },
+  { method: 'PUT', pattern: /^\/api\/plugins\/[a-z0-9-]+\/data$/ },
   { method: 'GET', pattern: /^\/api\/geocode$/ }, // Settings -> General's location search (settings PATCH is display-allowed too)
   { method: 'GET', pattern: /^\/api\/settings$/ },
   { method: 'PATCH', pattern: /^\/api\/settings$/ },
