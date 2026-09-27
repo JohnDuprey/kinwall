@@ -51,3 +51,47 @@ export function rememberPlace(db: KinwallDb, title: string, place: Place, now: s
     )
     .bind(itemKey(title), place.store ?? '', place.category, place.aisle, now);
 }
+
+/** Remember an item's name for autocomplete (migration 0041): its spelling, and one more use when
+ * added (uses 0 for a rename). Goes in the same batch as the add. */
+export function rememberName(db: KinwallDb, title: string, now: string, uses = 1): KinwallStatement {
+  return db
+    .prepare(
+      `INSERT INTO item_names (name_key, title, uses, last_used) VALUES (?, ?, max(?, 1), ?)
+       ON CONFLICT(name_key) DO UPDATE SET title = excluded.title, uses = item_names.uses + ?, last_used = excluded.last_used`,
+    )
+    .bind(itemKey(title), title.trim(), uses, now, uses);
+}
+
+export const SUGGESTION_CAP = 300;
+export type NameSuggestion = { title: string; key: string; uses: number; category?: string; place?: { store: string; aisle: string | null } };
+
+/** Autocomplete for a shopping list: remembered names (most used, then most recent, first - as
+ * queried), each with its department and where it goes (at `store` when given, else its newest
+ * store); then recipe ingredients not yet bought (uses 0), up to the cap. A name that only has its
+ * key for a spelling (backfilled) takes an ingredient's spelling when one matches. */
+export function nameSuggestions(
+  names: { name_key: string; title: string; uses: number }[],
+  memory: { name_key: string; store: string; category: string | null; aisle: string | null }[], // newest first
+  ingredients: { name: string; category: string | null }[],
+  store?: string,
+): NameSuggestion[] {
+  const rows = new Map<string, typeof memory>();
+  for (const r of memory) rows.set(r.name_key, [...(rows.get(r.name_key) ?? []), r]);
+  const byKey = new Map(ingredients.map((i) => [itemKey(i.name), i] as const));
+  const out: NameSuggestion[] = names.map((n) => {
+    const mine = rows.get(n.name_key) ?? [];
+    const at = (store && mine.find((r) => r.store === store)) || mine.find((r) => r.store);
+    const category = mine.find((r) => r.category)?.category ?? byKey.get(n.name_key)?.category;
+    const title = n.title === n.name_key ? (byKey.get(n.name_key)?.name.trim() ?? n.title) : n.title;
+    return { title, key: n.name_key, uses: n.uses, ...(category ? { category } : {}), ...(at ? { place: { store: at.store, aisle: at.aisle } } : {}) };
+  });
+  const seen = new Set(out.map((s) => s.key));
+  for (const [key, i] of byKey) {
+    if (out.length >= SUGGESTION_CAP) break;
+    if (seen.has(key) || !key) continue;
+    seen.add(key);
+    out.push({ title: i.name.trim(), key, uses: 0, ...(i.category ? { category: i.category } : {}) });
+  }
+  return out.slice(0, SUGGESTION_CAP);
+}

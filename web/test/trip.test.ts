@@ -1,7 +1,7 @@
 // node --test test/ (npm test). "Shopping at" ordering and per-store aisle lookup.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { aisleAt, anyStoreView, departmentAisle, resumeShoppingHash, setShoppingModeList, setTripStore, shoppingModeList, tripView } from '../src/trip.ts'
+import { aisleAt, anyStoreView, departmentAisle, resumeShoppingHash, setShoppingModeList, setTripStore, shoppingModeList, tripLeftovers, tripView, ANY_STORE } from '../src/trip.ts'
 
 type P = { store: string | null; aisle: string | null }
 const item = (title: string, store: string | null, aisle: string | null = null, places: P[] = []) => ({ title, store, aisle, places })
@@ -93,4 +93,17 @@ test('shopping mode resumes only while its trip is on, and only over the default
     setTripStore('l1', null) // Checkout / "Not shopping"
     assert.equal(resumeShoppingHash(''), null)
   } finally { delete (globalThis as { localStorage?: Storage }).localStorage }
+})
+
+test('tripLeftovers: unchecked items for this store or anywhere; any store counts every unchecked item', () => {
+  const items = [
+    { title: 'Milk', store: 'Market', done: true },
+    { title: 'Eggs', store: 'Market', done: false },
+    { title: 'Soap', store: null, done: false },
+    { title: 'Tires', store: 'Garage', done: false },
+    { title: 'Bread', store: null, done: true },
+  ]
+  assert.deepEqual(tripLeftovers(items, 'Market').map(i => i.title), ['Eggs', 'Soap'])
+  assert.deepEqual(tripLeftovers(items, ANY_STORE).map(i => i.title), ['Eggs', 'Soap', 'Tires'])
+  assert.deepEqual(tripLeftovers(items.map(i => ({ ...i, done: true })), 'Market'), [])
 })

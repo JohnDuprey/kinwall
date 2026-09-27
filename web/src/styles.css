@@ -1060,6 +1060,24 @@ button {
   border: 2px solid var(--border); background: var(--bg-alt); color: var(--text); font-weight: 700; font-size: 0.9375rem;
 }
 .list-add-bar .icon-btn { width: var(--ctl-h); height: var(--ctl-h); background: var(--accent-strong); color: var(--accent-ink); flex-shrink: 0; }
+/* Autocomplete: the suggestions drop below the field, or open above it (Shopping mode's dock). */
+.item-add { position: relative; flex: 1; min-width: 0; display: flex; }
+.item-suggest, .item-again {
+  position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 20; margin: 0; padding: 4px; list-style: none;
+  max-height: min(45vh, 320px); overflow-y: auto; overscroll-behavior: contain;
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--shadow-lg);
+}
+.item-add.above .item-suggest, .item-add.above .item-again { top: auto; bottom: calc(100% + 6px); }
+.item-suggest li {
+  display: flex; align-items: baseline; gap: 10px; min-height: 44px; padding: 8px 12px; border-radius: 8px; cursor: pointer;
+}
+.item-suggest li.active, .item-suggest li:hover { background: var(--bg-alt); }
+.item-suggest li.active { outline: 2px solid var(--accent-strong); outline-offset: -2px; }
+.item-suggest-name { font-weight: 700; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item-suggest-hint { font-size: 0.8125rem; font-weight: 600; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 55%; }
+.manage-find { width: 100%; min-height: var(--ctl-h); padding: 0 14px; margin-bottom: 6px; border-radius: var(--radius-sm); border: 2px solid var(--border); background: var(--bg-alt); color: var(--text); font-weight: 700; }
+.item-again { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px; }
+.item-again-label { font-size: 0.78125rem; font-weight: 800; color: var(--text-dim); margin-right: 2px; }
 
 .list-groupby { align-self: flex-start; flex-shrink: 0; }
 .list-store-chips { flex-shrink: 0; }
@@ -1129,7 +1147,8 @@ button {
 .list-checkout-bar { position: sticky; bottom: 0; z-index: 2; margin-top: auto; padding: 10px 0 4px; background: linear-gradient(to bottom, transparent, var(--card) 35%); }
 .lists-shell-phone .list-checkout-bar { background: linear-gradient(to bottom, transparent, var(--bg) 35%); }
 .list-checkout-btn { width: 100%; min-height: 52px; font-size: 1rem; }
-.list-undo-toast { display: flex; align-items: center; gap: 14px; padding: 8px 8px 8px 22px; white-space: nowrap; }
+.list-undo-toast { display: flex; align-items: center; gap: 14px; padding: 8px 8px 8px 22px; width: max-content; max-width: calc(100vw - 32px); }
+.list-undo-btn { flex-shrink: 0; }
 .list-undo-btn { background: none; border: none; color: inherit; font: inherit; font-weight: 900; text-decoration: underline; min-height: 44px; min-width: 44px; padding: 0 12px; cursor: pointer; }
 .value-picker-new { margin-top: 8px; }
 .list-trip { display: flex; align-items: center; gap: 10px; flex-shrink: 0; flex-wrap: wrap; }
@@ -1170,7 +1189,7 @@ button {
 .shop-row-note { font-size: 0.8125rem; font-weight: 600; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .shop-row.done .shop-row-title { text-decoration: line-through; color: var(--text-dim); }
 .shop-row.done .shop-row-body, .shop-row.done .list-item-chip { opacity: 0.55; }
-.shop-dock { flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; padding: 10px 16px calc(var(--safe-b) + 10px); background: var(--card); border-top: 1px solid var(--border); }
+.shop-dock { position: relative; z-index: 1; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; padding: 10px 16px calc(var(--safe-b) + 10px); background: var(--card); border-top: 1px solid var(--border); }
 .shop-dock > * { width: 100%; max-width: 728px; margin: 0 auto; }
 .shop-add { position: static; }
 .shop-dock-row { display: flex; gap: 10px; }

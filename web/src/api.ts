@@ -430,6 +430,8 @@ export const api = {
   // Stores & departments: rename (to) or remove (to: null) a value everywhere; a store's aisle order.
   renameListValue: (body: { field: 'store' | 'category' | 'aisle'; from: string; to: string | null; store?: string | null }) =>
     MOCK ? mock.renameListValue(body) : post<{ updated: number }>('api/lists/values', body),
+  // Stop suggesting a remembered item name (and forget where it goes).
+  forgetItemName: (key: string) => MOCK ? mock.forgetItemName(key) : del<{ ok: boolean }>(`api/lists/remembered/${encodeURIComponent(key)}`),
   setStoreAisles: (store: string | null, aisles: string[]) =>
     MOCK ? mock.setStoreAisles(store, aisles) : put<{ store: string | null; aisles: string[] }>('api/lists/aisles', { store, aisles }),
   // Step routes answer with the whole updated item (it may have auto-completed or re-opened).

@@ -302,3 +302,72 @@ test('groceries: checkout at the end of a trip remembers where things were last 
   // Newest first: bought at the club; before that, added for "anywhere"; before that, the market's dairy aisle.
   assert.deepEqual(detail.items.find((i: any) => i.id === eggs.id).places, [{ store: 'Warehouse club', aisle: null }, { store: null, aisle: null }, { store: 'Market', aisle: 'Dairy' }]);
 });
+
+test('autocomplete: adds remember names (REST, MCP, meal groceries) with the latest spelling and a use count; renames update the spelling', async () => {
+  const { db, send, tool } = makeApp();
+  const list = await shoppingList(send);
+  const todo = await send('POST', '/api/lists', { name: 'Chores', kind: 'todo' });
+  await send('POST', `/api/lists/${todo.id}/items`, { title: 'Call Sam' }); // not a shopping list: not remembered
+  const [bananas] = await send('POST', `/api/lists/${list.id}/items`, { title: 'Bananas', store: 'Market', category: 'Produce', aisle: 'Produce' });
+  await send('DELETE', `/api/lists/${list.id}/items/${bananas.id}`);
+  await send('POST', `/api/lists/${list.id}/items`, [{ title: 'banana' }, { title: 'Bagels' }]);
+  await tool('add_list_items', { listName: 'Groceries', items: ['Banana milk', 'BANANAS'] });
+  const now = '2026-09-26T12:00:00.000Z';
+  await db.batch([mealWrite(db, { id: 'm1', date: '2026-10-05', slot: 'dinner', title: 'Taco night', mealKind: 'recipe', recipeId: null, recipeSnapshot: { name: 'Tacos', defaultServings: 4, ingredients: [{ id: 'i1', name: 'Tortillas', normalizedName: 'tortillas', quantity: 1, unit: null, preparation: null, qualifier: null, category: 'Bakery', sort: 0, scalable: true }] }, servings: 4, assigneeMemberId: null, notes: null, plannedTime: null, calendarEventId: null, status: 'planned', sourceUrl: null, createdAt: now, updatedAt: now })]);
+  await send('POST', '/api/meals/projection/apply', { from: '2026-10-05', to: '2026-10-05', listId: list.id });
+
+  const names = async () => (await db.prepare('SELECT title, uses FROM item_names ORDER BY title').all<{ title: string; uses: number }>()).results.map((r) => [r.title, r.uses]);
+  assert.deepEqual(await names(), [['BANANAS', 3], ['Bagels', 1], ['Banana milk', 1], ['Tortillas', 1]]);
+
+  const bagels = (await send('GET', `/api/lists/${list.id}`)).items.find((i: any) => i.title === 'Bagels');
+  await send('PATCH', `/api/lists/${list.id}/items/${bagels.id}`, { title: 'Everything bagels' });
+  await send('PATCH', `/api/lists/${list.id}/items/${bagels.id}`, { done: true }); // a tick is not a use
+  assert.deepEqual(await names(), [['BANANAS', 3], ['Bagels', 1], ['Banana milk', 1], ['Everything bagels', 1], ['Tortillas', 1]]);
+});
+
+test('autocomplete: list detail serves names most used first, with department and place; capped; recipe ingredients after; forget removes one', async () => {
+  const { db, send } = makeApp();
+  const list = await shoppingList(send);
+  await send('POST', `/api/lists/${list.id}/items`, [{ title: 'Milk', store: 'Market', category: 'Dairy', aisle: 'Aisle 2' }, { title: 'Milk', store: 'Club', aisle: 'Back wall' }, { title: 'Eggs' }, { title: 'Bread', category: 'Bakery' }]);
+  await send('POST', `/api/lists/${list.id}/items`, [{ title: 'Eggs' }, { title: 'milk' }]);
+  await db.prepare("INSERT INTO recipes (id, name, default_servings, created_at, updated_at) VALUES ('r1', 'Pancakes', 4, 'x', 'x')").run();
+  await db.prepare("INSERT INTO recipe_ingredients (id, recipe_id, name, normalized_name, category) VALUES ('a', 'r1', 'egg', 'egg', 'Dairy'), ('b', 'r1', 'Maple syrup', 'maple syrup', 'Pantry')").run();
+
+  const items = (await send('GET', `/api/lists/${list.id}`)).suggestions.items;
+  assert.deepEqual(items.map((s: any) => [s.title, s.uses]), [['milk', 3], ['Eggs', 2], ['Bread', 1], ['Maple syrup', 0]]);
+  assert.deepEqual(items[0], { title: 'milk', key: 'milk', uses: 3, category: 'Dairy', place: { store: 'Club', aisle: 'Back wall' } }); // latest spelling, newest store
+  assert.deepEqual(items[1].category, 'Dairy'); // from the recipe, nothing remembered
+  assert.deepEqual((await send('GET', `/api/lists/${list.id}?store=Market`)).suggestions.items[0].place, { store: 'Market', aisle: 'Aisle 2' });
+  const todo = await send('POST', '/api/lists', { name: 'Chores', kind: 'todo' });
+  assert.equal((await send('GET', `/api/lists/${todo.id}`)).suggestions.items, undefined);
+
+  await db.prepare("WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 400) INSERT INTO item_names (name_key, title, uses, last_used) SELECT 'n' || i, 'N' || i, 1, '2020' FROM n").run();
+  const capped = (await send('GET', `/api/lists/${list.id}`)).suggestions.items;
+  assert.equal(capped.length, 300);
+  assert.deepEqual(capped.slice(0, 2).map((s: any) => s.title), ['milk', 'Eggs']);
+
+  assert.deepEqual(await send('DELETE', '/api/lists/remembered/milk'), { ok: true });
+  const after = (await send('GET', `/api/lists/${list.id}`)).suggestions.items;
+  assert.ok(!after.some((s: any) => s.key === 'milk'));
+  assert.equal((await db.prepare("SELECT count(*) AS n FROM item_memory WHERE name_key = 'milk'").first<{ n: number }>())!.n, 0);
+});
+
+test('autocomplete: migration 0041 backfills names from shopping items and remembered places', () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'kw-mig-'));
+  try {
+    for (const f of readdirSync(MIGRATIONS_DIR)) if (f < '0041') cpSync(path.join(MIGRATIONS_DIR, f), path.join(dir, f));
+    const db = openDb(':memory:');
+    applyMigrations(db, dir);
+    const now = '2026-01-01T00:00:00.000Z';
+    for (const [id, kind] of [['s', 'shopping'], ['t', 'todo']]) db.prepare('INSERT INTO lists (id, name, kind, created_at) VALUES (?, ?, ?, ?)').bind(id, id, kind, now).run();
+    db.prepare("INSERT INTO list_items (id, list_id, title, name_key, created_at, updated_at) VALUES ('1', 's', 'Cherries', 'cherri', ?, '2026-01-01'), ('2', 's', 'cherry', 'cherri', ?, '2026-02-01'), ('3', 't', 'Call Sam', 'call sam', ?, ?)").bind(now, now, now, now).run();
+    db.prepare("INSERT INTO item_memory (name_key, store, updated_at) VALUES ('cherri', 'Market', '2026-01-01'), ('banana milk', '', '2025-05-01'), ('banana milk', 'Club', '2025-06-01')").run();
+    applyMigrations(db, MIGRATIONS_DIR);
+    assert.deepEqual(db.prepare('SELECT name_key, title, uses, last_used FROM item_names ORDER BY name_key').all().results.map((r) => ({ ...r })), [
+      { name_key: 'banana milk', title: 'banana milk', uses: 2, last_used: '2025-06-01' },
+      { name_key: 'cherri', title: 'cherry', uses: 2, last_used: '2026-02-01' },
+    ]);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

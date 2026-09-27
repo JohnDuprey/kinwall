@@ -4,7 +4,7 @@ import { addDays, format } from 'date-fns'
 import { useApp } from './AppContext.tsx'
 import { api, ApiError } from './api.ts'
 import { applyListOps, type Op } from './outbox.ts'
-import type { EventInstance, List, ListDetail, ListGroupBy, ListItem, ListItemPriority, ListItemStep, ListKind, ListSortBy, Member } from './types.ts'
+import type { EventInstance, ItemSuggestion, List, ListDetail, ListGroupBy, ListItem, ListItemPriority, ListItemStep, ListKind, ListSortBy, Member } from './types.ts'
 import { aisleOrderMap, compareAisles, compareItems, LIST_EMOJI, MEMBER_PALETTE, type AisleOrder } from './types.ts'
 import { dateKey } from './date.ts'
 import Sheet from './Sheet.tsx'
@@ -18,8 +18,9 @@ import { announce, pressable, Segmented } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
 import { CustomColorSwatch } from './ColorSwatch.tsx'
 import NotesThread from './NotesThread.tsx'
-import { aisleAt, ANY_STORE, anyStoreView, departmentAisle, setShoppingModeList, setTripStore, tripStore, tripView } from './trip.ts'
+import { aisleAt, ANY_STORE, anyStoreView, departmentAisle, setShoppingModeList, setTripStore, tripLeftovers, tripStore, tripView } from './trip.ts'
 import { tellAppKeepAwake } from './native.ts'
+import { itemKey, matchItems } from './itemSuggest.ts'
 
 const KIND_LABEL: Record<ListKind, string> = { todo: 'To-do', shopping: 'Shopping', reusable: 'Reusable' }
 
@@ -212,8 +213,8 @@ const NEW_VALUE = '\u0000new'
 
 /** A real dropdown of the household's values (a native select: the iPhone wheel, a big list on a
  * wall screen), plus "None" and "New …", which reveals a text field for a value not seen before. */
-function ValuePicker({ id, label, value, options, onChange, newLabel, placeholder }: {
-  id: string; label: string; value: string; options: string[]; onChange: (v: string) => void; newLabel: string; placeholder: string
+function ValuePicker({ id, label, value, options, onChange, newLabel, placeholder, noneLabel = 'None' }: {
+  id: string; label: string; value: string; options: string[]; onChange: (v: string) => void; newLabel: string; placeholder: string; noneLabel?: string
 }) {
   const [adding, setAdding] = useState(false)
   const typing = adding || (!!value && !options.includes(value)) // a value from elsewhere shows as typed
@@ -222,7 +223,7 @@ function ValuePicker({ id, label, value, options, onChange, newLabel, placeholde
       <label htmlFor={id}>{label}</label>
       <select id={id} value={typing ? NEW_VALUE : value}
         onChange={e => { const v = e.target.value; setAdding(v === NEW_VALUE); onChange(v === NEW_VALUE ? '' : v) }}>
-        <option value="">None</option>
+        <option value="">{noneLabel}</option>
         {options.map(o => <option key={o} value={o}>{o}</option>)}
         <option value={NEW_VALUE}>{newLabel}</option>
       </select>
@@ -747,6 +748,12 @@ function ManageValuesSheet({ suggestions, aisleOrder, onClose, onChanged }: {
   const [store, setStore] = useState<string | null>(aisleStores[0] ?? null)
   const [newAisle, setNewAisle] = useState('')
   const [override, setOverride] = useState<{ store: string | null; aisles: string[] } | null>(null) // a drag, shown before the reload
+  const [findItem, setFindItem] = useState('')
+  const forget = async (s: ItemSuggestion) => {
+    if (!await dialog.confirm({ title: `Forget "${s.title}"?`, body: 'It stops being suggested as you add, and where it goes is forgotten. Items on lists keep it.', confirmLabel: 'Forget', danger: true })) return
+    try { await api.forgetItemName(s.key); announce(`Forgot ${s.title}`); onChanged() }
+    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not forget it', true) }
+  }
   const aisles = override?.store === store ? override.aisles : storeAisles(suggestions, store, aisleOrder)
 
   const rename = async (field: Field, from: string, to: string | null) => {
@@ -812,7 +819,106 @@ function ManageValuesSheet({ suggestions, aisleOrder, onClose, onChanged }: {
           placeholder={`Add an aisle${store ? ` at ${store}` : ''}…`} aria-label={`Add an aisle${store ? ` at ${store}` : ''}`} enterKeyHint="done" />
         <button className="icon-btn" onClick={addAisle} disabled={!newAisle.trim()} aria-label="Add aisle"><PlusIcon width={20} height={20} /></button>
       </div>
+      {suggestions.items && <>
+        <h3 className="manage-head">Items</h3>
+        <p className="field-hint">Names you've added are suggested as you type. Find one to forget it.</p>
+        <input type="search" className="manage-find" value={findItem} onChange={e => setFindItem(e.target.value)} placeholder="Find an item…" aria-label="Find a remembered item" autoComplete="off" />
+        {findItem.trim() && (() => {
+          const found = matchItems(findItem, suggestions.items.filter(s => s.uses > 0), new Set(), 20)
+          return found.length ? found.map(s => (
+            <div className="manage-row" key={s.key}>
+              <span className="manage-row-name">{s.title}</span>
+              <button className="icon-btn" onClick={() => forget(s)} aria-label={`Forget ${s.title}`}><TrashIcon width={16} height={16} /></button>
+            </div>
+          )) : <p className="list-item-meta">Nothing remembered by that name.</p>
+        })()}
+      </>}
     </Sheet>
+  )
+}
+
+/** Checkout with items left over at one store: "Didn't find these?" - pick another store (or
+ * Anywhere) for any of them, or leave them as they are. Either way Checkout goes ahead after. */
+function LeftoversSheet({ items, trip, stores, onDone }: {
+  items: ListItem[]; trip: string; stores: string[]; onDone: (moves: { item: ListItem; store: string | null }[]) => void
+}) {
+  const [picked, setPicked] = useState<Record<string, string>>(() => Object.fromEntries(items.map(i => [i.id, i.store ?? ''])))
+  const moves = items.filter(i => picked[i.id].trim() !== (i.store ?? '')).map(item => ({ item, store: picked[item.id].trim() || null }))
+  const leave = () => onDone([])
+  return (
+    <Sheet title="Didn't find these?" onClose={leave} actions={<>
+      <button className="btn btn-secondary" onClick={leave}>Leave them as they are</button>
+      {moves.length > 0 && <button className="btn btn-primary" onClick={() => onDone(moves)}>Move {moves.length}</button>}
+    </>}>
+      <p className="field-hint">Still on the list after {trip}. Pick where to look for them next time.</p>
+      {items.map(i => (
+        <ValuePicker key={i.id} id={`leftover-${i.id}`} label={i.title} value={picked[i.id]} options={stores} newLabel="New store…" placeholder="Store name" noneLabel="Anywhere"
+          onChange={v => setPicked(p => ({ ...p, [i.id]: v }))} />
+      ))}
+    </Sheet>
+  )
+}
+
+/** The add field. On a shopping list it autocompletes (a combobox): up to 6 remembered names as you
+ * type, with where each goes; ↑/↓ and Enter or a tap adds one straight away, Enter with none
+ * highlighted adds what's typed, Escape closes the list. `above` opens it above the field (Shopping
+ * mode's bottom dock, clear of the on-screen keyboard), where an empty field also offers "Buy again". */
+function ItemAddField({ id, value, onChange, onAdd, suggestions, onList, inputRef, above, buyAgain, label, placeholder, autoFocus, onEscape }: {
+  id: string; value: string; onChange: (v: string) => void; onAdd: (title: string) => void
+  suggestions?: ItemSuggestion[]; onList: Set<string> // keys of the open items, not suggested
+  inputRef: React.RefObject<HTMLInputElement>; above?: boolean; buyAgain?: boolean
+  label: string; placeholder: string; autoFocus?: boolean; onEscape?: (e: React.KeyboardEvent) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [focused, setFocused] = useState(false)
+  const [active, setActive] = useState(-1)
+  const matches = open && suggestions ? matchItems(value, suggestions, onList) : []
+  const again = buyAgain && focused && !value.trim() && suggestions ? suggestions.filter(s => s.uses > 0 && !onList.has(s.key)).slice(0, 6) : []
+  const listId = `${id}-suggest`
+  const pick = (title: string) => { setOpen(false); setActive(-1); onAdd(title) }
+  const hint = (s: ItemSuggestion) => [s.category ?? s.place?.aisle, s.place?.store].filter(Boolean).join(' · ')
+  const keepFocus = (e: React.MouseEvent) => e.preventDefault() // a tap doesn't close the keyboard
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.nativeEvent.isComposing) return
+    if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && matches.length) {
+      e.preventDefault()
+      const n = matches.length
+      setActive(a => (e.key === 'ArrowDown' ? (a + 1) % n : (a <= 0 ? n : a) - 1))
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      pick(active >= 0 && matches[active] ? matches[active].title : value)
+    } else if (e.key === 'Escape') {
+      if (matches.length) { e.stopPropagation(); setOpen(false); setActive(-1) } else onEscape?.(e)
+    }
+  }
+  return (
+    <div className={`item-add${above ? ' above' : ''}`}>
+      <input ref={inputRef} id={id} type="text" value={value} placeholder={placeholder} aria-label={label} enterKeyHint="done" autoFocus={autoFocus}
+        autoComplete="off" autoCorrect="off" autoCapitalize="sentences" spellCheck={false}
+        onChange={e => { onChange(e.target.value); setOpen(true); setActive(-1) }} onKeyDown={onKeyDown}
+        onFocus={() => setFocused(true)} onBlur={() => { setFocused(false); setOpen(false); setActive(-1) }}
+        {...(suggestions ? {
+          role: 'combobox', 'aria-autocomplete': 'list' as const, 'aria-expanded': matches.length > 0,
+          'aria-controls': matches.length ? listId : undefined, 'aria-activedescendant': active >= 0 && matches[active] ? `${listId}-${active}` : undefined,
+        } : {})} />
+      {matches.length > 0 && (
+        <ul id={listId} role="listbox" aria-label="Suggestions" className="item-suggest">
+          {matches.map((s, i) => (
+            <li key={s.key} id={`${listId}-${i}`} role="option" aria-selected={i === active} className={i === active ? 'active' : undefined}
+              onMouseDown={keepFocus} onClick={() => pick(s.title)}>
+              <span className="item-suggest-name">{s.title}</span>
+              {hint(s) && <span className="item-suggest-hint">{hint(s)}</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+      {again.length > 0 && (
+        <div className="item-again" role="group" aria-label="Buy again">
+          <span className="item-again-label" aria-hidden="true">Buy again</span>
+          {again.map(s => <button key={s.key} type="button" className="chip" onMouseDown={keepFocus} onClick={() => pick(s.title)} aria-label={`Add ${s.title}`}>{s.title}</button>)}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -849,6 +955,7 @@ function ListDetailPane({ listId, isPhone, shopMode, onBack, onArchivedOrDeleted
   const exitShop = () => { location.hash = '#/lists' }
   const [picking, setPicking] = useState(false) // the store step
   const [adding, setAdding] = useState(false) // its "Add an item" field
+  const [leftovers, setLeftovers] = useState<ListItem[] | null>(null) // Checkout's "Didn't find these?" step
   const shopScroll = useRef(0) // where the aisles were, for Resume shopping
   const shopList = useRef<HTMLDivElement>(null)
   const shopHeading = useRef<HTMLHeadingElement>(null)
@@ -870,16 +977,16 @@ function ListDetailPane({ listId, isPhone, shopMode, onBack, onArchivedOrDeleted
 
   // Checkout / Reset: the checked items go (or uncheck) at once on screen, and the server hears about
   // it after a few seconds unless Undo is tapped. Leaving the list sends it straight away.
-  const [checkout, setCheckout] = useState<{ ids: string[]; reset: boolean; trip: string | null; shop: boolean } | null>(null)
+  const [checkout, setCheckout] = useState<{ ids: string[]; reset: boolean; trip: string | null; shop: boolean; left: number } | null>(null)
   const pendingCheckout = useRef<(() => void) | null>(null)
   const checkoutTimer = useRef<ReturnType<typeof setTimeout>>()
   const commitCheckout = () => { clearTimeout(checkoutTimer.current); const run = pendingCheckout.current; pendingCheckout.current = null; run?.() }
   useEffect(() => commitCheckout, [listId]) // eslint-disable-line react-hooks/exhaustive-deps
-  const startCheckout = (checked: ListItem[], kind: ListKind, trip: string | null = null) => {
+  const startCheckout = (checked: ListItem[], kind: ListKind, trip: string | null = null, left = 0) => {
     if (!checked.length) return
     commitCheckout()
     const ids = checked.map(i => i.id), reset = kind === 'reusable'
-    setCheckout({ ids, reset, trip, shop: shopMode })
+    setCheckout({ ids, reset, trip, shop: shopMode, left })
     if (trip) { setTripStore(listId, null); setTrip(null); shopScroll.current = 0 } // Checkout ends the trip
     pendingCheckout.current = async () => {
       try { await (reset ? api.resetList(listId, ids) : api.clearListCompleted(listId, ids, trip && trip !== ANY_STORE ? trip : undefined)) }
@@ -899,8 +1006,8 @@ function ListDetailPane({ listId, isPhone, shopMode, onBack, onArchivedOrDeleted
   // offline. A refresh after they sync clears their pending mark (App bumps refreshTick).
   const showQueued = (op: Op | null) => { if (op) setDetail(d => d && applyListOps(d, [op])); else load() }
 
-  const addItem = async () => {
-    const title = draft.trim()
+  const addItem = async (text = draft) => {
+    const title = text.trim()
     if (!title) return
     setDraft('')
     try { showQueued(await api.queueAddListItem(listId, { title })) }
@@ -954,6 +1061,7 @@ function ListDetailPane({ listId, isPhone, shopMode, onBack, onArchivedOrDeleted
   }
 
   const { list, groups, suggestions } = detail
+  const onList = new Set(detail.items.filter(i => !i.done).map(i => itemKey(i.title))) // not suggested again
   const aisleOrder = aisleOrderMap(detail)
   // A pending Checkout shows as done already: those items gone (or unchecked, for a Reset).
   const pending = !checkout ? detail.items
@@ -993,6 +1101,27 @@ function ListDetailPane({ listId, isPhone, shopMode, onBack, onArchivedOrDeleted
       event={item.eventId ? byId.get(item.eventId) : undefined} onToggle={() => toggle(item)} onOpen={() => openItem(item)} />
   )
   const tripStores = [...new Set([...suggestions.stores, ...(tripAt ? [tripAt] : [])])]
+  // Checkout on a trip: at one store, anything unchecked gets a "Didn't find these?" step first.
+  // Checkout goes ahead whatever is picked there (and Undo still undoes it).
+  const checkoutTrip = (moved = false) => {
+    const left = activeTrip ? tripLeftovers(items, activeTrip) : []
+    if (!moved && tripAt && left.length) { setLeftovers(left); return }
+    startCheckout(tripChecked, list.kind, activeTrip, left.length)
+    if (shopMode) exitShop()
+  }
+  const finishLeftovers = async (moves: { item: ListItem; store: string | null }[]) => {
+    setLeftovers(null)
+    for (const { item, store } of moves) {
+      // The aisle goes with the store: the one known there, if any.
+      try { showQueued(await api.queueUpdateListItem(listId, item.id, { store, aisle: item.places?.find(p => p.store === store)?.aisle ?? null })) }
+      catch (e) { toast(e instanceof ApiError ? e.message : `Could not move ${item.title}`, true) }
+    }
+    if (moves.length) announce(`Moved ${moves.length} item${moves.length === 1 ? '' : 's'}`)
+    checkoutTrip(true)
+  }
+  const leftoversSheet = leftovers && tripAt && (
+    <LeftoversSheet items={leftovers} trip={tripAt} stores={suggestions.stores} onDone={finishLeftovers} />
+  )
   const pickStore = (store: string) => {
     if (store !== trip) changeTrip(store)
     setPicking(false); setTimeout(() => shopHeading.current?.focus()) // after the sheet hands focus back
@@ -1037,10 +1166,9 @@ function ListDetailPane({ listId, isPhone, shopMode, onBack, onArchivedOrDeleted
         <div className="shop-dock">
           {adding && (
             <div className="list-add-bar shop-add">
-              <input ref={inputRef} type="text" value={draft} onChange={e => setDraft(e.target.value)} autoFocus enterKeyHint="done"
-                onKeyDown={e => { if (e.key === 'Enter') addItem(); if (e.key === 'Escape') { e.stopPropagation(); setAdding(false) } }}
-                placeholder="Add an item…" aria-label={`Add to ${list.name}`} />
-              <button className="icon-btn" onClick={addItem} disabled={!draft.trim()} aria-label="Add item"><PlusIcon width={20} height={20} /></button>
+              <ItemAddField id={`shop-add-${listId}`} value={draft} onChange={setDraft} onAdd={addItem} suggestions={suggestions.items} onList={onList} inputRef={inputRef}
+                above buyAgain autoFocus label={`Add to ${list.name}`} placeholder="Add an item…" onEscape={e => { e.stopPropagation(); setAdding(false) }} />
+              <button className="icon-btn" onClick={() => addItem()} disabled={!draft.trim()} aria-label="Add item"><PlusIcon width={20} height={20} /></button>
             </div>
           )}
           <div className="shop-dock-row">
@@ -1048,13 +1176,14 @@ function ListDetailPane({ listId, isPhone, shopMode, onBack, onArchivedOrDeleted
               {adding ? <XIcon width={18} height={18} /> : <PlusIcon width={18} height={18} />}{!tripChecked.length && <span aria-hidden="true">{adding ? 'Close' : 'Add an item'}</span>}
             </button>
             {tripChecked.length > 0 && (
-              <button className="btn btn-primary list-checkout-btn" onClick={() => { startCheckout(tripChecked, list.kind, trip); exitShop() }}>
+              <button className="btn btn-primary list-checkout-btn" onClick={() => checkoutTrip()}>
                 {checkoutLabel} ({tripChecked.length})
               </button>
             )}
           </div>
         </div>
         {storeSheet}
+        {leftoversSheet}
       </div>,
       document.body)
   }
@@ -1074,17 +1203,9 @@ function ListDetailPane({ listId, isPhone, shopMode, onBack, onArchivedOrDeleted
       </div>
 
       <div className="list-add-bar">
-        <input
-          ref={inputRef}
-          type="text"
-          value={draft}
-          onChange={e => setDraft(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') addItem() }}
-          placeholder={list.kind === 'shopping' ? 'Add an item…' : 'Add something…'}
-          aria-label={`Add to ${list.name}`}
-          enterKeyHint="done"
-        />
-        <button className="icon-btn" onClick={addItem} disabled={!draft.trim()} aria-label="Add item"><PlusIcon width={20} height={20} /></button>
+        <ItemAddField id={`list-add-${listId}`} value={draft} onChange={setDraft} onAdd={addItem} suggestions={suggestions.items} onList={onList} inputRef={inputRef}
+          label={`Add to ${list.name}`} placeholder={list.kind === 'shopping' ? 'Add an item…' : 'Add something…'} />
+        <button className="icon-btn" onClick={() => addItem()} disabled={!draft.trim()} aria-label="Add item"><PlusIcon width={20} height={20} /></button>
       </div>
 
       {list.kind === 'shopping' && (
@@ -1187,7 +1308,7 @@ function ListDetailPane({ listId, isPhone, shopMode, onBack, onArchivedOrDeleted
         {/* Mid-shop: checked items stay crossed off in place; one tap clears (or resets) them all. */}
         {activeTrip ? tripChecked.length > 0 && (
           <div className="list-checkout-bar">
-            <button className="btn btn-primary list-checkout-btn" onClick={() => startCheckout(tripChecked, list.kind, activeTrip)}>
+            <button className="btn btn-primary list-checkout-btn" onClick={() => checkoutTrip()}>
               {checkoutLabel} ({tripChecked.length})
             </button>
           </div>
@@ -1200,9 +1321,10 @@ function ListDetailPane({ listId, isPhone, shopMode, onBack, onArchivedOrDeleted
         )}
       </div>
 
+      {leftoversSheet}
       {checkout && (
         <div className="toast list-undo-toast" role="status">
-          <span>{checkout.reset ? `Reset ${checkout.ids.length} item${checkout.ids.length === 1 ? '' : 's'}` : list.kind === 'shopping' ? `Checked out ${checkout.ids.length} item${checkout.ids.length === 1 ? '' : 's'}` : `Cleared ${checkout.ids.length} item${checkout.ids.length === 1 ? '' : 's'}`}</span>
+          <span>{checkout.reset ? `Reset ${checkout.ids.length} item${checkout.ids.length === 1 ? '' : 's'}` : list.kind === 'shopping' ? `Checked out ${checkout.ids.length} item${checkout.ids.length === 1 ? '' : 's'}${checkout.left ? `. ${checkout.left} left for next time.` : ''}` : `Cleared ${checkout.ids.length} item${checkout.ids.length === 1 ? '' : 's'}`}</span>
           <button className="list-undo-btn" onClick={undoCheckout}>Undo</button>
         </div>
       )}

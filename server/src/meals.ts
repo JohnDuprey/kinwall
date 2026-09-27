@@ -131,6 +131,10 @@ export async function applyProjection(db: KinwallDb, projection: Projection, lis
       FROM json_each(?) i JOIN json_each(i.value->'sources') s
       WHERE NOT EXISTS (SELECT 1 FROM meal_shopping_sources claimed WHERE claimed.list_id=? AND claimed.source_ref=s.value->>'ref')
       GROUP BY i.key`).bind(listId, listId, now, now, payload, listId));
+    // Autocomplete remembers the names actually added (src/item-memory.ts rememberName).
+    writes.push(db.prepare(`INSERT INTO item_names (name_key,title,uses,last_used)
+      SELECT i.value->>'key', i.value->>'name', 1, ? FROM json_each(?) i WHERE EXISTS (SELECT 1 FROM list_items WHERE id=i.value->>'id')
+      ON CONFLICT(name_key) DO UPDATE SET title=excluded.title, uses=item_names.uses+1, last_used=excluded.last_used`).bind(now, payload));
     writes.push(db.prepare(`INSERT INTO meal_shopping_sources (list_id,source_ref,item_id,fingerprint)
       SELECT ?,s.value->>'ref',i.value->>'id',s.value->>'fingerprint' FROM json_each(?) i JOIN json_each(i.value->'sources') s
       WHERE EXISTS (SELECT 1 FROM list_items WHERE id=i.value->>'id') ON CONFLICT(list_id,source_ref) DO NOTHING`).bind(listId, payload));
