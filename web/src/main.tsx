@@ -3,6 +3,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './styles.css'
 import { markNativeApp } from './native.ts'
+import { resumeShoppingHash } from './trip.ts'
 markNativeApp()
 
 // Android / Chrome / Edge offer to install once the page qualifies, often before the App chunk
@@ -58,7 +59,11 @@ if (MOCK) {
 
 if (import.meta.env.DEV) import('./skins.ts').then(({ assertSkinsAA }) => assertSkinsAA())
 
-// Keep a wall display awake (Auto-Lock "Never" on the iPad is the primary guard). The lock drops
+// Relaunched mid-shop (the app or tab was closed in the store): straight back into shopping mode.
+const shopHash = resumeShoppingHash(location.hash)
+if (shopHash) history.replaceState(null, '', shopHash)
+
+// Keep a wall display awake (and a phone in shopping mode) (Auto-Lock "Never" on the iPad is the primary guard). The lock drops
 // whenever the page is hidden, so re-request it on every return to visible.
 const keepAwake = () => { if (document.visibilityState === 'visible') navigator.wakeLock?.request('screen').catch(() => {}) }
 keepAwake()

@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { addDays, format } from 'date-fns'
 import { useApp } from './AppContext.tsx'
 import { api, ApiError } from './api.ts'
@@ -12,12 +13,13 @@ import { MemberPicker } from './MemberPicker.tsx'
 import { isSingleEmoji } from './emoji.ts'
 import { colorName, inkFor } from './color.ts'
 import { useIsPhone } from './useIsPhone.ts'
-import { CalendarIcon, CheckIcon, ChevronLeft, NoteIcon, PlusIcon, TrashIcon } from './icons.tsx'
+import { CalendarIcon, CheckIcon, ChevronLeft, NoteIcon, PlusIcon, TrashIcon, XIcon } from './icons.tsx'
 import { announce, pressable, Segmented } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
 import { CustomColorSwatch } from './ColorSwatch.tsx'
 import NotesThread from './NotesThread.tsx'
-import { aisleAt, departmentAisle, setTripStore, tripStore, tripView } from './trip.ts'
+import { aisleAt, ANY_STORE, anyStoreView, departmentAisle, setShoppingModeList, setTripStore, tripStore, tripView } from './trip.ts'
+import { tellAppKeepAwake } from './native.ts'
 
 const KIND_LABEL: Record<ListKind, string> = { todo: 'To-do', shopping: 'Shopping', reusable: 'Reusable' }
 
@@ -590,6 +592,21 @@ function ItemRow({ item, kind, groupBy, members, event, onToggle, onOpen, handle
   )
 }
 
+/** A row in shopping mode: the whole row ticks the item (no editing mid-aisle). */
+function ShopRow({ item, meta, onToggle }: { item: ListItem; meta?: string | null; onToggle: () => void }) {
+  const sub = [meta, item.notes?.split('\n')[0]].filter(Boolean).join(' · ')
+  return (
+    <button className={`shop-row ${item.done ? 'done' : ''} ${item.pending ? 'pending' : ''}`} role="checkbox" aria-checked={item.done} onClick={onToggle} title={item.pending ? 'Not synced yet' : undefined}>
+      <span className="shop-check" aria-hidden="true">{item.done && <CheckIcon width={20} height={20} />}</span>
+      <span className="shop-row-body">
+        <span className="shop-row-title">{item.title}</span>
+        {sub && <span className="shop-row-note">{sub}</span>}
+      </span>
+      {item.quantity && <span className="list-item-chip">{item.quantity}</span>}
+    </button>
+  )
+}
+
 /** Rows reorderable by dragging their grip (mouse, touch or pen). The grip alone starts a drag, so
  * tapping the row still ticks/opens it and swiping elsewhere still scrolls. The dragged row follows
  * the pointer and a line marks where it will land; dropping reports the new order of these ids.
@@ -799,8 +816,9 @@ function ManageValuesSheet({ suggestions, aisleOrder, onClose, onChanged }: {
   )
 }
 
-function ListDetailPane({ listId, isPhone, onBack, onArchivedOrDeleted, onLoaded }: {
+function ListDetailPane({ listId, isPhone, shopMode, onBack, onArchivedOrDeleted, onLoaded }: {
   listId: string; isPhone: boolean; onBack: () => void; onArchivedOrDeleted: () => void; onLoaded: (list: List) => void
+  shopMode: boolean // #/lists/<id>/shop: shopping mode, full screen
 }) {
   const { members, toast, refreshTick } = useApp()
   const [detail, setDetail] = useState<ListDetail | null>(null)
@@ -820,11 +838,39 @@ function ListDetailPane({ listId, isPhone, onBack, onArchivedOrDeleted, onLoaded
   // "Shopping at": a trip in one store, kept on this device only, until Checkout (or "Not shopping").
   const [trip, setTrip] = useState<string | null>(() => tripStore(listId))
   useEffect(() => { setSelectedStore(null); setShowDone(false); setTrip(tripStore(listId)) }, [listId])
-  const changeTrip = (store: string | null) => { setTripStore(listId, store); setTrip(store); announce(store ? `Shopping at ${store}` : 'Not shopping') }
+  const changeTrip = (store: string | null) => {
+    setTripStore(listId, store); setTrip(store); shopScroll.current = 0
+    announce(store ? `Shopping at ${store === ANY_STORE ? 'any store' : store}` : 'Not shopping')
+  }
+
+  // Shopping mode: the trip alone, full screen. "Done" leaves it with the trip still on (Resume
+  // shopping comes back to it); only Checkout or "Not shopping" ends the trip.
+  const enterShop = () => { location.hash = `#/lists/${listId}/shop` }
+  const exitShop = () => { location.hash = '#/lists' }
+  const [picking, setPicking] = useState(false) // the store step
+  const [adding, setAdding] = useState(false) // its "Add an item" field
+  const shopScroll = useRef(0) // where the aisles were, for Resume shopping
+  const shopList = useRef<HTMLDivElement>(null)
+  const shopHeading = useRef<HTMLHeadingElement>(null)
+  const saveShopScroll = (e: React.UIEvent<HTMLElement>) => { shopScroll.current = e.currentTarget.scrollTop }
+  // Kept for a relaunch, the screen stays on, and the app behind is out of reach (the view covers it).
+  useEffect(() => {
+    if (!shopMode) return
+    setShoppingModeList(listId); tellAppKeepAwake(true)
+    const shell = document.querySelector('.app-shell')
+    shell?.setAttribute('inert', '')
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !document.querySelector('.sheet')) exitShop() }
+    document.addEventListener('keydown', onKey)
+    return () => {
+      setShoppingModeList(null); tellAppKeepAwake(false); shell?.removeAttribute('inert')
+      document.removeEventListener('keydown', onKey); setAdding(false)
+      setTimeout(() => document.querySelector<HTMLElement>('.list-shop-btn')?.focus({ preventScroll: true })) // back on Resume/Start shopping
+    }
+  }, [shopMode, listId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Checkout / Reset: the checked items go (or uncheck) at once on screen, and the server hears about
   // it after a few seconds unless Undo is tapped. Leaving the list sends it straight away.
-  const [checkout, setCheckout] = useState<{ ids: string[]; reset: boolean; trip: string | null } | null>(null)
+  const [checkout, setCheckout] = useState<{ ids: string[]; reset: boolean; trip: string | null; shop: boolean } | null>(null)
   const pendingCheckout = useRef<(() => void) | null>(null)
   const checkoutTimer = useRef<ReturnType<typeof setTimeout>>()
   const commitCheckout = () => { clearTimeout(checkoutTimer.current); const run = pendingCheckout.current; pendingCheckout.current = null; run?.() }
@@ -833,10 +879,10 @@ function ListDetailPane({ listId, isPhone, onBack, onArchivedOrDeleted, onLoaded
     if (!checked.length) return
     commitCheckout()
     const ids = checked.map(i => i.id), reset = kind === 'reusable'
-    setCheckout({ ids, reset, trip })
-    if (trip) { setTripStore(listId, null); setTrip(null) } // Checkout ends the trip
+    setCheckout({ ids, reset, trip, shop: shopMode })
+    if (trip) { setTripStore(listId, null); setTrip(null); shopScroll.current = 0 } // Checkout ends the trip
     pendingCheckout.current = async () => {
-      try { await (reset ? api.resetList(listId, ids) : api.clearListCompleted(listId, ids, trip ?? undefined)) }
+      try { await (reset ? api.resetList(listId, ids) : api.clearListCompleted(listId, ids, trip && trip !== ANY_STORE ? trip : undefined)) }
       catch (e) { toast(e instanceof ApiError ? e.message : reset ? 'Could not reset the list' : 'Could not clear checked items', true) }
       setCheckout(null); load()
     }
@@ -845,6 +891,7 @@ function ListDetailPane({ listId, isPhone, onBack, onArchivedOrDeleted, onLoaded
   const undoCheckout = () => {
     clearTimeout(checkoutTimer.current); pendingCheckout.current = null
     if (checkout?.trip) { setTripStore(listId, checkout.trip); setTrip(checkout.trip) }
+    if (checkout?.shop) enterShop() // back to the aisles
     setCheckout(null); announce('Undone')
   }
   useEffect(() => { load() }, [listId, refreshTick]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -889,8 +936,22 @@ function ListDetailPane({ listId, isPhone, onBack, onArchivedOrDeleted, onLoaded
     catch (e) { toast(e instanceof ApiError ? e.message : 'Could not change grouping', true) }
   }
 
-  if (error) return <div className="list-detail"><div className="state-card">Couldn't load this list.</div></div>
-  if (!detail) return <div className="list-detail"><div className="state-card">Loading…</div></div>
+  const shopping = shopMode && detail?.list.kind === 'shopping'
+  // Opened on its heading (announced as the view's name), and where the aisles were left.
+  useLayoutEffect(() => {
+    if (!shopping) return
+    if (shopList.current) shopList.current.scrollTop = shopScroll.current
+    shopHeading.current?.focus({ preventScroll: true })
+  }, [shopping])
+  // A link to shopping mode for a list that isn't a shopping list: just the list.
+  useEffect(() => { if (shopMode && detail && !shopping) location.replace('#/lists') }, [shopMode, detail, shopping])
+
+  if (error || !detail) {
+    const card = <div className="state-card">{error ? "Couldn't load this list." : 'Loading…'}</div>
+    return shopMode
+      ? createPortal(<div className="shop-mode"><div className="shop-bar"><div className="shop-bar-title" /><button className="btn btn-secondary shop-done" onClick={exitShop}>Done</button></div>{card}</div>, document.body)
+      : <div className="list-detail">{card}</div>
+  }
 
   const { list, groups, suggestions } = detail
   const aisleOrder = aisleOrderMap(detail)
@@ -921,14 +982,82 @@ function ListDetailPane({ listId, isPhone, onBack, onArchivedOrDeleted, onLoaded
   const checkoutLabel = CHECKOUT_LABEL[list.kind]
   // On a trip: everything, walked in that store's aisle order; checked items always stay in place.
   const activeTrip = list.kind === 'shopping' ? trip : null
-  const tripAisles = activeTrip ? storeAisles(suggestions, activeTrip, aisleOrder) : []
-  const view = activeTrip ? tripView(pending, activeTrip, aisleOrder, tripAisles) : null
+  const tripAt = activeTrip === ANY_STORE ? null : activeTrip // one store: its aisles, in its order
+  const storeLabel = activeTrip === ANY_STORE ? 'Any store' : activeTrip
+  const tripAisles = tripAt ? storeAisles(suggestions, tripAt, aisleOrder) : []
+  const view = !activeTrip ? null : tripAt ? tripView(pending, tripAt, aisleOrder, tripAisles) : anyStoreView(items, aisleOrder)
+  const tripLeft = view ? [...view.aisles.flatMap(g => g.items), ...view.unknown].filter(i => !i.done).length : 0
   const tripChecked = items.filter(i => i.done)
   const tripRow = (item: ListItem, other = false) => (
-    <ItemRow key={item.id} item={other ? item : { ...item, aisle: aisleAt(item, activeTrip!, tripAisles) }} kind={list.kind} groupBy={other ? 'none' : 'aisle'} members={members}
+    <ItemRow key={item.id} item={other || !tripAt ? item : { ...item, aisle: aisleAt(item, tripAt, tripAisles) }} kind={list.kind} groupBy={other ? 'none' : tripAt ? 'aisle' : 'store'} members={members}
       event={item.eventId ? byId.get(item.eventId) : undefined} onToggle={() => toggle(item)} onOpen={() => openItem(item)} />
   )
-  const tripStores = [...new Set([...suggestions.stores, ...(activeTrip ? [activeTrip] : [])])]
+  const tripStores = [...new Set([...suggestions.stores, ...(tripAt ? [tripAt] : [])])]
+  const pickStore = (store: string) => {
+    if (store !== trip) changeTrip(store)
+    setPicking(false); setTimeout(() => shopHeading.current?.focus()) // after the sheet hands focus back
+  }
+  // No store yet (Start shopping, or a link straight in): ask first; backing out leaves the mode.
+  const storeSheet = (picking || (shopping && !trip)) && (
+    <Sheet title="Where are you shopping?" onClose={() => { setPicking(false); if (!trip) exitShop() }}>
+      <div className="shop-store-options">
+        {[...tripStores, ANY_STORE].map(st => (
+          <button key={st} className={`btn ${st === trip ? 'btn-primary' : 'btn-secondary'} btn-block`} aria-pressed={st === trip} onClick={() => pickStore(st)}>
+            {st === ANY_STORE ? 'Any store' : st}
+          </button>
+        ))}
+      </div>
+      <p className="field-hint">{tripStores.length ? "Items go in that store's aisle order. Any store goes store by store." : 'Add stores to items to walk them in aisle order.'}</p>
+    </Sheet>
+  )
+
+  if (shopping) {
+    const row = (item: ListItem, other = false) => <ShopRow key={item.id} item={item} meta={other ? item.store : !tripAt ? item.aisle : null} onToggle={() => toggle(item)} />
+    const group = (title: string, rows: React.ReactNode, className = '') => (
+      <section key={title} className={`shop-group ${className}`} aria-label={title}><h3 className="list-group-title" aria-hidden="true">{title}</h3>{rows}</section>
+    )
+    return createPortal(
+      <div className="shop-mode" role="dialog" aria-modal="true" aria-labelledby={`shop-title-${listId}`}>
+        <div className="shop-bar">
+          <div className="shop-bar-title">
+            <h2 id={`shop-title-${listId}`} ref={shopHeading} tabIndex={-1}>{list.name}<span className="sr-only">, shopping mode</span></h2>
+            <button className="shop-store-btn" onClick={() => setPicking(true)} aria-label={`Shopping at ${storeLabel ?? 'no store yet'}. Change store`}>
+              <span aria-hidden="true">🛒 </span>{storeLabel ?? 'Pick a store'} <span aria-hidden="true">▾</span>
+            </button>
+          </div>
+          {view && <div className="shop-left">{tripLeft} left</div>}
+          <button className="btn btn-secondary shop-done" onClick={exitShop}>Done</button>
+        </div>
+        <div className="shop-items scroll-y" ref={shopList} onScroll={saveShopScroll}>
+          {items.length === 0 && <div className="empty-card"><span className="emoji">🛒</span>Nothing on the list yet.</div>}
+          {view?.aisles.map(g => group(g.aisle, g.items.map(i => row(i))))}
+          {!!view?.unknown.length && group('Aisle unknown', view.unknown.map(i => row(i)))}
+          {!!view?.other.length && group('At other stores', view.other.map(i => row(i, true)), 'list-trip-other')}
+        </div>
+        <div className="shop-dock">
+          {adding && (
+            <div className="list-add-bar shop-add">
+              <input ref={inputRef} type="text" value={draft} onChange={e => setDraft(e.target.value)} autoFocus enterKeyHint="done"
+                onKeyDown={e => { if (e.key === 'Enter') addItem(); if (e.key === 'Escape') { e.stopPropagation(); setAdding(false) } }}
+                placeholder="Add an item…" aria-label={`Add to ${list.name}`} />
+              <button className="icon-btn" onClick={addItem} disabled={!draft.trim()} aria-label="Add item"><PlusIcon width={20} height={20} /></button>
+            </div>
+          )}
+          <div className="shop-dock-row">
+            <button className="btn btn-secondary shop-add-btn" onClick={() => setAdding(a => !a)} aria-expanded={adding} aria-label={adding ? 'Close Add an item' : 'Add an item'}>
+              {adding ? <XIcon width={18} height={18} /> : <PlusIcon width={18} height={18} />}{!tripChecked.length && <span aria-hidden="true">{adding ? 'Close' : 'Add an item'}</span>}
+            </button>
+            {tripChecked.length > 0 && (
+              <button className="btn btn-primary list-checkout-btn" onClick={() => { startCheckout(tripChecked, list.kind, trip); exitShop() }}>
+                {checkoutLabel} ({tripChecked.length})
+              </button>
+            )}
+          </div>
+        </div>
+        {storeSheet}
+      </div>,
+      document.body)
+  }
 
   const siblingIds = items.slice().sort((a, b) => a.sort - b.sort).map(i => i.id)
 
@@ -958,13 +1087,20 @@ function ListDetailPane({ listId, isPhone, onBack, onArchivedOrDeleted, onLoaded
         <button className="icon-btn" onClick={addItem} disabled={!draft.trim()} aria-label="Add item"><PlusIcon width={20} height={20} /></button>
       </div>
 
-      {list.kind === 'shopping' && tripStores.length > 0 && (
+      {list.kind === 'shopping' && (
         <div className={`list-trip ${activeTrip ? 'active' : ''}`}>
-          <label htmlFor={`list-trip-${listId}`}><span aria-hidden="true">🛒 </span>Shopping at</label>
-          <select id={`list-trip-${listId}`} value={activeTrip ?? ''} onChange={e => changeTrip(e.target.value || null)}>
-            <option value="">Not shopping</option>
-            {tripStores.map(st => <option key={st} value={st}>{st}</option>)}
-          </select>
+          {(tripStores.length > 0 || activeTrip) && <>
+            <label htmlFor={`list-trip-${listId}`}>Shopping at</label>
+            <select id={`list-trip-${listId}`} value={activeTrip ?? ''} onChange={e => changeTrip(e.target.value || null)}>
+              <option value="">Not shopping</option>
+              {tripStores.map(st => <option key={st} value={st}>{st}</option>)}
+              <option value={ANY_STORE}>Any store</option>
+            </select>
+          </>}
+          <button className={`btn ${activeTrip ? 'btn-primary' : 'btn-secondary'} list-shop-btn`} onClick={enterShop}>
+            <span aria-hidden="true">🛒</span>
+            {activeTrip ? <span>Resume shopping<span className="list-shop-sub"> · {storeLabel} · {tripLeft} left</span></span> : 'Start shopping'}
+          </button>
         </div>
       )}
 
@@ -1073,7 +1209,7 @@ function ListDetailPane({ listId, isPhone, onBack, onArchivedOrDeleted, onLoaded
 
 
       {editItem && (
-        <ItemEditSheet listId={listId} item={editItem} kind={list.kind} manual={manual} members={members} suggestions={suggestions} aisleOrder={aisleOrder} trip={activeTrip} siblingIds={siblingIds} upcoming={upcoming} byId={byId}
+        <ItemEditSheet listId={listId} item={editItem} kind={list.kind} manual={manual} members={members} suggestions={suggestions} aisleOrder={aisleOrder} trip={tripAt} siblingIds={siblingIds} upcoming={upcoming} byId={byId}
           onClose={() => { setEditItem(null); load() }} onSaved={() => { setEditItem(null); load() }} />
       )}
       {editList && (
@@ -1134,10 +1270,16 @@ export default function Lists() {
   const [error, setError] = useState(false)
   // #/lists?list=<id> (a tap in a member's snapshot): open that list.
   const listParam = () => new URLSearchParams(location.hash.split('?')[1] || '').get('list')
-  const [selectedId, setSelectedId] = useState<string | null>(listParam)
+  // #/lists/<id>/shop: that list in shopping mode.
+  const shopParam = () => /^#\/lists\/([^/?]+)\/shop/.exec(location.hash)?.[1] ?? null
+  const [shopId, setShopId] = useState<string | null>(shopParam)
+  const [selectedId, setSelectedId] = useState<string | null>(() => listParam() ?? shopParam())
   const [editList, setEditList] = useState<List | 'new' | null>(null)
   useEffect(() => {
     const read = () => {
+      const shop = shopParam()
+      setShopId(shop)
+      if (shop) setSelectedId(shop)
       const id = listParam()
       if (!id) return
       setSelectedId(id)
@@ -1161,8 +1303,9 @@ export default function Lists() {
   useEffect(() => {
     if (loading) return
     const gone = selectedId && !lists.find(l => l.id === selectedId)
+    if (gone && shopId === selectedId) location.replace('#/lists')
     if (gone || (!selectedId && !isPhone)) setSelectedId(isPhone ? null : lists[0]?.id ?? null)
-  }, [lists, loading, selectedId, isPhone])
+  }, [lists, loading, selectedId, isPhone, shopId])
 
   if (error) return <div className="content"><div className="state-card">Couldn't load lists.</div></div>
 
@@ -1190,7 +1333,7 @@ export default function Lists() {
     <div className="content lists-content">
       {isPhone ? (
         selectedId ? (
-          <ListDetailPane listId={selectedId} isPhone onBack={() => setSelectedId(null)} onArchivedOrDeleted={() => { setSelectedId(null); load() }} onLoaded={syncCard} />
+          <ListDetailPane listId={selectedId} isPhone shopMode={shopId === selectedId} onBack={() => setSelectedId(null)} onArchivedOrDeleted={() => { setSelectedId(null); load() }} onLoaded={syncCard} />
         ) : (
           <div className="lists-shell lists-shell-phone">{cards}</div>
         )
@@ -1198,7 +1341,7 @@ export default function Lists() {
         <div className="lists-shell">
           {cards}
           {selectedId
-            ? <ListDetailPane listId={selectedId} isPhone={false} onBack={() => setSelectedId(null)} onArchivedOrDeleted={() => { setSelectedId(null); load() }} onLoaded={syncCard} />
+            ? <ListDetailPane listId={selectedId} isPhone={false} shopMode={shopId === selectedId} onBack={() => setSelectedId(null)} onArchivedOrDeleted={() => { setSelectedId(null); load() }} onLoaded={syncCard} />
             : <div className="list-detail list-detail-empty"><div className="empty-card"><span className="emoji">👈</span>Pick a list to open it.</div></div>}
         </div>
       )}

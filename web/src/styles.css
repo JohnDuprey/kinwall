@@ -1137,6 +1137,56 @@ button {
 .list-trip select { flex: 1; min-width: 0; max-width: 360px; min-height: 44px; padding: 8px 40px 8px 12px; border-radius: 12px; border: 2px solid var(--border); background-color: var(--bg-alt); color: var(--text); font: inherit; font-weight: 800; }
 .list-trip.active select { border-color: var(--accent-strong); }
 .list-trip-other { opacity: 0.6; }
+.list-shop-btn { flex: 1 1 100%; min-height: 48px; padding-inline: 18px; gap: 8px; }
+.list-trip.active .list-shop-btn { min-height: 52px; }
+.list-shop-sub { font-weight: 700; opacity: 0.85; }
+
+/* ---------- Shopping mode (Lists.tsx): the trip alone, full screen, one-handed ---------- */
+.shop-mode {
+  position: fixed; inset: 0; z-index: 45; /* over the whole app, under sheets (50) and toasts (100) */
+  display: flex; flex-direction: column; background: var(--bg); color: var(--text);
+  padding-left: var(--safe-l); padding-right: var(--safe-r);
+}
+.shop-bar { display: flex; align-items: center; gap: 12px; flex-shrink: 0; padding: calc(var(--safe-t) + 8px) 16px 8px; background: var(--card); border-bottom: 1px solid var(--border); }
+.shop-bar-title { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; }
+.shop-bar h2 { margin: 0; max-width: 100%; font-size: 1.0625rem; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.shop-bar h2:focus { outline: none; } /* focused on open so it's announced; not a control */
+.shop-store-btn { min-height: 32px; max-width: 100%; padding: 0; border: none; background: none; color: var(--accent-strong); font: inherit; font-size: 0.875rem; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.shop-left { font-size: 0.875rem; font-weight: 800; color: var(--text-dim); white-space: nowrap; }
+.shop-done { flex: none; padding-inline: 22px; }
+.shop-mode > .state-card { margin: 24px 16px; }
+.shop-items { flex: 1; min-height: 0; width: 100%; max-width: 760px; margin: 0 auto; padding: 4px 16px 16px; }
+.shop-group { margin-top: 6px; }
+.shop-row {
+  display: flex; align-items: center; gap: 14px; width: 100%; min-height: 60px; padding: 10px 6px;
+  border: none; border-top: 1px solid var(--border); background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer;
+}
+.shop-group .list-group-title + .shop-row { border-top: none; }
+.shop-check { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; flex-shrink: 0; border-radius: 50%; border: 2.5px solid var(--border); color: white; }
+.shop-row.done .shop-check { background: var(--success); border-color: var(--success); }
+.shop-row.pending .shop-check { border-style: dashed; }
+.shop-row-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.shop-row-title { font-size: 1.125rem; font-weight: 700; }
+.shop-row-note { font-size: 0.8125rem; font-weight: 600; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.shop-row.done .shop-row-title { text-decoration: line-through; color: var(--text-dim); }
+.shop-row.done .shop-row-body, .shop-row.done .list-item-chip { opacity: 0.55; }
+.shop-dock { flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; padding: 10px 16px calc(var(--safe-b) + 10px); background: var(--card); border-top: 1px solid var(--border); }
+.shop-dock > * { width: 100%; max-width: 728px; margin: 0 auto; }
+.shop-add { position: static; }
+.shop-dock-row { display: flex; gap: 10px; }
+.shop-add-btn { flex: none; min-height: 52px; gap: 8px; padding-inline: 18px; }
+.shop-dock-row .list-checkout-btn { flex: 1; width: auto; }
+.shop-dock-row .shop-add-btn:only-child { flex: 1; }
+.shop-store-options { display: flex; flex-direction: column; gap: 8px; }
+/* Phones in landscape: every row of height counts - name and store on one line, a slimmer dock. */
+@media (max-height: 500px) {
+  .shop-bar { padding-top: calc(var(--safe-t) + 4px); padding-bottom: 4px; }
+  .shop-bar-title { flex-direction: row; align-items: center; gap: 12px; }
+  .shop-bar h2 { max-width: 50%; }
+  .shop-dock { padding-top: 6px; padding-bottom: calc(var(--safe-b) + 6px); }
+  .shop-add-btn, .shop-dock .list-checkout-btn { min-height: 46px; }
+  .shop-row { min-height: 52px; padding-block: 6px; }
+}
 .item-last-store, .item-dept-aisle { margin: -4px 0 12px; }
 .manage-head { font-size: 0.8125rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.03em; margin: 16px 0 4px; }
 .manage-row { display: flex; align-items: center; gap: 8px; min-height: 48px; border-top: 1px solid var(--border); padding: 2px 0; }

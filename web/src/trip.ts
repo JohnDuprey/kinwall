@@ -46,3 +46,33 @@ export function tripStore(listId: string): string | null {
 export function setTripStore(listId: string, store: string | null) {
   try { if (store) localStorage.setItem(tripKey(listId), store); else localStorage.removeItem(tripKey(listId)) } catch { /* not kept */ }
 }
+
+/** "Any store": a trip with no one store's layout. Kept as the trip's store. */
+export const ANY_STORE = '*'
+
+/** Any store: store by store (A-Z, "Anywhere" last), each walked in its own aisle order, A-Z
+ * within an aisle. Same shape as tripView, a store's name standing in for the aisle heading. */
+export function anyStoreView<T extends TripItem>(items: T[], order: AisleOrder) {
+  const stores = new Map<string, T[]>()
+  for (const item of items) stores.set(item.store ?? '', [...(stores.get(item.store ?? '') ?? []), item])
+  const cmp = (store: string) => (a: T, b: T) => compareAisles(store, a.aisle, b.aisle, order) || a.title.localeCompare(b.title, undefined, { sensitivity: 'base' })
+  const names = [...stores.keys()].sort((a, b) => (!a ? 1 : !b ? -1 : a.localeCompare(b)))
+  return { aisles: names.map(s => ({ aisle: s || 'Anywhere', items: stores.get(s)!.sort(cmp(s)) })), unknown: [] as T[], other: [] as T[] }
+}
+
+// Shopping mode (#/lists/<id>/shop): the list it's showing on this device, so a reload or a
+// relaunched app returns to it. Only while that list's trip is on (Checkout ends both).
+const SHOP_KEY = 'kinwall.shopping'
+export function shoppingModeList(): string | null {
+  try { const id = localStorage.getItem(SHOP_KEY); return id && tripStore(id) ? id : null } catch { return null }
+}
+export function setShoppingModeList(listId: string | null) {
+  try { if (listId) localStorage.setItem(SHOP_KEY, listId); else localStorage.removeItem(SHOP_KEY) } catch { /* not kept */ }
+}
+
+/** Where a relaunch opens: straight back into shopping mode when it was showing and the app would
+ * otherwise land on the calendar (a link to somewhere else wins). null = leave the hash alone. */
+export function resumeShoppingHash(hash: string): string | null {
+  const id = shoppingModeList()
+  return id && ['', '#', '#/', '#/calendar', '#/lists'].includes(hash) ? `#/lists/${id}/shop` : null
+}

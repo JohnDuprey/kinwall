@@ -1,7 +1,7 @@
 // node --test test/ (npm test). "Shopping at" ordering and per-store aisle lookup.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { aisleAt, departmentAisle, tripView } from '../src/trip.ts'
+import { aisleAt, anyStoreView, departmentAisle, resumeShoppingHash, setShoppingModeList, setTripStore, shoppingModeList, tripView } from '../src/trip.ts'
 
 type P = { store: string | null; aisle: string | null }
 const item = (title: string, store: string | null, aisle: string | null = null, places: P[] = []) => ({ title, store, aisle, places })
@@ -63,4 +63,34 @@ test('tripView: a department fills in an unknown aisle; a real or remembered ais
   assert.deepEqual(view.aisles.map(g => [g.aisle, g.items.map(i => i.title)]), [['Produce', ['Apples']], ['Aisle 1', ['Carrots']], ['Aisle 2', ['Kale']]])
   assert.deepEqual(view.unknown.map(i => i.title), ['Bread'])
   assert.equal(aisleAt(items[0], 'Shaws'), null) // without the store's aisles: nothing inferred
+})
+
+test('anyStoreView: store by store (anywhere last), each in its own aisle order', () => {
+  const items = [
+    item('Soap', null),
+    item('Milk', 'Market', 'Dairy'),
+    item('Apples', 'Market', 'Produce'),
+    item('Bread', 'Market', null),
+    item('Paper towels', 'Club', 'Aisle 14'),
+  ]
+  const v = anyStoreView(items, new Map([['Market', ['Produce', 'Dairy']]]))
+  assert.deepEqual(v.aisles.map(g => [g.aisle, g.items.map(i => i.title)]), [['Club', ['Paper towels']], ['Market', ['Apples', 'Milk', 'Bread']], ['Anywhere', ['Soap']]])
+  assert.deepEqual([v.unknown, v.other], [[], []])
+})
+
+test('shopping mode resumes only while its trip is on, and only over the default landing', () => {
+  const store = new Map<string, string>()
+  globalThis.localStorage = { getItem: k => store.get(k) ?? null, setItem: (k, v) => void store.set(k, v), removeItem: k => void store.delete(k) } as Storage
+  try {
+    assert.equal(resumeShoppingHash(''), null)
+    setShoppingModeList('l1')
+    assert.equal(shoppingModeList(), null) // no trip: nothing to resume
+    setTripStore('l1', 'Market')
+    assert.equal(shoppingModeList(), 'l1')
+    assert.equal(resumeShoppingHash(''), '#/lists/l1/shop')
+    assert.equal(resumeShoppingHash('#/calendar'), '#/lists/l1/shop')
+    assert.equal(resumeShoppingHash('#/chores'), null) // a link somewhere else wins
+    setTripStore('l1', null) // Checkout / "Not shopping"
+    assert.equal(resumeShoppingHash(''), null)
+  } finally { delete (globalThis as { localStorage?: Storage }).localStorage }
 })

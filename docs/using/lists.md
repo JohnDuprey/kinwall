@@ -87,6 +87,23 @@ During a trip:
 
 The toolbar (grouping, sort, store chips) is hidden during a trip, since the store's aisle order is the order.
 
+You can also pick **Any store**: nothing is tied to one store's layout, so the list goes store by store, each in its own aisle order.
+
+## Shopping mode
+
+Shopping mode is the list and nothing else, for your phone in the store: no header, no tab bar, no list settings.
+
+* Tap **Start shopping** on a shopping list. If you haven't picked a store yet, it asks which one (or **Any store**) first.
+* The top bar shows the list name, the store (tap it to change stores), how many items are left, and **Done**.
+* Items are grouped by aisle in walking order, with **Aisle unknown** and a dimmed **At other stores** at the end, just like a trip. Tap anywhere on a row to tick it; it stays crossed off in place. Quantities and the first line of an item's notes show on the row.
+* Remembered something in the store? Tap **+** at the bottom to open **Add an item**.
+* **Checkout (*N*)** at the bottom removes the ticked items, ends the trip and closes shopping mode. **Undo** brings it all back, including shopping mode.
+* **Done** (or Escape on a keyboard) closes shopping mode but keeps the trip: ticked items stay crossed off and the store stays picked. The list then shows **Resume shopping**, with the store and how many items are left; tap it to go back where you were. Items you add to the list in the meantime show up in shopping mode right away.
+* Only **Checkout**, or picking **Not shopping**, ends the trip.
+* The screen stays on while shopping mode is open, and a wall screen doesn't drift back to the calendar.
+* If the app or browser closes mid-trip, opening Kinwall again takes you straight back to shopping mode on this device.
+* A link to `#/lists/<list id>/shop` opens a list straight in shopping mode.
+
 ## Offline shopping
 
 Kinwall keeps working in a store with one bar of signal or none:

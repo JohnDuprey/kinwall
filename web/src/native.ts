@@ -22,3 +22,10 @@ export function tellAppSignedOut(reason: 'signOut' | 'rejected') {
   const w = window as Window & { webkit?: { messageHandlers?: { kinwall?: { postMessage: (m: unknown) => void } } } }
   try { w.webkit?.messageHandlers?.kinwall?.postMessage({ type: 'signedOut', reason }) } catch { /* not in the app */ }
 }
+
+/** Shopping mode is showing: asks the app to keep the screen on (a phone otherwise sleeps). The
+ * browser's own Screen Wake Lock is held by main.tsx. No-op in a browser. */
+export function tellAppKeepAwake(on: boolean) {
+  const w = window as Window & { webkit?: { messageHandlers?: { kinwall?: { postMessage: (m: unknown) => void } } } }
+  try { w.webkit?.messageHandlers?.kinwall?.postMessage({ type: 'keepAwake', on }) } catch { /* not in the app */ }
+}
