@@ -1,7 +1,7 @@
 // Meal planning domain: recipes are definitions; a meal owns the snapshot it was planned with.
 import type { KinwallDb, KinwallStatement } from './db.ts';
 import type { Ingredient, Meal, Recipe, Projection } from './meal-schemas.ts';
-import { fillPlace, recall } from './item-memory.ts';
+import { fillPlace, itemKey, recall } from './item-memory.ts';
 
 export function normalizeIngredient(value: string): string {
   return value.normalize('NFKC').trim().toLowerCase().replace(/\s+/g, ' ');
@@ -104,7 +104,7 @@ export async function applyProjection(db: KinwallDb, projection: Projection, lis
   // Where the household keeps each ingredient (store, category, aisle); the recipe's category otherwise.
   const memory = await recall(db, wanted.map((item) => item.name));
   const rows = wanted.map((item) => ({ item, place: fillPlace(memory, item.name, {}) })).map(({ item, place }) => ({
-    id: crypto.randomUUID(), name: item.name, category: place.category ?? item.category, store: place.store, aisle: place.aisle, qualifier: item.qualifier,
+    id: crypto.randomUUID(), name: item.name, key: itemKey(item.name), category: place.category ?? item.category, store: place.store, aisle: place.aisle, qualifier: item.qualifier,
     suffix: `${item.unit ? ` ${item.unit}` : ''}${item.qualifier ? ` · ${item.qualifier}` : ''}`,
     sources: item.sources.map((s) => ({ ref: s.sourceRef, quantity: s.quantity, fingerprint: sourceFingerprint(s, item.key),
       note: includeNotes ? `${s.date} · ${s.slot} · ${s.title}${s.title === s.recipeName ? '' : ` (${s.recipeName})`}${s.preparation ? ` · ${s.preparation}` : ''}${!s.scalable ? ` · check amount for ${s.servings} servings (recipe: ${s.defaultServings})` : ''}` : null,
@@ -122,8 +122,8 @@ export async function applyProjection(db: KinwallDb, projection: Projection, lis
   if (chunk.length) chunks.push(JSON.stringify(chunk));
   const writes: KinwallStatement[] = [];
   for (const payload of chunks) {
-    writes.push(db.prepare(`INSERT INTO list_items (id,list_id,title,quantity,notes,category,store,aisle,sort,created_at,updated_at)
-      SELECT i.value->>'id', ?, i.value->>'name',
+    writes.push(db.prepare(`INSERT INTO list_items (id,list_id,title,name_key,quantity,notes,category,store,aisle,sort,created_at,updated_at)
+      SELECT i.value->>'id', ?, i.value->>'name', i.value->>'key',
         CASE WHEN count(s.value->>'quantity') = 0 THEN i.value->>'qualifier'
           ELSE rtrim(rtrim(printf('%.6f',sum(s.value->>'quantity')),'0'),'.') || (i.value->>'suffix') END,
         group_concat(s.value->>'note', char(10)), i.value->>'category', i.value->>'store', i.value->>'aisle',

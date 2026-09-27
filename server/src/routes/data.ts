@@ -8,6 +8,7 @@ import { emit, type BusEventType } from '../bus.ts';
 import type { KinwallDb, KinwallStatement } from '../db.ts';
 import { RecipeSchema, MealSchema } from '../meal-schemas.ts';
 import { readRecipes, readMeals, normalizeIngredient } from '../meals.ts';
+import { itemKey } from '../item-memory.ts';
 import { readSettings, settingsWrites } from './settings.ts';
 import { toApi as categoryToApi } from './categories.ts';
 import { toApi as choreToApi, type ChoreRow } from './chores.ts';
@@ -632,6 +633,7 @@ dataRoutes.openapi(
           id: i.id,
           list_id: i.listId,
           title: i.title,
+          name_key: itemKey(i.title),
           notes: i.notes,
           quantity: i.quantity,
           store: i.store,

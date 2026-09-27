@@ -8,7 +8,7 @@ import { notifyListUpdate } from '../notify.ts';
 import { parseMemberIds, resolveMemberIds } from '../calendar-members.ts';
 import { eventWriteBlock } from '../auth.ts';
 import type { Context } from 'hono';
-import { fillPlace, recall, rememberPlace } from '../item-memory.ts';
+import { fillPlace, itemKey, recall, rememberPlace } from '../item-memory.ts';
 import {
   ErrorSchema,
   ListDetailSchema,
@@ -135,6 +135,25 @@ export function compareAisles(store: string | null | undefined, a: string | null
   const ia = custom.indexOf(a), ib = custom.indexOf(b);
   if (ia >= 0 || ib >= 0) return ia < 0 ? 1 : ib < 0 ? -1 : ia - ib;
   return natural(a, b);
+}
+
+type TripItem = { id: string; title: string; quantity: string | null; done: boolean; store: string | null; aisle: string | null; places?: { store: string | null; aisle: string | null }[] };
+
+/** The list as shopped at `store` (ListTripSchema; web/src/trip.ts is the client's copy - keep in
+ * step). An item planned for this store or for anywhere shows its aisle here: its own when its
+ * store is this one, else the one remembered for this store. */
+export function tripView(items: TripItem[], store: string, order: AisleOrder) {
+  const title = (a: { title: string }, b: { title: string }) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' });
+  const rows = items.map((i) => {
+    const other = !!i.store && i.store !== store;
+    const aisle = other ? i.aisle : (i.store === store && i.aisle) || i.places?.find((p) => p.store === store)?.aisle || null;
+    return { id: i.id, title: i.title, quantity: i.quantity, done: i.done, store: i.store, aisle, section: other ? ('other' as const) : aisle ? ('aisle' as const) : ('unknown' as const) };
+  });
+  const rank = { aisle: 0, unknown: 1, other: 2 };
+  rows.sort((a, b) => rank[a.section] - rank[b.section]
+    || (a.section === 'aisle' ? compareAisles(store, a.aisle, b.aisle, order) : a.section === 'other' ? (a.store ?? '').localeCompare(b.store ?? '') : 0)
+    || title(a, b));
+  return { store, items: rows };
 }
 
 /** The list's item order (see ListSortBySchema), so API consumers see the same order as the UI -
@@ -296,7 +315,7 @@ listsRoutes.openapi(
     tags: ['Lists'],
     summary: 'List detail: the list, its items (each with the planned meals it was added for), its group ordering, household-wide store/category/aisle suggestions, and stores\' custom aisle orders',
     security: [{ Bearer: [] }],
-    request: { params: z.object({ id: z.string() }) },
+    request: { params: z.object({ id: z.string() }), query: z.object({ store: z.string().min(1).optional().openapi({ description: 'Also return `trip`: the list as shopped at this store.' }) }) },
     responses: {
       200: { description: 'ok', content: { 'application/json': { schema: ListDetailSchema } } },
       404: { description: 'not found', content: { 'application/json': { schema: ErrorSchema } } },
@@ -305,7 +324,7 @@ listsRoutes.openapi(
   async (c) => {
     const { id } = c.req.valid('param');
     // One round trip: list + items + groups + both suggestion lists, all independent reads.
-    const [listRes, itemsRes, groupsRes, stepsRes, storesRes, categoriesRes, tzRes, notesRes, aislesRes, orderRes, mealsRes] = await c.env.DB.batch<unknown>([
+    const [listRes, itemsRes, groupsRes, stepsRes, storesRes, categoriesRes, tzRes, notesRes, aislesRes, orderRes, mealsRes, placesRes] = await c.env.DB.batch<unknown>([
       c.env.DB.prepare('SELECT * FROM lists WHERE id = ?').bind(id),
       c.env.DB.prepare('SELECT * FROM list_items WHERE list_id = ?').bind(id), // ordered below, by the list's sortBy
       c.env.DB.prepare('SELECT * FROM list_groups WHERE list_id = ? ORDER BY kind, sort').bind(id),
@@ -322,11 +341,20 @@ listsRoutes.openapi(
          JOIN meals m ON m.id = substr(s.source_ref, 11, instr(substr(s.source_ref, 11), ':') - 1)
          WHERE s.list_id = ? AND s.source_ref LIKE 'meal-plan:%' ORDER BY m.date, m.title`,
       ).bind(id),
+      // Where each item has been kept, per store, newest first: any store's trip renders from this.
+      c.env.DB.prepare(
+        `SELECT li.id AS item_id, m.store, m.aisle FROM list_items li JOIN item_memory m ON m.name_key = li.name_key
+         WHERE li.list_id = ? AND (SELECT kind FROM lists WHERE id = ?) = 'shopping' ORDER BY m.updated_at DESC`,
+      ).bind(id, id),
     ]);
     const noteCounts = new Map((notesRes.results as { target_id: string; n: number }[]).map((r) => [r.target_id, r.n]));
     const list = (listRes.results as ListRow[])[0];
     if (!list) return c.json({ error: 'not found' }, 404);
     const items = itemsRes.results as unknown as ListItemRow[];
+    const placesByItem = new Map<string, { store: string | null; aisle: string | null }[]>();
+    for (const r of placesRes.results as { item_id: string; store: string; aisle: string | null }[]) {
+      placesByItem.set(r.item_id, [...(placesByItem.get(r.item_id) ?? []), { store: r.store || null, aisle: r.aisle }]);
+    }
     const groups = groupsRes.results as unknown as ListGroupRow[];
     const steps = groupSteps(stepsRes.results as ListItemStepRow[]);
     const stores = (storesRes.results as { store: string }[]).map((r) => r.store);
@@ -341,13 +369,18 @@ listsRoutes.openapi(
     }
     const openCount = items.filter((i) => !i.done).length;
     const order = compareItems(list.sort_by, todayIn((tzRes.results as { value: string }[])[0]?.value), { keepChecked: !!list.keep_checked, aisleOrder });
+    const apiItems = items
+      .map((i) => ({ ...toItemApi(i, steps.get(i.id)), noteCount: noteCounts.get(i.id) ?? 0, ...(meals.has(i.id) ? { meals: meals.get(i.id) } : {}), ...(list.kind === 'shopping' ? { places: placesByItem.get(i.id) ?? [] } : {}) }))
+      .sort(order);
+    const tripStore = c.req.valid('query').store;
     return c.json(
       {
         list: toApi(list, items.length, openCount),
-        items: items.map((i) => ({ ...toItemApi(i, steps.get(i.id)), noteCount: noteCounts.get(i.id) ?? 0, ...(meals.has(i.id) ? { meals: meals.get(i.id) } : {}) })).sort(order),
+        items: apiItems,
         groups: groups.map(toGroupApi),
         suggestions: { stores, categories, aisles },
         aisleOrder: [...aisleOrder].map(([store, names]) => ({ store: store || null, aisles: names })),
+        ...(tripStore ? { trip: tripView(apiItems, tripStore, aisleOrder) } : {}),
       },
       200,
     );
@@ -510,11 +543,12 @@ listsRoutes.openapi(
       await c.env.DB.batch([
         ...rows.map((r) =>
           c.env.DB.prepare(
-            'INSERT INTO list_items (id, list_id, title, notes, quantity, store, category, aisle, member_id, due_date, event_id, priority, done, done_at, done_by, sort, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+            'INSERT INTO list_items (id, list_id, title, name_key, notes, quantity, store, category, aisle, member_id, due_date, event_id, priority, done, done_at, done_by, sort, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
           ).bind(
             r.id,
             r.list_id,
             r.title,
+            itemKey(r.title),
             r.notes,
             r.quantity,
             r.store,
@@ -604,7 +638,7 @@ listsRoutes.openapi(
       quantity: body.quantity !== undefined ? body.quantity : existing.quantity,
       store: body.store !== undefined ? body.store : existing.store,
       category: body.category !== undefined ? body.category : existing.category,
-      aisle: body.aisle !== undefined ? body.aisle : existing.aisle,
+      aisle: body.aisle === undefined ? existing.aisle : body.aisleStore === undefined ? body.aisle : null, // trip: set below
       member_id: memberId,
       due_date: body.dueDate !== undefined ? body.dueDate : existing.due_date,
       event_id: body.eventId !== undefined ? body.eventId : existing.event_id,
@@ -614,11 +648,16 @@ listsRoutes.openapi(
       done_by: body.done === undefined ? existing.done_by : done ? (body.doneBy ?? null) : null,
       updated_at: now,
     };
+    // A shopping trip sets the aisle at the trip's store: the item takes it only if it's planned for
+    // that store or for anywhere (and stays "anywhere"); either way it's remembered for that store.
+    const trip = body.aisleStore !== undefined && body.aisle !== undefined ? { store: body.aisleStore, aisle: body.aisle } : null;
+    if (trip) updated.aisle = !updated.store || updated.store === trip.store ? trip.aisle : existing.aisle;
     await c.env.DB.batch([
       c.env.DB.prepare(
-        'UPDATE list_items SET title=?, notes=?, quantity=?, store=?, category=?, aisle=?, member_id=?, due_date=?, event_id=?, priority=?, done=?, done_at=?, done_by=?, updated_at=? WHERE id=?',
+        'UPDATE list_items SET title=?, name_key=?, notes=?, quantity=?, store=?, category=?, aisle=?, member_id=?, due_date=?, event_id=?, priority=?, done=?, done_at=?, done_by=?, updated_at=? WHERE id=?',
       ).bind(
         updated.title,
+        itemKey(updated.title),
         updated.notes,
         updated.quantity,
         updated.store,
@@ -638,9 +677,13 @@ listsRoutes.openapi(
       ...(body.done !== undefined
         ? [c.env.DB.prepare('UPDATE list_item_steps SET done = ?, done_at = ? WHERE item_id = ? AND done != ?').bind(updated.done, updated.done ? now : null, itemId, updated.done)]
         : []),
-      // Saving where an item goes remembers it for next time (not a plain tick).
+      // Saving where an item goes remembers it for next time (not a plain tick). On a trip, the aisle
+      // is remembered for the trip's store, and an "anywhere" item doesn't remember one for no store.
       ...(existing.shopping && [body.title, body.store, body.category, body.aisle].some((v) => v !== undefined)
-        ? [rememberPlace(c.env.DB, updated.title, updated, now)].filter((st) => st !== null)
+        ? [
+            trip && !updated.store ? null : rememberPlace(c.env.DB, updated.title, updated, now),
+            trip ? rememberPlace(c.env.DB, updated.title, { store: trip.store, category: updated.category, aisle: trip.aisle }, now) : null,
+          ].filter((st) => st !== null)
         : []),
     ]);
     emit(c, 'list.item.changed', { listId: id, id: itemId, done: !!updated.done });
@@ -676,15 +719,27 @@ listsRoutes.openapi(
     method: 'post',
     path: '/api/lists/{id}/clear-completed',
     tags: ['Lists'],
-    summary: 'Checkout: delete the checked items in a list - only those in itemIds (still checked) when given, else every checked item',
+    summary: 'Checkout: delete the checked items in a list - only those in itemIds (still checked) when given, else every checked item. Optional JSON body { itemIds, store }: store (the end of a shopping trip) is remembered as where they were last bought.',
     security: [{ Bearer: [] }],
     request: { params: z.object({ id: z.string() }) }, // optional JSON body { itemIds } (ListChecked), read by checkedIds
     responses: { 200: { description: 'ok', content: { 'application/json': { schema: z.object({ deleted: z.number() }) } } } },
   }),
   async (c) => {
     const { id } = c.req.valid('param');
-    const ids = await checkedIds(c);
+    const { ids, store } = await checkedBody(c);
     const where = `list_id = ? AND done = 1 AND (? IS NULL OR id IN (SELECT value FROM json_each(?)))`;
+    // Checkout at the end of a trip: these were bought at `store` - the newest place for each, so the
+    // item editor can suggest it next time. The aisle known there is kept.
+    if (store) {
+      const bought = (await c.env.DB.prepare(`SELECT title, category FROM list_items WHERE ${where}`).bind(id, ids, ids).all<{ title: string; category: string | null }>()).results;
+      const now = new Date().toISOString();
+      if (bought.length) {
+        await c.env.DB.batch(bought.map((b) => c.env.DB.prepare(
+          `INSERT INTO item_memory (name_key, store, category, aisle, updated_at) VALUES (?, ?, ?, NULL, ?)
+           ON CONFLICT(name_key, store) DO UPDATE SET category = coalesce(excluded.category, item_memory.category), updated_at = excluded.updated_at`,
+        ).bind(itemKey(b.title), store, b.category, now)));
+      }
+    }
     await c.env.DB.prepare(`DELETE FROM notes WHERE ${ITEM_NOTES} IN (SELECT id FROM list_items WHERE ${where})`).bind(id, ids, ids).run();
     const result = await c.env.DB.prepare(`DELETE FROM list_items WHERE ${where}`).bind(id, ids, ids).run();
     emit(c, 'list.changed', { id });
@@ -704,17 +759,17 @@ listsRoutes.openapi(
   }),
   async (c) => {
     const { id } = c.req.valid('param');
-    const reset = await resetListItems(c.env.DB, id, null, await checkedIds(c));
+    const reset = await resetListItems(c.env.DB, id, null, (await checkedBody(c)).ids);
     emit(c, 'list.changed', { id });
     return c.json({ reset }, 200);
   },
 );
 
-/** The optional { itemIds } body of Checkout / Reset, as a JSON array param (null = every item).
- * Read by hand, not declared on the route: callers post these with no body (or an empty one). */
-async function checkedIds(c: Context<{ Bindings: Env }>): Promise<string | null> {
+/** The optional { itemIds, store } body of Checkout / Reset: ids as a JSON array param (null = every
+ * item). Read by hand, not declared on the route: callers post these with no body (or an empty one). */
+async function checkedBody(c: Context<{ Bindings: Env }>): Promise<{ ids: string | null; store: string | null }> {
   const parsed = ListCheckedSchema.safeParse(await c.req.json().catch(() => ({})));
-  return parsed.success && parsed.data.itemIds ? JSON.stringify(parsed.data.itemIds) : null;
+  return { ids: parsed.success && parsed.data.itemIds ? JSON.stringify(parsed.data.itemIds) : null, store: parsed.success ? parsed.data.store ?? null : null };
 }
 
 /** Uncheck items (and their steps) in a list; returns how many items were ticked. With `forMember`,

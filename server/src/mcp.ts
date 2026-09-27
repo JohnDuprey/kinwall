@@ -1007,20 +1007,21 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'get_list',
     {
       title: 'Get list',
-      description: 'Get a list by id or name (case-insensitive), including its items (in the list sortBy order, each with its ordered steps), group ordering, and store/category suggestions.',
-      inputSchema: { list: z.string().describe('List id or name.') },
+      description: 'Get a list by id or name (case-insensitive), including its items (in the list sortBy order, each with its ordered steps and, on a shopping list, the aisle it was kept in at each store), group ordering, store/category/aisle suggestions and stores\' aisle orders. With store, also `trip`: the list as shopped at that store - items in aisle order with their aisle there, then those with no aisle known there, then those planned for other stores.',
+      inputSchema: { list: z.string().describe('List id or name.'), store: z.string().optional().describe('Shopping at this store: adds the trip view.') },
     },
-    async ({ list }) => {
+    async ({ list, store }) => {
       let id: string;
       try {
         id = (await resolveList(app, env, auth, list)).id;
       } catch (err) {
         return errorResult(null, err instanceof Error ? err.message : 'list lookup failed');
       }
-      const res = await call(app, env, auth, 'GET', `/api/lists/${encodeURIComponent(id)}`);
+      const res = await call(app, env, auth, 'GET', `/api/lists/${encodeURIComponent(id)}${store ? `?store=${encodeURIComponent(store)}` : ''}`);
       if (res.status >= 400) return errorResult(res.json, 'failed to get list');
-      const detail = res.json as { list: { name: string }; items: unknown[] };
-      return okResult(`"${detail.list.name}": ${detail.items.length} item(s).`, detail as Record<string, unknown>);
+      const detail = res.json as { list: { name: string }; items: unknown[]; trip?: { items: { title: string; aisle: string | null; section: string; done: boolean }[] } };
+      const trip = detail.trip?.items.map((i) => `${i.done ? '[x] ' : ''}${i.title}${i.section === 'aisle' ? ` (${i.aisle})` : i.section === 'unknown' ? ' (aisle unknown)' : ' (other store)'}`).join(', ');
+      return okResult(`"${detail.list.name}": ${detail.items.length} item(s).${trip ? ` At ${store}: ${trip}.` : ''}`, detail as Record<string, unknown>);
     },
   );
 

@@ -28,20 +28,20 @@ CREATE TABLE store_aisles (
   PRIMARY KEY (store, aisle)
 );
 
--- Seed the memory from existing shopping items (previously looked up by title on each add), with
--- itemKey's rules: drop a plural s, then a final e, then a final y becomes i.
+-- Each item's matching key (src/item-memory.ts itemKey), so a list's items join to what's
+-- remembered about them in one query. Backfilled with itemKey's rules: drop a plural s, then a
+-- final e, then a final y becomes i (in SQL, without itemKey's Unicode normalization).
+ALTER TABLE list_items ADD COLUMN name_key TEXT;
+UPDATE list_items SET name_key = lower(trim(title));
+UPDATE list_items SET name_key = substr(name_key, 1, length(name_key) - 1)
+  WHERE length(name_key) > 3 AND name_key LIKE '%s' AND name_key NOT LIKE '%ss' AND name_key NOT LIKE '%us' AND name_key NOT LIKE '%is';
+UPDATE list_items SET name_key = substr(name_key, 1, length(name_key) - 1) WHERE length(name_key) > 2 AND name_key LIKE '%e';
+UPDATE list_items SET name_key = substr(name_key, 1, length(name_key) - 1) || 'i' WHERE name_key LIKE '%y';
+
+-- Seed the memory from existing shopping items (previously looked up by title on each add).
 INSERT INTO item_memory (name_key, store, category, aisle, updated_at)
-SELECT k3, store, category, NULL, updated_at FROM (
-  SELECT CASE WHEN k2 LIKE '%y' THEN substr(k2, 1, length(k2) - 1) || 'i' ELSE k2 END AS k3, store, category, updated_at FROM (
-    SELECT CASE WHEN length(k1) > 2 AND k1 LIKE '%e' THEN substr(k1, 1, length(k1) - 1) ELSE k1 END AS k2, store, category, updated_at FROM (
-      SELECT CASE WHEN length(k0) > 3 AND k0 LIKE '%s' AND k0 NOT LIKE '%ss' AND k0 NOT LIKE '%us' AND k0 NOT LIKE '%is'
-               THEN substr(k0, 1, length(k0) - 1) ELSE k0 END AS k1, store, category, updated_at FROM (
-        SELECT lower(trim(li.title)) AS k0, coalesce(li.store, '') AS store, li.category, li.updated_at
-        FROM list_items li JOIN lists l ON l.id = li.list_id
-        WHERE l.kind = 'shopping' AND (li.store IS NOT NULL OR li.category IS NOT NULL)
-      )
-    )
-  )
-) WHERE true
+SELECT li.name_key, coalesce(li.store, ''), li.category, NULL, li.updated_at
+FROM list_items li JOIN lists l ON l.id = li.list_id
+WHERE l.kind = 'shopping' AND (li.store IS NOT NULL OR li.category IS NOT NULL) AND true
 ON CONFLICT (name_key, store) DO UPDATE SET category = excluded.category, updated_at = excluded.updated_at
   WHERE excluded.updated_at > item_memory.updated_at;

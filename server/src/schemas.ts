@@ -501,6 +501,10 @@ export const ListItemSchema = z
     stepsTotal: z.number(),
     noteCount: z.number().optional(), // notes in this item's thread (GET /api/lists/{id} only)
     meals: z.array(z.string()).optional().openapi({ description: 'Planned meals this item was added for (GET /api/lists/{id} only).' }),
+    places: z
+      .array(z.object({ store: z.string().nullable(), aisle: z.string().nullable() }))
+      .optional()
+      .openapi({ description: 'Where the family has kept this item, newest first: one entry per store with its aisle there (GET /api/lists/{id} only). The first store is where it was last bought.' }),
   })
   .openapi('ListItem');
 
@@ -535,6 +539,9 @@ export const ListItemPatchSchema = z
     store: z.string().nullable().optional(),
     category: z.string().nullable().optional(),
     aisle: z.string().max(60).nullable().optional(),
+    aisleStore: z.string().min(1).optional().openapi({
+      description: 'Shopping trip: the store `aisle` is at, when that is not (or not yet) the item\'s store. The aisle is remembered for that store; the item takes it only if its store is that one or empty (its store is left as is).',
+    }),
     memberId: z.string().nullable().optional(),
     dueDate: z.string().nullable().optional(),
     eventId: z.string().nullable().optional(),
@@ -552,6 +559,25 @@ export const ListGroupSchema = z
   })
   .openapi('ListGroup');
 
+// GET /api/lists/{id}?store=X: the list as shopped at that store.
+export const ListTripSchema = z
+  .object({
+    store: z.string(),
+    items: z.array(
+      z.object({
+        id: z.string(),
+        title: z.string(),
+        quantity: z.string().nullable(),
+        done: z.boolean(),
+        store: z.string().nullable(),
+        aisle: z.string().nullable(),
+        section: z.enum(['aisle', 'unknown', 'other']),
+      }),
+    ),
+  })
+  .openapi({ description: "Items in walking order at `store`: those planned for it or for anywhere by that store's aisles (its custom order, else natural), each with its aisle there; then 'unknown' (no aisle known there); then 'other' (planned for a different store)." })
+  .openapi('ListTrip');
+
 export const ListDetailSchema = z
   .object({
     list: ListSchema,
@@ -565,6 +591,7 @@ export const ListDetailSchema = z
     }),
     // Stores whose aisles have a custom walking order (aisle sort and grouping follow it).
     aisleOrder: z.array(z.object({ store: z.string().nullable(), aisles: z.array(z.string()) })),
+    trip: ListTripSchema.optional(),
   })
   .openapi('ListDetail');
 
@@ -584,7 +611,8 @@ export const StoreAislesSchema = z
   .openapi('StoreAisles');
 
 // Checkout / Reset: only these items (still checked) when given, else every checked item.
-export const ListCheckedSchema = z.object({ itemIds: z.array(z.string()).max(1000).optional() }).openapi('ListChecked');
+// store (Checkout at the end of a shopping trip): remembered as where these items were last bought.
+export const ListCheckedSchema = z.object({ itemIds: z.array(z.string()).max(1000).optional(), store: z.string().min(1).optional() }).openapi('ListChecked');
 
 export const ListReorderSchema = z.object({ itemIds: z.array(z.string()) }).openapi('ListReorder');
 

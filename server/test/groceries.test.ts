@@ -226,3 +226,58 @@ test('groceries: migration 0040 gives existing lists the default by kind and see
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('groceries: list detail carries each item\'s remembered aisle per store; ?store= gives the trip view', async () => {
+  const { send, tool } = makeApp();
+  const list = await shoppingList(send);
+  // Milk has been kept at two stores; bread only at the market; stamps are planned for the post office.
+  await send('POST', `/api/lists/${list.id}/items`, [{ title: 'Milk', store: 'Warehouse club', aisle: 'Aisle 2' }, { title: 'Bread', store: 'Market', aisle: 'Bakery' }]);
+  const [milkAtMarket] = await send('POST', `/api/lists/${list.id}/items`, { title: 'Milk', store: 'Market', aisle: 'Dairy' });
+  await send('DELETE', `/api/lists/${list.id}/items/${milkAtMarket.id}`);
+  await send('PUT', '/api/lists/aisles', { store: 'Market', aisles: ['Bakery', 'Dairy'] });
+  const detail0 = await send('GET', `/api/lists/${list.id}`);
+  const milk = detail0.items.find((i: any) => i.title === 'Milk');
+  assert.deepEqual(milk.places, [{ store: 'Market', aisle: 'Dairy' }, { store: 'Warehouse club', aisle: 'Aisle 2' }]); // newest first
+  const [soap] = await send('POST', `/api/lists/${list.id}/items`, [{ title: 'Soap', store: null }, { title: 'Stamps', store: 'Post office' }]);
+  await send('PATCH', `/api/lists/${list.id}/items/${soap.id}`, { done: true });
+
+  // At the market: Bread by aisle; Soap (anywhere, checked - still listed) has no aisle known there;
+  // Milk is planned for the warehouse club, so it's under other stores with its own aisle.
+  const trip = (await send('GET', `/api/lists/${list.id}?store=Market`)).trip;
+  assert.deepEqual(trip.items.map((i: any) => [i.title, i.aisle, i.section, i.done]), [
+    ['Bread', 'Bakery', 'aisle', false], ['Soap', null, 'unknown', true], ['Stamps', null, 'other', false], ['Milk', 'Aisle 2', 'other', false],
+  ]);
+
+  // Over MCP.
+  const viaMcp = await tool('get_list', { list: 'Groceries', store: 'Warehouse club' });
+  assert.deepEqual(viaMcp.trip.items.map((i: any) => [i.title, i.aisle, i.section]), [['Milk', 'Aisle 2', 'aisle'], ['Soap', null, 'unknown'], ['Bread', 'Bakery', 'other'], ['Stamps', null, 'other']]);
+});
+
+test('groceries: setting an aisle on a trip remembers it for the trip store; an anywhere item stays anywhere', async () => {
+  const { send } = makeApp();
+  const list = await shoppingList(send);
+  const [soap, milk] = await send('POST', `/api/lists/${list.id}/items`, [{ title: 'Soap', store: null }, { title: 'Milk', store: 'Warehouse club', aisle: 'Aisle 2' }]);
+  const s = await send('PATCH', `/api/lists/${list.id}/items/${soap.id}`, { aisle: 'Aisle 7', aisleStore: 'Market' });
+  assert.deepEqual([s.store, s.aisle], [null, 'Aisle 7']);
+  // Milk is planned for another store: it keeps its own aisle; the market aisle is only remembered.
+  const m = await send('PATCH', `/api/lists/${list.id}/items/${milk.id}`, { aisle: 'Dairy', aisleStore: 'Market' });
+  assert.deepEqual([m.store, m.aisle], ['Warehouse club', 'Aisle 2']);
+  const detail = await send('GET', `/api/lists/${list.id}`);
+  assert.deepEqual(detail.items.find((i: any) => i.title === 'Soap').places, [{ store: 'Market', aisle: 'Aisle 7' }]); // nothing for "no store"
+  assert.deepEqual(detail.items.find((i: any) => i.title === 'Milk').places.map((p: any) => [p.store, p.aisle]).sort(), [['Market', 'Dairy'], ['Warehouse club', 'Aisle 2']]);
+  const [again] = await send('POST', `/api/lists/${list.id}/items`, { title: 'soap', store: 'Market' });
+  assert.equal(again.aisle, 'Aisle 7');
+});
+
+test('groceries: checkout at the end of a trip remembers where things were last bought', async () => {
+  const { send } = makeApp();
+  const list = await shoppingList(send);
+  const [eggs] = await send('POST', `/api/lists/${list.id}/items`, [{ title: 'Eggs', store: 'Market', category: 'Dairy', aisle: 'Dairy' }]);
+  const [eggs2] = await send('POST', `/api/lists/${list.id}/items`, [{ title: 'Eggs', store: null }]);
+  await send('PATCH', `/api/lists/${list.id}/items/${eggs2.id}`, { done: true });
+  await new Promise((r) => setTimeout(r, 2));
+  assert.deepEqual(await send('POST', `/api/lists/${list.id}/clear-completed`, { itemIds: [eggs2.id], store: 'Warehouse club' }), { deleted: 1 });
+  const detail = await send('GET', `/api/lists/${list.id}`);
+  // Newest first: bought at the club; before that, added for "anywhere"; before that, the market's dairy aisle.
+  assert.deepEqual(detail.items.find((i: any) => i.id === eggs.id).places, [{ store: 'Warehouse club', aisle: null }, { store: null, aisle: null }, { store: 'Market', aisle: 'Dairy' }]);
+});
