@@ -11,7 +11,7 @@ Don't use chores? An admin can turn off **Chores & points** in **Settings → Ge
 * **Tap** a card to mark it done (with a check and a small confetti burst). Tap again to undo.
 * A **date strip** lets you look at 4 days back and 9 days ahead. You can complete chores for any day shown.
 * Completing a chore credits the chore's assignee. Ticking off an **Anyone** chore on the Chores tab asks **Who did it?**: pick the person who earns the points, or **Nobody in particular**. It doesn't ask when the family is filtered to one person or the display is pinned to one; the chore counts for that person. Unticking never asks. A done **Anyone** chore says who got the points, such as "Done by Sam", or "Done by nobody in particular".
-* To edit a chore, **press and hold** (half a second), right-click, or tab to it and use its **Edit** button.
+* To edit a chore, **press and hold** (half a second), right-click, or tab to it and use its **Edit** button. Adding, editing and deleting chores works on parent devices only: wall screens and kids' devices tick chores off (and undo), with no **+** button and no editor.
 
 ## Ticking chores off from someone's day
 

@@ -260,7 +260,7 @@ function ChoreCard({ chore, onToggle, onEdit }: { chore: ChoreDay; onToggle: () 
 
 export default function Chores() {
   const isPhone = useIsPhone()
-  const { members, selectedMemberId, focusMemberId, focusShowsShared, settings, toast, reloadCore, refreshTick } = useApp()
+  const { members, selectedMemberId, focusMemberId, focusShowsShared, settings, toast, reloadCore, refreshTick, parentDevice } = useApp()
   const [selectedDate, setSelectedDate] = useState(() => new Date())
   const [chores, setChores] = useState<ChoreDay[]>([])
   const [loading, setLoading] = useState(true)
@@ -379,7 +379,7 @@ export default function Chores() {
                   <div className="chore-col-pts">{list.reduce((s, c) => s + (c.completed ? c.points : 0), 0)} pts today</div>
                 </div>
                 {list.map(c => (
-                  <ChoreCard key={c.id} chore={c} onToggle={() => toggle(c)} onEdit={() => setEditChore(c)} />
+                  <ChoreCard key={c.id} chore={c} onToggle={() => toggle(c)} onEdit={() => { if (parentDevice) setEditChore(c) }} />
                 ))}
               </div>
             )
@@ -387,11 +387,11 @@ export default function Chores() {
           {/* Tap toggles done (kid-friendly), so editing is a long press - say so on phones,
               where an admin is the one looking. On the iPad grid this would become a column. */}
           {idle.length > 0 && <p className="chores-hint">Nothing due: {idle.map(m => m.name).join(', ')}</p>}
-          {isPhone && <p className="chores-hint">Press and hold a chore to edit it.</p>}
+          {isPhone && parentDevice && <p className="chores-hint">Press and hold a chore to edit it.</p>}
         </div>
       )}
 
-      <button className="fab" onClick={() => setEditChore('new')} aria-label="Add chore"><PlusIcon /></button>
+      {parentDevice && <button className="fab" onClick={() => setEditChore('new')} aria-label="Add chore"><PlusIcon /></button>}
 
       {whoFor && (
         <Sheet title="Who did it?" onClose={() => setWhoFor(null)}>

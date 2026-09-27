@@ -360,8 +360,9 @@ test('mcp: update_chore/update_member/update_category match their REST routes\' 
   const category = await (await rest('/api/categories', { method: 'POST', body: JSON.stringify({ name: 'School', color: '#3366ff' }) })).json() as any;
   const chore = await (await rest('/api/chores', { method: 'POST', body: JSON.stringify({ title: 'Dishes', dueDate: '2026-05-01' }) })).json() as any;
 
+  // Chores are ticked off on devices; editing them is for parents.
   const choreRes = await (await mcp('tools/call', { name: 'update_chore', arguments: { choreId: chore.id, points: 3 } }, displayKey.key)).json() as any;
-  assert.equal(choreRes.result.isError, undefined, JSON.stringify(choreRes));
+  assert.equal(choreRes.result.isError, true, JSON.stringify(choreRes));
 
   // Members are admin-only for displays: the wall can't rename people or change their colors.
   const memberRes = await (await mcp('tools/call', { name: 'update_member', arguments: { member: member.id, color: '#00ff00' } }, displayKey.key)).json() as any;
@@ -370,8 +371,8 @@ test('mcp: update_chore/update_member/update_category match their REST routes\' 
   const categoryRes = await (await mcp('tools/call', { name: 'update_category', arguments: { category: category.id, color: '#00ff00' } }, displayKey.key)).json() as any;
   assert.equal(categoryRes.result.isError, undefined, JSON.stringify(categoryRes));
 
-  // add_member (POST /api/members) is admin-only too - display can edit an existing category/chore
-  // in place, but never members and never create new ones.
+  // add_member (POST /api/members) is admin-only too - display can edit an existing category in
+  // place, but never members or chores, and never create new ones.
   const addRes = await (await mcp('tools/call', { name: 'add_member', arguments: { name: 'Nope', color: '#000000' } }, displayKey.key)).json() as any;
   assert.equal(addRes.result.isError, true);
 

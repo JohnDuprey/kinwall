@@ -72,6 +72,14 @@ test('key scopes: display key is 403 on admin-only routes, 200 on display-allowe
 
   const completeRes = await display(`/api/chores/${chore.id}/complete`, { method: 'POST', body: JSON.stringify({ date: '2026-05-01' }) });
   assert.equal(completeRes.status, 200);
+  const undoRes = await display(`/api/chores/${chore.id}/complete?date=2026-05-01`, { method: 'DELETE' });
+  assert.ok(undoRes.status < 300, 'a display can undo a completion');
+
+  // Chores are ticked off on devices, but only parents add, edit or delete them.
+  assert.equal((await display('/api/chores', { method: 'POST', body: JSON.stringify({ title: 'Nap' }) })).status, 403);
+  assert.equal((await display(`/api/chores/${chore.id}`, { method: 'PATCH', body: JSON.stringify({ points: 100 }) })).status, 403);
+  assert.equal((await display(`/api/chores/${chore.id}`, { method: 'DELETE' })).status, 403);
+  assert.equal((await admin(`/api/chores/${chore.id}`, { method: 'PATCH', body: JSON.stringify({ points: 3 }) })).status, 200);
 
   // A display key keeps the everyday settings (household, appearance) but not admin functions
   // (members, accounts, keys, webhooks - checked above).

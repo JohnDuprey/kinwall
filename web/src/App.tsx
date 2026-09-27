@@ -836,6 +836,7 @@ function AppRoutes() {
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null)
   const [owner, setOwner] = useState<string | null>(null) // who an admin says this device belongs to (GET /api/me)
   const [ownerLocks, setOwnerLocks] = useState(false) // ...and whether that locks the family filter (everyday access only)
+  const [parentDevice, setParentDevice] = useState(false) // until /api/me says otherwise, act as a device
   // `persist`: errors and results worth reading stay until tapped; confirmations fade after 4s.
   const [toastMsg, setToastMsg] = useState<{ msg: string; persist: boolean } | null>(null)
   // Sticky banner-style toast (tap to dismiss), e.g. after a recovery-code sign-in.
@@ -868,7 +869,7 @@ function AppRoutes() {
       setSettings(settings)
       setMembers(m)
       setCategories(cats)
-      if (me) { setOwner(me.owner ?? null); setOwnerLocks(!!me.locked) }
+      if (me) { setOwner(me.owner ?? null); setOwnerLocks(!!me.locked); setParentDevice(me.scope === 'admin') }
       setLoadError(false)
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) { clearKey('rejected'); setHasKey(false); return }
@@ -978,7 +979,7 @@ function AppRoutes() {
   return (
     <AppContext.Provider value={{
       settings, members, categories, selectedMemberId: effectiveMemberId, setSelectedMemberId: setMemberId,
-      focusMemberId: focusMember?.id ?? null, focusShowsShared: !device.focusHideShared, focusLocked: ownerLocks, meMemberId,
+      focusMemberId: focusMember?.id ?? null, focusShowsShared: !device.focusHideShared, focusLocked: ownerLocks, meMemberId, parentDevice,
       refreshTick: pollTick + manualTick,
       reloadCore: () => setManualTick(t => t + 1),
       toast: (msg, persist = false) => setToastMsg({ msg, persist }),

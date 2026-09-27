@@ -11,6 +11,7 @@ export interface AppCtx {
   focusShowsShared: boolean // ...and still shows events/chores/lists assigned to nobody
   focusLocked: boolean // an admin set who this everyday-access device belongs to, so it can't pick its own
   meMemberId: string | null // whose device this is (any scope), for personal defaults like "post as"; never a filter
+  parentDevice: boolean // full access (admin key): may add, edit and delete chores; wall screens and kids' devices only tick them off
   refreshTick: number
   reloadCore: () => void
   toast: (msg: string, persist?: boolean) => void // persist: stays until tapped (errors, results)

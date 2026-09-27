@@ -104,9 +104,8 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'DELETE', pattern: /^\/api\/events\/[^/]+$/ },
   { method: 'GET', pattern: /^\/api\/chores$/ },
   { method: 'GET', pattern: /^\/api\/chores\/day$/ },
-  { method: 'POST', pattern: /^\/api\/chores$/ },
-  { method: 'PATCH', pattern: /^\/api\/chores\/[^/]+$/ },
-  { method: 'DELETE', pattern: /^\/api\/chores\/[^/]+$/ },
+  // Chores: wall screens and kids' devices tick them off (and undo); adding, editing and deleting
+  // chores is for parent devices.
   { method: 'POST', pattern: /^\/api\/chores\/[^/]+\/complete$/ },
   { method: 'DELETE', pattern: /^\/api\/chores\/[^/]+\/complete$/ },
   { method: 'GET', pattern: /^\/api\/leaderboard$/ },
