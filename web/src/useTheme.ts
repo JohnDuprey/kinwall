@@ -20,6 +20,7 @@ export type DeviceAppearance = Partial<Pick<Appearance, 'themeMode' | 'textScale
   lowStim?: boolean // flat, calm, no motion - see [data-lowstim] in styles.css
   font?: FontChoice // absent = Nunito
   nowNext?: boolean // Now / Next card on the calendar; absent = on
+  idleReset?: boolean // back to the calendar after 2 idle minutes; absent = on for wall screens and kids' devices, off for parent devices
   warnings?: number[] // transition warnings, minutes before an event (or its leave-by)
   warningSound?: boolean
   focusMemberId?: string // this display shows only one member's things

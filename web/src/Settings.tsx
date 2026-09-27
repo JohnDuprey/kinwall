@@ -1048,8 +1048,17 @@ function TimeCueRows() {
     set({ warnings: next.length ? next : undefined })
   }
   const nowNext = device.nowNext ?? true
+  const { parentDevice } = useApp()
+  const idleReset = device.idleReset ?? !parentDevice
   return (
     <>
+      <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+        <div className="toggle-row">
+          <label id="idle-reset-label">Back to the calendar when idle</label>
+          <button className={`switch ${idleReset ? 'on' : ''}`} role="switch" aria-checked={idleReset} aria-labelledby="idle-reset-label" onClick={() => set({ idleReset: !idleReset })}><span className="knob" /></button>
+        </div>
+        <div className="settings-row-sub">After 2 minutes without a tap, this screen closes what's open and shows today's calendar (10 minutes in Paint). Handy on the wall; on by default there, off on parents' phones and computers.</div>
+      </div>
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
         <div className="toggle-row">
           <label id="nownext-label">Now / Next</label>

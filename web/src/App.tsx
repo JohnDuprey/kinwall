@@ -932,7 +932,11 @@ function AppRoutes() {
   // idle reset: 2 min of no touch/pointer/keyboard activity -> back to today's calendar, close sheets.
   // Never while someone is in a text field: a slow typist or a screen-reader user reading a form
   // mustn't lose it. Tabbing, typing and wheel-scrolling all count as activity.
+  // It's for the wall: on by default for wall screens and kids' devices, off for a parent's
+  // phone or computer (Settings → This device can change either).
+  const idleReset = device.idleReset ?? !parentDevice
   useEffect(() => {
+    if (!idleReset) return
     let timer: ReturnType<typeof setTimeout>
     const reset = () => {
       clearTimeout(timer)
@@ -947,7 +951,7 @@ function AppRoutes() {
     const events = ['pointerdown', 'touchstart', 'keydown', 'focusin', 'wheel']
     events.forEach(ev => window.addEventListener(ev, reset, { passive: true }))
     return () => { clearTimeout(timer); events.forEach(ev => window.removeEventListener(ev, reset)) }
-  }, [])
+  }, [idleReset])
 
   useEffect(() => {
     if (!toastMsg) return
