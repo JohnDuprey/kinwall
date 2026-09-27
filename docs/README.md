@@ -16,6 +16,7 @@ Kinwall is an open-source, self-hosted family wall calendar, chore chart and sha
 * **Already run Home Assistant?** Use the [Home Assistant add-on](getting-started/home-assistant-add-on.md).
 * **Just installed it?** Follow the [First-run setup wizard](getting-started/setup-wizard.md), then [Put it on the wall](getting-started/put-it-on-the-wall.md).
 * **Connecting calendars?** Start with [Google](calendars/google.md), [Microsoft / Outlook](calendars/microsoft.md), [iCloud & CalDAV](calendars/icloud-caldav.md) or [ICS feeds](calendars/ics-feeds.md).
+* **Building a learning game?** See [Building activity plugins](contributing/plugins.md) and start from the [hello-world starter](https://github.com/JohnDuprey/kinwall-plugin-hello-world).
 * **Automating things?** See the [REST API](integrations/rest-api.md), [Webhooks](integrations/webhooks.md) and the [MCP server](integrations/mcp.md) for AI assistants.
 
 Just want a look first? The [demo build](self-hosting/demo-build.md) runs entirely in the browser on sample data.

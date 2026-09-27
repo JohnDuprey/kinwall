@@ -8,15 +8,16 @@ Kinwall is a family calendar, chore chart and list app you host yourself. The ma
 
 | Area | In short | Read more |
 |---|---|---|
-| Board | The first screen: a big clock, the weather and forecast, today, coming up, chores, items due soon, a family photo and a quote, fun fact, "On this day" or trivia question. | [Board view](../using/calendar.md#board-view) |
+| Board | The first screen: a big clock, the weather and forecast, today, coming up, chores, items due soon, a family photo and a quote, fun fact, "On this day", trivia question or tip. | [Board view](../using/calendar.md#board-view) |
 | Calendar | Board, Day, Week, Month and Schedule views. On phones the week becomes a 3-day view. Color-coded by family member or category. | [Calendar](../using/calendar.md) |
 | Events | Create and edit events. Changes go back to Google, Outlook and CalDAV. You can add reminders, a travel time with a leave-by time, members, a category and linked tasks. | [Events](../using/events.md) |
 | Calendars | Google, Microsoft 365 / Outlook, iCloud and other CalDAV servers, and any ICS URL. | [Connecting calendars](../calendars/google.md) |
 | Snapshot | Tap a person for their day or week: events, chores to tick off, things due and birthdays. | [Daily & weekly snapshot](../using/snapshot.md) |
-| Chores | One-off or recurring chores with points, streaks, a leaderboard and optional checklists. | [Chores](../using/chores.md) |
+| Chores | One-off or recurring chores with points, streaks, a leaderboard, optional checklists, and activity chores ("5 min of Sight words") that complete themselves. | [Chores](../using/chores.md) |
 | Lists | Shopping, to-do and reusable lists. Items remember their store and category. | [Lists](../using/lists.md) |
 | Trackers | A reading log with progress and ratings, a family memories journal, and doctor and dentist visits (health stays off the wall screen). | [Trackers](../using/trackers.md) |
-| Activities | Paint for kids, a sticker book to spend chore points on, and a shared family photo album. | [Activities](../using/activities.md), [Photos](../using/photos.md) |
+| Activities | Paint for kids, a sticker book to spend chore points on, a shared family photo album, and learning games made by others (reviewed by Kinwall, sandboxed). | [Activities](../using/activities.md), [Photos](../using/photos.md), [Building activity plugins](../contributing/plugins.md) |
+| Features | Turn off what your family doesn't use (chores, lists, Paint, photos, notes, messages, each tracker) and it's hidden everywhere. | [Features](../settings/general.md#features) |
 | Look and feel | Light, dark or scheduled dark mode, eleven color schemes (or seasonal) plus your own, text size and typeface, for the family or per device. | [Appearance](../using/appearance.md) |
 | Notifications | Web Push reminders, a daily summary, chore nudges and list updates, set per device. | [Notifications](../using/notifications.md) |
 | Automation | REST API with OpenAPI docs, signed webhooks, an MCP server for AI assistants, a Home Assistant integration and n8n workflows. | [Integrations](../integrations/rest-api.md) |

@@ -13,20 +13,22 @@ Kinwall is an open-source, self-hosted family wall calendar, chore chart and sha
 ## Features
 
 - **One family calendar**: Google, Microsoft 365 / Outlook, iCloud and CalDAV (two-way), and any ICS feed (read-only), color-coded by person.
-- **Board view**: the first screen, a bulletin board to read from across the room: a big clock, the weather and a 4-day forecast, today, coming up, chores progress, items due soon, a family photo and a "Did you know?" fact.
+- **Board view**: the first screen, a bulletin board to read from across the room: a big clock, the weather and a 4-day forecast, today, coming up, chores progress, items due soon, a family photo and a card that rotates through quotes, fun facts, "On this day", trivia (tap to answer) and tips for neurodivergent minds, from sources you pick.
 - **Views for every screen**: Board, Day, Week, Month and Schedule. Week becomes a 3-day view on phones. Swipe to page, and it returns to today when idle.
 - **Events that help**: reminders written through to Google and Outlook, travel time with a leave-by time, map links, and tasks linked from your lists.
 - **Categories**: 🎂 Birthdays, 🏥 Appointments and more, auto-matched by keyword, with a multi-select filter.
 - **Daily & weekly snapshot**: tap someone's avatar for their day: a greeting, the weather, their events and leave-by times, chores to tick off, due and important list items, birthdays 🎂, and tomorrow at a glance, or flip to their week.
-- **Chores**: one-off or recurring, points, streaks with grace days, late-completion credit and an optional leaderboard. Link a checklist ("Bedtime: shower, pajamas, brush teeth") that has to be ticked off before the chore counts.
+- **Chores**: one-off or recurring, points, streaks with grace days, late-completion credit and an optional leaderboard. Link a checklist ("Bedtime: shower, pajamas, brush teeth") that has to be ticked off before the chore counts, or an activity ("5 min of Sight words") that completes the chore once the child has played that long.
 - **Lists**: shopping, to-do and reusable lists. Items remember their store and category, and you can drag to reorder.
 - **Trackers**: a reading log with progress bars, star ratings and books finished this year; a family memories journal with photos and "On this day"; and doctor and dentist visits with measurements and follow-ups. Health stays on phones and computers, never on the wall screen.
-- **Activities**: a kids' Paint app with a rainbow brush, fill bucket and undo. Drawings stay on the device and can be printed, saved, or added to the family photos.
+- **Activities**: a kids' Paint app with forty colors plus a color wheel, a rainbow brush, fill bucket and undo. Drawings stay on the device and can be printed, saved, or added to the family photos.
+  - **More activities**: add learning games made by others, like [Sight words](https://github.com/JohnDuprey/kinwall-plugin-sight-words) and [Math practice](https://github.com/JohnDuprey/kinwall-plugin-math). Each runs in a sandbox with no internet and no access to the family's data, saves progress per child, and Kinwall reviews the ones it lists. [Build your own](docs/contributing/plugins.md) from the [hello-world starter](https://github.com/JohnDuprey/kinwall-plugin-hello-world).
   - **Sticker book**: kids spend chore points on emoji sticker packs and decorate their own scrapbook page.
   - **Family photos**: a shared album that feeds the Board's picture card and the overnight screensaver. Photos shrink on upload and back up as a zip.
 - **Push notifications**: per-device event reminders, a morning summary, chore nudges and list updates, all also kept in an in-app notification feed behind the header bell.
 - **Made for the wall**: display pairing by code or QR, quiet hours with a dim clock or photo slideshow overnight, dark mode on a schedule, and a Now / Next strip with countdowns.
 - **Color schemes**: eleven skins (Meadow, Midnight, Ocean, Autumn and more), Seasonal, or the family's own schemes with light and dark palettes checked for contrast, for the whole family or per device.
+- **Only what you use**: turn off chores, lists, Paint, photos, notes, messages or any tracker, and it disappears from every screen.
 - **Made for phones too**: one compact header with a family button to filter the calendar to one person or open their day, and Help on every screen.
 - **Secure by default**: passkeys, recovery codes, scoped keys, and credentials encrypted at rest.
 
