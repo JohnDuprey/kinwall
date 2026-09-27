@@ -20,7 +20,7 @@ Everyone who shows up on the wall. Each member has:
 Extra heads-ups before a person's events, sent as notifications to that person's own devices. Helpful for anyone who finds switching activities hard (ADHD, autism, or just a busy kid). Turn on **Transition reminders** in their editor, then pick:
 
 * **When**: **30 min**, **15 min**, **10 min**, **5 min**, or **Add…** your own (1 to 120 minutes before; up to 8 times in all). Turning it on starts at 10 and 5.
-* **Repeat as it gets close**: also remind every few minutes near the end, for example every 5 minutes during the last 30.
+* **Repeat as it gets close**: also remind every 5, 10 or 15 minutes near the end, for example every 5 minutes during the last 30. (A wall screen's own on-screen warnings can repeat every minute; see Time cues.)
 * **Count down to leaving** (on by default): when an event has travel time, the reminders count to the time to leave instead of the start.
 
 The notification reads "Soccer practice in 10 minutes" (then "Starts at 4:00 PM"), or "Leave for Soccer practice in 5 minutes" (then "Leave by 3:40 PM · starts 4:00 PM"). Each one replaces the last on the lock screen, and tapping it opens the event.

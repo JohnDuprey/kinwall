@@ -1139,8 +1139,8 @@ function TimeCueRows() {
 /** Minutes-before picker shared by this device's transition warnings and a member's transition
  * reminders: preset chips, your own times (1-120, up to 8 in all), and "every N min during the
  * last M". `onOff` adds an Off chip that clears everything. */
-function MinutesPicker({ idBase, label, presets, minutes, repeat, onChange, onOff }: {
-  idBase: string; label: string; presets: number[]; minutes: number[]; repeat: WarningRepeat | null
+function MinutesPicker({ idBase, label, presets, minutes, repeat, onChange, onOff, minEvery = 1 }: {
+  idBase: string; label: string; presets: number[]; minutes: number[]; repeat: WarningRepeat | null; minEvery?: number
   onChange: (minutes: number[], repeat: WarningRepeat | null) => void; onOff?: () => void
 }) {
   const [adding, setAdding] = useState(false)
@@ -1190,7 +1190,7 @@ function MinutesPicker({ idBase, label, presets, minutes, repeat, onChange, onOf
           <span>Every</span>
           <select className="settings-select" aria-label="Repeat every" value={repeat.every}
             onChange={e => { const every = Number(e.target.value); onChange(minutes, { every, within: Math.max(every, repeat.within) }) }}>
-            {REPEAT_EVERY.map(v => <option key={v} value={v}>{v} min</option>)}
+            {REPEAT_EVERY.filter(v => v >= minEvery).map(v => <option key={v} value={v}>{v} min</option>)}
           </select>
           <span>during the last</span>
           <select className="settings-select" aria-label="During the last" value={repeat.within} onChange={e => onChange(minutes, { ...repeat, within: Number(e.target.value) })}>
@@ -1424,7 +1424,7 @@ function TransitionRemindersField({ name, value, onChange }: { name: string; val
       <div className="settings-row-sub">{value.on ? transitionRemindersSummary(value) : `Extra heads-ups before ${name}'s events, sent to devices that belong to ${name}. Helpful when switching activities is hard.`}</div>
       {value.on && (
         <>
-          <MinutesPicker idBase="member-transitions" label="Transition reminder times" presets={[30, 15, 10, 5]} minutes={value.minutes} repeat={value.repeat}
+          <MinutesPicker idBase="member-transitions" label="Transition reminder times" presets={[30, 15, 10, 5]} minutes={value.minutes} repeat={value.repeat} minEvery={5}
             onChange={(minutes, repeat) => set({ minutes, repeat })} />
           <div className="toggle-row">
             <label id="member-transitions-leave-label">Count down to leaving</label>
