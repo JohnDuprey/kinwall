@@ -651,7 +651,7 @@ test('transitions: member setting defaults off, validates, round-trips, and only
   assert.deepEqual(leo.transitionReminders, { on: false, minutes: [], repeat: null, leaveBy: true });
 
   const set = (body: unknown, key = ADMIN_KEY) => request(`/api/members/${leo.id}`, { method: 'PATCH', body: JSON.stringify({ transitionReminders: body }) }, key);
-  for (const bad of [{ on: true, minutes: [0] }, { on: true, minutes: [121] }, { on: true, minutes: [1, 2, 3, 4, 5, 6, 7, 8, 9] }, { on: true, repeat: { every: 10, within: 5 } }, { on: true, repeat: { every: 0, within: 5 } }]) {
+  for (const bad of [{ on: true, minutes: [0] }, { on: true, minutes: [121] }, { on: true, minutes: [1, 2, 3, 4, 5, 6, 7, 8, 9] }, { on: true, repeat: { every: 10, within: 5 } }, { on: true, repeat: { every: 0, within: 5 } }, { on: true, repeat: { every: 2, within: 10 } }]) {
     assert.equal((await set(bad)).status, 400, JSON.stringify(bad));
   }
   const ok = (await (await set({ on: true, minutes: [10], repeat: { every: 5, within: 30 } })).json()) as any;
@@ -731,11 +731,11 @@ test('transitions: pushes at each time before the member\'s event, only to their
 
 test('transitions: a late tick sends only the latest due time, worded truthfully', async () => {
   const start = '2030-03-04T15:30:00Z';
-  const { run } = await transitionsSetup({ on: true, minutes: [], repeat: { every: 1, within: 10 } }, { start, end: at(start, 60).toISOString() });
-  const sent = await run(at(start, -4)); // 10..4 all due at once (5-min cron after downtime)
+  const { run } = await transitionsSetup({ on: true, minutes: [10, 7, 4, 2], repeat: null }, { start, end: at(start, 60).toISOString() });
+  const sent = await run(at(start, -4)); // 10, 7 and 4 all due at once (a late check)
   assert.equal(sent.length, 1);
   assert.equal(sent[0].payload.title, 'Soccer practice in 4 minutes');
-  assert.equal((await run(at(start, -3)))[0].payload.title, 'Soccer practice in 3 minutes');
+  assert.equal((await run(at(start, -2)))[0].payload.title, 'Soccer practice in 2 minutes');
 });
 
 test('transitions: leave-by counts to leaving when the event has travel time (and can be turned off)', async () => {
