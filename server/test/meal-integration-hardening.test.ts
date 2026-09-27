@@ -170,28 +170,10 @@ test('meal hardening: display authorization covers every mutation and binds note
   assert.equal((await json<Meal>('GET', `/api/meals/${m.id}`)).servings, 4);
 });
 
-test('meal hardening: nullable household week start validates and denies all display changes including clearing', async () => {
-  const f = fixture();
-  const { json, meal } = f;
-  assert.equal((await json('GET', '/api/settings')).mealWeekStart, null);
-  const planned = await meal();
-  for (const mealWeekStart of [0, 1, 6, null]) {
-    assert.equal((await json('PATCH', '/api/settings', { mealWeekStart })).mealWeekStart, mealWeekStart);
-    assert.equal((await json('GET', '/api/settings')).mealWeekStart, mealWeekStart);
-    assert.deepEqual(await json('GET', `/api/meals?${query}`), [planned]);
-  }
-  for (const mealWeekStart of [-1, 7, 1.5, '1']) await json('PATCH', '/api/settings', { mealWeekStart }, 400);
-  const key = await f.key();
-  for (const mealWeekStart of [0, 1, null]) await json('PATCH', '/api/settings', { mealWeekStart }, 403, key);
-  await json('PATCH', '/api/settings', { familyName: 'Everyday settings' }, 200, key);
-  assert.equal((await json('GET', '/api/settings')).mealWeekStart, null);
-});
-
-test('meal hardening: export/import retains archived recipes, original snapshots, assignment, week preference and applied notes', async () => {
+test('meal hardening: export/import retains archived recipes, original snapshots, assignment and applied notes', async () => {
   const source = fixture();
   const target = fixture();
   const member = await source.json('POST', '/api/members', { name: 'Ada', color: '#ff0000' }, 201);
-  await source.json('PATCH', '/api/settings', { mealWeekStart: 6 });
   const recipe = await source.recipe();
   const meal = await source.meal({ recipeId: recipe.id, assigneeMemberId: member.id, servings: 6, notes: 'Family dinner' });
   const list = await source.list();
@@ -203,7 +185,6 @@ test('meal hardening: export/import retains archived recipes, original snapshots
     assert.deepEqual([imported.imported.recipes, imported.imported.meals, imported.imported.mealShoppingSources], [1, 1, 1]);
     assert.deepEqual(await target.json('GET', `/api/meals/${meal.id}`), meal);
     assert.deepEqual(await target.json('GET', '/api/recipes'), []);
-    assert.equal((await target.json('GET', '/api/settings')).mealWeekStart, 6);
     assert.equal((await target.json('POST', '/api/meals/projection/apply', { ...dates, listId: list.id })).added, 0);
   }
   const restored = await target.json('GET', '/api/export');
@@ -235,7 +216,7 @@ test('meal hardening: import drops dangling references and invalid source claims
   assert.deepEqual(restored.recipeSnapshot, planned.recipeSnapshot);
   const projection = await target.json<Projection>('GET', `/api/meals/projection?${query}&listId=${shopping.id}`);
   assert.equal(projection.items[0].applied, true);
-  delete file.recipes; delete file.meals; delete file.mealShoppingSources; delete file.settings.mealWeekStart;
+  delete file.recipes; delete file.meals; delete file.mealShoppingSources;
   await target.json('POST', '/api/import', file);
   assert.deepEqual(await target.json('GET', `/api/meals/${planned.id}`), restored);
 });
@@ -249,7 +230,6 @@ test('meal hardening: invalid imported meal data fails atomically before any set
     (file: any) => { file.meals[0].date = '2026-02-30'; },
     (file: any) => { file.meals[0].recipeSnapshot.defaultServings = 0; },
     (file: any) => { file.recipes[0].ingredients[0].quantity = -1; },
-    (file: any) => { file.settings.mealWeekStart = 7; },
   ]) {
     const target = fixture();
     const before = await target.json('GET', '/api/settings');

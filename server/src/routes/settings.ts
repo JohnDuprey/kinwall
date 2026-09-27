@@ -38,7 +38,6 @@ export async function readSettings(db: KinwallDb) {
     // No household default - stays null until set explicitly (server fallback: hostTimezone()) or
     // PATCHed by the web UI on first load with the browser's Intl timezone.
     timezone: map.get('timezone') ?? null,
-    mealWeekStart: map.get('mealWeekStart') ? Number(map.get('mealWeekStart')) : null,
     weekStart: Number(map.get('weekStart') ?? DEFAULTS.weekStart) as 0 | 1,
     themeMode: (map.get('themeMode') ?? DEFAULTS.themeMode) as 'light' | 'dark' | 'auto' | 'scheduled',
     darkFrom: map.get('darkFrom') ?? DEFAULTS.darkFrom,
@@ -208,7 +207,6 @@ settingsRoutes.openapi(
   async (c) => {
     const body = c.req.valid('json');
     // Settings PATCH is display-allowed for the everyday settings; which features exist is the admin's call.
-    if (body.mealWeekStart !== undefined && (await resolveKey(c))?.scope === 'display') return c.json({ error: 'Only an admin can change the household meal week start' }, 403);
     if (body.features && (await resolveKey(c))?.scope === 'display') return c.json({ error: 'Only an admin can turn features on or off' }, 403);
     // A saved scheme must be readable in both modes, the same bar as the app's editor.
     const failures = (body.customSchemes ?? []).flatMap(schemeContrastFailures);

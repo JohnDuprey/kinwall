@@ -5,8 +5,6 @@
 .meals-toolbar { margin-top: 20px; }
 .meals-toolbar h2 { margin: 0; font-size: 1.125rem; }
 .meals-toolbar .field { margin: 0; }
-.meal-week-settings { margin: 0 0 16px; }
-.meal-week-settings summary { min-height: 44px; padding: 12px 0; cursor: pointer; font-weight: 700; }
 .meals-search { flex: 1; min-width: 200px; }
 .meal-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .meal-grid-scroll { overflow-x: auto; border-radius: var(--radius); background: var(--card); box-shadow: var(--shadow); }

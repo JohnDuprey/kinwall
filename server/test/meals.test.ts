@@ -99,7 +99,7 @@ test('meals: applying projections is explicit, overlapping/concurrent calls are 
   assert.equal(fresh.items.find((i: any) => i.name === 'Tomatoes').applied, false);
 });
 
-test('meals: admin boundary and assigned-device notes/status are enforced; week preferences do not move dates', async () => {
+test('meals: admin boundary and assigned-device notes/status are enforced', async () => {
   const { db, json, request } = fixture();
   const member = await json('/api/members', 'POST', { name: 'Ada', color: '#112233' });
   const owner = await createApiKey(db, 'Ada phone', 'display', { owner: member.id });
@@ -111,11 +111,6 @@ test('meals: admin boundary and assigned-device notes/status are enforced; week 
   assert.equal((await request(`/api/meals/${meal.id}`, 'PATCH', { notes: 'X' }, shared.key)).status, 403);
   assert.equal((await request(`/api/meals/${meal.id}`, 'DELETE', undefined, owner.key)).status, 403);
   assert.equal((await json(`/api/meals/${meal.id}`, 'PATCH', { notes: 'Done', status: 'handled' }, owner.key)).status, 'handled');
-  assert.equal((await request('/api/settings', 'PATCH', { mealWeekStart: 1 }, owner.key)).status, 403);
-  assert.equal((await json('/api/settings', 'PATCH', { mealWeekStart: 1 })).mealWeekStart, 1);
-  assert.equal((await json(`/api/meals?${range}`))[0].date, dates.from);
-  assert.equal((await json('/api/settings', 'PATCH', { mealWeekStart: 0 })).mealWeekStart, 0);
-  assert.equal((await json('/api/settings', 'PATCH', { mealWeekStart: null })).mealWeekStart, null);
 });
 
 test('meals: invalid dates, ranges, servings, URLs and references are rejected before writes', async () => {

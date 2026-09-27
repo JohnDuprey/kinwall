@@ -256,7 +256,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     const result = await call(app, env, auth, 'PATCH', `/api/recipes/${encodeURIComponent(id)}`, input);
     return result.status >= 400 ? errorResult(result.json, 'failed to edit recipe') : okResult('Recipe updated', { recipe: result.json });
   });
-  tool('list_meals', { title: 'Get meal plan', description: 'Read dated meals in an inclusive range. Choose from as the week start using the user’s preference or mealWeekStart from get_household. Omit to to retrieve that seven-day week.', inputSchema: { from: MealRangeSchema.shape.from, to: MealRangeSchema.shape.to.optional().describe('Inclusive end date; defaults to six days after from.') } }, async ({ from, to }) => {
+  tool('list_meals', { title: 'Get meal plan', description: 'Read dated meals in an inclusive range. Start from on the household week start (weekStart from get_household: 0 Sunday, 1 Monday); omit to for that seven-day week.', inputSchema: { from: MealRangeSchema.shape.from, to: MealRangeSchema.shape.to.optional().describe('Inclusive end date; defaults to six days after from.') } }, async ({ from, to }) => {
     const end = to ?? new Date(Date.parse(`${from}T00:00:00Z`) + 6 * 86400000).toISOString().slice(0, 10);
     const result = await call(app, env, auth, 'GET', `/api/meals?${new URLSearchParams({ from, to: end })}`);
     return result.status >= 400 ? errorResult(result.json, 'failed to read meals') : okResult('Meal plan', { meals: result.json });

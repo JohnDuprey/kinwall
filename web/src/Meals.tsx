@@ -4,7 +4,7 @@ import { useApp } from './AppContext.tsx'
 import { Segmented } from './a11y.tsx'
 import { todayKeyInTz } from './date.ts'
 import { ChevronLeft, ChevronRight, PlusIcon } from './icons.tsx'
-import { MEAL_SLOTS, SLOT_LABEL, mealDayLabel, mealWeek, moveMealDate, useMealWeekStart } from './meal-date.ts'
+import { MEAL_SLOTS, SLOT_LABEL, mealDayLabel, mealWeek, moveMealDate } from './meal-date.ts'
 import MealSheet, { type MealDraft } from './MealSheet.tsx'
 import RecipeSheet from './RecipeSheet.tsx'
 import MealProjection from './MealProjection.tsx'
@@ -12,15 +12,12 @@ import type { Meal, Recipe } from './meal-types.ts'
 import type { Me } from './types.ts'
 import './meals.css'
 
-const WEEKDAYS = Array.from({ length: 7 }, (_, day) => ({ key: day, label: new Intl.DateTimeFormat(undefined, { weekday: 'long' }).format(new Date(2026, 0, 4 + day, 12)) }))
-
 export default function Meals() {
-  const { settings, members, refreshTick, reloadCore, toast } = useApp()
+  const { settings, members, refreshTick, reloadCore } = useApp()
   const timezone = settings.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone
   const today = todayKeyInTz(timezone)
   const [anchor, setAnchor] = useState(today)
-  const { preference, weekStart, change } = useMealWeekStart(settings.mealWeekStart ?? settings.weekStart)
-  const days = mealWeek(anchor, weekStart)
+  const days = mealWeek(anchor, settings.weekStart)
   const from = days[0], to = days[6]
   const [view, setView] = useState<'week' | 'recipes'>('week')
   const [me, setMe] = useState<Me | null>(null)
@@ -37,7 +34,6 @@ export default function Meals() {
   const [projection, setProjection] = useState(false)
   const [tick, setTick] = useState(0)
   const [pendingMeal, setPendingMeal] = useState<string | null>(null)
-  const [savingWeekStart, setSavingWeekStart] = useState(false)
   const admin = me?.scope === 'admin'
   useEffect(() => {
     const read = () => {
@@ -67,14 +63,6 @@ export default function Meals() {
     return () => { canceled = true }
   }, [tick, refreshTick])
   const saved = () => { setEditing(null); setPendingMeal(null); setRecipeSheet(null); setTick(t => t + 1); reloadCore() }
-  const setHouseholdWeekStart = async (value: string) => {
-    setSavingWeekStart(true)
-    try {
-      await api.updateSettings({ mealWeekStart: value === '' ? null : Number(value) as NonNullable<typeof settings.mealWeekStart> })
-      reloadCore(); toast('Household meal week start saved')
-    } catch (e) { toast(e instanceof Error ? e.message : 'Could not save household meal week start.', true) }
-    finally { setSavingWeekStart(false) }
-  }
   const meals = data?.from === from && data.to === to ? data.meals : null
   const mealError = data?.from === from && data.to === to ? data.error : undefined
   const linkedMeal = me && pendingMeal ? meals?.find(meal => meal.id === pendingMeal) : null
@@ -95,9 +83,7 @@ export default function Meals() {
       <div className="meals-toolbar">
         <div className="meal-actions"><button className="icon-btn" aria-label="Previous meal week" onClick={() => setAnchor(moveMealDate(anchor, -7))}><ChevronLeft /></button><button className="btn btn-secondary" onClick={() => setAnchor(today)}>This week</button><button className="icon-btn" aria-label="Next meal week" onClick={() => setAnchor(moveMealDate(anchor, 7))}><ChevronRight /></button></div>
         <h2 aria-live="polite">{mealDayLabel(from, { month: 'short', day: 'numeric' })} – {mealDayLabel(to, { month: 'short', day: 'numeric', year: 'numeric' })}</h2>
-        <div className="field"><label htmlFor="meal-week-start">Week starts on this device</label><select id="meal-week-start" value={preference ?? ''} onChange={e => change(e.target.value)}><option value="">Household default ({WEEKDAYS[settings.mealWeekStart ?? settings.weekStart ?? weekStart]?.label})</option>{WEEKDAYS.map(day => <option key={day.key} value={day.key}>{day.label}</option>)}</select></div>
       </div>
-      {admin && <details className="meal-week-settings"><summary>Household week preference</summary><div className="field"><label htmlFor="meal-household-week-start">Default meal week start for the household</label><select id="meal-household-week-start" value={settings.mealWeekStart ?? ''} disabled={savingWeekStart} onChange={e => void setHouseholdWeekStart(e.target.value)}><option value="">Use household calendar preference</option>{WEEKDAYS.map(day => <option key={day.key} value={day.key}>{day.label}</option>)}</select><p className="field-hint">Each device can override this. Meals keep their actual dates.</p></div></details>}
       {recipeError && <p className="field-error" role="alert">The recipe library could not refresh. <button className="link-btn" onClick={() => setTick(t => t + 1)}>Retry</button></p>}
       {mealError ? <div className="state-card" role="alert">Could not load the meal plan: {mealError} <button className="btn btn-secondary" onClick={() => setTick(t => t + 1)}>Retry</button></div> : !meals ? <p role="status">Loading meals…</p> : <div className="meal-grid-scroll" tabIndex={0} role="region" aria-label="Weekly meal plan; scroll horizontally for all meal slots">
         <table className="meal-grid"><caption className="sr-only">Meals from {from} through {to}</caption><thead><tr><th scope="col">Date</th>{MEAL_SLOTS.map(slot => <th key={slot} scope="col">{SLOT_LABEL[slot]}</th>)}</tr></thead><tbody>{days.map(date => <tr key={date} className={date === today ? 'meal-today' : ''}>

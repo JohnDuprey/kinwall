@@ -141,7 +141,6 @@ export const SettingsSchema = z
     familyName: z.string(),
     timezone: z.string().nullable(),
     weekStart: z.union([z.literal(0), z.literal(1)]),
-    mealWeekStart: z.number().int().min(0).max(6).nullable().default(null),
     themeMode: z.enum(['light', 'dark', 'auto', 'scheduled']),
     darkFrom: z.string(),
     darkTo: z.string(),
@@ -175,7 +174,6 @@ export const SettingsPatchSchema = z
     familyName: z.string().min(1).optional(),
     timezone: z.string().min(1).optional(),
     weekStart: z.union([z.literal(0), z.literal(1)]).optional(),
-    mealWeekStart: z.number().int().min(0).max(6).nullable().optional(),
     theme: z.enum(['light', 'dark']).optional(), // legacy - mapped into themeMode
     themeMode: z.enum(['light', 'dark', 'auto', 'scheduled']).optional(),
     darkFrom: z.string().regex(HHMM_RE, 'must be HH:MM').optional(),

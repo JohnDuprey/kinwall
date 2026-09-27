@@ -68,7 +68,7 @@ mealsRoutes.openapi(createRoute({ method: 'delete', path: '/api/recipes/{id}', t
   emit(c, 'recipe.changed', { id }); return c.json({ ok: true }, 200);
 });
 
-mealsRoutes.openapi(createRoute({ method: 'get', path: '/api/meals', tags: ['Meals'], summary: 'Meals in an inclusive date range, independent of week preferences', security: [{ Bearer: [] }], request: { query: MealRangeSchema }, responses: { 200: { description: 'meals', content: { 'application/json': { schema: z.array(MealSchema) } } }, ...errors } }), async (c) => {
+mealsRoutes.openapi(createRoute({ method: 'get', path: '/api/meals', tags: ['Meals'], summary: 'Meals in an inclusive date range', security: [{ Bearer: [] }], request: { query: MealRangeSchema }, responses: { 200: { description: 'meals', content: { 'application/json': { schema: z.array(MealSchema) } } }, ...errors } }), async (c) => {
   const { from, to } = c.req.valid('query'); return c.json(await readMeals(c.env.DB, from, to), 200);
 });
 // Static routes must precede /api/meals/{id}.
