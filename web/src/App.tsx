@@ -673,8 +673,10 @@ function FamilyButton({ name, members, selectedMemberId }: { name: string; membe
     return () => window.removeEventListener(IDLE_RESET_EVENT, close)
   }, [])
   const selected = members.find(m => m.id === selectedMemberId)
-  // The filtered person always shows in the pile, then the others in order, three faces at most.
-  const shown = [...(selected ? [selected] : []), ...members.filter(m => m.id !== selectedMemberId)].slice(0, 3)
+  // The filtered person always shows in the pile, then the others in order. Four slots: four faces
+  // when that's everyone, otherwise three faces and a "+N" (never "+1", which takes a face's room).
+  const ordered = [...(selected ? [selected] : []), ...members.filter(m => m.id !== selectedMemberId)]
+  const shown = ordered.slice(0, ordered.length <= 4 ? 4 : 3)
   const more = members.length - shown.length
   return (
     <>
