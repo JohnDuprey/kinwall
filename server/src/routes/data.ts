@@ -16,6 +16,7 @@ import { toApi as webhookToApi, type WebhookRow } from './webhooks.ts';
 import { toNoteApi, type NoteRow } from './notes.ts';
 import { toTrackerApi, type TrackerRow } from './trackers.ts';
 import { toEntryApi, toPlacementApi, type PointEntryRow, type PlacementRow } from './stickers.ts';
+import { toRewardApi, toRedemptionApi, type RewardRow, type RedemptionRow } from './rewards.ts';
 import { parseMemberIds } from '../calendar-members.ts';
 import { RECONNECT_MESSAGE } from '../sync.ts';
 import { decryptConfig, encryptConfig } from '../crypto.ts';
@@ -37,6 +38,8 @@ import {
   NoteSchema,
   PointEntrySchema,
   StickerPlacementSchema,
+  RewardSchema,
+  RedemptionSchema,
   SettingsPatchSchema,
   SettingsSchema,
   WebhookSchema,
@@ -51,7 +54,7 @@ const ExportSchema = z
     version: z.number(),
     exportedAt: z.string(),
     settings: SettingsSchema,
-    members: z.array(MemberSchema.omit({ pointsToday: true, pointsWeek: true, balance: true }).extend({ birthday: BirthdaySchema.nullable().default(null), needsApproval: z.boolean().default(false), transitionReminders: TransitionRemindersSchema.optional() })),
+    members: z.array(MemberSchema.omit({ pointsToday: true, pointsWeek: true, balance: true, rewardGoal: true }).extend({ birthday: BirthdaySchema.nullable().default(null), needsApproval: z.boolean().default(false), transitionReminders: TransitionRemindersSchema.optional(), rewardGoalId: z.string().nullable().default(null) })),
     categories: z.array(CategorySchema),
     // Every calendar, but no config/credentials/account: synced ones are imported as placeholders
     // that keep their settings and are reconnected, and their events re-fetched.
@@ -111,6 +114,9 @@ const ExportSchema = z
     pointEntries: z.array(PointEntrySchema),
     stickerPacks: z.array(z.object({ memberId: z.string(), packId: z.string(), unlockedAt: z.string() })),
     scrapbook: z.array(StickerPlacementSchema),
+    // Rewards (0039) and their redemptions; the points they took are in pointEntries.
+    rewards: z.array(RewardSchema.omit({ used: true })),
+    rewardRedemptions: z.array(RedemptionSchema),
     trackers: z.array(TrackerEntrySchema), // reading log, memories, health visits (0031)
     recipes: z.array(RecipeSchema),
     meals: z.array(MealSchema),
@@ -120,7 +126,7 @@ const ExportSchema = z
   })
   .openapi('Export');
 
-type MemberRow = { id: string; name: string; color: string; avatar: string | null; birthday: string | null; sort: number; needs_approval: number; transitions: string | null };
+type MemberRow = { id: string; name: string; color: string; avatar: string | null; birthday: string | null; sort: number; needs_approval: number; transitions: string | null; reward_goal: string | null };
 type CalendarRow = { id: string; kind: z.infer<typeof CalendarSchema>['kind']; remote_id: string | null; name: string; color: string | null; member_ids: string; category_id: string | null; enabled: number; display_edit: number };
 type EventRow = {
   id: string; calendar_id: string; title: string; start: string; end: string; all_day: number; location: string | null;
@@ -151,8 +157,8 @@ dataRoutes.openapi(
   async (c) => {
     const db = c.env.DB;
     // Column lists are explicit (never SELECT *) so a secret column can't leak in by accident.
-    const [members, categories, calendars, events, memberOverrides, categoryOverrides, travelOverrides, seriesMemberOverrides, seriesCategoryOverrides, chores, completions, lists, items, steps, groups, notes, pointEntries, stickerPacks, scrapbook, trackers, passkeys, webhooks] = (await db.batch<unknown>([
-      db.prepare('SELECT id, name, color, avatar, birthday, sort, needs_approval, transitions FROM members ORDER BY sort, created_at'),
+    const [members, categories, calendars, events, memberOverrides, categoryOverrides, travelOverrides, seriesMemberOverrides, seriesCategoryOverrides, chores, completions, lists, items, steps, groups, notes, pointEntries, stickerPacks, scrapbook, rewards, redemptions, trackers, passkeys, webhooks] = (await db.batch<unknown>([
+      db.prepare('SELECT id, name, color, avatar, birthday, sort, needs_approval, transitions, reward_goal FROM members ORDER BY sort, created_at'),
       db.prepare('SELECT id, name, emoji, color, keywords, sort, created_at FROM categories ORDER BY sort, created_at'),
       db.prepare('SELECT id, kind, remote_id, name, color, member_ids, category_id, enabled, display_edit, config FROM calendars ORDER BY name'),
       db.prepare(
@@ -181,6 +187,8 @@ dataRoutes.openapi(
       db.prepare('SELECT id, member_id, amount, reason, ref, at FROM point_entries ORDER BY at, id'),
       db.prepare('SELECT member_id, pack_id, unlocked_at FROM member_sticker_packs ORDER BY member_id, pack_id'),
       db.prepare('SELECT id, member_id, sticker, x, y, scale, rotation, z, placed_at FROM scrapbook_stickers ORDER BY member_id, z, placed_at, id'),
+      db.prepare('SELECT id, title, emoji, cost, member_ids, needs_approval, limit_period, limit_count, active, sort, created_at FROM rewards ORDER BY sort, created_at'),
+      db.prepare('SELECT id, reward_id, member_id, title, emoji, cost, status, note, date, requested_at, decided_at, given_at FROM reward_redemptions ORDER BY requested_at, id'),
       db.prepare('SELECT t.*, p.family AS photo_family FROM tracker_entries t LEFT JOIN photos p ON p.id = t.photo_id ORDER BY t.date, t.created_at'),
       db.prepare('SELECT name, created_at FROM passkeys ORDER BY created_at'),
       db.prepare('SELECT id, url, events, enabled, created_at FROM webhooks ORDER BY created_at'),
@@ -196,7 +204,7 @@ dataRoutes.openapi(
         version: EXPORT_VERSION,
         exportedAt: date,
         settings: await readSettings(db),
-        members: (members as MemberRow[]).map(({ id, name, color, avatar, birthday, sort, needs_approval, transitions }) => ({ id, name, color, avatar, birthday, sort, needsApproval: !!needs_approval, transitionReminders: parseTransitions(transitions) })),
+        members: (members as MemberRow[]).map(({ id, name, color, avatar, birthday, sort, needs_approval, transitions, reward_goal }) => ({ id, name, color, avatar, birthday, sort, needsApproval: !!needs_approval, transitionReminders: parseTransitions(transitions), rewardGoalId: reward_goal })),
         categories: (categories as CategoryRow[]).map(categoryToApi),
         calendars: await Promise.all((calendars as (CalendarRow & { config: string })[]).map(async (r) => ({
           id: r.id,
@@ -266,6 +274,8 @@ dataRoutes.openapi(
         pointEntries: (pointEntries as PointEntryRow[]).map(toEntryApi),
         stickerPacks: (stickerPacks as { member_id: string; pack_id: string; unlocked_at: string }[]).map((r) => ({ memberId: r.member_id, packId: r.pack_id, unlockedAt: r.unlocked_at })),
         scrapbook: (scrapbook as PlacementRow[]).map(toPlacementApi),
+        rewards: (rewards as RewardRow[]).map(toRewardApi),
+        rewardRedemptions: (redemptions as RedemptionRow[]).map(toRedemptionApi),
         trackers: (trackers as TrackerRow[]).map(toTrackerApi),
         recipes: await readRecipes(db, { archived: true }),
         meals: await readMeals(db, '0000-01-01', '9999-12-31'),
@@ -296,6 +306,8 @@ const ImportSchema = ExportSchema.extend({
   pointEntries: ExportSchema.shape.pointEntries.default([]),
   stickerPacks: ExportSchema.shape.stickerPacks.default([]),
   scrapbook: ExportSchema.shape.scrapbook.default([]),
+  rewards: ExportSchema.shape.rewards.default([]),
+  rewardRedemptions: ExportSchema.shape.rewardRedemptions.default([]),
   trackers: ExportSchema.shape.trackers.default([]),
   recipes: ExportSchema.shape.recipes.default([]),
   meals: ExportSchema.shape.meals.default([]),
@@ -323,6 +335,8 @@ const ImportResultSchema = z
       pointEntries: z.number(),
       stickerPacks: z.number(),
       scrapbook: z.number(),
+      rewards: z.number(),
+      rewardRedemptions: z.number(),
       trackers: z.number(),
       recipes: z.number(),
       meals: z.number(),
@@ -432,6 +446,7 @@ dataRoutes.openapi(
     const pointEntries = body.pointEntries.filter((e) => fileMembers.has(e.memberId));
     const stickerPacks = body.stickerPacks.filter((p) => fileMembers.has(p.memberId));
     const scrapbook = body.scrapbook.filter((st) => fileMembers.has(st.memberId));
+    const redemptions = body.rewardRedemptions.filter((r) => fileMembers.has(r.memberId));
     // A member's entries only with that member (they're personal); the family's and removed members' always.
     const trackers = body.trackers.filter((t) => t.memberId === null || fileMembers.has(t.memberId));
     const mealSources = body.mealShoppingSources.filter((s) => items.some((i) => i.id === s.itemId && i.listId === s.listId));
@@ -444,7 +459,7 @@ dataRoutes.openapi(
     const keepCreated = { keep: ['created_at'] };
     const writes = [
       ...settingsWrites(db, settings.data),
-      ...upserts(db, 'members', 'id', body.members.map((m, i) => ({ id: m.id, name: m.name, color: m.color, avatar: m.avatar, birthday: m.birthday, sort: m.sort, needs_approval: m.needsApproval ? 1 : 0, transitions: m.transitionReminders ? JSON.stringify(m.transitionReminders) : null, created_at: stamp(i) })), keepCreated),
+      ...upserts(db, 'members', 'id', body.members.map((m, i) => ({ id: m.id, name: m.name, color: m.color, avatar: m.avatar, birthday: m.birthday, sort: m.sort, needs_approval: m.needsApproval ? 1 : 0, transitions: m.transitionReminders ? JSON.stringify(m.transitionReminders) : null, reward_goal: m.rewardGoalId, created_at: stamp(i) })), keepCreated),
       ...upserts(
         db,
         'categories',
@@ -642,6 +657,20 @@ dataRoutes.openapi(
       ),
       ...upserts(
         db,
+        'rewards',
+        'id',
+        body.rewards.map((r) => ({ id: r.id, title: r.title, emoji: r.emoji, cost: r.cost, member_ids: JSON.stringify(r.memberIds), needs_approval: r.needsApproval ? 1 : 0, limit_period: r.limit?.period ?? null, limit_count: r.limit?.count ?? null, active: r.active ? 1 : 0, sort: r.sort, created_at: r.createdAt })),
+        keepCreated,
+      ),
+      ...upserts(
+        db,
+        'reward_redemptions',
+        'id',
+        redemptions.map((r) => ({ id: r.id, reward_id: r.rewardId, member_id: r.memberId, title: r.title, emoji: r.emoji, cost: r.cost, status: r.status, note: r.note, date: r.date, requested_at: r.requestedAt, decided_at: r.decidedAt, given_at: r.givenAt })),
+        { keep: ['member_id'], expr: { reward_id: "(SELECT id FROM rewards WHERE id = j.value->>'reward_id')" } },
+      ),
+      ...upserts(
+        db,
         'tracker_entries',
         'id',
         trackers.map((t) => ({ id: t.id, kind: t.kind, member_id: t.memberId, former_member: t.formerMember, date: t.date, title: t.title, photo_id: t.photoId, photo_own: t.photoOwned ? 1 : 0, data: JSON.stringify(t.data), created_at: t.createdAt, updated_at: t.updatedAt })),
@@ -666,6 +695,7 @@ dataRoutes.openapi(
       ['chore.changed', body.chores.length + completions.length],
       ['list.changed', body.lists.length + notes.length],
       ['sticker.changed', pointEntries.length + stickerPacks.length + scrapbook.length],
+      ['reward.changed', body.rewards.length + redemptions.length],
       ['tracker.changed', trackers.length],
       ['recipe.changed', body.recipes.length],
       ['meal.changed', body.meals.length],
@@ -693,6 +723,8 @@ dataRoutes.openapi(
           pointEntries: pointEntries.length,
           stickerPacks: stickerPacks.length,
           scrapbook: scrapbook.length,
+          rewards: body.rewards.length,
+          rewardRedemptions: redemptions.length,
           trackers: trackers.length,
           recipes: body.recipes.length,
           meals: body.meals.length,

@@ -116,6 +116,12 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'POST', pattern: /^\/api\/stickers\/scrapbook\/[^/]+$/ },
   { method: 'PATCH', pattern: /^\/api\/stickers\/scrapbook\/[^/]+\/[^/]+$/ },
   { method: 'DELETE', pattern: /^\/api\/stickers\/scrapbook\/[^/]+\/[^/]+$/ },
+  // Rewards: wall screens and kids' devices list them, redeem and pick a goal (routes/rewards.ts
+  // keeps a member's own device to that member); adding, editing and deciding is for parent devices.
+  { method: 'GET', pattern: /^\/api\/rewards$/ },
+  { method: 'GET', pattern: /^\/api\/rewards\/redemptions$/ },
+  { method: 'POST', pattern: /^\/api\/rewards\/[^/]+\/redeem$/ },
+  { method: 'PUT', pattern: /^\/api\/members\/[^/]+\/reward-goal$/ },
   { method: 'GET', pattern: /^\/api\/categories$/ },
   { method: 'POST', pattern: /^\/api\/categories$/ },
   { method: 'PATCH', pattern: /^\/api\/categories\/[^/]+$/ },

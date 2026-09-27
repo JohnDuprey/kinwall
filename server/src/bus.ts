@@ -22,6 +22,11 @@ export type BusEventType =
   | 'category.changed'
   | 'settings.changed'
   | 'sticker.changed'
+  | 'reward.changed'
+  | 'reward.redeemed'
+  | 'reward.approved'
+  | 'reward.declined'
+  | 'reward.given'
   | 'photo.changed'
   | 'tracker.changed'
   | 'display.paired';

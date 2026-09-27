@@ -29,6 +29,7 @@ import { revRoutes } from './routes/rev.ts';
 import { dataRoutes } from './routes/data.ts';
 import { notesRoutes } from './routes/notes.ts';
 import { stickersRoutes } from './routes/stickers.ts';
+import { rewardsRoutes } from './routes/rewards.ts';
 import { photosRoutes } from './routes/photos.ts';
 import { snapshotRoutes } from './routes/snapshot.ts';
 import { weatherRoutes } from './routes/weather.ts';
@@ -93,6 +94,7 @@ export function createApp() {
   app.route('/', listsRoutes);
   app.route('/', notesRoutes);
   app.route('/', stickersRoutes);
+  app.route('/', rewardsRoutes);
   app.route('/', photosRoutes);
   app.route('/', snapshotRoutes);
   app.route('/', weatherRoutes);

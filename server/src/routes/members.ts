@@ -10,7 +10,7 @@ import { balanceOf, pointTotalsStmt, type PointTotals } from '../stickers.ts';
 
 export const membersRoutes = createRouter();
 
-type MemberRow = { id: string; name: string; color: string; avatar: string | null; birthday: string | null; sort: number; created_at: string; needs_approval?: number; transitions: string | null };
+type MemberRow = { id: string; name: string; color: string; avatar: string | null; birthday: string | null; sort: number; created_at: string; needs_approval?: number; transitions: string | null; reward_goal?: string | null };
 
 // The stored JSON, or off. Shared with notify.ts (which only acts on `on`).
 export function parseTransitions(raw: string | null): typeof TRANSITIONS_OFF {
@@ -94,8 +94,16 @@ async function pointsByMember(db: KinwallDb, tz: string, weekStart: 0 | 1): Prom
 type Points = { pointsToday: number; pointsWeek: number; balance: number };
 const NO_POINTS: Points = { pointsToday: 0, pointsWeek: 0, balance: 0 };
 
-function toApi(row: MemberRow, points: Points) {
-  return { id: row.id, name: row.name, color: row.color, avatar: row.avatar, birthday: row.birthday ?? null, sort: row.sort, needsApproval: !!row.needs_approval, ...points, transitionReminders: parseTransitions(row.transitions) };
+type Goal = { rewardId: string; title: string; emoji: string | null; cost: number };
+
+// Active rewards by id, for members' goals (an archived or deleted goal reads as none).
+const GOALS_SQL = 'SELECT id, title, emoji, cost FROM rewards WHERE active = 1';
+const toGoals = (rows: { id: string; title: string; emoji: string | null; cost: number }[]): Map<string, Goal> =>
+  new Map(rows.map((r) => [r.id, { rewardId: r.id, title: r.title, emoji: r.emoji, cost: r.cost }]));
+const goalRewards = async (db: KinwallDb) => toGoals((await db.prepare(GOALS_SQL).all<{ id: string; title: string; emoji: string | null; cost: number }>()).results);
+
+function toApi(row: MemberRow, points: Points, goals: Map<string, Goal> = new Map()) {
+  return { id: row.id, name: row.name, color: row.color, avatar: row.avatar, birthday: row.birthday ?? null, sort: row.sort, needsApproval: !!row.needs_approval, ...points, transitionReminders: parseTransitions(row.transitions), rewardGoal: (row.reward_goal && goals.get(row.reward_goal)) || null };
 }
 
 membersRoutes.openapi(
@@ -109,9 +117,10 @@ membersRoutes.openapi(
   }),
   async (c) => {
     // household settings + the member list are independent reads - one batch, one round trip.
-    const [settingsRes, membersRes] = await c.env.DB.batch<unknown>([
+    const [settingsRes, membersRes, goalsRes] = await c.env.DB.batch<unknown>([
       c.env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('timezone','weekStart')"),
       c.env.DB.prepare('SELECT * FROM members ORDER BY sort, created_at'),
+      c.env.DB.prepare(GOALS_SQL),
     ]);
     const settingsMap = new Map((settingsRes.results as { key: string; value: string }[]).map((r) => [r.key, r.value]));
     const tz = settingsMap.get('timezone') ?? hostTimezone();
@@ -119,7 +128,8 @@ membersRoutes.openapi(
     const results = membersRes.results as unknown as MemberRow[];
 
     const points = await pointsByMember(c.env.DB, tz, weekStart);
-    return c.json(results.map((row) => toApi(row, points.get(row.id) ?? NO_POINTS)), 200);
+    const goals = toGoals(goalsRes.results as { id: string; title: string; emoji: string | null; cost: number }[]);
+    return c.json(results.map((row) => toApi(row, points.get(row.id) ?? NO_POINTS, goals)), 200);
   },
 );
 
@@ -191,7 +201,7 @@ membersRoutes.openapi(
       .run();
     emit(c, 'member.changed', { id });
     const { tz, weekStart } = await household(c.env.DB);
-    return c.json(toApi(updated, { ...(await pointsFor(c.env.DB, id, tz, weekStart)), balance: await balanceOf(c.env.DB, id) }), 200);
+    return c.json(toApi(updated, { ...(await pointsFor(c.env.DB, id, tz, weekStart)), balance: await balanceOf(c.env.DB, id) }, await goalRewards(c.env.DB)), 200);
   },
 );
 

@@ -16,7 +16,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { hostTimezone } from './env.ts';
 import { effectivePublicUrl } from './providers/config.ts';
-import { BoardSchema, CalendarSchema, CategorySchema, ChoreDaySchema, ChoreSchema, EventInstanceSchema, LeaderboardEntrySchema, ListDetailSchema, ListItemSchema, ListSchema, MemberSchema, NoteSchema, TrackerEntrySchema, TRACKER_KINDS, NotificationSchema, PointsSchema, SettingsSchema, SnapshotSchema, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, TransitionRemindersSchema } from './schemas.ts';
+import { BoardSchema, CalendarSchema, CategorySchema, ChoreDaySchema, ChoreSchema, EventInstanceSchema, LeaderboardEntrySchema, ListDetailSchema, ListItemSchema, ListSchema, MemberSchema, NoteSchema, TrackerEntrySchema, TRACKER_KINDS, NotificationSchema, PointsSchema, SettingsSchema, SnapshotSchema, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, TransitionRemindersSchema, RewardSchema, RewardInputSchema, RedemptionSchema, RewardLimitSchema } from './schemas.ts';
 import type { Env } from './env.ts';
 import { RecipeSchema, RecipeInputSchema, MealSchema, MealInputSchema, MealPatchSchema, ProjectionSchema, ProjectionApplySchema, ProjectionQuerySchema, MealRangeSchema } from './meal-schemas.ts';
 import { VERSION } from './version.ts';
@@ -187,6 +187,14 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
   list_pending_approvals: { approvals: z.array(z.object({ choreId: z.string(), title: z.string(), emoji: z.string().nullable(), date: z.string(), memberId: z.string().nullable(), completedAt: z.string(), points: z.number() })) },
   approve_chore: { ok: z.boolean(), points: z.number() },
   reject_chore: OK,
+  list_rewards: { rewards: z.array(RewardSchema) },
+  create_reward: { reward: RewardSchema },
+  update_reward: { reward: RewardSchema },
+  redeem_reward: { redemption: RedemptionSchema, balance: z.number() },
+  list_reward_requests: { requests: z.array(RedemptionSchema) },
+  approve_reward: { redemption: RedemptionSchema },
+  decline_reward: { redemption: RedemptionSchema },
+  mark_reward_given: { redemption: RedemptionSchema },
   get_leaderboard: { period: z.string(), leaderboard: z.array(LeaderboardEntrySchema) },
   get_points: { member: z.string(), ...PointsSchema.shape },
   add_member: { member: MemberSchema },
@@ -226,7 +234,9 @@ const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boole
   get_household: READ, list_events: READ, get_event: READ, list_chores: READ, get_leaderboard: READ, get_points: READ, list_lists: READ, get_list: READ, list_categories: READ, get_event_items: READ, list_notifications: READ, list_notes: READ, get_snapshot: READ, get_board: READ, list_tracker_entries: READ, add_tracker_entry: WRITE, update_tracker_entry: SET, list_color_schemes: READ, set_color_scheme: SET, save_color_scheme: WRITE,
   delete_color_scheme: { ...WRITE, destructiveHint: true, idempotentHint: true },
   create_event: { ...WRITE, openWorldHint: true }, update_event: { ...SET, openWorldHint: true }, set_event_category: SET,
-  create_chore: WRITE, update_chore: SET, complete_chore: SET, uncomplete_chore: SET, list_pending_approvals: READ, approve_chore: SET, reject_chore: SET, add_member: WRITE, update_member: SET,
+  create_chore: WRITE, update_chore: SET, complete_chore: SET, uncomplete_chore: SET, list_pending_approvals: READ, approve_chore: SET, reject_chore: SET,
+  list_rewards: READ, create_reward: WRITE, update_reward: SET, redeem_reward: WRITE, list_reward_requests: READ, approve_reward: SET, decline_reward: SET, mark_reward_given: SET,
+  add_member: WRITE, update_member: SET,
   create_list: WRITE, update_list: SET, add_list_items: WRITE, update_list_item: SET, set_list_item_done: SET, set_step_done: SET, update_category: SET, add_note: WRITE, update_note: SET,
   send_notification: { ...WRITE, openWorldHint: true },
   delete_event: { ...WRITE, destructiveHint: true, idempotentHint: true, openWorldHint: true },
@@ -669,6 +679,150 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       return okResult('Sent back with "Not yet".', { ok: true });
     },
   );
+
+  // ---- Rewards: thin wrappers over routes/rewards.ts. Members by name or id, like chores.
+  const rewardsFor = async (member: string | undefined) => {
+    const memberIds = member ? [await resolveMember(app, env, auth, member)] : [];
+    return memberIds;
+  };
+  const who = async (ids: string[] | undefined) => (ids ? resolveMemberIds(app, env, auth, ids) : undefined);
+  const redemptionLine = (r: { title: string; emoji: string | null; cost: number; status: string }) => `${r.emoji ? `${r.emoji} ` : ''}${r.title} (${r.cost} pts, ${r.status})`;
+
+  tool(
+    'list_rewards',
+    {
+      title: 'List rewards',
+      description: 'Rewards members can spend chore points on. With member, only the ones for them; archived=true includes archived ones.',
+      inputSchema: { member: z.string().optional().describe('Member name or id.'), archived: z.boolean().optional() },
+    },
+    async ({ member, archived }) => {
+      let memberIds: string[];
+      try {
+        memberIds = await rewardsFor(member);
+      } catch (err) {
+        return errorResult(null, err instanceof Error ? err.message : 'member lookup failed');
+      }
+      const q = new URLSearchParams();
+      if (memberIds[0]) q.set('memberId', memberIds[0]);
+      if (archived) q.set('archived', 'true');
+      const res = await call(app, env, auth, 'GET', `/api/rewards?${q}`);
+      if (res.status >= 400) return errorResult(res.json, 'failed to list rewards');
+      const rewards = res.json as { title: string; emoji: string | null; cost: number }[];
+      return okResult(rewards.length ? rewards.map((r) => `${r.emoji ? `${r.emoji} ` : ''}${r.title} (${r.cost} pts)`).join(', ') : 'No rewards yet.', { rewards });
+    },
+  );
+
+  const rewardFields = {
+    members: jsonList(z.array(z.string())).optional().describe('Who can redeem it, by name or id; empty or omitted = everyone.'),
+    needsApproval: z.boolean().optional().describe("Redeeming waits for a parent's OK (default true). A parent's own redeem is approved at once."),
+    limit: RewardLimitSchema.optional().describe('Up to count (1-20) per member per day or week, e.g. { count: 3, period: "day" }; null = no limit (default).'),
+  };
+
+  tool(
+    'create_reward',
+    {
+      title: 'Create reward',
+      description: 'Admin: add a reward members can spend chore points on, e.g. "🍿 Movie night" for 100 points.',
+      inputSchema: { title: RewardInputSchema.shape.title, emoji: z.string().optional(), cost: RewardInputSchema.shape.cost.describe('Points it costs (1 or more).'), ...rewardFields },
+    },
+    async ({ members, ...input }) => {
+      let memberIds: string[] | undefined;
+      try {
+        memberIds = await who(members);
+      } catch (err) {
+        return errorResult(null, err instanceof Error ? err.message : 'member lookup failed');
+      }
+      const res = await call(app, env, auth, 'POST', '/api/rewards', { ...input, ...(memberIds ? { memberIds } : {}) });
+      if (res.status >= 400) return errorResult(res.json, 'failed to create reward');
+      const reward = res.json as { title: string; cost: number };
+      return okResult(`Added reward "${reward.title}" (${reward.cost} pts).`, { reward: res.json as Record<string, unknown> });
+    },
+  );
+
+  tool(
+    'update_reward',
+    {
+      title: 'Edit reward',
+      description: 'Admin: change a reward (use list_rewards for ids); active=false archives it, true brings it back. Only provided fields change.',
+      inputSchema: { rewardId: z.string(), title: RewardInputSchema.shape.title.optional(), emoji: z.string().nullable().optional(), cost: RewardInputSchema.shape.cost.optional(), active: z.boolean().optional(), ...rewardFields },
+    },
+    async ({ rewardId, members, ...input }) => {
+      let memberIds: string[] | undefined;
+      try {
+        memberIds = await who(members);
+      } catch (err) {
+        return errorResult(null, err instanceof Error ? err.message : 'member lookup failed');
+      }
+      const res = await call(app, env, auth, 'PATCH', `/api/rewards/${encodeURIComponent(rewardId)}`, { ...input, ...(memberIds ? { memberIds } : {}) });
+      if (res.status >= 400) return errorResult(res.json, 'failed to update reward');
+      return okResult(`Updated reward "${(res.json as { title: string }).title}".`, { reward: res.json as Record<string, unknown> });
+    },
+  );
+
+  tool(
+    'redeem_reward',
+    {
+      title: 'Redeem reward',
+      description: "Spend a member's points on a reward. The points come off at once; it waits for a parent's OK if the reward needs one (a parent's own key approves at once). Refused when short of points or over the reward's daily/weekly limit.",
+      inputSchema: { rewardId: z.string(), member: z.string().describe('Member name or id.') },
+    },
+    async ({ rewardId, member }) => {
+      let memberId: string;
+      try {
+        memberId = await resolveMember(app, env, auth, member);
+      } catch (err) {
+        return errorResult(null, err instanceof Error ? err.message : 'member lookup failed');
+      }
+      const res = await call(app, env, auth, 'POST', `/api/rewards/${encodeURIComponent(rewardId)}/redeem`, { memberId });
+      if (res.status === 402) {
+        const { balance, cost } = res.json as { balance: number; cost: number };
+        return errorResult(null, `Not enough points: ${cost - balance} more needed (has ${balance}, costs ${cost}).`);
+      }
+      if (res.status >= 400) return errorResult(res.json, 'failed to redeem reward');
+      const { redemption, balance } = res.json as { redemption: { status: string; title: string }; balance: number };
+      return okResult(`${redemption.title}: ${redemption.status === 'pending' ? "waiting for a parent's OK" : 'approved'}. ${balance} points left.`, res.json as Record<string, unknown>);
+    },
+  );
+
+  tool(
+    'list_reward_requests',
+    {
+      title: 'List reward requests',
+      description: "Redeemed rewards. Default: the ones a parent still has to act on (pending = waiting for OK, approved = not given yet), oldest first. status filters (comma-separated: pending, approved, declined, given); member narrows to one person.",
+      inputSchema: { status: z.string().optional(), member: z.string().optional().describe('Member name or id.') },
+    },
+    async ({ status, member }) => {
+      let memberIds: string[];
+      try {
+        memberIds = await rewardsFor(member);
+      } catch (err) {
+        return errorResult(null, err instanceof Error ? err.message : 'member lookup failed');
+      }
+      const q = new URLSearchParams({ status: status ?? 'pending,approved' });
+      if (memberIds[0]) q.set('memberId', memberIds[0]);
+      const res = await call(app, env, auth, 'GET', `/api/rewards/redemptions?${q}`);
+      if (res.status >= 400) return errorResult(res.json, 'failed to list reward requests');
+      const requests = res.json as { title: string; emoji: string | null; cost: number; status: string }[];
+      return okResult(requests.length ? requests.map(redemptionLine).join(', ') : 'No reward requests.', { requests });
+    },
+  );
+
+  const decide = (name: string, title: string, description: string, action: string, done: (r: { title: string }) => string, extra: z.ZodRawShape = {}) =>
+    tool(name, { title, description, inputSchema: { redemptionId: z.string().describe('From list_reward_requests.'), ...extra } }, async ({ redemptionId, ...body }) => {
+      const res = await call(app, env, auth, 'POST', `/api/rewards/redemptions/${encodeURIComponent(String(redemptionId))}/${action}`, action === 'decline' ? body : undefined);
+      if (res.status >= 400) return errorResult(res.json, `failed to ${action} reward`);
+      return okResult(done(res.json as { title: string }), { redemption: res.json as Record<string, unknown> });
+    });
+  decide('approve_reward', 'Approve reward', "Admin: approve a redeemed reward waiting for a parent's OK.", 'approve', (r) => `Approved ${r.title}.`);
+  decide(
+    'decline_reward',
+    'Not this time (decline reward)',
+    "Admin: decline a redeemed reward waiting for OK, or cancel an approved one not given yet. The points go back and the member's devices are told, with the optional note.",
+    'decline',
+    (r) => `Declined ${r.title}; the points are back.`,
+    { note: z.string().max(200).optional().describe('e.g. "Let\'s do it at the weekend".') },
+  );
+  decide('mark_reward_given', 'Mark reward given', 'Admin: mark an approved reward as given (delivered).', 'given', (r) => `Marked ${r.title} as given.`);
 
   tool(
     'get_leaderboard',

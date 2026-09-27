@@ -74,6 +74,10 @@ export const MemberSchema = z
     balance: z.number(), // points left to spend: everything earned from chores, minus sticker purchases (+/- other ledger entries)
     needsApproval: z.boolean().openapi({ description: "Their chores need a parent's OK by default (a chore's own setting wins)." }),
     transitionReminders: TransitionRemindersSchema,
+    rewardGoal: z
+      .object({ rewardId: z.string(), title: z.string(), emoji: z.string().nullable(), cost: z.number() })
+      .nullable()
+      .openapi({ description: 'The reward they are saving for (progress = balance / cost), or null.' }),
   })
   .openapi('Member');
 
@@ -821,6 +825,59 @@ export const PointsSchema = z
     entries: z.array(PointEntrySchema), // newest first, last 50
   })
   .openapi('Points');
+
+export const REWARD_PERIODS = ['day', 'week'] as const;
+export const RewardLimitSchema = z
+  .object({ count: z.number().int().min(1).max(20), period: z.enum(REWARD_PERIODS) })
+  .nullable()
+  .openapi('RewardLimit', { description: "Up to `count` per member per household day or week (declined ones don't count); null = no limit." });
+export const REDEMPTION_STATUSES = ['pending', 'approved', 'declined', 'given'] as const;
+
+export const RewardSchema = z
+  .object({
+    id: z.string(),
+    title: z.string(),
+    emoji: z.string().nullable(),
+    cost: z.number().openapi({ description: 'Points it costs.' }),
+    memberIds: z.array(z.string()).openapi({ description: 'Who can redeem it; empty = everyone.' }),
+    needsApproval: z.boolean().openapi({ description: "Redeeming waits for a parent's OK (points are held meanwhile). A parent's own device is approved at once." }),
+    limit: RewardLimitSchema,
+    active: z.boolean().openapi({ description: 'false = archived: hidden from kids, kept for history.' }),
+    sort: z.number(),
+    createdAt: z.string(),
+    used: z.number().optional().openapi({ description: "With ?memberId=: how many of this reward's limit they've used this day/week (not declined)." }),
+  })
+  .openapi('Reward');
+
+export const RewardInputSchema = z
+  .object({
+    title: z.string().trim().min(1).max(80),
+    emoji: EmojiSchema.nullable().optional(),
+    cost: z.number().int().min(1).max(100000),
+    memberIds: z.array(z.string()).optional(),
+    needsApproval: z.boolean().optional(),
+    limit: RewardLimitSchema.optional(),
+    active: z.boolean().optional(),
+    sort: z.number().optional(),
+  })
+  .openapi('RewardInput');
+
+export const RedemptionSchema = z
+  .object({
+    id: z.string(),
+    rewardId: z.string().nullable().openapi({ description: 'null once the reward is deleted (title/emoji/cost are kept).' }),
+    memberId: z.string(),
+    title: z.string(),
+    emoji: z.string().nullable(),
+    cost: z.number(),
+    status: z.enum(REDEMPTION_STATUSES),
+    note: z.string().nullable().openapi({ description: "A parent's note when declining." }),
+    date: z.string().openapi({ description: 'Household day it was redeemed (YYYY-MM-DD).' }),
+    requestedAt: z.string(),
+    decidedAt: z.string().nullable(),
+    givenAt: z.string().nullable(),
+  })
+  .openapi('Redemption');
 
 export const StickerPackSchema = z
   .object({
