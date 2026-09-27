@@ -491,8 +491,8 @@ pluginsRoutes.openapi(
       if (!completed && total >= needSeconds) {
         // onlyIfNew: a completion that landed meanwhile (a tick, another heartbeat) stays as it is.
         const r = await completeChore(c, ch.id, today, member, true);
-        justCompleted = r === true;
-        completed = r === true || r === false; // a number = its checklist isn't finished yet
+        justCompleted = r === true || r === 'pending';
+        completed = justCompleted || r === false; // a number = its checklist isn't finished yet
       }
       out.push({ choreId: ch.id, title: ch.title, emoji: ch.emoji, needSeconds, doneSeconds: Math.min(total, needSeconds), completed, justCompleted });
     }

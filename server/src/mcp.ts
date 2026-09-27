@@ -184,6 +184,9 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
   update_chore: { chore: ChoreSchema },
   complete_chore: OK,
   uncomplete_chore: OK,
+  list_pending_approvals: { approvals: z.array(z.object({ choreId: z.string(), title: z.string(), emoji: z.string().nullable(), date: z.string(), memberId: z.string().nullable(), completedAt: z.string(), points: z.number() })) },
+  approve_chore: { ok: z.boolean(), points: z.number() },
+  reject_chore: OK,
   get_leaderboard: { period: z.string(), leaderboard: z.array(LeaderboardEntrySchema) },
   get_points: { member: z.string(), ...PointsSchema.shape },
   add_member: { member: MemberSchema },
@@ -223,7 +226,7 @@ const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boole
   get_household: READ, list_events: READ, get_event: READ, list_chores: READ, get_leaderboard: READ, get_points: READ, list_lists: READ, get_list: READ, list_categories: READ, get_event_items: READ, list_notifications: READ, list_notes: READ, get_snapshot: READ, get_board: READ, list_tracker_entries: READ, add_tracker_entry: WRITE, update_tracker_entry: SET, list_color_schemes: READ, set_color_scheme: SET, save_color_scheme: WRITE,
   delete_color_scheme: { ...WRITE, destructiveHint: true, idempotentHint: true },
   create_event: { ...WRITE, openWorldHint: true }, update_event: { ...SET, openWorldHint: true }, set_event_category: SET,
-  create_chore: WRITE, update_chore: SET, complete_chore: SET, uncomplete_chore: SET, add_member: WRITE, update_member: SET,
+  create_chore: WRITE, update_chore: SET, complete_chore: SET, uncomplete_chore: SET, list_pending_approvals: READ, approve_chore: SET, reject_chore: SET, add_member: WRITE, update_member: SET,
   create_list: WRITE, update_list: SET, add_list_items: WRITE, update_list_item: SET, set_list_item_done: SET, set_step_done: SET, update_category: SET, add_note: WRITE, update_note: SET,
   send_notification: { ...WRITE, openWorldHint: true },
   delete_event: { ...WRITE, destructiveHint: true, idempotentHint: true, openWorldHint: true },
@@ -515,6 +518,8 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         list: z.string().optional().describe('Checklist: a list (name or id) that must be fully ticked before the chore can be completed. A reusable list resets on completion.'),
         activity: z.string().optional().describe('Activity: an installed activity plugin (name or id). Playing it in Kinwall for `minutes` in a day completes the chore, e.g. "5 min of Sight words".'),
         minutes: z.number().int().min(1).max(60).optional().describe('Minutes of play the activity needs, 1-60. Default 5.'),
+        needsApproval: z.boolean().nullable().optional().describe("Ticks from wall screens and kids' devices wait for a parent's OK: true/false overrides the person's default, null follows it."),
+        approveTimedPlay: z.boolean().optional().describe("Activity chores: also wait for a parent's OK when timed play completes it (default: auto-approve)."),
       },
     },
     async ({ member, list, activity, minutes, ...input }) => {
@@ -540,7 +545,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     {
       title: 'Update chore',
       description:
-        'Change a chore: title, emoji, assignee, points, recurrence, due date/time, checklist, linked activity, or active state. Only provided fields change; pass member: null to unassign (anyone). ' +
+        "Change a chore: title, emoji, assignee, points, recurrence, due date/time, checklist, linked activity, whether it needs a parent's OK, or active state. Only provided fields change; pass member: null to unassign (anyone). " +
         'rrule uses standard RRULE syntax, e.g. FREQ=DAILY or FREQ=WEEKLY;BYDAY=MO,WE,FR, optionally ending with ;UNTIL=YYYYMMDD to stop the recurrence on a date; pass rrule: null to make it one-off (requires dueDate).',
       inputSchema: {
         choreId: z.string(),
@@ -555,6 +560,8 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         list: z.string().nullable().optional().describe('Checklist list (name or id); null to unlink.'),
         activity: z.string().nullable().optional().describe('Activity plugin (name or id) whose play completes the chore; null to unlink.'),
         minutes: z.number().int().min(1).max(60).optional().describe('Minutes of play the activity needs, 1-60.'),
+        needsApproval: z.boolean().nullable().optional().describe("Ticks from wall screens and kids' devices wait for a parent's OK: true/false overrides the person's default, null follows it."),
+        approveTimedPlay: z.boolean().optional().describe("Activity chores: also wait for a parent's OK when timed play completes it (default: auto-approve)."),
       },
     },
     async ({ choreId, member, list, activity, minutes, ...input }) => {
@@ -597,6 +604,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       const day = date ?? await todayInHousehold(env);
       const res = await call(app, env, auth, 'POST', `/api/chores/${encodeURIComponent(choreId)}/complete`, { date: day, memberId });
       if (res.status >= 400) return errorResult(res.json, 'failed to complete chore');
+      if ((res.json as { pending?: boolean }).pending) return okResult(`Ticked for ${day}; it's waiting for a parent's OK.`, { ok: true });
       return okResult(`Marked chore complete for ${day}.`, { ok: true });
     },
   );
@@ -613,6 +621,52 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       const res = await call(app, env, auth, 'DELETE', `/api/chores/${encodeURIComponent(choreId)}/complete?date=${encodeURIComponent(day)}`);
       if (res.status >= 400) return errorResult(res.json, 'failed to uncomplete chore');
       return okResult(`Undid completion for ${day}.`, { ok: true });
+    },
+  );
+
+  tool(
+    'list_pending_approvals',
+    {
+      title: 'List chores to approve',
+      description: "Chores ticked on a wall screen or kid's device that are waiting for a parent's OK (no points until approved), oldest first. Admin only.",
+      inputSchema: {},
+    },
+    async () => {
+      const res = await call(app, env, auth, 'GET', '/api/chores/pending');
+      if (res.status >= 400) return errorResult(res.json, 'failed to list approvals');
+      const approvals = res.json as { title: string; date: string }[];
+      return okResult(approvals.length ? `${approvals.length} to approve: ${approvals.map((a) => `${a.title} (${a.date})`).join(', ')}.` : 'Nothing waiting for approval.', { approvals: res.json as Record<string, unknown>[] });
+    },
+  );
+
+  tool(
+    'approve_chore',
+    {
+      title: 'Approve chore',
+      description: "Approve a chore waiting for a parent's OK: awards its points (late credit judged by when it was ticked). Defaults to today. Admin only.",
+      inputSchema: { choreId: z.string(), date: z.string().optional().describe('YYYY-MM-DD. Default: today.') },
+    },
+    async ({ choreId, date }) => {
+      const day = date ?? await todayInHousehold(env);
+      const res = await call(app, env, auth, 'POST', `/api/chores/${encodeURIComponent(choreId)}/approve`, { date: day });
+      if (res.status >= 400) return errorResult(res.json, 'failed to approve chore');
+      const { points } = res.json as { points: number };
+      return okResult(`Approved (${points} point${points === 1 ? '' : 's'}).`, { ok: true, points });
+    },
+  );
+
+  tool(
+    'reject_chore',
+    {
+      title: 'Not yet (reject chore)',
+      description: "Say \"Not yet\" to a chore waiting for a parent's OK: removes the tick and shows the optional note on the kid's chore until they tick it again; their devices get a notification. Defaults to today. Admin only.",
+      inputSchema: { choreId: z.string(), date: z.string().optional().describe('YYYY-MM-DD. Default: today.'), note: z.string().max(200).optional().describe('e.g. "Please make the bed properly".') },
+    },
+    async ({ choreId, date, note }) => {
+      const day = date ?? await todayInHousehold(env);
+      const res = await call(app, env, auth, 'POST', `/api/chores/${encodeURIComponent(choreId)}/reject`, { date: day, note });
+      if (res.status >= 400) return errorResult(res.json, 'failed to reject chore');
+      return okResult('Sent back with "Not yet".', { ok: true });
     },
   );
 
@@ -723,13 +777,14 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'update_member',
     {
       title: 'Update family member',
-      description: 'Change a family member\'s name, color, avatar, or birthday. Only provided fields change.',
+      description: "Change a family member's name, color, avatar, birthday, or whether their chores need a parent's OK. Only provided fields change.",
       inputSchema: {
         member: z.string().describe('Member name or id.'),
         name: z.string().optional(),
         color: z.string().optional().describe('Hex color, e.g. #ff6b6b.'),
         avatar: z.string().nullable().optional().describe('Emoji or initial.'),
         birthday: z.string().nullable().optional().describe(`${BIRTHDAY_DOC} null clears it.`),
+        needsApproval: z.boolean().optional().describe("Their chores need a parent's OK by default (a chore's own setting wins)."),
       },
     },
     async ({ member, ...input }) => {

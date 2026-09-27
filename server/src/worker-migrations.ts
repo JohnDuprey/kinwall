@@ -37,6 +37,7 @@ import m0033 from '../migrations/0033_activity_chores.sql';
 import m0034 from '../migrations/0034_meals.sql';
 import m0035 from '../migrations/0035_oauth_owner.sql';
 import m0036 from '../migrations/0036_calendar_display_edit.sql';
+import m0037 from '../migrations/0037_chore_approval.sql';
 
 export const MIGRATIONS: Migration[] = [
   { name: '0001_init.sql', sql: m0001 },
@@ -75,4 +76,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0034_meals.sql', sql: m0034 },
   { name: '0035_oauth_owner.sql', sql: m0035 },
   { name: '0036_calendar_display_edit.sql', sql: m0036 },
+  { name: '0037_chore_approval.sql', sql: m0037 },
 ];

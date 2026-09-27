@@ -77,7 +77,7 @@ leaderboardRoutes.openapi(
 
     const { results: members } = await c.env.DB.prepare('SELECT id, name, color, avatar, sort FROM members ORDER BY sort, name').all<MemberRow>();
     const { results: chores } = await c.env.DB.prepare('SELECT * FROM chores WHERE active = 1').all<ChoreRow>();
-    const { results: completions } = await c.env.DB.prepare('SELECT chore_id, date, member_id, points_awarded FROM chore_completions WHERE date >= ? AND date <= ?')
+    const { results: completions } = await c.env.DB.prepare("SELECT chore_id, date, member_id, points_awarded FROM chore_completions WHERE date >= ? AND date <= ? AND status = 'approved'")
       .bind(windowFrom, today)
       .all<CompletionRow>();
 

@@ -55,6 +55,7 @@ export const MemberSchema = z
     pointsToday: z.number(),
     pointsWeek: z.number(),
     balance: z.number(), // points left to spend: everything earned from chores, minus sticker purchases (+/- other ledger entries)
+    needsApproval: z.boolean().openapi({ description: "Their chores need a parent's OK by default (a chore's own setting wins)." }),
   })
   .openapi('Member');
 
@@ -65,6 +66,7 @@ export const MemberInputSchema = z
     avatar: AvatarSchema.nullable().optional(),
     birthday: BirthdaySchema.nullable().optional(),
     sort: z.number().optional(),
+    needsApproval: z.boolean().optional(),
   })
   .openapi('MemberInput');
 
@@ -333,6 +335,8 @@ export const ChoreSchema = z
     listId: z.string().nullable().openapi({ description: 'Checklist: a list that must be fully ticked before the chore can be completed.' }),
     pluginId: z.string().nullable().openapi({ description: 'Activity: an installed plugin whose play counts toward this chore; it completes once pluginMinutes of play are in for the day.' }),
     pluginMinutes: z.number().nullable().openapi({ description: 'Minutes of active play the activity needs (1-60), when pluginId is set.' }),
+    needsApproval: z.boolean().nullable().openapi({ description: "Ticks from wall screens and kids' devices wait for a parent's OK. null follows the person's default (Member.needsApproval)." }),
+    approveTimedPlay: z.boolean().openapi({ description: "Activity chores: completion by timed play also waits for a parent's OK (it auto-approves otherwise)." }),
   })
   .openapi('Chore');
 
@@ -350,6 +354,8 @@ export const ChoreInputSchema = z
     listId: z.string().nullable().optional().openapi({ description: 'Checklist list id; null to unlink. A reusable list resets when the chore is completed.' }),
     pluginId: z.string().nullable().optional().openapi({ description: "Activity plugin id (see GET /api/plugins); null to unlink. Kinwall's player completes the chore once the day's play reaches pluginMinutes." }),
     pluginMinutes: z.number().int().min(1).max(60).optional().openapi({ description: 'Minutes of active play needed, 1-60 (default 5).' }),
+    needsApproval: z.boolean().nullable().optional().openapi({ description: "true/false overrides the person's default; null follows it." }),
+    approveTimedPlay: z.boolean().optional(),
   })
   .openapi('ChoreInput');
 
@@ -365,7 +371,9 @@ export const ActivityProgressSchema = z.object({
 });
 
 export const ChoreDaySchema = ChoreSchema.extend({
-  completed: z.boolean(),
+  completed: z.boolean().openapi({ description: "Done and counted (a completion waiting for a parent's OK is pending instead)." }),
+  pending: z.boolean().openapi({ description: "Ticked from a wall screen or kid's device, waiting for a parent's OK: no points yet." }),
+  rejection: z.object({ note: z.string().nullable(), at: z.string() }).nullable().openapi({ description: "A parent's \"Not yet\" for this day, until it's ticked again." }),
   completedAt: z.string().nullable(),
   completedBy: z.string().nullable(),
   checklist: z.object({ listId: z.string(), name: z.string(), total: z.number(), done: z.number() }).nullable().openapi({ description: 'Progress on the linked checklist, when the chore has one.' }),
@@ -874,7 +882,7 @@ export const SnapshotSchema = z
     weather: WeatherSchema.nullable(), // null: no location set, or the forecast couldn't be fetched
     events: z.array(SnapshotEventSchema), // theirs + everyone's (untagged), sorted by start
     chores: z.array(
-      z.object({ id: z.string(), title: z.string(), emoji: z.string().nullable(), points: z.number(), dueTime: z.string().nullable(), date: z.string(), done: z.boolean(), doneBy: z.string().nullable(), shared: z.boolean() }), // doneBy: member credited (null = nobody, or not done)
+      z.object({ id: z.string(), title: z.string(), emoji: z.string().nullable(), points: z.number(), dueTime: z.string().nullable(), date: z.string(), done: z.boolean(), pending: z.boolean(), doneBy: z.string().nullable(), shared: z.boolean() }), // pending: ticked, waiting for a parent's OK (not done). doneBy: member credited (null = nobody, or not done)
     ),
     items: z.array(SnapshotItemSchema), // assigned to them, open, due by `to` or high/urgent
     birthdays: z.array(SnapshotBirthdaySchema),
@@ -894,7 +902,7 @@ export const BoardSchema = z
     events: z.array(SnapshotEventSchema), // every member's events + untagged, today..to, sorted by start
     items: z.array(SnapshotItemSchema), // anyone's open items due by `to` (incl. overdue), plus undated urgent/high
     chores: z.array(
-      z.object({ memberId: z.string().nullable(), name: z.string().nullable(), avatar: z.string().nullable(), color: z.string().nullable(), remaining: z.number(), total: z.number() }),
+      z.object({ memberId: z.string().nullable(), name: z.string().nullable(), avatar: z.string().nullable(), color: z.string().nullable(), remaining: z.number(), total: z.number(), pending: z.number() }), // pending: of remaining, ticked and waiting for a parent's OK
     ),
     birthdays: z.array(SnapshotBirthdaySchema),
     meals: z.array(MealSchema),

@@ -8,6 +8,8 @@ import { emit } from '../bus.ts';
 import { expand, isValidRrule } from '../recurrence.ts';
 import { ChoreDaySchema, ChoreInputSchema, ChoreSchema, ErrorSchema } from '../schemas.ts';
 import { resetListItems } from './lists.ts';
+import { requestKey } from '../auth.ts';
+import { notifyChoreApproval } from '../notify.ts';
 
 export const choresRoutes = createRouter();
 
@@ -26,6 +28,8 @@ export type ChoreRow = {
   list_id?: string | null; // checklist; optional so older row literals (tests) still type-check
   plugin_id?: string | null; // activity; likewise optional
   plugin_minutes?: number | null;
+  needs_approval?: number | null; // null = follow the member's default
+  approve_timed_play?: number;
 };
 
 export function toApi(row: ChoreRow) {
@@ -43,6 +47,8 @@ export function toApi(row: ChoreRow) {
     listId: row.list_id ?? null,
     pluginId: row.plugin_id ?? null,
     pluginMinutes: row.plugin_id ? row.plugin_minutes ?? DEFAULT_ACTIVITY_MINUTES : null,
+    needsApproval: row.needs_approval == null ? null : !!row.needs_approval,
+    approveTimedPlay: !!row.approve_timed_play,
   };
 }
 
@@ -110,11 +116,13 @@ choresRoutes.openapi(
       list_id: body.listId ?? null,
       plugin_id: body.pluginId ?? null,
       plugin_minutes: body.pluginId ? body.pluginMinutes ?? DEFAULT_ACTIVITY_MINUTES : null,
+      needs_approval: body.needsApproval == null ? null : body.needsApproval ? 1 : 0,
+      approve_timed_play: body.approveTimedPlay ? 1 : 0,
     };
     await c.env.DB.prepare(
-      'INSERT INTO chores (id, title, emoji, member_id, points, rrule, due_date, due_time, active, sort, created_at, list_id, plugin_id, plugin_minutes) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      'INSERT INTO chores (id, title, emoji, member_id, points, rrule, due_date, due_time, active, sort, created_at, list_id, plugin_id, plugin_minutes, needs_approval, approve_timed_play) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
     )
-      .bind(row.id, row.title, row.emoji, row.member_id, row.points, row.rrule, row.due_date, row.due_time, row.active, row.sort, row.created_at, row.list_id, row.plugin_id, row.plugin_minutes)
+      .bind(row.id, row.title, row.emoji, row.member_id, row.points, row.rrule, row.due_date, row.due_time, row.active, row.sort, row.created_at, row.list_id, row.plugin_id, row.plugin_minutes, row.needs_approval, row.approve_timed_play)
       .run();
     emit(c, 'chore.changed', { id: row.id });
     return c.json(toApi(row), 201);
@@ -156,12 +164,14 @@ choresRoutes.openapi(
       sort: body.sort ?? existing.sort,
       list_id: body.listId !== undefined ? body.listId : existing.list_id ?? null,
       plugin_id: body.pluginId !== undefined ? body.pluginId : existing.plugin_id ?? null,
+      needs_approval: body.needsApproval !== undefined ? (body.needsApproval === null ? null : body.needsApproval ? 1 : 0) : existing.needs_approval ?? null,
+      approve_timed_play: body.approveTimedPlay !== undefined ? (body.approveTimedPlay ? 1 : 0) : existing.approve_timed_play ?? 0,
     };
     updated.plugin_minutes = updated.plugin_id ? body.pluginMinutes ?? existing.plugin_minutes ?? DEFAULT_ACTIVITY_MINUTES : null;
     await c.env.DB.prepare(
-      'UPDATE chores SET title=?, emoji=?, member_id=?, points=?, rrule=?, due_date=?, due_time=?, active=?, sort=?, list_id=?, plugin_id=?, plugin_minutes=? WHERE id=?',
+      'UPDATE chores SET title=?, emoji=?, member_id=?, points=?, rrule=?, due_date=?, due_time=?, active=?, sort=?, list_id=?, plugin_id=?, plugin_minutes=?, needs_approval=?, approve_timed_play=? WHERE id=?',
     )
-      .bind(updated.title, updated.emoji, updated.member_id, updated.points, updated.rrule, updated.due_date, updated.due_time, updated.active, updated.sort, updated.list_id, updated.plugin_id, updated.plugin_minutes, id)
+      .bind(updated.title, updated.emoji, updated.member_id, updated.points, updated.rrule, updated.due_date, updated.due_time, updated.active, updated.sort, updated.list_id, updated.plugin_id, updated.plugin_minutes, updated.needs_approval, updated.approve_timed_play, id)
       .run();
     emit(c, 'chore.changed', { id });
     return c.json(toApi(updated), 200);
@@ -240,7 +250,7 @@ choresRoutes.openapi(
     const { date } = c.req.valid('query');
 
     // tz, chores and completions are all independent reads - one batch, one round trip.
-    const [tzRes, choresRes, completionsRes, checklistRes, pluginsRes, playRes] = await c.env.DB.batch<unknown>([
+    const [tzRes, choresRes, completionsRes, checklistRes, pluginsRes, playRes, rejectionsRes] = await c.env.DB.batch<unknown>([
       c.env.DB.prepare("SELECT value FROM settings WHERE key = 'timezone'"),
       c.env.DB.prepare('SELECT * FROM chores WHERE active = 1 ORDER BY sort, created_at'),
       c.env.DB.prepare('SELECT * FROM chore_completions WHERE date = ?').bind(date),
@@ -252,13 +262,15 @@ choresRoutes.openapi(
       ),
       c.env.DB.prepare('SELECT id, name, manifest, enabled FROM plugins'),
       c.env.DB.prepare('SELECT member_id, plugin_id, seconds FROM plugin_playtime WHERE date = ?').bind(date),
+      c.env.DB.prepare('SELECT chore_id, note, rejected_at FROM chore_rejections WHERE date = ?').bind(date),
     ]);
+    const rejections = new Map((rejectionsRes.results as { chore_id: string; note: string | null; rejected_at: string }[]).map((r) => [r.chore_id, r]));
     const plugins = new Map((pluginsRes.results as PluginInfo[]).map((p) => [p.id, p]));
     const play = playRes.results as PlayRow[];
     const checklists = new Map((checklistRes.results as { chore_id: string; list_id: string; name: string; total: number; done: number }[]).map((r) => [r.chore_id, r]));
     const tz = (tzRes.results[0] as { value: string } | undefined)?.value ?? hostTimezone();
     const chores = choresRes.results as unknown as ChoreRow[];
-    const completions = completionsRes.results as unknown as { chore_id: string; member_id: string | null; completed_at: string }[];
+    const completions = completionsRes.results as unknown as { chore_id: string; member_id: string | null; completed_at: string; status: string }[];
 
     const due = chores.filter((row) => dueOnDate(row, date, tz));
     const byChore = new Map(completions.map((row) => [row.chore_id, row]));
@@ -267,9 +279,13 @@ choresRoutes.openapi(
       due.map((row) => {
         const completion = byChore.get(row.id);
         const cl = row.list_id ? checklists.get(row.id) : undefined;
+        const rejection = rejections.get(row.id);
         return {
           ...toApi(row),
-          completed: !!completion,
+          // A completion waiting for a parent's OK isn't done yet (no points, not counted).
+          completed: completion?.status === 'approved',
+          pending: completion?.status === 'pending',
+          rejection: rejection && !completion ? { note: rejection.note, at: rejection.rejected_at } : null,
           completedAt: completion?.completed_at ?? null,
           completedBy: completion?.member_id ?? null,
           checklist: cl ? { listId: cl.list_id, name: cl.name, total: Number(cl.total), done: Number(cl.done) } : null,
@@ -288,18 +304,25 @@ export function lateCompletionPoints(points: number, late: boolean, creditPercen
 }
 
 /**
- * Completes a chore for `date`: the checklist gate, points (late credit), the chore.completed event
- * (webhooks, notifications) and a reusable checklist's reset. Shared by the tick and by activity
- * playtime (routes/plugins.ts), which passes `onlyIfNew` so a chore already done that day is left
- * alone. Returns true when a completion was written, false when onlyIfNew found one, the number of
- * open checklist items when that gates it, or 'not found'.
+ * Completes a chore for `date`: the checklist gate, parent approval, points (late credit), the
+ * chore.completed event (webhooks, notifications) and a reusable checklist's reset. Shared by the
+ * tick and by activity playtime (routes/plugins.ts), which passes `timedPlay` so a chore already
+ * done that day is left alone. A wall screen or kid's device (display key) ticking a chore that
+ * needs a parent's OK writes a 'pending' completion instead: no points and no chore.completed until
+ * POST /api/chores/{id}/approve. Returns true when an approved completion was written, 'pending'
+ * for a pending one, false when timedPlay found one already, the number of open checklist items
+ * when that gates it, or 'not found'.
  */
-export async function completeChore(c: Context<{ Bindings: Env }>, id: string, date: string, memberId: string | undefined, onlyIfNew = false): Promise<boolean | number | 'not found'> {
+export async function completeChore(c: Context<{ Bindings: Env }>, id: string, date: string, memberId: string | undefined, timedPlay = false): Promise<boolean | 'pending' | number | 'not found'> {
   const [choreRes, settingsRes] = await c.env.DB.batch<unknown>([
-    c.env.DB.prepare('SELECT id, title, member_id, points, list_id FROM chores WHERE id = ?').bind(id),
+    c.env.DB.prepare(
+      'SELECT c.id, c.title, c.member_id, c.points, c.list_id, c.needs_approval, c.approve_timed_play, (SELECT needs_approval FROM members WHERE id = COALESCE(?, c.member_id)) AS member_needs_approval FROM chores c WHERE c.id = ?',
+    ).bind(memberId ?? null, id),
     c.env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('timezone', 'lateCompletionCredit')"),
   ]);
-  const chore = choreRes.results[0] as { id: string; title: string; member_id: string | null; points: number; list_id: string | null } | undefined;
+  const chore = choreRes.results[0] as
+    | { id: string; title: string; member_id: string | null; points: number; list_id: string | null; needs_approval: number | null; approve_timed_play: number; member_needs_approval: number | null }
+    | undefined;
   if (!chore) return 'not found';
   // The checklist gates completion: the list's items for this chore's member (or whoever is
   // completing an "anyone" chore) plus unassigned ones. An empty set doesn't gate.
@@ -314,25 +337,51 @@ export async function completeChore(c: Context<{ Bindings: Env }>, id: string, d
     if (list && Number(list.remaining) > 0) return Number(list.remaining);
     checklistKind = list?.kind ?? null;
   }
+  // Parent devices (admin keys) are approved straight away. Timed play follows the chore's own
+  // "even for timed play" switch; a tick follows the chore, else the person's default.
+  const needsOk = timedPlay ? !!chore.approve_timed_play : !!(chore.needs_approval ?? chore.member_needs_approval);
+  const pending = needsOk && (await requestKey(c))?.scope === 'display';
   const settings = new Map((settingsRes.results as { key: string; value: string }[]).map((r) => [r.key, r.value]));
   const today = todayInTz(settings.get('timezone') ?? hostTimezone());
-  const pointsAwarded = lateCompletionPoints(chore.points, date < today, Number(settings.get('lateCompletionCredit') ?? 50));
-  // Re-ticking an existing completion (e.g. to change who did it) keeps the points it already earned.
-  const written = await c.env.DB.prepare(
-    `INSERT INTO chore_completions (id, chore_id, date, member_id, completed_at, points_awarded) VALUES (?,?,?,?,?,?) ON CONFLICT(chore_id, date) DO ${onlyIfNew ? 'NOTHING' : 'UPDATE SET member_id = excluded.member_id, completed_at = excluded.completed_at'}`,
-  )
-    .bind(crypto.randomUUID(), id, date, memberId ?? chore.member_id, new Date().toISOString(), pointsAwarded)
-    .run();
-  if (written.meta.changes === 0) return false;
-  // Title and member ride along so a receiver (Home Assistant, n8n) can act without a lookup.
-  emit(c, 'chore.completed', { id, date, title: chore.title, memberId: memberId ?? chore.member_id, points: pointsAwarded });
+  const pointsAwarded = pending ? 0 : lateCompletionPoints(chore.points, date < today, Number(settings.get('lateCompletionCredit') ?? 50));
+  const who = memberId ?? chore.member_id;
+  // Re-ticking an existing completion (e.g. to change who did it) keeps the points and status it already has.
+  const [writtenRes] = await c.env.DB.batch<unknown>([
+    c.env.DB.prepare(
+      `INSERT INTO chore_completions (id, chore_id, date, member_id, completed_at, points_awarded, status) VALUES (?,?,?,?,?,?,?) ON CONFLICT(chore_id, date) DO ${timedPlay ? 'NOTHING' : 'UPDATE SET member_id = excluded.member_id, completed_at = excluded.completed_at'} RETURNING status, points_awarded`,
+    ).bind(crypto.randomUUID(), id, date, who, new Date().toISOString(), pointsAwarded, pending ? 'pending' : 'approved'),
+    c.env.DB.prepare('DELETE FROM chore_rejections WHERE chore_id = ? AND date = ?').bind(id, date), // ticked again: the "Not yet" note goes
+  ]);
+  const written = writtenRes.results[0] as { status: string; points_awarded: number } | undefined;
+  if (!written) return false;
   // A reusable checklist starts fresh for the next time the chore comes round - just this
   // member's items and the shared ones, so a sibling's ticks on the same list survive.
   if (chore.list_id && checklistKind === 'reusable') {
     await resetListItems(c.env.DB, chore.list_id, forMember);
     emit(c, 'list.changed', { id: chore.list_id });
   }
+  if (written.status === 'pending') {
+    emit(c, 'chore.pending', { id, date, title: chore.title, memberId: who });
+    const name = who ? (await c.env.DB.prepare('SELECT name FROM members WHERE id = ?').bind(who).first<{ name: string }>())?.name : null;
+    notifyChoreApproval(c.env, execCtx(c), 'parents', `approve:${id}:${date}`, {
+      title: `${name ?? 'Someone'} finished ${chore.title}. Approve?`,
+      body: 'Open Chores to approve it or say not yet.',
+      url: '/#/chores',
+      memberIds: who ? [who] : [],
+    });
+    return 'pending';
+  }
+  // Title and member ride along so a receiver (Home Assistant, n8n) can act without a lookup.
+  emit(c, 'chore.completed', { id, date, title: chore.title, memberId: who, points: written.points_awarded });
   return true;
+}
+
+function execCtx(c: Context<{ Bindings: Env }>) {
+  try {
+    return c.executionCtx;
+  } catch {
+    return undefined; // Node: no ExecutionContext
+  }
 }
 
 choresRoutes.openapi(
@@ -347,7 +396,7 @@ choresRoutes.openapi(
       body: { content: { 'application/json': { schema: z.object({ date: z.string(), memberId: z.string().optional() }) } } },
     },
     responses: {
-      200: { description: 'ok', content: { 'application/json': { schema: z.object({ ok: z.boolean() }) } } },
+      200: { description: 'ok; pending: true when it waits for a parent\'s OK', content: { 'application/json': { schema: z.object({ ok: z.boolean(), pending: z.boolean() }) } } },
       404: { description: 'not found', content: { 'application/json': { schema: ErrorSchema } } },
       409: { description: 'checklist not finished', content: { 'application/json': { schema: ErrorSchema.extend({ remaining: z.number() }) } } },
     },
@@ -358,7 +407,7 @@ choresRoutes.openapi(
     const r = await completeChore(c, id, date, memberId);
     if (r === 'not found') return c.json({ error: 'not found' }, 404);
     if (typeof r === 'number') return c.json({ error: `Checklist not finished (${r} left)`, remaining: r }, 409);
-    return c.json({ ok: true }, 200);
+    return c.json({ ok: true, pending: r === 'pending' }, 200);
   },
 );
 
@@ -378,6 +427,121 @@ choresRoutes.openapi(
     const chore = await c.env.DB.prepare('SELECT title, member_id FROM chores WHERE id = ?').bind(id).first<{ title: string; member_id: string | null }>();
     await c.env.DB.prepare('DELETE FROM chore_completions WHERE chore_id = ? AND date = ?').bind(id, date).run();
     emit(c, 'chore.uncompleted', { id, date, title: chore?.title ?? null, memberId: chore?.member_id ?? null });
+    return c.json({ ok: true }, 200);
+  },
+);
+
+// ---- Parent approval. Not in auth.ts's display allow-list, so only parent devices (admin keys)
+// reach these; wall screens and kids' devices can tick and untick but never approve.
+
+const PendingApprovalSchema = z
+  .object({
+    choreId: z.string(),
+    title: z.string(),
+    emoji: z.string().nullable(),
+    date: z.string(),
+    memberId: z.string().nullable(),
+    completedAt: z.string(),
+    points: z.number().openapi({ description: 'What approving awards (late credit from the day it was ticked, not today).' }),
+  })
+  .openapi('PendingApproval');
+
+type PendingRow = { chore_id: string; title: string; emoji: string | null; date: string; member_id: string | null; completed_at: string; points: number };
+
+async function creditSettings(c: { env: Env }) {
+  const { results } = await c.env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('timezone', 'lateCompletionCredit')").all<{ key: string; value: string }>();
+  const map = new Map(results.map((r) => [r.key, r.value]));
+  return { tz: map.get('timezone') ?? hostTimezone(), credit: Number(map.get('lateCompletionCredit') ?? 50) };
+}
+
+// Late credit is judged by when it was ticked: done on the day earns in full even if approved tomorrow.
+function approvalPoints(row: PendingRow, s: { tz: string; credit: number }): number {
+  return lateCompletionPoints(row.points, row.date < todayInTz(s.tz, new Date(row.completed_at)), s.credit);
+}
+
+const PENDING_SQL =
+  "SELECT cc.chore_id, c.title, c.emoji, cc.date, cc.member_id, cc.completed_at, c.points FROM chore_completions cc JOIN chores c ON c.id = cc.chore_id WHERE cc.status = 'pending'";
+
+choresRoutes.openapi(
+  createRoute({
+    method: 'get',
+    path: '/api/chores/pending',
+    tags: ['Chores'],
+    summary: "Chores waiting for a parent's OK, oldest first (parent devices only)",
+    security: [{ Bearer: [] }],
+    responses: { 200: { description: 'ok', content: { 'application/json': { schema: z.array(PendingApprovalSchema) } } } },
+  }),
+  async (c) => {
+    const s = await creditSettings(c);
+    const { results } = await c.env.DB.prepare(`${PENDING_SQL} ORDER BY cc.completed_at`).all<PendingRow>();
+    return c.json(results.map((r) => ({ choreId: r.chore_id, title: r.title, emoji: r.emoji, date: r.date, memberId: r.member_id, completedAt: r.completed_at, points: approvalPoints(r, s) })), 200);
+  },
+);
+
+const DateBody = z.object({ date: z.string() });
+
+choresRoutes.openapi(
+  createRoute({
+    method: 'post',
+    path: '/api/chores/{id}/approve',
+    tags: ['Chores'],
+    summary: "Approve a completion waiting for a parent's OK: awards its points and emits chore.completed (parent devices only)",
+    security: [{ Bearer: [] }],
+    request: { params: z.object({ id: z.string() }), body: { content: { 'application/json': { schema: DateBody } } } },
+    responses: {
+      200: { description: 'ok', content: { 'application/json': { schema: z.object({ ok: z.boolean(), points: z.number() }) } } },
+      404: { description: 'nothing waiting for approval', content: { 'application/json': { schema: ErrorSchema } } },
+    },
+  }),
+  async (c) => {
+    const { id } = c.req.valid('param');
+    const { date } = c.req.valid('json');
+    const row = await c.env.DB.prepare(`${PENDING_SQL} AND cc.chore_id = ? AND cc.date = ?`).bind(id, date).first<PendingRow>();
+    if (!row) return c.json({ error: 'nothing waiting for approval' }, 404);
+    const points = approvalPoints(row, await creditSettings(c));
+    // Guarded on status so a double tap (two parents at once) awards once.
+    const res = await c.env.DB.prepare("UPDATE chore_completions SET status = 'approved', points_awarded = ? WHERE chore_id = ? AND date = ? AND status = 'pending'").bind(points, id, date).run();
+    if (res.meta.changes === 0) return c.json({ error: 'nothing waiting for approval' }, 404);
+    emit(c, 'chore.completed', { id, date, title: row.title, memberId: row.member_id, points });
+    return c.json({ ok: true, points }, 200);
+  },
+);
+
+choresRoutes.openapi(
+  createRoute({
+    method: 'post',
+    path: '/api/chores/{id}/reject',
+    tags: ['Chores'],
+    summary: "\"Not yet\": remove a completion waiting for a parent's OK and leave an optional note on the chore until it's ticked again; tells the kid's devices (parent devices only)",
+    security: [{ Bearer: [] }],
+    request: { params: z.object({ id: z.string() }), body: { content: { 'application/json': { schema: DateBody.extend({ note: z.string().max(200).optional() }) } } } },
+    responses: {
+      200: { description: 'ok', content: { 'application/json': { schema: z.object({ ok: z.boolean() }) } } },
+      404: { description: 'nothing waiting for approval', content: { 'application/json': { schema: ErrorSchema } } },
+    },
+  }),
+  async (c) => {
+    const { id } = c.req.valid('param');
+    const { date, note: raw } = c.req.valid('json');
+    const note = raw?.trim() || null;
+    const row = await c.env.DB.prepare(`${PENDING_SQL} AND cc.chore_id = ? AND cc.date = ?`).bind(id, date).first<PendingRow>();
+    if (!row) return c.json({ error: 'nothing waiting for approval' }, 404);
+    const now = new Date().toISOString();
+    await c.env.DB.batch([
+      c.env.DB.prepare("DELETE FROM chore_completions WHERE chore_id = ? AND date = ? AND status = 'pending'").bind(id, date),
+      c.env.DB.prepare(
+        'INSERT INTO chore_rejections (chore_id, date, member_id, note, rejected_at) VALUES (?,?,?,?,?) ON CONFLICT(chore_id, date) DO UPDATE SET member_id = excluded.member_id, note = excluded.note, rejected_at = excluded.rejected_at',
+      ).bind(id, date, row.member_id, note, now),
+    ]);
+    emit(c, 'chore.rejected', { id, date, title: row.title, memberId: row.member_id, note });
+    if (row.member_id) {
+      notifyChoreApproval(c.env, execCtx(c), { owner: row.member_id }, `notyet:${id}:${date}:${now}`, {
+        title: `Not yet: ${row.title}`,
+        body: note ?? 'Give it another go, then tick it again.',
+        url: '/#/chores',
+        memberIds: [row.member_id],
+      });
+    }
     return c.json({ ok: true }, 200);
   },
 );

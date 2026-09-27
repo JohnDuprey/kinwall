@@ -446,3 +446,31 @@ export async function runNotifications(env: Env, now: Date, _execCtx?: WaitCtx):
   await pruneSentNotifications(env.DB, now);
   await setTickWindowEnd(env.DB, now);
 }
+
+// Chore approval (routes/chores.ts), sent right away rather than on the tick: "Leo finished Make
+// bed. Approve?" to parent devices (push subscriptions on admin keys) and a parent's "Not yet" to
+// the kid's own devices (keys owned by that member). Once per dedupe `key`; the in-app feed gets
+// one row too.
+export function notifyChoreApproval(
+  env: Env,
+  execCtx: WaitCtx | undefined,
+  to: 'parents' | { owner: string },
+  key: string,
+  n: { title: string; body: string; url: string; memberIds?: string[] },
+): void {
+  waitUntil(
+    execCtx,
+    (async () => {
+      const now = new Date();
+      // Claimed in one statement, so two quick ticks can't both send.
+      const claimed = await env.DB.prepare('INSERT INTO sent_notifications (key, sent_at) VALUES (?, ?) ON CONFLICT(key) DO NOTHING').bind(key, now.toISOString()).run();
+      if (!claimed.meta.changes) return;
+      await recordNotification(env.DB, { kind: 'chore', ...n, source: 'system', at: now });
+      const subs = to === 'parents'
+        ? env.DB.prepare("SELECT s.* FROM push_subscriptions s JOIN api_keys k ON k.id = s.api_key_id WHERE k.scope = 'admin'")
+        : env.DB.prepare('SELECT s.* FROM push_subscriptions s JOIN api_keys k ON k.id = s.api_key_id WHERE k.owner = ?').bind(to.owner);
+      const { results } = await subs.all<PushSubRow>();
+      for (const sub of results) await sendToSub(env, env.DB, sub, { title: n.title, body: n.body, url: n.url, tag: key });
+    })(),
+  );
+}

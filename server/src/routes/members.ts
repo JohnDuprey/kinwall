@@ -10,7 +10,7 @@ import { balanceOf, pointTotalsStmt, type PointTotals } from '../stickers.ts';
 
 export const membersRoutes = createRouter();
 
-type MemberRow = { id: string; name: string; color: string; avatar: string | null; birthday: string | null; sort: number; created_at: string };
+type MemberRow = { id: string; name: string; color: string; avatar: string | null; birthday: string | null; sort: number; created_at: string; needs_approval?: number };
 
 // Exported for reuse by routes/leaderboard.ts (period boundaries use the same household tz/weekStart).
 export function todayInTz(tz: string, at = new Date()): string {
@@ -85,7 +85,7 @@ type Points = { pointsToday: number; pointsWeek: number; balance: number };
 const NO_POINTS: Points = { pointsToday: 0, pointsWeek: 0, balance: 0 };
 
 function toApi(row: MemberRow, points: Points) {
-  return { id: row.id, name: row.name, color: row.color, avatar: row.avatar, birthday: row.birthday ?? null, sort: row.sort, ...points };
+  return { id: row.id, name: row.name, color: row.color, avatar: row.avatar, birthday: row.birthday ?? null, sort: row.sort, needsApproval: !!row.needs_approval, ...points };
 }
 
 membersRoutes.openapi(
@@ -134,9 +134,10 @@ membersRoutes.openapi(
       // New ones go last; a flat 0 made every row tie, so the saved order couldn't hold.
       sort: body.sort ?? ((await c.env.DB.prepare('SELECT MAX(sort) AS m FROM members').first<{ m: number | null }>())?.m ?? -1) + 1,
       created_at: new Date().toISOString(),
+      needs_approval: body.needsApproval ? 1 : 0,
     };
-    await c.env.DB.prepare('INSERT INTO members (id, name, color, avatar, birthday, sort, created_at) VALUES (?,?,?,?,?,?,?)')
-      .bind(row.id, row.name, row.color, row.avatar, row.birthday, row.sort, row.created_at)
+    await c.env.DB.prepare('INSERT INTO members (id, name, color, avatar, birthday, sort, created_at, needs_approval) VALUES (?,?,?,?,?,?,?,?)')
+      .bind(row.id, row.name, row.color, row.avatar, row.birthday, row.sort, row.created_at, row.needs_approval)
       .run();
     emit(c, 'member.changed', { id: row.id });
     return c.json(toApi(row, NO_POINTS), 201);
@@ -171,9 +172,10 @@ membersRoutes.openapi(
       avatar: body.avatar !== undefined ? body.avatar : existing.avatar,
       birthday: body.birthday !== undefined ? body.birthday : existing.birthday,
       sort: body.sort ?? existing.sort,
+      needs_approval: body.needsApproval !== undefined ? (body.needsApproval ? 1 : 0) : existing.needs_approval,
     };
-    await c.env.DB.prepare('UPDATE members SET name = ?, color = ?, avatar = ?, birthday = ?, sort = ? WHERE id = ?')
-      .bind(updated.name, updated.color, updated.avatar, updated.birthday, updated.sort, id)
+    await c.env.DB.prepare('UPDATE members SET name = ?, color = ?, avatar = ?, birthday = ?, sort = ?, needs_approval = ? WHERE id = ?')
+      .bind(updated.name, updated.color, updated.avatar, updated.birthday, updated.sort, updated.needs_approval ?? 0, id)
       .run();
     emit(c, 'member.changed', { id });
     const { tz, weekStart } = await household(c.env.DB);

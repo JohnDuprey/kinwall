@@ -132,12 +132,16 @@ snapshotRoutes.openapi(
     const choreDays = range === 'week' ? dates : [today];
     // chore:date -> who it was credited to (null = nobody in particular)
     const completions = new Map(
-      ((await db.prepare('SELECT chore_id, date, member_id FROM chore_completions WHERE date >= ? AND date <= ?').bind(today, to).all<{ chore_id: string; date: string; member_id: string | null }>()).results).map((r) => [`${r.chore_id}:${r.date}`, r.member_id] as const),
+      ((await db.prepare('SELECT chore_id, date, member_id, status FROM chore_completions WHERE date >= ? AND date <= ?').bind(today, to).all<{ chore_id: string; date: string; member_id: string | null; status: string }>()).results).map((r) => [`${r.chore_id}:${r.date}`, r] as const),
     );
     const chores = choreDays.flatMap((date) =>
       (choresRes.results as unknown as ChoreRow[])
         .filter((row) => dueOnDate(row, date, tz))
-        .map((row) => ({ id: row.id, title: row.title, emoji: row.emoji, points: row.points, dueTime: row.due_time, date, done: completions.has(`${row.id}:${date}`), doneBy: completions.get(`${row.id}:${date}`) ?? null, shared: !row.member_id })),
+        .map((row) => {
+          const cc = completions.get(`${row.id}:${date}`);
+          // Waiting for a parent's OK is not done yet.
+          return { id: row.id, title: row.title, emoji: row.emoji, points: row.points, dueTime: row.due_time, date, done: cc?.status === 'approved', pending: cc?.status === 'pending', doneBy: cc?.member_id ?? null, shared: !row.member_id };
+        }),
     );
 
     const steps = groupSteps(stepsRes.results as unknown as ListItemStepRow[]);
@@ -204,7 +208,7 @@ snapshotRoutes.openapi(
     const [membersRes, choresRes, completionsRes, itemsRes, stepsRes, categoriesRes] = await db.batch<unknown>([
       db.prepare('SELECT id, name, color, avatar, birthday FROM members ORDER BY sort, created_at'),
       db.prepare('SELECT * FROM chores WHERE active = 1 ORDER BY sort, created_at'),
-      db.prepare('SELECT chore_id FROM chore_completions WHERE date = ?').bind(today),
+      db.prepare('SELECT chore_id, status FROM chore_completions WHERE date = ?').bind(today),
       db.prepare(
         `SELECT li.*, l.name AS list_name, l.emoji AS list_emoji FROM list_items li JOIN lists l ON l.id = li.list_id
          WHERE l.archived = 0 AND li.done = 0 AND (li.due_date IS NOT NULL OR li.priority IN ('high', 'urgent'))
@@ -227,7 +231,9 @@ snapshotRoutes.openapi(
 
     const birthdays = birthdaysInRange(members, all, dates, birthdayCats);
 
-    const completedToday = new Set((completionsRes.results as { chore_id: string }[]).map((r) => r.chore_id));
+    const todays = completionsRes.results as { chore_id: string; status: string }[];
+    const completedToday = new Set(todays.filter((r) => r.status === 'approved').map((r) => r.chore_id));
+    const pendingToday = new Set(todays.filter((r) => r.status === 'pending').map((r) => r.chore_id));
     const dueToday = (choresRes.results as unknown as ChoreRow[]).filter((row) => dueOnDate(row, today, tz));
     const byMember = new Map<string | null, ChoreRow[]>();
     for (const row of dueToday) byMember.set(row.member_id, [...(byMember.get(row.member_id) ?? []), row]);
@@ -235,7 +241,7 @@ snapshotRoutes.openapi(
     const chores = [...byMember.entries()]
       .map(([memberId, rows]) => {
         const m = memberId ? memberById.get(memberId) : undefined;
-        return { memberId, name: m?.name ?? null, avatar: m?.avatar ?? null, color: m?.color ?? null, remaining: rows.filter((r) => !completedToday.has(r.id)).length, total: rows.length };
+        return { memberId, name: m?.name ?? null, avatar: m?.avatar ?? null, color: m?.color ?? null, remaining: rows.filter((r) => !completedToday.has(r.id)).length, total: rows.length, pending: rows.filter((r) => pendingToday.has(r.id)).length };
       })
       .filter((c) => c.total > 0);
 
