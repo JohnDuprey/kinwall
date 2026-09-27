@@ -10,7 +10,7 @@ Tap **+** in a slot (or **Plan meal**) to add a meal:
 
 * **Meal type**: **Recipe** (from the library), **Free-form meal** (just a name, like "Leftover soup") or **Dining out** (like "Pizza place").
 * **Who's eating**: tap family members. Picking people sets **Servings** to how many (you can still change servings). With nobody picked, a note says how many people the servings are for ("2 servings: pick 2 people"); it's only a hint and never stops you saving.
-* **Servings**, an optional **Time** ("7:30 PM"), **Cooking** (who's making it), **Notes** and an optional website.
+* **Servings**, an optional **Time** ("7:30 PM"; left empty, the meal is at the family's usual time for that meal, shown under the field), **Cooking** (who's making it), **Notes** and an optional website.
 * **Status**: **Planned**, **Prepared** or **Handled**. A meal that's done shows dashed.
 
 A slot can hold more than one meal. Tap a meal to edit it, or delete it from its sheet. A planned meal shows small avatars of who's eating.
@@ -74,12 +74,20 @@ Kinwall remembers which meal's ingredient went to which list. Adding the same we
 
 ## The calendar
 
-A meal can have one calendar event, from **Link or create calendar event** in its sheet:
+A meal can have one calendar event. Tap **Add to calendar** in its sheet (**Manage calendar event** once it has one).
 
-* **Create and link event** adds an event to a local calendar: timed if the meal has a time (with a duration you pick), otherwise all-day. It's titled like "Dinner · Tuesday Tacos". This event belongs to the meal: saving the meal updates its title, time and people, and deleting the meal deletes it. A note typed on the event in the calendar stays.
-* **Link event** attaches an event you already have (from any calendar). Kinwall never changes or deletes an event you linked; **Unlink (keep event)** just detaches it.
+**Add to a calendar** puts the meal on the calendar you pick:
 
-Meals never write to Google, Outlook or CalDAV calendars on their own.
+* The list has every calendar this device can add events to: the ones on Kinwall first, then synced Google, Outlook and CalDAV calendars, each with its color. The first time, a Kinwall calendar is picked; after that, this device remembers the one you used last. With no Kinwall calendar yet, **A new "Meals" calendar on Kinwall** makes one.
+* Kinwall only writes to a synced calendar when you pick it here (or name it in a [meal-kit import](#importing-recipes)). The event then shows up in Google or Outlook too, like any event you add in Kinwall.
+* The event is titled like "Dinner · Tuesday Tacos". It's at the meal's time, or the family's usual time for that meal when the meal has none (set in [Settings → Family → Meals](../settings/family.md#meals); 6:00 PM for dinner unless you change it). Events are always timed, never all-day.
+* It lasts as long as the recipe takes (its total time), or an hour when that isn't known.
+* **When**: **At the meal time** (the default) starts the event when you eat. **Start the event when cooking starts** starts it the recipe's total time earlier, so it ends when you eat. The sheet shows the times before you add it.
+* Its people are who's eating plus who's cooking, and the meal's notes become its description.
+
+An event Kinwall made follows the meal, on whichever calendar it's on. Saving the meal with a new day, slot, time, title, notes or people updates the event, and deleting the meal deletes it. If you wrote your own description on the event, changing the meal's notes leaves it alone. If a synced calendar refuses the change (the account needs reconnecting, say), the meal isn't saved and the sheet says why; **Unlink** the event first if you want to change or delete the meal without it.
+
+**Or link an event you already have** attaches an existing event from any calendar. Kinwall never changes or deletes an event you linked. **Unlink (keep the event)** detaches either kind; an event Kinwall made stays on the calendar and stops following the meal.
 
 ## On the wall and in someone's day
 
@@ -106,7 +114,7 @@ An admin can turn off **Meals** in **Settings → General** (tap **Change** unde
 | `GET` | `/api/meals/projection?from=&to=&listId=` | The shopping preview (admin). |
 | `POST` | `/api/meals/projection/apply` | Add `{ from, to, listId, omitKeys?, includeNotes?, includeKitItems? }` to a list (admin). Meal-kit ingredients that ship in the box are skipped unless `includeKitItems: true`. Safe to repeat. |
 | `POST` / `DELETE` | `/api/meals/{id}/calendar-link` | Link `{ eventId }` or unlink an event (admin). |
-| `POST` | `/api/meals/{id}/calendar-event` | Create and link a local event `{ calendarId?, durationMinutes? }` (admin). |
+| `POST` | `/api/meals/{id}/calendar-event` | Create and link an event `{ calendarId?, eventStart? }` (admin). `calendarId` is any writable calendar, synced ones included (the event is written to the provider the same way `POST /api/events` does); without it the event goes on a Kinwall calendar, never a synced one. `eventStart`: `meal` (default) or `cooking`. The meal's `calendarEventStart` is then set; it's `null` for an event you linked. Changes to the meal update the event; 502 when a synced calendar refuses. |
 
 Meals have `assigneeMemberId` (who's cooking) and `eaterIds` (who's eating, member ids); sending `eaterIds` without `servings` sets servings to how many. Recipes have `prepMinutes` and `totalMinutes` (whole minutes or `null`); a planned meal's `recipeSnapshot` copies them. Each ingredient has `scalable`: whether its amount follows the servings. Webhooks: `recipe.changed`, `meal.changed`.
 
@@ -125,10 +133,10 @@ Meals have `assigneeMemberId` (who's cooking) and `eaterIds` (who's eating, memb
   "totalMinutes": 35,
   "ingredients": ["Salt", { "text": "1.5 tablespoon Sour Cream", "pantry": false, "category": "Dairy" }],
   "steps": ["Boil water.", "Cook the chicken."],
-  "plan": { "date": "2026-10-05", "slot": "dinner", "servings": 4, "eaterIds": ["member-id", "member-id"] }
+  "plan": { "date": "2026-10-05", "slot": "dinner", "servings": 4, "eaterIds": ["member-id", "member-id"], "calendarId": "calendar-id", "eventStart": "meal" }
 }
 ```
 
-`servings` is what the ingredient amounts are for (the recipe's default servings). `prepMinutes` and `totalMinutes` are optional; leaving them out keeps what an earlier import set. `plan.eaterIds` (optional) is who's eating; without `plan.servings`, the meal's servings are how many. An ingredient is a line of text, or `{ text, pantry?, category? }` where `pantry: false` means it ships in the kit. It answers `{ recipeId, created, planned, mealId?, reason? }`: `created` is false when an earlier import was updated; `planned` is true with the `mealId` when the meal is on the plan (newly, or from an earlier import), and false with a `reason` when the slot was taken.
+`servings` is what the ingredient amounts are for (the recipe's default servings). `prepMinutes` and `totalMinutes` are optional; leaving them out keeps what an earlier import set. `plan.eaterIds` (optional) is who's eating; without `plan.servings`, the meal's servings are how many. An ingredient is a line of text, or `{ text, pantry?, category? }` where `pantry: false` means it ships in the kit. `plan.calendarId` (optional) also puts the planned meal on that calendar, as if you'd tapped **Add to calendar** and picked it, unless the meal already has an event; `plan.eventStart` is `meal` (default) or `cooking`. It answers `{ recipeId, created, planned, mealId?, reason?, calendarEventId?, calendarError? }`: `created` is false when an earlier import was updated; `planned` is true with the `mealId` when the meal is on the plan (newly, or from an earlier import), and false with a `reason` when the slot was taken. `calendarEventId` is the meal's event; `calendarError` says why it couldn't get one (the meal is still planned).
 
 The [MCP server](../integrations/mcp.md) has `list_recipes`, `get_recipe`, `list_meals`, `get_meal_projection`, `create_recipe`, `update_recipe`, `import_recipe`, `create_meal`, `update_meal` and `apply_meal_projection`.

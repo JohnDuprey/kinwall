@@ -9,8 +9,7 @@ export default function TodaysMeals({ now, today, meals: all }: { now: Date; tod
   const { settings, members, selectedMemberId } = useApp()
   const meals = all.filter(meal => mealForMember(meal, selectedMemberId))
   const tz = settings.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone
-  const defaultTime = { breakfast: 8 * 60, lunch: 12 * 60, dinner: 18 * 60, snack: 15 * 60 }
-  const at = (meal: Meal) => meal.plannedTime ? Number(meal.plannedTime.slice(0, 2)) * 60 + Number(meal.plannedTime.slice(3)) : defaultTime[meal.slot]
+  const at = (meal: Meal) => { const t = meal.plannedTime ?? settings.mealTimes[meal.slot]; return Number(t.slice(0, 2)) * 60 + Number(t.slice(3)) }
   const planned = meals.filter(meal => meal.status === 'planned').sort((a, b) => at(a) - at(b))
   const minute = minutesSinceMidnight(now.toISOString(), tz)
   const next = planned.find(meal => at(meal) >= minute) ?? planned[planned.length - 1]

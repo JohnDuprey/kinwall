@@ -161,6 +161,10 @@ export const FeaturesSchema = z
   })
   .openapi('Features');
 
+export const MealTimesSchema = z
+  .object({ breakfast: z.string().regex(HHMM_RE, 'must be HH:MM'), lunch: z.string().regex(HHMM_RE, 'must be HH:MM'), dinner: z.string().regex(HHMM_RE, 'must be HH:MM'), snack: z.string().regex(HHMM_RE, 'must be HH:MM') })
+  .openapi('MealTimes');
+
 export const SettingsSchema = z
   .object({
     familyName: z.string(),
@@ -191,6 +195,7 @@ export const SettingsSchema = z
     temperatureUnit: z.enum(['celsius', 'fahrenheit']), // default: fahrenheit for a US location (or US timezone), else celsius
     tidbits: TidbitSettingsSchema,
     features: FeaturesSchema,
+    mealTimes: MealTimesSchema, // when each meal slot usually is; a meal without its own time uses it for its calendar event
   })
   .openapi('Settings');
 
@@ -227,6 +232,7 @@ export const SettingsPatchSchema = z
     temperatureUnit: z.enum(['celsius', 'fahrenheit']).optional(),
     tidbits: TidbitSettingsSchema.optional(),
     features: FeaturesSchema.optional(), // admin keys only (a display key gets 403)
+    mealTimes: MealTimesSchema.optional(),
   })
   // Quiet hours are a pair: send both, and either both set or both cleared ('' / null).
   .refine((p) => (p.quietFrom === undefined) === (p.quietTo === undefined) && !p.quietFrom === !p.quietTo, {

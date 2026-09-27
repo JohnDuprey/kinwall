@@ -49,6 +49,7 @@ export interface Meal extends MealInput {
   id: string
   recipeSnapshot: RecipeSnapshot | null
   calendarEventId: string | null
+  calendarEventStart?: 'meal' | 'cooking' | null // set when Kinwall created the event (it follows the meal); null = an event you linked
   createdAt: string
   updatedAt: string
 }

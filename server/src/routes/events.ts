@@ -1,5 +1,6 @@
 import type { KinwallDb } from '../db.ts';
 import { createRoute, z } from '@hono/zod-openapi';
+import type { Context } from 'hono';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
 import { emit } from '../bus.ts';
@@ -553,85 +554,97 @@ eventsRoutes.openapi(
     },
   }),
   async (c) => {
-    const body = c.req.valid('json');
-    const cal = await c.env.DB.prepare('SELECT * FROM calendars WHERE id = ?').bind(body.calendarId).first<CalendarRow>();
-    if (!cal) return c.json({ error: 'calendar not found' }, 400);
-    const block = await eventWriteBlock(c, [cal]);
-    if (block) return c.json({ error: block }, 403);
-    if (!cal.writable) return c.json({ error: 'calendar is not writable' }, 400);
-
-    let externalId: string | null = null;
-    let title = body.title;
-    let start = body.start;
-    let end = body.end;
-    let location = body.location ?? null;
-    let description = body.description ?? null;
-    let seriesId: string | null = null;
-
-    if (cal.kind !== 'local') {
-      const provider = getProvider(cal.kind as 'ics' | 'google' | 'microsoft' | 'caldav');
-      if (!provider.createEvent) return c.json({ error: `${cal.kind} calendars are read-only` }, 400);
-      const ctx = await buildCtx(c.env.DB, cal, c.env);
-      try {
-        const created = await provider.createEvent(ctx, {
-          title,
-          start,
-          end,
-          allDay: body.allDay,
-          location: location ?? undefined,
-          description: description ?? undefined,
-          ...(body.reminders !== undefined ? { reminders: body.reminders } : {}),
-        });
-        externalId = created.externalId;
-        title = created.title;
-        start = created.start;
-        end = created.end;
-        location = created.location ?? null;
-        description = created.description ?? null;
-        seriesId = created.seriesId ?? null;
-      } catch (err) {
-        return c.json({ error: errorMessage(err, 'provider write failed') }, 502);
-      }
-    }
-
-    const row: EventRow = {
-      // Remote calendars get the same deterministic id sync would assign this externalId, so a
-      // freshly write-through-created event keeps its id across the next sync instead of
-      // colliding with (or being orphaned by) the row sync inserts.
-      id: externalId ? await deterministicEventId(cal.id, externalId) : crypto.randomUUID(),
-      calendar_id: cal.id,
-      external_id: externalId,
-      title,
-      start,
-      end,
-      all_day: body.allDay ? 1 : 0,
-      location,
-      description,
-      rrule: cal.kind === 'local' ? (body.rrule ?? null) : null,
-      member_ids: JSON.stringify(body.memberIds ?? []),
-      updated_at: new Date().toISOString(),
-      series_id: seriesId,
-      category_id: body.categoryId ?? null,
-      reminders: Array.isArray(body.reminders) ? JSON.stringify(body.reminders) : null,
-      travel_minutes: body.travelMinutes ?? null,
-      remind_before_leave: body.remindBeforeLeave ? 1 : 0,
-    };
-    // Synced rows are wiped on resync, so their travel time goes to the override table (the row's
-    // own columns stay empty, like sync writes them).
-    const local = cal.kind === 'local';
-    await c.env.DB.prepare(
-      'INSERT INTO events (id, calendar_id, external_id, title, start, end, all_day, location, description, rrule, member_ids, updated_at, series_id, category_id, reminders, travel_minutes, remind_before_leave) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-    )
-      .bind(row.id, row.calendar_id, row.external_id, row.title, row.start, row.end, row.all_day, row.location, row.description, row.rrule, row.member_ids, row.updated_at, row.series_id, row.category_id, row.reminders, local ? row.travel_minutes : null, local ? row.remind_before_leave : 0)
-      .run();
-    if (!local && externalId && (row.travel_minutes !== null || row.remind_before_leave)) await setTravelOverride(c.env.DB, cal.id, externalId, row.travel_minutes, !!row.remind_before_leave);
-    emit(c, 'events.changed', { calendarId: cal.id });
-
+    const created = await createEvent(c, c.req.valid('json'));
+    if ('error' in created) return c.json({ error: created.error }, created.status);
+    const { row, cal } = created;
     const { memberColors, categories, defaultReminderMinutes } = await colorsAndCategories(c.env.DB);
     const { seriesOverride, categorySeriesOverride } = await remoteOverrides(c.env.DB, cal, null, row.series_id);
     return c.json(instanceFrom(row, cal, memberColors, null, row.start, row.end, undefined, seriesOverride, categories, undefined, categorySeriesOverride, defaultReminderMinutes), 201);
   },
 );
+
+type Ctx = Context<{ Bindings: Env }>;
+type Fail<S extends number> = { error: string; status: S };
+
+/** POST /api/events: write-through to the provider for a synced calendar, then the Kinwall row.
+ * Meals create their calendar events through here too, so every calendar kind behaves the same. */
+export async function createEvent(c: Ctx, body: z.infer<typeof EventInputSchema>): Promise<Fail<400 | 403 | 502> | { row: EventRow; cal: CalendarRow }> {
+  const cal = await c.env.DB.prepare('SELECT * FROM calendars WHERE id = ?').bind(body.calendarId).first<CalendarRow>();
+  if (!cal) return { error: 'calendar not found', status: 400 };
+  const block = await eventWriteBlock(c, [cal]);
+  if (block) return { error: block, status: 403 };
+  if (!cal.writable) return { error: 'calendar is not writable', status: 400 };
+
+  let externalId: string | null = null;
+  let title = body.title;
+  let start = body.start;
+  let end = body.end;
+  let location = body.location ?? null;
+  let description = body.description ?? null;
+  let seriesId: string | null = null;
+
+  if (cal.kind !== 'local') {
+    const provider = getProvider(cal.kind as 'ics' | 'google' | 'microsoft' | 'caldav');
+    if (!provider.createEvent) return { error: `${cal.kind} calendars are read-only`, status: 400 };
+    const ctx = await buildCtx(c.env.DB, cal, c.env);
+    try {
+      const created = await provider.createEvent(ctx, {
+        title,
+        start,
+        end,
+        allDay: body.allDay,
+        location: location ?? undefined,
+        description: description ?? undefined,
+        ...(body.reminders !== undefined ? { reminders: body.reminders } : {}),
+      });
+      externalId = created.externalId;
+      title = created.title;
+      start = created.start;
+      end = created.end;
+      location = created.location ?? null;
+      description = created.description ?? null;
+      seriesId = created.seriesId ?? null;
+    } catch (err) {
+      return { error: errorMessage(err, 'provider write failed'), status: 502 };
+    }
+  }
+
+  const row: EventRow = {
+    // Remote calendars get the same deterministic id sync would assign this externalId, so a
+    // freshly write-through-created event keeps its id across the next sync instead of
+    // colliding with (or being orphaned by) the row sync inserts.
+    id: externalId ? await deterministicEventId(cal.id, externalId) : crypto.randomUUID(),
+    calendar_id: cal.id,
+    external_id: externalId,
+    title,
+    start,
+    end,
+    all_day: body.allDay ? 1 : 0,
+    location,
+    description,
+    rrule: cal.kind === 'local' ? (body.rrule ?? null) : null,
+    member_ids: JSON.stringify(body.memberIds ?? []),
+    updated_at: new Date().toISOString(),
+    series_id: seriesId,
+    category_id: body.categoryId ?? null,
+    reminders: Array.isArray(body.reminders) ? JSON.stringify(body.reminders) : null,
+    travel_minutes: body.travelMinutes ?? null,
+    remind_before_leave: body.remindBeforeLeave ? 1 : 0,
+  };
+  // Synced rows are wiped on resync, so their travel time goes to the override table (the row's
+  // own columns stay empty, like sync writes them).
+  const local = cal.kind === 'local';
+  await c.env.DB.prepare(
+    'INSERT INTO events (id, calendar_id, external_id, title, start, end, all_day, location, description, rrule, member_ids, updated_at, series_id, category_id, reminders, travel_minutes, remind_before_leave) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+  )
+    .bind(row.id, row.calendar_id, row.external_id, row.title, row.start, row.end, row.all_day, row.location, row.description, row.rrule, row.member_ids, row.updated_at, row.series_id, row.category_id, row.reminders, local ? row.travel_minutes : null, local ? row.remind_before_leave : 0)
+    .run();
+  if (!local && externalId && (row.travel_minutes !== null || row.remind_before_leave)) await setTravelOverride(c.env.DB, cal.id, externalId, row.travel_minutes, !!row.remind_before_leave);
+  // Like travel time, people on a synced event live in the override table - a full sync rewrites the row.
+  if (!local && externalId && body.memberIds?.length) await setMemberOverride(c.env.DB, cal.id, externalId, body.memberIds);
+  emit(c, 'events.changed', { calendarId: cal.id });
+  return { row, cal };
+}
 
 type EventCalRow = EventRow & {
   cal_kind: string;
@@ -723,158 +736,10 @@ eventsRoutes.openapi(
     },
   }),
   async (c) => {
-    const { id } = c.req.valid('param');
-    const body = c.req.valid('json');
-    const found = await loadEventAndCalendar(c.env.DB, id);
-    if (!found) return c.json({ error: 'not found' }, 404);
-    const { row, cal } = found;
-    const block = await eventWriteBlock(c, [cal]);
-    if (block) return c.json({ error: block }, 403);
-
-    const otherFieldsPresent =
-      body.title !== undefined ||
-      body.start !== undefined ||
-      body.end !== undefined ||
-      body.allDay !== undefined ||
-      body.location !== undefined ||
-      body.description !== undefined ||
-      body.rrule !== undefined ||
-      // Reminders live on the provider's event, so on Google/Outlook changing them is a real write.
-      body.reminders !== undefined;
-    // Member assignment and category assignment on a remote-kind event are local-only annotations
-    // (event-member-overrides / event-category-overrides, keyed by external_id - the row is wiped
-    // wholesale on every sync). A memberIds/categoryId-only patch never touches the provider, so it
-    // works even on a read-only calendar (ICS) or when the calendar isn't writable. Travel time is
-    // the same kind of Kinwall-only annotation (event_travel_overrides) and is never sent to the provider.
-    const travelPresent = body.travelMinutes !== undefined || body.remindBeforeLeave !== undefined;
-    const annotationOnlyPatch = cal.kind !== 'local' && !otherFieldsPresent && (body.memberIds !== undefined || body.categoryId !== undefined || travelPresent);
-
-    if (!annotationOnlyPatch && !cal.writable) return c.json({ error: 'calendar is not writable' }, 400);
-
-    let title = body.title ?? row.title;
-    let start = body.start ?? row.start;
-    let end = body.end ?? row.end;
-    let location = body.location !== undefined ? body.location : row.location;
-    let description = body.description !== undefined ? body.description : row.description;
-
-    let remoteReminders: string | null | undefined;
-    if (cal.kind !== 'local' && otherFieldsPresent) {
-      const provider = getProvider(cal.kind as 'ics' | 'google' | 'microsoft' | 'caldav');
-      if (!provider.updateEvent || !row.external_id) return c.json({ error: `${cal.kind} calendars are read-only` }, 400);
-      if (body.reminders !== undefined && cal.kind === 'caldav') return c.json({ error: 'reminders can only be changed on Google and Outlook calendars' }, 400);
-      const ctx = await buildCtx(c.env.DB, cal, c.env);
-      try {
-        const updated = await provider.updateEvent(ctx, row.external_id, {
-          title,
-          start,
-          end,
-          allDay: body.allDay ?? !!row.all_day,
-          location: location ?? undefined,
-          description: description ?? undefined,
-          ...(body.reminders !== undefined ? { reminders: body.reminders } : {}),
-        });
-        if (body.reminders !== undefined) remoteReminders = Array.isArray(updated.reminders) ? JSON.stringify(updated.reminders) : null;
-        title = updated.title;
-        start = updated.start;
-        end = updated.end;
-        location = updated.location ?? null;
-        description = updated.description ?? null;
-      } catch (err) {
-        return c.json({ error: errorMessage(err, 'provider write failed') }, 502);
-      }
-    }
-
-    if (cal.kind !== 'local' && body.memberIds !== undefined) {
-      const scope = body.scope ?? 'occurrence';
-      if (scope === 'series') {
-        if (!row.series_id) return c.json({ error: 'event has no series to tag' }, 400);
-        await setSeriesMemberOverride(c.env.DB, cal.id, row.series_id, body.memberIds);
-        await clearOccurrenceOverridesForSeries(c.env.DB, cal.id, row.series_id);
-      } else {
-        if (!row.external_id) return c.json({ error: 'event has no external id' }, 400);
-        await setMemberOverride(c.env.DB, cal.id, row.external_id, body.memberIds);
-      }
-    }
-
-    if (cal.kind !== 'local' && body.categoryId !== undefined) {
-      const scope = body.scope ?? 'occurrence';
-      if (scope === 'series') {
-        if (!row.series_id) return c.json({ error: 'event has no series to tag' }, 400);
-        await setSeriesCategoryOverride(c.env.DB, cal.id, row.series_id, body.categoryId);
-        await clearOccurrenceCategoryOverridesForSeries(c.env.DB, cal.id, row.series_id);
-      } else {
-        if (!row.external_id) return c.json({ error: 'event has no external id' }, 400);
-        await setCategoryOverride(c.env.DB, cal.id, row.external_id, body.categoryId);
-      }
-    }
-
-    // Merge a partial travel patch over what's in effect now (override for synced, row for local).
-    let travelMinutes = row.travel_minutes;
-    let remindBeforeLeave = row.remind_before_leave;
-    if (travelPresent) {
-      if (cal.kind !== 'local' && !row.external_id) return c.json({ error: 'event has no external id' }, 400);
-      const current = cal.kind === 'local' ? row : withTravel(row, cal, (await remoteOverrides(c.env.DB, cal, row.external_id, null)).travel);
-      travelMinutes = body.travelMinutes !== undefined ? body.travelMinutes : current.travel_minutes;
-      remindBeforeLeave = body.remindBeforeLeave !== undefined ? (body.remindBeforeLeave ? 1 : 0) : current.remind_before_leave;
-      if (cal.kind !== 'local') await setTravelOverride(c.env.DB, cal.id, row.external_id!, travelMinutes, !!remindBeforeLeave);
-    }
-
-    const updatedRow: EventRow = {
-      ...row,
-      travel_minutes: cal.kind === 'local' ? travelMinutes : row.travel_minutes,
-      remind_before_leave: cal.kind === 'local' ? remindBeforeLeave : row.remind_before_leave,
-      title,
-      start,
-      end,
-      all_day: body.allDay !== undefined ? (body.allDay ? 1 : 0) : row.all_day,
-      location,
-      description,
-      rrule: cal.kind === 'local' && body.rrule !== undefined ? body.rrule : row.rrule,
-      member_ids: cal.kind === 'local' && body.memberIds !== undefined ? JSON.stringify(body.memberIds) : row.member_ids,
-      category_id: cal.kind === 'local' && body.categoryId !== undefined ? body.categoryId : row.category_id,
-      reminders: remoteReminders !== undefined ? remoteReminders : cal.kind === 'local' && body.reminders !== undefined ? (Array.isArray(body.reminders) ? JSON.stringify(body.reminders) : null) : row.reminders,
-      updated_at: new Date().toISOString(),
-    };
-    // The UPDATE (when needed) and the member-colors/categories lookups for the response are
-    // independent of each other - batch them into one round trip instead of running them back to back.
-    let memberColors: Map<string, string>;
-    let categories: CategoryRow[];
-    let defaultReminderMinutes: number[];
-    if (otherFieldsPresent || (cal.kind === 'local' && (body.memberIds !== undefined || body.categoryId !== undefined || body.reminders !== undefined || travelPresent))) {
-      const updateStmt = c.env.DB
-        .prepare(
-          'UPDATE events SET title = ?, start = ?, end = ?, all_day = ?, location = ?, description = ?, rrule = ?, member_ids = ?, category_id = ?, reminders = ?, travel_minutes = ?, remind_before_leave = ?, updated_at = ? WHERE id = ?',
-        )
-        .bind(
-          updatedRow.title,
-          updatedRow.start,
-          updatedRow.end,
-          updatedRow.all_day,
-          updatedRow.location,
-          updatedRow.description,
-          updatedRow.rrule,
-          updatedRow.member_ids,
-          updatedRow.category_id,
-          updatedRow.reminders,
-          updatedRow.travel_minutes,
-          updatedRow.remind_before_leave,
-          updatedRow.updated_at,
-          id,
-        );
-      const [, colorsRes, categoriesRes, settingsRes] = await c.env.DB.batch<unknown>([
-        updateStmt,
-        c.env.DB.prepare('SELECT id, color FROM members'),
-        c.env.DB.prepare('SELECT * FROM categories ORDER BY sort, created_at'),
-        c.env.DB.prepare("SELECT value FROM settings WHERE key = 'defaultReminderMinutes'"),
-      ]);
-      memberColors = new Map((colorsRes.results as { id: string; color: string }[]).map((r) => [r.id, r.color]));
-      categories = categoriesRes.results as unknown as CategoryRow[];
-      defaultReminderMinutes = parseDefaultReminderMinutes((settingsRes.results[0] as { value: string } | undefined)?.value);
-    } else {
-      ({ memberColors, categories, defaultReminderMinutes } = await colorsAndCategories(c.env.DB));
-    }
-    emit(c, 'events.changed', { calendarId: cal.id });
-
+    const updated = await updateEvent(c, c.req.valid('param').id, c.req.valid('json'));
+    if ('error' in updated) return c.json({ error: updated.error }, updated.status);
+    const { row: updatedRow, cal } = updated;
+    const { memberColors, categories, defaultReminderMinutes } = updated.lookups ?? await colorsAndCategories(c.env.DB);
     const { override, seriesOverride, categoryOverride, categorySeriesOverride, travel } = await remoteOverrides(c.env.DB, cal, updatedRow.external_id, updatedRow.series_id);
     return c.json(
       instanceFrom(withTravel(updatedRow, cal, travel), cal, memberColors, null, updatedRow.start, updatedRow.end, override, seriesOverride, categories, categoryOverride, categorySeriesOverride, defaultReminderMinutes),
@@ -882,6 +747,157 @@ eventsRoutes.openapi(
     );
   },
 );
+
+/** PATCH /api/events/{id} (also how a meal keeps the event it created in step). */
+export async function updateEvent(c: Ctx, id: string, body: z.infer<typeof EventPatchSchema>): Promise<Fail<400 | 403 | 404 | 502> | { row: EventRow; cal: CalendarRow; lookups?: Awaited<ReturnType<typeof colorsAndCategories>> }> {
+  const found = await loadEventAndCalendar(c.env.DB, id);
+  if (!found) return { error: 'not found', status: 404 };
+  const { row, cal } = found;
+  const block = await eventWriteBlock(c, [cal]);
+  if (block) return { error: block, status: 403 };
+
+  const otherFieldsPresent =
+    body.title !== undefined ||
+    body.start !== undefined ||
+    body.end !== undefined ||
+    body.allDay !== undefined ||
+    body.location !== undefined ||
+    body.description !== undefined ||
+    body.rrule !== undefined ||
+    // Reminders live on the provider's event, so on Google/Outlook changing them is a real write.
+    body.reminders !== undefined;
+  // Member assignment and category assignment on a remote-kind event are local-only annotations
+  // (event-member-overrides / event-category-overrides, keyed by external_id - the row is wiped
+  // wholesale on every sync). A memberIds/categoryId-only patch never touches the provider, so it
+  // works even on a read-only calendar (ICS) or when the calendar isn't writable. Travel time is
+  // the same kind of Kinwall-only annotation (event_travel_overrides) and is never sent to the provider.
+  const travelPresent = body.travelMinutes !== undefined || body.remindBeforeLeave !== undefined;
+  const annotationOnlyPatch = cal.kind !== 'local' && !otherFieldsPresent && (body.memberIds !== undefined || body.categoryId !== undefined || travelPresent);
+
+  if (!annotationOnlyPatch && !cal.writable) return { error: 'calendar is not writable', status: 400 };
+
+  let title = body.title ?? row.title;
+  let start = body.start ?? row.start;
+  let end = body.end ?? row.end;
+  let location = body.location !== undefined ? body.location : row.location;
+  let description = body.description !== undefined ? body.description : row.description;
+
+  let remoteReminders: string | null | undefined;
+  if (cal.kind !== 'local' && otherFieldsPresent) {
+    const provider = getProvider(cal.kind as 'ics' | 'google' | 'microsoft' | 'caldav');
+    if (!provider.updateEvent || !row.external_id) return { error: `${cal.kind} calendars are read-only`, status: 400 };
+    if (body.reminders !== undefined && cal.kind === 'caldav') return { error: 'reminders can only be changed on Google and Outlook calendars', status: 400 };
+    const ctx = await buildCtx(c.env.DB, cal, c.env);
+    try {
+      const updated = await provider.updateEvent(ctx, row.external_id, {
+        title,
+        start,
+        end,
+        allDay: body.allDay ?? !!row.all_day,
+        location: location ?? undefined,
+        description: description ?? undefined,
+        ...(body.reminders !== undefined ? { reminders: body.reminders } : {}),
+      });
+      if (body.reminders !== undefined) remoteReminders = Array.isArray(updated.reminders) ? JSON.stringify(updated.reminders) : null;
+      title = updated.title;
+      start = updated.start;
+      end = updated.end;
+      location = updated.location ?? null;
+      description = updated.description ?? null;
+    } catch (err) {
+      return { error: errorMessage(err, 'provider write failed'), status: 502 };
+    }
+  }
+
+  if (cal.kind !== 'local' && body.memberIds !== undefined) {
+    const scope = body.scope ?? 'occurrence';
+    if (scope === 'series') {
+      if (!row.series_id) return { error: 'event has no series to tag', status: 400 };
+      await setSeriesMemberOverride(c.env.DB, cal.id, row.series_id, body.memberIds);
+      await clearOccurrenceOverridesForSeries(c.env.DB, cal.id, row.series_id);
+    } else {
+      if (!row.external_id) return { error: 'event has no external id', status: 400 };
+      await setMemberOverride(c.env.DB, cal.id, row.external_id, body.memberIds);
+    }
+  }
+
+  if (cal.kind !== 'local' && body.categoryId !== undefined) {
+    const scope = body.scope ?? 'occurrence';
+    if (scope === 'series') {
+      if (!row.series_id) return { error: 'event has no series to tag', status: 400 };
+      await setSeriesCategoryOverride(c.env.DB, cal.id, row.series_id, body.categoryId);
+      await clearOccurrenceCategoryOverridesForSeries(c.env.DB, cal.id, row.series_id);
+    } else {
+      if (!row.external_id) return { error: 'event has no external id', status: 400 };
+      await setCategoryOverride(c.env.DB, cal.id, row.external_id, body.categoryId);
+    }
+  }
+
+  // Merge a partial travel patch over what's in effect now (override for synced, row for local).
+  let travelMinutes = row.travel_minutes;
+  let remindBeforeLeave = row.remind_before_leave;
+  if (travelPresent) {
+    if (cal.kind !== 'local' && !row.external_id) return { error: 'event has no external id', status: 400 };
+    const current = cal.kind === 'local' ? row : withTravel(row, cal, (await remoteOverrides(c.env.DB, cal, row.external_id, null)).travel);
+    travelMinutes = body.travelMinutes !== undefined ? body.travelMinutes : current.travel_minutes;
+    remindBeforeLeave = body.remindBeforeLeave !== undefined ? (body.remindBeforeLeave ? 1 : 0) : current.remind_before_leave;
+    if (cal.kind !== 'local') await setTravelOverride(c.env.DB, cal.id, row.external_id!, travelMinutes, !!remindBeforeLeave);
+  }
+
+  const updatedRow: EventRow = {
+    ...row,
+    travel_minutes: cal.kind === 'local' ? travelMinutes : row.travel_minutes,
+    remind_before_leave: cal.kind === 'local' ? remindBeforeLeave : row.remind_before_leave,
+    title,
+    start,
+    end,
+    all_day: body.allDay !== undefined ? (body.allDay ? 1 : 0) : row.all_day,
+    location,
+    description,
+    rrule: cal.kind === 'local' && body.rrule !== undefined ? body.rrule : row.rrule,
+    member_ids: cal.kind === 'local' && body.memberIds !== undefined ? JSON.stringify(body.memberIds) : row.member_ids,
+    category_id: cal.kind === 'local' && body.categoryId !== undefined ? body.categoryId : row.category_id,
+    reminders: remoteReminders !== undefined ? remoteReminders : cal.kind === 'local' && body.reminders !== undefined ? (Array.isArray(body.reminders) ? JSON.stringify(body.reminders) : null) : row.reminders,
+    updated_at: new Date().toISOString(),
+  };
+  let lookups: Awaited<ReturnType<typeof colorsAndCategories>> | undefined;
+  if (otherFieldsPresent || (cal.kind === 'local' && (body.memberIds !== undefined || body.categoryId !== undefined || body.reminders !== undefined || travelPresent))) {
+    // The response's member-colors/categories lookups ride along in the same batch - one round trip.
+    const updateStmt = c.env.DB
+      .prepare(
+        'UPDATE events SET title = ?, start = ?, end = ?, all_day = ?, location = ?, description = ?, rrule = ?, member_ids = ?, category_id = ?, reminders = ?, travel_minutes = ?, remind_before_leave = ?, updated_at = ? WHERE id = ?',
+      )
+      .bind(
+        updatedRow.title,
+        updatedRow.start,
+        updatedRow.end,
+        updatedRow.all_day,
+        updatedRow.location,
+        updatedRow.description,
+        updatedRow.rrule,
+        updatedRow.member_ids,
+        updatedRow.category_id,
+        updatedRow.reminders,
+        updatedRow.travel_minutes,
+        updatedRow.remind_before_leave,
+        updatedRow.updated_at,
+        id,
+      );
+    const [, colorsRes, categoriesRes, settingsRes] = await c.env.DB.batch<unknown>([
+      updateStmt,
+      c.env.DB.prepare('SELECT id, color FROM members'),
+      c.env.DB.prepare('SELECT * FROM categories ORDER BY sort, created_at'),
+      c.env.DB.prepare("SELECT value FROM settings WHERE key = 'defaultReminderMinutes'"),
+    ]);
+    lookups = {
+      memberColors: new Map((colorsRes.results as { id: string; color: string }[]).map((r) => [r.id, r.color])),
+      categories: categoriesRes.results as unknown as CategoryRow[],
+      defaultReminderMinutes: parseDefaultReminderMinutes((settingsRes.results[0] as { value: string } | undefined)?.value),
+    };
+  }
+  emit(c, 'events.changed', { calendarId: cal.id });
+  return { row: updatedRow, cal, lookups };
+}
 
 eventsRoutes.openapi(
   createRoute({
@@ -900,32 +916,37 @@ eventsRoutes.openapi(
     },
   }),
   async (c) => {
-    const { id } = c.req.valid('param');
-    const found = await loadEventAndCalendar(c.env.DB, id);
-    if (!found) return c.json({ error: 'not found' }, 404);
-    const { row, cal } = found;
-    const block = await eventWriteBlock(c, [cal]);
-    if (block) return c.json({ error: block }, 403);
-
-    if (cal.kind !== 'local') {
-      const provider = getProvider(cal.kind as 'ics' | 'google' | 'microsoft' | 'caldav');
-      if (!provider.deleteEvent || !row.external_id) return c.json({ error: `${cal.kind} calendars are read-only` }, 400);
-      const ctx = await buildCtx(c.env.DB, cal, c.env);
-      try {
-        await provider.deleteEvent(ctx, row.external_id);
-      } catch (err) {
-        return c.json({ error: errorMessage(err, 'provider write failed') }, 502);
-      }
-    }
-
-    // Its notes thread goes with it (a synced event that merely drops out of the feed keeps its
-    // notes - they come back if the event does).
-    await c.env.DB.batch([
-      c.env.DB.prepare('DELETE FROM events WHERE id = ?').bind(id),
-      c.env.DB.prepare("DELETE FROM notes WHERE target_type = 'event' AND target_id = ?").bind(id),
-      c.env.DB.prepare('UPDATE meals SET calendar_event_id = NULL, updated_at = ? WHERE calendar_event_id = ?').bind(new Date().toISOString(), id),
-    ]);
-    emit(c, 'events.changed', { calendarId: cal.id });
-    return c.json({ ok: true }, 200);
+    const deleted = await deleteEvent(c, c.req.valid('param').id);
+    return 'error' in deleted ? c.json({ error: deleted.error }, deleted.status) : c.json({ ok: true }, 200);
   },
 );
+
+/** DELETE /api/events/{id} (also how deleting a meal removes the event it created). */
+export async function deleteEvent(c: Ctx, id: string): Promise<Fail<400 | 403 | 404 | 502> | { ok: true }> {
+  const found = await loadEventAndCalendar(c.env.DB, id);
+  if (!found) return { error: 'not found', status: 404 };
+  const { row, cal } = found;
+  const block = await eventWriteBlock(c, [cal]);
+  if (block) return { error: block, status: 403 };
+
+  if (cal.kind !== 'local') {
+    const provider = getProvider(cal.kind as 'ics' | 'google' | 'microsoft' | 'caldav');
+    if (!provider.deleteEvent || !row.external_id) return { error: `${cal.kind} calendars are read-only`, status: 400 };
+    const ctx = await buildCtx(c.env.DB, cal, c.env);
+    try {
+      await provider.deleteEvent(ctx, row.external_id);
+    } catch (err) {
+      return { error: errorMessage(err, 'provider write failed'), status: 502 };
+    }
+  }
+
+  // Its notes thread goes with it (a synced event that merely drops out of the feed keeps its
+  // notes - they come back if the event does).
+  await c.env.DB.batch([
+    c.env.DB.prepare('DELETE FROM events WHERE id = ?').bind(id),
+    c.env.DB.prepare("DELETE FROM notes WHERE target_type = 'event' AND target_id = ?").bind(id),
+    c.env.DB.prepare('UPDATE meals SET calendar_event_id = NULL, calendar_event_start = NULL, updated_at = ? WHERE calendar_event_id = ?').bind(new Date().toISOString(), id),
+  ]);
+  emit(c, 'events.changed', { calendarId: cal.id });
+  return { ok: true };
+}

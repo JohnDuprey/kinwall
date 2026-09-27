@@ -111,7 +111,8 @@ curl -X POST https://kinwall.example/api/chores/<id>/complete \
 curl -X POST https://kinwall.example/api/lists/<id>/items \
   -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" -d '[{"title":"Milk"},{"title":"Eggs","quantity":"12"}]'
 
-# Import a meal-kit recipe and plan it for Monday dinner (admin key; importing again updates it)
+# Import a meal-kit recipe and plan it for Monday dinner (admin key; importing again updates it).
+# Add "calendarId" to plan to also put the dinner on that calendar.
 curl -X POST https://kinwall.example/api/recipes/import \
   -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
   -d '{"source":"hellofresh","externalId":"abc","name":"Creamy Chicken","servings":2,"ingredients":[{"text":"1.5 tablespoon Sour Cream","pantry":false},"Salt"],"steps":["Cook."],"plan":{"date":"2026-10-05","slot":"dinner"}}'

@@ -235,7 +235,7 @@ export const api = {
   deleteMeal: (id: string) => del(`api/meals/${encodeURIComponent(id)}`),
   linkMealCalendar: (id: string, eventId: string) => post<Meal>(`api/meals/${encodeURIComponent(id)}/calendar-link`, { eventId }),
   unlinkMealCalendar: (id: string) => del<Meal>(`api/meals/${encodeURIComponent(id)}/calendar-link`),
-  createMealCalendarEvent: (id: string, body: { calendarId?: string; durationMinutes?: number }) => post<Meal>(`api/meals/${encodeURIComponent(id)}/calendar-event`, body),
+  createMealCalendarEvent: (id: string, body: { calendarId?: string; eventStart?: 'meal' | 'cooking' }) => post<Meal>(`api/meals/${encodeURIComponent(id)}/calendar-event`, body),
   getMealProjection: (from: string, to: string, listId?: string) => get<ShoppingProjection>(`api/meals/projection?${new URLSearchParams({ from, to, ...(listId ? { listId } : {}) })}`),
   applyMealProjection: (body: { from: string; to: string; listId: string; omitKeys: string[]; includeNotes: boolean; includeKitItems?: boolean }) => post<{ added: number; itemIds: string[]; projection: ShoppingProjection }>('api/meals/projection/apply', body),
 

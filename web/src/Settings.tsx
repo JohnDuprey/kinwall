@@ -133,6 +133,7 @@ export default function SettingsView() {
           <MembersSection members={members} onChanged={reloadCore} toast={toast} canManage={!isDisplay} />
           <CategoriesSection categories={categories} onChanged={reloadCore} toast={toast} />
           {settings.features.chores && <ChoreSettingsSection settings={settings} onSaved={reloadCore} toast={toast} />}
+          {settings.features.meals && <MealSettingsSection settings={settings} onSaved={reloadCore} toast={toast} />}
         </>}
         {current === 'calendars' && <>
           <CalendarsSection openAccountId={openAccountId} onOpenedAccount={() => setOpenAccountId(null)} toast={toast} />
@@ -459,6 +460,25 @@ function QuietHoursSection({ settings, onSaved, toast }: { settings: Settings; o
 }
 
 /** Household chore rules: late credit, streak grace and whether the leaderboard shows at all. */
+/** When each meal usually is: a meal without its own time goes on the calendar then. */
+function MealSettingsSection({ settings, onSaved, toast }: { settings: Settings; onSaved: () => void; toast: (m: string, persist?: boolean) => void }) {
+  const save = async (slot: keyof Settings['mealTimes'], value: string) => {
+    if (!value || value === settings.mealTimes[slot]) return
+    try { await api.updateSettings({ mealTimes: { ...settings.mealTimes, [slot]: value } }); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save settings', true) }
+  }
+  return (
+    <Section title="Meals">
+      <p className="settings-row-sub">Usual meal times. A meal without its own time goes on the calendar at these.</p>
+      {(['breakfast', 'lunch', 'dinner', 'snack'] as const).map(slot => (
+        <div className="settings-row" key={slot}>
+          <div className="settings-row-label">{slot[0].toUpperCase() + slot.slice(1)}</div>
+          <input type="time" className="settings-select" aria-label={`Usual ${slot} time`} defaultValue={settings.mealTimes[slot]} onBlur={e => void save(slot, e.target.value)} />
+        </div>
+      ))}
+    </Section>
+  )
+}
+
 function ChoreSettingsSection({ settings, onSaved, toast }: { settings: Settings; onSaved: () => void; toast: (m: string, persist?: boolean) => void }) {
   const save = async (patch: Partial<Settings>) => {
     try { await api.updateSettings(patch); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save settings', true) }

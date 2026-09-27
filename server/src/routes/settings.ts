@@ -4,7 +4,7 @@ import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
 import { emit } from '../bus.ts';
 import { schemeContrastFailures } from '../colors.ts';
-import { COLOR_SCHEMES, CUSTOM_SCHEME_ID_RE, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, ErrorSchema, FeaturesSchema, LocationSchema, SettingsPatchSchema, SettingsSchema, TidbitSettingsSchema } from '../schemas.ts';
+import { COLOR_SCHEMES, CUSTOM_SCHEME_ID_RE, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, ErrorSchema, FeaturesSchema, LocationSchema, MealTimesSchema, SettingsPatchSchema, SettingsSchema, TidbitSettingsSchema } from '../schemas.ts';
 
 export const settingsRoutes = createRouter();
 
@@ -62,6 +62,7 @@ export async function readSettings(db: KinwallDb) {
     temperatureUnit: (map.get('temperatureUnit') || defaultUnit(location, map.get('timezone'))) as 'celsius' | 'fahrenheit',
     tidbits: parseTidbits(map.get('tidbits')),
     features: parseFeatures(map.get('features')),
+    mealTimes: parseMealTimes(map.get('mealTimes')),
   };
 }
 
@@ -92,6 +93,14 @@ function parseTidbits(raw: string | undefined): z.infer<typeof TidbitSettingsSch
     const parsed = TidbitSettingsSchema.safeParse({ ...DEFAULT_TIDBITS, ...saved });
     return parsed.success ? parsed.data : DEFAULT_TIDBITS;
   } catch { return DEFAULT_TIDBITS; }
+}
+
+export const DEFAULT_MEAL_TIMES: z.infer<typeof MealTimesSchema> = { breakfast: '07:30', lunch: '12:00', dinner: '18:00', snack: '15:00' };
+function parseMealTimes(raw: string | undefined): z.infer<typeof MealTimesSchema> {
+  try {
+    const parsed = MealTimesSchema.safeParse({ ...DEFAULT_MEAL_TIMES, ...JSON.parse(raw ?? '{}') });
+    return parsed.success ? parsed.data : DEFAULT_MEAL_TIMES;
+  } catch { return DEFAULT_MEAL_TIMES; }
 }
 
 export type Features = z.infer<typeof FeaturesSchema>;

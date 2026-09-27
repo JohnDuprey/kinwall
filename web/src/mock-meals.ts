@@ -180,13 +180,16 @@ export async function mockMealRequest(path: string, options: RequestInit): Promi
   if (method === 'GET') return meals.filter(m => m.date >= url.searchParams.get('from')! && m.date <= url.searchParams.get('to')!)
   if (id && !old) throw new Error('Meal not found')
   if (action) {
-    if (action === 'calendar-link') old!.calendarEventId = method === 'DELETE' ? null : body.eventId
+    if (action === 'calendar-link') { old!.calendarEventId = method === 'DELETE' ? null : body.eventId; old!.calendarEventStart = null }
     if (action === 'calendar-event' && !old!.calendarEventId) {
-      const calendar = (await mock.getCalendars()).find(c => c.kind === 'local' && c.writable && (!body.calendarId || c.id === body.calendarId))
+      const calendar = (await mock.getCalendars()).find(c => c.writable && (body.calendarId ? c.id === body.calendarId : c.kind === 'local'))
       if (!calendar) throw new Error('Create a writable local calendar first.')
-      const start = new Date(`${old!.date}T${old!.plannedTime ?? '00:00'}:00`)
-      const event = await mock.createEvent({ title: `${old!.slot} · ${old!.title}`, calendarId: calendar.id, start: old!.plannedTime ? start.toISOString() : old!.date, end: new Date(start.getTime() + (old!.plannedTime ? (body.durationMinutes ?? 60) * 60000 : 86400000)).toISOString(), allDay: !old!.plannedTime })
-      old!.calendarEventId = event.id
+      const time = old!.plannedTime ?? (await mock.getSettings()).mealTimes[old!.slot]
+      const minutes = (old!.recipeSnapshot?.totalMinutes || 60) * 60000
+      const at = new Date(`${old!.date}T${time}:00`).getTime()
+      const [start, end] = body.eventStart === 'cooking' ? [at - minutes, at] : [at, at + minutes]
+      const event = await mock.createEvent({ title: `${old!.slot[0].toUpperCase()}${old!.slot.slice(1)} · ${old!.title}`, calendarId: calendar.id, start: new Date(start).toISOString(), end: new Date(end).toISOString(), allDay: false, memberIds: [...new Set([...old!.eaterIds, ...(old!.assigneeMemberId ? [old!.assigneeMemberId] : [])])] })
+      old!.calendarEventId = event.id; old!.calendarEventStart = body.eventStart ?? 'meal'
     }
     return { ...old }
   }

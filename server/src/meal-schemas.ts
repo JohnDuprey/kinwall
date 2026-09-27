@@ -37,6 +37,8 @@ export const RecipeSchema = z.object({
 }).openapi('Recipe');
 /** An ingredient on a meal-kit recipe that ships in the box: grocery lists skip it unless asked. */
 export const KIT_QUALIFIER = 'in the kit';
+/** A meal's calendar event starts at the meal time, or when cooking starts (ending at the meal time). */
+export const MealEventStartSchema = z.enum(['meal', 'cooking']);
 export const RecipeImportSchema = z.object({
   source: z.string().trim().min(1).max(50).describe('Where the recipe comes from, e.g. hellofresh.'),
   externalId: z.string().trim().min(1).max(200).describe("The source's own recipe id; importing it again updates the same recipe."),
@@ -48,11 +50,15 @@ export const RecipeImportSchema = z.object({
     z.object({ text: z.string().trim().min(1).max(300), pantry: z.boolean().optional(), category: z.string().trim().max(100).nullable().optional() }).strict(),
   ])).max(300).describe('Lines like "1.5 tablespoon Sour Cream". pantry: false marks one that ships in the kit (skipped on grocery lists by default); strings and pantry: true are regular groceries.'),
   steps: z.array(z.string().trim().min(1).max(10000)).max(100).optional().describe('Saved as numbered instructions.'),
-  plan: z.object({ date: MealDateSchema, slot: MealSlotSchema, servings: servings.optional(), eaterIds: eaterIds.optional() }).strict().optional()
+  plan: z.object({ date: MealDateSchema, slot: MealSlotSchema, servings: servings.optional(), eaterIds: eaterIds.optional(),
+    calendarId: z.string().min(1).optional().describe('Also put the planned meal on this Kinwall calendar (any writable one, synced calendars included), unless it already has an event.'),
+    eventStart: MealEventStartSchema.optional().describe('With calendarId: start the event at the meal time (default) or when cooking starts.'),
+  }).strict().optional()
     .describe('Also plan it on this date and slot, unless that slot already has a meal (planned: false).'),
 }).strict().openapi('RecipeImport');
 export const RecipeImportResultSchema = z.object({
   recipeId: z.string(), created: z.boolean(), planned: z.boolean(), mealId: z.string().optional(), reason: z.string().optional(),
+  calendarEventId: z.string().optional(), calendarError: z.string().optional().describe('Why plan.calendarId got no event (the meal is still planned).'),
 }).openapi('RecipeImportResult');
 export const RecipeSnapshotSchema = z.object({ name: z.string(), defaultServings: servings, prepMinutes: minutes.optional(), totalMinutes: minutes.optional(), ingredients: z.array(IngredientSchema) }).openapi('RecipeSnapshot');
 export const MealInputSchema = z.object({
@@ -67,7 +73,9 @@ export const MealSchema = z.object({
   id: z.string(), date: MealDateSchema, slot: MealSlotSchema, title: z.string(),
   mealKind: z.enum(['recipe', 'freeform', 'dining_out']), recipeId: z.string().nullable(), recipeSnapshot: RecipeSnapshotSchema.nullable(),
   servings, assigneeMemberId: z.string().nullable(), eaterIds: z.array(z.string()).default([]), notes: text, plannedTime: z.string().nullable(),
-  calendarEventId: z.string().nullable(), status: z.enum(['planned', 'prepared', 'handled']), sourceUrl: url,
+  calendarEventId: z.string().nullable(),
+  calendarEventStart: MealEventStartSchema.nullable().default(null).describe('Set when Kinwall created the event (it then follows the meal): when it starts. null for an event you linked yourself, which is never changed.'),
+  status: z.enum(['planned', 'prepared', 'handled']), sourceUrl: url,
   createdAt: z.string(), updatedAt: z.string(),
 }).openapi('Meal');
 export const MealRangeSchema = z.object({ from: MealDateSchema, to: MealDateSchema }).refine((r) => r.from <= r.to && (Date.parse(r.to) - Date.parse(r.from)) / 86400000 <= 366, 'range must be ordered and at most 367 days');

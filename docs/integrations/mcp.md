@@ -118,9 +118,9 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 | `update_note` | Replaces a note's text (note IDs come from `list_notes`). |
 | `create_recipe` | Adds a recipe with its ingredients (admin). |
 | `update_recipe` | Edits a recipe, replaces its ingredients, or archives it (admin). Planned meals keep their own copy. |
-| `import_recipe` | Imports a recipe from another app, such as a meal kit (admin): ingredient lines like "1.5 tablespoon Sour Cream" are parsed, and importing the same `source` + `externalId` again updates it. With `plan` it's also planned on that date and slot unless the slot is taken (`planned: false` with the `reason`). |
+| `import_recipe` | Imports a recipe from another app, such as a meal kit (admin): ingredient lines like "1.5 tablespoon Sour Cream" are parsed, and importing the same `source` + `externalId` again updates it. With `plan` it's also planned on that date and slot unless the slot is taken (`planned: false` with the `reason`); `plan.calendarId` also puts it on that calendar (any writable one) and `plan.eventStart: "cooking"` starts the event when cooking starts. |
 | `create_meal` | Plans a recipe, free-form meal or dining out on a date and slot, optionally for a `member` (admin). |
-| `update_meal` | Edits a meal (admin), or its notes and status from the assigned person's device. `refreshRecipe` takes the recipe's current ingredients. |
+| `update_meal` | Edits a meal (admin), or its notes and status from the assigned person's device. `refreshRecipe` takes the recipe's current ingredients. A calendar event Kinwall made for the meal follows the change; a linked event of your own doesn't. |
 | `apply_meal_projection` | Adds the previewed ingredients to a shopping list (admin), minus `omitKeys`, and minus meal-kit ingredients that ship in the box unless `includeKitItems`. Repeating it doesn't add anything twice. |
 | `add_tracker_entry` | Logs a book, a memory or a health visit (`kind`, `member`, `date`, `title`, `data`). Health only with an admin key. |
 | `update_tracker_entry` | Edits an entry, for example pages read or a rating. `data` is merged; `null` clears a field. |

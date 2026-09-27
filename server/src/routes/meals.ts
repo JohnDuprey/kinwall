@@ -1,13 +1,17 @@
 import { createRoute, z } from '@hono/zod-openapi';
+import type { Context } from 'hono';
 import { createRouter } from '../router.ts';
 import { resolveKey } from '../auth.ts';
 import { emit } from '../bus.ts';
 import { hostTimezone } from '../env.ts';
 import { zonedTimeToUtc } from '../recurrence.ts';
 import { ErrorSchema } from '../schemas.ts';
-import { IngredientInputSchema, KIT_QUALIFIER, MealInputSchema, MealPatchSchema, MealRangeSchema, MealSchema, ProjectionApplySchema, ProjectionQuerySchema, ProjectionSchema, RecipeImportResultSchema, RecipeImportSchema, RecipeInputSchema, RecipeSchema, type Meal, type Recipe } from '../meal-schemas.ts';
+import { IngredientInputSchema, KIT_QUALIFIER, MealEventStartSchema, MealInputSchema, MealPatchSchema, MealRangeSchema, MealSchema, ProjectionApplySchema, ProjectionQuerySchema, ProjectionSchema, RecipeImportResultSchema, RecipeImportSchema, RecipeInputSchema, RecipeSchema, type Meal, type Recipe } from '../meal-schemas.ts';
 import { applyProjection, mealWrite, normalizeIngredient, parseIngredientLine, readMeal, readMeals, readRecipes, shoppingProjection } from '../meals.ts';
 import type { KinwallDb } from '../db.ts';
+import type { Env } from '../env.ts';
+import { createEvent, deleteEvent, updateEvent } from './events.ts';
+import { readSettings } from './settings.ts';
 import { fetchRecipePdf } from '../outbound.ts';
 
 export const mealsRoutes = createRouter();
@@ -17,6 +21,7 @@ const errors = {
   403: { description: 'admin or assigned device required', content: { 'application/json': { schema: ErrorSchema } } },
   404: { description: 'not found', content: { 'application/json': { schema: ErrorSchema } } },
 };
+const providerError = { 502: { description: 'the calendar provider refused the event change', content: { 'application/json': { schema: ErrorSchema } } } };
 const ok = { description: 'ok', content: { 'application/json': { schema: z.object({ ok: z.boolean() }) } } };
 const recipeResponse = { description: 'recipe', content: { 'application/json': { schema: RecipeSchema } } };
 const mealResponse = { description: 'meal', content: { 'application/json': { schema: MealSchema } } };
@@ -56,7 +61,7 @@ mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/recipes', tags: ['
   const recipe = await saveRecipe(c.env.DB, c.req.valid('json'), undefined, (await resolveKey(c))?.id ?? null);
   emit(c, 'recipe.changed', { id: recipe.id }); return c.json(recipe, 201);
 });
-mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/recipes/import', tags: ['Meals'], summary: 'Import a recipe from another app (e.g. a meal kit), updating it when imported again, and optionally plan it (admin)', security: [{ Bearer: [] }], request: { body: body(RecipeImportSchema) }, responses: { 200: { description: 'imported', content: { 'application/json': { schema: RecipeImportResultSchema } } }, ...errors } }), async (c) => {
+mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/recipes/import', tags: ['Meals'], summary: 'Import a recipe from another app (e.g. a meal kit), updating it when imported again, and optionally plan it and put it on a calendar (admin)', security: [{ Bearer: [] }], request: { body: body(RecipeImportSchema) }, responses: { 200: { description: 'imported', content: { 'application/json': { schema: RecipeImportResultSchema } } }, ...errors } }), async (c) => {
   const input = c.req.valid('json');
   const db = c.env.DB;
   const found = await db.prepare('SELECT id FROM recipes WHERE source = ? AND external_id = ?').bind(input.source, input.externalId).first<{ id: string }>();
@@ -82,14 +87,22 @@ mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/recipes/import', t
   const { date, slot } = input.plan;
   // Importing again (a re-run automation) finds the meal it planned before, even if moved within the week.
   const weekEnd = new Date(Date.parse(date) + 6 * 86400000).toISOString().slice(0, 10);
+  // plan.calendarId also puts the meal on that calendar, unless it already has an event.
+  const onCalendar = async (mealId: string): Promise<Pick<typeof result, 'calendarEventId' | 'calendarError'>> => {
+    const meal = input.plan?.calendarId ? await readMeal(db, mealId) : null;
+    if (!meal) return {};
+    if (meal.calendarEventId) return { calendarEventId: meal.calendarEventId };
+    const made = await createMealEvent(c, meal, input.plan!.calendarId, input.plan!.eventStart ?? 'meal');
+    return typeof made === 'string' ? { calendarEventId: made } : { calendarError: made.error };
+  };
   const mine = await db.prepare('SELECT id, date FROM meals WHERE recipe_id = ? AND slot = ? AND date >= ? AND date <= ? ORDER BY date LIMIT 1').bind(recipe.id, slot, date, weekEnd).first<{ id: string; date: string }>();
-  if (mine) return c.json({ ...result, planned: true, mealId: mine.id, reason: `already planned on ${mine.date}` }, 200);
+  if (mine) return c.json({ ...result, planned: true, mealId: mine.id, reason: `already planned on ${mine.date}`, ...await onCalendar(mine.id) }, 200);
   const taken = await db.prepare('SELECT title FROM meals WHERE date = ? AND slot = ? LIMIT 1').bind(date, slot).first<{ title: string }>();
   if (taken) return c.json({ ...result, reason: `${slot} on ${date} already has ${taken.title}` }, 200);
   const meal = await buildMeal(db, { date, slot, recipeId: recipe.id, ...(input.plan.servings !== undefined && { servings: input.plan.servings }), ...(input.plan.eaterIds && { eaterIds: input.plan.eaterIds }), sourceUrl: recipe.sourceUrl });
   if (typeof meal === 'string') return c.json({ ...result, reason: meal }, 200);
   await mealWrite(db, meal).run(); emit(c, 'meal.changed', { id: meal.id });
-  return c.json({ ...result, planned: true, mealId: meal.id }, 200);
+  return c.json({ ...result, planned: true, mealId: meal.id, ...await onCalendar(meal.id) }, 200);
 });
 mealsRoutes.openapi(createRoute({ method: 'patch', path: '/api/recipes/{id}', tags: ['Meals'], summary: 'Edit or archive a recipe without changing planned meal snapshots (admin)', security: [{ Bearer: [] }], request: { params, body: body(RecipeInputSchema.partial()) }, responses: { 200: recipeResponse, ...errors } }), async (c) => {
   const old = (await readRecipes(c.env.DB, { id: c.req.valid('param').id, archived: true }))[0];
@@ -127,7 +140,7 @@ mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/meals/projection/a
 
 async function buildMeal(db: KinwallDb, input: z.infer<typeof MealPatchSchema>, old?: Meal): Promise<Meal | string> {
   const now = new Date().toISOString();
-  const meal: Meal = { id: crypto.randomUUID(), date: input.date!, slot: input.slot!, title: '', mealKind: input.recipeId ? 'recipe' : 'freeform', recipeId: null, recipeSnapshot: null, servings: 1, assigneeMemberId: null, eaterIds: [], notes: null, plannedTime: null, calendarEventId: null, status: 'planned', sourceUrl: null, createdAt: now, ...old, ...input, updatedAt: now };
+  const meal: Meal = { id: crypto.randomUUID(), date: input.date!, slot: input.slot!, title: '', mealKind: input.recipeId ? 'recipe' : 'freeform', recipeId: null, recipeSnapshot: null, servings: 1, assigneeMemberId: null, eaterIds: [], notes: null, plannedTime: null, calendarEventId: null, calendarEventStart: null, status: 'planned', sourceUrl: null, createdAt: now, ...old, ...input, updatedAt: now };
   if (input.recipeId && input.mealKind === undefined) meal.mealKind = 'recipe';
   if (meal.assigneeMemberId && !await db.prepare('SELECT id FROM members WHERE id = ?').bind(meal.assigneeMemberId).first()) return 'assignee not found';
   if (input.eaterIds) {
@@ -165,7 +178,7 @@ mealsRoutes.openapi(createRoute({ method: 'get', path: '/api/meals/{id}', tags: 
   const meal = await readMeal(c.env.DB, c.req.valid('param').id);
   return meal ? c.json(meal, 200) : c.json({ error: 'meal not found' }, 404);
 });
-mealsRoutes.openapi(createRoute({ method: 'patch', path: '/api/meals/{id}', tags: ['Meals'], summary: 'Edit a meal; assigned members may change only notes/status', security: [{ Bearer: [] }], request: { params, body: body(MealPatchSchema) }, responses: { 200: mealResponse, ...errors } }), async (c) => {
+mealsRoutes.openapi(createRoute({ method: 'patch', path: '/api/meals/{id}', tags: ['Meals'], summary: 'Edit a meal; assigned members may change only notes/status. A calendar event Kinwall created for it follows the change', security: [{ Bearer: [] }], request: { params, body: body(MealPatchSchema) }, responses: { 200: mealResponse, ...errors, ...providerError } }), async (c) => {
   const old = await readMeal(c.env.DB, c.req.valid('param').id);
   if (!old) return c.json({ error: 'meal not found' }, 404);
   const patch = c.req.valid('json');
@@ -173,87 +186,117 @@ mealsRoutes.openapi(createRoute({ method: 'patch', path: '/api/meals/{id}', tags
   if (key?.scope !== 'admin' && (!old.assigneeMemberId || key?.owner !== old.assigneeMemberId || Object.keys(patch).some((k) => k !== 'notes' && k !== 'status'))) return c.json({ error: 'Only admins can change the plan; assigned members may update notes and status' }, 403);
   const meal = await buildMeal(c.env.DB, patch, old);
   if (typeof meal === 'string') return c.json({ error: meal }, 400);
-  const linked = old.calendarEventId?.startsWith('meal:')
-    ? await c.env.DB.prepare('SELECT id, calendar_id, start, end, all_day FROM events WHERE id = ?').bind(old.calendarEventId).first<{ id: string; calendar_id: string; start: string; end: string; all_day: number }>()
-    : null;
-  if (old.calendarEventId?.startsWith('meal:') && !linked) meal.calendarEventId = null;
-  const writes = [mealWrite(c.env.DB, meal)];
-  if (linked) {
-    const tz = (await c.env.DB.prepare("SELECT value FROM settings WHERE key = 'timezone'").first<{ value: string }>())?.value || hostTimezone();
-    const [y, m, d] = meal.date.split('-').map(Number);
-    const [hour, minute] = (meal.plannedTime ?? '00:00').split(':').map(Number);
-    const timed = !!meal.plannedTime;
-    const start = timed ? zonedTimeToUtc({ y, mo: m - 1, d, h: hour, mi: minute, s: 0 }, tz).toISOString() : meal.date;
-    const duration = linked.all_day ? 60 : Math.max(1, (Date.parse(linked.end) - Date.parse(linked.start)) / 60000);
-    const end = timed ? new Date(Date.parse(start) + duration * 60000).toISOString() : new Date(Date.parse(meal.date) + 86400000).toISOString().slice(0, 10);
-    // The meal:<id> event only mirrors the meal, so keep it in step; its description is set once at
-    // creation and left alone, so notes typed on the event in Calendar survive.
-    writes.push(c.env.DB.prepare('UPDATE events SET title = ?, start = ?, end = ?, all_day = ?, member_ids = ?, updated_at = ? WHERE id = ?').bind(
-      `${meal.slot[0].toUpperCase()}${meal.slot.slice(1)} · ${meal.title}`, start, end, timed ? 0 : 1, JSON.stringify(meal.assigneeMemberId ? [meal.assigneeMemberId] : []), new Date().toISOString(), linked.id,
-    ));
-  }
-  await c.env.DB.batch(writes);
+  // The event first: when a synced calendar refuses the change, the meal stays as it was so the two agree.
+  const failed = await syncMealEvent(c, old, meal);
+  if (failed) return c.json({ error: `Couldn't update the meal's calendar event: ${failed.error}` }, failed.status);
+  await mealWrite(c.env.DB, meal).run();
   emit(c, 'meal.changed', { id: meal.id });
-  if (linked) emit(c, 'events.changed', { calendarId: linked.calendar_id });
   return c.json(await readMeal(c.env.DB, meal.id) as Meal, 200);
 });
-mealsRoutes.openapi(createRoute({ method: 'delete', path: '/api/meals/{id}', tags: ['Meals'], summary: 'Remove a meal and the calendar event Kinwall created for it (keeps a linked event of your own and shopping items)', security: [{ Bearer: [] }], request: { params }, responses: { 200: ok, ...errors } }), async (c) => {
+mealsRoutes.openapi(createRoute({ method: 'delete', path: '/api/meals/{id}', tags: ['Meals'], summary: 'Remove a meal and the calendar event Kinwall created for it, on any calendar (keeps a linked event of your own and shopping items)', security: [{ Bearer: [] }], request: { params }, responses: { 200: ok, ...errors, ...providerError } }), async (c) => {
   const { id } = c.req.valid('param');
-  const db = c.env.DB;
-  if (!await db.prepare('SELECT id FROM meals WHERE id = ?').bind(id).first()) return c.json({ error: 'meal not found' }, 404);
-  const own = await db.prepare('SELECT calendar_id FROM events WHERE id = ?').bind(`meal:${id}`).first<{ calendar_id: string }>();
-  await db.batch([
-    db.prepare('DELETE FROM meals WHERE id = ?').bind(id),
-    db.prepare('DELETE FROM events WHERE id = ?').bind(`meal:${id}`),
-    db.prepare("DELETE FROM notes WHERE target_type = 'event' AND target_id = ?").bind(`meal:${id}`),
-  ]);
+  const meal = await readMeal(c.env.DB, id);
+  if (!meal) return c.json({ error: 'meal not found' }, 404);
+  if (meal.calendarEventId && meal.calendarEventStart) {
+    const gone = await deleteEvent(c, meal.calendarEventId);
+    if ('error' in gone && gone.status !== 404) return c.json({ error: `Couldn't delete the meal's calendar event (${gone.error}). Unlink it to delete the meal and keep the event.` }, gone.status);
+  }
+  await c.env.DB.prepare('DELETE FROM meals WHERE id = ?').bind(id).run();
   emit(c, 'meal.changed', { id });
-  if (own) emit(c, 'events.changed', { calendarId: own.calendar_id });
   return c.json({ ok: true }, 200);
 });
-mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/meals/{id}/calendar-link', tags: ['Meals'], summary: 'Link an existing event without creating a duplicate (admin)', security: [{ Bearer: [] }], request: { params, body: body(z.object({ eventId: z.string().min(1) }).strict()) }, responses: { 200: mealResponse, ...errors } }), async (c) => {
+mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/meals/{id}/calendar-link', tags: ['Meals'], summary: 'Link an existing event without creating a duplicate; Kinwall never changes or deletes it (admin)', security: [{ Bearer: [] }], request: { params, body: body(z.object({ eventId: z.string().min(1) }).strict()) }, responses: { 200: mealResponse, ...errors } }), async (c) => {
   const meal = await readMeal(c.env.DB, c.req.valid('param').id);
   if (!meal) return c.json({ error: 'meal not found' }, 404);
   const { eventId } = c.req.valid('json');
   if (!await c.env.DB.prepare('SELECT id FROM events WHERE id = ?').bind(eventId).first()) return c.json({ error: 'event not found' }, 400);
-  await c.env.DB.prepare('UPDATE meals SET calendar_event_id = ?, updated_at = ? WHERE id = ?').bind(eventId, new Date().toISOString(), meal.id).run();
+  await c.env.DB.prepare('UPDATE meals SET calendar_event_id = ?, calendar_event_start = NULL, updated_at = ? WHERE id = ?').bind(eventId, new Date().toISOString(), meal.id).run();
   emit(c, 'meal.changed', { id: meal.id }); return c.json(await readMeal(c.env.DB, meal.id) as Meal, 200);
 });
-mealsRoutes.openapi(createRoute({ method: 'delete', path: '/api/meals/{id}/calendar-link', tags: ['Meals'], summary: 'Unlink a calendar event without deleting it (admin)', security: [{ Bearer: [] }], request: { params }, responses: { 200: mealResponse, ...errors } }), async (c) => {
+mealsRoutes.openapi(createRoute({ method: 'delete', path: '/api/meals/{id}/calendar-link', tags: ['Meals'], summary: 'Unlink a calendar event without deleting it; an event Kinwall created stays and stops following the meal (admin)', security: [{ Bearer: [] }], request: { params }, responses: { 200: mealResponse, ...errors } }), async (c) => {
   const { id } = c.req.valid('param');
-  const result = await c.env.DB.prepare('UPDATE meals SET calendar_event_id = NULL, updated_at = ? WHERE id = ?').bind(new Date().toISOString(), id).run();
+  const result = await c.env.DB.prepare('UPDATE meals SET calendar_event_id = NULL, calendar_event_start = NULL, updated_at = ? WHERE id = ?').bind(new Date().toISOString(), id).run();
   if (!result.meta.changes) return c.json({ error: 'meal not found' }, 404);
   emit(c, 'meal.changed', { id }); return c.json(await readMeal(c.env.DB, id) as Meal, 200);
 });
-mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/meals/{id}/calendar-event', tags: ['Meals'], summary: 'Create and link a local calendar event; external writes are never implicit (admin)', security: [{ Bearer: [] }], request: { params, body: body(z.object({ calendarId: z.string().optional(), durationMinutes: z.number().int().min(1).max(1440).optional() }).strict()) }, responses: { 200: mealResponse, ...errors } }), async (c) => {
+mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/meals/{id}/calendar-event', tags: ['Meals'], summary: 'Create and link an event on the calendar you choose (any writable one; synced calendars get it too). Without calendarId it goes on a local calendar, never a synced one. It follows the meal from then on (admin)', security: [{ Bearer: [] }],
+  request: { params, body: body(z.object({ calendarId: z.string().min(1).optional(), eventStart: MealEventStartSchema.optional().describe('At the meal time (default), or when cooking starts so it ends at the meal time.') }).strict()) }, responses: { 200: mealResponse, ...errors, ...providerError } }), async (c) => {
   const db = c.env.DB;
   const meal = await readMeal(db, c.req.valid('param').id);
   if (!meal) return c.json({ error: 'meal not found' }, 404);
   if (meal.calendarEventId) {
-    const existing = await db.prepare('SELECT id FROM events WHERE id = ?').bind(meal.calendarEventId).first();
-    if (existing) return c.json(meal, 200);
-    await db.prepare('UPDATE meals SET calendar_event_id = NULL, updated_at = ? WHERE id = ?').bind(new Date().toISOString(), meal.id).run();
+    if (await db.prepare('SELECT id FROM events WHERE id = ?').bind(meal.calendarEventId).first()) return c.json(meal, 200);
     meal.calendarEventId = null;
   }
-  const { calendarId, durationMinutes = 60 } = c.req.valid('json');
-  const calendar = calendarId ? await db.prepare('SELECT id, kind, writable FROM calendars WHERE id = ?').bind(calendarId).first<{ id: string; kind: string; writable: number }>() : await db.prepare("SELECT id, kind, writable FROM calendars WHERE kind = 'local' AND writable = 1 ORDER BY id LIMIT 1").first<{ id: string; kind: string; writable: number }>();
-  if (calendarId && (!calendar || !calendar.writable || calendar.kind !== 'local')) return c.json({ error: 'Choose a writable local calendar; create external events explicitly through the Events API and link them' }, 400);
-  const localId = calendar?.id ?? crypto.randomUUID();
-  const tz = (await db.prepare("SELECT value FROM settings WHERE key = 'timezone'").first<{ value: string }>())?.value || hostTimezone();
-  const [y, m, d] = meal.date.split('-').map(Number);
-  const [hour, minute] = (meal.plannedTime ?? '00:00').split(':').map(Number);
-  const start = meal.plannedTime ? zonedTimeToUtc({ y, mo: m - 1, d, h: hour, mi: minute, s: 0 }, tz).toISOString() : meal.date;
-  const end = meal.plannedTime ? new Date(Date.parse(start) + durationMinutes * 60000).toISOString() : new Date(Date.parse(meal.date) + 86400000).toISOString().slice(0, 10);
-  const eventId = `meal:${meal.id}`;
-  const now = new Date().toISOString();
-  await db.batch([
-    ...(calendar ? [] : [db.prepare("INSERT INTO calendars (id,kind,name,writable) VALUES (?, 'local', 'Meals', 1) ON CONFLICT(id) DO NOTHING").bind(localId)]),
-    db.prepare(`INSERT INTO events (id,calendar_id,title,start,end,all_day,description,member_ids,updated_at) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING`).bind(eventId, localId, `${meal.slot[0].toUpperCase()}${meal.slot.slice(1)} · ${meal.title}`, start, end, meal.plannedTime ? 0 : 1, meal.notes, JSON.stringify(meal.assigneeMemberId ? [meal.assigneeMemberId] : []), now),
-    db.prepare('UPDATE meals SET calendar_event_id = ?, updated_at = ? WHERE id = ? AND calendar_event_id IS NULL').bind(eventId, now, meal.id),
-  ]);
-  emit(c, 'events.changed', { calendarId: localId }); emit(c, 'meal.changed', { id: meal.id });
+  const { calendarId, eventStart = 'meal' } = c.req.valid('json');
+  const made = await createMealEvent(c, meal, calendarId, eventStart);
+  if (typeof made !== 'string') return c.json({ error: made.error }, made.status);
   return c.json(await readMeal(db, meal.id) as Meal, 200);
 });
+
+type Ctx = Context<{ Bindings: Env }>;
+type EventStart = z.infer<typeof MealEventStartSchema>;
+
+/** The event a meal gets: at its own time, else the family's usual time for that slot (Settings),
+ * lasting as long as the recipe takes (60 minutes when that's unknown); people are the eaters and the cook. */
+async function mealEvent(db: KinwallDb, meal: Meal, from: EventStart) {
+  const settings = await readSettings(db);
+  const [y, mo, d] = meal.date.split('-').map(Number);
+  const [h, mi] = (meal.plannedTime ?? settings.mealTimes[meal.slot]).split(':').map(Number);
+  const at = zonedTimeToUtc({ y, mo: mo - 1, d, h, mi, s: 0 }, settings.timezone || hostTimezone()).getTime();
+  const recipeMinutes = meal.recipeSnapshot?.totalMinutes
+    ?? (meal.recipeId ? (await db.prepare('SELECT total_minutes FROM recipes WHERE id = ?').bind(meal.recipeId).first<{ total_minutes: number | null }>())?.total_minutes : null);
+  const length = (recipeMinutes || 60) * 60000;
+  const [start, end] = from === 'cooking' ? [at - length, at] : [at, at + length];
+  return {
+    title: `${meal.slot[0].toUpperCase()}${meal.slot.slice(1)} · ${meal.title}`,
+    start: new Date(start).toISOString(), end: new Date(end).toISOString(), allDay: false,
+    memberIds: [...new Set([...meal.eaterIds, ...(meal.assigneeMemberId ? [meal.assigneeMemberId] : [])])],
+  };
+}
+
+/** Creates the meal's event through the Events API path (provider write-through, members, reminders,
+ * events.changed) and links it as Kinwall's own. No calendarId: a local calendar, never a synced one. */
+async function createMealEvent(c: Ctx, meal: Meal, calendarId: string | undefined, from: EventStart): Promise<string | { error: string; status: 400 | 403 | 502 }> {
+  const db = c.env.DB;
+  if (!calendarId) {
+    calendarId = (await db.prepare("SELECT id FROM calendars WHERE kind = 'local' AND writable = 1 ORDER BY id LIMIT 1").first<{ id: string }>())?.id;
+    if (!calendarId) {
+      calendarId = crypto.randomUUID();
+      await db.prepare("INSERT INTO calendars (id,kind,name,writable) VALUES (?, 'local', 'Meals', 1)").bind(calendarId).run();
+    }
+  }
+  const created = await createEvent(c, { calendarId, ...await mealEvent(db, meal, from), ...(meal.notes ? { description: meal.notes } : {}) });
+  if ('error' in created) return created;
+  // ponytail: two simultaneous creates for one meal both make an event; the loser's stays on the calendar unlinked.
+  await db.prepare('UPDATE meals SET calendar_event_id = ?, calendar_event_start = ?, updated_at = ? WHERE id = ? AND calendar_event_id IS NULL').bind(created.row.id, from, new Date().toISOString(), meal.id).run();
+  emit(c, 'meal.changed', { id: meal.id });
+  return created.row.id;
+}
+
+/** Keeps the event Kinwall created for a meal in step with the meal (date, time, slot, title, people,
+ * notes) through the Events API path, so a synced calendar gets the change too. A linked event of
+ * the family's own is never touched. Returns an error only when the calendar refused the change. */
+async function syncMealEvent(c: Ctx, old: Meal, meal: Meal): Promise<{ error: string; status: 400 | 502 } | null> {
+  const from = old.calendarEventStart;
+  if (!old.calendarEventId || !from) return null;
+  const [before, after] = await Promise.all([mealEvent(c.env.DB, old, from), mealEvent(c.env.DB, meal, from)]);
+  const notesChanged = (old.notes ?? null) !== (meal.notes ?? null);
+  if (JSON.stringify(before) === JSON.stringify(after) && !notesChanged) return null;
+  const { memberIds, ...when } = after;
+  const patch: Parameters<typeof updateEvent>[2] = when;
+  if (JSON.stringify(before.memberIds) !== JSON.stringify(memberIds)) patch.memberIds = memberIds;
+  if (notesChanged) {
+    // Meal notes are the event's description - unless someone has written their own on the event.
+    const current = await c.env.DB.prepare('SELECT description FROM events WHERE id = ?').bind(old.calendarEventId).first<{ description: string | null }>();
+    if ((current?.description || null) === (old.notes || null)) patch.description = meal.notes ?? '';
+  }
+  const updated = await updateEvent(c, old.calendarEventId, patch);
+  if (!('error' in updated)) return null;
+  if (updated.status === 404) { meal.calendarEventId = null; meal.calendarEventStart = null; return null; } // deleted on the calendar
+  if (updated.status === 403) return null; // ponytail: a device that can't edit that calendar (a cook updating notes) leaves the event as is
+  return { error: updated.error, status: updated.status };
+}
 
 // The recipe card a meal kit links to, fetched server-side so the app can show it (a web view can't
 // read another origin's PDF). Only the record's own stored sourceUrl - never a URL from the request.

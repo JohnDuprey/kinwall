@@ -28,7 +28,7 @@ export default function MealSheet({ meal, initial, recipes, admin, owner, onClos
   meal: Meal | null; initial: MealDraft; recipes: Recipe[]; admin: boolean; owner?: string | null
   onClose: () => void; onSaved: () => void; onRecipe: (recipe: Recipe) => void
 }) {
-  const { members, toast } = useApp()
+  const { members, settings, toast } = useApp()
   const dialog = useDialog()
   const formId = useId()
   const [draft, setDraft] = useState<MealInput>(() => ({
@@ -96,7 +96,9 @@ export default function MealSheet({ meal, initial, recipes, admin, owner, onClos
         {members.length > 0 && draft.servings > 0 && <p className="field-hint meal-eaters-hint">{!draft.eaterIds.length ? `${servingsLabel(draft.servings)}: pick ${draft.servings === 1 ? 'who’s eating' : `${draft.servings} people`}` : draft.eaterIds.length === draft.servings ? `${draft.eaterIds.length} of ${servingsLabel(draft.servings)}` : `${draft.eaterIds.length} selected for ${servingsLabel(draft.servings)}`}</p>}
         <div className="meal-form-row">
           <div className="field"><label htmlFor={`${formId}-servings`}>Servings</label><input id={`${formId}-servings`} type="number" required min="0.01" max="10000" step="any" value={draft.servings || ''} onChange={e => update('servings', Number(e.target.value))} /></div>
-          <div className="field"><label htmlFor={`${formId}-time`}>Time (optional)</label><input id={`${formId}-time`} type="time" value={draft.plannedTime ?? ''} onChange={e => update('plannedTime', e.target.value || null)} /></div>
+          <div className="field"><label htmlFor={`${formId}-time`}>Time</label><input id={`${formId}-time`} type="time" placeholder={settings.mealTimes[draft.slot]} aria-describedby={`${formId}-time-hint`} value={draft.plannedTime ?? ''} onChange={e => update('plannedTime', e.target.value || null)} />
+            {/* A time field can't show a placeholder, so the usual time sits under it. */}
+            <p className="field-hint" id={`${formId}-time-hint`}>{draft.plannedTime ? 'Clear it to use the usual time.' : `Usual ${SLOT_LABEL[draft.slot].toLowerCase()} time: ${clockTime(settings.mealTimes[draft.slot])}`}</p></div>
         </div>
         <div className="field"><label htmlFor={`${formId}-assignee`}>Cooking</label><select id={`${formId}-assignee`} value={draft.assigneeMemberId ?? ''} onChange={e => update('assigneeMemberId', e.target.value || null)}><option value="">Nobody yet</option>{members.map(m => <option key={m.id} value={m.id}>{m.avatar} {m.name}</option>)}</select></div>
         {draft.mealKind === 'dining_out' && <div className="field"><label htmlFor={`${formId}-url`}>Website (optional)</label><input id={`${formId}-url`} type="url" pattern="https?://.*" maxLength={2000} value={draft.sourceUrl ?? ''} onChange={e => update('sourceUrl', e.target.value || null)} /></div>}
@@ -122,8 +124,8 @@ export default function MealSheet({ meal, initial, recipes, admin, owner, onClos
         {meal?.sourceUrl && <SourceLink url={meal.sourceUrl} pdfPath={`api/meals/${encodeURIComponent(meal.id)}/source.pdf`} title={meal.title} label={meal.mealKind === 'dining_out' ? 'Website' : 'Recipe website'} />}
         {linkedMeal?.calendarEventId && <a className="sheet-link" href={`#/calendar?at=${linkedMeal.date}&event=${encodeURIComponent(linkedMeal.calendarEventId)}`}><CalendarIcon /><span>Linked calendar event</span><ChevronRight /></a>}
       </div>}
-      {admin && linkedMeal && <button className="btn btn-secondary" type="button" disabled={busy} onClick={() => setCalendarOpen(true)}>{linkedMeal.calendarEventId ? 'Manage calendar link' : 'Link or create calendar event'}</button>}
-      {admin && !meal && <p className="field-hint">Save this meal to link an event or add it to a local calendar.</p>}
+      {admin && linkedMeal && <button className="btn btn-secondary" type="button" disabled={busy} onClick={() => setCalendarOpen(true)}>{linkedMeal.calendarEventId ? 'Manage calendar event' : 'Add to calendar'}</button>}
+      {admin && !meal && <p className="field-hint">Save this meal to put it on a calendar.</p>}
       {error && <p className="field-error" role="alert">{error}</p>}
     </form>
     {calendarOpen && linkedMeal && <MealCalendarSheet meal={linkedMeal} onClose={() => setCalendarOpen(false)} onLinked={setLinkedMeal} />}

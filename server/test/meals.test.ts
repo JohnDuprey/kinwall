@@ -124,7 +124,7 @@ test('meals: invalid dates, ranges, servings, URLs and references are rejected b
   assert.deepEqual(await json(`/api/meals?${range}`), []);
 });
 
-test('meals: local calendar creation uses household time, is repeatable, links read-only events, and never writes externally', async () => {
+test('meals: calendar creation uses household time, is repeatable, links read-only events, and never writes to a calendar nobody chose', async () => {
   const { json, request } = fixture();
   await json('/api/settings', 'PATCH', { timezone: 'America/New_York' });
   const meal = await json('/api/meals', 'POST', { date: dates.from, slot: 'dinner', title: 'Tacos', plannedTime: '18:00' });
@@ -138,7 +138,8 @@ test('meals: local calendar creation uses household time, is repeatable, links r
   const allDay = await json('/api/meals', 'POST', { date: '2026-12-31', slot: 'lunch', mealKind: 'dining_out' });
   const dayLink = await json(`/api/meals/${allDay.id}/calendar-event`, 'POST', {});
   const dayEvent = await json(`/api/events/${dayLink.calendarEventId}`);
-  assert.equal(dayEvent.allDay, true); assert.equal(dayEvent.end, '2027-01-01');
+  assert.equal(dayEvent.allDay, false, 'no planned time: the usual lunch time, not all day');
+  assert.equal(dayEvent.start, '2026-12-31T17:00:00.000Z'); assert.equal(dayEvent.end, '2026-12-31T18:00:00.000Z');
   const remote = await json('/api/calendars', 'POST', { kind: 'ics', name: 'Read only', url: 'https://example.com/events.ics' });
   await json(`/api/meals/${allDay.id}/calendar-link`, 'DELETE');
   assert.equal((await request(`/api/meals/${allDay.id}/calendar-event`, 'POST', { calendarId: remote.id })).status, 400);
@@ -159,8 +160,7 @@ test('meals: generated calendar links clear when deleted and follow canonical me
   await json(`/api/events/${linked.calendarEventId}`, 'DELETE');
   assert.equal((await json(`/api/meals/${meal.id}`)).calendarEventId, null);
   const recreated = await json(`/api/meals/${meal.id}/calendar-event`, 'POST', {});
-  assert.equal(recreated.calendarEventId, linked.calendarEventId);
-  assert.equal((await json(`/api/events/${linked.calendarEventId}`)).title, 'Dinner · Pasta');
+  assert.equal((await json(`/api/events/${recreated.calendarEventId}`)).title, 'Dinner · Pasta');
 });
 
 test('meals: deleting a meal removes the event Kinwall created and keeps a linked event of your own', async () => {
