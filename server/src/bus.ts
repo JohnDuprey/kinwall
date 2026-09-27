@@ -6,6 +6,8 @@ import { decrypt } from './crypto.ts';
 import { isSafeWebhookUrl } from './outbound.ts';
 
 export type BusEventType =
+  | 'recipe.changed'
+  | 'meal.changed'
   | 'member.changed'
   | 'calendar.changed'
   | 'calendar.synced'

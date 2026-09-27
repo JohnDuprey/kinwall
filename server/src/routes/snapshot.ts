@@ -6,6 +6,7 @@ import { createRouter } from '../router.ts';
 import { hostTimezone } from '../env.ts';
 import { zonedTimeToUtc } from '../recurrence.ts';
 import { BoardSchema, ErrorSchema, SnapshotSchema } from '../schemas.ts';
+import { readMeals } from '../meals.ts';
 import { readSettings } from './settings.ts';
 import { eventInstances } from './events.ts';
 import { dueOnDate, type ChoreRow } from './chores.ts';
@@ -148,6 +149,7 @@ snapshotRoutes.openapi(
     const isBirthday = birthdays.some((b) => b.memberId === memberId && b.date === today);
     const weather = await getWeather(db, now);
 
+    const meals = await readMeals(db, today, last);
     const body: Snapshot = {
       greeting: isBirthday ? `Happy birthday, ${member.name}! 🎉` : greetingFor(member.name, hour),
       member,
@@ -160,6 +162,7 @@ snapshotRoutes.openapi(
       chores,
       items,
       birthdays: birthdays.filter((b) => b.date <= to),
+      meals: meals.filter((m) => m.date <= to),
       tomorrow:
         range === 'day'
           ? {
@@ -167,6 +170,7 @@ snapshotRoutes.openapi(
               events: events.filter((ev) => ev.date === tomorrow),
               items: itemRows.filter((r) => r.due_date === tomorrow).map(toItem),
               birthdays: birthdays.filter((b) => b.date === tomorrow),
+              meals: meals.filter((m) => m.date === tomorrow),
             }
           : null,
     };
@@ -244,6 +248,7 @@ snapshotRoutes.openapi(
 
     const weather = await getWeather(db, now);
 
+    const meals = await readMeals(db, today, to);
     const body: Board = {
       today,
       to,
@@ -253,6 +258,7 @@ snapshotRoutes.openapi(
       items,
       chores,
       birthdays: birthdays.filter((b) => b.date <= to),
+      meals: meals.filter((m) => m.date <= to),
     };
     return c.json(body, 200);
   },

@@ -17,6 +17,7 @@ export interface Settings {
   familyName: string
   timezone: string | null
   weekStart: 0 | 1
+  mealWeekStart?: 0 | 1 | 2 | 3 | 4 | 5 | 6 | null // falls back to the household calendar preference
   themeMode: ThemeMode
   darkFrom: string // HH:MM, household timezone
   darkTo: string // HH:MM, household timezone
@@ -622,4 +623,3 @@ export interface Plugin {
   updatedAt: string
   url: string // /plugins/<id>/<entry>
 }
-

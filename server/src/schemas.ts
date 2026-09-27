@@ -1,5 +1,6 @@
 // Shared zod-openapi schemas, reused across route files.
 import { z } from '@hono/zod-openapi';
+import { MealSchema } from './meal-schemas.ts';
 import { isSingleEmoji, isValidAvatar } from './emoji.ts';
 
 export const ErrorSchema = z.object({ error: z.string() }).openapi('Error');
@@ -139,6 +140,7 @@ export const SettingsSchema = z
     familyName: z.string(),
     timezone: z.string().nullable(),
     weekStart: z.union([z.literal(0), z.literal(1)]),
+    mealWeekStart: z.number().int().min(0).max(6).nullable().default(null),
     themeMode: z.enum(['light', 'dark', 'auto', 'scheduled']),
     darkFrom: z.string(),
     darkTo: z.string(),
@@ -172,6 +174,7 @@ export const SettingsPatchSchema = z
     familyName: z.string().min(1).optional(),
     timezone: z.string().min(1).optional(),
     weekStart: z.union([z.literal(0), z.literal(1)]).optional(),
+    mealWeekStart: z.number().int().min(0).max(6).nullable().optional(),
     theme: z.enum(['light', 'dark']).optional(), // legacy - mapped into themeMode
     themeMode: z.enum(['light', 'dark', 'auto', 'scheduled']).optional(),
     darkFrom: z.string().regex(HHMM_RE, 'must be HH:MM').optional(),
@@ -862,8 +865,9 @@ export const SnapshotSchema = z
     ),
     items: z.array(SnapshotItemSchema), // assigned to them, open, due by `to` or high/urgent
     birthdays: z.array(SnapshotBirthdaySchema),
+    meals: z.array(MealSchema),
     tomorrow: z
-      .object({ date: z.string(), events: z.array(SnapshotEventSchema), items: z.array(SnapshotItemSchema), birthdays: z.array(SnapshotBirthdaySchema) })
+      .object({ date: z.string(), events: z.array(SnapshotEventSchema), items: z.array(SnapshotItemSchema), birthdays: z.array(SnapshotBirthdaySchema), meals: z.array(MealSchema) })
       .nullable(), // day range only
   })
   .openapi('Snapshot');
@@ -880,6 +884,7 @@ export const BoardSchema = z
       z.object({ memberId: z.string().nullable(), name: z.string().nullable(), avatar: z.string().nullable(), color: z.string().nullable(), remaining: z.number(), total: z.number() }),
     ),
     birthdays: z.array(SnapshotBirthdaySchema),
+    meals: z.array(MealSchema),
   })
   .openapi('Board');
 

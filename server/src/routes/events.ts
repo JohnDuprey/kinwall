@@ -910,6 +910,7 @@ eventsRoutes.openapi(
     await c.env.DB.batch([
       c.env.DB.prepare('DELETE FROM events WHERE id = ?').bind(id),
       c.env.DB.prepare("DELETE FROM notes WHERE target_type = 'event' AND target_id = ?").bind(id),
+      c.env.DB.prepare('UPDATE meals SET calendar_event_id = NULL, updated_at = ? WHERE calendar_event_id = ?').bind(new Date().toISOString(), id),
     ]);
     emit(c, 'events.changed', { calendarId: cal.id });
     return c.json({ ok: true }, 200);

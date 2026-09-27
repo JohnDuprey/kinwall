@@ -18,6 +18,7 @@ import { hostTimezone } from './env.ts';
 import { effectivePublicUrl } from './providers/config.ts';
 import { BoardSchema, CalendarSchema, CategorySchema, ChoreDaySchema, ChoreSchema, EventInstanceSchema, LeaderboardEntrySchema, ListDetailSchema, ListItemSchema, ListSchema, MemberSchema, NoteSchema, TrackerEntrySchema, TRACKER_KINDS, NotificationSchema, PointsSchema, SettingsSchema, SnapshotSchema, CustomSchemeSchema, MAX_CUSTOM_SCHEMES } from './schemas.ts';
 import type { Env } from './env.ts';
+import { RecipeSchema, RecipeInputSchema, MealSchema, MealInputSchema, MealPatchSchema, ProjectionSchema, ProjectionApplySchema, ProjectionQuerySchema, MealRangeSchema } from './meal-schemas.ts';
 import { VERSION } from './version.ts';
 import { resolveKey } from './auth.ts';
 
@@ -166,6 +167,9 @@ const BIRTHDAY_DOC = 'YYYY-MM-DD, or --MM-DD when the year is unknown (age is th
 const NOTE_TARGET_DOC = 'event:<eventId> (from list_events) or list_item:<itemId> (from get_list).';
 const SORT_BY_DOC = 'Item order: manual (priority first, overdue first, then hand-set order), added (newest first), due (soonest first, undated last), priority (priority, then soonest due), alpha (A-Z).';
 const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
+  list_recipes: { recipes: z.array(RecipeSchema) }, get_recipe: { recipe: RecipeSchema }, create_recipe: { recipe: RecipeSchema }, update_recipe: { recipe: RecipeSchema },
+  list_meals: { meals: z.array(MealSchema) }, create_meal: { meal: MealSchema }, update_meal: { meal: MealSchema },
+  get_meal_projection: ProjectionSchema.shape, apply_meal_projection: { added: z.number(), itemIds: z.array(z.string()), projection: ProjectionSchema },
   get_household: { settings: SettingsSchema, members: z.array(MemberSchema), calendars: z.array(CalendarSchema) },
   list_events: { events: z.array(EventInstanceSchema) },
   get_event: { event: EventInstanceSchema },
@@ -213,6 +217,7 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
 };
 
 const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boolean; idempotentHint: boolean; openWorldHint: boolean }> = {
+  list_recipes: READ, get_recipe: READ, create_recipe: WRITE, update_recipe: SET, list_meals: READ, create_meal: WRITE, update_meal: SET, get_meal_projection: READ, apply_meal_projection: SET,
   get_household: READ, list_events: READ, get_event: READ, list_chores: READ, get_leaderboard: READ, get_points: READ, list_lists: READ, get_list: READ, list_categories: READ, get_event_items: READ, list_notifications: READ, list_notes: READ, get_snapshot: READ, get_board: READ, list_tracker_entries: READ, add_tracker_entry: WRITE, update_tracker_entry: SET, list_color_schemes: READ, set_color_scheme: SET, save_color_scheme: WRITE,
   delete_color_scheme: { ...WRITE, destructiveHint: true, idempotentHint: true },
   create_event: { ...WRITE, openWorldHint: true }, update_event: { ...SET, openWorldHint: true }, set_event_category: SET,
@@ -232,6 +237,74 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     // SDK validates successful results against them, and tests exercise every tool.
     return server.registerTool(name, { ...config, outputSchema: TOOL_OUTPUT[name], annotations: { title: config.title, ...hints } }, cb);
   };
+
+  tool('list_recipes', { title: 'Find recipes', description: 'Search the recipe library; archived=true includes archived recipes.', inputSchema: { search: z.string().optional(), category: z.string().optional(), archived: z.boolean().optional() } }, async ({ search, category, archived }) => {
+    const query = new URLSearchParams();
+    if (search) query.set('search', search); if (category) query.set('category', category); if (archived) query.set('archived', 'true');
+    const result = await call(app, env, auth, 'GET', `/api/recipes?${query}`);
+    return result.status >= 400 ? errorResult(result.json, 'failed to find recipes') : okResult('Recipes', { recipes: result.json });
+  });
+  tool('get_recipe', { title: 'Get recipe', description: 'Read a recipe and its ingredients.', inputSchema: { id: z.string() } }, async ({ id }) => {
+    const result = await call(app, env, auth, 'GET', `/api/recipes/${encodeURIComponent(id)}`);
+    return result.status >= 400 ? errorResult(result.json, 'recipe not found') : okResult('Recipe', { recipe: result.json });
+  });
+  tool('create_recipe', { title: 'Create recipe', description: 'Admin: create a manual recipe. Source URLs are stored, never scraped.', inputSchema: { ...RecipeInputSchema.shape, ingredients: jsonList(RecipeInputSchema.shape.ingredients) } }, async (input) => {
+    const result = await call(app, env, auth, 'POST', '/api/recipes', input);
+    return result.status >= 400 ? errorResult(result.json, 'failed to create recipe') : okResult('Recipe created', { recipe: result.json });
+  });
+  tool('update_recipe', { title: 'Edit recipe', description: 'Admin: edit a recipe; archived=true archives it, false restores it. Supplying ingredients replaces the ingredient list. Existing planned meals keep their snapshots.', inputSchema: { id: z.string(), ...RecipeInputSchema.partial().shape, ingredients: jsonList(RecipeInputSchema.shape.ingredients) } }, async ({ id, ...input }) => {
+    const result = await call(app, env, auth, 'PATCH', `/api/recipes/${encodeURIComponent(id)}`, input);
+    return result.status >= 400 ? errorResult(result.json, 'failed to edit recipe') : okResult('Recipe updated', { recipe: result.json });
+  });
+  tool('list_meals', { title: 'Get meal plan', description: 'Read dated meals in an inclusive range. Choose from as the week start using the user’s preference or mealWeekStart from get_household. Omit to to retrieve that seven-day week.', inputSchema: { from: MealRangeSchema.shape.from, to: MealRangeSchema.shape.to.optional().describe('Inclusive end date; defaults to six days after from.') } }, async ({ from, to }) => {
+    const end = to ?? new Date(Date.parse(`${from}T00:00:00Z`) + 6 * 86400000).toISOString().slice(0, 10);
+    const result = await call(app, env, auth, 'GET', `/api/meals?${new URLSearchParams({ from, to: end })}`);
+    return result.status >= 400 ? errorResult(result.json, 'failed to read meals') : okResult('Meal plan', { meals: result.json });
+  });
+  tool('create_meal', { title: 'Plan meal', description: 'Admin: plan a recipe, freeform meal, or dining out on a date. Does not create calendar events.', inputSchema: { ...MealInputSchema.shape, member: z.string().nullable().optional().describe('Assignee name (case-insensitive) or id; null leaves unassigned. Overrides assigneeMemberId when provided.') } }, async ({ member, ...input }) => {
+    try {
+      if (member !== undefined) input.assigneeMemberId = member === null ? null : await resolveMember(app, env, auth, member);
+    } catch (err) {
+      return errorResult(null, err instanceof Error ? err.message : 'member lookup failed');
+    }
+    const result = await call(app, env, auth, 'POST', '/api/meals', input);
+    return result.status >= 400 ? errorResult(result.json, 'failed to plan meal') : okResult('Meal planned', { meal: result.json });
+  });
+  tool('update_meal', { title: 'Update meal', description: 'Admin: edit/assign a meal; refreshRecipe explicitly replaces its ingredient snapshot. Assigned devices may update notes/status only. Does not write calendar events.', inputSchema: { id: z.string(), ...MealPatchSchema.shape, member: z.string().nullable().optional().describe('Assignee name (case-insensitive) or id; null clears assignment. Overrides assigneeMemberId when provided.') } }, async ({ id, member, ...input }) => {
+    try {
+      if (member !== undefined) input.assigneeMemberId = member === null ? null : await resolveMember(app, env, auth, member);
+    } catch (err) {
+      return errorResult(null, err instanceof Error ? err.message : 'member lookup failed');
+    }
+    const result = await call(app, env, auth, 'PATCH', `/api/meals/${encodeURIComponent(id)}`, input);
+    return result.status >= 400 ? errorResult(result.json, 'failed to update meal') : okResult('Meal updated', { meal: result.json });
+  });
+  tool('get_meal_projection', { title: 'Preview meal groceries', description: 'Review scaled ingredients, per-meal/day sources, existing list matches, applied and changed amounts before applying. Ambiguous amounts need review. Select a shopping list to include matches and prior applications; no list returns an unscoped preview.', inputSchema: { ...ProjectionQuerySchema.shape, listName: z.string().optional().describe('Shopping list name, case-insensitive; use this or listId. listId takes precedence.') } }, async ({ from, to, listId, listName }) => {
+    try {
+      if (!listId && listName) listId = (await resolveList(app, env, auth, listName)).id;
+    } catch (err) {
+      return errorResult(null, err instanceof Error ? err.message : 'list lookup failed');
+    }
+    const query = new URLSearchParams({ from, to }); if (listId !== undefined) query.set('listId', listId);
+    const result = await call(app, env, auth, 'GET', `/api/meals/projection?${query}`);
+    return result.status >= 400 ? errorResult(result.json, 'failed to project groceries') : okResult('Shopping projection', result.json as Record<string, unknown>);
+  });
+  tool('apply_meal_projection', { title: 'Apply meal groceries', description: 'Admin: after the user reviews get_meal_projection and chooses a shopping list, add unclaimed ingredients. Repeated or overlapping applications to the same list do not duplicate groceries. Existing items are never rewritten, including changed amounts already applied.', inputSchema: {
+    ...ProjectionApplySchema.shape,
+    listId: ProjectionApplySchema.shape.listId.optional().describe('Target shopping list id; use this or listName. Takes precedence over listName.'),
+    listName: z.string().optional().describe('Target shopping list name, case-insensitive; use this or listId.'),
+    omitKeys: jsonList(ProjectionApplySchema.shape.omitKeys).describe('Exact item keys from get_meal_projection to omit (for example, pantry ingredients).'),
+    includeNotes: ProjectionApplySchema.shape.includeNotes.describe('Include meal/date/recipe source notes on added shopping items. Default: false.'),
+  } }, async ({ listId, listName, ...input }) => {
+    try {
+      if (!listId && listName) listId = (await resolveList(app, env, auth, listName)).id;
+    } catch (err) {
+      return errorResult(null, err instanceof Error ? err.message : 'list lookup failed');
+    }
+    if (!listId) return errorResult(null, 'listId or listName is required');
+    const result = await call(app, env, auth, 'POST', '/api/meals/projection/apply', { ...input, listId });
+    return result.status >= 400 ? errorResult(result.json, 'failed to apply groceries') : okResult('Shopping projection applied', result.json as Record<string, unknown>);
+  });
 
   tool(
     'get_household',

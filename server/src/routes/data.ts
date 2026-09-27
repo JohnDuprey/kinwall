@@ -6,6 +6,8 @@ import { bodyLimit } from 'hono/body-limit';
 import { createRouter } from '../router.ts';
 import { emit, type BusEventType } from '../bus.ts';
 import type { KinwallDb, KinwallStatement } from '../db.ts';
+import { RecipeSchema, MealSchema } from '../meal-schemas.ts';
+import { readRecipes, readMeals, normalizeIngredient } from '../meals.ts';
 import { readSettings, settingsWrites } from './settings.ts';
 import { toApi as categoryToApi } from './categories.ts';
 import { toApi as choreToApi, type ChoreRow } from './chores.ts';
@@ -107,6 +109,9 @@ const ExportSchema = z
     stickerPacks: z.array(z.object({ memberId: z.string(), packId: z.string(), unlockedAt: z.string() })),
     scrapbook: z.array(StickerPlacementSchema),
     trackers: z.array(TrackerEntrySchema), // reading log, memories, health visits (0031)
+    recipes: z.array(RecipeSchema),
+    meals: z.array(MealSchema),
+    mealShoppingSources: z.array(z.object({ listId: z.string(), sourceRef: z.string(), itemId: z.string(), fingerprint: z.string() })),
     passkeys: z.array(z.object({ name: z.string(), createdAt: z.string() })),
     webhooks: z.array(WebhookSchema),
   })
@@ -185,6 +190,9 @@ dataRoutes.openapi(
     c.header('Content-Disposition', `attachment; filename="kinwall-export-${date.slice(0, 10)}.json"`);
     return c.json(
       {
+        recipes: await readRecipes(db, { archived: true }),
+        meals: await readMeals(db, '0000-01-01', '9999-12-31'),
+        mealShoppingSources: (await db.prepare('SELECT list_id, source_ref, item_id, fingerprint FROM meal_shopping_sources ORDER BY list_id, source_ref').all<{ list_id: string; source_ref: string; item_id: string; fingerprint: string }>()).results.map((r) => ({ listId: r.list_id, sourceRef: r.source_ref, itemId: r.item_id, fingerprint: r.fingerprint })),
         version: EXPORT_VERSION,
         exportedAt: date,
         settings: await readSettings(db),
@@ -285,6 +293,9 @@ const ImportSchema = ExportSchema.extend({
   stickerPacks: ExportSchema.shape.stickerPacks.default([]),
   scrapbook: ExportSchema.shape.scrapbook.default([]),
   trackers: ExportSchema.shape.trackers.default([]),
+  recipes: ExportSchema.shape.recipes.default([]),
+  meals: ExportSchema.shape.meals.default([]),
+  mealShoppingSources: ExportSchema.shape.mealShoppingSources.default([]),
 }).openapi('Import');
 
 const ImportResultSchema = z
@@ -309,6 +320,9 @@ const ImportResultSchema = z
       stickerPacks: z.number(),
       scrapbook: z.number(),
       trackers: z.number(),
+      recipes: z.number(),
+      meals: z.number(),
+      mealShoppingSources: z.number(),
     }),
     // Synced calendars waiting to be reconnected (imported placeholders, from this or an earlier import).
     needsReconnect: z.array(z.object({ id: z.string(), kind: z.string(), name: z.string() })),
@@ -416,6 +430,7 @@ dataRoutes.openapi(
     const scrapbook = body.scrapbook.filter((st) => fileMembers.has(st.memberId));
     // A member's entries only with that member (they're personal); the family's and removed members' always.
     const trackers = body.trackers.filter((t) => t.memberId === null || fileMembers.has(t.memberId));
+    const mealSources = body.mealShoppingSources.filter((s) => items.some((i) => i.id === s.itemId && i.listId === s.listId));
     const steps = items.flatMap((i) => i.steps.map((st) => ({ ...st, itemId: i.id, doneAt: st.done ? (i.doneAt ?? new Date().toISOString()) : null, createdAt: i.createdAt })));
 
     // Members and chores have no createdAt in the export; stamp new rows 1 ms apart in file order so
@@ -626,6 +641,12 @@ dataRoutes.openapi(
         // Photos travel in their own zip: a photo not on this instance is dropped, not an FK error.
         { keep: ['created_at', 'kind'], expr: { photo_id: "(SELECT id FROM photos WHERE id = j.value->>'photo_id')" } },
       ),
+      ...upserts(db, 'recipes', 'id', body.recipes.map((r) => ({ id: r.id, name: r.name, description: r.description, instructions: r.instructions, preparation_notes: r.preparationNotes, source_url: r.sourceUrl, default_servings: r.defaultServings, archived: r.archived ? 1 : 0, created_at: r.createdAt, updated_at: r.updatedAt })), keepCreated),
+      // Replace each imported recipe's ingredient set, including intentionally empty sets.
+      db.prepare('DELETE FROM recipe_ingredients WHERE recipe_id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(body.recipes.map((r) => r.id))),
+      ...upserts(db, 'recipe_ingredients', 'id', body.recipes.flatMap((r) => r.ingredients.map((i) => ({ id: i.id, recipe_id: r.id, name: i.name, normalized_name: normalizeIngredient(i.name), quantity: i.quantity, unit: i.unit, preparation: i.preparation, qualifier: i.qualifier, category: i.category, sort: i.sort })))),
+      ...upserts(db, 'meals', 'id', body.meals.map((m) => ({ id: m.id, date: m.date, slot: m.slot, title: m.title, meal_kind: m.mealKind, recipe_id: m.recipeId, recipe_snapshot: m.recipeSnapshot ? JSON.stringify(m.recipeSnapshot) : null, servings: m.servings, assignee_member_id: m.assigneeMemberId, notes: m.notes, planned_time: m.plannedTime, calendar_event_id: m.calendarEventId, status: m.status, source_url: m.sourceUrl, created_at: m.createdAt, updated_at: m.updatedAt })), { ...keepCreated, expr: { recipe_id: "(SELECT id FROM recipes WHERE id = j.value->>'recipe_id')", assignee_member_id: memberRef('assignee_member_id') } }),
+      ...upserts(db, 'meal_shopping_sources', 'list_id, source_ref', mealSources.map((s) => ({ list_id: s.listId, source_ref: s.sourceRef, item_id: s.itemId, fingerprint: s.fingerprint }))),
     ];
     if (writes.length) await db.batch(writes);
 
@@ -639,6 +660,8 @@ dataRoutes.openapi(
       ['list.changed', body.lists.length + notes.length],
       ['sticker.changed', pointEntries.length + stickerPacks.length + scrapbook.length],
       ['tracker.changed', trackers.length],
+      ['recipe.changed', body.recipes.length],
+      ['meal.changed', body.meals.length],
     ];
     for (const [type, n] of changed) if (n > 0) emit(c, type, { imported: n });
 
@@ -664,6 +687,9 @@ dataRoutes.openapi(
           stickerPacks: stickerPacks.length,
           scrapbook: scrapbook.length,
           trackers: trackers.length,
+          recipes: body.recipes.length,
+          meals: body.meals.length,
+          mealShoppingSources: mealSources.length,
         },
         needsReconnect: (await db.prepare("SELECT id, kind, name FROM calendars WHERE kind != 'local' AND config = '' ORDER BY name").all<{ id: string; kind: string; name: string }>()).results,
         skipped: {
