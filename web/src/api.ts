@@ -158,7 +158,7 @@ export const api = {
   checkAdminKey: (): Promise<Me> => MOCK ? Promise.resolve({ scope: 'admin', keyName: 'mock', kind: 'api' }) : get<Me>('api/me', true),
   // Strict check (no fail-open) against whatever key is currently stored — used by the QR-pairing
   // "confirm" screen and Settings (which must fail closed to the display view, not assume admin).
-  meStrict: (): Promise<Me> => MOCK ? Promise.resolve({ scope: 'admin', keyName: 'mock', kind: 'api' }) : get<Me>('api/me'),
+  meStrict: (): Promise<Me> => MOCK ? Promise.resolve({ scope: 'admin', keyName: 'mock', kind: 'api', locked: false }) : get<Me>('api/me'),
 
   getSettings: (useAdmin?: boolean) => MOCK ? mock.getSettings() : get<Settings>('api/settings', useAdmin),
   // useAdmin: the setup wizard saves household settings with the in-memory admin key when this
@@ -331,9 +331,10 @@ export const api = {
   pairApprove: (code: string, name: string, owner: string) => post<{ keyId: string; name: string }>('api/pair/approve', { code, name, owner }, true),
   setKeyOwner: (id: string, owner: string) => patch<ApiKey>(`api/keys/${id}`, { owner }, true),
   // OAuth consent (#/authorize) and Settings → Access → Connected apps.
-  authorizationRequest: (qs: string) => get<{ clientName: string; redirectHost: string; requestedScope: 'admin' | 'display' }>(`api/authorizations/request?${qs}`, true),
+  authorizationRequest: (qs: string) => get<{ clientName: string; redirectHost: string; requestedScope: 'admin' | 'display'; deviceApp?: boolean }>(`api/authorizations/request?${qs}`, true),
   decideAuthorization: (body: Record<string, string | undefined>) => post<{ redirect: string }>('api/authorizations/approve', body, true),
-  getAuthorizations: () => MOCK ? Promise.resolve([]) : get<{ id: string; clientName: string; scope: 'admin' | 'display'; approvedBy: string | null; createdAt: string; lastUsedAt: string | null }[]>('api/authorizations'),
+  getAuthorizations: () => MOCK ? Promise.resolve([]) : get<{ id: string; clientName: string; scope: 'admin' | 'display'; approvedBy: string | null; createdAt: string; lastUsedAt: string | null; owner: string | null; deviceApp: boolean }[]>('api/authorizations'),
+  setAuthorizationOwner: (id: string, owner: string) => patch<{ ok: boolean; owner: string }>(`api/authorizations/${id}`, { owner }),
   revokeAuthorization: (id: string) => del(`api/authorizations/${id}`),
 
   getWebhooks: () => MOCK ? mock.getWebhooks() : get<Webhook[]>('api/webhooks', true),

@@ -541,7 +541,7 @@ export const ApiKeySchema = z
     scope: z.enum(['admin', 'display']),
     createdAt: z.string(),
     lastUsedAt: z.string().nullable(),
-    owner: z.string().nullable().openapi({ description: "Who the device belongs to: 'shared' (the whole family), a member id, or null (paired before owners; the device picks)" }),
+    owner: z.string().nullable().openapi({ description: "Who the device belongs to: 'shared' (the whole family), a member id it's pinned to, or null (paired before owners; the device picks)" }),
   })
   .openapi('ApiKey');
 
@@ -549,7 +549,17 @@ export const ApiKeyCreatedSchema = z
   .object({ id: z.string(), name: z.string(), scope: z.enum(['admin', 'display']), key: z.string() })
   .openapi('ApiKeyCreated');
 
-export const MeSchema = z.object({ scope: z.enum(['admin', 'display']), keyName: z.string(), kind: z.enum(['api', 'session', 'oauth']), owner: z.string().nullable().optional(), version: z.string(), hostPortalUrl: z.string().optional() }).openapi('Me');
+export const MeSchema = z
+  .object({
+    scope: z.enum(['admin', 'display']),
+    keyName: z.string(),
+    kind: z.enum(['api', 'session', 'oauth']),
+    owner: z.string().nullable().optional().openapi({ description: "Whose device this is: 'shared', a member id, or null. On a full-access key it's only for personal defaults" }),
+    locked: z.boolean().openapi({ description: "The owner locks this device's family filter (everyday-access keys with an owner: a member id pins it, 'shared' shows everyone). Never true for full access" }),
+    version: z.string(),
+    hostPortalUrl: z.string().optional(),
+  })
+  .openapi('Me');
 
 export const WebhookSchema = z
   .object({ id: z.string(), url: z.string(), events: z.array(z.string()), enabled: z.boolean(), createdAt: z.string() })

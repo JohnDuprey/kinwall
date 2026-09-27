@@ -20,10 +20,10 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 type Tab = 'book' | 'shop'
 
 export default function Stickers() {
-  const { members, selectedMemberId, settings, refreshTick, reloadCore, toast } = useApp()
+  const { members, selectedMemberId, meMemberId, settings, refreshTick, reloadCore, toast } = useApp()
   const dialog = useDialog()
   const [memberId, setMemberId] = useState<string | null>(() =>
-    (members.some(m => m.id === selectedMemberId) ? selectedMemberId : members[0]?.id) ?? null)
+    (members.some(m => m.id === selectedMemberId) ? selectedMemberId : meMemberId ?? members[0]?.id) ?? null)
   const member = members.find(m => m.id === memberId) ?? null
   const [tab, setTab] = useState<Tab>('book')
   const [packs, setPacks] = useState<StickerPack[] | null>(null)

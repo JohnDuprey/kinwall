@@ -7,6 +7,13 @@ Kinwall has no usernames or passwords. Every request carries a **key**, and each
 | **admin** | passkey sessions, recovery-code sessions, admin API keys, `ADMIN_API_KEY`, "Full access" connected apps | Everything. |
 | **display** | paired wall displays, "Everyday access" connected apps | Read the household; create, edit and delete events, chores, categories and lists; change household settings; manage its own push subscription. It **can't** touch members, calendar accounts or calendar setup, keys, displays, passkeys, webhooks, export/import or notifications to other devices. |
 
+### Whose device a key is
+
+Paired displays and the Kinwall app's sign-in also record whose device it is: **Shared (the whole family)** or one member. A parent picks it when pairing a display (**Who uses it**) or on the app's consent screen (**Whose device is this?**), and can change it under [Settings → Access](../settings/access.md). The device itself can't.
+
+* On a **display** key (a wall screen, a kid's device, an "Everyday access" app, and the app's widgets and watch), a member owner pins the view to that member, and **Shared** keeps it on the whole family. Either way the device can't pick its own filter.
+* On an **admin** key (a parent's phone with "Full access"), the owner never locks anything. It only sets personal defaults, and the family filter works as on any parent device.
+
 ## The sign-in screen
 
 A device without a key shows **Welcome home 👋** with these options:

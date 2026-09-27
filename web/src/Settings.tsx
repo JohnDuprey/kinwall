@@ -1877,15 +1877,20 @@ function RecoveryCodesSection({ toast, onChanged }: { toast: (m: string, persist
 // so there's one place to mint each kind of key instead of two overlapping ones. Revoking a
 // display key still works here-or-there since both call the same DELETE /api/keys/:id, but this
 // list only shows admin keys to keep that one job in Displays.
-/** OAuth connections (e.g. a Claude connector) - approved on the consent screen, revoked here. */
+/** OAuth connections (e.g. a Claude connector) - approved on the consent screen, revoked here.
+ * Kinwall's own app also has an owner ("Whose device is this?"), changeable here. */
 function ConnectedAppsSection({ toast }: { toast: (m: string, persist?: boolean) => void }) {
   const dialog = useDialog()
+  const { reloadCore } = useApp()
   const [apps, setApps] = useState<Awaited<ReturnType<typeof api.getAuthorizations>>>([])
   const load = () => { api.getAuthorizations().then(setApps).catch(() => {}) }
   useEffect(load, [])
   const revoke = async (id: string, name: string) => {
     if (!await dialog.confirm({ title: `Disconnect ${name}?`, body: 'It will need to be approved again to use Kinwall.', confirmLabel: 'Disconnect', danger: true })) return
     try { await api.revokeAuthorization(id); load() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not disconnect', true) }
+  }
+  const changeOwner = async (id: string, owner: string) => {
+    try { await api.setAuthorizationOwner(id, owner); load(); reloadCore() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not change whose device it is', true) }
   }
   return (
     <Section title="Connected apps" icon={<LinkIcon width={16} height={16} />}>
@@ -1899,6 +1904,7 @@ function ConnectedAppsSection({ toast }: { toast: (m: string, persist?: boolean)
               {a.lastUsedAt ? ` · used ${new Date(a.lastUsedAt).toLocaleDateString()}` : ''}
             </div>
           </div>
+          {a.deviceApp && <OwnerSelect value={a.owner ?? ''} onChange={v => changeOwner(a.id, v)} label={`Whose device ${a.clientName} is`} legacy={!a.owner} />}
           <button className="icon-btn" onClick={() => revoke(a.id, a.clientName)} aria-label={`Disconnect ${a.clientName}`}><TrashIcon width={16} height={16} /></button>
         </div>
       ))}

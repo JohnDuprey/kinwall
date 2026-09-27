@@ -22,7 +22,14 @@ Phones and computers that sign in with a passkey. Parents (admins) can change ev
 
 ## Connected apps
 
-Apps connected through OAuth sign-in, such as a Claude connector pointed at `https://<your-kinwall>/mcp`. Each shows **Full access** or **Everyday access**, when it was connected and when it was last used. Delete one to disconnect it ("It will need to be approved again to use Kinwall"). See [MCP server](../integrations/mcp.md).
+Apps connected through OAuth sign-in, such as a Claude connector pointed at `https://<your-kinwall>/mcp` or the Kinwall app on a phone. Each shows **Full access** or **Everyday access**, when it was connected and when it was last used. Delete one to disconnect it ("It will need to be approved again to use Kinwall"). See [MCP server](../integrations/mcp.md).
+
+The Kinwall app also has a picker for whose device it is: **Shared (the whole family)** or one member, chosen on the consent screen ("Whose device is this?") and changeable here. What it does depends on the access:
+
+* **Everyday access** (a kid's phone): like a paired display, the app shows only that member's events, chores and lists.
+* **Full access** (a parent's phone): nothing is locked. The family filter starts on everyone and every member stays selectable. The owner is only used for personal defaults, such as who notes are posted as and whose sticker book opens first.
+
+The widgets and Apple Watch key the app makes from that sign-in follow it on a kid's device (everyday access), so they show only that child. On a parent's phone (full access) they're **Shared** and show the whole family. They're listed under **Wall screens & kids' devices**, where you can change them separately. An app signed in before this option shows "Chosen on the device" until you pick one. Other connected apps (Claude and other MCP clients) have no owner.
 
 ## API Keys
 

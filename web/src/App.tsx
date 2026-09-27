@@ -835,6 +835,7 @@ function AppRoutes() {
   const [categories, setCategories] = useState<Category[]>([])
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null)
   const [owner, setOwner] = useState<string | null>(null) // who an admin says this device belongs to (GET /api/me)
+  const [ownerLocks, setOwnerLocks] = useState(false) // ...and whether that locks the family filter (everyday access only)
   // `persist`: errors and results worth reading stay until tapped; confirmations fade after 4s.
   const [toastMsg, setToastMsg] = useState<{ msg: string; persist: boolean } | null>(null)
   // Sticky banner-style toast (tap to dismiss), e.g. after a recovery-code sign-in.
@@ -867,7 +868,7 @@ function AppRoutes() {
       setSettings(settings)
       setMembers(m)
       setCategories(cats)
-      if (me) setOwner(me.owner ?? null)
+      if (me) { setOwner(me.owner ?? null); setOwnerLocks(!!me.locked) }
       setLoadError(false)
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) { clearKey('rejected'); setHasKey(false); return }
@@ -888,11 +889,14 @@ function AppRoutes() {
   useTheme(settings)
 
   // A display pinned to one member: that member is always the selected one and the header shows
-  // only them. An admin-set owner wins and locks it ('shared' = nobody); devices paired before
-  // owners existed (owner null) pick their own under This display → Show only. A member deleted
-  // since falls back to everyone.
+  // only them. On an everyday-access device an admin-set owner wins and locks it ('shared' =
+  // nobody); devices paired before owners existed (owner null) pick their own under This display →
+  // Show only. A parent's device (full access) is never locked by its owner: the owner is only for
+  // personal defaults (meMemberId), and the family filter works as on any unowned device. A member
+  // deleted since falls back to everyone.
   const device = useDeviceAppearance()
-  const focusMember = members.find(m => m.id === (owner ? owner : device.focusMemberId))
+  const focusMember = members.find(m => m.id === (ownerLocks ? owner : device.focusMemberId))
+  const meMemberId = members.some(m => m.id === owner) ? owner : null
   const effectiveMemberId = focusMember?.id ?? selectedMemberId
   const setMemberId = focusMember ? () => {} : setSelectedMemberId
 
@@ -974,7 +978,7 @@ function AppRoutes() {
   return (
     <AppContext.Provider value={{
       settings, members, categories, selectedMemberId: effectiveMemberId, setSelectedMemberId: setMemberId,
-      focusMemberId: focusMember?.id ?? null, focusShowsShared: !device.focusHideShared, focusLocked: !!owner,
+      focusMemberId: focusMember?.id ?? null, focusShowsShared: !device.focusHideShared, focusLocked: ownerLocks, meMemberId,
       refreshTick: pollTick + manualTick,
       reloadCore: () => setManualTick(t => t + 1),
       toast: (msg, persist = false) => setToastMsg({ msg, persist }),

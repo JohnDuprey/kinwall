@@ -12,8 +12,9 @@ import type { Context } from 'hono';
 import { cors } from 'hono/cors';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
-import { createApiKey, resolveKey, sha256Hex, type KeyScope } from '../auth.ts';
+import { createApiKey, resolveKey, sha256Hex, validOwner, type KeyScope } from '../auth.ts';
 import { effectivePublicUrl } from '../providers/config.ts';
+import { emit } from '../bus.ts';
 
 export const mcpOAuthRoutes = createRouter();
 
@@ -81,6 +82,14 @@ function clientHasRedirect(client: ClientRow, redirectUri: string): boolean {
   return (JSON.parse(client.redirect_uris) as string[]).includes(redirectUri);
 }
 
+// Kinwall's own phone/tablet app signs in on its family.kinwall.app: link. Only its sign-ins are a
+// person's device, so only they ask "Whose device is this?" and get an owner; MCP and automation
+// clients (https or loopback redirects, other apps' schemes) never do.
+const DEVICE_APP_SCHEME = 'family.kinwall.app:';
+export function isDeviceApp(redirectUris: string[]): boolean {
+  return redirectUris.some((u) => u.startsWith(DEVICE_APP_SCHEME));
+}
+
 export async function revokeGrant(db: KinwallDb, grantId: string): Promise<void> {
   await db.batch([
     db.prepare('DELETE FROM api_keys WHERE oauth_grant_id = ?').bind(grantId),
@@ -89,9 +98,9 @@ export async function revokeGrant(db: KinwallDb, grantId: string): Promise<void>
   ]);
 }
 
-async function issueTokens(db: KinwallDb, grant: { id: string; scope: KeyScope; clientName: string }) {
+async function issueTokens(db: KinwallDb, grant: { id: string; scope: KeyScope; clientName: string; owner: string | null }) {
   const now = Date.now();
-  const access = await createApiKey(db, grant.clientName, grant.scope, { kind: 'oauth', expiresAt: new Date(now + ACCESS_TTL_S * 1000).toISOString() });
+  const access = await createApiKey(db, grant.clientName, grant.scope, { kind: 'oauth', expiresAt: new Date(now + ACCESS_TTL_S * 1000).toISOString(), owner: grant.owner });
   const refresh = randomToken();
   await db.batch([
     db.prepare('UPDATE api_keys SET oauth_grant_id = ? WHERE id = ?').bind(grant.id, access.id),
@@ -202,7 +211,7 @@ mcpOAuthRoutes.get('/api/authorizations/request', async (c) => {
   // Where the consent screen says you'll return: a web address's host, or "the app" for an app link.
   const back = new URL(redirectUri);
   const redirectHost = back.protocol === 'https:' || back.protocol === 'http:' ? back.host : 'the app';
-  return c.json({ clientName: client.name, redirectHost, requestedScope: scopeFrom(c.req.query('scope')) ?? 'admin' });
+  return c.json({ clientName: client.name, redirectHost, requestedScope: scopeFrom(c.req.query('scope')) ?? 'admin', deviceApp: isDeviceApp([redirectUri]) });
 });
 
 mcpOAuthRoutes.post('/api/authorizations/approve', async (c) => {
@@ -221,9 +230,15 @@ mcpOAuthRoutes.post('/api/authorizations/approve', async (c) => {
   }
   const scope: KeyScope = body.scope === 'display' ? 'display' : 'admin';
   if (!body.code_challenge || body.code_challenge_method !== 'S256') return c.json({ error: 'S256 code_challenge required' }, 400);
+  // Whose device: the app's sign-in only (default the whole family); ignored for anything else.
+  let owner: string | null = null;
+  if (isDeviceApp([body.redirect_uri])) {
+    owner = await validOwner(c.env.DB, body.owner || 'shared');
+    if (!owner) return c.json({ error: 'unknown family member' }, 400);
+  }
   const code = randomToken();
-  await c.env.DB.prepare('INSERT INTO oauth_codes (hash, client_id, scope, redirect_uri, code_challenge, approved_by, expires_at) VALUES (?,?,?,?,?,?,?)')
-    .bind(await sha256Hex(code), client.id, scope, body.redirect_uri, body.code_challenge, approver.name, new Date(Date.now() + CODE_TTL_MS).toISOString())
+  await c.env.DB.prepare('INSERT INTO oauth_codes (hash, client_id, scope, redirect_uri, code_challenge, approved_by, expires_at, owner) VALUES (?,?,?,?,?,?,?,?)')
+    .bind(await sha256Hex(code), client.id, scope, body.redirect_uri, body.code_challenge, approver.name, new Date(Date.now() + CODE_TTL_MS).toISOString(), owner)
     .run();
   back.searchParams.set('code', code);
   return c.json({ redirect: back.toString() });
@@ -241,7 +256,7 @@ mcpOAuthRoutes.post('/oauth/token', async (c) => {
     if (!p.code || !p.code_verifier || !p.client_id || !p.redirect_uri) return oauthError(c, 'invalid_request', 'code, code_verifier, client_id and redirect_uri are required');
     const hash = await sha256Hex(p.code);
     const row = await db.prepare('SELECT * FROM oauth_codes WHERE hash = ?').bind(hash).first<{
-      client_id: string; scope: KeyScope; redirect_uri: string; code_challenge: string; approved_by: string | null; expires_at: string; grant_id: string | null;
+      client_id: string; scope: KeyScope; redirect_uri: string; code_challenge: string; approved_by: string | null; expires_at: string; grant_id: string | null; owner: string | null;
     }>();
     if (!row) return oauthError(c, 'invalid_grant', 'unknown or expired code');
     if (row.grant_id) {
@@ -255,21 +270,21 @@ mcpOAuthRoutes.post('/oauth/token', async (c) => {
     if (!client) return oauthError(c, 'invalid_client', 'unknown client');
     const grantId = crypto.randomUUID();
     await db.batch([
-      db.prepare('INSERT INTO oauth_grants (id, client_id, scope, approved_by, created_at) VALUES (?,?,?,?,?)').bind(grantId, client.id, row.scope, row.approved_by, now),
+      db.prepare('INSERT INTO oauth_grants (id, client_id, scope, approved_by, created_at, owner) VALUES (?,?,?,?,?,?)').bind(grantId, client.id, row.scope, row.approved_by, now, row.owner),
       db.prepare('UPDATE oauth_codes SET grant_id = ? WHERE hash = ?').bind(grantId, hash),
       db.prepare('DELETE FROM oauth_codes WHERE expires_at < ?').bind(new Date(Date.now() - 24 * 3600e3).toISOString()),
     ]);
     c.header('Cache-Control', 'no-store');
-    return c.json(await issueTokens(db, { id: grantId, scope: row.scope, clientName: client.name }));
+    return c.json(await issueTokens(db, { id: grantId, scope: row.scope, clientName: client.name, owner: row.owner }));
   }
 
   if (p.grant_type === 'refresh_token') {
     if (!p.refresh_token) return oauthError(c, 'invalid_request', 'refresh_token is required');
     const hash = await sha256Hex(p.refresh_token);
     const row = await db
-      .prepare('SELECT r.grant_id, r.expires_at, r.used_at, g.scope, g.client_id, cl.name AS client_name FROM oauth_refresh_tokens r JOIN oauth_grants g ON g.id = r.grant_id JOIN oauth_clients cl ON cl.id = g.client_id WHERE r.hash = ?')
+      .prepare('SELECT r.grant_id, r.expires_at, r.used_at, g.scope, g.client_id, g.owner, cl.name AS client_name FROM oauth_refresh_tokens r JOIN oauth_grants g ON g.id = r.grant_id JOIN oauth_clients cl ON cl.id = g.client_id WHERE r.hash = ?')
       .bind(hash)
-      .first<{ grant_id: string; expires_at: string; used_at: string | null; scope: KeyScope; client_id: string; client_name: string }>();
+      .first<{ grant_id: string; expires_at: string; used_at: string | null; scope: KeyScope; client_id: string; owner: string | null; client_name: string }>();
     if (!row) return oauthError(c, 'invalid_grant', 'unknown refresh token');
     if (row.used_at) {
       // Rotation reuse = likely theft. Revoke the whole connection; the user re-approves.
@@ -279,7 +294,7 @@ mcpOAuthRoutes.post('/oauth/token', async (c) => {
     if (row.expires_at < now || (p.client_id && p.client_id !== row.client_id)) return oauthError(c, 'invalid_grant', 'refresh token expired or not for this client');
     await db.prepare('UPDATE oauth_refresh_tokens SET used_at = ? WHERE hash = ?').bind(now, hash).run();
     c.header('Cache-Control', 'no-store');
-    return c.json(await issueTokens(db, { id: row.grant_id, scope: row.scope, clientName: row.client_name }));
+    return c.json(await issueTokens(db, { id: row.grant_id, scope: row.scope, clientName: row.client_name, owner: row.owner }));
   }
 
   return oauthError(c, 'unsupported_grant_type', 'use authorization_code or refresh_token');
@@ -305,9 +320,32 @@ mcpOAuthRoutes.get('/api/authorizations', async (c) => {
   const caller = await resolveKey(c);
   if (!caller || caller.scope !== 'admin' || caller.kind === 'oauth') return c.json({ error: 'sign in as an admin to manage connected apps' }, 403);
   const { results } = await c.env.DB.prepare(
-    'SELECT g.id, g.scope, g.approved_by, g.created_at, g.last_used_at, cl.name AS client_name FROM oauth_grants g JOIN oauth_clients cl ON cl.id = g.client_id ORDER BY g.created_at',
-  ).all<{ id: string; scope: string; approved_by: string | null; created_at: string; last_used_at: string | null; client_name: string }>();
-  return c.json(results.map((r) => ({ id: r.id, clientName: r.client_name, scope: r.scope, approvedBy: r.approved_by, createdAt: r.created_at, lastUsedAt: r.last_used_at })));
+    'SELECT g.id, g.scope, g.approved_by, g.created_at, g.last_used_at, g.owner, cl.name AS client_name, cl.redirect_uris FROM oauth_grants g JOIN oauth_clients cl ON cl.id = g.client_id ORDER BY g.created_at',
+  ).all<{ id: string; scope: string; approved_by: string | null; created_at: string; last_used_at: string | null; owner: string | null; client_name: string; redirect_uris: string }>();
+  return c.json(results.map((r) => ({
+    id: r.id, clientName: r.client_name, scope: r.scope, approvedBy: r.approved_by, createdAt: r.created_at, lastUsedAt: r.last_used_at,
+    owner: r.owner, deviceApp: isDeviceApp(JSON.parse(r.redirect_uris) as string[]),
+  })));
+});
+
+// Whose device a signed-in app is: the grant and its current access key change now, the next
+// refresh copies it too. Widget/watch keys the app already made are displays of their own
+// (Settings → Access → Displays). Only the app's sign-ins have an owner, not MCP clients.
+mcpOAuthRoutes.patch('/api/authorizations/:id', async (c) => {
+  const caller = await resolveKey(c);
+  if (!caller || caller.scope !== 'admin' || caller.kind === 'oauth') return c.json({ error: 'sign in as an admin to manage connected apps' }, 403);
+  const id = c.req.param('id');
+  const body = (await c.req.json().catch(() => ({}))) as { owner?: unknown };
+  const owner = typeof body.owner === 'string' ? await validOwner(c.env.DB, body.owner) : null;
+  if (!owner) return c.json({ error: 'unknown family member' }, 400);
+  const grant = await c.env.DB.prepare('SELECT cl.redirect_uris FROM oauth_grants g JOIN oauth_clients cl ON cl.id = g.client_id WHERE g.id = ?').bind(id).first<{ redirect_uris: string }>();
+  if (!grant || !isDeviceApp(JSON.parse(grant.redirect_uris) as string[])) return c.json({ error: 'not found' }, 404);
+  await c.env.DB.batch([
+    c.env.DB.prepare('UPDATE oauth_grants SET owner = ? WHERE id = ?').bind(owner, id),
+    c.env.DB.prepare('UPDATE api_keys SET owner = ? WHERE oauth_grant_id = ?').bind(owner, id),
+  ]);
+  emit(c, 'settings.changed', { grantId: id }); // the device's next poll picks up its new owner
+  return c.json({ ok: true, owner });
 });
 
 mcpOAuthRoutes.delete('/api/authorizations/:id', async (c) => {

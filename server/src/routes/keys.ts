@@ -132,8 +132,10 @@ keysRoutes.openapi(
     const me = await resolveKey(c);
     const count = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM api_keys WHERE kind = 'api'").first<{ n: number }>();
     if (Number(count?.n ?? 0) >= MAX_KEYS) return c.json({ error: 'This household has too many keys. Remove some under Settings → Access.' }, 429);
-    // An owned display's widgets belong to the same person (and stay locked to them).
-    const { id, key } = await createApiKey(c.env.DB, name, 'display', { owner: me?.owner ?? null });
+    // Widgets follow the device only when the device itself is pinned (a kid's phone signed in
+    // with everyday access). They're everyday-access keys, and an owner pins those, so a parent's
+    // phone (full access, never locked) gets shared widgets that show the whole family.
+    const { id, key } = await createApiKey(c.env.DB, name, 'display', { owner: me?.scope === 'display' ? me.owner ?? null : 'shared' });
     emit(c, 'settings.changed', { keyId: id });
     return c.json({ id, name, scope: 'display' as const, key }, 201);
   },

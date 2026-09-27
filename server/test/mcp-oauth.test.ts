@@ -172,3 +172,99 @@ test('oauth: a native app signs in with its own reverse-domain link (RFC 8252)',
   assert.equal(tokens.scope, 'kinwall:display');
   assert.equal((await t.req('/api/settings', {}, tokens.access_token)).status, 200);
 });
+
+// The app's sign-in: "Whose device is this?" on the consent screen becomes the owner of its keys.
+async function appSignIn(t: ReturnType<typeof setup>, scope: 'admin' | 'display', owner?: string) {
+  const APP = 'family.kinwall.app:/oauth';
+  const reg = await (await t.req('/oauth/register', { method: 'POST', body: JSON.stringify({ client_name: 'Kinwall for iPhone', redirect_uris: [APP] }) })).json() as any;
+  const { verifier, challenge } = pkce();
+  const approved = await (await t.req('/api/authorizations/approve', {
+    method: 'POST',
+    body: JSON.stringify({ decision: 'approve', client_id: reg.client_id, redirect_uri: APP, code_challenge: challenge, code_challenge_method: 'S256', scope, owner }),
+  }, ADMIN_KEY)).json() as any;
+  const code = new URL(approved.redirect).searchParams.get('code')!;
+  return await (await t.req('/oauth/token', t.form({ grant_type: 'authorization_code', code, code_verifier: verifier, client_id: reg.client_id, redirect_uri: APP }))).json() as any;
+}
+const addMember = async (t: ReturnType<typeof setup>, name: string) => (await (await t.req('/api/members', { method: 'POST', body: JSON.stringify({ name, color: '#336699' }) }, ADMIN_KEY)).json() as any).id as string;
+const me = async (t: ReturnType<typeof setup>, key: string) => (await (await t.req('/api/me', {}, key)).json()) as any;
+
+test('oauth owner: the app asks whose device it is; MCP clients never get an owner', async () => {
+  const t = setup();
+  const alex = await addMember(t, 'Alex');
+  const APP = 'family.kinwall.app:/oauth';
+  const reg = await (await t.req('/oauth/register', { method: 'POST', body: JSON.stringify({ client_name: 'Kinwall for iPhone', redirect_uris: [APP] }) })).json() as any;
+  const info = await (await t.req(`/api/authorizations/request?${new URLSearchParams({ client_id: reg.client_id, redirect_uri: APP })}`, {}, ADMIN_KEY)).json() as any;
+  assert.equal(info.deviceApp, true);
+
+  const tok = await appSignIn(t, 'admin', alex);
+  const who = await me(t, tok.access_token);
+  assert.equal(who.owner, alex);
+  const grants = await (await t.req('/api/authorizations', {}, ADMIN_KEY)).json() as any[];
+  assert.equal(grants[0].owner, alex);
+  assert.equal(grants[0].deviceApp, true);
+  // the refreshed key is Alex's too
+  const refreshed = await (await t.req('/oauth/token', t.form({ grant_type: 'refresh_token', refresh_token: tok.refresh_token }))).json() as any;
+  assert.equal((await me(t, refreshed.access_token)).owner, alex);
+
+  // no pick = shared; an unknown member is refused
+  assert.equal((await me(t, (await appSignIn(t, 'admin')).access_token)).owner, 'shared');
+  const { challenge } = pkce();
+  const bad = await t.req('/api/authorizations/approve', { method: 'POST', body: JSON.stringify({ decision: 'approve', client_id: reg.client_id, redirect_uri: APP, code_challenge: challenge, code_challenge_method: 'S256', owner: 'nobody' }) }, ADMIN_KEY);
+  assert.equal(bad.status, 400);
+
+  // An MCP client: not a device app, and an owner in the approval is ignored.
+  const mcpReg = await (await t.req('/oauth/register', { method: 'POST', body: JSON.stringify({ client_name: 'Claude', redirect_uris: [REDIRECT] }) })).json() as any;
+  const mcpInfo = await (await t.req(`/api/authorizations/request?${new URLSearchParams({ client_id: mcpReg.client_id, redirect_uri: REDIRECT })}`, {}, ADMIN_KEY)).json() as any;
+  assert.equal(mcpInfo.deviceApp, false);
+  const mcpTok = await (await exchange(t, await authorize(t))).json() as any;
+  assert.equal((await me(t, mcpTok.access_token)).owner, null);
+});
+
+test('oauth owner: full access records the owner without locking; everyday access is pinned', async () => {
+  const t = setup();
+  const sam = await addMember(t, 'Sam');
+  const maya = await addMember(t, 'Maya');
+  const parent = await me(t, (await appSignIn(t, 'admin', sam)).access_token);
+  assert.equal(parent.scope, 'admin');
+  assert.equal(parent.owner, sam);
+  assert.equal(parent.locked, false);
+  const kid = await me(t, (await appSignIn(t, 'display', maya)).access_token);
+  assert.equal(kid.scope, 'display');
+  assert.equal(kid.owner, maya);
+  assert.equal(kid.locked, true);
+  assert.equal((await me(t, ADMIN_KEY)).locked, false);
+});
+
+test("oauth owner: widget/watch keys follow a pinned device's owner, but a parent's stay shared", async () => {
+  const t = setup();
+  const leo = await addMember(t, 'Leo');
+  const mint = async (token: string) => me(t, (await (await t.req('/api/device-keys', { method: 'POST', body: JSON.stringify({ name: 'Widgets on iPhone' }) }, token)).json() as any).key)
+  const kid = await mint((await appSignIn(t, 'display', leo)).access_token)
+  assert.equal(kid.scope, 'display');
+  assert.equal(kid.owner, leo, "a kid's widgets are theirs");
+  const parent = await mint((await appSignIn(t, 'admin', leo)).access_token)
+  assert.equal(parent.owner, 'shared', "a parent's widgets show the whole family");
+  assert.equal(parent.locked, true, 'still an everyday-access key');
+});
+
+test("oauth owner: an admin can change a signed-in app's owner later; not an MCP client's", async () => {
+  const t = setup();
+  const alex = await addMember(t, 'Alex');
+  const tok = await appSignIn(t, 'admin');
+  const [grant] = await (await t.req('/api/authorizations', {}, ADMIN_KEY)).json() as any[];
+  const patch = (id: string, owner: string, key = ADMIN_KEY) => t.req(`/api/authorizations/${id}`, { method: 'PATCH', body: JSON.stringify({ owner }) }, key);
+  assert.equal((await patch(grant.id, alex, tok.access_token)).status, 403, 'the app itself cannot re-assign itself');
+  assert.equal((await patch(grant.id, 'nobody')).status, 400);
+  assert.equal((await patch(grant.id, alex)).status, 200);
+  assert.equal((await me(t, tok.access_token)).owner, alex, 'the live key follows at once');
+  const refreshed = await (await t.req('/oauth/token', t.form({ grant_type: 'refresh_token', refresh_token: tok.refresh_token }))).json() as any;
+  assert.equal((await me(t, refreshed.access_token)).owner, alex);
+
+  // deleting the member makes the device shared again
+  await t.req(`/api/members/${alex}`, { method: 'DELETE' }, ADMIN_KEY);
+  assert.equal(((await (await t.req('/api/authorizations', {}, ADMIN_KEY)).json()) as any[])[0].owner, 'shared');
+
+  await exchange(t, await authorize(t));
+  const mcpGrant = ((await (await t.req('/api/authorizations', {}, ADMIN_KEY)).json()) as any[]).find((g) => !g.deviceApp);
+  assert.equal((await patch(mcpGrant.id, 'shared')).status, 404);
+});

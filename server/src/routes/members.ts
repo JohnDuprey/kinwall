@@ -217,7 +217,8 @@ membersRoutes.openapi(
     // Their tracker entries stay, under their name ("Leo (removed)"); the FK then clears member_id.
     await c.env.DB.batch<unknown>([
       c.env.DB.prepare('UPDATE tracker_entries SET former_member = (SELECT name FROM members WHERE id = ?) WHERE member_id = ?').bind(id, id),
-      c.env.DB.prepare('DELETE FROM members WHERE id = ?').bind(id), ...updates, c.env.DB.prepare("UPDATE api_keys SET owner = 'shared' WHERE owner = ?").bind(id)]);
+      c.env.DB.prepare('DELETE FROM members WHERE id = ?').bind(id), ...updates, c.env.DB.prepare("UPDATE api_keys SET owner = 'shared' WHERE owner = ?").bind(id),
+      c.env.DB.prepare("UPDATE oauth_grants SET owner = 'shared' WHERE owner = ?").bind(id)]);
     emit(c, 'member.changed', { id });
     return c.json({ ok: true }, 200);
   },

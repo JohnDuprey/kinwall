@@ -35,7 +35,7 @@ function readPostAs(): string | null {
 /** The notes thread on an event or list item: who said what, in their color. Tap a note to edit or
  * delete it; "+ Add note" (folded, like "+ Add task") posts a new one as the chosen member. */
 export default function NotesThread({ target, title = 'Notes' }: { target: NoteTarget; title?: string }) {
-  const { members, selectedMemberId, refreshTick, toast } = useApp()
+  const { members, selectedMemberId, meMemberId, refreshTick, toast } = useApp()
   const dialog = useDialog()
   const [notes, setNotes] = useState<Note[]>([])
   const [editing, setEditing] = useState<string | null>(null)
@@ -44,7 +44,7 @@ export default function NotesThread({ target, title = 'Notes' }: { target: NoteT
   const [draft, setDraft] = useState('')
   const [postAs, setPostAs] = useState<string | null>(() => {
     const last = readPostAs()
-    return selectedMemberId ?? (members.some(m => m.id === last) ? last : null)
+    return selectedMemberId ?? (members.some(m => m.id === last) ? last : meMemberId)
   })
   const addBtnRef = useRef<HTMLButtonElement>(null)
   const byId = new Map(members.map(m => [m.id, m]))

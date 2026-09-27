@@ -356,8 +356,9 @@ export interface Passkey {
 export interface Me {
   scope: KeyScope
   keyName: string
-  kind: 'api' | 'session'
+  kind: 'api' | 'session' | 'oauth'
   owner?: string | null // who this device belongs to (see ApiKey.owner); set by an admin only
+  locked?: boolean // the owner locks the family filter (everyday access only; a parent's device never is)
   version?: string
   hostPortalUrl?: string // set by a host serving this family (HOST_PORTAL_URL)
 }

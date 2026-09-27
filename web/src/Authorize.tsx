@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api, ApiError, setAdminKey } from './api.ts'
 import { loginWithPasskey, passkeysSupported, registerPasskey } from './webauthn.ts'
 import Setup from './Setup.tsx'
+import type { Member } from './types.ts'
 
 /** OAuth consent for MCP clients and the Kinwall apps (#/authorize?..., reached via the server's
  * /oauth/authorize). Signs in with a passkey, a recovery code, or an admin key held for this
@@ -12,9 +13,12 @@ import Setup from './Setup.tsx'
 export default function AuthorizeScreen() {
   const params = new URLSearchParams(location.hash.split('?')[1] || '')
   const qs = params.toString()
-  const [info, setInfo] = useState<{ clientName: string; redirectHost: string; requestedScope: 'admin' | 'display' } | null>(null)
+  const [info, setInfo] = useState<Awaited<ReturnType<typeof api.authorizationRequest>> | null>(null)
   const [needsSignIn, setNeedsSignIn] = useState(false)
   const [scope, setScope] = useState<'admin' | 'display'>('admin')
+  // Kinwall's own app: whose device this is ('shared' or a member id). MCP clients aren't asked.
+  const [owner, setOwner] = useState('shared')
+  const [members, setMembers] = useState<Member[]>([])
   const [adminKeyValue, setAdminKeyValue] = useState('')
   const [recoveryValue, setRecoveryValue] = useState('')
   const [busy, setBusy] = useState(false)
@@ -30,6 +34,7 @@ export default function AuthorizeScreen() {
       setInfo(r)
       setScope(r.requestedScope)
       setNeedsSignIn(false)
+      if (r.deviceApp) setMembers(await api.getMembers(true).catch(() => []))
     } catch (e) {
       if (e instanceof ApiError && (e.status === 401 || e.status === 403)) setNeedsSignIn(true)
       else setError(e instanceof ApiError ? e.message : 'Could not load this request')
@@ -69,7 +74,7 @@ export default function AuthorizeScreen() {
     setBusy(true); setError('')
     try {
       const { redirect } = await api.decideAuthorization({
-        decision, scope,
+        decision, scope, owner: info?.deviceApp ? owner : undefined,
         client_id: params.get('client_id') ?? undefined,
         redirect_uri: params.get('redirect_uri') ?? undefined,
         state: params.get('state') ?? undefined,
@@ -133,6 +138,21 @@ export default function AuthorizeScreen() {
                 <b>Everyday access</b><span>Calendar, chores and lists. No members, settings or keys.</span>
               </button>
             </div>
+            {info.deviceApp && (
+              <div className="field authorize-owner">
+                <label id="authorize-owner">Whose device is this?</label>
+                <div className="chip-row" role="group" aria-labelledby="authorize-owner">
+                  <button type="button" className={`chip ${owner === 'shared' ? 'active' : ''}`} aria-pressed={owner === 'shared'} onClick={() => setOwner('shared')}>👪 Shared</button>
+                  {members.map(m => (
+                    <button key={m.id} type="button" className={`chip ${owner === m.id ? 'active' : ''}`} aria-pressed={owner === m.id}
+                      style={{ ['--chip-color' as string]: m.color }} onClick={() => setOwner(m.id)}>{m.avatar} {m.name}</button>
+                  ))}
+                </div>
+                <p className="settings-row-sub">{scope === 'admin'
+                  ? 'Picks whose reminders and defaults it uses. Everyone stays visible.'
+                  : owner === 'shared' ? 'Shows the whole family.' : 'Shows only their events, chores and lists.'}</p>
+              </div>
+            )}
             <button className="btn btn-primary btn-block" onClick={() => decide('approve')} disabled={busy}>{busy ? 'Connecting…' : 'Allow'}</button>
             <button className="link-btn" style={{ marginTop: 8 }} onClick={() => decide('deny')} disabled={busy}>Deny</button>
             <p className="settings-row-sub" style={{ marginTop: 12 }}>You can disconnect it any time in Settings → Access.</p>
