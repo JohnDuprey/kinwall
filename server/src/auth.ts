@@ -156,9 +156,12 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'GET', pattern: /^\/api\/plugins\/[a-z0-9-]+\/data$/ },
   { method: 'PUT', pattern: /^\/api\/plugins\/[a-z0-9-]+\/data$/ },
   { method: 'POST', pattern: /^\/api\/plugins\/[a-z0-9-]+\/playtime$/ }, // activity chores: the player's heartbeat
-  { method: 'GET', pattern: /^\/api\/geocode$/ }, // Settings -> General's location search (settings PATCH is display-allowed too)
+  { method: 'GET', pattern: /^\/api\/geocode$/ },
   { method: 'GET', pattern: /^\/api\/settings$/ },
-  { method: 'PATCH', pattern: /^\/api\/settings$/ },
+  // Family settings (name, timezone, weather, quote sources, appearance, quiet hours, features)
+  // are for parent devices; a display reads them, keeps its own look on the device, and may add a
+  // color scheme to the family's list for itself.
+  { method: 'POST', pattern: /^\/api\/settings\/color-schemes$/ },
   { method: 'GET', pattern: /^\/api\/rev$/ },
   { method: 'GET', pattern: /^\/api\/notifications$/ },
   { method: 'GET', pattern: /^\/api\/push\/vapid-public-key$/ },

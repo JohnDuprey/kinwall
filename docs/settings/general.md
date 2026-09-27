@@ -1,6 +1,6 @@
 # Settings → General
 
-Every device sees this tab. It has two groups of cards:
+Parent devices see both groups of cards below. Wall screens and kids' devices see only **Only on this device**: the family settings are for parents, so a device can't change the family name, timezone, weather, quote sources, appearance or quiet hours (it can still pick its own look under **Appearance on this device**, and add a new color scheme there, which is saved to the family's list).
 
 * **For the whole family**: saved on the server, so every screen and phone in the household uses them.
 * **Only on this device**: saved in this browser, so other devices aren't affected. See [This device](this-display.md).

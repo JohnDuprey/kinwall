@@ -82,7 +82,7 @@ Tap **＋ New scheme** (under the Color scheme dropdown) to make a scheme of you
 * The softer background, borders and dim text are worked out from your colors.
 * Each mode shows four contrast checks: text and dim text, on the background and on cards. **Save and use** stays off until every check reaches 4.5:1 in both modes, so a saved scheme is readable whatever the time of day. Accent buttons adjust themselves so their labels stay readable.
 
-Give it a name and an emoji and save. The scheme is saved for the whole family and appears under **Your schemes** in the dropdown on every device:
+Give it a name and an emoji and save. The scheme is saved for the whole family and appears under **Your schemes** in the dropdown on every device. A wall screen or kid's device can make one too (it's added to the family's list and used on that device), but only parent devices can edit or delete the family's schemes or choose the family's scheme:
 
 * Made from **Appearance**, it becomes the family's scheme.
 * Made from **Appearance on this device**, only this device switches to it. Other devices can still pick it.

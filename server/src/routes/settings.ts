@@ -4,8 +4,7 @@ import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
 import { emit } from '../bus.ts';
 import { schemeContrastFailures } from '../colors.ts';
-import { resolveKey } from '../auth.ts';
-import { COLOR_SCHEMES, CUSTOM_SCHEME_ID_RE, CustomSchemeSchema, ErrorSchema, FeaturesSchema, LocationSchema, SettingsPatchSchema, SettingsSchema, TidbitSettingsSchema } from '../schemas.ts';
+import { COLOR_SCHEMES, CUSTOM_SCHEME_ID_RE, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, ErrorSchema, FeaturesSchema, LocationSchema, SettingsPatchSchema, SettingsSchema, TidbitSettingsSchema } from '../schemas.ts';
 
 export const settingsRoutes = createRouter();
 
@@ -201,13 +200,10 @@ settingsRoutes.openapi(
     responses: {
       200: { description: 'ok', content: { 'application/json': { schema: SettingsSchema } } },
       400: { description: 'invalid', content: { 'application/json': { schema: ErrorSchema } } },
-      403: { description: 'a display key sent features', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
     const body = c.req.valid('json');
-    // Settings PATCH is display-allowed for the everyday settings; which features exist is the admin's call.
-    if (body.features && (await resolveKey(c))?.scope === 'display') return c.json({ error: 'Only an admin can turn features on or off' }, 403);
     // A saved scheme must be readable in both modes, the same bar as the app's editor.
     const failures = (body.customSchemes ?? []).flatMap(schemeContrastFailures);
     if (failures.length) return c.json({ error: `Not enough contrast. ${failures.join('. ')}.` }, 400);
@@ -215,5 +211,34 @@ settingsRoutes.openapi(
     if (writes.length) await c.env.DB.batch(writes);
     emit(c, 'settings.changed', {});
     return c.json(await readSettings(c.env.DB), 200);
+  },
+);
+
+// A wall screen or kid's device can't change family settings, but it can add a scheme to the
+// family's list for itself to use (editing and deleting schemes stays with the settings PATCH).
+settingsRoutes.openapi(
+  createRoute({
+    method: 'post',
+    path: '/api/settings/color-schemes',
+    tags: ['Settings'],
+    summary: "Add one color scheme to the family's saved schemes (display keys may); it isn't selected for the family",
+    security: [{ Bearer: [] }],
+    request: { body: { content: { 'application/json': { schema: CustomSchemeSchema } } } },
+    responses: {
+      201: { description: 'added', content: { 'application/json': { schema: SettingsSchema } } },
+      400: { description: 'invalid, too little contrast, or the family already has the most schemes', content: { 'application/json': { schema: ErrorSchema } } },
+      409: { description: 'a scheme with that id exists', content: { 'application/json': { schema: ErrorSchema } } },
+    },
+  }),
+  async (c) => {
+    const scheme = c.req.valid('json');
+    const failures = schemeContrastFailures(scheme);
+    if (failures.length) return c.json({ error: `Not enough contrast. ${failures.join('. ')}.` }, 400);
+    const current = (await readSettings(c.env.DB)).customSchemes ?? [];
+    if (current.some((x) => x.id === scheme.id)) return c.json({ error: 'That scheme already exists' }, 409);
+    if (current.length >= MAX_CUSTOM_SCHEMES) return c.json({ error: `The family has ${MAX_CUSTOM_SCHEMES} saved schemes, the most it can keep` }, 400);
+    await c.env.DB.batch(settingsWrites(c.env.DB, { customSchemes: [...current, scheme] }));
+    emit(c, 'settings.changed', {});
+    return c.json(await readSettings(c.env.DB), 201);
   },
 );

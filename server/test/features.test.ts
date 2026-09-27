@@ -36,7 +36,7 @@ test('features: all on by default; a PATCH round-trips; a display key cannot cha
 
   const display = (await (await request('/api/keys', 'POST', { name: 'Wall', scope: 'display' })).json()) as any;
   assert.equal((await request('/api/settings', 'PATCH', { features: ALL_ON }, display.key)).status, 403);
-  assert.equal((await request('/api/settings', 'PATCH', { weekStart: 1 }, display.key)).status, 200, 'everyday settings still work');
+  assert.equal((await request('/api/settings', 'PATCH', { weekStart: 1 }, display.key)).status, 403, 'family settings are for parent devices');
 });
 
 test('features: messages off refuses POST /api/notify; chores off drops the nudge and the summary\'s chore count', async () => {

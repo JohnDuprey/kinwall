@@ -107,14 +107,17 @@ export default function SettingsView() {
         </div>
         <div className="settings-panel" role="tabpanel" aria-labelledby={`settings-tab-${current}`}>
         {current === 'general' && <>
-          <SettingsGroup title="For the whole family" sub="Every screen and phone in the household uses these.">
-            <GeneralSection settings={settings} onSaved={reloadCore} toast={toast} isDisplay={isDisplay} />
-            <WeatherSection settings={settings} onSaved={reloadCore} toast={toast} />
-            <TidbitsSection settings={settings} onSaved={reloadCore} toast={toast} />
-            {!isDisplay && <FeaturesSection settings={settings} onSaved={reloadCore} toast={toast} />}
-            <AppearanceSection settings={settings} onSaved={reloadCore} toast={toast} />
-            <QuietHoursSection settings={settings} onSaved={reloadCore} toast={toast} />
-          </SettingsGroup>
+          {/* Family settings are for parent devices; a wall screen or kid's device only has its own. */}
+          {!isDisplay && (
+            <SettingsGroup title="For the whole family" sub="Every screen and phone in the household uses these.">
+              <GeneralSection settings={settings} onSaved={reloadCore} toast={toast} isDisplay={false} />
+              <WeatherSection settings={settings} onSaved={reloadCore} toast={toast} />
+              <TidbitsSection settings={settings} onSaved={reloadCore} toast={toast} />
+              <FeaturesSection settings={settings} onSaved={reloadCore} toast={toast} />
+              <AppearanceSection settings={settings} onSaved={reloadCore} toast={toast} />
+              <QuietHoursSection settings={settings} onSaved={reloadCore} toast={toast} />
+            </SettingsGroup>
+          )}
           <SettingsGroup title="Only on this device" sub="Saved on this screen or phone. Other devices aren't affected.">
             {isDisplay ? <ThisDisplaySection keyName={me.keyName} /> : <ThisDisplaySection />}
             <Section title="Appearance on this device" icon={<PaletteIcon width={16} height={16} />}><DeviceAppearanceRows /></Section>
@@ -732,6 +735,9 @@ function ColorControls({ scheme, householdScheme, onScheme, household, device, s
   resetLabel: string; onReset: () => void
 }) {
   const dark = document.documentElement.getAttribute('data-theme') === 'dark'
+  // The family's schemes are edited on parent devices; any device can add one (saved for the family)
+  // and switch itself to it.
+  const { parentDevice, reloadCore } = useApp()
   const customs = household.customSchemes ?? []
   const { skin } = resolveColors(household, device)
   const [editing, setEditing] = useState<{ draft: CustomScheme; isNew: boolean; fromLegacy?: boolean } | null>(null)
@@ -761,6 +767,15 @@ function ColorControls({ scheme, householdScheme, onScheme, household, device, s
   const hasLegacy = Object.keys(legacy).length > 0 || !!oldLight || !!oldDark
   const oldNames = [oldLight && `${oldLight.name} (light)`, oldDark && `${oldDark.name} (dark)`].filter(Boolean).join(' and ')
   const saveScheme = async (c: CustomScheme, isNew: boolean, fromLegacy?: boolean) => {
+    if (!parentDevice) { // a wall screen or kid's device: add it to the family's list, use it here
+      await api.addColorScheme(c)
+      reloadCore()
+      onScheme(c.id)
+      if (fromLegacy) onClearLegacy?.()
+      announce(`${c.name} saved and selected on this device`)
+      setEditing(null)
+      return
+    }
     const list = isNew ? [...customs, c] : customs.map(x => x.id === c.id ? c : x)
     const selectHere = isNew && !householdScheme // household editor: a new scheme becomes the family's
     await saveSettings({ customSchemes: list, ...(selectHere ? { colorScheme: c.id } : {}), ...(fromLegacy && legacyClear ? legacyClear : {}) })
@@ -797,12 +812,12 @@ function ColorControls({ scheme, householdScheme, onScheme, household, device, s
         </select>
       </div>
       <div className="scheme-actions">
-        {activeCustom && <button className="btn btn-secondary" onClick={() => setEditing({ draft: activeCustom, isNew: false })}>Edit {activeCustom.name}</button>}
+        {parentDevice && activeCustom && <button className="btn btn-secondary" onClick={() => setEditing({ draft: activeCustom, isNew: false })}>Edit {activeCustom.name}</button>}
         {customs.length < 10 && (
           <button className="btn btn-secondary" onClick={() => setEditing({ draft: startFrom(skin, activeCustom ? `${skin.name} copy` : `My ${skin.name}`), isNew: true })}>＋ New scheme</button>
         )}
       </div>
-      {customs.length >= 10 && <span className="settings-row-sub">The family has 10 saved schemes, the most it can keep. Delete one to make another.</span>}
+      {customs.length >= 10 && <span className="settings-row-sub">The family has 10 saved schemes, the most it can keep.{parentDevice ? ' Delete one to make another.' : ''}</span>}
       {scheme === 'seasonal' && <div className="settings-row-sub">Switches on its own through the year: Winter, Spring, Summer and Autumn, plus Harvest and Festive around the holidays.</div>}
       {hasLegacy && (
         <div className="scheme-legacy" role="note">

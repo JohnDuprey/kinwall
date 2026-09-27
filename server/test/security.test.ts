@@ -81,10 +81,21 @@ test('key scopes: display key is 403 on admin-only routes, 200 on display-allowe
   assert.equal((await display(`/api/chores/${chore.id}`, { method: 'DELETE' })).status, 403);
   assert.equal((await admin(`/api/chores/${chore.id}`, { method: 'PATCH', body: JSON.stringify({ points: 3 }) })).status, 200);
 
-  // A display key keeps the everyday settings (household, appearance) but not admin functions
-  // (members, accounts, keys, webhooks - checked above).
+  // A display key reads the family settings but can't change them (nor members, accounts, keys,
+  // webhooks - checked above); its own look is kept on the device.
   const settingsPatch = await display('/api/settings', { method: 'PATCH', body: JSON.stringify({ familyName: 'Wall edit' }) });
-  assert.equal(settingsPatch.status, 200);
+  assert.equal(settingsPatch.status, 403, 'family settings are for parent devices');
+  assert.equal((await display('/api/settings')).status, 200, 'a display still reads them');
+  // ...but it may add a color scheme to the family's list (not select it for the family).
+  const scheme = { id: 'custom-wall0001', name: 'Wall', emoji: '🧱', light: { bg: '#FFFBF5', card: '#FFFFFF', text: '#3A2E27', accent: '#FF9E7A' }, dark: { bg: '#1C1712', card: '#2A221B', text: '#F3EAE0', accent: '#FF9E7A' } };
+  const added = await display('/api/settings/color-schemes', { method: 'POST', body: JSON.stringify(scheme) });
+  assert.equal(added.status, 201);
+  const after = await added.json() as any;
+  assert.ok(after.customSchemes.some((s: any) => s.id === scheme.id));
+  assert.notEqual(after.colorScheme, scheme.id, "adding doesn't change the family's scheme");
+  assert.equal((await display('/api/settings/color-schemes', { method: 'POST', body: JSON.stringify(scheme) })).status, 409);
+  assert.equal((await display('/api/settings/color-schemes', { method: 'POST', body: JSON.stringify({ ...scheme, id: 'custom-wall0002', light: { ...scheme.light, text: '#FFFFFF' } }) })).status, 400, 'contrast is checked');
+  assert.equal((await display('/api/settings', { method: 'PATCH', body: JSON.stringify({ customSchemes: [] }) })).status, 403, 'editing or deleting family schemes stays with parents');
 
   const member = await (await admin('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Sam', color: '#ff6b6b', avatar: '🙂' }) })).json() as any;
   const memberCreate = await display('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Nope', color: '#000000', avatar: '🙂' }) });

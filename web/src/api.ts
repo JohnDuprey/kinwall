@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { tellAppSignedIn, tellAppSignedOut } from './native.ts'
 import { mock, mockPlugins } from './mock.ts'
 import { applyChoreOps, applyListOps, cacheGet, cachePut, clearOffline, enqueue, flush, onOutboxChange, outboxReady, pendingOps, type Dropped, type Op } from './outbox.ts'
+import type { CustomScheme } from './skins.ts'
 import type { PasskeyAuthenticator } from './webauthn.ts'
 import type { Meal, MealInput, Recipe, RecipeInput, ShoppingProjection } from './meal-types.ts'
 import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginCatalogEntry,
@@ -256,6 +257,7 @@ export const api = {
   getSettings: (useAdmin?: boolean) => MOCK ? mock.getSettings() : get<Settings>('api/settings', useAdmin),
   // useAdmin: the setup wizard saves household settings with the in-memory admin key when this
   // device only just claimed a display-scope key (settings PATCH isn't display-allowed).
+  addColorScheme: (scheme: CustomScheme) => MOCK ? mock.updateSettings({}) : post<Settings>('api/settings/color-schemes', scheme),
   updateSettings: (body: Partial<Settings>, useAdmin?: boolean) => MOCK ? mock.updateSettings(body) : patch<Settings>('api/settings', body, useAdmin),
   // No-auth subset of Settings for the pre-pairing screen (useTheme.ts) — see GET /api/appearance.
   getAppearance: (): Promise<Appearance> => MOCK ? mock.getSettings() : get<Appearance>('api/appearance'),
