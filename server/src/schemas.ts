@@ -1,5 +1,6 @@
 // Shared zod-openapi schemas, reused across route files.
 import { z } from '@hono/zod-openapi';
+import { MealSchema } from './meal-schemas.ts';
 import { isSingleEmoji, isValidAvatar } from './emoji.ts';
 
 export const ErrorSchema = z.object({ error: z.string() }).openapi('Error');
@@ -131,6 +132,7 @@ export const FeaturesSchema = z
     trackersReading: z.boolean().default(true),
     trackersMemories: z.boolean().default(true),
     trackersHealth: z.boolean().default(true),
+    meals: z.boolean().default(true), // Meals tab, the Board's meals card, meals in the daily summary
   })
   .openapi('Features');
 
@@ -862,8 +864,9 @@ export const SnapshotSchema = z
     ),
     items: z.array(SnapshotItemSchema), // assigned to them, open, due by `to` or high/urgent
     birthdays: z.array(SnapshotBirthdaySchema),
+    meals: z.array(MealSchema),
     tomorrow: z
-      .object({ date: z.string(), events: z.array(SnapshotEventSchema), items: z.array(SnapshotItemSchema), birthdays: z.array(SnapshotBirthdaySchema) })
+      .object({ date: z.string(), events: z.array(SnapshotEventSchema), items: z.array(SnapshotItemSchema), birthdays: z.array(SnapshotBirthdaySchema), meals: z.array(MealSchema) })
       .nullable(), // day range only
   })
   .openapi('Snapshot');
@@ -880,6 +883,7 @@ export const BoardSchema = z
       z.object({ memberId: z.string().nullable(), name: z.string().nullable(), avatar: z.string().nullable(), color: z.string().nullable(), remaining: z.number(), total: z.number() }),
     ),
     birthdays: z.array(SnapshotBirthdaySchema),
+    meals: z.array(MealSchema),
   })
   .openapi('Board');
 

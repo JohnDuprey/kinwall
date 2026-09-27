@@ -14,6 +14,7 @@ import { calendarsRoutes } from './routes/calendars.ts';
 import { categoriesRoutes } from './routes/categories.ts';
 import { eventsRoutes } from './routes/events.ts';
 import { choresRoutes } from './routes/chores.ts';
+import { mealsRoutes } from './routes/meals.ts';
 import { leaderboardRoutes } from './routes/leaderboard.ts';
 import { listsRoutes } from './routes/lists.ts';
 import { keysRoutes } from './routes/keys.ts';
@@ -87,6 +88,7 @@ export function createApp() {
   app.route('/', categoriesRoutes);
   app.route('/', eventsRoutes);
   app.route('/', choresRoutes);
+  app.route('/', mealsRoutes);
   app.route('/', leaderboardRoutes);
   app.route('/', listsRoutes);
   app.route('/', notesRoutes);

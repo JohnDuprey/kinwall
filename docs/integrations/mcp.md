@@ -70,12 +70,16 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 | `list_chores` | Chores due on a date (default today), with completion state. |
 | `get_leaderboard` | Points, completions and streaks per member for today, week (default) or month. |
 | `get_points` | One member's points (by name or ID): balance left to spend, all-time earned and spent, and recent purchases. Read-only. Stickers are bought on the wall, not over MCP. |
-| `get_snapshot` | One member's day (`range`: `day`, default) or next 7 days (`week`), by name or ID: greeting, weather (if a location is set), their and everyone's events, their chores, their due or high/urgent list items, family birthdays, and (day) tomorrow at a glance. The same data as tapping their avatar. |
-| `get_board` | The whole household's bulletin board for today and the next `days` days (default 7, max 14): everyone's events plus untagged ones, open list items due soon, overdue or high/urgent, today's chores per member, and birthdays. The same data as the calendar's Board view. |
+| `get_snapshot` | One member's day (`range`: `day`, default) or next 7 days (`week`), by name or ID: greeting, weather (if a location is set), their and everyone's events, their chores, their due or high/urgent list items, family birthdays, the day's meals, and (day) tomorrow at a glance. The same data as tapping their avatar. |
+| `get_board` | The whole household's bulletin board for today and the next `days` days (default 7, max 14): everyone's events plus untagged ones, open list items due soon, overdue or high/urgent, today's chores per member, birthdays and meals. The same data as the calendar's Board view. |
 | `list_lists` | All lists with item and open counts. |
 | `get_list` | One list by ID or name, with items (in the list's sort order, each with its steps), group order and store/category suggestions. |
 | `list_categories` | Categories (name, emoji, color, keywords) in order. |
 | `list_notes` | The notes thread on an event or list item (`target`: `event:<id>` or `list_item:<id>`), oldest first. `memberId` null means "Someone". |
+| `list_recipes` | [Meals](../using/meals.md) recipes with their ingredients. Filters: `search`, `category`, `archived`. |
+| `get_recipe` | One recipe by ID. |
+| `list_meals` | Planned meals from `from` through `to` (default: that day plus six). |
+| `get_meal_projection` | The shopping preview for a date range: each ingredient's scaled total, the meals it's for, and (with `listId` or `listName`) what's already on that list. Admin key only. |
 | `list_tracker_entries` | [Trackers](../using/trackers.md) entries, newest first: books, memories and health visits. Filters: `kind`, `member`, `from`, `to`, `q`. Health only with an admin key. |
 | `list_notifications` | Recent notifications Kinwall sent (reminders, summaries, chore nudges, list updates, messages), newest first. The same feed as the bell in the app. Takes `limit` and `before`. |
 
@@ -100,6 +104,11 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 | `set_step_done` | Ticks or unticks one step of an item (step IDs come from `get_list`). Ticking the last open step completes the item; unticking a step of a done item re-opens it. |
 | `add_note` | Adds a note to an event's or list item's thread, posted as a member (by name or ID) or "Someone". |
 | `update_note` | Replaces a note's text (note IDs come from `list_notes`). |
+| `create_recipe` | Adds a recipe with its ingredients (admin). |
+| `update_recipe` | Edits a recipe, replaces its ingredients, or archives it (admin). Planned meals keep their own copy. |
+| `create_meal` | Plans a recipe, free-form meal or dining out on a date and slot, optionally for a `member` (admin). |
+| `update_meal` | Edits a meal (admin), or its notes and status from the assigned person's device. `refreshRecipe` takes the recipe's current ingredients. |
+| `apply_meal_projection` | Adds the previewed ingredients to a shopping list (admin), minus `omitKeys`. Repeating it doesn't add anything twice. |
 | `add_tracker_entry` | Logs a book, a memory or a health visit (`kind`, `member`, `date`, `title`, `data`). Health only with an admin key. |
 | `update_tracker_entry` | Edits an entry, for example pages read or a rating. `data` is merged; `null` clears a field. |
 | `update_category` | Changes a category's name, emoji, color or keywords. |

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { tellAppSignedIn, tellAppSignedOut } from './native.ts'
 import { mock, mockPlugins } from './mock.ts'
 import type { PasskeyAuthenticator } from './webauthn.ts'
+import type { Meal, MealInput, Recipe, RecipeInput, ShoppingProjection } from './meal-types.ts'
 import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginCatalogEntry,
   StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota,
   Account, ApiKey, AppNotification, Appearance, CalendarEntry, Category, Chore, ChoreDay, EventInstance, LeaderboardEntry, LeaderboardPeriod, List,
@@ -95,6 +96,10 @@ async function req<T>(path: string, opts: RequestInit & { useAdmin?: boolean } =
 }
 
 async function send<T>(path: string, opts: RequestInit & { useAdmin?: boolean }): Promise<T> {
+  if (MOCK && /^api\/(meals|recipes)([/?]|$)/.test(path)) {
+    const { mockMealRequest } = await import('./mock-meals.ts')
+    return mockMealRequest(path, opts) as Promise<T>
+  }
   const { useAdmin, ...init } = opts
   const key = useAdmin ? (getAdminKey() ?? getKey()) : getKey()
   const res = await fetch(apiUrl(path), {
@@ -126,6 +131,20 @@ const put = <T,>(path: string, body: unknown, useAdmin?: boolean) => req<T>(path
 const del = <T,>(path: string, useAdmin?: boolean) => req<T>(path, { method: 'DELETE', useAdmin })
 
 export const api = {
+  getRecipes: (archived = false) => get<Recipe[]>(`api/recipes?archived=${archived}`),
+  createRecipe: (body: RecipeInput) => post<Recipe>('api/recipes', body),
+  updateRecipe: (id: string, body: Partial<RecipeInput>) => patch<Recipe>(`api/recipes/${encodeURIComponent(id)}`, body),
+  deleteRecipe: (id: string) => del(`api/recipes/${encodeURIComponent(id)}`),
+  getMeals: (from: string, to: string) => get<Meal[]>(`api/meals?${new URLSearchParams({ from, to })}`),
+  createMeal: (body: MealInput) => post<Meal>('api/meals', body),
+  updateMeal: (id: string, body: Partial<MealInput> & { refreshRecipe?: boolean }) => patch<Meal>(`api/meals/${encodeURIComponent(id)}`, body),
+  deleteMeal: (id: string) => del(`api/meals/${encodeURIComponent(id)}`),
+  linkMealCalendar: (id: string, eventId: string) => post<Meal>(`api/meals/${encodeURIComponent(id)}/calendar-link`, { eventId }),
+  unlinkMealCalendar: (id: string) => del<Meal>(`api/meals/${encodeURIComponent(id)}/calendar-link`),
+  createMealCalendarEvent: (id: string, body: { calendarId?: string; durationMinutes?: number }) => post<Meal>(`api/meals/${encodeURIComponent(id)}/calendar-event`, body),
+  getMealProjection: (from: string, to: string, listId?: string) => get<ShoppingProjection>(`api/meals/projection?${new URLSearchParams({ from, to, ...(listId ? { listId } : {}) })}`),
+  applyMealProjection: (body: { from: string; to: string; listId: string; omitKeys: string[]; includeNotes: boolean }) => post<{ added: number; itemIds: string[]; projection: ShoppingProjection }>('api/meals/projection/apply', body),
+
   getRev: () => MOCK ? mock.getRev() : get<{ rev: number }>('api/rev'),
 
   // First-run setup (no auth). MOCK always reports claimed so the mock UI never shows the wizard.
@@ -156,9 +175,11 @@ export const api = {
   deleteMember: (id: string, useAdmin?: boolean) => MOCK ? mock.deleteMember(id) : del(`api/members/${id}`, useAdmin),
 
   getSnapshot: (memberId: string, range: 'day' | 'week') =>
-    MOCK ? mock.getSnapshot(memberId, range) : get<Snapshot>(`api/snapshot?member=${encodeURIComponent(memberId)}&range=${range}`),
+    MOCK ? Promise.all([mock.getSnapshot(memberId, range), import('./mock-meals.ts')]).then(([s, { mockMeals }]) =>
+      ({ ...s, meals: mockMeals(s.from, s.to), tomorrow: s.tomorrow && { ...s.tomorrow, meals: mockMeals(s.tomorrow.date, s.tomorrow.date) } }))
+    : get<Snapshot>(`api/snapshot?member=${encodeURIComponent(memberId)}&range=${range}`),
   // Server-side lookup (Open-Meteo): the browser never talks to the geocoder itself.
-  getBoard: (days = 7) => MOCK ? mock.getBoard(days) : get<Board>(`api/board?days=${days}`),
+  getBoard: (days = 7) => MOCK ? Promise.all([mock.getBoard(days), import('./mock-meals.ts')]).then(([b, { mockMeals }]) => ({ ...b, meals: mockMeals(b.today, b.to) })) : get<Board>(`api/board?days=${days}`),
   getTidbits: () => MOCK ? mock.getTidbits() : get<OnlineTidbits>('api/tidbits'),
 
   // Activity plugins. The demo serves the reviewed ones baked into its build (mock.ts mockPlugins).

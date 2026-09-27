@@ -10,8 +10,9 @@ Tap a family member's avatar in the header (on a phone, tap the family button, t
 * **Chores**: theirs plus **Anyone** chores due today, with how many are left. Tap one to tick it off.
 * **To do**: [list items](lists.md) assigned to them that are due today, overdue, or marked Important or Urgent (with priority dots).
 * **Birthdays 🎂**: family members' birthdays (from [Settings → Family](../settings/family.md)) and events in a category named "Birthdays".
+* **Meals**: the family's [meals](meals.md) today, with times. Tap one to open it.
 * **Reading 📚**: the books they're in the middle of in [Trackers](trackers.md), with how far along they are ("Charlotte's Web — 45%"). Tap one to open Trackers.
-* **Tomorrow at a glance**: tomorrow's weather, birthdays, events and items due.
+* **Tomorrow at a glance**: tomorrow's weather, birthdays, events, items due and meals.
 
 Every section has a friendly empty state ("Nothing on the calendar — enjoy it.").
 
@@ -33,7 +34,7 @@ A list item's **Assign to** field decides whose snapshot it appears in. Items wi
 
 ## Board (everyone)
 
-`GET /api/board?days=` (default 7, max 14) returns the same kind of feed for the whole household instead of one member: every member's events plus untagged ones, open list items due within the range (or overdue) or high/urgent priority regardless of due date, today's chores grouped per member (with an "anyone" group), and birthdays in the range. It's the data behind the calendar's [Board view](calendar.md#board-view). The MCP tool [`get_board`](../integrations/mcp.md) returns the same data.
+`GET /api/board?days=` (default 7, max 14) returns the same kind of feed for the whole household instead of one member: every member's events plus untagged ones, open list items due within the range (or overdue) or high/urgent priority regardless of due date, today's chores grouped per member (with an "anyone" group), birthdays and [meals](meals.md) in the range. It's the data behind the calendar's [Board view](calendar.md#board-view). The MCP tool [`get_board`](../integrations/mcp.md) returns the same data.
 
 ## For assistants
 

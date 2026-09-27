@@ -7,7 +7,8 @@ import { CheckIcon } from './icons.tsx'
 import Sheet from './Sheet.tsx'
 import { Segmented, announce } from './a11y.tsx'
 import { inkFor } from './color.ts'
-import { formatTime, todayKeyInTz } from './date.ts'
+import { clockTime, formatTime, todayKeyInTz } from './date.ts'
+import { MEAL_SLOTS, SLOT_LABEL } from './meal-date.ts'
 
 type Range = 'day' | 'week'
 const PRIORITY_LABEL = { low: 'Low', normal: 'Normal', high: 'Important', urgent: 'Urgent' } as const
@@ -223,7 +224,9 @@ function DayView({ snap, tz, close, onToggle, books }: { snap: Snapshot; tz: str
     ...t.birthdays.map(b => `🎂 ${birthdayLine(b, snap.member.id)}`),
     t.events.length ? `🗓 ${t.events.slice(0, 3).map(e => `${e.allDay ? '' : `${formatTime(e.start, tz)} `}${e.title}`).join(', ')}${t.events.length > 3 ? ` +${t.events.length - 3} more` : ''}` : '🗓 Nothing on the calendar',
     t.items.length > 0 && `📝 Due: ${t.items.slice(0, 3).map(i => i.title).join(', ')}${t.items.length > 3 ? ` +${t.items.length - 3} more` : ''}`,
+    features.meals && t.meals.length > 0 && `🍽 ${t.meals.map(m => `${SLOT_LABEL[m.slot]}: ${m.title}`).join(', ')}`,
   ].filter(Boolean) as string[] : []
+  const meals = !features.meals ? [] : MEAL_SLOTS.flatMap(slot => snap.meals.filter(m => m.date === today && m.slot === slot))
   const openChores = snap.chores.filter(c => !c.done).length
   return (
     <>
@@ -243,6 +246,18 @@ function DayView({ snap, tz, close, onToggle, books }: { snap: Snapshot; tz: str
           ? <p className="snap-empty">Nothing due — all caught up.</p>
           : <ul className="snap-list">{snap.items.map(i => <ItemRow key={i.id} i={i} today={today} close={close} />)}</ul>}
       </Section>}
+      {meals.length > 0 && (
+        <Section title="Meals">
+          <ul className="snap-list">{meals.map(m => (
+            <li key={m.id}>
+              <button className="snap-row" onClick={() => go(`#/meals?date=${m.date}&meal=${encodeURIComponent(m.id)}`, close)}>
+                <span className="snap-time">{m.plannedTime ? clockTime(m.plannedTime) : SLOT_LABEL[m.slot]}</span>
+                <span className="snap-main"><span className="snap-title">{m.title}</span></span>
+              </button>
+            </li>
+          ))}</ul>
+        </Section>
+      )}
       {snap.birthdays.length > 0 && (
         <Section title="Birthdays 🎂">
           <ul className="snap-list">{snap.birthdays.map(b => <BirthdayRow key={`${b.memberId ?? b.eventId}`} b={b} you={snap.member.id} close={close} />)}</ul>

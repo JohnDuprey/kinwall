@@ -52,6 +52,7 @@ API: `tidbits` `{ sources, factCategories, tipCategories, onThisDay, birthsAfter
 | **Paint** | No **Paint** in Activities. |
 | **Photos** | No **Photos** in Activities and no picture card on the Board. A display whose night screen shows **Family photos** shows nature pictures instead. |
 | **Notes** | No notes on events and no **Discussion** on list items, and no note counts (💬) on events or list items. A list item's own **Notes** field still shows. |
+| **Meals** | No **Meals** tab and no **Today's meals** card on the Board, no meals in a member's day, and the daily summary leaves meals out. |
 | **Trackers: Reading** | No **Reading** in Trackers and no reading line in a member's day. |
 | **Trackers: Memories** | No **Memories** in Trackers. |
 | **Trackers: Health** | No **Health** in Trackers. (Health is never on a wall display anyway.) |
@@ -61,7 +62,7 @@ When every activity is off (Paint, Photos, and the Sticker book, which is off wh
 
 Apart from sending messages, the API keeps answering for features that are off (like the leaderboard switch), so nothing is lost and integrations keep working.
 
-API: `features` `{ chores, lists, paint, photos, notes, messages, trackersReading, trackersMemories, trackersHealth }` (all booleans) in `GET` / `PATCH /api/settings`. A `PATCH` sends the whole object (older clients may leave out the tracker switches; they then read as on). Display keys can't change it (403).
+API: `features` `{ chores, lists, paint, photos, notes, messages, trackersReading, trackersMemories, trackersHealth, meals }` (all booleans) in `GET` / `PATCH /api/settings`. A `PATCH` sends the whole object (older clients may leave out the tracker and meals switches; they then read as on). Display keys can't change it (403).
 
 ### Appearance
 

@@ -37,6 +37,7 @@ The board carries its own large clock and date, so while it's showing, the wall'
 * **Coming up**: the next 6 days, grouped by day, with each day's weather and birthdays.
 * **Due soon**: open list items due in the next week, overdue ones first in red, plus urgent and important items with no date. Each shows its list's emoji and the owner's avatar.
 * **Chores today**: a bar per member showing how many of today's chores are left.
+* **Today's meals**: today's [meals](meals.md) by slot, with times and who's cooking. The next one is marked. Tap one to open it.
 * **Picture**: a new picture every minute, from the same sources as this display's [screensaver](quiet-hours.md#screensaver): drawings, [family photos](photos.md) (with their captions), art (with the painting's title and artist) or nature photos. With no screensaver pictures chosen, it shows your family photos, or nature photos until you've added some.
 * **Quote or fact**: a short quote, a fact marked **💡 Did you know?**, a neurodivergent-friendly tip marked **🌱 Try this**, and, if the family turned them on, something from Wikipedia's **On this day** or a **trivia question** with multiple choice (tap a choice to guess, and **Try again** to reset it). It changes every 30 minutes, taking turns through the sources that are on. Every display shows the same one at the same time. Choose the sources and categories in [Settings → Quotes & facts](../settings/general.md#quotes--facts).
 

@@ -1787,6 +1787,7 @@ button.snap-row:active { transform: scale(0.99); }
 .board-coming { grid-area: coming; }
 .board-due { grid-area: due; }
 .board-chores { grid-area: chores; }
+.board-meals { grid-area: meals; }
 .board-photo { grid-area: photo; }
 .board-tidbit { grid-area: tidbit; min-height: auto; overflow-y: auto; }
 

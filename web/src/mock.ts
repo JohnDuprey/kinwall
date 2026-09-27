@@ -38,7 +38,7 @@ const settings: Settings = {
   location: { name: 'Portland', lat: 45.5152, lon: -122.6784, countryCode: 'US' },
   temperatureUnit: 'fahrenheit',
   tidbits: { sources: ['quotes', 'facts', 'onthisday', 'trivia'], factCategories: [], tipCategories: [], onThisDay: ['holidays', 'births'], birthsAfter: 1900, triviaCategories: [27, 17, 22, 9], triviaDifficulties: ['easy'] },
-  features: { chores: true, lists: true, paint: true, photos: true, notes: true, messages: true, trackersReading: true, trackersMemories: true, trackersHealth: true },
+  features: { chores: true, lists: true, paint: true, photos: true, notes: true, messages: true, trackersReading: true, trackersMemories: true, trackersHealth: true, meals: true },
 }
 
 const members: Member[] = [
@@ -194,6 +194,23 @@ let listItems: ListItem[] = ([
     steps: ['Blocks in the red bin', 'Cars in the blue bin', 'Books on the shelf', 'Stuffies on the bed', 'Check under the couch'] },
   { id: 'li17', listId: 'l4', title: 'Clear the coffee table', notes: null, quantity: null, store: null, category: null, memberId: 'm2', dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 2, createdAt: iso(), priority: 'low', updatedAt: iso() },
 ] as SeedItem[]).map(seedItem)
+// A starter grocery run for the meal fixtures; projection can still add the week's full quantities.
+const mealGroceries: [string, string, string, string, boolean][] = [
+  ['Ground beef', '2.5 lb', 'Meat', 'Tuesday Tacos and Spaghetti Bolognese', false],
+  ['Corn tortillas', '18', 'Bakery', 'Tuesday Tacos, including leftovers for Wednesday', false],
+  ['Tomatoes', '8', 'Produce', 'Tacos, wraps, and garden vegetable pizza', false],
+  ['Chicken breast', '3 lb', 'Meat', 'Sunday and Saturday lemon chicken dinners', false],
+  ['Broccoli', '3 lb', 'Produce', 'Lemon chicken and tofu stir-fry', false],
+  ['Rice', '4.5 cup', 'Pantry', 'Chicken dinners and stir-fry', true],
+  ['Blueberries', '3 pints', 'Produce', 'Pancakes and yogurt parfaits', false],
+  ['Salmon', '1.5 lb', 'Seafood', 'Thursday dinner; buy fresh or keep frozen', false],
+]
+listItems.push(...mealGroceries.map(([title, quantity, category, notes, done], sort) => seedItem({
+  id: `demo-grocery-${sort}`, listId: 'l1', title, quantity, category, notes, store: 'Neighborhood market', memberId: 'm1',
+  dueDate: null, eventId: null, done, doneAt: done ? iso() : null, doneBy: done ? 'm1' : null,
+  sort: sort + 5, createdAt: iso(), updatedAt: iso(),
+})))
+recomputeListCounts('l1')
 let listGroups: ListGroup[] = []
 const minsAgo = (m: number) => new Date(Date.now() - m * 60_000).toISOString()
 let notes: Note[] = [
@@ -682,7 +699,8 @@ function mockSnapshot(memberId: string, range: 'day' | 'week'): Snapshot {
     events: mine.filter(e => e.date <= to),
     chores: choreRows, items,
     birthdays: birthdays.filter(b => b.date <= to),
-    tomorrow: range === 'day' ? { date: tomorrow, events: mine.filter(e => e.date === tomorrow), items: open.filter(i => i.dueDate === tomorrow), birthdays: birthdays.filter(b => b.date === tomorrow) } : null,
+    meals: [], // api.ts adds the demo menu (mock-meals.ts)
+    tomorrow: range === 'day' ? { date: tomorrow, events: mine.filter(e => e.date === tomorrow), items: open.filter(i => i.dueDate === tomorrow), birthdays: birthdays.filter(b => b.date === tomorrow), meals: [] } : null,
   }
 }
 
@@ -758,6 +776,7 @@ function mockBoard(days: number): Board {
       return { memberId: id, name: m?.name ?? null, avatar: m?.avatar ?? null, color: m?.color ?? null, total: mine.length, remaining: mine.filter(c => !completions.has(`${c.id}:${today}`)).length }
     }).filter(c => c.total > 0),
     birthdays,
+    meals: [], // api.ts adds the demo menu (mock-meals.ts)
   }
 }
 

@@ -11,6 +11,7 @@ import { useDeviceAppearance } from './useTheme.ts'
 import { useSlideshowPictures } from './Screensaver.tsx'
 import { tidbitFor, type Tidbit } from './tidbits.ts'
 import { BirthdayRow, ItemRow, dayName } from './Snapshot.tsx'
+import TodaysMeals from './TodaysMeals.tsx'
 
 const REFRESH_MS = 10 * 60_000
 const noop = () => {}
@@ -71,8 +72,8 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
   const later = [...new Set([...events.map(e => e.date), ...data.birthdays.map(b => b.date)])].filter(d => d > today).sort()
 
   const f = settings.features
-  const shown = ['clock', 'today', 'photo', 'coming', 'due', 'chores', 'tidbit'].filter(a =>
-    a === 'photo' ? f.photos : a === 'due' ? f.lists : a === 'chores' ? f.chores : a === 'tidbit' ? !!tidbit : true)
+  const shown = ['clock', 'today', 'meals', 'photo', 'coming', 'due', 'chores', 'tidbit'].filter(a =>
+    a === 'photo' ? f.photos : a === 'due' ? f.lists : a === 'chores' ? f.chores : a === 'meals' ? f.meals : a === 'tidbit' ? !!tidbit : true)
 
   return (
     <div className="board-scroll">
@@ -115,6 +116,8 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
             )
           })()}
         </Card>
+
+        {f.meals && <TodaysMeals now={now} today={today} meals={data.meals.filter(m => m.date === today)} />}
 
         <Card title="Coming up" area="coming">
           {later.length === 0 ? <p className="snap-empty">Nothing planned this week.</p> : later.map(d => {
@@ -182,10 +185,10 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
 function boardAreas(shown: string[]): React.CSSProperties {
   const has = (a: string) => shown.includes(a)
   // Two columns: rows of two cards; a card whose partner is off spans the row.
-  const two = [['clock', 'photo'], ['today', 'coming'], ['due', 'chores'], ['tidbit', 'tidbit']]
+  const two = [['clock', 'photo'], ['today', 'coming'], ['due', 'chores'], ['meals', 'tidbit']]
     .map(row => row.filter(has)).filter(row => row.length).map(([a, b = a]) => `"${a} ${b}"`)
   // Three full-height columns: a missing card's rows go to the card above it.
-  const cols = [['clock', 'photo', 'photo', 'tidbit'], ['today', 'today', 'chores', 'chores'], ['coming', 'coming', 'due', 'due']]
+  const cols = [['clock', 'photo', 'photo', 'tidbit'], ['today', 'today', 'chores', 'meals'], ['coming', 'coming', 'due', 'due']]
     .map(col => col.reduce<string[]>((out, a) => [...out, has(a) ? a : out[out.length - 1]], []))
   const three = [0, 1, 2, 3].map(r => `"${cols.map(c => c[r]).join(' ')}"`)
   return {

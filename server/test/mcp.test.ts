@@ -75,10 +75,13 @@ test('mcp: tools/list returns the tools', async () => {
     'add_member',
     'add_note',
     'add_tracker_entry',
+    'apply_meal_projection',
     'complete_chore',
     'create_chore',
     'create_event',
     'create_list',
+    'create_meal',
+    'create_recipe',
     'delete_color_scheme',
     'delete_event',
     'get_board',
@@ -87,15 +90,19 @@ test('mcp: tools/list returns the tools', async () => {
     'get_household',
     'get_leaderboard',
     'get_list',
+    'get_meal_projection',
     'get_points',
+    'get_recipe',
     'get_snapshot',
     'list_categories',
     'list_chores',
     'list_color_schemes',
     'list_events',
     'list_lists',
+    'list_meals',
     'list_notes',
     'list_notifications',
+    'list_recipes',
     'list_tracker_entries',
     'save_color_scheme',
     'send_notification',
@@ -109,8 +116,10 @@ test('mcp: tools/list returns the tools', async () => {
     'update_event',
     'update_list',
     'update_list_item',
+    'update_meal',
     'update_member',
     'update_note',
+    'update_recipe',
     'update_tracker_entry',
   ]);
 });
@@ -386,6 +395,16 @@ test('mcp: every tool declares permission hints, and the server advertises its i
   assert.equal(byName.list_notifications.readOnlyHint, true);
   assert.equal(byName.create_list.readOnlyHint, false);
   assert.equal(byName.delete_event.destructiveHint, true);
+  for (const name of ['list_recipes', 'get_recipe', 'list_meals', 'get_meal_projection']) {
+    assert.equal(byName[name].readOnlyHint, true, name);
+    assert.equal(byName[name].idempotentHint, true, name);
+    assert.equal(byName[name].openWorldHint, false, name);
+  }
+  for (const name of ['create_recipe', 'update_recipe', 'create_meal', 'update_meal', 'apply_meal_projection']) {
+    assert.equal(byName[name].readOnlyHint, false, name);
+    assert.equal(byName[name].idempotentHint, !name.startsWith('create_'), name);
+    assert.equal(byName[name].openWorldHint, false, name);
+  }
 
   const init = await (await mcp('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 't', version: '1' } })).json() as any;
   assert.match(init.result.serverInfo.icons[0].src, /\/icon-512\.png$/);
@@ -486,4 +505,148 @@ test('mcp: save_color_scheme refuses a scheme that fails contrast, and names the
   } })).json() as any;
   assert.equal(body.result.isError, true);
   assert.match(body.result.content[0].text, /Murky \(light mode\): Text on background is/);
+});
+
+test('mcp: meal planning recipes, weekly retrieval, assignment, and reviewed shopping application', async () => {
+  const { rest, mcp } = makeApp(makeEnv());
+  const call = async (name: string, args: Record<string, unknown> = {}) => {
+    const body = await (await mcp('tools/call', { name, arguments: args })).json() as any;
+    assert.equal(body.error, undefined, `${name}: ${JSON.stringify(body.error)}`);
+    assert.notEqual(body.result.isError, true, `${name}: ${JSON.stringify(body.result.content)}`);
+    return body.result.structuredContent;
+  };
+  const member = (await call('add_member', { name: 'Ava', color: '#ff0000' })).member;
+  const list = (await call('create_list', { name: 'Groceries', kind: 'shopping' })).list;
+  const existing = (await call('add_list_items', { listId: list.id, items: [{ title: 'Rice', quantity: '1 bag' }] })).items[0];
+  const recipe = (await call('create_recipe', {
+    name: 'Rice bowl', defaultServings: 2, sourceUrl: 'https://example.com/rice',
+    ingredients: JSON.stringify([{ name: 'Rice', quantity: 1, unit: 'cup', category: 'Grains' }, { name: 'Salt', qualifier: 'to taste' }]),
+  })).recipe;
+  assert.equal((await call('get_recipe', { id: recipe.id })).recipe.sourceUrl, 'https://example.com/rice');
+  assert.deepEqual((await call('list_recipes', { search: 'RICE', category: 'grains' })).recipes.map((r: any) => r.id), [recipe.id]);
+  assert.deepEqual((await call('list_recipes', { category: 'Dairy' })).recipes, []);
+  const meal = (await call('create_meal', { date: '2026-09-21', slot: 'dinner', recipeId: recipe.id, servings: 4, member: 'aV' })).meal;
+  assert.equal(meal.assigneeMemberId, member.id);
+  assert.equal(meal.calendarEventId, null);
+  const lastDay = (await call('create_meal', { date: '2026-09-27', slot: 'lunch', mealKind: 'dining_out' })).meal;
+  await call('create_meal', { date: '2026-09-28', slot: 'dinner', title: 'Leftovers', mealKind: 'freeform' });
+  assert.deepEqual((await call('list_meals', { from: '2026-09-21' })).meals.map((m: any) => m.id), [meal.id, lastDay.id]);
+  assert.deepEqual((await call('list_meals', { from: '2026-09-27', to: '2026-09-27' })).meals.map((m: any) => m.id), [lastDay.id]);
+  await call('update_recipe', { id: recipe.id, ingredients: [{ name: 'Rice', quantity: 2, unit: 'cup' }, { name: 'Salt', qualifier: 'to taste' }] });
+  assert.equal((await call('update_meal', { id: meal.id, notes: 'Batch cook' })).meal.recipeSnapshot.ingredients[0].quantity, 1);
+  assert.equal((await call('update_meal', { id: meal.id, refreshRecipe: true, member: null })).meal.assigneeMemberId, null);
+  assert.equal((await call('update_meal', { id: meal.id, member: member.id })).meal.assigneeMemberId, member.id);
+
+  const range = { from: '2026-09-21', to: '2026-09-27' };
+  assert.equal((await call('get_meal_projection', range)).listId, null);
+  const preview = await call('get_meal_projection', { ...range, listName: 'gROC' });
+  assert.equal(preview.listId, list.id);
+  const rice = preview.items.find((i: any) => i.name === 'Rice');
+  const salt = preview.items.find((i: any) => i.name === 'Salt');
+  assert.equal(rice.quantity, 4);
+  assert.equal(rice.sources[0].mealId, meal.id);
+  assert.equal(rice.sources[0].date, meal.date);
+  assert.equal(rice.matches[0].id, existing.id);
+  assert.equal(salt.scalable, false);
+  const applied = await call('apply_meal_projection', { ...range, listName: 'GROCERIES', omitKeys: JSON.stringify([salt.key]), includeNotes: true });
+  assert.equal(applied.added, 1);
+  assert.equal(applied.itemIds.length, 1);
+  assert.equal(applied.projection.items.find((i: any) => i.name === 'Rice').applied, true);
+  assert.equal(applied.projection.items.find((i: any) => i.name === 'Salt').applied, false);
+  const items = (await call('get_list', { list: list.id })).items;
+  assert.equal(items.length, 2);
+  assert.equal(items.find((i: any) => i.id === existing.id).quantity, '1 bag');
+  const added = items.find((i: any) => i.id === applied.itemIds[0]);
+  assert.equal(added.quantity, '4 cup');
+  assert.match(added.notes, /2026-09-21.*dinner.*Rice bowl/);
+  assert.equal((await call('apply_meal_projection', { ...range, listId: list.id, omitKeys: [salt.key], includeNotes: true })).added, 0);
+  assert.equal((await call('apply_meal_projection', { from: '2026-09-20', to: '2026-09-28', listId: list.id, omitKeys: [salt.key] })).added, 0);
+  await call('update_meal', { id: meal.id, servings: 6 });
+  assert.equal((await call('get_meal_projection', { ...range, listId: list.id })).items.find((i: any) => i.name === 'Rice').changedSinceApplied, true);
+  assert.equal((await call('apply_meal_projection', { ...range, listId: list.id, omitKeys: [salt.key] })).added, 0);
+  const remainder = await call('apply_meal_projection', { ...range, listId: list.id, includeNotes: false });
+  assert.equal(remainder.added, 1);
+  assert.equal((await call('get_list', { list: list.id })).items.find((i: any) => i.id === remainder.itemIds[0]).notes, null);
+  const other = (await call('create_list', { name: 'Weekend groceries', kind: 'shopping' })).list;
+  assert.equal((await call('apply_meal_projection', { ...range, listId: other.id })).added, 2, 'claims are per list');
+  assert.equal((await call('update_recipe', { id: recipe.id, archived: true })).recipe.archived, true);
+  assert.deepEqual((await call('list_recipes')).recipes, []);
+  assert.equal((await call('list_recipes', { archived: true })).recipes[0].id, recipe.id);
+  assert.equal((await call('get_recipe', { id: recipe.id })).recipe.archived, true);
+  assert.equal((await call('list_meals', range)).meals[0].recipeSnapshot.name, 'Rice bowl');
+  assert.equal((await call('update_recipe', { id: recipe.id, archived: false })).recipe.archived, false);
+  assert.deepEqual(await (await rest('/api/events?from=2026-09-20&to=2026-09-29')).json(), []);
+});
+
+test('mcp: meal planning preserves route authorization and returns resolution/validation errors', async () => {
+  const { rest, mcp } = makeApp(makeEnv());
+  const call = async (name: string, args: Record<string, unknown>, key = ADMIN_KEY) => {
+    const body = await (await mcp('tools/call', { name, arguments: args }, key)).json() as any;
+    assert.equal(body.error, undefined, JSON.stringify(body.error));
+    return body.result;
+  };
+  const fail = async (name: string, args: Record<string, unknown>, pattern: RegExp, key = ADMIN_KEY) => {
+    const result = await call(name, args, key);
+    assert.equal(result.isError, true, `${name}: ${JSON.stringify(result)}`);
+    assert.match(result.content[0].text, pattern);
+  };
+  const emma = (await call('add_member', { name: 'Emma', color: '#111111' })).structuredContent.member;
+  await call('add_member', { name: 'Emmanuel', color: '#222222' });
+  const mealInput = { date: '2026-09-21', slot: 'dinner', title: 'Pasta' };
+  await fail('create_meal', { ...mealInput, member: 'Em' }, /multiple members/);
+  await fail('create_meal', { ...mealInput, member: 'Nobody' }, /no member found/);
+  const meal = (await call('create_meal', { ...mealInput, member: 'EMMA' })).structuredContent.meal;
+  await fail('update_meal', { id: meal.id, member: 'Nobody' }, /no member found/);
+  const recipe = (await call('create_recipe', { name: 'Pasta' })).structuredContent.recipe;
+  const list = (await call('create_list', { name: 'Groceries', kind: 'shopping' })).structuredContent.list;
+  await call('create_list', { name: 'Groceries weekend', kind: 'shopping' });
+  await call('create_list', { name: 'Tasks', kind: 'todo' });
+  const range = { from: '2026-09-21', to: '2026-09-27' };
+  for (const name of ['get_meal_projection', 'apply_meal_projection']) {
+    await fail(name, { ...range, listName: 'groc' }, /multiple lists/);
+    await fail(name, { ...range, listName: 'Missing' }, /no list found/);
+    await fail(name, { ...range, listName: 'Tasks' }, /active shopping list not found/);
+  }
+  await fail('apply_meal_projection', range, /listId or listName is required/);
+  await fail('get_recipe', { id: 'missing' }, /recipe not found/);
+  await fail('list_meals', { from: '2026-09-28', to: '2026-09-21' }, /range must be ordered/);
+  await fail('create_meal', { ...mealInput, date: '2026-02-30' }, /real YYYY-MM-DD date/);
+  const display = await (await rest('/api/keys', { method: 'POST', body: JSON.stringify({ name: 'Emma device', scope: 'display' }) })).json() as any;
+  for (const [name, args] of [
+    ['create_recipe', { name: 'Denied' }], ['update_recipe', { id: recipe.id, archived: true }],
+    ['create_meal', mealInput], ['get_meal_projection', { ...range, listId: list.id }], ['apply_meal_projection', { ...range, listName: 'Groceries' }],
+  ] as const) await fail(name, args, /display key cannot access/, display.key);
+  await fail('update_meal', { id: meal.id, notes: 'Denied' }, /Only admins/, display.key);
+  assert.equal((await rest(`/api/keys/${display.id}`, { method: 'PATCH', body: JSON.stringify({ owner: emma.id }) })).status, 200);
+  const updated = await call('update_meal', { id: meal.id, notes: 'Ready', status: 'prepared' }, display.key);
+  assert.notEqual(updated.isError, true, JSON.stringify(updated));
+  assert.equal(updated.structuredContent.meal.notes, 'Ready');
+  await fail('update_meal', { id: meal.id, member: null }, /Only admins/, display.key);
+  await fail('update_meal', { id: meal.id, title: 'Denied' }, /Only admins/, display.key);
+  for (const [name, args] of [
+    ['list_recipes', {}], ['get_recipe', { id: recipe.id }], ['list_meals', range],
+  ] as const) assert.notEqual((await call(name, args, display.key)).isError, true, name);
+  assert.equal((await call('get_recipe', { id: recipe.id })).structuredContent.recipe.archived, false);
+  assert.equal((await call('get_list', { list: list.id })).structuredContent.items.length, 0);
+});
+
+test('mcp: meal planning tools use REST permissions, snapshots, and idempotent projection application', async () => {
+  const { rest, mcp } = makeApp(makeEnv());
+  const call = async (name: string, args: unknown) => {
+    const body = await (await mcp('tools/call', { name, arguments: args })).json() as any;
+    assert.equal(body.result.isError, undefined, JSON.stringify(body));
+    return body.result.structuredContent;
+  };
+  const { recipe } = await call('create_recipe', { name: 'Soup', defaultServings: 2, ingredients: [{ name: 'Carrots', quantity: 3 }] });
+  assert.equal((await call('get_recipe', { id: recipe.id })).recipe.name, 'Soup');
+  assert.equal((await call('list_recipes', { search: 'soup' })).recipes.length, 1);
+  const { meal } = await call('create_meal', { date: '2026-10-05', slot: 'dinner', recipeId: recipe.id, servings: 4 });
+  await call('update_recipe', { id: recipe.id, defaultServings: 8 });
+  assert.equal((await call('update_meal', { id: meal.id, notes: 'Cook early' })).meal.recipeSnapshot.defaultServings, 2);
+  const range = { from: '2026-10-05', to: '2026-10-11' };
+  assert.equal((await call('list_meals', range)).meals.length, 1);
+  const list = await (await rest('/api/lists', { method: 'POST', body: JSON.stringify({ name: 'Groceries', kind: 'shopping' }) })).json() as any;
+  assert.equal((await call('get_meal_projection', { ...range, listId: list.id })).items[0].quantity, 6);
+  assert.equal((await call('apply_meal_projection', { ...range, listId: list.id })).added, 1);
+  assert.equal((await call('apply_meal_projection', { ...range, listId: list.id })).added, 0);
 });

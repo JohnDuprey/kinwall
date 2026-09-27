@@ -1,4 +1,5 @@
 import type { CustomScheme } from './skins.ts'
+import type { Meal } from './meal-types.ts'
 // Shapes mirror SPEC.md "API". Assumption: JSON keys are camelCase throughout
 // (SPEC shows this explicitly for EventInstance / chores/day; applied consistently here).
 
@@ -54,6 +55,7 @@ export interface Features {
   trackersReading: boolean
   trackersMemories: boolean
   trackersHealth: boolean
+  meals: boolean // Meals tab, the Board's meals card, meals in the daily summary
 }
 
 // Trackers (server: routes/trackers.ts). `data` holds the kind's fields; health never reaches a display key.
@@ -576,7 +578,8 @@ export interface Snapshot {
   chores: SnapshotChore[]
   items: SnapshotItem[]
   birthdays: SnapshotBirthday[]
-  tomorrow: { date: string; events: SnapshotEvent[]; items: SnapshotItem[]; birthdays: SnapshotBirthday[] } | null
+  meals: Meal[] // [] while Meals is off
+  tomorrow: { date: string; events: SnapshotEvent[]; items: SnapshotItem[]; birthdays: SnapshotBirthday[]; meals: Meal[] } | null
 }
 /** GET /api/board?days=N - the whole family's bulletin board, today through `to`. */
 export interface Board {
@@ -588,6 +591,7 @@ export interface Board {
   items: SnapshotItem[] // open items due by `to` (overdue first), plus urgent/high ones with no date
   chores: { memberId: string | null; name: string | null; avatar: string | null; color: string | null; remaining: number; total: number }[]
   birthdays: SnapshotBirthday[]
+  meals: Meal[] // today through `to`; [] while Meals is off
 }
 
 /** A reviewed plugin, pinned to a version (GET /api/plugins/catalog). */
@@ -622,4 +626,3 @@ export interface Plugin {
   updatedAt: string
   url: string // /plugins/<id>/<entry>
 }
-

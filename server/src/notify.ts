@@ -307,12 +307,13 @@ async function runDailySummary(env: Env, db: KinwallDb, now: Date, tz: string, s
 
     const dayStart = new Date(`${today}T00:00:00Z`);
     const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
-    const [eventsRes, choresRes, linkedRes, dueRes] = await db.batch<unknown>([
+    const [eventsRes, choresRes, linkedRes, dueRes, mealsRes] = await db.batch<unknown>([
       db.prepare("SELECT * FROM events WHERE calendar_id IN (SELECT id FROM calendars WHERE enabled = 1)"),
       db.prepare('SELECT * FROM chores WHERE active = 1'),
       // Urgent/important items first (so they make the top 3) and marked.
       db.prepare(`SELECT event_id, title, priority FROM list_items WHERE done = 0 AND event_id IS NOT NULL ORDER BY ${priorityRankSql()}, sort, created_at`),
       db.prepare(`SELECT title, priority, member_id FROM list_items WHERE done = 0 AND due_date = ? ORDER BY ${priorityRankSql()}, sort, created_at`).bind(today),
+      db.prepare("SELECT slot, title FROM meals WHERE date = ? ORDER BY CASE slot WHEN 'breakfast' THEN 0 WHEN 'lunch' THEN 1 WHEN 'dinner' THEN 2 ELSE 3 END, planned_time, created_at").bind(today),
     ]);
     const mark = (r: { title: string; priority: string }) => `${r.priority === 'urgent' ? '‼️ ' : r.priority === 'high' ? '⭐ ' : ''}${r.title}`;
     const top3 = (titles: string[]) => titles.slice(0, 3).join(', ') + (titles.length > 3 ? ` +${titles.length - 3} more` : '');
@@ -355,6 +356,8 @@ async function runDailySummary(env: Env, db: KinwallDb, now: Date, tz: string, s
     const first = todaysTitles.slice(0, 2).join(', ') + (todaysTitles.length > 2 ? '…' : '');
     const choreCount = features.chores ? ` · ${chores.length} chore${chores.length === 1 ? '' : 's'}` : '';
     let body = `${eventCount} event${eventCount === 1 ? '' : 's'}${choreCount}${first ? ` — ${first}` : ''}`;
+    const meals = mealsRes.results as { slot: string; title: string }[];
+    if (features.meals && meals.length) body += `\nMeals: ${top3(meals.map((m) => `${m.slot[0].toUpperCase()}${m.slot.slice(1)} · ${m.title}`))}`;
     if (todo.length) body += `\nTo do for today's events:\n${todo.join('\n')}`;
     // List items due today (any list), for this device's members like the chore nudge.
     const due = features.lists ? (dueRes.results as unknown as { title: string; priority: string; member_id: string | null }[]).filter((r) => memberMatch(deviceMemberIds, r.member_id ? [r.member_id] : [])) : [];

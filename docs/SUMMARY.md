@@ -19,6 +19,7 @@
 * [Categories & auto-categorizing](using/categories.md)
 * [Chores](using/chores.md)
 * [Lists](using/lists.md)
+* [Meals](using/meals.md)
 * [Activities (Paint)](using/activities.md)
 * [Photos](using/photos.md)
 * [Trackers](using/trackers.md)
