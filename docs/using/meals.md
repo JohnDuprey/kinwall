@@ -29,13 +29,15 @@ Some amounts don't scale, and Kinwall shows them as they are with **Check amount
 * containers and handfuls: cans, jars, packages, bunches, pinches, handfuls;
 * anything with a quantity note ("15 oz cans"), or no quantity at all ("to taste").
 
-## Adding to the shopping list
+## Adding to the grocery list
 
 **Groceries** (admins) adds up the ingredients of every recipe meal in a date range, the planner's week by default:
 
-1. Pick the range and a shopping list. The preview shows each ingredient's total, which meals it's for, and any item already on that list with the same name.
+1. Pick the range and a grocery list. Only shopping lists can take ingredients. If you have just one, it's already chosen; with several, Kinwall picks the one this device used last. The preview shows each ingredient's total, which meals it's for, and any item already on that list with the same name.
 2. Untick what you already have (salt, rice in the pantry).
 3. Tap **Add … items to list**. Optionally, each new item gets a note with the meals it's for.
+
+New items land where your family keeps them: the store, aisle and category [remembered](lists.md#remembered-places) for that ingredient, or the recipe's category when there's nothing remembered yet. On the list, each one says which meals it's for ("For Taco night"). Checking out a grocery run just clears the items; your meals don't change.
 
 Kinwall remembers which meal's ingredient went to which list. Adding the same week again, or an overlapping range, only adds what hasn't been added yet, so nothing is duplicated, and items already on the list are never rewritten. If a meal changes after its ingredients were added (more servings, a new date), the preview marks it as changed so you can adjust the list by hand.
 
