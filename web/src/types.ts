@@ -1,5 +1,6 @@
 import type { CustomScheme } from './skins.ts'
 import type { Meal } from './meal-types.ts'
+import type { TransitionReminders } from './transitions.ts'
 // Shapes mirror SPEC.md "API". Assumption: JSON keys are camelCase throughout
 // (SPEC shows this explicitly for EventInstance / chores/day; applied consistently here).
 
@@ -126,6 +127,7 @@ export interface Member {
   pointsToday: number
   pointsWeek: number
   balance: number // points left to spend on stickers (earned - spent); pointsToday/pointsWeek stay earned
+  transitionReminders?: TransitionReminders // pushes to their own devices before their events (admin sets)
 }
 
 export type CalendarKind = 'local' | 'ics' | 'google' | 'microsoft' | 'caldav'

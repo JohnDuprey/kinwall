@@ -14,6 +14,7 @@ import { announce, pressable, Segmented, useRovingGrid } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
 import { effectiveDensity, useDeviceAppearance } from './useTheme.ts'
 import { NowNextCard, TransitionWarnings } from './NowNext.tsx'
+import { warningTimes } from './transitions.ts'
 import NotesThread from './NotesThread.tsx'
 import Board from './Board.tsx'
 
@@ -225,6 +226,7 @@ export default function CalendarView() {
   const notesOn = settings.features.notes
   const visibleEvents = useMemo(() => events.filter(shows).map(e => notesOn || !e.noteCount ? e : { ...e, noteCount: 0 }), [events, shows, notesOn])
 
+  const warnTimes = useMemo(() => warningTimes(device.warnings, device.warningRepeat), [device.warnings, device.warningRepeat])
   // Today's instances for Now / Next and transition warnings, taken from whatever range is loaded
   // while it covers today, and kept (not refetched) while the user pages to another week/month.
   const [todayEvents, setTodayEvents] = useState<EventInstance[]>([])
@@ -338,7 +340,7 @@ export default function CalendarView() {
   return (
     <div className="content">
       {showNowNext && <NowNextCard events={todayEvents} tz={tz} placeholder={isPhone} />}
-      {!!device.warnings?.length && <TransitionWarnings events={todayEvents} minutes={device.warnings} sound={!!device.warningSound} settings={settings} />}
+      {warnTimes.length > 0 && <TransitionWarnings events={todayEvents} minutes={warnTimes} sound={!!device.warningSound} settings={settings} />}
       {(!device.lockView || viewMode !== 'board' || categories.length > 0) && <div className="calendar-toolbar">
         {!device.lockView && (
           <Segmented tabs idBase="calview" label="Calendar view" value={viewMode} onChange={setViewMode}

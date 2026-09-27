@@ -9,6 +9,8 @@ const SCALE: Record<TextScale, string> = { s: '0.9', m: '1', l: '1.15', xl: '1.3
 // Per-device overrides of the household appearance (a wall iPad read from across the room and a
 // phone in the hand want different sizes). Absent key = follow the household setting. Kept in
 // localStorage like the nav position; a same-tab event re-applies, since 'storage' is cross-tab only.
+import type { WarningRepeat } from './transitions.ts'
+
 const DEVICE_KEY = 'kinwall.deviceAppearance'
 const DEVICE_EVENT = 'kinwall:device-appearance'
 // The same object also carries this device's other preferences (focus, warnings, locked view…),
@@ -22,6 +24,7 @@ export type DeviceAppearance = Partial<Pick<Appearance, 'themeMode' | 'textScale
   nowNext?: boolean // Now / Next card on the calendar; absent = on
   idleReset?: boolean // back to the calendar after 2 idle minutes; absent = on for wall screens and kids' devices, off for parent devices
   warnings?: number[] // transition warnings, minutes before an event (or its leave-by)
+  warningRepeat?: WarningRepeat // ...plus every N minutes during the last M (transitions.ts)
   warningSound?: boolean
   focusMemberId?: string // this display shows only one member's things
   focusHideShared?: boolean // ...and hides the ones assigned to nobody
