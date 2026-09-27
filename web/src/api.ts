@@ -6,7 +6,7 @@ import type { CustomScheme } from './skins.ts'
 import type { PasskeyAuthenticator } from './webauthn.ts'
 import type { Meal, MealInput, Recipe, RecipeInput, ShoppingProjection } from './meal-types.ts'
 import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginCatalogEntry,
-  StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota,
+  StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota, Reward, Redemption,
   Account, ApiKey, AppNotification, Appearance, CalendarEntry, Category, Chore, ChoreDay, PendingApproval, EventInstance, LeaderboardEntry, LeaderboardPeriod, List,
   GeocodeResult, HostEvent, ImportResult, ListDetail, ListGroup, ListItem, ListItemInput, Member, Me, Note, NoteTarget, Passkey, TrackerEntry, TrackerInput, TrackerKind, Providers, PushSubscription, PushSubscriptionPrefs, RemoteCalendar, Settings, Snapshot, Board, Webhook, WebhookWithSecret,
 } from './types.ts'
@@ -347,6 +347,20 @@ export const api = {
   getStickerPacks: (memberId: string) => MOCK ? mock.getStickerPacks(memberId) : get<StickerPack[]>(`api/stickers/packs?memberId=${encodeURIComponent(memberId)}`),
   buyStickerPack: (packId: string, memberId: string) =>
     MOCK ? mock.buyStickerPack(packId, memberId) : post<{ pack: StickerPack; balance: number }>(`api/stickers/packs/${packId}/buy`, { memberId }),
+  // Rewards: anyone lists and redeems (a member's own device only for them); parents manage and decide.
+  getRewards: (opts: { memberId?: string; archived?: boolean } = {}) => MOCK ? mock.getRewards(opts)
+    : get<Reward[]>(`api/rewards?${new URLSearchParams({ ...(opts.memberId ? { memberId: opts.memberId } : {}), ...(opts.archived ? { archived: 'true' } : {}) })}`),
+  createReward: (body: Partial<Reward>) => MOCK ? mock.createReward(body) : post<Reward>('api/rewards', body),
+  updateReward: (id: string, body: Partial<Reward>) => MOCK ? mock.updateReward(id, body) : patch<Reward>(`api/rewards/${id}`, body),
+  deleteReward: (id: string) => MOCK ? mock.deleteReward(id) : del(`api/rewards/${id}`),
+  redeemReward: (id: string, memberId: string) =>
+    MOCK ? mock.redeemReward(id, memberId) : post<{ redemption: Redemption; balance: number }>(`api/rewards/${id}/redeem`, { memberId }),
+  getRedemptions: (opts: { memberId?: string; status?: string; limit?: number } = {}) => MOCK ? mock.getRedemptions(opts)
+    : get<Redemption[]>(`api/rewards/redemptions?${new URLSearchParams(Object.entries(opts).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)]))}`),
+  decideRedemption: (id: string, action: 'approve' | 'decline' | 'given', note?: string) =>
+    MOCK ? mock.decideRedemption(id, action, note) : post<Redemption>(`api/rewards/redemptions/${id}/${action}`, action === 'decline' ? { note } : undefined),
+  setRewardGoal: (memberId: string, rewardId: string | null) =>
+    MOCK ? mock.setRewardGoal(memberId, rewardId) : put<{ rewardId: string | null }>(`api/members/${memberId}/reward-goal`, { rewardId }),
   getScrapbook: (memberId: string) => MOCK ? mock.getScrapbook(memberId) : get<StickerPlacement[]>(`api/stickers/scrapbook/${memberId}`),
   placeSticker: (memberId: string, body: StickerPatch & { sticker: string }) =>
     MOCK ? mock.placeSticker(memberId, body) : post<StickerPlacement>(`api/stickers/scrapbook/${memberId}`, body),

@@ -1742,6 +1742,22 @@ button.notif-item:active { transform: scale(0.99); }
   55% { transform: scale(1.4) rotate(12deg); }
   100% { transform: scale(1) rotate(0); }
 }
+/* Rewards (Rewards.tsx): the sticker shop's cards, plus a goal toggle, limit and state lines. */
+.stickers-rewards { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.reward-card.goal { box-shadow: var(--shadow), inset 0 0 0 2px var(--accent); }
+.reward-meta { font-size: 0.875rem; font-weight: 700; color: var(--text-dim); }
+.reward-goal-btn { background: none; border: none; color: var(--text-dim); font: inherit; font-size: 0.875rem; font-weight: 700; min-height: 44px; padding: 0 8px; cursor: pointer; }
+.reward-goal-btn.on { color: var(--accent-strong); }
+.reward-state { margin-top: auto; min-height: 48px; display: grid; place-items: center; font-weight: 800; color: var(--text-dim); }
+.reward-history { margin-top: 20px; }
+.reward-history-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+.reward-status { font-size: 0.875rem; font-weight: 800; color: var(--text-dim); text-align: right; max-width: 45%; overflow-wrap: anywhere; }
+.reward-status.approved, .reward-status.given { color: var(--success); }
+.reward-manage { margin-top: 16px; }
+.reward-manage-row.archived { opacity: 0.7; }
+.reward-limit-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; font-weight: 700; }
+.reward-limit-row input { width: 4.5em; }
+.board-goal { display: block; margin-top: 2px; }
 @media (max-width: 600px) {
   .stickers-head { padding: 6px 12px; }
   .stickers-head [role="tablist"] { flex-basis: 100%; }

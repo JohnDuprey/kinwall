@@ -859,7 +859,7 @@ function AppRoutes() {
   const [owner, setOwner] = useState<string | null>(null) // who an admin says this device belongs to (GET /api/me)
   const [ownerLocks, setOwnerLocks] = useState(false) // ...and whether that locks the family filter (everyday access only)
   const [parentDevice, setParentDevice] = useState(false) // until /api/me says otherwise, act as a device
-  const [toApprove, setToApprove] = useState(0) // chores waiting for a parent's OK (parent devices)
+  const [toApprove, setToApprove] = useState(0) // chores and rewards waiting for a parent's OK (parent devices)
   // `persist`: errors and results worth reading stay until tapped; confirmations fade after 4s.
   const [toastMsg, setToastMsg] = useState<{ msg: string; persist: boolean } | null>(null)
   // Sticky banner-style toast (tap to dismiss), e.g. after a recovery-code sign-in.
@@ -973,11 +973,13 @@ function AppRoutes() {
   const choresOn = !!settings?.features.chores
   useEffect(() => {
     if (!parentDevice || !choresOn) { setToApprove(0); return }
-    api.getPendingApprovals().then(p => setToApprove(p.length)).catch(() => { /* keep the last count */ })
+    // Chores and rewards waiting for an OK (approved rewards not given yet don't count: nothing to decide).
+    Promise.all([api.getPendingApprovals(), api.getRedemptions({ status: 'pending' })])
+      .then(([c, r]) => setToApprove(c.length + r.length)).catch(() => { /* keep the last count */ })
   }, [parentDevice, choresOn, pollTick, manualTick])
   const redirect = settings && featureRedirect(settings, section, sub)
   useEffect(() => { if (redirect) location.replace(redirect) }, [redirect])
-  const tabLabel = section === 'activities' && sub === 'paint' ? 'Paint' : section === 'activities' && sub === 'stickers' ? 'Sticker book' : section === 'activities' && sub === 'photos' ? 'Photos' : NAV_ITEMS.find(i => i.key === section)?.label ?? 'Calendar'
+  const tabLabel = section === 'activities' && sub === 'paint' ? 'Paint' : section === 'activities' && sub === 'stickers' ? 'Sticker book' : section === 'activities' && sub === 'photos' ? 'Photos' : section === 'activities' && sub === 'rewards' ? 'Rewards' : NAV_ITEMS.find(i => i.key === section)?.label ?? 'Calendar'
   const inApp = hasKey && !!settings && !wizardActive && NAV_ITEMS.some(i => i.key === section)
   // "Chores · Duprey Family": the family, not the product, is what tells tabs and home-screen icons apart.
   const familyName = settings?.familyName?.trim()

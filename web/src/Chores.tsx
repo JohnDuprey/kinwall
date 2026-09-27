@@ -3,7 +3,7 @@ import { addDays, format, isSameDay } from 'date-fns'
 import { useIsPhone } from './useIsPhone.ts'
 import { useApp } from './AppContext.tsx'
 import { api, ApiError } from './api.ts'
-import type { Chore, ChoreDay, LeaderboardEntry, LeaderboardPeriod, List, ListItem, PendingApproval, Plugin } from './types.ts'
+import type { Chore, ChoreDay, LeaderboardEntry, LeaderboardPeriod, List, ListItem, PendingApproval, Plugin, Redemption } from './types.ts'
 import { MEMBER_EMOJI } from './types.ts'
 import { dateKey } from './date.ts'
 import Sheet from './Sheet.tsx'
@@ -266,15 +266,40 @@ function ChoreCard({ chore, onToggle, onEdit }: { chore: ChoreDay; onToggle: () 
 }
 
 /** Parent devices: chores ticked on a wall screen or kid's device that wait for an OK. Approve
- * awards the points; Not yet sends it back unticked with an optional note the kid sees. */
+ * awards the points; Not yet sends it back unticked with an optional note the kid sees. Rewards
+ * redeemed there wait here too (Approve / Not this time), and approved ones until they're Given. */
 function ApprovalQueue({ onChanged }: { onChanged: () => void }) {
   const { members, toast, reloadCore, refreshTick } = useApp()
   const [items, setItems] = useState<PendingApproval[]>([])
+  const [rewards, setRewards] = useState<Redemption[]>([])
   const [notYet, setNotYet] = useState<PendingApproval | null>(null)
+  const [notThisTime, setNotThisTime] = useState<Redemption | null>(null)
   const [note, setNote] = useState('')
-  const fetchItems = () => { api.getPendingApprovals().then(setItems).catch(() => { /* the section just stays as it was */ }) }
+  const fetchItems = () => {
+    api.getPendingApprovals().then(setItems).catch(() => { /* the section just stays as it was */ })
+    api.getRedemptions({ status: 'pending,approved' }).then(setRewards).catch(() => { /* likewise */ })
+  }
   useEffect(fetchItems, [refreshTick])
-  const name = (p: PendingApproval) => members.find(m => m.id === p.memberId)?.name ?? 'Someone'
+  const name = (p: { memberId: string | null }) => members.find(m => m.id === p.memberId)?.name ?? 'Someone'
+  const decide = async (r: Redemption, action: 'approve' | 'decline' | 'given', done: string, note?: string) => {
+    setRewards(list => action === 'approve' ? list.map(x => x === r ? { ...x, status: 'approved' } : x) : list.filter(x => x !== r)) // optimistic
+    try {
+      await api.decideRedemption(r.id, action, note)
+      toast(done)
+      announce(done)
+      reloadCore()
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : 'Could not update reward', true)
+      fetchItems()
+    }
+  }
+  const sendRewardBack = () => {
+    const r = notThisTime!
+    setNotThisTime(null)
+    decide(r, 'decline', `${r.title}: points back to ${name(r)}`, note.trim() || undefined)
+  }
+  const whenR = (r: Redemption) => r.date === dateKey(new Date()) ? '' : format(new Date(r.requestedAt), 'EEE, MMM d')
+  const count = items.length + rewards.filter(r => r.status === 'pending').length
   const when = (p: PendingApproval) => {
     if (p.date === dateKey(new Date())) return ''
     const [y, m, d] = p.date.split('-').map(Number)
@@ -300,9 +325,9 @@ function ApprovalQueue({ onChanged }: { onChanged: () => void }) {
   }
   return (
     <>
-      {items.length > 0 && (
+      {(items.length > 0 || rewards.length > 0) && (
         <section className="approve-card" aria-labelledby="approve-heading">
-          <h3 id="approve-heading" className="approve-heading">To approve <span className="approve-count">{items.length}</span></h3>
+          <h3 id="approve-heading" className="approve-heading">To approve {count > 0 && <span className="approve-count">{count}</span>}</h3>
           <ul className="approve-list">
             {items.map(p => (
               <li key={`${p.choreId}:${p.date}`} className="approve-row">
@@ -317,8 +342,36 @@ function ApprovalQueue({ onChanged }: { onChanged: () => void }) {
                 </div>
               </li>
             ))}
+            {rewards.map(r => (
+              <li key={r.id} className="approve-row">
+                <span className="approve-emoji" aria-hidden="true">{r.emoji ?? '🎁'}</span>
+                <div className="approve-info">
+                  <div className="approve-title">{r.title}</div>
+                  <div className="approve-sub">{[name(r), whenR(r), `${r.cost} pts`, r.status === 'approved' && 'approved, not given yet'].filter(Boolean).join(' · ')}</div>
+                </div>
+                <div className="approve-actions">
+                  {r.status === 'pending' ? <>
+                    <button className="btn btn-secondary" onClick={() => { setNote(''); setNotThisTime(r) }} aria-label={`Not this time: ${r.title} for ${name(r)}`}>Not this time</button>
+                    <button className="btn btn-primary" onClick={() => decide(r, 'approve', `Approved: ${r.title} for ${name(r)}`)} aria-label={`Approve ${r.title} for ${name(r)}`}>Approve</button>
+                  </> : <>
+                    <button className="btn btn-secondary" onClick={() => { setNote(''); setNotThisTime(r) }} aria-label={`Cancel ${r.title} for ${name(r)} and give the points back`}>Cancel</button>
+                    <button className="btn btn-primary" onClick={() => decide(r, 'given', `Given: ${r.title} to ${name(r)}`)} aria-label={`${r.title} given to ${name(r)}`}>Given</button>
+                  </>}
+                </div>
+              </li>
+            ))}
           </ul>
         </section>
+      )}
+      {notThisTime && (
+        <Sheet title={notThisTime.status === 'pending' ? 'Not this time' : 'Cancel reward'} onClose={() => setNotThisTime(null)} actions={<button className="btn btn-primary" onClick={sendRewardBack}>Give points back</button>}>
+          <p className="settings-row-sub" style={{ margin: '0 0 12px' }}>{notThisTime.emoji} {notThisTime.title}: {name(notThisTime)} gets their {notThisTime.cost} points back. They'll see your note.</p>
+          <div className="field">
+            <label htmlFor="notthistime-note">Note (optional)</label>
+            <input id="notthistime-note" type="text" maxLength={200} value={note} onChange={e => setNote(e.target.value)} placeholder="Let's do it at the weekend" autoComplete="off"
+              onKeyDown={e => { if (e.key === 'Enter') sendRewardBack() }} />
+          </div>
+        </Sheet>
       )}
       {notYet && (
         <Sheet title="Not yet" onClose={() => setNotYet(null)} actions={<button className="btn btn-primary" onClick={sendBack}>Send back</button>}>

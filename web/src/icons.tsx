@@ -102,6 +102,9 @@ export const BrushIcon = (p: P) => (
 export const StickerIcon = (p: P) => (
   <svg {...base(p)}><path d="M21 12V6a3 3 0 0 0-3-3H6a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3h6z" /><path d="M21 12l-9 9v-6a3 3 0 0 1 3-3z" /><path d="M8.5 9.5h.01M13.5 9.5h.01M8.5 14c1 1 2.6 1.3 4 .6" /></svg>
 )
+export const GiftIcon = (p: P) => (
+  <svg {...base(p)}><rect x="3" y="8" width="18" height="4" rx="1" /><path d="M5 12v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8M12 8v13M12 8c-1.5-3-5-4-5.5-2S9 8 12 8zM12 8c1.5-3 5-4 5.5-2S15 8 12 8z" /></svg>
+)
 export const EraserIcon = (p: P) => (
   <svg {...base(p)}><path d="M7 21l-4-4a2 2 0 0 1 0-2.8L13.2 4a2 2 0 0 1 2.8 0l5 5a2 2 0 0 1 0 2.8L11 21zM21 21H7M8.5 9.5l6 6" /></svg>
 )

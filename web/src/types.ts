@@ -129,6 +129,7 @@ export interface Member {
   balance: number // points left to spend on stickers (earned - spent); pointsToday/pointsWeek stay earned
   needsApproval?: boolean // their chores need a parent's OK by default (a chore's own setting wins)
   transitionReminders?: TransitionReminders // pushes to their own devices before their events (admin sets)
+  rewardGoal?: { rewardId: string; title: string; emoji: string | null; cost: number } | null // the reward they're saving for
 }
 
 export type CalendarKind = 'local' | 'ics' | 'google' | 'microsoft' | 'caldav'
@@ -270,6 +271,37 @@ export interface LeaderboardEntry {
   completed: number
   streak: number
   rank: number
+}
+
+export interface RewardLimit { count: number; period: 'day' | 'week' }
+/** Something a parent set up that a member spends points on (server: routes/rewards.ts). */
+export interface Reward {
+  id: string
+  title: string
+  emoji: string | null
+  cost: number
+  memberIds: string[] // empty = everyone
+  needsApproval: boolean
+  limit: RewardLimit | null
+  active: boolean // false = archived
+  sort: number
+  createdAt: string
+  used?: number // with ?memberId=: how much of the limit they've used this day/week
+}
+export type RedemptionStatus = 'pending' | 'approved' | 'declined' | 'given'
+export interface Redemption {
+  id: string
+  rewardId: string | null
+  memberId: string
+  title: string
+  emoji: string | null
+  cost: number
+  status: RedemptionStatus
+  note: string | null
+  date: string
+  requestedAt: string
+  decidedAt: string | null
+  givenAt: string | null
 }
 
 export interface StickerPack {

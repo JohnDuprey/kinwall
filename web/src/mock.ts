@@ -1,7 +1,7 @@
 // Dev-only in-memory fixture, used when VITE_MOCK=1. Excluded from prod by the env check in api.ts.
 import type { OnlineTidbits, Plugin, PluginCatalogEntry,
   Account, ApiKey, AppNotification, CalendarEntry, Category, Chore, ChoreDay, EventInstance, LeaderboardEntry, LeaderboardPeriod, List, ListGroup,
-  Photo, PhotoQuota, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, ListItem, ListItemInput, ListItemStep, Member, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook,
+  Photo, PhotoQuota, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, ListItem, ListItemInput, ListItemStep, Member, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption,
 } from './types.ts'
 import { compareItems } from './types.ts'
 import { dateKey } from './date.ts'
@@ -48,6 +48,35 @@ const members: Member[] = [
   // Leo turns 6 tomorrow, so the snapshot's 🎂 always has something to show.
   { id: 'm4', name: 'Leo', color: '#F5A65B', avatar: '🦖', birthday: (t => `${t.getFullYear() - 6}${dateKey(t).slice(4)}`)(new Date(Date.now() + 86_400_000)), sort: 3, pointsToday: 5, pointsWeek: 20, balance: 18 },
 ]
+
+// Rewards (demo only): a few examples, Maya saving for movie night and a request of Leo's waiting.
+const reward = (id: string, emoji: string, title: string, cost: number, extra: Partial<Reward> = {}): Reward =>
+  ({ id, emoji, title, cost, memberIds: [], needsApproval: true, limit: null, active: true, sort: rewards.length, createdAt: '2026-01-01T00:00:00.000Z', ...extra })
+const rewards: Reward[] = []
+rewards.push(
+  reward('rw1', '🍿', 'Movie night pick', 100),
+  reward('rw2', '🍦', 'Ice cream trip', 50, { limit: { count: 1, period: 'week' } }),
+  reward('rw3', '📺', '15 min screen time', 10, { needsApproval: false, limit: { count: 3, period: 'day' } }),
+  reward('rw4', '🌙', 'Stay up 30 min late', 40, { memberIds: ['m3', 'm4'] }),
+)
+const redemption = (r: Reward, memberId: string, status: Redemption['status'], daysAgo: number): Redemption => {
+  const at = new Date(Date.now() - daysAgo * 86_400_000)
+  return { id: uid(), rewardId: r.id, memberId, title: r.title, emoji: r.emoji, cost: r.cost, status, note: null, date: dateKey(at), requestedAt: at.toISOString(), decidedAt: status === 'pending' ? null : at.toISOString(), givenAt: status === 'given' ? at.toISOString() : null }
+}
+const redemptions: Redemption[] = [
+  redemption(rewards[2], 'm4', 'pending', 0),
+  redemption(rewards[2], 'm3', 'given', 1),
+  redemption(rewards[1], 'm3', 'given', 6),
+]
+const goals = new Map<string, string | null>([['m3', 'rw1'], ['m4', 'rw2']])
+const goalOf = (memberId: string) => {
+  const r = rewards.find(x => x.id === goals.get(memberId) && x.active)
+  return r ? { rewardId: r.id, title: r.title, emoji: r.emoji, cost: r.cost } : null
+}
+const usedOf = (r: Reward, memberId: string) => {
+  const from = new Date(); from.setDate(from.getDate() - (r.limit?.period === 'week' ? (from.getDay() - settings.weekStart + 7) % 7 : 0))
+  return redemptions.filter(x => x.rewardId === r.id && x.memberId === memberId && x.status !== 'declined' && x.date >= dateKey(from)).length
+}
 
 // Mirrors server/src/stickers.ts (the real list comes from GET /api/stickers/packs).
 const STICKER_PACKS: Omit<StickerPack, 'price' | 'unlocked'>[] = [
@@ -302,7 +331,7 @@ export const mock = {
   getSettings: async (): Promise<Settings> => ({ ...settings }),
   updateSettings: async (patch: Partial<Settings>) => { Object.assign(settings, patch); bump(); return { ...settings } },
 
-  getMembers: async () => [...members].sort((a, b) => a.sort - b.sort),
+  getMembers: async () => [...members].sort((a, b) => a.sort - b.sort).map(m => ({ ...m, rewardGoal: goalOf(m.id) })),
   createMember: async (m: Partial<Member>) => {
     const nm: Member = { id: uid(), name: m.name ?? 'New', color: m.color ?? '#FF9E7A', avatar: m.avatar ?? '🙂', birthday: m.birthday ?? null, sort: members.length, pointsToday: 0, pointsWeek: 0, balance: 0 }
     members.push(nm); bump(); return nm
@@ -460,6 +489,38 @@ export const mock = {
       return { ...e, rank }
     })
   },
+
+  getRewards: async ({ memberId, archived }: { memberId?: string; archived?: boolean } = {}) =>
+    rewards.filter(r => (archived || r.active) && (!memberId || !r.memberIds.length || r.memberIds.includes(memberId)))
+      .map(r => ({ ...r, used: memberId && r.limit ? usedOf(r, memberId) : 0 })),
+  createReward: async (body: Partial<Reward>) => {
+    const r: Reward = { id: uid(), title: body.title ?? 'Reward', emoji: body.emoji ?? null, cost: body.cost ?? 10, memberIds: body.memberIds ?? [], needsApproval: body.needsApproval ?? true, limit: body.limit ?? null, active: body.active ?? true, sort: rewards.length, createdAt: new Date().toISOString() }
+    rewards.push(r); bump(); return r
+  },
+  updateReward: async (id: string, patch: Partial<Reward>) => {
+    const r = rewards.find(x => x.id === id); if (!r) throw new Error('not found')
+    Object.assign(r, patch); bump(); return { ...r }
+  },
+  deleteReward: async (id: string) => { rewards.splice(rewards.findIndex(r => r.id === id), 1); bump() },
+  redeemReward: async (id: string, memberId: string) => {
+    const r = rewards.find(x => x.id === id), m = members.find(x => x.id === memberId)
+    if (!r || !m) throw new Error('not found')
+    if (m.balance < r.cost) throw new Error('Not enough points')
+    if (r.limit && usedOf(r, memberId) >= r.limit.count) throw new Error(`That's all for ${r.limit.period === 'day' ? 'today' : 'this week'}`)
+    m.balance -= r.cost
+    const red = redemption(r, memberId, r.needsApproval ? 'pending' : 'approved', 0)
+    redemptions.unshift(red); bump()
+    return { redemption: red, balance: m.balance }
+  },
+  getRedemptions: async ({ memberId, status }: { memberId?: string; status?: string } = {}) =>
+    redemptions.filter(r => (!memberId || r.memberId === memberId) && (!status || status.split(',').includes(r.status))),
+  decideRedemption: async (id: string, action: 'approve' | 'decline' | 'given', note?: string) => {
+    const r = redemptions.find(x => x.id === id); if (!r) throw new Error('not found')
+    if (action === 'decline') { members.find(m => m.id === r.memberId)!.balance += r.cost; Object.assign(r, { status: 'declined', note: note ?? null }) }
+    else Object.assign(r, { status: action === 'approve' ? 'approved' : 'given' })
+    bump(); return { ...r }
+  },
+  setRewardGoal: async (memberId: string, rewardId: string | null) => { goals.set(memberId, rewardId); bump(); return { rewardId } },
 
   getStickerPacks: async (memberId: string) => STICKER_PACKS.map(packFor(memberId)),
   buyStickerPack: async (packId: string, memberId: string) => {

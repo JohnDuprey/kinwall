@@ -72,6 +72,8 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
   const later = [...new Set([...events.map(e => e.date), ...data.birthdays.map(b => b.date)])].filter(d => d > today).sort()
 
   const f = settings.features
+  // Saving for a reward: shown on the person's chores row, or a row of its own when they have no chores today.
+  const goalsOnly = members.filter(m => m.rewardGoal && !data.chores.some(c => c.memberId === m.id))
   const shown = ['clock', 'today', 'meals', 'photo', 'coming', 'due', 'chores', 'tidbit'].filter(a =>
     a === 'photo' ? f.photos : a === 'due' ? f.lists : a === 'chores' ? f.chores : a === 'meals' ? f.meals : a === 'tidbit' ? !!tidbit : true)
 
@@ -150,21 +152,37 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
         </Card>}
 
         {f.chores && <Card title="Chores today" area="chores">
-          {data.chores.length === 0 ? <p className="snap-empty">No chores today.</p> : (
+          {data.chores.length === 0 && !goalsOnly.length ? <p className="snap-empty">No chores today.</p> : (
             <ul className="snap-list">
               {data.chores.map(c => {
                 const done = c.total - c.remaining
                 const name = c.name ?? 'Anyone'
                 const waiting = c.pending ? `${c.pending} waiting for OK` : '' // ticked, not counted until a parent approves
+                const goal = c.memberId ? goalText(byId.get(c.memberId)) : null
                 return (
                   <li key={c.memberId ?? 'anyone'}>
-                    <button className="snap-row board-chore" onClick={() => { location.hash = '#/chores' }} aria-label={`${name}: ${c.remaining ? `${c.remaining} of ${c.total} chores left` : 'all chores done'}${waiting ? `, ${waiting}` : ''}`}>
+                    <button className="snap-row board-chore" onClick={() => { location.hash = '#/chores' }} aria-label={`${name}: ${c.remaining ? `${c.remaining} of ${c.total} chores left` : 'all chores done'}${waiting ? `, ${waiting}` : ''}${goal ? `, ${goal.label}` : ''}`}>
                       <Avatar m={{ name, color: c.color ?? 'var(--bg)', avatar: c.avatar ?? '⭐' }} />
                       <span className="snap-main">
                         <span className="snap-title">{name}</span>
                         <span className="board-meter" aria-hidden="true"><span style={{ width: `${(done / c.total) * 100}%`, background: c.color ?? 'var(--accent)' }} /></span>
+                        {goal && <span className="snap-meta board-goal" aria-hidden="true">{goal.text}</span>}
                       </span>
                       <span className="board-chore-count" aria-hidden="true">{c.remaining ? `${c.remaining} left` : '🎉'}{c.pending ? ` · ${c.pending} ⏳` : ''}</span>
+                    </button>
+                  </li>
+                )
+              })}
+              {goalsOnly.map(m => {
+                const goal = goalText(m)!
+                return (
+                  <li key={m.id}>
+                    <button className="snap-row board-chore" onClick={() => { location.hash = '#/activities/rewards' }} aria-label={`${m.name}: ${goal.label}`}>
+                      <Avatar m={m} />
+                      <span className="snap-main" aria-hidden="true">
+                        <span className="snap-title">{m.name}</span>
+                        <span className="snap-meta board-goal">{goal.text}</span>
+                      </span>
                     </button>
                   </li>
                 )
@@ -179,6 +197,18 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
       </div>
     </div>
   )
+}
+
+/** "🍿 Movie night 40 / 100" (or "Ready!" once they have enough) for someone saving for a reward. */
+function goalText(m: Member | undefined): { text: string; label: string } | null {
+  const g = m?.rewardGoal
+  if (!m || !g) return null
+  const name = g.emoji ? `${g.emoji} ${g.title}` : g.title
+  const ready = m.balance >= g.cost
+  return {
+    text: ready ? `${name} · Ready!` : `${name} ${Math.max(0, m.balance)} / ${g.cost}`,
+    label: ready ? `saving for ${g.title}, has enough points` : `saving for ${g.title}, ${m.balance} of ${g.cost} points`,
+  }
 }
 
 /** grid-template-areas for the cards actually on the Board, one per layout (styles.css picks one

@@ -11,13 +11,14 @@ import { inkFor } from './color.ts'
 import { dateKey } from './date.ts'
 import { ChevronLeft } from './icons.tsx'
 import type { StickerPack, StickerPatch, StickerPlacement } from './types.ts'
+import { RewardsPanel } from './Rewards.tsx'
 
 const SAVE_DELAY_MS = 400
 const MIN_SCALE = 0.4, MAX_SCALE = 3.6, SCALE_STEP = 1.25, ROTATE_STEP = 15
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 
-type Tab = 'book' | 'shop'
+type Tab = 'book' | 'shop' | 'rewards'
 
 export default function Stickers() {
   const { members, selectedMemberId, meMemberId, settings, refreshTick, reloadCore, toast } = useApp()
@@ -210,7 +211,7 @@ export default function Stickers() {
           ))}
         </div>
         <Segmented tabs idBase="stickers-tab" label="Sticker book" value={tab} onChange={v => { flushAll(); setSelId(null); setTab(v) }}
-          options={[{ key: 'book', label: 'Book' }, { key: 'shop', label: 'Shop' }]} />
+          options={[{ key: 'book', label: 'Book' }, { key: 'shop', label: 'Shop' }, { key: 'rewards', label: 'Rewards' }]} />
       </div>
 
       {tab === 'book' ? (
@@ -258,6 +259,8 @@ export default function Stickers() {
             )}
           </div>
         </div>
+      ) : tab === 'rewards' ? (
+        <div className="stickers-rewards" role="tabpanel" aria-labelledby="stickers-tab-rewards"><RewardsPanel member={member} /></div>
       ) : (
         <div className="stickers-shop scroll-y" role="tabpanel" aria-labelledby="stickers-tab-shop">
           <p className="stickers-balance"><strong>{member.name}</strong> has <strong>{plural(balance, 'point')}</strong> to spend</p>
