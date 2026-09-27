@@ -2138,8 +2138,8 @@ function DisplaysSection({ toast }: { toast: (m: string, persist?: boolean) => v
       <p className="settings-row-sub">Paired with a code. They get the calendar, chores and lists, but not settings, and can be shared or belong to one kid.</p>
       {keys.length === 0 && <p className="settings-row-sub">None yet. Open Kinwall on the screen and choose "Set up a wall screen or kid's device" to get a code.</p>}
       {keys.map(k => (
-        <div key={k.id} className="key-item">
-          <div>
+        <div key={k.id} className="key-item key-item-owned">
+          <div className="key-item-info">
             <div className="settings-row-label">{k.name}</div>
             <div className="settings-row-sub">
               created {new Date(k.createdAt).toLocaleDateString()}

@@ -315,6 +315,7 @@ button {
 }
 .toolbar-nav { display: flex; align-items: center; gap: 8px; margin-left: auto; } /* with the filter after it, both sit at the right */
 .icon-btn {
+  flex-shrink: 0; /* a round button in a tight row stays round */
   width: var(--ctl-h); height: var(--ctl-h);
   border-radius: 50%;
   border: none;
@@ -966,6 +967,14 @@ button {
 
 .key-item, .webhook-item { padding: 12px 4px; border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .key-item:first-of-type, .webhook-item:first-of-type { border-top: none; }
+/* A device row with an owner picker: on a phone, name and delete on top, the picker full width below. */
+.key-item-owned .key-item-info { min-width: 0; }
+@media (max-width: 600px) {
+  .key-item-owned { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "info remove" "owner owner"; align-items: center; }
+  .key-item-owned .key-item-info { grid-area: info; }
+  .key-item-owned > select, .key-item-owned > .owner-select { grid-area: owner; width: 100%; max-width: none; }
+  .key-item-owned > .icon-btn { grid-area: remove; }
+}
 .new-key-banner { background: var(--bg-alt); border: 2px dashed var(--accent-strong); border-radius: var(--radius-sm); padding: 14px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px; }
 .new-key-value { font-family: ui-monospace, monospace; font-size: 0.875rem; font-weight: 700; word-break: break-all; background: var(--card); padding: 10px; border-radius: 10px; }
 .recovery-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin: 0; padding: 0; list-style: none; font-family: ui-monospace, monospace; font-size: 0.9375rem; font-weight: 700; text-align: center; }
