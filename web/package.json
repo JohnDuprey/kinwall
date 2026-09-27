@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "build:demo": "tsc -b && VITE_MOCK=1 vite build --outDir dist-demo",
+    "build:demo": "tsc -b && VITE_MOCK=1 vite build --outDir dist-demo && node scripts/demo-plugins.mjs",
     "lint": "oxlint",
     "preview": "vite preview"
   },

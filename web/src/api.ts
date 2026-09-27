@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { tellAppSignedIn, tellAppSignedOut } from './native.ts'
-import { mock } from './mock.ts'
+import { mock, mockPlugins } from './mock.ts'
 import type { PasskeyAuthenticator } from './webauthn.ts'
 import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginCatalogEntry,
   StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota,
@@ -161,16 +161,16 @@ export const api = {
   getBoard: (days = 7) => MOCK ? mock.getBoard(days) : get<Board>(`api/board?days=${days}`),
   getTidbits: () => MOCK ? mock.getTidbits() : get<OnlineTidbits>('api/tidbits'),
 
-  // Activity plugins (the demo has none: it has no server to install them on).
-  getPluginCatalog: () => MOCK ? Promise.resolve({ catalogOnly: false, plugins: [] as PluginCatalogEntry[] }) : get<{ catalogOnly: boolean; plugins: PluginCatalogEntry[] }>('api/plugins/catalog'),
-  getPlugins: () => MOCK ? Promise.resolve([] as Plugin[]) : get<Plugin[]>('api/plugins'),
-  installPlugin: (url: string) => post<Plugin>('api/plugins', { url }, true),
+  // Activity plugins. The demo serves the reviewed ones baked into its build (mock.ts mockPlugins).
+  getPluginCatalog: () => MOCK ? mockPlugins.catalog() : get<{ catalogOnly: boolean; plugins: PluginCatalogEntry[] }>('api/plugins/catalog'),
+  getPlugins: () => MOCK ? mockPlugins.list() : get<Plugin[]>('api/plugins'),
+  installPlugin: (url: string) => MOCK ? mockPlugins.install(url) : post<Plugin>('api/plugins', { url }, true),
   uploadPlugin: (zip: File) => req<Plugin>('api/plugins', { method: 'POST', body: zip, useAdmin: true, headers: { 'Content-Type': 'application/zip' } }),
-  updatePlugin: (id: string) => post<Plugin>(`api/plugins/${id}/update`, undefined, true),
-  setPluginEnabled: (id: string, enabled: boolean) => patch<Plugin>(`api/plugins/${id}`, { enabled }, true),
-  deletePlugin: (id: string) => del(`api/plugins/${id}`, true),
-  getPluginData: (id: string, member: string) => get<Record<string, unknown>>(`api/plugins/${id}/data?member=${encodeURIComponent(member)}`),
-  savePluginData: (id: string, member: string, key: string, value: unknown) => put<void>(`api/plugins/${id}/data`, { member, key, value }),
+  updatePlugin: (id: string) => MOCK ? mockPlugins.list().then(l => l.find(p => p.id === id)!) : post<Plugin>(`api/plugins/${id}/update`, undefined, true),
+  setPluginEnabled: (id: string, enabled: boolean) => MOCK ? mockPlugins.setEnabled(id, enabled) : patch<Plugin>(`api/plugins/${id}`, { enabled }, true),
+  deletePlugin: (id: string) => MOCK ? mockPlugins.remove(id) : del(`api/plugins/${id}`, true),
+  getPluginData: (id: string, member: string) => MOCK ? mockPlugins.load(id, member) : get<Record<string, unknown>>(`api/plugins/${id}/data?member=${encodeURIComponent(member)}`),
+  savePluginData: (id: string, member: string, key: string, value: unknown) => MOCK ? mockPlugins.save(id, member, key, value) : put<void>(`api/plugins/${id}/data`, { member, key, value }),
   // Not a tracked save: a background heartbeat shouldn't flash "Saving…". keepalive lets the last one
   // go out as the page closes.
   sendPlaytime: (id: string, member: string, seconds: number) => MOCK ? Promise.resolve([] as ActivityChoreProgress[])

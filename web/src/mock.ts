@@ -1,5 +1,5 @@
 // Dev-only in-memory fixture, used when VITE_MOCK=1. Excluded from prod by the env check in api.ts.
-import type { OnlineTidbits,
+import type { OnlineTidbits, Plugin, PluginCatalogEntry,
   Account, ApiKey, AppNotification, CalendarEntry, Category, Chore, ChoreDay, EventInstance, LeaderboardEntry, LeaderboardPeriod, List, ListGroup,
   Photo, PhotoQuota, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, ListItem, ListItemInput, ListItemStep, Member, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook,
 } from './types.ts'
@@ -759,4 +759,39 @@ function mockBoard(days: number): Board {
     }).filter(c => c.total > 0),
     birthdays,
   }
+}
+
+// Activity plugins: the reviewed ones baked into the demo build (scripts/demo-plugins.mjs), all
+// installed at first; install/remove/on-off and saved progress live in memory like everything else.
+type DemoPlugin = PluginCatalogEntry & { entry: string }
+let pluginCatalog: Promise<DemoPlugin[]> | null = null
+let installed: Map<string, boolean> | null = null // id -> on
+const pluginData = new Map<string, Record<string, unknown>>() // `${id}:${member}`
+const catalog = () => (pluginCatalog ??= fetch('plugins/catalog.json').then(r => (r.ok ? r.json() : { plugins: [] })).then(c => c.plugins as DemoPlugin[]).catch(() => []))
+const asPlugin = (e: DemoPlugin, enabled: boolean): Plugin => ({
+  id: e.id, name: e.name, version: e.version, description: e.description, entry: e.entry, emoji: e.emoji, color: e.color, categories: e.categories, ages: e.ages,
+  source: e.repo, enabled, installedAt: new Date().toISOString(), updatedAt: new Date().toISOString(), url: `/plugins/${e.id}/${e.entry}`,
+})
+async function installedPlugins() {
+  const list = await catalog()
+  installed ??= new Map(list.map(e => [e.id, true]))
+  return list.filter(e => installed!.has(e.id)).map(e => asPlugin(e, installed!.get(e.id)!))
+}
+export const mockPlugins = {
+  catalog: async () => ({ catalogOnly: true, plugins: await catalog() as PluginCatalogEntry[] }), // the demo adds reviewed ones only
+  list: installedPlugins,
+  install: async (url: string) => {
+    const e = (await catalog()).find(p => url.toLowerCase().endsWith(p.repo.toLowerCase()))
+    if (!e) throw new Error('The demo can add Kinwall\'s reviewed activities only.')
+    await installedPlugins(); installed!.set(e.id, true); rev++
+    return asPlugin(e, true)
+  },
+  setEnabled: async (id: string, on: boolean) => { await installedPlugins(); installed!.set(id, on); rev++; return (await installedPlugins()).find(p => p.id === id)! },
+  remove: async (id: string) => { await installedPlugins(); installed!.delete(id); for (const k of pluginData.keys()) if (k.startsWith(`${id}:`)) pluginData.delete(k); rev++ },
+  load: async (id: string, member: string) => ({ ...pluginData.get(`${id}:${member}`) }),
+  save: async (id: string, member: string, key: string, value: unknown) => {
+    const d = pluginData.get(`${id}:${member}`) ?? {}
+    if (value === null || value === undefined) delete d[key]; else d[key] = value
+    pluginData.set(`${id}:${member}`, d)
+  },
 }

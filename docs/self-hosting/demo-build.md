@@ -12,6 +12,8 @@ npm run build:demo        # VITE_MOCK=1 vite build --outDir dist-demo
 
 Serve `web/dist-demo` from any static host. It includes a sample family (Alex, Sam, Maya and Leo) with about two weeks of events around today, chores and lists.
 
+The last build step (`scripts/demo-plugins.mjs`) bakes in the activities **Reviewed by Kinwall**: it downloads each one's reviewed release from the [catalog](../contributing/plugins.md#getting-reviewed), checks its SHA-256, unpacks it under `plugins/`, and adds the sandbox policy for those files to `_headers` (Cloudflare Pages reads it; another static host needs the same headers). They start installed, and progress is kept in memory like the rest. Offline, the demo builds without them.
+
 For local development, `VITE_MOCK=1 npm run dev` gives the same in-memory data with hot reload.
 
 ## Publishing on release
