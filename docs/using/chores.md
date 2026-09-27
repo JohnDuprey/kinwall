@@ -35,6 +35,7 @@ Tap **+** (Add chore). The sheet has:
 | **Due date** (Once) | The day a one-off chore is due. |
 | **Checklist (optional)** | A list that has to be fully ticked before the chore can be completed. See [Checklists](#checklists). |
 | **Do an activity (optional)** | One of the family's [activities](activities.md) and **Minutes** (1–60, default 5). Playing it completes the chore. See [Activity chores](#activity-chores). Shown once an activity is installed. |
+| **Needs a parent's OK** | **Default**, **Yes** or **No**. See [Parent approval](#parent-approval). With an activity, also **Needs a parent's OK even for timed play**. |
 
 Chores created through the API or MCP can use any RRULE (for example `FREQ=MONTHLY` or `INTERVAL=2`). The sheet shows those as "Custom schedule (…)" and leaves them alone unless you pick another option. A recurring chore without a due date starts on the day it was created, in the household timezone.
 
@@ -77,6 +78,34 @@ A chore can be "*N* minutes of an activity", such as **🔤 5 min of Sight words
 
 **API and MCP:** `pluginId` and `pluginMinutes` on `POST/PATCH /api/chores`, `activity` progress (`needSeconds`, `doneSeconds`, `available`) on `GET /api/chores/day`. The player sends `POST /api/plugins/{id}/playtime {member, seconds}` about every 30 seconds (at most 60 seconds a call; display keys may). It returns that person's activity chores due today with their progress. In MCP, use the `activity` and `minutes` arguments on `create_chore` and `update_chore`.
 
+## Parent approval
+
+A chore can wait for a parent's OK before it counts. Ticks from wall screens and kids' devices then land as **Waiting for OK** instead of done, and a parent approves them or sends them back with **Not yet**.
+
+**Turning it on**
+
+* Per person: **Their chores need a parent's OK** in the member's sheet (**Settings → Family**). Off by default.
+* Per chore: **Needs a parent's OK** in the chore sheet. **Default** follows the person's setting (for an **Anyone** chore, the setting of whoever does it). **Yes** and **No** override it either way.
+* Activity chores approve themselves when timed play completes them. Turn on **Needs a parent's OK even for timed play** to have those wait too. Ticking one by hand follows the chore's normal setting.
+
+**How it works**
+
+* Ticking on a wall screen or kid's device (display keys, including the app's widgets and Watch) shows an hourglass and **Waiting for OK** on the card. The kid can tap it to untick while it waits.
+* A tick from a parent's device is approved straight away.
+* While it waits, the chore earns no points. It doesn't count toward streaks, the leaderboard, balances or the done counts on the Board, a person's day or widgets. The Board's chores card shows the waiting count (for example, `2 left · 1 ⏳`).
+* Parent devices get a notification ("Leo finished Make bed. Approve?") and a feed entry, once per chore and day.
+* Parent devices show a **To approve** count on the **Chores** tab and a **To approve** section at the top of the Chores screen. **Approve** awards the points. **Not yet** opens a sheet for an optional note ("Please make the bed properly") and sends the chore back unticked.
+* After **Not yet**, the kid's card shows the note, such as "Not yet: Please make the bed properly", until they tick the chore again for that day. Their own devices (devices whose owner is that person, set in **Settings → Access**) get a notification with the note.
+* Points are judged by when the chore was ticked, not when it was approved. A chore ticked on its day earns full points even if a parent approves it the next morning; one ticked late earns the [late completion credit](#points-late-completion-credit).
+
+**API and MCP**
+
+* `needsApproval` (`true`, `false` or `null` to follow the person) and `approveTimedPlay` on `POST/PATCH /api/chores`; `needsApproval` on `POST/PATCH /api/members`.
+* `POST /api/chores/{id}/complete` answers `{ok, pending}`. `GET /api/chores/day` has `pending` and `rejection` (`{note, at}` or `null`); `completed` is true only once approved.
+* Parent devices only (admin keys): `GET /api/chores/pending`, `POST /api/chores/{id}/approve {date}` (answers `{ok, points}`), `POST /api/chores/{id}/reject {date, note?}`.
+* Webhooks: `chore.pending` when a tick waits, `chore.completed` only when it's approved, `chore.rejected` on **Not yet**. See [Webhooks](../integrations/webhooks.md#events).
+* MCP: `list_pending_approvals`, `approve_chore`, `reject_chore`, and `needsApproval`/`approveTimedPlay` on `create_chore` and `update_chore`.
+
 ## Points, late completion credit
 
 Points are fixed at the moment you tick a chore off. Changing a chore's points later doesn't rewrite history.
@@ -84,6 +113,7 @@ Points are fixed at the moment you tick a chore off. Changing a chore's points l
 * Completed **on its day, or early**: full points.
 * Completed **for a past day**: `lateCompletionCredit` percent of the points, rounded. The default is **50%** (0–100).
 * Re-ticking an existing completion (for example, to change who did it) keeps the points it already earned.
+* A chore waiting for a [parent's OK](#parent-approval) earns its points when it's approved, judged by when it was ticked.
 
 ## Streaks and grace days
 
@@ -130,6 +160,7 @@ A per-device **Chore reminder** at a set time lists chores still open today for 
 ## API and MCP
 
 * `GET /api/chores/day?date=YYYY-MM-DD`, `POST /api/chores/{id}/complete {date, memberId?}`, `DELETE /api/chores/{id}/complete?date=`
+* `GET /api/chores/pending`, `POST /api/chores/{id}/approve {date}`, `POST /api/chores/{id}/reject {date, note?}` (parent devices)
 * `GET /api/leaderboard?period=today|week|month`
 * `GET /api/members/{id}/points`
-* MCP: `list_chores`, `create_chore`, `update_chore`, `complete_chore`, `uncomplete_chore`, `get_leaderboard`, `get_points`
+* MCP: `list_chores`, `create_chore`, `update_chore`, `complete_chore`, `uncomplete_chore`, `list_pending_approvals`, `approve_chore`, `reject_chore`, `get_leaderboard`, `get_points`

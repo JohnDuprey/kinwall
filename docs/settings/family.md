@@ -8,6 +8,7 @@ Everyone who shows up on the wall. Each member has:
 * **Color**: from the palette or a custom color. It colors their events, chore column and avatar.
 * **Avatar**: an emoji from the row, any emoji, or a 1–2 letter initial.
 * **Birthday** (optional): a date. Turn on **I don't know the year** to keep just the month and day. It shows 🎂 in everyone's [snapshot](../using/snapshot.md) that day, with the age they turn when the year is known. API: `birthday` as `YYYY-MM-DD`, or `--MM-DD` without a year, or `null`.
+* **Their chores need a parent's OK** (off by default): chores they tick on a wall screen or their own device wait for a parent to approve before the points count. A chore's own setting wins. See [Parent approval](../using/chores.md#parent-approval). API: `needsApproval`.
 
 **Add member** and editing are admin only. On a display, the list is read-only. Deleting a member ("Their chores and tags are unassigned") removes them from calendars, chores and event tags. It doesn't delete those items.
 

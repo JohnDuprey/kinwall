@@ -76,7 +76,7 @@ Color settings on `PATCH /api/settings`: `colorScheme` is a built-in id (`meadow
 | Providers | `GET /api/providers`, `PUT /api/providers/public-url`, `PUT/DELETE /api/providers/{kind}` |
 | Events | `GET /api/events?from&to[&memberId][&calendarId]`, `POST /api/events`, `GET/PATCH/DELETE /api/events/{id}`, `GET /api/events/{id}/items` |
 | Categories | `GET/POST /api/categories`, `PATCH/DELETE /api/categories/{id}`, `POST /api/categories/reorder` |
-| Chores | `GET/POST /api/chores`, `PATCH/DELETE /api/chores/{id}`, `GET /api/chores/day?date=`, `POST/DELETE /api/chores/{id}/complete` |
+| Chores | `GET/POST /api/chores`, `PATCH/DELETE /api/chores/{id}`, `GET /api/chores/day?date=`, `POST/DELETE /api/chores/{id}/complete`, `GET /api/chores/pending`, `POST /api/chores/{id}/approve`, `POST /api/chores/{id}/reject` (the last three admin only; see [Parent approval](../using/chores.md#parent-approval)) |
 | Leaderboard | `GET /api/leaderboard?period=today\|week\|month` |
 | Lists | `GET/POST /api/lists`, `GET/PATCH/DELETE /api/lists/{id}`, items, steps (`POST/PATCH/DELETE .../steps[/{stepId}]`, `POST .../steps/reorder`), `clear-completed`, `reset`, `reorder`, `groups` |
 | Meals | `GET/POST/PATCH/DELETE /api/recipes[/{id}]`, `GET/POST/PATCH/DELETE /api/meals[/{id}]`, `GET /api/meals/projection`, `POST /api/meals/projection/apply`, `POST/DELETE /api/meals/{id}/calendar-link`, `POST /api/meals/{id}/calendar-event`. See [Meals](../using/meals.md). |

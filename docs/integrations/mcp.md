@@ -90,12 +90,15 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 | `create_event` | Creates an event. Writes to Google, Outlook or CalDAV for those calendars. Accepts `travelMinutes` and `remindBeforeLeave`. |
 | `update_event` | Changes only the fields you give it (the whole series for recurring local events). |
 | `set_event_category` | Sets or clears an event's category (by name). Clearing falls back to keyword or calendar default. |
-| `create_chore` | Creates a recurring or one-off chore. `list` links a checklist (a list by name or ID) that has to be ticked off before the chore completes. |
-| `update_chore` | Changes title, emoji, assignee, points, recurrence (`RRULE`, optional `UNTIL`), due date or time, checklist (`list`, or `null` to unlink), or active state. |
-| `complete_chore` | Marks a chore done for a date (default today). Refused while the chore's checklist has open items. |
+| `create_chore` | Creates a recurring or one-off chore. `list` links a checklist (a list by name or ID) that has to be ticked off before the chore completes. `needsApproval` and `approveTimedPlay` set [parent approval](../using/chores.md#parent-approval). |
+| `update_chore` | Changes title, emoji, assignee, points, recurrence (`RRULE`, optional `UNTIL`), due date or time, checklist (`list`, or `null` to unlink), parent approval (`needsApproval`, `approveTimedPlay`), or active state. |
+| `complete_chore` | Marks a chore done for a date (default today). Refused while the chore's checklist has open items. From a display key, a chore that needs a parent's OK waits for approval instead. |
 | `uncomplete_chore` | Undoes a completion. |
+| `list_pending_approvals` | Chores waiting for a [parent's OK](../using/chores.md#parent-approval), oldest first, with the points approving would award (admin). |
+| `approve_chore` | Approves a waiting chore for a date (default today) and awards its points (admin). |
+| `reject_chore` | "Not yet": removes a waiting chore's tick, with an optional `note` the kid sees on the card (admin). |
 | `add_member` | Adds a family member (admin), optionally with a `birthday` (`YYYY-MM-DD`, or `--MM-DD` without a year). |
-| `update_member` | Changes a member's name, color, avatar or `birthday` (admin; `null` clears it). |
+| `update_member` | Changes a member's name, color, avatar, `birthday` (admin; `null` clears it) or `needsApproval` (their chores need a parent's OK by default). |
 | `create_list` | Creates a shopping, to-do or reusable list. |
 | `update_list` | Renames, changes kind, emoji, owners or item sort (`sortBy`: `manual`, `added`, `due`, `priority`, `alpha`), or archives a list. |
 | `add_list_items` | Adds items: plain titles or objects (notes, quantity, store, category, member, dueDate, eventId, priority, steps). `steps` is a list of step titles in order. |
