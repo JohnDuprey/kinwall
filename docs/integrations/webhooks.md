@@ -33,6 +33,11 @@ URLs must be public `http(s)` addresses. Private and LAN addresses are refused u
 | `category.changed` | A category is added, edited, reordered or deleted. |
 | `settings.changed` | Household settings changed. |
 | `sticker.changed` | A sticker pack is bought, or the scrapbook is edited. |
+| `reward.changed` | A [reward](../using/rewards.md) is added, edited, archived or deleted. `data`: `{ id }`. |
+| `reward.redeemed` | Someone spent points on a reward. `data`: `{ id, rewardId, memberId, title, emoji, cost, status }`, where `id` is the request and `status` is `pending` (waiting for a parent's OK) or `approved`. |
+| `reward.approved` | A parent approved a waiting reward. `data`: `{ id, rewardId, memberId, title, emoji, cost }`. |
+| `reward.declined` | A parent said **Not this time**, or canceled an approved one; the points went back. `data`: the same plus `note` (may be `null`). |
+| `reward.given` | A parent marked an approved reward as given. `data`: `{ id, rewardId, memberId, title, emoji, cost }`. |
 | `photo.changed` | A photo is added, captioned, reassigned or deleted. `data`: `{ id }` (plus `deleted: true` on delete), or `{ imported }` after a zip import. |
 | `tracker.changed` | A [tracker](../using/trackers.md) entry is added, edited or deleted. `data`: `{ id, kind }` (plus `deleted: true`), never the entry's fields. |
 | `recipe.changed` | A [recipe](../using/meals.md) is added, edited, archived or deleted. `data`: `{ id }`. |

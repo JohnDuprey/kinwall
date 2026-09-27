@@ -18,6 +18,7 @@
 * [Events](using/events.md)
 * [Categories & auto-categorizing](using/categories.md)
 * [Chores](using/chores.md)
+* [Rewards](using/rewards.md)
 * [Lists](using/lists.md)
 * [Meals](using/meals.md)
 * [Activities (Paint)](using/activities.md)

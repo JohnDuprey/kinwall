@@ -1,10 +1,10 @@
 # Activities
 
-The **Activities** tab holds things to do on the wall that aren't the family schedule. It works the same on every device, including paired wall displays and the demo. There are three activities: **Paint**, the **Sticker book** and [**Photos**](photos.md).
+The **Activities** tab holds things to do on the wall that aren't the family schedule. It works the same on every device, including paired wall displays and the demo. There are four activities: **Paint**, the **Sticker book**, [**Rewards**](rewards.md) and [**Photos**](photos.md).
 
 Families can add more activities made by others: see [Activities from others](#activities-from-others).
 
-An admin can turn off **Paint** or **Photos** in **Settings → General** (tap **Change** under **Features**); the Sticker book goes with **Chores & points** or the sticker shop. When all three are off, the Activities tab is hidden. See [Features](../settings/general.md#features).
+An admin can turn off **Paint** or **Photos** in **Settings → General** (tap **Change** under **Features**); the Sticker book goes with **Chores & points** or the sticker shop, and Rewards with **Chores & points**. When all of them are off, the Activities tab is hidden. See [Features](../settings/general.md#features).
 
 ## Paint
 

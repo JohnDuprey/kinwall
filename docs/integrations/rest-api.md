@@ -88,6 +88,7 @@ Color settings on `PATCH /api/settings`: `colorScheme` is a built-in id (`meadow
 | Connected apps | `GET /api/authorizations`, `GET /api/authorizations/request`, `POST /api/authorizations/approve`, `PATCH /api/authorizations/{id}`, `DELETE /api/authorizations/{id}` |
 | Webhooks | `GET/POST /api/webhooks`, `PATCH/DELETE /api/webhooks/{id}`, `POST /api/webhooks/{id}/rotate` |
 | Push | `GET /api/push/vapid-public-key`, `/api/push/subscriptions*`, `POST /api/push/test/{id}`, `POST /api/notify`, `GET /api/notifications`, `DELETE /api/notifications[/{id}]` |
+| Rewards | `GET/POST /api/rewards`, `PATCH/DELETE /api/rewards/{id}`, `POST /api/rewards/{id}/redeem`, `GET /api/rewards/redemptions`, `POST /api/rewards/redemptions/{id}/approve`, `/decline`, `/given`, `PUT /api/members/{id}/reward-goal`. Display keys list, redeem and set a goal (a member's own device only for them); the rest is admin. See [Rewards](../using/rewards.md#export-api-and-integrations) |
 | Stickers | `GET /api/members/{id}/points`, `GET /api/stickers/packs`, `POST /api/stickers/packs/{packId}/buy`, `GET/POST /api/stickers/scrapbook/{memberId}`, `PATCH/DELETE /api/stickers/scrapbook/{memberId}/{id}` |
 | Photos | `GET/POST /api/photos` (POST body: the raw image), `GET /api/photos/quota`, `PATCH/DELETE /api/photos/{id}`, `GET /api/photos/{id}/image`, `GET /api/photos/export.zip`, `POST /api/photos/import` (body: the zip) |
 | Notes | `GET/POST /api/notes`, `PATCH/DELETE /api/notes/{id}` |

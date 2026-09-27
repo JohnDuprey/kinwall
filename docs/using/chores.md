@@ -134,7 +134,7 @@ Above the columns, a leaderboard ranks members by points for **Today**, **Week**
 
 ## Points to spend
 
-Points are also a currency. A member's **balance** is every point they've ever earned from chores, minus what they've spent in the [sticker shop](activities.md#sticker-book).
+Points are also a currency. A member's **balance** is every point they've ever earned from chores, minus what they've spent in the [sticker shop](activities.md#sticker-book) and on [rewards](rewards.md). A reward a parent says no to gives its points back.
 
 * The leaderboard and the member's today/week points always count what was **earned**. Spending never lowers a rank.
 * With the sticker shop on, each leaderboard pill also shows the balance, such as "22 to spend".

@@ -69,7 +69,7 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 | `get_event_items` | List items linked to an event, across all lists, open first, with list names. |
 | `list_chores` | Chores due on a date (default today), with completion state. |
 | `get_leaderboard` | Points, completions and streaks per member for today, week (default) or month. |
-| `get_points` | One member's points (by name or ID): balance left to spend, all-time earned and spent, and recent purchases. Read-only. Stickers are bought on the wall, not over MCP. |
+| `get_points` | One member's points (by name or ID): balance left to spend, all-time earned and spent, and recent purchases. Read-only. Stickers are bought on the wall, not over MCP; rewards can be redeemed with `redeem_reward`. |
 | `get_snapshot` | One member's day (`range`: `day`, default) or next 7 days (`week`), by name or ID: greeting, weather (if a location is set), their and everyone's events, their chores, their due or high/urgent list items, family birthdays, the day's meals, and (day) tomorrow at a glance. The same data as tapping their avatar. |
 | `get_board` | The whole household's bulletin board for today and the next `days` days (default 7, max 14): everyone's events plus untagged ones, open list items due soon, overdue or high/urgent, today's chores per member, birthdays and meals. The same data as the calendar's Board view. |
 | `list_lists` | All lists with item and open counts. |
@@ -97,6 +97,14 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 | `list_pending_approvals` | Chores waiting for a [parent's OK](../using/chores.md#parent-approval), oldest first, with the points approving would award (admin). |
 | `approve_chore` | Approves a waiting chore for a date (default today) and awards its points (admin). |
 | `reject_chore` | "Not yet": removes a waiting chore's tick, with an optional `note` the kid sees on the card (admin). |
+| `list_rewards` | [Rewards](../using/rewards.md); `member` (name or ID) narrows to the ones for them, `archived` includes archived ones. |
+| `create_reward` | Adds a reward: `title`, `emoji`, `cost`, `members` (names or IDs; empty for everyone), `needsApproval` (default true) and `limit` (`{ count: 1-20, period: "day" \| "week" }` or `null`). Admin. |
+| `update_reward` | Changes a reward's fields; `active: false` archives it. Admin. |
+| `redeem_reward` | Spends a member's points on a reward. From a display key, a reward that needs a parent's OK waits for approval. Refused when short of points or over its limit. |
+| `list_reward_requests` | Requests a parent still has to act on (waiting, or approved and not given), oldest first; `status` and `member` filter. |
+| `approve_reward` | Approves a waiting request (admin). |
+| `decline_reward` | "Not this time": declines a waiting request, or cancels an approved one, and gives the points back, with an optional `note` the kid sees (admin). |
+| `mark_reward_given` | Marks an approved request as given (admin). |
 | `add_member` | Adds a family member (admin), optionally with a `birthday` (`YYYY-MM-DD`, or `--MM-DD` without a year). |
 | `update_member` | Changes a member's name, color, avatar, `birthday` (`null` clears it), `needsApproval` (their chores need a parent's OK by default) or `transitionReminders` (see [Transition reminders](../settings/family.md#transition-reminders)). Admin. |
 | `create_list` | Creates a shopping, to-do or reusable list. |
