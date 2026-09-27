@@ -90,46 +90,76 @@ export async function feedFetch(env: FeedEnv, input: string | URL | Request, ini
 }
 
 export const MAX_RECIPE_PDF_BYTES = 15 * 1024 * 1024;
+export const MAX_RECIPE_IMAGE_BYTES = 8 * 1024 * 1024;
 
-// A recipe's own stored sourceUrl, fetched for the in-app recipe-card viewer. https only and
-// public hosts only (ALLOW_PRIVATE_FEED_URLS=1 also lets a self-hoster or a local test reach a LAN
-// or http address), each redirect re-checked, 15 s, 15 MB, and it must actually be a PDF.
-// Returns the bytes, or an error message for the client.
-export async function fetchRecipePdf(env: FeedEnv, raw: string): Promise<{ pdf: Uint8Array<ArrayBuffer> } | { error: string; status: 400 | 502 }> {
+type Fetched = { bytes: Uint8Array<ArrayBuffer>; type: string; etag: string | null } | { error: string; status: 400 | 502 };
+
+// A record's own stored URL (a recipe's sourceUrl or imageUrl - never one from the request). https
+// only and public hosts only (ALLOW_PRIVATE_FEED_URLS=1 also lets a self-hoster or a local test reach
+// a LAN or http address), each redirect re-checked, 15 s, capped at `max` bytes, and the answer's
+// content type must pass `typeOk`. Returns the bytes, or an error message for the client.
+async function fetchRecordUrl(env: FeedEnv, raw: string, what: string, accept: string, max: number, typeOk: (type: string) => boolean): Promise<Fetched> {
   const allowed = (u: string) => env.ALLOW_PRIVATE_FEED_URLS === '1' ? /^https?:\/\//i.test(u) : /^https:\/\//i.test(u) && isSafeOutboundUrl(u);
   const signal = AbortSignal.timeout(15000);
   let url = raw;
   try {
     for (let hop = 0; ; hop++) {
-      if (!allowed(url)) return { error: 'recipe source must be a public https address', status: 400 };
-      const res = await fetch(url, { redirect: 'manual', signal, headers: { Accept: 'application/pdf' } });
+      if (!allowed(url)) return { error: `${what} must be a public https address`, status: 400 };
+      const res = await fetch(url, { redirect: 'manual', signal, headers: { Accept: accept } });
       const location = res.headers.get('location');
       if (res.status >= 300 && res.status <= 399 && location) {
         await res.body?.cancel();
-        if (hop === MAX_FEED_REDIRECTS) return { error: 'recipe source redirected too many times', status: 502 };
+        if (hop === MAX_FEED_REDIRECTS) return { error: `${what} redirected too many times`, status: 502 };
         url = new URL(location, url).href;
         continue;
       }
-      if (!res.ok || !res.body) { await res.body?.cancel(); return { error: `recipe source answered ${res.status}`, status: 502 }; }
+      if (!res.ok || !res.body) { await res.body?.cancel(); return { error: `${what} answered ${res.status}`, status: 502 }; }
       const type = (res.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase();
-      if (type !== 'application/pdf' && type !== 'application/octet-stream') { await res.body.cancel(); return { error: 'recipe source is not a PDF', status: 502 }; }
-      if (Number(res.headers.get('content-length')) > MAX_RECIPE_PDF_BYTES) { await res.body.cancel(); return { error: 'recipe card is too large', status: 502 }; }
+      if (!typeOk(type)) { await res.body.cancel(); return { error: `${what} is the wrong kind of file`, status: 502 }; }
+      if (Number(res.headers.get('content-length')) > max) { await res.body.cancel(); return { error: `${what} is too large`, status: 502 }; }
       const chunks: Uint8Array[] = [];
       let size = 0;
       const reader = res.body.getReader();
       for (let r = await reader.read(); !r.done; r = await reader.read()) {
         size += r.value.byteLength;
-        if (size > MAX_RECIPE_PDF_BYTES) { await reader.cancel(); return { error: 'recipe card is too large', status: 502 }; }
+        if (size > max) { await reader.cancel(); return { error: `${what} is too large`, status: 502 }; }
         chunks.push(r.value);
       }
-      const pdf = new Uint8Array(size);
+      const bytes = new Uint8Array(size);
       let at = 0;
-      for (const chunk of chunks) { pdf.set(chunk, at); at += chunk.byteLength; }
-      // octet-stream is common for file hosts: then the bytes must start "%PDF".
-      if (type !== 'application/pdf' && (pdf[0] !== 0x25 || pdf[1] !== 0x50 || pdf[2] !== 0x44 || pdf[3] !== 0x46)) return { error: 'recipe source is not a PDF', status: 502 };
-      return { pdf };
+      for (const chunk of chunks) { bytes.set(chunk, at); at += chunk.byteLength; }
+      return { bytes, type, etag: res.headers.get('etag') };
     }
   } catch {
-    return { error: 'could not reach the recipe source', status: 502 };
+    return { error: `could not reach the ${what}`, status: 502 };
   }
+}
+
+// The in-app recipe-card viewer: 15 MB, and it must actually be a PDF.
+export async function fetchRecipePdf(env: FeedEnv, raw: string): Promise<{ pdf: Uint8Array<ArrayBuffer> } | { error: string; status: 400 | 502 }> {
+  const r = await fetchRecordUrl(env, raw, 'recipe source', 'application/pdf', MAX_RECIPE_PDF_BYTES, (t) => t === 'application/pdf' || t === 'application/octet-stream');
+  if ('error' in r) return r;
+  const pdf = r.bytes;
+  // octet-stream is common for file hosts: then the bytes must start "%PDF".
+  if (r.type !== 'application/pdf' && (pdf[0] !== 0x25 || pdf[1] !== 0x50 || pdf[2] !== 0x44 || pdf[3] !== 0x46)) return { error: 'recipe source is not a PDF', status: 502 };
+  return { pdf };
+}
+
+// What the bytes are, whatever the header said: only these four are ever served (never SVG).
+export function sniffImage(b: Uint8Array): string | null {
+  const ascii = (at: number, s: string) => [...s].every((ch, i) => b[at + i] === ch.charCodeAt(0));
+  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'image/jpeg';
+  if (b[0] === 0x89 && ascii(1, 'PNG\r\n\x1a\n')) return 'image/png';
+  if (ascii(0, 'GIF87a') || ascii(0, 'GIF89a')) return 'image/gif';
+  if (ascii(0, 'RIFF') && ascii(8, 'WEBP')) return 'image/webp';
+  return null;
+}
+
+// A recipe's photo (its imageUrl): 8 MB, JPEG/PNG/WebP/GIF by header and by magic bytes.
+export async function fetchRecipeImage(env: FeedEnv, raw: string): Promise<{ image: Uint8Array<ArrayBuffer>; type: string; etag: string | null } | { error: string; status: 400 | 502 }> {
+  const r = await fetchRecordUrl(env, raw, 'recipe image', 'image/webp,image/jpeg,image/png,image/gif', MAX_RECIPE_IMAGE_BYTES, (t) => /^image\/(jpeg|png|webp|gif)$/.test(t) || t === 'application/octet-stream');
+  if ('error' in r) return r;
+  const type = sniffImage(r.bytes);
+  if (!type) return { error: 'recipe image is not a JPEG, PNG, WebP or GIF', status: 502 };
+  return { image: r.bytes, type, etag: r.etag };
 }

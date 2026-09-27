@@ -7,6 +7,7 @@ import { ChevronLeft, ChevronRight, ListIcon, PlusIcon } from './icons.tsx'
 import { MEAL_SLOTS, SLOT_LABEL, mealDayLabel, mealForMember, mealWeek, minutesLabel, moveMealDate, servingsLabel } from './meal-date.ts'
 import MealSheet, { EaterAvatars, type MealDraft } from './MealSheet.tsx'
 import RecipeSheet from './RecipeSheet.tsx'
+import RecipePhoto from './RecipePhoto.tsx'
 import MealProjection from './MealProjection.tsx'
 import type { Meal, Recipe } from './meal-types.ts'
 import type { Me } from './types.ts'
@@ -90,8 +91,10 @@ export default function Meals() {
           <th scope="row"><time dateTime={date}>{mealDayLabel(date, { weekday: 'long' })}<span>{mealDayLabel(date, { month: 'short', day: 'numeric' })}</span></time>{date === today && <span className="meal-today-label">Today</span>}</th>
           {MEAL_SLOTS.map(slot => <td key={slot} data-slot={SLOT_LABEL[slot]}>{(bySlot.get(`${date}:${slot}`) ?? []).map(meal => {
             const assignee = members.find(member => member.id === meal.assigneeMemberId)
-            const total = meal.recipeSnapshot && 'totalMinutes' in meal.recipeSnapshot ? meal.recipeSnapshot.totalMinutes : recipes.find(r => r.id === meal.recipeId)?.totalMinutes
+            const recipe = recipes.find(r => r.id === meal.recipeId)
+            const total = meal.recipeSnapshot && 'totalMinutes' in meal.recipeSnapshot ? meal.recipeSnapshot.totalMinutes : recipe?.totalMinutes
             return <button key={meal.id} className={`meal-card ${meal.status !== 'planned' ? 'meal-complete' : ''}`} onClick={() => setEditing({ meal, initial: { date, slot } })} aria-label={`${SLOT_LABEL[slot]}, ${mealDayLabel(date)}, ${meal.title}, ${meal.status}${assignee ? `, cooked by ${assignee.name}` : ''}${meal.eaterIds?.length ? `, for ${members.filter(m => meal.eaterIds.includes(m.id)).map(m => m.name).join(', ')}` : ''}`}>
+              {recipe?.imageUrl && <RecipePhoto id={recipe.id} className="meal-thumb" />}
               <strong>{meal.mealKind === 'dining_out' && <span aria-label="Dining out">↗ </span>}{meal.title}</strong>
               <span>{meal.plannedTime ? `${clockTime(meal.plannedTime)} · ` : ''}{servingsLabel(meal.servings)}{total ? ` · ${minutesLabel(total)}` : ''}</span>
               {assignee && <span>Cooking: {assignee.avatar} {assignee.name}</span>}
@@ -113,6 +116,7 @@ export default function Meals() {
         <p className="field-hint" role="status">{shownRecipes.length} recipe{shownRecipes.length === 1 ? '' : 's'}</p>
         {shownRecipes.length === 0 && !recipeError && <p className="state-card">{search || category || filter !== 'active' ? 'No recipes match these filters.' : 'Your recipe library is ready. Add a recipe with ingredients to start planning.'}</p>}
         <div className="recipe-library">{shownRecipes.map(recipe => <button key={recipe.id} className="recipe-card" onClick={() => setRecipeSheet({ recipe })}>
+          {recipe.imageUrl && <RecipePhoto id={recipe.id} className="recipe-card-photo" />}
           <strong>{recipe.name}</strong><span>{servingsLabel(recipe.defaultServings)} · {recipe.ingredients.length} ingredients{recipe.totalMinutes ? ` · ${minutesLabel(recipe.totalMinutes)}` : ''}{recipe.archived ? ' · Archived' : ''}</span>{recipe.description && <p>{recipe.description}</p>}
         </button>)}</div>
       </>}

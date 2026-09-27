@@ -106,6 +106,7 @@ const PUBLIC_PATH =
 const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'GET', pattern: /^\/api\/recipes(\/[^/]+)?$/ },
   { method: 'GET', pattern: /^\/api\/(recipes|meals)\/[^/]+\/source\.pdf$/ }, // the recipe card viewer
+  { method: 'GET', pattern: /^\/api\/(recipes|meals)\/[^/]+\/image$/ }, // recipe photos
   { method: 'GET', pattern: /^\/api\/meals(\/(?!projection$)[^/]+)?$/ }, // not the shopping projection (admin)
   { method: 'PATCH', pattern: /^\/api\/meals\/[^/]+$/ }, // route restricts assigned devices to notes/status
 
@@ -200,8 +201,8 @@ function isDisplayAllowed(method: string, path: string): boolean {
 }
 
 // Routes that can't send a header, so they take the key as ?key=: the OAuth start and the photo zip
-// (browser navigations) and a photo's bytes (an <img src>). Nowhere else - a key in a URL ends up in logs.
-const QUERY_KEY_PATH = /^\/api\/oauth\/[^/]+\/start$|^\/api\/photos\/[^/]+\/image$|^\/api\/photos\/export\.zip$/;
+// (browser navigations) and a photo's or recipe photo's bytes (an <img src>). Nowhere else - a key in a URL ends up in logs.
+const QUERY_KEY_PATH = /^\/api\/oauth\/[^/]+\/start$|^\/api\/photos\/[^/]+\/image$|^\/api\/(recipes|meals)\/[^/]+\/image$|^\/api\/photos\/export\.zip$/;
 
 // Shared by requireAuth and GET /api/me: resolves the bearer key (or ?key= on QUERY_KEY_PATH)
 // to its scope. Returns null if the key is missing/unknown.
