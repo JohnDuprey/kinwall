@@ -153,16 +153,34 @@ test('meals: generated calendar links clear when deleted and follow canonical me
   await json('/api/settings', 'PATCH', { timezone: 'America/New_York' });
   const meal = await json('/api/meals', 'POST', { date: dates.from, slot: 'dinner', title: 'Tacos', plannedTime: '18:00', notes: 'Old note' });
   const linked = await json(`/api/meals/${meal.id}/calendar-event`, 'POST', {});
+  assert.equal((await json(`/api/events/${linked.calendarEventId}`)).description, 'Old note', 'set once, at creation');
+  await json(`/api/events/${linked.calendarEventId}`, 'PATCH', { description: 'Bring napkins' });
   await json(`/api/meals/${meal.id}`, 'PATCH', { title: 'Pasta', plannedTime: '19:00', notes: 'New note' });
   const updated = await json(`/api/events/${linked.calendarEventId}`);
   assert.equal(updated.title, 'Dinner · Pasta');
   assert.equal(updated.start, '2026-10-05T23:00:00.000Z');
-  assert.equal(updated.description, 'New note');
+  assert.equal(updated.description, 'Bring napkins', 'a note typed on the event survives meal edits');
   await json(`/api/events/${linked.calendarEventId}`, 'DELETE');
   assert.equal((await json(`/api/meals/${meal.id}`)).calendarEventId, null);
   const recreated = await json(`/api/meals/${meal.id}/calendar-event`, 'POST', {});
   assert.equal(recreated.calendarEventId, linked.calendarEventId);
   assert.equal((await json(`/api/events/${linked.calendarEventId}`)).title, 'Dinner · Pasta');
+});
+
+test('meals: deleting a meal removes the event Kinwall created and keeps a linked event of your own', async () => {
+  const { json, request } = fixture();
+  const made = await json('/api/meals', 'POST', { date: dates.from, slot: 'dinner', title: 'Tacos', plannedTime: '18:00' });
+  const eventId = (await json(`/api/meals/${made.id}/calendar-event`, 'POST', {})).calendarEventId;
+  const calendarId = (await json(`/api/events/${eventId}`)).calendarId;
+  const own = await json('/api/events', 'POST', { calendarId, title: 'Grandma visits', start: '2026-10-06T18:00:00Z', end: '2026-10-06T20:00:00Z', allDay: false });
+  const linked = await json('/api/meals', 'POST', { date: '2026-10-06', slot: 'dinner', title: 'Roast' });
+  await json(`/api/meals/${linked.id}/calendar-link`, 'POST', { eventId: own.id });
+
+  await json(`/api/meals/${made.id}`, 'DELETE');
+  assert.equal((await request(`/api/events/${eventId}`)).status, 404);
+  await json(`/api/meals/${linked.id}`, 'DELETE');
+  assert.equal((await json(`/api/events/${own.id}`)).title, 'Grandma visits');
+  assert.equal((await request(`/api/meals/${made.id}`, 'DELETE')).status, 404);
 });
 
 test('meals: export/import preserves snapshots and source claims; older exports remain valid', async () => {

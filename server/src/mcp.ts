@@ -270,7 +270,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     const result = await call(app, env, auth, 'POST', '/api/meals', input);
     return result.status >= 400 ? errorResult(result.json, 'failed to plan meal') : okResult('Meal planned', { meal: result.json });
   });
-  tool('update_meal', { title: 'Update meal', description: 'Admin: edit/assign a meal; refreshRecipe explicitly replaces its ingredient snapshot. Assigned devices may update notes/status only. Does not write calendar events.', inputSchema: { id: z.string(), ...MealPatchSchema.shape, member: z.string().nullable().optional().describe('Assignee name (case-insensitive) or id; null clears assignment. Overrides assigneeMemberId when provided.') } }, async ({ id, member, ...input }) => {
+  tool('update_meal', { title: 'Update meal', description: 'Admin: edit/assign a meal; refreshRecipe explicitly replaces its ingredient snapshot. Assigned devices may update notes/status only. A calendar event Kinwall created for the meal follows its title, time and assignee; a linked event of your own is not changed.', inputSchema: { id: z.string(), ...MealPatchSchema.shape, member: z.string().nullable().optional().describe('Assignee name (case-insensitive) or id; null clears assignment. Overrides assigneeMemberId when provided.') } }, async ({ id, member, ...input }) => {
     try {
       if (member !== undefined) input.assigneeMemberId = member === null ? null : await resolveMember(app, env, auth, member);
     } catch (err) {

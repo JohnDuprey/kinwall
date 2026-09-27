@@ -143,8 +143,10 @@ mealsRoutes.openapi(createRoute({ method: 'patch', path: '/api/meals/{id}', tags
     const start = timed ? zonedTimeToUtc({ y, mo: m - 1, d, h: hour, mi: minute, s: 0 }, tz).toISOString() : meal.date;
     const duration = linked.all_day ? 60 : Math.max(1, (Date.parse(linked.end) - Date.parse(linked.start)) / 60000);
     const end = timed ? new Date(Date.parse(start) + duration * 60000).toISOString() : new Date(Date.parse(meal.date) + 86400000).toISOString().slice(0, 10);
-    writes.push(c.env.DB.prepare('UPDATE events SET title = ?, start = ?, end = ?, all_day = ?, description = ?, member_ids = ?, updated_at = ? WHERE id = ?').bind(
-      `${meal.slot[0].toUpperCase()}${meal.slot.slice(1)} · ${meal.title}`, start, end, timed ? 0 : 1, meal.notes, JSON.stringify(meal.assigneeMemberId ? [meal.assigneeMemberId] : []), new Date().toISOString(), linked.id,
+    // The meal:<id> event only mirrors the meal, so keep it in step; its description is set once at
+    // creation and left alone, so notes typed on the event in Calendar survive.
+    writes.push(c.env.DB.prepare('UPDATE events SET title = ?, start = ?, end = ?, all_day = ?, member_ids = ?, updated_at = ? WHERE id = ?').bind(
+      `${meal.slot[0].toUpperCase()}${meal.slot.slice(1)} · ${meal.title}`, start, end, timed ? 0 : 1, JSON.stringify(meal.assigneeMemberId ? [meal.assigneeMemberId] : []), new Date().toISOString(), linked.id,
     ));
   }
   await c.env.DB.batch(writes);
@@ -152,11 +154,19 @@ mealsRoutes.openapi(createRoute({ method: 'patch', path: '/api/meals/{id}', tags
   if (linked) emit(c, 'events.changed', { calendarId: linked.calendar_id });
   return c.json(await readMeal(c.env.DB, meal.id) as Meal, 200);
 });
-mealsRoutes.openapi(createRoute({ method: 'delete', path: '/api/meals/{id}', tags: ['Meals'], summary: 'Remove a meal (keeps any linked calendar event and shopping items)', security: [{ Bearer: [] }], request: { params }, responses: { 200: ok, ...errors } }), async (c) => {
+mealsRoutes.openapi(createRoute({ method: 'delete', path: '/api/meals/{id}', tags: ['Meals'], summary: 'Remove a meal and the calendar event Kinwall created for it (keeps a linked event of your own and shopping items)', security: [{ Bearer: [] }], request: { params }, responses: { 200: ok, ...errors } }), async (c) => {
   const { id } = c.req.valid('param');
-  const result = await c.env.DB.prepare('DELETE FROM meals WHERE id = ?').bind(id).run();
-  if (!result.meta.changes) return c.json({ error: 'meal not found' }, 404);
-  emit(c, 'meal.changed', { id }); return c.json({ ok: true }, 200);
+  const db = c.env.DB;
+  if (!await db.prepare('SELECT id FROM meals WHERE id = ?').bind(id).first()) return c.json({ error: 'meal not found' }, 404);
+  const own = await db.prepare('SELECT calendar_id FROM events WHERE id = ?').bind(`meal:${id}`).first<{ calendar_id: string }>();
+  await db.batch([
+    db.prepare('DELETE FROM meals WHERE id = ?').bind(id),
+    db.prepare('DELETE FROM events WHERE id = ?').bind(`meal:${id}`),
+    db.prepare("DELETE FROM notes WHERE target_type = 'event' AND target_id = ?").bind(`meal:${id}`),
+  ]);
+  emit(c, 'meal.changed', { id });
+  if (own) emit(c, 'events.changed', { calendarId: own.calendar_id });
+  return c.json({ ok: true }, 200);
 });
 mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/meals/{id}/calendar-link', tags: ['Meals'], summary: 'Link an existing event without creating a duplicate (admin)', security: [{ Bearer: [] }], request: { params, body: body(z.object({ eventId: z.string().min(1) }).strict()) }, responses: { 200: mealResponse, ...errors } }), async (c) => {
   const meal = await readMeal(c.env.DB, c.req.valid('param').id);

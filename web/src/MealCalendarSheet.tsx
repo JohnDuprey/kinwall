@@ -33,7 +33,7 @@ export default function MealCalendarSheet({ meal, onClose, onLinked }: { meal: M
   }
   return <Sheet title="Meal calendar link" onClose={() => { if (!busy) onClose() }} dismissable={!busy}>
     <p>{meal.title} · {mealDayLabel(meal.date)}{meal.plannedTime ? ` · ${meal.plannedTime}` : ' · No planned time'}</p>
-    <p className="field-hint">Calendar actions use the saved meal shown above. Changes in the meal editor take effect after saving. Created events are independent; later meal edits do not update them.</p>
+    <p className="field-hint">Calendar actions use the saved meal shown above. Changes in the meal editor take effect after saving. An event created here follows the meal: saving the meal updates its title, time and people (a note typed on the event stays), and deleting the meal deletes it. An event you link is never changed.</p>
     {meal.calendarEventId ? <>
       <p><a href={`#/calendar?event=${encodeURIComponent(meal.calendarEventId)}&at=${meal.date}`}>Open linked event</a></p>
       <button className="btn btn-secondary" disabled={busy} onClick={() => void run(() => api.unlinkMealCalendar(meal.id), 'Calendar event unlinked')}>Unlink (keep event)</button>
