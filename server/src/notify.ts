@@ -357,7 +357,7 @@ async function runDailySummary(env: Env, db: KinwallDb, now: Date, tz: string, s
     const choreCount = features.chores ? ` · ${chores.length} chore${chores.length === 1 ? '' : 's'}` : '';
     let body = `${eventCount} event${eventCount === 1 ? '' : 's'}${choreCount}${first ? ` — ${first}` : ''}`;
     const meals = mealsRes.results as { slot: string; title: string }[];
-    if (meals.length) body += `\nMeals: ${top3(meals.map((m) => `${m.slot[0].toUpperCase()}${m.slot.slice(1)} · ${m.title}`))}`;
+    if (features.meals && meals.length) body += `\nMeals: ${top3(meals.map((m) => `${m.slot[0].toUpperCase()}${m.slot.slice(1)} · ${m.title}`))}`;
     if (todo.length) body += `\nTo do for today's events:\n${todo.join('\n')}`;
     // List items due today (any list), for this device's members like the chore nudge.
     const due = features.lists ? (dueRes.results as unknown as { title: string; priority: string; member_id: string | null }[]).filter((r) => memberMatch(deviceMemberIds, r.member_id ? [r.member_id] : [])) : [];

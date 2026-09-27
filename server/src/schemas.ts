@@ -132,6 +132,7 @@ export const FeaturesSchema = z
     trackersReading: z.boolean().default(true),
     trackersMemories: z.boolean().default(true),
     trackersHealth: z.boolean().default(true),
+    meals: z.boolean().default(true), // Meals tab, the Board's meals card, meals in the daily summary
   })
   .openapi('Features');
 

@@ -31,9 +31,9 @@ import Sheet from './Sheet.tsx'
 
 const NAV_ITEMS = [
   { key: 'calendar', href: '#/calendar', label: 'Calendar', Icon: CalendarIcon },
-  { key: 'meals', href: '#/meals', label: 'Meals', Icon: MealIcon },
   { key: 'chores', href: '#/chores', label: 'Chores', Icon: ChoreIcon },
   { key: 'lists', href: '#/lists', label: 'Lists', Icon: ListIcon },
+  { key: 'meals', href: '#/meals', label: 'Meals', Icon: MealIcon },
   { key: 'trackers', href: '#/trackers', label: 'Trackers', Icon: BookIcon },
   { key: 'activities', href: '#/activities', label: 'Activities', Icon: BrushIcon },
   { key: 'settings', href: '#/settings', label: 'Settings', Icon: SettingsIcon },
@@ -41,12 +41,12 @@ const NAV_ITEMS = [
 
 /** The nav items this family has on (Settings → Features); Activities goes when every activity is off. */
 function navItems(s: Settings) {
-  return NAV_ITEMS.filter(i => i.key === 'chores' ? s.features.chores : i.key === 'lists' ? s.features.lists : i.key === 'trackers' ? trackerKinds(s).length > 0 : i.key === 'activities' ? shownActivities(s).length > 0 : true)
+  return NAV_ITEMS.filter(i => i.key === 'chores' ? s.features.chores : i.key === 'lists' ? s.features.lists : i.key === 'meals' ? s.features.meals : i.key === 'trackers' ? trackerKinds(s).length > 0 : i.key === 'activities' ? shownActivities(s).length > 0 : true)
 }
 
 /** Where to send a link to a screen whose feature is off (a bookmark, a push, an old tab), or null. */
 function featureRedirect(s: Settings, section: string, sub: string | undefined): string | null {
-  if (section === 'chores' || section === 'lists' || section === 'trackers' || section === 'activities') {
+  if (section === 'chores' || section === 'lists' || section === 'meals' || section === 'trackers' || section === 'activities') {
     if (!navItems(s).some(i => i.key === section)) return '#/calendar'
     if (section === 'trackers') { const on = trackerKinds(s); return sub && !on.includes(sub) ? `#/trackers/${on[0]}` : null }
     if (sub && section === 'activities' && sub !== 'plugin' && !shownActivities(s).some(a => a.key === sub)) return '#/activities'

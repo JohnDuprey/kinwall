@@ -11,7 +11,7 @@ import { runNotifications } from '../src/notify.ts';
 
 const MIGRATIONS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'migrations');
 const ADMIN_KEY = 'fc_test_admin_key';
-const ALL_ON = { chores: true, lists: true, paint: true, photos: true, notes: true, messages: true, trackersReading: true, trackersMemories: true, trackersHealth: true };
+const ALL_ON = { chores: true, lists: true, paint: true, photos: true, notes: true, messages: true, trackersReading: true, trackersMemories: true, trackersHealth: true, meals: true };
 
 function setup() {
   const db = openDb(':memory:');
@@ -56,4 +56,23 @@ test('features: messages off refuses POST /api/notify; chores off drops the nudg
 
   // The chores API itself keeps answering, so nothing is lost and integrations keep working.
   assert.equal((await request('/api/chores')).status, 200);
+});
+
+test('features: meals off drops meals from the Board, a member\'s day and the daily summary', async () => {
+  const { env, request } = setup();
+  await request('/api/settings', 'PATCH', { timezone: 'UTC', features: { ...ALL_ON, meals: false } });
+  const bo = (await (await request('/api/members', 'POST', { name: 'Bo', color: '#5ae' })).json()) as any;
+  const today = new Date().toISOString().slice(0, 10);
+  await request('/api/meals', 'POST', { date: today, slot: 'dinner', title: 'Soup' });
+  await request('/api/meals', 'POST', { date: '2030-03-04', slot: 'dinner', title: 'Tacos' });
+  assert.deepEqual(((await (await request('/api/board')).json()) as any).meals, []);
+  assert.deepEqual(((await (await request(`/api/snapshot?member=${bo.id}`)).json()) as any).meals, []);
+
+  await runNotifications(env, new Date('2030-03-04T07:30:00Z'));
+  await runNotifications(env, new Date('2030-03-04T08:00:00Z'));
+  const rows = (await (await request('/api/notifications')).json()) as any[];
+  assert.doesNotMatch(rows.find((n) => n.kind === 'summary').body, /Meals/);
+
+  // The meals API keeps answering.
+  assert.equal(((await (await request(`/api/meals?from=${today}&to=${today}`)).json()) as any[]).length, 1);
 });

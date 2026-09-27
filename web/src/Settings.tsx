@@ -225,6 +225,7 @@ const FEATURE_ROWS: { key: keyof Features; label: string; sub: string; group?: s
   { key: 'paint', label: 'Paint', sub: 'Drawing and coloring in Activities.' },
   { key: 'photos', label: 'Photos', sub: 'Family photos in Activities and the Board’s picture card.' },
   { key: 'notes', label: 'Notes', sub: 'Notes and discussions on events and list items.' },
+  { key: 'meals', label: 'Meals', sub: 'The Meals tab with recipes and the week’s plan, and today’s meals on the Board.' },
   { key: 'messages', label: 'Family messages', sub: 'Sending a message from the bell. Messages already sent still show.' },
   { key: 'trackersReading', group: 'Trackers', label: 'Reading', sub: 'Books with progress and ratings, and the reading line in someone’s day.' },
   { key: 'trackersMemories', group: 'Trackers', label: 'Memories', sub: 'The family journal.' },

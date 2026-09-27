@@ -55,6 +55,7 @@ export interface Features {
   trackersReading: boolean
   trackersMemories: boolean
   trackersHealth: boolean
+  meals: boolean // Meals tab, the Board's meals card, meals in the daily summary
 }
 
 // Trackers (server: routes/trackers.ts). `data` holds the kind's fields; health never reaches a display key.

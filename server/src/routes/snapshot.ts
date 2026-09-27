@@ -149,7 +149,7 @@ snapshotRoutes.openapi(
     const isBirthday = birthdays.some((b) => b.memberId === memberId && b.date === today);
     const weather = await getWeather(db, now);
 
-    const meals = await readMeals(db, today, last);
+    const meals = settings.features.meals ? await readMeals(db, today, last) : [];
     const body: Snapshot = {
       greeting: isBirthday ? `Happy birthday, ${member.name}! 🎉` : greetingFor(member.name, hour),
       member,
@@ -248,7 +248,7 @@ snapshotRoutes.openapi(
 
     const weather = await getWeather(db, now);
 
-    const meals = await readMeals(db, today, to);
+    const meals = settings.features.meals ? await readMeals(db, today, to) : [];
     const body: Board = {
       today,
       to,
