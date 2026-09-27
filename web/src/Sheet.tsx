@@ -8,7 +8,7 @@ export default function Sheet({ title, onClose, children, actions, variant, role
   onClose: () => void
   children: ReactNode
   actions?: ReactNode
-  variant?: 'dialog' // compact card, centered on wide screens (still a bottom sheet on phones) - see dialog.tsx
+  variant?: 'dialog' | 'full' // dialog: compact card, centered on wide screens (still a bottom sheet on phones) - see dialog.tsx; full: the whole screen (a document viewer)
   role?: 'dialog' | 'alertdialog'
   describedBy?: string
   // false: a stray backdrop tap or drag can't close it (the sheet nudges instead); only the X,
@@ -109,7 +109,7 @@ export default function Sheet({ title, onClose, children, actions, variant, role
   // left the tab bar drawn over the sheet's action buttons.
   return createPortal(
     <div className={`sheet-backdrop ${variant === 'dialog' ? 'sheet-backdrop-dialog' : ''}`} ref={backdropRef} onClick={onBackdrop}>
-      <div className={`sheet ${variant === 'dialog' ? 'sheet-dialog' : ''}`} ref={sheetRef} role={role} aria-modal="true" aria-labelledby={titleId} aria-describedby={describedBy}
+      <div className={`sheet ${variant ? `sheet-${variant}` : ''}`} ref={sheetRef} role={role} aria-modal="true" aria-labelledby={titleId} aria-describedby={describedBy}
         tabIndex={-1} onClick={e => e.stopPropagation()}
         style={keyboard ? { paddingBottom: 8, maxHeight: '100%', borderRadius: '20px 20px 0 0' } : undefined}>
         <div className={`sheet-drag ${dismissable ? '' : 'no-drag'}`} onPointerDown={onDragStart} onPointerMove={onDragMove} onPointerUp={onDragEnd} onPointerCancel={onDragEnd}>

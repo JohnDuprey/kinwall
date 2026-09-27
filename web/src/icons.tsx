@@ -133,3 +133,12 @@ export const CloudOffIcon = (p: P) => (
   // cloud-off from Lucide (ISC license, lucide.dev)
   <svg {...base(p)}><path d="m2 2 20 20" /><path d="M5.782 5.782A7 7 0 0 0 9 19h8.5a4.5 4.5 0 0 0 1.307-.193" /><path d="M21.532 16.5A4.5 4.5 0 0 0 17.5 10h-1.79A7.008 7.008 0 0 0 10 5.07" /></svg>
 )
+export const FileIcon = (p: P) => (
+  <svg {...base(p)}><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z" /><path d="M14 3v5h5M9 13h6M9 17h6" /></svg>
+)
+export const ExternalIcon = (p: P) => (
+  <svg {...base(p)}><path d="M14 4h6v6M20 4l-9 9" /><path d="M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5" /></svg>
+)
+export const MinusIcon = (p: P) => (
+  <svg {...base(p)}><path d="M5 12h14" /></svg>
+)

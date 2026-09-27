@@ -32,6 +32,14 @@ test('recipe import: ingredient lines parse into amount, unit and name', () => {
     ['Salt', { name: 'Salt', quantity: null, unit: null }],
     ['  Pepper  ', { name: 'Pepper', quantity: null, unit: null }],
     ['2x Bacon', { name: '2x Bacon', quantity: null, unit: null }],
+    ['1 teaspoon (tsp) Cooking Oil', { name: 'Cooking Oil', quantity: 1, unit: 'teaspoon' }],
+    ['2 tablespoon (tbsp) Butter', { name: 'Butter', quantity: 2, unit: 'tablespoon' }],
+    ['10 ounce (oz) Chicken', { name: 'Chicken', quantity: 10, unit: 'ounce' }],
+    ['4 fl oz (fl oz) Cream', { name: 'Cream', quantity: 4, unit: 'fl oz' }],
+    ['1 pound (lb.) Beef', { name: 'Beef', quantity: 1, unit: 'pound' }],
+    ['250 grams (g) Rice', { name: 'Rice', quantity: 250, unit: 'grams' }],
+    ['1 cup (cup) Milk', { name: 'Milk', quantity: 1, unit: 'cup' }],
+    ['1 can (Diced) Tomatoes', { name: '(Diced) Tomatoes', quantity: 1, unit: 'can' }],
   ];
   for (const [line, expected] of cases) assert.deepEqual(parseIngredientLine(line), expected, line);
 });
@@ -100,4 +108,97 @@ test('recipe import: a display key cannot import', async () => {
   const display = await json('/api/keys', 'POST', { name: 'wall', scope: 'display' });
   assert.equal((await request('/api/recipes/import', 'POST', kit(), display.key)).status, 403);
   assert.equal((await request('/api/recipes/import', 'POST', { ...kit(), ingredients: [{ text: 'x', shipped: true }] })).status, 400);
+});
+
+test('recipe card PDF: proxies only the stored https sourceUrl, checks type and size', async () => {
+  const { json, request } = fixture();
+  const realFetch = globalThis.fetch;
+  const fetched: string[] = [];
+  let reply = (): Response => new Response('%PDF-1.4 card', { headers: { 'Content-Type': 'application/pdf' } });
+  globalThis.fetch = (async (url: unknown) => { fetched.push(String(url)); return reply(); }) as typeof fetch;
+  try {
+    const { recipeId, mealId } = await json('/api/recipes/import', 'POST', kit({ date: '2026-03-02', slot: 'dinner' }));
+    const display = await json('/api/keys', 'POST', { name: 'wall', scope: 'display' });
+    for (const path of [`/api/recipes/${recipeId}/source.pdf`, `/api/meals/${mealId}/source.pdf`]) {
+      const res = await request(`${path}?url=https://evil.example/x.pdf`, 'GET', undefined, display.key);
+      assert.equal(res.status, 200, path);
+      assert.equal(res.headers.get('content-type'), 'application/pdf');
+      assert.equal(res.headers.get('cache-control'), 'private, max-age=86400');
+      assert.equal(await res.text(), '%PDF-1.4 card');
+    }
+    assert.deepEqual(fetched, ['https://example.com/card.pdf', 'https://example.com/card.pdf'], 'never the ?url= param');
+
+    // octet-stream passes only with the %PDF magic; HTML never passes.
+    reply = () => new Response('%PDF-1.7', { headers: { 'Content-Type': 'application/octet-stream' } });
+    assert.equal((await request(`/api/recipes/${recipeId}/source.pdf`)).status, 200);
+    reply = () => new Response('<html>nope</html>', { headers: { 'Content-Type': 'application/octet-stream' } });
+    assert.equal((await request(`/api/recipes/${recipeId}/source.pdf`)).status, 502);
+    reply = () => new Response('%PDF-1.4', { headers: { 'Content-Type': 'text/html' } });
+    assert.equal((await request(`/api/recipes/${recipeId}/source.pdf`)).status, 502);
+    // Size cap, whether or not the server declares a length.
+    const big = new Uint8Array(15 * 1024 * 1024 + 1); big.set([0x25, 0x50, 0x44, 0x46]);
+    reply = () => new Response(new ReadableStream({ start(c) { c.enqueue(big); c.close(); } }), { headers: { 'Content-Type': 'application/pdf' } });
+    assert.equal((await request(`/api/recipes/${recipeId}/source.pdf`)).status, 502);
+    // Redirects are re-checked: a hop to a private address is refused.
+    reply = () => new Response(null, { status: 302, headers: { Location: 'https://127.0.0.1/card.pdf' } });
+    assert.equal((await request(`/api/recipes/${recipeId}/source.pdf`)).status, 400);
+
+    fetched.length = 0;
+    reply = () => new Response('%PDF-1.4', { headers: { 'Content-Type': 'application/pdf' } });
+    await json(`/api/recipes/${recipeId}`, 'PATCH', { sourceUrl: 'http://example.com/card.pdf' });
+    assert.equal((await request(`/api/recipes/${recipeId}/source.pdf`)).status, 400, 'http refused');
+    await json(`/api/recipes/${recipeId}`, 'PATCH', { sourceUrl: null });
+    assert.equal((await request(`/api/recipes/${recipeId}/source.pdf`)).status, 404, 'no sourceUrl');
+    assert.equal((await request('/api/recipes/nope/source.pdf')).status, 404);
+    assert.deepEqual(fetched, []);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+test('recipe times: import, edit, plan (snapshot) and export/import round trip', async () => {
+  const { json } = fixture();
+  const { recipeId, mealId } = await json('/api/recipes/import', 'POST', { ...kit({ date: '2026-03-02', slot: 'dinner' }), prepMinutes: 10, totalMinutes: 35 });
+  let recipe = await json(`/api/recipes/${recipeId}`);
+  assert.deepEqual([recipe.prepMinutes, recipe.totalMinutes], [10, 35]);
+  const meal = await json(`/api/meals/${mealId}`);
+  assert.deepEqual([meal.recipeSnapshot.prepMinutes, meal.recipeSnapshot.totalMinutes], [10, 35]);
+  // Importing again without times keeps them; an edit can clear one.
+  await json('/api/recipes/import', 'POST', kit());
+  recipe = await json(`/api/recipes/${recipeId}`, 'PATCH', { prepMinutes: null });
+  assert.deepEqual([recipe.prepMinutes, recipe.totalMinutes], [null, 35]);
+  const manual = await json('/api/recipes', 'POST', { name: 'Toast', totalMinutes: 5 });
+  assert.deepEqual([manual.prepMinutes, manual.totalMinutes], [null, 5]);
+
+  const backup = await json('/api/export');
+  const other = fixture();
+  await other.json('/api/import', 'POST', backup);
+  assert.deepEqual((await other.json(`/api/recipes/${recipeId}`)).totalMinutes, 35);
+  assert.equal((await other.json(`/api/meals/${mealId}`)).recipeSnapshot.totalMinutes, 35);
+});
+
+test("meal eaters: who's eating sets servings, round-trips, validates, and leaves with a deleted member", async () => {
+  const { json, request } = fixture();
+  const leo = await json('/api/members', 'POST', { name: 'Leo', color: '#e57' });
+  const maya = await json('/api/members', 'POST', { name: 'Maya', color: '#57e' });
+  const ava = await json('/api/members', 'POST', { name: 'Ava', color: '#5e7' });
+  // Import plan: eaters without servings -> servings = how many.
+  const { mealId } = await json('/api/recipes/import', 'POST', kit({ date: '2026-03-02', slot: 'dinner', eaterIds: [leo.id, maya.id, ava.id] }));
+  let meal = await json(`/api/meals/${mealId}`);
+  assert.deepEqual([meal.eaterIds, meal.servings], [[leo.id, maya.id, ava.id], 3]);
+  // Given servings win; duplicates collapse.
+  meal = await json('/api/meals', 'POST', { date: '2026-03-03', slot: 'lunch', title: 'Soup', eaterIds: [leo.id, leo.id], servings: 4 });
+  assert.deepEqual([meal.eaterIds, meal.servings], [[leo.id], 4]);
+  meal = await json(`/api/meals/${meal.id}`, 'PATCH', { eaterIds: [leo.id, maya.id] });
+  assert.deepEqual([meal.eaterIds, meal.servings], [[leo.id, maya.id], 2]);
+  assert.deepEqual((await json('/api/meals', 'POST', { date: '2026-03-04', slot: 'lunch', title: 'Toast' })).eaterIds, []);
+  assert.equal((await request('/api/meals', 'POST', { date: '2026-03-04', slot: 'lunch', title: 'X', eaterIds: ['nobody'] })).status, 400);
+
+  const backup = await json('/api/export');
+  const other = fixture();
+  await other.json('/api/import', 'POST', backup);
+  assert.deepEqual((await other.json(`/api/meals/${mealId}`)).eaterIds, [leo.id, maya.id, ava.id]);
+
+  await json(`/api/members/${maya.id}`, 'DELETE');
+  assert.deepEqual((await json(`/api/meals/${mealId}`)).eaterIds, [leo.id, ava.id]);
 });

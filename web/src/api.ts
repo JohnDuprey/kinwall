@@ -482,6 +482,17 @@ export const api = {
     if (!res.ok) throw new ApiError(res.status, res.statusText || 'Export failed')
     return res.blob()
   },
+  // A recipe card PDF the server fetched from that recipe's or meal's own sourceUrl.
+  recipeCardPdf: async (path: string): Promise<ArrayBuffer> => {
+    const key = getKey()
+    const res = await fetch(apiUrl(path), { headers: key ? { Authorization: `Bearer ${key}` } : {} })
+    if (!res.ok) {
+      let msg = res.statusText
+      try { msg = (await res.json()).error ?? msg } catch { /* not JSON */ }
+      throw new ApiError(res.status, msg)
+    }
+    return res.arrayBuffer()
+  },
   importData: (file: unknown) => post<ImportResult>('api/import', file, true),
   getHostEvents: () => MOCK ? Promise.resolve([]) : get<HostEvent[]>('api/host-events', true),
   createWebhook: (url: string, events: string[], secret?: string) =>

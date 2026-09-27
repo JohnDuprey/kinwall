@@ -105,6 +105,7 @@ const PUBLIC_PATH =
 // listed here is denied for display keys - deny by default, not scattered checks.
 const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'GET', pattern: /^\/api\/recipes(\/[^/]+)?$/ },
+  { method: 'GET', pattern: /^\/api\/(recipes|meals)\/[^/]+\/source\.pdf$/ }, // the recipe card viewer
   { method: 'GET', pattern: /^\/api\/meals(\/(?!projection$)[^/]+)?$/ }, // not the shopping projection (admin)
   { method: 'PATCH', pattern: /^\/api\/meals\/[^/]+$/ }, // route restricts assigned devices to notes/status
 

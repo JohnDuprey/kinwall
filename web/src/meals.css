@@ -67,3 +67,37 @@
   .meal-grid td::before { content: attr(data-slot); display: block; margin-bottom: 6px; font-size: 0.8125rem; font-weight: 800; color: var(--text-dim); }
 }
 @media (max-width: 360px) { .meal-form-row { grid-template-columns: 1fr; gap: 0; } }
+/* Links in the meal and recipe sheets: full-width rows like the sheet's other controls, not web links. */
+.sheet-links { display: flex; flex-direction: column; gap: 8px; margin: 16px 0; }
+.sheet-link { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px; padding: 10px 14px; border: 2px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-alt); color: var(--text); font: inherit; font-weight: 800; text-align: left; text-decoration: none; cursor: pointer; }
+.sheet-link:hover { border-color: var(--accent); }
+.sheet-link svg { width: 20px; height: 20px; flex-shrink: 0; }
+.sheet-link > span { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.sheet-link small { color: var(--text-dim); font-weight: 600; font-size: 0.8125rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sheet-link > svg:last-child { color: var(--text-dim); }
+/* "In the kit": a quiet tag after the amount rather than trailing words. */
+.kit-tag { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; background: var(--card-soft); border: 1px solid var(--border); color: var(--text-dim); font-size: 0.75rem; font-weight: 700; vertical-align: 1px; white-space: nowrap; }
+.recipe-time { color: var(--text-dim); font-weight: 700; }
+/* Recipe card viewer (RecipeCardSheet.tsx): every page on a canvas, fit to width, scrolling down. */
+.sheet-full { max-width: none; width: 100%; height: 100%; max-height: 100% !important; border-radius: 0 !important; padding-top: var(--safe-t); }
+.sheet-full .sheet-body { flex: 1 1 auto; min-height: 0; padding: 0; background: var(--bg-alt); overflow: auto; }
+.pdf-pages { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 12px; width: max-content; min-width: 100%; box-sizing: border-box; }
+.pdf-pages canvas { display: block; background: #fff; box-shadow: var(--shadow); }
+.pdf-state { padding: 32px 20px; text-align: center; }
+.pdf-state .btn { display: inline-flex; flex: none; margin-top: 12px; text-decoration: none; }
+.pdf-toolbar { display: flex; align-items: center; gap: 8px; width: 100%; }
+.pdf-toolbar .pdf-count { flex: 1; color: var(--text-dim); font-weight: 700; font-size: 0.875rem; text-align: center; }
+.pdf-toolbar .btn { flex: none; min-height: 44px; padding: 10px 16px; text-decoration: none; }
+/* Recipe view: heading and servings stepper share a row; steps read as a numbered list. */
+.recipe-servings { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.recipe-servings h3 { margin: 16px 0 0; }
+.recipe-stepper { display: flex; align-items: center; gap: 4px; margin-top: 12px; font-weight: 700; }
+.recipe-stepper span { min-width: 88px; text-align: center; }
+.recipe-steps { padding-left: 22px; }
+.recipe-steps li { margin: 10px 0; line-height: 1.5; overflow-wrap: anywhere; }
+/* Who's eating: a small overlapping row of avatars. */
+.meal-eaters { display: inline-flex; align-items: center; vertical-align: middle; }
+.meal-eaters .member-avatar-sm { width: 22px; height: 22px; font-size: 0.75rem; box-shadow: 0 0 0 2px var(--card); }
+.meal-eaters .member-avatar-sm + .member-avatar-sm { margin-left: -6px; }
+.meal-eaters-row { display: flex; align-items: center; gap: 8px; }
+.meal-eaters-hint { margin: -8px 0 16px; }

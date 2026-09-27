@@ -19,6 +19,8 @@ export interface RecipeInput {
   preparationNotes: string | null
   sourceUrl: string | null
   defaultServings: number
+  prepMinutes?: number | null
+  totalMinutes?: number | null
   archived: boolean
   ingredients: IngredientInput[]
 }
@@ -28,7 +30,7 @@ export interface Recipe extends Omit<RecipeInput, 'ingredients'> {
   createdAt: string
   updatedAt: string
 }
-export interface RecipeSnapshot { name: string; defaultServings: number; ingredients: RecipeIngredient[] }
+export interface RecipeSnapshot { name: string; defaultServings: number; prepMinutes?: number | null; totalMinutes?: number | null; ingredients: RecipeIngredient[] }
 export interface MealInput {
   date: string
   slot: MealSlot
@@ -36,7 +38,8 @@ export interface MealInput {
   mealKind: MealKind
   recipeId: string | null
   servings: number
-  assigneeMemberId: string | null
+  assigneeMemberId: string | null // who's cooking
+  eaterIds: string[] // who's eating
   notes: string | null
   plannedTime: string | null
   status: MealStatus

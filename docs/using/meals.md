@@ -9,14 +9,34 @@ The week planner shows the household week (it starts on Sunday or Monday, per [G
 Tap **+** in a slot (or **Plan meal**) to add a meal:
 
 * **Meal type**: **Recipe** (from the library), **Free-form meal** (just a name, like "Leftover soup") or **Dining out** (like "Pizza place").
-* **Servings**, an optional **Time** ("7:30 PM"), an **Assignee** (who's cooking), **Notes** and an optional website.
+* **Who's eating**: tap family members. Picking people sets **Servings** to how many (you can still change servings). With nobody picked, a note says how many people the servings are for ("2 servings: pick 2 people"); it's only a hint and never stops you saving.
+* **Servings**, an optional **Time** ("7:30 PM"), **Cooking** (who's making it), **Notes** and an optional website.
 * **Status**: **Planned**, **Prepared** or **Handled**. A meal that's done shows dashed.
 
-A slot can hold more than one meal. Tap a meal to edit it, or delete it from its sheet.
+A slot can hold more than one meal. Tap a meal to edit it, or delete it from its sheet. A planned meal shows small avatars of who's eating.
+
+When the header is filtered to one person, the planner and the Board's **Today's meals** show the meals that person is eating or cooking, plus meals with nobody picked.
 
 ## Recipes
 
-The **Recipe library** lists the family's recipes. Search by name or ingredient, filter by ingredient category, or show archived ones. A recipe has a name, description, default servings, instructions, preparation notes, a source link (stored, never fetched) and its ingredients: name, quantity, unit, preparation ("diced"), a quantity note ("15 oz cans") and a category ("Produce").
+The **Recipe library** lists the family's recipes. Search by name or ingredient, filter by ingredient category, or show archived ones. A recipe has a name, description, default servings, how long it takes (total and prep minutes, both optional), instructions, preparation notes, a source link and its ingredients: name, quantity, unit, preparation ("diced"), a quantity note ("15 oz cans") and a category ("Produce").
+
+Tap a recipe to see it: its times, the ingredients (with **−** and **+** to see them for more or fewer servings), the numbered steps, preparation notes and its source link. Admins get **Edit** (the editor, where you also archive or delete a recipe) and **Plan this meal**, which opens a new meal with the recipe chosen. **Open recipe** in a meal's sheet opens the same view. A wall display sees the view without **Edit**.
+
+A recipe with a time shows it as **⏱ 35 min · 10 min prep** in its sheet and the meal's sheet, and as a quiet "35 min" on the recipe card, the planned meal in the week planner and the Board's **Today's meals** card. When the meal has a time, its sheet also says when to start ("Start by 5:25 PM").
+
+Amounts read the way a recipe prints them: "½ cup", "1½ cups", "2 ounces". Units that are abbreviations (oz, tsp, tbsp, lb, g) stay as they are.
+
+### Recipe links
+
+The meal and recipe sheets show their links as rows:
+
+* **Open recipe** (in a meal's sheet) opens the recipe in the app.
+* **Recipe card (PDF)**, when the source link is a PDF (like a meal kit's recipe card), opens the card in the app: every page, fit to the screen's width, scrolling down. **+** and **−** zoom (double-tap zooms too), and **Open in browser** opens the original link. If the card can't be shown (the site is down, or the link isn't really a PDF), the viewer says so and offers **Open in browser**.
+* **Recipe website** (or **Website** for dining out) opens any other source link in the browser, with the site's name under it.
+* **Linked calendar event** opens the meal's event in the calendar.
+
+To show a recipe card, the Kinwall server fetches it from the recipe's own source link: only public `https` addresses, a PDF of at most 15 MB. Nothing else is fetched from recipe links; websites aren't imported.
 
 When you plan a recipe, the meal keeps its own copy of the ingredients. Editing, archiving or deleting the recipe later doesn't change meals already planned. To pick up the recipe's changes, tick **Refresh from the current recipe when saving** in the meal's sheet.
 
@@ -26,8 +46,9 @@ Recipes can come in from another app instead of being typed. The [Home Assistant
 
 * An imported recipe remembers where it came from (`source`, like `hellofresh`, and that app's own id). Importing it again updates the same recipe instead of adding a copy, so edits you make to an imported recipe are replaced the next time it's imported.
 * Ingredient lines like "1.5 tablespoon Sour Cream", "½ cup Rice" or "2 unit Garlic Clove" are split into amount, unit and name. Anything Kinwall can't read stays in the name.
-* Ingredients that ship in the box get the quantity note **in the kit**. They're on the recipe, but grocery lists leave them off unless you tick them (see below). What you supply yourself (oil, salt, butter) goes on the list like any other ingredient.
-* Steps become the numbered instructions, and the recipe card link is the recipe's source link.
+* Ingredient lines that repeat the unit abbreviated ("1 teaspoon (tsp) Cooking Oil") drop the abbreviation.
+* Ingredients that ship in the box get the quantity note **in the kit**, shown as an **In the kit** tag. They're on the recipe, but grocery lists leave them off unless you tick them (see below). What you supply yourself (oil, salt, butter) goes on the list like any other ingredient.
+* Steps become the numbered instructions, the recipe card link is the recipe's source link (a PDF card opens in the app), and `prepMinutes` / `totalMinutes` are its times.
 * With a date and slot it's also planned, unless that slot already has a meal. Then nothing is planned and the answer says why (`planned: false`), so an automation can try the next night. Importing again finds the meal it planned before for that slot in the same week, even if you moved it to another night, and doesn't plan it twice.
 
 ## Scaling servings
@@ -62,7 +83,7 @@ Meals never write to Google, Outlook or CalDAV calendars on their own.
 
 ## On the wall and in someone's day
 
-* The Board has a **Today's meals** card, with the next one marked.
+* The Board has a **Today's meals** card, with the next one marked and who's eating.
 * A person's day (tap their avatar) lists today's meals, and tomorrow's in **Tomorrow at a glance**. See [Daily & weekly snapshot](snapshot.md).
 * The morning summary includes the day's meals. See [Notifications](notifications.md).
 
@@ -79,6 +100,7 @@ An admin can turn off **Meals** in **Settings → General** (tap **Change** unde
 | `GET` | `/api/recipes?search=&category=&archived=` | Recipes with their ingredients. |
 | `POST` / `PATCH` / `DELETE` | `/api/recipes`, `/api/recipes/{id}` | Add, edit (`archived: true` archives) or delete a recipe (admin). |
 | `POST` | `/api/recipes/import` | Import or update a recipe by `{ source, externalId }` and optionally plan it (admin). See below. |
+| `GET` | `/api/recipes/{id}/source.pdf`, `/api/meals/{id}/source.pdf` | The PDF recipe card at that recipe's or meal's own `sourceUrl`, fetched by the server (any signed-in key, display keys too). Public `https` only, redirects re-checked (at most 3), `application/pdf` (or `application/octet-stream` starting `%PDF`), at most 15 MB, 15-second timeout, `Cache-Control: private, max-age=86400`. 404 when there's no `sourceUrl`, 400 when it isn't a public `https` address, 502 when the fetch fails or isn't a PDF. |
 | `GET` | `/api/meals?from=&to=` | Meals in a date range (at most 367 days). |
 | `POST` / `PATCH` / `DELETE` | `/api/meals`, `/api/meals/{id}` | Plan, edit or delete a meal (admin; an assigned device may `PATCH` `notes` and `status`). `refreshRecipe: true` replaces the meal's ingredients with the recipe's. |
 | `GET` | `/api/meals/projection?from=&to=&listId=` | The shopping preview (admin). |
@@ -86,7 +108,7 @@ An admin can turn off **Meals** in **Settings → General** (tap **Change** unde
 | `POST` / `DELETE` | `/api/meals/{id}/calendar-link` | Link `{ eventId }` or unlink an event (admin). |
 | `POST` | `/api/meals/{id}/calendar-event` | Create and link a local event `{ calendarId?, durationMinutes? }` (admin). |
 
-Each ingredient has `scalable`: whether its amount follows the servings. Webhooks: `recipe.changed`, `meal.changed`.
+Meals have `assigneeMemberId` (who's cooking) and `eaterIds` (who's eating, member ids); sending `eaterIds` without `servings` sets servings to how many. Recipes have `prepMinutes` and `totalMinutes` (whole minutes or `null`); a planned meal's `recipeSnapshot` copies them. Each ingredient has `scalable`: whether its amount follows the servings. Webhooks: `recipe.changed`, `meal.changed`.
 
 `POST /api/recipes/import` takes:
 
@@ -99,12 +121,14 @@ Each ingredient has `scalable`: whether its amount follows the servings. Webhook
   "sourceUrl": "https://… recipe card",
   "imageUrl": "https://… photo",
   "servings": 2,
+  "prepMinutes": 10,
+  "totalMinutes": 35,
   "ingredients": ["Salt", { "text": "1.5 tablespoon Sour Cream", "pantry": false, "category": "Dairy" }],
   "steps": ["Boil water.", "Cook the chicken."],
-  "plan": { "date": "2026-10-05", "slot": "dinner", "servings": 4 }
+  "plan": { "date": "2026-10-05", "slot": "dinner", "servings": 4, "eaterIds": ["member-id", "member-id"] }
 }
 ```
 
-`servings` is what the ingredient amounts are for (the recipe's default servings). An ingredient is a line of text, or `{ text, pantry?, category? }` where `pantry: false` means it ships in the kit. It answers `{ recipeId, created, planned, mealId?, reason? }`: `created` is false when an earlier import was updated; `planned` is true with the `mealId` when the meal is on the plan (newly, or from an earlier import), and false with a `reason` when the slot was taken.
+`servings` is what the ingredient amounts are for (the recipe's default servings). `prepMinutes` and `totalMinutes` are optional; leaving them out keeps what an earlier import set. `plan.eaterIds` (optional) is who's eating; without `plan.servings`, the meal's servings are how many. An ingredient is a line of text, or `{ text, pantry?, category? }` where `pantry: false` means it ships in the kit. It answers `{ recipeId, created, planned, mealId?, reason? }`: `created` is false when an earlier import was updated; `planned` is true with the `mealId` when the meal is on the plan (newly, or from an earlier import), and false with a `reason` when the slot was taken.
 
 The [MCP server](../integrations/mcp.md) has `list_recipes`, `get_recipe`, `list_meals`, `get_meal_projection`, `create_recipe`, `update_recipe`, `import_recipe`, `create_meal`, `update_meal` and `apply_meal_projection`.

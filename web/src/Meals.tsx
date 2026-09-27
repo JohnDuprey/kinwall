@@ -4,8 +4,8 @@ import { useApp } from './AppContext.tsx'
 import { Segmented } from './a11y.tsx'
 import { clockTime, todayKeyInTz } from './date.ts'
 import { ChevronLeft, ChevronRight, ListIcon, PlusIcon } from './icons.tsx'
-import { MEAL_SLOTS, SLOT_LABEL, mealDayLabel, mealWeek, moveMealDate, servingsLabel } from './meal-date.ts'
-import MealSheet, { type MealDraft } from './MealSheet.tsx'
+import { MEAL_SLOTS, SLOT_LABEL, mealDayLabel, mealForMember, mealWeek, minutesLabel, moveMealDate, servingsLabel } from './meal-date.ts'
+import MealSheet, { EaterAvatars, type MealDraft } from './MealSheet.tsx'
 import RecipeSheet from './RecipeSheet.tsx'
 import MealProjection from './MealProjection.tsx'
 import type { Meal, Recipe } from './meal-types.ts'
@@ -13,7 +13,7 @@ import type { Me } from './types.ts'
 import './meals.css'
 
 export default function Meals() {
-  const { settings, members, refreshTick, reloadCore } = useApp()
+  const { settings, members, refreshTick, reloadCore, selectedMemberId } = useApp()
   const timezone = settings.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone
   const today = todayKeyInTz(timezone)
   const [anchor, setAnchor] = useState(today)
@@ -68,7 +68,7 @@ export default function Meals() {
   const linkedMeal = me && pendingMeal ? meals?.find(meal => meal.id === pendingMeal) : null
   const activeEditing = editing ?? (linkedMeal ? { meal: linkedMeal, initial: { date: linkedMeal.date, slot: linkedMeal.slot } } : null)
   const bySlot = new Map<string, Meal[]>()
-  for (const meal of meals ?? []) { const key = `${meal.date}:${meal.slot}`; bySlot.set(key, [...(bySlot.get(key) ?? []), meal]) }
+  for (const meal of (meals ?? []).filter(meal => mealForMember(meal, selectedMemberId))) { const key = `${meal.date}:${meal.slot}`; bySlot.set(key, [...(bySlot.get(key) ?? []), meal]) }
   const categories = [...new Set(recipes.flatMap(recipe => recipe.ingredients.map(i => i.category).filter((c): c is string => !!c)))].sort()
   const needle = search.trim().toLocaleLowerCase()
   const shownRecipes = recipes.filter(recipe => (filter === 'all' || recipe.archived === (filter === 'archived')) && (!category || recipe.ingredients.some(i => i.category === category)) && `${recipe.name} ${recipe.description ?? ''} ${recipe.ingredients.map(i => i.name).join(' ')}`.toLocaleLowerCase().includes(needle))
@@ -90,10 +90,12 @@ export default function Meals() {
           <th scope="row"><time dateTime={date}>{mealDayLabel(date, { weekday: 'long' })}<span>{mealDayLabel(date, { month: 'short', day: 'numeric' })}</span></time>{date === today && <span className="meal-today-label">Today</span>}</th>
           {MEAL_SLOTS.map(slot => <td key={slot} data-slot={SLOT_LABEL[slot]}>{(bySlot.get(`${date}:${slot}`) ?? []).map(meal => {
             const assignee = members.find(member => member.id === meal.assigneeMemberId)
-            return <button key={meal.id} className={`meal-card ${meal.status !== 'planned' ? 'meal-complete' : ''}`} onClick={() => setEditing({ meal, initial: { date, slot } })} aria-label={`${SLOT_LABEL[slot]}, ${mealDayLabel(date)}, ${meal.title}, ${meal.status}${assignee ? `, assigned to ${assignee.name}` : ''}`}>
+            const total = meal.recipeSnapshot && 'totalMinutes' in meal.recipeSnapshot ? meal.recipeSnapshot.totalMinutes : recipes.find(r => r.id === meal.recipeId)?.totalMinutes
+            return <button key={meal.id} className={`meal-card ${meal.status !== 'planned' ? 'meal-complete' : ''}`} onClick={() => setEditing({ meal, initial: { date, slot } })} aria-label={`${SLOT_LABEL[slot]}, ${mealDayLabel(date)}, ${meal.title}, ${meal.status}${assignee ? `, cooked by ${assignee.name}` : ''}${meal.eaterIds?.length ? `, for ${members.filter(m => meal.eaterIds.includes(m.id)).map(m => m.name).join(', ')}` : ''}`}>
               <strong>{meal.mealKind === 'dining_out' && <span aria-label="Dining out">↗ </span>}{meal.title}</strong>
-              <span>{meal.plannedTime ? `${clockTime(meal.plannedTime)} · ` : ''}{servingsLabel(meal.servings)}</span>
-              {assignee && <span>{assignee.avatar} {assignee.name}</span>}
+              <span>{meal.plannedTime ? `${clockTime(meal.plannedTime)} · ` : ''}{servingsLabel(meal.servings)}{total ? ` · ${minutesLabel(total)}` : ''}</span>
+              {assignee && <span>Cooking: {assignee.avatar} {assignee.name}</span>}
+              <EaterAvatars ids={meal.eaterIds ?? []} members={members} />
               {meal.status !== 'planned' && <span>✓ {meal.status === 'prepared' ? 'Prepared' : 'Handled'}</span>}
               {meal.notes && <span className="meal-note-preview">{meal.notes}</span>}
             </button>
@@ -111,12 +113,12 @@ export default function Meals() {
         <p className="field-hint" role="status">{shownRecipes.length} recipe{shownRecipes.length === 1 ? '' : 's'}</p>
         {shownRecipes.length === 0 && !recipeError && <p className="state-card">{search || category || filter !== 'active' ? 'No recipes match these filters.' : 'Your recipe library is ready. Add a recipe with ingredients to start planning.'}</p>}
         <div className="recipe-library">{shownRecipes.map(recipe => <button key={recipe.id} className="recipe-card" onClick={() => setRecipeSheet({ recipe })}>
-          <strong>{recipe.name}</strong><span>{servingsLabel(recipe.defaultServings)} · {recipe.ingredients.length} ingredients{recipe.archived ? ' · Archived' : ''}</span>{recipe.description && <p>{recipe.description}</p>}
+          <strong>{recipe.name}</strong><span>{servingsLabel(recipe.defaultServings)} · {recipe.ingredients.length} ingredients{recipe.totalMinutes ? ` · ${minutesLabel(recipe.totalMinutes)}` : ''}{recipe.archived ? ' · Archived' : ''}</span>{recipe.description && <p>{recipe.description}</p>}
         </button>)}</div>
       </>}
     </section>}
     {activeEditing && <MealSheet meal={activeEditing.meal} initial={activeEditing.initial} recipes={recipes} admin={admin} owner={me?.owner} onClose={() => { setEditing(null); setPendingMeal(null) }} onSaved={saved} onRecipe={recipe => setRecipeSheet({ recipe, readOnly: true })} />}
-    {recipeSheet && <RecipeSheet recipe={recipeSheet.recipe} admin={admin && !recipeSheet.readOnly} onClose={() => setRecipeSheet(null)} onSaved={saved} onPlan={recipe => { setRecipeSheet(null); setEditing({ meal: null, initial: { date: today, slot: 'dinner', recipe } }) }} />}
+    {recipeSheet && <RecipeSheet recipe={recipeSheet.recipe} admin={admin && !recipeSheet.readOnly} onClose={() => setRecipeSheet(null)} onSaved={saved} onPlan={recipeSheet.readOnly ? undefined : recipe => { setRecipeSheet(null); setEditing({ meal: null, initial: { date: today, slot: 'dinner', recipe } }) }} />}
     {projection && <MealProjection from={from} to={to} admin={admin} onClose={() => setProjection(false)} />}
   </div>
 }

@@ -1,11 +1,13 @@
 import { useApp } from './AppContext.tsx'
 import { clockTime, minutesSinceMidnight } from './date.ts'
-import { MEAL_SLOTS, SLOT_LABEL } from './meal-date.ts'
+import { MEAL_SLOTS, SLOT_LABEL, mealForMember, minutesLabel } from './meal-date.ts'
 import type { Meal } from './meal-types.ts'
+import { EaterAvatars } from './MealSheet.tsx'
 
 /** A glanceable wall card from the Board's own data. Recipe editing stays in the full Meals section. */
-export default function TodaysMeals({ now, today, meals }: { now: Date; today: string; meals: Meal[] }) {
-  const { settings, members } = useApp()
+export default function TodaysMeals({ now, today, meals: all }: { now: Date; today: string; meals: Meal[] }) {
+  const { settings, members, selectedMemberId } = useApp()
+  const meals = all.filter(meal => mealForMember(meal, selectedMemberId))
   const tz = settings.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone
   const defaultTime = { breakfast: 8 * 60, lunch: 12 * 60, dinner: 18 * 60, snack: 15 * 60 }
   const at = (meal: Meal) => meal.plannedTime ? Number(meal.plannedTime.slice(0, 2)) * 60 + Number(meal.plannedTime.slice(3)) : defaultTime[meal.slot]
@@ -21,7 +23,8 @@ export default function TodaysMeals({ now, today, meals }: { now: Date; today: s
           return <li key={meal.id}><a href={`#/meals?date=${today}&meal=${encodeURIComponent(meal.id)}`} className={`snap-row today-meal ${meal.id === next?.id ? 'today-meal-next' : ''}`}>
             <span className="snap-main"><span className="board-when">{SLOT_LABEL[meal.slot]}{meal.plannedTime ? ` · ${clockTime(meal.plannedTime)}` : ''}{meal.id === next?.id ? at(meal) >= minute ? ' · Next' : ' · Planned' : ''}</span>
               <span className="snap-title">{meal.mealKind === 'dining_out' ? '↗ ' : ''}{meal.title}</span>
-              <span className="snap-meta">{[meal.mealKind === 'dining_out' ? 'Dining out' : null, assignee ? `${assignee.avatar ?? ''} ${assignee.name}` : null, meal.status !== 'planned' ? meal.status === 'prepared' ? 'Prepared' : 'Handled' : null].filter(Boolean).join(' · ')}</span>
+              <EaterAvatars ids={meal.eaterIds ?? []} members={members} />
+              <span className="snap-meta">{[meal.mealKind === 'dining_out' ? 'Dining out' : null, meal.recipeSnapshot?.totalMinutes ? minutesLabel(meal.recipeSnapshot.totalMinutes) : null, assignee ? `Cooking: ${assignee.avatar ?? ''} ${assignee.name}` : null, meal.status !== 'planned' ? meal.status === 'prepared' ? 'Prepared' : 'Handled' : null].filter(Boolean).join(' · ')}</span>
             </span>
           </a></li>
         }))}

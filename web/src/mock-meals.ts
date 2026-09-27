@@ -106,7 +106,7 @@ let meals: Meal[] = menu.flatMap((day, dayIndex) => day.map((key, slotIndex) => 
     title: chosen?.name ?? (key === 'leftovers' ? 'Leftover taco bowls' : 'Lunch at the neighborhood cafe'),
     mealKind: chosen ? 'recipe' : key === 'leftovers' ? 'freeform' : 'dining_out', recipeId: chosen?.id ?? null,
     recipeSnapshot: chosen ? { name: chosen.name, defaultServings: chosen.defaultServings, ingredients: chosen.ingredients.map(i => ({ ...i })) } : null,
-    servings: key === 'tacos' ? 6 : 4, assigneeMemberId: dayIndex % 2 === 0 ? 'm1' : 'm2',
+    servings: key === 'tacos' ? 6 : 4, assigneeMemberId: dayIndex % 2 === 0 ? 'm1' : 'm2', eaterIds: slotIndex === 2 && key !== 'tacos' ? ['m1', 'm2', 'm3', 'm4'] : [],
     notes: key === 'leftovers' ? 'Use the reserved taco filling and toppings from Tuesday.' : key === 'cafe' ? 'Meet after the morning activities; no groceries needed.' : key === 'tacos' ? 'Taco Tuesday! Six servings so there is filling for Wednesday lunch.' : chosen!.preparationNotes,
     plannedTime: ['07:30', '12:00', '18:00', '15:30'][slotIndex], status: dayIndex === 0 ? 'prepared' : key === 'leftovers' ? 'handled' : 'planned',
     sourceUrl: null, calendarEventId: null, createdAt: stamp, updatedAt: stamp,

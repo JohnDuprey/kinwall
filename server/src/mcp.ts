@@ -308,7 +308,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     const result = await call(app, env, auth, 'GET', `/api/meals?${new URLSearchParams({ from, to: end })}`);
     return result.status >= 400 ? errorResult(result.json, 'failed to read meals') : okResult('Meal plan', { meals: result.json });
   });
-  tool('create_meal', { title: 'Plan meal', description: 'Admin: plan a recipe, freeform meal, or dining out on a date. Does not create calendar events.', inputSchema: { ...MealInputSchema.shape, member: z.string().nullable().optional().describe('Assignee name (case-insensitive) or id; null leaves unassigned. Overrides assigneeMemberId when provided.') } }, async ({ member, ...input }) => {
+  tool('create_meal', { title: 'Plan meal', description: 'Admin: plan a recipe, freeform meal, or dining out on a date. Does not create calendar events.', inputSchema: { ...MealInputSchema.shape, member: z.string().nullable().optional().describe('Who is cooking: assignee name (case-insensitive) or id; null leaves unassigned. eaterIds is who is eating. Overrides assigneeMemberId when provided.') } }, async ({ member, ...input }) => {
     try {
       if (member !== undefined) input.assigneeMemberId = member === null ? null : await resolveMember(app, env, auth, member);
     } catch (err) {
@@ -317,7 +317,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     const result = await call(app, env, auth, 'POST', '/api/meals', input);
     return result.status >= 400 ? errorResult(result.json, 'failed to plan meal') : okResult('Meal planned', { meal: result.json });
   });
-  tool('update_meal', { title: 'Update meal', description: 'Admin: edit/assign a meal; refreshRecipe explicitly replaces its ingredient snapshot. Assigned devices may update notes/status only. A calendar event Kinwall created for the meal follows its title, time and assignee; a linked event of your own is not changed.', inputSchema: { id: z.string(), ...MealPatchSchema.shape, member: z.string().nullable().optional().describe('Assignee name (case-insensitive) or id; null clears assignment. Overrides assigneeMemberId when provided.') } }, async ({ id, member, ...input }) => {
+  tool('update_meal', { title: 'Update meal', description: 'Admin: edit/assign a meal; refreshRecipe explicitly replaces its ingredient snapshot. Assigned devices may update notes/status only. A calendar event Kinwall created for the meal follows its title, time and assignee; a linked event of your own is not changed.', inputSchema: { id: z.string(), ...MealPatchSchema.shape, member: z.string().nullable().optional().describe('Who is cooking: assignee name (case-insensitive) or id; null clears assignment. eaterIds is who is eating. Overrides assigneeMemberId when provided.') } }, async ({ id, member, ...input }) => {
     try {
       if (member !== undefined) input.assigneeMemberId = member === null ? null : await resolveMember(app, env, auth, member);
     } catch (err) {

@@ -8,6 +8,7 @@ import { ErrorSchema } from '../schemas.ts';
 import { IngredientInputSchema, KIT_QUALIFIER, MealInputSchema, MealPatchSchema, MealRangeSchema, MealSchema, ProjectionApplySchema, ProjectionQuerySchema, ProjectionSchema, RecipeImportResultSchema, RecipeImportSchema, RecipeInputSchema, RecipeSchema, type Meal, type Recipe } from '../meal-schemas.ts';
 import { applyProjection, mealWrite, normalizeIngredient, parseIngredientLine, readMeal, readMeals, readRecipes, shoppingProjection } from '../meals.ts';
 import type { KinwallDb } from '../db.ts';
+import { fetchRecipePdf } from '../outbound.ts';
 
 export const mealsRoutes = createRouter();
 const params = z.object({ id: z.string() });
@@ -33,9 +34,9 @@ mealsRoutes.openapi(createRoute({ method: 'get', path: '/api/recipes/{id}', tags
 async function saveRecipe(db: KinwallDb, input: z.infer<typeof RecipeInputSchema>, old: Recipe | undefined, createdBy: string | null): Promise<Recipe> {
   const id = old?.id ?? crypto.randomUUID();
   const now = new Date().toISOString();
-  const recipe = { description: null, instructions: null, preparationNotes: null, sourceUrl: null, defaultServings: 4, archived: false, ...old, ...input, id, createdAt: old?.createdAt ?? now, updatedAt: now };
-  const writes = [db.prepare(`INSERT INTO recipes (id,name,description,instructions,preparation_notes,source_url,default_servings,archived,created_by,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,description=excluded.description,instructions=excluded.instructions,preparation_notes=excluded.preparation_notes,source_url=excluded.source_url,default_servings=excluded.default_servings,archived=excluded.archived,updated_at=excluded.updated_at`)
-    .bind(id, recipe.name, recipe.description, recipe.instructions, recipe.preparationNotes, recipe.sourceUrl, recipe.defaultServings, recipe.archived ? 1 : 0, createdBy, recipe.createdAt, now)];
+  const recipe = { description: null, instructions: null, preparationNotes: null, sourceUrl: null, defaultServings: 4, prepMinutes: null, totalMinutes: null, archived: false, ...old, ...input, id, createdAt: old?.createdAt ?? now, updatedAt: now };
+  const writes = [db.prepare(`INSERT INTO recipes (id,name,description,instructions,preparation_notes,source_url,default_servings,prep_minutes,total_minutes,archived,created_by,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,description=excluded.description,instructions=excluded.instructions,preparation_notes=excluded.preparation_notes,source_url=excluded.source_url,default_servings=excluded.default_servings,prep_minutes=excluded.prep_minutes,total_minutes=excluded.total_minutes,archived=excluded.archived,updated_at=excluded.updated_at`)
+    .bind(id, recipe.name, recipe.description, recipe.instructions, recipe.preparationNotes, recipe.sourceUrl, recipe.defaultServings, recipe.prepMinutes ?? null, recipe.totalMinutes ?? null, recipe.archived ? 1 : 0, createdBy, recipe.createdAt, now)];
   if (input.ingredients !== undefined || !old) {
     const previous = [...(old?.ingredients ?? [])];
     const ingredients = (input.ingredients ?? []).map((i: z.infer<typeof IngredientInputSchema>, index) => {
@@ -69,6 +70,8 @@ mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/recipes/import', t
     ...(input.description !== undefined && { description: input.description }),
     ...(input.sourceUrl !== undefined && { sourceUrl: input.sourceUrl }),
     ...(input.servings !== undefined && { defaultServings: input.servings }),
+    ...(input.prepMinutes !== undefined && { prepMinutes: input.prepMinutes }),
+    ...(input.totalMinutes !== undefined && { totalMinutes: input.totalMinutes }),
     ...(input.steps !== undefined && { instructions: input.steps.map((step, i) => `${i + 1}. ${step}`).join('\n') || null }),
   }, old, old ? null : (await resolveKey(c))?.id ?? null);
   // ponytail: two simultaneous first imports of one recipe race here; the unique index turns the loser into an error.
@@ -83,7 +86,7 @@ mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/recipes/import', t
   if (mine) return c.json({ ...result, planned: true, mealId: mine.id, reason: `already planned on ${mine.date}` }, 200);
   const taken = await db.prepare('SELECT title FROM meals WHERE date = ? AND slot = ? LIMIT 1').bind(date, slot).first<{ title: string }>();
   if (taken) return c.json({ ...result, reason: `${slot} on ${date} already has ${taken.title}` }, 200);
-  const meal = await buildMeal(db, { date, slot, recipeId: recipe.id, ...(input.plan.servings !== undefined && { servings: input.plan.servings }), sourceUrl: recipe.sourceUrl });
+  const meal = await buildMeal(db, { date, slot, recipeId: recipe.id, ...(input.plan.servings !== undefined && { servings: input.plan.servings }), ...(input.plan.eaterIds && { eaterIds: input.plan.eaterIds }), sourceUrl: recipe.sourceUrl });
   if (typeof meal === 'string') return c.json({ ...result, reason: meal }, 200);
   await mealWrite(db, meal).run(); emit(c, 'meal.changed', { id: meal.id });
   return c.json({ ...result, planned: true, mealId: meal.id }, 200);
@@ -124,16 +127,21 @@ mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/meals/projection/a
 
 async function buildMeal(db: KinwallDb, input: z.infer<typeof MealPatchSchema>, old?: Meal): Promise<Meal | string> {
   const now = new Date().toISOString();
-  const meal: Meal = { id: crypto.randomUUID(), date: input.date!, slot: input.slot!, title: '', mealKind: input.recipeId ? 'recipe' : 'freeform', recipeId: null, recipeSnapshot: null, servings: 1, assigneeMemberId: null, notes: null, plannedTime: null, calendarEventId: null, status: 'planned', sourceUrl: null, createdAt: now, ...old, ...input, updatedAt: now };
+  const meal: Meal = { id: crypto.randomUUID(), date: input.date!, slot: input.slot!, title: '', mealKind: input.recipeId ? 'recipe' : 'freeform', recipeId: null, recipeSnapshot: null, servings: 1, assigneeMemberId: null, eaterIds: [], notes: null, plannedTime: null, calendarEventId: null, status: 'planned', sourceUrl: null, createdAt: now, ...old, ...input, updatedAt: now };
   if (input.recipeId && input.mealKind === undefined) meal.mealKind = 'recipe';
   if (meal.assigneeMemberId && !await db.prepare('SELECT id FROM members WHERE id = ?').bind(meal.assigneeMemberId).first()) return 'assignee not found';
+  if (input.eaterIds) {
+    meal.eaterIds = [...new Set(input.eaterIds)];
+    const known = await db.prepare('SELECT count(*) AS n FROM members WHERE id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(meal.eaterIds)).first<{ n: number }>();
+    if (known?.n !== meal.eaterIds.length) return 'eater not found';
+  }
   if (meal.mealKind === 'recipe') {
     if (!meal.recipeId && !meal.recipeSnapshot) return 'recipe meals require a recipe';
     if (!old || input.recipeId !== undefined && input.recipeId !== old.recipeId || input.refreshRecipe || !meal.recipeSnapshot) {
       if (!meal.recipeId) return 'recipe no longer exists';
       const recipe = (await readRecipes(db, { id: meal.recipeId }))[0];
       if (!recipe) return 'recipe not found or archived';
-      meal.recipeSnapshot = { name: recipe.name, defaultServings: recipe.defaultServings, ingredients: recipe.ingredients };
+      meal.recipeSnapshot = { name: recipe.name, defaultServings: recipe.defaultServings, prepMinutes: recipe.prepMinutes ?? null, totalMinutes: recipe.totalMinutes ?? null, ingredients: recipe.ingredients };
       if (input.title === undefined) meal.title = recipe.name;
       if (input.servings === undefined && (!old || old.recipeId !== meal.recipeId)) meal.servings = recipe.defaultServings;
     }
@@ -142,6 +150,8 @@ async function buildMeal(db: KinwallDb, input: z.infer<typeof MealPatchSchema>, 
     meal.recipeId = null; meal.recipeSnapshot = null;
     if (!meal.title && meal.mealKind === 'dining_out') meal.title = 'Eating out';
   }
+  // Picking who's eating sets servings to how many, unless servings were given too.
+  if (input.eaterIds?.length && input.servings === undefined) meal.servings = meal.eaterIds.length;
   if (!meal.title) return 'a meal title is required';
   return meal;
 }
@@ -244,3 +254,16 @@ mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/meals/{id}/calenda
   emit(c, 'events.changed', { calendarId: localId }); emit(c, 'meal.changed', { id: meal.id });
   return c.json(await readMeal(db, meal.id) as Meal, 200);
 });
+
+// The recipe card a meal kit links to, fetched server-side so the app can show it (a web view can't
+// read another origin's PDF). Only the record's own stored sourceUrl - never a URL from the request.
+for (const kind of ['recipes', 'meals'] as const) {
+  mealsRoutes.openapi(createRoute({ method: 'get', path: `/api/${kind}/{id}/source.pdf`, tags: ['Meals'], summary: `The PDF recipe card at this ${kind === 'recipes' ? 'recipe' : 'meal'}'s own sourceUrl (public https, PDF only, at most 15 MB)`, security: [{ Bearer: [] }], request: { params },
+    responses: { 200: { description: 'the PDF', content: { 'application/pdf': { schema: z.string().openapi({ format: 'binary' }) } } }, 400: errors[400], 404: errors[404], 502: { description: 'the source could not be fetched or is not a PDF', content: { 'application/json': { schema: ErrorSchema } } } } }), async (c) => {
+    const row = await c.env.DB.prepare(`SELECT source_url FROM ${kind} WHERE id = ?`).bind(c.req.valid('param').id).first<{ source_url: string | null }>();
+    if (!row?.source_url) return c.json({ error: 'no recipe source' }, 404);
+    const result = await fetchRecipePdf(c.env, row.source_url);
+    if ('error' in result) return c.json({ error: result.error }, result.status);
+    return c.body(result.pdf, 200, { 'Content-Type': 'application/pdf', 'Cache-Control': 'private, max-age=86400', 'Content-Disposition': 'inline' });
+  });
+}

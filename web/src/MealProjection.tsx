@@ -2,7 +2,8 @@ import { useEffect, useId, useState } from 'react'
 import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import Sheet from './Sheet.tsx'
-import { ingredientAmount, mealDayLabel, servingsLabel, SLOT_LABEL } from './meal-date.ts'
+import { mealDayLabel, servingsLabel, SLOT_LABEL } from './meal-date.ts'
+import { IngredientAmount } from './RecipeSheet.tsx'
 import type { List } from './types.ts'
 import { KIT_QUALIFIER, type ShoppingProjection } from './meal-types.ts'
 
@@ -88,14 +89,14 @@ export default function MealProjection({ from: initialFrom, to: initialTo, admin
           <ul className="meal-projection-list">{current.items.map((item, index) => <li key={item.key} className="meal-projection-item">
             <div className="meal-check">
               {admin && <input id={`${id}-item-${index}`} type="checkbox" checked={!isOmitted(item) && !item.applied} disabled={item.applied} onChange={e => { const toggle = (keys: string[], on: boolean) => on ? [...keys, item.key] : keys.filter(key => key !== item.key); setOmitted(keys => toggle(keys, !e.target.checked)); if (item.qualifier === KIT_QUALIFIER) setKitIncluded(keys => toggle(keys, e.target.checked)) }} />}
-              <label htmlFor={admin ? `${id}-item-${index}` : undefined}><strong>{item.name}</strong> — {ingredientAmount(item.quantity, item.unit, item.qualifier) || 'As needed'}</label>
+              <label htmlFor={admin ? `${id}-item-${index}` : undefined}><strong>{item.name}</strong> — <IngredientAmount quantity={item.quantity} unit={item.unit} qualifier={item.qualifier} /></label>
             </div>
             <p className="field-hint">{item.applied ? 'Already applied to this list' : item.partiallyApplied ? 'Partly applied — only remaining contributions will be added' : 'Not yet applied'}{item.category ? ` · ${item.category}` : ''}</p>
             {item.changedSinceApplied && <p className="field-error">This meal changed after it was applied. Check the existing grocery item; adding again will not update it.</p>}
             {!item.scalable && <p className="field-hint">Amount needs review; this quantity was not scaled.</p>}
             {item.matches.length > 0 && <p className="field-hint">Existing matches: {item.matches.map(match => `${match.title}${match.quantity ? ` (${match.quantity})` : ''}${match.done ? ' — checked off' : ''}`).join(', ')}. Omit this ingredient if you already have enough.</p>}
             <details><summary>{item.sources.length} source meal{item.sources.length === 1 ? '' : 's'}</summary><ul>{item.sources.map(source => <li key={source.sourceRef}>
-              {mealDayLabel(source.date)} · {SLOT_LABEL[source.slot]} · {source.title} ({source.recipeName}) — {ingredientAmount(source.quantity, source.unit, source.qualifier) || 'As needed'}
+              {mealDayLabel(source.date)} · {SLOT_LABEL[source.slot]} · {source.title} ({source.recipeName}) — <IngredientAmount quantity={source.quantity} unit={source.unit} qualifier={source.qualifier} />
               {source.preparation ? ` · ${source.preparation}` : ''}{source.applied ? ' · Already applied' : ''}
               {!source.scalable && ` · Check for ${servingsLabel(source.servings)} (recipe: ${source.defaultServings})`}
             </li>)}</ul></details>

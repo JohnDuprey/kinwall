@@ -27,7 +27,7 @@ function ingredient(id: string, name: string, quantity: number | null, unit: str
 function meal(id: string, ingredients: Ingredient[], extra: Partial<Meal> = {}): Meal {
   return {
     id, date: range.from, slot: 'dinner', title: id, mealKind: 'recipe', recipeId: null,
-    recipeSnapshot: { name: `Recipe ${id}`, defaultServings: 4, ingredients }, servings: 4,
+    recipeSnapshot: { name: `Recipe ${id}`, defaultServings: 4, ingredients }, servings: 4, eaterIds: [],
     assigneeMemberId: null, notes: null, plannedTime: null, calendarEventId: null,
     status: 'planned', sourceUrl: null, createdAt: now, updatedAt: now, ...extra,
   };

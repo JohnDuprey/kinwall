@@ -7,6 +7,8 @@ export const MealDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine((s)
 const text = z.string().trim().max(10000).nullable();
 const url = z.string().url().max(2000).refine((s) => /^https?:\/\//i.test(s), 'must be an HTTP or HTTPS URL').nullable();
 const servings = z.number().positive().max(10000);
+const minutes = z.number().int().min(0).max(10000).nullable();
+const eaterIds = z.array(z.string().min(1)).max(100).describe("Who's eating (member ids). Without servings, servings becomes how many.");
 export const MealSlotSchema = z.enum(['breakfast', 'lunch', 'dinner', 'snack']);
 export const IngredientInputSchema = z.object({
   name: z.string().trim().min(1).max(200), quantity: z.number().min(0).max(1000000).nullable().optional(),
@@ -22,12 +24,14 @@ export const IngredientSchema = IngredientInputSchema.extend({
 export const RecipeInputSchema = z.object({
   name: z.string().trim().min(1).max(200), description: text.optional(), instructions: text.optional(),
   preparationNotes: text.optional(), sourceUrl: url.optional(), defaultServings: servings.optional(),
+  prepMinutes: minutes.optional(), totalMinutes: minutes.optional(),
   archived: z.boolean().optional(), ingredients: z.array(IngredientInputSchema).max(300).optional(),
 }).strict().openapi('RecipeInput');
 export const RecipeSchema = z.object({
   id: z.string(), name: z.string(), description: text, instructions: text, preparationNotes: text, sourceUrl: url,
   defaultServings: servings, archived: z.boolean(), ingredients: z.array(IngredientSchema),
   // Set on imported recipes (POST /api/recipes/import); optional so older exports still import.
+  prepMinutes: minutes.optional(), totalMinutes: minutes.optional(),
   source: z.string().nullable().optional(), externalId: z.string().nullable().optional(), imageUrl: url.optional(),
   createdAt: z.string(), updatedAt: z.string(),
 }).openapi('Recipe');
@@ -38,22 +42,23 @@ export const RecipeImportSchema = z.object({
   externalId: z.string().trim().min(1).max(200).describe("The source's own recipe id; importing it again updates the same recipe."),
   name: z.string().trim().min(1).max(200), description: text.optional(), sourceUrl: url.optional().describe('Recipe card link.'), imageUrl: url.optional(),
   servings: servings.optional().describe('Servings the ingredient amounts are for.'),
+  prepMinutes: minutes.optional().describe('Hands-on prep time in minutes.'), totalMinutes: minutes.optional().describe('Total time in minutes, prep included.'),
   ingredients: z.array(z.union([
     z.string().trim().min(1).max(300),
     z.object({ text: z.string().trim().min(1).max(300), pantry: z.boolean().optional(), category: z.string().trim().max(100).nullable().optional() }).strict(),
   ])).max(300).describe('Lines like "1.5 tablespoon Sour Cream". pantry: false marks one that ships in the kit (skipped on grocery lists by default); strings and pantry: true are regular groceries.'),
   steps: z.array(z.string().trim().min(1).max(10000)).max(100).optional().describe('Saved as numbered instructions.'),
-  plan: z.object({ date: MealDateSchema, slot: MealSlotSchema, servings: servings.optional() }).strict().optional()
+  plan: z.object({ date: MealDateSchema, slot: MealSlotSchema, servings: servings.optional(), eaterIds: eaterIds.optional() }).strict().optional()
     .describe('Also plan it on this date and slot, unless that slot already has a meal (planned: false).'),
 }).strict().openapi('RecipeImport');
 export const RecipeImportResultSchema = z.object({
   recipeId: z.string(), created: z.boolean(), planned: z.boolean(), mealId: z.string().optional(), reason: z.string().optional(),
 }).openapi('RecipeImportResult');
-export const RecipeSnapshotSchema = z.object({ name: z.string(), defaultServings: servings, ingredients: z.array(IngredientSchema) }).openapi('RecipeSnapshot');
+export const RecipeSnapshotSchema = z.object({ name: z.string(), defaultServings: servings, prepMinutes: minutes.optional(), totalMinutes: minutes.optional(), ingredients: z.array(IngredientSchema) }).openapi('RecipeSnapshot');
 export const MealInputSchema = z.object({
   date: MealDateSchema, slot: MealSlotSchema, title: z.string().trim().min(1).max(200).optional(),
   mealKind: z.enum(['recipe', 'freeform', 'dining_out']).optional(), recipeId: z.string().nullable().optional(),
-  servings: servings.optional(), assigneeMemberId: z.string().nullable().optional(), notes: text.optional(),
+  servings: servings.optional(), assigneeMemberId: z.string().nullable().optional().describe("Who's cooking."), eaterIds: eaterIds.optional(), notes: text.optional(),
   plannedTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable().optional(),
   status: z.enum(['planned', 'prepared', 'handled']).optional(), sourceUrl: url.optional(),
 }).strict().openapi('MealInput');
@@ -61,7 +66,7 @@ export const MealPatchSchema = MealInputSchema.partial().extend({ refreshRecipe:
 export const MealSchema = z.object({
   id: z.string(), date: MealDateSchema, slot: MealSlotSchema, title: z.string(),
   mealKind: z.enum(['recipe', 'freeform', 'dining_out']), recipeId: z.string().nullable(), recipeSnapshot: RecipeSnapshotSchema.nullable(),
-  servings, assigneeMemberId: z.string().nullable(), notes: text, plannedTime: z.string().nullable(),
+  servings, assigneeMemberId: z.string().nullable(), eaterIds: z.array(z.string()).default([]), notes: text, plannedTime: z.string().nullable(),
   calendarEventId: z.string().nullable(), status: z.enum(['planned', 'prepared', 'handled']), sourceUrl: url,
   createdAt: z.string(), updatedAt: z.string(),
 }).openapi('Meal');
