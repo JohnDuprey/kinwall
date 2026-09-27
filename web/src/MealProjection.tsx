@@ -6,7 +6,13 @@ import { ingredientAmount, mealDayLabel, servingsLabel, SLOT_LABEL } from './mea
 import type { List } from './types.ts'
 import type { ShoppingProjection } from './meal-types.ts'
 
-/** The server owns normalization, conversions and source claims. Previewing never writes a list. */
+// The grocery list last used on this device, so a family with several doesn't pick it every time.
+const LAST_LIST_KEY = 'kinwall.mealGroceryList'
+const lastList = () => { try { return localStorage.getItem(LAST_LIST_KEY) } catch { return null } }
+const rememberList = (id: string) => { try { localStorage.setItem(LAST_LIST_KEY, id) } catch { /* private mode: just not remembered */ } }
+
+/** The server owns normalization, conversions and source claims. Previewing never writes a list.
+ * Only grocery (shopping) lists can take ingredients; with just one it is chosen for you. */
 export default function MealProjection({ from: initialFrom, to: initialTo, admin, onClose }: {
   from: string; to: string; admin: boolean; onClose: () => void
 }) {
@@ -28,15 +34,19 @@ export default function MealProjection({ from: initialFrom, to: initialTo, admin
   useEffect(() => {
     let canceled = false
     api.getLists().then(data => {
-      if (!canceled) { setLists(data.filter(list => list.kind === 'shopping' && !list.archived)); setListError('') }
-    }).catch(e => { if (!canceled) setListError(e instanceof Error ? e.message : 'Could not load shopping lists.') })
+      if (canceled) return
+      const grocery = data.filter(list => list.kind === 'shopping' && !list.archived)
+      setLists(grocery); setListError('')
+      // One grocery list: that one. Several: the one this device used last, if it's still there.
+      setListId(id => id || (grocery.length === 1 ? grocery[0].id : grocery.find(list => list.id === lastList())?.id ?? ''))
+    }).catch(e => { if (!canceled) setListError(e instanceof Error ? e.message : 'Could not load grocery lists.') })
     return () => { canceled = true }
   }, [tick, refreshTick])
   useEffect(() => {
     let canceled = false
     if (validRange) api.getMealProjection(from, to, listId || undefined).then(data => {
       if (!canceled) setResult({ key: requestKey, projection: data })
-    }).catch(e => { if (!canceled) setResult({ key: requestKey, error: e instanceof Error ? e.message : 'Could not load shopping projection.' }) })
+    }).catch(e => { if (!canceled) setResult({ key: requestKey, error: e instanceof Error ? e.message : 'Could not load the grocery preview.' }) })
     return () => { canceled = true }
   }, [from, to, listId, validRange, requestKey])
   const loading = validRange && result?.key !== requestKey
@@ -48,9 +58,10 @@ export default function MealProjection({ from: initialFrom, to: initialTo, admin
     setBusy(true); setApplyError('')
     try {
       const result = await api.applyMealProjection({ from, to, listId, omitKeys: omitted, includeNotes })
+      rememberList(listId)
       // Clear immediately so a failed refresh cannot leave an already-applied preview actionable.
-      setResult(null); setTick(t => t + 1); reloadCore(); toast(`Added ${result.added} shopping item${result.added === 1 ? '' : 's'}. Previously applied ingredients are skipped.`)
-    } catch (e) { setApplyError(e instanceof Error ? `${e.message}. Refresh the preview, then retry safely.` : 'Could not apply shopping projection. You can retry safely.'); setResult(null); setTick(t => t + 1) }
+      setResult(null); setTick(t => t + 1); reloadCore(); toast(`Added ${result.added} grocery item${result.added === 1 ? '' : 's'}. Previously applied ingredients are skipped.`)
+    } catch (e) { setApplyError(e instanceof Error ? `${e.message}. Refresh the preview, then retry safely.` : 'Could not add these groceries. You can retry safely.'); setResult(null); setTick(t => t + 1) }
     finally { setBusy(false) }
   }
   const close = () => { if (!busy) onClose() }
@@ -62,10 +73,11 @@ export default function MealProjection({ from: initialFrom, to: initialTo, admin
         <div className="field"><label htmlFor={`${id}-to`}>Through</label><input id={`${id}-to`} type="date" required min={from} value={to} onChange={e => { setTo(e.target.value); setOmitted([]) }} /></div>
       </div>
       {!validRange && <p className="field-error" role="alert">Choose an ordered date range of up to 367 days.</p>}
-      <div className="field"><label htmlFor={`${id}-list`}>Shopping list</label><select id={`${id}-list`} value={listId} onChange={e => { setListId(e.target.value); setOmitted([]) }}><option value="">Choose a shopping list</option>{lists?.map(list => <option key={list.id} value={list.id}>{list.emoji} {list.name}</option>)}</select></div>
-      {lists?.length === 0 && <p>No shopping lists yet. <a href="#/lists" onClick={close}>Create a shopping list in Lists</a> to apply these ingredients.</p>}
+      {lists && lists.length > 1 && <div className="field"><label htmlFor={`${id}-list`}>Grocery list</label><select id={`${id}-list`} value={listId} onChange={e => { setListId(e.target.value); setOmitted([]) }}><option value="">Choose a grocery list</option>{lists.map(list => <option key={list.id} value={list.id}>{list.emoji} {list.name}</option>)}</select></div>}
+      {lists?.length === 1 && <p className="field-hint">Adding to {lists[0].emoji} {lists[0].name}.</p>}
+      {lists?.length === 0 && <p>No grocery lists yet. <a href="#/lists" onClick={close}>Create a shopping list in Lists</a> to add these ingredients.</p>}
       {admin && <label className="meal-check"><input type="checkbox" checked={includeNotes} onChange={e => setIncludeNotes(e.target.checked)} /> Include source meals and preparation details as notes</label>}
-      {!admin && <p className="field-hint">An admin can apply this projection to a shopping list.</p>}
+      {!admin && <p className="field-hint">An admin can add these ingredients to a grocery list.</p>}
       {loading && <p role="status">Calculating ingredients…</p>}
       {current && !loading && <>
         {current.items.length === 0 ? <p className="state-card">No recipe ingredients in this date range. Free-form and dining-out meals do not create ingredient requirements.</p> : <>
@@ -76,7 +88,7 @@ export default function MealProjection({ from: initialFrom, to: initialTo, admin
               <label htmlFor={admin ? `${id}-item-${index}` : undefined}><strong>{item.name}</strong> — {ingredientAmount(item.quantity, item.unit, item.qualifier) || 'As needed'}</label>
             </div>
             <p className="field-hint">{item.applied ? 'Already applied to this list' : item.partiallyApplied ? 'Partly applied — only remaining contributions will be added' : 'Not yet applied'}{item.category ? ` · ${item.category}` : ''}</p>
-            {item.changedSinceApplied && <p className="field-error">This meal changed after it was applied. Check the existing shopping item; applying again will not update it.</p>}
+            {item.changedSinceApplied && <p className="field-error">This meal changed after it was applied. Check the existing grocery item; adding again will not update it.</p>}
             {!item.scalable && <p className="field-hint">Amount needs review; this quantity was not scaled.</p>}
             {item.matches.length > 0 && <p className="field-hint">Existing matches: {item.matches.map(match => `${match.title}${match.quantity ? ` (${match.quantity})` : ''}${match.done ? ' — checked off' : ''}`).join(', ')}. Omit this ingredient if you already have enough.</p>}
             <details><summary>{item.sources.length} source meal{item.sources.length === 1 ? '' : 's'}</summary><ul>{item.sources.map(source => <li key={source.sourceRef}>

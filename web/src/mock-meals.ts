@@ -168,7 +168,9 @@ export async function mockMealRequest(path: string, options: RequestInit): Promi
     for (const item of result.items.filter(i => !i.applied && !body.omitKeys?.includes(i.key))) {
       const sources = item.sources.filter(s => !s.applied)
       const quantity = sources.every(s => s.quantity === null) ? null : sources.reduce((sum, s) => sum + (s.quantity ?? 0), 0)
-      const created = await mock.addListItems(listId, { title: item.name, quantity: ingredientAmount(quantity, item.unit, item.qualifier) || null, category: item.category, notes: body.includeNotes ? sources.map(s => `${s.date} · ${s.slot} · ${s.title}`).join('\n') : null })
+      // Remembered store/category/aisle first (category omitted so memory can fill it), then the recipe's.
+      const created = await mock.addListItems(listId, { title: item.name, quantity: ingredientAmount(quantity, item.unit, item.qualifier) || null, notes: body.includeNotes ? sources.map(s => `${s.date} · ${s.slot} · ${s.title}`).join('\n') : null })
+      for (const c of created) { c.category ??= item.category; c.meals = [...new Set(sources.map(s => s.title))] }
       itemIds.push(...created.map(i => i.id))
       for (const source of sources) claims.set(`${listId}:${source.sourceRef}`, fingerprint(item.key, source.quantity, source.servings, source.date))
     }

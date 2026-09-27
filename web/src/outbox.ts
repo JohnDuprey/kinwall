@@ -165,7 +165,7 @@ export function applyListOps<I extends ItemLike, D extends DetailLike<I>>(detail
         if (items.some(i => i.id === input.id)) continue
         const now = new Date().toISOString()
         items.push({
-          listId: detail.list.id, notes: null, quantity: null, store: null, category: null, memberId: null, dueDate: null, eventId: null,
+          listId: detail.list.id, notes: null, quantity: null, store: null, category: null, aisle: null, memberId: null, dueDate: null, eventId: null,
           priority: 'normal', done: false, doneAt: null, doneBy: null, createdAt: now, updatedAt: now, steps: [], stepsDone: 0, stepsTotal: 0,
           sort: items.reduce((m, i) => Math.max(m, i.sort), -1) + 1, ...input, pending: true,
         } as unknown as I)

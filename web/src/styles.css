@@ -1118,6 +1118,20 @@ button {
 
 .list-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-shrink: 0; flex-wrap: wrap; }
 .list-done-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+/* Groceries: crossed off in place (still tappable to uncheck), Checkout, undo, Stores & categories */
+.list-item-row.done .list-item-body, .list-item-row.done .list-item-chip { opacity: 0.55; }
+.list-checkout-bar { position: sticky; bottom: 0; z-index: 2; margin-top: auto; padding: 10px 0 4px; background: linear-gradient(to bottom, transparent, var(--card) 35%); }
+.lists-shell-phone .list-checkout-bar { background: linear-gradient(to bottom, transparent, var(--bg) 35%); }
+.list-checkout-btn { width: 100%; min-height: 52px; font-size: 1rem; }
+.list-undo-toast { display: flex; align-items: center; gap: 14px; padding: 8px 8px 8px 22px; white-space: nowrap; }
+.list-undo-btn { background: none; border: none; color: inherit; font: inherit; font-weight: 900; text-decoration: underline; min-height: 44px; min-width: 44px; padding: 0 12px; cursor: pointer; }
+.value-picker-new { margin-top: 8px; }
+.manage-head { font-size: 0.8125rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.03em; margin: 16px 0 4px; }
+.manage-row { display: flex; align-items: center; gap: 8px; min-height: 48px; border-top: 1px solid var(--border); padding: 2px 0; }
+.manage-row-name { flex: 1; min-width: 0; font-weight: 700; overflow-wrap: anywhere; }
+.manage-row input { flex: 1; min-width: 0; min-height: 44px; padding: 8px 12px; border-radius: 10px; border: 2px solid var(--border); background: var(--bg-alt); color: var(--text); font: inherit; font-weight: 700; }
+.manage-row .btn { flex: none; width: auto; min-height: 44px; }
+.manage-row .icon-btn { background: none; box-shadow: none; width: 44px; height: 44px; flex-shrink: 0; }
 
 /* ---------- Key gate ---------- */
 .gate-screen { height: 100vh; height: 100dvh; display: flex; align-items: center; justify-content: center; padding: 24px; }

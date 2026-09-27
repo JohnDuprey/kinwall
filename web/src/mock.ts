@@ -3,7 +3,7 @@ import type { OnlineTidbits, Plugin, PluginCatalogEntry,
   Account, ApiKey, AppNotification, CalendarEntry, Category, Chore, ChoreDay, EventInstance, LeaderboardEntry, LeaderboardPeriod, List, ListGroup,
   Photo, PhotoQuota, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, ListItem, ListItemInput, ListItemStep, Member, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption,
 } from './types.ts'
-import { compareItems } from './types.ts'
+import { aisleOrderMap, compareItems } from './types.ts'
 import { dateKey } from './date.ts'
 
 const uid = () => crypto.randomUUID()
@@ -188,14 +188,14 @@ const chores: Chore[] = [
 const completions = new Map<string, { completedAt: string; memberId: string | null }>() // key `${choreId}:${date}`
 
 const lists: List[] = [
-  { id: 'l1', name: 'Groceries', emoji: '🛒', color: '#7ED9A6', kind: 'shopping', memberIds: [], groupBy: 'category', sortBy: 'manual', sort: 0, archived: false, createdAt: new Date().toISOString(), itemCount: 5, openCount: 4 },
-  { id: 'l2', name: 'Weekend To-Dos', emoji: '✅', color: '#7AB8FF', kind: 'todo', memberIds: ['m1'], groupBy: 'none', sortBy: 'due', sort: 1, archived: false, createdAt: new Date().toISOString(), itemCount: 5, openCount: 4 },
-  { id: 'l3', name: 'Camping Packing List', emoji: '🎒', color: '#FFD166', kind: 'reusable', memberIds: [], groupBy: 'none', sortBy: 'manual', sort: 2, archived: false, createdAt: new Date().toISOString(), itemCount: 4, openCount: 4 },
-  { id: 'l4', name: 'Living room reset', emoji: '🛋️', color: '#C9A7FF', kind: 'reusable', memberIds: [], groupBy: 'none', sortBy: 'manual', sort: 3, archived: false, createdAt: new Date().toISOString(), itemCount: 3, openCount: 3 },
+  { id: 'l1', name: 'Groceries', emoji: '🛒', color: '#7ED9A6', kind: 'shopping', memberIds: [], groupBy: 'store', sortBy: 'aisle', keepChecked: true, sort: 0, archived: false, createdAt: new Date().toISOString(), itemCount: 5, openCount: 4 },
+  { id: 'l2', name: 'Weekend To-Dos', emoji: '✅', color: '#7AB8FF', kind: 'todo', memberIds: ['m1'], groupBy: 'none', sortBy: 'due', keepChecked: false, sort: 1, archived: false, createdAt: new Date().toISOString(), itemCount: 5, openCount: 4 },
+  { id: 'l3', name: 'Camping Packing List', emoji: '🎒', color: '#FFD166', kind: 'reusable', memberIds: [], groupBy: 'none', sortBy: 'manual', keepChecked: true, sort: 2, archived: false, createdAt: new Date().toISOString(), itemCount: 4, openCount: 4 },
+  { id: 'l4', name: 'Living room reset', emoji: '🛋️', color: '#C9A7FF', kind: 'reusable', memberIds: [], groupBy: 'none', sortBy: 'manual', keepChecked: true, sort: 3, archived: false, createdAt: new Date().toISOString(), itemCount: 3, openCount: 3 },
 ]
-type SeedItem = Omit<ListItem, 'priority' | 'steps' | 'stepsDone' | 'stepsTotal'> & { priority?: ListItem['priority']; steps?: string[] | ListItemStep[] }
+type SeedItem = Omit<ListItem, 'priority' | 'steps' | 'stepsDone' | 'stepsTotal' | 'aisle'> & { priority?: ListItem['priority']; steps?: string[] | ListItemStep[]; aisle?: string | null }
 const seedItem = (i: SeedItem): ListItem => withStepCounts({
-  ...i, priority: i.priority ?? 'normal',
+  ...i, aisle: i.aisle ?? null, priority: i.priority ?? 'normal',
   steps: (i.steps ?? []).map((st, sort) => typeof st === 'string' ? { id: uid(), title: st, done: false, sort } : st),
   stepsDone: 0, stepsTotal: 0,
 })
@@ -203,11 +203,11 @@ function withStepCounts(i: ListItem) { i.stepsDone = i.steps.filter(st => st.don
 const iso = () => new Date().toISOString()
 const inDays = (n: number) => dateKey(new Date(Date.now() + n * 86_400_000))
 let listItems: ListItem[] = ([
-  { id: 'li1', listId: 'l1', title: 'Milk', notes: null, quantity: '1', store: null, category: 'Dairy', memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 0, createdAt: new Date().toISOString(), priority: 'urgent', updatedAt: new Date().toISOString() },
-  { id: 'li2', listId: 'l1', title: 'Eggs', notes: null, quantity: '1 dozen', store: null, category: 'Dairy', memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 1, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-  { id: 'li3', listId: 'l1', title: 'Bread', notes: null, quantity: null, store: null, category: 'Bakery', memberId: null, dueDate: null, eventId: null, done: true, doneAt: new Date().toISOString(), doneBy: 'm1', sort: 2, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-  { id: 'li4', listId: 'l1', title: 'Apples', notes: null, quantity: '6', store: null, category: 'Produce', memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 3, createdAt: new Date().toISOString(), priority: 'low', updatedAt: new Date().toISOString() },
-  { id: 'li5', listId: 'l1', title: 'Paper towels', notes: null, quantity: null, store: null, category: 'Household', memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 4, createdAt: new Date().toISOString(), priority: 'high', updatedAt: new Date().toISOString() },
+  { id: 'li1', listId: 'l1', title: 'Milk', notes: null, quantity: '1 gal', store: 'Neighborhood market', aisle: 'Dairy', category: 'Dairy', memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 0, createdAt: new Date().toISOString(), priority: 'urgent', updatedAt: new Date().toISOString() },
+  { id: 'li2', listId: 'l1', title: 'Eggs', notes: null, quantity: '1 dozen', store: 'Neighborhood market', aisle: 'Dairy', category: 'Dairy', memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 1, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: 'li3', listId: 'l1', title: 'Bread', notes: null, quantity: null, store: 'Neighborhood market', aisle: 'Bakery', category: 'Bakery', memberId: null, dueDate: null, eventId: null, done: true, doneAt: new Date().toISOString(), doneBy: 'm1', sort: 2, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: 'li4', listId: 'l1', title: 'Apples', notes: null, quantity: '6', store: 'Neighborhood market', aisle: 'Produce', category: 'Produce', memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 3, createdAt: new Date().toISOString(), priority: 'low', updatedAt: new Date().toISOString() },
+  { id: 'li5', listId: 'l1', title: 'Paper towels', notes: null, quantity: '12 rolls', store: 'Warehouse club', aisle: 'Aisle 14', category: 'Household', memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 4, createdAt: new Date().toISOString(), priority: 'high', updatedAt: new Date().toISOString() },
   { id: 'li6', listId: 'l2', title: 'Mow the lawn', notes: null, quantity: null, store: null, category: null, memberId: 'm1', dueDate: todayISO(), eventId: null, done: false, doneAt: null, doneBy: null, sort: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
   { id: 'li7', listId: 'l2', title: 'Return library books', notes: null, quantity: null, store: null, category: null, memberId: 'm2', dueDate: inDays(-3), eventId: null, done: false, doneAt: null, doneBy: null, sort: 1, createdAt: new Date().toISOString(), priority: 'high', updatedAt: new Date().toISOString() },
   { id: 'li8', listId: 'l2', title: 'Book dentist appointment', notes: null, quantity: null, store: null, category: null, memberId: null, dueDate: null, eventId: null, done: true, doneAt: new Date().toISOString(), doneBy: 'm1', sort: 2, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
@@ -224,21 +224,29 @@ let listItems: ListItem[] = ([
   { id: 'li17', listId: 'l4', title: 'Clear the coffee table', notes: null, quantity: null, store: null, category: null, memberId: 'm2', dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 2, createdAt: iso(), priority: 'low', updatedAt: iso() },
 ] as SeedItem[]).map(seedItem)
 // A starter grocery run for the meal fixtures; projection can still add the week's full quantities.
-const mealGroceries: [string, string, string, string, boolean][] = [
-  ['Ground beef', '2.5 lb', 'Meat', 'Tuesday Tacos and Spaghetti Bolognese', false],
-  ['Corn tortillas', '18', 'Bakery', 'Tuesday Tacos, including leftovers for Wednesday', false],
-  ['Tomatoes', '8', 'Produce', 'Tacos, wraps, and garden vegetable pizza', false],
-  ['Chicken breast', '3 lb', 'Meat', 'Sunday and Saturday lemon chicken dinners', false],
-  ['Broccoli', '3 lb', 'Produce', 'Lemon chicken and tofu stir-fry', false],
-  ['Rice', '4.5 cup', 'Pantry', 'Chicken dinners and stir-fry', true],
-  ['Blueberries', '3 pints', 'Produce', 'Pancakes and yogurt parfaits', false],
-  ['Salmon', '1.5 lb', 'Seafood', 'Thursday dinner; buy fresh or keep frozen', false],
+const mealGroceries: [string, string, string, string, boolean, string, string[]][] = [
+  ['Ground beef', '2.5 lb', 'Meat', 'Tuesday Tacos and Spaghetti Bolognese', false, 'Meat', ['Tuesday Tacos', 'Spaghetti Bolognese']],
+  ['Corn tortillas', '18', 'Bakery', 'Tuesday Tacos, including leftovers for Wednesday', false, 'Bakery', ['Tuesday Tacos']],
+  ['Tomatoes', '8', 'Produce', 'Tacos, wraps, and garden vegetable pizza', true, 'Produce', ['Tuesday Tacos', 'Garden vegetable pizza']],
+  ['Chicken breast', '3 lb', 'Meat', 'Sunday and Saturday lemon chicken dinners', false, 'Meat', ['Lemon chicken with rice and broccoli']],
+  ['Broccoli', '3 lb', 'Produce', 'Lemon chicken and tofu stir-fry', false, 'Produce', ['Lemon chicken with rice and broccoli', 'Tofu vegetable stir-fry']],
+  ['Rice', '4.5 cup', 'Pantry', 'Chicken dinners and stir-fry', true, 'Aisle 5', ['Lemon chicken with rice and broccoli', 'Tofu vegetable stir-fry']],
+  ['Blueberries', '3 pints', 'Produce', 'Pancakes and yogurt parfaits', false, 'Produce', ['Blueberry pancakes', 'Berry yogurt parfaits']],
+  ['Salmon', '1.5 lb', 'Seafood', 'Thursday dinner; buy fresh or keep frozen', false, 'Seafood', ['Salmon with potatoes and green beans']],
+  ['Frozen peas', '2 bags', 'Frozen', 'Tofu stir-fry', false, 'Frozen', ['Tofu vegetable stir-fry']],
 ]
-listItems.push(...mealGroceries.map(([title, quantity, category, notes, done], sort) => seedItem({
-  id: `demo-grocery-${sort}`, listId: 'l1', title, quantity, category, notes, store: 'Neighborhood market', memberId: 'm1',
+listItems.push(...mealGroceries.map(([title, quantity, category, notes, done, aisle, meals], sort) => ({ ...seedItem({
+  id: `demo-grocery-${sort}`, listId: 'l1', title, quantity, category, notes, store: 'Neighborhood market', aisle, memberId: 'm1',
   dueDate: null, eventId: null, done, doneAt: done ? iso() : null, doneBy: done ? 'm1' : null,
   sort: sort + 5, createdAt: iso(), updatedAt: iso(),
-})))
+}), meals })))
+// The market's walking order (Frozen sits between the numbered aisles), and remembered places:
+// what a checked-out item leaves behind so the next "milk" lands in the right spot.
+let aisleOrder: { store: string | null; aisles: string[] }[] = [
+  { store: 'Neighborhood market', aisles: ['Produce', 'Bakery', 'Deli', 'Meat', 'Seafood', 'Aisle 3', 'Aisle 4', 'Aisle 5', 'Frozen', 'Aisle 6', 'Dairy'] },
+]
+let remembered: ListItem[] = []
+const sameName = (a: string, b: string) => a.trim().toLowerCase().replace(/s$/, '') === b.trim().toLowerCase().replace(/s$/, '')
 recomputeListCounts('l1')
 let listGroups: ListGroup[] = []
 const minsAgo = (m: number) => new Date(Date.now() - m * 60_000).toISOString()
@@ -590,18 +598,24 @@ export const mock = {
   createList: async (body: Partial<List>): Promise<List> => {
     const nl: List = {
       id: uid(), name: body.name ?? 'New list', emoji: body.emoji ?? '📝', color: body.color ?? '#FF9E7A',
-      kind: body.kind ?? 'todo', memberIds: body.memberIds ?? [], groupBy: body.groupBy ?? (body.kind === 'shopping' ? 'category' : 'none'), sortBy: body.sortBy ?? 'manual',
+      kind: body.kind ?? 'todo', memberIds: body.memberIds ?? [], groupBy: body.groupBy ?? (body.kind === 'shopping' ? 'category' : 'none'), sortBy: body.sortBy ?? (body.kind === 'shopping' ? 'aisle' : 'manual'),
+      keepChecked: body.keepChecked ?? body.kind !== 'todo',
       sort: lists.length, archived: false, createdAt: new Date().toISOString(), itemCount: 0, openCount: 0,
     }
     lists.push(nl); bump(); return nl
   },
   getList: async (id: string) => {
     const l = lists.find(x => x.id === id); if (!l) throw new Error('not found')
-    const items = listItems.filter(i => i.listId === id).sort(compareItems(l.sortBy, dateKey(new Date()))).map(i => ({ ...i, noteCount: noteCount('list_item', i.id) }))
+    const order = aisleOrderMap({ aisleOrder })
+    const items = listItems.filter(i => i.listId === id).sort(compareItems(l.sortBy, dateKey(new Date()), { keepChecked: l.keepChecked, aisleOrder: order })).map(i => ({ ...i, noteCount: noteCount('list_item', i.id) }))
     const groups = listGroups.filter(g => g.name) // per-list groups aren't keyed by list in this fixture; kept simple for demo
-    const stores = [...new Set(listItems.map(i => i.store).filter((v): v is string => !!v))].sort()
-    const categories = [...new Set(listItems.map(i => i.category).filter((v): v is string => !!v))].sort()
-    return { list: l, items, groups, suggestions: { stores, categories } }
+    const known = [...listItems, ...remembered]
+    const uniq = (v: (string | null)[]) => [...new Set(v.filter((x): x is string => !!x))].sort()
+    const stores = uniq([...known.map(i => i.store), ...aisleOrder.map(o => o.store)])
+    const categories = uniq(known.map(i => i.category))
+    const aisles = [...new Map([...known.filter(i => i.aisle).map(i => ({ store: i.store, aisle: i.aisle! })), ...aisleOrder.flatMap(o => o.aisles.map(aisle => ({ store: o.store, aisle })))]
+      .map(a => [`${a.store}|${a.aisle}`, a])).values()]
+    return { list: l, items, groups, suggestions: { stores, categories, aisles }, aisleOrder }
   },
   updateList: async (id: string, patch: Partial<List>) => {
     const l = lists.find(x => x.id === id); if (!l) throw new Error('not found')
@@ -615,15 +629,17 @@ export const mock = {
     const inputs = Array.isArray(body) ? body : [body]
     const maxSort = Math.max(-1, ...listItems.filter(i => i.listId === listId).map(i => i.sort))
     const created = inputs.map((input, idx) => {
-      // "remembers where things go": omitted store/category (undefined) inherit from the most
-      // recently updated same-title item anywhere; explicit null means "none".
-      const remembered = [...listItems].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-        .find(i => i.title.trim().toLowerCase() === input.title.trim().toLowerCase())
+      // "remembers where things go" (shopping lists): omitted store/category/aisle (undefined) come
+      // from the most recently updated same-name item, even a checked-out one; null means "none".
+      const shopping = lists.find(l => l.id === listId)?.kind === 'shopping'
+      const known = shopping ? [...listItems, ...remembered].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).filter(i => sameName(i.title, input.title)) : []
+      const store = input.store !== undefined ? input.store : (known[0]?.store ?? null)
       const item: ListItem = {
         id: uid(), listId, title: input.title.trim(), notes: input.notes ?? null,
         quantity: input.quantity ?? null,
-        store: input.store !== undefined ? input.store : (remembered?.store ?? null),
-        category: input.category !== undefined ? input.category : (remembered?.category ?? null),
+        store,
+        category: input.category !== undefined ? input.category : (known[0]?.category ?? null),
+        aisle: input.aisle !== undefined ? input.aisle : (known.find(i => i.store === store)?.aisle ?? null),
         memberId: input.memberId ?? null, dueDate: input.dueDate ?? null, eventId: input.eventId ?? null,
         priority: input.priority ?? 'normal',
         done: false, doneAt: null, doneBy: null, sort: maxSort + 1 + idx,
@@ -678,16 +694,32 @@ export const mock = {
     if (i >= 0) listItems.splice(i, 1)
     recomputeListCounts(listId); bump()
   },
-  clearListCompleted: async (listId: string) => {
+  clearListCompleted: async (listId: string, itemIds?: string[]) => {
     const before = listItems.length
-    listItems = listItems.filter(i => !(i.listId === listId && i.done))
+    const gone = (i: ListItem) => i.listId === listId && i.done && (!itemIds || itemIds.includes(i.id))
+    remembered.push(...listItems.filter(gone))
+    listItems = listItems.filter(i => !gone(i))
     recomputeListCounts(listId); bump()
     return { deleted: before - listItems.length }
   },
-  resetList: async (listId: string) => {
-    const items = listItems.filter(i => i.listId === listId && i.done)
+  renameListValue: async ({ field, from, to, store }: { field: 'store' | 'category' | 'aisle'; from: string; to: string | null; store?: string | null }) => {
+    let updated = 0
+    for (const i of [...listItems, ...remembered]) {
+      if (i[field] !== from || (field === 'aisle' && i.store !== (store ?? null))) continue
+      i[field] = to; if (listItems.includes(i)) updated++
+    }
+    if (field === 'store') aisleOrder = to ? aisleOrder.map(o => o.store === from ? { ...o, store: to } : o) : aisleOrder.filter(o => o.store !== from)
+    if (field === 'aisle') aisleOrder = aisleOrder.map(o => o.store !== (store ?? null) ? o : { ...o, aisles: to ? o.aisles.map(a => a === from ? to : a) : o.aisles.filter(a => a !== from) })
+    bump(); return { updated }
+  },
+  setStoreAisles: async (store: string | null, aisles: string[]) => {
+    aisleOrder = [...aisleOrder.filter(o => o.store !== store), ...(aisles.length ? [{ store, aisles }] : [])]
+    bump(); return { store, aisles }
+  },
+  resetList: async (listId: string, itemIds?: string[]) => {
+    const items = listItems.filter(i => i.listId === listId && i.done && (!itemIds || itemIds.includes(i.id)))
     items.forEach(i => { i.done = false; i.doneAt = null; i.doneBy = null })
-    listItems.filter(i => i.listId === listId).forEach(i => { i.steps.forEach(st => { st.done = false }); withStepCounts(i) })
+    ;(itemIds ? items : listItems.filter(i => i.listId === listId)).forEach(i => { i.steps.forEach(st => { st.done = false }); withStepCounts(i) })
     recomputeListCounts(listId); bump()
     return { reset: items.length }
   },

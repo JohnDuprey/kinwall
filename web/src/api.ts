@@ -423,8 +423,14 @@ export const api = {
     MOCK ? mock.completeChore(id, date, memberId) : queue('POST', `api/chores/${id}/complete`, { date, memberId }),
   queueUncompleteChore: async (id: string, date: string): Promise<unknown> =>
     MOCK ? mock.uncompleteChore(id, date) : queue('DELETE', `api/chores/${id}/complete?date=${date}`),
-  clearListCompleted: (listId: string) => MOCK ? mock.clearListCompleted(listId) : post<{ deleted: number }>(`api/lists/${listId}/clear-completed`),
-  resetList: (listId: string) => MOCK ? mock.resetList(listId) : post<{ reset: number }>(`api/lists/${listId}/reset`),
+  // Checkout / Reset: only itemIds (still checked) when given, so a tick made meanwhile isn't swept up.
+  clearListCompleted: (listId: string, itemIds?: string[]) => MOCK ? mock.clearListCompleted(listId, itemIds) : post<{ deleted: number }>(`api/lists/${listId}/clear-completed`, itemIds ? { itemIds } : undefined),
+  resetList: (listId: string, itemIds?: string[]) => MOCK ? mock.resetList(listId, itemIds) : post<{ reset: number }>(`api/lists/${listId}/reset`, itemIds ? { itemIds } : undefined),
+  // Stores & categories: rename (to) or remove (to: null) a value everywhere; a store's aisle order.
+  renameListValue: (body: { field: 'store' | 'category' | 'aisle'; from: string; to: string | null; store?: string | null }) =>
+    MOCK ? mock.renameListValue(body) : post<{ updated: number }>('api/lists/values', body),
+  setStoreAisles: (store: string | null, aisles: string[]) =>
+    MOCK ? mock.setStoreAisles(store, aisles) : put<{ store: string | null; aisles: string[] }>('api/lists/aisles', { store, aisles }),
   // Step routes answer with the whole updated item (it may have auto-completed or re-opened).
   addListItemStep: (listId: string, itemId: string, title: string) =>
     MOCK ? mock.addListItemStep(listId, itemId, title) : post<ListItem>(`api/lists/${listId}/items/${itemId}/steps`, { title }),

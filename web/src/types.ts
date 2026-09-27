@@ -436,8 +436,8 @@ export interface Webhook {
 export type WebhookWithSecret = Webhook & { secret: string }
 
 export type ListKind = 'todo' | 'shopping' | 'reusable'
-export type ListGroupBy = 'store' | 'category' | 'none'
-export type ListSortBy = 'manual' | 'added' | 'due' | 'priority' | 'alpha'
+export type ListGroupBy = 'store' | 'category' | 'aisle' | 'none' // aisle: shopping lists only
+export type ListSortBy = 'manual' | 'added' | 'due' | 'priority' | 'alpha' | 'aisle' // aisle: shopping lists only
 
 export interface List {
   id: string
@@ -448,6 +448,7 @@ export interface List {
   memberIds: string[] // owners; [] = whole family
   groupBy: ListGroupBy
   sortBy: ListSortBy // item order within each group
+  keepChecked: boolean // checked items stay in place, crossed off, until Checkout / Reset
   sort: number
   archived: boolean
   createdAt: string
@@ -463,6 +464,7 @@ export interface ListItem {
   quantity: string | null // free text: "2", "1 lb", "x3"
   store: string | null
   category: string | null
+  aisle: string | null // per store: "Aisle 4", "Produce", "Back wall"
   memberId: string | null // assignee
   dueDate: string | null // YYYY-MM-DD
   eventId: string | null // linked calendar event (series id for a recurring local event)
@@ -477,6 +479,7 @@ export interface ListItem {
   stepsDone: number
   stepsTotal: number
   noteCount?: number // notes in this item's thread (list detail only)
+  meals?: string[] // planned meals it was added for (list detail only)
   pending?: boolean // client only: changed on this device, not on the server yet (offline)
 }
 
@@ -496,19 +499,39 @@ export type ListItemPriority = 'low' | 'normal' | 'high' | 'urgent'
 
 const PRIORITY_RANK: Record<ListItemPriority, number> = { urgent: 0, high: 1, normal: 2, low: 3 }
 
+/** Store -> its custom aisle walking order ('' = no store). */
+export type AisleOrder = Map<string, string[]>
+export const aisleOrderMap = (d: Pick<ListDetail, 'aisleOrder'>): AisleOrder => new Map((d.aisleOrder ?? []).map(o => [o.store ?? '', o.aisles]))
+const natural = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+
+/** Aisles within one store: its custom order first (when set), then natural order ("Aisle 2"
+ * before "Aisle 10"); no aisle last. Same as the server's compareAisles. */
+export function compareAisles(store: string | null, a: string | null, b: string | null, order: AisleOrder): number {
+  if (!a || !b) return a ? -1 : b ? 1 : 0
+  const custom = order.get(store ?? '') ?? []
+  const ia = custom.indexOf(a), ib = custom.indexOf(b)
+  if (ia >= 0 || ib >= 0) return ia < 0 ? 1 : ib < 0 ? -1 : ia - ib
+  return natural(a, b)
+}
+
 /** The server's item order (server/src/routes/lists.ts compareItems - keep in step). manual: open
  * items by priority, overdue first within each, then the hand-set order; priority: the same, then
- * soonest due; added: newest first; due: soonest, undated last; alpha: A-Z, ignoring case.
- * `today` is YYYY-MM-DD. A done item gets no priority/overdue boost. */
-export function compareItems(sortBy: ListSortBy, today: string) {
-  const rank = (i: ListItem) => (i.done ? 2 : PRIORITY_RANK[i.priority] ?? 2)
-  const overdue = (i: ListItem) => (!i.done && i.dueDate && i.dueDate < today ? 0 : 1)
+ * soonest due; added: newest first; due: soonest, undated last; alpha: A-Z, ignoring case; aisle:
+ * by store, then aisle (compareAisles), then A-Z. `today` is YYYY-MM-DD. A done item gets no
+ * priority/overdue boost - unless keepChecked (checked items stay in place). */
+export function compareItems(sortBy: ListSortBy, today: string, opts: { keepChecked?: boolean; aisleOrder?: AisleOrder } = {}) {
+  const isDone = (i: ListItem) => i.done && !opts.keepChecked
+  const rank = (i: ListItem) => (isDone(i) ? 2 : PRIORITY_RANK[i.priority] ?? 2)
+  const overdue = (i: ListItem) => (!isDone(i) && i.dueDate && i.dueDate < today ? 0 : 1)
   const due = (a: ListItem, b: ListItem) => (a.dueDate ?? '9999').localeCompare(b.dueDate ?? '9999')
   const manual = (a: ListItem, b: ListItem) => a.sort - b.sort || a.createdAt.localeCompare(b.createdAt)
+  const alpha = (a: ListItem, b: ListItem) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' })
+  const store = (a: ListItem, b: ListItem) => (a.store ?? '\uffff').localeCompare(b.store ?? '\uffff') // no store last
   return (a: ListItem, b: ListItem): number => {
     if (sortBy === 'added') return b.createdAt.localeCompare(a.createdAt) || b.sort - a.sort
     if (sortBy === 'due') return due(a, b) || manual(a, b)
-    if (sortBy === 'alpha') return a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }) || manual(a, b)
+    if (sortBy === 'alpha') return alpha(a, b) || manual(a, b)
+    if (sortBy === 'aisle') return store(a, b) || compareAisles(a.store, a.aisle ?? null, b.aisle ?? null, opts.aisleOrder ?? new Map()) || alpha(a, b) || manual(a, b)
     return rank(a) - rank(b) || overdue(a) - overdue(b) || (sortBy === 'priority' ? due(a, b) : 0) || manual(a, b)
   }
 }
@@ -527,13 +550,14 @@ export interface ListGroup {
   sort: number
 }
 
-/** GET /api/lists/{id} response. suggestions are distinct store/category values used anywhere
- * in the household, for <datalist> autocomplete on the item sheet. */
+/** GET /api/lists/{id} response. suggestions are the store/category/aisle values known anywhere
+ * in the household (items and remembered places), for the item sheet's pickers. */
 export interface ListDetail {
   list: List
   items: ListItem[]
   groups: ListGroup[]
-  suggestions: { stores: string[]; categories: string[] }
+  suggestions: { stores: string[]; categories: string[]; aisles: { store: string | null; aisle: string }[] }
+  aisleOrder: { store: string | null; aisles: string[] }[] // stores with a custom aisle walking order
 }
 
 /** POST /api/lists/{id}/items body shape - store/category are OMITTED (not sent) unless the
@@ -544,6 +568,7 @@ export interface ListItemInput {
   quantity?: string | null
   store?: string | null
   category?: string | null
+  aisle?: string | null
   memberId?: string | null
   dueDate?: string | null
   eventId?: string | null
