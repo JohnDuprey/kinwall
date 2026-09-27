@@ -47,7 +47,7 @@ API: `tidbits` `{ sources, factCategories, tipCategories, onThisDay, birthsAfter
 
 | Switch | When it's off |
 |---|---|
-| **Chores & points** | No **Chores** tab, no chores card on the Board, no chores or points in a member's day and the family sheet, no **Chores** card under Settings → Family, no **Chore reminder** notification setting, and no **Sticker book** (it spends chore points). The daily summary leaves chores out and the chore reminder isn't sent. The leaderboard and sticker shop keep their own switches under **Settings → Family → Chores**. |
+| **Chores & points** | No **Chores** tab, no chores card on the Board, no chores or points in a member's day and the family sheet, no **Chores** card under Settings → Family, no **Chore reminder** notification setting, and no **Rewards** or **Sticker book** (they spend chore points). The daily summary leaves chores out and the chore reminder isn't sent. The leaderboard and sticker shop keep their own switches under **Settings → Family → Chores**. |
 | **Lists** | No **Lists** tab, no **Due soon** card on the Board, no to-dos in a member's day or week, no **Tasks** in an event's detail sheet, and no **List updates** notification setting. "List updated" notifications stop, and the daily summary leaves list items out. |
 | **Paint** | No **Paint** in Activities. |
 | **Photos** | No **Photos** in Activities and no picture card on the Board. A display whose night screen shows **Family photos** shows nature pictures instead. |

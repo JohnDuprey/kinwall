@@ -31,9 +31,9 @@ function saveLbPeriod(p: LeaderboardPeriod) {
 }
 
 function Leaderboard() {
-  const { refreshTick, members, settings } = useApp()
-  // Spendable balance (all-time earned minus sticker purchases) next to the period's earned points.
-  const spendable = (id: string) => settings.stickersEnabled ? members.find(m => m.id === id)?.balance ?? null : null
+  const { refreshTick, members } = useApp()
+  // Spendable balance (all-time earned minus what's been spent) next to the period's earned points.
+  const spendable = (id: string) => members.find(m => m.id === id)?.balance ?? null
   const [period, setPeriod] = useState<LeaderboardPeriod>(loadLbPeriod)
   const [board, setBoard] = useState<LeaderboardEntry[]>([])
   const prevLeaderId = useRef<string | null | undefined>(undefined) // undefined = not loaded yet, don't bounce on first paint
@@ -267,8 +267,9 @@ function ChoreCard({ chore, onToggle, onEdit }: { chore: ChoreDay; onToggle: () 
 
 /** Parent devices: chores ticked on a wall screen or kid's device that wait for an OK. Approve
  * awards the points; Not yet sends it back unticked with an optional note the kid sees. Rewards
- * redeemed there wait here too (Approve / Not this time), and approved ones until they're Given. */
-function ApprovalQueue({ onChanged }: { onChanged: () => void }) {
+ * redeemed there wait here too (Approve / Not this time), and approved ones until they're Given.
+ * The Rewards screen shows the same queue with `only="rewards"`. */
+export function ApprovalQueue({ onChanged = () => {}, only }: { onChanged?: () => void; only?: 'rewards' }) {
   const { members, toast, reloadCore, refreshTick } = useApp()
   const [items, setItems] = useState<PendingApproval[]>([])
   const [rewards, setRewards] = useState<Redemption[]>([])
@@ -276,10 +277,10 @@ function ApprovalQueue({ onChanged }: { onChanged: () => void }) {
   const [notThisTime, setNotThisTime] = useState<Redemption | null>(null)
   const [note, setNote] = useState('')
   const fetchItems = () => {
-    api.getPendingApprovals().then(setItems).catch(() => { /* the section just stays as it was */ })
+    if (!only) api.getPendingApprovals().then(setItems).catch(() => { /* the section just stays as it was */ })
     api.getRedemptions({ status: 'pending,approved' }).then(setRewards).catch(() => { /* likewise */ })
   }
-  useEffect(fetchItems, [refreshTick])
+  useEffect(fetchItems, [refreshTick]) // eslint-disable-line react-hooks/exhaustive-deps
   const name = (p: { memberId: string | null }) => members.find(m => m.id === p.memberId)?.name ?? 'Someone'
   const decide = async (r: Redemption, action: 'approve' | 'decline' | 'given', done: string, note?: string) => {
     setRewards(list => action === 'approve' ? list.map(x => x === r ? { ...x, status: 'approved' } : x) : list.filter(x => x !== r)) // optimistic
@@ -327,7 +328,7 @@ function ApprovalQueue({ onChanged }: { onChanged: () => void }) {
     <>
       {(items.length > 0 || rewards.length > 0) && (
         <section className="approve-card" aria-labelledby="approve-heading">
-          <h3 id="approve-heading" className="approve-heading">To approve {count > 0 && <span className="approve-count">{count}</span>}</h3>
+          <h3 id="approve-heading" className="approve-heading">{only ? 'Reward requests' : 'To approve'} {count > 0 && <span className="approve-count">{count}</span>}</h3>
           <ul className="approve-list">
             {items.map(p => (
               <li key={`${p.choreId}:${p.date}`} className="approve-row">
@@ -368,7 +369,7 @@ function ApprovalQueue({ onChanged }: { onChanged: () => void }) {
           <p className="settings-row-sub" style={{ margin: '0 0 12px' }}>{notThisTime.emoji} {notThisTime.title}: {name(notThisTime)} gets their {notThisTime.cost} points back. They'll see your note.</p>
           <div className="field">
             <label htmlFor="notthistime-note">Note (optional)</label>
-            <input id="notthistime-note" type="text" maxLength={200} value={note} onChange={e => setNote(e.target.value)} placeholder="Let's do it at the weekend" autoComplete="off"
+            <input id="notthistime-note" type="text" maxLength={200} value={note} onChange={e => setNote(e.target.value)} placeholder="Let's do it on Saturday" autoComplete="off"
               onKeyDown={e => { if (e.key === 'Enter') sendRewardBack() }} />
           </div>
         </Sheet>
@@ -484,6 +485,7 @@ export default function Chores() {
       <div className="chores-scroll">
       <div className="chores-header">
         <h2 className="period-label">{format(selectedDate, 'EEEE, MMMM d')}</h2>
+        <a className="btn btn-secondary chores-rewards-btn" href={selectedMemberId ? `#/rewards/${selectedMemberId}` : '#/rewards'}><span aria-hidden="true">🎁</span> Rewards</a>
       </div>
       <div className="date-strip" role="group" aria-label="Day">
         {strip.map(d => (
@@ -514,6 +516,9 @@ export default function Chores() {
                   <ProgressRing pct={pct} color={col.color} avatar={col.avatar} label={`${col.name}: ${done} of ${list.length} done`} />
                   <h3 className="chore-col-name" style={{ margin: 0 }}>{col.name}</h3>
                   <div className="chore-col-pts">{list.reduce((s, c) => s + (c.completed ? c.points : 0), 0)} pts today</div>
+                  {col.id !== '__anyone' && 'balance' in col && (
+                    <a className="chore-col-spend" href={`#/rewards/${col.id}`} aria-label={`${col.name} has ${col.balance} points to spend. See rewards`}>⭐ {col.balance} to spend</a>
+                  )}
                 </div>
                 {list.map(c => (
                   <ChoreCard key={c.id} chore={c} onToggle={() => toggle(c)} onEdit={() => { if (parentDevice) setEditChore(c) }} />

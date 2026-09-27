@@ -4,7 +4,7 @@
 
 The Chores tab shows one column per family member plus **🌟 Anyone**. Each column has a progress ring, a "*N* pts today" total and that day's chore cards. On phones, members with nothing due are listed on one line ("Nothing due: Leo") instead of showing as empty cards. When the family is filtered to one person (the family sheet on a phone, or an avatar on the wall), the tab shows that person and **Anyone**. A display pinned to one person hides **Anyone** only if **Also show things for everyone** is off.
 
-Don't use chores? An admin can turn off **Chores & points** in **Settings → General** (tap **Change** under **Features**). It's hidden on every screen (the sticker book too); nothing is deleted. See [Features](../settings/general.md#features).
+Don't use chores? An admin can turn off **Chores & points** in **Settings → General** (tap **Change** under **Features**). It's hidden on every screen (rewards and the sticker book too); nothing is deleted. See [Features](../settings/general.md#features).
 
 ## Completing chores
 
@@ -137,7 +137,7 @@ Above the columns, a leaderboard ranks members by points for **Today**, **Week**
 Points are also a currency. A member's **balance** is every point they've ever earned from chores, minus what they've spent in the [sticker shop](activities.md#sticker-book) and on [rewards](rewards.md). A reward a parent says no to gives its points back.
 
 * The leaderboard and the member's today/week points always count what was **earned**. Spending never lowers a rank.
-* With the sticker shop on, each leaderboard pill also shows the balance, such as "22 to spend".
+* Each leaderboard pill also shows the balance, such as "22 to spend", and so does each person's column ("⭐ 22 to spend"). Tap the column's balance, or **🎁 Rewards** next to the date, to open [Rewards](rewards.md) for that person.
 * Spending is recorded in a points ledger. `GET /api/members/{id}/points` returns `{ balance, earnedTotal, spentTotal, entries }`, with the last 50 ledger entries. The member list (`GET /api/members`) includes `balance` too.
 * Unticking a completed chore takes its points back out of the balance. So does deleting a chore, since its completion history goes with it. A balance can end up below zero that way. New purchases then wait until it's back up.
 * **Settings → Family → Chores** has **Sticker shop** (on/off) and **Sticker prices** (Free, 50%, 100% or 150%).

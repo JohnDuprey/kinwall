@@ -11,22 +11,23 @@ import { inkFor } from './color.ts'
 import { dateKey } from './date.ts'
 import { ChevronLeft } from './icons.tsx'
 import type { StickerPack, StickerPatch, StickerPlacement } from './types.ts'
-import { RewardsPanel } from './Rewards.tsx'
 
 const SAVE_DELAY_MS = 400
 const MIN_SCALE = 0.4, MAX_SCALE = 3.6, SCALE_STEP = 1.25, ROTATE_STEP = 15
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 
-type Tab = 'book' | 'shop' | 'rewards'
+type Tab = 'book' | 'shop'
 
 export default function Stickers() {
   const { members, selectedMemberId, meMemberId, settings, refreshTick, reloadCore, toast } = useApp()
   const dialog = useDialog()
+  // #/activities/stickers?member=<id>&tab=shop is how Rewards' "Sticker packs" opens the shop.
+  const [query] = useState(() => new URLSearchParams(location.hash.split('?')[1] || ''))
   const [memberId, setMemberId] = useState<string | null>(() =>
-    (members.some(m => m.id === selectedMemberId) ? selectedMemberId : meMemberId ?? members[0]?.id) ?? null)
+    [query.get('member'), selectedMemberId, meMemberId].find(id => members.some(m => m.id === id)) ?? members[0]?.id ?? null)
   const member = members.find(m => m.id === memberId) ?? null
-  const [tab, setTab] = useState<Tab>('book')
+  const [tab, setTab] = useState<Tab>(query.get('tab') === 'shop' ? 'shop' : 'book')
   const [packs, setPacks] = useState<StickerPack[] | null>(null)
   const [placed, setPlaced] = useState<StickerPlacement[]>([])
   const [selId, setSelId] = useState<string | null>(null)
@@ -211,7 +212,7 @@ export default function Stickers() {
           ))}
         </div>
         <Segmented tabs idBase="stickers-tab" label="Sticker book" value={tab} onChange={v => { flushAll(); setSelId(null); setTab(v) }}
-          options={[{ key: 'book', label: 'Book' }, { key: 'shop', label: 'Shop' }, { key: 'rewards', label: 'Rewards' }]} />
+          options={[{ key: 'book', label: 'Book' }, { key: 'shop', label: 'Shop' }]} />
       </div>
 
       {tab === 'book' ? (
@@ -259,11 +260,9 @@ export default function Stickers() {
             )}
           </div>
         </div>
-      ) : tab === 'rewards' ? (
-        <div className="stickers-rewards" role="tabpanel" aria-labelledby="stickers-tab-rewards"><RewardsPanel member={member} /></div>
       ) : (
         <div className="stickers-shop scroll-y" role="tabpanel" aria-labelledby="stickers-tab-shop">
-          <p className="stickers-balance"><strong>{member.name}</strong> has <strong>{plural(balance, 'point')}</strong> to spend</p>
+          <p className="stickers-balance"><strong>{member.name}</strong> has <strong>{plural(balance, 'point')}</strong> to spend. <a className="text-link" href={`#/rewards/${member.id}`}>See {member.name}'s rewards</a></p>
           {unlocked && (
             <div className="sticker-unlocked" role="status">
               <span className="sticker-unlocked-cover" aria-hidden="true">{unlocked.cover}</span>

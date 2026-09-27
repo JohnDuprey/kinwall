@@ -1,10 +1,10 @@
 # Activities
 
-The **Activities** tab holds things to do on the wall that aren't the family schedule. It works the same on every device, including paired wall displays and the demo. There are four activities: **Paint**, the **Sticker book**, [**Rewards**](rewards.md) and [**Photos**](photos.md).
+The **Activities** tab holds things to do on the wall that aren't the family schedule. It works the same on every device, including paired wall displays and the demo. There are three activities: **Paint**, the **Sticker book** and [**Photos**](photos.md). [Rewards](rewards.md) have their own screen, next to Chores.
 
 Families can add more activities made by others: see [Activities from others](#activities-from-others).
 
-An admin can turn off **Paint** or **Photos** in **Settings → General** (tap **Change** under **Features**); the Sticker book goes with **Chores & points** or the sticker shop, and Rewards with **Chores & points**. When all of them are off, the Activities tab is hidden. See [Features](../settings/general.md#features).
+An admin can turn off **Paint** or **Photos** in **Settings → General** (tap **Change** under **Features**); the Sticker book goes with **Chores & points** or the sticker shop. When all of them are off, the Activities tab is hidden. See [Features](../settings/general.md#features).
 
 ## Paint
 
@@ -70,7 +70,7 @@ Changes save by themselves a moment after you stop. Pages are stored on the Kinw
 
 ### Shop
 
-The **Shop** tab shows every sticker pack with a peek at five of its stickers, and the member's balance at the top ("Maya has 42 points to spend").
+The **Shop** tab shows every sticker pack with a peek at five of its stickers, and the member's balance at the top ("Maya has 42 points to spend"), with a link to their [rewards](rewards.md). **Sticker packs** on the Rewards screen opens this tab for that person.
 
 | Pack | Price |
 |---|---|

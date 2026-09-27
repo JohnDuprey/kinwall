@@ -1,7 +1,8 @@
 // Rewards: things a parent sets up ("🍿 Movie night, 100 points") that a member spends chore points
-// on (server: routes/rewards.ts). The panel shows one member's rewards, a goal to save for and their
-// recent requests; parents also add, edit and archive rewards here. Deciding on requests lives in
-// the Chores tab's "To approve" section (RewardRequestRow below).
+// on (server: routes/rewards.ts). Points are earned on Chores and spent here: the screen shows one
+// member's balance, their goal, what they can get now and what they're saving for, requests
+// waiting for a grown-up, and a way into the sticker shop. Parents also decide on requests (the
+// same queue as Chores' "To approve") and add, edit and archive rewards here.
 import { useEffect, useState } from 'react'
 import { format } from 'date-fns'
 import { api, ApiError } from './api.ts'
@@ -12,51 +13,59 @@ import { inkFor } from './color.ts'
 import Sheet from './Sheet.tsx'
 import { AnyEmojiField } from './AnyEmojiField.tsx'
 import { isSingleEmoji } from './emoji.ts'
-import { ChevronLeft } from './icons.tsx'
+import { ApprovalQueue } from './Chores.tsx'
 import type { Member, Redemption, RedemptionStatus, Reward, RewardLimit } from './types.ts'
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 const rewardLabel = (r: { emoji: string | null; title: string }) => (r.emoji ? `${r.emoji} ${r.title}` : r.title)
 const periodWord = (l: RewardLimit) => (l.period === 'day' ? 'today' : 'this week')
+const usedUp = (r: Reward) => !!r.limit && (r.used ?? 0) >= r.limit.count
 
-const STATUS_TEXT: Record<RedemptionStatus, string> = { pending: 'Waiting for OK', approved: 'Approved', given: 'Given', declined: 'Not this time' }
+const STATUS_TEXT: Record<RedemptionStatus, string> = { pending: 'Waiting for OK', approved: 'Approved! Coming soon', given: 'Given', declined: 'Not this time' }
 
-/** The Rewards activity (#/activities/rewards): whose rewards, then the panel. A device that belongs
- * to one member shows only theirs. */
-export default function Rewards() {
+/** One tap on an empty Rewards screen adds one of these (a parent can edit it after). */
+const SUGGESTIONS: Partial<Reward>[] = [
+  { emoji: '🍿', title: 'Pick the movie', cost: 30 },
+  { emoji: '📺', title: '15 min screen time', cost: 10, limit: { count: 3, period: 'day' } },
+  { emoji: '🌙', title: 'Stay up 15 minutes', cost: 20, limit: { count: 1, period: 'day' } },
+  { emoji: '🍦', title: 'Ice cream trip', cost: 50 },
+]
+
+/** The Rewards screen (#/rewards, #/rewards/<memberId>): whose rewards, then the panel. A device
+ * that belongs to one member shows only theirs, whatever the link says. */
+export default function Rewards({ memberId: fromUrl }: { memberId?: string }) {
   const { members, selectedMemberId, meMemberId, focusLocked, focusMemberId } = useApp()
   const choices = focusLocked && focusMemberId ? members.filter(m => m.id === focusMemberId) : members
-  const [memberId, setMemberId] = useState<string | null>(() =>
-    (choices.some(m => m.id === selectedMemberId) ? selectedMemberId : choices.find(m => m.id === meMemberId)?.id ?? choices[0]?.id) ?? null)
+  const memberId = [fromUrl, selectedMemberId, meMemberId].find(id => choices.some(m => m.id === id)) ?? choices[0]?.id
   const member = choices.find(m => m.id === memberId) ?? null
   return (
     <div className="stickers">
-      <div className="stickers-head">
-        <a className="paint-btn" href="#/activities" aria-label="Back to activities"><ChevronLeft /></a>
-        {choices.length > 1 && (
+      {choices.length > 1 && (
+        <div className="stickers-head">
           <div className="chip-row stickers-members" role="group" aria-label="Whose rewards?">
             {choices.map(m => (
               <button key={m.id} className={`chip ${m.id === memberId ? 'active' : ''}`} aria-pressed={m.id === memberId}
-                style={{ ['--chip-color' as string]: m.color }} onClick={() => { setMemberId(m.id); announce(`${m.name}'s rewards`) }}>
+                style={{ ['--chip-color' as string]: m.color }} onClick={() => { location.replace(`#/rewards/${m.id}`); announce(`${m.name}'s rewards`) }}>
                 <span className="stickers-avatar" style={{ background: m.color, color: inkFor(m.color) }} aria-hidden="true">{m.avatar || m.name[0]}</span>{m.name}
               </button>
             ))}
           </div>
-        )}
-      </div>
-      {member ? <RewardsPanel member={member} /> : <div className="stickers-empty"><p>Add a family member in Settings to use rewards.</p></div>}
+        </div>
+      )}
+      {member ? <RewardsPanel key={member.id} member={member} /> : <div className="stickers-empty"><p>Add a family member in Settings to use rewards.</p></div>}
     </div>
   )
 }
 
-/** One member's rewards, goal and recent requests. Also the sticker book's Rewards tab. */
-export function RewardsPanel({ member }: { member: Member }) {
-  const { refreshTick, reloadCore, toast, parentDevice } = useApp()
+/** One member's balance, goal, rewards (ready now / keep saving / used up), requests and history. */
+function RewardsPanel({ member }: { member: Member }) {
+  const { refreshTick, reloadCore, toast, parentDevice, settings } = useApp()
   const dialog = useDialog()
   const [rewards, setRewards] = useState<Reward[] | null>(null)
   const [history, setHistory] = useState<Redemption[]>([])
   const [balance, setBalance] = useState(member.balance)
   const [managing, setManaging] = useState(false)
+  const [adding, setAdding] = useState(false)
   useEffect(() => { setBalance(member.balance) }, [member.balance])
 
   const load = () => {
@@ -83,73 +92,150 @@ export function RewardsPanel({ member }: { member: Member }) {
     if (!await dialog.confirm({
       title: `Spend ${plural(r.cost, 'point')} on ${rewardLabel(r)}?`,
       body: `${member.name} will have ${balance - r.cost} left.${waits ? ' A grown-up will OK it first.' : ''}`,
-      confirmLabel: 'Redeem',
+      confirmLabel: 'Get it',
     })) return
     try {
       const res = await api.redeemReward(r.id, member.id)
       setBalance(res.balance)
-      const msg = res.redemption.status === 'pending' ? `Asked for ${r.title}. Waiting for OK.` : `${r.title}: enjoy!`
+      const msg = res.redemption.status === 'pending' ? `Asked for ${r.title}. Waiting for a grown-up.` : `${r.title}: enjoy!`
       toast(msg)
       announce(msg)
       load()
       reloadCore()
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : `Couldn't redeem ${r.title}.`, true)
+      toast(e instanceof ApiError ? e.message : `Couldn't get ${r.title}.`, true)
       load()
     }
   }
 
+  const addSuggestion = async (s: Partial<Reward>) => {
+    try {
+      await api.createReward({ memberIds: [], needsApproval: true, limit: null, ...s })
+      announce(`Added ${s.title}`)
+      load()
+    } catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't add the reward.", true) }
+  }
+
+  const goal = member.rewardGoal ?? null
+  const list = rewards ?? []
+  const groups = [
+    { key: 'ready', title: 'Ready now', items: list.filter(r => !usedUp(r) && r.cost <= balance) },
+    { key: 'saving', title: 'Keep saving', items: list.filter(r => !usedUp(r) && r.cost > balance) },
+    { key: 'used', title: 'All used up for now', items: list.filter(usedUp) },
+  ].filter(g => g.items.length)
+  // Parents see every request in the queue above, so theirs isn't repeated.
+  const waiting = parentDevice ? [] : history.filter(h => h.status === 'pending' || h.status === 'approved')
+  const past = history.filter(h => h.status === 'given' || h.status === 'declined')
+
+  const card = (r: Reward) => {
+    const short = r.cost - balance
+    const isGoal = goalId === r.id
+    return (
+      <li key={r.id} className={`sticker-pack reward-card ${isGoal ? 'goal' : ''}`}>
+        <span className="sticker-pack-cover" aria-hidden="true">{r.emoji ?? '🎁'}</span>
+        <span className="sticker-pack-name">{r.title}</span>
+        <span className="reward-meta">
+          {plural(r.cost, 'point')}
+          {r.limit && !usedUp(r) && <> · {r.used ?? 0} of {r.limit.count} {periodWord(r.limit)}</>}
+        </span>
+        {short > 0 && !usedUp(r) && <Meter have={balance} need={r.cost} color={member.color} />}
+        <button className={`reward-goal-btn ${isGoal ? 'on' : ''}`} aria-pressed={isGoal} onClick={() => setGoal(r)}>
+          <span aria-hidden="true">{isGoal ? '★' : '☆'}</span> {isGoal ? 'Saving for this' : 'Save for this'}
+        </button>
+        {usedUp(r)
+          ? <span className="reward-state">That's all for {periodWord(r.limit!)}</span>
+          : short > 0
+            ? <span className="reward-state">{plural(short, 'more point')}</span>
+            : <button className="btn btn-primary" onClick={() => redeem(r)} aria-label={`Get ${r.title} for ${plural(r.cost, 'point')}`}>Get it</button>}
+      </li>
+    )
+  }
+
   return (
     <div className="stickers-shop scroll-y rewards">
-      <p className="stickers-balance"><strong>{member.name}</strong> has <strong>{plural(balance, 'point')}</strong> to spend</p>
-      {rewards && rewards.length === 0 && (
-        <p className="snap-empty">No rewards yet.{parentDevice ? ' Add some with Manage rewards below.' : ' A grown-up can add some.'}</p>
+      <section className="rewards-hero" aria-label={`${member.name}'s points`}>
+        <span className="rewards-avatar" style={{ background: member.color, color: inkFor(member.color) }} aria-hidden="true">{member.avatar || member.name[0]}</span>
+        <div className="rewards-hero-text">
+          <p className="rewards-balance"><strong>{member.name}</strong> has <strong className="rewards-points">{plural(balance, 'point')}</strong></p>
+          <p className="rewards-how">Earn points by doing <a href="#/chores">chores</a>. Spend them on rewards{settings.stickersEnabled ? ' and sticker packs' : ''}.</p>
+        </div>
+        {goal && (
+          <div className="rewards-goal">
+            <span className="rewards-goal-title">Saving for {rewardLabel(goal)}</span>
+            <Meter have={balance} need={goal.cost} color={member.color} />
+            <span className="rewards-goal-left">{balance >= goal.cost ? 'Ready! Tap Get it below.' : `${balance} of ${goal.cost} · ${plural(goal.cost - balance, 'more point')}`}</span>
+          </div>
+        )}
+      </section>
+
+      {parentDevice && <ApprovalQueue only="rewards" />}
+
+      {waiting.length > 0 && (
+        <section className="reward-history" aria-labelledby="reward-waiting-heading">
+          <h3 id="reward-waiting-heading" className="snap-heading">Waiting for a grown-up</h3>
+          <ul className="snap-list">{waiting.map(h => <HistoryRow key={h.id} h={h} />)}</ul>
+        </section>
       )}
-      <ul className="sticker-packs" aria-label="Rewards">
-        {(rewards ?? []).map(r => {
-          const usedUp = !!r.limit && (r.used ?? 0) >= r.limit.count
-          const short = r.cost - balance
-          const goal = goalId === r.id
-          return (
-            <li key={r.id} className={`sticker-pack reward-card ${goal ? 'goal' : ''}`}>
-              <span className="sticker-pack-cover" aria-hidden="true">{r.emoji ?? '🎁'}</span>
-              <span className="sticker-pack-name">{r.title}</span>
-              <span className="reward-meta">
-                {plural(r.cost, 'point')}
-                {r.limit && !usedUp && <> · {r.used ?? 0} of {r.limit.count} {periodWord(r.limit)}</>}
-              </span>
-              <button className={`reward-goal-btn ${goal ? 'on' : ''}`} aria-pressed={goal} onClick={() => setGoal(r)}>
-                <span aria-hidden="true">{goal ? '★' : '☆'}</span> {goal ? 'Saving for this' : 'Save for this'}
-              </button>
-              {usedUp
-                ? <span className="reward-state">That's all for {periodWord(r.limit!)}</span>
-                : short > 0
-                  ? <span className="reward-state">{plural(short, 'more point')} to go</span>
-                  : <button className="btn btn-primary" onClick={() => redeem(r)} aria-label={`Redeem ${r.title} for ${plural(r.cost, 'point')}`}>Redeem</button>}
-            </li>
-          )
-        })}
-      </ul>
-      {history.length > 0 && (
+
+      {rewards && list.length === 0 && (
+        <div className="empty-card rewards-empty">
+          <span className="emoji" aria-hidden="true">🎁</span>
+          <p><strong>No rewards for {member.name} yet.</strong></p>
+          {parentDevice ? <>
+            <p>Rewards are treats your family's points can buy. Tap one to add it, or make your own.</p>
+            <div className="chip-row rewards-suggestions">
+              {SUGGESTIONS.map(s => (
+                <button key={s.title} className="chip" onClick={() => addSuggestion(s)} aria-label={`Add ${s.title}, ${plural(s.cost!, 'point')}`}>
+                  {s.emoji} {s.title} · {s.cost} pts
+                </button>
+              ))}
+            </div>
+            <button className="btn btn-primary" onClick={() => setAdding(true)}>Add your own</button>
+          </> : <p>A grown-up can add some. Keep doing chores to save up points!</p>}
+        </div>
+      )}
+
+      {groups.map(g => (
+        <section key={g.key} className="rewards-group" aria-labelledby={`rewards-${g.key}`}>
+          <h3 id={`rewards-${g.key}`} className="snap-heading">{g.title}</h3>
+          <ul className="sticker-packs">{g.items.map(card)}</ul>
+        </section>
+      ))}
+
+      {settings.stickersEnabled && (
+        <a className="rewards-stickers" href={`#/activities/stickers?member=${member.id}&tab=shop`}>
+          <span className="rewards-stickers-icon" aria-hidden="true">🛍️</span>
+          <span><strong>Sticker packs</strong><span className="snap-meta">Spend points on stickers for {member.name}'s sticker book</span></span>
+        </a>
+      )}
+
+      {past.length > 0 && (
         <section className="reward-history" aria-labelledby="reward-history-heading">
           <h3 id="reward-history-heading" className="snap-heading">Recent</h3>
-          <ul className="snap-list">
-            {history.map(h => (
-              <li key={h.id} className="reward-history-row">
-                <span className="approve-emoji" aria-hidden="true">{h.emoji ?? '🎁'}</span>
-                <span className="snap-main">
-                  <span className="snap-title">{h.title}</span>
-                  <span className="snap-meta">{format(new Date(h.requestedAt), 'EEE, MMM d')} · {plural(h.cost, 'point')}</span>
-                </span>
-                <span className={`reward-status ${h.status}`}>{STATUS_TEXT[h.status]}{h.status === 'declined' && h.note ? `: ${h.note}` : ''}</span>
-              </li>
-            ))}
-          </ul>
+          <ul className="snap-list">{past.map(h => <HistoryRow key={h.id} h={h} />)}</ul>
         </section>
       )}
       {parentDevice && <button className="btn btn-secondary reward-manage" onClick={() => setManaging(true)}>Manage rewards</button>}
       {managing && <RewardsManageSheet onClose={() => { setManaging(false); load(); reloadCore() }} />}
+      {adding && <RewardEditSheet reward={null} onClose={() => setAdding(false)} onSaved={() => { setAdding(false); load() }} />}
     </div>
+  )
+}
+
+function Meter({ have, need, color }: { have: number; need: number; color: string }) {
+  return <span className="board-meter reward-meter" aria-hidden="true"><span style={{ width: `${Math.min(100, (Math.max(0, have) / need) * 100)}%`, background: color }} /></span>
+}
+
+function HistoryRow({ h }: { h: Redemption }) {
+  return (
+    <li className="reward-history-row">
+      <span className="approve-emoji" aria-hidden="true">{h.emoji ?? '🎁'}</span>
+      <span className="snap-main">
+        <span className="snap-title">{h.title}</span>
+        <span className="snap-meta">{format(new Date(h.requestedAt), 'EEE, MMM d')} · {plural(h.cost, 'point')}</span>
+      </span>
+      <span className={`reward-status ${h.status}`}>{STATUS_TEXT[h.status]}{h.status === 'declined' && h.note ? `: ${h.note}` : ''}</span>
+    </li>
   )
 }
 

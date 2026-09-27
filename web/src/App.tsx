@@ -4,13 +4,14 @@ import { api, clearKey, getKey, onSynced, setAdminKey, setKey, useOffline, usePo
 import { AppContext, useApp } from './AppContext.tsx'
 import type { Category, Member, Settings } from './types.ts'
 import { trackerKinds } from './types.ts'
-import { BookIcon, MoreIcon, BrushIcon, CalendarIcon, ChevronRight, ChoreIcon, CloudOffIcon, ListIcon, MealIcon, SettingsIcon } from './icons.tsx'
+import { BookIcon, MoreIcon, BrushIcon, CalendarIcon, ChevronRight, ChoreIcon, CloudOffIcon, GiftIcon, ListIcon, MealIcon, SettingsIcon } from './icons.tsx'
 import CalendarView from './Calendar.tsx'
 import Chores from './Chores.tsx'
 import Lists from './Lists.tsx'
 import Meals from './Meals.tsx'
 import Trackers from './Trackers.tsx'
 import Activities, { shownActivities } from './Activities.tsx'
+import Rewards from './Rewards.tsx'
 import SettingsView, { OwnerSelect } from './Settings.tsx'
 import AuthorizeScreen from './Authorize.tsx'
 import Setup, { readSetupResume, resumeAtPasskey } from './Setup.tsx'
@@ -36,17 +37,22 @@ const NAV_ITEMS = [
   { key: 'meals', href: '#/meals', label: 'Meals', Icon: MealIcon },
   { key: 'trackers', href: '#/trackers', label: 'Trackers', Icon: BookIcon },
   { key: 'activities', href: '#/activities', label: 'Activities', Icon: BrushIcon },
+  // After the everyday views, so a phone's bottom bar keeps its four and Rewards sits under More.
+  { key: 'rewards', href: '#/rewards', label: 'Rewards', Icon: GiftIcon },
   { key: 'settings', href: '#/settings', label: 'Settings', Icon: SettingsIcon },
 ] as const
 
-/** The nav items this family has on (Settings → Features); Activities goes when every activity is off. */
+/** The nav items this family has on (Settings → Features); Activities goes when every activity is
+ * off, and Rewards goes with chores and points. */
 function navItems(s: Settings) {
-  return NAV_ITEMS.filter(i => i.key === 'chores' ? s.features.chores : i.key === 'lists' ? s.features.lists : i.key === 'meals' ? s.features.meals : i.key === 'trackers' ? trackerKinds(s).length > 0 : i.key === 'activities' ? shownActivities(s).length > 0 : true)
+  return NAV_ITEMS.filter(i => i.key === 'chores' || i.key === 'rewards' ? s.features.chores : i.key === 'lists' ? s.features.lists : i.key === 'meals' ? s.features.meals : i.key === 'trackers' ? trackerKinds(s).length > 0 : i.key === 'activities' ? shownActivities(s).length > 0 : true)
 }
 
-/** Where to send a link to a screen whose feature is off (a bookmark, a push, an old tab), or null. */
+/** Where to send a link to a screen whose feature is off (a bookmark, a push, an old tab), or one
+ * that moved, or null. */
 function featureRedirect(s: Settings, section: string, sub: string | undefined): string | null {
-  if (section === 'chores' || section === 'lists' || section === 'meals' || section === 'trackers' || section === 'activities') {
+  if (section === 'activities' && sub === 'rewards') return '#/rewards' // rewards used to be an activity
+  if (section === 'chores' || section === 'rewards' || section === 'lists' || section === 'meals' || section === 'trackers' || section === 'activities') {
     if (!navItems(s).some(i => i.key === section)) return '#/calendar'
     if (section === 'trackers') { const on = trackerKinds(s); return sub && !on.includes(sub) ? `#/trackers/${on[0]}` : null }
     if (sub && section === 'activities' && sub !== 'plugin' && !shownActivities(s).some(a => a.key === sub)) return '#/activities'
@@ -57,12 +63,15 @@ function featureRedirect(s: Settings, section: string, sub: string | undefined):
 /** A phone's bottom bar fits five tabs: past that, the first four plus More, which lists the rest. */
 const MAX_TABS = 5
 
-function Nav({ tab, mode, items, toApprove = 0 }: { tab: string; mode: NavMode; items: ReturnType<typeof navItems>; toApprove?: number }) {
+function Nav({ tab, mode, items, toApprove = 0, rewardRequests = 0 }: { tab: string; mode: NavMode; items: ReturnType<typeof navItems>; toApprove?: number; rewardRequests?: number }) {
   const [more, setMore] = useState(false)
-  // Parent devices: how many chores wait for an OK, on the Chores item.
-  const badge = (key: string) => key === 'chores' && toApprove > 0
-    ? <><span className="nav-badge" aria-hidden="true">{toApprove > 9 ? '9+' : toApprove}</span><span className="sr-only">, {toApprove} to approve</span></>
+  // Parent devices: everything waiting for an OK on Chores (its To approve holds reward requests
+  // too), and the reward requests alone on Rewards.
+  const count = (key: string) => key === 'chores' ? toApprove : key === 'rewards' ? rewardRequests : 0
+  const badgeFor = (n: number) => n > 0
+    ? <><span className="nav-badge" aria-hidden="true">{n > 9 ? '9+' : n}</span><span className="sr-only">, {n} to approve</span></>
     : null
+  const badge = (key: string) => badgeFor(count(key))
   if (mode === 'bottom') {
     const overflow = items.length > MAX_TABS
     const shown = overflow ? items.slice(0, MAX_TABS - 1) : items
@@ -76,7 +85,7 @@ function Nav({ tab, mode, items, toApprove = 0 }: { tab: string; mode: NavMode; 
         {overflow && (
           <button className={`tab-btn ${inRest ? 'active' : ''}`} aria-haspopup="dialog" aria-expanded={more} onClick={() => setMore(true)}
             aria-label={inRest ? `More, showing ${rest.find(i => i.key === tab)!.label}` : 'More'}>
-            <MoreIcon /> More
+            <MoreIcon /> More{badgeFor(Math.max(0, ...rest.map(i => count(i.key))))}
           </button>
         )}
         {more && (
@@ -860,6 +869,7 @@ function AppRoutes() {
   const [ownerLocks, setOwnerLocks] = useState(false) // ...and whether that locks the family filter (everyday access only)
   const [parentDevice, setParentDevice] = useState(false) // until /api/me says otherwise, act as a device
   const [toApprove, setToApprove] = useState(0) // chores and rewards waiting for a parent's OK (parent devices)
+  const [rewardRequests, setRewardRequests] = useState(0) // ...of which rewards
   // `persist`: errors and results worth reading stay until tapped; confirmations fade after 4s.
   const [toastMsg, setToastMsg] = useState<{ msg: string; persist: boolean } | null>(null)
   // Sticky banner-style toast (tap to dismiss), e.g. after a recovery-code sign-in.
@@ -973,14 +983,14 @@ function AppRoutes() {
   useEffect(() => { if (bannerMsg) announce(bannerMsg) }, [bannerMsg])
   const choresOn = !!settings?.features.chores
   useEffect(() => {
-    if (!parentDevice || !choresOn) { setToApprove(0); return }
+    if (!parentDevice || !choresOn) { setToApprove(0); setRewardRequests(0); return }
     // Chores and rewards waiting for an OK (approved rewards not given yet don't count: nothing to decide).
     Promise.all([api.getPendingApprovals(), api.getRedemptions({ status: 'pending' })])
-      .then(([c, r]) => setToApprove(c.length + r.length)).catch(() => { /* keep the last count */ })
+      .then(([c, r]) => { setToApprove(c.length + r.length); setRewardRequests(r.length) }).catch(() => { /* keep the last count */ })
   }, [parentDevice, choresOn, pollTick, manualTick])
   const redirect = settings && featureRedirect(settings, section, sub)
   useEffect(() => { if (redirect) location.replace(redirect) }, [redirect])
-  const tabLabel = section === 'activities' && sub === 'paint' ? 'Paint' : section === 'activities' && sub === 'stickers' ? 'Sticker book' : section === 'activities' && sub === 'photos' ? 'Photos' : section === 'activities' && sub === 'rewards' ? 'Rewards' : NAV_ITEMS.find(i => i.key === section)?.label ?? 'Calendar'
+  const tabLabel = section === 'activities' && sub === 'paint' ? 'Paint' : section === 'activities' && sub === 'stickers' ? 'Sticker book' : section === 'activities' && sub === 'photos' ? 'Photos' : NAV_ITEMS.find(i => i.key === section)?.label ?? 'Calendar'
   const inApp = hasKey && !!settings && !wizardActive && NAV_ITEMS.some(i => i.key === section)
   // "Chores · Duprey Family": the family, not the product, is what tells tabs and home-screen icons apart.
   const familyName = settings?.familyName?.trim()
@@ -1036,16 +1046,16 @@ function AppRoutes() {
       <div className={`app-shell ${navMode !== 'bottom' ? `app-shell-rail app-shell-rail-${navMode}` : ''}`}>
         {/* A button, not href="#main": the hash is the router. */}
         <button className="skip-link" onClick={() => document.getElementById('main')?.focus()}>Skip to content</button>
-        {navMode === 'left' && <Nav tab={section} mode={navMode} items={nav} toApprove={toApprove} />}
+        {navMode === 'left' && <Nav tab={section} mode={navMode} items={nav} toApprove={toApprove} rewardRequests={rewardRequests} />}
         <div className="main-col">
           <Header settings={settings} members={focusMember ? [focusMember] : members} selectedMemberId={effectiveMemberId} isAdmin={scope === 'admin'} />
           <main className="content" id="main" tabIndex={-1}>
             <h1 className="sr-only">{tabLabel}</h1>
-            {redirect ? null : section === 'activities' ? <Activities sub={sub} rest={rest} /> : section === 'meals' ? <Meals /> : tab === 'chores' ? <Chores /> : section === 'lists' ? <Lists /> : section === 'trackers' ? <Trackers sub={sub} /> : tab === 'settings' ? <SettingsView /> : <CalendarView />}
+            {redirect ? null : section === 'activities' ? <Activities sub={sub} rest={rest} /> : section === 'rewards' ? <Rewards memberId={sub} /> : section === 'meals' ? <Meals /> : tab === 'chores' ? <Chores /> : section === 'lists' ? <Lists /> : section === 'trackers' ? <Trackers sub={sub} /> : tab === 'settings' ? <SettingsView /> : <CalendarView />}
           </main>
-          {navMode === 'bottom' && <Nav tab={section} mode={navMode} items={nav} toApprove={toApprove} />}
+          {navMode === 'bottom' && <Nav tab={section} mode={navMode} items={nav} toApprove={toApprove} rewardRequests={rewardRequests} />}
         </div>
-        {navMode === 'right' && <Nav tab={section} mode={navMode} items={nav} toApprove={toApprove} />}
+        {navMode === 'right' && <Nav tab={section} mode={navMode} items={nav} toApprove={toApprove} rewardRequests={rewardRequests} />}
         <SaveIndicator />
         {toastMsg && (toastMsg.persist
           ? <button className="toast" onClick={() => setToastMsg(null)} aria-label={`${toastMsg.msg} (dismiss)`}>{toastMsg.msg} <span aria-hidden="true">✕</span></button>

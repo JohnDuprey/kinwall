@@ -270,8 +270,8 @@ rewardsRoutes.openapi(
       const name = (await memberName(c, memberId)) ?? 'Someone';
       notifyChoreApproval(c.env, execCtx(c), 'parents', `reward:${row.id}`, {
         title: `${name} wants ${label(row)} (${pts(row.cost)}). Approve?`,
-        body: 'Open Chores to approve it or say not this time.',
-        url: '/#/chores',
+        body: 'Open Rewards to approve it or say not this time.',
+        url: '/#/rewards',
         memberIds: [memberId],
       });
     }
@@ -382,7 +382,7 @@ rewardsRoutes.openapi(
     notifyChoreApproval(c.env, execCtx(c), { owner: row.member_id }, `reward-no:${id}`, {
       title: `Not this time: ${label(row)}`,
       body: note ? `${note} Your ${pts(row.cost)} are back.` : `Your ${pts(row.cost)} are back.`,
-      url: '/#/activities/rewards',
+      url: `/#/rewards/${row.member_id}`,
       memberIds: [row.member_id],
     });
     return c.json(toRedemptionApi(row), 200);

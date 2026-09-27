@@ -1,17 +1,33 @@
 # Rewards
 
-Rewards are things your family decides chore points can buy: a movie night pick, an ice cream trip, 15 minutes of screen time. A parent sets them up, and each person spends their own [points](chores.md#points-to-spend) on them.
+Rewards are things your family decides chore points can buy: pick the movie, an ice cream trip, 15 minutes of screen time. The short version: **earn points on Chores, spend them on Rewards.** A parent sets rewards up, and each person spends their own [points](chores.md#points-to-spend) on them, or on sticker packs for the [sticker book](activities.md#sticker-book).
 
 Rewards go with **Chores & points**. If an admin turns that off in **Settings → General** (under **Features**), rewards are hidden too and redeeming is refused. Nothing is deleted.
 
 ## Where to find them
 
-* **Activities → Rewards**. Pick whose rewards from the avatar chips. A device that belongs to one person (its owner is set in **Settings → Access**) shows only theirs.
-* The **Rewards** tab in the [sticker book](activities.md#sticker-book), next to **Shop**.
+* **Rewards** in the main menu. On a phone it's under **More**; on a wall screen or tablet it's in the side rail.
+* On **Chores**: **🎁 Rewards** next to the date, or the "⭐ 42 to spend" balance under a person's name, which opens that person's rewards.
+* On the **Board**: **🎁 Rewards** on the chores card, or a row for someone saving for a goal.
+* From the sticker shop: "See Maya's rewards".
+* Links: `#/rewards` and `#/rewards/<memberId>`. Old `#/activities/rewards` links still work.
+
+Pick whose rewards from the avatar chips. A device that belongs to one person (its owner is set in **Settings → Access**) shows only theirs, even from a link to someone else's.
+
+## What's on the screen
+
+* **Maya has 42 points**, with a reminder of how it works: earn points by doing chores, spend them on rewards and sticker packs.
+* **Saving for** their goal, with a progress bar and how many more points it needs (see [Saving for a goal](#saving-for-a-goal)).
+* **Waiting for a grown-up**: requests a parent hasn't said yes or no to yet, and approved ones not handed over yet. (On a parent's device these are in **Reward requests** instead.)
+* **Ready now**: rewards they have enough points for. **Keep saving**: the rest, each with a progress bar and "8 more points". **All used up for now**: ones whose limit is used up.
+* **Sticker packs** opens the sticker shop for that person, when the sticker shop is on.
+* **Recent**: past requests, **Given** or **Not this time** with the parent's note.
+
+With no rewards yet, a parent sees four one-tap suggestions (🍿 Pick the movie, 📺 15 min screen time, 🌙 Stay up 15 minutes, 🍦 Ice cream trip) and **Add your own**. Kids see "A grown-up can add some."
 
 ## Setting up rewards
 
-On a parent's device, open Rewards and tap **Manage rewards**. **Add reward** opens the same kind of sheet as the chore editor:
+On a parent's device, open Rewards and tap **Manage rewards** (or a suggestion, when there are none yet). **Add reward** opens the same kind of sheet as the chore editor:
 
 | Field | What it does |
 |---|---|
@@ -29,20 +45,23 @@ Wall screens and kids' devices can't add, edit or remove rewards.
 
 Each reward card shows its cost and, for a limited one, how much is used ("1 of 3 today").
 
-* **Redeem** asks first: "Spend 50 points on 🍦 Ice cream trip? Leo will have 20 left."
+* **Get it** asks first: "Spend 50 points on 🍦 Ice cream trip? Leo will have 20 left."
 * The points come off right away. If the reward needs a parent's OK, they're set aside while it waits, and come back if a parent says not this time.
-* Short of points, the card says how many more to go instead.
+* Short of points, the card shows a progress bar and how many more points it needs instead.
 * Once a limit is used up, the card says "That's all for today" (or "this week") until the next day or week starts. Days and weeks follow the family's timezone and first day of the week. Requests a parent said no to don't count.
 * A redeem from a parent's device is approved straight away.
 * A device that belongs to one person can only redeem for that person. A shared wall screen can redeem for anyone.
 
-Below the cards, **Recent** lists that person's last requests: **Waiting for OK**, **Approved**, **Given**, or **Not this time** with the parent's note.
+Requests show under **Waiting for a grown-up** (**Waiting for OK**, or **Approved! Coming soon**) until they're handled, then under **Recent**.
 
 ## Approving
 
-Parent devices get a notification and a feed entry: "Leo wants 🍦 Ice cream trip (50 points). Approve?"
+Parent devices get a notification and a feed entry: "Leo wants 🍦 Ice cream trip (50 points). Approve?" Tapping it opens Rewards.
 
-Requests wait in the **To approve** section at the top of the **Chores** screen, next to chores waiting for an OK. They count toward the **To approve** badge on the Chores tab.
+Requests wait in two places, and deciding in either one is enough:
+
+* **Reward requests** at the top of the **Rewards** screen on a parent's device, for the whole family. The **Rewards** menu item shows how many are waiting.
+* **To approve** at the top of the **Chores** screen, next to chores waiting for an OK. They count toward the badge on the Chores tab too.
 
 * **Approve**: it's on. The points stay spent.
 * **Not this time**: opens a sheet for an optional note ("Let's do it on Friday"). The points go back, and the person's own devices get a notification with the note.
@@ -54,7 +73,7 @@ Rewards that don't need an OK also show here as approved, so you can mark them g
 
 Tap **Save for this** on a reward to make it that person's goal (tap again to clear it). Kids can set their own goal on their own device.
 
-The **Board**'s chores card shows the goal on that person's row, such as "🍿 Movie night pick 40 / 100", and **Ready!** once they have enough. Someone with a goal but no chores today gets a row of their own.
+The Rewards screen shows the goal at the top with a progress bar. The **Board**'s chores card shows it on that person's row, such as "🍿 Movie night pick 40 / 100", and **Ready!** once they have enough. Someone with a goal but no chores today gets a row of their own.
 
 ## Export, API and integrations
 

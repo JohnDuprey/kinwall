@@ -20,10 +20,10 @@ function Avatar({ m }: { m: Pick<Member, 'name' | 'color' | 'avatar'> }) {
   return <span className="board-avatar" style={{ background: m.color, color: inkFor(m.color) }}>{m.avatar || m.name[0]}</span>
 }
 
-function Card({ title, area, children }: { title: string; area: string; children: React.ReactNode }) {
+function Card({ title, area, link, children }: { title: string; area: string; link?: React.ReactNode; children: React.ReactNode }) {
   return (
     <section className={`board-card board-${area}`} aria-label={title}>
-      <h3 className="snap-heading">{title}</h3>
+      <h3 className="snap-heading">{title}{link}</h3>
       <div className="board-body">{children}</div>
     </section>
   )
@@ -151,7 +151,7 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
           )}
         </Card>}
 
-        {f.chores && <Card title="Chores today" area="chores">
+        {f.chores && <Card title="Chores today" area="chores" link={<a className="board-card-link" href="#/rewards">🎁 Rewards</a>}>
           {data.chores.length === 0 && !goalsOnly.length ? <p className="snap-empty">No chores today.</p> : (
             <ul className="snap-list">
               {data.chores.map(c => {
@@ -177,7 +177,7 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
                 const goal = goalText(m)!
                 return (
                   <li key={m.id}>
-                    <button className="snap-row board-chore" onClick={() => { location.hash = '#/activities/rewards' }} aria-label={`${m.name}: ${goal.label}`}>
+                    <button className="snap-row board-chore" onClick={() => { location.hash = `#/rewards/${m.id}` }} aria-label={`${m.name}: ${goal.label}`}>
                       <Avatar m={m} />
                       <span className="snap-main" aria-hidden="true">
                         <span className="snap-title">{m.name}</span>
