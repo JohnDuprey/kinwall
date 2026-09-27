@@ -3,7 +3,7 @@ import { addDays, format, isSameDay } from 'date-fns'
 import { useIsPhone } from './useIsPhone.ts'
 import { useApp } from './AppContext.tsx'
 import { api, ApiError } from './api.ts'
-import type { Chore, ChoreDay, LeaderboardEntry, LeaderboardPeriod, List, ListItem, Plugin } from './types.ts'
+import type { Chore, ChoreDay, LeaderboardEntry, LeaderboardPeriod, List, ListItem, PendingApproval, Plugin } from './types.ts'
 import { MEMBER_EMOJI } from './types.ts'
 import { dateKey } from './date.ts'
 import Sheet from './Sheet.tsx'
@@ -178,6 +178,10 @@ function ChoreCard({ chore, onToggle, onEdit }: { chore: ChoreDay; onToggle: () 
   const schedule = scheduleLabel(chore.rrule)
   // An Anyone chore says who got the points once it's done.
   const by = !chore.memberId && chore.completed ? (members.find(m => m.id === chore.completedBy)?.name ?? 'nobody in particular') : null
+  // Waiting for a parent's OK: ticked (tapping unticks it) but not done.
+  const pending = !!chore.pending
+  const ticked = chore.completed || pending
+  const notYet = !ticked && chore.rejection ? `Not yet${chore.rejection.note ? `: ${chore.rejection.note}` : ''}` : ''
   const cl = chore.checklist
   const checklist = cl ? `☑ ${cl.done}/${cl.total} ${cl.name}` : ''
   // A linked activity: tapping the card plays it (as the chore's person), the check still ticks it.
@@ -200,7 +204,7 @@ function ChoreCard({ chore, onToggle, onEdit }: { chore: ChoreDay; onToggle: () 
   // otherwise catch the click a touch sends right after lifting the finger.
   const handleClick = () => {
     if (longPressed.current) { longPressed.current = false; return }
-    if (!chore.completed) setBurst(true)
+    if (!ticked) setBurst(true)
     onToggle()
   }
   const info = (
@@ -209,6 +213,8 @@ function ChoreCard({ chore, onToggle, onEdit }: { chore: ChoreDay; onToggle: () 
       <div className="chore-info">
         <div className={`chore-title ${chore.completed ? 'done' : ''}`}>{chore.title}</div>
         <div className="chore-pts">{[by && `Done by ${by}`, `${chore.points} pts`, schedule, checklist].filter(Boolean).join(' · ')}</div>
+        {pending && <div className="chore-waiting">Waiting for OK</div>}
+        {notYet && <div className="chore-notyet">{notYet}</div>}
         {actLabel && <div className="chore-pts chore-activity">{actLabel}</div>}
         {actProgress && <>
           <div className="chore-activity-bar" aria-hidden="true"><div style={{ width: `${Math.min(1, act!.doneSeconds / act!.needSeconds) * 100}%` }} /></div>
@@ -217,7 +223,8 @@ function ChoreCard({ chore, onToggle, onEdit }: { chore: ChoreDay; onToggle: () 
       </div>
     </>
   )
-  const check = <div className={`chore-check ${chore.completed ? 'done' : ''}`}>{chore.completed && <CheckIcon width={18} height={18} />}</div>
+  const check = <div className={`chore-check ${chore.completed ? 'done' : pending ? 'pending' : ''}`}>{chore.completed ? <CheckIcon width={18} height={18} /> : pending && <span aria-hidden="true">⏳</span>}</div>
+  const said = [pending && "waiting for a parent's OK", notYet].filter(Boolean)
   if (act) {
     // Two controls: play (the card) and done (the check). Long-press/right-click still edits.
     return (
@@ -226,8 +233,8 @@ function ChoreCard({ chore, onToggle, onEdit }: { chore: ChoreDay; onToggle: () 
           onPointerDown={handleDown} onPointerUp={handleUp} onPointerLeave={() => clearTimeout(pressTimer.current)}>
           <button className="chore-play" aria-label={[`Play ${act.name} for ${chore.title}`, actLabel, actProgress && `${actProgress} played`].filter(Boolean).join(', ')}
             onClick={() => { if (longPressed.current) { longPressed.current = false; return } play() }}>{info}</button>
-          <button className="chore-check-btn" role="checkbox" aria-checked={chore.completed}
-            aria-label={[`${chore.title} done`, by && `by ${by}`, `${chore.points} points`].filter(Boolean).join(', ')} onClick={handleClick}>{check}</button>
+          <button className="chore-check-btn" role="checkbox" aria-checked={pending ? 'mixed' : chore.completed}
+            aria-label={[`${chore.title} done`, by && `by ${by}`, `${chore.points} points`, ...said].filter(Boolean).join(', ')} onClick={handleClick}>{check}</button>
           {burst && <Confetti />}
         </div>
         <button className="btn btn-secondary focus-reveal" onClick={onEdit}>Edit {chore.title}</button>
@@ -240,13 +247,13 @@ function ChoreCard({ chore, onToggle, onEdit }: { chore: ChoreDay; onToggle: () 
   const toggleByKey = (e: React.KeyboardEvent) => {
     if (e.key !== ' ' && e.key !== 'Enter') return
     e.preventDefault()
-    if (!chore.completed) setBurst(true)
+    if (!ticked) setBurst(true)
     onToggle()
   }
   return (
     <>
-      <div className={`chore-card ${chore.completed ? 'done' : ''}`} role="checkbox" aria-checked={chore.completed} tabIndex={0}
-        aria-label={[chore.title, by && `done by ${by}`, `${chore.points} points`, schedule, cl ? `checklist ${cl.name} ${cl.done} of ${cl.total} done` : '', actLabel].filter(Boolean).join(', ')}
+      <div className={`chore-card ${chore.completed ? 'done' : ''}`} role="checkbox" aria-checked={pending ? 'mixed' : chore.completed} tabIndex={0}
+        aria-label={[chore.title, by && `done by ${by}`, `${chore.points} points`, schedule, cl ? `checklist ${cl.name} ${cl.done} of ${cl.total} done` : '', actLabel, ...said].filter(Boolean).join(', ')}
         onKeyDown={toggleByKey} onContextMenu={e => { e.preventDefault(); onEdit() }}
         onPointerDown={handleDown} onPointerUp={handleUp} onPointerLeave={() => clearTimeout(pressTimer.current)} onClick={handleClick}>
         {info}
@@ -254,6 +261,75 @@ function ChoreCard({ chore, onToggle, onEdit }: { chore: ChoreDay; onToggle: () 
         {burst && <Confetti />}
       </div>
       <button className="btn btn-secondary focus-reveal" onClick={onEdit}>Edit {chore.title}</button>
+    </>
+  )
+}
+
+/** Parent devices: chores ticked on a wall screen or kid's device that wait for an OK. Approve
+ * awards the points; Not yet sends it back unticked with an optional note the kid sees. */
+function ApprovalQueue({ onChanged }: { onChanged: () => void }) {
+  const { members, toast, reloadCore, refreshTick } = useApp()
+  const [items, setItems] = useState<PendingApproval[]>([])
+  const [notYet, setNotYet] = useState<PendingApproval | null>(null)
+  const [note, setNote] = useState('')
+  const fetchItems = () => { api.getPendingApprovals().then(setItems).catch(() => { /* the section just stays as it was */ }) }
+  useEffect(fetchItems, [refreshTick])
+  const name = (p: PendingApproval) => members.find(m => m.id === p.memberId)?.name ?? 'Someone'
+  const when = (p: PendingApproval) => {
+    if (p.date === dateKey(new Date())) return ''
+    const [y, m, d] = p.date.split('-').map(Number)
+    return format(new Date(y, m - 1, d), 'EEE, MMM d')
+  }
+  const act = async (p: PendingApproval, call: () => Promise<unknown>, done: string) => {
+    setItems(list => list.filter(x => x !== p)) // optimistic
+    try {
+      await call()
+      toast(done)
+      announce(done)
+      onChanged()
+      reloadCore()
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : 'Could not update chore', true)
+      fetchItems()
+    }
+  }
+  const sendBack = () => {
+    const p = notYet!
+    setNotYet(null)
+    act(p, () => api.rejectChore(p.choreId, p.date, note.trim() || undefined), `${p.title} sent back to ${name(p)}`)
+  }
+  return (
+    <>
+      {items.length > 0 && (
+        <section className="approve-card" aria-labelledby="approve-heading">
+          <h3 id="approve-heading" className="approve-heading">To approve <span className="approve-count">{items.length}</span></h3>
+          <ul className="approve-list">
+            {items.map(p => (
+              <li key={`${p.choreId}:${p.date}`} className="approve-row">
+                <span className="approve-emoji" aria-hidden="true">{p.emoji}</span>
+                <div className="approve-info">
+                  <div className="approve-title">{p.title}</div>
+                  <div className="approve-sub">{[name(p), when(p), `${p.points} pts`].filter(Boolean).join(' · ')}</div>
+                </div>
+                <div className="approve-actions">
+                  <button className="btn btn-secondary" onClick={() => { setNote(''); setNotYet(p) }} aria-label={`Not yet: ${p.title} by ${name(p)}`}>Not yet</button>
+                  <button className="btn btn-primary" onClick={() => act(p, () => api.approveChore(p.choreId, p.date), `Approved: +${p.points} for ${name(p)}`)} aria-label={`Approve ${p.title} by ${name(p)}`}>Approve</button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {notYet && (
+        <Sheet title="Not yet" onClose={() => setNotYet(null)} actions={<button className="btn btn-primary" onClick={sendBack}>Send back</button>}>
+          <p className="settings-row-sub" style={{ margin: '0 0 12px' }}>{notYet.emoji} {notYet.title} goes back to {name(notYet)}, unticked. They'll see your note on the chore.</p>
+          <div className="field">
+            <label htmlFor="notyet-note">Note (optional)</label>
+            <input id="notyet-note" type="text" maxLength={200} value={note} onChange={e => setNote(e.target.value)} placeholder="Please make the bed properly" autoComplete="off"
+              onKeyDown={e => { if (e.key === 'Enter') sendBack() }} />
+          </div>
+        </Sheet>
+      )}
     </>
   )
 }
@@ -289,29 +365,32 @@ export default function Chores() {
   // "Who did it?" for an Anyone chore when the tab isn't filtered or pinned to one person.
   const [whoFor, setWhoFor] = useState<ChoreDay | null>(null)
   const toggle = async (c: ChoreDay, doneBy?: string | null) => {
+    const ticked = c.completed || !!c.pending // a pending tick unticks like a done one
     // A checklist with open items gates completion: open it here to tick off instead.
-    if (!c.completed && c.checklist && c.checklist.done < c.checklist.total) { setChecklistFor(c); return }
+    if (!ticked && c.checklist && c.checklist.done < c.checklist.total) { setChecklistFor(c); return }
     // An Anyone chore credits the filtered (or pinned) person; otherwise ask who did it.
     // `doneBy` null = "Nobody in particular" was picked.
-    if (!c.completed && !c.memberId && doneBy === undefined) {
+    if (!ticked && !c.memberId && doneBy === undefined) {
       if (selectedMemberId) doneBy = selectedMemberId
       else if (members.length > 0) { setWhoFor(c); return }
     }
     const creditTo = c.memberId ?? doneBy ?? undefined
-    setChores(list => list.map(x => x.id === c.id ? { ...x, completed: !x.completed, completedBy: x.completed ? null : creditTo ?? null } : x)) // optimistic
+    // Off a parent's device it's approved at once; otherwise the chore (or the person's default) says.
+    const waits = !ticked && !parentDevice && !!(c.needsApproval ?? members.find(m => m.id === creditTo)?.needsApproval)
+    setChores(list => list.map(x => x.id === c.id ? { ...x, completed: !ticked && !waits, pending: waits, rejection: null, completedBy: ticked ? null : creditTo ?? null } : x)) // optimistic
     // Ticked off for a past day: earns the household's late-completion share (rounded like the server).
-    const late = !c.completed && key < dateKey(new Date())
+    const late = !ticked && key < dateKey(new Date())
     const pts = late ? Math.round(c.points * settings.lateCompletionCredit / 100) : c.points
     const who = !c.memberId && creditTo ? members.find(m => m.id === creditTo)?.name : undefined
-    announce(c.completed ? `${c.title} not done` : `${c.title} done${who ? ` by ${who}` : ''}, ${pts} point${pts === 1 ? '' : 's'}${late ? ', late' : ''}`)
+    announce(ticked ? `${c.title} not done` : waits ? `${c.title} done${who ? ` by ${who}` : ''}, waiting for a parent's OK` : `${c.title} done${who ? ` by ${who}` : ''}, ${pts} point${pts === 1 ? '' : 's'}${late ? ', late' : ''}`)
     try {
       // Queued, so a tick works offline and syncs later; replays are idempotent (complete/undo for a date).
-      if (c.completed) await api.queueUncompleteChore(c.id, key)
+      if (ticked) await api.queueUncompleteChore(c.id, key)
       else await api.queueCompleteChore(c.id, key, creditTo)
-      if (late) toast(`+${pts} (late)`)
+      if (late && !waits) toast(`+${pts} (late)`)
       reloadCore()
     } catch (e) {
-      setChores(list => list.map(x => x.id === c.id ? { ...x, completed: c.completed } : x)) // revert
+      setChores(list => list.map(x => x.id === c.id ? { ...x, completed: c.completed, pending: c.pending, rejection: c.rejection } : x)) // revert
       toast(e instanceof ApiError ? e.message : 'Could not update chore', true)
     }
   }
@@ -330,7 +409,7 @@ export default function Chores() {
     if (key !== dateKey(new Date())) { setSelectedDate(new Date()); return } // the widget shows today
     history.replaceState(null, '', '#/chores')
     const c = chores.find(x => x.id === id)
-    if (c && !c.completed) toggle(c)
+    if (c && !c.completed && !c.pending) toggle(c)
   }, [loading, chores, hashTick]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const columns = [...members, { id: '__anyone', name: 'Anyone', color: '#C7B8A8', avatar: '🌟', pointsToday: 0, pointsWeek: 0, sort: 999 }]
@@ -359,6 +438,8 @@ export default function Chores() {
           </button>
         ))}
       </div>
+
+      {parentDevice && <ApprovalQueue onChanged={load} />}
 
       {settings.leaderboardEnabled && <Leaderboard />}
 
@@ -495,6 +576,8 @@ function ChoreEditSheet({ chore, onClose, onSaved }: { chore: Chore | null; onCl
   useEffect(() => { api.getLists().then(setLists).catch(() => { /* picker just stays empty */ }) }, [])
   const [pluginId, setPluginId] = useState<string | null>(chore?.pluginId ?? null)
   const [minutes, setMinutes] = useState(chore?.pluginMinutes ?? 5)
+  const [needsApproval, setNeedsApproval] = useState<boolean | null>(chore?.needsApproval ?? null)
+  const [approveTimedPlay, setApproveTimedPlay] = useState(!!chore?.approveTimedPlay)
   const [plugins, setPlugins] = useState<Plugin[]>([])
   useEffect(() => { api.getPlugins().then(setPlugins).catch(() => { /* no activities to offer */ }) }, [])
   // The family's activities that are on, plus the linked one even if it's off (so saving keeps it).
@@ -509,11 +592,13 @@ function ChoreEditSheet({ chore, onClose, onSaved }: { chore: Chore | null; onCl
   const repeat = sched.custom ? null : sched.repeat
   const weekOrder = Array.from({ length: 7 }, (_, i) => (i + settings.weekStart) % 7)
   const today = dateKey(new Date())
+  const assignee = members.find(m => m.id === memberId)
+  const defaultApproval = !!assignee?.needsApproval
 
   const submit = async () => {
     if (!title.trim() || !isSingleEmoji(emoji)) return
     const rrule = schedTouched || !chore ? formToRrule(sched) : chore.rrule
-    const body = { title: title.trim(), emoji, points, memberId, rrule, dueDate: rrule ? null : dueDate, listId, pluginId, ...(pluginId ? { pluginMinutes: Math.min(60, Math.max(1, minutes)) } : {}) }
+    const body = { title: title.trim(), emoji, points, memberId, rrule, dueDate: rrule ? null : dueDate, listId, pluginId, ...(pluginId ? { pluginMinutes: Math.min(60, Math.max(1, minutes)) } : {}), needsApproval, approveTimedPlay: !!pluginId && approveTimedPlay }
     try {
       if (chore) await api.updateChore(chore.id, body)
       else await api.createChore(body)
@@ -586,8 +671,20 @@ function ChoreEditSheet({ chore, onClose, onSaved }: { chore: Chore | null; onCl
             </div>
           )}
           <p className="field-hint">Playing it in Kinwall counts: once the day's active play reaches the minutes, the chore completes itself. It can still be ticked by hand.</p>
+          {pluginId && (
+            <div className="toggle-row">
+              <label id="chore-approve-play-label">Needs a parent's OK even for timed play</label>
+              <button className={`switch ${approveTimedPlay ? 'on' : ''}`} role="switch" aria-checked={approveTimedPlay} aria-labelledby="chore-approve-play-label" onClick={() => setApproveTimedPlay(v => !v)}><span className="knob" /></button>
+            </div>
+          )}
         </div>
       )}
+      <div className="field">
+        <label id="chore-approval-label">Needs a parent's OK</label>
+        <Segmented label="Needs a parent's OK" value={needsApproval === null ? 'default' : needsApproval ? 'yes' : 'no'} onChange={v => setNeedsApproval(v === 'default' ? null : v === 'yes')}
+          options={[{ key: 'default', label: assignee ? `Default (${defaultApproval ? 'yes' : 'no'})` : 'Default' }, { key: 'yes', label: 'Yes' }, { key: 'no', label: 'No' }]} />
+        <p className="field-hint">Ticks from wall screens and kids' devices wait for a parent to approve before the points count. Default follows {assignee ? `${assignee.name}'s setting` : 'the setting of whoever does it'} in Settings → Family{pluginId ? '; timed play approves itself unless the switch above is on' : ''}.</p>
+      </div>
       <div className="field">
         <label>Repeat</label>
         <Segmented className="chore-repeat" label="Repeat" value={repeat} onChange={r => editSched({ repeat: r })}

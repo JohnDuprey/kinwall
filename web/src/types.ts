@@ -126,6 +126,7 @@ export interface Member {
   pointsToday: number
   pointsWeek: number
   balance: number // points left to spend on stickers (earned - spent); pointsToday/pointsWeek stay earned
+  needsApproval?: boolean // their chores need a parent's OK by default (a chore's own setting wins)
 }
 
 export type CalendarKind = 'local' | 'ics' | 'google' | 'microsoft' | 'caldav'
@@ -227,16 +228,23 @@ export interface Chore {
   listId: string | null // checklist: a list that must be fully ticked before the chore can be completed
   pluginId: string | null // activity: playing this plugin for pluginMinutes a day completes the chore
   pluginMinutes: number | null
+  needsApproval?: boolean | null // ticks from wall screens and kids' devices wait for a parent's OK; null = the person's default
+  approveTimedPlay?: boolean // activity chores: timed play waits for an OK too (auto-approves otherwise)
 }
 
 export interface ChoreDay extends Chore {
-  completed: boolean
+  completed: boolean // done and counted
+  pending?: boolean // ticked on a wall screen or kid's device, waiting for a parent's OK (no points yet)
+  rejection?: { note: string | null; at: string } | null // a parent's "Not yet", until it's ticked again
   completedAt: string | null
   completedBy: string | null
   checklist: { listId: string; name: string; total: number; done: number } | null
   // The linked activity and the day's play; available false = removed or turned off (a plain chore then).
   activity: { pluginId: string; name: string | null; emoji: string | null; available: boolean; needSeconds: number; doneSeconds: number } | null
 }
+
+/** A chore ticked on a wall screen or kid's device, waiting for a parent's OK (GET /api/chores/pending). */
+export interface PendingApproval { choreId: string; title: string; emoji: string | null; date: string; memberId: string | null; completedAt: string; points: number }
 
 /** One of a player's activity chores due today (POST /api/plugins/{id}/playtime). */
 export interface ActivityChoreProgress {
@@ -568,7 +576,7 @@ export interface Weather {
 export type SnapshotEvent = EventInstance & { date: string } // the household-local day it's listed under
 export type SnapshotItem = ListItem & { listName: string; listEmoji: string | null; overdue: boolean }
 export interface SnapshotBirthday { memberId: string | null; eventId: string | null; name: string; avatar: string | null; date: string; age: number | null }
-export interface SnapshotChore { id: string; title: string; emoji: string | null; points: number; dueTime: string | null; date: string; done: boolean; doneBy: string | null; shared: boolean }
+export interface SnapshotChore { id: string; title: string; emoji: string | null; points: number; dueTime: string | null; date: string; done: boolean; pending?: boolean; doneBy: string | null; shared: boolean }
 /** GET /api/snapshot - one member's day or next 7 days. */
 export interface Snapshot {
   greeting: string
@@ -593,7 +601,7 @@ export interface Board {
   weather: Weather | null // as /api/weather, days limited to the range
   events: SnapshotEvent[] // everyone's, sorted by start
   items: SnapshotItem[] // open items due by `to` (overdue first), plus urgent/high ones with no date
-  chores: { memberId: string | null; name: string | null; avatar: string | null; color: string | null; remaining: number; total: number }[]
+  chores: { memberId: string | null; name: string | null; avatar: string | null; color: string | null; remaining: number; total: number; pending?: number }[]
   birthdays: SnapshotBirthday[]
   meals: Meal[] // today through `to`; [] while Meals is off
 }

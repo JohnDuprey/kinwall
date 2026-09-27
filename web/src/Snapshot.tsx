@@ -72,16 +72,19 @@ export default function SnapshotSheet({ member, onClose }: { member: Member; onC
   // counts for them. The server refuses a chore whose checklist has open items (409): open the
   // checklist instead, and complete the chore from there.
   const [checklistFor, setChecklistFor] = useState<ChoreDay | null>(null)
-  const setDone = (id: string, done: boolean) => setSnap(s => s && { ...s, chores: s.chores.map(x => x.id === id ? { ...x, done, doneBy: done ? member.id : null } : x) })
+  const setDone = (id: string, done: boolean, pending = false) => setSnap(s => s && { ...s, chores: s.chores.map(x => x.id === id ? { ...x, done, pending, doneBy: done || pending ? member.id : null } : x) })
   const toggleChore = async (c: SnapshotChore) => {
-    setDone(c.id, !c.done)
+    const ticked = c.done || !!c.pending // waiting for a parent's OK unticks like done
+    setDone(c.id, !ticked)
     try {
-      if (c.done) await api.uncompleteChore(c.id, c.date)
-      else await api.completeChore(c.id, c.date, member.id)
-      announce(c.done ? `${c.title} not done` : `${c.title} done, ${c.points} point${c.points === 1 ? '' : 's'}`)
+      let waits = false
+      if (ticked) await api.uncompleteChore(c.id, c.date)
+      else waits = !!((await api.completeChore(c.id, c.date, member.id)) as { pending?: boolean }).pending
+      if (waits) setDone(c.id, false, true)
+      announce(ticked ? `${c.title} not done` : waits ? `${c.title} done, waiting for a parent's OK` : `${c.title} done, ${c.points} point${c.points === 1 ? '' : 's'}`)
       reloadCore()
     } catch (e) {
-      setDone(c.id, c.done)
+      setDone(c.id, c.done, c.pending)
       if (e instanceof ApiError && e.status === 409) {
         const day = await api.getChoresDay(c.date).catch(() => [] as ChoreDay[])
         const full = day.find(x => x.id === c.id)
@@ -168,14 +171,14 @@ function ChoreRow({ c, onToggle }: { c: SnapshotChore; onToggle: (c: SnapshotCho
   const by = c.shared && c.done ? (members.find(m => m.id === c.doneBy)?.name ?? 'nobody in particular') : null
   return (
     <li>
-      <button className={`snap-row snap-chore ${c.done ? 'done' : ''}`} role="checkbox" aria-checked={c.done} onClick={() => onToggle(c)}
-        aria-label={[c.title, c.shared && 'anyone', by && `done by ${by}`, c.points > 0 && `${c.points} points`].filter(Boolean).join(', ')}>
+      <button className={`snap-row snap-chore ${c.done ? 'done' : ''}`} role="checkbox" aria-checked={c.pending ? 'mixed' : c.done} onClick={() => onToggle(c)}
+        aria-label={[c.title, c.shared && 'anyone', by && `done by ${by}`, c.points > 0 && `${c.points} points`, c.pending && "waiting for a parent's OK"].filter(Boolean).join(', ')}>
         <span className="snap-time snap-emoji" aria-hidden="true">{c.emoji || '⭐'}</span>
         <span className="snap-main" aria-hidden="true">
           <span className="snap-title">{c.title}</span>
-          <span className="snap-meta">{[c.shared && 'Anyone', by && `Done by ${by}`, c.points > 0 && `${c.points} pts`].filter(Boolean).join(' · ')}</span>
+          <span className="snap-meta">{[c.shared && 'Anyone', by && `Done by ${by}`, c.points > 0 && `${c.points} pts`, c.pending && 'Waiting for OK'].filter(Boolean).join(' · ')}</span>
         </span>
-        <span className={`chore-check ${c.done ? 'done' : ''}`} aria-hidden="true">{c.done && <CheckIcon width={18} height={18} />}</span>
+        <span className={`chore-check ${c.done ? 'done' : c.pending ? 'pending' : ''}`} aria-hidden="true">{c.done ? <CheckIcon width={18} height={18} /> : c.pending && '⏳'}</span>
       </button>
     </li>
   )

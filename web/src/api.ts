@@ -7,7 +7,7 @@ import type { PasskeyAuthenticator } from './webauthn.ts'
 import type { Meal, MealInput, Recipe, RecipeInput, ShoppingProjection } from './meal-types.ts'
 import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginCatalogEntry,
   StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota,
-  Account, ApiKey, AppNotification, Appearance, CalendarEntry, Category, Chore, ChoreDay, EventInstance, LeaderboardEntry, LeaderboardPeriod, List,
+  Account, ApiKey, AppNotification, Appearance, CalendarEntry, Category, Chore, ChoreDay, PendingApproval, EventInstance, LeaderboardEntry, LeaderboardPeriod, List,
   GeocodeResult, HostEvent, ImportResult, ListDetail, ListGroup, ListItem, ListItemInput, Member, Me, Note, NoteTarget, Passkey, TrackerEntry, TrackerInput, TrackerKind, Providers, PushSubscription, PushSubscriptionPrefs, RemoteCalendar, Settings, Snapshot, Board, Webhook, WebhookWithSecret,
 } from './types.ts'
 
@@ -336,6 +336,10 @@ export const api = {
     MOCK ? mock.completeChore(id, date, memberId) : post(`api/chores/${id}/complete`, { date, memberId }),
   uncompleteChore: (id: string, date: string) =>
     MOCK ? mock.uncompleteChore(id, date) : del(`api/chores/${id}/complete?date=${date}`),
+  // Parent approval (parent devices only).
+  getPendingApprovals: () => MOCK ? Promise.resolve([] as PendingApproval[]) : get<PendingApproval[]>('api/chores/pending'),
+  approveChore: (id: string, date: string) => post<{ ok: boolean; points: number }>(`api/chores/${id}/approve`, { date }),
+  rejectChore: (id: string, date: string, note?: string) => post<{ ok: boolean }>(`api/chores/${id}/reject`, { date, note }),
 
   getLeaderboard: (period: LeaderboardPeriod) =>
     MOCK ? mock.getLeaderboard(period) : get<LeaderboardEntry[]>(`api/leaderboard?period=${period}`),

@@ -155,15 +155,16 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
               {data.chores.map(c => {
                 const done = c.total - c.remaining
                 const name = c.name ?? 'Anyone'
+                const waiting = c.pending ? `${c.pending} waiting for OK` : '' // ticked, not counted until a parent approves
                 return (
                   <li key={c.memberId ?? 'anyone'}>
-                    <button className="snap-row board-chore" onClick={() => { location.hash = '#/chores' }} aria-label={`${name}: ${c.remaining ? `${c.remaining} of ${c.total} chores left` : 'all chores done'}`}>
+                    <button className="snap-row board-chore" onClick={() => { location.hash = '#/chores' }} aria-label={`${name}: ${c.remaining ? `${c.remaining} of ${c.total} chores left` : 'all chores done'}${waiting ? `, ${waiting}` : ''}`}>
                       <Avatar m={{ name, color: c.color ?? 'var(--bg)', avatar: c.avatar ?? '⭐' }} />
                       <span className="snap-main">
                         <span className="snap-title">{name}</span>
                         <span className="board-meter" aria-hidden="true"><span style={{ width: `${(done / c.total) * 100}%`, background: c.color ?? 'var(--accent)' }} /></span>
                       </span>
-                      <span className="board-chore-count" aria-hidden="true">{c.remaining ? `${c.remaining} left` : '🎉'}</span>
+                      <span className="board-chore-count" aria-hidden="true">{c.remaining ? `${c.remaining} left` : '🎉'}{c.pending ? ` · ${c.pending} ⏳` : ''}</span>
                     </button>
                   </li>
                 )

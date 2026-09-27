@@ -57,8 +57,12 @@ function featureRedirect(s: Settings, section: string, sub: string | undefined):
 /** A phone's bottom bar fits five tabs: past that, the first four plus More, which lists the rest. */
 const MAX_TABS = 5
 
-function Nav({ tab, mode, items }: { tab: string; mode: NavMode; items: ReturnType<typeof navItems> }) {
+function Nav({ tab, mode, items, toApprove = 0 }: { tab: string; mode: NavMode; items: ReturnType<typeof navItems>; toApprove?: number }) {
   const [more, setMore] = useState(false)
+  // Parent devices: how many chores wait for an OK, on the Chores item.
+  const badge = (key: string) => key === 'chores' && toApprove > 0
+    ? <><span className="nav-badge" aria-hidden="true">{toApprove > 9 ? '9+' : toApprove}</span><span className="sr-only">, {toApprove} to approve</span></>
+    : null
   if (mode === 'bottom') {
     const overflow = items.length > MAX_TABS
     const shown = overflow ? items.slice(0, MAX_TABS - 1) : items
@@ -67,7 +71,7 @@ function Nav({ tab, mode, items }: { tab: string; mode: NavMode; items: ReturnTy
     return (
       <nav className="tab-bar" aria-label="Main">
         {shown.map(item => (
-          <a key={item.key} href={item.href} className={`tab-btn ${tab === item.key ? 'active' : ''}`} aria-current={tab === item.key ? 'page' : undefined}><item.Icon /> {item.label}</a>
+          <a key={item.key} href={item.href} className={`tab-btn ${tab === item.key ? 'active' : ''}`} aria-current={tab === item.key ? 'page' : undefined}><item.Icon /> {item.label}{badge(item.key)}</a>
         ))}
         {overflow && (
           <button className={`tab-btn ${inRest ? 'active' : ''}`} aria-haspopup="dialog" aria-expanded={more} onClick={() => setMore(true)}
@@ -81,7 +85,7 @@ function Nav({ tab, mode, items }: { tab: string; mode: NavMode; items: ReturnTy
               {rest.map(item => (
                 <a key={item.key} href={item.href} className={`more-row ${tab === item.key ? 'active' : ''}`} aria-current={tab === item.key ? 'page' : undefined}
                   onClick={() => setMore(false)}>
-                  <item.Icon /> <span>{item.label}</span>
+                  <item.Icon /> <span>{item.label}</span>{badge(item.key)}
                 </a>
               ))}
             </div>
@@ -93,7 +97,7 @@ function Nav({ tab, mode, items }: { tab: string; mode: NavMode; items: ReturnTy
   return (
     <nav className={`nav-rail nav-rail-${mode}`} aria-label="Main">
       {items.map(item => (
-        <a key={item.key} href={item.href} className={`nav-rail-btn ${tab === item.key ? 'active' : ''}`} aria-current={tab === item.key ? 'page' : undefined}><item.Icon /><span>{item.label}</span></a>
+        <a key={item.key} href={item.href} className={`nav-rail-btn ${tab === item.key ? 'active' : ''}`} aria-current={tab === item.key ? 'page' : undefined}><item.Icon /><span>{item.label}</span>{badge(item.key)}</a>
       ))}
     </nav>
   )
@@ -855,6 +859,7 @@ function AppRoutes() {
   const [owner, setOwner] = useState<string | null>(null) // who an admin says this device belongs to (GET /api/me)
   const [ownerLocks, setOwnerLocks] = useState(false) // ...and whether that locks the family filter (everyday access only)
   const [parentDevice, setParentDevice] = useState(false) // until /api/me says otherwise, act as a device
+  const [toApprove, setToApprove] = useState(0) // chores waiting for a parent's OK (parent devices)
   // `persist`: errors and results worth reading stay until tapped; confirmations fade after 4s.
   const [toastMsg, setToastMsg] = useState<{ msg: string; persist: boolean } | null>(null)
   // Sticky banner-style toast (tap to dismiss), e.g. after a recovery-code sign-in.
@@ -965,6 +970,11 @@ function AppRoutes() {
     return () => clearTimeout(id)
   }, [toastMsg])
   useEffect(() => { if (bannerMsg) announce(bannerMsg) }, [bannerMsg])
+  const choresOn = !!settings?.features.chores
+  useEffect(() => {
+    if (!parentDevice || !choresOn) { setToApprove(0); return }
+    api.getPendingApprovals().then(p => setToApprove(p.length)).catch(() => { /* keep the last count */ })
+  }, [parentDevice, choresOn, pollTick, manualTick])
   const redirect = settings && featureRedirect(settings, section, sub)
   useEffect(() => { if (redirect) location.replace(redirect) }, [redirect])
   const tabLabel = section === 'activities' && sub === 'paint' ? 'Paint' : section === 'activities' && sub === 'stickers' ? 'Sticker book' : section === 'activities' && sub === 'photos' ? 'Photos' : NAV_ITEMS.find(i => i.key === section)?.label ?? 'Calendar'
@@ -1023,16 +1033,16 @@ function AppRoutes() {
       <div className={`app-shell ${navMode !== 'bottom' ? `app-shell-rail app-shell-rail-${navMode}` : ''}`}>
         {/* A button, not href="#main": the hash is the router. */}
         <button className="skip-link" onClick={() => document.getElementById('main')?.focus()}>Skip to content</button>
-        {navMode === 'left' && <Nav tab={section} mode={navMode} items={nav} />}
+        {navMode === 'left' && <Nav tab={section} mode={navMode} items={nav} toApprove={toApprove} />}
         <div className="main-col">
           <Header settings={settings} members={focusMember ? [focusMember] : members} selectedMemberId={effectiveMemberId} isAdmin={scope === 'admin'} />
           <main className="content" id="main" tabIndex={-1}>
             <h1 className="sr-only">{tabLabel}</h1>
             {redirect ? null : section === 'activities' ? <Activities sub={sub} rest={rest} /> : section === 'meals' ? <Meals /> : tab === 'chores' ? <Chores /> : tab === 'lists' ? <Lists /> : section === 'trackers' ? <Trackers sub={sub} /> : tab === 'settings' ? <SettingsView /> : <CalendarView />}
           </main>
-          {navMode === 'bottom' && <Nav tab={section} mode={navMode} items={nav} />}
+          {navMode === 'bottom' && <Nav tab={section} mode={navMode} items={nav} toApprove={toApprove} />}
         </div>
-        {navMode === 'right' && <Nav tab={section} mode={navMode} items={nav} />}
+        {navMode === 'right' && <Nav tab={section} mode={navMode} items={nav} toApprove={toApprove} />}
         <SaveIndicator />
         {toastMsg && (toastMsg.persist
           ? <button className="toast" onClick={() => setToastMsg(null)} aria-label={`${toastMsg.msg} (dismiss)`}>{toastMsg.msg} <span aria-hidden="true">✕</span></button>

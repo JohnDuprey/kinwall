@@ -28,7 +28,7 @@ import { useDialog } from './dialog.tsx'
 import { announce, pressable, reducedMotion, Segmented } from './a11y.tsx'
 
 // Mirrors BusEventType in server/src/bus.ts.
-const BUS_EVENTS = ['member.changed', 'calendar.changed', 'calendar.synced', 'events.changed', 'chore.changed', 'chore.completed', 'chore.uncompleted', 'list.changed', 'list.item.changed', 'category.changed', 'settings.changed', 'sticker.changed', 'photo.changed', 'tracker.changed', 'display.paired']
+const BUS_EVENTS = ['member.changed', 'calendar.changed', 'calendar.synced', 'events.changed', 'chore.changed', 'chore.completed', 'chore.uncompleted', 'chore.pending', 'chore.rejected', 'list.changed', 'list.item.changed', 'category.changed', 'settings.changed', 'sticker.changed', 'photo.changed', 'tracker.changed', 'display.paired']
 
 export function timezoneList() {
   // Intl.supportedValuesOf('timeZone') doesn't include 'UTC' itself (the server's default
@@ -1301,11 +1301,12 @@ function MemberEditSheet({ member, canDelete, onClose, onSaved, toast }: { membe
   const [bday, setBday] = useState(member?.birthday?.replace(/^--/, '2000-') ?? '')
   const [noYear, setNoYear] = useState(!!member?.birthday?.startsWith('--'))
   const birthday = !bday ? null : noYear ? `--${bday.slice(5)}` : bday
+  const [needsApproval, setNeedsApproval] = useState(!!member?.needsApproval)
   const save = async () => {
     if (!name.trim() || !isValidAvatar(avatar)) return
     try {
-      if (member) await api.updateMember(member.id, { name: name.trim(), color, avatar, birthday })
-      else await api.createMember({ name: name.trim(), color, avatar, birthday })
+      if (member) await api.updateMember(member.id, { name: name.trim(), color, avatar, birthday, needsApproval })
+      else await api.createMember({ name: name.trim(), color, avatar, birthday, needsApproval })
       onSaved()
     } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save member', true) }
   }
@@ -1342,6 +1343,11 @@ function MemberEditSheet({ member, canDelete, onClose, onSaved, toast }: { membe
           <button className={`switch ${noYear ? 'on' : ''}`} role="switch" aria-checked={noYear} aria-labelledby="member-birthday-noyear" onClick={() => setNoYear(v => !v)}><span className="knob" /></button>
         </div>
       )}
+      <div className="toggle-row">
+        <label id="member-needs-approval">Their chores need a parent's OK</label>
+        <button className={`switch ${needsApproval ? 'on' : ''}`} role="switch" aria-checked={needsApproval} aria-labelledby="member-needs-approval" onClick={() => setNeedsApproval(v => !v)}><span className="knob" /></button>
+      </div>
+      <p className="field-hint">Chores they tick on a wall screen or their own device wait for a parent to approve before the points count. A chore's own setting wins.</p>
     </Sheet>
   )
 }
