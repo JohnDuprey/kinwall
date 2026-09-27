@@ -11,16 +11,3 @@ jobs:
         working-directory: server
       - run: npm ci && npm run build
         working-directory: web
-  # Once main passes, tells the private hosted repo (JohnDuprey/kinwall-cloud) to repin and deploy
-  # this commit. Needs KINWALL_CLOUD_DISPATCH_TOKEN: a fine-grained token with Contents: read and
-  # write on kinwall-cloud only. Forks and repos without the secret skip it.
-  hosted:
-    needs: test
-    if: github.repository == 'JohnDuprey/kinwall' && github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    steps:
-      - env:
-          GH_TOKEN: ${{ secrets.KINWALL_CLOUD_DISPATCH_TOKEN }}
-        run: |
-          if [ -z "$GH_TOKEN" ]; then echo 'KINWALL_CLOUD_DISPATCH_TOKEN not set; skipping'; exit 0; fi
-          gh api repos/JohnDuprey/kinwall-cloud/dispatches -f event_type=kinwall-updated -f "client_payload[sha]=$GITHUB_SHA"
