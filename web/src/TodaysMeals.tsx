@@ -13,9 +13,9 @@ export default function TodaysMeals({ now, today, meals }: { now: Date; today: s
   const minute = minutesSinceMidnight(now.toISOString(), tz)
   const next = planned.find(meal => at(meal) >= minute) ?? planned[planned.length - 1]
   return <section className="board-card board-meals" aria-label="Today's meals">
-    <h3 className="snap-heading"><a href="#/meals">Today’s meals</a></h3>
+    <h3 className="snap-heading">Today’s meals</h3>
     <div className="board-body">
-      {meals.length === 0 ? <p className="snap-empty"><a href="#/meals">No meals planned today.</a></p> : <ul className="snap-list">
+      {meals.length === 0 ? <button className="snap-empty board-empty-tap" onClick={() => { location.hash = '#/meals' }}>No meals planned today.</button> : <ul className="snap-list">
         {MEAL_SLOTS.flatMap(slot => meals.filter(meal => meal.slot === slot).map(meal => {
           const assignee = members.find(member => member.id === meal.assigneeMemberId)
           return <li key={meal.id}><a href={`#/meals?date=${today}&meal=${encodeURIComponent(meal.id)}`} className={`snap-row today-meal ${meal.id === next?.id ? 'today-meal-next' : ''}`}>
