@@ -7,6 +7,7 @@ import { ChevronRight, EditIcon, ExternalIcon, FileIcon, LinkIcon, MinusIcon, Pl
 import { ingredientAmount, isPdfUrl, recipeTime, servingsLabel, urlHost } from './meal-date.ts'
 import { KIT_QUALIFIER, type IngredientInput, type Recipe, type RecipeInput, type RecipeSnapshot } from './meal-types.ts'
 import RecipeCardSheet from './RecipeCardSheet.tsx'
+import RecipePhoto from './RecipePhoto.tsx'
 
 const emptyIngredient = (): IngredientInput => ({ name: '', quantity: null, unit: null, preparation: null, qualifier: null, category: null, sort: 0 })
 
@@ -66,6 +67,7 @@ export default function RecipeSheet({ recipe, admin, onClose, onSaved, onPlan }:
     {admin && <button className="btn btn-secondary" onClick={() => setEditing(true)}><EditIcon width={20} height={20} /> Edit</button>}
     {onPlan && !recipe.archived && <button className="btn btn-primary" onClick={() => onPlan(recipe)}>Plan this meal</button>}
   </> : undefined}>
+    {recipe.imageUrl && <RecipePhoto id={recipe.id} className="recipe-hero" alt={recipe.name} />}
     {recipe.description && <p>{recipe.description}</p>}
     {(time || recipe.archived) && <p className="recipe-time">{[time && `⏱ ${time}`, recipe.archived && 'Archived'].filter(Boolean).join(' · ')}</p>}
     <div className="recipe-servings">
@@ -90,7 +92,7 @@ function RecipeEditor({ recipe, onClose, onSaved }: { recipe: Recipe | null; onC
   const [draft, setDraft] = useState<RecipeInput>(() => ({
     name: recipe?.name ?? '', description: recipe?.description ?? null, defaultServings: recipe?.defaultServings ?? 4,
     instructions: recipe?.instructions ?? null, preparationNotes: recipe?.preparationNotes ?? null,
-    sourceUrl: recipe?.sourceUrl ?? null, prepMinutes: recipe?.prepMinutes ?? null, totalMinutes: recipe?.totalMinutes ?? null, archived: recipe?.archived ?? false,
+    sourceUrl: recipe?.sourceUrl ?? null, imageUrl: recipe?.imageUrl ?? null, prepMinutes: recipe?.prepMinutes ?? null, totalMinutes: recipe?.totalMinutes ?? null, archived: recipe?.archived ?? false,
     ingredients: recipe?.ingredients.map(({ name, quantity, unit, preparation, qualifier, category, sort }) => ({ name, quantity, unit, preparation, qualifier, category, sort })) ?? [],
   }))
   // Row ids survive removal/reordering so keyboard focus stays on the ingredient being edited.
@@ -124,6 +126,7 @@ function RecipeEditor({ recipe, onClose, onSaved }: { recipe: Recipe | null; onC
       <fieldset className="meal-fieldset" disabled={busy}>
         <div className="field"><label htmlFor={`${formId}-name`}>Name</label><input type="text" id={`${formId}-name`} required maxLength={200} value={draft.name} onChange={e => update('name', e.target.value)} /></div>
         <div className="field"><label htmlFor={`${formId}-description`}>Description</label><textarea id={`${formId}-description`} maxLength={10000} value={draft.description ?? ''} onChange={e => update('description', e.target.value || null)} /></div>
+        {recipe?.imageUrl && draft.imageUrl && <div className="field"><span className="recipe-photo-label">Photo</span><RecipePhoto id={recipe.id} className="recipe-hero" /><button type="button" className="link-btn" onClick={() => update('imageUrl', null)}>Remove photo</button></div>}
         <div className="field"><label htmlFor={`${formId}-servings`}>Default servings</label><input id={`${formId}-servings`} type="number" required min="0.01" max="10000" step="any" value={draft.defaultServings || ''} onChange={e => update('defaultServings', Number(e.target.value))} /></div>
         <div className="meal-form-row">
           <div className="field"><label htmlFor={`${formId}-total`}>Total time (min)</label><input id={`${formId}-total`} type="number" inputMode="numeric" min="0" max="10000" step="1" value={draft.totalMinutes ?? ''} onChange={e => update('totalMinutes', e.target.value === '' ? null : Number(e.target.value))} /></div>

@@ -3,6 +3,7 @@ import { clockTime, minutesSinceMidnight } from './date.ts'
 import { MEAL_SLOTS, SLOT_LABEL, mealForMember, minutesLabel } from './meal-date.ts'
 import type { Meal } from './meal-types.ts'
 import { EaterAvatars } from './MealSheet.tsx'
+import RecipePhoto from './RecipePhoto.tsx'
 
 /** A glanceable wall card from the Board's own data. Recipe editing stays in the full Meals section. */
 export default function TodaysMeals({ now, today, meals: all }: { now: Date; today: string; meals: Meal[] }) {
@@ -25,6 +26,7 @@ export default function TodaysMeals({ now, today, meals: all }: { now: Date; tod
               <EaterAvatars ids={meal.eaterIds ?? []} members={members} />
               <span className="snap-meta">{[meal.mealKind === 'dining_out' ? 'Dining out' : null, meal.recipeSnapshot?.totalMinutes ? minutesLabel(meal.recipeSnapshot.totalMinutes) : null, assignee ? `Cooking: ${assignee.avatar ?? ''} ${assignee.name}` : null, meal.status !== 'planned' ? meal.status === 'prepared' ? 'Prepared' : 'Handled' : null].filter(Boolean).join(' · ')}</span>
             </span>
+            {meal.mealKind === 'recipe' && meal.recipeId && <RecipePhoto id={meal.recipeId} className="meal-thumb-board" />}
           </a></li>
         }))}
       </ul>}

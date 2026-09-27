@@ -156,6 +156,59 @@ test('recipe card PDF: proxies only the stored https sourceUrl, checks type and 
   }
 });
 
+test('recipe image: proxies only the stored https imageUrl, sniffs the bytes, caps the size, takes ?key=', async () => {
+  const { json, request } = fixture();
+  const realFetch = globalThis.fetch;
+  const fetched: string[] = [];
+  const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]);
+  let reply = (): Response => new Response(jpeg, { headers: { 'Content-Type': 'image/jpeg', ETag: '"v1"' } });
+  globalThis.fetch = (async (url: unknown) => { fetched.push(String(url)); return reply(); }) as typeof fetch;
+  try {
+    const { recipeId, mealId } = await json('/api/recipes/import', 'POST', kit({ date: '2026-03-02', slot: 'dinner' }));
+    const display = await json('/api/keys', 'POST', { name: 'wall', scope: 'display' });
+    for (const path of [`/api/recipes/${recipeId}/image`, `/api/meals/${mealId}/image`]) {
+      // An <img> sends no header: the key rides as ?key=.
+      const res = await request(`${path}?key=${display.key}&url=https://evil.example/x.jpg`, 'GET', undefined, '');
+      assert.equal(res.status, 200, path);
+      assert.equal(res.headers.get('content-type'), 'image/jpeg');
+      assert.equal(res.headers.get('cache-control'), 'private, max-age=604800');
+      assert.equal(res.headers.get('etag'), '"v1"');
+      assert.deepEqual(new Uint8Array(await res.arrayBuffer()), jpeg);
+    }
+    assert.deepEqual(fetched, ['https://example.com/a.jpg', 'https://example.com/a.jpg'], 'never the ?url= param');
+    assert.equal((await request(`/api/recipes/${recipeId}/image`, 'GET', undefined, '')).status, 401, 'no key, no image');
+    assert.equal((await request(`/api/recipes/${recipeId}?key=test-admin`, 'GET', undefined, '')).status, 401, '?key= only on the image path');
+
+    // The type served is what the bytes are; a claimed image that isn't one (or SVG, or HTML) is refused.
+    reply = () => new Response(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0]), { headers: { 'Content-Type': 'application/octet-stream' } });
+    assert.equal((await request(`/api/recipes/${recipeId}/image`)).headers.get('content-type'), 'image/png');
+    reply = () => new Response('<svg xmlns="http://www.w3.org/2000/svg"/>', { headers: { 'Content-Type': 'image/svg+xml' } });
+    assert.equal((await request(`/api/recipes/${recipeId}/image`)).status, 502);
+    reply = () => new Response('<html>nope</html>', { headers: { 'Content-Type': 'image/jpeg' } });
+    assert.equal((await request(`/api/recipes/${recipeId}/image`)).status, 502);
+    // Size cap, whether or not the server declares a length.
+    const big = new Uint8Array(8 * 1024 * 1024 + 1); big.set([0xff, 0xd8, 0xff]);
+    reply = () => new Response(new ReadableStream({ start(c) { c.enqueue(big); c.close(); } }), { headers: { 'Content-Type': 'image/jpeg' } });
+    assert.equal((await request(`/api/recipes/${recipeId}/image`)).status, 502);
+    reply = () => new Response(null, { status: 302, headers: { Location: 'https://10.0.0.1/a.jpg' } });
+    assert.equal((await request(`/api/recipes/${recipeId}/image`)).status, 400);
+
+    fetched.length = 0;
+    await json(`/api/recipes/${recipeId}`, 'PATCH', { imageUrl: 'http://example.com/a.jpg' });
+    assert.equal((await request(`/api/recipes/${recipeId}/image`)).status, 400, 'http refused');
+    // The editor can clear it.
+    assert.equal((await json(`/api/recipes/${recipeId}`, 'PATCH', { imageUrl: null })).imageUrl, null);
+    assert.equal((await request(`/api/recipes/${recipeId}/image`)).status, 404, 'no imageUrl');
+    assert.equal((await request(`/api/meals/${mealId}/image`)).status, 404);
+    assert.equal((await request('/api/recipes/nope/image')).status, 404);
+    const free = await json('/api/meals', 'POST', { date: '2026-03-03', slot: 'lunch', title: 'Soup' });
+    assert.equal((await request(`/api/meals/${free.id}/image`)).status, 404, 'a meal without a recipe');
+    assert.deepEqual(fetched, []);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
 test('recipe times: import, edit, plan (snapshot) and export/import round trip', async () => {
   const { json } = fixture();
   const { recipeId, mealId } = await json('/api/recipes/import', 'POST', { ...kit({ date: '2026-03-02', slot: 'dinner' }), prepMinutes: 10, totalMinutes: 35 });

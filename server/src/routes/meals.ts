@@ -12,7 +12,7 @@ import type { KinwallDb } from '../db.ts';
 import type { Env } from '../env.ts';
 import { createEvent, deleteEvent, updateEvent } from './events.ts';
 import { readSettings } from './settings.ts';
-import { fetchRecipePdf } from '../outbound.ts';
+import { fetchRecipeImage, fetchRecipePdf } from '../outbound.ts';
 
 export const mealsRoutes = createRouter();
 const params = z.object({ id: z.string() });
@@ -39,9 +39,9 @@ mealsRoutes.openapi(createRoute({ method: 'get', path: '/api/recipes/{id}', tags
 async function saveRecipe(db: KinwallDb, input: z.infer<typeof RecipeInputSchema>, old: Recipe | undefined, createdBy: string | null): Promise<Recipe> {
   const id = old?.id ?? crypto.randomUUID();
   const now = new Date().toISOString();
-  const recipe = { description: null, instructions: null, preparationNotes: null, sourceUrl: null, defaultServings: 4, prepMinutes: null, totalMinutes: null, archived: false, ...old, ...input, id, createdAt: old?.createdAt ?? now, updatedAt: now };
-  const writes = [db.prepare(`INSERT INTO recipes (id,name,description,instructions,preparation_notes,source_url,default_servings,prep_minutes,total_minutes,archived,created_by,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,description=excluded.description,instructions=excluded.instructions,preparation_notes=excluded.preparation_notes,source_url=excluded.source_url,default_servings=excluded.default_servings,prep_minutes=excluded.prep_minutes,total_minutes=excluded.total_minutes,archived=excluded.archived,updated_at=excluded.updated_at`)
-    .bind(id, recipe.name, recipe.description, recipe.instructions, recipe.preparationNotes, recipe.sourceUrl, recipe.defaultServings, recipe.prepMinutes ?? null, recipe.totalMinutes ?? null, recipe.archived ? 1 : 0, createdBy, recipe.createdAt, now)];
+  const recipe = { description: null, instructions: null, preparationNotes: null, sourceUrl: null, imageUrl: null, defaultServings: 4, prepMinutes: null, totalMinutes: null, archived: false, ...old, ...input, id, createdAt: old?.createdAt ?? now, updatedAt: now };
+  const writes = [db.prepare(`INSERT INTO recipes (id,name,description,instructions,preparation_notes,source_url,image_url,default_servings,prep_minutes,total_minutes,archived,created_by,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,description=excluded.description,instructions=excluded.instructions,preparation_notes=excluded.preparation_notes,source_url=excluded.source_url,image_url=excluded.image_url,default_servings=excluded.default_servings,prep_minutes=excluded.prep_minutes,total_minutes=excluded.total_minutes,archived=excluded.archived,updated_at=excluded.updated_at`)
+    .bind(id, recipe.name, recipe.description, recipe.instructions, recipe.preparationNotes, recipe.sourceUrl, recipe.imageUrl ?? null, recipe.defaultServings, recipe.prepMinutes ?? null, recipe.totalMinutes ?? null, recipe.archived ? 1 : 0, createdBy, recipe.createdAt, now)];
   if (input.ingredients !== undefined || !old) {
     const previous = [...(old?.ingredients ?? [])];
     const ingredients = (input.ingredients ?? []).map((i: z.infer<typeof IngredientInputSchema>, index) => {
@@ -308,5 +308,20 @@ for (const kind of ['recipes', 'meals'] as const) {
     const result = await fetchRecipePdf(c.env, row.source_url);
     if ('error' in result) return c.json({ error: result.error }, result.status);
     return c.body(result.pdf, 200, { 'Content-Type': 'application/pdf', 'Cache-Control': 'private, max-age=86400', 'Content-Disposition': 'inline' });
+  });
+}
+
+// A recipe's photo (a meal: its recipe's), fetched server-side because the CSP keeps <img> on this
+// origin. Only the record's own stored imageUrl - never a URL from the request. An <img> can't send
+// the Bearer header, so this path also takes ?key= (auth.ts QUERY_KEY_PATH).
+for (const kind of ['recipes', 'meals'] as const) {
+  mealsRoutes.openapi(createRoute({ method: 'get', path: `/api/${kind}/{id}/image`, tags: ['Meals'], summary: `The photo at this ${kind === 'recipes' ? "recipe's" : "meal's recipe's"} imageUrl (public https, JPEG/PNG/WebP/GIF, at most 8 MB)`, security: [{ Bearer: [] }], request: { params },
+    responses: { 200: { description: 'the image', content: { 'image/*': { schema: z.string().openapi({ format: 'binary' }) } } }, 400: errors[400], 404: errors[404], 502: { description: 'the image could not be fetched or is not an image', content: { 'application/json': { schema: ErrorSchema } } } } }), async (c) => {
+    const sql = kind === 'recipes' ? 'SELECT image_url FROM recipes WHERE id = ?' : 'SELECT r.image_url FROM meals m JOIN recipes r ON r.id = m.recipe_id WHERE m.id = ?';
+    const row = await c.env.DB.prepare(sql).bind(c.req.valid('param').id).first<{ image_url: string | null }>();
+    if (!row?.image_url) return c.json({ error: 'no recipe image' }, 404);
+    const result = await fetchRecipeImage(c.env, row.image_url);
+    if ('error' in result) return c.json({ error: result.error }, result.status);
+    return c.body(result.image, 200, { 'Content-Type': result.type, 'Cache-Control': 'private, max-age=604800', ...(result.etag && { ETag: result.etag }) });
   });
 }

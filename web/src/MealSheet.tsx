@@ -5,6 +5,7 @@ import { useDialog } from './dialog.tsx'
 import Sheet from './Sheet.tsx'
 import { BookIcon, CalendarIcon, ChevronRight, TrashIcon } from './icons.tsx'
 import { IngredientList, SourceLink } from './RecipeSheet.tsx'
+import RecipePhoto from './RecipePhoto.tsx'
 import { clockTime } from './date.ts'
 import MealCalendarSheet from './MealCalendarSheet.tsx'
 import { MemberPicker } from './MemberPicker.tsx'
@@ -108,6 +109,7 @@ export default function MealSheet({ meal, initial, recipes, admin, owner, onClos
         {draft.eaterIds.length > 0 && <p className="meal-eaters-row">Eating <EaterAvatars ids={draft.eaterIds} members={members} /></p>}
       </>}
       {snapshot && <section aria-label="Scaled ingredients">
+        {selectedRecipe?.imageUrl && <RecipePhoto id={selectedRecipe.id} className="meal-sheet-photo" />}
         {time && <p className="recipe-time">⏱ {time}{start ? ` · Start by ${clockTime(start)}` : ''}</p>}
         <h3>Ingredients for {servingsLabel(draft.servings)}</h3>
         <IngredientList recipe={snapshot} servings={draft.servings} />

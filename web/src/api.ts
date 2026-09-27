@@ -387,6 +387,9 @@ export const api = {
   photoImageUrl: (p: Pick<Photo, 'id' | 'url'>) => MOCK ? p.url : apiUrl(`api/photos/${p.id}/image?key=${encodeURIComponent(getKey() ?? '')}`),
   /** The same by id alone, for a memory's photo (its own photo isn't in getPhotos). */
   photoImageUrlById: (id: string) => MOCK ? mock.photoUrl(id) : apiUrl(`api/photos/${id}/image?key=${encodeURIComponent(getKey() ?? '')}`),
+  /** A recipe's photo as an <img src> (?key= like photos; the server fetches the recipe's own imageUrl).
+   * null in the demo, which has no server to fetch through, so it shows no photos. */
+  recipeImageUrl: (kind: 'recipes' | 'meals', id: string) => MOCK ? null : apiUrl(`api/${kind}/${encodeURIComponent(id)}/image?key=${encodeURIComponent(getKey() ?? '')}`),
   removeSticker: (memberId: string, id: string) => MOCK ? mock.removeSticker(memberId, id) : del(`api/stickers/scrapbook/${memberId}/${id}`),
 
   getLists: (archived?: boolean) => MOCK ? mock.getLists(archived) : get<List[]>(`api/lists${archived ? '?archived=true' : ''}`),

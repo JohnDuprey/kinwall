@@ -23,7 +23,7 @@ export const IngredientSchema = IngredientInputSchema.extend({
 }).openapi('RecipeIngredient');
 export const RecipeInputSchema = z.object({
   name: z.string().trim().min(1).max(200), description: text.optional(), instructions: text.optional(),
-  preparationNotes: text.optional(), sourceUrl: url.optional(), defaultServings: servings.optional(),
+  preparationNotes: text.optional(), sourceUrl: url.optional(), imageUrl: url.optional().describe('Photo link (served through GET /api/recipes/{id}/image).'), defaultServings: servings.optional(),
   prepMinutes: minutes.optional(), totalMinutes: minutes.optional(),
   archived: z.boolean().optional(), ingredients: z.array(IngredientInputSchema).max(300).optional(),
 }).strict().openapi('RecipeInput');

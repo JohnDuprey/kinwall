@@ -18,6 +18,7 @@ export interface RecipeInput {
   instructions: string | null
   preparationNotes: string | null
   sourceUrl: string | null
+  imageUrl?: string | null // shown through api.recipeImageUrl, never loaded directly
   defaultServings: number
   prepMinutes?: number | null
   totalMinutes?: number | null

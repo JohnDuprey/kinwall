@@ -101,3 +101,12 @@
 .meal-eaters .member-avatar-sm + .member-avatar-sm { margin-left: -6px; }
 .meal-eaters-row { display: flex; align-items: center; gap: 8px; }
 .meal-eaters-hint { margin: -8px 0 16px; }
+/* Recipe photos (RecipePhoto): the recipe view's hero, library covers, and small planner/Board/meal-sheet thumbnails. */
+.recipe-hero { display: block; width: 100%; aspect-ratio: 16 / 9; max-height: 280px; object-fit: cover; border-radius: 12px; background: var(--bg-alt); margin-bottom: 12px; }
+.recipe-photo-label { display: block; font-weight: 700; margin-bottom: 8px; }
+.recipe-card-photo { display: block; width: calc(100% + 40px); margin: -20px -20px 6px; aspect-ratio: 16 / 9; max-height: 160px; object-fit: cover; border-radius: 12px 12px 0 0; background: var(--bg-alt); }
+.meal-card { position: relative; }
+.meal-card:has(.meal-thumb) { padding-right: 60px; }
+.meal-thumb { position: absolute; top: 10px; right: 10px; width: 40px; height: 40px; object-fit: cover; border-radius: 8px; background: var(--bg-alt); }
+.meal-thumb-board { flex: 0 0 auto; width: 44px; height: 44px; object-fit: cover; border-radius: 10px; background: var(--card-soft); }
+.meal-sheet-photo { float: right; width: 96px; height: 72px; margin: 0 0 8px 12px; object-fit: cover; border-radius: 10px; background: var(--bg-alt); }

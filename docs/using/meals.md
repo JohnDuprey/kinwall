@@ -38,6 +38,12 @@ The meal and recipe sheets show their links as rows:
 
 To show a recipe card, the Kinwall server fetches it from the recipe's own source link: only public `https` addresses, a PDF of at most 15 MB. Nothing else is fetched from recipe links; websites aren't imported.
 
+### Recipe photos
+
+An imported recipe usually comes with a photo. It shows at the top of the recipe, on its card in the library, as a small picture on the planned meal in the week planner and the Board's **Today's meals** card, and beside the ingredients in the meal's sheet. A recipe without a photo (or whose photo can't be loaded) just shows no picture. In the recipe editor, **Remove photo** drops it; you can't upload your own photo yet.
+
+Like recipe cards, photos are fetched by the Kinwall server from the recipe's own image link: only public `https` addresses, a JPEG, PNG, WebP or GIF of at most 8 MB, and your browser keeps a private copy for a week.
+
 When you plan a recipe, the meal keeps its own copy of the ingredients. Editing, archiving or deleting the recipe later doesn't change meals already planned. To pick up the recipe's changes, tick **Refresh from the current recipe when saving** in the meal's sheet.
 
 ## Importing recipes
@@ -48,6 +54,7 @@ Recipes can come in from another app instead of being typed. The [Home Assistant
 * Ingredient lines like "1.5 tablespoon Sour Cream", "½ cup Rice" or "2 unit Garlic Clove" are split into amount, unit and name. Anything Kinwall can't read stays in the name.
 * Ingredient lines that repeat the unit abbreviated ("1 teaspoon (tsp) Cooking Oil") drop the abbreviation.
 * Ingredients that ship in the box get the quantity note **in the kit**, shown as an **In the kit** tag. They're on the recipe, but grocery lists leave them off unless you tick them (see below). What you supply yourself (oil, salt, butter) goes on the list like any other ingredient.
+* `imageUrl` is the recipe's photo (see [Recipe photos](#recipe-photos)); importing again without one keeps the photo it has.
 * Steps become the numbered instructions, the recipe card link is the recipe's source link (a PDF card opens in the app), and `prepMinutes` / `totalMinutes` are its times.
 * With a date and slot it's also planned, unless that slot already has a meal. Then nothing is planned and the answer says why (`planned: false`), so an automation can try the next night. Importing again finds the meal it planned before for that slot in the same week, even if you moved it to another night, and doesn't plan it twice.
 
@@ -108,6 +115,7 @@ An admin can turn off **Meals** in **Settings → General** (tap **Change** unde
 | `GET` | `/api/recipes?search=&category=&archived=` | Recipes with their ingredients. |
 | `POST` / `PATCH` / `DELETE` | `/api/recipes`, `/api/recipes/{id}` | Add, edit (`archived: true` archives) or delete a recipe (admin). |
 | `POST` | `/api/recipes/import` | Import or update a recipe by `{ source, externalId }` and optionally plan it (admin). See below. |
+| `GET` | `/api/recipes/{id}/image`, `/api/meals/{id}/image` | The photo at that recipe's own `imageUrl` (a meal: its recipe's), fetched by the server (any signed-in key, display keys too; also `?key=` for an `<img src>`). Public `https` only, redirects re-checked (at most 3), JPEG, PNG, WebP or GIF checked by the file's own bytes (served as what the bytes are, never SVG), at most 8 MB, 15-second timeout, `Cache-Control: private, max-age=604800`, the source's `ETag` passed through. 404 when there's no image, 400 when it isn't a public `https` address, 502 when the fetch fails or isn't an image. Clear a recipe's photo with `PATCH /api/recipes/{id}` `{"imageUrl": null}`. |
 | `GET` | `/api/recipes/{id}/source.pdf`, `/api/meals/{id}/source.pdf` | The PDF recipe card at that recipe's or meal's own `sourceUrl`, fetched by the server (any signed-in key, display keys too). Public `https` only, redirects re-checked (at most 3), `application/pdf` (or `application/octet-stream` starting `%PDF`), at most 15 MB, 15-second timeout, `Cache-Control: private, max-age=86400`. 404 when there's no `sourceUrl`, 400 when it isn't a public `https` address, 502 when the fetch fails or isn't a PDF. |
 | `GET` | `/api/meals?from=&to=` | Meals in a date range (at most 367 days). |
 | `POST` / `PATCH` / `DELETE` | `/api/meals`, `/api/meals/{id}` | Plan, edit or delete a meal (admin; an assigned device may `PATCH` `notes` and `status`). `refreshRecipe: true` replaces the meal's ingredients with the recipe's. |
