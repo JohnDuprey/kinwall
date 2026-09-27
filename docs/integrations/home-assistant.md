@@ -35,3 +35,4 @@ Example ideas:
 * Mark "Feed the cat" done when a smart feeder runs: `POST /api/chores/{id}/complete`.
 * Flash a light when `chore.completed` fires for the last chore of the day.
 * Add "Dishwasher tablets" to the groceries when a sensor runs low: `POST /api/lists/{id}/items`.
+* Move a Nintendo Switch bedtime later for the day when a kid gets a "Nintendo Switch" [reward](../using/rewards.md), and put it back at midnight. There's a ready-made blueprint for this in the [Home Assistant integration repo](https://github.com/JohnDuprey/kinwall-homeassistant#blueprints), triggered by `reward.redeemed` and `reward.approved`.
