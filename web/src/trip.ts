@@ -60,6 +60,12 @@ export function anyStoreView<T extends TripItem>(items: T[], order: AisleOrder) 
   return { aisles: names.map(s => ({ aisle: s || 'Anywhere', items: stores.get(s)!.sort(cmp(s)) })), unknown: [] as T[], other: [] as T[] }
 }
 
+/** What a trip at `store` didn't get, at Checkout: the unchecked items planned for that store or for
+ * anywhere (items planned for other stores weren't on this trip). Any store: every unchecked item. */
+export function tripLeftovers<T extends Pick<ListItem, 'store' | 'done'>>(items: T[], store: string): T[] {
+  return items.filter(i => !i.done && (store === ANY_STORE || !i.store || i.store === store))
+}
+
 // Shopping mode (#/lists/<id>/shop): the list it's showing on this device, so a reload or a
 // relaunched app returns to it. Only while that list's trip is on (Checkout ends both).
 const SHOP_KEY = 'kinwall.shopping'

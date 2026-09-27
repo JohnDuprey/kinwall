@@ -8,7 +8,7 @@ import { notifyListUpdate } from '../notify.ts';
 import { parseMemberIds, resolveMemberIds } from '../calendar-members.ts';
 import { eventWriteBlock } from '../auth.ts';
 import type { Context } from 'hono';
-import { fillPlace, itemKey, recall, rememberPlace } from '../item-memory.ts';
+import { SUGGESTION_CAP, fillPlace, itemKey, nameSuggestions, recall, rememberName, rememberPlace } from '../item-memory.ts';
 import {
   ErrorSchema,
   ListDetailSchema,
@@ -333,7 +333,9 @@ listsRoutes.openapi(
   async (c) => {
     const { id } = c.req.valid('param');
     // One round trip: list + items + groups + both suggestion lists, all independent reads.
-    const [listRes, itemsRes, groupsRes, stepsRes, storesRes, categoriesRes, tzRes, notesRes, aislesRes, orderRes, mealsRes, placesRes] = await c.env.DB.batch<unknown>([
+    const shoppingOnly = "(SELECT kind FROM lists WHERE id = ?) = 'shopping'";
+    const topNames = `SELECT name_key FROM item_names ORDER BY uses DESC, last_used DESC LIMIT ${SUGGESTION_CAP}`;
+    const [listRes, itemsRes, groupsRes, stepsRes, storesRes, categoriesRes, tzRes, notesRes, aislesRes, orderRes, mealsRes, placesRes, namesRes, namePlacesRes, ingredientsRes] = await c.env.DB.batch<unknown>([
       c.env.DB.prepare('SELECT * FROM lists WHERE id = ?').bind(id),
       c.env.DB.prepare('SELECT * FROM list_items WHERE list_id = ?').bind(id), // ordered below, by the list's sortBy
       c.env.DB.prepare('SELECT * FROM list_groups WHERE list_id = ? ORDER BY kind, sort').bind(id),
@@ -355,6 +357,10 @@ listsRoutes.openapi(
         `SELECT li.id AS item_id, m.store, m.aisle FROM list_items li JOIN item_memory m ON m.name_key = li.name_key
          WHERE li.list_id = ? AND (SELECT kind FROM lists WHERE id = ?) = 'shopping' ORDER BY m.updated_at DESC`,
       ).bind(id, id),
+      // Autocomplete (shopping lists): remembered names, where they go, and recipe ingredients.
+      c.env.DB.prepare(`SELECT name_key, title, uses FROM item_names WHERE ${shoppingOnly} ORDER BY uses DESC, last_used DESC LIMIT ${SUGGESTION_CAP}`).bind(id),
+      c.env.DB.prepare(`SELECT name_key, store, category, aisle FROM item_memory WHERE ${shoppingOnly} AND name_key IN (${topNames}) ORDER BY updated_at DESC`).bind(id),
+      c.env.DB.prepare(`SELECT DISTINCT ri.name, ri.category FROM recipe_ingredients ri JOIN recipes r ON r.id = ri.recipe_id WHERE ${shoppingOnly} AND r.archived = 0 ORDER BY ri.name`).bind(id),
     ]);
     const noteCounts = new Map((notesRes.results as { target_id: string; n: number }[]).map((r) => [r.target_id, r.n]));
     const list = (listRes.results as ListRow[])[0];
@@ -387,7 +393,14 @@ listsRoutes.openapi(
         list: toApi(list, items.length, openCount),
         items: apiItems,
         groups: groups.map(toGroupApi),
-        suggestions: { stores, categories, aisles },
+        suggestions: {
+          stores,
+          categories,
+          aisles,
+          ...(list.kind === 'shopping'
+            ? { items: nameSuggestions(namesRes.results as never, namePlacesRes.results as never, ingredientsRes.results as never, tripStore) }
+            : {}),
+        },
         aisleOrder: [...aisleOrder].map(([store, names]) => ({ store: store || null, aisles: names })),
         ...(tripStore ? { trip: tripView(apiItems, tripStore, aisleOrder, aisles.filter((a) => a.store === tripStore).map((a) => a.aisle)) } : {}),
       },
@@ -581,6 +594,7 @@ listsRoutes.openapi(
           ),
         ),
         ...(shopping ? rows.map((r) => rememberPlace(c.env.DB, r.title, r, now)).filter((st) => st !== null) : []),
+        ...(shopping ? rows.map((r) => rememberName(c.env.DB, r.title, now)) : []),
       ]);
       emit(c, 'list.item.changed', { listId: id, ids: rows.map((r) => r.id) });
       let execCtx: Parameters<typeof notifyListUpdate>[1];
@@ -694,6 +708,8 @@ listsRoutes.openapi(
             trip ? rememberPlace(c.env.DB, updated.title, { store: trip.store, category: updated.category, aisle: trip.aisle }, now) : null,
           ].filter((st) => st !== null)
         : []),
+      // A rename is the spelling to suggest from now on (not another use).
+      ...(existing.shopping && body.title !== undefined && updated.title !== existing.title ? [rememberName(c.env.DB, updated.title, now, 0)] : []),
     ]);
     emit(c, 'list.item.changed', { listId: id, id: itemId, done: !!updated.done });
     return c.json((await loadItem(c.env.DB, id, itemId))!, 200);
@@ -861,6 +877,27 @@ listsRoutes.openapi(
     ]);
     emit(c, 'list.changed', { aisles: store });
     return c.json({ store, aisles: unique }, 200);
+  },
+);
+
+listsRoutes.openapi(
+  createRoute({
+    method: 'delete',
+    path: '/api/lists/remembered/{key}',
+    tags: ['Lists'],
+    summary: 'Forget a remembered item name (key: its matching key from suggestions.items): it stops being suggested, and where it goes is forgotten. Items on lists keep it.',
+    security: [{ Bearer: [] }],
+    request: { params: z.object({ key: z.string() }) },
+    responses: { 200: { description: 'ok', content: { 'application/json': { schema: z.object({ ok: z.boolean() }) } } } },
+  }),
+  async (c) => {
+    const { key } = c.req.valid('param');
+    await c.env.DB.batch([
+      c.env.DB.prepare('DELETE FROM item_names WHERE name_key = ?').bind(key),
+      c.env.DB.prepare('DELETE FROM item_memory WHERE name_key = ?').bind(key),
+    ]);
+    emit(c, 'list.changed', { forgot: key });
+    return c.json({ ok: true }, 200);
   },
 );
 

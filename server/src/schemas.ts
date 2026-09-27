@@ -588,6 +588,20 @@ export const ListDetailSchema = z
       stores: z.array(z.string()),
       categories: z.array(z.string()),
       aisles: z.array(z.object({ store: z.string().nullable(), aisle: z.string() })),
+      // Shopping lists: names to autocomplete, most used first (up to 300) - remembered from past adds
+      // on any shopping list, then recipe ingredients (uses 0). key is the matching key; place is
+      // where it goes at ?store=, else its newest store.
+      items: z
+        .array(
+          z.object({
+            title: z.string(),
+            key: z.string(),
+            uses: z.number(),
+            category: z.string().optional(),
+            place: z.object({ store: z.string(), aisle: z.string().nullable() }).optional(),
+          }),
+        )
+        .optional(),
     }),
     // Stores whose aisles have a custom walking order (aisle sort and grouping follow it).
     aisleOrder: z.array(z.object({ store: z.string().nullable(), aisles: z.array(z.string()) })),

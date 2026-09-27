@@ -234,7 +234,7 @@ test('meals: large projections apply all ingredients with a bounded SQL batch', 
   await json('/api/meals', 'POST', { date: dates.from, slot: 'dinner', recipeId: recipe.id });
   const projection = await shoppingProjection(db, dates.from, dates.to, list.id);
   const boundedDb = { prepare: db.prepare.bind(db), batch: <T = unknown>(statements: Parameters<typeof db.batch>[0]) => {
-    assert.equal(statements.length, 3); return db.batch<T>(statements);
+    assert.equal(statements.length, 4); return db.batch<T>(statements); // items, their names, their sources, the read-back
   } };
   const added = await applyProjection(boundedDb, projection, list.id, [], true);
   assert.equal(added.length, 125);

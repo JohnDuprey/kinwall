@@ -551,13 +551,23 @@ export interface ListGroup {
   sort: number
 }
 
+/** A name to autocomplete on a shopping list (remembered from past adds household-wide, or a recipe
+ * ingredient with uses 0), most used first. key is the matching key (itemSuggest.ts itemKey). */
+export interface ItemSuggestion {
+  title: string
+  key: string
+  uses: number
+  category?: string
+  place?: { store: string; aisle: string | null }
+}
+
 /** GET /api/lists/{id} response. suggestions are the store/category/aisle values known anywhere
  * in the household (items and remembered places), for the item sheet's pickers. */
 export interface ListDetail {
   list: List
   items: ListItem[]
   groups: ListGroup[]
-  suggestions: { stores: string[]; categories: string[]; aisles: { store: string | null; aisle: string }[] }
+  suggestions: { stores: string[]; categories: string[]; aisles: { store: string | null; aisle: string }[]; items?: ItemSuggestion[] }
   aisleOrder: { store: string | null; aisles: string[] }[] // stores with a custom aisle walking order
 }
 

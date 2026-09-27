@@ -4,6 +4,7 @@ import type { OnlineTidbits, Plugin, PluginCatalogEntry,
   Photo, PhotoQuota, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, ListItem, ListItemInput, ListItemPatch, ListItemStep, Member, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption,
 } from './types.ts'
 import { aisleOrderMap, compareItems } from './types.ts'
+import { itemKey } from './itemSuggest.ts'
 import { dateKey } from './date.ts'
 
 const uid = () => crypto.randomUUID()
@@ -257,6 +258,20 @@ const placesOf = (title: string) => {
 }
 // The market's usual spots for things on the list that are planned for "anywhere" or the club.
 const seenAt = (title: string, store: string, aisle: string) => remembered.push(seedItem({ id: uid(), listId: '', title, notes: null, quantity: null, store, aisle, category: null, memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 0, createdAt: minsAgo(9000), updatedAt: minsAgo(9000) }))
+// Autocomplete: every shopping name seen (the server's item_names, roughly), most used first,
+// plus a few from past trips.
+const pastGroceries = ['Bananas', 'Banana milk', 'Bagels', 'Baby spinach', 'Basil', 'Blueberries', 'Butter', 'Cheddar', 'Coffee', 'Oat milk', 'Yogurt', 'Tortillas', 'Rice', 'Pasta']
+const forgotten = new Set<string>()
+function nameSuggestions() {
+  const out = new Map<string, { title: string; key: string; uses: number; category?: string; place?: { store: string; aisle: string | null } }>()
+  const shopping = new Set(lists.filter(l => l.kind === 'shopping').map(l => l.id))
+  for (const i of [...remembered, ...listItems.filter(i => shopping.has(i.listId))].sort((a, b) => a.updatedAt.localeCompare(b.updatedAt))) {
+    const key = itemKey(i.title), was = out.get(key)
+    out.set(key, { title: i.title, key, uses: (was?.uses ?? 0) + 1, category: i.category ?? was?.category, place: i.store ? { store: i.store, aisle: i.aisle ?? null } : was?.place })
+  }
+  pastGroceries.forEach((title, n) => { const key = itemKey(title); if (!out.has(key)) out.set(key, { title, key, uses: pastGroceries.length - n }) })
+  return [...out.values()].filter(s => !forgotten.has(s.key)).sort((a, b) => b.uses - a.uses)
+}
 recomputeListCounts('l1')
 let listGroups: ListGroup[] = []
 const minsAgo = (m: number) => new Date(Date.now() - m * 60_000).toISOString()
@@ -630,7 +645,7 @@ export const mock = {
     const categories = uniq(known.map(i => i.category))
     const aisles = [...new Map([...known.filter(i => i.aisle).map(i => ({ store: i.store, aisle: i.aisle! })), ...aisleOrder.flatMap(o => o.aisles.map(aisle => ({ store: o.store, aisle })))]
       .map(a => [`${a.store}|${a.aisle}`, a])).values()]
-    return { list: l, items, groups, suggestions: { stores, categories, aisles }, aisleOrder }
+    return { list: l, items, groups, suggestions: { stores, categories, aisles, ...(l.kind === 'shopping' ? { items: nameSuggestions() } : {}) }, aisleOrder }
   },
   updateList: async (id: string, patch: Partial<List>) => {
     const l = lists.find(x => x.id === id); if (!l) throw new Error('not found')
@@ -733,6 +748,9 @@ export const mock = {
     if (field === 'store') aisleOrder = to ? aisleOrder.map(o => o.store === from ? { ...o, store: to } : o) : aisleOrder.filter(o => o.store !== from)
     if (field === 'aisle') aisleOrder = aisleOrder.map(o => o.store !== (store ?? null) ? o : { ...o, aisles: to ? o.aisles.map(a => a === from ? to : a) : o.aisles.filter(a => a !== from) })
     bump(); return { updated }
+  },
+  forgetItemName: async (key: string) => {
+    forgotten.add(key); remembered = remembered.filter(i => itemKey(i.title) !== key); bump(); return { ok: true }
   },
   setStoreAisles: async (store: string | null, aisles: string[]) => {
     aisleOrder = [...aisleOrder.filter(o => o.store !== store), ...(aisles.length ? [{ store, aisles }] : [])]

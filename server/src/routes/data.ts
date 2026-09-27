@@ -128,6 +128,8 @@ const ExportSchema = z
     // (nameKey is the matching key, store '' = none), and stores' aisle walking orders.
     itemMemory: z.array(z.object({ nameKey: z.string(), store: z.string(), category: z.string().nullable(), aisle: z.string().nullable(), updatedAt: z.string() })),
     storeAisles: z.array(z.object({ store: z.string(), aisles: z.array(z.string()) })),
+    // Names to autocomplete on shopping lists (0041): the spelling last used and how often.
+    itemNames: z.array(z.object({ nameKey: z.string(), title: z.string(), uses: z.number(), lastUsed: z.string() })),
     passkeys: z.array(z.object({ name: z.string(), createdAt: z.string() })),
     webhooks: z.array(WebhookSchema),
   })
@@ -289,6 +291,8 @@ dataRoutes.openapi(
         mealShoppingSources: (await db.prepare('SELECT list_id, source_ref, item_id, fingerprint FROM meal_shopping_sources ORDER BY list_id, source_ref').all<{ list_id: string; source_ref: string; item_id: string; fingerprint: string }>()).results.map((r) => ({ listId: r.list_id, sourceRef: r.source_ref, itemId: r.item_id, fingerprint: r.fingerprint })),
         itemMemory: (await db.prepare('SELECT name_key, store, category, aisle, updated_at FROM item_memory ORDER BY name_key, store').all<{ name_key: string; store: string; category: string | null; aisle: string | null; updated_at: string }>()).results
           .map((r) => ({ nameKey: r.name_key, store: r.store, category: r.category, aisle: r.aisle, updatedAt: r.updated_at })),
+        itemNames: (await db.prepare('SELECT name_key, title, uses, last_used FROM item_names ORDER BY name_key').all<{ name_key: string; title: string; uses: number; last_used: string }>()).results
+          .map((r) => ({ nameKey: r.name_key, title: r.title, uses: r.uses, lastUsed: r.last_used })),
         storeAisles: (await db.prepare('SELECT store, aisle FROM store_aisles ORDER BY store, sort').all<{ store: string; aisle: string }>()).results
           .reduce<{ store: string; aisles: string[] }[]>((out, r) => {
             if (out.at(-1)?.store !== r.store) out.push({ store: r.store, aisles: [] });
@@ -329,6 +333,7 @@ const ImportSchema = ExportSchema.extend({
   mealShoppingSources: ExportSchema.shape.mealShoppingSources.default([]),
   itemMemory: ExportSchema.shape.itemMemory.default([]),
   storeAisles: ExportSchema.shape.storeAisles.default([]),
+  itemNames: ExportSchema.shape.itemNames.default([]),
 }).openapi('Import');
 
 const ImportResultSchema = z
@@ -360,6 +365,7 @@ const ImportResultSchema = z
       mealShoppingSources: z.number(),
       itemMemory: z.number(),
       storeAisles: z.number(),
+      itemNames: z.number(),
     }),
     // Synced calendars waiting to be reconnected (imported placeholders, from this or an earlier import).
     needsReconnect: z.array(z.object({ id: z.string(), kind: z.string(), name: z.string() })),
@@ -710,6 +716,7 @@ dataRoutes.openapi(
       // A store's aisle order in the file replaces this instance's order for that store.
       db.prepare('DELETE FROM store_aisles WHERE store IN (SELECT value FROM json_each(?))').bind(JSON.stringify(body.storeAisles.map((a) => a.store))),
       ...upserts(db, 'store_aisles', 'store, aisle', body.storeAisles.flatMap((a) => [...new Set(a.aisles)].map((aisle, sort) => ({ store: a.store, aisle, sort })))),
+      ...upserts(db, 'item_names', 'name_key', body.itemNames.map((n) => ({ name_key: n.nameKey, title: n.title, uses: n.uses, last_used: n.lastUsed })), { where: 'excluded.last_used > item_names.last_used' }),
     ];
     if (writes.length) await db.batch(writes);
 
@@ -758,6 +765,7 @@ dataRoutes.openapi(
           mealShoppingSources: mealSources.length,
           itemMemory: body.itemMemory.length,
           storeAisles: body.storeAisles.length,
+          itemNames: body.itemNames.length,
         },
         needsReconnect: (await db.prepare("SELECT id, kind, name FROM calendars WHERE kind != 'local' AND config = '' ORDER BY name").all<{ id: string; kind: string; name: string }>()).results,
         skipped: {
