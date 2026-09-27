@@ -738,6 +738,7 @@ function ColorControls({ scheme, householdScheme, onScheme, household, device, s
   // The family's schemes are edited on parent devices; any device can add one (saved for the family)
   // and switch itself to it.
   const { parentDevice, reloadCore } = useApp()
+  const dialog = useDialog()
   const customs = household.customSchemes ?? []
   const { skin } = resolveColors(household, device)
   const [editing, setEditing] = useState<{ draft: CustomScheme; isNew: boolean; fromLegacy?: boolean } | null>(null)
@@ -811,8 +812,26 @@ function ColorControls({ scheme, householdScheme, onScheme, household, device, s
           )}
         </select>
       </div>
+      {/* The family's saved schemes, each editable or deletable without selecting it first. */}
+      {parentDevice && !householdScheme && customs.length > 0 && (
+        <ul className="scheme-list" aria-label="Your schemes">
+          {customs.map(c => {
+            const [bg, , accent] = dotsFor(c.id as ColorScheme)
+            return (
+              <li key={c.id} className="scheme-list-row">
+                <span className="scheme-swatch" aria-hidden="true" style={{ background: `linear-gradient(135deg, ${bg} 50%, ${accent} 50%)` }} />
+                <span className="scheme-list-name">{c.emoji || '🎨'} {c.name}{household.colorScheme === c.id && <span className="scheme-list-note"> · in use</span>}</span>
+                <button className="btn btn-secondary" onClick={() => setEditing({ draft: c, isNew: false })} aria-label={`Edit ${c.name}`}>Edit</button>
+                <button className="btn btn-danger" aria-label={`Delete ${c.name}`} onClick={async () => {
+                  if (await dialog.confirm({ title: `Delete ${c.name}?`, body: 'Screens using it go back to Peach.', confirmLabel: 'Delete', danger: true })) deleteScheme(c)
+                }}>Delete</button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
       <div className="scheme-actions">
-        {parentDevice && activeCustom && <button className="btn btn-secondary" onClick={() => setEditing({ draft: activeCustom, isNew: false })}>Edit {activeCustom.name}</button>}
+        {parentDevice && !!householdScheme && activeCustom && <button className="btn btn-secondary" onClick={() => setEditing({ draft: activeCustom, isNew: false })}>Edit {activeCustom.name}</button>}
         {customs.length < 10 && (
           <button className="btn btn-secondary" onClick={() => setEditing({ draft: startFrom(skin, activeCustom ? `${skin.name} copy` : `My ${skin.name}`), isNew: true })}>＋ New scheme</button>
         )}

@@ -737,6 +737,11 @@ button {
 .skin-dots span { width: 10px; height: 10px; border-radius: 50%; border: 1px solid var(--border); display: inline-block; }
 .scheme-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .scheme-picker { display: flex; align-items: center; gap: 10px; }
+.scheme-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.scheme-list-row { display: flex; align-items: center; gap: 10px; }
+.scheme-list-name { flex: 1; min-width: 0; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scheme-list-note { color: var(--text-dim); font-weight: 600; }
+.scheme-list-row .btn { flex: none; min-height: 40px; padding: 0 14px; }
 .scheme-select { flex: 1; min-width: 0; }
 .scheme-swatch.scheme-swatch-lg { width: 32px; height: 32px; }
 .scheme-swatch { width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--border); flex-shrink: 0; }
