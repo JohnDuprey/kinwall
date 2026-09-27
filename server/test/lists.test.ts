@@ -54,12 +54,17 @@ test('lists: create/list, and computed itemCount/openCount', async () => {
   assert.equal(found.openCount, 2);
 });
 
-test('lists: shopping defaults to groupBy category, others to none; explicit groupBy wins', async () => {
+test('lists: shopping defaults to groupBy aisle, others to none; explicit groupBy wins; groceries never group by category', async () => {
   const env = makeEnv();
   const request = makeApp(env);
 
   const shopping = await json(await request('/api/lists', { method: 'POST', body: JSON.stringify({ name: 'Costco', kind: 'shopping' }) }));
-  assert.equal(shopping.groupBy, 'category');
+  assert.equal(shopping.groupBy, 'aisle');
+  // A grocery list grouped by category (from before departments) reads as aisle; a to-do list keeps it.
+  const byCategory = await json(await request('/api/lists', { method: 'POST', body: JSON.stringify({ name: 'Old groceries', kind: 'shopping', groupBy: 'category' }) }));
+  assert.equal(byCategory.groupBy, 'aisle');
+  const todoByCategory = await json(await request('/api/lists', { method: 'POST', body: JSON.stringify({ name: 'Errands', kind: 'todo', groupBy: 'category' }) }));
+  assert.equal(todoByCategory.groupBy, 'category');
 
   const todo = await json(await request('/api/lists', { method: 'POST', body: JSON.stringify({ name: 'Chores', kind: 'todo' }) }));
   assert.equal(todo.groupBy, 'none');

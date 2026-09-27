@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { createApp } from '../src/app.ts';
 import { openDb, applyMigrations } from '../src/d1-sqlite.ts';
 import { itemKey } from '../src/item-memory.ts';
+import { departmentAisle } from '../src/routes/lists.ts';
 import { mealWrite } from '../src/meals.ts';
 import type { KinwallDb } from '../src/db.ts';
 import type { Env } from '../src/env.ts';
@@ -251,6 +252,26 @@ test('groceries: list detail carries each item\'s remembered aisle per store; ?s
   // Over MCP.
   const viaMcp = await tool('get_list', { list: 'Groceries', store: 'Warehouse club' });
   assert.deepEqual(viaMcp.trip.items.map((i: any) => [i.title, i.aisle, i.section]), [['Milk', 'Aisle 2', 'aisle'], ['Soap', null, 'unknown'], ['Bread', 'Bakery', 'other'], ['Stamps', null, 'other']]);
+});
+
+test('groceries: a department fills in the trip store\'s aisle of the same name (not saved); a real aisle wins', async () => {
+  assert.equal(departmentAisle(' produce ', ['Aisle 1', 'Produce']), 'Produce');
+  assert.equal(departmentAisle('Bakery', ['Produce']), null);
+  const { send, tool } = makeApp();
+  const list = await shoppingList(send);
+  await send('PUT', '/api/lists/aisles', { store: 'Shaws', aisles: ['Produce', 'Aisle 1'] });
+  await send('POST', `/api/lists/${list.id}/items`, [
+    { title: 'Apples', store: null, category: 'produce' }, // department only: Produce at Shaws
+    { title: 'Carrots', store: 'Shaws', category: 'Produce', aisle: 'Aisle 1' }, // its own aisle wins
+    { title: 'Bread', store: null, category: 'Bakery' }, // Shaws has no Bakery aisle
+  ]);
+  const trip = (await send('GET', `/api/lists/${list.id}?store=Shaws`)).trip;
+  assert.deepEqual(trip.items.map((i: any) => [i.title, i.aisle, i.section]), [['Apples', 'Produce', 'aisle'], ['Carrots', 'Aisle 1', 'aisle'], ['Bread', null, 'unknown']]);
+  const viaMcp = await tool('get_list', { list: 'Groceries', store: 'Shaws' });
+  assert.deepEqual(viaMcp.trip.items[0], trip.items[0]);
+  // Inferred, not written: the item itself still has no aisle.
+  const apples = (await send('GET', `/api/lists/${list.id}`)).items.find((i: any) => i.title === 'Apples');
+  assert.equal(apples.aisle, null);
 });
 
 test('groceries: setting an aisle on a trip remembers it for the trip store; an anywhere item stays anywhere', async () => {

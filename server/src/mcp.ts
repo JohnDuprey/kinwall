@@ -169,6 +169,7 @@ const BIRTHDAY_DOC = 'YYYY-MM-DD, or --MM-DD when the year is unknown (age is th
 const NOTE_TARGET_DOC = 'event:<eventId> (from list_events) or list_item:<itemId> (from get_list).';
 const SORT_BY_DOC = 'Item order: manual (priority first, overdue first, then hand-set order), added (newest first), due (soonest first, undated last), priority (priority, then soonest due), alpha (A-Z), aisle (shopping lists: by store, then the store\'s aisle order - custom when set, else natural - no aisle last, then A-Z; the default for new shopping lists).';
 const AISLE_DOC = 'Where in the store, e.g. "Aisle 4", "Produce" or "Back wall" (per store).';
+const CATEGORY_DOC = 'On a shopping list this is the department (e.g. "Produce"): with no aisle known at a store, the item shows in that store\'s aisle of the same name.';
 const REMEMBER_DOC = 'On a shopping list, an omitted store/category/aisle is filled from what the family used last time for that item name.';
 const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
   list_recipes: { recipes: z.array(RecipeSchema) }, get_recipe: { recipe: RecipeSchema }, create_recipe: { recipe: RecipeSchema }, update_recipe: { recipe: RecipeSchema },
@@ -981,7 +982,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'create_list',
     {
       title: 'Create list',
-      description: 'Create a list. Kinds: shopping (grouped by store/category), todo (items can have an assignee and due date), reusable (packing lists, routines - can be reset).',
+      description: 'Create a list. Kinds: shopping (grouped by aisle or store; an item\'s category is its department), todo (items can have an assignee and due date), reusable (packing lists, routines - can be reset).',
       inputSchema: {
         name: z.string().describe('List name, e.g. "Groceries".'),
         kind: z.enum(['shopping', 'todo', 'reusable']).optional().describe('Default: todo.'),
@@ -1007,7 +1008,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'get_list',
     {
       title: 'Get list',
-      description: 'Get a list by id or name (case-insensitive), including its items (in the list sortBy order, each with its ordered steps and, on a shopping list, the aisle it was kept in at each store), group ordering, store/category/aisle suggestions and stores\' aisle orders. With store, also `trip`: the list as shopped at that store - items in aisle order with their aisle there, then those with no aisle known there, then those planned for other stores.',
+      description: 'Get a list by id or name (case-insensitive), including its items (in the list sortBy order, each with its ordered steps and, on a shopping list, the aisle it was kept in at each store), group ordering, store/category/aisle suggestions and stores\' aisle orders. With store, also `trip`: the list as shopped at that store - items in aisle order with their aisle there, then those with no aisle known there, then those planned for other stores. An item with no aisle known there whose category (department) names one of the store\'s aisles, any case, shows in that aisle (not saved).',
       inputSchema: { list: z.string().describe('List id or name.'), store: z.string().optional().describe('Shopping at this store: adds the trip view.') },
     },
     async ({ list, store }) => {
@@ -1041,7 +1042,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
               notes: z.string().optional(),
               quantity: z.string().optional().describe('Free text, e.g. "2" or "1 lb".'),
               store: z.string().optional(),
-              category: z.string().optional(),
+              category: z.string().optional().describe(CATEGORY_DOC),
               aisle: z.string().optional().describe(AISLE_DOC),
               member: z.string().optional().describe('Member name or id to assign this item to.'),
               dueDate: z.string().optional().describe('YYYY-MM-DD.'),
@@ -1254,7 +1255,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         emoji: z.string().optional(),
         members: jsonList(z.array(z.string())).optional().describe('Owner member names or ids; [] = the whole family.'),
         sortBy: z.enum(['manual', 'added', 'due', 'priority', 'alpha', 'aisle']).optional().describe(SORT_BY_DOC),
-        groupBy: z.enum(['store', 'category', 'aisle', 'none']).optional().describe('Shopping lists: group items under store, category or aisle headings, or none.'),
+        groupBy: z.enum(['store', 'category', 'aisle', 'none']).optional().describe('Group items under store, category or aisle headings, or none. Shopping lists group by aisle, store or none (category reads as aisle there); category is for to-do and reusable lists.'),
         keepChecked: z.boolean().optional().describe('Checked items stay in place, crossed off, until Checkout (or Reset). Default on for shopping and reusable lists, off for to-do lists.'),
         archived: z.boolean().optional(),
       },
@@ -1287,7 +1288,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         notes: z.string().nullable().optional(),
         quantity: z.string().nullable().optional(),
         store: z.string().nullable().optional(),
-        category: z.string().nullable().optional(),
+        category: z.string().nullable().optional().describe(CATEGORY_DOC),
         aisle: z.string().nullable().optional().describe(`${AISLE_DOC} null to clear.`),
         member: z.string().nullable().optional().describe('Member name or id to assign; null to unassign.'),
         dueDate: z.string().nullable().optional().describe('YYYY-MM-DD, or null to clear.'),

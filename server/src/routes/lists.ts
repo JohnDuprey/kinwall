@@ -79,7 +79,7 @@ export function toApi(row: ListRow, itemCount: number, openCount: number) {
     color: row.color,
     kind: row.kind,
     memberIds: parseMemberIds(row.member_ids),
-    groupBy: row.group_by,
+    groupBy: row.kind === 'shopping' && row.group_by === 'category' ? 'aisle' : row.group_by, // groceries group by aisle; a department fills it in
     sortBy: row.sort_by ?? 'manual',
     keepChecked: !!row.keep_checked,
     sort: row.sort,
@@ -137,16 +137,25 @@ export function compareAisles(store: string | null | undefined, a: string | null
   return natural(a, b);
 }
 
-type TripItem = { id: string; title: string; quantity: string | null; done: boolean; store: string | null; aisle: string | null; places?: { store: string | null; aisle: string | null }[] };
+type TripItem = { id: string; title: string; quantity: string | null; done: boolean; store: string | null; aisle: string | null; category?: string | null; places?: { store: string | null; aisle: string | null }[] };
+
+/** A department (the category field) that names one of the store's aisles (any case) stands in for
+ * an aisle not known there: "Produce" lands in the store's Produce aisle. Display only - never
+ * saved. Same rule as web/src/trip.ts departmentAisle. */
+export function departmentAisle(department: string | null | undefined, storeAisles: string[]): string | null {
+  const d = department?.trim().toLowerCase();
+  return (d && storeAisles.find((a) => a.toLowerCase() === d)) || null;
+}
 
 /** The list as shopped at `store` (ListTripSchema; web/src/trip.ts is the client's copy - keep in
  * step). An item planned for this store or for anywhere shows its aisle here: its own when its
- * store is this one, else the one remembered for this store. */
-export function tripView(items: TripItem[], store: string, order: AisleOrder) {
+ * store is this one, else the one remembered for this store, else its department's (storeAisles:
+ * the aisle names known at this store). */
+export function tripView(items: TripItem[], store: string, order: AisleOrder, storeAisles: string[] = []) {
   const title = (a: { title: string }, b: { title: string }) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' });
   const rows = items.map((i) => {
     const other = !!i.store && i.store !== store;
-    const aisle = other ? i.aisle : (i.store === store && i.aisle) || i.places?.find((p) => p.store === store)?.aisle || null;
+    const aisle = other ? i.aisle : (i.store === store && i.aisle) || i.places?.find((p) => p.store === store)?.aisle || departmentAisle(i.category, storeAisles);
     return { id: i.id, title: i.title, quantity: i.quantity, done: i.done, store: i.store, aisle, section: other ? ('other' as const) : aisle ? ('aisle' as const) : ('unknown' as const) };
   });
   const rank = { aisle: 0, unknown: 1, other: 2 };
@@ -239,9 +248,9 @@ async function taskLinkBlock(c: Context<{ Bindings: Env }>, ids: (string | null 
 // Notes on list items (routes/notes.ts): no FK, so every path that deletes items deletes their notes.
 const ITEM_NOTES = "target_type = 'list_item' AND target_id";
 
-// shopping defaults to grouping by category, sorted by aisle; todo/reusable to no grouping, manual.
+// shopping defaults to grouping and sorting by aisle; todo/reusable to no grouping, manual.
 function defaultGroupBy(kind: ListRow['kind']): ListRow['group_by'] {
-  return kind === 'shopping' ? 'category' : 'none';
+  return kind === 'shopping' ? 'aisle' : 'none';
 }
 const defaultKeepChecked = (kind: ListRow['kind']) => (kind === 'todo' ? 0 : 1);
 
@@ -380,7 +389,7 @@ listsRoutes.openapi(
         groups: groups.map(toGroupApi),
         suggestions: { stores, categories, aisles },
         aisleOrder: [...aisleOrder].map(([store, names]) => ({ store: store || null, aisles: names })),
-        ...(tripStore ? { trip: tripView(apiItems, tripStore, aisleOrder) } : {}),
+        ...(tripStore ? { trip: tripView(apiItems, tripStore, aisleOrder, aisles.filter((a) => a.store === tripStore).map((a) => a.aisle)) } : {}),
       },
       200,
     );
