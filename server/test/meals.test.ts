@@ -89,6 +89,7 @@ test('meals: applying projections is explicit, overlapping/concurrent calls are 
   assert.equal(groceries.length, 3);
   assert.deepEqual(groceries.map((i: any) => i.quantity), ['already have 1', '3', '2']);
   assert.match(groceries[1].notes, /2026-10-05 · dinner · Tacos/);
+  assert.doesNotMatch(groceries[1].notes, /\(Tacos\)/, 'no recipe name in parentheses when the title is the recipe');
   await json(`/api/meals/${meal.id}`, 'PATCH', { servings: 8 });
   const changed = await json(`/api/meals/projection?${range}&listId=${list.id}`);
   assert.equal(changed.items.find((i: any) => i.name === 'Tomatoes').changedSinceApplied, true);
@@ -217,12 +218,12 @@ test('meals: daily summary includes the local day meal plan, including dining ou
   const { runNotifications } = await import('../src/notify.ts');
   const { env, json } = fixture();
   await json('/api/settings', 'PATCH', { timezone: 'Pacific/Auckland' });
-  await json('/api/meals', 'POST', { date: '2030-03-04', slot: 'dinner', title: 'Pizza Hut', mealKind: 'dining_out' });
+  await json('/api/meals', 'POST', { date: '2030-03-04', slot: 'dinner', title: 'Pizza place', mealKind: 'dining_out' });
   await json('/api/meals', 'POST', { date: '2030-03-03', slot: 'dinner', title: 'Yesterday' });
   await runNotifications(env, new Date('2030-03-03T18:30:00Z')); // March 4, 07:30 NZDT
   const feed = await json('/api/notifications');
   const summary = feed.find((n: any) => n.kind === 'summary');
-  assert.match(summary.body, /Meals: Dinner · Pizza Hut/);
+  assert.match(summary.body, /Meals: Dinner · Pizza place/);
   assert.doesNotMatch(summary.body, /Yesterday/);
 });
 

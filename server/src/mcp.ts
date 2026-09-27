@@ -279,7 +279,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     const result = await call(app, env, auth, 'PATCH', `/api/meals/${encodeURIComponent(id)}`, input);
     return result.status >= 400 ? errorResult(result.json, 'failed to update meal') : okResult('Meal updated', { meal: result.json });
   });
-  tool('get_meal_projection', { title: 'Preview meal groceries', description: 'Review scaled ingredients, per-meal/day sources, existing list matches, applied and changed amounts before applying. Ambiguous amounts need review. Select a shopping list to include matches and prior applications; no list returns an unscoped preview.', inputSchema: { ...ProjectionQuerySchema.shape, listName: z.string().optional().describe('Shopping list name, case-insensitive; use this or listId. listId takes precedence.') } }, async ({ from, to, listId, listName }) => {
+  tool('get_meal_projection', { title: 'Preview meal groceries', description: 'Admin: review scaled ingredients, per-meal/day sources, existing list matches, applied and changed amounts before applying. Ambiguous amounts need review. Select a shopping list to include matches and prior applications; no list returns an unscoped preview.', inputSchema: { ...ProjectionQuerySchema.shape, listName: z.string().optional().describe('Shopping list name, case-insensitive; use this or listId. listId takes precedence.') } }, async ({ from, to, listId, listName }) => {
     try {
       if (!listId && listName) listId = (await resolveList(app, env, auth, listName)).id;
     } catch (err) {

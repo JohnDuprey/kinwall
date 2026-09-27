@@ -12,17 +12,23 @@ export function canonicalUnit(value: string | null): { unit: string | null; fact
   const aliases: Record<string, string> = { cups: 'cup', lbs: 'lb', pound: 'lb', pounds: 'lb', ounces: 'oz', ounce: 'oz', grams: 'g', gram: 'g', kilograms: 'kg', kilogram: 'kg', teaspoons: 'tsp', teaspoon: 'tsp', tablespoons: 'tbsp', tablespoon: 'tbsp', milliliters: 'ml', liters: 'l' };
   return { unit: aliases[unit] ?? unit, factor: 1, scalable: !/^(packages?|packs?|cans?|jars?|bunch(es)?|pinch(es)?|handfuls?)$/.test(unit) };
 }
+/** Whether an amount scales with servings (clients read it off each ingredient rather than re-deriving it). */
+export function isScalable(i: { quantity: number | null; unit: string | null; qualifier: string | null }): boolean {
+  return i.quantity !== null && !i.qualifier && canonicalUnit(i.unit).scalable;
+}
 export type RecipeRow = { id: string; name: string; description: string | null; instructions: string | null; preparation_notes: string | null; source_url: string | null; default_servings: number; archived: number; created_at: string; updated_at: string };
 export type IngredientRow = { id: string; recipe_id: string; name: string; normalized_name: string; quantity: number | null; unit: string | null; preparation: string | null; qualifier: string | null; category: string | null; sort: number };
 export type MealRow = { id: string; date: string; slot: Meal['slot']; title: string; meal_kind: Meal['mealKind']; recipe_id: string | null; recipe_snapshot: string | null; servings: number; assignee_member_id: string | null; notes: string | null; planned_time: string | null; calendar_event_id: string | null; status: Meal['status']; source_url: string | null; created_at: string; updated_at: string };
 export function ingredientApi(r: IngredientRow): Ingredient {
-  return { id: r.id, name: r.name, normalizedName: r.normalized_name, quantity: r.quantity, unit: r.unit, preparation: r.preparation, qualifier: r.qualifier, category: r.category, sort: r.sort };
+  return { id: r.id, name: r.name, normalizedName: r.normalized_name, quantity: r.quantity, unit: r.unit, preparation: r.preparation, qualifier: r.qualifier, category: r.category, sort: r.sort, scalable: isScalable(r) };
 }
 export function recipeApi(r: RecipeRow, ingredients: Ingredient[]): Recipe {
   return { id: r.id, name: r.name, description: r.description, instructions: r.instructions, preparationNotes: r.preparation_notes, sourceUrl: r.source_url, defaultServings: r.default_servings, archived: !!r.archived, ingredients, createdAt: r.created_at, updatedAt: r.updated_at };
 }
+// Snapshots saved before ingredients carried `scalable` get it on the way out.
+const snapshotApi = (s: NonNullable<Meal['recipeSnapshot']>) => ({ ...s, ingredients: s.ingredients.map((i) => ({ ...i, scalable: isScalable(i) })) });
 export function mealApi(r: MealRow): Meal {
-  return { id: r.id, date: r.date, slot: r.slot, title: r.title, mealKind: r.meal_kind, recipeId: r.recipe_id, recipeSnapshot: r.recipe_snapshot ? JSON.parse(r.recipe_snapshot) : null, servings: r.servings, assigneeMemberId: r.assignee_member_id, notes: r.notes, plannedTime: r.planned_time, calendarEventId: r.calendar_event_id, status: r.status, sourceUrl: r.source_url, createdAt: r.created_at, updatedAt: r.updated_at };
+  return { id: r.id, date: r.date, slot: r.slot, title: r.title, mealKind: r.meal_kind, recipeId: r.recipe_id, recipeSnapshot: r.recipe_snapshot ? snapshotApi(JSON.parse(r.recipe_snapshot)) : null, servings: r.servings, assigneeMemberId: r.assignee_member_id, notes: r.notes, plannedTime: r.planned_time, calendarEventId: r.calendar_event_id, status: r.status, sourceUrl: r.source_url, createdAt: r.created_at, updatedAt: r.updated_at };
 }
 export async function readRecipes(db: KinwallDb, opts: { id?: string; search?: string; archived?: boolean; category?: string } = {}): Promise<Recipe[]> {
   const [recipes, ingredients] = await db.batch<unknown>([
@@ -68,7 +74,7 @@ export async function shoppingProjection(db: KinwallDb, from: string, to: string
     for (const ing of snapshot.ingredients) {
       const normalizedName = normalizeIngredient(ing.name);
       const unit = canonicalUnit(ing.unit);
-      const scalable = ing.quantity !== null && !ing.qualifier && unit.scalable;
+      const scalable = ing.scalable;
       const sourceRef = `meal-plan:${meal.id}:ingredient:${ing.id}`;
       // Ambiguous quantities remain individual requirements with their original amount and servings.
       const key = JSON.stringify([normalizedName, unit.unit, scalable ? null : sourceRef]);
@@ -97,7 +103,7 @@ export async function applyProjection(db: KinwallDb, projection: Projection, lis
     id: crypto.randomUUID(), name: item.name, category: item.category, qualifier: item.qualifier,
     suffix: `${item.unit ? ` ${item.unit}` : ''}${item.qualifier ? ` · ${item.qualifier}` : ''}`,
     sources: item.sources.map((s) => ({ ref: s.sourceRef, quantity: s.quantity, fingerprint: sourceFingerprint(s, item.key),
-      note: includeNotes ? `${s.date} · ${s.slot} · ${s.title} (${s.recipeName})${s.preparation ? ` · ${s.preparation}` : ''}${!s.scalable ? ` · check amount for ${s.servings} servings (recipe: ${s.defaultServings})` : ''}` : null,
+      note: includeNotes ? `${s.date} · ${s.slot} · ${s.title}${s.title === s.recipeName ? '' : ` (${s.recipeName})`}${s.preparation ? ` · ${s.preparation}` : ''}${!s.scalable ? ` · check amount for ${s.servings} servings (recipe: ${s.defaultServings})` : ''}` : null,
     })),
   }));
   // json_each keeps the batch's statement/parameter count small on D1 even for large plans.

@@ -70,11 +70,11 @@ export class D1Sqlite implements KinwallDb {
     return new D1PreparedStatement(this.#db, sql, [], this.#counter);
   }
 
-  batch<T = unknown>(stmts: KinwallStatement[]): { results: T[] }[] {
+  batch<T = unknown>(stmts: D1PreparedStatement[]): { results: T[] }[] {
     if (this.#counter) this.#counter.count++;
     this.#db.exec('BEGIN');
     try {
-      const out = stmts.map((s) => s instanceof D1PreparedStatement ? s.rawAll<T>() : s.all<T>() as { results: T[] });
+      const out = stmts.map((s) => s.rawAll<T>());
       this.#db.exec('COMMIT');
       return out;
     } catch (err) {

@@ -614,7 +614,7 @@ test('mcp: meal planning preserves route authorization and returns resolution/va
   const display = await (await rest('/api/keys', { method: 'POST', body: JSON.stringify({ name: 'Emma device', scope: 'display' }) })).json() as any;
   for (const [name, args] of [
     ['create_recipe', { name: 'Denied' }], ['update_recipe', { id: recipe.id, archived: true }],
-    ['create_meal', mealInput], ['apply_meal_projection', { ...range, listName: 'Groceries' }],
+    ['create_meal', mealInput], ['get_meal_projection', { ...range, listId: list.id }], ['apply_meal_projection', { ...range, listName: 'Groceries' }],
   ] as const) await fail(name, args, /display key cannot access/, display.key);
   await fail('update_meal', { id: meal.id, notes: 'Denied' }, /Only admins/, display.key);
   assert.equal((await rest(`/api/keys/${display.id}`, { method: 'PATCH', body: JSON.stringify({ owner: emma.id }) })).status, 200);
@@ -624,7 +624,7 @@ test('mcp: meal planning preserves route authorization and returns resolution/va
   await fail('update_meal', { id: meal.id, member: null }, /Only admins/, display.key);
   await fail('update_meal', { id: meal.id, title: 'Denied' }, /Only admins/, display.key);
   for (const [name, args] of [
-    ['list_recipes', {}], ['get_recipe', { id: recipe.id }], ['list_meals', range], ['get_meal_projection', { ...range, listId: list.id }],
+    ['list_recipes', {}], ['get_recipe', { id: recipe.id }], ['list_meals', range],
   ] as const) assert.notEqual((await call(name, args, display.key)).isError, true, name);
   assert.equal((await call('get_recipe', { id: recipe.id })).structuredContent.recipe.archived, false);
   assert.equal((await call('get_list', { list: list.id })).structuredContent.items.length, 0);

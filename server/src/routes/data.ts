@@ -190,9 +190,6 @@ dataRoutes.openapi(
     c.header('Content-Disposition', `attachment; filename="kinwall-export-${date.slice(0, 10)}.json"`);
     return c.json(
       {
-        recipes: await readRecipes(db, { archived: true }),
-        meals: await readMeals(db, '0000-01-01', '9999-12-31'),
-        mealShoppingSources: (await db.prepare('SELECT list_id, source_ref, item_id, fingerprint FROM meal_shopping_sources ORDER BY list_id, source_ref').all<{ list_id: string; source_ref: string; item_id: string; fingerprint: string }>()).results.map((r) => ({ listId: r.list_id, sourceRef: r.source_ref, itemId: r.item_id, fingerprint: r.fingerprint })),
         version: EXPORT_VERSION,
         exportedAt: date,
         settings: await readSettings(db),
@@ -266,6 +263,9 @@ dataRoutes.openapi(
         stickerPacks: (stickerPacks as { member_id: string; pack_id: string; unlocked_at: string }[]).map((r) => ({ memberId: r.member_id, packId: r.pack_id, unlockedAt: r.unlocked_at })),
         scrapbook: (scrapbook as PlacementRow[]).map(toPlacementApi),
         trackers: (trackers as TrackerRow[]).map(toTrackerApi),
+        recipes: await readRecipes(db, { archived: true }),
+        meals: await readMeals(db, '0000-01-01', '9999-12-31'),
+        mealShoppingSources: (await db.prepare('SELECT list_id, source_ref, item_id, fingerprint FROM meal_shopping_sources ORDER BY list_id, source_ref').all<{ list_id: string; source_ref: string; item_id: string; fingerprint: string }>()).results.map((r) => ({ listId: r.list_id, sourceRef: r.source_ref, itemId: r.item_id, fingerprint: r.fingerprint })),
         passkeys: (passkeys as { name: string; created_at: string }[]).map((p) => ({ name: p.name, createdAt: p.created_at })),
         webhooks: (webhooks as WebhookRow[]).map(webhookToApi),
       },

@@ -2,9 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import { openDb, applyMigrations } from '../src/d1-sqlite.ts';
-import { applyProjection, mealWrite, readMeals, shoppingProjection } from '../src/meals.ts';
+import { applyProjection, isScalable, mealWrite, readMeals, shoppingProjection } from '../src/meals.ts';
 import { MealDateSchema, MealRangeSchema, ProjectionApplySchema, ProjectionQuerySchema } from '../src/meal-schemas.ts';
 import type { Ingredient, Meal } from '../src/meal-schemas.ts';
+import type { KinwallDb } from '../src/db.ts';
 
 const range = { from: '2026-10-05', to: '2026-10-11' };
 const now = '2026-09-26T12:00:00.000Z';
@@ -19,7 +20,8 @@ function database() {
 }
 
 function ingredient(id: string, name: string, quantity: number | null, unit: string | null = null, extra: Partial<Ingredient> = {}): Ingredient {
-  return { id, name, normalizedName: name.toLowerCase(), quantity, unit, preparation: null, qualifier: null, category: null, sort: 0, ...extra };
+  const i = { id, name, normalizedName: name.toLowerCase(), quantity, unit, preparation: null, qualifier: null, category: null, sort: 0, ...extra };
+  return { ...i, scalable: isScalable(i) };
 }
 
 function meal(id: string, ingredients: Ingredient[], extra: Partial<Meal> = {}): Meal {
@@ -33,7 +35,7 @@ function meal(id: string, ingredients: Ingredient[], extra: Partial<Meal> = {}):
 
 test('meal projection: scales snapshots, normalizes names and compatible units, retains incompatible units', async () => {
   const db = database();
-  await db.batch([
+  await (db as KinwallDb).batch([
     mealWrite(db, meal('monday', [
       ingredient('chicken', 'Chicken', 2, 'lbs'),
       ingredient('eggs', ' Eggs ', 1, 'dozen'),
@@ -62,7 +64,7 @@ test('meal projection: ambiguous amounts are not scaled or merged; dining out an
     ingredient('pasta', 'Pasta', 1, 'package'),
     ingredient('pepper', 'Pepper', 1, 'tsp', { qualifier: 'as needed' }),
   ];
-  await db.batch([
+  await (db as KinwallDb).batch([
     mealWrite(db, meal('one', ingredients, { servings: 8 })),
     mealWrite(db, meal('two', ingredients, { servings: 2 })),
     // Even a stale snapshot on a non-recipe row cannot generate shopping requirements.
@@ -81,7 +83,7 @@ test('meal projection: ambiguous amounts are not scaled or merged; dining out an
 test('meal projection: ranges include both boundaries and keep calendar dates through DST and year changes', async () => {
   const db = database();
   const dates = ['2026-10-04', range.from, range.to, '2026-10-12', '2026-11-01', '2026-12-31', '2027-01-01'];
-  await db.batch(dates.map((date) => mealWrite(db, meal(date, [], { date }))));
+  await (db as KinwallDb).batch(dates.map((date) => mealWrite(db, meal(date, [], { date }))));
   for (const slot of ['snack', 'lunch', 'breakfast'] as const) {
     await mealWrite(db, meal(slot, [], { date: range.from, slot })).run();
   }
@@ -139,7 +141,7 @@ test('meal projection: omit, existing matches, source notes, stale preview retri
 
 test('meal projection: overlapping ranges claim each contribution once, including competing stale previews', async () => {
   const db = database();
-  await db.batch([
+  await (db as KinwallDb).batch([
     mealWrite(db, meal('Monday', [ingredient('a', 'Tomatoes', 2)])),
     mealWrite(db, meal('Wednesday', [ingredient('b', 'Tomatoes', 3)], { date: '2026-10-07' })),
   ]);

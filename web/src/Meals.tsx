@@ -74,7 +74,7 @@ export default function Meals() {
   const shownRecipes = recipes.filter(recipe => (filter === 'all' || recipe.archived === (filter === 'archived')) && (!category || recipe.ingredients.some(i => i.category === category)) && `${recipe.name} ${recipe.description ?? ''} ${recipe.ingredients.map(i => i.name).join(' ')}`.toLocaleLowerCase().includes(needle))
   return <div className="meals-view scroll-y">
     <div className="meals-heading"><div><h1>Meals</h1><p className="field-hint">What are we eating, and what do we need to buy?</p></div>
-      <div className="meal-actions"><button className="btn btn-secondary" onClick={() => setProjection(true)}>Shopping projection</button>{admin && <button className="btn btn-primary" onClick={() => view === 'week' ? setEditing({ meal: null, initial: { date: today, slot: 'dinner' } }) : setRecipeSheet({ recipe: null })}><PlusIcon /> {view === 'week' ? 'Plan meal' : 'New recipe'}</button>}</div>
+      <div className="meal-actions">{admin && <button className="btn btn-secondary" onClick={() => setProjection(true)}>Shopping projection</button>}{admin && <button className="btn btn-primary" onClick={() => view === 'week' ? setEditing({ meal: null, initial: { date: today, slot: 'dinner' } }) : setRecipeSheet({ recipe: null })}><PlusIcon /> {view === 'week' ? 'Plan meal' : 'New recipe'}</button>}</div>
     </div>
     <Segmented tabs idBase="meals-tab" label="Meals sections" value={view} onChange={setView} options={[{ key: 'week', label: 'Week planner' }, { key: 'recipes', label: 'Recipe library' }]} />
     {authError && <p role="alert" className="field-error">{authError} <button className="link-btn" onClick={() => setTick(t => t + 1)}>Retry</button></p>}

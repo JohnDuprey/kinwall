@@ -108,7 +108,7 @@ test('meal hardening: API range boundaries and slot ordering; changing to dining
   assert.deepEqual(found.map((m) => m.slot), ['breakfast', 'lunch', 'dinner', 'snack', 'dinner']);
   assert.equal(found[0].plannedTime, null);
   assert.equal(found.at(-1)!.id, boundary.id);
-  const dining = await json<Meal>('PATCH', `/api/meals/${boundary.id}`, { mealKind: 'dining_out', title: 'Pizza Hut' });
+  const dining = await json<Meal>('PATCH', `/api/meals/${boundary.id}`, { mealKind: 'dining_out', title: 'Pizza place' });
   assert.deepEqual([dining.recipeId, dining.recipeSnapshot, dining.mealKind], [null, null, 'dining_out']);
   assert.deepEqual((await json<Projection>('GET', `/api/meals/projection?${query}`)).items, []);
   await json('DELETE', `/api/meals/${entries[0].id}`);
@@ -146,7 +146,8 @@ test('meal hardening: display authorization covers every mutation and binds note
   const unassigned = await meal();
   const shopping = await list();
   for (const key of [assigned, ...others]) {
-    for (const path of ['/api/recipes', `/api/recipes/${r.id}`, `/api/meals?${query}`, `/api/meals/${m.id}`, `/api/meals/projection?${query}`]) await json('GET', path, undefined, 200, key);
+    for (const path of ['/api/recipes', `/api/recipes/${r.id}`, `/api/meals?${query}`, `/api/meals/${m.id}`]) await json('GET', path, undefined, 200, key);
+    await json('GET', `/api/meals/projection?${query}`, undefined, 403, key);
     for (const [method, path, body] of [
       ['POST', '/api/recipes', { name: 'Unauthorized' }], ['PATCH', `/api/recipes/${r.id}`, { archived: true }],
       ['DELETE', `/api/recipes/${r.id}`, undefined], ['POST', '/api/meals', { date: dates.from, slot: 'dinner', title: 'Unauthorized' }],

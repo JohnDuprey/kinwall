@@ -48,8 +48,8 @@ test('export: seeded household has every section and no credentials', async () =
     const text = await res.text();
     const body = JSON.parse(text);
     assert.deepEqual(Object.keys(body), [
-      'recipes', 'meals', 'mealShoppingSources', 'version', 'exportedAt', 'settings', 'members', 'categories', 'calendars', 'events', 'eventMemberOverrides', 'eventCategoryOverrides',
-      'eventTravelOverrides', 'eventSeriesMemberOverrides', 'eventSeriesCategoryOverrides', 'chores', 'choreCompletions', 'lists', 'notes', 'pointEntries', 'stickerPacks', 'scrapbook', 'trackers', 'passkeys', 'webhooks',
+      'version', 'exportedAt', 'settings', 'members', 'categories', 'calendars', 'events', 'eventMemberOverrides', 'eventCategoryOverrides',
+      'eventTravelOverrides', 'eventSeriesMemberOverrides', 'eventSeriesCategoryOverrides', 'chores', 'choreCompletions', 'lists', 'notes', 'pointEntries', 'stickerPacks', 'scrapbook', 'trackers', 'recipes', 'meals', 'mealShoppingSources', 'passkeys', 'webhooks',
     ]);
     assert.equal(body.members[0].name, 'Ada');
     assert.equal(body.calendars.length, 2);

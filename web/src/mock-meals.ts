@@ -7,11 +7,14 @@ import type { Meal, MealInput, Recipe, RecipeInput, ShoppingProjection } from '.
 // Keep the same Sunday–Saturday menu on the current local week, including across DST changes.
 const dates = mealWeek(dateKey(new Date()), 0)
 const stamp = `${dates[0]}T12:00:00.000Z`
+// The server's rule (server/src/meals.ts isScalable), which the API sends as ingredient.scalable.
+const isScalable = (i: { quantity: number | null; unit: string | null; qualifier: string | null }) =>
+  i.quantity !== null && !i.qualifier && !/^(packages?|packs?|cans?|jars?|bunch(es)?|pinch(es)?|handfuls?)$/i.test(i.unit?.trim() ?? '')
 type SeedIngredient = [name: string, quantity: number | null, unit: string | null, category: string, preparation?: string, qualifier?: string]
 const seedRecipe = (id: string, name: string, description: string, instructions: string, preparationNotes: string, ingredients: SeedIngredient[]): Recipe => ({
   id: `demo-${id}`, name, description, defaultServings: 4, instructions, preparationNotes, sourceUrl: null, archived: false,
   ingredients: ingredients.map(([name, quantity, unit, category, preparation, qualifier], sort) => ({
-    id: `demo-${id}-${sort}`, name, normalizedName: name.toLowerCase(), quantity, unit, category, preparation: preparation ?? null, qualifier: qualifier ?? null, sort,
+    id: `demo-${id}-${sort}`, name, normalizedName: name.toLowerCase(), quantity, unit, category, preparation: preparation ?? null, qualifier: qualifier ?? null, sort, scalable: isScalable({ quantity, unit, qualifier: qualifier ?? null }),
   })), createdAt: stamp, updatedAt: stamp,
 })
 let recipes: Recipe[] = [
@@ -125,7 +128,7 @@ async function projection(from: string, to: string, listId: string | null): Prom
       const aliases: Record<string, string> = { cups: 'cup', lbs: 'lb', pound: 'lb', pounds: 'lb', ounces: 'oz', ounce: 'oz', grams: 'g', gram: 'g', kilograms: 'kg', kilogram: 'kg', teaspoons: 'tsp', teaspoon: 'tsp', tablespoons: 'tbsp', tablespoon: 'tbsp', milliliters: 'ml', liters: 'l' }
       const dozen = ['dozen', 'dozens', 'doz'].includes(rawUnit)
       const unit = dozen || ['', 'each', 'count', 'piece', 'pieces'].includes(rawUnit) ? null : aliases[rawUnit] ?? rawUnit
-      const scalable = ingredient.quantity !== null && !ingredient.qualifier && !/^(packages?|packs?|cans?|jars?|bunch(es)?|pinch(es)?|handfuls?)$/.test(rawUnit)
+      const { scalable } = ingredient
       const key = JSON.stringify([normalizedName, unit, scalable ? null : ref])
       const quantity = ingredient.quantity === null ? null : scalable ? ingredient.quantity * (dozen ? 12 : 1) * meal.servings / snapshot.defaultServings : ingredient.quantity
       const applied = claims.has(`${listId}:${ref}`)
@@ -151,7 +154,7 @@ export async function mockMealRequest(path: string, options: RequestInit): Promi
     if (id && !old) throw new Error('Recipe not found')
     if (method === 'DELETE') { recipes = recipes.filter(r => r.id !== id); meals = meals.map(m => m.recipeId === id ? { ...m, recipeId: null } : m); return { ok: true } }
     const input = body as Partial<RecipeInput>
-    const saved: Recipe = { ...recipe, ...old, ...input, id: old?.id ?? crypto.randomUUID(), ingredients: input.ingredients?.map((i, sort) => ({ ...i, id: old?.ingredients.find(previous => normalize(previous.name) === normalize(i.name) && previous.unit === i.unit)?.id ?? crypto.randomUUID(), normalizedName: normalize(i.name), sort })) ?? old?.ingredients ?? [], createdAt: old?.createdAt ?? new Date().toISOString(), updatedAt: new Date().toISOString() }
+    const saved: Recipe = { ...recipe, ...old, ...input, id: old?.id ?? crypto.randomUUID(), ingredients: input.ingredients?.map((i, sort) => ({ ...i, id: old?.ingredients.find(previous => normalize(previous.name) === normalize(i.name) && previous.unit === i.unit)?.id ?? crypto.randomUUID(), normalizedName: normalize(i.name), sort, scalable: isScalable(i) })) ?? old?.ingredients ?? [], createdAt: old?.createdAt ?? new Date().toISOString(), updatedAt: new Date().toISOString() }
     recipes = [...recipes.filter(r => r.id !== saved.id), saved]; return saved
   }
   if (id === 'projection') {

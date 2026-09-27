@@ -16,6 +16,7 @@ export const IngredientInputSchema = z.object({
 export const IngredientSchema = IngredientInputSchema.extend({
   id: z.string(), normalizedName: z.string(), quantity: z.number().min(0).nullable(), unit: z.string().nullable(),
   preparation: z.string().nullable(), qualifier: z.string().nullable(), category: z.string().nullable(), sort: z.number().int(),
+  scalable: z.boolean(), // the amount scales with servings (a count or measure, not a can, jar or bunch, and no qualifier)
 }).openapi('RecipeIngredient');
 export const RecipeInputSchema = z.object({
   name: z.string().trim().min(1).max(200), description: text.optional(), instructions: text.optional(),

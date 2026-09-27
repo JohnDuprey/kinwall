@@ -11,7 +11,7 @@ export interface IngredientInput {
   category: string | null
   sort: number
 }
-export interface RecipeIngredient extends IngredientInput { id: string; normalizedName: string }
+export interface RecipeIngredient extends IngredientInput { id: string; normalizedName: string; scalable: boolean /* amount scales with servings */ }
 export interface RecipeInput {
   name: string
   description: string | null

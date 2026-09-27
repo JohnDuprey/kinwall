@@ -13,7 +13,7 @@ const emptyIngredient = (): IngredientInput => ({ name: '', quantity: null, unit
 export function IngredientList({ recipe, servings }: { recipe: RecipeSnapshot; servings: number }) {
   return <ul className="meal-ingredients">
     {recipe.ingredients.map(ingredient => {
-      const scalable = ingredient.quantity !== null && !ingredient.qualifier && !/^(packages?|packs?|cans?|jars?|bunch(es)?|pinch(es)?|handfuls?)$/i.test(ingredient.unit?.trim() ?? '')
+      const { scalable } = ingredient
       const amount = scalable ? ingredient.quantity! * servings / recipe.defaultServings : ingredient.quantity
       return <li key={ingredient.id}>
         <strong>{ingredient.name}</strong> — {ingredientAmount(amount, ingredient.unit, ingredient.qualifier) || 'As needed'}
