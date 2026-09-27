@@ -6,7 +6,7 @@ When you have only one way in, a banner at the top suggests a second parent devi
 
 ## Wall screens & kids' devices
 
-Shared wall screens and kids' tablets or phones, paired with a code. Each has a display key: the calendar, chores and lists, but not settings. On chores, a display ticks them off and undoes that; adding, editing and deleting chores needs a parent device. **Add a wall screen or kid's device** opens a sheet asking for the 6-digit **Code** shown on the screen and a **Name**, and **Who uses it**: **Shared (the whole family)** or one member, then **Add it**. Scanning the screen's QR code with your phone works too. A device that belongs to one member shows only their events, chores and lists, and credits "Anyone" chores done there to them. The display itself can't change this; each display in the list has a picker to change it here. Displays paired before this option show "Chosen on the device" until you pick one. Removing a display signs it out. See [Put it on the wall](../getting-started/put-it-on-the-wall.md).
+Shared wall screens and kids' tablets or phones, paired with a code. Each has a display key: the calendar, chores and lists, but not settings. On chores, a display ticks them off and undoes that; adding, editing and deleting chores needs a parent device. **Add a wall screen or kid's device** opens a sheet asking for the 6-digit **Code** shown on the screen and a **Name**, and **Who uses it**: **Anyone (whole family)** or one member, then **Add it**. Scanning the screen's QR code with your phone works too. A device that belongs to one member shows only their events, chores and lists, and credits "Anyone" chores done there to them. The display itself can't change this; each display in the list has a picker to change it here. Displays paired before this option show "Chosen on the device" until you pick one. Removing a display signs it out. See [Put it on the wall](../getting-started/put-it-on-the-wall.md).
 
 What a display can change on the calendar:
 
@@ -32,12 +32,12 @@ Phones and computers that sign in with a passkey. Parents (admins) can change ev
 
 Apps connected through OAuth sign-in, such as a Claude connector pointed at `https://<your-kinwall>/mcp` or the Kinwall app on a phone. Each shows **Full access** or **Everyday access**, when it was connected and when it was last used. Delete one to disconnect it ("It will need to be approved again to use Kinwall"). See [MCP server](../integrations/mcp.md).
 
-The Kinwall app also has a picker for whose device it is: **Shared (the whole family)** or one member, chosen on the consent screen ("Whose device is this?") and changeable here. What it does depends on the access:
+The Kinwall app also has a picker for whose device it is: **Anyone (whole family)** or one member, chosen on the consent screen ("Whose device is this?") and changeable here. What it does depends on the access:
 
 * **Everyday access** (a kid's phone): like a paired display, the app shows only that member's events, chores and lists.
 * **Full access** (a parent's phone): nothing is locked. The family filter starts on everyone and every member stays selectable. The owner is only used for personal defaults, such as who notes are posted as and whose sticker book opens first.
 
-The widgets and Apple Watch key the app makes from that sign-in follow it on a kid's device (everyday access), so they show only that child. On a parent's phone (full access) they're **Shared** and show the whole family. They're listed under **Wall screens & kids' devices**, where you can change them separately. An app signed in before this option shows "Chosen on the device" until you pick one. Other connected apps (Claude and other MCP clients) have no owner.
+The widgets and Apple Watch key the app makes from that sign-in follow it on a kid's device (everyday access), so they show only that child. On a parent's phone (full access) they're **Shared** and show the whole family. They're listed under **Wall screens & kids' devices**, where you can change them separately. An app signed in before this option shows **Anyone** until you pick someone. The phone you are using is marked **This device** and shows whose it is; change it from another parent device. Other connected apps (Claude and other MCP clients) have no owner.
 
 ## API Keys
 

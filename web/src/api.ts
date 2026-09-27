@@ -443,7 +443,7 @@ export const api = {
   // OAuth consent (#/authorize) and Settings → Access → Connected apps.
   authorizationRequest: (qs: string) => get<{ clientName: string; redirectHost: string; requestedScope: 'admin' | 'display'; deviceApp?: boolean }>(`api/authorizations/request?${qs}`, true),
   decideAuthorization: (body: Record<string, string | undefined>) => post<{ redirect: string }>('api/authorizations/approve', body, true),
-  getAuthorizations: () => MOCK ? Promise.resolve([]) : get<{ id: string; clientName: string; scope: 'admin' | 'display'; approvedBy: string | null; createdAt: string; lastUsedAt: string | null; owner: string | null; deviceApp: boolean }[]>('api/authorizations'),
+  getAuthorizations: () => MOCK ? Promise.resolve([]) : get<{ id: string; clientName: string; scope: 'admin' | 'display'; approvedBy: string | null; createdAt: string; lastUsedAt: string | null; owner: string | null; deviceApp: boolean; current?: boolean }[]>('api/authorizations'),
   setAuthorizationOwner: (id: string, owner: string) => patch<{ ok: boolean; owner: string }>(`api/authorizations/${id}`, { owner }),
   revokeAuthorization: (id: string) => del(`api/authorizations/${id}`),
 
