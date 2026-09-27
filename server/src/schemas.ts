@@ -405,8 +405,12 @@ export const ChoreDaySchema = ChoreSchema.extend({
 
 // manual: open items by priority (urgent, high, normal, low), overdue first within each, then the
 // hand-set order. priority: the same, then soonest due. added: newest first. due: soonest first,
-// undated last. alpha: A-Z, case-insensitive.
-export const ListSortBySchema = z.enum(['manual', 'added', 'due', 'priority', 'alpha']);
+// undated last. alpha: A-Z, case-insensitive. aisle (shopping lists): by store, then aisle - the
+// store's own aisle order when set, else natural order ("Aisle 2" before "Aisle 10") - items with
+// no aisle last, then A-Z. The default for new shopping lists.
+export const ListSortBySchema = z.enum(['manual', 'added', 'due', 'priority', 'alpha', 'aisle']);
+export const ListGroupBySchema = z.enum(['store', 'category', 'aisle', 'none']);
+const KeepCheckedDoc = 'Checked items stay in place, crossed off, until Checkout (or Reset on a reusable list). Default: on for shopping and reusable lists, off for to-do lists (which move checked items to a Done section).';
 export const ListItemPrioritySchema = z.enum(['low', 'normal', 'high', 'urgent']);
 
 export const ListSchema = z
@@ -417,8 +421,9 @@ export const ListSchema = z
     color: z.string().nullable(),
     kind: z.enum(['todo', 'shopping', 'reusable']),
     memberIds: z.array(z.string()),
-    groupBy: z.enum(['store', 'category', 'none']),
+    groupBy: ListGroupBySchema,
     sortBy: ListSortBySchema, // item order within each group
+    keepChecked: z.boolean().openapi({ description: KeepCheckedDoc }),
     sort: z.number(),
     archived: z.boolean(),
     createdAt: z.string(),
@@ -434,8 +439,9 @@ export const ListInputSchema = z
     emoji: EmojiSchema.nullable().optional(),
     color: z.string().nullable().optional(),
     memberIds: z.array(z.string()).optional(),
-    groupBy: z.enum(['store', 'category', 'none']).optional(),
+    groupBy: ListGroupBySchema.optional(),
     sortBy: ListSortBySchema.optional(),
+    keepChecked: z.boolean().optional().openapi({ description: KeepCheckedDoc }),
   })
   .openapi('ListInput');
 
@@ -446,8 +452,9 @@ export const ListPatchSchema = z
     color: z.string().nullable().optional(),
     kind: z.enum(['todo', 'shopping', 'reusable']).optional(),
     memberIds: z.array(z.string()).optional(),
-    groupBy: z.enum(['store', 'category', 'none']).optional(),
+    groupBy: ListGroupBySchema.optional(),
     sortBy: ListSortBySchema.optional(),
+    keepChecked: z.boolean().optional().openapi({ description: KeepCheckedDoc }),
     sort: z.number().optional(),
     archived: z.boolean().optional(),
   })
@@ -477,6 +484,7 @@ export const ListItemSchema = z
     quantity: z.string().nullable(),
     store: z.string().nullable(),
     category: z.string().nullable(),
+    aisle: z.string().nullable().openapi({ description: 'Where in the store, e.g. "Aisle 4" or "Back wall".' }),
     memberId: z.string().nullable(),
     dueDate: z.string().nullable(),
     eventId: z.string().nullable(), // linked calendar event (series id for a recurring local event)
@@ -492,6 +500,7 @@ export const ListItemSchema = z
     stepsDone: z.number(),
     stepsTotal: z.number(),
     noteCount: z.number().optional(), // notes in this item's thread (GET /api/lists/{id} only)
+    meals: z.array(z.string()).optional().openapi({ description: 'Planned meals this item was added for (GET /api/lists/{id} only).' }),
   })
   .openapi('ListItem');
 
@@ -503,6 +512,7 @@ const ListItemInputSchema = z.object({
   quantity: z.string().nullable().optional(),
   store: z.string().nullable().optional(),
   category: z.string().nullable().optional(),
+  aisle: z.string().max(60).nullable().optional(),
   memberId: z.string().nullable().optional(),
   dueDate: z.string().nullable().optional(),
   eventId: z.string().nullable().optional(),
@@ -524,6 +534,7 @@ export const ListItemPatchSchema = z
     quantity: z.string().nullable().optional(),
     store: z.string().nullable().optional(),
     category: z.string().nullable().optional(),
+    aisle: z.string().max(60).nullable().optional(),
     memberId: z.string().nullable().optional(),
     dueDate: z.string().nullable().optional(),
     eventId: z.string().nullable().optional(),
@@ -546,9 +557,34 @@ export const ListDetailSchema = z
     list: ListSchema,
     items: z.array(ListItemSchema),
     groups: z.array(ListGroupSchema),
-    suggestions: z.object({ stores: z.array(z.string()), categories: z.array(z.string()) }),
+    // Household-wide values (items on any list, plus remembered ones) for the item pickers.
+    suggestions: z.object({
+      stores: z.array(z.string()),
+      categories: z.array(z.string()),
+      aisles: z.array(z.object({ store: z.string().nullable(), aisle: z.string() })),
+    }),
+    // Stores whose aisles have a custom walking order (aisle sort and grouping follow it).
+    aisleOrder: z.array(z.object({ store: z.string().nullable(), aisles: z.array(z.string()) })),
   })
   .openapi('ListDetail');
+
+// Rename (to: a name) or remove (to: null) a store, category or aisle everywhere: items on every
+// list, remembered places, group and aisle orders. An aisle is per store (store: null = no store).
+export const ListValueRenameSchema = z
+  .object({
+    field: z.enum(['store', 'category', 'aisle']),
+    from: z.string().min(1),
+    to: z.string().trim().min(1).max(60).nullable(),
+    store: z.string().nullable().optional(),
+  })
+  .openapi('ListValueRename');
+
+export const StoreAislesSchema = z
+  .object({ store: z.string().nullable(), aisles: z.array(z.string().min(1).max(60)).max(200) })
+  .openapi('StoreAisles');
+
+// Checkout / Reset: only these items (still checked) when given, else every checked item.
+export const ListCheckedSchema = z.object({ itemIds: z.array(z.string()).max(1000).optional() }).openapi('ListChecked');
 
 export const ListReorderSchema = z.object({ itemIds: z.array(z.string()) }).openapi('ListReorder');
 

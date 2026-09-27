@@ -40,6 +40,7 @@ import m0036 from '../migrations/0036_calendar_display_edit.sql';
 import m0037 from '../migrations/0037_member_transitions.sql';
 import m0038 from '../migrations/0038_chore_approval.sql';
 import m0039 from '../migrations/0039_rewards.sql';
+import m0040 from '../migrations/0040_groceries.sql';
 
 export const MIGRATIONS: Migration[] = [
   { name: '0001_init.sql', sql: m0001 },
@@ -81,4 +82,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0037_member_transitions.sql', sql: m0037 },
   { name: '0038_chore_approval.sql', sql: m0038 },
   { name: '0039_rewards.sql', sql: m0039 },
+  { name: '0040_groceries.sql', sql: m0040 },
 ];

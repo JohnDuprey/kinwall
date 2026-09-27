@@ -157,7 +157,7 @@ test('lists: clear-completed deletes only done items; reset unchecks everything'
 test('lists: reorder sets sort = index in the given order', async () => {
   const env = makeEnv();
   const request = makeApp(env);
-  const list = await json(await request('/api/lists', { method: 'POST', body: JSON.stringify({ name: 'Groceries', kind: 'shopping' }) }));
+  const list = await json(await request('/api/lists', { method: 'POST', body: JSON.stringify({ name: 'Groceries', kind: 'shopping', sortBy: 'manual' }) }));
   const items = await json(await request(`/api/lists/${list.id}/items`, { method: 'POST', body: JSON.stringify([{ title: 'A' }, { title: 'B' }, { title: 'C' }]) }));
 
   const res = await request(`/api/lists/${list.id}/reorder`, { method: 'POST', body: JSON.stringify({ itemIds: [items[2].id, items[0].id, items[1].id] }) });

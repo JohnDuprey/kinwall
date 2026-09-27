@@ -95,9 +95,11 @@ const ExportSchema = z
     lists: z.array(
       ListSchema.extend({
         sortBy: ListSchema.shape.sortBy.default('manual'), // older exports predate it
+        keepChecked: z.boolean().optional(), // older exports: the kind's default (0040)
         items: z.array(
-          // Older exports predate event links, priority and steps.
-          ListItemSchema.extend({
+          // Older exports predate event links, priority, steps and aisles.
+          ListItemSchema.omit({ meals: true }).extend({
+            aisle: z.string().nullable().default(null),
             eventId: z.string().nullable().default(null),
             priority: ListItemSchema.shape.priority.default('normal'),
             steps: ListItemSchema.shape.steps.default([]),
@@ -121,6 +123,10 @@ const ExportSchema = z
     recipes: z.array(RecipeSchema),
     meals: z.array(MealSchema),
     mealShoppingSources: z.array(z.object({ listId: z.string(), sourceRef: z.string(), itemId: z.string(), fingerprint: z.string() })),
+    // Where the household keeps things (0040): the store/category/aisle last used per item name
+    // (nameKey is the matching key, store '' = none), and stores' aisle walking orders.
+    itemMemory: z.array(z.object({ nameKey: z.string(), store: z.string(), category: z.string().nullable(), aisle: z.string().nullable(), updatedAt: z.string() })),
+    storeAisles: z.array(z.object({ store: z.string(), aisles: z.array(z.string()) })),
     passkeys: z.array(z.object({ name: z.string(), createdAt: z.string() })),
     webhooks: z.array(WebhookSchema),
   })
@@ -172,9 +178,9 @@ dataRoutes.openapi(
       db.prepare('SELECT calendar_id, series_id, category_id FROM event_series_category_overrides ORDER BY calendar_id, series_id'),
       db.prepare('SELECT id, title, emoji, member_id, points, rrule, due_date, due_time, active, sort, created_at, list_id, plugin_id, plugin_minutes, needs_approval, approve_timed_play FROM chores ORDER BY sort, created_at'),
       db.prepare('SELECT id, chore_id, date, member_id, completed_at, points_awarded, status FROM chore_completions ORDER BY date'),
-      db.prepare('SELECT id, name, emoji, color, kind, member_ids, group_by, sort_by, sort, archived, created_at FROM lists ORDER BY sort, created_at'),
+      db.prepare('SELECT id, name, emoji, color, kind, member_ids, group_by, sort_by, keep_checked, sort, archived, created_at FROM lists ORDER BY sort, created_at'),
       db.prepare(
-        'SELECT id, list_id, title, notes, quantity, store, category, member_id, due_date, event_id, priority, done, done_at, done_by, sort, created_at, updated_at FROM list_items ORDER BY sort, created_at',
+        'SELECT id, list_id, title, notes, quantity, store, category, aisle, member_id, due_date, event_id, priority, done, done_at, done_by, sort, created_at, updated_at FROM list_items ORDER BY sort, created_at',
       ),
       db.prepare('SELECT id, item_id, title, done, done_at, sort, created_at FROM list_item_steps ORDER BY sort, created_at'),
       db.prepare('SELECT list_id, kind, name, sort FROM list_groups ORDER BY sort'),
@@ -280,6 +286,14 @@ dataRoutes.openapi(
         recipes: await readRecipes(db, { archived: true }),
         meals: await readMeals(db, '0000-01-01', '9999-12-31'),
         mealShoppingSources: (await db.prepare('SELECT list_id, source_ref, item_id, fingerprint FROM meal_shopping_sources ORDER BY list_id, source_ref').all<{ list_id: string; source_ref: string; item_id: string; fingerprint: string }>()).results.map((r) => ({ listId: r.list_id, sourceRef: r.source_ref, itemId: r.item_id, fingerprint: r.fingerprint })),
+        itemMemory: (await db.prepare('SELECT name_key, store, category, aisle, updated_at FROM item_memory ORDER BY name_key, store').all<{ name_key: string; store: string; category: string | null; aisle: string | null; updated_at: string }>()).results
+          .map((r) => ({ nameKey: r.name_key, store: r.store, category: r.category, aisle: r.aisle, updatedAt: r.updated_at })),
+        storeAisles: (await db.prepare('SELECT store, aisle FROM store_aisles ORDER BY store, sort').all<{ store: string; aisle: string }>()).results
+          .reduce<{ store: string; aisles: string[] }[]>((out, r) => {
+            if (out.at(-1)?.store !== r.store) out.push({ store: r.store, aisles: [] });
+            out.at(-1)!.aisles.push(r.aisle);
+            return out;
+          }, []),
         passkeys: (passkeys as { name: string; created_at: string }[]).map((p) => ({ name: p.name, createdAt: p.created_at })),
         webhooks: (webhooks as WebhookRow[]).map(webhookToApi),
       },
@@ -312,6 +326,8 @@ const ImportSchema = ExportSchema.extend({
   recipes: ExportSchema.shape.recipes.default([]),
   meals: ExportSchema.shape.meals.default([]),
   mealShoppingSources: ExportSchema.shape.mealShoppingSources.default([]),
+  itemMemory: ExportSchema.shape.itemMemory.default([]),
+  storeAisles: ExportSchema.shape.storeAisles.default([]),
 }).openapi('Import');
 
 const ImportResultSchema = z
@@ -341,6 +357,8 @@ const ImportResultSchema = z
       recipes: z.number(),
       meals: z.number(),
       mealShoppingSources: z.number(),
+      itemMemory: z.number(),
+      storeAisles: z.number(),
     }),
     // Synced calendars waiting to be reconnected (imported placeholders, from this or an earlier import).
     needsReconnect: z.array(z.object({ id: z.string(), kind: z.string(), name: z.string() })),
@@ -599,6 +617,7 @@ dataRoutes.openapi(
           member_ids: JSON.stringify(l.memberIds),
           group_by: l.groupBy,
           sort_by: l.sortBy,
+          keep_checked: (l.keepChecked ?? l.kind !== 'todo') ? 1 : 0,
           sort: l.sort,
           archived: l.archived ? 1 : 0,
           created_at: l.createdAt,
@@ -617,6 +636,7 @@ dataRoutes.openapi(
           quantity: i.quantity,
           store: i.store,
           category: i.category,
+          aisle: i.aisle,
           member_id: i.memberId,
           due_date: i.dueDate,
           event_id: i.eventId,
@@ -683,6 +703,11 @@ dataRoutes.openapi(
       ...upserts(db, 'recipe_ingredients', 'id', body.recipes.flatMap((r) => r.ingredients.map((i) => ({ id: i.id, recipe_id: r.id, name: i.name, normalized_name: normalizeIngredient(i.name), quantity: i.quantity, unit: i.unit, preparation: i.preparation, qualifier: i.qualifier, category: i.category, sort: i.sort })))),
       ...upserts(db, 'meals', 'id', body.meals.map((m) => ({ id: m.id, date: m.date, slot: m.slot, title: m.title, meal_kind: m.mealKind, recipe_id: m.recipeId, recipe_snapshot: m.recipeSnapshot ? JSON.stringify(m.recipeSnapshot) : null, servings: m.servings, assignee_member_id: m.assigneeMemberId, notes: m.notes, planned_time: m.plannedTime, calendar_event_id: m.calendarEventId, status: m.status, source_url: m.sourceUrl, created_at: m.createdAt, updated_at: m.updatedAt })), { ...keepCreated, expr: { recipe_id: "(SELECT id FROM recipes WHERE id = j.value->>'recipe_id')", assignee_member_id: memberRef('assignee_member_id') } }),
       ...upserts(db, 'meal_shopping_sources', 'list_id, source_ref', mealSources.map((s) => ({ list_id: s.listId, source_ref: s.sourceRef, item_id: s.itemId, fingerprint: s.fingerprint }))),
+      // Newer knowledge wins: a remembered place only replaces one that is older.
+      ...upserts(db, 'item_memory', 'name_key, store', body.itemMemory.map((m) => ({ name_key: m.nameKey, store: m.store, category: m.category, aisle: m.aisle, updated_at: m.updatedAt })), { where: 'excluded.updated_at > item_memory.updated_at' }),
+      // A store's aisle order in the file replaces this instance's order for that store.
+      db.prepare('DELETE FROM store_aisles WHERE store IN (SELECT value FROM json_each(?))').bind(JSON.stringify(body.storeAisles.map((a) => a.store))),
+      ...upserts(db, 'store_aisles', 'store, aisle', body.storeAisles.flatMap((a) => [...new Set(a.aisles)].map((aisle, sort) => ({ store: a.store, aisle, sort })))),
     ];
     if (writes.length) await db.batch(writes);
 
@@ -693,7 +718,7 @@ dataRoutes.openapi(
       ['calendar.changed', calendars.length],
       ['events.changed', events.length + memberOverrides.length + categoryOverrides.length + travelOverrides.length + seriesMemberOverrides.length + seriesCategoryOverrides.length],
       ['chore.changed', body.chores.length + completions.length],
-      ['list.changed', body.lists.length + notes.length],
+      ['list.changed', body.lists.length + notes.length + body.itemMemory.length + body.storeAisles.length],
       ['sticker.changed', pointEntries.length + stickerPacks.length + scrapbook.length],
       ['reward.changed', body.rewards.length + redemptions.length],
       ['tracker.changed', trackers.length],
@@ -729,6 +754,8 @@ dataRoutes.openapi(
           recipes: body.recipes.length,
           meals: body.meals.length,
           mealShoppingSources: mealSources.length,
+          itemMemory: body.itemMemory.length,
+          storeAisles: body.storeAisles.length,
         },
         needsReconnect: (await db.prepare("SELECT id, kind, name FROM calendars WHERE kind != 'local' AND config = '' ORDER BY name").all<{ id: string; kind: string; name: string }>()).results,
         skipped: {

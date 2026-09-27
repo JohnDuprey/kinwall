@@ -8,6 +8,7 @@ import { notifyListUpdate } from '../notify.ts';
 import { parseMemberIds, resolveMemberIds } from '../calendar-members.ts';
 import { eventWriteBlock } from '../auth.ts';
 import type { Context } from 'hono';
+import { fillPlace, recall, rememberPlace } from '../item-memory.ts';
 import {
   ErrorSchema,
   ListDetailSchema,
@@ -20,7 +21,10 @@ import {
   ListItemStepInputSchema,
   ListItemStepPatchSchema,
   ListItemStepReorderSchema,
+  ListCheckedSchema,
   ListPatchSchema,
+  ListValueRenameSchema,
+  StoreAislesSchema,
   ListReorderSchema,
   ListSchema,
 } from '../schemas.ts';
@@ -34,8 +38,9 @@ export type ListRow = {
   color: string | null;
   kind: 'todo' | 'shopping' | 'reusable';
   member_ids: string;
-  group_by: 'store' | 'category' | 'none';
-  sort_by: 'manual' | 'added' | 'due' | 'priority' | 'alpha';
+  group_by: 'store' | 'category' | 'aisle' | 'none';
+  sort_by: 'manual' | 'added' | 'due' | 'priority' | 'alpha' | 'aisle';
+  keep_checked: number;
   sort: number;
   archived: number;
   created_at: string;
@@ -49,6 +54,7 @@ export type ListItemRow = {
   quantity: string | null;
   store: string | null;
   category: string | null;
+  aisle: string | null;
   member_id: string | null;
   due_date: string | null;
   event_id: string | null;
@@ -75,6 +81,7 @@ export function toApi(row: ListRow, itemCount: number, openCount: number) {
     memberIds: parseMemberIds(row.member_ids),
     groupBy: row.group_by,
     sortBy: row.sort_by ?? 'manual',
+    keepChecked: !!row.keep_checked,
     sort: row.sort,
     archived: !!row.archived,
     createdAt: row.created_at,
@@ -92,6 +99,7 @@ export function toItemApi(row: ListItemRow, steps: ListItemStepRow[] = []) {
     quantity: row.quantity,
     store: row.store,
     category: row.category,
+    aisle: row.aisle ?? null,
     memberId: row.member_id,
     dueDate: row.due_date,
     eventId: row.event_id,
@@ -113,20 +121,38 @@ const PRIORITY_RANK: Record<Priority, number> = { urgent: 0, high: 1, normal: 2,
 /** Same ranking in SQL, for queries that order items themselves (event items, the morning summary). */
 export const priorityRankSql = (col = 'priority') => `CASE ${col} WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'low' THEN 3 ELSE 2 END`;
 
-type Orderable = { priority: Priority; done: boolean; dueDate: string | null; title: string; sort: number; createdAt: string };
+type Orderable = { priority: Priority; done: boolean; dueDate: string | null; title: string; sort: number; createdAt: string; store?: string | null; aisle?: string | null };
+
+/** Store -> its custom aisle order (store '' = no store), from store_aisles. */
+export type AisleOrder = Map<string, string[]>;
+const natural = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+
+/** Aisles within one store: the store's custom order first (when set), then natural order
+ * ("Aisle 2" before "Aisle 10"); no aisle last. */
+export function compareAisles(store: string | null | undefined, a: string | null | undefined, b: string | null | undefined, order: AisleOrder): number {
+  if (!a || !b) return a ? -1 : b ? 1 : 0;
+  const custom = order.get(store ?? '') ?? [];
+  const ia = custom.indexOf(a), ib = custom.indexOf(b);
+  if (ia >= 0 || ib >= 0) return ia < 0 ? 1 : ib < 0 ? -1 : ia - ib;
+  return natural(a, b);
+}
 
 /** The list's item order (see ListSortBySchema), so API consumers see the same order as the UI -
  * web/src/types.ts keeps a copy for the client. `today` (YYYY-MM-DD, household) decides overdue.
- * A done item gets no priority/overdue boost. */
-export function compareItems(sortBy: ListRow['sort_by'], today: string) {
-  const rank = (i: Orderable) => (i.done ? 2 : PRIORITY_RANK[i.priority] ?? 2);
-  const overdue = (i: Orderable) => (!i.done && i.dueDate && i.dueDate < today ? 0 : 1);
+ * A done item gets no priority/overdue boost - unless `keepChecked` (checked items stay in place). */
+export function compareItems(sortBy: ListRow['sort_by'], today: string, opts: { keepChecked?: boolean; aisleOrder?: AisleOrder } = {}) {
+  const isDone = (i: Orderable) => i.done && !opts.keepChecked;
+  const rank = (i: Orderable) => (isDone(i) ? 2 : PRIORITY_RANK[i.priority] ?? 2);
+  const overdue = (i: Orderable) => (!isDone(i) && i.dueDate && i.dueDate < today ? 0 : 1);
   const due = (a: Orderable, b: Orderable) => (a.dueDate ?? '9999').localeCompare(b.dueDate ?? '9999'); // undated last
   const manual = (a: Orderable, b: Orderable) => a.sort - b.sort || a.createdAt.localeCompare(b.createdAt);
+  const alpha = (a: Orderable, b: Orderable) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' });
+  const store = (a: Orderable, b: Orderable) => (a.store ?? '\uffff').localeCompare(b.store ?? '\uffff'); // no store last
   return (a: Orderable, b: Orderable): number => {
     if (sortBy === 'added') return b.createdAt.localeCompare(a.createdAt) || b.sort - a.sort;
     if (sortBy === 'due') return due(a, b) || manual(a, b);
-    if (sortBy === 'alpha') return a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }) || manual(a, b);
+    if (sortBy === 'alpha') return alpha(a, b) || manual(a, b);
+    if (sortBy === 'aisle') return store(a, b) || compareAisles(a.store, a.aisle, b.aisle, opts.aisleOrder ?? new Map()) || alpha(a, b) || manual(a, b);
     return rank(a) - rank(b) || overdue(a) - overdue(b) || (sortBy === 'priority' ? due(a, b) : 0) || manual(a, b);
   };
 }
@@ -194,10 +220,11 @@ async function taskLinkBlock(c: Context<{ Bindings: Env }>, ids: (string | null 
 // Notes on list items (routes/notes.ts): no FK, so every path that deletes items deletes their notes.
 const ITEM_NOTES = "target_type = 'list_item' AND target_id";
 
-// shopping defaults to grouping by category; todo/reusable default to no grouping.
+// shopping defaults to grouping by category, sorted by aisle; todo/reusable to no grouping, manual.
 function defaultGroupBy(kind: ListRow['kind']): ListRow['group_by'] {
   return kind === 'shopping' ? 'category' : 'none';
 }
+const defaultKeepChecked = (kind: ListRow['kind']) => (kind === 'todo' ? 0 : 1);
 
 listsRoutes.openapi(
   createRoute({
@@ -246,15 +273,16 @@ listsRoutes.openapi(
       kind: body.kind,
       member_ids: JSON.stringify(memberIds),
       group_by: body.groupBy ?? defaultGroupBy(body.kind),
-      sort_by: body.sortBy ?? 'manual',
+      sort_by: body.sortBy ?? (body.kind === 'shopping' ? 'aisle' : 'manual'),
+      keep_checked: body.keepChecked !== undefined ? (body.keepChecked ? 1 : 0) : defaultKeepChecked(body.kind),
       sort: 0,
       archived: 0,
       created_at: new Date().toISOString(),
     };
     await c.env.DB.prepare(
-      'INSERT INTO lists (id, name, emoji, color, kind, member_ids, group_by, sort_by, sort, archived, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+      'INSERT INTO lists (id, name, emoji, color, kind, member_ids, group_by, sort_by, keep_checked, sort, archived, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
     )
-      .bind(row.id, row.name, row.emoji, row.color, row.kind, row.member_ids, row.group_by, row.sort_by, row.sort, row.archived, row.created_at)
+      .bind(row.id, row.name, row.emoji, row.color, row.kind, row.member_ids, row.group_by, row.sort_by, row.keep_checked, row.sort, row.archived, row.created_at)
       .run();
     emit(c, 'list.changed', { id: row.id });
     return c.json(toApi(row, 0, 0), 201);
@@ -266,7 +294,7 @@ listsRoutes.openapi(
     method: 'get',
     path: '/api/lists/{id}',
     tags: ['Lists'],
-    summary: 'List detail: the list, its items, its group ordering, and store/category suggestions (household-wide)',
+    summary: 'List detail: the list, its items (each with the planned meals it was added for), its group ordering, household-wide store/category/aisle suggestions, and stores\' custom aisle orders',
     security: [{ Bearer: [] }],
     request: { params: z.object({ id: z.string() }) },
     responses: {
@@ -277,15 +305,23 @@ listsRoutes.openapi(
   async (c) => {
     const { id } = c.req.valid('param');
     // One round trip: list + items + groups + both suggestion lists, all independent reads.
-    const [listRes, itemsRes, groupsRes, stepsRes, storesRes, categoriesRes, tzRes, notesRes] = await c.env.DB.batch<unknown>([
+    const [listRes, itemsRes, groupsRes, stepsRes, storesRes, categoriesRes, tzRes, notesRes, aislesRes, orderRes, mealsRes] = await c.env.DB.batch<unknown>([
       c.env.DB.prepare('SELECT * FROM lists WHERE id = ?').bind(id),
       c.env.DB.prepare('SELECT * FROM list_items WHERE list_id = ?').bind(id), // ordered below, by the list's sortBy
       c.env.DB.prepare('SELECT * FROM list_groups WHERE list_id = ? ORDER BY kind, sort').bind(id),
       stepsQuery(c.env.DB, 'list_id = ?', id),
-      c.env.DB.prepare('SELECT DISTINCT store FROM list_items WHERE store IS NOT NULL ORDER BY store'),
-      c.env.DB.prepare('SELECT DISTINCT category FROM list_items WHERE category IS NOT NULL ORDER BY category'),
+      c.env.DB.prepare("SELECT store FROM list_items WHERE store IS NOT NULL UNION SELECT store FROM item_memory WHERE store != '' UNION SELECT store FROM store_aisles WHERE store != '' ORDER BY 1"),
+      c.env.DB.prepare('SELECT category FROM list_items WHERE category IS NOT NULL UNION SELECT category FROM item_memory WHERE category IS NOT NULL ORDER BY 1'),
       c.env.DB.prepare("SELECT value FROM settings WHERE key = 'timezone'"),
       c.env.DB.prepare(`SELECT target_id, COUNT(*) AS n FROM notes WHERE ${ITEM_NOTES} IN (SELECT id FROM list_items WHERE list_id = ?) GROUP BY target_id`).bind(id),
+      c.env.DB.prepare("SELECT coalesce(store, '') AS store, aisle FROM list_items WHERE aisle IS NOT NULL UNION SELECT store, aisle FROM item_memory WHERE aisle IS NOT NULL UNION SELECT store, aisle FROM store_aisles ORDER BY 1, 2"),
+      c.env.DB.prepare('SELECT store, aisle FROM store_aisles ORDER BY store, sort'),
+      // Which planned meals an item came from: meal_shopping_sources refs are "meal-plan:<mealId>:ingredient:<id>".
+      c.env.DB.prepare(
+        `SELECT DISTINCT s.item_id, m.title, m.date FROM meal_shopping_sources s
+         JOIN meals m ON m.id = substr(s.source_ref, 11, instr(substr(s.source_ref, 11), ':') - 1)
+         WHERE s.list_id = ? AND s.source_ref LIKE 'meal-plan:%' ORDER BY m.date, m.title`,
+      ).bind(id),
     ]);
     const noteCounts = new Map((notesRes.results as { target_id: string; n: number }[]).map((r) => [r.target_id, r.n]));
     const list = (listRes.results as ListRow[])[0];
@@ -295,13 +331,23 @@ listsRoutes.openapi(
     const steps = groupSteps(stepsRes.results as ListItemStepRow[]);
     const stores = (storesRes.results as { store: string }[]).map((r) => r.store);
     const categories = (categoriesRes.results as { category: string }[]).map((r) => r.category);
+    const aisles = (aislesRes.results as { store: string; aisle: string }[]).map((r) => ({ store: r.store || null, aisle: r.aisle }));
+    const aisleOrder: AisleOrder = new Map();
+    for (const r of orderRes.results as { store: string; aisle: string }[]) aisleOrder.set(r.store, [...(aisleOrder.get(r.store) ?? []), r.aisle]);
+    const meals = new Map<string, string[]>();
+    for (const r of mealsRes.results as { item_id: string; title: string }[]) {
+      const titles = meals.get(r.item_id) ?? [];
+      if (!titles.includes(r.title)) meals.set(r.item_id, [...titles, r.title]);
+    }
     const openCount = items.filter((i) => !i.done).length;
+    const order = compareItems(list.sort_by, todayIn((tzRes.results as { value: string }[])[0]?.value), { keepChecked: !!list.keep_checked, aisleOrder });
     return c.json(
       {
         list: toApi(list, items.length, openCount),
-        items: items.map((i) => ({ ...toItemApi(i, steps.get(i.id)), noteCount: noteCounts.get(i.id) ?? 0 })).sort(compareItems(list.sort_by, todayIn((tzRes.results as { value: string }[])[0]?.value))),
+        items: items.map((i) => ({ ...toItemApi(i, steps.get(i.id)), noteCount: noteCounts.get(i.id) ?? 0, ...(meals.has(i.id) ? { meals: meals.get(i.id) } : {}) })).sort(order),
         groups: groups.map(toGroupApi),
-        suggestions: { stores, categories },
+        suggestions: { stores, categories, aisles },
+        aisleOrder: [...aisleOrder].map(([store, names]) => ({ store: store || null, aisles: names })),
       },
       200,
     );
@@ -336,11 +382,13 @@ listsRoutes.openapi(
       member_ids: JSON.stringify(memberIds),
       group_by: body.groupBy ?? existing.group_by,
       sort_by: body.sortBy ?? existing.sort_by,
+      // A kind change takes that kind's default unless the caller says otherwise.
+      keep_checked: body.keepChecked !== undefined ? (body.keepChecked ? 1 : 0) : body.kind && body.kind !== existing.kind ? defaultKeepChecked(body.kind) : existing.keep_checked,
       sort: body.sort ?? existing.sort,
       archived: body.archived !== undefined ? (body.archived ? 1 : 0) : existing.archived,
     };
-    await c.env.DB.prepare('UPDATE lists SET name=?, emoji=?, color=?, kind=?, member_ids=?, group_by=?, sort_by=?, sort=?, archived=? WHERE id=?')
-      .bind(updated.name, updated.emoji, updated.color, updated.kind, updated.member_ids, updated.group_by, updated.sort_by, updated.sort, updated.archived, id)
+    await c.env.DB.prepare('UPDATE lists SET name=?, emoji=?, color=?, kind=?, member_ids=?, group_by=?, sort_by=?, keep_checked=?, sort=?, archived=? WHERE id=?')
+      .bind(updated.name, updated.emoji, updated.color, updated.kind, updated.member_ids, updated.group_by, updated.sort_by, updated.keep_checked, updated.sort, updated.archived, id)
       .run();
     emit(c, 'list.changed', { id });
     const counts = await c.env.DB.prepare(
@@ -380,7 +428,7 @@ listsRoutes.openapi(
     method: 'post',
     path: '/api/lists/{id}/items',
     tags: ['Lists'],
-    summary: 'Add one or more items to a list (always returns an array). An optional client-made UUID `id` makes a retried add idempotent: an id already on this list returns that item unchanged. "Remembers" store/category from the most recently updated item of the same title (any list) when they\'re omitted.',
+    summary: 'Add one or more items to a list (always returns an array). An optional client-made UUID `id` makes a retried add idempotent: an id already on this list returns that item unchanged. On a shopping list, an omitted store/category/aisle is filled from what the household remembers for that item name (case, spacing and simple plurals ignored; aisle per store); explicit values, including null, win - and are remembered.',
     security: [{ Bearer: [] }],
     request: { params: z.object({ id: z.string() }), body: { content: { 'application/json': { schema: ListItemInputBodySchema } } } },
     responses: {
@@ -396,7 +444,7 @@ listsRoutes.openapi(
     const body = c.req.valid('json');
     const inputs = Array.isArray(body) ? body : [body];
 
-    const list = await c.env.DB.prepare('SELECT id, name FROM lists WHERE id = ?').bind(id).first<{ id: string; name: string }>();
+    const list = await c.env.DB.prepare('SELECT id, name, kind FROM lists WHERE id = ?').bind(id).first<{ id: string; name: string; kind: ListRow['kind'] }>();
     if (!list) return c.json({ error: 'not found' }, 404);
     if (await missingEventIds(c.env.DB, inputs.map((i) => i.eventId))) return c.json({ error: 'event not found' }, 400);
     const block = await taskLinkBlock(c, inputs.map((i) => i.eventId));
@@ -425,22 +473,14 @@ listsRoutes.openapi(
 
     const now = new Date().toISOString();
     const rows: ListItemRow[] = [];
+    // "Remembers where things go" (shopping lists): only OMITTED fields fill from memory -
+    // explicit null means "none" and must not be overwritten.
+    const shopping = list.kind === 'shopping';
+    const memory = shopping ? await recall(c.env.DB, fresh.map((i) => i.title)) : new Map();
     for (const input of fresh) {
-      let store = input.store !== undefined ? input.store : null;
-      let category = input.category !== undefined ? input.category : null;
-      // "Remembers where things go": only when store and/or category is OMITTED (undefined) -
-      // explicit null means "none" and must not be overwritten by memory.
-      if (input.store === undefined || input.category === undefined) {
-        const remembered = await c.env.DB.prepare(
-          'SELECT store, category FROM list_items WHERE lower(trim(title)) = lower(trim(?)) ORDER BY updated_at DESC LIMIT 1',
-        )
-          .bind(input.title)
-          .first<{ store: string | null; category: string | null }>();
-        if (remembered) {
-          if (input.store === undefined) store = remembered.store;
-          if (input.category === undefined) category = remembered.category;
-        }
-      }
+      const { store, category, aisle } = shopping
+        ? fillPlace(memory, input.title, input)
+        : { store: input.store ?? null, category: input.category ?? null, aisle: input.aisle ?? null };
       rows.push({
         id: input.id ?? crypto.randomUUID(),
         list_id: id,
@@ -449,6 +489,7 @@ listsRoutes.openapi(
         quantity: input.quantity ?? null,
         store,
         category,
+        aisle,
         member_id: input.memberId && validMemberIds.has(input.memberId) ? input.memberId : null,
         due_date: input.dueDate ?? null,
         event_id: input.eventId ?? null,
@@ -469,7 +510,7 @@ listsRoutes.openapi(
       await c.env.DB.batch([
         ...rows.map((r) =>
           c.env.DB.prepare(
-            'INSERT INTO list_items (id, list_id, title, notes, quantity, store, category, member_id, due_date, event_id, priority, done, done_at, done_by, sort, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+            'INSERT INTO list_items (id, list_id, title, notes, quantity, store, category, aisle, member_id, due_date, event_id, priority, done, done_at, done_by, sort, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
           ).bind(
             r.id,
             r.list_id,
@@ -478,6 +519,7 @@ listsRoutes.openapi(
             r.quantity,
             r.store,
             r.category,
+            r.aisle,
             r.member_id,
             r.due_date,
             r.event_id,
@@ -495,6 +537,7 @@ listsRoutes.openapi(
             st.id, st.item_id, st.title, st.done, st.done_at, st.sort, st.created_at,
           ),
         ),
+        ...(shopping ? rows.map((r) => rememberPlace(c.env.DB, r.title, r, now)).filter((st) => st !== null) : []),
       ]);
       emit(c, 'list.item.changed', { listId: id, ids: rows.map((r) => r.id) });
       let execCtx: Parameters<typeof notifyListUpdate>[1];
@@ -536,7 +579,9 @@ listsRoutes.openapi(
   async (c) => {
     const { id, itemId } = c.req.valid('param');
     const body = c.req.valid('json');
-    const existing = await c.env.DB.prepare('SELECT * FROM list_items WHERE id = ? AND list_id = ?').bind(itemId, id).first<ListItemRow>();
+    const existing = await c.env.DB.prepare("SELECT li.*, l.kind = 'shopping' AS shopping FROM list_items li JOIN lists l ON l.id = li.list_id WHERE li.id = ? AND li.list_id = ?")
+      .bind(itemId, id)
+      .first<ListItemRow & { shopping: number }>();
     if (!existing) return c.json({ error: 'not found' }, 404);
     if (await missingEventIds(c.env.DB, [body.eventId])) return c.json({ error: 'event not found' }, 400);
     if (body.eventId !== undefined && body.eventId !== existing.event_id) {
@@ -559,6 +604,7 @@ listsRoutes.openapi(
       quantity: body.quantity !== undefined ? body.quantity : existing.quantity,
       store: body.store !== undefined ? body.store : existing.store,
       category: body.category !== undefined ? body.category : existing.category,
+      aisle: body.aisle !== undefined ? body.aisle : existing.aisle,
       member_id: memberId,
       due_date: body.dueDate !== undefined ? body.dueDate : existing.due_date,
       event_id: body.eventId !== undefined ? body.eventId : existing.event_id,
@@ -570,13 +616,14 @@ listsRoutes.openapi(
     };
     await c.env.DB.batch([
       c.env.DB.prepare(
-        'UPDATE list_items SET title=?, notes=?, quantity=?, store=?, category=?, member_id=?, due_date=?, event_id=?, priority=?, done=?, done_at=?, done_by=?, updated_at=? WHERE id=?',
+        'UPDATE list_items SET title=?, notes=?, quantity=?, store=?, category=?, aisle=?, member_id=?, due_date=?, event_id=?, priority=?, done=?, done_at=?, done_by=?, updated_at=? WHERE id=?',
       ).bind(
         updated.title,
         updated.notes,
         updated.quantity,
         updated.store,
         updated.category,
+        updated.aisle,
         updated.member_id,
         updated.due_date,
         updated.event_id,
@@ -590,6 +637,10 @@ listsRoutes.openapi(
       // Ticking the item ticks every step (and unticking unticks them), keeping "done = all steps done".
       ...(body.done !== undefined
         ? [c.env.DB.prepare('UPDATE list_item_steps SET done = ?, done_at = ? WHERE item_id = ? AND done != ?').bind(updated.done, updated.done ? now : null, itemId, updated.done)]
+        : []),
+      // Saving where an item goes remembers it for next time (not a plain tick).
+      ...(existing.shopping && [body.title, body.store, body.category, body.aisle].some((v) => v !== undefined)
+        ? [rememberPlace(c.env.DB, updated.title, updated, now)].filter((st) => st !== null)
         : []),
     ]);
     emit(c, 'list.item.changed', { listId: id, id: itemId, done: !!updated.done });
@@ -625,15 +676,17 @@ listsRoutes.openapi(
     method: 'post',
     path: '/api/lists/{id}/clear-completed',
     tags: ['Lists'],
-    summary: 'Delete every done item in a list',
+    summary: 'Checkout: delete the checked items in a list - only those in itemIds (still checked) when given, else every checked item',
     security: [{ Bearer: [] }],
-    request: { params: z.object({ id: z.string() }) },
+    request: { params: z.object({ id: z.string() }) }, // optional JSON body { itemIds } (ListChecked), read by checkedIds
     responses: { 200: { description: 'ok', content: { 'application/json': { schema: z.object({ deleted: z.number() }) } } } },
   }),
   async (c) => {
     const { id } = c.req.valid('param');
-    await c.env.DB.prepare(`DELETE FROM notes WHERE ${ITEM_NOTES} IN (SELECT id FROM list_items WHERE list_id = ? AND done = 1)`).bind(id).run();
-    const result = await c.env.DB.prepare('DELETE FROM list_items WHERE list_id = ? AND done = 1').bind(id).run();
+    const ids = await checkedIds(c);
+    const where = `list_id = ? AND done = 1 AND (? IS NULL OR id IN (SELECT value FROM json_each(?)))`;
+    await c.env.DB.prepare(`DELETE FROM notes WHERE ${ITEM_NOTES} IN (SELECT id FROM list_items WHERE ${where})`).bind(id, ids, ids).run();
+    const result = await c.env.DB.prepare(`DELETE FROM list_items WHERE ${where}`).bind(id, ids, ids).run();
     emit(c, 'list.changed', { id });
     return c.json({ deleted: result.meta.changes }, 200);
   },
@@ -644,29 +697,108 @@ listsRoutes.openapi(
     method: 'post',
     path: '/api/lists/{id}/reset',
     tags: ['Lists'],
-    summary: 'Uncheck every item (and every step) in a list (for reusable lists)',
+    summary: 'Uncheck every item (and every step) in a list (for reusable lists) - only those in itemIds when given',
     security: [{ Bearer: [] }],
-    request: { params: z.object({ id: z.string() }) },
+    request: { params: z.object({ id: z.string() }) }, // optional JSON body { itemIds } (ListChecked), read by checkedIds
     responses: { 200: { description: 'ok', content: { 'application/json': { schema: z.object({ reset: z.number() }) } } } },
   }),
   async (c) => {
     const { id } = c.req.valid('param');
-    const reset = await resetListItems(c.env.DB, id);
+    const reset = await resetListItems(c.env.DB, id, null, await checkedIds(c));
     emit(c, 'list.changed', { id });
     return c.json({ reset }, 200);
   },
 );
 
+/** The optional { itemIds } body of Checkout / Reset, as a JSON array param (null = every item).
+ * Read by hand, not declared on the route: callers post these with no body (or an empty one). */
+async function checkedIds(c: Context<{ Bindings: Env }>): Promise<string | null> {
+  const parsed = ListCheckedSchema.safeParse(await c.req.json().catch(() => ({})));
+  return parsed.success && parsed.data.itemIds ? JSON.stringify(parsed.data.itemIds) : null;
+}
+
 /** Uncheck items (and their steps) in a list; returns how many items were ticked. With `forMember`,
- * only that member's items and unassigned ones - what a chore's checklist covers (routes/chores.ts). */
-export async function resetListItems(db: KinwallDb, id: string, forMember: string | null = null): Promise<number> {
-  const scope = 'list_id = ? AND (? IS NULL OR member_id IS NULL OR member_id = ?)';
+ * only that member's items and unassigned ones - what a chore's checklist covers (routes/chores.ts).
+ * With `ids` (a JSON array), only those items. */
+export async function resetListItems(db: KinwallDb, id: string, forMember: string | null = null, ids: string | null = null): Promise<number> {
+  const scope = 'list_id = ? AND (? IS NULL OR member_id IS NULL OR member_id = ?) AND (? IS NULL OR id IN (SELECT value FROM json_each(?)))';
+  const binds = [id, forMember, forMember, ids, ids];
   const result = await db.prepare(`UPDATE list_items SET done = 0, done_at = NULL, done_by = NULL, updated_at = ? WHERE ${scope} AND done = 1`)
-    .bind(new Date().toISOString(), id, forMember, forMember)
+    .bind(new Date().toISOString(), ...binds)
     .run();
-  await db.prepare(`UPDATE list_item_steps SET done = 0, done_at = NULL WHERE done = 1 AND item_id IN (SELECT id FROM list_items WHERE ${scope})`).bind(id, forMember, forMember).run();
+  await db.prepare(`UPDATE list_item_steps SET done = 0, done_at = NULL WHERE done = 1 AND item_id IN (SELECT id FROM list_items WHERE ${scope})`).bind(...binds).run();
   return result.meta.changes;
 }
+
+listsRoutes.openapi(
+  createRoute({
+    method: 'post',
+    path: '/api/lists/values',
+    tags: ['Lists'],
+    summary: 'Rename (to: a name) or remove (to: null) a store, category or aisle everywhere: items on every list, remembered places, group and aisle orders. An aisle belongs to a store (store: null = items with no store).',
+    security: [{ Bearer: [] }],
+    request: { body: { content: { 'application/json': { schema: ListValueRenameSchema } } } },
+    responses: { 200: { description: 'items changed', content: { 'application/json': { schema: z.object({ updated: z.number() }) } } } },
+  }),
+  async (c) => {
+    const { field, from, to } = c.req.valid('json');
+    const store = c.req.valid('json').store ?? null;
+    const db = c.env.DB;
+    const writes =
+      field === 'store'
+        ? [
+            db.prepare('UPDATE list_items SET store = ? WHERE store = ?').bind(to, from),
+            // OR REPLACE: renaming onto a store that already has a remembered row keeps the renamed one.
+            db.prepare("UPDATE OR REPLACE item_memory SET store = coalesce(?, '') WHERE store = ?").bind(to, from),
+            to
+              ? db.prepare("UPDATE OR REPLACE list_groups SET name = ? WHERE kind = 'store' AND name = ?").bind(to, from)
+              : db.prepare("DELETE FROM list_groups WHERE kind = 'store' AND name = ?").bind(from),
+            to ? db.prepare('UPDATE OR REPLACE store_aisles SET store = ? WHERE store = ?').bind(to, from) : db.prepare('DELETE FROM store_aisles WHERE store = ?').bind(from),
+          ]
+        : field === 'category'
+          ? [
+              db.prepare('UPDATE list_items SET category = ? WHERE category = ?').bind(to, from),
+              db.prepare('UPDATE item_memory SET category = ? WHERE category = ?').bind(to, from),
+              to
+                ? db.prepare("UPDATE OR REPLACE list_groups SET name = ? WHERE kind = 'category' AND name = ?").bind(to, from)
+                : db.prepare("DELETE FROM list_groups WHERE kind = 'category' AND name = ?").bind(from),
+            ]
+          : [
+              db.prepare("UPDATE list_items SET aisle = ? WHERE aisle = ? AND coalesce(store, '') = coalesce(?, '')").bind(to, from, store),
+              db.prepare("UPDATE item_memory SET aisle = ? WHERE aisle = ? AND store = coalesce(?, '')").bind(to, from, store),
+              to
+                ? db.prepare("UPDATE OR REPLACE store_aisles SET aisle = ? WHERE aisle = ? AND store = coalesce(?, '')").bind(to, from, store)
+                : db.prepare("DELETE FROM store_aisles WHERE aisle = ? AND store = coalesce(?, '')").bind(from, store),
+            ];
+    // The count runs first, in the same batch, so it's the items this rename touches.
+    const count = db.prepare(`SELECT COUNT(*) AS n FROM list_items WHERE ${field} = ?${field === 'aisle' ? " AND coalesce(store, '') = coalesce(?, '')" : ''}`).bind(...(field === 'aisle' ? [from, store] : [from]));
+    const [counted] = await db.batch<{ n: number }>([count, ...writes]);
+    emit(c, 'list.changed', { value: field });
+    return c.json({ updated: counted.results[0]?.n ?? 0 }, 200);
+  },
+);
+
+listsRoutes.openapi(
+  createRoute({
+    method: 'put',
+    path: '/api/lists/aisles',
+    tags: ['Lists'],
+    summary: "Set a store's aisle walking order (store: null = items with no store), e.g. [\"Produce\", \"Bakery\", \"Aisle 4\", \"Frozen\", \"Aisle 5\", \"Dairy\"]. Aisle sort and grouping follow it; aisles not in it come after, in natural order. An empty array clears it. Every aisle in it is offered in that store's aisle picker.",
+    security: [{ Bearer: [] }],
+    request: { body: { content: { 'application/json': { schema: StoreAislesSchema } } } },
+    responses: { 200: { description: 'ok', content: { 'application/json': { schema: StoreAislesSchema } } } },
+  }),
+  async (c) => {
+    const { store, aisles } = c.req.valid('json');
+    const unique = [...new Set(aisles.map((a) => a.trim()).filter(Boolean))];
+    await c.env.DB.batch([
+      c.env.DB.prepare('DELETE FROM store_aisles WHERE store = ?').bind(store ?? ''),
+      c.env.DB.prepare('INSERT INTO store_aisles (store, aisle, sort) SELECT ?, value, key FROM json_each(?)').bind(store ?? '', JSON.stringify(unique)),
+    ]);
+    emit(c, 'list.changed', { aisles: store });
+    return c.json({ store, aisles: unique }, 200);
+  },
+);
 
 listsRoutes.openapi(
   createRoute({

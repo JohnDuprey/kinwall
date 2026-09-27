@@ -120,6 +120,7 @@ test('mcp: tools/list returns the tools', async () => {
     'set_event_category',
     'set_list_item_done',
     'set_step_done',
+    'set_store_aisle_order',
     'uncomplete_chore',
     'update_category',
     'update_chore',

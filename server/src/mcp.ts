@@ -16,7 +16,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { hostTimezone } from './env.ts';
 import { effectivePublicUrl } from './providers/config.ts';
-import { BoardSchema, CalendarSchema, CategorySchema, ChoreDaySchema, ChoreSchema, EventInstanceSchema, LeaderboardEntrySchema, ListDetailSchema, ListItemSchema, ListSchema, MemberSchema, NoteSchema, TrackerEntrySchema, TRACKER_KINDS, NotificationSchema, PointsSchema, SettingsSchema, SnapshotSchema, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, TransitionRemindersSchema, RewardSchema, RewardInputSchema, RedemptionSchema, RewardLimitSchema } from './schemas.ts';
+import { BoardSchema, CalendarSchema, CategorySchema, ChoreDaySchema, ChoreSchema, EventInstanceSchema, LeaderboardEntrySchema, ListDetailSchema, ListItemSchema, ListSchema, MemberSchema, NoteSchema, StoreAislesSchema, TrackerEntrySchema, TRACKER_KINDS, NotificationSchema, PointsSchema, SettingsSchema, SnapshotSchema, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, TransitionRemindersSchema, RewardSchema, RewardInputSchema, RedemptionSchema, RewardLimitSchema } from './schemas.ts';
 import type { Env } from './env.ts';
 import { RecipeSchema, RecipeInputSchema, MealSchema, MealInputSchema, MealPatchSchema, ProjectionSchema, ProjectionApplySchema, ProjectionQuerySchema, MealRangeSchema } from './meal-schemas.ts';
 import { VERSION } from './version.ts';
@@ -167,7 +167,9 @@ const EVENT_ID_DOC = 'Link this task to a calendar event; use list_events to fin
 const PRIORITY_DOC = 'low | normal | high | urgent. Open urgent items sort first, then high (important, starred), normal, low.';
 const BIRTHDAY_DOC = 'YYYY-MM-DD, or --MM-DD when the year is unknown (age is then not shown).';
 const NOTE_TARGET_DOC = 'event:<eventId> (from list_events) or list_item:<itemId> (from get_list).';
-const SORT_BY_DOC = 'Item order: manual (priority first, overdue first, then hand-set order), added (newest first), due (soonest first, undated last), priority (priority, then soonest due), alpha (A-Z).';
+const SORT_BY_DOC = 'Item order: manual (priority first, overdue first, then hand-set order), added (newest first), due (soonest first, undated last), priority (priority, then soonest due), alpha (A-Z), aisle (shopping lists: by store, then the store\'s aisle order - custom when set, else natural - no aisle last, then A-Z; the default for new shopping lists).';
+const AISLE_DOC = 'Where in the store, e.g. "Aisle 4", "Produce" or "Back wall" (per store).';
+const REMEMBER_DOC = 'On a shopping list, an omitted store/category/aisle is filled from what the family used last time for that item name.';
 const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
   list_recipes: { recipes: z.array(RecipeSchema) }, get_recipe: { recipe: RecipeSchema }, create_recipe: { recipe: RecipeSchema }, update_recipe: { recipe: RecipeSchema },
   list_meals: { meals: z.array(MealSchema) }, create_meal: { meal: MealSchema }, update_meal: { meal: MealSchema },
@@ -205,6 +207,7 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
   get_list: ListDetailSchema.shape,
   add_list_items: { items: z.array(ListItemSchema) },
   update_list_item: { item: ListItemSchema },
+  set_store_aisle_order: { order: StoreAislesSchema },
   set_list_item_done: { item: ListItemSchema },
   set_step_done: { item: ListItemSchema },
   get_event_items: { items: z.array(ListItemSchema.extend({ listName: z.string() })) },
@@ -237,7 +240,7 @@ const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boole
   create_chore: WRITE, update_chore: SET, complete_chore: SET, uncomplete_chore: SET, list_pending_approvals: READ, approve_chore: SET, reject_chore: SET,
   list_rewards: READ, create_reward: WRITE, update_reward: SET, redeem_reward: WRITE, list_reward_requests: READ, approve_reward: SET, decline_reward: SET, mark_reward_given: SET,
   add_member: WRITE, update_member: SET,
-  create_list: WRITE, update_list: SET, add_list_items: WRITE, update_list_item: SET, set_list_item_done: SET, set_step_done: SET, update_category: SET, add_note: WRITE, update_note: SET,
+  create_list: WRITE, update_list: SET, add_list_items: WRITE, update_list_item: SET, set_store_aisle_order: SET, set_list_item_done: SET, set_step_done: SET, update_category: SET, add_note: WRITE, update_note: SET,
   send_notification: { ...WRITE, openWorldHint: true },
   delete_event: { ...WRITE, destructiveHint: true, idempotentHint: true, openWorldHint: true },
 };
@@ -1025,7 +1028,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'add_list_items',
     {
       title: 'Add list items',
-      description: 'Add one or more items to a list. Provide plain titles, or objects for more detail (notes, quantity, store, category, member, dueDate, eventId, priority, steps).',
+      description: `Add one or more items to a list. Provide plain titles, or objects for more detail (notes, quantity, store, category, aisle, member, dueDate, eventId, priority, steps). ${REMEMBER_DOC}`,
       inputSchema: {
         listId: z.string().optional().describe('List id (use this or listName).'),
         listName: z.string().optional().describe('List name, case-insensitive (use this or listId).'),
@@ -1038,6 +1041,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
               quantity: z.string().optional().describe('Free text, e.g. "2" or "1 lb".'),
               store: z.string().optional(),
               category: z.string().optional(),
+              aisle: z.string().optional().describe(AISLE_DOC),
               member: z.string().optional().describe('Member name or id to assign this item to.'),
               dueDate: z.string().optional().describe('YYYY-MM-DD.'),
               eventId: z.string().optional().describe(EVENT_ID_DOC),
@@ -1241,14 +1245,16 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'update_list',
     {
       title: 'Update list',
-      description: 'Change a list: rename it, switch its kind (todo / shopping / reusable), emoji, owners, item sort order, or archive it. Only provided fields change.',
+      description: 'Change a list: rename it, switch its kind (todo / shopping / reusable), emoji, owners, item sort order, grouping, whether checked items stay in place, or archive it. Only provided fields change.',
       inputSchema: {
         list: z.string().describe('List id or name.'),
         name: z.string().optional(),
         kind: z.enum(['shopping', 'todo', 'reusable']).optional(),
         emoji: z.string().optional(),
         members: jsonList(z.array(z.string())).optional().describe('Owner member names or ids; [] = the whole family.'),
-        sortBy: z.enum(['manual', 'added', 'due', 'priority', 'alpha']).optional().describe(SORT_BY_DOC),
+        sortBy: z.enum(['manual', 'added', 'due', 'priority', 'alpha', 'aisle']).optional().describe(SORT_BY_DOC),
+        groupBy: z.enum(['store', 'category', 'aisle', 'none']).optional().describe('Shopping lists: group items under store, category or aisle headings, or none.'),
+        keepChecked: z.boolean().optional().describe('Checked items stay in place, crossed off, until Checkout (or Reset). Default on for shopping and reusable lists, off for to-do lists.'),
         archived: z.boolean().optional(),
       },
     },
@@ -1272,7 +1278,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'update_list_item',
     {
       title: 'Update list item',
-      description: 'Edit a list item: title, notes, quantity, store, category, assignee, due date, linked event, priority. Only provided fields change; pass member: null to unassign.',
+      description: 'Edit a list item: title, notes, quantity, store, category, aisle, assignee, due date, linked event, priority. Only provided fields change; pass member: null to unassign. A shopping item\'s store/category/aisle is remembered for next time.',
       inputSchema: {
         list: z.string().describe('List id or name.'),
         itemId: z.string(),
@@ -1281,6 +1287,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         quantity: z.string().nullable().optional(),
         store: z.string().nullable().optional(),
         category: z.string().nullable().optional(),
+        aisle: z.string().nullable().optional().describe(`${AISLE_DOC} null to clear.`),
         member: z.string().nullable().optional().describe('Member name or id to assign; null to unassign.'),
         dueDate: z.string().nullable().optional().describe('YYYY-MM-DD, or null to clear.'),
         eventId: z.string().nullable().optional().describe(`${EVENT_ID_DOC} null to unlink.`),
@@ -1300,6 +1307,24 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       const res = await call(app, env, auth, 'PATCH', `/api/lists/${encodeURIComponent(listId)}/items/${encodeURIComponent(itemId)}`, body);
       if (res.status >= 400) return errorResult(res.json, 'failed to update item');
       return okResult(`Updated "${(res.json as { title: string }).title}".`, { item: res.json as Record<string, unknown> });
+    },
+  );
+
+  tool(
+    'set_store_aisle_order',
+    {
+      title: 'Set store aisle order',
+      description: 'Set the order you walk a store\'s aisles in, e.g. ["Produce", "Bakery", "Deli", "Aisle 4", "Frozen", "Aisle 5", "Dairy"]. Shopping lists sorted or grouped by aisle follow it; aisles not in it come after, in natural order. Every aisle in it is offered when picking an aisle for that store. An empty list clears it. get_list returns it as aisleOrder.',
+      inputSchema: {
+        store: z.string().nullable().describe('Store name (as on the items), or null for items with no store.'),
+        aisles: jsonList(z.array(z.string())).describe('Aisle names in walking order.'),
+      },
+    },
+    async ({ store, aisles }) => {
+      const res = await call(app, env, auth, 'PUT', '/api/lists/aisles', { store, aisles });
+      if (res.status >= 400) return errorResult(res.json, 'failed to set aisle order');
+      const order = res.json as { aisles: string[] };
+      return okResult(order.aisles.length ? `Set ${store ?? 'no-store'} aisle order: ${order.aisles.join(', ')}.` : `Cleared ${store ?? 'no-store'} aisle order.`, { order: res.json as Record<string, unknown> });
     },
   );
 

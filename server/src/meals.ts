@@ -1,6 +1,7 @@
 // Meal planning domain: recipes are definitions; a meal owns the snapshot it was planned with.
 import type { KinwallDb, KinwallStatement } from './db.ts';
 import type { Ingredient, Meal, Recipe, Projection } from './meal-schemas.ts';
+import { fillPlace, recall } from './item-memory.ts';
 
 export function normalizeIngredient(value: string): string {
   return value.normalize('NFKC').trim().toLowerCase().replace(/\s+/g, ' ');
@@ -99,8 +100,11 @@ export async function shoppingProjection(db: KinwallDb, from: string, to: string
 export async function applyProjection(db: KinwallDb, projection: Projection, listId: string, omitKeys: string[], includeNotes: boolean): Promise<string[]> {
   const omitted = new Set(omitKeys);
   const now = new Date().toISOString();
-  const rows = projection.items.filter((item) => !omitted.has(item.key) && !item.applied).map((item) => ({
-    id: crypto.randomUUID(), name: item.name, category: item.category, qualifier: item.qualifier,
+  const wanted = projection.items.filter((item) => !omitted.has(item.key) && !item.applied);
+  // Where the household keeps each ingredient (store, category, aisle); the recipe's category otherwise.
+  const memory = await recall(db, wanted.map((item) => item.name));
+  const rows = wanted.map((item) => ({ item, place: fillPlace(memory, item.name, {}) })).map(({ item, place }) => ({
+    id: crypto.randomUUID(), name: item.name, category: place.category ?? item.category, store: place.store, aisle: place.aisle, qualifier: item.qualifier,
     suffix: `${item.unit ? ` ${item.unit}` : ''}${item.qualifier ? ` · ${item.qualifier}` : ''}`,
     sources: item.sources.map((s) => ({ ref: s.sourceRef, quantity: s.quantity, fingerprint: sourceFingerprint(s, item.key),
       note: includeNotes ? `${s.date} · ${s.slot} · ${s.title}${s.title === s.recipeName ? '' : ` (${s.recipeName})`}${s.preparation ? ` · ${s.preparation}` : ''}${!s.scalable ? ` · check amount for ${s.servings} servings (recipe: ${s.defaultServings})` : ''}` : null,
@@ -118,11 +122,11 @@ export async function applyProjection(db: KinwallDb, projection: Projection, lis
   if (chunk.length) chunks.push(JSON.stringify(chunk));
   const writes: KinwallStatement[] = [];
   for (const payload of chunks) {
-    writes.push(db.prepare(`INSERT INTO list_items (id,list_id,title,quantity,notes,category,sort,created_at,updated_at)
+    writes.push(db.prepare(`INSERT INTO list_items (id,list_id,title,quantity,notes,category,store,aisle,sort,created_at,updated_at)
       SELECT i.value->>'id', ?, i.value->>'name',
         CASE WHEN count(s.value->>'quantity') = 0 THEN i.value->>'qualifier'
           ELSE rtrim(rtrim(printf('%.6f',sum(s.value->>'quantity')),'0'),'.') || (i.value->>'suffix') END,
-        group_concat(s.value->>'note', char(10)), i.value->>'category',
+        group_concat(s.value->>'note', char(10)), i.value->>'category', i.value->>'store', i.value->>'aisle',
         (SELECT coalesce(max(sort),-1) FROM list_items WHERE list_id=?) + row_number() OVER (ORDER BY cast(i.key AS INTEGER)), ?, ?
       FROM json_each(?) i JOIN json_each(i.value->'sources') s
       WHERE NOT EXISTS (SELECT 1 FROM meal_shopping_sources claimed WHERE claimed.list_id=? AND claimed.source_ref=s.value->>'ref')

@@ -49,7 +49,7 @@ test('export: seeded household has every section and no credentials', async () =
     const body = JSON.parse(text);
     assert.deepEqual(Object.keys(body), [
       'version', 'exportedAt', 'settings', 'members', 'categories', 'calendars', 'events', 'eventMemberOverrides', 'eventCategoryOverrides',
-      'eventTravelOverrides', 'eventSeriesMemberOverrides', 'eventSeriesCategoryOverrides', 'chores', 'choreCompletions', 'lists', 'notes', 'pointEntries', 'stickerPacks', 'scrapbook', 'rewards', 'rewardRedemptions', 'trackers', 'recipes', 'meals', 'mealShoppingSources', 'passkeys', 'webhooks',
+      'eventTravelOverrides', 'eventSeriesMemberOverrides', 'eventSeriesCategoryOverrides', 'chores', 'choreCompletions', 'lists', 'notes', 'pointEntries', 'stickerPacks', 'scrapbook', 'rewards', 'rewardRedemptions', 'trackers', 'recipes', 'meals', 'mealShoppingSources', 'itemMemory', 'storeAisles', 'passkeys', 'webhooks',
     ]);
     assert.equal(body.members[0].name, 'Ada');
     assert.equal(body.calendars.length, 2);
@@ -125,9 +125,10 @@ async function seed(request: ReturnType<typeof makeApp>) {
   await request.post('/api/chores', { title: 'Bins', points: 1 });
   await request.post(`/api/chores/${dishes.id}/complete`, { date: '2026-09-25', memberId: ada.id });
   const list = await request.post('/api/lists', { name: 'Groceries', kind: 'shopping', memberIds: [bob.id], sortBy: 'alpha' });
-  const [milk, bread] = await request.post(`/api/lists/${list.id}/items`, [{ title: 'Milk', store: 'Aldi', category: 'Dairy', memberId: bob.id, priority: 'low' }, { title: 'Bread', priority: 'urgent', steps: ['Slice', 'Wrap'] }]);
+  const [milk, bread] = await request.post(`/api/lists/${list.id}/items`, [{ title: 'Milk', store: 'Aldi', category: 'Dairy', aisle: 'Aisle 9', memberId: bob.id, priority: 'low' }, { title: 'Bread', priority: 'urgent', steps: ['Slice', 'Wrap'] }]);
   await request(`/api/lists/${list.id}/items/${bread.id}/steps/${bread.steps[0].id}`, { method: 'PATCH', body: JSON.stringify({ done: true }) });
   await request(`/api/lists/${list.id}/groups`, { method: 'PUT', body: JSON.stringify({ groups: [{ kind: 'category', name: 'Dairy' }, { kind: 'store', name: 'Aldi' }] }) });
+  await request('/api/lists/aisles', { method: 'PUT', body: JSON.stringify({ store: 'Aldi', aisles: ['Produce', 'Aisle 9', 'Frozen'] }) });
   await request.post('/api/notes', { target: `event:${dentist.id}`, body: 'Bring the forms', memberId: ada.id });
   await request.post('/api/notes', { target: `list_item:${milk.id}`, body: 'Oat milk this time' });
   // A note on a synced event isn't exported (its target isn't in the file).
@@ -167,6 +168,10 @@ test('import: export -> fresh instance -> import -> export round-trips; a second
   const bread = file.lists[0].items.find((i: any) => i.title === 'Bread');
   assert.deepEqual([bread.priority, bread.steps.map((st: any) => [st.title, st.done]), bread.stepsDone], ['urgent', [['Slice', true], ['Wrap', false]], 1]);
   assert.deepEqual([file.lists[0].sortBy, file.lists[0].items.find((i: any) => i.title === 'Milk').priority], ['alpha', 'low']);
+  // Aisles, the remembered place and the store's aisle order travel too.
+  assert.deepEqual([file.lists[0].keepChecked, file.lists[0].items.find((i: any) => i.title === 'Milk').aisle], [true, 'Aisle 9']);
+  assert.deepEqual(file.itemMemory.map((m: any) => [m.nameKey, m.store, m.category, m.aisle]), [['milk', 'Aldi', 'Dairy', 'Aisle 9']]);
+  assert.deepEqual(file.storeAisles, [{ store: 'Aldi', aisles: ['Produce', 'Aisle 9', 'Frozen'] }]);
   file.settings = { ...file.settings, lateCompletionCredit: 25, streakGraceDays: 3, leaderboardEnabled: false }; // non-defaults must survive too
 
   const target = makeApp();
@@ -174,7 +179,7 @@ test('import: export -> fresh instance -> import -> export round-trips; a second
   assert.equal(res.status, 200);
   const byName = (n: string) => file.calendars.find((c: any) => c.name === n);
   assert.deepEqual(await res.json(), {
-    imported: { members: 2, categories: 1, calendars: 3, events: 2, eventMemberOverrides: 1, eventCategoryOverrides: 1, eventTravelOverrides: 1, eventSeriesMemberOverrides: 1, eventSeriesCategoryOverrides: 1, chores: 2, choreCompletions: 1, lists: 1, listItems: 2, listItemSteps: 2, notes: 2, pointEntries: 2, stickerPacks: 1, scrapbook: 2, rewards: 0, rewardRedemptions: 0, trackers: 0, recipes: 0, meals: 0, mealShoppingSources: 0 },
+    imported: { members: 2, categories: 1, calendars: 3, events: 2, eventMemberOverrides: 1, eventCategoryOverrides: 1, eventTravelOverrides: 1, eventSeriesMemberOverrides: 1, eventSeriesCategoryOverrides: 1, chores: 2, choreCompletions: 1, lists: 1, listItems: 2, listItemSteps: 2, notes: 2, pointEntries: 2, stickerPacks: 1, scrapbook: 2, rewards: 0, rewardRedemptions: 0, trackers: 0, recipes: 0, meals: 0, mealShoppingSources: 0, itemMemory: 1, storeAisles: 1 },
     needsReconnect: [{ id: byName('Work').id, kind: 'google', name: 'Work' }], // the ICS feed came back with its url
     skipped: { passkeys: 1, webhooks: 1 },
   });
