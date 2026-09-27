@@ -8,7 +8,7 @@ On the device that should get notifications, go to **Settings → General → No
 
 | Option | Default | What you get |
 |---|---|---|
-| **Event reminders** | on | A notification at each event's reminder time. |
+| **Event reminders** | on | A notification at each event's reminder time. On a device that belongs to someone, also their [transition reminders](#transition-reminders), if they have them. |
 | **Daily summary** + time | off, 07:30 | "Today": event and chore counts, the first event titles, and open linked tasks. |
 | **Chore reminder** + time | off, 08:00 | "*N* chores left today", listing the first three. Sent only if something is still open. |
 | **List updates** | off | "List updated — *Groceries* has new items". At most one per list every 10 minutes. |
@@ -23,6 +23,10 @@ On the device that should get notifications, go to **Settings → General → No
 * With travel time and **remind before leave**, the first line reads "Leave by … for … · starts …".
 * Tapping the notification opens that event in the calendar.
 * A tick that was missed still fires once, within 10 minutes. Each reminder is sent only once per device.
+
+## Transition reminders
+
+A family member can also get **transition reminders**: calm heads-ups at the times a parent picks (for example 10 and 5 minutes before, plus every 5 minutes during the last 30), sent only to devices that belong to them. "Soccer practice in 10 minutes", or with travel time "Leave for Soccer practice in 5 minutes". They're never sent during quiet hours, a reminder that would land in the same minute as a regular one isn't doubled, and each replaces the last on the lock screen. Set them in [Settings → Family](../settings/family.md#transition-reminders).
 
 ## Daily summary
 

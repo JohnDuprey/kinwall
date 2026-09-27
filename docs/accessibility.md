@@ -40,6 +40,7 @@ Dragging is never the only way to do something: sheets have a Close button, the 
 
 - With **Reduce Motion** on, page and sheet slides, the chore confetti, the leaderboard crown bounce, sheet drag spring-back and the quiet-hours clock drift are all turned off.
 - A wall display returns to today's calendar after 2 minutes without a touch or key press, but never while you're typing in a field.
+- **Transition support** for people who find switching activities hard (ADHD, autism, or just being deep in play). Each screen can show calm transition warnings at any times you pick, repeated every few minutes as an event gets close, with an optional soft chime ([Time cues](settings/this-display.md#time-cues)). Each person can also get transition reminders on their own phone or tablet, counting down to when to leave when there's travel time ([Transition reminders](settings/family.md#transition-reminders)). Both are quiet during quiet hours, and everything is adjustable, since everyone is different.
 - Information doesn't vanish on a timer: short confirmations fade after 4 seconds (and are repeated to screen readers); errors and results stay until tapped.
 
 ## Touch
@@ -58,7 +59,7 @@ We'd rather list these than pretend they aren't there:
 - The quick-add fields in a list ("Add an item…") and on an event ("Add task…") are labeled for screen readers but show only a placeholder on screen.
 - Emoji avatars are read by their Unicode names ("fox", "bear face").
 - Testing so far has used the browser's accessibility tree and keyboard-only runs. It has not yet been tested end to end with VoiceOver, TalkBack or NVDA.
-- Shipped since this audit, per device under Settings: a low-stimulation mode, a typeface choice (Nunito, Atkinson Hyperlegible, Lexend), an icon-first density, and time-blindness aids (Now / Next countdown, leave-by times, transition warnings). See [Appearance](using/appearance.md) and [Calendar](using/calendar.md).
+- Shipped since this audit, per device under Settings: a low-stimulation mode, a typeface choice (Nunito, Atkinson Hyperlegible, Lexend), an icon-first density, and time-blindness aids (Now / Next countdown, leave-by times, transition warnings you can repeat as an event gets close, and per-person transition reminders). See [Appearance](using/appearance.md) and [Calendar](using/calendar.md).
 
 ## Finding help
 
