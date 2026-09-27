@@ -30,16 +30,19 @@ function saveLbPeriod(p: LeaderboardPeriod) {
   try { localStorage.setItem(LB_PERIOD_STORAGE, p) } catch { /* ignore */ }
 }
 
-function Leaderboard() {
+function PeriodControl({ period, onChange, className = '' }: { period: LeaderboardPeriod; onChange: (p: LeaderboardPeriod) => void; className?: string }) {
+  return <Segmented className={`leaderboard-segmented ${className}`} label="Leaderboard period" value={period} onChange={onChange}
+    options={LB_PERIODS.map(p => ({ key: p, label: p[0].toUpperCase() + p.slice(1) }))} />
+}
+
+/** `periodControl` false: the Today/Week/Month switch is rendered elsewhere (the phone header row). */
+function Leaderboard({ period, setPeriod, periodControl }: { period: LeaderboardPeriod; setPeriod: (p: LeaderboardPeriod) => void; periodControl: boolean }) {
   const { refreshTick, members } = useApp()
   // Spendable balance (all-time earned minus what's been spent) next to the period's earned points.
   const spendable = (id: string) => members.find(m => m.id === id)?.balance ?? null
-  const [period, setPeriod] = useState<LeaderboardPeriod>(loadLbPeriod)
   const [board, setBoard] = useState<LeaderboardEntry[]>([])
   const prevLeaderId = useRef<string | null | undefined>(undefined) // undefined = not loaded yet, don't bounce on first paint
   const [bounceId, setBounceId] = useState<string | null>(null)
-
-  useEffect(() => { saveLbPeriod(period) }, [period])
 
   useEffect(() => {
     api.getLeaderboard(period).then(list => {
@@ -58,8 +61,7 @@ function Leaderboard() {
 
   return (
     <div className="leaderboard-strip">
-      <Segmented className="leaderboard-segmented" label="Leaderboard period" value={period} onChange={setPeriod}
-        options={LB_PERIODS.map(p => ({ key: p, label: p[0].toUpperCase() + p.slice(1) }))} />
+      {periodControl && <PeriodControl period={period} onChange={setPeriod} />}
       <div className="leaderboard-pills" role="list" aria-label="Leaderboard">
         {board.map(e => (
           <div key={e.memberId} className="leaderboard-pill" role="listitem"
@@ -110,12 +112,12 @@ function ProgressRing({ pct, color, avatar, label }: { pct: number; color: strin
   const r = 27, c = 2 * Math.PI * r
   return (
     <div className="progress-ring-wrap" role="img" aria-label={label}>
-      <svg width="64" height="64" style={{ position: 'absolute', transform: 'rotate(-90deg)' }}>
+      <svg viewBox="0 0 64 64" width="100%" height="100%" style={{ position: 'absolute', transform: 'rotate(-90deg)' }}>
         <circle cx="32" cy="32" r={r} fill="none" stroke="var(--border)" strokeWidth="5" />
         <circle cx="32" cy="32" r={r} fill="none" stroke={color} strokeWidth="5" strokeLinecap="round"
           strokeDasharray={c} strokeDashoffset={c * (1 - pct)} style={{ transition: 'stroke-dashoffset 0.4s ease' }} />
       </svg>
-      <div className="avatar" style={{ background: color, color: inkFor(color), width: 44, height: 44, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{avatar}</div>
+      <div className="avatar" style={{ background: color, color: inkFor(color), width: '69%', height: '69%', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{avatar}</div>
     </div>
   )
 }
@@ -398,6 +400,9 @@ export default function Chores() {
   const [editChore, setEditChore] = useState<Chore | 'new' | null>(null)
   const [checklistFor, setChecklistFor] = useState<ChoreDay | null>(null) // the chore whose checklist sheet is open
 
+  const [lbPeriod, setLbPeriod] = useState<LeaderboardPeriod>(loadLbPeriod)
+  useEffect(() => { saveLbPeriod(lbPeriod) }, [lbPeriod])
+
   const key = dateKey(selectedDate)
   // Keep the selected chip visible when the day changes programmatically (e.g. after adding a chore).
   useEffect(() => { document.querySelector('.date-chip.active')?.scrollIntoView({ inline: 'center', block: 'nearest' }) }, [key])
@@ -484,8 +489,10 @@ export default function Chores() {
       {/* display: contents, except on a phone on its side, where it scrolls the whole view as one. */}
       <div className="chores-scroll">
       <div className="chores-header">
-        <h2 className="period-label">{format(selectedDate, 'EEEE, MMMM d')}</h2>
-        <a className="btn btn-secondary chores-rewards-btn" href={selectedMemberId ? `#/rewards/${selectedMemberId}` : '#/rewards'}><span aria-hidden="true">🎁</span> Rewards</a>
+        {/* A phone keeps date, period switch and Rewards on one short row: short date, icon-only Rewards. */}
+        <h2 className="period-label" aria-label={format(selectedDate, 'EEEE, MMMM d')}>{format(selectedDate, isPhone ? 'EEE, MMM d' : 'EEEE, MMMM d')}</h2>
+        {isPhone && settings.leaderboardEnabled && <PeriodControl className="chores-period" period={lbPeriod} onChange={setLbPeriod} />}
+        <a className="btn btn-secondary chores-rewards-btn" href={selectedMemberId ? `#/rewards/${selectedMemberId}` : '#/rewards'}><span aria-hidden="true">🎁</span> <span className="chores-rewards-label">Rewards</span></a>
       </div>
       <div className="date-strip" role="group" aria-label="Day">
         {strip.map(d => (
@@ -498,7 +505,7 @@ export default function Chores() {
 
       {parentDevice && <ApprovalQueue onChanged={load} />}
 
-      {settings.leaderboardEnabled && <Leaderboard />}
+      {settings.leaderboardEnabled && <Leaderboard period={lbPeriod} setPeriod={setLbPeriod} periodControl={!isPhone} />}
 
       {error ? (
         <div className="state-card">Couldn't load chores.</div>

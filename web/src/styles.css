@@ -924,10 +924,18 @@ button {
   55% { transform: scale(1.05) rotate(4deg); }
 }
 
+/* Phone: one slim strip - small avatar, name, points, "to spend"; the bars are for the wall. */
 @media (max-width: 600px) {
-  .leaderboard-strip { padding: 4px 14px 2px; }
-  .leaderboard-pill { min-width: 160px; padding: 6px 12px 6px 6px; }
-  .lb-avatar { width: 32px; height: 32px; font-size: 1rem; }
+  .leaderboard-strip { padding: 0 14px 4px; }
+  .leaderboard-pills { gap: 6px; padding-bottom: 2px; }
+  .leaderboard-pill { min-width: 0; padding: 3px 12px 3px 3px; gap: 6px; }
+  .lb-rank { width: auto; font-size: 0.6875rem; padding-left: 4px; }
+  .lb-avatar { width: 26px; height: 26px; font-size: 0.875rem; box-shadow: 0 0 0 1.5px var(--card), 0 0 0 3px var(--lb-color, var(--accent)); }
+  .lb-info { flex: none; }
+  .lb-name-row { font-size: 0.75rem; line-height: 1.2; }
+  .lb-bar-track { display: none; }
+  .lb-spend { font-size: 0.625rem; margin-top: 0; line-height: 1.2; }
+  .lb-points { font-size: 0.875rem; }
 }
 
 /* ---------- Settings ---------- */
@@ -1309,12 +1317,29 @@ button {
   }
 
   /* ---------- Chores: stack member sections instead of side-scrolling columns ---------- */
-  .chore-columns { display: flex; flex-direction: column; overflow-x: hidden; }
-  .chore-column { width: 100%; }
-  .chore-col-head { flex-direction: row; justify-content: flex-start; }
-  .chore-check { width: 48px; height: 48px; }
-  .date-strip { padding: 6px 14px 10px; gap: 6px; }
-  .date-chip { min-width: 40px; padding: 6px 2px; }
+  .chore-columns { display: flex; flex-direction: column; overflow-x: hidden; padding-top: 4px; padding-left: 10px; padding-right: 10px; }
+  .chore-column { width: 100%; padding: 8px; gap: 6px; }
+  .chore-col-head { flex-direction: row; justify-content: flex-start; flex-wrap: wrap; column-gap: 8px; row-gap: 0; padding-left: 2px; }
+  .chore-col-head .progress-ring-wrap { width: 36px; height: 36px; }
+  .chore-col-head .avatar { font-size: 1.0625rem; }
+  /* Compact rows, so a typical list fits above the fold. The whole card is the tap target
+     (an activity chore's check keeps its 44px .chore-check-btn), so the circle can shrink. */
+  .chore-card { padding: 8px 10px; gap: 10px; }
+  .chore-emoji { font-size: 1.375rem; }
+  .chore-title { font-size: 0.875rem; }
+  .chore-pts { font-size: 0.6875rem; }
+  .chore-check { width: 32px; height: 32px; border-width: 2px; }
+  /* Date, period switch and Rewards share one row; the day strip is slimmer. */
+  .chores-header { padding: 4px 14px 2px; flex-wrap: nowrap; gap: 8px; }
+  .chores-header .period-label { flex: 1; }
+  .chores-period { padding: 3px; gap: 1px; flex-shrink: 0; }
+  .chores-period button { padding: 4px 9px; font-size: 0.75rem; min-height: 38px; }
+  .chores-header .chores-rewards-btn { flex: none; width: 44px; height: 44px; min-width: 0; padding: 0; justify-content: center; border-radius: 50%; font-size: 1.25rem; }
+  .chores-rewards-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .date-strip { padding: 2px 14px 6px; gap: 6px; }
+  .date-chip { min-width: 40px; min-height: 44px; padding: 3px 2px; border-radius: 12px; line-height: 1.15; }
+  .date-chip .wd { font-size: 0.5625rem; }
+  .date-chip .dn { font-size: 0.9375rem; }
 
   /* ---------- Settings: label above control, nothing wider than the viewport ---------- */
   .settings-scroll { padding-left: 14px; padding-right: 14px; }
