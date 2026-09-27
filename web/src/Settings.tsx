@@ -1739,6 +1739,8 @@ function EditCalendarSheet({ calendar, onClose, onSaved, onSync, onRemove, toast
         {calendar.kind !== 'local' && <button className="link-btn" onClick={onSync}>Sync now</button>}
         <button className="link-btn" style={{ color: 'var(--danger)' }} onClick={onRemove}>Remove</button>
       </div>
+      {/* For automations that name a calendar, like the meal kit blueprint's "Add dinners to calendar". */}
+      <p className="settings-row-sub">Calendar ID: <code style={{ userSelect: 'all', wordBreak: 'break-all' }}>{calendar.id}</code></p>
     </Sheet>
   )
 }
