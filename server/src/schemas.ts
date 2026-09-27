@@ -327,6 +327,8 @@ export const ChoreSchema = z
     active: z.boolean(),
     sort: z.number(),
     listId: z.string().nullable().openapi({ description: 'Checklist: a list that must be fully ticked before the chore can be completed.' }),
+    pluginId: z.string().nullable().openapi({ description: 'Activity: an installed plugin whose play counts toward this chore; it completes once pluginMinutes of play are in for the day.' }),
+    pluginMinutes: z.number().nullable().openapi({ description: 'Minutes of active play the activity needs (1-60), when pluginId is set.' }),
   })
   .openapi('Chore');
 
@@ -342,14 +344,28 @@ export const ChoreInputSchema = z
     active: z.boolean().optional(),
     sort: z.number().optional(),
     listId: z.string().nullable().optional().openapi({ description: 'Checklist list id; null to unlink. A reusable list resets when the chore is completed.' }),
+    pluginId: z.string().nullable().optional().openapi({ description: "Activity plugin id (see GET /api/plugins); null to unlink. Kinwall's player completes the chore once the day's play reaches pluginMinutes." }),
+    pluginMinutes: z.number().int().min(1).max(60).optional().openapi({ description: 'Minutes of active play needed, 1-60 (default 5).' }),
   })
   .openapi('ChoreInput');
+
+// Progress on an activity-linked chore for one day. doneSeconds is the assignee's play; for an
+// Anyone chore, whoever has played most.
+export const ActivityProgressSchema = z.object({
+  pluginId: z.string(),
+  name: z.string().nullable(),
+  emoji: z.string().nullable(),
+  available: z.boolean(),
+  needSeconds: z.number(),
+  doneSeconds: z.number(),
+});
 
 export const ChoreDaySchema = ChoreSchema.extend({
   completed: z.boolean(),
   completedAt: z.string().nullable(),
   completedBy: z.string().nullable(),
   checklist: z.object({ listId: z.string(), name: z.string(), total: z.number(), done: z.number() }).nullable().openapi({ description: 'Progress on the linked checklist, when the chore has one.' }),
+  activity: ActivityProgressSchema.nullable().openapi({ description: "The linked activity and the day's play, when the chore has one. available is false when the plugin was removed or turned off (the chore is then a plain one)." }),
 }).openapi('ChoreDay');
 
 // manual: open items by priority (urgent, high, normal, low), overdue first within each, then the

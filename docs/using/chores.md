@@ -33,6 +33,7 @@ Tap **+** (Add chore). The sheet has:
 | **Ends (optional)** (Daily/Weekly) | The last date it's due. It's stored as `UNTIL` in the rule. |
 | **Due date** (Once) | The day a one-off chore is due. |
 | **Checklist (optional)** | A list that has to be fully ticked before the chore can be completed. See [Checklists](#checklists). |
+| **Do an activity (optional)** | One of the family's [activities](activities.md) and **Minutes** (1–60, default 5). Playing it completes the chore. See [Activity chores](#activity-chores). Shown once an activity is installed. |
 
 Chores created through the API or MCP can use any RRULE (for example `FREQ=MONTHLY` or `INTERVAL=2`). The sheet shows those as "Custom schedule (…)" and leaves them alone unless you pick another option. A recurring chore without a due date starts on the day it was created, in the household timezone.
 
@@ -60,6 +61,20 @@ So one "Bedtime" list can serve both Maya's and Leo's bedtime chores:
 Ticks are saved on the list itself. A shared item ticked by one child is ticked for the other too, while each child's own steps stay separate. Completing the chore resets only that person's items and the shared ones. Steps added from the chore's sheet are assigned to the chore's person.
 
 **API and MCP:** `listId` on `POST/PATCH /api/chores`, `checklist` progress on `GET /api/chores/day`, and `POST /api/chores/{id}/complete` answers **409** with `remaining` while items are open. In MCP, use the `list` argument on `create_chore` and `update_chore`.
+
+## Activity chores
+
+A chore can be "*N* minutes of an activity", such as **🔤 5 min of Sight words**. Pick the activity and the minutes under **Do an activity (optional)**. Assignment, repeat and points work as for any chore.
+
+* The card shows the activity and the day's progress, for example `🔤 5 min of Sight words · 2 of 5 min` with a small bar.
+* **Tap the card** to play. It opens the activity as the chore's person, so there's no **Who's playing?** For an **Anyone** chore, it asks unless the family is filtered to one person.
+* **Tap the check** to tick it off by hand, as with any chore.
+* While playing, the bar at the top shows the chore's progress ("Sight words: 3 of 5 min"). When the time is reached, the chore completes itself with a toast and confetti. There's no sound, because the activity may be speaking.
+* Kinwall does the timing, not the activity. Time counts only while the activity is on screen and being played: it has to have saved progress (for example, an answer) in the last two minutes. Leaving it idle doesn't count, and neither does **Just playing**.
+* Play adds up across the day, per person and activity, in the household timezone, up to 4 hours a day. The chore completes once, on a day it's due, and earns its points, events and notifications like a tick. An **Anyone** chore goes to whoever reaches the time first.
+* If the activity is removed or turned off, the card says **Activity not available** and the chore works like a plain one.
+
+**API and MCP:** `pluginId` and `pluginMinutes` on `POST/PATCH /api/chores`, `activity` progress (`needSeconds`, `doneSeconds`, `available`) on `GET /api/chores/day`. The player sends `POST /api/plugins/{id}/playtime {member, seconds}` about every 30 seconds (at most 60 seconds a call; display keys may). It returns that person's activity chores due today with their progress. In MCP, use the `activity` and `minutes` arguments on `create_chore` and `update_chore`.
 
 ## Points, late completion credit
 

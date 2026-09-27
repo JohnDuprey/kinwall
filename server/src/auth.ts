@@ -125,6 +125,7 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'GET', pattern: /^\/api\/plugins$/ },
   { method: 'GET', pattern: /^\/api\/plugins\/[a-z0-9-]+\/data$/ },
   { method: 'PUT', pattern: /^\/api\/plugins\/[a-z0-9-]+\/data$/ },
+  { method: 'POST', pattern: /^\/api\/plugins\/[a-z0-9-]+\/playtime$/ }, // activity chores: the player's heartbeat
   { method: 'GET', pattern: /^\/api\/geocode$/ }, // Settings -> General's location search (settings PATCH is display-allowed too)
   { method: 'GET', pattern: /^\/api\/settings$/ },
   { method: 'PATCH', pattern: /^\/api\/settings$/ },

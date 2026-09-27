@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { tellAppSignedIn, tellAppSignedOut } from './native.ts'
 import { mock } from './mock.ts'
 import type { PasskeyAuthenticator } from './webauthn.ts'
-import type { OnlineTidbits, Plugin, PluginCatalogEntry,
+import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginCatalogEntry,
   StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota,
   Account, ApiKey, AppNotification, Appearance, CalendarEntry, Category, Chore, ChoreDay, EventInstance, LeaderboardEntry, LeaderboardPeriod, List,
   GeocodeResult, HostEvent, ImportResult, ListDetail, ListGroup, ListItem, ListItemInput, Member, Me, Note, NoteTarget, Passkey, TrackerEntry, TrackerInput, TrackerKind, Providers, PushSubscription, PushSubscriptionPrefs, RemoteCalendar, Settings, Snapshot, Board, Webhook, WebhookWithSecret,
@@ -171,6 +171,10 @@ export const api = {
   deletePlugin: (id: string) => del(`api/plugins/${id}`, true),
   getPluginData: (id: string, member: string) => get<Record<string, unknown>>(`api/plugins/${id}/data?member=${encodeURIComponent(member)}`),
   savePluginData: (id: string, member: string, key: string, value: unknown) => put<void>(`api/plugins/${id}/data`, { member, key, value }),
+  // Not a tracked save: a background heartbeat shouldn't flash "Saving…". keepalive lets the last one
+  // go out as the page closes.
+  sendPlaytime: (id: string, member: string, seconds: number) => MOCK ? Promise.resolve([] as ActivityChoreProgress[])
+    : send<ActivityChoreProgress[]>(`api/plugins/${id}/playtime`, { method: 'POST', body: JSON.stringify({ member, seconds }), keepalive: true }),
   pluginUrl: (p: Pick<Plugin, 'url'>) => apiUrl(p.url.replace(/^\//, '')),
 
   geocode: (q: string) => MOCK ? mock.geocode(q) : get<GeocodeResult[]>(`api/geocode?q=${encodeURIComponent(q)}`),

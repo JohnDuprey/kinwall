@@ -23,6 +23,9 @@ import { emit } from '../bus.ts';
 import { ErrorSchema } from '../schemas.ts';
 import type { KinwallDb } from '../db.ts';
 import type { Env } from '../env.ts';
+import { hostTimezone } from '../env.ts';
+import { todayInTz } from './members.ts';
+import { completeChore, DEFAULT_ACTIVITY_MINUTES, dueOnDate, type ChoreRow } from './chores.ts';
 import { readZip } from '../zip.ts';
 import { blobBytes } from './photos.ts';
 
@@ -41,6 +44,8 @@ export const PLUGIN_LIMITS = {
   maxValueBytes: 16 * 1024, // one saved value
   maxKeys: 100, // saved values per person, per plugin
   maxDataBytes: 1024 * 1024, // everything one plugin saves, for everyone together
+  maxPlaytimeCall: 60, // seconds one playtime heartbeat can add (the player sends ~30)
+  maxPlaytimeDay: 4 * 60 * 60, // seconds counted per person, plugin and day
 };
 const MANIFEST = 'kinwall-plugin.json';
 const PACKAGE_ASSET = 'kinwall-plugin.zip';
@@ -372,6 +377,7 @@ pluginsRoutes.openapi(
     if (!(await db.prepare('SELECT 1 FROM plugins WHERE id = ?').bind(id).first())) return c.json({ error: 'plugin not found' }, 404);
     await db.batch([
       db.prepare('DELETE FROM plugin_data WHERE plugin_id = ?').bind(id),
+      db.prepare('DELETE FROM plugin_playtime WHERE plugin_id = ?').bind(id),
       db.prepare('DELETE FROM plugin_files WHERE plugin_id = ?').bind(id),
       db.prepare('DELETE FROM plugins WHERE id = ?').bind(id),
     ]);
@@ -426,6 +432,71 @@ pluginsRoutes.openapi(
       .bind(id, member, key, text, new Date().toISOString())
       .run();
     return c.body(null, 204);
+  },
+);
+
+// Activity chores ("5 min of Sight words"). Kinwall times play, not the plugin: the player counts
+// seconds while its page is visible and the plugin saved progress in the last two minutes, and sends
+// them here every ~30 s. The day's total (household timezone) completes that person's linked chores
+// due today, through the same path as a tick, once each.
+const ActivityChoreProgressSchema = z.object({
+  choreId: z.string(),
+  title: z.string(),
+  emoji: z.string().nullable(),
+  needSeconds: z.number(),
+  doneSeconds: z.number(),
+  completed: z.boolean(),
+  justCompleted: z.boolean().openapi({ description: 'This call completed it.' }),
+}).openapi('ActivityChoreProgress');
+pluginsRoutes.openapi(
+  createRoute({
+    method: 'post', path: '/api/plugins/{id}/playtime', tags: ['Plugins'], security: [{ Bearer: [] }],
+    summary: `Add seconds of active play for one person (at most ${PLUGIN_LIMITS.maxPlaytimeCall} per call, ${PLUGIN_LIMITS.maxPlaytimeDay / 3600} hours a day) and complete their chores linked to this plugin that are due today once the day's play reaches them. seconds 0 just reads the progress. Returns that person's linked chores due today.`,
+    request: { params: IdParam, body: { required: true, content: { 'application/json': { schema: z.object({ member: z.string().min(1), seconds: z.number().min(0) }) } } } },
+    responses: { 200: { description: 'ok', content: json(z.array(ActivityChoreProgressSchema)) }, 404: errors[404] },
+  }),
+  async (c) => {
+    const { id } = c.req.valid('param');
+    const { member, seconds } = c.req.valid('json');
+    const db = c.env.DB;
+    const [pluginRes, memberRes, tzRes] = await db.batch<unknown>([
+      db.prepare('SELECT 1 FROM plugins WHERE id = ? AND enabled = 1').bind(id),
+      db.prepare('SELECT 1 FROM members WHERE id = ?').bind(member),
+      db.prepare("SELECT value FROM settings WHERE key = 'timezone'"),
+    ]);
+    if (!pluginRes.results.length) return c.json({ error: 'plugin not found' }, 404);
+    if (!memberRes.results.length) return c.json({ error: 'member not found' }, 404);
+    const tz = (tzRes.results[0] as { value: string } | undefined)?.value ?? hostTimezone();
+    const today = todayInTz(tz);
+    const add = Math.min(Math.floor(seconds), PLUGIN_LIMITS.maxPlaytimeCall);
+    if (add > 0) {
+      await db
+        .prepare('INSERT INTO plugin_playtime (date, member_id, plugin_id, seconds) VALUES (?,?,?,?) ON CONFLICT(date, member_id, plugin_id) DO UPDATE SET seconds = MIN(plugin_playtime.seconds + excluded.seconds, ?)')
+        .bind(today, member, id, add, PLUGIN_LIMITS.maxPlaytimeDay)
+        .run();
+    }
+    const [playRes, choresRes, doneRes] = await db.batch<unknown>([
+      db.prepare('SELECT seconds FROM plugin_playtime WHERE date = ? AND member_id = ? AND plugin_id = ?').bind(today, member, id),
+      // Theirs, and Anyone chores (whoever gets there first earns those).
+      db.prepare('SELECT * FROM chores WHERE active = 1 AND plugin_id = ? AND (member_id = ? OR member_id IS NULL) ORDER BY sort, created_at').bind(id, member),
+      db.prepare('SELECT chore_id FROM chore_completions WHERE date = ?').bind(today),
+    ]);
+    const total = Number((playRes.results[0] as { seconds: number } | undefined)?.seconds ?? 0);
+    const done = new Set((doneRes.results as { chore_id: string }[]).map((r) => r.chore_id));
+    const out: z.infer<typeof ActivityChoreProgressSchema>[] = [];
+    for (const ch of (choresRes.results as unknown as ChoreRow[]).filter((r) => dueOnDate(r, today, tz))) {
+      const needSeconds = (ch.plugin_minutes ?? DEFAULT_ACTIVITY_MINUTES) * 60;
+      let completed = done.has(ch.id);
+      let justCompleted = false;
+      if (!completed && total >= needSeconds) {
+        // onlyIfNew: a completion that landed meanwhile (a tick, another heartbeat) stays as it is.
+        const r = await completeChore(c, ch.id, today, member, true);
+        justCompleted = r === true;
+        completed = r === true || r === false; // a number = its checklist isn't finished yet
+      }
+      out.push({ choreId: ch.id, title: ch.title, emoji: ch.emoji, needSeconds, doneSeconds: Math.min(total, needSeconds), completed, justCompleted });
+    }
+    return c.json(out, 200);
   },
 );
 

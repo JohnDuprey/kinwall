@@ -149,12 +149,12 @@ const withLeave = (e: EventInstance): EventInstance =>
   ({ ...e, leaveAt: e.travelMinutes && !e.allDay ? new Date(new Date(e.start).getTime() - e.travelMinutes * 60000).toISOString() : null })
 
 const chores: Chore[] = [
-  { id: 'ch1', title: 'Make bed', emoji: '🛏️', memberId: 'm2', points: 5, rrule: 'FREQ=DAILY', dueDate: null, dueTime: null, active: true, sort: 0, listId: null },
-  { id: 'ch2', title: 'Feed the dog', emoji: '🐕', memberId: 'm3', points: 5, rrule: 'FREQ=DAILY', dueDate: null, dueTime: null, active: true, sort: 1, listId: null },
-  { id: 'ch3', title: 'Take out trash', emoji: '🗑️', memberId: 'm1', points: 10, rrule: 'FREQ=WEEKLY;BYDAY=MO,TH', dueDate: null, dueTime: null, active: true, sort: 2, listId: null },
-  { id: 'ch4', title: 'Water plants', emoji: '🪴', memberId: null, points: 5, rrule: null, dueDate: todayISO(), dueTime: null, active: true, sort: 3, listId: null },
-  { id: 'ch5', title: 'Vacuum living room', emoji: '🧹', memberId: 'm2', points: 15, rrule: 'FREQ=WEEKLY', dueDate: null, dueTime: null, active: true, sort: 4, listId: null },
-  { id: 'ch6', title: 'Tidy toys', emoji: '🧸', memberId: 'm4', points: 5, rrule: 'FREQ=DAILY', dueDate: null, dueTime: null, active: true, sort: 5, listId: 'l4' },
+  { id: 'ch1', title: 'Make bed', emoji: '🛏️', memberId: 'm2', points: 5, rrule: 'FREQ=DAILY', dueDate: null, dueTime: null, active: true, sort: 0, listId: null, pluginId: null, pluginMinutes: null },
+  { id: 'ch2', title: 'Feed the dog', emoji: '🐕', memberId: 'm3', points: 5, rrule: 'FREQ=DAILY', dueDate: null, dueTime: null, active: true, sort: 1, listId: null, pluginId: null, pluginMinutes: null },
+  { id: 'ch3', title: 'Take out trash', emoji: '🗑️', memberId: 'm1', points: 10, rrule: 'FREQ=WEEKLY;BYDAY=MO,TH', dueDate: null, dueTime: null, active: true, sort: 2, listId: null, pluginId: null, pluginMinutes: null },
+  { id: 'ch4', title: 'Water plants', emoji: '🪴', memberId: null, points: 5, rrule: null, dueDate: todayISO(), dueTime: null, active: true, sort: 3, listId: null, pluginId: null, pluginMinutes: null },
+  { id: 'ch5', title: 'Vacuum living room', emoji: '🧹', memberId: 'm2', points: 15, rrule: 'FREQ=WEEKLY', dueDate: null, dueTime: null, active: true, sort: 4, listId: null, pluginId: null, pluginMinutes: null },
+  { id: 'ch6', title: 'Tidy toys', emoji: '🧸', memberId: 'm4', points: 5, rrule: 'FREQ=DAILY', dueDate: null, dueTime: null, active: true, sort: 5, listId: 'l4', pluginId: null, pluginMinutes: null },
 ]
 const completions = new Map<string, { completedAt: string; memberId: string | null }>() // key `${choreId}:${date}`
 
@@ -388,10 +388,10 @@ export const mock = {
     const comp = completions.get(`${c.id}:${date}`)
     const list = c.listId ? lists.find(l => l.id === c.listId) : undefined
     const its = list ? listItems.filter(i => i.listId === list.id && (!c.memberId || !i.memberId || i.memberId === c.memberId)) : []
-    return { ...c, completed: !!comp, completedAt: comp?.completedAt ?? null, completedBy: comp?.memberId ?? null, checklist: list ? { listId: list.id, name: list.name, total: its.length, done: its.filter(i => i.done).length } : null }
+    return { ...c, completed: !!comp, completedAt: comp?.completedAt ?? null, completedBy: comp?.memberId ?? null, checklist: list ? { listId: list.id, name: list.name, total: its.length, done: its.filter(i => i.done).length } : null, activity: null }
   }),
   createChore: async (body: Partial<Chore>) => {
-    const nc: Chore = { id: uid(), title: body.title ?? 'New chore', emoji: body.emoji ?? '⭐', memberId: body.memberId ?? null, points: body.points ?? 5, rrule: body.rrule ?? null, dueDate: body.dueDate ?? null, dueTime: body.dueTime ?? null, active: true, sort: chores.length, listId: body.listId ?? null }
+    const nc: Chore = { id: uid(), title: body.title ?? 'New chore', emoji: body.emoji ?? '⭐', memberId: body.memberId ?? null, points: body.points ?? 5, rrule: body.rrule ?? null, dueDate: body.dueDate ?? null, dueTime: body.dueTime ?? null, active: true, sort: chores.length, listId: body.listId ?? null, pluginId: body.pluginId ?? null, pluginMinutes: body.pluginId ? body.pluginMinutes ?? 5 : null }
     chores.push(nc); bump(); return nc
   },
   updateChore: async (id: string, patch: Partial<Chore>) => {

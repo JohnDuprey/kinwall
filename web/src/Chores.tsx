@@ -3,7 +3,7 @@ import { addDays, format, isSameDay } from 'date-fns'
 import { useIsPhone } from './useIsPhone.ts'
 import { useApp } from './AppContext.tsx'
 import { api, ApiError } from './api.ts'
-import type { Chore, ChoreDay, LeaderboardEntry, LeaderboardPeriod, List, ListItem } from './types.ts'
+import type { Chore, ChoreDay, LeaderboardEntry, LeaderboardPeriod, List, ListItem, Plugin } from './types.ts'
 import { MEMBER_EMOJI } from './types.ts'
 import { dateKey } from './date.ts'
 import Sheet from './Sheet.tsx'
@@ -86,7 +86,7 @@ function Leaderboard() {
   )
 }
 
-function Confetti() {
+export function Confetti() {
   const pieces = useMemo(() => Array.from({ length: 14 }, () => ({
     dx: (Math.random() - 0.5) * 160,
     dy: (Math.random() - 0.8) * 140,
@@ -174,12 +174,19 @@ function scheduleLabel(rrule: string | null): string {
 }
 
 function ChoreCard({ chore, onToggle, onEdit }: { chore: ChoreDay; onToggle: () => void; onEdit: () => void }) {
-  const { members } = useApp()
+  const { members, selectedMemberId } = useApp()
   const schedule = scheduleLabel(chore.rrule)
   // An Anyone chore says who got the points once it's done.
   const by = !chore.memberId && chore.completed ? (members.find(m => m.id === chore.completedBy)?.name ?? 'nobody in particular') : null
   const cl = chore.checklist
   const checklist = cl ? `☑ ${cl.done}/${cl.total} ${cl.name}` : ''
+  // A linked activity: tapping the card plays it (as the chore's person), the check still ticks it.
+  // Removed or turned off, it's a plain chore that says so.
+  const act = chore.activity?.available ? chore.activity : null
+  const actLabel = act ? `${act.emoji ?? ''} ${act.needSeconds / 60} min of ${act.name}`.trim() : chore.activity ? 'Activity not available' : ''
+  const actProgress = act && !chore.completed && act.doneSeconds > 0 ? `${Math.floor(act.doneSeconds / 60)} of ${act.needSeconds / 60} min` : ''
+  const player = chore.memberId ?? selectedMemberId
+  const play = () => { location.hash = `#/activities/plugin/${act!.pluginId}${player ? `?member=${player}` : ''}` }
   const [burst, setBurst] = useState(false)
   const pressTimer = useRef<ReturnType<typeof setTimeout>>()
   const longPressed = useRef(false)
@@ -196,6 +203,37 @@ function ChoreCard({ chore, onToggle, onEdit }: { chore: ChoreDay; onToggle: () 
     if (!chore.completed) setBurst(true)
     onToggle()
   }
+  const info = (
+    <>
+      <div className="chore-emoji" aria-hidden="true">{chore.emoji}</div>
+      <div className="chore-info">
+        <div className={`chore-title ${chore.completed ? 'done' : ''}`}>{chore.title}</div>
+        <div className="chore-pts">{[by && `Done by ${by}`, `${chore.points} pts`, schedule, checklist].filter(Boolean).join(' · ')}</div>
+        {actLabel && <div className="chore-pts chore-activity">{actLabel}</div>}
+        {actProgress && <>
+          <div className="chore-activity-bar" aria-hidden="true"><div style={{ width: `${Math.min(1, act!.doneSeconds / act!.needSeconds) * 100}%` }} /></div>
+          <div className="chore-pts">{actProgress}</div>
+        </>}
+      </div>
+    </>
+  )
+  const check = <div className={`chore-check ${chore.completed ? 'done' : ''}`}>{chore.completed && <CheckIcon width={18} height={18} />}</div>
+  if (act) {
+    // Two controls: play (the card) and done (the check). Long-press/right-click still edits.
+    return (
+      <>
+        <div className={`chore-card ${chore.completed ? 'done' : ''}`} onContextMenu={e => { e.preventDefault(); onEdit() }}
+          onPointerDown={handleDown} onPointerUp={handleUp} onPointerLeave={() => clearTimeout(pressTimer.current)}>
+          <button className="chore-play" aria-label={[`Play ${act.name} for ${chore.title}`, actLabel, actProgress && `${actProgress} played`].filter(Boolean).join(', ')}
+            onClick={() => { if (longPressed.current) { longPressed.current = false; return } play() }}>{info}</button>
+          <button className="chore-check-btn" role="checkbox" aria-checked={chore.completed}
+            aria-label={[`${chore.title} done`, by && `by ${by}`, `${chore.points} points`].filter(Boolean).join(', ')} onClick={handleClick}>{check}</button>
+          {burst && <Confetti />}
+        </div>
+        <button className="btn btn-secondary focus-reveal" onClick={onEdit}>Edit {chore.title}</button>
+      </>
+    )
+  }
 
   // Tap/Space/Enter toggles it (a checkbox to assistive tech); long-press, right-click/Menu key or
   // the Edit button that appears when tabbed to opens the editor.
@@ -208,17 +246,11 @@ function ChoreCard({ chore, onToggle, onEdit }: { chore: ChoreDay; onToggle: () 
   return (
     <>
       <div className={`chore-card ${chore.completed ? 'done' : ''}`} role="checkbox" aria-checked={chore.completed} tabIndex={0}
-        aria-label={[chore.title, by && `done by ${by}`, `${chore.points} points`, schedule, cl ? `checklist ${cl.name} ${cl.done} of ${cl.total} done` : ''].filter(Boolean).join(', ')}
+        aria-label={[chore.title, by && `done by ${by}`, `${chore.points} points`, schedule, cl ? `checklist ${cl.name} ${cl.done} of ${cl.total} done` : '', actLabel].filter(Boolean).join(', ')}
         onKeyDown={toggleByKey} onContextMenu={e => { e.preventDefault(); onEdit() }}
         onPointerDown={handleDown} onPointerUp={handleUp} onPointerLeave={() => clearTimeout(pressTimer.current)} onClick={handleClick}>
-        <div className="chore-emoji" aria-hidden="true">{chore.emoji}</div>
-        <div className="chore-info">
-          <div className={`chore-title ${chore.completed ? 'done' : ''}`}>{chore.title}</div>
-          <div className="chore-pts">{[by && `Done by ${by}`, `${chore.points} pts`, schedule, checklist].filter(Boolean).join(' · ')}</div>
-        </div>
-        <div className={`chore-check ${chore.completed ? 'done' : ''}`}>
-          {chore.completed && <CheckIcon width={18} height={18} />}
-        </div>
+        {info}
+        {check}
         {burst && <Confetti />}
       </div>
       <button className="btn btn-secondary focus-reveal" onClick={onEdit}>Edit {chore.title}</button>
@@ -460,6 +492,12 @@ function ChoreEditSheet({ chore, onClose, onSaved }: { chore: Chore | null; onCl
   const [listId, setListId] = useState<string | null>(chore?.listId ?? null)
   const [lists, setLists] = useState<List[]>([])
   useEffect(() => { api.getLists().then(setLists).catch(() => { /* picker just stays empty */ }) }, [])
+  const [pluginId, setPluginId] = useState<string | null>(chore?.pluginId ?? null)
+  const [minutes, setMinutes] = useState(chore?.pluginMinutes ?? 5)
+  const [plugins, setPlugins] = useState<Plugin[]>([])
+  useEffect(() => { api.getPlugins().then(setPlugins).catch(() => { /* no activities to offer */ }) }, [])
+  // The family's activities that are on, plus the linked one even if it's off (so saving keeps it).
+  const activities = plugins.filter(p => p.enabled || p.id === pluginId)
   const [dueDate, setDueDate] = useState(chore?.dueDate ?? dateKey(new Date()))
   const [sched, setSched] = useState(() => {
     const f = rruleToForm(chore?.rrule ?? null)
@@ -474,7 +512,7 @@ function ChoreEditSheet({ chore, onClose, onSaved }: { chore: Chore | null; onCl
   const submit = async () => {
     if (!title.trim() || !isSingleEmoji(emoji)) return
     const rrule = schedTouched || !chore ? formToRrule(sched) : chore.rrule
-    const body = { title: title.trim(), emoji, points, memberId, rrule, dueDate: rrule ? null : dueDate, listId }
+    const body = { title: title.trim(), emoji, points, memberId, rrule, dueDate: rrule ? null : dueDate, listId, pluginId, ...(pluginId ? { pluginMinutes: Math.min(60, Math.max(1, minutes)) } : {}) }
     try {
       if (chore) await api.updateChore(chore.id, body)
       else await api.createChore(body)
@@ -531,6 +569,24 @@ function ChoreEditSheet({ chore, onClose, onSaved }: { chore: Chore | null; onCl
         </select>
         <p className="field-hint">Every item on the list has to be ticked before this chore can be completed. A reusable list resets once it is.</p>
       </div>
+      {(activities.length > 0 || pluginId) && (
+        <div className="field">
+          <label htmlFor="chore-activity">Do an activity (optional)</label>
+          <select id="chore-activity" value={pluginId ?? ''} onChange={e => setPluginId(e.target.value || null)}>
+            <option value="">None</option>
+            {activities.map(p => <option key={p.id} value={p.id}>{p.emoji} {p.name}{p.enabled ? '' : ' (off)'}</option>)}
+            {pluginId && !activities.some(p => p.id === pluginId) && <option value={pluginId}>Activity not available</option>}
+          </select>
+          {pluginId && (
+            <div className="chore-minutes">
+              <label htmlFor="chore-minutes">Minutes</label>
+              <input id="chore-minutes" type="number" inputMode="numeric" min={1} max={60} value={minutes}
+                onChange={e => setMinutes(Math.min(60, Number(e.target.value.replace(/\D/g, '')) || 0))} onBlur={() => setMinutes(m => Math.max(1, m))} />
+            </div>
+          )}
+          <p className="field-hint">Playing it in Kinwall counts: once the day's active play reaches the minutes, the chore completes itself. It can still be ticked by hand.</p>
+        </div>
+      )}
       <div className="field">
         <label>Repeat</label>
         <Segmented className="chore-repeat" label="Repeat" value={repeat} onChange={r => editSched({ repeat: r })}

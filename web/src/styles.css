@@ -822,6 +822,15 @@ button {
 .chore-check.done { background: var(--success); border-color: var(--success); }
 .chore-check.done svg { animation: pop 0.35s ease; }
 @keyframes pop { 0% { transform: scale(0); } 60% { transform: scale(1.3); } 100% { transform: scale(1); } }
+/* An activity chore: the card plays it, the check is its own button. */
+.chore-play, .chore-check-btn { display: flex; align-items: center; gap: var(--gap); padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.chore-play { flex: 1; min-width: 0; }
+.chore-check-btn { flex-shrink: 0; min-width: 44px; min-height: 44px; justify-content: center; margin: -5px; }
+.chore-activity { color: var(--text); white-space: normal; }
+.chore-minutes { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+.chore-minutes input { width: 90px; }
+.chore-activity-bar { height: 4px; margin-top: 4px; border-radius: 2px; background: var(--border); overflow: hidden; }
+.chore-activity-bar > div { height: 100%; background: var(--accent-strong); border-radius: 2px; transition: width 0.4s ease; }
 
 /* Narrow column (many columns, or portrait): give the title the full card width instead of
    squeezing it between the emoji and the check button, so it wraps words, not letters. */
@@ -829,7 +838,8 @@ button {
   .chore-card { flex-wrap: wrap; padding: 10px; gap: 6px 8px; }
   .chore-emoji { font-size: 1.25rem; }
   .chore-info { flex-basis: 100%; order: 1; }
-  .chore-check { margin-left: auto; }
+  .chore-check, .chore-check-btn { margin-left: auto; }
+  .chore-play { flex-basis: 100%; flex-wrap: wrap; gap: 6px 8px; }
 }
 
 .confetti-piece {
@@ -1896,6 +1906,8 @@ button.snap-row:active { transform: scale(0.99); }
 .plugin-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .plugin-bar-title { flex: 1; font-weight: 800; font-size: 1.0625rem; min-width: 0; }
 .plugin-frame { flex: 1; width: 100%; min-height: 0; border: 0; border-radius: var(--radius-sm, 14px); background: var(--card); }
+.plugin-chore-chip { position: relative; flex: none; padding: 6px 12px; border-radius: 999px; background: var(--bg-alt); color: var(--text); font-size: 0.875rem; font-weight: 700; white-space: nowrap; }
+.plugin-chore-chip.done { background: color-mix(in srgb, var(--accent-strong) 18%, var(--card)); }
 .activity-card-emoji { font-size: 2.6rem; line-height: 1; }
 .activity-card-more { width: 100%; height: 100%; min-height: 140px; justify-content: center; border: 3px dashed var(--border); box-shadow: none; background: none; color: var(--text); font: inherit; cursor: pointer; text-align: left; }
 .plugin-install { display: grid; gap: 6px; margin-top: 12px; }

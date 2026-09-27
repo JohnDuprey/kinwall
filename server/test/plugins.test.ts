@@ -257,3 +257,78 @@ test('plugins: the catalog pins reviewed versions, and catalog-only hosts allow 
     globalThis.fetch = realFetch;
   }
 });
+
+test('activity chores: link a plugin, heartbeats add up (capped), and complete once at the threshold, with points', async () => {
+  const { req, json } = setup();
+  const { todayInTz } = await import('../src/routes/members.ts');
+  const { hostTimezone } = await import('../src/env.ts');
+  const today = todayInTz(hostTimezone());
+  assert.equal((await upload(req, await zip({ 'kinwall-plugin.json': JSON.stringify(MANIFEST), 'index.html': '<h1>Hi</h1>' }))).status, 201);
+  const alex = (await (await json('/api/members', 'POST', { name: 'Alex', color: '#7AB8FF' })).json()) as any;
+  const sam = (await (await json('/api/members', 'POST', { name: 'Sam', color: '#FF9E7A' })).json()) as any;
+  const display = (await (await json('/api/keys', 'POST', { name: 'Wall', scope: 'display' })).json()) as any;
+  const body = async (r: Response) => (await r.json()) as any;
+  const play = (member: string, seconds: number, key?: string) => json('/api/plugins/sight-words/playtime', 'POST', { member, seconds }, key);
+
+  // Linking: must be an installed plugin; minutes 1-60, default 5; null unlinks.
+  assert.equal((await json('/api/chores', 'POST', { title: 'x', dueDate: today, pluginId: 'nope' })).status, 400);
+  assert.equal((await json('/api/chores', 'POST', { title: 'x', dueDate: today, pluginId: 'sight-words', pluginMinutes: 61 })).status, 400);
+  const dflt = await body(await json('/api/chores', 'POST', { title: 'Default', dueDate: '2020-01-01', pluginId: 'sight-words' }));
+  assert.equal(dflt.pluginMinutes, 5);
+  const unlinked = await body(await json(`/api/chores/${dflt.id}`, 'PATCH', { pluginId: null }));
+  assert.deepEqual([unlinked.pluginId, unlinked.pluginMinutes], [null, null]);
+
+  const mine = await body(await json('/api/chores', 'POST', { title: 'Sight words', emoji: '🔤', rrule: 'FREQ=DAILY', points: 10, memberId: alex.id, pluginId: 'sight-words', pluginMinutes: 2 }));
+  const anyone = await body(await json('/api/chores', 'POST', { title: 'Anyone reads', dueDate: today, points: 3, pluginId: 'sight-words', pluginMinutes: 1 }));
+  const notToday = await body(await json('/api/chores', 'POST', { title: 'Tomorrow', dueDate: '2099-01-01', memberId: alex.id, pluginId: 'sight-words', pluginMinutes: 1 }));
+  assert.equal(mine.pluginId, 'sight-words');
+
+  // A display key (the wall, a kid's tablet) can send playtime; unknown plugin or member is a 404.
+  assert.equal((await play('nobody', 30)).status, 404);
+  assert.equal((await json('/api/plugins/nope/playtime', 'POST', { member: alex.id, seconds: 30 })).status, 404);
+  let progress = await body(await play(alex.id, 30, display.key));
+  assert.deepEqual(progress.map((p: any) => [p.title, p.doneSeconds, p.needSeconds, p.completed]), [['Sight words', 30, 120, false], ['Anyone reads', 30, 60, false]]);
+  assert.ok(!progress.some((p: any) => p.choreId === notToday.id)); // not due today: not listed, never completed
+
+  // 45 more: a call is capped at 60, and the Anyone chore (1 min) completes for Alex, once.
+  progress = await body(await play(alex.id, 500));
+  const any1 = progress.find((p: any) => p.choreId === anyone.id);
+  assert.deepEqual([any1.doneSeconds, any1.completed, any1.justCompleted], [60, true, true]);
+  assert.equal(progress.find((p: any) => p.choreId === mine.id).doneSeconds, 90);
+  progress = await body(await play(alex.id, 45));
+  const mine1 = progress.find((p: any) => p.choreId === mine.id);
+  assert.deepEqual([mine1.completed, mine1.justCompleted], [true, true]);
+  assert.equal(progress.find((p: any) => p.choreId === anyone.id).justCompleted, false);
+  progress = await body(await play(alex.id, 45));
+  assert.ok(progress.every((p: any) => p.completed && !p.justCompleted)); // exactly once
+
+  const day = await body(await req(`/api/chores/day?date=${today}`));
+  const row = day.find((c: any) => c.id === mine.id);
+  assert.equal(row.completed, true);
+  assert.equal(row.completedBy, alex.id);
+  assert.deepEqual(row.activity, { pluginId: 'sight-words', name: 'Sight words', emoji: '🔤', available: true, needSeconds: 120, doneSeconds: 180 });
+  assert.equal(day.find((c: any) => c.id === anyone.id).completedBy, alex.id);
+  const members = await body(await req('/api/members'));
+  assert.equal(members.find((m: any) => m.id === alex.id).pointsToday, 13);
+
+  // Sam playing doesn't take the Anyone chore Alex already earned.
+  progress = await body(await play(sam.id, 60));
+  assert.deepEqual(progress.map((p: any) => [p.choreId, p.completed, p.justCompleted]), [[anyone.id, true, false]]);
+  assert.equal((await body(await req('/api/members'))).find((m: any) => m.id === sam.id).pointsToday, 0);
+
+  // A day is capped (four hours).
+  for (let i = 0; i < 250; i++) await play(sam.id, 60);
+  const samDay = await body(await req(`/api/chores/day?date=${today}`));
+  assert.equal(samDay.find((c: any) => c.id === anyone.id).activity.doneSeconds, 4 * 60 * 60);
+
+  // Turned off: no playtime, and the chore says it's unavailable. Removed: likewise, and it stays a plain chore.
+  await json('/api/plugins/sight-words', 'PATCH', { enabled: false });
+  assert.equal((await play(alex.id, 30)).status, 404);
+  assert.equal((await body(await req(`/api/chores/day?date=${today}`))).find((c: any) => c.id === mine.id).activity.available, false);
+  await json('/api/plugins/sight-words', 'PATCH', { enabled: true });
+  assert.equal((await req('/api/plugins/sight-words', { method: 'DELETE' })).status, 204);
+  const after = (await body(await req(`/api/chores/day?date=${today}`))).find((c: any) => c.id === mine.id);
+  assert.deepEqual([after.activity.available, after.activity.name, after.activity.doneSeconds], [false, null, 0]);
+  assert.equal((await req(`/api/chores/${mine.id}/complete?date=${today}`, { method: 'DELETE' })).status, 200);
+  assert.equal((await json(`/api/chores/${mine.id}/complete`, 'POST', { date: today })).status, 200); // a plain tick still works
+});

@@ -1,4 +1,5 @@
 import { createRoute, z } from '@hono/zod-openapi';
+import type { Context } from 'hono';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
 import { hostTimezone } from '../env.ts';
@@ -23,6 +24,8 @@ export type ChoreRow = {
   sort: number;
   created_at: string;
   list_id?: string | null; // checklist; optional so older row literals (tests) still type-check
+  plugin_id?: string | null; // activity; likewise optional
+  plugin_minutes?: number | null;
 };
 
 export function toApi(row: ChoreRow) {
@@ -38,7 +41,18 @@ export function toApi(row: ChoreRow) {
     active: !!row.active,
     sort: row.sort,
     listId: row.list_id ?? null,
+    pluginId: row.plugin_id ?? null,
+    pluginMinutes: row.plugin_id ? row.plugin_minutes ?? DEFAULT_ACTIVITY_MINUTES : null,
   };
+}
+
+export const DEFAULT_ACTIVITY_MINUTES = 5;
+
+// An activity must be an installed plugin (on or off: turning it off only pauses the link).
+async function checkPlugin(c: { env: Env }, pluginId: string | null | undefined): Promise<string | null> {
+  if (!pluginId) return null;
+  const row = await c.env.DB.prepare('SELECT id FROM plugins WHERE id = ?').bind(pluginId).first();
+  return row ? null : 'unknown plugin';
 }
 
 // A checklist must be a real, unarchived list. Returns an error message or null.
@@ -73,13 +87,13 @@ choresRoutes.openapi(
     request: { body: { content: { 'application/json': { schema: ChoreInputSchema } } } },
     responses: {
       201: { description: 'created', content: { 'application/json': { schema: ChoreSchema } } },
-      400: { description: 'invalid rrule or unknown list', content: { 'application/json': { schema: ErrorSchema } } },
+      400: { description: 'invalid rrule, unknown list or unknown plugin', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
     const body = c.req.valid('json');
     if (body.rrule && !isValidRrule(body.rrule)) return c.json({ error: 'invalid rrule' }, 400);
-    const listError = await checkList(c, body.listId);
+    const listError = (await checkList(c, body.listId)) ?? (await checkPlugin(c, body.pluginId));
     if (listError) return c.json({ error: listError }, 400);
     const row: ChoreRow = {
       id: crypto.randomUUID(),
@@ -94,11 +108,13 @@ choresRoutes.openapi(
       sort: body.sort ?? 0,
       created_at: new Date().toISOString(),
       list_id: body.listId ?? null,
+      plugin_id: body.pluginId ?? null,
+      plugin_minutes: body.pluginId ? body.pluginMinutes ?? DEFAULT_ACTIVITY_MINUTES : null,
     };
     await c.env.DB.prepare(
-      'INSERT INTO chores (id, title, emoji, member_id, points, rrule, due_date, due_time, active, sort, created_at, list_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+      'INSERT INTO chores (id, title, emoji, member_id, points, rrule, due_date, due_time, active, sort, created_at, list_id, plugin_id, plugin_minutes) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
     )
-      .bind(row.id, row.title, row.emoji, row.member_id, row.points, row.rrule, row.due_date, row.due_time, row.active, row.sort, row.created_at, row.list_id)
+      .bind(row.id, row.title, row.emoji, row.member_id, row.points, row.rrule, row.due_date, row.due_time, row.active, row.sort, row.created_at, row.list_id, row.plugin_id, row.plugin_minutes)
       .run();
     emit(c, 'chore.changed', { id: row.id });
     return c.json(toApi(row), 201);
@@ -115,7 +131,7 @@ choresRoutes.openapi(
     request: { params: z.object({ id: z.string() }), body: { content: { 'application/json': { schema: ChoreInputSchema.partial() } } } },
     responses: {
       200: { description: 'ok', content: { 'application/json': { schema: ChoreSchema } } },
-      400: { description: 'invalid rrule or unknown list', content: { 'application/json': { schema: ErrorSchema } } },
+      400: { description: 'invalid rrule, unknown list or unknown plugin', content: { 'application/json': { schema: ErrorSchema } } },
       404: { description: 'not found', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
@@ -123,7 +139,7 @@ choresRoutes.openapi(
     const { id } = c.req.valid('param');
     const body = c.req.valid('json');
     if (body.rrule && !isValidRrule(body.rrule)) return c.json({ error: 'invalid rrule' }, 400);
-    const listError = await checkList(c, body.listId);
+    const listError = (await checkList(c, body.listId)) ?? (await checkPlugin(c, body.pluginId));
     if (listError) return c.json({ error: listError }, 400);
     const existing = await c.env.DB.prepare('SELECT * FROM chores WHERE id = ?').bind(id).first<ChoreRow>();
     if (!existing) return c.json({ error: 'not found' }, 404);
@@ -139,11 +155,13 @@ choresRoutes.openapi(
       active: body.active !== undefined ? (body.active ? 1 : 0) : existing.active,
       sort: body.sort ?? existing.sort,
       list_id: body.listId !== undefined ? body.listId : existing.list_id ?? null,
+      plugin_id: body.pluginId !== undefined ? body.pluginId : existing.plugin_id ?? null,
     };
+    updated.plugin_minutes = updated.plugin_id ? body.pluginMinutes ?? existing.plugin_minutes ?? DEFAULT_ACTIVITY_MINUTES : null;
     await c.env.DB.prepare(
-      'UPDATE chores SET title=?, emoji=?, member_id=?, points=?, rrule=?, due_date=?, due_time=?, active=?, sort=?, list_id=? WHERE id=?',
+      'UPDATE chores SET title=?, emoji=?, member_id=?, points=?, rrule=?, due_date=?, due_time=?, active=?, sort=?, list_id=?, plugin_id=?, plugin_minutes=? WHERE id=?',
     )
-      .bind(updated.title, updated.emoji, updated.member_id, updated.points, updated.rrule, updated.due_date, updated.due_time, updated.active, updated.sort, updated.list_id, id)
+      .bind(updated.title, updated.emoji, updated.member_id, updated.points, updated.rrule, updated.due_date, updated.due_time, updated.active, updated.sort, updated.list_id, updated.plugin_id, updated.plugin_minutes, id)
       .run();
     emit(c, 'chore.changed', { id });
     return c.json(toApi(updated), 200);
@@ -171,6 +189,24 @@ choresRoutes.openapi(
     return c.json({ ok: true }, 200);
   },
 );
+
+type PluginInfo = { id: string; name: string; manifest: string; enabled: number };
+type PlayRow = { member_id: string; plugin_id: string; seconds: number };
+
+/** A linked chore's activity and the day's play (`play` = that day's playtime rows). */
+export function activityProgress(row: ChoreRow, plugins: Map<string, PluginInfo>, play: PlayRow[]) {
+  if (!row.plugin_id) return null;
+  const p = plugins.get(row.plugin_id);
+  const done = play.filter((r) => r.plugin_id === row.plugin_id && (!row.member_id || r.member_id === row.member_id)).map((r) => Number(r.seconds));
+  return {
+    pluginId: row.plugin_id,
+    name: p?.name ?? null,
+    emoji: p ? ((JSON.parse(p.manifest) as { emoji?: string }).emoji ?? null) : null,
+    available: !!p?.enabled,
+    needSeconds: (row.plugin_minutes ?? DEFAULT_ACTIVITY_MINUTES) * 60,
+    doneSeconds: Math.max(0, ...done),
+  };
+}
 
 // A chore is due on `date` (household tz) if: one-off matching due_date, or its rrule
 // occurs that day (anchored at due_date if set, else its creation date).
@@ -204,7 +240,7 @@ choresRoutes.openapi(
     const { date } = c.req.valid('query');
 
     // tz, chores and completions are all independent reads - one batch, one round trip.
-    const [tzRes, choresRes, completionsRes, checklistRes] = await c.env.DB.batch<unknown>([
+    const [tzRes, choresRes, completionsRes, checklistRes, pluginsRes, playRes] = await c.env.DB.batch<unknown>([
       c.env.DB.prepare("SELECT value FROM settings WHERE key = 'timezone'"),
       c.env.DB.prepare('SELECT * FROM chores WHERE active = 1 ORDER BY sort, created_at'),
       c.env.DB.prepare('SELECT * FROM chore_completions WHERE date = ?').bind(date),
@@ -214,7 +250,11 @@ choresRoutes.openapi(
       c.env.DB.prepare(
         'SELECT ch.id AS chore_id, l.id AS list_id, l.name, COUNT(i.id) AS total, COALESCE(SUM(i.done), 0) AS done FROM chores ch JOIN lists l ON l.id = ch.list_id LEFT JOIN list_items i ON i.list_id = l.id AND (ch.member_id IS NULL OR i.member_id IS NULL OR i.member_id = ch.member_id) WHERE ch.active = 1 GROUP BY ch.id',
       ),
+      c.env.DB.prepare('SELECT id, name, manifest, enabled FROM plugins'),
+      c.env.DB.prepare('SELECT member_id, plugin_id, seconds FROM plugin_playtime WHERE date = ?').bind(date),
     ]);
+    const plugins = new Map((pluginsRes.results as PluginInfo[]).map((p) => [p.id, p]));
+    const play = playRes.results as PlayRow[];
     const checklists = new Map((checklistRes.results as { chore_id: string; list_id: string; name: string; total: number; done: number }[]).map((r) => [r.chore_id, r]));
     const tz = (tzRes.results[0] as { value: string } | undefined)?.value ?? hostTimezone();
     const chores = choresRes.results as unknown as ChoreRow[];
@@ -233,6 +273,7 @@ choresRoutes.openapi(
           completedAt: completion?.completed_at ?? null,
           completedBy: completion?.member_id ?? null,
           checklist: cl ? { listId: cl.list_id, name: cl.name, total: Number(cl.total), done: Number(cl.done) } : null,
+          activity: activityProgress(row, plugins, play),
         };
       }),
       200,
@@ -244,6 +285,54 @@ choresRoutes.openapi(
 // ticked off for a past day (never below 0).
 export function lateCompletionPoints(points: number, late: boolean, creditPercent: number): number {
   return late ? Math.max(0, Math.round((points * creditPercent) / 100)) : points;
+}
+
+/**
+ * Completes a chore for `date`: the checklist gate, points (late credit), the chore.completed event
+ * (webhooks, notifications) and a reusable checklist's reset. Shared by the tick and by activity
+ * playtime (routes/plugins.ts), which passes `onlyIfNew` so a chore already done that day is left
+ * alone. Returns true when a completion was written, false when onlyIfNew found one, the number of
+ * open checklist items when that gates it, or 'not found'.
+ */
+export async function completeChore(c: Context<{ Bindings: Env }>, id: string, date: string, memberId: string | undefined, onlyIfNew = false): Promise<boolean | number | 'not found'> {
+  const [choreRes, settingsRes] = await c.env.DB.batch<unknown>([
+    c.env.DB.prepare('SELECT id, title, member_id, points, list_id FROM chores WHERE id = ?').bind(id),
+    c.env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('timezone', 'lateCompletionCredit')"),
+  ]);
+  const chore = choreRes.results[0] as { id: string; title: string; member_id: string | null; points: number; list_id: string | null } | undefined;
+  if (!chore) return 'not found';
+  // The checklist gates completion: the list's items for this chore's member (or whoever is
+  // completing an "anyone" chore) plus unassigned ones. An empty set doesn't gate.
+  const forMember = chore.member_id ?? memberId ?? null;
+  let checklistKind: string | null = null;
+  if (chore.list_id) {
+    const list = await c.env.DB.prepare(
+      'SELECT kind, (SELECT COUNT(*) FROM list_items WHERE list_id = lists.id AND done = 0 AND (? IS NULL OR member_id IS NULL OR member_id = ?)) AS remaining FROM lists WHERE id = ?',
+    )
+      .bind(forMember, forMember, chore.list_id)
+      .first<{ kind: string; remaining: number }>();
+    if (list && Number(list.remaining) > 0) return Number(list.remaining);
+    checklistKind = list?.kind ?? null;
+  }
+  const settings = new Map((settingsRes.results as { key: string; value: string }[]).map((r) => [r.key, r.value]));
+  const today = todayInTz(settings.get('timezone') ?? hostTimezone());
+  const pointsAwarded = lateCompletionPoints(chore.points, date < today, Number(settings.get('lateCompletionCredit') ?? 50));
+  // Re-ticking an existing completion (e.g. to change who did it) keeps the points it already earned.
+  const written = await c.env.DB.prepare(
+    `INSERT INTO chore_completions (id, chore_id, date, member_id, completed_at, points_awarded) VALUES (?,?,?,?,?,?) ON CONFLICT(chore_id, date) DO ${onlyIfNew ? 'NOTHING' : 'UPDATE SET member_id = excluded.member_id, completed_at = excluded.completed_at'}`,
+  )
+    .bind(crypto.randomUUID(), id, date, memberId ?? chore.member_id, new Date().toISOString(), pointsAwarded)
+    .run();
+  if (written.meta.changes === 0) return false;
+  // Title and member ride along so a receiver (Home Assistant, n8n) can act without a lookup.
+  emit(c, 'chore.completed', { id, date, title: chore.title, memberId: memberId ?? chore.member_id, points: pointsAwarded });
+  // A reusable checklist starts fresh for the next time the chore comes round - just this
+  // member's items and the shared ones, so a sibling's ticks on the same list survive.
+  if (chore.list_id && checklistKind === 'reusable') {
+    await resetListItems(c.env.DB, chore.list_id, forMember);
+    emit(c, 'list.changed', { id: chore.list_id });
+  }
+  return true;
 }
 
 choresRoutes.openapi(
@@ -266,42 +355,9 @@ choresRoutes.openapi(
   async (c) => {
     const { id } = c.req.valid('param');
     const { date, memberId } = c.req.valid('json');
-    const [choreRes, settingsRes] = await c.env.DB.batch<unknown>([
-      c.env.DB.prepare('SELECT id, title, member_id, points, list_id FROM chores WHERE id = ?').bind(id),
-      c.env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('timezone', 'lateCompletionCredit')"),
-    ]);
-    const chore = choreRes.results[0] as { id: string; title: string; member_id: string | null; points: number; list_id: string | null } | undefined;
-    if (!chore) return c.json({ error: 'not found' }, 404);
-    // The checklist gates completion: the list's items for this chore's member (or whoever is
-    // completing an "anyone" chore) plus unassigned ones. An empty set doesn't gate.
-    const forMember = chore.member_id ?? memberId ?? null;
-    let checklistKind: string | null = null;
-    if (chore.list_id) {
-      const list = await c.env.DB.prepare(
-        'SELECT kind, (SELECT COUNT(*) FROM list_items WHERE list_id = lists.id AND done = 0 AND (? IS NULL OR member_id IS NULL OR member_id = ?)) AS remaining FROM lists WHERE id = ?',
-      )
-        .bind(forMember, forMember, chore.list_id)
-        .first<{ kind: string; remaining: number }>();
-      if (list && Number(list.remaining) > 0) return c.json({ error: `Checklist not finished (${list.remaining} left)`, remaining: Number(list.remaining) }, 409);
-      checklistKind = list?.kind ?? null;
-    }
-    const settings = new Map((settingsRes.results as { key: string; value: string }[]).map((r) => [r.key, r.value]));
-    const today = todayInTz(settings.get('timezone') ?? hostTimezone());
-    const pointsAwarded = lateCompletionPoints(chore.points, date < today, Number(settings.get('lateCompletionCredit') ?? 50));
-    // Re-ticking an existing completion (e.g. to change who did it) keeps the points it already earned.
-    await c.env.DB.prepare(
-      'INSERT INTO chore_completions (id, chore_id, date, member_id, completed_at, points_awarded) VALUES (?,?,?,?,?,?) ON CONFLICT(chore_id, date) DO UPDATE SET member_id = excluded.member_id, completed_at = excluded.completed_at',
-    )
-      .bind(crypto.randomUUID(), id, date, memberId ?? chore.member_id, new Date().toISOString(), pointsAwarded)
-      .run();
-    // Title and member ride along so a receiver (Home Assistant, n8n) can act without a lookup.
-    emit(c, 'chore.completed', { id, date, title: chore.title, memberId: memberId ?? chore.member_id, points: pointsAwarded });
-    // A reusable checklist starts fresh for the next time the chore comes round - just this
-    // member's items and the shared ones, so a sibling's ticks on the same list survive.
-    if (chore.list_id && checklistKind === 'reusable') {
-      await resetListItems(c.env.DB, chore.list_id, forMember);
-      emit(c, 'list.changed', { id: chore.list_id });
-    }
+    const r = await completeChore(c, id, date, memberId);
+    if (r === 'not found') return c.json({ error: 'not found' }, 404);
+    if (typeof r === 'number') return c.json({ error: `Checklist not finished (${r} left)`, remaining: r }, 409);
     return c.json({ ok: true }, 200);
   },
 );

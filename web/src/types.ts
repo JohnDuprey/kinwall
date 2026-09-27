@@ -221,6 +221,8 @@ export interface Chore {
   active: boolean
   sort: number
   listId: string | null // checklist: a list that must be fully ticked before the chore can be completed
+  pluginId: string | null // activity: playing this plugin for pluginMinutes a day completes the chore
+  pluginMinutes: number | null
 }
 
 export interface ChoreDay extends Chore {
@@ -228,6 +230,19 @@ export interface ChoreDay extends Chore {
   completedAt: string | null
   completedBy: string | null
   checklist: { listId: string; name: string; total: number; done: number } | null
+  // The linked activity and the day's play; available false = removed or turned off (a plain chore then).
+  activity: { pluginId: string; name: string | null; emoji: string | null; available: boolean; needSeconds: number; doneSeconds: number } | null
+}
+
+/** One of a player's activity chores due today (POST /api/plugins/{id}/playtime). */
+export interface ActivityChoreProgress {
+  choreId: string
+  title: string
+  emoji: string | null
+  needSeconds: number
+  doneSeconds: number
+  completed: boolean
+  justCompleted: boolean
 }
 
 export type LeaderboardPeriod = 'today' | 'week' | 'month'

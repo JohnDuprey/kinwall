@@ -11,7 +11,8 @@ import Sheet from './Sheet.tsx'
 import { inkFor } from './color.ts'
 import { announce, reducedMotion } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
-import type { Member, Plugin, PluginCatalogEntry } from './types.ts'
+import { Confetti } from './Chores.tsx'
+import type { ActivityChoreProgress, Member, Plugin, PluginCatalogEntry } from './types.ts'
 
 type Msg = { kinwall: 1; id?: number; type: string; key?: string; value?: unknown; shared?: boolean }
 
@@ -31,16 +32,28 @@ function themeForPlugin() {
   return theme
 }
 
-/** #/activities/plugin/<id>: asks who's playing (unless the family is filtered to one person), then runs it. */
+// Activity chores: Kinwall times play, not the plugin. A second counts while the page is visible and
+// the plugin saved progress within ACTIVE_MS (idle play doesn't count); the count goes to the server
+// every HEARTBEAT_MS, and when the page hides or the player closes.
+const ACTIVE_MS = 2 * 60_000
+const HEARTBEAT_MS = 30_000
+const MAX_HEARTBEAT_SECONDS = 45
+
+/** #/activities/plugin/<id>[?member=<id>]: asks who's playing (unless the link names them or the family is filtered to one person), then runs it. */
 export function PluginPlayer({ id }: { id: string }) {
-  const { members, selectedMemberId, settings } = useApp()
+  const { members, selectedMemberId, settings, toast, reloadCore } = useApp()
   const [plugin, setPlugin] = useState<Plugin | null | undefined>(undefined)
   // undefined = still asking; null = nobody in particular. Derived, not initial state: the family
-  // may still be loading on a fresh page load. Filtered (or pinned) to one person: that's who plays.
+  // may still be loading on a fresh page load. A chore's link (?member=) or a filter (or pin) to
+  // one person: that's who plays, until Switch.
   const [picked, setPlayer] = useState<Member | null | undefined>(undefined)
-  const filtered = selectedMemberId ? members.find(m => m.id === selectedMemberId) : undefined
-  const player = picked !== undefined ? picked : filtered ?? (members.length ? undefined : null)
+  const [presetId, setPresetId] = useState(() => new URLSearchParams(location.hash.split('?')[1] || '').get('member'))
+  const preset = members.find(m => m.id === presetId) ?? (selectedMemberId ? members.find(m => m.id === selectedMemberId) : undefined)
+  const player = picked !== undefined ? picked : preset ?? (members.length ? undefined : null)
   const frame = useRef<HTMLIFrameElement>(null)
+  const lastSave = useRef(0) // when the plugin last saved: it's "active" for ACTIVE_MS after
+  const [chores, setChores] = useState<ActivityChoreProgress[]>([])
+  const [burst, setBurst] = useState(0) // a completed chore's confetti (keyed, so each one replays)
   // A plugin page that navigates its frame somewhere else has left its package: stop it.
   const [left, setLeft] = useState(false)
 
@@ -75,6 +88,7 @@ export function PluginPlayer({ id }: { id: string }) {
         while (saves.length && now - saves[0] > 10_000) saves.shift()
         if (saves.length >= 30) return reply(msg, false, undefined, 'Saving too often; try again in a moment')
         saves.push(now)
+        lastSave.current = now
         api.savePluginData(plugin.id, msg.shared ? '' : member, msg.key, msg.value).then(() => reply(msg, true), err => reply(msg, false, undefined, err instanceof ApiError ? err.message : String(err)))
       } else if (msg.type === 'close') {
         location.hash = '#/activities'
@@ -83,6 +97,43 @@ export function PluginPlayer({ id }: { id: string }) {
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
   }, [plugin, player, settings.textScale])
+
+  // Playtime for activity chores: only for a named person, only while visible and active.
+  const playerId = player?.id
+  useEffect(() => {
+    if (!plugin || !playerId) return
+    lastSave.current = 0
+    let counted = 0
+    let closed = false
+    const flush = () => {
+      const seconds = Math.min(counted, MAX_HEARTBEAT_SECONDS)
+      counted = 0
+      api.sendPlaytime(plugin.id, playerId, seconds).then(list => {
+        if (closed) return
+        setChores(list)
+        const done = list.filter(c => c.justCompleted)
+        if (!done.length) return
+        const msg = `🎉 ${done.map(c => c.title).join(' and ')} done!`
+        toast(msg); announce(msg); setBurst(b => b + 1); reloadCore()
+      }).catch(() => { /* the next heartbeat carries on; a lost one only costs those seconds */ })
+    }
+    flush() // seconds 0: just today's progress, for the chip
+    const tick = setInterval(() => {
+      if (document.visibilityState === 'visible' && Date.now() - lastSave.current < ACTIVE_MS) counted++
+    }, 1000)
+    const beat = setInterval(() => { if (counted) flush() }, HEARTBEAT_MS)
+    const onVisibility = () => { if (document.visibilityState === 'hidden' && counted) flush() }
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      if (counted) flush()
+      closed = true
+      setChores([])
+      clearInterval(tick); clearInterval(beat)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+  }, [plugin, playerId]) // eslint-disable-line react-hooks/exhaustive-deps
+  // The chip shows the first chore still to do, else the last one done.
+  const chip = chores.find(c => !c.completed) ?? chores[chores.length - 1]
 
   if (plugin === undefined) return null
   if (left) return <div className="state-card">{plugin?.name ?? 'This activity'} tried to open a page outside itself, so it was stopped. <a href="#/activities">Back to Activities</a></div>
@@ -108,7 +159,14 @@ export function PluginPlayer({ id }: { id: string }) {
       <div className="plugin-bar">
         <a className="btn btn-secondary" href="#/activities">‹ Activities</a>
         <span className="plugin-bar-title"><span aria-hidden="true">{plugin.emoji}</span> {plugin.name}</span>
-        {player && members.length > 1 && <button className="btn btn-secondary" onClick={() => setPlayer(undefined)}>{player.avatar || ''} {player.name} · Switch</button>}
+        {chip && (
+          <span className={`plugin-chore-chip ${chip.completed ? 'done' : ''}`} role="status">
+            {chip.emoji && <span aria-hidden="true">{chip.emoji} </span>}
+            {chip.completed ? `${chip.title}: done ✓` : `${chip.title}: ${Math.floor(chip.doneSeconds / 60)} of ${chip.needSeconds / 60} min`}
+            {burst > 0 && <Confetti key={burst} />}
+          </span>
+        )}
+        {player && members.length > 1 && <button className="btn btn-secondary" onClick={() => { setPresetId(null); setPlayer(undefined) }}>{player.avatar || ''} {player.name} · Switch</button>}
       </div>
       {/* key: switching players restarts the plugin with the new person's progress */}
       <iframe key={player?.id ?? 'nobody'} ref={frame} className="plugin-frame" title={plugin.name} src={api.pluginUrl(plugin)}

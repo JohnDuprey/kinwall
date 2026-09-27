@@ -96,6 +96,15 @@ async function resolveList(app: App, env: Env, auth: string, ref: string): Promi
   throw new MemberResolutionError(`no list found matching "${ref}"`);
 }
 
+// An activity (installed plugin) by id or name, case-insensitive.
+async function resolvePlugin(app: App, env: Env, auth: string, ref: string): Promise<string> {
+  const { status, json } = await call(app, env, auth, 'GET', '/api/plugins');
+  if (status >= 400) throw new MemberResolutionError('failed to list activities');
+  const found = (json as { id: string; name: string }[]).find((p) => p.id === ref || p.name.toLowerCase() === ref.toLowerCase());
+  if (!found) throw new MemberResolutionError(`no installed activity matching "${ref}"`);
+  return found.id;
+}
+
 // Categories may be referenced by name (case-insensitive) instead of id, same convention as
 // members/lists.
 async function resolveCategory(app: App, env: Env, auth: string, ref: string): Promise<{ id: string; name: string }> {
@@ -429,18 +438,22 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         dueDate: z.string().optional().describe('YYYY-MM-DD. Required if rrule is omitted (one-off); anchors the recurrence otherwise.'),
         dueTime: z.string().optional(),
         list: z.string().optional().describe('Checklist: a list (name or id) that must be fully ticked before the chore can be completed. A reusable list resets on completion.'),
+        activity: z.string().optional().describe('Activity: an installed activity plugin (name or id). Playing it in Kinwall for `minutes` in a day completes the chore, e.g. "5 min of Sight words".'),
+        minutes: z.number().int().min(1).max(60).optional().describe('Minutes of play the activity needs, 1-60. Default 5.'),
       },
     },
-    async ({ member, list, ...input }) => {
+    async ({ member, list, activity, minutes, ...input }) => {
       let memberId: string | undefined;
       let listId: string | undefined;
+      let pluginId: string | undefined;
       try {
         if (member) memberId = await resolveMember(app, env, auth, member);
         if (list) listId = (await resolveList(app, env, auth, list)).id;
+        if (activity) pluginId = await resolvePlugin(app, env, auth, activity);
       } catch (err) {
         return errorResult(null, err instanceof Error ? err.message : 'lookup failed');
       }
-      const res = await call(app, env, auth, 'POST', '/api/chores', { ...input, memberId, listId });
+      const res = await call(app, env, auth, 'POST', '/api/chores', { ...input, memberId, listId, pluginId, pluginMinutes: minutes });
       if (res.status >= 400) return errorResult(res.json, 'failed to create chore');
       const chore = res.json as { title: string };
       return okResult(`Created chore "${chore.title}".`, { chore: res.json as Record<string, unknown> });
@@ -452,7 +465,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     {
       title: 'Update chore',
       description:
-        'Change a chore: title, emoji, assignee, points, recurrence, due date/time, or active state. Only provided fields change; pass member: null to unassign (anyone). ' +
+        'Change a chore: title, emoji, assignee, points, recurrence, due date/time, checklist, linked activity, or active state. Only provided fields change; pass member: null to unassign (anyone). ' +
         'rrule uses standard RRULE syntax, e.g. FREQ=DAILY or FREQ=WEEKLY;BYDAY=MO,WE,FR, optionally ending with ;UNTIL=YYYYMMDD to stop the recurrence on a date; pass rrule: null to make it one-off (requires dueDate).',
       inputSchema: {
         choreId: z.string(),
@@ -465,18 +478,22 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         dueTime: z.string().nullable().optional(),
         active: z.boolean().optional(),
         list: z.string().nullable().optional().describe('Checklist list (name or id); null to unlink.'),
+        activity: z.string().nullable().optional().describe('Activity plugin (name or id) whose play completes the chore; null to unlink.'),
+        minutes: z.number().int().min(1).max(60).optional().describe('Minutes of play the activity needs, 1-60.'),
       },
     },
-    async ({ choreId, member, list, ...input }) => {
+    async ({ choreId, member, list, activity, minutes, ...input }) => {
       let memberId: string | null | undefined;
       let listId: string | null | undefined;
+      let pluginId: string | null | undefined;
       try {
         if (member !== undefined) memberId = member === null ? null : await resolveMember(app, env, auth, member);
         if (list !== undefined) listId = list === null ? null : (await resolveList(app, env, auth, list)).id;
+        if (activity !== undefined) pluginId = activity === null ? null : await resolvePlugin(app, env, auth, activity);
       } catch (err) {
         return errorResult(null, err instanceof Error ? err.message : 'lookup failed');
       }
-      const body = { ...input, ...(memberId !== undefined ? { memberId } : {}), ...(listId !== undefined ? { listId } : {}) };
+      const body = { ...input, ...(memberId !== undefined ? { memberId } : {}), ...(listId !== undefined ? { listId } : {}), ...(pluginId !== undefined ? { pluginId } : {}), ...(minutes !== undefined ? { pluginMinutes: minutes } : {}) };
       const res = await call(app, env, auth, 'PATCH', `/api/chores/${encodeURIComponent(choreId)}`, body);
       if (res.status >= 400) return errorResult(res.json, 'failed to update chore');
       const chore = res.json as { title: string };
