@@ -86,8 +86,17 @@ test('mcp: tools/list returns the tools', async () => {
     'create_recipe',
     'create_reward',
     'decline_reward',
+    'delete_chore',
     'delete_color_scheme',
     'delete_event',
+    'delete_list',
+    'delete_list_item',
+    'delete_list_step',
+    'delete_meal',
+    'delete_note',
+    'delete_recipe',
+    'delete_reward',
+    'delete_tracker_entry',
     'get_board',
     'get_event',
     'get_event_items',
@@ -408,6 +417,7 @@ test('mcp: every tool declares permission hints, and the server advertises its i
   assert.equal(byName.list_notifications.readOnlyHint, true);
   assert.equal(byName.create_list.readOnlyHint, false);
   assert.equal(byName.delete_event.destructiveHint, true);
+  for (const t of tools.filter((x) => x.name.startsWith('delete_'))) assert.equal(t.annotations.destructiveHint, true, t.name);
   for (const name of ['list_recipes', 'get_recipe', 'list_meals', 'get_meal_projection']) {
     assert.equal(byName[name].readOnlyHint, true, name);
     assert.equal(byName[name].idempotentHint, true, name);
@@ -662,4 +672,117 @@ test('mcp: meal planning tools use REST permissions, snapshots, and idempotent p
   assert.equal((await call('get_meal_projection', { ...range, listId: list.id })).items[0].quantity, 6);
   assert.equal((await call('apply_meal_projection', { ...range, listId: list.id })).added, 1);
   assert.equal((await call('apply_meal_projection', { ...range, listId: list.id })).added, 0);
+});
+
+// Delete tools: each is a thin wrapper on the REST DELETE, so a display key gets exactly the REST
+// route's answer (lists, items, steps and notes are allowed; the rest need full access).
+async function deleteSetup() {
+  const env = makeEnv();
+  const { rest, mcp } = makeApp(env);
+  const displayKey = (await (await rest('/api/keys', { method: 'POST', body: JSON.stringify({ name: 'wall', scope: 'display' }) })).json() as any).key as string;
+  const call = async (name: string, args: Record<string, unknown>, key = ADMIN_KEY) => ((await (await mcp('tools/call', { name, arguments: args }, key)).json()) as any).result;
+  const ok = async (name: string, args: Record<string, unknown>, key = ADMIN_KEY) => {
+    const r = await call(name, args, key);
+    assert.notEqual(r.isError, true, `${name}: ${JSON.stringify(r.content)}`);
+    return r.structuredContent;
+  };
+  return { rest, call, ok, displayKey };
+}
+
+test('mcp: delete_list removes a list by exact name only; display keys may (as REST allows)', async () => {
+  const { call, ok, displayKey } = await deleteSetup();
+  await ok('create_list', { name: 'Fish tacos' });
+  await ok('create_list', { name: 'Old chores' });
+  const partial = await call('delete_list', { list: 'tacos' });
+  assert.equal(partial.isError, true);
+  assert.match(partial.content[0].text, /exact name/);
+  assert.match((await call('delete_list', { list: 'OLD CHORES' }, displayKey)).content[0].text, /Deleted list "Old chores"/);
+  await ok('delete_list', { list: 'fish tacos' });
+  assert.deepEqual((await ok('list_lists', {})).lists, []);
+});
+
+test('mcp: delete_list_item removes an item; display keys may', async () => {
+  const { ok, displayKey } = await deleteSetup();
+  await ok('create_list', { name: 'Routine' });
+  const [a, b] = (await ok('add_list_items', { listName: 'routine', items: ['Brush teeth', 'Pajamas'] })).items;
+  await ok('delete_list_item', { list: 'routine', itemId: a.id });
+  await ok('delete_list_item', { list: 'routine', itemId: b.id }, displayKey);
+  assert.deepEqual((await ok('get_list', { list: 'routine' })).items, []);
+});
+
+test('mcp: delete_list_step removes a step and returns the item; display keys may', async () => {
+  const { ok, displayKey } = await deleteSetup();
+  await ok('create_list', { name: 'Routine' });
+  const [item] = (await ok('add_list_items', { listName: 'routine', items: [{ title: 'Bedtime', steps: ['Bath', 'Book', 'Lights'] }] })).items;
+  await ok('set_step_done', { list: 'routine', itemId: item.id, stepId: item.steps[0].id, done: true });
+  await ok('set_step_done', { list: 'routine', itemId: item.id, stepId: item.steps[1].id, done: true });
+  const after = (await ok('delete_list_step', { list: 'routine', itemId: item.id, stepId: item.steps[2].id }, displayKey)).item;
+  assert.deepEqual([after.stepsTotal, after.done], [2, true], 'remaining steps all done completes the item');
+});
+
+test('mcp: delete_note removes a note; display keys may', async () => {
+  const { ok, displayKey } = await deleteSetup();
+  await ok('create_list', { name: 'Todo' });
+  const [item] = (await ok('add_list_items', { listName: 'todo', items: ['Call grandma'] })).items;
+  const n1 = (await ok('add_note', { target: `list_item:${item.id}`, body: 'Sunday' })).note;
+  const n2 = (await ok('add_note', { target: `list_item:${item.id}`, body: 'After lunch' })).note;
+  await ok('delete_note', { noteId: n1.id });
+  await ok('delete_note', { noteId: n2.id }, displayKey);
+  assert.deepEqual((await ok('list_notes', { target: `list_item:${item.id}` })).notes, []);
+});
+
+test('mcp: delete_chore needs full access and takes its history with it', async () => {
+  const { rest, call, ok, displayKey } = await deleteSetup();
+  const chore = (await ok('create_chore', { title: 'Dishes', dueDate: '2026-05-01' })).chore;
+  await ok('complete_chore', { choreId: chore.id, date: '2026-05-01' });
+  assert.equal((await call('delete_chore', { choreId: chore.id }, displayKey)).isError, true);
+  await ok('delete_chore', { choreId: chore.id });
+  assert.deepEqual(await (await rest('/api/chores')).json(), []);
+});
+
+test('mcp: delete_tracker_entry needs full access', async () => {
+  const { call, ok, displayKey } = await deleteSetup();
+  const book = (await ok('add_tracker_entry', { kind: 'reading', title: 'Matilda' })).entry;
+  assert.equal((await call('delete_tracker_entry', { entryId: book.id }, displayKey)).isError, true);
+  await ok('delete_tracker_entry', { entryId: book.id });
+  assert.deepEqual((await ok('list_tracker_entries', {})).entries, []);
+});
+
+test('mcp: delete_meal needs full access', async () => {
+  const { call, ok, displayKey } = await deleteSetup();
+  const meal = (await ok('create_meal', { date: '2026-09-28', slot: 'dinner', title: 'Leftovers', mealKind: 'freeform' })).meal;
+  assert.equal((await call('delete_meal', { mealId: meal.id }, displayKey)).isError, true);
+  await ok('delete_meal', { mealId: meal.id });
+  assert.deepEqual((await ok('list_meals', { from: '2026-09-28' })).meals, []);
+});
+
+test('mcp: delete_recipe needs full access and an id or exact name', async () => {
+  const { call, ok, displayKey } = await deleteSetup();
+  const recipe = (await ok('create_recipe', { name: 'Fish tacos', ingredients: [{ name: 'Fish' }] })).recipe;
+  assert.equal((await call('delete_recipe', { recipe: 'tacos' })).isError, true);
+  assert.equal((await call('delete_recipe', { recipe: recipe.id }, displayKey)).isError, true);
+  await ok('delete_recipe', { recipe: 'FISH TACOS' });
+  assert.deepEqual((await ok('list_recipes', { archived: true })).recipes, []);
+});
+
+test('mcp: delete_reward needs full access', async () => {
+  const { call, ok, displayKey } = await deleteSetup();
+  const reward = (await ok('create_reward', { title: 'Movie night', cost: 100 })).reward;
+  assert.equal((await call('delete_reward', { reward: 'movie night' }, displayKey)).isError, true);
+  await ok('delete_reward', { reward: reward.id });
+  assert.deepEqual((await ok('list_rewards', { archived: true })).rewards, []);
+});
+
+test('mcp: booleans sent as text ("true"/"false") are accepted, and still advertised as booleans', async () => {
+  const { ok } = await deleteSetup();
+  const chore = (await ok('create_chore', { title: 'Feed cat', dueDate: '2026-05-01', needsApproval: 'true', approveTimedPlay: 'false' })).chore;
+  assert.equal(chore.needsApproval, true);
+  assert.equal((await ok('update_chore', { choreId: chore.id, needsApproval: 'false' })).chore.needsApproval, false);
+  assert.equal((await ok('update_chore', { choreId: chore.id, title: 'true' })).chore.title, 'true', 'string arguments are left alone');
+
+  const { mcp } = makeApp(makeEnv());
+  const tools = ((await (await mcp('tools/list', {})).json()) as any).result.tools;
+  const props = tools.find((t: any) => t.name === 'update_chore').inputSchema.properties;
+  assert.deepEqual(props.needsApproval.type, ['boolean', 'null'], JSON.stringify(props.needsApproval));
+  assert.equal(props.approveTimedPlay.type, 'boolean');
 });

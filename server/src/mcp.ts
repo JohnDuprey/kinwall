@@ -122,6 +122,17 @@ async function resolveCategory(app: App, env: Env, auth: string, ref: string): P
   throw new MemberResolutionError(`no category found matching "${ref}"`);
 }
 
+// Delete tools take an id or the exact name (any case), never a partial match: "tacos" must not
+// delete "Fish tacos".
+async function resolveExact(app: App, env: Env, auth: string, path: string, ref: string, what: string): Promise<{ id: string; name: string }> {
+  const { status, json } = await call(app, env, auth, 'GET', path);
+  if (status >= 400) throw new MemberResolutionError(`failed to look up the ${what}`);
+  const rows = (json as { id: string; name?: string; title?: string }[]).map((r) => ({ id: r.id, name: r.name ?? r.title ?? '' }));
+  const hits = rows.filter((r) => r.id === ref || r.name.toLowerCase() === ref.trim().toLowerCase());
+  if (hits.length === 1) return hits[0];
+  throw new MemberResolutionError(hits.length ? `"${ref}" matches ${hits.length} ${what}s; use the id` : `no ${what} with id or exact name "${ref}"`);
+}
+
 // "Today" for defaults means the household's day, not UTC's - in the evening west of UTC those differ.
 async function todayInHousehold(env: Env): Promise<string> {
   const row = await env.DB.prepare("SELECT value FROM settings WHERE key = 'timezone'").first<{ value: string }>();
@@ -143,6 +154,13 @@ function jsonList<T extends z.ZodTypeAny>(schema: T) {
   }, schema);
 }
 
+// Booleans given as text ("true"/"false") are read as booleans, for the same clients. Applied to
+// every argument that takes a boolean but not the string "true", so string arguments are untouched.
+function lenientBooleans(shape: z.ZodRawShape): z.ZodRawShape {
+  const asBool = (v: unknown) => (v === 'true' ? true : v === 'false' ? false : v);
+  return Object.fromEntries(Object.entries(shape).map(([k, s]) => [k, z.safeParse(s, true).success && !z.safeParse(s, 'true').success ? z.preprocess(asBool, s) : s]));
+}
+
 // Permission groups. readOnly: only reads. destructive: removes something. openWorld: reaches
 // outside Kinwall (writes to Google/Outlook, or pushes to phones). idempotent: repeating the same
 // call changes nothing more.
@@ -162,6 +180,7 @@ const BUILTIN_SCHEMES: { id: string; name: string; emoji: string }[] = [
 const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
 const WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false };
 const SET = { ...WRITE, idempotentHint: true };
+const DELETE = { ...WRITE, destructiveHint: true, idempotentHint: true };
 const OK = { ok: z.boolean() };
 const EVENT_ID_DOC = 'Link this task to a calendar event; use list_events to find ids.';
 const PRIORITY_DOC = 'low | normal | high | urgent. Open urgent items sort first, then high (important, starred), normal, low.';
@@ -231,6 +250,8 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
   set_color_scheme: { settings: SettingsSchema },
   save_color_scheme: { scheme: CustomSchemeSchema, settings: SettingsSchema },
   delete_color_scheme: { settings: SettingsSchema },
+  delete_list: OK, delete_list_item: OK, delete_list_step: { item: ListItemSchema }, delete_note: OK, delete_chore: OK,
+  delete_tracker_entry: OK, delete_meal: OK, delete_recipe: OK, delete_reward: OK,
 };
 
 const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boolean; idempotentHint: boolean; openWorldHint: boolean }> = {
@@ -244,6 +265,8 @@ const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boole
   create_list: WRITE, update_list: SET, add_list_items: WRITE, update_list_item: SET, set_store_aisle_order: SET, set_list_item_done: SET, set_step_done: SET, update_category: SET, add_note: WRITE, update_note: SET,
   send_notification: { ...WRITE, openWorldHint: true },
   delete_event: { ...WRITE, destructiveHint: true, idempotentHint: true, openWorldHint: true },
+  delete_list: DELETE, delete_list_item: DELETE, delete_list_step: DELETE, delete_note: DELETE, delete_chore: DELETE,
+  delete_tracker_entry: DELETE, delete_meal: DELETE, delete_recipe: DELETE, delete_reward: DELETE,
 };
 
 function registerTools(server: McpServer, app: App, env: Env, auth: string) {
@@ -254,7 +277,8 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     if (!hints) throw new Error(`MCP tool ${name} has no entry in TOOL_HINTS`);
     // Output schemas (shapes the REST routes already declare) tell the model what comes back; the
     // SDK validates successful results against them, and tests exercise every tool.
-    return server.registerTool(name, { ...config, outputSchema: TOOL_OUTPUT[name], annotations: { title: config.title, ...hints } }, cb);
+    const inputSchema = config.inputSchema && lenientBooleans(config.inputSchema as z.ZodRawShape);
+    return server.registerTool(name, { ...config, inputSchema, outputSchema: TOOL_OUTPUT[name], annotations: { title: config.title, ...hints } } as typeof config, cb);
   };
 
   tool('list_recipes', { title: 'Find recipes', description: 'Search the recipe library; archived=true includes archived recipes.', inputSchema: { search: z.string().optional(), category: z.string().optional(), archived: z.boolean().optional() } }, async ({ search, category, archived }) => {
@@ -1582,6 +1606,149 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       });
       if (res.status >= 400) return errorResult(res.json, 'failed to delete the color scheme');
       return okResult(`Deleted ${target.name}.`, { settings: res.json as Record<string, unknown> });
+    },
+  );
+
+  // Deletes: irreversible, so each says so and names what goes with it. Scope is the REST route's
+  // (lists, items, steps and notes are allowed to display keys; the rest need full access).
+  // Members, calendars, keys, webhooks and photos are deliberately not deletable over MCP.
+  const lookupError = (err: unknown) => errorResult(null, err instanceof Error ? err.message : 'lookup failed');
+  const remove = async (path: string, fallback: string, summary: string) => {
+    const res = await call(app, env, auth, 'DELETE', path);
+    return res.status >= 400 ? errorResult(res.json, fallback) : okResult(summary, { ok: true });
+  };
+  const NO_UNDO = 'Permanent: it cannot be undone.';
+
+  tool(
+    'delete_list',
+    {
+      title: 'Delete list',
+      description: `Delete a whole list with all its items, their steps and notes, and its groups. ${NO_UNDO} To keep it out of the way instead, use update_list archived: true. Takes the list id or its exact name.`,
+      inputSchema: { list: z.string().describe('List id or exact name (any case).') },
+    },
+    async ({ list }) => {
+      let target: { id: string; name: string };
+      try {
+        target = await resolveExact(app, env, auth, '/api/lists?archived=true', list, 'list');
+      } catch (err) {
+        return lookupError(err);
+      }
+      return remove(`/api/lists/${encodeURIComponent(target.id)}`, 'failed to delete list', `Deleted list "${target.name}".`);
+    },
+  );
+
+  tool(
+    'delete_list_item',
+    {
+      title: 'Delete list item',
+      description: `Delete an item from a list, with its steps and notes (item ids come from get_list). ${NO_UNDO} To just tick it off, use set_list_item_done.`,
+      inputSchema: { list: z.string().describe('List id or name.'), itemId: z.string() },
+    },
+    async ({ list, itemId }) => {
+      let target: { id: string; name: string };
+      try {
+        target = await resolveList(app, env, auth, list);
+      } catch (err) {
+        return lookupError(err);
+      }
+      return remove(`/api/lists/${encodeURIComponent(target.id)}/items/${encodeURIComponent(itemId)}`, 'failed to delete item', `Deleted the item from "${target.name}".`);
+    },
+  );
+
+  tool(
+    'delete_list_step',
+    {
+      title: 'Delete step',
+      description: `Delete one step of a list item (step ids come from get_list). ${NO_UNDO} If every remaining step is done, the item becomes done.`,
+      inputSchema: { list: z.string().describe('List id or name.'), itemId: z.string(), stepId: z.string() },
+    },
+    async ({ list, itemId, stepId }) => {
+      let listId: string;
+      try {
+        listId = (await resolveList(app, env, auth, list)).id;
+      } catch (err) {
+        return lookupError(err);
+      }
+      const res = await call(app, env, auth, 'DELETE', `/api/lists/${encodeURIComponent(listId)}/items/${encodeURIComponent(itemId)}/steps/${encodeURIComponent(stepId)}`);
+      if (res.status >= 400) return errorResult(res.json, 'failed to delete step');
+      const item = res.json as { title: string; stepsDone: number; stepsTotal: number };
+      return okResult(`Deleted the step. "${item.title}": ${item.stepsDone} of ${item.stepsTotal} steps done.`, { item: res.json as Record<string, unknown> });
+    },
+  );
+
+  tool(
+    'delete_note',
+    {
+      title: 'Delete note',
+      description: `Delete one note from an event's or list item's thread (note ids come from list_notes). ${NO_UNDO}`,
+      inputSchema: { noteId: z.string() },
+    },
+    async ({ noteId }) => remove(`/api/notes/${encodeURIComponent(noteId)}`, 'failed to delete note', 'Deleted the note.'),
+  );
+
+  tool(
+    'delete_chore',
+    {
+      title: 'Delete chore',
+      description: `Full access: delete a chore and its whole completion history, so the points members earned from it come off their totals and the leaderboard. ${NO_UNDO} To stop a chore but keep its history and points, use update_chore active: false instead.`,
+      inputSchema: { choreId: z.string() },
+    },
+    async ({ choreId }) => remove(`/api/chores/${encodeURIComponent(choreId)}`, 'failed to delete chore', 'Deleted the chore and its history.'),
+  );
+
+  tool(
+    'delete_tracker_entry',
+    {
+      title: 'Delete tracker entry',
+      description: `Full access: delete a book, memory or health entry (ids come from list_tracker_entries). A memory's own photo goes with it, unless it's also a family photo. ${NO_UNDO}`,
+      inputSchema: { entryId: z.string() },
+    },
+    async ({ entryId }) => remove(`/api/trackers/${encodeURIComponent(entryId)}`, 'failed to delete entry', 'Deleted the entry.'),
+  );
+
+  tool(
+    'delete_meal',
+    {
+      title: 'Delete meal',
+      description: `Full access: remove a planned meal (ids come from list_meals), with the calendar event Kinwall created for it and that event's notes. A linked event of your own and groceries already added to a list stay. ${NO_UNDO}`,
+      inputSchema: { mealId: z.string() },
+    },
+    async ({ mealId }) => remove(`/api/meals/${encodeURIComponent(mealId)}`, 'failed to delete meal', 'Deleted the meal.'),
+  );
+
+  tool(
+    'delete_recipe',
+    {
+      title: 'Delete recipe',
+      description: `Full access: delete a recipe and its ingredients. Meals already planned from it keep their own copy. ${NO_UNDO} To hide it instead, use update_recipe archived: true. Takes the recipe id or its exact name.`,
+      inputSchema: { recipe: z.string().describe('Recipe id or exact name (any case).') },
+    },
+    async ({ recipe }) => {
+      let target: { id: string; name: string };
+      try {
+        target = await resolveExact(app, env, auth, '/api/recipes?archived=true', recipe, 'recipe');
+      } catch (err) {
+        return lookupError(err);
+      }
+      return remove(`/api/recipes/${encodeURIComponent(target.id)}`, 'failed to delete recipe', `Deleted recipe "${target.name}".`);
+    },
+  );
+
+  tool(
+    'delete_reward',
+    {
+      title: 'Delete reward',
+      description: `Full access: delete a reward. Past requests for it stay in history, and anyone saving for it no longer has a goal. ${NO_UNDO} To retire it instead, use update_reward active: false. Takes the reward id or its exact title.`,
+      inputSchema: { reward: z.string().describe('Reward id or exact title (any case).') },
+    },
+    async ({ reward }) => {
+      let target: { id: string; name: string };
+      try {
+        target = await resolveExact(app, env, auth, '/api/rewards?archived=true', reward, 'reward');
+      } catch (err) {
+        return lookupError(err);
+      }
+      return remove(`/api/rewards/${encodeURIComponent(target.id)}`, 'failed to delete reward', `Deleted reward "${target.name}".`);
     },
   );
 }

@@ -125,16 +125,28 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 | `update_tracker_entry` | Edits an entry, for example pages read or a rating. `data` is merged; `null` clears a field. |
 | `update_category` | Changes a category's name, emoji, color or keywords. |
 | `send_notification` | Pushes a message now to devices following given members, or all devices (admin). It also appears in the in-app notification feed. |
-
 | `set_color_scheme` | Sets the household's color scheme by name ("Peach", "Meadow", "Seasonal", or one of the family's own). Devices that follow the family setting switch to it; a device that picked its own scheme in the app keeps it. |
 | `save_color_scheme` | Creates one of the family's own schemes, or overwrites one (`replace`). Takes four colors per mode (`light` and `dark`: `bg`, `card`, `text`, `accent`). Refused, with the ratios that fell short, unless text and dim text reach 4.5:1 on the background and cards in both modes. Up to 10 per family. `use: true` also makes it the household's scheme. |
 
 ### Delete
 
+Deleting is permanent: nothing here can be undone. Events, lists, list items, steps and notes can be deleted with **Everyday access** (or a display key), as in the app. Everything else needs **Full access** (or an admin key). Where there's a gentler option, the tool's description points the assistant to it: archive a list, recipe or reward, or turn a chore off with `active: false`. Lists, recipes and rewards are matched by ID or exact name only, never part of a name.
+
 | Tool | Does |
 |---|---|
 | `delete_color_scheme` | Deletes one of the family's own schemes. If the household was using it, the household goes back to Peach. |
 | `delete_event` | Deletes an event (the whole series for recurring local events). This also deletes it at the provider. |
+| `delete_list` | Deletes a list (by ID or exact name) with all its items, their steps and notes, and its groups. |
+| `delete_list_item` | Deletes an item from a list, with its steps and notes. |
+| `delete_list_step` | Deletes one step of an item. If every remaining step is done, the item becomes done. |
+| `delete_note` | Deletes one note from an event's or list item's thread. |
+| `delete_chore` | Deletes a chore and its whole completion history, so the points earned from it come off members' totals. `update_chore` with `active: false` keeps the history. Full access. |
+| `delete_tracker_entry` | Deletes a book, memory or health entry. A memory's own photo goes with it, unless it's also a family photo. Full access. |
+| `delete_meal` | Deletes a planned meal and the calendar event Kinwall created for it. A linked event of your own and groceries already on a list stay. Full access. |
+| `delete_recipe` | Deletes a recipe (by ID or exact name) and its ingredients. Planned meals keep their own copy. Full access. |
+| `delete_reward` | Deletes a reward (by ID or exact title). Past requests stay in history; anyone saving for it loses that goal. Full access. |
+
+Members, calendars, API keys, webhooks and photos can't be deleted over MCP. Those are too destructive or sensitive for a chat tool, so do them in Kinwall's settings.
 
 ## Native apps
 
@@ -152,4 +164,4 @@ Every tool declares an **output schema** that matches the REST response shapes (
 * the same data as a JSON text block, for clients that ignore structured output,
 * `structuredContent`, validated against the schema.
 
-For example, `list_events` returns `{events: EventInstance[]}` and `complete_chore` returns `{ok: boolean}`. Array arguments sent as JSON text (`"[15]"`) are accepted too.
+For example, `list_events` returns `{events: EventInstance[]}` and `complete_chore` returns `{ok: boolean}`. Array arguments sent as JSON text (`"[15]"`) and booleans sent as text (`"true"`, `"false"`) are accepted too.
