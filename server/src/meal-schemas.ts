@@ -7,6 +7,7 @@ export const MealDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine((s)
 const text = z.string().trim().max(10000).nullable();
 const url = z.string().url().max(2000).refine((s) => /^https?:\/\//i.test(s), 'must be an HTTP or HTTPS URL').nullable();
 const servings = z.number().positive().max(10000);
+export const MealSlotSchema = z.enum(['breakfast', 'lunch', 'dinner', 'snack']);
 export const IngredientInputSchema = z.object({
   name: z.string().trim().min(1).max(200), quantity: z.number().min(0).max(1000000).nullable().optional(),
   unit: z.string().trim().max(50).nullable().optional(), preparation: text.optional(),
@@ -26,10 +27,29 @@ export const RecipeInputSchema = z.object({
 export const RecipeSchema = z.object({
   id: z.string(), name: z.string(), description: text, instructions: text, preparationNotes: text, sourceUrl: url,
   defaultServings: servings, archived: z.boolean(), ingredients: z.array(IngredientSchema),
+  // Set on imported recipes (POST /api/recipes/import); optional so older exports still import.
+  source: z.string().nullable().optional(), externalId: z.string().nullable().optional(), imageUrl: url.optional(),
   createdAt: z.string(), updatedAt: z.string(),
 }).openapi('Recipe');
+/** An ingredient on a meal-kit recipe that ships in the box: grocery lists skip it unless asked. */
+export const KIT_QUALIFIER = 'in the kit';
+export const RecipeImportSchema = z.object({
+  source: z.string().trim().min(1).max(50).describe('Where the recipe comes from, e.g. hellofresh.'),
+  externalId: z.string().trim().min(1).max(200).describe("The source's own recipe id; importing it again updates the same recipe."),
+  name: z.string().trim().min(1).max(200), description: text.optional(), sourceUrl: url.optional().describe('Recipe card link.'), imageUrl: url.optional(),
+  servings: servings.optional().describe('Servings the ingredient amounts are for.'),
+  ingredients: z.array(z.union([
+    z.string().trim().min(1).max(300),
+    z.object({ text: z.string().trim().min(1).max(300), pantry: z.boolean().optional(), category: z.string().trim().max(100).nullable().optional() }).strict(),
+  ])).max(300).describe('Lines like "1.5 tablespoon Sour Cream". pantry: false marks one that ships in the kit (skipped on grocery lists by default); strings and pantry: true are regular groceries.'),
+  steps: z.array(z.string().trim().min(1).max(10000)).max(100).optional().describe('Saved as numbered instructions.'),
+  plan: z.object({ date: MealDateSchema, slot: MealSlotSchema, servings: servings.optional() }).strict().optional()
+    .describe('Also plan it on this date and slot, unless that slot already has a meal (planned: false).'),
+}).strict().openapi('RecipeImport');
+export const RecipeImportResultSchema = z.object({
+  recipeId: z.string(), created: z.boolean(), planned: z.boolean(), mealId: z.string().optional(), reason: z.string().optional(),
+}).openapi('RecipeImportResult');
 export const RecipeSnapshotSchema = z.object({ name: z.string(), defaultServings: servings, ingredients: z.array(IngredientSchema) }).openapi('RecipeSnapshot');
-export const MealSlotSchema = z.enum(['breakfast', 'lunch', 'dinner', 'snack']);
 export const MealInputSchema = z.object({
   date: MealDateSchema, slot: MealSlotSchema, title: z.string().trim().min(1).max(200).optional(),
   mealKind: z.enum(['recipe', 'freeform', 'dining_out']).optional(), recipeId: z.string().nullable().optional(),
@@ -47,7 +67,7 @@ export const MealSchema = z.object({
 }).openapi('Meal');
 export const MealRangeSchema = z.object({ from: MealDateSchema, to: MealDateSchema }).refine((r) => r.from <= r.to && (Date.parse(r.to) - Date.parse(r.from)) / 86400000 <= 366, 'range must be ordered and at most 367 days');
 export const ProjectionQuerySchema = MealRangeSchema.safeExtend({ listId: z.string().optional() });
-export const ProjectionApplySchema = MealRangeSchema.safeExtend({ listId: z.string().min(1), omitKeys: z.array(z.string()).max(10000).optional(), includeNotes: z.boolean().optional() }).strict();
+export const ProjectionApplySchema = MealRangeSchema.safeExtend({ listId: z.string().min(1), omitKeys: z.array(z.string()).max(10000).optional(), includeNotes: z.boolean().optional(), includeKitItems: z.boolean().optional() }).strict();
 export const ProjectionSourceSchema = z.object({
   sourceRef: z.string(), mealId: z.string(), date: MealDateSchema, slot: MealSlotSchema, title: z.string(), recipeName: z.string(),
   quantity: z.number().nullable(), unit: z.string().nullable(), qualifier: z.string().nullable(), preparation: z.string().nullable(),

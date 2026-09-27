@@ -1,6 +1,6 @@
 // Meal planning domain: recipes are definitions; a meal owns the snapshot it was planned with.
 import type { KinwallDb, KinwallStatement } from './db.ts';
-import type { Ingredient, Meal, Recipe, Projection } from './meal-schemas.ts';
+import { KIT_QUALIFIER, type Ingredient, type Meal, type Recipe, type Projection } from './meal-schemas.ts';
 import { fillPlace, itemKey, recall } from './item-memory.ts';
 
 export function normalizeIngredient(value: string): string {
@@ -17,14 +17,36 @@ export function canonicalUnit(value: string | null): { unit: string | null; fact
 export function isScalable(i: { quantity: number | null; unit: string | null; qualifier: string | null }): boolean {
   return i.quantity !== null && !i.qualifier && canonicalUnit(i.unit).scalable;
 }
-export type RecipeRow = { id: string; name: string; description: string | null; instructions: string | null; preparation_notes: string | null; source_url: string | null; default_servings: number; archived: number; created_at: string; updated_at: string };
+// Units an imported ingredient line may start with after its amount ("1.5 tablespoon Sour Cream").
+const LINE_UNITS = new Set(['cup', 'cups', 'tablespoon', 'tablespoons', 'tbsp', 'tbs', 'teaspoon', 'teaspoons', 'tsp', 'ounce', 'ounces', 'oz', 'pound', 'pounds', 'lb', 'lbs',
+  'gram', 'grams', 'g', 'kilogram', 'kilograms', 'kg', 'milliliter', 'milliliters', 'ml', 'liter', 'liters', 'l', 'package', 'packages', 'pack', 'packs', 'can', 'cans', 'jar', 'jars',
+  'bunch', 'bunches', 'pinch', 'pinches', 'handful', 'handfuls', 'clove', 'cloves', 'thumb', 'thumbs', 'slice', 'slices', 'sprig', 'sprigs', 'stalk', 'stalks', 'head', 'heads',
+  'bag', 'bags', 'box', 'boxes', 'container', 'containers', 'bottle', 'bottles', 'piece', 'pieces', 'each', 'count', 'dozen', 'unit', 'units']);
+const FRACTIONS: Record<string, string> = { '½': '1/2', '⅓': '1/3', '⅔': '2/3', '¼': '1/4', '¾': '3/4', '⅕': '1/5', '⅖': '2/5', '⅗': '3/5', '⅘': '4/5', '⅙': '1/6', '⅚': '5/6', '⅛': '1/8', '⅜': '3/8', '⅝': '5/8', '⅞': '7/8' };
+/** One ingredient line as the source printed it ("1.5 tablespoon Sour Cream", "½ cup Rice", "Salt") in recipe terms.
+ * "unit" (a kit's word for "one of") means no unit. Anything unrecognized stays in the name. */
+export function parseIngredientLine(line: string): { name: string; quantity: number | null; unit: string | null } {
+  const text = line.replace(/[½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞]/g, (f) => ` ${FRACTIONS[f]}`).replace(/\u2044/g, '/').replace(/\s+/g, ' ').trim();
+  const amount = /^(?:(\d+) )?(\d+)\/(\d+)(?= |$)|^(\d*\.?\d+)(?= |$)/.exec(text);
+  if (!amount) return { name: text, quantity: null, unit: null };
+  const quantity = amount[4] !== undefined ? Number(amount[4]) : Number(amount[1] ?? 0) + Number(amount[2]) / Number(amount[3]);
+  let rest = text.slice(amount[0].length).trim();
+  let unit: string | null = null;
+  const word = /^(fl\.? oz\.?|[a-z]+\.?)(?= |$)/i.exec(rest);
+  if (word && (LINE_UNITS.has(word[1].toLowerCase().replace(/\.$/, '')) || /^fl/i.test(word[1])) && rest.length > word[0].length) {
+    unit = /^units?$/i.test(word[1]) ? null : word[1].toLowerCase().replace(/\.$/, '');
+    rest = rest.slice(word[0].length).trim();
+  }
+  return { name: rest || text, quantity: rest && Number.isFinite(quantity) ? quantity : null, unit: rest ? unit : null };
+}
+export type RecipeRow = { id: string; name: string; description: string | null; instructions: string | null; preparation_notes: string | null; source_url: string | null; default_servings: number; archived: number; source?: string | null; external_id?: string | null; image_url?: string | null; created_at: string; updated_at: string };
 export type IngredientRow = { id: string; recipe_id: string; name: string; normalized_name: string; quantity: number | null; unit: string | null; preparation: string | null; qualifier: string | null; category: string | null; sort: number };
 export type MealRow = { id: string; date: string; slot: Meal['slot']; title: string; meal_kind: Meal['mealKind']; recipe_id: string | null; recipe_snapshot: string | null; servings: number; assignee_member_id: string | null; notes: string | null; planned_time: string | null; calendar_event_id: string | null; status: Meal['status']; source_url: string | null; created_at: string; updated_at: string };
 export function ingredientApi(r: IngredientRow): Ingredient {
   return { id: r.id, name: r.name, normalizedName: r.normalized_name, quantity: r.quantity, unit: r.unit, preparation: r.preparation, qualifier: r.qualifier, category: r.category, sort: r.sort, scalable: isScalable(r) };
 }
 export function recipeApi(r: RecipeRow, ingredients: Ingredient[]): Recipe {
-  return { id: r.id, name: r.name, description: r.description, instructions: r.instructions, preparationNotes: r.preparation_notes, sourceUrl: r.source_url, defaultServings: r.default_servings, archived: !!r.archived, ingredients, createdAt: r.created_at, updatedAt: r.updated_at };
+  return { id: r.id, name: r.name, description: r.description, instructions: r.instructions, preparationNotes: r.preparation_notes, sourceUrl: r.source_url, defaultServings: r.default_servings, archived: !!r.archived, ingredients, source: r.source ?? null, externalId: r.external_id ?? null, imageUrl: r.image_url ?? null, createdAt: r.created_at, updatedAt: r.updated_at };
 }
 // Snapshots saved before ingredients carried `scalable` get it on the way out.
 const snapshotApi = (s: NonNullable<Meal['recipeSnapshot']>) => ({ ...s, ingredients: s.ingredients.map((i) => ({ ...i, scalable: isScalable(i) })) });
@@ -97,10 +119,11 @@ export async function shoppingProjection(db: KinwallDb, from: string, to: string
 
 /** Each item insert and its source claims run in one transaction. The SQL rechecks the ledger,
  * so concurrent/overlapping previews add only still-unclaimed contributions, never duplicates. */
-export async function applyProjection(db: KinwallDb, projection: Projection, listId: string, omitKeys: string[], includeNotes: boolean): Promise<string[]> {
+export async function applyProjection(db: KinwallDb, projection: Projection, listId: string, omitKeys: string[], includeNotes: boolean, includeKitItems = false): Promise<string[]> {
   const omitted = new Set(omitKeys);
   const now = new Date().toISOString();
-  const wanted = projection.items.filter((item) => !omitted.has(item.key) && !item.applied);
+  // What ships in a meal kit is already in the box, so it stays off the list unless asked for.
+  const wanted = projection.items.filter((item) => !omitted.has(item.key) && !item.applied && (includeKitItems || item.qualifier !== KIT_QUALIFIER));
   // Where the household keeps each ingredient (store, category, aisle); the recipe's category otherwise.
   const memory = await recall(db, wanted.map((item) => item.name));
   const rows = wanted.map((item) => ({ item, place: fillPlace(memory, item.name, {}) })).map(({ item, place }) => ({

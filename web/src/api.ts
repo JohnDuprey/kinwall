@@ -237,7 +237,7 @@ export const api = {
   unlinkMealCalendar: (id: string) => del<Meal>(`api/meals/${encodeURIComponent(id)}/calendar-link`),
   createMealCalendarEvent: (id: string, body: { calendarId?: string; durationMinutes?: number }) => post<Meal>(`api/meals/${encodeURIComponent(id)}/calendar-event`, body),
   getMealProjection: (from: string, to: string, listId?: string) => get<ShoppingProjection>(`api/meals/projection?${new URLSearchParams({ from, to, ...(listId ? { listId } : {}) })}`),
-  applyMealProjection: (body: { from: string; to: string; listId: string; omitKeys: string[]; includeNotes: boolean }) => post<{ added: number; itemIds: string[]; projection: ShoppingProjection }>('api/meals/projection/apply', body),
+  applyMealProjection: (body: { from: string; to: string; listId: string; omitKeys: string[]; includeNotes: boolean; includeKitItems?: boolean }) => post<{ added: number; itemIds: string[]; projection: ShoppingProjection }>('api/meals/projection/apply', body),
 
   getRev: () => MOCK ? mock.getRev() : get<{ rev: number }>('api/rev'),
 

@@ -4,7 +4,7 @@ import { useApp } from './AppContext.tsx'
 import Sheet from './Sheet.tsx'
 import { ingredientAmount, mealDayLabel, servingsLabel, SLOT_LABEL } from './meal-date.ts'
 import type { List } from './types.ts'
-import type { ShoppingProjection } from './meal-types.ts'
+import { KIT_QUALIFIER, type ShoppingProjection } from './meal-types.ts'
 
 // The grocery list last used on this device, so a family with several doesn't pick it every time.
 const LAST_LIST_KEY = 'kinwall.mealGroceryList'
@@ -24,6 +24,8 @@ export default function MealProjection({ from: initialFrom, to: initialTo, admin
   const [listId, setListId] = useState('')
   const [result, setResult] = useState<{ key: string; projection?: ShoppingProjection; error?: string } | null>(null)
   const [omitted, setOmitted] = useState<string[]>([])
+  // What ships in a meal kit is already in the box: unchecked until someone ticks it.
+  const [kitIncluded, setKitIncluded] = useState<string[]>([])
   const [includeNotes, setIncludeNotes] = useState(true)
   const [busy, setBusy] = useState(false)
   const [applyError, setApplyError] = useState('')
@@ -52,12 +54,13 @@ export default function MealProjection({ from: initialFrom, to: initialTo, admin
   const loading = validRange && result?.key !== requestKey
   const current = validRange && result?.key === requestKey ? result.projection : null
   const error = result?.key === requestKey ? result.error : undefined
-  const selected = current?.items.filter(item => !item.applied && !omitted.includes(item.key)) ?? []
+  const isOmitted = (item: ShoppingProjection['items'][number]) => omitted.includes(item.key) || (item.qualifier === KIT_QUALIFIER && !kitIncluded.includes(item.key))
+  const selected = current?.items.filter(item => !item.applied && !isOmitted(item)) ?? []
   const apply = async () => {
     if (!admin || !current || !listId || !selected.length || busy || loading || !lists?.some(list => list.id === listId)) return
     setBusy(true); setApplyError('')
     try {
-      const result = await api.applyMealProjection({ from, to, listId, omitKeys: omitted, includeNotes })
+      const result = await api.applyMealProjection({ from, to, listId, omitKeys: current.items.filter(isOmitted).map(item => item.key), includeNotes, includeKitItems: true })
       rememberList(listId)
       // Clear immediately so a failed refresh cannot leave an already-applied preview actionable.
       setResult(null); setTick(t => t + 1); reloadCore(); toast(`Added ${result.added} grocery item${result.added === 1 ? '' : 's'}. Previously applied ingredients are skipped.`)
@@ -84,7 +87,7 @@ export default function MealProjection({ from: initialFrom, to: initialTo, admin
           {admin && <div className="meal-actions"><button type="button" className="link-btn" onClick={() => setOmitted([])}>Select all unapplied</button><button type="button" className="link-btn" onClick={() => setOmitted(current.items.map(item => item.key))}>Omit all</button></div>}
           <ul className="meal-projection-list">{current.items.map((item, index) => <li key={item.key} className="meal-projection-item">
             <div className="meal-check">
-              {admin && <input id={`${id}-item-${index}`} type="checkbox" checked={!omitted.includes(item.key) && !item.applied} disabled={item.applied} onChange={e => setOmitted(keys => e.target.checked ? keys.filter(key => key !== item.key) : [...keys, item.key])} />}
+              {admin && <input id={`${id}-item-${index}`} type="checkbox" checked={!isOmitted(item) && !item.applied} disabled={item.applied} onChange={e => { const toggle = (keys: string[], on: boolean) => on ? [...keys, item.key] : keys.filter(key => key !== item.key); setOmitted(keys => toggle(keys, !e.target.checked)); if (item.qualifier === KIT_QUALIFIER) setKitIncluded(keys => toggle(keys, e.target.checked)) }} />}
               <label htmlFor={admin ? `${id}-item-${index}` : undefined}><strong>{item.name}</strong> — {ingredientAmount(item.quantity, item.unit, item.qualifier) || 'As needed'}</label>
             </div>
             <p className="field-hint">{item.applied ? 'Already applied to this list' : item.partiallyApplied ? 'Partly applied — only remaining contributions will be added' : 'Not yet applied'}{item.category ? ` · ${item.category}` : ''}</p>

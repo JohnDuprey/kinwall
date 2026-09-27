@@ -705,7 +705,7 @@ dataRoutes.openapi(
         // Photos travel in their own zip: a photo not on this instance is dropped, not an FK error.
         { keep: ['created_at', 'kind'], expr: { photo_id: "(SELECT id FROM photos WHERE id = j.value->>'photo_id')" } },
       ),
-      ...upserts(db, 'recipes', 'id', body.recipes.map((r) => ({ id: r.id, name: r.name, description: r.description, instructions: r.instructions, preparation_notes: r.preparationNotes, source_url: r.sourceUrl, default_servings: r.defaultServings, archived: r.archived ? 1 : 0, created_at: r.createdAt, updated_at: r.updatedAt })), keepCreated),
+      ...upserts(db, 'recipes', 'id', body.recipes.map((r) => ({ id: r.id, name: r.name, description: r.description, instructions: r.instructions, preparation_notes: r.preparationNotes, source_url: r.sourceUrl, default_servings: r.defaultServings, archived: r.archived ? 1 : 0, source: r.source ?? null, external_id: r.externalId ?? null, image_url: r.imageUrl ?? null, created_at: r.createdAt, updated_at: r.updatedAt })), keepCreated),
       // Replace each imported recipe's ingredient set, including intentionally empty sets.
       db.prepare('DELETE FROM recipe_ingredients WHERE recipe_id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(body.recipes.map((r) => r.id))),
       ...upserts(db, 'recipe_ingredients', 'id', body.recipes.flatMap((r) => r.ingredients.map((i) => ({ id: i.id, recipe_id: r.id, name: i.name, normalized_name: normalizeIngredient(i.name), quantity: i.quantity, unit: i.unit, preparation: i.preparation, qualifier: i.qualifier, category: i.category, sort: i.sort })))),

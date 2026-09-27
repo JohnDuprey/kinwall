@@ -5,8 +5,8 @@ import { emit } from '../bus.ts';
 import { hostTimezone } from '../env.ts';
 import { zonedTimeToUtc } from '../recurrence.ts';
 import { ErrorSchema } from '../schemas.ts';
-import { IngredientInputSchema, MealInputSchema, MealPatchSchema, MealRangeSchema, MealSchema, ProjectionApplySchema, ProjectionQuerySchema, ProjectionSchema, RecipeInputSchema, RecipeSchema, type Meal, type Recipe } from '../meal-schemas.ts';
-import { applyProjection, mealWrite, normalizeIngredient, readMeal, readMeals, readRecipes, shoppingProjection } from '../meals.ts';
+import { IngredientInputSchema, KIT_QUALIFIER, MealInputSchema, MealPatchSchema, MealRangeSchema, MealSchema, ProjectionApplySchema, ProjectionQuerySchema, ProjectionSchema, RecipeImportResultSchema, RecipeImportSchema, RecipeInputSchema, RecipeSchema, type Meal, type Recipe } from '../meal-schemas.ts';
+import { applyProjection, mealWrite, normalizeIngredient, parseIngredientLine, readMeal, readMeals, readRecipes, shoppingProjection } from '../meals.ts';
 import type { KinwallDb } from '../db.ts';
 
 export const mealsRoutes = createRouter();
@@ -55,6 +55,39 @@ mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/recipes', tags: ['
   const recipe = await saveRecipe(c.env.DB, c.req.valid('json'), undefined, (await resolveKey(c))?.id ?? null);
   emit(c, 'recipe.changed', { id: recipe.id }); return c.json(recipe, 201);
 });
+mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/recipes/import', tags: ['Meals'], summary: 'Import a recipe from another app (e.g. a meal kit), updating it when imported again, and optionally plan it (admin)', security: [{ Bearer: [] }], request: { body: body(RecipeImportSchema) }, responses: { 200: { description: 'imported', content: { 'application/json': { schema: RecipeImportResultSchema } } }, ...errors } }), async (c) => {
+  const input = c.req.valid('json');
+  const db = c.env.DB;
+  const found = await db.prepare('SELECT id FROM recipes WHERE source = ? AND external_id = ?').bind(input.source, input.externalId).first<{ id: string }>();
+  const old = found ? (await readRecipes(db, { id: found.id, archived: true }))[0] : undefined;
+  const ingredients = input.ingredients.map((line, sort) => {
+    const item = typeof line === 'string' ? { text: line } : line;
+    return { ...parseIngredientLine(item.text), category: item.category ?? null, qualifier: item.pantry === false ? KIT_QUALIFIER : null, sort };
+  });
+  const recipe = await saveRecipe(db, {
+    name: input.name, ingredients,
+    ...(input.description !== undefined && { description: input.description }),
+    ...(input.sourceUrl !== undefined && { sourceUrl: input.sourceUrl }),
+    ...(input.servings !== undefined && { defaultServings: input.servings }),
+    ...(input.steps !== undefined && { instructions: input.steps.map((step, i) => `${i + 1}. ${step}`).join('\n') || null }),
+  }, old, old ? null : (await resolveKey(c))?.id ?? null);
+  // ponytail: two simultaneous first imports of one recipe race here; the unique index turns the loser into an error.
+  await db.prepare('UPDATE recipes SET source = ?, external_id = ?, image_url = coalesce(?, image_url) WHERE id = ?').bind(input.source, input.externalId, input.imageUrl ?? null, recipe.id).run();
+  emit(c, 'recipe.changed', { id: recipe.id });
+  const result: z.infer<typeof RecipeImportResultSchema> = { recipeId: recipe.id, created: !old, planned: false };
+  if (!input.plan) return c.json(result, 200);
+  const { date, slot } = input.plan;
+  // Importing again (a re-run automation) finds the meal it planned before, even if moved within the week.
+  const weekEnd = new Date(Date.parse(date) + 6 * 86400000).toISOString().slice(0, 10);
+  const mine = await db.prepare('SELECT id, date FROM meals WHERE recipe_id = ? AND slot = ? AND date >= ? AND date <= ? ORDER BY date LIMIT 1').bind(recipe.id, slot, date, weekEnd).first<{ id: string; date: string }>();
+  if (mine) return c.json({ ...result, planned: true, mealId: mine.id, reason: `already planned on ${mine.date}` }, 200);
+  const taken = await db.prepare('SELECT title FROM meals WHERE date = ? AND slot = ? LIMIT 1').bind(date, slot).first<{ title: string }>();
+  if (taken) return c.json({ ...result, reason: `${slot} on ${date} already has ${taken.title}` }, 200);
+  const meal = await buildMeal(db, { date, slot, recipeId: recipe.id, ...(input.plan.servings !== undefined && { servings: input.plan.servings }), sourceUrl: recipe.sourceUrl });
+  if (typeof meal === 'string') return c.json({ ...result, reason: meal }, 200);
+  await mealWrite(db, meal).run(); emit(c, 'meal.changed', { id: meal.id });
+  return c.json({ ...result, planned: true, mealId: meal.id }, 200);
+});
 mealsRoutes.openapi(createRoute({ method: 'patch', path: '/api/recipes/{id}', tags: ['Meals'], summary: 'Edit or archive a recipe without changing planned meal snapshots (admin)', security: [{ Bearer: [] }], request: { params, body: body(RecipeInputSchema.partial()) }, responses: { 200: recipeResponse, ...errors } }), async (c) => {
   const old = (await readRecipes(c.env.DB, { id: c.req.valid('param').id, archived: true }))[0];
   if (!old) return c.json({ error: 'recipe not found' }, 404);
@@ -80,11 +113,11 @@ mealsRoutes.openapi(createRoute({ method: 'get', path: '/api/meals/projection', 
 async function shoppingList(db: KinwallDb, id: string) {
   return db.prepare("SELECT id FROM lists WHERE id = ? AND kind = 'shopping' AND archived = 0").bind(id).first();
 }
-mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/meals/projection/apply', tags: ['Meals'], summary: 'Explicitly add unclaimed ingredient requirements to a shopping list (admin, idempotent)', security: [{ Bearer: [] }], request: { body: body(ProjectionApplySchema) }, responses: { 200: { description: 'applied', content: { 'application/json': { schema: z.object({ added: z.number(), itemIds: z.array(z.string()), projection: ProjectionSchema }) } } }, ...errors } }), async (c) => {
-  const { from, to, listId, omitKeys = [], includeNotes = false } = c.req.valid('json');
+mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/meals/projection/apply', tags: ['Meals'], summary: 'Explicitly add unclaimed ingredient requirements to a shopping list (admin, idempotent); meal-kit ingredients that ship in the box are skipped unless includeKitItems', security: [{ Bearer: [] }], request: { body: body(ProjectionApplySchema) }, responses: { 200: { description: 'applied', content: { 'application/json': { schema: z.object({ added: z.number(), itemIds: z.array(z.string()), projection: ProjectionSchema }) } } }, ...errors } }), async (c) => {
+  const { from, to, listId, omitKeys = [], includeNotes = false, includeKitItems = false } = c.req.valid('json');
   if (!await shoppingList(c.env.DB, listId)) return c.json({ error: 'active shopping list not found' }, 400);
   const projection = await shoppingProjection(c.env.DB, from, to, listId);
-  const itemIds = await applyProjection(c.env.DB, projection, listId, omitKeys, includeNotes);
+  const itemIds = await applyProjection(c.env.DB, projection, listId, omitKeys, includeNotes, includeKitItems);
   if (itemIds.length) emit(c, 'list.item.changed', { listId });
   return c.json({ added: itemIds.length, itemIds, projection: await shoppingProjection(c.env.DB, from, to, listId) }, 200);
 });
