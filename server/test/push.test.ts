@@ -641,3 +641,140 @@ test('feed: DELETE /api/notifications/:id and DELETE /api/notifications clear en
   assert.deepEqual(all, { ok: true, deleted: 1 });
   assert.equal((await feed(request)).length, 0);
 });
+
+// --- Per-person transition reminders ---
+
+test('transitions: member setting defaults off, validates, round-trips, and only admins set it', async () => {
+  const env = makeEnv();
+  const request = makeApp(env);
+  const leo = (await (await request('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Leo', color: '#5ae' }) })).json()) as any;
+  assert.deepEqual(leo.transitionReminders, { on: false, minutes: [], repeat: null, leaveBy: true });
+
+  const set = (body: unknown, key = ADMIN_KEY) => request(`/api/members/${leo.id}`, { method: 'PATCH', body: JSON.stringify({ transitionReminders: body }) }, key);
+  for (const bad of [{ on: true, minutes: [0] }, { on: true, minutes: [121] }, { on: true, minutes: [1, 2, 3, 4, 5, 6, 7, 8, 9] }, { on: true, repeat: { every: 10, within: 5 } }, { on: true, repeat: { every: 0, within: 5 } }]) {
+    assert.equal((await set(bad)).status, 400, JSON.stringify(bad));
+  }
+  const ok = (await (await set({ on: true, minutes: [10], repeat: { every: 5, within: 30 } })).json()) as any;
+  assert.deepEqual(ok.transitionReminders, { on: true, minutes: [10], repeat: { every: 5, within: 30 }, leaveBy: true });
+  const listed = (await (await request('/api/members')).json()) as any[];
+  assert.deepEqual(listed[0].transitionReminders.repeat, { every: 5, within: 30 });
+  // A name change leaves it alone.
+  assert.equal(((await (await request(`/api/members/${leo.id}`, { method: 'PATCH', body: JSON.stringify({ name: 'Leo B' }) })).json()) as any).transitionReminders.on, true);
+
+  const display = (await (await request('/api/keys', { method: 'POST', body: JSON.stringify({ name: 'Wall', scope: 'display' }) })).json()) as any;
+  assert.equal((await set({ on: false }, display.key)).status, 403);
+
+  // Export carries it; import restores it.
+  const exported = (await (await request('/api/export')).json()) as any;
+  assert.equal(exported.members[0].transitionReminders.on, true);
+  const target = makeEnv();
+  const into = makeApp(target);
+  assert.equal((await into('/api/import', { method: 'POST', body: JSON.stringify(exported) })).status, 200);
+  assert.deepEqual(((await (await into('/api/members')).json()) as any[])[0].transitionReminders.repeat, { every: 5, within: 30 });
+});
+
+test('transitions: expand repeat times, dedupe, latest first', async () => {
+  const { transitionTimes, inQuietHours } = await import('../src/notify.ts');
+  assert.deepEqual(transitionTimes([10, 5], { every: 5, within: 15 }), [15, 10, 5]);
+  assert.deepEqual(transitionTimes([1], { every: 10, within: 30 }), [30, 20, 10, 1]);
+  assert.deepEqual(transitionTimes([7, 7], null), [7]);
+  assert.equal(inQuietHours('21:00', '07:00', new Date('2030-03-04T23:30:00Z'), 'UTC'), true);
+  assert.equal(inQuietHours('21:00', '07:00', new Date('2030-03-04T12:00:00Z'), 'UTC'), false);
+  assert.equal(inQuietHours('13:00', '14:00', new Date('2030-03-04T13:59:00Z'), 'UTC'), true);
+});
+
+// Leo (transitions on) owns "leo-phone"; Sam owns "sam-phone"; "family-ipad" is shared.
+async function transitionsSetup(transitions: Record<string, unknown>, event: Record<string, unknown>) {
+  const env = makeEnv();
+  const request = makeApp(env);
+  await request('/api/settings', { method: 'PATCH', body: JSON.stringify({ timezone: 'UTC' }) });
+  const mk = async (name: string) => (await (await request('/api/members', { method: 'POST', body: JSON.stringify({ name, color: '#5ae' }) })).json()) as any;
+  const leo = await mk('Leo');
+  const sam = await mk('Sam');
+  await request(`/api/members/${leo.id}`, { method: 'PATCH', body: JSON.stringify({ transitionReminders: transitions }) });
+  const cal = (await (await request('/api/calendars', { method: 'POST', body: JSON.stringify({ kind: 'local', name: 'Home' }) })).json()) as any;
+  const devices: Record<string, { keys: Awaited<ReturnType<typeof makeSubscriberKeys>> }> = {};
+  for (const [name, owner] of [['leo-phone', leo.id], ['sam-phone', sam.id], ['family-ipad', 'shared']] as const) {
+    const k = (await (await request('/api/keys', { method: 'POST', body: JSON.stringify({ name, scope: 'display' }) })).json()) as any;
+    await request(`/api/keys/${k.id}`, { method: 'PATCH', body: JSON.stringify({ owner }) });
+    devices[name] = { keys: (await subscribe(request, k.key, name, { eventReminders: true })).keys };
+  }
+  await request('/api/events', {
+    method: 'POST',
+    body: JSON.stringify({ calendarId: cal.id, title: 'Soccer practice', allDay: false, memberIds: [leo.id], reminders: [], ...event }),
+  });
+  const run = async (at: Date) => {
+    const push = stubPush();
+    await runNotifications(env, at);
+    push.restore();
+    return Promise.all(push.sent.map(async (s) => ({ device: s.url.split('/').pop()!, payload: JSON.parse(await referenceDecrypt(s.body!, devices[s.url.split('/').pop()!].keys.privateKey, devices[s.url.split('/').pop()!].keys.p256dh, devices[s.url.split('/').pop()!].keys.auth)) })));
+  };
+  return { request, sam, run };
+}
+
+const at = (iso: string, plusMin: number) => new Date(Date.parse(iso) + plusMin * 60000);
+
+test('transitions: pushes at each time before the member\'s event, only to their own devices, once', async () => {
+  const start = '2030-03-04T15:30:00Z';
+  const { run } = await transitionsSetup({ on: true, minutes: [10], repeat: { every: 5, within: 15 } }, { start, end: at(start, 60).toISOString() });
+  assert.deepEqual(await run(at(start, -20)), [], 'nothing 20 min out');
+  const first = await run(at(start, -15));
+  assert.equal(first.length, 1);
+  assert.equal(first[0].device, 'leo-phone');
+  assert.equal(first[0].payload.title, 'Soccer practice in 15 minutes');
+  assert.equal(first[0].payload.body, 'Starts at 3:30 PM');
+  assert.equal(first[0].payload.tag, `transition:${first[0].payload.url.match(/event=([^&]+)/)![1]}`);
+  assert.deepEqual(await run(at(start, -14)), [], 'deduped on the next tick');
+  assert.equal((await run(at(start, -10)))[0].payload.title, 'Soccer practice in 10 minutes');
+  assert.equal((await run(at(start, -5)))[0].payload.title, 'Soccer practice in 5 minutes');
+});
+
+test('transitions: a late tick sends only the latest due time, worded truthfully', async () => {
+  const start = '2030-03-04T15:30:00Z';
+  const { run } = await transitionsSetup({ on: true, minutes: [], repeat: { every: 1, within: 10 } }, { start, end: at(start, 60).toISOString() });
+  const sent = await run(at(start, -4)); // 10..4 all due at once (5-min cron after downtime)
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].payload.title, 'Soccer practice in 4 minutes');
+  assert.equal((await run(at(start, -3)))[0].payload.title, 'Soccer practice in 3 minutes');
+});
+
+test('transitions: leave-by counts to leaving when the event has travel time (and can be turned off)', async () => {
+  const start = '2030-03-04T15:30:00Z';
+  const event = { start, end: at(start, 60).toISOString(), travelMinutes: 20 };
+  const leave = await transitionsSetup({ on: true, minutes: [5] }, event);
+  const sent = await leave.run(at(start, -25));
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].payload.title, 'Leave for Soccer practice in 5 minutes');
+  assert.equal(sent[0].payload.body, 'Leave by 3:10 PM · starts 3:30 PM');
+
+  const toStart = await transitionsSetup({ on: true, minutes: [5], leaveBy: false }, event);
+  assert.deepEqual(await toStart.run(at(start, -25)), []);
+  assert.equal((await toStart.run(at(start, -5)))[0].payload.title, 'Soccer practice in 5 minutes');
+});
+
+test('transitions: not doubled with a regular reminder at the same minute on that device', async () => {
+  const start = '2030-03-04T15:30:00Z';
+  const { run } = await transitionsSetup({ on: true, minutes: [10, 5] }, { start, end: at(start, 60).toISOString(), reminders: [10] });
+  // Leo's phone follows everyone (no member filter), so it gets the regular 10-min reminder.
+  const ten = await run(at(start, -10));
+  const leos = ten.filter((s) => s.device === 'leo-phone');
+  assert.equal(leos.length, 1, 'one push, not two');
+  assert.equal(leos[0].payload.title, 'Soccer practice'); // the regular one
+  assert.equal((await run(at(start, -5))).find((s) => s.device === 'leo-phone')?.payload.title, 'Soccer practice in 5 minutes');
+});
+
+test('transitions: never during quiet hours; nothing when off or for other people\'s events', async () => {
+  const start = '2030-03-04T22:30:00Z';
+  const quiet = await transitionsSetup({ on: true, minutes: [10] }, { start, end: at(start, 60).toISOString() });
+  await quiet.request('/api/settings', { method: 'PATCH', body: JSON.stringify({ quietFrom: '22:00', quietTo: '07:00' }) });
+  assert.deepEqual(await quiet.run(at(start, -10)), []);
+
+  const day = '2030-03-04T15:30:00Z';
+  const off = await transitionsSetup({ on: false, minutes: [10] }, { start: day, end: at(day, 60).toISOString() });
+  assert.deepEqual(await off.run(at(day, -10)), []);
+
+  const other = await transitionsSetup({ on: true, minutes: [10] }, { start: day, end: at(day, 60).toISOString() });
+  await other.request('/api/events', { method: 'POST', body: JSON.stringify({ calendarId: ((await (await other.request('/api/calendars')).json()) as any[])[0].id, title: 'Piano', start: day, end: at(day, 60).toISOString(), allDay: false, memberIds: [other.sam.id], reminders: [] }) });
+  const sent = await other.run(at(day, -10));
+  assert.deepEqual(sent.map((s) => [s.device, s.payload.title]), [['leo-phone', 'Soccer practice in 10 minutes']], 'Sam\'s piano: no transition push for Leo (Sam has them off)');
+});

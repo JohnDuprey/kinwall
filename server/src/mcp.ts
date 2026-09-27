@@ -16,7 +16,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { hostTimezone } from './env.ts';
 import { effectivePublicUrl } from './providers/config.ts';
-import { BoardSchema, CalendarSchema, CategorySchema, ChoreDaySchema, ChoreSchema, EventInstanceSchema, LeaderboardEntrySchema, ListDetailSchema, ListItemSchema, ListSchema, MemberSchema, NoteSchema, TrackerEntrySchema, TRACKER_KINDS, NotificationSchema, PointsSchema, SettingsSchema, SnapshotSchema, CustomSchemeSchema, MAX_CUSTOM_SCHEMES } from './schemas.ts';
+import { BoardSchema, CalendarSchema, CategorySchema, ChoreDaySchema, ChoreSchema, EventInstanceSchema, LeaderboardEntrySchema, ListDetailSchema, ListItemSchema, ListSchema, MemberSchema, NoteSchema, TrackerEntrySchema, TRACKER_KINDS, NotificationSchema, PointsSchema, SettingsSchema, SnapshotSchema, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, TransitionRemindersSchema } from './schemas.ts';
 import type { Env } from './env.ts';
 import { RecipeSchema, RecipeInputSchema, MealSchema, MealInputSchema, MealPatchSchema, ProjectionSchema, ProjectionApplySchema, ProjectionQuerySchema, MealRangeSchema } from './meal-schemas.ts';
 import { VERSION } from './version.ts';
@@ -723,13 +723,16 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'update_member',
     {
       title: 'Update family member',
-      description: 'Change a family member\'s name, color, avatar, or birthday. Only provided fields change.',
+      description: 'Change a family member\'s name, color, avatar, birthday, or transition reminders (admin). Only provided fields change.',
       inputSchema: {
         member: z.string().describe('Member name or id.'),
         name: z.string().optional(),
         color: z.string().optional().describe('Hex color, e.g. #ff6b6b.'),
         avatar: z.string().nullable().optional().describe('Emoji or initial.'),
         birthday: z.string().nullable().optional().describe(`${BIRTHDAY_DOC} null clears it.`),
+        transitionReminders: TransitionRemindersSchema.optional().describe(
+          'Admin: pushes to this person\'s own devices before their events. { on, minutes: [10, 5] (1-120, up to 8), repeat: { every: 5, within: 30 } or null, leaveBy: true (count to the leave-by time when there is travel time) }. Replaces the whole setting.',
+        ),
       },
     },
     async ({ member, ...input }) => {

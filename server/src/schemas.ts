@@ -44,6 +44,23 @@ export function isValidBirthday(s: string): boolean {
 }
 export const BirthdaySchema = z.string().refine(isValidBirthday, 'must be YYYY-MM-DD or --MM-DD (year unknown)');
 
+// Per-person transition reminders: pushes to that person's own devices before their events.
+// Times = `minutes` plus every `repeat.every` min during the last `repeat.within` (deduped).
+export const TransitionRemindersSchema = z
+  .object({
+    on: z.boolean(),
+    minutes: z.array(z.number().int().min(1).max(120)).max(8).default([]).openapi({ description: 'Minutes before the event (or its leave-by time), 1-120, up to 8' }),
+    repeat: z
+      .object({ every: z.number().int().min(1).max(60), within: z.number().int().min(1).max(120) })
+      .refine((r) => r.every <= r.within, { message: 'every must be at most within', path: ['every'] })
+      .nullable()
+      .default(null)
+      .openapi({ description: 'Also remind every `every` minutes during the last `within` minutes' }),
+    leaveBy: z.boolean().default(true).openapi({ description: 'Count to the leave-by time when the event has travel time' }),
+  })
+  .openapi('TransitionReminders');
+export const TRANSITIONS_OFF = { on: false, minutes: [] as number[], repeat: null, leaveBy: true };
+
 export const MemberSchema = z
   .object({
     id: z.string(),
@@ -55,6 +72,7 @@ export const MemberSchema = z
     pointsToday: z.number(),
     pointsWeek: z.number(),
     balance: z.number(), // points left to spend: everything earned from chores, minus sticker purchases (+/- other ledger entries)
+    transitionReminders: TransitionRemindersSchema,
   })
   .openapi('Member');
 
@@ -65,6 +83,7 @@ export const MemberInputSchema = z
     avatar: AvatarSchema.nullable().optional(),
     birthday: BirthdaySchema.nullable().optional(),
     sort: z.number().optional(),
+    transitionReminders: TransitionRemindersSchema.optional(),
   })
   .openapi('MemberInput');
 
