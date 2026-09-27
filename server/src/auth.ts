@@ -77,6 +77,22 @@ export async function eventWriteBlock(c: Context<{ Bindings: Env }>, cals: Edita
   return `This device can only change events on ${name ? `${name}'s` : 'its own'} calendars.`;
 }
 
+/** The member this request's device belongs to (a display key owned by one member), else null.
+ * Shared and legacy (null owner) displays and admin keys belong to no one. */
+export async function deviceOwner(c: Context<{ Bindings: Env }>): Promise<string | null> {
+  const key = await requestKey(c);
+  return key?.scope === 'display' && key.owner && key.owner !== 'shared' ? key.owner : null;
+}
+
+/** A member's own device acts only for them: the 403 message when any of `memberIds` is someone
+ * else, or null when it may. Null / undefined ids are ignored. */
+export async function ownerBlock(c: Context<{ Bindings: Env }>, ...memberIds: (string | null | undefined)[]): Promise<string | null> {
+  const owner = await deviceOwner(c);
+  if (!owner || memberIds.every((id) => !id || id === owner)) return null;
+  const name = (await c.env.DB.prepare('SELECT name FROM members WHERE id = ?').bind(owner).first<{ name: string }>())?.name;
+  return `This device can only do that for ${name ?? 'its owner'}.`;
+}
+
 // No-auth routes: health check, the OAuth callback (browser redirect from the provider), the
 // two display-pairing routes a not-yet-paired display calls before it has any key, and the
 // passkey ceremony routes that authenticate a not-yet-signed-in browser by other means

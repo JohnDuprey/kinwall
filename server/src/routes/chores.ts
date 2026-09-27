@@ -8,7 +8,7 @@ import { emit } from '../bus.ts';
 import { expand, isValidRrule } from '../recurrence.ts';
 import { ChoreDaySchema, ChoreInputSchema, ChoreSchema, ErrorSchema } from '../schemas.ts';
 import { resetListItems } from './lists.ts';
-import { requestKey } from '../auth.ts';
+import { deviceOwner, ownerBlock, requestKey } from '../auth.ts';
 import { notifyChoreApproval } from '../notify.ts';
 
 export const choresRoutes = createRouter();
@@ -311,19 +311,24 @@ export function lateCompletionPoints(points: number, late: boolean, creditPercen
  * needs a parent's OK writes a 'pending' completion instead: no points and no chore.completed until
  * POST /api/chores/{id}/approve. Returns true when an approved completion was written, 'pending'
  * for a pending one, false when timedPlay found one already, the number of open checklist items
- * when that gates it, or 'not found'.
+ * when that gates it, 'not found', or { blocked } when a member's own device tries it for
+ * someone else (their chore, crediting them, or taking over their completion).
  */
-export async function completeChore(c: Context<{ Bindings: Env }>, id: string, date: string, memberId: string | undefined, timedPlay = false): Promise<boolean | 'pending' | number | 'not found'> {
+export async function completeChore(c: Context<{ Bindings: Env }>, id: string, date: string, memberId: string | undefined, timedPlay = false): Promise<boolean | 'pending' | number | 'not found' | { blocked: string }> {
+  // A member's own device credits them when no one is named (an Anyone chore, like the app does).
+  memberId ??= (await deviceOwner(c)) ?? undefined;
   const [choreRes, settingsRes] = await c.env.DB.batch<unknown>([
     c.env.DB.prepare(
-      'SELECT c.id, c.title, c.member_id, c.points, c.list_id, c.needs_approval, c.approve_timed_play, (SELECT needs_approval FROM members WHERE id = COALESCE(?, c.member_id)) AS member_needs_approval FROM chores c WHERE c.id = ?',
-    ).bind(memberId ?? null, id),
+      'SELECT c.id, c.title, c.member_id, c.points, c.list_id, c.needs_approval, c.approve_timed_play, (SELECT needs_approval FROM members WHERE id = COALESCE(?, c.member_id)) AS member_needs_approval, (SELECT member_id FROM chore_completions WHERE chore_id = c.id AND date = ?) AS done_by FROM chores c WHERE c.id = ?',
+    ).bind(memberId ?? null, date, id),
     c.env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('timezone', 'lateCompletionCredit')"),
   ]);
   const chore = choreRes.results[0] as
-    | { id: string; title: string; member_id: string | null; points: number; list_id: string | null; needs_approval: number | null; approve_timed_play: number; member_needs_approval: number | null }
+    | { id: string; title: string; member_id: string | null; points: number; list_id: string | null; needs_approval: number | null; approve_timed_play: number; member_needs_approval: number | null; done_by: string | null }
     | undefined;
   if (!chore) return 'not found';
+  const blocked = await ownerBlock(c, memberId, chore.member_id, chore.done_by);
+  if (blocked) return { blocked };
   // The checklist gates completion: the list's items for this chore's member (or whoever is
   // completing an "anyone" chore) plus unassigned ones. An empty set doesn't gate.
   const forMember = chore.member_id ?? memberId ?? null;
@@ -397,6 +402,7 @@ choresRoutes.openapi(
     },
     responses: {
       200: { description: 'ok; pending: true when it waits for a parent\'s OK', content: { 'application/json': { schema: z.object({ ok: z.boolean(), pending: z.boolean() }) } } },
+      403: { description: "this device belongs to someone else", content: { 'application/json': { schema: ErrorSchema } } },
       404: { description: 'not found', content: { 'application/json': { schema: ErrorSchema } } },
       409: { description: 'checklist not finished', content: { 'application/json': { schema: ErrorSchema.extend({ remaining: z.number() }) } } },
     },
@@ -406,6 +412,7 @@ choresRoutes.openapi(
     const { date, memberId } = c.req.valid('json');
     const r = await completeChore(c, id, date, memberId);
     if (r === 'not found') return c.json({ error: 'not found' }, 404);
+    if (typeof r === 'object') return c.json({ error: r.blocked }, 403);
     if (typeof r === 'number') return c.json({ error: `Checklist not finished (${r} left)`, remaining: r }, 409);
     return c.json({ ok: true, pending: r === 'pending' }, 200);
   },
@@ -419,12 +426,19 @@ choresRoutes.openapi(
     summary: 'Undo a chore completion for a date',
     security: [{ Bearer: [] }],
     request: { params: z.object({ id: z.string() }), query: z.object({ date: z.string() }) },
-    responses: { 200: { description: 'ok', content: { 'application/json': { schema: z.object({ ok: z.boolean() }) } } } },
+    responses: {
+      200: { description: 'ok', content: { 'application/json': { schema: z.object({ ok: z.boolean() }) } } },
+      403: { description: 'this device belongs to someone else', content: { 'application/json': { schema: ErrorSchema } } },
+    },
   }),
   async (c) => {
     const { id } = c.req.valid('param');
     const { date } = c.req.valid('query');
-    const chore = await c.env.DB.prepare('SELECT title, member_id FROM chores WHERE id = ?').bind(id).first<{ title: string; member_id: string | null }>();
+    const chore = await c.env.DB.prepare('SELECT title, member_id, (SELECT member_id FROM chore_completions WHERE chore_id = chores.id AND date = ?) AS done_by FROM chores WHERE id = ?')
+      .bind(date, id)
+      .first<{ title: string; member_id: string | null; done_by: string | null }>();
+    const blocked = await ownerBlock(c, chore?.member_id, chore?.done_by);
+    if (blocked) return c.json({ error: blocked }, 403);
     await c.env.DB.prepare('DELETE FROM chore_completions WHERE chore_id = ? AND date = ?').bind(id, date).run();
     emit(c, 'chore.uncompleted', { id, date, title: chore?.title ?? null, memberId: chore?.member_id ?? null });
     return c.json({ ok: true }, 200);

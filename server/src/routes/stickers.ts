@@ -3,6 +3,7 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import { emit } from '../bus.ts';
+import { ownerBlock } from '../auth.ts';
 import type { KinwallDb } from '../db.ts';
 import { readSettings } from './settings.ts';
 import { BALANCE_EXPR, STICKER_PACKS, scaledPrice, pointTotalsStmt, type PointTotals, type StickerPack } from '../stickers.ts';
@@ -96,7 +97,7 @@ stickersRoutes.openapi(
     responses: {
       200: { description: 'ok', content: { 'application/json': { schema: z.object({ pack: StickerPackSchema, balance: z.number() }) } } },
       402: { description: 'not enough points', content: { 'application/json': { schema: z.object({ error: z.string(), balance: z.number(), price: z.number() }) } } },
-      403: { description: 'sticker shop is off', content: { 'application/json': { schema: ErrorSchema } } },
+      403: { description: 'sticker shop is off, or this device belongs to someone else', content: { 'application/json': { schema: ErrorSchema } } },
       404: notFound,
       409: { description: 'already unlocked', content: { 'application/json': { schema: ErrorSchema } } },
     },
@@ -105,6 +106,8 @@ stickersRoutes.openapi(
     const { packId } = c.req.valid('param');
     const { memberId } = c.req.valid('json');
     const db = c.env.DB;
+    const blocked = await ownerBlock(c, memberId);
+    if (blocked) return c.json({ error: blocked }, 403);
     const pack = STICKER_PACKS.find((p) => p.id === packId);
     if (!pack) return c.json({ error: 'pack not found' }, 404);
     const settings = await readSettings(db);

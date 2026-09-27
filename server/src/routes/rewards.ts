@@ -8,7 +8,7 @@ import type { Context } from 'hono';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
 import { emit } from '../bus.ts';
-import { requestKey } from '../auth.ts';
+import { ownerBlock, requestKey } from '../auth.ts';
 import { notifyChoreApproval } from '../notify.ts';
 import { BALANCE_EXPR, pointTotalsStmt, type PointTotals } from '../stickers.ts';
 import { household, todayInTz, weekStartDate } from './members.ts';
@@ -53,13 +53,6 @@ function execCtx(c: Context<{ Bindings: Env }>) {
 
 const memberName = async (c: { env: Env }, id: string) =>
   (await c.env.DB.prepare('SELECT name FROM members WHERE id = ?').bind(id).first<{ name: string }>())?.name ?? null;
-
-/** A device that belongs to one member (display key owned by them) acts only for them. Null = allowed. */
-async function ownerBlock(c: Context<{ Bindings: Env }>, memberId: string): Promise<string | null> {
-  const key = await requestKey(c);
-  if (key?.scope !== 'display' || !key.owner || key.owner === 'shared' || key.owner === memberId) return null;
-  return `This device can only do that for ${(await memberName(c, key.owner)) ?? 'its owner'}.`;
-}
 
 async function unknownMembers(c: { env: Env }, ids: string[]): Promise<boolean> {
   if (!ids.length) return false;

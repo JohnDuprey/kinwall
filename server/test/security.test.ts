@@ -112,6 +112,75 @@ test('key scopes: display key is 403 on admin-only routes, 200 on display-allowe
   assert.equal(meDisplay.keyName, 'wall ipad');
 });
 
+test("owned devices: a member's own display key completes, uncompletes and buys only for them", async () => {
+  const env = makeEnv();
+  await env.DB.prepare("INSERT INTO settings (key, value) VALUES ('timezone', 'UTC')").run();
+  const admin = makeApp(env);
+  const post = (req: ReturnType<typeof makeApp>, path: string, body: unknown) => req(path, { method: 'POST', body: JSON.stringify(body) });
+  const leo = await (await post(admin, '/api/members', { name: 'Leo', color: '#e57' })).json() as any;
+  const maya = await (await post(admin, '/api/members', { name: 'Maya', color: '#57e' })).json() as any;
+  const displayKey = async (owner: string) => {
+    const k = await (await post(admin, '/api/keys', { name: `tablet ${owner}`, scope: 'display' })).json() as any;
+    assert.equal((await admin(`/api/keys/${k.id}`, { method: 'PATCH', body: JSON.stringify({ owner }) })).status, 200);
+    return makeApp(env, k.key);
+  };
+  const leoTab = await displayKey(leo.id);
+  const wall = await displayKey('shared');
+  const today = new Date().toISOString().slice(0, 10);
+  const chore = async (body: object) => (await (await post(admin, '/api/chores', { points: 20, dueDate: today, ...body })).json() as any).id as string;
+  const doneBy = async (id: string) => (await env.DB.prepare('SELECT member_id FROM chore_completions WHERE chore_id = ? AND date = ?').bind(id, today).first<{ member_id: string | null }>())?.member_id;
+  const complete = (req: ReturnType<typeof makeApp>, id: string, memberId?: string) => post(req, `/api/chores/${id}/complete`, { date: today, memberId });
+  const undo = (req: ReturnType<typeof makeApp>, id: string) => req(`/api/chores/${id}/complete?date=${today}`, { method: 'DELETE' });
+
+  // Someone else's chore, or crediting someone else: refused with a clear message.
+  const mayas = await chore({ title: 'Feed fish', memberId: maya.id });
+  const refused = await complete(leoTab, mayas);
+  assert.equal(refused.status, 403);
+  assert.equal((await refused.json() as any).error, 'This device can only do that for Leo.');
+  assert.equal((await complete(leoTab, mayas, leo.id)).status, 403, "can't take Maya's chore for Leo either");
+  const leos = await chore({ title: 'Make bed', memberId: leo.id });
+  assert.equal((await complete(leoTab, leos, maya.id)).status, 403);
+  assert.equal((await complete(leoTab, leos)).status, 200);
+  assert.equal(await doneBy(leos), leo.id);
+  assert.equal((await undo(leoTab, leos)).status, 200);
+
+  // An Anyone chore ticked with no one named credits the device's owner; naming Maya is refused.
+  const anyone = await chore({ title: 'Empty dishwasher' });
+  assert.equal((await complete(leoTab, anyone, maya.id)).status, 403);
+  assert.equal((await complete(leoTab, anyone)).status, 200);
+  assert.equal(await doneBy(anyone), leo.id);
+  // Maya's completion can't be unticked or taken over from Leo's device.
+  assert.equal((await complete(admin, anyone, maya.id)).status, 200);
+  assert.equal((await complete(leoTab, anyone)).status, 403);
+  assert.equal((await undo(leoTab, anyone)).status, 403);
+  assert.equal(await doneBy(anyone), maya.id);
+  assert.equal((await complete(admin, mayas)).status, 200);
+  assert.equal((await undo(leoTab, mayas)).status, 403);
+
+  // Shared displays and admin keys are unaffected.
+  assert.equal((await undo(wall, mayas)).status, 200);
+  assert.equal((await complete(wall, mayas)).status, 200);
+  assert.equal((await undo(wall, anyone)).status, 200);
+  assert.equal((await complete(wall, anyone, maya.id)).status, 200);
+  assert.equal((await undo(admin, anyone)).status, 200);
+
+  // Activity playtime: Leo's device can't finish a chore for Maya with her playtime.
+  const now = new Date().toISOString();
+  await env.DB.prepare("INSERT INTO plugins (id, name, version, manifest, enabled, installed_at, updated_at) VALUES ('words', 'Sight words', '1.0.0', '{}', 1, ?, ?)").bind(now, now).run();
+  const words = await chore({ title: 'Words', pluginId: 'words', pluginMinutes: 1 });
+  const play = async (member: string) => (await (await post(leoTab, '/api/plugins/words/playtime', { member, seconds: 60 })).json() as any[]).find((p) => p.choreId === words);
+  assert.equal((await play(maya.id)).justCompleted, false);
+  assert.equal(await doneBy(words), undefined);
+  assert.equal((await play(leo.id)).justCompleted, true);
+  assert.equal(await doneBy(words), leo.id);
+
+  // Stickers: only for Leo from his device; the shared wall can buy for Maya.
+  const buy = (req: ReturnType<typeof makeApp>, memberId: string) => post(req, '/api/stickers/packs/sweets/buy', { memberId });
+  assert.equal((await buy(leoTab, maya.id)).status, 403);
+  assert.equal((await buy(leoTab, leo.id)).status, 200);
+  assert.equal((await buy(wall, maya.id)).status, 200);
+});
+
 test('secrets never appear in a GET response body, even as raw text', async () => {
   const env = makeEnv();
   const request = makeApp(env);
