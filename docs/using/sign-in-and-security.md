@@ -5,7 +5,7 @@ Kinwall has no usernames or passwords. Every request carries a **key**, and each
 | Scope | Who has it | Can |
 |---|---|---|
 | **admin** | passkey sessions, recovery-code sessions, admin API keys, `ADMIN_API_KEY`, "Full access" connected apps | Everything. |
-| **display** | paired wall displays, "Everyday access" connected apps | Read the household; create, edit and delete events, chores, categories and lists; change household settings; manage its own push subscription. It **can't** touch members, calendar accounts or calendar setup, keys, displays, passkeys, webhooks, export/import or notifications to other devices. |
+| **display** | paired wall displays, "Everyday access" connected apps | Read the household; create, edit and delete events (on calendars that allow it), categories and lists; complete chores (not add, edit or delete them); save a new color scheme to the family list; manage its own push subscription. It can't change the family's settings. It **can't** touch members, calendar accounts or calendar setup, keys, displays, passkeys, webhooks, export/import or notifications to other devices. |
 
 ### Whose device a key is
 
