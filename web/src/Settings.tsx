@@ -1995,7 +1995,8 @@ function RecoveryCodesSection({ toast, onChanged }: { toast: (m: string, persist
  * Kinwall's own app also has an owner ("Whose device is this?"), changeable here. */
 function ConnectedAppsSection({ toast }: { toast: (m: string, persist?: boolean) => void }) {
   const dialog = useDialog()
-  const { reloadCore } = useApp()
+  const { reloadCore, members } = useApp()
+  const ownerName = (o: string | null) => { const m = o && o !== 'shared' ? members.find(x => x.id === o) : undefined; return m ? `${m.avatar} ${m.name}'s device` : 'Anyone can use it' }
   const [apps, setApps] = useState<Awaited<ReturnType<typeof api.getAuthorizations>>>([])
   const load = () => { api.getAuthorizations().then(setApps).catch(() => {}) }
   useEffect(load, [])
@@ -2010,15 +2011,17 @@ function ConnectedAppsSection({ toast }: { toast: (m: string, persist?: boolean)
     <Section title="Connected apps" icon={<LinkIcon width={16} height={16} />}>
       {apps.length === 0 && <p className="settings-row-sub">Apps you connect with sign-in (like a Claude connector) appear here. Point them at {location.origin}/mcp.</p>}
       {apps.map(a => (
-        <div key={a.id} className="key-item">
-          <div>
+        <div key={a.id} className={a.deviceApp && !a.current ? 'key-item key-item-owned' : 'key-item'}>
+          <div className="key-item-info">
             <div className="settings-row-label">{a.clientName}{a.current && <> <span className="cal-kind-badge">This device</span></>}</div>
             <div className="settings-row-sub">
-              {a.scope === 'admin' ? 'Full access' : 'Everyday access'} · connected {new Date(a.createdAt).toLocaleDateString()}
+              {a.scope === 'admin' ? 'Full access' : 'Everyday access'}
+              {a.current && ` · ${ownerName(a.owner)}`}
+              {' · '}connected {new Date(a.createdAt).toLocaleDateString()}
               {a.lastUsedAt ? ` · used ${new Date(a.lastUsedAt).toLocaleDateString()}` : ''}
             </div>
           </div>
-          {a.deviceApp && !a.current && <OwnerSelect value={a.owner ?? ''} onChange={v => changeOwner(a.id, v)} label={`Whose device ${a.clientName} is`} legacy={!a.owner} />}
+          {a.deviceApp && !a.current && <OwnerSelect value={a.owner ?? 'shared'} onChange={v => changeOwner(a.id, v)} label={`Whose device ${a.clientName} is`} />}
           {!a.current && <button className="icon-btn" onClick={() => revoke(a.id, a.clientName)} aria-label={`Disconnect ${a.clientName}`}><TrashIcon width={16} height={16} /></button>}
         </div>
       ))}
@@ -2092,7 +2095,7 @@ export function OwnerSelect({ value, onChange, members, id, label, legacy }: { v
   return (
     <select className="settings-select" id={id} aria-label={label} value={value} onChange={e => onChange(e.target.value)}>
       {legacy && <option value="" disabled>Chosen on the device</option>}
-      <option value="shared">Shared (the whole family)</option>
+      <option value="shared">Anyone (whole family)</option>
       {list.map(m => <option key={m.id} value={m.id}>{m.avatar} {m.name}</option>)}
     </select>
   )

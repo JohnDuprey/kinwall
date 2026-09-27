@@ -9,7 +9,7 @@
    * scan the QR code and tap **Approve as a parent**, or
    * open **Settings → Access → Wall screens & kids' devices → Add a wall screen or kid's device**, then enter the **Code** and a **Name** (default "Wall screen") and tap **Add it**.
 
-   Either way you also pick **Who uses it**: **Shared (the whole family)** for a kitchen wall, or one kid (say Maya, for her tablet or bedroom screen) to show only their things. Only a parent can change it later, under **Settings → Access → Wall screens & kids' devices**.
+   Either way you also pick **Who uses it**: **Anyone (whole family)** for a kitchen wall, or one kid (say Maya, for her tablet or bedroom screen) to show only their things. Only a parent can change it later, under **Settings → Access → Wall screens & kids' devices**.
 3. The display shows "You're connected! 🎉" and loads the calendar. It now holds a **display** key, which can't manage members, accounts, keys or webhooks.
 
 You can also tap **Enter a key manually** on the sign-in screen and paste any API key.
