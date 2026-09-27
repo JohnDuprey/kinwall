@@ -10,6 +10,7 @@ import { FEED_URL_ERROR, isSafeFeedUrl } from '../outbound.ts';
 import { errorMessage } from '../redact.ts';
 import { CalendarInputSchema, CalendarSchema, ErrorSchema } from '../schemas.ts';
 import { parseMemberIds, resolveMemberIds } from '../calendar-members.ts';
+import { canChangeEvents, requestKey } from '../auth.ts';
 
 export const calendarsRoutes = createRouter();
 
@@ -25,11 +26,14 @@ type CalendarRow = {
   config: string;
   writable: number;
   enabled: number;
+  display_edit: number;
   last_synced_at: string | null;
   last_error: string | null;
 };
 
-function toApi(row: CalendarRow) {
+// canEditEvents: whether the requesting key may change this calendar's events (auth.ts). Only GET
+// works it out per key; the other routes are admin-only, where it's always true.
+function toApi(row: CalendarRow, canEditEvents = true) {
   const memberIds = parseMemberIds(row.member_ids);
   return {
     id: row.id,
@@ -43,6 +47,8 @@ function toApi(row: CalendarRow) {
     categoryId: row.category_id,
     writable: !!row.writable,
     enabled: !!row.enabled,
+    displayEdit: !!row.display_edit,
+    canEditEvents,
     lastSyncedAt: row.last_synced_at,
     lastError: row.last_error,
     needsReconnect: row.kind !== 'local' && row.config === '',
@@ -79,8 +85,8 @@ calendarsRoutes.openapi(
     responses: { 200: { description: 'ok', content: { 'application/json': { schema: z.array(CalendarSchema) } } } },
   }),
   async (c) => {
-    const { results } = await c.env.DB.prepare('SELECT * FROM calendars ORDER BY name').all<CalendarRow>();
-    return c.json(results.map(toApi), 200);
+    const [{ results }, key] = await Promise.all([c.env.DB.prepare('SELECT * FROM calendars ORDER BY name').all<CalendarRow>(), requestKey(c)]);
+    return c.json(results.map((r) => toApi(r, canChangeEvents(key, r))), 200);
   },
 );
 
@@ -164,6 +170,7 @@ calendarsRoutes.openapi(
       config,
       writable,
       enabled: 1,
+      display_edit: 1,
       last_synced_at: null,
       last_error: null,
     };
@@ -185,6 +192,7 @@ const CalendarPatchSchema = z
     memberIds: z.array(z.string()).optional(),
     categoryId: z.string().nullable().optional(),
     enabled: z.boolean().optional(),
+    displayEdit: z.boolean().optional(), // wall screens and kids' devices may change its events
     url: z.string().url().optional(), // ICS only: set/replace the feed URL (reconnects an imported ICS calendar)
   })
   .openapi('CalendarPatch');
@@ -237,9 +245,10 @@ calendarsRoutes.openapi(
       member_ids: JSON.stringify(memberIds),
       category_id: body.categoryId !== undefined ? body.categoryId : existing.category_id,
       enabled: body.enabled !== undefined ? (body.enabled ? 1 : 0) : existing.enabled,
+      display_edit: body.displayEdit !== undefined ? (body.displayEdit ? 1 : 0) : existing.display_edit,
     };
-    await c.env.DB.prepare('UPDATE calendars SET name = ?, color = ?, member_ids = ?, category_id = ?, enabled = ? WHERE id = ?')
-      .bind(updated.name, updated.color, updated.member_ids, updated.category_id, updated.enabled, id)
+    await c.env.DB.prepare('UPDATE calendars SET name = ?, color = ?, member_ids = ?, category_id = ?, enabled = ?, display_edit = ? WHERE id = ?')
+      .bind(updated.name, updated.color, updated.member_ids, updated.category_id, updated.enabled, updated.display_edit, id)
       .run();
     emit(c, 'calendar.changed', { id });
     if (body.url !== undefined) syncInBackground(c, id);

@@ -8,6 +8,14 @@ When you have only one way in, a banner at the top suggests a second parent devi
 
 Shared wall screens and kids' tablets or phones, paired with a code. Each has a display key: the calendar, chores and lists, but not settings. **Add a wall screen or kid's device** opens a sheet asking for the 6-digit **Code** shown on the screen and a **Name**, and **Who uses it**: **Shared (the whole family)** or one member, then **Add it**. Scanning the screen's QR code with your phone works too. A device that belongs to one member shows only their events, chores and lists, and credits "Anyone" chores done there to them. The display itself can't change this; each display in the list has a picker to change it here. Displays paired before this option show "Chosen on the device" until you pick one. Removing a display signs it out. See [Put it on the wall](../getting-started/put-it-on-the-wall.md).
 
+What a display can change on the calendar:
+
+* A **kid's device** (one that belongs to a member) can add, change and delete events only on calendars that are for that member (**Members** in **Settings → Calendars → Edit calendar**). Everyone else's events are read-only there, and without a calendar of their own the kid can't add events. Its widgets and Apple Watch follow the same rule.
+* A **Shared** wall screen can change events on any calendar.
+* Either way, a calendar with **Wall screens and kids' devices can edit** turned off is read-only on every display. Parents' devices are never limited.
+
+See [Who can change events](../using/events.md#who-can-change-events).
+
 ## Notifications
 
 Every device that has turned on push, with when it was added and when it last received a notification. You can remove devices here. **Send a message** (Title, Message, To, **Send now**) pushes a one-off message. See [Notifications](../using/notifications.md#sending-a-message-now).

@@ -13,6 +13,7 @@ import { ErrorSchema, EventInputSchema, EventInstanceSchema } from '../schemas.t
 import { deterministicEventId } from '../event-id.ts';
 import { parseMemberIds } from '../calendar-members.ts';
 import { matchCategoryByKeyword, type CategoryRow } from '../calendar-categories.ts';
+import { eventWriteBlock } from '../auth.ts';
 
 export const eventsRoutes = createRouter();
 
@@ -48,6 +49,7 @@ type CalendarRow = {
   config: string;
   writable: number;
   enabled: number;
+  display_edit: number;
 };
 
 type AccountRow = { id: string; kind: string; name: string; config: string };
@@ -546,6 +548,7 @@ eventsRoutes.openapi(
     responses: {
       201: { description: 'created', content: { 'application/json': { schema: EventInstanceSchema } } },
       400: { description: 'invalid', content: { 'application/json': { schema: ErrorSchema } } },
+      403: { description: "this device may not change events on that calendar", content: { 'application/json': { schema: ErrorSchema } } },
       502: { description: 'provider write failed', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
@@ -553,6 +556,8 @@ eventsRoutes.openapi(
     const body = c.req.valid('json');
     const cal = await c.env.DB.prepare('SELECT * FROM calendars WHERE id = ?').bind(body.calendarId).first<CalendarRow>();
     if (!cal) return c.json({ error: 'calendar not found' }, 400);
+    const block = await eventWriteBlock(c, [cal]);
+    if (block) return c.json({ error: block }, 403);
     if (!cal.writable) return c.json({ error: 'calendar is not writable' }, 400);
 
     let externalId: string | null = null;
@@ -639,6 +644,7 @@ type EventCalRow = EventRow & {
   cal_config: string;
   cal_writable: number;
   cal_enabled: number;
+  cal_display_edit: number;
 };
 
 // Event + its calendar in one round trip (join) instead of two sequential lookups.
@@ -646,7 +652,7 @@ async function loadEventAndCalendar(db: KinwallDb, id: string): Promise<{ row: E
   const joined = await db
     .prepare(
       `SELECT e.*, c.kind AS cal_kind, c.account_id AS cal_account_id, c.remote_id AS cal_remote_id, c.name AS cal_name,
-              c.color AS cal_color, c.member_ids AS cal_member_ids, c.category_id AS cal_category_id, c.config AS cal_config, c.writable AS cal_writable, c.enabled AS cal_enabled
+              c.color AS cal_color, c.member_ids AS cal_member_ids, c.category_id AS cal_category_id, c.config AS cal_config, c.writable AS cal_writable, c.enabled AS cal_enabled, c.display_edit AS cal_display_edit
        FROM events e JOIN calendars c ON c.id = e.calendar_id WHERE e.id = ?`,
     )
     .bind(id)
@@ -664,6 +670,7 @@ async function loadEventAndCalendar(db: KinwallDb, id: string): Promise<{ row: E
     config: joined.cal_config,
     writable: joined.cal_writable,
     enabled: joined.cal_enabled,
+    display_edit: joined.cal_display_edit,
   };
   return { row: joined, cal };
 }
@@ -710,6 +717,7 @@ eventsRoutes.openapi(
     responses: {
       200: { description: 'ok', content: { 'application/json': { schema: EventInstanceSchema } } },
       400: { description: 'invalid', content: { 'application/json': { schema: ErrorSchema } } },
+      403: { description: "this device may not change events on that calendar", content: { 'application/json': { schema: ErrorSchema } } },
       404: { description: 'not found', content: { 'application/json': { schema: ErrorSchema } } },
       502: { description: 'provider write failed', content: { 'application/json': { schema: ErrorSchema } } },
     },
@@ -720,6 +728,8 @@ eventsRoutes.openapi(
     const found = await loadEventAndCalendar(c.env.DB, id);
     if (!found) return c.json({ error: 'not found' }, 404);
     const { row, cal } = found;
+    const block = await eventWriteBlock(c, [cal]);
+    if (block) return c.json({ error: block }, 403);
 
     const otherFieldsPresent =
       body.title !== undefined ||
@@ -884,6 +894,7 @@ eventsRoutes.openapi(
     responses: {
       200: { description: 'ok', content: { 'application/json': { schema: z.object({ ok: z.boolean() }) } } },
       400: { description: 'invalid', content: { 'application/json': { schema: ErrorSchema } } },
+      403: { description: "this device may not change events on that calendar", content: { 'application/json': { schema: ErrorSchema } } },
       404: { description: 'not found', content: { 'application/json': { schema: ErrorSchema } } },
       502: { description: 'provider write failed', content: { 'application/json': { schema: ErrorSchema } } },
     },
@@ -893,6 +904,8 @@ eventsRoutes.openapi(
     const found = await loadEventAndCalendar(c.env.DB, id);
     if (!found) return c.json({ error: 'not found' }, 404);
     const { row, cal } = found;
+    const block = await eventWriteBlock(c, [cal]);
+    if (block) return c.json({ error: block }, 403);
 
     if (cal.kind !== 'local') {
       const provider = getProvider(cal.kind as 'ics' | 'google' | 'microsoft' | 'caldav');

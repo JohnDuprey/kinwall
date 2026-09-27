@@ -107,7 +107,7 @@ function useSwipe(onLeft: () => void, onRight: () => void) {
 
 export default function CalendarView() {
   const dialog = useDialog()
-  const { settings, members, categories, selectedMemberId, focusMemberId, focusShowsShared, toast, reloadCore, refreshTick } = useApp()
+  const { settings, members, categories, selectedMemberId, focusMemberId, focusShowsShared, focusLocked, meMemberId, toast, reloadCore, refreshTick } = useApp()
   const device = useDeviceAppearance()
   const isPhone = useIsPhone()
   const tz = settings.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -127,6 +127,14 @@ export default function CalendarView() {
   const [editState, setEditState] = useState<{ event: EventInstance | null; prefill?: Partial<EventInstance> } | null>(null)
 
   useEffect(() => { api.getCalendars().then(setCalendars).catch(() => {}) }, [])
+  // Which calendars this device may add to / change (the server decides: canEditEvents). A kid's
+  // device (pinned to a member) gets only calendars that are for them; with none, adding gives way
+  // to a hint. Other devices can still start a Kinwall-only calendar when there's no local one.
+  const kidDevice = focusLocked && !!meMemberId
+  const editableCalendars = calendars.filter(c => c.writable && c.enabled && c.canEditEvents !== false)
+  const offerNewLocal = !kidDevice && !calendars.some(c => c.kind === 'local' && c.writable)
+  const canAdd = editableCalendars.length > 0 || offerNewLocal
+  const canEditEvent = (ev: EventInstance) => calendars.find(c => c.id === ev.calendarId)?.canEditEvents !== false
 
   // Days shown by the Week/"3 Day" grid: on phones a 3-day window starting at anchor (paged by
   // 3), on the wall iPad the usual Sunday/Monday-aligned 7-day week. WeekView itself just renders
@@ -250,7 +258,7 @@ export default function CalendarView() {
     return `Next 30 days`
   }, [viewMode, anchor, settings.weekStart, weekDays, isPhone])
 
-  const openAdd = (prefill?: Partial<EventInstance>) => setEditState({ event: null, prefill })
+  const openAdd = (prefill?: Partial<EventInstance>) => { if (canAdd) setEditState({ event: null, prefill }) }
   // Opening a day from the week/month grid replaces the focused cell; land focus on the new
   // period heading instead of dropping it to the top of the page.
   const periodRef = useRef<HTMLHeadingElement>(null)
@@ -398,7 +406,10 @@ export default function CalendarView() {
       </div>
 
       {/* Not on the board: it would sit over the Due soon card, and the board is for reading. */}
-      {viewMode !== 'board' && <button className="fab" onClick={() => openAdd()} aria-label="Add event"><PlusIcon /></button>}
+      {viewMode !== 'board' && (canAdd ? <button className="fab" onClick={() => openAdd()} aria-label="Add event"><PlusIcon /></button>
+        : kidDevice && calendars.length > 0 && <p className="fab-hint">{calendars.some(c => c.memberIds.includes(meMemberId!))
+          ? 'Ask a parent to let this device change your calendar in Settings → Calendars.'
+          : 'Ask a parent to give you a calendar in Settings → Calendars.'}</p>)}
 
       {detail && (
         <EventDetailSheet
@@ -406,6 +417,7 @@ export default function CalendarView() {
           members={members}
           categories={categories}
           calendars={calendars}
+          canEdit={canEditEvent(detail)}
           tz={tz}
           onClose={() => setDetail(null)}
           onEdit={() => openEdit(detail)}
@@ -419,7 +431,8 @@ export default function CalendarView() {
         <EventEditSheet
           event={editState.event}
           prefill={editState.prefill}
-          calendars={calendars}
+          calendars={editableCalendars}
+          offerNewLocal={offerNewLocal}
           members={members}
           categories={categories}
           onClose={() => setEditState(null)}
@@ -830,8 +843,8 @@ function locationHref(location: string): string | null {
   return /iPhone|iPad|Macintosh/.test(navigator.userAgent) ? `https://maps.apple.com/?q=${q}` : `https://www.google.com/maps/search/?api=1&query=${q}`
 }
 
-function EventDetailSheet({ event, members, categories, calendars, tz, onClose, onEdit, onDelete, onToggleMember, onSaveScopedMembers, onSaveTravel }: {
-  event: EventInstance; members: { id: string; name: string; color: string; avatar: string }[]; categories: Category[]; calendars: CalendarEntry[]; tz: string
+function EventDetailSheet({ event, members, categories, calendars, canEdit, tz, onClose, onEdit, onDelete, onToggleMember, onSaveScopedMembers, onSaveTravel }: {
+  event: EventInstance; members: { id: string; name: string; color: string; avatar: string }[]; categories: Category[]; calendars: CalendarEntry[]; canEdit: boolean; tz: string
   onClose: () => void; onEdit: () => void; onDelete: () => void; onToggleMember: (memberId: string) => void
   onSaveScopedMembers: (id: string, memberIds: string[], scope: 'occurrence' | 'series') => void
   onSaveTravel: (travelMinutes: number | null, remindBeforeLeave: boolean) => void
@@ -855,7 +868,7 @@ function EventDetailSheet({ event, members, categories, calendars, tz, onClose, 
   const catLabel = categoryLabel(event, categories)
   return (
     <Sheet title={event.title} onClose={onClose}
-      actions={!event.readOnly ? (
+      actions={canEdit && !event.readOnly ? (
         confirmDelete ? (
           <>
             <button className="btn btn-secondary" onClick={() => setConfirmDelete(false)}>Cancel</button>
@@ -896,14 +909,14 @@ function EventDetailSheet({ event, members, categories, calendars, tz, onClose, 
         )}
         {event.leaveAt && <div className="leave-by">🚗 Leave by {formatTime(event.leaveAt, tz)}</div>}
         {/* Read-only events have no edit sheet, so their travel time is set right here. */}
-        {event.readOnly && !event.allDay && (
+        {canEdit && event.readOnly && !event.allDay && (
           <TravelFields minutes={event.travelMinutes} remind={event.remindBeforeLeave} onChange={onSaveTravel} />
         )}
         {members.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <div className="chip-row">
               {members.map(m => (
-                <button key={m.id} className={`chip ${chipMemberIds.includes(m.id) ? 'active' : ''}`} aria-pressed={chipMemberIds.includes(m.id)} style={{ ['--chip-color' as string]: m.color }} onClick={() => toggleChip(m.id)}>
+                <button key={m.id} className={`chip ${chipMemberIds.includes(m.id) ? 'active' : ''}`} aria-pressed={chipMemberIds.includes(m.id)} style={{ ['--chip-color' as string]: m.color }} onClick={() => toggleChip(m.id)} disabled={!canEdit}>
                   {m.avatar} {m.name}
                 </button>
               ))}
@@ -932,9 +945,14 @@ function EventDetailSheet({ event, members, categories, calendars, tz, onClose, 
           </div>
         )}
         {event.description && <div style={{ color: 'var(--text-dim)', fontWeight: 600, whiteSpace: 'pre-line' }}>{stripHtmlToText(event.description)}</div>}
-        {settings.features.lists && <EventTasks eventId={event.id} />}
+        {settings.features.lists && <EventTasks eventId={event.id} canAdd={canEdit} />}
         {settings.features.notes && <NotesThread target={`event:${event.id}`} />}
-        {event.readOnly && (
+        {!canEdit && (
+          <div style={{ color: 'var(--text-dim)', fontSize: '0.8125rem', fontWeight: 700 }}>
+            This device can't change events on {calendarName}.
+          </div>
+        )}
+        {canEdit && event.readOnly && (
           <div style={{ color: 'var(--text-dim)', fontSize: '0.8125rem', fontWeight: 700 }}>
             Only the family members and travel time are saved in Kinwall — the event itself comes from {calendarName}.
           </div>
@@ -946,7 +964,7 @@ function EventDetailSheet({ event, members, categories, calendars, tz, onClose, 
 
 /** List items linked to this event: tick them off, or add one to a list (the last one used).
  * The add form stays folded behind "+ Add task" so every event sheet isn't a form. */
-function EventTasks({ eventId }: { eventId: string }) {
+function EventTasks({ eventId, canAdd }: { eventId: string; canAdd: boolean }) {
   const { toast } = useApp()
   const [items, setItems] = useState<(ListItem & { listName: string })[]>([])
   const [lists, setLists] = useState<List[]>([])
@@ -975,7 +993,7 @@ function EventTasks({ eventId }: { eventId: string }) {
     try { await api.addListItems(listId, { title, eventId }); load(); announce(`Added ${title}`) }
     catch (e) { toast(e instanceof ApiError ? e.message : 'Could not add task', true) }
   }
-  if (lists.length === 0 && items.length === 0) return null
+  if ((lists.length === 0 || !canAdd) && items.length === 0) return null
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       {items.length > 0 && <h3 style={{ fontWeight: 800, fontSize: '0.8125rem', color: 'var(--text-dim)', margin: 0 }}>Tasks</h3>}
@@ -988,11 +1006,11 @@ function EventTasks({ eventId }: { eventId: string }) {
           </div>
         </div>
       ))}
-      {lists.length > 0 && !adding && (
+      {canAdd && lists.length > 0 && !adding && (
         <button ref={addBtnRef} className="link-btn" style={{ alignSelf: 'flex-start' }} aria-expanded={adding} aria-controls={`tasks-add-${eventId}`}
           onClick={() => setAdding(true)}>+ Add task</button>
       )}
-      {lists.length > 0 && adding && (
+      {canAdd && lists.length > 0 && adding && (
         // One composite field: text, list chip, go. Escape or leaving it empty folds it back. Capture
         // phase: the sheet's own Escape would close the whole sheet.
         <div id={`tasks-add-${eventId}`} className="task-add" onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget) && !draft.trim()) setAdding(false) }}
@@ -1060,13 +1078,13 @@ function TravelFields({ minutes, remind, onChange }: { minutes: number | null; r
   )
 }
 
-function EventEditSheet({ event, prefill, calendars, members, categories, onClose, onSave }: {
-  event: EventInstance | null; prefill?: Partial<EventInstance>; calendars: CalendarEntry[]
+function EventEditSheet({ event, prefill, calendars, offerNewLocal, members, categories, onClose, onSave }: {
+  event: EventInstance | null; prefill?: Partial<EventInstance>; calendars: CalendarEntry[]; offerNewLocal: boolean
   members: { id: string; name: string; color: string; avatar: string }[]; categories: Category[]
   onClose: () => void
   onSave: (body: Partial<EventInstance>, id: string | null, seriesCategory?: { categoryId: string | null; scope: 'occurrence' | 'series' }) => void
 }) {
-  const writable = calendars.filter(c => c.writable && c.enabled) // no read-only (holiday/shared) or switched-off calendars
+  const writable = calendars // already just the ones this device may add to (writable, on, and allowed)
   const base = event ?? prefill ?? {}
   const [title, setTitle] = useState(base.title ?? '')
   const [allDay, setAllDay] = useState(!!base.allDay)
@@ -1193,14 +1211,14 @@ function EventEditSheet({ event, prefill, calendars, members, categories, onClos
         )}
       </div>
       {endBeforeStart && <p className="field-error" id="event-end-error" role="alert">The end has to be after the start.</p>}
-      <div className="field">
+      {!event && <div className="field">
         <label>Calendar</label>
         <select value={calendarId} onChange={e => setCalendarId(e.target.value)}>
           {writable.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           {/* No local calendar yet: offer one, created on save, for events that live only in Kinwall */}
-          {!event && !writable.some(c => c.kind === 'local') && <option value={NEW_LOCAL_CALENDAR}>Kinwall only (not synced)</option>}
+          {!event && offerNewLocal && <option value={NEW_LOCAL_CALENDAR}>Kinwall only (not synced)</option>}
         </select>
-      </div>
+      </div>}
       <div className="field">
         <label>Location</label>
         <input type="text" value={location} onChange={e => setLocation(e.target.value)} placeholder="Optional" />

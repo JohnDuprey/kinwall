@@ -290,7 +290,7 @@ function Health({ entries, today, onEdit, onSave }: { entries: TrackerEntry[]; t
 /** A normal calendar event for a future visit: its type and who, never the reason, notes or measurements (the calendar is on the wall). */
 async function addVisitToCalendar(e: TrackerEntry, m: { id: string | null; name: string }) {
   const d = e.data as HealthData
-  const cals = (await api.getCalendars()).filter(c => c.writable && c.enabled)
+  const cals = (await api.getCalendars()).filter(c => c.writable && c.enabled && c.canEditEvents !== false)
   const cal = cals.find(c => c.kind === 'local') ?? cals[0]
   if (!cal) throw new Error('There is no calendar to add it to. Add one in Settings → Calendars.')
   const t = HEALTH_TYPES.find(x => x.key === d.type) ?? HEALTH_TYPES[5]

@@ -142,6 +142,8 @@ export interface CalendarEntry {
   categoryId: string | null // default category for events with no override/keyword match
   writable: boolean
   enabled: boolean
+  displayEdit?: boolean // wall screens and kids' devices may change its events (admins always can)
+  canEditEvents?: boolean // this device may change its events (server-decided; absent = yes)
   lastSyncedAt: string | null
   lastError: string | null
   needsReconnect?: boolean // imported placeholder: settings kept, not syncing until reconnected

@@ -2,6 +2,7 @@ import type { KinwallDb } from './db.ts';
 import type { Context, Next } from 'hono';
 import type { Env, WaitCtx } from './env.ts';
 import { waitUntil } from './env.ts';
+import { parseMemberIds } from './calendar-members.ts';
 
 const LAST_USED_STALE_MS = 60 * 60 * 1000; // don't write last_used_at more than once an hour
 
@@ -48,6 +49,32 @@ export async function createApiKey(
 export async function validOwner(db: KinwallDb, owner: string): Promise<string | null> {
   if (owner === 'shared') return owner;
   return (await db.prepare('SELECT id FROM members WHERE id = ?').bind(owner).first<{ id: string }>())?.id ?? null;
+}
+
+// The one rule for who may change a calendar's events (create, edit, delete, and linking tasks to
+// them), used by every event-writing route and by GET /api/calendars (canEditEvents) so the app
+// hides what would be refused. Admin keys: always. Display keys (wall screens, kids' devices, the
+// app's widget/Watch keys): only on calendars with "Wall screens and kids' devices can edit" on
+// (display_edit), and a display pinned to a member only on calendars that are for that member.
+// Shared and legacy (null owner) displays are not limited by member. Reading is never limited.
+type EditableCal = { member_ids: string; display_edit: number };
+
+export function canChangeEvents(key: ResolvedKey | null, cal: EditableCal): boolean {
+  if (key?.scope !== 'display') return true;
+  if (!cal.display_edit) return false;
+  const kid = key.owner && key.owner !== 'shared' ? key.owner : null;
+  return !kid || parseMemberIds(cal.member_ids).includes(kid);
+}
+
+/** The 403 message when this request's key may not change events on every one of `cals` (an
+ * event's calendar, or both calendars of a move), or null when it may. */
+export async function eventWriteBlock(c: Context<{ Bindings: Env }>, cals: EditableCal[]): Promise<string | null> {
+  const key = await requestKey(c);
+  const denied = cals.filter((cal) => !canChangeEvents(key, cal));
+  if (denied.length === 0) return null;
+  if (denied.some((cal) => !cal.display_edit)) return "Events on this calendar can only be changed from a parent's device.";
+  const name = (await c.env.DB.prepare('SELECT name FROM members WHERE id = ?').bind(key!.owner).first<{ name: string }>())?.name;
+  return `This device can only change events on ${name ? `${name}'s` : 'its own'} calendars.`;
 }
 
 // No-auth routes: health check, the OAuth callback (browser redirect from the provider), the
@@ -178,11 +205,19 @@ export async function resolveKey(c: Context<{ Bindings: Env }>): Promise<Resolve
   };
 }
 
+// requireAuth's resolved key, per request, so routes that need it (eventWriteBlock, GET /api/calendars)
+// don't look the key up again.
+const resolvedKeys = new WeakMap<Request, ResolvedKey>();
+export async function requestKey(c: Context<{ Bindings: Env }>): Promise<ResolvedKey | null> {
+  return resolvedKeys.get(c.req.raw) ?? resolveKey(c);
+}
+
 export async function requireAuth(c: Context<{ Bindings: Env }>, next: Next) {
   if (PUBLIC_PATH.test(c.req.path)) return next();
 
   const resolved = await resolveKey(c);
   if (!resolved) return c.json({ error: 'unauthorized' }, 401);
+  resolvedKeys.set(c.req.raw, resolved);
 
   if (resolved.scope === 'display' && !isDisplayAllowed(c.req.method, c.req.path)) {
     return c.json({ error: 'display key cannot access this route' }, 403);

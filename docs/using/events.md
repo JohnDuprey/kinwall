@@ -15,7 +15,7 @@ Tap an event to open its sheet. It shows:
 * **Description**, always shown as plain text.
 * **Tasks**: list items linked to this event. See [Linked tasks](#linked-tasks).
 * **Notes**: the family's notes on this event. See [Notes](#notes).
-* **Edit** and **Delete**, only on writable calendars. Delete asks for **Confirm delete**. An event from Google or Outlook is deleted there too.
+* **Edit** and **Delete**, only on writable calendars this device may change (see [Who can change events](#who-can-change-events)). Delete asks for **Confirm delete**. An event from Google or Outlook is deleted there too.
 
 ## Creating and editing
 
@@ -26,7 +26,7 @@ Tap **+**, or tap an empty slot in the time grid (this pre-fills the time). The 
 | **Title** | Required. |
 | **All day** | All-day events are stored as dates. The end date you pick is inclusive. |
 | **Starts / Ends** | Native date and time pickers. Moving the start past the end drags the end along. |
-| **Calendar** | Only writable, enabled calendars are listed. If you have no local calendar yet, **Kinwall only (not synced)** creates one called "Kinwall". |
+| **Calendar** | Only writable, enabled calendars this device may change are listed. On a kid's device that's only their own calendars, with the first one picked. If you have no local calendar yet, **Kinwall only (not synced)** creates one called "Kinwall". |
 | **Location** | Optional. |
 | **Who** | Family member chips. |
 | **Reminder** | Local, Google and Outlook calendars only. Options: None, 5, 10, 15 or 30 minutes, 1 hour, 1 day, plus **Household default** (local) or **Google calendar default** (Google). Outlook has no "default" to write back. Reminders that came from the provider and don't match a preset stay as they are. |
@@ -34,6 +34,19 @@ Tap **+**, or tap an empty slot in the time grid (this pre-fills the time). The 
 | **Category** | **Automatic** (keyword or calendar default, with a hint showing which) or a specific category. On a recurring event, **Apply the category to** offers **All events** or **This event**. |
 
 When you edit, only the fields you changed are sent. An unrelated edit never pins an inherited member list or category onto the event, and never restarts a repeating series.
+
+### Who can change events
+
+Parents' phones and computers can change events on every calendar. Wall screens and kids' devices depend on the calendar:
+
+* **Wall screens and kids' devices can edit** (in **Settings → Calendars → Edit calendar**) is on for every calendar to start with. When it's off, only a parent's device can add, change or delete that calendar's events.
+* A **kid's device** (a wall screen, tablet or phone that belongs to one member, and the widgets and Apple Watch that go with it) can add, change and delete events only on calendars that are for that member: the calendar's **Members** include them. Other events open read-only, with "This device can't change events on *calendar*." Say Leo's tablet: it can add soccer practice to Leo's calendar, but not change the Family calendar or Maya's.
+* A kid with no calendar of their own can't add events. In place of the **+** button, their device says "Ask a parent to give you a calendar in Settings → Calendars."
+* A **Shared** wall screen can change events on any calendar that has the switch on.
+
+This covers everything that changes an event: its details, its people and travel time, deleting it, and adding a task to it (or moving a task off it). Reading is never limited. Notes are conversation, so anyone can post one on any event. Ticking or editing a task that's already linked is a list edit, so it works as on any list. An event can't be moved to another calendar from Kinwall on any device.
+
+The API answers a refused change with `403`, for example `{"error":"This device can only change events on Leo's calendars."}`. `GET /api/calendars` gives each calendar `displayEdit` (the switch) and `canEditEvents` (whether the key asking may change its events).
 
 ### Recurring events
 

@@ -1464,11 +1464,12 @@ function EditCalendarSheet({ calendar, onClose, onSaved, onSync, onRemove, toast
   const [memberIds, setMemberIds] = useState(calendar.memberIds)
   const [categoryId, setCategoryId] = useState(calendar.categoryId)
   const [enabled, setEnabled] = useState(calendar.enabled)
+  const [displayEdit, setDisplayEdit] = useState(calendar.displayEdit !== false)
 
   const save = async () => {
     if (!name.trim()) return
     try {
-      await api.updateCalendar(calendar.id, { name: name.trim(), color, memberIds, categoryId, enabled })
+      await api.updateCalendar(calendar.id, { name: name.trim(), color, memberIds, categoryId, enabled, displayEdit })
       onSaved()
     } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save calendar', true) }
   }
@@ -1495,6 +1496,13 @@ function EditCalendarSheet({ calendar, onClose, onSaved, onSync, onRemove, toast
       <div className="toggle-row">
         <label id="calendar-enabled-label">Enabled</label>
         <button className={`switch ${enabled ? 'on' : ''}`} role="switch" aria-checked={enabled} aria-labelledby="calendar-enabled-label" onClick={() => setEnabled(v => !v)}><span className="knob" /></button>
+      </div>
+      <div className="toggle-row">
+        <div>
+          <label id="calendar-display-edit-label">Wall screens and kids' devices can edit</label>
+          <div className="settings-row-sub" id="calendar-display-edit-sub">Off: only parents' devices add, change or delete its events. A kid's device can only ever change calendars that are for them.</div>
+        </div>
+        <button className={`switch ${displayEdit ? 'on' : ''}`} role="switch" aria-checked={displayEdit} aria-labelledby="calendar-display-edit-label" aria-describedby="calendar-display-edit-sub" onClick={() => setDisplayEdit(v => !v)}><span className="knob" /></button>
       </div>
       <div className="cal-actions" style={{ marginTop: 4 }}>
         {calendar.kind !== 'local' && <button className="link-btn" onClick={onSync}>Sync now</button>}

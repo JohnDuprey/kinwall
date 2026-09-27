@@ -358,6 +358,13 @@ button {
   z-index: 5;
 }
 .fab:active { transform: scale(0.93); }
+/* A kid's device with no calendar of its own: a short line where the add button would be. */
+.fab-hint {
+  position: absolute; right: 22px; bottom: 22px; left: 22px; margin: 0; z-index: 5;
+  margin-left: auto; max-width: 22em; padding: 10px 14px; border-radius: 14px;
+  background: var(--card); color: var(--text-dim); box-shadow: var(--shadow-lg);
+  font-size: 0.8125rem; font-weight: 700; text-align: center;
+}
 
 /* ---------- Week / Day grid ---------- */
 .swipe-area { flex: 1; min-height: 0; overflow: hidden; position: relative; }
@@ -698,6 +705,7 @@ button {
   min-height: 44px;
   display: flex; align-items: center; gap: 6px;
 }
+.chip:disabled { opacity: 0.6; cursor: default; } /* read-only event: member chips shown, not changeable */
 .chip.active { border-color: var(--chip-color, var(--accent)); background: color-mix(in srgb, var(--chip-color, var(--accent)) 22%, var(--bg-alt)); }
 
 .btn {

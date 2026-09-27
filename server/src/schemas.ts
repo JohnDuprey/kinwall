@@ -248,6 +248,8 @@ export const CalendarSchema = z
     categoryId: z.string().nullable(), // default category for events with no override/keyword match
     writable: z.boolean(),
     enabled: z.boolean(),
+    displayEdit: z.boolean(), // wall screens and kids' devices may change its events (admins always can)
+    canEditEvents: z.boolean(), // whether the key asking may change its events (see auth.ts canChangeEvents)
     lastSyncedAt: z.string().nullable(),
     lastError: z.string().nullable(),
     needsReconnect: z.boolean(), // imported placeholder: settings kept, not syncing until reconnected

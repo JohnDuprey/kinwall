@@ -11,9 +11,10 @@ Each calendar row shows its color, name, kind and status: "Synced *time*", "Neve
 * **Remove**: "Remove this calendar and its events from Kinwall?" Nothing is deleted from the original calendar.
 * Tap the row to open **Edit calendar**:
   * **Name** and **Color**.
-  * **Members**: whose calendar it is. Its events are tagged with these members unless tagged otherwise.
+  * **Members**: whose calendar it is. Its events are tagged with these members unless tagged otherwise. A kid's device can change only events on calendars that are for them.
   * **Default category**: "Applied to events here with no keyword match or their own category."
   * **Enabled**: when off, the calendar stops syncing and its events are hidden.
+  * **Wall screens and kids' devices can edit**: on to start with. When off, only parents' devices add, change or delete its events; wall screens and kids' devices show them read-only. A kid's device only ever changes calendars that are for them. See [Who can change events](../using/events.md#who-can-change-events).
 
 Add buttons:
 

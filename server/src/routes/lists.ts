@@ -6,6 +6,8 @@ import { hostTimezone } from '../env.ts';
 import { emit } from '../bus.ts';
 import { notifyListUpdate } from '../notify.ts';
 import { parseMemberIds, resolveMemberIds } from '../calendar-members.ts';
+import { eventWriteBlock } from '../auth.ts';
+import type { Context } from 'hono';
 import {
   ErrorSchema,
   ListDetailSchema,
@@ -175,6 +177,18 @@ async function missingEventIds(db: KinwallDb, ids: (string | null | undefined)[]
   if (wanted.length === 0) return false;
   const { results } = await db.prepare(`SELECT id FROM events WHERE id IN (${wanted.map(() => '?').join(',')})`).bind(...wanted).all<{ id: string }>();
   return results.length !== wanted.length;
+}
+
+// Putting a task on an event (or taking it off one) changes that event's task list, so it follows the
+// event rule (auth.ts eventWriteBlock): a kid's device can't add tasks to someone else's event.
+// Ticking, editing or deleting a task that's already linked is an ordinary list edit.
+async function taskLinkBlock(c: Context<{ Bindings: Env }>, ids: (string | null | undefined)[]): Promise<string | null> {
+  const wanted = [...new Set(ids.filter((v): v is string => !!v))];
+  if (wanted.length === 0) return null;
+  const { results } = await c.env.DB.prepare(`SELECT c.member_ids, c.display_edit FROM events e JOIN calendars c ON c.id = e.calendar_id WHERE e.id IN (${wanted.map(() => '?').join(',')})`)
+    .bind(...wanted)
+    .all<{ member_ids: string; display_edit: number }>();
+  return eventWriteBlock(c, results);
 }
 
 // Notes on list items (routes/notes.ts): no FK, so every path that deletes items deletes their notes.
@@ -372,6 +386,7 @@ listsRoutes.openapi(
     responses: {
       201: { description: 'created', content: { 'application/json': { schema: z.array(ListItemSchema) } } },
       400: { description: 'event not found', content: { 'application/json': { schema: ErrorSchema } } },
+      403: { description: "this device may not change that event's tasks", content: { 'application/json': { schema: ErrorSchema } } },
       404: { description: 'not found', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
@@ -383,6 +398,8 @@ listsRoutes.openapi(
     const list = await c.env.DB.prepare('SELECT id, name FROM lists WHERE id = ?').bind(id).first<{ id: string; name: string }>();
     if (!list) return c.json({ error: 'not found' }, 404);
     if (await missingEventIds(c.env.DB, inputs.map((i) => i.eventId))) return c.json({ error: 'event not found' }, 400);
+    const block = await taskLinkBlock(c, inputs.map((i) => i.eventId));
+    if (block) return c.json({ error: block }, 403);
 
     // memberId validated against members up front, like calendars' resolveMemberIds - unknown ids drop to null.
     const requestedMemberIds = [...new Set(inputs.map((i) => i.memberId).filter((v): v is string => !!v))];
@@ -490,6 +507,7 @@ listsRoutes.openapi(
     responses: {
       200: { description: 'ok', content: { 'application/json': { schema: ListItemSchema } } },
       400: { description: 'event not found', content: { 'application/json': { schema: ErrorSchema } } },
+      403: { description: "this device may not change that event's tasks", content: { 'application/json': { schema: ErrorSchema } } },
       404: { description: 'not found', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
@@ -499,6 +517,10 @@ listsRoutes.openapi(
     const existing = await c.env.DB.prepare('SELECT * FROM list_items WHERE id = ? AND list_id = ?').bind(itemId, id).first<ListItemRow>();
     if (!existing) return c.json({ error: 'not found' }, 404);
     if (await missingEventIds(c.env.DB, [body.eventId])) return c.json({ error: 'event not found' }, 400);
+    if (body.eventId !== undefined && body.eventId !== existing.event_id) {
+      const block = await taskLinkBlock(c, [existing.event_id, body.eventId]);
+      if (block) return c.json({ error: block }, 403);
+    }
 
     let memberId = body.memberId !== undefined ? body.memberId : existing.member_id;
     if (body.memberId) {
