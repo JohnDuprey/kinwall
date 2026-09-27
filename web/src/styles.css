@@ -742,6 +742,8 @@ button {
 .scheme-list-name { flex: 1; min-width: 0; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .scheme-list-note { color: var(--text-dim); font-weight: 600; }
 .scheme-list-row .btn { flex: none; min-height: 40px; padding: 0 14px; }
+.scheme-manage-btn { flex: none; min-height: 44px; padding: 0 16px; }
+.scheme-new-btn { margin-top: 14px; }
 .scheme-select { flex: 1; min-width: 0; }
 .scheme-swatch.scheme-swatch-lg { width: 32px; height: 32px; }
 .scheme-swatch { width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--border); flex-shrink: 0; }

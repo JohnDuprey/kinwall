@@ -739,6 +739,7 @@ function ColorControls({ scheme, householdScheme, onScheme, household, device, s
   // and switch itself to it.
   const { parentDevice, reloadCore } = useApp()
   const dialog = useDialog()
+  const [manage, setManage] = useState(false)
   const customs = household.customSchemes ?? []
   const { skin } = resolveColors(household, device)
   const [editing, setEditing] = useState<{ draft: CustomScheme; isNew: boolean; fromLegacy?: boolean } | null>(null)
@@ -811,32 +812,36 @@ function ColorControls({ scheme, householdScheme, onScheme, household, device, s
             </optgroup>
           )}
         </select>
+        <button className="btn btn-secondary scheme-manage-btn" onClick={() => setManage(true)} aria-haspopup="dialog">Manage</button>
       </div>
-      {/* The family's saved schemes, each editable or deletable without selecting it first. */}
-      {parentDevice && !householdScheme && customs.length > 0 && (
-        <ul className="scheme-list" aria-label="Your schemes">
-          {customs.map(c => {
-            const [bg, , accent] = dotsFor(c.id as ColorScheme)
-            return (
-              <li key={c.id} className="scheme-list-row">
-                <span className="scheme-swatch" aria-hidden="true" style={{ background: `linear-gradient(135deg, ${bg} 50%, ${accent} 50%)` }} />
-                <span className="scheme-list-name">{c.emoji || '🎨'} {c.name}{household.colorScheme === c.id && <span className="scheme-list-note"> · in use</span>}</span>
-                <button className="btn btn-secondary" onClick={() => setEditing({ draft: c, isNew: false })} aria-label={`Edit ${c.name}`}>Edit</button>
-                <button className="btn btn-danger" aria-label={`Delete ${c.name}`} onClick={async () => {
-                  if (await dialog.confirm({ title: `Delete ${c.name}?`, body: 'Screens using it go back to Peach.', confirmLabel: 'Delete', danger: true })) deleteScheme(c)
-                }}>Delete</button>
-              </li>
-            )
-          })}
-        </ul>
+      {manage && (
+        <Sheet title="Your schemes" onClose={() => setManage(false)}>
+          {customs.length === 0 && <p className="settings-row-sub">The family hasn't saved any schemes yet. Start one from the scheme you're on.</p>}
+          {customs.length > 0 && (
+            <ul className="scheme-list" aria-label="Your schemes">
+              {customs.map(c => {
+                const [bg, , accent] = dotsFor(c.id as ColorScheme)
+                return (
+                  <li key={c.id} className="scheme-list-row">
+                    <span className="scheme-swatch" aria-hidden="true" style={{ background: `linear-gradient(135deg, ${bg} 50%, ${accent} 50%)` }} />
+                    <span className="scheme-list-name">{c.emoji || '🎨'} {c.name}{household.colorScheme === c.id && <span className="scheme-list-note"> · the family's</span>}</span>
+                    {parentDevice && <>
+                      <button className="btn btn-secondary" onClick={() => { setManage(false); setEditing({ draft: c, isNew: false }) }} aria-label={`Edit ${c.name}`}>Edit</button>
+                      <button className="btn btn-danger" aria-label={`Delete ${c.name}`} onClick={async () => {
+                        if (await dialog.confirm({ title: `Delete ${c.name}?`, body: 'Screens using it go back to Peach.', confirmLabel: 'Delete', danger: true })) deleteScheme(c)
+                      }}>Delete</button>
+                    </>}
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+          {!parentDevice && customs.length > 0 && <p className="settings-row-sub">Editing and deleting the family's schemes is done on a parent's device.</p>}
+          {customs.length < 10
+            ? <button className="btn btn-primary btn-block scheme-new-btn" onClick={() => { setManage(false); setEditing({ draft: startFrom(skin, activeCustom ? `${skin.name} copy` : `My ${skin.name}`), isNew: true }) }}>＋ New scheme</button>
+            : <p className="settings-row-sub">The family has 10 saved schemes, the most it can keep.{parentDevice ? ' Delete one to make another.' : ''}</p>}
+        </Sheet>
       )}
-      <div className="scheme-actions">
-        {parentDevice && !!householdScheme && activeCustom && <button className="btn btn-secondary" onClick={() => setEditing({ draft: activeCustom, isNew: false })}>Edit {activeCustom.name}</button>}
-        {customs.length < 10 && (
-          <button className="btn btn-secondary" onClick={() => setEditing({ draft: startFrom(skin, activeCustom ? `${skin.name} copy` : `My ${skin.name}`), isNew: true })}>＋ New scheme</button>
-        )}
-      </div>
-      {customs.length >= 10 && <span className="settings-row-sub">The family has 10 saved schemes, the most it can keep.{parentDevice ? ' Delete one to make another.' : ''}</span>}
       {scheme === 'seasonal' && <div className="settings-row-sub">Switches on its own through the year: Winter, Spring, Summer and Autumn, plus Harvest and Festive around the holidays.</div>}
       {hasLegacy && (
         <div className="scheme-legacy" role="note">
