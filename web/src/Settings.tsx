@@ -1120,7 +1120,7 @@ function TimeCueRows() {
       </div>
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
         <div className="settings-row-label" aria-hidden="true">Transition warnings</div>
-        <MinutesPicker idBase="warn" label="Transition warnings" presets={[10, 5, 1]} minutes={warnings} repeat={device.warningRepeat ?? null}
+        <MinutesPicker idBase="warn" label="Transition warnings" presets={[10, 5, 1]} minutes={warnings} repeat={device.warningRepeat ?? null} repeatDefault={{ every: 1, within: 5 }}
           onOff={() => set({ warnings: undefined, warningRepeat: undefined })}
           onChange={(minutes, repeat) => set({ warnings: minutes.length ? minutes : undefined, warningRepeat: repeat ?? undefined })} />
         {anyWarnings && (
@@ -1139,10 +1139,13 @@ function TimeCueRows() {
 /** Minutes-before picker shared by this device's transition warnings and a member's transition
  * reminders: preset chips, your own times (1-120, up to 8 in all), and "every N min during the
  * last M". `onOff` adds an Off chip that clears everything. */
-function MinutesPicker({ idBase, label, presets, minutes, repeat, onChange, onOff, minEvery = 1 }: {
-  idBase: string; label: string; presets: number[]; minutes: number[]; repeat: WarningRepeat | null; minEvery?: number
+function MinutesPicker({ idBase, label, presets, minutes, repeat, onChange: save, onOff, minEvery = 1, repeatDefault }: {
+  idBase: string; label: string; presets: number[]; minutes: number[]; repeat: WarningRepeat | null; minEvery?: number; repeatDefault: WarningRepeat
   onChange: (minutes: number[], repeat: WarningRepeat | null) => void; onOff?: () => void
 }) {
+  // A picked time the repeat already reaches (10 with "every 5 in the last 30") does nothing: grey it out and drop it.
+  const covered = (m: number, r: WarningRepeat | null) => !!r && m <= r.within && m % r.every === 0
+  const onChange = (ms: number[], r: WarningRepeat | null) => save(ms.filter(m => !covered(m, r)), r)
   const [adding, setAdding] = useState(false)
   const [draft, setDraft] = useState('')
   const sorted = (xs: number[]) => [...new Set(xs)].sort((a, b) => b - a)
@@ -1162,10 +1165,11 @@ function MinutesPicker({ idBase, label, presets, minutes, repeat, onChange, onOf
     <>
       <div className="chip-row" role="group" aria-label={label}>
         {onOff && <button className={`chip ${none ? 'active' : ''}`} aria-pressed={none} onClick={onOff}>Off</button>}
-        {presets.map(m => (
-          <button key={m} className={`chip ${minutes.includes(m) ? 'active' : ''}`} aria-pressed={minutes.includes(m)} disabled={full && !minutes.includes(m)} onClick={() => toggle(m)}>{m} min</button>
-        ))}
-        {custom.map(m => (
+        {presets.map(m => covered(m, repeat)
+          ? <button key={m} className="chip" disabled aria-label={`${m} min, covered by the repeat`}>{m} min</button>
+          : <button key={m} className={`chip ${minutes.includes(m) ? 'active' : ''}`} aria-pressed={minutes.includes(m)} disabled={full && !minutes.includes(m)} onClick={() => toggle(m)}>{m} min</button>
+        )}
+        {custom.filter(m => !covered(m, repeat)).map(m => (
           <button key={m} className="chip active" aria-label={`Remove ${m} min`} onClick={() => toggle(m)}>{m} min ✕</button>
         ))}
         {!adding && <button className="chip" disabled={full} onClick={() => setAdding(true)}>Add…</button>}
@@ -1183,8 +1187,9 @@ function MinutesPicker({ idBase, label, presets, minutes, repeat, onChange, onOf
       <div className="toggle-row">
         <label id={`${idBase}-repeat-label`}>Repeat as it gets close</label>
         <button className={`switch ${repeat ? 'on' : ''}`} role="switch" aria-checked={!!repeat} aria-labelledby={`${idBase}-repeat-label`}
-          onClick={() => onChange(minutes, repeat ? null : { every: 5, within: 30 })}><span className="knob" /></button>
+          onClick={() => onChange(minutes, repeat ? null : repeatDefault)}><span className="knob" /></button>
       </div>
+      {repeat && presets.some(m => covered(m, repeat)) && <div className="settings-row-sub">Grayed-out times are already covered by the repeat.</div>}
       {repeat && (
         <div className="minutes-row">
           <span>Every</span>
@@ -1427,12 +1432,12 @@ function TransitionRemindersField({ name, value, onChange }: { name: string; val
       <div className="toggle-row">
         <label id="member-transitions-label">Transition reminders</label>
         <button className={`switch ${value.on ? 'on' : ''}`} role="switch" aria-checked={value.on} aria-labelledby="member-transitions-label"
-          onClick={() => set(value.on ? { on: false } : { on: true, minutes: value.minutes.length || value.repeat ? value.minutes : [10, 5] })}><span className="knob" /></button>
+          onClick={() => set(value.on ? { on: false } : { on: true, ...(value.minutes.length || value.repeat ? {} : { minutes: [30], repeat: { every: 5, within: 15 } }) })}><span className="knob" /></button>
       </div>
       <div className="settings-row-sub">{value.on ? transitionRemindersSummary(value) : `Extra heads-ups before ${name}'s events, sent to devices that belong to ${name}. Helpful when switching activities is hard.`}</div>
       {value.on && (
         <>
-          <MinutesPicker idBase="member-transitions" label="Transition reminder times" presets={[30, 15, 10, 5]} minutes={value.minutes} repeat={value.repeat} minEvery={5}
+          <MinutesPicker idBase="member-transitions" label="Transition reminder times" presets={[60, 30, 15, 10, 5]} minutes={value.minutes} repeat={value.repeat} minEvery={5} repeatDefault={{ every: 5, within: 15 }}
             onChange={(minutes, repeat) => set({ minutes, repeat })} />
           <div className="toggle-row">
             <label id="member-transitions-leave-label">Count down to leaving</label>

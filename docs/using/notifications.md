@@ -26,7 +26,7 @@ On the device that should get notifications, go to **Settings → General → No
 
 ## Transition reminders
 
-A family member can also get **transition reminders**: calm heads-ups at the times a parent picks (for example 10 and 5 minutes before, plus every 5 minutes during the last 30), sent only to devices that belong to them. "Soccer practice in 10 minutes", or with travel time "Leave for Soccer practice in 5 minutes". They're never sent during quiet hours, a reminder that would land in the same minute as a regular one isn't doubled, and each replaces the last on the lock screen. Set them in [Settings → Family](../settings/family.md#transition-reminders).
+A family member can also get **transition reminders**: calm heads-ups at the times a parent picks (for example 30 minutes before, plus every 5 minutes during the last 15), sent only to devices that belong to them. "Soccer practice in 10 minutes", or with travel time "Leave for Soccer practice in 5 minutes". They're never sent during quiet hours, a reminder that would land in the same minute as a regular one isn't doubled, and each replaces the last on the lock screen. Set them in [Settings → Family](../settings/family.md#transition-reminders).
 
 ## Daily summary
 
