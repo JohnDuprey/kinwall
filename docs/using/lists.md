@@ -1,7 +1,7 @@
 # Lists
 
 <p>
-  <img src="../screenshots/phone-groceries.png" width="32%" alt="Shopping list grouped by category on a phone" />
+  <img src="../screenshots/phone-groceries.png" width="32%" alt="Shopping list on a phone" />
 </p>
 
 ![Lists on the wall iPad](../screenshots/ipad-lists.png)
@@ -14,7 +14,7 @@ The Lists tab shows your lists and their open-item counts. On the wall display, 
 
 | Kind | For | Extras |
 |---|---|---|
-| **Shopping** | groceries, hardware runs | Items have a **Store**, an **Aisle** and a **Category**. Group by Store, Category, Aisle or None (default Category); sorted by Aisle. [Shopping at](#shopping-at-a-store) walks the list in one store. |
+| **Shopping** | groceries, hardware runs | Items have a **Store**, an **Aisle** and a **Department**. Group by Aisle, Store or None (default Aisle); sorted by Aisle. [Shopping at](#shopping-at-a-store) walks the list in one store. |
 | **To-do** | jobs, errands | Items have an assignee (**Assign to**) and a **Due date**. |
 | **Reusable** | packing lists, routines | Items have an assignee. **Reset** unticks everything (steps too) so you can use it again. |
 
@@ -24,7 +24,7 @@ A list can also be a chore's **checklist**, so a routine like "Bedtime" has to b
 
 ## Editing a list
 
-**Edit** opens **Name**, **Kind**, **Keep checked items in place** (see below), **Emoji**, **Color** and **Owners (nobody = whole family)**. On a shopping list it also opens [Stores & categories](#stores--categories). It also has **Archive** (next to delete) and delete, which removes all the list's items too. Archived lists are hidden from the main Lists view and collect in a collapsed **Archived (*N*)** section at the bottom of the list overview. Expand it to **Restore** a list or delete it for good. The API returns them with `GET /api/lists?archived=true`; `PATCH /api/lists/{id} {archived}` archives or restores.
+**Edit** opens **Name**, **Kind**, **Keep checked items in place** (see below), **Emoji**, **Color** and **Owners (nobody = whole family)**. On a shopping list it also opens [Stores & departments](#stores--departments). It also has **Archive** (next to delete) and delete, which removes all the list's items too. Archived lists are hidden from the main Lists view and collect in a collapsed **Archived (*N*)** section at the bottom of the list overview. Expand it to **Restore** a list or delete it for good. The API returns them with `GET /api/lists?archived=true`; `PATCH /api/lists/{id} {archived}` archives or restores.
 
 ## Adding and ticking items
 
@@ -37,28 +37,35 @@ A list can also be a chore's **checklist**, so a routine like "Bedtime" has to b
 * Long titles wrap to two lines on the row (three in icon-first density); the item sheet always shows the whole title.
 * A colored dot before the title shows the item's **Priority** (see below), and a note icon after it means the item has **Notes** or a **Discussion**.
 * An item with a due date shows it in small text under the title: "Due today", "Due Fri, Oct 3", or "Overdue · Sep 22" in red.
-* Tap an item to edit it: **Title**, **Priority**, **Steps**, **Quantity** ("2, 1 lb, x3"), **Store**, **Aisle** and **Category** (shopping; see [Stores, aisles and categories](#stores-aisles-and-categories)), **Assign to** (to-do and reusable), **Due date** (to-do, with **Clear**), **Linked event**, **Notes** (the item's own description), **Discussion** (see below), and **Order** (**Move up** / **Move down**, manual sort only).
+* Tap an item to edit it: **Title**, **Priority**, **Steps**, **Quantity** ("2, 1 lb, x3"), **Store**, **Aisle** and **Department** (shopping; see [Stores, aisles and departments](#stores-aisles-and-departments)), **Assign to** (to-do and reusable), **Due date** (to-do, with **Clear**), **Linked event**, **Notes** (the item's own description), **Discussion** (see below), and **Order** (**Move up** / **Move down**, manual sort only).
 
-## Stores, aisles and categories
+## Stores, aisles and departments
 
-On a shopping list, the item sheet puts **Quantity**, **Store**, **Aisle** and **Category** first. Each is a dropdown of the values your family already uses on any list, plus **None** and **New store…** / **New aisle…** / **New category…**, which opens a text field for a new one.
+On a shopping list, the item sheet puts **Quantity**, **Store** and **Aisle** first. **Department**, **Priority**, **Linked event** and **Notes** fold into **More** below them; the **More** line shows what's set there ("More · Produce · Notes"), so nothing is hidden. Store, aisle and department are dropdowns of the values your family already uses on any list, plus **None** and **New store…** / **New aisle…** / **New department…**, which opens a text field for a new one.
 
 * **Store** is where you plan to buy the item. **None** means anywhere.
 * **Aisle** belongs to a store: "Aisle 4", "Produce", "Back wall". The dropdown offers the chosen store's aisles in the order you walk them, and changing the store clears an aisle that store doesn't have.
+* **Department** is the kind of thing it is: "Produce", "Dairy", "Frozen". It's the same for every store. (On the API and to the assistant it's the item's `category`.)
 * If an item has no store, the sheet suggests the store it was last bought at ("Last bought at Neighborhood market. **Plan to buy it there**"). It's only a suggestion; nothing changes unless you tap it.
+
+### Departments fill in aisles
+
+When an item has no aisle known at a store (none set for that store and none remembered there), but its department matches one of that store's aisles (ignoring capitals), it goes in that aisle. "Apples" with the department Produce shows under Produce at a store that has a Produce aisle, in **Aisle** sort and grouping and on a [trip](#shopping-at-a-store), with nothing typed. Groceries added from [Meals](meals.md#adding-to-the-grocery-list) come with a department, so they land in the right aisle too.
+
+This is only how the item is shown. The aisle isn't saved, so if the store's aisles change, the item follows. The item sheet shows it under Aisle ("Produce, from its department"). An aisle you set yourself always wins.
 
 ### Remembered places
 
-When you save a shopping item with a store, category or aisle, Kinwall remembers it for that item name, on the server, so every phone, the wall and the assistant share it. Next time anyone adds "milk" (typed, from Meals, or through the assistant), it gets the same store, category and aisle. Anything you set yourself wins, including choosing **None**.
+When you save a shopping item with a store, department or aisle, Kinwall remembers it for that item name, on the server, so every phone, the wall and the assistant share it. Next time anyone adds "milk" (typed, from Meals, or through the assistant), it gets the same store, department and aisle. Anything you set yourself wins, including choosing **None**.
 
 * Names match ignoring capitals, extra spaces and simple plurals: "Eggs" is "egg", "Tomatoes" is "tomato", "Berries" is "berry".
 * The aisle is remembered per store. Milk can be in Aisle 4 at one store and on the back wall at another; each store's aisle comes back when the item is planned for that store.
 * The memory outlives the item: checking out milk doesn't forget where it goes.
 * To-do and reusable lists don't use it.
 
-### Stores & categories
+### Stores & departments
 
-**Edit** → **Stores & categories** (shopping lists) lists every store, category and aisle your family uses:
+**Edit** → **Stores & departments** (shopping lists) lists every store, department and aisle your family uses:
 
 * **Rename** changes the name everywhere: items on every list and what's remembered. Rename "Costco" to "Warehouse club" once and every item follows.
 * The trash button **removes** a name: it's cleared from every item that uses it and forgotten.
@@ -71,6 +78,7 @@ At the top of a shopping list, **Shopping at** starts a trip: pick the store you
 During a trip:
 
 * Items planned for this store, or for anywhere, are listed by their aisle **at this store**, in the order you walk it. An item planned for anywhere shows the aisle it was in last time you shopped here.
+* An item with no aisle known here goes in the aisle named like its department, if the store has one (see [Departments fill in aisles](#departments-fill-in-aisles)).
 * Items with no aisle known at this store are in **Aisle unknown** at the end.
 * Items planned for another store are in a dimmed **At other stores** section at the bottom. You can still tick them.
 * Ticked items stay crossed off in place, whatever the list's setting.
@@ -138,7 +146,7 @@ Break a bigger job into steps ("Tidy the living room": fold blankets, fluff cush
 
 ## Groups and order
 
-* On shopping lists, **Group by** switches between Store, Category, Aisle and None. **Aisle** groups are per store ("Neighborhood market · Produce"), in store order and then the store's aisle order. **Reorder stores** / **Reorder categories** lets you arrange the groups in the order you walk the shop, then **Save order**.
+* On shopping lists, **Group by** switches between Store, Aisle and None. **Aisle** groups are per store ("Neighborhood market · Produce"), in store order and then the store's aisle order; an item with no aisle groups under its department's aisle when the store has one. **Reorder stores** lets you arrange the store groups in the order you shop them, then **Save order**. Shopping lists don't group by department: the department fills in the aisle instead, and a list grouped by category from before switches to Aisle.
 * Items added from [Meals](meals.md#adding-to-the-grocery-list) show which meals they're for ("For Taco night").
 * Store chips (**All**, then each store) show one store at a time.
 * **Drag** an item by its grip to reorder it within its group (Manual sort only). Other groups and done items keep their places. The keyboard alternative is Move up / Move down in the item sheet.
@@ -167,8 +175,8 @@ Devices with **List updates** on get "List updated — *Groceries* has new items
 
 ## API and MCP
 
-* `GET/POST /api/lists`, `GET/PATCH/DELETE /api/lists/{id}` (lists carry `sortBy`: `manual`, `added`, `due`, `priority`, `alpha` or `aisle`; `groupBy`: `store`, `category`, `aisle` or `none`; and `keepChecked`, which defaults by kind), `POST /api/lists/{id}/items` (one item or an array; `priority` and `steps: string[]` are optional; an optional client-made UUID `id` makes a retried add safe: an id already on that list returns the existing item, one used on another list is a `409`), `PATCH/DELETE /api/lists/{id}/items/{itemId}`, `POST /api/lists/{id}/clear-completed`, `POST /api/lists/{id}/reset`, `POST /api/lists/{id}/reorder`, `PUT /api/lists/{id}/groups`, `GET /api/events/{id}/items`.
-* Shopping: items carry `aisle`. On a shopping list, `POST …/items` fills an omitted `store`, `category` or `aisle` from what's remembered for the name (an explicit value or `null` wins), and saving an item remembers it. `GET /api/lists/{id}` returns `suggestions` (`stores`, `categories`, `aisles: [{store, aisle}]`), `aisleOrder: [{store, aisles}]`, and on each shopping item `places: [{store, aisle}]` (where it's been kept, newest first) and `meals` (the planned meals it was added for). `?store=<name>` adds `trip`: the list as shopped there, `items: [{id, title, quantity, done, store, aisle, section}]` with `section` `aisle`, `unknown` or `other`.
+* `GET/POST /api/lists`, `GET/PATCH/DELETE /api/lists/{id}` (lists carry `sortBy`: `manual`, `added`, `due`, `priority`, `alpha` or `aisle`; `groupBy`: `store`, `category`, `aisle` or `none`, where a shopping list reads `category` as `aisle`; and `keepChecked`, which defaults by kind), `POST /api/lists/{id}/items` (one item or an array; `priority` and `steps: string[]` are optional; an optional client-made UUID `id` makes a retried add safe: an id already on that list returns the existing item, one used on another list is a `409`), `PATCH/DELETE /api/lists/{id}/items/{itemId}`, `POST /api/lists/{id}/clear-completed`, `POST /api/lists/{id}/reset`, `POST /api/lists/{id}/reorder`, `PUT /api/lists/{id}/groups`, `GET /api/events/{id}/items`.
+* Shopping: items carry `aisle`. On a shopping list, `POST …/items` fills an omitted `store`, `category` or `aisle` from what's remembered for the name (an explicit value or `null` wins), and saving an item remembers it. `GET /api/lists/{id}` returns `suggestions` (`stores`, `categories`, `aisles: [{store, aisle}]`), `aisleOrder: [{store, aisles}]`, and on each shopping item `places: [{store, aisle}]` (where it's been kept, newest first) and `meals` (the planned meals it was added for). `?store=<name>` adds `trip`: the list as shopped there, `items: [{id, title, quantity, done, store, aisle, section}]` with `section` `aisle`, `unknown` or `other`. An item with no aisle known there whose `category` (department) matches one of the store's aisles, ignoring case, gets that aisle in `trip` only; nothing is saved.
 * `clear-completed` and `reset` take an optional body `{itemIds, store}`: only those items (if still ticked), and for Checkout the store they were bought at. `PATCH` an item with `{aisle, aisleStore}` to set its aisle at a store it isn't planned for (a trip).
 * `POST /api/lists/values` `{field: "store" | "category" | "aisle", from, to, store?}` renames (`to`) or removes (`to: null`) a value everywhere; an aisle needs its `store`. `PUT /api/lists/aisles` `{store, aisles}` sets a store's aisle order (`[]` clears it).
 * Items carry `priority` (`low`, `normal`, `high` or `urgent`; older clients sending `high` keep working), `steps` (`[{id, title, done, sort}]`, in order), `stepsDone` and `stepsTotal`.
