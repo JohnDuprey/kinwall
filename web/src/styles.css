@@ -2239,3 +2239,9 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
 @media (max-height: 500px) and (orientation: landscape) and (max-width: 759px) {
   :root:not([data-view="board"]) .now-next { display: none; }
 }
+
+/* A chore checklist item's own steps, nested under it (Chores.tsx ChecklistSheet). */
+.checklist-steps { display: flex; flex-direction: column; gap: 2px; margin: 2px 0 6px 44px; }
+.checklist-step { min-height: 40px; }
+.checklist-step .list-item-check { width: 28px; height: 28px; min-width: 28px; }
+.checklist-step .list-item-title { font-size: .9375rem; }

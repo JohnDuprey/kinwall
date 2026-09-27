@@ -588,6 +588,14 @@ export function ChecklistSheet({ chore, onClose, onComplete }: { chore: ChoreDay
     setItems(list => list && list.map(i => i.id === item.id ? { ...i, done: !i.done } : i))
     try { await api.updateListItem(listId, item.id, { done: !item.done }) } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not update', true); load() }
   }
+  // A step answers with the whole item: it completes itself once every step is done.
+  const tickStep = async (item: ListItem, stepId: string, done: boolean) => {
+    setItems(list => list && list.map(i => i.id === item.id ? { ...i, steps: i.steps.map(st => st.id === stepId ? { ...st, done } : st) } : i))
+    try {
+      const next = await api.updateListItemStep(listId, item.id, stepId, { done })
+      setItems(list => list && list.map(i => i.id === next.id ? next : i))
+    } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not update', true); load() }
+  }
   const add = async () => {
     const title = draft.trim()
     if (!title) return
@@ -609,12 +617,27 @@ export function ChecklistSheet({ chore, onClose, onComplete }: { chore: ChoreDay
             {items.map(item => {
               const who = item.memberId ? members.find(m => m.id === item.memberId) : null
               return (
-                <div key={item.id} className={`list-item-row ${item.done ? 'done' : ''}`}>
-                  <button className={`list-item-check ${item.done ? 'done' : ''}`} onClick={() => tick(item)} role="checkbox" aria-checked={item.done} aria-label={item.title}>
-                    {item.done && <CheckIcon width={20} height={20} />}
-                  </button>
-                  <div className="list-item-body"><div className="list-item-title-row"><div className="list-item-title">{item.title}</div></div></div>
-                  {who && <div className="member-avatar-sm" role="img" aria-label={`For ${who.name}`} style={{ background: who.color, color: inkFor(who.color) }}>{who.avatar || who.name[0]}</div>}
+                <div key={item.id} className="checklist-item">
+                  <div className={`list-item-row ${item.done ? 'done' : ''}`}>
+                    <button className={`list-item-check ${item.done ? 'done' : ''}`} onClick={() => tick(item)} role="checkbox" aria-checked={item.done} aria-label={item.title}>
+                      {item.done && <CheckIcon width={20} height={20} />}
+                    </button>
+                    <div className="list-item-body"><div className="list-item-title-row"><div className="list-item-title">{item.title}</div></div>
+                      {item.stepsTotal > 0 && <div className="list-item-meta">{item.stepsDone} of {item.stepsTotal} steps</div>}</div>
+                    {who && <div className="member-avatar-sm" role="img" aria-label={`For ${who.name}`} style={{ background: who.color, color: inkFor(who.color) }}>{who.avatar || who.name[0]}</div>}
+                  </div>
+                  {item.steps.length > 0 && (
+                    <div className="checklist-steps" role="group" aria-label={`${item.title} steps`}>
+                      {item.steps.map(st => (
+                        <div key={st.id} className={`list-item-row checklist-step ${st.done ? 'done' : ''}`}>
+                          <button className={`list-item-check ${st.done ? 'done' : ''}`} onClick={() => tickStep(item, st.id, !st.done)} role="checkbox" aria-checked={st.done} aria-label={st.title}>
+                            {st.done && <CheckIcon width={16} height={16} />}
+                          </button>
+                          <div className="list-item-body"><div className="list-item-title">{st.title}</div></div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )
             })}
