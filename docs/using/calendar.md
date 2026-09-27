@@ -81,7 +81,7 @@ You can turn it off per device under [Time cues](../settings/this-display.md#tim
 * Tap an **empty slot** in the time grid to add an event at that time, or tap the **+** button.
 * Tap an **event** to open its detail sheet. See [Events](events.md).
 * Keyboard: arrow keys move between day headers, and Enter opens the day.
-* After 2 minutes idle, a wall screen or kid's device goes back to the Board (or the locked view) on today and closes any open sheet. Parents' phones and computers don't, unless you turn on **Back to the calendar when idle** on that device (**Settings → General**, tap **Change** under **Time cues**) (it can be turned off on a wall screen the same way).
+* After 2 minutes idle, a wall screen or kid's device goes back to the Board (or the locked view) on today and closes any open sheet, except while an activity is open. Parents' phones and computers don't, unless you turn on **Back to the calendar when idle** on that device (**Settings → General**, tap **Change** under **Time cues**) (it can be turned off on a wall screen the same way).
 
 ## Filters
 

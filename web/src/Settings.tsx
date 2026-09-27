@@ -1111,7 +1111,7 @@ function TimeCueRows() {
           <label id="idle-reset-label">Back to the calendar when idle</label>
           <button className={`switch ${idleReset ? 'on' : ''}`} role="switch" aria-checked={idleReset} aria-labelledby="idle-reset-label" onClick={() => set({ idleReset: !idleReset })}><span className="knob" /></button>
         </div>
-        <div className="settings-row-sub">After 2 minutes without a tap, this screen closes what's open and shows today's calendar (10 minutes in Paint). Handy on the wall; on by default there, off on parents' phones and computers.</div>
+        <div className="settings-row-sub">After 2 minutes without a tap, this screen closes what's open and shows today's calendar, but never while an activity is open. Handy on the wall; on by default there, off on parents' phones and computers.</div>
       </div>
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
         <div className="toggle-row">

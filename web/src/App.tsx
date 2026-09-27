@@ -100,7 +100,6 @@ function Nav({ tab, mode, items }: { tab: string; mode: NavMode; items: ReturnTy
 }
 
 const IDLE_MS = 2 * 60 * 1000
-const PAINT_IDLE_MS = 10 * 60 * 1000 // a kid mid-picture pauses longer; Paint autosaves on the reset
 export const IDLE_RESET_EVENT = 'kinwall:idle-reset'
 
 function useHashTab() {
@@ -944,10 +943,13 @@ function AppRoutes() {
       clearTimeout(timer)
       timer = setTimeout(() => {
         if (document.activeElement?.matches('input:not([type="checkbox"]), textarea, select, [contenteditable]')) { reset(); return }
+        // Never out of an open activity (Paint, the sticker book, an added game): a kid mid-picture
+        // pauses, and taps inside an added activity's frame never reach this window anyway.
+        if (location.hash.startsWith('#/activities/')) { reset(); return }
         window.dispatchEvent(new CustomEvent(IDLE_RESET_EVENT))
         // Idle wall display drifts back to the calendar - but never away from an OAuth consent screen.
         if (location.hash !== '#/calendar' && location.hash !== '' && !location.hash.startsWith('#/authorize')) location.hash = '#/calendar'
-      }, location.hash.startsWith('#/activities/paint') ? PAINT_IDLE_MS : IDLE_MS)
+      }, IDLE_MS)
     }
     reset()
     const events = ['pointerdown', 'touchstart', 'keydown', 'focusin', 'wheel']

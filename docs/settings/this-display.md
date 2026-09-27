@@ -28,7 +28,7 @@ The card lists the cues that are on (for example "Now / Next on · warnings at 1
 
 | Item | Notes |
 |---|---|
-| **Back to the calendar when idle** | After 2 minutes without a tap, closes what's open and shows today's calendar (10 minutes in Paint). On by default on wall screens and kids' devices, off on parents' phones and computers. |
+| **Back to the calendar when idle** | After 2 minutes without a tap, closes what's open and shows today's calendar, but never while an activity (Paint, the sticker book or an added activity) is open. On by default on wall screens and kids' devices, off on parents' phones and computers. |
 | **Now / Next** | On by default. What's on now and what's next today, with a countdown, above the calendar on every view. On a wall display it hides when nothing is left today. On a phone it's a fixed two-line strip that reads "Nothing more today" when the day is done, so the screen never jumps. |
 | **Transition warnings** | Off, or one or more of 10, 5, 1 minute(s) before the next event (or its leave-by time). A calm banner; never shows during quiet hours. With any minute picked, a **Sound** toggle appears. |
 

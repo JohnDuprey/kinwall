@@ -46,7 +46,7 @@ A device holds up to **50 drawings**. When it's full, Paint says so and stops sa
 
 ### On a wall display
 
-* Drawing counts as activity, so the wall doesn't go back to the calendar mid-picture. On the Paint screen the idle reset waits **10 minutes** instead of 2. When it does happen, the drawing is saved first.
+* The wall never goes back to the calendar while an activity is open (Paint, the sticker book, or an added activity like Sight words), so nobody gets pulled out mid-picture or mid-game. Paint still saves as you draw.
 * [Quiet hours](quiet-hours.md) still dim the display as usual. The display's drawings can also be its [night screensaver](quiet-hours.md#screensaver).
 
 ## Where drawings are stored
