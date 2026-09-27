@@ -20,6 +20,7 @@ Kinwall is an open-source, self-hosted family wall calendar, chore chart and sha
 - **Daily & weekly snapshot**: tap someone's avatar for their day: a greeting, the weather, their events and leave-by times, chores to tick off, due and important list items, birthdays 🎂, and tomorrow at a glance, or flip to their week.
 - **Chores**: one-off or recurring, points, streaks with grace days, late-completion credit and an optional leaderboard. Link a checklist ("Bedtime: shower, pajamas, brush teeth") that has to be ticked off before the chore counts, or an activity ("5 min of Sight words") that completes the chore once the child has played that long.
 - **Lists**: shopping, to-do and reusable lists. Items remember their store and category, and you can drag to reorder.
+- **Meals**: plan the week's breakfasts, lunches, dinners and snacks from a recipe library, scale servings, and add the week's ingredients to a shopping list without doubling up.
 - **Trackers**: a reading log with progress bars, star ratings and books finished this year; a family memories journal with photos and "On this day"; and doctor and dentist visits with measurements and follow-ups. Health stays on phones and computers, never on the wall screen.
 - **Activities**: a kids' Paint app with forty colors plus a color wheel, a rainbow brush, fill bucket and undo. Drawings stay on the device and can be printed, saved, or added to the family photos.
   - **More activities**: add learning games made by others, like [Sight words](https://github.com/JohnDuprey/kinwall-plugin-sight-words) and [Math practice](https://github.com/JohnDuprey/kinwall-plugin-math). Each runs in a sandbox with no internet and no access to the family's data, saves progress per child, and Kinwall reviews the ones it lists. [Build your own](docs/contributing/plugins.md) from the [hello-world starter](https://github.com/JohnDuprey/kinwall-plugin-hello-world).
@@ -28,7 +29,7 @@ Kinwall is an open-source, self-hosted family wall calendar, chore chart and sha
 - **Push notifications**: per-device event reminders, a morning summary, chore nudges and list updates, all also kept in an in-app notification feed behind the header bell.
 - **Made for the wall**: display pairing by code or QR, quiet hours with a dim clock or photo slideshow overnight, dark mode on a schedule, and a Now / Next strip with countdowns.
 - **Color schemes**: eleven skins (Meadow, Midnight, Ocean, Autumn and more), Seasonal, or the family's own schemes with light and dark palettes checked for contrast, for the whole family or per device.
-- **Only what you use**: turn off chores, lists, Paint, photos, notes, messages or any tracker, and it disappears from every screen.
+- **Only what you use**: turn off chores, lists, meals, Paint, photos, notes, messages or any tracker, and it disappears from every screen.
 - **Made for phones too**: one compact header with a family button to filter the calendar to one person or open their day, and Help on every screen.
 - **Secure by default**: passkeys, recovery codes, scoped keys, and credentials encrypted at rest.
 
