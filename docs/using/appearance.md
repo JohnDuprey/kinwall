@@ -38,7 +38,7 @@ Under **Appearance on this device** (tap **Change**):
 
 Overrides are saved in the browser's local storage on that device. They're never sent to the server and aren't in exports. A kitchen iPad can use Extra large text and the Midnight scheme while phones stay on the household defaults.
 
-**Navigation position** (Auto, Bottom, Left, Right) for tablets and desktops is in the **This display** card. Phones always use the bottom bar. See [This device](../settings/this-display.md).
+**Navigation position** (Auto, Bottom, Left, Right) for tablets and desktops is in the **This display** card. Phones use the bottom bar, and a slim rail down the left side when turned sideways. See [This device](../settings/this-display.md).
 
 ## Color schemes
 

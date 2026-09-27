@@ -1281,7 +1281,7 @@ function ThisDisplaySection({ keyName }: { keyName?: string }) {
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
         <div className="settings-row-label" aria-hidden="true">Navigation position</div>
         <Segmented label="Navigation position" value={pref} onChange={setNavPref} options={NAV_PREF_OPTIONS} disabled={isPhone} style={isPhone ? { opacity: 0.5 } : undefined} />
-        <div className="settings-row-sub">{isPhone ? 'Phones always use the bottom bar.' : 'Where the Calendar, Chores and Lists buttons sit.'}</div>
+        <div className="settings-row-sub">{isPhone ? 'Phones use the bottom bar, or a side rail when turned sideways.' : 'Where the Calendar, Chores and Lists buttons sit.'}</div>
       </div>
     </Section>
   )

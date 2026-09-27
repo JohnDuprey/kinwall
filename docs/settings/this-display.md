@@ -12,7 +12,7 @@ What this screen shows and how you get around it.
 | **Show only** | Pin this screen to one member, which is handy for a display in a bedroom. On a display an admin paired, this follows **Who uses it** and reads "Set by a parent": change it under [Access → Wall screens & kids' devices](access.md). Displays paired before that option existed pick a member, or **Everyone**, here. |
 | **Also show things for everyone** | Only shown once a member is picked. On (default): shared events, chores and lists (nobody assigned) still show alongside that member's own. Off: only their items. |
 | **Lock view** | Fixes the calendar to one view (Board, Day, Week/3 Day, Month, Schedule) and hides the view switcher, so a pinned display can't be bumped into a different view. **Off** leaves the switcher free. |
-| **Navigation position** | **Auto**, **Bottom**, **Left** or **Right**: where the tab buttons (Calendar, Chores, Lists, Meals, Trackers, Activities, Settings; fewer if some are turned off) sit, as a bottom tab bar or a side rail. Phones always use the bottom bar. |
+| **Navigation position** | **Auto**, **Bottom**, **Left** or **Right**: where the tab buttons (Calendar, Chores, Lists, Meals, Trackers, Activities, Settings; fewer if some are turned off) sit, as a bottom tab bar or a side rail. Phones use the bottom bar, and a slim rail down the left side when turned sideways. |
 
 A paired wall display also locks its own viewport (no pinch-zoom), so it can't be zoomed by a stray touch.
 

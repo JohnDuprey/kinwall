@@ -480,6 +480,8 @@ export default function Chores() {
 
   return (
     <div className="content">
+      {/* display: contents, except on a phone on its side, where it scrolls the whole view as one. */}
+      <div className="chores-scroll">
       <div className="chores-header">
         <h2 className="period-label">{format(selectedDate, 'EEEE, MMMM d')}</h2>
       </div>
@@ -525,6 +527,7 @@ export default function Chores() {
           {isPhone && parentDevice && <p className="chores-hint">Press and hold a chore to edit it.</p>}
         </div>
       )}
+      </div>
 
       {parentDevice && <button className="fab" onClick={() => setEditChore('new')} aria-label="Add chore"><PlusIcon /></button>}
 
