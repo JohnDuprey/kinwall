@@ -2012,14 +2012,14 @@ function ConnectedAppsSection({ toast }: { toast: (m: string, persist?: boolean)
       {apps.map(a => (
         <div key={a.id} className="key-item">
           <div>
-            <div className="settings-row-label">{a.clientName}</div>
+            <div className="settings-row-label">{a.clientName}{a.current && <> <span className="cal-kind-badge">This device</span></>}</div>
             <div className="settings-row-sub">
               {a.scope === 'admin' ? 'Full access' : 'Everyday access'} · connected {new Date(a.createdAt).toLocaleDateString()}
               {a.lastUsedAt ? ` · used ${new Date(a.lastUsedAt).toLocaleDateString()}` : ''}
             </div>
           </div>
-          {a.deviceApp && <OwnerSelect value={a.owner ?? ''} onChange={v => changeOwner(a.id, v)} label={`Whose device ${a.clientName} is`} legacy={!a.owner} />}
-          <button className="icon-btn" onClick={() => revoke(a.id, a.clientName)} aria-label={`Disconnect ${a.clientName}`}><TrashIcon width={16} height={16} /></button>
+          {a.deviceApp && !a.current && <OwnerSelect value={a.owner ?? ''} onChange={v => changeOwner(a.id, v)} label={`Whose device ${a.clientName} is`} legacy={!a.owner} />}
+          {!a.current && <button className="icon-btn" onClick={() => revoke(a.id, a.clientName)} aria-label={`Disconnect ${a.clientName}`}><TrashIcon width={16} height={16} /></button>}
         </div>
       ))}
     </Section>
