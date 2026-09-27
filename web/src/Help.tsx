@@ -9,6 +9,9 @@ import { HelpIcon } from './icons.tsx'
 
 export const DOCS_URL = 'https://docs.kinwall.family'
 export const ISSUES_URL = 'https://github.com/JohnDuprey/kinwall/issues'
+// The issue forms in .github/ISSUE_TEMPLATE; a bug report arrives with this version filled in.
+const newIssue = (template: string, version?: string) =>
+  `${ISSUES_URL}/new?template=${template}${version ? `&version=${encodeURIComponent(version)}` : ''}`
 
 export function HelpButton({ className = '' }: { className?: string }) {
   const [open, setOpen] = useState(false)
@@ -26,7 +29,8 @@ export function HelpButton({ className = '' }: { className?: string }) {
           <ul className="help-links">
             <li><a className="help-link" href={DOCS_URL} target="_blank" rel="noopener"><strong>Docs &amp; guides</strong><span>Setting up, connecting calendars, chores, lists, the wall display.</span></a></li>
             <li><a className="help-link" href={`${DOCS_URL}/contributing/accessibility`} target="_blank" rel="noopener"><strong>Accessibility</strong><span>Keyboard, screen readers, low-stimulation mode, what's still missing.</span></a></li>
-            <li><a className="help-link" href={ISSUES_URL} target="_blank" rel="noopener"><strong>Report a problem or ask a question</strong><span>Opens the project's issue tracker.</span></a></li>
+            <li><a className="help-link" href={newIssue('bug_report.yml', version)} target="_blank" rel="noopener"><strong>Report a problem</strong><span>Something isn't working. Opens a short form on GitHub.</span></a></li>
+            <li><a className="help-link" href={newIssue('feature_request.yml')} target="_blank" rel="noopener"><strong>Suggest a feature</strong><span>An idea for your family. Opens a short form on GitHub.</span></a></li>
             {hostPortalUrl && <li><a className="help-link" href={hostPortalUrl} target="_blank" rel="noopener"><strong>Your hosting</strong><span>Manage or delete your family's instance.</span></a></li>}
           </ul>
           {version && <p className="field-hint">Kinwall v{version}</p>}

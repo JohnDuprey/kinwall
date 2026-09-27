@@ -1,0 +1,31 @@
+name: Suggest a feature
+description: An idea that would make Kinwall better for your family.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What would you like to do?
+      description: The situation at home that this is for. Starting from the problem helps more than a finished design.
+      placeholder: Our kids forget their morning routine, and the wall only shows chores once they're due.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Your idea
+      description: How you picture it working, if you have something in mind.
+  - type: checkboxes
+    id: who
+    attributes:
+      label: Who would use it?
+      options:
+        - label: Parents
+        - label: Kids
+        - label: On the wall display
+        - label: On phones
+  - type: textarea
+    id: workaround
+    attributes:
+      label: What do you do today instead?
+      description: Any workaround, or another tool you use for this.

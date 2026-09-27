@@ -1,0 +1,56 @@
+name: Report a problem
+description: Something in Kinwall isn't working the way it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time. Please leave out anything private: your family's names, addresses, calendar details, keys and screenshots with personal information.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you saw, and what you expected to happen instead.
+      placeholder: When I tick a chore on the wall iPad, it stays unticked until I reload.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How can we make it happen?
+      description: The steps, one per line, starting from a screen we can find.
+      placeholder: |
+        1. Open Chores on the wall display
+        2. Tap "Make bed" for Maya
+        3. ...
+    validations:
+      required: false
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where do you run Kinwall?
+      options:
+        - Hosted (kinwall.family)
+        - Docker
+        - Cloudflare Workers
+        - Home Assistant add-on
+        - The demo
+        - Not sure
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Kinwall version
+      description: In Kinwall, open Help (the ? button); the version is at the bottom.
+      placeholder: 1.0.2
+  - type: input
+    id: device
+    attributes:
+      label: Device and browser
+      description: For example "iPad (10th gen), Safari, installed on the home screen", "Pixel 8, the Kinwall app" or "Mac, Chrome".
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?
+      description: Screenshots, error messages, or what you already tried. You can drag images in here.
