@@ -45,7 +45,7 @@ Admin keys for scripts and automations. **New admin key** shows the key once, wi
 
 ## Webhooks
 
-**New webhook**: a **URL** and the **Events** to send (chips for all 13 event types), then **Add webhook**. Its signing secret is shown once, with **Copy**. **Rotate secret** replaces it (the new one is also shown once); delete from the list. See [Webhooks](../integrations/webhooks.md).
+**New webhook**: a **URL** and the **Events** to send (chips for all 17 event types), then **Add webhook**. Its signing secret is shown once, with **Copy**. **Rotate secret** replaces it (the new one is also shown once); delete from the list. See [Webhooks](../integrations/webhooks.md).
 
 ## Your data
 

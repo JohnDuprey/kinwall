@@ -20,6 +20,8 @@ In Safari, tap **Share → Add to Home Screen**, then always launch Kinwall from
 
 On phones, Kinwall also offers this itself. From the second visit in a browser, a card above the tab bar says **Add Kinwall to your Home Screen**. On Android its **Install** button opens the install dialog; on iPhone and iPad **Show me how** walks through Share → **Add to Home Screen**. **Not now** hides it for 30 days, and it never shows once Kinwall runs from the Home Screen. The same option is always under **Settings → General → This display → Add to Home Screen**.
 
+There are also native Kinwall apps for iPhone, iPad, Apple Watch and Android, in a separate [kinwall-mobile](https://github.com/JohnDuprey/kinwall-mobile) repository. They aren't on the App Store or Play Store yet, so this Home Screen install is the way to get Kinwall on a phone today; see [MCP server → Native apps](../integrations/mcp.md#native-apps) for how they sign in once you do build one.
+
 ### Requirements
 
 | | To run Kinwall | To add it to the Home Screen | Push notifications |

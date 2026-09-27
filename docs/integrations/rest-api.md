@@ -79,7 +79,10 @@ Color settings on `PATCH /api/settings`: `colorScheme` is a built-in id (`meadow
 | Chores | `GET/POST /api/chores`, `PATCH/DELETE /api/chores/{id}`, `GET /api/chores/day?date=`, `POST/DELETE /api/chores/{id}/complete` |
 | Leaderboard | `GET /api/leaderboard?period=today\|week\|month` |
 | Lists | `GET/POST /api/lists`, `GET/PATCH/DELETE /api/lists/{id}`, items, steps (`POST/PATCH/DELETE .../steps[/{stepId}]`, `POST .../steps/reorder`), `clear-completed`, `reset`, `reorder`, `groups` |
-| Snapshot & weather | `GET /api/snapshot?member=&range=day\|week`, `GET /api/board?days=`, `GET /api/weather`, `GET /api/geocode?q=` |
+| Meals | `GET/POST/PATCH/DELETE /api/recipes[/{id}]`, `GET/POST/PATCH/DELETE /api/meals[/{id}]`, `GET /api/meals/projection`, `POST /api/meals/projection/apply`, `POST/DELETE /api/meals/{id}/calendar-link`, `POST /api/meals/{id}/calendar-event`. See [Meals](../using/meals.md). |
+| Trackers | `GET/POST /api/trackers`, `GET/PATCH/DELETE /api/trackers/{id}`, `GET /api/trackers/summary?year=`. See [Trackers](../using/trackers.md). |
+| Activity plugins | `GET /api/plugins/catalog`, `GET/POST /api/plugins`, `PATCH/DELETE /api/plugins/{id}`, `POST /api/plugins/{id}/update`, `GET/PUT /api/plugins/{id}/data`, `POST /api/plugins/{id}/playtime`. See [Activities](../using/activities.md#activities-from-others) and [Building activity plugins](../contributing/plugins.md). |
+| Snapshot & weather | `GET /api/snapshot?member=&range=day\|week`, `GET /api/board?days=`, `GET /api/weather`, `GET /api/geocode?q=`, `GET /api/tidbits` |
 | Keys & pairing | `GET/POST /api/keys`, `PATCH/DELETE /api/keys/{id}`, `POST /api/pair`, `/api/pair/approve`, `/api/pair/poll` |
 | Passkeys & recovery | `/api/passkeys*`, `/api/sessions/logout`, `GET/POST /api/recovery-codes`, `POST /api/recovery/login` |
 | Connected apps | `GET /api/authorizations`, `GET /api/authorizations/request`, `POST /api/authorizations/approve`, `PATCH /api/authorizations/{id}`, `DELETE /api/authorizations/{id}` |
