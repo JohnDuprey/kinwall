@@ -8,15 +8,27 @@ import { useApp } from './AppContext.tsx'
 import { useDialog } from './dialog.tsx'
 import { announce } from './a11y.tsx'
 import Sheet from './Sheet.tsx'
-import { MEMBER_PALETTE } from './types.ts'
-import { colorName, inkFor } from './color.ts'
+import { inkFor } from './color.ts'
+import { CustomColorSwatch } from './ColorSwatch.tsx'
 import { IDLE_RESET_EVENT } from './App.tsx'
 import { countDrawings, deleteDrawing, getDrawing, listDrawings, putDrawing, type Drawing, type Meta } from './drawings-db.ts'
 import { BrushIcon, BucketIcon, ChevronLeft, DownloadIcon, EditIcon, EraserIcon, HeartIcon, ImagesIcon, PlusIcon, PrinterIcon, RedoIcon, TrashIcon, UndoIcon } from './icons.tsx'
 import { preparePhoto } from './photos.ts'
 import { api, ApiError } from './api.ts'
 
-const COLORS = [...MEMBER_PALETTE, '#FF6B6B', '#4DA3FF', '#222222', '#FFFFFF', '#8B5A2B', '#8A8A8A']
+// The Colors sheet, one row each: bright, pastel (the member palette), dark, skin tones and browns,
+// grays and extras. Names are what screen readers say.
+const PALETTE: [hex: string, name: string][][] = [
+  [['#FF3B30', 'Red'], ['#FF9500', 'Orange'], ['#FFCC00', 'Yellow'], ['#34C759', 'Green'], ['#2FBFB0', 'Teal'], ['#4DA3FF', 'Blue'], ['#8E5CF7', 'Purple'], ['#FF5FA2', 'Hot pink']],
+  [['#FF9E7A', 'Peach'], ['#FFD166', 'Amber'], ['#C7E27A', 'Lime'], ['#7ED9A6', 'Mint'], ['#8FE0D6', 'Aqua'], ['#7AB8FF', 'Sky blue'], ['#B39DFF', 'Lavender'], ['#FF8FA3', 'Pink']],
+  [['#B3261E', 'Dark red'], ['#C2570C', 'Rust'], ['#B8860B', 'Mustard'], ['#1E7B3A', 'Forest green'], ['#0F766E', 'Dark teal'], ['#1D4ED8', 'Royal blue'], ['#5B21B6', 'Deep purple'], ['#9D174D', 'Berry']],
+  [['#FDDBB4', 'Light skin'], ['#E8B98A', 'Tan'], ['#C68A5A', 'Caramel'], ['#8D5A3B', 'Brown skin'], ['#5C3A21', 'Dark brown'], ['#8B5A2B', 'Brown'], ['#FFB6D9', 'Rose'], ['#A0AEC0', 'Slate']],
+  [['#FFFFFF', 'White'], ['#D9D9D9', 'Light gray'], ['#8A8A8A', 'Gray'], ['#4A4A4A', 'Dark gray'], ['#222222', 'Black'], ['#FF6B6B', 'Coral red'], ['#F5B301', 'Gold'], ['#1E3A5F', 'Navy']],
+]
+const PRESETS = PALETTE.flat().map(([hex]) => hex)
+const nameOf = (hex: string) => PALETTE.flat().find(([h]) => h.toLowerCase() === hex.toLowerCase())?.[1] ?? 'Your color'
+const RECENT_KEY = 'kinwall.paint.recentColors' // this device's last few "any color" picks
+const loadRecent = (): string[] => { try { return JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]') } catch { return [] } }
 const SIZES = [3, 6, 10, 16, 24, 36, 52] // CSS px
 const SIZE_NAMES = ['Tiny', 'Small', 'Medium', 'Big', 'Bigger', 'Huge', 'Giant']
 const MAX_PX = 2048 // longest canvas side: keeps flood fill and PNG encoding quick on an iPad
@@ -128,6 +140,8 @@ export default function Paint() {
   const [, setHistTick] = useState(0)
   const [gallery, setGallery] = useState(false)
   const [who, setWho] = useState(false)
+  const [colors, setColors] = useState(false)
+  const [recent, setRecent] = useState(loadRecent)
   const [printing, setPrinting] = useState<{ url: string; name: string; date: string } | null>(null)
 
   // Mutable drawing state lives in refs: pointer handlers and the unmount autosave must see the latest.
@@ -408,7 +422,14 @@ export default function Paint() {
 
   const member = members.find(m => m.id === meta?.memberId)
   const canUndo = r.idx > 0, canRedo = r.idx < r.hist.length - 1
-  const pickColor = (c: string) => { setColor(c); if (tool !== 'fill') setTool('brush') }
+  const pickColor = (c: string) => { setColor(c); if (tool !== 'fill') setTool('brush'); setColors(false); announce(nameOf(c)) }
+  const pickCustom = (c: string) => {
+    setColor(c); if (tool !== 'fill') setTool('brush')
+    const next = [c, ...recent.filter(x => x !== c)].slice(0, 7)
+    setRecent(next)
+    try { localStorage.setItem(RECENT_KEY, JSON.stringify(next)) } catch { /* private mode: just not remembered */ }
+  }
+  const painting = tool !== 'eraser' && tool !== 'rainbow'
 
   return (
     <div className="paint">
@@ -421,6 +442,9 @@ export default function Paint() {
               {t.Icon ? <t.Icon /> : <span className="paint-rainbow-dot" aria-hidden="true" />}
             </button>
           ))}
+          <button className="paint-btn paint-color-btn" aria-label={`Colors: ${nameOf(color)}`} title="Colors" aria-haspopup="dialog" onClick={() => setColors(true)}>
+            <span className="paint-color-dot" style={{ background: color }} aria-hidden="true" />
+          </button>
         </div>
         <div className="paint-group" role="group" aria-label="Brush size">
           {SIZES.map((s, i) => (
@@ -447,12 +471,6 @@ export default function Paint() {
             <span>{meta?.name}</span><EditIcon width={18} height={18} />
           </button>
         </div>
-        <div className="paint-group paint-colors color-swatch-row" role="group" aria-label="Colors">
-          {COLORS.map(c => (
-            <button key={c} className={`color-swatch ${color === c && tool !== 'eraser' && tool !== 'rainbow' ? 'active' : ''}`} style={{ backgroundColor: c }}
-              aria-pressed={color === c && tool !== 'eraser' && tool !== 'rainbow'} aria-label={colorName(c)} title={colorName(c)} onClick={() => pickColor(c)} />
-          ))}
-        </div>
       </div>
       <div className="paint-canvas-wrap" ref={wrapRef}>
         <canvas ref={canvasRef} className={`paint-canvas paint-tool-${tool}`} role="img" aria-label={`Drawing canvas: ${meta?.name ?? ''}`}
@@ -463,6 +481,29 @@ export default function Paint() {
         onOpen={async d => { await save(); await open(d); setGallery(false); announce(`Opened ${d.name}`) }}
         onNew={async () => { await save(); startNew(); setGallery(false); announce('New drawing') }}
         onDeleted={id => { if (id === r.meta?.id) startNew() }} />}
+
+      {colors && (
+        <Sheet title="Colors" onClose={() => setColors(false)}>
+          <div className="paint-palette">
+            {PALETTE.map((row, i) => (
+              <div key={i} className="paint-palette-row" role="group" aria-label={['Bright', 'Pastel', 'Dark', 'Skin and browns', 'Grays'][i]}>
+                {row.map(([c, name]) => {
+                  const on = painting && color.toLowerCase() === c.toLowerCase()
+                  return <button key={c} className={`color-swatch ${on ? 'active' : ''} ${c === '#FFFFFF' ? 'paint-swatch-light' : ''}`} style={{ backgroundColor: c }} aria-pressed={on} aria-label={name} title={name} onClick={() => pickColor(c)} />
+                })}
+              </div>
+            ))}
+          </div>
+          <h3 className="paint-palette-title">Any color</h3>
+          <div className="paint-palette-row">
+            <CustomColorSwatch value={color} presets={PRESETS} onChange={pickCustom} label="Pick any color" />
+            {recent.map(c => (
+              <button key={c} className={`color-swatch ${painting && color === c ? 'active' : ''}`} style={{ backgroundColor: c }} aria-pressed={painting && color === c}
+                aria-label={`Your color ${c}`} title={c} onClick={() => pickColor(c)} />
+            ))}
+          </div>
+        </Sheet>
+      )}
 
       {who && (
         <Sheet title="Who's drawing?" onClose={() => setWho(false)}>

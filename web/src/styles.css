@@ -1476,7 +1476,13 @@ a.activity-card:active { transform: scale(0.98); }
 .paint { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .paint-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 6px var(--pad) 8px; flex-shrink: 0; }
 .paint-group { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
-.paint-colors { flex-basis: 100%; flex-wrap: nowrap; overflow-x: auto; gap: 2px; padding: 2px 0; }
+.paint-color-dot { width: 30px; height: 30px; border-radius: 50%; display: block; box-shadow: 0 0 0 2px var(--card), 0 0 0 3px var(--border); }
+/* Colors sheet: rows of big swatches, eight across on a tablet, wrapping on a phone. */
+.paint-palette { display: grid; gap: 6px; }
+.paint-palette-row { display: grid; grid-template-columns: repeat(8, minmax(0, 52px)); gap: 6px; }
+.paint-palette-row .color-swatch { width: 100%; height: auto; aspect-ratio: 1; }
+.color-swatch.paint-swatch-light:not(.active) { border-color: var(--border); } /* white on a white sheet */
+.paint-palette-title { margin: 16px 0 8px; font-size: 0.8125rem; text-transform: uppercase; letter-spacing: 0.02em; color: var(--text-dim); }
 .paint-btn {
   width: 48px; height: 48px; flex-shrink: 0; border-radius: 14px; border: 3px solid transparent;
   background: var(--card); color: var(--text); box-shadow: var(--shadow);
@@ -1507,11 +1513,9 @@ a.activity-card:active { transform: scale(0.98); }
 @media (max-width: 600px) {
   /* One scrolling row on phones so the canvas keeps its height. */
   .paint-toolbar { flex-wrap: nowrap; overflow-x: auto; padding: 6px 12px; }
-  .paint-colors { flex-basis: auto; overflow: visible; }
-  /* Colors right after the tools, where a kid looks first; sizes and actions scroll in after. */
+  /* The tools (with the Colors button) first, where a kid looks; sizes and actions scroll in after. */
   .paint-toolbar > .paint-group { order: 2; }
   .paint-toolbar > .paint-group:first-child { order: 0; }
-  .paint-toolbar > .paint-colors { order: 1; }
 }
 @media (prefers-contrast: more) { .paint-btn { border-color: var(--border); } .paint-btn.active { border-color: var(--text); } }
 

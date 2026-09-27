@@ -17,7 +17,7 @@ A drawing app for kids. Tap **Activities → Paint**. The canvas fills the scree
 * **Eraser**: paints white paper back.
 * **Fill bucket**: tap an area to fill it with the chosen color. It also covers most of the soft edge along a line, so outlines don't leave a white ring.
 * **Sizes**: seven dots, from Tiny to Giant.
-* **Colors**: sixteen colors, including the family member colors plus black, white, brown and gray. Picking a color while the eraser or rainbow brush is on switches back to the brush.
+* **Colors**: the round button after the tools shows the current color. Tap it for forty colors in rows: bright, pastel, dark, skin tones and browns, and grays. **Any color** opens the device's color picker (a color wheel on most devices), and the last seven picked that way are kept on that device. Picking a color while the eraser or rainbow brush is on switches back to the brush.
 * **Undo / Redo**: up to 20 steps. With a keyboard, use Ctrl/⌘+Z and Ctrl/⌘+Shift+Z (or Ctrl+Y).
 * **Clear**: wipes the picture after you confirm. You can undo a clear.
 * **Who's drawing?**: a new drawing asks who's making it (tap a face, or **Skip**). When the family is filtered to one person, or the display is pinned to one, that person is the artist without asking. The face button in the toolbar changes it later. The artist shows in **My drawings** and in the caption when the picture is saved to family photos.

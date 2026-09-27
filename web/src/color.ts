@@ -54,6 +54,6 @@ const COLOR_NAMES: Record<string, string> = {
   '#FF9E7A': 'Peach', '#FFD166': 'Amber', '#7ED9A6': 'Mint', '#7AB8FF': 'Sky blue', '#B39DFF': 'Lavender',
   '#FF8FA3': 'Pink', '#8FE0D6': 'Aqua', '#FFB6D9': 'Rose', '#C7E27A': 'Lime', '#A0AEC0': 'Slate',
   '#FF6B6B': 'Coral red', '#6FCF97': 'Green', '#4DA3FF': 'Blue', '#2FBFB0': 'Teal',
-  '#222222': 'Black', '#FFFFFF': 'White', '#8B5A2B': 'Brown', '#8A8A8A': 'Grey', // Paint's basics
+  '#222222': 'Black', '#FFFFFF': 'White', '#8B5A2B': 'Brown', '#8A8A8A': 'Gray', // Paint's basics
 }
 export const colorName = (hex: string) => COLOR_NAMES[hex.toUpperCase()] ?? hex
