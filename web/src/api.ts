@@ -427,7 +427,7 @@ export const api = {
   // store: Checkout at the end of a shopping trip - remembered as where these were last bought.
   clearListCompleted: (listId: string, itemIds?: string[], store?: string) => MOCK ? mock.clearListCompleted(listId, itemIds, store) : post<{ deleted: number }>(`api/lists/${listId}/clear-completed`, itemIds ? { itemIds, ...(store ? { store } : {}) } : undefined),
   resetList: (listId: string, itemIds?: string[]) => MOCK ? mock.resetList(listId, itemIds) : post<{ reset: number }>(`api/lists/${listId}/reset`, itemIds ? { itemIds } : undefined),
-  // Stores & categories: rename (to) or remove (to: null) a value everywhere; a store's aisle order.
+  // Stores & departments: rename (to) or remove (to: null) a value everywhere; a store's aisle order.
   renameListValue: (body: { field: 'store' | 'category' | 'aisle'; from: string; to: string | null; store?: string | null }) =>
     MOCK ? mock.renameListValue(body) : post<{ updated: number }>('api/lists/values', body),
   setStoreAisles: (store: string | null, aisles: string[]) =>

@@ -612,7 +612,7 @@ export const mock = {
   createList: async (body: Partial<List>): Promise<List> => {
     const nl: List = {
       id: uid(), name: body.name ?? 'New list', emoji: body.emoji ?? '📝', color: body.color ?? '#FF9E7A',
-      kind: body.kind ?? 'todo', memberIds: body.memberIds ?? [], groupBy: body.groupBy ?? (body.kind === 'shopping' ? 'category' : 'none'), sortBy: body.sortBy ?? (body.kind === 'shopping' ? 'aisle' : 'manual'),
+      kind: body.kind ?? 'todo', memberIds: body.memberIds ?? [], groupBy: body.groupBy ?? (body.kind === 'shopping' ? 'aisle' : 'none'), sortBy: body.sortBy ?? (body.kind === 'shopping' ? 'aisle' : 'manual'),
       keepChecked: body.keepChecked ?? body.kind !== 'todo',
       sort: lists.length, archived: false, createdAt: new Date().toISOString(), itemCount: 0, openCount: 0,
     }

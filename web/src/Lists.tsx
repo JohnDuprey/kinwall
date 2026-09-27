@@ -17,7 +17,7 @@ import { announce, pressable, Segmented } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
 import { CustomColorSwatch } from './ColorSwatch.tsx'
 import NotesThread from './NotesThread.tsx'
-import { aisleAt, setTripStore, tripStore, tripView } from './trip.ts'
+import { aisleAt, departmentAisle, setTripStore, tripStore, tripView } from './trip.ts'
 
 const KIND_LABEL: Record<ListKind, string> = { todo: 'To-do', shopping: 'Shopping', reusable: 'Reusable' }
 
@@ -119,7 +119,7 @@ function ListCard({ list, active, members, onSelect, onEdit }: {
 
 function ListEditSheet({ list, onClose, onSaved, onDeleted, onManage }: {
   list: List | 'new'; onClose: () => void; onSaved: () => void; onDeleted: () => void
-  onManage?: () => void // shopping lists: open "Stores & categories"
+  onManage?: () => void // shopping lists: open "Stores & departments"
 }) {
   const dialog = useDialog()
   const { members, toast } = useApp()
@@ -198,8 +198,8 @@ function ListEditSheet({ list, onClose, onSaved, onDeleted, onManage }: {
       <MemberPicker members={members} selected={memberIds} onChange={setMemberIds} label="Owners (nobody = whole family)" />
       {onManage && existing?.kind === 'shopping' && (
         <div className="field">
-          <label>Stores &amp; categories</label>
-          <button className="btn btn-secondary btn-block" onClick={onManage}>Rename stores, categories and aisles, or set aisle order</button>
+          <label>Stores &amp; departments</label>
+          <button className="btn btn-secondary btn-block" onClick={onManage}>Rename stores, departments and aisles, or set aisle order</button>
         </div>
       )}
     </Sheet>
@@ -256,6 +256,7 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisle
   const [aisle, setAisle] = useState(initialAisle)
   const aisleStore = trip ?? (store.trim() || null) // whose aisles the picker offers
   const lastStore = item.places?.find(p => p.store)?.store // suggested, never applied for you
+  const deptAisle = departmentAisle(category, storeAisles(suggestions, aisleStore, aisleOrder)) // shown, not saved
   const [memberId, setMemberId] = useState<string | null>(item.memberId)
   const [dueDate, setDueDate] = useState(item.dueDate ?? '')
   const [eventId, setEventId] = useState<string | null>(item.eventId)
@@ -316,9 +317,44 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisle
           )}
           <ValuePicker id="item-aisle" label={aisleStore ? `Aisle at ${aisleStore}` : 'Aisle'} value={aisle}
             options={storeAisles(suggestions, aisleStore, aisleOrder)} newLabel="New aisle…" placeholder="e.g. Aisle 4, Produce, Back wall" onChange={setAisle} />
-          <ValuePicker id="item-category" label="Category" value={category} options={suggestions.categories} newLabel="New category…" placeholder="e.g. Produce" onChange={setCategory} />
+          {!aisle.trim() && deptAisle && <p className="field-hint item-dept-aisle">{deptAisle}, from its department</p>}
         </>
       )}
+    </>
+  )
+
+  const priorityField = (
+    <div className="field">
+      <label id="item-priority-label">Priority</label>
+      <Segmented className="priority-seg" label="Priority" value={priority} onChange={setPriority}
+        options={(['low', 'normal', 'high', 'urgent'] as ListItemPriority[]).map(p => ({
+          key: p, label: <>{p !== 'normal' && <span className={`prio-dot prio-${p}`} aria-hidden="true" />}{PRIORITY_LABEL[p]}</>,
+        }))} />
+    </div>
+  )
+  const eventAndNotes = (
+    <>
+      <div className="field">
+        <label>Linked event</label>
+        <button className="btn btn-secondary btn-block" style={{ justifyContent: 'flex-start', minHeight: 44 }} onClick={() => setPickingEvent(v => !v)} aria-expanded={pickingEvent}
+          aria-label={`Linked event: ${eventId ? (linked ? eventLabel(linked) : 'an event outside the next 30 days') : 'none'}`}>
+          <CalendarIcon width={16} height={16} />{eventId ? (linked ? eventLabel(linked) : 'An event outside the next 30 days') : 'None'}
+        </button>
+        {pickingEvent && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 240, overflowY: 'auto', marginTop: 6 }}>
+            <button className={`chip ${eventId === null ? 'active' : ''}`} aria-pressed={eventId === null} style={{ minHeight: 44 }} onClick={() => { setEventId(null); setPickingEvent(false) }}>None</button>
+            {upcoming.map(e => (
+              <button key={e.id} className={`chip ${eventId === e.id ? 'active' : ''}`} aria-pressed={eventId === e.id} style={{ minHeight: 44, justifyContent: 'flex-start', ['--chip-color' as string]: e.color }}
+                onClick={() => { setEventId(e.id); setPickingEvent(false) }}>{eventLabel(e)}</button>
+            ))}
+            {upcoming.length === 0 && <div className="list-item-meta">No events in the next 30 days</div>}
+          </div>
+        )}
+      </div>
+      <div className="field">
+        <label>Notes</label>
+        <textarea value={notes} onChange={e => setNotes(e.target.value)} />
+      </div>
     </>
   )
 
@@ -335,13 +371,7 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisle
           onKeyDown={e => { if (e.key === 'Enter') e.preventDefault() }} />
       </div>
       {kind === 'shopping' && quantityAndPlace /* on a shopping list, where it goes comes first */}
-      <div className="field">
-        <label id="item-priority-label">Priority</label>
-        <Segmented className="priority-seg" label="Priority" value={priority} onChange={setPriority}
-          options={(['low', 'normal', 'high', 'urgent'] as ListItemPriority[]).map(p => ({
-            key: p, label: <>{p !== 'normal' && <span className={`prio-dot prio-${p}`} aria-hidden="true" />}{PRIORITY_LABEL[p]}</>,
-          }))} />
-      </div>
+      {kind !== 'shopping' && priorityField}
       <StepsEditor listId={listId} item={live} onChange={setLive} />
       {kind !== 'shopping' && quantityAndPlace}
       {kind !== 'shopping' && (
@@ -364,27 +394,15 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisle
             </div>
           </div>
       )}
-      <div className="field">
-        <label>Linked event</label>
-        <button className="btn btn-secondary btn-block" style={{ justifyContent: 'flex-start', minHeight: 44 }} onClick={() => setPickingEvent(v => !v)} aria-expanded={pickingEvent}
-          aria-label={`Linked event: ${eventId ? (linked ? eventLabel(linked) : 'an event outside the next 30 days') : 'none'}`}>
-          <CalendarIcon width={16} height={16} />{eventId ? (linked ? eventLabel(linked) : 'An event outside the next 30 days') : 'None'}
-        </button>
-        {pickingEvent && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 240, overflowY: 'auto', marginTop: 6 }}>
-            <button className={`chip ${eventId === null ? 'active' : ''}`} aria-pressed={eventId === null} style={{ minHeight: 44 }} onClick={() => { setEventId(null); setPickingEvent(false) }}>None</button>
-            {upcoming.map(e => (
-              <button key={e.id} className={`chip ${eventId === e.id ? 'active' : ''}`} aria-pressed={eventId === e.id} style={{ minHeight: 44, justifyContent: 'flex-start', ['--chip-color' as string]: e.color }}
-                onClick={() => { setEventId(e.id); setPickingEvent(false) }}>{eventLabel(e)}</button>
-            ))}
-            {upcoming.length === 0 && <div className="list-item-meta">No events in the next 30 days</div>}
-          </div>
-        )}
-      </div>
-      <div className="field">
-        <label>Notes</label>
-        <textarea value={notes} onChange={e => setNotes(e.target.value)} />
-      </div>
+      {kind === 'shopping' ? (
+        // Groceries: where it goes stays up front; the rest folds away, with what's set in the summary.
+        <details className="settings-disclosure item-more">
+          <summary>{['More', category.trim(), priority !== 'normal' && `${PRIORITY_LABEL[priority]} priority`, eventId && 'Event', notes.trim() && 'Notes'].filter(Boolean).join(' · ')}</summary>
+          <ValuePicker id="item-category" label="Department" value={category} options={suggestions.categories} newLabel="New department…" placeholder="e.g. Produce" onChange={setCategory} />
+          {priorityField}
+          {eventAndNotes}
+        </details>
+      ) : eventAndNotes}
       {settings.features.notes && <NotesThread target={`list_item:${item.id}`} title="Discussion" />}
       {manual && (
         <div className="field">
@@ -535,8 +553,8 @@ function ItemRow({ item, kind, groupBy, members, event, onToggle, onOpen, handle
   const assignee = kind !== 'shopping' && item.memberId ? members.find(m => m.id === item.memberId) : null
   const showStore = kind === 'shopping' && groupBy !== 'store' && groupBy !== 'aisle' && item.store
   const showAisle = kind === 'shopping' && groupBy !== 'aisle' && item.aisle
-  // A category that just repeats the aisle ("Produce · Produce") isn't shown twice.
-  const showCategory = kind === 'shopping' && groupBy !== 'category' && item.category && item.category !== item.aisle
+  // A department that just repeats the aisle ("Produce · Produce") isn't shown twice.
+  const showCategory = kind === 'shopping' && groupBy !== 'category' && item.category && item.category.toLowerCase() !== item.aisle?.toLowerCase()
   const due = dueLabel(item)
   const prio = item.priority !== 'normal' ? item.priority : null
   const notesOn = useApp().settings.features.notes // off: an item's own notes still show, its thread's count doesn't
@@ -698,7 +716,7 @@ function groupItems(items: ListItem[], groupBy: ListGroupBy, savedOrder: string[
   return keys.map(key => ({ name: label(key), items: byKey.get(key)! }))
 }
 
-/** "Stores & categories": rename or remove a store, category or aisle everywhere (every list and
+/** "Stores & departments": rename or remove a store, department (the category field) or aisle everywhere (every list and
  * what's remembered), and drag a store's aisles into the order you walk them. */
 function ManageValuesSheet({ suggestions, aisleOrder, onClose, onChanged }: {
   suggestions: ListDetail['suggestions']; aisleOrder: AisleOrder; onClose: () => void; onChanged: () => void
@@ -722,7 +740,7 @@ function ManageValuesSheet({ suggestions, aisleOrder, onClose, onChanged }: {
     } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save', true) }
   }
   const remove = async (field: Field, value: string) => {
-    if (!await dialog.confirm({ title: `Remove "${value}"?`, body: `Items that use it keep everything else; this ${field} is cleared from them and forgotten.`, confirmLabel: 'Remove', danger: true })) return
+    if (!await dialog.confirm({ title: `Remove "${value}"?`, body: `Items that use it keep everything else; this ${field === 'category' ? 'department' : field} is cleared from them and forgotten.`, confirmLabel: 'Remove', danger: true })) return
     rename(field, value, null)
   }
   const saveOrder = async (next: string[]) => {
@@ -754,12 +772,13 @@ function ManageValuesSheet({ suggestions, aisleOrder, onClose, onChanged }: {
   )
 
   return (
-    <Sheet title="Stores & categories" onClose={onClose} actions={<button className="btn btn-primary" onClick={onClose}>Done</button>}>
+    <Sheet title="Stores & departments" onClose={onClose} actions={<button className="btn btn-primary" onClick={onClose}>Done</button>}>
       <p className="field-hint">Renaming changes every item that uses the name, on every list. Removing clears it from those items.</p>
       <h3 className="manage-head">Stores</h3>
       {suggestions.stores.length ? suggestions.stores.map(v => row('store', v)) : <p className="list-item-meta">No stores yet. Pick one on an item.</p>}
-      <h3 className="manage-head">Categories</h3>
-      {suggestions.categories.length ? suggestions.categories.map(v => row('category', v)) : <p className="list-item-meta">No categories yet.</p>}
+      <h3 className="manage-head">Departments</h3>
+      <p className="field-hint">An item with no aisle at a store goes in the aisle named like its department, if the store has one.</p>
+      {suggestions.categories.length ? suggestions.categories.map(v => row('category', v)) : <p className="list-item-meta">No departments yet.</p>}
       <h3 className="manage-head">Aisles</h3>
       {aisleStores.length > 1 && (
         <div className="field">
@@ -876,9 +895,14 @@ function ListDetailPane({ listId, isPhone, onBack, onArchivedOrDeleted, onLoaded
   const { list, groups, suggestions } = detail
   const aisleOrder = aisleOrderMap(detail)
   // A pending Checkout shows as done already: those items gone (or unchecked, for a Reset).
-  const items = !checkout ? detail.items
+  const pending = !checkout ? detail.items
     : checkout.reset ? detail.items.map(i => (checkout.ids.includes(i.id) ? { ...i, done: false } : i))
     : detail.items.filter(i => !checkout.ids.includes(i.id))
+  // Shopping: an item with no aisle sorts and groups in its store's aisle named like its department
+  // (shown, never saved - the editor opens the item as stored).
+  const items = list.kind !== 'shopping' ? pending
+    : pending.map(i => (i.aisle ? i : { ...i, aisle: departmentAisle(i.category, storeAisles(suggestions, i.store, aisleOrder)) }))
+  const openItem = (item: ListItem) => setEditItem(detail.items.find(i => i.id === item.id) ?? item)
   const stores = [...new Set(items.map(i => i.store).filter((v): v is string => !!v))].sort()
   const filtered = selectedStore ? items.filter(i => i.store === selectedStore || i.store === null) : items
   // Keep checked in place: ticked items stay put, crossed off, and the order doesn't move under you.
@@ -897,11 +921,12 @@ function ListDetailPane({ listId, isPhone, onBack, onArchivedOrDeleted, onLoaded
   const checkoutLabel = CHECKOUT_LABEL[list.kind]
   // On a trip: everything, walked in that store's aisle order; checked items always stay in place.
   const activeTrip = list.kind === 'shopping' ? trip : null
-  const view = activeTrip ? tripView(items, activeTrip, aisleOrder) : null
+  const tripAisles = activeTrip ? storeAisles(suggestions, activeTrip, aisleOrder) : []
+  const view = activeTrip ? tripView(pending, activeTrip, aisleOrder, tripAisles) : null
   const tripChecked = items.filter(i => i.done)
   const tripRow = (item: ListItem, other = false) => (
-    <ItemRow key={item.id} item={other ? item : { ...item, aisle: aisleAt(item, activeTrip!) }} kind={list.kind} groupBy={other ? 'none' : 'aisle'} members={members}
-      event={item.eventId ? byId.get(item.eventId) : undefined} onToggle={() => toggle(item)} onOpen={() => setEditItem(item)} />
+    <ItemRow key={item.id} item={other ? item : { ...item, aisle: aisleAt(item, activeTrip!, tripAisles) }} kind={list.kind} groupBy={other ? 'none' : 'aisle'} members={members}
+      event={item.eventId ? byId.get(item.eventId) : undefined} onToggle={() => toggle(item)} onOpen={() => openItem(item)} />
   )
   const tripStores = [...new Set([...suggestions.stores, ...(activeTrip ? [activeTrip] : [])])]
 
@@ -946,7 +971,7 @@ function ListDetailPane({ listId, isPhone, onBack, onArchivedOrDeleted, onLoaded
       {!activeTrip && <div className="list-toolbar">
         {list.kind === 'shopping' && (
           <Segmented className="list-groupby" label="Group by" value={list.groupBy} onChange={setGroupBy}
-            options={(['store', 'category', 'aisle', 'none'] as ListGroupBy[]).map(g => ({ key: g, label: GROUP_LABEL[g] }))} />
+            options={(['store', 'aisle', 'none'] as ListGroupBy[]).map(g => ({ key: g, label: GROUP_LABEL[g] }))} /* no category: a department fills in the aisle */ />
         )}
         {list.kind === 'shopping' && reorderable && reorderableNames.length > 1 && (
           <button className="link-btn" onClick={() => setReorderGroups(true)}>Reorder {list.groupBy === 'store' ? 'stores' : 'categories'}</button>
@@ -995,7 +1020,7 @@ function ListDetailPane({ listId, isPhone, onBack, onArchivedOrDeleted, onLoaded
             <div className="empty-card"><span className="emoji">✨</span>All done!</div>
           ) : (
             <DragList items={openItems.slice().sort(cmp)} onReorder={reorderWithin} locked={locked}
-              renderRow={(item, handle) => <ItemRow item={item} kind={list.kind} groupBy={list.groupBy} members={members} event={item.eventId ? byId.get(item.eventId) : undefined} onToggle={() => toggle(item)} onOpen={() => setEditItem(item)} handle={handle} />} />
+              renderRow={(item, handle) => <ItemRow item={item} kind={list.kind} groupBy={list.groupBy} members={members} event={item.eventId ? byId.get(item.eventId) : undefined} onToggle={() => toggle(item)} onOpen={() => openItem(item)} handle={handle} />} />
           )
         ) : groupedOpen.length === 0 ? (
           <div className="empty-card"><span className="emoji">✨</span>All done!</div>
@@ -1004,7 +1029,7 @@ function ListDetailPane({ listId, isPhone, onBack, onArchivedOrDeleted, onLoaded
             <div key={g.name} className="list-group">
               <h3 className="list-group-title" style={{ margin: 0 }}>{g.name}</h3>
               <DragList items={g.items} onReorder={reorderWithin} locked={locked}
-                renderRow={(item, handle) => <ItemRow item={item} kind={list.kind} groupBy={list.groupBy} members={members} event={item.eventId ? byId.get(item.eventId) : undefined} onToggle={() => toggle(item)} onOpen={() => setEditItem(item)} handle={handle} />} />
+                renderRow={(item, handle) => <ItemRow item={item} kind={list.kind} groupBy={list.groupBy} members={members} event={item.eventId ? byId.get(item.eventId) : undefined} onToggle={() => toggle(item)} onOpen={() => openItem(item)} handle={handle} />} />
             </div>
           ))
         )}
@@ -1018,7 +1043,7 @@ function ListDetailPane({ listId, isPhone, onBack, onArchivedOrDeleted, onLoaded
               <button className="link-btn" onClick={() => startCheckout(doneItems, list.kind)}>{list.kind === 'reusable' ? 'Reset list' : 'Clear checked'}</button>
             </div>
             {showDone && doneItems.slice().sort((a, b) => a.sort - b.sort).map(item => (
-              <ItemRow key={item.id} item={item} kind={list.kind} groupBy={list.groupBy} members={members} event={item.eventId ? byId.get(item.eventId) : undefined} onToggle={() => toggle(item)} onOpen={() => setEditItem(item)} />
+              <ItemRow key={item.id} item={item} kind={list.kind} groupBy={list.groupBy} members={members} event={item.eventId ? byId.get(item.eventId) : undefined} onToggle={() => toggle(item)} onOpen={() => openItem(item)} />
             ))}
           </div>
         )}

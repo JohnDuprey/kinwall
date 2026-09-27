@@ -1118,7 +1118,7 @@ button {
 
 .list-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-shrink: 0; flex-wrap: wrap; }
 .list-done-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-/* Groceries: crossed off in place (still tappable to uncheck), Checkout, undo, Stores & categories */
+/* Groceries: crossed off in place (still tappable to uncheck), Checkout, undo, Stores & departments */
 .list-item-row.done .list-item-body, .list-item-row.done .list-item-chip { opacity: 0.55; }
 .list-checkout-bar { position: sticky; bottom: 0; z-index: 2; margin-top: auto; padding: 10px 0 4px; background: linear-gradient(to bottom, transparent, var(--card) 35%); }
 .lists-shell-phone .list-checkout-bar { background: linear-gradient(to bottom, transparent, var(--bg) 35%); }
@@ -1131,7 +1131,7 @@ button {
 .list-trip select { flex: 1; min-width: 0; max-width: 360px; min-height: 44px; padding: 8px 40px 8px 12px; border-radius: 12px; border: 2px solid var(--border); background-color: var(--bg-alt); color: var(--text); font: inherit; font-weight: 800; }
 .list-trip.active select { border-color: var(--accent-strong); }
 .list-trip-other { opacity: 0.6; }
-.item-last-store { margin: -4px 0 12px; }
+.item-last-store, .item-dept-aisle { margin: -4px 0 12px; }
 .manage-head { font-size: 0.8125rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.03em; margin: 16px 0 4px; }
 .manage-row { display: flex; align-items: center; gap: 8px; min-height: 48px; border-top: 1px solid var(--border); padding: 2px 0; }
 .manage-row-name { flex: 1; min-width: 0; font-weight: 700; overflow-wrap: anywhere; }
