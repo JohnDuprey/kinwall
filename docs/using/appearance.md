@@ -7,7 +7,7 @@
 Appearance works on two levels:
 
 * **Household**: **Settings → General → Appearance**. It applies to every device, and it's also used on the sign-in and pairing screens before a device has a key.
-* **Per device**: **Settings → General → Appearance on this device**. It overrides the household value on this device only.
+* **Per device**: **Settings → General**, tap **Change** under **Appearance on this device**. It overrides the household value on this device only.
 
 ## Household settings
 
@@ -29,7 +29,7 @@ Changes save as you make them, and other devices pick them up within about 30 se
 
 ## Per-device overrides
 
-Under **Appearance on this device**:
+Under **Appearance on this device** (tap **Change**):
 
 * **Mode**, **Text size** and **Density** are menus. The first option is **Household (*current value*)**, which follows the family setting.
 * **Color scheme** has the same dropdown as the household setting, plus a first option, **Household · *scheme***, which follows the family setting. The family's own schemes are there too. See [Color schemes](#color-schemes).

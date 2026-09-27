@@ -56,7 +56,7 @@ Removing a family member keeps their tracker entries under their name, for examp
 
 ## Turning it off
 
-An admin can turn off **Reading**, **Memories** and **Health** one at a time under **Trackers** in **Settings → General → Features**. A tracker that's off has no tab (a link to it opens the first one that's on), and Reading off also drops the reading line from a person's day. The **Trackers** tab goes when all three are off. The entries are kept and the API keeps answering. See [Features](../settings/general.md#features).
+An admin can turn off **Reading**, **Memories** and **Health** one at a time under **Trackers** in **Settings → General** (tap **Change** under **Features**). A tracker that's off has no tab (a link to it opens the first one that's on), and Reading off also drops the reading line from a person's day. The **Trackers** tab goes when all three are off. The entries are kept and the API keeps answering. See [Features](../settings/general.md#features).
 
 ## API and MCP
 

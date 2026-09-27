@@ -58,7 +58,7 @@ A wall display (a display key) can see the week and the recipes, but not plan, e
 
 ## Turning it off
 
-An admin can turn off **Meals** in **Settings → General → Features**. The tab, the Board card, meals in a person's day and the summary's meals line go away; a link to Meals opens the calendar. The recipes and meals are kept and the API keeps answering. See [Features](../settings/general.md#features).
+An admin can turn off **Meals** in **Settings → General** (tap **Change** under **Features**). The tab, the Board card, meals in a person's day and the summary's meals line go away; a link to Meals opens the calendar. The recipes and meals are kept and the API keeps answering. See [Features](../settings/general.md#features).
 
 ## API and MCP
 

@@ -2,7 +2,7 @@
 
 **Activities → Photos** keeps a small album of family pictures. They show up on the calendar's [Board view](calendar.md#board-view) picture card and, if you choose, in a display's [quiet-hours screensaver](quiet-hours.md#screensaver).
 
-An admin can turn off **Photos** in **Settings → General → Features**: Activities → Photos and the Board's picture card are hidden, the photos are kept, and a night screen set to **Family photos** shows nature pictures instead. See [Features](../settings/general.md#features).
+An admin can turn off **Photos** in **Settings → General** (tap **Change** under **Features**): Activities → Photos and the Board's picture card are hidden, the photos are kept, and a night screen set to **Family photos** shows nature pictures instead. See [Features](../settings/general.md#features).
 
 ![Photos on the wall iPad](../screenshots/ipad-photos.png)
 
@@ -45,7 +45,7 @@ JPEG, PNG, WebP and anything else your browser can open. HEIC photos straight fr
 ## Where photos show up
 
 * **Board view**: the picture card rotates through this display's screensaver sources. If none are chosen, it shows your family photos (or nature photos until you add some).
-* **Screensaver**: turn on **Family photos** in **Settings → General → Night screen → During quiet hours show**.
+* **Screensaver**: turn on **Family photos** under **During quiet hours show** (**Settings → General**, tap **Change** under **Night screen**).
 
 ## Backing up and moving photos
 

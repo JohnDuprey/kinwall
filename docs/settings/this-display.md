@@ -20,9 +20,11 @@ On a phone's bottom bar, only the first four tabs get their own button; the rest
 
 ## Appearance on this device
 
-Mode, Color scheme, Text size and Density, each starting on **Household** to follow the family's setting, plus **Typeface** and **Low-stimulation mode**. Color scheme has a **Household · *scheme*** chip, the same schemes as the family setting (including the family's own and **+ New scheme**), and **Use household colors** to go back to the family's. See [Appearance](../using/appearance.md#per-device-overrides).
+The card reads **Following the family**, or lists what this device overrides (for example "Midnight · text L · dark mode"). Tap **Change** under **Appearance on this device** for the settings: Mode, Color scheme, Text size and Density, each starting on **Household** to follow the family's setting, plus **Typeface** and **Low-stimulation mode**. Color scheme has a **Household · *scheme*** chip, the same schemes as the family setting (including the family's own and **+ New scheme**), and **Use household colors** to go back to the family's. See [Appearance](../using/appearance.md#per-device-overrides).
 
 ## Time cues
+
+The card lists the cues that are on (for example "Now / Next on · warnings at 10 and 5 min · back to the calendar when idle"). Tap **Change** under **Time cues** for these:
 
 | Item | Notes |
 |---|---|
@@ -32,7 +34,7 @@ Mode, Color scheme, Text size and Density, each starting on **Household** to fol
 
 ## Night screen
 
-What this display shows during the household's [quiet hours](../using/quiet-hours.md): **Clock only**, or a slideshow of **Drawings**, **Family photos**, **Art (The Met)** and **Nature**, with how often the picture changes, brightness and a corner clock. **Preview screensaver** shows it for 20 seconds.
+The card reads **Clock only** or sums up the slideshow (for example "Drawings and family photos, every 5 min, clock on"); tap **Change** under **Night screen** to set it. What this display shows during the household's [quiet hours](../using/quiet-hours.md): **Clock only**, or a slideshow of **Drawings**, **Family photos**, **Art (The Met)** and **Nature**, with how often the picture changes, brightness and a corner clock. **Preview screensaver** shows it for 20 seconds.
 
 ## Notifications
 

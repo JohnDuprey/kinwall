@@ -43,7 +43,7 @@ API: `tidbits` `{ sources, factCategories, tipCategories, onThisDay, birthsAfter
 
 ### Features
 
-*Admin only.* Turn off what your family doesn't use. It's hidden on every screen and phone; nothing is deleted, and turning it back on brings everything back as it was. Every feature is on by default.
+*Admin only.* The card shows how many are on ("All 10 on", or "8 of 10 on" with the ones that are off); tap **Change** under **Features** for the switches. Turn off what your family doesn't use. It's hidden on every screen and phone; nothing is deleted, and turning it back on brings everything back as it was. Every feature is on by default.
 
 | Switch | When it's off |
 |---|---|
@@ -74,6 +74,6 @@ Mode, dark schedule, color scheme (including the family's own schemes), text siz
 
 ## Only on this device
 
-**This display**, **Appearance on this device**, **Time cues**, **Night screen**, **Notifications** and **Troubleshooting**. See [This device](this-display.md).
+**This display**, **Appearance on this device**, **Time cues**, **Night screen**, **Notifications** and **Troubleshooting**. Appearance on this device, Time cues and Night screen show a one-line summary; tap **Change** under one to open its settings. See [This device](this-display.md).
 
 Chore settings (late completion credit, streak grace, leaderboard and sticker shop) live on the **Family** tab, while **Chores & points** is on. See [Family](family.md) and [Chores](../using/chores.md).

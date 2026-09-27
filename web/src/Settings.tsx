@@ -7,6 +7,7 @@ import { CATEGORY_EMOJI, CATEGORY_PRESETS, MEMBER_EMOJI, MEMBER_PALETTE, nextPal
 import Sheet from './Sheet.tsx'
 import TidbitsSheet from './TidbitsSheet.tsx'
 import { tidbitSummary } from './tidbits.ts'
+import { featuresSummary, nightSummary, timeCuesSummary } from './settingsSummary.ts'
 import { MemberPicker } from './MemberPicker.tsx'
 import { AnyEmojiField } from './AnyEmojiField.tsx'
 import { isValidAvatar } from './emoji.ts'
@@ -120,9 +121,9 @@ export default function SettingsView() {
           )}
           <SettingsGroup title="Only on this device" sub="Saved on this screen or phone. Other devices aren't affected.">
             {isDisplay ? <ThisDisplaySection keyName={me.keyName} /> : <ThisDisplaySection />}
-            <Section title="Appearance on this device" icon={<PaletteIcon width={16} height={16} />}><DeviceAppearanceRows /></Section>
-            <Section title="Time cues"><TimeCueRows /></Section>
-            <Section title="Night screen"><ScreensaverRows /></Section>
+            <DeviceAppearanceSection />
+            <TimeCuesSection />
+            <NightScreenSection />
             <NotificationsSection toast={toast} />
             <TroubleshootSection keyName={isDisplay ? me.keyName : undefined} />
           </SettingsGroup>
@@ -240,8 +241,9 @@ function FeaturesSection({ settings, onSaved, toast }: { settings: Settings; onS
   const set = async (key: keyof Features) => {
     try { await api.updateSettings({ features: { ...settings.features, [key]: !settings.features[key] } }); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save settings', true) }
   }
+  const { summary, detail } = featuresSummary(FEATURE_ROWS.map(f => ({ label: f.group ? `${f.label} tracker` : f.label, on: settings.features[f.key] })))
   return (
-    <Section title="Features">
+    <SummarySection title="Features" summary={summary} detail={detail ?? 'Turn off what your family doesn\'t use.'}>
       <p className="settings-row-sub">Turn off what your family doesn't use. It's hidden on every screen; nothing is deleted.</p>
       {FEATURE_ROWS.map((f, i) => (<Fragment key={f.key}>
         {f.group && FEATURE_ROWS[i - 1]?.group !== f.group && <h3 className="features-group">{f.group}</h3>}
@@ -254,6 +256,30 @@ function FeaturesSection({ settings, onSaved, toast }: { settings: Settings; onS
             aria-labelledby={`feature-${f.key}-label`} aria-describedby={`feature-${f.key}-sub`} onClick={() => set(f.key)}><span className="knob" /></button>
         </div>
       </Fragment>))}
+    </SummarySection>
+  )
+}
+
+/** A long section folded into a sheet, like Quotes & facts: a one-line summary here, the controls
+ * in a sheet. The controls save as they change, so the sheet only needs Done. */
+function SummarySection({ title, icon, summary, detail, children }: { title: string; icon?: ReactNode; summary: string; detail?: string; children: ReactNode }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <Section title={title} icon={icon}>
+      <div className="settings-row">
+        <div>
+          <div className="settings-row-label">{summary}</div>
+          {detail && <div className="settings-row-sub">{detail}</div>}
+        </div>
+        <div className="settings-inline-btns">
+          <button className="btn btn-secondary" aria-label={`Change ${title.toLowerCase()}`} aria-haspopup="dialog" onClick={() => setOpen(true)}>Change</button>
+        </div>
+      </div>
+      {open && (
+        <Sheet title={title} onClose={() => setOpen(false)} actions={<button className="btn btn-primary btn-block" onClick={() => setOpen(false)}>Done</button>}>
+          {children}
+        </Sheet>
+      )}
     </Section>
   )
 }
@@ -929,6 +955,27 @@ function SchemeSheet({ draft, isNew, onClose, onSave, onDelete }: {
   )
 }
 
+function DeviceAppearanceSection() {
+  const { settings } = useApp()
+  const d = useDeviceAppearance()
+  const label = <K extends string>(opts: { key: K; label: string }[], k: K | undefined) => opts.find(o => o.key === k)?.label ?? ''
+  const parts = [
+    d.skin && (d.skin === 'seasonal' ? 'Seasonal' : findSkin(d.skin, settings.customSchemes ?? []).name),
+    d.custom && Object.keys(d.custom).length > 0 && 'custom colors',
+    d.textScale && `text ${label(TEXT_SCALES, d.textScale)}`,
+    d.themeMode && `${label(THEME_MODES, d.themeMode).toLowerCase()} mode`,
+    d.density && label(DEVICE_DENSITIES, d.density).toLowerCase(),
+    d.font && `${label(FONTS, d.font).split(' (')[0]} typeface`,
+    d.lowStim && 'low-stimulation',
+  ].filter((p): p is string => !!p)
+  const summary = parts.length ? parts.join(' · ').replace(/^./, c => c.toUpperCase()) : 'Following the family'
+  return (
+    <SummarySection title="Appearance on this device" icon={<PaletteIcon width={16} height={16} />} summary={summary}>
+      <DeviceAppearanceRows />
+    </SummarySection>
+  )
+}
+
 /** "On this device" overrides of the household appearance - each defaults to the household value. */
 function DeviceAppearanceRows() {
   const { settings, reloadCore, toast } = useApp()
@@ -1038,6 +1085,13 @@ function ScreenFocusRows() {
   )
 }
 
+function TimeCuesSection() {
+  const { parentDevice } = useApp()
+  const d = useDeviceAppearance()
+  const summary = timeCuesSummary({ idleReset: d.idleReset ?? !parentDevice, nowNext: d.nowNext ?? true, warnings: d.warnings ?? [], sound: !!d.warningSound })
+  return <SummarySection title="Time cues" summary={summary}><TimeCueRows /></SummarySection>
+}
+
 /** Now / Next and transition warnings on this device. */
 function TimeCueRows() {
   const device = useDeviceAppearance()
@@ -1092,6 +1146,14 @@ function TimeCueRows() {
 const SAVER_OPTIONS: { key: SaverSource; label: string }[] = [
   { key: 'drawings', label: 'Drawings' }, { key: 'photos', label: 'Family photos' }, { key: 'art', label: 'Art (The Met)' }, { key: 'nature', label: 'Nature' },
 ]
+function NightScreenSection() {
+  const { settings } = useApp()
+  const d = useDeviceAppearance()
+  const sources = SAVER_OPTIONS.filter(o => d.saverSources?.includes(o.key) && (o.key !== 'photos' || settings.features.photos)).map(o => o.label)
+  const summary = nightSummary({ sources, every: d.saverEvery ?? 5, bright: d.saverBright ?? 'low', clock: d.saverClock !== false })
+  return <SummarySection title="Night screen" summary={summary}><ScreensaverRows /></SummarySection>
+}
+
 function ScreensaverRows() {
   const { settings } = useApp()
   const device = useDeviceAppearance()
