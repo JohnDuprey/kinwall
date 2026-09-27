@@ -81,4 +81,6 @@ export interface ProjectionItem {
   partiallyApplied: boolean
   changedSinceApplied: boolean
 }
+/** Qualifier the server gives imported meal-kit ingredients that ship in the box (server/src/meal-schemas.ts). */
+export const KIT_QUALIFIER = 'in the kit'
 export interface ShoppingProjection { from: string; to: string; listId: string | null; items: ProjectionItem[] }

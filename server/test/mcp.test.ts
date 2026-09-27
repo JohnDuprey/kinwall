@@ -107,6 +107,7 @@ test('mcp: tools/list returns the tools', async () => {
     'get_points',
     'get_recipe',
     'get_snapshot',
+    'import_recipe',
     'list_categories',
     'list_chores',
     'list_color_schemes',
@@ -546,6 +547,10 @@ test('mcp: meal planning recipes, weekly retrieval, assignment, and reviewed sho
     ingredients: JSON.stringify([{ name: 'Rice', quantity: 1, unit: 'cup', category: 'Grains' }, { name: 'Salt', qualifier: 'to taste' }]),
   })).recipe;
   assert.equal((await call('get_recipe', { id: recipe.id })).recipe.sourceUrl, 'https://example.com/rice');
+  const imported = await call('import_recipe', { source: 'kit', externalId: 'k1', name: 'Kit curry', servings: 2, ingredients: JSON.stringify([{ text: '1.5 tablespoon Curry Paste', pantry: false }, 'Salt']), steps: ['Simmer.'], plan: { date: '2026-09-22', slot: 'dinner' } });
+  assert.equal(imported.created, true); assert.equal(imported.planned, true);
+  assert.equal((await call('import_recipe', { source: 'kit', externalId: 'k1', name: 'Kit curry', ingredients: [] })).recipeId, imported.recipeId);
+  await call('delete_meal', { mealId: imported.mealId }); await call('delete_recipe', { recipe: imported.recipeId });
   assert.deepEqual((await call('list_recipes', { search: 'RICE', category: 'grains' })).recipes.map((r: any) => r.id), [recipe.id]);
   assert.deepEqual((await call('list_recipes', { category: 'Dairy' })).recipes, []);
   const meal = (await call('create_meal', { date: '2026-09-21', slot: 'dinner', recipeId: recipe.id, servings: 4, member: 'aV' })).meal;

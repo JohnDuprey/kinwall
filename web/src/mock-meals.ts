@@ -2,7 +2,7 @@
 import { mock } from './mock.ts'
 import { dateKey } from './date.ts'
 import { ingredientAmount, mealWeek, MEAL_SLOTS } from './meal-date.ts'
-import type { Meal, MealInput, Recipe, RecipeInput, ShoppingProjection } from './meal-types.ts'
+import { KIT_QUALIFIER, type Meal, type MealInput, type Recipe, type RecipeInput, type ShoppingProjection } from './meal-types.ts'
 
 // Keep the same Sunday–Saturday menu on the current local week, including across DST changes.
 const dates = mealWeek(dateKey(new Date()), 0)
@@ -165,7 +165,7 @@ export async function mockMealRequest(path: string, options: RequestInit): Promi
     const result = await projection(from, to, listId)
     if (method === 'GET') return result
     const itemIds: string[] = []
-    for (const item of result.items.filter(i => !i.applied && !body.omitKeys?.includes(i.key))) {
+    for (const item of result.items.filter(i => !i.applied && !body.omitKeys?.includes(i.key) && (body.includeKitItems || i.qualifier !== KIT_QUALIFIER))) {
       const sources = item.sources.filter(s => !s.applied)
       const quantity = sources.every(s => s.quantity === null) ? null : sources.reduce((sum, s) => sum + (s.quantity ?? 0), 0)
       // Remembered store/category/aisle first (category omitted so memory can fill it), then the recipe's.
