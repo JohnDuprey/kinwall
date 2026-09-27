@@ -117,7 +117,7 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
           })()}
         </Card>
 
-        {f.meals && <TodaysMeals now={now} />}
+        {f.meals && <TodaysMeals now={now} today={today} meals={data.meals.filter(m => m.date === today)} />}
 
         <Card title="Coming up" area="coming">
           {later.length === 0 ? <p className="snap-empty">Nothing planned this week.</p> : later.map(d => {

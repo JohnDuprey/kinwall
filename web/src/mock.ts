@@ -198,29 +198,12 @@ let listItems: ListItem[] = ([
 const mealGroceries: [string, string, string, string, boolean][] = [
   ['Ground beef', '2.5 lb', 'Meat', 'Tuesday Tacos and Spaghetti Bolognese', false],
   ['Corn tortillas', '18', 'Bakery', 'Tuesday Tacos, including leftovers for Wednesday', false],
-  ['Taco seasoning', '3 tbsp', 'Pantry', 'Tuesday Tacos', true],
   ['Tomatoes', '8', 'Produce', 'Tacos, wraps, and garden vegetable pizza', false],
-  ['Lettuce', '2 heads', 'Produce', 'Tacos and chickpea salad wraps', false],
-  ['Cheddar cheese', '1.5 cup', 'Dairy', 'Grate for Tuesday Tacos', false],
-  ['Salsa', '0.75 cup', 'Pantry', 'Tuesday Tacos', true],
-  ['Limes', '3', 'Produce', 'Cut into wedges for taco night', false],
   ['Chicken breast', '3 lb', 'Meat', 'Sunday and Saturday lemon chicken dinners', false],
   ['Broccoli', '3 lb', 'Produce', 'Lemon chicken and tofu stir-fry', false],
   ['Rice', '4.5 cup', 'Pantry', 'Chicken dinners and stir-fry', true],
-  ['Lemons', '6', 'Produce', 'Chicken, salmon, and chickpea wraps', false],
-  ['Greek yogurt', '2 tubs', 'Dairy', 'Parfaits, oatmeal, and wrap filling', false],
   ['Blueberries', '3 pints', 'Produce', 'Pancakes and yogurt parfaits', false],
-  ['Rolled oats', '6 cup', 'Pantry', 'Apple cinnamon oatmeal', true],
-  ['Chickpeas', '10 cans', 'Pantry', '15 oz cans for five family lunches', false],
-  ['Spaghetti', '1 lb', 'Pantry', 'Monday Bolognese dinner', false],
-  ['Firm tofu', '1 lb', 'Refrigerated', 'Wednesday vegetable stir-fry', false],
   ['Salmon', '1.5 lb', 'Seafood', 'Thursday dinner; buy fresh or keep frozen', false],
-  ['Baby potatoes', '1.5 lb', 'Produce', 'Thursday salmon dinner', false],
-  ['Green beans', '1 lb', 'Produce', 'Thursday salmon dinner', false],
-  ['Pizza dough', '2 lb', 'Bakery', 'Friday garden vegetable pizza', false],
-  ['Mozzarella', '2 cup', 'Dairy', 'Friday garden vegetable pizza', false],
-  ['Hummus', '4 cup', 'Refrigerated', 'Afternoon veggie plates', false],
-  ['Carrots', '16', 'Produce', 'Cut into sticks for snacks', false],
 ]
 listItems.push(...mealGroceries.map(([title, quantity, category, notes, done], sort) => seedItem({
   id: `demo-grocery-${sort}`, listId: 'l1', title, quantity, category, notes, store: 'Neighborhood market', memberId: 'm1',
@@ -716,7 +699,8 @@ function mockSnapshot(memberId: string, range: 'day' | 'week'): Snapshot {
     events: mine.filter(e => e.date <= to),
     chores: choreRows, items,
     birthdays: birthdays.filter(b => b.date <= to),
-    tomorrow: range === 'day' ? { date: tomorrow, events: mine.filter(e => e.date === tomorrow), items: open.filter(i => i.dueDate === tomorrow), birthdays: birthdays.filter(b => b.date === tomorrow) } : null,
+    meals: [], // api.ts adds the demo menu (mock-meals.ts)
+    tomorrow: range === 'day' ? { date: tomorrow, events: mine.filter(e => e.date === tomorrow), items: open.filter(i => i.dueDate === tomorrow), birthdays: birthdays.filter(b => b.date === tomorrow), meals: [] } : null,
   }
 }
 
@@ -792,6 +776,7 @@ function mockBoard(days: number): Board {
       return { memberId: id, name: m?.name ?? null, avatar: m?.avatar ?? null, color: m?.color ?? null, total: mine.length, remaining: mine.filter(c => !completions.has(`${c.id}:${today}`)).length }
     }).filter(c => c.total > 0),
     birthdays,
+    meals: [], // api.ts adds the demo menu (mock-meals.ts)
   }
 }
 

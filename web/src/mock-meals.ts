@@ -142,6 +142,9 @@ async function projection(from: string, to: string, listId: string | null): Prom
   return { from, to, listId, items: [...groups.values()].map(item => ({ ...item, applied: item.sources.every(s => s.applied), partiallyApplied: item.sources.some(s => s.applied) && item.sources.some(s => !s.applied), changedSinceApplied: item.sources.some(s => s.changedSinceApplied) })) }
 }
 
+/** The demo menu for the Board and a member's day (the server's readMeals). */
+export const mockMeals = (from: string, to: string) => meals.filter(m => m.date >= from && m.date <= to)
+
 export async function mockMealRequest(path: string, options: RequestInit): Promise<unknown> {
   const url = new URL(path, 'https://demo.invalid/')
   const [, resource, rawId, action] = url.pathname.slice(1).split('/')

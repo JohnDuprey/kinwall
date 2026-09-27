@@ -2,6 +2,7 @@ import { useEffect, useId, useState } from 'react'
 import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import Sheet from './Sheet.tsx'
+import { clockTime } from './date.ts'
 import { mealDayLabel, moveMealDate } from './meal-date.ts'
 import type { Meal } from './meal-types.ts'
 import type { CalendarEntry, EventInstance } from './types.ts'
@@ -32,7 +33,7 @@ export default function MealCalendarSheet({ meal, onClose, onLinked }: { meal: M
     finally { setBusy(false) }
   }
   return <Sheet title="Meal calendar link" onClose={() => { if (!busy) onClose() }} dismissable={!busy}>
-    <p>{meal.title} · {mealDayLabel(meal.date)}{meal.plannedTime ? ` · ${meal.plannedTime}` : ' · No planned time'}</p>
+    <p>{meal.title} · {mealDayLabel(meal.date)}{meal.plannedTime ? ` · ${clockTime(meal.plannedTime)}` : ' · No planned time'}</p>
     <p className="field-hint">Calendar actions use the saved meal shown above. Changes in the meal editor take effect after saving. An event created here follows the meal: saving the meal updates its title, time and people (a note typed on the event stays), and deleting the meal deletes it. An event you link is never changed.</p>
     {meal.calendarEventId ? <>
       <p><a href={`#/calendar?event=${encodeURIComponent(meal.calendarEventId)}&at=${meal.date}`}>Open linked event</a></p>

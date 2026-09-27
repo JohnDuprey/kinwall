@@ -2,7 +2,7 @@ import { useEffect, useId, useState } from 'react'
 import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import Sheet from './Sheet.tsx'
-import { ingredientAmount, mealDayLabel, SLOT_LABEL } from './meal-date.ts'
+import { ingredientAmount, mealDayLabel, servingsLabel, SLOT_LABEL } from './meal-date.ts'
 import type { List } from './types.ts'
 import type { ShoppingProjection } from './meal-types.ts'
 
@@ -82,7 +82,7 @@ export default function MealProjection({ from: initialFrom, to: initialTo, admin
             <details><summary>{item.sources.length} source meal{item.sources.length === 1 ? '' : 's'}</summary><ul>{item.sources.map(source => <li key={source.sourceRef}>
               {mealDayLabel(source.date)} · {SLOT_LABEL[source.slot]} · {source.title} ({source.recipeName}) — {ingredientAmount(source.quantity, source.unit, source.qualifier) || 'As needed'}
               {source.preparation ? ` · ${source.preparation}` : ''}{source.applied ? ' · Already applied' : ''}
-              {!source.scalable && ` · Check for ${source.servings} servings (recipe: ${source.defaultServings})`}
+              {!source.scalable && ` · Check for ${servingsLabel(source.servings)} (recipe: ${source.defaultServings})`}
             </li>)}</ul></details>
           </li>)}</ul>
         </>}

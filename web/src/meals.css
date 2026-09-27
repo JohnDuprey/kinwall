@@ -32,7 +32,8 @@
 .recipe-card p { margin: 4px 0 0; font-size: 0.875rem; color: var(--text-dim); white-space: pre-wrap; }
 .meal-fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 .meal-form-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.meal-fieldset .field input:not([type="checkbox"]), .meals-view .field input { width: 100%; min-width: 0; min-height: 44px; padding: 12px 14px; border: 2px solid var(--border); border-radius: 12px; background: var(--card); color: var(--text); font: inherit; font-weight: 600; }
+/* The shared .field inputs (styles.css) cover text, date, time and URL; number and search look the same here. */
+.meal-fieldset .field input[type="number"], .meals-view .field input[type="search"] { width: 100%; padding: 13px 14px; border-radius: var(--radius-sm); border: 2px solid var(--border); background: var(--bg-alt); color: var(--text); font-family: inherit; font-size: max(1rem, 16px); font-weight: 700; min-height: 52px; }
 .recipe-ingredient { min-width: 0; margin: 16px 0; padding: 12px; border: 1px solid var(--border); border-radius: 12px; }
 .recipe-ingredient legend { padding: 0 6px; font-weight: 800; font-size: 0.875rem; }
 .meal-spaced { margin-top: 20px; }
@@ -54,7 +55,13 @@
   .meals-heading .meal-actions { width: 100%; }
   .meals-heading .btn { flex: 1; }
   .meals-toolbar > .field { flex: 1; min-width: 160px; }
-  .meal-grid th:first-child { width: 110px; }
-  .meal-grid th, .meal-grid td { padding: 8px; }
+  /* Phones: one card per day, its slots listed (data-slot) instead of a sideways-scrolling table. */
+  .meal-grid-scroll { overflow: visible; background: none; box-shadow: none; }
+  .meal-grid thead { display: none; }
+  .meal-grid, .meal-grid tbody, .meal-grid tr, .meal-grid th, .meal-grid td { display: block; width: auto; min-width: 0; }
+  .meal-grid tr { margin-bottom: var(--gap); border-radius: var(--radius); background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
+  .meal-grid tr > th[scope="row"] { width: auto; border-bottom: 1px solid var(--border); }
+  .meal-grid td { border-bottom: 0; }
+  .meal-grid td::before { content: attr(data-slot); display: block; margin-bottom: 6px; font-size: 0.8125rem; font-weight: 800; color: var(--text-dim); }
 }
 @media (max-width: 360px) { .meal-form-row { grid-template-columns: 1fr; gap: 0; } }

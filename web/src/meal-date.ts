@@ -13,6 +13,7 @@ export function moveMealDate(date: string, days: number) { return dateKey(addDay
 export function mealDayLabel(date: string, options: Intl.DateTimeFormatOptions = { weekday: 'short', month: 'short', day: 'numeric' }) {
   return new Intl.DateTimeFormat(undefined, options).format(new Date(`${date}T12:00:00`))
 }
+export const servingsLabel = (n: number) => `${n} serving${n === 1 ? '' : 's'}`
 export function ingredientAmount(quantity: number | null, unit: string | null, qualifier?: string | null) {
   return [quantity === null ? '' : new Intl.NumberFormat(undefined, { maximumFractionDigits: 3 }).format(quantity), unit, qualifier].filter(Boolean).join(' ')
 }

@@ -6,7 +6,7 @@ import Sheet from './Sheet.tsx'
 import { TrashIcon } from './icons.tsx'
 import { IngredientList } from './RecipeSheet.tsx'
 import MealCalendarSheet from './MealCalendarSheet.tsx'
-import { MEAL_SLOTS, SLOT_LABEL, mealDayLabel } from './meal-date.ts'
+import { MEAL_SLOTS, SLOT_LABEL, mealDayLabel, servingsLabel } from './meal-date.ts'
 import type { Meal, MealInput, MealKind, MealSlot, MealStatus, Recipe } from './meal-types.ts'
 
 export type MealDraft = { date: string; slot: MealSlot; recipe?: Recipe }
@@ -83,10 +83,10 @@ export default function MealSheet({ meal, initial, recipes, admin, owner, onClos
         {draft.mealKind === 'dining_out' && <div className="field"><label htmlFor={`${formId}-url`}>Website (optional)</label><input id={`${formId}-url`} type="url" pattern="https?://.*" maxLength={2000} value={draft.sourceUrl ?? ''} onChange={e => update('sourceUrl', e.target.value || null)} /></div>}
       </fieldset> : <>
         <p>{mealDayLabel(draft.date)} · {SLOT_LABEL[draft.slot]}{draft.plannedTime ? ` · ${draft.plannedTime}` : ''}</p>
-        <p>{draft.mealKind === 'dining_out' ? 'Dining out · ' : ''}{draft.servings} servings · {members.find(m => m.id === draft.assigneeMemberId)?.name ?? 'Unassigned'}</p>
+        <p>{draft.mealKind === 'dining_out' ? 'Dining out · ' : ''}{servingsLabel(draft.servings)} · {members.find(m => m.id === draft.assigneeMemberId)?.name ?? 'Unassigned'}</p>
       </>}
       {snapshot && <section aria-label="Scaled ingredients">
-        <h3>Ingredients for {draft.servings} servings</h3>
+        <h3>Ingredients for {servingsLabel(draft.servings)}</h3>
         <IngredientList recipe={snapshot} servings={draft.servings} />
         {meal?.recipeSnapshot && <p className="field-hint">Saved with this meal. Recipe edits do not change these ingredients.</p>}
         {admin && meal?.recipeSnapshot && selectedRecipe && !selectedRecipe.archived && draft.recipeId === meal.recipeId && <label className="meal-check"><input type="checkbox" checked={refreshRecipe} disabled={busy} onChange={e => setRefreshRecipe(e.target.checked)} /> Refresh from the current recipe when saving</label>}

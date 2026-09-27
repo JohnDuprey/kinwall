@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react'
 import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { Segmented } from './a11y.tsx'
-import { todayKeyInTz } from './date.ts'
+import { clockTime, todayKeyInTz } from './date.ts'
 import { ChevronLeft, ChevronRight, PlusIcon } from './icons.tsx'
-import { MEAL_SLOTS, SLOT_LABEL, mealDayLabel, mealWeek, moveMealDate } from './meal-date.ts'
+import { MEAL_SLOTS, SLOT_LABEL, mealDayLabel, mealWeek, moveMealDate, servingsLabel } from './meal-date.ts'
 import MealSheet, { type MealDraft } from './MealSheet.tsx'
 import RecipeSheet from './RecipeSheet.tsx'
 import MealProjection from './MealProjection.tsx'
@@ -85,14 +85,14 @@ export default function Meals() {
         <h2 aria-live="polite">{mealDayLabel(from, { month: 'short', day: 'numeric' })} – {mealDayLabel(to, { month: 'short', day: 'numeric', year: 'numeric' })}</h2>
       </div>
       {recipeError && <p className="field-error" role="alert">The recipe library could not refresh. <button className="link-btn" onClick={() => setTick(t => t + 1)}>Retry</button></p>}
-      {mealError ? <div className="state-card" role="alert">Could not load the meal plan: {mealError} <button className="btn btn-secondary" onClick={() => setTick(t => t + 1)}>Retry</button></div> : !meals ? <p role="status">Loading meals…</p> : <div className="meal-grid-scroll" tabIndex={0} role="region" aria-label="Weekly meal plan; scroll horizontally for all meal slots">
+      {mealError ? <div className="state-card" role="alert">Could not load the meal plan: {mealError} <button className="btn btn-secondary" onClick={() => setTick(t => t + 1)}>Retry</button></div> : !meals ? <p role="status">Loading meals…</p> : <div className="meal-grid-scroll" tabIndex={0} role="region" aria-label="Weekly meal plan">
         <table className="meal-grid"><caption className="sr-only">Meals from {from} through {to}</caption><thead><tr><th scope="col">Date</th>{MEAL_SLOTS.map(slot => <th key={slot} scope="col">{SLOT_LABEL[slot]}</th>)}</tr></thead><tbody>{days.map(date => <tr key={date} className={date === today ? 'meal-today' : ''}>
           <th scope="row"><time dateTime={date}>{mealDayLabel(date, { weekday: 'long' })}<span>{mealDayLabel(date, { month: 'short', day: 'numeric' })}</span></time>{date === today && <span className="meal-today-label">Today</span>}</th>
-          {MEAL_SLOTS.map(slot => <td key={slot}>{(bySlot.get(`${date}:${slot}`) ?? []).map(meal => {
+          {MEAL_SLOTS.map(slot => <td key={slot} data-slot={SLOT_LABEL[slot]}>{(bySlot.get(`${date}:${slot}`) ?? []).map(meal => {
             const assignee = members.find(member => member.id === meal.assigneeMemberId)
             return <button key={meal.id} className={`meal-card ${meal.status !== 'planned' ? 'meal-complete' : ''}`} onClick={() => setEditing({ meal, initial: { date, slot } })} aria-label={`${SLOT_LABEL[slot]}, ${mealDayLabel(date)}, ${meal.title}, ${meal.status}${assignee ? `, assigned to ${assignee.name}` : ''}`}>
               <strong>{meal.mealKind === 'dining_out' && <span aria-label="Dining out">↗ </span>}{meal.title}</strong>
-              <span>{meal.plannedTime ? `${meal.plannedTime} · ` : ''}{meal.servings} servings</span>
+              <span>{meal.plannedTime ? `${clockTime(meal.plannedTime)} · ` : ''}{servingsLabel(meal.servings)}</span>
               {assignee && <span>{assignee.avatar} {assignee.name}</span>}
               {meal.status !== 'planned' && <span>✓ {meal.status === 'prepared' ? 'Prepared' : 'Handled'}</span>}
               {meal.notes && <span className="meal-note-preview">{meal.notes}</span>}
@@ -111,7 +111,7 @@ export default function Meals() {
         <p className="field-hint" role="status">{shownRecipes.length} recipe{shownRecipes.length === 1 ? '' : 's'}</p>
         {shownRecipes.length === 0 && !recipeError && <p className="state-card">{search || category || filter !== 'active' ? 'No recipes match these filters.' : 'Your recipe library is ready. Add a recipe with ingredients to start planning.'}</p>}
         <div className="recipe-library">{shownRecipes.map(recipe => <button key={recipe.id} className="recipe-card" onClick={() => setRecipeSheet({ recipe })}>
-          <strong>{recipe.name}</strong><span>{recipe.defaultServings} servings · {recipe.ingredients.length} ingredients{recipe.archived ? ' · Archived' : ''}</span>{recipe.description && <p>{recipe.description}</p>}
+          <strong>{recipe.name}</strong><span>{servingsLabel(recipe.defaultServings)} · {recipe.ingredients.length} ingredients{recipe.archived ? ' · Archived' : ''}</span>{recipe.description && <p>{recipe.description}</p>}
         </button>)}</div>
       </>}
     </section>}

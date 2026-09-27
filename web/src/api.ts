@@ -175,9 +175,11 @@ export const api = {
   deleteMember: (id: string, useAdmin?: boolean) => MOCK ? mock.deleteMember(id) : del(`api/members/${id}`, useAdmin),
 
   getSnapshot: (memberId: string, range: 'day' | 'week') =>
-    MOCK ? mock.getSnapshot(memberId, range) : get<Snapshot>(`api/snapshot?member=${encodeURIComponent(memberId)}&range=${range}`),
+    MOCK ? Promise.all([mock.getSnapshot(memberId, range), import('./mock-meals.ts')]).then(([s, { mockMeals }]) =>
+      ({ ...s, meals: mockMeals(s.from, s.to), tomorrow: s.tomorrow && { ...s.tomorrow, meals: mockMeals(s.tomorrow.date, s.tomorrow.date) } }))
+    : get<Snapshot>(`api/snapshot?member=${encodeURIComponent(memberId)}&range=${range}`),
   // Server-side lookup (Open-Meteo): the browser never talks to the geocoder itself.
-  getBoard: (days = 7) => MOCK ? mock.getBoard(days) : get<Board>(`api/board?days=${days}`),
+  getBoard: (days = 7) => MOCK ? Promise.all([mock.getBoard(days), import('./mock-meals.ts')]).then(([b, { mockMeals }]) => ({ ...b, meals: mockMeals(b.today, b.to) })) : get<Board>(`api/board?days=${days}`),
   getTidbits: () => MOCK ? mock.getTidbits() : get<OnlineTidbits>('api/tidbits'),
 
   // Activity plugins. The demo serves the reviewed ones baked into its build (mock.ts mockPlugins).

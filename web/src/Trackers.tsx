@@ -8,18 +8,12 @@ import { useApp } from './AppContext.tsx'
 import { useDialog } from './dialog.tsx'
 import { announce, Segmented } from './a11y.tsx'
 import { inkFor } from './color.ts'
-import { todayKeyInTz } from './date.ts'
+import { clockTime, todayKeyInTz } from './date.ts'
 import { PlusIcon } from './icons.tsx'
 import Sheet from './Sheet.tsx'
 import { preparePhoto, PhotoFormatError } from './photos.ts'
 import type { HealthData, HealthType, Member, MemoryData, Photo, ReadingData, ReadingStatus, TrackerEntry, TrackerInput, TrackerKind } from './types.ts'
 import { trackerKinds } from './types.ts'
-
-/** A stored HH:MM as the device shows times elsewhere ("3:40 PM", or "15:40" where that's the norm). */
-function clockTime(hhmm: string): string {
-  const [h, m] = hhmm.split(':').map(Number)
-  return new Date(2000, 0, 1, h, m).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
-}
 
 // ponytail: TABS, SUB_TO_KIND and trackerKinds() (types.ts, for App's nav) list the kinds in the same order.
 const TABS: { key: TrackerKind; label: string; emoji: string }[] = [

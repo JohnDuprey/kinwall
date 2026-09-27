@@ -23,6 +23,12 @@ export function formatTime(iso: string, tz: string) {
   return new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', timeZone: tz }).format(new Date(iso))
 }
 
+/** A stored HH:MM as the device shows times elsewhere ("3:40 PM", or "15:40" where that's the norm). */
+export function clockTime(hhmm: string): string {
+  const [h, m] = hhmm.split(':').map(Number)
+  return new Date(2000, 0, 1, h, m).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+}
+
 export function dateKey(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
