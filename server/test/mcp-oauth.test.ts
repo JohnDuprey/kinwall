@@ -268,3 +268,19 @@ test("oauth owner: an admin can change a signed-in app's owner later; not an MCP
   const mcpGrant = ((await (await t.req('/api/authorizations', {}, ADMIN_KEY)).json()) as any[]).find((g) => !g.deviceApp);
   assert.equal((await patch(mcpGrant.id, 'shared')).status, 404);
 });
+
+test('oauth: the Kinwall app (admin) manages connected apps and sees itself as current; display and MCP tokens cannot', async () => {
+  const t = setup();
+  const app = await appSignIn(t, 'admin');
+  const list = await t.req('/api/authorizations', {}, app.access_token);
+  assert.equal(list.status, 200);
+  const grants = await list.json() as any[];
+  assert.equal(grants.length, 1);
+  assert.equal(grants[0].current, true);
+  assert.equal((await (await t.req('/api/authorizations', {}, ADMIN_KEY)).json() as any[])[0].current, false);
+  const kid = await appSignIn(t, 'display');
+  assert.equal((await t.req('/api/authorizations', {}, kid.access_token)).status, 403, 'display app');
+  const mcp = await (await exchange(t, await authorize(t, 'admin'))).json() as any;
+  assert.equal((await t.req('/api/authorizations', {}, mcp.access_token)).status, 403, 'MCP client');
+  assert.equal((await t.req(`/api/authorizations/${grants[0].id}`, { method: 'DELETE' }, mcp.access_token)).status, 403);
+});

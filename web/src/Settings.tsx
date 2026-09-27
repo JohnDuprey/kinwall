@@ -7,7 +7,8 @@ import { CATEGORY_EMOJI, CATEGORY_PRESETS, MEMBER_EMOJI, MEMBER_PALETTE, nextPal
 import Sheet from './Sheet.tsx'
 import TidbitsSheet from './TidbitsSheet.tsx'
 import { tidbitSummary } from './tidbits.ts'
-import { featuresSummary, nightSummary, timeCuesSummary } from './settingsSummary.ts'
+import { featuresSummary, nightSummary, timeCuesSummary, transitionRemindersSummary } from './settingsSummary.ts'
+import { MAX_WARNING_TIMES, REPEAT_EVERY, REPEAT_WITHIN, warningTimes, type TransitionReminders, type WarningRepeat } from './transitions.ts'
 import { MemberPicker } from './MemberPicker.tsx'
 import { AnyEmojiField } from './AnyEmojiField.tsx'
 import { isValidAvatar } from './emoji.ts'
@@ -1088,7 +1089,7 @@ function ScreenFocusRows() {
 function TimeCuesSection() {
   const { parentDevice } = useApp()
   const d = useDeviceAppearance()
-  const summary = timeCuesSummary({ idleReset: d.idleReset ?? !parentDevice, nowNext: d.nowNext ?? true, warnings: d.warnings ?? [], sound: !!d.warningSound })
+  const summary = timeCuesSummary({ idleReset: d.idleReset ?? !parentDevice, nowNext: d.nowNext ?? true, warnings: d.warnings ?? [], repeat: d.warningRepeat, sound: !!d.warningSound })
   return <SummarySection title="Time cues" summary={summary}><TimeCueRows /></SummarySection>
 }
 
@@ -1097,10 +1098,7 @@ function TimeCueRows() {
   const device = useDeviceAppearance()
   const set = (patch: DeviceAppearance) => setDeviceAppearance({ ...device, ...patch })
   const warnings = device.warnings ?? []
-  const toggleWarning = (m: number) => {
-    const next = warnings.includes(m) ? warnings.filter(x => x !== m) : [...warnings, m].sort((a, b) => b - a)
-    set({ warnings: next.length ? next : undefined })
-  }
+  const anyWarnings = warningTimes(warnings, device.warningRepeat).length > 0
   const nowNext = device.nowNext ?? true
   const { parentDevice } = useApp()
   const idleReset = device.idleReset ?? !parentDevice
@@ -1122,21 +1120,84 @@ function TimeCueRows() {
       </div>
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
         <div className="settings-row-label" aria-hidden="true">Transition warnings</div>
-        <div className="chip-row" role="group" aria-label="Transition warnings">
-          <button className={`chip ${warnings.length === 0 ? 'active' : ''}`} aria-pressed={warnings.length === 0} onClick={() => set({ warnings: undefined })}>Off</button>
-          {[10, 5, 1].map(m => (
-            <button key={m} className={`chip ${warnings.includes(m) ? 'active' : ''}`} aria-pressed={warnings.includes(m)} onClick={() => toggleWarning(m)}>{m} min</button>
-          ))}
-        </div>
-        {warnings.length > 0 && (
+        <MinutesPicker idBase="warn" label="Transition warnings" presets={[10, 5, 1]} minutes={warnings} repeat={device.warningRepeat ?? null}
+          onOff={() => set({ warnings: undefined, warningRepeat: undefined })}
+          onChange={(minutes, repeat) => set({ warnings: minutes.length ? minutes : undefined, warningRepeat: repeat ?? undefined })} />
+        {anyWarnings && (
           <div className="toggle-row">
             <label id="warning-sound-label">Sound</label>
             <button className={`switch ${device.warningSound ? 'on' : ''}`} role="switch" aria-checked={!!device.warningSound} aria-labelledby="warning-sound-label"
               onClick={() => set({ warningSound: !device.warningSound || undefined })}><span className="knob" /></button>
           </div>
         )}
-        <div className="settings-row-sub">A calm banner before the next event (or its leave-by time). Pick one or more. Never during quiet hours.</div>
+        <div className="settings-row-sub">A calm banner before the next event (or its leave-by time). Pick as many times as help, add your own, or repeat them as the event gets close. Never during quiet hours.</div>
       </div>
+    </>
+  )
+}
+
+/** Minutes-before picker shared by this device's transition warnings and a member's transition
+ * reminders: preset chips, your own times (1-120, up to 8 in all), and "every N min during the
+ * last M". `onOff` adds an Off chip that clears everything. */
+function MinutesPicker({ idBase, label, presets, minutes, repeat, onChange, onOff, minEvery = 1 }: {
+  idBase: string; label: string; presets: number[]; minutes: number[]; repeat: WarningRepeat | null; minEvery?: number
+  onChange: (minutes: number[], repeat: WarningRepeat | null) => void; onOff?: () => void
+}) {
+  const [adding, setAdding] = useState(false)
+  const [draft, setDraft] = useState('')
+  const sorted = (xs: number[]) => [...new Set(xs)].sort((a, b) => b - a)
+  const toggle = (m: number) => onChange(minutes.includes(m) ? minutes.filter(x => x !== m) : sorted([...minutes, m]), repeat)
+  const custom = minutes.filter(m => !presets.includes(m))
+  const full = minutes.length >= MAX_WARNING_TIMES
+  const n = Number(draft)
+  const valid = Number.isInteger(n) && n >= 1 && n <= 120
+  const add = () => {
+    if (!valid || full) return
+    onChange(sorted([...minutes, n]), repeat)
+    announce(`${n} minutes added`)
+    setDraft(''); setAdding(false)
+  }
+  const none = minutes.length === 0 && !repeat
+  return (
+    <>
+      <div className="chip-row" role="group" aria-label={label}>
+        {onOff && <button className={`chip ${none ? 'active' : ''}`} aria-pressed={none} onClick={onOff}>Off</button>}
+        {presets.map(m => (
+          <button key={m} className={`chip ${minutes.includes(m) ? 'active' : ''}`} aria-pressed={minutes.includes(m)} disabled={full && !minutes.includes(m)} onClick={() => toggle(m)}>{m} min</button>
+        ))}
+        {custom.map(m => (
+          <button key={m} className="chip active" aria-label={`Remove ${m} min`} onClick={() => toggle(m)}>{m} min ✕</button>
+        ))}
+        {!adding && <button className="chip" disabled={full} onClick={() => setAdding(true)}>Add…</button>}
+      </div>
+      {adding && (
+        <div className="minutes-row">
+          <input id={`${idBase}-add`} type="number" inputMode="numeric" min={1} max={120} step={1} value={draft} autoFocus aria-label="Minutes before (1 to 120)"
+            onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') add(); if (e.key === 'Escape') setAdding(false) }} />
+          <span>min before</span>
+          <button className="btn btn-primary" disabled={!valid} onClick={add}>Add</button>
+          <button className="btn btn-secondary" onClick={() => { setDraft(''); setAdding(false) }}>Cancel</button>
+        </div>
+      )}
+      {full && <div className="settings-row-sub">That's {MAX_WARNING_TIMES} times, the most there can be. Tap one to remove it.</div>}
+      <div className="toggle-row">
+        <label id={`${idBase}-repeat-label`}>Repeat as it gets close</label>
+        <button className={`switch ${repeat ? 'on' : ''}`} role="switch" aria-checked={!!repeat} aria-labelledby={`${idBase}-repeat-label`}
+          onClick={() => onChange(minutes, repeat ? null : { every: 5, within: 30 })}><span className="knob" /></button>
+      </div>
+      {repeat && (
+        <div className="minutes-row">
+          <span>Every</span>
+          <select className="settings-select" aria-label="Repeat every" value={repeat.every}
+            onChange={e => { const every = Number(e.target.value); onChange(minutes, { every, within: Math.max(every, repeat.within) }) }}>
+            {REPEAT_EVERY.filter(v => v >= minEvery).map(v => <option key={v} value={v}>{v} min</option>)}
+          </select>
+          <span>during the last</span>
+          <select className="settings-select" aria-label="During the last" value={repeat.within} onChange={e => onChange(minutes, { ...repeat, within: Number(e.target.value) })}>
+            {REPEAT_WITHIN.filter(v => v >= repeat.every).map(v => <option key={v} value={v}>{v} min</option>)}
+          </select>
+        </div>
+      )}
     </>
   )
 }
@@ -1293,6 +1354,7 @@ function MembersSection({ members, onChanged, toast, canManage = true }: { membe
 
 function MemberEditSheet({ member, canDelete, onClose, onSaved, toast }: { member: Member | null; canDelete: boolean; onClose: () => void; onSaved: () => void; toast: (m: string, persist?: boolean) => void }) {
   const dialog = useDialog()
+  const [transitions, setTransitions] = useState<TransitionReminders>(member?.transitionReminders ?? { on: false, minutes: [], repeat: null, leaveBy: true })
   const [name, setName] = useState(member?.name ?? '')
   const [color, setColor] = useState(member?.color ?? MEMBER_PALETTE[0])
   const [avatar, setAvatar] = useState(member?.avatar ?? MEMBER_EMOJI[0])
@@ -1305,8 +1367,10 @@ function MemberEditSheet({ member, canDelete, onClose, onSaved, toast }: { membe
   const save = async () => {
     if (!name.trim() || !isValidAvatar(avatar)) return
     try {
-      if (member) await api.updateMember(member.id, { name: name.trim(), color, avatar, birthday, needsApproval })
-      else await api.createMember({ name: name.trim(), color, avatar, birthday, needsApproval })
+      // Transition reminders are a parent's setting: only sent from a device that may manage members.
+      const extra = canDelete ? { transitionReminders: transitions, needsApproval } : {}
+      if (member) await api.updateMember(member.id, { name: name.trim(), color, avatar, birthday, ...extra })
+      else await api.createMember({ name: name.trim(), color, avatar, birthday, ...extra })
       onSaved()
     } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save member', true) }
   }
@@ -1343,12 +1407,42 @@ function MemberEditSheet({ member, canDelete, onClose, onSaved, toast }: { membe
           <button className={`switch ${noYear ? 'on' : ''}`} role="switch" aria-checked={noYear} aria-labelledby="member-birthday-noyear" onClick={() => setNoYear(v => !v)}><span className="knob" /></button>
         </div>
       )}
+      {canDelete && <>
       <div className="toggle-row">
         <label id="member-needs-approval">Their chores need a parent's OK</label>
         <button className={`switch ${needsApproval ? 'on' : ''}`} role="switch" aria-checked={needsApproval} aria-labelledby="member-needs-approval" onClick={() => setNeedsApproval(v => !v)}><span className="knob" /></button>
       </div>
       <p className="field-hint">Chores they tick on a wall screen or their own device wait for a parent to approve before the points count. A chore's own setting wins.</p>
+      </>}
+      {canDelete && <TransitionRemindersField name={name.trim() || 'this person'} value={transitions} onChange={setTransitions} />}
     </Sheet>
+  )
+}
+
+/** A member's transition reminders: pushes to their own phone or tablet before their events. */
+function TransitionRemindersField({ name, value, onChange }: { name: string; value: TransitionReminders; onChange: (t: TransitionReminders) => void }) {
+  const set = (patch: Partial<TransitionReminders>) => onChange({ ...value, ...patch })
+  return (
+    <div className="field">
+      <div className="toggle-row">
+        <label id="member-transitions-label">Transition reminders</label>
+        <button className={`switch ${value.on ? 'on' : ''}`} role="switch" aria-checked={value.on} aria-labelledby="member-transitions-label"
+          onClick={() => set(value.on ? { on: false } : { on: true, minutes: value.minutes.length || value.repeat ? value.minutes : [10, 5] })}><span className="knob" /></button>
+      </div>
+      <div className="settings-row-sub">{value.on ? transitionRemindersSummary(value) : `Extra heads-ups before ${name}'s events, sent to devices that belong to ${name}. Helpful when switching activities is hard.`}</div>
+      {value.on && (
+        <>
+          <MinutesPicker idBase="member-transitions" label="Transition reminder times" presets={[30, 15, 10, 5]} minutes={value.minutes} repeat={value.repeat} minEvery={5}
+            onChange={(minutes, repeat) => set({ minutes, repeat })} />
+          <div className="toggle-row">
+            <label id="member-transitions-leave-label">Count down to leaving</label>
+            <button className={`switch ${value.leaveBy ? 'on' : ''}`} role="switch" aria-checked={value.leaveBy} aria-labelledby="member-transitions-leave-label"
+              onClick={() => set({ leaveBy: !value.leaveBy })}><span className="knob" /></button>
+          </div>
+          <div className="settings-row-sub">When an event has travel time, reminders count to the time to leave ("Leave for Soccer in 5 minutes"). They go to phones and tablets set up as {name}'s under Settings → Access, with notifications on. Never during quiet hours.</div>
+        </>
+      )}
+    </div>
   )
 }
 
@@ -2001,7 +2095,8 @@ function RecoveryCodesSection({ toast, onChanged }: { toast: (m: string, persist
  * Kinwall's own app also has an owner ("Whose device is this?"), changeable here. */
 function ConnectedAppsSection({ toast }: { toast: (m: string, persist?: boolean) => void }) {
   const dialog = useDialog()
-  const { reloadCore } = useApp()
+  const { reloadCore, members } = useApp()
+  const ownerName = (o: string | null) => { const m = o && o !== 'shared' ? members.find(x => x.id === o) : undefined; return m ? `${m.avatar} ${m.name}'s device` : 'Anyone can use it' }
   const [apps, setApps] = useState<Awaited<ReturnType<typeof api.getAuthorizations>>>([])
   const load = () => { api.getAuthorizations().then(setApps).catch(() => {}) }
   useEffect(load, [])
@@ -2016,16 +2111,18 @@ function ConnectedAppsSection({ toast }: { toast: (m: string, persist?: boolean)
     <Section title="Connected apps" icon={<LinkIcon width={16} height={16} />}>
       {apps.length === 0 && <p className="settings-row-sub">Apps you connect with sign-in (like a Claude connector) appear here. Point them at {location.origin}/mcp.</p>}
       {apps.map(a => (
-        <div key={a.id} className="key-item">
-          <div>
-            <div className="settings-row-label">{a.clientName}</div>
+        <div key={a.id} className={a.deviceApp && !a.current ? 'key-item key-item-owned' : 'key-item'}>
+          <div className="key-item-info">
+            <div className="settings-row-label">{a.clientName}{a.current && <> <span className="cal-kind-badge">This device</span></>}</div>
             <div className="settings-row-sub">
-              {a.scope === 'admin' ? 'Full access' : 'Everyday access'} · connected {new Date(a.createdAt).toLocaleDateString()}
+              {a.scope === 'admin' ? 'Full access' : 'Everyday access'}
+              {a.current && ` · ${ownerName(a.owner)}`}
+              {' · '}connected {new Date(a.createdAt).toLocaleDateString()}
               {a.lastUsedAt ? ` · used ${new Date(a.lastUsedAt).toLocaleDateString()}` : ''}
             </div>
           </div>
-          {a.deviceApp && <OwnerSelect value={a.owner ?? ''} onChange={v => changeOwner(a.id, v)} label={`Whose device ${a.clientName} is`} legacy={!a.owner} />}
-          <button className="icon-btn" onClick={() => revoke(a.id, a.clientName)} aria-label={`Disconnect ${a.clientName}`}><TrashIcon width={16} height={16} /></button>
+          {a.deviceApp && !a.current && <OwnerSelect value={a.owner ?? 'shared'} onChange={v => changeOwner(a.id, v)} label={`Whose device ${a.clientName} is`} />}
+          {!a.current && <button className="icon-btn" onClick={() => revoke(a.id, a.clientName)} aria-label={`Disconnect ${a.clientName}`}><TrashIcon width={16} height={16} /></button>}
         </div>
       ))}
     </Section>
@@ -2098,7 +2195,7 @@ export function OwnerSelect({ value, onChange, members, id, label, legacy }: { v
   return (
     <select className="settings-select" id={id} aria-label={label} value={value} onChange={e => onChange(e.target.value)}>
       {legacy && <option value="" disabled>Chosen on the device</option>}
-      <option value="shared">Shared (the whole family)</option>
+      <option value="shared">Anyone (whole family)</option>
       {list.map(m => <option key={m.id} value={m.id}>{m.avatar} {m.name}</option>)}
     </select>
   )

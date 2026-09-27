@@ -4,13 +4,23 @@ import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
 import { emit } from '../bus.ts';
 import { hostTimezone } from '../env.ts';
-import { ErrorSchema, MemberInputSchema, MemberSchema } from '../schemas.ts';
+import { ErrorSchema, MemberInputSchema, MemberSchema, TRANSITIONS_OFF } from '../schemas.ts';
 import { parseMemberIds } from '../calendar-members.ts';
 import { balanceOf, pointTotalsStmt, type PointTotals } from '../stickers.ts';
 
 export const membersRoutes = createRouter();
 
-type MemberRow = { id: string; name: string; color: string; avatar: string | null; birthday: string | null; sort: number; created_at: string; needs_approval?: number };
+type MemberRow = { id: string; name: string; color: string; avatar: string | null; birthday: string | null; sort: number; created_at: string; needs_approval?: number; transitions: string | null };
+
+// The stored JSON, or off. Shared with notify.ts (which only acts on `on`).
+export function parseTransitions(raw: string | null): typeof TRANSITIONS_OFF {
+  if (!raw) return TRANSITIONS_OFF;
+  try {
+    return { ...TRANSITIONS_OFF, ...JSON.parse(raw) };
+  } catch {
+    return TRANSITIONS_OFF;
+  }
+}
 
 // Exported for reuse by routes/leaderboard.ts (period boundaries use the same household tz/weekStart).
 export function todayInTz(tz: string, at = new Date()): string {
@@ -85,7 +95,7 @@ type Points = { pointsToday: number; pointsWeek: number; balance: number };
 const NO_POINTS: Points = { pointsToday: 0, pointsWeek: 0, balance: 0 };
 
 function toApi(row: MemberRow, points: Points) {
-  return { id: row.id, name: row.name, color: row.color, avatar: row.avatar, birthday: row.birthday ?? null, sort: row.sort, needsApproval: !!row.needs_approval, ...points };
+  return { id: row.id, name: row.name, color: row.color, avatar: row.avatar, birthday: row.birthday ?? null, sort: row.sort, needsApproval: !!row.needs_approval, ...points, transitionReminders: parseTransitions(row.transitions) };
 }
 
 membersRoutes.openapi(
@@ -135,9 +145,10 @@ membersRoutes.openapi(
       sort: body.sort ?? ((await c.env.DB.prepare('SELECT MAX(sort) AS m FROM members').first<{ m: number | null }>())?.m ?? -1) + 1,
       created_at: new Date().toISOString(),
       needs_approval: body.needsApproval ? 1 : 0,
+      transitions: body.transitionReminders ? JSON.stringify(body.transitionReminders) : null,
     };
-    await c.env.DB.prepare('INSERT INTO members (id, name, color, avatar, birthday, sort, created_at, needs_approval) VALUES (?,?,?,?,?,?,?,?)')
-      .bind(row.id, row.name, row.color, row.avatar, row.birthday, row.sort, row.created_at, row.needs_approval)
+    await c.env.DB.prepare('INSERT INTO members (id, name, color, avatar, birthday, sort, created_at, needs_approval, transitions) VALUES (?,?,?,?,?,?,?,?,?)')
+      .bind(row.id, row.name, row.color, row.avatar, row.birthday, row.sort, row.created_at, row.needs_approval, row.transitions)
       .run();
     emit(c, 'member.changed', { id: row.id });
     return c.json(toApi(row, NO_POINTS), 201);
@@ -173,9 +184,10 @@ membersRoutes.openapi(
       birthday: body.birthday !== undefined ? body.birthday : existing.birthday,
       sort: body.sort ?? existing.sort,
       needs_approval: body.needsApproval !== undefined ? (body.needsApproval ? 1 : 0) : existing.needs_approval,
+      transitions: body.transitionReminders ? JSON.stringify(body.transitionReminders) : existing.transitions,
     };
-    await c.env.DB.prepare('UPDATE members SET name = ?, color = ?, avatar = ?, birthday = ?, sort = ?, needs_approval = ? WHERE id = ?')
-      .bind(updated.name, updated.color, updated.avatar, updated.birthday, updated.sort, updated.needs_approval ?? 0, id)
+    await c.env.DB.prepare('UPDATE members SET name = ?, color = ?, avatar = ?, birthday = ?, sort = ?, needs_approval = ?, transitions = ? WHERE id = ?')
+      .bind(updated.name, updated.color, updated.avatar, updated.birthday, updated.sort, updated.needs_approval ?? 0, updated.transitions, id)
       .run();
     emit(c, 'member.changed', { id });
     const { tz, weekStart } = await household(c.env.DB);

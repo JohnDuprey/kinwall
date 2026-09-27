@@ -98,7 +98,7 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 | `approve_chore` | Approves a waiting chore for a date (default today) and awards its points (admin). |
 | `reject_chore` | "Not yet": removes a waiting chore's tick, with an optional `note` the kid sees on the card (admin). |
 | `add_member` | Adds a family member (admin), optionally with a `birthday` (`YYYY-MM-DD`, or `--MM-DD` without a year). |
-| `update_member` | Changes a member's name, color, avatar, `birthday` (admin; `null` clears it) or `needsApproval` (their chores need a parent's OK by default). |
+| `update_member` | Changes a member's name, color, avatar, `birthday` (`null` clears it), `needsApproval` (their chores need a parent's OK by default) or `transitionReminders` (see [Transition reminders](../settings/family.md#transition-reminders)). Admin. |
 | `create_list` | Creates a shopping, to-do or reusable list. |
 | `update_list` | Renames, changes kind, emoji, owners or item sort (`sortBy`: `manual`, `added`, `due`, `priority`, `alpha`), or archives a list. |
 | `add_list_items` | Adds items: plain titles or objects (notes, quantity, store, category, member, dueDate, eventId, priority, steps). `steps` is a list of step titles in order. |

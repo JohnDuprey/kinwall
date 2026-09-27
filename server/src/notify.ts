@@ -12,6 +12,7 @@ import { priorityRankSql } from './routes/lists.ts';
 import { parseMemberIds } from './calendar-members.ts';
 import { sendWebPush } from './webpush.ts';
 import { readFeatures, type Features } from './routes/settings.ts';
+import { parseTransitions } from './routes/members.ts';
 
 export const DEFAULT_PUSH_PREFS = {
   eventReminders: true,
@@ -182,7 +183,10 @@ async function sendToSub(env: Env, db: KinwallDb, row: PushSubRow, payload: { ti
   else if (result.gone) await db.prepare('DELETE FROM push_subscriptions WHERE id = ?').bind(row.id).run();
 }
 
-async function runEventReminders(env: Env, db: KinwallDb, now: Date, tz: string, defaultReminders: number[], subs: PushSubRow[]): Promise<void> {
+// One timed or all-day occurrence in the search window, with what the regular reminders use.
+type Occurrence = { eventId: string; occurrenceKey: string; title: string; start: string; allDay: boolean; memberIds: string[]; effective: number[]; leadMinutes: number; travelMinutes: number; location: string | null };
+
+async function runEventReminders(env: Env, db: KinwallDb, now: Date, tz: string, defaultReminders: number[], subs: PushSubRow[], quiet: boolean): Promise<void> {
   const eligible = subs.filter((s) => subPrefs(s).eventReminders);
 
   const from = new Date(now.getTime() - 24 * 60 * 60 * 1000);
@@ -208,6 +212,7 @@ async function runEventReminders(env: Env, db: KinwallDb, now: Date, tz: string,
   // the leave-by time (start - travel) instead of the start.
   type Candidate = { eventId: string; occurrenceKey: string; title: string; start: string; allDay: boolean; memberIds: string[]; categoryId: string | null; minutes: number; leadMinutes: number; row: EventRow; calName: string };
   const candidates: Candidate[] = [];
+  const occurrences: Occurrence[] = [];
 
   for (const row of events) {
     const cal = cals.get(row.calendar_id);
@@ -227,14 +232,16 @@ async function runEventReminders(env: Env, db: KinwallDb, now: Date, tz: string,
         reminders = null;
       }
     }
-    const effective = reminders ?? defaultReminders; // [] = turned off on the event: stays silent
-    if (!effective || effective.length === 0) continue;
+    // [] = turned off on the event: no regular reminders (transition reminders are per person).
+    const effective = reminders ?? defaultReminders ?? [];
 
     const travel = cal.kind === 'local' ? row : row.external_id ? travelOverrides.get(`${cal.id}\u0000${row.external_id}`) : undefined;
     const leadMinutes = travel?.remind_before_leave && travel.travel_minutes && !row.all_day ? travel.travel_minutes : 0;
+    const occ = (start: string): Occurrence => ({ eventId: row.id, occurrenceKey: start, title: row.title, start, allDay: !!row.all_day, memberIds, effective, leadMinutes, travelMinutes: row.all_day ? 0 : travel?.travel_minutes ?? 0, location: row.location });
 
     if (cal.kind === 'local' && row.rrule) {
       for (const inst of expand(row.rrule, row.start, row.end, !!row.all_day, tz, from, to)) {
+        occurrences.push(occ(inst.start));
         for (const minutes of effective) {
           candidates.push({ eventId: row.id, occurrenceKey: inst.start, title: row.title, start: inst.start, allDay: !!row.all_day, memberIds, categoryId: row.category_id, minutes, leadMinutes, row, calName: cal.name });
         }
@@ -243,6 +250,7 @@ async function runEventReminders(env: Env, db: KinwallDb, now: Date, tz: string,
     }
     const startMs = row.all_day ? Date.parse(`${row.start}T00:00:00Z`) : Date.parse(row.start);
     if (startMs < from.getTime() || startMs >= to.getTime()) continue;
+    occurrences.push(occ(row.start));
     for (const minutes of effective) {
       candidates.push({ eventId: row.id, occurrenceKey: row.start, title: row.title, start: row.start, allDay: !!row.all_day, memberIds, categoryId: row.category_id, minutes, leadMinutes, row, calName: cal.name });
     }
@@ -252,7 +260,6 @@ async function runEventReminders(env: Env, db: KinwallDb, now: Date, tz: string,
     const t = fireTime(cand.start, cand.allDay, cand.minutes + cand.leadMinutes, tz);
     return t > now.getTime() - LOOKBACK_MS && t <= now.getTime();
   });
-  if (due.length === 0) return;
 
   for (const cand of due) {
     const emoji = cand.categoryId ? categoryEmojis.get(cand.categoryId) : null;
@@ -290,6 +297,77 @@ async function runEventReminders(env: Env, db: KinwallDb, now: Date, tz: string,
       if (await alreadySent(db, key)) continue;
       await sendToSub(env, db, sub, payload);
       await markSent(db, key, now);
+    }
+  }
+
+  if (!quiet) await runTransitionReminders(env, db, now, tz, occurrences, eligible);
+}
+
+/** A person's transition times: their picked minutes plus every `repeat.every` during the last
+ * `repeat.within`, deduped, latest first. [10, 5] + every 5 in the last 15 -> [15, 10, 5]. */
+export function transitionTimes(minutes: number[], repeat: { every: number; within: number } | null): number[] {
+  const all = new Set(minutes);
+  if (repeat && repeat.every > 0) for (let m = repeat.every; m <= repeat.within; m += repeat.every) all.add(m);
+  return [...all].filter((m) => m >= 1 && m <= 120).sort((a, b) => b - a);
+}
+
+// Is `now` (household tz) inside quiet hours "HH:MM"-"HH:MM" (may wrap midnight)?
+export function inQuietHours(from: string | undefined, to: string | undefined, now: Date, tz: string): boolean {
+  if (!from || !to || from === to) return false;
+  const hm = new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(now);
+  return from < to ? hm >= from && hm < to : hm >= from || hm < to;
+}
+
+// Per-person transition reminders: for each member who has them on, calm pushes before their
+// timed events ("Soccer in 10 minutes", "Leave for Soccer in 5 minutes") to devices that belong to
+// them (the device's key has them as owner) and have event reminders on. Untagged events count as
+// everyone's, like everywhere else. Skipped when a regular reminder for the same event lands on
+// that device in the same minute, and during quiet hours (the caller checks). Not recorded in the
+// household feed: they're personal and frequent.
+async function runTransitionReminders(env: Env, db: KinwallDb, now: Date, tz: string, occurrences: Occurrence[], eligible: PushSubRow[]): Promise<void> {
+  if (!eligible.length) return;
+  const [membersRes, keysRes] = await db.batch<unknown>([
+    db.prepare('SELECT id, transitions FROM members WHERE transitions IS NOT NULL'),
+    db.prepare("SELECT id, owner FROM api_keys WHERE owner IS NOT NULL AND owner <> 'shared'"),
+  ]);
+  const ownerOfKey = new Map((keysRes.results as { id: string; owner: string }[]).map((k) => [k.id, k.owner]));
+  const minute = (ms: number) => Math.floor(ms / 60000);
+
+  for (const m of membersRes.results as { id: string; transitions: string }[]) {
+    const cfg = parseTransitions(m.transitions);
+    const times = cfg.on ? transitionTimes(cfg.minutes, cfg.repeat) : [];
+    const devices = eligible.filter((s) => s.api_key_id && ownerOfKey.get(s.api_key_id) === m.id);
+    if (!times.length || !devices.length) continue;
+
+    for (const occ of occurrences) {
+      if (occ.allDay || !memberMatch([m.id], occ.memberIds)) continue;
+      const lead = cfg.leaveBy ? occ.travelMinutes : 0;
+      const target = Date.parse(occ.start) - lead * 60000;
+      if (target <= now.getTime()) continue;
+      // Every time due in the lookback window. A late tick can catch several (repeat every 1-2
+      // min on a 5-min cron): send only the latest, mark the rest so they don't trail in after.
+      const due = times.filter((t) => {
+        const at = target - t * 60000;
+        return at > now.getTime() - LOOKBACK_MS && at <= now.getTime();
+      });
+      if (!due.length) continue;
+      const regular = occ.effective.map((r) => minute(Date.parse(occ.start) - (r + occ.leadMinutes) * 60000));
+      const left = Math.max(1, Math.round((target - now.getTime()) / 60000)); // the truth, even on a late tick
+      const what = lead ? `Leave for ${occ.title}` : occ.title;
+      const payload = {
+        title: `${what} in ${left} minute${left === 1 ? '' : 's'}`,
+        body: [lead ? `Leave by ${fmtTime(new Date(target).toISOString(), tz)} · starts ${fmtTime(occ.start, tz)}` : `Starts at ${fmtTime(occ.start, tz)}`, occ.location && `📍 ${occ.location.replace(/\s*\n\s*/g, ', ')}`].filter(Boolean).join('\n'),
+        url: `/#/calendar?event=${encodeURIComponent(occ.eventId)}&at=${encodeURIComponent(new Date(occ.start).toISOString())}`,
+        tag: `transition:${occ.eventId}`, // each one replaces the last on the lock screen
+      };
+      for (const sub of devices) {
+        const keys = due.map((t) => `tr:${sub.id}:${occ.eventId}:${occ.occurrenceKey}:${t}`);
+        const latest = due[due.length - 1];
+        const fireMinute = minute(target - latest * 60000);
+        const doubled = memberMatch(parseMemberIds(sub.member_ids), occ.memberIds) && regular.includes(fireMinute);
+        if (!doubled && !(await alreadySent(db, keys[keys.length - 1]))) await sendToSub(env, db, sub, payload);
+        for (const key of keys) await markSent(db, key, now);
+      }
     }
   }
 }
@@ -423,10 +501,12 @@ export async function runNotifications(env: Env, now: Date, _execCtx?: WaitCtx):
   // No early bail on zero subscriptions: the in-app feed records reminders/summaries regardless.
   const { results: subs } = await env.DB.prepare('SELECT * FROM push_subscriptions').all<PushSubRow>();
 
-  const [tzRow, defaultRemindersRow] = await Promise.all([
+  const [tzRow, defaultRemindersRow, quietRes] = await Promise.all([
     env.DB.prepare("SELECT value FROM settings WHERE key = 'timezone'").first<{ value: string }>(),
     env.DB.prepare("SELECT value FROM settings WHERE key = 'defaultReminderMinutes'").first<{ value: string }>(),
+    env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('quietFrom', 'quietTo')").all<{ key: string; value: string }>(),
   ]);
+  const quietHours = new Map(quietRes.results.map((r) => [r.key, r.value]));
   const tz = tzRow?.value ?? hostTimezone();
   let defaultReminders: number[] = [30];
   if (defaultRemindersRow?.value) {
@@ -439,7 +519,8 @@ export async function runNotifications(env: Env, now: Date, _execCtx?: WaitCtx):
 
   const windowStart = await getTickWindowStart(env.DB, now);
 
-  await runEventReminders(env, env.DB, now, tz, defaultReminders, subs);
+  const quiet = inQuietHours(quietHours.get('quietFrom'), quietHours.get('quietTo'), now, tz);
+  await runEventReminders(env, env.DB, now, tz, defaultReminders, subs, quiet);
   const features = await readFeatures(env.DB);
   await runDailySummary(env, env.DB, now, tz, subs, windowStart, features);
   if (features.chores) await runChoreNudge(env, env.DB, now, tz, subs, windowStart); // Chores turned off: no nudge

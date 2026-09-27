@@ -475,12 +475,15 @@ pluginsRoutes.openapi(
         .bind(today, member, id, add, PLUGIN_LIMITS.maxPlaytimeDay)
         .run();
     }
-    const [playRes, choresRes, doneRes] = await db.batch<unknown>([
+    const [playRes, choresRes, doneRes, notYetRes] = await db.batch<unknown>([
       db.prepare('SELECT seconds FROM plugin_playtime WHERE date = ? AND member_id = ? AND plugin_id = ?').bind(today, member, id),
       // Theirs, and Anyone chores (whoever gets there first earns those).
       db.prepare('SELECT * FROM chores WHERE active = 1 AND plugin_id = ? AND (member_id = ? OR member_id IS NULL) ORDER BY sort, created_at').bind(id, member),
       db.prepare('SELECT chore_id FROM chore_completions WHERE date = ?').bind(today),
+      // A parent said "Not yet": play time alone doesn't send it back, the kid ticks it again.
+      db.prepare('SELECT chore_id FROM chore_rejections WHERE date = ?').bind(today),
     ]);
+    const notYet = new Set((notYetRes.results as { chore_id: string }[]).map((r) => r.chore_id));
     const total = Number((playRes.results[0] as { seconds: number } | undefined)?.seconds ?? 0);
     const done = new Set((doneRes.results as { chore_id: string }[]).map((r) => r.chore_id));
     const out: z.infer<typeof ActivityChoreProgressSchema>[] = [];
@@ -488,7 +491,7 @@ pluginsRoutes.openapi(
       const needSeconds = (ch.plugin_minutes ?? DEFAULT_ACTIVITY_MINUTES) * 60;
       let completed = done.has(ch.id);
       let justCompleted = false;
-      if (!completed && total >= needSeconds) {
+      if (!completed && !notYet.has(ch.id) && total >= needSeconds) {
         // onlyIfNew: a completion that landed meanwhile (a tick, another heartbeat) stays as it is.
         const r = await completeChore(c, ch.id, today, member, true);
         justCompleted = r === true || r === 'pending';

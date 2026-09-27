@@ -1345,6 +1345,10 @@ button {
 .device-pref-row.tall > span { padding-top: 10px; }
 @media (max-width: 600px) { .device-pref-row.tall { grid-template-columns: 1fr; gap: 6px; } .device-pref-row.tall > span { padding-top: 0; } }
 .device-pref-row .settings-select { width: 100%; min-width: 0; text-overflow: ellipsis; }
+/* Transition times (MinutesPicker): "[20] min before [Add]" and "Every [5 min] during the last [30 min]" read as one line. */
+.minutes-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-weight: 700; font-size: 0.9375rem; }
+.minutes-row input[type=number] { width: 5.5em; }
+.minutes-row .settings-select, .field .minutes-row select { width: auto; }
 /* Quiet hours (paired displays): near-black screen with a dim clock, above sheets and toasts. */
 .quiet-overlay { position: fixed; inset: 0; z-index: 1000; background: #050403; display: flex; align-items: center; justify-content: center; cursor: pointer; }
 .quiet-clock { text-align: center; color: #8a7f74; opacity: 0.55; transition: transform 2s ease; }

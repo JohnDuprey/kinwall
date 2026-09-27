@@ -190,6 +190,11 @@ test('approval: activity chores auto-approve timed play unless the chore says ot
     const play = (await t.req('/api/plugins/words/playtime', 'POST', { member: t.leo.id, seconds: 60 }, t.leoKey)).json;
     assert.deepEqual(play.map((p: any) => [p.title, p.justCompleted]), [['Words', true], ['More words', true]]);
     assert.deepEqual([(await t.day(auto.id)).completed, (await t.day(strict.id)).pending], [true, true]);
+    // "Not yet" sticks: more play doesn't send it straight back.
+    assert.equal((await t.req(`/api/chores/${strict.id}/reject`, 'POST', { date: t.today })).status, 200);
+    const again = (await t.req('/api/plugins/words/playtime', 'POST', { member: t.leo.id, seconds: 30 }, t.leoKey)).json;
+    assert.equal(again.find((p: any) => p.title === 'More words').justCompleted, false);
+    assert.equal((await t.day(strict.id)).pending, false);
   } finally {
     await t.restore();
   }

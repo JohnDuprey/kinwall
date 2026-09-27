@@ -95,7 +95,7 @@ A chore can wait for a parent's OK before it counts. Ticks from wall screens and
 * While it waits, the chore earns no points. It doesn't count toward streaks, the leaderboard, balances or the done counts on the Board, a person's day or widgets. The Board's chores card shows the waiting count (for example, `2 left · 1 ⏳`).
 * Parent devices get a notification ("Leo finished Make bed. Approve?") and a feed entry, once per chore and day.
 * Parent devices show a **To approve** count on the **Chores** tab and a **To approve** section at the top of the Chores screen. **Approve** awards the points. **Not yet** opens a sheet for an optional note ("Please make the bed properly") and sends the chore back unticked.
-* After **Not yet**, the kid's card shows the note, such as "Not yet: Please make the bed properly", until they tick the chore again for that day. Their own devices (devices whose owner is that person, set in **Settings → Access**) get a notification with the note.
+* After **Not yet**, the kid's card shows the note, such as "Not yet: Please make the bed properly", until they tick the chore again for that day. Their own devices (devices whose owner is that person, set in **Settings → Access**) get a notification with the note. On an activity chore, more play time doesn't send it back on its own; the kid ticks it.
 * Points are judged by when the chore was ticked, not when it was approved. A chore ticked on its day earns full points even if a parent approves it the next morning; one ticked late earns the [late completion credit](#points-late-completion-credit).
 
 **API and MCP**

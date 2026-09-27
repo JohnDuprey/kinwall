@@ -316,15 +316,25 @@ mcpOAuthRoutes.post('/oauth/revoke', async (c) => {
 
 // Settings → Access: connected apps. Like approve, only a person manages these - an OAuth
 // token must not be able to list or revoke other apps' grants.
+// Kinwall's own app (signed in through OAuth) is a person's device and may manage them; other
+// OAuth clients (MCP, automations) may not.
+async function managerGrant(db: KinwallDb, caller: Awaited<ReturnType<typeof resolveKey>>): Promise<{ ok: boolean; ownGrant: string | null }> {
+  if (!caller || caller.scope !== 'admin') return { ok: false, ownGrant: null };
+  if (caller.kind !== 'oauth') return { ok: true, ownGrant: null };
+  const row = await db.prepare('SELECT g.id, cl.redirect_uris FROM api_keys k JOIN oauth_grants g ON g.id = k.oauth_grant_id JOIN oauth_clients cl ON cl.id = g.client_id WHERE k.id = ?')
+    .bind(caller.id ?? '').first<{ id: string; redirect_uris: string }>();
+  return row && isDeviceApp(JSON.parse(row.redirect_uris) as string[]) ? { ok: true, ownGrant: row.id } : { ok: false, ownGrant: null };
+}
+
 mcpOAuthRoutes.get('/api/authorizations', async (c) => {
-  const caller = await resolveKey(c);
-  if (!caller || caller.scope !== 'admin' || caller.kind === 'oauth') return c.json({ error: 'sign in as an admin to manage connected apps' }, 403);
+  const m = await managerGrant(c.env.DB, await resolveKey(c));
+  if (!m.ok) return c.json({ error: 'sign in as an admin to manage connected apps' }, 403);
   const { results } = await c.env.DB.prepare(
     'SELECT g.id, g.scope, g.approved_by, g.created_at, g.last_used_at, g.owner, cl.name AS client_name, cl.redirect_uris FROM oauth_grants g JOIN oauth_clients cl ON cl.id = g.client_id ORDER BY g.created_at',
   ).all<{ id: string; scope: string; approved_by: string | null; created_at: string; last_used_at: string | null; owner: string | null; client_name: string; redirect_uris: string }>();
   return c.json(results.map((r) => ({
     id: r.id, clientName: r.client_name, scope: r.scope, approvedBy: r.approved_by, createdAt: r.created_at, lastUsedAt: r.last_used_at,
-    owner: r.owner, deviceApp: isDeviceApp(JSON.parse(r.redirect_uris) as string[]),
+    owner: r.owner, deviceApp: isDeviceApp(JSON.parse(r.redirect_uris) as string[]), current: r.id === m.ownGrant,
   })));
 });
 
@@ -332,8 +342,9 @@ mcpOAuthRoutes.get('/api/authorizations', async (c) => {
 // refresh copies it too. Widget/watch keys the app already made are displays of their own
 // (Settings → Access → Displays). Only the app's sign-ins have an owner, not MCP clients.
 mcpOAuthRoutes.patch('/api/authorizations/:id', async (c) => {
-  const caller = await resolveKey(c);
-  if (!caller || caller.scope !== 'admin' || caller.kind === 'oauth') return c.json({ error: 'sign in as an admin to manage connected apps' }, 403);
+  const m = await managerGrant(c.env.DB, await resolveKey(c));
+  // the app can't reassign or disconnect itself here (Sign out does that)
+  if (!m.ok || m.ownGrant === c.req.param('id')) return c.json({ error: 'sign in as an admin to manage connected apps' }, 403);
   const id = c.req.param('id');
   const body = (await c.req.json().catch(() => ({}))) as { owner?: unknown };
   const owner = typeof body.owner === 'string' ? await validOwner(c.env.DB, body.owner) : null;
@@ -349,8 +360,9 @@ mcpOAuthRoutes.patch('/api/authorizations/:id', async (c) => {
 });
 
 mcpOAuthRoutes.delete('/api/authorizations/:id', async (c) => {
-  const caller = await resolveKey(c);
-  if (!caller || caller.scope !== 'admin' || caller.kind === 'oauth') return c.json({ error: 'sign in as an admin to manage connected apps' }, 403);
+  const m = await managerGrant(c.env.DB, await resolveKey(c));
+  // the app can't reassign or disconnect itself here (Sign out does that)
+  if (!m.ok || m.ownGrant === c.req.param('id')) return c.json({ error: 'sign in as an admin to manage connected apps' }, 403);
   await revokeGrant(c.env.DB, c.req.param('id'));
   return c.json({ ok: true });
 });

@@ -24,13 +24,15 @@ The card reads **Following the family**, or lists what this device overrides (fo
 
 ## Time cues
 
-The card lists the cues that are on (for example "Now / Next on · warnings at 10 and 5 min · back to the calendar when idle"). Tap **Change** under **Time cues** for these:
+The card lists the cues that are on (for example "Now / Next on · warnings at 10 and 5 min, plus every 2 min in the last 10 · back to the calendar when idle"). Tap **Change** under **Time cues** for these:
 
 | Item | Notes |
 |---|---|
 | **Back to the calendar when idle** | After 2 minutes without a tap, closes what's open and shows today's calendar, but never while an activity (Paint, the sticker book or an added activity) is open. On by default on wall screens and kids' devices, off on parents' phones and computers. |
 | **Now / Next** | On by default. What's on now and what's next today, with a countdown, above the calendar on every view. On a wall display it hides when nothing is left today. On a phone it's a fixed two-line strip that reads "Nothing more today" when the day is done, so the screen never jumps. |
-| **Transition warnings** | Off, or one or more of 10, 5, 1 minute(s) before the next event (or its leave-by time). A calm banner; never shows during quiet hours. With any minute picked, a **Sound** toggle appears. |
+| **Transition warnings** | A calm banner before the next event (or its leave-by time), such as "Soccer practice in 10 minutes" or "Leave for Soccer practice in 5 minutes". Tap **10 min**, **5 min** or **1 min**, or **Add…** your own time (1 to 120 minutes before; up to 8 times in all). Tap a time you added to remove it. **Repeat as it gets close** adds a warning every few minutes near the end, for example every 5 minutes during the last 30, on top of the times you picked. **Off** clears them all. With any warning set, a **Sound** toggle adds a soft chime. Never shows during quiet hours. |
+
+Everyone handles switching activities differently, so these are per device: a bedroom tablet can count down every minute while the kitchen wall only warns at 10 and 5. For warnings that follow a person to their own phone or tablet, see [Transition reminders](family.md#transition-reminders).
 
 ## Night screen
 
