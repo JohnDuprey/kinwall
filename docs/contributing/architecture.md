@@ -9,6 +9,7 @@ The full design and API contract is in [SPEC.md](../../SPEC.md). In short:
 * **Background work.** `sync.ts` (chunked calendar sync) and `notify.ts` (Web Push scheduling) run from the Workers cron or Node intervals. `webpush.ts` implements RFC 8291/8292 with Web Crypto, so it runs on Workers.
 * **Change bus.** `bus.ts` `emit()` bumps the revision counter behind `/api/rev` and fires [webhooks](../integrations/webhooks.md).
 * **Security.** `auth.ts` holds the key scopes, with a deny-by-default allow-list for display keys. `crypto.ts` does AES-256-GCM at rest, and `outbound.ts` has the SSRF guards.
+* **Offline.** `web/public/sw.js` keeps the app shell (network-first page, cache-first hashed assets). `web/src/outbox.ts` keeps the last good copy of the app's GETs and a persistent outbox of list item and chore changes in IndexedDB, replayed in order when the connection returns (client-made item ids, `done: true/false`, last write wins per field). Details in SPEC.md, Offline.
 * **Migrations.** `server/migrations/*.sql` are applied at runtime on both targets and tracked in `_migrations`.
 
 ```

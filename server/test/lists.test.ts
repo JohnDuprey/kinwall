@@ -440,3 +440,31 @@ test('lists: a display key can work steps', async () => {
   assert.equal((await display(`${base}/${floor.id}`, { method: 'PATCH', body: JSON.stringify({ done: true }) })).status, 200);
   assert.equal((await display(`${base}/${floor.id}`, { method: 'DELETE' })).status, 200);
 });
+
+test('lists: a client-made item id makes a replayed add idempotent; the same id on another list is a conflict', async () => {
+  const env = makeEnv();
+  const request = makeApp(env);
+  const list = await json(await request('/api/lists', { method: 'POST', body: JSON.stringify({ name: 'Groceries', kind: 'shopping' }) }));
+  const other = await json(await request('/api/lists', { method: 'POST', body: JSON.stringify({ name: 'Hardware', kind: 'shopping' }) }));
+  const id = '5b0c1a52-6a7e-4c1e-9f55-2f1f4b1f3d11';
+
+  const first = await request(`/api/lists/${list.id}/items`, { method: 'POST', body: JSON.stringify({ id, title: 'Milk' }) });
+  assert.equal(first.status, 201);
+  assert.equal((await json(first))[0].id, id);
+  // Ticked on another device before the replay lands: the replay must not reset or duplicate it.
+  await request(`/api/lists/${list.id}/items/${id}`, { method: 'PATCH', body: JSON.stringify({ done: true }) });
+  const again = await request(`/api/lists/${list.id}/items`, { method: 'POST', body: JSON.stringify([{ id, title: 'Milk' }, { title: 'Eggs' }]) });
+  assert.equal(again.status, 201);
+  const out = await json(again);
+  assert.equal(out.length, 2);
+  assert.equal(out[0].id, id);
+  assert.equal(out[0].done, true);
+  assert.equal(out[1].title, 'Eggs');
+  const detail = await json(await request(`/api/lists/${list.id}`));
+  assert.equal(detail.items.filter((i: any) => i.title === 'Milk').length, 1);
+
+  assert.equal((await request(`/api/lists/${other.id}/items`, { method: 'POST', body: JSON.stringify({ id, title: 'Milk' }) })).status, 409);
+  assert.equal((await request(`/api/lists/${list.id}/items`, { method: 'POST', body: JSON.stringify({ id: 'not-a-uuid', title: 'Milk' }) })).status, 400);
+  const dup = '7c2d2b63-7b8f-4d2f-8a66-3a2a5c2a4e22';
+  assert.equal((await request(`/api/lists/${list.id}/items`, { method: 'POST', body: JSON.stringify([{ id: dup, title: 'A' }, { id: dup, title: 'B' }]) })).status, 400);
+});

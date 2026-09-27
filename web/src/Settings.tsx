@@ -1120,7 +1120,7 @@ function TroubleshootSection({ keyName }: { keyName?: string }) {
   const dialog = useDialog()
   const unpair = async () => {
     if (!await dialog.confirm({ title: 'Unpair this display?', body: 'You\'ll need to pair it again from an admin device to use it here.', confirmLabel: 'Unpair', danger: true })) return
-    clearKey()
+    await clearKey()
     location.reload()
   }
   // For a Home Screen app stuck on an old build: iOS can keep the page alive in memory, and a plain
@@ -1716,7 +1716,7 @@ function PasskeysSection({ me, toast, onChanged }: { me: Me; toast: (m: string, 
   }
   const signOut = async () => {
     try { await api.sessionLogout() } catch { /* ignore - clearing locally either way */ }
-    clearKey()
+    await clearKey()
     location.reload()
   }
 

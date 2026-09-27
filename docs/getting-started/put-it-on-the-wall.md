@@ -28,6 +28,14 @@ On phones, Kinwall also offers this itself. From the second visit in a browser, 
 | **Android** | A current **Chrome**, **Edge**, **Samsung Internet** or **Firefox** | Chrome, Edge or Samsung Internet: **Install app** / **Add to Home screen** (or Kinwall's own **Install** button) | In the browser or installed |
 | **Computer** | Chrome or Edge 111+, Firefox 114+, Safari 16.4+ (older versions get the basic-features build) | Optional: the install icon in Chrome's or Edge's address bar | Any browser with Web Push |
 
+### Offline
+
+Once a device has opened Kinwall with a connection, it opens without one too, showing the calendar, chores, lists and meals as they last were. Shopping-list changes and chore ticks made offline wait on the device and sync when the connection returns; other changes need a connection. See [Offline shopping](../using/lists.md#offline-shopping).
+
+* **Browsers and Home Screen apps**: Safari and Chrome on iPhone, iPad and Android, and desktop browsers. Private browsing windows may not keep the offline copy.
+* **Older devices** (iOS / iPadOS 12 to 16.3, in a Safari tab): the same, as long as the browser keeps the offline copy.
+* **The Kinwall app**: while the app is open, changes made without a connection wait and sync, as in a browser. Opening the app from scratch with no connection needs a version of the app that allows offline start-up.
+
 ### Older devices
 
 An old iPad (one stuck on iOS 12 or iPadOS 15, say) can still be a wall display: open Kinwall in **Safari** and use it in the browser tab. Kinwall detects the older browser and loads a compatibility version of the app, so the calendar, events, chores, lists, photos, Paint and settings all work. What's different before iOS / iPadOS 16.4:

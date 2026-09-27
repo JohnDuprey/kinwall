@@ -66,8 +66,14 @@ document.addEventListener('visibilitychange', keepAwake)
 
 // Push notifications need the SW registered before Settings can call pushManager.subscribe().
 // Scope '/' (not sw.js's own directory) so it can control the whole app.
+// It also keeps the app shell for opening offline: hand it what this page loaded before it was in
+// control (the first visit), once things settle.
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register(new URL('sw.js', document.baseURI), { scope: new URL('.', document.baseURI).pathname }).catch(() => {})
+  window.addEventListener('load', () => setTimeout(() => {
+    const cacheUrls = performance.getEntriesByType('resource').map(e => e.name)
+    navigator.serviceWorker.ready.then(reg => reg.active?.postMessage({ cacheUrls })).catch(() => {})
+  }, 3000))
 }
 
 // Imported after the demo presets above so the mock's relative sample data sees the shifted clock.

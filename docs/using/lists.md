@@ -36,6 +36,20 @@ A list can also be a chore's **checklist**, so a routine like "Bedtime" has to b
 * An item with a due date shows it in small text under the title: "Due today", "Due Fri, Oct 3", or "Overdue · Sep 22" in red.
 * Tap an item to edit it: **Title**, **Priority**, **Steps**, **Quantity** ("2, 1 lb, x3"), **Store** and **Category** (shopping; suggestions come from every list), **Assign to** (to-do and reusable), **Due date** (to-do, with **Clear**), **Linked event**, **Notes** (the item's own description), **Discussion** (see below), and **Order** (**Move up** / **Move down**, manual sort only).
 
+## Offline shopping
+
+Kinwall keeps working in a store with one bar of signal or none:
+
+* **Open it and see your list.** A phone that has opened Kinwall before starts up without a connection and shows the lists as they were when it last reached your server. If the connection is only slow, Kinwall shows that copy after a few seconds rather than a spinner.
+* **Tick items off, add items, edit them or delete them.** Changes show at once and wait on the phone, even if you close Kinwall or the phone restarts. While you're offline, a crossed-out cloud appears in the header next to the bell, with the number of changes waiting. Tap it for a reminder of what that means. Items changed on this phone and not synced yet have a dashed circle.
+* **They sync on their own** when the connection returns: as soon as the phone is back online, when you switch back to Kinwall, and every 15 seconds while changes are waiting. The cloud disappears once everything is on the server.
+* **Chore ticks** work the same way on the Chores tab.
+* **Everything else needs a connection.** Creating or editing lists, steps, reordering, **Clear checked**, events and settings say "You're offline. This will work when you're back online." instead of failing. Nothing is lost: try again once you're back.
+
+**When two people change the same list.** Changes replay in the order you made them, and each one only touches what you changed. If Sam ticks **Milk** in the store while Alex adds "2 gallons" to its notes at home, both stick. If you both change the same thing (say Alex unticks **Bread** after Sam ticked it offline), the change that reaches the server last wins. If Alex deletes an item that Sam then edits offline, Sam's edit is dropped when Sam comes back online, and Kinwall says so. An item added offline is never added twice, even if the connection drops mid-sync.
+
+Signing out or unpairing a device deletes its offline copy and anything still waiting to sync. In the Kinwall app, see [Offline in the Kinwall app](../getting-started/put-it-on-the-wall.md#offline).
+
 ## Priority
 
 Each item has a **Priority**: Low, Normal, High or Urgent. Pick it in the item sheet.
@@ -106,7 +120,7 @@ Devices with **List updates** on get "List updated — *Groceries* has new items
 
 ## API and MCP
 
-* `GET/POST /api/lists`, `GET/PATCH/DELETE /api/lists/{id}` (lists carry `sortBy`: `manual`, `added`, `due`, `priority` or `alpha`), `POST /api/lists/{id}/items` (one item or an array; `priority` and `steps: string[]` are optional), `PATCH/DELETE /api/lists/{id}/items/{itemId}`, `POST /api/lists/{id}/clear-completed`, `POST /api/lists/{id}/reset`, `POST /api/lists/{id}/reorder`, `PUT /api/lists/{id}/groups`, `GET /api/events/{id}/items`.
+* `GET/POST /api/lists`, `GET/PATCH/DELETE /api/lists/{id}` (lists carry `sortBy`: `manual`, `added`, `due`, `priority` or `alpha`), `POST /api/lists/{id}/items` (one item or an array; `priority` and `steps: string[]` are optional; an optional client-made UUID `id` makes a retried add safe: an id already on that list returns the existing item, one used on another list is a `409`), `PATCH/DELETE /api/lists/{id}/items/{itemId}`, `POST /api/lists/{id}/clear-completed`, `POST /api/lists/{id}/reset`, `POST /api/lists/{id}/reorder`, `PUT /api/lists/{id}/groups`, `GET /api/events/{id}/items`.
 * Items carry `priority` (`low`, `normal`, `high` or `urgent`; older clients sending `high` keep working), `steps` (`[{id, title, done, sort}]`, in order), `stepsDone` and `stepsTotal`.
 * Steps: `POST /api/lists/{id}/items/{itemId}/steps` (`{title}`), `PATCH …/steps/{stepId}` (`title`, `done`, `sort`), `DELETE …/steps/{stepId}`, `POST …/steps/reorder` (`{stepIds}`). Each returns the whole updated item, including any automatic complete or re-open.
 * MCP: `list_lists`, `create_list`, `update_list` (including `sortBy`), `get_list`, `add_list_items`, `update_list_item`, `set_list_item_done`, `set_step_done`, `get_event_items`. Lists can be referred to by name.

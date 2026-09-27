@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { encode } from 'uqr'
-import { api, clearKey, getKey, setAdminKey, setKey, usePoll, useSaveState, ApiError, MOCK } from './api.ts'
+import { api, clearKey, getKey, onSynced, setAdminKey, setKey, useOffline, usePoll, useSaveState, ApiError, MOCK } from './api.ts'
 import { AppContext, useApp } from './AppContext.tsx'
 import type { Category, Member, Settings } from './types.ts'
 import { trackerKinds } from './types.ts'
-import { BookIcon, MoreIcon, BrushIcon, CalendarIcon, ChevronRight, ChoreIcon, ListIcon, MealIcon, SettingsIcon } from './icons.tsx'
+import { BookIcon, MoreIcon, BrushIcon, CalendarIcon, ChevronRight, ChoreIcon, CloudOffIcon, ListIcon, MealIcon, SettingsIcon } from './icons.tsx'
 import CalendarView from './Calendar.tsx'
 import Chores from './Chores.tsx'
 import Lists from './Lists.tsx'
@@ -739,6 +739,7 @@ function Header({ settings, members, selectedMemberId, isAdmin }: {
       <header className="header header-phone">
         <FamilyButton name={settings.familyName || 'Our Family'} members={members} selectedMemberId={selectedMemberId} />
         <div className="header-right">
+          <OfflineIcon />
           <NotificationBell isAdmin={isAdmin} />
           <HelpButton />
         </div>
@@ -759,6 +760,7 @@ function Header({ settings, members, selectedMemberId, isAdmin }: {
       </div>
       <div className="header-right">
         <MemberAvatars members={members} selectedMemberId={selectedMemberId} />
+        <OfflineIcon />
         <NotificationBell isAdmin={isAdmin} />
         <HelpButton />
       </div>
@@ -780,6 +782,21 @@ function captureKeyFromUrl(): string | null {
   if (fromHash) url.hash = ''
   history.replaceState(null, '', url.pathname + url.search + url.hash)
   return k
+}
+
+/** Header icon, only while offline; a count of changes waiting to sync. Tap says what that means. */
+function OfflineIcon() {
+  const { offline, pending } = useOffline()
+  const { toast } = useApp()
+  if (!offline) return null
+  const label = pending ? `Offline: ${pending} change${pending === 1 ? '' : 's'} will sync` : 'Offline: changes will sync'
+  return (
+    <button className="icon-btn header-bell header-offline" title={label} aria-label={label}
+      onClick={() => toast(`You're offline. ${pending ? `${pending} change${pending === 1 ? '' : 's'} will sync` : 'List and chore changes sync'} when you're back online.`)}>
+      <CloudOffIcon width={22} height={22} />
+      {pending > 0 && <span className="bell-badge" aria-hidden="true">{pending > 9 ? '9+' : pending}</span>}
+    </button>
+  )
 }
 
 /** Small pill while a change is being saved, then a brief "Saved". Also marks <html> so primary
@@ -878,6 +895,17 @@ function AppRoutes() {
   }, [hasKey])
 
   useEffect(() => { loadCore() }, [loadCore, pollTick, manualTick])
+
+  // Queued (offline) changes reached the server: refresh every view so pending marks clear, and
+  // say which ones the server refused (e.g. an item deleted on another device meanwhile).
+  useEffect(() => onSynced(({ dropped }) => {
+    setManualTick(t => t + 1)
+    if (dropped.length) {
+      const gone = dropped.every(d => d.status === 404)
+      setToastMsg({ msg: gone ? `${dropped.length === 1 ? 'A change' : `${dropped.length} changes`} made offline didn't sync: the item was deleted on another device.`
+        : `${dropped.length === 1 ? 'A change' : `${dropped.length} changes`} made offline didn't sync: ${dropped[0].message}`, persist: true })
+    }
+  }), [])
 
   // Key revoked elsewhere (e.g. Settings → Access → Displays) — the poll's own 401 catches it
   // even when nothing else is calling the API right now.

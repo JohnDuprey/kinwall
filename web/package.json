@@ -9,7 +9,8 @@
     "build": "tsc -b && vite build",
     "build:demo": "tsc -b && VITE_MOCK=1 vite build --outDir dist-demo && node scripts/demo-plugins.mjs",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --test test/*.test.ts"
   },
   "dependencies": {
     "@simplewebauthn/browser": "^14.0.0",
@@ -24,6 +25,7 @@
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-legacy": "^8.2.3",
     "@vitejs/plugin-react": "^6.1.1",
+    "fake-indexeddb": "^6.2.5",
     "oxlint": "^1.81.0",
     "terser": "^5.51.2",
     "typescript": "~6.0.2",

@@ -126,3 +126,7 @@ export const HeartIcon = (p: P) => (
 export const ImagesIcon = (p: P) => (
   <svg {...base(p)}><rect x="3" y="3" width="18" height="18" rx="3" /><circle cx="9" cy="9" r="2" /><path d="M21 15l-5-5L5 21" /></svg>
 )
+export const CloudOffIcon = (p: P) => (
+  // cloud-off from Lucide (ISC license, lucide.dev)
+  <svg {...base(p)}><path d="m2 2 20 20" /><path d="M5.782 5.782A7 7 0 0 0 9 19h8.5a4.5 4.5 0 0 0 1.307-.193" /><path d="M21.532 16.5A4.5 4.5 0 0 0 17.5 10h-1.79A7.008 7.008 0 0 0 10 5.07" /></svg>
+)

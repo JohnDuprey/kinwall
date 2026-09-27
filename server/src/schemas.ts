@@ -465,6 +465,8 @@ export const ListItemSchema = z
   .openapi('ListItem');
 
 const ListItemInputSchema = z.object({
+  // Optional client-made id (a UUID): an app that adds items offline replays the add without duplicating it.
+  id: z.string().uuid().optional(),
   title: z.string().min(1).refine((s) => s.trim().length > 0, 'must not be empty'),
   notes: z.string().nullable().optional(),
   quantity: z.string().nullable().optional(),

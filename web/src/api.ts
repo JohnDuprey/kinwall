@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { tellAppSignedIn, tellAppSignedOut } from './native.ts'
 import { mock, mockPlugins } from './mock.ts'
+import { applyChoreOps, applyListOps, cacheGet, cachePut, clearOffline, enqueue, flush, onOutboxChange, outboxReady, pendingOps, type Dropped, type Op } from './outbox.ts'
 import type { PasskeyAuthenticator } from './webauthn.ts'
 import type { Meal, MealInput, Recipe, RecipeInput, ShoppingProjection } from './meal-types.ts'
 import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginCatalogEntry,
@@ -21,12 +22,20 @@ export function getKey(): string | null {
 export function setKey(key: string) {
   localStorage.setItem(KEY_STORAGE, key)
   tellAppSignedIn()
+  syncNow() // changes queued before a rejected key was replaced
 }
 /** `rejected`: the server refused the key (revoked, or an app's short-lived key lapsed);
  * `signOut`: the person chose to sign out or unpair. */
-export function clearKey(reason: 'signOut' | 'rejected' = 'signOut') {
+export function clearKey(reason: 'signOut' | 'rejected' = 'signOut'): Promise<void> {
   localStorage.removeItem(KEY_STORAGE)
   tellAppSignedOut(reason)
+  // Offline copies go with the key (and at start-up with no key: see below). A rejected key
+  // (revoked, or the app's sign-in lapsed) keeps its queued changes: the same household signs in
+  // again on this device and they go then. Await it before reloading.
+  return Promise.all([
+    clearOffline(reason === 'rejected'),
+    reason === 'signOut' && 'caches' in window ? caches.keys().then(ks => Promise.all(ks.map(k => caches.delete(k)))) : null,
+  ]).then(() => {}, () => {})
 }
 
 /** Temporary admin key used only for accounts/oauth/keys/webhooks/calendar-create-delete
@@ -90,6 +99,82 @@ export function useSaveState(): 'idle' | 'saving' | 'saved' {
   return Date.now() - lastSavedAt < 1500 ? 'saved' : 'idle'
 }
 
+// ---- offline --------------------------------------------------------------------------------
+// Reads: the GETs below keep their last good answer (IndexedDB, per server) and fall back to it
+// when the network fails or dawdles. Writes: list item and chore ticks go through a persistent
+// outbox (outbox.ts) and replay when the connection returns; every other write says it needs one.
+
+export const OFFLINE_MESSAGE = "You're offline. This will work when you're back online."
+// What an ordinary view reads. Not admin-only data (trackers, keys, accounts, webhooks) and never
+// with the temporary admin key.
+const CACHEABLE = /^api\/(me|settings|appearance|members|categories|lists|board|snapshot|events|chores|meals|recipes|notes|notifications|leaderboard)([/?]|$)/
+const SLOW_MS = 4000 // one bar in a grocery store: show the last copy rather than a spinner
+
+let offline = typeof navigator !== 'undefined' && navigator.onLine === false
+const offlineListeners = new Set<() => void>()
+function setOffline(v: boolean) {
+  if (v === offline) return
+  offline = v
+  offlineListeners.forEach(l => l())
+  if (!v) syncNow()
+}
+const outboxTag = () => apiUrl('api/')
+
+/** { offline, pending }: offline once a request fails for want of a network (or the browser says
+ * so) until one gets through; pending = queued changes not yet on the server. */
+export function useOffline(): { offline: boolean; pending: number } {
+  const [, rerender] = useState(0)
+  useEffect(() => {
+    const on = () => rerender(n => n + 1)
+    offlineListeners.add(on)
+    const off = onOutboxChange(on)
+    return () => { offlineListeners.delete(on); off() }
+  }, [])
+  return { offline, pending: MOCK ? 0 : pendingOps(outboxTag()).length }
+}
+
+async function cachedGet<T>(path: string): Promise<T> {
+  const k = apiUrl(path)
+  const fresh = send<T>(path, {})
+  fresh.then(v => cachePut(k, v)).catch(() => {})
+  const stale = cacheGet<T>(k)
+  return new Promise<T>((resolve, reject) => {
+    const fallback = (e: unknown) => stale.then(v => (v !== undefined ? resolve(v) : reject(e)), () => reject(e))
+    fresh.then(resolve, e => (e instanceof ApiError && e.status === 0 ? fallback(e) : reject(e)))
+    setTimeout(() => stale.then(v => { if (v !== undefined) resolve(v) }, () => {}), SLOW_MS)
+  })
+}
+
+type SyncResult = { sent: number; dropped: Dropped[] }
+const syncListeners = new Set<(r: SyncResult) => void>()
+/** Called after a replay sent or dropped something: refresh views, and say what was dropped. */
+export const onSynced = (l: (r: SyncResult) => void) => { syncListeners.add(l); return () => { syncListeners.delete(l) } }
+
+/** Replay queued changes now (no-op in the demo, signed out, or known offline). */
+export function syncNow() {
+  if (MOCK || !getKey() || (typeof navigator !== 'undefined' && navigator.onLine === false)) return
+  flush(outboxTag(), op => {
+    const init = { method: op.method, body: op.body === undefined ? undefined : JSON.stringify(op.body) }
+    return offline ? send(op.path, init) : trackSave(send(op.path, init)) // no "Saving…" flashes while retrying offline
+  }).then(r => { if (r.sent || r.dropped.length) syncListeners.forEach(l => l(r)) }, () => {})
+}
+
+/** Queues a change (shown at once, sent in order, kept across reloads) and starts sending it. */
+function queue(method: Op['method'], path: string, body?: unknown): Op {
+  const op: Op = { tag: outboxTag(), method, path, body }
+  enqueue(op).then(syncNow, syncNow)
+  return op
+}
+
+if (!MOCK && typeof window !== 'undefined') {
+  window.addEventListener('online', () => { setOffline(false); syncNow() })
+  window.addEventListener('offline', () => setOffline(true))
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') syncNow() })
+  setInterval(() => { if (pendingOps(outboxTag()).length) syncNow() }, 15000)
+  if (getKey()) outboxReady().then(syncNow)
+  else clearOffline().catch(() => {}) // signed out (however it happened): nothing kept for the next person
+}
+
 async function req<T>(path: string, opts: RequestInit & { useAdmin?: boolean } = {}): Promise<T> {
   const isChange = !!opts.method && opts.method !== 'GET' && path !== 'api/pair/poll'
   return isChange ? trackSave(send<T>(path, opts)) : send<T>(path, opts)
@@ -102,14 +187,22 @@ async function send<T>(path: string, opts: RequestInit & { useAdmin?: boolean })
   }
   const { useAdmin, ...init } = opts
   const key = useAdmin ? (getAdminKey() ?? getKey()) : getKey()
-  const res = await fetch(apiUrl(path), {
-    ...init,
-    headers: {
-      ...(init.body ? { 'Content-Type': 'application/json' } : {}),
-      ...(key ? { Authorization: `Bearer ${key}` } : {}),
-      ...init.headers,
-    },
-  })
+  let res: Response
+  try {
+    res = await fetch(apiUrl(path), {
+      ...init,
+      headers: {
+        ...(init.body ? { 'Content-Type': 'application/json' } : {}),
+        ...(key ? { Authorization: `Bearer ${key}` } : {}),
+        ...init.headers,
+      },
+    })
+  } catch {
+    // No response at all: no network (or the server is unreachable). Status 0 tells callers apart.
+    setOffline(true)
+    throw new ApiError(0, OFFLINE_MESSAGE)
+  }
+  setOffline(false)
   if (!res.ok) {
     let msg = res.statusText
     // Most routes send SPEC's { error: string }, but zod validation failures come back as
@@ -124,7 +217,7 @@ async function send<T>(path: string, opts: RequestInit & { useAdmin?: boolean })
   return res.json() as Promise<T>
 }
 
-const get = <T,>(path: string, useAdmin?: boolean) => req<T>(path, { useAdmin })
+const get = <T,>(path: string, useAdmin?: boolean) => (!useAdmin && getKey() && CACHEABLE.test(path) ? cachedGet<T>(path) : req<T>(path, { useAdmin }))
 const post = <T,>(path: string, body?: unknown, useAdmin?: boolean) => req<T>(path, { method: 'POST', body: body === undefined ? undefined : JSON.stringify(body), useAdmin })
 const patch = <T,>(path: string, body: unknown, useAdmin?: boolean) => req<T>(path, { method: 'PATCH', body: JSON.stringify(body), useAdmin })
 const put = <T,>(path: string, body: unknown, useAdmin?: boolean) => req<T>(path, { method: 'PUT', body: JSON.stringify(body), useAdmin })
@@ -232,7 +325,8 @@ export const api = {
     MOCK ? mock.updateEvent(id, body) : patch<EventInstance>(`api/events/${id}`, body),
   deleteEvent: (id: string) => MOCK ? mock.deleteEvent(id) : del(`api/events/${id}`),
 
-  getChoresDay: (date: string) => MOCK ? mock.getChoresDay(date) : get<ChoreDay[]>(`api/chores/day?date=${date}`),
+  getChoresDay: (date: string) => MOCK ? mock.getChoresDay(date)
+    : Promise.all([get<ChoreDay[]>(`api/chores/day?date=${date}`), outboxReady()]).then(([c]) => applyChoreOps(c, date, pendingOps(outboxTag()))),
   createChore: (body: Partial<Chore>) => MOCK ? mock.createChore(body) : post<Chore>('api/chores', body),
   updateChore: (id: string, body: Partial<Chore>) => MOCK ? mock.updateChore(id, body) : patch<Chore>(`api/chores/${id}`, body),
   deleteChore: (id: string) => MOCK ? mock.deleteChore(id) : del(`api/chores/${id}`),
@@ -277,7 +371,8 @@ export const api = {
 
   getLists: (archived?: boolean) => MOCK ? mock.getLists(archived) : get<List[]>(`api/lists${archived ? '?archived=true' : ''}`),
   createList: (body: Partial<List>) => MOCK ? mock.createList(body) : post<List>('api/lists', body),
-  getList: (id: string) => MOCK ? mock.getList(id) : get<ListDetail>(`api/lists/${id}`),
+  // Queued changes show on top of what the server (or the offline copy) says.
+  getList: (id: string) => MOCK ? mock.getList(id) : Promise.all([get<ListDetail>(`api/lists/${id}`), outboxReady()]).then(([d]) => applyListOps(d, pendingOps(outboxTag()))),
   updateList: (id: string, body: Partial<List>) => MOCK ? mock.updateList(id, body) : patch<List>(`api/lists/${id}`, body),
   deleteList: (id: string) => MOCK ? mock.deleteList(id) : del(`api/lists/${id}`),
   addListItems: (listId: string, items: ListItemInput | ListItemInput[]) =>
@@ -295,6 +390,19 @@ export const api = {
   updateNote: (id: string, body: string) => MOCK ? mock.updateNote(id, body) : patch<Note>(`api/notes/${id}`, { body }),
   deleteNote: (id: string) => MOCK ? mock.deleteNote(id) : del(`api/notes/${id}`),
   deleteListItem: (listId: string, itemId: string) => MOCK ? mock.deleteListItem(listId, itemId) : del(`api/lists/${listId}/items/${itemId}`),
+  // Offline-capable versions for the Lists and Chores tabs: each resolves at once with the queued
+  // change (apply it with applyListOps for an instant UI); the demo runs its mock and gets null.
+  // Idempotent on replay: a client-made id for a new item, "done: true/false" rather than a toggle.
+  queueAddListItem: async (listId: string, input: ListItemInput): Promise<Op | null> =>
+    MOCK ? (await mock.addListItems(listId, input), null) : queue('POST', `api/lists/${listId}/items`, { ...input, id: crypto.randomUUID() }),
+  queueUpdateListItem: async (listId: string, itemId: string, body: Partial<ListItem>): Promise<Op | null> =>
+    MOCK ? (await mock.updateListItem(listId, itemId, body), null) : queue('PATCH', `api/lists/${listId}/items/${itemId}`, body),
+  queueDeleteListItem: async (listId: string, itemId: string): Promise<Op | null> =>
+    MOCK ? (await mock.deleteListItem(listId, itemId), null) : queue('DELETE', `api/lists/${listId}/items/${itemId}`),
+  queueCompleteChore: async (id: string, date: string, memberId?: string): Promise<unknown> =>
+    MOCK ? mock.completeChore(id, date, memberId) : queue('POST', `api/chores/${id}/complete`, { date, memberId }),
+  queueUncompleteChore: async (id: string, date: string): Promise<unknown> =>
+    MOCK ? mock.uncompleteChore(id, date) : queue('DELETE', `api/chores/${id}/complete?date=${date}`),
   clearListCompleted: (listId: string) => MOCK ? mock.clearListCompleted(listId) : post<{ deleted: number }>(`api/lists/${listId}/clear-completed`),
   resetList: (listId: string) => MOCK ? mock.resetList(listId) : post<{ reset: number }>(`api/lists/${listId}/reset`),
   // Step routes answer with the whole updated item (it may have auto-completed or re-opened).

@@ -380,14 +380,15 @@ listsRoutes.openapi(
     method: 'post',
     path: '/api/lists/{id}/items',
     tags: ['Lists'],
-    summary: 'Add one or more items to a list (always returns an array). "Remembers" store/category from the most recently updated item of the same title (any list) when they\'re omitted.',
+    summary: 'Add one or more items to a list (always returns an array). An optional client-made UUID `id` makes a retried add idempotent: an id already on this list returns that item unchanged. "Remembers" store/category from the most recently updated item of the same title (any list) when they\'re omitted.',
     security: [{ Bearer: [] }],
     request: { params: z.object({ id: z.string() }), body: { content: { 'application/json': { schema: ListItemInputBodySchema } } } },
     responses: {
       201: { description: 'created', content: { 'application/json': { schema: z.array(ListItemSchema) } } },
-      400: { description: 'event not found', content: { 'application/json': { schema: ErrorSchema } } },
+      400: { description: 'event not found, or the same item id twice', content: { 'application/json': { schema: ErrorSchema } } },
       403: { description: "this device may not change that event's tasks", content: { 'application/json': { schema: ErrorSchema } } },
       404: { description: 'not found', content: { 'application/json': { schema: ErrorSchema } } },
+      409: { description: 'an item id is already used on another list', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
@@ -405,12 +406,26 @@ listsRoutes.openapi(
     const requestedMemberIds = [...new Set(inputs.map((i) => i.memberId).filter((v): v is string => !!v))];
     const validMemberIds = new Set(await resolveMemberIds(c.env.DB, requestedMemberIds));
 
+    // Client ids make a replayed add idempotent: an id already in this list answers with that item
+    // instead of inserting again; an id used anywhere else is a conflict.
+    const clientIds = inputs.map((i) => i.id).filter((v): v is string => !!v);
+    if (new Set(clientIds).size !== clientIds.length) return c.json({ error: 'duplicate item id' }, 400);
+    const already = new Map<string, string>();
+    if (clientIds.length) {
+      const found = await c.env.DB.prepare(`SELECT id, list_id FROM list_items WHERE id IN (${clientIds.map(() => '?').join(',')})`)
+        .bind(...clientIds)
+        .all<{ id: string; list_id: string }>();
+      for (const r of found.results) already.set(r.id, r.list_id);
+      if ([...already.values()].some((l) => l !== id)) return c.json({ error: 'item id already used' }, 409);
+    }
+    const fresh = inputs.filter((i) => !i.id || !already.has(i.id));
+
     const maxSort = await c.env.DB.prepare('SELECT COALESCE(MAX(sort), -1) AS m FROM list_items WHERE list_id = ?').bind(id).first<{ m: number }>();
     let nextSort = (maxSort?.m ?? -1) + 1;
 
     const now = new Date().toISOString();
     const rows: ListItemRow[] = [];
-    for (const input of inputs) {
+    for (const input of fresh) {
       let store = input.store !== undefined ? input.store : null;
       let category = input.category !== undefined ? input.category : null;
       // "Remembers where things go": only when store and/or category is OMITTED (undefined) -
@@ -427,7 +442,7 @@ listsRoutes.openapi(
         }
       }
       rows.push({
-        id: crypto.randomUUID(),
+        id: input.id ?? crypto.randomUUID(),
         list_id: id,
         title: input.title.trim(),
         notes: input.notes ?? null,
@@ -448,48 +463,55 @@ listsRoutes.openapi(
     }
 
     const steps: ListItemStepRow[] = rows.flatMap((r, i) =>
-      (inputs[i].steps ?? []).map((title, sort) => ({ id: crypto.randomUUID(), item_id: r.id, title: title.trim(), done: 0, done_at: null, sort, created_at: now })),
+      (fresh[i].steps ?? []).map((title, sort) => ({ id: crypto.randomUUID(), item_id: r.id, title: title.trim(), done: 0, done_at: null, sort, created_at: now })),
     );
-    await c.env.DB.batch([
-      ...rows.map((r) =>
-        c.env.DB.prepare(
-          'INSERT INTO list_items (id, list_id, title, notes, quantity, store, category, member_id, due_date, event_id, priority, done, done_at, done_by, sort, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-        ).bind(
-          r.id,
-          r.list_id,
-          r.title,
-          r.notes,
-          r.quantity,
-          r.store,
-          r.category,
-          r.member_id,
-          r.due_date,
-          r.event_id,
-          r.priority,
-          r.done,
-          r.done_at,
-          r.done_by,
-          r.sort,
-          r.created_at,
-          r.updated_at,
+    if (rows.length) {
+      await c.env.DB.batch([
+        ...rows.map((r) =>
+          c.env.DB.prepare(
+            'INSERT INTO list_items (id, list_id, title, notes, quantity, store, category, member_id, due_date, event_id, priority, done, done_at, done_by, sort, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+          ).bind(
+            r.id,
+            r.list_id,
+            r.title,
+            r.notes,
+            r.quantity,
+            r.store,
+            r.category,
+            r.member_id,
+            r.due_date,
+            r.event_id,
+            r.priority,
+            r.done,
+            r.done_at,
+            r.done_by,
+            r.sort,
+            r.created_at,
+            r.updated_at,
+          ),
         ),
-      ),
-      ...steps.map((st) =>
-        c.env.DB.prepare('INSERT INTO list_item_steps (id, item_id, title, done, done_at, sort, created_at) VALUES (?,?,?,?,?,?,?)').bind(
-          st.id, st.item_id, st.title, st.done, st.done_at, st.sort, st.created_at,
+        ...steps.map((st) =>
+          c.env.DB.prepare('INSERT INTO list_item_steps (id, item_id, title, done, done_at, sort, created_at) VALUES (?,?,?,?,?,?,?)').bind(
+            st.id, st.item_id, st.title, st.done, st.done_at, st.sort, st.created_at,
+          ),
         ),
-      ),
-    ]);
-    emit(c, 'list.item.changed', { listId: id, ids: rows.map((r) => r.id) });
-    let execCtx: Parameters<typeof notifyListUpdate>[1];
-    try {
-      execCtx = c.executionCtx;
-    } catch {
-      execCtx = undefined; // Node: no ExecutionContext
+      ]);
+      emit(c, 'list.item.changed', { listId: id, ids: rows.map((r) => r.id) });
+      let execCtx: Parameters<typeof notifyListUpdate>[1];
+      try {
+        execCtx = c.executionCtx;
+      } catch {
+        execCtx = undefined; // Node: no ExecutionContext
+      }
+      notifyListUpdate(c.env, execCtx, id, list.name);
     }
-    notifyListUpdate(c.env, execCtx, id, list.name);
     const stepsByItem = groupSteps(steps);
-    return c.json(rows.map((r) => toItemApi(r, stepsByItem.get(r.id))), 201);
+    const out = await Promise.all(inputs.map(async (input) => {
+      if (input.id && already.has(input.id)) return (await loadItem(c.env.DB, id, input.id))!;
+      const r = rows[fresh.indexOf(input)]!;
+      return toItemApi(r, stepsByItem.get(r.id));
+    }));
+    return c.json(out, 201);
   },
 );
 

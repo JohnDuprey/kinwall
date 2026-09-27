@@ -305,8 +305,9 @@ export default function Chores() {
     const who = !c.memberId && creditTo ? members.find(m => m.id === creditTo)?.name : undefined
     announce(c.completed ? `${c.title} not done` : `${c.title} done${who ? ` by ${who}` : ''}, ${pts} point${pts === 1 ? '' : 's'}${late ? ', late' : ''}`)
     try {
-      if (c.completed) await api.uncompleteChore(c.id, key)
-      else await api.completeChore(c.id, key, creditTo)
+      // Queued, so a tick works offline and syncs later; replays are idempotent (complete/undo for a date).
+      if (c.completed) await api.queueUncompleteChore(c.id, key)
+      else await api.queueCompleteChore(c.id, key, creditTo)
       if (late) toast(`+${pts} (late)`)
       reloadCore()
     } catch (e) {

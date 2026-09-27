@@ -1567,6 +1567,10 @@ a.activity-card:active { transform: scale(0.98); }
 /* ---------- Notification bell + feed (Notifications.tsx) ---------- */
 .header-right { display: flex; align-items: center; gap: var(--gap); min-width: 0; }
 .header-bell { position: relative; flex-shrink: 0; }
+.header-offline { color: var(--text-dim); }
+.header-offline .bell-badge { background: var(--text-dim); color: var(--card); } /* a count, not an alarm */
+/* Offline: a list item changed here and not on the server yet. Deliberately quiet. */
+.list-item-row.pending .list-item-check { border-style: dashed; }
 .bell-badge {
   position: absolute; top: -2px; right: -4px;
   min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px;

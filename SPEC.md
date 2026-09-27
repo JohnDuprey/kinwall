@@ -340,9 +340,43 @@ override. `runNotifications(env, now)` runs from the Workers cron (every 5 min) 
   tick), debounced to one notification per list per 10 minutes.
 
 `Notification.requestPermission()` must run from a user tap; `web/public/sw.js` handles `push` and
-`notificationclick` and deliberately has **no fetch handler and caches nothing** (the app relies on
-network + `Cache-Control`, not a caching SW). iPhone needs iOS 16.4+ and the app added to the Home
+`notificationclick`. Its only caching is the offline app shell (see Offline below): the page is
+**network-first** (the app still relies on network + `Cache-Control` for freshness; an earlier
+cache-first SW left PWAs stuck on old builds), and it never touches `/api/`. iPhone needs iOS 16.4+ and the app added to the Home
 Screen first — Safari tabs can't receive push at all.
+
+## Offline
+
+For a phone in a store with poor or no signal. Design note; user docs in `docs/using/lists.md`.
+
+- **App shell** (`web/public/sw.js`): navigations to the app's own page are network-first with a
+  5 s timeout, falling back to the last good copy; hashed `assets/` are cache-first (they never
+  change). The page posts the files it loaded to the SW after load, so the first visit is enough,
+  and that list prunes older builds' files. Only the SPA page itself, never other navigations.
+- **Read cache** (`web/src/api.ts` + `outbox.ts`): GETs an ordinary view needs (`me`, `settings`,
+  `members`, `categories`, `lists`, `board`, `snapshot`, `events`, `chores`, `meals`, `recipes`,
+  `notes`, `notifications`, `leaderboard`; never admin-key calls, trackers, keys or accounts) are
+  network-first with a 4 s timeout, falling back to the last good response in IndexedDB. Stored per
+  server by full URL; IndexedDB is per origin, and a hosted family has its own subdomain. Sign-out
+  clears it (and Cache Storage), and so does start-up without a key.
+- **Outbox** (`web/src/outbox.ts`): list item add/edit/tick/delete and chore complete/uncomplete
+  are always queued (online too: one code path), shown at once, and replayed oldest first on
+  `online`, `visibilitychange`, key change, and every 15 s while any wait. Replays are idempotent:
+  new items carry a client-made UUID (`POST /api/lists/{id}/items` accepts `id`), ticks send
+  `done: true|false`, chore ticks are complete/undo for a date. `GET /api/lists/{id}` and
+  `/api/chores/day` answers have queued changes applied on top (`applyListOps`/`applyChoreOps`),
+  so a reload offline still shows them; touched items carry client-only `pending: true`.
+- **Conflict rule**: last to reach the server wins, per field (a PATCH sends only changed fields,
+  so other devices' edits to other fields survive). A 4xx refusal (e.g. 404: item deleted
+  elsewhere) drops that change and the app says so; a DELETE that 404s counts as done. No network,
+  401, 408, 429 and 5xx retry, in order, at most 20 times each; time without a network never counts.
+- **Everything else** is online-only: a request that gets no response throws `ApiError(0,
+  "You're offline. This will work when you're back online.")`, which every caller already toasts.
+- **Degrades** without a service worker (iOS web views, private windows) to cache + outbox while the
+  page is open, and without IndexedDB to an in-memory outbox (online-only plus retries). The demo
+  build (`VITE_MOCK`) never uses either.
+- A rejected key (`clearKey('rejected')`) keeps queued changes for the next sign-in; the app's
+  short-lived keys rotate without a page sign-out, which keeps both.
 
 ## Security
 

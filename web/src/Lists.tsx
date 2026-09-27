@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { addDays, format } from 'date-fns'
 import { useApp } from './AppContext.tsx'
 import { api, ApiError } from './api.ts'
+import { applyListOps, type Op } from './outbox.ts'
 import type { EventInstance, List, ListDetail, ListGroupBy, ListItem, ListItemPriority, ListItemStep, ListKind, ListSortBy, Member } from './types.ts'
 import { compareItems, LIST_EMOJI, MEMBER_PALETTE } from './types.ts'
 import { dateKey } from './date.ts'
@@ -213,12 +214,12 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, sibli
       ...(showDue ? { dueDate: dueDate || null } : {}),
       ...(eventId !== item.eventId ? { eventId } : {}), // only when changed: a link to a since-deleted event still saves
     }
-    try { await api.updateListItem(listId, item.id, body); onSaved() }
+    try { await api.queueUpdateListItem(listId, item.id, body); onSaved() } // offline too: syncs when back
     catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save item', true) }
   }
   const del = async () => {
     if (!await dialog.confirm({ title: `Delete "${item.title}"?`, confirmLabel: 'Delete', danger: true })) return
-    try { await api.deleteListItem(listId, item.id); onSaved() }
+    try { await api.queueDeleteListItem(listId, item.id); onSaved() }
     catch (e) { toast(e instanceof ApiError ? e.message : 'Could not delete item', true) }
   }
   const move = async (dir: -1 | 1) => {
@@ -465,8 +466,8 @@ function ItemRow({ item, kind, groupBy, members, event, onToggle, onOpen, handle
   const prio = item.priority !== 'normal' ? item.priority : null
   const notesOn = useApp().settings.features.notes // off: an item's own notes still show, its thread's count doesn't
   return (
-    <div className={`list-item-row ${item.done ? 'done' : ''} ${prio === 'urgent' && !item.done ? 'urgent' : ''}`}>
-      <button className={`list-item-check ${item.done ? 'done' : ''}`} onClick={onToggle} role="checkbox" aria-checked={item.done} aria-label={item.title}>
+    <div className={`list-item-row ${item.done ? 'done' : ''} ${prio === 'urgent' && !item.done ? 'urgent' : ''} ${item.pending ? 'pending' : ''}`} title={item.pending ? 'Not synced yet' : undefined}>
+      <button className={`list-item-check ${item.done ? 'done' : ''}`} onClick={onToggle} role="checkbox" aria-checked={item.done} aria-label={item.pending ? `${item.title}, not synced yet` : item.title}>
         {item.done && <CheckIcon width={20} height={20} />}
       </button>
       <div className="list-item-body" {...pressable(onOpen)}
@@ -633,13 +634,17 @@ function ListDetailPane({ listId, isPhone, onBack, onArchivedOrDeleted, onLoaded
   const { upcoming, byId } = useEventWindow(refreshTick)
 
   const load = () => api.getList(listId).then(d => { setDetail(d); setError(false); onLoaded(d.list) }).catch(() => setError(true))
-  useEffect(() => { setSelectedStore(null); setShowDone(false); load() }, [listId, refreshTick]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setSelectedStore(null); setShowDone(false) }, [listId])
+  useEffect(() => { load() }, [listId, refreshTick]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Adds, ticks, edits and deletes are queued (api.queue*): shown at once, sent in order, kept
+  // offline. A refresh after they sync clears their pending mark (App bumps refreshTick).
+  const showQueued = (op: Op | null) => { if (op) setDetail(d => d && applyListOps(d, [op])); else load() }
 
   const addItem = async () => {
     const title = draft.trim()
     if (!title) return
     setDraft('')
-    try { await api.addListItems(listId, { title }); load() }
+    try { showQueued(await api.queueAddListItem(listId, { title })) }
     catch (e) { toast(e instanceof ApiError ? e.message : 'Could not add item', true) }
     inputRef.current?.focus() // keep the keyboard open for the next item
   }
@@ -659,7 +664,7 @@ function ListDetailPane({ listId, isPhone, onBack, onArchivedOrDeleted, onLoaded
   }
 
   const toggle = async (item: ListItem) => {
-    try { await api.updateListItem(listId, item.id, { done: !item.done }); load() }
+    try { showQueued(await api.queueUpdateListItem(listId, item.id, { done: !item.done })) }
     catch (e) { toast(e instanceof ApiError ? e.message : 'Could not update item', true) }
   }
 

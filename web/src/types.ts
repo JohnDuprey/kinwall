@@ -435,6 +435,7 @@ export interface ListItem {
   stepsDone: number
   stepsTotal: number
   noteCount?: number // notes in this item's thread (list detail only)
+  pending?: boolean // client only: changed on this device, not on the server yet (offline)
 }
 
 /** A note in the thread on an event or list item. target = "event:<id>" | "list_item:<id>". */
