@@ -155,6 +155,8 @@ const BUILTIN_SCHEMES: { id: string; name: string; emoji: string }[] = [
   { id: 'lavender', name: 'Lavender', emoji: '💜' }, { id: 'midnight', name: 'Midnight', emoji: '🌌' }, { id: 'spring', name: 'Spring', emoji: '🌸' },
   { id: 'summer', name: 'Summer', emoji: '☀️' }, { id: 'autumn', name: 'Autumn', emoji: '🍂' }, { id: 'winter', name: 'Winter', emoji: '❄️' },
   { id: 'harvest', name: 'Harvest', emoji: '🎃' }, { id: 'festive', name: 'Festive', emoji: '🎄' },
+  { id: 'slate', name: 'Slate', emoji: '🩶' }, { id: 'ink', name: 'Ink', emoji: '🖋️' }, { id: 'sage', name: 'Sage', emoji: '🪴' },
+  { id: 'graphite', name: 'Graphite', emoji: '✏️' }, { id: 'berry', name: 'Berry', emoji: '🫐' },
 ];
 
 const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };

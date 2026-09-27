@@ -1,4 +1,4 @@
-import { createContext, Fragment, useContext, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { createContext, Fragment, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { AppContext, useApp } from './AppContext.tsx'
 import { api, ApiError, clearKey } from './api.ts'
 import type { Account, ApiKey, CalendarEntry, Category, ColorScheme, CustomColors, Density, DeviceDensity, Features, GeocodeResult, HostEvent, Me, Member, Passkey, Providers, PushSubscription, RemoteCalendar, Settings, TextScale, ThemeMode, Webhook } from './types.ts'
@@ -737,26 +737,22 @@ function ColorControls({ scheme, householdScheme, onScheme, household, device, s
   const [editing, setEditing] = useState<{ draft: CustomScheme; isNew: boolean; fromLegacy?: boolean } | null>(null)
   const nameOf = (id: ColorScheme) => id === 'seasonal' ? `Seasonal (${getSkin(seasonalSkinId()).name})` : findSkin(id, customs).name
   const dotsFor = (id: ColorScheme) => { const k = tokensFor(id === 'seasonal' ? getSkin(seasonalSkinId()) : findSkin(id, customs), dark); return [k.bg, k.card, k.accent] }
-  const chip = (id: ColorScheme | undefined, label: ReactNode, ariaName: string) => {
-    const active = scheme === id
-    const [bg, , accent] = dotsFor(id ?? householdScheme ?? 'meadow')
-    return (
-      <button key={id ?? 'household'} className={`chip scheme-chip ${active ? 'active' : ''}`} aria-pressed={active}
-        style={{ '--chip-color': accent } as CSSProperties}
-        onClick={() => { onScheme(id); announce(`${ariaName} color scheme`) }}>
-        <span className="scheme-swatch" aria-hidden="true" style={{ background: `linear-gradient(135deg, ${bg} 50%, ${accent} 50%)` }} />
-        {label}
-      </button>
-    )
-  }
-  const skinChip = (id: string) => { const k = getSkin(id); return chip(k.id as ColorScheme, <><span aria-hidden="true">{k.emoji}</span>{k.name}</>, k.name) }
-  const groups: { label: string; chips: ReactNode[] }[] = [
-    ...(householdScheme ? [{ label: 'Follow the family', chips: [chip(undefined, <>Household · {nameOf(householdScheme)}</>, 'Household')] }] : []),
-    { label: 'Automatic', chips: [chip('seasonal', <><span aria-hidden="true">🗓️</span>Seasonal</>, 'Seasonal')] },
-    { label: 'Everyday', chips: ['meadow', 'field', 'ocean', 'lavender', 'midnight'].map(skinChip) },
-    { label: 'Seasons', chips: ['spring', 'summer', 'autumn', 'winter'].map(skinChip) },
-    { label: 'Holidays', chips: ['harvest', 'festive'].map(skinChip) },
+  // The dropdown's groups, in order. On a device, the first option follows the household.
+  const HOUSEHOLD = '__household'
+  const groups: { label: string; ids: string[] }[] = [
+    { label: 'Automatic', ids: ['seasonal'] },
+    { label: 'Everyday', ids: ['meadow', 'field', 'ocean', 'lavender', 'midnight'] },
+    { label: 'Modern', ids: ['slate', 'ink', 'sage', 'graphite', 'berry'] },
+    { label: 'Seasons', ids: ['spring', 'summer', 'autumn', 'winter'] },
+    { label: 'Holidays', ids: ['harvest', 'festive'] },
   ]
+  const optionLabel = (id: string) => id === 'seasonal' ? '🗓️ Seasonal' : `${getSkin(id).emoji} ${getSkin(id).name}`
+  const [swBg, , swAccent] = dotsFor(scheme ?? householdScheme ?? 'meadow')
+  const pick = (value: string) => {
+    const id = value === HOUSEHOLD ? undefined : value as ColorScheme
+    onScheme(id)
+    announce(`${id ? nameOf(id) : 'Household'} color scheme`)
+  }
   const activeCustom = customs.find(c => c.id === skin.id)
   const startFrom = (base: typeof skin, name: string): CustomScheme =>
     ({ id: newSchemeId(), name: name.slice(0, 30), emoji: base.emoji, light: paletteOf(base, false), dark: paletteOf(base, true) })
@@ -781,33 +777,33 @@ function ColorControls({ scheme, householdScheme, onScheme, household, device, s
   }
   return (
     <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
-      <div className="settings-row-label" aria-hidden="true">Color scheme</div>
-      <div className="scheme-groups" role="group" aria-label="Color scheme">
-        {groups.map(g => (
-          <div key={g.label} className="scheme-group" role="group" aria-label={g.label}>
-            <span className="scheme-group-label" aria-hidden="true">{g.label}</span>
-            <div className="chip-row">{g.chips}</div>
-          </div>
-        ))}
-        <div className="scheme-group" role="group" aria-label="Your schemes">
-          <span className="scheme-group-label" aria-hidden="true">Your schemes</span>
-          <div className="chip-row">
-            {customs.map(c => chip(c.id as ColorScheme, <><span aria-hidden="true">{c.emoji || '🎨'}</span>{c.name}</>, c.name))}
-            {customs.length < 10 && (
-              <button className="chip scheme-new" onClick={() => setEditing({ draft: startFrom(skin, activeCustom ? `${skin.name} copy` : `My ${skin.name}`), isNew: true })}>
-                <span aria-hidden="true">＋</span>New scheme
-              </button>
-            )}
-          </div>
-          {customs.length >= 10 && <span className="settings-row-sub">The family has 10 saved schemes, the most it can keep. Delete one to make another.</span>}
-        </div>
+      <label className="settings-row-label" htmlFor="color-scheme-select">Color scheme</label>
+      <div className="scheme-picker">
+        <span className="scheme-swatch scheme-swatch-lg" aria-hidden="true" style={{ background: `linear-gradient(135deg, ${swBg} 50%, ${swAccent} 50%)` }} />
+        <select id="color-scheme-select" className="settings-select scheme-select" value={scheme ?? HOUSEHOLD} onChange={e => pick(e.target.value)}>
+          {householdScheme && (
+            <optgroup label="Follow the family"><option value={HOUSEHOLD}>Household · {nameOf(householdScheme)}</option></optgroup>
+          )}
+          {groups.map(g => (
+            <optgroup key={g.label} label={g.label}>
+              {g.ids.map(id => <option key={id} value={id}>{optionLabel(id)}</option>)}
+            </optgroup>
+          ))}
+          {customs.length > 0 && (
+            <optgroup label="Your schemes">
+              {customs.map(c => <option key={c.id} value={c.id}>{`${c.emoji || '🎨'} ${c.name}`}</option>)}
+            </optgroup>
+          )}
+        </select>
       </div>
+      <div className="scheme-actions">
+        {activeCustom && <button className="btn btn-secondary" onClick={() => setEditing({ draft: activeCustom, isNew: false })}>Edit {activeCustom.name}</button>}
+        {customs.length < 10 && (
+          <button className="btn btn-secondary" onClick={() => setEditing({ draft: startFrom(skin, activeCustom ? `${skin.name} copy` : `My ${skin.name}`), isNew: true })}>＋ New scheme</button>
+        )}
+      </div>
+      {customs.length >= 10 && <span className="settings-row-sub">The family has 10 saved schemes, the most it can keep. Delete one to make another.</span>}
       {scheme === 'seasonal' && <div className="settings-row-sub">Switches on its own through the year: Winter, Spring, Summer and Autumn, plus Harvest and Festive around the holidays.</div>}
-      {activeCustom && (
-        <div className="scheme-actions">
-          <button className="btn btn-secondary" onClick={() => setEditing({ draft: activeCustom, isNew: false })}>Edit {activeCustom.name}</button>
-        </div>
-      )}
       {hasLegacy && (
         <div className="scheme-legacy" role="note">
           {Object.keys(legacy).length > 0 && <span>Custom colors from an earlier version are applied on top of this scheme{householdScheme ? ' on this device' : ''}.</span>}

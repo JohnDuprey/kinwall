@@ -48,6 +48,22 @@ export const SKINS: Skin[] = [
   { id: 'festive', name: 'Festive', emoji: '🎄',
     light: { bg: '#FBF3F1', bgAlt: '#F5E5E1', card: '#FFFFFF', border: '#E8CFC8', text: '#331A16', textDim: '#6E4038', accent: '#A5342E' },
     dark: { bg: '#16100E', bgAlt: '#1F1512', card: '#261A16', border: '#3D2823', text: '#F3E4DE', textDim: '#C8A199', accent: '#A5342E' } },
+  // Modern: cleaner, cooler neutrals with one clear accent (never the default).
+  { id: 'slate', name: 'Slate', emoji: '🩶',
+    light: { bg: '#F7F8FA', bgAlt: '#EEF1F5', card: '#FFFFFF', border: '#E1E5EB', text: '#1E2433', textDim: '#5B6472', accent: '#2F63D8' },
+    dark: { bg: '#0F1218', bgAlt: '#151922', card: '#1B202A', border: '#2A303B', text: '#EEF1F5', textDim: '#A3ABB8', accent: '#7FA6F5' } },
+  { id: 'ink', name: 'Ink', emoji: '🖋️',
+    light: { bg: '#F6F7FB', bgAlt: '#ECEFF6', card: '#FFFFFF', border: '#DDE2EC', text: '#1A2238', textDim: '#56607A', accent: '#E8590C' },
+    dark: { bg: '#0E1322', bgAlt: '#141A2C', card: '#1A2136', border: '#2A3350', text: '#EDF0F7', textDim: '#A6AEC4', accent: '#FF8A3D' } },
+  { id: 'sage', name: 'Sage', emoji: '🪴',
+    light: { bg: '#F5F7F5', bgAlt: '#EAEFEA', card: '#FFFFFF', border: '#D9E1DA', text: '#1C2620', textDim: '#56655B', accent: '#2F7D5B' },
+    dark: { bg: '#0F1512', bgAlt: '#151D18', card: '#1B241F', border: '#2A362F', text: '#E9F0EB', textDim: '#A1B2A7', accent: '#5CC495' } },
+  { id: 'graphite', name: 'Graphite', emoji: '✏️',
+    light: { bg: '#F7F7F8', bgAlt: '#EDEDF0', card: '#FFFFFF', border: '#DEDFE3', text: '#16171B', textDim: '#5C5F68', accent: '#E5484D' },
+    dark: { bg: '#0E0F12', bgAlt: '#15161A', card: '#1B1C21', border: '#2B2D33', text: '#EEEFF2', textDim: '#A1A4AD', accent: '#FF6369' } },
+  { id: 'berry', name: 'Berry', emoji: '🫐',
+    light: { bg: '#F8F7FC', bgAlt: '#EFEDF8', card: '#FFFFFF', border: '#E1DDF0', text: '#1F1B33', textDim: '#5E5878', accent: '#6D4AE0' },
+    dark: { bg: '#110F1C', bgAlt: '#181526', card: '#1F1B30', border: '#312B48', text: '#F0EEF8', textDim: '#ADA7C4', accent: '#A48BFF' } },
 ]
 
 export const DEFAULT_SKIN_ID = 'meadow'
