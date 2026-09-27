@@ -54,7 +54,7 @@ export default function MealProjection({ from: initialFrom, to: initialTo, admin
     finally { setBusy(false) }
   }
   const close = () => { if (!busy) onClose() }
-  return <Sheet title="Shopping projection" onClose={close} dismissable={!busy} actions={admin ? <button className="btn btn-primary" disabled={busy || loading || !listId || !selected.length || !lists?.some(list => list.id === listId)} onClick={apply}>{busy ? 'Applying…' : `Add ${selected.length} item${selected.length === 1 ? '' : 's'} to list`}</button> : undefined}>
+  return <Sheet title="Groceries for these meals" onClose={close} dismissable={!busy} actions={admin ? <button className="btn btn-primary" disabled={busy || loading || !listId || !selected.length || !lists?.some(list => list.id === listId)} onClick={apply}>{busy ? 'Applying…' : `Add ${selected.length} item${selected.length === 1 ? '' : 's'} to list`}</button> : undefined}>
     <p>Review ingredients before adding them. Existing list items stay as they are; previously applied meal ingredients are skipped.</p>
     <fieldset className="meal-fieldset" disabled={busy}>
       <div className="meal-form-row">

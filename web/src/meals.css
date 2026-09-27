@@ -1,6 +1,9 @@
 /* Meals follows the shared card, field and sheet styles; the week is a dated table. */
 .meals-view { height: 100%; padding: 4px var(--pad) var(--pad); }
 .meals-heading, .meals-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin-bottom: 20px; }
+/* The header's buttons match: same height, one line, icon + label. */
+.meals-heading .meal-actions .btn { box-sizing: border-box; height: 48px; min-height: 48px; padding-block: 0; white-space: nowrap; gap: 8px; }
+.meals-heading .meal-actions .btn svg { width: 20px; height: 20px; flex-shrink: 0; }
 .meals-heading h1 { margin: 0; font-size: 1.75rem; }
 .meals-toolbar { margin-top: 20px; }
 .meals-toolbar h2 { margin: 0; font-size: 1.125rem; }
@@ -53,7 +56,7 @@
 @media (max-width: 600px) {
   .meals-heading { align-items: flex-start; }
   .meals-heading .meal-actions { width: 100%; }
-  .meals-heading .btn { flex: 1; }
+  .meals-heading .btn { flex: 1 1 0; }
   .meals-toolbar > .field { flex: 1; min-width: 160px; }
   /* Phones: one card per day, its slots listed (data-slot) instead of a sideways-scrolling table. */
   .meal-grid-scroll { overflow: visible; background: none; box-shadow: none; }

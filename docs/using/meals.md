@@ -31,7 +31,7 @@ Some amounts don't scale, and Kinwall shows them as they are with **Check amount
 
 ## Adding to the shopping list
 
-**Shopping projection** (admins) adds up the ingredients of every recipe meal in a date range, the planner's week by default:
+**Groceries** (admins) adds up the ingredients of every recipe meal in a date range, the planner's week by default:
 
 1. Pick the range and a shopping list. The preview shows each ingredient's total, which meals it's for, and any item already on that list with the same name.
 2. Untick what you already have (salt, rice in the pantry).
