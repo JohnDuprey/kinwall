@@ -13,8 +13,9 @@ Kinwall is a family calendar, chore chart and list app you host yourself. The ma
 | Events | Create and edit events. Changes go back to Google, Outlook and CalDAV. You can add reminders, a travel time with a leave-by time, members, a category and linked tasks. | [Events](../using/events.md) |
 | Calendars | Google, Microsoft 365 / Outlook, iCloud and other CalDAV servers, and any ICS URL. | [Connecting calendars](../calendars/google.md) |
 | Snapshot | Tap a person for their day or week: events, chores to tick off, things due and birthdays. | [Daily & weekly snapshot](../using/snapshot.md) |
-| Chores | One-off or recurring chores with points, streaks, a leaderboard, optional checklists, and activity chores ("5 min of Sight words") that complete themselves. | [Chores](../using/chores.md) |
-| Lists | Shopping, to-do and reusable lists. Items remember their store and category. | [Lists](../using/lists.md) |
+| Chores | One-off or recurring chores with points, streaks, a leaderboard, optional checklists, activity chores ("5 min of Sight words") that complete themselves, and optional parent approval. | [Chores](../using/chores.md) |
+| Rewards | Parent-defined rewards kids spend chore points on, with limits, goals to save for and optional parent approval. | [Rewards](../using/rewards.md) |
+| Lists | Shopping, to-do and reusable lists. Shopping items remember their store, department and aisle; Shopping mode walks the store in order. | [Lists](../using/lists.md) |
 | Meals | A week planner and recipe library. Servings scale the ingredients, and the week's groceries go to a shopping list without duplicates. | [Meals](../using/meals.md) |
 | Trackers | A reading log with progress and ratings, a family memories journal, and doctor and dentist visits (health stays off the wall screen). | [Trackers](../using/trackers.md) |
 | Activities | Paint for kids, a sticker book decorated with stickers bought with chore points, a shared family photo album, and learning games made by others (reviewed by Kinwall, sandboxed). | [Activities](../using/activities.md), [Photos](../using/photos.md), [Building activity plugins](../contributing/plugins.md) |

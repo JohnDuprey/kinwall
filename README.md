@@ -18,8 +18,9 @@ Kinwall is an open-source, self-hosted family wall calendar, chore chart and sha
 - **Events that help**: reminders written through to Google and Outlook, travel time with a leave-by time, map links, and tasks linked from your lists.
 - **Categories**: 🎂 Birthdays, 🏥 Appointments and more, auto-matched by keyword, with a multi-select filter.
 - **Daily & weekly snapshot**: tap someone's avatar for their day: a greeting, the weather, their events and leave-by times, chores to tick off, due and important list items, birthdays 🎂, and tomorrow at a glance, or flip to their week.
-- **Chores**: one-off or recurring, points, streaks with grace days, late-completion credit and an optional leaderboard. Link a checklist ("Bedtime: shower, pajamas, brush teeth") that has to be ticked off before the chore counts, or an activity ("5 min of Sight words") that completes the chore once the child has played that long.
-- **Lists**: shopping, to-do and reusable lists. Items remember their store and category, and you can drag to reorder.
+- **Chores**: one-off or recurring, points, streaks with grace days, late-completion credit and an optional leaderboard. Link a checklist ("Bedtime: shower, pajamas, brush teeth") that has to be ticked off before the chore counts, or an activity ("5 min of Sight words") that completes the chore once the child has played that long. Chores can need a parent's OK before the points count.
+- **Rewards**: parent-defined rewards kids spend chore points on, with limits, goals to save for and optional parent approval. See [docs](docs/using/rewards.md).
+- **Lists**: shopping, to-do and reusable lists. Shopping items remember their store, department and aisle, group and sort by aisle, and Shopping mode walks the store in order.
 - **Meals**: plan the week's breakfasts, lunches, dinners and snacks from a recipe library, scale servings, and add the week's ingredients to a shopping list without doubling up.
 - **Trackers**: a reading log with progress bars, star ratings and books finished this year; a family memories journal with photos and "On this day"; and doctor and dentist visits with measurements and follow-ups. Health stays on phones and computers, never on the wall screen.
 - **Activities**: a kids' Paint app with forty colors plus a color wheel, a rainbow brush, fill bucket and undo. Drawings stay on the device and can be printed, saved, or added to the family photos.
@@ -55,7 +56,7 @@ The setup wizard, putting it on the wall, connecting calendars, every setting an
 ## Integrations
 
 - **REST API**: everything the UI does, with Swagger docs at `/docs` and the spec at `/openapi.json`. See [docs](docs/integrations/rest-api.md).
-- **Webhooks**: 14 HMAC-signed event types for automations. See [docs](docs/integrations/webhooks.md).
+- **Webhooks**: HMAC-signed event types for automations. See [docs](docs/integrations/webhooks.md).
 - **MCP server**: connect Claude or any MCP client at `/mcp` with OAuth sign-in or a bearer key. See [docs](docs/integrations/mcp.md).
 - **Home Assistant**: calendars, to-do lists, points sensors and a binary sensor per chore, plus an add-on to run Kinwall itself, in [kinwall-homeassistant](https://github.com/JohnDuprey/kinwall-homeassistant). See [docs](docs/integrations/home-assistant.md).
 - **n8n**: example workflows with n8n's built-in HTTP Request and Webhook nodes. See [docs](docs/integrations/n8n.md).

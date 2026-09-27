@@ -63,8 +63,8 @@ We'd rather list these than pretend they aren't there:
 
 ## Finding help
 
-Help is in the same place on every screen (WCAG 2.2 SC 3.2.6 *Consistent Help*): the **?** button at the top right of the header on the wall and on phones, of the sign-in screen and of the setup wizard opens a Help sheet with the docs, the accessibility page, where to report a problem and, on hosted Kinwall, your hosting portal. Hosted Kinwall (coming soon) will carry a **Help & docs** link first in the footer of its own pages.
+Help is in the same place on every screen (WCAG 2.2 SC 3.2.6 *Consistent Help*): the **?** button at the top right of the header on the wall and on phones, of the sign-in screen and of the setup wizard opens a Help sheet with the docs, the accessibility page, **Report a problem**, **Suggest a feature** and, on hosted Kinwall, your hosting portal. Hosted Kinwall (coming soon) will carry a **Help & docs** link first in the footer of its own pages.
 
 ## Reporting a problem
 
-If something in Kinwall is hard or impossible for you or someone in your family to use, please [open an issue on GitHub](https://github.com/JohnDuprey/kinwall/issues/new) with "Accessibility" in the title. Tell us what you were trying to do, what happened, and what you use (device, browser, screen reader or other assistive technology, text size). Screenshots or a short recording help but aren't required. Accessibility bugs are treated as bugs, not feature requests.
+If something in Kinwall is hard or impossible for you or someone in your family to use, please use **Report a problem** in the Help sheet (or [open an issue on GitHub](https://github.com/JohnDuprey/kinwall/issues/new) directly) with "Accessibility" in the title. Tell us what you were trying to do, what happened, and what you use (device, browser, screen reader or other assistive technology, text size). Screenshots or a short recording help but aren't required. Accessibility bugs are treated as bugs, not feature requests.

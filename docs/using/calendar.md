@@ -60,7 +60,7 @@ On a phone, the header is one row:
 
 There's no clock on a phone, since the phone already shows the time.
 
-**Help** (the **?** button) is in the same spot on every screen. It opens a short sheet with links to these docs, accessibility notes and where to report a problem, plus the Kinwall version.
+**Help** (the **?** button) is in the same spot on every screen. It opens a short sheet with links to these docs, accessibility notes, **Report a problem** and **Suggest a feature** (short GitHub forms; a problem report arrives with the Kinwall version filled in), plus the Kinwall version.
 
 The browser tab or window title shows the screen and your family name, for example "Chores · Our Family".
 
