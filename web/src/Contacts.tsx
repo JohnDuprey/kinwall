@@ -6,8 +6,8 @@ import { useDialog } from './dialog.tsx'
 import { PlusIcon } from './icons.tsx'
 import Sheet from './Sheet.tsx'
 import type { Member } from './types.ts'
-import { emptyContact, reviewCandidates,
-  type Contact, type ContactInput, type ContactMethod, type ImportCandidate, type ImportDecision } from './contact-types.ts'
+import { emptyContact, formatAddress, reviewCandidates,
+  type Contact, type ContactAddress, type ContactInput, type ContactMethod, type ImportCandidate, type ImportDecision } from './contact-types.ts'
 import type { ContactCategory } from './contact-types.ts'
 import './contacts.css'
 
@@ -54,10 +54,10 @@ function ContactCard({ contact, categoryNames, onOpen }: { contact: Contact; cat
       {contact.categoryIds?.length ? <span className="contact-card-sub">{contact.categoryIds.map(id => categoryNames.get(id)).filter(Boolean).slice(0, 2).join(' · ')}</span> : null}
       {contact.phones[0] && <span className="contact-card-phone">{contact.phones[0].value}</span>}
     </span>
-    <span className="contact-card-flags" aria-label={[contact.favorite && 'Favorite', contact.emergency && 'Emergency', contact.showOnWall && 'On wall'].filter(Boolean).join(', ') || undefined}>
+    <span className="contact-card-flags" aria-label={[contact.favorite && 'Favorite', contact.emergency && 'Emergency', contact.wallVisible && 'On wall'].filter(Boolean).join(', ') || undefined}>
       {contact.favorite && <span title="Favorite">★</span>}
       {contact.emergency && <span title="Emergency">✚</span>}
-      {contact.showOnWall && <span title="On wall">▣</span>}
+      {contact.wallVisible && <span title="On wall">▣</span>}
     </span>
   </button>
 }
@@ -89,6 +89,9 @@ function ContactForm({ initial, categories, members, onClose, onSaved }: { initi
   const [saving, setSaving] = useState(false)
   const [validation, setValidation] = useState('')
   const change = <K extends keyof ContactInput>(key: K, value: ContactInput[K]) => setForm(f => ({ ...f, [key]: value }))
+  // The form edits the first address; any others (from an import) are kept as they are.
+  const address: ContactAddress = form.addresses?.[0] ?? { label: 'Home', street: '', city: '', region: '', postalCode: '', country: '' }
+  const changeAddress = (patch: Partial<ContactAddress>) => change('addresses', [{ ...address, ...patch }, ...(form.addresses ?? []).slice(1)])
   const save = async () => {
     const name = form.name.trim()
     if (!name) { setValidation('Add a name.'); return }
@@ -96,8 +99,9 @@ function ContactForm({ initial, categories, members, onClose, onSaved }: { initi
     const emails = form.emails.map(m => ({ label: m.label.trim() || 'Email', value: m.value.trim() })).filter(m => m.value)
     if (phones.some(m => !callHref(m.value))) { setValidation('Enter a valid phone number or remove the empty row.'); return }
     if (emails.some(m => !mailHref(m.value))) { setValidation('Enter a valid email address.'); return }
-    const body: ContactInput = { ...form, name, wallVisible: form.showOnWall, organization: clean(form.organization ?? ''), relationship: clean(form.relationship ?? ''),
-      address: clean(form.address ?? ''), notes: clean(form.notes ?? ''), phones, emails }
+    const addresses = (form.addresses ?? []).map(a => ({ ...a, street: a.street.trim(), city: a.city.trim(), region: a.region.trim(), postalCode: a.postalCode.trim() })).filter(a => formatAddress(a))
+    const body: ContactInput = { ...form, name, organization: clean(form.organization ?? ''), relationship: clean(form.relationship ?? ''),
+      notes: clean(form.notes ?? ''), phones, emails, addresses }
     setSaving(true); setValidation('')
     try { onSaved(initial ? await api.updateContact(initial.id, body) : await api.createContact(body)) }
     catch (error) { toast(errorText(error, 'Could not save contact.'), true) }
@@ -105,14 +109,19 @@ function ContactForm({ initial, categories, members, onClose, onSaved }: { initi
   }
   return <Sheet title={initial ? 'Edit contact' : 'New contact'} onClose={onClose} dismissable={!saving}
     actions={<><button className="btn btn-secondary" onClick={onClose} disabled={saving}>Cancel</button><button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save contact'}</button></>}>
-    {!initial && <div className="contact-template"><span>Start with a blank service template</span><div className="chip-row">{TEMPLATES.map(t => <button type="button" key={t.label} className="chip" onClick={() => setForm(f => ({ ...f, name: f.name || t.label, kind: t.kind, relationship: t.relationship, emergency: !!t.emergency, emergencyDesignation: !!t.emergency }))}>{t.label}</button>)}</div></div>}
+    {!initial && <div className="contact-template"><span>Start with a blank service template</span><div className="chip-row">{TEMPLATES.map(t => <button type="button" key={t.label} className="chip" onClick={() => setForm(f => ({ ...f, name: f.name || t.label, kind: t.kind, relationship: t.relationship, emergency: !!t.emergency }))}>{t.label}</button>)}</div></div>}
     <div className="field"><label htmlFor={`${id}-name`}>Name *</label><input id={`${id}-name`} type="text" value={form.name} onChange={e => change('name', e.target.value)} maxLength={160} autoComplete="name" /></div>
     <div className="field"><label htmlFor={`${id}-kind`}>Contact kind</label><select id={`${id}-kind`} value={form.kind ?? 'person'} onChange={e => change('kind', e.target.value as ContactInput['kind'])}><option value="person">Person</option><option value="service">Service</option><option value="organization">Organization</option><option value="place">Place</option></select></div>
     <div className="row-2"><div className="field"><label htmlFor={`${id}-relationship`}>Relationship</label><input id={`${id}-relationship`} type="text" value={form.relationship ?? ''} onChange={e => change('relationship', e.target.value)} placeholder="School, doctor, neighbor…" maxLength={100} /></div>
       <div className="field"><label htmlFor={`${id}-org`}>Organization</label><input id={`${id}-org`} type="text" value={form.organization ?? ''} onChange={e => change('organization', e.target.value)} maxLength={160} autoComplete="organization" /></div></div>
     <Methods title="Phone numbers" methods={form.phones} onChange={v => change('phones', v)} />
     <Methods title="Email addresses" methods={form.emails} onChange={v => change('emails', v)} />
-    <div className="field"><label htmlFor={`${id}-address`}>Address</label><textarea id={`${id}-address`} value={form.address ?? ''} onChange={e => change('address', e.target.value)} maxLength={500} autoComplete="street-address" /></div>
+    <fieldset className="contact-methods"><legend>Address</legend>
+      <div className="field"><label htmlFor={`${id}-street`}>Street</label><input id={`${id}-street`} type="text" value={address.street} onChange={e => changeAddress({ street: e.target.value })} maxLength={500} autoComplete="street-address" /></div>
+      <div className="row-2"><div className="field"><label htmlFor={`${id}-city`}>City</label><input id={`${id}-city`} type="text" value={address.city} onChange={e => changeAddress({ city: e.target.value })} maxLength={200} autoComplete="address-level2" /></div>
+        <div className="field"><label htmlFor={`${id}-region`}>State</label><input id={`${id}-region`} type="text" value={address.region} onChange={e => changeAddress({ region: e.target.value })} maxLength={200} autoComplete="address-level1" /></div></div>
+      <div className="field"><label htmlFor={`${id}-zip`}>ZIP code</label><input id={`${id}-zip`} type="text" value={address.postalCode} onChange={e => changeAddress({ postalCode: e.target.value })} maxLength={50} autoComplete="postal-code" /></div>
+    </fieldset>
     <div className="field"><label htmlFor={`${id}-categories`}>Categories</label><select id={`${id}-categories`} multiple value={form.categoryIds ?? []} onChange={e => change('categoryIds', Array.from(e.target.selectedOptions, option => option.value))}>{categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}</select><p className="field-hint">Choose one or more categories.</p></div>
     <div className="field"><label htmlFor={`${id}-members`}>Associated household members</label><select id={`${id}-members`} multiple value={form.memberIds ?? []} onChange={e => change('memberIds', Array.from(e.target.selectedOptions, option => option.value))}>{members.map(member => <option key={member.id} value={member.id}>{member.name}</option>)}</select></div>
     {(form.kind === 'service' || form.kind === 'organization' || form.kind === 'place') && <div className="row-2"><div className="field"><label htmlFor={`${id}-hours`}>Service hours</label><input id={`${id}-hours`} value={form.serviceHours ?? ''} onChange={e => change('serviceHours', clean(e.target.value))} placeholder="Mon–Fri, 8am–5pm" /></div><div className="field"><label htmlFor={`${id}-area`}>Service area</label><input id={`${id}-area`} value={form.serviceArea ?? ''} onChange={e => change('serviceArea', clean(e.target.value))} placeholder="North county" /></div></div>}
@@ -120,10 +129,9 @@ function ContactForm({ initial, categories, members, onClose, onSaved }: { initi
     <fieldset className="contact-options"><legend>Directory options</legend>
       <label><input type="checkbox" checked={form.favorite} onChange={e => change('favorite', e.target.checked)} /> Favorite</label>
       <label><input type="checkbox" checked={form.emergency} onChange={e => change('emergency', e.target.checked)} /> Emergency contact</label>
-      <label><input type="checkbox" checked={form.emergencyDesignation ?? false} onChange={e => change('emergencyDesignation', e.target.checked)} /> Mark emergency number/service</label>
       <label><input type="checkbox" checked={form.alwaysOpen ?? false} onChange={e => change('alwaysOpen', e.target.checked)} /> Available 24/7</label>
-      <label><input type="checkbox" checked={form.showOnWall} onChange={e => change('showOnWall', e.target.checked)} /> Show on wall and shared displays</label>
-      {form.showOnWall && <><label><input type="checkbox" checked={form.phoneVisibleOnWall ?? false} onChange={e => change('phoneVisibleOnWall', e.target.checked)} /> Show permitted phone numbers on wall</label><label><input type="checkbox" checked={form.addressVisibleOnWall ?? false} onChange={e => change('addressVisibleOnWall', e.target.checked)} /> Show address on wall</label></>}
+      <label><input type="checkbox" checked={form.wallVisible} onChange={e => change('wallVisible', e.target.checked)} /> Show on wall and shared displays</label>
+      {form.wallVisible && <><label><input type="checkbox" checked={form.phoneVisibleOnWall ?? false} onChange={e => change('phoneVisibleOnWall', e.target.checked)} /> Show permitted phone numbers on wall</label><label><input type="checkbox" checked={form.addressVisibleOnWall ?? false} onChange={e => change('addressVisibleOnWall', e.target.checked)} /> Show address on wall</label></>}
       <label htmlFor={`${id}-visibility`}>Privacy visibility<select id={`${id}-visibility`} value={form.visibility ?? 'household'} onChange={e => change('visibility', e.target.value as ContactInput['visibility'])}><option value="household">Household</option><option value="adults">Adults</option><option value="selected_members">Selected members</option><option value="private">Private</option></select></label>
       <p className="field-hint">New contacts stay private to parent devices until you turn on display access.</p>
     </fieldset>
@@ -137,11 +145,11 @@ function ContactDetail({ contact, categories, members, canEdit, onClose, onEdit,
   return <Sheet title={contact.name} onClose={onClose} actions={canEdit ? <><button className="btn btn-secondary" onClick={onEdit}>Edit</button><button className="btn btn-danger" onClick={onDelete}>Delete</button></> : undefined}>
     <div className="contact-detail-head"><span className="contact-avatar contact-avatar-large" aria-hidden="true">{initials(contact.name)}</span>
       <div><h3>{contact.name}</h3><p>{[contact.relationship, contact.organization].filter(Boolean).join(' · ') || 'Household contact'}</p></div></div>
-    <div className="contact-badges">{contact.favorite && <span>★ Favorite</span>}{contact.emergency && <span>✚ Emergency</span>}{contact.showOnWall && <span>▣ On wall</span>}</div>
+    <div className="contact-badges">{contact.favorite && <span>★ Favorite</span>}{contact.emergency && <span>✚ Emergency</span>}{contact.wallVisible && <span>▣ On wall</span>}</div>
     {(categoryNames.length > 0 || memberNames.length > 0 || contact.serviceHours || contact.serviceArea || contact.alwaysOpen) && <section className="contact-detail-section"><h4>Directory details</h4>{categoryNames.length > 0 && <p>Categories: {categoryNames.join(', ')}</p>}{memberNames.length > 0 && <p>For: {memberNames.join(', ')}</p>}{contact.serviceHours && <p>Hours: {contact.serviceHours}</p>}{contact.alwaysOpen && <p>Available 24/7</p>}{contact.serviceArea && <p>Service area: {contact.serviceArea}</p>}</section>}
     {contact.phones.length > 0 && <section className="contact-detail-section"><h4>Phone</h4>{contact.phones.map((m, i) => <div className="contact-detail-line" key={i}><span>{m.label}</span><strong>{m.value}</strong>{callHref(m.value) && <a className="contact-action" href={callHref(m.value)!} aria-label={`Call ${contact.name}, ${m.label}`}>Call</a>}{callHref(m.value) && <a className="contact-action" href={`sms:${callHref(m.value)!.slice(4)}`} aria-label={`Text ${contact.name}, ${m.label}`}>Text</a>}<button className="contact-action" onClick={() => navigator.clipboard?.writeText(m.value)}>Copy</button></div>)}</section>}
     {contact.emails.length > 0 && <section className="contact-detail-section"><h4>Email</h4>{contact.emails.map((m, i) => <div className="contact-detail-line" key={i}><span>{m.label}</span><strong>{m.value}</strong>{mailHref(m.value) && <a className="contact-action" href={mailHref(m.value)!} aria-label={`Email ${contact.name}, ${m.label}`}>Email</a>}</div>)}</section>}
-    {contact.address && <section className="contact-detail-section"><h4>Address</h4><p>{contact.address}</p><a className="contact-action" target="_blank" rel="noreferrer" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(contact.address)}`}>Open map</a><button className="contact-action" onClick={() => navigator.clipboard?.writeText(contact.address!)}>Copy address</button></section>}
+    {contact.addresses?.length ? <section className="contact-detail-section"><h4>Address</h4>{contact.addresses.map((a, i) => <div className="contact-detail-line" key={i}>{a.label && <span>{a.label}</span>}<strong>{formatAddress(a)}</strong><a className="contact-action" target="_blank" rel="noreferrer" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(formatAddress(a))}`}>Map</a><button className="contact-action" onClick={() => navigator.clipboard?.writeText(formatAddress(a))}>Copy</button></div>)}</section> : null}
     {contact.websites?.length ? <section className="contact-detail-section"><h4>Websites</h4>{contact.websites.map((site, i) => webHref(site.value) ? <p key={i}><a href={webHref(site.value)!} target="_blank" rel="noreferrer">{site.label || site.value}</a></p> : null)}</section> : null}
     {canEdit && contact.notes && <section className="contact-detail-section"><h4>Notes</h4><p>{contact.notes}</p></section>}
   </Sheet>
@@ -186,7 +194,8 @@ function ImportSheet({ contacts, categories, members, onClose, onImported }: { c
       const selected = await picker.select(['name', 'tel', 'email', 'address'], { multiple: true })
       await stage({ contacts: selected.map(c => ({ ...emptyContact(), name: c.name?.[0]?.trim() ?? '',
         phones: (c.tel ?? []).map(value => ({ label: 'Phone', value })),
-        emails: (c.email ?? []).map(value => ({ label: 'Email', value })), address: c.address?.[0]?.toString() ?? null })).filter(c => c.name) }, 'Could not read those contacts.')
+        emails: (c.email ?? []).map(value => ({ label: 'Email', value })),
+        addresses: (c.address ?? []).map(a => ({ label: 'Home', street: a.toString(), city: '', region: '', postalCode: '', country: '' })) })).filter(c => c.name) }, 'Could not read those contacts.')
     } catch (error) {
       if ((error as DOMException)?.name !== 'AbortError') setMessage('Contacts access was unavailable. You can choose a vCard file or paste its text instead.')
     }
@@ -230,7 +239,7 @@ function ImportSheet({ contacts, categories, members, onClose, onImported }: { c
         return <div className="contact-review-row" key={row.key}>
           <div className="contact-review-heading"><strong>{row.input.name}</strong><span className={`contact-status contact-status-${row.status}`}>{row.status === 'new' ? 'New' : 'Possible duplicate'}</span></div>
           <div className="contact-review-edit"><label>Name<input value={row.input.name} onChange={e => edit(row.key, { name: e.target.value })} /></label><label>Kind<select value={row.input.kind ?? 'person'} onChange={e => edit(row.key, { kind: e.target.value as ContactInput['kind'] })}><option value="person">Person</option><option value="service">Service</option><option value="organization">Organization</option><option value="place">Place</option></select></label><label>Relationship<input value={row.input.relationship ?? ''} onChange={e => edit(row.key, { relationship: e.target.value || null })} /></label></div>
-          <div className="contact-review-toggles"><label><input type="checkbox" checked={!!row.input.favorite} onChange={e => edit(row.key, { favorite: e.target.checked })} /> Favorite</label><label><input type="checkbox" checked={!!row.input.emergency} onChange={e => edit(row.key, { emergency: e.target.checked, emergencyDesignation: e.target.checked })} /> Emergency</label><label><input type="checkbox" checked={!!row.input.showOnWall} onChange={e => edit(row.key, { showOnWall: e.target.checked, wallVisible: e.target.checked })} /> Show on wall</label></div>
+          <div className="contact-review-toggles"><label><input type="checkbox" checked={!!row.input.favorite} onChange={e => edit(row.key, { favorite: e.target.checked })} /> Favorite</label><label><input type="checkbox" checked={!!row.input.emergency} onChange={e => edit(row.key, { emergency: e.target.checked })} /> Emergency</label><label><input type="checkbox" checked={!!row.input.wallVisible} onChange={e => edit(row.key, { wallVisible: e.target.checked })} /> Show on wall</label></div>
           <label className="contact-review-category">Categories<select multiple value={row.input.categoryIds ?? []} onChange={e => edit(row.key, { categoryIds: Array.from(e.target.selectedOptions, option => option.value) })}>{categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
           <label className="contact-review-category">Household members<select multiple value={row.input.memberIds ?? []} onChange={e => edit(row.key, { memberIds: Array.from(e.target.selectedOptions, option => option.value) })}>{members.map(member => <option key={member.id} value={member.id}>{member.name}</option>)}</select></label>
           <p>{[row.input.organization, row.input.phones[0]?.value, row.input.emails[0]?.value].filter(Boolean).join(' · ') || 'Name only'}</p>
@@ -270,8 +279,8 @@ export default function Contacts() {
   const selected = contacts.find(c => c.id === selectedId) ?? null
   const visible = useMemo(() => {
     const q = query.trim().toLocaleLowerCase()
-    return contacts.filter(c => (parentDevice || c.showOnWall) &&
-      (filter === 'all' || (filter === 'favorites' && c.favorite) || (filter === 'emergency' && (c.emergency || c.emergencyDesignation)) || (filter === 'wall' && c.showOnWall)) &&
+    return contacts.filter(c => (parentDevice || c.wallVisible) &&
+      (filter === 'all' || (filter === 'favorites' && c.favorite) || (filter === 'emergency' && c.emergency) || (filter === 'wall' && c.wallVisible)) &&
       (kindFilter === 'all' || c.kind === kindFilter) &&
       (categoryFilter === 'all' || c.categoryIds?.includes(categoryFilter)) &&
       (!q || [c.name, c.organization, c.relationship, ...c.phones.map(p => p.value), ...(parentDevice ? c.emails.map(e => e.value) : [])]
@@ -289,7 +298,7 @@ export default function Contacts() {
     try { await api.deleteContact(selected.id); setContacts(all => all.filter(c => c.id !== selected.id)); setSheet(null); setSelectedId(null); announce(`${selected.name} deleted`) }
     catch (error) { toast(errorText(error, 'Could not delete contact.'), true) }
   }
-  const count = contacts.filter(c => parentDevice || c.showOnWall).length
+  const count = contacts.filter(c => parentDevice || c.wallVisible).length
   const categoryNames = new Map(categories.map(category => [category.id, category.name]))
   return <div className="contacts-page scroll-y">
     <div className="contacts-inner">

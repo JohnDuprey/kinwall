@@ -18,11 +18,11 @@ export const ContactValueSchema = z.object({
   wallVisible: z.boolean().default(false),
 }).strict();
 export const ContactAddressSchema = z.object({
-  label: z.string().trim().max(50).default(''), formatted: z.string().max(1000).optional(), street: z.string().max(500).default(''), city: z.string().max(200).default(''),
+  label: z.string().trim().max(50).default(''), street: z.string().max(500).default(''), city: z.string().max(200).default(''),
   region: z.string().max(200).default(''), postalCode: z.string().max(50).default(''), country: z.string().max(200).default(''),
 }).strict();
 export const ContactDateSchema = z.object({ label: z.string().trim().max(50).default(''), date: z.string().regex(/^(?:\d{4}-\d{2}-\d{2}|--\d{2}-\d{2})$/) }).strict();
-export const ContactPrivateFieldSchema = z.enum(['organization', 'relationship', 'title', 'phones', 'emails', 'address', 'addresses', 'websites', 'dates', 'notes', 'tags', 'members']);
+export const ContactPrivateFieldSchema = z.enum(['organization', 'relationship', 'title', 'phones', 'emails', 'addresses', 'websites', 'dates', 'notes', 'tags', 'members']);
 export const ContactInputSchema = z.object({
   kind: ContactKindSchema.default('person'),
   name: z.string().trim().min(1).max(200),
@@ -32,8 +32,7 @@ export const ContactInputSchema = z.object({
   givenName: z.string().trim().max(200).nullable().optional(),
   familyName: z.string().trim().max(200).nullable().optional(),
   nickname: z.string().trim().max(200).nullable().optional(),
-  address: z.string().trim().max(1000).nullable().optional(),
-  favorite: z.boolean().default(false), emergency: z.boolean().default(false), showOnWall: z.boolean().default(false),
+  favorite: z.boolean().default(false), emergency: z.boolean().default(false),
   phones: z.array(ContactValueSchema).max(30).default([]),
   emails: z.array(ContactValueSchema).max(30).default([]),
   addresses: z.array(ContactAddressSchema).max(20).default([]),
@@ -45,7 +44,6 @@ export const ContactInputSchema = z.object({
   memberIds: z.array(z.string()).max(50).default([]),
   serviceHours: z.string().max(500).nullable().optional(),
   serviceArea: z.string().max(500).nullable().optional(),
-  emergencyDesignation: z.boolean().default(false),
   alwaysOpen: z.boolean().default(false),
   wallVisible: z.boolean().default(false),
   emergencyVisible: z.boolean().default(false),
@@ -59,11 +57,11 @@ export const ContactInputSchema = z.object({
 export const ContactPatchSchema = z.object({
   kind: ContactKindSchema.optional(), name: z.string().trim().min(1).max(200).optional(),
   organization: z.string().trim().max(200).nullable().optional(), relationship: z.string().trim().max(200).nullable().optional(), title: z.string().trim().max(200).nullable().optional(), givenName: z.string().trim().max(200).nullable().optional(), familyName: z.string().trim().max(200).nullable().optional(), nickname: z.string().trim().max(200).nullable().optional(),
-  address: z.string().trim().max(1000).nullable().optional(), favorite: z.boolean().optional(), emergency: z.boolean().optional(), showOnWall: z.boolean().optional(),
+  favorite: z.boolean().optional(), emergency: z.boolean().optional(),
   phones: z.array(ContactValueSchema).max(30).optional(), emails: z.array(ContactValueSchema).max(30).optional(),
   addresses: z.array(ContactAddressSchema).max(20).optional(), websites: z.array(ContactValueSchema).max(30).optional(),
   dates: z.array(ContactDateSchema).max(30).optional(), notes: z.string().max(10000).nullable().optional(),
-  tags: z.array(z.string().trim().min(1).max(50)).max(50).optional(), memberIds: z.array(z.string()).max(50).optional(), serviceHours: z.string().max(500).nullable().optional(), serviceArea: z.string().max(500).nullable().optional(), emergencyDesignation: z.boolean().optional(), alwaysOpen: z.boolean().optional(), wallVisible: z.boolean().optional(), emergencyVisible: z.boolean().optional(), phoneVisibleOnWall: z.boolean().optional(), addressVisibleOnWall: z.boolean().optional(),
+  tags: z.array(z.string().trim().min(1).max(50)).max(50).optional(), memberIds: z.array(z.string()).max(50).optional(), serviceHours: z.string().max(500).nullable().optional(), serviceArea: z.string().max(500).nullable().optional(), alwaysOpen: z.boolean().optional(), wallVisible: z.boolean().optional(), emergencyVisible: z.boolean().optional(), phoneVisibleOnWall: z.boolean().optional(), addressVisibleOnWall: z.boolean().optional(),
   categoryIds: z.array(z.string().uuid()).max(30).optional(), visibility: z.enum(['household', 'adults', 'selected_members', 'private']).optional(), selectedMemberIds: z.array(z.string()).max(50).optional(), sourceMetadata: z.record(z.string(), z.unknown()).nullable().optional(),
   privateFields: z.array(ContactPrivateFieldSchema).optional(),
 }).strict().openapi('ContactPatch');

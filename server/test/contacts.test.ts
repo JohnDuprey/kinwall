@@ -57,7 +57,7 @@ test('display reads redact every non-wall field and honor adults visibility', as
     name: 'Emergency office', kind: 'service', wallVisible: true, phoneVisibleOnWall: true,
     phones: [{ label: 'public', value: '+1 555 111 2222', wallVisible: true }, { label: 'private', value: '+1 555 333 4444' }],
     emails: [{ label: 'work', value: 'secret@example.com' }], relationship: 'private relation', tags: ['private tag'],
-    notes: 'private note', sourceMetadata: { source: 'private' }, address: 'Private street', addressVisibleOnWall: false,
+    notes: 'private note', sourceMetadata: { source: 'private' }, addresses: [{ street: 'Private street' }], addressVisibleOnWall: false,
   });
   assert.equal(created.status, 201);
   const wall = (await t.req(`/api/contacts/${created.body.id}`, 'GET', undefined, display)).body;
@@ -66,7 +66,7 @@ test('display reads redact every non-wall field and honor adults visibility', as
   assert.deepEqual(wall.tags, []);
   assert.equal(wall.relationship, null);
   assert.equal(wall.notes, null);
-  assert.equal(wall.address, null);
+  assert.deepEqual(wall.addresses, []);
   assert.equal(wall.sourceMetadata, null);
   assert.equal((await t.req('/api/contacts?favorite=false', 'GET')).body.length, 1);
   assert.equal((await t.req('/api/contacts?favorite=true', 'GET')).body.length, 0);
@@ -144,4 +144,19 @@ test('import preview reads raw vCard text into structured drafts for the app to 
   assert.equal(contact.addresses[0].street, '1 Field Rd');
   assert.deepEqual(contact.dates, [{ label: 'birthday', date: '1980-04-02' }]);
   assert.equal((await t.req('/api/contacts')).body.length, 0);
+});
+
+test('contacts keep one field per fact: emergency, wallVisible, visibility, addresses', async () => {
+  const t = setup();
+  const columns = (await t.db.prepare('PRAGMA table_info(contacts)').all<{ name: string }>()).results.map((c) => c.name);
+  for (const gone of ['emergency_designation', 'show_on_wall', 'privacy_visibility', 'address']) assert.ok(!columns.includes(gone), gone);
+  for (const kept of ['emergency', 'wall_visible', 'visibility', 'addresses']) assert.ok(columns.includes(kept), kept);
+  const created = await t.req('/api/contacts', 'POST', { name: 'School office', emergency: true, wallVisible: true, visibility: 'adults', addresses: [{ street: '1 School Rd', city: 'Springfield' }] });
+  assert.equal(created.status, 201, JSON.stringify(created.body));
+  for (const gone of ['emergencyDesignation', 'showOnWall', 'address']) assert.ok(!(gone in created.body), gone);
+  assert.equal(created.body.visibility, 'adults');
+  assert.equal(created.body.addresses[0].city, 'Springfield');
+  for (const old of [{ showOnWall: true }, { emergencyDesignation: true }, { address: '1 School Rd' }]) {
+    assert.equal((await t.req('/api/contacts', 'POST', { name: 'Old field', ...old })).status, 400, JSON.stringify(old));
+  }
 });

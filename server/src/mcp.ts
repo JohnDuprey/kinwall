@@ -235,7 +235,6 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
   list_categories: { categories: z.array(CategorySchema) },
   update_category: { category: CategorySchema },
   list_contacts: { contacts: z.array(ContactSchema) },
-  search_contacts: { contacts: z.array(ContactSchema) },
   get_contact: { contact: ContactSchema },
   create_contact: { contact: ContactSchema },
   update_contact: { contact: ContactSchema },
@@ -269,7 +268,7 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
 const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boolean; idempotentHint: boolean; openWorldHint: boolean }> = {
   list_recipes: READ, get_recipe: READ, create_recipe: WRITE, update_recipe: SET, rate_recipe: SET, import_recipe: SET, import_recipe_from_url: { ...SET, openWorldHint: true }, list_meals: READ, create_meal: WRITE, update_meal: SET, get_meal_projection: READ, apply_meal_projection: SET,
   get_household: READ, list_events: READ, get_event: READ, list_chores: READ, get_leaderboard: READ, get_points: READ, get_member_profile: READ, list_lists: READ, get_list: READ, list_categories: READ, get_event_items: READ, list_notifications: READ, list_notes: READ, get_snapshot: READ, get_board: READ, list_tracker_entries: READ, add_tracker_entry: WRITE, update_tracker_entry: SET, list_color_schemes: READ, set_color_scheme: SET, save_color_scheme: WRITE,
-  list_contacts: READ, search_contacts: READ, get_contact: READ, list_contact_categories: READ, preview_contact_import: READ,
+  list_contacts: READ, get_contact: READ, list_contact_categories: READ, preview_contact_import: READ,
   delete_color_scheme: { ...WRITE, destructiveHint: true, idempotentHint: true },
   create_event: { ...WRITE, openWorldHint: true }, update_event: { ...SET, openWorldHint: true }, set_event_category: SET,
   create_chore: WRITE, update_chore: SET, complete_chore: SET, uncomplete_chore: SET, list_pending_approvals: READ, approve_chore: SET, reject_chore: SET,
@@ -1167,24 +1166,15 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
 
   tool('list_contacts', {
     title: 'Find household contacts',
-    description: 'Find people and organizations in the household directory. Display keys see only household contacts, with private fields removed. Use get_contact for one record.',
-    inputSchema: { q: z.string().optional(), kind: ContactInputSchema.shape.kind.optional(), categoryId: z.string().uuid().optional() },
-  }, async ({ q, kind, categoryId }) => {
+    description: 'List or search people, services and places in the household directory (search matches names, relationships, organizations and tags). Results follow the key: an admin key sees every contact; a device key sees only what its visibility allows. Use get_contact for one record.',
+    inputSchema: { search: z.string().optional(), kind: ContactInputSchema.shape.kind.optional(), category: z.string().uuid().optional() },
+  }, async ({ search, kind, category }) => {
     const query = new URLSearchParams();
-    if (q) query.set('q', q);
+    if (search) query.set('search', search);
     if (kind) query.set('kind', kind);
-    if (categoryId) query.set('categoryId', categoryId);
+    if (category) query.set('category', category);
     const res = await call(app, env, auth, 'GET', `/api/contacts?${query}`);
     return res.status >= 400 ? errorResult(res.json, 'failed to list contacts') : okResult('Household contacts', { contacts: res.json as Record<string, unknown>[] });
-  });
-  tool('search_contacts', {
-    title: 'Search household contacts',
-    description: 'Search names, relationships, organizations, categories, and tags. Results are privacy-filtered for the caller.',
-    inputSchema: { query: z.string().min(1), kind: ContactInputSchema.shape.kind.optional() },
-  }, async ({ query, kind }) => {
-    const params = new URLSearchParams({ search: query }); if (kind) params.set('kind', kind);
-    const res = await call(app, env, auth, 'GET', `/api/contacts?${params}`);
-    return res.status >= 400 ? errorResult(res.json, 'failed to search contacts') : okResult('Contact search', { contacts: res.json as Record<string, unknown>[] });
   });
   tool('get_contact', { title: 'Get household contact', description: 'Read a contact by id or an exact display name when it resolves to one record. Display keys cannot read private contacts and see redacted private fields on household contacts.', inputSchema: { id: z.string().uuid().optional(), name: z.string().optional() } }, async ({ id, name }) => {
     let resolved = id;

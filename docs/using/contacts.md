@@ -2,7 +2,7 @@
 
 Kinwall's Contacts directory stores people, services, organizations, and places outside the household. Household members already stored in **Settings → Family** are not copied into this directory. A babysitter, grandparent, school office, pediatrician, veterinarian, utility, contractor, or neighbor can be a contact.
 
-Contacts support multiple categories, tags, phone numbers, email addresses, postal addresses, relationships, associated household members, service hours, service areas, emergency designations, favorites, and wall-safe visibility. Built-in categories include Emergency services, Medical, Veterinary, Childcare, Family, Friends, Neighbors, School, Work, Home services, Transportation, Organizations, and Other. Households can add custom categories.
+Contacts support multiple categories, tags, phone numbers, email addresses, postal addresses, relationships, associated household members, service hours, service areas, an emergency flag, favorites, and wall visibility. Built-in categories include Emergency services, Medical, Veterinary, Childcare, Family, Friends, Neighbors, School, Work, Home services, Transportation, Organizations, and Other. Households can add custom categories.
 
 ## Privacy and wall visibility
 
@@ -24,7 +24,7 @@ Direct full address-book access requires platform-specific native permissions. T
 
 The REST API exposes `GET/POST /api/contacts`, `GET/PATCH/DELETE /api/contacts/:id`, contact category CRUD at `/api/contact-categories`, import preview/import, and explicit merge. List queries support search, kind, category, favorite, emergency, wall, member, and privacy filters. Import preview saves nothing and takes vCard text (`vcard`) or normalized drafts (`contacts`); the MCP tool takes drafts only.
 
-MCP provides `list_contacts`, `get_contact`, `search_contacts`, `create_contact`, `update_contact`, `delete_contact`, `preview_contact_import`, `import_contacts`, `merge_contacts`, and contact-category tools. Read results follow the caller's key scope. Import, merge, delete, and category management require administrative authorization.
+MCP provides `list_contacts` (with an optional search), `get_contact`, `create_contact`, `update_contact`, `delete_contact`, `preview_contact_import`, `import_contacts`, `merge_contacts`, and contact-category tools. Read results follow the caller's key scope. Import, merge, delete, and category management require administrative authorization.
 
 ## Export and import
 

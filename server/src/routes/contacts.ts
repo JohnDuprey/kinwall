@@ -22,20 +22,19 @@ function contactEvent(c: Context<{ Bindings: Env }>, action: 'created' | 'update
 }
 function categoryEvent(c: Context<{ Bindings: Env }>, data: unknown) { emit(c, 'contact.category.changed', data); emit(c, 'contact.category_changed', data); }
 
-type ContactRow = { id: string; kind: 'person' | 'service' | 'organization' | 'place'; name: string; organization: string | null; title: string | null; given_name: string | null; family_name: string | null; nickname: string | null; relationship: string | null; address: string | null; favorite: number; emergency: number; phones: string; emails: string; addresses: string; websites: string; dates: string; notes: string | null; category_ids: string; tags: string; member_ids: string; service_hours: string | null; service_area: string | null; emergency_designation: number; always_open: number; wall_visible: number; emergency_visible: number; phone_visible_on_wall: number; address_visible_on_wall: number; privacy_visibility: 'household' | 'adults' | 'selected_members' | 'private'; selected_member_ids: string; source_metadata: string | null; visibility: 'household' | 'private'; private_fields: string; created_at: string; updated_at: string };
+export type ContactRow = { id: string; kind: 'person' | 'service' | 'organization' | 'place'; name: string; organization: string | null; title: string | null; given_name: string | null; family_name: string | null; nickname: string | null; relationship: string | null; favorite: number; emergency: number; phones: string; emails: string; addresses: string; websites: string; dates: string; notes: string | null; category_ids: string; tags: string; member_ids: string; service_hours: string | null; service_area: string | null; always_open: number; wall_visible: number; emergency_visible: number; phone_visible_on_wall: number; address_visible_on_wall: number; visibility: 'household' | 'adults' | 'selected_members' | 'private'; selected_member_ids: string; source_metadata: string | null; private_fields: string; created_at: string; updated_at: string };
 type CategoryRow = { id: string; name: string; color: string | null; sort: number; created_at: string; updated_at: string };
 const categoryApi = (r: CategoryRow) => ({ id: r.id, name: r.name, color: r.color, sort: r.sort, createdAt: r.created_at, updatedAt: r.updated_at });
 const builtInCategory = (id: string) => /^00000000-0000-4000-8000-0000000000(?:0[1-9]|1[0-3])$/.test(id);
 
-function fromRow(r: ContactRow): ContactInput & { id: string; createdAt: string; updatedAt: string } {
+export function fromRow(r: ContactRow): ContactInput & { id: string; createdAt: string; updatedAt: string } {
   const parse = <T>(raw: string | null, fallback: T): T => { try { return raw ? JSON.parse(raw) as T : fallback; } catch { return fallback; } };
-  const visibility = r.privacy_visibility ?? r.visibility ?? 'household';
   return { id: r.id, kind: r.kind, name: r.name, organization: r.organization, relationship: r.relationship, title: r.title, givenName: r.given_name, familyName: r.family_name, nickname: r.nickname,
-    address: r.address, phones: parse(r.phones, []), emails: parse(r.emails, []), addresses: parse(r.addresses, []), websites: parse(r.websites, []), dates: parse(r.dates, []), notes: r.notes,
+    phones: parse(r.phones, []), emails: parse(r.emails, []), addresses: parse(r.addresses, []), websites: parse(r.websites, []), dates: parse(r.dates, []), notes: r.notes,
     categoryIds: parse(r.category_ids, []), tags: parse(r.tags, []), memberIds: parse(r.member_ids, []), serviceHours: r.service_hours, serviceArea: r.service_area,
-    emergencyDesignation: !!r.emergency_designation, alwaysOpen: !!r.always_open, favorite: !!r.favorite, emergency: !!r.emergency,
-    wallVisible: !!r.wall_visible, showOnWall: !!r.wall_visible, emergencyVisible: !!r.emergency_visible, phoneVisibleOnWall: !!r.phone_visible_on_wall, addressVisibleOnWall: !!r.address_visible_on_wall,
-    visibility, selectedMemberIds: parse(r.selected_member_ids, []), sourceMetadata: parse(r.source_metadata, null), privateFields: parse(r.private_fields, []), createdAt: r.created_at, updatedAt: r.updated_at };
+    alwaysOpen: !!r.always_open, favorite: !!r.favorite, emergency: !!r.emergency,
+    wallVisible: !!r.wall_visible, emergencyVisible: !!r.emergency_visible, phoneVisibleOnWall: !!r.phone_visible_on_wall, addressVisibleOnWall: !!r.address_visible_on_wall,
+    visibility: r.visibility, selectedMemberIds: parse(r.selected_member_ids, []), sourceMetadata: parse(r.source_metadata, null), privateFields: parse(r.private_fields, []), createdAt: r.created_at, updatedAt: r.updated_at };
 }
 
 function forDisplay(contact: ReturnType<typeof fromRow>) {
@@ -46,8 +45,7 @@ function forDisplay(contact: ReturnType<typeof fromRow>) {
     phones: contact.phoneVisibleOnWall && !contact.privateFields.includes('phones') ? contact.phones.filter((p) => p.wallVisible) : [],
     emails: [], websites: [], dates: [], notes: null, tags: [], memberIds: [], selectedMemberIds: [], sourceMetadata: null,
     addresses: contact.addressVisibleOnWall && !contact.privateFields.includes('addresses') ? contact.addresses : [],
-    address: contact.addressVisibleOnWall && !contact.privateFields.includes('address') ? contact.address : null,
-    emergency: contact.emergencyVisible && contact.emergency, emergencyDesignation: contact.emergencyVisible && contact.emergencyDesignation,
+    emergency: contact.emergencyVisible && contact.emergency,
     serviceArea: null, privateFields: [],
   };
 }
@@ -69,7 +67,7 @@ async function validateReferences(db: KinwallDb, contact: ContactInput): Promise
   const rows = await db.prepare(`SELECT id FROM members WHERE id IN (${ids.map(() => '?').join(',')})`).bind(...ids).all<{ id: string }>();
   return rows.results.length === ids.length;
 }
-function values(c: ContactInput) { return [c.kind, c.name, c.organization ?? null, c.title ?? null, c.givenName ?? null, c.familyName ?? null, c.nickname ?? null, c.relationship ?? null, c.address ?? null, c.favorite ? 1 : 0, c.emergency ? 1 : 0, JSON.stringify(c.phones), JSON.stringify(c.emails), JSON.stringify(c.addresses), JSON.stringify(c.websites), JSON.stringify(c.dates), c.notes ?? null, JSON.stringify(c.categoryIds), JSON.stringify(c.tags), JSON.stringify(c.memberIds), c.serviceHours ?? null, c.serviceArea ?? null, c.emergencyDesignation ? 1 : 0, c.alwaysOpen ? 1 : 0, (c.wallVisible || c.showOnWall) ? 1 : 0, c.emergencyVisible ? 1 : 0, c.phoneVisibleOnWall ? 1 : 0, c.addressVisibleOnWall ? 1 : 0, c.visibility ?? 'household', JSON.stringify(c.selectedMemberIds), c.sourceMetadata ? JSON.stringify(c.sourceMetadata) : null, JSON.stringify(c.privateFields)]; }
+function values(c: ContactInput) { return [c.kind, c.name, c.organization ?? null, c.title ?? null, c.givenName ?? null, c.familyName ?? null, c.nickname ?? null, c.relationship ?? null, c.favorite ? 1 : 0, c.emergency ? 1 : 0, JSON.stringify(c.phones), JSON.stringify(c.emails), JSON.stringify(c.addresses), JSON.stringify(c.websites), JSON.stringify(c.dates), c.notes ?? null, JSON.stringify(c.categoryIds), JSON.stringify(c.tags), JSON.stringify(c.memberIds), c.serviceHours ?? null, c.serviceArea ?? null, c.alwaysOpen ? 1 : 0, c.wallVisible ? 1 : 0, c.emergencyVisible ? 1 : 0, c.phoneVisibleOnWall ? 1 : 0, c.addressVisibleOnWall ? 1 : 0, c.visibility ?? 'household', JSON.stringify(c.selectedMemberIds), c.sourceMetadata ? JSON.stringify(c.sourceMetadata) : null, JSON.stringify(c.privateFields)]; }
 function normalizeInput(c: ContactInput): ContactInput {
   const phones = c.phones.map((p) => {
     const originalValue = p.originalValue ?? p.value;
@@ -82,12 +80,12 @@ function normalizeInput(c: ContactInput): ContactInput {
 async function insert(db: KinwallDb, input: ContactInput) {
   input = normalizeInput(input);
   const id = crypto.randomUUID(), now = new Date().toISOString();
-  await db.prepare('INSERT INTO contacts (id,kind,name,organization,title,given_name,family_name,nickname,relationship,address,favorite,emergency,phones,emails,addresses,websites,dates,notes,category_ids,tags,member_ids,service_hours,service_area,emergency_designation,always_open,wall_visible,emergency_visible,phone_visible_on_wall,address_visible_on_wall,privacy_visibility,selected_member_ids,source_metadata,private_fields,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(id, ...values(input), now, now).run();
+  await db.prepare('INSERT INTO contacts (id,kind,name,organization,title,given_name,family_name,nickname,relationship,favorite,emergency,phones,emails,addresses,websites,dates,notes,category_ids,tags,member_ids,service_hours,service_area,always_open,wall_visible,emergency_visible,phone_visible_on_wall,address_visible_on_wall,visibility,selected_member_ids,source_metadata,private_fields,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(id, ...values(input), now, now).run();
   return fromRow((await load(db, id))!);
 }
 async function update(db: KinwallDb, id: string, input: ContactInput) {
   input = normalizeInput(input);
-  await db.prepare('UPDATE contacts SET kind=?,name=?,organization=?,title=?,given_name=?,family_name=?,nickname=?,relationship=?,address=?,favorite=?,emergency=?,phones=?,emails=?,addresses=?,websites=?,dates=?,notes=?,category_ids=?,tags=?,member_ids=?,service_hours=?,service_area=?,emergency_designation=?,always_open=?,wall_visible=?,emergency_visible=?,phone_visible_on_wall=?,address_visible_on_wall=?,privacy_visibility=?,selected_member_ids=?,source_metadata=?,private_fields=?,updated_at=? WHERE id=?').bind(...values(input), new Date().toISOString(), id).run();
+  await db.prepare('UPDATE contacts SET kind=?,name=?,organization=?,title=?,given_name=?,family_name=?,nickname=?,relationship=?,favorite=?,emergency=?,phones=?,emails=?,addresses=?,websites=?,dates=?,notes=?,category_ids=?,tags=?,member_ids=?,service_hours=?,service_area=?,always_open=?,wall_visible=?,emergency_visible=?,phone_visible_on_wall=?,address_visible_on_wall=?,visibility=?,selected_member_ids=?,source_metadata=?,private_fields=?,updated_at=? WHERE id=?').bind(...values(input), new Date().toISOString(), id).run();
   return fromRow((await load(db, id))!);
 }
 function inputOf(c: ReturnType<typeof fromRow>): ContactInput { const { id: _id, createdAt: _created, updatedAt: _updated, ...input } = c; return input; }
@@ -133,10 +131,10 @@ contactsRoutes.openapi(createRoute({ method: 'delete', path: '/api/contact-categ
   return c.json({ ok: true }, 200);
 });
 
-contactsRoutes.openapi(createRoute({ method: 'get', path: '/api/contacts', tags: tag, security, summary: 'List contacts with privacy-aware filters', request: { query: z.object({ q: z.string().optional(), search: z.string().optional(), kind: z.enum(['person', 'service', 'organization', 'place']).optional(), categoryId: z.string().uuid().optional(), category: z.string().uuid().optional(), favorite: queryBoolean, emergency: queryBoolean, emergencyVisible: queryBoolean, wallVisible: queryBoolean, wall: queryBoolean, memberId: z.string().optional(), visibility: z.enum(['household', 'adults', 'selected_members', 'private']).optional() }) }, responses: { 200: { description: 'ok', content: { 'application/json': { schema: z.array(ContactSchema) } } } } }), async (c) => {
+contactsRoutes.openapi(createRoute({ method: 'get', path: '/api/contacts', tags: tag, security, summary: 'List contacts with privacy-aware filters', request: { query: z.object({ search: z.string().optional(), kind: z.enum(['person', 'service', 'organization', 'place']).optional(), category: z.string().uuid().optional(), favorite: queryBoolean, emergency: queryBoolean, emergencyVisible: queryBoolean, wallVisible: queryBoolean, memberId: z.string().optional(), visibility: z.enum(['household', 'adults', 'selected_members', 'private']).optional() }) }, responses: { 200: { description: 'ok', content: { 'application/json': { schema: z.array(ContactSchema) } } } } }), async (c) => {
   const query = c.req.valid('query');
-  const q = query.q ?? query.search;
-  const categoryId = query.categoryId ?? query.category;
+  const q = query.search;
+  const categoryId = query.category;
   const display = await isDisplay(c);
   const key = await requestKey(c);
   const owner = key?.scope === 'display' && key.owner && key.owner !== 'shared' ? key.owner : null;
@@ -144,7 +142,7 @@ contactsRoutes.openapi(createRoute({ method: 'get', path: '/api/contacts', tags:
   return c.json(rows.filter((r) => {
     const c = fromRow(r); const allowed = !display || (c.wallVisible && (c.visibility === 'household' || (c.visibility === 'selected_members' && !!owner && c.selectedMemberIds.includes(owner))));
     const haystack = [c.name, c.givenName, c.familyName, c.nickname, c.organization, c.relationship, c.title, ...c.tags, ...c.categoryIds].filter(Boolean).join(' ').toLocaleLowerCase();
-    return allowed && (!query.visibility || c.visibility === query.visibility) && (!query.kind || c.kind === query.kind) && (!q || haystack.includes(q.toLocaleLowerCase())) && (!categoryId || c.categoryIds.includes(categoryId)) && (query.favorite === undefined || c.favorite === query.favorite) && (query.emergency === undefined || c.emergency === query.emergency || c.emergencyDesignation === query.emergency) && (query.emergencyVisible === undefined || c.emergencyVisible === query.emergencyVisible) && (query.wallVisible === undefined || c.wallVisible === query.wallVisible) && (query.wall === undefined || c.wallVisible === query.wall) && (!query.memberId || c.memberIds.includes(query.memberId));
+    return allowed && (!query.visibility || c.visibility === query.visibility) && (!query.kind || c.kind === query.kind) && (!q || haystack.includes(q.toLocaleLowerCase())) && (!categoryId || c.categoryIds.includes(categoryId)) && (query.favorite === undefined || c.favorite === query.favorite) && (query.emergency === undefined || c.emergency === query.emergency) && (query.emergencyVisible === undefined || c.emergencyVisible === query.emergencyVisible) && (query.wallVisible === undefined || c.wallVisible === query.wallVisible) && (!query.memberId || c.memberIds.includes(query.memberId));
   }).map((r) => display ? forDisplay(fromRow(r)) : fromRow(r)), 200);
 });
 
@@ -169,8 +167,6 @@ contactsRoutes.openapi(createRoute({ method: 'patch', path: '/api/contacts/{id}'
   if (!row) return c.json({ error: 'not found' }, 404);
   const patch = c.req.valid('json');
   const body = { ...inputOf(fromRow(row)), ...patch };
-  if (patch.showOnWall !== undefined && patch.wallVisible === undefined) body.wallVisible = patch.showOnWall;
-  if (patch.wallVisible !== undefined && patch.showOnWall === undefined) body.showOnWall = patch.wallVisible;
   if (!(await validateReferences(c.env.DB, body))) return c.json({ error: 'invalid category or member ids' }, 400);
   const result = await update(c.env.DB, id, body);
   contactEvent(c, 'updated', { id });

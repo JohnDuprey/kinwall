@@ -138,7 +138,6 @@ test('mcp: tools/list returns the tools', async () => {
     'redeem_reward',
     'reject_chore',
     'save_color_scheme',
-    'search_contacts',
     'send_notification',
     'set_color_scheme',
     'set_event_category',

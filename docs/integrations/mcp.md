@@ -181,4 +181,4 @@ Every tool declares an **output schema** that matches the REST response shapes (
 For example, `list_events` returns `{events: EventInstance[]}` and `complete_chore` returns `{ok: boolean}`. Array arguments sent as JSON text (`"[15]"`) and booleans sent as text (`"true"`, `"false"`) are accepted too.
 ## Household contacts
 
-MCP exposes privacy-aware contact directory tools: `list_contacts`, `get_contact`, `search_contacts`, `create_contact`, `update_contact`, `delete_contact`, `preview_contact_import`, `import_contacts`, `merge_contacts`, and contact-category management tools. Administrative authorization is required for writes and raw vCards are never returned.
+MCP exposes privacy-aware contact directory tools: `list_contacts` (with an optional search), `get_contact`, `create_contact`, `update_contact`, `delete_contact`, `preview_contact_import`, `import_contacts`, `merge_contacts`, and contact-category management tools. Administrative authorization is required for writes and raw vCards are never returned.
