@@ -105,3 +105,30 @@ test('vCard 2.1/3/4 parse, preview duplicates, import strategies, explicit merge
   assert.equal(duplicateScore(parseVCards(card)[0], parseVCards(card)[0]), 100);
   await t.flush();
 });
+
+test('vCard: a trailing = only joins lines inside a quoted-printable property', () => {
+  const apple = [
+    'BEGIN:VCARD', 'VERSION:3.0', 'N:Doe;Jane;;;', 'FN:Jane Doe',
+    'PHOTO;ENCODING=b;TYPE=JPEG:/9j/4AAQSkZJRgABAQAAAQABAAD==',
+    'TEL;TYPE=CELL:+1 555 010 1234',
+    'URL:https://example.com/?a=',
+    'EMAIL;TYPE=HOME:jane@example.com',
+    'END:VCARD',
+  ].join('\r\n');
+  const [card] = parseVCards(apple);
+  assert.deepEqual(card.phones.map((p) => p.value), ['+1 555 010 1234']);
+  assert.deepEqual(card.websites.map((w) => w.value), ['https://example.com/?a=']);
+  assert.deepEqual(card.emails.map((e) => e.value), ['jane@example.com']);
+
+  const qp = [
+    'BEGIN:VCARD', 'VERSION:2.1', 'FN:Sam Doe',
+    'NOTE;ENCODING=QUOTED-PRINTABLE:Line one=0D=0A=',
+    'line two=',
+    'continues',
+    'TEL;CELL:555-010-9999',
+    'END:VCARD',
+  ].join('\r\n');
+  const [sam] = parseVCards(qp);
+  assert.equal(sam.notes, 'Line one\r\nline twocontinues');
+  assert.deepEqual(sam.phones.map((p) => p.value), ['555-010-9999']);
+});

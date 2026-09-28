@@ -75,12 +75,15 @@ function decodeQuotedPrintable(value: string, charset: string): string {
 /** Parse text vCards 2.1, 3.0 and 4.0. Binary PHOTO/LOGO/KEY properties are ignored. */
 export function parseVCards(input: string): ContactInput[] {
   if (input.length > 2_000_000) throw new Error('vCard file is too large');
-  // Folded lines begin with whitespace; quoted-printable 2.1 also uses a trailing '='.
+  // Folded lines begin with whitespace. Quoted-printable (2.1) also continues a line that ends
+  // in a soft break '=', but only inside such a property: base64 PHOTO data and URLs end in '=' too.
   const physical = input.replace(/\r\n?/g, '\n').split('\n');
   const lines: string[] = [];
+  const quotedPrintable = (line: string) => /;(?:ENCODING=)?QUOTED-PRINTABLE[;:]/i.test(line.slice(0, line.search(/(?<!\\):/) + 1));
   for (const part of physical) {
-    if (/^[ \t]/.test(part) && lines.length) lines[lines.length - 1] += part.slice(1);
-    else if (lines.length && lines[lines.length - 1].endsWith('=')) lines[lines.length - 1] = lines[lines.length - 1].slice(0, -1) + part;
+    const last = lines.at(-1);
+    if (last !== undefined && /^[ \t]/.test(part)) lines[lines.length - 1] += part.slice(1);
+    else if (last !== undefined && last.endsWith('=') && quotedPrintable(last)) lines[lines.length - 1] = last.slice(0, -1) + part;
     else lines.push(part);
   }
   const out: ContactInput[] = [];
@@ -109,7 +112,7 @@ export function parseVCards(input: string): ContactInput[] {
     const params = header.slice(1);
     if (!['FN', 'N', 'NICKNAME', 'KIND', 'ORG', 'TITLE', 'TEL', 'EMAIL', 'ADR', 'URL', 'BDAY', 'ANNIVERSARY', 'CATEGORIES', 'NOTE'].includes(key)) continue;
     const charset = params.find((p) => /^CHARSET=/i.test(p))?.split('=')[1] ?? 'utf-8';
-    const encoded = params.some((p) => /^ENCODING=QUOTED-PRINTABLE$/i.test(p));
+    const encoded = params.some((p) => /^(?:ENCODING=)?QUOTED-PRINTABLE$/i.test(p));
     const raw = encoded ? decodeQuotedPrintable(line.slice(colon + 1), charset) : line.slice(colon + 1);
     const type = params.find((p) => /^TYPE=/i.test(p))?.slice(5) ?? params.find((p) => /^(HOME|WORK|CELL|FAX)$/i.test(p)) ?? '';
     (fields[key] ??= []).push({ value: key === 'N' || key === 'ADR' || key === 'ORG' ? raw : unescapeValue(raw), label: type.replaceAll('"', '').split(',')[0].toLowerCase() });
