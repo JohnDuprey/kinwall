@@ -41,7 +41,7 @@ Tap a step when it's done: it dims with a check, so you can see where you are wh
 
 A recipe with steps has a **Start cooking** button near the top of its view. It fills the screen with one step at a time in big type you can read across the kitchen, with the step's photo when it has one and **Step 2 of 7** above it. **Next** and **Back** move between steps (so do swiping left and right, and the arrow keys); the last step has **Done**, and **×** leaves. A typed recipe's instructions become one step per line (or per sentence, for a single paragraph).
 
-Under each step, **This step's ingredients** lists the ingredients the step mentions, for the servings you picked in the recipe view. **All ingredients** shows the whole list without leaving the step.
+**This step's ingredients** lists the ingredients the step mentions, right under the step's photo (above the step's text when it has no photo), so they're in view without scrolling, for the servings you picked in the recipe view. **All ingredients** shows the whole list without leaving the step.
 
 A step's title shows above its text. When a step comes with its own timers (an imported meal kit's "Chicken · 25 min"), those are its timer buttons, named. Otherwise, when a step mentions a time ("10 minutes", "1 hour", "5-7 min"), tap its timer to start it; for a range, the timer runs to the shorter time so you can check. Running timers stay in a bar at the top as you move between steps, and you can run several at once. When one is up, a red banner flashes, the device beeps (and vibrates on a phone), and **OK** clears it. Timers only run while cooking mode is open.
 

@@ -114,6 +114,10 @@ export default function CookingMode({ recipe, steps, servings, onClose }: { reci
 
   const used = stepIngredients(step, recipe.ingredients)
   const durations = stepTimers(step)
+  const ingredients = used.length > 0 && <section className="cook-ingredients" aria-label="This step's ingredients">
+    <h4>This step's ingredients</h4>
+    <IngredientList recipe={{ ...recipe, ingredients: used }} servings={servings} />
+  </section>
   return createPortal(
     <div className={`cook-mode ${rang.length ? 'cook-ringing' : ''}`} role="dialog" aria-modal="true" aria-labelledby={titleId}>
       <header className="cook-bar">
@@ -134,25 +138,26 @@ export default function CookingMode({ recipe, steps, servings, onClose }: { reci
       </ul>}
       <div className="cook-main scroll-y" onPointerDown={onPointerDown} onPointerUp={onPointerUp} onPointerCancel={() => { swipe.current = null }}>
         <div className="cook-step">
-          {step.imageUrl && <RecipePhoto key={index} id={recipe.id} step={{ n: index + 1, v: recipe.updatedAt }} className="cook-photo" />}
+          {/* This step's ingredients right under the photo (beside the text when there's room), so they're in view without scrolling. */}
+          {step.imageUrl && <div className="cook-step-side">
+            <RecipePhoto key={index} id={recipe.id} step={{ n: index + 1, v: recipe.updatedAt }} className="cook-photo" />
+            {ingredients}
+          </div>}
           <div className="cook-step-body">
             <div className="cook-step-head">
               <h3 ref={heading} tabIndex={-1} className="cook-step-num">Step {index + 1} of {steps.length}</h3>
               {index > 0 && <button type="button" className="link-btn" onClick={() => go(0)}>Start over</button>}
             </div>
             {step.title && <h4 className="cook-step-title">{step.title}</h4>}
+            {!step.imageUrl && ingredients}
             {step.text && <p className="cook-step-text">{step.text}</p>}
             {step.bullets.length > 0 && <ul className="cook-bullets">{step.bullets.map((b, i) => <li key={i}>{b}</li>)}</ul>}
             {durations.length > 0 && <div className="cook-timers">{durations.map(d => {
               const on = timers.find(t => !t.done && t.step === index && t.label === d.label)
-              return <button key={d.label} type="button" className="cook-timer-chip" disabled={!!on} onClick={() => start(d.label, d.seconds)}>
-                ⏱ {on ? <>{d.label} · {clock(on.endsAt - now)} left</> : <>Start {d.label} timer</>}
+              return <button key={d.label} type="button" className="cook-timer-chip" disabled={!!on} aria-label={on ? undefined : `Start ${d.label} timer`} onClick={() => start(d.label, d.seconds)}>
+                ⏱ {on ? <>{d.label} · {clock(on.endsAt - now)} left</> : d.label}
               </button>
             })}</div>}
-            {used.length > 0 && <section className="cook-ingredients" aria-label="This step's ingredients">
-              <h4>This step's ingredients</h4>
-              <IngredientList recipe={{ ...recipe, ingredients: used }} servings={servings} />
-            </section>}
           </div>
         </div>
       </div>

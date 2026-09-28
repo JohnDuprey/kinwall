@@ -184,7 +184,9 @@
 .cook-timers { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
 .cook-timer-chip { min-height: 52px; padding: 8px 20px; border-radius: 999px; border: 2px solid var(--accent-strong); background: var(--accent-tint); color: var(--text); font: inherit; font-size: 1.125rem; font-weight: 800; font-variant-numeric: tabular-nums; cursor: pointer; }
 .cook-timer-chip:disabled { cursor: default; border-style: dashed; }
-.cook-ingredients { margin-top: 20px; padding: 12px 18px; border-radius: var(--radius-sm); background: var(--card); border: 1px solid var(--border); }
+.cook-step-side { display: grid; gap: 16px; align-content: start; min-width: 0; }
+.cook-step-side .cook-ingredients { margin-top: 0; }
+.cook-ingredients { margin-top: 16px; padding: 12px 18px; border-radius: var(--radius-sm); background: var(--card); border: 1px solid var(--border); }
 .cook-ingredients h4 { margin: 4px 0 0; font-size: 0.9375rem; color: var(--text-dim); }
 .cook-ingredients .meal-ingredients, .cook-drawer .meal-ingredients { font-size: 1.125rem; }
 .cook-nav { flex-shrink: 0; display: flex; gap: 12px; padding: 12px 16px calc(var(--safe-b) + 12px); background: var(--card); border-top: 1px solid var(--border); }
@@ -199,9 +201,9 @@
 .cook-drawer-head h3 { margin: 0; }
 .cook-drawer-head small { display: block; font-size: 0.875rem; color: var(--text-dim); }
 .cook-drawer-head .icon-btn { width: 48px; height: 48px; }
-/* Wide and landscape: the photo beside the step. */
+/* Wide and landscape: the photo (with the step's ingredients under it) beside the step. */
 @media (min-width: 700px) and (orientation: landscape) {
-  .cook-step:has(.cook-photo) { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); align-items: start; }
+  .cook-step:has(.cook-step-side > *) { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); align-items: start; }
   .cook-photo { max-height: none; }
 }
 /* A phone on its side: every pixel of height for the step. */
@@ -211,5 +213,6 @@
   .cook-nav { padding-top: 6px; padding-bottom: calc(var(--safe-b) + 6px); }
   .cook-nav .btn { min-height: 52px; }
   .cook-step-text { font-size: clamp(1.25rem, 0.8rem + 2vw, 2rem); }
+  .cook-step-side .cook-photo { max-height: 30vh; } /* leaves room for the step's ingredients under it */
 }
 @media (prefers-reduced-motion: reduce) { .cook-ringing .cook-alarm { animation: none; } .cook-progress > div { transition: none; } }
