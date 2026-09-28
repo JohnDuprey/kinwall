@@ -116,7 +116,8 @@ test('leaderboard: period boundaries respect settings.weekStart', async () => {
   await complete(request, atToday.id, today);
 
   const todayBoard = (await (await request('/api/leaderboard?period=today')).json()) as any[];
-  assert.equal(todayBoard[0].points, 5); // only today's completion
+  // On the first day of the week, weekFrom is today, so both of those completions are today's.
+  assert.equal(todayBoard[0].points, weekFrom === today ? 10 : 5); // only today's completion(s)
 
   const weekBoard = (await (await request('/api/leaderboard?period=week')).json()) as any[];
   assert.equal(weekBoard[0].points, 10); // weekFrom + today, not the day before week start
