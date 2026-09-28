@@ -4,6 +4,17 @@ Rules for anyone changing this repo, people and AI coding agents alike. Setup, c
 conventions are in [docs/contributing/development.md](docs/contributing/development.md); read it
 first. This file adds how work gets done.
 
+## How to work here
+
+- `scripts/new-feature.sh <name>` makes a worktree `../kinwall-<name>` on a fresh branch from
+  `main`, with its own `npm ci` (never symlink `node_modules` between worktrees).
+- `scripts/check.sh` runs every check below; run it before pushing. A test run that prints no
+  summary line means the tests didn't load, and the script treats that as a failure.
+- Land finished work on `main` (rebase onto `origin/main`, re-run the checks, push), then
+  `scripts/finish-feature.sh <name>` removes the worktree and branch once everything is on `main`
+  (`--all` cleans up every landed one).
+- One feature per branch, in files that don't overlap with other work in progress.
+
 ## Test first
 
 - Write the failing test before the change: a bug gets a test that reproduces it, a feature gets
