@@ -75,7 +75,7 @@ test('recipe share: the page round-trips through the link importer', async () =>
   assert.match(res.headers.get('cache-control')!, /max-age=\d+/);
   const html = await res.text();
   assert.match(html, /<meta name="robots" content="noindex">/);
-  assert.match(html, /Shared from Kinwall/);
+  assert.match(html, /Shared from <a [^>]*>Kinwall<\/a>/);
   assert.ok(html.includes('&lt;fresh&gt; toppings &amp; warm'), 'escaped');
   assert.ok(!html.includes('<fresh>'));
 
@@ -110,6 +110,7 @@ test('recipe share: link previews (iMessage, Discord, Slack) get a title, descri
   assert.equal(meta('twitter:card'), 'summary_large_image');
   assert.match(html, /<p class="src">Source: <a href="https:\/\/example\.com\/tacos"/);
   assert.ok(!html.includes('Original recipe'));
+  assert.match(html, /<footer>Shared from <a href="https:\/\/kinwall\.family" rel="noopener">Kinwall<\/a><\/footer>/);
 
   // No photo or description: a text card that still says what it is.
   const f = fixture();

@@ -107,10 +107,10 @@ a{color:inherit;text-underline-offset:3px}.src{margin:24px 0 0;overflow-wrap:any
 form{display:grid;gap:8px;margin-top:8px}label{font-weight:700}
 .row{display:flex;gap:8px;flex-wrap:wrap}input{flex:1 1 220px;min-height:48px;padding:10px 14px;font:inherit;color:var(--text);background:var(--bg);border:2px solid var(--border);border-radius:14px}
 button{min-height:48px;padding:10px 20px;font:inherit;font-weight:800;color:var(--ink);background:var(--accent);border:0;border-radius:999px;cursor:pointer}
-.hint{color:var(--dim);font-size:.9rem;margin:0}footer{color:var(--dim);font-size:.9rem;margin-top:32px;text-align:center}`;
+.hint{color:var(--dim);font-size:.9rem;margin:0}footer{color:var(--dim);font-size:.9rem;margin-top:32px;text-align:center}footer a{color:inherit}`;
 
 function page(nonce: string, title: string, body: string, head = ''): string {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><meta name="referrer" content="no-referrer"><title>${esc(title)}</title><style nonce="${nonce}">${CSS}</style>${head}</head><body><main>${body}<footer>Shared from Kinwall</footer></main></body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><meta name="referrer" content="no-referrer"><title>${esc(title)}</title><style nonce="${nonce}">${CSS}</style>${head}</head><body><main>${body}<footer>Shared from <a href="https://kinwall.family" rel="noopener">Kinwall</a></footer></main></body></html>`;
 }
 function send(c: Ctx, html: string, nonce: string, status: 200 | 404 | 429) {
   return c.html(html, status, {
