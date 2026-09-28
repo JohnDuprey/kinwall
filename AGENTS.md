@@ -62,6 +62,17 @@ changes, `docs/self-hosting/` for config. New routes are documented by their zod
   syncs with (Google, HelloFresh, stores) are fine to name.
 - Never commit secrets, API keys or tokens; tests use obvious fakes.
 
+## Health data
+
+- Health data is always encrypted at rest, on hosted and self-hosted, with no setting to turn it
+  off. That includes the Health tracker (checkups, vaccines, measurements, notes) and anything
+  medical added later (medications and their log). Use the family's encryption key, the same one
+  that protects connected-account tokens, so logs, backups and database access see only ciphertext.
+- Never log health request or response bodies, and cover that with a test.
+- Health data stays out of webhooks, MCP/AI connectors, snapshots, profiles, share links and push
+  notification text unless the family explicitly turns each one on.
+- Store only what the feature needs: no diagnoses or conditions unless a feature truly requires them.
+
 ## Deploying
 
 `main` must stay green. The hosted service deploys from `kinwall-cloud`'s deploy workflow, which
