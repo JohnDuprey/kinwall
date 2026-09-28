@@ -588,6 +588,7 @@ export function ChecklistSheet({ chore, onClose, onComplete }: { chore: ChoreDay
   const [items, setItems] = useState<ListItem[] | null>(null)
   const [draft, setDraft] = useState('')
   const mine = (i: ListItem) => !chore.memberId || !i.memberId || i.memberId === chore.memberId
+  const owner = chore.memberId ? members.find(m => m.id === chore.memberId) : undefined
   const load = () => api.getList(listId).then(d => setItems(d.items.filter(mine))).catch(() => toast('Could not load the checklist', true))
   useEffect(() => { load() }, [listId]) // eslint-disable-line react-hooks/exhaustive-deps
   const open = items ? items.filter(i => !i.done).length : 1
@@ -610,7 +611,7 @@ export function ChecklistSheet({ chore, onClose, onComplete }: { chore: ChoreDay
     try { await api.addListItems(listId, { title, memberId: chore.memberId }); load() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not add', true) }
   }
   return (
-    <Sheet title={`${chore.emoji ? `${chore.emoji} ` : ''}${chore.title}`} onClose={onClose}
+    <Sheet title={`${chore.emoji ? `${chore.emoji} ` : ''}${owner ? `${owner.name}'s ` : ''}${chore.title}`} onClose={onClose}
       actions={<button className="btn btn-primary" onClick={onComplete} disabled={open > 0}>{open > 0 ? `${open} left on ${name}` : `Complete ${chore.title}`}</button>}>
       <p className="field-hint checklist-hint">Tick everything on <strong>{name}</strong> to complete this chore.</p>
       <div className="list-add-bar">
@@ -622,7 +623,8 @@ export function ChecklistSheet({ chore, onClose, onComplete }: { chore: ChoreDay
         : (
           <div className="checklist-rows" role="group" aria-label={name}>
             {items.map(item => {
-              const who = item.memberId ? members.find(m => m.id === item.memberId) : null
+              // The title already names the chore's person; a row only shows whose it is when that differs.
+              const who = item.memberId && item.memberId !== chore.memberId ? members.find(m => m.id === item.memberId) : null
               return (
                 <div key={item.id} className="checklist-item">
                   <div className={`list-item-row ${item.done ? 'done' : ''}`}>
