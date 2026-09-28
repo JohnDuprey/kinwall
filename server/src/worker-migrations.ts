@@ -48,6 +48,7 @@ import m0044 from '../migrations/0044_meal_eaters.sql';
 import m0045 from '../migrations/0045_meal_calendar_event.sql';
 import m0046 from '../migrations/0046_recipe_steps.sql';
 import m0047 from '../migrations/0047_recipe_ratings.sql';
+import m0048 from '../migrations/0048_event_sync_source.sql';
 
 export const MIGRATIONS: Migration[] = [
   { name: '0001_init.sql', sql: m0001 },
@@ -97,4 +98,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0045_meal_calendar_event.sql', sql: m0045 },
   { name: '0046_recipe_steps.sql', sql: m0046 },
   { name: '0047_recipe_ratings.sql', sql: m0047 },
+  { name: '0048_event_sync_source.sql', sql: m0048 },
 ];

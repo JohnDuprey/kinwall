@@ -950,3 +950,95 @@ export async function deleteEvent(c: Ctx, id: string): Promise<Fail<400 | 403 | 
   emit(c, 'events.changed', { calendarId: cal.id });
   return { ok: true };
 }
+
+const DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'must be YYYY-MM-DD');
+const EventSyncInputSchema = z
+  .object({
+    source: z.string().min(1).max(100).openapi({ description: "Who owns these events, e.g. 'ha:hellofresh'. A sync only ever changes events from its own source." }),
+    from: DATE.optional().openapi({ description: 'With `to`: only events of this source starting in [from, to] are deleted when missing, so past ones stay.' }),
+    to: DATE.optional(),
+    events: z
+      .array(
+        z.object({
+          externalId: z.string().min(1).max(200),
+          title: z.string().min(1),
+          start: z.string().refine((s) => !Number.isNaN(Date.parse(s)), 'must be a date or date-time'),
+          end: z.string().refine((s) => !Number.isNaN(Date.parse(s)), 'must be a date or date-time'),
+          allDay: z.boolean(),
+          notes: z.string().nullable().optional(),
+          location: z.string().nullable().optional(),
+        }),
+      )
+      .max(500),
+  })
+  .openapi('EventSyncInput');
+
+eventsRoutes.openapi(
+  createRoute({
+    method: 'put',
+    path: '/api/calendars/{id}/events/sync',
+    tags: ['Events'],
+    summary: "Replace one source's events on a local calendar (upsert by externalId, delete the missing ones)",
+    security: [{ Bearer: [] }],
+    request: { params: z.object({ id: z.string() }), body: { content: { 'application/json': { schema: EventSyncInputSchema } } } },
+    responses: {
+      200: { description: 'synced', content: { 'application/json': { schema: z.object({ created: z.number(), updated: z.number(), deleted: z.number() }) } } },
+      400: { description: 'invalid, or not a local calendar', content: { 'application/json': { schema: ErrorSchema } } },
+      404: { description: 'calendar not found', content: { 'application/json': { schema: ErrorSchema } } },
+    },
+  }),
+  async (c) => {
+    const db = c.env.DB;
+    const calId = c.req.valid('param').id;
+    const { source, from, to, events } = c.req.valid('json');
+    const cal = await db.prepare('SELECT kind FROM calendars WHERE id = ?').bind(calId).first<{ kind: string }>();
+    if (!cal) return c.json({ error: 'not found' }, 404);
+    if (cal.kind !== 'local') return c.json({ error: 'only local calendars take synced events' }, 400);
+
+    const { results: existing } = await db
+      .prepare('SELECT id, external_id, title, start, end, all_day, location, description FROM events WHERE calendar_id = ? AND sync_source = ?')
+      .bind(calId, source)
+      .all<Pick<EventRow, 'id' | 'external_id' | 'title' | 'start' | 'end' | 'all_day' | 'location' | 'description'>>();
+    const byExternalId = new Map(existing.map((r) => [r.external_id, r]));
+    const now = new Date().toISOString();
+    const writes: ReturnType<KinwallDb['prepare']>[] = [];
+    const seen = new Set<string>();
+    let created = 0;
+    let updated = 0;
+    for (const e of events) {
+      seen.add(e.externalId);
+      // Stored like every other event: timed in UTC ISO, all-day as YYYY-MM-DD (exclusive end).
+      const norm = (s: string) => (e.allDay ? s.slice(0, 10) : new Date(s).toISOString());
+      const next = { title: e.title, start: norm(e.start), end: norm(e.end), all_day: e.allDay ? 1 : 0, location: e.location ?? null, description: e.notes ?? null };
+      const old = byExternalId.get(e.externalId);
+      if (!old) {
+        created++;
+        writes.push(
+          db
+            .prepare('INSERT INTO events (id, calendar_id, external_id, sync_source, title, start, end, all_day, location, description, member_ids, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)')
+            .bind(crypto.randomUUID(), calId, e.externalId, source, next.title, next.start, next.end, next.all_day, next.location, next.description, '[]', now),
+        );
+      } else if ((Object.keys(next) as (keyof typeof next)[]).some((k) => old[k] !== next[k])) {
+        updated++;
+        writes.push(
+          db
+            .prepare('UPDATE events SET title = ?, start = ?, end = ?, all_day = ?, location = ?, description = ?, updated_at = ? WHERE id = ?')
+            .bind(next.title, next.start, next.end, next.all_day, next.location, next.description, now, old.id),
+        );
+      }
+    }
+    // Missing ones go, but only inside the window when one is given (by start date).
+    const gone = existing.filter((r) => !seen.has(r.external_id!) && (!from || r.start.slice(0, 10) >= from) && (!to || r.start.slice(0, 10) <= to));
+    for (const r of gone) {
+      writes.push(
+        db.prepare('DELETE FROM events WHERE id = ?').bind(r.id),
+        db.prepare("DELETE FROM notes WHERE target_type = 'event' AND target_id = ?").bind(r.id),
+      );
+    }
+    if (writes.length) {
+      await db.batch(writes);
+      emit(c, 'events.changed', { calendarId: calId });
+    }
+    return c.json({ created, updated, deleted: gone.length }, 200);
+  },
+);

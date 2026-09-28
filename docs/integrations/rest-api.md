@@ -74,7 +74,7 @@ Color settings on `PATCH /api/settings`: `colorScheme` is a built-in id (`meadow
 | Calendars | `GET/POST /api/calendars`, `PATCH/DELETE /api/calendars/{id}`, `POST /api/calendars/{id}/sync` |
 | Accounts | `GET /api/accounts`, `DELETE /api/accounts/{id}`, `POST /api/accounts/caldav`, `GET /api/accounts/{id}/remote-calendars`, `GET /api/oauth/{kind}/start`, `GET /api/oauth/{kind}/callback` |
 | Providers | `GET /api/providers`, `PUT /api/providers/public-url`, `PUT/DELETE /api/providers/{kind}` |
-| Events | `GET /api/events?from&to[&memberId][&calendarId]`, `POST /api/events`, `GET/PATCH/DELETE /api/events/{id}`, `GET /api/events/{id}/items` |
+| Events | `GET /api/events?from&to[&memberId][&calendarId]`, `POST /api/events`, `GET/PATCH/DELETE /api/events/{id}`, `GET /api/events/{id}/items`, `PUT /api/calendars/{id}/events/sync` (admin; see [Syncing events from an automation](#syncing-events-from-an-automation)) |
 | Categories | `GET/POST /api/categories`, `PATCH/DELETE /api/categories/{id}`, `POST /api/categories/reorder` |
 | Chores | `GET/POST /api/chores`, `PATCH/DELETE /api/chores/{id}`, `GET /api/chores/day?date=`, `POST/DELETE /api/chores/{id}/complete`, `GET /api/chores/pending`, `POST /api/chores/{id}/approve`, `POST /api/chores/{id}/reject` (the last three admin only; see [Parent approval](../using/chores.md#parent-approval)) |
 | Leaderboard | `GET /api/leaderboard?period=today\|week\|month` |
@@ -117,6 +117,21 @@ curl -X POST https://kinwall.example/api/lists/<id>/items \
 curl -X POST https://kinwall.example/api/recipes/import \
   -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
   -d '{"source":"hellofresh","externalId":"abc","name":"Creamy Chicken","servings":2,"ingredients":[{"text":"1.5 tablespoon Sour Cream","pantry":false},"Salt"],"steps":["Cook.",{"text":"Serve","bullets":["Plate the rice.","Top with chicken."]}],"plan":{"date":"2026-10-05","slot":"dinner"}}'
+```
+
+## Syncing events from an automation
+
+`PUT /api/calendars/{id}/events/sync` (admin key, local calendars only) lets an automation such as Home Assistant keep a set of events on a calendar: send every event it currently has from one `source`, and Kinwall adds the new ones, updates the changed ones and deletes the ones missing from the list. Returns `{ created, updated, deleted }`; sending the same list again changes nothing.
+
+- Each event is `{ externalId, title, start, end, allDay, notes?, location? }`, matched by (calendar, `source`, `externalId`). Timed events take any ISO date-time (stored in UTC); all-day events take `YYYY-MM-DD` with an exclusive end.
+- With `from` and `to` (`YYYY-MM-DD`), only events of that source starting in that window are deleted when missing, so past ones stay.
+- Only events from the same `source` are ever changed. Events made in Kinwall, and events from other sources, are left alone.
+- Synced events are ordinary events: people can tag, edit or delete them, but the next sync puts the title, time, notes and location back from the source (and brings back a deleted one if the source still has it).
+
+```bash
+curl -X PUT https://kinwall.example/api/calendars/<id>/events/sync \
+  -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  -d '{"source":"ha:hellofresh","from":"2026-09-27","to":"2026-11-08","events":[{"externalId":"delivery-123","title":"📦 HelloFresh delivery","start":"2026-10-07T08:00:00-04:00","end":"2026-10-07T20:00:00-04:00","allDay":false,"notes":"Tacos, Pasta\n2 of 3 meals picked"}]}'
 ```
 
 ## Calling from a browser
