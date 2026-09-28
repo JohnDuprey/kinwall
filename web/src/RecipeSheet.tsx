@@ -3,9 +3,9 @@ import { api, MOCK } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { useDialog } from './dialog.tsx'
 import Sheet from './Sheet.tsx'
-import { ChevronRight, EditIcon, ExternalIcon, FileIcon, LinkIcon, MinusIcon, PlusIcon, TrashIcon } from './icons.tsx'
+import { CheckIcon, ChevronRight, EditIcon, ExternalIcon, FileIcon, LinkIcon, MinusIcon, PlusIcon, TrashIcon } from './icons.tsx'
 import { ingredientAmount, isPdfUrl, recipeTime, servingsLabel, urlHost } from './meal-date.ts'
-import { KIT_QUALIFIER, type IngredientInput, type Recipe, type RecipeInput, type RecipeSnapshot } from './meal-types.ts'
+import { KIT_QUALIFIER, type IngredientInput, type Recipe, type RecipeInput, type RecipeSnapshot, type RecipeStep } from './meal-types.ts'
 import RecipeCardSheet from './RecipeCardSheet.tsx'
 import RecipePhoto from './RecipePhoto.tsx'
 
@@ -54,6 +54,30 @@ function Steps({ text }: { text: string }) {
     : <p className="meal-prose">{text}</p>
 }
 
+/** Structured steps as numbered cards to cook along with: tapping one marks it done (only while this
+ * view is open), Reset clears them. A step's photo sits beside it when there's room, above it when not. */
+function StepCards({ recipe, steps }: { recipe: Recipe; steps: RecipeStep[] }) {
+  const [done, setDone] = useState<ReadonlySet<number>>(new Set())
+  const toggle = (i: number) => setDone(d => { const next = new Set(d); if (!next.delete(i)) next.add(i); return next })
+  return <>
+    <div className="recipe-steps-head"><h3>Steps</h3>{done.size > 0 && <button type="button" className="link-btn" onClick={() => setDone(new Set())}>Reset</button>}</div>
+    <ol className="recipe-step-cards">
+      {steps.map((step, i) => <li key={i}>
+        {/* A div, not a <button>: a step holds a list. Enter and Space toggle it like a button. */}
+        <div role="button" tabIndex={0} aria-pressed={done.has(i)} className="recipe-step"
+          onClick={() => toggle(i)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(i) } }}>
+          <span className="recipe-step-num"><span className="sr-only">Step {i + 1}</span><span aria-hidden="true">{done.has(i) ? <CheckIcon width={18} height={18} /> : i + 1}</span></span>
+          {step.imageUrl && <RecipePhoto id={recipe.id} step={{ n: i + 1, v: recipe.updatedAt }} className="recipe-step-photo" />}
+          <div className="recipe-step-body">
+            {step.text && <p>{step.text}</p>}
+            {step.bullets.length > 0 && <ul>{step.bullets.map((b, j) => <li key={j}>{b}</li>)}</ul>}
+          </div>
+        </div>
+      </li>)}
+    </ol>
+  </>
+}
+
 /** Tapping a recipe opens this view; admins get Edit, which swaps in the editor (back to the view on close). */
 export default function RecipeSheet({ recipe, admin, onClose, onSaved, onPlan }: {
   recipe: Recipe | null; admin: boolean; onClose: () => void; onSaved: () => void; onPlan?: (recipe: Recipe) => void
@@ -79,7 +103,8 @@ export default function RecipeSheet({ recipe, admin, onClose, onSaved, onPlan }:
       </div>
     </div>
     <IngredientList recipe={recipe} servings={servings} />
-    {recipe.instructions && <><h3>Steps</h3><Steps text={recipe.instructions} /></>}
+    {recipe.steps?.length ? <StepCards key={recipe.id} recipe={recipe} steps={recipe.steps} />
+      : recipe.instructions && <><h3>Steps</h3><Steps text={recipe.instructions} /></>}
     {recipe.preparationNotes && <><h3>Preparation notes</h3><p className="meal-prose">{recipe.preparationNotes}</p></>}
     {recipe.sourceUrl && <div className="sheet-links"><SourceLink url={recipe.sourceUrl} pdfPath={`api/recipes/${encodeURIComponent(recipe.id)}/source.pdf`} title={recipe.name} /></div>}
   </Sheet>
@@ -91,12 +116,19 @@ function RecipeEditor({ recipe, onClose, onSaved }: { recipe: Recipe | null; onC
   const formId = useId()
   const [draft, setDraft] = useState<RecipeInput>(() => ({
     name: recipe?.name ?? '', description: recipe?.description ?? null, defaultServings: recipe?.defaultServings ?? 4,
-    instructions: recipe?.instructions ?? null, preparationNotes: recipe?.preparationNotes ?? null,
+    instructions: recipe?.instructions ?? null, steps: recipe?.steps ?? null, preparationNotes: recipe?.preparationNotes ?? null,
     sourceUrl: recipe?.sourceUrl ?? null, imageUrl: recipe?.imageUrl ?? null, prepMinutes: recipe?.prepMinutes ?? null, totalMinutes: recipe?.totalMinutes ?? null, archived: recipe?.archived ?? false,
     ingredients: recipe?.ingredients.map(({ name, quantity, unit, preparation, qualifier, category, sort }) => ({ name, quantity, unit, preparation, qualifier, category, sort })) ?? [],
   }))
   // Row ids survive removal/reordering so keyboard focus stays on the ingredient being edited.
   const [rowIds, setRowIds] = useState(() => draft.ingredients.map(() => crypto.randomUUID()))
+  const [stepIds, setStepIds] = useState(() => (draft.steps ?? []).map(() => crypto.randomUUID()))
+  const steps = draft.steps
+  const stepRow = (index: number, patch: Partial<RecipeStep>) => update('steps', steps!.map((row, i) => i === index ? { ...row, ...patch } : row))
+  const moveStep = (index: number, by: number) => {
+    const swap = <T,>(list: T[]) => { const next = [...list]; [next[index], next[index + by]] = [next[index + by], next[index]]; return next }
+    update('steps', swap(steps!)); setStepIds(swap)
+  }
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const update = <K extends keyof RecipeInput>(key: K, value: RecipeInput[K]) => setDraft(d => ({ ...d, [key]: value }))
@@ -108,7 +140,8 @@ function RecipeEditor({ recipe, onClose, onSaved }: { recipe: Recipe | null; onC
     finally { setBusy(false) }
   }
   const save = () => {
-    const body = { ...draft, name: draft.name.trim(), ingredients: draft.ingredients.map((row, sort) => ({ ...row, name: row.name.trim(), sort })) }
+    // Structured steps are the source: the server writes instructions from them.
+    const body = { ...draft, ...(draft.steps && { instructions: null }), name: draft.name.trim(), ingredients: draft.ingredients.map((row, sort) => ({ ...row, name: row.name.trim(), sort })) }
     if (!body.name || body.ingredients.some(row => !row.name)) { setError('Give the recipe and each ingredient a name.'); return }
     void run(() => recipe ? api.updateRecipe(recipe.id, body) : api.createRecipe(body), 'Recipe saved')
   }
@@ -149,7 +182,21 @@ function RecipeEditor({ recipe, onClose, onSaved }: { recipe: Recipe | null; onC
           <button type="button" className="link-btn" aria-label={`Remove ingredient ${index + 1}${row.name ? `, ${row.name}` : ''}`} onClick={() => { update('ingredients', draft.ingredients.filter((_, i) => i !== index)); setRowIds(ids => ids.filter((_, i) => i !== index)) }}>Remove ingredient</button>
         </fieldset>)}
         <button type="button" className="btn btn-secondary" disabled={draft.ingredients.length >= 300} onClick={() => { update('ingredients', [...draft.ingredients, emptyIngredient()]); setRowIds(ids => [...ids, crypto.randomUUID()]) }}><PlusIcon /> Add ingredient</button>
-        <div className="field meal-spaced"><label htmlFor={`${formId}-instructions`}>Instructions</label><textarea id={`${formId}-instructions`} rows={5} maxLength={10000} value={draft.instructions ?? ''} onChange={e => update('instructions', e.target.value || null)} /></div>
+        {steps ? <>
+          <h3 className="meal-spaced">Steps</h3>
+          {steps.map((row, index) => <fieldset key={stepIds[index]} className="recipe-ingredient">
+            <legend>Step {index + 1}</legend>
+            <div className="field"><label htmlFor={stepIds[index]}>Step</label><textarea id={stepIds[index]} rows={2} maxLength={10000} value={row.text} onChange={e => stepRow(index, { text: e.target.value })} /></div>
+            <div className="field"><label htmlFor={`${stepIds[index]}-bullets`}>Bullets</label><textarea id={`${stepIds[index]}-bullets`} rows={Math.max(3, row.bullets.length + 1)} value={row.bullets.join('\n')} onChange={e => stepRow(index, { bullets: e.target.value.split('\n') })} /><p className="field-hint">One per line.</p></div>
+            {row.imageUrl && <p className="field-hint">Has a photo. <button type="button" className="link-btn" aria-label={`Remove step ${index + 1} photo`} onClick={() => stepRow(index, { imageUrl: null })}>Remove photo</button></p>}
+            <div className="recipe-step-actions">
+              <button type="button" className="link-btn" aria-label={`Move step ${index + 1} up`} disabled={index === 0} onClick={() => moveStep(index, -1)}>Move up</button>
+              <button type="button" className="link-btn" aria-label={`Move step ${index + 1} down`} disabled={index === steps.length - 1} onClick={() => moveStep(index, 1)}>Move down</button>
+              <button type="button" className="link-btn" aria-label={`Remove step ${index + 1}`} onClick={() => { update('steps', steps.filter((_, i) => i !== index)); setStepIds(ids => ids.filter((_, i) => i !== index)) }}>Remove step</button>
+            </div>
+          </fieldset>)}
+          <button type="button" className="btn btn-secondary" disabled={steps.length >= 100} onClick={() => { update('steps', [...steps, { text: '', bullets: [], imageUrl: null }]); setStepIds(ids => [...ids, crypto.randomUUID()]) }}><PlusIcon /> Add step</button>
+        </> : <div className="field meal-spaced"><label htmlFor={`${formId}-instructions`}>Instructions</label><textarea id={`${formId}-instructions`} rows={5} maxLength={10000} value={draft.instructions ?? ''} onChange={e => update('instructions', e.target.value || null)} /></div>}
         <div className="field"><label htmlFor={`${formId}-notes`}>Preparation notes</label><textarea id={`${formId}-notes`} maxLength={10000} value={draft.preparationNotes ?? ''} onChange={e => update('preparationNotes', e.target.value || null)} /></div>
         <div className="field"><label htmlFor={`${formId}-url`}>Source URL</label><input id={`${formId}-url`} type="url" pattern="https?://.*" maxLength={2000} placeholder="https://…" value={draft.sourceUrl ?? ''} onChange={e => update('sourceUrl', e.target.value || null)} /><p className="field-hint">Saved as a link. Recipe websites are not imported.</p></div>
         {recipe?.sourceUrl && <div className="sheet-links"><SourceLink url={recipe.sourceUrl} pdfPath={`api/recipes/${encodeURIComponent(recipe.id)}/source.pdf`} title={recipe.name} /></div>}

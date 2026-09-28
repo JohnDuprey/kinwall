@@ -1,6 +1,6 @@
 // Meal planning domain: recipes are definitions; a meal owns the snapshot it was planned with.
 import type { KinwallDb, KinwallStatement } from './db.ts';
-import { KIT_QUALIFIER, type Ingredient, type Meal, type Recipe, type Projection } from './meal-schemas.ts';
+import { KIT_QUALIFIER, type Ingredient, type Meal, type Recipe, type RecipeStep, type Projection } from './meal-schemas.ts';
 import { fillPlace, itemKey, recall } from './item-memory.ts';
 
 export function normalizeIngredient(value: string): string {
@@ -42,14 +42,33 @@ export function parseIngredientLine(line: string): { name: string; quantity: num
   }
   return { name: rest || text, quantity: rest && Number.isFinite(quantity) ? quantity : null, unit: rest ? unit : null };
 }
-export type RecipeRow = { id: string; name: string; description: string | null; instructions: string | null; preparation_notes: string | null; source_url: string | null; default_servings: number; archived: number; prep_minutes?: number | null; total_minutes?: number | null; source?: string | null; external_id?: string | null; image_url?: string | null; created_at: string; updated_at: string };
+export type RecipeRow = { id: string; name: string; description: string | null; instructions: string | null; preparation_notes: string | null; source_url: string | null; default_servings: number; archived: number; prep_minutes?: number | null; total_minutes?: number | null; source?: string | null; external_id?: string | null; image_url?: string | null; steps?: string | null; created_at: string; updated_at: string };
 export type IngredientRow = { id: string; recipe_id: string; name: string; normalized_name: string; quantity: number | null; unit: string | null; preparation: string | null; qualifier: string | null; category: string | null; sort: number };
 export type MealRow = { id: string; date: string; slot: Meal['slot']; title: string; meal_kind: Meal['mealKind']; recipe_id: string | null; recipe_snapshot: string | null; servings: number; assignee_member_id: string | null; eater_ids?: string | null; notes: string | null; planned_time: string | null; calendar_event_id: string | null; calendar_event_start?: 'meal' | 'cooking' | null; status: Meal['status']; source_url: string | null; created_at: string; updated_at: string };
 export function ingredientApi(r: IngredientRow): Ingredient {
   return { id: r.id, name: r.name, normalizedName: r.normalized_name, quantity: r.quantity, unit: r.unit, preparation: r.preparation, qualifier: r.qualifier, category: r.category, sort: r.sort, scalable: isScalable(r) };
 }
 export function recipeApi(r: RecipeRow, ingredients: Ingredient[]): Recipe {
-  return { id: r.id, name: r.name, description: r.description, instructions: r.instructions, preparationNotes: r.preparation_notes, sourceUrl: r.source_url, defaultServings: r.default_servings, prepMinutes: r.prep_minutes ?? null, totalMinutes: r.total_minutes ?? null, archived: !!r.archived, ingredients, source: r.source ?? null, externalId: r.external_id ?? null, imageUrl: r.image_url ?? null, createdAt: r.created_at, updatedAt: r.updated_at };
+  return { id: r.id, name: r.name, description: r.description, instructions: r.instructions, preparationNotes: r.preparation_notes, sourceUrl: r.source_url, defaultServings: r.default_servings, prepMinutes: r.prep_minutes ?? null, totalMinutes: r.total_minutes ?? null, archived: !!r.archived, ingredients, source: r.source ?? null, externalId: r.external_id ?? null, imageUrl: r.image_url ?? null, steps: r.steps ? JSON.parse(r.steps) : null, createdAt: r.created_at, updatedAt: r.updated_at };
+}
+const lines = (text: string) => text.split(/\r?\n/).map((l) => l.replace(/^\s*[-*•·–]\s+/, '').trim()).filter(Boolean);
+/** Steps as stored: a plain string is a step's text, and a text of several lines with no bullets
+ * becomes a step of bullets (how a meal kit writes several short instructions in one step).
+ * Empty steps are dropped. */
+export function normalizeSteps(steps: (string | { text?: string; bullets?: string[]; imageUrl?: string | null })[]): RecipeStep[] {
+  return steps.map((step) => {
+    const { text = '', bullets = [], imageUrl = null } = typeof step === 'string' ? { text: step } : step;
+    const own = bullets.map((b) => b.trim()).filter(Boolean);
+    const split = own.length ? [text.trim()] : lines(text);
+    return split.length > 1 ? { text: '', bullets: split, imageUrl } : { text: split[0] ?? '', bullets: own, imageUrl };
+  }).filter((s) => s.text || s.bullets.length);
+}
+/** The same steps as numbered text (the recipe's instructions), bullets as "- " lines under their number. */
+export function stepsText(steps: RecipeStep[]): string {
+  return steps.map((s, i) => {
+    const [first, ...rest] = s.text ? [s.text, ...s.bullets.map((b) => `- ${b}`)] : s.bullets.map((b, j) => j ? `- ${b}` : b);
+    return [`${i + 1}. ${first}`, ...rest].join('\n');
+  }).join('\n');
 }
 // Snapshots saved before ingredients carried `scalable` get it on the way out.
 const snapshotApi = (s: NonNullable<Meal['recipeSnapshot']>) => ({ ...s, ingredients: s.ingredients.map((i) => ({ ...i, scalable: isScalable(i) })) });

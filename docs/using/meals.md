@@ -25,6 +25,14 @@ Tap a recipe to see it: its times, the ingredients (with **−** and **+** to se
 
 A recipe with a time shows it as **⏱ 35 min · 10 min prep** in its sheet and the meal's sheet, and as a quiet "35 min" on the recipe card, the planned meal in the week planner and the Board's **Today's meals** card. When the meal has a time, its sheet also says when to start ("Start by 5:25 PM").
 
+### Steps and cooking along
+
+A typed recipe's instructions show as a numbered list, one line per step. An imported recipe (or one with steps added through the API) has structured steps instead: each is a numbered card with the step's text and its short instructions as bullets, and the step's photo when it has one, beside the text when there's room and above it on a phone. A photo that can't be loaded just isn't shown.
+
+Tap a step when it's done: it dims with a check, so you can see where you are while cooking. Tap it again to undo it, or **Reset** to clear them all. The checks are only kept while the recipe is open, on that screen; closing it starts fresh next time. With a keyboard, Tab to a step and press Space or Enter.
+
+In the recipe editor, a recipe with structured steps edits them as a list: each step has its text and its bullets (one per line), **Move up**, **Move down** and **Remove step**, and **Add step** adds one at the end. **Remove photo** drops a step's photo. A recipe with plain instructions keeps the one **Instructions** box.
+
 Amounts read the way a recipe prints them: "½ cup", "1½ cups", "2 ounces". Units that are abbreviations (oz, tsp, tbsp, lb, g) stay as they are.
 
 ### Recipe links
@@ -55,7 +63,8 @@ Recipes can come in from another app instead of being typed. The [Home Assistant
 * Ingredient lines that repeat the unit abbreviated ("1 teaspoon (tsp) Cooking Oil") drop the abbreviation.
 * Ingredients that ship in the box get the quantity note **in the kit**, shown as an **In the kit** tag. They're on the recipe, but grocery lists leave them off unless you tick them (see below). What you supply yourself (oil, salt, butter) goes on the list like any other ingredient.
 * `imageUrl` is the recipe's photo (see [Recipe photos](#recipe-photos)); importing again without one keeps the photo it has.
-* Steps become the numbered instructions, the recipe card link is the recipe's source link (a PDF card opens in the app), and `prepMinutes` / `totalMinutes` are its times.
+* Steps become the recipe's structured steps (see [Steps and cooking along](#steps-and-cooking-along)). A step can be text, where a step of several lines (the way a meal kit writes several short instructions in one step) becomes a step of bullets, or `{ text, bullets, imageUrl }` with the step's own photo. Importing again without `steps` keeps the ones it has; `"steps": []` clears them.
+* The recipe card link is the recipe's source link (a PDF card opens in the app), and `prepMinutes` / `totalMinutes` are its times.
 * With a date and slot it's also planned, unless that slot already has a meal. Then nothing is planned and the answer says why (`planned: false`), so an automation can try the next night. Importing again finds the meal it planned before for that slot in the same week, even if you moved it to another night, and doesn't plan it twice.
 
 ## Scaling servings
@@ -116,6 +125,7 @@ An admin can turn off **Meals** in **Settings → General** (tap **Change** unde
 | `POST` / `PATCH` / `DELETE` | `/api/recipes`, `/api/recipes/{id}` | Add, edit (`archived: true` archives) or delete a recipe (admin). |
 | `POST` | `/api/recipes/import` | Import or update a recipe by `{ source, externalId }` and optionally plan it (admin). See below. |
 | `GET` | `/api/recipes/{id}/image`, `/api/meals/{id}/image` | The photo at that recipe's own `imageUrl` (a meal: its recipe's), fetched by the server (any signed-in key, display keys too; also `?key=` for an `<img src>`). Public `https` only, redirects re-checked (at most 3), JPEG, PNG, WebP or GIF checked by the file's own bytes (served as what the bytes are, never SVG), at most 8 MB, 15-second timeout, `Cache-Control: private, max-age=604800`, the source's `ETag` passed through. 404 when there's no image, 400 when it isn't a public `https` address, 502 when the fetch fails or isn't an image. Clear a recipe's photo with `PATCH /api/recipes/{id}` `{"imageUrl": null}`. |
+| `GET` | `/api/recipes/{id}/steps/{n}/image` | Step `n`'s photo (steps count from 1), from that step's own `imageUrl`, fetched and checked exactly like the recipe photo above (also `?key=`; display keys too). 404 when the step doesn't exist or has no photo. |
 | `GET` | `/api/recipes/{id}/source.pdf`, `/api/meals/{id}/source.pdf` | The PDF recipe card at that recipe's or meal's own `sourceUrl`, fetched by the server (any signed-in key, display keys too). Public `https` only, redirects re-checked (at most 3), `application/pdf` (or `application/octet-stream` starting `%PDF`), at most 15 MB, 15-second timeout, `Cache-Control: private, max-age=86400`. 404 when there's no `sourceUrl`, 400 when it isn't a public `https` address, 502 when the fetch fails or isn't a PDF. |
 | `GET` | `/api/meals?from=&to=` | Meals in a date range (at most 367 days). |
 | `POST` / `PATCH` / `DELETE` | `/api/meals`, `/api/meals/{id}` | Plan, edit or delete a meal (admin; an assigned device may `PATCH` `notes` and `status`). `refreshRecipe: true` replaces the meal's ingredients with the recipe's. |
@@ -124,7 +134,7 @@ An admin can turn off **Meals** in **Settings → General** (tap **Change** unde
 | `POST` / `DELETE` | `/api/meals/{id}/calendar-link` | Link `{ eventId }` or unlink an event (admin). |
 | `POST` | `/api/meals/{id}/calendar-event` | Create and link an event `{ calendarId?, eventStart? }` (admin). `calendarId` is any writable calendar, synced ones included (the event is written to the provider the same way `POST /api/events` does); without it the event goes on a Kinwall calendar, never a synced one. `eventStart`: `meal` (default) or `cooking`. The meal's `calendarEventStart` is then set; it's `null` for an event you linked. Changes to the meal update the event; 502 when a synced calendar refuses. |
 
-Meals have `assigneeMemberId` (who's cooking) and `eaterIds` (who's eating, member ids); sending `eaterIds` without `servings` sets servings to how many. Recipes have `prepMinutes` and `totalMinutes` (whole minutes or `null`); a planned meal's `recipeSnapshot` copies them. Each ingredient has `scalable`: whether its amount follows the servings. Webhooks: `recipe.changed`, `meal.changed`.
+Meals have `assigneeMemberId` (who's cooking) and `eaterIds` (who's eating, member ids); sending `eaterIds` without `servings` sets servings to how many. Recipes have `steps`: `null` for a recipe that only has `instructions` text, or a list of `{ text, bullets, imageUrl }` (`text` may be empty for a step that's only bullets). Sending `steps` (in `POST` / `PATCH /api/recipes`) makes them the recipe's steps and rewrites `instructions` as the same steps in numbered text (bullets as `- ` lines under their number), so exports and plain-text readers still get them; `steps: null` or `[]` removes them. Sending only `instructions` replaces structured steps with that text. A planned meal doesn't copy the steps: its sheet opens the recipe. Recipes have `prepMinutes` and `totalMinutes` (whole minutes or `null`); a planned meal's `recipeSnapshot` copies them. Each ingredient has `scalable`: whether its amount follows the servings. Webhooks: `recipe.changed`, `meal.changed`.
 
 `POST /api/recipes/import` takes:
 
@@ -140,11 +150,11 @@ Meals have `assigneeMemberId` (who's cooking) and `eaterIds` (who's eating, memb
   "prepMinutes": 10,
   "totalMinutes": 35,
   "ingredients": ["Salt", { "text": "1.5 tablespoon Sour Cream", "pantry": false, "category": "Dairy" }],
-  "steps": ["Boil water.", "Cook the chicken."],
+  "steps": ["Boil water.", { "text": "Cook the chicken", "bullets": ["Pat dry.", "Sear 5 minutes a side."], "imageUrl": "https://… step photo" }],
   "plan": { "date": "2026-10-05", "slot": "dinner", "servings": 4, "eaterIds": ["member-id", "member-id"], "calendarId": "calendar-id", "eventStart": "meal" }
 }
 ```
 
-`servings` is what the ingredient amounts are for (the recipe's default servings). `prepMinutes` and `totalMinutes` are optional; leaving them out keeps what an earlier import set. `plan.eaterIds` (optional) is who's eating; without `plan.servings`, the meal's servings are how many. An ingredient is a line of text, or `{ text, pantry?, category? }` where `pantry: false` means it ships in the kit. `plan.calendarId` (optional) also puts the planned meal on that calendar, as if you'd tapped **Add to calendar** and picked it, unless the meal already has an event; `plan.eventStart` is `meal` (default) or `cooking`. It answers `{ recipeId, created, planned, mealId?, reason?, calendarEventId?, calendarError? }`: `created` is false when an earlier import was updated; `planned` is true with the `mealId` when the meal is on the plan (newly, or from an earlier import), and false with a `reason` when the slot was taken. `calendarEventId` is the meal's event; `calendarError` says why it couldn't get one (the meal is still planned).
+`servings` is what the ingredient amounts are for (the recipe's default servings). `prepMinutes` and `totalMinutes` are optional; leaving them out keeps what an earlier import set. `plan.eaterIds` (optional) is who's eating; without `plan.servings`, the meal's servings are how many. A step is text or `{ text?, bullets?, imageUrl? }` (see [Importing recipes](#importing-recipes)). An ingredient is a line of text, or `{ text, pantry?, category? }` where `pantry: false` means it ships in the kit. `plan.calendarId` (optional) also puts the planned meal on that calendar, as if you'd tapped **Add to calendar** and picked it, unless the meal already has an event; `plan.eventStart` is `meal` (default) or `cooking`. It answers `{ recipeId, created, planned, mealId?, reason?, calendarEventId?, calendarError? }`: `created` is false when an earlier import was updated; `planned` is true with the `mealId` when the meal is on the plan (newly, or from an earlier import), and false with a `reason` when the slot was taken. `calendarEventId` is the meal's event; `calendarError` says why it couldn't get one (the meal is still planned).
 
 The [MCP server](../integrations/mcp.md) has `list_recipes`, `get_recipe`, `list_meals`, `get_meal_projection`, `create_recipe`, `update_recipe`, `import_recipe`, `create_meal`, `update_meal` and `apply_meal_projection`.
