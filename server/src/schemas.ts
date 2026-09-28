@@ -72,7 +72,8 @@ export const MemberSchema = z
     pointsToday: z.number(),
     pointsWeek: z.number(),
     balance: z.number(), // points left to spend: everything earned from chores, minus sticker purchases (+/- other ledger entries)
-    needsApproval: z.boolean().openapi({ description: "Their chores need a parent's OK by default (a chore's own setting wins)." }),
+    grownUp: z.boolean().openapi({ description: "A parent or other adult. Their chores never wait for a parent's OK (needsApproval is always false)." }),
+    needsApproval: z.boolean().openapi({ description: "Their chores need a parent's OK by default (a chore's own setting wins). Always false for a grown-up." }),
     transitionReminders: TransitionRemindersSchema,
     rewardGoal: z
       .object({ rewardId: z.string(), title: z.string(), emoji: z.string().nullable(), cost: z.number() })
@@ -88,7 +89,8 @@ export const MemberInputSchema = z
     avatar: AvatarSchema.nullable().optional(),
     birthday: BirthdaySchema.nullable().optional(),
     sort: z.number().optional(),
-    needsApproval: z.boolean().optional(),
+    grownUp: z.boolean().optional().openapi({ description: 'Default false. true also turns needsApproval off.' }),
+    needsApproval: z.boolean().optional().openapi({ description: 'Ignored for a grown-up (stays false).' }),
     transitionReminders: TransitionRemindersSchema.optional(),
   })
   .openapi('MemberInput');

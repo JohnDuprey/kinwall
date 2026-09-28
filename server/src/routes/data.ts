@@ -23,7 +23,7 @@ import { RECONNECT_MESSAGE } from '../sync.ts';
 import { decryptConfig, encryptConfig } from '../crypto.ts';
 import { isSafeFeedUrl } from '../outbound.ts';
 import type { CategoryRow } from '../calendar-categories.ts';
-import { parseTransitions } from './members.ts';
+import { isAdultBirthday, parseTransitions } from './members.ts';
 import {
   CalendarSchema,
   CategorySchema,
@@ -55,7 +55,7 @@ const ExportSchema = z
     version: z.number(),
     exportedAt: z.string(),
     settings: SettingsSchema,
-    members: z.array(MemberSchema.omit({ pointsToday: true, pointsWeek: true, balance: true, rewardGoal: true }).extend({ birthday: BirthdaySchema.nullable().default(null), needsApproval: z.boolean().default(false), transitionReminders: TransitionRemindersSchema.optional(), rewardGoalId: z.string().nullable().default(null) })),
+    members: z.array(MemberSchema.omit({ pointsToday: true, pointsWeek: true, balance: true, rewardGoal: true }).extend({ birthday: BirthdaySchema.nullable().default(null), grownUp: z.boolean().optional(), needsApproval: z.boolean().default(false), transitionReminders: TransitionRemindersSchema.optional(), rewardGoalId: z.string().nullable().default(null) })),
     categories: z.array(CategorySchema),
     // Every calendar, but no config/credentials/account: synced ones are imported as placeholders
     // that keep their settings and are reconnected, and their events re-fetched.
@@ -138,7 +138,7 @@ const ExportSchema = z
   })
   .openapi('Export');
 
-type MemberRow = { id: string; name: string; color: string; avatar: string | null; birthday: string | null; sort: number; needs_approval: number; transitions: string | null; reward_goal: string | null };
+type MemberRow = { id: string; name: string; color: string; avatar: string | null; birthday: string | null; sort: number; grown_up: number; needs_approval: number; transitions: string | null; reward_goal: string | null };
 type CalendarRow = { id: string; kind: z.infer<typeof CalendarSchema>['kind']; remote_id: string | null; name: string; color: string | null; member_ids: string; category_id: string | null; enabled: number; display_edit: number };
 type EventRow = {
   id: string; calendar_id: string; title: string; start: string; end: string; all_day: number; location: string | null;
@@ -170,7 +170,7 @@ dataRoutes.openapi(
     const db = c.env.DB;
     // Column lists are explicit (never SELECT *) so a secret column can't leak in by accident.
     const [members, categories, calendars, events, memberOverrides, categoryOverrides, travelOverrides, seriesMemberOverrides, seriesCategoryOverrides, chores, completions, lists, items, steps, groups, notes, pointEntries, stickerPacks, scrapbook, rewards, redemptions, trackers, passkeys, webhooks] = (await db.batch<unknown>([
-      db.prepare('SELECT id, name, color, avatar, birthday, sort, needs_approval, transitions, reward_goal FROM members ORDER BY sort, created_at'),
+      db.prepare('SELECT id, name, color, avatar, birthday, sort, grown_up, needs_approval, transitions, reward_goal FROM members ORDER BY sort, created_at'),
       db.prepare('SELECT id, name, emoji, color, keywords, sort, created_at FROM categories ORDER BY sort, created_at'),
       db.prepare('SELECT id, kind, remote_id, name, color, member_ids, category_id, enabled, display_edit, config FROM calendars ORDER BY name'),
       db.prepare(
@@ -216,7 +216,7 @@ dataRoutes.openapi(
         version: EXPORT_VERSION,
         exportedAt: date,
         settings: await readSettings(db),
-        members: (members as MemberRow[]).map(({ id, name, color, avatar, birthday, sort, needs_approval, transitions, reward_goal }) => ({ id, name, color, avatar, birthday, sort, needsApproval: !!needs_approval, transitionReminders: parseTransitions(transitions), rewardGoalId: reward_goal })),
+        members: (members as MemberRow[]).map(({ id, name, color, avatar, birthday, sort, grown_up, needs_approval, transitions, reward_goal }) => ({ id, name, color, avatar, birthday, sort, grownUp: !!grown_up, needsApproval: !!needs_approval, transitionReminders: parseTransitions(transitions), rewardGoalId: reward_goal })),
         categories: (categories as CategoryRow[]).map(categoryToApi),
         calendars: await Promise.all((calendars as (CalendarRow & { config: string })[]).map(async (r) => ({
           id: r.id,
@@ -487,9 +487,12 @@ dataRoutes.openapi(
     const now = Date.now();
     const stamp = (i: number) => new Date(now + i).toISOString();
     const keepCreated = { keep: ['created_at'] };
+    // Files from before grown-ups: 18+ by a birthday with a year counts as one (as migration 0051).
+    const today = new Date().toISOString().slice(0, 10);
+    const grownUp = (m: (typeof body.members)[number]) => m.grownUp ?? isAdultBirthday(m.birthday, today);
     const writes = [
       ...settingsWrites(db, settings.data),
-      ...upserts(db, 'members', 'id', body.members.map((m, i) => ({ id: m.id, name: m.name, color: m.color, avatar: m.avatar, birthday: m.birthday, sort: m.sort, needs_approval: m.needsApproval ? 1 : 0, transitions: m.transitionReminders ? JSON.stringify(m.transitionReminders) : null, reward_goal: m.rewardGoalId, created_at: stamp(i) })), keepCreated),
+      ...upserts(db, 'members', 'id', body.members.map((m, i) => ({ id: m.id, name: m.name, color: m.color, avatar: m.avatar, birthday: m.birthday, sort: m.sort, grown_up: grownUp(m) ? 1 : 0, needs_approval: m.needsApproval && !grownUp(m) ? 1 : 0, transitions: m.transitionReminders ? JSON.stringify(m.transitionReminders) : null, reward_goal: m.rewardGoalId, created_at: stamp(i) })), keepCreated),
       ...upserts(
         db,
         'categories',

@@ -44,11 +44,11 @@ const settings: Settings = {
 }
 
 const members: Member[] = [
-  { id: 'm1', name: 'Alex', color: '#7AB8FF', avatar: '🦊', birthday: '1988-03-14', sort: 0, pointsToday: 10, pointsWeek: 40, balance: 12 },
-  { id: 'm2', name: 'Sam', color: '#FF8FA3', avatar: '🐰', birthday: null, sort: 1, pointsToday: 5, pointsWeek: 25, balance: 30 },
-  { id: 'm3', name: 'Maya', color: '#7ED9A6', avatar: '🦄', birthday: '2018-11-02', sort: 2, pointsToday: 0, pointsWeek: 15, balance: 42 },
+  { id: 'm1', name: 'Alex', color: '#7AB8FF', avatar: '🦊', birthday: '1988-03-14', grownUp: true, sort: 0, pointsToday: 10, pointsWeek: 40, balance: 12 },
+  { id: 'm2', name: 'Sam', color: '#FF8FA3', avatar: '🐰', birthday: null, grownUp: true, sort: 1, pointsToday: 5, pointsWeek: 25, balance: 30 },
+  { id: 'm3', name: 'Maya', color: '#7ED9A6', avatar: '🦄', birthday: '2018-11-02', grownUp: false, sort: 2, pointsToday: 0, pointsWeek: 15, balance: 42 },
   // Leo turns 6 tomorrow, so the snapshot's 🎂 always has something to show.
-  { id: 'm4', name: 'Leo', color: '#F5A65B', avatar: '🦖', birthday: (t => `${t.getFullYear() - 6}${dateKey(t).slice(4)}`)(new Date(Date.now() + 86_400_000)), sort: 3, pointsToday: 5, pointsWeek: 20, balance: 18 },
+  { id: 'm4', name: 'Leo', color: '#F5A65B', avatar: '🦖', birthday: (t => `${t.getFullYear() - 6}${dateKey(t).slice(4)}`)(new Date(Date.now() + 86_400_000)), grownUp: false, sort: 3, pointsToday: 5, pointsWeek: 20, balance: 18 },
 ]
 
 // Rewards (demo only): a few examples, Maya saving for movie night and a request of Leo's waiting.
@@ -371,12 +371,12 @@ export const mock = {
 
   getMembers: async () => [...members].sort((a, b) => a.sort - b.sort).map(m => ({ ...m, rewardGoal: goalOf(m.id) })),
   createMember: async (m: Partial<Member>) => {
-    const nm: Member = { id: uid(), name: m.name ?? 'New', color: m.color ?? '#FF9E7A', avatar: m.avatar ?? '🙂', birthday: m.birthday ?? null, sort: members.length, pointsToday: 0, pointsWeek: 0, balance: 0 }
+    const nm: Member = { id: uid(), name: m.name ?? 'New', color: m.color ?? '#FF9E7A', avatar: m.avatar ?? '🙂', birthday: m.birthday ?? null, grownUp: !!m.grownUp, needsApproval: !m.grownUp && !!m.needsApproval, sort: members.length, pointsToday: 0, pointsWeek: 0, balance: 0 }
     members.push(nm); bump(); return nm
   },
   updateMember: async (id: string, patch: Partial<Member>) => {
     const m = members.find(x => x.id === id); if (!m) throw new Error('not found')
-    Object.assign(m, patch); bump(); return m
+    Object.assign(m, patch); if (m.grownUp) m.needsApproval = false; bump(); return m
   },
   deleteMember: async (id: string) => {
     const i = members.findIndex(x => x.id === id)

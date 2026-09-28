@@ -477,6 +477,9 @@ test('mcp: every tool declares an output schema, and real results pass it', asyn
   await call('add_member', { name: 'Bo', color: '#00aa00', avatar: '🦖' });
   await call('update_member', { member: 'Bo', color: '#00bb00' });
   assert.equal((await call('update_member', { member: 'Bo', birthday: '--07-04' })).member.birthday, '--07-04');
+  const grown = (await call('update_member', { member: 'Bo', grownUp: true, needsApproval: true })).member;
+  assert.deepEqual([grown.grownUp, grown.needsApproval], [true, false]);
+  assert.equal((await call('add_member', { name: 'Cy', color: '#0000aa', grownUp: true })).member.grownUp, true);
   const snap = await call('get_snapshot', { member: 'ava' });
   assert.match(snap.greeting, /Ava/);
   assert.equal((await call('get_snapshot', { member: 'ava', range: 'week' })).tomorrow, null);

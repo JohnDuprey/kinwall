@@ -42,12 +42,12 @@ await api('PATCH', '/api/settings', {
 })
 
 const M = {}
-for (const [key, name, color, avatar] of [
-  ['alex', 'Alex', '#6BA4E7', '🧔🏻'],
-  ['sam', 'Sam', '#B79CED', '👩🏽'],
-  ['maya', 'Maya', '#F28DB2', '🦄'],
-  ['leo', 'Leo', '#7BCB94', '🦖'],
-]) M[key] = (await api('POST', '/api/members', { name, color, avatar })).id
+for (const [key, name, color, avatar, grownUp] of [
+  ['alex', 'Alex', '#6BA4E7', '🧔🏻', true],
+  ['sam', 'Sam', '#B79CED', '👩🏽', true],
+  ['maya', 'Maya', '#F28DB2', '🦄', false],
+  ['leo', 'Leo', '#7BCB94', '🦖', false],
+]) M[key] = (await api('POST', '/api/members', { name, color, avatar, grownUp })).id
 
 const C = {}
 for (const [key, name, emoji, color, keywords] of [

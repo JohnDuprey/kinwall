@@ -128,6 +128,7 @@ export interface Member {
   pointsToday: number
   pointsWeek: number
   balance: number // points left to spend on stickers (earned - spent); pointsToday/pointsWeek stay earned
+  grownUp?: boolean // a parent or other adult: their chores never wait for an OK (needsApproval stays false)
   needsApproval?: boolean // their chores need a parent's OK by default (a chore's own setting wins)
   transitionReminders?: TransitionReminders // pushes to their own devices before their events (admin sets)
   rewardGoal?: { rewardId: string; title: string; emoji: string | null; cost: number } | null // the reward they're saving for

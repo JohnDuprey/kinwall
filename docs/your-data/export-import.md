@@ -10,7 +10,7 @@
 |---|---|
 | Household settings | Passwords, OAuth tokens, CalDAV logins |
 | Members, categories | API keys, sessions, recovery codes |
-| Chores **with completion history** (points awarded, and whether each is approved or waiting for a parent's OK), and the parent-approval settings on chores and members | Webhook secrets, and "Not yet" notes on chores |
+| Chores **with completion history** (points awarded, and whether each is approved or waiting for a parent's OK), and the parent-approval settings on chores and members, and who's a grown-up | Webhook secrets, and "Not yet" notes on chores |
 | Points spent, sticker packs unlocked and sticker book pages | |
 | Rewards (archived ones too), every reward request with its status and note, and each person's goal | |
 | Lists, items, group order, remembered store/category/aisle per item, stores' aisle orders | Push subscriptions |
@@ -38,6 +38,7 @@ The file contains ICS feed URLs, which can be secret. Treat it like a password.
 * **Local calendars** come back complete.
 * **ICS calendars** come back connected if their URL is in the file and passes the [private-address check](../calendars/private-feeds.md).
 * **Google, Outlook and CalDAV calendars** come back as placeholders that keep their settings and tags. [Reconnect](../calendars/reconnecting-after-import.md) each one once.
+* **Members** from a file made before the **Grown-up** setting count as grown-ups when their birthday has a year making them 18 or older.
 * **Passkeys and webhooks** are skipped. Set them up again.
 * Maximum file size: 10 MB.
 

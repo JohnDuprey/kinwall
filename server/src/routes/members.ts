@@ -10,7 +10,7 @@ import { balanceOf, pointTotalsStmt, type PointTotals } from '../stickers.ts';
 
 export const membersRoutes = createRouter();
 
-type MemberRow = { id: string; name: string; color: string; avatar: string | null; birthday: string | null; sort: number; created_at: string; needs_approval?: number; transitions: string | null; reward_goal?: string | null };
+type MemberRow = { id: string; name: string; color: string; avatar: string | null; birthday: string | null; sort: number; created_at: string; needs_approval?: number; grown_up?: number; transitions: string | null; reward_goal?: string | null };
 
 // The stored JSON, or off. Shared with notify.ts (which only acts on `on`).
 export function parseTransitions(raw: string | null): typeof TRANSITIONS_OFF {
@@ -20,6 +20,13 @@ export function parseTransitions(raw: string | null): typeof TRANSITIONS_OFF {
   } catch {
     return TRANSITIONS_OFF;
   }
+}
+
+// 18 or older on `today` (YYYY-MM-DD), from a birthday with a year. Same rule as migration 0051;
+// used to infer grown-ups in imports from before the flag existed.
+export function isAdultBirthday(birthday: string | null | undefined, today: string): boolean {
+  if (!birthday || !/^\d{4}-\d{2}-\d{2}$/.test(birthday)) return false;
+  return `${String(Number(birthday.slice(0, 4)) + 18).padStart(4, '0')}${birthday.slice(4)}` <= today;
 }
 
 // Exported for reuse by routes/leaderboard.ts (period boundaries use the same household tz/weekStart).
@@ -103,7 +110,7 @@ const toGoals = (rows: { id: string; title: string; emoji: string | null; cost: 
 const goalRewards = async (db: KinwallDb) => toGoals((await db.prepare(GOALS_SQL).all<{ id: string; title: string; emoji: string | null; cost: number }>()).results);
 
 function toApi(row: MemberRow, points: Points, goals: Map<string, Goal> = new Map()) {
-  return { id: row.id, name: row.name, color: row.color, avatar: row.avatar, birthday: row.birthday ?? null, sort: row.sort, needsApproval: !!row.needs_approval, ...points, transitionReminders: parseTransitions(row.transitions), rewardGoal: (row.reward_goal && goals.get(row.reward_goal)) || null };
+  return { id: row.id, name: row.name, color: row.color, avatar: row.avatar, birthday: row.birthday ?? null, sort: row.sort, grownUp: !!row.grown_up, needsApproval: !!row.needs_approval, ...points, transitionReminders: parseTransitions(row.transitions), rewardGoal: (row.reward_goal && goals.get(row.reward_goal)) || null };
 }
 
 membersRoutes.openapi(
@@ -154,11 +161,13 @@ membersRoutes.openapi(
       // New ones go last; a flat 0 made every row tie, so the saved order couldn't hold.
       sort: body.sort ?? ((await c.env.DB.prepare('SELECT MAX(sort) AS m FROM members').first<{ m: number | null }>())?.m ?? -1) + 1,
       created_at: new Date().toISOString(),
-      needs_approval: body.needsApproval ? 1 : 0,
+      // A grown-up's chores never wait for an OK: needsApproval is ignored for them.
+      grown_up: body.grownUp ? 1 : 0,
+      needs_approval: body.needsApproval && !body.grownUp ? 1 : 0,
       transitions: body.transitionReminders ? JSON.stringify(body.transitionReminders) : null,
     };
-    await c.env.DB.prepare('INSERT INTO members (id, name, color, avatar, birthday, sort, created_at, needs_approval, transitions) VALUES (?,?,?,?,?,?,?,?,?)')
-      .bind(row.id, row.name, row.color, row.avatar, row.birthday, row.sort, row.created_at, row.needs_approval, row.transitions)
+    await c.env.DB.prepare('INSERT INTO members (id, name, color, avatar, birthday, sort, created_at, grown_up, needs_approval, transitions) VALUES (?,?,?,?,?,?,?,?,?,?)')
+      .bind(row.id, row.name, row.color, row.avatar, row.birthday, row.sort, row.created_at, row.grown_up, row.needs_approval, row.transitions)
       .run();
     emit(c, 'member.changed', { id: row.id });
     return c.json(toApi(row, NO_POINTS), 201);
@@ -193,11 +202,13 @@ membersRoutes.openapi(
       avatar: body.avatar !== undefined ? body.avatar : existing.avatar,
       birthday: body.birthday !== undefined ? body.birthday : existing.birthday,
       sort: body.sort ?? existing.sort,
+      grown_up: body.grownUp !== undefined ? (body.grownUp ? 1 : 0) : existing.grown_up,
       needs_approval: body.needsApproval !== undefined ? (body.needsApproval ? 1 : 0) : existing.needs_approval,
       transitions: body.transitionReminders ? JSON.stringify(body.transitionReminders) : existing.transitions,
     };
-    await c.env.DB.prepare('UPDATE members SET name = ?, color = ?, avatar = ?, birthday = ?, sort = ?, needs_approval = ?, transitions = ? WHERE id = ?')
-      .bind(updated.name, updated.color, updated.avatar, updated.birthday, updated.sort, updated.needs_approval ?? 0, updated.transitions, id)
+    if (updated.grown_up) updated.needs_approval = 0; // a grown-up's chores never wait for an OK
+    await c.env.DB.prepare('UPDATE members SET name = ?, color = ?, avatar = ?, birthday = ?, sort = ?, grown_up = ?, needs_approval = ?, transitions = ? WHERE id = ?')
+      .bind(updated.name, updated.color, updated.avatar, updated.birthday, updated.sort, updated.grown_up ?? 0, updated.needs_approval ?? 0, updated.transitions, id)
       .run();
     emit(c, 'member.changed', { id });
     const { tz, weekStart } = await household(c.env.DB);

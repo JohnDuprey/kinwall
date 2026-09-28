@@ -84,7 +84,7 @@ A chore can wait for a parent's OK before it counts. Ticks from wall screens and
 
 **Turning it on**
 
-* Per person: **Their chores need a parent's OK** in the member's sheet (**Settings → Family**). Off by default.
+* Per person: **Their chores need a parent's OK** in the member's sheet (**Settings → Family**). Off by default. A **Grown-up** never has it: their chores only wait when the chore itself says **Yes**.
 * Per chore: **Needs a parent's OK** in the chore sheet. **Default** follows the person's setting (for an **Anyone** chore, the setting of whoever does it). **Yes** and **No** override it either way.
 * Activity chores approve themselves when timed play completes them. Turn on **Needs a parent's OK even for timed play** to have those wait too. Ticking one by hand follows the chore's normal setting.
 
@@ -100,7 +100,7 @@ A chore can wait for a parent's OK before it counts. Ticks from wall screens and
 
 **API and MCP**
 
-* `needsApproval` (`true`, `false` or `null` to follow the person) and `approveTimedPlay` on `POST/PATCH /api/chores`; `needsApproval` on `POST/PATCH /api/members`.
+* `needsApproval` (`true`, `false` or `null` to follow the person) and `approveTimedPlay` on `POST/PATCH /api/chores`; `needsApproval` on `POST/PATCH /api/members` (always `false` for a member with `grownUp: true`).
 * `POST /api/chores/{id}/complete` answers `{ok, pending}`. `GET /api/chores/day` has `pending` and `rejection` (`{note, at}` or `null`); `completed` is true only once approved.
 * Parent devices only (admin keys): `GET /api/chores/pending`, `POST /api/chores/{id}/approve {date}` (answers `{ok, points}`), `POST /api/chores/{id}/reject {date, note?}`.
 * Webhooks: `chore.pending` when a tick waits, `chore.completed` only when it's approved, `chore.rejected` on **Not yet**. See [Webhooks](../integrations/webhooks.md#events).

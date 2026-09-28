@@ -106,8 +106,8 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 | `approve_reward` | Approves a waiting request (admin). |
 | `decline_reward` | "Not this time": declines a waiting request, or cancels an approved one, and gives the points back, with an optional `note` the kid sees (admin). |
 | `mark_reward_given` | Marks an approved request as given (admin). |
-| `add_member` | Adds a family member (admin), optionally with a `birthday` (`YYYY-MM-DD`, or `--MM-DD` without a year). |
-| `update_member` | Changes a member's name, color, avatar, `birthday` (`null` clears it), `needsApproval` (their chores need a parent's OK by default) or `transitionReminders` (see [Transition reminders](../settings/family.md#transition-reminders)). Admin. |
+| `add_member` | Adds a family member (admin), optionally with a `birthday` (`YYYY-MM-DD`, or `--MM-DD` without a year) and `grownUp` (a parent or other adult; default false). |
+| `update_member` | Changes a member's name, color, avatar, `birthday` (`null` clears it), `grownUp` (their chores never wait for a parent's OK; turns `needsApproval` off), `needsApproval` (their chores need a parent's OK by default; ignored for a grown-up) or `transitionReminders` (see [Transition reminders](../settings/family.md#transition-reminders)). Admin. |
 | `create_list` | Creates a shopping, to-do or reusable list. |
 | `update_list` | Renames, changes kind, emoji, owners, item sort (`sortBy`: `manual`, `added`, `due`, `priority`, `alpha`, `aisle`), grouping (`groupBy`: `store`, `category`, `aisle`, `none`; shopping lists use `aisle` for `category`), whether checked items stay in place (`keepChecked`), or archives a list. |
 | `add_list_items` | Adds items: plain titles or objects (notes, quantity, store, category (a shopping item's department), aisle, member, dueDate, eventId, priority, steps). `steps` is a list of step titles in order. On a shopping list, a store, category or aisle left out comes from what the family used last time for that item. |

@@ -1404,12 +1404,13 @@ function MemberEditSheet({ member, canDelete, onClose, onSaved, toast }: { membe
   const [bday, setBday] = useState(member?.birthday?.replace(/^--/, '2000-') ?? '')
   const [noYear, setNoYear] = useState(!!member?.birthday?.startsWith('--'))
   const birthday = !bday ? null : noYear ? `--${bday.slice(5)}` : bday
+  const [grownUp, setGrownUp] = useState(!!member?.grownUp)
   const [needsApproval, setNeedsApproval] = useState(!!member?.needsApproval)
   const save = async () => {
     if (!name.trim() || !isValidAvatar(avatar)) return
     try {
       // Transition reminders are a parent's setting: only sent from a device that may manage members.
-      const extra = canDelete ? { transitionReminders: transitions, needsApproval } : {}
+      const extra = canDelete ? { transitionReminders: transitions, grownUp, needsApproval: needsApproval && !grownUp } : {}
       if (member) await api.updateMember(member.id, { name: name.trim(), color, avatar, birthday, ...extra })
       else await api.createMember({ name: name.trim(), color, avatar, birthday, ...extra })
       onSaved()
@@ -1438,6 +1439,15 @@ function MemberEditSheet({ member, canDelete, onClose, onSaved, toast }: { membe
         </div>
         <AnyEmojiField value={avatar} onChange={setAvatar} allowInitials />
       </div>
+      {canDelete && (
+        <div className="field">
+          <div className="toggle-row">
+            <label id="member-grown-up">Grown-up</label>
+            <button className={`switch ${grownUp ? 'on' : ''}`} role="switch" aria-checked={grownUp} aria-labelledby="member-grown-up" onClick={() => setGrownUp(v => !v)}><span className="knob" /></button>
+          </div>
+          <p className="field-hint">Parents and other adults: their chores never wait for an OK.</p>
+        </div>
+      )}
       <div className="field">
         <label htmlFor="member-birthday">Birthday <span className="settings-row-sub">(optional — shows 🎂 in snapshots)</span></label>
         <input id="member-birthday" type="date" value={bday} max={noYear ? undefined : new Date().toISOString().slice(0, 10)} onChange={e => setBday(e.target.value)} />
@@ -1448,7 +1458,7 @@ function MemberEditSheet({ member, canDelete, onClose, onSaved, toast }: { membe
           <button className={`switch ${noYear ? 'on' : ''}`} role="switch" aria-checked={noYear} aria-labelledby="member-birthday-noyear" onClick={() => setNoYear(v => !v)}><span className="knob" /></button>
         </div>
       )}
-      {canDelete && <>
+      {canDelete && !grownUp && <>
       <div className="toggle-row">
         <label id="member-needs-approval">Their chores need a parent's OK</label>
         <button className={`switch ${needsApproval ? 'on' : ''}`} role="switch" aria-checked={needsApproval} aria-labelledby="member-needs-approval" onClick={() => setNeedsApproval(v => !v)}><span className="knob" /></button>

@@ -7,8 +7,9 @@ Everyone who shows up on the wall. Each member has:
 * **Name**
 * **Color**: from the palette or a custom color. It colors their events, chore column and avatar.
 * **Avatar**: an emoji from the row, any emoji, or a 1–2 letter initial.
+* **Grown-up** (admin only, off by default): parents and other adults. Their chores never wait for a parent's OK, so the sheet hides **Their chores need a parent's OK** while it's on. API: `grownUp`; setting it to `true` turns `needsApproval` off, and `needsApproval: true` is ignored for a grown-up. Existing members whose birthday has a year making them 18 or older became grown-ups when this setting arrived.
 * **Birthday** (optional): a date. Turn on **I don't know the year** to keep just the month and day. It shows 🎂 in everyone's [snapshot](../using/snapshot.md) that day, with the age they turn when the year is known. API: `birthday` as `YYYY-MM-DD`, or `--MM-DD` without a year, or `null`.
-* **Their chores need a parent's OK** (off by default): chores they tick on a wall screen or their own device wait for a parent to approve before the points count. A chore's own setting wins. See [Parent approval](../using/chores.md#parent-approval). API: `needsApproval`.
+* **Their chores need a parent's OK** (admin only, off by default, not shown for a grown-up): chores they tick on a wall screen or their own device wait for a parent to approve before the points count. A chore's own setting wins. See [Parent approval](../using/chores.md#parent-approval). API: `needsApproval`.
 
 * **Transition reminders** (admin only, off by default): see [below](#transition-reminders).
 

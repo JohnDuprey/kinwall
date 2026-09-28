@@ -982,6 +982,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         color: z.string().describe('Hex color, e.g. #ff6b6b - drives their calendar/chore color.'),
         avatar: z.string().optional().describe('Emoji or initial.'),
         birthday: z.string().optional().describe(BIRTHDAY_DOC),
+        grownUp: z.boolean().optional().describe("A parent or other adult: their chores never wait for a parent's OK. Default false."),
       },
     },
     async (input) => {
@@ -996,14 +997,15 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'update_member',
     {
       title: 'Update family member',
-      description: "Change a family member's name, color, avatar, birthday, whether their chores need a parent's OK, or transition reminders (admin). Only provided fields change.",
+      description: "Change a family member's name, color, avatar, birthday, whether they're a grown-up, whether their chores need a parent's OK, or transition reminders (admin). Only provided fields change.",
       inputSchema: {
         member: z.string().describe('Member name or id.'),
         name: z.string().optional(),
         color: z.string().optional().describe('Hex color, e.g. #ff6b6b.'),
         avatar: z.string().nullable().optional().describe('Emoji or initial.'),
         birthday: z.string().nullable().optional().describe(`${BIRTHDAY_DOC} null clears it.`),
-        needsApproval: z.boolean().optional().describe("Their chores need a parent's OK by default (a chore's own setting wins)."),
+        grownUp: z.boolean().optional().describe("A parent or other adult: their chores never wait for a parent's OK (turns needsApproval off)."),
+        needsApproval: z.boolean().optional().describe("Their chores need a parent's OK by default (a chore's own setting wins). Ignored for a grown-up."),
         transitionReminders: TransitionRemindersSchema.optional().describe(
           'Admin: pushes to this person\'s own devices before their events. { on, minutes: [10, 5] (1-120, up to 8), repeat: { every: 5, within: 30 } or null, leaveBy: true (count to the leave-by time when there is travel time) }. Replaces the whole setting.',
         ),
