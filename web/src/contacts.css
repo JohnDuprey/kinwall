@@ -34,14 +34,14 @@
 .contact-action, .contact-inline-btn { min-height: 44px; display: inline-flex; align-items: center; border-radius: 999px; padding: 9px 16px; border: 2px solid var(--border); background: var(--bg-alt); color: var(--text); text-decoration: none; font: inherit; font-size: .88rem; font-weight: 800; cursor: pointer; }
 .contact-template { margin: 2px 0 20px; }
 .contact-template > span { display: block; margin-bottom: 8px; color: var(--text-dim); font-size: .83rem; font-weight: 800; }
-.contact-methods, .contact-options, .contact-review-row fieldset { border: 0; padding: 0; margin: 4px 0 20px; min-width: 0; }
-.contact-methods legend, .contact-options legend, .contact-review-row legend { padding: 0; margin-bottom: 9px; font-size: .83rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; }
+.contact-methods, .contact-options { border: 0; padding: 0; margin: 4px 0 20px; min-width: 0; }
+.contact-methods legend, .contact-options legend { padding: 0; margin-bottom: 9px; font-size: .83rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; }
 .contact-method-row { display: grid; grid-template-columns: minmax(90px, 1fr) minmax(130px, 2fr) auto; gap: 8px; align-items: end; }
 .contact-method-row .field { min-width: 0; margin-bottom: 8px; }
 .contact-method-row input[type="email"], .contact-method-row input[type="tel"] { width: 100%; min-height: 52px; padding: 13px 14px; border: 2px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-alt); color: var(--text); font-size: max(1rem, 16px); font-family: inherit; }
 .contact-remove-method { min-height: 52px; border: none; background: none; color: var(--danger); font-weight: 800; cursor: pointer; }
-.contact-options label, .contact-review-row fieldset label { display: flex; align-items: center; gap: 9px; min-height: 42px; font-weight: 700; }
-.contact-options input, .contact-review-row input { width: 20px; height: 20px; accent-color: var(--accent-strong); }
+.contact-options label { display: flex; align-items: center; gap: 9px; min-height: 44px; font-weight: 700; }
+.contact-options input[type="checkbox"], .contact-review-row input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--accent-strong); }
 .contact-import-options { display: grid; gap: 16px; }
 .contact-import-options .field { margin: 0; }
 .contact-import-choice { display: flex; flex-direction: column; gap: 5px; text-align: left; border: 2px solid var(--border); border-radius: var(--radius-sm); padding: 16px; background: var(--card); color: var(--text); font: inherit; font-weight: 800; cursor: pointer; }
@@ -55,13 +55,12 @@
 .contact-status-match { color: var(--accent-text); }
 .contact-review-row p { margin: 8px 0; color: var(--text-dim); font-size: .85rem; overflow-wrap: anywhere; }
 .contact-review-row .contact-match { font-weight: 800; }
-.contact-review-row fieldset { margin: 12px 0 0; }
 .contact-review-edit { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(120px, .8fr) minmax(0, 1.2fr); gap: 8px; margin-top: 12px; }
-.contact-review-edit label, .contact-review-category { display: grid; gap: 5px; color: var(--text-dim); font-size: .8rem; font-weight: 800; }
-.contact-review-edit input, .contact-review-edit select, .contact-review-category select { min-width: 0; min-height: 44px; padding: 9px 10px; border: 2px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-alt); color: var(--text); font: inherit; }
+.contact-review-edit label, .contact-review-category, .contact-review-action { display: grid; gap: 5px; color: var(--text-dim); font-size: .8rem; font-weight: 800; }
+.contact-review-edit input, .contact-review-edit select, .contact-review-category select, .contact-review-action select { min-width: 0; min-height: 44px; padding: 9px 10px; border: 2px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-alt); color: var(--text); font: inherit; }
 .contact-review-toggles { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 10px; }
-.contact-review-toggles label { display: flex; align-items: center; gap: 7px; min-height: 36px; font-weight: 700; }
-.contact-review-category { margin-top: 10px; }
+.contact-review-toggles label { display: flex; align-items: center; gap: 7px; min-height: 44px; font-weight: 700; }
+.contact-review-category, .contact-review-action { margin-top: 10px; }
 .contact-review-category select { min-height: 70px; }
 @media (max-width: 600px) {
   .contacts-page { padding: 16px 12px 28px; }
@@ -72,6 +71,6 @@
   .contacts-filters { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 5px; }
   .contacts-filters .chip { flex: none; }
   .contact-method-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); }
-  .contact-remove-method { grid-column: 1 / -1; justify-self: start; min-height: 40px; }
+  .contact-remove-method { grid-column: 1 / -1; justify-self: start; min-height: 44px; }
   .contact-review-edit { grid-template-columns: minmax(0, 1fr); }
 }

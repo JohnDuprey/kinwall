@@ -258,10 +258,10 @@ function ImportSheet({ contacts, categories, members, onClose, onImported }: { c
           <label className="contact-review-category">Household members<select multiple value={row.input.memberIds ?? []} onChange={e => edit(row.key, { memberIds: Array.from(e.target.selectedOptions, option => option.value) })}>{members.map(member => <option key={member.id} value={member.id}>{member.name}</option>)}</select></label>
           <p>{[row.input.organization, row.input.phones[0]?.value, row.input.emails[0]?.value].filter(Boolean).join(' · ') || 'Name only'}</p>
           {matched && <p className="contact-match">Matches {matched.name}{matched.phones[0] ? ` · ${matched.phones[0].value}` : ''}</p>}
-          <fieldset><legend>Action for {row.input.name}</legend>
+          <label className="contact-review-action">Action<select value={row.decision} onChange={e => decide(row.key, e.target.value as ImportDecision)}>
             {(row.status === 'new' ? [{ value: 'add', label: 'Add' }, { value: 'skip', label: 'Skip' }] : [
               ...(matched ? [{ value: 'merge', label: 'Merge missing details' }] : []), { value: 'skip', label: 'Skip' }, { value: 'keep', label: 'Keep both' }]).map(option =>
-              <label key={option.value}><input type="radio" name={row.key} checked={row.decision === option.value} onChange={() => decide(row.key, option.value as ImportDecision)} />{option.label}</label>)}</fieldset>
+              <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
         </div>
       })}
     </div>}
