@@ -14,6 +14,7 @@ import { createEvent, deleteEvent, updateEvent } from './events.ts';
 import { readSettings } from './settings.ts';
 import { fetchRecipeImage, fetchRecipePage, fetchRecipePdf } from '../outbound.ts';
 import { parseRecipeHtml, parseRecipeText, previewWarnings } from '../recipe-web.ts';
+import { withShares } from './recipe-share.ts';
 
 export const mealsRoutes = createRouter();
 const params = z.object({ id: z.string() });
@@ -30,10 +31,10 @@ const body = <T extends z.ZodType>(schema: T) => ({ content: { 'application/json
 
 mealsRoutes.openapi(createRoute({ method: 'get', path: '/api/recipes', tags: ['Meals'], summary: 'Search recipes (archived=true includes archived recipes)', security: [{ Bearer: [] }], request: { query: z.object({ search: z.string().optional(), category: z.string().optional(), archived: z.enum(['true', 'false']).optional() }) }, responses: { 200: { description: 'recipes', content: { 'application/json': { schema: z.array(RecipeSchema) } } } } }), async (c) => {
   const query = c.req.valid('query');
-  return c.json(await readRecipes(c.env.DB, { ...query, archived: query.archived === 'true' }), 200);
+  return c.json(await withShares(c, await readRecipes(c.env.DB, { ...query, archived: query.archived === 'true' })), 200);
 });
 mealsRoutes.openapi(createRoute({ method: 'get', path: '/api/recipes/{id}', tags: ['Meals'], summary: 'Get a recipe', security: [{ Bearer: [] }], request: { params }, responses: { 200: recipeResponse, ...errors } }), async (c) => {
-  const recipe = (await readRecipes(c.env.DB, { id: c.req.valid('param').id, archived: true }))[0];
+  const recipe = (await withShares(c, await readRecipes(c.env.DB, { id: c.req.valid('param').id, archived: true })))[0];
   return recipe ? c.json(recipe, 200) : c.json({ error: 'recipe not found' }, 404);
 });
 

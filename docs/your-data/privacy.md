@@ -37,6 +37,12 @@ Your family's content: member names, events, chores, lists, settings, [trackers]
 | Google Fonts | Each browser loads the Nunito font from `fonts.googleapis.com` / `fonts.gstatic.com`. |
 | The Metropolitan Museum of Art / Lorem Picsum | Only if a display's [quiet-hours screensaver](../using/quiet-hours.md#screensaver) is set to Art or Nature, or it shows the calendar's [Board view](../using/calendar.md#board-view) (nature photos when no screensaver sources are chosen and the family has no photos): that display fetches pictures directly (its IP address, nothing else). Off by default. |
 
+## Shared recipe links
+
+A parent can [share a recipe](../using/meals.md#sharing-a-recipe) as a public link (`/r/…`). Anyone with the link sees that recipe only: its name, photo, description, servings, times, ingredients, steps (and their photos) and source link. The page never includes your family's name, members, ratings, planned meals, meal notes or the recipe's preparation notes, and it asks search engines not to list it. Photos on the page are fetched through your Kinwall, so viewers don't contact the photo's original site; the recipe data in the page (for importing it elsewhere) does name the original photo addresses.
+
+The link's random token (192 bits) is stored in plain form so the same link can be shown again; it isn't in the data export. **Stop sharing** deletes it, and so does deleting the recipe.
+
 ## In the browser
 
 Kinwall runs with a strict Content-Security-Policy. Event text from external calendars is shown as plain text, never as HTML. The service worker caches nothing. Each device stores its key and its own preferences (appearance overrides, navigation position, category filter, leaderboard period) in local storage.

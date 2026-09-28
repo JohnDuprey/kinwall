@@ -70,6 +70,16 @@ Like recipe cards, photos are fetched by the Kinwall server from the recipe's ow
 
 When you plan a recipe, the meal keeps its own copy of the ingredients. Editing, archiving or deleting the recipe later doesn't change meals already planned. To pick up the recipe's changes, tick **Refresh from the current recipe when saving** in the meal's sheet.
 
+### Sharing a recipe
+
+To send a recipe to someone outside the family, open it and tap **Share recipe** (parents' devices only). Kinwall makes a link like `https://yourfamily.kinwall.family/r/…` and shows it with **Copy link** and, on phones and tablets, **Share**. Tapping **Share recipe** again shows the same link.
+
+The link opens a simple page that works in any browser, no Kinwall needed: the recipe's name, photo, description, servings and times, ingredients, numbered steps (with their photos) and its source link, with "Shared from Kinwall" at the bottom. Recipe apps and websites that read recipe links can import it too. Under the recipe, **Save to my Kinwall** asks for the other family's Kinwall address (like `theirfamily.kinwall.family`, or their own server's), then opens their Kinwall's **Import from a link** with the recipe ready to save. The browser remembers that address for next time.
+
+The page shows the recipe and nothing else: never your family's name, who's in it, ratings, planned meals, meal notes or the recipe's preparation notes. Search engines are asked not to list it, and the link is long and random, so it can't be guessed.
+
+**More… → Stop sharing…** turns the link off for everyone who has it (a copy someone already saved stays theirs). Sharing again later makes a new link. Deleting the recipe also turns its link off. Links aren't part of your data export.
+
 ## Import from a link
 
 Most recipe websites describe their recipes in a standard, machine-readable form (schema.org Recipe data) alongside the page, and Kinwall can read it. In the **Recipe library**, an admin taps **Import from a link**, pastes the page's address and taps **Get recipe**. Kinwall shows what it found before saving anything:

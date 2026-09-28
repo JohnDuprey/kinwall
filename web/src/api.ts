@@ -4,7 +4,7 @@ import { mock, mockPlugins } from './mock.ts'
 import { applyChoreOps, applyListOps, cacheGet, cachePut, clearOffline, enqueue, flush, onOutboxChange, outboxReady, pendingOps, type Dropped, type Op } from './outbox.ts'
 import type { CustomScheme } from './skins.ts'
 import type { PasskeyAuthenticator } from './webauthn.ts'
-import type { Meal, MealInput, Recipe, RecipeImport, RecipeInput, RecipePreviewResult, ShoppingProjection } from './meal-types.ts'
+import type { Meal, MealInput, Recipe, RecipeImport, RecipeInput, RecipePreviewResult, RecipeShare, ShoppingProjection } from './meal-types.ts'
 import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginCatalogEntry,
   StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota, Reward, Redemption,
   Account, ApiKey, AppNotification, Appearance, CalendarEntry, Category, Chore, ChoreDay, PendingApproval, EventInstance, LeaderboardEntry, LeaderboardPeriod, List,
@@ -235,6 +235,9 @@ export const api = {
   importRecipe: (body: RecipeImport) => post<{ recipeId: string; created: boolean }>('api/recipes/import', body),
   updateRecipe: (id: string, body: Partial<RecipeInput>) => patch<Recipe>(`api/recipes/${encodeURIComponent(id)}`, body),
   deleteRecipe: (id: string) => del(`api/recipes/${encodeURIComponent(id)}`),
+  // A recipe's public link: made once (asking again returns the same one), and turned off.
+  shareRecipe: (id: string) => post<RecipeShare & { token: string }>(`api/recipes/${encodeURIComponent(id)}/share`),
+  unshareRecipe: (id: string) => del(`api/recipes/${encodeURIComponent(id)}/share`),
   // null clears the member's rating.
   rateRecipe: (id: string, memberId: string, stars: number | null) => put<Recipe>(`api/recipes/${encodeURIComponent(id)}/rating`, { memberId, stars }),
   getMeals: (from: string, to: string) => get<Meal[]>(`api/meals?${new URLSearchParams({ from, to })}`),
