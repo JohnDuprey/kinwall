@@ -49,7 +49,7 @@ export function ingredientApi(r: IngredientRow): Ingredient {
   return { id: r.id, name: r.name, normalizedName: r.normalized_name, quantity: r.quantity, unit: r.unit, preparation: r.preparation, qualifier: r.qualifier, category: r.category, sort: r.sort, scalable: isScalable(r) };
 }
 export function recipeApi(r: RecipeRow, ingredients: Ingredient[]): Recipe {
-  return { id: r.id, name: r.name, description: r.description, instructions: r.instructions, preparationNotes: r.preparation_notes, sourceUrl: r.source_url, defaultServings: r.default_servings, prepMinutes: r.prep_minutes ?? null, totalMinutes: r.total_minutes ?? null, archived: !!r.archived, ingredients, source: r.source ?? null, externalId: r.external_id ?? null, imageUrl: r.image_url ?? null, steps: r.steps ? JSON.parse(r.steps) : null, createdAt: r.created_at, updatedAt: r.updated_at };
+  return { id: r.id, name: r.name, description: r.description, instructions: r.instructions, preparationNotes: r.preparation_notes, sourceUrl: r.source_url, defaultServings: r.default_servings, prepMinutes: r.prep_minutes ?? null, totalMinutes: r.total_minutes ?? null, archived: !!r.archived, ingredients, source: r.source ?? null, externalId: r.external_id ?? null, imageUrl: r.image_url ?? null, steps: r.steps ? (JSON.parse(r.steps) as RecipeStep[]).map((s) => ({ ...s, title: s.title ?? null, timers: s.timers ?? [] })) : null, createdAt: r.created_at, updatedAt: r.updated_at };
 }
 export function ratingApi(byMember: Record<string, number>): NonNullable<Recipe['rating']> {
   const stars = Object.values(byMember);
@@ -59,19 +59,20 @@ const lines = (text: string) => text.split(/\r?\n/).map((l) => l.replace(/^\s*[-
 /** Steps as stored: a plain string is a step's text, and a text of several lines with no bullets
  * becomes a step of bullets (how a meal kit writes several short instructions in one step).
  * Empty steps are dropped. */
-export function normalizeSteps(steps: (string | { text?: string; bullets?: string[]; imageUrl?: string | null })[]): RecipeStep[] {
+export function normalizeSteps(steps: (string | { text?: string; bullets?: string[]; imageUrl?: string | null; title?: string | null; timers?: RecipeStep['timers'] })[]): RecipeStep[] {
   return steps.map((step) => {
-    const { text = '', bullets = [], imageUrl = null } = typeof step === 'string' ? { text: step } : step;
+    const { text = '', bullets = [], imageUrl = null, title = null, timers = [] } = typeof step === 'string' ? { text: step } : step;
     const own = bullets.map((b) => b.trim()).filter(Boolean);
     const split = own.length ? [text.trim()] : lines(text);
-    return split.length > 1 ? { text: '', bullets: split, imageUrl } : { text: split[0] ?? '', bullets: own, imageUrl };
+    const extra = { imageUrl, title: title?.trim() || null, timers };
+    return split.length > 1 ? { text: '', bullets: split, ...extra } : { text: split[0] ?? '', bullets: own, ...extra };
   }).filter((s) => s.text || s.bullets.length);
 }
 /** The same steps as numbered text (the recipe's instructions), bullets as "- " lines under their number. */
 export function stepsText(steps: RecipeStep[]): string {
   return steps.map((s, i) => {
     const [first, ...rest] = s.text ? [s.text, ...s.bullets.map((b) => `- ${b}`)] : s.bullets.map((b, j) => j ? `- ${b}` : b);
-    return [`${i + 1}. ${first}`, ...rest].join('\n');
+    return [`${i + 1}. ${s.title ? `${s.title}: ` : ''}${first}`, ...rest].join('\n');
   }).join('\n');
 }
 // Snapshots saved before ingredients carried `scalable` get it on the way out.

@@ -16,7 +16,7 @@ function fixture() {
     const res = await request(path, method, body, key); const data = await res.json();
     assert.ok(res.ok, `${method} ${path}: ${res.status} ${JSON.stringify(data)}`); return data;
   };
-  return { request, json };
+  return { request, json, db };
 }
 
 test('recipe import: ingredient lines parse into amount, unit and name', () => {
@@ -268,11 +268,11 @@ test('recipe steps: import strings or objects, lines become bullets, instruction
   ] });
   let recipe = await json(`/api/recipes/${recipeId}`);
   assert.deepEqual(recipe.steps, [
-    { text: 'Preheat oven to 425 degrees.', bullets: [], imageUrl: null },
-    { text: '', bullets: ['Halve the peppers.', 'Toss with oil, salt and pepper.', 'Roast 15 minutes.'], imageUrl: null },
-    { text: 'Sear the chicken', bullets: ['Heat oil.', 'Cook 5 minutes per side.'], imageUrl: 'https://example.com/s3.jpg' },
-    { text: '', bullets: ['Stir in cream.'], imageUrl: null },
-    { text: '', bullets: ['Plate.', 'Serve.'], imageUrl: null },
+    { text: 'Preheat oven to 425 degrees.', bullets: [], imageUrl: null, title: null, timers: [] },
+    { text: '', bullets: ['Halve the peppers.', 'Toss with oil, salt and pepper.', 'Roast 15 minutes.'], imageUrl: null, title: null, timers: [] },
+    { text: 'Sear the chicken', bullets: ['Heat oil.', 'Cook 5 minutes per side.'], imageUrl: 'https://example.com/s3.jpg', title: null, timers: [] },
+    { text: '', bullets: ['Stir in cream.'], imageUrl: null, title: null, timers: [] },
+    { text: '', bullets: ['Plate.', 'Serve.'], imageUrl: null, title: null, timers: [] },
   ]);
   assert.equal(recipe.instructions, '1. Preheat oven to 425 degrees.\n2. Halve the peppers.\n- Toss with oil, salt and pepper.\n- Roast 15 minutes.\n3. Sear the chicken\n- Heat oil.\n- Cook 5 minutes per side.\n4. Stir in cream.\n5. Plate.\n- Serve.');
   // Re-import without steps leaves them; with [] clears both.
@@ -287,7 +287,7 @@ test('recipe steps: import strings or objects, lines become bullets, instruction
 
   // Editing steps rewrites instructions; instructions sent alone replace the steps.
   recipe = await json(`/api/recipes/${recipeId}`, 'PATCH', { steps: [{ text: 'Only step', bullets: ['a', 'b'] }] });
-  assert.deepEqual([recipe.steps, recipe.instructions], [[{ text: 'Only step', bullets: ['a', 'b'], imageUrl: null }], '1. Only step\n- a\n- b']);
+  assert.deepEqual([recipe.steps, recipe.instructions], [[{ text: 'Only step', bullets: ['a', 'b'], imageUrl: null, title: null, timers: [] }], '1. Only step\n- a\n- b']);
   recipe = await json(`/api/recipes/${recipeId}`, 'PATCH', { name: 'Renamed' });
   assert.equal(recipe.steps.length, 1, 'other edits keep the steps');
   recipe = await json(`/api/recipes/${recipeId}`, 'PATCH', { instructions: 'Just wing it.' });
@@ -297,6 +297,28 @@ test('recipe steps: import strings or objects, lines become bullets, instruction
   const made = await json('/api/recipes', 'POST', { name: 'Toast', steps: [{ text: 'Toast bread.' }] });
   assert.equal(made.instructions, '1. Toast bread.');
   assert.equal((await request('/api/recipes', 'POST', { name: 'Bad', steps: [{ text: 'x', imageUrl: 'javascript:alert(1)' }] })).status, 400);
+});
+
+test('recipe steps: title and structured timers import, round-trip and default for older steps', async () => {
+  const { json, request, db } = fixture();
+  const { recipeId } = await json('/api/recipes/import', 'POST', { ...kit(), steps: [
+    { text: 'Roast the veggies.', title: ' Roast veggies ', timers: [{ name: 'Veggies', minutes: 20 }, { name: null, minutes: 5 }] },
+    'Serve.',
+  ] });
+  const recipe = await json(`/api/recipes/${recipeId}`);
+  assert.deepEqual(recipe.steps, [
+    { text: 'Roast the veggies.', bullets: [], imageUrl: null, title: 'Roast veggies', timers: [{ name: 'Veggies', minutes: 20 }, { name: null, minutes: 5 }] },
+    { text: 'Serve.', bullets: [], imageUrl: null, title: null, timers: [] },
+  ]);
+  assert.equal(recipe.instructions, '1. Roast veggies: Roast the veggies.\n2. Serve.');
+  const file = await (await request('/api/export')).json() as any;
+  await json(`/api/recipes/${recipeId}`, 'DELETE');
+  assert.equal((await request('/api/import', 'POST', file)).status, 200);
+  assert.deepEqual((await json(`/api/recipes/${recipeId}`)).steps, recipe.steps);
+  // Steps saved before titles and timers read back with the defaults.
+  await db.prepare('UPDATE recipes SET steps = ? WHERE id = ?').bind(JSON.stringify([{ text: 'Old', bullets: [], imageUrl: null }]), recipeId).run();
+  assert.deepEqual((await json(`/api/recipes/${recipeId}`)).steps, [{ text: 'Old', bullets: [], imageUrl: null, title: null, timers: [] }]);
+  assert.equal((await request('/api/recipes/import', 'POST', { ...kit(), steps: [{ text: 'x', timers: [{ name: 'Oops', minutes: 0 }] }] })).status, 400);
 });
 
 test('recipe step image: proxies only that step\'s stored imageUrl, numbered from 1, takes ?key=', async () => {

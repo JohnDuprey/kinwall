@@ -1,5 +1,5 @@
 // Cooking mode's pure helpers (CookingMode.tsx): the steps to cook along with, the timers a step
-// mentions, the ingredients it uses, and where you left off.
+// has or mentions, the ingredients it uses, and where you left off.
 import { itemKey } from './itemSuggest.ts'
 import type { RecipeStep } from './meal-types.ts'
 
@@ -25,6 +25,12 @@ export function findDurations(text: string): Duration[] {
     if (seconds > 0) found.set(label, { label, seconds })
   }
   return [...found.values()]
+}
+
+/** The step's own timers (labeled with their name), or else the durations its text mentions. */
+export function stepTimers(step: RecipeStep): Duration[] {
+  if (!step.timers?.length) return findDurations([step.text, ...step.bullets].join('\n'))
+  return step.timers.map(t => ({ label: `${t.name ? `${t.name} · ` : ''}${t.minutes} min`, seconds: Math.round(t.minutes * 60) }))
 }
 
 const words = (s: string) => (s.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).map(itemKey)

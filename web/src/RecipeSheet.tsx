@@ -73,6 +73,7 @@ function StepCards({ recipe, steps }: { recipe: Recipe; steps: RecipeStep[] }) {
           <span className="recipe-step-num"><span className="sr-only">Step {i + 1}</span><span aria-hidden="true">{done.has(i) ? <CheckIcon width={18} height={18} /> : i + 1}</span></span>
           {step.imageUrl && <RecipePhoto id={recipe.id} step={{ n: i + 1, v: recipe.updatedAt }} className="recipe-step-photo" />}
           <div className="recipe-step-body">
+            {step.title && <h4 className="recipe-step-title">{step.title}</h4>}
             {step.text && <p>{step.text}</p>}
             {step.bullets.length > 0 && <ul>{step.bullets.map((b, j) => <li key={j}>{b}</li>)}</ul>}
           </div>

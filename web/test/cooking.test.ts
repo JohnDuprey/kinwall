@@ -1,7 +1,7 @@
 // node --test test/ (npm test). Cooking mode: plain-text steps, timers and a step's ingredients.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { cookingSteps, findDurations, stepIngredients } from '../src/cooking.ts'
+import { cookingSteps, findDurations, stepIngredients, stepTimers } from '../src/cooking.ts'
 
 const texts = (instructions: string) => cookingSteps({ instructions }).map(s => s.text)
 
@@ -31,4 +31,14 @@ test('stepIngredients: whole names or their last word, case- and plural-insensit
   assert.deepEqual(names('Season with salt; beat the egg.'), ['Salt', 'Eggs'])
   assert.deepEqual(names('Add the broth'), ['Chicken broth'])
   assert.deepEqual(names('Salted butter and oilcloth'), [])
+})
+
+test('stepTimers: a step\'s own timers, named, win over durations found in its text', () => {
+  const text = 'Roast 25 minutes, then rest 5 minutes.'
+  assert.deepEqual(stepTimers({ text, bullets: [], timers: [{ name: 'Veggies', minutes: 20 }, { name: null, minutes: 1.5 }] }), [
+    { label: 'Veggies · 20 min', seconds: 1200 },
+    { label: '1.5 min', seconds: 90 },
+  ])
+  assert.deepEqual(stepTimers({ text, bullets: [], timers: [] }), [{ label: '25 min', seconds: 1500 }, { label: '5 min', seconds: 300 }])
+  assert.deepEqual(stepTimers({ text: 'Plate.', bullets: ['Bake 10 min'] }), [{ label: '10 min', seconds: 600 }], 'steps saved before timers')
 })

@@ -13,7 +13,10 @@ export interface IngredientInput {
 }
 export interface RecipeIngredient extends IngredientInput { id: string; normalizedName: string; scalable: boolean /* amount scales with servings */ }
 /** A structured recipe step; imageUrl is shown through api.recipeStepImageUrl, never loaded directly. */
-export interface RecipeStep { text: string; bullets: string[]; imageUrl?: string | null }
+export interface StepTimer { name: string | null; minutes: number }
+/** A structured recipe step; imageUrl is shown through api.recipeStepImageUrl, never loaded directly.
+ * title and timers are optional: steps saved before them (and plain-text steps) have neither. */
+export interface RecipeStep { text: string; bullets: string[]; imageUrl?: string | null; title?: string | null; timers?: StepTimer[] }
 export interface RecipeInput {
   name: string
   description: string | null

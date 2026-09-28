@@ -113,6 +113,7 @@
 .recipe-step-photo { grid-area: photo; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 10px; background: var(--card); margin-bottom: 8px; }
 .recipe-step-body { grid-area: body; min-width: 0; }
 .recipe-step-body p { margin: 4px 0; font-weight: 700; }
+.recipe-step-title { margin: 4px 0 0; font-size: 0.8125rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; }
 .recipe-step-body ul { margin: 4px 0; padding-left: 18px; }
 .recipe-step-body li { margin: 2px 0; }
 .recipe-step[aria-pressed="true"] { opacity: 0.55; }
@@ -176,6 +177,7 @@
 .cook-step-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .cook-step-num { margin: 0; font-size: 1rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; }
 .cook-step-num:focus { outline: none; } /* focused on open so it's announced; not a control */
+.cook-step-title { margin: 10px 0 0; font-size: clamp(1.125rem, 0.9rem + 1vw, 1.75rem); font-weight: 800; color: var(--accent-text); }
 .cook-step-text { margin: 8px 0 0; font-size: clamp(1.5rem, 1rem + 2.2vw, 3rem); font-weight: 800; line-height: 1.3; overflow-wrap: anywhere; }
 .cook-bullets { margin: 12px 0 0; padding-left: 1.2em; font-size: clamp(1.25rem, 0.9rem + 1.4vw, 2.25rem); line-height: 1.4; }
 .cook-bullets li { margin: 6px 0; overflow-wrap: anywhere; }

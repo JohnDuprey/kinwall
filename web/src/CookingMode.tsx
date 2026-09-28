@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { announce } from './a11y.tsx'
-import { findDurations, saveStep, savedStep, stepIngredients } from './cooking.ts'
+import { saveStep, savedStep, stepIngredients, stepTimers } from './cooking.ts'
 import { CheckIcon, ChevronLeft, ChevronRight, XIcon } from './icons.tsx'
 import { servingsLabel } from './meal-date.ts'
 import type { Recipe, RecipeStep } from './meal-types.ts'
@@ -51,7 +51,7 @@ export default function CookingMode({ recipe, steps, servings, onClose }: { reci
     if (i === index) return
     if (i === 0 && document.activeElement === backBtn.current) nextBtn.current?.focus() // Back is about to be disabled
     setIndex(i); saveStep(recipe.id, i)
-    announce(`Step ${i + 1} of ${steps.length}. ${steps[i].text}`)
+    announce(`Step ${i + 1} of ${steps.length}. ${[steps[i].title, steps[i].text].filter(Boolean).join('. ')}`)
   }
   const finish = () => { saveStep(recipe.id, null); onClose() }
 
@@ -113,7 +113,7 @@ export default function CookingMode({ recipe, steps, servings, onClose }: { reci
   }
 
   const used = stepIngredients(step, recipe.ingredients)
-  const durations = findDurations([step.text, ...step.bullets].join('\n'))
+  const durations = stepTimers(step)
   return createPortal(
     <div className={`cook-mode ${rang.length ? 'cook-ringing' : ''}`} role="dialog" aria-modal="true" aria-labelledby={titleId}>
       <header className="cook-bar">
@@ -140,6 +140,7 @@ export default function CookingMode({ recipe, steps, servings, onClose }: { reci
               <h3 ref={heading} tabIndex={-1} className="cook-step-num">Step {index + 1} of {steps.length}</h3>
               {index > 0 && <button type="button" className="link-btn" onClick={() => go(0)}>Start over</button>}
             </div>
+            {step.title && <h4 className="cook-step-title">{step.title}</h4>}
             {step.text && <p className="cook-step-text">{step.text}</p>}
             {step.bullets.length > 0 && <ul className="cook-bullets">{step.bullets.map((b, i) => <li key={i}>{b}</li>)}</ul>}
             {durations.length > 0 && <div className="cook-timers">{durations.map(d => {

@@ -22,12 +22,21 @@ export const IngredientSchema = IngredientInputSchema.extend({
   scalable: z.boolean(), // the amount scales with servings (a count or measure, not a can, jar or bunch, and no qualifier)
 }).openapi('RecipeIngredient');
 const stepLine = z.string().trim().max(2000);
+export const StepTimerSchema = z.object({
+  name: z.string().trim().max(100).nullable().describe('What the timer is for, e.g. "Veggies" (null: unnamed).'),
+  minutes: z.number().positive().max(1440),
+}).strict().openapi('RecipeStepTimer');
 export const RecipeStepInputSchema = z.object({
   text: z.string().trim().max(10000).optional().describe('The step itself; a text with several lines and no bullets becomes bullets.'),
   bullets: z.array(stepLine).max(50).optional().describe('Short instructions within the step, one per line.'),
   imageUrl: url.optional().describe('Photo for this step (served through GET /api/recipes/{id}/steps/{n}/image).'),
+  title: z.string().trim().max(200).nullable().optional().describe('A short heading for the step, e.g. "Roast the veggies".'),
+  timers: z.array(StepTimerSchema).max(10).optional().describe('Timers for this step; cooking mode offers these instead of durations found in the text.'),
 }).strict().openapi('RecipeStepInput');
-export const RecipeStepSchema = z.object({ text: z.string(), bullets: z.array(z.string()).default([]), imageUrl: url.default(null) }).openapi('RecipeStep');
+export const RecipeStepSchema = z.object({
+  text: z.string(), bullets: z.array(z.string()).default([]), imageUrl: url.default(null),
+  title: z.string().nullable().default(null), timers: z.array(StepTimerSchema).default([]),
+}).openapi('RecipeStep');
 const steps = z.array(RecipeStepInputSchema).max(100).nullable()
   .describe('Structured steps; when set they replace instructions, which is kept as the same steps in numbered text. null clears them (instructions stays as sent).');
 export const RecipeInputSchema = z.object({
@@ -69,7 +78,7 @@ export const RecipeImportSchema = z.object({
     z.object({ text: z.string().trim().min(1).max(300), pantry: z.boolean().optional(), category: z.string().trim().max(100).nullable().optional() }).strict(),
   ])).max(300).describe('Lines like "1.5 tablespoon Sour Cream". pantry: false marks one that ships in the kit (skipped on grocery lists by default); strings and pantry: true are regular groceries.'),
   steps: z.array(z.union([z.string().trim().min(1).max(10000), RecipeStepInputSchema])).max(100).optional()
-    .describe('The steps, as text (a step with several lines becomes a step of bullets) or { text, bullets, imageUrl }.'),
+    .describe('The steps, as text (a step with several lines becomes a step of bullets) or { text, bullets, imageUrl, title, timers }.'),
   plan: z.object({ date: MealDateSchema, slot: MealSlotSchema, servings: servings.optional(), eaterIds: eaterIds.optional(),
     calendarId: z.string().min(1).optional().describe('Also put the planned meal on this Kinwall calendar (any writable one, synced calendars included), unless it already has an event.'),
     eventStart: MealEventStartSchema.optional().describe('With calendarId: start the event at the meal time (default) or when cooking starts.'),
