@@ -398,7 +398,8 @@ export const api = {
   /** A recipe's photo as an <img src> (?key= like photos; the server fetches the recipe's own imageUrl).
    * null in the demo, which has no server to fetch through, so it shows no photos. */
   // Step n (from 1); v (the recipe's updatedAt) keeps a cached photo from outliving an edit that moved steps.
-  recipeStepImageUrl: (id: string, n: number, v: string) => MOCK ? null : apiUrl(`api/recipes/${encodeURIComponent(id)}/steps/${n}/image?key=${encodeURIComponent(getKey() ?? '')}&v=${encodeURIComponent(v)}`),
+  // The demo's step photos are stock Picsum images (allowed by the CSP, like the demo's family photos).
+  recipeStepImageUrl: (id: string, n: number, v: string) => MOCK ? `https://picsum.photos/seed/kinwall-${id}-${n}/800/600` : apiUrl(`api/recipes/${encodeURIComponent(id)}/steps/${n}/image?key=${encodeURIComponent(getKey() ?? '')}&v=${encodeURIComponent(v)}`),
   recipeImageUrl: (kind: 'recipes' | 'meals', id: string) => MOCK ? null : apiUrl(`api/${kind}/${encodeURIComponent(id)}/image?key=${encodeURIComponent(getKey() ?? '')}`),
   removeSticker: (memberId: string, id: string) => MOCK ? mock.removeSticker(memberId, id) : del(`api/stickers/scrapbook/${memberId}/${id}`),
 

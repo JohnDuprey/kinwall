@@ -57,9 +57,9 @@ let recipes: Recipe[] = [
       ['Garlic', 4, 'clove', 'Produce', 'Minced'], ['Salt', 0.5, 'tsp', 'Pantry'], ['Black pepper', 0.25, 'tsp', 'Pantry'], ['Rice', 1.5, 'cup', 'Pantry'], ['Chicken broth', 3, 'cup', 'Pantry'],
     ]), steps: [
     { text: 'Heat the oven to 425°F and cut the broccoli into evenly sized florets.', bullets: [], title: 'Prep' },
-    { text: 'Toss the chicken breast and broccoli with olive oil, lemon juice, garlic, salt and black pepper.', bullets: ['Spread everything on a sheet pan in one layer.'] },
-    { text: 'Roast for 25 minutes, until the chicken reaches 165°F.', bullets: ['Turn the broccoli halfway through.'], title: 'Roast', timers: [{ name: 'Chicken', minutes: 25 }, { name: 'Turn the broccoli', minutes: 12 }] },
-    { title: 'Cook the rice', text: 'Meanwhile, bring the rice and chicken broth to a boil.', bullets: ['Cover, turn the heat to low and simmer 18-20 minutes.', 'Rest off the heat for 5 minutes, then fluff.'] },
+    { text: 'Toss the chicken breast and broccoli with olive oil, lemon juice, garlic, salt and black pepper.', bullets: ['Spread everything on a sheet pan in one layer.'], imageUrl: 'https://picsum.photos/800/600' },
+    { text: 'Roast for 25 minutes, until the chicken reaches 165°F.', bullets: ['Turn the broccoli halfway through.'], title: 'Roast', imageUrl: 'https://picsum.photos/800/600', timers: [{ name: 'Chicken', minutes: 25 }, { name: 'Turn the broccoli', minutes: 12 }] },
+    { title: 'Cook the rice', imageUrl: 'https://picsum.photos/800/600', text: 'Meanwhile, bring the rice and chicken broth to a boil.', bullets: ['Cover, turn the heat to low and simmer 18-20 minutes.', 'Rest off the heat for 5 minutes, then fluff.'] },
     { text: 'Slice the chicken and serve with the rice, broccoli and pan juices.', bullets: [] },
   ] },
   seedRecipe('pasta', 'Spaghetti Bolognese', 'Rich tomato and beef sauce over spaghetti.',
