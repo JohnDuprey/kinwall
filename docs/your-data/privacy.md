@@ -39,6 +39,15 @@ What stays readable in the database, so the list can be filtered and sorted: the
 
 Your family's content: member names, events, chores, lists, settings, [trackers](../using/trackers.md) (reading and memories; health entries are encrypted, above) and [photos](../using/photos.md) (stored in the database itself, never sent anywhere else). On Docker that's in `kinwall.sqlite`, and on Workers it's in D1. Protect the host or account accordingly.
 
+### Contacts
+
+[Contacts](../using/contacts.md) hold other people's details: babysitters, grandparents, the pediatrician, a neighbor's phone and address. They're stored in plain form like the rest of your family's content (not encrypted like health entries), so the same care for the host applies. Who sees them:
+
+* Parent devices see every contact. Members' own devices and shared wall screens see only what each contact's **Who can see it** setting allows. A wall screen sees only contacts marked **Show on wall**, and only their phone numbers or address when those wall switches are on. Device keys never get a contact's notes.
+* Claude and other connected apps (MCP) read contacts with their own access: one with full access sees every contact, like a parent device. One with everyday access sees what its owner's own device would, or what a wall screen sees when it has no owner.
+* Webhooks get only that a contact changed (its ID and what happened), never its details.
+* The [export](export-import.md) includes every contact. An imported vCard file isn't kept: the server reads it, you review the contacts, and only the ones you import are saved.
+
 ## Leaving your server
 
 | Goes to | When |
