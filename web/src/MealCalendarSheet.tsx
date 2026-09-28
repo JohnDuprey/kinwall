@@ -66,24 +66,17 @@ export default function MealCalendarSheet({ meal, onClose, onLinked }: { meal: M
       <button className="btn btn-secondary" disabled={busy} onClick={() => void run(() => api.unlinkMealCalendar(meal.id), 'Calendar event unlinked')}>Unlink (keep the event)</button>
     </> : <fieldset className="meal-fieldset" disabled={busy || loading}>
       <h3>Add to a calendar</h3>
-      <div role="radiogroup" aria-label="Calendar">
-        {groups.map(([label, list]) => list.length > 0 && <div key={label}>
-          <p className="field-hint">{label}</p>
-          {list.map(cal => <div className="meal-check" key={cal.id}>
-            <input type="radio" id={`${id}-cal-${cal.id}`} name={`${id}-cal`} checked={calendarId === cal.id} onChange={() => setCalendarId(cal.id)} />
-            <label htmlFor={`${id}-cal-${cal.id}`}><span className="cal-dot" style={{ background: cal.color ?? 'var(--accent)', display: 'inline-block', marginRight: 8 }} aria-hidden="true" />{cal.name}{PROVIDER[cal.kind] ? ` · ${PROVIDER[cal.kind]}` : ''}</label>
-          </div>)}
-        </div>)}
-        {!loading && !calendars.some(c => c.kind === 'local') && <div className="meal-check">
-          <input type="radio" id={`${id}-cal-new`} name={`${id}-cal`} checked={calendarId === ''} onChange={() => setCalendarId('')} />
-          <label htmlFor={`${id}-cal-new`}>A new “Meals” calendar on Kinwall</label>
-        </div>}
-      </div>
-      <h3>When</h3>
-      <div role="radiogroup" aria-label="Event start">
-        <div className="meal-check"><input type="radio" id={`${id}-at-meal`} name={`${id}-start`} checked={eventStart === 'meal'} onChange={() => setEventStart('meal')} /><label htmlFor={`${id}-at-meal`}>At the meal time</label></div>
-        <div className="meal-check"><input type="radio" id={`${id}-at-cooking`} name={`${id}-start`} checked={eventStart === 'cooking'} onChange={() => setEventStart('cooking')} /><label htmlFor={`${id}-at-cooking`}>Start the event when cooking starts</label></div>
-      </div>
+      <div className="field"><label htmlFor={`${id}-cal`}>Calendar</label><select id={`${id}-cal`} value={calendarId ?? '-'} onChange={e => setCalendarId(e.target.value)}>
+        {calendarId === null && <option value="-" disabled>Choose a calendar</option>}
+        {groups.map(([label, list]) => list.length > 0 && <optgroup key={label} label={label}>
+          {list.map(cal => <option key={cal.id} value={cal.id}>{cal.name}{PROVIDER[cal.kind] ? ` · ${PROVIDER[cal.kind]}` : ''}</option>)}
+        </optgroup>)}
+        {!loading && !calendars.some(c => c.kind === 'local') && <option value="">A new “Meals” calendar on Kinwall</option>}
+      </select></div>
+      <div className="field"><label htmlFor={`${id}-start`}>Starts</label><select id={`${id}-start`} value={eventStart} onChange={e => setEventStart(e.target.value as typeof eventStart)}>
+        <option value="meal">At the meal time</option>
+        <option value="cooking">When cooking starts</option>
+      </select></div>
       <p className="field-hint">{clockTime(hhmm(from))} to {clockTime(hhmm(to))} ({minutesLabel(minutes)}{meal.recipeSnapshot?.totalMinutes ? ', the recipe’s total time' : ''}). {chosen && chosen.kind !== 'local' ? `It’s also added to ${chosen.name} on ${PROVIDER[chosen.kind] ?? 'that calendar'}.` : ''}</p>
       <button className="btn btn-primary" disabled={busy || loading || calendarId === null} onClick={() => void create()}>Add to calendar</button>
       <h3>Or link an event you already have</h3>
