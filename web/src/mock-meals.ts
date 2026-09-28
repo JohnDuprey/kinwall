@@ -49,12 +49,19 @@ let recipes: Recipe[] = [
       ['Chickpeas', 2, 'can', 'Pantry', 'Drained and rinsed', '15 oz cans'], ['Greek yogurt', 0.5, 'cup', 'Dairy'], ['Lemons', 1, null, 'Produce', 'Juiced'],
       ['Salt', 0.25, 'tsp', 'Pantry'], ['Cucumber', 1, null, 'Produce', 'Diced'], ['Tomatoes', 2, null, 'Produce', 'Diced'], ['Lettuce', 0.5, 'head', 'Produce', 'Shredded'], ['Flour tortillas', 4, null, 'Bakery'],
     ]),
-  seedRecipe('chicken', 'Lemon chicken with rice and broccoli', 'A complete chicken dinner with rice and roasted vegetables.',
+  // Structured steps, like an imported recipe's, so Start cooking has timers and per-step ingredients.
+  { ...seedRecipe('chicken', 'Lemon chicken with rice and broccoli', 'A complete chicken dinner with rice and roasted vegetables.',
     'Toss chicken and broccoli with olive oil, lemon juice, minced garlic, salt, and pepper. Roast at 425°F until the chicken reaches 165°F, about 25 minutes. Meanwhile simmer rice in broth until tender. Serve together with the pan juices.',
     'Cut broccoli into evenly sized florets.', [
       ['Chicken breast', 1.5, 'lb', 'Meat'], ['Broccoli', 1, 'lb', 'Produce', 'Cut into florets'], ['Olive oil', 2, 'tbsp', 'Pantry'], ['Lemons', 2, null, 'Produce', 'Juiced'],
       ['Garlic', 4, 'clove', 'Produce', 'Minced'], ['Salt', 0.5, 'tsp', 'Pantry'], ['Black pepper', 0.25, 'tsp', 'Pantry'], ['Rice', 1.5, 'cup', 'Pantry'], ['Chicken broth', 3, 'cup', 'Pantry'],
-    ]),
+    ]), steps: [
+    { text: 'Heat the oven to 425°F and cut the broccoli into evenly sized florets.', bullets: [] },
+    { text: 'Toss the chicken breast and broccoli with olive oil, lemon juice, garlic, salt and black pepper.', bullets: ['Spread everything on a sheet pan in one layer.'] },
+    { text: 'Roast for 25 minutes, until the chicken reaches 165°F.', bullets: ['Turn the broccoli halfway through.'] },
+    { text: 'Meanwhile, bring the rice and chicken broth to a boil.', bullets: ['Cover, turn the heat to low and simmer 18-20 minutes.', 'Rest off the heat for 5 minutes, then fluff.'] },
+    { text: 'Slice the chicken and serve with the rice, broccoli and pan juices.', bullets: [] },
+  ] },
   seedRecipe('pasta', 'Spaghetti Bolognese', 'Rich tomato and beef sauce over spaghetti.',
     'Soften onion and garlic in olive oil. Add beef and brown thoroughly. Stir in crushed tomatoes, salt, and pepper; simmer for 25 minutes. Boil spaghetti in water until tender, drain, and toss with sauce. Top with Parmesan and basil.',
     'The sauce can be made a day ahead and refrigerated.', [
