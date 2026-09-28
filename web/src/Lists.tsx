@@ -376,7 +376,7 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisle
       </div>
       <div className="field">
         <label>Notes</label>
-        <textarea value={notes} onChange={e => setNotes(e.target.value)} />
+        <textarea className="item-notes-input" value={notes} onChange={e => setNotes(e.target.value)} />
       </div>
     </>
   )

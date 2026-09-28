@@ -1174,6 +1174,8 @@ button {
 .list-item-progress { flex: 1; max-width: 120px; height: 4px; border-radius: 2px; background: var(--bg-alt); overflow: hidden; }
 .list-item-progress > div { height: 100%; background: var(--success); border-radius: 2px; }
 .field textarea.item-title-input { min-height: 0; }
+/* An item's notes can be long (a feature request, a recipe tip): room to read, grows with the text. */
+.field textarea.item-notes-input { min-height: 9.5em; max-height: 50vh; field-sizing: content; font-weight: 500; line-height: 1.5; resize: vertical; }
 /* Steps in the item sheet */
 .steps-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .steps-head label { margin: 0; }
