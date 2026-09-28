@@ -7,7 +7,7 @@ import { hostTimezone } from '../env.ts';
 import { zonedTimeToUtc } from '../recurrence.ts';
 import { ErrorSchema } from '../schemas.ts';
 import { IngredientInputSchema, KIT_QUALIFIER, MealEventStartSchema, MealInputSchema, MealPatchSchema, MealRangeSchema, MealSchema, ProjectionApplySchema, ProjectionQuerySchema, ProjectionSchema, RecipeImportResultSchema, RecipeImportSchema, RecipeInputSchema, RecipeSchema, type Meal, type Recipe } from '../meal-schemas.ts';
-import { applyProjection, mealWrite, normalizeIngredient, parseIngredientLine, readMeal, readMeals, readRecipes, shoppingProjection } from '../meals.ts';
+import { applyProjection, mealWrite, normalizeIngredient, normalizeSteps, parseIngredientLine, readMeal, readMeals, readRecipes, shoppingProjection, stepsText } from '../meals.ts';
 import type { KinwallDb } from '../db.ts';
 import type { Env } from '../env.ts';
 import { createEvent, deleteEvent, updateEvent } from './events.ts';
@@ -39,9 +39,12 @@ mealsRoutes.openapi(createRoute({ method: 'get', path: '/api/recipes/{id}', tags
 async function saveRecipe(db: KinwallDb, input: z.infer<typeof RecipeInputSchema>, old: Recipe | undefined, createdBy: string | null): Promise<Recipe> {
   const id = old?.id ?? crypto.randomUUID();
   const now = new Date().toISOString();
-  const recipe = { description: null, instructions: null, preparationNotes: null, sourceUrl: null, imageUrl: null, defaultServings: 4, prepMinutes: null, totalMinutes: null, archived: false, ...old, ...input, id, createdAt: old?.createdAt ?? now, updatedAt: now };
-  const writes = [db.prepare(`INSERT INTO recipes (id,name,description,instructions,preparation_notes,source_url,image_url,default_servings,prep_minutes,total_minutes,archived,created_by,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,description=excluded.description,instructions=excluded.instructions,preparation_notes=excluded.preparation_notes,source_url=excluded.source_url,image_url=excluded.image_url,default_servings=excluded.default_servings,prep_minutes=excluded.prep_minutes,total_minutes=excluded.total_minutes,archived=excluded.archived,updated_at=excluded.updated_at`)
-    .bind(id, recipe.name, recipe.description, recipe.instructions, recipe.preparationNotes, recipe.sourceUrl, recipe.imageUrl ?? null, recipe.defaultServings, recipe.prepMinutes ?? null, recipe.totalMinutes ?? null, recipe.archived ? 1 : 0, createdBy, recipe.createdAt, now)];
+  // Structured steps win: instructions follows them. Instructions sent alone replace the steps.
+  const steps = input.steps !== undefined ? (input.steps?.length ? normalizeSteps(input.steps) : null) : input.instructions !== undefined ? null : old?.steps ?? null;
+  const recipe = { description: null, instructions: null, preparationNotes: null, sourceUrl: null, imageUrl: null, defaultServings: 4, prepMinutes: null, totalMinutes: null, archived: false, ...old, ...input, steps: steps?.length ? steps : null, id, createdAt: old?.createdAt ?? now, updatedAt: now };
+  if (recipe.steps) recipe.instructions = stepsText(recipe.steps);
+  const writes = [db.prepare(`INSERT INTO recipes (id,name,description,instructions,steps,preparation_notes,source_url,image_url,default_servings,prep_minutes,total_minutes,archived,created_by,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,description=excluded.description,instructions=excluded.instructions,steps=excluded.steps,preparation_notes=excluded.preparation_notes,source_url=excluded.source_url,image_url=excluded.image_url,default_servings=excluded.default_servings,prep_minutes=excluded.prep_minutes,total_minutes=excluded.total_minutes,archived=excluded.archived,updated_at=excluded.updated_at`)
+    .bind(id, recipe.name, recipe.description, recipe.instructions, recipe.steps ? JSON.stringify(recipe.steps) : null, recipe.preparationNotes, recipe.sourceUrl, recipe.imageUrl ?? null, recipe.defaultServings, recipe.prepMinutes ?? null, recipe.totalMinutes ?? null, recipe.archived ? 1 : 0, createdBy, recipe.createdAt, now)];
   if (input.ingredients !== undefined || !old) {
     const previous = [...(old?.ingredients ?? [])];
     const ingredients = (input.ingredients ?? []).map((i: z.infer<typeof IngredientInputSchema>, index) => {
@@ -77,7 +80,7 @@ mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/recipes/import', t
     ...(input.servings !== undefined && { defaultServings: input.servings }),
     ...(input.prepMinutes !== undefined && { prepMinutes: input.prepMinutes }),
     ...(input.totalMinutes !== undefined && { totalMinutes: input.totalMinutes }),
-    ...(input.steps !== undefined && { instructions: input.steps.map((step, i) => `${i + 1}. ${step}`).join('\n') || null }),
+    ...(input.steps !== undefined && { steps: input.steps.length ? normalizeSteps(input.steps) : null, instructions: null }),
   }, old, old ? null : (await resolveKey(c))?.id ?? null);
   // ponytail: two simultaneous first imports of one recipe race here; the unique index turns the loser into an error.
   await db.prepare('UPDATE recipes SET source = ?, external_id = ?, image_url = coalesce(?, image_url) WHERE id = ?').bind(input.source, input.externalId, input.imageUrl ?? null, recipe.id).run();
@@ -325,3 +328,16 @@ for (const kind of ['recipes', 'meals'] as const) {
     return c.body(result.image, 200, { 'Content-Type': result.type, 'Cache-Control': 'private, max-age=604800', ...(result.etag && { ETag: result.etag }) });
   });
 }
+
+// One step's photo (steps are numbered from 1, as shown), the same way: only the step's own stored imageUrl.
+mealsRoutes.openapi(createRoute({ method: 'get', path: '/api/recipes/{id}/steps/{n}/image', tags: ['Meals'], summary: "The photo at this recipe step's imageUrl (steps number from 1; public https, JPEG/PNG/WebP/GIF, at most 8 MB)", security: [{ Bearer: [] }],
+  request: { params: params.extend({ n: z.coerce.number().int().min(1).max(100) }) },
+  responses: { 200: { description: 'the image', content: { 'image/*': { schema: z.string().openapi({ format: 'binary' }) } } }, 400: errors[400], 404: errors[404], 502: { description: 'the image could not be fetched or is not an image', content: { 'application/json': { schema: ErrorSchema } } } } }), async (c) => {
+  const { id, n } = c.req.valid('param');
+  const recipe = (await readRecipes(c.env.DB, { id, archived: true }))[0];
+  const imageUrl = recipe?.steps?.[n - 1]?.imageUrl;
+  if (!imageUrl) return c.json({ error: 'no step image' }, 404);
+  const result = await fetchRecipeImage(c.env, imageUrl);
+  if ('error' in result) return c.json({ error: result.error }, result.status);
+  return c.body(result.image, 200, { 'Content-Type': result.type, 'Cache-Control': 'private, max-age=604800', ...(result.etag && { ETag: result.etag }) });
+});

@@ -12,10 +12,13 @@ export interface IngredientInput {
   sort: number
 }
 export interface RecipeIngredient extends IngredientInput { id: string; normalizedName: string; scalable: boolean /* amount scales with servings */ }
+/** A structured recipe step; imageUrl is shown through api.recipeStepImageUrl, never loaded directly. */
+export interface RecipeStep { text: string; bullets: string[]; imageUrl?: string | null }
 export interface RecipeInput {
   name: string
   description: string | null
   instructions: string | null
+  steps?: RecipeStep[] | null // when set, what the view shows; instructions then mirrors them as text
   preparationNotes: string | null
   sourceUrl: string | null
   imageUrl?: string | null // shown through api.recipeImageUrl, never loaded directly

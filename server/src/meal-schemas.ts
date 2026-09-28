@@ -21,9 +21,19 @@ export const IngredientSchema = IngredientInputSchema.extend({
   preparation: z.string().nullable(), qualifier: z.string().nullable(), category: z.string().nullable(), sort: z.number().int(),
   scalable: z.boolean(), // the amount scales with servings (a count or measure, not a can, jar or bunch, and no qualifier)
 }).openapi('RecipeIngredient');
+const stepLine = z.string().trim().max(2000);
+export const RecipeStepInputSchema = z.object({
+  text: z.string().trim().max(10000).optional().describe('The step itself; a text with several lines and no bullets becomes bullets.'),
+  bullets: z.array(stepLine).max(50).optional().describe('Short instructions within the step, one per line.'),
+  imageUrl: url.optional().describe('Photo for this step (served through GET /api/recipes/{id}/steps/{n}/image).'),
+}).strict().openapi('RecipeStepInput');
+export const RecipeStepSchema = z.object({ text: z.string(), bullets: z.array(z.string()).default([]), imageUrl: url.default(null) }).openapi('RecipeStep');
+const steps = z.array(RecipeStepInputSchema).max(100).nullable()
+  .describe('Structured steps; when set they replace instructions, which is kept as the same steps in numbered text. null clears them (instructions stays as sent).');
 export const RecipeInputSchema = z.object({
   name: z.string().trim().min(1).max(200), description: text.optional(), instructions: text.optional(),
   preparationNotes: text.optional(), sourceUrl: url.optional(), imageUrl: url.optional().describe('Photo link (served through GET /api/recipes/{id}/image).'), defaultServings: servings.optional(),
+  steps: steps.optional(),
   prepMinutes: minutes.optional(), totalMinutes: minutes.optional(),
   archived: z.boolean().optional(), ingredients: z.array(IngredientInputSchema).max(300).optional(),
 }).strict().openapi('RecipeInput');
@@ -33,6 +43,7 @@ export const RecipeSchema = z.object({
   // Set on imported recipes (POST /api/recipes/import); optional so older exports still import.
   prepMinutes: minutes.optional(), totalMinutes: minutes.optional(),
   source: z.string().nullable().optional(), externalId: z.string().nullable().optional(), imageUrl: url.optional(),
+  steps: z.array(RecipeStepSchema).nullable().optional().describe('Structured steps (null: the recipe only has instructions text).'),
   createdAt: z.string(), updatedAt: z.string(),
 }).openapi('Recipe');
 /** An ingredient on a meal-kit recipe that ships in the box: grocery lists skip it unless asked. */
@@ -49,7 +60,8 @@ export const RecipeImportSchema = z.object({
     z.string().trim().min(1).max(300),
     z.object({ text: z.string().trim().min(1).max(300), pantry: z.boolean().optional(), category: z.string().trim().max(100).nullable().optional() }).strict(),
   ])).max(300).describe('Lines like "1.5 tablespoon Sour Cream". pantry: false marks one that ships in the kit (skipped on grocery lists by default); strings and pantry: true are regular groceries.'),
-  steps: z.array(z.string().trim().min(1).max(10000)).max(100).optional().describe('Saved as numbered instructions.'),
+  steps: z.array(z.union([z.string().trim().min(1).max(10000), RecipeStepInputSchema])).max(100).optional()
+    .describe('The steps, as text (a step with several lines becomes a step of bullets) or { text, bullets, imageUrl }.'),
   plan: z.object({ date: MealDateSchema, slot: MealSlotSchema, servings: servings.optional(), eaterIds: eaterIds.optional(),
     calendarId: z.string().min(1).optional().describe('Also put the planned meal on this Kinwall calendar (any writable one, synced calendars included), unless it already has an event.'),
     eventStart: MealEventStartSchema.optional().describe('With calendarId: start the event at the meal time (default) or when cooking starts.'),
@@ -94,6 +106,7 @@ export const ProjectionItemSchema = z.object({
 });
 export const ProjectionSchema = z.object({ from: MealDateSchema, to: MealDateSchema, listId: z.string().nullable(), items: z.array(ProjectionItemSchema) }).openapi('MealShoppingProjection');
 export type Recipe = z.infer<typeof RecipeSchema>;
+export type RecipeStep = z.infer<typeof RecipeStepSchema>;
 export type Ingredient = z.infer<typeof IngredientSchema>;
 export type Meal = z.infer<typeof MealSchema>;
 export type Projection = z.infer<typeof ProjectionSchema>;

@@ -24,7 +24,7 @@ Authorization: Bearer <key>
 * The Kinwall app's OAuth sign-in has an owner too: `POST /api/authorizations/approve` takes `owner` (default `shared`) when the redirect is `family.kinwall.app:/oauth` (`GET /api/authorizations/request` says so with `deviceApp: true`). `GET /api/authorizations` lists each grant's `owner` and `deviceApp`, and `PATCH /api/authorizations/{id} {owner}` changes it for the grant and its current access key.
 * `locked` is true only for a **display** key with an owner: a member id pins its view to that member, `shared` keeps it on everyone, and either way it can't pick its own filter. On an **admin** key the owner is only for personal defaults and `locked` is always false.
 * A few routes need no key: `/api/health`, `/api/appearance`, `/api/setup*`, `/api/pair` and `/api/pair/poll`, the passkey and recovery login ceremonies, and the OAuth callback.
-* `GET /api/oauth/{kind}/start?key=…`, `GET /api/photos/export.zip?key=…`, `GET /api/photos/{id}/image?key=…` and the recipe photos `GET /api/recipes/{id}/image?key=…` / `GET /api/meals/{id}/image?key=…` also take the key as a query parameter, because they're browser navigations and an `<img src>`. No other route does.
+* `GET /api/oauth/{kind}/start?key=…`, `GET /api/photos/export.zip?key=…`, `GET /api/photos/{id}/image?key=…` and the recipe photos `GET /api/recipes/{id}/image?key=…` / `GET /api/meals/{id}/image?key=…` (and a recipe step's `GET /api/recipes/{id}/steps/{n}/image?key=…`) also take the key as a query parameter, because they're browser navigations and an `<img src>`. No other route does.
 * Uploading a photo: `POST /api/photos` with the image itself as the body (`Content-Type: image/webp`, `image/jpeg` or `image/png`, at most 600 KB), its pixel size in `X-Photo-Width` / `X-Photo-Height`, and an optional `?caption=`. Too large is `413`, another type is `415`, and a full album is `409` with the quota. Display keys can upload (so a wall display can save a Paint drawing to the family photos). Editing, deleting, the zip export and the zip import need an admin key.
 
 ## Errors
@@ -113,9 +113,10 @@ curl -X POST https://kinwall.example/api/lists/<id>/items \
 
 # Import a meal-kit recipe and plan it for Monday dinner (admin key; importing again updates it).
 # Add "calendarId" to plan to also put the dinner on that calendar.
+# A step is text (several lines become bullets) or {"text","bullets","imageUrl"}.
 curl -X POST https://kinwall.example/api/recipes/import \
   -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
-  -d '{"source":"hellofresh","externalId":"abc","name":"Creamy Chicken","servings":2,"ingredients":[{"text":"1.5 tablespoon Sour Cream","pantry":false},"Salt"],"steps":["Cook."],"plan":{"date":"2026-10-05","slot":"dinner"}}'
+  -d '{"source":"hellofresh","externalId":"abc","name":"Creamy Chicken","servings":2,"ingredients":[{"text":"1.5 tablespoon Sour Cream","pantry":false},"Salt"],"steps":["Cook.",{"text":"Serve","bullets":["Plate the rice.","Top with chicken."]}],"plan":{"date":"2026-10-05","slot":"dinner"}}'
 ```
 
 ## Calling from a browser

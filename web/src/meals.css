@@ -95,6 +95,31 @@
 .recipe-stepper span { min-width: 88px; text-align: center; }
 .recipe-steps { padding-left: 22px; }
 .recipe-steps li { margin: 10px 0; line-height: 1.5; overflow-wrap: anywhere; }
+/* Structured steps: numbered cards to cook along with (tap marks one done). A step's photo sits
+   above its text in a narrow sheet and beside it when there's room. */
+.recipe-steps-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.recipe-step-cards { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; container-type: inline-size; }
+.recipe-step {
+  display: grid; grid-template-columns: 32px 1fr; grid-template-areas: "num photo" "num body"; column-gap: 12px;
+  padding: 12px; border-radius: 14px; background: var(--bg-alt); cursor: pointer; line-height: 1.5; overflow-wrap: anywhere;
+  transition: opacity 0.2s;
+}
+.recipe-step-num {
+  grid-area: num; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%;
+  background: var(--card); font-weight: 800;
+}
+.recipe-step-photo { grid-area: photo; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 10px; background: var(--card); margin-bottom: 8px; }
+.recipe-step-body { grid-area: body; min-width: 0; }
+.recipe-step-body p { margin: 4px 0; font-weight: 700; }
+.recipe-step-body ul { margin: 4px 0; padding-left: 18px; }
+.recipe-step-body li { margin: 2px 0; }
+.recipe-step[aria-pressed="true"] { opacity: 0.55; }
+.recipe-step[aria-pressed="true"] .recipe-step-num { background: var(--success); color: #fff; }
+@container (min-width: 460px) {
+  .recipe-step:has(.recipe-step-photo) { grid-template-columns: 32px 1fr 40%; grid-template-areas: "num body photo"; }
+  .recipe-step-photo { margin-bottom: 0; align-self: start; }
+}
+.recipe-step-actions { display: flex; flex-wrap: wrap; gap: 16px; }
 /* Who's eating: a small overlapping row of avatars. */
 .meal-eaters { display: inline-flex; align-items: center; vertical-align: middle; }
 .meal-eaters .member-avatar-sm { width: 22px; height: 22px; font-size: 0.75rem; box-shadow: 0 0 0 2px var(--card); }

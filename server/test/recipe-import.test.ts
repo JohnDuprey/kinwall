@@ -255,3 +255,74 @@ test("meal eaters: who's eating sets servings, round-trips, validates, and leave
   await json(`/api/members/${maya.id}`, 'DELETE');
   assert.deepEqual((await json(`/api/meals/${mealId}`)).eaterIds, [leo.id, ava.id]);
 });
+
+test('recipe steps: import strings or objects, lines become bullets, instructions follows, CRUD and export keep them', async () => {
+  const { json, request } = fixture();
+  const { recipeId } = await json('/api/recipes/import', 'POST', { ...kit(), steps: [
+    'Preheat oven to 425 degrees.',
+    'Halve the peppers.\n• Toss with oil, salt and pepper.\n\n- Roast 15 minutes.',
+    { text: 'Sear the chicken', bullets: ['Heat oil.', ' ', 'Cook 5 minutes per side.'], imageUrl: 'https://example.com/s3.jpg' },
+    { bullets: ['Stir in cream.'] },
+    { text: 'Plate.\nServe.' },
+    { text: ' ' },
+  ] });
+  let recipe = await json(`/api/recipes/${recipeId}`);
+  assert.deepEqual(recipe.steps, [
+    { text: 'Preheat oven to 425 degrees.', bullets: [], imageUrl: null },
+    { text: '', bullets: ['Halve the peppers.', 'Toss with oil, salt and pepper.', 'Roast 15 minutes.'], imageUrl: null },
+    { text: 'Sear the chicken', bullets: ['Heat oil.', 'Cook 5 minutes per side.'], imageUrl: 'https://example.com/s3.jpg' },
+    { text: '', bullets: ['Stir in cream.'], imageUrl: null },
+    { text: '', bullets: ['Plate.', 'Serve.'], imageUrl: null },
+  ]);
+  assert.equal(recipe.instructions, '1. Preheat oven to 425 degrees.\n2. Halve the peppers.\n- Toss with oil, salt and pepper.\n- Roast 15 minutes.\n3. Sear the chicken\n- Heat oil.\n- Cook 5 minutes per side.\n4. Stir in cream.\n5. Plate.\n- Serve.');
+  // Re-import without steps leaves them; with [] clears both.
+  const { steps: _s, ...noSteps } = kit();
+  assert.equal((await json(`/api/recipes/${(await json('/api/recipes/import', 'POST', noSteps)).recipeId}`)).steps.length, 5);
+
+  // Export and import bring the steps back.
+  const file = await (await request('/api/export')).json() as any;
+  await json(`/api/recipes/${recipeId}`, 'DELETE');
+  assert.equal((await request('/api/import', 'POST', file)).status, 200);
+  assert.deepEqual((await json(`/api/recipes/${recipeId}`)).steps, recipe.steps);
+
+  // Editing steps rewrites instructions; instructions sent alone replace the steps.
+  recipe = await json(`/api/recipes/${recipeId}`, 'PATCH', { steps: [{ text: 'Only step', bullets: ['a', 'b'] }] });
+  assert.deepEqual([recipe.steps, recipe.instructions], [[{ text: 'Only step', bullets: ['a', 'b'], imageUrl: null }], '1. Only step\n- a\n- b']);
+  recipe = await json(`/api/recipes/${recipeId}`, 'PATCH', { name: 'Renamed' });
+  assert.equal(recipe.steps.length, 1, 'other edits keep the steps');
+  recipe = await json(`/api/recipes/${recipeId}`, 'PATCH', { instructions: 'Just wing it.' });
+  assert.deepEqual([recipe.steps, recipe.instructions], [null, 'Just wing it.']);
+  assert.equal((await json('/api/recipes/import', 'POST', { ...kit(), steps: [] })).recipeId, recipeId);
+  assert.deepEqual([(await json(`/api/recipes/${recipeId}`)).steps, (await json(`/api/recipes/${recipeId}`)).instructions], [null, null]);
+  const made = await json('/api/recipes', 'POST', { name: 'Toast', steps: [{ text: 'Toast bread.' }] });
+  assert.equal(made.instructions, '1. Toast bread.');
+  assert.equal((await request('/api/recipes', 'POST', { name: 'Bad', steps: [{ text: 'x', imageUrl: 'javascript:alert(1)' }] })).status, 400);
+});
+
+test('recipe step image: proxies only that step\'s stored imageUrl, numbered from 1, takes ?key=', async () => {
+  const { json, request } = fixture();
+  const realFetch = globalThis.fetch;
+  const fetched: string[] = [];
+  const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]);
+  let reply = (): Response => new Response(jpeg, { headers: { 'Content-Type': 'image/jpeg' } });
+  globalThis.fetch = (async (url: unknown) => { fetched.push(String(url)); return reply(); }) as typeof fetch;
+  try {
+    const { recipeId } = await json('/api/recipes/import', 'POST', { ...kit(), steps: [{ text: 'One', imageUrl: 'https://example.com/1.jpg' }, 'Two', { text: 'Three', imageUrl: 'http://example.com/3.jpg' }] });
+    const display = await json('/api/keys', 'POST', { name: 'wall', scope: 'display' });
+    const res = await request(`/api/recipes/${recipeId}/steps/1/image?key=${display.key}&url=https://evil.example/x.jpg`, 'GET', undefined, '');
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get('content-type'), 'image/jpeg');
+    assert.deepEqual(new Uint8Array(await res.arrayBuffer()), jpeg);
+    assert.deepEqual(fetched, ['https://example.com/1.jpg']);
+    assert.equal((await request(`/api/recipes/${recipeId}/steps/1/image`, 'GET', undefined, '')).status, 401, 'no key, no image');
+    assert.equal((await request(`/api/recipes/${recipeId}/steps/2/image`)).status, 404, 'a step without a photo');
+    assert.equal((await request(`/api/recipes/${recipeId}/steps/4/image`)).status, 404, 'no such step');
+    assert.equal((await request(`/api/recipes/${recipeId}/steps/0/image`)).status, 400);
+    assert.equal((await request(`/api/recipes/${recipeId}/steps/3/image`)).status, 400, 'http refused');
+    assert.equal((await request('/api/recipes/nope/steps/1/image')).status, 404);
+    reply = () => new Response('<html>nope</html>', { headers: { 'Content-Type': 'image/jpeg' } });
+    assert.equal((await request(`/api/recipes/${recipeId}/steps/1/image`)).status, 502);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
