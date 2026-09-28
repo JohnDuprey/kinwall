@@ -11,7 +11,7 @@ Tap a family member's avatar in the header (on a phone, tap the family button, t
 * **To do**: [list items](lists.md) assigned to them that are due today, overdue, or marked Important or Urgent (with priority dots).
 * **Birthdays 🎂**: family members' birthdays (from [Settings → Family](../settings/family.md)) and events in a category named "Birthdays".
 * **Meals**: the family's [meals](meals.md) today, with times. Tap one to open it.
-* **Reading 📚**: the books they're in the middle of in [Trackers](trackers.md), with how far along they are ("Charlotte's Web — 45%"). Tap one to open Trackers.
+* **Reading 📚**: the books they're in the middle of in [Trackers](trackers.md), with how far along they are ("Charlotte's Web — 45%"; 🎧 and time listened for an audiobook). Tap one to open Trackers.
 * **Tomorrow at a glance**: tomorrow's weather, birthdays, events, items due and meals.
 
 Every section has a friendly empty state ("Nothing on the calendar — enjoy it.").

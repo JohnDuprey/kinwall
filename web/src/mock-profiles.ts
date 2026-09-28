@@ -4,7 +4,7 @@
 import type { MemberStats, StatsPeriod } from './types.ts'
 import { dateKey } from './date.ts'
 
-type Book = [title: string, pages: number, daysAgo: number, rating: number]
+type Book = [title: string, pages: number, daysAgo: number, rating: number, minutes?: number] // minutes: an audiobook
 type Profile = {
   joinedDaysAgo: number; seed: number
   chores: [title: string, emoji: string, points: number, odds: number][]
@@ -16,7 +16,7 @@ const PROFILES: Record<string, Profile> = {
     joinedDaysAgo: 568, seed: 7, packs: 5, placed: 23, kid: true,
     chores: [['Feed Pepper', '🐶', 2, 0.9], ['Make bed', '🛏️', 1, 0.82], ['Unload dishwasher', '🍽️', 3, 0.55], ['Reading time', '📚', 3, 0.75], ['Tidy room', '🧸', 2, 0.5]],
     books: [['Pip and the Lighthouse', 96, 533, 5], ['The Moon Garden', 128, 495, 4], ['Owls After Dark', 88, 451, 5], ['Dragons Don’t Do Dishes', 110, 252, 5], ['Starlight Stables', 156, 217, 4],
-      ['The Secret Tree Fort', 132, 181, 5], ['A Whale Named Wednesday', 98, 154, 4], ['Rainy Day Detectives', 176, 112, 5], ['The Pancake Planet', 84, 87, 4], ['Lost in the Library', 188, 49, 5], ['Sunny and the Storm', 120, 14, 4], ['Comet Club', 104, 3, 5]],
+      ['The Secret Tree Fort', 132, 181, 5], ['A Whale Named Wednesday', 98, 154, 4], ['Rainy Day Detectives', 176, 112, 5], ['The Pancake Planet', 84, 87, 4], ['Lost in the Library', 188, 49, 5], ['Ramona the Pest', 0, 28, 5, 250], ['Sunny and the Storm', 120, 14, 4], ['Comet Club', 104, 3, 5]],
     reading: [['The Clockwork Fox', 63]],
   },
   m4: { // Leo
@@ -113,7 +113,7 @@ export function mockMemberStats(id: string, period: StatsPeriod, birthdayOn: str
   let best = 0, run = 0
   for (const k of days.keys()) { run = good(k) ? run + 1 : 0; best = Math.max(best, run) }
 
-  const books = p.books.map(([title, pages, ago, rating]) => ({ id: title, title, pages, rating, finishedOn: shift(today, -ago) }))
+  const books = p.books.map(([title, pages, ago, rating, minutes]) => ({ id: title, title, pages: minutes ? null : pages, minutes: minutes ?? null, rating, finishedOn: shift(today, -ago) }))
   const inPeriod = books.filter(b => b.finishedOn >= (period === 'all' ? '' : from))
   const shelf = period === 'all' ? books : books.filter(b => b.finishedOn.startsWith(y))
   const all = tally('', today)
@@ -137,7 +137,7 @@ export function mockMemberStats(id: string, period: StatsPeriod, birthdayOn: str
     busiestWeekday: now.some(([, d]) => d.done.length) ? weekdays.indexOf(Math.max(...weekdays)) : null,
     favoriteChore: perChore[fav] ? { choreId: `c${fav}`, title: p.chores[fav][0], emoji: p.chores[fav][1], count: perChore[fav] } : null,
     books: {
-      finished: inPeriod.length, pages: inPeriod.reduce((s, b) => s + b.pages, 0), shelfScope: period === 'all' ? 'all' : 'year', shelf,
+      finished: inPeriod.length, pages: inPeriod.reduce((s, b) => s + (b.pages ?? 0), 0), minutesListened: inPeriod.reduce((s, b) => s + (b.minutes ?? 0), 0), shelfScope: period === 'all' ? 'all' : 'year', shelf,
       reading: p.reading.map(([title, percent]) => ({ id: title, title, percent })),
     },
     stickers: { packsOwned: p.packs, packsTotal: 8, placed: p.placed },

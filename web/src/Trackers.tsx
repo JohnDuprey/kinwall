@@ -12,7 +12,8 @@ import { clockTime, todayKeyInTz } from './date.ts'
 import { PlusIcon } from './icons.tsx'
 import Sheet from './Sheet.tsx'
 import { preparePhoto, PhotoFormatError } from './photos.ts'
-import type { HealthData, HealthType, Member, MemoryData, Photo, ReadingData, ReadingStatus, TrackerEntry, TrackerInput, TrackerKind } from './types.ts'
+import type { HealthData, HealthType, Member, MemoryData, Photo, ReadingData, ReadingFormat, ReadingStatus, TrackerEntry, TrackerInput, TrackerKind } from './types.ts'
+import { hoursMinutes, isAudiobook, left, logReachesEnd, readingPercent, shelfLine, shelfTotals, splitMinutes, toMinutes } from './reading.ts'
 import { trackerKinds } from './types.ts'
 
 // ponytail: TABS, SUB_TO_KIND and trackerKinds() (types.ts, for App's nav) list the kinds in the same order.
@@ -37,8 +38,6 @@ const formerWho = (name: string): Who => ({ id: null, name: `${name} (removed)`,
 const isFamily = (e: TrackerEntry) => e.memberId === null && !e.formerMember
 
 const niceDate = (d: string, withYear = false) => format(new Date(`${d}T12:00:00`), withYear ? 'EEE, MMM d, yyyy' : 'EEE, MMM d')
-const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`
-const percent = (d: ReadingData) => d.totalPages ? Math.min(100, Math.round(((d.pagesRead ?? 0) / d.totalPages) * 100)) : null
 const errMsg = (e: unknown, fallback: string) => e instanceof ApiError ? e.message : fallback
 
 export default function Trackers({ sub }: { sub?: string }) {
@@ -126,33 +125,33 @@ function Reading({ entries, people, onEdit, onSave }: {
   const shelves = people.map(p => {
     const books = entries.filter(e => belongs(e, p))
     const d = (e: TrackerEntry) => e.data as ReadingData
-    const finishedThisYear = books.filter(b => d(b).status === 'finished' && d(b).finishedOn?.startsWith(year))
-    const pages = finishedThisYear.reduce((n, b) => n + (d(b).totalPages ?? d(b).pagesRead ?? 0), 0) + books.filter(b => d(b).status === 'reading').reduce((n, b) => n + (d(b).pagesRead ?? 0), 0)
     const order: ReadingStatus[] = ['reading', 'want', 'finished']
-    return { p, books: [...books].sort((a, b) => order.indexOf(d(a).status) - order.indexOf(d(b).status)), finished: finishedThisYear.length, pages }
+    return { p, books: [...books].sort((a, b) => order.indexOf(d(a).status) - order.indexOf(d(b).status)), totals: shelfTotals(books.map(d), year) }
   }).filter(s => s.books.length > 0)
 
   if (!shelves.length) return <div className="empty-card"><span className="emoji">📚</span>No books yet. Tap + to add what someone is reading.</div>
   return (
     <div className="trk-grid">
-      {shelves.map(({ p, books, finished, pages }) => (
+      {shelves.map(({ p, books, totals }) => (
         <section key={p.id ?? p.former ?? 'family'} className="trk-card" aria-label={`${p.name}'s books`}>
           <header className="trk-card-head">
             <Avatar m={p} size={40} />
             <div>
               <h3>{p.name}</h3>
-              <div className="trk-sub">{plural(finished, 'book')} finished in {year}{pages ? ` · ${pages.toLocaleString()} pages` : ''}</div>
+              <div className="trk-sub">{shelfLine(year, totals)}</div>
             </div>
           </header>
           <ul className="trk-books">
             {books.map(b => {
               const d = b.data as ReadingData
-              const pct = percent(d)
+              const pct = readingPercent(d)
+              const audio = isAudiobook(d)
+              const progress = left(d)
               return (
                 <li key={b.id} className={`trk-book trk-book-${d.status}`}>
-                  <button className="trk-book-main" onClick={() => onEdit(b)} aria-label={`${b.title}, ${STATUS.find(s => s.key === d.status)?.label}${pct !== null && d.status === 'reading' ? `, ${pct}%` : ''}. Edit`}>
-                    <span className="trk-book-title">{b.title}</span>
-                    {d.author && <span className="trk-sub">{d.author}</span>}
+                  <button className="trk-book-main" onClick={() => onEdit(b)} aria-label={`${b.title}${audio ? ', audiobook' : ''}, ${STATUS.find(s => s.key === d.status)?.label}${progress && d.status === 'reading' ? `, ${progress}` : ''}. Edit`}>
+                    <span className="trk-book-title">{audio && <span aria-hidden="true">🎧 </span>}{b.title}</span>
+                    {(d.author || (audio && d.narrator)) && <span className="trk-sub">{[d.author, audio && d.narrator ? `read by ${d.narrator}` : ''].filter(Boolean).join(' · ')}</span>}
                     {d.status === 'want' && <span className="trk-tag">Want to read</span>}
                     {d.status === 'finished' && <span className="trk-sub">Finished {d.finishedOn ? niceDate(d.finishedOn) : ''}</span>}
                   </button>
@@ -161,8 +160,8 @@ function Reading({ entries, people, onEdit, onSave }: {
                       <div className="trk-progress" role="progressbar" aria-label={`${b.title} progress`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct ?? 0}>
                         <div style={{ width: `${pct ?? 0}%`, background: p.color }} />
                       </div>
-                      <span className="trk-sub trk-pct">{pct !== null ? `${pct}%` : d.pagesRead ? `p. ${d.pagesRead}` : ''}</span>
-                      <button className="btn btn-secondary trk-small-btn" onClick={() => setLogFor(b)}>Log pages</button>
+                      <span className="trk-sub trk-pct">{progress}</span>
+                      <button className="btn btn-secondary trk-small-btn" onClick={() => setLogFor(b)}>{audio ? 'Log listening' : 'Log pages'}</button>
                     </div>
                   )}
                   {d.status === 'finished' && <Stars value={d.rating} label={`Rate ${b.title}`} onChange={v => onSave(b, { data: { rating: v } }, v ? `${b.title}: ${v} stars` : 'Rating cleared')} />}
@@ -172,31 +171,58 @@ function Reading({ entries, people, onEdit, onSave }: {
           </ul>
         </section>
       ))}
-      {logFor && <LogPagesSheet book={logFor} onClose={() => setLogFor(null)} onSave={(body, msg) => { onSave(logFor, body, msg); setLogFor(null) }} />}
+      {logFor && <LogSheet book={logFor} onClose={() => setLogFor(null)} onSave={(body, msg) => { onSave(logFor, body, msg); setLogFor(null) }} />}
     </div>
   )
 }
 
-function LogPagesSheet({ book, onClose, onSave }: { book: TrackerEntry; onClose: () => void; onSave: (body: TrackerInput, msg: string) => void }) {
+/** Log pages for a book, or listening time for an audiobook. Reaching the end marks it finished. */
+function LogSheet({ book, onClose, onSave }: { book: TrackerEntry; onClose: () => void; onSave: (body: TrackerInput, msg: string) => void }) {
   const d = book.data as ReadingData
+  const audio = isAudiobook(d)
   const [page, setPage] = useState(String(d.pagesRead ?? 0))
-  const n = Math.max(0, Number(page) || 0)
-  const done = !!d.totalPages && n >= d.totalPages
+  const [hm, setHm] = useState(() => splitMinutes(d.minutesListened ?? 0))
+  const n = audio ? toMinutes(...hm) ?? 0 : Math.max(0, Number(page) || 0)
+  const done = logReachesEnd(d, n)
+  const field = audio ? 'minutesListened' : 'pagesRead'
   return (
-    <Sheet variant="dialog" title={`Log pages · ${book.title}`} onClose={onClose}
+    <Sheet variant="dialog" title={`${audio ? 'Log listening' : 'Log pages'} · ${book.title}`} onClose={onClose}
       actions={<>
         <button className="btn btn-secondary" onClick={() => onSave({ data: { status: 'finished' } }, `${book.title} finished`)}>Finished it! 🎉</button>
-        <button className="btn btn-primary" data-autofocus onClick={() => onSave({ data: done ? { pagesRead: n, status: 'finished' } : { pagesRead: n } }, done ? `${book.title} finished` : `On page ${n}`)}>Save</button>
+        <button className="btn btn-primary" data-autofocus onClick={() => onSave({ data: done ? { [field]: n, status: 'finished' } : { [field]: n } }, done ? `${book.title} finished` : audio ? `${hoursMinutes(n)} listened` : `On page ${n}`)}>Save</button>
       </>}>
-      <div className="field">
-        <label htmlFor="trk-page">Page you're on{d.totalPages ? ` (of ${d.totalPages})` : ''}</label>
-        <input id="trk-page" type="text" inputMode="numeric" value={page} onChange={e => setPage(e.target.value.replace(/\D/g, ''))} />
-      </div>
-      <div className="chip-row" role="group" aria-label="Add pages">
-        {[5, 10, 20, 50].map(k => <button key={k} type="button" className="chip" onClick={() => setPage(String(n + k))}>+{k}</button>)}
-      </div>
-      {done && <p className="field-hint">That's the last page, so Save marks it finished.</p>}
+      {audio ? <>
+        <HoursMinutes id="trk-listened" label={`Listened so far${d.totalMinutes ? ` (of ${hoursMinutes(d.totalMinutes)})` : ''}`} value={hm} onChange={setHm} />
+        <div className="chip-row" role="group" aria-label="Add listening time">
+          {([[15, '+15m'], [30, '+30m'], [60, '+1h']] as const).map(([k, l]) => <button key={k} type="button" className="chip" onClick={() => setHm(splitMinutes(n + k))}>{l}</button>)}
+        </div>
+      </> : <>
+        <div className="field">
+          <label htmlFor="trk-page">Page you're on{d.totalPages ? ` (of ${d.totalPages})` : ''}</label>
+          <input id="trk-page" type="text" inputMode="numeric" value={page} onChange={e => setPage(e.target.value.replace(/\D/g, ''))} />
+        </div>
+        <div className="chip-row" role="group" aria-label="Add pages">
+          {[5, 10, 20, 50].map(k => <button key={k} type="button" className="chip" onClick={() => setPage(String(n + k))}>+{k}</button>)}
+        </div>
+      </>}
+      {done && <p className="field-hint">{audio ? "That's the end" : "That's the last page"}, so Save marks it finished.</p>}
     </Sheet>
+  )
+}
+
+/** Hours and minutes as two number fields (a phone's number pad has no colon). */
+function HoursMinutes({ id, label, value: [h, m], onChange }: { id: string; label: string; value: [string, string]; onChange: (v: [string, string]) => void }) {
+  const digits = (s: string) => s.replace(/\D/g, '').slice(0, 4)
+  return (
+    <div className="field">
+      <label htmlFor={id}>{label}</label>
+      <div className="trk-hm">
+        <input id={id} type="text" inputMode="numeric" aria-label={`${label}, hours`} value={h} onChange={e => onChange([digits(e.target.value), m])} />
+        <span aria-hidden="true">h</span>
+        <input type="text" inputMode="numeric" aria-label={`${label}, minutes`} value={m} onChange={e => onChange([h, digits(e.target.value)])} />
+        <span aria-hidden="true">m</span>
+      </div>
+    </div>
   )
 }
 
@@ -309,7 +335,8 @@ type Pending = { blob: Blob; width: number; height: number; url: string } // a p
 type Form = {
   memberId: string | null; date: string; title: string
   photoId: string | null; photoOwned: boolean; photoFamily: boolean; pending: Pending | null
-  author: string; status: ReadingStatus; pagesRead: string; totalPages: string; finishedOn: string; rating: number | null; notes: string
+  format: ReadingFormat; author: string; narrator: string; status: ReadingStatus; pagesRead: string; totalPages: string
+  listened: [string, string]; length: [string, string]; finishedOn: string; rating: number | null; notes: string
   text: string; mood: string | null
   type: HealthType; time: string; provider: string; followUp: string
   height: string; heightUnit: 'in' | 'cm'; weight: string; weightUnit: 'lb' | 'kg'; temperature: string; temperatureUnit: 'F' | 'C'
@@ -326,7 +353,8 @@ function EntrySheet({ kind, entry, date, admin, photos, onClose, onSaved }: {
   const [f, setF] = useState<Form>(() => ({
     memberId: entry ? (!entry.memberId && entry.formerMember ? FORMER : entry.memberId) : selectedMemberId, date: entry?.date ?? date ?? '', title: entry?.title ?? '',
     photoId: entry?.photoId ?? null, photoOwned: !!entry?.photoOwned, photoFamily: !!entry?.photoFamily, pending: null,
-    author: d.author ?? '', status: d.status ?? 'reading', pagesRead: num(d.pagesRead), totalPages: num(d.totalPages), finishedOn: d.finishedOn ?? '', rating: d.rating ?? null, notes: d.notes ?? '',
+    format: d.format ?? 'book', author: d.author ?? '', narrator: d.narrator ?? '', status: d.status ?? 'reading', pagesRead: num(d.pagesRead), totalPages: num(d.totalPages),
+    listened: splitMinutes(d.minutesListened), length: splitMinutes(d.totalMinutes), finishedOn: d.finishedOn ?? '', rating: d.rating ?? null, notes: d.notes ?? '',
     text: d.text ?? '', mood: d.mood ?? null,
     type: d.type ?? 'checkup', time: d.time ?? '', provider: d.provider ?? '', followUp: d.followUp ?? '',
     height: num(d.height?.value), heightUnit: d.height?.unit ?? (imperial ? 'in' : 'cm'),
@@ -339,7 +367,12 @@ function EntrySheet({ kind, entry, date, admin, photos, onClose, onSaved }: {
   const n = (s: string) => s.trim() === '' ? null : Number(s)
   const measure = (v: string, unit: string) => n(v) === null ? null : { value: n(v), unit }
   const data: Record<string, unknown> = kind === 'reading'
-    ? { author: f.author.trim() || null, status: f.status, pagesRead: n(f.pagesRead), totalPages: n(f.totalPages), finishedOn: f.status === 'finished' ? f.finishedOn || null : null, rating: f.rating, notes: f.notes.trim() || null }
+    ? { format: f.format, author: f.author.trim() || null, status: f.status,
+      // Only the format's own progress is kept; switching format clears the other's.
+      ...(f.format === 'audiobook'
+        ? { narrator: f.narrator.trim() || null, minutesListened: toMinutes(...f.listened), totalMinutes: toMinutes(...f.length) || null, pagesRead: null, totalPages: null }
+        : { narrator: null, minutesListened: null, totalMinutes: null, pagesRead: n(f.pagesRead), totalPages: n(f.totalPages) || null }),
+      finishedOn: f.status === 'finished' ? f.finishedOn || null : null, rating: f.rating, notes: f.notes.trim() || null }
     : kind === 'memory'
       ? { text: f.text.trim(), mood: f.mood }
       : { type: f.type, time: f.time || null, provider: f.provider.trim() || null, notes: f.notes.trim() || null, followUp: f.followUp || null,
@@ -390,16 +423,31 @@ function EntrySheet({ kind, entry, date, admin, photos, onClose, onSaved }: {
       </div>
 
       {kind === 'reading' && <>
+        <div className="field">
+          <label htmlFor="trk-format">Format</label>
+          <select id="trk-format" value={f.format} onChange={e => set({ format: e.target.value as ReadingFormat })}>
+            <option value="book">📖 Book</option>
+            <option value="audiobook">🎧 Audiobook</option>
+          </select>
+        </div>
         <div className="field"><label htmlFor="trk-title">Title</label><input id="trk-title" type="text" value={f.title} onChange={e => set({ title: e.target.value })} placeholder="Charlotte's Web" autoComplete="off" autoFocus={!entry} /></div>
         <div className="field"><label htmlFor="trk-author">Author</label><input id="trk-author" type="text" value={f.author} onChange={e => set({ author: e.target.value })} autoComplete="off" /></div>
         <div className="field">
           <label>Status</label>
           <Segmented label="Status" value={f.status} onChange={s => set({ status: s })} options={STATUS} className="trk-status" />
         </div>
-        <div className="trk-field-pair">
-          <div className="field"><label htmlFor="trk-read">Pages read</label><input id="trk-read" type="text" inputMode="numeric" value={f.pagesRead} onChange={e => set({ pagesRead: e.target.value.replace(/\D/g, '') })} /></div>
-          <div className="field"><label htmlFor="trk-total">Total pages</label><input id="trk-total" type="text" inputMode="numeric" value={f.totalPages} onChange={e => set({ totalPages: e.target.value.replace(/\D/g, '') })} /></div>
-        </div>
+        {f.format === 'audiobook' ? <>
+          <div className="field"><label htmlFor="trk-narrator">Narrator</label><input id="trk-narrator" type="text" value={f.narrator} onChange={e => set({ narrator: e.target.value })} autoComplete="off" /></div>
+          <div className="trk-field-pair">
+            <HoursMinutes id="trk-listened" label="Listened" value={f.listened} onChange={listened => set({ listened })} />
+            <HoursMinutes id="trk-length" label="Length" value={f.length} onChange={length => set({ length })} />
+          </div>
+        </> : (
+          <div className="trk-field-pair">
+            <div className="field"><label htmlFor="trk-read">Pages read</label><input id="trk-read" type="text" inputMode="numeric" value={f.pagesRead} onChange={e => set({ pagesRead: e.target.value.replace(/\D/g, '') })} /></div>
+            <div className="field"><label htmlFor="trk-total">Total pages</label><input id="trk-total" type="text" inputMode="numeric" value={f.totalPages} onChange={e => set({ totalPages: e.target.value.replace(/\D/g, '') })} /></div>
+          </div>
+        )}
         <div className="trk-field-pair">
           <div className="field"><label htmlFor="trk-date">Started</label><input id="trk-date" type="date" value={f.date} onChange={e => set({ date: e.target.value })} /></div>
           {f.status === 'finished' && <div className="field"><label htmlFor="trk-fin">Finished</label><input id="trk-fin" type="date" value={f.finishedOn} onChange={e => set({ finishedOn: e.target.value })} /></div>}

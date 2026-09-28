@@ -17,6 +17,7 @@ import type { Env } from '../env.ts';
 import { emit } from '../bus.ts';
 import { resolveKey } from '../auth.ts';
 import { todayIn } from './lists.ts';
+import { isAudiobook, minutesOf, pagesOf, readingPercent, type ReadingProgress } from '../reading.ts';
 import {
   ErrorSchema, ReadingSummarySchema, TRACKER_DATA, TrackerEntrySchema, TrackerInputSchema, TrackerKindSchema, TrackerPatchSchema,
 } from '../schemas.ts';
@@ -89,10 +90,10 @@ async function settlePhotos(c: C, row: Row, photoFamily: boolean | undefined, dr
 }
 const photoFamilyOf = async (c: C, id: string | null) => id ? (await c.env.DB.prepare('SELECT family FROM photos WHERE id = ?').bind(id).first<{ family: number }>())?.family ?? null : null;
 
-// A book marked finished gets today's date if none was given (and its last page).
+// A book marked finished gets today's date if none was given (and its last page, or an audiobook's last minute).
 function finishBook(data: Record<string, unknown>, today: string) {
   if (data.status !== 'finished') return data;
-  return { ...data, finishedOn: data.finishedOn ?? today, ...(data.totalPages ? { pagesRead: data.totalPages } : {}) };
+  return { ...data, finishedOn: data.finishedOn ?? today, ...(data.totalPages ? { pagesRead: data.totalPages } : {}), ...(data.totalMinutes ? { minutesListened: data.totalMinutes } : {}) };
 }
 
 const idParam = z.object({ id: z.string() });
@@ -150,7 +151,7 @@ trackersRoutes.openapi(
     method: 'get',
     path: '/api/trackers/summary',
     tags: ['Trackers'],
-    summary: 'Reading stats per member (member null = the family, or a removed member named in formerMember): books finished this year, pages, and the books in progress',
+    summary: 'Reading stats per member (member null = the family, or a removed member named in formerMember): books and audiobooks finished this year, pages, minutes listened, and the books in progress',
     security: [{ Bearer: [] }],
     request: { query: z.object({ year: z.coerce.number().int().min(1900).max(2200).optional() }) },
     responses: { 200: { description: 'ok', content: json(ReadingSummarySchema) } },
@@ -160,14 +161,15 @@ trackersRoutes.openapi(
     const { results } = await c.env.DB.prepare("SELECT * FROM tracker_entries WHERE kind = 'reading' ORDER BY date DESC").all<Row>();
     const byMember = new Map<string, z.infer<typeof ReadingSummarySchema>['members'][number]>();
     for (const e of results.map(toTrackerApi)) {
-      const d = e.data as { status?: string; finishedOn?: string; pagesRead?: number; totalPages?: number };
+      const d = e.data as ReadingProgress & { status?: string; finishedOn?: string };
       const key = e.memberId ?? `former:${e.formerMember ?? ''}`;
-      const m = byMember.get(key) ?? { memberId: e.memberId, formerMember: e.formerMember, finished: 0, pages: 0, reading: [] };
+      const m = byMember.get(key) ?? { memberId: e.memberId, formerMember: e.formerMember, finished: 0, pages: 0, minutes: 0, reading: [] };
       byMember.set(key, m);
-      if (d.status === 'finished' && d.finishedOn?.startsWith(String(year))) { m.finished++; m.pages += d.totalPages ?? d.pagesRead ?? 0; }
+      if (d.status === 'finished' && d.finishedOn?.startsWith(String(year))) { m.finished++; m.pages += pagesOf(d) ?? 0; m.minutes += minutesOf(d) ?? 0; }
       if (d.status === 'reading') {
-        m.pages += d.pagesRead ?? 0;
-        m.reading.push({ id: e.id, title: e.title, percent: d.totalPages ? Math.min(100, Math.round(((d.pagesRead ?? 0) / d.totalPages) * 100)) : null });
+        if (isAudiobook(d)) m.minutes += d.minutesListened ?? 0;
+        else m.pages += d.pagesRead ?? 0;
+        m.reading.push({ id: e.id, title: e.title, percent: readingPercent(d) });
       }
     }
     return c.json({ year, members: [...byMember.values()] }, 200);

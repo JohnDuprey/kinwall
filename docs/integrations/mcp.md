@@ -125,8 +125,8 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 | `create_meal` | Plans a recipe, free-form meal or dining out on a date and slot, optionally for a `member` (admin). |
 | `update_meal` | Edits a meal (admin), or its notes and status from the assigned person's device. `refreshRecipe` takes the recipe's current ingredients. A calendar event Kinwall made for the meal follows the change; a linked event of your own doesn't. |
 | `apply_meal_projection` | Adds the previewed ingredients to a shopping list (admin), minus `omitKeys`, and minus meal-kit ingredients that ship in the box unless `includeKitItems`. Repeating it doesn't add anything twice. |
-| `add_tracker_entry` | Logs a book, a memory or a health visit (`kind`, `member`, `date`, `title`, `data`). Health only with an admin key. |
-| `update_tracker_entry` | Edits an entry, for example pages read or a rating. `data` is merged; `null` clears a field. |
+| `add_tracker_entry` | Logs a book or audiobook (`data.format: "audiobook"` with `totalMinutes`), a memory or a health visit (`kind`, `member`, `date`, `title`, `data`). Health only with an admin key. |
+| `update_tracker_entry` | Edits an entry, for example pages read, minutes listened or a rating. `data` is merged; `null` clears a field. |
 | `update_category` | Changes a category's name, emoji, color or keywords. |
 | `send_notification` | Pushes a message now to devices following given members, or all devices (admin). It also appears in the in-app notification feed. |
 | `set_color_scheme` | Sets the household's color scheme by name ("Peach", "Meadow", "Seasonal", or one of the family's own). Devices that follow the family setting switch to it; a device that picked its own scheme in the app keeps it. |

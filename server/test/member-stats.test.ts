@@ -163,6 +163,8 @@ test('stats: books, sticker book, activity time, birthday and badges', async (t)
   await book('Comet Club', { status: 'finished', finishedOn: '2026-09-24', totalPages: 104, rating: 5 });
   await book('Owls After Dark', { status: 'finished', finishedOn: '2025-07-03', totalPages: 88 });
   await book('The Clockwork Fox', { status: 'reading', pagesRead: 53, totalPages: 212 });
+  await book('Ramona Quimby', { format: 'audiobook', status: 'finished', finishedOn: '2026-09-25', totalMinutes: 250, minutesListened: 250 });
+  await book('Owl Diaries', { format: 'audiobook', status: 'reading', minutesListened: 30, totalMinutes: 120 });
   await sql("INSERT INTO tracker_entries (id, kind, member_id, date, title, data, created_at, updated_at) VALUES ('h', 'health', ?, '2026-09-20', 'Checkup', '{\"type\":\"checkup\"}', '', '')", maya.id);
   await sql("INSERT INTO member_sticker_packs (member_id, pack_id, unlocked_at) VALUES (?, 'sweets', '2026-04-02T12:00:00Z')", maya.id);
   await sql("INSERT INTO scrapbook_stickers (id, member_id, sticker, x, y, placed_at) VALUES ('s1', ?, '🦄', 0.5, 0.5, '')", maya.id);
@@ -173,12 +175,15 @@ test('stats: books, sticker book, activity time, birthday and badges', async (t)
 
   const week = (await req(`/api/members/${maya.id}/stats?period=week`)).json;
   assert.deepEqual(week.books, {
-    finished: 1, pages: 104, shelfScope: 'year',
-    shelf: [{ id: 'Comet Club', title: 'Comet Club', pages: 104, rating: 5, finishedOn: '2026-09-24' }],
-    reading: [{ id: 'The Clockwork Fox', title: 'The Clockwork Fox', percent: 25 }],
+    finished: 2, pages: 104, minutesListened: 250, shelfScope: 'year',
+    shelf: [
+      { id: 'Comet Club', title: 'Comet Club', pages: 104, minutes: null, rating: 5, finishedOn: '2026-09-24' },
+      { id: 'Ramona Quimby', title: 'Ramona Quimby', pages: null, minutes: 250, rating: null, finishedOn: '2026-09-25' },
+    ],
+    reading: [{ id: 'The Clockwork Fox', title: 'The Clockwork Fox', percent: 25 }, { id: 'Owl Diaries', title: 'Owl Diaries', percent: 25 }],
   });
   const all = (await req(`/api/members/${maya.id}/stats?period=all`)).json;
-  assert.deepEqual([all.books.finished, all.books.shelfScope, all.books.shelf.length], [2, 'all', 2]);
+  assert.deepEqual([all.books.finished, all.books.shelfScope, all.books.shelf.length], [3, 'all', 3]);
   assert.equal(JSON.stringify(all).includes('Checkup'), false); // health never shows up
   assert.deepEqual(week.stickers, { packsOwned: 2, packsTotal: 8, placed: 1 }); // animals is free
   assert.deepEqual(week.activities, [{ pluginId: 'math-stars', name: 'Math Stars', emoji: '🔢', seconds: 600 }]);
@@ -188,6 +193,15 @@ test('stats: books, sticker book, activity time, birthday and badges', async (t)
   const earned = week.badges.filter((b: { earned: boolean }) => b.earned).map((b: { id: string }) => b.id);
   assert.deepEqual(earned, ['first-chore', 'first-reward', 'first-pack', 'first-book']);
   assert.equal(week.badges.length, BADGES.length);
+});
+
+test('stats: an audiobook counts as a finished book for badges', async (t) => {
+  t.after(() => mock.timers.reset());
+  const { req, sql, maya } = await setup();
+  await sql("INSERT INTO tracker_entries (id, kind, member_id, date, title, data, created_at, updated_at) VALUES ('a', 'reading', ?, '2026-01-01', 'Ramona', ?, '', '')", maya.id, JSON.stringify({ format: 'audiobook', status: 'finished', finishedOn: '2026-03-01', totalMinutes: 200 }));
+  const all = (await req(`/api/members/${maya.id}/stats?period=all`)).json;
+  assert.deepEqual([all.books.finished, all.books.pages, all.books.minutesListened], [1, 0, 200]);
+  assert.equal(all.badges.find((b: { id: string }) => b.id === 'first-book').earned, true);
 });
 
 test('stats: birthdays without a year, on the day, and none', async (t) => {

@@ -109,7 +109,7 @@ Color settings on `PATCH /api/settings`: `colorScheme` is a built-in id (`meadow
 | `streak` | `{ current, best }`. The same rule as the leaderboard streak, grace days included. `best` looks back over all history. |
 | `chart` | `[{ key, count }]`: chores done per day for the whole `week` or `month`, or per month (`year` covers January to December, `all` from the first month). Days still ahead are 0. Empty for `today`. |
 | `busiestWeekday`, `favoriteChore` | The weekday (0 = Sunday) with the most chores done, and the chore done most, in the period. |
-| `books` | `{ finished, pages, shelfScope, shelf, reading }`: books finished in the period and their pages; the shelf is this year's finished books (every one for `all`); books in progress with a percent. Only reading tracker entries; health entries never appear. |
+| `books` | `{ finished, pages, minutesListened, shelfScope, shelf, reading }`: books and audiobooks finished in the period, the books' pages and the audiobooks' minutes; the shelf (each with `pages` or `minutes`) is this year's finished books (every one for `all`); books in progress with a percent. Only reading tracker entries; health entries never appear. |
 | `stickers` | `{ packsOwned, packsTotal, placed }`. |
 | `activities` | `[{ pluginId, name, emoji, seconds }]`: time played in each activity in the period. |
 | `badges` | `[{ id, emoji, title, earned }]`: the fixed set of milestone badges, earned from all-time totals. |

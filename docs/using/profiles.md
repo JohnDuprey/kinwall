@@ -19,11 +19,11 @@ Pick **Today**, **Week**, **Month**, **Year** or **All time** at the top. Days f
 
 * **Chores done**, compared with the same stretch before: yesterday, last week up to the same weekday, last month or last year up to the same date. All time says when they joined.
 * **Points earned** in the period.
-* **Books finished** in the period, with their pages.
+* **Books finished** in the period (audiobooks count), with their pages and time listened.
 * **Streak** 🔥 and **best ever**. It's the same streak as the [leaderboard](chores.md), grace days included, so the two numbers always match. The best streak looks back over all their history.
 * **Chores done** chart: per day for a week or month, per month for a year or all time, with their busiest weekday and favorite chore. **Today** lists today's chores instead.
 * **Points**: earned, spent on stickers, spent on rewards (refunds taken off), and the [reward](rewards.md) they're saving for. Tap the goal to open their rewards.
-* **Bookshelf**: the books they finished this year as colored spines (every book on **All time**), with pages, average stars, a five-star favorite and the books they're reading now. From [Trackers](trackers.md) (reading).
+* **Bookshelf**: the books they finished this year as colored spines (every book on **All time**), with pages, time listened for audiobooks, average stars, a five-star favorite and the books they're reading now. From [Trackers](trackers.md) (reading).
 * **Activities**: time played in each [activity](activities.md) in the period.
 * **Badges**: see below.
 * **Sticker book**: packs unlocked and stickers on the page.
@@ -51,8 +51,8 @@ Twelve milestone badges, earned from all-time totals. Once earned, they stay: de
 | 🎁 First reward | A reward approved or given |
 | 🎨 First sticker pack | A sticker pack bought |
 | 📒 Every sticker pack | Every sticker pack unlocked |
-| 📖 First book | A book finished |
-| 📚 10 books | 10 books finished |
+| 📖 First book | A book or audiobook finished |
+| 📚 10 books | 10 books finished, audiobooks included |
 
 Badges not earned yet show grayed out.
 
