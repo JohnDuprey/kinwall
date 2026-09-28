@@ -1,4 +1,4 @@
-import { useId, useState, type KeyboardEvent } from 'react'
+import { useEffect, useId, useState, type KeyboardEvent } from 'react'
 import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { useDialog } from './dialog.tsx'
@@ -6,12 +6,12 @@ import Sheet from './Sheet.tsx'
 import { BookIcon, CalendarIcon, ChevronRight, TrashIcon } from './icons.tsx'
 import { SourceLink } from './RecipeSheet.tsx'
 import RecipePhoto from './RecipePhoto.tsx'
-import { clockTime } from './date.ts'
+import { clockTime, todayKeyInTz } from './date.ts'
 import MealCalendarSheet from './MealCalendarSheet.tsx'
 import { MemberPicker } from './MemberPicker.tsx'
 import { inkFor } from './color.ts'
 import type { Member } from './types.ts'
-import { MEAL_SLOTS, SLOT_LABEL, mealDayLabel, minutesLabel, recipeTime, servingsLabel, startBy } from './meal-date.ts'
+import { MEAL_SLOTS, SLOT_LABEL, mealDayLabel, minutesLabel, recipeTime, servingsLabel, startBy, swapCandidates, swapWindow } from './meal-date.ts'
 import { pickerRecipes } from './recipe-search.ts'
 import type { Meal, MealInput, MealKind, MealSlot, MealStatus, Recipe } from './meal-types.ts'
 
@@ -44,6 +44,7 @@ export default function MealSheet({ meal, initial, recipes, admin, owner, onClos
   const [error, setError] = useState('')
   const [calendarOpen, setCalendarOpen] = useState(false)
   const [picking, setPicking] = useState(false)
+  const [swapping, setSwapping] = useState(false)
   const [linkedMeal, setLinkedMeal] = useState(meal)
   const assigned = !!meal?.assigneeMemberId && owner === meal.assigneeMemberId
   const canUpdate = admin || assigned
@@ -80,6 +81,15 @@ export default function MealSheet({ meal, initial, recipes, admin, owner, onClos
     setBusy(true); setError('')
     try { await api.deleteMeal(meal.id); toast('Meal deleted'); onSaved() }
     catch (e) { setError(e instanceof Error ? e.message : 'Could not delete meal.') }
+    finally { setBusy(false) }
+  }
+  // Swap with a meal from today through the end of this meal's week (the planner's week).
+  const swapRange = meal && admin ? swapWindow(meal.date, todayKeyInTz(settings.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone), settings.weekStart) : null
+  const swap = async (other: Meal) => {
+    const done = `Swapped with ${mealDayLabel(other.date, { weekday: 'long' })}’s ${SLOT_LABEL[other.slot].toLowerCase()}`
+    setSwapping(false); setBusy(true); setError('')
+    try { await api.swapMeal(meal!.id, other.id); toast(done); onSaved() }
+    catch (e) { setError(e instanceof Error ? e.message : 'Could not swap meals.') }
     finally { setBusy(false) }
   }
   const close = () => { if (!busy) onClose() }
@@ -133,10 +143,14 @@ export default function MealSheet({ meal, initial, recipes, admin, owner, onClos
         {meal?.sourceUrl && <SourceLink url={meal.sourceUrl} pdfPath={`api/meals/${encodeURIComponent(meal.id)}/source.pdf`} title={meal.title} label={meal.mealKind === 'dining_out' ? 'Website' : 'Recipe website'} />}
         {linkedMeal?.calendarEventId && <a className="sheet-link" href={`#/calendar?at=${linkedMeal.date}&event=${encodeURIComponent(linkedMeal.calendarEventId)}`}><CalendarIcon /><span>Linked calendar event</span><ChevronRight /></a>}
       </div>}
-      {admin && linkedMeal && <button className="btn btn-secondary" type="button" disabled={busy} onClick={() => setCalendarOpen(true)}>{linkedMeal.calendarEventId ? 'Manage calendar event' : 'Add to calendar'}</button>}
+      {admin && linkedMeal && <div className="meal-actions">
+        <button className="btn btn-secondary" type="button" disabled={busy} onClick={() => setCalendarOpen(true)}>{linkedMeal.calendarEventId ? 'Manage calendar event' : 'Add to calendar'}</button>
+        {swapRange && <button className="btn btn-secondary" type="button" aria-haspopup="dialog" disabled={busy} onClick={() => setSwapping(true)}>Swap with…</button>}
+      </div>}
       {admin && !meal && <p className="field-hint">Save this meal to put it on a calendar.</p>}
       {error && <p className="field-error" role="alert">{error}</p>}
     </form>
+    {swapping && meal && swapRange && <SwapPicker meal={meal} range={swapRange} recipes={recipes} onPick={other => void swap(other)} onClose={() => setSwapping(false)} />}
     {picking && <RecipePicker recipes={recipes} currentId={draft.recipeId} saved={savedRecipe} onPick={pick} onClose={() => setPicking(false)} />}
     {calendarOpen && linkedMeal && <MealCalendarSheet meal={linkedMeal} onClose={() => setCalendarOpen(false)} onLinked={setLinkedMeal} />}
   </Sheet>
@@ -169,5 +183,28 @@ function RecipePicker({ recipes, currentId, saved, onPick, onClose }: {
       </div>
       {!shown.length && <p className="state-card">No recipes match</p>}
     </div>
+  </Sheet>
+}
+
+/** Another planned meal from today through the end of this meal's week; picking one trades their day and slot. */
+function SwapPicker({ meal, range, recipes, onPick, onClose }: {
+  meal: Meal; range: { from: string; to: string }; recipes: Recipe[]; onPick: (other: Meal) => void; onClose: () => void
+}) {
+  const [meals, setMeals] = useState<Meal[] | null>(null)
+  const [error, setError] = useState('')
+  useEffect(() => {
+    let canceled = false
+    api.getMeals(range.from, range.to).then(all => { if (!canceled) setMeals(swapCandidates(all, meal.id)) }).catch(e => { if (!canceled) setError(e instanceof Error ? e.message : 'Could not load meals.') })
+    return () => { canceled = true }
+  }, [meal.id, range.from, range.to])
+  return <Sheet title={`Swap “${meal.title}” with…`} onClose={onClose}>
+    {error ? <p className="field-error" role="alert">{error}</p> : !meals ? <p role="status">Loading meals…</p> : !meals.length ? <p className="state-card">No other meals planned for the rest of this week.</p> :
+      <div className="sheet-links">{meals.map(m => {
+        const recipe = recipes.find(r => r.id === m.recipeId)
+        return <button key={m.id} type="button" className="sheet-link" onClick={() => onPick(m)}>
+          {recipe?.imageUrl ? <RecipePhoto id={recipe.id} className="recipe-pick-thumb" /> : <CalendarIcon />}
+          <span>{m.title}<small>{mealDayLabel(m.date, { weekday: 'long' })} · {SLOT_LABEL[m.slot]}</small></span>
+        </button>
+      })}</div>}
   </Sheet>
 }

@@ -244,6 +244,7 @@ export const api = {
   createMeal: (body: MealInput) => post<Meal>('api/meals', body),
   updateMeal: (id: string, body: Partial<MealInput> & { refreshRecipe?: boolean }) => patch<Meal>(`api/meals/${encodeURIComponent(id)}`, body),
   deleteMeal: (id: string) => del(`api/meals/${encodeURIComponent(id)}`),
+  swapMeal: (id: string, otherId: string) => post<Meal[]>(`api/meals/${encodeURIComponent(id)}/swap`, { otherId }),
   linkMealCalendar: (id: string, eventId: string) => post<Meal>(`api/meals/${encodeURIComponent(id)}/calendar-link`, { eventId }),
   unlinkMealCalendar: (id: string) => del<Meal>(`api/meals/${encodeURIComponent(id)}/calendar-link`),
   createMealCalendarEvent: (id: string, body: { calendarId?: string; eventStart?: 'meal' | 'cooking' }) => post<Meal>(`api/meals/${encodeURIComponent(id)}/calendar-event`, body),

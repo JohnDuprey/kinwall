@@ -285,6 +285,23 @@ mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/meals/{id}/calenda
   if (typeof made !== 'string') return c.json({ error: made.error }, made.status);
   return c.json(await readMeal(db, meal.id) as Meal, 200);
 });
+mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/meals/{id}/swap', tags: ['Meals'], summary: "Swap two planned meals' date and slot in one step; calendar events Kinwall created for them follow (admin)", security: [{ Bearer: [] }],
+  request: { params, body: body(z.object({ otherId: z.string().min(1) }).strict()) }, responses: { 200: { description: 'both meals, this one first', content: { 'application/json': { schema: z.array(MealSchema) } } }, ...errors, ...providerError } }), async (c) => {
+  const db = c.env.DB;
+  const { id } = c.req.valid('param'); const { otherId } = c.req.valid('json');
+  if (id === otherId) return c.json({ error: 'pick another meal to swap with' }, 400);
+  const [a, b] = await Promise.all([readMeal(db, id), readMeal(db, otherId)]);
+  if (!a || !b) return c.json({ error: 'meal not found' }, 404);
+  const now = new Date().toISOString();
+  const a2: Meal = { ...a, date: b.date, slot: b.slot, updatedAt: now };
+  const b2: Meal = { ...b, date: a.date, slot: a.slot, updatedAt: now };
+  // Events first, like an edit; if the second calendar refuses, the first event goes back so all four agree.
+  const failed = await syncMealEvent(c, a, a2) ?? await syncMealEvent(c, b, b2).then(async (err) => { if (err) await syncMealEvent(c, a2, a); return err; });
+  if (failed) return c.json({ error: `Couldn't update a meal's calendar event: ${failed.error}` }, failed.status);
+  await db.batch([mealWrite(db, a2), mealWrite(db, b2)]);
+  emit(c, 'meal.changed', { id: a.id }); emit(c, 'meal.changed', { id: b.id });
+  return c.json([await readMeal(db, a.id) as Meal, await readMeal(db, b.id) as Meal], 200);
+});
 
 type Ctx = Context<{ Bindings: Env }>;
 type EventStart = z.infer<typeof MealEventStartSchema>;

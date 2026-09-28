@@ -14,6 +14,8 @@ Tap **+** in a slot (or **Plan meal**) to add a meal:
 * **Servings**, an optional **Time** ("7:30 PM"; left empty, the meal is at the family's usual time for that meal, shown under the field), **Cooking** (who's making it), **Notes** and an optional website.
 * **Status**: **Planned**, **Prepared** or **Handled**. A meal that's done shows dashed.
 
+To trade two meals around, open a planned meal and tap **Swap with…**: it lists the other meals from today through the end of that meal's week, and picking one swaps their days and slots (Tuesday's dinner and Thursday's dinner change places). A calendar event Kinwall made for either meal moves with it; an event you linked yourself stays put.
+
 A slot can hold more than one meal. Tap a meal with a recipe to see the recipe (with **Edit meal** or, for a non-admin, **Meal details** to open the meal sheet); tap a meal without one to open its sheet directly, where you can also delete it. A planned meal shows small avatars of who's eating.
 
 When the header is filtered to one person, the planner and the Board's **Today's meals** show the meals that person is eating or cooking, plus meals with nobody picked.
@@ -203,6 +205,7 @@ An admin can turn off **Meals** in **Settings → General** (tap **Change** unde
 | `POST` / `PATCH` / `DELETE` | `/api/meals`, `/api/meals/{id}` | Plan, edit or delete a meal (admin; an assigned device may `PATCH` `notes` and `status`). `refreshRecipe: true` replaces the meal's ingredients with the recipe's. |
 | `GET` | `/api/meals/projection?from=&to=&listId=` | The shopping preview (admin). |
 | `POST` | `/api/meals/projection/apply` | Add `{ from, to, listId, omitKeys?, includeNotes?, includeKitItems? }` to a list (admin). Meal-kit ingredients that ship in the box are skipped unless `includeKitItems: true`. Safe to repeat. |
+| `POST` | `/api/meals/{id}/swap` | Swap `{ otherId }`'s date and slot with this meal's in one step (admin); returns both meals. Events Kinwall created for them follow, as with an edit; 502 when a synced calendar refuses (nothing changes). |
 | `POST` / `DELETE` | `/api/meals/{id}/calendar-link` | Link `{ eventId }` or unlink an event (admin). |
 | `POST` | `/api/meals/{id}/calendar-event` | Create and link an event `{ calendarId?, eventStart? }` (admin). `calendarId` is any writable calendar, synced ones included (the event is written to the provider the same way `POST /api/events` does); without it the event goes on a Kinwall calendar, never a synced one. `eventStart`: `meal` (default) or `cooking`. The meal's `calendarEventStart` is then set; it's `null` for an event you linked. Changes to the meal update the event; 502 when a synced calendar refuses. |
 

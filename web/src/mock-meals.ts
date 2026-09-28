@@ -210,6 +210,12 @@ export async function mockMealRequest(path: string, options: RequestInit): Promi
   if (method === 'GET') return meals.filter(m => m.date >= url.searchParams.get('from')! && m.date <= url.searchParams.get('to')!)
   if (id && !old) throw new Error('Meal not found')
   if (action) {
+    if (action === 'swap') {
+      const other = meals.find(m => m.id === body.otherId && m.id !== id)
+      if (!other) throw new Error('Meal not found')
+      ;[old!.date, other.date, old!.slot, other.slot] = [other.date, old!.date, other.slot, old!.slot] // ponytail: demo events don't follow
+      return [{ ...old! }, { ...other }]
+    }
     if (action === 'calendar-link') { old!.calendarEventId = method === 'DELETE' ? null : body.eventId; old!.calendarEventStart = null }
     if (action === 'calendar-event' && !old!.calendarEventId) {
       const calendar = (await mock.getCalendars()).find(c => c.writable && (body.calendarId ? c.id === body.calendarId : c.kind === 'local'))
