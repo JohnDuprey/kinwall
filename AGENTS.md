@@ -29,6 +29,9 @@ lowercase, no period, under ~72 characters. The body says why when that isn't ob
   `recipes`, `notes`, `trackers`, `settings`, `mcp`, `sync`, `auth`, `server`, `web`, `docs`, `ha`.
 - Breaking changes (API, MCP tools, export format, settings) get `!` and a `BREAKING CHANGE:` footer.
 - One logical change per commit. Tests and docs go in the same commit as the change.
+- CI checks every new commit (`.github/check-commits.sh`), and a failing check blocks the hosted
+  deploy. Check a message locally with `echo "feat(x): y" | .github/check-commits.sh`. Merge
+  commits are skipped; merge branches whose commits don't follow the format with `--squash`.
 
 Examples: `feat(meals): open a planned meal's recipe on tap`, `fix(board): keep the photo from
 collapsing when the meals card is full`.
