@@ -142,7 +142,13 @@ function ContactForm({ initial, categories, members, onClose, onSaved }: { initi
 function ContactDetail({ contact, categories, members, canEdit, onClose, onEdit, onDelete }: { contact: Contact; categories: ContactCategory[]; members: Member[]; canEdit: boolean; onClose: () => void; onEdit: () => void; onDelete: () => void }) {
   const categoryNames = (contact.categoryIds ?? []).map(id => categories.find(category => category.id === id)?.name).filter(Boolean)
   const memberNames = (contact.memberIds ?? []).map(id => members.find(member => member.id === id)?.name).filter(Boolean)
-  return <Sheet title={contact.name} onClose={onClose} actions={canEdit ? <><button className="btn btn-secondary" onClick={onEdit}>Edit</button><button className="btn btn-danger" onClick={onDelete}>Delete</button></> : undefined}>
+  return <Sheet title={contact.name} onClose={onClose} actions={canEdit ? <>
+    <select className="settings-select actions-select" aria-label="Contact actions" value="" onChange={e => { if (e.target.value === 'delete') onDelete() }}>
+      <option value="" disabled hidden>More…</option>
+      <option value="delete">Delete contact…</option>
+    </select>
+    <button className="btn btn-primary" onClick={onEdit}>Edit</button>
+  </> : undefined}>
     <div className="contact-detail-head"><span className="contact-avatar contact-avatar-large" aria-hidden="true">{initials(contact.name)}</span>
       <div><h3>{contact.name}</h3><p>{[contact.relationship, contact.organization].filter(Boolean).join(' · ') || 'Household contact'}</p></div></div>
     <div className="contact-badges">{contact.favorite && <span>★ Favorite</span>}{contact.emergency && <span>✚ Emergency</span>}{contact.wallVisible && <span>▣ On wall</span>}</div>
@@ -294,7 +300,7 @@ export default function Contacts() {
   }
   const remove = async () => {
     if (!selected || !parentDevice) return
-    if (!await dialog.confirm({ title: `Delete ${selected.name}?`, body: 'This contact will be removed from the household directory.', confirmLabel: 'Delete', danger: true })) return
+    if (!await dialog.confirm({ title: `Delete ${selected.name}?`, body: 'This contact will be removed from the household directory.', confirmLabel: 'Delete contact', danger: true })) return
     try { await api.deleteContact(selected.id); setContacts(all => all.filter(c => c.id !== selected.id)); setSheet(null); setSelectedId(null); announce(`${selected.name} deleted`) }
     catch (error) { toast(errorText(error, 'Could not delete contact.'), true) }
   }
