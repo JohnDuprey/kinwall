@@ -79,8 +79,8 @@ function buildOverrideMap(rows: OverrideRow[]): Map<string, string[]> {
 }
 
 // Per-instance member assignment for synced (remote-kind) events - keyed by (calendar_id,
-// external_id) rather than the event row's own id, since remote rows are deleted/reinserted
-// wholesale on every sync. Overrides a row's member_ids (which sync always writes as '[]') for
+// external_id) rather than the event row's own id, since remote rows are rewritten from the
+// provider whenever they change there. Overrides a row's member_ids (which sync always writes as '[]') for
 // GET, and is what PATCH .../memberIds writes to for a remote calendar instead of the row.
 
 // '[]' clears the override (falls back to the calendar member again) rather than storing an
@@ -118,7 +118,7 @@ function buildSeriesOverrideMap(rows: SeriesOverrideRow[]): Map<string, string[]
 }
 
 // Series-wide member assignment for recurring synced events - keyed by (calendar_id, series_id),
-// same "survives wholesale re-sync" reasoning as the override table above. Falls in between the
+// same "survives re-sync" reasoning as the override table above. Falls in between the
 // occurrence override and the calendar's own member in the resolution order (see instanceFrom).
 
 // Both override tables for a single calendar in one round trip - used by the single-event routes
@@ -767,8 +767,8 @@ export async function updateEvent(c: Ctx, id: string, body: z.infer<typeof Event
     // Reminders live on the provider's event, so on Google/Outlook changing them is a real write.
     body.reminders !== undefined;
   // Member assignment and category assignment on a remote-kind event are local-only annotations
-  // (event-member-overrides / event-category-overrides, keyed by external_id - the row is wiped
-  // wholesale on every sync). A memberIds/categoryId-only patch never touches the provider, so it
+  // (event-member-overrides / event-category-overrides, keyed by external_id - the row is rewritten
+  // from the provider on sync). A memberIds/categoryId-only patch never touches the provider, so it
   // works even on a read-only calendar (ICS) or when the calendar isn't writable. Travel time is
   // the same kind of Kinwall-only annotation (event_travel_overrides) and is never sent to the provider.
   const travelPresent = body.travelMinutes !== undefined || body.remindBeforeLeave !== undefined;

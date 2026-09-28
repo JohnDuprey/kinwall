@@ -285,7 +285,7 @@ calendarsRoutes.openapi(
     method: 'post',
     path: '/api/calendars/{id}/sync',
     tags: ['Calendars'],
-    summary: 'Sync a calendar now (full window replace - on Workers this can exceed the free-tier CPU budget for large feeds; the cron tick uses chunked slices instead)',
+    summary: 'Sync a calendar now (full window - on Workers this can exceed the free-tier CPU budget for large feeds; the cron tick uses chunked slices instead)',
     security: [{ Bearer: [] }],
     request: { params: z.object({ id: z.string() }) },
     responses: {

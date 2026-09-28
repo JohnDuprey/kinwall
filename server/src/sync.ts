@@ -76,8 +76,7 @@ async function buildProviderCtx(env: Env, cal: CalendarRow): Promise<ProviderCtx
 
 function insertEventStmt(env: Env, calendarId: string, ev: NormalizedEvent, now: Date, id: string) {
   return env.DB.prepare(
-    // Upsert: ids are deterministic and a slice's DELETE only covers events that START inside it,
-    // so an overlapping event from an earlier slice can still be stored - refresh it in place.
+    // Upsert: ids are deterministic, so a new event and a changed one take the same statement.
     'INSERT INTO events (id, calendar_id, external_id, title, start, end, all_day, location, description, rrule, member_ids, updated_at, series_id, reminders) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) ' +
       'ON CONFLICT(id) DO UPDATE SET title = excluded.title, start = excluded.start, end = excluded.end, all_day = excluded.all_day, ' +
       'location = excluded.location, description = excluded.description, updated_at = excluded.updated_at, series_id = excluded.series_id, reminders = excluded.reminders',
@@ -99,7 +98,61 @@ function insertEventStmt(env: Env, calendarId: string, ev: NormalizedEvent, now:
   );
 }
 
-// Full sync: replaces every event of the calendar in one batch. Used for the user-triggered
+type StoredEvent = {
+  id: string;
+  title: string;
+  start: string;
+  end: string;
+  all_day: number;
+  location: string | null;
+  description: string | null;
+  series_id: string | null;
+  reminders: string | null;
+};
+
+// The provider-sourced columns insertEventStmt writes, compared as stored.
+function sameAsStored(ev: NormalizedEvent, row: StoredEvent): boolean {
+  return (
+    row.title === ev.title &&
+    row.start === ev.start &&
+    row.end === ev.end &&
+    row.all_day === (ev.allDay ? 1 : 0) &&
+    row.location === (ev.location ?? null) &&
+    row.description === (ev.description ?? null) &&
+    row.series_id === (ev.seriesId ?? null) &&
+    row.reminders === (Array.isArray(ev.reminders) ? JSON.stringify(ev.reminders) : null)
+  );
+}
+
+// Hosted Kinwall is billed per row written, so a sync writes only the difference: insert new
+// ids, update rows whose provider fields changed, delete stored rows the provider no longer has.
+// An unchanged event is never touched. `window` limits deletes to events that start inside it
+// (a slice); without it the whole calendar is compared (full sync, ICS). Stored rows are read by
+// window and by id, since providers also return events that started before the window.
+async function diffEventStmts(env: Env, calendarId: string, events: NormalizedEvent[], window: { from: Date; to: Date } | null) {
+  const ids = await deterministicEventIds(calendarId, events.map((ev) => ev.externalId));
+  const cols = 'id, title, start, end, all_day, location, description, series_id, reminders';
+  const stored = window
+    ? env.DB.prepare(`SELECT ${cols} FROM events WHERE calendar_id = ? AND ((start >= ? AND start < ?) OR id IN (SELECT value FROM json_each(?)))`).bind(
+        calendarId,
+        window.from.toISOString(),
+        window.to.toISOString(),
+        JSON.stringify(ids),
+      )
+    : env.DB.prepare(`SELECT ${cols} FROM events WHERE calendar_id = ?`).bind(calendarId);
+  const byId = new Map((await stored.all<StoredEvent>()).results.map((r) => [r.id, r]));
+  const now = new Date();
+  const stmts = [];
+  events.forEach((ev, i) => {
+    const row = byId.get(ids[i]);
+    byId.delete(ids[i]);
+    if (!row || !sameAsStored(ev, row)) stmts.push(insertEventStmt(env, calendarId, ev, now, ids[i]));
+  });
+  if (byId.size) stmts.push(env.DB.prepare('DELETE FROM events WHERE id IN (SELECT value FROM json_each(?))').bind(JSON.stringify([...byId.keys()])));
+  return { stmts, changed: stmts.length > 0 };
+}
+
+// Full sync: brings every event of the calendar up to date in one batch. Used for the user-triggered
 // POST /api/calendars/:id/sync (full CPU cost is acceptable there - it's a one-off request,
 // not a cron tick) and directly by tests.
 export async function syncCalendar(env: Env, calendarId: string, execCtx?: WaitCtx): Promise<{ ok: true; count: number } | { ok: false; error: string }> {
@@ -118,17 +171,14 @@ export async function syncCalendar(env: Env, calendarId: string, execCtx?: WaitC
 
   try {
     const events = await provider.listEvents(ctx, from, to);
-    const ids = await deterministicEventIds(cal.id, events.map((ev) => ev.externalId));
-
-    const stmts = [
-      env.DB.prepare('DELETE FROM events WHERE calendar_id = ?').bind(cal.id),
-      ...events.map((ev, i) => insertEventStmt(env, cal.id, ev, now, ids[i])),
+    const { stmts, changed } = await diffEventStmts(env, cal.id, events, null);
+    await env.DB.batch([
+      ...stmts,
       env.DB.prepare('UPDATE calendars SET last_synced_at = ?, last_error = NULL WHERE id = ?').bind(now.toISOString(), cal.id),
-    ];
-    await env.DB.batch(stmts);
+    ]);
 
-    publish(env, execCtx, 'calendar.synced', { calendarId: cal.id, count: events.length });
-    publish(env, execCtx, 'events.changed', { calendarId: cal.id });
+    publish(env, execCtx, 'calendar.synced', { calendarId: cal.id, count: events.length }, cal.last_error !== null); // rev only moves to clear a shown error
+    if (changed) publish(env, execCtx, 'events.changed', { calendarId: cal.id });
     return { ok: true, count: events.length };
   } catch (err) {
     const message = redact(err instanceof Error ? err.message : String(err));
@@ -184,15 +234,11 @@ export async function refreshWritable(env: Env, provider: ReturnType<typeof getP
   }
 }
 
-export async function replaceSlice(env: Env, provider: ReturnType<typeof getProvider>, cal: CalendarRow, ctx: ProviderCtx, from: Date, to: Date): Promise<number> {
+export async function replaceSlice(env: Env, provider: ReturnType<typeof getProvider>, cal: CalendarRow, ctx: ProviderCtx, from: Date, to: Date): Promise<{ count: number; changed: boolean }> {
   const events = await provider.listEvents(ctx, from, to);
-  const ids = await deterministicEventIds(cal.id, events.map((ev) => ev.externalId));
-  const stmts = [
-    env.DB.prepare('DELETE FROM events WHERE calendar_id = ? AND start >= ? AND start < ?').bind(cal.id, from.toISOString(), to.toISOString()),
-    ...events.map((ev, i) => insertEventStmt(env, cal.id, ev, new Date(), ids[i])),
-  ];
-  await env.DB.batch(stmts);
-  return events.length;
+  const { stmts, changed } = await diffEventStmts(env, cal.id, events, { from, to });
+  if (changed) await env.DB.batch(stmts);
+  return { count: events.length, changed };
 }
 
 async function syncRemoteTick(env: Env, cal: CalendarRow, now: Date, execCtx: WaitCtx | undefined): Promise<{ ok: true }> {
@@ -201,7 +247,8 @@ async function syncRemoteTick(env: Env, cal: CalendarRow, now: Date, execCtx: Wa
 
   const nearFrom = new Date(now.getTime() - NEAR_PAST_DAYS * 24 * 60 * 60 * 1000);
   const nearTo = new Date(now.getTime() + SLICE_DAYS * 24 * 60 * 60 * 1000);
-  let count = await replaceSlice(env, provider, cal, ctx, nearFrom, nearTo);
+  const near = await replaceSlice(env, provider, cal, ctx, nearFrom, nearTo);
+  let { count, changed } = near;
 
   const cursor = loadCursor(cal.sync_cursor);
   const dueForFar = !cursor.farSyncedAt || Date.now() - new Date(cursor.farSyncedAt).getTime() > FAR_REFRESH_MS;
@@ -211,15 +258,17 @@ async function syncRemoteTick(env: Env, cal: CalendarRow, now: Date, execCtx: Wa
     const totalSlices = Math.max(farSliceCount(), 1);
     const index = cursor.farIndex % totalSlices;
     const bounds = farSliceBounds(now, index);
-    count += await replaceSlice(env, provider, cal, ctx, bounds.from, bounds.to);
+    const far = await replaceSlice(env, provider, cal, ctx, bounds.from, bounds.to);
+    count += far.count;
+    changed ||= far.changed;
     nextCursor = { farIndex: (index + 1) % totalSlices, farSyncedAt: now.toISOString() };
   }
 
   await env.DB.prepare('UPDATE calendars SET last_synced_at = ?, last_error = NULL, sync_cursor = ? WHERE id = ?')
     .bind(now.toISOString(), JSON.stringify(nextCursor), cal.id)
     .run();
-  publish(env, execCtx, 'calendar.synced', { calendarId: cal.id, count });
-  publish(env, execCtx, 'events.changed', { calendarId: cal.id });
+  publish(env, execCtx, 'calendar.synced', { calendarId: cal.id, count }, cal.last_error !== null); // rev only moves to clear a shown error
+  if (changed) publish(env, execCtx, 'events.changed', { calendarId: cal.id });
   return { ok: true };
 }
 
@@ -231,7 +280,7 @@ async function syncIcsTick(env: Env, cal: CalendarRow, now: Date, execCtx: WaitC
   const result = await fetchIcsConditional(env, url, cal.etag, cal.last_modified);
   if (result.notModified) {
     await env.DB.prepare('UPDATE calendars SET last_synced_at = ?, last_error = NULL WHERE id = ?').bind(now.toISOString(), cal.id).run();
-    publish(env, execCtx, 'calendar.synced', { calendarId: cal.id, count: 0, notModified: true });
+    publish(env, execCtx, 'calendar.synced', { calendarId: cal.id, count: 0, notModified: true }, cal.last_error !== null); // rev only moves to clear a shown error
     return { ok: true };
   }
 
@@ -245,7 +294,7 @@ async function syncIcsTick(env: Env, cal: CalendarRow, now: Date, execCtx: WaitC
     await env.DB.prepare('UPDATE calendars SET last_synced_at = ?, last_error = NULL, etag = ?, last_modified = ? WHERE id = ?')
       .bind(now.toISOString(), result.etag, result.lastModified, cal.id)
       .run();
-    publish(env, execCtx, 'calendar.synced', { calendarId: cal.id, count: 0, notModified: true });
+    publish(env, execCtx, 'calendar.synced', { calendarId: cal.id, count: 0, notModified: true }, cal.last_error !== null); // rev only moves to clear a shown error
     return { ok: true };
   }
 
@@ -253,11 +302,9 @@ async function syncIcsTick(env: Env, cal: CalendarRow, now: Date, execCtx: WaitC
   const from = new Date(now.getTime() - SYNC_WINDOW_PAST_DAYS * 24 * 60 * 60 * 1000);
   const to = new Date(now.getTime() + SYNC_WINDOW_FUTURE_DAYS * 24 * 60 * 60 * 1000);
   const events = await parseIcsEvents(result.text, from, to, tz);
-  const ids = await deterministicEventIds(cal.id, events.map((ev) => ev.externalId));
-
-  const stmts = [
-    env.DB.prepare('DELETE FROM events WHERE calendar_id = ?').bind(cal.id),
-    ...events.map((ev, i) => insertEventStmt(env, cal.id, ev, now, ids[i])),
+  const { stmts, changed } = await diffEventStmts(env, cal.id, events, null);
+  await env.DB.batch([
+    ...stmts,
     env.DB.prepare('UPDATE calendars SET last_synced_at = ?, last_error = NULL, etag = ?, last_modified = ?, content_hash = ? WHERE id = ?').bind(
       now.toISOString(),
       result.etag,
@@ -265,10 +312,9 @@ async function syncIcsTick(env: Env, cal: CalendarRow, now: Date, execCtx: WaitC
       fingerprint,
       cal.id,
     ),
-  ];
-  await env.DB.batch(stmts);
-  publish(env, execCtx, 'calendar.synced', { calendarId: cal.id, count: events.length });
-  publish(env, execCtx, 'events.changed', { calendarId: cal.id });
+  ]);
+  publish(env, execCtx, 'calendar.synced', { calendarId: cal.id, count: events.length }, cal.last_error !== null); // rev only moves to clear a shown error
+  if (changed) publish(env, execCtx, 'events.changed', { calendarId: cal.id });
   return { ok: true };
 }
 

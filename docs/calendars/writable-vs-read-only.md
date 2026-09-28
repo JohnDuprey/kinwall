@@ -23,7 +23,7 @@ The detail sheet shows no **Edit**/**Delete** and says "Only the family members 
 
 ## Where annotations are stored
 
-Synced events are replaced on every sync, so Kinwall keeps annotations in separate tables keyed by the provider's event ID. Member and category tags can apply per occurrence or per series, and travel time applies per occurrence. They survive re-syncs. [Export/import](../your-data/export-import.md) carries both the per-event and the series-wide ones.
+Synced events come from the provider and are rewritten whenever they change there, so Kinwall keeps annotations in separate tables keyed by the provider's event ID. Member and category tags can apply per occurrence or per series, and travel time applies per occurrence. They survive re-syncs. [Export/import](../your-data/export-import.md) carries both the per-event and the series-wide ones.
 
 ## Writes to writable calendars
 

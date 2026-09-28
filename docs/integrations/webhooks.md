@@ -1,6 +1,6 @@
 # Webhooks
 
-Kinwall can POST to your URL whenever something changes. Every change also bumps `GET /api/rev`.
+Kinwall can POST to your URL whenever something changes. Every change also bumps `GET /api/rev` (a `calendar.synced` that found nothing new doesn't, since nothing changed).
 
 ## Create one
 
@@ -22,7 +22,7 @@ URLs must be public `http(s)` addresses. Private and LAN addresses are refused u
 | `member.changed` | A member is added, edited or removed. |
 | `calendar.changed` | A calendar is added, edited or removed. |
 | `calendar.synced` | A calendar finished syncing (includes `error` on failure). |
-| `events.changed` | Events were created, edited, deleted or re-synced. |
+| `events.changed` | Events were created, edited or deleted, including by a sync that brought in changes. |
 | `chore.changed` | A chore is added, edited or deleted. |
 | `chore.completed` | A chore is marked done for a date (for a chore that needs a parent's OK, when it's approved). `data`: `{ id, date, title, memberId, points }`. `memberId` is who gets the credit (for an Anyone chore, the person it was ticked off for, or `null`), and `points` is what was awarded, so late completions show the reduced amount. |
 | `chore.uncompleted` | A completion is undone. `data`: `{ id, date, title, memberId }`. |

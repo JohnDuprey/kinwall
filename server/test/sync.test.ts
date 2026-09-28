@@ -216,3 +216,129 @@ test('sync: a provider calendar that became read-only is marked not writable (an
   await refreshWritable(env, broken, await cal(), {} as any);
   assert.equal((await cal()).writable, 1);
 });
+
+// Hosted Kinwall is billed per row written, so a sync must only write what changed.
+// total_changes() counts every row the connection has inserted, updated or deleted.
+const flush = () => new Promise((r) => setImmediate(r)); // let fire-and-forget publish() finish
+const writes = async (env: Env) => { await flush(); return ((await env.DB.prepare('SELECT total_changes() AS n').first()) as any).n as number; };
+const rev = async (env: Env) => Number(((await env.DB.prepare("SELECT value FROM settings WHERE key = 'rev'").first()) as any)?.value ?? 0);
+
+function sliceEvents(n: number, base = Date.parse('2026-10-01T00:00:00Z')) {
+  return Array.from({ length: n }, (_, i) => ({
+    externalId: `evt-${i}`,
+    title: `Event ${i}`,
+    start: new Date(base + i * 3600_000).toISOString(),
+    end: new Date(base + i * 3600_000 + 1800_000).toISOString(),
+    allDay: false,
+    reminders: [10],
+  }));
+}
+
+test('sync: a slice writes only new, changed and removed events', async () => {
+  const env = makeEnv();
+  await env.DB.prepare("INSERT INTO calendars (id, kind, name, config, writable, enabled) VALUES ('c1', 'google', 'G', '{}', 1, 1)").run();
+  let events: any[] = sliceEvents(60);
+  const provider = { listEvents: async () => events } as any;
+  const cal = { id: 'c1' } as any;
+  const from = new Date('2026-09-30T00:00:00Z');
+  const to = new Date('2026-10-31T00:00:00Z');
+  const slice = async () => { const before = await writes(env); await replaceSlice(env, provider, cal, {} as any, from, to); return (await writes(env)) - before; };
+
+  assert.equal(await slice(), 60, 'first sync inserts every event');
+  const stored = await env.DB.prepare("SELECT id, rowid, updated_at FROM events WHERE calendar_id = 'c1' ORDER BY id").all();
+  assert.equal(await slice(), 0, 'unchanged provider data writes nothing');
+  const after = await env.DB.prepare("SELECT id, rowid, updated_at FROM events WHERE calendar_id = 'c1' ORDER BY id").all();
+  assert.deepEqual(after.results, stored.results, 'unchanged rows are left alone');
+
+  events = events.map((e, i) => (i === 5 ? { ...e, title: 'Moved dentist' } : e));
+  assert.equal(await slice(), 1, 'one changed event is one write');
+  events = events.map((e, i) => (i === 6 ? { ...e, allDay: true, start: '2026-10-02', end: '2026-10-03' } : e));
+  assert.equal(await slice(), 1, 'timed to all-day is one write');
+  events = events.map((e, i) => (i === 7 ? { ...e, reminders: [] } : e));
+  assert.equal(await slice(), 1, 'reminder change is one write');
+  events = events.filter((_, i) => i !== 9);
+  assert.equal(await slice(), 1, 'a removed event is one delete');
+  const titles = (await env.DB.prepare("SELECT title FROM events WHERE calendar_id = 'c1'").all()).results.map((r: any) => r.title);
+  assert.equal(titles.length, 59);
+  assert.ok(titles.includes('Moved dentist') && !titles.includes('Event 9'));
+});
+
+test('sync: an event moving to another slice is kept whichever slice syncs first', async () => {
+  const env = makeEnv();
+  await env.DB.prepare("INSERT INTO calendars (id, kind, name, config, writable, enabled) VALUES ('c1', 'google', 'G', '{}', 1, 1)").run();
+  const a = { from: new Date('2026-10-01T00:00:00Z'), to: new Date('2026-11-01T00:00:00Z') };
+  const b = { from: new Date('2026-11-01T00:00:00Z'), to: new Date('2026-12-01T00:00:00Z') };
+  let ev = { externalId: 'trip', title: 'Trip', start: '2026-10-10T10:00:00.000Z', end: '2026-10-10T12:00:00.000Z', allDay: false };
+  const inWindow = (w: typeof a) => ({ listEvents: async () => (ev.start >= w.from.toISOString() && ev.start < w.to.toISOString() ? [ev] : []) }) as any;
+  const cal = { id: 'c1' } as any;
+  const count = async () => ((await env.DB.prepare("SELECT COUNT(*) AS n FROM events WHERE calendar_id = 'c1'").first()) as any).n;
+
+  await replaceSlice(env, inWindow(a), cal, {} as any, a.from, a.to);
+  ev = { ...ev, start: '2026-11-10T10:00:00.000Z', end: '2026-11-10T12:00:00.000Z' };
+  await replaceSlice(env, inWindow(b), cal, {} as any, b.from, b.to); // new slice first: updates in place
+  assert.equal(await count(), 1);
+  await replaceSlice(env, inWindow(a), cal, {} as any, a.from, a.to); // old slice no longer owns it
+  assert.equal(await count(), 1);
+
+  ev = { ...ev, start: '2026-10-12T10:00:00.000Z', end: '2026-10-12T12:00:00.000Z' };
+  await replaceSlice(env, inWindow(b), cal, {} as any, b.from, b.to); // old slice first: deleted there...
+  assert.equal(await count(), 0);
+  await replaceSlice(env, inWindow(a), cal, {} as any, a.from, a.to); // ...and re-added by its new slice
+  const row = (await env.DB.prepare("SELECT start FROM events WHERE calendar_id = 'c1'").first()) as any;
+  assert.equal(row.start, '2026-10-12T10:00:00.000Z');
+});
+
+function makeFeed(summaries: string[]) {
+  const icsDate = (d: Date) => d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+  const base = Date.now() + 7 * 24 * 3600_000;
+  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0'];
+  summaries.forEach((s, i) => lines.push('BEGIN:VEVENT', `UID:evt-${i}@example.test`, `DTSTART:${icsDate(new Date(base + i * 3600_000))}`, `DTEND:${icsDate(new Date(base + i * 3600_000 + 1800_000))}`, `SUMMARY:${s}`, 'END:VEVENT'));
+  lines.push('END:VCALENDAR', '');
+  return lines.join('\r\n');
+}
+
+test('sync: a changed ICS feed and a full sync write only the difference, and rev moves only on change', async () => {
+  const env = makeEnv();
+  const request = makeApp(env);
+  const realFetch = globalThis.fetch;
+  let feed = makeFeed(['A', 'B', 'C']);
+  globalThis.fetch = (async () => new Response(feed, { status: 200 })) as typeof fetch;
+  try {
+    const cal = await (await request('/api/calendars', { method: 'POST', body: JSON.stringify({ kind: 'ics', name: 'Feed', url: 'https://example.test/feed.ics' }) })).json() as any;
+    await syncCalendarTick(env, cal.id);
+    await flush();
+
+    // Changed feed: one event renamed. ICS ids hash title + time (feeds may regenerate UIDs), so
+    // that's 1 insert + 1 delete, plus 1 calendars bookkeeping row and 1 rev bump; A and C untouched.
+    feed = makeFeed(['A', 'B2', 'C']);
+    let w = await writes(env);
+    let r = await rev(env);
+    await syncCalendarTick(env, cal.id);
+    assert.equal((await writes(env)) - w, 4);
+    assert.equal((await rev(env)) - r, 1);
+
+    // Full sync ("Sync now") with the same data: only the calendars bookkeeping row, no rev bump.
+    w = await writes(env);
+    r = await rev(env);
+    const res = await (await request(`/api/calendars/${cal.id}/sync`, { method: 'POST' })).json() as any;
+    assert.equal(res.count, 3);
+    assert.equal((await writes(env)) - w, 1);
+    assert.equal(await rev(env), r);
+
+    // Unchanged feed on a tick: fingerprint matches, bookkeeping only, no rev bump.
+    w = await writes(env);
+    await syncCalendarTick(env, cal.id);
+    assert.equal((await writes(env)) - w, 1);
+    assert.equal(await rev(env), r);
+
+    // Full sync with one event dropped: exactly it is deleted.
+    feed = makeFeed(['A', 'B2']);
+    w = await writes(env);
+    await request(`/api/calendars/${cal.id}/sync`, { method: 'POST' });
+    assert.equal((await writes(env)) - w, 1 + 1 + 1);
+    const left = await (await request(`/api/events?from=2020-01-01&to=2035-01-01&calendarId=${cal.id}`)).json() as any[];
+    assert.deepEqual(left.map((e) => e.title).sort(), ['A', 'B2']);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});

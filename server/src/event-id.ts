@@ -1,6 +1,5 @@
 // Deterministic ids for synced (remote-kind) event rows, so an event keeps the same Kinwall id
-// across syncs (the row itself is still deleted/reinserted wholesale - only the id is stable),
-// letting the UI/API/MCP/HA track it. id = 'e_' + first 24 hex chars of sha256(calendarId + '\n'
+// across syncs (sync diffs by id, so an unchanged event's row is never rewritten), letting the UI/API/MCP/HA track it. id = 'e_' + first 24 hex chars of sha256(calendarId + '\n'
 // + externalId). Used by every insert path: full sync, chunked sync ticks, and the write-through
 // create in routes/events.ts.
 export async function deterministicEventId(calendarId: string, externalId: string): Promise<string> {

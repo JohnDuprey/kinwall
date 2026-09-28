@@ -37,12 +37,14 @@ type WebhookRow = { id: string; url: string; events: string; secret: string };
 
 // Bumps rev and fetches enabled webhooks in a single D1 round trip: the increment is done
 // entirely in SQL (no read-then-write) so it can sit in the same batch as the webhook lookup.
-async function bumpRevAndListWebhooks(db: KinwallDb): Promise<WebhookRow[]> {
+async function bumpRevAndListWebhooks(db: KinwallDb, bumpRev: boolean): Promise<WebhookRow[]> {
+  const list = db.prepare('SELECT id, url, events, secret FROM webhooks WHERE enabled = 1');
+  if (!bumpRev) return (await list.all<WebhookRow>()).results;
   const [, webhooks] = await db.batch<WebhookRow>([
     db.prepare(
       "INSERT INTO settings (key, value) VALUES ('rev', '1') ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + 1",
     ),
-    db.prepare('SELECT id, url, events, secret FROM webhooks WHERE enabled = 1'),
+    list,
   ]);
   return webhooks.results;
 }
@@ -99,12 +101,13 @@ async function deliverWebhooks(env: Env, type: BusEventType, data: unknown, webh
 }
 
 // Bumps rev and fires webhooks (in background via waitUntil). Usable outside a request
-// (cron / setInterval sync loop) as well as from route handlers.
-export function publish(env: Env, execCtx: WaitCtx | undefined, type: BusEventType, data: unknown = {}): void {
+// (cron / setInterval sync loop) as well as from route handlers. bumpRev = false fires the
+// webhooks only, for events that change nothing clients show (a sync tick with no new data).
+export function publish(env: Env, execCtx: WaitCtx | undefined, type: BusEventType, data: unknown = {}, bumpRev = true): void {
   waitUntil(
     execCtx,
     (async () => {
-      const webhooks = await bumpRevAndListWebhooks(env.DB);
+      const webhooks = await bumpRevAndListWebhooks(env.DB, bumpRev);
       await deliverWebhooks(env, type, data, webhooks);
     })(),
   );
