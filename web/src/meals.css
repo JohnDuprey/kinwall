@@ -217,3 +217,6 @@
   .cook-step-side .cook-photo { max-height: 30vh; } /* leaves room for the step's ingredients under it */
 }
 @media (prefers-reduced-motion: reduce) { .cook-ringing .cook-alarm { animation: none; } .cook-progress > div { transition: none; } }
+
+/* Cooking mode: the update banner waits until you leave (reloading mid-step would lose the recipe). */
+:root[data-cooking] .update-banner { display: none; }

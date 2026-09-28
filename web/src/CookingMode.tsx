@@ -60,8 +60,9 @@ export default function CookingMode({ recipe, steps, servings, onClose }: { reci
     holdAwake('cooking-mode', true)
     const behind = [...document.querySelectorAll<HTMLElement>('.app-shell, .sheet-backdrop')]
     behind.forEach(el => el.setAttribute('inert', ''))
+    document.documentElement.dataset.cooking = '' // hides the update banner, which sits in the (now inert) app behind
     heading.current?.focus({ preventScroll: true })
-    return () => { holdAwake('cooking-mode', false); behind.forEach(el => el.removeAttribute('inert')); opener?.focus?.({ preventScroll: true }) }
+    return () => { holdAwake('cooking-mode', false); behind.forEach(el => el.removeAttribute('inert')); delete document.documentElement.dataset.cooking; opener?.focus?.({ preventScroll: true }) }
   }, [opener])
 
   const keys = useRef<(e: KeyboardEvent) => void>(() => {})
