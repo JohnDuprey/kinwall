@@ -6,8 +6,8 @@ import { emit } from '../bus.ts';
 import { hostTimezone } from '../env.ts';
 import { zonedTimeToUtc } from '../recurrence.ts';
 import { ErrorSchema } from '../schemas.ts';
-import { IngredientInputSchema, KIT_QUALIFIER, MealEventStartSchema, MealInputSchema, MealPatchSchema, MealRangeSchema, MealSchema, ProjectionApplySchema, ProjectionQuerySchema, ProjectionSchema, RecipeImportResultSchema, RecipeImportSchema, RecipeInputSchema, RecipePreviewResultSchema, RecipeRatingInputSchema, RecipeSchema, RecipeTextParseSchema, RecipeUrlImportSchema, type Meal, type Recipe } from '../meal-schemas.ts';
-import { applyProjection, mealWrite, normalizeIngredient, normalizeSteps, parseIngredientLine, readMeal, readMeals, readRecipes, shoppingProjection, stepsText } from '../meals.ts';
+import { IngredientInputSchema, MealEventStartSchema, MealInputSchema, MealPatchSchema, MealRangeSchema, MealSchema, ProjectionApplySchema, ProjectionQuerySchema, ProjectionSchema, RecipeImportResultSchema, RecipeImportSchema, RecipeInputSchema, RecipePreviewResultSchema, RecipeRatingInputSchema, RecipeSchema, RecipeTextParseSchema, RecipeUrlImportSchema, type Meal, type Recipe } from '../meal-schemas.ts';
+import { applyProjection, importIngredient, mealWrite, normalizeIngredient, normalizeSteps, readMeal, readMeals, readRecipes, shoppingProjection, stepsText } from '../meals.ts';
 import type { KinwallDb } from '../db.ts';
 import type { Env } from '../env.ts';
 import { createEvent, deleteEvent, updateEvent } from './events.ts';
@@ -71,10 +71,7 @@ async function upsertImport(c: Ctx, input: Omit<z.infer<typeof RecipeImportSchem
   const db = c.env.DB;
   const found = await db.prepare('SELECT id FROM recipes WHERE source = ? AND external_id = ?').bind(input.source, input.externalId).first<{ id: string }>();
   const old = found ? (await readRecipes(db, { id: found.id, archived: true }))[0] : undefined;
-  const ingredients = input.ingredients.map((line, sort) => {
-    const item = typeof line === 'string' ? { text: line } : line;
-    return { ...parseIngredientLine(item.text), category: item.category ?? null, qualifier: item.pantry === false ? KIT_QUALIFIER : null, sort };
-  });
+  const ingredients = input.ingredients.map((line, sort) => ({ ...importIngredient(line), sort }));
   const recipe = await saveRecipe(db, {
     name: input.name, ingredients,
     ...(input.description !== undefined && { description: input.description }),
@@ -131,7 +128,7 @@ mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/recipes/import-url
   const saved = await upsertImport(c, {
     source: 'web', externalId: recipe.sourceUrl!, name: recipe.name, description: recipe.description, sourceUrl: recipe.sourceUrl, imageUrl: recipe.imageUrl ?? undefined,
     ...(recipe.servings !== null && { servings: recipe.servings }), prepMinutes: recipe.prepMinutes, totalMinutes: recipe.totalMinutes,
-    ingredients: recipe.ingredients.map((i) => i.text), steps: recipe.steps,
+    ingredients: recipe.ingredients.map((i) => (i.qualifier !== undefined ? i : i.text)), steps: recipe.steps,
   });
   return c.json({ recipe, warnings, recipeId: saved.recipe.id, created: saved.created }, 200);
 });

@@ -76,8 +76,10 @@ export const RecipeImportSchema = z.object({
   prepMinutes: minutes.optional().describe('Hands-on prep time in minutes.'), totalMinutes: minutes.optional().describe('Total time in minutes, prep included.'),
   ingredients: z.array(z.union([
     z.string().trim().min(1).max(300),
-    z.object({ text: z.string().trim().min(1).max(300), pantry: z.boolean().optional(), category: z.string().trim().max(100).nullable().optional() }).strict(),
-  ])).max(300).describe('Lines like "1.5 tablespoon Sour Cream". pantry: false marks one that ships in the kit (skipped on grocery lists by default); strings and pantry: true are regular groceries.'),
+    z.object({ text: z.string().trim().min(1).max(300), pantry: z.boolean().optional(), category: z.string().trim().max(100).nullable().optional(),
+      name: z.string().trim().min(1).max(300).optional(), quantity: IngredientInputSchema.shape.quantity, unit: IngredientInputSchema.shape.unit,
+      qualifier: IngredientInputSchema.shape.qualifier, preparation: IngredientInputSchema.shape.preparation }).strict(),
+  ])).max(300).describe('Lines like "1.5 tablespoon Sour Cream". pantry: false marks one that ships in the kit (skipped on grocery lists by default); strings and pantry: true are regular groceries. name, quantity, unit, qualifier and preparation, when given, are used instead of what the line says (qualifier instead of pantry).'),
   steps: z.array(z.union([z.string().trim().min(1).max(10000), RecipeStepInputSchema])).max(100).optional()
     .describe('The steps, as text (a step with several lines becomes a step of bullets) or { text, bullets, imageUrl, title, timers }.'),
   plan: z.object({ date: MealDateSchema, slot: MealSlotSchema, servings: servings.optional(), eaterIds: eaterIds.optional(),
@@ -93,7 +95,9 @@ export const RecipeImportResultSchema = z.object({
 export const RecipePreviewSchema = z.object({
   name: z.string().describe('Empty when the page or text had no name.'), description: z.string().nullable(), imageUrl: z.string().nullable(), sourceUrl: z.string().nullable(),
   servings: z.number().nullable(), prepMinutes: z.number().nullable(), totalMinutes: z.number().nullable(),
-  ingredients: z.array(z.object({ text: z.string().describe('The line as written; send these to POST /api/recipes/import to save.'), name: z.string(), quantity: z.number().nullable(), unit: z.string().nullable() })),
+  ingredients: z.array(z.object({ text: z.string().describe('The line as written; send these to POST /api/recipes/import to save.'), name: z.string(), quantity: z.number().nullable(), unit: z.string().nullable(),
+    qualifier: z.string().nullable().optional(), preparation: z.string().nullable().optional(), category: z.string().nullable().optional() })
+    .describe('qualifier, preparation and category are set when the page is a Kinwall share link; then send the whole ingredient to POST /api/recipes/import, not just its text.')),
   steps: z.array(z.object({ text: z.string(), bullets: z.array(z.string()), title: z.string().nullable().optional(), imageUrl: z.string().nullable().optional(), timers: z.array(StepTimerSchema).optional() })),
 }).openapi('RecipePreview');
 export const RecipeUrlImportSchema = z.object({

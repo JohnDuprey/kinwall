@@ -10,7 +10,7 @@ import { checkRate, clientIp } from '../ratelimit.ts';
 import { fetchRecipeImage } from '../outbound.ts';
 import { readRecipes } from '../meals.ts';
 import { ErrorSchema } from '../schemas.ts';
-import type { Recipe } from '../meal-schemas.ts';
+import { KIT_QUALIFIER, type Recipe } from '../meal-schemas.ts';
 import type { Env } from '../env.ts';
 
 type Ctx = Context<{ Bindings: Env }>;
@@ -88,6 +88,14 @@ function shownSteps(r: Recipe): ShownStep[] {
 /** JSON-LD photos are the stored originals (https only), so a copy keeps its photos after the link is
  * stopped; the page's own <img> tags use this link's proxy routes, so a viewer never contacts that host. */
 const original = (stored: string | null | undefined) => (stored && /^https:\/\//i.test(stored) ? stored : null);
+/** The recipe as POST /api/recipes/import takes it, for another Kinwall to copy exactly (recipe-web.ts
+ * reads it back): the same fields as the page, none of the family's (notes, ratings, meals, ids). */
+const kinwallData = (r: Recipe, self: string) => ({ kinwall: 1, recipe: {
+  name: r.name, description: r.description, servings: r.defaultServings, prepMinutes: r.prepMinutes ?? null, totalMinutes: r.totalMinutes ?? null,
+  imageUrl: original(r.imageUrl), sourceUrl: r.sourceUrl ?? self,
+  ingredients: r.ingredients.map((i) => ({ text: ingredientLine(i).slice(0, 300), name: i.name, quantity: i.quantity, unit: i.unit, qualifier: i.qualifier, preparation: i.preparation, category: i.category, pantry: i.qualifier !== KIT_QUALIFIER })),
+  steps: shownSteps(r).map((s, i) => ({ text: s.text, bullets: s.bullets, title: s.title, timers: r.steps?.[i]?.timers ?? [], imageUrl: original(r.steps?.[i]?.imageUrl) })),
+} });
 
 const CSS = `
 :root{--bg:#FFFBF5;--bg-alt:#FFF4E8;--card:#fff;--text:#3A2E27;--dim:#7A6B60;--border:#F1E4D6;--accent:#FF9E7A;--ink:#3A2E27;color-scheme:light dark}
@@ -174,7 +182,7 @@ recipeShareRoutes.openapi(createRoute({ method: 'get', path: '/r/{token}', tags:
     ...(r.imageUrl ? [['property', 'og:image', `${self}/image`]] : []),
     ['name', 'twitter:card', r.imageUrl ? 'summary_large_image' : 'summary'],
   ].map(([attr, key, value]) => `<meta ${attr}="${key}" content="${esc(value)}">`).join('');
-  const head = `${preview}<script type="application/ld+json">${jsonScript(ld)}</script><script nonce="${nonce}">document.addEventListener('DOMContentLoaded',function(){${SAVE_JS}})</script>`;
+  const head = `${preview}<script type="application/ld+json">${jsonScript(ld)}</script><script type="application/json" id="kinwall-recipe">${jsonScript(kinwallData(r, self))}</script><script nonce="${nonce}">document.addEventListener('DOMContentLoaded',function(){${SAVE_JS}})</script>`;
   return send(c, page(nonce, r.name, `<article>${body}</article><aside>${aside}</aside>`, head), nonce, 200);
 });
 

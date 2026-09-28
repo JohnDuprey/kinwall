@@ -81,13 +81,13 @@ test('recipe share: the page round-trips through the link importer', async () =>
 
   const parsed = parseRecipeHtml(html, share.url)!;
   assert.equal(parsed.name, tacos.name);
-  assert.equal(parsed.description, 'Beef tacos with toppings & warm tortillas.', 'the importer drops anything tag-shaped, as for any site');
+  assert.equal(parsed.description, tacos.description, 'from the Kinwall data block, exactly as stored');
   assert.equal(parsed.servings, 4);
   assert.equal(parsed.prepMinutes, 15);
   assert.equal(parsed.totalMinutes, 40);
   assert.equal(parsed.sourceUrl, tacos.sourceUrl, 'the original source, when there is one');
   assert.equal(parsed.imageUrl, tacos.imageUrl);
-  assert.deepEqual(parsed.ingredients.map((i) => [i.name, i.quantity, i.unit]), [['Ground beef', 1, 'lb'], ['Corn tortillas', 8, null], ['Salt to taste', null, null]]);
+  assert.deepEqual(parsed.ingredients.map((i) => [i.name, i.quantity, i.unit, i.qualifier]), [['Ground beef', 1, 'lb', null], ['Corn tortillas', 8, null, null], ['Salt', null, null, 'to taste']]);
   assert.deepEqual(parsed.steps.map((s) => s.text), tacos.steps.map((s) => s.text));
 
   // The page's own photos go through this link; the data carries the originals, so a copy keeps them.
@@ -153,7 +153,7 @@ test('recipe share: another Kinwall imports the link and keeps the original phot
     assert.equal(copy.name, tacos.name);
     assert.equal(copy.imageUrl, tacos.imageUrl);
     assert.equal(copy.sourceUrl, tacos.sourceUrl);
-    assert.deepEqual(copy.ingredients.map((i: any) => i.name), ['Ground beef', 'Corn tortillas', 'Salt to taste']);
+    assert.deepEqual(copy.ingredients.map((i: any) => [i.name, i.qualifier]), [['Ground beef', null], ['Corn tortillas', null], ['Salt', 'to taste']]);
     assert.deepEqual(copy.steps.map((s: any) => s.text), tacos.steps.map((s) => s.text));
   } finally {
     globalThis.fetch = realFetch;
@@ -225,4 +225,117 @@ test('recipe share: photos serve only that recipe\'s own stored image urls', asy
   } finally {
     globalThis.fetch = realFetch;
   }
+});
+
+// A recipe with everything a share can carry, plus family data it must not.
+const bowls = {
+  name: 'Teriyaki Bowls', description: 'Sticky chicken <and> rice.', defaultServings: 2, prepMinutes: 10, totalMinutes: 35,
+  sourceUrl: 'https://example.com/cards/bowls.pdf', imageUrl: 'https://example.com/bowls.jpg', preparationNotes: 'Sam skips the onions',
+  ingredients: [
+    { name: 'Chicken thighs', quantity: 10, unit: 'oz', category: 'Meat', qualifier: 'in the kit' },
+    { name: 'Onion', quantity: 1, preparation: 'diced', category: 'Produce' },
+    { name: 'Soy sauce', quantity: 2, unit: 'tablespoon', qualifier: 'low sodium' },
+    { name: 'Salt', qualifier: 'to taste' },
+  ],
+  steps: [
+    { title: 'Cook the rice', text: 'Boil the rice for 15 minutes.', timers: [{ name: 'Rice', minutes: 15 }], imageUrl: 'https://example.com/s1.jpg' },
+    { title: 'Prep', bullets: ['Dice the onion.', 'Pat the chicken dry.'], imageUrl: 'http://example.com/s2.jpg' },
+    { text: 'Sear the chicken.', bullets: ['Skin side down.', 'Flip once.'], timers: [{ name: null, minutes: 6 }, { name: 'Rest', minutes: 2 }] },
+  ],
+};
+const SHARED = ['name', 'description', 'defaultServings', 'prepMinutes', 'totalMinutes', 'imageUrl', 'sourceUrl'] as const;
+const kinwallBlock = (html: string) => /<script type="application\/json" id="kinwall-recipe">([\s\S]*?)<\/script>/.exec(html)?.[1];
+const withoutBlock = (html: string) => html.replace(/<script type="application\/json" id="kinwall-recipe">[\s\S]*?<\/script>/, '');
+const ingredientFields = (r: any) => r.ingredients.map(({ name, quantity, unit, preparation, qualifier, category, sort }: any) => ({ name, quantity, unit, preparation, qualifier, category, sort }));
+// The original's steps as shared: a photo that isn't https stays behind.
+const sharedSteps = (r: any) => r.steps.map((s: any) => ({ ...s, imageUrl: s.imageUrl?.startsWith('https:') ? s.imageUrl : null }));
+
+async function richShare() {
+  const f = fixture();
+  const maya = await f.json('/api/members', 'POST', { name: 'Maya', color: '#654321' });
+  const recipe = await f.json('/api/recipes', 'POST', bowls);
+  await f.json(`/api/recipes/${recipe.id}/rating`, 'PUT', { memberId: maya.id, stars: 4 });
+  await f.json('/api/meals', 'POST', { date: '2026-10-07', slot: 'dinner', recipeId: recipe.id, notes: 'Soccer night', eaterIds: [maya.id] });
+  const share = await f.json(`/api/recipes/${recipe.id}/share`, 'POST');
+  const html = await (await f.request(`/r/${share.token}`, 'GET', undefined, '')).text();
+  return { ...f, maya, recipe, share, html };
+}
+
+test('recipe share: the page carries the recipe as import data, and nothing private', async () => {
+  const { html, recipe, share, maya } = await richShare();
+  const raw = kinwallBlock(html);
+  assert.ok(raw, 'a kinwall-recipe data block in the page');
+  assert.ok(html.indexOf(raw!) < html.indexOf('</head>'), 'in <head>');
+  assert.ok(!raw!.includes('<'), 'nothing in it can close the tag');
+  const data = JSON.parse(raw!);
+  assert.equal(data.kinwall, 1);
+  assert.deepEqual(Object.keys(data), ['kinwall', 'recipe']);
+  assert.deepEqual(Object.keys(data.recipe).sort(), ['description', 'imageUrl', 'ingredients', 'name', 'prepMinutes', 'servings', 'sourceUrl', 'steps', 'totalMinutes']);
+  assert.equal(data.recipe.description, bowls.description, 'as stored');
+  assert.equal(data.recipe.servings, 2);
+  assert.deepEqual(data.recipe.ingredients[0], { text: '10 oz Chicken thighs in the kit', name: 'Chicken thighs', quantity: 10, unit: 'oz', qualifier: 'in the kit', preparation: null, category: 'Meat', pantry: false });
+  assert.deepEqual(data.recipe.steps[1], { text: '', bullets: ['Dice the onion.', 'Pat the chicken dry.'], title: 'Prep', timers: [], imageUrl: null });
+  for (const secret of ['Maya', maya.id, 'Soccer', 'Sam skips', recipe.id, recipe.createdAt, share.token, 'rating', 'stars']) assert.ok(!raw!.includes(secret), secret);
+});
+
+test('recipe share: another Kinwall imports the link losslessly', async () => {
+  const { html, recipe, share } = await richShare();
+  const other = fixture();
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async () => new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } })) as typeof fetch;
+  try {
+    // The server's save (import-url with save) and the web sheet's (preview, then POST /api/recipes/import).
+    const saved = await other.json('/api/recipes/import-url', 'POST', { url: share.url, save: true });
+    const preview = parseRecipeHtml(html, share.url)!;
+    const sheet = await other.json('/api/recipes/import', 'POST', {
+      source: 'web', externalId: 'https://example.com/other', name: preview.name, description: preview.description, sourceUrl: preview.sourceUrl, imageUrl: preview.imageUrl,
+      servings: preview.servings, prepMinutes: preview.prepMinutes, totalMinutes: preview.totalMinutes,
+      ingredients: preview.ingredients.map((i) => (i.qualifier !== undefined ? i : i.text)), steps: preview.steps,
+    });
+    for (const id of [saved.recipeId, sheet.recipeId]) {
+      const copy = await other.json(`/api/recipes/${id}`);
+      for (const key of SHARED) assert.deepEqual(copy[key], recipe[key], key);
+      assert.deepEqual(ingredientFields(copy), ingredientFields(recipe));
+      assert.deepEqual(copy.steps, sharedSteps(recipe));
+      assert.equal(copy.preparationNotes, null);
+      assert.deepEqual(copy.rating, { average: null, count: 0, byMember: {} });
+    }
+    assert.deepEqual(await other.json('/api/meals?from=2026-10-01&to=2026-10-31'), []);
+    assert.deepEqual(await other.json('/api/members'), []);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+test('recipe share: a tampered or unknown data block falls back to the JSON-LD', async () => {
+  const { html, share } = await richShare();
+  const fromLd = parseRecipeHtml(withoutBlock(html), share.url)!;
+  const raw = kinwallBlock(html)!;
+  const data = JSON.parse(raw);
+  const swap = (v: unknown) => html.replace(raw, typeof v === 'string' ? v : JSON.stringify(v));
+  for (const bad of [
+    '{not json', { ...data, kinwall: 2 }, { recipe: data.recipe }, { kinwall: 1, recipe: { ...data.recipe, name: '' } },
+    { kinwall: 1, recipe: { ...data.recipe, servings: -1 } }, { kinwall: 1, recipe: { ...data.recipe, plan: { date: '2026-10-07', slot: 'dinner' } } },
+    { kinwall: 1, recipe: { ...data.recipe, ingredients: [{ text: 'x', rating: 5 }] } },
+  ]) assert.deepEqual(parseRecipeHtml(swap(bad), share.url), fromLd, JSON.stringify(bad).slice(0, 60));
+  // Photos in the block must be https; others are dropped, not fetched.
+  const http = parseRecipeHtml(swap({ kinwall: 1, recipe: { ...data.recipe, imageUrl: 'http://example.com/a.jpg', steps: [{ text: 'Go.', imageUrl: 'http://example.com/b.jpg' }] } }), share.url)!;
+  assert.equal(http.imageUrl, null);
+  assert.equal(http.steps[0].imageUrl, null);
+  assert.equal(http.name, bowls.name, 'the rest of the block is used');
+});
+
+test('recipe share: the JSON-LD still reads for other apps', async () => {
+  const { html, share } = await richShare();
+  const r = parseRecipeHtml(withoutBlock(html), share.url)!;
+  assert.equal(r.name, bowls.name);
+  assert.equal(r.imageUrl, bowls.imageUrl);
+  assert.equal(r.sourceUrl, bowls.sourceUrl);
+  assert.deepEqual([r.servings, r.prepMinutes, r.totalMinutes], [2, 10, 35]);
+  assert.deepEqual(r.ingredients.map((i) => i.text), ['10 oz Chicken thighs in the kit', '1 Onion, diced', '2 tablespoon Soy sauce low sodium', 'Salt to taste']);
+  assert.deepEqual(r.steps, [
+    { text: 'Boil the rice for 15 minutes.', bullets: [], title: 'Cook the rice', imageUrl: 'https://example.com/s1.jpg' },
+    { text: '', bullets: ['Dice the onion.', 'Pat the chicken dry.'], title: 'Prep' },
+    { text: '', bullets: ['Sear the chicken.', 'Skin side down.', 'Flip once.'] },
+  ]);
 });

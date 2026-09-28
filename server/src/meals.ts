@@ -42,6 +42,13 @@ export function parseIngredientLine(line: string): { name: string; quantity: num
   }
   return { name: rest || text, quantity: rest && Number.isFinite(quantity) ? quantity : null, unit: rest ? unit : null };
 }
+export type ImportIngredient = string | { text: string; pantry?: boolean; category?: string | null; name?: string; quantity?: number | null; unit?: string | null; qualifier?: string | null; preparation?: string | null };
+/** An imported ingredient (POST /api/recipes/import) in recipe terms: the line parsed, with any fields it
+ * spells out winning (a qualifier over pantry). */
+export function importIngredient(line: ImportIngredient) {
+  const { text, pantry, category, ...own } = typeof line === 'string' ? { text: line } : line;
+  return { ...parseIngredientLine(text), qualifier: pantry === false ? KIT_QUALIFIER : null, preparation: null as string | null, ...own, category: category ?? null };
+}
 export type RecipeRow = { id: string; name: string; description: string | null; instructions: string | null; preparation_notes: string | null; source_url: string | null; default_servings: number; archived: number; prep_minutes?: number | null; total_minutes?: number | null; source?: string | null; external_id?: string | null; image_url?: string | null; steps?: string | null; created_at: string; updated_at: string };
 export type IngredientRow = { id: string; recipe_id: string; name: string; normalized_name: string; quantity: number | null; unit: string | null; preparation: string | null; qualifier: string | null; category: string | null; sort: number };
 export type MealRow = { id: string; date: string; slot: Meal['slot']; title: string; meal_kind: Meal['mealKind']; recipe_id: string | null; recipe_snapshot: string | null; servings: number; assignee_member_id: string | null; eater_ids?: string | null; notes: string | null; planned_time: string | null; calendar_event_id: string | null; calendar_event_start?: 'meal' | 'cooking' | null; status: Meal['status']; source_url: string | null; created_at: string; updated_at: string };

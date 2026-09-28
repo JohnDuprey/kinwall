@@ -46,14 +46,15 @@ export interface Recipe extends Omit<RecipeInput, 'ingredients'> {
 export interface RecipePreview {
   name: string; description: string | null; imageUrl: string | null; sourceUrl: string | null
   servings: number | null; prepMinutes: number | null; totalMinutes: number | null
-  ingredients: { text: string; name: string; quantity: number | null; unit: string | null }[]
+  // qualifier, preparation and category come only from a Kinwall share link; import those whole.
+  ingredients: { text: string; name: string; quantity: number | null; unit: string | null; qualifier?: string | null; preparation?: string | null; category?: string | null }[]
   steps: RecipeStep[]
 }
 export interface RecipePreviewResult { recipe: RecipePreview; warnings: string[] }
 /** POST /api/recipes/import: upserts by source + externalId (a web recipe is keyed by its address). */
 export interface RecipeImport {
   source: string; externalId: string; name: string; description?: string | null; sourceUrl?: string | null; imageUrl?: string
-  servings?: number; prepMinutes?: number | null; totalMinutes?: number | null; ingredients: string[]; steps?: RecipeStep[]
+  servings?: number; prepMinutes?: number | null; totalMinutes?: number | null; ingredients: (string | RecipePreview['ingredients'][number])[]; steps?: RecipeStep[]
 }
 export interface RecipeSnapshot { name: string; defaultServings: number; prepMinutes?: number | null; totalMinutes?: number | null; ingredients: RecipeIngredient[] }
 export interface MealInput {

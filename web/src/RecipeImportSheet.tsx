@@ -41,7 +41,7 @@ export default function RecipeImportSheet({ url: initialUrl = '', admin, onClose
     const common = { name: name.trim(), description: r.description, prepMinutes: r.prepMinutes, totalMinutes: r.totalMinutes, steps: r.steps }
     // From a page: keyed by its address, so importing it again updates this recipe.
     const saved = r.sourceUrl
-      ? await api.getRecipe((await api.importRecipe({ ...common, source: 'web', externalId: r.sourceUrl, sourceUrl: r.sourceUrl, ...(r.imageUrl && { imageUrl: r.imageUrl }), servings, ingredients: r.ingredients.map(i => i.text) })).recipeId)
+      ? await api.getRecipe((await api.importRecipe({ ...common, source: 'web', externalId: r.sourceUrl, sourceUrl: r.sourceUrl, ...(r.imageUrl && { imageUrl: r.imageUrl }), servings, ingredients: r.ingredients.map(i => i.qualifier !== undefined ? i : i.text) })).recipeId)
       : await api.createRecipe({ ...common, instructions: null, preparationNotes: null, sourceUrl: null, defaultServings: servings, archived: false,
         ingredients: r.ingredients.map(({ name, quantity, unit }, sort) => ({ name, quantity, unit, preparation: null, qualifier: null, category: null, sort })) })
     toast('Recipe saved'); onSaved(saved)

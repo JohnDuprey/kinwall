@@ -1,10 +1,12 @@
 // Reading a recipe off a web page (schema.org Recipe in JSON-LD) or out of pasted text, into the
 // preview POST /api/recipes/import-url and /parse-text return. No DOM here (Workers has none):
 // JSON-LD blocks are found with a regex and parsed as JSON.
-import { parseIngredientLine } from './meals.ts';
-import type { RecipeStep } from './meal-schemas.ts';
+import { z } from '@hono/zod-openapi';
+import { importIngredient, normalizeSteps, parseIngredientLine } from './meals.ts';
+import { RecipeImportSchema, type RecipeStep } from './meal-schemas.ts';
 
-export type PreviewIngredient = { text: string; name: string; quantity: number | null; unit: string | null };
+/** qualifier, preparation and category are only set from a Kinwall share link's data. */
+export type PreviewIngredient = { text: string; name: string; quantity: number | null; unit: string | null; qualifier?: string | null; preparation?: string | null; category?: string | null };
 type Step = { text: string; bullets: string[]; title?: string | null; imageUrl?: string | null; timers?: RecipeStep['timers'] };
 export type RecipePreview = {
   name: string; description: string | null; imageUrl: string | null; sourceUrl: string | null;
@@ -127,9 +129,30 @@ function ingredientLines(lines: string[]): PreviewIngredient[] {
     .map((text) => ({ text: text.slice(0, 300), ...parseIngredientLine(text.slice(0, 300)) }));
 }
 
-/** The first schema.org Recipe on the page as a preview, or null when there's none. `pageUrl` is
- * where the page ended up; the page's canonical link wins as the recipe's address. */
+// A Kinwall share page's own copy of the recipe, as POST /api/recipes/import takes it (routes/recipe-share.ts).
+const SharedRecipeSchema = z.object({ kinwall: z.literal(1), recipe: RecipeImportSchema.omit({ source: true, externalId: true, plan: true }) });
+const https = (url: string | null | undefined) => (url && /^https:\/\//i.test(url) ? url : null);
+function kinwallRecipe(html: string, pageUrl: string): RecipePreview | null {
+  const raw = /<script\b[^>]*\bid\s*=\s*["']?kinwall-recipe["']?[^>]*>([\s\S]*?)<\/script>/i.exec(html)?.[1];
+  let data: unknown;
+  try { data = raw && JSON.parse(raw); } catch { return null; }
+  const parsed = SharedRecipeSchema.safeParse(data);
+  if (!parsed.success) return null;
+  const r = parsed.data.recipe;
+  return {
+    name: r.name, description: r.description ?? null, imageUrl: https(r.imageUrl), sourceUrl: r.sourceUrl ?? pageUrl,
+    servings: r.servings ?? null, prepMinutes: r.prepMinutes ?? null, totalMinutes: r.totalMinutes ?? null,
+    ingredients: r.ingredients.map((line) => ({ text: typeof line === 'string' ? line : line.text, ...importIngredient(line) })),
+    steps: normalizeSteps(r.steps ?? []).map((s) => ({ ...s, imageUrl: https(s.imageUrl) })),
+  };
+}
+
+/** The recipe on the page as a preview, or null when there's none: a Kinwall share page's own data
+ * when it's valid, else the first schema.org Recipe. `pageUrl` is where the page ended up; the page's
+ * canonical link wins as the recipe's address. */
 export function parseRecipeHtml(html: string, pageUrl: string): RecipePreview | null {
+  const shared = kinwallRecipe(html, pageUrl);
+  if (shared) return shared;
   const nodes = jsonLdNodes(html);
   const recipe = nodes.find((n) => isType(n, 'Recipe'));
   if (!recipe) return null;
