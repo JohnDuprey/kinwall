@@ -26,6 +26,7 @@ import {
   ListValueRenameSchema,
   StoreAislesSchema,
   ListReorderSchema,
+  ListOrderSchema,
   ListSchema,
 } from '../schemas.ts';
 
@@ -303,7 +304,7 @@ listsRoutes.openapi(
       group_by: body.groupBy ?? defaultGroupBy(body.kind),
       sort_by: body.sortBy ?? (body.kind === 'shopping' ? 'aisle' : 'manual'),
       keep_checked: body.keepChecked !== undefined ? (body.keepChecked ? 1 : 0) : defaultKeepChecked(body.kind),
-      sort: 0,
+      sort: (await c.env.DB.prepare('SELECT COALESCE(MAX(sort), -1) + 1 AS n FROM lists').first<{ n: number }>())?.n ?? 0, // new lists go last
       archived: 0,
       created_at: new Date().toISOString(),
     };
@@ -877,6 +878,31 @@ listsRoutes.openapi(
     ]);
     emit(c, 'list.changed', { aisles: store });
     return c.json({ store, aisles: unique }, 200);
+  },
+);
+
+listsRoutes.openapi(
+  createRoute({
+    method: 'put',
+    path: '/api/lists/order',
+    tags: ['Lists'],
+    summary: 'Set the family-wide order of lists (sort = position). Lists not in ids (archived ones, other kinds) keep their relative order after the given ones. Unknown or repeated ids are rejected.',
+    security: [{ Bearer: [] }],
+    request: { body: { content: { 'application/json': { schema: ListOrderSchema } } } },
+    responses: {
+      200: { description: 'ok', content: { 'application/json': { schema: z.object({ ok: z.boolean() }) } } },
+      400: { description: 'unknown or repeated id', content: { 'application/json': { schema: ErrorSchema } } },
+    },
+  }),
+  async (c) => {
+    const { ids } = c.req.valid('json');
+    const { results } = await c.env.DB.prepare('SELECT id FROM lists ORDER BY sort, created_at').all<{ id: string }>();
+    const known = results.map((r) => r.id);
+    if (new Set(ids).size !== ids.length || ids.some((id) => !known.includes(id))) return c.json({ error: 'unknown or repeated list id' }, 400);
+    const order = [...ids, ...known.filter((id) => !ids.includes(id))];
+    await c.env.DB.batch(order.map((id, index) => c.env.DB.prepare('UPDATE lists SET sort = ? WHERE id = ?').bind(index, id)));
+    emit(c, 'list.changed', { order: true });
+    return c.json({ ok: true }, 200);
   },
 );
 

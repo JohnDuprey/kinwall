@@ -414,6 +414,7 @@ export const api = {
   createList: (body: Partial<List>) => MOCK ? mock.createList(body) : post<List>('api/lists', body),
   // Queued changes show on top of what the server (or the offline copy) says.
   getList: (id: string) => MOCK ? mock.getList(id) : Promise.all([get<ListDetail>(`api/lists/${id}`), outboxReady()]).then(([d]) => applyListOps(d, pendingOps(outboxTag()))),
+  reorderLists: (ids: string[]) => MOCK ? mock.reorderLists(ids) : put<{ ok: boolean }>('api/lists/order', { ids }),
   updateList: (id: string, body: Partial<List>) => MOCK ? mock.updateList(id, body) : patch<List>(`api/lists/${id}`, body),
   deleteList: (id: string) => MOCK ? mock.deleteList(id) : del(`api/lists/${id}`),
   addListItems: (listId: string, items: ListItemInput | ListItemInput[]) =>

@@ -150,6 +150,7 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'POST', pattern: /^\/api\/categories\/reorder$/ },
   { method: 'GET', pattern: /^\/api\/lists$/ },
   { method: 'POST', pattern: /^\/api\/lists$/ },
+  { method: 'PUT', pattern: /^\/api\/lists\/order$/ }, // the family's list order, like any list edit
   { method: 'GET', pattern: /^\/api\/lists\/[^/]+$/ },
   { method: 'PATCH', pattern: /^\/api\/lists\/[^/]+$/ },
   { method: 'DELETE', pattern: /^\/api\/lists\/[^/]+$/ },

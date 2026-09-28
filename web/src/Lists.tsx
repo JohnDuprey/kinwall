@@ -13,7 +13,7 @@ import { MemberPicker } from './MemberPicker.tsx'
 import { isSingleEmoji } from './emoji.ts'
 import { colorName, inkFor } from './color.ts'
 import { useIsPhone } from './useIsPhone.ts'
-import { CalendarIcon, CheckIcon, ChevronLeft, NoteIcon, PlusIcon, TrashIcon, XIcon } from './icons.tsx'
+import { CalendarIcon, CheckIcon, ChevronLeft, ChevronRight, NoteIcon, PlusIcon, TrashIcon, XIcon } from './icons.tsx'
 import { announce, pressable, Segmented } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
 import { CustomColorSwatch } from './ColorSwatch.tsx'
@@ -21,6 +21,7 @@ import NotesThread from './NotesThread.tsx'
 import { aisleAt, ANY_STORE, anyStoreView, departmentAisle, setShoppingModeList, setTripStore, tripLeftovers, tripStore, tripView } from './trip.ts'
 import { holdAwake } from './wakeLock.ts'
 import { itemKey, matchItems } from './itemSuggest.ts'
+import { listSections, reorderWithin } from './listSections.ts'
 
 const KIND_LABEL: Record<ListKind, string> = { todo: 'To-do', shopping: 'Shopping', reusable: 'Reusable' }
 
@@ -118,6 +119,25 @@ function ListCard({ list, active, members, onSelect, onEdit }: {
       )}
     </div>
   )
+}
+
+/** A list card in Reorder mode: drag it by the grip, or Move up / Move down. */
+function ReorderCard({ list, handle, first, last, onMove }: { list: List; handle: React.ReactNode; first: boolean; last: boolean; onMove: (dir: -1 | 1) => void }) {
+  return (
+    <div className="list-card list-card-reorder" style={{ ['--list-color' as string]: list.color || 'var(--accent)' }}>
+      <div className="list-card-accent" />
+      {handle}
+      <div className="list-card-emoji" aria-hidden="true">{list.emoji || '📝'}</div>
+      <div className="list-card-body"><div className="list-card-name">{list.name}</div></div>
+      <button className="icon-btn" onClick={() => onMove(-1)} disabled={first} aria-label={`Move ${list.name} up`}><ChevronRight width={20} height={20} style={{ transform: 'rotate(-90deg)' }} /></button>
+      <button className="icon-btn" onClick={() => onMove(1)} disabled={last} aria-label={`Move ${list.name} down`}><ChevronRight width={20} height={20} style={{ transform: 'rotate(90deg)' }} /></button>
+    </div>
+  )
+}
+
+const COLLAPSED_KEY = 'kinwall.listsCollapsed' // this device's folded sections on the Lists page
+function readCollapsed(): ListKind[] {
+  try { return JSON.parse(localStorage.getItem(COLLAPSED_KEY) || '[]') } catch { return [] }
 }
 
 function ListEditSheet({ list, onClose, onSaved, onDeleted, onManage }: {
@@ -611,7 +631,8 @@ function ShopRow({ item, meta, onToggle }: { item: ListItem; meta?: string | nul
 /** Rows reorderable by dragging their grip (mouse, touch or pen). The grip alone starts a drag, so
  * tapping the row still ticks/opens it and swiping elsewhere still scrolls. The dragged row follows
  * the pointer and a line marks where it will land; dropping reports the new order of these ids.
- * Keyboard: focus the grip, Alt+Up/Down moves the item one place (announced). */
+ * Holding it near the top or bottom edge scrolls. Keyboard: focus the grip, Alt+Up/Down moves the
+ * item one place (announced). */
 function DragList<T extends { id: string; title: string }>({ items, renderRow, onReorder, locked }: {
   items: T[]
   renderRow: (item: T, handle: React.ReactNode) => React.ReactNode
@@ -619,7 +640,10 @@ function DragList<T extends { id: string; title: string }>({ items, renderRow, o
   locked?: () => void // set when the order isn't hand-set: the grip only explains why it won't drag
 }) {
   const rowsRef = useRef<HTMLDivElement>(null)
-  const [drag, setDrag] = useState<{ id: string; startY: number; dy: number; mids: number[]; from: number; to: number } | null>(null)
+  const [drag, setDrag] = useState<{ id: string; startY: number; scroll0: number; dy: number; mids: number[]; from: number; to: number } | null>(null)
+  // Auto-scroll: holding the row near the top or bottom edge of whatever scrolls it scrolls that way.
+  const scroller = useRef<HTMLElement | null>(null)
+  const pointerY = useRef(0)
   // Reordering moves the row's DOM node, which drops focus; put it back on the moved item's grip.
   const refocus = useRef<string | null>(null)
   useLayoutEffect(() => {
@@ -644,15 +668,42 @@ function DragList<T extends { id: string; title: string }>({ items, renderRow, o
     const mids = rows.map(r => { const b = r.getBoundingClientRect(); return b.top + b.height / 2 })
     const from = items.findIndex(i => i.id === id)
     ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-    setDrag({ id, startY: e.clientY, dy: 0, mids, from, to: from })
+    scroller.current = scrollParent(rowsRef.current)
+    pointerY.current = e.clientY
+    setDrag({ id, startY: e.clientY, scroll0: scroller.current.scrollTop, dy: 0, mids, from, to: from })
   }
+  // Where the dragged row is now: pointer travel plus how far its container has scrolled since.
+  const place = () => setDrag(d => {
+    if (!d) return d
+    const dy = pointerY.current - d.startY + (scroller.current?.scrollTop ?? d.scroll0) - d.scroll0
+    const y = d.mids[d.from] + dy
+    // Slot = how many other rows' midpoints the dragged row's midpoint is below.
+    return { ...d, dy, to: d.mids.filter((m, i) => i !== d.from && m < y).length }
+  })
   const move = (e: React.PointerEvent) => {
     if (!drag) return
-    const y = drag.mids[drag.from] + (e.clientY - drag.startY)
-    // Slot = how many other rows' midpoints the dragged row's midpoint is below.
-    const to = drag.mids.filter((m, i) => i !== drag.from && m < y).length
-    setDrag({ ...drag, dy: e.clientY - drag.startY, to })
+    pointerY.current = e.clientY
+    place()
   }
+  const dragging = !!drag
+  useEffect(() => {
+    if (!dragging) return
+    let frame = 0
+    const tick = () => {
+      const el = scroller.current
+      if (el) {
+        const box = el === document.scrollingElement ? { top: 0, bottom: innerHeight } : el.getBoundingClientRect()
+        const y = pointerY.current
+        const step = y < box.top + 56 ? -10 : y > box.bottom - 56 ? 10 : 0
+        const before = el.scrollTop
+        if (step) el.scrollTop += step
+        if (el.scrollTop !== before) place()
+      }
+      frame = requestAnimationFrame(tick)
+    }
+    frame = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(frame)
+  }, [dragging]) // eslint-disable-line react-hooks/exhaustive-deps
   const end = () => {
     if (!drag) return
     if (drag.to !== drag.from) {
@@ -694,6 +745,15 @@ function DragList<T extends { id: string; title: string }>({ items, renderRow, o
       })}
     </div>
   )
+}
+
+/** The nearest ancestor that scrolls (else the page). */
+function scrollParent(el: HTMLElement | null): HTMLElement {
+  for (let p = el?.parentElement; p; p = p.parentElement) {
+    const o = getComputedStyle(p).overflowY
+    if ((o === 'auto' || o === 'scroll') && p.scrollHeight > p.clientHeight) return p
+  }
+  return (document.scrollingElement ?? document.documentElement) as HTMLElement
 }
 
 const OTHER_GROUP = 'Other'
@@ -1380,7 +1440,7 @@ function ArchivedLists({ lists, onChanged }: { lists: List[]; onChanged: () => v
 }
 
 export default function Lists() {
-  const { members, refreshTick, focusMemberId, focusShowsShared } = useApp()
+  const { members, refreshTick, focusMemberId, focusShowsShared, toast } = useApp()
   const isPhone = useIsPhone()
   const [allLists, setLists] = useState<List[]>([])
   // A display pinned to one member shows that member's lists (and the family's, unless hidden).
@@ -1389,6 +1449,29 @@ export default function Lists() {
     [allLists, focusMemberId, focusShowsShared])
   const lists = useMemo(() => visible.filter(l => !l.archived), [visible])
   const archived = useMemo(() => visible.filter(l => l.archived), [visible])
+  const sections = useMemo(() => listSections(lists), [lists])
+  const [collapsed, setCollapsed] = useState<ListKind[]>(readCollapsed)
+  const toggleSection = (kind: ListKind) => {
+    const next = collapsed.includes(kind) ? collapsed.filter(k => k !== kind) : [...collapsed, kind]
+    setCollapsed(next)
+    try { localStorage.setItem(COLLAPSED_KEY, JSON.stringify(next)) } catch { /* private mode */ }
+  }
+  const [reordering, setReordering] = useState(false)
+  // A section's new order (ids): saved for the whole family; everything else keeps its place.
+  const reorder = async (ids: string[]) => {
+    const order = reorderWithin(allLists, ids)
+    setLists(ls => ls.map(l => ({ ...l, sort: order.indexOf(l.id) })))
+    try { await api.reorderLists(order) }
+    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not reorder lists', true); load() }
+  }
+  const nudge = (ids: string[], list: List, dir: -1 | 1) => {
+    const i = ids.indexOf(list.id), j = i + dir
+    if (i < 0 || j < 0 || j >= ids.length) return
+    const next = [...ids]
+    ;[next[i], next[j]] = [next[j], next[i]]
+    reorder(next)
+    announce(`${list.name} moved to position ${j + 1} of ${ids.length}`)
+  }
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   // #/lists?list=<id> (a tap in a member's snapshot): open that list.
@@ -1427,8 +1510,8 @@ export default function Lists() {
     if (loading) return
     const gone = selectedId && !lists.find(l => l.id === selectedId)
     if (gone && shopId === selectedId) location.replace('#/lists')
-    if (gone || (!selectedId && !isPhone)) setSelectedId(isPhone ? null : lists[0]?.id ?? null)
-  }, [lists, loading, selectedId, isPhone, shopId])
+    if (gone || (!selectedId && !isPhone)) setSelectedId(isPhone ? null : sections[0]?.lists[0]?.id ?? null)
+  }, [lists, sections, loading, selectedId, isPhone, shopId])
 
   if (error) return <div className="content"><div className="state-card">Couldn't load lists.</div></div>
 
@@ -1444,11 +1527,34 @@ export default function Lists() {
 
   const cards = (
     <div className="lists-col">
-      {lists.map(l => (
-        <ListCard key={l.id} list={l} active={selectedId === l.id} members={members} onSelect={() => setSelectedId(l.id)} onEdit={() => setEditList(l)} />
-      ))}
-      <button className="btn btn-secondary btn-block list-new-btn" onClick={() => setEditList('new')}><PlusIcon width={18} height={18} /> New list</button>
-      <ArchivedLists lists={archived} onChanged={load} />
+      {sections.map(s => {
+        const open = reordering || !collapsed.includes(s.kind)
+        const ids = s.lists.map(l => l.id)
+        return (
+          <section key={s.kind} className="lists-section" aria-label={s.label}>
+            <button className="lists-section-head" aria-expanded={open} onClick={() => toggleSection(s.kind)} disabled={reordering}>
+              <ChevronRight width={18} height={18} aria-hidden="true" style={{ transform: open ? 'rotate(90deg)' : undefined }} />
+              <span className="lists-section-label">{s.label}</span>
+              <span className="lists-section-count">{s.lists.length}</span>
+            </button>
+            {open && (reordering
+              ? <DragList items={s.lists.map(l => ({ ...l, title: l.name }))} onReorder={reorder}
+                  renderRow={(l, handle) => <ReorderCard list={l} handle={handle} first={ids[0] === l.id} last={ids[ids.length - 1] === l.id} onMove={dir => nudge(ids, l, dir)} />} />
+              : s.lists.map(l => (
+                <ListCard key={l.id} list={l} active={selectedId === l.id} members={members} onSelect={() => setSelectedId(l.id)} onEdit={() => setEditList(l)} />
+              )))}
+          </section>
+        )
+      })}
+      {reordering
+        ? <button className="btn btn-primary btn-block list-new-btn" onClick={() => setReordering(false)}>Done</button>
+        : (
+          <div className="lists-col-actions">
+            <button className="btn btn-secondary list-new-btn" onClick={() => setEditList('new')}><PlusIcon width={18} height={18} /> New list</button>
+            {sections.some(s => s.lists.length > 1) && <button className="btn btn-secondary" onClick={() => setReordering(true)}>Reorder</button>}
+          </div>
+        )}
+      {!reordering && <ArchivedLists lists={archived} onChanged={load} />}
     </div>
   )
 
