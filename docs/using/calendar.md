@@ -30,20 +30,29 @@ Every device opens on **Board**; the view switcher runs Board, Day, Week (3 Day 
 
 The board carries its own large clock and date, so while it's showing, the wall's header hides its clock and keeps only the family name, avatars and buttons.
 
-**Board** turns the calendar into a bulletin board to read from across the room. It always shows today onward, so it has no ◀ ▶ or swipe paging. Its cards:
+**Board** turns the calendar into a bulletin board to read from across the room. It always shows today onward, so it has no ◀ ▶ or swipe paging.
+
+Across the top, count tiles sum things up; tap one to open its screen:
+
+* **Chores**: how many of today's chores are left, with each person's avatar and count (a ✓ once they're done), or **All done ✓**.
+* **Due soon**: how many to-dos are overdue (in red) and how many are due this week.
+* **Groceries**: how many items are still on your shopping list. Hidden if you have no shopping list.
+* **Rewards**: reward requests waiting for a parent's OK. Hidden when there are none.
+
+Below them are the cards:
 
 * **Clock**: a big clock and the date, with the weather now, today's high and low, and the next 3 days. The weather needs a weather location in [General settings](../settings/general.md).
 * **Today**: everyone's events for today, with times or "All day", a bar in each member's color and their avatars. Birthdays 🎂 come first. Events that have finished fade.
 * **Coming up**: the next 6 days, grouped by day, with each day's weather and birthdays.
-* **Due soon**: open list items due in the next week, overdue ones first in red, plus urgent and important items with no date. Each shows its list's emoji and the owner's avatar.
-* **Chores today**: a bar per member showing how many of today's chores are left.
+* **Due soon** (full lists only): open list items due in the next week, overdue ones first in red, plus urgent and important items with no date. Each shows its list's emoji and the owner's avatar.
+* **Chores today** (full lists only): a bar per member showing how many of today's chores are left.
 * **Today's meals**: today's [meals](meals.md) by slot, with times and who's cooking. The next one is marked. Tap one to open it.
 * **Picture**: a new picture every minute, from the same sources as this display's [screensaver](quiet-hours.md#screensaver): drawings, [family photos](photos.md) (with their captions), art (with the painting's title and artist) or nature photos. With no screensaver pictures chosen, it shows your family photos, or nature photos until you've added some.
 * **Quote or fact**: a short quote, a fact marked **💡 Did you know?**, a neurodivergent-friendly tip marked **🌱 Try this**, and, if the family turned them on, something from Wikipedia's **On this day** or a **trivia question** with multiple choice (tap a choice to guess, and **Try again** to reset it). It changes every 30 minutes, taking turns through the sources that are on. Every display shows the same one at the same time. Choose the sources and categories in [Settings → Quotes & facts](../settings/general.md#quotes--facts).
 
 Tap an event to open it, an item to open its list, or a chore bar to go to Chores. The member and category filters apply to the board's events too. The board refreshes every 10 minutes and whenever something changes. With low-stimulation mode or reduced motion on, the picture and quote change without fading.
 
-On a wall display the cards fill the screen in three columns, and long cards scroll on their own. On phones they stack in one column, with a smaller picture.
+On a wall display the cards fill the screen in three columns, and long cards scroll on their own. **Board chores & to-dos** in [This display](../settings/this-display.md) picks **Counts** (just the tiles), **Full lists** (the Chores today and Due soon cards instead of their tiles) or **Auto** (the default: full lists only on a big screen, at least 1600 × 900 pixels of board, and counts otherwise). On phones they stack in one column, with a smaller picture.
 
 <img src="../screenshots/phone-board.png" width="32%" alt="Board view on a phone" />
 

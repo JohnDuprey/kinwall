@@ -30,6 +30,7 @@ export type DeviceAppearance = Partial<Pick<Appearance, 'themeMode' | 'textScale
   focusMemberId?: string // this display shows only one member's things
   focusHideShared?: boolean // ...and hides the ones assigned to nobody
   lockView?: LockedView // calendar stays on this view, no switcher
+  boardLists?: 'counts' | 'full' // the Board's Chores and Due soon: count tiles or full cards; absent = auto (full on a big screen)
   saverSources?: SaverSource[] // quiet-hours screensaver, round-robin; absent/empty = the plain clock
   saverEvery?: number // minutes between pictures; absent = 5
   saverBright?: 'medium' // absent = low

@@ -1,10 +1,10 @@
 // Board view: the calendar as a family bulletin board - clock + weather, today, the week ahead,
 // what's due, chores, a rotating picture and a quote or fact. Read-mostly; rows open the same
 // things they do elsewhere (an event's detail sheet, the list, the chores tab).
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
-import type { Board as BoardData, EventInstance, Member, OnlineTidbits, SnapshotEvent } from './types.ts'
+import type { Board as BoardData, EventInstance, List, Member, OnlineTidbits, SnapshotEvent } from './types.ts'
 import { inkFor } from './color.ts'
 import { formatTime, zonedParts } from './date.ts'
 import { useDeviceAppearance } from './useTheme.ts'
@@ -14,6 +14,8 @@ import { BirthdayRow, ItemRow, dayName } from './Snapshot.tsx'
 import TodaysMeals from './TodaysMeals.tsx'
 
 const REFRESH_MS = 10 * 60_000
+// Auto shows the full Chores and Due soon cards only on a board this big (CSS px); smaller boards get the count tiles.
+const FULL_W = 1600, FULL_H = 900
 const noop = () => {}
 
 function Avatar({ m }: { m: Pick<Member, 'name' | 'color' | 'avatar'> }) {
@@ -31,7 +33,8 @@ function Card({ title, area, link, children }: { title: string; area: string; li
 
 /** `show`: the calendar's member/category filter, so a focused display's board matches its calendar. */
 export default function Board({ show, onTap }: { show: (e: EventInstance) => boolean; onTap: (e: EventInstance) => void }) {
-  const { settings, members, refreshTick } = useApp()
+  const { settings, members, refreshTick, focusMemberId, focusShowsShared } = useApp()
+  const device = useDeviceAppearance()
   const tz = settings.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone
   const [now, setNow] = useState(() => new Date())
   const [tick, setTick] = useState(0)
@@ -49,6 +52,27 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
       .catch(() => { if (!canceled) setError(true) }) // keep showing the last board, if any
     return () => { canceled = true }
   }, [refreshTick, tick])
+  // For the tiles: grocery lists' open items and reward requests waiting for a parent.
+  const f = settings.features
+  const [lists, setLists] = useState<List[]>([])
+  const [rewardRequests, setRewardRequests] = useState(0)
+  useEffect(() => {
+    let canceled = false
+    if (f.lists) api.getLists().then(l => { if (!canceled) setLists(l) }).catch(() => { /* keep the last count */ })
+    if (f.chores) api.getRedemptions({ status: 'pending' }).then(r => { if (!canceled) setRewardRequests(r.length) }).catch(() => { /* likewise */ })
+    return () => { canceled = true }
+  }, [refreshTick, tick, f.lists, f.chores])
+  // Auto: measure the board to decide between full lists and counts.
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [big, setBig] = useState(false)
+  const loaded = !!data
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const ro = new ResizeObserver(([e]) => setBig(e.contentRect.width >= FULL_W && e.contentRect.height >= FULL_H))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [loaded])
 
   const p = zonedParts(now.toISOString(), tz)
   // Online tidbits (Settings → Quotes & facts): fetched when the day or the settings change.
@@ -71,15 +95,64 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
   const wToday = w?.days.find(d => d.date === today)
   const later = [...new Set([...events.map(e => e.date), ...data.birthdays.map(b => b.date)])].filter(d => d > today).sort()
 
-  const f = settings.features
+  const full = device.boardLists === 'full' || (device.boardLists !== 'counts' && big)
+  const groceries = lists.filter(l => l.kind === 'shopping' && (!focusMemberId || l.memberIds.includes(focusMemberId) || (focusShowsShared && !l.memberIds.length)))
+  const tiles = [
+    f.chores && !full && 'chores', f.lists && !full && 'due', f.lists && groceries.length > 0 && 'groceries', f.chores && rewardRequests > 0 && 'rewards',
+  ].filter((t): t is string => !!t)
   // Saving for a reward: shown on the person's chores row, or a row of its own when they have no chores today.
   const goalsOnly = members.filter(m => m.rewardGoal && !data.chores.some(c => c.memberId === m.id))
-  const shown = ['clock', 'today', 'meals', 'photo', 'coming', 'due', 'chores', 'tidbit'].filter(a =>
-    a === 'photo' ? f.photos : a === 'due' ? f.lists : a === 'chores' ? f.chores : a === 'meals' ? f.meals : a === 'tidbit' ? !!tidbit : true)
+  const shown = ['tiles', 'clock', 'today', 'meals', 'photo', 'coming', 'due', 'chores', 'tidbit'].filter(a =>
+    a === 'tiles' ? tiles.length > 0 : a === 'photo' ? f.photos : a === 'due' ? f.lists && full : a === 'chores' ? f.chores && full : a === 'meals' ? f.meals : a === 'tidbit' ? !!tidbit : true)
+  const has = (a: string) => shown.includes(a)
+  const choresLeft = data.chores.reduce((n, c) => n + c.remaining, 0)
+  const overdue = data.items.filter(i => i.overdue).length
+  const dueWeek = data.items.filter(i => !i.overdue && i.dueDate).length
+  const groceryCount = groceries.reduce((n, l) => n + l.openCount, 0)
 
   return (
-    <div className="board-scroll">
+    <div className="board-scroll" ref={scrollRef}>
       <div className="board" style={boardAreas(shown)}>
+        {has('tiles') && (
+          <nav className="board-tiles" aria-label="At a glance">
+            {tiles.includes('chores') && (
+              <a className="board-tile" href="#/chores">
+                <span className="board-tile-label">✅ Chores</span>
+                <span className="board-tile-value">{choresLeft ? `${choresLeft} left today` : data.chores.length ? 'All done ✓' : 'None today'}</span>
+                {data.chores.length > 0 && (
+                  <span className="board-tile-people">
+                    {data.chores.map(c => (
+                      <span key={c.memberId ?? 'anyone'} className={`board-tile-person ${c.remaining ? '' : 'done'}`} aria-label={`${c.name ?? 'Anyone'}: ${c.remaining ? `${c.remaining} left` : 'done'}`}>
+                        <Avatar m={{ name: c.name ?? 'Anyone', color: c.color ?? 'var(--bg)', avatar: c.avatar ?? '⭐' }} />
+                        <span aria-hidden="true">{c.remaining || '✓'}</span>
+                      </span>
+                    ))}
+                  </span>
+                )}
+              </a>
+            )}
+            {tiles.includes('due') && (
+              <a className="board-tile" href="#/lists">
+                <span className="board-tile-label">📝 Due soon</span>
+                <span className="board-tile-value">
+                  {!overdue && !dueWeek ? 'All caught up' : <>{overdue > 0 && <span className="snap-overdue">{overdue} overdue</span>}{overdue > 0 && dueWeek > 0 && ' · '}{dueWeek > 0 && <span>{dueWeek} due this week</span>}</>}
+                </span>
+              </a>
+            )}
+            {tiles.includes('groceries') && (
+              <a className="board-tile" href={groceries.length === 1 ? `#/lists?list=${encodeURIComponent(groceries[0].id)}` : '#/lists'}>
+                <span className="board-tile-label">{groceries.length === 1 ? `${groceries[0].emoji ?? '🛒'} ${groceries[0].name}` : '🛒 Groceries'}</span>
+                <span className="board-tile-value">{groceryCount ? `${groceryCount} on the list` : 'Nothing needed'}</span>
+              </a>
+            )}
+            {tiles.includes('rewards') && (
+              <a className="board-tile" href="#/rewards">
+                <span className="board-tile-label">🎁 Rewards</span>
+                <span className="board-tile-value">{rewardRequests} waiting</span>
+              </a>
+            )}
+          </nav>
+        )}
         {/* The header already shows the clock and date, so this card is the forecast alone. */}
         <section className="board-card board-clock" aria-label="Time and weather">
           <div className="board-time">{new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', timeZone: tz }).format(now)}</div>
@@ -140,7 +213,7 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
           })}
         </Card>
 
-        {f.lists && <Card title="Due soon" area="due">
+        {has('due') && <Card title="Due soon" area="due">
           {data.items.length === 0 ? <p className="snap-empty">Nothing due — all caught up.</p> : (
             <ul className="snap-list">
               {data.items.map(i => {
@@ -151,7 +224,7 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
           )}
         </Card>}
 
-        {f.chores && <Card title="Chores today" area="chores" link={<a className="board-card-link" href="#/rewards">🎁 Rewards</a>}>
+        {has('chores') && <Card title="Chores today" area="chores" link={<a className="board-card-link" href="#/rewards">🎁 Rewards</a>}>
           {data.chores.length === 0 && !goalsOnly.length ? <p className="snap-empty">No chores today.</p> : (
             <ul className="snap-list">
               {data.chores.map(c => {
@@ -216,13 +289,17 @@ function goalText(m: Member | undefined): { text: string; label: string } | null
 function boardAreas(shown: string[]): React.CSSProperties {
   const has = (a: string) => shown.includes(a)
   // Two columns: rows of two cards; a card whose partner is off spans the row.
-  const two = [['clock', 'photo'], ['today', 'coming'], ['due', 'chores'], ['meals', 'tidbit']]
+  const two = [['tiles'], ['clock', 'photo'], ['today', 'coming'], ['due', 'chores'], ['meals', 'tidbit']]
     .map(row => row.filter(has)).filter(row => row.length).map(([a, b = a]) => `"${a} ${b}"`)
   // Three full-height columns: a missing card's rows go to the card above it.
   const cols = [['clock', 'photo', 'photo', 'tidbit'], ['today', 'today', 'chores', 'meals'], ['coming', 'coming', 'due', 'due']]
     .map(col => col.reduce<string[]>((out, a) => [...out, has(a) ? a : out[out.length - 1]], []))
-  const three = [0, 1, 2, 3].map(r => `"${cols.map(c => c[r]).join(' ')}"`)
+  const three = [...(has('tiles') ? ['"tiles tiles tiles"'] : []), ...[0, 1, 2, 3].map(r => `"${cols.map(c => c[r]).join(' ')}"`)]
   return {
+    // The last row is capped so a long meals or tidbit card can't squeeze the photo. The full Chores and Due soon
+    // cards need more height than a small wall screen has, so there the board scrolls rather than cut a card to its heading.
+    ['--board-rows-3' as string]: `${has('tiles') ? 'auto ' : ''}auto minmax(40px, 1fr) minmax(40px, 1fr) fit-content(24%)`,
+    ['--board-min-h-3' as string]: has('chores') || has('due') ? '740px' : '0px',
     ['--board-areas-1' as string]: shown.map(a => `"${a}"`).join(' '),
     ['--board-areas-2' as string]: two.join(' '),
     ['--board-areas-3' as string]: three.join(' '),

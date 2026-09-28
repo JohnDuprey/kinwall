@@ -2028,14 +2028,28 @@ button.board-empty-tap { display: block; width: 100%; text-align: left; backgrou
 .board-meals { grid-area: meals; }
 .board-photo { grid-area: photo; }
 .board-tidbit { grid-area: tidbit; min-height: auto; overflow-y: auto; }
+.board-tiles { grid-area: tiles; display: grid; gap: var(--gap); grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.board-tile {
+  background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 8px 14px; min-height: 64px; min-width: 0;
+  display: flex; flex-wrap: wrap; align-items: center; align-content: center; gap: 2px 12px; color: var(--text); text-decoration: none;
+}
+.board-tile:active { transform: scale(0.99); }
+.board-tile-label { flex-basis: 100%; font-size: 0.8125rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.board-tile-value { font-size: 1.125rem; font-weight: 800; }
+.board-tile-value > span { white-space: nowrap; }
+.board-tile-people { display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.board-tile-person { display: inline-flex; align-items: center; gap: 4px; font-weight: 800; font-size: 0.9375rem; }
+.board-tile-person .board-avatar { width: 24px; height: 24px; font-size: 0.8125rem; }
+.board-tile-person.done { opacity: 0.5; }
+@container board (min-width: 620px) { .board-tiles { grid-template-columns: none; grid-auto-columns: minmax(0, 1fr); grid-auto-flow: column; } }
 
 @container board (min-width: 620px) {
   .board { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: var(--board-areas-2); }
 }
 @container board (min-width: 880px) {
   .board {
-    height: 100%; grid-template-columns: repeat(3, minmax(0, 1fr));
-    grid-template-rows: auto minmax(0, 1fr) minmax(0, 1fr) fit-content(34%); /* 1024x768 fits without scrolling; cards scroll inside if they must. The last row is capped so a full meals or tidbit card can't squeeze the photo to nothing */
+    height: max(100%, var(--board-min-h-3)); grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: var(--board-rows-3); /* from boardAreas(): 1024x768 fits without scrolling; cards scroll inside if they must */
     grid-template-areas: var(--board-areas-3);
   }
   .board-tidbit blockquote p, .board-tidbit-body > p { font-size: 0.875rem; }
