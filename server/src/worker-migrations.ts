@@ -52,6 +52,7 @@ import m0048 from '../migrations/0048_event_sync_source.sql';
 import m0049 from '../migrations/0049_recipe_shares.sql';
 import m0050 from '../migrations/0050_chore_archive.sql';
 import m0051 from '../migrations/0051_member_grown_up.sql';
+import m0052 from '../migrations/0052_contacts.sql';
 
 export const MIGRATIONS: Migration[] = [
   { name: '0001_init.sql', sql: m0001 },
@@ -105,4 +106,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0049_recipe_shares.sql', sql: m0049 },
   { name: '0050_chore_archive.sql', sql: m0050 },
   { name: '0051_member_grown_up.sql', sql: m0051 },
+  { name: '0052_contacts.sql', sql: m0052 },
 ];

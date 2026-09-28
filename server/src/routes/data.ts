@@ -27,6 +27,8 @@ import { isAdultBirthday, parseTransitions } from './members.ts';
 import {
   CalendarSchema,
   CategorySchema,
+  ContactCategorySchema,
+  ContactSchema,
   ChoreSchema,
   ListGroupSchema,
   ListItemSchema,
@@ -57,6 +59,8 @@ const ExportSchema = z
     settings: SettingsSchema,
     members: z.array(MemberSchema.omit({ pointsToday: true, pointsWeek: true, balance: true, rewardGoal: true }).extend({ birthday: BirthdaySchema.nullable().default(null), grownUp: z.boolean().optional(), needsApproval: z.boolean().default(false), transitionReminders: TransitionRemindersSchema.optional(), rewardGoalId: z.string().nullable().default(null) })),
     categories: z.array(CategorySchema),
+    contactCategories: z.array(ContactCategorySchema),
+    contacts: z.array(ContactSchema),
     // Every calendar, but no config/credentials/account: synced ones are imported as placeholders
     // that keep their settings and are reconnected, and their events re-fetched.
     // ICS feeds also carry their url (the export is the family's own, admin-only file), so they come
@@ -146,6 +150,8 @@ type EventRow = {
   travel_minutes: number | null; remind_before_leave: number; sync_source: string | null; external_id: string | null;
 };
 type CompletionRow = { id: string; chore_id: string; date: string; member_id: string | null; completed_at: string; points_awarded: number | null; status: 'approved' | 'pending' };
+type ContactCategoryRow = { id: string; name: string; color: string | null; sort: number; created_at: string; updated_at: string };
+type ContactRow = { id: string; kind: 'person' | 'service' | 'organization' | 'place'; name: string; organization: string | null; title: string | null; given_name: string | null; family_name: string | null; nickname: string | null; relationship: string | null; address: string | null; favorite: number; emergency: number; phones: string; emails: string; addresses: string; websites: string; dates: string; notes: string | null; category_ids: string; tags: string; member_ids: string; service_hours: string | null; service_area: string | null; emergency_designation: number; always_open: number; wall_visible: number; emergency_visible: number; phone_visible_on_wall: number; address_visible_on_wall: number; privacy_visibility: 'household' | 'adults' | 'selected_members' | 'private'; selected_member_ids: string; source_metadata: string | null; visibility: string; private_fields: string; created_at: string; updated_at: string };
 
 function parseReminders(json: string | null): number[] | null {
   if (json === null) return null;
@@ -170,9 +176,11 @@ dataRoutes.openapi(
     const db = c.env.DB;
     const healthHidden = !!(await healthBlock(c));
     // Column lists are explicit (never SELECT *) so a secret column can't leak in by accident.
-    const [members, categories, calendars, events, memberOverrides, categoryOverrides, travelOverrides, seriesMemberOverrides, seriesCategoryOverrides, chores, completions, lists, items, steps, groups, notes, pointEntries, stickerPacks, scrapbook, rewards, redemptions, trackers, passkeys, webhooks] = (await db.batch<unknown>([
+    const [members, categories, contactCategories, contacts, calendars, events, memberOverrides, categoryOverrides, travelOverrides, seriesMemberOverrides, seriesCategoryOverrides, chores, completions, lists, items, steps, groups, notes, pointEntries, stickerPacks, scrapbook, rewards, redemptions, trackers, passkeys, webhooks] = (await db.batch<unknown>([
       db.prepare('SELECT id, name, color, avatar, birthday, sort, grown_up, needs_approval, transitions, reward_goal FROM members ORDER BY sort, created_at'),
       db.prepare('SELECT id, name, emoji, color, keywords, sort, created_at FROM categories ORDER BY sort, created_at'),
+      db.prepare('SELECT id, name, color, sort, created_at, updated_at FROM contact_categories ORDER BY sort, name COLLATE NOCASE, id'),
+      db.prepare('SELECT id, kind, name, organization, title, given_name, family_name, nickname, relationship, address, favorite, emergency, phones, emails, addresses, websites, dates, notes, category_ids, tags, member_ids, service_hours, service_area, emergency_designation, always_open, wall_visible, emergency_visible, phone_visible_on_wall, address_visible_on_wall, privacy_visibility, selected_member_ids, source_metadata, visibility, private_fields, created_at, updated_at FROM contacts ORDER BY name COLLATE NOCASE, id'),
       db.prepare('SELECT id, kind, remote_id, name, color, member_ids, category_id, enabled, display_edit, config FROM calendars ORDER BY name'),
       db.prepare(
         `SELECT e.id, e.calendar_id, e.title, e.start, e.end, e.all_day, e.location, e.description, e.rrule, e.member_ids, e.category_id, e.reminders, e.travel_minutes, e.remind_before_leave, e.sync_source, e.external_id
@@ -219,6 +227,14 @@ dataRoutes.openapi(
         settings: await readSettings(db),
         members: (members as MemberRow[]).map(({ id, name, color, avatar, birthday, sort, grown_up, needs_approval, transitions, reward_goal }) => ({ id, name, color, avatar, birthday, sort, grownUp: !!grown_up, needsApproval: !!needs_approval, transitionReminders: parseTransitions(transitions), rewardGoalId: reward_goal })),
         categories: (categories as CategoryRow[]).map(categoryToApi),
+        contactCategories: (contactCategories as ContactCategoryRow[]).map((r) => ({ id: r.id, name: r.name, color: r.color, sort: r.sort, createdAt: r.created_at, updatedAt: r.updated_at })),
+        contacts: (contacts as ContactRow[]).map((r) => ({
+          id: r.id, kind: r.kind, name: r.name, organization: r.organization, relationship: r.relationship, title: r.title, givenName: r.given_name, familyName: r.family_name, nickname: r.nickname, address: r.address,
+          favorite: !!r.favorite, emergency: !!r.emergency, phones: JSON.parse(r.phones), emails: JSON.parse(r.emails), addresses: JSON.parse(r.addresses), websites: JSON.parse(r.websites), dates: JSON.parse(r.dates), notes: r.notes,
+          categoryIds: JSON.parse(r.category_ids), tags: JSON.parse(r.tags), memberIds: JSON.parse(r.member_ids), serviceHours: r.service_hours, serviceArea: r.service_area, emergencyDesignation: !!r.emergency_designation, alwaysOpen: !!r.always_open,
+          wallVisible: !!r.wall_visible, showOnWall: !!r.wall_visible, emergencyVisible: !!r.emergency_visible, phoneVisibleOnWall: !!r.phone_visible_on_wall, addressVisibleOnWall: !!r.address_visible_on_wall, visibility: r.privacy_visibility, selectedMemberIds: JSON.parse(r.selected_member_ids), sourceMetadata: r.source_metadata ? JSON.parse(r.source_metadata) : null, privateFields: JSON.parse(r.private_fields),
+          createdAt: r.created_at, updatedAt: r.updated_at,
+        })),
         calendars: await Promise.all((calendars as (CalendarRow & { config: string })[]).map(async (r) => ({
           id: r.id,
           kind: r.kind,
@@ -323,6 +339,8 @@ const ImportSchema = ExportSchema.extend({
   settings: z.record(z.string(), z.unknown()),
   passkeys: z.array(z.unknown()),
   webhooks: z.array(z.unknown()),
+  contactCategories: ExportSchema.shape.contactCategories.default([]),
+  contacts: ExportSchema.shape.contacts.default([]),
   eventMemberOverrides: ExportSchema.shape.eventMemberOverrides.default([]),
   eventCategoryOverrides: ExportSchema.shape.eventCategoryOverrides.default([]),
   eventTravelOverrides: ExportSchema.shape.eventTravelOverrides.default([]),
@@ -348,6 +366,8 @@ const ImportResultSchema = z
     imported: z.object({
       members: z.number(),
       categories: z.number(),
+      contactCategories: z.number(),
+      contacts: z.number(),
       calendars: z.number(),
       events: z.number(),
       eventMemberOverrides: z.number(),
@@ -508,6 +528,15 @@ dataRoutes.openapi(
         body.categories.map((cat) => ({ id: cat.id, name: cat.name, emoji: cat.emoji, color: cat.color, keywords: JSON.stringify(cat.keywords), sort: cat.sort, created_at: cat.createdAt })),
         keepCreated,
       ),
+      ...upserts(db, 'contact_categories', 'id', body.contactCategories.map((cat) => ({ id: cat.id, name: cat.name, color: cat.color, sort: cat.sort, created_at: cat.createdAt, updated_at: cat.updatedAt })), keepCreated),
+      ...upserts(db, 'contacts', 'id', body.contacts.map((contact) => ({
+        id: contact.id, kind: contact.kind, name: contact.name, organization: contact.organization ?? null,
+        relationship: contact.relationship ?? null, title: contact.title ?? null, given_name: contact.givenName ?? null, family_name: contact.familyName ?? null, nickname: contact.nickname ?? null, address: contact.address ?? null, favorite: contact.favorite ? 1 : 0, emergency: contact.emergency ? 1 : 0,
+        phones: JSON.stringify(contact.phones), emails: JSON.stringify(contact.emails),
+        addresses: JSON.stringify(contact.addresses), websites: JSON.stringify(contact.websites), dates: JSON.stringify(contact.dates),
+        notes: contact.notes ?? null, category_ids: JSON.stringify(contact.categoryIds), tags: JSON.stringify(contact.tags), member_ids: JSON.stringify(contact.memberIds), service_hours: contact.serviceHours ?? null, service_area: contact.serviceArea ?? null, emergency_designation: contact.emergencyDesignation ? 1 : 0, always_open: contact.alwaysOpen ? 1 : 0, wall_visible: (contact.wallVisible || contact.showOnWall) ? 1 : 0, emergency_visible: contact.emergencyVisible ? 1 : 0, phone_visible_on_wall: contact.phoneVisibleOnWall ? 1 : 0, address_visible_on_wall: contact.addressVisibleOnWall ? 1 : 0, privacy_visibility: contact.visibility, selected_member_ids: JSON.stringify(contact.selectedMemberIds), source_metadata: contact.sourceMetadata ? JSON.stringify(contact.sourceMetadata) : null,
+        private_fields: JSON.stringify(contact.privateFields), created_at: contact.createdAt, updated_at: contact.updatedAt,
+      })), keepCreated),
       ...upserts(
         db,
         'calendars',
@@ -748,6 +777,7 @@ dataRoutes.openapi(
       ['settings.changed', Object.keys(settings.data).length],
       ['member.changed', body.members.length],
       ['category.changed', body.categories.length],
+      ['contact.changed', body.contactCategories.length + body.contacts.length],
       ['calendar.changed', calendars.length],
       ['events.changed', events.length + memberOverrides.length + categoryOverrides.length + travelOverrides.length + seriesMemberOverrides.length + seriesCategoryOverrides.length],
       ['chore.changed', body.chores.length + completions.length],
@@ -759,12 +789,16 @@ dataRoutes.openapi(
       ['meal.changed', body.meals.length],
     ];
     for (const [type, n] of changed) if (n > 0) emit(c, type, { imported: n });
+    for (const contact of body.contacts) emit(c, 'contact.imported', { id: contact.id, source: 'household-export' });
+    for (const category of body.contactCategories) emit(c, 'contact.category_changed', { id: category.id, source: 'household-export' });
 
     return c.json(
       {
         imported: {
           members: body.members.length,
           categories: body.categories.length,
+          contactCategories: body.contactCategories.length,
+          contacts: body.contacts.length,
           calendars: calendars.length,
           events: events.length,
           eventMemberOverrides: memberOverrides.length,

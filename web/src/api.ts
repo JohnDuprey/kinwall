@@ -5,6 +5,7 @@ import { applyChoreOps, applyListOps, cacheGet, cachePut, clearOffline, enqueue,
 import type { CustomScheme } from './skins.ts'
 import type { PasskeyAuthenticator } from './webauthn.ts'
 import type { Meal, MealInput, Recipe, RecipeImport, RecipeInput, RecipePreviewResult, RecipeShare, ShoppingProjection } from './meal-types.ts'
+import type { Contact, ContactCategory, ContactInput } from './contact-types.ts'
 import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginCatalogEntry,
   StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota, Reward, Redemption, MemberStats, StatsPeriod,
   Account, ApiKey, AppNotification, Appearance, CalendarEntry, Category, Chore, ChoreDay, PendingApproval, EventInstance, LeaderboardEntry, LeaderboardPeriod, List,
@@ -226,6 +227,11 @@ const put = <T,>(path: string, body: unknown, useAdmin?: boolean) => req<T>(path
 const del = <T,>(path: string, useAdmin?: boolean) => req<T>(path, { method: 'DELETE', useAdmin })
 
 export const api = {
+  getContacts: () => MOCK ? mock.getContacts() : get<Contact[]>('api/contacts'),
+  getContactCategories: () => MOCK ? mock.getContactCategories() : get<ContactCategory[]>('api/contact-categories'),
+  createContact: (body: ContactInput) => MOCK ? mock.createContact(body) : post<Contact>('api/contacts', body),
+  updateContact: (id: string, body: Partial<ContactInput>) => MOCK ? mock.updateContact(id, body) : patch<Contact>(`api/contacts/${encodeURIComponent(id)}`, body),
+  deleteContact: (id: string) => MOCK ? mock.deleteContact(id) : del<void>(`api/contacts/${encodeURIComponent(id)}`),
   getRecipes: (archived = false) => get<Recipe[]>(`api/recipes?archived=${archived}`),
   createRecipe: (body: RecipeInput) => post<Recipe>('api/recipes', body),
   getRecipe: (id: string) => get<Recipe>(`api/recipes/${encodeURIComponent(id)}`),

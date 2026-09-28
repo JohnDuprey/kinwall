@@ -1,0 +1,78 @@
+.contacts-page { flex: 1; min-height: 0; padding: 22px 18px 40px; }
+.contacts-inner { max-width: 1060px; margin: 0 auto; }
+.contacts-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 22px; }
+.contacts-heading h2 { font-size: clamp(1.55rem, 3vw, 2rem); margin: 0 0 4px; }
+.contacts-heading p, .contact-import-options > p, .contact-review > p { margin: 0; color: var(--text-dim); }
+.contacts-heading-actions { display: flex; gap: 8px; }
+.contacts-heading-actions .btn { flex: none; white-space: nowrap; }
+.contacts-tools { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, 240px); gap: 12px; }
+.contacts-tools .field { min-width: 0; margin-bottom: 12px; }
+.contacts-tools input[type="search"] { width: 100%; min-height: 52px; padding: 13px 14px; border: 2px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-alt); color: var(--text); font: 700 max(1rem, 16px) inherit; }
+.contacts-filters { margin: 4px 0 20px; }
+.contacts-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(265px, 1fr)); gap: 12px; }
+.contact-card { width: 100%; display: flex; align-items: center; gap: 13px; min-height: 104px; text-align: left; padding: 15px; border: 2px solid var(--border); border-radius: var(--radius); background: var(--card); color: var(--text); box-shadow: var(--shadow); cursor: pointer; font: inherit; }
+.contact-card:hover, .contact-card:focus-visible { border-color: var(--accent-strong); }
+.contact-avatar { width: 52px; height: 52px; flex: none; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--card-soft); color: var(--accent-text); font-size: 1.15rem; font-weight: 900; }
+.contact-card-copy { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.contact-card-title { font-weight: 850; font-size: 1.03rem; overflow-wrap: anywhere; }
+.contact-card-sub, .contact-card-phone { color: var(--text-dim); font-size: .84rem; overflow-wrap: anywhere; }
+.contact-card-kind { color: var(--accent-text); font-size: .74rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+.contact-card-categories { color: var(--text-dim); font-size: .78rem; overflow-wrap: anywhere; }
+.contact-card-flags { align-self: flex-start; display: flex; gap: 4px; color: var(--accent-text); font-size: 1rem; }
+.contact-detail-head { display: flex; align-items: center; gap: 15px; padding: 8px 0 18px; }
+.contact-avatar-large { width: 64px; height: 64px; font-size: 1.45rem; }
+.contact-detail-head h3 { margin: 0 0 5px; font-size: 1.25rem; }
+.contact-detail-head p { margin: 0; color: var(--text-dim); }
+.contact-badges { display: flex; flex-wrap: wrap; gap: 8px; }
+.contact-badges span { border-radius: 999px; background: var(--card-soft); color: var(--accent-text); padding: 6px 10px; font-size: .8rem; font-weight: 800; }
+.contact-detail-section { border-top: 1px solid var(--border); margin-top: 17px; padding-top: 16px; }
+.contact-detail-section h4 { margin: 0 0 10px; font-size: .83rem; text-transform: uppercase; color: var(--text-dim); }
+.contact-detail-section p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.contact-detail-line { display: flex; align-items: center; flex-wrap: wrap; gap: 7px 14px; padding: 8px 0; }
+.contact-detail-line > span { min-width: 58px; color: var(--text-dim); font-size: .85rem; }
+.contact-detail-line strong { flex: 1; min-width: 120px; overflow-wrap: anywhere; }
+.contact-action, .contact-inline-btn { min-height: 44px; display: inline-flex; align-items: center; border-radius: 999px; padding: 9px 16px; border: 2px solid var(--border); background: var(--bg-alt); color: var(--text); text-decoration: none; font: inherit; font-size: .88rem; font-weight: 800; cursor: pointer; }
+.contact-template { margin: 2px 0 20px; }
+.contact-template > span { display: block; margin-bottom: 8px; color: var(--text-dim); font-size: .83rem; font-weight: 800; }
+.contact-methods, .contact-options, .contact-review-row fieldset { border: 0; padding: 0; margin: 4px 0 20px; min-width: 0; }
+.contact-methods legend, .contact-options legend, .contact-review-row legend { padding: 0; margin-bottom: 9px; font-size: .83rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; }
+.contact-method-row { display: grid; grid-template-columns: minmax(90px, 1fr) minmax(130px, 2fr) auto; gap: 8px; align-items: end; }
+.contact-method-row .field { min-width: 0; margin-bottom: 8px; }
+.contact-method-row input[type="email"], .contact-method-row input[type="tel"] { width: 100%; min-height: 52px; padding: 13px 14px; border: 2px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-alt); color: var(--text); font-size: max(1rem, 16px); font-family: inherit; }
+.contact-remove-method { min-height: 52px; border: none; background: none; color: var(--danger); font-weight: 800; cursor: pointer; }
+.contact-options label, .contact-review-row fieldset label { display: flex; align-items: center; gap: 9px; min-height: 42px; font-weight: 700; }
+.contact-options input, .contact-review-row input { width: 20px; height: 20px; accent-color: var(--accent-strong); }
+.contact-import-options { display: grid; gap: 16px; }
+.contact-import-options .field { margin: 0; }
+.contact-import-choice { display: flex; flex-direction: column; gap: 5px; text-align: left; border: 2px solid var(--border); border-radius: var(--radius-sm); padding: 16px; background: var(--card); color: var(--text); font: inherit; font-weight: 800; cursor: pointer; }
+.contact-import-choice span { color: var(--text-dim); font-size: .83rem; font-weight: 600; }
+.contact-import-choice:hover, .contact-import-choice:focus-visible { border-color: var(--accent-strong); }
+.contact-review { display: grid; gap: 12px; }
+.contact-review-row { padding: 15px; border: 2px solid var(--border); border-radius: var(--radius-sm); background: var(--card); }
+.contact-review-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.contact-review-heading strong { overflow-wrap: anywhere; }
+.contact-status { border-radius: 999px; padding: 5px 9px; background: var(--card-soft); color: var(--text); font-size: .76rem; font-weight: 800; white-space: nowrap; }
+.contact-status-duplicate { color: var(--danger); }
+.contact-status-possible { color: var(--accent-text); }
+.contact-review-row p { margin: 8px 0; color: var(--text-dim); font-size: .85rem; overflow-wrap: anywhere; }
+.contact-review-row .contact-match { font-weight: 800; }
+.contact-review-row fieldset { margin: 12px 0 0; }
+.contact-review-edit { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(120px, .8fr) minmax(0, 1.2fr); gap: 8px; margin-top: 12px; }
+.contact-review-edit label, .contact-review-category { display: grid; gap: 5px; color: var(--text-dim); font-size: .8rem; font-weight: 800; }
+.contact-review-edit input, .contact-review-edit select, .contact-review-category select { min-width: 0; min-height: 44px; padding: 9px 10px; border: 2px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-alt); color: var(--text); font: inherit; }
+.contact-review-toggles { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 10px; }
+.contact-review-toggles label { display: flex; align-items: center; gap: 7px; min-height: 36px; font-weight: 700; }
+.contact-review-category { margin-top: 10px; }
+.contact-review-category select { min-height: 70px; }
+@media (max-width: 600px) {
+  .contacts-page { padding: 16px 12px 28px; }
+  .contacts-heading { flex-direction: column; }
+  .contacts-heading-actions { width: 100%; }
+  .contacts-heading-actions .btn { flex: 1; }
+  .contacts-tools { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .contacts-filters { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 5px; }
+  .contacts-filters .chip { flex: none; }
+  .contact-method-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); }
+  .contact-remove-method { grid-column: 1 / -1; justify-self: start; min-height: 40px; }
+  .contact-review-edit { grid-template-columns: minmax(0, 1fr); }
+}

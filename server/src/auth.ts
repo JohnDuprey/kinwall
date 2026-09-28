@@ -144,6 +144,7 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'POST', pattern: /^\/api\/rewards\/[^/]+\/redeem$/ },
   { method: 'PUT', pattern: /^\/api\/members\/[^/]+\/reward-goal$/ },
   { method: 'GET', pattern: /^\/api\/categories$/ },
+  { method: 'GET', pattern: /^\/api\/(?:contacts(?:\/categories|\/[0-9a-f-]+)?|contact-categories(?:\/[0-9a-f-]+)?)$/ },
   { method: 'POST', pattern: /^\/api\/categories$/ },
   { method: 'PATCH', pattern: /^\/api\/categories\/[^/]+$/ },
   { method: 'DELETE', pattern: /^\/api\/categories\/[^/]+$/ },

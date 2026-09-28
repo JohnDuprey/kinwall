@@ -158,3 +158,6 @@ curl -X PUT https://kinwall.example/api/calendars/<id>/events/sync \
 ## Calling from a browser
 
 CORS is off by default (same origin only). To allow browser-based automations on other origins, set `CORS_ORIGINS` to a comma-separated list.
+## Household contacts
+
+The Contacts Directory is available through `GET /api/contacts`, `POST /api/contacts`, `GET/PATCH/DELETE /api/contacts/:id`, contact-category CRUD at `/api/contact-categories`, `POST /api/contacts/import/preview`, `POST /api/contacts/import`, and `POST /api/contacts/merge`. List filters include `search`, `kind`, `category`, `favorite`, `emergency`, `wallVisible`, `memberId`, and `visibility`. Display-scoped keys receive only wall-visible records with phone/address redaction applied.
