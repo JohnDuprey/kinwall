@@ -87,7 +87,7 @@ export function Stars({ average, count }: { average: number; count: number }) {
   </span>
 }
 
-/** Each family member's stars, tappable (tap the same star again to clear). A member's own device rates only for them. */
+/** Collapsed to the family average; open it for each member's stars, tappable (tap the same star again to clear). A member's own device rates only for them. */
 function Ratings({ recipe, owner, onRated }: { recipe: Recipe; owner?: string | null; onRated?: () => void }) {
   const { members, toast } = useApp()
   const [rating, setRating] = useState<RecipeRating>(recipe.rating ?? { average: null, count: 0, byMember: {} })
@@ -99,8 +99,8 @@ function Ratings({ recipe, owner, onRated }: { recipe: Recipe; owner?: string | 
     catch (e) { toast(e instanceof Error ? e.message : 'Could not save the rating.', true) }
     finally { setBusy('') }
   }
-  return <>
-    <div className="recipe-steps-head"><h3>Ratings</h3>{rating.average !== null && <span className="recipe-time">★ {rating.average} family average</span>}</div>
+  return <details className="settings-disclosure recipe-ratings-box">
+    <summary>{rating.average !== null ? `★ ${rating.average} · ${rating.count} rating${rating.count === 1 ? '' : 's'}` : 'Rate this recipe'}</summary>
     <ul className="recipe-ratings">{members.map(m => {
       const mine = rating.byMember[m.id] ?? 0
       const locked = !!owner && owner !== 'shared' && owner !== m.id
@@ -111,7 +111,7 @@ function Ratings({ recipe, owner, onRated }: { recipe: Recipe; owner?: string | 
         </span>
       </li>
     })}</ul>
-  </>
+  </details>
 }
 
 /** Tapping a recipe opens this view; admins get Edit, which swaps in the editor (back to the view on close). */
