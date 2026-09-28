@@ -22,6 +22,7 @@ export type DeviceAppearance = Partial<Pick<Appearance, 'themeMode' | 'textScale
   lowStim?: boolean // flat, calm, no motion - see [data-lowstim] in styles.css
   font?: FontChoice // absent = Nunito
   nowNext?: boolean // Now / Next card on the calendar; absent = on
+  keepAwake?: boolean // keep the screen on while Kinwall is showing; absent = on for wall screens and kids' devices, off for parent devices
   idleReset?: boolean // back to the calendar after 2 idle minutes; absent = on for wall screens and kids' devices, off for parent devices
   warnings?: number[] // transition warnings, minutes before an event (or its leave-by)
   warningRepeat?: WarningRepeat // ...plus every N minutes during the last M (transitions.ts)

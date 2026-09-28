@@ -63,11 +63,8 @@ if (import.meta.env.DEV) import('./skins.ts').then(({ assertSkinsAA }) => assert
 const shopHash = resumeShoppingHash(location.hash)
 if (shopHash) history.replaceState(null, '', shopHash)
 
-// Keep a wall display awake (and a phone in shopping mode) (Auto-Lock "Never" on the iPad is the primary guard). The lock drops
-// whenever the page is hidden, so re-request it on every return to visible.
-const keepAwake = () => { if (document.visibilityState === 'visible') navigator.wakeLock?.request('screen').catch(() => {}) }
-keepAwake()
-document.addEventListener('visibilitychange', keepAwake)
+// Keeping the screen awake: see wakeLock.ts (held only for wall screens, the device switch,
+// shopping mode and cooking).
 
 // Push notifications need the SW registered before Settings can call pushManager.subscribe().
 // Scope '/' (not sw.js's own directory) so it can control the whole app.

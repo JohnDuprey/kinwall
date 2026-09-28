@@ -1,3 +1,4 @@
+import { holdAwake } from './wakeLock.ts'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { encode } from 'uqr'
 import { api, clearKey, getKey, onSynced, setAdminKey, setKey, useOffline, usePoll, useSaveState, ApiError, MOCK } from './api.ts'
@@ -951,6 +952,9 @@ function AppRoutes() {
   // It's for the wall: on by default for wall screens and kids' devices, off for a parent's
   // phone or computer (Settings → This device can change either).
   const idleReset = device.idleReset ?? !parentDevice
+  // Wall screens and kids' devices stay on; a parent's phone locks as usual unless its own switch says otherwise.
+  const keepOn = device.keepAwake ?? !parentDevice
+  useEffect(() => { holdAwake('device', keepOn) }, [keepOn])
   useEffect(() => {
     if (!idleReset) return
     let timer: ReturnType<typeof setTimeout>

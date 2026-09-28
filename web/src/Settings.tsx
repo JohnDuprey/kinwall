@@ -1122,8 +1122,16 @@ function TimeCueRows() {
   const nowNext = device.nowNext ?? true
   const { parentDevice } = useApp()
   const idleReset = device.idleReset ?? !parentDevice
+  const keepOn = device.keepAwake ?? !parentDevice
   return (
     <>
+      <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+        <div className="toggle-row">
+          <label id="keep-awake-label">Keep the screen on</label>
+          <button className={`switch ${keepOn ? 'on' : ''}`} role="switch" aria-checked={keepOn} aria-labelledby="keep-awake-label" onClick={() => set({ keepAwake: !keepOn })}><span className="knob" /></button>
+        </div>
+        <div className="settings-row-sub">Stops this screen from dimming and locking while Kinwall is open. On by default for wall screens and kids' devices, off on parents' phones and computers. Shopping mode keeps the screen on either way.</div>
+      </div>
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
         <div className="toggle-row">
           <label id="idle-reset-label">Back to the calendar when idle</label>

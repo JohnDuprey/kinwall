@@ -19,7 +19,7 @@ import { useDialog } from './dialog.tsx'
 import { CustomColorSwatch } from './ColorSwatch.tsx'
 import NotesThread from './NotesThread.tsx'
 import { aisleAt, ANY_STORE, anyStoreView, departmentAisle, setShoppingModeList, setTripStore, tripLeftovers, tripStore, tripView } from './trip.ts'
-import { tellAppKeepAwake } from './native.ts'
+import { holdAwake } from './wakeLock.ts'
 import { itemKey, matchItems } from './itemSuggest.ts'
 
 const KIND_LABEL: Record<ListKind, string> = { todo: 'To-do', shopping: 'Shopping', reusable: 'Reusable' }
@@ -963,13 +963,13 @@ function ListDetailPane({ listId, isPhone, shopMode, onBack, onArchivedOrDeleted
   // Kept for a relaunch, the screen stays on, and the app behind is out of reach (the view covers it).
   useEffect(() => {
     if (!shopMode) return
-    setShoppingModeList(listId); tellAppKeepAwake(true)
+    setShoppingModeList(listId); holdAwake('shopping', true)
     const shell = document.querySelector('.app-shell')
     shell?.setAttribute('inert', '')
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !document.querySelector('.sheet')) exitShop() }
     document.addEventListener('keydown', onKey)
     return () => {
-      setShoppingModeList(null); tellAppKeepAwake(false); shell?.removeAttribute('inert')
+      setShoppingModeList(null); holdAwake('shopping', false); shell?.removeAttribute('inert')
       document.removeEventListener('keydown', onKey); setAdding(false)
       setTimeout(() => document.querySelector<HTMLElement>('.list-shop-btn')?.focus({ preventScroll: true })) // back on Resume/Start shopping
     }
