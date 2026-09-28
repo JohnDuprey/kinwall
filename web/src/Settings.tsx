@@ -1101,6 +1101,14 @@ function ScreenFocusRows() {
             {views.map(v => <option key={v.key} value={v.key}>{v.label}</option>)}
           </select>
         </div>
+        <div className="device-pref-row">
+          <span>Board chores &amp; to-dos</span>
+          <select className="settings-select" aria-label="Board chores and to-dos" value={device.boardLists ?? ''} onChange={e => set({ boardLists: (e.target.value || undefined) as DeviceAppearance['boardLists'] })}>
+            <option value="">Auto</option>
+            <option value="counts">Counts</option>
+            <option value="full">Full lists</option>
+          </select>
+        </div>
       </div>
     </>
   )
