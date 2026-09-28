@@ -35,7 +35,7 @@ Smart placement runs the Worker near its D1 database rather than near the visito
 
 ## Routing
 
-Static assets (the UI) are served by Cloudflare's asset binding with single-page-app fallback. Only these paths reach the Worker: `/api/*`, `/docs`, `/openapi.json`, `/mcp`, `/oauth/*`, `/.well-known/*` and `/plugins/*` (activity plugin files).
+Static assets (the UI) are served by Cloudflare's asset binding with single-page-app fallback. Only these paths reach the Worker: `/api/*`, `/docs`, `/openapi.json`, `/mcp`, `/oauth/*`, `/.well-known/*`, `/plugins/*` (activity plugin files) and `/r/*` (shared recipe pages).
 
 ## Logs
 

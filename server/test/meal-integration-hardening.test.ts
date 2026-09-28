@@ -65,7 +65,7 @@ test('meal hardening: recipe search, category, ingredient replacement, restore a
   assert.deepEqual(created.ingredients.map((i) => [i.normalizedName, i.sort]), [['tortillas', 1], ['red onion', 8]]);
   assert.equal(created.preparationNotes, 'Prep ahead');
   assert.equal(created.sourceUrl, 'https://recipes.example/tacos');
-  assert.deepEqual(await json('GET', `/api/recipes/${created.id}`), created);
+  assert.deepEqual(await json('GET', `/api/recipes/${created.id}`), { ...created, share: null }); // reading it as an admin adds its share link
   await recipe({ name: 'Soup', ingredients: [{ name: 'Water', quantity: 1, unit: 'cup', category: 'Pantry' }] });
   for (const filter of ['search=TAC', 'search=SUPPER', 'category=%20produce%20']) {
     assert.deepEqual((await json<Recipe[]>('GET', `/api/recipes?${filter}`)).map((r) => r.id), [created.id]);
@@ -76,7 +76,7 @@ test('meal hardening: recipe search, category, ingredient replacement, restore a
     { ingredients: [{ name: '' }] }, { ingredients: [{ name: 'Rice', sort: -1 }] }, { unknown: true },
   ]) {
     await json('PATCH', `/api/recipes/${created.id}`, patch, 400);
-    assert.deepEqual(await json('GET', `/api/recipes/${created.id}`), created);
+    assert.deepEqual(await json('GET', `/api/recipes/${created.id}`), { ...created, share: null }); // reading it as an admin adds its share link
   }
   const edit = await json<Recipe>('PATCH', `/api/recipes/${created.id}`, { description: 'New' });
   assert.deepEqual(edit.ingredients, created.ingredients);

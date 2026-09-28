@@ -85,8 +85,8 @@ await kinwall.scheduled(now?, ctx?); // one cron tick: syncDue + runNotification
 - Create one per database and keep it: `migrations` are applied lazily before the first
   `fetch`/`scheduled` and memoised (retried on the next call if they fail). Omit `migrations` if the
   host migrates first (Node does, from the fs). `runMigrations(db, migrations)` is also exported.
-- `fetch` serves the API only (`/api/*`, `/mcp`, `/oauth/*`, `/.well-known/*`, `/plugins/*`, `/docs`,
-  `/openapi.json`); everything else is a plain 404. Static web/dist serving is the host's job
+- `fetch` serves the API only (`/api/*`, `/mcp`, `/oauth/*`, `/.well-known/*`, `/plugins/*`, `/r/*`
+  (shared recipe pages), `/docs`, `/openapi.json`); everything else is a plain 404. Static web/dist serving is the host's job
   (Workers: the `[assets]` binding in front of the worker; Node: `serveStatic` on `kinwall.app`).
 - `ctx` (anything with `waitUntil`) is optional: without it, background work (webhook delivery,
   sync-after-write) runs fire-and-forget with errors logged.

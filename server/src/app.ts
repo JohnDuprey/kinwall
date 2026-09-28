@@ -15,6 +15,7 @@ import { categoriesRoutes } from './routes/categories.ts';
 import { eventsRoutes } from './routes/events.ts';
 import { choresRoutes } from './routes/chores.ts';
 import { mealsRoutes } from './routes/meals.ts';
+import { recipeShareRoutes } from './routes/recipe-share.ts';
 import { leaderboardRoutes } from './routes/leaderboard.ts';
 import { listsRoutes } from './routes/lists.ts';
 import { keysRoutes } from './routes/keys.ts';
@@ -63,6 +64,7 @@ export function createApp() {
     c.header('X-Content-Type-Options', 'nosniff');
     c.header('Referrer-Policy', 'no-referrer');
     if (c.req.path.startsWith('/plugins/')) return; // plugin files carry their own, stricter policy (routes/plugins.ts)
+    if (c.req.path.startsWith('/r/')) return; // shared recipe pages set their own, stricter one (routes/recipe-share.ts)
     const isDocs = c.req.path === '/docs' || c.req.path.startsWith('/docs/') || c.req.path === '/openapi.json';
     c.header('Content-Security-Policy', isDocs ? CSP_DOCS : CSP_DEFAULT);
   });
@@ -89,6 +91,7 @@ export function createApp() {
   app.route('/', categoriesRoutes);
   app.route('/', eventsRoutes);
   app.route('/', choresRoutes);
+  app.route('/', recipeShareRoutes); // before mealsRoutes; /r/* is public (the token is the credential)
   app.route('/', mealsRoutes);
   app.route('/', leaderboardRoutes);
   app.route('/', listsRoutes);
