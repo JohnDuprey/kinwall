@@ -13,7 +13,7 @@ Tap **+** in a slot (or **Plan meal**) to add a meal:
 * **Servings**, an optional **Time** ("7:30 PM"; left empty, the meal is at the family's usual time for that meal, shown under the field), **Cooking** (who's making it), **Notes** and an optional website.
 * **Status**: **Planned**, **Prepared** or **Handled**. A meal that's done shows dashed.
 
-A slot can hold more than one meal. Tap a meal to edit it, or delete it from its sheet. A planned meal shows small avatars of who's eating.
+A slot can hold more than one meal. Tap a meal with a recipe to see the recipe (with **Edit meal** or, for a non-admin, **Meal details** to open the meal sheet); tap a meal without one to open its sheet directly, where you can also delete it. A planned meal shows small avatars of who's eating.
 
 When the header is filtered to one person, the planner and the Board's **Today's meals** show the meals that person is eating or cooking, plus meals with nobody picked.
 
@@ -21,13 +21,13 @@ When the header is filtered to one person, the planner and the Board's **Today's
 
 The **Recipe library** lists the family's recipes. Search by name or ingredient, filter by ingredient category, or show archived ones. A recipe has a name, description, default servings, how long it takes (total and prep minutes, both optional), instructions, preparation notes, a source link and its ingredients: name, quantity, unit, preparation ("diced"), a quantity note ("15 oz cans") and a category ("Produce").
 
-Tap a recipe to see it: its times, the ingredients (with **−** and **+** to see them for more or fewer servings), the numbered steps, preparation notes and its source link. Admins get **Edit** (the editor, where you also archive or delete a recipe) and **Plan this meal**, which opens a new meal with the recipe chosen. **Open recipe** in a meal's sheet opens the same view. A wall display sees the view without **Edit**.
+Tap a recipe to see it: its times, the ingredients (with **−** and **+** to see them for more or fewer servings), the numbered steps, preparation notes and its source link. Admins get **Edit** (the editor, where **More…** next to **Save recipe** also archives or deletes it) and **Plan this meal**, which opens a new meal with the recipe chosen. **Open recipe** in a meal's sheet opens the same view. A wall display sees the view without **Edit**.
 
 A recipe with a time shows it as **⏱ 35 min · 10 min prep** in its sheet and the meal's sheet, and as a quiet "35 min" on the recipe card, the planned meal in the week planner and the Board's **Today's meals** card. When the meal has a time, its sheet also says when to start ("Start by 5:25 PM").
 
 ### Ratings
 
-Everyone in the family can rate a recipe: the recipe's view has a **Ratings** row for each person with five big stars. Tap a star to rate, tap the same star again to clear it. The family average shows beside **Ratings**, on the recipe's card in the library (with how many have rated it), and next to its name when you pick a recipe for a meal. **Sort: Top rated** in the library puts the family's favorites first.
+Everyone in the family can rate a recipe: the recipe's view shows a one-line summary ("★ 4.3 · 3 ratings", or **Rate this recipe** with none yet) that expands to a row for each person with five big stars. Tap a star to rate, tap the same star again to clear it. The family average also shows on the recipe's card in the library (with how many have rated it) and next to its name when you pick a recipe for a meal. **Sort: Top rated** in the library puts the family's favorites first.
 
 Rating is an everyday action like ticking off a chore: a wall display rates for anyone, and a device that belongs to one person rates only for them. Deleting a recipe or a person removes their ratings. The API's `PUT /api/recipes/{id}/rating` (`{ "memberId": "…", "stars": 1-5 }`, `null` or `0` clears it) and the MCP tool `rate_recipe` do the same.
 
