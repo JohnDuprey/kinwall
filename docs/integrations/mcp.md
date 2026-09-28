@@ -69,6 +69,7 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 | `get_event_items` | List items linked to an event, across all lists, open first, with list names. |
 | `list_chores` | Chores due on a date (default today), with completion state. |
 | `get_leaderboard` | Points, completions and streaks per member for today, week (default) or month. |
+| `get_member_profile` | One member's profile stats (by name or ID) for `period` `today`, `week` (default), `month`, `year` or `all`: chores done and points (with the same stretch before), points spent, streak and best streak, books, sticker book, activity time, badges and birthday countdown. Read-only. |
 | `get_points` | One member's points (by name or ID): balance left to spend, all-time earned and spent, and recent purchases. Read-only. Stickers are bought on the wall, not over MCP; rewards can be redeemed with `redeem_reward`. |
 | `get_snapshot` | One member's day (`range`: `day`, default) or next 7 days (`week`), by name or ID: greeting, weather (if a location is set), their and everyone's events, their chores, their due or high/urgent list items, family birthdays, the day's meals, and (day) tomorrow at a glance. The same data as tapping their avatar. |
 | `get_board` | The whole household's bulletin board for today and the next `days` days (default 7, max 14): everyone's events plus untagged ones, open list items due soon, overdue or high/urgent, today's chores per member, birthdays and meals. The same data as the calendar's Board view. |

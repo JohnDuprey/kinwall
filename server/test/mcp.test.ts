@@ -104,6 +104,7 @@ test('mcp: tools/list returns the tools', async () => {
     'get_leaderboard',
     'get_list',
     'get_meal_projection',
+    'get_member_profile',
     'get_points',
     'get_recipe',
     'get_snapshot',
@@ -471,6 +472,8 @@ test('mcp: every tool declares an output schema, and real results pass it', asyn
   await call('complete_chore', { choreId: chore.id, date: today });
   const points = await call('get_points', { member: 'ava' });
   assert.deepEqual([points.balance, points.earnedTotal, points.spentTotal, points.entries], [3, 3, 0, []]);
+  const profile = await call('get_member_profile', { member: 'ava', period: 'all' });
+  assert.deepEqual([profile.member, profile.stats.choresDone, profile.stats.badges[0].earned], [points.member, 1, true]);
   await call('add_member', { name: 'Bo', color: '#00aa00', avatar: '🦖' });
   await call('update_member', { member: 'Bo', color: '#00bb00' });
   assert.equal((await call('update_member', { member: 'Bo', birthday: '--07-04' })).member.birthday, '--07-04');

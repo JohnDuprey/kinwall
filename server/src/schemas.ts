@@ -1077,3 +1077,35 @@ export const TidbitsSchema = z
   })
   .openapi('Tidbits');
 
+
+// GET /api/members/{id}/stats: a member profile's numbers. Periods are household days
+// (timezone, week start). previous is the same stretch just before, for "vs your own last week".
+export const StatsPeriodSchema = z.enum(['today', 'week', 'month', 'year', 'all']);
+export const MemberStatsSchema = z
+  .object({
+    memberId: z.string(),
+    period: StatsPeriodSchema,
+    from: z.string(), // YYYY-MM-DD, inclusive; for all, the earlier of joining and the first chore done
+    to: z.string(), // today
+    joined: z.string(), // the day the member was added
+    choresDone: z.number(), // approved completions, including chores deleted since
+    pointsEarned: z.number(),
+    previous: z.object({ from: z.string(), to: z.string(), choresDone: z.number(), pointsEarned: z.number() }).nullable(), // null for all
+    pointsSpent: z.object({ stickers: z.number(), rewards: z.number() }), // rewards net of refunds
+    streak: z.object({ current: z.number(), best: z.number() }), // the leaderboard's rule, grace days included
+    chart: z.array(z.object({ key: z.string(), count: z.number() })).openapi({ description: 'Chores done per day for the whole week or month (YYYY-MM-DD), or per month (year: January to December, all: from the first month; YYYY-MM). Days and months still ahead are 0. Empty for today.' }),
+    busiestWeekday: z.number().int().min(0).max(6).nullable(), // 0 = Sunday
+    favoriteChore: z.object({ choreId: z.string(), title: z.string(), emoji: z.string().nullable(), count: z.number() }).nullable(),
+    books: z.object({
+      finished: z.number(), // in the period
+      pages: z.number(), // of those books
+      shelfScope: z.enum(['year', 'all']), // the shelf is this year's books, or every book for all
+      shelf: z.array(z.object({ id: z.string(), title: z.string(), pages: z.number().nullable(), rating: z.number().nullable(), finishedOn: z.string() })),
+      reading: z.array(z.object({ id: z.string(), title: z.string(), percent: z.number().nullable() })),
+    }),
+    stickers: z.object({ packsOwned: z.number(), packsTotal: z.number(), placed: z.number() }),
+    activities: z.array(z.object({ pluginId: z.string(), name: z.string(), emoji: z.string().nullable(), seconds: z.number() })), // in the period, most first
+    badges: z.array(z.object({ id: z.string(), emoji: z.string(), title: z.string(), earned: z.boolean() })),
+    birthday: z.object({ date: z.string(), daysUntil: z.number(), turning: z.number().nullable() }).nullable(), // turning is null without a birth year
+  })
+  .openapi('MemberStats');

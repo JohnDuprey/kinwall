@@ -16,7 +16,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { hostTimezone } from './env.ts';
 import { effectivePublicUrl } from './providers/config.ts';
-import { BoardSchema, CalendarSchema, CategorySchema, ChoreDaySchema, ChoreSchema, EventInstanceSchema, LeaderboardEntrySchema, ListDetailSchema, ListItemSchema, ListSchema, MemberSchema, NoteSchema, StoreAislesSchema, TrackerEntrySchema, TRACKER_KINDS, NotificationSchema, PointsSchema, SettingsSchema, SnapshotSchema, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, TransitionRemindersSchema, RewardSchema, RewardInputSchema, RedemptionSchema, RewardLimitSchema } from './schemas.ts';
+import { BoardSchema, CalendarSchema, CategorySchema, ChoreDaySchema, ChoreSchema, EventInstanceSchema, LeaderboardEntrySchema, ListDetailSchema, ListItemSchema, ListSchema, MemberSchema, NoteSchema, StoreAislesSchema, TrackerEntrySchema, TRACKER_KINDS, NotificationSchema, PointsSchema, SettingsSchema, SnapshotSchema, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, TransitionRemindersSchema, RewardSchema, RewardInputSchema, RedemptionSchema, RewardLimitSchema, MemberStatsSchema, StatsPeriodSchema } from './schemas.ts';
 import type { Env } from './env.ts';
 import { RecipeSchema, RecipeInputSchema, RecipeImportSchema, RecipeImportResultSchema, RecipePreviewResultSchema, RecipeUrlImportSchema, MealSchema, MealInputSchema, MealPatchSchema, ProjectionSchema, ProjectionApplySchema, ProjectionQuerySchema, MealRangeSchema } from './meal-schemas.ts';
 import { VERSION } from './version.ts';
@@ -219,6 +219,7 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
   mark_reward_given: { redemption: RedemptionSchema },
   get_leaderboard: { period: z.string(), leaderboard: z.array(LeaderboardEntrySchema) },
   get_points: { member: z.string(), ...PointsSchema.shape },
+  get_member_profile: { member: z.string(), stats: MemberStatsSchema },
   add_member: { member: MemberSchema },
   update_member: { member: MemberSchema },
   list_lists: { lists: z.array(ListSchema) },
@@ -256,7 +257,7 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
 
 const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boolean; idempotentHint: boolean; openWorldHint: boolean }> = {
   list_recipes: READ, get_recipe: READ, create_recipe: WRITE, update_recipe: SET, rate_recipe: SET, import_recipe: SET, import_recipe_from_url: { ...SET, openWorldHint: true }, list_meals: READ, create_meal: WRITE, update_meal: SET, get_meal_projection: READ, apply_meal_projection: SET,
-  get_household: READ, list_events: READ, get_event: READ, list_chores: READ, get_leaderboard: READ, get_points: READ, list_lists: READ, get_list: READ, list_categories: READ, get_event_items: READ, list_notifications: READ, list_notes: READ, get_snapshot: READ, get_board: READ, list_tracker_entries: READ, add_tracker_entry: WRITE, update_tracker_entry: SET, list_color_schemes: READ, set_color_scheme: SET, save_color_scheme: WRITE,
+  get_household: READ, list_events: READ, get_event: READ, list_chores: READ, get_leaderboard: READ, get_points: READ, get_member_profile: READ, list_lists: READ, get_list: READ, list_categories: READ, get_event_items: READ, list_notifications: READ, list_notes: READ, get_snapshot: READ, get_board: READ, list_tracker_entries: READ, add_tracker_entry: WRITE, update_tracker_entry: SET, list_color_schemes: READ, set_color_scheme: SET, save_color_scheme: WRITE,
   delete_color_scheme: { ...WRITE, destructiveHint: true, idempotentHint: true },
   create_event: { ...WRITE, openWorldHint: true }, update_event: { ...SET, openWorldHint: true }, set_event_category: SET,
   create_chore: WRITE, update_chore: SET, complete_chore: SET, uncomplete_chore: SET, list_pending_approvals: READ, approve_chore: SET, reject_chore: SET,
@@ -901,6 +902,27 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       if (res.status >= 400) return errorResult(res.json, 'failed to load points');
       const points = res.json as { balance: number; earnedTotal: number; spentTotal: number };
       return okResult(`${member}: ${points.balance} points to spend (${points.earnedTotal} earned, ${points.spentTotal} spent).`, { member: memberId, ...(res.json as Record<string, unknown>) });
+    },
+  );
+
+  tool(
+    'get_member_profile',
+    {
+      title: "Get a member's profile",
+      description: "A member's profile stats for a period (household days): chores done and points earned (with the same stretch before), points spent, streak and best streak, books, sticker book, activity time, milestone badges and birthday countdown. Read-only.",
+      inputSchema: { member: z.string().describe('Member name or id.'), period: StatsPeriodSchema.optional().describe('today, week (default), month, year or all.') },
+    },
+    async ({ member, period }) => {
+      let memberId: string;
+      try {
+        memberId = await resolveMember(app, env, auth, member);
+      } catch (err) {
+        return errorResult(null, err instanceof Error ? err.message : 'member lookup failed');
+      }
+      const res = await call(app, env, auth, 'GET', `/api/members/${encodeURIComponent(memberId)}/stats?period=${period ?? 'week'}`);
+      if (res.status >= 400) return errorResult(res.json, 'failed to load profile');
+      const s = res.json as { choresDone: number; pointsEarned: number; streak: { current: number; best: number } };
+      return okResult(`${member}: ${s.choresDone} chore(s) done, ${s.pointsEarned} points earned (${period ?? 'week'}); streak ${s.streak.current}, best ${s.streak.best}.`, { member: memberId, stats: res.json as Record<string, unknown> });
     },
   );
 

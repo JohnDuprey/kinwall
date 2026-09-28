@@ -228,16 +228,22 @@ export function activityProgress(row: ChoreRow, plugins: Map<string, PluginInfo>
 // Exported for reuse by routes/leaderboard.ts (streak calculation) - single source of truth
 // for "which chores are due on date X".
 export function dueOnDate(row: ChoreRow, date: string, tz: string): boolean {
-  if (!row.rrule) return row.due_date === date;
+  return dueDates(row, date, date, tz).has(date);
+}
+
+/** The days from `from` to `to` (inclusive, YYYY-MM-DD) a chore is due, in one expansion - what
+ * a scan over many days (the streak) uses instead of dueOnDate per day. */
+export function dueDates(row: ChoreRow, from: string, to: string, tz: string): Set<string> {
+  if (!row.rrule) return new Set(row.due_date && row.due_date >= from && row.due_date <= to ? [row.due_date] : []);
   // The creation *day* in the household tz: created_at is UTC, so an evening chore west of UTC
   // would otherwise anchor on tomorrow and not show up until then.
   const anchor = row.due_date ?? new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date(row.created_at));
-  const dayStart = new Date(`${date}T00:00:00Z`);
-  const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+  const start = new Date(`${from}T00:00:00Z`);
+  const end = new Date(new Date(`${to}T00:00:00Z`).getTime() + 24 * 60 * 60 * 1000);
   try {
-    return expand(row.rrule, anchor, anchor, true, tz, dayStart, dayEnd).length > 0;
+    return new Set(expand(row.rrule, anchor, anchor, true, tz, start, end).map((i) => i.start));
   } catch {
-    return false; // a bad stored rrule (pre-validation rows) hides that chore, not the whole day
+    return new Set(); // a bad stored rrule (pre-validation rows) hides that chore, not the whole day
   }
 }
 

@@ -30,7 +30,7 @@ export function greetingFor(name: string, hour: number): string {
 }
 
 /** The date in `year` a YYYY-MM-DD / --MM-DD birthday falls on (Feb 29 -> Feb 28 outside leap years). */
-function birthdayIn(birthday: string, year: number): string {
+export function birthdayIn(birthday: string, year: number): string {
   const md = birthday.slice(-5);
   const leap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
   return `${year}-${md === '02-29' && !leap ? '02-28' : md}`;

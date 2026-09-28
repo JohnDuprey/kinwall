@@ -130,6 +130,7 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'DELETE', pattern: /^\/api\/chores\/[^/]+\/complete$/ },
   { method: 'GET', pattern: /^\/api\/leaderboard$/ },
   { method: 'GET', pattern: /^\/api\/members\/[^/]+\/points$/ },
+  { method: 'GET', pattern: /^\/api\/members\/[^/]+\/stats$/ }, // profiles: the whole family sees the fun stats
   { method: 'GET', pattern: /^\/api\/stickers\/packs$/ },
   { method: 'POST', pattern: /^\/api\/stickers\/packs\/[^/]+\/buy$/ },
   { method: 'GET', pattern: /^\/api\/stickers\/scrapbook\/[^/]+$/ },

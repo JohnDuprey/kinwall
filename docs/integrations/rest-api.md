@@ -72,7 +72,7 @@ On Workers, the free-tier quota (100k requests/day) is the practical ceiling. Se
 
 Color settings on `PATCH /api/settings`: `colorScheme` is a built-in id (`meadow` is shown as Peach, `field` as Meadow, plus `ocean`, `lavender`, `midnight`, `spring`, `summer`, `autumn`, `winter`, `harvest`, `festive`), `seasonal`, or a `customSchemes` id. `customSchemes` is the family's own schemes, up to 10, each `{ id: "custom-…", name, emoji, light, dark }` with `light`/`dark` as `{ bg, card, text, accent }` hex colors. A scheme whose text or derived dim text is under 4.5:1 on its background or cards, in either mode, is refused with 400 and the failing pairs. `accent`, `backgroundLight`, `backgroundDark` and `customColors` are kept for older clients.
 | Setup | `GET /api/setup`, `POST /api/setup/claim` |
-| Members | `GET/POST /api/members`, `PATCH/DELETE /api/members/{id}` |
+| Members | `GET/POST /api/members`, `PATCH/DELETE /api/members/{id}`, `GET /api/members/{id}/stats?period=today\|week\|month\|year\|all` (a member's profile numbers; wall screens and kids' devices too, see [Member stats](#member-stats)) |
 | Calendars | `GET/POST /api/calendars`, `PATCH/DELETE /api/calendars/{id}`, `POST /api/calendars/{id}/sync` |
 | Accounts | `GET /api/accounts`, `DELETE /api/accounts/{id}`, `POST /api/accounts/caldav`, `GET /api/accounts/{id}/remote-calendars`, `GET /api/oauth/{kind}/start`, `GET /api/oauth/{kind}/callback` |
 | Providers | `GET /api/providers`, `PUT /api/providers/public-url`, `PUT/DELETE /api/providers/{kind}` |
@@ -95,6 +95,25 @@ Color settings on `PATCH /api/settings`: `colorScheme` is a built-in id (`meadow
 | Photos | `GET/POST /api/photos` (POST body: the raw image), `GET /api/photos/quota`, `PATCH/DELETE /api/photos/{id}`, `GET /api/photos/{id}/image`, `GET /api/photos/export.zip`, `POST /api/photos/import` (body: the zip) |
 | Notes | `GET/POST /api/notes`, `PATCH/DELETE /api/notes/{id}` |
 | Data | `GET /api/export`, `POST /api/import`, `GET /api/host-events` |
+
+## Member stats
+
+`GET /api/members/{id}/stats?period=week` returns what a member's profile shows, built from data Kinwall already keeps. Periods are household days (the family's timezone and week start): `today`, `week` (default), `month`, `year`, or `all` (from the day they were added, or their first chore if earlier).
+
+| Field | What it is |
+|---|---|
+| `from`, `to`, `joined` | The period's first day and today, and the day they were added (`YYYY-MM-DD`). |
+| `choresDone`, `pointsEarned` | Approved chore completions in the period and the points they earned. Waiting-for-approval ticks don't count; a chore deleted after it was done still does. |
+| `previous` | `{ from, to, choresDone, pointsEarned }` for the same stretch just before (yesterday, last week to the same weekday, last month or last year to the same date), or `null` for `all`. |
+| `pointsSpent` | `{ stickers, rewards }` in the period; rewards net of refunds. |
+| `streak` | `{ current, best }`. The same rule as the leaderboard streak, grace days included. `best` looks back over all history. |
+| `chart` | `[{ key, count }]`: chores done per day for the whole `week` or `month`, or per month (`year` covers January to December, `all` from the first month). Days still ahead are 0. Empty for `today`. |
+| `busiestWeekday`, `favoriteChore` | The weekday (0 = Sunday) with the most chores done, and the chore done most, in the period. |
+| `books` | `{ finished, pages, shelfScope, shelf, reading }`: books finished in the period and their pages; the shelf is this year's finished books (every one for `all`); books in progress with a percent. Only reading tracker entries; health entries never appear. |
+| `stickers` | `{ packsOwned, packsTotal, placed }`. |
+| `activities` | `[{ pluginId, name, emoji, seconds }]`: time played in each activity in the period. |
+| `badges` | `[{ id, emoji, title, earned }]`: the fixed set of milestone badges, earned from all-time totals. |
+| `birthday` | `{ date, daysUntil, turning }` (`turning` is `null` without a birth year), or `null`. |
 
 Dates: timed events use UTC ISO strings (`2026-09-24T14:00:00.000Z`). All-day events use `YYYY-MM-DD` with an **exclusive** end.
 

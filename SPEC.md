@@ -276,6 +276,7 @@ DELETE /api/lists/:id/items/:itemId
 POST   /api/lists/:id/clear-completed -> {deleted}     POST /api/lists/:id/reset -> {reset}
 POST   /api/lists/:id/reorder   {itemIds} -> sort = index      PUT /api/lists/:id/groups   {groups} -> replaces ordering
 
+GET    /api/members/:id/stats?period=today|week|month|year|all   (profile numbers; display keys too)
 GET    /api/leaderboard?period=today|week|month   (default week; household timezone, week respects settings.weekStart)
          -> [{memberId, name, color, avatar, points, completed, streak, rank}]
          sorted by points desc, then completed desc, then name; rank ties on equal points+completed.

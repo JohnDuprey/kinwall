@@ -2,7 +2,7 @@ import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
 import { household, todayInTz, weekStartDate } from './members.ts';
-import { dueOnDate } from './chores.ts';
+import { dueDates } from './chores.ts';
 import type { ChoreRow } from './chores.ts';
 import { LeaderboardEntrySchema } from '../schemas.ts';
 
@@ -20,7 +20,7 @@ function monthStartDate(tz: string, at = new Date()): string {
   return `${y}-${m}-01`;
 }
 
-function addDaysStr(date: string, delta: number): string {
+export function addDaysStr(date: string, delta: number): string {
   const [y, m, d] = date.split('-').map(Number);
   const dt = new Date(Date.UTC(y, m - 1, d));
   dt.setUTCDate(dt.getUTCDate() + delta);
@@ -39,21 +39,36 @@ function addDaysStr(date: string, delta: number): string {
 // than graceDays misses", since every window's misses fit in the window starting at its earliest one.
 // graceDays = 0 is the strict rule: any missed day ends the streak.
 export function computeStreak(memberChores: ChoreRow[], completedKeys: Set<string>, tz: string, today: string, graceDays = 0): number {
+  return streakStats(memberChores, completedKeys, tz, today, graceDays).current;
+}
+
+// The same walk over `days` days, carried on past each miss that ends a run: `current` is the
+// first run (computeStreak), `best` the longest one - so a profile's best streak follows the
+// leaderboard's rule, grace days included. A run ended by a miss starts again the day before it.
+export function streakStats(memberChores: ChoreRow[], completedKeys: Set<string>, tz: string, today: string, graceDays = 0, days = STREAK_LOOKBACK_DAYS) {
+  const first = addDaysStr(today, 1 - days);
+  const due = memberChores.map((c) => ({ id: c.id, on: dueDates(c, first, today, tz) }));
+  let current: number | null = null;
+  let best = 0;
   let streak = 0;
-  let date = today;
-  const missed: string[] = []; // forgiven misses so far, newest first
-  for (let i = 0; i < STREAK_LOOKBACK_DAYS; i++) {
-    const due = memberChores.filter((c) => dueOnDate(c, date, tz));
-    const allDone = due.every((c) => completedKeys.has(`${c.id}:${date}`));
-    if (due.length > 0 && allDone) streak++;
-    else if (due.length > 0 && date !== today) {
+  let missed: string[] = []; // forgiven misses in this run, newest first
+  for (let date = today; date >= first; date = addDaysStr(date, -1)) {
+    const dueToday = due.filter((c) => c.on.has(date));
+    if (dueToday.length === 0) continue;
+    if (dueToday.every((c) => completedKeys.has(`${c.id}:${date}`))) streak++;
+    else if (date !== today) {
       const windowEnd = addDaysStr(date, 6);
-      if (missed.filter((d) => d <= windowEnd).length + 1 > graceDays) break;
-      missed.push(date);
+      if (missed.filter((d) => d <= windowEnd).length + 1 <= graceDays) missed.push(date);
+      else {
+        current ??= streak;
+        best = Math.max(best, streak);
+        streak = 0;
+        missed = [];
+      }
     }
-    date = addDaysStr(date, -1);
   }
-  return streak;
+  best = Math.max(best, streak);
+  return { current: current ?? streak, best };
 }
 
 leaderboardRoutes.openapi(
