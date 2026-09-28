@@ -966,10 +966,11 @@ function ListDetailPane({ listId, isPhone, shopMode, onBack, onArchivedOrDeleted
     setShoppingModeList(listId); holdAwake('shopping', true)
     const shell = document.querySelector('.app-shell')
     shell?.setAttribute('inert', '')
+    document.documentElement.dataset.fullscreenMode = '' // hides the update banner, which sits in the (now inert) app behind
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !document.querySelector('.sheet')) exitShop() }
     document.addEventListener('keydown', onKey)
     return () => {
-      setShoppingModeList(null); holdAwake('shopping', false); shell?.removeAttribute('inert')
+      setShoppingModeList(null); holdAwake('shopping', false); shell?.removeAttribute('inert'); delete document.documentElement.dataset.fullscreenMode
       document.removeEventListener('keydown', onKey); setAdding(false)
       setTimeout(() => document.querySelector<HTMLElement>('.list-shop-btn')?.focus({ preventScroll: true })) // back on Resume/Start shopping
     }
