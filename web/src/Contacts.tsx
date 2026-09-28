@@ -6,7 +6,7 @@ import { useDialog } from './dialog.tsx'
 import { PlusIcon } from './icons.tsx'
 import Sheet from './Sheet.tsx'
 import type { Member } from './types.ts'
-import { emptyContact, mergeContact, parseVCards, reviewCandidates,
+import { emptyContact, reviewCandidates,
   type Contact, type ContactInput, type ContactMethod, type ImportCandidate, type ImportDecision } from './contact-types.ts'
 import type { ContactCategory } from './contact-types.ts'
 import './contacts.css'
@@ -162,55 +162,54 @@ function ImportSheet({ contacts, categories, members, onClose, onImported }: { c
     if (!picker?.getProperties || !pickerAvailable) return
     picker.getProperties().then(properties => { if (!properties.includes('name')) setPickerAvailable(false) }).catch(() => setPickerAvailable(false))
   }, [pickerAvailable, picker])
-  const stage = (inputs: ContactInput[]) => {
-    if (!inputs.length) { setMessage('No contacts with names were found.'); return }
-    if (inputs.length > 500) { setMessage('Choose up to 500 contacts at a time.'); return }
-    setReview(reviewCandidates(inputs, contacts)); setMessage('')
+  // The server reads vCards and finds duplicates; nothing is saved until Import.
+  const stage = async (body: { vcard: string } | { contacts: ContactInput[] }, failed: string) => {
+    if ('contacts' in body && !body.contacts.length) { setMessage('No contacts with names were found.'); return }
+    setBusy(true)
+    try {
+      const { entries } = await api.previewContactImport(body)
+      if (entries.length > 500) { setMessage('Choose up to 500 contacts at a time.'); return }
+      setReview(reviewCandidates(entries)); setMessage('')
+    } catch (error) { setMessage(errorText(error, failed)) }
+    finally { setBusy(false) }
   }
   const fileChosen = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     event.target.value = ''
     if (!file) return
     if (file.size > 2_000_000) { setMessage('Choose a vCard file smaller than 2 MB.'); return }
-    try { stage(parseVCards(await file.text())) } catch { setMessage('Could not read that vCard file.') }
+    await stage({ vcard: await file.text() }, 'Could not read that vCard file.')
   }
   const pick = async () => {
     if (!picker) return
     try {
       const selected = await picker.select(['name', 'tel', 'email', 'address'], { multiple: true })
-      stage(selected.map(c => ({ ...emptyContact(), name: c.name?.[0]?.trim() ?? '',
+      await stage({ contacts: selected.map(c => ({ ...emptyContact(), name: c.name?.[0]?.trim() ?? '',
         phones: (c.tel ?? []).map(value => ({ label: 'Phone', value })),
-        emails: (c.email ?? []).map(value => ({ label: 'Email', value })), address: c.address?.[0]?.toString() ?? null })).filter(c => c.name))
+        emails: (c.email ?? []).map(value => ({ label: 'Email', value })), address: c.address?.[0]?.toString() ?? null })).filter(c => c.name) }, 'Could not read those contacts.')
     } catch (error) {
       if ((error as DOMException)?.name !== 'AbortError') setMessage('Contacts access was unavailable. You can choose a vCard file or paste its text instead.')
     }
   }
-  const decide = (key: string, decision: ImportDecision | 'add') => setReview(rows => rows?.map(row => row.key === key ? { ...row, decision } : row) ?? null)
+  const decide = (key: string, decision: ImportDecision) => setReview(rows => rows?.map(row => row.key === key ? { ...row, decision } : row) ?? null)
   const edit = (key: string, patch: Partial<ContactInput>) => setReview(rows => rows?.map(row => row.key === key ? { ...row, input: { ...row.input, ...patch } } : row) ?? null)
   const commit = async () => {
     if (!review) return
     const merges = review.filter(row => row.decision === 'merge').length
     if (merges && !await dialog.confirm({ title: `Merge ${merges} contact${merges === 1 ? '' : 's'}?`, body: 'Missing details will be added to the matching saved contacts.', confirmLabel: 'Merge and import' })) return
     setBusy(true); setMessage('')
-    const current = [...contacts]
-    let completed = 0
+    const creates = review.filter(row => row.decision === 'add' || row.decision === 'keep')
+    const mergeRows = review.filter(row => row.decision === 'merge' && row.matchId)
     try {
-      for (const row of review) {
-        if (row.decision !== 'skip') {
-          const target = row.decision === 'merge' ? current.find(c => c.id === row.matchId) : undefined
-          const saved = target ? await api.updateContact(target.id, mergeContact(target, row.input)) : await api.createContact(row.input)
-          const index = current.findIndex(c => c.id === saved.id)
-          if (index >= 0) current[index] = saved
-          else current.push(saved)
-        }
-        completed++
-      }
+      if (creates.length) await api.importContacts({ contacts: creates.map(row => row.input), strategy: 'create' })
+      if (mergeRows.length) await api.importContacts({ contacts: mergeRows.map(row => row.input), strategy: 'merge', mergeTargets: mergeRows.map(row => row.matchId!), confirmMerge: true })
       onImported()
-      toast(`${review.filter(r => r.decision !== 'skip').length} contact${review.filter(r => r.decision !== 'skip').length === 1 ? '' : 's'} imported.`)
+      const n = creates.length + mergeRows.length
+      toast(`${n} contact${n === 1 ? '' : 's'} imported.`)
+      onClose()
     } catch (error) {
-      setReview(review.slice(completed))
       onImported()
-      setMessage(`${completed} reviewed, then import stopped: ${errorText(error, 'Could not save a contact.')}`)
+      setMessage(`Import stopped: ${errorText(error, 'Could not save a contact.')}`)
     } finally { setBusy(false) }
   }
   return <Sheet title={review ? 'Review contacts' : 'Import contacts'} onClose={onClose} dismissable={!busy}
@@ -221,15 +220,15 @@ function ImportSheet({ contacts, categories, members, onClose, onImported }: { c
       <button className="contact-import-choice" onClick={() => fileInput.current?.click()}>Choose a vCard file<span>.vcf or .vcard, up to 2 MB</span></button>
       <input ref={fileInput} type="file" accept=".vcf,.vcard,text/vcard,text/x-vcard" onChange={fileChosen} className="sr-only" aria-label="vCard file" />
       <div className="field"><label htmlFor={`${id}-paste`}>Or paste vCard text</label><textarea id={`${id}-paste`} value={text} onChange={e => setText(e.target.value)} placeholder="BEGIN:VCARD…" rows={5} /></div>
-      <button className="btn btn-secondary" onClick={() => { try { stage(parseVCards(text)) } catch { setMessage('Could not read that vCard text.') } }} disabled={!text.trim()}>Review pasted contacts</button>
+      <button className="btn btn-secondary" onClick={() => void stage({ vcard: text }, 'Could not read that vCard text.')} disabled={busy || !text.trim()}>Review pasted contacts</button>
       {!pickerAvailable && <p className="field-hint">To import from a phone, export or share contacts as a vCard (.vcf) file, then choose that file here.</p>}
       <p className="field-hint">Names, phones, emails, organizations, addresses, URLs, categories and notes are read. Photo properties are ignored.</p>
     </div> : <div className="contact-review">
-      <p>{review.length} contact{review.length === 1 ? '' : 's'} to review. Matching phones or emails are marked duplicates; matching names may need a closer look.</p>
+      <p>{review.length} contact{review.length === 1 ? '' : 's'} to review. Contacts with the same phone, email or name as a saved one are marked possible duplicates.</p>
       {review.map(row => {
         const matched = contacts.find(c => c.id === row.matchId)
         return <div className="contact-review-row" key={row.key}>
-          <div className="contact-review-heading"><strong>{row.input.name}</strong><span className={`contact-status contact-status-${row.status}`}>{row.status === 'new' ? 'New' : row.status === 'duplicate' ? 'Duplicate' : 'Possible match'}</span></div>
+          <div className="contact-review-heading"><strong>{row.input.name}</strong><span className={`contact-status contact-status-${row.status}`}>{row.status === 'new' ? 'New' : 'Possible duplicate'}</span></div>
           <div className="contact-review-edit"><label>Name<input value={row.input.name} onChange={e => edit(row.key, { name: e.target.value })} /></label><label>Kind<select value={row.input.kind ?? 'person'} onChange={e => edit(row.key, { kind: e.target.value as ContactInput['kind'] })}><option value="person">Person</option><option value="service">Service</option><option value="organization">Organization</option><option value="place">Place</option></select></label><label>Relationship<input value={row.input.relationship ?? ''} onChange={e => edit(row.key, { relationship: e.target.value || null })} /></label></div>
           <div className="contact-review-toggles"><label><input type="checkbox" checked={!!row.input.favorite} onChange={e => edit(row.key, { favorite: e.target.checked })} /> Favorite</label><label><input type="checkbox" checked={!!row.input.emergency} onChange={e => edit(row.key, { emergency: e.target.checked, emergencyDesignation: e.target.checked })} /> Emergency</label><label><input type="checkbox" checked={!!row.input.showOnWall} onChange={e => edit(row.key, { showOnWall: e.target.checked, wallVisible: e.target.checked })} /> Show on wall</label></div>
           <label className="contact-review-category">Categories<select multiple value={row.input.categoryIds ?? []} onChange={e => edit(row.key, { categoryIds: Array.from(e.target.selectedOptions, option => option.value) })}>{categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
@@ -239,7 +238,7 @@ function ImportSheet({ contacts, categories, members, onClose, onImported }: { c
           <fieldset><legend>Action for {row.input.name}</legend>
             {(row.status === 'new' ? [{ value: 'add', label: 'Add' }, { value: 'skip', label: 'Skip' }] : [
               ...(matched ? [{ value: 'merge', label: 'Merge missing details' }] : []), { value: 'skip', label: 'Skip' }, { value: 'keep', label: 'Keep both' }]).map(option =>
-              <label key={option.value}><input type="radio" name={row.key} checked={row.decision === option.value} onChange={() => decide(row.key, option.value as ImportDecision | 'add')} />{option.label}</label>)}</fieldset>
+              <label key={option.value}><input type="radio" name={row.key} checked={row.decision === option.value} onChange={() => decide(row.key, option.value as ImportDecision)} />{option.label}</label>)}</fieldset>
         </div>
       })}
     </div>}

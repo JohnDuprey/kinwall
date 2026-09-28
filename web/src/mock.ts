@@ -7,7 +7,8 @@ import { aisleOrderMap, compareItems } from './types.ts'
 import { itemKey } from './itemSuggest.ts'
 import { byListOrder, reorderWithin } from './listSections.ts'
 import { dateKey } from './date.ts'
-import type { Contact, ContactCategory, ContactInput } from './contact-types.ts'
+import type { Contact, ContactCategory, ContactInput, ImportPreviewEntry } from './contact-types.ts'
+import { emptyContact } from './contact-types.ts'
 
 const uid = () => crypto.randomUUID()
 const todayISO = () => new Date().toISOString().slice(0, 10)
@@ -405,6 +406,25 @@ export const mock = {
     const index = contacts.findIndex(c => c.id === id)
     if (index < 0) throw new Error('Contact not found')
     contacts.splice(index, 1); bump()
+  },
+  // The demo has no server to parse vCards: it reads each card's FN and TEL lines only.
+  previewContactImport: async (body: { vcard: string } | { contacts: ContactInput[] }): Promise<{ entries: ImportPreviewEntry[] }> => {
+    const drafts = 'contacts' in body ? body.contacts : body.vcard.split(/END:VCARD/i).flatMap(card => {
+      const name = /^FN[^:]*:(.*)$/im.exec(card)?.[1]?.trim()
+      return name ? [{ ...emptyContact(), name, phones: [...card.matchAll(/^TEL[^:]*:(.*)$/gim)].map(m => ({ label: 'Phone', value: m[1].trim() })) }] : []
+    })
+    if (!drafts.length) throw new Error('no vCards found')
+    return { entries: drafts.map(contact => ({ contact, duplicateIds: contacts.filter(c => c.name.toLocaleLowerCase() === contact.name.toLocaleLowerCase()).map(c => c.id) })) }
+  },
+  importContacts: async (body: { contacts: ContactInput[]; strategy: 'create' | 'merge'; mergeTargets?: string[] }) => {
+    const ids = body.contacts.map((input, i) => {
+      const target = body.strategy === 'merge' ? contacts.find(c => c.id === body.mergeTargets?.[i]) : undefined
+      if (target) { Object.assign(target, { phones: [...target.phones, ...input.phones.filter(p => !target.phones.some(t => t.value === p.value))] }); return target.id }
+      const contact = { ...input, id: uid(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
+      contacts.push(contact); return contact.id
+    })
+    bump()
+    return { created: body.strategy === 'create' ? ids.length : 0, merged: body.strategy === 'merge' ? ids.length : 0, skipped: 0, ids }
   },
   getRev: async () => ({ rev }),
   getNotifications: async () => [...notifications],

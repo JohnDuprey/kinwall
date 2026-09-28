@@ -14,7 +14,7 @@ The Contacts page has an Emergency filter and blank templates for Poison Control
 
 ## Importing vCards
 
-Import is a one-time snapshot into Kinwall; it is not synchronization and Kinwall never writes to the phone's address book. vCard files and pasted text are parsed in the browser where practical. The importer supports common vCard 2.1, 3.0, and 4.0 fields including `FN`, `N`, `NICKNAME`, `ORG`, `TITLE`, `TEL`, `EMAIL`, `ADR`, `URL`, `NOTE`, and `CATEGORIES`. Photo properties are ignored in this web-first version; no photo data is stored or fetched. Raw uploaded files are not retained or sent to a third-party service.
+Import is a one-time snapshot into Kinwall; it is not synchronization and Kinwall never writes to the phone's address book. vCard files and pasted text go to your Kinwall server, which reads them and returns drafts to review; nothing is saved until you import. The importer supports common vCard 2.1, 3.0, and 4.0 fields including `FN`, `N`, `NICKNAME`, `ORG`, `TITLE`, `TEL`, `EMAIL`, `ADR`, `URL`, `NOTE`, and `CATEGORIES`. Photo properties are ignored in this web-first version; no photo data is stored or fetched. Raw uploaded files are not retained or sent to a third-party service.
 
 Before saving, review each proposed contact. Possible and exact duplicates are suggestions only. Choose Skip, Create/Keep both, or Merge; merging requires an explicit decision and preserves unique methods, addresses, categories, and tags. The Browser Contact Picker is feature-detected and shown only in a secure top-level browsing context. If it is unavailable, export/share contacts from the phone as a `.vcf` file and import that file instead.
 
@@ -22,7 +22,7 @@ Direct full address-book access requires platform-specific native permissions. T
 
 ## REST and MCP
 
-The REST API exposes `GET/POST /api/contacts`, `GET/PATCH/DELETE /api/contacts/:id`, contact category CRUD at `/api/contact-categories`, import preview/import, and explicit merge. List queries support search, kind, category, favorite, emergency, wall, member, and privacy filters. Import preview is non-persistent and can accept normalized drafts; raw vCard content is never exposed through MCP.
+The REST API exposes `GET/POST /api/contacts`, `GET/PATCH/DELETE /api/contacts/:id`, contact category CRUD at `/api/contact-categories`, import preview/import, and explicit merge. List queries support search, kind, category, favorite, emergency, wall, member, and privacy filters. Import preview saves nothing and takes vCard text (`vcard`) or normalized drafts (`contacts`); the MCP tool takes drafts only.
 
 MCP provides `list_contacts`, `get_contact`, `search_contacts`, `create_contact`, `update_contact`, `delete_contact`, `preview_contact_import`, `import_contacts`, `merge_contacts`, and contact-category tools. Read results follow the caller's key scope. Import, merge, delete, and category management require administrative authorization.
 

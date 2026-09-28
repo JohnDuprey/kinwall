@@ -132,3 +132,16 @@ test('vCard: a trailing = only joins lines inside a quoted-printable property', 
   assert.equal(sam.notes, 'Line one\r\nline twocontinues');
   assert.deepEqual(sam.phones.map((p) => p.value), ['555-010-9999']);
 });
+
+test('import preview reads raw vCard text into structured drafts for the app to review', async () => {
+  const t = setup();
+  const vcard = 'BEGIN:VCARD\nVERSION:3.0\nFN:Coach Taylor\nADR;TYPE=WORK:;;1 Field Rd;Springfield;OR;97000;US\nBDAY:1980-04-02\nTEL:555-010-1111\nEND:VCARD';
+  const res = await t.req('/api/contacts/import/preview', 'POST', { vcard });
+  assert.equal(res.status, 200);
+  const [{ contact, duplicateIds }] = res.body.entries;
+  assert.deepEqual(duplicateIds, []);
+  assert.equal(contact.addresses[0].city, 'Springfield');
+  assert.equal(contact.addresses[0].street, '1 Field Rd');
+  assert.deepEqual(contact.dates, [{ label: 'birthday', date: '1980-04-02' }]);
+  assert.equal((await t.req('/api/contacts')).body.length, 0);
+});

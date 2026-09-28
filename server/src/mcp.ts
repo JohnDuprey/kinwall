@@ -1226,7 +1226,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     const res = await call(app, env, auth, 'DELETE', `/api/contact-categories/${encodeURIComponent(id)}`);
     return res.status >= 400 ? errorResult(res.json, 'failed to delete contact category') : okResult('Contact category deleted', { ok: true });
   });
-  tool('preview_contact_import', { title: 'Preview contact import', description: 'Admin: preview normalized contact drafts and possible duplicates without saving them. Raw vCards are parsed in the browser and are not sent through MCP.', inputSchema: { contacts: z.array(ContactInputSchema).max(1000) } }, async ({ contacts }) => {
+  tool('preview_contact_import', { title: 'Preview contact import', description: 'Admin: preview normalized contact drafts and possible duplicates without saving them. Takes drafts, not vCard text; the Kinwall app sends vCard files to the server itself.', inputSchema: { contacts: z.array(ContactInputSchema).max(1000) } }, async ({ contacts }) => {
     const res = await call(app, env, auth, 'POST', '/api/contacts/import/preview', { contacts });
     return res.status >= 400 ? errorResult(res.json, 'failed to preview contact import') : okResult('Contact import preview', res.json as Record<string, unknown>);
   });

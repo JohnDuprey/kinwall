@@ -52,8 +52,7 @@
 .contact-review-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .contact-review-heading strong { overflow-wrap: anywhere; }
 .contact-status { border-radius: 999px; padding: 5px 9px; background: var(--card-soft); color: var(--text); font-size: .76rem; font-weight: 800; white-space: nowrap; }
-.contact-status-duplicate { color: var(--danger); }
-.contact-status-possible { color: var(--accent-text); }
+.contact-status-match { color: var(--accent-text); }
 .contact-review-row p { margin: 8px 0; color: var(--text-dim); font-size: .85rem; overflow-wrap: anywhere; }
 .contact-review-row .contact-match { font-weight: 800; }
 .contact-review-row fieldset { margin: 12px 0 0; }
