@@ -2034,7 +2034,7 @@ button.board-empty-tap { display: block; width: 100%; text-align: left; backgrou
 @container board (min-width: 880px) {
   .board {
     height: 100%; grid-template-columns: repeat(3, minmax(0, 1fr));
-    grid-template-rows: auto minmax(0, 1fr) minmax(0, 1fr) auto; /* 1024x768 fits without scrolling; weather and tidbit scroll inside if they must */
+    grid-template-rows: auto minmax(0, 1fr) minmax(0, 1fr) fit-content(34%); /* 1024x768 fits without scrolling; cards scroll inside if they must. The last row is capped so a full meals or tidbit card can't squeeze the photo to nothing */
     grid-template-areas: var(--board-areas-3);
   }
   .board-tidbit blockquote p, .board-tidbit-body > p { font-size: 0.875rem; }
