@@ -49,7 +49,7 @@ test('export: seeded household has every section and no credentials', async () =
     const body = JSON.parse(text);
     assert.deepEqual(Object.keys(body), [
       'version', 'exportedAt', 'settings', 'members', 'categories', 'contactCategories', 'contacts', 'calendars', 'events', 'eventMemberOverrides', 'eventCategoryOverrides',
-      'eventTravelOverrides', 'eventSeriesMemberOverrides', 'eventSeriesCategoryOverrides', 'chores', 'choreCompletions', 'lists', 'notes', 'pointEntries', 'stickerPacks', 'scrapbook', 'rewards', 'rewardRedemptions', 'trackers', 'recipes', 'meals', 'mealShoppingSources', 'itemMemory', 'itemNames', 'storeAisles', 'passkeys', 'webhooks',
+      'eventTravelOverrides', 'eventSeriesMemberOverrides', 'eventSeriesCategoryOverrides', 'chores', 'choreCompletions', 'lists', 'notes', 'pointEntries', 'stickerPacks', 'checkIns', 'scrapbook', 'rewards', 'rewardRedemptions', 'trackers', 'recipes', 'meals', 'mealShoppingSources', 'itemMemory', 'itemNames', 'storeAisles', 'passkeys', 'webhooks',
     ]);
     assert.equal(body.members[0].name, 'Ada');
     assert.equal(body.calendars.length, 2);
@@ -179,7 +179,7 @@ test('import: export -> fresh instance -> import -> export round-trips; a second
   assert.equal(res.status, 200);
   const byName = (n: string) => file.calendars.find((c: any) => c.name === n);
   assert.deepEqual(await res.json(), {
-    imported: { members: 2, categories: 1, contactCategories: 13, contacts: 0, calendars: 3, events: 2, eventMemberOverrides: 1, eventCategoryOverrides: 1, eventTravelOverrides: 1, eventSeriesMemberOverrides: 1, eventSeriesCategoryOverrides: 1, chores: 2, choreCompletions: 1, lists: 1, listItems: 2, listItemSteps: 2, notes: 2, pointEntries: 2, stickerPacks: 1, scrapbook: 2, rewards: 0, rewardRedemptions: 0, trackers: 0, recipes: 0, meals: 0, mealShoppingSources: 0, itemMemory: 1, storeAisles: 1, itemNames: 2 },
+    imported: { members: 2, categories: 1, contactCategories: 13, contacts: 0, calendars: 3, events: 2, eventMemberOverrides: 1, eventCategoryOverrides: 1, eventTravelOverrides: 1, eventSeriesMemberOverrides: 1, eventSeriesCategoryOverrides: 1, chores: 2, choreCompletions: 1, lists: 1, listItems: 2, listItemSteps: 2, notes: 2, pointEntries: 2, stickerPacks: 1, checkIns: 0, scrapbook: 2, rewards: 0, rewardRedemptions: 0, trackers: 0, recipes: 0, meals: 0, mealShoppingSources: 0, itemMemory: 1, storeAisles: 1, itemNames: 2 },
     needsReconnect: [{ id: byName('Work').id, kind: 'google', name: 'Work' }], // the ICS feed came back with its url
     skipped: { passkeys: 1, webhooks: 1 },
   });

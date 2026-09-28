@@ -11,7 +11,7 @@
 | Household settings | Passwords, OAuth tokens, CalDAV logins |
 | Members, categories | API keys, sessions, recovery codes |
 | Chores **with completion history** (points awarded, and whether each is approved or waiting for a parent's OK), and the parent-approval settings on chores and members, and who's a grown-up | Webhook secrets, and "Not yet" notes on chores |
-| Points spent, sticker packs unlocked and sticker book pages | |
+| Points spent, daily check-ins, sticker packs unlocked and sticker book pages | |
 | Rewards (archived ones too), every reward request with its status and note, and each person's goal | |
 | Lists, items, group order, remembered store/category/aisle per item, stores' aisle orders | Push subscriptions |
 | Local calendars **with their events** (reminders, travel time) | Synced events themselves (they're fetched again) |

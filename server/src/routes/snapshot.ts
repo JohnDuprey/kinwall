@@ -91,7 +91,8 @@ snapshotRoutes.openapi(
     const now = new Date();
     const settings = await readSettings(db);
     const tz = settings.timezone ?? hostTimezone();
-    const [membersRes, choresRes, itemsRes, stepsRes, categoriesRes] = await db.batch<unknown>([
+    const today = todayInTz(tz, now);
+    const [membersRes, choresRes, itemsRes, stepsRes, categoriesRes, checkInRes] = await db.batch<unknown>([
       db.prepare('SELECT id, name, color, avatar, birthday FROM members ORDER BY sort, created_at'),
       db.prepare('SELECT * FROM chores WHERE active = 1 AND (member_id = ? OR member_id IS NULL) ORDER BY sort, created_at').bind(memberId),
       db
@@ -103,12 +104,12 @@ snapshotRoutes.openapi(
         .bind(memberId),
       stepsQuery(db, 'member_id = ? AND done = 0', memberId),
       db.prepare("SELECT id FROM categories WHERE name LIKE '%birthday%'"),
+      db.prepare('SELECT 1 FROM check_ins WHERE member_id = ? AND date = ?').bind(memberId, today),
     ]);
     const members = membersRes.results as { id: string; name: string; color: string; avatar: string | null; birthday: string | null }[];
     const member = members.find((m) => m.id === memberId);
     if (!member) return c.json({ error: 'member not found' }, 404);
 
-    const today = todayInTz(tz, now);
     const tomorrow = addDays(today, 1);
     const to = range === 'week' ? addDays(today, 6) : today;
     const last = range === 'week' ? to : tomorrow; // day range also looks at tomorrow
@@ -177,6 +178,8 @@ snapshotRoutes.openapi(
               meals: meals.filter((m) => m.date === tomorrow),
             }
           : null,
+      checkedIn: checkInRes.results.length > 0,
+      checkInPoints: settings.checkInPoints,
     };
     return c.json(body, 200);
   },

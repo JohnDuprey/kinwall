@@ -16,6 +16,17 @@ Tap a family member's avatar in the header (on a phone, tap the family button, t
 
 Every section has a friendly empty state ("Nothing on the calendar — enjoy it.").
 
+## Daily check-in
+
+When a parent turns on **Daily check-in points** in [Settings → Family](../settings/family.md#chores), the bottom of someone's day has an **I'm all caught up ✓ · +3 points** button. It wakes up once they've scrolled to the end (right away if the whole day fits on the screen). Tapping it earns the points with a little confetti, and the button becomes **Checked in today ✓**.
+
+* Once per person per day, in the family's time zone. Checking in again the same day earns nothing.
+* Only on the **Day** view, and only while **Chores & points** is on. Off (the default) hides it.
+* It works wherever their day opens: on the wall, their own device or a parent's. A device that belongs to one person can only check in for them.
+* The points are theirs to spend, like chore points, and count as **Points earned** on their [profile](profiles.md), which also counts their check-ins. The [leaderboard](chores.md) ranks chore points only, so checking in never moves anyone up or down.
+
+API: `POST /api/members/{id}/check-in` returns `{ date, points, awarded, balance }` (`awarded` is 0 when they already checked in today; 400 while check-ins are off). The snapshot has `checkedIn` and `checkInPoints`. A new check-in sends the `checkin.completed` [webhook](../integrations/webhooks.md). Check-ins are in [exports](../your-data/export-import.md).
+
 ## Week
 
 A row for each of the next 7 days with its weather emoji and high/low, then that day's birthdays, events and items due, and a short chores line (tap it to open Chores). Undated Important/Urgent items and overdue ones show first under **Keep in mind**.

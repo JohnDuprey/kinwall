@@ -131,6 +131,7 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'GET', pattern: /^\/api\/leaderboard$/ },
   { method: 'GET', pattern: /^\/api\/members\/[^/]+\/points$/ },
   { method: 'GET', pattern: /^\/api\/members\/[^/]+\/stats$/ }, // profiles: the whole family sees the fun stats
+  { method: 'POST', pattern: /^\/api\/members\/[^/]+\/check-in$/ }, // daily check-in, like ticking a chore (a member's own device only for them)
   { method: 'GET', pattern: /^\/api\/stickers\/packs$/ },
   { method: 'POST', pattern: /^\/api\/stickers\/packs\/[^/]+\/buy$/ },
   { method: 'GET', pattern: /^\/api\/stickers\/scrapbook\/[^/]+$/ },

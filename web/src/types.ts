@@ -35,6 +35,7 @@ export interface Settings {
   defaultReminderMinutes: number[]
   lateCompletionCredit: number // 0-100: % of points a chore earns when ticked off for a past day
   streakGraceDays: number // 0-3 missed days per rolling week a streak survives
+  checkInPoints: number // daily check-in points (0 = off; 1, 2, 3, 5 or 10)
   leaderboardEnabled: boolean // false: hide the leaderboard, crowns and rank badges
   stickersEnabled: boolean // false: hide the sticker book (and the shop refuses purchases)
   stickerPriceScale: number // percent applied to sticker pack prices; 0 = all free
@@ -675,6 +676,8 @@ export interface Snapshot {
   birthdays: SnapshotBirthday[]
   meals: Meal[] // [] while Meals is off
   tomorrow: { date: string; events: SnapshotEvent[]; items: SnapshotItem[]; birthdays: SnapshotBirthday[]; meals: Meal[] } | null
+  checkedIn: boolean // checked in today
+  checkInPoints: number // what checking in earns; 0 = off
 }
 /** GET /api/board?days=N - the whole family's bulletin board, today through `to`. */
 export interface Board {
@@ -731,7 +734,8 @@ export interface MemberStats {
   to: string
   joined: string
   choresDone: number
-  pointsEarned: number
+  pointsEarned: number // chores plus daily check-ins
+  checkIns: number // daily check-ins in the period
   previous: { from: string; to: string; choresDone: number; pointsEarned: number } | null
   pointsSpent: { stickers: number; rewards: number }
   streak: { current: number; best: number }

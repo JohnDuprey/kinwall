@@ -921,7 +921,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'get_member_profile',
     {
       title: "Get a member's profile",
-      description: "A member's profile stats for a period (household days): chores done and points earned (with the same stretch before), points spent, streak and best streak, books, sticker book, activity time, milestone badges and birthday countdown. Read-only.",
+      description: "A member's profile stats for a period (household days): chores done and points earned (chores plus daily check-ins, with the same stretch before), daily check-ins, points spent, streak and best streak, books, sticker book, activity time, milestone badges and birthday countdown. Read-only.",
       inputSchema: { member: z.string().describe('Member name or id.'), period: StatsPeriodSchema.optional().describe('today, week (default), month, year or all.') },
     },
     async ({ member, period }) => {

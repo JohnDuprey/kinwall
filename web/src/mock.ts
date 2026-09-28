@@ -14,6 +14,7 @@ const uid = () => crypto.randomUUID()
 const todayISO = () => new Date().toISOString().slice(0, 10)
 
 let rev = 1
+const checkIns = new Set<string>() // `${memberId}:${date}` - the demo's daily check-ins
 const bump = () => { rev++ }
 
 const settings: Settings = {
@@ -37,6 +38,7 @@ const settings: Settings = {
   mealTimes: { breakfast: '07:30', lunch: '12:00', dinner: '18:00', snack: '15:00' },
   lateCompletionCredit: 50,
   streakGraceDays: 1,
+  checkInPoints: 3, // on in the demo so the daily check-in can be tried
   leaderboardEnabled: true,
   stickersEnabled: true,
   stickerPriceScale: 100,
@@ -631,6 +633,14 @@ export const mock = {
   setRewardGoal: async (memberId: string, rewardId: string | null) => { goals.set(memberId, rewardId); bump(); return { rewardId } },
 
   getStickerPacks: async (memberId: string) => STICKER_PACKS.map(packFor(memberId)),
+  checkIn: async (memberId: string) => {
+    const m = members.find(x => x.id === memberId); if (!m) throw new Error('not found')
+    if (!settings.checkInPoints) throw new Error('Daily check-ins are turned off')
+    const date = dateKey(new Date()), key = `${memberId}:${date}`
+    const awarded = checkIns.has(key) ? 0 : settings.checkInPoints
+    if (awarded) { checkIns.add(key); m.balance += awarded; bump() }
+    return { date, points: settings.checkInPoints, awarded, balance: m.balance }
+  },
   buyStickerPack: async (packId: string, memberId: string) => {
     const m = members.find(x => x.id === memberId)
     const base = STICKER_PACKS.find(p => p.id === packId)
@@ -909,6 +919,7 @@ function mockSnapshot(memberId: string, range: 'day' | 'week'): Snapshot {
     birthdays: birthdays.filter(b => b.date <= to),
     meals: [], // api.ts adds the demo menu (mock-meals.ts)
     tomorrow: range === 'day' ? { date: tomorrow, events: mine.filter(e => e.date === tomorrow), items: open.filter(i => i.dueDate === tomorrow), birthdays: birthdays.filter(b => b.date === tomorrow), meals: [] } : null,
+    checkedIn: checkIns.has(`${memberId}:${today}`), checkInPoints: settings.checkInPoints,
   }
 }
 

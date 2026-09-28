@@ -2012,6 +2012,9 @@ button.board-empty-tap { display: block; width: 100%; text-align: left; backgrou
   color: var(--text-dim); font: inherit; font-weight: 700; text-align: left; cursor: pointer; width: 100%;
 }
 .snap-filter { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--border); }
+.snap-checkin { position: relative; margin-top: 18px; }
+.snap-checkin .btn { min-height: 52px; }
+.snap-checkin-done { margin: 0; min-height: 52px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius); background: var(--bg-alt); color: var(--success); font-weight: 800; }
 :root[data-density="icons"] .snap-emoji, :root[data-density="icons"] .snap-time.snap-emoji { font-size: 1.75rem; }
 :root[data-density="icons"] .snap-avatar { width: 72px; height: 72px; font-size: 2.25rem; }
 @media (min-width: 900px) { .snap-greeting { font-size: 1.875rem; } }

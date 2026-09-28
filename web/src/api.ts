@@ -368,6 +368,9 @@ export const api = {
   getMemberStats: (memberId: string, period: StatsPeriod) =>
     MOCK ? Promise.all([mock.getMembers(), import('./mock-profiles.ts')]).then(([ms, { mockMemberStats }]) => mockMemberStats(memberId, period, ms.find(m => m.id === memberId)?.birthday ?? null))
       : get<MemberStats>(`api/members/${encodeURIComponent(memberId)}/stats?period=${period}`),
+  // Daily check-in: once per household day; a second call awards nothing.
+  checkIn: (memberId: string) =>
+    MOCK ? mock.checkIn(memberId) : post<{ date: string; points: number; awarded: number; balance: number }>(`api/members/${encodeURIComponent(memberId)}/check-in`),
   getStickerPacks: (memberId: string) => MOCK ? mock.getStickerPacks(memberId) : get<StickerPack[]>(`api/stickers/packs?memberId=${encodeURIComponent(memberId)}`),
   buyStickerPack: (packId: string, memberId: string) =>
     MOCK ? mock.buyStickerPack(packId, memberId) : post<{ pack: StickerPack; balance: number }>(`api/stickers/packs/${packId}/buy`, { memberId }),

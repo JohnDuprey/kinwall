@@ -124,6 +124,8 @@ const ExportSchema = z
     // Points ledger + sticker book (0025). Balances are derived, so only the ledger travels.
     pointEntries: z.array(PointEntrySchema),
     stickerPacks: z.array(z.object({ memberId: z.string(), packId: z.string(), unlockedAt: z.string() })),
+    // Daily check-ins (0053), one per member per day; the points they earned are in pointEntries.
+    checkIns: z.array(z.object({ memberId: z.string(), date: z.string(), points: z.number(), at: z.string() })),
     scrapbook: z.array(StickerPlacementSchema),
     // Rewards (0039) and their redemptions; the points they took are in pointEntries.
     rewards: z.array(RewardSchema.omit({ used: true })),
@@ -176,7 +178,7 @@ dataRoutes.openapi(
     const db = c.env.DB;
     const healthHidden = !!(await healthBlock(c));
     // Column lists are explicit (never SELECT *) so a secret column can't leak in by accident.
-    const [members, categories, contactCategories, contacts, calendars, events, memberOverrides, categoryOverrides, travelOverrides, seriesMemberOverrides, seriesCategoryOverrides, chores, completions, lists, items, steps, groups, notes, pointEntries, stickerPacks, scrapbook, rewards, redemptions, trackers, passkeys, webhooks] = (await db.batch<unknown>([
+    const [members, categories, contactCategories, contacts, calendars, events, memberOverrides, categoryOverrides, travelOverrides, seriesMemberOverrides, seriesCategoryOverrides, chores, completions, lists, items, steps, groups, notes, pointEntries, stickerPacks, checkIns, scrapbook, rewards, redemptions, trackers, passkeys, webhooks] = (await db.batch<unknown>([
       db.prepare('SELECT id, name, color, avatar, birthday, sort, grown_up, needs_approval, transitions, reward_goal FROM members ORDER BY sort, created_at'),
       db.prepare('SELECT id, name, emoji, color, keywords, sort, created_at FROM categories ORDER BY sort, created_at'),
       db.prepare('SELECT id, name, color, sort, created_at, updated_at FROM contact_categories ORDER BY sort, name COLLATE NOCASE, id'),
@@ -207,6 +209,7 @@ dataRoutes.openapi(
       ),
       db.prepare('SELECT id, member_id, amount, reason, ref, at FROM point_entries ORDER BY at, id'),
       db.prepare('SELECT member_id, pack_id, unlocked_at FROM member_sticker_packs ORDER BY member_id, pack_id'),
+      db.prepare('SELECT member_id, date, points, at FROM check_ins ORDER BY date, member_id'),
       db.prepare('SELECT id, member_id, sticker, x, y, scale, rotation, z, placed_at FROM scrapbook_stickers ORDER BY member_id, z, placed_at, id'),
       db.prepare('SELECT id, title, emoji, cost, member_ids, needs_approval, limit_period, limit_count, active, sort, created_at FROM rewards ORDER BY sort, created_at'),
       db.prepare('SELECT id, reward_id, member_id, title, emoji, cost, status, note, date, requested_at, decided_at, given_at FROM reward_redemptions ORDER BY requested_at, id'),
@@ -298,6 +301,7 @@ dataRoutes.openapi(
         notes: (notes as NoteRow[]).map(toNoteApi),
         pointEntries: (pointEntries as PointEntryRow[]).map(toEntryApi),
         stickerPacks: (stickerPacks as { member_id: string; pack_id: string; unlocked_at: string }[]).map((r) => ({ memberId: r.member_id, packId: r.pack_id, unlockedAt: r.unlocked_at })),
+        checkIns: (checkIns as { member_id: string; date: string; points: number; at: string }[]).map((r) => ({ memberId: r.member_id, date: r.date, points: r.points, at: r.at })),
         scrapbook: (scrapbook as PlacementRow[]).map(toPlacementApi),
         rewards: (rewards as RewardRow[]).map(toRewardApi),
         rewardRedemptions: (redemptions as RedemptionRow[]).map(toRedemptionApi),
@@ -343,6 +347,7 @@ const ImportSchema = ExportSchema.extend({
   notes: ExportSchema.shape.notes.default([]),
   pointEntries: ExportSchema.shape.pointEntries.default([]),
   stickerPacks: ExportSchema.shape.stickerPacks.default([]),
+  checkIns: ExportSchema.shape.checkIns.default([]),
   scrapbook: ExportSchema.shape.scrapbook.default([]),
   rewards: ExportSchema.shape.rewards.default([]),
   rewardRedemptions: ExportSchema.shape.rewardRedemptions.default([]),
@@ -377,6 +382,7 @@ const ImportResultSchema = z
       notes: z.number(),
       pointEntries: z.number(),
       stickerPacks: z.number(),
+      checkIns: z.number(),
       scrapbook: z.number(),
       rewards: z.number(),
       rewardRedemptions: z.number(),
@@ -491,6 +497,7 @@ dataRoutes.openapi(
     const fileMembers = new Set(body.members.map((m) => m.id));
     const pointEntries = body.pointEntries.filter((e) => fileMembers.has(e.memberId));
     const stickerPacks = body.stickerPacks.filter((p) => fileMembers.has(p.memberId));
+    const checkIns = body.checkIns.filter((ci) => fileMembers.has(ci.memberId));
     const scrapbook = body.scrapbook.filter((st) => fileMembers.has(st.memberId));
     const redemptions = body.rewardRedemptions.filter((r) => fileMembers.has(r.memberId));
     // A member's entries only with that member (they're personal); the family's and removed members' always.
@@ -718,6 +725,7 @@ dataRoutes.openapi(
       ),
       ...upserts(db, 'point_entries', 'id', pointEntries.map((e) => ({ id: e.id, member_id: e.memberId, amount: e.amount, reason: e.reason, ref: e.ref, at: e.at })), { keep: ['member_id'] }),
       ...upserts(db, 'member_sticker_packs', 'member_id, pack_id', stickerPacks.map((p) => ({ member_id: p.memberId, pack_id: p.packId, unlocked_at: p.unlockedAt }))),
+      ...upserts(db, 'check_ins', 'member_id, date', checkIns.map((ci) => ({ member_id: ci.memberId, date: ci.date, points: ci.points, at: ci.at }))),
       ...upserts(
         db,
         'scrapbook_stickers',
@@ -777,7 +785,7 @@ dataRoutes.openapi(
       ['events.changed', events.length + memberOverrides.length + categoryOverrides.length + travelOverrides.length + seriesMemberOverrides.length + seriesCategoryOverrides.length],
       ['chore.changed', body.chores.length + completions.length],
       ['list.changed', body.lists.length + notes.length + body.itemMemory.length + body.storeAisles.length],
-      ['sticker.changed', pointEntries.length + stickerPacks.length + scrapbook.length],
+      ['sticker.changed', pointEntries.length + stickerPacks.length + checkIns.length + scrapbook.length],
       ['reward.changed', body.rewards.length + redemptions.length],
       ['tracker.changed', trackers.length],
       ['recipe.changed', body.recipes.length],
@@ -807,6 +815,7 @@ dataRoutes.openapi(
           notes: notes.length,
           pointEntries: pointEntries.length,
           stickerPacks: stickerPacks.length,
+          checkIns: checkIns.length,
           scrapbook: scrapbook.length,
           rewards: body.rewards.length,
           rewardRedemptions: redemptions.length,

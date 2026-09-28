@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { isAudiobook, readingPercent } from './reading.ts'
 import type { ChoreDay, Member, ReadingData, TrackerEntry, Snapshot, SnapshotBirthday, SnapshotChore, SnapshotEvent, SnapshotItem, WeatherDay } from './types.ts'
-import { ChecklistSheet } from './Chores.tsx'
+import { ChecklistSheet, Confetti } from './Chores.tsx'
+import { checkInLabel, checkInState } from './checkIn.ts'
 import { CheckIcon } from './icons.tsx'
 import Sheet from './Sheet.tsx'
 import { Segmented, announce } from './a11y.tsx'
@@ -110,6 +111,7 @@ export default function SnapshotSheet({ member, onClose }: { member: Member; onC
       {error && <p className="snap-empty" role="alert">{error}</p>}
       {!shown && !error && <p className="snap-empty">Loading…</p>}
       {shown && (range === 'day' ? <DayView snap={shown} tz={tz} close={onClose} onToggle={toggleChore} books={settings.features.trackersReading ? books : []} /> : <WeekView snap={shown} tz={tz} close={onClose} />)}
+      {shown && <CheckIn snap={shown} onDone={() => setSnap(s => s && { ...s, checkedIn: true })} />}
       {!focusMemberId && (
         <div className="toggle-row snap-filter">
           <label id={`snap-filter-${member.id}`}>Show only {member.name} on the calendar</label>
@@ -124,6 +126,47 @@ export default function SnapshotSheet({ member, onClose }: { member: Member; onC
           }} />
       )}
     </Sheet>
+  )
+}
+
+/** The end of their day: once they've read to here, "I'm all caught up" earns the daily check-in points. */
+function CheckIn({ snap, onDone }: { snap: Snapshot; onDone: () => void }) {
+  const { reloadCore, toast, settings } = useApp()
+  const end = useRef<HTMLDivElement>(null)
+  const [reached, setReached] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [burst, setBurst] = useState(false)
+  const state = settings.features.chores ? checkInState(snap, reached) : 'hidden' // points are part of Chores & points
+  useEffect(() => {
+    const el = end.current
+    if (!el || reached || state === 'hidden') return
+    const io = new IntersectionObserver(entries => { if (entries.some(e => e.isIntersecting)) setReached(true) })
+    io.observe(el)
+    return () => io.disconnect()
+  }, [reached, state])
+  if (state === 'hidden') return null
+  const checkIn = async () => {
+    setBusy(true)
+    try {
+      const r = await api.checkIn(snap.member.id)
+      onDone()
+      if (r.awarded) {
+        setBurst(true)
+        announce(`Checked in, ${r.awarded} point${r.awarded === 1 ? '' : 's'}`)
+        toast(`+${r.awarded} point${r.awarded === 1 ? '' : 's'} for ${snap.member.name} 🎉`)
+      }
+      reloadCore()
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : "Couldn't check in", true)
+    } finally { setBusy(false) }
+  }
+  return (
+    <div className="snap-checkin" ref={end}>
+      {state === 'done'
+        ? <p className="snap-checkin-done" role="status">{checkInLabel(state, snap.checkInPoints)}</p>
+        : <button className={`btn btn-block ${state === 'ready' ? 'btn-primary' : 'btn-secondary'}`} disabled={state !== 'ready' || busy} onClick={checkIn}>{checkInLabel(state, snap.checkInPoints)}</button>}
+      {burst && <Confetti />}
+    </div>
   )
 }
 

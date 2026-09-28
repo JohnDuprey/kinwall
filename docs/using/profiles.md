@@ -18,7 +18,8 @@ Everyone in the family can see everyone's profile, on every device. An idle wall
 Pick **Today**, **Week**, **Month**, **Year** or **All time** at the top. Days follow the family's time zone and the week starts on the day set in [Settings → General](../settings/general.md).
 
 * **Chores done**, compared with the same stretch before: yesterday, last week up to the same weekday, last month or last year up to the same date. All time says when they joined.
-* **Points earned** in the period.
+* **Points earned** in the period, from chores and [daily check-ins](snapshot.md#daily-check-in).
+* **Check-ins** ☀️: how many days they checked in during the period. Shown while daily check-ins are on (or once they have some).
 * **Books finished** in the period (audiobooks count), with their pages and time listened.
 * **Streak** 🔥 and **best ever**. It's the same streak as the [leaderboard](chores.md), grace days included, so the two numbers always match. The best streak looks back over all their history.
 * **Chores done** chart: per day for a week or month, per month for a year or all time, with their busiest weekday and favorite chore. **Today** lists today's chores instead.

@@ -130,6 +130,7 @@ export function mockMemberStats(id: string, period: StatsPeriod, birthdayOn: str
 
   return {
     memberId: id, period, from, to: today, joined, ...tally(from, today),
+    checkIns: now.filter(([, d]) => d.done.length > 0).length, // the demo: they checked in on days they did chores
     previous: prev && { from: prev[0], to: prev[1], ...tally(prev[0], prev[1]) },
     pointsSpent: now.reduce((s, [, d]) => ({ stickers: s.stickers + d.spentStickers, rewards: s.rewards + d.spentRewards }), { stickers: 0, rewards: 0 }),
     streak: { current, best },

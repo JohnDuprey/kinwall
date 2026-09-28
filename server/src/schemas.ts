@@ -254,6 +254,7 @@ export const SettingsSchema = z
     defaultReminderMinutes: z.array(z.number()),
     lateCompletionCredit: z.number(), // percent of a chore's points earned when it's completed for a past day
     streakGraceDays: z.number(), // missed days per rolling 7 a streak survives (see computeStreak)
+    checkInPoints: z.number(), // points for the daily check-in (reading your day to the end); 0 = off
     leaderboardEnabled: z.boolean(), // false: clients hide the leaderboard and rank badges (the API still answers)
     stickersEnabled: z.boolean(), // false: clients hide the sticker book and the shop refuses purchases
     stickerPriceScale: z.number(), // percent applied to every sticker pack's price; 0 = all free
@@ -292,6 +293,7 @@ export const SettingsPatchSchema = z
     defaultReminderMinutes: z.array(z.number()).optional(),
     lateCompletionCredit: z.number().int().min(0).max(100).optional(),
     streakGraceDays: z.number().int().min(0).max(3).optional(),
+    checkInPoints: z.union([z.literal(0), z.literal(1), z.literal(2), z.literal(3), z.literal(5), z.literal(10)]).optional(),
     leaderboardEnabled: z.boolean().optional(),
     stickersEnabled: z.boolean().optional(),
     stickerPriceScale: z.number().int().min(0).max(200).optional(),
@@ -1127,6 +1129,8 @@ export const SnapshotSchema = z
     tomorrow: z
       .object({ date: z.string(), events: z.array(SnapshotEventSchema), items: z.array(SnapshotItemSchema), birthdays: z.array(SnapshotBirthdaySchema), meals: z.array(MealSchema) })
       .nullable(), // day range only
+    checkedIn: z.boolean(), // the member checked in today (household day)
+    checkInPoints: z.number(), // what checking in earns now; 0 = check-ins are off
   })
   .openapi('Snapshot');
 
@@ -1166,7 +1170,8 @@ export const MemberStatsSchema = z
     to: z.string(), // today
     joined: z.string(), // the day the member was added
     choresDone: z.number(), // approved completions, including chores deleted since
-    pointsEarned: z.number(),
+    pointsEarned: z.number(), // chores plus daily check-ins
+    checkIns: z.number(), // daily check-ins in the period
     previous: z.object({ from: z.string(), to: z.string(), choresDone: z.number(), pointsEarned: z.number() }).nullable(), // null for all
     pointsSpent: z.object({ stickers: z.number(), rewards: z.number() }), // rewards net of refunds
     streak: z.object({ current: z.number(), best: z.number() }), // the leaderboard's rule, grace days included

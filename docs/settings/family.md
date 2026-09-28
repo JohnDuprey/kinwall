@@ -48,6 +48,7 @@ Also on this tab, admin only:
 |---|---|---|
 | **Late completion credit** | 0%, 25%, 50%, 75%, 100% | 50% |
 | **Streak grace** | 0–3 missed days per rolling week | 1 |
+| **Daily check-in points** | Off, 1, 2, 3, 5, 10 — what reading your day to the end earns, once a day ([daily check-in](../using/snapshot.md#daily-check-in)) | Off |
 | **Leaderboard** | on/off — hides the chore leaderboard and rank badges | On |
 | **Sticker shop** | on/off — hides the sticker book in Activities and refuses purchases when off | On |
 | **Sticker prices** | Free, 50%, 100%, 150% — scales every pack's price | 100% |

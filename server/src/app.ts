@@ -32,6 +32,7 @@ import { notesRoutes } from './routes/notes.ts';
 import { contactsRoutes } from './routes/contacts.ts';
 import { stickersRoutes } from './routes/stickers.ts';
 import { memberStatsRoutes } from './routes/member-stats.ts';
+import { checkInRoutes } from './routes/check-in.ts';
 import { rewardsRoutes } from './routes/rewards.ts';
 import { photosRoutes } from './routes/photos.ts';
 import { snapshotRoutes } from './routes/snapshot.ts';
@@ -101,6 +102,7 @@ export function createApp() {
   app.route('/', contactsRoutes);
   app.route('/', stickersRoutes);
   app.route('/', memberStatsRoutes);
+  app.route('/', checkInRoutes);
   app.route('/', rewardsRoutes);
   app.route('/', photosRoutes);
   app.route('/', snapshotRoutes);

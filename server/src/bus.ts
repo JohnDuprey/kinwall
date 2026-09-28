@@ -19,6 +19,7 @@ export type BusEventType =
   | 'chore.uncompleted'
   | 'chore.pending'
   | 'chore.rejected'
+  | 'checkin.completed'
   | 'list.changed'
   | 'list.item.changed'
   | 'category.changed'

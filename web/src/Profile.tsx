@@ -89,6 +89,7 @@ function ProfileBody({ member, s }: { member: Member; s: MemberStats }) {
         </>}
         {books && <Tile label="Books finished" value={String(s.books.finished)} note={[s.books.pages ? plural(s.books.pages, 'page') : '', s.books.minutesListened ? `${hoursMinutes(s.books.minutesListened)} listened` : ''].filter(Boolean).join(' · ') || word} />}
         {f.chores && <Tile label="Streak" value={<>🔥 {s.streak.current} <small>{s.streak.current === 1 ? 'day' : 'days'}</small></>} note={`Best ever: ${plural(s.streak.best, 'day')}`} />}
+        {(settings.checkInPoints > 0 || s.checkIns > 0) && <Tile label="Check-ins" value={<>☀️ {s.checkIns}</>} note={word} />}
       </div>
       <div className="profile-grid">
         {f.chores && <ChoresCard member={member} s={s} />}

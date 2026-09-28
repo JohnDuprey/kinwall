@@ -29,7 +29,7 @@ import { useDialog } from './dialog.tsx'
 import { announce, pressable, reducedMotion, Segmented } from './a11y.tsx'
 
 // Mirrors BusEventType in server/src/bus.ts.
-const BUS_EVENTS = ['member.changed', 'calendar.changed', 'calendar.synced', 'events.changed', 'chore.changed', 'chore.completed', 'chore.uncompleted', 'chore.pending', 'chore.rejected', 'list.changed', 'list.item.changed', 'category.changed', 'settings.changed', 'sticker.changed', 'reward.changed', 'reward.redeemed', 'reward.approved', 'reward.declined', 'reward.given', 'recipe.changed', 'meal.changed', 'photo.changed', 'tracker.changed', 'contact.changed', 'contact.category.changed', 'display.paired']
+const BUS_EVENTS = ['member.changed', 'calendar.changed', 'calendar.synced', 'events.changed', 'chore.changed', 'chore.completed', 'chore.uncompleted', 'chore.pending', 'chore.rejected', 'checkin.completed', 'list.changed', 'list.item.changed', 'category.changed', 'settings.changed', 'sticker.changed', 'reward.changed', 'reward.redeemed', 'reward.approved', 'reward.declined', 'reward.given', 'recipe.changed', 'meal.changed', 'photo.changed', 'tracker.changed', 'contact.changed', 'contact.category.changed', 'display.paired']
 
 export function timezoneList() {
   // Intl.supportedValuesOf('timeZone') doesn't include 'UTC' itself (the server's default
@@ -510,6 +510,15 @@ function ChoreSettingsSection({ settings, onSaved, toast }: { settings: Settings
         </div>
         <select className="settings-select" aria-label="Streak grace days" value={settings.streakGraceDays} onChange={e => save({ streakGraceDays: Number(e.target.value) })}>
           {[0, 1, 2, 3].map(n => <option key={n} value={n}>{n === 0 ? 'None' : `${n} day${n === 1 ? '' : 's'}`}</option>)}
+        </select>
+      </div>
+      <div className="settings-row">
+        <div>
+          <div className="settings-row-label">Daily check-in points</div>
+          <div className="settings-row-sub">Reading your day to the end and tapping "I'm all caught up" earns these, once a day.</div>
+        </div>
+        <select className="settings-select" aria-label="Daily check-in points" value={settings.checkInPoints} onChange={e => save({ checkInPoints: Number(e.target.value) })}>
+          {[0, 1, 2, 3, 5, 10].map(n => <option key={n} value={n}>{n === 0 ? 'Off' : `${n} point${n === 1 ? '' : 's'}`}</option>)}
         </select>
       </div>
       <div className="toggle-row">

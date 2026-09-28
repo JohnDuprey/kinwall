@@ -1,5 +1,5 @@
 // A member's profile numbers (GET /api/members/{id}/stats), built from tables Kinwall already
-// fills: chore_completions, point_entries, tracker_entries (reading only - health never shows
+// fills: chore_completions, check_ins, point_entries, tracker_entries (reading only - health never shows
 // here), member_sticker_packs, scrapbook_stickers, plugin_playtime and reward_redemptions.
 // Readable by wall screens and kids' devices (auth.ts): the whole family sees the fun stats.
 import { createRoute, z } from '@hono/zod-openapi';
@@ -73,7 +73,7 @@ memberStatsRoutes.openapi(
     const { id } = c.req.valid('param');
     const { period } = c.req.valid('query');
     const db = c.env.DB;
-    const [memberRes, settingsRes, doneRes, entriesRes, choresRes, keysRes, booksRes, packsRes, placedRes, playRes, rewardsRes] = await db.batch<unknown>([
+    const [memberRes, settingsRes, doneRes, entriesRes, choresRes, keysRes, booksRes, packsRes, placedRes, playRes, rewardsRes, checkInsRes] = await db.batch<unknown>([
       db.prepare('SELECT birthday, created_at FROM members WHERE id = ?').bind(id),
       db.prepare("SELECT key, value FROM settings WHERE key IN ('timezone', 'weekStart', 'streakGraceDays')"),
       // Every approved completion, archived chores included, so all-time numbers never drop.
@@ -87,6 +87,7 @@ memberStatsRoutes.openapi(
       db.prepare('SELECT COUNT(*) AS n FROM scrapbook_stickers WHERE member_id = ?').bind(id),
       db.prepare('SELECT t.date, t.plugin_id, t.seconds, p.name, p.manifest FROM plugin_playtime t LEFT JOIN plugins p ON p.id = t.plugin_id WHERE t.member_id = ?').bind(id),
       db.prepare("SELECT COUNT(*) AS n FROM reward_redemptions WHERE member_id = ? AND status IN ('approved', 'given')").bind(id),
+      db.prepare('SELECT date, points FROM check_ins WHERE member_id = ?').bind(id),
     ]);
     const member = memberRes.results[0] as { birthday: string | null; created_at: string } | undefined;
     if (!member) return c.json({ error: 'member not found' }, 404);
@@ -101,9 +102,12 @@ memberStatsRoutes.openapi(
     const from = range.from;
     // All time has no lower bound: a book finished or a pack bought before joining still counts.
     const inRange = (date: string, a = period === 'all' ? '' : from, b = today) => date >= a && date <= b;
+    const checkIns = checkInsRes.results as { date: string; points: number }[];
+    // Points earned: chores plus daily check-ins (both by their household day).
     const tally = (a: string, b: string) => {
       const rows = done.filter((r) => inRange(r.date, a, b));
-      return { choresDone: rows.length, pointsEarned: rows.reduce((s, r) => s + r.points, 0) };
+      const ins = checkIns.filter((r) => inRange(r.date, a, b));
+      return { choresDone: rows.length, pointsEarned: rows.reduce((s, r) => s + r.points, 0) + ins.reduce((s, r) => s + r.points, 0) };
     };
     const now = tally(from, today);
     const inPeriod = done.filter((r) => inRange(r.date));
@@ -188,6 +192,7 @@ memberStatsRoutes.openapi(
         to: today,
         joined,
         ...now,
+        checkIns: checkIns.filter((r) => inRange(r.date)).length,
         previous: range.previous ? { ...range.previous, ...tally(range.previous.from, range.previous.to) } : null,
         pointsSpent: spent,
         streak,
