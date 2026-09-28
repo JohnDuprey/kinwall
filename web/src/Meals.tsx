@@ -33,7 +33,7 @@ export default function Meals() {
   const [category, setCategory] = useState('')
   const [sort, setSort] = useState<'name' | 'rating'>('name')
   const [editing, setEditing] = useState<{ meal: Meal | null; initial: MealDraft } | null>(null)
-  const [recipeSheet, setRecipeSheet] = useState<{ recipe: Recipe | null; readOnly?: boolean } | null>(null)
+  const [recipeSheet, setRecipeSheet] = useState<{ recipe: Recipe | null; readOnly?: boolean; meal?: Meal } | null>(null)
   const [projection, setProjection] = useState(false)
   const [importing, setImporting] = useState<{ url: string } | null>(null)
   const [tick, setTick] = useState(0)
@@ -72,7 +72,10 @@ export default function Meals() {
   const meals = data?.from === from && data.to === to ? data.meals : null
   const mealError = data?.from === from && data.to === to ? data.error : undefined
   const linkedMeal = me && pendingMeal ? meals?.find(meal => meal.id === pendingMeal) : null
-  const activeEditing = editing ?? (linkedMeal ? { meal: linkedMeal, initial: { date: linkedMeal.date, slot: linkedMeal.slot } } : null)
+  const linkedRecipe = linkedMeal?.mealKind === 'recipe' ? recipes.find(r => r.id === linkedMeal.recipeId) : undefined
+  // A meal opened from the Board shows its recipe (Edit meal is a tap away), like tapping it here.
+  const shownRecipeSheet = recipeSheet ?? (linkedMeal && linkedRecipe ? { recipe: linkedRecipe, readOnly: true, meal: linkedMeal } : null)
+  const activeEditing = editing ?? (linkedMeal && !linkedRecipe ? { meal: linkedMeal, initial: { date: linkedMeal.date, slot: linkedMeal.slot } } : null)
   const bySlot = new Map<string, Meal[]>()
   for (const meal of (meals ?? []).filter(meal => mealForMember(meal, selectedMemberId))) { const key = `${meal.date}:${meal.slot}`; bySlot.set(key, [...(bySlot.get(key) ?? []), meal]) }
   const categories = [...new Set(recipes.flatMap(recipe => recipe.ingredients.map(i => i.category).filter((c): c is string => !!c)))].sort()
@@ -100,7 +103,7 @@ export default function Meals() {
             const assignee = members.find(member => member.id === meal.assigneeMemberId)
             const recipe = recipes.find(r => r.id === meal.recipeId)
             const total = meal.recipeSnapshot && 'totalMinutes' in meal.recipeSnapshot ? meal.recipeSnapshot.totalMinutes : recipe?.totalMinutes
-            return <button key={meal.id} className={`meal-card ${meal.status !== 'planned' ? 'meal-complete' : ''}`} onClick={() => setEditing({ meal, initial: { date, slot } })} aria-label={`${SLOT_LABEL[slot]}, ${mealDayLabel(date)}, ${meal.title}, ${meal.status}${assignee ? `, cooked by ${assignee.name}` : ''}${meal.eaterIds?.length ? `, for ${members.filter(m => meal.eaterIds.includes(m.id)).map(m => m.name).join(', ')}` : ''}`}>
+            return <button key={meal.id} className={`meal-card ${meal.status !== 'planned' ? 'meal-complete' : ''}`} onClick={() => recipe && meal.mealKind === 'recipe' ? setRecipeSheet({ recipe, readOnly: true, meal }) : setEditing({ meal, initial: { date, slot } })} aria-label={`${SLOT_LABEL[slot]}, ${mealDayLabel(date)}, ${meal.title}, ${meal.status}${assignee ? `, cooked by ${assignee.name}` : ''}${meal.eaterIds?.length ? `, for ${members.filter(m => meal.eaterIds.includes(m.id)).map(m => m.name).join(', ')}` : ''}`}>
               {recipe?.imageUrl && <RecipePhoto id={recipe.id} className="meal-thumb" />}
               <strong>{meal.mealKind === 'dining_out' && <span aria-label="Dining out">↗ </span>}{meal.title}</strong>
               <span>{meal.plannedTime ? `${clockTime(meal.plannedTime)} · ` : ''}{servingsLabel(meal.servings)}{total ? ` · ${minutesLabel(total)}` : ''}</span>
@@ -130,7 +133,7 @@ export default function Meals() {
       </>}
     </section>}
     {activeEditing && <MealSheet meal={activeEditing.meal} initial={activeEditing.initial} recipes={recipes} admin={admin} owner={me?.owner} onClose={() => { setEditing(null); setPendingMeal(null) }} onSaved={saved} onRecipe={recipe => setRecipeSheet({ recipe, readOnly: true })} />}
-    {recipeSheet && <RecipeSheet recipe={recipeSheet.recipe} admin={admin && !recipeSheet.readOnly} owner={me?.owner} onRated={() => setTick(t => t + 1)} onClose={() => setRecipeSheet(null)} onSaved={saved} onPlan={recipeSheet.readOnly ? undefined : recipe => { setRecipeSheet(null); setEditing({ meal: null, initial: { date: today, slot: 'dinner', recipe } }) }} />}
+    {shownRecipeSheet && <RecipeSheet recipe={shownRecipeSheet.recipe} admin={admin && !shownRecipeSheet.readOnly} owner={me?.owner} onRated={() => setTick(t => t + 1)} onClose={() => { setRecipeSheet(null); setPendingMeal(null) }} onSaved={saved} onEditMeal={shownRecipeSheet.meal && (() => { const meal = shownRecipeSheet.meal; return { label: admin ? 'Edit meal' : 'Meal details', open: () => { setRecipeSheet(null); setPendingMeal(null); setEditing({ meal, initial: { date: meal.date, slot: meal.slot } }) } } })()} onPlan={shownRecipeSheet.readOnly ? undefined : recipe => { setRecipeSheet(null); setEditing({ meal: null, initial: { date: today, slot: 'dinner', recipe } }) }} />}
     {importing && me && <RecipeImportSheet url={importing.url} admin={admin} onClose={() => setImporting(null)} onSaved={recipe => { setImporting(null); setTick(t => t + 1); setRecipeSheet({ recipe }) }} />}
     {projection && <MealProjection from={from} to={to} admin={admin} onClose={() => setProjection(false)} />}
   </div>

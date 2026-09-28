@@ -3,7 +3,7 @@ import { api, MOCK } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { useDialog } from './dialog.tsx'
 import Sheet from './Sheet.tsx'
-import { CheckIcon, ChevronRight, EditIcon, ExternalIcon, FileIcon, LinkIcon, MinusIcon, PlusIcon, TrashIcon } from './icons.tsx'
+import { CheckIcon, ChevronRight, EditIcon, ExternalIcon, FileIcon, LinkIcon, MinusIcon, PlusIcon } from './icons.tsx'
 import { ingredientAmount, isPdfUrl, recipeTime, servingsLabel, urlHost } from './meal-date.ts'
 import { KIT_QUALIFIER, type IngredientInput, type Recipe, type RecipeInput, type RecipeRating, type RecipeSnapshot, type RecipeStep } from './meal-types.ts'
 import { inkFor } from './color.ts'
@@ -115,8 +115,10 @@ function Ratings({ recipe, owner, onRated }: { recipe: Recipe; owner?: string | 
 }
 
 /** Tapping a recipe opens this view; admins get Edit, which swaps in the editor (back to the view on close). */
-export default function RecipeSheet({ recipe, admin, owner, onClose, onSaved, onPlan, onRated }: {
+export default function RecipeSheet({ recipe, admin, owner, onClose, onSaved, onPlan, onRated, onEditMeal }: {
   recipe: Recipe | null; admin: boolean; owner?: string | null; onClose: () => void; onSaved: () => void; onPlan?: (recipe: Recipe) => void; onRated?: () => void
+  /** Opened from a planned meal: a button back to that meal's details. */
+  onEditMeal?: { label: string; open: () => void }
 }) {
   const [editing, setEditing] = useState(!recipe)
   // Reading a recipe while cooking: keep the screen on until it's closed (not while editing).
@@ -126,7 +128,8 @@ export default function RecipeSheet({ recipe, admin, owner, onClose, onSaved, on
   if (editing || !recipe) return <RecipeEditor recipe={recipe} onClose={recipe ? () => setEditing(false) : onClose} onSaved={onSaved} />
   const time = recipeTime(recipe)
   const step = (by: number) => setServings(n => Math.max(1, Math.round(n) + by))
-  return <Sheet title={recipe.name} onClose={onClose} actions={admin || (onPlan && !recipe.archived) ? <>
+  return <Sheet title={recipe.name} onClose={onClose} actions={admin || onEditMeal || (onPlan && !recipe.archived) ? <>
+    {onEditMeal && <button className="btn btn-secondary" onClick={onEditMeal.open}><EditIcon width={20} height={20} /> {onEditMeal.label}</button>}
     {admin && <button className="btn btn-secondary" onClick={() => setEditing(true)}><EditIcon width={20} height={20} /> Edit</button>}
     {onPlan && !recipe.archived && <button className="btn btn-primary" onClick={() => onPlan(recipe)}>Plan this meal</button>}
   </> : undefined}>
@@ -191,8 +194,14 @@ function RecipeEditor({ recipe, onClose, onSaved }: { recipe: Recipe | null; onC
   }
   const close = () => { if (!busy) onClose() }
   return <Sheet title={recipe ? 'Edit recipe' : 'New recipe'} onClose={close} dismissable={!busy} actions={<>
-    {recipe && <button className="btn btn-secondary" disabled={busy} onClick={() => void run(() => api.updateRecipe(recipe.id, { archived: !recipe.archived }), recipe.archived ? 'Recipe restored' : 'Recipe archived')}>{recipe.archived ? 'Restore' : 'Archive'}</button>}
-    {recipe && <button className="icon-btn" aria-label="Delete recipe" disabled={busy} onClick={remove}><TrashIcon /></button>}
+    {recipe && <select className="settings-select actions-select" aria-label="Recipe actions" value="" disabled={busy} onChange={e => {
+      if (e.target.value === 'archive') void run(() => api.updateRecipe(recipe.id, { archived: !recipe.archived }), recipe.archived ? 'Recipe restored' : 'Recipe archived')
+      if (e.target.value === 'delete') void remove()
+    }}>
+      <option value="" disabled hidden>More…</option>
+      <option value="archive">{recipe.archived ? 'Restore recipe' : 'Archive recipe'}</option>
+      <option value="delete">Delete recipe…</option>
+    </select>}
     <button className="btn btn-primary" type="submit" form={formId} disabled={busy}>{busy ? 'Saving…' : 'Save recipe'}</button>
   </>}>
     <form id={formId} onSubmit={e => { e.preventDefault(); save() }}>
