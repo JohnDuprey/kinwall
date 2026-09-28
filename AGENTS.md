@@ -26,7 +26,7 @@ lowercase, no period, under ~72 characters. The body says why when that isn't ob
 
 - Types: `feat`, `fix`, `docs`, `test`, `refactor`, `perf`, `style`, `chore`, `ci`, `build`.
 - Scopes are areas of the app: `board`, `calendar`, `chores`, `rewards`, `lists`, `meals`,
-  `recipes`, `notes`, `trackers`, `contacts`, `settings`, `mcp`, `sync`, `auth`, `server`, `web`, `docs`, `ha`.
+  `recipes`, `notes`, `snapshot`, `trackers`, `contacts`, `settings`, `mcp`, `sync`, `auth`, `server`, `web`, `docs`, `ha`.
 - Breaking changes (API, MCP tools, export format, settings) get `!` and a `BREAKING CHANGE:` footer.
 - One logical change per commit. Tests and docs go in the same commit as the change.
 - CI checks every new commit (`.github/check-commits.sh`), and a failing check blocks the hosted
