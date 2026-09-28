@@ -29,10 +29,13 @@ export interface RecipeInput {
   ingredients: IngredientInput[]
 }
 export interface RecipeRating { average: number | null; count: number; byMember: Record<string, number> /* member id -> 1-5 stars */ }
+/** A recipe's public link (/r/{token}); parents' devices only. */
+export interface RecipeShare { url: string; createdAt: string }
 export interface Recipe extends Omit<RecipeInput, 'ingredients'> {
   id: string
   ingredients: RecipeIngredient[]
   rating?: RecipeRating
+  share?: RecipeShare | null
   createdAt: string
   updatedAt: string
 }

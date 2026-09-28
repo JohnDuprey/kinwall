@@ -11,6 +11,7 @@ import CookingMode from './CookingMode.tsx'
 import { cookingSteps, savedStep } from './cooking.ts'
 import RecipeCardSheet from './RecipeCardSheet.tsx'
 import RecipePhoto from './RecipePhoto.tsx'
+import RecipeShare from './RecipeShare.tsx'
 import { holdAwake } from './wakeLock.ts'
 
 const emptyIngredient = (): IngredientInput => ({ name: '', quantity: null, unit: null, preparation: null, qualifier: null, category: null, sort: 0 })
@@ -157,6 +158,7 @@ export default function RecipeSheet({ recipe, admin, owner, onClose, onSaved, on
       : recipe.instructions && <><h3>Steps</h3><Steps text={recipe.instructions} /></>}
     {recipe.preparationNotes && <><h3>Preparation notes</h3><p className="meal-prose">{recipe.preparationNotes}</p></>}
     {recipe.sourceUrl && <div className="sheet-links"><SourceLink url={recipe.sourceUrl} pdfPath={`api/recipes/${encodeURIComponent(recipe.id)}/source.pdf`} title={recipe.name} /></div>}
+    {admin && <RecipeShare key={recipe.id} recipe={recipe} />}
   </Sheet>
   {cooking && <CookingMode recipe={recipe} steps={cookSteps} servings={servings} onClose={() => setCooking(false)} />}
   </>

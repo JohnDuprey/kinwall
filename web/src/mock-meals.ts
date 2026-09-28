@@ -173,6 +173,12 @@ export async function mockMealRequest(path: string, options: RequestInit): Promi
     if (method === 'GET') return recipes.filter(r => url.searchParams.get('archived') === 'true' || !r.archived)
     const old = recipes.find(r => r.id === id)
     if (id && !old) throw new Error('Recipe not found')
+    if (action === 'share') {
+      // The demo's links go nowhere: there's no server to show the page.
+      const share = method === 'DELETE' ? null : old!.share ?? { url: `${location.origin}/r/demo-${old!.id}`, createdAt: new Date().toISOString() }
+      recipes = recipes.map(r => r.id === id ? { ...r, share } : r)
+      return share ? { ...share, token: `demo-${old!.id}` } : { ok: true }
+    }
     if (action === 'rating') {
       const byMember = { ...old!.rating?.byMember }
       if (body.stars) byMember[body.memberId] = body.stars; else delete byMember[body.memberId]
