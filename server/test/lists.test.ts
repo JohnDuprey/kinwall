@@ -473,3 +473,55 @@ test('lists: a client-made item id makes a replayed add idempotent; the same id 
   const dup = '7c2d2b63-7b8f-4d2f-8a66-3a2a5c2a4e22';
   assert.equal((await request(`/api/lists/${list.id}/items`, { method: 'POST', body: JSON.stringify([{ id: dup, title: 'A' }, { id: dup, title: 'B' }]) })).status, 400);
 });
+
+test('lists: PUT /api/lists/order saves the family order; new lists go last', async () => {
+  const env = makeEnv();
+  const request = makeApp(env);
+  const make = async (name: string, kind = 'todo') => (await json(await request('/api/lists', { method: 'POST', body: JSON.stringify({ name, kind }) }))).id as string;
+  const a = await make('Chores'), b = await make('Groceries', 'shopping'), c = await make('Packing', 'reusable');
+  const names = async (q = '') => (await json(await request(`/api/lists${q}`))).map((l: any) => l.name);
+  assert.deepEqual(await names(), ['Chores', 'Groceries', 'Packing']);
+
+  const rev0 = (await json(await request('/api/rev'))).rev;
+  const res = await request('/api/lists/order', { method: 'PUT', body: JSON.stringify({ ids: [c, a, b] }) });
+  assert.equal(res.status, 200);
+  assert.deepEqual(await names(), ['Packing', 'Chores', 'Groceries']);
+  assert.ok((await json(await request('/api/rev'))).rev > rev0, 'emits a list change');
+
+  await make('Hardware', 'shopping');
+  assert.deepEqual(await names(), ['Packing', 'Chores', 'Groceries', 'Hardware']);
+});
+
+test('lists: order keeps lists left out (archived, other sections) in place after the given ones', async () => {
+  const env = makeEnv();
+  const request = makeApp(env);
+  const make = async (name: string) => (await json(await request('/api/lists', { method: 'POST', body: JSON.stringify({ name, kind: 'todo' }) }))).id as string;
+  const a = await make('A'), b = await make('B'), c = await make('C'), d = await make('D');
+  await request(`/api/lists/${b}`, { method: 'PATCH', body: JSON.stringify({ archived: true }) });
+  assert.equal((await request('/api/lists/order', { method: 'PUT', body: JSON.stringify({ ids: [d, a] }) })).status, 200);
+  assert.deepEqual((await json(await request('/api/lists?archived=true'))).map((l: any) => l.name), ['D', 'A', 'B', 'C']);
+  // An archived list can be placed too.
+  assert.equal((await request('/api/lists/order', { method: 'PUT', body: JSON.stringify({ ids: [b, c] }) })).status, 200);
+  assert.deepEqual((await json(await request('/api/lists?archived=true'))).map((l: any) => l.name), ['B', 'C', 'D', 'A']);
+});
+
+test('lists: order rejects unknown or repeated ids and changes nothing', async () => {
+  const env = makeEnv();
+  const request = makeApp(env);
+  const a = (await json(await request('/api/lists', { method: 'POST', body: JSON.stringify({ name: 'A', kind: 'todo' }) }))).id;
+  const b = (await json(await request('/api/lists', { method: 'POST', body: JSON.stringify({ name: 'B', kind: 'todo' }) }))).id;
+  assert.equal((await request('/api/lists/order', { method: 'PUT', body: JSON.stringify({ ids: [b, 'nope'] }) })).status, 400);
+  assert.equal((await request('/api/lists/order', { method: 'PUT', body: JSON.stringify({ ids: [b, b] }) })).status, 400);
+  assert.deepEqual((await json(await request('/api/lists'))).map((l: any) => l.id), [a, b]);
+});
+
+test('lists: order is a list edit - a display key may set it, no key may not', async () => {
+  const env = makeEnv();
+  const request = makeApp(env);
+  const a = (await json(await request('/api/lists', { method: 'POST', body: JSON.stringify({ name: 'A', kind: 'todo' }) }))).id;
+  const b = (await json(await request('/api/lists', { method: 'POST', body: JSON.stringify({ name: 'B', kind: 'todo' }) }))).id;
+  const displayKey = await json(await request('/api/keys', { method: 'POST', body: JSON.stringify({ name: 'wall', scope: 'display' }) }));
+  assert.equal((await request('/api/lists/order', { method: 'PUT', body: JSON.stringify({ ids: [b, a] }) }, displayKey.key)).status, 200);
+  assert.equal((await request('/api/lists/order', { method: 'PUT', body: JSON.stringify({ ids: [a, b] }) }, 'fc_wrong')).status, 401);
+  assert.deepEqual((await json(await request('/api/lists'))).map((l: any) => l.id), [b, a]);
+});

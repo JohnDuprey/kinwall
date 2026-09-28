@@ -638,6 +638,10 @@ export const ListCheckedSchema = z.object({ itemIds: z.array(z.string()).max(100
 
 export const ListReorderSchema = z.object({ itemIds: z.array(z.string()) }).openapi('ListReorder');
 
+export const ListOrderSchema = z
+  .object({ ids: z.array(z.string()).max(1000).openapi({ description: 'List ids in the order to show them. Lists left out keep their order, after these.' }) })
+  .openapi('ListOrder');
+
 export const ListGroupsInputSchema = z
   .object({ groups: z.array(z.object({ kind: z.enum(['store', 'category']), name: z.string() })) })
   .openapi('ListGroupsInput');
