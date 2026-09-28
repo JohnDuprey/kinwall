@@ -35,8 +35,8 @@ function PeriodControl({ period, onChange, className = '' }: { period: Leaderboa
     options={LB_PERIODS.map(p => ({ key: p, label: p[0].toUpperCase() + p.slice(1) }))} />
 }
 
-/** `periodControl` false: the Today/Week/Month switch is rendered elsewhere (the phone header row). */
-function Leaderboard({ period, setPeriod, periodControl }: { period: LeaderboardPeriod; setPeriod: (p: LeaderboardPeriod) => void; periodControl: boolean }) {
+/** The pills only: the Today/Week/Month switch sits in the Chores header row. */
+function Leaderboard({ period }: { period: LeaderboardPeriod }) {
   const { refreshTick, members } = useApp()
   // Spendable balance (all-time earned minus what's been spent) next to the period's earned points.
   const spendable = (id: string) => members.find(m => m.id === id)?.balance ?? null
@@ -61,7 +61,6 @@ function Leaderboard({ period, setPeriod, periodControl }: { period: Leaderboard
 
   return (
     <div className="leaderboard-strip">
-      {periodControl && <PeriodControl period={period} onChange={setPeriod} />}
       <div className="leaderboard-pills" role="list" aria-label="Leaderboard">
         {board.map(e => (
           <div key={e.memberId} className="leaderboard-pill" role="listitem"
@@ -479,19 +478,24 @@ export default function Chores() {
   // Columns share the width equally down to a 110px floor (below which a card's contents stop
   // being legible - .chore-card switches to a stacked layout under that via a container query).
   // Past the floor the row overflows and .chore-columns' overflow-x/scroll-snap take over.
-  const columnsGridStyle = { gridTemplateColumns: `repeat(${visibleColumns.length}, minmax(110px, 1fr))` }
-  // Phone stacks members vertically, so an empty member would be a whole blank card - list them on one line instead.
+  // Someone with nothing due gets a compact chip under the columns rather than a whole blank
+  // column, so the people with chores get the width (capped, so two columns aren't a mile wide).
   const hasChores = (id: string) => chores.some(c => id === '__anyone' ? !c.memberId : c.memberId === id)
-  const idle = isPhone && !loading ? visibleColumns.filter(m => !hasChores(m.id)) : []
+  const idle = !loading ? visibleColumns.filter(m => !hasChores(m.id)) : []
+  const active = visibleColumns.filter(m => !idle.includes(m))
+  const columnsGridStyle = { gridTemplateColumns: `repeat(${Math.max(1, active.length)}, minmax(110px, 480px))` }
+  const leaderboard = settings.leaderboardEnabled && <Leaderboard period={lbPeriod} />
 
   return (
     <div className="content">
       {/* display: contents, except on a phone on its side, where it scrolls the whole view as one. */}
       <div className="chores-scroll">
       <div className="chores-header">
-        {/* A phone keeps date, period switch and Rewards on one short row: short date, icon-only Rewards. */}
+        {/* Date, period switch and Rewards share one row (a phone: short date, icon-only Rewards).
+            Off a phone the leaderboard joins that row when it fits, else takes the next one. */}
         <h2 className="period-label" aria-label={format(selectedDate, 'EEEE, MMMM d')}>{format(selectedDate, isPhone ? 'EEE, MMM d' : 'EEEE, MMMM d')}</h2>
-        {isPhone && settings.leaderboardEnabled && <PeriodControl className="chores-period" period={lbPeriod} onChange={setLbPeriod} />}
+        {settings.leaderboardEnabled && <PeriodControl className="chores-period" period={lbPeriod} onChange={setLbPeriod} />}
+        {!isPhone && leaderboard}
         <a className="btn btn-secondary chores-rewards-btn" href={selectedMemberId ? `#/rewards/${selectedMemberId}` : '#/rewards'}><span aria-hidden="true">🎁</span> <span className="chores-rewards-label">Rewards</span></a>
       </div>
       <div className="date-strip" role="group" aria-label="Day">
@@ -505,7 +509,7 @@ export default function Chores() {
 
       {parentDevice && <ApprovalQueue onChanged={load} />}
 
-      {settings.leaderboardEnabled && <Leaderboard period={lbPeriod} setPeriod={setLbPeriod} periodControl={!isPhone} />}
+      {isPhone && leaderboard}
 
       {error ? (
         <div className="state-card">Couldn't load chores.</div>
@@ -513,7 +517,7 @@ export default function Chores() {
         <div className="empty-card"><span className="emoji">✨</span>No chores for this day.</div>
       ) : (
         <div className="chore-columns" style={columnsGridStyle}>
-          {visibleColumns.filter(m => !idle.includes(m)).map(col => {
+          {active.map(col => {
             const list = chores.filter(c => col.id === '__anyone' ? !c.memberId : c.memberId === col.id)
             const done = list.filter(c => c.completed).length
             const pct = list.length ? done / list.length : 0
@@ -533,9 +537,21 @@ export default function Chores() {
               </div>
             )
           })}
+          {idle.length > 0 && (
+            <ul className="chores-idle" aria-label="Nothing due">
+              {idle.map(m => (
+                <li key={m.id} className="chores-idle-item">
+                  <span className="chores-idle-avatar" aria-hidden="true" style={{ background: m.color, color: inkFor(m.color) }}>{m.avatar || m.name[0]}</span>
+                  <span><span className="chores-idle-name">{m.name}</span> · nothing due</span>
+                  {m.id !== '__anyone' && 'balance' in m && (
+                    <a className="chore-col-spend" href={`#/rewards/${m.id}`} aria-label={`${m.name} has ${m.balance} points to spend. See rewards`}>⭐ {m.balance} to spend</a>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
           {/* Tap toggles done (kid-friendly), so editing is a long press - say so on phones,
-              where an admin is the one looking. On the iPad grid this would become a column. */}
-          {idle.length > 0 && <p className="chores-hint">Nothing due: {idle.map(m => m.name).join(', ')}</p>}
+              where an admin is the one looking. */}
           {isPhone && parentDevice && <p className="chores-hint">Press and hold a chore to edit it.</p>}
         </div>
       )}

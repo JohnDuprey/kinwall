@@ -779,8 +779,24 @@ button {
 
 /* ---------- Chores ---------- */
 .chores-scroll { display: contents; }
-.chores-header { padding: 14px 20px 6px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; flex-wrap: wrap; gap: 10px; }
+.chores-header { padding: 14px 20px 6px; display: flex; align-items: center; flex-shrink: 0; flex-wrap: wrap; gap: 10px; container: chores-header / inline-size; }
+/* Off a phone the leaderboard lives in the header: its own slim row, or inline between the period
+   switch and Rewards once the row is wide enough for them all. */
+.chores-period { padding: 3px; }
+.chores-period button { min-height: 44px; padding: 6px 14px; }
+.chores-header .leaderboard-strip { order: 1; flex: 1 0 100%; min-width: 0; padding: 0; }
+.chores-header .leaderboard-pill { min-width: 170px; padding-top: 4px; padding-bottom: 4px; }
+.chores-header .lb-avatar { width: 32px; height: 32px; font-size: 1rem; }
+@container chores-header (min-width: 1300px) {
+  .chores-header .leaderboard-strip { order: 0; flex: 1 1 0; }
+  .chores-header .leaderboard-pills { justify-content: safe center; }
+}
 .date-strip { display: flex; gap: 8px; overflow-x: auto; padding: 6px 20px 10px; flex-shrink: 0; }
+/* Wide screens: the chips share the width instead of bunching at the left. */
+@media (min-width: 601px) {
+  .date-strip { justify-content: safe center; }
+  .date-chip { flex: 1 0 56px; max-width: 110px; }
+}
 .date-chip { min-width: 56px; padding: 8px 4px; border-radius: 14px; background: var(--card); box-shadow: var(--shadow); border: 2px solid transparent; text-align: center; flex-shrink: 0; }
 .date-chip.active { border-color: var(--accent-strong); }
 .date-chip .wd { font-size: 0.625rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; }
@@ -788,15 +804,22 @@ button {
 
 /* Grid so columns share the available width equally (up to ~6). Beyond that, Chores.tsx switches
    this to a fixed-width horizontal-scroll track (grid-auto-flow: column) via inline style. */
-.chore-columns { display: grid; gap: var(--gap); padding: 6px var(--pad) 100px; overflow-x: auto; flex: 1; align-items: start; scroll-snap-type: x proximity; }
+.chore-columns { display: grid; gap: var(--gap); padding: 6px var(--pad) 100px; overflow-x: auto; flex: 1; align-items: start; align-content: start; justify-content: safe center; scroll-snap-type: x proximity; }
 .chore-column {
   background: var(--card-soft); border-radius: var(--radius); padding: calc(var(--gap) * 1.3) var(--gap); min-width: 0;
   display: flex; flex-direction: column; gap: var(--gap); scroll-snap-align: start;
   container-type: inline-size; container-name: chore-col;
 }
-.chore-col-head { display: flex; flex-direction: column; align-items: center; gap: 8px; }
-.progress-ring-wrap { position: relative; width: 64px; height: 64px; display: flex; align-items: center; justify-content: center; }
-.progress-ring-wrap .avatar { font-size: 1.625rem; }
+.chore-col-head { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 10px; align-items: center; padding-left: 2px; }
+.chore-col-head .progress-ring-wrap { grid-row: span 3; }
+.chore-col-head > :not(.progress-ring-wrap) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.progress-ring-wrap { position: relative; width: 52px; height: 52px; display: flex; align-items: center; justify-content: center; }
+.progress-ring-wrap .avatar { font-size: 1.375rem; }
+/* Someone with nothing due: a chip under the columns, not a blank column. */
+.chores-idle { grid-column: 1 / -1; list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.chores-idle-item { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 4px 14px 4px 4px; border-radius: 999px; background: var(--card-soft); color: var(--text-dim); font-size: 0.8125rem; font-weight: 700; }
+.chores-idle-avatar { width: 34px; height: 34px; border-radius: 50%; flex: none; display: flex; align-items: center; justify-content: center; font-size: 1.0625rem; }
+.chores-idle-name { color: var(--text); font-weight: 800; }
 .chore-col-name { font-weight: 800; font-size: 0.875rem; }
 .chore-col-pts { font-size: 0.75rem; color: var(--text-dim); font-weight: 700; }
 
@@ -872,6 +895,7 @@ button {
 /* Narrow column (many columns, or portrait): give the title the full card width instead of
    squeezing it between the emoji and the check button, so it wraps words, not letters. */
 @container chore-col (max-width: 170px) {
+  .chore-col-head { display: flex; flex-direction: column; gap: 6px; padding-left: 0; }
   .chore-card { flex-wrap: wrap; padding: 10px; gap: 6px 8px; }
   .chore-emoji { font-size: 1.25rem; }
   .chore-info { flex-basis: 100%; order: 1; }
@@ -893,7 +917,6 @@ button {
 
 /* ---------- Chore leaderboard ---------- */
 .leaderboard-strip { padding: 4px var(--pad) 2px; display: flex; flex-direction: column; gap: calc(var(--gap) * 0.8); flex-shrink: 0; }
-.leaderboard-segmented { align-self: flex-start; }
 .leaderboard-pills { display: flex; gap: var(--gap); overflow-x: auto; padding-bottom: 4px; scroll-snap-type: x proximity; }
 .leaderboard-pill {
   display: flex; align-items: center; gap: calc(var(--gap) * 0.8);
@@ -1319,7 +1342,7 @@ button {
   /* ---------- Chores: stack member sections instead of side-scrolling columns ---------- */
   .chore-columns { display: flex; flex-direction: column; overflow-x: hidden; padding-top: 4px; padding-left: 10px; padding-right: 10px; }
   .chore-column { width: 100%; padding: 8px; gap: 6px; }
-  .chore-col-head { flex-direction: row; justify-content: flex-start; flex-wrap: wrap; column-gap: 8px; row-gap: 0; padding-left: 2px; }
+  .chore-col-head { display: flex; align-items: center; flex-direction: row; justify-content: flex-start; flex-wrap: wrap; column-gap: 8px; row-gap: 0; padding-left: 2px; }
   .chore-col-head .progress-ring-wrap { width: 36px; height: 36px; }
   .chore-col-head .avatar { font-size: 1.0625rem; }
   /* Compact rows, so a typical list fits above the fold. The whole card is the tap target
@@ -1340,6 +1363,9 @@ button {
   .date-chip { min-width: 40px; min-height: 44px; padding: 3px 2px; border-radius: 12px; line-height: 1.15; }
   .date-chip .wd { font-size: 0.5625rem; }
   .date-chip .dn { font-size: 0.9375rem; }
+  .chores-idle { gap: 6px; }
+  .chores-idle-item { min-height: 36px; padding: 3px 10px 3px 3px; gap: 6px; font-size: 0.75rem; }
+  .chores-idle-avatar { width: 28px; height: 28px; font-size: 0.875rem; }
 
   /* ---------- Settings: label above control, nothing wider than the viewport ---------- */
   .settings-scroll { padding-left: 14px; padding-right: 14px; }
@@ -1885,7 +1911,7 @@ button.notif-item:active { transform: scale(0.99); }
 .rewards-empty p { margin: 0 0 10px; }
 .rewards-suggestions { justify-content: center; margin-bottom: 14px; }
 .rewards-suggestions .chip { min-height: 44px; }
-.chores-rewards-btn { min-height: 44px; padding: 8px 16px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+.chores-rewards-btn { flex: none; margin-left: auto; min-height: 44px; padding: 8px 16px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
 .chore-col-spend { font-size: 0.75rem; font-weight: 800; color: var(--accent-text); text-decoration: none; min-height: 24px; display: inline-flex; align-items: center; }
 .board-card-link { float: right; text-transform: none; letter-spacing: 0; color: var(--accent-text); text-decoration: none; }
 .reward-card.goal { box-shadow: var(--shadow), inset 0 0 0 2px var(--accent); }
