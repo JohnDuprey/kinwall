@@ -97,6 +97,30 @@ test('recipe share: the page round-trips through the link importer', async () =>
   assert.deepEqual(ld.recipeInstructions.map((s: any) => s.image), [tacos.steps[0].imageUrl, undefined, undefined]);
 });
 
+test('recipe share: link previews (iMessage, Discord, Slack) get a title, description, photo and source label', async () => {
+  const { request, share } = await sharedRecipe();
+  const html = await (await request(`/r/${share.token}`, 'GET', undefined, '')).text();
+  const meta = (key: string) => new RegExp(`<meta (?:property|name)="${key}" content="([^"]*)">`).exec(html)?.[1];
+  assert.equal(meta('og:type'), 'article');
+  assert.equal(meta('og:site_name'), 'Kinwall');
+  assert.equal(meta('og:title'), 'Tuesday Tacos');
+  assert.equal(meta('og:description'), 'Beef tacos with &lt;fresh&gt; toppings &amp; warm tortillas.');
+  assert.equal(meta('og:url'), share.url);
+  assert.equal(meta('og:image'), `${share.url}/image`, 'absolute, through the link like the page photo');
+  assert.equal(meta('twitter:card'), 'summary_large_image');
+  assert.match(html, /<p class="src">Source: <a href="https:\/\/example\.com\/tacos"/);
+  assert.ok(!html.includes('Original recipe'));
+
+  // No photo or description: a text card that still says what it is.
+  const f = fixture();
+  const plain = await f.json('/api/recipes', 'POST', { name: 'Toast', defaultServings: 2, ingredients: [{ name: 'Bread' }], steps: [{ text: 'Toast it.' }] });
+  const s2 = await f.json(`/api/recipes/${plain.id}/share`, 'POST');
+  const html2 = await (await f.request(`/r/${s2.token}`, 'GET', undefined, '')).text();
+  assert.match(html2, /<meta property="og:description" content="Serves 2">/);
+  assert.doesNotMatch(html2, /og:image/);
+  assert.match(html2, /<meta name="twitter:card" content="summary">/);
+});
+
 test('recipe share: another Kinwall imports the link and keeps the original photo', async () => {
   const { request, share } = await sharedRecipe();
   const html = await (await request(`/r/${share.token}`, 'GET', undefined, '')).text();

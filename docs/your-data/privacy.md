@@ -39,7 +39,7 @@ Your family's content: member names, events, chores, lists, settings, [trackers]
 
 ## Shared recipe links
 
-A parent can [share a recipe](../using/meals.md#sharing-a-recipe) as a public link (`/r/…`). Anyone with the link sees that recipe only: its name, photo, description, servings, times, ingredients, steps (and their photos) and source link. The page never includes your family's name, members, ratings, planned meals, meal notes or the recipe's preparation notes, and it asks search engines not to list it. Photos on the page are fetched through your Kinwall, so viewers don't contact the photo's original site; the recipe data in the page (for importing it elsewhere) does name the original photo addresses.
+A parent can [share a recipe](../using/meals.md#sharing-a-recipe) as a public link (`/r/…`). Anyone with the link sees that recipe only: its name, photo, description, servings, times, ingredients, steps (and their photos) and source link. The page never includes your family's name, members, ratings, planned meals, meal notes or the recipe's preparation notes, and it asks search engines not to list it. Photos on the page are fetched through your Kinwall, so viewers don't contact the photo's original site; the recipe data in the page (for importing it elsewhere) does name the original photo addresses. When you paste the link into a message, the app (iMessage, Discord, Slack and others) fetches the page to show a preview card with the recipe's name, description and photo.
 
 The link's random token (192 bits) is stored in plain form so the same link can be shown again; it isn't in the data export. **Stop sharing** deletes it, and so does deleting the recipe.
 

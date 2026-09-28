@@ -161,10 +161,18 @@ recipeShareRoutes.openapi(createRoute({ method: 'get', path: '/r/{token}', tags:
     `<p class="meta">${esc(meta)}</p>`,
     r.ingredients.length && `<h2>Ingredients</h2><div class="card"><ul class="ing">${r.ingredients.map((i) => `<li>${esc(ingredientLine(i))}</li>`).join('')}</ul></div>`,
     steps.length && `<h2>Steps</h2><ol class="steps">${steps.map((s, i) => `<li><div>${s.title ? `<h3>${esc(s.title)}</h3>` : ''}${s.image ? `<img class="step-img" src="/r/${esc(token)}/steps/${i + 1}/image" alt="" loading="lazy">` : ''}${s.text ? `<p>${esc(s.text)}</p>` : ''}${s.bullets.length ? `<ul>${s.bullets.map((b) => `<li>${esc(b)}</li>`).join('')}</ul>` : ''}</div></li>`).join('')}</ol>`,
-    r.sourceUrl && `<p class="src">Original recipe: <a href="${esc(r.sourceUrl)}" rel="noopener noreferrer nofollow">${esc(new URL(r.sourceUrl).host)}</a></p>`,
+    r.sourceUrl && `<p class="src">Source: <a href="${esc(r.sourceUrl)}" rel="noopener noreferrer nofollow">${esc(new URL(r.sourceUrl).host)}</a></p>`,
     `<h2>Save to my Kinwall</h2><div class="card"><form id="save" data-url="${esc(self)}"><label for="addr">Your Kinwall address</label><div class="row"><input id="addr" type="text" inputmode="url" autocapitalize="none" autocomplete="url" spellcheck="false" placeholder="yourfamily.kinwall.family" required><button type="submit">Save recipe</button></div><p class="hint">Opens your Kinwall to import this recipe. Remembered on this device.</p></form></div>`,
   ].filter(Boolean).join('');
-  const head = `<script type="application/ld+json">${jsonScript(ld)}</script><script nonce="${nonce}">document.addEventListener('DOMContentLoaded',function(){${SAVE_JS}})</script>`;
+  // Link previews (iMessage, Discord, Slack…): the photo goes through this link like the page's own.
+  const summary = r.description ? (r.description.length > 200 ? `${r.description.slice(0, 199)}…` : r.description) : meta;
+  const preview = [
+    ['property', 'og:type', 'article'], ['property', 'og:site_name', 'Kinwall'], ['property', 'og:title', r.name],
+    ['property', 'og:description', summary], ['property', 'og:url', self],
+    ...(r.imageUrl ? [['property', 'og:image', `${self}/image`]] : []),
+    ['name', 'twitter:card', r.imageUrl ? 'summary_large_image' : 'summary'],
+  ].map(([attr, key, value]) => `<meta ${attr}="${key}" content="${esc(value)}">`).join('');
+  const head = `${preview}<script type="application/ld+json">${jsonScript(ld)}</script><script nonce="${nonce}">document.addEventListener('DOMContentLoaded',function(){${SAVE_JS}})</script>`;
   return send(c, page(nonce, r.name, body, head), nonce, 200);
 });
 
