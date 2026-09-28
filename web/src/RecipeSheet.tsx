@@ -7,6 +7,8 @@ import { CheckIcon, ChevronRight, EditIcon, ExternalIcon, FileIcon, LinkIcon, Mi
 import { ingredientAmount, isPdfUrl, recipeTime, servingsLabel, urlHost } from './meal-date.ts'
 import { KIT_QUALIFIER, type IngredientInput, type Recipe, type RecipeInput, type RecipeRating, type RecipeSnapshot, type RecipeStep } from './meal-types.ts'
 import { inkFor } from './color.ts'
+import CookingMode from './CookingMode.tsx'
+import { cookingSteps, savedStep } from './cooking.ts'
 import RecipeCardSheet from './RecipeCardSheet.tsx'
 import RecipePhoto from './RecipePhoto.tsx'
 import { holdAwake } from './wakeLock.ts'
@@ -125,10 +127,12 @@ export default function RecipeSheet({ recipe, admin, owner, onClose, onSaved, on
   const reading = !editing && !!recipe
   useEffect(() => { holdAwake('cooking', reading); return () => holdAwake('cooking', false) }, [reading])
   const [servings, setServings] = useState(recipe?.defaultServings ?? 4)
+  const [cooking, setCooking] = useState(false)
   if (editing || !recipe) return <RecipeEditor recipe={recipe} onClose={recipe ? () => setEditing(false) : onClose} onSaved={onSaved} />
   const time = recipeTime(recipe)
   const step = (by: number) => setServings(n => Math.max(1, Math.round(n) + by))
-  return <Sheet title={recipe.name} onClose={onClose} actions={admin || onEditMeal || (onPlan && !recipe.archived) ? <>
+  const cookSteps = cookingSteps(recipe), resumeAt = savedStep(recipe.id)
+  return <><Sheet title={recipe.name} onClose={onClose} actions={admin || onEditMeal || (onPlan && !recipe.archived) ? <>
     {onEditMeal && <button className="btn btn-secondary" onClick={onEditMeal.open}><EditIcon width={20} height={20} /> {onEditMeal.label}</button>}
     {admin && <button className="btn btn-secondary" onClick={() => setEditing(true)}><EditIcon width={20} height={20} /> Edit</button>}
     {onPlan && !recipe.archived && <button className="btn btn-primary" onClick={() => onPlan(recipe)}>Plan this meal</button>}
@@ -136,6 +140,9 @@ export default function RecipeSheet({ recipe, admin, owner, onClose, onSaved, on
     {recipe.imageUrl && <RecipePhoto id={recipe.id} className="recipe-hero" alt={recipe.name} />}
     {recipe.description && <p>{recipe.description}</p>}
     {(time || recipe.archived) && <p className="recipe-time">{[time && `⏱ ${time}`, recipe.archived && 'Archived'].filter(Boolean).join(' · ')}</p>}
+    {cookSteps.length > 0 && <button type="button" className="btn btn-primary cook-start" onClick={() => setCooking(true)}>
+      🍳 {resumeAt > 0 && resumeAt < cookSteps.length ? `Resume cooking · step ${resumeAt + 1}` : 'Start cooking'}
+    </button>}
     <Ratings key={recipe.id} recipe={recipe} owner={owner} onRated={onRated} />
     <div className="recipe-servings">
       <h3>Ingredients</h3>
@@ -151,6 +158,8 @@ export default function RecipeSheet({ recipe, admin, owner, onClose, onSaved, on
     {recipe.preparationNotes && <><h3>Preparation notes</h3><p className="meal-prose">{recipe.preparationNotes}</p></>}
     {recipe.sourceUrl && <div className="sheet-links"><SourceLink url={recipe.sourceUrl} pdfPath={`api/recipes/${encodeURIComponent(recipe.id)}/source.pdf`} title={recipe.name} /></div>}
   </Sheet>
+  {cooking && <CookingMode recipe={recipe} steps={cookSteps} servings={servings} onClose={() => setCooking(false)} />}
+  </>
 }
 
 function RecipeEditor({ recipe, onClose, onSaved }: { recipe: Recipe | null; onClose: () => void; onSaved: () => void }) {

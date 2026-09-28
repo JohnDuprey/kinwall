@@ -37,6 +37,16 @@ A typed recipe's instructions show as a numbered list, one line per step. An imp
 
 Tap a step when it's done: it dims with a check, so you can see where you are while cooking. Tap it again to undo it, or **Reset** to clear them all. The checks are only kept while the recipe is open, on that screen; closing it starts fresh next time. With a keyboard, Tab to a step and press Space or Enter.
 
+### Start cooking
+
+A recipe with steps has a **Start cooking** button near the top of its view. It fills the screen with one step at a time in big type you can read across the kitchen, with the step's photo when it has one and **Step 2 of 7** above it. **Next** and **Back** move between steps (so do swiping left and right, and the arrow keys); the last step has **Done**, and **×** leaves. A typed recipe's instructions become one step per line (or per sentence, for a single paragraph).
+
+Under each step, **This step's ingredients** lists the ingredients the step mentions, for the servings you picked in the recipe view. **All ingredients** shows the whole list without leaving the step.
+
+When a step mentions a time ("10 minutes", "1 hour", "5-7 min"), tap its timer to start it; for a range, the timer runs to the shorter time so you can check. Running timers stay in a bar at the top as you move between steps, and you can run several at once. When one is up, a red banner flashes, the device beeps (and vibrates on a phone), and **OK** clears it. Timers only run while cooking mode is open.
+
+The screen stays on while you cook. Kinwall remembers which step you were on for each recipe on this device, so the button says **Resume cooking · step 4** next time; **Start over** goes back to step 1, and **Done** forgets it.
+
 In the recipe editor, a recipe with structured steps edits them as a list: each step has its text and its bullets (one per line), **Move up**, **Move down** and **Remove step**, and **Add step** adds one at the end. **Remove photo** drops a step's photo. A recipe with plain instructions keeps the one **Instructions** box.
 
 Amounts read the way a recipe prints them: "½ cup", "1½ cups", "2 ounces". Units that are abbreviations (oz, tsp, tbsp, lb, g) stay as they are.
