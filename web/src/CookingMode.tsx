@@ -148,16 +148,19 @@ export default function CookingMode({ recipe, steps, servings, onClose }: { reci
               <h3 ref={heading} tabIndex={-1} className="cook-step-num">Step {index + 1} of {steps.length}</h3>
               {index > 0 && <button type="button" className="link-btn" onClick={() => go(0)}>Start over</button>}
             </div>
-            {step.title && <h4 className="cook-step-title">{step.title}</h4>}
+            {/* The step's timers sit on its title line, where you look first. */}
+            {(step.title || durations.length > 0) && <div className="cook-title-row">
+              {step.title && <h4 className="cook-step-title">{step.title}</h4>}
+              {durations.length > 0 && <div className="cook-timers">{durations.map(d => {
+                const on = timers.find(t => !t.done && t.step === index && t.label === d.label)
+                return <button key={d.label} type="button" className="cook-timer-chip" disabled={!!on} aria-label={on ? undefined : `Start ${d.label} timer`} onClick={() => start(d.label, d.seconds)}>
+                  ⏱ {on ? <>{d.label} · {clock(on.endsAt - now)} left</> : d.label}
+                </button>
+              })}</div>}
+            </div>}
             {!step.imageUrl && ingredients}
             {step.text && <p className="cook-step-text">{step.text}</p>}
             {step.bullets.length > 0 && <ul className="cook-bullets">{step.bullets.map((b, i) => <li key={i}>{b}</li>)}</ul>}
-            {durations.length > 0 && <div className="cook-timers">{durations.map(d => {
-              const on = timers.find(t => !t.done && t.step === index && t.label === d.label)
-              return <button key={d.label} type="button" className="cook-timer-chip" disabled={!!on} aria-label={on ? undefined : `Start ${d.label} timer`} onClick={() => start(d.label, d.seconds)}>
-                ⏱ {on ? <>{d.label} · {clock(on.endsAt - now)} left</> : d.label}
-              </button>
-            })}</div>}
           </div>
         </div>
       </div>

@@ -177,11 +177,12 @@
 .cook-step-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .cook-step-num { margin: 0; font-size: 1rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; }
 .cook-step-num:focus { outline: none; } /* focused on open so it's announced; not a control */
-.cook-step-title { margin: 10px 0 0; font-size: clamp(1.125rem, 0.9rem + 1vw, 1.75rem); font-weight: 800; color: var(--accent-text); }
+.cook-title-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-top: 10px; }
+.cook-step-title { margin: 0; font-size: clamp(1.125rem, 0.9rem + 1vw, 1.75rem); font-weight: 800; color: var(--accent-text); }
 .cook-step-text { margin: 8px 0 0; font-size: clamp(1.5rem, 1rem + 2.2vw, 3rem); font-weight: 800; line-height: 1.3; overflow-wrap: anywhere; }
 .cook-bullets { margin: 12px 0 0; padding-left: 1.2em; font-size: clamp(1.25rem, 0.9rem + 1.4vw, 2.25rem); line-height: 1.4; }
 .cook-bullets li { margin: 6px 0; overflow-wrap: anywhere; }
-.cook-timers { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.cook-timers { display: flex; flex-wrap: wrap; gap: 10px; }
 .cook-timer-chip { min-height: 52px; padding: 8px 20px; border-radius: 999px; border: 2px solid var(--accent-strong); background: var(--accent-tint); color: var(--text); font: inherit; font-size: 1.125rem; font-weight: 800; font-variant-numeric: tabular-nums; cursor: pointer; }
 .cook-timer-chip:disabled { cursor: default; border-style: dashed; }
 .cook-step-side { display: grid; gap: 16px; align-content: start; min-width: 0; }
