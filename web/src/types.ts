@@ -51,6 +51,7 @@ export interface Settings {
 export interface Features {
   chores: boolean // Chores tab, points, leaderboard, sticker book, chore nudges
   lists: boolean // Lists tab, "Due soon", an event's linked items, list-update notifications
+  contacts: boolean // Contacts tab and household contacts directory
   paint: boolean // Activities → Paint
   photos: boolean // Activities → Photos and the Board's picture card
   notes: boolean // notes on events and list items

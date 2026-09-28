@@ -2,6 +2,8 @@
 
 Kinwall's Contacts directory stores people, services, organizations, and places outside the household. Household members already stored in **Settings → Family** are not copied into this directory. A babysitter, grandparent, school office, pediatrician, veterinarian, utility, contractor, or neighbor can be a contact.
 
+An admin can turn off **Contacts** in **Settings → General** (tap **Change** under **Features**). The Contacts tab is hidden, contacts are kept, and the contacts API keeps answering. See [Features](../settings/general.md#features).
+
 Contacts support multiple categories, tags, phone numbers, email addresses, postal addresses, relationships, associated household members, service hours, service areas, an emergency flag, favorites, and wall visibility. Built-in categories include Emergency services, Medical, Veterinary, Childcare, Family, Friends, Neighbors, School, Work, Home services, Transportation, Organizations, and Other. Households can add custom categories.
 
 ## Who can see a contact

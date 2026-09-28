@@ -53,7 +53,7 @@ type NavItem = { key: string; href: string; label: string; Icon: (p: object) => 
  * off, and Rewards goes with chores and points. A member's own device gets "Me" (their profile)
  * after Chores, so it stays on a phone's bottom bar. */
 function navItems(s: Settings, me?: Member | null): NavItem[] {
-  const items: NavItem[] = NAV_ITEMS.filter(i => i.key === 'chores' || i.key === 'rewards' ? s.features.chores : i.key === 'lists' ? s.features.lists : i.key === 'meals' ? s.features.meals : i.key === 'trackers' ? trackerKinds(s).length > 0 : i.key === 'activities' ? shownActivities(s).length > 0 : true)
+  const items: NavItem[] = NAV_ITEMS.filter(i => i.key === 'chores' || i.key === 'rewards' ? s.features.chores : i.key === 'lists' ? s.features.lists : i.key === 'contacts' ? s.features.contacts : i.key === 'meals' ? s.features.meals : i.key === 'trackers' ? trackerKinds(s).length > 0 : i.key === 'activities' ? shownActivities(s).length > 0 : true)
   if (me) items.splice((items.findIndex(i => i.key === 'chores') + 1) || 1, 0, { key: 'profile', href: `#/profile/${me.id}`, label: 'Me', Icon: () => <span className="nav-me" aria-hidden="true">{me.avatar || me.name[0]}</span> })
   // Their journal, just before Settings: on a phone it sits under More, so the everyday tabs keep their place.
   if (me) items.splice(items.findIndex(i => i.key === 'settings'), 0, { key: 'journal', href: `#/journal/${me.id}`, label: 'Journal', Icon: () => <span className="nav-me" aria-hidden="true">📓</span> })
@@ -64,7 +64,7 @@ function navItems(s: Settings, me?: Member | null): NavItem[] {
  * that moved, or null. */
 function featureRedirect(s: Settings, section: string, sub: string | undefined): string | null {
   if (section === 'activities' && sub === 'rewards') return '#/rewards' // rewards used to be an activity
-  if (section === 'chores' || section === 'rewards' || section === 'lists' || section === 'meals' || section === 'trackers' || section === 'activities') {
+  if (section === 'chores' || section === 'rewards' || section === 'lists' || section === 'contacts' || section === 'meals' || section === 'trackers' || section === 'activities') {
     if (!navItems(s).some(i => i.key === section)) return '#/calendar'
     if (section === 'trackers') { const on = trackerKinds(s); return sub && !on.includes(sub) ? `#/trackers/${on[0]}` : null }
     if (sub && section === 'activities' && sub !== 'plugin' && !shownActivities(s).some(a => a.key === sub)) return '#/activities'

@@ -237,6 +237,7 @@ export const FeaturesSchema = z
   .object({
     chores: z.boolean(), // Chores tab, points, leaderboard, sticker book
     lists: z.boolean(), // Lists tab, "Due soon", an event's linked items
+    contacts: z.boolean().default(true), // Contacts tab and household contacts directory; older clients omit it
     paint: z.boolean(), // Activities -> Paint
     photos: z.boolean(), // Activities -> Photos and the Board's picture card
     notes: z.boolean(), // notes threads on events and list items

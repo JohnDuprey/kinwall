@@ -29,6 +29,7 @@ import { useDialog } from './dialog.tsx'
 import { TEMP_CHECK_OFF } from './tempCheck.ts'
 import { EVENING_TIMES } from './journal.ts'
 import { announce, pressable, reducedMotion, Segmented } from './a11y.tsx'
+import { FEATURE_ROWS } from './featureConfig.ts'
 
 // Mirrors BusEventType in server/src/bus.ts.
 const BUS_EVENTS = ['member.changed', 'calendar.changed', 'calendar.synced', 'events.changed', 'chore.changed', 'chore.completed', 'chore.uncompleted', 'chore.pending', 'chore.rejected', 'checkin.completed', 'tempcheck.changed', 'list.changed', 'list.item.changed', 'category.changed', 'settings.changed', 'sticker.changed', 'reward.changed', 'reward.redeemed', 'reward.approved', 'reward.declined', 'reward.given', 'recipe.changed', 'meal.changed', 'photo.changed', 'tracker.changed', 'contact.changed', 'contact.category.changed', 'display.paired']
@@ -135,7 +136,7 @@ export default function SettingsView() {
           <MembersSection members={members} onChanged={reloadCore} toast={toast} canManage={!isDisplay} />
           <CategoriesSection categories={categories} onChanged={reloadCore} toast={toast} />
           {settings.features.chores && <ChoreSettingsSection settings={settings} onSaved={reloadCore} toast={toast} />}
-          {settings.features.meals && <MealSettingsSection settings={settings} onSaved={reloadCore} toast={toast} />}
+          {settings.features.meals && <MealSettingsSection settings={settings} onSaved={reloadCore} toast={toast} readOnly={isDisplay} />}
         </>}
         {current === 'calendars' && <>
           <CalendarsSection openAccountId={openAccountId} onOpenedAccount={() => setOpenAccountId(null)} toast={toast} />
@@ -156,7 +157,6 @@ export default function SettingsView() {
         </div>
         <div className="settings-version">
           <a className="text-link" href="https://docs.kinwall.family" target="_blank" rel="noopener">Help &amp; docs</a>
-          {me.version && <> · Kinwall v{me.version}</>}
         </div>
       </div>
     </div>
@@ -226,19 +226,6 @@ function GeneralSection({ settings, onSaved, toast, isDisplay }: { settings: Ret
     </Section>
   )
 }
-
-const FEATURE_ROWS: { key: keyof Features; label: string; sub: string; group?: string }[] = [
-  { key: 'chores', label: 'Chores & points', sub: 'The Chores tab, points and the sticker book. The leaderboard and sticker shop have their own switches in Family → Chores.' },
-  { key: 'lists', label: 'Lists', sub: 'The Lists tab, “Due soon” on the Board and tasks on events.' },
-  { key: 'paint', label: 'Paint', sub: 'Drawing and coloring in Activities.' },
-  { key: 'photos', label: 'Photos', sub: 'Family photos in Activities and the Board’s picture card.' },
-  { key: 'notes', label: 'Notes', sub: 'Notes and discussions on events and list items.' },
-  { key: 'meals', label: 'Meals', sub: 'The Meals tab with recipes and the week’s plan, and today’s meals on the Board.' },
-  { key: 'messages', label: 'Family messages', sub: 'Sending a message from the bell. Messages already sent still show.' },
-  { key: 'trackersReading', group: 'Trackers', label: 'Reading', sub: 'Books with progress and ratings, and the reading line in someone’s day.' },
-  { key: 'trackersMemories', group: 'Trackers', label: 'Memories', sub: 'The family journal.' },
-  { key: 'trackersHealth', group: 'Trackers', label: 'Health', sub: 'Doctor and dentist visits. Health stays on phones and computers, never on the wall screen.' },
-]
 
 /** Household feature switches (admin only: a display key can't change them). */
 function FeaturesSection({ settings, onSaved, toast }: { settings: Settings; onSaved: () => void; toast: (m: string, persist?: boolean) => void }) {
@@ -472,18 +459,20 @@ function QuietHoursSection({ settings, onSaved, toast }: { settings: Settings; o
 
 /** Household chore rules: late credit, streak grace and whether the leaderboard shows at all. */
 /** When each meal usually is: a meal without its own time goes on the calendar then. */
-function MealSettingsSection({ settings, onSaved, toast }: { settings: Settings; onSaved: () => void; toast: (m: string, persist?: boolean) => void }) {
+function MealSettingsSection({ settings, onSaved, toast, readOnly = false }: { settings: Settings; onSaved: () => void; toast: (m: string, persist?: boolean) => void; readOnly?: boolean }) {
   const save = async (slot: keyof Settings['mealTimes'], value: string) => {
     if (!value || value === settings.mealTimes[slot]) return
+    if (readOnly) return
     try { await api.updateSettings({ mealTimes: { ...settings.mealTimes, [slot]: value } }); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save settings', true) }
   }
   return (
     <Section title="Meals">
       <p className="settings-row-sub">Usual meal times. A meal without its own time goes on the calendar at these.</p>
+      {readOnly && <p className="settings-row-sub">Only a parent device can change these times.</p>}
       {(['breakfast', 'lunch', 'dinner', 'snack'] as const).map(slot => (
         <div className="settings-row" key={slot}>
           <div className="settings-row-label">{slot[0].toUpperCase() + slot.slice(1)}</div>
-          <input type="time" className="settings-select" aria-label={`Usual ${slot} time`} defaultValue={settings.mealTimes[slot]} onBlur={e => void save(slot, e.target.value)} />
+          <input type="time" className="settings-select" aria-label={`Usual ${slot} time`} defaultValue={settings.mealTimes[slot]} disabled={readOnly} onBlur={e => void save(slot, e.target.value)} />
         </div>
       ))}
     </Section>
