@@ -28,6 +28,7 @@ import { mcpOAuthRoutes } from './routes/mcp-oauth.ts';
 import { revRoutes } from './routes/rev.ts';
 import { dataRoutes } from './routes/data.ts';
 import { notesRoutes } from './routes/notes.ts';
+import { contactsRoutes } from './routes/contacts.ts';
 import { stickersRoutes } from './routes/stickers.ts';
 import { rewardsRoutes } from './routes/rewards.ts';
 import { photosRoutes } from './routes/photos.ts';
@@ -93,6 +94,7 @@ export function createApp() {
   app.route('/', leaderboardRoutes);
   app.route('/', listsRoutes);
   app.route('/', notesRoutes);
+  app.route('/', contactsRoutes);
   app.route('/', stickersRoutes);
   app.route('/', rewardsRoutes);
   app.route('/', photosRoutes);

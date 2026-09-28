@@ -5,10 +5,11 @@ import { api, clearKey, getKey, onSynced, setAdminKey, setKey, useOffline, usePo
 import { AppContext, useApp } from './AppContext.tsx'
 import type { Category, Member, Settings } from './types.ts'
 import { trackerKinds } from './types.ts'
-import { BookIcon, MoreIcon, BrushIcon, CalendarIcon, ChevronRight, ChoreIcon, CloudOffIcon, GiftIcon, ListIcon, MealIcon, SettingsIcon } from './icons.tsx'
+import { BookIcon, MoreIcon, BrushIcon, CalendarIcon, ChevronRight, ChoreIcon, CloudOffIcon, GiftIcon, ListIcon, MealIcon, PersonIcon, SettingsIcon } from './icons.tsx'
 import CalendarView from './Calendar.tsx'
 import Chores from './Chores.tsx'
 import Lists from './Lists.tsx'
+import Contacts from './Contacts.tsx'
 import Meals from './Meals.tsx'
 import Trackers from './Trackers.tsx'
 import Activities, { shownActivities } from './Activities.tsx'
@@ -35,6 +36,7 @@ const NAV_ITEMS = [
   { key: 'calendar', href: '#/calendar', label: 'Calendar', Icon: CalendarIcon },
   { key: 'chores', href: '#/chores', label: 'Chores', Icon: ChoreIcon },
   { key: 'lists', href: '#/lists', label: 'Lists', Icon: ListIcon },
+  { key: 'contacts', href: '#/contacts', label: 'Contacts', Icon: PersonIcon },
   { key: 'meals', href: '#/meals', label: 'Meals', Icon: MealIcon },
   { key: 'trackers', href: '#/trackers', label: 'Trackers', Icon: BookIcon },
   { key: 'activities', href: '#/activities', label: 'Activities', Icon: BrushIcon },
@@ -1056,7 +1058,7 @@ function AppRoutes() {
           <Header settings={settings} members={focusMember ? [focusMember] : members} selectedMemberId={effectiveMemberId} isAdmin={scope === 'admin'} />
           <main className="content" id="main" tabIndex={-1}>
             <h1 className="sr-only">{tabLabel}</h1>
-            {redirect ? null : section === 'activities' ? <Activities sub={sub} rest={rest} /> : section === 'rewards' ? <Rewards memberId={sub} /> : section === 'meals' ? <Meals /> : tab === 'chores' ? <Chores /> : section === 'lists' ? <Lists /> : section === 'trackers' ? <Trackers sub={sub} /> : tab === 'settings' ? <SettingsView /> : <CalendarView />}
+            {redirect ? null : section === 'activities' ? <Activities sub={sub} rest={rest} /> : section === 'rewards' ? <Rewards memberId={sub} /> : section === 'meals' ? <Meals /> : tab === 'chores' ? <Chores /> : section === 'lists' ? <Lists /> : section === 'contacts' ? <Contacts /> : section === 'trackers' ? <Trackers sub={sub} /> : tab === 'settings' ? <SettingsView /> : <CalendarView />}
           </main>
           {navMode === 'bottom' && <Nav tab={section} mode={navMode} items={nav} toApprove={toApprove} rewardRequests={rewardRequests} />}
         </div>

@@ -16,7 +16,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { hostTimezone } from './env.ts';
 import { effectivePublicUrl } from './providers/config.ts';
-import { BoardSchema, CalendarSchema, CategorySchema, ChoreDaySchema, ChoreSchema, EventInstanceSchema, LeaderboardEntrySchema, ListDetailSchema, ListItemSchema, ListSchema, MemberSchema, NoteSchema, StoreAislesSchema, TrackerEntrySchema, TRACKER_KINDS, NotificationSchema, PointsSchema, SettingsSchema, SnapshotSchema, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, TransitionRemindersSchema, RewardSchema, RewardInputSchema, RedemptionSchema, RewardLimitSchema } from './schemas.ts';
+import { BoardSchema, CalendarSchema, CategorySchema, ContactCategoryInputSchema, ContactCategorySchema, ContactInputSchema, ContactPatchSchema, ContactSchema, ChoreDaySchema, ChoreSchema, EventInstanceSchema, LeaderboardEntrySchema, ListDetailSchema, ListItemSchema, ListSchema, MemberSchema, NoteSchema, StoreAislesSchema, TrackerEntrySchema, TRACKER_KINDS, NotificationSchema, PointsSchema, SettingsSchema, SnapshotSchema, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, TransitionRemindersSchema, RewardSchema, RewardInputSchema, RedemptionSchema, RewardLimitSchema } from './schemas.ts';
 import type { Env } from './env.ts';
 import { RecipeSchema, RecipeInputSchema, RecipeImportSchema, RecipeImportResultSchema, RecipePreviewResultSchema, RecipeUrlImportSchema, MealSchema, MealInputSchema, MealPatchSchema, ProjectionSchema, ProjectionApplySchema, ProjectionQuerySchema, MealRangeSchema } from './meal-schemas.ts';
 import { VERSION } from './version.ts';
@@ -233,6 +233,14 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
   get_event_items: { items: z.array(ListItemSchema.extend({ listName: z.string() })) },
   list_categories: { categories: z.array(CategorySchema) },
   update_category: { category: CategorySchema },
+  list_contacts: { contacts: z.array(ContactSchema) },
+  search_contacts: { contacts: z.array(ContactSchema) },
+  get_contact: { contact: ContactSchema },
+  create_contact: { contact: ContactSchema },
+  update_contact: { contact: ContactSchema },
+  list_contact_categories: { categories: z.array(ContactCategorySchema) },
+  create_contact_category: { category: ContactCategorySchema },
+  update_contact_category: { category: ContactCategorySchema },
   send_notification: { result: z.object({ ok: z.boolean(), sent: z.number() }) },
   list_notifications: { notifications: z.array(NotificationSchema) },
   list_notes: { notes: z.array(NoteSchema) },
@@ -251,22 +259,27 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
   save_color_scheme: { scheme: CustomSchemeSchema, settings: SettingsSchema },
   delete_color_scheme: { settings: SettingsSchema },
   delete_list: OK, delete_list_item: OK, delete_list_step: { item: ListItemSchema }, delete_note: OK, delete_chore: OK,
-  delete_tracker_entry: OK, delete_meal: OK, delete_recipe: OK, delete_reward: OK,
+  preview_contact_import: { entries: z.array(z.object({ contact: ContactInputSchema, duplicateIds: z.array(z.string()) })) },
+  import_contacts: { created: z.number(), merged: z.number(), skipped: z.number(), ids: z.array(z.string()) },
+  merge_contacts: { contact: ContactSchema },
+  delete_tracker_entry: OK, delete_meal: OK, delete_recipe: OK, delete_reward: OK, delete_contact: OK, delete_contact_category: OK,
 };
 
 const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boolean; idempotentHint: boolean; openWorldHint: boolean }> = {
   list_recipes: READ, get_recipe: READ, create_recipe: WRITE, update_recipe: SET, rate_recipe: SET, import_recipe: SET, import_recipe_from_url: { ...SET, openWorldHint: true }, list_meals: READ, create_meal: WRITE, update_meal: SET, get_meal_projection: READ, apply_meal_projection: SET,
   get_household: READ, list_events: READ, get_event: READ, list_chores: READ, get_leaderboard: READ, get_points: READ, list_lists: READ, get_list: READ, list_categories: READ, get_event_items: READ, list_notifications: READ, list_notes: READ, get_snapshot: READ, get_board: READ, list_tracker_entries: READ, add_tracker_entry: WRITE, update_tracker_entry: SET, list_color_schemes: READ, set_color_scheme: SET, save_color_scheme: WRITE,
+  list_contacts: READ, search_contacts: READ, get_contact: READ, list_contact_categories: READ, preview_contact_import: READ,
   delete_color_scheme: { ...WRITE, destructiveHint: true, idempotentHint: true },
   create_event: { ...WRITE, openWorldHint: true }, update_event: { ...SET, openWorldHint: true }, set_event_category: SET,
   create_chore: WRITE, update_chore: SET, complete_chore: SET, uncomplete_chore: SET, list_pending_approvals: READ, approve_chore: SET, reject_chore: SET,
   list_rewards: READ, create_reward: WRITE, update_reward: SET, redeem_reward: WRITE, list_reward_requests: READ, approve_reward: SET, decline_reward: SET, mark_reward_given: SET,
   add_member: WRITE, update_member: SET,
   create_list: WRITE, update_list: SET, add_list_items: WRITE, update_list_item: SET, set_store_aisle_order: SET, set_list_item_done: SET, set_step_done: SET, update_category: SET, add_note: WRITE, update_note: SET,
+  create_contact: WRITE, update_contact: SET, create_contact_category: WRITE, update_contact_category: SET,
   send_notification: { ...WRITE, openWorldHint: true },
   delete_event: { ...WRITE, destructiveHint: true, idempotentHint: true, openWorldHint: true },
   delete_list: DELETE, delete_list_item: DELETE, delete_list_step: DELETE, delete_note: DELETE, delete_chore: DELETE,
-  delete_tracker_entry: DELETE, delete_meal: DELETE, delete_recipe: DELETE, delete_reward: DELETE,
+  delete_tracker_entry: DELETE, delete_meal: DELETE, delete_recipe: DELETE, delete_reward: DELETE, delete_contact: DELETE, delete_contact_category: DELETE, import_contacts: WRITE, merge_contacts: WRITE,
 };
 
 function registerTools(server: McpServer, app: App, env: Env, auth: string) {
@@ -1127,6 +1140,80 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       return okResult(`Added ${added.length} item(s).`, { items: res.json as Record<string, unknown>[] });
     },
   );
+
+  tool('list_contacts', {
+    title: 'Find household contacts',
+    description: 'Find people and organizations in the household directory. Display keys see only household contacts, with private fields removed. Use get_contact for one record.',
+    inputSchema: { q: z.string().optional(), kind: ContactInputSchema.shape.kind.optional(), categoryId: z.string().uuid().optional() },
+  }, async ({ q, kind, categoryId }) => {
+    const query = new URLSearchParams();
+    if (q) query.set('q', q);
+    if (kind) query.set('kind', kind);
+    if (categoryId) query.set('categoryId', categoryId);
+    const res = await call(app, env, auth, 'GET', `/api/contacts?${query}`);
+    return res.status >= 400 ? errorResult(res.json, 'failed to list contacts') : okResult('Household contacts', { contacts: res.json as Record<string, unknown>[] });
+  });
+  tool('search_contacts', {
+    title: 'Search household contacts',
+    description: 'Search names, relationships, organizations, categories, and tags. Results are privacy-filtered for the caller.',
+    inputSchema: { query: z.string().min(1), kind: ContactInputSchema.shape.kind.optional() },
+  }, async ({ query, kind }) => {
+    const params = new URLSearchParams({ search: query }); if (kind) params.set('kind', kind);
+    const res = await call(app, env, auth, 'GET', `/api/contacts?${params}`);
+    return res.status >= 400 ? errorResult(res.json, 'failed to search contacts') : okResult('Contact search', { contacts: res.json as Record<string, unknown>[] });
+  });
+  tool('get_contact', { title: 'Get household contact', description: 'Read a contact by id or an exact display name when it resolves to one record. Display keys cannot read private contacts and see redacted private fields on household contacts.', inputSchema: { id: z.string().uuid().optional(), name: z.string().optional() } }, async ({ id, name }) => {
+    let resolved = id;
+    if (!resolved && name) {
+      const matches = await call(app, env, auth, 'GET', `/api/contacts?search=${encodeURIComponent(name)}`);
+      const exact = (matches.json as { id: string; name: string }[]).filter(c => c.name.toLocaleLowerCase() === name.toLocaleLowerCase());
+      if (exact.length !== 1) return errorResult(null, exact.length ? 'contact name is ambiguous' : 'contact not found');
+      resolved = exact[0].id;
+    }
+    if (!resolved) return errorResult(null, 'id or exact name is required');
+    const res = await call(app, env, auth, 'GET', `/api/contacts/${encodeURIComponent(resolved)}`);
+    return res.status >= 400 ? errorResult(res.json, 'contact not found') : okResult('Contact', { contact: res.json as Record<string, unknown> });
+  });
+  tool('create_contact', { title: 'Create household contact', description: 'Admin: add a person or organization. visibility private hides the whole record from display keys; privateFields hides selected fields on household contacts.', inputSchema: ContactInputSchema.shape }, async (input) => {
+    const res = await call(app, env, auth, 'POST', '/api/contacts', input);
+    return res.status >= 400 ? errorResult(res.json, 'failed to create contact') : okResult('Contact created', { contact: res.json as Record<string, unknown> });
+  });
+  tool('update_contact', { title: 'Update household contact', description: 'Admin: change only the provided fields of a contact. Use id from list_contacts.', inputSchema: { id: z.string().uuid(), ...ContactPatchSchema.shape } }, async ({ id, ...input }) => {
+    const res = await call(app, env, auth, 'PATCH', `/api/contacts/${encodeURIComponent(id)}`, input);
+    return res.status >= 400 ? errorResult(res.json, 'failed to update contact') : okResult('Contact updated', { contact: res.json as Record<string, unknown> });
+  });
+  tool('list_contact_categories', { title: 'List contact categories', description: 'List the household directory\'s built-in and custom categories, separate from calendar event categories.', inputSchema: {} }, async () => {
+    const res = await call(app, env, auth, 'GET', '/api/contact-categories');
+    return res.status >= 400 ? errorResult(res.json, 'failed to list contact categories') : okResult('Contact categories', { categories: res.json as Record<string, unknown>[] });
+  });
+  tool('create_contact_category', { title: 'Create contact category', description: 'Admin: create a custom directory category.', inputSchema: ContactCategoryInputSchema.shape }, async (input) => {
+    const res = await call(app, env, auth, 'POST', '/api/contact-categories', input);
+    return res.status >= 400 ? errorResult(res.json, 'failed to create contact category') : okResult('Contact category created', { category: res.json as Record<string, unknown> });
+  });
+  tool('update_contact_category', { title: 'Update contact category', description: 'Admin: change a custom directory category.', inputSchema: { id: z.string().uuid(), ...ContactCategoryInputSchema.partial().shape } }, async ({ id, ...input }) => {
+    const res = await call(app, env, auth, 'PATCH', `/api/contact-categories/${encodeURIComponent(id)}`, input);
+    return res.status >= 400 ? errorResult(res.json, 'failed to update contact category') : okResult('Contact category updated', { category: res.json as Record<string, unknown> });
+  });
+  tool('delete_contact', { title: 'Delete household contact', description: 'Admin: permanently delete a contact. This cannot be undone.', inputSchema: { id: z.string().uuid() } }, async ({ id }) => {
+    const res = await call(app, env, auth, 'DELETE', `/api/contacts/${encodeURIComponent(id)}`);
+    return res.status >= 400 ? errorResult(res.json, 'failed to delete contact') : okResult('Contact deleted', { ok: true });
+  });
+  tool('delete_contact_category', { title: 'Delete contact category', description: 'Admin: permanently delete a custom directory category and remove it from contacts. Contacts remain.', inputSchema: { id: z.string().uuid() } }, async ({ id }) => {
+    const res = await call(app, env, auth, 'DELETE', `/api/contact-categories/${encodeURIComponent(id)}`);
+    return res.status >= 400 ? errorResult(res.json, 'failed to delete contact category') : okResult('Contact category deleted', { ok: true });
+  });
+  tool('preview_contact_import', { title: 'Preview contact import', description: 'Admin: preview normalized contact drafts and possible duplicates without saving them. Raw vCards are parsed in the browser and are not sent through MCP.', inputSchema: { contacts: z.array(ContactInputSchema).max(1000) } }, async ({ contacts }) => {
+    const res = await call(app, env, auth, 'POST', '/api/contacts/import/preview', { contacts });
+    return res.status >= 400 ? errorResult(res.json, 'failed to preview contact import') : okResult('Contact import preview', res.json as Record<string, unknown>);
+  });
+  tool('import_contacts', { title: 'Import contacts', description: 'Admin: import approved normalized contact drafts. Merge requires an explicit target ID for every draft and confirmMerge.', inputSchema: { contacts: z.array(ContactInputSchema).max(1000), strategy: z.enum(['skip', 'merge', 'create']).optional(), mergeTargets: z.array(z.string().uuid()).optional(), confirmMerge: z.boolean().optional() } }, async ({ contacts, strategy, mergeTargets, confirmMerge }) => {
+    const res = await call(app, env, auth, 'POST', '/api/contacts/import', { contacts, strategy: strategy ?? 'skip', mergeTargets, confirmMerge });
+    return res.status >= 400 ? errorResult(res.json, 'failed to import contacts') : okResult('Contacts imported', res.json as Record<string, unknown>);
+  });
+  tool('merge_contacts', { title: 'Merge household contacts', description: 'Admin: explicitly merge sourceId into targetId, preserving unique methods and metadata.', inputSchema: { targetId: z.string().uuid(), sourceId: z.string().uuid() } }, async ({ targetId, sourceId }) => {
+    const res = await call(app, env, auth, 'POST', '/api/contacts/merge', { targetId, sourceId, confirm: true });
+    return res.status >= 400 ? errorResult(res.json, 'failed to merge contacts') : okResult('Contacts merged', { contact: res.json as Record<string, unknown> });
+  });
 
   tool(
     'list_categories',
