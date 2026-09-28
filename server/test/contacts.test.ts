@@ -160,3 +160,20 @@ test('contacts keep one field per fact: emergency, wallVisible, visibility, addr
     assert.equal((await t.req('/api/contacts', 'POST', { name: 'Old field', ...old })).status, 400, JSON.stringify(old));
   }
 });
+
+test('each contact change emits exactly one event', async () => {
+  const t = setup();
+  const rev = async () => { await t.flush(); return Number((await t.db.prepare("SELECT value FROM settings WHERE key = 'rev'").first<{ value: string }>())?.value ?? 0); };
+  const before = await rev();
+  const created = await t.req('/api/contacts', 'POST', { name: 'Coach Taylor' });
+  assert.equal(await rev(), before + 1);
+  await t.req(`/api/contacts/${created.body.id}`, 'PATCH', { title: 'Coach' });
+  assert.equal(await rev(), before + 2);
+  const category = await t.req('/api/contact-categories', 'POST', { name: 'Sports' });
+  assert.equal(await rev(), before + 3);
+  await t.req(`/api/contacts/${created.body.id}`, 'PATCH', { categoryIds: [category.body.id] });
+  await t.req(`/api/contact-categories/${category.body.id}`, 'DELETE');
+  assert.equal(await rev(), before + 5);
+  await t.req(`/api/contacts/${created.body.id}`, 'DELETE');
+  assert.equal(await rev(), before + 6);
+});

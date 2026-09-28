@@ -17,10 +17,11 @@ const queryBoolean = z.enum(['true', 'false']).transform((value) => value === 't
 const jsonBody = <T extends z.ZodType>(schema: T) => ({ content: { 'application/json': { schema } } });
 const answer = (schema: typeof ContactSchema | typeof ContactCategorySchema | typeof okSchema, description = 'ok') => ({ description, content: { 'application/json': { schema } } });
 const error = (description: string) => ({ description, content: { 'application/json': { schema: ErrorSchema } } });
-function contactEvent(c: Context<{ Bindings: Env }>, action: 'created' | 'updated' | 'deleted' | 'imported' | 'merged', data: unknown) {
-  emit(c, 'contact.changed', data); emit(c, `contact.${action}`, data);
+// One event per change; the action says what happened.
+function contactEvent(c: Context<{ Bindings: Env }>, action: 'created' | 'updated' | 'deleted' | 'imported' | 'merged', id: string) {
+  emit(c, 'contact.changed', { id, action });
 }
-function categoryEvent(c: Context<{ Bindings: Env }>, data: unknown) { emit(c, 'contact.category.changed', data); emit(c, 'contact.category_changed', data); }
+function categoryEvent(c: Context<{ Bindings: Env }>, id: string) { emit(c, 'contact.category.changed', { id }); }
 
 export type ContactRow = { id: string; kind: 'person' | 'service' | 'organization' | 'place'; name: string; organization: string | null; title: string | null; given_name: string | null; family_name: string | null; nickname: string | null; relationship: string | null; favorite: number; emergency: number; phones: string; emails: string; addresses: string; websites: string; dates: string; notes: string | null; category_ids: string; tags: string; member_ids: string; service_hours: string | null; service_area: string | null; always_open: number; wall_visible: number; emergency_visible: number; phone_visible_on_wall: number; address_visible_on_wall: number; visibility: 'household' | 'adults' | 'selected_members' | 'private'; selected_member_ids: string; source_metadata: string | null; private_fields: string; created_at: string; updated_at: string };
 type CategoryRow = { id: string; name: string; color: string | null; sort: number; created_at: string; updated_at: string };
@@ -102,7 +103,7 @@ contactsRoutes.openapi(createRoute({ method: 'post', path: '/api/contact-categor
   const now = new Date().toISOString();
   const row: CategoryRow = { id: crypto.randomUUID(), name: body.name, color: body.color ?? null, sort: body.sort ?? 0, created_at: now, updated_at: now };
   await c.env.DB.prepare('INSERT INTO contact_categories (id,name,color,sort,created_at,updated_at) VALUES (?,?,?,?,?,?)').bind(row.id, row.name, row.color, row.sort, now, now).run();
-  categoryEvent(c, { id: row.id });
+  categoryEvent(c, row.id);
   return c.json(categoryApi(row), 201);
 });
 
@@ -115,7 +116,7 @@ contactsRoutes.openapi(createRoute({ method: 'patch', path: '/api/contact-catego
   const conflict = await c.env.DB.prepare('SELECT id FROM contact_categories WHERE name = ? COLLATE NOCASE AND id != ?').bind(updated.name, id).first();
   if (conflict) return c.json({ error: 'category name already exists' }, 409);
   await c.env.DB.prepare('UPDATE contact_categories SET name=?,color=?,sort=?,updated_at=? WHERE id=?').bind(updated.name, updated.color, updated.sort, updated.updated_at, id).run();
-  categoryEvent(c, { id });
+  categoryEvent(c, id);
   return c.json(categoryApi(updated), 200);
 });
 
@@ -126,8 +127,7 @@ contactsRoutes.openapi(createRoute({ method: 'delete', path: '/api/contact-categ
   if (builtInCategory(id)) return c.json({ error: 'built-in categories cannot be deleted' }, 403);
   const affected = (await all(c.env.DB)).filter((r) => (JSON.parse(r.category_ids) as string[]).includes(id));
   await c.env.DB.batch([c.env.DB.prepare('DELETE FROM contact_categories WHERE id = ?').bind(id), ...affected.map((r) => c.env.DB.prepare('UPDATE contacts SET category_ids=?,updated_at=? WHERE id=?').bind(JSON.stringify((JSON.parse(r.category_ids) as string[]).filter((x) => x !== id)), new Date().toISOString(), r.id))]);
-  categoryEvent(c, { id });
-  if (affected.length) emit(c, 'contact.changed', { categoryId: id });
+  categoryEvent(c, id);
   return c.json({ ok: true }, 200);
 });
 
@@ -158,7 +158,7 @@ contactsRoutes.openapi(createRoute({ method: 'post', path: '/api/contacts', tags
   const body = c.req.valid('json');
   if (!(await validateReferences(c.env.DB, body))) return c.json({ error: 'invalid category or member ids' }, 400);
   const result = await insert(c.env.DB, body);
-  contactEvent(c, 'created', { id: result.id });
+  contactEvent(c, 'created', result.id);
   return c.json(result, 201);
 });
 
@@ -169,7 +169,7 @@ contactsRoutes.openapi(createRoute({ method: 'patch', path: '/api/contacts/{id}'
   const body = { ...inputOf(fromRow(row)), ...patch };
   if (!(await validateReferences(c.env.DB, body))) return c.json({ error: 'invalid category or member ids' }, 400);
   const result = await update(c.env.DB, id, body);
-  contactEvent(c, 'updated', { id });
+  contactEvent(c, 'updated', id);
   return c.json(result, 200);
 });
 
@@ -177,7 +177,7 @@ contactsRoutes.openapi(createRoute({ method: 'delete', path: '/api/contacts/{id}
   const { id } = c.req.valid('param');
   const result = await c.env.DB.prepare('DELETE FROM contacts WHERE id = ?').bind(id).run();
   if (!result.meta.changes) return c.json({ error: 'not found' }, 404);
-  contactEvent(c, 'deleted', { id });
+  contactEvent(c, 'deleted', id);
   return c.json({ ok: true }, 200);
 });
 
@@ -219,11 +219,11 @@ contactsRoutes.openapi(createRoute({ method: 'post', path: '/api/contacts/import
     if (match && strategy === 'merge') {
       const merged = await update(c.env.DB, match.id, mergeContacts(inputOf(match), contact));
       existing[existing.indexOf(match)] = merged; result.merged++; result.ids.push(match.id);
-      contactEvent(c, 'merged', { id: match.id });
+      contactEvent(c, 'merged', match.id);
     } else {
       const created = await insert(c.env.DB, contact);
       existing.push(created); result.created++; result.ids.push(created.id);
-      contactEvent(c, 'imported', { id: created.id });
+      contactEvent(c, 'imported', created.id);
     }
   }
   return c.json(result, 200);
@@ -237,6 +237,6 @@ contactsRoutes.openapi(createRoute({ method: 'post', path: '/api/contacts/merge'
   const merged = mergeContacts(inputOf(fromRow(target)), inputOf(fromRow(source)));
   await update(c.env.DB, id, merged);
   await c.env.DB.prepare('DELETE FROM contacts WHERE id = ?').bind(sourceId).run();
-  contactEvent(c, 'merged', { id, sourceId });
+  contactEvent(c, 'merged', id);
   return c.json(fromRow((await load(c.env.DB, id))!), 200);
 });

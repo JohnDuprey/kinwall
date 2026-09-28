@@ -771,7 +771,8 @@ dataRoutes.openapi(
       ['settings.changed', Object.keys(settings.data).length],
       ['member.changed', body.members.length],
       ['category.changed', body.categories.length],
-      ['contact.changed', body.contactCategories.length + body.contacts.length],
+      ['contact.changed', body.contacts.length],
+      ['contact.category.changed', body.contactCategories.length],
       ['calendar.changed', calendars.length],
       ['events.changed', events.length + memberOverrides.length + categoryOverrides.length + travelOverrides.length + seriesMemberOverrides.length + seriesCategoryOverrides.length],
       ['chore.changed', body.chores.length + completions.length],
@@ -783,8 +784,6 @@ dataRoutes.openapi(
       ['meal.changed', body.meals.length],
     ];
     for (const [type, n] of changed) if (n > 0) emit(c, type, { imported: n });
-    for (const contact of body.contacts) emit(c, 'contact.imported', { id: contact.id, source: 'household-export' });
-    for (const category of body.contactCategories) emit(c, 'contact.category_changed', { id: category.id, source: 'household-export' });
 
     return c.json(
       {

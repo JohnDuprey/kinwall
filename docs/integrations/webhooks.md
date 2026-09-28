@@ -43,9 +43,8 @@ URLs must be public `http(s)` addresses. Private and LAN addresses are refused u
 | `recipe.changed` | A [recipe](../using/meals.md) is added, edited, archived or deleted. `data`: `{ id }`. |
 | `meal.changed` | A meal is planned, edited or deleted. `data`: `{ id }`. |
 | `display.paired` | A wall display was paired. |
-| `contact.created` / `contact.updated` / `contact.deleted` | A directory contact was created, edited or deleted. `data` includes its `id`. |
-| `contact.imported` / `contact.merged` | A contact import created a record or merged into an existing record. `data` includes the affected `id`. |
-| `contact.category_changed` | A directory category was created, edited or deleted. `data` includes its `id`. |
+| `contact.changed` | A [contact](../using/contacts.md) is added, edited, deleted, imported or merged. `data`: `{ id, action }`, where `action` is `created`, `updated`, `deleted`, `imported` or `merged`. |
+| `contact.category.changed` | A contact category is added, edited or deleted. `data`: `{ id }`. |
 
 ## Payload and signature
 

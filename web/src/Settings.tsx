@@ -29,7 +29,7 @@ import { useDialog } from './dialog.tsx'
 import { announce, pressable, reducedMotion, Segmented } from './a11y.tsx'
 
 // Mirrors BusEventType in server/src/bus.ts.
-const BUS_EVENTS = ['member.changed', 'calendar.changed', 'calendar.synced', 'events.changed', 'chore.changed', 'chore.completed', 'chore.uncompleted', 'chore.pending', 'chore.rejected', 'list.changed', 'list.item.changed', 'category.changed', 'settings.changed', 'sticker.changed', 'reward.changed', 'reward.redeemed', 'reward.approved', 'reward.declined', 'reward.given', 'recipe.changed', 'meal.changed', 'photo.changed', 'tracker.changed', 'display.paired']
+const BUS_EVENTS = ['member.changed', 'calendar.changed', 'calendar.synced', 'events.changed', 'chore.changed', 'chore.completed', 'chore.uncompleted', 'chore.pending', 'chore.rejected', 'list.changed', 'list.item.changed', 'category.changed', 'settings.changed', 'sticker.changed', 'reward.changed', 'reward.redeemed', 'reward.approved', 'reward.declined', 'reward.given', 'recipe.changed', 'meal.changed', 'photo.changed', 'tracker.changed', 'contact.changed', 'contact.category.changed', 'display.paired']
 
 export function timezoneList() {
   // Intl.supportedValuesOf('timeZone') doesn't include 'UTC' itself (the server's default
