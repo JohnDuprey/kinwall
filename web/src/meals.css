@@ -137,3 +137,14 @@
 .meal-thumb { position: absolute; top: 10px; right: 10px; width: 40px; height: 40px; object-fit: cover; border-radius: 8px; background: var(--bg-alt); }
 .meal-thumb-board { flex: 0 0 auto; width: 44px; height: 44px; object-fit: cover; border-radius: 10px; background: var(--card-soft); }
 .meal-sheet-photo { float: right; width: 96px; height: 72px; margin: 0 0 8px 12px; object-fit: cover; border-radius: 10px; background: var(--bg-alt); }
+/* Family ratings: one row per member with big tappable stars (wall and touch friendly). */
+.recipe-ratings { list-style: none; padding: 0; margin: 0 0 8px; display: grid; gap: 6px; }
+.recipe-ratings li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; }
+.recipe-rating-who { display: flex; align-items: center; gap: 10px; font-weight: 700; min-width: 0; }
+.recipe-rating-stars { display: flex; }
+.recipe-rating-stars button { width: 48px; height: 48px; padding: 0; border: 0; background: none; font-size: 2rem; line-height: 1; color: color-mix(in srgb, var(--text-dim) 35%, transparent); cursor: pointer; border-radius: 12px; }
+.recipe-rating-stars button.on, .recipe-stars .on { color: var(--accent-strong); }
+.recipe-rating-stars button:disabled { cursor: default; }
+.recipe-rating-stars button:disabled:not(.on) { opacity: 0.5; }
+.recipe-stars { color: var(--text-dim); font-size: 0.8125rem; font-weight: 700; }
+.recipe-stars > span { color: color-mix(in srgb, var(--text-dim) 35%, transparent); letter-spacing: 1px; }

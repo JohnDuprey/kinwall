@@ -1,12 +1,12 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import type { Context } from 'hono';
 import { createRouter } from '../router.ts';
-import { resolveKey } from '../auth.ts';
+import { ownerBlock, resolveKey } from '../auth.ts';
 import { emit } from '../bus.ts';
 import { hostTimezone } from '../env.ts';
 import { zonedTimeToUtc } from '../recurrence.ts';
 import { ErrorSchema } from '../schemas.ts';
-import { IngredientInputSchema, KIT_QUALIFIER, MealEventStartSchema, MealInputSchema, MealPatchSchema, MealRangeSchema, MealSchema, ProjectionApplySchema, ProjectionQuerySchema, ProjectionSchema, RecipeImportResultSchema, RecipeImportSchema, RecipeInputSchema, RecipePreviewResultSchema, RecipeSchema, RecipeTextParseSchema, RecipeUrlImportSchema, type Meal, type Recipe } from '../meal-schemas.ts';
+import { IngredientInputSchema, KIT_QUALIFIER, MealEventStartSchema, MealInputSchema, MealPatchSchema, MealRangeSchema, MealSchema, ProjectionApplySchema, ProjectionQuerySchema, ProjectionSchema, RecipeImportResultSchema, RecipeImportSchema, RecipeInputSchema, RecipePreviewResultSchema, RecipeRatingInputSchema, RecipeSchema, RecipeTextParseSchema, RecipeUrlImportSchema, type Meal, type Recipe } from '../meal-schemas.ts';
 import { applyProjection, mealWrite, normalizeIngredient, normalizeSteps, parseIngredientLine, readMeal, readMeals, readRecipes, shoppingProjection, stepsText } from '../meals.ts';
 import type { KinwallDb } from '../db.ts';
 import type { Env } from '../env.ts';
@@ -151,6 +151,24 @@ mealsRoutes.openapi(createRoute({ method: 'delete', path: '/api/recipes/{id}', t
   const result = await c.env.DB.prepare('DELETE FROM recipes WHERE id = ?').bind(id).run();
   if (!result.meta.changes) return c.json({ error: 'recipe not found' }, 404);
   emit(c, 'recipe.changed', { id }); return c.json({ ok: true }, 200);
+});
+// Rating is a family action like ticking off a chore: wall screens and kids' devices may rate (a member's own device only for them).
+mealsRoutes.openapi(createRoute({ method: 'put', path: '/api/recipes/{id}/rating', tags: ['Meals'], summary: "Set or clear a family member's 1-5 star rating of a recipe", security: [{ Bearer: [] }], request: { params, body: body(RecipeRatingInputSchema) }, responses: { 200: recipeResponse, ...errors } }), async (c) => {
+  const { id } = c.req.valid('param');
+  const { memberId, stars } = c.req.valid('json');
+  const blocked = await ownerBlock(c, memberId);
+  if (blocked) return c.json({ error: blocked }, 403);
+  const [recipe, member] = await c.env.DB.batch([
+    c.env.DB.prepare('SELECT id FROM recipes WHERE id = ?').bind(id),
+    c.env.DB.prepare('SELECT id FROM members WHERE id = ?').bind(memberId),
+  ]);
+  if (!recipe.results.length) return c.json({ error: 'recipe not found' }, 404);
+  if (!member.results.length) return c.json({ error: 'member not found' }, 404);
+  await (stars
+    ? c.env.DB.prepare('INSERT INTO recipe_ratings (recipe_id, member_id, stars) VALUES (?, ?, ?) ON CONFLICT(recipe_id, member_id) DO UPDATE SET stars = excluded.stars').bind(id, memberId, stars)
+    : c.env.DB.prepare('DELETE FROM recipe_ratings WHERE recipe_id = ? AND member_id = ?').bind(id, memberId)).run();
+  emit(c, 'recipe.changed', { id });
+  return c.json((await readRecipes(c.env.DB, { id, archived: true }))[0], 200);
 });
 
 mealsRoutes.openapi(createRoute({ method: 'get', path: '/api/meals', tags: ['Meals'], summary: 'Meals in an inclusive date range', security: [{ Bearer: [] }], request: { query: MealRangeSchema }, responses: { 200: { description: 'meals', content: { 'application/json': { schema: z.array(MealSchema) } } }, ...errors } }), async (c) => {

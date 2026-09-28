@@ -182,6 +182,8 @@ test('meals: deleting a meal removes the event Kinwall created and keeps a linke
 test('meals: export/import preserves snapshots and source claims; older exports remain valid', async () => {
   const source = fixture(); const target = fixture();
   const recipe = await source.json('/api/recipes', 'POST', { name: 'Tacos', ingredients: [{ name: 'Tomatoes', quantity: 2 }] });
+  const ada = await source.json('/api/members', 'POST', { name: 'Ada', color: '#112233' });
+  await source.json(`/api/recipes/${recipe.id}/rating`, 'PUT', { memberId: ada.id, stars: 4 });
   const meal = await source.json('/api/meals', 'POST', { date: dates.from, slot: 'dinner', recipeId: recipe.id });
   const list = await source.json('/api/lists', 'POST', { name: 'Groceries', kind: 'shopping' });
   await source.json('/api/meals/projection/apply', 'POST', { ...dates, listId: list.id });
@@ -194,6 +196,7 @@ test('meals: export/import preserves snapshots and source claims; older exports 
   }
   const restored = await target.json('/api/export');
   assert.deepEqual(restored.recipes, file.recipes);
+  assert.equal(restored.recipes[0].rating.byMember[ada.id], 4);
   assert.deepEqual(restored.mealShoppingSources, file.mealShoppingSources);
   delete file.recipes; delete file.meals; delete file.mealShoppingSources;
   assert.equal((await target.request('/api/import', 'POST', file)).status, 200);
@@ -239,4 +242,33 @@ test('meals: large projections apply all ingredients with a bounded SQL batch', 
   const added = await applyProjection(boundedDb, projection, list.id, [], true);
   assert.equal(added.length, 125);
   assert.equal((await json(`/api/lists/${list.id}`)).items.length, 125);
+});
+
+test('meals: family ratings set, overwrite, clear, average, and go with their recipe or member', async () => {
+  const { db, json, request } = fixture();
+  const ada = await json('/api/members', 'POST', { name: 'Ada', color: '#112233' });
+  const bo = await json('/api/members', 'POST', { name: 'Bo', color: '#445566' });
+  const recipe = await json('/api/recipes', 'POST', { name: 'Tacos' });
+  assert.deepEqual(recipe.rating, { average: null, count: 0, byMember: {} });
+  const rate = (memberId: string, stars: number | null, key?: string) => request(`/api/recipes/${recipe.id}/rating`, 'PUT', { memberId, stars }, key);
+  assert.equal((await rate(ada.id, 4)).status, 200);
+  let rated = await (await rate(bo.id, 5)).json() as any;
+  assert.deepEqual(rated.rating, { average: 4.5, count: 2, byMember: { [ada.id]: 4, [bo.id]: 5 } });
+  rated = await (await rate(ada.id, 2)).json();
+  assert.equal(rated.rating.average, 3.5);
+  rated = await (await rate(ada.id, 0)).json();
+  assert.deepEqual(rated.rating, { average: 5, count: 1, byMember: { [bo.id]: 5 } });
+  assert.equal((await rate(ada.id, 6)).status, 400);
+  assert.equal((await rate('nobody', 3)).status, 404);
+  // Wall screens rate for anyone; a member's own device only for them.
+  const wall = await createApiKey(db, 'Wall', 'display', { owner: 'shared' });
+  const adaPhone = await createApiKey(db, 'Ada phone', 'display', { owner: ada.id });
+  assert.equal((await rate(bo.id, 3, wall.key)).status, 200);
+  assert.equal((await rate(ada.id, 1, adaPhone.key)).status, 200);
+  assert.equal((await rate(bo.id, 1, adaPhone.key)).status, 403);
+  assert.deepEqual((await json(`/api/recipes/${recipe.id}`)).rating.byMember, { [ada.id]: 1, [bo.id]: 3 });
+  await json(`/api/members/${bo.id}`, 'DELETE');
+  assert.deepEqual((await json('/api/recipes'))[0].rating, { average: 1, count: 1, byMember: { [ada.id]: 1 } });
+  await json(`/api/recipes/${recipe.id}`, 'DELETE');
+  assert.equal((await db.prepare('SELECT count(*) AS n FROM recipe_ratings').first<{ n: number }>())!.n, 0);
 });

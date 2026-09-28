@@ -44,8 +44,16 @@ export const RecipeSchema = z.object({
   prepMinutes: minutes.optional(), totalMinutes: minutes.optional(),
   source: z.string().nullable().optional(), externalId: z.string().nullable().optional(), imageUrl: url.optional(),
   steps: z.array(RecipeStepSchema).nullable().optional().describe('Structured steps (null: the recipe only has instructions text).'),
+  // Optional so older exports still import.
+  rating: z.object({
+    average: z.number().nullable().describe('Family average, 1-5 (null: no ratings yet).'), count: z.number().int(),
+    byMember: z.record(z.string(), z.number().int().min(1).max(5)).describe('Stars by member id.'),
+  }).optional(),
   createdAt: z.string(), updatedAt: z.string(),
 }).openapi('Recipe');
+export const RecipeRatingInputSchema = z.object({
+  memberId: z.string(), stars: z.number().int().min(0).max(5).nullable().describe('1-5 stars; 0 or null clears the rating.'),
+}).strict().openapi('RecipeRatingInput');
 /** An ingredient on a meal-kit recipe that ships in the box: grocery lists skip it unless asked. */
 export const KIT_QUALIFIER = 'in the kit';
 /** A meal's calendar event starts at the meal time, or when cooking starts (ending at the meal time). */

@@ -105,6 +105,7 @@ const PUBLIC_PATH =
 // listed here is denied for display keys - deny by default, not scattered checks.
 const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'GET', pattern: /^\/api\/recipes(\/[^/]+)?$/ },
+  { method: 'PUT', pattern: /^\/api\/recipes\/[^/]+\/rating$/ }, // family members rate dinners (a member's own device only for them)
   { method: 'GET', pattern: /^\/api\/(recipes|meals)\/[^/]+\/source\.pdf$/ }, // the recipe card viewer
   { method: 'GET', pattern: /^\/api\/(recipes|meals)\/[^/]+\/image$/ }, // recipe photos
   { method: 'GET', pattern: /^\/api\/recipes\/[^/]+\/steps\/\d+\/image$/ }, // recipe step photos

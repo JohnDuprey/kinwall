@@ -25,6 +25,12 @@ Tap a recipe to see it: its times, the ingredients (with **−** and **+** to se
 
 A recipe with a time shows it as **⏱ 35 min · 10 min prep** in its sheet and the meal's sheet, and as a quiet "35 min" on the recipe card, the planned meal in the week planner and the Board's **Today's meals** card. When the meal has a time, its sheet also says when to start ("Start by 5:25 PM").
 
+### Ratings
+
+Everyone in the family can rate a recipe: the recipe's view has a **Ratings** row for each person with five big stars. Tap a star to rate, tap the same star again to clear it. The family average shows beside **Ratings**, on the recipe's card in the library (with how many have rated it), and next to its name when you pick a recipe for a meal. **Sort: Top rated** in the library puts the family's favorites first.
+
+Rating is an everyday action like ticking off a chore: a wall display rates for anyone, and a device that belongs to one person rates only for them. Deleting a recipe or a person removes their ratings. The API's `PUT /api/recipes/{id}/rating` (`{ "memberId": "…", "stars": 1-5 }`, `null` or `0` clears it) and the MCP tool `rate_recipe` do the same.
+
 ### Steps and cooking along
 
 A typed recipe's instructions show as a numbered list, one line per step. An imported recipe (or one with steps added through the API) has structured steps instead: each is a numbered card with the step's text and its short instructions as bullets, and the step's photo when it has one, beside the text when there's room and above it on a phone. A photo that can't be loaded just isn't shown.
@@ -200,4 +206,4 @@ Meals have `assigneeMemberId` (who's cooking) and `eaterIds` (who's eating, memb
 
 `servings` is what the ingredient amounts are for (the recipe's default servings). `prepMinutes` and `totalMinutes` are optional; leaving them out keeps what an earlier import set. `plan.eaterIds` (optional) is who's eating; without `plan.servings`, the meal's servings are how many. A step is text or `{ text?, bullets?, imageUrl? }` (see [Importing recipes](#importing-recipes)). An ingredient is a line of text, or `{ text, pantry?, category? }` where `pantry: false` means it ships in the kit. `plan.calendarId` (optional) also puts the planned meal on that calendar, as if you'd tapped **Add to calendar** and picked it, unless the meal already has an event; `plan.eventStart` is `meal` (default) or `cooking`. It answers `{ recipeId, created, planned, mealId?, reason?, calendarEventId?, calendarError? }`: `created` is false when an earlier import was updated; `planned` is true with the `mealId` when the meal is on the plan (newly, or from an earlier import), and false with a `reason` when the slot was taken. `calendarEventId` is the meal's event; `calendarError` says why it couldn't get one (the meal is still planned).
 
-The [MCP server](../integrations/mcp.md) has `list_recipes`, `get_recipe`, `list_meals`, `get_meal_projection`, `create_recipe`, `update_recipe`, `import_recipe`, `create_meal`, `update_meal` and `apply_meal_projection`.
+The [MCP server](../integrations/mcp.md) has `list_recipes`, `get_recipe`, `list_meals`, `get_meal_projection`, `create_recipe`, `update_recipe`, `rate_recipe`, `import_recipe`, `create_meal`, `update_meal` and `apply_meal_projection`.

@@ -51,6 +51,10 @@ export function ingredientApi(r: IngredientRow): Ingredient {
 export function recipeApi(r: RecipeRow, ingredients: Ingredient[]): Recipe {
   return { id: r.id, name: r.name, description: r.description, instructions: r.instructions, preparationNotes: r.preparation_notes, sourceUrl: r.source_url, defaultServings: r.default_servings, prepMinutes: r.prep_minutes ?? null, totalMinutes: r.total_minutes ?? null, archived: !!r.archived, ingredients, source: r.source ?? null, externalId: r.external_id ?? null, imageUrl: r.image_url ?? null, steps: r.steps ? JSON.parse(r.steps) : null, createdAt: r.created_at, updatedAt: r.updated_at };
 }
+export function ratingApi(byMember: Record<string, number>): NonNullable<Recipe['rating']> {
+  const stars = Object.values(byMember);
+  return { average: stars.length ? Math.round(stars.reduce((a, b) => a + b, 0) / stars.length * 10) / 10 : null, count: stars.length, byMember };
+}
 const lines = (text: string) => text.split(/\r?\n/).map((l) => l.replace(/^\s*[-*•·–]\s+/, '').trim()).filter(Boolean);
 /** Steps as stored: a plain string is a step's text, and a text of several lines with no bullets
  * becomes a step of bullets (how a meal kit writes several short instructions in one step).
@@ -76,16 +80,19 @@ export function mealApi(r: MealRow): Meal {
   return { id: r.id, date: r.date, slot: r.slot, title: r.title, mealKind: r.meal_kind, recipeId: r.recipe_id, recipeSnapshot: r.recipe_snapshot ? snapshotApi(JSON.parse(r.recipe_snapshot)) : null, servings: r.servings, assigneeMemberId: r.assignee_member_id, eaterIds: r.eater_ids ? JSON.parse(r.eater_ids) : [], notes: r.notes, plannedTime: r.planned_time, calendarEventId: r.calendar_event_id, calendarEventStart: r.calendar_event_start ?? null, status: r.status, sourceUrl: r.source_url, createdAt: r.created_at, updatedAt: r.updated_at };
 }
 export async function readRecipes(db: KinwallDb, opts: { id?: string; search?: string; archived?: boolean; category?: string } = {}): Promise<Recipe[]> {
-  const [recipes, ingredients] = await db.batch<unknown>([
+  const [recipes, ingredients, ratings] = await db.batch<unknown>([
     db.prepare('SELECT * FROM recipes WHERE (? IS NULL OR id = ?) AND (? = 1 OR archived = 0) AND (? IS NULL OR instr(lower(name || coalesce(description, \'\')), lower(?)) > 0) ORDER BY name, id').bind(opts.id ?? null, opts.id ?? null, opts.archived ? 1 : 0, opts.search ?? null, opts.search ?? null),
     db.prepare('SELECT * FROM recipe_ingredients WHERE (? IS NULL OR recipe_id = ?) ORDER BY sort, id').bind(opts.id ?? null, opts.id ?? null),
+    db.prepare('SELECT recipe_id, member_id, stars FROM recipe_ratings WHERE (? IS NULL OR recipe_id = ?)').bind(opts.id ?? null, opts.id ?? null),
   ]);
+  const starsBy = new Map<string, Record<string, number>>();
+  for (const r of ratings.results as { recipe_id: string; member_id: string; stars: number }[]) starsBy.set(r.recipe_id, { ...starsBy.get(r.recipe_id), [r.member_id]: r.stars });
   const byRecipe = new Map<string, Ingredient[]>();
   for (const row of ingredients.results as IngredientRow[]) {
     const values = byRecipe.get(row.recipe_id) ?? [];
     values.push(ingredientApi(row)); byRecipe.set(row.recipe_id, values);
   }
-  return (recipes.results as RecipeRow[]).map((r) => recipeApi(r, byRecipe.get(r.id) ?? [])).filter((r) => !opts.category || r.ingredients.some((i) => normalizeIngredient(i.category ?? '') === normalizeIngredient(opts.category!)));
+  return (recipes.results as RecipeRow[]).map((r) => ({ ...recipeApi(r, byRecipe.get(r.id) ?? []), rating: ratingApi(starsBy.get(r.id) ?? {}) })).filter((r) => !opts.category || r.ingredients.some((i) => normalizeIngredient(i.category ?? '') === normalizeIngredient(opts.category!)));
 }
 export async function readMeals(db: KinwallDb, from: string, to: string): Promise<Meal[]> {
   const { results } = await db.prepare("SELECT * FROM meals WHERE date >= ? AND date <= ? ORDER BY date, CASE slot WHEN 'breakfast' THEN 0 WHEN 'lunch' THEN 1 WHEN 'dinner' THEN 2 ELSE 3 END, planned_time, created_at, id").bind(from, to).all<MealRow>();

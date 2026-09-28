@@ -5,7 +5,8 @@ import { useDialog } from './dialog.tsx'
 import Sheet from './Sheet.tsx'
 import { CheckIcon, ChevronRight, EditIcon, ExternalIcon, FileIcon, LinkIcon, MinusIcon, PlusIcon, TrashIcon } from './icons.tsx'
 import { ingredientAmount, isPdfUrl, recipeTime, servingsLabel, urlHost } from './meal-date.ts'
-import { KIT_QUALIFIER, type IngredientInput, type Recipe, type RecipeInput, type RecipeSnapshot, type RecipeStep } from './meal-types.ts'
+import { KIT_QUALIFIER, type IngredientInput, type Recipe, type RecipeInput, type RecipeRating, type RecipeSnapshot, type RecipeStep } from './meal-types.ts'
+import { inkFor } from './color.ts'
 import RecipeCardSheet from './RecipeCardSheet.tsx'
 import RecipePhoto from './RecipePhoto.tsx'
 import { holdAwake } from './wakeLock.ts'
@@ -79,9 +80,43 @@ function StepCards({ recipe, steps }: { recipe: Recipe; steps: RecipeStep[] }) {
   </>
 }
 
+/** A recipe's family average as small stars, e.g. on a library card. */
+export function Stars({ average, count }: { average: number; count: number }) {
+  return <span className="recipe-stars" role="img" aria-label={`Rated ${average} out of 5 by ${count}`}>
+    <span aria-hidden="true">{[1, 2, 3, 4, 5].map(n => <span key={n} className={n <= Math.round(average) ? 'on' : ''}>★</span>)}</span> {average} ({count})
+  </span>
+}
+
+/** Each family member's stars, tappable (tap the same star again to clear). A member's own device rates only for them. */
+function Ratings({ recipe, owner, onRated }: { recipe: Recipe; owner?: string | null; onRated?: () => void }) {
+  const { members, toast } = useApp()
+  const [rating, setRating] = useState<RecipeRating>(recipe.rating ?? { average: null, count: 0, byMember: {} })
+  const [busy, setBusy] = useState('')
+  if (!members.length) return null
+  const rate = async (memberId: string, stars: number | null) => {
+    setBusy(memberId)
+    try { const saved = await api.rateRecipe(recipe.id, memberId, stars); if (saved.rating) setRating(saved.rating); onRated?.() }
+    catch (e) { toast(e instanceof Error ? e.message : 'Could not save the rating.', true) }
+    finally { setBusy('') }
+  }
+  return <>
+    <div className="recipe-steps-head"><h3>Ratings</h3>{rating.average !== null && <span className="recipe-time">★ {rating.average} family average</span>}</div>
+    <ul className="recipe-ratings">{members.map(m => {
+      const mine = rating.byMember[m.id] ?? 0
+      const locked = !!owner && owner !== 'shared' && owner !== m.id
+      return <li key={m.id}>
+        <span className="recipe-rating-who"><span className="member-avatar-sm" style={{ background: m.color, color: inkFor(m.color) }} aria-hidden="true">{m.avatar || m.name[0]}</span>{m.name}</span>
+        <span className="recipe-rating-stars" role="group" aria-label={`${m.name}'s rating`}>{[1, 2, 3, 4, 5].map(n =>
+          <button key={n} type="button" className={n <= mine ? 'on' : ''} aria-pressed={n === mine} aria-label={`${n} star${n === 1 ? '' : 's'}`} disabled={locked || busy === m.id} onClick={() => void rate(m.id, n === mine ? null : n)}>★</button>)}
+        </span>
+      </li>
+    })}</ul>
+  </>
+}
+
 /** Tapping a recipe opens this view; admins get Edit, which swaps in the editor (back to the view on close). */
-export default function RecipeSheet({ recipe, admin, onClose, onSaved, onPlan }: {
-  recipe: Recipe | null; admin: boolean; onClose: () => void; onSaved: () => void; onPlan?: (recipe: Recipe) => void
+export default function RecipeSheet({ recipe, admin, owner, onClose, onSaved, onPlan, onRated }: {
+  recipe: Recipe | null; admin: boolean; owner?: string | null; onClose: () => void; onSaved: () => void; onPlan?: (recipe: Recipe) => void; onRated?: () => void
 }) {
   const [editing, setEditing] = useState(!recipe)
   // Reading a recipe while cooking: keep the screen on until it's closed (not while editing).
@@ -98,6 +133,7 @@ export default function RecipeSheet({ recipe, admin, onClose, onSaved, onPlan }:
     {recipe.imageUrl && <RecipePhoto id={recipe.id} className="recipe-hero" alt={recipe.name} />}
     {recipe.description && <p>{recipe.description}</p>}
     {(time || recipe.archived) && <p className="recipe-time">{[time && `⏱ ${time}`, recipe.archived && 'Archived'].filter(Boolean).join(' · ')}</p>}
+    <Ratings key={recipe.id} recipe={recipe} owner={owner} onRated={onRated} />
     <div className="recipe-servings">
       <h3>Ingredients</h3>
       <div className="recipe-stepper" role="group" aria-label="Servings">

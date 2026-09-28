@@ -118,6 +118,7 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 | `update_note` | Replaces a note's text (note IDs come from `list_notes`). |
 | `create_recipe` | Adds a recipe with its ingredients (admin). |
 | `update_recipe` | Edits a recipe, replaces its ingredients, or archives it (admin). Planned meals keep their own copy. |
+| `rate_recipe` | Sets a family member's 1-5 star rating of a recipe (`recipeId`, `memberId` as name or ID, `stars`; `0` or `null` clears it). Recipes read by `list_recipes` / `get_recipe` include `rating: { average, count, byMember }`. |
 | `import_recipe` | Imports a recipe from another app, such as a meal kit (admin): ingredient lines like "1.5 tablespoon Sour Cream" are parsed, and importing the same `source` + `externalId` again updates it. With `plan` it's also planned on that date and slot unless the slot is taken (`planned: false` with the `reason`); `plan.calendarId` also puts it on that calendar (any writable one) and `plan.eventStart: "cooking"` starts the event when cooking starts. |
 | `import_recipe_from_url` | Reads the recipe on a web page (admin): name, photo, servings, times, ingredients and steps. It only previews unless `save: true`, which saves it keyed by the page's address, so importing the same page again updates it. A page without recipe data fails, so the assistant can ask for the recipe text and use `create_recipe`. |
 | `create_meal` | Plans a recipe, free-form meal or dining out on a date and slot, optionally for a `member` (admin). |

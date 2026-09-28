@@ -88,6 +88,16 @@ let recipes: Recipe[] = [
       ['Pita bread', 2, null, 'Bakery'], ['Cherry tomatoes', 1, 'cup', 'Produce', 'Quartered'],
     ]),
 ]
+// Demo family ratings (m1 Alex, m2 Sam, m3 Maya, m4 Leo), as the server sends them.
+const rated = (byMember: Record<string, number>) => {
+  const stars = Object.values(byMember)
+  return { average: stars.length ? Math.round(stars.reduce((a, b) => a + b, 0) / stars.length * 10) / 10 : null, count: stars.length, byMember }
+}
+const seedRatings: Record<string, Record<string, number>> = {
+  tacos: { m1: 5, m2: 4, m3: 5, m4: 5 }, pizza: { m1: 4, m2: 4, m3: 5, m4: 5 }, pancakes: { m2: 5, m3: 4, m4: 5 },
+  pasta: { m1: 4, m2: 3, m4: 4 }, salmon: { m1: 5, m2: 4, m3: 2, m4: 1 }, 'stir-fry': { m1: 4, m3: 3 },
+}
+recipes = recipes.map(r => ({ ...r, rating: rated(seedRatings[r.id.slice(5)] ?? {}) }))
 const recipe = recipes[0]
 // Each row is Sunday through Saturday; columns match breakfast, lunch, dinner, snack.
 const menu = [
@@ -156,9 +166,15 @@ export async function mockMealRequest(path: string, options: RequestInit): Promi
     if (method === 'GET') return recipes.filter(r => url.searchParams.get('archived') === 'true' || !r.archived)
     const old = recipes.find(r => r.id === id)
     if (id && !old) throw new Error('Recipe not found')
+    if (action === 'rating') {
+      const byMember = { ...old!.rating?.byMember }
+      if (body.stars) byMember[body.memberId] = body.stars; else delete byMember[body.memberId]
+      const saved = { ...old!, rating: rated(byMember) }
+      recipes = recipes.map(r => r.id === saved.id ? saved : r); return saved
+    }
     if (method === 'DELETE') { recipes = recipes.filter(r => r.id !== id); meals = meals.map(m => m.recipeId === id ? { ...m, recipeId: null } : m); return { ok: true } }
     const input = body as Partial<RecipeInput>
-    const saved: Recipe = { ...recipe, ...old, ...input, id: old?.id ?? crypto.randomUUID(), ingredients: input.ingredients?.map((i, sort) => ({ ...i, id: old?.ingredients.find(previous => normalize(previous.name) === normalize(i.name) && previous.unit === i.unit)?.id ?? crypto.randomUUID(), normalizedName: normalize(i.name), sort, scalable: isScalable(i) })) ?? old?.ingredients ?? [], createdAt: old?.createdAt ?? new Date().toISOString(), updatedAt: new Date().toISOString() }
+    const saved: Recipe = { ...recipe, rating: rated({}), ...old, ...input, id: old?.id ?? crypto.randomUUID(), ingredients: input.ingredients?.map((i, sort) => ({ ...i, id: old?.ingredients.find(previous => normalize(previous.name) === normalize(i.name) && previous.unit === i.unit)?.id ?? crypto.randomUUID(), normalizedName: normalize(i.name), sort, scalable: isScalable(i) })) ?? old?.ingredients ?? [], createdAt: old?.createdAt ?? new Date().toISOString(), updatedAt: new Date().toISOString() }
     recipes = [...recipes.filter(r => r.id !== saved.id), saved]; return saved
   }
   if (id === 'projection') {

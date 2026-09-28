@@ -6,7 +6,7 @@ import { clockTime, todayKeyInTz } from './date.ts'
 import { ChevronLeft, ChevronRight, LinkIcon, ListIcon, PlusIcon } from './icons.tsx'
 import { MEAL_SLOTS, SLOT_LABEL, mealDayLabel, mealForMember, mealWeek, minutesLabel, moveMealDate, servingsLabel } from './meal-date.ts'
 import MealSheet, { EaterAvatars, type MealDraft } from './MealSheet.tsx'
-import RecipeSheet from './RecipeSheet.tsx'
+import RecipeSheet, { Stars } from './RecipeSheet.tsx'
 import RecipeImportSheet from './RecipeImportSheet.tsx'
 import RecipePhoto from './RecipePhoto.tsx'
 import MealProjection from './MealProjection.tsx'
@@ -31,6 +31,7 @@ export default function Meals() {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('active')
   const [category, setCategory] = useState('')
+  const [sort, setSort] = useState<'name' | 'rating'>('name')
   const [editing, setEditing] = useState<{ meal: Meal | null; initial: MealDraft } | null>(null)
   const [recipeSheet, setRecipeSheet] = useState<{ recipe: Recipe | null; readOnly?: boolean } | null>(null)
   const [projection, setProjection] = useState(false)
@@ -77,6 +78,8 @@ export default function Meals() {
   const categories = [...new Set(recipes.flatMap(recipe => recipe.ingredients.map(i => i.category).filter((c): c is string => !!c)))].sort()
   const needle = search.trim().toLocaleLowerCase()
   const shownRecipes = recipes.filter(recipe => (filter === 'all' || recipe.archived === (filter === 'archived')) && (!category || recipe.ingredients.some(i => i.category === category)) && `${recipe.name} ${recipe.description ?? ''} ${recipe.ingredients.map(i => i.name).join(' ')}`.toLocaleLowerCase().includes(needle))
+  // Top rated: best family average first, then most ratings; unrated keep name order at the end.
+  if (sort === 'rating') shownRecipes.sort((a, b) => (b.rating?.average ?? 0) - (a.rating?.average ?? 0) || (b.rating?.count ?? 0) - (a.rating?.count ?? 0))
   return <div className="meals-view scroll-y">
     <div className="meals-heading"><div><h1>Meals</h1><p className="field-hint">What are we eating, and what do we need to buy?</p></div>
       <div className="meal-actions">{admin && <button className="btn btn-secondary" onClick={() => setProjection(true)}><ListIcon /> Groceries</button>}{admin && view === 'recipes' && <button className="btn btn-secondary" onClick={() => setImporting({ url: '' })}><LinkIcon /> Import from a link</button>}{admin && <button className="btn btn-primary" onClick={() => view === 'week' ? setEditing({ meal: null, initial: { date: today, slot: 'dinner' } }) : setRecipeSheet({ recipe: null })}><PlusIcon /> {view === 'week' ? 'Plan meal' : 'New recipe'}</button>}</div>
@@ -114,6 +117,7 @@ export default function Meals() {
         <div className="field meals-search"><label htmlFor="recipe-search">Find a recipe</label><input id="recipe-search" type="search" placeholder="Recipe name or ingredient" value={search} onChange={e => setSearch(e.target.value)} /></div>
         <div className="field"><label htmlFor="recipe-filter">Show</label><select id="recipe-filter" value={filter} onChange={e => setFilter(e.target.value)}><option value="active">Active recipes</option><option value="archived">Archived recipes</option><option value="all">All recipes</option></select></div>
         <div className="field"><label htmlFor="recipe-category">Ingredient category</label><select id="recipe-category" value={category} onChange={e => setCategory(e.target.value)}><option value="">All categories</option>{categories.map(c => <option key={c}>{c}</option>)}</select></div>
+        <div className="field"><label htmlFor="recipe-sort">Sort</label><select id="recipe-sort" value={sort} onChange={e => setSort(e.target.value as 'name' | 'rating')}><option value="name">Name</option><option value="rating">Top rated</option></select></div>
       </div>
       {recipeError && <div role="alert" className="state-card">Could not load recipes: {recipeError} <button className="btn btn-secondary" onClick={() => setTick(t => t + 1)}>Retry</button></div>}
       {!recipesLoaded && !recipeError ? <p role="status">Loading recipes…</p> : <>
@@ -121,12 +125,12 @@ export default function Meals() {
         {shownRecipes.length === 0 && !recipeError && <p className="state-card">{search || category || filter !== 'active' ? 'No recipes match these filters.' : 'Your recipe library is ready. Add a recipe with ingredients to start planning.'}</p>}
         <div className="recipe-library">{shownRecipes.map(recipe => <button key={recipe.id} className="recipe-card" onClick={() => setRecipeSheet({ recipe })}>
           {recipe.imageUrl && <RecipePhoto id={recipe.id} className="recipe-card-photo" />}
-          <strong>{recipe.name}</strong><span>{servingsLabel(recipe.defaultServings)} · {recipe.ingredients.length} ingredients{recipe.totalMinutes ? ` · ${minutesLabel(recipe.totalMinutes)}` : ''}{recipe.archived ? ' · Archived' : ''}</span>{recipe.description && <p>{recipe.description}</p>}
+          <strong>{recipe.name}</strong><span>{servingsLabel(recipe.defaultServings)} · {recipe.ingredients.length} ingredients{recipe.totalMinutes ? ` · ${minutesLabel(recipe.totalMinutes)}` : ''}{recipe.archived ? ' · Archived' : ''}</span>{!!recipe.rating?.count && <Stars average={recipe.rating.average!} count={recipe.rating.count} />}{recipe.description && <p>{recipe.description}</p>}
         </button>)}</div>
       </>}
     </section>}
     {activeEditing && <MealSheet meal={activeEditing.meal} initial={activeEditing.initial} recipes={recipes} admin={admin} owner={me?.owner} onClose={() => { setEditing(null); setPendingMeal(null) }} onSaved={saved} onRecipe={recipe => setRecipeSheet({ recipe, readOnly: true })} />}
-    {recipeSheet && <RecipeSheet recipe={recipeSheet.recipe} admin={admin && !recipeSheet.readOnly} onClose={() => setRecipeSheet(null)} onSaved={saved} onPlan={recipeSheet.readOnly ? undefined : recipe => { setRecipeSheet(null); setEditing({ meal: null, initial: { date: today, slot: 'dinner', recipe } }) }} />}
+    {recipeSheet && <RecipeSheet recipe={recipeSheet.recipe} admin={admin && !recipeSheet.readOnly} owner={me?.owner} onRated={() => setTick(t => t + 1)} onClose={() => setRecipeSheet(null)} onSaved={saved} onPlan={recipeSheet.readOnly ? undefined : recipe => { setRecipeSheet(null); setEditing({ meal: null, initial: { date: today, slot: 'dinner', recipe } }) }} />}
     {importing && me && <RecipeImportSheet url={importing.url} admin={admin} onClose={() => setImporting(null)} onSaved={recipe => { setImporting(null); setTick(t => t + 1); setRecipeSheet({ recipe }) }} />}
     {projection && <MealProjection from={from} to={to} admin={admin} onClose={() => setProjection(false)} />}
   </div>

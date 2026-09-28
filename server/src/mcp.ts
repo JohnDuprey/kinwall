@@ -191,7 +191,7 @@ const AISLE_DOC = 'Where in the store, e.g. "Aisle 4", "Produce" or "Back wall" 
 const CATEGORY_DOC = 'On a shopping list this is the department (e.g. "Produce"): with no aisle known at a store, the item shows in that store\'s aisle of the same name.';
 const REMEMBER_DOC = 'On a shopping list, an omitted store/category/aisle is filled from what the family used last time for that item name.';
 const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
-  list_recipes: { recipes: z.array(RecipeSchema) }, get_recipe: { recipe: RecipeSchema }, create_recipe: { recipe: RecipeSchema }, update_recipe: { recipe: RecipeSchema }, import_recipe: RecipeImportResultSchema.shape, import_recipe_from_url: RecipePreviewResultSchema.shape,
+  list_recipes: { recipes: z.array(RecipeSchema) }, get_recipe: { recipe: RecipeSchema }, create_recipe: { recipe: RecipeSchema }, update_recipe: { recipe: RecipeSchema }, rate_recipe: { recipe: RecipeSchema }, import_recipe: RecipeImportResultSchema.shape, import_recipe_from_url: RecipePreviewResultSchema.shape,
   list_meals: { meals: z.array(MealSchema) }, create_meal: { meal: MealSchema }, update_meal: { meal: MealSchema },
   get_meal_projection: ProjectionSchema.shape, apply_meal_projection: { added: z.number(), itemIds: z.array(z.string()), projection: ProjectionSchema },
   get_household: { settings: SettingsSchema, members: z.array(MemberSchema), calendars: z.array(CalendarSchema) },
@@ -255,7 +255,7 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
 };
 
 const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boolean; idempotentHint: boolean; openWorldHint: boolean }> = {
-  list_recipes: READ, get_recipe: READ, create_recipe: WRITE, update_recipe: SET, import_recipe: SET, import_recipe_from_url: { ...SET, openWorldHint: true }, list_meals: READ, create_meal: WRITE, update_meal: SET, get_meal_projection: READ, apply_meal_projection: SET,
+  list_recipes: READ, get_recipe: READ, create_recipe: WRITE, update_recipe: SET, rate_recipe: SET, import_recipe: SET, import_recipe_from_url: { ...SET, openWorldHint: true }, list_meals: READ, create_meal: WRITE, update_meal: SET, get_meal_projection: READ, apply_meal_projection: SET,
   get_household: READ, list_events: READ, get_event: READ, list_chores: READ, get_leaderboard: READ, get_points: READ, list_lists: READ, get_list: READ, list_categories: READ, get_event_items: READ, list_notifications: READ, list_notes: READ, get_snapshot: READ, get_board: READ, list_tracker_entries: READ, add_tracker_entry: WRITE, update_tracker_entry: SET, list_color_schemes: READ, set_color_scheme: SET, save_color_scheme: WRITE,
   delete_color_scheme: { ...WRITE, destructiveHint: true, idempotentHint: true },
   create_event: { ...WRITE, openWorldHint: true }, update_event: { ...SET, openWorldHint: true }, set_event_category: SET,
@@ -306,6 +306,12 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
   tool('update_recipe', { title: 'Edit recipe', description: 'Admin: edit a recipe; archived=true archives it, false restores it. Supplying ingredients replaces the ingredient list. steps (structured, instructions follows them) or instructions alone (clears steps). Existing planned meals keep their snapshots.', inputSchema: { id: z.string(), ...RecipeInputSchema.partial().shape, ingredients: jsonList(RecipeInputSchema.shape.ingredients), steps: jsonList(RecipeInputSchema.shape.steps) } }, async ({ id, ...input }) => {
     const result = await call(app, env, auth, 'PATCH', `/api/recipes/${encodeURIComponent(id)}`, input);
     return result.status >= 400 ? errorResult(result.json, 'failed to edit recipe') : okResult('Recipe updated', { recipe: result.json });
+  });
+  tool('rate_recipe', { title: 'Rate recipe', description: "Set a family member's 1-5 star rating of a recipe (0 or null clears it). Recipes carry rating: { average, count, byMember }.", inputSchema: { recipeId: z.string(), memberId: z.string().describe('Member name (case-insensitive) or id.'), stars: z.number().int().min(0).max(5).nullable().describe('1-5; 0 or null clears the rating.') } }, async ({ recipeId, memberId, stars }) => {
+    let member: string;
+    try { member = await resolveMember(app, env, auth, memberId); } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'member lookup failed'); }
+    const result = await call(app, env, auth, 'PUT', `/api/recipes/${encodeURIComponent(recipeId)}/rating`, { memberId: member, stars });
+    return result.status >= 400 ? errorResult(result.json, 'failed to rate recipe') : okResult(stars ? `Rated ${stars} star${stars === 1 ? '' : 's'}` : 'Rating cleared', { recipe: result.json });
   });
   tool('list_meals', { title: 'Get meal plan', description: 'Read dated meals in an inclusive range. Start from on the household week start (weekStart from get_household: 0 Sunday, 1 Monday); omit to for that seven-day week.', inputSchema: { from: MealRangeSchema.shape.from, to: MealRangeSchema.shape.to.optional().describe('Inclusive end date; defaults to six days after from.') } }, async ({ from, to }) => {
     const end = to ?? new Date(Date.parse(`${from}T00:00:00Z`) + 6 * 86400000).toISOString().slice(0, 10);

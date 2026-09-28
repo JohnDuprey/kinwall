@@ -123,6 +123,7 @@ test('mcp: tools/list returns the tools', async () => {
     'list_rewards',
     'list_tracker_entries',
     'mark_reward_given',
+    'rate_recipe',
     'redeem_reward',
     'reject_chore',
     'save_color_scheme',

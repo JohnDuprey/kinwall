@@ -235,6 +235,8 @@ export const api = {
   importRecipe: (body: RecipeImport) => post<{ recipeId: string; created: boolean }>('api/recipes/import', body),
   updateRecipe: (id: string, body: Partial<RecipeInput>) => patch<Recipe>(`api/recipes/${encodeURIComponent(id)}`, body),
   deleteRecipe: (id: string) => del(`api/recipes/${encodeURIComponent(id)}`),
+  // null clears the member's rating.
+  rateRecipe: (id: string, memberId: string, stars: number | null) => put<Recipe>(`api/recipes/${encodeURIComponent(id)}/rating`, { memberId, stars }),
   getMeals: (from: string, to: string) => get<Meal[]>(`api/meals?${new URLSearchParams({ from, to })}`),
   createMeal: (body: MealInput) => post<Meal>('api/meals', body),
   updateMeal: (id: string, body: Partial<MealInput> & { refreshRecipe?: boolean }) => patch<Meal>(`api/meals/${encodeURIComponent(id)}`, body),

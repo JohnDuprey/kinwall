@@ -28,9 +28,11 @@ export interface RecipeInput {
   archived: boolean
   ingredients: IngredientInput[]
 }
+export interface RecipeRating { average: number | null; count: number; byMember: Record<string, number> /* member id -> 1-5 stars */ }
 export interface Recipe extends Omit<RecipeInput, 'ingredients'> {
   id: string
   ingredients: RecipeIngredient[]
+  rating?: RecipeRating
   createdAt: string
   updatedAt: string
 }
