@@ -1,6 +1,6 @@
 # Profiles
 
-Everyone in the family has a profile: a page about what they've been up to. Chores done, points earned and spent, their streak, books read, the sticker book, time in activities, milestone badges and a birthday countdown. It's built from what Kinwall already keeps, so there's nothing new to fill in.
+Everyone in the family has a profile: a page about what they've been up to. Chores done, points earned and spent, their streak, books read, the sticker book, time in activities, milestone badges and their birthday. It's built from what Kinwall already keeps, so there's nothing new to fill in.
 
 A profile is about one person. It never ranks brothers and sisters or puts their numbers side by side; the only comparison is with their own earlier days ("▲ 4 more than last week"). Health entries from [Trackers](trackers.md) never show on it.
 
@@ -27,7 +27,7 @@ Pick **Today**, **Week**, **Month**, **Year** or **All time** at the top. Days f
 * **Activities**: time played in each [activity](activities.md) in the period.
 * **Badges**: see below.
 * **Sticker book**: packs unlocked and stickers on the page.
-* **Birthday**: "Turns 8 in 35 days" under their name, from [Settings → Family](../settings/family.md). Without a birth year it says "Birthday in 35 days".
+* **Birthday**, under their name, from [Settings → Family](../settings/family.md): a countdown in the 60 days before ("Turns 8 in 35 days"), "Turned 8 on Sep 13 🎂" for two weeks after, and their age ("8 years old") the rest of the year. Without a birth year it says "Birthday in 35 days" or "Birthday was Sep 13", and nothing the rest of the year.
 
 Cards with nothing to show stay hidden, so a grown-up's profile usually has no sticker book or activities. Cards follow the family's [features](../settings/general.md#features): with **Chores & points** off, chores, points, streak and the sticker book go; with reading off, the bookshelf goes.
 

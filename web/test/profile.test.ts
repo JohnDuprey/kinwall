@@ -13,10 +13,22 @@ test('compareText: only against your own earlier stretch, never scary', () => {
 
 test('duration, birthdays and period words', () => {
   assert.deepEqual([duration(0), duration(59), duration(600), duration(3900)], ['0m', '0m', '10m', '1h 5m'])
-  assert.equal(birthdayText({ daysUntil: 0, turning: 8 }), 'Birthday today! 🎂')
-  assert.equal(birthdayText({ daysUntil: 1, turning: 8 }), 'Turns 8 tomorrow 🎂')
-  assert.equal(birthdayText({ daysUntil: 37, turning: 8 }), 'Turns 8 in 37 days')
-  assert.equal(birthdayText({ daysUntil: 37, turning: null }), 'Birthday in 37 days')
+  const bday = (daysUntil: number, turning: number | null, date = turning === null ? '--09-13' : '2015-09-13') => birthdayText({ date, daysUntil, turning })
+  assert.equal(bday(0, 8), 'Birthday today! 🎂')
+  assert.equal(bday(1, 8), 'Turns 8 tomorrow 🎂')
+  assert.equal(bday(37, 8), 'Turns 8 in 37 days')
+  assert.equal(bday(37, null), 'Birthday in 37 days')
+  assert.equal(bday(60, 8), 'Turns 8 in 60 days', 'the countdown starts 60 days out')
+  // Just had one: say so for two weeks instead of counting down a whole year.
+  assert.equal(bday(354, 11), 'Turned 10 on Sep 13 🎂')
+  assert.equal(bday(351, 11), 'Turned 10 on Sep 13 🎂', '14 days after')
+  assert.equal(bday(354, null), 'Birthday was Sep 13 🎂')
+  // The rest of the year: just their age (nothing without a birth year).
+  assert.equal(bday(350, 11), '10 years old')
+  assert.equal(bday(61, 11), '10 years old')
+  assert.equal(bday(1, 1, '2025-09-13'), 'Turns 1 tomorrow 🎂')
+  assert.equal(bday(200, 1), 'Under 1 year old')
+  assert.equal(bday(200, null), null)
   assert.deepEqual(['today', 'week', 'month', 'year', 'all'].map(p => periodWord(p as never, '2026-09-26')), ['today', 'this week', 'in September', 'in 2026', 'since joining'])
 })
 

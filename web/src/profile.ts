@@ -22,10 +22,21 @@ export function duration(seconds: number): string {
   return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`
 }
 
-export function birthdayText(b: { daysUntil: number; turning: number | null }): string {
+/** Near a birthday, the countdown (60 days out) or "Turned 10 on Sep 13" (two weeks after); otherwise
+ * just their age, or nothing without a birth year. */
+export function birthdayText(b: { date: string; daysUntil: number; turning: number | null }): string | null {
   if (b.daysUntil === 0) return 'Birthday today! 🎂'
-  const what = b.turning === null ? 'Birthday' : `Turns ${b.turning}`
-  return b.daysUntil === 1 ? `${what} tomorrow 🎂` : `${what} in ${b.daysUntil} days`
+  const age = b.turning === null ? null : b.turning - 1
+  const since = 365 - b.daysUntil // ponytail: a day off across Feb 29, fine for "two weeks ago"
+  if (since >= 1 && since <= 14) {
+    const day = `${MONTHS[Number(b.date.slice(-5, -3)) - 1].slice(0, 3)} ${Number(b.date.slice(-2))}`
+    return age === null ? `Birthday was ${day} 🎂` : `Turned ${age} on ${day} 🎂`
+  }
+  if (b.daysUntil <= 60) {
+    const what = b.turning === null ? 'Birthday' : `Turns ${b.turning}`
+    return b.daysUntil === 1 ? `${what} tomorrow 🎂` : `${what} in ${b.daysUntil} days`
+  }
+  return age === null ? null : age < 1 ? 'Under 1 year old' : `${age} year${age === 1 ? '' : 's'} old`
 }
 
 /** Axis labels for the chores chart: weekday initials, a few days of the month, month initials,

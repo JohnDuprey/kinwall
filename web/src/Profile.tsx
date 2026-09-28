@@ -58,7 +58,7 @@ export default function Profile({ memberId }: { memberId?: string }) {
           <div>
             <h2 className="profile-name">{member.name}</h2>
             <p className="profile-meta">
-              {shown?.birthday && <>{birthdayText(shown.birthday)}<br /></>}
+              {shown?.birthday && birthdayText(shown.birthday) && <>{birthdayText(shown.birthday)}<br /></>}
               {shown && <>On Kinwall since {MONTHS[Number(shown.joined.slice(5, 7)) - 1]} {shown.joined.slice(0, 4)}</>}
             </p>
           </div>
