@@ -2,12 +2,14 @@
 // preview POST /api/recipes/import-url and /parse-text return. No DOM here (Workers has none):
 // JSON-LD blocks are found with a regex and parsed as JSON.
 import { parseIngredientLine } from './meals.ts';
+import type { RecipeStep } from './meal-schemas.ts';
 
 export type PreviewIngredient = { text: string; name: string; quantity: number | null; unit: string | null };
+type Step = { text: string; bullets: string[]; title?: string | null; imageUrl?: string | null; timers?: RecipeStep['timers'] };
 export type RecipePreview = {
   name: string; description: string | null; imageUrl: string | null; sourceUrl: string | null;
   servings: number | null; prepMinutes: number | null; totalMinutes: number | null;
-  ingredients: PreviewIngredient[]; steps: { text: string; bullets: string[] }[];
+  ingredients: PreviewIngredient[]; steps: Step[];
 };
 
 const NAMED: Record<string, string> = {
@@ -87,12 +89,12 @@ function imageUrl(value: unknown, byId: Map<string, Node>, base: string): string
   return null;
 }
 
-type Step = { text: string; bullets: string[] };
 // "1.", "2)", "Step 3:" in front of a step (not "2-3 minutes").
 const STEP_NUMBER = /^(?:step\s*\d+\s*[:.)-]?|\d+[.)])\s+/i;
 /** recipeInstructions: one string (lines become steps), strings, HowToStep, or HowToSection holding
- * steps (its name goes in front of its first step). */
-function instructionSteps(value: unknown): Step[] {
+ * steps (its name goes in front of its first step). A HowToStep stays one step (several lines become
+ * its bullets), with its name as the title unless that just repeats the text, and its https image. */
+function instructionSteps(value: unknown, byId: Map<string, Node>, base: string): Step[] {
   const steps: Step[] = [];
   const add = (text: string, prefix = '') => { const t = text.replace(STEP_NUMBER, '').trim(); if (t) steps.push({ text: (prefix ? `${prefix}: ${t}` : t).slice(0, 10000), bullets: [] }); };
   const walk = (v: unknown, section: string, depth: number) => {
@@ -105,8 +107,16 @@ function instructionSteps(value: unknown): Step[] {
       walk(v.itemListElement, [section, name].filter(Boolean).join(' – '), depth + 1);
       return;
     }
-    const text = clean(v.text, true) || clean(v.name, true) || clean(v.description, true);
-    for (const line of text.split('\n')) { add(line, section); section = ''; }
+    const text = clean(v.text, true), name = clean(v.name);
+    const lines = (text || clean(v.name, true) || clean(v.description, true)).split('\n').map((l) => l.replace(STEP_NUMBER, '').trim()).filter(Boolean);
+    if (!lines.length) return;
+    if (section) lines[0] = `${section}: ${lines[0]}`;
+    const title = text && name.length <= 80 && !/^step\s*\d+\W*$/i.test(name) && !text.toLowerCase().startsWith(name.replace(/(…|\.\.\.)$/, '').trim().toLowerCase()) ? name : '';
+    const image = imageUrl(v.image, byId, base);
+    steps.push({
+      ...(lines.length > 1 ? { text: '', bullets: lines.slice(0, 50).map((l) => l.slice(0, 2000)) } : { text: lines[0].slice(0, 10000), bullets: [] }),
+      ...(title && { title }), ...(image?.startsWith('https:') && { imageUrl: image }),
+    });
   };
   walk(value, '', 0);
   return steps.slice(0, 100);
@@ -134,7 +144,7 @@ export function parseRecipeHtml(html: string, pageUrl: string): RecipePreview | 
     servings: yieldServings(recipe.recipeYield ?? recipe.yield), prepMinutes: prep,
     totalMinutes: isoMinutes(recipe.totalTime) ?? (prep || cook ? Math.min(10000, (prep ?? 0) + (cook ?? 0)) : null),
     ingredients: ingredientLines((Array.isArray(ingredients) ? ingredients : typeof ingredients === 'string' ? ingredients.split('\n') : []).map((l) => clean(l))),
-    steps: instructionSteps(recipe.recipeInstructions),
+    steps: instructionSteps(recipe.recipeInstructions, byId, pageUrl),
   };
 }
 

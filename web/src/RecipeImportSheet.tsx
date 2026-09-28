@@ -79,7 +79,7 @@ export default function RecipeImportSheet({ url: initialUrl = '', admin, onClose
         <ul className="meal-ingredients">{r.ingredients.map((i, n) => <li key={n}><strong>{i.name}</strong>{i.quantity !== null && <> — {ingredientAmount(i.quantity, i.unit, null)}</>}</li>)}</ul>
       </details>
       <details className="meal-projection-item"><summary>{r.steps.length} step{r.steps.length === 1 ? '' : 's'}</summary>
-        <ol className="recipe-steps">{r.steps.map((s, n) => <li key={n}>{s.text}</li>)}</ol>
+        <ol className="recipe-steps">{r.steps.map((s, n) => <li key={n}>{s.title && <strong>{s.title}: </strong>}{s.text || s.bullets.join(' ')}</li>)}</ol>
       </details>
       {errorLine}
     </> : <form id={id} onSubmit={e => { e.preventDefault(); if (mode === 'url') getRecipe(); else if (text.trim()) void read(() => api.previewRecipeText(text, link)); else setError('Paste the recipe first.') }}>

@@ -94,7 +94,7 @@ export const RecipePreviewSchema = z.object({
   name: z.string().describe('Empty when the page or text had no name.'), description: z.string().nullable(), imageUrl: z.string().nullable(), sourceUrl: z.string().nullable(),
   servings: z.number().nullable(), prepMinutes: z.number().nullable(), totalMinutes: z.number().nullable(),
   ingredients: z.array(z.object({ text: z.string().describe('The line as written; send these to POST /api/recipes/import to save.'), name: z.string(), quantity: z.number().nullable(), unit: z.string().nullable() })),
-  steps: z.array(z.object({ text: z.string(), bullets: z.array(z.string()) })),
+  steps: z.array(z.object({ text: z.string(), bullets: z.array(z.string()), title: z.string().nullable().optional(), imageUrl: z.string().nullable().optional(), timers: z.array(StepTimerSchema).optional() })),
 }).openapi('RecipePreview');
 export const RecipeUrlImportSchema = z.object({
   url: z.string().trim().url().max(2000).describe('A recipe page (https). Read from its schema.org Recipe data.'),

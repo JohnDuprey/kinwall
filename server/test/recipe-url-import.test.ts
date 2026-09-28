@@ -61,6 +61,54 @@ test('recipe page: raw line breaks inside JSON strings, entities, image arrays o
   assert.equal(r.steps.length, 1); // the break was not JSON, so it reads as one line
 });
 
+test('recipe page: a HowToStep name becomes its title, unless it just repeats the text', () => {
+  const long = 'A very long name that some sites put on a step instead of a short heading for it, which is too long';
+  const r = parseRecipeHtml(page({ '@type': 'Recipe', name: 'Stew', recipeInstructions: [
+    { '@type': 'HowToStep', name: 'Brown the meat', text: 'Heat the oil and brown the beef in batches.' },
+    { '@type': 'HowToStep', name: 'Add the onions', text: 'Add the onions and cook until soft.' },
+    { '@type': 'HowToStep', name: 'Add the carrots and…', text: 'Add the carrots and potatoes.' },
+    { '@type': 'HowToStep', name: 'Step 4', text: 'Simmer for an hour.' },
+    { '@type': 'HowToStep', name: long, text: 'Serve.' },
+    { '@type': 'HowToStep', name: 'Only a name.' },
+  ] }), 'https://x.test/stew')!;
+  assert.deepEqual(r.steps, [
+    { text: 'Heat the oil and brown the beef in batches.', bullets: [], title: 'Brown the meat' },
+    { text: 'Add the onions and cook until soft.', bullets: [] },
+    { text: 'Add the carrots and potatoes.', bullets: [] },
+    { text: 'Simmer for an hour.', bullets: [] },
+    { text: 'Serve.', bullets: [] },
+    { text: 'Only a name.', bullets: [] },
+  ]);
+});
+
+test('recipe page: a HowToStep image becomes the step photo (https only, resolved against the page)', () => {
+  const r = parseRecipeHtml(page({ '@graph': [
+    { '@type': 'ImageObject', '@id': '#s4', url: 'https://cdn.x.test/s4.jpg' },
+    { '@type': 'Recipe', name: 'Stew', recipeInstructions: [
+      { '@type': 'HowToStep', text: 'One.', image: '/img/s1.jpg' },
+      { '@type': 'HowToStep', text: 'Two.', image: { '@type': 'ImageObject', url: 'https://cdn.x.test/s2.jpg' } },
+      { '@type': 'HowToStep', text: 'Three.', image: ['https://cdn.x.test/s3.jpg', 'https://cdn.x.test/s3b.jpg'] },
+      { '@type': 'HowToStep', text: 'Four.', image: { '@id': '#s4' } },
+      { '@type': 'HowToStep', text: 'Five.', image: 'http://cdn.x.test/s5.jpg' },
+      { '@type': 'HowToStep', text: 'Six.', image: 'javascript:alert(1)' },
+    ] },
+  ] }), 'https://x.test/stew')!;
+  assert.deepEqual(r.steps.map((s) => s.imageUrl), ['https://x.test/img/s1.jpg', 'https://cdn.x.test/s2.jpg', 'https://cdn.x.test/s3.jpg', 'https://cdn.x.test/s4.jpg', undefined, undefined]);
+});
+
+test('recipe page: a HowToStep of several lines stays one step, of bullets', () => {
+  const r = parseRecipeHtml(page({ '@type': 'Recipe', name: 'Bowls', recipeInstructions: [
+    { '@type': 'HowToStep', name: 'Prep', text: '<p>Dice the onion.</p><p>Mince the garlic.</p>' },
+    { '@type': 'HowToStep', text: 'Cook the rice.' },
+    { '@type': 'HowToSection', name: 'Sauce', itemListElement: [{ '@type': 'HowToStep', text: 'Whisk the soy sauce.\nAdd the honey.' }] },
+  ] }), 'https://x.test/bowls')!;
+  assert.deepEqual(r.steps, [
+    { text: '', bullets: ['Dice the onion.', 'Mince the garlic.'], title: 'Prep' },
+    { text: 'Cook the rice.', bullets: [] },
+    { text: '', bullets: ['Sauce: Whisk the soy sauce.', 'Add the honey.'] },
+  ]);
+});
+
 test('recipe page: helpers for durations, yields and entities', () => {
   assert.deepEqual(['PT1H30M', 'PT90M', 'P0DT0H20M', 'PT0.5H', 'PT0M', 'soon', undefined].map(isoMinutes), [90, 90, 20, 30, null, null, null]);
   assert.deepEqual([yieldServings('Serves 4-6'), yieldServings(['', '12 cookies']), yieldServings(3), yieldServings('a lot')], [4, 12, 3, null]);

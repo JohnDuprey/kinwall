@@ -47,13 +47,13 @@ export interface RecipePreview {
   name: string; description: string | null; imageUrl: string | null; sourceUrl: string | null
   servings: number | null; prepMinutes: number | null; totalMinutes: number | null
   ingredients: { text: string; name: string; quantity: number | null; unit: string | null }[]
-  steps: { text: string; bullets: string[] }[]
+  steps: RecipeStep[]
 }
 export interface RecipePreviewResult { recipe: RecipePreview; warnings: string[] }
 /** POST /api/recipes/import: upserts by source + externalId (a web recipe is keyed by its address). */
 export interface RecipeImport {
   source: string; externalId: string; name: string; description?: string | null; sourceUrl?: string | null; imageUrl?: string
-  servings?: number; prepMinutes?: number | null; totalMinutes?: number | null; ingredients: string[]; steps?: { text: string; bullets: string[] }[]
+  servings?: number; prepMinutes?: number | null; totalMinutes?: number | null; ingredients: string[]; steps?: RecipeStep[]
 }
 export interface RecipeSnapshot { name: string; defaultServings: number; prepMinutes?: number | null; totalMinutes?: number | null; ingredients: RecipeIngredient[] }
 export interface MealInput {
