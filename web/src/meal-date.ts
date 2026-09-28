@@ -9,6 +9,16 @@ export function mealWeek(anchor: string, weekStart: 0 | 1): string[] {
   const start = startOfWeek(new Date(`${anchor}T12:00:00`), { weekStartsOn: weekStart })
   return Array.from({ length: 7 }, (_, i) => dateKey(addDays(start, i)))
 }
+/** The dates a meal can swap into: today (or its week's start, if later) through its week's end; null once that week is over. */
+export function swapWindow(date: string, today: string, weekStart: 0 | 1): { from: string; to: string } | null {
+  const week = mealWeek(date, weekStart)
+  const from = week[0] > today ? week[0] : today
+  return from > week[6] ? null : { from, to: week[6] }
+}
+/** The meals to offer for a swap: every other one, by day and then slot. */
+export function swapCandidates<M extends { id: string; date: string; slot: MealSlot }>(meals: M[], mealId: string): M[] {
+  return meals.filter(m => m.id !== mealId).sort((a, b) => a.date.localeCompare(b.date) || MEAL_SLOTS.indexOf(a.slot) - MEAL_SLOTS.indexOf(b.slot))
+}
 export function moveMealDate(date: string, days: number) { return dateKey(addDays(new Date(`${date}T12:00:00`), days)) }
 export function mealDayLabel(date: string, options: Intl.DateTimeFormatOptions = { weekday: 'short', month: 'short', day: 'numeric' }) {
   return new Intl.DateTimeFormat(undefined, options).format(new Date(`${date}T12:00:00`))

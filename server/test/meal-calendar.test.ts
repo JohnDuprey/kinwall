@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { createApp } from '../src/app.ts';
 import { openDb, applyMigrations } from '../src/d1-sqlite.ts';
 import { encryptConfig } from '../src/crypto.ts';
+import { createApiKey } from '../src/auth.ts';
 import type { Env } from '../src/env.ts';
 
 function fixture() {
@@ -11,7 +12,7 @@ function fixture() {
   applyMigrations(db, fileURLToPath(new URL('../migrations', import.meta.url)));
   const env: Env = { DB: db, ADMIN_API_KEY: 'test-admin', PUBLIC_URL: 'http://localhost', ENCRYPTION_KEY: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=' };
   const app = createApp();
-  const request = (path: string, method = 'GET', body?: unknown) => app.request(path, { method, headers: { Authorization: 'Bearer test-admin', 'Content-Type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }, env);
+  const request = (path: string, method = 'GET', body?: unknown, key = 'test-admin') => app.request(path, { method, headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }, env);
   const json = async (path: string, method = 'GET', body?: unknown): Promise<any> => {
     const res = await request(path, method, body); const data = await res.json();
     assert.ok(res.ok, `${method} ${path}: ${res.status} ${JSON.stringify(data)}`); return data;
@@ -158,5 +159,36 @@ test('meal calendar: a meal-kit import can put the planned dinner on a chosen ca
     const bad = await json('/api/recipes/import', 'POST', { ...kit, externalId: 'r3', name: 'Stew', plan: { date: '2026-10-07', slot: 'dinner', calendarId: 'nope' } });
     assert.equal(bad.planned, true); assert.equal(bad.calendarError, 'calendar not found');
     assert.equal((await request('/api/recipes/import', 'POST', { ...kit, plan: { ...kit.plan, eventStart: 'later' } })).status, 400);
+  } finally { g.restore(); }
+});
+
+test('meal swap: two meals trade day and slot; a Kinwall event follows, a linked one is untouched', async () => {
+  const { env, json, request } = fixture();
+  await json('/api/settings', 'PATCH', { timezone: 'America/New_York' });
+  const g = await google(env);
+  try {
+    const tacos = await json('/api/meals', 'POST', { date: '2026-10-06', slot: 'dinner', title: 'Tacos' });
+    const soup = await json('/api/meals', 'POST', { date: '2026-10-08', slot: 'lunch', title: 'Soup' });
+    const ownEvent = await json('/api/events', 'POST', { calendarId: g.calendarId, title: 'Grandma visits', start: '2026-10-08T16:00:00Z', end: '2026-10-08T17:00:00Z', allDay: false });
+    const tacosEvent = (await json(`/api/meals/${tacos.id}/calendar-event`, 'POST', { calendarId: g.calendarId })).calendarEventId;
+    await json(`/api/meals/${soup.id}/calendar-link`, 'POST', { eventId: ownEvent.id });
+    const swapped = await json(`/api/meals/${tacos.id}/swap`, 'POST', { otherId: soup.id });
+    assert.deepEqual(swapped.map((m: any) => [m.title, m.date, m.slot]), [['Tacos', '2026-10-08', 'lunch'], ['Soup', '2026-10-06', 'dinner']]);
+    assert.deepEqual([(await json(`/api/meals/${soup.id}`)).date, (await json(`/api/meals/${tacos.id}`)).slot], ['2026-10-06', 'lunch']);
+    // Lunch at the usual 12:00 New York.
+    assert.deepEqual([(await json(`/api/events/${tacosEvent}`)).title, (await json(`/api/events/${tacosEvent}`)).start], ['Lunch · Tacos', '2026-10-08T16:00:00.000Z']);
+    assert.equal((await json(`/api/events/${ownEvent.id}`)).start, '2026-10-08T16:00:00.000Z');
+    assert.equal((await json(`/api/events/${ownEvent.id}`)).title, 'Grandma visits');
+    // Nonexistent (or another family's) meals, itself, and non-admin devices are refused.
+    assert.equal((await request(`/api/meals/${tacos.id}/swap`, 'POST', { otherId: 'missing' })).status, 404);
+    assert.equal((await request(`/api/meals/missing/swap`, 'POST', { otherId: soup.id })).status, 404);
+    assert.equal((await request(`/api/meals/${tacos.id}/swap`, 'POST', { otherId: tacos.id })).status, 400);
+    const alex = await json('/api/members', 'POST', { name: 'Alex', color: '#123456' });
+    await json(`/api/meals/${tacos.id}`, 'PATCH', { assigneeMemberId: alex.id });
+    for (const owner of [alex.id, 'shared']) {
+      const key = await createApiKey(env.DB, 'Display', 'display', { owner });
+      assert.equal((await request(`/api/meals/${tacos.id}/swap`, 'POST', { otherId: soup.id }, key.key)).status, 403);
+    }
+    assert.equal((await json(`/api/meals/${tacos.id}`)).date, '2026-10-08', 'unchanged');
   } finally { g.restore(); }
 });
