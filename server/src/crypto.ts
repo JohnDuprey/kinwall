@@ -68,3 +68,19 @@ export async function decryptConfig(env: EncryptionEnv, id: string, config: stri
 export async function encryptConfig(env: EncryptionEnv, id: string, config: unknown): Promise<string> {
   return encrypt(env, JSON.stringify(config ?? {}), id);
 }
+
+// Health data (AGENTS.md "Health data"): 'enc:v1:<iv b64>:<ciphertext b64>', the same AES-256-GCM
+// as above behind an 'enc:' marker, so a sealed value can't be mistaken for plaintext a person
+// typed. aad binds it to its row and column ('<id>:title'). unseal passes plaintext (not yet
+// sealed) through; a sealed value that won't open (wrong key, tampering) throws, so a caller never
+// mistakes it for empty and writes over it.
+const SEALED = 'enc:v1:';
+export const isSealed = (value: string) => value.startsWith(SEALED);
+
+export async function seal(env: EncryptionEnv, plaintext: string, aad: string): Promise<string> {
+  return `enc:${await encrypt(env, plaintext, aad)}`;
+}
+
+export async function unseal(env: EncryptionEnv, value: string, aad: string): Promise<string> {
+  return isSealed(value) ? decrypt(env, value.slice('enc:'.length), aad) : value;
+}

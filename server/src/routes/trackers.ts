@@ -10,6 +10,14 @@
 // is the memory's own (photo_own): it stays out of the family photos unless photoFamily is set, and
 // it's deleted with the memory, or when the memory drops it, while it isn't a family photo. A photo
 // picked from the family photos is only referenced.
+//
+// Encryption at rest (AGENTS.md "Health data"): a health entry's title and data (type, time,
+// provider, notes, measurements, follow-up, eventId) are sealed with the family's ENCRYPTION_KEY
+// (crypto.ts seal; aad '<id>:title' / '<id>:data'), so the database, its backups and anyone
+// reading them see only ciphertext. id, kind, member_id, former_member, date, the photo columns
+// and the timestamps stay plaintext: the list filters and sorts on them in SQL, and they say who
+// and when, not what. Writes need the key (no key: 500, nothing stored). Entries saved before
+// this are sealed by sealHealthEntries, which createKinwall runs once per server instance.
 import { createRoute, z } from '@hono/zod-openapi';
 import type { Context } from 'hono';
 import { createRouter } from '../router.ts';
@@ -17,6 +25,7 @@ import type { Env } from '../env.ts';
 import { emit } from '../bus.ts';
 import { resolveKey } from '../auth.ts';
 import { todayIn } from './lists.ts';
+import { isSealed, seal, unseal, type EncryptionEnv } from '../crypto.ts';
 import { isAudiobook, minutesOf, pagesOf, readingPercent, type ReadingProgress } from '../reading.ts';
 import {
   ErrorSchema, ReadingSummarySchema, TRACKER_DATA, TrackerEntrySchema, TrackerInputSchema, TrackerKindSchema, TrackerPatchSchema,
@@ -42,6 +51,50 @@ export function toTrackerApi(r: Row) {
     photoId: r.photo_id, photoOwned: !!r.photo_id && !!r.photo_own, photoFamily: r.photo_id ? r.photo_family !== 0 : null,
     data, createdAt: r.created_at, updatedAt: r.updated_at,
   };
+}
+
+type Stored = { id: string; kind: string; title: string | null; data: string };
+const aad = (r: Stored, column: 'title' | 'data') => `${r.id}:${column}`;
+
+/** The row as stored: a health entry's title and data sealed. Throws without a key, before anything is written. */
+export async function sealRow<T extends Stored>(env: EncryptionEnv, r: T): Promise<T> {
+  if (r.kind !== 'health') return r;
+  return {
+    ...r,
+    title: r.title === null || isSealed(r.title) ? r.title : await seal(env, r.title, aad(r, 'title')),
+    data: isSealed(r.data) ? r.data : await seal(env, r.data, aad(r, 'data')),
+  };
+}
+
+/** The row as read: sealed values opened (by prefix, whatever the kind). A value that won't open throws: never read as empty and saved over. */
+export async function openRow<T extends Stored>(env: EncryptionEnv, r: T): Promise<T> {
+  return { ...r, title: r.title && (await unseal(env, r.title, aad(r, 'title'))), data: await unseal(env, r.data, aad(r, 'data')) };
+}
+
+/** Seals health entries still in plaintext (saved before encryption, or by an older server still
+ * running mid-deploy). Safe to interrupt and to run twice at once: each row is sealed in its own
+ * compare-and-swap UPDATE (only if it still holds the plaintext that was read), a sealed value is
+ * never sealed again, and each batch of rows is one transaction. Without a key it waits (writes fail closed). */
+export async function sealHealthEntries(env: EncryptionEnv & { DB: Env['DB'] }): Promise<number> {
+  if (!env.ENCRYPTION_KEY) return 0;
+  let after = '';
+  let sealed = 0;
+  for (;;) {
+    const { results } = await env.DB.prepare(
+      `SELECT id, kind, title, data FROM tracker_entries WHERE kind = 'health' AND id > ?
+         AND (substr(data, 1, 7) != 'enc:v1:' OR (title IS NOT NULL AND substr(title, 1, 7) != 'enc:v1:'))
+       ORDER BY id LIMIT 50`,
+    ).bind(after).all<Stored>();
+    if (!results.length) return sealed;
+    const updates = await Promise.all(results.map(async (r) => {
+      const s = await sealRow(env, r);
+      return env.DB.prepare("UPDATE tracker_entries SET title = ?, data = ? WHERE id = ? AND kind = 'health' AND title IS ? AND data = ?")
+        .bind(s.title, s.data, r.id, r.title, r.data);
+    }));
+    await env.DB.batch(updates);
+    sealed += results.length;
+    after = results[results.length - 1].id;
+  }
 }
 
 const HEALTH_OFF_WALL = { error: 'Health entries stay on phones and computers, never on a wall display' };
@@ -132,16 +185,20 @@ trackersRoutes.openapi(
     if (memberId) { where.push('t.member_id = ?'); binds.push(memberId); }
     if (from) { where.push('t.date >= ?'); binds.push(from); }
     if (to) { where.push('t.date <= ?'); binds.push(to); }
-    if (q?.trim()) {
-      where.push("(t.title LIKE ? ESCAPE '\\' OR t.data LIKE ? ESCAPE '\\' OR t.former_member LIKE ? ESCAPE '\\')");
-      const like = `%${q.trim().replace(/[\\%_]/g, '\\$&')}%`;
+    const needle = q?.trim().toLowerCase();
+    if (needle) {
+      // Health is sealed, so it's searched below, once opened.
+      where.push("(t.kind = 'health' OR t.title LIKE ? ESCAPE '\\' OR t.data LIKE ? ESCAPE '\\' OR t.former_member LIKE ? ESCAPE '\\')");
+      const like = `%${q!.trim().replace(/[\\%_]/g, '\\$&')}%`;
       binds.push(like, like, like);
     }
     const { results } = await c.env.DB
-      .prepare(`${SELECT_ENTRY} ${where.length ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY t.date DESC, t.created_at DESC LIMIT ?`)
-      .bind(...binds, limit)
+      .prepare(`${SELECT_ENTRY} ${where.length ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY t.date DESC, t.created_at DESC${needle ? '' : ' LIMIT ?'}`)
+      .bind(...binds, ...(needle ? [] : [limit]))
       .all<Row>();
-    return c.json(results.map(toTrackerApi), 200);
+    let rows = await Promise.all(results.map((r) => openRow(c.env, r)));
+    if (needle) rows = rows.filter((r) => r.kind !== 'health' || [r.title, r.data, r.former_member].some((v) => v?.toLowerCase().includes(needle))).slice(0, limit);
+    return c.json(rows.map(toTrackerApi), 200);
   },
 );
 
@@ -207,9 +264,10 @@ trackersRoutes.openapi(
       id: entry.id, kind: entry.kind, member_id: entry.memberId, former_member: null, date: body.date ?? today, title: entry.title,
       photo_id: entry.photoId, photo_own: ok.own, data: JSON.stringify(entry.data), created_at: now, updated_at: now,
     };
+    const stored = await sealRow(c.env, row);
     await c.env.DB
       .prepare('INSERT INTO tracker_entries (id, kind, member_id, date, title, photo_id, photo_own, data, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)')
-      .bind(row.id, row.kind, row.member_id, row.date, row.title, row.photo_id, row.photo_own, row.data, row.created_at, row.updated_at)
+      .bind(row.id, row.kind, row.member_id, row.date, stored.title, row.photo_id, row.photo_own, stored.data, row.created_at, row.updated_at)
       .run();
     await settlePhotos(c, row, body.photoFamily, null);
     emit(c, 'tracker.changed', { id: row.id, kind: row.kind }); // never the fields: webhooks see only that something changed
@@ -217,11 +275,11 @@ trackersRoutes.openapi(
   },
 );
 
-async function load(c: C, id: string): Promise<{ row: Row } | { res: Response }> {
+async function load(c: C, id: string, open = true): Promise<{ row: Row } | { res: Response }> {
   const row = await c.env.DB.prepare(`${SELECT_ENTRY} WHERE t.id = ?`).bind(id).first<Row>();
   if (!row) return { res: c.json({ error: 'not found' }, 404) };
   if (row.kind === 'health' && (await isDisplay(c))) return { res: c.json(HEALTH_OFF_WALL, 403) };
-  return { row };
+  return { row: open ? await openRow(c.env, row) : row };
 }
 
 trackersRoutes.openapi(
@@ -283,9 +341,10 @@ trackersRoutes.openapi(
       ...row, member_id: entry.memberId, former_member: body.memberId !== undefined ? null : row.former_member, // picking someone (or the family) settles a removed member's entry
       date: body.date ?? row.date, title: entry.title, photo_id: entry.photoId, photo_own: ok.own, data: JSON.stringify(entry.data), updated_at: new Date().toISOString(),
     };
+    const stored = await sealRow(c.env, updated);
     await c.env.DB
       .prepare('UPDATE tracker_entries SET member_id = ?, former_member = ?, date = ?, title = ?, photo_id = ?, photo_own = ?, data = ?, updated_at = ? WHERE id = ?')
-      .bind(updated.member_id, updated.former_member, updated.date, updated.title, updated.photo_id, updated.photo_own, updated.data, updated.updated_at, row.id)
+      .bind(updated.member_id, updated.former_member, updated.date, stored.title, updated.photo_id, updated.photo_own, stored.data, updated.updated_at, row.id)
       .run();
     await settlePhotos(c, updated, body.photoFamily, row.photo_own && row.photo_id !== updated.photo_id ? row.photo_id : null);
     emit(c, 'tracker.changed', { id: row.id, kind: row.kind });
@@ -307,7 +366,7 @@ trackersRoutes.openapi(
     },
   }),
   async (c) => {
-    const got = await load(c, c.req.valid('param').id);
+    const got = await load(c, c.req.valid('param').id, false); // deleting needs nothing opened (nor a key)
     if ('res' in got) return got.res as never;
     await c.env.DB.prepare('DELETE FROM tracker_entries WHERE id = ?').bind(got.row.id).run();
     await settlePhotos(c, got.row, undefined, got.row.photo_own ? got.row.photo_id : null);

@@ -7,7 +7,7 @@ All state is in the data directory (`/data` in the container, `./data` by defaul
 | File | Why it matters |
 |---|---|
 | `kinwall.sqlite` | Everything: settings, members, events, chores, lists, keys, calendar configs. |
-| `encryption.key` | Decrypts calendar credentials, webhook secrets, push keys and provider secrets. Only present if you didn't set `ENCRYPTION_KEY`. |
+| `encryption.key` | Decrypts calendar credentials, webhook secrets, push keys, provider secrets and health entries. Only present if you didn't set `ENCRYPTION_KEY`. |
 
 **Back up both, together.** A database without its key still works, but every stored credential is unreadable, so you'd have to reconnect every calendar account and recreate webhooks.
 

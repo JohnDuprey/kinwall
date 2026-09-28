@@ -18,7 +18,7 @@
 | Every synced calendar's name, color, members and default category | Per-device appearance (it lives in each browser) |
 | Per-event member, category and travel-time tags on synced events, and series-wide member and category tags on synced recurring events | |
 | Notes threads on local events and list items | Notes on synced events |
-| [Trackers](../using/trackers.md): books, memories and health visits (including health, so keep the file private) | Photos (download them separately from Photos) |
+| [Trackers](../using/trackers.md): books, memories and health visits. Health is encrypted on the server but **in plain form in this file** (it's your backup), so keep the file private | Photos (download them separately from Photos) |
 | [Meals](../using/meals.md): recipes (archived ones too), planned meals with their own ingredient copies, and which ingredients were already added to which shopping list | |
 | ICS feed URLs | |
 | Passkey and webhook *names/URLs*, for reference | |
@@ -40,6 +40,7 @@ The file contains ICS feed URLs, which can be secret. Treat it like a password.
 * **Google, Outlook and CalDAV calendars** come back as placeholders that keep their settings and tags. [Reconnect](../calendars/reconnecting-after-import.md) each one once.
 * **Members** from a file made before the **Grown-up** setting count as grown-ups when their birthday has a year making them 18 or older.
 * **Passkeys and webhooks** are skipped. Set them up again.
+* **Health entries** are encrypted again as they're saved. Without an `ENCRYPTION_KEY` on the server, an import with health entries is refused and nothing is changed.
 * Maximum file size: 10 MB.
 
 API: `POST /api/import` with the export JSON as the body.

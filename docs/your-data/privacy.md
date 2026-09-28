@@ -15,6 +15,19 @@ These are encrypted with `ENCRYPTION_KEY`, using the row ID as additional data s
 
 None of these is ever returned by the API. Error messages have secrets redacted.
 
+### Health entries
+
+[Health](../using/trackers.md#health-) entries are always encrypted at rest, on every host, with no setting to turn it off. Each entry's **title** and **fields** (type, time, provider, notes, height, weight, temperature, follow-up and its calendar event link) are encrypted with `ENCRYPTION_KEY`, bound to the entry and the column, and stored as `enc:v1:…`. The database, its backups and anyone reading them see only ciphertext. The app and the API show them to the people allowed to see them, exactly as before.
+
+What stays readable in the database, so the list can be filtered and sorted: the entry's ID, that it's a health entry, whose it is (the member, or a removed member's name), its date, and when it was created and changed.
+
+* Entries saved before encryption was added are encrypted after the update, when the server answers its first request. Nothing to do.
+* Without an `ENCRYPTION_KEY`, the server refuses to save health entries rather than store them in plain form. Docker and the Home Assistant add-on always have one (see [Configuration](../self-hosting/configuration.md)).
+* Health request and response bodies are never written to the server logs.
+* Webhooks get only that a health entry changed (its ID and kind), never what's in it.
+* The [export](export-import.md) is your own backup, so it holds health entries in plain form. Importing it encrypts them again.
+* Changing `ENCRYPTION_KEY` isn't supported yet: with a new key, existing health entries (like calendar logins) can't be read. Keep the key with your backups.
+
 ## Stored as one-way hashes (SHA-256)
 
 * API keys, passkey sessions and OAuth access/refresh tokens. Keys are shown once.
@@ -23,7 +36,7 @@ None of these is ever returned by the API. Error messages have secrets redacted.
 
 ## Stored in plain form
 
-Your family's content: member names, events, chores, lists, settings, [trackers](../using/trackers.md) (including health visits) and [photos](../using/photos.md) (stored in the database itself, never sent anywhere else). On Docker that's in `kinwall.sqlite`, and on Workers it's in D1. Protect the host or account accordingly.
+Your family's content: member names, events, chores, lists, settings, [trackers](../using/trackers.md) (reading and memories; health entries are encrypted, above) and [photos](../using/photos.md) (stored in the database itself, never sent anywhere else). On Docker that's in `kinwall.sqlite`, and on Workers it's in D1. Protect the host or account accordingly.
 
 ## Leaving your server
 

@@ -13,7 +13,7 @@ await kinwall.scheduled(now?, ctx?); // one cron tick: syncDue + runNotification
 * **Create one instance per database and keep it.** Migrations are applied lazily before the first `fetch`/`scheduled` and memoised (retried if they fail). Leave out `migrations` if you migrate yourself. `runMigrations(db, migrations)` is exported too.
 * **`fetch` serves the API only** (`/api/*`, `/mcp`, `/oauth/*`, `/.well-known/*`, `/plugins/*`, `/r/*`, `/docs`, `/openapi.json`). A host must route `/plugins/*` and `/r/*` (shared recipe pages and their photos) to it unchanged: both carry their own CSP, which the host mustn't replace. Everything else is a plain 404. Serving `web/dist` is the host's job.
 * **`ctx`** is anything with `waitUntil`, and it's optional. Without it, background work (webhooks) runs fire-and-forget with logged errors.
-* **`Env` is plain data** (`server/src/env.ts`). The app never reads `process.env`. `ENCRYPTION_KEY` is required for anything that stores secrets. See [Configuration](../self-hosting/configuration.md).
+* **`Env` is plain data** (`server/src/env.ts`). The app never reads `process.env`. `ENCRYPTION_KEY` is required for anything that stores secrets or health entries; `createKinwall` also encrypts any older plaintext health entries once per instance, before its first request. See [Configuration](../self-hosting/configuration.md).
 
 ## The database interface
 

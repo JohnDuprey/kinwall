@@ -15,7 +15,7 @@ import { toApi as choreToApi, type ChoreRow } from './chores.ts';
 import { toApi as listToApi, toItemApi, toGroupApi, groupSteps, type ListRow, type ListItemRow, type ListItemStepRow, type ListGroupRow } from './lists.ts';
 import { toApi as webhookToApi, type WebhookRow } from './webhooks.ts';
 import { toNoteApi, type NoteRow } from './notes.ts';
-import { toTrackerApi, type TrackerRow } from './trackers.ts';
+import { openRow, sealHealthEntries, sealRow, toTrackerApi, type TrackerRow } from './trackers.ts';
 import { toEntryApi, toPlacementApi, type PointEntryRow, type PlacementRow } from './stickers.ts';
 import { toRewardApi, toRedemptionApi, type RewardRow, type RedemptionRow } from './rewards.ts';
 import { parseMemberIds } from '../calendar-members.ts';
@@ -290,7 +290,7 @@ dataRoutes.openapi(
         scrapbook: (scrapbook as PlacementRow[]).map(toPlacementApi),
         rewards: (rewards as RewardRow[]).map(toRewardApi),
         rewardRedemptions: (redemptions as RedemptionRow[]).map(toRedemptionApi),
-        trackers: (trackers as TrackerRow[]).map(toTrackerApi),
+        trackers: (await Promise.all((trackers as TrackerRow[]).map((r) => openRow(c.env, r)))).map(toTrackerApi), // opened: the export is the family's own backup
         recipes: await readRecipes(db, { archived: true }),
         meals: await readMeals(db, '0000-01-01', '9999-12-31'),
         mealShoppingSources: (await db.prepare('SELECT list_id, source_ref, item_id, fingerprint FROM meal_shopping_sources ORDER BY list_id, source_ref').all<{ list_id: string; source_ref: string; item_id: string; fingerprint: string }>()).results.map((r) => ({ listId: r.list_id, sourceRef: r.source_ref, itemId: r.item_id, fingerprint: r.fingerprint })),
@@ -490,6 +490,8 @@ dataRoutes.openapi(
     // Files from before grown-ups: 18+ by a birthday with a year counts as one (as migration 0051).
     const today = new Date().toISOString().slice(0, 10);
     const grownUp = (m: (typeof body.members)[number]) => m.grownUp ?? isAdultBirthday(m.birthday, today);
+    // Health entries are sealed again before anything is written (no key: the import fails, nothing stored).
+    const sealedTrackers = await Promise.all(trackers.map((t) => sealRow(c.env, { id: t.id, kind: t.kind, member_id: t.memberId, former_member: t.formerMember, date: t.date, title: t.title, photo_id: t.photoId, photo_own: t.photoOwned ? 1 : 0, data: JSON.stringify(t.data), created_at: t.createdAt, updated_at: t.updatedAt })));
     const writes = [
       ...settingsWrites(db, settings.data),
       ...upserts(db, 'members', 'id', body.members.map((m, i) => ({ id: m.id, name: m.name, color: m.color, avatar: m.avatar, birthday: m.birthday, sort: m.sort, grown_up: grownUp(m) ? 1 : 0, needs_approval: m.needsApproval && !grownUp(m) ? 1 : 0, transitions: m.transitionReminders ? JSON.stringify(m.transitionReminders) : null, reward_goal: m.rewardGoalId, created_at: stamp(i) })), keepCreated),
@@ -712,7 +714,7 @@ dataRoutes.openapi(
         db,
         'tracker_entries',
         'id',
-        trackers.map((t) => ({ id: t.id, kind: t.kind, member_id: t.memberId, former_member: t.formerMember, date: t.date, title: t.title, photo_id: t.photoId, photo_own: t.photoOwned ? 1 : 0, data: JSON.stringify(t.data), created_at: t.createdAt, updated_at: t.updatedAt })),
+        sealedTrackers,
         // Photos travel in their own zip: a photo not on this instance is dropped, not an FK error.
         { keep: ['created_at', 'kind'], expr: { photo_id: "(SELECT id FROM photos WHERE id = j.value->>'photo_id')" } },
       ),
@@ -733,6 +735,8 @@ dataRoutes.openapi(
       ...upserts(db, 'item_names', 'name_key', body.itemNames.map((n) => ({ name_key: n.nameKey, title: n.title, uses: n.uses, last_used: n.lastUsed })), { where: 'excluded.last_used > item_names.last_used' }),
     ];
     if (writes.length) await db.batch(writes);
+    // An entry already here as health keeps its kind (kind is kept on conflict), so sweep up anything the file brought in as another kind.
+    if (trackers.length) await sealHealthEntries(c.env);
 
     const changed: [BusEventType, number][] = [
       ['settings.changed', Object.keys(settings.data).length],

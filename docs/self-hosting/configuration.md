@@ -9,7 +9,7 @@ Kinwall is configured with environment variables. On Docker and Node they're pro
 | `PUBLIC_URL` | — | The base URL, e.g. `https://cal.home.example`. Used for OAuth redirect URIs and as the passkey domain. It can also be set in **Settings → Calendars → Calendar providers**; the variable always wins. |
 | `WEBAUTHN_RP_ID` | host of `PUBLIC_URL` | Passkey rpID override, for multi-tenant hosts that serve families on subdomains (e.g. `example.com` for `smiths.example.com`). The instance's origin must be that host or one of its subdomains. |
 | `ADMIN_API_KEY` | — | A permanent admin key that also works as the first-run setup code. Without it, the setup code is printed to the log. |
-| `ENCRYPTION_KEY` | generated into `DATA_DIR/encryption.key` (Docker) | 32 random bytes, base64 (`openssl rand -base64 32`). Encrypts credentials and secrets. **Required on Workers.** |
+| `ENCRYPTION_KEY` | generated into `DATA_DIR/encryption.key` (Docker) | 32 random bytes, base64 (`openssl rand -base64 32`). Encrypts credentials, secrets and [health entries](../your-data/privacy.md#health-entries). **Required on Workers**: without it, saving a health entry fails instead of storing it unencrypted. Keep it with your backups: a lost key can't be recovered, and changing it isn't supported yet. |
 | `ENCRYPTION_KEY_FILE` | — | Docker/Node: read the key from this file instead (e.g. a Docker secret). |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | — | Google OAuth client. A client configured in the UI wins over these. |
 | `MS_CLIENT_ID`, `MS_CLIENT_SECRET` | — | Microsoft OAuth app. A UI-configured app wins over these. |

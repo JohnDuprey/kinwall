@@ -5,6 +5,7 @@ import type { Env, WaitCtx } from './env.ts';
 import { syncDue } from './sync.ts';
 import { runNotifications } from './notify.ts';
 import { runMigrations, type Migration } from './migrate.ts';
+import { sealHealthEntries } from './routes/trackers.ts';
 
 export type { KinwallDb, KinwallStatement } from './db.ts';
 export type { Env, WaitCtx } from './env.ts';
@@ -24,13 +25,28 @@ export function createKinwall(env: Env, opts: KinwallOptions = {}) {
 
   // Once per instance; a failure is retried on the next call instead of being cached.
   let migrated: Promise<void> | undefined;
-  function ready(): Promise<void> {
+  function migrate(): Promise<void> {
     if (!opts.migrations) return Promise.resolve();
     migrated ??= runMigrations(env.DB, opts.migrations).catch((err) => {
       migrated = undefined;
       throw err;
     });
     return migrated;
+  }
+  // Then, once per instance (process, isolate or Durable Object), seal health entries still in
+  // plaintext (routes/trackers.ts). A failure is logged and retried on the next call, never
+  // served as an error: those entries still read fine, and writes are sealed regardless.
+  let sealed: Promise<void> | undefined;
+  async function ready(): Promise<void> {
+    await migrate();
+    sealed ??= sealHealthEntries(env).then(
+      () => undefined,
+      (err) => {
+        sealed = undefined;
+        console.error('sealing health entries failed', err instanceof Error ? err.name : 'error');
+      },
+    );
+    await sealed;
   }
 
   return {
