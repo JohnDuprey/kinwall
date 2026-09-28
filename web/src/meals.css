@@ -220,3 +220,8 @@
 
 /* Cooking mode: the update banner waits until you leave (reloading mid-step would lose the recipe). */
 :root[data-cooking] .update-banner { display: none; }
+/* The meal sheet's recipe field opens the picker: a photo thumb and the name, a row per recipe there. */
+.recipe-pick-thumb { flex-shrink: 0; width: 40px; height: 40px; object-fit: cover; border-radius: 8px; background: var(--bg-alt); }
+.recipe-picker .field input[type="search"] { width: 100%; padding: 13px 14px; border-radius: var(--radius-sm); border: 2px solid var(--border); background: var(--bg-alt); color: var(--text); font-family: inherit; font-size: max(1rem, 16px); font-weight: 700; min-height: 52px; }
+.recipe-picker .sheet-link[aria-current] { border-color: var(--accent); }
+.recipe-picker { min-height: 50vh; } /* the sheet keeps its height while the list narrows */

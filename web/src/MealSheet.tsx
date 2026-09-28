@@ -1,17 +1,18 @@
-import { useId, useState } from 'react'
+import { useId, useState, type KeyboardEvent } from 'react'
 import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { useDialog } from './dialog.tsx'
 import Sheet from './Sheet.tsx'
 import { BookIcon, CalendarIcon, ChevronRight, TrashIcon } from './icons.tsx'
-import { IngredientList, SourceLink } from './RecipeSheet.tsx'
+import { SourceLink } from './RecipeSheet.tsx'
 import RecipePhoto from './RecipePhoto.tsx'
 import { clockTime } from './date.ts'
 import MealCalendarSheet from './MealCalendarSheet.tsx'
 import { MemberPicker } from './MemberPicker.tsx'
 import { inkFor } from './color.ts'
 import type { Member } from './types.ts'
-import { MEAL_SLOTS, SLOT_LABEL, mealDayLabel, recipeTime, servingsLabel, startBy } from './meal-date.ts'
+import { MEAL_SLOTS, SLOT_LABEL, mealDayLabel, minutesLabel, recipeTime, servingsLabel, startBy } from './meal-date.ts'
+import { pickerRecipes } from './recipe-search.ts'
 import type { Meal, MealInput, MealKind, MealSlot, MealStatus, Recipe } from './meal-types.ts'
 
 export type MealDraft = { date: string; slot: MealSlot; recipe?: Recipe }
@@ -42,6 +43,7 @@ export default function MealSheet({ meal, initial, recipes, admin, owner, onClos
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [calendarOpen, setCalendarOpen] = useState(false)
+  const [picking, setPicking] = useState(false)
   const [linkedMeal, setLinkedMeal] = useState(meal)
   const assigned = !!meal?.assigneeMemberId && owner === meal.assigneeMemberId
   const canUpdate = admin || assigned
@@ -53,6 +55,13 @@ export default function MealSheet({ meal, initial, recipes, admin, owner, onClos
   const timed = snapshot && 'totalMinutes' in snapshot ? snapshot : selectedRecipe
   const time = draft.mealKind === 'recipe' ? recipeTime(timed) : ''
   const start = startBy(draft.plannedTime, timed?.totalMinutes)
+  // A meal whose recipe was deleted keeps its saved copy; the picker offers it back.
+  const savedRecipe = meal?.mealKind === 'recipe' && meal.recipeSnapshot && !recipes.some(r => r.id === meal.recipeId) ? { id: meal.recipeId, name: meal.recipeSnapshot.name } : null
+  const recipeLabel = selectedRecipe?.name ?? (snapshot ? `${snapshot.name} (saved recipe)` : 'Choose a recipe')
+  const pick = (recipe: Recipe | null) => {
+    setDraft(d => recipe ? { ...d, recipeId: recipe.id, title: recipe.name, servings: recipe.defaultServings } : { ...d, recipeId: meal!.recipeId, title: meal!.recipeSnapshot!.name, servings: meal!.servings })
+    setRefreshRecipe(false); setPicking(false)
+  }
   const update = <K extends keyof MealInput>(key: K, value: MealInput[K]) => setDraft(d => ({ ...d, [key]: value }))
   const save = async () => {
     if (!canUpdate) return
@@ -86,10 +95,11 @@ export default function MealSheet({ meal, initial, recipes, admin, owner, onClos
           <div className="field"><label htmlFor={`${formId}-slot`}>Meal slot</label><select id={`${formId}-slot`} value={draft.slot} onChange={e => update('slot', e.target.value as MealSlot)}>{MEAL_SLOTS.map(slot => <option key={slot} value={slot}>{SLOT_LABEL[slot]}</option>)}</select></div>
         </div>
         <div className="field"><label htmlFor={`${formId}-kind`}>Meal type</label><select id={`${formId}-kind`} value={draft.mealKind} onChange={e => update('mealKind', e.target.value as MealKind)}><option value="recipe">Recipe</option><option value="freeform">Free-form meal</option><option value="dining_out">Dining out</option></select></div>
-        {draft.mealKind === 'recipe' && <div className="field"><label htmlFor={`${formId}-recipe`}>Recipe</label><select id={`${formId}-recipe`} required={!snapshot} value={draft.recipeId ?? ''} onChange={e => {
-          const recipe = recipes.find(r => r.id === e.target.value)
-          setDraft(d => ({ ...d, recipeId: recipe?.id ?? null, title: recipe?.name ?? d.title, servings: recipe?.defaultServings ?? d.servings })); setRefreshRecipe(false)
-        }}><option value="">Choose a recipe</option>{!selectedRecipe && meal?.recipeSnapshot && draft.recipeId && <option value={draft.recipeId}>{meal.recipeSnapshot.name} (saved recipe)</option>}{recipes.filter(r => !r.archived || r.id === draft.recipeId).map(r => <option key={r.id} value={r.id}>{r.name}{r.rating?.average != null ? ` · ★ ${r.rating.average}` : ''}{r.archived ? ' (archived)' : ''}</option>)}</select>
+        {draft.mealKind === 'recipe' && <div className="field"><label htmlFor={`${formId}-recipe`}>Recipe</label>
+          <button id={`${formId}-recipe`} type="button" className="sheet-link" aria-haspopup="dialog" aria-label={`Recipe: ${recipeLabel}`} onClick={() => setPicking(true)}>
+            {selectedRecipe?.imageUrl && <RecipePhoto id={selectedRecipe.id} className="recipe-pick-thumb" />}
+            <span>{recipeLabel}</span><ChevronRight />
+          </button>
           {!recipes.some(r => !r.archived) && !snapshot && <p className="field-hint">Create a recipe in the Recipe library first.</p>}
         </div>}
         <div className="field"><label htmlFor={`${formId}-title`}>{draft.mealKind === 'dining_out' ? 'Place or meal name' : 'Meal name'}</label><input id={`${formId}-title`} type="text" required maxLength={200} placeholder={draft.mealKind === 'dining_out' ? 'Eating out, school cafeteria…' : 'What are we eating?'} value={draft.title} onChange={e => update('title', e.target.value)} /></div>
@@ -108,12 +118,9 @@ export default function MealSheet({ meal, initial, recipes, admin, owner, onClos
         <p>{draft.mealKind === 'dining_out' ? 'Dining out · ' : ''}{servingsLabel(draft.servings)} · Cooking: {members.find(m => m.id === draft.assigneeMemberId)?.name ?? 'nobody yet'}</p>
         {draft.eaterIds.length > 0 && <p className="meal-eaters-row">Eating <EaterAvatars ids={draft.eaterIds} members={members} /></p>}
       </>}
-      {snapshot && <section aria-label="Scaled ingredients">
-        {selectedRecipe?.imageUrl && <RecipePhoto id={selectedRecipe.id} className="meal-sheet-photo" />}
+      {snapshot && (time || meal?.recipeSnapshot) && <section aria-label="Recipe">
         {time && <p className="recipe-time">⏱ {time}{start ? ` · Start by ${clockTime(start)}` : ''}</p>}
-        <h3>Ingredients for {servingsLabel(draft.servings)}</h3>
-        <IngredientList recipe={snapshot} servings={draft.servings} />
-        {meal?.recipeSnapshot && <p className="field-hint">Saved with this meal. Recipe edits do not change these ingredients.</p>}
+        {meal?.recipeSnapshot && <p className="field-hint">The recipe is saved with this meal, so later recipe edits don’t change it.</p>}
         {admin && meal?.recipeSnapshot && selectedRecipe && !selectedRecipe.archived && draft.recipeId === meal.recipeId && <label className="meal-check"><input type="checkbox" checked={refreshRecipe} disabled={busy} onChange={e => setRefreshRecipe(e.target.checked)} /> Refresh from the current recipe when saving</label>}
       </section>}
       {draft.mealKind !== 'recipe' && <p className="field-hint">{draft.mealKind === 'dining_out' ? 'Dining out' : 'Free-form meals'} do not add ingredients to the shopping projection.</p>}
@@ -130,6 +137,37 @@ export default function MealSheet({ meal, initial, recipes, admin, owner, onClos
       {admin && !meal && <p className="field-hint">Save this meal to put it on a calendar.</p>}
       {error && <p className="field-error" role="alert">{error}</p>}
     </form>
+    {picking && <RecipePicker recipes={recipes} currentId={draft.recipeId} saved={savedRecipe} onPick={pick} onClose={() => setPicking(false)} />}
     {calendarOpen && linkedMeal && <MealCalendarSheet meal={linkedMeal} onClose={() => setCalendarOpen(false)} onLinked={setLinkedMeal} />}
+  </Sheet>
+}
+
+/** Choosing a meal's recipe: search by name or ingredient, arrows move through the list, Enter picks. */
+function RecipePicker({ recipes, currentId, saved, onPick, onClose }: {
+  recipes: Recipe[]; currentId: string | null; saved: { id: string | null; name: string } | null
+  onPick: (recipe: Recipe | null) => void; onClose: () => void
+}) {
+  const [query, setQuery] = useState('')
+  const shown = pickerRecipes(recipes, query, currentId)
+  const onKey = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
+    const items = [...e.currentTarget.querySelectorAll<HTMLElement>('input, .sheet-link')]
+    const next = items[items.indexOf(document.activeElement as HTMLElement) + (e.key === 'ArrowDown' ? 1 : -1)]
+    if (next) { e.preventDefault(); next.focus() }
+  }
+  return <Sheet title="Choose a recipe" onClose={onClose}>
+    <div className="recipe-picker" onKeyDown={onKey}>
+      <div className="field"><label htmlFor="recipe-picker-search">Find a recipe</label>
+        <input id="recipe-picker-search" type="search" data-autofocus placeholder="Recipe name or ingredient" value={query} onChange={e => setQuery(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && shown[0]) { e.preventDefault(); onPick(shown[0]) } }} /></div>
+      <div className="sheet-links">
+        {saved && !query.trim() && <button type="button" className="sheet-link" aria-current={currentId === saved.id || undefined} onClick={() => onPick(null)}><BookIcon /><span>{saved.name} (saved recipe)<small>Kept with this meal</small></span></button>}
+        {shown.map(r => <button key={r.id} type="button" className="sheet-link" aria-current={r.id === currentId || undefined} onClick={() => onPick(r)}>
+          {r.imageUrl ? <RecipePhoto id={r.id} className="recipe-pick-thumb" /> : <BookIcon />}
+          <span>{r.name}{r.archived ? ' (archived)' : ''}{(!!r.totalMinutes || r.rating?.average != null) && <small>{[r.totalMinutes ? minutesLabel(r.totalMinutes) : '', r.rating?.average != null ? `★ ${r.rating.average}` : ''].filter(Boolean).join(' · ')}</small>}</span>
+        </button>)}
+      </div>
+      {!shown.length && <p className="state-card">No recipes match</p>}
+    </div>
   </Sheet>
 }

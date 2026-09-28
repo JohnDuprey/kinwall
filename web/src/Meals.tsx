@@ -10,6 +10,7 @@ import RecipeSheet, { Stars } from './RecipeSheet.tsx'
 import RecipeImportSheet from './RecipeImportSheet.tsx'
 import RecipePhoto from './RecipePhoto.tsx'
 import MealProjection from './MealProjection.tsx'
+import { recipeMatches } from './recipe-search.ts'
 import type { Meal, Recipe } from './meal-types.ts'
 import type { Me } from './types.ts'
 import './meals.css'
@@ -79,8 +80,7 @@ export default function Meals() {
   const bySlot = new Map<string, Meal[]>()
   for (const meal of (meals ?? []).filter(meal => mealForMember(meal, selectedMemberId))) { const key = `${meal.date}:${meal.slot}`; bySlot.set(key, [...(bySlot.get(key) ?? []), meal]) }
   const categories = [...new Set(recipes.flatMap(recipe => recipe.ingredients.map(i => i.category).filter((c): c is string => !!c)))].sort()
-  const needle = search.trim().toLocaleLowerCase()
-  const shownRecipes = recipes.filter(recipe => (filter === 'all' || recipe.archived === (filter === 'archived')) && (!category || recipe.ingredients.some(i => i.category === category)) && `${recipe.name} ${recipe.description ?? ''} ${recipe.ingredients.map(i => i.name).join(' ')}`.toLocaleLowerCase().includes(needle))
+  const shownRecipes = recipes.filter(recipe => (filter === 'all' || recipe.archived === (filter === 'archived')) && (!category || recipe.ingredients.some(i => i.category === category)) && recipeMatches(recipe, search))
   // Top rated: best family average first, then most ratings; unrated keep name order at the end.
   if (sort === 'rating') shownRecipes.sort((a, b) => (b.rating?.average ?? 0) - (a.rating?.average ?? 0) || (b.rating?.count ?? 0) - (a.rating?.count ?? 0))
   return <div className="meals-view scroll-y">
