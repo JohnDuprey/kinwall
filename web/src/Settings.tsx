@@ -402,8 +402,12 @@ function AppearanceSection({ settings, onSaved, toast }: { settings: Settings; o
         For the whole family.{overridden.length > 0 && <> This device overrides its {overridden.join(', ')}. See Appearance on this device, below.</>}
       </p>
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-        <div className="settings-row-label" aria-hidden="true">Mode</div>
-        <Segmented label="Mode" value={settings.themeMode} onChange={v => save({ themeMode: v })} options={THEME_MODES} />
+        <div className="device-pref-row">
+          <span>Mode</span>
+          <select className="settings-select" aria-label="Mode" value={settings.themeMode} onChange={e => save({ themeMode: e.target.value as ThemeMode })}>
+            {THEME_MODES.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+          </select>
+        </div>
         {settings.themeMode === 'scheduled' && (
           <div className="row-2" style={{ marginTop: 4 }}>
             <div className="field" style={{ margin: 0 }}><label>Dark from</label><input type="time" value={settings.darkFrom} onChange={e => save({ darkFrom: e.target.value })} /></div>
@@ -421,14 +425,19 @@ function AppearanceSection({ settings, onSaved, toast }: { settings: Settings; o
         resetLabel="Reset to Peach"
         onReset={() => save({ colorScheme: 'meadow', customColors: null, accent: DEFAULT_ACCENT, backgroundLight: 'warm', backgroundDark: 'cocoa' })}
       />
-      <div className="settings-row">
-        <div className="settings-row-label" aria-hidden="true">Text size</div>
-        <Segmented label="Text size" value={settings.textScale} onChange={v => save({ textScale: v })}
-          options={TEXT_SCALES.map(o => ({ key: o.key, label: <span aria-label={TEXT_SCALE_NAMES[o.key]}>{o.label}</span> }))} />
-      </div>
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-        <div className="settings-row-label" aria-hidden="true">Density</div>
-        <Segmented label="Density" value={settings.density} onChange={v => save({ density: v })} options={DENSITIES} />
+        <div className="device-pref-row">
+          <span>Text size</span>
+          <select className="settings-select" aria-label="Text size" value={settings.textScale} onChange={e => save({ textScale: e.target.value as TextScale })}>
+            {TEXT_SCALES.map(o => <option key={o.key} value={o.key}>{TEXT_SCALE_NAMES[o.key]}</option>)}
+          </select>
+        </div>
+        <div className="device-pref-row">
+          <span>Density</span>
+          <select className="settings-select" aria-label="Density" value={settings.density} onChange={e => save({ density: e.target.value as Density })}>
+            {DENSITIES.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+          </select>
+        </div>
         <div className="settings-row-sub">Compact tightens spacing and fits more on screen, handy for a smaller display. Icon-first is set per device, under Appearance on this device.</div>
       </div>
     </Section>
