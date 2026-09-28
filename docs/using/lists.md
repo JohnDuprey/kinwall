@@ -10,6 +10,15 @@ Don't use lists? An admin can turn off **Lists** in **Settings → General** (ta
 
 The Lists tab shows your lists and their open-item counts. On the wall display, the open list sits next to them. On a phone, you tap into one. **New list** or **+** creates a list. Press and hold a list card to edit it.
 
+## Organizing lists
+
+The Lists tab groups your lists by kind under **Shopping**, **To-dos** and **Reusable**, in that order, each with how many lists it has. A kind with no lists doesn't show. On the wall display and tablets the same sections fill the column beside the open list.
+
+* **Fold a section**: tap its heading. This device remembers which sections are folded; other screens keep their own.
+* **Reorder**: tap **Reorder** under the lists (it shows once a section has two or more). Drag a list by its grip, or tap the up and down arrows to move it one place. Holding a dragged list near the top or bottom edge scrolls. Tap **Done** when you're finished.
+* The order is the family's: every phone, the wall and the assistant see it, and anywhere else lists appear (the grocery list picker in Meals, the task picker on an event, a chore's checklist picker) follows it. A list moves within its own section; changing its kind moves it to that section.
+* New lists go to the end of their section. A restored list comes back where it was.
+
 ## Kinds
 
 | Kind | For | Extras |
@@ -210,6 +219,7 @@ Devices with **List updates** on get "List updated — *Groceries* has new items
 ## API and MCP
 
 * `GET/POST /api/lists`, `GET/PATCH/DELETE /api/lists/{id}` (lists carry `sortBy`: `manual`, `added`, `due`, `priority`, `alpha` or `aisle`; `groupBy`: `store`, `category`, `aisle` or `none`, where a shopping list reads `category` as `aisle`; and `keepChecked`, which defaults by kind), `POST /api/lists/{id}/items` (one item or an array; `priority` and `steps: string[]` are optional; an optional client-made UUID `id` makes a retried add safe: an id already on that list returns the existing item, one used on another list is a `409`), `PATCH/DELETE /api/lists/{id}/items/{itemId}`, `POST /api/lists/{id}/clear-completed`, `POST /api/lists/{id}/reset`, `POST /api/lists/{id}/reorder`, `PUT /api/lists/{id}/groups`, `GET /api/events/{id}/items`.
+* `PUT /api/lists/order` `{ids}` sets the family's list order (`sort` is the position). Lists left out, archived ones included, keep their order after the given ones; an unknown or repeated id is a `400`. `GET /api/lists` returns lists in this order. New lists go last.
 * Shopping: items carry `aisle`. On a shopping list, `POST …/items` fills an omitted `store`, `category` or `aisle` from what's remembered for the name (an explicit value or `null` wins), and saving an item remembers it. `GET /api/lists/{id}` returns `suggestions` (`stores`, `categories`, `aisles: [{store, aisle}]`, and on a shopping list `items: [{title, key, uses, category?, place?: {store, aisle}}]`, up to 300 names to autocomplete, most used first, then recipe ingredients with `uses` 0; `place` is at `?store=` when given, else the newest store), `DELETE /api/lists/remembered/{key}` forgets one, `aisleOrder: [{store, aisles}]`, and on each shopping item `places: [{store, aisle}]` (where it's been kept, newest first) and `meals` (the planned meals it was added for). `?store=<name>` adds `trip`: the list as shopped there, `items: [{id, title, quantity, done, store, aisle, section}]` with `section` `aisle`, `unknown` or `other`. An item with no aisle known there whose `category` (department) matches one of the store's aisles, ignoring case, gets that aisle in `trip` only; nothing is saved.
 * `clear-completed` and `reset` take an optional body `{itemIds, store}`: only those items (if still ticked), and for Checkout the store they were bought at. `PATCH` an item with `{aisle, aisleStore}` to set its aisle at a store it isn't planned for (a trip).
 * `POST /api/lists/values` `{field: "store" | "category" | "aisle", from, to, store?}` renames (`to`) or removes (`to: null`) a value everywhere; an aisle needs its `store`. `PUT /api/lists/aisles` `{store, aisles}` sets a store's aisle order (`[]` clears it).

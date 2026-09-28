@@ -5,6 +5,7 @@ import type { OnlineTidbits, Plugin, PluginCatalogEntry,
 } from './types.ts'
 import { aisleOrderMap, compareItems } from './types.ts'
 import { itemKey } from './itemSuggest.ts'
+import { byListOrder, reorderWithin } from './listSections.ts'
 import { dateKey } from './date.ts'
 
 const uid = () => crypto.randomUUID()
@@ -624,13 +625,17 @@ export const mock = {
   createKey: async (name: string) => ({ id: uid(), name, key: 'kw_' + uid().replace(/-/g, '').slice(0, 24) }),
   deleteKey: async (_id: string) => {},
 
-  getLists: async (archived?: boolean) => lists.filter(l => archived ? true : !l.archived).sort((a, b) => a.sort - b.sort),
+  getLists: async (archived?: boolean) => lists.filter(l => archived ? true : !l.archived).sort(byListOrder),
+  reorderLists: async (ids: string[]) => {
+    reorderWithin(lists, ids).forEach((id, i) => { lists.find(l => l.id === id)!.sort = i })
+    bump(); return { ok: true }
+  },
   createList: async (body: Partial<List>): Promise<List> => {
     const nl: List = {
       id: uid(), name: body.name ?? 'New list', emoji: body.emoji ?? '📝', color: body.color ?? '#FF9E7A',
       kind: body.kind ?? 'todo', memberIds: body.memberIds ?? [], groupBy: body.groupBy ?? (body.kind === 'shopping' ? 'aisle' : 'none'), sortBy: body.sortBy ?? (body.kind === 'shopping' ? 'aisle' : 'manual'),
       keepChecked: body.keepChecked ?? body.kind !== 'todo',
-      sort: lists.length, archived: false, createdAt: new Date().toISOString(), itemCount: 0, openCount: 0,
+      sort: Math.max(-1, ...lists.map(l => l.sort)) + 1, archived: false, createdAt: new Date().toISOString(), itemCount: 0, openCount: 0,
     }
     lists.push(nl); bump(); return nl
   },
