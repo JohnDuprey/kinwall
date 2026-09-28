@@ -25,7 +25,7 @@ import { announce } from './a11y.tsx'
 import { DialogProvider } from './dialog.tsx'
 import NotificationBell from './Notifications.tsx'
 import { InstallNudge } from './Install.tsx'
-import { inNativeApp } from './native.ts'
+import { inNativeApp, tellAppLeaveDemo } from './native.ts'
 import { HelpButton } from './Help.tsx'
 import Slideshow, { SAVER_PREVIEW_EVENT } from './Screensaver.tsx'
 import SnapshotSheet from './Snapshot.tsx'
@@ -1073,7 +1073,8 @@ function AppRoutes() {
         {toastMsg && (toastMsg.persist
           ? <button className="toast" onClick={() => setToastMsg(null)} aria-label={`${toastMsg.msg} (dismiss)`}>{toastMsg.msg} <span aria-hidden="true">✕</span></button>
           : <div className="toast">{toastMsg.msg}</div>)}
-        {MOCK && !sessionStorage.getItem('kinwall.demoClean') && <div className="demo-bar" role="status">Demo — nothing is saved. Reload for a fresh copy.</div>}
+        {MOCK && inNativeApp() && <div className="demo-bar" role="status">Demo — nothing is saved.<button type="button" className="demo-bar-leave" onClick={tellAppLeaveDemo}>Leave demo</button></div>}
+        {MOCK && !inNativeApp() && !sessionStorage.getItem('kinwall.demoClean') && <div className="demo-bar" role="status">Demo — nothing is saved. Reload for a fresh copy.</div>}
         {bannerMsg && <button className="toast update-banner" onClick={() => setBannerMsg(null)}>{bannerMsg}</button>}
         {updateAvailable && <button className="toast update-banner" onClick={() => location.reload()}>Kinwall updated — tap to reload</button>}
         {isPhone && <InstallNudge />}

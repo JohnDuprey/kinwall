@@ -29,3 +29,9 @@ export function tellAppKeepAwake(on: boolean) {
   const w = window as Window & { webkit?: { messageHandlers?: { kinwall?: { postMessage: (m: unknown) => void } } } }
   try { w.webkit?.messageHandlers?.kinwall?.postMessage({ type: 'keepAwake', on }) } catch { /* not in the app */ }
 }
+
+/** The demo inside the app: "Leave demo" in the demo bar asks the app to go back to its first screen. */
+export function tellAppLeaveDemo() {
+  const w = window as Window & { webkit?: { messageHandlers?: { kinwall?: { postMessage: (m: unknown) => void } } } }
+  try { w.webkit?.messageHandlers?.kinwall?.postMessage({ type: 'leaveDemo' }) } catch { /* not in the app */ }
+}
