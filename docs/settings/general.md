@@ -43,12 +43,13 @@ API: `tidbits` `{ sources, factCategories, tipCategories, onThisDay, birthsAfter
 
 ### Features
 
-*Admin only.* The card shows how many are on ("All 10 on", or "8 of 10 on" with the ones that are off); tap **Change** under **Features** for the switches. Turn off what your family doesn't use. It's hidden on every screen and phone; nothing is deleted, and turning it back on brings everything back as it was. Every feature is on by default.
+*Admin only.* The card shows how many are on ("All 11 on", or "8 of 11 on" with the ones that are off); tap **Change** under **Features** for the switches. Turn off what your family doesn't use. It's hidden on every screen and phone; nothing is deleted, and turning it back on brings everything back as it was. Every feature is on by default.
 
 | Switch | When it's off |
 |---|---|
 | **Chores & points** | No **Chores** tab, no chores card on the Board, no chores or points in a member's day and the family sheet, no **Chores** card under Settings → Family, no **Chore reminder** notification setting, and no **Rewards** or **Sticker book** (they spend chore points). The daily summary leaves chores out and the chore reminder isn't sent. The leaderboard and sticker shop keep their own switches under **Settings → Family → Chores**. |
 | **Lists** | No **Lists** tab, no **Due soon** card on the Board, no to-dos in a member's day or week, no **Tasks** in an event's detail sheet, and no **List updates** notification setting. "List updated" notifications stop, and the daily summary leaves list items out. |
+| **Contacts** | No **Contacts** tab. Contacts stay saved, and the contacts API keeps answering. |
 | **Paint** | No **Paint** in Activities. |
 | **Photos** | No **Photos** in Activities and no picture card on the Board. A display whose night screen shows **Family photos** shows nature pictures instead. |
 | **Notes** | No notes on events and no **Discussion** on list items, and no note counts (💬) on events or list items. A list item's own **Notes** field still shows. |
@@ -63,7 +64,7 @@ When every activity is off (Paint, Photos, and the Sticker book, which is off wh
 
 Apart from sending messages, the API keeps answering for features that are off (like the leaderboard switch), so nothing is lost and integrations keep working.
 
-API: `features` `{ chores, lists, paint, photos, notes, messages, trackersReading, trackersMemories, trackersHealth, meals }` (all booleans) in `GET` / `PATCH /api/settings`. Medication reminders are `medications` and `medicationNamesOnWalls` in the same settings; `medications` reads `false` while `trackersHealth` is off, and a connected app gets 403 changing either. A `PATCH` sends the whole object (older clients may leave out the tracker and meals switches; they then read as on). Display keys can't change it (403).
+API: `features` `{ chores, lists, contacts, paint, photos, notes, messages, trackersReading, trackersMemories, trackersHealth, meals }` (all booleans) in `GET` / `PATCH /api/settings`. Medication reminders are `medications` and `medicationNamesOnWalls` in the same settings; `medications` reads `false` while `trackersHealth` is off, and a connected app gets 403 changing either. A `PATCH` sends the whole object (older clients may leave out contacts, tracker and meals switches; they then read as on). Display keys can't change it (403).
 
 ### Appearance
 
