@@ -3,10 +3,11 @@ import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { Segmented } from './a11y.tsx'
 import { clockTime, todayKeyInTz } from './date.ts'
-import { ChevronLeft, ChevronRight, ListIcon, PlusIcon } from './icons.tsx'
+import { ChevronLeft, ChevronRight, LinkIcon, ListIcon, PlusIcon } from './icons.tsx'
 import { MEAL_SLOTS, SLOT_LABEL, mealDayLabel, mealForMember, mealWeek, minutesLabel, moveMealDate, servingsLabel } from './meal-date.ts'
 import MealSheet, { EaterAvatars, type MealDraft } from './MealSheet.tsx'
 import RecipeSheet from './RecipeSheet.tsx'
+import RecipeImportSheet from './RecipeImportSheet.tsx'
 import RecipePhoto from './RecipePhoto.tsx'
 import MealProjection from './MealProjection.tsx'
 import type { Meal, Recipe } from './meal-types.ts'
@@ -33,13 +34,16 @@ export default function Meals() {
   const [editing, setEditing] = useState<{ meal: Meal | null; initial: MealDraft } | null>(null)
   const [recipeSheet, setRecipeSheet] = useState<{ recipe: Recipe | null; readOnly?: boolean } | null>(null)
   const [projection, setProjection] = useState(false)
+  const [importing, setImporting] = useState<{ url: string } | null>(null)
   const [tick, setTick] = useState(0)
   const [pendingMeal, setPendingMeal] = useState<string | null>(null)
   const admin = me?.scope === 'admin'
   useEffect(() => {
     const read = () => {
-      if (!location.hash.startsWith('#/meals')) return
       const query = new URLSearchParams(location.hash.split('?')[1] ?? '')
+      // A link shared from another app: #/recipes/import?url=…
+      if (location.hash.startsWith('#/recipes/import')) { setView('recipes'); setImporting({ url: query.get('url') ?? '' }); history.replaceState(null, '', '#/meals'); return }
+      if (!location.hash.startsWith('#/meals')) return
       const date = query.get('date')
       if (date && /^\d{4}-\d{2}-\d{2}$/.test(date) && !Number.isNaN(Date.parse(date))) setAnchor(date)
       if (query.get('meal')) { setPendingMeal(query.get('meal')); setView('week') }
@@ -75,7 +79,7 @@ export default function Meals() {
   const shownRecipes = recipes.filter(recipe => (filter === 'all' || recipe.archived === (filter === 'archived')) && (!category || recipe.ingredients.some(i => i.category === category)) && `${recipe.name} ${recipe.description ?? ''} ${recipe.ingredients.map(i => i.name).join(' ')}`.toLocaleLowerCase().includes(needle))
   return <div className="meals-view scroll-y">
     <div className="meals-heading"><div><h1>Meals</h1><p className="field-hint">What are we eating, and what do we need to buy?</p></div>
-      <div className="meal-actions">{admin && <button className="btn btn-secondary" onClick={() => setProjection(true)}><ListIcon /> Groceries</button>}{admin && <button className="btn btn-primary" onClick={() => view === 'week' ? setEditing({ meal: null, initial: { date: today, slot: 'dinner' } }) : setRecipeSheet({ recipe: null })}><PlusIcon /> {view === 'week' ? 'Plan meal' : 'New recipe'}</button>}</div>
+      <div className="meal-actions">{admin && <button className="btn btn-secondary" onClick={() => setProjection(true)}><ListIcon /> Groceries</button>}{admin && view === 'recipes' && <button className="btn btn-secondary" onClick={() => setImporting({ url: '' })}><LinkIcon /> Import from a link</button>}{admin && <button className="btn btn-primary" onClick={() => view === 'week' ? setEditing({ meal: null, initial: { date: today, slot: 'dinner' } }) : setRecipeSheet({ recipe: null })}><PlusIcon /> {view === 'week' ? 'Plan meal' : 'New recipe'}</button>}</div>
     </div>
     <Segmented tabs idBase="meals-tab" label="Meals sections" value={view} onChange={setView} options={[{ key: 'week', label: 'Week planner' }, { key: 'recipes', label: 'Recipe library' }]} />
     {authError && <p role="alert" className="field-error">{authError} <button className="link-btn" onClick={() => setTick(t => t + 1)}>Retry</button></p>}
@@ -123,6 +127,7 @@ export default function Meals() {
     </section>}
     {activeEditing && <MealSheet meal={activeEditing.meal} initial={activeEditing.initial} recipes={recipes} admin={admin} owner={me?.owner} onClose={() => { setEditing(null); setPendingMeal(null) }} onSaved={saved} onRecipe={recipe => setRecipeSheet({ recipe, readOnly: true })} />}
     {recipeSheet && <RecipeSheet recipe={recipeSheet.recipe} admin={admin && !recipeSheet.readOnly} onClose={() => setRecipeSheet(null)} onSaved={saved} onPlan={recipeSheet.readOnly ? undefined : recipe => { setRecipeSheet(null); setEditing({ meal: null, initial: { date: today, slot: 'dinner', recipe } }) }} />}
+    {importing && me && <RecipeImportSheet url={importing.url} admin={admin} onClose={() => setImporting(null)} onSaved={recipe => { setImporting(null); setTick(t => t + 1); setRecipeSheet({ recipe }) }} />}
     {projection && <MealProjection from={from} to={to} admin={admin} onClose={() => setProjection(false)} />}
   </div>
 }

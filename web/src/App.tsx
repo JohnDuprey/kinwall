@@ -877,7 +877,8 @@ function AppRoutes() {
   const [bannerMsg, setBannerMsg] = useState<string | null>(null)
   const [loadError, setLoadError] = useState(false)
   const tab = useHashTab()
-  const [section, sub, ...more] = tab.split('/') // #/activities/paint -> nav item 'activities', sub-page 'paint'
+  const [route, sub, ...more] = tab.split('/') // #/activities/paint -> nav item 'activities', sub-page 'paint'
+  const section = route === 'recipes' ? 'meals' : route // #/recipes/import?url=… (a shared link) opens in Meals
   const rest = more.join('/') // #/activities/plugin/sight-words -> 'sight-words'
   const { mode: navMode } = useNavMode()
   const isPhone = useIsPhone()

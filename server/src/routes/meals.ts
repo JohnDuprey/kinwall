@@ -6,13 +6,14 @@ import { emit } from '../bus.ts';
 import { hostTimezone } from '../env.ts';
 import { zonedTimeToUtc } from '../recurrence.ts';
 import { ErrorSchema } from '../schemas.ts';
-import { IngredientInputSchema, KIT_QUALIFIER, MealEventStartSchema, MealInputSchema, MealPatchSchema, MealRangeSchema, MealSchema, ProjectionApplySchema, ProjectionQuerySchema, ProjectionSchema, RecipeImportResultSchema, RecipeImportSchema, RecipeInputSchema, RecipeSchema, type Meal, type Recipe } from '../meal-schemas.ts';
+import { IngredientInputSchema, KIT_QUALIFIER, MealEventStartSchema, MealInputSchema, MealPatchSchema, MealRangeSchema, MealSchema, ProjectionApplySchema, ProjectionQuerySchema, ProjectionSchema, RecipeImportResultSchema, RecipeImportSchema, RecipeInputSchema, RecipePreviewResultSchema, RecipeSchema, RecipeTextParseSchema, RecipeUrlImportSchema, type Meal, type Recipe } from '../meal-schemas.ts';
 import { applyProjection, mealWrite, normalizeIngredient, normalizeSteps, parseIngredientLine, readMeal, readMeals, readRecipes, shoppingProjection, stepsText } from '../meals.ts';
 import type { KinwallDb } from '../db.ts';
 import type { Env } from '../env.ts';
 import { createEvent, deleteEvent, updateEvent } from './events.ts';
 import { readSettings } from './settings.ts';
-import { fetchRecipeImage, fetchRecipePdf } from '../outbound.ts';
+import { fetchRecipeImage, fetchRecipePage, fetchRecipePdf } from '../outbound.ts';
+import { parseRecipeHtml, parseRecipeText, previewWarnings } from '../recipe-web.ts';
 
 export const mealsRoutes = createRouter();
 const params = z.object({ id: z.string() });
@@ -64,8 +65,8 @@ mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/recipes', tags: ['
   const recipe = await saveRecipe(c.env.DB, c.req.valid('json'), undefined, (await resolveKey(c))?.id ?? null);
   emit(c, 'recipe.changed', { id: recipe.id }); return c.json(recipe, 201);
 });
-mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/recipes/import', tags: ['Meals'], summary: 'Import a recipe from another app (e.g. a meal kit), updating it when imported again, and optionally plan it and put it on a calendar (admin)', security: [{ Bearer: [] }], request: { body: body(RecipeImportSchema) }, responses: { 200: { description: 'imported', content: { 'application/json': { schema: RecipeImportResultSchema } } }, ...errors } }), async (c) => {
-  const input = c.req.valid('json');
+/** Save an imported recipe, updating the one with the same source + externalId. */
+async function upsertImport(c: Ctx, input: Omit<z.infer<typeof RecipeImportSchema>, 'plan'>): Promise<{ recipe: Recipe; created: boolean }> {
   const db = c.env.DB;
   const found = await db.prepare('SELECT id FROM recipes WHERE source = ? AND external_id = ?').bind(input.source, input.externalId).first<{ id: string }>();
   const old = found ? (await readRecipes(db, { id: found.id, archived: true }))[0] : undefined;
@@ -85,7 +86,13 @@ mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/recipes/import', t
   // ponytail: two simultaneous first imports of one recipe race here; the unique index turns the loser into an error.
   await db.prepare('UPDATE recipes SET source = ?, external_id = ?, image_url = coalesce(?, image_url) WHERE id = ?').bind(input.source, input.externalId, input.imageUrl ?? null, recipe.id).run();
   emit(c, 'recipe.changed', { id: recipe.id });
-  const result: z.infer<typeof RecipeImportResultSchema> = { recipeId: recipe.id, created: !old, planned: false };
+  return { recipe, created: !old };
+}
+mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/recipes/import', tags: ['Meals'], summary: 'Import a recipe from another app (e.g. a meal kit), updating it when imported again, and optionally plan it and put it on a calendar (admin)', security: [{ Bearer: [] }], request: { body: body(RecipeImportSchema) }, responses: { 200: { description: 'imported', content: { 'application/json': { schema: RecipeImportResultSchema } } }, ...errors } }), async (c) => {
+  const input = c.req.valid('json');
+  const db = c.env.DB;
+  const { recipe, created } = await upsertImport(c, input);
+  const result: z.infer<typeof RecipeImportResultSchema> = { recipeId: recipe.id, created, planned: false };
   if (!input.plan) return c.json(result, 200);
   const { date, slot } = input.plan;
   // Importing again (a re-run automation) finds the meal it planned before, even if moved within the week.
@@ -106,6 +113,32 @@ mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/recipes/import', t
   if (typeof meal === 'string') return c.json({ ...result, reason: meal }, 200);
   await mealWrite(db, meal).run(); emit(c, 'meal.changed', { id: meal.id });
   return c.json({ ...result, planned: true, mealId: meal.id, ...await onCalendar(meal.id) }, 200);
+});
+const unprocessable = { 422: { description: 'no recipe found', content: { 'application/json': { schema: ErrorSchema } } } };
+const previewResponse = { description: 'what was read (and, with save, the saved recipe)', content: { 'application/json': { schema: RecipePreviewResultSchema } } };
+const upper = (s: string) => s[0].toUpperCase() + s.slice(1);
+mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/recipes/import-url', tags: ['Meals'], summary: 'Read a recipe from a web page (its schema.org Recipe data) to preview, or with save: true also save it; importing the same page again updates it (admin)', security: [{ Bearer: [] }], request: { body: body(RecipeUrlImportSchema) }, responses: { 200: previewResponse, ...errors, ...unprocessable, 502: { description: 'the page could not be fetched', content: { 'application/json': { schema: ErrorSchema } } } } }), async (c) => {
+  const { url, save } = c.req.valid('json');
+  // https only (an http:// link is tried as https), unless a self-hoster allows private addresses.
+  const page = await fetchRecipePage(c.env, c.env.ALLOW_PRIVATE_FEED_URLS === '1' ? url : url.replace(/^http:/i, 'https:'));
+  if ('error' in page) return c.json({ error: `${upper(page.error)}.` }, page.status);
+  const recipe = parseRecipeHtml(page.html, page.url);
+  if (!recipe) return c.json({ error: 'This page has no recipe data Kinwall can read. Paste the recipe text instead.' }, 422);
+  const warnings = previewWarnings(recipe);
+  if (!save) return c.json({ recipe, warnings }, 200);
+  if (!recipe.name) return c.json({ error: 'This recipe has no name. Preview it, name it, then save.' }, 422);
+  const saved = await upsertImport(c, {
+    source: 'web', externalId: recipe.sourceUrl!, name: recipe.name, description: recipe.description, sourceUrl: recipe.sourceUrl, imageUrl: recipe.imageUrl ?? undefined,
+    ...(recipe.servings !== null && { servings: recipe.servings }), prepMinutes: recipe.prepMinutes, totalMinutes: recipe.totalMinutes,
+    ingredients: recipe.ingredients.map((i) => i.text), steps: recipe.steps,
+  });
+  return c.json({ recipe, warnings, recipeId: saved.recipe.id, created: saved.created }, 200);
+});
+mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/recipes/parse-text', tags: ['Meals'], summary: 'Read a pasted recipe (Ingredients and Directions headings) into the same preview as import-url, without saving (admin)', security: [{ Bearer: [] }], request: { body: body(RecipeTextParseSchema) }, responses: { 200: previewResponse, ...errors, ...unprocessable } }), async (c) => {
+  const { text, url } = c.req.valid('json');
+  const recipe = parseRecipeText(text, url ?? null);
+  if (!recipe) return c.json({ error: 'Add a line that says "Ingredients" above the ingredients and one that says "Directions" above the steps.' }, 422);
+  return c.json({ recipe, warnings: previewWarnings(recipe) }, 200);
 });
 mealsRoutes.openapi(createRoute({ method: 'patch', path: '/api/recipes/{id}', tags: ['Meals'], summary: 'Edit or archive a recipe without changing planned meal snapshots (admin)', security: [{ Bearer: [] }], request: { params, body: body(RecipeInputSchema.partial()) }, responses: { 200: recipeResponse, ...errors } }), async (c) => {
   const old = (await readRecipes(c.env.DB, { id: c.req.valid('param').id, archived: true }))[0];

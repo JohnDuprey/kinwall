@@ -18,7 +18,7 @@ import { hostTimezone } from './env.ts';
 import { effectivePublicUrl } from './providers/config.ts';
 import { BoardSchema, CalendarSchema, CategorySchema, ChoreDaySchema, ChoreSchema, EventInstanceSchema, LeaderboardEntrySchema, ListDetailSchema, ListItemSchema, ListSchema, MemberSchema, NoteSchema, StoreAislesSchema, TrackerEntrySchema, TRACKER_KINDS, NotificationSchema, PointsSchema, SettingsSchema, SnapshotSchema, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, TransitionRemindersSchema, RewardSchema, RewardInputSchema, RedemptionSchema, RewardLimitSchema } from './schemas.ts';
 import type { Env } from './env.ts';
-import { RecipeSchema, RecipeInputSchema, RecipeImportSchema, RecipeImportResultSchema, MealSchema, MealInputSchema, MealPatchSchema, ProjectionSchema, ProjectionApplySchema, ProjectionQuerySchema, MealRangeSchema } from './meal-schemas.ts';
+import { RecipeSchema, RecipeInputSchema, RecipeImportSchema, RecipeImportResultSchema, RecipePreviewResultSchema, RecipeUrlImportSchema, MealSchema, MealInputSchema, MealPatchSchema, ProjectionSchema, ProjectionApplySchema, ProjectionQuerySchema, MealRangeSchema } from './meal-schemas.ts';
 import { VERSION } from './version.ts';
 import { resolveKey } from './auth.ts';
 
@@ -191,7 +191,7 @@ const AISLE_DOC = 'Where in the store, e.g. "Aisle 4", "Produce" or "Back wall" 
 const CATEGORY_DOC = 'On a shopping list this is the department (e.g. "Produce"): with no aisle known at a store, the item shows in that store\'s aisle of the same name.';
 const REMEMBER_DOC = 'On a shopping list, an omitted store/category/aisle is filled from what the family used last time for that item name.';
 const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
-  list_recipes: { recipes: z.array(RecipeSchema) }, get_recipe: { recipe: RecipeSchema }, create_recipe: { recipe: RecipeSchema }, update_recipe: { recipe: RecipeSchema }, import_recipe: RecipeImportResultSchema.shape,
+  list_recipes: { recipes: z.array(RecipeSchema) }, get_recipe: { recipe: RecipeSchema }, create_recipe: { recipe: RecipeSchema }, update_recipe: { recipe: RecipeSchema }, import_recipe: RecipeImportResultSchema.shape, import_recipe_from_url: RecipePreviewResultSchema.shape,
   list_meals: { meals: z.array(MealSchema) }, create_meal: { meal: MealSchema }, update_meal: { meal: MealSchema },
   get_meal_projection: ProjectionSchema.shape, apply_meal_projection: { added: z.number(), itemIds: z.array(z.string()), projection: ProjectionSchema },
   get_household: { settings: SettingsSchema, members: z.array(MemberSchema), calendars: z.array(CalendarSchema) },
@@ -255,7 +255,7 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
 };
 
 const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boolean; idempotentHint: boolean; openWorldHint: boolean }> = {
-  list_recipes: READ, get_recipe: READ, create_recipe: WRITE, update_recipe: SET, import_recipe: SET, list_meals: READ, create_meal: WRITE, update_meal: SET, get_meal_projection: READ, apply_meal_projection: SET,
+  list_recipes: READ, get_recipe: READ, create_recipe: WRITE, update_recipe: SET, import_recipe: SET, import_recipe_from_url: { ...SET, openWorldHint: true }, list_meals: READ, create_meal: WRITE, update_meal: SET, get_meal_projection: READ, apply_meal_projection: SET,
   get_household: READ, list_events: READ, get_event: READ, list_chores: READ, get_leaderboard: READ, get_points: READ, list_lists: READ, get_list: READ, list_categories: READ, get_event_items: READ, list_notifications: READ, list_notes: READ, get_snapshot: READ, get_board: READ, list_tracker_entries: READ, add_tracker_entry: WRITE, update_tracker_entry: SET, list_color_schemes: READ, set_color_scheme: SET, save_color_scheme: WRITE,
   delete_color_scheme: { ...WRITE, destructiveHint: true, idempotentHint: true },
   create_event: { ...WRITE, openWorldHint: true }, update_event: { ...SET, openWorldHint: true }, set_event_category: SET,
@@ -291,13 +291,17 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     const result = await call(app, env, auth, 'GET', `/api/recipes/${encodeURIComponent(id)}`);
     return result.status >= 400 ? errorResult(result.json, 'recipe not found') : okResult('Recipe', { recipe: result.json });
   });
-  tool('create_recipe', { title: 'Create recipe', description: 'Admin: create a manual recipe. Source URLs are stored, never scraped.', inputSchema: { ...RecipeInputSchema.shape, ingredients: jsonList(RecipeInputSchema.shape.ingredients), steps: jsonList(RecipeInputSchema.shape.steps) } }, async (input) => {
+  tool('create_recipe', { title: 'Create recipe', description: 'Admin: create a manual recipe. Its sourceUrl is only stored; to read a recipe off a web page use import_recipe_from_url.', inputSchema: { ...RecipeInputSchema.shape, ingredients: jsonList(RecipeInputSchema.shape.ingredients), steps: jsonList(RecipeInputSchema.shape.steps) } }, async (input) => {
     const result = await call(app, env, auth, 'POST', '/api/recipes', input);
     return result.status >= 400 ? errorResult(result.json, 'failed to create recipe') : okResult('Recipe created', { recipe: result.json });
   });
   tool('import_recipe', { title: 'Import recipe', description: 'Admin: import a recipe from another app (e.g. a meal kit), keyed by source + externalId so importing again updates it. Ingredient lines like "1.5 tablespoon Sour Cream" are parsed; pantry: false marks one that ships in the kit (left off grocery lists by default). steps are text (several lines become bullets) or { text, bullets, imageUrl }; instructions keeps them as numbered text. plan also plans it on that date/slot unless the slot already has a meal (planned: false, with reason); a meal it planned before for that slot within the week is reused. plan.calendarId (a Kinwall calendar id, any writable one) also puts the planned meal on that calendar unless it already has an event; plan.eventStart "cooking" starts it when cooking starts. Only a calendar named here is written to.', inputSchema: { ...RecipeImportSchema.shape, ingredients: jsonList(RecipeImportSchema.shape.ingredients), steps: jsonList(RecipeImportSchema.shape.steps) } }, async (input) => {
     const result = await call(app, env, auth, 'POST', '/api/recipes/import', input);
     return result.status >= 400 ? errorResult(result.json, 'failed to import recipe') : okResult((result.json as { planned?: boolean }).planned ? 'Recipe imported and planned' : 'Recipe imported', result.json as Record<string, unknown>);
+  });
+  tool('import_recipe_from_url', { title: 'Import recipe from a link', description: 'Admin: read a recipe from a web page (its schema.org Recipe data: name, photo, servings, times, ingredients, steps). Without save it only previews; save: true also saves it, keyed by the page address so importing the same page again updates that recipe. A page without recipe data fails: then ask for the recipe text and use create_recipe.', inputSchema: RecipeUrlImportSchema.shape }, async (input) => {
+    const result = await call(app, env, auth, 'POST', '/api/recipes/import-url', input);
+    return result.status >= 400 ? errorResult(result.json, 'failed to read the recipe page') : okResult(input.save ? 'Recipe imported' : 'Recipe preview (not saved)', result.json as Record<string, unknown>);
   });
   tool('update_recipe', { title: 'Edit recipe', description: 'Admin: edit a recipe; archived=true archives it, false restores it. Supplying ingredients replaces the ingredient list. steps (structured, instructions follows them) or instructions alone (clears steps). Existing planned meals keep their snapshots.', inputSchema: { id: z.string(), ...RecipeInputSchema.partial().shape, ingredients: jsonList(RecipeInputSchema.shape.ingredients), steps: jsonList(RecipeInputSchema.shape.steps) } }, async ({ id, ...input }) => {
     const result = await call(app, env, auth, 'PATCH', `/api/recipes/${encodeURIComponent(id)}`, input);

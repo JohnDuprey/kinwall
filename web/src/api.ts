@@ -4,7 +4,7 @@ import { mock, mockPlugins } from './mock.ts'
 import { applyChoreOps, applyListOps, cacheGet, cachePut, clearOffline, enqueue, flush, onOutboxChange, outboxReady, pendingOps, type Dropped, type Op } from './outbox.ts'
 import type { CustomScheme } from './skins.ts'
 import type { PasskeyAuthenticator } from './webauthn.ts'
-import type { Meal, MealInput, Recipe, RecipeInput, ShoppingProjection } from './meal-types.ts'
+import type { Meal, MealInput, Recipe, RecipeImport, RecipeInput, RecipePreviewResult, ShoppingProjection } from './meal-types.ts'
 import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginCatalogEntry,
   StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota, Reward, Redemption,
   Account, ApiKey, AppNotification, Appearance, CalendarEntry, Category, Chore, ChoreDay, PendingApproval, EventInstance, LeaderboardEntry, LeaderboardPeriod, List,
@@ -177,7 +177,8 @@ if (!MOCK && typeof window !== 'undefined') {
 }
 
 async function req<T>(path: string, opts: RequestInit & { useAdmin?: boolean } = {}): Promise<T> {
-  const isChange = !!opts.method && opts.method !== 'GET' && path !== 'api/pair/poll'
+  // Reading a recipe page into a preview changes nothing, so it doesn't flash "Saved".
+  const isChange = !!opts.method && opts.method !== 'GET' && !/^api\/(pair\/poll|recipes\/(import-url|parse-text))$/.test(path)
   return isChange ? trackSave(send<T>(path, opts)) : send<T>(path, opts)
 }
 
@@ -227,6 +228,11 @@ const del = <T,>(path: string, useAdmin?: boolean) => req<T>(path, { method: 'DE
 export const api = {
   getRecipes: (archived = false) => get<Recipe[]>(`api/recipes?archived=${archived}`),
   createRecipe: (body: RecipeInput) => post<Recipe>('api/recipes', body),
+  getRecipe: (id: string) => get<Recipe>(`api/recipes/${encodeURIComponent(id)}`),
+  // Read a recipe page (or pasted text) into a preview; nothing is saved until importRecipe.
+  previewRecipeUrl: (url: string) => post<RecipePreviewResult>('api/recipes/import-url', { url }),
+  previewRecipeText: (text: string, url?: string) => post<RecipePreviewResult>('api/recipes/parse-text', { text, ...(url && { url }) }),
+  importRecipe: (body: RecipeImport) => post<{ recipeId: string; created: boolean }>('api/recipes/import', body),
   updateRecipe: (id: string, body: Partial<RecipeInput>) => patch<Recipe>(`api/recipes/${encodeURIComponent(id)}`, body),
   deleteRecipe: (id: string) => del(`api/recipes/${encodeURIComponent(id)}`),
   getMeals: (from: string, to: string) => get<Meal[]>(`api/meals?${new URLSearchParams({ from, to })}`),

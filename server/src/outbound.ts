@@ -92,20 +92,20 @@ export async function feedFetch(env: FeedEnv, input: string | URL | Request, ini
 export const MAX_RECIPE_PDF_BYTES = 15 * 1024 * 1024;
 export const MAX_RECIPE_IMAGE_BYTES = 8 * 1024 * 1024;
 
-type Fetched = { bytes: Uint8Array<ArrayBuffer>; type: string; etag: string | null } | { error: string; status: 400 | 502 };
+type Fetched = { bytes: Uint8Array<ArrayBuffer>; type: string; etag: string | null; url: string } | { error: string; status: 400 | 502 };
 
-// A record's own stored URL (a recipe's sourceUrl or imageUrl - never one from the request). https
+// A record's own stored URL (a recipe's sourceUrl or imageUrl), or a recipe page an admin asked to import. https
 // only and public hosts only (ALLOW_PRIVATE_FEED_URLS=1 also lets a self-hoster or a local test reach
 // a LAN or http address), each redirect re-checked, 15 s, capped at `max` bytes, and the answer's
 // content type must pass `typeOk`. Returns the bytes, or an error message for the client.
-async function fetchRecordUrl(env: FeedEnv, raw: string, what: string, accept: string, max: number, typeOk: (type: string) => boolean): Promise<Fetched> {
+async function fetchRecordUrl(env: FeedEnv, raw: string, what: string, headers: Record<string, string>, max: number, typeOk: (type: string) => boolean): Promise<Fetched> {
   const allowed = (u: string) => env.ALLOW_PRIVATE_FEED_URLS === '1' ? /^https?:\/\//i.test(u) : /^https:\/\//i.test(u) && isSafeOutboundUrl(u);
   const signal = AbortSignal.timeout(15000);
   let url = raw;
   try {
     for (let hop = 0; ; hop++) {
       if (!allowed(url)) return { error: `${what} must be a public https address`, status: 400 };
-      const res = await fetch(url, { redirect: 'manual', signal, headers: { Accept: accept } });
+      const res = await fetch(url, { redirect: 'manual', signal, headers });
       const location = res.headers.get('location');
       if (res.status >= 300 && res.status <= 399 && location) {
         await res.body?.cancel();
@@ -128,7 +128,7 @@ async function fetchRecordUrl(env: FeedEnv, raw: string, what: string, accept: s
       const bytes = new Uint8Array(size);
       let at = 0;
       for (const chunk of chunks) { bytes.set(chunk, at); at += chunk.byteLength; }
-      return { bytes, type, etag: res.headers.get('etag') };
+      return { bytes, type, etag: res.headers.get('etag'), url };
     }
   } catch {
     return { error: `could not reach the ${what}`, status: 502 };
@@ -137,7 +137,7 @@ async function fetchRecordUrl(env: FeedEnv, raw: string, what: string, accept: s
 
 // The in-app recipe-card viewer: 15 MB, and it must actually be a PDF.
 export async function fetchRecipePdf(env: FeedEnv, raw: string): Promise<{ pdf: Uint8Array<ArrayBuffer> } | { error: string; status: 400 | 502 }> {
-  const r = await fetchRecordUrl(env, raw, 'recipe source', 'application/pdf', MAX_RECIPE_PDF_BYTES, (t) => t === 'application/pdf' || t === 'application/octet-stream');
+  const r = await fetchRecordUrl(env, raw, 'recipe source', { Accept: 'application/pdf' }, MAX_RECIPE_PDF_BYTES, (t) => t === 'application/pdf' || t === 'application/octet-stream');
   if ('error' in r) return r;
   const pdf = r.bytes;
   // octet-stream is common for file hosts: then the bytes must start "%PDF".
@@ -157,9 +157,24 @@ export function sniffImage(b: Uint8Array): string | null {
 
 // A recipe's photo (its imageUrl): 8 MB, JPEG/PNG/WebP/GIF by header and by magic bytes.
 export async function fetchRecipeImage(env: FeedEnv, raw: string): Promise<{ image: Uint8Array<ArrayBuffer>; type: string; etag: string | null } | { error: string; status: 400 | 502 }> {
-  const r = await fetchRecordUrl(env, raw, 'recipe image', 'image/webp,image/jpeg,image/png,image/gif', MAX_RECIPE_IMAGE_BYTES, (t) => /^image\/(jpeg|png|webp|gif)$/.test(t) || t === 'application/octet-stream');
+  const r = await fetchRecordUrl(env, raw, 'recipe image', { Accept: 'image/webp,image/jpeg,image/png,image/gif' }, MAX_RECIPE_IMAGE_BYTES, (t) => /^image\/(jpeg|png|webp|gif)$/.test(t) || t === 'application/octet-stream');
   if ('error' in r) return r;
   const type = sniffImage(r.bytes);
   if (!type) return { error: 'recipe image is not a JPEG, PNG, WebP or GIF', status: 502 };
   return { image: r.bytes, type, etag: r.etag };
+}
+
+export const MAX_RECIPE_PAGE_BYTES = 3 * 1024 * 1024;
+const PAGE_HEADERS = {
+  Accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.1', 'Accept-Language': 'en-US,en;q=0.9',
+  'User-Agent': 'Mozilla/5.0 (compatible; KinwallRecipeImport/1.0; +https://github.com/JohnDuprey/kinwall)',
+};
+
+// A recipe page an admin pasted (POST /api/recipes/import-url): 3 MB of HTML, same address rules.
+// Returns the page and where it ended up after redirects.
+export async function fetchRecipePage(env: FeedEnv, raw: string): Promise<{ html: string; url: string } | { error: string; status: 400 | 502 }> {
+  const r = await fetchRecordUrl(env, raw, 'recipe page', PAGE_HEADERS, MAX_RECIPE_PAGE_BYTES, (t) => t === 'text/html' || t === 'application/xhtml+xml');
+  if ('error' in r) return r;
+  // ponytail: always UTF-8 (nearly every recipe site); honor <meta charset> if a Latin-1 page turns up.
+  return { html: new TextDecoder().decode(r.bytes), url: r.url };
 }

@@ -52,7 +52,7 @@ export const KIT_QUALIFIER = 'in the kit';
 export const MealEventStartSchema = z.enum(['meal', 'cooking']);
 export const RecipeImportSchema = z.object({
   source: z.string().trim().min(1).max(50).describe('Where the recipe comes from, e.g. hellofresh.'),
-  externalId: z.string().trim().min(1).max(200).describe("The source's own recipe id; importing it again updates the same recipe."),
+  externalId: z.string().trim().min(1).max(2000).describe("The source's own recipe id (for a web page, its address); importing it again updates the same recipe."),
   name: z.string().trim().min(1).max(200), description: text.optional(), sourceUrl: url.optional().describe('Recipe card link.'), imageUrl: url.optional(),
   servings: servings.optional().describe('Servings the ingredient amounts are for.'),
   prepMinutes: minutes.optional().describe('Hands-on prep time in minutes.'), totalMinutes: minutes.optional().describe('Total time in minutes, prep included.'),
@@ -72,6 +72,24 @@ export const RecipeImportResultSchema = z.object({
   recipeId: z.string(), created: z.boolean(), planned: z.boolean(), mealId: z.string().optional(), reason: z.string().optional(),
   calendarEventId: z.string().optional(), calendarError: z.string().optional().describe('Why plan.calendarId got no event (the meal is still planned).'),
 }).openapi('RecipeImportResult');
+export const RecipePreviewSchema = z.object({
+  name: z.string().describe('Empty when the page or text had no name.'), description: z.string().nullable(), imageUrl: z.string().nullable(), sourceUrl: z.string().nullable(),
+  servings: z.number().nullable(), prepMinutes: z.number().nullable(), totalMinutes: z.number().nullable(),
+  ingredients: z.array(z.object({ text: z.string().describe('The line as written; send these to POST /api/recipes/import to save.'), name: z.string(), quantity: z.number().nullable(), unit: z.string().nullable() })),
+  steps: z.array(z.object({ text: z.string(), bullets: z.array(z.string()) })),
+}).openapi('RecipePreview');
+export const RecipeUrlImportSchema = z.object({
+  url: z.string().trim().url().max(2000).describe('A recipe page (https). Read from its schema.org Recipe data.'),
+  save: z.boolean().optional().describe('Also save it (source "web", keyed by the page address: importing it again updates the same recipe). Default: preview only.'),
+}).strict().openapi('RecipeUrlImport');
+export const RecipeTextParseSchema = z.object({
+  text: z.string().min(1).max(100000).describe('The recipe as text: a name, an "Ingredients" heading over one ingredient per line, then a "Directions" (or Instructions, Method, Steps) heading over the steps.'),
+  url: url.optional().describe('Where it came from, kept as the source link.'),
+}).strict().openapi('RecipeTextParse');
+export const RecipePreviewResultSchema = z.object({
+  recipe: RecipePreviewSchema, warnings: z.array(z.string()),
+  recipeId: z.string().optional().describe('With save: the saved recipe.'), created: z.boolean().optional(),
+}).openapi('RecipePreviewResult');
 export const RecipeSnapshotSchema = z.object({ name: z.string(), defaultServings: servings, prepMinutes: minutes.optional(), totalMinutes: minutes.optional(), ingredients: z.array(IngredientSchema) }).openapi('RecipeSnapshot');
 export const MealInputSchema = z.object({
   date: MealDateSchema, slot: MealSlotSchema, title: z.string().trim().min(1).max(200).optional(),

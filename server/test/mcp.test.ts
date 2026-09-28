@@ -108,6 +108,7 @@ test('mcp: tools/list returns the tools', async () => {
     'get_recipe',
     'get_snapshot',
     'import_recipe',
+    'import_recipe_from_url',
     'list_categories',
     'list_chores',
     'list_color_schemes',

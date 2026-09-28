@@ -50,6 +50,8 @@
 .meal-projection-item { padding: 12px 0 18px; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
 .meal-projection-item summary { min-height: 44px; padding: 12px 0; cursor: pointer; font-weight: 700; }
 .meal-projection-item li { margin: 10px 0; }
+.recipe-import-warnings { margin: 12px 0; padding: 10px 14px 10px 30px; border-radius: var(--radius-sm); background: var(--card-soft); color: var(--text); }
+.recipe-import-warnings li { margin: 4px 0; }
 .today-meal { text-decoration: none; color: inherit; border-radius: 10px; }
 .today-meal-next { background: var(--card-soft); border-left: 3px solid var(--accent); }
 @media (max-width: 600px) {
