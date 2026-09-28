@@ -63,7 +63,8 @@ function Leaderboard({ period }: { period: LeaderboardPeriod }) {
     <div className="leaderboard-strip">
       <div className="leaderboard-pills" role="list" aria-label="Leaderboard">
         {board.map(e => (
-          <div key={e.memberId} className="leaderboard-pill" role="listitem"
+          <div key={e.memberId} role="listitem" className="leaderboard-item">
+          <a className="leaderboard-pill" href={`#/profile/${e.memberId}`}
             aria-label={[`${e.name}, rank ${e.rank}, ${e.points} points`, e.rank === 1 && e.points > 0 && 'leader', e.streak >= 2 && `${e.streak} day streak`, spendable(e.memberId) !== null && `${spendable(e.memberId)} to spend`].filter(Boolean).join(', ')}>
             <div className="lb-rank">#{e.rank}</div>
             <div
@@ -80,6 +81,7 @@ function Leaderboard({ period }: { period: LeaderboardPeriod }) {
               {spendable(e.memberId) !== null && <div className="lb-spend" aria-hidden="true">{spendable(e.memberId)} to spend</div>}
             </div>
             <div className="lb-points">{e.points}</div>
+          </a>
           </div>
         ))}
       </div>

@@ -6,7 +6,7 @@ import type { CustomScheme } from './skins.ts'
 import type { PasskeyAuthenticator } from './webauthn.ts'
 import type { Meal, MealInput, Recipe, RecipeImport, RecipeInput, RecipePreviewResult, RecipeShare, ShoppingProjection } from './meal-types.ts'
 import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginCatalogEntry,
-  StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota, Reward, Redemption,
+  StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota, Reward, Redemption, MemberStats, StatsPeriod,
   Account, ApiKey, AppNotification, Appearance, CalendarEntry, Category, Chore, ChoreDay, PendingApproval, EventInstance, LeaderboardEntry, LeaderboardPeriod, List,
   GeocodeResult, HostEvent, ImportResult, ListDetail, ListGroup, ListItem, ListItemInput, ListItemPatch, Member, Me, Note, NoteTarget, Passkey, TrackerEntry, TrackerInput, TrackerKind, Providers, PushSubscription, PushSubscriptionPrefs, RemoteCalendar, Settings, Snapshot, Board, Webhook, WebhookWithSecret,
 } from './types.ts'
@@ -356,6 +356,9 @@ export const api = {
   getLeaderboard: (period: LeaderboardPeriod) =>
     MOCK ? mock.getLeaderboard(period) : get<LeaderboardEntry[]>(`api/leaderboard?period=${period}`),
 
+  getMemberStats: (memberId: string, period: StatsPeriod) =>
+    MOCK ? Promise.all([mock.getMembers(), import('./mock-profiles.ts')]).then(([ms, { mockMemberStats }]) => mockMemberStats(memberId, period, ms.find(m => m.id === memberId)?.birthday ?? null))
+      : get<MemberStats>(`api/members/${encodeURIComponent(memberId)}/stats?period=${period}`),
   getStickerPacks: (memberId: string) => MOCK ? mock.getStickerPacks(memberId) : get<StickerPack[]>(`api/stickers/packs?memberId=${encodeURIComponent(memberId)}`),
   buyStickerPack: (packId: string, memberId: string) =>
     MOCK ? mock.buyStickerPack(packId, memberId) : post<{ pack: StickerPack; balance: number }>(`api/stickers/packs/${packId}/buy`, { memberId }),

@@ -1,5 +1,5 @@
 import { holdAwake } from './wakeLock.ts'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { encode } from 'uqr'
 import { api, clearKey, getKey, onSynced, setAdminKey, setKey, useOffline, usePoll, useSaveState, ApiError, MOCK } from './api.ts'
 import { AppContext, useApp } from './AppContext.tsx'
@@ -29,6 +29,7 @@ import { inNativeApp } from './native.ts'
 import { HelpButton } from './Help.tsx'
 import Slideshow, { SAVER_PREVIEW_EVENT } from './Screensaver.tsx'
 import SnapshotSheet from './Snapshot.tsx'
+import Profile from './Profile.tsx'
 import Sheet from './Sheet.tsx'
 
 const NAV_ITEMS = [
@@ -43,10 +44,15 @@ const NAV_ITEMS = [
   { key: 'settings', href: '#/settings', label: 'Settings', Icon: SettingsIcon },
 ] as const
 
+type NavItem = { key: string; href: string; label: string; Icon: (p: object) => ReactNode }
+
 /** The nav items this family has on (Settings → Features); Activities goes when every activity is
- * off, and Rewards goes with chores and points. */
-function navItems(s: Settings) {
-  return NAV_ITEMS.filter(i => i.key === 'chores' || i.key === 'rewards' ? s.features.chores : i.key === 'lists' ? s.features.lists : i.key === 'meals' ? s.features.meals : i.key === 'trackers' ? trackerKinds(s).length > 0 : i.key === 'activities' ? shownActivities(s).length > 0 : true)
+ * off, and Rewards goes with chores and points. A member's own device gets "Me" (their profile)
+ * after Chores, so it stays on a phone's bottom bar. */
+function navItems(s: Settings, me?: Member | null): NavItem[] {
+  const items: NavItem[] = NAV_ITEMS.filter(i => i.key === 'chores' || i.key === 'rewards' ? s.features.chores : i.key === 'lists' ? s.features.lists : i.key === 'meals' ? s.features.meals : i.key === 'trackers' ? trackerKinds(s).length > 0 : i.key === 'activities' ? shownActivities(s).length > 0 : true)
+  if (me) items.splice((items.findIndex(i => i.key === 'chores') + 1) || 1, 0, { key: 'profile', href: `#/profile/${me.id}`, label: 'Me', Icon: () => <span className="nav-me" aria-hidden="true">{me.avatar || me.name[0]}</span> })
+  return items
 }
 
 /** Where to send a link to a screen whose feature is off (a bookmark, a push, an old tab), or one
@@ -64,7 +70,7 @@ function featureRedirect(s: Settings, section: string, sub: string | undefined):
 /** A phone's bottom bar fits five tabs: past that, the first four plus More, which lists the rest. */
 const MAX_TABS = 5
 
-function Nav({ tab, mode, items, toApprove = 0, rewardRequests = 0 }: { tab: string; mode: NavMode; items: ReturnType<typeof navItems>; toApprove?: number; rewardRequests?: number }) {
+function Nav({ tab, mode, items, toApprove = 0, rewardRequests = 0 }: { tab: string; mode: NavMode; items: NavItem[]; toApprove?: number; rewardRequests?: number }) {
   const [more, setMore] = useState(false)
   // Parent devices: everything waiting for an OK on Chores (its To approve holds reward requests
   // too), and the reward requests alone on Rewards.
@@ -995,8 +1001,8 @@ function AppRoutes() {
   }, [parentDevice, choresOn, pollTick, manualTick])
   const redirect = settings && featureRedirect(settings, section, sub)
   useEffect(() => { if (redirect) location.replace(redirect) }, [redirect])
-  const tabLabel = section === 'activities' && sub === 'paint' ? 'Paint' : section === 'activities' && sub === 'stickers' ? 'Sticker book' : section === 'activities' && sub === 'photos' ? 'Photos' : NAV_ITEMS.find(i => i.key === section)?.label ?? 'Calendar'
-  const inApp = hasKey && !!settings && !wizardActive && NAV_ITEMS.some(i => i.key === section)
+  const tabLabel = section === 'profile' ? 'Profile' : section === 'activities' && sub === 'paint' ? 'Paint' : section === 'activities' && sub === 'stickers' ? 'Sticker book' : section === 'activities' && sub === 'photos' ? 'Photos' : NAV_ITEMS.find(i => i.key === section)?.label ?? 'Calendar'
+  const inApp = hasKey && !!settings && !wizardActive && (section === 'profile' || NAV_ITEMS.some(i => i.key === section))
   // "Chores · Duprey Family": the family, not the product, is what tells tabs and home-screen icons apart.
   const familyName = settings?.familyName?.trim()
   useEffect(() => { document.title = inApp ? `${tabLabel} · ${familyName || 'Kinwall'}` : 'Kinwall' }, [tabLabel, inApp, familyName])
@@ -1039,7 +1045,9 @@ function AppRoutes() {
     )
   }
 
-  const nav = navItems(settings)
+  const nav = navItems(settings, members.find(m => m.id === meMemberId))
+  // "Me" is lit on their own profile only, not while looking at someone else's.
+  const navTab = section === 'profile' && sub !== meMemberId ? '' : section
   return (
     <AppContext.Provider value={{
       settings, members, categories, selectedMemberId: effectiveMemberId, setSelectedMemberId: setMemberId,
@@ -1051,16 +1059,16 @@ function AppRoutes() {
       <div className={`app-shell ${navMode !== 'bottom' ? `app-shell-rail app-shell-rail-${navMode}` : ''}`}>
         {/* A button, not href="#main": the hash is the router. */}
         <button className="skip-link" onClick={() => document.getElementById('main')?.focus()}>Skip to content</button>
-        {navMode === 'left' && <Nav tab={section} mode={navMode} items={nav} toApprove={toApprove} rewardRequests={rewardRequests} />}
+        {navMode === 'left' && <Nav tab={navTab} mode={navMode} items={nav} toApprove={toApprove} rewardRequests={rewardRequests} />}
         <div className="main-col">
           <Header settings={settings} members={focusMember ? [focusMember] : members} selectedMemberId={effectiveMemberId} isAdmin={scope === 'admin'} />
           <main className="content" id="main" tabIndex={-1}>
             <h1 className="sr-only">{tabLabel}</h1>
-            {redirect ? null : section === 'activities' ? <Activities sub={sub} rest={rest} /> : section === 'rewards' ? <Rewards memberId={sub} /> : section === 'meals' ? <Meals /> : tab === 'chores' ? <Chores /> : section === 'lists' ? <Lists /> : section === 'trackers' ? <Trackers sub={sub} /> : tab === 'settings' ? <SettingsView /> : <CalendarView />}
+            {redirect ? null : section === 'profile' ? <Profile memberId={sub} /> : section === 'activities' ? <Activities sub={sub} rest={rest} /> : section === 'rewards' ? <Rewards memberId={sub} /> : section === 'meals' ? <Meals /> : tab === 'chores' ? <Chores /> : section === 'lists' ? <Lists /> : section === 'trackers' ? <Trackers sub={sub} /> : tab === 'settings' ? <SettingsView /> : <CalendarView />}
           </main>
-          {navMode === 'bottom' && <Nav tab={section} mode={navMode} items={nav} toApprove={toApprove} rewardRequests={rewardRequests} />}
+          {navMode === 'bottom' && <Nav tab={navTab} mode={navMode} items={nav} toApprove={toApprove} rewardRequests={rewardRequests} />}
         </div>
-        {navMode === 'right' && <Nav tab={section} mode={navMode} items={nav} toApprove={toApprove} rewardRequests={rewardRequests} />}
+        {navMode === 'right' && <Nav tab={navTab} mode={navMode} items={nav} toApprove={toApprove} rewardRequests={rewardRequests} />}
         <SaveIndicator />
         {toastMsg && (toastMsg.persist
           ? <button className="toast" onClick={() => setToastMsg(null)} aria-label={`${toastMsg.msg} (dismiss)`}>{toastMsg.msg} <span aria-hidden="true">✕</span></button>

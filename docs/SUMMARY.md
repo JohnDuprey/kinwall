@@ -19,6 +19,7 @@
 * [Categories & auto-categorizing](using/categories.md)
 * [Chores](using/chores.md)
 * [Rewards](using/rewards.md)
+* [Profiles](using/profiles.md)
 * [Lists](using/lists.md)
 * [Meals](using/meals.md)
 * [Activities (Paint)](using/activities.md)

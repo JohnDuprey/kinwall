@@ -102,6 +102,7 @@ export default function SnapshotSheet({ member, onClose }: { member: Member; onC
           <p className="snap-greeting">{shown?.greeting ?? ' '}</p>
           {hello && range === 'day' && <p className="snap-sub">☀️ Here's your day</p>}
         </div>
+        <a className="btn btn-secondary snap-profile" href={`#/profile/${member.id}`} onClick={onClose}>Profile</a>
       </div>
       <Segmented label="Show" value={range} onChange={setRange} className="snap-range"
         options={[{ key: 'day', label: 'Day' }, { key: 'week', label: 'Week' }]} />

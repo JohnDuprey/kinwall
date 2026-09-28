@@ -713,3 +713,32 @@ export interface Plugin {
   updatedAt: string
   url: string // /plugins/<id>/<entry>
 }
+
+/** GET /api/members/{id}/stats: a member profile's numbers (server/src/schemas.ts MemberStatsSchema). */
+export type StatsPeriod = 'today' | 'week' | 'month' | 'year' | 'all'
+export interface MemberStats {
+  memberId: string
+  period: StatsPeriod
+  from: string
+  to: string
+  joined: string
+  choresDone: number
+  pointsEarned: number
+  previous: { from: string; to: string; choresDone: number; pointsEarned: number } | null
+  pointsSpent: { stickers: number; rewards: number }
+  streak: { current: number; best: number }
+  chart: { key: string; count: number }[]
+  busiestWeekday: number | null
+  favoriteChore: { choreId: string; title: string; emoji: string | null; count: number } | null
+  books: {
+    finished: number
+    pages: number
+    shelfScope: 'year' | 'all'
+    shelf: { id: string; title: string; pages: number | null; rating: number | null; finishedOn: string }[]
+    reading: { id: string; title: string; percent: number | null }[]
+  }
+  stickers: { packsOwned: number; packsTotal: number; placed: number }
+  activities: { pluginId: string; name: string; emoji: string | null; seconds: number }[]
+  badges: { id: string; emoji: string; title: string; earned: boolean }[]
+  birthday: { date: string; daysUntil: number; turning: number | null } | null
+}

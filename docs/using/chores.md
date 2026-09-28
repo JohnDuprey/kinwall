@@ -39,7 +39,7 @@ Tap **+** (Add chore). The sheet has:
 
 Chores created through the API or MCP can use any RRULE (for example `FREQ=MONTHLY` or `INTERVAL=2`). The sheet shows those as "Custom schedule (…)" and leaves them alone unless you pick another option. A recurring chore without a due date starts on the day it was created, in the household timezone.
 
-**Delete** removes the chore from every list. If it was ever done, its history stays: points already earned from it are kept and it stays in the data export. A chore that was never done is removed completely.
+**Delete** removes the chore from every list. If it was ever done, its history stays: points already earned from it are kept, it still counts on [profiles](profiles.md), and it stays in the data export. A chore that was never done is removed completely.
 
 ## Checklists
 
@@ -126,7 +126,7 @@ A member's 🔥 streak counts consecutive days on which **every chore assigned t
 
 ## Leaderboard
 
-Above the columns, a leaderboard ranks members by points for **Today**, **Week** or **Month**. The period is remembered per device, and the week follows the household week start.
+Above the columns, a leaderboard ranks members by points for **Today**, **Week** or **Month**. The period is remembered per device, and the week follows the household week start. Tap someone's pill to open their [profile](profiles.md).
 
 * Ranking is by points, then completions, then name. Members with equal points and completions share a rank.
 * The leader gets 👑 (bouncing when the lead changes). Members with no activity still appear.
