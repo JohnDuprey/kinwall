@@ -651,7 +651,6 @@ button {
 .field { margin-bottom: 16px; }
 .field-hint { font-size: 0.8125rem; color: var(--text-dim); margin: 6px 0 0; }
 /* Chore schedule: 44px targets even where phone .segmented shrinks; 7 day toggles share one row (335px fits at 375 wide). */
-.segmented.chore-repeat button { min-height: max(44px, var(--ctl-h)); min-width: 64px; }
 .day-toggles { display: flex; gap: 4px; max-width: 420px; }
 .day-toggles button {
   flex: 1 1 0; min-width: 0; min-height: 44px; border-radius: 12px; font-weight: 800;
@@ -873,6 +872,7 @@ button {
 .chore-waiting { font-size: 0.75rem; font-weight: 800; color: var(--accent-text); }
 .chore-notyet { margin-top: 4px; padding: 4px 8px; border-radius: var(--radius-sm); background: var(--bg-alt); color: var(--text); font-size: 0.8125rem; font-weight: 700; white-space: normal; overflow-wrap: anywhere; }
 .approve-card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 12px 14px; margin-bottom: 12px; }
+.chores-scroll .approve-card { margin: 0 var(--pad) 12px; } /* in line with the leaderboard and columns, not edge to edge */
 .approve-heading { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; font-size: 1rem; }
 .approve-count { min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; background: var(--accent-strong); color: #fff; font-size: 0.75rem; line-height: 22px; text-align: center; }
 .approve-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }

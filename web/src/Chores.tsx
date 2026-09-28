@@ -394,6 +394,7 @@ export function ApprovalQueue({ onChanged = () => {}, only }: { onChanged?: () =
 export default function Chores() {
   const isPhone = useIsPhone()
   const { members, selectedMemberId, focusMemberId, focusShowsShared, settings, toast, reloadCore, refreshTick, parentDevice } = useApp()
+  const dialog = useDialog()
   const [selectedDate, setSelectedDate] = useState(() => new Date())
   const [chores, setChores] = useState<ChoreDay[]>([])
   const [loading, setLoading] = useState(true)
@@ -426,6 +427,12 @@ export default function Chores() {
   const [whoFor, setWhoFor] = useState<ChoreDay | null>(null)
   const toggle = async (c: ChoreDay, doneBy?: string | null) => {
     const ticked = c.completed || !!c.pending // a pending tick unticks like a done one
+    // Unticking is deliberate: a stray tap on a done chore shouldn't quietly take points back.
+    if (ticked && !await dialog.confirm({
+      title: `Mark "${c.title}" not done?`,
+      body: c.pending ? 'It goes back on the list, and the parent approval request is withdrawn.' : 'It goes back on the list, and the points it earned come off.',
+      confirmLabel: 'Mark not done',
+    })) return
     // A checklist with open items gates completion: open it here to tick off instead.
     if (!ticked && c.checklist && c.checklist.done < c.checklist.total) { setChecklistFor(c); return }
     // An Anyone chore credits the filtered (or pinned) person; otherwise ask who did it.
@@ -728,7 +735,10 @@ function ChoreEditSheet({ chore, onClose, onSaved }: { chore: Chore | null; onCl
     <Sheet title={chore ? 'Edit chore' : 'New chore'} onClose={onClose}
       actions={
         <>
-          {chore && <button className="btn btn-danger" onClick={del}>Delete</button>}
+          {chore && <select className="settings-select actions-select" aria-label="Chore actions" value="" onChange={e => { if (e.target.value === 'delete') void del() }}>
+            <option value="" disabled hidden>More…</option>
+            <option value="delete">Delete chore…</option>
+          </select>}
           <button className="btn btn-primary" onClick={submit} disabled={!title.trim() || !isSingleEmoji(emoji)}>{chore ? 'Save' : 'Add chore'}</button>
         </>
       }>
@@ -791,15 +801,20 @@ function ChoreEditSheet({ chore, onClose, onSaved }: { chore: Chore | null; onCl
         </div>
       )}
       <div className="field">
-        <label id="chore-approval-label">Needs a parent's OK</label>
-        <Segmented label="Needs a parent's OK" value={needsApproval === null ? 'default' : needsApproval ? 'yes' : 'no'} onChange={v => setNeedsApproval(v === 'default' ? null : v === 'yes')}
-          options={[{ key: 'default', label: assignee ? `Default (${defaultApproval ? 'yes' : 'no'})` : 'Default' }, { key: 'yes', label: 'Yes' }, { key: 'no', label: 'No' }]} />
+        <label htmlFor="chore-approval">Needs a parent's OK</label>
+        <select id="chore-approval" value={needsApproval === null ? 'default' : needsApproval ? 'yes' : 'no'} onChange={e => setNeedsApproval(e.target.value === 'default' ? null : e.target.value === 'yes')}>
+          <option value="default">{assignee ? `Default (${defaultApproval ? 'yes' : 'no'})` : 'Default'}</option>
+          <option value="yes">Yes</option>
+          <option value="no">No</option>
+        </select>
         <p className="field-hint">Ticks from wall screens and kids' devices wait for a parent to approve before the points count. Default follows {assignee ? `${assignee.name}'s setting` : 'the setting of whoever does it'} in Settings → Family{pluginId ? '; timed play approves itself unless the switch above is on' : ''}.</p>
       </div>
       <div className="field">
-        <label>Repeat</label>
-        <Segmented className="chore-repeat" label="Repeat" value={repeat} onChange={r => editSched({ repeat: r })}
-          options={(['once', 'daily', 'weekly'] as const).map(r => ({ key: r, label: r[0].toUpperCase() + r.slice(1) }))} />
+        <label htmlFor="chore-repeat">Repeat</label>
+        <select id="chore-repeat" value={repeat ?? 'custom'} onChange={e => editSched({ repeat: e.target.value as NonNullable<typeof repeat> })}>
+          {repeat === null && <option value="custom" disabled>Custom</option>}
+          {(['once', 'daily', 'weekly'] as const).map(r => <option key={r} value={r}>{r[0].toUpperCase() + r.slice(1)}</option>)}
+        </select>
         {sched.custom && <p className="field-hint">Custom schedule ({chore?.rrule}). Picking an option replaces it.</p>}
       </div>
       {repeat === 'weekly' && (

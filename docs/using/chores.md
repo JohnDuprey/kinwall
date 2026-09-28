@@ -8,7 +8,7 @@ Don't use chores? An admin can turn off **Chores & points** in **Settings → Ge
 
 ## Completing chores
 
-* **Tap** a card to mark it done (with a check and a small confetti burst). Tap again to undo.
+* **Tap** a card to mark it done (with a check and a small confetti burst). Tapping a done chore asks **Mark "…" not done?** first, so a stray tap can't take points back.
 * A **date strip** lets you look at 4 days back and 9 days ahead. You can complete chores for any day shown.
 * Completing a chore credits the chore's assignee. Ticking off an **Anyone** chore on the Chores tab asks **Who did it?**: pick the person who earns the points, or **Nobody in particular**. It doesn't ask when the family is filtered to one person or the display is pinned to one; the chore counts for that person. Unticking never asks. A done **Anyone** chore says who got the points, such as "Done by Sam", or "Done by nobody in particular".
 * To edit a chore, **press and hold** (half a second), right-click, or tab to it and use its **Edit** button. Adding, editing and deleting chores works on parent devices only: wall screens and kids' devices tick chores off (and undo), with no **+** button and no editor.
@@ -16,7 +16,7 @@ Don't use chores? An admin can turn off **Chores & points** in **Settings → Ge
 
 ## Ticking chores off from someone's day
 
-A person's day (their snapshot) lists their chores for today, plus **Anyone** chores. Tap a chore to mark it done or not done, the same as on the Chores tab. An **Anyone** chore done from someone's day counts for that person. A chore with a checklist that still has open items opens the checklist first.
+A person's day (their snapshot) lists their chores for today, plus **Anyone** chores. Tap a chore to mark it done, or (after confirming) not done, the same as on the Chores tab. An **Anyone** chore done from someone's day counts for that person. A chore with a checklist that still has open items opens the checklist first.
 
 On a phone, open someone's day from the family button at the top left, then **Their day**.
 
@@ -39,7 +39,7 @@ Tap **+** (Add chore). The sheet has:
 
 Chores created through the API or MCP can use any RRULE (for example `FREQ=MONTHLY` or `INTERVAL=2`). The sheet shows those as "Custom schedule (…)" and leaves them alone unless you pick another option. A recurring chore without a due date starts on the day it was created, in the household timezone.
 
-**Delete** removes the chore from every list. If it was ever done, its history stays: points already earned from it are kept, it still counts on [profiles](profiles.md), and it stays in the data export. A chore that was never done is removed completely.
+**More… → Delete chore…** (in the chore's edit sheet) removes the chore from every list. If it was ever done, its history stays: points already earned from it are kept, it still counts on [profiles](profiles.md), and it stays in the data export. A chore that was never done is removed completely.
 
 ## Checklists
 
