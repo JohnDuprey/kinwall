@@ -152,6 +152,7 @@ export async function mockMealRequest(path: string, options: RequestInit): Promi
   const method = options.method ?? 'GET'
   const body = options.body ? JSON.parse(String(options.body)) : {}
   if (resource === 'recipes') {
+    if (id === 'import-url' || id === 'parse-text' || id === 'import') throw new Error('The demo can’t read recipe pages. Try it on your own Kinwall.')
     if (method === 'GET') return recipes.filter(r => url.searchParams.get('archived') === 'true' || !r.archived)
     const old = recipes.find(r => r.id === id)
     if (id && !old) throw new Error('Recipe not found')

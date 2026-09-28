@@ -44,7 +44,7 @@ The meal and recipe sheets show their links as rows:
 * **Recipe website** (or **Website** for dining out) opens any other source link in the browser, with the site's name under it.
 * **Linked calendar event** opens the meal's event in the calendar.
 
-To show a recipe card, the Kinwall server fetches it from the recipe's own source link: only public `https` addresses, a PDF of at most 15 MB. Nothing else is fetched from recipe links; websites aren't imported.
+To show a recipe card, the Kinwall server fetches it from the recipe's own source link: only public `https` addresses, a PDF of at most 15 MB. A recipe website is only read when you import it (see [Import from a link](#import-from-a-link)).
 
 ### Recipe photos
 
@@ -54,9 +54,50 @@ Like recipe cards, photos are fetched by the Kinwall server from the recipe's ow
 
 When you plan a recipe, the meal keeps its own copy of the ingredients. Editing, archiving or deleting the recipe later doesn't change meals already planned. To pick up the recipe's changes, tick **Refresh from the current recipe when saving** in the meal's sheet.
 
+## Import from a link
+
+Most recipe websites describe their recipes in a standard, machine-readable form (schema.org Recipe data) alongside the page, and Kinwall can read it. In the **Recipe library**, an admin taps **Import from a link**, pastes the page's address and taps **Get recipe**. Kinwall shows what it found before saving anything:
+
+* The name and servings, which you can change here.
+* Its times and the website's name, the description, and **N ingredients** and **N steps**, which open to show them.
+* A note for anything missing ("No servings found", "No steps found"). A recipe without servings is saved for 4.
+* The photo isn't shown yet: it appears once the recipe is saved.
+
+**Save recipe** adds it to the library and opens it. Ingredient lines are split into amount, unit and name the same way as other imports (see [Importing recipes](#importing-recipes)); section headings in the steps ("For the sauce") go in front of their first step. Importing the same page again updates that recipe instead of adding a copy (so it replaces edits you made to it). The recipe's source link is the page, and its photo comes from the site like any recipe photo.
+
+A few things to know:
+
+* Only public `https` pages are read (an `http://` link is tried as `https://`), at most 3 MB, following up to 3 redirects, each one checked. A self-hosted server with `ALLOW_PRIVATE_FEED_URLS=1` can also read pages on the home network.
+* Some sites block servers from reading their pages, and some pages don't include recipe data at all (a blog post with the recipe only in its text). Then Kinwall says **This page has no recipe data Kinwall can read. Paste the recipe text instead.**
+
+### Paste the recipe text instead
+
+**Paste the recipe text instead** (under the link, and after an error) swaps the link for a text box. Paste or type the recipe:
+
+```
+Grandma's pancakes
+Serves 4
+
+Ingredients
+2 cups flour
+1 1/2 cups milk
+
+Directions
+1. Mix.
+2. Cook on a hot griddle.
+```
+
+The first line is the name. A line that says **Ingredients** starts the ingredients, one per line (leading bullets are dropped). A line that says **Directions**, **Instructions**, **Method** or **Steps** starts the steps, one per line or paragraph (numbers like "1." or "Step 2:" are dropped). A "Serves 4" line before the ingredients sets the servings. Headings may end with a colon. **Read recipe** shows the same preview as a link, then **Save recipe**. If you had typed a link first, it's kept as the recipe's source link. **Use a link instead** switches back.
+
+### Sharing from your phone
+
+In the Kinwall app for iPhone and Android, share a recipe page to Kinwall: in Safari or Chrome (or any app with a Share button), tap **Share** and pick **Kinwall**. The app opens the import sheet with the link filled in and reads it straight away. On the iPhone, if Kinwall isn't in the share sheet's row of apps, tap **More** and turn it on.
+
+Any browser can do the same with a link to `#/recipes/import?url=<the page address, URL-encoded>` on your Kinwall address. Importing is for parents' devices: on a wall screen or a child's device the sheet says **Ask a grown-up to import this recipe**.
+
 ## Importing recipes
 
-Recipes can come in from another app instead of being typed. The [Home Assistant integration](../integrations/home-assistant.md#meal-kits) has a ready-made blueprint that imports each week's HelloFresh box (through the HelloFresh integration for Home Assistant) and plans the meals as dinners from delivery day on. Anything else can call `POST /api/recipes/import` (admin) or the MCP tool `import_recipe`.
+Recipes can come in from a website (above) or from another app instead of being typed. The [Home Assistant integration](../integrations/home-assistant.md#meal-kits) has a ready-made blueprint that imports each week's HelloFresh box (through the HelloFresh integration for Home Assistant) and plans the meals as dinners from delivery day on. Anything else can call `POST /api/recipes/import` (admin) or the MCP tool `import_recipe`.
 
 * An imported recipe remembers where it came from (`source`, like `hellofresh`, and that app's own id). Importing it again updates the same recipe instead of adding a copy, so edits you make to an imported recipe are replaced the next time it's imported.
 * Ingredient lines like "1.5 tablespoon Sour Cream", "½ cup Rice" or "2 unit Garlic Clove" are split into amount, unit and name. Anything Kinwall can't read stays in the name.
@@ -124,6 +165,8 @@ An admin can turn off **Meals** in **Settings → General** (tap **Change** unde
 | `GET` | `/api/recipes?search=&category=&archived=` | Recipes with their ingredients. |
 | `POST` / `PATCH` / `DELETE` | `/api/recipes`, `/api/recipes/{id}` | Add, edit (`archived: true` archives) or delete a recipe (admin). |
 | `POST` | `/api/recipes/import` | Import or update a recipe by `{ source, externalId }` and optionally plan it (admin). See below. |
+| `POST` | `/api/recipes/import-url` | Read the recipe on a web page `{ url, save? }` (admin). Answers `{ recipe, warnings }`: `recipe` is `{ name, description, imageUrl, sourceUrl, servings, prepMinutes, totalMinutes, ingredients: [{ text, name, quantity, unit }], steps: [{ text, bullets }] }` (`servings` and times `null` when the page doesn't say). Nothing is saved unless `save: true`, which imports it with `source: "web"` and `externalId` the page's address (its canonical link when it has one) and adds `recipeId` and `created`. To save an edited preview instead, send it to `POST /api/recipes/import` with the same `source` and `externalId` and the ingredients' `text`. Public `https` only (`http` is tried as `https`), redirects re-checked (at most 3), `text/html`, at most 3 MB, 15-second timeout. 400 for an address that isn't public `https`, 502 when the fetch fails or isn't a web page, 422 when the page has no schema.org Recipe data. |
+| `POST` | `/api/recipes/parse-text` | Read pasted recipe text `{ text, url? }` into the same `{ recipe, warnings }` without saving (admin): the first line is the name, then an "Ingredients" heading and a "Directions" (or Instructions, Method, Steps) heading. 422 without an Ingredients heading. |
 | `GET` | `/api/recipes/{id}/image`, `/api/meals/{id}/image` | The photo at that recipe's own `imageUrl` (a meal: its recipe's), fetched by the server (any signed-in key, display keys too; also `?key=` for an `<img src>`). Public `https` only, redirects re-checked (at most 3), JPEG, PNG, WebP or GIF checked by the file's own bytes (served as what the bytes are, never SVG), at most 8 MB, 15-second timeout, `Cache-Control: private, max-age=604800`, the source's `ETag` passed through. 404 when there's no image, 400 when it isn't a public `https` address, 502 when the fetch fails or isn't an image. Clear a recipe's photo with `PATCH /api/recipes/{id}` `{"imageUrl": null}`. |
 | `GET` | `/api/recipes/{id}/steps/{n}/image` | Step `n`'s photo (steps count from 1), from that step's own `imageUrl`, fetched and checked exactly like the recipe photo above (also `?key=`; display keys too). 404 when the step doesn't exist or has no photo. |
 | `GET` | `/api/recipes/{id}/source.pdf`, `/api/meals/{id}/source.pdf` | The PDF recipe card at that recipe's or meal's own `sourceUrl`, fetched by the server (any signed-in key, display keys too). Public `https` only, redirects re-checked (at most 3), `application/pdf` (or `application/octet-stream` starting `%PDF`), at most 15 MB, 15-second timeout, `Cache-Control: private, max-age=86400`. 404 when there's no `sourceUrl`, 400 when it isn't a public `https` address, 502 when the fetch fails or isn't a PDF. |
