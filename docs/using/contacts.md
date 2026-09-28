@@ -4,9 +4,20 @@ Kinwall's Contacts directory stores people, services, organizations, and places 
 
 Contacts support multiple categories, tags, phone numbers, email addresses, postal addresses, relationships, associated household members, service hours, service areas, an emergency flag, favorites, and wall visibility. Built-in categories include Emergency services, Medical, Veterinary, Childcare, Family, Friends, Neighbors, School, Work, Home services, Transportation, Organizations, and Other. Households can add custom categories.
 
-## Privacy and wall visibility
+## Who can see a contact
 
-New personal and service contacts default to household visibility and are not shown on the wall. Visibility can be `household`, `adults`, `selected_members`, or `private`. Wall visibility is a separate switch. Phone numbers and addresses stay redacted on wall/display-scoped responses unless their individual wall switches are enabled; private notes are never returned to display-scoped keys. Display keys can read wall-visible contacts but cannot import, merge, edit, or delete them.
+Each contact has a **Who can see it** setting (`visibility` in the API). Parent devices (and connected apps with full access) always see every contact.
+
+| Setting | API value | Seen on |
+|---|---|---|
+| Everyone in the family | `household` | Parent devices, every member's own device, and shared wall screens when **Show on wall** is on. |
+| Grown-ups only | `adults` | Parent devices and the own devices of members marked as grown-ups. Never wall screens or kids' devices. |
+| Only the people I choose | `selected_members` | Parent devices and the own devices of the members in `selectedMemberIds`. Never wall screens. |
+| Parent devices only | `private` | Parent devices only. |
+
+A member's own device is one whose owner is that member under [Settings → Access](../settings/access.md). A shared wall screen is a device set to the whole family, or one with no owner.
+
+**Show on wall** (`wallVisible`) is a separate switch, off by default. On a wall screen, phone numbers show only when **Show permitted phone numbers on wall** is on (and only the numbers marked for the wall), and the address only when **Show address on wall** is on. Wall screens never get email, notes, tags, dates or who the contact is for. Members' own devices get the contact without its notes and without the fields listed in `privateFields`. `memberIds` is who a contact is for ("Leo's dentist"); `selectedMemberIds` is who may see a contact set to `selected_members`. Device keys can read contacts but can't add, import, merge, edit or delete them.
 
 ## Emergency contacts
 

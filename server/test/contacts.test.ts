@@ -177,3 +177,37 @@ test('each contact change emits exactly one event', async () => {
   await t.req(`/api/contacts/${created.body.id}`, 'DELETE');
   assert.equal(await rev(), before + 6);
 });
+
+test('visibility levels: admin, shared wall, a kid’s own device and a grown-up’s own device', async () => {
+  const t = setup();
+  const alex = (await t.req('/api/members', 'POST', { name: 'Alex', color: '#57e', grownUp: true })).body;
+  const leo = (await t.req('/api/members', 'POST', { name: 'Leo', color: '#e57' })).body;
+  const maya = (await t.req('/api/members', 'POST', { name: 'Maya', color: '#5e7' })).body;
+  const device = async (owner: string) => {
+    const k = (await t.req('/api/keys', 'POST', { name: `tablet ${owner}`, scope: 'display' })).body;
+    assert.equal((await t.req(`/api/keys/${k.id}`, 'PATCH', { owner })).status, 200);
+    return k.key as string;
+  };
+  const keys = { admin: ADMIN, wall: await device('shared'), leo: await device(leo.id), alex: await device(alex.id) };
+  const make = async (name: string, extra: object) => (await t.req('/api/contacts', 'POST', { name, ...extra })).body.id as string;
+  const ids = {
+    household: await make('Babysitter', { visibility: 'household' }),
+    householdWall: await make('Fire department', { visibility: 'household', wallVisible: true }),
+    adults: await make('Family lawyer', { visibility: 'adults', wallVisible: true }),
+    selected: await make('Leo’s coach', { visibility: 'selected_members', selectedMemberIds: [leo.id] }),
+    selectedMaya: await make('Maya’s tutor', { visibility: 'selected_members', selectedMemberIds: [maya.id] }),
+    private: await make('Doctor', { visibility: 'private', wallVisible: true }),
+  };
+  const sees = async (key: string) => {
+    const listed = new Set((await t.req('/api/contacts', 'GET', undefined, key)).body.map((c: { id: string }) => c.id));
+    const names = Object.entries(ids).filter(([, id]) => listed.has(id)).map(([name]) => name);
+    for (const [name, id] of Object.entries(ids)) assert.equal((await t.req(`/api/contacts/${id}`, 'GET', undefined, key)).status, listed.has(id) ? 200 : 404, name);
+    return names;
+  };
+  assert.deepEqual(await sees(keys.admin), ['household', 'householdWall', 'adults', 'selected', 'selectedMaya', 'private']);
+  assert.deepEqual(await sees(keys.wall), ['householdWall']);
+  assert.deepEqual(await sees(keys.leo), ['household', 'householdWall', 'selected']);
+  assert.deepEqual(await sees(keys.alex), ['household', 'householdWall', 'adults']);
+  // A member's own device never learns who else a contact is shared with.
+  assert.deepEqual((await t.req(`/api/contacts/${ids.selected}`, 'GET', undefined, keys.leo)).body.selectedMemberIds, []);
+});

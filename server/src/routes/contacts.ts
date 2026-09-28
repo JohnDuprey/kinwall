@@ -5,7 +5,7 @@ import type { Env } from '../env.ts';
 import type { KinwallDb } from '../db.ts';
 import { requestKey } from '../auth.ts';
 import { emit } from '../bus.ts';
-import { ContactCategoryInputSchema, ContactCategorySchema, ContactInputSchema, ContactPatchSchema, ContactSchema, ErrorSchema } from '../schemas.ts';
+import { ContactCategoryInputSchema, ContactCategorySchema, ContactInputSchema, ContactPrivateFieldSchema, ContactPatchSchema, ContactSchema, ErrorSchema } from '../schemas.ts';
 import { duplicateScore, mergeContacts, parseVCards, type ContactInput } from '../contacts-domain.ts';
 
 export const contactsRoutes = createRouter();
@@ -38,20 +38,49 @@ export function fromRow(r: ContactRow): ContactInput & { id: string; createdAt: 
     visibility: r.visibility, selectedMemberIds: parse(r.selected_member_ids, []), sourceMetadata: parse(r.source_metadata, null), privateFields: parse(r.private_fields, []), createdAt: r.created_at, updatedAt: r.updated_at };
 }
 
-function forDisplay(contact: ReturnType<typeof fromRow>) {
-  // Construct the wall response from an allow-list. A new contact field must not become public by accident.
-  return { ...contact,
+type Contact = ReturnType<typeof fromRow>;
+// Who is asking decides what they see. Admin keys (parents' devices, connected apps with full
+// access) see everything. A shared wall screen, or a legacy display with no owner, sees household
+// contacts marked for the wall. A member's own device sees household contacts, adults contacts
+// when that member is a grown-up, and contacts shared with them by name.
+type Viewer = { kind: 'admin' } | { kind: 'wall' } | { kind: 'member'; id: string; grownUp: boolean };
+async function viewer(c: Context<{ Bindings: Env }>): Promise<Viewer> {
+  const key = await requestKey(c);
+  if (key?.scope === 'admin') return { kind: 'admin' };
+  if (!key?.owner || key.owner === 'shared') return { kind: 'wall' };
+  const member = await c.env.DB.prepare('SELECT grown_up FROM members WHERE id = ?').bind(key.owner).first<{ grown_up: number }>();
+  return { kind: 'member', id: key.owner, grownUp: !!member?.grown_up };
+}
+function canSee(contact: Contact, v: Viewer): boolean {
+  if (v.kind === 'admin') return true;
+  if (v.kind === 'wall') return contact.wallVisible && contact.visibility === 'household';
+  return contact.visibility === 'household' || (contact.visibility === 'adults' && v.grownUp)
+    || (contact.visibility === 'selected_members' && contact.selectedMemberIds.includes(v.id));
+}
+function forViewer(contact: Contact, v: Viewer): Contact {
+  if (v.kind === 'admin') return contact;
+  const hidden = (field: z.infer<typeof ContactPrivateFieldSchema>) => contact.privateFields.includes(field);
+  // Device keys never get notes, where the contact came from, or who else it's shared with.
+  const device = { ...contact, notes: null, sourceMetadata: null, selectedMemberIds: [], privateFields: [] };
+  if (v.kind === 'member') {
+    return { ...device,
+      organization: hidden('organization') ? null : contact.organization, relationship: hidden('relationship') ? null : contact.relationship, title: hidden('title') ? null : contact.title,
+      phones: hidden('phones') ? [] : contact.phones, emails: hidden('emails') ? [] : contact.emails, addresses: hidden('addresses') ? [] : contact.addresses,
+      websites: hidden('websites') ? [] : contact.websites, dates: hidden('dates') ? [] : contact.dates, tags: hidden('tags') ? [] : contact.tags, memberIds: hidden('members') ? [] : contact.memberIds };
+  }
+  // A wall shows the name, organization and emergency flag, plus the phones and address it's allowed to.
+  // Every other field is blanked here: a new field needs a line, or it shows on the wall.
+  return { ...device,
     givenName: null, familyName: null, nickname: null, relationship: null, title: null,
-    organization: contact.privateFields.includes('organization') ? null : contact.organization,
-    phones: contact.phoneVisibleOnWall && !contact.privateFields.includes('phones') ? contact.phones.filter((p) => p.wallVisible) : [],
-    emails: [], websites: [], dates: [], notes: null, tags: [], memberIds: [], selectedMemberIds: [], sourceMetadata: null,
-    addresses: contact.addressVisibleOnWall && !contact.privateFields.includes('addresses') ? contact.addresses : [],
+    organization: hidden('organization') ? null : contact.organization,
+    phones: contact.phoneVisibleOnWall && !hidden('phones') ? contact.phones.filter((p) => p.wallVisible) : [],
+    emails: [], websites: [], dates: [], tags: [], memberIds: [],
+    addresses: contact.addressVisibleOnWall && !hidden('addresses') ? contact.addresses : [],
     emergency: contact.emergencyVisible && contact.emergency,
-    serviceArea: null, privateFields: [],
+    serviceArea: null,
   };
 }
 
-async function isDisplay(c: Context<{ Bindings: Env }>) { return (await requestKey(c))?.scope === 'display'; }
 async function load(db: KinwallDb, id: string) { return db.prepare('SELECT * FROM contacts WHERE id = ?').bind(id).first<ContactRow>(); }
 async function all(db: KinwallDb) { return (await db.prepare('SELECT * FROM contacts ORDER BY name COLLATE NOCASE, id').all<ContactRow>()).results; }
 async function validateCategories(db: KinwallDb, ids: string[]): Promise<boolean> {
@@ -135,23 +164,20 @@ contactsRoutes.openapi(createRoute({ method: 'get', path: '/api/contacts', tags:
   const query = c.req.valid('query');
   const q = query.search;
   const categoryId = query.category;
-  const display = await isDisplay(c);
-  const key = await requestKey(c);
-  const owner = key?.scope === 'display' && key.owner && key.owner !== 'shared' ? key.owner : null;
-  const rows = await all(c.env.DB);
-  return c.json(rows.filter((r) => {
-    const c = fromRow(r); const allowed = !display || (c.wallVisible && (c.visibility === 'household' || (c.visibility === 'selected_members' && !!owner && c.selectedMemberIds.includes(owner))));
+  const v = await viewer(c);
+  const rows = (await all(c.env.DB)).map(fromRow);
+  return c.json(rows.filter((c) => {
+    const allowed = canSee(c, v);
     const haystack = [c.name, c.givenName, c.familyName, c.nickname, c.organization, c.relationship, c.title, ...c.tags, ...c.categoryIds].filter(Boolean).join(' ').toLocaleLowerCase();
     return allowed && (!query.visibility || c.visibility === query.visibility) && (!query.kind || c.kind === query.kind) && (!q || haystack.includes(q.toLocaleLowerCase())) && (!categoryId || c.categoryIds.includes(categoryId)) && (query.favorite === undefined || c.favorite === query.favorite) && (query.emergency === undefined || c.emergency === query.emergency) && (query.emergencyVisible === undefined || c.emergencyVisible === query.emergencyVisible) && (query.wallVisible === undefined || c.wallVisible === query.wallVisible) && (!query.memberId || c.memberIds.includes(query.memberId));
-  }).map((r) => display ? forDisplay(fromRow(r)) : fromRow(r)), 200);
+  }).map((c) => forViewer(c, v)), 200);
 });
 
 contactsRoutes.openapi(createRoute({ method: 'get', path: '/api/contacts/{id}', tags: tag, security, summary: 'Get a contact', request: { params: idParam }, responses: { 200: answer(ContactSchema), 404: error('not found') } }), async (c) => {
-  const row = await load(c.env.DB, c.req.valid('param').id), display = await isDisplay(c);
+  const row = await load(c.env.DB, c.req.valid('param').id), v = await viewer(c);
   const contact = row && fromRow(row);
-  const key = await requestKey(c); const owner = key?.scope === 'display' && key.owner && key.owner !== 'shared' ? key.owner : null;
-  if (!contact || (display && (!contact.wallVisible || (contact.visibility !== 'household' && !(contact.visibility === 'selected_members' && !!owner && contact.selectedMemberIds.includes(owner)))))) return c.json({ error: 'not found' }, 404);
-  return c.json(display ? forDisplay(contact) : contact, 200);
+  if (!contact || !canSee(contact, v)) return c.json({ error: 'not found' }, 404);
+  return c.json(forViewer(contact, v), 200);
 });
 
 contactsRoutes.openapi(createRoute({ method: 'post', path: '/api/contacts', tags: tag, security, summary: 'Create a contact (admin)', request: { body: jsonBody(ContactInputSchema) }, responses: { 201: answer(ContactSchema, 'created'), 400: error('invalid category') } }), async (c) => {

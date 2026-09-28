@@ -33,6 +33,12 @@ const TEMPLATES: { label: string; relationship: string; kind: NonNullable<Contac
   { label: 'Neighbor', relationship: 'Neighbor', kind: 'person' },
   { label: 'Other service', relationship: 'Service', kind: 'service' },
 ]
+const VISIBILITY_HINTS: Record<NonNullable<ContactInput['visibility']>, string> = {
+  household: 'Parent devices and everyone’s own devices. Wall screens too, if it’s on the wall.',
+  adults: 'Parent devices and grown-ups’ own devices. Never wall screens or kids’ devices.',
+  selected_members: 'Parent devices and the chosen people’s own devices. Never wall screens.',
+  private: 'Only parent devices.',
+}
 const clean = (s: string) => s.trim() || null
 const errorText = (error: unknown, fallback: string) => error instanceof ApiError ? error.message : fallback
 const callHref = (value: string) => {
@@ -99,6 +105,7 @@ function ContactForm({ initial, categories, members, onClose, onSaved }: { initi
     const emails = form.emails.map(m => ({ label: m.label.trim() || 'Email', value: m.value.trim() })).filter(m => m.value)
     if (phones.some(m => !callHref(m.value))) { setValidation('Enter a valid phone number or remove the empty row.'); return }
     if (emails.some(m => !mailHref(m.value))) { setValidation('Enter a valid email address.'); return }
+    if (form.visibility === 'selected_members' && !form.selectedMemberIds?.length) { setValidation('Choose who can see it.'); return }
     const addresses = (form.addresses ?? []).map(a => ({ ...a, street: a.street.trim(), city: a.city.trim(), region: a.region.trim(), postalCode: a.postalCode.trim() })).filter(a => formatAddress(a))
     const body: ContactInput = { ...form, name, organization: clean(form.organization ?? ''), relationship: clean(form.relationship ?? ''),
       notes: clean(form.notes ?? ''), phones, emails, addresses }
@@ -132,8 +139,9 @@ function ContactForm({ initial, categories, members, onClose, onSaved }: { initi
       <label><input type="checkbox" checked={form.alwaysOpen ?? false} onChange={e => change('alwaysOpen', e.target.checked)} /> Available 24/7</label>
       <label><input type="checkbox" checked={form.wallVisible} onChange={e => change('wallVisible', e.target.checked)} /> Show on wall and shared displays</label>
       {form.wallVisible && <><label><input type="checkbox" checked={form.phoneVisibleOnWall ?? false} onChange={e => change('phoneVisibleOnWall', e.target.checked)} /> Show permitted phone numbers on wall</label><label><input type="checkbox" checked={form.addressVisibleOnWall ?? false} onChange={e => change('addressVisibleOnWall', e.target.checked)} /> Show address on wall</label></>}
-      <label htmlFor={`${id}-visibility`}>Privacy visibility<select id={`${id}-visibility`} value={form.visibility ?? 'household'} onChange={e => change('visibility', e.target.value as ContactInput['visibility'])}><option value="household">Household</option><option value="adults">Adults</option><option value="selected_members">Selected members</option><option value="private">Private</option></select></label>
-      <p className="field-hint">New contacts stay private to parent devices until you turn on display access.</p>
+      <div className="field"><label htmlFor={`${id}-visibility`}>Who can see it</label><select id={`${id}-visibility`} value={form.visibility ?? 'household'} onChange={e => change('visibility', e.target.value as ContactInput['visibility'])}><option value="household">Everyone in the family</option><option value="adults">Grown-ups only</option><option value="selected_members">Only the people I choose</option><option value="private">Parent devices only</option></select>
+        <p className="field-hint">{VISIBILITY_HINTS[form.visibility ?? 'household']}</p></div>
+      {form.visibility === 'selected_members' && <div className="field"><label htmlFor={`${id}-selected`}>Who can see it on their own device</label><select id={`${id}-selected`} multiple value={form.selectedMemberIds ?? []} onChange={e => change('selectedMemberIds', Array.from(e.target.selectedOptions, option => option.value))}>{members.map(member => <option key={member.id} value={member.id}>{member.name}</option>)}</select></div>}
     </fieldset>
     {validation && <p className="field-error" role="alert">{validation}</p>}
   </Sheet>
@@ -230,7 +238,7 @@ function ImportSheet({ contacts, categories, members, onClose, onImported }: { c
   return <Sheet title={review ? 'Review contacts' : 'Import contacts'} onClose={onClose} dismissable={!busy}
     actions={review ? <><button className="btn btn-secondary" disabled={busy} onClick={() => setReview(null)}>Back</button><button className="btn btn-primary" disabled={busy || !review.some(r => r.decision !== 'skip')} onClick={commit}>{busy ? 'Importing…' : `Import ${review.filter(r => r.decision !== 'skip').length}`}</button></> : undefined}>
     {!review ? <div className="contact-import-options">
-      <p>Review every contact before it is added. New imports are private by default.</p>
+      <p>Review every contact before it’s added. Imported contacts are for the whole family and stay off wall screens until you turn that on.</p>
       {pickerAvailable && <button className="contact-import-choice" onClick={pick}>Choose from this device’s contacts<span>Uses your browser’s contact picker</span></button>}
       <button className="contact-import-choice" onClick={() => fileInput.current?.click()}>Choose a vCard file<span>.vcf or .vcard, up to 2 MB</span></button>
       <input ref={fileInput} type="file" accept=".vcf,.vcard,text/vcard,text/x-vcard" onChange={fileChosen} className="sr-only" aria-label="vCard file" />
@@ -285,8 +293,7 @@ export default function Contacts() {
   const selected = contacts.find(c => c.id === selectedId) ?? null
   const visible = useMemo(() => {
     const q = query.trim().toLocaleLowerCase()
-    return contacts.filter(c => (parentDevice || c.wallVisible) &&
-      (filter === 'all' || (filter === 'favorites' && c.favorite) || (filter === 'emergency' && c.emergency) || (filter === 'wall' && c.wallVisible)) &&
+    return contacts.filter(c => (filter === 'all' || (filter === 'favorites' && c.favorite) || (filter === 'emergency' && c.emergency) || (filter === 'wall' && c.wallVisible)) &&
       (kindFilter === 'all' || c.kind === kindFilter) &&
       (categoryFilter === 'all' || c.categoryIds?.includes(categoryFilter)) &&
       (!q || [c.name, c.organization, c.relationship, ...c.phones.map(p => p.value), ...(parentDevice ? c.emails.map(e => e.value) : [])]
@@ -304,7 +311,7 @@ export default function Contacts() {
     try { await api.deleteContact(selected.id); setContacts(all => all.filter(c => c.id !== selected.id)); setSheet(null); setSelectedId(null); announce(`${selected.name} deleted`) }
     catch (error) { toast(errorText(error, 'Could not delete contact.'), true) }
   }
-  const count = contacts.filter(c => parentDevice || c.wallVisible).length
+  const count = contacts.length
   const categoryNames = new Map(categories.map(category => [category.id, category.name]))
   return <div className="contacts-page scroll-y">
     <div className="contacts-inner">
