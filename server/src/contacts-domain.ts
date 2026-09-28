@@ -18,6 +18,21 @@ function unionValues<T>(a: T[], b: T[], key: (v: T) => string): T[] {
   return [...a, ...b.filter((v) => { const k = key(v); if (seen.has(k)) return false; seen.add(k); return true; })];
 }
 
+// A merged contact is shown to no one who couldn't see both copies: the stricter visibility, every
+// wall switch only if both had it on, and every private field of either.
+const RANK = { household: 0, adults: 1, selected_members: 1, private: 2 } as const;
+function stricter(a: ContactInput, b: ContactInput): Pick<ContactInput, 'visibility' | 'selectedMemberIds'> {
+  if (a.visibility === b.visibility) {
+    if (a.visibility !== 'selected_members') return { visibility: a.visibility, selectedMemberIds: [...new Set([...a.selectedMemberIds, ...b.selectedMemberIds])] };
+    const both = a.selectedMemberIds.filter((id) => b.selectedMemberIds.includes(id));
+    return both.length ? { visibility: 'selected_members', selectedMemberIds: both } : { visibility: 'private', selectedMemberIds: [] };
+  }
+  // adults and selected_members don't nest, so neither is safe for the other's audience.
+  if (RANK[a.visibility] === RANK[b.visibility]) return { visibility: 'private', selectedMemberIds: [] };
+  const strict = RANK[a.visibility] > RANK[b.visibility] ? a : b;
+  return { visibility: strict.visibility, selectedMemberIds: strict.selectedMemberIds };
+}
+
 export function mergeContacts(existing: ContactInput, incoming: ContactInput): ContactInput {
   return {
     ...existing,
@@ -40,15 +55,14 @@ export function mergeContacts(existing: ContactInput, incoming: ContactInput): C
     serviceHours: existing.serviceHours || incoming.serviceHours,
     serviceArea: existing.serviceArea || incoming.serviceArea,
     alwaysOpen: existing.alwaysOpen || incoming.alwaysOpen,
-    wallVisible: existing.wallVisible || incoming.wallVisible,
-    emergencyVisible: existing.emergencyVisible || incoming.emergencyVisible,
-    phoneVisibleOnWall: existing.phoneVisibleOnWall || incoming.phoneVisibleOnWall,
-    addressVisibleOnWall: existing.addressVisibleOnWall || incoming.addressVisibleOnWall,
-    selectedMemberIds: [...new Set([...existing.selectedMemberIds, ...incoming.selectedMemberIds])],
+    wallVisible: existing.wallVisible && incoming.wallVisible,
+    emergencyVisible: existing.emergencyVisible && incoming.emergencyVisible,
+    phoneVisibleOnWall: existing.phoneVisibleOnWall && incoming.phoneVisibleOnWall,
+    addressVisibleOnWall: existing.addressVisibleOnWall && incoming.addressVisibleOnWall,
+    ...stricter(existing, incoming),
     sourceMetadata: existing.sourceMetadata || incoming.sourceMetadata,
     favorite: existing.favorite || incoming.favorite,
     emergency: existing.emergency || incoming.emergency,
-    visibility: existing.visibility,
     privateFields: [...new Set([...existing.privateFields, ...incoming.privateFields])],
   };
 }

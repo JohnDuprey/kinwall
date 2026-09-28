@@ -4,7 +4,8 @@ import path from 'node:path';
 import { createApp } from '../src/app.ts';
 import { openDb, applyMigrations } from '../src/d1-sqlite.ts';
 import type { Env } from '../src/env.ts';
-import { duplicateScore, parseVCards } from '../src/contacts-domain.ts';
+import { duplicateScore, mergeContacts, parseVCards } from '../src/contacts-domain.ts';
+import { ContactInputSchema } from '../src/schemas.ts';
 
 const ADMIN = 'kw_contacts_admin';
 function setup() {
@@ -211,3 +212,37 @@ test('visibility levels: admin, shared wall, a kid’s own device and a grown-up
   // A member's own device never learns who else a contact is shared with.
   assert.deepEqual((await t.req(`/api/contacts/${ids.selected}`, 'GET', undefined, keys.leo)).body.selectedMemberIds, []);
 });
+
+test('merging never shows a contact to more people than either copy did', () => {
+  const draft = (extra: object) => ContactInputSchema.parse({ name: 'Coach Taylor', ...extra });
+  const open = draft({ visibility: 'household', wallVisible: true, phoneVisibleOnWall: true, addressVisibleOnWall: true, emergencyVisible: true, privateFields: ['notes'] });
+  const closed = draft({ visibility: 'private', privateFields: ['phones'] });
+  for (const merged of [mergeContacts(open, closed), mergeContacts(closed, open)]) {
+    assert.equal(merged.visibility, 'private');
+    assert.deepEqual([merged.wallVisible, merged.phoneVisibleOnWall, merged.addressVisibleOnWall, merged.emergencyVisible], [false, false, false, false]);
+    assert.deepEqual([...merged.privateFields].sort(), ['notes', 'phones']);
+  }
+  assert.equal(mergeContacts(draft({ visibility: 'household' }), draft({ visibility: 'adults' })).visibility, 'adults');
+  assert.equal(mergeContacts(draft({ visibility: 'adults' }), draft({ visibility: 'selected_members', selectedMemberIds: ['m1'] })).visibility, 'private');
+  const chosen = mergeContacts(draft({ visibility: 'selected_members', selectedMemberIds: ['m1', 'm2'] }), draft({ visibility: 'selected_members', selectedMemberIds: ['m2', 'm3'] }));
+  assert.deepEqual([chosen.visibility, chosen.selectedMemberIds], ['selected_members', ['m2']]);
+  const none = mergeContacts(draft({ visibility: 'selected_members', selectedMemberIds: ['m1'] }), draft({ visibility: 'selected_members', selectedMemberIds: ['m3'] }));
+  assert.equal(none.visibility, 'private');
+  assert.equal(mergeContacts(draft({ visibility: 'household' }), draft({ visibility: 'selected_members', selectedMemberIds: ['m1'] })).selectedMemberIds[0], 'm1');
+});
+
+test('merge updates the target and deletes the source together, or not at all', async () => {
+  const t = setup();
+  const target = (await t.req('/api/contacts', 'POST', { name: 'Coach Taylor', phones: [{ value: '555-010-1111' }] })).body;
+  const source = (await t.req('/api/contacts', 'POST', { name: 'Coach Taylor', phones: [{ value: '555-010-2222' }] })).body;
+  await t.db.prepare("CREATE TRIGGER block_delete BEFORE DELETE ON contacts BEGIN SELECT RAISE(ABORT, 'blocked'); END").run();
+  const failed = await app500(() => t.req('/api/contacts/merge', 'POST', { targetId: target.id, sourceId: source.id, confirm: true }));
+  assert.notEqual(failed, 200);
+  assert.equal((await t.req(`/api/contacts/${target.id}`)).body.phones.length, 1);
+  await t.db.prepare('DROP TRIGGER block_delete').run();
+  const merged = await t.req('/api/contacts/merge', 'POST', { targetId: target.id, sourceId: source.id, confirm: true });
+  assert.equal(merged.status, 200);
+  assert.equal(merged.body.phones.length, 2);
+  assert.equal((await t.req(`/api/contacts/${source.id}`)).status, 404);
+});
+async function app500(run: () => Promise<{ status: number }>) { try { return (await run()).status; } catch { return 500; } }

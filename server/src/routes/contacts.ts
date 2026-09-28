@@ -113,9 +113,12 @@ async function insert(db: KinwallDb, input: ContactInput) {
   await db.prepare('INSERT INTO contacts (id,kind,name,organization,title,given_name,family_name,nickname,relationship,favorite,emergency,phones,emails,addresses,websites,dates,notes,category_ids,tags,member_ids,service_hours,service_area,always_open,wall_visible,emergency_visible,phone_visible_on_wall,address_visible_on_wall,visibility,selected_member_ids,source_metadata,private_fields,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(id, ...values(input), now, now).run();
   return fromRow((await load(db, id))!);
 }
-async function update(db: KinwallDb, id: string, input: ContactInput) {
+function updateStatement(db: KinwallDb, id: string, input: ContactInput) {
   input = normalizeInput(input);
-  await db.prepare('UPDATE contacts SET kind=?,name=?,organization=?,title=?,given_name=?,family_name=?,nickname=?,relationship=?,favorite=?,emergency=?,phones=?,emails=?,addresses=?,websites=?,dates=?,notes=?,category_ids=?,tags=?,member_ids=?,service_hours=?,service_area=?,always_open=?,wall_visible=?,emergency_visible=?,phone_visible_on_wall=?,address_visible_on_wall=?,visibility=?,selected_member_ids=?,source_metadata=?,private_fields=?,updated_at=? WHERE id=?').bind(...values(input), new Date().toISOString(), id).run();
+  return db.prepare('UPDATE contacts SET kind=?,name=?,organization=?,title=?,given_name=?,family_name=?,nickname=?,relationship=?,favorite=?,emergency=?,phones=?,emails=?,addresses=?,websites=?,dates=?,notes=?,category_ids=?,tags=?,member_ids=?,service_hours=?,service_area=?,always_open=?,wall_visible=?,emergency_visible=?,phone_visible_on_wall=?,address_visible_on_wall=?,visibility=?,selected_member_ids=?,source_metadata=?,private_fields=?,updated_at=? WHERE id=?').bind(...values(input), new Date().toISOString(), id);
+}
+async function update(db: KinwallDb, id: string, input: ContactInput) {
+  await updateStatement(db, id, input).run();
   return fromRow((await load(db, id))!);
 }
 function inputOf(c: ReturnType<typeof fromRow>): ContactInput { const { id: _id, createdAt: _created, updatedAt: _updated, ...input } = c; return input; }
@@ -261,8 +264,7 @@ contactsRoutes.openapi(createRoute({ method: 'post', path: '/api/contacts/merge'
   const target = await load(c.env.DB, id), source = await load(c.env.DB, sourceId);
   if (!target || !source) return c.json({ error: 'not found' }, 404);
   const merged = mergeContacts(inputOf(fromRow(target)), inputOf(fromRow(source)));
-  await update(c.env.DB, id, merged);
-  await c.env.DB.prepare('DELETE FROM contacts WHERE id = ?').bind(sourceId).run();
+  await c.env.DB.batch([updateStatement(c.env.DB, id, merged), c.env.DB.prepare('DELETE FROM contacts WHERE id = ?').bind(sourceId)]);
   contactEvent(c, 'merged', id);
   return c.json(fromRow((await load(c.env.DB, id))!), 200);
 });
