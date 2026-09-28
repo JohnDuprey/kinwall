@@ -96,18 +96,18 @@ const CSS = `
 main{max-width:760px;margin:0 auto;padding:20px 16px 48px}
 h1{font-size:1.9rem;line-height:1.2;margin:8px 0 12px}h2{font-size:1.25rem;margin:32px 0 12px}h3{font-size:1rem;margin:0 0 4px}
 .hero{display:block;width:100%;max-height:420px;object-fit:cover;border-radius:20px;background:var(--bg-alt)}
-.meta{color:var(--dim);font-weight:600;margin:8px 0 0}.desc{margin:8px 0 0}
-.card{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:16px 20px}
-ul.ing{margin:0;padding-left:1.2em}ul.ing li{padding:4px 0}
-ol.steps{list-style:none;margin:0;padding:0;counter-reset:s;display:grid;gap:12px}
-ol.steps>li{counter-increment:s;display:grid;grid-template-columns:36px 1fr;gap:12px;align-items:start}
-ol.steps>li::before{content:counter(s);display:grid;place-items:center;width:36px;height:36px;border-radius:50%;background:var(--accent);color:var(--ink);font-weight:800}
-ol.steps p{margin:4px 0}ol.steps ul{margin:4px 0;padding-left:1.2em}.step-img{display:block;width:100%;max-width:420px;border-radius:14px;margin:8px 0}
+.facts{color:var(--dim);font-weight:600;margin:8px 0 0}.desc{margin:8px 0 0}
+ul.ing,aside{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:16px 20px}
+ul.ing{margin:0;padding-left:2.2em}ul.ing li{padding:4px 0}
+ol.steps{list-style:none;margin:0;padding:0;counter-reset:s;display:grid;gap:16px}
+ol.steps>li{counter-increment:s;position:relative;padding-left:48px;min-height:36px}
+ol.steps>li::before{content:counter(s);position:absolute;left:0;top:0;display:grid;place-items:center;width:36px;height:36px;border-radius:50%;background:var(--accent);color:var(--ink);font-weight:800}
+ol.steps h3{margin:6px 0 4px}ol.steps p{margin:4px 0}ol.steps ul{margin:4px 0;padding-left:1.2em}.step-img{display:block;width:100%;max-width:420px;border-radius:14px;margin:8px 0}
 a{color:inherit;text-underline-offset:3px}.src{margin:24px 0 0;overflow-wrap:anywhere}
 form{display:grid;gap:8px;margin-top:8px}label{font-weight:700}
 .row{display:flex;gap:8px;flex-wrap:wrap}input{flex:1 1 220px;min-height:48px;padding:10px 14px;font:inherit;color:var(--text);background:var(--bg);border:2px solid var(--border);border-radius:14px}
 button{min-height:48px;padding:10px 20px;font:inherit;font-weight:800;color:var(--ink);background:var(--accent);border:0;border-radius:999px;cursor:pointer}
-.hint{color:var(--dim);font-size:.9rem;margin:0}footer{color:var(--dim);font-size:.9rem;margin-top:32px;text-align:center}footer a{color:inherit}`;
+aside{margin-top:32px}aside h2{margin-top:0}.hint{color:var(--dim);font-size:.9rem;margin:0}footer{color:var(--dim);font-size:.9rem;margin-top:32px;text-align:center}footer a{color:inherit}`;
 
 function page(nonce: string, title: string, body: string, head = ''): string {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><meta name="referrer" content="no-referrer"><title>${esc(title)}</title><style nonce="${nonce}">${CSS}</style>${head}</head><body><main>${body}<footer>Shared from <a href="https://kinwall.family" rel="noopener">Kinwall</a></footer></main></body></html>`;
@@ -155,15 +155,17 @@ recipeShareRoutes.openapi(createRoute({ method: 'get', path: '/r/{token}', tags:
   };
   const meta = [`Serves ${qty(r.defaultServings)}`, r.prepMinutes && `Prep ${minutes(r.prepMinutes)}`, r.totalMinutes && `Total ${minutes(r.totalMinutes)}`].filter(Boolean).join(' · ');
   const body = [
-    r.imageUrl && `<img class="hero" src="/r/${esc(token)}/image" alt="">`,
+    r.imageUrl && `<img class="hero" src="/r/${esc(token)}/image" alt="${esc(r.name)}">`,
     `<h1>${esc(r.name)}</h1>`,
     r.description && `<p class="desc">${esc(r.description)}</p>`,
-    `<p class="meta">${esc(meta)}</p>`,
-    r.ingredients.length && `<h2>Ingredients</h2><div class="card"><ul class="ing">${r.ingredients.map((i) => `<li>${esc(ingredientLine(i))}</li>`).join('')}</ul></div>`,
-    steps.length && `<h2>Steps</h2><ol class="steps">${steps.map((s, i) => `<li><div>${s.title ? `<h3>${esc(s.title)}</h3>` : ''}${s.image ? `<img class="step-img" src="/r/${esc(token)}/steps/${i + 1}/image" alt="" loading="lazy">` : ''}${s.text ? `<p>${esc(s.text)}</p>` : ''}${s.bullets.length ? `<ul>${s.bullets.map((b) => `<li>${esc(b)}</li>`).join('')}</ul>` : ''}</div></li>`).join('')}</ol>`,
+    `<p class="facts">${esc(meta)}</p>`,
+    r.ingredients.length && `<h2>Ingredients</h2><ul class="ing">${r.ingredients.map((i) => `<li>${esc(ingredientLine(i))}</li>`).join('')}</ul>`,
+    steps.length && `<h2>Steps</h2><ol class="steps">${steps.map((s, i) => `<li>${s.title ? `<h3>${esc(s.title)}</h3>` : ''}${s.image ? `<img class="step-img" src="/r/${esc(token)}/steps/${i + 1}/image" alt="Step ${i + 1}" loading="lazy">` : ''}${s.text ? `<p>${esc(s.text)}</p>` : ''}${s.bullets.length ? `<ul>${s.bullets.map((b) => `<li>${esc(b)}</li>`).join('')}</ul>` : ''}</li>`).join('')}</ol>`,
     r.sourceUrl && `<p class="src">Source: <a href="${esc(r.sourceUrl)}" rel="noopener noreferrer nofollow">${esc(new URL(r.sourceUrl).host)}</a></p>`,
-    `<h2>Save to my Kinwall</h2><div class="card"><form id="save" data-url="${esc(self)}"><label for="addr">Your Kinwall address</label><div class="row"><input id="addr" type="text" inputmode="url" autocapitalize="none" autocomplete="url" spellcheck="false" placeholder="yourfamily.kinwall.family" required><button type="submit">Save recipe</button></div><p class="hint">Opens your Kinwall to import this recipe. Remembered on this device.</p></form></div>`,
   ].filter(Boolean).join('');
+  const aside = [
+    `<h2>Save to my Kinwall</h2><form id="save" data-url="${esc(self)}"><label for="addr">Your Kinwall address</label><div class="row"><input id="addr" type="text" inputmode="url" autocapitalize="none" autocomplete="url" spellcheck="false" placeholder="yourfamily.kinwall.family" required><button type="submit">Save recipe</button></div><p class="hint">Opens your Kinwall to import this recipe. Remembered on this device.</p></form>`,
+  ].join('');
   // Link previews (iMessage, Discord, Slack…): the photo goes through this link like the page's own.
   const summary = r.description ? (r.description.length > 200 ? `${r.description.slice(0, 199)}…` : r.description) : meta;
   const preview = [
@@ -173,7 +175,7 @@ recipeShareRoutes.openapi(createRoute({ method: 'get', path: '/r/{token}', tags:
     ['name', 'twitter:card', r.imageUrl ? 'summary_large_image' : 'summary'],
   ].map(([attr, key, value]) => `<meta ${attr}="${key}" content="${esc(value)}">`).join('');
   const head = `${preview}<script type="application/ld+json">${jsonScript(ld)}</script><script nonce="${nonce}">document.addEventListener('DOMContentLoaded',function(){${SAVE_JS}})</script>`;
-  return send(c, page(nonce, r.name, body, head), nonce, 200);
+  return send(c, page(nonce, r.name, `<article>${body}</article><aside>${aside}</aside>`, head), nonce, 200);
 });
 
 // Photos: only this recipe's own stored imageUrl (or a step's), fetched like /api/recipes/{id}/image.

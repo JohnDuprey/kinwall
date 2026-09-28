@@ -122,6 +122,22 @@ test('recipe share: link previews (iMessage, Discord, Slack) get a title, descri
   assert.match(html2, /<meta name="twitter:card" content="summary">/);
 });
 
+test('recipe share: reader modes (Edge, Safari, Firefox) find the whole recipe', async () => {
+  const { request, share } = await sharedRecipe();
+  const html = await (await request(`/r/${share.token}`, 'GET', undefined, '')).text();
+  // The recipe is one <article>; the save form and footer sit outside it.
+  const article = /<article>([\s\S]*)<\/article>/.exec(html)?.[1] ?? '';
+  for (const text of ['Tuesday Tacos', '1 lb Ground beef', 'Salt to taste', 'Brown the beef.', 'Fill and serve.', 'Source:']) assert.ok(article.includes(text), text);
+  assert.ok(!article.includes('Save to my Kinwall') && !article.includes('<form'), 'the form is not part of the recipe');
+  assert.match(html, /<\/article><aside>[\s\S]*Save to my Kinwall[\s\S]*<\/aside>/);
+  // Nothing wraps the lists, and no class names readers take for page chrome (meta, card, …).
+  assert.doesNotMatch(article, /class="[^"]*\b(meta|card|hint|share|promo|sidebar|widget)\b/);
+  assert.doesNotMatch(article, /<div/);
+  // Photos say what they show.
+  assert.match(article, /<img class="hero" src="[^"]+" alt="Tuesday Tacos">/);
+  assert.match(article, /<img[^>]*steps\/1\/image[^>]*alt="Step 1"/);
+});
+
 test('recipe share: another Kinwall imports the link and keeps the original photo', async () => {
   const { request, share } = await sharedRecipe();
   const html = await (await request(`/r/${share.token}`, 'GET', undefined, '')).text();
