@@ -8,6 +8,7 @@ import { useApp } from './AppContext.tsx'
 import { Segmented } from './a11y.tsx'
 import { inkFor } from './color.ts'
 import { todayKeyInTz } from './date.ts'
+import { hoursMinutes } from './reading.ts'
 import { useIsPhone } from './useIsPhone.ts'
 import { birthdayText, chartLabels, compareText, duration, periodWord, WEEKDAYS } from './profile.ts'
 import type { ChoreDay, Member, MemberStats, StatsPeriod } from './types.ts'
@@ -86,7 +87,7 @@ function ProfileBody({ member, s }: { member: Member; s: MemberStats }) {
           <Tile label="Chores done" value={s.choresDone.toLocaleString()} note={compareText(s.choresDone, s.previous, s.period, s.joined)} up={!!s.previous && s.choresDone > s.previous.choresDone} />
           <Tile label="Points earned" value={s.pointsEarned.toLocaleString()} note={word} />
         </>}
-        {books && <Tile label="Books finished" value={String(s.books.finished)} note={s.books.pages ? `${plural(s.books.pages, 'page')}` : word} />}
+        {books && <Tile label="Books finished" value={String(s.books.finished)} note={[s.books.pages ? plural(s.books.pages, 'page') : '', s.books.minutesListened ? `${hoursMinutes(s.books.minutesListened)} listened` : ''].filter(Boolean).join(' · ') || word} />}
         {f.chores && <Tile label="Streak" value={<>🔥 {s.streak.current} <small>{s.streak.current === 1 ? 'day' : 'days'}</small></>} note={`Best ever: ${plural(s.streak.best, 'day')}`} />}
       </div>
       <div className="profile-grid">
@@ -238,6 +239,7 @@ function BooksCard({ s }: { s: MemberStats }) {
       </ul>
       <div className="profile-facts">
         {shelf.some(b => b.pages) && <span className="profile-fact">{plural(shelf.reduce((t, b) => t + (b.pages ?? 0), 0), 'page')}</span>}
+        {shelf.some(b => b.minutes) && <span className="profile-fact">{hoursMinutes(shelf.reduce((t, b) => t + (b.minutes ?? 0), 0))} listened</span>}
         {rated.length > 0 && <span className="profile-fact">Avg {(rated.reduce((t, b) => t + (b.rating ?? 0), 0) / rated.length).toFixed(1)} ★</span>}
         {loved && <span className="profile-fact">Loved: {loved.title}</span>}
       </div>

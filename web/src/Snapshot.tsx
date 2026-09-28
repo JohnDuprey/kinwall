@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
+import { isAudiobook, readingPercent } from './reading.ts'
 import type { ChoreDay, Member, ReadingData, TrackerEntry, Snapshot, SnapshotBirthday, SnapshotChore, SnapshotEvent, SnapshotItem, WeatherDay } from './types.ts'
 import { ChecklistSheet } from './Chores.tsx'
 import { CheckIcon } from './icons.tsx'
@@ -272,8 +273,8 @@ function DayView({ snap, tz, close, onToggle, books }: { snap: Snapshot; tz: str
           <ul className="snap-list">{books.map(b => (
             <li key={b.id}>
               <button className="snap-row" onClick={() => go('#/trackers/reading', close)}>
-                <span className="snap-time snap-emoji" aria-hidden="true">📖</span>
-                <span className="snap-main"><span className="snap-title">{b.title}{b.data.totalPages ? ` — ${Math.min(100, Math.round(((b.data.pagesRead ?? 0) / b.data.totalPages) * 100))}%` : ''}</span></span>
+                <span className="snap-time snap-emoji" aria-hidden="true">{isAudiobook(b.data) ? '🎧' : '📖'}</span>
+                <span className="snap-main"><span className="snap-title">{b.title}{readingPercent(b.data) !== null ? ` — ${readingPercent(b.data)}%` : ''}</span></span>
               </button>
             </li>
           ))}</ul>

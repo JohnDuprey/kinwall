@@ -1,6 +1,6 @@
 # Trackers
 
-The **Trackers** tab keeps the family's logs: the books everyone is reading, a journal of daily memories, and doctor and dentist visits. Each entry belongs to one person or to the whole family.
+The **Trackers** tab keeps the family's logs: the books and audiobooks everyone is reading, a journal of daily memories, and doctor and dentist visits. Each entry belongs to one person or to the whole family.
 
 The header's member filter works here too: pick a person and you see their entries plus the family's.
 
@@ -8,12 +8,13 @@ The header's member filter works here too: pick a person and you see their entri
 
 A shelf per person, with what they're reading first, then what they want to read, then what they've finished.
 
-* **Add a book** with **+**: title (required), author, status (**Want to read**, **Reading**, **Finished**), pages read and total pages, the day they started, the day they finished, a rating and notes.
-* **Log pages** on a book they're reading: type the page they're on or tap **+5**, **+10**, **+20**, **+50**. Reaching the last page, or tapping **Finished it!**, marks it finished today.
+* **Add a book** with **+**: the format (**Book** or **Audiobook**), title (required), author, status (**Want to read**, **Reading**, **Finished**), pages read and total pages, the day they started, the day they finished, a rating and notes.
+* An **audiobook** has a narrator, and **Listened** and **Length** in hours and minutes instead of pages. It shows 🎧 on the shelf, with the time left ("2h 10m left").
+* **Log pages** on a book they're reading: type the page they're on or tap **+5**, **+10**, **+20**, **+50**. For an audiobook it's **Log listening**: type how long they've listened or tap **+15m**, **+30m**, **+1h**. Reaching the last page (or the end of the audiobook), or tapping **Finished it!**, marks it finished today.
 * **Rate** a finished book by tapping a star. Tap the same star again to clear it.
-* Each shelf shows the books finished this year and the pages read (finished books this year plus the pages so far in books in progress).
+* Each shelf shows the books finished this year (audiobooks count), the pages read and the time listened, like "3 books finished in 2026 · 812 pages · 4h 10m listened". Pages and time are the finished ones this year plus the progress so far on the ones in progress; a part that's zero is left out.
 
-A person's day (tap their avatar) lists what they're reading, like "Charlotte's Web — 45%". See [Daily & weekly snapshot](snapshot.md).
+A person's day (tap their avatar) lists what they're reading, like "Charlotte's Web — 45%" (for an audiobook, how much of its length they've listened to). See [Daily & weekly snapshot](snapshot.md).
 
 ## Memories 📝
 
@@ -67,13 +68,13 @@ An admin can turn off **Reading**, **Memories** and **Health** one at a time und
 | `GET` | `/api/trackers/{id}` | One entry. |
 | `PATCH` | `/api/trackers/{id}` | Edit. `data` is merged over the entry's fields; `null` clears one. |
 | `DELETE` | `/api/trackers/{id}` | Delete (admin keys only). |
-| `GET` | `/api/trackers/summary?year=` | Reading stats per person: books finished that year, pages, books in progress with a percent. |
+| `GET` | `/api/trackers/summary?year=` | Reading stats per person: books and audiobooks finished that year, `pages`, `minutes` listened, books in progress with a percent. |
 
 Each entry also has `formerMember` (the name of a removed member it belonged to, with `memberId` null), and for a memory's photo `photoOwned` (added for the memory) and `photoFamily` (also a family photo). A memory's own photo is uploaded with `POST /api/photos?family=0` and attached with `photoId`; `photoFamily: true` shares it. Only memories take a photo, one each.
 
 `data` by kind (checked by the server; unknown fields are refused):
 
-* **reading**: `author`, `status` (`want` / `reading` / `finished`), `pagesRead`, `totalPages`, `finishedOn`, `rating` (1–5), `notes`. `title` is the book and is required.
+* **reading**: `format` (`book` / `audiobook`, default `book`; an entry without one is a book), `author`, `status` (`want` / `reading` / `finished`), `pagesRead` and `totalPages` (books), `narrator`, `minutesListened` and `totalMinutes` (audiobooks, whole minutes, so 4h 30m is `270`), `finishedOn`, `rating` (1–5), `notes`. `title` is the book and is required. Progress is by pages for a book and by minutes for an audiobook. Marking one finished fills in `pagesRead` (or `minutesListened`) from its length.
 * **memory**: `text`, `mood` (one emoji). It needs text or a photo.
 * **health**: `type` (`checkup` / `dentist` / `specialist` / `vaccine` / `sick` / `other`), `time` (`HH:MM`), `provider`, `notes`, `height` `{ value, unit: in|cm }`, `weight` `{ value, unit: lb|kg }`, `temperature` `{ value, unit: F|C }`, `followUp`, `eventId`.
 

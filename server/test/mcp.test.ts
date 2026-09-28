@@ -524,8 +524,10 @@ test('mcp: every tool declares an output schema, and real results pass it', asyn
   assert.deepEqual((await call('list_notes', { target: `event:${ev.id}` })).notes.map((n: any) => n.body), ['Bring roses']);
   const book = (await call('add_tracker_entry', { kind: 'reading', member: 'ava', title: 'Matilda', data: { totalPages: 240 } })).entry;
   assert.equal((await call('update_tracker_entry', { entryId: book.id, data: { pagesRead: 60, rating: 4 } })).entry.data.pagesRead, 60);
+  const audio = (await call('add_tracker_entry', { kind: 'reading', member: 'ava', title: 'Holes', data: { format: 'audiobook', totalMinutes: 460 } })).entry;
+  assert.deepEqual((await call('update_tracker_entry', { entryId: audio.id, data: { minutesListened: 90 } })).entry.data, { format: 'audiobook', status: 'reading', totalMinutes: 460, minutesListened: 90 });
   await call('add_tracker_entry', { kind: 'health', member: 'ava', title: 'Checkup', data: { type: 'checkup', weight: { value: 50, unit: 'lb' } } });
-  assert.deepEqual((await call('list_tracker_entries', { member: 'ava' })).entries.map((e: any) => e.kind).sort(), ['health', 'reading']);
+  assert.deepEqual((await call('list_tracker_entries', { member: 'ava' })).entries.map((e: any) => e.kind).sort(), ['health', 'reading', 'reading']);
   await call('delete_event', { id: ev.id });
 });
 

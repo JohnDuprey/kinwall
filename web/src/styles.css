@@ -2225,6 +2225,9 @@ button.board-empty-tap { display: block; width: 100%; text-align: left; backgrou
 .trk-on-cal { padding-left: 42px; }
 .trk-visit .trk-small-btn { align-self: flex-start; margin-left: 40px; }
 .trk-field-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+/* Hours and minutes (audiobooks): two number fields with their unit after each. */
+.trk-hm { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto; gap: 6px; align-items: center; }
+.trk-hm span { font-weight: 700; color: var(--text-dim); }
 .trk-status { max-width: 100%; }
 .trk-measures { border: 0; padding: 0; margin: 0 0 16px; display: flex; flex-direction: column; gap: 8px; }
 .trk-measures legend { font-size: 0.8125rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.02em; margin-bottom: 6px; padding: 0; }

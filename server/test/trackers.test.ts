@@ -36,6 +36,33 @@ async function family(send: ReturnType<typeof makeApp>['send']) {
   return { maya, leo };
 }
 
+test('trackers: audiobooks log minutes, finish at their length, and count in the summary', async () => {
+  const { send, db } = makeApp();
+  const { maya } = await family(send);
+  const plain = await send('POST', '/api/trackers', { kind: 'reading', memberId: maya.id, title: 'Matilda', data: { totalPages: 240 } });
+  assert.equal(plain.body.data.format, 'book', 'a book unless it says otherwise');
+  const audio = await send('POST', '/api/trackers', { kind: 'reading', memberId: maya.id, title: 'The Wild Robot', data: { format: 'audiobook', narrator: 'Kate Atwater', totalMinutes: 300, minutesListened: 75 } });
+  assert.equal(audio.status, 201);
+  assert.deepEqual([audio.body.data.format, audio.body.data.narrator, audio.body.data.minutesListened], ['audiobook', 'Kate Atwater', 75]);
+  const bad = async (data: object) => (await send('POST', '/api/trackers', { kind: 'reading', title: 'x', data })).status;
+  assert.equal(await bad({ format: 'podcast' }), 400);
+  assert.equal(await bad({ format: 'audiobook', totalMinutes: 0 }), 400);
+  assert.equal(await bad({ format: 'audiobook', minutesListened: 1.5 }), 400);
+  assert.equal(await bad({ format: 'audiobook', totalMinutes: 100001 }), 400);
+
+  // An entry from before audiobooks (no format) still reads as a book.
+  await db.prepare("INSERT INTO tracker_entries (id, kind, member_id, date, title, data, created_at, updated_at) VALUES ('old', 'reading', ?, '2026-01-01', 'Old', ?, '', '')").bind(maya.id, JSON.stringify({ status: 'reading', pagesRead: 10, totalPages: 40 })).run();
+  const sum1 = (await send('GET', '/api/trackers/summary?year=2026')).body.members.find((m: any) => m.memberId === maya.id);
+  assert.deepEqual(sum1.reading.map((r: any) => [r.title, r.percent]).sort(), [['Matilda', 0], ['Old', 25], ['The Wild Robot', 25]]);
+  assert.deepEqual([sum1.pages, sum1.minutes], [10, 75]);
+  assert.equal((await send('PATCH', '/api/trackers/old', { data: { rating: 3 } })).status, 200, 'old entries still edit');
+
+  const done = await send('PATCH', `/api/trackers/${audio.body.id}`, { data: { status: 'finished', finishedOn: '2026-09-20' } });
+  assert.deepEqual([done.body.data.minutesListened, done.body.data.pagesRead], [300, undefined], 'finished = its whole length');
+  const sum2 = (await send('GET', '/api/trackers/summary?year=2026')).body.members.find((m: any) => m.memberId === maya.id);
+  assert.deepEqual([sum2.finished, sum2.minutes], [1, 300]);
+});
+
 test('trackers: reading CRUD, finishing a book, and the summary', async () => {
   const { send } = makeApp();
   const { maya, leo } = await family(send);

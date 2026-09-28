@@ -11,6 +11,7 @@ import { addDaysStr, streakStats } from './leaderboard.ts';
 import { birthdayIn } from './snapshot.ts';
 import { STICKER_PACKS } from '../stickers.ts';
 import { earnedBadges } from '../badges.ts';
+import { minutesOf, pagesOf, readingPercent, type ReadingProgress } from '../reading.ts';
 import { ErrorSchema, MemberStatsSchema, StatsPeriodSchema } from '../schemas.ts';
 
 export const memberStatsRoutes = createRouter();
@@ -143,14 +144,13 @@ memberStatsRoutes.openapi(
     const favorite = [...perChore.values()].reduce<{ choreId: string; title: string; emoji: string | null; count: number } | null>((a, b) => (!a || b.count > a.count ? b : a), null);
 
     // Books: finished ones by the day they were finished; the shelf is this year's (or every one).
-    type ReadingData = { status?: string; finishedOn?: string; pagesRead?: number; totalPages?: number; rating?: number };
+    type ReadingData = ReadingProgress & { status?: string; finishedOn?: string; rating?: number };
     const books = (booksRes.results as { id: string; title: string | null; data: string }[]).map((b) => {
       let d: ReadingData = {};
       try { d = JSON.parse(b.data); } catch { /* unreadable: left off */ }
       return { id: b.id, title: b.title ?? '', d };
     });
     const finished = books.filter((b) => b.d.status === 'finished' && b.d.finishedOn).sort((a, b) => a.d.finishedOn!.localeCompare(b.d.finishedOn!));
-    const pagesOf = (b: { d: ReadingData }) => b.d.totalPages ?? b.d.pagesRead ?? null;
     const finishedNow = finished.filter((b) => inRange(b.d.finishedOn!));
     const shelfScope: 'year' | 'all' = period === 'all' ? 'all' : 'year';
     const shelf = shelfScope === 'all' ? finished : finished.filter((b) => b.d.finishedOn!.startsWith(today.slice(0, 4)));
@@ -196,10 +196,11 @@ memberStatsRoutes.openapi(
         favoriteChore: favorite,
         books: {
           finished: finishedNow.length,
-          pages: finishedNow.reduce((s, b) => s + (pagesOf(b) ?? 0), 0),
+          pages: finishedNow.reduce((s, b) => s + (pagesOf(b.d) ?? 0), 0),
+          minutesListened: finishedNow.reduce((s, b) => s + (minutesOf(b.d) ?? 0), 0),
           shelfScope,
-          shelf: shelf.map((b) => ({ id: b.id, title: b.title, pages: pagesOf(b), rating: b.d.rating ?? null, finishedOn: b.d.finishedOn! })),
-          reading: books.filter((b) => b.d.status === 'reading').map((b) => ({ id: b.id, title: b.title, percent: b.d.totalPages ? Math.min(100, Math.round(((b.d.pagesRead ?? 0) / b.d.totalPages) * 100)) : null })),
+          shelf: shelf.map((b) => ({ id: b.id, title: b.title, pages: pagesOf(b.d), minutes: minutesOf(b.d), rating: b.d.rating ?? null, finishedOn: b.d.finishedOn! })),
+          reading: books.filter((b) => b.d.status === 'reading').map((b) => ({ id: b.id, title: b.title, percent: readingPercent(b.d) })),
         },
         stickers: { packsOwned, packsTotal: STICKER_PACKS.length, placed: Number((placedRes.results[0] as { n: number }).n) },
         activities: [...play.values()].sort((a, b) => b.seconds - a.seconds),

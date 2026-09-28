@@ -1448,7 +1448,8 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
   // ---- Trackers: reading log, memories, health visits. Health is refused to display-scoped callers
   // by the REST route, so these tools need no check of their own.
   const TRACKER_DATA_DOC =
-    'The kind\'s fields. reading: {author, status: want|reading|finished, pagesRead, totalPages, finishedOn (YYYY-MM-DD), rating 1-5, notes}. ' +
+    'The kind\'s fields. reading: {format: book|audiobook (default book), author, status: want|reading|finished, pagesRead, totalPages (books), ' +
+    'narrator, minutesListened, totalMinutes (audiobooks, whole minutes: 4h 30m = 270), finishedOn (YYYY-MM-DD), rating 1-5, notes}. ' +
     'memory: {text, mood (one emoji)}. health: {type: checkup|dentist|specialist|vaccine|sick|other, time (HH:MM), provider, notes, ' +
     'height {value, unit: in|cm}, weight {value, unit: lb|kg}, temperature {value, unit: F|C}, followUp (YYYY-MM-DD)}.';
   const trackerMember = async (member: string | undefined) => (member ? await resolveMember(app, env, auth, member) : undefined);
@@ -1457,7 +1458,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'list_tracker_entries',
     {
       title: 'List tracker entries',
-      description: 'The family\'s trackers, newest first: reading (books, progress, ratings), memory (daily journal) and health (doctor/dentist visits; admin keys only). memberId null = the whole family.',
+      description: 'The family\'s trackers, newest first: reading (books and audiobooks, progress, ratings), memory (daily journal) and health (doctor/dentist visits; admin keys only). memberId null = the whole family.',
       inputSchema: {
         kind: z.enum(TRACKER_KINDS).optional(),
         member: z.string().optional().describe('Member name or id.'),

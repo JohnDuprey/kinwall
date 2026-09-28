@@ -810,10 +810,14 @@ const Text = (max: number) => z.string().max(max);
 const Measure = <U extends [string, ...string[]]>(units: U) => z.object({ value: z.number().positive().max(1000), unit: z.enum(units) });
 export const ReadingDataSchema = z
   .object({
+    format: z.enum(['book', 'audiobook']).default('book'), // entries from before audiobooks have none: a book
     author: Text(200).nullable().optional(),
+    narrator: Text(200).nullable().optional(), // audiobooks
     status: z.enum(['want', 'reading', 'finished']).default('reading'),
-    pagesRead: z.number().int().min(0).max(100000).nullable().optional(),
+    pagesRead: z.number().int().min(0).max(100000).nullable().optional(), // books
     totalPages: z.number().int().min(1).max(100000).nullable().optional(),
+    minutesListened: z.number().int().min(0).max(100000).nullable().optional(), // audiobooks
+    totalMinutes: z.number().int().min(1).max(100000).nullable().optional(),
     finishedOn: DateOnly.nullable().optional(),
     rating: z.number().int().min(1).max(5).nullable().optional(), // stars
     notes: Text(4000).nullable().optional(),
@@ -891,8 +895,9 @@ export const ReadingSummarySchema = z
       z.object({
         memberId: z.string().nullable(),
         formerMember: z.string().nullable(),
-        finished: z.number(), // books finished this year
+        finished: z.number(), // books and audiobooks finished this year
         pages: z.number(), // pages of those books, plus pages read so far in books in progress
+        minutes: z.number(), // the same for audiobooks: their length, plus minutes so far in ones in progress
         reading: z.array(z.object({ id: z.string(), title: z.string().nullable(), percent: z.number().nullable() })),
       }),
     ),
@@ -1099,10 +1104,11 @@ export const MemberStatsSchema = z
     busiestWeekday: z.number().int().min(0).max(6).nullable(), // 0 = Sunday
     favoriteChore: z.object({ choreId: z.string(), title: z.string(), emoji: z.string().nullable(), count: z.number() }).nullable(),
     books: z.object({
-      finished: z.number(), // in the period
+      finished: z.number(), // in the period, books and audiobooks
       pages: z.number(), // of those books
+      minutesListened: z.number(), // of those audiobooks
       shelfScope: z.enum(['year', 'all']), // the shelf is this year's books, or every book for all
-      shelf: z.array(z.object({ id: z.string(), title: z.string(), pages: z.number().nullable(), rating: z.number().nullable(), finishedOn: z.string() })),
+      shelf: z.array(z.object({ id: z.string(), title: z.string(), pages: z.number().nullable(), minutes: z.number().nullable(), rating: z.number().nullable(), finishedOn: z.string() })),
       reading: z.array(z.object({ id: z.string(), title: z.string(), percent: z.number().nullable() })),
     }),
     stickers: z.object({ packsOwned: z.number(), packsTotal: z.number(), placed: z.number() }),

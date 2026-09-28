@@ -63,7 +63,13 @@ export interface Features {
 // Trackers (server: routes/trackers.ts). `data` holds the kind's fields; health never reaches a display key.
 export type TrackerKind = 'reading' | 'memory' | 'health'
 export type ReadingStatus = 'want' | 'reading' | 'finished'
-export interface ReadingData { author?: string; status: ReadingStatus; pagesRead?: number; totalPages?: number; finishedOn?: string; rating?: number; notes?: string }
+export type ReadingFormat = 'book' | 'audiobook'
+/** No format = a book (entries from before audiobooks). Pages are for books, minutes for audiobooks. */
+export interface ReadingData {
+  format?: ReadingFormat; author?: string; narrator?: string; status: ReadingStatus
+  pagesRead?: number; totalPages?: number; minutesListened?: number; totalMinutes?: number
+  finishedOn?: string; rating?: number; notes?: string
+}
 export interface MemoryData { text: string; mood?: string }
 export type HealthType = 'checkup' | 'dentist' | 'specialist' | 'vaccine' | 'sick' | 'other'
 export interface Measure<U extends string> { value: number; unit: U }
@@ -734,8 +740,9 @@ export interface MemberStats {
   books: {
     finished: number
     pages: number
+    minutesListened: number
     shelfScope: 'year' | 'all'
-    shelf: { id: string; title: string; pages: number | null; rating: number | null; finishedOn: string }[]
+    shelf: { id: string; title: string; pages: number | null; minutes: number | null; rating: number | null; finishedOn: string }[]
     reading: { id: string; title: string; percent: number | null }[]
   }
   stickers: { packsOwned: number; packsTotal: number; placed: number }

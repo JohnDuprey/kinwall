@@ -330,6 +330,8 @@ const trackers: TrackerEntry[] = [
   tracker('reading', 'm3', daysAgo(12), "Charlotte's Web", { author: 'E. B. White', status: 'reading', pagesRead: 83, totalPages: 184 }),
   tracker('reading', 'm3', daysAgo(40), 'Matilda', { author: 'Roald Dahl', status: 'finished', pagesRead: 240, totalPages: 240, finishedOn: daysAgo(20), rating: 5, notes: 'Loved Miss Honey.' }),
   tracker('reading', 'm3', daysAgo(70), 'The Wild Robot', { author: 'Peter Brown', status: 'finished', pagesRead: 288, totalPages: 288, finishedOn: daysAgo(45), rating: 4 }),
+  tracker('reading', 'm3', daysAgo(6), 'The Mouse and the Motorcycle', { format: 'audiobook', author: 'Beverly Cleary', narrator: 'Nora Bell', status: 'reading', minutesListened: 95, totalMinutes: 225 }),
+  tracker('reading', 'm3', daysAgo(35), 'Ramona the Pest', { format: 'audiobook', author: 'Beverly Cleary', narrator: 'Nora Bell', status: 'finished', minutesListened: 250, totalMinutes: 250, finishedOn: daysAgo(28), rating: 5 }),
   tracker('reading', 'm3', daysAgo(2), 'Wonder', { author: 'R. J. Palacio', status: 'want', totalPages: 310 }),
   tracker('reading', 'm4', daysAgo(5), 'Dragon Masters', { author: 'Tracey West', status: 'reading', pagesRead: 45, totalPages: 90 }),
   tracker('reading', 'm4', daysAgo(30), 'Frog and Toad Are Friends', { author: 'Arnold Lobel', status: 'finished', pagesRead: 64, totalPages: 64, finishedOn: daysAgo(25), rating: 5 }),
@@ -349,10 +351,10 @@ const settleMockPhoto = (t: TrackerEntry, family?: boolean) => {
   if (t.photoOwned && family !== undefined) p.family = family
   t.photoFamily = p.family !== false
 }
-// Mirrors the server: a finished book gets today's date and its last page; null clears a field.
+// Mirrors the server: a finished book gets today's date and its last page (or minute); null clears a field.
 const trackerData = (kind: TrackerKind, data: Record<string, unknown>) => {
   const d = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== null && v !== undefined))
-  return kind === 'reading' && d.status === 'finished' ? { ...d, finishedOn: d.finishedOn ?? todayISO(), ...(d.totalPages ? { pagesRead: d.totalPages } : {}) } : d
+  return kind === 'reading' && d.status === 'finished' ? { ...d, finishedOn: d.finishedOn ?? todayISO(), ...(d.totalPages ? { pagesRead: d.totalPages } : {}), ...(d.totalMinutes ? { minutesListened: d.totalMinutes } : {}) } : d
 }
 
 export const mock = {
