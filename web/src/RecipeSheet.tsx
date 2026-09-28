@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { api, MOCK } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { useDialog } from './dialog.tsx'
@@ -8,6 +8,7 @@ import { ingredientAmount, isPdfUrl, recipeTime, servingsLabel, urlHost } from '
 import { KIT_QUALIFIER, type IngredientInput, type Recipe, type RecipeInput, type RecipeSnapshot, type RecipeStep } from './meal-types.ts'
 import RecipeCardSheet from './RecipeCardSheet.tsx'
 import RecipePhoto from './RecipePhoto.tsx'
+import { holdAwake } from './wakeLock.ts'
 
 const emptyIngredient = (): IngredientInput => ({ name: '', quantity: null, unit: null, preparation: null, qualifier: null, category: null, sort: 0 })
 
@@ -83,6 +84,9 @@ export default function RecipeSheet({ recipe, admin, onClose, onSaved, onPlan }:
   recipe: Recipe | null; admin: boolean; onClose: () => void; onSaved: () => void; onPlan?: (recipe: Recipe) => void
 }) {
   const [editing, setEditing] = useState(!recipe)
+  // Reading a recipe while cooking: keep the screen on until it's closed (not while editing).
+  const reading = !editing && !!recipe
+  useEffect(() => { holdAwake('cooking', reading); return () => holdAwake('cooking', false) }, [reading])
   const [servings, setServings] = useState(recipe?.defaultServings ?? 4)
   if (editing || !recipe) return <RecipeEditor recipe={recipe} onClose={recipe ? () => setEditing(false) : onClose} onSaved={onSaved} />
   const time = recipeTime(recipe)
