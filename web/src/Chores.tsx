@@ -718,7 +718,7 @@ function ChoreEditSheet({ chore, onClose, onSaved }: { chore: Chore | null; onCl
   }
   const del = async () => {
     if (!chore) return
-    if (!await dialog.confirm({ title: `Delete "${chore.title}"?`, body: 'Its history and points go with it.', confirmLabel: 'Delete', danger: true })) return
+    if (!await dialog.confirm({ title: `Delete "${chore.title}"?`, body: 'It leaves the list. Points already earned from it stay.', confirmLabel: 'Delete', danger: true })) return
     try { await api.deleteChore(chore.id); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not delete chore', true) }
   }
 

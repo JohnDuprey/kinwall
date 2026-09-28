@@ -1705,10 +1705,10 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'delete_chore',
     {
       title: 'Delete chore',
-      description: `Full access: delete a chore and its whole completion history, so the points members earned from it come off their totals and the leaderboard. ${NO_UNDO} To stop a chore but keep its history and points, use update_chore active: false instead.`,
+      description: `Full access: delete a chore. One that was ever done is archived: it leaves every list for good, but its completion history and the points members earned from it stay. ${NO_UNDO} To pause a chore and bring it back later, use update_chore active: false instead.`,
       inputSchema: { choreId: z.string() },
     },
-    async ({ choreId }) => remove(`/api/chores/${encodeURIComponent(choreId)}`, 'failed to delete chore', 'Deleted the chore and its history.'),
+    async ({ choreId }) => remove(`/api/chores/${encodeURIComponent(choreId)}`, 'failed to delete chore', 'Deleted the chore.'),
   );
 
   tool(

@@ -30,6 +30,7 @@ export type ChoreRow = {
   plugin_minutes?: number | null;
   needs_approval?: number | null; // null = follow the member's default
   approve_timed_play?: number;
+  archived?: number; // deleted after it was done: kept for its history (migration 0050)
 };
 
 export function toApi(row: ChoreRow) {
@@ -78,7 +79,7 @@ choresRoutes.openapi(
     responses: { 200: { description: 'ok', content: { 'application/json': { schema: z.array(ChoreSchema) } } } },
   }),
   async (c) => {
-    const { results } = await c.env.DB.prepare('SELECT * FROM chores ORDER BY sort, created_at').all<ChoreRow>();
+    const { results } = await c.env.DB.prepare('SELECT * FROM chores WHERE archived = 0 ORDER BY sort, created_at').all<ChoreRow>();
     return c.json(results.map(toApi), 200);
   },
 );
@@ -149,7 +150,7 @@ choresRoutes.openapi(
     if (body.rrule && !isValidRrule(body.rrule)) return c.json({ error: 'invalid rrule' }, 400);
     const listError = (await checkList(c, body.listId)) ?? (await checkPlugin(c, body.pluginId));
     if (listError) return c.json({ error: listError }, 400);
-    const existing = await c.env.DB.prepare('SELECT * FROM chores WHERE id = ?').bind(id).first<ChoreRow>();
+    const existing = await c.env.DB.prepare('SELECT * FROM chores WHERE id = ? AND archived = 0').bind(id).first<ChoreRow>();
     if (!existing) return c.json({ error: 'not found' }, 404);
     const updated: ChoreRow = {
       ...existing,
@@ -183,7 +184,7 @@ choresRoutes.openapi(
     method: 'delete',
     path: '/api/chores/{id}',
     tags: ['Chores'],
-    summary: 'Delete a chore',
+    summary: 'Delete a chore. One that was ever done is archived instead: it leaves every list, but its completions and the points earned from them stay.',
     security: [{ Bearer: [] }],
     request: { params: z.object({ id: z.string() }) },
     responses: {
@@ -193,7 +194,11 @@ choresRoutes.openapi(
   }),
   async (c) => {
     const { id } = c.req.valid('param');
-    const result = await c.env.DB.prepare('DELETE FROM chores WHERE id = ?').bind(id).run();
+    // A tick still waiting for a parent's OK goes (nothing was earned); approved ones are history,
+    // so a chore that has any is archived rather than deleted, and all-time counts don't drop.
+    await c.env.DB.prepare("DELETE FROM chore_completions WHERE chore_id = ? AND status = 'pending' AND EXISTS (SELECT 1 FROM chores WHERE id = ? AND archived = 0)").bind(id, id).run();
+    const archived = await c.env.DB.prepare('UPDATE chores SET archived = 1, active = 0 WHERE id = ? AND archived = 0 AND EXISTS (SELECT 1 FROM chore_completions WHERE chore_id = chores.id)').bind(id).run();
+    const result = archived.meta.changes ? archived : await c.env.DB.prepare('DELETE FROM chores WHERE id = ? AND archived = 0').bind(id).run();
     if (result.meta.changes === 0) return c.json({ error: 'not found' }, 404);
     emit(c, 'chore.changed', { id });
     return c.json({ ok: true }, 200);
@@ -319,7 +324,7 @@ export async function completeChore(c: Context<{ Bindings: Env }>, id: string, d
   memberId ??= (await deviceOwner(c)) ?? undefined;
   const [choreRes, settingsRes] = await c.env.DB.batch<unknown>([
     c.env.DB.prepare(
-      'SELECT c.id, c.title, c.member_id, c.points, c.list_id, c.needs_approval, c.approve_timed_play, (SELECT needs_approval FROM members WHERE id = COALESCE(?, c.member_id)) AS member_needs_approval, (SELECT member_id FROM chore_completions WHERE chore_id = c.id AND date = ?) AS done_by FROM chores c WHERE c.id = ?',
+      'SELECT c.id, c.title, c.member_id, c.points, c.list_id, c.needs_approval, c.approve_timed_play, (SELECT needs_approval FROM members WHERE id = COALESCE(?, c.member_id)) AS member_needs_approval, (SELECT member_id FROM chore_completions WHERE chore_id = c.id AND date = ?) AS done_by FROM chores c WHERE c.id = ? AND c.archived = 0',
     ).bind(memberId ?? null, date, id),
     c.env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('timezone', 'lateCompletionCredit')"),
   ]);

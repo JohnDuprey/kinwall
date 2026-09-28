@@ -39,7 +39,7 @@ Tap **+** (Add chore). The sheet has:
 
 Chores created through the API or MCP can use any RRULE (for example `FREQ=MONTHLY` or `INTERVAL=2`). The sheet shows those as "Custom schedule (…)" and leaves them alone unless you pick another option. A recurring chore without a due date starts on the day it was created, in the household timezone.
 
-**Delete** removes the chore along with its history and points.
+**Delete** removes the chore from every list. If it was ever done, its history stays: points already earned from it are kept and it stays in the data export. A chore that was never done is removed completely.
 
 ## Checklists
 
@@ -139,7 +139,7 @@ Points are also a currency. A member's **balance** is every point they've ever e
 * The leaderboard and the member's today/week points always count what was **earned**. Spending never lowers a rank.
 * Each leaderboard pill also shows the balance, such as "22 to spend", and so does each person's column ("⭐ 22 to spend"). Tap the column's balance, or **🎁 Rewards** next to the date, to open [Rewards](rewards.md) for that person.
 * Spending is recorded in a points ledger. `GET /api/members/{id}/points` returns `{ balance, earnedTotal, spentTotal, entries }`, with the last 50 ledger entries. The member list (`GET /api/members`) includes `balance` too.
-* Unticking a completed chore takes its points back out of the balance. So does deleting a chore, since its completion history goes with it. A balance can end up below zero that way. New purchases then wait until it's back up.
+* Unticking a completed chore takes its points back out of the balance (deleting a chore doesn't: its history stays). A balance can end up below zero that way. New purchases then wait until it's back up.
 * **Settings → Family → Chores** has **Sticker shop** (on/off) and **Sticker prices** (Free, 50%, 100% or 150%).
 
 ## Setting these options

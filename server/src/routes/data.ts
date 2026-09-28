@@ -93,7 +93,7 @@ const ExportSchema = z
     eventSeriesCategoryOverrides: z.array(z.object({ calendarId: z.string(), seriesId: z.string(), categoryId: z.string() })),
     // listId: exports before 0027 lack it; pluginId/pluginMinutes before 0033.
     // needsApproval/approveTimedPlay before 0037.
-    chores: z.array(ChoreSchema.extend({ listId: z.string().nullable().optional(), pluginId: z.string().nullable().optional(), pluginMinutes: z.number().nullable().optional(), needsApproval: z.boolean().nullable().default(null), approveTimedPlay: z.boolean().default(false) })),
+    chores: z.array(ChoreSchema.extend({ listId: z.string().nullable().optional(), pluginId: z.string().nullable().optional(), pluginMinutes: z.number().nullable().optional(), needsApproval: z.boolean().nullable().default(null), approveTimedPlay: z.boolean().default(false), archived: z.boolean().default(false) })), // archived: deleted after it was done, kept for its history
     // pointsAwarded: older exports predate it - null imports as the chore's full points.
     choreCompletions: z.array(z.object({ id: z.string(), choreId: z.string(), date: z.string(), memberId: z.string().nullable(), completedAt: z.string(), pointsAwarded: z.number().nullable().default(null), status: z.enum(['approved', 'pending']).default('approved') })),
     lists: z.array(
@@ -182,7 +182,7 @@ dataRoutes.openapi(
       db.prepare('SELECT calendar_id, external_id, travel_minutes, remind_before_leave FROM event_travel_overrides ORDER BY calendar_id, external_id'),
       db.prepare('SELECT calendar_id, series_id, member_ids FROM event_series_member_overrides ORDER BY calendar_id, series_id'),
       db.prepare('SELECT calendar_id, series_id, category_id FROM event_series_category_overrides ORDER BY calendar_id, series_id'),
-      db.prepare('SELECT id, title, emoji, member_id, points, rrule, due_date, due_time, active, sort, created_at, list_id, plugin_id, plugin_minutes, needs_approval, approve_timed_play FROM chores ORDER BY sort, created_at'),
+      db.prepare('SELECT id, title, emoji, member_id, points, rrule, due_date, due_time, active, sort, created_at, list_id, plugin_id, plugin_minutes, needs_approval, approve_timed_play, archived FROM chores ORDER BY sort, created_at'),
       db.prepare('SELECT id, chore_id, date, member_id, completed_at, points_awarded, status FROM chore_completions ORDER BY date'),
       db.prepare('SELECT id, name, emoji, color, kind, member_ids, group_by, sort_by, keep_checked, sort, archived, created_at FROM lists ORDER BY sort, created_at'),
       db.prepare(
@@ -274,7 +274,7 @@ dataRoutes.openapi(
           seriesId: r.series_id,
           categoryId: r.category_id,
         })),
-        chores: (chores as ChoreRow[]).map(choreToApi),
+        chores: (chores as ChoreRow[]).map((r) => ({ ...choreToApi(r), archived: !!r.archived })),
         choreCompletions: (completions as CompletionRow[]).map((r) => ({ id: r.id, choreId: r.chore_id, date: r.date, memberId: r.member_id, completedAt: r.completed_at, pointsAwarded: r.points_awarded, status: r.status })),
         lists: (lists as ListRow[]).map((l) => {
           const mine = itemRows.filter((i) => i.list_id === l.id);
@@ -601,6 +601,7 @@ dataRoutes.openapi(
           plugin_minutes: ch.pluginId ? ch.pluginMinutes ?? null : null,
           needs_approval: ch.needsApproval == null ? null : ch.needsApproval ? 1 : 0,
           approve_timed_play: ch.approveTimedPlay ? 1 : 0,
+          archived: ch.archived ? 1 : 0,
         })),
         { ...keepCreated, expr: { member_id: memberRef('member_id') } },
       ),

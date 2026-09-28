@@ -738,7 +738,7 @@ test('mcp: delete_note removes a note; display keys may', async () => {
   assert.deepEqual((await ok('list_notes', { target: `list_item:${item.id}` })).notes, []);
 });
 
-test('mcp: delete_chore needs full access and takes its history with it', async () => {
+test('mcp: delete_chore needs full access and removes the chore from the list', async () => {
   const { rest, call, ok, displayKey } = await deleteSetup();
   const chore = (await ok('create_chore', { title: 'Dishes', dueDate: '2026-05-01' })).chore;
   await ok('complete_chore', { choreId: chore.id, date: '2026-05-01' });

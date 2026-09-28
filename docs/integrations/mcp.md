@@ -143,7 +143,7 @@ Deleting is permanent: nothing here can be undone. Events, lists, list items, st
 | `delete_list_item` | Deletes an item from a list, with its steps and notes. |
 | `delete_list_step` | Deletes one step of an item. If every remaining step is done, the item becomes done. |
 | `delete_note` | Deletes one note from an event's or list item's thread. |
-| `delete_chore` | Deletes a chore and its whole completion history, so the points earned from it come off members' totals. `update_chore` with `active: false` keeps the history. Full access. |
+| `delete_chore` | Deletes a chore. One that was ever done is archived instead: it leaves every list, but its completion history and the points earned from it stay. `update_chore` with `active: false` pauses it instead. Full access. |
 | `delete_tracker_entry` | Deletes a book, memory or health entry. A memory's own photo goes with it, unless it's also a family photo. Full access. |
 | `delete_meal` | Deletes a planned meal and the calendar event Kinwall created for it. A linked event of your own and groceries already on a list stay. Full access. |
 | `delete_recipe` | Deletes a recipe (by ID or exact name) and its ingredients. Planned meals keep their own copy. Full access. |
