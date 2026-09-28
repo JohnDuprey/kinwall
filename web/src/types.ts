@@ -140,7 +140,26 @@ export interface Member {
   needsApproval?: boolean // their chores need a parent's OK by default (a chore's own setting wins)
   transitionReminders?: TransitionReminders // pushes to their own devices before their events (admin sets)
   rewardGoal?: { rewardId: string; title: string; emoji: string | null; cost: number } | null // the reward they're saving for
+  tempCheck?: TempCheckSettings // their daily questions (a parent sets them)
+  todayGoal?: string | null // their Temp check goal for today
 }
+
+export interface TempCheckSettings { on: boolean; sleep: boolean; feelings: boolean; goal: boolean; showGoal: boolean }
+export interface TempCheckAnswered { sleep: boolean; feelings: boolean; goal: boolean }
+/** GET/PUT /api/members/{id}/temp-check. private: sleep and feelings are withheld from this device (a shared wall). */
+export interface TempCheck {
+  memberId: string
+  date: string
+  settings: TempCheckSettings
+  private: boolean
+  sleep: string | null
+  feelings: string[] | null
+  goal: string | null
+  goalSkipped: boolean
+  answered: TempCheckAnswered
+  custom: string[] | null // their own feelings ("Other")
+}
+export type TempCheckInput = Partial<{ sleep: string | null; feelings: string[] | null; goal: string | null; goalSkipped: boolean; custom: string[] }>
 
 export type CalendarKind = 'local' | 'ics' | 'google' | 'microsoft' | 'caldav'
 

@@ -42,7 +42,7 @@ Across the top, count tiles sum things up; tap one to open its screen:
 Below them are the cards:
 
 * **Clock**: a big clock and the date, with the weather now, today's high and low, and the next 3 days. The weather needs a weather location in [General settings](../settings/general.md).
-* **Today**: everyone's events for today, with times or "All day", a bar in each member's color and their avatars. Birthdays 🎂 come first. Events that have finished fade.
+* **Today**: everyone's events for today, with times or "All day", a bar in each member's color and their avatars. Birthdays 🎂 come first. Events that have finished fade. Above them, 🎯 today's goals from [Temp check](snapshot.md#temp-check), for people who chose to show theirs (on a display pinned to one person, only theirs).
 * **Coming up**: the next 6 days, grouped by day, with each day's weather and birthdays.
 * **Due soon** (full lists only): open list items due in the next week, overdue ones first in red, plus urgent and important items with no date. Each shows its list's emoji and the owner's avatar.
 * **Chores today** (full lists only): a bar per member showing how many of today's chores are left.

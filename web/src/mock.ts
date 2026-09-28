@@ -1,8 +1,9 @@
 // Dev-only in-memory fixture, used when VITE_MOCK=1. Excluded from prod by the env check in api.ts.
 import type { OnlineTidbits, Plugin, PluginCatalogEntry,
   Account, ApiKey, AppNotification, CalendarEntry, Category, Chore, ChoreDay, EventInstance, LeaderboardEntry, LeaderboardPeriod, List, ListGroup,
-  Photo, PhotoQuota, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, ListItem, ListItemInput, ListItemPatch, ListItemStep, Member, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption,
+  Photo, PhotoQuota, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, ListItem, ListItemInput, ListItemPatch, ListItemStep, Member, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption, TempCheck, TempCheckInput, TempCheckSettings,
 } from './types.ts'
+import { FEELINGS } from './tempCheck.ts'
 import { aisleOrderMap, compareItems } from './types.ts'
 import { itemKey } from './itemSuggest.ts'
 import { byListOrder, reorderWithin } from './listSections.ts'
@@ -15,6 +16,9 @@ const todayISO = () => new Date().toISOString().slice(0, 10)
 
 let rev = 1
 const checkIns = new Set<string>() // `${memberId}:${date}` - the demo's daily check-ins
+const tempChecks = new Map<string, Omit<TempCheck, 'settings' | 'private' | 'custom' | 'answered'>>() // `${memberId}:${date}`
+const customFeelings = new Map<string, string[]>([['m3', ['excited']]]) // Maya added "excited" with "Other"
+const TEMP_CHECK_OFF: TempCheckSettings = { on: false, sleep: true, feelings: true, goal: true, showGoal: true }
 const bump = () => { rev++ }
 
 const settings: Settings = {
@@ -52,7 +56,7 @@ const settings: Settings = {
 const members: Member[] = [
   { id: 'm1', name: 'Alex', color: '#7AB8FF', avatar: '🦊', birthday: '1988-03-14', grownUp: true, sort: 0, pointsToday: 10, pointsWeek: 40, balance: 12 },
   { id: 'm2', name: 'Sam', color: '#FF8FA3', avatar: '🐰', birthday: null, grownUp: true, sort: 1, pointsToday: 5, pointsWeek: 25, balance: 30 },
-  { id: 'm3', name: 'Maya', color: '#7ED9A6', avatar: '🦄', birthday: '2018-11-02', grownUp: false, sort: 2, pointsToday: 0, pointsWeek: 15, balance: 42 },
+  { id: 'm3', name: 'Maya', color: '#7ED9A6', avatar: '🦄', birthday: '2018-11-02', grownUp: false, sort: 2, pointsToday: 0, pointsWeek: 15, balance: 42, tempCheck: { on: true, sleep: true, feelings: true, goal: true, showGoal: true } },
   // Leo turns 6 tomorrow, so the snapshot's 🎂 always has something to show.
   { id: 'm4', name: 'Leo', color: '#F5A65B', avatar: '🦖', birthday: (t => `${t.getFullYear() - 6}${dateKey(t).slice(4)}`)(new Date(Date.now() + 86_400_000)), grownUp: false, sort: 3, pointsToday: 5, pointsWeek: 20, balance: 18 },
 ]
@@ -441,7 +445,27 @@ export const mock = {
   getSettings: async (): Promise<Settings> => ({ ...settings }),
   updateSettings: async (patch: Partial<Settings>) => { Object.assign(settings, patch); bump(); return { ...settings } },
 
-  getMembers: async () => [...members].sort((a, b) => a.sort - b.sort).map(m => ({ ...m, rewardGoal: goalOf(m.id) })),
+  getMembers: async () => [...members].sort((a, b) => a.sort - b.sort).map(m => {
+    const tc = m.tempCheck ?? TEMP_CHECK_OFF
+    return { ...m, rewardGoal: goalOf(m.id), tempCheck: tc, todayGoal: tc.on && tc.goal ? tempChecks.get(`${m.id}:${dateKey(new Date())}`)?.goal ?? null : null }
+  }),
+  // The demo is a parent's device: it sees every answer.
+  getTempCheck: async (memberId: string, date = dateKey(new Date())): Promise<TempCheck> => {
+    const m = members.find(x => x.id === memberId); if (!m) throw new Error('member not found')
+    const row = tempChecks.get(`${memberId}:${date}`) ?? { memberId, date, sleep: null, feelings: null, goal: null, goalSkipped: false }
+    return { ...row, settings: m.tempCheck ?? TEMP_CHECK_OFF, private: false, custom: customFeelings.get(memberId) ?? [], answered: { sleep: !!row.sleep, feelings: !!row.feelings?.length, goal: !!row.goal || row.goalSkipped } }
+  },
+  putTempCheck: async (memberId: string, body: TempCheckInput, date = dateKey(new Date())): Promise<TempCheck> => {
+    const prev = await mock.getTempCheck(memberId, date)
+    if (!prev.settings.on) throw new Error('Temp check is off for them (Settings → Family)')
+    const goal = body.goalSkipped ? null : body.goal !== undefined ? body.goal?.trim() || null : prev.goal
+    const feelings = body.feelings !== undefined ? (body.feelings?.length ? body.feelings : null) : prev.feelings
+    tempChecks.set(`${memberId}:${date}`, { memberId, date, sleep: body.sleep !== undefined ? body.sleep : prev.sleep, feelings, goal, goalSkipped: !goal && (body.goalSkipped ?? prev.goalSkipped) })
+    const custom = body.custom ?? prev.custom ?? []
+    customFeelings.set(memberId, [...custom, ...(body.feelings ?? []).filter(f => ![...FEELINGS, ...custom].some(k => k.toLowerCase() === f.toLowerCase()))])
+    bump()
+    return mock.getTempCheck(memberId, date)
+  },
   createMember: async (m: Partial<Member>) => {
     const nm: Member = { id: uid(), name: m.name ?? 'New', color: m.color ?? '#FF9E7A', avatar: m.avatar ?? '🙂', birthday: m.birthday ?? null, grownUp: !!m.grownUp, needsApproval: !m.grownUp && !!m.needsApproval, sort: members.length, pointsToday: 0, pointsWeek: 0, balance: 0 }
     members.push(nm); bump(); return nm

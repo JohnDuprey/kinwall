@@ -125,6 +125,21 @@ export const TransitionRemindersSchema = z
   .openapi('TransitionReminders');
 export const TRANSITIONS_OFF = { on: false, minutes: [] as number[], repeat: null, leaveBy: true };
 
+// Temp check (routes/temp-check.ts): which daily questions a person gets. Off by default.
+export const TempCheckSettingsSchema = z
+  .object({
+    on: z.boolean(),
+    sleep: z.boolean().default(true).openapi({ description: '"How did you sleep last night?"' }),
+    feelings: z.boolean().default(true).openapi({ description: '"How are you feeling today?"' }),
+    goal: z.boolean().default(true).openapi({ description: '"Goal for today"' }),
+    showGoal: z.boolean().default(true).openapi({ description: "Show today's goal on the Board" }),
+  })
+  .openapi('TempCheckSettings');
+export const TEMP_CHECK_OFF = { on: false, sleep: true, feelings: true, goal: true, showGoal: true };
+export const SLEEP_ANSWERS = ['great', 'good', 'ok', 'poorly', 'terrible'] as const;
+export const FEELINGS = ['great', 'good', 'fine', 'ok', 'bad', 'awful', 'tired', 'sore'] as const; // built in; "Other" adds the person's own
+
+
 export const MemberSchema = z
   .object({
     id: z.string(),
@@ -143,6 +158,8 @@ export const MemberSchema = z
       .object({ rewardId: z.string(), title: z.string(), emoji: z.string().nullable(), cost: z.number() })
       .nullable()
       .openapi({ description: 'The reward they are saving for (progress = balance / cost), or null.' }),
+    tempCheck: TempCheckSettingsSchema,
+    todayGoal: z.string().nullable().openapi({ description: "Their Temp check goal for today (household day), or null. Family content: the Board shows it when tempCheck.showGoal is on." }),
   })
   .openapi('Member');
 
@@ -156,6 +173,7 @@ export const MemberInputSchema = z
     grownUp: z.boolean().optional().openapi({ description: 'Default false. true also turns needsApproval off.' }),
     needsApproval: z.boolean().optional().openapi({ description: 'Ignored for a grown-up (stays false).' }),
     transitionReminders: TransitionRemindersSchema.optional(),
+    tempCheck: TempCheckSettingsSchema.optional(),
   })
   .openapi('MemberInput');
 

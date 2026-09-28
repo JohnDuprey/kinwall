@@ -2012,6 +2012,26 @@ button.board-empty-tap { display: block; width: 100%; text-align: left; backgrou
   color: var(--text-dim); font: inherit; font-weight: 700; text-align: left; cursor: pointer; width: 100%;
 }
 .snap-filter { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--border); }
+/* Temp check: the daily questions at the end of someone's day. */
+.snap-temp { margin-top: 18px; }
+.snap-temp-q { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: var(--radius); background: var(--bg-alt); margin-bottom: 10px; }
+.snap-temp-ask { margin: 0; font-weight: 800; }
+.snap-temp-sleep { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.snap-temp-face {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 72px; padding: 6px 2px;
+  border-radius: 14px; border: 2px solid var(--border); background: var(--card); color: var(--text); font: inherit; font-size: 0.8125rem; font-weight: 800;
+}
+.snap-temp-face span { font-size: 1.75rem; line-height: 1; }
+.snap-temp-face.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 22%, var(--card)); }
+.snap-temp-face:active { transform: scale(0.96); }
+.snap-temp-q .chip { background: var(--card); }
+.snap-temp-q .chip.active { background: color-mix(in srgb, var(--accent) 22%, var(--card)); }
+.snap-temp-row { display: flex; gap: 8px; }
+.snap-temp-row input { flex: 1; min-width: 0; min-height: 48px; padding: 10px 14px; border-radius: 12px; border: 2px solid var(--border); background: var(--card); color: var(--text); font: inherit; }
+.snap-temp-done { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: var(--radius); background: var(--bg-alt); }
+.snap-temp-done p { margin: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+.snap-temp-done strong { color: var(--success); }
+.snap-temp-done .btn { flex: 0 0 auto; }
 .snap-checkin { position: relative; margin-top: 18px; }
 .snap-checkin .btn { min-height: 52px; }
 .snap-checkin-done { margin: 0; min-height: 52px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius); background: var(--bg-alt); color: var(--success); font-weight: 800; }
@@ -2051,6 +2071,10 @@ button.board-empty-tap { display: block; width: 100%; text-align: left; backgrou
 .board-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; }
 .board-clock { grid-area: clock; container: board-clock / inline-size; min-height: auto; overflow-y: auto; }
 .board-today { grid-area: today; }
+.board-goal-line { display: flex; align-items: center; gap: 10px; padding: 6px 12px; border-radius: 12px; background: var(--bg-alt); font-weight: 800; overflow-wrap: anywhere; }
+.board-goal-line .board-avatar { flex-shrink: 0; }
+/* Temp check: the goal of the one person the calendar shows. */
+.cal-goal { margin: 0 12px 8px; padding: 8px 14px; border-radius: 12px; background: var(--bg-alt); font-weight: 800; font-size: 0.875rem; overflow-wrap: anywhere; }
 .board-coming { grid-area: coming; }
 .board-due { grid-area: due; }
 .board-chores { grid-area: chores; }

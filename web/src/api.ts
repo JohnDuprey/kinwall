@@ -10,6 +10,7 @@ import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginCatalogEntry,
   StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota, Reward, Redemption, MemberStats, StatsPeriod,
   Account, ApiKey, AppNotification, Appearance, CalendarEntry, Category, Chore, ChoreDay, PendingApproval, EventInstance, LeaderboardEntry, LeaderboardPeriod, List,
   GeocodeResult, HostEvent, ImportResult, ListDetail, ListGroup, ListItem, ListItemInput, ListItemPatch, Member, Me, Note, NoteTarget, Passkey, TrackerEntry, TrackerInput, TrackerKind, Providers, PushSubscription, PushSubscriptionPrefs, RemoteCalendar, Settings, Snapshot, Board, Webhook, WebhookWithSecret,
+  TempCheck, TempCheckInput,
 } from './types.ts'
 
 /** Demo build: every call is served from mock.ts in memory - no server, nothing persists. */
@@ -368,6 +369,9 @@ export const api = {
   getMemberStats: (memberId: string, period: StatsPeriod) =>
     MOCK ? Promise.all([mock.getMembers(), import('./mock-profiles.ts')]).then(([ms, { mockMemberStats }]) => mockMemberStats(memberId, period, ms.find(m => m.id === memberId)?.birthday ?? null))
       : get<MemberStats>(`api/members/${encodeURIComponent(memberId)}/stats?period=${period}`),
+  // Temp check: a person's daily questions (sleep and feelings come back null on a shared wall: private).
+  getTempCheck: (memberId: string) => MOCK ? mock.getTempCheck(memberId) : req<TempCheck>(`api/members/${encodeURIComponent(memberId)}/temp-check`, {}), // never the offline cache: health data
+  putTempCheck: (memberId: string, body: TempCheckInput) => MOCK ? mock.putTempCheck(memberId, body) : put<TempCheck>(`api/members/${encodeURIComponent(memberId)}/temp-check`, body),
   // Daily check-in: once per household day; a second call awards nothing.
   checkIn: (memberId: string) =>
     MOCK ? mock.checkIn(memberId) : post<{ date: string; points: number; awarded: number; balance: number }>(`api/members/${encodeURIComponent(memberId)}/check-in`),

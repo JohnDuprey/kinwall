@@ -17,6 +17,7 @@ import { NowNextCard, TransitionWarnings } from './NowNext.tsx'
 import { warningTimes } from './transitions.ts'
 import NotesThread from './NotesThread.tsx'
 import Board from './Board.tsx'
+import { calendarGoal } from './tempCheck.ts'
 
 const PHONE_WEEK_DAYS = 3
 const NEW_LOCAL_CALENDAR = '__new_local'
@@ -132,6 +133,10 @@ export default function CalendarView() {
   // device (pinned to a member) gets only calendars that are for them; with none, adding gives way
   // to a hint. Other devices can still start a Kinwall-only calendar when there's no local one.
   const kidDevice = focusLocked && !!meMemberId
+  // Temp check: the goal of the one person this calendar is about (pinned, filtered, or their own device).
+  const goalMember = focusMemberId ?? selectedMemberId ?? meMemberId
+  const goalText = calendarGoal(members, goalMember)
+  const goalLine = goalText ? { name: members.find(m => m.id === goalMember)?.name ?? '', goal: goalText } : null
   const editableCalendars = calendars.filter(c => c.writable && c.enabled && c.canEditEvents !== false)
   const offerNewLocal = !kidDevice && !calendars.some(c => c.kind === 'local' && c.writable)
   const canAdd = editableCalendars.length > 0 || offerNewLocal
@@ -384,6 +389,8 @@ export default function CalendarView() {
           </div>
         </Sheet>
       )}
+
+      {viewMode !== 'board' && goalLine && <p className="cal-goal"><span className="sr-only">{goalLine.name}'s goal: </span><span aria-hidden="true">🎯</span> {goalLine.goal}</p>}
 
       <div className="swipe-area" {...(viewMode === 'board' ? {} : swipe)} role={device.lockView ? 'region' : 'tabpanel'}
         aria-labelledby={device.lockView ? undefined : `calview-${viewMode}`} aria-label={device.lockView ? `${viewLabel(viewMode, isPhone)} view` : undefined}>

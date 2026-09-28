@@ -1,7 +1,7 @@
 import { createContext, Fragment, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { AppContext, useApp } from './AppContext.tsx'
 import { api, ApiError, clearKey } from './api.ts'
-import type { Account, ApiKey, CalendarEntry, Category, ColorScheme, CustomColors, Density, DeviceDensity, Features, GeocodeResult, HostEvent, Me, Member, Passkey, Providers, PushSubscription, RemoteCalendar, Settings, TextScale, ThemeMode, Webhook } from './types.ts'
+import type { Account, ApiKey, CalendarEntry, Category, ColorScheme, CustomColors, Density, DeviceDensity, Features, GeocodeResult, HostEvent, Me, Member, Passkey, Providers, PushSubscription, RemoteCalendar, Settings, TempCheckSettings, TextScale, ThemeMode, Webhook } from './types.ts'
 import { ProviderForm, PublicUrlRow } from './ProviderConfig.tsx'
 import { CATEGORY_EMOJI, CATEGORY_PRESETS, MEMBER_EMOJI, MEMBER_PALETTE, nextPaletteColor, REMINDER_OPTIONS } from './types.ts'
 import Sheet from './Sheet.tsx'
@@ -29,7 +29,7 @@ import { useDialog } from './dialog.tsx'
 import { announce, pressable, reducedMotion, Segmented } from './a11y.tsx'
 
 // Mirrors BusEventType in server/src/bus.ts.
-const BUS_EVENTS = ['member.changed', 'calendar.changed', 'calendar.synced', 'events.changed', 'chore.changed', 'chore.completed', 'chore.uncompleted', 'chore.pending', 'chore.rejected', 'checkin.completed', 'list.changed', 'list.item.changed', 'category.changed', 'settings.changed', 'sticker.changed', 'reward.changed', 'reward.redeemed', 'reward.approved', 'reward.declined', 'reward.given', 'recipe.changed', 'meal.changed', 'photo.changed', 'tracker.changed', 'contact.changed', 'contact.category.changed', 'display.paired']
+const BUS_EVENTS = ['member.changed', 'calendar.changed', 'calendar.synced', 'events.changed', 'chore.changed', 'chore.completed', 'chore.uncompleted', 'chore.pending', 'chore.rejected', 'checkin.completed', 'tempcheck.changed', 'list.changed', 'list.item.changed', 'category.changed', 'settings.changed', 'sticker.changed', 'reward.changed', 'reward.redeemed', 'reward.approved', 'reward.declined', 'reward.given', 'recipe.changed', 'meal.changed', 'photo.changed', 'tracker.changed', 'contact.changed', 'contact.category.changed', 'display.paired']
 
 export function timezoneList() {
   // Intl.supportedValuesOf('timeZone') doesn't include 'UTC' itself (the server's default
@@ -1424,11 +1424,12 @@ function MemberEditSheet({ member, canDelete, onClose, onSaved, toast }: { membe
   const birthday = !bday ? null : noYear ? `--${bday.slice(5)}` : bday
   const [grownUp, setGrownUp] = useState(!!member?.grownUp)
   const [needsApproval, setNeedsApproval] = useState(!!member?.needsApproval)
+  const [tempCheck, setTempCheck] = useState<TempCheckSettings>(member?.tempCheck ?? { on: false, sleep: true, feelings: true, goal: true, showGoal: true })
   const save = async () => {
     if (!name.trim() || !isValidAvatar(avatar)) return
     try {
       // Transition reminders are a parent's setting: only sent from a device that may manage members.
-      const extra = canDelete ? { transitionReminders: transitions, grownUp, needsApproval: needsApproval && !grownUp } : {}
+      const extra = canDelete ? { transitionReminders: transitions, grownUp, needsApproval: needsApproval && !grownUp, tempCheck } : {}
       if (member) await api.updateMember(member.id, { name: name.trim(), color, avatar, birthday, ...extra })
       else await api.createMember({ name: name.trim(), color, avatar, birthday, ...extra })
       onSaved()
@@ -1484,7 +1485,56 @@ function MemberEditSheet({ member, canDelete, onClose, onSaved, toast }: { membe
       <p className="field-hint">Chores they tick on a wall screen or their own device wait for a parent to approve before the points count. A chore's own setting wins.</p>
       </>}
       {canDelete && <TransitionRemindersField name={name.trim() || 'this person'} value={transitions} onChange={setTransitions} />}
+      {canDelete && <TempCheckField member={member} name={name.trim() || 'this person'} value={tempCheck} onChange={setTempCheck} toast={toast} />}
     </Sheet>
+  )
+}
+
+/** A member's Temp check: daily questions at the end of their day, and their own feelings (to remove one). */
+function TempCheckField({ member, name, value, onChange, toast }: { member: Member | null; name: string; value: TempCheckSettings; onChange: (t: TempCheckSettings) => void; toast: (m: string, persist?: boolean) => void }) {
+  const set = (patch: Partial<TempCheckSettings>) => onChange({ ...value, ...patch })
+  const [custom, setCustom] = useState<string[]>([])
+  const savedOn = !!member?.tempCheck?.on // their list can change once Temp check is saved on
+  useEffect(() => {
+    if (member && savedOn) api.getTempCheck(member.id).then(t => setCustom(t.custom ?? [])).catch(() => {})
+  }, [member, savedOn])
+  const remove = async (f: string) => {
+    if (!member) return
+    try { setCustom((await api.putTempCheck(member.id, { custom: custom.filter(x => x !== f) })).custom ?? []); toast(`Removed: ${f}`) }
+    catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't remove that", true) }
+  }
+  const row = (key: 'sleep' | 'feelings' | 'goal' | 'showGoal', label: string) => (
+    <div className="toggle-row" key={key}>
+      <label id={`member-tc-${key}`}>{label}</label>
+      <button className={`switch ${value[key] ? 'on' : ''}`} role="switch" aria-checked={value[key]} aria-labelledby={`member-tc-${key}`} onClick={() => set({ [key]: !value[key] })}><span className="knob" /></button>
+    </div>
+  )
+  return (
+    <div className="field">
+      <div className="toggle-row">
+        <label id="member-tc-label">Temp check</label>
+        <button className={`switch ${value.on ? 'on' : ''}`} role="switch" aria-checked={value.on} aria-labelledby="member-tc-label" onClick={() => set({ on: !value.on })}><span className="knob" /></button>
+      </div>
+      <div className="settings-row-sub">A few quick questions at the end of {name}'s day. Sleep and feelings are kept private and encrypted; a shared wall shows only that they answered.</div>
+      {value.on && <>
+        {row('sleep', 'How did you sleep?')}
+        {row('feelings', 'How are you feeling?')}
+        {row('goal', 'Goal for today')}
+        {value.goal && row('showGoal', 'Show the goal on the Board')}
+        {custom.length > 0 && (
+          <div className="settings-row">
+            <div>
+              <div className="settings-row-label">{name}'s own feelings</div>
+              <div className="settings-row-sub">{custom.join(', ')}</div>
+            </div>
+            <select className="settings-select" aria-label={`Remove one of ${name}'s feelings`} value="" onChange={e => e.target.value && remove(e.target.value)}>
+              <option value="">Remove…</option>
+              {custom.map(f => <option key={f} value={f}>{f}</option>)}
+            </select>
+          </div>
+        )}
+      </>}
+    </div>
   )
 }
 

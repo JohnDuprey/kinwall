@@ -4,13 +4,13 @@ import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
 import { emit } from '../bus.ts';
 import { hostTimezone } from '../env.ts';
-import { ErrorSchema, MemberInputSchema, MemberSchema, TRANSITIONS_OFF } from '../schemas.ts';
+import { ErrorSchema, MemberInputSchema, MemberSchema, TEMP_CHECK_OFF, TRANSITIONS_OFF } from '../schemas.ts';
 import { parseMemberIds } from '../calendar-members.ts';
 import { balanceOf, pointTotalsStmt, type PointTotals } from '../stickers.ts';
 
 export const membersRoutes = createRouter();
 
-type MemberRow = { id: string; name: string; color: string; avatar: string | null; birthday: string | null; sort: number; created_at: string; needs_approval?: number; grown_up?: number; transitions: string | null; reward_goal?: string | null };
+type MemberRow = { id: string; name: string; color: string; avatar: string | null; birthday: string | null; sort: number; created_at: string; needs_approval?: number; grown_up?: number; transitions: string | null; reward_goal?: string | null; temp_check?: string | null };
 
 // The stored JSON, or off. Shared with notify.ts (which only acts on `on`).
 export function parseTransitions(raw: string | null): typeof TRANSITIONS_OFF {
@@ -20,6 +20,30 @@ export function parseTransitions(raw: string | null): typeof TRANSITIONS_OFF {
   } catch {
     return TRANSITIONS_OFF;
   }
+}
+
+/** A member's Temp check settings (members.temp_check), or off. */
+export function parseTempCheck(raw: string | null | undefined): typeof TEMP_CHECK_OFF {
+  if (!raw) return TEMP_CHECK_OFF;
+  try {
+    return { ...TEMP_CHECK_OFF, ...JSON.parse(raw) };
+  } catch {
+    return TEMP_CHECK_OFF;
+  }
+}
+
+// Goals set around now: the household's today is within a day of UTC's, so this reads before the
+// timezone is known (in the same batch), and todayGoals picks today's.
+const recentGoals = (db: KinwallDb) => {
+  const day = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
+  return db.prepare('SELECT member_id, date, goal FROM temp_checks WHERE date BETWEEN ? AND ? AND goal IS NOT NULL').bind(day(-1), day(1));
+};
+type GoalRow = { member_id: string; date: string; goal: string };
+
+/** Today's goals by member (household day): only while the member has Temp check and its goal question on. */
+function todayGoals(goals: GoalRow[], today: string, rows: MemberRow[]): Map<string, string> {
+  const on = new Set(rows.filter((r) => { const t = parseTempCheck(r.temp_check); return t.on && t.goal; }).map((r) => r.id));
+  return new Map(goals.filter((r) => r.date === today && on.has(r.member_id)).map((r) => [r.member_id, r.goal]));
 }
 
 // 18 or older on `today` (YYYY-MM-DD), from a birthday with a year. Same rule as migration 0051;
@@ -109,8 +133,8 @@ const toGoals = (rows: { id: string; title: string; emoji: string | null; cost: 
   new Map(rows.map((r) => [r.id, { rewardId: r.id, title: r.title, emoji: r.emoji, cost: r.cost }]));
 const goalRewards = async (db: KinwallDb) => toGoals((await db.prepare(GOALS_SQL).all<{ id: string; title: string; emoji: string | null; cost: number }>()).results);
 
-function toApi(row: MemberRow, points: Points, goals: Map<string, Goal> = new Map()) {
-  return { id: row.id, name: row.name, color: row.color, avatar: row.avatar, birthday: row.birthday ?? null, sort: row.sort, grownUp: !!row.grown_up, needsApproval: !!row.needs_approval, ...points, transitionReminders: parseTransitions(row.transitions), rewardGoal: (row.reward_goal && goals.get(row.reward_goal)) || null };
+function toApi(row: MemberRow, points: Points, goals: Map<string, Goal> = new Map(), todays: Map<string, string> = new Map()) {
+  return { id: row.id, name: row.name, color: row.color, avatar: row.avatar, birthday: row.birthday ?? null, sort: row.sort, grownUp: !!row.grown_up, needsApproval: !!row.needs_approval, ...points, transitionReminders: parseTransitions(row.transitions), rewardGoal: (row.reward_goal && goals.get(row.reward_goal)) || null, tempCheck: parseTempCheck(row.temp_check), todayGoal: todays.get(row.id) ?? null };
 }
 
 membersRoutes.openapi(
@@ -124,10 +148,11 @@ membersRoutes.openapi(
   }),
   async (c) => {
     // household settings + the member list are independent reads - one batch, one round trip.
-    const [settingsRes, membersRes, goalsRes] = await c.env.DB.batch<unknown>([
+    const [settingsRes, membersRes, goalsRes, recentRes] = await c.env.DB.batch<unknown>([
       c.env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('timezone','weekStart')"),
       c.env.DB.prepare('SELECT * FROM members ORDER BY sort, created_at'),
       c.env.DB.prepare(GOALS_SQL),
+      recentGoals(c.env.DB),
     ]);
     const settingsMap = new Map((settingsRes.results as { key: string; value: string }[]).map((r) => [r.key, r.value]));
     const tz = settingsMap.get('timezone') ?? hostTimezone();
@@ -136,7 +161,8 @@ membersRoutes.openapi(
 
     const points = await pointsByMember(c.env.DB, tz, weekStart);
     const goals = toGoals(goalsRes.results as { id: string; title: string; emoji: string | null; cost: number }[]);
-    return c.json(results.map((row) => toApi(row, points.get(row.id) ?? NO_POINTS, goals)), 200);
+    const todays = todayGoals(recentRes.results as GoalRow[], todayInTz(tz), results);
+    return c.json(results.map((row) => toApi(row, points.get(row.id) ?? NO_POINTS, goals, todays)), 200);
   },
 );
 
@@ -165,9 +191,10 @@ membersRoutes.openapi(
       grown_up: body.grownUp ? 1 : 0,
       needs_approval: body.needsApproval && !body.grownUp ? 1 : 0,
       transitions: body.transitionReminders ? JSON.stringify(body.transitionReminders) : null,
+      temp_check: body.tempCheck ? JSON.stringify(body.tempCheck) : null,
     };
-    await c.env.DB.prepare('INSERT INTO members (id, name, color, avatar, birthday, sort, created_at, grown_up, needs_approval, transitions) VALUES (?,?,?,?,?,?,?,?,?,?)')
-      .bind(row.id, row.name, row.color, row.avatar, row.birthday, row.sort, row.created_at, row.grown_up, row.needs_approval, row.transitions)
+    await c.env.DB.prepare('INSERT INTO members (id, name, color, avatar, birthday, sort, created_at, grown_up, needs_approval, transitions, temp_check) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
+      .bind(row.id, row.name, row.color, row.avatar, row.birthday, row.sort, row.created_at, row.grown_up, row.needs_approval, row.transitions, row.temp_check)
       .run();
     emit(c, 'member.changed', { id: row.id });
     return c.json(toApi(row, NO_POINTS), 201);
@@ -205,14 +232,15 @@ membersRoutes.openapi(
       grown_up: body.grownUp !== undefined ? (body.grownUp ? 1 : 0) : existing.grown_up,
       needs_approval: body.needsApproval !== undefined ? (body.needsApproval ? 1 : 0) : existing.needs_approval,
       transitions: body.transitionReminders ? JSON.stringify(body.transitionReminders) : existing.transitions,
+      temp_check: body.tempCheck ? JSON.stringify(body.tempCheck) : existing.temp_check,
     };
     if (updated.grown_up) updated.needs_approval = 0; // a grown-up's chores never wait for an OK
-    await c.env.DB.prepare('UPDATE members SET name = ?, color = ?, avatar = ?, birthday = ?, sort = ?, grown_up = ?, needs_approval = ?, transitions = ? WHERE id = ?')
-      .bind(updated.name, updated.color, updated.avatar, updated.birthday, updated.sort, updated.grown_up ?? 0, updated.needs_approval ?? 0, updated.transitions, id)
+    await c.env.DB.prepare('UPDATE members SET name = ?, color = ?, avatar = ?, birthday = ?, sort = ?, grown_up = ?, needs_approval = ?, transitions = ?, temp_check = ? WHERE id = ?')
+      .bind(updated.name, updated.color, updated.avatar, updated.birthday, updated.sort, updated.grown_up ?? 0, updated.needs_approval ?? 0, updated.transitions, updated.temp_check ?? null, id)
       .run();
     emit(c, 'member.changed', { id });
     const { tz, weekStart } = await household(c.env.DB);
-    return c.json(toApi(updated, { ...(await pointsFor(c.env.DB, id, tz, weekStart)), balance: await balanceOf(c.env.DB, id) }, await goalRewards(c.env.DB)), 200);
+    return c.json(toApi(updated, { ...(await pointsFor(c.env.DB, id, tz, weekStart)), balance: await balanceOf(c.env.DB, id) }, await goalRewards(c.env.DB), todayGoals((await recentGoals(c.env.DB).all<GoalRow>()).results, todayInTz(tz), [updated])), 200);
   },
 );
 

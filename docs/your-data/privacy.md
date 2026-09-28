@@ -29,6 +29,16 @@ What stays readable in the database, so the list can be filtered and sorted: the
 * The [export](export-import.md) is your own backup, so it holds health entries in plain form. Importing it encrypts them again.
 * Changing `ENCRYPTION_KEY` isn't supported yet: with a new key, existing health entries (like calendar logins) can't be read. Keep the key with your backups.
 
+### Temp check
+
+[Temp check](../using/snapshot.md#temp-check) answers about **sleep** and **feelings**, and each person's own feelings added with **Other…** (they might name something medical), are health data and get the same treatment as health entries: encrypted with `ENCRYPTION_KEY` (bound to the person, the day and the column), refused without a key, never in the server logs. The **goal** is family content, stored in plain form like a note.
+
+* **Who sees the answers:** the person's own device and parents' devices. A shared wall screen can take answers but shows only that they answered. Another person's device sees only that they answered.
+* **Webhooks** get `tempcheck.changed` with the person and the day, never the answers.
+* **Claude and other connected apps** get the goal and whether they answered, but not sleep or feelings (or their own feelings list) until a parent turns on **Let connected apps see health entries**. There's no MCP tool for Temp check.
+* The snapshot, profiles and push notifications never include sleep or feelings.
+* The [export](export-import.md) holds them in plain form (it's your backup); importing encrypts them again.
+
 ## Stored as one-way hashes (SHA-256)
 
 * API keys, passkey sessions and OAuth access/refresh tokens. Keys are shown once.

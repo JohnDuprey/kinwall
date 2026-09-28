@@ -27,6 +27,25 @@ When a parent turns on **Daily check-in points** in [Settings → Family](../set
 
 API: `POST /api/members/{id}/check-in` returns `{ date, points, awarded, balance }` (`awarded` is 0 when they already checked in today; 400 while check-ins are off). The snapshot has `checkedIn` and `checkInPoints`. A new check-in sends the `checkin.completed` [webhook](../integrations/webhooks.md). Check-ins are in [exports](../your-data/export-import.md).
 
+## Temp check
+
+A few quick questions at the end of someone's day, above the check-in. A parent turns it on per person in [Settings → Family](../settings/family.md#temp-check) (off by default) and picks which questions they get:
+
+* **How did you sleep last night?** Five big buttons: 😄 Great, 🙂 Good, 😐 OK, 😕 Poorly, 😫 Terrible.
+* **How are you feeling today?** Pick any: great, good, fine, ok, bad, awful, tired, sore. **Other…** adds their own word; it becomes one of their choices from then on, so it's there next time.
+* **Goal for today**: a short line (up to 140 characters), with **Save goal** or **Skip**.
+
+Each answer saves as soon as it's tapped. Once every question has an answer, the card says **Thanks, Maya ✓** with **Change** to update an answer later that day. Only on today's **Day** view.
+
+Who sees what:
+
+* **Their own device and parents' devices** show their answers (😄 Slept great · Feeling good, tired · 🎯 Finish my book report).
+* **A shared wall screen** lets them answer, but once they have it shows only **Answered ✓**, never how they slept or felt. **Change** starts the questions fresh there.
+* **The goal** is for the family: it stays up all day on the [Board](calendar.md#board-view) in the **Today** card (for people with **Show the goal on the Board** on) and as a line above the calendar when it shows just that person (pinned, filtered, or on their own device).
+* Sleep and feelings are health data: encrypted on the server and kept from Claude and other connected apps. See [Privacy](../your-data/privacy.md#temp-check).
+
+API: `GET /api/members/{id}/temp-check?date=` and `PUT /api/members/{id}/temp-check?date=` (today by default; body `{ sleep, feelings, goal, goalSkipped, custom }`, only what's sent changes). `private: true` means sleep and feelings are withheld from this device (`answered` still says which questions have answers). See the [REST API](../integrations/rest-api.md).
+
 ## Week
 
 A row for each of the next 7 days with its weather emoji and high/low, then that day's birthdays, events and items due, and a short chores line (tap it to open Chores). Undated Important/Urgent items and overdue ones show first under **Keep in mind**.

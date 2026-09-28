@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { isAudiobook, readingPercent } from './reading.ts'
-import type { ChoreDay, Member, ReadingData, TrackerEntry, Snapshot, SnapshotBirthday, SnapshotChore, SnapshotEvent, SnapshotItem, WeatherDay } from './types.ts'
+import type { ChoreDay, Member, ReadingData, TempCheck as TempCheckData, TempCheckInput, TrackerEntry, Snapshot, SnapshotBirthday, SnapshotChore, SnapshotEvent, SnapshotItem, WeatherDay } from './types.ts'
 import { ChecklistSheet, Confetti } from './Chores.tsx'
 import { checkInLabel, checkInState } from './checkIn.ts'
+import { feelingOptions, GOAL_MAX, SLEEP, tempCheckDone, toggleFeeling } from './tempCheck.ts'
 import { CheckIcon } from './icons.tsx'
 import Sheet from './Sheet.tsx'
 import { Segmented, announce } from './a11y.tsx'
@@ -111,6 +112,7 @@ export default function SnapshotSheet({ member, onClose }: { member: Member; onC
       {error && <p className="snap-empty" role="alert">{error}</p>}
       {!shown && !error && <p className="snap-empty">Loading…</p>}
       {shown && (range === 'day' ? <DayView snap={shown} tz={tz} close={onClose} onToggle={toggleChore} books={settings.features.trackersReading ? books : []} /> : <WeekView snap={shown} tz={tz} close={onClose} />)}
+      {shown?.range === 'day' && member.tempCheck?.on && <TempCheck member={member} />}
       {shown && <CheckIn snap={shown} onDone={() => setSnap(s => s && { ...s, checkedIn: true })} />}
       {!focusMemberId && (
         <div className="toggle-row snap-filter">
@@ -126,6 +128,110 @@ export default function SnapshotSheet({ member, onClose }: { member: Member; onC
           }} />
       )}
     </Sheet>
+  )
+}
+
+/** Temp check: their daily questions (sleep, feelings, a goal), one tap each. On a shared wall the
+ * server keeps sleep and feelings private (tc.private): once answered it says "Answered ✓", and
+ * "Change" starts fresh rather than showing what they picked. */
+function TempCheck({ member }: { member: Member }) {
+  const { toast, reloadCore } = useApp()
+  const [tc, setTc] = useState<TempCheckData | null>(null)
+  const [open, setOpen] = useState(false) // the questions are showing (not the "Thanks" line)
+  const [picked, setPicked] = useState<string[]>([]) // feelings, this session on a wall
+  const [sleep, setSleep] = useState<string | null>(null)
+  const [goal, setGoal] = useState('')
+  const [other, setOther] = useState<string | null>(null) // "Other…" being typed
+  useEffect(() => {
+    let canceled = false
+    api.getTempCheck(member.id).then(t => {
+      if (canceled) return
+      setTc(t); setSleep(t.sleep); setPicked(t.feelings ?? []); setGoal(t.goal ?? '')
+      setOpen(!tempCheckDone(t.settings, t.answered))
+    }).catch(() => { /* no card rather than an error at the end of their day */ })
+    return () => { canceled = true }
+  }, [member.id])
+  if (!tc || !tc.settings.on) return null
+  const s = tc.settings
+  const save = async (body: TempCheckInput, finishing = false) => {
+    try {
+      const t = await api.putTempCheck(member.id, body)
+      setTc(t)
+      if (t.goal !== null) setGoal(t.goal)
+      if ('goal' in body || 'goalSkipped' in body) reloadCore() // their goal on the Board and calendar
+      if (finishing && tempCheckDone(t.settings, t.answered)) { setOpen(false); announce(`Thanks, ${member.name}`) }
+    } catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't save that", true) }
+  }
+  const pickSleep = (k: string) => { setSleep(k); save({ sleep: k }, true) }
+  const pickFeeling = (f: string) => { const next = toggleFeeling(picked, f); setPicked(next); save({ feelings: next }) }
+  const addOther = () => {
+    const f = other?.trim()
+    setOther(null)
+    if (f && !picked.some(p => p.toLowerCase() === f.toLowerCase())) { const next = [...picked, f]; setPicked(next); save({ feelings: next }) }
+  }
+  const change = () => { if (tc.private) { setSleep(null); setPicked([]) } setOpen(true) }
+  const done = tempCheckDone(s, tc.answered)
+  const sleepLabel = SLEEP.find(x => x.key === tc.sleep)
+  const summary = tc.private ? 'Answered ✓' : [
+    s.sleep && sleepLabel && `${sleepLabel.emoji} Slept ${sleepLabel.label.toLowerCase()}`,
+    s.feelings && tc.feelings?.length && `Feeling ${tc.feelings.join(', ')}`,
+    s.goal && (tc.goal ? `🎯 ${tc.goal}` : tc.goalSkipped && 'No goal today'),
+  ].filter(Boolean).join(' · ')
+
+  return (
+    <section className="snap-temp" aria-label="Temp check">
+      <h3 className="snap-heading">🌡️ Temp check</h3>
+      {!open ? (
+        <div className="snap-temp-done">
+          <p role="status"><strong>Thanks, {member.name} ✓</strong><span className="snap-meta">{summary}</span></p>
+          <button className="btn btn-secondary" onClick={change}>Change</button>
+        </div>
+      ) : <>
+        {s.sleep && (
+          <div className="snap-temp-q" role="group" aria-labelledby={`tc-sleep-${member.id}`}>
+            <p id={`tc-sleep-${member.id}`} className="snap-temp-ask">How did you sleep last night?</p>
+            <div className="snap-temp-sleep">
+              {SLEEP.map(x => (
+                <button key={x.key} className={`snap-temp-face ${sleep === x.key ? 'active' : ''}`} aria-pressed={sleep === x.key} onClick={() => pickSleep(x.key)}>
+                  <span aria-hidden="true">{x.emoji}</span>{x.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {s.feelings && (
+          <div className="snap-temp-q" role="group" aria-labelledby={`tc-feel-${member.id}`}>
+            <p id={`tc-feel-${member.id}`} className="snap-temp-ask">How are you feeling today? <span className="snap-dim">Pick any</span></p>
+            <div className="chip-row">
+              {feelingOptions([...(tc.custom ?? []), ...picked]).map(f => {
+                const on = picked.some(p => p.toLowerCase() === f.toLowerCase())
+                return <button key={f} className={`chip ${on ? 'active' : ''}`} aria-pressed={on} onClick={() => pickFeeling(f)}>{f}</button>
+              })}
+              {other === null && <button className="chip" onClick={() => setOther('')}>Other…</button>}
+            </div>
+            {other !== null && (
+              <form className="snap-temp-row" onSubmit={e => { e.preventDefault(); addOther() }}>
+                <input type="text" aria-label="Another feeling" placeholder="How else?" maxLength={40} value={other} onChange={e => setOther(e.target.value)} autoFocus />
+                <button className="btn btn-primary" disabled={!other.trim()}>Add</button>
+              </form>
+            )}
+          </div>
+        )}
+        {s.goal && (
+          <form className="snap-temp-q" onSubmit={e => { e.preventDefault(); if (goal.trim()) save({ goal: goal.trim() }, true) }}>
+            <label htmlFor={`tc-goal-${member.id}`} className="snap-temp-ask">Goal for today</label>
+            <div className="snap-temp-row">
+              <input id={`tc-goal-${member.id}`} type="text" maxLength={GOAL_MAX} placeholder="One thing I want to do" value={goal} onChange={e => setGoal(e.target.value)} />
+            </div>
+            <div className="snap-temp-row">
+              <button type="button" className="btn btn-secondary" onClick={() => { setGoal(''); save({ goalSkipped: true }, true) }}>Skip</button>
+              <button className="btn btn-primary" disabled={!goal.trim() || goal.trim() === tc.goal}>Save goal</button>
+            </div>
+          </form>
+        )}
+        {done && <button className="btn btn-primary btn-block" onClick={() => { setOpen(false); announce(`Thanks, ${member.name}`) }}>Done ✓</button>}
+      </>}
+    </section>
   )
 }
 

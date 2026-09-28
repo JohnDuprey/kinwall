@@ -12,6 +12,7 @@ Everyone who shows up on the wall. Each member has:
 * **Their chores need a parent's OK** (admin only, off by default, not shown for a grown-up): chores they tick on a wall screen or their own device wait for a parent to approve before the points count. A chore's own setting wins. See [Parent approval](../using/chores.md#parent-approval). API: `needsApproval`.
 
 * **Transition reminders** (admin only, off by default): see [below](#transition-reminders).
+* **Temp check** (admin only, off by default): daily questions at the end of their day. See [below](#temp-check).
 
 **Add member** and editing are admin only. On a display, the list is read-only. Deleting a member ("Their chores and tags are unassigned") removes them from calendars, chores and event tags. It doesn't delete those items.
 
@@ -35,6 +36,18 @@ Who gets them:
 * They are in addition to regular event reminders and aren't added to the family's notification feed.
 
 API: `transitionReminders` on `GET /api/members` and in `PATCH /api/members/{id}` (admin key), as `{ "on": true, "minutes": [10, 5], "repeat": { "every": 5, "within": 30 }, "leaveBy": true }`. `repeat` may be `null`. The MCP tool `update_member` takes the same object. It's included in [exports](../your-data/export-import.md).
+
+### Temp check
+
+Daily questions at the end of the person's [day](../using/snapshot.md#temp-check). Turn on **Temp check**, then choose which questions they get (all on to start):
+
+* **How did you sleep?**
+* **How are you feeling?**
+* **Goal for today**, and **Show the goal on the Board** (on by default).
+
+Words they added with **Other…** are listed as **Maya's own feelings**; pick one under **Remove…** to take it off their list (answers they already gave keep it).
+
+API: `tempCheck` on `GET /api/members` and `PATCH /api/members/{id}` (admin key), as `{ "on": true, "sleep": true, "feelings": true, "goal": true, "showGoal": true }`. Members also carry `todayGoal`, today's goal or `null`. Their own feelings list is `custom` on `/api/members/{id}/temp-check`. Both are in [exports](../your-data/export-import.md).
 
 ## Categories
 

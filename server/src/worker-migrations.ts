@@ -54,6 +54,7 @@ import m0050 from '../migrations/0050_chore_archive.sql';
 import m0051 from '../migrations/0051_member_grown_up.sql';
 import m0052 from '../migrations/0052_contacts.sql';
 import m0053 from '../migrations/0053_check_ins.sql';
+import m0054 from '../migrations/0054_temp_checks.sql';
 
 export const MIGRATIONS: Migration[] = [
   { name: '0001_init.sql', sql: m0001 },
@@ -109,4 +110,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0051_member_grown_up.sql', sql: m0051 },
   { name: '0052_contacts.sql', sql: m0052 },
   { name: '0053_check_ins.sql', sql: m0053 },
+  { name: '0054_temp_checks.sql', sql: m0054 },
 ];

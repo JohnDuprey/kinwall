@@ -12,6 +12,7 @@ import { useSlideshowPictures } from './Screensaver.tsx'
 import { tidbitFor, type Tidbit } from './tidbits.ts'
 import { BirthdayRow, ItemRow, dayName } from './Snapshot.tsx'
 import TodaysMeals from './TodaysMeals.tsx'
+import { boardGoals } from './tempCheck.ts'
 
 const REFRESH_MS = 10 * 60_000
 // Auto shows the full Chores and Due soon cards only on a board this big (CSS px); smaller boards get the count tiles.
@@ -182,9 +183,14 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
           {(() => {
             const bdays = data.birthdays.filter(b => b.date === today)
             const todays = events.filter(e => e.date === today)
-            if (!bdays.length && !todays.length) return <p className="snap-empty">Nothing on the calendar today.</p>
+            // Temp check goals, for the people who chose to show theirs.
+            const goals = boardGoals(members, focusMemberId).map(m => (
+              <li key={`goal:${m.id}`} className="board-goal-line"><Avatar m={m} /><span><span className="sr-only">{m.name}'s goal: </span>🎯 {m.todayGoal}</span></li>
+            ))
+            if (!bdays.length && !todays.length) return <>{goals.length > 0 && <ul className="snap-list">{goals}</ul>}<p className="snap-empty">Nothing on the calendar today.</p></>
             return (
               <ul className="snap-list">
+                {goals}
                 {bdays.map(b => <BirthdayRow key={`${b.memberId ?? b.eventId}`} b={b} you="" close={noop} />)}
                 {todays.map(e => <EventLine key={`${e.id}:${e.start}`} e={e} tz={tz} byId={byId} onTap={onTap} past={!e.allDay && Date.parse(e.end) < now.getTime()} />)}
               </ul>
