@@ -3,6 +3,7 @@ import { createRoute, type z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
 import { emit } from '../bus.ts';
+import { isConnectedApp } from './mcp-oauth.ts';
 import { schemeContrastFailures } from '../colors.ts';
 import { COLOR_SCHEMES, CUSTOM_SCHEME_ID_RE, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, ErrorSchema, FeaturesSchema, LocationSchema, MealTimesSchema, SettingsPatchSchema, SettingsSchema, TidbitSettingsSchema } from '../schemas.ts';
 
@@ -63,6 +64,7 @@ export async function readSettings(db: KinwallDb) {
     tidbits: parseTidbits(map.get('tidbits')),
     features: parseFeatures(map.get('features')),
     mealTimes: parseMealTimes(map.get('mealTimes')),
+    aiHealthAccess: map.get('aiHealthAccess') === 'true', // off until a parent turns it on, for every family
   };
 }
 
@@ -209,10 +211,12 @@ settingsRoutes.openapi(
     responses: {
       200: { description: 'ok', content: { 'application/json': { schema: SettingsSchema } } },
       400: { description: 'invalid', content: { 'application/json': { schema: ErrorSchema } } },
+      403: { description: 'aiHealthAccess, from a connected app', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
     const body = c.req.valid('json');
+    if (body.aiHealthAccess !== undefined && (await isConnectedApp(c))) return c.json({ error: "Only a parent's own device can change what connected apps may see" }, 403);
     // A saved scheme must be readable in both modes, the same bar as the app's editor.
     const failures = (body.customSchemes ?? []).flatMap(schemeContrastFailures);
     if (failures.length) return c.json({ error: `Not enough contrast. ${failures.join('. ')}.` }, 400);

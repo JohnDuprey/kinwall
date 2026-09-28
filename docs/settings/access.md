@@ -39,6 +39,10 @@ The Kinwall app also has a picker for whose device it is: **Anyone (whole family
 
 The widgets and Apple Watch key the app makes from that sign-in follow it on a kid's device (everyday access), so they show only that child. On a parent's phone (full access) they're **Shared** and show the whole family. They're listed under **Wall screens & kids' devices**, where you can change them separately. An app signed in before this option shows **Anyone** until you pick someone. The phone you are using is marked **This device** and shows whose it is; change it from another parent device. Other connected apps (Claude and other MCP clients) have no owner.
 
+### Let connected apps see health entries
+
+Off by default. While it's off, Claude and other connected apps can't read or change the [Health](../using/trackers.md#health-) tracker: over MCP, whatever key it uses, and with a connected app's sign-in on the REST API, health entries are left out of lists and exports, and asking for one, adding, editing or deleting one is refused. Turn it on to let them work with health entries the way a parent's device does. Only a parent's own device can change it, never a connected app. Kinwall's own phone app and API keys you created below count as the family's own devices on the REST API and aren't affected. See [MCP server](../integrations/mcp.md#health-entries).
+
 ## API Keys
 
 Admin keys for scripts and automations. **New admin key** shows the key once, with **Copy key**. Display keys are managed under **Displays** instead. See [REST API](../integrations/rest-api.md).

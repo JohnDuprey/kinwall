@@ -25,6 +25,7 @@ What stays readable in the database, so the list can be filtered and sorted: the
 * Without an `ENCRYPTION_KEY`, the server refuses to save health entries rather than store them in plain form. Docker and the Home Assistant add-on always have one (see [Configuration](../self-hosting/configuration.md)).
 * Health request and response bodies are never written to the server logs.
 * Webhooks get only that a health entry changed (its ID and kind), never what's in it.
+* Claude and other connected apps (MCP, and a connected app's sign-in on the REST API) can't see or change health entries until a parent turns on **Let connected apps see health entries** in **Settings → Access → Connected apps**. It's off by default. See [MCP server](../integrations/mcp.md#health-entries).
 * The [export](export-import.md) is your own backup, so it holds health entries in plain form. Importing it encrypts them again.
 * Changing `ENCRYPTION_KEY` isn't supported yet: with a new key, existing health entries (like calendar logins) can't be read. Keep the key with your backups.
 

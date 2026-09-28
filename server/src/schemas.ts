@@ -198,6 +198,7 @@ export const SettingsSchema = z
     tidbits: TidbitSettingsSchema,
     features: FeaturesSchema,
     mealTimes: MealTimesSchema, // when each meal slot usually is; a meal without its own time uses it for its calendar event
+    aiHealthAccess: z.boolean(), // false (default): MCP and connected apps' OAuth tokens never see or change the Health tracker
   })
   .openapi('Settings');
 
@@ -235,6 +236,7 @@ export const SettingsPatchSchema = z
     tidbits: TidbitSettingsSchema.optional(),
     features: FeaturesSchema.optional(), // admin keys only (a display key gets 403)
     mealTimes: MealTimesSchema.optional(),
+    aiHealthAccess: z.boolean().optional(), // the family's own devices only: a connected app gets 403
   })
   // Quiet hours are a pair: send both, and either both set or both cleared ('' / null).
   .refine((p) => (p.quietFrom === undefined) === (p.quietTo === undefined) && !p.quietFrom === !p.quietTo, {

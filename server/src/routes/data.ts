@@ -15,7 +15,7 @@ import { toApi as choreToApi, type ChoreRow } from './chores.ts';
 import { toApi as listToApi, toItemApi, toGroupApi, groupSteps, type ListRow, type ListItemRow, type ListItemStepRow, type ListGroupRow } from './lists.ts';
 import { toApi as webhookToApi, type WebhookRow } from './webhooks.ts';
 import { toNoteApi, type NoteRow } from './notes.ts';
-import { openRow, sealHealthEntries, sealRow, toTrackerApi, type TrackerRow } from './trackers.ts';
+import { healthBlock, openRow, sealHealthEntries, sealRow, toTrackerApi, type TrackerRow } from './trackers.ts';
 import { toEntryApi, toPlacementApi, type PointEntryRow, type PlacementRow } from './stickers.ts';
 import { toRewardApi, toRedemptionApi, type RewardRow, type RedemptionRow } from './rewards.ts';
 import { parseMemberIds } from '../calendar-members.ts';
@@ -162,12 +162,13 @@ dataRoutes.openapi(
     method: 'get',
     path: '/api/export',
     tags: ['System'],
-    summary: 'Download everything the family entered as JSON (no credentials, secrets or synced events)',
+    summary: 'Download everything the family entered as JSON (no credentials, secrets or synced events; no health entries for a connected app without aiHealthAccess)',
     security: [{ Bearer: [] }],
     responses: { 200: { description: 'ok', content: { 'application/json': { schema: ExportSchema } } } },
   }),
   async (c) => {
     const db = c.env.DB;
+    const healthHidden = !!(await healthBlock(c));
     // Column lists are explicit (never SELECT *) so a secret column can't leak in by accident.
     const [members, categories, calendars, events, memberOverrides, categoryOverrides, travelOverrides, seriesMemberOverrides, seriesCategoryOverrides, chores, completions, lists, items, steps, groups, notes, pointEntries, stickerPacks, scrapbook, rewards, redemptions, trackers, passkeys, webhooks] = (await db.batch<unknown>([
       db.prepare('SELECT id, name, color, avatar, birthday, sort, grown_up, needs_approval, transitions, reward_goal FROM members ORDER BY sort, created_at'),
@@ -290,7 +291,8 @@ dataRoutes.openapi(
         scrapbook: (scrapbook as PlacementRow[]).map(toPlacementApi),
         rewards: (rewards as RewardRow[]).map(toRewardApi),
         rewardRedemptions: (redemptions as RedemptionRow[]).map(toRedemptionApi),
-        trackers: (await Promise.all((trackers as TrackerRow[]).map((r) => openRow(c.env, r)))).map(toTrackerApi), // opened: the export is the family's own backup
+        // opened: the export is the family's own backup; a connected app without aiHealthAccess gets no health
+        trackers: (await Promise.all((trackers as TrackerRow[]).filter((r) => r.kind !== 'health' || !healthHidden).map((r) => openRow(c.env, r)))).map(toTrackerApi),
         recipes: await readRecipes(db, { archived: true }),
         meals: await readMeals(db, '0000-01-01', '9999-12-31'),
         mealShoppingSources: (await db.prepare('SELECT list_id, source_ref, item_id, fingerprint FROM meal_shopping_sources ORDER BY list_id, source_ref').all<{ list_id: string; source_ref: string; item_id: string; fingerprint: string }>()).results.map((r) => ({ listId: r.list_id, sourceRef: r.source_ref, itemId: r.item_id, fingerprint: r.fingerprint })),
@@ -478,7 +480,11 @@ dataRoutes.openapi(
     const scrapbook = body.scrapbook.filter((st) => fileMembers.has(st.memberId));
     const redemptions = body.rewardRedemptions.filter((r) => fileMembers.has(r.memberId));
     // A member's entries only with that member (they're personal); the family's and removed members' always.
-    const trackers = body.trackers.filter((t) => t.memberId === null || fileMembers.has(t.memberId));
+    // A connected app without aiHealthAccess neither adds health entries nor overwrites one by id, nor turns the switch on.
+    const healthHidden = !!(await healthBlock(c));
+    const healthIds = healthHidden ? new Set((await db.prepare("SELECT id FROM tracker_entries WHERE kind = 'health'").all<{ id: string }>()).results.map((r) => r.id)) : new Set<string>();
+    const trackers = body.trackers.filter((t) => (t.memberId === null || fileMembers.has(t.memberId)) && !(healthHidden && (t.kind === 'health' || healthIds.has(t.id))));
+    if (healthHidden) delete settings.data.aiHealthAccess;
     const mealSources = body.mealShoppingSources.filter((s) => items.some((i) => i.id === s.itemId && i.listId === s.listId));
     const steps = items.flatMap((i) => i.steps.map((st) => ({ ...st, itemId: i.id, doneAt: st.done ? (i.doneAt ?? new Date().toISOString()) : null, createdAt: i.createdAt })));
 

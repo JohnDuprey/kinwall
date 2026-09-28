@@ -7,6 +7,16 @@ Kinwall has a built-in [Model Context Protocol](https://modelcontextprotocol.io)
 * **Names instead of IDs**: members, lists and categories can be referred to by name (`"member": "Maya"`, `"list": "Groceries"`). Matching is case-insensitive. An ambiguous name returns an error that lists the matches.
 * **Household time**: "today" means today in the household timezone. `get_household` returns that timezone.
 
+## Health entries
+
+[Health](../using/trackers.md#health-) entries stay private to the family's own devices until a parent turns on **Let connected apps see health entries** under **Settings → Access → Connected apps**. It's off by default, for every family. While it's off:
+
+* `list_tracker_entries` leaves health out, including from its search and its count. Asking for `kind: "health"` returns an error: "Health entries are private to the family's own devices. A parent can allow connected apps to see them in Settings → Connected apps."
+* `add_tracker_entry`, `update_tracker_entry` and `delete_tracker_entry` refuse health entries with the same message.
+* No other tool returns health data: profiles, the snapshot, the board and notifications never include it.
+
+This applies to every MCP call, whichever key it uses, and to a connected app's OAuth token when it calls the [REST API](rest-api.md) directly (`/api/trackers` and `/api/export` leave health out). A connected app can't turn the switch on itself. The family's own devices aren't affected: the web app, passkey sign-ins, Kinwall's own phone app, and API keys the family created, which count as the family's own when used on REST. Turned on, health works over MCP as it does in the app (still admin keys only).
+
 ## Two ways to authenticate
 
 ### OAuth 2.1 (sign-in)
@@ -81,7 +91,7 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 | `get_recipe` | One recipe by ID. |
 | `list_meals` | Planned meals from `from` through `to` (default: that day plus six). |
 | `get_meal_projection` | The shopping preview for a date range: each ingredient's scaled total, the meals it's for, and (with `listId` or `listName`) what's already on that list. Admin key only. |
-| `list_tracker_entries` | [Trackers](../using/trackers.md) entries, newest first: books, memories and health visits. Filters: `kind`, `member`, `from`, `to`, `q`. Health only with an admin key. |
+| `list_tracker_entries` | [Trackers](../using/trackers.md) entries, newest first: books, memories and health visits. Filters: `kind`, `member`, `from`, `to`, `q`. Health only with an admin key, and only once a parent turns on [health for connected apps](#health-entries). |
 | `list_notifications` | Recent notifications Kinwall sent (reminders, summaries, chore nudges, list updates, messages), newest first. The same feed as the bell in the app. Takes `limit` and `before`. |
 
 ### Write
@@ -125,8 +135,8 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 | `create_meal` | Plans a recipe, free-form meal or dining out on a date and slot, optionally for a `member` (admin). |
 | `update_meal` | Edits a meal (admin), or its notes and status from the assigned person's device. `refreshRecipe` takes the recipe's current ingredients. A calendar event Kinwall made for the meal follows the change; a linked event of your own doesn't. |
 | `apply_meal_projection` | Adds the previewed ingredients to a shopping list (admin), minus `omitKeys`, and minus meal-kit ingredients that ship in the box unless `includeKitItems`. Repeating it doesn't add anything twice. |
-| `add_tracker_entry` | Logs a book or audiobook (`data.format: "audiobook"` with `totalMinutes`), a memory or a health visit (`kind`, `member`, `date`, `title`, `data`). Health only with an admin key. |
-| `update_tracker_entry` | Edits an entry, for example pages read, minutes listened or a rating. `data` is merged; `null` clears a field. |
+| `add_tracker_entry` | Logs a book or audiobook (`data.format: "audiobook"` with `totalMinutes`), a memory or a health visit (`kind`, `member`, `date`, `title`, `data`). Health only with an admin key, and only once a parent turns on [health for connected apps](#health-entries). |
+| `update_tracker_entry` | Edits an entry, for example pages read, minutes listened or a rating. `data` is merged; `null` clears a field. Health entries only once a parent turns on [health for connected apps](#health-entries). |
 | `update_category` | Changes a category's name, emoji, color or keywords. |
 | `send_notification` | Pushes a message now to devices following given members, or all devices (admin). It also appears in the in-app notification feed. |
 | `set_color_scheme` | Sets the household's color scheme by name ("Peach", "Meadow", "Seasonal", or one of the family's own). Devices that follow the family setting switch to it; a device that picked its own scheme in the app keeps it. |
@@ -145,7 +155,7 @@ Deleting is permanent: nothing here can be undone. Events, lists, list items, st
 | `delete_list_step` | Deletes one step of an item. If every remaining step is done, the item becomes done. |
 | `delete_note` | Deletes one note from an event's or list item's thread. |
 | `delete_chore` | Deletes a chore. One that was ever done is archived instead: it leaves every list, but its completion history and the points earned from it stay. `update_chore` with `active: false` pauses it instead. Full access. |
-| `delete_tracker_entry` | Deletes a book, memory or health entry. A memory's own photo goes with it, unless it's also a family photo. Full access. |
+| `delete_tracker_entry` | Deletes a book, memory or health entry. A memory's own photo goes with it, unless it's also a family photo. Full access. Health entries only once a parent turns on [health for connected apps](#health-entries). |
 | `delete_meal` | Deletes a planned meal and the calendar event Kinwall created for it. A linked event of your own and groceries already on a list stay. Full access. |
 | `delete_recipe` | Deletes a recipe (by ID or exact name) and its ingredients. Planned meals keep their own copy. Full access. |
 | `delete_reward` | Deletes a reward (by ID or exact title). Past requests stay in history; anyone saving for it loses that goal. Full access. |

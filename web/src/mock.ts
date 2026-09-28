@@ -38,6 +38,7 @@ const settings: Settings = {
   leaderboardEnabled: true,
   stickersEnabled: true,
   stickerPriceScale: 100,
+  aiHealthAccess: false,
   location: { name: 'Portland', lat: 45.5152, lon: -122.6784, countryCode: 'US' },
   temperatureUnit: 'fahrenheit',
   tidbits: { sources: ['quotes', 'facts', 'onthisday', 'trivia'], factCategories: [], tipCategories: [], onThisDay: ['holidays', 'births'], birthsAfter: 1900, triviaCategories: [27, 17, 22, 9], triviaDifficulties: ['easy'] },

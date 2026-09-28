@@ -2157,7 +2157,10 @@ function RecoveryCodesSection({ toast, onChanged }: { toast: (m: string, persist
  * Kinwall's own app also has an owner ("Whose device is this?"), changeable here. */
 function ConnectedAppsSection({ toast }: { toast: (m: string, persist?: boolean) => void }) {
   const dialog = useDialog()
-  const { reloadCore, members } = useApp()
+  const { reloadCore, members, settings } = useApp()
+  const setHealth = async (on: boolean) => {
+    try { await api.updateSettings({ aiHealthAccess: on }); reloadCore() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save settings', true) }
+  }
   const ownerName = (o: string | null) => { const m = o && o !== 'shared' ? members.find(x => x.id === o) : undefined; return m ? `${m.avatar} ${m.name}'s device` : 'Anyone can use it' }
   const [apps, setApps] = useState<Awaited<ReturnType<typeof api.getAuthorizations>>>([])
   const load = () => { api.getAuthorizations().then(setApps).catch(() => {}) }
@@ -2187,6 +2190,14 @@ function ConnectedAppsSection({ toast }: { toast: (m: string, persist?: boolean)
           {!a.current && <button className="icon-btn" onClick={() => revoke(a.id, a.clientName)} aria-label={`Disconnect ${a.clientName}`}><TrashIcon width={16} height={16} /></button>}
         </div>
       ))}
+      <div className="toggle-row">
+        <div>
+          <label id="ai-health-label">Let connected apps see health entries</label>
+          <div className="settings-row-sub" id="ai-health-sub">Off: Claude and other connected apps can't read or change the Health tracker.</div>
+        </div>
+        <button className={`switch ${settings.aiHealthAccess ? 'on' : ''}`} role="switch" aria-checked={settings.aiHealthAccess} aria-labelledby="ai-health-label" aria-describedby="ai-health-sub"
+          onClick={() => setHealth(!settings.aiHealthAccess)}><span className="knob" /></button>
+      </div>
     </Section>
   )
 }

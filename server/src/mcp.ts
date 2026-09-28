@@ -1445,8 +1445,10 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       return okResult('Note updated.', { note: res.json as Record<string, unknown> });
     },
   );
-  // ---- Trackers: reading log, memories, health visits. Health is refused to display-scoped callers
-  // by the REST route, so these tools need no check of their own.
+  // ---- Trackers: reading log, memories, health visits. Health is refused to display-scoped callers,
+  // and to every MCP call until the family turns on aiHealthAccess, by the REST route (healthBlock),
+  // so these tools need no check of their own.
+  const HEALTH_DOC = 'Health entries are hidden, and can\'t be added or changed here, unless a parent turned on "Let connected apps see health entries" (Settings → Connected apps).';
   const TRACKER_DATA_DOC =
     'The kind\'s fields. reading: {format: book|audiobook (default book), author, status: want|reading|finished, pagesRead, totalPages (books), ' +
     'narrator, minutesListened, totalMinutes (audiobooks, whole minutes: 4h 30m = 270), finishedOn (YYYY-MM-DD), rating 1-5, notes}. ' +
@@ -1458,7 +1460,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'list_tracker_entries',
     {
       title: 'List tracker entries',
-      description: 'The family\'s trackers, newest first: reading (books and audiobooks, progress, ratings), memory (daily journal) and health (doctor/dentist visits; admin keys only). memberId null = the whole family.',
+      description: `The family's trackers, newest first: reading (books and audiobooks, progress, ratings), memory (daily journal) and health (doctor/dentist visits; admin keys only). memberId null = the whole family. ${HEALTH_DOC}`,
       inputSchema: {
         kind: z.enum(TRACKER_KINDS).optional(),
         member: z.string().optional().describe('Member name or id.'),
@@ -1482,7 +1484,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'add_tracker_entry',
     {
       title: 'Add tracker entry',
-      description: 'Log a book, a memory or a health visit. title: the book (required for reading), a memory\'s headline, or a visit\'s reason.',
+      description: `Log a book, a memory or a health visit. title: the book (required for reading), a memory's headline, or a visit's reason. ${HEALTH_DOC}`,
       inputSchema: {
         kind: z.enum(TRACKER_KINDS),
         member: z.string().optional().describe('Whose entry: member name or id. Omit for the whole family.'),
@@ -1504,7 +1506,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'update_tracker_entry',
     {
       title: 'Update tracker entry',
-      description: 'Edit an entry (ids from list_tracker_entries), e.g. log pages read or rate a book. data is merged over the entry\'s fields; null clears one.',
+      description: `Edit an entry (ids from list_tracker_entries), e.g. log pages read or rate a book. data is merged over the entry's fields; null clears one. ${HEALTH_DOC}`,
       inputSchema: {
         entryId: z.string(),
         member: z.string().nullable().optional().describe('Member name or id; null = the whole family.'),
@@ -1740,7 +1742,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'delete_tracker_entry',
     {
       title: 'Delete tracker entry',
-      description: `Full access: delete a book, memory or health entry (ids come from list_tracker_entries). A memory's own photo goes with it, unless it's also a family photo. ${NO_UNDO}`,
+      description: `Full access: delete a book, memory or health entry (ids come from list_tracker_entries). A memory's own photo goes with it, unless it's also a family photo. ${HEALTH_DOC} ${NO_UNDO}`,
       inputSchema: { entryId: z.string() },
     },
     async ({ entryId }) => remove(`/api/trackers/${encodeURIComponent(entryId)}`, 'failed to delete entry', 'Deleted the entry.'),

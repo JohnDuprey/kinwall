@@ -4,7 +4,9 @@
 // Privacy: health entries never reach a wall display. The display allow-list (auth.ts) lets a
 // display key read and write /api/trackers like chores, but these paths are shared by every kind,
 // so the handlers check the kind: a display key gets 403 for anything health, and a list without
-// a kind leaves health out. Displays can't delete (not in the allow-list).
+// a kind leaves health out. Displays can't delete (not in the allow-list). Connected apps (MCP and
+// AI connectors' OAuth tokens, mcp-oauth.ts isConnectedApp) get the same treatment until the family
+// turns on aiHealthAccess (healthBlock).
 //
 // Photos: only a memory has one (at most one). A photo uploaded for the memory (POST /api/photos?family=0)
 // is the memory's own (photo_own): it stays out of the family photos unless photoFamily is set, and
@@ -24,6 +26,7 @@ import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
 import { emit } from '../bus.ts';
 import { resolveKey } from '../auth.ts';
+import { isConnectedApp } from './mcp-oauth.ts';
 import { todayIn } from './lists.ts';
 import { isSealed, seal, unseal, type EncryptionEnv } from '../crypto.ts';
 import { isAudiobook, minutesOf, pagesOf, readingPercent, type ReadingProgress } from '../reading.ts';
@@ -98,7 +101,16 @@ export async function sealHealthEntries(env: EncryptionEnv & { DB: Env['DB'] }):
 }
 
 const HEALTH_OFF_WALL = { error: 'Health entries stay on phones and computers, never on a wall display' };
-const isDisplay = async (c: C) => (await resolveKey(c))?.scope === 'display';
+export const HEALTH_PRIVATE = { error: "Health entries are private to the family's own devices. A parent can allow connected apps to see them in Settings → Connected apps." };
+
+/** Why this caller may not see or change health entries, or null when it may: a wall display never,
+ * a connected app (MCP, an AI connector's OAuth token) only once the family turns on aiHealthAccess. */
+export async function healthBlock(c: C): Promise<{ error: string } | null> {
+  if ((await resolveKey(c))?.scope === 'display') return HEALTH_OFF_WALL;
+  if (!(await isConnectedApp(c))) return null;
+  const on = (await c.env.DB.prepare("SELECT value FROM settings WHERE key = 'aiHealthAccess'").first<{ value: string }>())?.value === 'true';
+  return on ? null : HEALTH_PRIVATE;
+}
 
 async function householdToday(c: C) {
   return todayIn((await c.env.DB.prepare("SELECT value FROM settings WHERE key = 'timezone'").first<{ value: string }>())?.value);
@@ -157,7 +169,7 @@ trackersRoutes.openapi(
     method: 'get',
     path: '/api/trackers',
     tags: ['Trackers'],
-    summary: 'Tracker entries, newest first. A display key never sees health entries (kind=health answers 403).',
+    summary: 'Tracker entries, newest first. A display key never sees health entries (kind=health answers 403), nor does a connected app unless the family turned on aiHealthAccess.',
     security: [{ Bearer: [] }],
     request: {
       query: z.object({
@@ -171,17 +183,17 @@ trackersRoutes.openapi(
     },
     responses: {
       200: { description: 'ok', content: json(z.array(TrackerEntrySchema)) },
-      403: { description: 'health, from a display key', content: json(ErrorSchema) },
+      403: { description: 'health, from a display key or a connected app without aiHealthAccess', content: json(ErrorSchema) },
     },
   }),
   async (c) => {
     const { kind, memberId, from, to, q, limit } = c.req.valid('query');
-    const display = await isDisplay(c);
-    if (display && kind === 'health') return c.json(HEALTH_OFF_WALL, 403);
+    const blocked = await healthBlock(c);
+    if (blocked && kind === 'health') return c.json(blocked, 403);
     const where: string[] = [];
     const binds: unknown[] = [];
     if (kind) { where.push('t.kind = ?'); binds.push(kind); }
-    if (display) where.push("t.kind != 'health'");
+    if (blocked) where.push("t.kind != 'health'");
     if (memberId) { where.push('t.member_id = ?'); binds.push(memberId); }
     if (from) { where.push('t.date >= ?'); binds.push(from); }
     if (to) { where.push('t.date <= ?'); binds.push(to); }
@@ -244,12 +256,13 @@ trackersRoutes.openapi(
     responses: {
       201: { description: 'created', content: json(TrackerEntrySchema) },
       400: { description: 'invalid', content: json(ErrorSchema) },
-      403: { description: 'health, from a display key', content: json(ErrorSchema) },
+      403: { description: 'health, from a display key or a connected app without aiHealthAccess', content: json(ErrorSchema) },
     },
   }),
   async (c) => {
     const body = c.req.valid('json');
-    if (body.kind === 'health' && (await isDisplay(c))) return c.json(HEALTH_OFF_WALL, 403);
+    const blocked = body.kind === 'health' && (await healthBlock(c));
+    if (blocked) return c.json(blocked, 403);
     const today = await householdToday(c);
     const parsed = parseData(body.kind, body.data);
     if ('error' in parsed) return c.json({ error: parsed.error }, 400);
@@ -278,7 +291,8 @@ trackersRoutes.openapi(
 async function load(c: C, id: string, open = true): Promise<{ row: Row } | { res: Response }> {
   const row = await c.env.DB.prepare(`${SELECT_ENTRY} WHERE t.id = ?`).bind(id).first<Row>();
   if (!row) return { res: c.json({ error: 'not found' }, 404) };
-  if (row.kind === 'health' && (await isDisplay(c))) return { res: c.json(HEALTH_OFF_WALL, 403) };
+  const blocked = row.kind === 'health' && (await healthBlock(c));
+  if (blocked) return { res: c.json(blocked, 403) };
   return { row: open ? await openRow(c.env, row) : row };
 }
 
@@ -292,7 +306,7 @@ trackersRoutes.openapi(
     request: { params: idParam },
     responses: {
       200: { description: 'ok', content: json(TrackerEntrySchema) },
-      403: { description: 'health, from a display key', content: json(ErrorSchema) },
+      403: { description: 'health, from a display key or a connected app without aiHealthAccess', content: json(ErrorSchema) },
       404: { description: 'not found', content: json(ErrorSchema) },
     },
   }),
@@ -314,7 +328,7 @@ trackersRoutes.openapi(
     responses: {
       200: { description: 'ok', content: json(TrackerEntrySchema) },
       400: { description: 'invalid', content: json(ErrorSchema) },
-      403: { description: 'health, from a display key', content: json(ErrorSchema) },
+      403: { description: 'health, from a display key or a connected app without aiHealthAccess', content: json(ErrorSchema) },
       404: { description: 'not found', content: json(ErrorSchema) },
     },
   }),
@@ -362,6 +376,7 @@ trackersRoutes.openapi(
     request: { params: idParam },
     responses: {
       200: { description: 'ok', content: json(z.object({ ok: z.boolean() })) },
+      403: { description: 'health, from a connected app without aiHealthAccess', content: json(ErrorSchema) },
       404: { description: 'not found', content: json(ErrorSchema) },
     },
   }),

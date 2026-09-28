@@ -43,6 +43,7 @@ Health stays on phones and computers, never on the wall screen:
 * A paired wall display (a display key) doesn't show the Health tab.
 * The server refuses health entries to display keys: listing them, opening one, adding one or editing one answers **403**, and a list without a kind leaves health out. This holds for the REST API and the MCP tools, whatever app is asking.
 * Webhooks (`tracker.changed`) carry only the entry's id and kind, never its fields.
+* Claude and other connected apps don't see health entries unless a parent allows it in **Settings → Access → Connected apps**. See [MCP server](../integrations/mcp.md#health-entries).
 * Health entries are encrypted in the database (the reason, the office, notes and measurements), and never written to the server logs. See [Privacy](../your-data/privacy.md#health-entries).
 
 Keep in mind that a visit you add to the calendar is a normal event, and the calendar is on the wall.

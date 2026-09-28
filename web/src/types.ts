@@ -43,6 +43,7 @@ export interface Settings {
   tidbits: TidbitSettings // the Board's quote / fact card
   features: Features // Settings → Features: what the family uses; off = hidden on every screen
   mealTimes: Record<'breakfast' | 'lunch' | 'dinner' | 'snack', string> // HH:MM each meal usually is; a meal without its own time uses it on the calendar
+  aiHealthAccess: boolean // false (default): MCP and connected apps can't see or change the Health tracker
 }
 
 /** Household feature switches. Off hides the feature everywhere; its data is kept. */

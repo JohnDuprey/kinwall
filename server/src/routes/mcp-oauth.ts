@@ -12,7 +12,7 @@ import type { Context } from 'hono';
 import { cors } from 'hono/cors';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
-import { createApiKey, resolveKey, sha256Hex, validOwner, type KeyScope } from '../auth.ts';
+import { createApiKey, requestKey, resolveKey, sha256Hex, validOwner, type KeyScope } from '../auth.ts';
 import { effectivePublicUrl } from '../providers/config.ts';
 import { emit } from '../bus.ts';
 
@@ -321,9 +321,26 @@ mcpOAuthRoutes.post('/oauth/revoke', async (c) => {
 async function managerGrant(db: KinwallDb, caller: Awaited<ReturnType<typeof resolveKey>>): Promise<{ ok: boolean; ownGrant: string | null }> {
   if (!caller || caller.scope !== 'admin') return { ok: false, ownGrant: null };
   if (caller.kind !== 'oauth') return { ok: true, ownGrant: null };
+  const ownGrant = await deviceAppGrant(db, caller.id);
+  return { ok: !!ownGrant, ownGrant };
+}
+
+/** The grant of an OAuth key that Kinwall's own app signed in with, else null. */
+async function deviceAppGrant(db: KinwallDb, keyId: string | undefined): Promise<string | null> {
   const row = await db.prepare('SELECT g.id, cl.redirect_uris FROM api_keys k JOIN oauth_grants g ON g.id = k.oauth_grant_id JOIN oauth_clients cl ON cl.id = g.client_id WHERE k.id = ?')
-    .bind(caller.id ?? '').first<{ id: string; redirect_uris: string }>();
-  return row && isDeviceApp(JSON.parse(row.redirect_uris) as string[]) ? { ok: true, ownGrant: row.id } : { ok: false, ownGrant: null };
+    .bind(keyId ?? '').first<{ id: string; redirect_uris: string }>();
+  return row && isDeviceApp(JSON.parse(row.redirect_uris) as string[]) ? row.id : null;
+}
+
+/** A connected app (Claude and other AI connectors, automations), not one of the family's own
+ * devices: every MCP tool call (mcp.ts marks its in-process requests), whatever key it uses, and
+ * an OAuth token on REST unless Kinwall's own app signed in with it. The family's own API keys,
+ * passkey sessions and pairings on REST are the family's. Health stays away from these unless the
+ * family turns on aiHealthAccess (AGENTS.md "Health data"). */
+export async function isConnectedApp(c: Context<{ Bindings: Env }>): Promise<boolean> {
+  if (c.req.header('X-Kinwall-Source') === 'mcp') return true;
+  const key = await requestKey(c);
+  return key?.kind === 'oauth' && !(await deviceAppGrant(c.env.DB, key.id));
 }
 
 mcpOAuthRoutes.get('/api/authorizations', async (c) => {
