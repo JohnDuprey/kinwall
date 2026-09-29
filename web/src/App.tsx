@@ -5,7 +5,7 @@ import { api, clearKey, getKey, onSynced, setAdminKey, setKey, useOffline, usePo
 import { AppContext, useApp } from './AppContext.tsx'
 import type { Category, Member, Settings } from './types.ts'
 import { trackerKinds } from './types.ts'
-import { BookIcon, MoreIcon, BrushIcon, CalendarIcon, ChoreIcon, CloudOffIcon, GiftIcon, ListIcon, MealIcon, PersonIcon, SettingsIcon } from './icons.tsx'
+import { BookIcon, MoreIcon, BrushIcon, CalendarIcon, ChoreIcon, CloudOffIcon, GiftIcon, ListIcon, MealIcon, MoonIcon, PersonIcon, SettingsIcon } from './icons.tsx'
 import CalendarView from './Calendar.tsx'
 import Chores from './Chores.tsx'
 import Lists from './Lists.tsx'
@@ -29,7 +29,7 @@ import NotificationBell from './Notifications.tsx'
 import { InstallNudge } from './Install.tsx'
 import { inNativeApp, tellAppLeaveDemo } from './native.ts'
 import { HelpButton } from './Help.tsx'
-import Slideshow, { SAVER_PREVIEW_EVENT } from './Screensaver.tsx'
+import Slideshow, { SAVER_PREVIEW_EVENT, SAVER_START_EVENT } from './Screensaver.tsx'
 import { CLOCK_SPOTS, nextSpot, spotStyle, type Spot } from './nightClock.ts'
 import SnapshotSheet from './Snapshot.tsx'
 import Profile from './Profile.tsx'
@@ -178,28 +178,32 @@ const CLOCK_MOVE_MS = 3 * 60 * 1000
 /** Quiet hours: a wall screen (wallScreen.ts) shows only a dim clock that moves around (or, per device,
  * a dim slideshow - see Screensaver.tsx) between settings.quietFrom and quietTo. Any touch keeps it
  * awake for WAKE_MS. SAVER_PREVIEW_EVENT shows it for 20 s on any device so an admin can see what the
- * wall will do. */
+ * wall will do; SAVER_START_EVENT (the header's Night screen button) shows it until a tap or key. */
 function QuietOverlay({ settings, wall }: { settings: Settings; wall: boolean }) {
   const device = useDeviceAppearance()
   const [now, setNow] = useState(new Date())
   const lastActive = useRef(0) // 0 = asleep from the start if loaded mid-window
   const [drift, setDrift] = useState<Spot>(CLOCK_SPOTS.center)
-  const [preview, setPreview] = useState(false)
+  const [manual, setManual] = useState<'' | 'preview' | 'hold'>('')
+  const preview = manual === 'preview'
   useEffect(() => {
-    const touch = () => { lastActive.current = Date.now(); setNow(new Date()); setPreview(false) }
+    const touch = () => { lastActive.current = Date.now(); setNow(new Date()); setManual('') }
     const events = ['pointerdown', 'keydown']
     events.forEach(ev => window.addEventListener(ev, touch))
     const id = setInterval(() => setNow(new Date()), 15000)
-    const onPreview = () => { setPreview(true); announce('Previewing the quiet-hours screen for 20 seconds. Tap or press Escape to end.') }
+    const onPreview = () => { setManual('preview'); announce('Previewing the quiet-hours screen for 20 seconds. Tap or press Escape to end.') }
+    const onStart = () => { setManual('hold'); location.hash = '#/calendar'; announce('Night screen on. Tap or press any key to end.') }
     window.addEventListener(SAVER_PREVIEW_EVENT, onPreview)
-    return () => { clearInterval(id); events.forEach(ev => window.removeEventListener(ev, touch)); window.removeEventListener(SAVER_PREVIEW_EVENT, onPreview) }
+    window.addEventListener(SAVER_START_EVENT, onStart)
+    return () => { clearInterval(id); events.forEach(ev => window.removeEventListener(ev, touch)); window.removeEventListener(SAVER_PREVIEW_EVENT, onPreview); window.removeEventListener(SAVER_START_EVENT, onStart) }
   }, [])
   useEffect(() => {
     if (!preview) return
-    const id = setTimeout(() => setPreview(false), PREVIEW_MS)
+    const id = setTimeout(() => setManual(''), PREVIEW_MS)
     return () => clearTimeout(id)
   }, [preview])
-  const asleep = preview || nightScreenDue({ wall, quietFrom: settings.quietFrom, quietTo: settings.quietTo, now, lastActive: lastActive.current })
+  useEffect(() => { holdAwake('night-screen', manual === 'hold') }, [manual])
+  const asleep = !!manual || nightScreenDue({ wall, quietFrom: settings.quietFrom, quietTo: settings.quietTo, now, lastActive: lastActive.current })
   // Photos turned off (Settings → Features): a display that picked them shows nature pictures instead.
   const sources = [...new Set((device.saverSources ?? []).map(src => src === 'photos' && !settings.features.photos ? 'nature' : src))]
   const fixed = device.clockPos && CLOCK_SPOTS[device.clockPos]
@@ -751,11 +755,12 @@ function FamilySheet({ name, members, selectedMemberId, onClose, onFilter, onSna
   )
 }
 
-function Header({ settings, members, selectedMemberId, isAdmin }: {
+function Header({ settings, members, selectedMemberId, isAdmin, wall }: {
   settings: Settings
   members: Member[]
   selectedMemberId: string | null
   isAdmin: boolean
+  wall: boolean
 }) {
   const isPhone = useIsPhone()
   const [now, setNow] = useState(new Date())
@@ -775,6 +780,7 @@ function Header({ settings, members, selectedMemberId, isAdmin }: {
         <div className="header-right">
           <OfflineIcon />
           <NotificationBell isAdmin={isAdmin} />
+          {wall && <NightScreenButton />}
           <HelpButton />
         </div>
       </header>
@@ -796,6 +802,7 @@ function Header({ settings, members, selectedMemberId, isAdmin }: {
         <MemberAvatars members={members} selectedMemberId={selectedMemberId} />
         <OfflineIcon />
         <NotificationBell isAdmin={isAdmin} />
+        {wall && <NightScreenButton />}
         <HelpButton />
       </div>
     </header>
@@ -816,6 +823,15 @@ function captureKeyFromUrl(): string | null {
   if (fromHash) url.hash = ''
   history.replaceState(null, '', url.pathname + url.search + url.hash)
   return k
+}
+
+/** Header icon on wall screens: the Night screen now, until a tap or key (QuietOverlay). */
+function NightScreenButton() {
+  return (
+    <button className="icon-btn header-bell" title="Night screen" aria-label="Night screen" onClick={() => window.dispatchEvent(new Event(SAVER_START_EVENT))}>
+      <MoonIcon width={22} height={22} />
+    </button>
+  )
 }
 
 /** Header icon, only while offline; a count of changes waiting to sync. Tap says what that means. */
@@ -1081,7 +1097,7 @@ function AppRoutes() {
         <button className="skip-link" onClick={() => document.getElementById('main')?.focus()}>Skip to content</button>
         {navMode === 'left' && <Nav tab={navTab} mode={navMode} items={nav} toApprove={toApprove} rewardRequests={rewardRequests} />}
         <div className="main-col">
-          <Header settings={settings} members={focusMember ? [focusMember] : members} selectedMemberId={effectiveMemberId} isAdmin={scope === 'admin'} />
+          <Header settings={settings} members={focusMember ? [focusMember] : members} selectedMemberId={effectiveMemberId} isAdmin={scope === 'admin'} wall={wall} />
           <main className="content" id="main" tabIndex={-1}>
             <h1 className="sr-only">{tabLabel}</h1>
             {redirect ? null : section === 'profile' ? <Profile memberId={sub} /> : section === 'journal' ? <Journal memberId={sub} /> : section === 'insights' ? <Insights memberId={sub} /> : section === 'medications' ? <Medications memberId={sub} /> : section === 'activities' ? <Activities sub={sub} rest={rest} /> : section === 'rewards' ? <Rewards memberId={sub} /> : section === 'meals' ? <Meals /> : tab === 'chores' ? <Chores /> : section === 'lists' ? <Lists /> : section === 'contacts' ? <Contacts /> : section === 'trackers' ? <Trackers sub={sub} /> : tab === 'settings' ? <SettingsView /> : <CalendarView />}

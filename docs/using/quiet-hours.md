@@ -15,6 +15,10 @@ Quiet hours turn a wall screen into a dim clock overnight. That saves the screen
 
 Quiet hours also hold back transition reminders that would arrive during them. The evening goal check and [medication reminders](medications.md) still come through: they're at times the family picked on purpose.
 
+## Night screen now
+
+Wall screens have a moon button in the header, next to the bell and help. Tap it to show the Night screen right away, at any time of day, with this device's Night screen settings. It stays on, and keeps the screen awake, until you tap the screen or press a key, then shows today's calendar. Unlike **Preview screensaver**, it doesn't end on its own.
+
 ## Screensaver
 
 Instead of the bare clock, a display can show a slow, dim slideshow overnight. It's set **per device**: **Settings → General**, tap **Change** under **Night screen**, then **During quiet hours show**. Turn on one or more sources. With more than one on, the pictures take turns (drawing, then family photo, then art, then nature, and so on). **Clock only** (the default) turns them all off.

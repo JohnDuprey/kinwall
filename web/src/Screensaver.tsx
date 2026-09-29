@@ -67,6 +67,8 @@ const loggedFailure = new Set<SaverSource>() // one console line per source per 
 
 /** Settings → This display → Preview: App's QuietOverlay shows itself for 20 s on any device. */
 export const SAVER_PREVIEW_EVENT = 'kinwall:screensaver-preview'
+/** The header's Night screen button on a wall screen: QuietOverlay shows until a tap or key. */
+export const SAVER_START_EVENT = 'kinwall:screensaver-start'
 
 /** Decodes the image before it's put on screen, so a change never flashes an empty frame. */
 function preload(src: string) {
