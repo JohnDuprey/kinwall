@@ -17,6 +17,7 @@ import { addDays, clockLabel, doseAt, LATE_MS, loadLogs, loadMedications, medici
 import { sha256Hex } from './auth.ts';
 import { batteryFor } from './routes/insights.ts';
 import { mealLinksQuery, parseMealLinks, prepAt, prepFor } from './prepBy.ts';
+import { nudge } from './nudges.ts';
 
 export const DEFAULT_PUSH_PREFS = {
   eventReminders: true,
@@ -339,13 +340,13 @@ export function inQuietHours(from: string | undefined, to: string | undefined, n
 async function runTransitionReminders(env: Env, db: KinwallDb, now: Date, tz: string, occurrences: Occurrence[], eligible: PushSubRow[]): Promise<void> {
   if (!eligible.length) return;
   const [membersRes, keysRes] = await db.batch<unknown>([
-    db.prepare('SELECT id, transitions FROM members WHERE transitions IS NOT NULL'),
+    db.prepare('SELECT id, name, transitions FROM members WHERE transitions IS NOT NULL'),
     db.prepare("SELECT id, owner FROM api_keys WHERE owner IS NOT NULL AND owner <> 'shared'"),
   ]);
   const ownerOfKey = new Map((keysRes.results as { id: string; owner: string }[]).map((k) => [k.id, k.owner]));
   const minute = (ms: number) => Math.floor(ms / 60000);
 
-  for (const m of membersRes.results as { id: string; transitions: string }[]) {
+  for (const m of membersRes.results as { id: string; name: string; transitions: string }[]) {
     const cfg = parseTransitions(m.transitions);
     const times = cfg.on ? transitionTimes(cfg.minutes, cfg.repeat) : [];
     const devices = eligible.filter((s) => s.api_key_id && ownerOfKey.get(s.api_key_id) === m.id);
@@ -367,10 +368,10 @@ async function runTransitionReminders(env: Env, db: KinwallDb, now: Date, tz: st
       const regular = occ.effective.map((r) => minute(Date.parse(occ.start) - (r + occ.leadMinutes) * 60000));
       const left = Math.max(1, Math.round((target - now.getTime()) / 60000)); // the truth, even on a late tick
       const by = fmtTime(new Date(target).toISOString(), tz), starts = fmtTime(occ.start, tz);
-      const what = occ.prepAt ? `Start prep for ${occ.title}` : lead ? `Leave for ${occ.title}` : occ.title;
       const when = occ.prepAt ? (by === starts ? `Start prep by ${by}` : `Start prep by ${by} · starts ${starts}`) : lead ? `Leave by ${by} · starts ${starts}` : `Starts at ${starts}`;
       const payload = {
-        title: `${what} in ${left} minute${left === 1 ? '' : 's'}`,
+        // Varied, kind and escalating (nudges.ts); the body keeps the plain facts.
+        title: nudge({ kind: occ.prepAt ? 'prep' : lead ? 'leave' : 'start', title: occ.title, minutes: left, at: by, seed: `${m.id}:${occ.eventId}:${occ.occurrenceKey.slice(0, 10)}`, ordinal: times.indexOf(due[due.length - 1]), name: m.name.split(' ')[0] }),
         body: [when, occ.location && `📍 ${occ.location.replace(/\s*\n\s*/g, ', ')}`].filter(Boolean).join('\n'),
         url: `/#/calendar?event=${encodeURIComponent(occ.eventId)}&at=${encodeURIComponent(new Date(occ.start).toISOString())}`,
         tag: `transition:${occ.eventId}`, // each one replaces the last on the lock screen

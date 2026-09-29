@@ -713,6 +713,11 @@ async function transitionsSetup(transitions: Record<string, unknown>, event: Rec
 }
 
 const at = (iso: string, plusMin: number) => new Date(Date.parse(iso) + plusMin * 60000);
+// A transition headline varies (nudges.ts) but always says what and when: the minutes left or the time.
+const says = (title: string, what: string, minutes: number, time: string) => {
+  assert.ok(title.includes(what) && (title.includes(`${minutes} min`) || title.includes(time)), title);
+  return true;
+};
 
 test('transitions: pushes at each time before the member\'s event, only to their own devices, once', async () => {
   const start = '2030-03-04T15:30:00Z';
@@ -721,12 +726,13 @@ test('transitions: pushes at each time before the member\'s event, only to their
   const first = await run(at(start, -15));
   assert.equal(first.length, 1);
   assert.equal(first[0].device, 'leo-phone');
-  assert.equal(first[0].payload.title, 'Soccer practice in 15 minutes');
+  says(first[0].payload.title, 'Soccer practice', 15, '3:30 PM');
   assert.equal(first[0].payload.body, 'Starts at 3:30 PM');
   assert.equal(first[0].payload.tag, `transition:${first[0].payload.url.match(/event=([^&]+)/)![1]}`);
   assert.deepEqual(await run(at(start, -14)), [], 'deduped on the next tick');
-  assert.equal((await run(at(start, -10)))[0].payload.title, 'Soccer practice in 10 minutes');
-  assert.equal((await run(at(start, -5)))[0].payload.title, 'Soccer practice in 5 minutes');
+  const ten = (await run(at(start, -10)))[0].payload.title, five = (await run(at(start, -5)))[0].payload.title;
+  says(ten, 'Soccer practice', 10, '3:30 PM'); says(five, 'Soccer practice', 5, '3:30 PM');
+  assert.equal(new Set([first[0].payload.title, ten, five]).size, 3, 'a different line each time');
 });
 
 test('transitions: a late tick sends only the latest due time, worded truthfully', async () => {
@@ -734,8 +740,9 @@ test('transitions: a late tick sends only the latest due time, worded truthfully
   const { run } = await transitionsSetup({ on: true, minutes: [10, 7, 4, 2], repeat: null }, { start, end: at(start, 60).toISOString() });
   const sent = await run(at(start, -4)); // 10, 7 and 4 all due at once (a late check)
   assert.equal(sent.length, 1);
-  assert.equal(sent[0].payload.title, 'Soccer practice in 4 minutes');
-  assert.equal((await run(at(start, -2)))[0].payload.title, 'Soccer practice in 2 minutes');
+  says(sent[0].payload.title, 'Soccer practice', 4, '3:30 PM');
+  assert.doesNotMatch(sent[0].payload.title, /\b(10|7) min/);
+  says((await run(at(start, -2)))[0].payload.title, 'Soccer practice', 2, '3:30 PM');
 });
 
 test('transitions: leave-by counts to leaving when the event has travel time (and can be turned off)', async () => {
@@ -744,12 +751,12 @@ test('transitions: leave-by counts to leaving when the event has travel time (an
   const leave = await transitionsSetup({ on: true, minutes: [5] }, event);
   const sent = await leave.run(at(start, -25));
   assert.equal(sent.length, 1);
-  assert.equal(sent[0].payload.title, 'Leave for Soccer practice in 5 minutes');
+  says(sent[0].payload.title, 'Soccer practice', 5, '3:10 PM');
   assert.equal(sent[0].payload.body, 'Leave by 3:10 PM · starts 3:30 PM');
 
   const toStart = await transitionsSetup({ on: true, minutes: [5], leaveBy: false }, event);
   assert.deepEqual(await toStart.run(at(start, -25)), []);
-  assert.equal((await toStart.run(at(start, -5)))[0].payload.title, 'Soccer practice in 5 minutes');
+  says((await toStart.run(at(start, -5)))[0].payload.title, 'Soccer practice', 5, '3:30 PM');
 });
 
 test('transitions: a meal\'s event counts to starting prep, for its cook only', async () => {
@@ -764,7 +771,8 @@ test('transitions: a meal\'s event counts to starting prep, for its cook only', 
   await meal(leo.id, [cook.sam.id], '2030-03-04');
   // 6:00 PM dinner, 40 minutes of cooking: prep by 5:20 PM, Leo's 5-minute warning at 5:15 PM.
   const sent = await cook.run(new Date('2030-03-04T17:15:00Z'));
-  assert.deepEqual(sent.map((s) => [s.device, s.payload.title, s.payload.body]), [['leo-phone', 'Start prep for Dinner · Tuesday Tacos in 5 minutes', 'Start prep by 5:20 PM · starts 6:00 PM']]);
+  assert.deepEqual(sent.map((s) => [s.device, s.payload.body]), [['leo-phone', 'Start prep by 5:20 PM · starts 6:00 PM']]);
+  says(sent[0].payload.title, 'Dinner · Tuesday Tacos', 5, '5:20 PM');
 
   // Leo eats but Sam cooks: nothing for Leo.
   await meal(cook.sam.id, [leo.id], '2030-03-06');
@@ -780,7 +788,7 @@ test('transitions: not doubled with a regular reminder at the same minute on tha
   const leos = ten.filter((s) => s.device === 'leo-phone');
   assert.equal(leos.length, 1, 'one push, not two');
   assert.equal(leos[0].payload.title, 'Soccer practice'); // the regular one
-  assert.equal((await run(at(start, -5))).find((s) => s.device === 'leo-phone')?.payload.title, 'Soccer practice in 5 minutes');
+  says((await run(at(start, -5))).find((s) => s.device === 'leo-phone')!.payload.title, 'Soccer practice', 5, '3:30 PM');
 });
 
 test('transitions: never during quiet hours; nothing when off or for other people\'s events', async () => {
@@ -796,5 +804,6 @@ test('transitions: never during quiet hours; nothing when off or for other peopl
   const other = await transitionsSetup({ on: true, minutes: [10] }, { start: day, end: at(day, 60).toISOString() });
   await other.request('/api/events', { method: 'POST', body: JSON.stringify({ calendarId: ((await (await other.request('/api/calendars')).json()) as any[])[0].id, title: 'Piano', start: day, end: at(day, 60).toISOString(), allDay: false, memberIds: [other.sam.id], reminders: [] }) });
   const sent = await other.run(at(day, -10));
-  assert.deepEqual(sent.map((s) => [s.device, s.payload.title]), [['leo-phone', 'Soccer practice in 10 minutes']], 'Sam\'s piano: no transition push for Leo (Sam has them off)');
+  assert.deepEqual(sent.map((s) => s.device), ['leo-phone'], 'Sam\'s piano: no transition push for Leo (Sam has them off)');
+  says(sent[0].payload.title, 'Soccer practice', 10, '3:30 PM');
 });
