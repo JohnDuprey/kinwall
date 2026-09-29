@@ -31,7 +31,7 @@ import { countDrawings } from './drawings-db.ts'
 import { passkeysSupported, registerPasskey } from './webauthn.ts'
 import { QrCode } from './App.tsx'
 import { InstallRow } from './Install.tsx'
-import { appLiveActivities, inNativeApp, liveActivitiesLine } from './native.ts'
+import { appLiveActivities, appMedicineNames, appPlatform, inNativeApp, liveActivitiesLine, setAppMedicineNames } from './native.ts'
 import { useDialog } from './dialog.tsx'
 import { TEMP_CHECK_OFF } from './tempCheck.ts'
 import { EVENING_TIMES } from './journal.ts'
@@ -656,6 +656,7 @@ function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean)
     return () => window.removeEventListener('kinwallnative', on)
   }, [])
   const { members, settings } = useApp()
+  const [appNames, setAppNames] = useState(appMedicineNames) // in the app: this device's own choice (no push subscription)
   const [sub, setSub] = useState<PushSubscription | null | undefined>(undefined) // undefined = still checking
   const [busy, setBusy] = useState(false)
 
@@ -724,11 +725,18 @@ function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean)
   }
 
   if (inNativeApp()) {
-    const liveLine = liveActivitiesLine(liveActivities)
+    const liveLine = liveActivitiesLine(liveActivities, appPlatform() ?? 'ios')
     return (
       <Section title="Notifications" icon={<BellIcon width={16} height={16} />}>
         <p className="settings-row-sub">The Kinwall app reminds you about events on this device, at each event's reminder times. To turn them off, go to the device's Settings → Notifications → Kinwall. Daily summaries, chore nudges and list updates aren't sent to the app yet; they still arrive in the bell at the top.</p>
         {liveLine && <p className="settings-row-sub">{liveLine}</p>}
+        {settings.medications && <div className="toggle-row">
+          <div>
+            <label id="app-med-names-label">Show medicine names on this device</label>
+            <div className="settings-row-sub" id="app-med-names-sub">Off: a due dose says “Leo’s medicine”. It shows on the lock screen.</div>
+          </div>
+          <button className={`switch ${appNames ? 'on' : ''}`} role="switch" aria-checked={appNames} aria-labelledby="app-med-names-label" aria-describedby="app-med-names-sub" onClick={() => { setAppMedicineNames(!appNames); setAppNames(!appNames) }}><span className="knob" /></button>
+        </div>}
       </Section>
     )
   }

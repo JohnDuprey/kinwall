@@ -7,10 +7,19 @@ import type { CustomColors, ThemeMode } from './types.ts'
 export const inNativeApp = (): boolean =>
   typeof window !== 'undefined' && (!!(window as Window & { kinwallNative?: unknown }).kinwallNative || /\bKinwallApp\//.test(navigator.userAgent))
 
-/** Marks <html data-native> so styles can use the space the app gives them: the app hides the
- * status bar, so the header doesn't need the gap it keeps under it in the browser. */
+/** Which app: window.kinwallNative.platform ('ios' or 'android'); an older app without it is the
+ * iPhone app. null in a browser. */
+export function appPlatform(): 'ios' | 'android' | null {
+  if (!inNativeApp()) return null
+  return (window as Window & { kinwallNative?: { platform?: unknown } }).kinwallNative?.platform === 'android' ? 'android' : 'ios'
+}
+
+/** Marks <html data-native="ios|android"> so styles can use the space the app gives them: the
+ * iPhone app hides the status bar, so the header doesn't need the gap it keeps under it in the
+ * browser (Android keeps its status bar, so those rules are iOS-only). */
 export function markNativeApp() {
-  if (inNativeApp()) document.documentElement.dataset.native = 'ios'
+  const p = appPlatform()
+  if (p) document.documentElement.dataset.native = p
 }
 
 /** Tells the app the page signed out (Unpair, or its key stopped working), so it can refresh an
@@ -96,9 +105,13 @@ export function appLiveActivities(): boolean | null {
   return typeof v === 'boolean' ? v : null
 }
 
-/** The Notifications section's line about them, or null where they don't apply. */
-export function liveActivitiesLine(on: boolean | null): string | null {
+/** The Notifications section's line about them, or null where they don't apply. On Android they're
+ * ongoing notifications. */
+export function liveActivitiesLine(on: boolean | null, platform: 'ios' | 'android' = 'ios'): string | null {
   if (on === null) return null
+  if (platform === 'android') return on
+    ? 'Countdowns show as ongoing notifications. Turn them off in Android Settings → Apps → Kinwall → Notifications.'
+    : 'Countdowns as ongoing notifications: Off in Android Settings. Turn them on in Android Settings → Apps → Kinwall → Notifications.'
   return on
     ? 'Countdowns and timers show on the Lock Screen. Turn them off in iPhone Settings → Kinwall → Live Activities.'
     : 'Countdowns and timers on the Lock Screen: Off in iPhone Settings. Turn them on in iPhone Settings → Kinwall → Live Activities.'
@@ -114,4 +127,16 @@ export function tellAppLeaveByPush(on: boolean) {
   if (!app) return
   lastLeaveByPush = on
   try { app.postMessage({ type: 'leaveByPush', on }) } catch { /* not in the app */ }
+}
+
+// "Show medicine names" for this device inside the app, which has no web push subscription to keep
+// it on (Settings → Notifications). Off by default: the medicine countdown says "Leo's medicine".
+const MED_NAMES_KEY = 'kinwall.appMedicationNames'
+export const MED_NAMES_EVENT = 'kinwallmednames'
+export function appMedicineNames(): boolean {
+  try { return localStorage.getItem(MED_NAMES_KEY) === '1' } catch { return false }
+}
+export function setAppMedicineNames(on: boolean) {
+  try { if (on) localStorage.setItem(MED_NAMES_KEY, '1'); else localStorage.removeItem(MED_NAMES_KEY) } catch { /* not kept */ }
+  window.dispatchEvent(new Event(MED_NAMES_EVENT))
 }

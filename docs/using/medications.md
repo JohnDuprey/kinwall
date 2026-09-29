@@ -45,7 +45,7 @@ On a shared wall screen the card says **Meds** instead of the medicine's name, u
 
 ### On the Lock Screen
 
-In the Kinwall phone app, a dose that's due also shows as a Live Activity on the person's own phone: **Time for Maya's medicine**, with a countdown to the end of its late window and **Taken** and **Snooze** buttons. From the follow-up point (halfway through a window longer than 3 hours) it says **Still time for Maya's medicine**. It ends when the dose is marked **Taken** or **Skip**, or when the window closes; **Snooze** hides it until the snooze runs out. It says "Maya's medicine" unless that phone turned on **Show medicine names in notifications on this device**, since the Lock Screen is visible to anyone nearby.
+In the Kinwall phone app, a dose that's due also shows as a Live Activity on the person's own phone: **Time for Maya's medicine**, with a countdown to the end of its late window and **Taken** and **Snooze** buttons. From the follow-up point (halfway through a window longer than 3 hours) it says **Still time for Maya's medicine**. It ends when the dose is marked **Taken** or **Skip**, or when the window closes; **Snooze** hides it until the snooze runs out. It says "Maya's medicine" unless that phone turned on **Show medicine names on this device** (in the app's **Settings → This display → Notifications**; off by default), since the Lock Screen is visible to anyone nearby.
 
 It only shows a person's own doses: on their own device, or on a parent's device that belongs to that parent. A parent's phone doesn't get one for a kid's dose (parents get the note below instead), and wall screens never do.
 

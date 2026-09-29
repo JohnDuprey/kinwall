@@ -1494,9 +1494,9 @@ button {
 .save-indicator.saved { color: var(--accent-text); }
 @media (max-width: 600px) { .save-indicator { top: calc(var(--safe-t) + 76px); } }
 /* Inside the iPhone/iPad app the status bar is hidden: no gap under it, just clear of the notch or island. */
-:root[data-native] .header-phone { padding-top: calc(var(--safe-t) + 4px); }
-:root[data-native] .toast.update-banner { top: calc(var(--safe-t) + 8px); }
-@media (max-width: 600px) { :root[data-native] .save-indicator { top: calc(var(--safe-t) + 62px); } } /* below the phone header row, clear of the family button */
+:root[data-native="ios"] .header-phone { padding-top: calc(var(--safe-t) + 4px); }
+:root[data-native="ios"] .toast.update-banner { top: calc(var(--safe-t) + 8px); }
+@media (max-width: 600px) { :root[data-native="ios"] .save-indicator { top: calc(var(--safe-t) + 62px); } } /* below the phone header row, clear of the family button */
 .authorize-more { margin-top: 14px; text-align: left; }
 .authorize-more summary { cursor: pointer; font-weight: 700; color: var(--accent-text); min-height: 44px; display: flex; align-items: center; }
 .authorize-passkey { display: flex; flex-direction: column; gap: 6px; text-align: left; padding: 12px 14px; margin: 4px 0 14px; border-radius: var(--radius-sm); background: var(--bg-alt); }

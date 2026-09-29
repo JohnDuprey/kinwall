@@ -9,7 +9,7 @@ import { announce } from './a11y.tsx'
 import { inkFor } from './color.ts'
 import { cardLabel, cheerLine, doseTimeLabel } from './medications.ts'
 import { medicationActivity } from './liveActivity.ts'
-import { endAppActivity, tellAppActivity } from './native.ts'
+import { appMedicineNames, endAppActivity, MED_NAMES_EVENT, tellAppActivity } from './native.ts'
 import { Confetti } from './Chores.tsx'
 import Sheet from './Sheet.tsx'
 import { PillIcon } from './icons.tsx'
@@ -50,14 +50,20 @@ export function MedicationLiveActivity() {
   const { members, meMemberId, refreshTick } = useApp()
   const { doses } = useDueDoses()
   const [names, setNames] = useState(false)
+  const [namesTick, setNamesTick] = useState(0) // the app's own "Show medicine names" changed
+  useEffect(() => {
+    const on = () => setNamesTick(t => t + 1)
+    window.addEventListener(MED_NAMES_EVENT, on)
+    return () => window.removeEventListener(MED_NAMES_EVENT, on)
+  }, [])
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), RECHECK_MS); return () => clearInterval(t) }, [])
   useEffect(() => {
     let id: string | null = null
     try { id = localStorage.getItem(PUSH_SUB_ID_KEY) } catch { /* storage blocked: generic */ }
-    if (!id) { setNames(false); return }
+    if (!id) { setNames(appMedicineNames()); return } // the app: no push subscription, its own device choice
     api.getPushSubscriptions().then(subs => setNames(!!subs.find(s => s.id === id)?.prefs.medicationNames)).catch(() => setNames(false))
-  }, [refreshTick])
+  }, [refreshTick, namesTick])
   const me = members.find(m => m.id === meMemberId)
   const a = me ? medicationActivity(doses, me, now, names) : null
   const json = JSON.stringify(a)

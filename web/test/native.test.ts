@@ -53,3 +53,41 @@ test('live activities line: on, off in iPhone Settings, or nothing outside the i
   assert.match(liveActivitiesLine(false)!, /Off in iPhone Settings/)
   assert.equal(liveActivitiesLine(null), null)
 })
+
+test('live activities line on Android: ongoing notifications, turned off in Android Settings', async () => {
+  const { liveActivitiesLine } = await import('../src/native.ts')
+  assert.equal(liveActivitiesLine(true, 'android'), 'Countdowns show as ongoing notifications. Turn them off in Android Settings → Apps → Kinwall → Notifications.')
+  assert.match(liveActivitiesLine(false, 'android')!, /Android Settings → Apps → Kinwall → Notifications/)
+  assert.equal(liveActivitiesLine(null, 'android'), null)
+  assert.match(liveActivitiesLine(true, 'ios')!, /iPhone Settings/)
+})
+
+test('appPlatform: the app\'s platform (an older app without one is the iPhone app), null in a browser', async () => {
+  const { appPlatform } = await import('../src/native.ts')
+  const g = globalThis as { window?: unknown }
+  g.window = { kinwallNative: { platform: 'android' } }
+  assert.equal(appPlatform(), 'android')
+  g.window = { kinwallNative: { platform: 'ios' } }
+  assert.equal(appPlatform(), 'ios')
+  g.window = { kinwallNative: {} }
+  assert.equal(appPlatform(), 'ios')
+  g.window = {}
+  assert.equal(appPlatform(), null)
+  delete g.window
+})
+
+test('app medicine names: this device\'s choice in the app, off by default and when storage is blocked', async () => {
+  const { appMedicineNames, setAppMedicineNames } = await import('../src/native.ts')
+  const g = globalThis as { window?: unknown; localStorage?: Storage }
+  g.window = { dispatchEvent: () => true }
+  assert.equal(appMedicineNames(), false) // no storage at all
+  const store = new Map<string, string>()
+  g.localStorage = { getItem: k => store.get(k) ?? null, setItem: (k, v) => void store.set(k, v), removeItem: k => void store.delete(k) } as Storage
+  try {
+    assert.equal(appMedicineNames(), false)
+    setAppMedicineNames(true)
+    assert.equal(appMedicineNames(), true)
+    setAppMedicineNames(false)
+    assert.equal(appMedicineNames(), false)
+  } finally { delete g.localStorage; delete g.window }
+})

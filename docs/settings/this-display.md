@@ -47,6 +47,8 @@ On a parent device, the bottom of the sheet connects **Google Photos** for the w
 
 This device's push notifications: **Turn on notifications**, **Event reminders**, **Daily summary**, **Chore reminder**, **List updates**, **Show medicine names in notifications on this device** (with [medications](../using/medications.md) on; off by default, so reminders say only "Time for Leo's medicine"), **Which family members?**, **Send test** and **Turn off**. See [Notifications](../using/notifications.md).
 
+In the Kinwall phone app this section instead says how the app's own reminders work, whether countdowns are on (Live Activities on iPhone, ongoing notifications on Android), and, with medications on, **Show medicine names on this device** for the medicine countdown (off by default).
+
 ## Troubleshooting
 
 | Item | Notes |
