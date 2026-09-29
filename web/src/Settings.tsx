@@ -1315,7 +1315,7 @@ function ScreensaverRows() {
             onClick={() => set({ saverClock: device.saverClock === false ? undefined : false })}><span className="knob" /></button>
         </div>
       </>}
-      <button className="btn btn-secondary" onClick={() => window.dispatchEvent(new Event(SAVER_PREVIEW_EVENT))}>Preview screensaver</button>
+      <button className="btn btn-secondary saver-preview-btn" onClick={() => window.dispatchEvent(new Event(SAVER_PREVIEW_EVENT))}>Preview screensaver</button>
       <div className="settings-row-sub">Shows what this screen does overnight for 20 seconds. Tap or press Escape to end it. Only paired wall displays dim on their own.</div>
     </div>
   )

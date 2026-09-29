@@ -1511,11 +1511,15 @@ button {
 /* Rows sit inside .drag-row wrappers: draw the divider between wrappers, not on every (first-child) row. */
 .drag-row + .drag-row .list-item-row { border-top: 1px solid var(--border); }
 .inline-form .link-btn { flex: none; align-self: center; }
-.device-pref-row { display: grid; grid-template-columns: 5.5em minmax(0, 1fr); align-items: center; gap: 12px; }
-.device-pref-row > span { font-weight: 700; font-size: 0.9375rem; white-space: nowrap; }
+/* The label column is a fixed width so the selects line up down a section; a longer label wraps
+   onto a second line instead of running under the select. */
+.device-pref-row { display: grid; grid-template-columns: 7.5em minmax(0, 1fr); align-items: center; gap: 12px; }
+.device-pref-row > span { font-weight: 700; font-size: 0.9375rem; min-width: 0; overflow-wrap: break-word; line-height: 1.25; }
 .device-pref-row.tall { align-items: start; }
 .device-pref-row.tall > span { padding-top: 10px; }
 @media (max-width: 600px) { .device-pref-row.tall { grid-template-columns: 1fr; gap: 6px; } .device-pref-row.tall > span { padding-top: 0; } }
+/* Night screen sheet: a normal-size button at the left edge, not a stretched full-width bar. */
+.btn.saver-preview-btn { flex: none; align-self: flex-start; min-height: 48px; padding-inline: 22px; }
 .device-pref-row .settings-select { width: 100%; min-width: 0; text-overflow: ellipsis; }
 /* Transition times (MinutesPicker): "[20] min before [Add]" and "Every [5 min] during the last [30 min]" read as one line. */
 .minutes-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-weight: 700; font-size: 0.9375rem; }
