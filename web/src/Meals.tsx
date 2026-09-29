@@ -11,7 +11,7 @@ import RecipeImportSheet from './RecipeImportSheet.tsx'
 import RecipePhoto from './RecipePhoto.tsx'
 import MealProjection from './MealProjection.tsx'
 import { recipeMatches } from './recipe-search.ts'
-import type { Meal, Recipe } from './meal-types.ts'
+import type { Meal, Recipe, RecipeKind } from './meal-types.ts'
 import type { Me } from './types.ts'
 import './meals.css'
 
@@ -33,6 +33,7 @@ export default function Meals() {
   const [filter, setFilter] = useState('active')
   const [category, setCategory] = useState('')
   const [sort, setSort] = useState<'name' | 'rating'>('name')
+  const [kind, setKind] = useState<'' | RecipeKind>('')
   const [editing, setEditing] = useState<{ meal: Meal | null; initial: MealDraft } | null>(null)
   const [recipeSheet, setRecipeSheet] = useState<{ recipe: Recipe | null; readOnly?: boolean; meal?: Meal } | null>(null)
   const [projection, setProjection] = useState(false)
@@ -80,7 +81,7 @@ export default function Meals() {
   const bySlot = new Map<string, Meal[]>()
   for (const meal of (meals ?? []).filter(meal => mealForMember(meal, selectedMemberId))) { const key = `${meal.date}:${meal.slot}`; bySlot.set(key, [...(bySlot.get(key) ?? []), meal]) }
   const categories = [...new Set(recipes.flatMap(recipe => recipe.ingredients.map(i => i.category).filter((c): c is string => !!c)))].sort()
-  const shownRecipes = recipes.filter(recipe => (filter === 'all' || recipe.archived === (filter === 'archived')) && (!category || recipe.ingredients.some(i => i.category === category)) && recipeMatches(recipe, search))
+  const shownRecipes = recipes.filter(recipe => (filter === 'all' || recipe.archived === (filter === 'archived')) && (!kind || (recipe.kind ?? 'meal') === kind) && (!category || recipe.ingredients.some(i => i.category === category)) && recipeMatches(recipe, search))
   // Top rated: best family average first, then most ratings; unrated keep name order at the end.
   if (sort === 'rating') shownRecipes.sort((a, b) => (b.rating?.average ?? 0) - (a.rating?.average ?? 0) || (b.rating?.count ?? 0) - (a.rating?.count ?? 0))
   return <div className="meals-view scroll-y">
@@ -118,6 +119,7 @@ export default function Meals() {
     </section> : <section role="tabpanel" aria-labelledby="meals-tab-recipes">
       <div className="meals-toolbar">
         <div className="field meals-search"><label htmlFor="recipe-search">Find a recipe</label><input id="recipe-search" type="search" placeholder="Recipe name or ingredient" value={search} onChange={e => setSearch(e.target.value)} /></div>
+        <div className="field"><label htmlFor="recipe-kind">Type</label><select id="recipe-kind" value={kind} onChange={e => setKind(e.target.value as '' | RecipeKind)}><option value="">All</option><option value="meal">Meals</option><option value="basic">Basics</option></select></div>
         <div className="field"><label htmlFor="recipe-filter">Show</label><select id="recipe-filter" value={filter} onChange={e => setFilter(e.target.value)}><option value="active">Active recipes</option><option value="archived">Archived recipes</option><option value="all">All recipes</option></select></div>
         <div className="field"><label htmlFor="recipe-category">Ingredient category</label><select id="recipe-category" value={category} onChange={e => setCategory(e.target.value)}><option value="">All categories</option>{categories.map(c => <option key={c}>{c}</option>)}</select></div>
         <div className="field"><label htmlFor="recipe-sort">Sort</label><select id="recipe-sort" value={sort} onChange={e => setSort(e.target.value as 'name' | 'rating')}><option value="name">Name</option><option value="rating">Top rated</option></select></div>
@@ -125,15 +127,15 @@ export default function Meals() {
       {recipeError && <div role="alert" className="state-card">Could not load recipes: {recipeError} <button className="btn btn-secondary" onClick={() => setTick(t => t + 1)}>Retry</button></div>}
       {!recipesLoaded && !recipeError ? <p role="status">Loading recipes…</p> : <>
         <p className="field-hint" role="status">{shownRecipes.length} recipe{shownRecipes.length === 1 ? '' : 's'}</p>
-        {shownRecipes.length === 0 && !recipeError && <p className="state-card">{search || category || filter !== 'active' ? 'No recipes match these filters.' : 'Your recipe library is ready. Add a recipe with ingredients to start planning.'}</p>}
+        {shownRecipes.length === 0 && !recipeError && <p className="state-card">{search || category || kind || filter !== 'active' ? 'No recipes match these filters.' : 'Your recipe library is ready. Add a recipe with ingredients to start planning.'}</p>}
         <div className="recipe-library">{shownRecipes.map(recipe => <button key={recipe.id} className="recipe-card" onClick={() => setRecipeSheet({ recipe })}>
           {recipe.imageUrl && <RecipePhoto id={recipe.id} className="recipe-card-photo" />}
-          <strong>{recipe.name}</strong><span>{servingsLabel(recipe.defaultServings)} · {recipe.ingredients.length} ingredients{recipe.totalMinutes ? ` · ${minutesLabel(recipe.totalMinutes)}` : ''}{recipe.archived ? ' · Archived' : ''}</span>{!!recipe.rating?.count && <Stars average={recipe.rating.average!} count={recipe.rating.count} />}{recipe.description && <p>{recipe.description}</p>}
+          <strong>{recipe.name}{recipe.kind === 'basic' && <span className="kit-tag">Basic</span>}</strong><span>{[recipe.kind === 'basic' ? recipe.makes && `Makes ${recipe.makes}` : servingsLabel(recipe.defaultServings), `${recipe.ingredients.length} ingredients`, recipe.totalMinutes && minutesLabel(recipe.totalMinutes), recipe.archived && 'Archived'].filter(Boolean).join(' · ')}</span>{!!recipe.rating?.count && <Stars average={recipe.rating.average!} count={recipe.rating.count} />}{recipe.description && <p>{recipe.description}</p>}
         </button>)}</div>
       </>}
     </section>}
     {activeEditing && <MealSheet meal={activeEditing.meal} initial={activeEditing.initial} recipes={recipes} admin={admin} owner={me?.owner} onClose={() => { setEditing(null); setPendingMeal(null) }} onSaved={saved} onRecipe={recipe => setRecipeSheet({ recipe, readOnly: true })} />}
-    {shownRecipeSheet && <RecipeSheet recipe={shownRecipeSheet.recipe} admin={admin && !shownRecipeSheet.readOnly} owner={me?.owner} onRated={() => setTick(t => t + 1)} onClose={() => { setRecipeSheet(null); setPendingMeal(null) }} onSaved={saved} onEditMeal={shownRecipeSheet.meal && (() => { const meal = shownRecipeSheet.meal; return { label: admin ? 'Edit meal' : 'Meal details', open: () => { setRecipeSheet(null); setPendingMeal(null); setEditing({ meal, initial: { date: meal.date, slot: meal.slot } }) } } })()} onPlan={shownRecipeSheet.readOnly ? undefined : recipe => { setRecipeSheet(null); setEditing({ meal: null, initial: { date: today, slot: 'dinner', recipe } }) }} />}
+    {shownRecipeSheet && <RecipeSheet key={shownRecipeSheet.recipe?.id ?? 'new'} recipe={shownRecipeSheet.recipe} library={recipes} admin={admin && !shownRecipeSheet.readOnly} owner={me?.owner} onRated={() => setTick(t => t + 1)} onClose={() => { setRecipeSheet(null); setPendingMeal(null) }} onSaved={saved} onEditMeal={shownRecipeSheet.meal && (() => { const meal = shownRecipeSheet.meal; return { label: admin ? 'Edit meal' : 'Meal details', open: () => { setRecipeSheet(null); setPendingMeal(null); setEditing({ meal, initial: { date: meal.date, slot: meal.slot } }) } } })()} onPlan={shownRecipeSheet.readOnly ? undefined : recipe => { setRecipeSheet(null); setEditing({ meal: null, initial: { date: today, slot: 'dinner', recipe } }) }} />}
     {importing && me && <RecipeImportSheet url={importing.url} admin={admin} onClose={() => setImporting(null)} onSaved={recipe => { setImporting(null); setTick(t => t + 1); setRecipeSheet({ recipe }) }} />}
     {projection && <MealProjection from={from} to={to} admin={admin} onClose={() => setProjection(false)} />}
   </div>

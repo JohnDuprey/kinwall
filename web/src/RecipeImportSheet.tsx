@@ -38,7 +38,7 @@ export default function RecipeImportSheet({ url: initialUrl = '', admin, onClose
   const save = () => run(async () => {
     const r = preview!.recipe
     if (!name.trim()) throw new Error('Give the recipe a name.')
-    const common = { name: name.trim(), description: r.description, prepMinutes: r.prepMinutes, totalMinutes: r.totalMinutes, steps: r.steps }
+    const common = { name: name.trim(), description: r.description, prepMinutes: r.prepMinutes, totalMinutes: r.totalMinutes, steps: r.steps, ...(r.kind && { kind: r.kind, makes: r.makes ?? null }) }
     // From a page: keyed by its address, so importing it again updates this recipe.
     const saved = r.sourceUrl
       ? await api.getRecipe((await api.importRecipe({ ...common, source: 'web', externalId: r.sourceUrl, sourceUrl: r.sourceUrl, ...(r.imageUrl && { imageUrl: r.imageUrl }), servings, ingredients: r.ingredients.map(i => i.qualifier !== undefined ? i : i.text) })).recipeId)

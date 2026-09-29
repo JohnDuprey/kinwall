@@ -18,7 +18,7 @@ import { hostTimezone } from './env.ts';
 import { effectivePublicUrl } from './providers/config.ts';
 import { BoardSchema, CalendarSchema, CategorySchema, ContactCategoryInputSchema, ContactCategorySchema, ContactInputSchema, ContactPatchSchema, ContactSchema, ChoreDaySchema, ChoreSchema, EventInstanceSchema, LeaderboardEntrySchema, ListDetailSchema, ListItemSchema, ListSchema, MemberSchema, NoteSchema, StoreAislesSchema, TrackerEntrySchema, TRACKER_KINDS, NotificationSchema, PointsSchema, SettingsSchema, SnapshotSchema, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, TransitionRemindersSchema, RewardSchema, RewardInputSchema, RedemptionSchema, RewardLimitSchema, MemberStatsSchema, StatsPeriodSchema } from './schemas.ts';
 import type { Env } from './env.ts';
-import { RecipeSchema, RecipeInputSchema, RecipeImportSchema, RecipeImportResultSchema, RecipePreviewResultSchema, RecipeUrlImportSchema, MealSchema, MealInputSchema, MealPatchSchema, ProjectionSchema, ProjectionApplySchema, ProjectionQuerySchema, MealRangeSchema } from './meal-schemas.ts';
+import { RecipeSchema, RecipeInputSchema, RecipeKindSchema, RecipeImportSchema, RecipeImportResultSchema, RecipePreviewResultSchema, RecipeUrlImportSchema, MealSchema, MealInputSchema, MealPatchSchema, ProjectionSchema, ProjectionApplySchema, ProjectionQuerySchema, MealRangeSchema } from './meal-schemas.ts';
 import { VERSION } from './version.ts';
 import { resolveKey } from './auth.ts';
 
@@ -294,9 +294,9 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     return server.registerTool(name, { ...config, inputSchema, outputSchema: TOOL_OUTPUT[name], annotations: { title: config.title, ...hints } } as typeof config, cb);
   };
 
-  tool('list_recipes', { title: 'Find recipes', description: 'Search the recipe library; archived=true includes archived recipes.', inputSchema: { search: z.string().optional(), category: z.string().optional(), archived: z.boolean().optional() } }, async ({ search, category, archived }) => {
+  tool('list_recipes', { title: 'Find recipes', description: 'Search the recipe library; archived=true includes archived recipes. kind: basic lists only basics (seasoning blends, sauces, doughs used inside other recipes), meal only meals.', inputSchema: { search: z.string().optional(), category: z.string().optional(), archived: z.boolean().optional(), kind: RecipeKindSchema.optional() } }, async ({ search, category, archived, kind }) => {
     const query = new URLSearchParams();
-    if (search) query.set('search', search); if (category) query.set('category', category); if (archived) query.set('archived', 'true');
+    if (search) query.set('search', search); if (category) query.set('category', category); if (archived) query.set('archived', 'true'); if (kind) query.set('kind', kind);
     const result = await call(app, env, auth, 'GET', `/api/recipes?${query}`);
     return result.status >= 400 ? errorResult(result.json, 'failed to find recipes') : okResult('Recipes', { recipes: result.json });
   });

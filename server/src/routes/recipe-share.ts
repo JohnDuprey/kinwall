@@ -91,9 +91,9 @@ const original = (stored: string | null | undefined) => (stored && /^https:\/\//
 /** The recipe as POST /api/recipes/import takes it, for another Kinwall to copy exactly (recipe-web.ts
  * reads it back): the same fields as the page, none of the family's (notes, ratings, meals, ids). */
 const kinwallData = (r: Recipe, self: string) => ({ kinwall: 1, recipe: {
-  name: r.name, description: r.description, servings: r.defaultServings, prepMinutes: r.prepMinutes ?? null, totalMinutes: r.totalMinutes ?? null,
+  name: r.name, description: r.description, kind: r.kind, makes: r.makes, servings: r.defaultServings, prepMinutes: r.prepMinutes ?? null, totalMinutes: r.totalMinutes ?? null,
   imageUrl: original(r.imageUrl), sourceUrl: r.sourceUrl ?? self,
-  ingredients: r.ingredients.map((i) => ({ text: ingredientLine(i).slice(0, 300), name: i.name, quantity: i.quantity, unit: i.unit, qualifier: i.qualifier, preparation: i.preparation, category: i.category, pantry: i.qualifier !== KIT_QUALIFIER })),
+  ingredients: r.ingredients.map((i) => ({ text: ingredientLine(i).slice(0, 300), name: i.name, quantity: i.quantity, unit: i.unit, qualifier: i.qualifier, preparation: i.preparation, category: i.category, pantry: i.qualifier !== KIT_QUALIFIER, ...(i.basicName && { basic: i.basicName }) })),
   steps: shownSteps(r).map((s, i) => ({ text: s.text, bullets: s.bullets, title: s.title, timers: r.steps?.[i]?.timers ?? [], imageUrl: original(r.steps?.[i]?.imageUrl) })),
 } });
 

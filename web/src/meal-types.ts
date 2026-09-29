@@ -10,8 +10,11 @@ export interface IngredientInput {
   qualifier: string | null
   category: string | null
   sort: number
+  basicId?: string | null // the basic this line is made from (a recipe with kind 'basic')
 }
-export interface RecipeIngredient extends IngredientInput { id: string; normalizedName: string; scalable: boolean /* amount scales with servings */ }
+export interface RecipeIngredient extends IngredientInput { id: string; normalizedName: string; scalable: boolean /* amount scales with servings */; basicName?: string | null }
+/** meal: the default; basic: a component used inside other recipes (seasoning blend, sauce, dough). */
+export type RecipeKind = 'meal' | 'basic'
 /** A structured recipe step; imageUrl is shown through api.recipeStepImageUrl, never loaded directly. */
 export interface StepTimer { name: string | null; minutes: number }
 /** A structured recipe step; imageUrl is shown through api.recipeStepImageUrl, never loaded directly.
@@ -30,6 +33,8 @@ export interface RecipeInput {
   totalMinutes?: number | null
   archived: boolean
   ingredients: IngredientInput[]
+  kind?: RecipeKind
+  makes?: string | null // how much it makes, e.g. "about ½ cup" (basics)
 }
 export interface RecipeRating { average: number | null; count: number; byMember: Record<string, number> /* member id -> 1-5 stars */ }
 /** A recipe's public link (/r/{token}); parents' devices only. */
@@ -47,14 +52,15 @@ export interface RecipePreview {
   name: string; description: string | null; imageUrl: string | null; sourceUrl: string | null
   servings: number | null; prepMinutes: number | null; totalMinutes: number | null
   // qualifier, preparation and category come only from a Kinwall share link; import those whole.
-  ingredients: { text: string; name: string; quantity: number | null; unit: string | null; qualifier?: string | null; preparation?: string | null; category?: string | null }[]
+  ingredients: { text: string; name: string; quantity: number | null; unit: string | null; qualifier?: string | null; preparation?: string | null; category?: string | null; basic?: string | null }[]
   steps: RecipeStep[]
+  kind?: RecipeKind; makes?: string | null // from a Kinwall share link
 }
 export interface RecipePreviewResult { recipe: RecipePreview; warnings: string[] }
 /** POST /api/recipes/import: upserts by source + externalId (a web recipe is keyed by its address). */
 export interface RecipeImport {
   source: string; externalId: string; name: string; description?: string | null; sourceUrl?: string | null; imageUrl?: string
-  servings?: number; prepMinutes?: number | null; totalMinutes?: number | null; ingredients: (string | RecipePreview['ingredients'][number])[]; steps?: RecipeStep[]
+  servings?: number; prepMinutes?: number | null; totalMinutes?: number | null; kind?: RecipeKind; makes?: string | null; ingredients: (string | RecipePreview['ingredients'][number])[]; steps?: RecipeStep[]
 }
 export interface RecipeSnapshot { name: string; defaultServings: number; prepMinutes?: number | null; totalMinutes?: number | null; ingredients: RecipeIngredient[] }
 export interface MealInput {

@@ -105,6 +105,25 @@ const seedRatings: Record<string, Record<string, number>> = {
   pasta: { m1: 4, m2: 3, m4: 4 }, salmon: { m1: 5, m2: 4, m3: 2, m4: 1 }, 'stir-fry': { m1: 4, m3: 3 },
 }
 recipes = recipes.map(r => ({ ...r, rating: rated(seedRatings[r.id.slice(5)] ?? {}) }))
+// Basics: made ahead and used inside other recipes. Tuesday Tacos' seasoning and the pizza's dough link to them.
+const seedBasic = (id: string, name: string, description: string, instructions: string, makes: string, ingredients: SeedIngredient[], steps: Recipe['steps']): Recipe =>
+  ({ ...seedRecipe(id, name, description, instructions, '', ingredients), preparationNotes: null, kind: 'basic', makes, steps, rating: rated({}) })
+recipes.push(
+  seedBasic('taco-seasoning', 'Taco seasoning', 'A mild blend for tacos, burrito bowls and roasted veggies.', 'Stir everything together. Keep in a jar for up to 6 months.', 'about ¼ cup', [
+    ['Chili powder', 2, 'tbsp', 'Spices'], ['Ground cumin', 1, 'tbsp', 'Spices'], ['Smoked paprika', 1, 'tsp', 'Spices'], ['Garlic powder', 1, 'tsp', 'Spices'],
+    ['Onion powder', 1, 'tsp', 'Spices'], ['Dried oregano', 0.5, 'tsp', 'Spices'], ['Salt', 1, 'tsp', 'Pantry'],
+  ], [{ text: 'Stir the chili powder, cumin, paprika, garlic powder, onion powder, oregano and salt together.', bullets: [], title: 'Mix' }, { text: 'Keep it in a jar for up to 6 months.', bullets: [], title: 'Store' }]),
+  seedBasic('pizza-dough', 'Pizza dough', 'An easy dough for two family pizzas.', 'Mix the flour, yeast and salt. Add the water and olive oil and knead for 8 minutes. Let it rise for 1 hour.', '2 large crusts', [
+    ['Flour', 4, 'cup', 'Pantry'], ['Instant yeast', 2.25, 'tsp', 'Baking'], ['Salt', 1.5, 'tsp', 'Pantry'], ['Warm water', 1.5, 'cup', 'Pantry'], ['Olive oil', 2, 'tbsp', 'Pantry'],
+  ], [{ text: 'Mix the flour, yeast and salt, then add the warm water and olive oil.', bullets: [], title: 'Mix' }, { text: 'Knead for 8 minutes, until smooth.', bullets: [], timers: [{ name: 'Knead', minutes: 8 }] }, { text: 'Cover and let it rise for 1 hour.', bullets: [], title: 'Rise' }]),
+)
+// Tuesday Tacos' "Taco seasoning" and the pizza's "Pizza dough" are made from those basics.
+const link = (recipeId: string, ingredient: string, basicId: string) => {
+  const basic = recipes.find(r => r.id === basicId)!
+  recipes = recipes.map(r => r.id !== recipeId ? r : { ...r, ingredients: r.ingredients.map(i => i.name === ingredient ? { ...i, basicId, basicName: basic.name } : i) })
+}
+link('demo-tacos', 'Taco seasoning', 'demo-taco-seasoning')
+link('demo-pizza', 'Pizza dough', 'demo-pizza-dough')
 const recipe = recipes[0]
 // Each row is Sunday through Saturday; columns match breakfast, lunch, dinner, snack.
 const menu = [
@@ -170,7 +189,7 @@ export async function mockMealRequest(path: string, options: RequestInit): Promi
   const body = options.body ? JSON.parse(String(options.body)) : {}
   if (resource === 'recipes') {
     if (id === 'import-url' || id === 'parse-text' || id === 'import') throw new Error('The demo can’t read recipe pages. Try it on your own Kinwall.')
-    if (method === 'GET') return recipes.filter(r => url.searchParams.get('archived') === 'true' || !r.archived)
+    if (method === 'GET') return recipes.filter(r => url.searchParams.get('archived') === 'true' || !r.archived).map(r => ({ kind: 'meal' as const, makes: null, ...r }))
     const old = recipes.find(r => r.id === id)
     if (id && !old) throw new Error('Recipe not found')
     if (action === 'share') {
@@ -185,9 +204,9 @@ export async function mockMealRequest(path: string, options: RequestInit): Promi
       const saved = { ...old!, rating: rated(byMember) }
       recipes = recipes.map(r => r.id === saved.id ? saved : r); return saved
     }
-    if (method === 'DELETE') { recipes = recipes.filter(r => r.id !== id); meals = meals.map(m => m.recipeId === id ? { ...m, recipeId: null } : m); return { ok: true } }
+    if (method === 'DELETE') { recipes = recipes.filter(r => r.id !== id).map(r => ({ ...r, ingredients: r.ingredients.map(i => i.basicId === id ? { ...i, basicId: null, basicName: null } : i) })); meals = meals.map(m => m.recipeId === id ? { ...m, recipeId: null } : m); return { ok: true } }
     const input = body as Partial<RecipeInput>
-    const saved: Recipe = { ...recipe, rating: rated({}), ...old, ...input, id: old?.id ?? crypto.randomUUID(), ingredients: input.ingredients?.map((i, sort) => ({ ...i, id: old?.ingredients.find(previous => normalize(previous.name) === normalize(i.name) && previous.unit === i.unit)?.id ?? crypto.randomUUID(), normalizedName: normalize(i.name), sort, scalable: isScalable(i) })) ?? old?.ingredients ?? [], createdAt: old?.createdAt ?? new Date().toISOString(), updatedAt: new Date().toISOString() }
+    const saved: Recipe = { ...recipe, rating: rated({}), ...old, ...input, id: old?.id ?? crypto.randomUUID(), ingredients: input.ingredients?.map((i, sort) => ({ ...i, basicName: recipes.find(r => r.id === i.basicId && r.kind === 'basic')?.name ?? null, id: old?.ingredients.find(previous => normalize(previous.name) === normalize(i.name) && previous.unit === i.unit)?.id ?? crypto.randomUUID(), normalizedName: normalize(i.name), sort, scalable: isScalable(i) })) ?? old?.ingredients ?? [], createdAt: old?.createdAt ?? new Date().toISOString(), updatedAt: new Date().toISOString() }
     recipes = [...recipes.filter(r => r.id !== saved.id), saved]; return saved
   }
   if (id === 'projection') {

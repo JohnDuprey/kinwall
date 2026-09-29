@@ -6,6 +6,20 @@ import { fillPlace, itemKey, recall } from './item-memory.ts';
 export function normalizeIngredient(value: string): string {
   return value.normalize('NFKC').trim().toLowerCase().replace(/\s+/g, ' ');
 }
+// Words an ingredient line adds to a basic's name without meaning another thing ("Taco seasoning blend").
+const BASIC_FILLER = new Set(['blend', 'mix', 'homemade']);
+/** A name as basics match it: any case, punctuation and spacing, without filler words (web/src/recipe-search.ts has the same rule). */
+export function basicKey(name: string): string {
+  const words = name.normalize('NFKC').toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+  const kept = words.filter((w) => !BASIC_FILLER.has(w));
+  return (kept.length ? kept : words).join(' ');
+}
+/** The one basic whose name matches, or null when none or several do (never `selfId`). */
+export function matchBasic<B extends { id: string; name: string }>(name: string, basics: B[], selfId?: string): B | null {
+  const key = basicKey(name);
+  const found = key ? basics.filter((b) => b.id !== selfId && basicKey(b.name) === key) : [];
+  return found.length === 1 ? found[0] : null;
+}
 export function canonicalUnit(value: string | null): { unit: string | null; factor: number; scalable: boolean } {
   const unit = normalizeIngredient(value ?? '');
   if (['', 'each', 'count', 'piece', 'pieces'].includes(unit)) return { unit: null, factor: 1, scalable: true };
@@ -42,21 +56,21 @@ export function parseIngredientLine(line: string): { name: string; quantity: num
   }
   return { name: rest || text, quantity: rest && Number.isFinite(quantity) ? quantity : null, unit: rest ? unit : null };
 }
-export type ImportIngredient = string | { text: string; pantry?: boolean; category?: string | null; name?: string; quantity?: number | null; unit?: string | null; qualifier?: string | null; preparation?: string | null };
+export type ImportIngredient = string | { text: string; pantry?: boolean; category?: string | null; name?: string; quantity?: number | null; unit?: string | null; qualifier?: string | null; preparation?: string | null; basic?: string | null };
 /** An imported ingredient (POST /api/recipes/import) in recipe terms: the line parsed, with any fields it
  * spells out winning (a qualifier over pantry). */
 export function importIngredient(line: ImportIngredient) {
   const { text, pantry, category, ...own } = typeof line === 'string' ? { text: line } : line;
   return { ...parseIngredientLine(text), qualifier: pantry === false ? KIT_QUALIFIER : null, preparation: null as string | null, ...own, category: category ?? null };
 }
-export type RecipeRow = { id: string; name: string; description: string | null; instructions: string | null; preparation_notes: string | null; source_url: string | null; default_servings: number; archived: number; prep_minutes?: number | null; total_minutes?: number | null; source?: string | null; external_id?: string | null; image_url?: string | null; steps?: string | null; created_at: string; updated_at: string };
-export type IngredientRow = { id: string; recipe_id: string; name: string; normalized_name: string; quantity: number | null; unit: string | null; preparation: string | null; qualifier: string | null; category: string | null; sort: number };
+export type RecipeRow = { id: string; name: string; description: string | null; instructions: string | null; preparation_notes: string | null; source_url: string | null; default_servings: number; archived: number; prep_minutes?: number | null; total_minutes?: number | null; source?: string | null; external_id?: string | null; image_url?: string | null; steps?: string | null; kind?: Recipe['kind']; makes?: string | null; created_at: string; updated_at: string };
+export type IngredientRow = { id: string; recipe_id: string; name: string; normalized_name: string; quantity: number | null; unit: string | null; preparation: string | null; qualifier: string | null; category: string | null; sort: number; basic_id?: string | null; basic_name?: string | null };
 export type MealRow = { id: string; date: string; slot: Meal['slot']; title: string; meal_kind: Meal['mealKind']; recipe_id: string | null; recipe_snapshot: string | null; servings: number; assignee_member_id: string | null; eater_ids?: string | null; notes: string | null; planned_time: string | null; calendar_event_id: string | null; calendar_event_start?: 'meal' | 'cooking' | null; status: Meal['status']; source_url: string | null; created_at: string; updated_at: string };
 export function ingredientApi(r: IngredientRow): Ingredient {
-  return { id: r.id, name: r.name, normalizedName: r.normalized_name, quantity: r.quantity, unit: r.unit, preparation: r.preparation, qualifier: r.qualifier, category: r.category, sort: r.sort, scalable: isScalable(r) };
+  return { id: r.id, name: r.name, normalizedName: r.normalized_name, quantity: r.quantity, unit: r.unit, preparation: r.preparation, qualifier: r.qualifier, category: r.category, sort: r.sort, scalable: isScalable(r), basicId: r.basic_id ?? null, basicName: r.basic_name ?? null };
 }
 export function recipeApi(r: RecipeRow, ingredients: Ingredient[]): Recipe {
-  return { id: r.id, name: r.name, description: r.description, instructions: r.instructions, preparationNotes: r.preparation_notes, sourceUrl: r.source_url, defaultServings: r.default_servings, prepMinutes: r.prep_minutes ?? null, totalMinutes: r.total_minutes ?? null, archived: !!r.archived, ingredients, source: r.source ?? null, externalId: r.external_id ?? null, imageUrl: r.image_url ?? null, steps: r.steps ? (JSON.parse(r.steps) as RecipeStep[]).map((s) => ({ ...s, title: s.title ?? null, timers: s.timers ?? [] })) : null, createdAt: r.created_at, updatedAt: r.updated_at };
+  return { id: r.id, name: r.name, description: r.description, instructions: r.instructions, preparationNotes: r.preparation_notes, sourceUrl: r.source_url, defaultServings: r.default_servings, prepMinutes: r.prep_minutes ?? null, totalMinutes: r.total_minutes ?? null, archived: !!r.archived, ingredients, source: r.source ?? null, externalId: r.external_id ?? null, imageUrl: r.image_url ?? null, kind: r.kind ?? 'meal', makes: r.makes ?? null, steps: r.steps ? (JSON.parse(r.steps) as RecipeStep[]).map((s) => ({ ...s, title: s.title ?? null, timers: s.timers ?? [] })) : null, createdAt: r.created_at, updatedAt: r.updated_at };
 }
 export function ratingApi(byMember: Record<string, number>): NonNullable<Recipe['rating']> {
   const stars = Object.values(byMember);
@@ -87,10 +101,10 @@ const snapshotApi = (s: NonNullable<Meal['recipeSnapshot']>) => ({ ...s, ingredi
 export function mealApi(r: MealRow): Meal {
   return { id: r.id, date: r.date, slot: r.slot, title: r.title, mealKind: r.meal_kind, recipeId: r.recipe_id, recipeSnapshot: r.recipe_snapshot ? snapshotApi(JSON.parse(r.recipe_snapshot)) : null, servings: r.servings, assigneeMemberId: r.assignee_member_id, eaterIds: r.eater_ids ? JSON.parse(r.eater_ids) : [], notes: r.notes, plannedTime: r.planned_time, calendarEventId: r.calendar_event_id, calendarEventStart: r.calendar_event_start ?? null, status: r.status, sourceUrl: r.source_url, createdAt: r.created_at, updatedAt: r.updated_at };
 }
-export async function readRecipes(db: KinwallDb, opts: { id?: string; search?: string; archived?: boolean; category?: string } = {}): Promise<Recipe[]> {
+export async function readRecipes(db: KinwallDb, opts: { id?: string; search?: string; archived?: boolean; category?: string; kind?: Recipe['kind'] } = {}): Promise<Recipe[]> {
   const [recipes, ingredients, ratings] = await db.batch<unknown>([
-    db.prepare('SELECT * FROM recipes WHERE (? IS NULL OR id = ?) AND (? = 1 OR archived = 0) AND (? IS NULL OR instr(lower(name || coalesce(description, \'\')), lower(?)) > 0) ORDER BY name, id').bind(opts.id ?? null, opts.id ?? null, opts.archived ? 1 : 0, opts.search ?? null, opts.search ?? null),
-    db.prepare('SELECT * FROM recipe_ingredients WHERE (? IS NULL OR recipe_id = ?) ORDER BY sort, id').bind(opts.id ?? null, opts.id ?? null),
+    db.prepare('SELECT * FROM recipes WHERE (? IS NULL OR id = ?) AND (? = 1 OR archived = 0) AND (? IS NULL OR kind = ?) AND (? IS NULL OR instr(lower(name || coalesce(description, \'\')), lower(?)) > 0) ORDER BY name, id').bind(opts.id ?? null, opts.id ?? null, opts.archived ? 1 : 0, opts.kind ?? null, opts.kind ?? null, opts.search ?? null, opts.search ?? null),
+    db.prepare('SELECT i.*, b.name AS basic_name FROM recipe_ingredients i LEFT JOIN recipes b ON b.id = i.basic_id WHERE (? IS NULL OR i.recipe_id = ?) ORDER BY i.sort, i.id').bind(opts.id ?? null, opts.id ?? null),
     db.prepare('SELECT recipe_id, member_id, stars FROM recipe_ratings WHERE (? IS NULL OR recipe_id = ?)').bind(opts.id ?? null, opts.id ?? null),
   ]);
   const starsBy = new Map<string, Record<string, number>>();

@@ -6,12 +6,13 @@ import { importIngredient, normalizeSteps, parseIngredientLine } from './meals.t
 import { RecipeImportSchema, type RecipeStep } from './meal-schemas.ts';
 
 /** qualifier, preparation and category are only set from a Kinwall share link's data. */
-export type PreviewIngredient = { text: string; name: string; quantity: number | null; unit: string | null; qualifier?: string | null; preparation?: string | null; category?: string | null };
+export type PreviewIngredient = { text: string; name: string; quantity: number | null; unit: string | null; qualifier?: string | null; preparation?: string | null; category?: string | null; basic?: string | null };
 type Step = { text: string; bullets: string[]; title?: string | null; imageUrl?: string | null; timers?: RecipeStep['timers'] };
 export type RecipePreview = {
   name: string; description: string | null; imageUrl: string | null; sourceUrl: string | null;
   servings: number | null; prepMinutes: number | null; totalMinutes: number | null;
   ingredients: PreviewIngredient[]; steps: Step[];
+  kind?: 'meal' | 'basic'; makes?: string | null; // from a Kinwall share link
 };
 
 const NAMED: Record<string, string> = {
@@ -142,6 +143,7 @@ function kinwallRecipe(html: string, pageUrl: string): RecipePreview | null {
   return {
     name: r.name, description: r.description ?? null, imageUrl: https(r.imageUrl), sourceUrl: r.sourceUrl ?? pageUrl,
     servings: r.servings ?? null, prepMinutes: r.prepMinutes ?? null, totalMinutes: r.totalMinutes ?? null,
+    kind: r.kind ?? 'meal', makes: r.makes ?? null,
     ingredients: r.ingredients.map((line) => ({ text: typeof line === 'string' ? line : line.text, ...importIngredient(line) })),
     steps: normalizeSteps(r.steps ?? []).map((s) => ({ ...s, imageUrl: https(s.imageUrl) })),
   };

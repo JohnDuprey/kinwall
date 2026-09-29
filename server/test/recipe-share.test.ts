@@ -270,7 +270,7 @@ test('recipe share: the page carries the recipe as import data, and nothing priv
   const data = JSON.parse(raw!);
   assert.equal(data.kinwall, 1);
   assert.deepEqual(Object.keys(data), ['kinwall', 'recipe']);
-  assert.deepEqual(Object.keys(data.recipe).sort(), ['description', 'imageUrl', 'ingredients', 'name', 'prepMinutes', 'servings', 'sourceUrl', 'steps', 'totalMinutes']);
+  assert.deepEqual(Object.keys(data.recipe).sort(), ['description', 'imageUrl', 'ingredients', 'kind', 'makes', 'name', 'prepMinutes', 'servings', 'sourceUrl', 'steps', 'totalMinutes']);
   assert.equal(data.recipe.description, bowls.description, 'as stored');
   assert.equal(data.recipe.servings, 2);
   assert.deepEqual(data.recipe.ingredients[0], { text: '10 oz Chicken thighs in the kit', name: 'Chicken thighs', quantity: 10, unit: 'oz', qualifier: 'in the kit', preparation: null, category: 'Meat', pantry: false });

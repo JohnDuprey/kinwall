@@ -5,7 +5,8 @@ import { useDialog } from './dialog.tsx'
 import Sheet from './Sheet.tsx'
 import { CheckIcon, ChevronRight, EditIcon, ExternalIcon, FileIcon, LinkIcon, MinusIcon, PlusIcon } from './icons.tsx'
 import { ingredientAmount, isPdfUrl, recipeTime, servingsLabel, urlHost } from './meal-date.ts'
-import { KIT_QUALIFIER, type IngredientInput, type Recipe, type RecipeInput, type RecipeRating, type RecipeSnapshot, type RecipeStep } from './meal-types.ts'
+import { KIT_QUALIFIER, type IngredientInput, type Recipe, type RecipeInput, type RecipeKind, type RecipeRating, type RecipeSnapshot, type RecipeStep } from './meal-types.ts'
+import { matchBasic } from './recipe-search.ts'
 import { inkFor } from './color.ts'
 import CookingMode from './CookingMode.tsx'
 import { cookingSteps, savedStep } from './cooking.ts'
@@ -36,14 +37,17 @@ export function SourceLink({ url, pdfPath, title, label = 'Recipe website' }: { 
   return <a className="sheet-link" href={url} target="_blank" rel="noopener noreferrer">{pdf ? <FileIcon /> : <LinkIcon />}{text}<ExternalIcon /></a>
 }
 
-/** A planned meal renders its snapshot here; changing servings never edits the recipe. */
-export function IngredientList({ recipe, servings }: { recipe: RecipeSnapshot; servings: number }) {
+/** A planned meal renders its snapshot here; changing servings never edits the recipe. A line made
+ * from a basic opens it (`onBasic`): the name is the link, or with `makeIt` a "Make it" link follows. */
+export function IngredientList({ recipe, servings, onBasic, makeIt }: { recipe: RecipeSnapshot; servings: number; onBasic?: (id: string) => void; makeIt?: boolean }) {
   return <ul className="meal-ingredients">
     {recipe.ingredients.map(ingredient => {
-      const { scalable } = ingredient
+      const { scalable, basicId } = ingredient
       const amount = scalable ? ingredient.quantity! * servings / recipe.defaultServings : ingredient.quantity
+      const linked = basicId && onBasic ? basicId : null
       return <li key={ingredient.id}>
-        <strong>{ingredient.name}</strong> — <IngredientAmount quantity={amount} unit={ingredient.unit} qualifier={ingredient.qualifier} />
+        {linked && !makeIt ? <button type="button" className="ingredient-basic" aria-label={`${ingredient.name}: open the basic`} onClick={() => onBasic!(linked)}>{ingredient.name}</button> : <strong>{ingredient.name}</strong>} — <IngredientAmount quantity={amount} unit={ingredient.unit} qualifier={ingredient.qualifier} />
+        {linked && makeIt && <> <button type="button" className="link-btn" aria-label={`Make ${ingredient.name}`} onClick={() => onBasic!(linked)}>Make it</button></>}
         {ingredient.preparation && <span> · {ingredient.preparation}</span>}
         {!scalable && servings !== recipe.defaultServings && <span className="field-hint"> · Check amount for {servingsLabel(servings)} (recipe: {recipe.defaultServings})</span>}
       </li>
@@ -118,9 +122,10 @@ function Ratings({ recipe, owner, onRated }: { recipe: Recipe; owner?: string | 
   </details>
 }
 
-/** Tapping a recipe opens this view; admins get Edit, which swaps in the editor (back to the view on close). */
-export default function RecipeSheet({ recipe, admin, owner, onClose, onSaved, onPlan, onRated, onEditMeal }: {
-  recipe: Recipe | null; admin: boolean; owner?: string | null; onClose: () => void; onSaved: () => void; onPlan?: (recipe: Recipe) => void; onRated?: () => void
+/** Tapping a recipe opens this view; admins get Edit, which swaps in the editor (back to the view on close).
+ * `library` is every recipe: where linked basics are found. */
+export default function RecipeSheet({ recipe, library = [], admin, owner, onClose, onSaved, onPlan, onRated, onEditMeal }: {
+  recipe: Recipe | null; library?: Recipe[]; admin: boolean; owner?: string | null; onClose: () => void; onSaved: () => void; onPlan?: (recipe: Recipe) => void; onRated?: () => void
   /** Opened from a planned meal: a button back to that meal's details. */
   onEditMeal?: { label: string; open: () => void }
 }) {
@@ -130,7 +135,13 @@ export default function RecipeSheet({ recipe, admin, owner, onClose, onSaved, on
   useEffect(() => { holdAwake('cooking', reading); return () => holdAwake('cooking', false) }, [reading])
   const [servings, setServings] = useState(recipe?.defaultServings ?? 4)
   const [cooking, setCooking] = useState(false)
-  if (editing || !recipe) return <RecipeEditor recipe={recipe} onClose={recipe ? () => setEditing(false) : onClose} onSaved={onSaved} />
+  // A linked basic, opened over this recipe; closing it comes back here.
+  const [basic, setBasic] = useState<Recipe | null>(null)
+  if (editing || !recipe) return <RecipeEditor recipe={recipe} library={library} onClose={recipe ? () => setEditing(false) : onClose} onSaved={onSaved} />
+  if (basic) return <RecipeSheet key={basic.id} recipe={basic} library={library} admin={admin} owner={owner} onClose={() => setBasic(null)} onSaved={onSaved} onRated={onRated}
+    onEditMeal={{ label: `Back to ${recipe.name}`, open: () => setBasic(null) }} />
+  const openBasic = (id: string) => { const found = library.find(r => r.id === id); if (found) setBasic(found) }
+  const isBasic = recipe.kind === 'basic'
   const time = recipeTime(recipe)
   const step = (by: number) => setServings(n => Math.max(1, Math.round(n) + by))
   const cookSteps = cookingSteps(recipe), resumeAt = savedStep(recipe.id)
@@ -141,31 +152,32 @@ export default function RecipeSheet({ recipe, admin, owner, onClose, onSaved, on
   </> : undefined}>
     {recipe.imageUrl && <RecipePhoto id={recipe.id} className="recipe-hero" alt={recipe.name} />}
     {recipe.description && <p>{recipe.description}</p>}
-    {(time || recipe.archived) && <p className="recipe-time">{[time && `⏱ ${time}`, recipe.archived && 'Archived'].filter(Boolean).join(' · ')}</p>}
+    {(time || recipe.archived || isBasic || recipe.makes) && <p className="recipe-time">{isBasic && <span className="kit-tag recipe-kind-tag">Basic</span>}{[recipe.makes && `Makes ${recipe.makes}`, time && `⏱ ${time}`, recipe.archived && 'Archived'].filter(Boolean).join(' · ')}</p>}
     {cookSteps.length > 0 && <button type="button" className="btn btn-primary cook-start" onClick={() => setCooking(true)}>
       🍳 {resumeAt > 0 && resumeAt < cookSteps.length ? `Resume cooking · step ${resumeAt + 1}` : 'Start cooking'}
     </button>}
     <Ratings key={recipe.id} recipe={recipe} owner={owner} onRated={onRated} />
     <div className="recipe-servings">
       <h3>Ingredients</h3>
-      <div className="recipe-stepper" role="group" aria-label="Servings">
+      {/* A basic is made as written: how much it makes, not servings. */}
+      {!isBasic && <div className="recipe-stepper" role="group" aria-label="Servings">
         <button type="button" className="icon-btn" aria-label="Fewer servings" disabled={servings <= 1} onClick={() => step(-1)}><MinusIcon width={20} height={20} /></button>
         <span aria-live="polite">{servingsLabel(servings)}</span>
         <button type="button" className="icon-btn" aria-label="More servings" disabled={servings >= 100} onClick={() => step(1)}><PlusIcon width={20} height={20} /></button>
-      </div>
+      </div>}
     </div>
-    <IngredientList recipe={recipe} servings={servings} />
+    <IngredientList recipe={recipe} servings={servings} onBasic={openBasic} />
     {recipe.steps?.length ? <StepCards key={recipe.id} recipe={recipe} steps={recipe.steps} />
       : recipe.instructions && <><h3>Steps</h3><Steps text={recipe.instructions} /></>}
     {recipe.preparationNotes && <><h3>Preparation notes</h3><p className="meal-prose">{recipe.preparationNotes}</p></>}
     {recipe.sourceUrl && <div className="sheet-links"><SourceLink url={recipe.sourceUrl} pdfPath={`api/recipes/${encodeURIComponent(recipe.id)}/source.pdf`} title={recipe.name} /></div>}
     {admin && <RecipeShare key={recipe.id} recipe={recipe} />}
   </Sheet>
-  {cooking && <CookingMode recipe={recipe} steps={cookSteps} servings={servings} onClose={() => setCooking(false)} />}
+  {cooking && <CookingMode recipe={recipe} steps={cookSteps} servings={servings} library={library} onClose={() => setCooking(false)} />}
   </>
 }
 
-function RecipeEditor({ recipe, onClose, onSaved }: { recipe: Recipe | null; onClose: () => void; onSaved: () => void }) {
+function RecipeEditor({ recipe, library, onClose, onSaved }: { recipe: Recipe | null; library: Recipe[]; onClose: () => void; onSaved: () => void }) {
   const { toast } = useApp()
   const dialog = useDialog()
   const formId = useId()
@@ -173,8 +185,11 @@ function RecipeEditor({ recipe, onClose, onSaved }: { recipe: Recipe | null; onC
     name: recipe?.name ?? '', description: recipe?.description ?? null, defaultServings: recipe?.defaultServings ?? 4,
     instructions: recipe?.instructions ?? null, steps: recipe?.steps ?? null, preparationNotes: recipe?.preparationNotes ?? null,
     sourceUrl: recipe?.sourceUrl ?? null, imageUrl: recipe?.imageUrl ?? null, prepMinutes: recipe?.prepMinutes ?? null, totalMinutes: recipe?.totalMinutes ?? null, archived: recipe?.archived ?? false,
-    ingredients: recipe?.ingredients.map(({ name, quantity, unit, preparation, qualifier, category, sort }) => ({ name, quantity, unit, preparation, qualifier, category, sort })) ?? [],
+    kind: recipe?.kind ?? 'meal', makes: recipe?.makes ?? null,
+    ingredients: recipe?.ingredients.map(({ name, quantity, unit, preparation, qualifier, category, sort, basicId }) => ({ name, quantity, unit, preparation, qualifier, category, sort, basicId: basicId ?? null })) ?? [],
   }))
+  // Basics an ingredient can be made from: every other active basic (a linked one stays listed).
+  const basics = library.filter(r => r.kind === 'basic' && r.id !== recipe?.id && (!r.archived || draft.ingredients.some(i => i.basicId === r.id))).sort((a, b) => a.name.localeCompare(b.name))
   // Row ids survive removal/reordering so keyboard focus stays on the ingredient being edited.
   const [rowIds, setRowIds] = useState(() => draft.ingredients.map(() => crypto.randomUUID()))
   const [stepIds, setStepIds] = useState(() => (draft.steps ?? []).map(() => crypto.randomUUID()))
@@ -219,18 +234,28 @@ function RecipeEditor({ recipe, onClose, onSaved }: { recipe: Recipe | null; onC
     <form id={formId} onSubmit={e => { e.preventDefault(); save() }}>
       <fieldset className="meal-fieldset" disabled={busy}>
         <div className="field"><label htmlFor={`${formId}-name`}>Name</label><input type="text" id={`${formId}-name`} required maxLength={200} value={draft.name} onChange={e => update('name', e.target.value)} /></div>
+        <div className="field"><label htmlFor={`${formId}-kind`}>Type</label><select id={`${formId}-kind`} value={draft.kind} onChange={e => update('kind', e.target.value as RecipeKind)}><option value="meal">Meal</option><option value="basic">Basic</option></select>
+          {draft.kind === 'basic' && <p className="field-hint">Something you make to use in other recipes, like a seasoning blend, sauce or dough. Basics stay out of meal planning unless you ask for them.</p>}</div>
         <div className="field"><label htmlFor={`${formId}-description`}>Description</label><textarea id={`${formId}-description`} maxLength={10000} value={draft.description ?? ''} onChange={e => update('description', e.target.value || null)} /></div>
         {recipe?.imageUrl && draft.imageUrl && <div className="field"><span className="recipe-photo-label">Photo</span><RecipePhoto id={recipe.id} className="recipe-hero" /><button type="button" className="link-btn" onClick={() => update('imageUrl', null)}>Remove photo</button></div>}
-        <div className="field"><label htmlFor={`${formId}-servings`}>Default servings</label><input id={`${formId}-servings`} type="number" required min="0.01" max="10000" step="any" value={draft.defaultServings || ''} onChange={e => update('defaultServings', Number(e.target.value))} /></div>
+        {draft.kind === 'basic'
+          ? <div className="field"><label htmlFor={`${formId}-makes`}>Makes</label><input id={`${formId}-makes`} type="text" maxLength={200} placeholder="About ½ cup, 2 crusts…" value={draft.makes ?? ''} onChange={e => update('makes', e.target.value || null)} /></div>
+          : <div className="field"><label htmlFor={`${formId}-servings`}>Default servings</label><input id={`${formId}-servings`} type="number" required min="0.01" max="10000" step="any" value={draft.defaultServings || ''} onChange={e => update('defaultServings', Number(e.target.value))} /></div>}
         <div className="meal-form-row">
           <div className="field"><label htmlFor={`${formId}-total`}>Total time (min)</label><input id={`${formId}-total`} type="number" inputMode="numeric" min="0" max="10000" step="1" value={draft.totalMinutes ?? ''} onChange={e => update('totalMinutes', e.target.value === '' ? null : Number(e.target.value))} /></div>
           <div className="field"><label htmlFor={`${formId}-prep`}>Prep time (min)</label><input id={`${formId}-prep`} type="number" inputMode="numeric" min="0" max="10000" step="1" value={draft.prepMinutes ?? ''} onChange={e => update('prepMinutes', e.target.value === '' ? null : Number(e.target.value))} /></div>
         </div>
         <h3>Ingredients</h3>
         <p className="field-hint">Use a numeric quantity when it can scale. Leave it blank for “to taste” or “as needed”; packages stay unscaled for review.</p>
-        {draft.ingredients.map((row, index) => <fieldset key={rowIds[index]} className="recipe-ingredient">
+        {draft.ingredients.map((row, index) => {
+          const match = !row.basicId && row.name.trim() ? matchBasic(row.name, basics.filter(b => !b.archived)) : null
+          return <fieldset key={rowIds[index]} className="recipe-ingredient">
           <legend>Ingredient {index + 1}</legend>
-          <div className="field"><label htmlFor={rowIds[index]}>Name</label><input type="text" id={rowIds[index]} required maxLength={200} value={row.name} onChange={e => ingredient(index, { name: e.target.value })} /></div>
+          <div className="field"><label htmlFor={rowIds[index]}>Name</label><input type="text" id={rowIds[index]} required maxLength={200} value={row.name} onChange={e => ingredient(index, { name: e.target.value })} />
+            {match && <button type="button" className="link-btn" onClick={() => ingredient(index, { basicId: match.id })}>Link to basic: {match.name}</button>}</div>
+          {basics.length > 0 && <div className="field"><label htmlFor={`${rowIds[index]}-basic`}>Made from a basic</label><select id={`${rowIds[index]}-basic`} value={row.basicId ?? ''} onChange={e => ingredient(index, { basicId: e.target.value || null })}>
+            <option value="">Not linked</option>{basics.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+          </select></div>}
           <div className="meal-form-row">
             <div className="field"><label htmlFor={`${rowIds[index]}-quantity`}>Quantity</label><input id={`${rowIds[index]}-quantity`} type="number" min="0" max="1000000" step="any" value={row.quantity ?? ''} onChange={e => ingredient(index, { quantity: e.target.value === '' ? null : Number(e.target.value) })} /></div>
             <div className="field"><label htmlFor={`${rowIds[index]}-unit`}>Unit</label><input type="text" id={`${rowIds[index]}-unit`} maxLength={50} placeholder="cup, lb, package…" value={row.unit ?? ''} onChange={e => ingredient(index, { unit: e.target.value || null })} /></div>
@@ -241,7 +266,7 @@ function RecipeEditor({ recipe, onClose, onSaved }: { recipe: Recipe | null; onC
             <div className="field"><label htmlFor={`${rowIds[index]}-category`}>Category</label><input type="text" id={`${rowIds[index]}-category`} maxLength={100} placeholder="Produce…" value={row.category ?? ''} onChange={e => ingredient(index, { category: e.target.value || null })} /></div>
           </div>
           <button type="button" className="link-btn" aria-label={`Remove ingredient ${index + 1}${row.name ? `, ${row.name}` : ''}`} onClick={() => { update('ingredients', draft.ingredients.filter((_, i) => i !== index)); setRowIds(ids => ids.filter((_, i) => i !== index)) }}>Remove ingredient</button>
-        </fieldset>)}
+        </fieldset>})}
         <button type="button" className="btn btn-secondary" disabled={draft.ingredients.length >= 300} onClick={() => { update('ingredients', [...draft.ingredients, emptyIngredient()]); setRowIds(ids => [...ids, crypto.randomUUID()]) }}><PlusIcon /> Add ingredient</button>
         {steps ? <>
           <h3 className="meal-spaced">Steps</h3>

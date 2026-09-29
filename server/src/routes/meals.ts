@@ -6,8 +6,8 @@ import { emit } from '../bus.ts';
 import { hostTimezone } from '../env.ts';
 import { zonedTimeToUtc } from '../recurrence.ts';
 import { ErrorSchema } from '../schemas.ts';
-import { IngredientInputSchema, MealEventStartSchema, MealInputSchema, MealPatchSchema, MealRangeSchema, MealSchema, ProjectionApplySchema, ProjectionQuerySchema, ProjectionSchema, RecipeImportResultSchema, RecipeImportSchema, RecipeInputSchema, RecipePreviewResultSchema, RecipeRatingInputSchema, RecipeSchema, RecipeTextParseSchema, RecipeUrlImportSchema, type Meal, type Recipe } from '../meal-schemas.ts';
-import { applyProjection, importIngredient, mealWrite, normalizeIngredient, normalizeSteps, readMeal, readMeals, readRecipes, shoppingProjection, stepsText } from '../meals.ts';
+import { IngredientInputSchema, MealEventStartSchema, MealInputSchema, MealPatchSchema, MealRangeSchema, MealSchema, ProjectionApplySchema, ProjectionQuerySchema, ProjectionSchema, RecipeImportResultSchema, RecipeImportSchema, RecipeInputSchema, RecipeKindSchema, RecipePreviewResultSchema, RecipeRatingInputSchema, RecipeSchema, RecipeTextParseSchema, RecipeUrlImportSchema, type Meal, type Recipe } from '../meal-schemas.ts';
+import { applyProjection, basicKey, importIngredient, mealWrite, normalizeIngredient, normalizeSteps, readMeal, readMeals, readRecipes, shoppingProjection, stepsText } from '../meals.ts';
 import type { KinwallDb } from '../db.ts';
 import type { Env } from '../env.ts';
 import { createEvent, deleteEvent, updateEvent } from './events.ts';
@@ -29,7 +29,7 @@ const recipeResponse = { description: 'recipe', content: { 'application/json': {
 const mealResponse = { description: 'meal', content: { 'application/json': { schema: MealSchema } } };
 const body = <T extends z.ZodType>(schema: T) => ({ content: { 'application/json': { schema } } });
 
-mealsRoutes.openapi(createRoute({ method: 'get', path: '/api/recipes', tags: ['Meals'], summary: 'Search recipes (archived=true includes archived recipes)', security: [{ Bearer: [] }], request: { query: z.object({ search: z.string().optional(), category: z.string().optional(), archived: z.enum(['true', 'false']).optional() }) }, responses: { 200: { description: 'recipes', content: { 'application/json': { schema: z.array(RecipeSchema) } } } } }), async (c) => {
+mealsRoutes.openapi(createRoute({ method: 'get', path: '/api/recipes', tags: ['Meals'], summary: 'Search recipes (archived=true includes archived recipes)', security: [{ Bearer: [] }], request: { query: z.object({ search: z.string().optional(), category: z.string().optional(), archived: z.enum(['true', 'false']).optional(), kind: RecipeKindSchema.optional() }) }, responses: { 200: { description: 'recipes', content: { 'application/json': { schema: z.array(RecipeSchema) } } } } }), async (c) => {
   const query = c.req.valid('query');
   return c.json(await withShares(c, await readRecipes(c.env.DB, { ...query, archived: query.archived === 'true' })), 200);
 });
@@ -43,21 +43,26 @@ async function saveRecipe(db: KinwallDb, input: z.infer<typeof RecipeInputSchema
   const now = new Date().toISOString();
   // Structured steps win: instructions follows them. Instructions sent alone replace the steps.
   const steps = input.steps !== undefined ? (input.steps?.length ? normalizeSteps(input.steps) : null) : input.instructions !== undefined ? null : old?.steps ?? null;
-  const recipe = { description: null, instructions: null, preparationNotes: null, sourceUrl: null, imageUrl: null, defaultServings: 4, prepMinutes: null, totalMinutes: null, archived: false, ...old, ...input, steps: steps?.length ? steps : null, id, createdAt: old?.createdAt ?? now, updatedAt: now };
+  const recipe = { description: null, instructions: null, preparationNotes: null, sourceUrl: null, imageUrl: null, defaultServings: 4, prepMinutes: null, totalMinutes: null, archived: false, kind: 'meal' as const, makes: null, ...old, ...input, steps: steps?.length ? steps : null, id, createdAt: old?.createdAt ?? now, updatedAt: now };
   if (recipe.steps) recipe.instructions = stepsText(recipe.steps);
-  const writes = [db.prepare(`INSERT INTO recipes (id,name,description,instructions,steps,preparation_notes,source_url,image_url,default_servings,prep_minutes,total_minutes,archived,created_by,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,description=excluded.description,instructions=excluded.instructions,steps=excluded.steps,preparation_notes=excluded.preparation_notes,source_url=excluded.source_url,image_url=excluded.image_url,default_servings=excluded.default_servings,prep_minutes=excluded.prep_minutes,total_minutes=excluded.total_minutes,archived=excluded.archived,updated_at=excluded.updated_at`)
-    .bind(id, recipe.name, recipe.description, recipe.instructions, recipe.steps ? JSON.stringify(recipe.steps) : null, recipe.preparationNotes, recipe.sourceUrl, recipe.imageUrl ?? null, recipe.defaultServings, recipe.prepMinutes ?? null, recipe.totalMinutes ?? null, recipe.archived ? 1 : 0, createdBy, recipe.createdAt, now)];
+  const writes = [db.prepare(`INSERT INTO recipes (id,name,description,instructions,steps,preparation_notes,source_url,image_url,default_servings,prep_minutes,total_minutes,archived,kind,makes,created_by,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,description=excluded.description,instructions=excluded.instructions,steps=excluded.steps,preparation_notes=excluded.preparation_notes,source_url=excluded.source_url,image_url=excluded.image_url,default_servings=excluded.default_servings,prep_minutes=excluded.prep_minutes,total_minutes=excluded.total_minutes,archived=excluded.archived,kind=excluded.kind,makes=excluded.makes,updated_at=excluded.updated_at`)
+    .bind(id, recipe.name, recipe.description, recipe.instructions, recipe.steps ? JSON.stringify(recipe.steps) : null, recipe.preparationNotes, recipe.sourceUrl, recipe.imageUrl ?? null, recipe.defaultServings, recipe.prepMinutes ?? null, recipe.totalMinutes ?? null, recipe.archived ? 1 : 0, recipe.kind, recipe.makes || null, createdBy, recipe.createdAt, now)];
+  // No longer a basic: lines made from it keep their text, unlinked.
+  if (recipe.kind !== 'basic') writes.push(db.prepare('UPDATE recipe_ingredients SET basic_id = NULL WHERE basic_id = ?').bind(id));
   if (input.ingredients !== undefined || !old) {
     const previous = [...(old?.ingredients ?? [])];
     const ingredients = (input.ingredients ?? []).map((i: z.infer<typeof IngredientInputSchema>, index) => {
       // Keep identity through ordinary edits and explicit snapshot refreshes.
       const match = previous.findIndex((p) => normalizeIngredient(p.name) === normalizeIngredient(i.name) && normalizeIngredient(p.unit ?? '') === normalizeIngredient(i.unit ?? ''));
-      const ingredientId = match >= 0 ? previous.splice(match, 1)[0].id : crypto.randomUUID();
-      return { id: ingredientId, name: i.name, normalized_name: normalizeIngredient(i.name), quantity: i.quantity ?? null, unit: i.unit || null, preparation: i.preparation || null, qualifier: i.qualifier || null, category: i.category || null, sort: i.sort ?? index };
+      const same = match >= 0 ? previous.splice(match, 1)[0] : undefined;
+      // A line sent without basicId keeps the link it had.
+      return { id: same?.id ?? crypto.randomUUID(), name: i.name, normalized_name: normalizeIngredient(i.name), quantity: i.quantity ?? null, unit: i.unit || null, preparation: i.preparation || null, qualifier: i.qualifier || null, category: i.category || null, sort: i.sort ?? index, basic_id: i.basicId !== undefined ? i.basicId : same?.basicId ?? null };
     });
     writes.push(db.prepare('DELETE FROM recipe_ingredients WHERE recipe_id = ?').bind(id));
-    writes.push(db.prepare(`INSERT INTO recipe_ingredients (id,recipe_id,name,normalized_name,quantity,unit,preparation,qualifier,category,sort)
-      SELECT value->>'id',?,value->>'name',value->>'normalized_name',value->>'quantity',value->>'unit',value->>'preparation',value->>'qualifier',value->>'category',value->>'sort' FROM json_each(?)`).bind(id, JSON.stringify(ingredients)));
+    // Only a basic can be linked, never the recipe itself; anything else is dropped.
+    writes.push(db.prepare(`INSERT INTO recipe_ingredients (id,recipe_id,name,normalized_name,quantity,unit,preparation,qualifier,category,sort,basic_id)
+      SELECT value->>'id',?,value->>'name',value->>'normalized_name',value->>'quantity',value->>'unit',value->>'preparation',value->>'qualifier',value->>'category',value->>'sort',
+        (SELECT b.id FROM recipes b WHERE b.id = value->>'basic_id' AND b.kind = 'basic' AND b.id != ?) FROM json_each(?)`).bind(id, id, JSON.stringify(ingredients)));
   }
   await db.batch(writes);
   return (await readRecipes(db, { id, archived: true }))[0];
@@ -71,9 +76,17 @@ async function upsertImport(c: Ctx, input: Omit<z.infer<typeof RecipeImportSchem
   const db = c.env.DB;
   const found = await db.prepare('SELECT id FROM recipes WHERE source = ? AND external_id = ?').bind(input.source, input.externalId).first<{ id: string }>();
   const old = found ? (await readRecipes(db, { id: found.id, archived: true }))[0] : undefined;
-  const ingredients = input.ingredients.map((line, sort) => ({ ...importIngredient(line), sort }));
+  // A line naming its basic (a share link) links to the family's basic of that name.
+  const basics = input.ingredients.some((l) => typeof l !== 'string' && l.basic) ? await readRecipes(db, { kind: 'basic' }) : [];
+  const ingredients = input.ingredients.map((line, sort) => {
+    const { basic, ...ingredient } = importIngredient(line);
+    const linked = basic ? basics.find((b) => b.id !== old?.id && basicKey(b.name) === basicKey(basic)) : undefined;
+    return { ...ingredient, sort, ...(linked && { basicId: linked.id }) };
+  });
   const recipe = await saveRecipe(db, {
     name: input.name, ingredients,
+    ...(input.kind !== undefined && { kind: input.kind }),
+    ...(input.makes !== undefined && { makes: input.makes }),
     ...(input.description !== undefined && { description: input.description }),
     ...(input.sourceUrl !== undefined && { sourceUrl: input.sourceUrl }),
     ...(input.servings !== undefined && { defaultServings: input.servings }),
@@ -127,7 +140,7 @@ mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/recipes/import-url
   if (!recipe.name) return c.json({ error: 'This recipe has no name. Preview it, name it, then save.' }, 422);
   const saved = await upsertImport(c, {
     source: 'web', externalId: recipe.sourceUrl!, name: recipe.name, description: recipe.description, sourceUrl: recipe.sourceUrl, imageUrl: recipe.imageUrl ?? undefined,
-    ...(recipe.servings !== null && { servings: recipe.servings }), prepMinutes: recipe.prepMinutes, totalMinutes: recipe.totalMinutes,
+    ...(recipe.servings !== null && { servings: recipe.servings }), prepMinutes: recipe.prepMinutes, totalMinutes: recipe.totalMinutes, kind: recipe.kind, makes: recipe.makes,
     ingredients: recipe.ingredients.map((i) => (i.qualifier !== undefined ? i : i.text)), steps: recipe.steps,
   });
   return c.json({ recipe, warnings, recipeId: saved.recipe.id, created: saved.created }, 200);
@@ -146,6 +159,8 @@ mealsRoutes.openapi(createRoute({ method: 'patch', path: '/api/recipes/{id}', ta
 });
 mealsRoutes.openapi(createRoute({ method: 'delete', path: '/api/recipes/{id}', tags: ['Meals'], summary: 'Delete a recipe; existing meals retain their snapshots (admin)', security: [{ Bearer: [] }], request: { params }, responses: { 200: ok, ...errors } }), async (c) => {
   const { id } = c.req.valid('param');
+  // Lines made from it (a basic) keep their text, unlinked.
+  await c.env.DB.prepare('UPDATE recipe_ingredients SET basic_id = NULL WHERE basic_id = ?').bind(id).run();
   const result = await c.env.DB.prepare('DELETE FROM recipes WHERE id = ?').bind(id).run();
   if (!result.meta.changes) return c.json({ error: 'recipe not found' }, 404);
   emit(c, 'recipe.changed', { id }); return c.json({ ok: true }, 200);

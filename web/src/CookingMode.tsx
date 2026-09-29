@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { announce } from './a11y.tsx'
-import { saveStep, savedStep, stepIngredients, stepTimers } from './cooking.ts'
+import { cookingSteps, saveStep, savedStep, stepIngredients, stepTimers } from './cooking.ts'
 import { CheckIcon, ChevronLeft, ChevronRight, XIcon } from './icons.tsx'
 import { servingsLabel } from './meal-date.ts'
 import type { Recipe, RecipeStep } from './meal-types.ts'
@@ -30,13 +30,17 @@ function beep() {
 }
 
 /** Full-screen cooking: one step at a time in big type, its ingredients (scaled to `servings`) and
- * timers. Back/Next, swipes or arrow keys move; the step is remembered per recipe on this device. */
-export default function CookingMode({ recipe, steps, servings, onClose }: { recipe: Recipe; steps: RecipeStep[]; servings: number; onClose: () => void }) {
+ * timers. Back/Next, swipes or arrow keys move; the step is remembered per recipe on this device.
+ * A step's ingredient made from a basic (found in `library`) has "Make it": the basic's own cooking
+ * mode opens on top, and closing it comes back to this step. */
+export default function CookingMode({ recipe, steps, servings, library = [], onClose }: { recipe: Recipe; steps: RecipeStep[]; servings: number; library?: Recipe[]; onClose: () => void }) {
   const titleId = useId(), drawerId = useId()
   const [index, setIndex] = useState(() => Math.min(savedStep(recipe.id), steps.length - 1))
   const [showAll, setShowAll] = useState(false)
   const [timers, setTimers] = useState<Timer[]>([])
   const [now, setNow] = useState(Date.now)
+  const [basic, setBasic] = useState<Recipe | null>(null)
+  const root = useRef<HTMLDivElement>(null)
   const heading = useRef<HTMLHeadingElement>(null)
   const backBtn = useRef<HTMLButtonElement>(null)
   const nextBtn = useRef<HTMLButtonElement>(null)
@@ -57,17 +61,19 @@ export default function CookingMode({ recipe, steps, servings, onClose }: { reci
 
   // Screen on, the recipe sheet and app behind out of reach, focus in; all undone on the way out.
   useEffect(() => {
-    holdAwake('cooking-mode', true)
-    const behind = [...document.querySelectorAll<HTMLElement>('.app-shell, .sheet-backdrop')]
+    holdAwake(`cooking-mode:${recipe.id}`, true)
+    // Only what isn't inert yet: a basic's cooking mode over this one leaves this one's setup alone.
+    const behind = [...document.querySelectorAll<HTMLElement>('.app-shell, .sheet-backdrop, .cook-mode')].filter(el => el !== root.current && !el.hasAttribute('inert'))
     behind.forEach(el => el.setAttribute('inert', ''))
+    const ownsMode = !('fullscreenMode' in document.documentElement.dataset)
     document.documentElement.dataset.fullscreenMode = '' // hides the update banner, which sits in the (now inert) app behind
     heading.current?.focus({ preventScroll: true })
-    return () => { holdAwake('cooking-mode', false); behind.forEach(el => el.removeAttribute('inert')); delete document.documentElement.dataset.fullscreenMode; opener?.focus?.({ preventScroll: true }) }
-  }, [opener])
+    return () => { holdAwake(`cooking-mode:${recipe.id}`, false); behind.forEach(el => el.removeAttribute('inert')); if (ownsMode) delete document.documentElement.dataset.fullscreenMode; opener?.focus?.({ preventScroll: true }) }
+  }, [opener, recipe.id])
 
   const keys = useRef<(e: KeyboardEvent) => void>(() => {})
   keys.current = e => {
-    if (e.altKey || e.ctrlKey || e.metaKey) return
+    if (basic || e.altKey || e.ctrlKey || e.metaKey) return
     if (e.key === 'Escape') { e.preventDefault(); if (showAll) closeDrawer(); else onClose() }
     else if (!showAll && e.key === 'ArrowRight') { e.preventDefault(); go(index + 1) }
     else if (!showAll && e.key === 'ArrowLeft') { e.preventDefault(); go(index - 1) }
@@ -117,10 +123,12 @@ export default function CookingMode({ recipe, steps, servings, onClose }: { reci
   const durations = stepTimers(step)
   const ingredients = used.length > 0 && <section className="cook-ingredients" aria-label="This step's ingredients">
     <h4>This step's ingredients</h4>
-    <IngredientList recipe={{ ...recipe, ingredients: used }} servings={servings} />
+    <IngredientList recipe={{ ...recipe, ingredients: used }} servings={servings} makeIt onBasic={id => setBasic(library.find(r => r.id === id) ?? null)} />
   </section>
+  // A basic without steps still opens, on one step that points at its ingredients.
+  const basicSteps = basic ? cookingSteps(basic) : []
   return createPortal(
-    <div className={`cook-mode ${rang.length ? 'cook-ringing' : ''}`} role="dialog" aria-modal="true" aria-labelledby={titleId}>
+    <div ref={root} className={`cook-mode ${rang.length ? 'cook-ringing' : ''}`} role="dialog" aria-modal="true" aria-labelledby={titleId}>
       <header className="cook-bar">
         <button type="button" className="icon-btn" aria-label="Exit cooking mode" onClick={onClose}><XIcon width={24} height={24} /></button>
         <h2 id={titleId} className="cook-title">{recipe.name}</h2>
@@ -178,6 +186,7 @@ export default function CookingMode({ recipe, steps, servings, onClose }: { reci
         </div>
         <IngredientList recipe={recipe} servings={servings} />
       </div>}
+      {basic && <CookingMode key={basic.id} recipe={basic} steps={basicSteps.length ? basicSteps : [{ text: 'No steps written yet. Its ingredients are under All ingredients.', bullets: [] }]} servings={basic.defaultServings} library={library} onClose={() => setBasic(null)} />}
     </div>,
     document.body,
   )

@@ -223,3 +223,7 @@
 .recipe-picker .field input[type="search"] { width: 100%; padding: 13px 14px; border-radius: var(--radius-sm); border: 2px solid var(--border); background: var(--bg-alt); color: var(--text); font-family: inherit; font-size: max(1rem, 16px); font-weight: 700; min-height: 52px; }
 .recipe-picker .sheet-link[aria-current] { border-color: var(--accent); }
 .recipe-picker { min-height: 50vh; } /* the sheet keeps its height while the list narrows */
+
+/* ---------- Basics: a line made from a basic opens it; the "Basic" tag reuses .kit-tag ---------- */
+.ingredient-basic { display: inline-flex; align-items: center; min-height: 44px; margin: -10px 0; padding: 0; border: 0; background: none; color: var(--accent-text); font: inherit; font-weight: 800; text-align: left; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.recipe-kind-tag { margin: 0 8px 0 0; }

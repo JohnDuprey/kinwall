@@ -28,6 +28,17 @@ Tap a recipe to see it: its times, the ingredients (with **−** and **+** to se
 
 A recipe with a time shows it as **⏱ 35 min · 10 min prep** in its sheet and the meal's sheet, and as a quiet "35 min" on the recipe card, the planned meal in the week planner and the Board's **Today's meals** card. When the meal has a time, its sheet also says when to start ("Start by 5:25 PM").
 
+### Basics
+
+A **basic** is a recipe for something you make to use in other recipes: a seasoning blend, a sauce, a dough, a stock. In the recipe editor, set **Type** to **Basic** (it's **Meal** otherwise, and every recipe from before basics is a meal). A basic has **Makes** ("about ¼ cup", "2 crusts") instead of default servings, and its view shows "Makes about ¼ cup" with a small **Basic** tag, without the servings buttons: a basic is made as written.
+
+* The library's **Type** filter shows **All**, **Meals** or **Basics**, and a basic's card has a **Basic** tag.
+* Basics stay out of meal planning: the meal sheet's recipe picker lists meals only until you switch its **Show** to **Meals and basics** (a prep session, say). A basic already planned as a meal is left out of **Swap with…** the same way.
+* An ingredient can be **made from a basic**. In the editor, each ingredient has **Made from a basic** (shown once the family has a basic) to pick one, and when an ingredient's name matches a basic Kinwall offers **Link to basic: Taco seasoning** right under the name. Names match in any case and spacing, and words like "blend", "mix" and "homemade" don't count ("Taco Seasoning Blend" matches "Taco seasoning"); when two basics match, nothing is offered.
+* In a recipe's view, a linked ingredient's name is a link: tap it to open the basic, and **Back to Tuesday Tacos** returns to the recipe.
+* In [cooking mode](#start-cooking), a linked ingredient in **This step's ingredients** has **Make it**, which opens the basic's own cooking mode on top. Closing it (**✕** or **Done**) comes back to the step you were on.
+* Deleting a basic, or changing it back to a meal, unlinks the lines made from it; their text stays. Planned meals keep their own copy as usual.
+
 ### Ratings
 
 Everyone in the family can rate a recipe: the recipe's view shows a one-line summary ("★ 4.3 · 3 ratings", or **Rate this recipe** with none yet) that expands to a row for each person with five big stars. Tap a star to rate, tap the same star again to clear it. The family average also shows on the recipe's card in the library (with how many have rated it) and next to its name when you pick a recipe for a meal. **Sort: Top rated** in the library puts the family's favorites first.
@@ -94,7 +105,7 @@ Most recipe websites describe their recipes in a standard, machine-readable form
 
 **Save recipe** adds it to the library and opens it. Ingredient lines are split into amount, unit and name the same way as other imports (see [Importing recipes](#importing-recipes)); section headings in the steps ("For the sauce") go in front of their first step. A step keeps its title when the site gives it one (not when the title just repeats the step's first words) and its own photo (`https` only), and a step written as several lines stays one step, with the lines as its bullets. Importing the same page again updates that recipe instead of adding a copy (so it replaces edits you made to it). The recipe's source link is the page, and its photo comes from the site like any recipe photo.
 
-A link someone [shared from their Kinwall](#sharing-a-recipe) comes through exactly as they have it: each ingredient's amount, unit, name, quantity note, preparation, category and whether it comes in the kit, and each step's title, text, bullets, timers and photo. Its source link is the recipe's original source (or the shared link, when it had none). Their preparation notes, ratings and meals never come along, because the page doesn't have them.
+A link someone [shared from their Kinwall](#sharing-a-recipe) comes through exactly as they have it (a basic stays a basic, with how much it makes; an ingredient made from a basic links to your basic of the same name, if you have one): each ingredient's amount, unit, name, quantity note, preparation, category and whether it comes in the kit, and each step's title, text, bullets, timers and photo. Its source link is the recipe's original source (or the shared link, when it had none). Their preparation notes, ratings and meals never come along, because the page doesn't have them.
 
 A few things to know:
 
@@ -193,7 +204,7 @@ An admin can turn off **Meals** in **Settings → General** (tap **Change** unde
 
 | Method | Path | Does |
 |---|---|---|
-| `GET` | `/api/recipes?search=&category=&archived=` | Recipes with their ingredients. |
+| `GET` | `/api/recipes?search=&category=&archived=&kind=` | Recipes with their ingredients; `kind=basic` or `kind=meal` lists only those. |
 | `POST` / `PATCH` / `DELETE` | `/api/recipes`, `/api/recipes/{id}` | Add, edit (`archived: true` archives) or delete a recipe (admin). |
 | `POST` | `/api/recipes/import` | Import or update a recipe by `{ source, externalId }` and optionally plan it (admin). See below. |
 | `POST` | `/api/recipes/import-url` | Read the recipe on a web page `{ url, save? }` (admin). Answers `{ recipe, warnings }`: `recipe` is `{ name, description, imageUrl, sourceUrl, servings, prepMinutes, totalMinutes, ingredients: [{ text, name, quantity, unit }], steps: [{ text, bullets, title?, imageUrl? }] }`; from a Kinwall share link the ingredients also carry `qualifier`, `preparation` and `category` and the steps their `timers` (`servings` and times `null` when the page doesn't say). Nothing is saved unless `save: true`, which imports it with `source: "web"` and `externalId` the page's address (its canonical link when it has one) and adds `recipeId` and `created`. To save an edited preview instead, send it to `POST /api/recipes/import` with the same `source` and `externalId` and the ingredients' `text` (or, when an ingredient has `qualifier`, the whole ingredient). Public `https` only (`http` is tried as `https`), redirects re-checked (at most 3), `text/html`, at most 3 MB, 15-second timeout. 400 for an address that isn't public `https`, 502 when the fetch fails or isn't a web page, 422 when the page has no schema.org Recipe data. |
@@ -210,6 +221,8 @@ An admin can turn off **Meals** in **Settings → General** (tap **Change** unde
 | `POST` | `/api/meals/{id}/calendar-event` | Create and link an event `{ calendarId?, eventStart? }` (admin). `calendarId` is any writable calendar, synced ones included (the event is written to the provider the same way `POST /api/events` does); without it the event goes on a Kinwall calendar, never a synced one. `eventStart`: `meal` (default) or `cooking`. The meal's `calendarEventStart` is then set; it's `null` for an event you linked. Changes to the meal update the event; 502 when a synced calendar refuses. |
 
 Meals have `assigneeMemberId` (who's cooking) and `eaterIds` (who's eating, member ids); sending `eaterIds` without `servings` sets servings to how many. Recipes have `steps`: `null` for a recipe that only has `instructions` text, or a list of `{ text, bullets, imageUrl, title, timers }` (`text` may be empty for a step that's only bullets; `title` is `null` and `timers` `[]` when the step has none). A step's `title` leads its line in `instructions` (`1. Roast veggies: …`). Sending `steps` (in `POST` / `PATCH /api/recipes`) makes them the recipe's steps and rewrites `instructions` as the same steps in numbered text (bullets as `- ` lines under their number), so exports and plain-text readers still get them; `steps: null` or `[]` removes them. Sending only `instructions` replaces structured steps with that text. A planned meal doesn't copy the steps: its sheet opens the recipe. Recipes have `prepMinutes` and `totalMinutes` (whole minutes or `null`); a planned meal's `recipeSnapshot` copies them. Each ingredient has `scalable`: whether its amount follows the servings. Webhooks: `recipe.changed`, `meal.changed`.
+
+Recipes have `kind` (`meal`, the default, or `basic`) and `makes` (free text, or `null`). An ingredient has `basicId` (the basic it is made from, or `null`) and a read-only `basicName`. Only a basic can be linked, never the recipe itself; any other id is dropped. When editing, an ingredient sent without `basicId` keeps the link it had (same name and unit), and `basicId: null` unlinks it. Deleting a basic, or changing its `kind` to `meal`, unlinks its lines. In `POST /api/recipes/import`, `kind` and `makes` are optional and an ingredient object may name its basic (`"basic": "Taco seasoning"`): it links to the family's basic of that name, if there is one.
 
 `POST /api/recipes/import` takes:
 

@@ -87,7 +87,7 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 | `get_list` | One list by ID or name, with items (in the list's sort order, each with its steps and, on a shopping list, its aisle at each store), group order, store/category/aisle suggestions and stores' aisle orders. With `store`, also the list as shopped there: items in that store's aisle order with their aisle, then those with no aisle known there, then those planned for other stores. An item with no aisle known there takes the store's aisle named like its category (its department), if there is one. |
 | `list_categories` | Categories (name, emoji, color, keywords) in order. |
 | `list_notes` | The notes thread on an event or list item (`target`: `event:<id>` or `list_item:<id>`), oldest first. `memberId` null means "Someone". |
-| `list_recipes` | [Meals](../using/meals.md) recipes with their ingredients. Filters: `search`, `category`, `archived`. |
+| `list_recipes` | [Meals](../using/meals.md) recipes with their ingredients. Filters: `search`, `category`, `archived`, `kind` (`meal` or `basic`). |
 | `get_recipe` | One recipe by ID. |
 | `list_meals` | Planned meals from `from` through `to` (default: that day plus six). |
 | `get_meal_projection` | The shopping preview for a date range: each ingredient's scaled total, the meals it's for, and (with `listId` or `listName`) what's already on that list. Admin key only. |
@@ -127,8 +127,8 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 | `set_step_done` | Ticks or unticks one step of an item (step IDs come from `get_list`). Ticking the last open step completes the item; unticking a step of a done item re-opens it. |
 | `add_note` | Adds a note to an event's or list item's thread, posted as a member (by name or ID) or "Someone". |
 | `update_note` | Replaces a note's text (note IDs come from `list_notes`). |
-| `create_recipe` | Adds a recipe with its ingredients (admin). |
-| `update_recipe` | Edits a recipe, replaces its ingredients, or archives it (admin). Planned meals keep their own copy. |
+| `create_recipe` | Adds a recipe with its ingredients (admin). `kind: "basic"` makes it a [basic](../using/meals.md#basics) (a seasoning blend, sauce or dough), with `makes` ("about ¼ cup"); an ingredient's `basicId` links it to a basic. |
+| `update_recipe` | Edits a recipe, replaces its ingredients, or archives it (admin). Planned meals keep their own copy. An ingredient sent without `basicId` keeps the link it had (same name and unit); `basicId: null` unlinks it. |
 | `rate_recipe` | Sets a family member's 1-5 star rating of a recipe (`recipeId`, `memberId` as name or ID, `stars`; `0` or `null` clears it). Recipes read by `list_recipes` / `get_recipe` include `rating: { average, count, byMember }`. |
 | `import_recipe` | Imports a recipe from another app, such as a meal kit (admin): ingredient lines like "1.5 tablespoon Sour Cream" are parsed, and importing the same `source` + `externalId` again updates it. With `plan` it's also planned on that date and slot unless the slot is taken (`planned: false` with the `reason`); `plan.calendarId` also puts it on that calendar (any writable one) and `plan.eventStart: "cooking"` starts the event when cooking starts. |
 | `import_recipe_from_url` | Reads the recipe on a web page (admin): name, photo, servings, times, ingredients and steps. It only previews unless `save: true`, which saves it keyed by the page's address, so importing the same page again updates it. A page without recipe data fails, so the assistant can ask for the recipe text and use `create_recipe`. |

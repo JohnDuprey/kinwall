@@ -162,7 +162,10 @@ function RecipePicker({ recipes, currentId, saved, onPick, onClose }: {
   onPick: (recipe: Recipe | null) => void; onClose: () => void
 }) {
   const [query, setQuery] = useState('')
-  const shown = pickerRecipes(recipes, query, currentId)
+  // Basics (seasoning blends, doughs…) stay out of meal planning unless asked for.
+  const [basics, setBasics] = useState(false)
+  const shown = pickerRecipes(recipes, query, currentId, basics)
+  const hasBasics = recipes.some(r => r.kind === 'basic' && !r.archived)
   const onKey = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
     const items = [...e.currentTarget.querySelectorAll<HTMLElement>('input, .sheet-link')]
@@ -174,11 +177,12 @@ function RecipePicker({ recipes, currentId, saved, onPick, onClose }: {
       <div className="field"><label htmlFor="recipe-picker-search">Find a recipe</label>
         <input id="recipe-picker-search" type="search" data-autofocus placeholder="Recipe name or ingredient" value={query} onChange={e => setQuery(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && shown[0]) { e.preventDefault(); onPick(shown[0]) } }} /></div>
+      {hasBasics && <div className="field"><label htmlFor="recipe-picker-show">Show</label><select id="recipe-picker-show" value={basics ? 'all' : 'meals'} onChange={e => setBasics(e.target.value === 'all')}><option value="meals">Meals</option><option value="all">Meals and basics</option></select></div>}
       <div className="sheet-links">
         {saved && !query.trim() && <button type="button" className="sheet-link" aria-current={currentId === saved.id || undefined} onClick={() => onPick(null)}><BookIcon /><span>{saved.name} (saved recipe)<small>Kept with this meal</small></span></button>}
         {shown.map(r => <button key={r.id} type="button" className="sheet-link" aria-current={r.id === currentId || undefined} onClick={() => onPick(r)}>
           {r.imageUrl ? <RecipePhoto id={r.id} className="recipe-pick-thumb" /> : <BookIcon />}
-          <span>{r.name}{r.archived ? ' (archived)' : ''}{(!!r.totalMinutes || r.rating?.average != null) && <small>{[r.totalMinutes ? minutesLabel(r.totalMinutes) : '', r.rating?.average != null ? `★ ${r.rating.average}` : ''].filter(Boolean).join(' · ')}</small>}</span>
+          <span>{r.name}{r.archived ? ' (archived)' : ''}{r.kind === 'basic' && <span className="kit-tag">Basic</span>}{(!!r.totalMinutes || r.rating?.average != null) && <small>{[r.totalMinutes ? minutesLabel(r.totalMinutes) : '', r.rating?.average != null ? `★ ${r.rating.average}` : ''].filter(Boolean).join(' · ')}</small>}</span>
         </button>)}
       </div>
       {!shown.length && <p className="state-card">No recipes match</p>}
@@ -192,14 +196,19 @@ function SwapPicker({ meal, range, recipes, onPick, onClose }: {
 }) {
   const [meals, setMeals] = useState<Meal[] | null>(null)
   const [error, setError] = useState('')
+  // Like the recipe picker: a basic planned as a meal (a prep session) shows only when asked for.
+  const [basics, setBasics] = useState(false)
+  const isBasic = (m: Meal) => recipes.find(r => r.id === m.recipeId)?.kind === 'basic'
+  const shown = meals?.filter(m => basics || !isBasic(m)) ?? null
   useEffect(() => {
     let canceled = false
     api.getMeals(range.from, range.to).then(all => { if (!canceled) setMeals(swapCandidates(all, meal.id)) }).catch(e => { if (!canceled) setError(e instanceof Error ? e.message : 'Could not load meals.') })
     return () => { canceled = true }
   }, [meal.id, range.from, range.to])
   return <Sheet title={`Swap “${meal.title}” with…`} onClose={onClose}>
-    {error ? <p className="field-error" role="alert">{error}</p> : !meals ? <p role="status">Loading meals…</p> : !meals.length ? <p className="state-card">No other meals planned for the rest of this week.</p> :
-      <div className="sheet-links">{meals.map(m => {
+    {meals?.some(isBasic) && <div className="field"><label htmlFor="swap-show">Show</label><select id="swap-show" value={basics ? 'all' : 'meals'} onChange={e => setBasics(e.target.value === 'all')}><option value="meals">Meals</option><option value="all">Meals and basics</option></select></div>}
+    {error ? <p className="field-error" role="alert">{error}</p> : !shown ? <p role="status">Loading meals…</p> : !shown.length ? <p className="state-card">No other meals planned for the rest of this week.</p> :
+      <div className="sheet-links">{shown.map(m => {
         const recipe = recipes.find(r => r.id === m.recipeId)
         return <button key={m.id} type="button" className="sheet-link" onClick={() => onPick(m)}>
           {recipe?.imageUrl ? <RecipePhoto id={recipe.id} className="recipe-pick-thumb" /> : <CalendarIcon />}
