@@ -5,7 +5,7 @@ import Sheet from './Sheet.tsx'
 import { mealDayLabel, servingsLabel, SLOT_LABEL } from './meal-date.ts'
 import { IngredientAmount } from './RecipeSheet.tsx'
 import type { List } from './types.ts'
-import { KIT_QUALIFIER, type ShoppingProjection } from './meal-types.ts'
+import { KIT_QUALIFIER, type BasicChoices, type ShoppingProjection } from './meal-types.ts'
 
 // The grocery list last used on this device, so a family with several doesn't pick it every time.
 const LAST_LIST_KEY = 'kinwall.mealGroceryList'
@@ -29,6 +29,8 @@ export default function MealProjection({ from: initialFrom, to: initialTo, admin
   const [kitIncluded, setKitIncluded] = useState<string[]>([])
   const [includeNotes, setIncludeNotes] = useState(true)
   const [busy, setBusy] = useState(false)
+  // Lines made from a basic: asked once per basic, in one sheet, before anything is added.
+  const [asking, setAsking] = useState<BasicChoices | null>(null)
   const [applyError, setApplyError] = useState('')
   const [listError, setListError] = useState('')
   const [tick, setTick] = useState(0)
@@ -57,11 +59,14 @@ export default function MealProjection({ from: initialFrom, to: initialTo, admin
   const error = result?.key === requestKey ? result.error : undefined
   const isOmitted = (item: ShoppingProjection['items'][number]) => omitted.includes(item.key) || (item.qualifier === KIT_QUALIFIER && !kitIncluded.includes(item.key))
   const selected = current?.items.filter(item => !item.applied && !isOmitted(item)) ?? []
-  const apply = async () => {
+  const basics = [...new Map(selected.filter(item => item.basicId).map(item => [item.basicId!, item.basicName ?? item.name])).entries()]
+  const apply = async (answers?: BasicChoices) => {
     if (!admin || !current || !listId || !selected.length || busy || loading || !lists?.some(list => list.id === listId)) return
-    setBusy(true); setApplyError('')
+    // Not yet made is the safer guess: its ingredients go on the list unless someone says it's made.
+    if (basics.length && !answers) { setAsking(Object.fromEntries(basics.map(([basicId]) => [basicId, 'ingredients']))); return }
+    setAsking(null); setBusy(true); setApplyError('')
     try {
-      const result = await api.applyMealProjection({ from, to, listId, omitKeys: current.items.filter(isOmitted).map(item => item.key), includeNotes, includeKitItems: true })
+      const result = await api.applyMealProjection({ from, to, listId, omitKeys: current.items.filter(isOmitted).map(item => item.key), includeNotes, includeKitItems: true, ...(answers && { basics: answers }) })
       rememberList(listId)
       // Clear immediately so a failed refresh cannot leave an already-applied preview actionable.
       setResult(null); setTick(t => t + 1); reloadCore(); toast(`Added ${result.added} grocery item${result.added === 1 ? '' : 's'}. Previously applied ingredients are skipped.`)
@@ -69,7 +74,7 @@ export default function MealProjection({ from: initialFrom, to: initialTo, admin
     finally { setBusy(false) }
   }
   const close = () => { if (!busy) onClose() }
-  return <Sheet title="Groceries for these meals" onClose={close} dismissable={!busy} actions={admin ? <button className="btn btn-primary" disabled={busy || loading || !listId || !selected.length || !lists?.some(list => list.id === listId)} onClick={apply}>{busy ? 'Applying…' : `Add ${selected.length} item${selected.length === 1 ? '' : 's'} to list`}</button> : undefined}>
+  return <Sheet title="Groceries for these meals" onClose={close} dismissable={!busy} actions={admin ? <button className="btn btn-primary" disabled={busy || loading || !listId || !selected.length || !lists?.some(list => list.id === listId)} onClick={() => void apply()}>{busy ? 'Applying…' : `Add ${selected.length} item${selected.length === 1 ? '' : 's'} to list`}</button> : undefined}>
     <p>Review ingredients before adding them. Existing list items stay as they are; previously applied meal ingredients are skipped.</p>
     <fieldset className="meal-fieldset" disabled={busy}>
       <div className="meal-form-row">
@@ -91,7 +96,7 @@ export default function MealProjection({ from: initialFrom, to: initialTo, admin
               {admin && <input id={`${id}-item-${index}`} type="checkbox" checked={!isOmitted(item) && !item.applied} disabled={item.applied} onChange={e => { const toggle = (keys: string[], on: boolean) => on ? [...keys, item.key] : keys.filter(key => key !== item.key); setOmitted(keys => toggle(keys, !e.target.checked)); if (item.qualifier === KIT_QUALIFIER) setKitIncluded(keys => toggle(keys, e.target.checked)) }} />}
               <label htmlFor={admin ? `${id}-item-${index}` : undefined}><strong>{item.name}</strong> — <IngredientAmount quantity={item.quantity} unit={item.unit} qualifier={item.qualifier} /></label>
             </div>
-            <p className="field-hint">{item.applied ? 'Already applied to this list' : item.partiallyApplied ? 'Partly applied — only remaining contributions will be added' : 'Not yet applied'}{item.category ? ` · ${item.category}` : ''}</p>
+            <p className="field-hint">{item.applied ? 'Already applied to this list' : item.partiallyApplied ? 'Partly applied — only remaining contributions will be added' : 'Not yet applied'}{item.basicId ? ' · A basic: you’ll be asked if it’s made already' : ''}{item.category ? ` · ${item.category}` : ''}</p>
             {item.changedSinceApplied && <p className="field-error">This meal changed after it was applied. Check the existing grocery item; adding again will not update it.</p>}
             {!item.scalable && <p className="field-hint">Amount needs review; this quantity was not scaled.</p>}
             {item.matches.length > 0 && <p className="field-hint">Existing matches: {item.matches.map(match => `${match.title}${match.quantity ? ` (${match.quantity})` : ''}${match.done ? ' — checked off' : ''}`).join(', ')}. Omit this ingredient if you already have enough.</p>}
@@ -104,6 +109,16 @@ export default function MealProjection({ from: initialFrom, to: initialTo, admin
         </>}
       </>}
     </fieldset>
+    {asking && <Sheet title="Made already?" onClose={() => setAsking(null)} actions={<>
+      <button className="btn btn-secondary" onClick={() => setAsking(null)}>Cancel</button>
+      <button className="btn btn-primary" onClick={() => void apply(asking)}>Add to list</button>
+    </>}>
+      <p>{basics.length === 1 ? 'This is something you make yourself.' : 'These are things you make yourself.'} If it's made already, it stays off the list. If not, what goes into it is added instead.</p>
+      {basics.map(([basicId, name]) => <div key={basicId} className="field"><label htmlFor={`${id}-basic-${basicId}`}>{name}: made already?</label>
+        <select id={`${id}-basic-${basicId}`} value={asking[basicId] ?? 'ingredients'} onChange={e => setAsking(a => ({ ...a, [basicId]: e.target.value as BasicChoices[string] }))}>
+          <option value="made">Made already</option><option value="ingredients">Add its ingredients</option>
+        </select></div>)}
+    </Sheet>}
     {(applyError || error || listError) && <div role="alert"><p className="field-error">{applyError || error || listError}</p><button className="btn btn-secondary" disabled={busy} onClick={() => { setApplyError(''); setTick(t => t + 1) }}>Refresh preview</button></div>}
   </Sheet>
 }

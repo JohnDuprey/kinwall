@@ -146,3 +146,69 @@ test('basics: MCP recipe tools take and return kind, makes and basicId', async (
   const { recipe: edited } = await tool('update_recipe', { id: basic.id, makes: '3 crusts' });
   assert.equal(edited.makes, '3 crusts');
 });
+
+// ---- Part 2: groceries and import matching ----
+
+const week = 'from=2026-10-05&to=2026-10-11';
+async function plannedTacos() {
+  const f = fixture();
+  const basic = await f.json('/api/recipes', 'POST', seasoning);
+  const meal = await f.json('/api/recipes', 'POST', { ...tacos(basic.id), ingredients: [...tacos(basic.id).ingredients, { name: 'Cumin', quantity: 1, unit: 'tbsp' }] });
+  const bowls = await f.json('/api/recipes', 'POST', { name: 'Burrito bowls', defaultServings: 4, ingredients: [{ name: 'Rice', quantity: 1, unit: 'cup' }, { name: 'Taco seasoning blend', quantity: 1, unit: 'tbsp', basicId: basic.id }] });
+  await f.json('/api/meals', 'POST', { date: '2026-10-06', slot: 'dinner', recipeId: meal.id, servings: 8 });
+  await f.json('/api/meals', 'POST', { date: '2026-10-08', slot: 'dinner', recipeId: bowls.id });
+  const list = await f.json('/api/lists', 'POST', { name: 'Groceries', kind: 'shopping' });
+  const items = async () => (await f.json(`/api/lists/${list.id}`)).items.map((i: any) => ({ title: i.title, quantity: i.quantity, notes: i.notes, category: i.category }))
+    .sort((a: any, b: any) => a.title.localeCompare(b.title));
+  return { ...f, basic, list, items };
+}
+
+test('basics groceries: the preview marks lines made from a basic', async () => {
+  const { json, basic, list } = await plannedTacos();
+  const { items } = await json(`/api/meals/projection?${week}&listId=${list.id}`);
+  const linked = items.filter((i: any) => i.basicId);
+  assert.deepEqual(linked.map((i: any) => [i.name, i.basicId, i.basicName]), [['Taco seasoning', basic.id, 'Taco seasoning'], ['Taco seasoning blend', basic.id, 'Taco seasoning']]);
+  assert.equal(items.find((i: any) => i.name === 'Cumin').basicId, null);
+});
+
+test('basics groceries: made already skips the basic; its ingredients are never added', async () => {
+  const { json, basic, list, items } = await plannedTacos();
+  const result = await json('/api/meals/projection/apply', 'POST', { from: '2026-10-05', to: '2026-10-11', listId: list.id, basics: { [basic.id]: 'made' } });
+  assert.deepEqual((await items()).map((i: any) => i.title), ['Cumin', 'Ground beef', 'Rice']);
+  assert.equal(result.added, 3);
+});
+
+test('basics groceries: add its ingredients adds them once, as written, with the basic in the note and their category', async () => {
+  const { json, basic, list, items } = await plannedTacos();
+  await json('/api/meals/projection/apply', 'POST', { from: '2026-10-05', to: '2026-10-11', listId: list.id, basics: { [basic.id]: 'ingredients' } });
+  const added = await items();
+  assert.deepEqual(added.map((i: any) => i.title), ['Chili powder', 'Cumin', 'Ground beef', 'Rice']);
+  // Two meals use the basic: one batch. Chili powder as written (not scaled for 8 servings); the tacos' own cumin
+  // (2 tbsp for 8) adds up with the basic's 1 tbsp.
+  const chili = added.find((i: any) => i.title === 'Chili powder');
+  assert.equal(chili.quantity, '2 tbsp');
+  assert.equal(chili.category, 'Spices');
+  assert.match(chili.notes, /Taco seasoning/);
+  assert.equal(added.find((i: any) => i.title === 'Cumin').quantity, '3 tbsp');
+  // Again, with or without an answer: nothing is added twice, and the basic's lines count as done.
+  for (const basics of [{ [basic.id]: 'ingredients' }, {}, { [basic.id]: 'made' }]) {
+    const again = await json('/api/meals/projection/apply', 'POST', { from: '2026-10-05', to: '2026-10-11', listId: list.id, basics });
+    assert.equal(again.added, 0, JSON.stringify(basics));
+  }
+  const { items: preview } = await json(`/api/meals/projection?${week}&listId=${list.id}`);
+  assert.ok(preview.filter((i: any) => i.basicId).every((i: any) => i.applied));
+  assert.equal((await items()).length, 4);
+});
+
+test('basics groceries: without an answer (older clients) the line is added as it is', async () => {
+  const { json, list, items } = await plannedTacos();
+  await json('/api/meals/projection/apply', 'POST', { from: '2026-10-05', to: '2026-10-11', listId: list.id });
+  assert.deepEqual((await items()).map((i: any) => i.title), ['Cumin', 'Ground beef', 'Rice', 'Taco seasoning', 'Taco seasoning blend']);
+});
+
+test('basics groceries: MCP apply_meal_projection takes the answers', async () => {
+  const { tool, basic, list, items } = await plannedTacos();
+  const result = await tool('apply_meal_projection', { from: '2026-10-05', to: '2026-10-11', listId: list.id, basics: { [basic.id]: 'made' } });
+  assert.equal(result.added, 3);
+  assert.ok(!(await items()).some((i: any) => i.title.startsWith('Taco seasoning')));
+});

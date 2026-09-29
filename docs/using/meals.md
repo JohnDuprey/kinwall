@@ -38,6 +38,7 @@ A **basic** is a recipe for something you make to use in other recipes: a season
 * In a recipe's view, a linked ingredient's name is a link: tap it to open the basic, and **Back to Tuesday Tacos** returns to the recipe.
 * In [cooking mode](#start-cooking), a linked ingredient in **This step's ingredients** has **Make it**, which opens the basic's own cooking mode on top. Closing it (**✕** or **Done**) comes back to the step you were on.
 * Deleting a basic, or changing it back to a meal, unlinks the lines made from it; their text stays. Planned meals keep their own copy as usual.
+* [Adding to the grocery list](#adding-to-the-grocery-list) asks whether a basic is made already.
 
 ### Ratings
 
@@ -166,6 +167,7 @@ Some amounts don't scale, and Kinwall shows them as they are with **Check amount
 1. Pick the range and a grocery list. Only shopping lists can take ingredients. If you have just one, it's already chosen; with several, Kinwall picks the one this device used last. The preview shows each ingredient's total, which meals it's for, and any item already on that list with the same name.
 2. Untick what you already have (salt, rice in the pantry). Meal-kit ingredients that ship in the box (**in the kit**) start unticked.
 3. Tap **Add … items to list**. Optionally, each new item gets a note with the meals it's for.
+4. When some of the meals use a [basic](#basics) you make yourself, one sheet asks **Made already?** with a choice for each basic ("Taco seasoning: made already?"): **Made already** leaves it off the list, **Add its ingredients** (the default) adds what goes into it instead of the basic itself, as its recipe writes it (not scaled), once for the whole range even when several meals use it, each with a note saying which basic it's for. Unticking a basic in the preview skips the question for it. Once its ingredients are on the list, adding the range again doesn't ask or add them again.
 
 New items land where your family keeps them: the store, aisle and department [remembered](lists.md#remembered-places) for that ingredient, or the recipe's category as the department when there's nothing remembered yet. A department that matches one of a store's aisles [puts the item in that aisle](lists.md#departments-fill-in-aisles) on a trip. On the list, each one says which meals it's for ("For Taco night"). Checking out a grocery run just clears the items; your meals don't change.
 
@@ -215,7 +217,7 @@ An admin can turn off **Meals** in **Settings → General** (tap **Change** unde
 | `GET` | `/api/meals?from=&to=` | Meals in a date range (at most 367 days). |
 | `POST` / `PATCH` / `DELETE` | `/api/meals`, `/api/meals/{id}` | Plan, edit or delete a meal (admin; an assigned device may `PATCH` `notes` and `status`). `refreshRecipe: true` replaces the meal's ingredients with the recipe's. |
 | `GET` | `/api/meals/projection?from=&to=&listId=` | The shopping preview (admin). |
-| `POST` | `/api/meals/projection/apply` | Add `{ from, to, listId, omitKeys?, includeNotes?, includeKitItems? }` to a list (admin). Meal-kit ingredients that ship in the box are skipped unless `includeKitItems: true`. Safe to repeat. |
+| `POST` | `/api/meals/projection/apply` | Add `{ from, to, listId, omitKeys?, includeNotes?, includeKitItems?, basics? }` to a list (admin). Meal-kit ingredients that ship in the box are skipped unless `includeKitItems: true`. A preview item with `basicId` is made from a basic: `basics: { "<basicId>": "made" }` skips it, `"ingredients"` adds the basic's own ingredients once, as written, instead (a basic left out is added as its line). Safe to repeat. |
 | `POST` | `/api/meals/{id}/swap` | Swap `{ otherId }`'s date and slot with this meal's in one step (admin); returns both meals. Events Kinwall created for them follow, as with an edit; 502 when a synced calendar refuses (nothing changes). |
 | `POST` / `DELETE` | `/api/meals/{id}/calendar-link` | Link `{ eventId }` or unlink an event (admin). |
 | `POST` | `/api/meals/{id}/calendar-event` | Create and link an event `{ calendarId?, eventStart? }` (admin). `calendarId` is any writable calendar, synced ones included (the event is written to the provider the same way `POST /api/events` does); without it the event goes on a Kinwall calendar, never a synced one. `eventStart`: `meal` (default) or `cooking`. The meal's `calendarEventStart` is then set; it's `null` for an event you linked. Changes to the meal update the event; 502 when a synced calendar refuses. |

@@ -143,17 +143,21 @@ export const MealSchema = z.object({
 }).openapi('Meal');
 export const MealRangeSchema = z.object({ from: MealDateSchema, to: MealDateSchema }).refine((r) => r.from <= r.to && (Date.parse(r.to) - Date.parse(r.from)) / 86400000 <= 366, 'range must be ordered and at most 367 days');
 export const ProjectionQuerySchema = MealRangeSchema.safeExtend({ listId: z.string().optional() });
-export const ProjectionApplySchema = MealRangeSchema.safeExtend({ listId: z.string().min(1), omitKeys: z.array(z.string()).max(10000).optional(), includeNotes: z.boolean().optional(), includeKitItems: z.boolean().optional() }).strict();
+export const BasicChoicesSchema = z.record(z.string(), z.enum(['made', 'ingredients']))
+  .describe('For lines made from a basic, by basic id: made (made already: skip it) or ingredients (add the basic\'s own ingredients as written, once, instead of the line). A basic left out is added as its line.');
+export const ProjectionApplySchema = MealRangeSchema.safeExtend({ listId: z.string().min(1), omitKeys: z.array(z.string()).max(10000).optional(), includeNotes: z.boolean().optional(), includeKitItems: z.boolean().optional(), basics: BasicChoicesSchema.optional() }).strict();
 export const ProjectionSourceSchema = z.object({
   sourceRef: z.string(), mealId: z.string(), date: MealDateSchema, slot: MealSlotSchema, title: z.string(), recipeName: z.string(),
   quantity: z.number().nullable(), unit: z.string().nullable(), qualifier: z.string().nullable(), preparation: z.string().nullable(),
   scalable: z.boolean(), servings: z.number(), defaultServings: z.number(), applied: z.boolean(), changedSinceApplied: z.boolean(),
+  basicName: z.string().nullable().optional().describe("Set when this is one of a basic's own ingredients (the basic's name)."),
 });
 export const ProjectionItemSchema = z.object({
   key: z.string(), name: z.string(), normalizedName: z.string(), quantity: z.number().nullable(), unit: z.string().nullable(),
   qualifier: z.string().nullable(), category: z.string().nullable(), scalable: z.boolean(), sources: z.array(ProjectionSourceSchema),
   matches: z.array(z.object({ id: z.string(), title: z.string(), quantity: z.string().nullable(), done: z.boolean() })),
   applied: z.boolean(), partiallyApplied: z.boolean(), changedSinceApplied: z.boolean(),
+  basicId: z.string().nullable().optional().describe('The line is made from this basic: ask whether it is made already (apply basics).'), basicName: z.string().nullable().optional(),
 });
 export const ProjectionSchema = z.object({ from: MealDateSchema, to: MealDateSchema, listId: z.string().nullable(), items: z.array(ProjectionItemSchema) }).openapi('MealShoppingProjection');
 export type Recipe = z.infer<typeof RecipeSchema>;

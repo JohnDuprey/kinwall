@@ -133,7 +133,11 @@ export function sourceFingerprint(source: Projection['items'][number]['sources']
   return JSON.stringify([key, source.quantity, source.servings, source.defaultServings, source.date]);
 }
 const round = (n: number) => Math.round((n + Number.EPSILON) * 1000000) / 1000000;
-export async function shoppingProjection(db: KinwallDb, from: string, to: string, listId?: string): Promise<Projection> {
+export type BasicChoices = Record<string, 'made' | 'ingredients'>;
+/** `basics` answers, per basic, for lines made from one: made (skip it) or ingredients (its own
+ * ingredients, as written, once for the range). A basic whose ingredients were already added for this
+ * range counts as applied; one with no answer is listed as its line. */
+export async function shoppingProjection(db: KinwallDb, from: string, to: string, listId?: string, basics: BasicChoices = {}): Promise<Projection> {
   const meals = await readMeals(db, from, to);
   const [appliedRows, existingRows] = listId ? await db.batch<unknown>([
     db.prepare('SELECT source_ref, fingerprint FROM meal_shopping_sources WHERE list_id = ?').bind(listId),
@@ -141,28 +145,44 @@ export async function shoppingProjection(db: KinwallDb, from: string, to: string
   ]) : [{ results: [] }, { results: [] }];
   const applied = new Map((appliedRows.results as { source_ref: string; fingerprint: string }[]).map((r) => [r.source_ref, r.fingerprint]));
   const existing = existingRows.results as { id: string; title: string; quantity: string | null; done: number }[];
+  const lines = meals.flatMap((meal) => meal.mealKind === 'recipe' && meal.recipeSnapshot
+    ? meal.recipeSnapshot.ingredients.map((ing) => ({ meal, snapshot: meal.recipeSnapshot!, ing, sourceRef: `meal-plan:${meal.id}:ingredient:${ing.id}` })) : []);
+  // Basics as they are now (a snapshot may link one since deleted: then it's an ordinary line).
+  const basicsById = lines.some((l) => l.ing.basicId) ? new Map((await readRecipes(db, { kind: 'basic', archived: true })).map((b) => [b.id, b])) : new Map<string, Recipe>();
+  const expandedRefs = [...applied.keys()].filter((k) => k.includes(':basic:'));
+  const onList = new Set(lines.filter((l) => l.ing.basicId && expandedRefs.some((k) => k.startsWith(`${l.sourceRef}:basic:`))).map((l) => l.ing.basicId!));
+  const expanded = new Set<string>();
   const groups = new Map<string, Projection['items'][number]>();
-  for (const meal of meals) {
-    if (meal.mealKind !== 'recipe' || !meal.recipeSnapshot) continue;
-    const snapshot = meal.recipeSnapshot;
-    for (const ing of snapshot.ingredients) {
-      const normalizedName = normalizeIngredient(ing.name);
-      const unit = canonicalUnit(ing.unit);
-      const scalable = ing.scalable;
-      const sourceRef = `meal-plan:${meal.id}:ingredient:${ing.id}`;
-      // Ambiguous quantities remain individual requirements with their original amount and servings.
-      const key = JSON.stringify([normalizedName, unit.unit, scalable ? null : sourceRef]);
-      const quantity = ing.quantity === null ? null : scalable ? round(ing.quantity * unit.factor * meal.servings / snapshot.defaultServings) : ing.quantity;
-      const source = { sourceRef, mealId: meal.id, date: meal.date, slot: meal.slot, title: meal.title, recipeName: snapshot.name, quantity, unit: scalable ? unit.unit : ing.unit, qualifier: ing.qualifier, preparation: ing.preparation, scalable, servings: meal.servings, defaultServings: snapshot.defaultServings, applied: applied.has(sourceRef), changedSinceApplied: false };
-      source.changedSinceApplied = source.applied && applied.get(sourceRef) !== sourceFingerprint(source, key);
-      let group = groups.get(key);
-      if (!group) {
-        group = { key, name: ing.name, normalizedName, quantity: null, unit: source.unit, qualifier: ing.qualifier, category: ing.category, scalable, sources: [], matches: existing.filter((item) => normalizeIngredient(item.title) === normalizedName).map((item) => ({ ...item, done: !!item.done })), applied: false, partiallyApplied: false, changedSinceApplied: false };
-        groups.set(key, group);
-      }
-      group.sources.push(source);
-      if (quantity !== null) group.quantity = round((group.quantity ?? 0) + quantity);
+  const add = (meal: Meal, ing: Ingredient, sourceRef: string, recipeName: string, servings: number, defaultServings: number, extra: { basic?: Recipe; ofBasic?: string; appliedAnyway?: boolean }) => {
+    const normalizedName = normalizeIngredient(ing.name);
+    const unit = canonicalUnit(ing.unit);
+    const scalable = ing.scalable;
+    // Ambiguous quantities remain individual requirements with their original amount and servings.
+    // A line made from a basic stays its own item until the family answers for it.
+    const key = JSON.stringify([normalizedName, unit.unit, scalable ? null : sourceRef, ...(extra.basic ? [`basic:${extra.basic.id}`] : [])]);
+    const quantity = ing.quantity === null ? null : scalable ? round(ing.quantity * unit.factor * servings / defaultServings) : ing.quantity;
+    const source = { sourceRef, mealId: meal.id, date: meal.date, slot: meal.slot, title: meal.title, recipeName, quantity, unit: scalable ? unit.unit : ing.unit, qualifier: ing.qualifier, preparation: ing.preparation, scalable, servings, defaultServings, applied: !!extra.appliedAnyway || applied.has(sourceRef), changedSinceApplied: false, basicName: extra.ofBasic ?? null };
+    source.changedSinceApplied = applied.has(sourceRef) && applied.get(sourceRef) !== sourceFingerprint(source, key);
+    let group = groups.get(key);
+    if (!group) {
+      group = { key, name: ing.name, normalizedName, quantity: null, unit: source.unit, qualifier: ing.qualifier, category: ing.category, scalable, sources: [], matches: existing.filter((item) => normalizeIngredient(item.title) === normalizedName).map((item) => ({ ...item, done: !!item.done })), applied: false, partiallyApplied: false, changedSinceApplied: false, basicId: extra.basic?.id ?? null, basicName: extra.basic?.name ?? null };
+      groups.set(key, group);
     }
+    group.sources.push(source);
+    if (quantity !== null) group.quantity = round((group.quantity ?? 0) + quantity);
+  };
+  for (const { meal, snapshot, ing, sourceRef } of lines) {
+    const basic = ing.basicId ? basicsById.get(ing.basicId) : undefined;
+    const answer = basic && !onList.has(basic.id) ? basics[basic.id] : undefined;
+    if (answer === 'made') continue;
+    if (answer === 'ingredients') {
+      // One batch for the range, as written (scaling a basic is up to the cook).
+      if (expanded.has(basic!.id)) continue;
+      expanded.add(basic!.id);
+      for (const own of basic!.ingredients) add(meal, own, `${sourceRef}:basic:${own.id}`, snapshot.name, basic!.defaultServings, basic!.defaultServings, { ofBasic: basic!.name });
+      continue;
+    }
+    add(meal, ing, sourceRef, snapshot.name, meal.servings, snapshot.defaultServings, { basic, appliedAnyway: !!basic && onList.has(basic.id) });
   }
   const items = [...groups.values()].map((item) => ({ ...item, applied: item.sources.every((s) => s.applied), partiallyApplied: item.sources.some((s) => s.applied) && item.sources.some((s) => !s.applied), changedSinceApplied: item.sources.some((s) => s.changedSinceApplied) })).sort((a, b) => a.name.localeCompare(b.name) || a.key.localeCompare(b.key));
   return { from, to, listId: listId ?? null, items };
@@ -181,7 +201,8 @@ export async function applyProjection(db: KinwallDb, projection: Projection, lis
     id: crypto.randomUUID(), name: item.name, key: itemKey(item.name), category: place.category ?? item.category, store: place.store, aisle: place.aisle, qualifier: item.qualifier,
     suffix: `${item.unit ? ` ${item.unit}` : ''}${item.qualifier ? ` · ${item.qualifier}` : ''}`,
     sources: item.sources.map((s) => ({ ref: s.sourceRef, quantity: s.quantity, fingerprint: sourceFingerprint(s, item.key),
-      note: includeNotes ? `${s.date} · ${s.slot} · ${s.title}${s.title === s.recipeName ? '' : ` (${s.recipeName})`}${s.preparation ? ` · ${s.preparation}` : ''}${!s.scalable ? ` · check amount for ${s.servings} servings (recipe: ${s.defaultServings})` : ''}` : null,
+      // A basic's own ingredient always says which basic it's for.
+      note: includeNotes ? `${s.date} · ${s.slot} · ${s.title}${s.title === s.recipeName ? '' : ` (${s.recipeName})`}${s.basicName ? ` · for ${s.basicName}` : ''}${s.preparation ? ` · ${s.preparation}` : ''}${!s.scalable && !s.basicName ? ` · check amount for ${s.servings} servings (recipe: ${s.defaultServings})` : ''}` : s.basicName ? `For ${s.basicName}` : null,
     })),
   }));
   // json_each keeps the batch's statement/parameter count small on D1 even for large plans.

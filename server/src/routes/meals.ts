@@ -196,10 +196,10 @@ mealsRoutes.openapi(createRoute({ method: 'get', path: '/api/meals/projection', 
 async function shoppingList(db: KinwallDb, id: string) {
   return db.prepare("SELECT id FROM lists WHERE id = ? AND kind = 'shopping' AND archived = 0").bind(id).first();
 }
-mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/meals/projection/apply', tags: ['Meals'], summary: 'Explicitly add unclaimed ingredient requirements to a shopping list (admin, idempotent); meal-kit ingredients that ship in the box are skipped unless includeKitItems', security: [{ Bearer: [] }], request: { body: body(ProjectionApplySchema) }, responses: { 200: { description: 'applied', content: { 'application/json': { schema: z.object({ added: z.number(), itemIds: z.array(z.string()), projection: ProjectionSchema }) } } }, ...errors } }), async (c) => {
-  const { from, to, listId, omitKeys = [], includeNotes = false, includeKitItems = false } = c.req.valid('json');
+mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/meals/projection/apply', tags: ['Meals'], summary: 'Explicitly add unclaimed ingredient requirements to a shopping list (admin, idempotent); meal-kit ingredients that ship in the box are skipped unless includeKitItems, and basics answers whether lines made from a basic are made already or need its ingredients', security: [{ Bearer: [] }], request: { body: body(ProjectionApplySchema) }, responses: { 200: { description: 'applied', content: { 'application/json': { schema: z.object({ added: z.number(), itemIds: z.array(z.string()), projection: ProjectionSchema }) } } }, ...errors } }), async (c) => {
+  const { from, to, listId, omitKeys = [], includeNotes = false, includeKitItems = false, basics = {} } = c.req.valid('json');
   if (!await shoppingList(c.env.DB, listId)) return c.json({ error: 'active shopping list not found' }, 400);
-  const projection = await shoppingProjection(c.env.DB, from, to, listId);
+  const projection = await shoppingProjection(c.env.DB, from, to, listId, basics);
   const itemIds = await applyProjection(c.env.DB, projection, listId, omitKeys, includeNotes, includeKitItems);
   if (itemIds.length) emit(c, 'list.item.changed', { listId });
   return c.json({ added: itemIds.length, itemIds, projection: await shoppingProjection(c.env.DB, from, to, listId) }, 200);

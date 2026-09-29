@@ -2,7 +2,7 @@
 import { mock } from './mock.ts'
 import { dateKey } from './date.ts'
 import { ingredientAmount, mealWeek, MEAL_SLOTS } from './meal-date.ts'
-import { KIT_QUALIFIER, type Meal, type MealInput, type Recipe, type RecipeInput, type ShoppingProjection } from './meal-types.ts'
+import { KIT_QUALIFIER, type BasicChoices, type Meal, type MealInput, type Recipe, type RecipeInput, type ShoppingProjection } from './meal-types.ts'
 
 // Keep the same Sunday–Saturday menu on the current local week, including across DST changes.
 const dates = mealWeek(dateKey(new Date()), 0)
@@ -152,27 +152,40 @@ const claims = new Map<string, string>()
 const normalize = (value: string) => value.trim().toLowerCase().replace(/\s+/g, ' ')
 const fingerprint = (key: string, quantity: number | null, servings: number, date: string) => JSON.stringify([key, quantity, servings, date])
 
-async function projection(from: string, to: string, listId: string | null): Promise<ShoppingProjection> {
+// The server's rules (server/src/meals.ts shoppingProjection): a line made from a basic is its own item
+// until answered; made skips it, ingredients adds the basic's own ingredients once, as written.
+async function projection(from: string, to: string, listId: string | null, basics: BasicChoices = {}): Promise<ShoppingProjection> {
   const existing = listId ? (await mock.getList(listId)).items : []
   const groups = new Map<string, ShoppingProjection['items'][number]>()
-  for (const meal of meals.filter(m => m.date >= from && m.date <= to && m.mealKind === 'recipe' && m.recipeSnapshot)) {
+  const planned = meals.filter(m => m.date >= from && m.date <= to && m.mealKind === 'recipe' && m.recipeSnapshot)
+  const onList = new Set(planned.flatMap(m => m.recipeSnapshot!.ingredients.filter(i => i.basicId && [...claims.keys()].some(k => k.startsWith(`${listId}:meal-plan:${m.id}:ingredient:${i.id}:basic:`))).map(i => i.basicId!)))
+  const expanded = new Set<string>()
+  for (const meal of planned) {
     const snapshot = meal.recipeSnapshot!
-    for (const ingredient of snapshot.ingredients) {
-      const ref = `meal-plan:${meal.id}:ingredient:${ingredient.id}`
-      const normalizedName = normalize(ingredient.name)
-      const rawUnit = normalize(ingredient.unit ?? '')
-      const aliases: Record<string, string> = { cups: 'cup', lbs: 'lb', pound: 'lb', pounds: 'lb', ounces: 'oz', ounce: 'oz', grams: 'g', gram: 'g', kilograms: 'kg', kilogram: 'kg', teaspoons: 'tsp', teaspoon: 'tsp', tablespoons: 'tbsp', tablespoon: 'tbsp', milliliters: 'ml', liters: 'l' }
-      const dozen = ['dozen', 'dozens', 'doz'].includes(rawUnit)
-      const unit = dozen || ['', 'each', 'count', 'piece', 'pieces'].includes(rawUnit) ? null : aliases[rawUnit] ?? rawUnit
-      const { scalable } = ingredient
-      const key = JSON.stringify([normalizedName, unit, scalable ? null : ref])
-      const quantity = ingredient.quantity === null ? null : scalable ? ingredient.quantity * (dozen ? 12 : 1) * meal.servings / snapshot.defaultServings : ingredient.quantity
-      const applied = claims.has(`${listId}:${ref}`)
-      const source = { sourceRef: ref, mealId: meal.id, date: meal.date, slot: meal.slot, title: meal.title, recipeName: snapshot.name, quantity, unit: scalable ? unit : ingredient.unit, qualifier: ingredient.qualifier, preparation: ingredient.preparation, scalable, servings: meal.servings, defaultServings: snapshot.defaultServings, applied, changedSinceApplied: applied && claims.get(`${listId}:${ref}`) !== fingerprint(key, quantity, meal.servings, meal.date) }
-      const group = groups.get(key) ?? { key, name: ingredient.name, normalizedName, quantity: null, unit: source.unit, qualifier: ingredient.qualifier, category: ingredient.category, scalable, sources: [], matches: existing.filter(i => normalize(i.title) === normalizedName).map(i => ({ id: i.id, title: i.title, quantity: i.quantity, done: i.done })), applied: false, partiallyApplied: false, changedSinceApplied: false }
-      group.sources.push(source)
-      if (quantity !== null) group.quantity = (group.quantity ?? 0) + quantity
-      groups.set(key, group)
+    for (const line of snapshot.ingredients) {
+      const basic = recipes.find(r => r.id === line.basicId && r.kind === 'basic')
+      const answer = basic && !onList.has(basic.id) ? basics[basic.id] : undefined
+      if (answer === 'made' || (answer === 'ingredients' && expanded.has(basic!.id))) continue
+      if (answer === 'ingredients') expanded.add(basic!.id)
+      const own = answer === 'ingredients' ? basic!.ingredients.map(i => ({ ingredient: i, ref: `meal-plan:${meal.id}:ingredient:${line.id}:basic:${i.id}`, servings: basic!.defaultServings, defaultServings: basic!.defaultServings, basicName: basic!.name as string | null }))
+        : [{ ingredient: line, ref: `meal-plan:${meal.id}:ingredient:${line.id}`, servings: meal.servings, defaultServings: snapshot.defaultServings, basicName: null }]
+      for (const { ingredient, ref, servings, defaultServings, basicName } of own) {
+        const linked = !basicName && basic ? basic : undefined
+        const normalizedName = normalize(ingredient.name)
+        const rawUnit = normalize(ingredient.unit ?? '')
+        const aliases: Record<string, string> = { cups: 'cup', lbs: 'lb', pound: 'lb', pounds: 'lb', ounces: 'oz', ounce: 'oz', grams: 'g', gram: 'g', kilograms: 'kg', kilogram: 'kg', teaspoons: 'tsp', teaspoon: 'tsp', tablespoons: 'tbsp', tablespoon: 'tbsp', milliliters: 'ml', liters: 'l' }
+        const dozen = ['dozen', 'dozens', 'doz'].includes(rawUnit)
+        const unit = dozen || ['', 'each', 'count', 'piece', 'pieces'].includes(rawUnit) ? null : aliases[rawUnit] ?? rawUnit
+        const { scalable } = ingredient
+        const key = JSON.stringify([normalizedName, unit, scalable ? null : ref, ...(linked ? [`basic:${linked.id}`] : [])])
+        const quantity = ingredient.quantity === null ? null : scalable ? ingredient.quantity * (dozen ? 12 : 1) * servings / defaultServings : ingredient.quantity
+        const applied = claims.has(`${listId}:${ref}`) || (!!linked && onList.has(linked.id))
+        const source = { sourceRef: ref, mealId: meal.id, date: meal.date, slot: meal.slot, title: meal.title, recipeName: snapshot.name, quantity, unit: scalable ? unit : ingredient.unit, qualifier: ingredient.qualifier, preparation: ingredient.preparation, scalable, servings, defaultServings, applied, changedSinceApplied: claims.has(`${listId}:${ref}`) && claims.get(`${listId}:${ref}`) !== fingerprint(key, quantity, servings, meal.date), basicName }
+        const group = groups.get(key) ?? { key, name: ingredient.name, normalizedName, quantity: null, unit: source.unit, qualifier: ingredient.qualifier, category: ingredient.category, scalable, sources: [], matches: existing.filter(i => normalize(i.title) === normalizedName).map(i => ({ id: i.id, title: i.title, quantity: i.quantity, done: i.done })), applied: false, partiallyApplied: false, changedSinceApplied: false, basicId: linked?.id ?? null, basicName: linked?.name ?? null }
+        group.sources.push(source)
+        if (quantity !== null) group.quantity = (group.quantity ?? 0) + quantity
+        groups.set(key, group)
+      }
     }
   }
   return { from, to, listId, items: [...groups.values()].map(item => ({ ...item, applied: item.sources.every(s => s.applied), partiallyApplied: item.sources.some(s => s.applied) && item.sources.some(s => !s.applied), changedSinceApplied: item.sources.some(s => s.changedSinceApplied) })) }
@@ -211,14 +224,14 @@ export async function mockMealRequest(path: string, options: RequestInit): Promi
   }
   if (id === 'projection') {
     const from = body.from ?? url.searchParams.get('from')!, to = body.to ?? url.searchParams.get('to')!, listId = body.listId ?? url.searchParams.get('listId')
-    const result = await projection(from, to, listId)
+    const result = await projection(from, to, listId, body.basics)
     if (method === 'GET') return result
     const itemIds: string[] = []
     for (const item of result.items.filter(i => !i.applied && !body.omitKeys?.includes(i.key) && (body.includeKitItems || i.qualifier !== KIT_QUALIFIER))) {
       const sources = item.sources.filter(s => !s.applied)
       const quantity = sources.every(s => s.quantity === null) ? null : sources.reduce((sum, s) => sum + (s.quantity ?? 0), 0)
       // Remembered store/category/aisle first (category omitted so memory can fill it), then the recipe's.
-      const created = await mock.addListItems(listId, { title: item.name, quantity: ingredientAmount(quantity, item.unit, item.qualifier) || null, notes: body.includeNotes ? sources.map(s => `${s.date} · ${s.slot} · ${s.title}`).join('\n') : null })
+      const created = await mock.addListItems(listId, { title: item.name, quantity: ingredientAmount(quantity, item.unit, item.qualifier) || null, notes: body.includeNotes ? sources.map(s => `${s.date} · ${s.slot} · ${s.title}${s.basicName ? ` · for ${s.basicName}` : ''}`).join('\n') : sources.find(s => s.basicName) ? `For ${sources.find(s => s.basicName)!.basicName}` : null })
       for (const c of created) { c.category ??= item.category; c.meals = [...new Set(sources.map(s => s.title))] }
       itemIds.push(...created.map(i => i.id))
       for (const source of sources) claims.set(`${listId}:${source.sourceRef}`, fingerprint(item.key, source.quantity, source.servings, source.date))

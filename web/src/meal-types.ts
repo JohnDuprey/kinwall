@@ -101,6 +101,7 @@ export interface ProjectionSource {
   defaultServings: number
   applied: boolean
   changedSinceApplied: boolean
+  basicName?: string | null // one of a basic's own ingredients: that basic
 }
 export interface ProjectionItem {
   key: string
@@ -116,7 +117,11 @@ export interface ProjectionItem {
   applied: boolean
   partiallyApplied: boolean
   changedSinceApplied: boolean
+  basicId?: string | null // made from this basic: ask whether it's made already
+  basicName?: string | null
 }
+/** For lines made from a basic, by basic id: made already (skip it), or add its own ingredients. */
+export type BasicChoices = Record<string, 'made' | 'ingredients'>
 /** Qualifier the server gives imported meal-kit ingredients that ship in the box (server/src/meal-schemas.ts). */
 export const KIT_QUALIFIER = 'in the kit'
 export interface ShoppingProjection { from: string; to: string; listId: string | null; items: ProjectionItem[] }

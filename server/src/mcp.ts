@@ -359,7 +359,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     const result = await call(app, env, auth, 'GET', `/api/meals/projection?${query}`);
     return result.status >= 400 ? errorResult(result.json, 'failed to project groceries') : okResult('Shopping projection', result.json as Record<string, unknown>);
   });
-  tool('apply_meal_projection', { title: 'Apply meal groceries', description: 'Admin: after the user reviews get_meal_projection and chooses a shopping list, add unclaimed ingredients. Repeated or overlapping applications to the same list do not duplicate groceries. Existing items are never rewritten, including changed amounts already applied.', inputSchema: {
+  tool('apply_meal_projection', { title: 'Apply meal groceries', description: 'Admin: after the user reviews get_meal_projection and chooses a shopping list, add unclaimed ingredients. Repeated or overlapping applications to the same list do not duplicate groceries. Existing items are never rewritten, including changed amounts already applied. Items with a basicId are made from a basic (a seasoning blend, sauce or dough): ask once per basic whether it is made already, then pass basics: { [basicId]: "made" } to skip it or "ingredients" to add the basic\'s own ingredients instead (as written, once).', inputSchema: {
     ...ProjectionApplySchema.shape,
     listId: ProjectionApplySchema.shape.listId.optional().describe('Target shopping list id; use this or listName. Takes precedence over listName.'),
     listName: z.string().optional().describe('Target shopping list name, case-insensitive; use this or listId.'),
