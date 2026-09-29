@@ -51,6 +51,8 @@ A host can register **one** Google and **one** Microsoft app for all families:
 
 A household that configures its own app in the UI keeps its per-instance redirect URI.
 
-## Apple push from Workers
+## Apple push
 
-The iPhone app's Live Activities need Apple push (`APNS_*`, see [Configuration](../self-hosting/configuration.md#live-activities-apple-push)), and Apple only accepts HTTP/2, which a Worker's `fetch` doesn't speak to the origin. Pass `APNS_SEND` in `env`: `(req: { host, path, headers, body }) => Promise<{ status, reason? }>`, sending one POST however the host can (a relay on a Node service or a container, say). Kinwall builds the request, including its signed token, and never hands the host anything else. The Node entry point passes its HTTP/2 sender (`server/src/apns-node.ts`).
+The iPhone app's Live Activities use Apple push (`APNS_*`, see [Configuration](../self-hosting/configuration.md#live-activities-apple-push)). Apple only accepts HTTP/2. On Workers the default is a plain `fetch`, which works on a deployed Worker (Cloudflare's edge speaks HTTP/2 to Apple) but not in local `wrangler dev` on macOS. The Node entry point passes its HTTP/2 sender (`server/src/apns-node.ts`), since Node's `fetch` is HTTP/1.1.
+
+`APNS_SEND` in `env` is optional and overrides the default: `(req: { host, path, headers, body }) => Promise<{ status, reason? }>`, sending one POST however the host likes (a relay, say). Kinwall builds the request, including its signed token, and handles Apple's answer the same way either way (410, `BadDeviceToken` or `Unregistered` drops the token).

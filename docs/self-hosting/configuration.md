@@ -41,7 +41,9 @@ The Kinwall app for iPhone shows a person's next leave-by or start-prep time as 
 
 The app registers its tokens with `PUT /api/live-activities/tokens`, for its own device. They're stored encrypted, never shown or logged, and deleted when the device is removed under Settings → Access or signs out. A push goes only to the person's own phone (its owner is them), from their first [transition reminder](../settings/family.md#transition-reminders) until the event starts, and never during quiet hours.
 
-**On Cloudflare Workers** this doesn't work on its own: Apple only accepts HTTP/2, and a Worker's outgoing requests use HTTP/1.1. Docker and Node send over HTTP/2. A host embedding Kinwall on Workers can pass its own sender as `APNS_SEND` (for example a small relay), see [Embedding the server](../contributing/embedding.md).
+Apple only accepts HTTP/2. Docker and Node send with Node's HTTP/2 client. A deployed Cloudflare Worker sends with a plain `fetch`, which reaches Apple over HTTP/2 from Cloudflare's edge; local `wrangler dev` on macOS can't, so test pushes on a deployed Worker. A host can also pass its own sender as `APNS_SEND` (optional; see [Embedding the server](../contributing/embedding.md)).
+
+**Self-hosted servers and the Kinwall app:** only the app's publisher can sign pushes for the official Kinwall app (the `.p8` key belongs to that developer account), so a self-hosted server can't send Live Activity pushes to it with keys of its own. The plan is a push gateway at push.kinwall.family (itself a Worker) that relays them for self-hosted servers. It doesn't exist yet; until then, the app starts leave-by activities itself while it's open.
 
 ### Precedence for provider settings
 

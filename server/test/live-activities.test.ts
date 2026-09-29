@@ -131,3 +131,35 @@ test('live activities: not started again when the app already shows it; a gone t
   assert.ok(logged.length > 0 && logged.every((l) => !l.includes('abab')), logged.join('\n'));
   assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM live_activity_tokens').first<{ n: number }>())!.n, 0, 'Apple said it is gone');
 });
+
+test('apns: without APNS_SEND it POSTs with fetch (Workers): URL, headers, JWT; 410 or BadDeviceToken means gone', async () => {
+  const { sendLiveActivity } = await import('../src/apns.ts');
+  const env = { APNS_KEY_ID: 'KEY123', APNS_TEAM_ID: 'TEAM123', APNS_KEY: (await p8()).pem, APNS_BUNDLE_ID: 'family.kinwall.app', APNS_SANDBOX: '1' };
+  const real = globalThis.fetch;
+  const calls: { url: string; init: RequestInit }[] = [];
+  let answer = () => new Response(null, { status: 200 });
+  globalThis.fetch = (async (url: unknown, init?: RequestInit) => { calls.push({ url: String(url), init: init! }); return answer(); }) as typeof fetch;
+  const errors = console.error;
+  console.error = () => {};
+  try {
+    assert.deepEqual(await sendLiveActivity(env, TOKEN, { event: 'end', timestamp: 1 }), { ok: true, gone: false });
+    const [{ url, init }] = calls;
+    assert.equal(url, `https://api.sandbox.push.apple.com/3/device/${TOKEN}`);
+    assert.equal(init.method, 'POST');
+    const h = init.headers as Record<string, string>;
+    assert.equal(h['apns-topic'], 'family.kinwall.app.push-type.liveactivity');
+    assert.equal(h['apns-push-type'], 'liveactivity');
+    assert.equal(h['apns-priority'], '10');
+    assert.match(h.authorization, /^bearer [\w-]+\.[\w-]+\.[\w-]+$/);
+    assert.deepEqual(JSON.parse(init.body as string), { aps: { event: 'end', timestamp: 1 } });
+    answer = () => Response.json({ reason: 'BadDeviceToken' }, { status: 400 });
+    assert.deepEqual(await sendLiveActivity(env, TOKEN, {}), { ok: false, gone: true });
+    answer = () => new Response(JSON.stringify({ reason: 'Unregistered' }), { status: 410 });
+    assert.deepEqual(await sendLiveActivity(env, TOKEN, {}), { ok: false, gone: true });
+    answer = () => Response.json({ reason: 'TooManyRequests' }, { status: 429 });
+    assert.deepEqual(await sendLiveActivity(env, TOKEN, {}), { ok: false, gone: false }, 'kept: try again later');
+    assert.equal(new URL(calls[1].url).host, 'api.sandbox.push.apple.com');
+    assert.equal((await sendLiveActivity({ ...env, APNS_SANDBOX: undefined }, TOKEN, {})).ok, false);
+    assert.equal(new URL(calls.at(-1)!.url).host, 'api.push.apple.com');
+  } finally { globalThis.fetch = real; console.error = errors; }
+});

@@ -3,9 +3,10 @@
 // nothing and logging nothing, unless APNS_KEY_ID, APNS_TEAM_ID, APNS_KEY and APNS_BUNDLE_ID are all
 // set (docs/self-hosting/configuration.md). Tokens are secrets: never logged, not even in errors.
 //
-// APNs only speaks HTTP/2. Node sends with node:http2 (apns-node.ts, handed over as APNS_SEND by
-// node.ts). Elsewhere the default is fetch(), which on Cloudflare Workers is HTTP/1.1 to the
-// origin, so Apple refuses it: a Workers host passes its own APNS_SEND (a relay) instead.
+// APNs only speaks HTTP/2. Node's fetch doesn't, so node.ts hands over node:http2 as APNS_SEND
+// (apns-node.ts). Everywhere else the default is a plain fetch(): deployed Cloudflare Workers reach
+// Apple over HTTP/2 from the edge (local wrangler dev on macOS doesn't). A host can still pass its
+// own APNS_SEND (a relay, say), which then wins. Both paths handle Apple's answers the same way.
 
 export type ApnsRequest = { host: string; path: string; headers: Record<string, string>; body: string };
 export type ApnsSend = (r: ApnsRequest) => Promise<{ status: number; reason?: string }>;
