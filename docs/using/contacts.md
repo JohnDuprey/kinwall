@@ -6,6 +6,12 @@ An admin can turn off **Contacts** in **Settings → General** (tap **Change** u
 
 Contacts support multiple categories, tags, phone numbers, email addresses, postal addresses, relationships, associated household members, service hours, service areas, an emergency flag, favorites, and wall visibility. Built-in categories include Emergency services, Medical, Veterinary, Childcare, Family, Friends, Neighbors, School, Work, Home services, Transportation, Organizations, and Other. Households can add custom categories.
 
+## Finding a contact
+
+Search by name, place or phone number. Tap the **Filters** button next to the search to sort the list and narrow it by **Show** (all contacts, favorites, emergency or on wall), **Contact kind** and **Category**. Changes apply right away; **Clear filters** puts everything back. While a filter is on, the button shows how many are on and a line under the search lists them; tap that line to change them. Filters reset when you leave the page.
+
+**Add** is at the top of the page. To bring in contacts from a phone or a vCard file, choose **Import contacts…** from the **More…** menu next to it. With no contacts yet, the page shows just **Add a contact** and **Import**.
+
 ## Who can see a contact
 
 Each contact has a **Who can see it** setting (`visibility` in the API). Parent devices (and connected apps with full access) always see every contact.
@@ -23,7 +29,7 @@ A member's own device is one whose owner is that member under [Settings → Acce
 
 ## Emergency contacts
 
-The Contacts page has an Emergency filter and blank templates for Poison Control, Animal Control, emergency services, police non-emergency, fire department, pediatrician, veterinarian, pharmacy, school office, utility company, locksmith, insurance provider, and custom services. Templates never guess country-specific phone numbers. Enter and verify those numbers for your household. Emergency records can include service hours or a 24/7 flag and support `tel:`, `sms:`, email, copy, and map actions.
+The Contacts page has an Emergency filter (under **Filters → Show**) and blank templates for Poison Control, Animal Control, emergency services, police non-emergency, fire department, pediatrician, veterinarian, pharmacy, school office, utility company, locksmith, insurance provider, and custom services. Templates never guess country-specific phone numbers. Enter and verify those numbers for your household. Emergency records can include service hours or a 24/7 flag and support `tel:`, `sms:`, email, copy, and map actions.
 
 ## Importing vCards
 

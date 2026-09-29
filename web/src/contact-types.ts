@@ -58,3 +58,18 @@ export function reviewCandidates(entries: ImportPreviewEntry[]): ImportCandidate
   return entries.map(({ contact, duplicateIds }, index) => ({ key: `candidate-${index}`, input: contact, matchId: duplicateIds[0] ?? null,
     status: duplicateIds.length ? 'match' : 'new', decision: duplicateIds.length ? 'skip' : 'add' }))
 }
+
+/** The Contacts page's filters. Only this page's state: nothing is saved. */
+export interface ContactFilters { show: 'all' | 'favorites' | 'emergency' | 'wall'; kind: 'all' | NonNullable<Contact['kind']>; category: string; sort: 'name' | 'recent' | 'organization' }
+export const DEFAULT_CONTACT_FILTERS: ContactFilters = { show: 'all', kind: 'all', category: 'all', sort: 'name' }
+export const CONTACT_SHOW_LABELS: Record<ContactFilters['show'], string> = { all: 'All contacts', favorites: 'Favorites', emergency: 'Emergency', wall: 'On wall' }
+export const CONTACT_KIND_LABELS: Record<ContactFilters['kind'], string> = { all: 'All kinds', person: 'People', service: 'Services', organization: 'Organizations', place: 'Places' }
+export const CONTACT_SORT_LABELS: Record<ContactFilters['sort'], string> = { name: 'Name A–Z', recent: 'Recently updated', organization: 'Organization' }
+/** How many filters narrow the list (the sort doesn't). */
+export const activeContactFilters = (f: ContactFilters) => [f.show !== 'all', f.kind !== 'all', f.category !== 'all'].filter(Boolean).length
+/** One line under the search, e.g. "Favorites · Medical · Name A–Z"; empty while nothing differs from the defaults. */
+export function contactFilterSummary(f: ContactFilters, categoryName: (id: string) => string | undefined): string {
+  if (!activeContactFilters(f) && f.sort === DEFAULT_CONTACT_FILTERS.sort) return ''
+  return [f.show !== 'all' && CONTACT_SHOW_LABELS[f.show], f.kind !== 'all' && CONTACT_KIND_LABELS[f.kind],
+    f.category !== 'all' && (categoryName(f.category) ?? 'Category'), CONTACT_SORT_LABELS[f.sort]].filter(Boolean).join(' · ')
+}

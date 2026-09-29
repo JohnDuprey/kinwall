@@ -3,16 +3,14 @@ import { useApp } from './AppContext.tsx'
 import { api, ApiError } from './api.ts'
 import { announce } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
-import { PlusIcon } from './icons.tsx'
+import { FilterIcon, PlusIcon } from './icons.tsx'
 import Sheet from './Sheet.tsx'
 import type { Member } from './types.ts'
-import { emptyContact, formatAddress, reviewCandidates,
-  type Contact, type ContactAddress, type ContactInput, type ContactMethod, type ImportCandidate, type ImportDecision } from './contact-types.ts'
+import { activeContactFilters, contactFilterSummary, CONTACT_KIND_LABELS, CONTACT_SHOW_LABELS, CONTACT_SORT_LABELS, DEFAULT_CONTACT_FILTERS, emptyContact, formatAddress, reviewCandidates,
+  type Contact, type ContactFilters, type ContactAddress, type ContactInput, type ContactMethod, type ImportCandidate, type ImportDecision } from './contact-types.ts'
 import type { ContactCategory } from './contact-types.ts'
 import './contacts.css'
 
-type Filter = 'all' | 'favorites' | 'emergency' | 'wall'
-type Sort = 'name' | 'recent' | 'organization'
 type PickerContact = { name?: string[]; tel?: string[]; email?: string[]; address?: { toString(): string }[] }
 type ContactPicker = { select: (properties: string[], options: { multiple: boolean }) => Promise<PickerContact[]>; getProperties?: () => Promise<string[]> }
 
@@ -269,21 +267,32 @@ function ImportSheet({ contacts, categories, members, onClose, onImported }: { c
   </Sheet>
 }
 
+function FiltersSheet({ filters, categories, onChange, onClose }: { filters: ContactFilters; categories: ContactCategory[]; onChange: (f: ContactFilters) => void; onClose: () => void }) {
+  const id = useId()
+  const set = <K extends keyof ContactFilters>(key: K, value: ContactFilters[K]) => onChange({ ...filters, [key]: value })
+  const options = (labels: Record<string, string>) => Object.entries(labels).map(([value, label]) => <option key={value} value={value}>{label}</option>)
+  return <Sheet title="Filters" onClose={onClose} actions={<>
+    <button className="btn btn-secondary" onClick={() => onChange(DEFAULT_CONTACT_FILTERS)} disabled={contactFilterSummary(filters, () => '') === ''}>Clear filters</button>
+    <button className="btn btn-primary" onClick={onClose}>Done</button>
+  </>}>
+    <div className="field"><label htmlFor={`${id}-sort`}>Sort</label><select id={`${id}-sort`} value={filters.sort} onChange={e => set('sort', e.target.value as ContactFilters['sort'])}>{options(CONTACT_SORT_LABELS)}</select></div>
+    <div className="field"><label htmlFor={`${id}-show`}>Show</label><select id={`${id}-show`} value={filters.show} onChange={e => set('show', e.target.value as ContactFilters['show'])}>{options(CONTACT_SHOW_LABELS)}</select></div>
+    <div className="field"><label htmlFor={`${id}-kind`}>Contact kind</label><select id={`${id}-kind`} value={filters.kind} onChange={e => set('kind', e.target.value as ContactFilters['kind'])}>{options(CONTACT_KIND_LABELS)}</select></div>
+    <div className="field"><label htmlFor={`${id}-category`}>Category</label><select id={`${id}-category`} value={filters.category} onChange={e => set('category', e.target.value)}><option value="all">All categories</option>{categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}</select></div>
+  </Sheet>
+}
+
 export default function Contacts() {
   const { parentDevice, refreshTick, toast, members } = useApp()
   const dialog = useDialog()
-  const id = useId()
   const [contacts, setContacts] = useState<Contact[]>([])
   const [categories, setCategories] = useState<ContactCategory[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [query, setQuery] = useState('')
-  const [filter, setFilter] = useState<Filter>('all')
-  const [kindFilter, setKindFilter] = useState<'all' | NonNullable<Contact['kind']>>('all')
-  const [categoryFilter, setCategoryFilter] = useState('all')
-  const [sort, setSort] = useState<Sort>('name')
+  const [filters, setFilters] = useState<ContactFilters>(DEFAULT_CONTACT_FILTERS)
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [sheet, setSheet] = useState<'detail' | 'edit' | 'create' | 'import' | null>(null)
+  const [sheet, setSheet] = useState<'detail' | 'edit' | 'create' | 'import' | 'filters' | null>(null)
   const load = async () => {
     try { setContacts(await api.getContacts()); setLoadError('') }
     catch (error) { setLoadError(errorText(error, 'Could not load contacts.')) }
@@ -293,14 +302,15 @@ export default function Contacts() {
   const selected = contacts.find(c => c.id === selectedId) ?? null
   const visible = useMemo(() => {
     const q = query.trim().toLocaleLowerCase()
-    return contacts.filter(c => (filter === 'all' || (filter === 'favorites' && c.favorite) || (filter === 'emergency' && c.emergency) || (filter === 'wall' && c.wallVisible)) &&
-      (kindFilter === 'all' || c.kind === kindFilter) &&
-      (categoryFilter === 'all' || c.categoryIds?.includes(categoryFilter)) &&
+    const { show, kind, category, sort } = filters
+    return contacts.filter(c => (show === 'all' || (show === 'favorites' && c.favorite) || (show === 'emergency' && c.emergency) || (show === 'wall' && c.wallVisible)) &&
+      (kind === 'all' || c.kind === kind) &&
+      (category === 'all' || c.categoryIds?.includes(category)) &&
       (!q || [c.name, c.organization, c.relationship, ...c.phones.map(p => p.value), ...(parentDevice ? c.emails.map(e => e.value) : [])]
         .some(value => value?.toLocaleLowerCase().includes(q))))
       .sort((a, b) => sort === 'recent' ? b.updatedAt.localeCompare(a.updatedAt) : sort === 'organization' ?
         (a.organization || a.name).localeCompare(b.organization || b.name) : a.name.localeCompare(b.name))
-  }, [contacts, parentDevice, query, filter, kindFilter, categoryFilter, sort])
+  }, [contacts, parentDevice, query, filters])
   const saved = (contact: Contact) => {
     setContacts(all => { const index = all.findIndex(c => c.id === contact.id); return index < 0 ? [...all, contact] : all.map(c => c.id === contact.id ? contact : c) })
     setSelectedId(contact.id); setSheet('detail'); announce(`${contact.name} saved`)
@@ -313,24 +323,42 @@ export default function Contacts() {
   }
   const count = contacts.length
   const categoryNames = new Map(categories.map(category => [category.id, category.name]))
+  const activeFilters = activeContactFilters(filters)
+  const summary = contactFilterSummary(filters, id => categoryNames.get(id))
+  const addContact = () => { setSelectedId(null); setSheet('create') }
   return <div className="contacts-page scroll-y">
     <div className="contacts-inner">
       <div className="contacts-heading"><div><h2>Contacts</h2><p>{count} household contact{count === 1 ? '' : 's'}{!parentDevice && ' available on this display'}</p></div>
-        {parentDevice && <div className="contacts-heading-actions"><button className="btn btn-secondary" onClick={() => setSheet('import')}>Import</button><button className="btn btn-primary" onClick={() => { setSelectedId(null); setSheet('create') }}><PlusIcon width={18} height={18} /> Add</button></div>}</div>
-      <div className="contacts-tools"><div className="field"><label htmlFor={`${id}-search`}>Search contacts</label><input id={`${id}-search`} type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Name, place, phone…" /></div>
-        <div className="field"><label htmlFor={`${id}-sort`}>Sort</label><select id={`${id}-sort`} value={sort} onChange={e => setSort(e.target.value as Sort)}><option value="name">Name A–Z</option><option value="recent">Recently updated</option><option value="organization">Organization</option></select></div></div>
-      <div className="chip-row contacts-filters" role="group" aria-label="Filter contacts">{([['all', 'All'], ['favorites', 'Favorites'], ['emergency', 'Emergency'], ['wall', 'On wall']] as [Filter, string][]).map(([key, label]) =>
-        <button key={key} className={`chip ${filter === key ? 'active' : ''}`} aria-pressed={filter === key} onClick={() => setFilter(key)}>{label}</button>)}</div>
-      <div className="contacts-kind-filter field"><label htmlFor={`${id}-kind-filter`}>Contact kind</label><select id={`${id}-kind-filter`} value={kindFilter} onChange={e => setKindFilter(e.target.value as typeof kindFilter)}><option value="all">All kinds</option><option value="person">People</option><option value="service">Services</option><option value="organization">Organizations</option><option value="place">Places</option></select></div>
-      <div className="contacts-kind-filter field"><label htmlFor={`${id}-category-filter`}>Category</label><select id={`${id}-category-filter`} value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}><option value="all">All categories</option>{categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}</select></div>
+        {parentDevice && <div className="contacts-heading-actions">
+          <select className="settings-select actions-select" aria-label="More contact actions" value="" onChange={e => { if (e.target.value === 'import') setSheet('import') }}>
+            <option value="" disabled hidden>More…</option>
+            <option value="import">Import contacts…</option>
+          </select>
+          <button className="btn btn-primary" onClick={addContact}><PlusIcon width={18} height={18} /> Add</button></div>}</div>
+      {count > 0 && <>
+        <div className="contacts-tools">
+          <input type="search" aria-label="Search contacts" value={query} onChange={e => setQuery(e.target.value)} placeholder="Search contacts" />
+          <button className={`icon-btn filter-btn contacts-filter-btn ${activeFilters ? 'active' : ''}`} onClick={() => setSheet('filters')}
+            aria-label={activeFilters ? `Filters, ${activeFilters} on` : 'Filters'}>
+            <FilterIcon width={20} height={20} />
+            {activeFilters > 0 && <span className="filter-badge" aria-hidden="true">{activeFilters}</span>}
+          </button>
+        </div>
+        {summary && <button className="contacts-filter-summary" onClick={() => setSheet('filters')} aria-label={`Filters: ${summary}. Change filters`}>{summary}</button>}
+      </>}
       {loadError && <div className="empty-card" role="alert"><p>{loadError}</p><button className="btn btn-secondary" onClick={() => { setLoading(true); void load() }}>Try again</button></div>}
       {!loadError && loading && <div className="state-card">Loading contacts…</div>}
-      {!loadError && !loading && visible.length === 0 && <div className="empty-card"><span className="emoji" aria-hidden="true">☎️</span><p>{count === 0 ? 'Your household directory is empty.' : 'No contacts match these filters.'}</p>{count === 0 && parentDevice && <button className="btn btn-primary" onClick={() => setSheet('create')}>Add a contact</button>}</div>}
+      {!loadError && !loading && count === 0 && <div className="empty-card"><span className="emoji" aria-hidden="true">☎️</span>
+        <p>{parentDevice ? 'No contacts yet. Add the people and places your family calls: school, doctor, sitter, neighbors.' : 'No contacts here yet.'}</p>
+        {parentDevice && <div className="contacts-empty-actions"><button className="btn btn-secondary" onClick={() => setSheet('import')}>Import</button><button className="btn btn-primary" onClick={addContact}><PlusIcon width={18} height={18} /> Add a contact</button></div>}</div>}
+      {!loadError && !loading && count > 0 && visible.length === 0 && <div className="empty-card"><span className="emoji" aria-hidden="true">☎️</span><p>No contacts match{activeFilters ? ' these filters' : ''}.</p>
+        {activeFilters > 0 && <button className="btn btn-secondary" onClick={() => setFilters(DEFAULT_CONTACT_FILTERS)}>Clear filters</button>}</div>}
       {!loadError && visible.length > 0 && <div className="contacts-grid" aria-live="polite">{visible.map(c => <ContactCard key={c.id} contact={c} categoryNames={categoryNames} onOpen={() => { setSelectedId(c.id); setSheet('detail') }} />)}</div>}
     </div>
     {sheet === 'detail' && selected && <ContactDetail contact={selected} categories={categories} members={members} canEdit={parentDevice} onClose={() => setSheet(null)} onEdit={() => setSheet('edit')} onDelete={remove} />}
     {sheet === 'edit' && selected && parentDevice && <ContactForm key={selected.id} initial={selected} categories={categories} members={members} onClose={() => setSheet('detail')} onSaved={saved} />}
     {sheet === 'create' && parentDevice && <ContactForm initial={null} categories={categories} members={members} onClose={() => setSheet(null)} onSaved={saved} />}
+    {sheet === 'filters' && <FiltersSheet filters={filters} categories={categories} onChange={setFilters} onClose={() => setSheet(null)} />}
     {sheet === 'import' && parentDevice && <ImportSheet contacts={contacts} categories={categories} members={members} onClose={() => setSheet(null)} onImported={() => { void load() }} />}
   </div>
 }
