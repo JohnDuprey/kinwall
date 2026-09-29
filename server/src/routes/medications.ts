@@ -122,7 +122,7 @@ type Caller = { kind: 'parent' } | { kind: 'wall' } | { kind: 'own'; memberId: s
 const APPS = { error: "Medications are private to the family's own devices. A parent can allow connected apps to see them in Settings → Connected apps." };
 const PARENTS = { error: "Medicines are added and changed from a parent's device." };
 const PRIVATE = { error: "Medications are private: they show on that person's own device and parents' devices." };
-const OFF = { error: 'Medications are turned off (Settings → Family → Medications)' };
+const OFF = { error: 'Medications are turned off (Settings → General → Features, under Health)' };
 
 /** Who's asking (see the top of the file), or why they may not. */
 async function caller(c: C, settings: { aiHealthAccess: boolean }): Promise<Caller | { error: string }> {

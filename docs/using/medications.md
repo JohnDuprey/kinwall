@@ -4,11 +4,11 @@ Medication reminders help the family remember each person's medicines: a reminde
 
 ## Turn it on
 
-On a parent's device: **Settings → Family → Medications → Medication reminders**. The first time, Kinwall says what it keeps and who sees it, and you tap **Turn on**. Turning it off hides everything again; what you saved is kept. See [Settings → Family](../settings/family.md#medications).
+Medication reminders are part of the Health tracker. On a parent's device: **Settings → General → Features → Change**, then under **Health**, turn on **Medication reminders**. The first time, Kinwall says what it keeps and who sees it, and you tap **Turn on**. Turning it off, or turning off the Health tracker, hides everything again and stops reminders; what you saved is kept. See [Features](../settings/general.md#features).
 
 ## Add a medicine
 
-Under each person, tap **+ Add medicine**:
+On a parent's device, open **Trackers → Health**. The **💊 Medicines** section lists each person (the header's person filter narrows it); under a person, tap **+ Add medicine**. The Health tab shows while medication reminders are on, even if the Health tracker itself is off.
 
 * **Medicine**: a name the family knows it by, like "Allergy medicine". There's no place for what it's for, and no need for one.
 * **Dose** (optional): free text, like "1 tablet" or "5 mg".
@@ -27,7 +27,7 @@ At each dose time, a **💊 Take now** card appears at the top of the [Board](ca
 
 The card stays until the dose is marked, or for 3 hours after its time. After that the dose counts as **Not marked**.
 
-On a shared wall screen the card says **Meds** instead of the medicine's name, unless the family turns on **Show medicine names on shared screens**. Anyone at the wall can mark a dose, since many families give medicines in the kitchen.
+On a shared wall screen the card says **Meds** instead of the medicine's name, unless the family turns on **Show medicine names on shared screens** (in **Trackers → Health → Medicines**). Anyone at the wall can mark a dose, since many families give medicines in the kitchen.
 
 ## Reminders
 
@@ -44,7 +44,7 @@ Each reminder is sent once per dose (and once per snooze), even if the server re
 
 ## A person's medicines page
 
-Open it with **Open medicines** on their [profile](profiles.md), or **History** next to their name in **Settings → Family → Medications**. It shows:
+Open it with **Open medicines** on their [profile](profiles.md), or **History** next to their name in **Trackers → Health**. It shows:
 
 * **Take now**, when something is due;
 * **Today**: each dose with ✅ Taken, ⏭️ Skipped, 💊 Due now, ⭕ Not marked or 🕒 Later;

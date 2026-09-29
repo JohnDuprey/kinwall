@@ -36,6 +36,8 @@ Doctor, dentist and other visits: the date and time, the type (checkup, dentist,
 
 **Add to calendar** on an upcoming visit adds a normal calendar event, like "🦷 Dentist · Maya", at the visit's time with the office as its location. Only the type and the person go on the calendar; the reason, notes and measurements stay in Trackers.
 
+When [medication reminders](medications.md) are on, the Health tab also has **💊 Medicines**: each person's medicines, where parents add and change them, **Show medicine names on shared screens**, and **More… → Delete all medication data**.
+
 ### Health stays off the wall
 
 Health stays on phones and computers, never on the wall screen:

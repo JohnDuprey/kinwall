@@ -1,6 +1,8 @@
-// Settings → Family → Medications (parent devices): turn medication reminders on (with a one-time
-// notice about what's kept and who sees it), names on shared screens, each person's medicines, and
-// "Delete all medication data" behind More….
+// Medication reminders, part of the Health tracker (off unless both are on, server-side too):
+// - MedicationsToggle: the switch under Health in Settings → Features, with a one-time notice about
+//   what's kept and who sees it;
+// - MedicineList: Trackers → Health (parent devices only): each person's medicines, names on shared
+//   screens, and "Delete all medication data" behind More….
 import { useEffect, useState } from 'react'
 import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
@@ -12,47 +14,51 @@ import type { Medication, Member } from './types.ts'
 
 const NOTICE = 'Kinwall keeps each medicine’s name, dose and times, and when a dose was marked taken or skipped. It’s encrypted on the server. Parent devices see everyone’s; each person’s own device sees theirs. Wall screens show “Meds” when a dose is due, without names. Reminders say “Time for Leo’s medicine” unless a device turns names on. Nothing goes to connected apps, webhooks or Home Assistant.'
 
-export default function MedicationSettings() {
-  const { settings, members, reloadCore, toast } = useApp()
-  const dialog = useDialog()
-  const on = settings.medications
-  const [meds, setMeds] = useState<Medication[]>([])
-  const [editing, setEditing] = useState<{ med: Medication | null; member: Member } | null>(null)
-  const load = () => { if (on) api.getMedications().then(setMeds).catch(() => setMeds([])) }
-  useEffect(load, [on]) // eslint-disable-line react-hooks/exhaustive-deps
-  const save = async (patch: { medications?: boolean; medicationNamesOnWalls?: boolean }) => {
+const useSaveSettings = () => {
+  const { reloadCore, toast } = useApp()
+  return async (patch: { medications?: boolean; medicationNamesOnWalls?: boolean }) => {
     try { await api.updateSettings(patch); reloadCore() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save settings', true) }
   }
+}
+
+export function MedicationsToggle() {
+  const { settings } = useApp()
+  const dialog = useDialog()
+  const save = useSaveSettings()
+  const on = settings.medications
   const toggle = async () => {
     if (!on && !await dialog.confirm({ title: 'Turn on medication reminders?', body: NOTICE, confirmLabel: 'Turn on' })) return
     save({ medications: !on })
   }
+  return (
+    <div className="toggle-row features-grouped">
+      <div>
+        <label id="meds-on-label"><span className="sr-only">Trackers: </span>Medication reminders</label>
+        <div className="settings-row-sub" id="meds-on-sub">Medicines in the Health tracker, a reminder at each dose and a Take now card on the Board.</div>
+      </div>
+      <button className={`switch ${on ? 'on' : ''}`} role="switch" aria-checked={on} aria-labelledby="meds-on-label" aria-describedby="meds-on-sub" onClick={toggle}><span className="knob" /></button>
+    </div>
+  )
+}
+
+/** Each person's medicines with Add, edit and History (Trackers → Health, parent devices). */
+export function MedicineList({ memberId }: { memberId?: string | null }) {
+  const { members, settings, toast } = useApp()
+  const dialog = useDialog()
+  const save = useSaveSettings()
+  const [meds, setMeds] = useState<Medication[]>([])
+  const [editing, setEditing] = useState<{ med: Medication | null; member: Member } | null>(null)
+  const load = () => { api.getMedications().then(setMeds).catch(() => setMeds([])) }
+  useEffect(load, [])
   const more = async (action: string) => {
     if (action !== 'delete-all') return
     if (!await dialog.confirm({ title: 'Delete all medication data?', body: 'Every medicine and its taken and skipped log, for everyone. This can’t be undone.', confirmLabel: 'Delete all', danger: true })) return
     try { await api.deleteAllMedications(); setMeds([]); toast('Medication data deleted') } catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't delete that", true) }
   }
-
   return (
-    <section className="settings-section" id="medications" aria-labelledby="medications-title">
-      <h2 className="settings-section-title" id="medications-title" tabIndex={-1}>Medications</h2>
-      <div className="toggle-row">
-        <div>
-          <label id="meds-on-label">Medication reminders</label>
-          <div className="settings-row-sub" id="meds-on-sub">{on ? 'A reminder at each dose time and a Take now card on the Board. Only parent devices add or change medicines.' : 'Off: nothing about medicines shows anywhere. Anything saved is kept.'}</div>
-        </div>
-        <button className={`switch ${on ? 'on' : ''}`} role="switch" aria-checked={on} aria-labelledby="meds-on-label" aria-describedby="meds-on-sub" onClick={toggle}><span className="knob" /></button>
-      </div>
-      {on && <>
-        <div className="toggle-row">
-          <div>
-            <label id="meds-names-label">Show medicine names on shared screens</label>
-            <div className="settings-row-sub" id="meds-names-sub">Off: wall screens say “Meds”. Parent devices and each person’s own device always show names.</div>
-          </div>
-          <button className={`switch ${settings.medicationNamesOnWalls ? 'on' : ''}`} role="switch" aria-checked={settings.medicationNamesOnWalls} aria-labelledby="meds-names-label" aria-describedby="meds-names-sub"
-            onClick={() => save({ medicationNamesOnWalls: !settings.medicationNamesOnWalls })}><span className="knob" /></button>
-        </div>
-        {members.map(m => {
+    <section className="meds-list" aria-labelledby="meds-list-title">
+      <h3 className="trk-heading" id="meds-list-title">💊 Medicines</h3>
+      {members.filter(m => !memberId || m.id === memberId).map(m => {
           const mine = meds.filter(x => x.memberId === m.id)
           return (
             <div key={m.id} className="meds-person">
@@ -73,9 +79,16 @@ export default function MedicationSettings() {
             </div>
           )
         })}
-      </>}
+      <div className="toggle-row">
+        <div>
+          <label id="meds-names-label">Show medicine names on shared screens</label>
+          <div className="settings-row-sub" id="meds-names-sub">Off: wall screens say “Meds”. Parent devices and each person’s own device always show names.</div>
+        </div>
+        <button className={`switch ${settings.medicationNamesOnWalls ? 'on' : ''}`} role="switch" aria-checked={settings.medicationNamesOnWalls} aria-labelledby="meds-names-label" aria-describedby="meds-names-sub"
+          onClick={() => save({ medicationNamesOnWalls: !settings.medicationNamesOnWalls })}><span className="knob" /></button>
+      </div>
       <div className="settings-row">
-        <div className="settings-row-sub">{on ? 'Reminders follow quiet hours: during them, the card and the bell still show.' : ''}</div>
+        <div className="settings-row-sub">Reminders come through during quiet hours too.</div>
         <select className="settings-select" aria-label="More medication actions" value="" onChange={e => more(e.target.value)}>
           <option value="">More…</option>
           <option value="delete-all">Delete all medication data</option>

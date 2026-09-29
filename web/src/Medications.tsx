@@ -45,7 +45,7 @@ export default function Medications({ memberId }: { memberId?: string }) {
       <TakeNow memberId={member.id} className="meds-page-card" />
       {error && <p className="snap-empty" role="alert">{error}</p>}
       {!shown && !error && <p className="snap-empty">Loading…</p>}
-      {shown && shown.medications.length === 0 && <p className="snap-empty">No medicines for {member.name}.{parentDevice ? ' Add one in Settings → Family → Medications.' : ''}</p>}
+      {shown && shown.medications.length === 0 && <p className="snap-empty">No medicines for {member.name}.{parentDevice ? ' Add one in Trackers → Health.' : ''}</p>}
       {shown && today && shown.medications.length > 0 && <>
         <section className="board-card meds-page-card" aria-labelledby="meds-today">
           <h3 id="meds-today" className="snap-heading">Today</h3>

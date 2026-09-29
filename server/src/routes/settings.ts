@@ -67,7 +67,8 @@ export async function readSettings(db: KinwallDb) {
     features: parseFeatures(map.get('features')),
     mealTimes: parseMealTimes(map.get('mealTimes')),
     aiHealthAccess: map.get('aiHealthAccess') === 'true', // off until a parent turns it on, for every family
-    medications: map.get('medications') === 'true', // Medication reminders: off until a parent turns it on (routes/medications.ts)
+    // Medication reminders (routes/medications.ts): off until a parent turns it on, and part of the Health tracker.
+    medications: map.get('medications') === 'true' && parseFeatures(map.get('features')).trackersHealth,
     medicationNamesOnWalls: map.get('medicationNamesOnWalls') === 'true', // shared screens say "Meds" until the family turns names on
   };
 }

@@ -123,6 +123,20 @@ test('medications: off by default; every route is 404 until a parent turns it on
   assert.equal((await req('/api/settings', 'PATCH', { medicationNamesOnWalls: true }, ADMIN, APP)).status, 403);
 });
 
+test('medications: part of the Health tracker; off (routes, reminders) while the Health tracker is off, data kept', async (t) => {
+  t.after(() => mock.timers.reset());
+  const s = await setup({ now: at('06:00') });
+  await s.add(s.leo.id);
+  const features = (await s.req('/api/settings')).json.features;
+  await s.req('/api/settings', 'PATCH', { features: { ...features, trackersHealth: false } });
+  assert.equal((await s.req('/api/settings')).json.medications, false, 'reads as off');
+  assert.equal((await s.req('/api/medications')).status, 404);
+  const tick = await devices(s, [['leo-tablet', await s.key(s.leo.id)]]);
+  assert.deepEqual(await tick(at('08:02')), {}, 'no reminders');
+  await s.req('/api/settings', 'PATCH', { features: { ...features, trackersHealth: true } });
+  assert.equal((await s.req('/api/medications')).json.length, 1, 'back with the Health tracker');
+});
+
 test('medications: parents add, edit and delete; name, dose, times and weekdays are checked', async (t) => {
   t.after(() => mock.timers.reset());
   const { req, leo, sam, add, mark, raw } = await setup({ now: at('08:05') });

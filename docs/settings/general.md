@@ -55,14 +55,15 @@ API: `tidbits` `{ sources, factCategories, tipCategories, onThisDay, birthsAfter
 | **Meals** | No **Meals** tab and no **Today's meals** card on the Board, no meals in a member's day, and the daily summary leaves meals out. |
 | **Trackers: Reading** | No **Reading** in Trackers and no reading line in a member's day. |
 | **Trackers: Memories** | No **Memories** in Trackers. |
-| **Trackers: Health** | No **Health** in Trackers. (Health is never on a wall display anyway.) |
+| **Trackers: Health** | No **Health** in Trackers, and no [medication reminders](../using/medications.md) (they're part of it). (Health is never on a wall display anyway.) |
+| **Medication reminders** (under Health, off by default) | Medicines in Trackers → Health, their reminders and Take now cards. Turning it on first shows what Kinwall keeps and who sees it. Off hides them everywhere; what's saved is kept. |
 | **Family messages** | No **Send a message** in the bell or in Settings → Access → Notifications. Messages already sent stay in the bell. `POST /api/notify` (and the MCP tool `send_notification`) answers 403. |
 
 When every activity is off (Paint, Photos, and the Sticker book, which is off when Chores or the sticker shop is), the **Activities** tab goes too, and the **Trackers** tab goes when Reading, Memories and Health are all off. A link to a screen that's off, such as a bookmark or an old notification, opens the calendar instead. The Board rearranges its cards so a hidden one leaves no gap.
 
 Apart from sending messages, the API keeps answering for features that are off (like the leaderboard switch), so nothing is lost and integrations keep working.
 
-API: `features` `{ chores, lists, paint, photos, notes, messages, trackersReading, trackersMemories, trackersHealth, meals }` (all booleans) in `GET` / `PATCH /api/settings`. A `PATCH` sends the whole object (older clients may leave out the tracker and meals switches; they then read as on). Display keys can't change it (403).
+API: `features` `{ chores, lists, paint, photos, notes, messages, trackersReading, trackersMemories, trackersHealth, meals }` (all booleans) in `GET` / `PATCH /api/settings`. Medication reminders are `medications` and `medicationNamesOnWalls` in the same settings; `medications` reads `false` while `trackersHealth` is off, and a connected app gets 403 changing either. A `PATCH` sends the whole object (older clients may leave out the tracker and meals switches; they then read as on). Display keys can't change it (403).
 
 ### Appearance
 

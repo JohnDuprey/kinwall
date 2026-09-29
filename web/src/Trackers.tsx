@@ -15,6 +15,7 @@ import { preparePhoto, PhotoFormatError } from './photos.ts'
 import type { HealthData, HealthType, Member, MemoryData, Photo, ReadingData, ReadingFormat, ReadingStatus, TrackerEntry, TrackerInput, TrackerKind } from './types.ts'
 import { hoursMinutes, isAudiobook, left, logReachesEnd, readingPercent, shelfLine, shelfTotals, splitMinutes, toMinutes } from './reading.ts'
 import { trackerKinds } from './types.ts'
+import { MedicineList } from './MedicationSettings.tsx'
 
 // ponytail: TABS, SUB_TO_KIND and trackerKinds() (types.ts, for App's nav) list the kinds in the same order.
 const TABS: { key: TrackerKind; label: string; emoji: string }[] = [
@@ -81,7 +82,7 @@ export default function Trackers({ sub }: { sub?: string }) {
         {entries === null ? <div className="state-card">Loading…</div>
           : kind === 'reading' ? <Reading entries={shown} people={people} onEdit={setEditing} onSave={save} />
           : kind === 'memory' ? <Memories entries={shown} today={today} onEdit={setEditing} onAdd={() => setEditing({ new: true, date: today })} />
-          : <Health entries={shown} today={today} onEdit={setEditing} onSave={save} />}
+          : <Health entries={shown} today={today} onEdit={setEditing} onSave={save} meds={settings.medications} memberId={selectedMemberId} />}
       </div>
       <button className="fab" onClick={() => setEditing({ new: true })} aria-label={kind === 'reading' ? 'Add a book' : kind === 'memory' ? 'Add a memory' : 'Add a health visit'}><PlusIcon /></button>
       {editing && (
@@ -270,7 +271,8 @@ function measureText(d: HealthData) {
   return [d.height && `${d.height.value} ${d.height.unit}`, d.weight && `${d.weight.value} ${d.weight.unit}`, d.temperature && `${d.temperature.value} °${d.temperature.unit}`].filter(Boolean).join(' · ')
 }
 
-function Health({ entries, today, onEdit, onSave }: { entries: TrackerEntry[]; today: string; onEdit: (e: TrackerEntry) => void; onSave: (e: TrackerEntry, body: TrackerInput, msg?: string) => void }) {
+// Health visits and, when medication reminders are on, each person's medicines (parent devices only).
+function Health({ entries, today, onEdit, onSave, meds, memberId }: { entries: TrackerEntry[]; today: string; onEdit: (e: TrackerEntry) => void; onSave: (e: TrackerEntry, body: TrackerInput, msg?: string) => void; meds: boolean; memberId: string | null }) {
   const who = useWho()
   const { toast } = useApp()
   const upcoming = entries.filter(e => e.date >= today).sort((a, b) => a.date.localeCompare(b.date))
@@ -306,6 +308,7 @@ function Health({ entries, today, onEdit, onSave }: { entries: TrackerEntry[]; t
   return (
     <div className="trk-journal">
       <p className="trk-privacy">🔒 Health stays on phones and computers, never on the wall screen.</p>
+      {meds && <MedicineList memberId={memberId} />}
       {entries.length === 0 && <div className="empty-card"><span className="emoji">🩺</span>No visits yet. Tap + to log a checkup or a dentist visit.</div>}
       {upcoming.length > 0 && <section aria-label="Upcoming"><h3 className="trk-heading">Upcoming</h3><ul className="trk-visits">{upcoming.map(row)}</ul></section>}
       {past.length > 0 && <section aria-label="Past visits"><h3 className="trk-heading">Past visits</h3><ul className="trk-visits">{past.map(row)}</ul></section>}

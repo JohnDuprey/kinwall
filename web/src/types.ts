@@ -45,7 +45,7 @@ export interface Settings {
   features: Features // Settings → Features: what the family uses; off = hidden on every screen
   mealTimes: Record<'breakfast' | 'lunch' | 'dinner' | 'snack', string> // HH:MM each meal usually is; a meal without its own time uses it on the calendar
   aiHealthAccess: boolean // false (default): MCP and connected apps can't see or change the Health tracker
-  medications: boolean // Medication reminders (off by default); off hides them everywhere, data kept
+  medications: boolean // Medication reminders (off by default; only on with the Health tracker); off hides them everywhere, data kept
   medicationNamesOnWalls: boolean // shared wall screens show medicine names (off: "Meds")
 }
 

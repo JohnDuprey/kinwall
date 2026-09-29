@@ -623,7 +623,7 @@ export async function runNotifications(env: Env, now: Date, _execCtx?: WaitCtx):
   await runDailySummary(env, env.DB, now, tz, subs, windowStart, features);
   if (features.chores) await runChoreNudge(env, env.DB, now, tz, subs, windowStart); // Chores turned off: no nudge
   await runGoalFollowups(env, env.DB, now, tz, windowStart);
-  if ((await env.DB.prepare("SELECT value FROM settings WHERE key = 'medications'").first<{ value: string }>())?.value === 'true') {
+  if (features.trackersHealth && (await env.DB.prepare("SELECT value FROM settings WHERE key = 'medications'").first<{ value: string }>())?.value === 'true') {
     // Never let a sealed value that won't open (no key) stop the other reminders; the error's name only, never data.
     try { await runMedicationReminders(env, env.DB, now, tz); } catch (e) { console.error('medication reminders skipped:', e instanceof Error ? e.name : 'error'); }
   }

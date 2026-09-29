@@ -28,7 +28,7 @@ import { inNativeApp } from './native.ts'
 import { useDialog } from './dialog.tsx'
 import { TEMP_CHECK_OFF } from './tempCheck.ts'
 import { EVENING_TIMES } from './journal.ts'
-import MedicationSettings from './MedicationSettings.tsx'
+import { MedicationsToggle } from './MedicationSettings.tsx'
 import { announce, pressable, reducedMotion, Segmented } from './a11y.tsx'
 
 // Mirrors BusEventType in server/src/bus.ts.
@@ -137,7 +137,6 @@ export default function SettingsView() {
           <CategoriesSection categories={categories} onChanged={reloadCore} toast={toast} />
           {settings.features.chores && <ChoreSettingsSection settings={settings} onSaved={reloadCore} toast={toast} />}
           {settings.features.meals && <MealSettingsSection settings={settings} onSaved={reloadCore} toast={toast} />}
-          {!isDisplay && <MedicationSettings />}
         </>}
         {current === 'calendars' && <>
           <CalendarsSection openAccountId={openAccountId} onOpenedAccount={() => setOpenAccountId(null)} toast={toast} />
@@ -261,6 +260,7 @@ function FeaturesSection({ settings, onSaved, toast }: { settings: Settings; onS
           <button className={`switch ${settings.features[f.key] ? 'on' : ''}`} role="switch" aria-checked={settings.features[f.key]}
             aria-labelledby={`feature-${f.key}-label`} aria-describedby={`feature-${f.key}-sub`} onClick={() => set(f.key)}><span className="knob" /></button>
         </div>
+        {f.key === 'trackersHealth' && settings.features.trackersHealth && <MedicationsToggle />}
       </Fragment>))}
     </SummarySection>
   )

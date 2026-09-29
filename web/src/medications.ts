@@ -1,4 +1,4 @@
-// Medication reminders (TakeNow.tsx, Medications.tsx, Settings → Family → Medications). Pure, so
+// Medication reminders (TakeNow.tsx, Medications.tsx, Trackers → Health → Medicines). Pure, so
 // web/test/medications.test.ts covers it.
 import { timeLabel } from './journal.ts'
 import type { DoseStatus, Medication, MedicationHistory } from './types.ts'
