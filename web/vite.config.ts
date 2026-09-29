@@ -9,10 +9,12 @@ import { defineConfig, type Plugin } from 'vite'
 // same code from a same-origin file instead; the ?query keeps each import a distinct module
 // (Safari <= 15 only throws for the first import of a given module). Then fail the build if an
 // inline script's hash is missing from either CSP, so a plugin upgrade can't silently blank the app.
+// Build only: the dev server injects its own inline scripts (React Refresh) and sends no CSP.
 const DATA_GUARD = /import'data:text\/javascript,[^']*'/g
 function selfHostedLegacyGuard(): Plugin {
   return {
     name: 'kinwall-legacy-guard',
+    apply: 'build',
     enforce: 'post',
     generateBundle(_, bundle) {
       this.emitFile({ type: 'asset', fileName: 'assets/legacy-guard.js', source: 'if(!import.meta.resolve)throw Error("import.meta.resolve not supported")' })
