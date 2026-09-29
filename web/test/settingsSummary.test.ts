@@ -29,6 +29,9 @@ test('appearance on this device: every setting as a chip, household ones marked'
     ['🌊 Ocean', '🎨 Custom colors', '🌙 Dark', '🏠 Aa Medium', 'Compact', '🔤 Hyperlegible', '🍃 Low-stimulation'])
   // Following the family on everything: each chip says so.
   assert.ok(appearanceChips({ ...a, mode: undefined }, {}).every(c => c.family))
+  // The time format (a Household setting) shows on a device, marked when it follows the family.
+  assert.deepEqual(text(appearanceChips({ ...a, timeFormat: '24-hour' }, own)).at(-1), '🏠 🕒 24-hour')
+  assert.deepEqual(text(appearanceChips({ ...a, timeFormat: '12-hour' }, { ...own, timeFormat: true })).at(-1), '🕒 12-hour')
 })
 
 test('appearance for the family: no household marks, mode always shown', () => {

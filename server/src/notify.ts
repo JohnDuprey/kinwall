@@ -13,13 +13,14 @@ import { parseMemberIds } from './calendar-members.ts';
 import { sendWebPush } from './webpush.ts';
 import { readFeatures, type Features } from './routes/settings.ts';
 import { parseTempCheck, parseTransitions, todayInTz } from './routes/members.ts';
-import { addDays, clockLabel, doseAt, LATE_MS, loadLogs, loadMedications, medicineLabel, scheduledOn, type Medication } from './routes/medications.ts';
+import { addDays, doseAt, LATE_MS, loadLogs, loadMedications, medicineLabel, scheduledOn, type Medication } from './routes/medications.ts';
 import { sha256Hex } from './auth.ts';
 import { batteryFor } from './routes/insights.ts';
 import { mealLinksQuery, parseMealLinks, prepAt, prepFor } from './prepBy.ts';
 import { nudge, pickNudge, rememberNudge, stepHint, type NudgeSeen } from './nudges.ts';
 import { apnsConfigured, sendLiveActivity, swiftDate, unixSeconds } from './apns.ts';
 import { unseal } from './crypto.ts';
+import { formatTime, hour12For } from './timeFormat.ts';
 
 export const DEFAULT_PUSH_PREFS = {
   eventReminders: true,
@@ -181,9 +182,7 @@ function fireTime(startIso: string, allDay: boolean, minutes: number, tz: string
   return zonedTimeToUtc({ y, mo: mo - 1, d, h: 0, mi: 0, s: 0 }, tz).getTime() - minutes * 60000;
 }
 
-function fmtTime(iso: string, tz: string): string {
-  return new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit' }).format(new Date(iso));
-}
+const fmtTime = (iso: string, tz: string, h12: boolean): string => formatTime(iso, { tz, h12 });
 
 async function sendToSub(env: Env, db: KinwallDb, row: PushSubRow, payload: { title: string; body: string; url?: string; tag?: string }): Promise<void> {
   const result = await sendWebPush(env, db, row, payload);
@@ -197,7 +196,7 @@ async function sendToSub(env: Env, db: KinwallDb, row: PushSubRow, payload: { ti
 // mealName names a meal's event there ("Tuesday Tacos", not "Dinner · Tuesday Tacos").
 type Occurrence = { eventId: string; occurrenceKey: string; title: string; start: string; allDay: boolean; memberIds: string[]; effective: number[]; leadMinutes: number; travelMinutes: number; location: string | null; prepAt: string | null; prepFor: string[]; category: string | null; step: string | null; mealName: string | null };
 
-async function runEventReminders(env: Env, db: KinwallDb, now: Date, tz: string, defaultReminders: number[], subs: PushSubRow[], quiet: boolean): Promise<void> {
+async function runEventReminders(env: Env, db: KinwallDb, now: Date, tz: string, h12: boolean, defaultReminders: number[], subs: PushSubRow[], quiet: boolean): Promise<void> {
   const eligible = subs.filter((s) => subPrefs(s).eventReminders);
 
   const from = new Date(now.getTime() - 24 * 60 * 60 * 1000);
@@ -284,12 +283,12 @@ async function runEventReminders(env: Env, db: KinwallDb, now: Date, tz: string,
   for (const cand of due) {
     const emoji = cand.categoryId ? categoryEmojis.get(cand.categoryId) : null;
     const when = cand.minutes === 0 ? 'Now' : cand.minutes % 60 === 0 ? `In ${cand.minutes / 60} hour${cand.minutes === 60 ? '' : 's'}` : `In ${cand.minutes} minutes`;
-    const timeLabel = cand.allDay ? 'All day' : fmtTime(cand.start, tz);
+    const timeLabel = cand.allDay ? 'All day' : fmtTime(cand.start, tz, h12);
     // Event name as the title: it's what you scan for, and iOS already adds "from Kinwall" under it.
     // First line is what shows collapsed; the rest appears when the notification is long-pressed.
     const who = cand.memberIds.map((id) => memberNames.get(id)).filter(Boolean).join(', ');
     const notes = cand.row.description?.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-    const leaveBy = cand.leadMinutes ? fmtTime(new Date(Date.parse(cand.start) - cand.leadMinutes * 60000).toISOString(), tz) : null;
+    const leaveBy = cand.leadMinutes ? fmtTime(new Date(Date.parse(cand.start) - cand.leadMinutes * 60000).toISOString(), tz, h12) : null;
     const lines = [
       leaveBy ? `Leave by ${leaveBy} for ${cand.title} · starts ${timeLabel}` : `${when} · ${timeLabel}`,
       cand.row.location && `📍 ${cand.row.location.replace(/\s*\n\s*/g, ', ')}`,
@@ -320,8 +319,8 @@ async function runEventReminders(env: Env, db: KinwallDb, now: Date, tz: string,
     }
   }
 
-  if (!quiet) await runTransitionReminders(env, db, now, tz, occurrences, eligible);
-  await runLiveActivities(env, db, now, tz, occurrences, quiet);
+  if (!quiet) await runTransitionReminders(env, db, now, tz, h12, occurrences, eligible);
+  await runLiveActivities(env, db, now, tz, h12, occurrences, quiet);
 }
 
 /** A person's transition times: their picked minutes plus every `repeat.every` during the last
@@ -345,7 +344,7 @@ export function inQuietHours(from: string | undefined, to: string | undefined, n
 // everyone's, like everywhere else. Skipped when a regular reminder for the same event lands on
 // that device in the same minute, and during quiet hours (the caller checks). Not recorded in the
 // household feed: they're personal and frequent.
-async function runTransitionReminders(env: Env, db: KinwallDb, now: Date, tz: string, occurrences: Occurrence[], eligible: PushSubRow[]): Promise<void> {
+async function runTransitionReminders(env: Env, db: KinwallDb, now: Date, tz: string, h12: boolean, occurrences: Occurrence[], eligible: PushSubRow[]): Promise<void> {
   if (!eligible.length) return;
   const [membersRes, keysRes] = await db.batch<unknown>([
     db.prepare('SELECT id, name, transitions, nudges FROM members WHERE transitions IS NOT NULL'),
@@ -379,7 +378,7 @@ async function runTransitionReminders(env: Env, db: KinwallDb, now: Date, tz: st
       if (!due.length) continue;
       const regular = occ.effective.map((r) => minute(Date.parse(occ.start) - (r + occ.leadMinutes) * 60000));
       const left = Math.max(1, Math.round((target - now.getTime()) / 60000)); // the truth, even on a late tick
-      const by = fmtTime(new Date(target).toISOString(), tz), starts = fmtTime(occ.start, tz);
+      const by = fmtTime(new Date(target).toISOString(), tz, h12), starts = fmtTime(occ.start, tz, h12);
       const when = occ.prepAt ? (by === starts ? `Start prep by ${by}` : `Start prep by ${by} · starts ${starts}`) : lead ? `Leave by ${by} · starts ${starts}` : `Starts at ${starts}`;
       // Varied, kind and escalating (nudges.ts), unlike their last few; the body keeps the plain facts.
       const headline = pickNudge({ kind: occ.prepAt ? 'prep' : lead ? 'leave' : 'start', title: occ.mealName ?? occ.title, minutes: left, at: by, seed: `${m.id}:${occ.eventId}:${occ.occurrenceKey.slice(0, 10)}`, ordinal: times.indexOf(due[due.length - 1]), name: m.name.split(' ')[0], category: occ.category, step: occ.step }, seen);
@@ -413,7 +412,7 @@ async function runTransitionReminders(env: Env, db: KinwallDb, now: Date, tz: st
 const LIVE_GRACE_MS = 5 * 60000; // web/src/liveActivity.ts GRACE_MIN
 type LiveTokenRow = { id: string; device: string; kind: 'start' | 'update'; activity: string; token: string; ends_at: string | null; owner: string | null };
 
-async function runLiveActivities(env: Env, db: KinwallDb, now: Date, tz: string, occurrences: Occurrence[], quiet: boolean): Promise<void> {
+async function runLiveActivities(env: Env, db: KinwallDb, now: Date, tz: string, h12: boolean, occurrences: Occurrence[], quiet: boolean): Promise<void> {
   if (!apnsConfigured(env)) return;
   const [tokensRes, membersRes] = await db.batch<unknown>([
     db.prepare('SELECT t.id, t.device, t.kind, t.activity, t.token, t.ends_at, COALESCE(k.owner, g.owner) AS owner FROM live_activity_tokens t LEFT JOIN api_keys k ON k.id = t.api_key_id LEFT JOIN oauth_grants g ON g.id = t.oauth_grant_id'),
@@ -431,7 +430,7 @@ async function runLiveActivities(env: Env, db: KinwallDb, now: Date, tz: string,
   // What the activity shows (the app's KinwallActivityAttributes / ContentState, native side).
   const members = membersRes.results as { id: string; name: string; transitions: string }[];
   const shown = (occ: Occurrence, m: { id: string; name: string }, target: number) => {
-    const words = { kind: occ.prepAt ? 'prep' as const : 'leave' as const, title: occ.mealName ?? occ.title, at: fmtTime(new Date(target).toISOString(), tz), seed: `${m.id}:${occ.eventId}:${occ.occurrenceKey.slice(0, 10)}`, name: m.name.split(' ')[0], category: occ.category, step: occ.step, live: true };
+    const words = { kind: occ.prepAt ? 'prep' as const : 'leave' as const, title: occ.mealName ?? occ.title, at: fmtTime(new Date(target).toISOString(), tz, h12), seed: `${m.id}:${occ.eventId}:${occ.occurrenceKey.slice(0, 10)}`, name: m.name.split(' ')[0], category: occ.category, step: occ.step, live: true };
     const headline = nudge({ ...words, minutes: Math.ceil((target - now.getTime()) / 60000) });
     return { headline, content: { title: headline, detail: nudge({ ...words, minutes: 0 }), date: swiftDate(target), count: 0, done: false } };
   };
@@ -457,7 +456,7 @@ async function runLiveActivities(env: Env, db: KinwallDb, now: Date, tz: string,
       if (now.getTime() < target - first * 60000 || now.getTime() >= ends) continue;
       const activity = key(occ);
       const { headline, content } = shown(occ, m, target);
-      const by = fmtTime(new Date(target).toISOString(), tz);
+      const by = fmtTime(new Date(target).toISOString(), tz, h12);
       for (const t of devices) {
         // Already showing (the app started it, or an earlier push did and registered its token).
         if (tokens.some((u) => u.kind === 'update' && u.device === t.device && u.activity === activity)) continue;
@@ -470,7 +469,7 @@ async function runLiveActivities(env: Env, db: KinwallDb, now: Date, tz: string,
           attributes: { kind: occ.prepAt ? 'prep' : 'leave', name: occ.title, eventId: occ.eventId, activity, endsAt: swiftDate(ends) },
           'content-state': content,
           'stale-date': unixSeconds(target),
-          alert: { title: headline, body: occ.prepAt ? `Start prep by ${by}` : `Leave by ${by} · starts ${fmtTime(occ.start, tz)}` },
+          alert: { title: headline, body: occ.prepAt ? `Start prep by ${by}` : `Leave by ${by} · starts ${fmtTime(occ.start, tz, h12)}` },
         });
         if (res.ok || res.gone) await markSent(db, sentKey, now);
       }
@@ -649,7 +648,7 @@ async function runGoalFollowups(env: Env, db: KinwallDb, now: Date, tz: string, 
 // within GRACE of its time, so a late tick still sends and a restart never repeats. Medicine pushes
 // go out during quiet hours too: a missed dose matters more than a quiet night (the family asked).
 const MED_GRACE_MS = 30 * 60_000;
-async function runMedicationReminders(env: Env, db: KinwallDb, now: Date, tz: string): Promise<void> {
+async function runMedicationReminders(env: Env, db: KinwallDb, now: Date, tz: string, h12: boolean): Promise<void> {
   const meds = await loadMedications(env);
   if (!meds.length) return;
   const today = todayInTz(tz, now);
@@ -698,7 +697,7 @@ async function runMedicationReminders(env: Env, db: KinwallDb, now: Date, tz: st
   if (!late.size) return;
   const { results: parents } = await db.prepare("SELECT s.* FROM push_subscriptions s JOIN api_keys k ON k.id = s.api_key_id WHERE k.scope = 'admin'").all<PushSubRow>();
   for (const l of late.values()) {
-    const title = `${byId.get(l.memberId)!.name}'s ${clockLabel(l.time)} medicine hasn't been marked yet`;
+    const title = `${byId.get(l.memberId)!.name}'s ${formatTime(l.time, { h12 })} medicine hasn't been marked yet`;
     const url = `/#/medications/${l.memberId}`;
     await recordNotification(db, { kind: 'medication', title, url, memberIds: [l.memberId], source: 'system', at: now });
     await send(parents, title, 'Tap to check.', l.meds, url, `med-late:${l.memberId}`);
@@ -737,13 +736,16 @@ export async function runNotifications(env: Env, now: Date, _execCtx?: WaitCtx):
   // No early bail on zero subscriptions: the in-app feed records reminders/summaries regardless.
   const { results: subs } = await env.DB.prepare('SELECT * FROM push_subscriptions').all<PushSubRow>();
 
-  const [tzRow, defaultRemindersRow, quietRes] = await Promise.all([
+  const [tzRow, defaultRemindersRow, prefsRes] = await Promise.all([
     env.DB.prepare("SELECT value FROM settings WHERE key = 'timezone'").first<{ value: string }>(),
     env.DB.prepare("SELECT value FROM settings WHERE key = 'defaultReminderMinutes'").first<{ value: string }>(),
-    env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('quietFrom', 'quietTo')").all<{ key: string; value: string }>(),
+    env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('quietFrom', 'quietTo', 'timeFormat', 'location')").all<{ key: string; value: string }>(),
   ]);
-  const quietHours = new Map(quietRes.results.map((r) => [r.key, r.value]));
+  const prefs = new Map(prefsRes.results.map((r) => [r.key, r.value]));
   const tz = tzRow?.value ?? hostTimezone();
+  let countryCode: string | undefined;
+  try { countryCode = JSON.parse(prefs.get('location') ?? 'null')?.countryCode; } catch { /* no location */ }
+  const h12 = hour12For(prefs.get('timeFormat'), countryCode);
   let defaultReminders: number[] = [30];
   if (defaultRemindersRow?.value) {
     try {
@@ -755,8 +757,8 @@ export async function runNotifications(env: Env, now: Date, _execCtx?: WaitCtx):
 
   const windowStart = await getTickWindowStart(env.DB, now);
 
-  const quiet = inQuietHours(quietHours.get('quietFrom'), quietHours.get('quietTo'), now, tz);
-  await runEventReminders(env, env.DB, now, tz, defaultReminders, subs, quiet);
+  const quiet = inQuietHours(prefs.get('quietFrom'), prefs.get('quietTo'), now, tz);
+  await runEventReminders(env, env.DB, now, tz, h12, defaultReminders, subs, quiet);
   const features = await readFeatures(env.DB);
   await runDailySummary(env, env.DB, now, tz, subs, windowStart, features);
   if (features.chores) await runChoreNudge(env, env.DB, now, tz, subs, windowStart); // Chores turned off: no nudge
@@ -765,7 +767,7 @@ export async function runNotifications(env: Env, now: Date, _execCtx?: WaitCtx):
   if (!quiet) try { await runBatteryHeadsUp(env, env.DB, now, tz); } catch (e) { console.error('battery heads-up skipped:', e instanceof Error ? e.name : 'error'); }
   if (features.trackersHealth && (await env.DB.prepare("SELECT value FROM settings WHERE key = 'medications'").first<{ value: string }>())?.value === 'true') {
     // Never let a sealed value that won't open (no key) stop the other reminders; the error's name only, never data.
-    try { await runMedicationReminders(env, env.DB, now, tz); } catch (e) { console.error('medication reminders skipped:', e instanceof Error ? e.name : 'error'); }
+    try { await runMedicationReminders(env, env.DB, now, tz, h12); } catch (e) { console.error('medication reminders skipped:', e instanceof Error ? e.name : 'error'); }
   }
   await pruneSentNotifications(env.DB, now);
   await setTickWindowEnd(env.DB, now);

@@ -1,7 +1,7 @@
 import { createContext, Fragment, useContext, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { AppContext, useApp } from './AppContext.tsx'
 import { api, ApiError, clearKey } from './api.ts'
-import type { Account, ApiKey, CalendarEntry, Category, ColorScheme, CustomColors, Density, DeviceDensity, Features, GeocodeResult, HostEvent, Me, Member, Passkey, Providers, PushSubscription, RemoteCalendar, Settings, TempCheckSettings, TextScale, ThemeMode, Typeface, Webhook } from './types.ts'
+import type { Account, ApiKey, CalendarEntry, Category, ColorScheme, CustomColors, Density, DeviceDensity, Features, GeocodeResult, HostEvent, Me, Member, Passkey, Providers, PushSubscription, RemoteCalendar, Settings, TempCheckSettings, TextScale, ThemeMode, TimeFormat, Typeface, Webhook } from './types.ts'
 import { ProviderForm, PublicUrlRow } from './ProviderConfig.tsx'
 import { CATEGORY_EMOJI, CATEGORY_PRESETS, MEMBER_EMOJI, MEMBER_PALETTE, nextPaletteColor, REMINDER_OPTIONS } from './types.ts'
 import Sheet from './Sheet.tsx'
@@ -34,7 +34,7 @@ import { appLiveActivities, inNativeApp, liveActivitiesLine } from './native.ts'
 import { useDialog } from './dialog.tsx'
 import { TEMP_CHECK_OFF } from './tempCheck.ts'
 import { EVENING_TIMES } from './journal.ts'
-import { formatTime } from './timeFormat.ts'
+import { deviceTimeFormat, formatTime, resolveHour12 } from './timeFormat.ts'
 import { MedicationsToggle } from './MedicationSettings.tsx'
 import { announce, pressable, reducedMotion, Segmented } from './a11y.tsx'
 import { FEATURE_ROWS } from './featureConfig.ts'
@@ -206,6 +206,15 @@ function GeneralSection({ settings, onSaved, toast, isDisplay }: { settings: Ret
         <select className="settings-select" aria-label="Week starts on" value={settings.weekStart} onChange={e => save({ weekStart: Number(e.target.value) as 0 | 1 })}>
           <option value={0}>Sunday</option>
           <option value={1}>Monday</option>
+        </select>
+      </div>
+      <div className="settings-row">
+        <div>
+          <div className="settings-row-label">Time format</div>
+          <div className="settings-row-sub">Automatic follows each device's language and region. A device can pick its own.</div>
+        </div>
+        <select className="settings-select" aria-label="Time format" value={settings.timeFormat ?? 'auto'} onChange={e => save({ timeFormat: e.target.value as TimeFormat })}>
+          {TIME_FORMATS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
         </select>
       </div>
       {!isDisplay && (
@@ -397,6 +406,11 @@ const FONTS: { key: Typeface; label: string; desc: string }[] = [
   { key: 'handwritten', label: 'Handwritten (Kalam)', desc: 'Like a note on the fridge' },
 ]
 const fontName = (k: Typeface) => FONTS.find(f => f.key === k)?.label.split(' (')[0]
+const TIME_FORMATS: { key: TimeFormat; label: string }[] = [
+  { key: 'auto', label: 'Automatic' },
+  { key: '12', label: '12-hour (3:40 PM)' },
+  { key: '24', label: '24-hour (15:40)' },
+]
 
 /** This device's look as chips: its own choices, and the family's (marked) for the rest. */
 function deviceChips(settings: Settings, d: DeviceAppearance): Chip[] {
@@ -409,8 +423,9 @@ function deviceChips(settings: Settings, d: DeviceAppearance): Chip[] {
     textScale: TEXT_SCALE_NAMES[d.textScale ?? settings.textScale],
     density: DEVICE_DENSITIES.find(o => o.key === (d.density ?? settings.density))?.label ?? '',
     typeface: fontName(d.font ?? settings.typeface ?? 'default') ?? 'Default',
+    timeFormat: resolveHour12(settings.timeFormat, d.timeFormat) ? '12-hour' : '24-hour',
     lowStim: d.lowStim,
-  }, { scheme: !!d.skin, mode: !!d.themeMode, textScale: !!d.textScale, density: !!d.density, typeface: !!d.font })
+  }, { scheme: !!d.skin, mode: !!d.themeMode, textScale: !!d.textScale, density: !!d.density, typeface: !!d.font, timeFormat: !!d.timeFormat })
 }
 
 function AppearanceSection({ settings, onSaved, toast }: { settings: Settings; onSaved: () => void; toast: (m: string, persist?: boolean) => void }) {
@@ -1113,8 +1128,8 @@ function DeviceAppearanceRows() {
         household={settings} device={device} saveSettings={saveHousehold}
         legacy={device.custom ?? {}} onClearLegacy={() => set({ custom: undefined })}
         resetLabel="Reset this device's appearance"
-        resetConfirm="Mode, color scheme, text size, density, typeface and low-stimulation mode go back to the family's settings on this device."
-        onReset={() => { set({ themeMode: undefined, skin: undefined, custom: undefined, textScale: undefined, density: undefined, font: undefined, lowStim: undefined }); announce("This device follows the family's appearance") }}
+        resetConfirm="Mode, color scheme, text size, density, typeface, time format and low-stimulation mode go back to the family's settings on this device."
+        onReset={() => { set({ themeMode: undefined, skin: undefined, custom: undefined, textScale: undefined, density: undefined, font: undefined, timeFormat: undefined, lowStim: undefined }); announce("This device follows the family's appearance") }}
       />
 
       {rows.slice(1).map(r => {
@@ -1130,6 +1145,13 @@ function DeviceAppearanceRows() {
         )
       })}
       <TypefaceRow options={FONTS} value={device.font} family={settings.typeface ?? 'default'} onPick={key => { set({ font: key }); announce(key ? `${fontName(key)} typeface` : 'Household typeface') }} />
+      <div className="device-pref-row">
+        <span>Time format</span>
+        <select className="settings-select" aria-label="Time format on this device" value={device.timeFormat ?? ''} onChange={e => set({ timeFormat: deviceTimeFormat(e.target.value) })}>
+          <option value="">🏠 Use the family's ({TIME_FORMATS.find(o => o.key === (settings.timeFormat ?? 'auto'))?.label.split(' (')[0]})</option>
+          {TIME_FORMATS.slice(1).map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+        </select>
+      </div>
       <div className="toggle-row">
         <label id="lowstim-label">Low-stimulation mode</label>
         <button className={`switch ${device.lowStim ? 'on' : ''}`} role="switch" aria-checked={!!device.lowStim} aria-labelledby="lowstim-label" aria-describedby="lowstim-sub"

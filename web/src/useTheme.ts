@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { ClockPos } from './nightClock.ts'
 import type { Appearance, ColorScheme, CustomColors, DeviceDensity, Settings, TextScale, Typeface } from './types.ts'
 import { deviceTypeface, resolveTypeface } from './typeface.ts'
+import { deviceTimeFormat } from './timeFormat.ts'
 import { accentFill, readableOn } from './color.ts'
 import { api, getKey } from './api.ts'
 import { findSkin, seasonalSkinId, tokensFor } from './skins.ts'
@@ -28,6 +29,7 @@ export type DeviceAppearance = Partial<Pick<Appearance, 'themeMode' | 'textScale
   density?: DeviceDensity // 'icons' (icon-first) exists per device only
   lowStim?: boolean // flat, calm, no motion - see [data-lowstim] in styles.css
   font?: Typeface // this device's typeface ('default' = Nunito); absent = the family's
+  timeFormat?: '12' | '24' // this device's clock times; absent = the family's (timeFormat.ts)
   nowNext?: boolean // Now / Next card on the calendar; absent = on
   keepAwake?: boolean // keep the screen on while Kinwall is showing; absent = on for wall screens and kids' devices, off for parent devices
   idleReset?: boolean // back to the calendar after 2 idle minutes; absent = on for wall screens and kids' devices, off for parent devices
@@ -85,6 +87,8 @@ export function readDeviceAppearance(): DeviceAppearance {
     // Only a real pick is an override; Default used to be saved as nothing, so it follows the family.
     v.font = deviceTypeface(v.font)
     if (!v.font) delete v.font
+    v.timeFormat = deviceTimeFormat(v.timeFormat)
+    if (!v.timeFormat) delete v.timeFormat
     return v
   } catch { return {} }
 }

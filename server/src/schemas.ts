@@ -95,6 +95,8 @@ export const MAX_CUSTOM_SCHEMES = 10;
 const ColorSchemeIdSchema = z.union([z.enum(COLOR_SCHEMES), z.string().regex(CUSTOM_SCHEME_ID_RE)]);
 // The web app's typefaces (web/src/typeface.ts); 'default' is Nunito.
 export const TYPEFACES = ['default', 'hyperlegible', 'dyslexia', 'modern', 'playful', 'storybook', 'handwritten'] as const;
+// 12- or 24-hour clock times; 'auto' follows each device's locale (the server: the location's country, timeFormat.ts).
+export const TIME_FORMATS = ['auto', '12', '24'] as const;
 const HHMM_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 export const AvatarSchema = z.string().refine(isValidAvatar, 'must be a single emoji or a 1-2 letter initial');
@@ -279,6 +281,7 @@ export const SettingsSchema = z
     textScale: z.enum(['s', 'm', 'l', 'xl']),
     density: z.enum(['comfortable', 'compact']),
     typeface: z.enum(TYPEFACES).openapi({ description: "The family's typeface; a device can pick its own. 'default' is Nunito." }),
+    timeFormat: z.enum(TIME_FORMATS).openapi({ description: "Clock times as 12-hour ('3:40 PM') or 24-hour ('15:40'). 'auto' follows each device's locale; server-written text (notifications) goes by the location's country. A device can pick its own." }),
     defaultReminderMinutes: z.array(z.number()),
     lateCompletionCredit: z.number(), // percent of a chore's points earned when it's completed for a past day
     streakGraceDays: z.number(), // missed days per rolling 7 a streak survives (see computeStreak)
@@ -321,6 +324,7 @@ export const SettingsPatchSchema = z
     textScale: z.enum(['s', 'm', 'l', 'xl']).optional(),
     density: z.enum(['comfortable', 'compact']).optional(),
     typeface: z.enum(TYPEFACES).optional(),
+    timeFormat: z.enum(TIME_FORMATS).optional(),
     defaultReminderMinutes: z.array(z.number()).optional(),
     lateCompletionCredit: z.number().int().min(0).max(100).optional(),
     streakGraceDays: z.number().int().min(0).max(3).optional(),

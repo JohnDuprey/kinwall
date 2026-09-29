@@ -39,7 +39,7 @@ import Insights from './Insights.tsx'
 import Medications from './Medications.tsx'
 import Sheet from './Sheet.tsx'
 import { LeaveByLiveActivity } from './NowNext.tsx'
-import { formatTime } from './timeFormat.ts'
+import { formatTime, resolveHour12, setHour12 } from './timeFormat.ts'
 
 const NAV_ITEMS = [
   { key: 'calendar', href: '#/calendar', label: 'Calendar', Icon: CalendarIcon },
@@ -1067,6 +1067,7 @@ function AppRoutes() {
   // personal defaults (meMemberId), and the family filter works as on any unowned device. A member
   // deleted since falls back to everyone.
   const device = useDeviceAppearance()
+  setHour12(resolveHour12(settings?.timeFormat, device.timeFormat)) // before anything below formats a time
   const focusMember = members.find(m => m.id === (ownerLocks ? owner : device.focusMemberId))
   const meMemberId = members.some(m => m.id === owner) ? owner : null
   const effectiveMemberId = focusMember?.id ?? selectedMemberId

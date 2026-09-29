@@ -39,14 +39,15 @@ export function timeCuesSummary(c: { nowNext: boolean; warnings: number[]; repea
 }
 
 const MODE_CHIPS: Record<ThemeMode, Chip> = { light: { icon: '☀️', label: 'Light' }, dark: { icon: '🌙', label: 'Dark' }, auto: { icon: '🌗', label: 'Auto' }, scheduled: { icon: '🕗', label: 'Scheduled' } }
-type AppearanceKey = 'scheme' | 'mode' | 'textScale' | 'density' | 'typeface'
+type AppearanceKey = 'scheme' | 'mode' | 'textScale' | 'density' | 'typeface' | 'timeFormat'
 
 /** The look in effect, one chip per setting (names come in resolved). `own` says which ones this
  * device sets itself; the rest follow the family and are marked so. `own` null = the family's card.
- * Mode shows when it's set at this level; low-stimulation and custom colors only when on. */
+ * Mode shows when it's set at this level; low-stimulation and custom colors only when on. The time
+ * format (a Household setting) only on a device's card. */
 export function appearanceChips(a: {
   scheme: { emoji: string; name: string }; custom?: boolean; mode?: ThemeMode; textScale: string; density: string
-  typeface: string; lowStim?: boolean
+  typeface: string; timeFormat?: string; lowStim?: boolean
 }, own: Partial<Record<AppearanceKey, boolean>> | null): Chip[] {
   const fam = (k: AppearanceKey) => own ? !own[k] : undefined
   const chips: (Chip | false | undefined)[] = [
@@ -56,6 +57,7 @@ export function appearanceChips(a: {
     { icon: 'Aa', label: a.textScale, family: fam('textScale') },
     { label: a.density, family: fam('density') },
     { icon: '🔤', label: a.typeface, family: fam('typeface') },
+    !!a.timeFormat && { icon: '🕒', label: a.timeFormat, family: fam('timeFormat') },
     a.lowStim && { icon: '🍃', label: 'Low-stimulation' },
   ]
   return chips.filter((x): x is Chip => !!x)

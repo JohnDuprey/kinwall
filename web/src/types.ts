@@ -38,6 +38,7 @@ export interface Settings {
   textScale: TextScale
   density: Density
   typeface: Typeface // the family's; a device can pick its own
+  timeFormat: TimeFormat // the family's; a device can pick its own
   defaultReminderMinutes: number[]
   lateCompletionCredit: number // 0-100: % of points a chore earns when ticked off for a past day
   streakGraceDays: number // 0-3 missed days per rolling week a streak survives

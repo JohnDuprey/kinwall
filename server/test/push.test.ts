@@ -828,3 +828,17 @@ test('transitions: never during quiet hours; nothing when off or for other peopl
   assert.deepEqual(sent.map((s) => s.device), ['leo-phone'], 'Sam\'s piano: no transition push for Leo (Sam has them off)');
   says(sent[0].payload.title, 'Soccer practice', 10, '3:30 PM');
 });
+
+test('transitions: times follow the family time format, or the location\'s country on auto', async () => {
+  const start = '2030-03-04T15:30:00Z';
+  const event = { start, end: at(start, 60).toISOString(), travelMinutes: 20 };
+  const h24 = await transitionsSetup({ on: true, minutes: [5] }, event);
+  await h24.request('/api/settings', { method: 'PATCH', body: JSON.stringify({ timeFormat: '24' }) });
+  const sent = await h24.run(at(start, -25));
+  says(sent[0].payload.title, 'Soccer practice', 5, '15:10');
+  assert.equal(sent[0].payload.body, 'Leave by 15:10 · starts 15:30');
+
+  const berlin = await transitionsSetup({ on: true, minutes: [5] }, event);
+  await berlin.request('/api/settings', { method: 'PATCH', body: JSON.stringify({ location: { name: 'Berlin', lat: 52.52, lon: 13.4, countryCode: 'DE' } }) });
+  assert.equal((await berlin.run(at(start, -25)))[0].payload.body, 'Leave by 15:10 · starts 15:30', 'auto in Germany: 24-hour');
+});

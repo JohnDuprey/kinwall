@@ -212,3 +212,16 @@ test('family typeface: defaults to default, round-trips, reaches the public appe
   }
   assert.equal((await json<any>(await request('/api/settings'))).typeface, 'storybook');
 });
+
+test('family time format: defaults to auto, round-trips, is exported and rejects unknown ones', async () => {
+  const request = makeApp(makeEnv());
+  assert.equal((await json<any>(await request('/api/settings'))).timeFormat, 'auto');
+  const body = await json<any>(await request('/api/settings', { method: 'PATCH', body: JSON.stringify({ timeFormat: '24' }) }));
+  assert.equal(body.timeFormat, '24');
+  for (const bad of ['12h', 'military', '', null, 24]) {
+    assert.equal((await request('/api/settings', { method: 'PATCH', body: JSON.stringify({ timeFormat: bad }) })).status, 400, String(bad));
+  }
+  assert.equal((await json<any>(await request('/api/export'))).settings.timeFormat, '24');
+  // The pairing screen shows no times, so the public appearance leaves it out.
+  assert.equal((await json<any>(await request('/api/appearance'))).timeFormat, undefined);
+});

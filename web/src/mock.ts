@@ -77,6 +77,7 @@ const settings: Settings = {
   textScale: 'm',
   density: 'comfortable',
   typeface: 'default',
+  timeFormat: 'auto',
   defaultReminderMinutes: [30],
   mealTimes: { breakfast: '07:30', lunch: '12:00', dinner: '18:00', snack: '15:00' },
   lateCompletionCredit: 50,

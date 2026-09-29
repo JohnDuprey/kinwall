@@ -6,6 +6,8 @@
 // The per-day series (InsightDay) is meant to be reused (e.g. spotting heavy days ahead), so keep
 // it about one person and one household day, with nothing that isn't needed.
 
+import { formatTime } from './timeFormat.ts';
+
 export type Sleep = 'great' | 'good' | 'ok' | 'poorly' | 'terrible';
 export type Outcome = 'yes' | 'partly' | 'no';
 export type InsightDay = {
@@ -62,14 +64,14 @@ const CANDIDATES: Candidate[] = [
     side: (d, before) => (before && d.sleep ? (late(before) ? 'a' : 'b') : null),
     hit: sleptWell,
     text: (m) => `Slept well ${m} often after a late event`,
-    detail: 'Nights after an event that ended after 8 PM, compared with other nights. "Well" means well or great.',
+    detail: 'Nights after an event that ended after {late}, compared with other nights. "Well" means well or great.',
   },
   {
     id: 'late-tired',
     side: (d, before) => (before && d.feelings.length ? (late(before) ? 'a' : 'b') : null),
     hit: (d) => d.feelings.some((f) => f.toLowerCase() === 'tired'),
     text: (m) => `Felt tired ${m} often the day after a late event`,
-    detail: 'Days after an event that ended after 8 PM, compared with other days. Only days with feelings count.',
+    detail: 'Days after an event that ended after {late}, compared with other days. Only days with feelings count.',
   },
   {
     id: 'busy-goal',
@@ -87,7 +89,7 @@ const CANDIDATES: Candidate[] = [
   },
 ];
 
-function connection(c: Candidate, days: InsightDay[]): Connection | null {
+function connection(c: Candidate, days: InsightDay[], late: string): Connection | null {
   const a = { hit: 0, n: 0 };
   const b = { hit: 0, n: 0 };
   days.forEach((d, i) => {
@@ -102,7 +104,7 @@ function connection(c: Candidate, days: InsightDay[]): Connection | null {
   if (Math.abs(diff) < MIN_DIFF) return null;
   const clear = Math.min(a.n, b.n) >= CLEAR.group && Math.abs(diff) >= CLEAR.diff;
   return {
-    id: c.id, text: `${c.text(diff > 0 ? 'more' : 'less')} (${a.hit} of ${a.n} vs ${b.hit} of ${b.n})`, detail: c.detail,
+    id: c.id, text: `${c.text(diff > 0 ? 'more' : 'less')} (${a.hit} of ${a.n} vs ${b.hit} of ${b.n})`, detail: c.detail.replace('{late}', late),
     confidence: clear ? 'clear' : 'early', a, b,
   };
 }
@@ -142,8 +144,10 @@ function summarize(days: InsightDay[]) {
   return out;
 }
 
-/** Summaries, the most common feelings and any connections for a run of consecutive days. */
-export function analyze(days: InsightDay[]) {
+/** Summaries, the most common feelings and any connections for a run of consecutive days.
+ * `h12`: the family's clock (timeFormat.ts), for "after 8 PM" / "after 20:00". */
+export function analyze(days: InsightDay[], h12 = true) {
+  const late = formatTime(LATE_AFTER, { h12, hourOnly: true });
   const counts = new Map<string, number>();
   for (const d of days) for (const f of new Set(d.feelings.map((f) => f.toLowerCase()))) counts.set(f, (counts.get(f) ?? 0) + 1);
   const topFeelings = [...counts].map(([feeling, n]) => ({ feeling, days: n })).sort((a, b) => b.days - a.days || a.feeling.localeCompare(b.feeling)).slice(0, 6);
@@ -154,7 +158,7 @@ export function analyze(days: InsightDay[]) {
     topFeelings,
     connections: {
       ready, daysWithCheckIns, needed: MIN_CHECKIN_DAYS,
-      list: ready ? CANDIDATES.map((c) => connection(c, days)).filter((c): c is Connection => !!c) : [],
+      list: ready ? CANDIDATES.map((c) => connection(c, days, late)).filter((c): c is Connection => !!c) : [],
     },
   };
 }

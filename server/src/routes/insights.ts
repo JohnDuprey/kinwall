@@ -26,6 +26,7 @@ import { dueDates, type ChoreRow } from './chores.ts';
 import { openDrained, openTempCheck, type TempCheckRow } from './temp-check.ts';
 import { openMood } from './journal.ts';
 import { eventInstances } from './events.ts';
+import { hour12For } from '../timeFormat.ts';
 
 export const insightsRoutes = createRouter();
 type C = Context<{ Bindings: Env }>;
@@ -166,11 +167,12 @@ insightsRoutes.openapi(
     if (blocked) return c.json(blocked, 403);
     if (!(await c.env.DB.prepare('SELECT 1 FROM members WHERE id = ?').bind(id).first())) return c.json({ error: 'member not found' }, 404);
     const { range } = c.req.valid('query');
-    const tz = (await readSettings(c.env.DB)).timezone ?? hostTimezone();
+    const settings = await readSettings(c.env.DB);
+    const tz = settings.timezone ?? hostTimezone();
     const to = todayInTz(tz);
     const from = addDays(to, 1 - INSIGHT_RANGES[range]);
     const days = await insightDays(c, id, from, to, tz);
-    return c.json({ memberId: id, range, from, to, days, ...analyze(days) }, 200);
+    return c.json({ memberId: id, range, from, to, days, ...analyze(days, hour12For(settings.timeFormat, settings.location?.countryCode)) }, 200);
   },
 );
 

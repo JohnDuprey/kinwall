@@ -132,8 +132,6 @@ export function doseStatus(dueAt: number, e: DoseEntry | undefined, now: number)
   if (e?.status) return e.status;
   return now < dueAt ? 'upcoming' : now < dueAt + DUE_MS ? 'due' : 'missed';
 }
-/** "8:00 AM" for "08:00". */
-export const clockLabel = (hm: string) => { const [h, m] = hm.split(':').map(Number); return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`; };
 /** "Allergy medicine · 1 tablet" (for a device that opted into names). */
 export const medicineLabel = (m: Pick<Medication, 'name' | 'dose'>) => (m.dose ? `${m.name} · ${m.dose}` : m.name);
 

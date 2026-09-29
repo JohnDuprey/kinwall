@@ -87,6 +87,7 @@ test('key scopes: display key is 403 on admin-only routes, 200 on display-allowe
   assert.equal(settingsPatch.status, 403, 'family settings are for parent devices');
   assert.equal((await display('/api/settings')).status, 200, 'a display still reads them');
   assert.equal((await display('/api/settings', { method: 'PATCH', body: JSON.stringify({ typeface: 'playful' }) })).status, 403, 'the family typeface is for parent devices');
+  assert.equal((await display('/api/settings', { method: 'PATCH', body: JSON.stringify({ timeFormat: '24' }) })).status, 403, 'the family time format is for parent devices');
   // ...but it may add a color scheme to the family's list (not select it for the family).
   const scheme = { id: 'custom-wall0001', name: 'Wall', emoji: '🧱', light: { bg: '#FFFBF5', card: '#FFFFFF', text: '#3A2E27', accent: '#FF9E7A' }, dark: { bg: '#1C1712', card: '#2A221B', text: '#F3EAE0', accent: '#FF9E7A' } };
   const added = await display('/api/settings/color-schemes', { method: 'POST', body: JSON.stringify(scheme) });
