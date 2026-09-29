@@ -77,8 +77,9 @@ changes, `docs/self-hosting/` for config. New routes are documented by their zod
   `.field`, `.settings-select`, `.board-card`, `Sheet`) before adding new ones. No UI kits.
 - Every screen works on a phone, a tablet, a wall display and in phone landscape, in light and dark.
 - Touch first: targets at least 44px, nothing that needs hover or a precise click.
-- Choices use a `<select>` (not radio groups); destructive or rare actions (archive, delete) go in a
-  "More…" select, never next to the primary button.
+- Choices use a `<select>` (not radio groups); a long list or picking several uses `PickField` (a
+  row that opens a sheet of choices), never `<select multiple>`. Destructive or rare actions
+  (archive, delete) go in a "More…" select, never next to the primary button.
 - Copy: US English, short and plain, sentence case. Say what happens ("Saved: Tacos"), not how.
 - Kids use this: no dark patterns, nothing scary, parent-only actions stay behind parent access.
 

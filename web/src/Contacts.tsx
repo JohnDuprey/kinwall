@@ -5,11 +5,18 @@ import { announce } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
 import { FilterIcon, PlusIcon } from './icons.tsx'
 import Sheet from './Sheet.tsx'
+import PickField, { PickSwatch, type PickOption } from './PickField.tsx'
+import { inkFor } from './color.ts'
 import type { Member } from './types.ts'
 import { activeContactFilters, contactFilterSummary, CONTACT_KIND_LABELS, CONTACT_SHOW_LABELS, CONTACT_SORT_LABELS, DEFAULT_CONTACT_FILTERS, emptyContact, formatAddress, reviewCandidates,
   type Contact, type ContactFilters, type ContactAddress, type ContactInput, type ContactMethod, type ImportCandidate, type ImportDecision } from './contact-types.ts'
 import type { ContactCategory } from './contact-types.ts'
 import './contacts.css'
+
+// Choices for the category and member pickers: a category's color, a member's avatar.
+const categoryOptions = (categories: ContactCategory[]): PickOption[] => categories.map(c => ({ value: c.id, label: c.name, lead: c.color ? <PickSwatch color={c.color} /> : undefined }))
+const memberOptions = (members: Member[]): PickOption[] => members.map(m => ({ value: m.id, label: m.name,
+  lead: <span className="member-avatar-sm" aria-hidden="true" style={{ background: m.color, color: inkFor(m.color) }}>{m.avatar || m.name[0]}</span> }))
 
 type PickerContact = { name?: string[]; tel?: string[]; email?: string[]; address?: { toString(): string }[] }
 type ContactPicker = { select: (properties: string[], options: { multiple: boolean }) => Promise<PickerContact[]>; getProperties?: () => Promise<string[]> }
@@ -127,8 +134,8 @@ function ContactForm({ initial, categories, members, onClose, onSaved }: { initi
         <div className="field"><label htmlFor={`${id}-region`}>State</label><input id={`${id}-region`} type="text" value={address.region} onChange={e => changeAddress({ region: e.target.value })} maxLength={200} autoComplete="address-level1" /></div></div>
       <div className="field"><label htmlFor={`${id}-zip`}>ZIP code</label><input id={`${id}-zip`} type="text" value={address.postalCode} onChange={e => changeAddress({ postalCode: e.target.value })} maxLength={50} autoComplete="postal-code" /></div>
     </fieldset>
-    <div className="field"><label htmlFor={`${id}-categories`}>Categories</label><select id={`${id}-categories`} multiple value={form.categoryIds ?? []} onChange={e => change('categoryIds', Array.from(e.target.selectedOptions, option => option.value))}>{categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}</select><p className="field-hint">Choose one or more categories.</p></div>
-    <div className="field"><label htmlFor={`${id}-members`}>Associated household members</label><select id={`${id}-members`} multiple value={form.memberIds ?? []} onChange={e => change('memberIds', Array.from(e.target.selectedOptions, option => option.value))}>{members.map(member => <option key={member.id} value={member.id}>{member.name}</option>)}</select></div>
+    <div className="field"><label htmlFor={`${id}-categories`}>Categories</label><PickField id={`${id}-categories`} label="Categories" multiple options={categoryOptions(categories)} value={form.categoryIds ?? []} onChange={v => change('categoryIds', v)} /></div>
+    <div className="field"><label htmlFor={`${id}-members`}>Associated household members</label><PickField id={`${id}-members`} label="Associated household members" title="Household members" multiple options={memberOptions(members)} value={form.memberIds ?? []} onChange={v => change('memberIds', v)} /></div>
     {(form.kind === 'service' || form.kind === 'organization' || form.kind === 'place') && <div className="row-2"><div className="field"><label htmlFor={`${id}-hours`}>Service hours</label><input id={`${id}-hours`} value={form.serviceHours ?? ''} onChange={e => change('serviceHours', clean(e.target.value))} placeholder="Mon–Fri, 8am–5pm" /></div><div className="field"><label htmlFor={`${id}-area`}>Service area</label><input id={`${id}-area`} value={form.serviceArea ?? ''} onChange={e => change('serviceArea', clean(e.target.value))} placeholder="North county" /></div></div>}
     <div className="field"><label htmlFor={`${id}-notes`}>Notes</label><textarea id={`${id}-notes`} value={form.notes ?? ''} onChange={e => change('notes', e.target.value)} maxLength={2000} /></div>
     <fieldset className="contact-options"><legend>Directory options</legend>
@@ -139,7 +146,7 @@ function ContactForm({ initial, categories, members, onClose, onSaved }: { initi
       {form.wallVisible && <><label><input type="checkbox" checked={form.phoneVisibleOnWall ?? false} onChange={e => change('phoneVisibleOnWall', e.target.checked)} /> Show permitted phone numbers on wall</label><label><input type="checkbox" checked={form.addressVisibleOnWall ?? false} onChange={e => change('addressVisibleOnWall', e.target.checked)} /> Show address on wall</label></>}
       <div className="field"><label htmlFor={`${id}-visibility`}>Who can see it</label><select id={`${id}-visibility`} value={form.visibility ?? 'household'} onChange={e => change('visibility', e.target.value as ContactInput['visibility'])}><option value="household">Everyone in the family</option><option value="adults">Grown-ups only</option><option value="selected_members">Only the people I choose</option><option value="private">Parent devices only</option></select>
         <p className="field-hint">{VISIBILITY_HINTS[form.visibility ?? 'household']}</p></div>
-      {form.visibility === 'selected_members' && <div className="field"><label htmlFor={`${id}-selected`}>Who can see it on their own device</label><select id={`${id}-selected`} multiple value={form.selectedMemberIds ?? []} onChange={e => change('selectedMemberIds', Array.from(e.target.selectedOptions, option => option.value))}>{members.map(member => <option key={member.id} value={member.id}>{member.name}</option>)}</select></div>}
+      {form.visibility === 'selected_members' && <div className="field"><label htmlFor={`${id}-selected`}>Who can see it on their own device</label><PickField id={`${id}-selected`} label="Who can see it on their own device" title="Who can see it" multiple none="Nobody yet" options={memberOptions(members)} value={form.selectedMemberIds ?? []} onChange={v => change('selectedMemberIds', v)} /></div>}
     </fieldset>
     {validation && <p className="field-error" role="alert">{validation}</p>}
   </Sheet>
@@ -252,8 +259,10 @@ function ImportSheet({ contacts, categories, members, onClose, onImported }: { c
           <div className="contact-review-heading"><strong>{row.input.name}</strong><span className={`contact-status contact-status-${row.status}`}>{row.status === 'new' ? 'New' : 'Possible duplicate'}</span></div>
           <div className="contact-review-edit"><label>Name<input value={row.input.name} onChange={e => edit(row.key, { name: e.target.value })} /></label><label>Kind<select value={row.input.kind ?? 'person'} onChange={e => edit(row.key, { kind: e.target.value as ContactInput['kind'] })}><option value="person">Person</option><option value="service">Service</option><option value="organization">Organization</option><option value="place">Place</option></select></label><label>Relationship<input value={row.input.relationship ?? ''} onChange={e => edit(row.key, { relationship: e.target.value || null })} /></label></div>
           <div className="contact-review-toggles"><label><input type="checkbox" checked={!!row.input.favorite} onChange={e => edit(row.key, { favorite: e.target.checked })} /> Favorite</label><label><input type="checkbox" checked={!!row.input.emergency} onChange={e => edit(row.key, { emergency: e.target.checked })} /> Emergency</label><label><input type="checkbox" checked={!!row.input.wallVisible} onChange={e => edit(row.key, { wallVisible: e.target.checked })} /> Show on wall</label></div>
-          <label className="contact-review-category">Categories<select multiple value={row.input.categoryIds ?? []} onChange={e => edit(row.key, { categoryIds: Array.from(e.target.selectedOptions, option => option.value) })}>{categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
-          <label className="contact-review-category">Household members<select multiple value={row.input.memberIds ?? []} onChange={e => edit(row.key, { memberIds: Array.from(e.target.selectedOptions, option => option.value) })}>{members.map(member => <option key={member.id} value={member.id}>{member.name}</option>)}</select></label>
+          <div className="contact-review-picks">
+            <div className="contact-review-category"><label htmlFor={`${id}-${row.key}-categories`}>Categories</label><PickField id={`${id}-${row.key}-categories`} label={`Categories for ${row.input.name}`} title="Categories" multiple options={categoryOptions(categories)} value={row.input.categoryIds ?? []} onChange={v => edit(row.key, { categoryIds: v })} /></div>
+            <div className="contact-review-category"><label htmlFor={`${id}-${row.key}-members`}>Household members</label><PickField id={`${id}-${row.key}-members`} label={`Household members for ${row.input.name}`} title="Household members" multiple options={memberOptions(members)} value={row.input.memberIds ?? []} onChange={v => edit(row.key, { memberIds: v })} /></div>
+          </div>
           <p>{[row.input.organization, row.input.phones[0]?.value, row.input.emails[0]?.value].filter(Boolean).join(' · ') || 'Name only'}</p>
           {matched && <p className="contact-match">Matches {matched.name}{matched.phones[0] ? ` · ${matched.phones[0].value}` : ''}</p>}
           <label className="contact-review-action">Action<select value={row.decision} onChange={e => decide(row.key, e.target.value as ImportDecision)}>

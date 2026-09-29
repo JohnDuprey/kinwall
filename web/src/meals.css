@@ -70,14 +70,6 @@
   .meal-grid td::before { content: attr(data-slot); display: block; margin-bottom: 6px; font-size: 0.8125rem; font-weight: 800; color: var(--text-dim); }
 }
 @media (max-width: 360px) { .meal-form-row { grid-template-columns: 1fr; gap: 0; } }
-/* Links in the meal and recipe sheets: full-width rows like the sheet's other controls, not web links. */
-.sheet-links { display: flex; flex-direction: column; gap: 8px; margin: 16px 0; }
-.sheet-link { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px; padding: 10px 14px; border: 2px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-alt); color: var(--text); font: inherit; font-weight: 800; text-align: left; text-decoration: none; cursor: pointer; }
-.sheet-link:hover { border-color: var(--accent); }
-.sheet-link svg { width: 20px; height: 20px; flex-shrink: 0; }
-.sheet-link > span { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.sheet-link small { color: var(--text-dim); font-weight: 600; font-size: 0.8125rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sheet-link > svg:last-child { color: var(--text-dim); }
 /* "In the kit": a quiet tag after the amount rather than trailing words. */
 .kit-tag { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; background: var(--card-soft); border: 1px solid var(--border); color: var(--text-dim); font-size: 0.75rem; font-weight: 700; vertical-align: 1px; white-space: nowrap; }
 .recipe-time { color: var(--text-dim); font-weight: 700; }
@@ -223,8 +215,6 @@
 
 /* The meal sheet's recipe field opens the picker: a photo thumb and the name, a row per recipe there. */
 .recipe-pick-thumb { flex-shrink: 0; width: 40px; height: 40px; object-fit: cover; border-radius: 8px; background: var(--bg-alt); }
-.recipe-picker .field input[type="search"] { width: 100%; padding: 13px 14px; border-radius: var(--radius-sm); border: 2px solid var(--border); background: var(--bg-alt); color: var(--text); font-family: inherit; font-size: max(1rem, 16px); font-weight: 700; min-height: 52px; }
-.recipe-picker .sheet-link[aria-current] { border-color: var(--accent); }
 .recipe-picker { min-height: 50vh; } /* the sheet keeps its height while the list narrows */
 
 /* ---------- Basics: a line made from a basic opens it; the "Basic" tag reuses .kit-tag ---------- */

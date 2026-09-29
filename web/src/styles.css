@@ -647,6 +647,22 @@ button {
 .sheet-body { padding: 4px 20px 20px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .sheet-actions { display: flex; gap: 10px; padding: 10px 20px 4px; flex-shrink: 0; }
 .sheet-actions .actions-select { flex: 1; min-width: 0; min-height: 48px; border-radius: 999px; font-weight: 800; }
+/* Links and choices in sheets: full-width rows like the sheet's other controls, not web links. */
+.sheet-links { display: flex; flex-direction: column; gap: 8px; margin: 16px 0; }
+.sheet-link { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px; padding: 10px 14px; border: 2px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-alt); color: var(--text); font: inherit; font-weight: 800; text-align: left; text-decoration: none; cursor: pointer; }
+@media (hover: hover) { .sheet-link:hover { border-color: var(--accent); } } /* no sticky hover after a tap */
+.sheet-link svg { width: 20px; height: 20px; flex-shrink: 0; }
+.sheet-link > span { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.sheet-link small { color: var(--text-dim); font-weight: 600; font-size: 0.8125rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sheet-link > svg:last-child { color: var(--text-dim); }
+.sheet-link[aria-current], .sheet-link[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--bg-alt)); }
+/* PickField: a .sheet-link row that opens a sheet of choices (a leading swatch or avatar, a check on the chosen). */
+.pick-btn > .pick-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+.sheet-link > svg.pick-check { color: var(--accent-strong); }
+.sheet-link > .member-avatar-sm, .sheet-link > .pick-swatch { flex: none; } /* not the label's flex: 1 */
+.pick-swatch { flex-shrink: 0; width: 20px; height: 20px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--text) 15%, transparent); }
+.pick-sheet-search { min-height: 50vh; } /* the sheet keeps its height while the list narrows */
+.pick-sheet .sheet-links { margin-top: 0; }
 
 .field { margin-bottom: 16px; }
 .field-hint { font-size: 0.8125rem; color: var(--text-dim); margin: 6px 0 0; }
@@ -659,7 +675,7 @@ button {
 .day-toggles button.active { border-color: var(--accent-strong); background: color-mix(in srgb, var(--accent) 22%, var(--bg-alt)); color: var(--text); }
 .field label { display: block; font-size: 0.8125rem; font-weight: 800; color: var(--text-dim); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.02em; }
 .field input[type="text"], .field input[type="date"], .field input[type="time"], .field input[type="url"],
-.field input[type="password"], .field select, .field textarea, .meds-ends-detail input[type="number"] {
+.field input[type="password"], .field input[type="search"], .field select, .field textarea, .meds-ends-detail input[type="number"] {
   width: 100%;
   padding: 13px 14px;
   border-radius: var(--radius-sm);

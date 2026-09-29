@@ -12,6 +12,8 @@ Search by name, place or phone number. Tap the **Filters** button next to the se
 
 **Add** is at the top of the page. To bring in contacts from a phone or a vCard file, choose **Import contacts…** from the **More…** menu next to it. With no contacts yet, the page shows just **Add a contact** and **Import**.
 
+In a contact's editor, **Categories**, **Associated household members** and **Who can see it on their own device** each show what's chosen ("Medical, School", "Maya and Leo", "None"). Tap one to open the list: tap rows to tick or untick them, **Clear** unticks them all and **Done** closes it. Categories show their color, and a long list has a search box. The import review has the same **Categories** and **Household members** rows for each contact.
+
 ## Who can see a contact
 
 Each contact has a **Who can see it** setting (`visibility` in the API). Parent devices (and connected apps with full access) always see every contact.

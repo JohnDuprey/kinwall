@@ -62,14 +62,15 @@
 .contact-review-row .contact-match { font-weight: 800; }
 .contact-review-edit { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(120px, .8fr) minmax(0, 1.2fr); gap: 8px; margin-top: 12px; }
 .contact-review-edit label, .contact-review-category, .contact-review-action { display: grid; gap: 5px; color: var(--text-dim); font-size: .8rem; font-weight: 800; }
-.contact-review-edit input, .contact-review-edit select, .contact-review-category select, .contact-review-action select { min-width: 0; min-height: 44px; padding: 9px 10px; border: 2px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-alt); color: var(--text); font: inherit; }
+.contact-review-edit input, .contact-review-edit select, .contact-review-action select { min-width: 0; min-height: 44px; padding: 9px 10px; border: 2px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-alt); color: var(--text); font: inherit; }
 .contact-review-toggles { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 10px; }
 .contact-review-toggles label { display: flex; align-items: center; gap: 7px; min-height: 44px; font-weight: 700; }
 .contact-review-category, .contact-review-action { margin-top: 10px; }
-.contact-review-category select { min-height: 70px; }
+.contact-review-picks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.contact-review-category .pick-btn { min-height: 44px; padding: 8px 10px; color: var(--text); font-size: .9375rem; font-weight: 700; }
 @media (max-width: 600px) {
   .contacts-page { padding: 16px 12px 28px; }
   .contact-method-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); }
   .contact-remove-method { grid-column: 1 / -1; justify-self: start; min-height: 44px; }
-  .contact-review-edit { grid-template-columns: minmax(0, 1fr); }
+  .contact-review-edit, .contact-review-picks { grid-template-columns: minmax(0, 1fr); }
 }
