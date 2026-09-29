@@ -18,6 +18,8 @@ import { NowNextCard, TransitionWarnings } from './NowNext.tsx'
 import { warningTimes } from './transitions.ts'
 import NotesThread from './NotesThread.tsx'
 import Board from './Board.tsx'
+import SnapshotSheet from './Snapshot.tsx'
+import { hashQuery } from './hashQuery.ts'
 import { PriorityBadge } from './PriorityBadge.tsx'
 import { isSingleEmoji } from './emoji.ts'
 import { calendarGoal } from './tempCheck.ts'
@@ -195,6 +197,21 @@ export default function CalendarView() {
     window.addEventListener('hashchange', read)
     return () => window.removeEventListener('hashchange', read)
   }, [])
+  // #/calendar?checkin=<member> (the check-in widget): their day, at the check-in. Only for someone this
+  // device could tap in the header (a display pinned to one person: just them); anyone else, just the calendar.
+  const [checkIn, setCheckIn] = useState<string | null>(null)
+  useEffect(() => {
+    const read = () => {
+      const id = hashQuery(location.hash).get('checkin')
+      if (id === null || !location.hash.startsWith('#/calendar')) return
+      setCheckIn(id)
+      history.replaceState(null, '', '#/calendar')
+    }
+    read()
+    window.addEventListener('hashchange', read)
+    return () => window.removeEventListener('hashchange', read)
+  }, [])
+  const checkInMember = checkIn && (!focusMemberId || checkIn === focusMemberId) ? members.find(m => m.id === checkIn) : undefined
   // Kept until the event shows up in a load (the jump above triggers a new fetch); give up after 10s.
   useEffect(() => {
     if (!pendingEventId) return
@@ -205,7 +222,7 @@ export default function CalendarView() {
   }, [pendingEventId, events])
 
   useEffect(() => {
-    const onIdle = () => { setDetail(null); setEditState(null); setViewMode('board'); setAnchor(new Date()) } // back to the default view
+    const onIdle = () => { setDetail(null); setEditState(null); setCheckIn(null); setViewMode('board'); setAnchor(new Date()) } // back to the default view
     window.addEventListener(IDLE_RESET_EVENT, onIdle)
     return () => window.removeEventListener(IDLE_RESET_EVENT, onIdle)
   }, [])
@@ -452,6 +469,7 @@ export default function CalendarView() {
           onSave={saveEvent}
         />
       )}
+      {checkInMember && <SnapshotSheet member={checkInMember} toCheckIn onClose={() => setCheckIn(null)} />}
     </div>
   )
 }

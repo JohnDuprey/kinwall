@@ -136,3 +136,5 @@ Who an event is for never depends on telling colors apart: the avatars always sh
 ## Opening from a notification
 
 Tapping a reminder notification opens `#/calendar?event=<id>&at=<start>`. The calendar jumps to that day and opens the event.
+
+`#/calendar?checkin=<member id>` opens that person's day at their check-in. See [Daily check-in](snapshot.md#daily-check-in).

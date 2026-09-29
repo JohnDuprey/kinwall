@@ -25,6 +25,7 @@ When a parent turns on **Daily check-in points** in [Settings → Family](../set
 * Once per person per day, in the family's time zone. Checking in again the same day earns nothing.
 * Only on the **Day** view, and only while **Chores & points** is on. Off (the default) hides it.
 * It works wherever their day opens: on the wall, their own device or a parent's. A device that belongs to one person can only check in for them.
+* A link to `#/calendar?checkin=<member id>` (the check-in widget in the phone app uses it) opens their day scrolled to the **Temp check**, or to the evening goal check from their evening time, or to this button when they have no Temp check. It follows the same rules as tapping them at the top of the calendar: a device that belongs to someone else just opens the calendar.
 * The points are theirs to spend, like chore points, and count as **Points earned** on their [profile](profiles.md), which also counts their check-ins. The [leaderboard](chores.md) ranks chore points only, so checking in never moves anyone up or down.
 
 API: `POST /api/members/{id}/check-in` returns `{ date, points, awarded, balance }` (`awarded` is 0 when they already checked in today; 400 while check-ins are off). The snapshot has `checkedIn` and `checkInPoints`. A new check-in sends the `checkin.completed` [webhook](../integrations/webhooks.md). Check-ins are in [exports](../your-data/export-import.md).

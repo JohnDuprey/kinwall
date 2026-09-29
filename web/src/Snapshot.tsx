@@ -4,7 +4,7 @@ import { useApp } from './AppContext.tsx'
 import { isAudiobook, readingPercent } from './reading.ts'
 import type { ChoreDay, Member, ReadingData, TempCheck as TempCheckData, TempCheckInput, TrackerEntry, Snapshot, SnapshotBirthday, SnapshotChore, SnapshotEvent, SnapshotItem, WeatherDay } from './types.ts'
 import { ChecklistSheet, Confetti } from './Chores.tsx'
-import { checkInLabel, checkInState } from './checkIn.ts'
+import { checkInFocus, checkInLabel, checkInState } from './checkIn.ts'
 import { feelingOptions, GOAL_MAX, SLEEP, tempCheckDone, toggleFeeling } from './tempCheck.ts'
 import { CheckIcon } from './icons.tsx'
 import GoalFollowUp from './GoalFollowUp.tsx'
@@ -15,7 +15,7 @@ import Sheet from './Sheet.tsx'
 import { PriorityBadge } from './PriorityBadge.tsx'
 import { Segmented, announce } from './a11y.tsx'
 import { inkFor } from './color.ts'
-import { todayKeyInTz } from './date.ts'
+import { minutesSinceMidnight, todayKeyInTz } from './date.ts'
 import { formatTime } from './timeFormat.ts'
 import { MEAL_SLOTS, SLOT_LABEL } from './meal-date.ts'
 import { leadOf, leadText } from './leadTime.ts'
@@ -39,7 +39,7 @@ function go(hash: string, close: () => void) { close(); location.hash = hash }
 const eventHash = (e: SnapshotEvent) => `#/calendar?event=${encodeURIComponent(e.id)}&at=${encodeURIComponent(e.start)}`
 
 /** Header avatar tap: one member's day (or week) - weather, their events, chores, due items, birthdays. */
-export default function SnapshotSheet({ member, onClose }: { member: Member; onClose: () => void }) {
+export default function SnapshotSheet({ member, onClose, toCheckIn }: { member: Member; onClose: () => void; toCheckIn?: boolean }) {
   const { settings, refreshTick, selectedMemberId, setSelectedMemberId, focusMemberId, reloadCore, toast, parentDevice, meMemberId } = useApp()
   const tz = settings.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone
   const [range, setRange] = useState<Range>('day')
@@ -56,6 +56,21 @@ export default function SnapshotSheet({ member, onClose }: { member: Member; onC
       .catch(e => { if (!canceled) setError(e instanceof ApiError ? e.message : "Couldn't load this snapshot.") })
     return () => { canceled = true }
   }, [member.id, range, refreshTick])
+
+  // A check-in link (#/calendar?checkin=<member>): scrolled to that part of their day once it's there.
+  // Each card loads on its own, so wait a moment for the one that fits the time before taking another.
+  useEffect(() => {
+    if (!toCheckIn) return
+    const temp = '.snap-temp:not(.snap-goalcheck)'
+    const order = { evening: ['.snap-goalcheck', temp, '.snap-checkin'], temp: [temp, '.snap-checkin'], checkin: ['.snap-checkin', temp] }[checkInFocus(member.tempCheck, minutesSinceMidnight(new Date().toISOString(), tz))]
+    const started = Date.now()
+    const t = setInterval(() => {
+      const waited = Date.now() - started
+      const el = (waited > 2500 ? order : order.slice(0, 1)).map(sel => document.querySelector(`.sheet ${sel}`)).find(Boolean)
+      if (el || waited > 6000) { clearInterval(t); el?.scrollIntoView({ block: 'start' }) }
+    }, 150)
+    return () => clearInterval(t)
+  }, [toCheckIn, member.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const filtered = selectedMemberId === member.id
   const toggleFilter = () => {
