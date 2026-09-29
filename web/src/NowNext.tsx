@@ -9,7 +9,7 @@ import { leadFor, leadIcon, leadOf } from './leadTime.ts'
 import { useApp } from './AppContext.tsx'
 import { api, MOCK } from './api.ts'
 import { leaveByActivity } from './liveActivity.ts'
-import { endAppActivity, tellAppActivity } from './native.ts'
+import { endAppActivity, tellAppActivity, tellAppLeaveByPush } from './native.ts'
 import { useDeviceAppearance } from './useTheme.ts'
 
 const MIN = 60000
@@ -166,6 +166,9 @@ export function LeaveByLiveActivity() {
   const tz = settings.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone
   const a = me ? leaveByActivity(events, me, now, iso => formatTime(iso, tz), calm) : null
   const json = JSON.stringify(a)
+  // Push-to-start only for a person who gets transition reminders (never the demo's stand-in).
+  const push = !!members.find(m => m.id === meMemberId)?.transitionReminders?.on
+  useEffect(() => { tellAppLeaveByPush(push) }, [push])
   useEffect(() => { if (a) tellAppActivity('leaveBy', a); else endAppActivity('leaveBy') }, [json]) // eslint-disable-line react-hooks/exhaustive-deps
   return null
 }

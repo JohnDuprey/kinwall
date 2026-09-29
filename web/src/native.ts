@@ -87,3 +87,31 @@ export function endAppActivity(kind: AppActivityKind) {
   lastActivity[kind] = ''
   try { app.postMessage({ type: 'activityEnd', kind }) } catch { /* not in the app */ }
 }
+
+/** Whether the iPhone app may show Live Activities (iPhone Settings → Kinwall → Live Activities),
+ * as the app last said; null outside the iPhone app (a browser, Android, an older app). */
+export function appLiveActivities(): boolean | null {
+  if (typeof window === 'undefined') return null
+  const v = (window as Window & { kinwallNative?: { liveActivities?: unknown } }).kinwallNative?.liveActivities
+  return typeof v === 'boolean' ? v : null
+}
+
+/** The Notifications section's line about them, or null where they don't apply. */
+export function liveActivitiesLine(on: boolean | null): string | null {
+  if (on === null) return null
+  return on
+    ? 'Countdowns and timers show on the Lock Screen. Turn them off in iPhone Settings → Kinwall → Live Activities.'
+    : 'Countdowns and timers on the Lock Screen: Off in iPhone Settings. Turn them on in iPhone Settings → Kinwall → Live Activities.'
+}
+
+let lastLeaveByPush: boolean | undefined
+/** Whether this device's person gets transition reminders, so the app registers for the server's
+ * leave-by push (a Live Activity while the app is closed) only when they would. Sent on change. */
+export function tellAppLeaveByPush(on: boolean) {
+  if (lastLeaveByPush === on) return
+  const w = window as Window & { webkit?: { messageHandlers?: { kinwall?: { postMessage: (m: unknown) => void } } } }
+  const app = w.webkit?.messageHandlers?.kinwall
+  if (!app) return
+  lastLeaveByPush = on
+  try { app.postMessage({ type: 'leaveByPush', on }) } catch { /* not in the app */ }
+}

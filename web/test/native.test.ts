@@ -40,3 +40,16 @@ test('activities: sent only when changed, ended once, and nothing in a browser',
   ])
   delete g.window
 })
+
+test('live activities line: on, off in iPhone Settings, or nothing outside the iPhone app', async () => {
+  const { appLiveActivities, liveActivitiesLine } = await import('../src/native.ts')
+  const g = globalThis as { window?: unknown }
+  g.window = { kinwallNative: { platform: 'ios', liveActivities: false } }
+  assert.equal(appLiveActivities(), false)
+  g.window = { kinwallNative: { platform: 'android' } }
+  assert.equal(appLiveActivities(), null)
+  delete g.window
+  assert.match(liveActivitiesLine(true)!, /^Countdowns and timers show on the Lock Screen\. Turn them off in iPhone Settings → Kinwall → Live Activities\.$/)
+  assert.match(liveActivitiesLine(false)!, /Off in iPhone Settings/)
+  assert.equal(liveActivitiesLine(null), null)
+})

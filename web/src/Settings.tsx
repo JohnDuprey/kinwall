@@ -30,7 +30,7 @@ import { countDrawings } from './drawings-db.ts'
 import { passkeysSupported, registerPasskey } from './webauthn.ts'
 import { QrCode } from './App.tsx'
 import { InstallRow } from './Install.tsx'
-import { inNativeApp } from './native.ts'
+import { appLiveActivities, inNativeApp, liveActivitiesLine } from './native.ts'
 import { useDialog } from './dialog.tsx'
 import { TEMP_CHECK_OFF } from './tempCheck.ts'
 import { EVENING_TIMES } from './journal.ts'
@@ -632,6 +632,13 @@ const DEFAULT_PUSH_PREFS = { eventReminders: true, dailySummary: false, summaryT
  * summary/nudge/list-update preferences. Works for any key scope (display or admin) - it's
  * per-device, not a household setting. */
 function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean) => void }) {
+  // iPhone app: whether Live Activities are on (the app updates window.kinwallNative when it comes back).
+  const [liveActivities, setLiveActivities] = useState(appLiveActivities)
+  useEffect(() => {
+    const on = () => setLiveActivities(appLiveActivities())
+    window.addEventListener('kinwallnative', on)
+    return () => window.removeEventListener('kinwallnative', on)
+  }, [])
   const { members, settings } = useApp()
   const [sub, setSub] = useState<PushSubscription | null | undefined>(undefined) // undefined = still checking
   const [busy, setBusy] = useState(false)
@@ -701,9 +708,11 @@ function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean)
   }
 
   if (inNativeApp()) {
+    const liveLine = liveActivitiesLine(liveActivities)
     return (
       <Section title="Notifications" icon={<BellIcon width={16} height={16} />}>
         <p className="settings-row-sub">The Kinwall app reminds you about events on this device, at each event's reminder times. To turn them off, go to the device's Settings → Notifications → Kinwall. Daily summaries, chore nudges and list updates aren't sent to the app yet; they still arrive in the bell at the top.</p>
+        {liveLine && <p className="settings-row-sub">{liveLine}</p>}
       </Section>
     )
   }

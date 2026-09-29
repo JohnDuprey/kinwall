@@ -30,7 +30,7 @@ For someone with the [energy battery](battery.md) on, their own phones and table
 
 ## Transition reminders
 
-A family member can also get **transition reminders**: calm heads-ups at the times a parent picks (for example 30 minutes before, plus every 5 minutes during the last 15), sent only to devices that belong to them. "Soccer practice in 10 minutes", or with travel time "Leave for Soccer practice in 5 minutes". They're never sent during quiet hours, a reminder that would land in the same minute as a regular one isn't doubled, and each replaces the last on the lock screen. Set them in [Settings → Family](../settings/family.md#transition-reminders).
+A family member can also get **transition reminders**: calm heads-ups at the times a parent picks (for example 30 minutes before, plus every 5 minutes during the last 15), sent only to devices that belong to them. The headline changes each time and gets more direct as time runs out ("Soccer practice in 30 min: find your shoes 🚗", then "Leave now for Soccer practice! 🎒"), and a meal's event counts to starting prep instead. They're never sent during quiet hours, a reminder that would land in the same minute as a regular one isn't doubled, and each replaces the last on the lock screen. Set them in [Settings → Family](../settings/family.md#transition-reminders).
 
 ## Daily summary
 
@@ -56,6 +56,14 @@ Every notification Kinwall sends is also kept in the app, whether or not any dev
 * Admins can also **remove** a notification (the × beside it) or **Clear all** from the top of the sheet. The feed is the household's one copy, so this clears it on every device; displays can only mark things read. The same via the API: `DELETE /api/notifications/:id` and `DELETE /api/notifications` (admin key).
 * Display keys can read the feed. Entries older than 90 days are removed.
 * The API is `GET /api/notifications?limit=50&before=<ISO time>` (newest first), and the MCP tool is `list_notifications`.
+
+## Live Activities (Kinwall app for iPhone)
+
+In the Kinwall app for iPhone, some things also show on the Lock Screen and in the Dynamic Island while they're happening: a [cooking timer](meals.md#start-cooking), a [shopping trip](lists.md#shopping-mode), and the next leave-by or start-prep time for the person the phone belongs to. There's no Kinwall setting for them:
+
+* A cooking timer or a shopping trip shows when you start one.
+* A leave-by or start-prep countdown follows the reminders: it shows only on a phone that belongs to someone who has [transition reminders](../settings/family.md#transition-reminders) on, and with the app's notifications allowed. It starts at their first transition reminder and ends when the event starts.
+* To turn them all off, go to iPhone **Settings → Kinwall → Live Activities**. The Notifications section in the app's Settings says whether they're on.
 
 ## Platform notes
 
