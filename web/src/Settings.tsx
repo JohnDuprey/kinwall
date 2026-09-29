@@ -423,7 +423,7 @@ function AppearanceSection({ settings, onSaved, toast }: { settings: Settings; o
       <p className="settings-row-sub" style={{ margin: '10px 2px 0' }}>
         For the whole family.{overridden.length > 0 && <> This device uses its own, under Appearance on this device:</>}
       </p>
-      {overridden.length > 0 && <div style={{ margin: '6px 2px 0' }}><SummaryChips chips={overridden} /></div>}
+      {overridden.length > 0 && <div className="summary-chips-block"><SummaryChips chips={overridden} /></div>}
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
         <div className="device-pref-row">
           <span>Mode</span>
