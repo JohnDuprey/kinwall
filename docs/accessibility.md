@@ -47,6 +47,8 @@ About 1 in 12 men and 1 in 200 women have some color blindness, most often red-g
 - **Categories**: an event shows its category's emoji before the title, or the category's name when it has no emoji. The calendar filter and pickers show names.
 - **Charts**: parts differ by fill, not only by shade. Goals met are solid, partly met striped, not met an outline, and no check yet a dashed outline; the battery's days ahead are dashed.
 
+- **Color schemes**: some built-in schemes use an accent close to a status color: Spring's green is almost the green of a done tick, Festive's red is close to the red of "1 overdue", and Autumn, Harvest and Ink's orange is close to the High badge (Harvest and Ink only with red-green color blindness). Every status also carries a word, tick or mark, so nothing depends on telling them apart.
+
 How the check works: each color is run through the Machado, Oliveira and Fernandes (2009) simulations of protanopia, deuteranopia and tritanopia (full severity, in linear RGB), and two colors count as alike when they're closer than 10 ΔE (CIE76, the distance in CIELAB) under any of them, or with typical vision. CIE76 is enough for "can you tell these apart at a glance?", which is a much bigger difference than the fine steps CIEDE2000 was made for.
 
 ## Motion and timing
