@@ -20,7 +20,7 @@ import Setup, { readSetupResume, resumeAtPasskey } from './Setup.tsx'
 import { useIsPhone } from './useIsPhone.ts'
 import { useNavMode, type NavMode } from './useNavMode.ts'
 import { useDeviceAppearance, useTheme } from './useTheme.ts'
-import { isWallScreen, nightScreenDue, wallDefaultsOn } from './wallScreen.ts'
+import { isWallScreen, nightScreenDue, remoteNightAction, remoteNightKey, wallDefaultsOn, type RemoteNight } from './wallScreen.ts'
 import { PIN_RE, pinWaitMs, pressPinKey } from './quietPin.ts'
 import { inkFor } from './color.ts'
 import { loginWithPasskey, passkeysSupported, registerPasskey } from './webauthn.ts'
@@ -176,6 +176,7 @@ function useUpdateAvailable(enabled: boolean) {
 }
 
 const PREVIEW_MS = 20 * 1000
+const NIGHT_POLL_MS = 10 * 1000
 const CLOCK_MOVE_MS = 3 * 60 * 1000
 
 /** Quiet hours: a wall screen (wallScreen.ts) shows only a dim clock that moves around (or, per device,
@@ -184,7 +185,7 @@ const CLOCK_MOVE_MS = 3 * 60 * 1000
  * wall will do; SAVER_START_EVENT (the header's Night screen button) shows it until a tap or key.
  * With the family's quiet-hours PIN set, a tap during quiet hours shows PinKeypad instead of waking;
  * the preview and the Night screen button never ask for it (outside quiet hours). */
-function QuietOverlay({ settings, wall }: { settings: Settings; wall: boolean }) {
+function QuietOverlay({ settings, wall, remote }: { settings: Settings; wall: boolean; remote: RemoteNight | undefined }) {
   const device = useDeviceAppearance()
   const [now, setNow] = useState(new Date())
   const lastActive = useRef(0) // 0 = asleep from the start if loaded mid-window
@@ -219,6 +220,17 @@ function QuietOverlay({ settings, wall }: { settings: Settings; wall: boolean })
     return () => clearTimeout(id)
   }, [preview])
   useEffect(() => { holdAwake('night-screen', manual === 'hold') }, [manual])
+  // Remote Night screen (Home Assistant, a parent, a connected app): "on" starts it like the 🌙
+  // button, "off" (or running out) ends it. Only on a change, so a local tap keeps it awake.
+  const seenRemote = useRef<string | undefined>(undefined)
+  const remoteKey = remote === undefined ? undefined : remoteNightKey(remote)
+  useEffect(() => {
+    const action = remoteNightAction(seenRemote.current, remote, wall)
+    if (!wall || remote === undefined) return
+    seenRemote.current = remoteNightKey(remote)
+    if (action === 'start') window.dispatchEvent(new Event(SAVER_START_EVENT))
+    else if (action === 'stop') setManual(m => (m === 'hold' ? '' : m))
+  }, [remoteKey, wall]) // eslint-disable-line react-hooks/exhaustive-deps
   const due = nightScreenDue({ wall, quietFrom: settings.quietFrom, quietTo: settings.quietTo, now, lastActive: lastActive.current })
   const locked = settings.quietPin && due
   useEffect(() => { pinLocked.current = locked }, [locked])
@@ -1006,9 +1018,12 @@ function AppRoutes() {
   const rest = more.join('/') // #/activities/plugin/sight-words -> 'sight-words'
   const { mode: navMode } = useNavMode()
   const isPhone = useIsPhone()
-  const { tick: pollTick, unauthorized } = usePoll()
-  const [manualTick, setManualTick] = useState(0)
   const { stale: updateAvailable, scope } = useUpdateAvailable(hasKey)
+  const device = useDeviceAppearance()
+  const wall = isWallScreen(scope, device)
+  // Wall screens poll faster while a remote Night screen is on, so they wake soon after someone's home.
+  const { tick: pollTick, unauthorized, nightScreen } = usePoll(30000, wall ? NIGHT_POLL_MS : 30000)
+  const [manualTick, setManualTick] = useState(0)
   // Wall displays can't be zoomed: a pinch from a small hand leaves the wall stuck zoomed in, and
   // the text-size setting covers legibility there. Phones keep pinch-zoom for accessibility.
   useEffect(() => {
@@ -1066,7 +1081,6 @@ function AppRoutes() {
   // Show only. A parent's device (full access) is never locked by its owner: the owner is only for
   // personal defaults (meMemberId), and the family filter works as on any unowned device. A member
   // deleted since falls back to everyone.
-  const device = useDeviceAppearance()
   setHour12(resolveHour12(settings?.timeFormat, device.timeFormat)) // before anything below formats a time
   const focusMember = members.find(m => m.id === (ownerLocks ? owner : device.focusMemberId))
   const meMemberId = members.some(m => m.id === owner) ? owner : null
@@ -1081,7 +1095,6 @@ function AppRoutes() {
   const idleReset = device.idleReset ?? wallDefaultsOn(parentDevice, device)
   // Wall screens and kids' devices stay on; a parent's phone locks as usual unless its own switch says otherwise.
   const keepOn = device.keepAwake ?? wallDefaultsOn(parentDevice, device)
-  const wall = isWallScreen(scope, device)
   useEffect(() => { holdAwake('device', keepOn) }, [keepOn])
   useEffect(() => {
     if (!idleReset) return
@@ -1201,7 +1214,7 @@ function AppRoutes() {
         {bannerMsg && <button className="toast update-banner" onClick={() => setBannerMsg(null)}>{bannerMsg}</button>}
         {updateAvailable && <button className="toast update-banner" onClick={() => location.reload()}>Kinwall updated — tap to reload</button>}
         {isPhone && <InstallNudge />}
-        <QuietOverlay settings={settings} wall={wall} />
+        <QuietOverlay settings={settings} wall={wall} remote={nightScreen} />
         {inNativeApp() && <LeaveByLiveActivity />}
       </div>
     </AppContext.Provider>

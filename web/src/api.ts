@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { remoteNightKey, type RemoteNight } from './wallScreen.ts'
 import { tellAppSignedIn, tellAppSignedOut } from './native.ts'
 import { mock, mockPlugins } from './mock.ts'
 import { applyChoreOps, applyListOps, cacheGet, cachePut, clearOffline, enqueue, flush, onOutboxChange, outboxReady, pendingOps, type Dropped, type Op } from './outbox.ts'
@@ -263,7 +264,7 @@ export const api = {
   getMealProjection: (from: string, to: string, listId?: string) => get<ShoppingProjection>(`api/meals/projection?${new URLSearchParams({ from, to, ...(listId ? { listId } : {}) })}`),
   applyMealProjection: (body: { from: string; to: string; listId: string; omitKeys: string[]; includeNotes: boolean; includeKitItems?: boolean; basics?: BasicChoices }) => post<{ added: number; itemIds: string[]; projection: ShoppingProjection }>('api/meals/projection/apply', body),
 
-  getRev: () => MOCK ? mock.getRev() : get<{ rev: number }>('api/rev'),
+  getRev: (): Promise<{ rev: number; nightScreen?: RemoteNight }> => MOCK ? mock.getRev() : get('api/rev'),
 
   // First-run setup (no auth). MOCK always reports claimed so the mock UI never shows the wizard.
   getSetup: (): Promise<{ claimed: boolean; oauth: { google: boolean; microsoft: boolean }; passkeys: boolean; passkeyRequired: boolean; hasPasskey: boolean }> =>
@@ -620,22 +621,28 @@ export function stripHtmlToText(input: string): string {
   return (doc.body.textContent ?? '').replace(/\n{3,}/g, '\n\n').trim()
 }
 
-/** Bumps a counter every `intervalMs` (default 15s) and on tab visibility change, by polling
+/** Bumps a counter every `intervalMs` (default 30s) and on tab visibility change, by polling
  * /api/rev for changes. Also reports `unauthorized: true` on a 401 (e.g. this display's key was
  * revoked from another session) so App.tsx can drop back to the pairing/key-gate screen without
- * waiting for the next manual action. */
-export function usePoll(intervalMs = 30000) {
+ * waiting for the next manual action. `nightScreen` is this device's remote Night screen from the
+ * same response (undefined until the first poll); while it's on, polls come every `nightIntervalMs`
+ * so a wall wakes soon after someone gets home (one cheap read, no writes). */
+export function usePoll(intervalMs = 30000, nightIntervalMs = intervalMs) {
   const [tick, setTick] = useState(0)
   const [unauthorized, setUnauthorized] = useState(false)
+  const [nightScreen, setNightScreen] = useState<RemoteNight | undefined>(undefined)
   const lastRev = useRef<number | null>(null)
+  const every = nightScreen ? nightIntervalMs : intervalMs
 
   useEffect(() => {
     let canceled = false
     const check = async () => {
       if (!getKey()) return // no key yet (pairing screen) - nothing to poll, and a 401 here is meaningless
       try {
-        const { rev } = await api.getRev()
+        const { rev, nightScreen: night } = await api.getRev()
         if (canceled) return
+        const next = night ?? null
+        setNightScreen(cur => cur !== undefined && remoteNightKey(cur) === remoteNightKey(next) ? cur : next)
         if (lastRev.current !== null && rev !== lastRev.current) setTick(t => t + 1)
         lastRev.current = rev
       } catch (e) {
@@ -644,11 +651,11 @@ export function usePoll(intervalMs = 30000) {
       }
     }
     check()
-    const id = setInterval(check, intervalMs)
+    const id = setInterval(check, every)
     const onVis = () => { if (document.visibilityState === 'visible') check() }
     document.addEventListener('visibilitychange', onVis)
     return () => { canceled = true; clearInterval(id); document.removeEventListener('visibilitychange', onVis) }
-  }, [intervalMs])
+  }, [every])
 
-  return { tick, unauthorized }
+  return { tick, unauthorized, nightScreen }
 }

@@ -1,7 +1,7 @@
 // node --test test/ (npm test). Which devices act as a wall screen, and when the night screen shows.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { isWallScreen, nightScreenDue, wallDefaultsOn, WAKE_MS } from '../src/wallScreen.ts'
+import { isWallScreen, nightScreenDue, remoteNightAction, remoteNightKey, wallDefaultsOn, WAKE_MS } from '../src/wallScreen.ts'
 
 test('isWallScreen: paired displays always are; other devices only with the switch on', () => {
   assert.equal(isWallScreen('display', {}), true)
@@ -37,4 +37,19 @@ test('nightScreenDue: a tap wakes it until WAKE_MS without a touch', () => {
   const now = at(23)
   assert.equal(nightScreenDue({ wall: true, ...quiet, now, lastActive: now.getTime() - 1000 }), false)
   assert.equal(nightScreenDue({ wall: true, ...quiet, now, lastActive: now.getTime() - WAKE_MS - 1 }), true)
+})
+
+const on = (since: string) => ({ on: true, since, until: '2099-01-01T00:00:00Z' })
+
+test('remoteNightAction: Home Assistant starts and wakes wall screens, once per change', () => {
+  assert.equal(remoteNightAction(undefined, on('a'), true), 'start', 'on when the wall loads: start')
+  assert.equal(remoteNightAction(undefined, null, true), null, 'off when the wall loads: leave it alone')
+  assert.equal(remoteNightAction('a', on('a'), true), null, 'still on after a local wake: no re-sleep')
+  assert.equal(remoteNightAction('a', on('b'), true), 'start', 'a new "on": sleep again')
+  assert.equal(remoteNightAction('a', null, true), 'stop', 'off (or run out): wake')
+  assert.equal(remoteNightAction('', null, true), null)
+  assert.equal(remoteNightAction(undefined, undefined, true), null, 'not polled yet')
+  assert.equal(remoteNightAction(undefined, on('a'), false), null, 'not a wall screen')
+  assert.equal(remoteNightKey(on('a')), 'a')
+  assert.equal(remoteNightKey(null), '')
 })

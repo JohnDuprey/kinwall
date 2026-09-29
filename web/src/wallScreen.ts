@@ -28,3 +28,19 @@ export const wallDefaultsOn = (parentDevice: boolean, device: { wallScreen?: boo
 export function nightScreenDue(o: { wall: boolean; quietFrom: string | null; quietTo: string | null; now: Date; lastActive: number }): boolean {
   return o.wall && !!o.quietFrom && !!o.quietTo && inTimeWindow(o.quietFrom, o.quietTo, o.now) && o.now.getTime() - o.lastActive > WAKE_MS
 }
+
+/** The remote Night screen from GET /api/rev (Home Assistant, a parent, a connected app): on, or null. */
+export type RemoteNight = { on: boolean; since: string; until: string } | null
+
+/** What identifies one remote "on": its start time. '' = off. */
+export const remoteNightKey = (remote: RemoteNight) => (remote?.on ? remote.since : '')
+
+/** What a wall screen does when a poll brings the remote state. `seen` is the key it last acted on
+ * (undefined before the first poll). It acts only on a change, so after a local tap wakes it while
+ * the remote state is still on, it stays awake until the next remote change (or quiet hours). */
+export function remoteNightAction(seen: string | undefined, remote: RemoteNight | undefined, wall: boolean): 'start' | 'stop' | null {
+  if (!wall || remote === undefined) return null
+  const key = remoteNightKey(remote)
+  if (key === (seen ?? '')) return null
+  return key ? 'start' : 'stop'
+}

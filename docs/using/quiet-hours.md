@@ -30,6 +30,19 @@ So little ones can't turn the wall on at night, a parent can set a PIN under **S
 
 Wall screens have a moon button in the header, next to the bell and help. Tap it to show the Night screen right away, at any time of day, with this device's Night screen settings. It stays on, and keeps the screen awake, until you tap the screen or press a key, then shows today's calendar. Unlike **Preview screensaver**, it doesn't end on its own.
 
+## Start it from Home Assistant
+
+Home Assistant (or a parent's device, or a connected app) can start the Night screen on every wall screen, or on chosen paired displays, and end it again. For example: start it when nobody's home, wake the walls when someone gets back. The [Home Assistant integration](../integrations/home-assistant.md) has a `kinwall.night_screen` action, a switch per wall screen and a ready-made blueprint for this.
+
+* **On** works like the moon button: each wall uses its own Night screen settings, and the screen stays awake. Walls pick it up within 30 seconds.
+* **Off** ends it. While it's on, walls check every 10 seconds, so they wake within about 10 seconds of someone getting home. During quiet hours a wall follows quiet hours as usual.
+* **A tap still wakes a wall**, the same as always (the [PIN](#pin-to-wake) only during quiet hours). It stays awake even though the remote Night screen is still on. It goes back to the Night screen only on the next remote change (off then on, or a new "on"), or at quiet hours.
+* **It runs out on its own** after 12 hours (or the `hours` sent), so a forgotten "on" can't keep the walls dark for days.
+* Wall screens that use a parent's sign-in (**Use as a wall screen** on) follow the "every wall screen" setting only; a single screen can be picked only if it's a paired display.
+* Only parent devices, admin keys and connected apps can start or end it. Wall screens and kids' devices can't.
+
+API: `POST /api/displays/night-screen` and `GET /api/displays/night-screen`, see the [REST API](../integrations/rest-api.md#night-screen). MCP: `set_night_screen`. Webhook: `display.night_screen`.
+
 ## Screensaver
 
 Instead of the bare clock, a display can show a slow, dim slideshow overnight. It's set **per device**: **Settings → General**, tap **Change** under **Night screen**, then **During quiet hours show**. Turn on one or more sources. With more than one on, the pictures take turns (drawing, then family photo, then art, then nature, and so on). **Clock only** (the default) turns them all off.
