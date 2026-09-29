@@ -17,6 +17,7 @@ import { isValidAvatar } from './emoji.ts'
 import { accentFill, colorName, inkFor } from './color.ts'
 import { BellIcon, KeyIcon, LinkIcon, LockIcon, MonitorIcon, PaletteIcon, PlusIcon, TrashIcon, WebhookIcon } from './icons.tsx'
 import { CustomColorSwatch } from './ColorSwatch.tsx'
+import { ColorClashHint, ColorClashNote } from './ColorClash.tsx'
 import { useIsPhone } from './useIsPhone.ts'
 import { useNavMode, setNavPref, type NavPref } from './useNavMode.ts'
 import { DEFAULT_ACCENT, resolveColors, setDeviceAppearance, useDeviceAppearance, type DeviceAppearance, type FontChoice, type LockedView, type SaverSource } from './useTheme.ts'
@@ -1406,6 +1407,7 @@ function MembersSection({ members, onChanged, toast, canManage = true }: { membe
         ))}
         {canManage && <button className="add-row-btn" onClick={() => setEdit('new')}><PlusIcon width={20} height={20} />Add member</button>}
       </div>
+      <ColorClashNote members={members} canManage={canManage} onChanged={onChanged} toast={toast} />
       {edit && (
         <MemberEditSheet member={edit === 'new' ? null : edit} canDelete={canManage} onClose={() => setEdit(null)}
           onSaved={() => { setEdit(null); onChanged() }} toast={toast} />
@@ -1453,6 +1455,7 @@ function MemberEditSheet({ member, canDelete, onClose, onSaved, toast }: { membe
           {MEMBER_PALETTE.map(c => <button key={c} className={`color-swatch ${color === c ? 'active' : ''}`} aria-pressed={color === c} style={{ background: c }} onClick={() => setColor(c)} aria-label={colorName(c)} />)}
           <CustomColorSwatch value={color} presets={MEMBER_PALETTE} onChange={hex => setColor(hex)} label="Custom member color" />
         </div>
+        <ColorClashHint color={color} memberId={member?.id ?? null} onPick={setColor} />
       </div>
       <div className="field">
         <label>Avatar</label>

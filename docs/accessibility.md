@@ -32,9 +32,21 @@ Dragging is never the only way to do something: sheets have a Close button, the 
 
 - **Contrast**: body text, secondary ("dim") text, links, buttons and error text meet 4.5:1 on every color scheme, light and dark. Buttons filled with your accent color are deepened automatically so their white text stays at 4.5:1, whatever accent you pick.
 - **Not color alone**: events show the family member's avatar or initial as well as their color; selected chips carry a check mark; the current page's tab has a bar as well as a color; done chores and list items show a tick.
+- **Color vision**: see below.
 - **Increased contrast**: with your device's "Increase contrast" setting on, dim text becomes full-strength, borders and dividers get stronger, and links are underlined.
 - **Text size and zoom**: pinch-zoom is never blocked. Settings → Appearance → Text size (or per device: tap Change under Appearance on this device) scales all text up to 130%, and layouts hold at 200% browser zoom. Text never goes below 16px in form fields.
 - **Dark mode**: follows the device, a schedule, or a fixed choice, per household or per device.
+
+## Color vision
+
+About 1 in 12 men and 1 in 200 women have some color blindness, most often red-green. Kinwall's defaults work without telling colors apart, with no setting to turn on:
+
+- **People**: every event, chore column and Board row shows the person's avatar or name as well as their color bar. The one exception is the phone's month view, where chips show only the title (tap the day to see who).
+- **Family colors**: Settings → Family warns when two people's colors would look alike ("Sam and Maya may look alike to someone with red-green color blindness") and suggests a palette color that stands out for one of them. The member editor says the same when you pick a clashing color. See [Members](settings/family.md#members).
+- **List priority**: a badge with a mark of its own shape and the word, "‼ Urgent", "! High" or "↓ Low", not a colored dot.
+- **Charts**: parts differ by fill, not only by shade. Goals met are solid, partly met striped, not met an outline, and no check yet a dashed outline; the battery's days ahead are dashed.
+
+How the check works: each color is run through the Machado, Oliveira and Fernandes (2009) simulations of protanopia, deuteranopia and tritanopia (full severity, in linear RGB), and two colors count as alike when they're closer than 10 ΔE (CIE76, the distance in CIELAB) under any of them, or with typical vision. CIE76 is enough for "can you tell these apart at a glance?", which is a much bigger difference than the fine steps CIEDE2000 was made for.
 
 ## Motion and timing
 
