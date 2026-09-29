@@ -268,6 +268,7 @@ export const SettingsSchema = z
     // Quiet hours for paired displays (HH:MM, household-local). Both null = off.
     quietFrom: z.string().nullable(),
     quietTo: z.string().nullable(),
+    quietPin: z.boolean().openapi({ description: 'A PIN is needed to wake a wall screen during quiet hours (set with PUT /api/quiet-pin). Never the PIN itself.' }),
     accent: z.string(), // '#FF9E7A' (the default) = the color scheme's own accent; anything else is a custom accent
     colorScheme: ColorSchemeIdSchema, // a built-in scheme, 'seasonal', or a customSchemes id
     customColors: CustomColorsSchema.nullable(), // legacy: surfaces layered on the scheme (no longer set by the app)

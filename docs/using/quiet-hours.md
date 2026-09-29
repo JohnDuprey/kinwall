@@ -10,10 +10,21 @@ Quiet hours turn a wall screen into a dim clock overnight. That saves the screen
 
 * It applies **only to wall screens**: paired displays (devices using a display key), and any other device with **Use as a wall screen** on under [Settings → This display](../settings/this-display.md#this-display). Other phones and parent devices are never dimmed. A parent's iPad or a kitchen laptop can be a wall screen and keep its parent access.
 * During the window, the display shows only the time on a dark screen. By default the clock moves around: every few minutes it fades in at a new spot, so no pixels stay lit in one place.
-* **Tap the screen** to wake it. It returns to the clock after **five minutes** without a touch.
+* **Tap the screen** to wake it (or enter the [PIN](#pin-to-wake), if the family set one). It returns to the clock after **five minutes** without a touch.
 * The times are read on the display's own clock. The setting syncs to every display within about 30 seconds.
 
 Quiet hours also hold back transition reminders that would arrive during them. The evening goal check and [medication reminders](medications.md) still come through: they're at times the family picked on purpose.
+
+## PIN to wake
+
+So little ones can't turn the wall on at night, a parent can set a PIN under **Settings → General → Quiet hours → PIN to wake during quiet hours** (4 to 8 digits, asked twice). It's off by default and only set from a parent device, never from a wall screen or a connected app.
+
+* During quiet hours, a tap on a wall screen's Night screen shows a keypad instead of waking it. The right PIN wakes it as usual; it goes back to sleep after five minutes without a touch, and asks again.
+* A wrong PIN says "Try again". After 5 wrong tries in a row the keypad waits a minute, then longer after each further wrong try (up to 30 minutes). The server also limits guesses from each device.
+* The keypad hides after 30 seconds without a touch. If the server can't be reached, the screen stays asleep.
+* Outside quiet hours there's no PIN. The Night screen button and **Preview screensaver** never ask for it either, unless quiet hours are on and the screen has already gone back to sleep.
+* **Forgot it?** Remove it under **More… → Remove PIN** on any parent device.
+* Only a salted hash of the PIN is stored, and it isn't in the [export](../your-data/export-import.md): set it again after a restore. See [Privacy](../your-data/privacy.md).
 
 ## Night screen now
 
@@ -49,6 +60,6 @@ Tapping wakes the display as usual. **Preview screensaver** shows the quiet-hour
 
 ## API
 
-`quietFrom` / `quietTo` (`HH:MM`) in `PATCH /api/settings`. Send both, set or cleared together (`""` or `null` turns quiet hours off).
+`quietFrom` / `quietTo` (`HH:MM`) in `PATCH /api/settings`. Send both, set or cleared together (`""` or `null` turns quiet hours off). The PIN: `PUT /api/quiet-pin` and `DELETE /api/quiet-pin` from a parent device, `POST /api/quiet-pin/verify` from a wall screen; `settings.quietPin` is `true` while one is set. See the [REST API](../integrations/rest-api.md).
 
 Quiet hours are separate from the [dark schedule](appearance.md#dark-schedule). A display can switch to dark at 20:00 and dim to the clock at 22:00.

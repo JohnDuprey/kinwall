@@ -72,7 +72,9 @@ Mode (Auto, following each device's system setting, until the family picks one),
 
 ### Quiet hours
 
-**Off** or **On**, with **Quiet from** and **Quiet to**. Paired wall displays show a dim clock (or a slideshow, set per display under **Night screen**) between these times. Phones are never affected. See [Quiet hours](../using/quiet-hours.md).
+**Off** or **On**, with **Quiet from** and **Quiet to**. Wall screens (paired displays, and devices with **Use as a wall screen** on) show a dim clock (or a slideshow, set per device under **Night screen**) between these times. Other devices are never affected. See [Quiet hours](../using/quiet-hours.md).
+
+**PIN to wake during quiet hours** (off by default, shown once quiet hours are on): **Set PIN** asks for 4 to 8 digits twice. Then a wall screen asks for it before waking during quiet hours. **Change PIN** replaces it; **More… → Remove PIN** turns it off, and is the way out of a forgotten PIN from any parent device. See [PIN to wake](../using/quiet-hours.md#pin-to-wake).
 
 ## Only on this device
 

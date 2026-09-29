@@ -56,6 +56,7 @@ General API calls aren't rate-limited. Only credential guessing is:
 | Setup code claim | 10 per hour |
 | Passkey login | 20 per 10 minutes per address |
 | Recovery-code login | 10 per hour per address, 30 per hour overall |
+| Quiet-hours PIN check | 10 wrong tries in a row per key per 15 minutes (429) |
 | Shared recipe pages and photos (`/r/*`) | 120 per minute per address |
 
 On Workers, the free-tier quota (100k requests/day) is the practical ceiling. See [Cloudflare specifics](../self-hosting/cloudflare.md).
@@ -68,7 +69,7 @@ On Workers, the free-tier quota (100k requests/day) is the practical ceiling. Se
 
 | Area | Routes |
 |---|---|
-| Household | `GET/PATCH /api/settings`, `GET /api/appearance`, `GET /api/me`, `GET /api/rev`, `GET /api/health` |
+| Household | `GET/PATCH /api/settings`, `PUT/DELETE /api/quiet-pin` (`{ pin }`, 4 to 8 digits; parent devices only, not display keys or connected apps; `settings.quietPin` says only whether one is set), `POST /api/quiet-pin/verify` (`{ pin }` → `{ ok }`, `ok: true` when no PIN is set; display keys may, connected apps can't), `GET /api/appearance`, `GET /api/me`, `GET /api/rev`, `GET /api/health` |
 
 Color settings on `PATCH /api/settings`: `colorScheme` is a built-in id (`meadow` is shown as Peach, `field` as Meadow, plus `ocean`, `lavender`, `midnight`, `spring`, `summer`, `autumn`, `winter`, `harvest`, `festive`), `seasonal`, or a `customSchemes` id. `customSchemes` is the family's own schemes, up to 10, each `{ id: "custom-…", name, emoji, light, dark }` with `light`/`dark` as `{ bg, card, text, accent }` hex colors. A scheme whose text or derived dim text is under 4.5:1 on its background or cards, in either mode, is refused with 400 and the failing pairs. `accent`, `backgroundLight`, `backgroundDark` and `customColors` are kept for older clients.
 `themeMode` is `light`, `dark`, `auto` (follow the device's system setting, the default for a family that hasn't picked one) or `scheduled` (dark between `darkFrom` and `darkTo`).

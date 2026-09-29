@@ -207,6 +207,7 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   // are for parent devices; a display reads them, keeps its own look on the device, and may add a
   // color scheme to the family's list for itself.
   { method: 'POST', pattern: /^\/api\/settings\/color-schemes$/ },
+  { method: 'POST', pattern: /^\/api\/quiet-pin\/verify$/ }, // waking the night screen; setting the PIN is for parent devices
   { method: 'GET', pattern: /^\/api\/rev$/ },
   { method: 'GET', pattern: /^\/api\/notifications$/ },
   { method: 'GET', pattern: /^\/api\/push\/vapid-public-key$/ },

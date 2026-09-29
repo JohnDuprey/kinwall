@@ -46,6 +46,7 @@ export async function readSettings(db: KinwallDb) {
     // Off by default; cleared is stored as '' (the loop in PATCH below), read back as null.
     quietFrom: map.get('quietFrom') || null,
     quietTo: map.get('quietTo') || null,
+    quietPin: !!map.get('quietPinHash'), // routes/quiet-pin.ts; the hash itself never leaves the server
     accent: map.get('accent') ?? DEFAULTS.accent,
     colorScheme: parseColorScheme(map.get('colorScheme')),
     customColors: parseCustomColors(map.get('customColors')),

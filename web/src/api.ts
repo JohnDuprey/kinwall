@@ -282,6 +282,10 @@ export const api = {
   // useAdmin: the setup wizard saves household settings with the in-memory admin key when this
   // device only just claimed a display-scope key (settings PATCH isn't display-allowed).
   addColorScheme: (scheme: CustomScheme) => MOCK ? mock.updateSettings({}) : post<Settings>('api/settings/color-schemes', scheme),
+  // Quiet-hours PIN (server/src/routes/quiet-pin.ts): set and removed from parent devices; wall screens verify it.
+  setQuietPin: (pin: string) => MOCK ? mock.setQuietPin(pin) : put<{ ok: boolean }>('api/quiet-pin', { pin }),
+  removeQuietPin: () => MOCK ? mock.setQuietPin(null) : del<{ ok: boolean }>('api/quiet-pin'),
+  verifyQuietPin: (pin: string) => MOCK ? mock.verifyQuietPin(pin) : post<{ ok: boolean }>('api/quiet-pin/verify', { pin }),
   updateSettings: (body: Partial<Settings>, useAdmin?: boolean) => MOCK ? mock.updateSettings(body) : patch<Settings>('api/settings', body, useAdmin),
   // No-auth subset of Settings for the pre-pairing screen (useTheme.ts) — see GET /api/appearance.
   getAppearance: (): Promise<Appearance> => MOCK ? mock.getSettings() : get<Appearance>('api/appearance'),

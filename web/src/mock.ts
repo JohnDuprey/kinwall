@@ -57,6 +57,7 @@ for (let n = 1; n <= 6; n++) {
 const doseStatus = (date: string, e: MockDose | undefined): DoseStatus => e?.status ?? (date < dateKey(new Date()) ? 'missed' : 'due')
 const bump = () => { rev++ }
 
+let quietPin: string | null = null
 const settings: Settings = {
   familyName: 'Our Family',
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -66,6 +67,7 @@ const settings: Settings = {
   darkTo: '07:00',
   quietFrom: null,
   quietTo: null,
+  quietPin: false,
   accent: '#FF9E7A',
   colorScheme: 'meadow',
   customColors: null,
@@ -485,6 +487,9 @@ export const mock = {
 
   getSettings: async (): Promise<Settings> => ({ ...settings }),
   updateSettings: async (patch: Partial<Settings>) => { Object.assign(settings, patch); bump(); return { ...settings } },
+  // Demo only: the PIN is kept in memory as typed; the real server keeps only a salted hash.
+  setQuietPin: async (pin: string | null) => { quietPin = pin; settings.quietPin = !!pin; bump(); return { ok: true } },
+  verifyQuietPin: async (pin: string) => ({ ok: !quietPin || pin === quietPin }),
 
   getMembers: async () => [...members].sort((a, b) => a.sort - b.sort).map(m => {
     const tc = m.tempCheck ?? TEMP_CHECK_OFF

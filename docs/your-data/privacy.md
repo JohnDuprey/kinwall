@@ -86,6 +86,8 @@ The [energy battery](../using/battery.md) is worked out from sleep and feelings,
 * Recovery codes.
 * The setup code, and display pairing poll tokens.
 
+The [quiet-hours PIN](../using/quiet-hours.md#pin-to-wake) is stored as a salted PBKDF2-SHA256 hash (100,000 rounds). The PIN and its hash never go to any device, webhook or connected app, and never into the server logs or the export. A PIN is only 4 to 8 digits, so the hash alone wouldn't stop someone with a copy of the database from working it out; it's there to keep kids from waking the wall, not to guard secrets.
+
 ## Stored in plain form
 
 Your family's content: member names, events, chores, lists, settings, [trackers](../using/trackers.md) (reading and memories; health entries are encrypted, above) and [photos](../using/photos.md) (stored in the database itself, never sent anywhere else). On Docker that's in `kinwall.sqlite`, and on Workers it's in D1. Protect the host or account accordingly.

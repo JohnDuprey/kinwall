@@ -24,8 +24,9 @@ export interface Settings {
   themeMode: ThemeMode
   darkFrom: string // HH:MM, household timezone
   darkTo: string // HH:MM, household timezone
-  quietFrom: string | null // HH:MM; both null = no quiet hours (paired displays only)
+  quietFrom: string | null // HH:MM; both null = no quiet hours (wall screens only)
   quietTo: string | null
+  quietPin: boolean // a PIN is needed to wake a wall screen during quiet hours (never the PIN itself)
   accent: string // hex; DEFAULT_ACCENT (useTheme.ts) = the color scheme's own accent
   colorScheme: ColorScheme
   customColors: Omit<CustomColors, 'accent'> | null // legacy: household surfaces over the scheme (the app no longer sets these)

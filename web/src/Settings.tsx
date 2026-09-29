@@ -22,6 +22,7 @@ import { useIsPhone } from './useIsPhone.ts'
 import { useNavMode, setNavPref, type NavPref } from './useNavMode.ts'
 import { DEFAULT_ACCENT, resolveColors, setDeviceAppearance, useDeviceAppearance, type DeviceAppearance, type LockedView, type SaverSource } from './useTheme.ts'
 import { wallDefaultsOn } from './wallScreen.ts'
+import { PIN_RE } from './quietPin.ts'
 import { baseFromPalette, findSkin, getSkin, OLD_BACKGROUNDS, paletteChecks, paletteOf, seasonalSkinId, tokensFor, type CustomScheme, type Palette } from './skins.ts'
 import { SAVER_PREVIEW_EVENT } from './Screensaver.tsx'
 import type { ClockPos } from './nightClock.ts'
@@ -487,7 +488,40 @@ function QuietHoursSection({ settings, onSaved, toast }: { settings: Settings; o
         )}
         <div className="settings-row-sub">Wall screens show only a dim clock between these times (or a dim slideshow, set per display under Night screen). Tap the screen to wake it for five minutes. Other devices are never affected unless Use as a wall screen is on under This display.</div>
       </div>
+      {quietOn && <QuietPinRow settings={settings} onSaved={onSaved} toast={toast} />}
     </Section>
+  )
+}
+
+/** "PIN to wake during quiet hours": set or changed here (asked twice), removed under More…, which
+ * is also the way out of a forgotten PIN. Only ever sent to the server, never stored here. */
+function QuietPinRow({ settings, onSaved, toast }: { settings: Settings; onSaved: () => void; toast: (m: string, persist?: boolean) => void }) {
+  const dialog = useDialog()
+  const setPin = async () => {
+    const pin = await dialog.prompt({ title: settings.quietPin ? 'Change PIN' : 'Set a PIN', label: 'New PIN (4 to 8 digits)', type: 'pin', confirmLabel: 'Next', validate: v => PIN_RE.test(v) ? null : 'Use 4 to 8 digits.' })
+    if (!pin) return
+    const again = await dialog.prompt({ title: settings.quietPin ? 'Change PIN' : 'Set a PIN', label: 'Enter it again', type: 'pin', confirmLabel: 'Save', validate: v => v === pin ? null : "The PINs don't match." })
+    if (!again) return
+    try { await api.setQuietPin(pin); onSaved(); toast('PIN saved') } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save the PIN', true) }
+  }
+  const more = async (v: string) => {
+    if (v !== 'remove' || !await dialog.confirm({ title: 'Remove the PIN?', body: 'A tap will wake wall screens during quiet hours again.', confirmLabel: 'Remove', danger: true })) return
+    try { await api.removeQuietPin(); onSaved(); toast('PIN removed') } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not remove the PIN', true) }
+  }
+  return (
+    <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+      <div className="settings-row-label">PIN to wake during quiet hours{settings.quietPin ? ': on' : ''}</div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button className="btn btn-secondary" style={{ flex: 1 }} onClick={setPin}>{settings.quietPin ? 'Change PIN' : 'Set PIN'}</button>
+        {settings.quietPin && (
+          <select className="settings-select" style={{ width: 'auto' }} aria-label="More" value="" onChange={e => more(e.target.value)}>
+            <option value="" disabled hidden>More…</option>
+            <option value="remove">Remove PIN</option>
+          </select>
+        )}
+      </div>
+      <div className="settings-row-sub">A wall screen asks for it before waking during quiet hours, so little ones can't turn the wall on at night. Forgot it? Remove it here on any parent device.</div>
+    </div>
   )
 }
 

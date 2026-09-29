@@ -21,6 +21,7 @@ import { useIsPhone } from './useIsPhone.ts'
 import { useNavMode, type NavMode } from './useNavMode.ts'
 import { useDeviceAppearance, useTheme } from './useTheme.ts'
 import { isWallScreen, nightScreenDue, wallDefaultsOn } from './wallScreen.ts'
+import { PIN_RE, pinWaitMs, pressPinKey } from './quietPin.ts'
 import { inkFor } from './color.ts'
 import { loginWithPasskey, passkeysSupported, registerPasskey } from './webauthn.ts'
 import { announce } from './a11y.tsx'
@@ -178,7 +179,9 @@ const CLOCK_MOVE_MS = 3 * 60 * 1000
 /** Quiet hours: a wall screen (wallScreen.ts) shows only a dim clock that moves around (or, per device,
  * a dim slideshow - see Screensaver.tsx) between settings.quietFrom and quietTo. Any touch keeps it
  * awake for WAKE_MS. SAVER_PREVIEW_EVENT shows it for 20 s on any device so an admin can see what the
- * wall will do; SAVER_START_EVENT (the header's Night screen button) shows it until a tap or key. */
+ * wall will do; SAVER_START_EVENT (the header's Night screen button) shows it until a tap or key.
+ * With the family's quiet-hours PIN set, a tap during quiet hours shows PinKeypad instead of waking;
+ * the preview and the Night screen button never ask for it (outside quiet hours). */
 function QuietOverlay({ settings, wall }: { settings: Settings; wall: boolean }) {
   const device = useDeviceAppearance()
   const [now, setNow] = useState(new Date())
@@ -186,8 +189,14 @@ function QuietOverlay({ settings, wall }: { settings: Settings; wall: boolean })
   const [drift, setDrift] = useState<Spot>(CLOCK_SPOTS.center)
   const [manual, setManual] = useState<'' | 'preview' | 'hold'>('')
   const preview = manual === 'preview'
+  const [keypad, setKeypad] = useState(false)
+  const pinLocked = useRef(false) // mirrors `locked` below for the listeners
   useEffect(() => {
-    const touch = () => { lastActive.current = Date.now(); setNow(new Date()); setManual('') }
+    const touch = () => {
+      setManual('')
+      if (pinLocked.current) { setKeypad(true); return }
+      lastActive.current = Date.now(); setNow(new Date())
+    }
     const events = ['pointerdown', 'keydown']
     events.forEach(ev => window.addEventListener(ev, touch))
     const id = setInterval(() => setNow(new Date()), 15000)
@@ -203,7 +212,12 @@ function QuietOverlay({ settings, wall }: { settings: Settings; wall: boolean })
     return () => clearTimeout(id)
   }, [preview])
   useEffect(() => { holdAwake('night-screen', manual === 'hold') }, [manual])
-  const asleep = !!manual || nightScreenDue({ wall, quietFrom: settings.quietFrom, quietTo: settings.quietTo, now, lastActive: lastActive.current })
+  const due = nightScreenDue({ wall, quietFrom: settings.quietFrom, quietTo: settings.quietTo, now, lastActive: lastActive.current })
+  const locked = settings.quietPin && due
+  useEffect(() => { pinLocked.current = locked }, [locked])
+  const wake = useCallback(() => { lastActive.current = Date.now(); setNow(new Date()); setKeypad(false) }, [])
+  const hideKeypad = useCallback(() => setKeypad(false), [])
+  const asleep = !!manual || due
   // Photos turned off (Settings → Features): a display that picked them shows nature pictures instead.
   const sources = [...new Set((device.saverSources ?? []).map(src => src === 'photos' && !settings.features.photos ? 'nature' : src))]
   const fixed = device.clockPos && CLOCK_SPOTS[device.clockPos]
@@ -227,8 +241,69 @@ function QuietOverlay({ settings, wall }: { settings: Settings; wall: boolean })
       </div>
     )
   return (
-    <div className="quiet-overlay" role="button" tabIndex={0} aria-label="Wake display" onClick={() => { lastActive.current = Date.now(); setNow(new Date()) }}>
-      {sources.length ? <Slideshow sources={sources} device={device} clock={clock} spot={spot} /> : clock(false)}
+    <div className="quiet-overlay" role="button" tabIndex={0} aria-label="Wake display" onClick={() => { if (!pinLocked.current) wake() }}>
+      {locked && keypad ? <PinKeypad onWake={wake} onIdle={hideKeypad} />
+        : sources.length ? <Slideshow sources={sources} device={device} clock={clock} spot={spot} /> : clock(false)}
+    </div>
+  )
+}
+
+// Wrong tries in a row, and when the keypad may be used again (quietPin.ts). Per page load: the
+// server keeps its own count per key, so a reload doesn't reset the real limit.
+let pinFailures = 0
+let pinWaitUntil = 0
+const PIN_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'back', '0', 'ok']
+
+/** The quiet-hours PIN pad on the night screen: big buttons, no hint, no on-screen keyboard. The
+ * server checks the PIN; if it can't be reached the screen stays asleep. Hides after 30 s idle. */
+function PinKeypad({ onWake, onIdle }: { onWake: () => void; onIdle: () => void }) {
+  const [entry, setEntry] = useState('')
+  const [msg, setMsg] = useState('')
+  const [shake, setShake] = useState(0)
+  const [busy, setBusy] = useState(false)
+  const [now, setNow] = useState(() => Date.now())
+  const waitLeft = Math.max(0, pinWaitUntil - now)
+  useEffect(() => { const id = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(id) }, [])
+  useEffect(() => { const id = setTimeout(onIdle, 30_000); return () => clearTimeout(id) }, [entry, msg, onIdle])
+  const submit = async () => {
+    if (busy || waitLeft || !PIN_RE.test(entry)) return
+    setBusy(true)
+    try {
+      if ((await api.verifyQuietPin(entry)).ok) { pinFailures = 0; onWake(); return }
+      pinFailures++
+      pinWaitUntil = Date.now() + pinWaitMs(pinFailures)
+      setMsg('Try again'); setShake(s => s + 1)
+    } catch (e) {
+      setMsg(e instanceof ApiError && e.status === 429 ? 'Wait a few minutes' : "Can't check right now")
+    } finally {
+      setBusy(false); setEntry(''); setNow(Date.now())
+    }
+  }
+  const press = (k: string) => { if (k === 'ok') submit(); else { setEntry(e => pressPinKey(e, k)); setMsg('') } }
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onIdle()
+      else if (e.key === 'Enter') { if (!(e.target instanceof HTMLButtonElement)) press('ok') } // a focused key clicks itself
+      else if (e.key === 'Backspace') press('back')
+      else if (/^\d$/.test(e.key)) press(e.key)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
+  const wait = waitLeft >= 60_000 ? `Wait ${Math.ceil(waitLeft / 60_000)} min` : waitLeft ? `Wait ${Math.ceil(waitLeft / 1000)} s` : ''
+  return (
+    <div className="quiet-keypad" role="group" aria-label="PIN" onClick={e => e.stopPropagation()}>
+      <div className={`quiet-keypad-dots ${shake ? 'quiet-keypad-shake' : ''}`} key={shake} aria-label={`${entry.length} digits`}>
+        {[...entry].map((_, i) => <span key={i} />)}
+      </div>
+      <div className="quiet-keypad-msg" role="status">{wait || msg}</div>
+      <div className="quiet-keypad-grid">
+        {PIN_KEYS.map(k => (
+          <button key={k} type="button" className="quiet-key" disabled={busy || !!waitLeft} aria-label={k === 'back' ? 'Delete' : k === 'ok' ? 'Done' : undefined} onClick={() => press(k)}>
+            {k === 'back' ? '⌫' : k === 'ok' ? '✓' : k}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }

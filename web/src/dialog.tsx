@@ -10,7 +10,7 @@ import Sheet from './Sheet.tsx'
 export interface ConfirmOptions { title: string; body?: ReactNode; confirmLabel?: string; cancelLabel?: string; danger?: boolean }
 export interface PromptOptions {
   title: string; body?: ReactNode; label: string; placeholder?: string; defaultValue?: string
-  type?: 'text' | 'url' | 'email'
+  type?: 'text' | 'url' | 'email' | 'pin' // pin: hidden digits, number pad
   validate?: (value: string) => string | null // error message, or null when valid
   confirmLabel?: string; cancelLabel?: string
 }
@@ -89,7 +89,7 @@ function DialogView({ req, onDone }: { req: Request; onDone: () => void }) {
         <form onSubmit={e => { e.preventDefault(); if (!invalid) finish(true) }}>
           <div className="field" style={{ marginBottom: 0 }}>
             <label htmlFor={`${ids}-input`}>{req.opts.label}</label>
-            <input id={`${ids}-input`} type={req.opts.type ?? 'text'} value={value} placeholder={req.opts.placeholder} data-autofocus
+            <input id={`${ids}-input`} type={req.opts.type === 'pin' ? 'password' : req.opts.type ?? 'text'} inputMode={req.opts.type === 'pin' ? 'numeric' : undefined} value={value} placeholder={req.opts.placeholder} data-autofocus
               autoComplete="off" autoCapitalize={req.opts.type && req.opts.type !== 'text' ? 'off' : undefined} spellCheck={req.opts.type === 'url' || req.opts.type === 'email' ? false : undefined}
               aria-invalid={edited && !!error || undefined} aria-describedby={edited && error ? `${ids}-error` : undefined}
               onChange={e => { setValue(e.target.value); setEdited(true) }} />

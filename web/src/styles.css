@@ -1603,6 +1603,16 @@ button {
 .quiet-clock { color: #8a7f74; opacity: 0.55; }
 .quiet-time { font-size: clamp(4rem, 16vw, 12rem); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
 .quiet-date { margin-top: 12px; font-size: clamp(1.1rem, 3vw, 2rem); font-weight: 700; }
+/* Quiet-hours PIN pad (App.tsx PinKeypad): as dim as the clock, big keys, no hint. */
+.quiet-keypad { display: flex; flex-direction: column; align-items: center; gap: 12px; color: #8a7f74; cursor: default; }
+.quiet-keypad-dots { display: flex; gap: 14px; min-height: 16px; }
+.quiet-keypad-dots span { width: 14px; height: 14px; border-radius: 50%; background: #8a7f74; }
+@media (prefers-reduced-motion: no-preference) { .quiet-keypad-shake { animation: kw-nudge 0.35s ease 2; } }
+.quiet-keypad-msg { min-height: 1.4em; font-weight: 700; }
+.quiet-keypad-grid { display: grid; grid-template-columns: repeat(3, 72px); gap: 14px; }
+.quiet-key { width: 72px; height: 72px; border-radius: 50%; border: 1px solid #3a332d; background: #12100e; color: #a39686; font: inherit; font-size: 1.6rem; font-weight: 700; }
+.quiet-key:disabled { opacity: 0.4; }
+@media (max-height: 520px) { .quiet-keypad-grid { grid-template-columns: repeat(3, 56px); gap: 8px; } .quiet-key { width: 56px; height: 56px; font-size: 1.3rem; } }
 /* Screensaver (Screensaver.tsx): dimmed pictures on the same near-black, a 1-2% drift per change. */
 .saver-stage { position: absolute; inset: 0; transition: transform 2s ease; }
 .saver-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #050403; }

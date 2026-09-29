@@ -5,6 +5,7 @@ import { requireAuth } from './auth.ts';
 import { healthRoutes } from './routes/health.ts';
 import { meRoutes } from './routes/me.ts';
 import { settingsRoutes } from './routes/settings.ts';
+import { quietPinRoutes } from './routes/quiet-pin.ts';
 import { appearanceRoutes } from './routes/appearance.ts';
 import { membersRoutes } from './routes/members.ts';
 import { accountsRoutes } from './routes/accounts.ts';
@@ -89,6 +90,7 @@ export function createApp() {
   app.route('/', meRoutes);
   app.route('/', revRoutes);
   app.route('/', settingsRoutes);
+  app.route('/', quietPinRoutes);
   app.route('/', appearanceRoutes);
   app.route('/', membersRoutes);
   app.route('/', accountsRoutes);
