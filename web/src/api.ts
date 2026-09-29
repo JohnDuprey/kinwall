@@ -8,7 +8,7 @@ import type { PasskeyAuthenticator } from './webauthn.ts'
 import type { BasicChoices, Meal, MealInput, Recipe, RecipeImport, RecipeInput, RecipePreviewResult, RecipeShare, ShoppingProjection } from './meal-types.ts'
 import type { Contact, ContactCategory, ContactInput, ImportPreviewEntry } from './contact-types.ts'
 import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginCatalogEntry,
-  StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota, Reward, Redemption, MemberStats, StatsPeriod,
+  StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota, GooglePhotos, Reward, Redemption, MemberStats, StatsPeriod,
   Account, ApiKey, AppNotification, Appearance, CalendarEntry, Category, Chore, ChoreDay, PendingApproval, EventInstance, LeaderboardEntry, LeaderboardPeriod, List,
   GeocodeResult, HostEvent, ImportResult, ListDetail, ListGroup, ListItem, ListItemInput, ListItemPatch, Member, Me, Note, NoteTarget, Passkey, TrackerEntry, TrackerInput, TrackerKind, Providers, PushSubscription, PushSubscriptionPrefs, RemoteCalendar, Settings, Snapshot, Board, Webhook, WebhookWithSecret,
   TempCheck, TempCheckInput, Journal, JournalEntry, Insights, InsightRange, Battery, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory,
@@ -452,6 +452,21 @@ export const api = {
   importPhotos: (zip: File) => MOCK ? mock.importPhotos() : req<{ imported: number; skipped: number }>('api/photos/import', {
     method: 'POST', body: zip, useAdmin: true, headers: { 'Content-Type': 'application/zip' },
   }),
+  // Google Photos (Night screen sheet): connecting and disconnecting are for parent devices.
+  getGooglePhotos: (useAdmin?: boolean) => MOCK ? mock.getGooglePhotos() : get<GooglePhotos>('api/google-photos', useAdmin),
+  connectGooglePhotos: () => MOCK ? mock.connectGooglePhotos() : post<GooglePhotos>('api/google-photos/connect', undefined, true),
+  disconnectGooglePhotos: () => MOCK ? mock.disconnectGooglePhotos() : del<GooglePhotos>('api/google-photos', true),
+  /** The next Google Photos picture, fitted to w×h, as an <img src>. The server passes Google's bytes
+   * through (they need its token), so they come as a blob URL the caller revokes. */
+  nextGooglePhoto: async (w: number, h: number): Promise<{ src: string; revoke: boolean; caption?: string }> => {
+    if (MOCK) return mock.nextGooglePhoto(w, h)
+    let res: Response
+    try {
+      res = await fetch(apiUrl(`api/google-photos/next?w=${w}&h=${h}`), { headers: { Authorization: `Bearer ${getKey() ?? ''}` } })
+    } catch { throw new ApiError(0, OFFLINE_MESSAGE) }
+    if (!res.ok) throw new ApiError(res.status, res.statusText)
+    return { src: URL.createObjectURL(await res.blob()), revoke: true }
+  },
   photoImageUrl: (p: Pick<Photo, 'id' | 'url'>) => MOCK ? p.url : apiUrl(`api/photos/${p.id}/image?key=${encodeURIComponent(getKey() ?? '')}`),
   /** The same by id alone, for a memory's photo (its own photo isn't in getPhotos). */
   photoImageUrlById: (id: string) => MOCK ? mock.photoUrl(id) : apiUrl(`api/photos/${id}/image?key=${encodeURIComponent(getKey() ?? '')}`),

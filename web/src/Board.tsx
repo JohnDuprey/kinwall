@@ -10,6 +10,7 @@ import { zonedParts } from './date.ts'
 import { formatTime } from './timeFormat.ts'
 import { useDeviceAppearance } from './useTheme.ts'
 import { useSlideshowPictures } from './Screensaver.tsx'
+import { boardSources } from './saverSources.ts'
 import { tidbitFor, type Tidbit } from './tidbits.ts'
 import { BirthdayRow, ItemRow, dayName } from './Snapshot.tsx'
 import TodaysMeals from './TodaysMeals.tsx'
@@ -422,14 +423,14 @@ function EventLine({ e, tz, byId, onTap, past }: { e: SnapshotEvent; tz: string;
 }
 
 /** The screensaver's pictures, a new one every minute: this display's sources, or if none are picked
- * the family's photos (nature photos until there are some). */
+ * the family's own (Google Photos and family photos; nature photos until there are some). */
 function PhotoCard() {
   const device = useDeviceAppearance()
-  const { refreshTick } = useApp()
+  const { refreshTick, settings } = useApp()
   const [hasPhotos, setHasPhotos] = useState(false)
   const picked = !!device.saverSources?.length
   useEffect(() => { if (!picked) api.getPhotoQuota().then(q => setHasPhotos(q.count - (q.memoryPhotos ?? 0) > 0)).catch(() => {}) }, [picked, refreshTick])
-  const { pics, failed } = useSlideshowPictures(picked ? device.saverSources! : [hasPhotos ? 'photos' : 'nature'], 60)
+  const { pics, failed } = useSlideshowPictures(boardSources(device.saverSources ?? [], { photos: settings.features.photos, googlePhotos: settings.googlePhotos }, hasPhotos), 60)
   const current = pics[pics.length - 1]
   return (
     <section className="board-card board-photo" aria-label="Picture">

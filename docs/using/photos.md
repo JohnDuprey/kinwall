@@ -44,8 +44,32 @@ JPEG, PNG, WebP and anything else your browser can open. HEIC photos straight fr
 
 ## Where photos show up
 
-* **Board view**: the picture card rotates through this display's screensaver sources. If none are chosen, it shows your family photos (or nature photos until you add some).
+* **Board view**: the picture card rotates through this display's screensaver sources. If none are chosen, it shows your family photos and [Google Photos](#google-photos) when it's connected (or nature photos until there are some).
 * **Screensaver**: turn on **Family photos** under **During quiet hours show** (**Settings → General**, tap **Change** under **Night screen**).
+
+## Google Photos
+
+A parent can also show albums from Google Photos on the Night screen and the Board's picture card, without copying them into Kinwall. The photos stay in Google Photos; Kinwall keeps only which ones to show.
+
+**Connect it** from a parent device: **Settings → General**, tap **Change** under **Night screen**, then **Connect Google Photos** at the bottom of the sheet.
+
+1. Kinwall shows a short code. On a phone or computer, go to `google.com/device` (the link, or the QR code on a big screen), enter the code, and sign in to the Google account whose photos you want. Google asks for permission to show the photos you pick on a device. That's its own permission: it doesn't use or change your [Google Calendar](../calendars/google.md) connection, and connecting Calendar never asks for Photos.
+2. Google then opens Google Photos to pick albums for "Our Family Kinwall" (your family's name). If it doesn't, tap **Choose albums in Google Photos** (or scan its QR code). The sheet says "Waiting for you to choose albums…" until you're done.
+3. Once albums are picked, the sheet says how many photos there are, and **Google Photos** appears under **During quiet hours show**. Turn it on for each display that should show them. The Board's picture card shows them on displays that haven't picked any sources.
+
+It's one connection for the whole family: every screen can show the photos, but only a parent device can connect, change albums or disconnect. Wall screens and kids' devices can't.
+
+* **Change albums** opens the same Google Photos page to pick different albums. New picks show up within the hour.
+* **Disconnect Google Photos** removes Kinwall from the Google Photos device list, cancels its permission and forgets the list of photos. Your photos and Google Calendar aren't touched. You can also remove access in your Google Account under **Security → Third-party apps & services**.
+* **Reconnect.** If Google stops sharing (you removed the permission in your Google Account, or deleted the device in Google Photos), screens quietly go back to their other picks (nature pictures if Google Photos was the only one), and the sheet shows **Reconnect Google Photos** to parents.
+* Google Photos leaves out screenshots, receipts, blurry shots and pictures it considers too personal for a shared screen. Kinwall shows photos only and skips videos.
+* There are no webhooks or MCP tools for Google Photos: it only picks pictures for screens.
+
+The [demo](../self-hosting/demo-build.md) has a pretend Google Photos connection with sample pictures, so you can see the sheet and the slideshow without Google.
+
+**Self-hosting?** The server needs its own Google Cloud project with the Photos Ambient API turned on. See [Google Photos](../self-hosting/configuration.md#google-photos) in Configuration.
+
+What Google sees and what's stored: see [Privacy](../your-data/privacy.md#google-photos).
 
 ## Backing up and moving photos
 

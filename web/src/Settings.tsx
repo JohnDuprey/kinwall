@@ -1,7 +1,7 @@
 import { createContext, Fragment, useContext, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { AppContext, useApp } from './AppContext.tsx'
-import { api, ApiError, clearKey, PUSH_SUB_ID_KEY } from './api.ts'
-import type { Account, ApiKey, CalendarEntry, Category, ColorScheme, CustomColors, Density, DeviceDensity, Features, GeocodeResult, HostEvent, Me, Member, Passkey, Providers, PushSubscription, RemoteCalendar, Settings, TempCheckSettings, TextScale, ThemeMode, TimeFormat, Typeface, Webhook } from './types.ts'
+import { api, ApiError, clearKey, MOCK, PUSH_SUB_ID_KEY } from './api.ts'
+import type { Account, ApiKey, CalendarEntry, Category, ColorScheme, CustomColors, Density, DeviceDensity, Features, GeocodeResult, GooglePhotos, HostEvent, Me, Member, Passkey, Providers, PushSubscription, RemoteCalendar, Settings, TempCheckSettings, TextScale, ThemeMode, TimeFormat, Typeface, Webhook } from './types.ts'
 import { ProviderForm, PublicUrlRow } from './ProviderConfig.tsx'
 import { CATEGORY_EMOJI, CATEGORY_PRESETS, MEMBER_EMOJI, MEMBER_PALETTE, nextPaletteColor, REMINDER_OPTIONS } from './types.ts'
 import Sheet from './Sheet.tsx'
@@ -1353,15 +1353,17 @@ function MinutesPicker({ idBase, label, presets, minutes, repeat, onChange: save
 /** Quiet hours on this display: the plain clock, or a dim slideshow cycling through the picked
  * sources (Screensaver.tsx). */
 const SAVER_OPTIONS: { key: SaverSource; label: string }[] = [
-  { key: 'drawings', label: 'Drawings' }, { key: 'photos', label: 'Family photos' }, { key: 'art', label: 'Art (The Met)' }, { key: 'nature', label: 'Nature' },
+  { key: 'drawings', label: 'Drawings' }, { key: 'photos', label: 'Family photos' }, { key: 'google', label: 'Google Photos' }, { key: 'art', label: 'Art (The Met)' }, { key: 'nature', label: 'Nature' },
 ]
+/** A source the family can show: family photos on, Google Photos connected with albums picked. */
+const saverOffered = (key: SaverSource, settings: Settings) => (key !== 'photos' || settings.features.photos) && (key !== 'google' || settings.googlePhotos === 'ready')
 const CLOCK_POSITIONS: { key: ClockPos | ''; label: string }[] = [
   { key: '', label: 'Moves around' }, { key: 'center', label: 'Center' }, { key: 'top-left', label: 'Top left' }, { key: 'top-right', label: 'Top right' }, { key: 'bottom-left', label: 'Bottom left' }, { key: 'bottom-right', label: 'Bottom right' },
 ]
 function NightScreenSection() {
   const { settings } = useApp()
   const d = useDeviceAppearance()
-  const sources = SAVER_OPTIONS.filter(o => d.saverSources?.includes(o.key) && (o.key !== 'photos' || settings.features.photos)).map(o => o.label)
+  const sources = SAVER_OPTIONS.filter(o => d.saverSources?.includes(o.key) && saverOffered(o.key, settings)).map(o => o.label)
   const pos = d.clockPos && CLOCK_POSITIONS.find(p => p.key === d.clockPos)?.label
   const summary = nightSummary({ sources, every: d.saverEvery ?? 5, bright: d.saverBright ?? 'low', clock: d.saverClock !== false, pos })
   return <SummarySection title="Night screen" summary={summary}><ScreensaverRows /></SummarySection>
@@ -1387,13 +1389,14 @@ function ScreensaverRows() {
       <div className="settings-row-label" aria-hidden="true">During quiet hours show</div>
       <div className="chip-row" role="group" aria-label="During quiet hours show">
         <button className={`chip ${sources.length === 0 ? 'active' : ''}`} aria-pressed={sources.length === 0} onClick={() => set({ saverSources: undefined })}>Clock only</button>
-        {SAVER_OPTIONS.filter(o => o.key !== 'photos' || settings.features.photos).map(o => ( // photos off: nature pictures stand in (App.tsx)
+        {SAVER_OPTIONS.filter(o => saverOffered(o.key, settings) || (o.key === 'google' && sources.includes('google'))).map(o => ( // photos off: nature pictures stand in (saverSources.ts)
           <button key={o.key} className={`chip ${sources.includes(o.key) ? 'active' : ''}`} aria-pressed={sources.includes(o.key)} onClick={() => toggle(o.key)}>{o.label}</button>
         ))}
       </div>
       {sources.length > 1 && <div className="settings-row-sub">Takes turns between the ones you pick.</div>}
       {hasDrawings && noDrawings && <div className="settings-row-sub">No drawings on this display yet — open Activities → Paint.{sources.length === 1 && ' Until then it shows the clock.'}</div>}
       {services && <div className="settings-row-sub">Pictures are fetched by this display directly from {services}; {services.includes(' and ') ? 'they' : 'it'} will see this device's address.</div>}
+      {sources.includes('google') && <div className="settings-row-sub">Google Photos pictures come through your Kinwall server, which keeps only which photos to show, never the photos.</div>}
       {sources.length > 0 && <>
         <div className="settings-row-label" aria-hidden="true">Change picture every</div>
         <Segmented label="Change picture every" value={String(device.saverEvery ?? 5)} onChange={v => set({ saverEvery: v === '5' ? undefined : Number(v) })}
@@ -1418,6 +1421,66 @@ function ScreensaverRows() {
       </>}
       <button className="btn btn-secondary saver-preview-btn" onClick={() => window.dispatchEvent(new Event(SAVER_PREVIEW_EVENT))}>Preview screensaver</button>
       <div className="settings-row-sub">Shows what this screen does overnight for 20 seconds. Tap or press Escape to end it. Only wall screens dim on their own: paired displays, and devices with Use as a wall screen on under This display.</div>
+      <GooglePhotosRows />
+    </div>
+  )
+}
+
+/** Connecting Google Photos for the whole family (parent devices): Google's own sign-in, with a
+ * code, then picking albums in Google Photos. Kept apart from Google Calendar. */
+function GooglePhotosRows() {
+  const { parentDevice, reloadCore, toast, settings } = useApp()
+  const dialog = useDialog()
+  const isPhone = useIsPhone()
+  const [gp, setGp] = useState<GooglePhotos | null>(null)
+  const [busy, setBusy] = useState(false)
+  const picked = !!useDeviceAppearance().saverSources?.includes('google')
+  const state = gp?.state
+  const lastState = useRef(settings.googlePhotos)
+  useEffect(() => {
+    if (!parentDevice) return
+    let stop = false
+    const load = () => api.getGooglePhotos(true).then(g => { if (!stop) setGp(g) }).catch(() => {})
+    load()
+    // While connecting, keep checking: the server asks Google no more often than Google allows.
+    const id = state === 'signing-in' || state === 'choosing' ? setInterval(load, 3000) : undefined
+    return () => { stop = true; clearInterval(id) }
+  }, [parentDevice, state])
+  useEffect(() => { if (state && state !== lastState.current) { lastState.current = state; reloadCore() } }, [state, reloadCore])
+  if (!parentDevice || !gp || (!gp.available && state === 'off')) return null
+
+  const run = async (f: () => Promise<GooglePhotos>) => {
+    setBusy(true)
+    try { setGp(await f()) } catch (e) { toast(e instanceof Error ? e.message : "Couldn't reach Google Photos", true) } finally { setBusy(false) }
+  }
+  const disconnect = async () => {
+    if (!await dialog.confirm({ title: 'Disconnect Google Photos?', body: "Google Photos stops showing on every screen. Your photos stay in Google Photos. Google Calendar isn't affected.", confirmLabel: 'Disconnect', danger: true })) return
+    run(api.disconnectGooglePhotos)
+  }
+  const qr = (value: string) => !isPhone && <div className="google-photos-qr"><QrCode value={value} size={148} /><div className="settings-row-sub">Or scan with your phone.</div></div>
+  return (
+    <div className="google-photos">
+      <div className="settings-row-label">Google Photos</div>
+      {MOCK && <div className="settings-row-sub">Demo: this only pretends to connect. Nothing goes to Google.</div>}
+      {(state === 'off' || state === 'reconnect') && <>
+        {state === 'reconnect'
+          ? <div className="settings-row-sub google-photos-note" role="status">⚠️ Google Photos stopped sharing with Kinwall, so screens show your other picks for now. Reconnect to bring it back.</div>
+          : <div className="settings-row-sub">Show photos from albums you pick in Google Photos, on every screen in the family. Google asks for its own permission, separate from Google Calendar.</div>}
+        <button className="btn btn-primary" disabled={busy} onClick={() => run(api.connectGooglePhotos)}>{state === 'reconnect' ? 'Reconnect Google Photos' : 'Connect Google Photos'}</button>
+      </>}
+      {state === 'signing-in' && gp.userCode && gp.verificationUrl && <>
+        <div className="settings-row-sub">On a phone or computer, go to <a className="text-link" href={gp.verificationUrl} target="_blank" rel="noreferrer">{gp.verificationUrl.replace(/^https:\/\/(www\.)?/, '')}</a> and enter this code:</div>
+        <div className="google-photos-code" aria-label={`Code ${gp.userCode.split('').join(' ')}`}>{gp.userCode}</div>
+        {qr(gp.verificationUrl)}
+        <div className="settings-row-sub" role="status">Waiting for you to sign in…</div>
+      </>}
+      {state === 'choosing' && <div className="settings-row-sub" role="status">Waiting for you to choose albums…</div>}
+      {state === 'ready' && <div className="settings-row-sub">Connected{gp.photos !== undefined && `: ${gp.photos} ${gp.photos === 1 ? 'photo' : 'photos'}`}.{!picked && ' Pick Google Photos above to show them on this screen.'}</div>}
+      {(state === 'choosing' || state === 'ready') && gp.settingsUri && <>
+        <a className="btn btn-secondary" href={gp.settingsUri} target="_blank" rel="noreferrer">{state === 'choosing' ? 'Choose albums in Google Photos' : 'Change albums'}</a>
+        {state === 'choosing' && qr(gp.settingsUri)}
+      </>}
+      {state !== 'off' && <button className="link-btn google-photos-disconnect" disabled={busy} onClick={state === 'signing-in' ? () => run(api.disconnectGooglePhotos) : disconnect}>{state === 'signing-in' ? 'Cancel' : 'Disconnect Google Photos'}</button>}
     </div>
   )
 }

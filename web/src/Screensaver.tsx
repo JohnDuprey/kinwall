@@ -3,7 +3,7 @@
 // useSlideshowPictures (the picture sources) is shared with the Board view's photo card.
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { drawingIds, getDrawing } from './drawings-db.ts'
-import { api } from './api.ts'
+import { api, ApiError } from './api.ts'
 import type { DeviceAppearance, SaverSource } from './useTheme.ts'
 import { spotStyle, type Spot } from './nightClock.ts'
 
@@ -54,14 +54,37 @@ async function artNext(): Promise<Omit<Pic, 'key'>> {
   throw new Error('Met: no public-domain image in 5 tries')
 }
 
+/** This screen in device pixels, capped at 1920 on the long edge: what a picture is fetched at. */
+function screenPixels() {
+  const scale = Math.min(1, 1920 / (Math.max(innerWidth, innerHeight) * devicePixelRatio)) * devicePixelRatio
+  return { w: Math.round(innerWidth * scale), h: Math.round(innerHeight * scale) }
+}
+
 // Lorem Picsum (Unsplash photos, free to use): one request per picture, sized to the screen.
 let picsumN = 0
 async function natureNext(): Promise<Omit<Pic, 'key'>> {
-  const scale = Math.min(1, 1920 / (Math.max(innerWidth, innerHeight) * devicePixelRatio)) * devicePixelRatio
-  return { src: `https://picsum.photos/${Math.round(innerWidth * scale)}/${Math.round(innerHeight * scale)}?random=${Date.now()}${picsumN++}` }
+  const { w, h } = screenPixels()
+  return { src: `https://picsum.photos/${w}/${h}?random=${Date.now()}${picsumN++}` }
 }
 
-const SOURCES: Record<SaverSource, () => Source> = { drawings: drawingsSource, photos: photosSource, art: () => artNext, nature: () => natureNext }
+// Google Photos (the albums a parent picked; routes/google-photos.ts): the server picks the next one
+// and passes Google's bytes through. Not ready, no photos or too many requests: rest for a while and
+// let the other sources carry on (Settings shows a parent why).
+function googleSource(): Source {
+  let restUntil = 0
+  return async () => {
+    if (Date.now() < restUntil) return null
+    const { w, h } = screenPixels()
+    try {
+      return await api.nextGooglePhoto(w, h)
+    } catch (e) {
+      if (e instanceof ApiError && [404, 409, 429].includes(e.status)) { restUntil = Date.now() + 10 * 60_000; return null }
+      throw e
+    }
+  }
+}
+
+const SOURCES: Record<SaverSource, () => Source> = { drawings: drawingsSource, photos: photosSource, art: () => artNext, nature: () => natureNext, google: googleSource }
 
 const loggedFailure = new Set<SaverSource>() // one console line per source per page load
 

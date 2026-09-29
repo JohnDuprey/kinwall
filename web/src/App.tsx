@@ -43,6 +43,7 @@ import { LeaveByLiveActivity } from './NowNext.tsx'
 import { MedicationLiveActivity } from './TakeNow.tsx'
 import { formatTime, resolveHour12, setHour12 } from './timeFormat.ts'
 import { dateKey } from './date.ts'
+import { nightSources } from './saverSources.ts'
 
 const NAV_ITEMS = [
   { key: 'calendar', href: '#/calendar', label: 'Calendar', Icon: CalendarIcon },
@@ -244,8 +245,8 @@ function QuietOverlay({ settings, wall, remote }: { settings: Settings; wall: bo
   const overlay = useRef<HTMLDivElement>(null)
   useEffect(() => { showing.current = asleep; if (asleep) overlay.current?.focus({ preventScroll: true }) }, [asleep])
   const activate = () => { setManual(''); if (pinLocked.current) setKeypad(true); else wake() }
-  // Photos turned off (Settings → Features): a display that picked them shows nature pictures instead.
-  const sources = [...new Set((device.saverSources ?? []).map(src => src === 'photos' && !settings.features.photos ? 'nature' : src))]
+  // Photos turned off (Settings → Features) or Google Photos not ready: the other picks, or nature pictures.
+  const sources = nightSources(device.saverSources ?? [], { photos: settings.features.photos, googlePhotos: settings.googlePhotos })
   const fixed = device.clockPos && CLOCK_SPOTS[device.clockPos]
   const corners = sources.length > 0 // over a slideshow the small clock keeps to the corners
   useEffect(() => {

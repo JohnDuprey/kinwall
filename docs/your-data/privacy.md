@@ -7,6 +7,7 @@ Kinwall runs on your server or your Cloudflare account. The code includes no ana
 These are encrypted with `ENCRYPTION_KEY`, using the row ID as additional data so a blob can't be moved to another row:
 
 * Calendar account credentials: Google/Microsoft refresh tokens and CalDAV passwords.
+* The [Google Photos](../using/photos.md#google-photos) sign-in (its tokens, and the one-time code while connecting).
 * Calendar configs, including **ICS feed URLs** (they often contain a secret token).
 * Webhook secrets.
 * Web Push subscription keys, and the VAPID private key.
@@ -105,13 +106,24 @@ Your family's content: member names, events, chores, lists, settings, [trackers]
 
 | Goes to | When |
 |---|---|
-| Google / Microsoft / your CalDAV server | Syncing and writing connected calendars. Google gets only calendar scopes. |
+| Google / Microsoft / your CalDAV server | Syncing and writing connected calendars. The calendar sign-in asks only for calendar scopes. |
+| Google Photos | Only once a parent [connects Google Photos](../using/photos.md#google-photos): the **server** lists the picked photos (about hourly while a screen shows them) and fetches each picture to pass it to the screen. See [below](#google-photos). |
 | ICS feed hosts | Fetching subscribed feeds. |
 | Browser push services (Apple, Google, Mozilla) | Notification payloads, encrypted end to end with the device's keys (RFC 8291). |
 | Your webhook URLs | Change events you subscribed to. |
 | Open-Meteo (`api.open-meteo.com`, `geocoding-api.open-meteo.com`) | Only if a weather location is set: the **server** fetches the forecast for its coordinates (at most hourly) and looks up place names you search for in Settings → General. Your device's address is not sent; no account or key is used. |
 | Google Fonts | Each browser loads the Nunito font from `fonts.googleapis.com` / `fonts.gstatic.com`. |
 | The Metropolitan Museum of Art / Lorem Picsum | Only if a display's [quiet-hours screensaver](../using/quiet-hours.md#screensaver) is set to Art or Nature, or it shows the calendar's [Board view](../using/calendar.md#board-view) (nature photos when no screensaver sources are chosen and the family has no photos): that display fetches pictures directly (its IP address, nothing else). Off by default. |
+
+### Google Photos
+
+[Google Photos](../using/photos.md#google-photos) is off until a parent connects it, with its own Google permission (`photosambient.mediaitems`: see the photos picked for a device). Connecting Google Calendar never asks for it, and connecting Photos never touches Calendar.
+
+* **What Google sees:** that your Kinwall server is showing the albums you picked on a device named after your family ("Our Family Kinwall"), and your server's address when it asks for the list and the pictures. Displays never contact Google for photos; the pictures pass through your server. Nothing else about your family is sent.
+* **What Kinwall stores:** the sign-in, encrypted like calendar credentials, in its own record apart from calendar accounts; Google's ID for the family's Photos device and its album page link; and for each picked photo only its Google ID, the date it was taken, its size and when it was last shown, plus Google's temporary link to it, which stops working within an hour. **Never the pictures:** each one goes straight from Google to the screen, is marked not to be cached, and isn't kept on the server. None of it is in the [export](export-import.md).
+* **Who can use it:** parent devices connect, change albums and disconnect. Wall screens and kids' devices can only show the pictures.
+* **Disconnect** (in the Night screen sheet) deletes the Photos device in your Google account, cancels the permission and deletes everything above. You can also remove Kinwall under your Google Account's **Security → Third-party apps & services**; screens then stop showing Google Photos and parents see **Reconnect Google Photos**.
+* Tokens and codes are never logged or returned by the API.
 
 ## Shared recipe links
 

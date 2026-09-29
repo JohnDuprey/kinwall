@@ -1,7 +1,7 @@
 // Dev-only in-memory fixture, used when VITE_MOCK=1. Excluded from prod by the env check in api.ts.
 import type { OnlineTidbits, Plugin, PluginCatalogEntry,
   Account, ApiKey, AppNotification, CalendarEntry, Category, Chore, ChoreDay, EventInstance, LeaderboardEntry, LeaderboardPeriod, List, ListGroup,
-  Photo, PhotoQuota, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, ListItem, ListItemInput, ListItemPatch, ListItemStep, Member, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption, TempCheck, TempCheckInput, Journal, JournalEntry, Insights, InsightDay, InsightRange, Battery, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory, DoseStatus, MedTime,
+  Photo, PhotoQuota, GooglePhotos, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, ListItem, ListItemInput, ListItemPatch, ListItemStep, Member, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption, TempCheck, TempCheckInput, Journal, JournalEntry, Insights, InsightDay, InsightRange, Battery, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory, DoseStatus, MedTime,
 } from './types.ts'
 import { FEELINGS, TEMP_CHECK_OFF } from './tempCheck.ts'
 import { aisleOrderMap, compareItems } from './types.ts'
@@ -198,6 +198,23 @@ const photos: Photo[] = [
   demoPhoto(1015, 'River trip', null, 1), demoPhoto(1025, 'Our dog', 'm3', 3), demoPhoto(1043, null, null, 6),
   demoPhoto(1039, 'Waterfall hike', 'm4', 9), demoPhoto(1080, 'Strawberry picking', null, 14), demoPhoto(1062, null, 'm3', 20),
 ]
+// Demo Google Photos: a pretend connection (nothing goes to Google) that steps through signing in
+// and picking albums on a timer, then shows Picsum pictures captioned as the demo.
+const DEMO_GOOGLE = [1018, 1036, 1044, 1050, 1069]
+let googleAt = 0 // when Connect was tapped; 0 = not connected
+let googleN = 0
+const googleState = (): GooglePhotos['state'] => !googleAt ? 'off' : Date.now() - googleAt < 6000 ? 'signing-in' : Date.now() - googleAt < 16000 ? 'choosing' : 'ready'
+const googleStatus = (): GooglePhotos => {
+  const state = googleState()
+  if (settings.googlePhotos !== state) { settings.googlePhotos = state; bump() }
+  return {
+    available: true, state,
+    ...(state === 'signing-in' ? { userCode: 'DEMO-CODE', verificationUrl: 'https://www.google.com/device', codeExpiresAt: new Date(googleAt + 1_800_000).toISOString() } : {}),
+    ...(state === 'choosing' || state === 'ready' ? { settingsUri: 'https://photos.google.com/' } : {}),
+    ...(state === 'ready' ? { photos: DEMO_GOOGLE.length } : {}),
+  }
+}
+
 const PHOTO_LIMITS = { maxCount: 200, maxBytes: 104_857_600, maxPhotoBytes: 614_400 }
 
 const accounts: Account[] = [{ id: 'demo-google', kind: 'google', name: 'Demo Google', createdAt: new Date().toISOString() }]
@@ -840,6 +857,13 @@ export const mock = {
   updateSticker: async (_memberId: string, id: string, body: StickerPatch) => {
     const s = scrapbook.find(x => x.id === id); if (!s) throw new Error('not found')
     Object.assign(s, body); bump(); return { ...s }
+  },
+  getGooglePhotos: async () => googleStatus(),
+  connectGooglePhotos: async () => { googleAt = Date.now(); return googleStatus() },
+  disconnectGooglePhotos: async () => { googleAt = 0; return googleStatus() },
+  nextGooglePhoto: async (w: number, h: number) => {
+    if (googleState() !== 'ready') throw new Error('Google Photos is not ready')
+    return { src: `https://picsum.photos/id/${DEMO_GOOGLE[googleN++ % DEMO_GOOGLE.length]}/${w}/${h}`, revoke: false, caption: 'Demo Google Photos' }
   },
   getPhotos: async () => photos.filter(p => p.family !== false),
   photoUrl: (id: string) => photos.find(p => p.id === id)?.url ?? '',

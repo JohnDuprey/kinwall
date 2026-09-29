@@ -54,6 +54,7 @@ export interface Settings {
   aiHealthAccess: boolean // false (default): MCP and connected apps can't see or change the Health tracker
   medications: boolean // Medication reminders (off by default; only on with the Health tracker); off hides them everywhere, data kept
   medicationNamesOnWalls: boolean // shared wall screens show medicine names (off: "Meds")
+  googlePhotos?: GooglePhotosState // Google Photos for the Night screen and the Board (read-only)
 }
 
 /** Household feature switches. Off hides the feature everywhere; its data is kept. */
@@ -446,6 +447,18 @@ export interface Photo {
   family?: boolean // false = a memory's own photo (never in GET /api/photos)
 }
 /** count and bytes include memoryPhotos (memories' own photos count toward storage too). */
+export type GooglePhotosState = 'off' | 'signing-in' | 'choosing' | 'ready' | 'reconnect'
+/** GET /api/google-photos. Codes and links only on parent devices. */
+export interface GooglePhotos {
+  available: boolean // this server has a Google Photos client
+  state: GooglePhotosState
+  userCode?: string // signing-in: entered at verificationUrl
+  verificationUrl?: string
+  codeExpiresAt?: string
+  settingsUri?: string // Google Photos' page for picking this family's albums
+  photos?: number
+}
+
 export interface PhotoQuota { count: number; bytes: number; memoryPhotos: number; maxCount: number; maxBytes: number; maxPhotoBytes: number }
 
 export type StickerPatch = Partial<Pick<StickerPlacement, 'x' | 'y' | 'scale' | 'rotation' | 'z'>>

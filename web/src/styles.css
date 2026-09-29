@@ -1583,6 +1583,13 @@ button {
 @media (max-width: 600px) { .device-pref-row.tall { grid-template-columns: 1fr; gap: 6px; } .device-pref-row.tall > span { padding-top: 0; } }
 /* Night screen sheet: a normal-size button at the left edge, not a stretched full-width bar. */
 .btn.saver-preview-btn { flex: none; align-self: flex-start; min-height: 48px; padding-inline: 22px; }
+/* Night screen sheet → Google Photos (Settings.tsx GooglePhotosRows) */
+.google-photos { display: flex; flex-direction: column; align-items: stretch; gap: 8px; margin-top: 12px; padding-top: 14px; border-top: 1px solid var(--border); }
+.google-photos .btn { flex: none; align-self: flex-start; min-height: 48px; padding-inline: 22px; text-decoration: none; }
+.google-photos-code { font-size: 1.9em; font-weight: 800; letter-spacing: 0.08em; font-variant-numeric: tabular-nums; }
+.google-photos-qr { display: flex; align-items: center; gap: 12px; }
+.google-photos-note { color: var(--text); }
+.google-photos-disconnect { align-self: flex-start; min-height: 44px; }
 .device-pref-row .settings-select { width: 100%; min-width: 0; text-overflow: ellipsis; }
 /* Transition times (MinutesPicker): "[20] min before [Add]" and "Every [5 min] during the last [30 min]" read as one line. */
 .minutes-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-weight: 700; font-size: 0.9375rem; }
