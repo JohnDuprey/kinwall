@@ -651,7 +651,6 @@ button {
 /* Links and choices in sheets: full-width rows like the sheet's other controls, not web links. */
 .sheet-links { display: flex; flex-direction: column; gap: 8px; margin: 16px 0; }
 .sheet-link { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px; padding: 10px 14px; border: 2px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-alt); color: var(--text); font: inherit; font-weight: 800; text-align: left; text-decoration: none; cursor: pointer; }
-@media (hover: hover) { .sheet-link:hover { border-color: var(--accent); } } /* no sticky hover after a tap */
 .sheet-link svg { width: 20px; height: 20px; flex-shrink: 0; }
 .sheet-link > span { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .sheet-link small { color: var(--text-dim); font-weight: 600; font-size: 0.8125rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -746,7 +745,7 @@ button {
 .summary-chips { gap: 6px; list-style: none; margin: 0; padding: 0; }
 .chip.chip-static { min-height: 0; padding: 3px 10px; font-size: 0.8125rem; font-weight: 700; border-width: 1px; background: var(--bg-alt); }
 .chip.chip-family { border-style: dashed; color: var(--text-dim); }
-.chip:disabled { opacity: 0.6; cursor: default; } /* read-only event: member chips shown, not changeable */
+.chip:disabled { opacity: 0.6; } /* read-only event: member chips shown, not changeable */
 .chip.active { border-color: var(--chip-color, var(--accent)); background: color-mix(in srgb, var(--chip-color, var(--accent)) 22%, var(--bg-alt)); }
 
 .btn {
@@ -759,7 +758,7 @@ button {
   flex: 1;
   display: flex; align-items: center; justify-content: center; gap: 8px;
 }
-.btn:disabled, .icon-btn:disabled { opacity: 0.45; cursor: not-allowed; filter: saturate(0.6); }
+.btn:disabled, .icon-btn:disabled { opacity: 0.45; filter: saturate(0.6); }
 .btn-primary { background: var(--accent-strong); color: var(--accent-ink); }
 .btn-secondary { background: var(--bg-alt); color: var(--text); border: 2px solid var(--border); }
 .btn-danger { background: var(--danger-fill); color: white; }
@@ -1058,7 +1057,7 @@ button {
 .cal-check-row { display: flex; align-items: center; gap: 10px; min-height: 44px; cursor: pointer; }
 .cal-check-row input { width: 22px; height: 22px; flex-shrink: 0; margin: 0; accent-color: var(--accent); }
 .cal-check-row .cal-name { flex: 1; min-width: 0; }
-.cal-check-row.disabled { cursor: default; opacity: 0.7; }
+.cal-check-row.disabled { cursor: not-allowed; opacity: 0.7; }
 .cal-kind-badge { font-size: 0.6875rem; font-weight: 800; color: var(--text-dim); background: var(--bg-alt); padding: 3px 8px; border-radius: 999px; text-transform: uppercase; }
 .cal-sub { font-size: 0.78125rem; color: var(--text-dim); margin-top: 4px; padding-left: 22px; }
 .cal-sub.error { color: var(--danger); }
@@ -1637,7 +1636,6 @@ h2.period-label:focus { outline: none; }
 button.month-daynum:not(.today) { background: none; }
 .plain-btn { display: block; text-align: left; }
 :where(.plain-btn) { font-size: inherit; font-weight: inherit; } /* zero specificity: a size class on the button wins */
-.schedule-item, .timed-event, .event-chip, .allday-chip, .month-chip, .member-list-item, .cal-list-item { cursor: pointer; }
 /* Selected state carried by shape as well as color. */
 .chip.active::before { content: '✓' / ''; font-weight: 900; } /* empty alt: aria-pressed already says it */
 .emoji-swatch.active, .day-toggles button.active, .setup-choice.active, .authorize-scope.active { box-shadow: 0 0 0 2px var(--accent-text); }
@@ -2259,7 +2257,7 @@ button.board-empty-tap { display: block; width: 100%; text-align: left; backgrou
 .board-tidbit-body > p.board-tidbit-source { margin-top: 6px; font-size: 0.8125rem; font-weight: 700; color: var(--text-dim); }
 .board-trivia-choices { list-style: none; margin: 8px 0 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .board-trivia-choices button { width: 100%; min-height: 40px; padding: 6px 10px; border-radius: 10px; background: var(--card-soft, var(--card)); border: 1.5px solid var(--border); color: var(--text); font: inherit; font-weight: 700; font-size: 0.9375rem; text-align: left; cursor: pointer; }
-.board-trivia-choices button:disabled { cursor: default; opacity: 1; }
+.board-trivia-choices button:disabled { opacity: 1; }
 .board-trivia-choices button:disabled:not(.correct):not(.wrong) { color: var(--text-dim); }
 .board-trivia-choices button.correct { border-color: var(--accent); background: var(--accent-soft); }
 .board-trivia-choices button.wrong { border-color: var(--danger, #c0392b); border-style: dashed; }
@@ -2646,3 +2644,33 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
 .meds-time-row { display: flex; gap: 8px; align-items: center; }
 .meds-time-row input { min-height: 44px; }
 .meds-days { margin-top: 10px; }
+
+/* ---------- Pointer and hover ----------
+   Anything clickable shows a pointer; a disabled control shows not-allowed. :where() keeps this at
+   zero specificity, so a component's own cursor (a grab handle, a crosshair) still wins. */
+:where(button, [role="button"], [role="checkbox"], [role="switch"], [role="tab"], [role="option"], a[href], select, summary,
+  label:has(input[type="checkbox"], input[type="radio"]), input[type="checkbox"], input[type="radio"], input[type="color"],
+  .schedule-item, .member-list-item, .cal-list-item, .month-cell, .day-col, .note) { cursor: pointer; }
+:is(button, select, input, textarea):disabled, [aria-disabled="true"], label:has(input:disabled) { cursor: not-allowed; }
+/* Hover only where there's a mouse, so a tap never leaves a stuck highlight. Chosen/selected states
+   and focus rings keep their own look. No transition, so low-stimulation mode shows it the same. */
+@media (hover: hover) and (pointer: fine) {
+  /* Bordered surfaces: the border goes to the accent (the .sheet-link / PickField row is the model). */
+  :where(.sheet-link, .btn-secondary, button.chip, select, .emoji-swatch, .color-swatch, .date-chip, .member-avatar, .list-card,
+    .list-item-check, .meal-card, .recipe-card, .meal-add, .contact-card, .contact-import-choice, .contact-action, .scheme-card,
+    .meds-set-row, .snap-temp-face, .activity-card-more, .cook-timer-chip, .board-trivia-choices button
+  ):not(:disabled, :focus-visible, .active, .selected, .done, [aria-pressed="true"], [aria-current]):hover { border-color: var(--accent); }
+  /* Everything else: a faint wash of the text color over its own background (darker in light, lighter in dark). */
+  :where(.btn-primary, .btn-danger, .icon-btn, .fab, .today-btn, .segmented button, .tab-btn, .nav-rail-btn, .who-btn,
+    .family-row, .family-pick, .board-tile, .snap-row, .board-empty-tap, .notif-item, .member-list-item, .cal-list-item,
+    .schedule-item, .month-cell, .list-item-row, .lists-section-head, .add-row-btn, .trk-book-main, .trk-visit-main, .trk-memory,
+    .activity-card, .recipe-step, .note, .more-row):not(:disabled, .active):hover {
+    background-image: linear-gradient(color-mix(in srgb, var(--text) 8%, transparent) 0 0);
+  }
+  /* Switches: a soft accent ring (the dark "off" track keeps its own inset ring). */
+  .switch:not(:disabled):hover { box-shadow: 0 0 0 3px var(--accent-soft); }
+  :root[data-theme="dark"] .switch:not(.on, :disabled):hover { box-shadow: inset 0 0 0 2px var(--text-dim), 0 0 0 3px var(--accent-soft); }
+  /* Events carry an inline background, so the wash is an inset shadow over it instead. */
+  :where(.timed-event, .event-chip, .allday-chip, .month-chip):hover { box-shadow: inset 0 0 0 100vmax color-mix(in srgb, var(--text) 12%, transparent); }
+  :where(.link-btn, .text-link, .shop-store-btn, .reward-goal-btn, .contacts-filter-summary, .list-done-toggle, summary):hover { text-decoration: underline; text-underline-offset: 3px; }
+}

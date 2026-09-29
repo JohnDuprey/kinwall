@@ -16,7 +16,7 @@
 .contacts-empty-actions .btn { white-space: nowrap; }
 .contacts-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(265px, 1fr)); gap: 12px; }
 .contact-card { width: 100%; display: flex; align-items: center; gap: 13px; min-height: 104px; text-align: left; padding: 15px; border: 2px solid var(--border); border-radius: var(--radius); background: var(--card); color: var(--text); box-shadow: var(--shadow); cursor: pointer; font: inherit; }
-.contact-card:hover, .contact-card:focus-visible { border-color: var(--accent-strong); }
+.contact-card:focus-visible { border-color: var(--accent-strong); }
 .contact-avatar { width: 52px; height: 52px; flex: none; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--card-soft); color: var(--accent-text); font-size: 1.15rem; font-weight: 900; }
 .contact-card-copy { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 3px; }
 .contact-card-title { font-weight: 850; font-size: 1.03rem; overflow-wrap: anywhere; }
@@ -51,7 +51,7 @@
 .contact-import-options .field { margin: 0; }
 .contact-import-choice { display: flex; flex-direction: column; gap: 5px; text-align: left; border: 2px solid var(--border); border-radius: var(--radius-sm); padding: 16px; background: var(--card); color: var(--text); font: inherit; font-weight: 800; cursor: pointer; }
 .contact-import-choice span { color: var(--text-dim); font-size: .83rem; font-weight: 600; }
-.contact-import-choice:hover, .contact-import-choice:focus-visible { border-color: var(--accent-strong); }
+.contact-import-choice:focus-visible { border-color: var(--accent-strong); }
 .contact-review { display: grid; gap: 12px; }
 .contact-review-row { padding: 15px; border: 2px solid var(--border); border-radius: var(--radius-sm); background: var(--card); }
 .contact-review-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
