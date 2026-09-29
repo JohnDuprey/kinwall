@@ -6,7 +6,7 @@ A new instance is *unclaimed*. The first browser to open it gets the setup wizar
 
 1. **Welcome to Kinwall**: enter the 6-digit **Setup code** from the server log. You can also choose **Use your ADMIN_API_KEY instead** and paste that key. **Where do I find this?** shows where the log is:
    * Docker: `docker logs kinwall`
-   * Home Assistant add-on: Settings → Add-ons → Kinwall → Log
+   * Home Assistant app (add-on): Settings → Apps → Kinwall → Log (Settings → Add-ons in older versions)
    * Cloudflare Workers: the Worker's logs, or use your `ADMIN_API_KEY` secret
 2. **What is this device?** This decides which key is stored on the device:
    * **This is my phone or computer**: you'll manage Kinwall from here.

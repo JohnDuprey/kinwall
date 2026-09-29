@@ -20,7 +20,7 @@ What this repository does for the add-on:
 | `timezone` | Seeds the household timezone the first time. |
 
 * **Data** lives in the add-on's `/data`. It contains the SQLite database and `encryption.key`, so include it in your Home Assistant backups.
-* **Setup code**: find it under **Settings → Add-ons → Kinwall → Log**.
+* **Setup code**: find it under **Settings → Apps → Kinwall → Log** (**Settings → Add-ons** in older Home Assistant versions).
 
 Provider credentials set as add-on options appear as "Provided by your host" in **Settings → Calendars → Calendar providers** and are read-only there. See [Configuration](../self-hosting/configuration.md).
 

@@ -23,16 +23,16 @@ Nothing you do there is saved or shared. When you're ready for your own, come ba
 
 ## Way 1: Home Assistant add-on
 
-[Home Assistant](https://www.home-assistant.io) is a popular smart-home app. If you already use it, Kinwall can run inside it as an *add-on* (an extra app Home Assistant installs and looks after for you).
+[Home Assistant](https://www.home-assistant.io) is a popular smart-home app. If you already use it, Kinwall can run inside it as an *app* (an extra program Home Assistant installs and looks after for you; older Home Assistant versions call these *add-ons*). This isn't HACS: HACS is where you'd get the Kinwall *integration* for automations, while the app runs Kinwall itself.
 
 **You'll need:**
 
-* Home Assistant with the **Add-ons** section under **Settings**. That's the usual Home Assistant OS install on a Home Assistant box, a Raspberry Pi or a mini PC. If you don't see **Add-ons**, your install can't run add-ons: use [Docker](#way-2-docker-on-a-nas-or-always-on-computer) instead.
+* Home Assistant with an **Apps** section under **Settings** (**Add-ons** in older versions). That's the usual Home Assistant OS install on a Home Assistant box, a Raspberry Pi or a mini PC. If you see neither, your install can't run apps: use [Docker](#way-2-docker-on-a-nas-or-always-on-computer) instead.
 * About 15 minutes.
 
 **Steps:**
 
-1. In Home Assistant, go to **Settings → Add-ons → Add-on Store**.
+1. In Home Assistant, go to **Settings → Apps** (**Settings → Add-ons** in older versions) and open the store (the button in the bottom corner; **Add-on Store** in older versions).
 2. Tap the **⋮** menu in the top corner, then **Repositories**.
 3. Paste this address and tap **Add**:
 
@@ -41,11 +41,11 @@ Nothing you do there is saved or shared. When you're ready for your own, come ba
    ```
 
 4. Close the box. **Kinwall** now appears in the store (scroll down, or refresh the page if it doesn't). Open it and tap **Install**. This takes a few minutes.
-5. Tap **Start**. Turn on **Show in sidebar** so it's easy to find.
+5. Tap **Start**. Turn on **Show in sidebar** so it's easy to find: it shows up in the sidebar as **Family**.
 6. Open the **Log** tab. Near the top you'll see a 6-digit **setup code**. Keep this tab open.
 7. Open Kinwall from the sidebar. It's called **Family**. You'll see **Welcome to Kinwall**. Enter the setup code, then follow the [setup wizard](setup-wizard.md).
 
-**If it looks different:** Home Assistant sometimes moves its menus. The install steps kept up to date by the add-on itself are in its [documentation](https://github.com/JohnDuprey/kinwall-homeassistant/blob/main/kinwall/DOCS.md). If the setup code isn't accepted, restart the add-on and use the newest code in the log: a new one is made on every start until you finish the wizard.
+**If it looks different:** Home Assistant sometimes moves its menus. The install steps kept up to date by the add-on itself are in its [documentation](https://github.com/JohnDuprey/kinwall-homeassistant/blob/main/kinwall/DOCS.md). If the setup code isn't accepted, restart the app and use the newest code in the log: a new one is made on every start until you finish the wizard.
 
 For the wall tablet, the add-on can also be reached straight on your home network, without a Home Assistant login. The add-on's own documentation covers that under "iPad kiosk setup". More detail is in [Home Assistant add-on](home-assistant-add-on.md).
 
