@@ -738,6 +738,11 @@ button {
   min-height: 44px;
   display: flex; align-items: center; gap: 6px;
 }
+.summary-body { flex: 1; min-width: 0; }
+/* Read-only chips summing up a card's settings (SummaryChips): smaller, not a button. */
+.summary-chips { gap: 6px; list-style: none; margin: 0; padding: 0; }
+.chip.chip-static { min-height: 0; padding: 3px 10px; font-size: 0.8125rem; font-weight: 700; border-width: 1px; background: var(--bg-alt); }
+.chip.chip-family { border-style: dashed; color: var(--text-dim); }
 .chip:disabled { opacity: 0.6; cursor: default; } /* read-only event: member chips shown, not changeable */
 .chip.active { border-color: var(--chip-color, var(--accent)); background: color-mix(in srgb, var(--chip-color, var(--accent)) 22%, var(--bg-alt)); }
 

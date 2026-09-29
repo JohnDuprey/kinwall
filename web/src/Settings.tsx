@@ -8,7 +8,7 @@ import Sheet from './Sheet.tsx'
 import { SchemePickerSheet, TypefaceRow } from './SchemePicker.tsx'
 import TidbitsSheet from './TidbitsSheet.tsx'
 import { tidbitSummary } from './tidbits.ts'
-import { featuresSummary, nightSummary, timeCuesSummary, transitionRemindersSummary } from './settingsSummary.ts'
+import { appearanceChips, featuresSummary, nightSummary, timeCuesSummary, transitionRemindersSummary, type Chip } from './settingsSummary.ts'
 import { MAX_WARNING_TIMES, REPEAT_EVERY, REPEAT_WITHIN, warningTimes, type TransitionReminders, type WarningRepeat } from './transitions.ts'
 import { MemberPicker } from './MemberPicker.tsx'
 import TimezoneField from './TimezoneField.tsx'
@@ -248,13 +248,28 @@ function FeaturesSection({ settings, onSaved, toast }: { settings: Settings; onS
 
 /** A long section folded into a sheet, like Quotes & facts: a one-line summary here, the controls
  * in a sheet. The controls save as they change, so the sheet only needs Done. */
-function SummarySection({ title, icon, summary, detail, children }: { title: string; icon?: ReactNode; summary: string; detail?: string; children: ReactNode }) {
+/** Selected settings as small read-only chips; one following the family is marked 🏠. */
+function SummaryChips({ chips }: { chips: Chip[] }) {
+  return (
+    <ul className="chip-row summary-chips">
+      {chips.map(c => (
+        <li key={c.label} className={`chip chip-static${c.family ? ' chip-family' : ''}`}>
+          {c.family && <span aria-label="Household:" role="img">🏠</span>}
+          {c.icon && <span aria-hidden="true">{c.icon}</span>}
+          {c.label}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function SummarySection({ title, icon, summary, detail, children }: { title: string; icon?: ReactNode; summary: string | Chip[]; detail?: string; children: ReactNode }) {
   const [open, setOpen] = useState(false)
   return (
     <Section title={title} icon={icon}>
       <div className="settings-row">
-        <div>
-          <div className="settings-row-label">{summary}</div>
+        <div className="summary-body">
+          {typeof summary === 'string' ? <div className="settings-row-label">{summary}</div> : <SummaryChips chips={summary} />}
           {detail && <div className="settings-row-sub">{detail}</div>}
         </div>
         <div className="settings-inline-btns">
@@ -380,17 +395,33 @@ const FONTS: { key: Typeface; label: string; desc: string }[] = [
 ]
 const fontName = (k: Typeface) => FONTS.find(f => f.key === k)?.label.split(' (')[0]
 
+/** This device's look as chips: its own choices, and the family's (marked) for the rest. */
+function deviceChips(settings: Settings, d: DeviceAppearance): Chip[] {
+  const scheme = d.skin ?? settings.colorScheme
+  const skin = scheme === 'seasonal' ? { emoji: '🗓️', name: 'Seasonal' } : findSkin(scheme, settings.customSchemes ?? [])
+  return appearanceChips({
+    scheme: { emoji: skin.emoji, name: skin.name },
+    custom: !!d.custom && Object.keys(d.custom).length > 0,
+    mode: d.themeMode,
+    textScale: TEXT_SCALE_NAMES[d.textScale ?? settings.textScale],
+    density: DEVICE_DENSITIES.find(o => o.key === (d.density ?? settings.density))?.label ?? '',
+    typeface: fontName(d.font ?? settings.typeface ?? 'default') ?? 'Default',
+    lowStim: d.lowStim,
+  }, { scheme: !!d.skin, mode: !!d.themeMode, textScale: !!d.textScale, density: !!d.density, typeface: !!d.font })
+}
+
 function AppearanceSection({ settings, onSaved, toast }: { settings: Settings; onSaved: () => void; toast: (m: string, persist?: boolean) => void }) {
   const device = useDeviceAppearance()
-  const overridden = [device.themeMode && 'mode', device.skin && 'color scheme', device.custom && 'custom colors', device.textScale && 'text size', device.density && 'density', device.font && 'typeface', device.lowStim && 'stimulation level'].filter(Boolean)
+  const overridden = deviceChips(settings, device).filter(c => !c.family)
   const save = async (patch: Partial<Settings>) => {
     try { await api.updateSettings(patch); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save settings', true) }
   }
   return (
     <Section title="Appearance" icon={<PaletteIcon width={16} height={16} />}>
       <p className="settings-row-sub" style={{ margin: '10px 2px 0' }}>
-        For the whole family.{overridden.length > 0 && <> This device overrides its {overridden.join(', ')}. See Appearance on this device, below.</>}
+        For the whole family.{overridden.length > 0 && <> This device uses its own, under Appearance on this device:</>}
       </p>
+      {overridden.length > 0 && <div style={{ margin: '6px 2px 0' }}><SummaryChips chips={overridden} /></div>}
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
         <div className="device-pref-row">
           <span>Mode</span>
@@ -994,18 +1025,7 @@ function SchemeSheet({ draft, isNew, onClose, onSave, onDelete }: {
 
 function DeviceAppearanceSection() {
   const { settings } = useApp()
-  const d = useDeviceAppearance()
-  const label = <K extends string>(opts: { key: K; label: string }[], k: K | undefined) => opts.find(o => o.key === k)?.label ?? ''
-  const parts = [
-    d.skin && (d.skin === 'seasonal' ? 'Seasonal' : findSkin(d.skin, settings.customSchemes ?? []).name),
-    d.custom && Object.keys(d.custom).length > 0 && 'custom colors',
-    d.textScale && `text ${label(TEXT_SCALES, d.textScale)}`,
-    d.themeMode && `${label(THEME_MODES, d.themeMode).toLowerCase()} mode`,
-    d.density && label(DEVICE_DENSITIES, d.density).toLowerCase(),
-    d.font && `${label(FONTS, d.font).split(' (')[0]} typeface`,
-    d.lowStim && 'low-stimulation',
-  ].filter((p): p is string => !!p)
-  const summary = parts.length ? parts.join(' · ').replace(/^./, c => c.toUpperCase()) : 'Following the family'
+  const summary = deviceChips(settings, useDeviceAppearance())
   return (
     <SummarySection title="Appearance on this device" icon={<PaletteIcon width={16} height={16} />} summary={summary}>
       <DeviceAppearanceRows />
