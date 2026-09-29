@@ -104,7 +104,7 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
   ].filter((t): t is string => !!t)
   // Saving for a reward: shown on the person's chores row, or a row of its own when they have no chores today.
   const goalsOnly = members.filter(m => m.rewardGoal && !data.chores.some(c => c.memberId === m.id))
-  const shown = ['tiles', 'clock', 'today', 'meals', 'photo', 'coming', 'due', 'chores', 'tidbit'].filter(a =>
+  const shown = ['clock', 'tiles', 'today', 'meals', 'photo', 'coming', 'due', 'chores', 'tidbit'].filter(a =>
     a === 'tiles' ? tiles.length > 0 : a === 'photo' ? f.photos : a === 'due' ? f.lists && full : a === 'chores' ? f.chores && full : a === 'meals' ? f.meals : a === 'tidbit' ? !!tidbit : true)
   const has = (a: string) => shown.includes(a)
   const choresLeft = data.chores.reduce((n, c) => n + c.remaining, 0)

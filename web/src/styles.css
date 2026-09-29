@@ -2094,6 +2094,8 @@ button.board-empty-tap { display: block; width: 100%; text-align: left; backgrou
 .board-tile-person { display: inline-flex; align-items: center; gap: 4px; font-weight: 800; font-size: 0.9375rem; }
 .board-tile-person .board-avatar { width: 24px; height: 24px; font-size: 0.8125rem; }
 .board-tile-person.done { opacity: 0.5; }
+/* Two to a row on a phone: an odd last tile takes the whole row rather than leave half of it empty. */
+@container board (max-width: 619.98px) { .board-tile:last-child:nth-child(odd) { grid-column: 1 / -1; } }
 @container board (min-width: 620px) { .board-tiles { grid-template-columns: none; grid-auto-columns: minmax(0, 1fr); grid-auto-flow: column; } }
 
 @container board (min-width: 620px) {
