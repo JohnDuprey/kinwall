@@ -446,6 +446,22 @@ test('reminders: a late window longer than 3 hours gets one kind follow-up halfw
   assert.equal(feed(s.db).filter((f) => /until/.test(f.title)).length, 0, 'a nudge, not a feed row');
 });
 
+test("reminders: with a late window past 3 hours, a kid's parent note waits until about an hour is left", async (t) => {
+  t.after(() => mock.timers.reset());
+  const s = await setup({ now: at('06:00') });
+  await s.add(s.leo.id, { lateWindow: 'evening' }); // until 8 PM: note at 7 PM
+  await s.add(s.maya.id, { lateWindow: 'endOfDay' }); // until midnight: note at 11 PM
+  await s.add(s.maya.id, { times: ['09:00'], lateWindow: 'none' }); // 1 hour: note at 30 minutes, as before
+  const tick = await devices(s, [['parent', await s.key(undefined, 'admin')]]);
+  const notes = async (when: Date) => ((await tick(when)).parent ?? []).map((p) => p.title);
+  assert.deepEqual(await notes(at('08:31')), [], 'not at 30 minutes');
+  assert.deepEqual(await notes(at('09:31')), ["Maya's 9:00 AM medicine hasn't been marked yet"]);
+  assert.deepEqual(await notes(at('18:58')), []);
+  assert.deepEqual(await notes(at('19:02')), ["Leo's 8:00 AM medicine hasn't been marked yet"]);
+  assert.deepEqual(await notes(at('19:10')), [], 'once');
+  assert.deepEqual(await notes(at('23:01')), ["Maya's 8:00 AM medicine hasn't been marked yet"]);
+});
+
 test('reminders: medicine pushes still go out during quiet hours', async (t) => {
   t.after(() => mock.timers.reset());
   const s = await setup({ now: at('06:00') });

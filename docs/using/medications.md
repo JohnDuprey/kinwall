@@ -40,7 +40,7 @@ At each dose time:
 
 When a medicine's late window is longer than 3 hours (**Until evening** or **Until the end of the day**) and the dose still isn't marked halfway through it, the person's own devices get one more, gentler push, like **Still time for Maya's medicine (until 8 PM)**. For an 8 AM dose that's at 2 PM (until 8 PM) or 4 PM (until midnight): halfway leaves real time to take it, and one is enough. The wording changes from dose to dose and never says "missed" or "late". It isn't added to the bell's feed, and like the first reminder it names the medicine only on devices that turned names on.
 
-For a kid (not a [grown-up](../settings/family.md#members)), if a dose isn't marked **Taken** or **Skip** within 30 minutes, parent devices get **Maya's 8:00 AM medicine hasn't been marked yet**, once. Grown-ups' doses don't alert anyone.
+For a kid (not a [grown-up](../settings/family.md#members)), if a dose isn't marked **Taken** or **Skip**, parent devices get **Maya's 8:00 AM medicine hasn't been marked yet**, once. With **Up to 3 hours** or **Don't take late** that's 30 minutes after its time. With a longer window it waits until about an hour is left (7 PM for **Until evening**, 11 PM for **Until the end of the day**): a kid who sleeps in isn't chased at 8:30 for a dose that's fine until 8 PM, and there's still time to help. Grown-ups' doses don't alert anyone.
 
 Each reminder is sent once per dose (and once per snooze and follow-up), even if the server restarts. A dose that isn't scheduled that weekday sends nothing.
 

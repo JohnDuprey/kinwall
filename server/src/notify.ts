@@ -644,13 +644,16 @@ async function runGoalFollowups(env: Env, db: KinwallDb, now: Date, tz: string, 
 // - when its late window is longer than 3 hours ('evening', 'endOfDay'), one kind follow-up halfway
 //   through, "Still time for Leo's medicine (until 8 PM)" (nudges.ts MED_FOLLOWUPS), to the same
 //   devices and no feed row: halfway leaves real time to take it, and one is enough;
-// - 30 minutes after its time, for a kid (not grownUp), "Leo's 8:00 AM medicine hasn't been marked
-//   yet" to parent devices (admin keys) and the feed.
+// - for a kid (not grownUp), "Leo's 8:00 AM medicine hasn't been marked yet" to parent devices (admin
+//   keys) and the feed: 30 minutes after its time, or with a late window past 3 hours when about an
+//   hour of it is left (7 PM for 'evening'): the gentler default, so a kid who sleeps in isn't
+//   chased at 8:30 for a dose that's fine until 8 PM, and parents still hear in time to help.
 // Push text is generic unless the device turned on medicationNames. Each is claimed once (an
 // insert into sent_notifications, keyed by a hash so the table never says what or when) and only
 // within GRACE of its time, so a late tick still sends and a restart never repeats. Medicine pushes
 // go out during quiet hours too: a missed dose matters more than a quiet night (the family asked).
 const MED_GRACE_MS = 30 * 60_000;
+const NOTE_BEFORE_END_MS = 60 * 60_000;
 async function runMedicationReminders(env: Env, db: KinwallDb, now: Date, tz: string, h12: boolean): Promise<void> {
   const meds = await loadMedications(env);
   if (!meds.length) return;
@@ -686,7 +689,8 @@ async function runMedicationReminders(env: Env, db: KinwallDb, now: Date, tz: st
           const d = due.get(m.memberId) ?? { meds: [], feed: false };
           due.set(m.memberId, { meds: [...d.meds, m], feed: d.feed || first });
         }
-        if (!member.grown_up && (await claim(at + LATE_MS, `late:${m.id}:${date}:${time}`))) {
+        // A long window: parents hear when about an hour is left, not 30 minutes in.
+        if (!member.grown_up && (await claim(end - at > DUE_MS ? end - NOTE_BEFORE_END_MS : at + LATE_MS, `late:${m.id}:${date}:${time}`))) {
           const k = `${m.memberId}:${date}:${time}`;
           late.set(k, { memberId: m.memberId, time, meds: [...(late.get(k)?.meds ?? []), m] });
         }
