@@ -68,6 +68,9 @@ html { font-size: calc(16px * var(--text-scale)); }
   --rail-w: 64px;
 }
 
+/* Before main.tsx sets data-theme (the first paint, no JS yet): the page background follows the
+   system, since the default mode is Auto. */
+@media (prefers-color-scheme: dark) { :root:not([data-theme]) { color-scheme: dark; --bg: #1C1712; --text: #F3EAE0; } }
 :root[data-theme="dark"] {
   color-scheme: dark;
   --bg: #1C1712;

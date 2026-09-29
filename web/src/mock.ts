@@ -61,7 +61,7 @@ const settings: Settings = {
   familyName: 'Our Family',
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   weekStart: 0,
-  themeMode: 'light',
+  themeMode: 'auto',
   darkFrom: '20:00',
   darkTo: '07:00',
   quietFrom: null,

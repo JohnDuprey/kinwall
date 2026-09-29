@@ -12,7 +12,7 @@ export const settingsRoutes = createRouter();
 const DEFAULTS: Record<string, string> = {
   familyName: 'Our Family',
   weekStart: '0',
-  themeMode: 'light',
+  themeMode: 'auto', // follow the system until the family picks one
   darkFrom: '20:00',
   darkTo: '07:00',
   accent: '#FF9E7A',

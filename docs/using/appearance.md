@@ -15,7 +15,7 @@ Quiet hours are a separate card, right after Appearance. See [Quiet hours](quiet
 
 | Setting | Options | Default |
 |---|---|---|
-| **Mode** | Light, Dark, Auto (follows the device's system setting), Scheduled | Light |
+| **Mode** | Light, Dark, Auto (follows the device's system setting), Scheduled | Auto |
 | **Dark from / Dark to** (Scheduled) | Two times. The window can cross midnight. | 20:00 → 07:00 |
 | **Color scheme** | Seasonal, one of sixteen skins, or one of the family's own schemes. See [Color schemes](#color-schemes). | Peach |
 | **Typeface** | Default (Nunito), Hyperlegible, Dyslexia-friendly, Modern, Playful, Storybook or Handwritten. See [Typeface](#typeface). | Default (Nunito) |

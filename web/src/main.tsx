@@ -57,6 +57,12 @@ if (MOCK) {
   }
 }
 
+// Until useTheme applies the family's look, paint the last look this device showed, else the
+// system's (the default mode is Auto), so "Loading…" doesn't flash light on a dark screen.
+try {
+  document.documentElement.setAttribute('data-theme', localStorage.getItem('kinwall.lastTheme') ?? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))
+} catch { /* storage blocked: styles.css follows the system */ }
+
 if (import.meta.env.DEV) import('./skins.ts').then(({ assertSkinsAA }) => assertSkinsAA())
 
 // Relaunched mid-shop (the app or tab was closed in the store): straight back into shopping mode.

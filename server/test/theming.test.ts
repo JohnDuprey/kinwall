@@ -39,7 +39,7 @@ test('settings: defaults include the new appearance fields', async () => {
   const request = makeApp(makeEnv());
   const res = await request('/api/settings');
   const body = await res.json() as any;
-  assert.equal(body.themeMode, 'light');
+  assert.equal(body.themeMode, 'auto', 'a family that never picked a mode follows the system');
   assert.equal(body.accent, '#FF9E7A');
   assert.equal(body.backgroundLight, 'warm');
   assert.equal(body.backgroundDark, 'cocoa');
@@ -47,6 +47,13 @@ test('settings: defaults include the new appearance fields', async () => {
   assert.equal(body.darkFrom, '20:00');
   assert.equal(body.darkTo, '07:00');
   assert.equal(body.density, 'comfortable');
+});
+
+test('settings: a family that saved Light keeps it now that the default is Auto', async () => {
+  const request = makeApp(makeEnv());
+  await request('/api/settings', { method: 'PATCH', body: JSON.stringify({ themeMode: 'light' }) });
+  assert.equal((await (await request('/api/settings')).json() as any).themeMode, 'light');
+  assert.equal((await (await request('/api/appearance')).json() as any).themeMode, 'light');
 });
 
 test('settings: PATCH accepts a valid density and rejects a bad one', async () => {
