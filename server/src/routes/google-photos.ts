@@ -90,6 +90,9 @@ async function clientFor(c: Ctx, flow: Flow): Promise<Client | null> {
 }
 /** How a new connection signs in: the TV client when it's set, else Calendar's web client. */
 async function newClient(c: Ctx): Promise<Client | null> {
+  // Tabled: Google only lets accepted Photos partners create Ambient devices (403 PERMISSION_DENIED
+  // pointing at the partner program), which self-hosted servers can't get. Off unless opted in.
+  if (c.env.GOOGLE_PHOTOS_ENABLED !== '1') return null;
   return (await clientFor(c, 'device')) ?? clientFor(c, 'web');
 }
 

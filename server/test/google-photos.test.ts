@@ -82,13 +82,14 @@ function fakeGoogle() {
 }
 
 /** configured: the TV client (device sign-in). web: only Calendar's web client, so the web sign-in. */
-function makeApp(opts: { configured?: boolean; web?: boolean } = {}) {
+function makeApp(opts: { configured?: boolean; web?: boolean; enabled?: boolean } = {}) {
   const db = openDb(':memory:');
   applyMigrations(db, MIGRATIONS_DIR);
   const env: Env = {
     DB: db as unknown as D1Database,
     ADMIN_API_KEY: ADMIN_KEY,
     ENCRYPTION_KEY: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+    ...(opts.enabled === false ? {} : { GOOGLE_PHOTOS_ENABLED: '1' }),
     ...(opts.configured === false || opts.web ? {} : { GOOGLE_PHOTOS_CLIENT_ID: 'tv-client.apps.googleusercontent.com', GOOGLE_PHOTOS_CLIENT_SECRET: 'FAKE-CLIENT-SECRET' }),
     ...(opts.web ? { GOOGLE_CLIENT_ID: 'web-client.apps.googleusercontent.com', GOOGLE_CLIENT_SECRET: 'FAKE-WEB-SECRET', PUBLIC_URL: 'https://kinwall.example' } : {}),
   };
@@ -135,6 +136,13 @@ async function connected(t: ReturnType<typeof makeApp>, fake: ReturnType<typeof 
   const s = await t.send('GET', '/api/google-photos');
   assert.equal(s.body.state, 'ready');
 }
+
+test('google photos: tabled, so off unless GOOGLE_PHOTOS_ENABLED=1, even with a client configured', async () => {
+  const app = makeApp({ enabled: false });
+  const res = await app.send('GET', '/api/google-photos');
+  assert.equal(res.body.available, false);
+  assert.notEqual((await app.send('POST', '/api/google-photos/connect')).status, 200);
+});
 
 test('google photos: off and unavailable until the server has a Google Photos client', async () => {
   const t = makeApp({ configured: false });

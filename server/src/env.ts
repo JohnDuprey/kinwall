@@ -10,6 +10,7 @@ export type Env = ApnsEnv & {
   CORS_ORIGINS?: string;
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
+  GOOGLE_PHOTOS_ENABLED?: string; // '1' to offer Google Photos at all (tabled: needs Google's Photos partner program)
   GOOGLE_PHOTOS_CLIENT_ID?: string; // Google Photos (Ambient API): its own "TVs and Limited Input devices" OAuth client; see routes/google-photos.ts
   GOOGLE_PHOTOS_CLIENT_SECRET?: string;
   MS_CLIENT_ID?: string;

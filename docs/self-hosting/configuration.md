@@ -14,6 +14,7 @@ Kinwall is configured with environment variables. On Docker and Node they're pro
 | `ENCRYPTION_KEY` | generated into `DATA_DIR/encryption.key` (Docker) | 32 random bytes, base64 (`openssl rand -base64 32`). Encrypts credentials, secrets and [health entries](../your-data/privacy.md#health-entries). **Required on Workers**: without it, saving a health entry fails instead of storing it unencrypted. Keep it with your backups: a lost key can't be recovered, and changing it isn't supported yet. |
 | `ENCRYPTION_KEY_FILE` | — | Docker/Node: read the key from this file instead (e.g. a Docker secret). |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | — | Google OAuth client. A client configured in the UI wins over these. |
+| `GOOGLE_PHOTOS_ENABLED` | — | `1` to offer Google Photos at all. Off by default: it needs Google's Photos partner program. See [Google Photos](#google-photos). |
 | `GOOGLE_PHOTOS_CLIENT_ID`, `GOOGLE_PHOTOS_CLIENT_SECRET` | — | Optional: a **TVs and Limited Input devices** OAuth client for Google Photos, used instead of the Google Calendar client when set. See [Google Photos](#google-photos). |
 | `MS_CLIENT_ID`, `MS_CLIENT_SECRET` | — | Microsoft OAuth app. A UI-configured app wins over these. |
 | `MS_TENANT` | `common` | Microsoft tenant. |
@@ -33,6 +34,8 @@ Kinwall is configured with environment variables. On Docker and Node they're pro
 | `TZ` | system | Docker/Node: the fallback timezone until the household sets one. |
 
 ### Google Photos
+
+> **Off by default.** Google's Photos Ambient API only works for projects accepted into Google's [Photos partner program](https://developers.google.com/photos/partner-program/overview); without that, creating the family's Photos device fails with 403 PERMISSION_DENIED. Set `GOOGLE_PHOTOS_ENABLED=1` only with a partner-approved project.
 
 [Google Photos on the Night screen](../using/photos.md#google-photos) uses Google's Photos Ambient API, which is made for photo frames and TVs. It can connect two ways. Try the first; use the second if Google refuses it.
 

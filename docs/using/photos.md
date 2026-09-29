@@ -49,6 +49,8 @@ JPEG, PNG, WebP and anything else your browser can open. HEIC photos straight fr
 
 ## Google Photos
 
+> **Not available yet.** Google only lets accepted Photos partners use the Ambient API that this needs (Google answers other apps with "permission denied" and points to its partner program), and a self-hosted server can't be a partner. So Google Photos is switched off; it only appears on a server with `GOOGLE_PHOTOS_ENABLED=1` and a partner-approved Google project. Add [family photos](#adding-photos) instead.
+
 A parent can also show albums from Google Photos on the Night screen and the Board's picture card, without copying them into Kinwall. The photos stay in Google Photos; Kinwall keeps only which ones to show.
 
 **Connect it** from a parent device: **Settings → General**, tap **Change** under **Night screen**, then **Connect Google Photos** at the bottom of the sheet.
