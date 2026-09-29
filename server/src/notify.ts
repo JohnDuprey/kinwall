@@ -503,8 +503,8 @@ export function notifyListUpdate(env: Env, execCtx: WaitCtx | undefined, listId:
 // when they set a goal today (not skipped) and haven't answered, "Did you finish your goal? 🎯" to
 // devices that belong to them and one row in the in-app feed. Once per person per day (claimed in
 // one statement). Goals are family content, so the goal is the push text; the answer never is.
-// Quiet hours skip the push, not the feed row or the card on their day (routes/temp-check.ts).
-async function runGoalFollowups(env: Env, db: KinwallDb, now: Date, tz: string, windowStart: Date, quiet: boolean): Promise<void> {
+// Sent during quiet hours too: it's the person's own chosen time (the family asked for that).
+async function runGoalFollowups(env: Env, db: KinwallDb, now: Date, tz: string, windowStart: Date): Promise<void> {
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(now);
   const { results } = await db
     .prepare('SELECT m.id, m.temp_check, t.goal FROM members m JOIN temp_checks t ON t.member_id = m.id AND t.date = ? WHERE t.goal IS NOT NULL AND t.goal_skipped = 0 AND t.followup IS NULL')
@@ -522,7 +522,6 @@ async function runGoalFollowups(env: Env, db: KinwallDb, now: Date, tz: string, 
     if (!claimed.meta.changes) continue;
     const payload = { title: 'Did you finish your goal? 🎯', body: m.goal, url: `/#/journal/${m.id}`, tag: key };
     await recordNotification(db, { kind: 'goal', title: payload.title, body: payload.body, url: payload.url, memberIds: [m.id], source: 'system', at: now });
-    if (quiet) continue;
     const { results: subs } = await db.prepare('SELECT s.* FROM push_subscriptions s JOIN api_keys k ON k.id = s.api_key_id WHERE k.owner = ?').bind(m.id).all<PushSubRow>();
     for (const sub of subs) await sendToSub(env, db, sub, payload);
   }
@@ -536,10 +535,10 @@ async function runGoalFollowups(env: Env, db: KinwallDb, now: Date, tz: string, 
 //   yet" to parent devices (admin keys) and the feed.
 // Push text is generic unless the device turned on medicationNames. Each is claimed once (an
 // insert into sent_notifications, keyed by a hash so the table never says what or when) and only
-// within GRACE of its time, so a late tick still sends and a restart never repeats. Quiet hours hold
-// the pushes, like the goal check: the family chose them; the card on the wall and the feed row stay.
+// within GRACE of its time, so a late tick still sends and a restart never repeats. Medicine pushes
+// go out during quiet hours too: a missed dose matters more than a quiet night (the family asked).
 const MED_GRACE_MS = 30 * 60_000;
-async function runMedicationReminders(env: Env, db: KinwallDb, now: Date, tz: string, quiet: boolean): Promise<void> {
+async function runMedicationReminders(env: Env, db: KinwallDb, now: Date, tz: string): Promise<void> {
   const meds = await loadMedications(env);
   if (!meds.length) return;
   const today = todayInTz(tz, now);
@@ -582,12 +581,11 @@ async function runMedicationReminders(env: Env, db: KinwallDb, now: Date, tz: st
     const title = `Time for ${byId.get(memberId)!.name}'s medicine`;
     const url = `/#/medications/${memberId}`;
     if (d.feed) await recordNotification(db, { kind: 'medication', title, url, memberIds: [memberId], source: 'system', at: now });
-    if (quiet) continue;
     const { results: subs } = await db.prepare('SELECT s.* FROM push_subscriptions s JOIN api_keys k ON k.id = s.api_key_id WHERE k.owner = ?').bind(memberId).all<PushSubRow>();
     await send(subs, title, 'Tap to mark it taken.', d.meds, url, `med:${memberId}`);
   }
   if (!late.size) return;
-  const { results: parents } = quiet ? { results: [] } : await db.prepare("SELECT s.* FROM push_subscriptions s JOIN api_keys k ON k.id = s.api_key_id WHERE k.scope = 'admin'").all<PushSubRow>();
+  const { results: parents } = await db.prepare("SELECT s.* FROM push_subscriptions s JOIN api_keys k ON k.id = s.api_key_id WHERE k.scope = 'admin'").all<PushSubRow>();
   for (const l of late.values()) {
     const title = `${byId.get(l.memberId)!.name}'s ${clockLabel(l.time)} medicine hasn't been marked yet`;
     const url = `/#/medications/${l.memberId}`;
@@ -624,10 +622,10 @@ export async function runNotifications(env: Env, now: Date, _execCtx?: WaitCtx):
   const features = await readFeatures(env.DB);
   await runDailySummary(env, env.DB, now, tz, subs, windowStart, features);
   if (features.chores) await runChoreNudge(env, env.DB, now, tz, subs, windowStart); // Chores turned off: no nudge
-  await runGoalFollowups(env, env.DB, now, tz, windowStart, quiet);
+  await runGoalFollowups(env, env.DB, now, tz, windowStart);
   if ((await env.DB.prepare("SELECT value FROM settings WHERE key = 'medications'").first<{ value: string }>())?.value === 'true') {
     // Never let a sealed value that won't open (no key) stop the other reminders; the error's name only, never data.
-    try { await runMedicationReminders(env, env.DB, now, tz, quiet); } catch (e) { console.error('medication reminders skipped:', e instanceof Error ? e.name : 'error'); }
+    try { await runMedicationReminders(env, env.DB, now, tz); } catch (e) { console.error('medication reminders skipped:', e instanceof Error ? e.name : 'error'); }
   }
   await pruneSentNotifications(env.DB, now);
   await setTickWindowEnd(env.DB, now);

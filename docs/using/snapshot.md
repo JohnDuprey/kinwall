@@ -48,7 +48,7 @@ Who sees what:
 
 With **Evening goal check** on (in the person's [Temp check settings](../settings/family.md#temp-check)), a day they set a goal ends with a follow-up. At the time they chose (9:00 PM to start), if they haven't answered yet:
 
-* their own phones and tablets get a push: **Did you finish your goal? 🎯** with the goal. Tapping it opens their [journal](journal.md), where the check waits at the top. The bell's feed gets the same line. [Quiet hours](quiet-hours.md) hold back the push, not the feed or the card.
+* their own phones and tablets get a push: **Did you finish your goal? 🎯** with the goal. Tapping it opens their [journal](journal.md), where the check waits at the top. The bell's feed gets the same line. It comes through during [quiet hours](quiet-hours.md) too.
 * a **🎯 Goal check** card shows at the bottom of their **Day** view until midnight.
 
 Three big buttons: 🎉 **Yes**, 🌗 **Partly**, 🌱 **Not today**. The answer saves on the tap. Then, if their journal keeps notes, three optional lines: **What helped?**, **What got in the way?** and **Next time I'll…**, with **Save** or **No notes**. The card thanks them ("Nice work, Maya ✓", or something kind for Partly and Not today) and **Change** lets them answer again until midnight. There's one prompt per person per day, and none on days they skipped the goal.

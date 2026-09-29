@@ -13,7 +13,7 @@ Quiet hours turn a wall display into a dim, slowly drifting clock overnight. Tha
 * **Tap the screen** to wake it. It returns to the clock after **five minutes** without a touch.
 * The times are read on the display's own clock. The setting syncs to every display within about 30 seconds.
 
-Quiet hours also hold back push notifications that would arrive during them: transition reminders, the evening goal check and [medication reminders](medications.md). The bell's feed and the Take now card still show.
+Quiet hours also hold back transition reminders that would arrive during them. The evening goal check and [medication reminders](medications.md) still come through: they're at times the family picked on purpose.
 
 ## Screensaver
 

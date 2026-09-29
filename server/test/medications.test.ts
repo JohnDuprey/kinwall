@@ -321,14 +321,14 @@ test("reminders: a kid's dose not marked in 30 minutes tells parents' devices on
   assert.deepEqual(feed(s.db).map((f) => f.title).filter((x) => x.includes('marked')), ["Leo's 8:00 AM medicine hasn't been marked yet"]);
 });
 
-test('reminders: quiet hours hold the push but keep the feed row (and the card)', async (t) => {
+test('reminders: medicine pushes still go out during quiet hours', async (t) => {
   t.after(() => mock.timers.reset());
   const s = await setup({ now: at('06:00') });
   await s.add(s.leo.id);
   await s.req('/api/settings', 'PATCH', { quietFrom: '07:00', quietTo: '09:00' });
   const tick = await devices(s, [['leo-tablet', await s.key(s.leo.id)], ['parent', await s.key(undefined, 'admin')]]);
-  assert.deepEqual(await tick(at('08:02')), {});
-  assert.deepEqual(await tick(at('08:31')), {});
+  assert.deepEqual(Object.keys(await tick(at('08:02'))), ['leo-tablet']);
+  assert.deepEqual(Object.keys(await tick(at('08:31'))), ['parent']);
   assert.equal(feed(s.db).length, 2);
   mock.timers.setTime(at('08:40').getTime());
   assert.equal((await s.req('/api/medications/due', 'GET', undefined, await s.key())).json.doses.length, 1);

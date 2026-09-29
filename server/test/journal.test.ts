@@ -143,14 +143,26 @@ test('evening prompt: once per person per day at their time, to their own device
   }
 });
 
-test('evening prompt: nothing when the goal was skipped or answered, the setting is off; quiet hours skip the push but keep the feed', async (t) => {
+test('evening prompt: still pushed during quiet hours', async (t) => {
+  t.after(() => mock.timers.reset());
+  const s = await setup({}, at('18:00'));
+  assert.equal((await s.req('/api/push/subscriptions', 'POST', await subscription('maya-phone'), await s.key(s.maya.id))).status, 201);
+  await s.req(tc(s.maya.id), 'PUT', { goal: 'Read' });
+  await s.req('/api/settings', 'PATCH', { quietFrom: '20:00', quietTo: '07:00' });
+  const realFetch = globalThis.fetch;
+  const sent: string[] = [];
+  globalThis.fetch = (async (u: unknown) => { sent.push(String(u)); return new Response('', { status: 201 }); }) as typeof fetch;
+  try { await runNotifications(s.env, at('21:02')); } finally { globalThis.fetch = realFetch; }
+  assert.deepEqual(sent, ['https://push.example/maya-phone']);
+});
+
+test('evening prompt: nothing when the goal was skipped or answered, the setting is off', async (t) => {
   t.after(() => mock.timers.reset());
   const cases: [string, (s: Awaited<ReturnType<typeof setup>>) => Promise<unknown>, number][] = [
     ['skipped', (s) => s.req(tc(s.maya.id), 'PUT', { goalSkipped: true }), 0],
     ['answered', async (s) => { await s.req(tc(s.maya.id), 'PUT', { goal: 'Read' }); mock.timers.setTime(at('21:01').getTime()); await s.req(tc(s.maya.id), 'PUT', { followup: { outcome: 'yes' } }); }, 0], // before the tick got to it
     ['off', async (s) => { await s.req(tc(s.maya.id), 'PUT', { goal: 'Read' }); await s.req(`/api/members/${s.maya.id}`, 'PATCH', { tempCheck: { ...EVENING, evening: false } }); }, 0],
     ['goal question off', async (s) => { await s.req(tc(s.maya.id), 'PUT', { goal: 'Read' }); await s.req(`/api/members/${s.maya.id}`, 'PATCH', { tempCheck: { ...EVENING, goal: false } }); }, 0],
-    ['quiet hours', async (s) => { await s.req(tc(s.maya.id), 'PUT', { goal: 'Read' }); await s.req('/api/settings', 'PATCH', { quietFrom: '20:00', quietTo: '07:00' }); }, 1],
   ];
   for (const [name, arrange, feedRows] of cases) {
     const s = await setup({}, at('18:00'));

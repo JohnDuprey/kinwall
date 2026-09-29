@@ -40,7 +40,7 @@ For a kid (not a [grown-up](../settings/family.md#members)), if a dose isn't mar
 
 Each reminder is sent once per dose (and once per snooze), even if the server restarts. A dose that isn't scheduled that weekday sends nothing.
 
-**Quiet hours**: medication pushes follow the family's [quiet hours](quiet-hours.md), like other reminders: the family chose those hours, and a push in the middle of the night wakes everyone. During quiet hours the push is held (not sent later), but the bell's feed row and the Take now card still appear. Wall screens show their night clock during quiet hours; tap to wake it and see the card. If a dose falls inside your quiet hours, set the quiet hours around it.
+**Quiet hours**: medication reminders still come through during [quiet hours](quiet-hours.md), both the reminder to the person and the note to parents. Wall screens show their night clock during quiet hours; tap to wake it and see the Take now card.
 
 ## A person's medicines page
 
