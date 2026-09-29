@@ -59,6 +59,16 @@ A person's [journal](../using/journal.md) entries (the words and the mood) are e
 * **Claude and other connected apps** get nothing (403) until a parent turns on **Let connected apps see health entries**. There's no MCP tool for Insights. Everything is plain arithmetic on the server: no AI writes or reads the insights.
 * Never in the server logs, webhooks, the snapshot, profiles or push text. The [export](export-import.md) doesn't include them: they're worked out from data it already has.
 
+### Energy battery
+
+The [energy battery](../using/battery.md) is worked out from sleep and feelings, so it's treated like Insights:
+
+* **Computed on request, never stored.** The only new things saved are the person's on/off setting and, for the heads-up push, a one-way hash that says a push was handled, not who it was for or which day.
+* **Who can see it:** the person's own device and parents' devices. Never a shared wall screen, the Board, a profile or another person's device.
+* **Claude and other connected apps** get nothing (403, and no MCP tool) until a parent turns on **Let connected apps see health entries**.
+* **Push text** comes from the calendar and chores only ("Tomorrow looks full: 5 events and a late evening…"), never sleep or feelings, and goes only to the person's own devices. It isn't added to the family's notification feed.
+* Never in the server logs, webhooks, the snapshot or the export.
+
 ### Medications
 
 [Medication reminders](../using/medications.md) are off until a parent turns them on. A medicine's name, dose, times, weekdays and end (a last day or a number of doses), and each day's log of doses marked taken, skipped or snoozed (when, and on which device), are encrypted like health entries: bound to the row, refused without a key, never in the server logs. Only who the medicine is for and which day a log is for stay plain. Reminder bookkeeping stores a one-way hash, not the medicine or the time. Nothing about conditions or diagnoses is asked or kept.

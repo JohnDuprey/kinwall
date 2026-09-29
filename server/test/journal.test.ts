@@ -58,8 +58,8 @@ const jr = (id: string, rest = '') => `/api/members/${id}/journal${rest}`;
 test('evening check settings: off by default, 9:00 PM, answers kept in the journal; half-hour times only', async (t) => {
   t.after(() => mock.timers.reset());
   const { req, maya, leo } = await setup();
-  assert.deepEqual(leo.tempCheck, { on: false, sleep: true, feelings: true, goal: true, showGoal: true, evening: false, eveningTime: '21:00', journal: true });
-  assert.deepEqual(maya.tempCheck, EVENING);
+  assert.deepEqual(leo.tempCheck, { on: false, sleep: true, feelings: true, goal: true, showGoal: true, evening: false, eveningTime: '21:00', journal: true, battery: false });
+  assert.deepEqual(maya.tempCheck, { ...EVENING, battery: false });
   const set = (tempCheck: unknown) => req(`/api/members/${leo.id}`, 'PATCH', { tempCheck });
   assert.equal((await set({ ...EVENING, eveningTime: '22:30', journal: false })).json.tempCheck.eveningTime, '22:30');
   for (const eveningTime of ['22:15', '24:00', '9pm']) assert.equal((await set({ ...EVENING, eveningTime })).status, 400, eveningTime);

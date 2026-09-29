@@ -47,11 +47,11 @@ const url = (id: string, date?: string) => `/api/members/${id}/temp-check${date 
 test('temp check: off by default; settings live on the member', async (t) => {
   t.after(() => mock.timers.reset());
   const { req, maya, leo } = await setup();
-  assert.deepEqual(leo.tempCheck, { on: false, sleep: true, feelings: true, goal: true, showGoal: true, evening: false, eveningTime: '21:00', journal: true });
+  assert.deepEqual(leo.tempCheck, { on: false, sleep: true, feelings: true, goal: true, showGoal: true, evening: false, eveningTime: '21:00', journal: true, battery: false });
   assert.equal(maya.tempCheck.on, true);
   assert.equal((await req(url(leo.id), 'PUT', { sleep: 'good' })).status, 400); // off for Leo
   const patched = (await req(`/api/members/${leo.id}`, 'PATCH', { tempCheck: { on: true, sleep: false, feelings: true, goal: true, showGoal: false } })).json;
-  assert.deepEqual(patched.tempCheck, { on: true, sleep: false, feelings: true, goal: true, showGoal: false, evening: false, eveningTime: '21:00', journal: true });
+  assert.deepEqual(patched.tempCheck, { on: true, sleep: false, feelings: true, goal: true, showGoal: false, evening: false, eveningTime: '21:00', journal: true, battery: false });
   const got = (await req(url(leo.id))).json;
   assert.deepEqual([got.date, got.sleep, got.feelings, got.goal, got.goalSkipped, got.custom], [TODAY, null, null, null, false, []]);
   assert.deepEqual(got.answered, { sleep: false, feelings: false, goal: false, followup: false });

@@ -22,6 +22,7 @@
 * [Profiles](using/profiles.md)
 * [Journal](using/journal.md)
 * [Insights](using/insights.md)
+* [Energy battery](using/battery.md)
 * [Medications](using/medications.md)
 * [Lists](using/lists.md)
 * [Meals](using/meals.md)

@@ -51,7 +51,7 @@ Once it's saved on, **Open insights** goes to their [Insights](../using/insights
 
 Words they added with **Other…** are listed as **Maya's own feelings**; pick one under **Remove…** to take it off their list (answers they already gave keep it).
 
-API: `tempCheck` on `GET /api/members` and `PATCH /api/members/{id}` (admin key), as `{ "on": true, "sleep": true, "feelings": true, "goal": true, "showGoal": true, "evening": false, "eveningTime": "21:00", "journal": true }` (`eveningTime` is household time on the hour or half hour). Members also carry `todayGoal`, today's goal or `null`. Their own feelings list is `custom` on `/api/members/{id}/temp-check`. Both are in [exports](../your-data/export-import.md).
+API: `tempCheck` on `GET /api/members` and `PATCH /api/members/{id}` (admin key), as `{ "on": true, "sleep": true, "feelings": true, "goal": true, "showGoal": true, "evening": false, "eveningTime": "21:00", "journal": true, "battery": false }` (`eveningTime` is household time on the hour or half hour). Members also carry `todayGoal`, today's goal or `null`. Their own feelings list is `custom` on `/api/members/{id}/temp-check`. Both are in [exports](../your-data/export-import.md).
 
 ## Categories
 

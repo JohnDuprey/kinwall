@@ -15,6 +15,7 @@ import { readFeatures, type Features } from './routes/settings.ts';
 import { parseTempCheck, parseTransitions, todayInTz } from './routes/members.ts';
 import { addDays, clockLabel, doseAt, LATE_MS, loadLogs, loadMedications, medicineLabel, scheduledOn, type Medication } from './routes/medications.ts';
 import { sha256Hex } from './auth.ts';
+import { batteryFor } from './routes/insights.ts';
 
 export const DEFAULT_PUSH_PREFS = {
   eventReminders: true,
@@ -594,6 +595,33 @@ async function runMedicationReminders(env: Env, db: KinwallDb, now: Date, tz: st
   }
 }
 
+// Energy battery heads-up (battery.ts, Temp check → battery): when a person's next day looks likely
+// to run their battery low, one calm push to devices that belong to them: from 7 PM the evening
+// before, or held through quiet hours until they end (by noon, then it says "today"). Once per person
+// per day: claimed in one insert, keyed by a hash so sent_notifications never says who or which day.
+// The text is from the calendar and chores only, never sleep or feelings; not in the family feed.
+export const BATTERY_PUSH_AT = '19:00';
+export const BATTERY_PUSH_UNTIL = '12:00'; // a push held by quiet hours still goes out the morning of the day
+async function runBatteryHeadsUp(env: Env, db: KinwallDb, now: Date, tz: string): Promise<void> {
+  const clock = new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(now);
+  const today = todayInTz(tz, now);
+  const day = clock >= BATTERY_PUSH_AT ? addDays(today, 1) : clock < BATTERY_PUSH_UNTIL ? today : null;
+  if (!day) return;
+  const { results: members } = await db.prepare('SELECT id, temp_check FROM members WHERE temp_check IS NOT NULL').all<{ id: string; temp_check: string }>();
+  for (const m of members) {
+    const s = parseTempCheck(m.temp_check);
+    if (!s.on || !s.battery) continue;
+    const { results: subs } = await db.prepare('SELECT s.* FROM push_subscriptions s JOIN api_keys k ON k.id = s.api_key_id WHERE k.owner = ?').bind(m.id).all<PushSubRow>();
+    if (!subs.length) continue;
+    const key = `battery:${await sha256Hex(`${m.id}:${day}`)}`;
+    if (!(await db.prepare('INSERT INTO sent_notifications (key, sent_at) VALUES (?, ?) ON CONFLICT(key) DO NOTHING').bind(key, now.toISOString()).run()).meta.changes) continue;
+    const warning = (await batteryFor(env, m.id, tz, now)).warnings.find((w) => w.date === day);
+    if (!warning) continue;
+    const payload = { title: `🔋 Heads-up for ${day === today ? 'today' : 'tomorrow'}`, body: warning.text, url: `/#/insights/${m.id}`, tag: `battery:${m.id}` };
+    for (const sub of subs) await sendToSub(env, db, sub, payload);
+  }
+}
+
 // Entry point for the cron (Workers) and setInterval (Node) tickers.
 export async function runNotifications(env: Env, now: Date, _execCtx?: WaitCtx): Promise<void> {
   // No early bail on zero subscriptions: the in-app feed records reminders/summaries regardless.
@@ -623,6 +651,8 @@ export async function runNotifications(env: Env, now: Date, _execCtx?: WaitCtx):
   await runDailySummary(env, env.DB, now, tz, subs, windowStart, features);
   if (features.chores) await runChoreNudge(env, env.DB, now, tz, subs, windowStart); // Chores turned off: no nudge
   await runGoalFollowups(env, env.DB, now, tz, windowStart);
+  // Held during quiet hours; a sealed answer that won't open (no key) never stops the rest. The error's name only.
+  if (!quiet) try { await runBatteryHeadsUp(env, env.DB, now, tz); } catch (e) { console.error('battery heads-up skipped:', e instanceof Error ? e.name : 'error'); }
   if (features.trackersHealth && (await env.DB.prepare("SELECT value FROM settings WHERE key = 'medications'").first<{ value: string }>())?.value === 'true') {
     // Never let a sealed value that won't open (no key) stop the other reminders; the error's name only, never data.
     try { await runMedicationReminders(env, env.DB, now, tz); } catch (e) { console.error('medication reminders skipped:', e instanceof Error ? e.name : 'error'); }

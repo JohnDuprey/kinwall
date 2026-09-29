@@ -24,6 +24,10 @@ On the device that should get notifications, go to **Settings → General → No
 * Tapping the notification opens that event in the calendar.
 * A tick that was missed still fires once, within 10 minutes. Each reminder is sent only once per device.
 
+## Energy battery heads-up
+
+For someone with the [energy battery](battery.md) on, their own phones and tablets get one calm push from 7:00 PM the evening before a day that looks likely to run them low: **🔋 Heads-up for tomorrow** with "Tomorrow looks full: 5 events and a late evening. Maybe plan a rest or move something?". Never during quiet hours (it waits until they end, and goes out that morning), never about sleep or feelings, and not in the family's feed.
+
 ## Transition reminders
 
 A family member can also get **transition reminders**: calm heads-ups at the times a parent picks (for example 30 minutes before, plus every 5 minutes during the last 15), sent only to devices that belong to them. "Soccer practice in 10 minutes", or with travel time "Leave for Soccer practice in 5 minutes". They're never sent during quiet hours, a reminder that would land in the same minute as a regular one isn't doubled, and each replaces the last on the lock screen. Set them in [Settings → Family](../settings/family.md#transition-reminders).

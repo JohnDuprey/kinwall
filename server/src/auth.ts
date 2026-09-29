@@ -140,7 +140,7 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'POST', pattern: /^\/api\/members\/[^/]+\/journal$/ },
   { method: 'PATCH', pattern: /^\/api\/members\/[^/]+\/journal\/[^/]+$/ },
   { method: 'DELETE', pattern: /^\/api\/members\/[^/]+\/journal\/[^/]+$/ },
-  { method: 'GET', pattern: /^\/api\/members\/[^/]+\/insights$/ }, // a member's own device only (routes/insights.ts refuses shared walls and other members' devices)
+  { method: 'GET', pattern: /^\/api\/members\/[^/]+\/(insights|battery)$/ }, // a member's own device only (routes/insights.ts refuses shared walls and other members' devices)
   // Medications: Take now cards and marking doses on the wall and a person's own device; their own list
   // and history on their own device (routes/medications.ts decides who sees what). Adding and editing: parents.
   { method: 'GET', pattern: /^\/api\/medications$/ },
