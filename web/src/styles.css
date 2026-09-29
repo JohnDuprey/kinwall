@@ -2638,6 +2638,7 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
 .meds-today-time { font-weight: 900; min-width: 76px; }
 .meds-today-what { flex: 1 1 140px; min-width: 0; font-weight: 700; overflow-wrap: anywhere; }
 .meds-status { font-size: 0.875rem; font-weight: 800; color: var(--text-dim); }
+.meds-catch-up { margin-left: auto; }
 .meds-taken .meds-status { color: var(--success); }
 .meds-grid-wrap { overflow-x: auto; }
 .meds-grid { width: 100%; border-collapse: collapse; font-size: 0.875rem; }

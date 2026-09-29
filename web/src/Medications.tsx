@@ -1,5 +1,5 @@
 // A person's medications (#/medications/{memberId}): what's due now, today's doses (taken, skipped,
-// due, not marked, later) and a 7-day grid. Opens on their own device and parents' devices; the
+// due, not marked, later) with catch-up buttons, yesterday's unmarked doses, and a 7-day grid. Opens on their own device and parents' devices; the
 // server refuses everyone else (403). A shared wall still gets the Take now cards, never the history.
 import { useEffect, useState } from 'react'
 import { api, ApiError } from './api.ts'
@@ -7,15 +7,20 @@ import { useApp } from './AppContext.tsx'
 import { inkFor } from './color.ts'
 import { formatTime } from './timeFormat.ts'
 import { dayName } from './Snapshot.tsx'
-import { scheduleLabel, STATUS, weekCells } from './medications.ts'
+import { announce } from './a11y.tsx'
+import { catchUpLabel, scheduleLabel, STATUS, weekCells } from './medications.ts'
 import TakeNow from './TakeNow.tsx'
-import type { MedicationHistory } from './types.ts'
+import type { Medication, MedicationHistory } from './types.ts'
+
+type Day = MedicationHistory['days'][number]
 
 export default function Medications({ memberId }: { memberId?: string }) {
-  const { members, meMemberId, parentDevice, refreshTick } = useApp()
+  const { members, meMemberId, parentDevice, refreshTick, toast } = useApp()
   const member = members.find(m => m.id === memberId) ?? members.find(m => m.id === meMemberId)
   const [data, setData] = useState<MedicationHistory | null>(null)
   const [error, setError] = useState('')
+  const [reload, setReload] = useState(0)
+  const [busy, setBusy] = useState<string | null>(null)
   useEffect(() => {
     if (!member) return
     let canceled = false
@@ -23,12 +28,46 @@ export default function Medications({ memberId }: { memberId?: string }) {
       .then(h => { if (!canceled) { setData(h); setError('') } })
       .catch(e => { if (!canceled) setError(e instanceof ApiError && e.status === 403 ? `${member.name}'s medicines are private. They show on ${member.name}'s own device and parents' devices.` : e instanceof ApiError ? e.message : "Couldn't open this page.") })
     return () => { canceled = true }
-  }, [member?.id, refreshTick]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [member?.id, refreshTick, reload]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!member) return <div className="state-card">No one in the family yet.</div>
   const shown = data?.memberId === member.id ? data : null
   const byId = new Map(shown?.medications.map(m => [m.id, m]))
   const today = shown?.days.at(-1)
+  const yesterday = shown?.days.at(-2)
+  const behind = yesterday?.doses.filter(d => d.status === 'missed') ?? []
+  // Catch-up: mark a dose that's due or past its window. The server logs the time it's marked.
+  const mark = async (date: string, d: Day['doses'][number], action: 'taken' | 'skipped') => {
+    const k = `${date}:${d.medicationId}:${d.time}`
+    setBusy(k)
+    try {
+      await api.markDose(d.medicationId, { date, time: d.time, action })
+      const said = action === 'taken' ? 'Marked taken ✓' : 'Marked skipped'
+      toast(said); announce(said); setReload(x => x + 1)
+    } catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't save that", true) }
+    finally { setBusy(null) }
+  }
+  const rows = (day: Day, doses: Day['doses']) => (
+    <ul className="meds-today">
+      {doses.map(d => {
+        const m = byId.get(d.medicationId)
+        const s = STATUS[d.status]
+        const taken = catchUpLabel(d.status)
+        const k = `${day.date}:${d.medicationId}:${d.time}`
+        return (
+          <li key={k} className={`meds-today-row meds-${d.status}`}>
+            <span className="meds-today-time">{formatTime(d.time)}</span>
+            <span className="meds-today-what">{medName(m)}</span>
+            <span className="meds-status"><span aria-hidden="true">{s.emoji}</span> {s.label}{d.at && (d.status === 'taken' || d.status === 'skipped') ? ` ${formatTime(d.at)}` : ''}</span>
+            {taken && <div className="meds-now-actions meds-catch-up" role="group" aria-label={`${medName(m)}, ${formatTime(d.time)}`}>
+              <button className="btn btn-primary" disabled={busy === k} onClick={() => mark(day.date, d, 'taken')}>{taken}</button>
+              <button className="btn btn-secondary" disabled={busy === k} onClick={() => mark(day.date, d, 'skipped')}>Skipped</button>
+            </div>}
+          </li>
+        )
+      })}
+    </ul>
+  )
 
   return (
     <div className="profile profile-narrow meds-page scroll-y" style={{ ['--m' as string]: member.color }}>
@@ -49,22 +88,13 @@ export default function Medications({ memberId }: { memberId?: string }) {
       {shown && today && shown.medications.length > 0 && <>
         <section className="board-card" aria-labelledby="meds-today">
           <h3 id="meds-today" className="snap-heading">Today</h3>
-          {today.doses.length === 0 ? <p className="snap-dim">Nothing today.</p> : (
-            <ul className="meds-today">
-              {today.doses.map(d => {
-                const m = byId.get(d.medicationId)
-                const s = STATUS[d.status]
-                return (
-                  <li key={`${d.medicationId}:${d.time}`} className={`meds-today-row meds-${d.status}`}>
-                    <span className="meds-today-time">{formatTime(d.time)}</span>
-                    <span className="meds-today-what">{m ? (m.dose ? `${m.name} · ${m.dose}` : m.name) : 'Removed medicine'}</span>
-                    <span className="meds-status"><span aria-hidden="true">{s.emoji}</span> {s.label}{d.at && (d.status === 'taken' || d.status === 'skipped') ? ` ${formatTime(d.at)}` : ''}</span>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
+          {today.doses.length === 0 ? <p className="snap-dim">Nothing today.</p> : rows(today, today.doses)}
         </section>
+        {yesterday && behind.length > 0 && <section className="board-card" aria-labelledby="meds-yesterday">
+          <h3 id="meds-yesterday" className="snap-heading">Yesterday</h3>
+          <p className="snap-dim">Not marked yet. If it was taken or skipped, you can still say so.</p>
+          {rows(yesterday, behind)}
+        </section>}
         <section className="board-card" aria-labelledby="meds-week">
           <h3 id="meds-week" className="snap-heading">Last 7 days</h3>
           <div className="meds-grid-wrap">
@@ -92,3 +122,5 @@ export default function Medications({ memberId }: { memberId?: string }) {
     </div>
   )
 }
+
+const medName = (m: Medication | undefined) => (m ? (m.dose ? `${m.name} · ${m.dose}` : m.name) : 'Removed medicine')

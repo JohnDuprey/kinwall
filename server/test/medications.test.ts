@@ -324,6 +324,25 @@ test('late window per medicine: up to 3 hours (default), until 8 PM, until the e
   assert.equal(JSON.stringify(s.raw('medications')).includes('evening'), false, 'sealed with the rest');
 });
 
+test("catch-up: a dose past its window (yesterday's too) can still be marked, with the time it was actually marked; a course counts it", async (t) => {
+  t.after(() => mock.timers.reset());
+  const s = await setup({ now: at('07:00', '2026-09-27') });
+  const med = (await s.add(s.leo.id, { totalDoses: 5 })).json;
+  const wall = await s.key();
+  const leos = await s.key(s.leo.id);
+  const mayas = await s.key(s.maya.id);
+  mock.timers.setTime(at('21:30').getTime()); // yesterday's and today's 8 AM doses both not marked
+  const days = async () => (await s.req(`/api/members/${s.leo.id}/medications`)).json.days.slice(-2).map((d: any) => d.doses.map((x: any) => [x.status, x.at, x.by]));
+  assert.deepEqual(await days(), [[['missed', null, null]], [['missed', null, null]]]);
+  assert.equal((await s.mark(med.id, 'taken', mayas, '08:00', '2026-09-27')).status, 403, "not from someone else's device");
+  const late = await s.mark(med.id, 'taken', leos, '08:00', '2026-09-27');
+  assert.deepEqual([late.status, late.json.status, late.json.at], [200, 'taken', at('21:30').toISOString()]);
+  assert.equal((await s.mark(med.id, 'skipped', wall)).status, 200, 'a shared wall can catch up too');
+  assert.deepEqual(await days(), [[['taken', at('21:30').toISOString(), 'k-' + s.leo.id]], [['skipped', at('21:30').toISOString(), 'k-wall']]]);
+  assert.equal((await s.req('/api/medications')).json[0].dosesLeft, 4, 'a dose taken late counts toward the course');
+  assert.equal((await s.mark(med.id, 'snooze', ADMIN, '08:00', '2026-09-27')).status, 400, 'nothing to snooze');
+});
+
 test('history: today plus the last 6 days from each medicine\'s schedule, on its weekdays only', async (t) => {
   t.after(() => mock.timers.reset());
   const { req, leo, add, mark } = await setup({ now: at('07:00', '2026-09-21') });

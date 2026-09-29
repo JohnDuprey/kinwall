@@ -49,10 +49,13 @@ Each reminder is sent once per dose (and once per snooze), even if the server re
 Open it with **Open medicines** on their [profile](profiles.md), or **History** next to their name in **Trackers → Health**. It shows:
 
 * **Take now**, when something is due;
-* **Today**: each dose with ✅ Taken, ⏭️ Skipped, 💊 Due now, ⭕ Not marked or 🕒 Later;
+* **Today**: each dose with ✅ Taken, ⏭️ Skipped, 💊 Due now, ⭕ Not marked or 🕒 Later. A dose that's due or not marked has **Taken** and **Skipped** buttons, so a dose taken without tapping the card can still be logged. Past its late window the button says **Taken late**;
+* **Yesterday**, when any of yesterday's doses weren't marked: the same buttons, for catching up the next morning;
 * **Last 7 days**: a row per medicine and a column per day.
 
-It opens on the person's own device and on parents' devices. A shared wall screen shows only the Take now card; other people's devices get "private".
+Catching up logs the time it was marked, not the dose's time, and a dose taken late counts toward a course's **doses left**. Older days can't be changed.
+
+It opens on the person's own device and on parents' devices, and both can catch up there. A shared wall screen shows only the Take now card (it has no history, so no catch-up); other people's devices get "private".
 
 ## Who sees what
 

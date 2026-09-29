@@ -42,6 +42,10 @@ export const STATUS: Record<DoseStatus, { emoji: string; label: string }> = {
   missed: { emoji: '⭕', label: 'Not marked' },
   upcoming: { emoji: '🕒', label: 'Later' },
 }
+/** The person page's catch-up button for a dose: "Taken" while it's due, "Taken late" once it's past
+ *  its late window ("Not marked"), null when it's marked or still to come. */
+export const catchUpLabel = (s: DoseStatus): string | null => (s === 'due' ? 'Taken' : s === 'missed' ? 'Taken late' : null)
+
 const WORST_FIRST: DoseStatus[] = ['missed', 'due', 'skipped', 'upcoming', 'taken']
 
 /** The 7-day grid's row for one medicine: a cell per day, oldest first; the worst dose that day wins. */
