@@ -70,8 +70,9 @@ class Reconnect extends Error {}
 /** Any other Google error; the message carries only the status, never a body or a token. */
 class GoogleError extends Error {
   status: number;
-  constructor(what: string, status: number) {
-    super(`Google Photos ${what} failed (HTTP ${status})`);
+  constructor(what: string, status: number, reason?: string) {
+    // reason: Google's error code only (e.g. PERMISSION_DENIED / SERVICE_DISABLED), never a body.
+    super(`Google Photos ${what} failed (HTTP ${status}${reason ? `, ${reason}` : ''})`);
     this.status = status;
   }
 }
@@ -145,13 +146,20 @@ async function accessToken(c: Ctx, row: Row): Promise<string> {
   return next.access_token;
 }
 
+/** Google's short error code from an API error body (error.status, or the first details reason). */
+async function googleReason(res: Response): Promise<string | undefined> {
+  const b = (await res.json().catch(() => null)) as { error?: { status?: string; details?: { reason?: string }[] } } | null;
+  const code = b?.error?.details?.find((d) => d.reason)?.reason ?? b?.error?.status;
+  return typeof code === 'string' && /^[A-Z_]{2,64}$/.test(code) ? code : undefined;
+}
+
 async function ambient<T>(c: Ctx, row: Row, path: string, init: RequestInit = {}, token?: string): Promise<T> {
   const res = await fetch(`${AMBIENT}${path}`, {
     ...init,
     headers: { ...init.headers, authorization: `Bearer ${token ?? (await accessToken(c, row))}`, 'content-type': 'application/json' },
   });
   if (res.status === 401 || res.status === 404) throw new Reconnect(); // 404: the device was removed in Google Photos
-  if (!res.ok) throw new GoogleError(path.split('?')[0].split('/')[1] ?? 'request', res.status);
+  if (!res.ok) throw new GoogleError(path.split('?')[0].split('/')[1] ?? 'request', res.status, await googleReason(res));
   return (await res.json()) as T;
 }
 
@@ -199,14 +207,16 @@ const REFUSALS = ['invalid_scope', 'unauthorized_client', 'restricted_client', '
 export async function finishGooglePhotosWeb(c: Ctx, p: { code?: string; error?: string; redirectUri: string; verifier: string }): Promise<'connected' | 'canceled' | 'refused' | 'failed'> {
   const row = await load(c);
   if (!row || row.flow !== 'web' || row.device_id) return 'failed';
-  const refuse = async () => {
+  // Why Google refused goes to the log (its error code only), so a self-hoster can tell the steps apart.
+  const refuse = async (where: string, code?: string) => {
+    console.warn(`google photos refused at ${where}${code ? `: ${code}` : ''}`);
     await update(c, { problem: 'refused', auth_url: null });
     emit(c, 'settings.changed', {});
     return 'refused' as const;
   };
   if (p.error) {
     if (p.error === 'access_denied' || p.error === 'consent_required') return clear(c).then(() => 'canceled' as const);
-    return refuse();
+    return refuse('consent', /^[a-z_]{2,64}$/.test(p.error) ? p.error : undefined);
   }
   const app = await clientFor(c, 'web');
   if (!app || !p.code) return clear(c).then(() => 'failed' as const);
@@ -214,7 +224,7 @@ export async function finishGooglePhotosWeb(c: Ctx, p: { code?: string; error?: 
     const res = await fetch(TOKEN_URL, form({ client_id: app.id, client_secret: app.secret, code: p.code, redirect_uri: p.redirectUri, grant_type: 'authorization_code', code_verifier: p.verifier }));
     const body = (await res.json().catch(() => ({}))) as { error?: string; access_token?: string; refresh_token?: string; expires_in?: number };
     if (!res.ok || !body.access_token) {
-      if (REFUSALS.includes(body.error ?? '')) return refuse();
+      if (REFUSALS.includes(body.error ?? '')) return refuse('token', body.error);
       throw new GoogleError('sign-in', res.status);
     }
     const tokens: Tokens = { access_token: body.access_token, refresh_token: body.refresh_token ?? '', expires_at: Date.now() + (body.expires_in ?? 3600) * 1000 };
@@ -224,7 +234,7 @@ export async function finishGooglePhotosWeb(c: Ctx, p: { code?: string; error?: 
     await createDevice(c, row, tokens.access_token);
   } catch (err) {
     // 403 on the device: the Ambient API isn't open to this client or project.
-    if (err instanceof GoogleError && err.status === 403) return refuse();
+    if (err instanceof GoogleError && err.status === 403) return refuse('device', err.message.match(/, ([A-Z_]+)\)$/)?.[1]);
     await logFailure(err);
     await clear(c);
     return 'failed';
