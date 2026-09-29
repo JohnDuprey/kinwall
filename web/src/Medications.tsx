@@ -40,7 +40,7 @@ export default function Medications({ memberId }: { memberId?: string }) {
             <p className="profile-meta">🔒 {member.grownUp ? `Private to ${member.name}'s own devices and parent devices.` : `For ${member.name} and parents.`}</p>
           </div>
         </div>
-        {parentDevice && <a className="btn btn-secondary meds-link" href="#/settings?tab=family">Change medicines</a>}
+        {parentDevice && <a className="btn btn-secondary meds-link" href="#/trackers/health">Change medicines</a>}
       </section>
       <TakeNow memberId={member.id} className="meds-page-card" />
       {error && <p className="snap-empty" role="alert">{error}</p>}
