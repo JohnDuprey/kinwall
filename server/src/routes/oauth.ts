@@ -8,6 +8,9 @@ import * as google from '../providers/google.ts';
 import * as microsoft from '../providers/microsoft.ts';
 import { providerEnv, providerSource, redirectUri } from '../providers/config.ts';
 import { ErrorSchema } from '../schemas.ts';
+import type { Context } from 'hono';
+import type { ProviderEnv } from '../providers/types.ts';
+import { finishGooglePhotosWeb } from './google-photos.ts';
 
 export const oauthRoutes = createRouter();
 
@@ -33,15 +36,26 @@ async function s256Challenge(verifier: string): Promise<string> {
 
 // Single-use state, storing the PKCE verifier and the redirect_uri start sent (the token exchange
 // must repeat it exactly) alongside it - all consumed together in the callback.
-async function saveState(db: KinwallDb, state: string, kind: string, verifier: string, redirectUri: string): Promise<void> {
+// purpose 'photos': Google Photos' own sign-in (routes/google-photos.ts), through the same client and
+// callback as Calendar; the callback hands it back there instead of making a calendar account.
+async function saveState(db: KinwallDb, state: string, kind: string, verifier: string, redirectUri: string, purpose?: 'photos'): Promise<void> {
   const expiresAt = new Date(Date.now() + STATE_TTL_MS).toISOString();
   await db
     .prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
-    .bind(`oauth_state:${state}`, JSON.stringify({ kind, expiresAt, verifier, redirectUri }))
+    .bind(`oauth_state:${state}`, JSON.stringify({ kind, expiresAt, verifier, redirectUri, purpose }))
     .run();
 }
 
-type StoredState = { verifier: string; redirectUri?: string };
+type StoredState = { verifier: string; redirectUri?: string; purpose?: 'photos' };
+
+async function isPhotosState(db: KinwallDb, state: string): Promise<boolean> {
+  const row = await db.prepare('SELECT value FROM settings WHERE key = ?').bind(`oauth_state:${state}`).first<{ value: string }>();
+  try {
+    return !!row && JSON.parse(row.value).purpose === 'photos';
+  } catch {
+    return false;
+  }
+}
 
 // Single-use: consumes (deletes) the state row if valid, returning its PKCE verifier + redirect_uri.
 async function consumeState(db: KinwallDb, state: string, kind: string): Promise<StoredState | null> {
@@ -52,7 +66,7 @@ async function consumeState(db: KinwallDb, state: string, kind: string): Promise
   try {
     const parsed = JSON.parse(row.value) as { kind: string; expiresAt: string } & StoredState;
     if (parsed.kind !== kind || new Date(parsed.expiresAt).getTime() <= Date.now()) return null;
-    return { verifier: parsed.verifier, redirectUri: parsed.redirectUri };
+    return { verifier: parsed.verifier, redirectUri: parsed.redirectUri, purpose: parsed.purpose };
   } catch {
     return null;
   }
@@ -78,18 +92,31 @@ oauthRoutes.openapi(
     // to the host's one fixed URI, which routes on the state prefix "<hostLabel>.<kind>." and
     // forwards the query to this instance's /api/oauth/{kind}/callback (SPEC "Embedding the
     // server"). A household using its own app keeps its own per-instance redirect URI.
-    const shared = !!c.env.OAUTH_REDIRECT_URI && (await providerSource(c.env, c.env.DB, kind)) === 'env';
-    const hostLabel = new URL(c.req.url).hostname.split('.')[0];
-    const state = shared ? `${hostLabel}.${kind}.${crypto.randomUUID()}` : crypto.randomUUID();
-    const redirect = shared ? c.env.OAUTH_REDIRECT_URI! : redirectUri(penv.PUBLIC_URL, kind);
-    const verifier = generateVerifier();
-    const challenge = await s256Challenge(verifier);
-    await saveState(c.env.DB, state, kind, verifier, redirect);
+    const { state, redirect, challenge } = await newState(c, kind, penv);
     const impl = kind === 'google' ? google : microsoft;
     const url = impl.authUrl(penv, redirect, state, challenge);
     return c.redirect(url, 302);
   },
 );
+
+async function newState(c: Context<{ Bindings: Env }>, kind: 'google' | 'microsoft', penv: ProviderEnv, purpose?: 'photos') {
+  const shared = !!c.env.OAUTH_REDIRECT_URI && (await providerSource(c.env, c.env.DB, kind)) === 'env';
+  const hostLabel = new URL(c.req.url).hostname.split('.')[0];
+  const state = shared ? `${hostLabel}.${kind}.${crypto.randomUUID()}` : crypto.randomUUID();
+  const redirect = shared ? c.env.OAUTH_REDIRECT_URI! : redirectUri(penv.PUBLIC_URL, kind);
+  const verifier = generateVerifier();
+  const challenge = await s256Challenge(verifier);
+  await saveState(c.env.DB, state, kind, verifier, redirect, purpose);
+  return { state, redirect, challenge };
+}
+
+/** Google Photos' web sign-in (routes/google-photos.ts): Calendar's client, redirect URI and
+ * callback, asking for the Photos scope alone. Returns Google's consent URL. */
+export async function googlePhotosAuthUrl(c: Context<{ Bindings: Env }>, scope: string): Promise<string> {
+  const penv = await providerEnv(c.env, c.env.DB);
+  const { state, redirect, challenge } = await newState(c, 'google', penv, 'photos');
+  return google.authUrl(penv, redirect, state, challenge, scope);
+}
 
 oauthRoutes.openapi(
   createRoute({
@@ -110,6 +137,12 @@ oauthRoutes.openapi(
     // (Settings → Calendars shows it), never a bare JSON page. A declined consent is the common case.
     const back = (message: string, status: 400 | 500 = 400) =>
       c.redirect(`${penv.PUBLIC_URL ?? ''}/#/settings?tab=calendars&oauthError=${encodeURIComponent(`${kind}:${status === 500 ? 'server: ' : ''}${message}`)}`, 302);
+    // Google Photos' own sign-in (its state says so) finishes there, a refusal included.
+    if (state && (await isPhotosState(c.env.DB, state))) {
+      const stored = await consumeState(c.env.DB, state, kind);
+      const outcome = stored ? await finishGooglePhotosWeb(c, { code, error, redirectUri: stored.redirectUri ?? redirectUri(penv.PUBLIC_URL, kind), verifier: stored.verifier }) : 'failed';
+      return c.redirect(`${penv.PUBLIC_URL ?? ''}/#/settings?googlePhotos=${outcome}`, 302);
+    }
     if (error) return back(error === 'access_denied' || error === 'consent_required' ? 'canceled' : error);
     if (!code || !state) return back('missing code/state');
     const stored = await consumeState(c.env.DB, state, kind);

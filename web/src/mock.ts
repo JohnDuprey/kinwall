@@ -208,8 +208,8 @@ const googleStatus = (): GooglePhotos => {
   const state = googleState()
   if (settings.googlePhotos !== state) { settings.googlePhotos = state; bump() }
   return {
-    available: true, state,
-    ...(state === 'signing-in' ? { userCode: 'DEMO-CODE', verificationUrl: 'https://www.google.com/device', codeExpiresAt: new Date(googleAt + 1_800_000).toISOString() } : {}),
+    available: true, state, flow: 'web',
+    ...(state === 'signing-in' ? { authUrl: 'https://accounts.google.com/', codeExpiresAt: new Date(googleAt + 600_000).toISOString() } : {}),
     ...(state === 'choosing' || state === 'ready' ? { settingsUri: 'https://photos.google.com/' } : {}),
     ...(state === 'ready' ? { photos: DEMO_GOOGLE.length } : {}),
   }

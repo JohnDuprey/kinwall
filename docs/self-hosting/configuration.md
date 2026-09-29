@@ -14,7 +14,7 @@ Kinwall is configured with environment variables. On Docker and Node they're pro
 | `ENCRYPTION_KEY` | generated into `DATA_DIR/encryption.key` (Docker) | 32 random bytes, base64 (`openssl rand -base64 32`). Encrypts credentials, secrets and [health entries](../your-data/privacy.md#health-entries). **Required on Workers**: without it, saving a health entry fails instead of storing it unencrypted. Keep it with your backups: a lost key can't be recovered, and changing it isn't supported yet. |
 | `ENCRYPTION_KEY_FILE` | — | Docker/Node: read the key from this file instead (e.g. a Docker secret). |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | — | Google OAuth client. A client configured in the UI wins over these. |
-| `GOOGLE_PHOTOS_CLIENT_ID`, `GOOGLE_PHOTOS_CLIENT_SECRET` | — | Google Photos for the Night screen: an OAuth client of type **TVs and Limited Input devices**. Without both, Google Photos isn't offered. See [Google Photos](#google-photos). |
+| `GOOGLE_PHOTOS_CLIENT_ID`, `GOOGLE_PHOTOS_CLIENT_SECRET` | — | Optional: a **TVs and Limited Input devices** OAuth client for Google Photos, used instead of the Google Calendar client when set. See [Google Photos](#google-photos). |
 | `MS_CLIENT_ID`, `MS_CLIENT_SECRET` | — | Microsoft OAuth app. A UI-configured app wins over these. |
 | `MS_TENANT` | `common` | Microsoft tenant. |
 | `OAUTH_REDIRECT_URI` | — | For hosts running many families behind one shared OAuth app: one fixed redirect URI on the host's domain, used with the environment credentials. The host routes callbacks by `state`. See [Embedding the server](../contributing/embedding.md#shared-oauth-apps). |
@@ -34,16 +34,24 @@ Kinwall is configured with environment variables. On Docker and Node they're pro
 
 ### Google Photos
 
-[Google Photos on the Night screen](../using/photos.md#google-photos) uses Google's Photos Ambient API, which is made for photo frames and TVs. It only accepts Google's sign-in for **TVs and limited-input devices** (the parent enters a code at `google.com/device`), so it needs its own OAuth client; the web client used for Google Calendar can't be used. No redirect URI is involved.
+[Google Photos on the Night screen](../using/photos.md#google-photos) uses Google's Photos Ambient API, which is made for photo frames and TVs. It can connect two ways. Try the first; use the second if Google refuses it.
 
-1. In the [Google Cloud console](https://console.cloud.google.com/), use your own project (the one with your Google Calendar client is fine). Under **APIs & Services → Library**, find **Photos Ambient API** and **Enable** it.
+**1. With your Google Calendar client (the default).** Kinwall uses the same web OAuth client as [Google Calendar](../calendars/google.md) (set in **Settings → Calendars**, or `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`) and its redirect URI, so there's nothing new to register. It asks for the Photos permission on its own, separate from Calendar's.
+
+1. In the [Google Cloud console](https://console.cloud.google.com/), in the project with your Google Calendar client, go to **APIs & Services → Library**, find **Photos Ambient API** and **Enable** it.
+2. Under **Data access** (the OAuth consent screen's scopes), add `https://www.googleapis.com/auth/photosambient.mediaitems`.
+
+Google's documentation describes only the TV sign-in below for this API, so whether it accepts a web client can't be known ahead of time: only trying it tells. If it doesn't, the Night screen sheet says "Google didn't allow Photos with this app" (Google refused the permission for this client, or refused to set up the Photos device). Then use option 2.
+
+**2. With a TV client.** Google's documented way: a **TVs and Limited Input devices** client, where the parent enters a code at `google.com/device` (on a phone, or by scanning the sheet's QR code). No redirect URI is involved.
+
+1. Enable the **Photos Ambient API** and add the scope, as above.
 2. Under **APIs & Services → Credentials**, **Create credentials → OAuth client ID**, application type **TVs and Limited Input devices**. Copy its client ID and secret.
-3. Under **Data access** (the OAuth consent screen's scopes), add `https://www.googleapis.com/auth/photosambient.mediaitems`.
-4. Set `GOOGLE_PHOTOS_CLIENT_ID` and `GOOGLE_PHOTOS_CLIENT_SECRET` (on Workers, `wrangler secret put` both) and restart.
+3. Set `GOOGLE_PHOTOS_CLIENT_ID` and `GOOGLE_PHOTOS_CLIENT_SECRET` (on Workers, `wrangler secret put` both) and restart. When they're set, new connections use this client instead of the Calendar one.
 
 Things to know:
 
-* **Keep the client.** Google ties the family's Photos device to the client that created it. Switching to another client ID means every family has to connect Google Photos again.
+* **Keep the client.** Google ties the family's Photos device to the client that created it, and Kinwall refreshes the sign-in with that same client. Switching clients (or between the two options) means connecting Google Photos again.
 * **Access isn't guaranteed.** The Ambient API is meant for photo-frame and TV makers. Whether Google enables it for a small personal project is unknown; if the API isn't listed or connecting fails, it isn't available to that project.
 * **Verification.** `photosambient.mediaitems` is a sensitive scope. Until Google verifies the app for it, people connecting see "Google hasn't verified this app" and must choose **Advanced → Go to … (unsafe)** to continue, and an app in **Testing** only works for the test users you add (and its sign-ins expire after 7 days). An unverified app published to production is limited to about 100 users of sensitive scopes. Just your own family is well within that. Verification is requested on the consent screen's **Verification center** page.
 * Google limits each family's Photos device to 240 photo-list requests a day. Kinwall asks for the list at most about once an hour, and only while a screen is showing Google Photos.

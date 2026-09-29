@@ -2,12 +2,17 @@
 // (developers.google.com/photos/ambient). Family level, one row in google_photos (migration 0061),
 // apart from calendar accounts so either disconnects alone.
 //
-// Connect: the Ambient API only takes Google's sign-in for TVs and limited-input devices, so this
-// uses its own OAuth client of that type (GOOGLE_PHOTOS_CLIENT_ID / _SECRET) and asks for the Photos
-// scope alone. The parent enters a code at google.com/device; the sheet's status checks poll for the
-// token, then create the family's Ambient device under the requestId the sign-in carried, so
-// Google's last sign-in page opens its album picker (settingsUri). Status checks then poll the
-// device, at Google's pollInterval, until albums are picked.
+// Connect, asking for the Photos scope alone (a consent separate from Calendar), one of two ways:
+// - The web sign-in (the default): the family's Google Calendar web client, its redirect URI and
+//   its callback (routes/oauth.ts, state purpose 'photos'). The callback stores the tokens here and
+//   creates the family's Ambient device. Google's docs describe only the device sign-in for this
+//   API, so Google may refuse the scope or the device for a web client: that's state 'refused'.
+// - The device sign-in, when GOOGLE_PHOTOS_CLIENT_ID / _SECRET (a "TVs and Limited Input devices"
+//   client) are set: the parent enters a code at google.com/device; the sheet's status checks poll
+//   for the token, then create the device under the requestId the sign-in carried, so Google's last
+//   sign-in page opens its album picker (settingsUri).
+// Tokens refresh with the client that made them (flow). Status checks then poll the device, at
+// Google's pollInterval, until albums are picked.
 //
 // Photos: the list of picked photos is kept as ids and a little metadata, fetched again after 50
 // minutes (Google's photo links last 60). Photo bytes need the bearer token, so GET .../next passes
@@ -21,6 +26,8 @@ import { requestKey } from '../auth.ts';
 import { checkRate } from '../ratelimit.ts';
 import { decryptConfig, encryptConfig } from '../crypto.ts';
 import { ErrorSchema } from '../schemas.ts';
+import { providerEnv } from '../providers/config.ts';
+import { googlePhotosAuthUrl } from './oauth.ts';
 
 type Ctx = Context<{ Bindings: Env }>;
 
@@ -36,7 +43,10 @@ const LIST_EVERY_MS = 50 * 60_000;
 const MAX_PAGES = 5;
 const NEXT_PER_HOUR = 300; // a Board changes its picture every minute; room for retries
 
+type Flow = 'device' | 'web';
 type Row = {
+  flow: Flow;
+  auth_url: string | null;
   config: string;
   request_id: string;
   user_code: string | null;
@@ -52,7 +62,8 @@ type Row = {
 };
 type Tokens = { access_token: string; refresh_token: string; expires_at: number };
 type Device = { id: string; settingsUri?: string; mediaSourcesSet?: boolean; pollingConfig?: { pollInterval?: string } };
-export type GooglePhotosState = 'off' | 'signing-in' | 'choosing' | 'ready' | 'reconnect';
+export type GooglePhotosState = 'off' | 'signing-in' | 'choosing' | 'ready' | 'reconnect' | 'refused';
+const WEB_SIGN_IN_MS = 10 * 60_000; // routes/oauth.ts keeps a sign-in's state this long
 
 /** Google refused (401, a revoked refresh token, the device deleted in Google Photos): reconnect. */
 class Reconnect extends Error {}
@@ -65,20 +76,32 @@ class GoogleError extends Error {
   }
 }
 
-function client(env: Env) {
-  return env.GOOGLE_PHOTOS_CLIENT_ID && env.GOOGLE_PHOTOS_CLIENT_SECRET ? { id: env.GOOGLE_PHOTOS_CLIENT_ID, secret: env.GOOGLE_PHOTOS_CLIENT_SECRET } : null;
+type Client = { flow: Flow; id: string; secret: string };
+/** The client for a flow: the TV client from its env vars, or Calendar's web client (the one set in
+ * Settings → Calendars, else GOOGLE_CLIENT_ID / _SECRET). */
+async function clientFor(c: Ctx, flow: Flow): Promise<Client | null> {
+  if (flow === 'device') {
+    const { GOOGLE_PHOTOS_CLIENT_ID: id, GOOGLE_PHOTOS_CLIENT_SECRET: secret } = c.env;
+    return id && secret ? { flow, id, secret } : null;
+  }
+  const penv = await providerEnv(c.env, c.env.DB);
+  return penv.GOOGLE_CLIENT_ID && penv.GOOGLE_CLIENT_SECRET ? { flow, id: penv.GOOGLE_CLIENT_ID, secret: penv.GOOGLE_CLIENT_SECRET } : null;
+}
+/** How a new connection signs in: the TV client when it's set, else Calendar's web client. */
+async function newClient(c: Ctx): Promise<Client | null> {
+  return (await clientFor(c, 'device')) ?? clientFor(c, 'web');
 }
 
 export function stateOf(row: Pick<Row, 'problem' | 'device_id' | 'sources_set'> | null | undefined): GooglePhotosState {
   if (!row) return 'off';
-  if (row.problem === 'reconnect') return 'reconnect';
+  if (row.problem === 'reconnect' || row.problem === 'refused') return row.problem;
   if (!row.device_id) return 'signing-in';
   return row.sources_set ? 'ready' : 'choosing';
 }
 
 /** stateOf in SQL, for GET /api/settings (its one query also reads the row; walls need the state). */
 export const GOOGLE_PHOTOS_STATE_SQL =
-  "CASE WHEN problem = 'reconnect' THEN 'reconnect' WHEN device_id IS NULL THEN 'signing-in' WHEN sources_set = 1 THEN 'ready' ELSE 'choosing' END";
+  "CASE WHEN problem IN ('reconnect', 'refused') THEN problem WHEN device_id IS NULL THEN 'signing-in' WHEN sources_set = 1 THEN 'ready' ELSE 'choosing' END";
 
 const load = (c: Ctx) => c.env.DB.prepare('SELECT * FROM google_photos').first<Row>();
 const nowIso = () => new Date().toISOString();
@@ -109,7 +132,7 @@ async function markReconnect(c: Ctx): Promise<void> {
 async function accessToken(c: Ctx, row: Row): Promise<string> {
   const tokens = (await decryptConfig(c.env, AAD, row.config)) as Tokens;
   if (tokens.expires_at - 60_000 > Date.now()) return tokens.access_token;
-  const app = client(c.env);
+  const app = await clientFor(c, row.flow);
   if (!app || !tokens.refresh_token) throw new Reconnect();
   const res = await fetch(TOKEN_URL, form({ client_id: app.id, client_secret: app.secret, refresh_token: tokens.refresh_token, grant_type: 'refresh_token' }));
   if (res.status === 400 || res.status === 401) throw new Reconnect();
@@ -135,10 +158,10 @@ async function ambient<T>(c: Ctx, row: Row, path: string, init: RequestInit = {}
 /** One step of connecting, when it's due: poll for the sign-in, or for the album choice. */
 async function advance(c: Ctx, row: Row): Promise<void> {
   if (row.problem || (row.device_id && row.sources_set) || (row.next_poll_at && row.next_poll_at > nowIso())) return;
-  const app = client(c.env);
-  if (!app) return;
+  if (!row.device_id && row.code_expires_at && row.code_expires_at < nowIso()) return clear(c); // the sign-in ran out: start again
+  const app = await clientFor(c, row.flow);
+  if (!app || (row.flow === 'web' && !row.device_id)) return; // the web sign-in finishes in its callback
   if (!row.device_id) {
-    if (row.code_expires_at && row.code_expires_at < nowIso()) return clear(c); // the code ran out: start again
     const { device_code } = (await decryptConfig(c.env, AAD, row.config)) as { device_code: string };
     const res = await fetch(TOKEN_URL, form({ client_id: app.id, client_secret: app.secret, device_code, grant_type: 'urn:ietf:params:oauth:grant-type:device_code' }));
     const body = (await res.json().catch(() => ({}))) as { error?: string; access_token?: string; refresh_token?: string; expires_in?: number };
@@ -151,15 +174,63 @@ async function advance(c: Ctx, row: Row): Promise<void> {
     const sealed = await encryptConfig(c.env, AAD, tokens);
     await update(c, { config: sealed, user_code: null, verification_url: null, code_expires_at: null });
     row.config = sealed;
-    const device = await ambient<Device>(c, row, `/devices?requestId=${row.request_id}`, { method: 'POST', body: JSON.stringify({ displayName: await deviceName(c) }) }, tokens.access_token);
-    const poll = pollSeconds(device, row.poll_seconds);
-    await update(c, { device_id: device.id, settings_uri: device.settingsUri ?? null, sources_set: device.mediaSourcesSet ? 1 : 0, poll_seconds: poll, next_poll_at: later(poll) });
+    await createDevice(c, row, tokens.access_token);
   } else {
     const device = await ambient<Device>(c, row, `/devices/${encodeURIComponent(row.device_id)}`);
     const poll = pollSeconds(device, row.poll_seconds);
     await update(c, { settings_uri: device.settingsUri ?? row.settings_uri, sources_set: device.mediaSourcesSet ? 1 : 0, poll_seconds: poll, next_poll_at: later(poll) });
   }
   if (stateOf(await load(c)) === 'ready') emit(c, 'settings.changed', {});
+}
+
+/** The family's Ambient device, under the sign-in's requestId. */
+async function createDevice(c: Ctx, row: Row, token: string): Promise<void> {
+  const device = await ambient<Device>(c, row, `/devices?requestId=${row.request_id}`, { method: 'POST', body: JSON.stringify({ displayName: await deviceName(c) }) }, token);
+  const poll = pollSeconds(device, row.poll_seconds);
+  await update(c, { device_id: device.id, settings_uri: device.settingsUri ?? null, sources_set: device.mediaSourcesSet ? 1 : 0, poll_seconds: poll, next_poll_at: later(poll) });
+}
+
+// Google turning the Photos scope or the Ambient device down for this client (the web client).
+const REFUSALS = ['invalid_scope', 'unauthorized_client', 'restricted_client', 'admin_policy_enforced', 'org_internal'];
+
+/** The web sign-in's return (routes/oauth.ts callback): store the tokens, create the device.
+ * 'connected', 'canceled' (declined), 'refused' (Google won't allow Photos with this client) or
+ * 'failed'. Never a calendar account. */
+export async function finishGooglePhotosWeb(c: Ctx, p: { code?: string; error?: string; redirectUri: string; verifier: string }): Promise<'connected' | 'canceled' | 'refused' | 'failed'> {
+  const row = await load(c);
+  if (!row || row.flow !== 'web' || row.device_id) return 'failed';
+  const refuse = async () => {
+    await update(c, { problem: 'refused', auth_url: null });
+    emit(c, 'settings.changed', {});
+    return 'refused' as const;
+  };
+  if (p.error) {
+    if (p.error === 'access_denied' || p.error === 'consent_required') return clear(c).then(() => 'canceled' as const);
+    return refuse();
+  }
+  const app = await clientFor(c, 'web');
+  if (!app || !p.code) return clear(c).then(() => 'failed' as const);
+  try {
+    const res = await fetch(TOKEN_URL, form({ client_id: app.id, client_secret: app.secret, code: p.code, redirect_uri: p.redirectUri, grant_type: 'authorization_code', code_verifier: p.verifier }));
+    const body = (await res.json().catch(() => ({}))) as { error?: string; access_token?: string; refresh_token?: string; expires_in?: number };
+    if (!res.ok || !body.access_token) {
+      if (REFUSALS.includes(body.error ?? '')) return refuse();
+      throw new GoogleError('sign-in', res.status);
+    }
+    const tokens: Tokens = { access_token: body.access_token, refresh_token: body.refresh_token ?? '', expires_at: Date.now() + (body.expires_in ?? 3600) * 1000 };
+    const sealed = await encryptConfig(c.env, AAD, tokens);
+    await update(c, { config: sealed, auth_url: null, code_expires_at: null });
+    row.config = sealed;
+    await createDevice(c, row, tokens.access_token);
+  } catch (err) {
+    // 403 on the device: the Ambient API isn't open to this client or project.
+    if (err instanceof GoogleError && err.status === 403) return refuse();
+    await logFailure(err);
+    await clear(c);
+    return 'failed';
+  }
+  emit(c, 'settings.changed', {});
+  return 'connected';
 }
 
 async function deviceName(c: Ctx): Promise<string> {
@@ -210,10 +281,13 @@ async function refreshItems(c: Ctx, row: Row): Promise<void> {
 const StatusSchema = z
   .object({
     available: z.boolean().describe('This server has a Google Photos client (GOOGLE_PHOTOS_CLIENT_ID / _SECRET)'),
-    state: z.enum(['off', 'signing-in', 'choosing', 'ready', 'reconnect']).describe(
-      'off: not connected. signing-in: enter userCode at verificationUrl. choosing: pick albums at settingsUri. ready: photos can show. reconnect: Google refused access; connect again.',
+    state: z.enum(['off', 'signing-in', 'choosing', 'ready', 'reconnect', 'refused']).describe(
+      'off: not connected. signing-in: open authUrl (web) or enter userCode at verificationUrl (device). choosing: pick albums at settingsUri. ready: photos can show. ' +
+        "reconnect: Google stopped sharing; connect again. refused: Google didn't allow Photos with the web client (see the TV-client option in the docs).",
     ),
-    userCode: z.string().optional().describe('Parent devices only, while signing in'),
+    flow: z.enum(['web', 'device']).optional().describe("Parent devices only: web = Calendar's web client, device = the TV client (code at google.com/device)"),
+    authUrl: z.string().optional().describe("Parent devices only, while signing in with the web client: Google's consent page, to open or show as a QR code"),
+    userCode: z.string().optional().describe('Parent devices only, while signing in with the device flow'),
     verificationUrl: z.string().optional(),
     codeExpiresAt: z.string().optional(),
     settingsUri: z.string().optional().describe("Parent devices only: Google Photos' page for this family's albums"),
@@ -223,9 +297,14 @@ const StatusSchema = z
 
 async function status(c: Ctx, row: Row | null): Promise<z.infer<typeof StatusSchema>> {
   const state = stateOf(row);
-  const out: z.infer<typeof StatusSchema> = { available: !!client(c.env), state };
+  const out: z.infer<typeof StatusSchema> = { available: !!(await newClient(c)), state };
   if ((await requestKey(c))?.scope === 'display' || !row) return out;
-  if (state === 'signing-in') Object.assign(out, { userCode: row.user_code ?? undefined, verificationUrl: row.verification_url ?? undefined, codeExpiresAt: row.code_expires_at ?? undefined });
+  out.flow = row.flow;
+  if (state === 'signing-in') {
+    Object.assign(out, row.flow === 'web'
+      ? { authUrl: row.auth_url ?? undefined, codeExpiresAt: row.code_expires_at ?? undefined }
+      : { userCode: row.user_code ?? undefined, verificationUrl: row.verification_url ?? undefined, codeExpiresAt: row.code_expires_at ?? undefined });
+  }
   if (row.settings_uri && (state === 'choosing' || state === 'ready')) out.settingsUri = row.settings_uri;
   if (state === 'ready') out.photos = (await c.env.DB.prepare('SELECT COUNT(*) AS n FROM google_photo_items').first<{ n: number }>())?.n ?? 0;
   return out;
@@ -269,8 +348,10 @@ googlePhotosRoutes.openapi(
     method: 'post',
     path: '/api/google-photos/connect',
     tags: ['Google Photos'],
-    summary: "Start connecting Google Photos (parent devices): returns a code to enter at Google's sign-in page",
-    description: 'Asks for the Ambient API scope only, separate from Google Calendar. Poll GET /api/google-photos to finish.',
+    summary: "Start connecting Google Photos (parent devices): Google's consent link (web client) or a code to enter at google.com/device (TV client)",
+    description:
+      'Asks for the Ambient API scope only, separate from Google Calendar. With the web client, open `authUrl`; Google returns to /api/oauth/google/callback, ' +
+      'which lands on `#/settings?googlePhotos=connected|canceled|refused|failed`. Poll GET /api/google-photos either way.',
     security: [{ Bearer: [] }],
     responses: {
       200: { description: 'signing in', content: json(StatusSchema) },
@@ -281,7 +362,7 @@ googlePhotosRoutes.openapi(
     },
   }),
   async (c) => {
-    const app = client(c.env);
+    const app = await newClient(c);
     if (!app) return c.json({ error: "Google Photos isn't set up on this server" }, 503);
     const existing = await load(c);
     if (existing && ['choosing', 'ready'].includes(stateOf(existing))) return c.json({ error: 'Google Photos is already connected. Disconnect it first.' }, 409);
@@ -289,6 +370,14 @@ googlePhotosRoutes.openapi(
     if (existing) await disconnect(c, existing); // a stale sign-in or a revoked connection: start over
 
     const requestId = crypto.randomUUID();
+    if (app.flow === 'web') {
+      const authUrl = await googlePhotosAuthUrl(c, SCOPE);
+      await c.env.DB
+        .prepare("INSERT INTO google_photos (id, flow, config, request_id, auth_url, code_expires_at, created_at) VALUES (1, 'web', ?, ?, ?, ?, ?)")
+        .bind(await encryptConfig(c.env, AAD, {}), requestId, authUrl, new Date(Date.now() + WEB_SIGN_IN_MS).toISOString(), nowIso())
+        .run();
+      return c.json(await status(c, await load(c)), 200);
+    }
     // The state lets Google's last sign-in page go straight to the album picker for this device.
     const res = await fetch(DEVICE_CODE_URL, form({ client_id: app.id, scope: SCOPE, state: JSON.stringify({ requestId, displayName: await deviceName(c) }) }));
     if (!res.ok) {

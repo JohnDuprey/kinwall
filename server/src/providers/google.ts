@@ -16,14 +16,15 @@ const API = 'https://www.googleapis.com/calendar/v3';
 
 type GoogleConfig = { access_token: string; refresh_token: string; expires_at: number };
 
-export function authUrl(env: ProviderEnv, redirectUri: string, state: string, codeChallenge: string): string {
+// scope: Google Photos (routes/google-photos.ts) asks for its own scope alone, a separate consent.
+export function authUrl(env: ProviderEnv, redirectUri: string, state: string, codeChallenge: string, scope = SCOPES): string {
   const params = new URLSearchParams({
     client_id: env.GOOGLE_CLIENT_ID ?? '',
     redirect_uri: redirectUri,
     response_type: 'code',
-    scope: SCOPES,
+    scope,
     access_type: 'offline',
-    prompt: 'select_account consent', // account chooser every time, so a second Google account can be added
+    prompt: 'select_account consent', // account chooser every time (a second account, or the one with the photos); consent for a refresh token
     state,
     code_challenge: codeChallenge,
     code_challenge_method: 'S256',

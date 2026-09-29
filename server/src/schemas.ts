@@ -297,7 +297,7 @@ export const SettingsSchema = z
     aiHealthAccess: z.boolean(), // false (default): MCP and connected apps' OAuth tokens never see or change the Health tracker
     medications: z.boolean().openapi({ description: 'Medication reminders (off by default). Off: the medication routes answer 404; the data is kept.' }),
     medicationNamesOnWalls: z.boolean().openapi({ description: 'Show medicine names and doses on shared wall screens (off by default: "Meds").' }),
-    googlePhotos: z.enum(['off', 'signing-in', 'choosing', 'ready', 'reconnect']).optional().openapi({ description: "Google Photos for the Night screen and the Board (GET /api/google-photos). Read-only; not in the export." }),
+    googlePhotos: z.enum(['off', 'signing-in', 'choosing', 'ready', 'reconnect', 'refused']).optional().openapi({ description: "Google Photos for the Night screen and the Board (GET /api/google-photos). Read-only; not in the export." }),
   })
   .openapi('Settings');
 

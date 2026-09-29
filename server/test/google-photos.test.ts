@@ -29,6 +29,8 @@ function fakeGoogle() {
     refreshFails: false,
     listFails: 0, // HTTP status for mediaItems.list, 0 = fine
     bytesStatus: 200,
+    exchangeError: '', // the web sign-in's code exchange fails with this OAuth error
+    createStatus: 200, // HTTP status for devices.create
     pages: [
       [item('p1'), item('p2'), { id: 'v1', createTime: '2025-01-01T00:00:00Z', mediaFile: { baseUrl: 'https://lh3.googleusercontent.com/v1', mimeType: 'video/mp4', mediaFileMetadata: { width: 1920, height: 1080 } } }],
       [item('p3')],
@@ -49,6 +51,9 @@ function fakeGoogle() {
       return json({ device_code: DEVICE_CODE, user_code: 'WXYZ-ABCD', verification_url: 'https://www.google.com/device', expires_in: 1800, interval: 5 });
     }
     if (url.href === 'https://oauth2.googleapis.com/token') {
+      if (form.get('grant_type') === 'authorization_code') {
+        return g.exchangeError ? json({ error: g.exchangeError }, 400) : json({ access_token: ACCESS, refresh_token: REFRESH, expires_in: 3600 });
+      }
       if (form.get('grant_type') === 'urn:ietf:params:oauth:grant-type:device_code') {
         return g.authorized ? json({ access_token: ACCESS, refresh_token: REFRESH, expires_in: 3600, scope: form.get('scope') }) : json({ error: 'authorization_pending' }, 428);
       }
@@ -58,7 +63,7 @@ function fakeGoogle() {
     if (url.host === 'photosambient.googleapis.com') {
       if (auth !== `Bearer ${ACCESS}`) return json({ error: { code: 401, status: 'UNAUTHENTICATED' } }, 401);
       const device = () => ({ id: 'dev-1', displayName: 'Our Family Kinwall', settingsUri: 'https://photos.google.com/ambient/dev-1', mediaSourcesSet: g.sourcesSet, pollingConfig: { pollInterval: '7.5s' } });
-      if (method === 'POST' && url.pathname === '/v1/devices') return json(device());
+      if (method === 'POST' && url.pathname === '/v1/devices') return g.createStatus === 200 ? json(device()) : json({ error: { code: g.createStatus, status: 'PERMISSION_DENIED' } }, g.createStatus);
       if (method === 'GET' && url.pathname === '/v1/devices/dev-1') return json(device());
       if (method === 'DELETE' && url.pathname === '/v1/devices/dev-1') return json({});
       if (method === 'GET' && url.pathname === '/v1/mediaItems') {
@@ -76,14 +81,16 @@ function fakeGoogle() {
   return { g, fetch, count: (pred: (c: Call) => boolean) => calls.filter(pred).length };
 }
 
-function makeApp(opts: { configured?: boolean } = {}) {
+/** configured: the TV client (device sign-in). web: only Calendar's web client, so the web sign-in. */
+function makeApp(opts: { configured?: boolean; web?: boolean } = {}) {
   const db = openDb(':memory:');
   applyMigrations(db, MIGRATIONS_DIR);
   const env: Env = {
     DB: db as unknown as D1Database,
     ADMIN_API_KEY: ADMIN_KEY,
     ENCRYPTION_KEY: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
-    ...(opts.configured === false ? {} : { GOOGLE_PHOTOS_CLIENT_ID: 'tv-client.apps.googleusercontent.com', GOOGLE_PHOTOS_CLIENT_SECRET: 'FAKE-CLIENT-SECRET' }),
+    ...(opts.configured === false || opts.web ? {} : { GOOGLE_PHOTOS_CLIENT_ID: 'tv-client.apps.googleusercontent.com', GOOGLE_PHOTOS_CLIENT_SECRET: 'FAKE-CLIENT-SECRET' }),
+    ...(opts.web ? { GOOGLE_CLIENT_ID: 'web-client.apps.googleusercontent.com', GOOGLE_CLIENT_SECRET: 'FAKE-WEB-SECRET', PUBLIC_URL: 'https://kinwall.example' } : {}),
   };
   const app = createApp();
   const raw = (method: string, p: string, key = ADMIN_KEY, body?: unknown) =>
@@ -409,4 +416,158 @@ test('google photos: tokens and codes never reach the logs or error bodies', asy
     assert.ok(!logs.some((l) => l.includes(secret)), `${secret} logged`);
     assert.ok(!bodies.some((b) => b.includes(secret)), `${secret} in a response`);
   }
+});
+
+// ---------- The web sign-in: Calendar's own web client, a separate consent for Photos ----------
+
+/** Starts the web sign-in and returns Google's consent URL. */
+async function startWeb(t: ReturnType<typeof makeApp>) {
+  const c = await t.send('POST', '/api/google-photos/connect');
+  assert.equal(c.status, 200);
+  return new URL(c.body.authUrl);
+}
+/** Google sending the browser back, as the existing OAuth callback route receives it. */
+async function callback(t: ReturnType<typeof makeApp>, query: Record<string, string>) {
+  const res = await t.raw('GET', `/api/oauth/google/callback?${new URLSearchParams(query)}`, 'no-key');
+  assert.equal(res.status, 302);
+  return res.headers.get('location')!;
+}
+
+test('google photos: the TV client wins; without it, Calendar\'s web client; without either, unavailable', async () => {
+  const fake = fakeGoogle();
+  await withGoogle(fake, async () => {
+    const tv = makeApp();
+    assert.equal((await tv.send('POST', '/api/google-photos/connect')).body.flow, 'device');
+    const both = makeApp();
+    both.env.GOOGLE_CLIENT_ID = 'web-client.apps.googleusercontent.com';
+    both.env.GOOGLE_CLIENT_SECRET = 'FAKE-WEB-SECRET';
+    assert.equal((await both.send('POST', '/api/google-photos/connect')).body.flow, 'device', 'GOOGLE_PHOTOS_CLIENT_ID keeps the device sign-in');
+    const web = makeApp({ web: true });
+    assert.deepEqual((await web.send('GET', '/api/google-photos')).body, { available: true, state: 'off' });
+    const c = await web.send('POST', '/api/google-photos/connect');
+    assert.equal(c.body.flow, 'web');
+    assert.equal(c.body.state, 'signing-in');
+    assert.equal(c.body.userCode, undefined);
+    const none = makeApp({ configured: false });
+    assert.equal((await none.send('GET', '/api/google-photos')).body.available, false);
+  });
+});
+
+test('google photos web: asks for only the Photos scope, offline, with consent, on the Calendar redirect URI', async () => {
+  const t = makeApp({ web: true });
+  const fake = fakeGoogle();
+  await withGoogle(fake, async () => {
+    const url = await startWeb(t);
+    assert.equal(url.origin + url.pathname, 'https://accounts.google.com/o/oauth2/v2/auth');
+    const q = url.searchParams;
+    assert.equal(q.get('client_id'), 'web-client.apps.googleusercontent.com');
+    assert.equal(q.get('scope'), 'https://www.googleapis.com/auth/photosambient.mediaitems', 'no calendar, email or profile scopes');
+    assert.equal(q.get('access_type'), 'offline');
+    assert.equal(q.get('prompt'), 'select_account consent', 'consent (for a refresh token), and the account chooser for the one with the photos');
+    assert.equal(q.get('response_type'), 'code');
+    assert.equal(q.get('redirect_uri'), 'https://kinwall.example/api/oauth/google/callback', "Calendar's redirect URI: nothing new to register");
+    assert.equal(q.get('code_challenge_method'), 'S256');
+    assert.ok(q.get('state'));
+    assert.equal(fake.g.calls.length, 0, 'nothing sent to Google until the parent signs in');
+    // The parent device (and a wall's status check) sees the link to open or scan.
+    const s = await t.send('GET', '/api/google-photos');
+    assert.equal(s.body.state, 'signing-in');
+    assert.equal(s.body.authUrl, url.href);
+    const wall = await t.displayKey();
+    assert.deepEqual((await t.send('GET', '/api/google-photos', wall)).body, { available: true, state: 'signing-in' });
+  });
+});
+
+test('google photos web: the callback stores sealed tokens apart from Calendar, creates the device and returns to the sheet', async () => {
+  const t = makeApp({ web: true });
+  const fake = fakeGoogle();
+  await withGoogle(fake, async () => {
+    const url = await startWeb(t);
+    const location = await callback(t, { code: 'FAKE-CODE', state: url.searchParams.get('state')! });
+    assert.equal(location, 'https://kinwall.example/#/settings?googlePhotos=connected');
+
+    const exchange = fake.g.calls.find((x) => x.url.pathname === '/token')!;
+    const form = new URLSearchParams(exchange.body);
+    assert.equal(form.get('client_id'), 'web-client.apps.googleusercontent.com');
+    assert.equal(form.get('client_secret'), 'FAKE-WEB-SECRET');
+    assert.equal(form.get('redirect_uri'), 'https://kinwall.example/api/oauth/google/callback');
+    assert.ok(form.get('code_verifier'));
+    assert.equal(fake.count((x) => x.url.pathname === '/oauth2/v3/userinfo'), 0);
+
+    const create = fake.g.calls.find((x) => x.method === 'POST' && x.url.pathname === '/v1/devices')!;
+    assert.match(create.url.searchParams.get('requestId')!, /^[0-9a-f-]{36}$/);
+    assert.equal(create.auth, `Bearer ${ACCESS}`);
+
+    const r = (await t.row())!;
+    assert.equal(r.flow, 'web');
+    assert.equal(r.device_id, 'dev-1');
+    for (const secret of [ACCESS, REFRESH]) assert.ok(!JSON.stringify(r).includes(secret), 'sealed');
+    assert.equal(await t.count('accounts'), 0, 'no Calendar account was made');
+    const s = await t.send('GET', '/api/google-photos');
+    assert.equal(s.body.state, 'choosing');
+    assert.equal(s.body.settingsUri, 'https://photos.google.com/ambient/dev-1');
+
+    // A state is single-use.
+    assert.match(await callback(t, { code: 'FAKE-CODE', state: url.searchParams.get('state')! }), /oauthError=/);
+  });
+});
+
+test('google photos web: tokens refresh with the web client that made them', async () => {
+  const t = makeApp({ web: true });
+  const fake = fakeGoogle();
+  await withGoogle(fake, async () => {
+    const url = await startWeb(t);
+    await callback(t, { code: 'FAKE-CODE', state: url.searchParams.get('state')! });
+    fake.g.sourcesSet = true;
+    const { encryptConfig } = await import('../src/crypto.ts');
+    await t.sql('UPDATE google_photos SET config = ?, next_poll_at = NULL', await encryptConfig(t.env, 'google-photos', { access_token: 'old', refresh_token: REFRESH, expires_at: 0 }));
+    assert.equal((await t.send('GET', '/api/google-photos')).body.state, 'ready');
+    const refresh = fake.g.calls.find((x) => x.url.pathname === '/token' && new URLSearchParams(x.body).get('grant_type') === 'refresh_token')!;
+    assert.equal(new URLSearchParams(refresh.body).get('client_id'), 'web-client.apps.googleusercontent.com');
+    assert.equal(new URLSearchParams(refresh.body).get('client_secret'), 'FAKE-WEB-SECRET');
+  });
+});
+
+test('google photos web: a declined consent cancels quietly', async () => {
+  const t = makeApp({ web: true });
+  const fake = fakeGoogle();
+  await withGoogle(fake, async () => {
+    const url = await startWeb(t);
+    assert.equal(await callback(t, { error: 'access_denied', state: url.searchParams.get('state')! }), 'https://kinwall.example/#/settings?googlePhotos=canceled');
+    assert.equal(await t.row(), undefined);
+  });
+});
+
+test("google photos web: Google refusing Photos for this client says so, and points at the TV client", async () => {
+  for (const how of ['authorize', 'exchange-scope', 'exchange-client', 'create'] as const) {
+    const t = makeApp({ web: true });
+    const fake = fakeGoogle();
+    await withGoogle(fake, async () => {
+      const url = await startWeb(t);
+      const state = url.searchParams.get('state')!;
+      if (how === 'exchange-scope') fake.g.exchangeError = 'invalid_scope';
+      if (how === 'exchange-client') fake.g.exchangeError = 'unauthorized_client';
+      if (how === 'create') fake.g.createStatus = 403;
+      const location = await callback(t, how === 'authorize' ? { error: 'invalid_scope', state } : { code: 'FAKE-CODE', state });
+      assert.equal(location, 'https://kinwall.example/#/settings?googlePhotos=refused', how);
+      const s = await t.send('GET', '/api/google-photos');
+      assert.equal(s.body.state, 'refused', how);
+      assert.equal((await t.send('GET', '/api/settings')).body.googlePhotos, 'refused');
+      // Trying again starts over.
+      assert.equal((await t.send('POST', '/api/google-photos/connect')).body.state, 'signing-in', how);
+    });
+  }
+});
+
+test('google photos web: a Calendar sign-in through the same callback still makes a Calendar account', async () => {
+  const t = makeApp({ web: true });
+  const fake = fakeGoogle();
+  await withGoogle(fake, async () => {
+    const start = await t.raw('GET', '/api/oauth/google/start?key=x');
+    const state = new URL(start.headers.get('location')!).searchParams.get('state')!;
+    const location = await callback(t, { code: 'FAKE-CODE', state });
+    assert.match(location, /#\/settings\?account=/);
+    assert.equal(await t.count('accounts'), 1);
+    assert.equal(await t.row(), undefined, 'Photos untouched');
+  });
 });

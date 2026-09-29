@@ -117,7 +117,7 @@ Your family's content: member names, events, chores, lists, settings, [trackers]
 
 ### Google Photos
 
-[Google Photos](../using/photos.md#google-photos) is off until a parent connects it, with its own Google permission (`photosambient.mediaitems`: see the photos picked for a device). Connecting Google Calendar never asks for it, and connecting Photos never touches Calendar.
+[Google Photos](../using/photos.md#google-photos) is off until a parent connects it, with its own Google permission (`photosambient.mediaitems`: see the photos picked for a device). Connecting Google Calendar never asks for it, and connecting Photos never touches Calendar: even when both use the same Google app, Photos is its own consent and its own sign-in, stored apart from calendar accounts.
 
 * **What Google sees:** that your Kinwall server is showing the albums you picked on a device named after your family ("Our Family Kinwall"), and your server's address when it asks for the list and the pictures. Displays never contact Google for photos; the pictures pass through your server. Nothing else about your family is sent.
 * **What Kinwall stores:** the sign-in, encrypted like calendar credentials, in its own record apart from calendar accounts; Google's ID for the family's Photos device and its album page link; and for each picked photo only its Google ID, the date it was taken, its size and when it was last shown, plus Google's temporary link to it, which stops working within an hour. **Never the pictures:** each one goes straight from Google to the screen, is marked not to be cached, and isn't kept on the server. None of it is in the [export](export-import.md).

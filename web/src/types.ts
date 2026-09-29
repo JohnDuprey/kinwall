@@ -447,11 +447,13 @@ export interface Photo {
   family?: boolean // false = a memory's own photo (never in GET /api/photos)
 }
 /** count and bytes include memoryPhotos (memories' own photos count toward storage too). */
-export type GooglePhotosState = 'off' | 'signing-in' | 'choosing' | 'ready' | 'reconnect'
+export type GooglePhotosState = 'off' | 'signing-in' | 'choosing' | 'ready' | 'reconnect' | 'refused'
 /** GET /api/google-photos. Codes and links only on parent devices. */
 export interface GooglePhotos {
   available: boolean // this server has a Google Photos client
   state: GooglePhotosState
+  flow?: 'web' | 'device' // web: the Calendar client's consent page (authUrl); device: a code at verificationUrl
+  authUrl?: string
   userCode?: string // signing-in: entered at verificationUrl
   verificationUrl?: string
   codeExpiresAt?: string

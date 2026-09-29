@@ -276,8 +276,8 @@ function SummaryChips({ chips }: { chips: Chip[] }) {
   )
 }
 
-function SummarySection({ title, icon, summary, detail, children }: { title: string; icon?: ReactNode; summary: string | Chip[]; detail?: string; children: ReactNode }) {
-  const [open, setOpen] = useState(false)
+function SummarySection({ title, icon, summary, detail, children, startOpen = false }: { title: string; icon?: ReactNode; summary: string | Chip[]; detail?: string; children: ReactNode; startOpen?: boolean }) {
+  const [open, setOpen] = useState(startOpen)
   return (
     <Section title={title} icon={icon}>
       <div className="settings-row">
@@ -1369,13 +1369,25 @@ const saverOffered = (key: SaverSource, settings: Settings) => (key !== 'photos'
 const CLOCK_POSITIONS: { key: ClockPos | ''; label: string }[] = [
   { key: '', label: 'Moves around' }, { key: 'center', label: 'Center' }, { key: 'top-left', label: 'Top left' }, { key: 'top-right', label: 'Top right' }, { key: 'bottom-left', label: 'Bottom left' }, { key: 'bottom-right', label: 'Bottom right' },
 ]
+/** Back from Google Photos' sign-in (routes/oauth.ts → #/settings?googlePhotos=…): reopen this sheet. */
+const googlePhotosReturn = () => new URLSearchParams(location.hash.split('?')[1] || '').get('googlePhotos')
+
 function NightScreenSection() {
-  const { settings } = useApp()
+  const { settings, toast } = useApp()
+  const [returned] = useState(googlePhotosReturn)
+  useEffect(() => {
+    if (!returned) return
+    if (returned === 'canceled') toast('Google sign-in canceled — nothing was connected', true)
+    if (returned === 'failed') toast("Google Photos didn't connect. Try again.", true)
+    const q = new URLSearchParams(location.hash.split('?')[1] || '')
+    q.delete('googlePhotos')
+    history.replaceState(null, '', `#/settings${q.toString() ? `?${q}` : ''}`)
+  }, [returned]) // eslint-disable-line react-hooks/exhaustive-deps
   const d = useDeviceAppearance()
   const sources = SAVER_OPTIONS.filter(o => d.saverSources?.includes(o.key) && saverOffered(o.key, settings)).map(o => o.label)
   const pos = d.clockPos && CLOCK_POSITIONS.find(p => p.key === d.clockPos)?.label
   const summary = nightSummary({ sources, every: d.saverEvery ?? 5, bright: d.saverBright ?? 'low', clock: d.saverClock !== false, pos })
-  return <SummarySection title="Night screen" summary={summary}><ScreensaverRows /></SummarySection>
+  return <SummarySection title="Night screen" summary={summary} startOpen={!!returned}><ScreensaverRows /></SummarySection>
 }
 
 function ScreensaverRows() {
@@ -1443,7 +1455,8 @@ function GooglePhotosRows() {
   const isPhone = useIsPhone()
   const [gp, setGp] = useState<GooglePhotos | null>(null)
   const [busy, setBusy] = useState(false)
-  const picked = !!useDeviceAppearance().saverSources?.includes('google')
+  const device = useDeviceAppearance()
+  const picked = !!device.saverSources?.includes('google')
   const state = gp?.state
   const lastState = useRef(settings.googlePhotos)
   useEffect(() => {
@@ -1462,20 +1475,35 @@ function GooglePhotosRows() {
     setBusy(true)
     try { setGp(await f()) } catch (e) { toast(e instanceof Error ? e.message : "Couldn't reach Google Photos", true) } finally { setBusy(false) }
   }
+  // The web sign-in goes to Google's page in this tab, like Connect Google for Calendar. A wall screen
+  // stays on the sheet instead, with a QR code to finish on a phone (or Continue to Google).
+  const wall = !!device.wallScreen
+  const connect = () => run(async () => {
+    const g = await api.connectGooglePhotos()
+    if (g.authUrl && !wall && !MOCK) location.href = g.authUrl
+    return g
+  })
   const disconnect = async () => {
     if (!await dialog.confirm({ title: 'Disconnect Google Photos?', body: "Google Photos stops showing on every screen. Your photos stay in Google Photos. Google Calendar isn't affected.", confirmLabel: 'Disconnect', danger: true })) return
     run(api.disconnectGooglePhotos)
   }
-  const qr = (value: string) => !isPhone && <div className="google-photos-qr"><QrCode value={value} size={148} /><div className="settings-row-sub">Or scan with your phone.</div></div>
+  const qr = (value: string) => !isPhone && <div className="google-photos-qr"><QrCode value={value} size={value.length > 200 ? 220 : 148} /><div className="settings-row-sub">Scan with your phone.</div></div>
   return (
     <div className="google-photos">
       <div className="settings-row-label">Google Photos</div>
       {MOCK && <div className="settings-row-sub">Demo: this only pretends to connect. Nothing goes to Google.</div>}
-      {(state === 'off' || state === 'reconnect') && <>
-        {state === 'reconnect'
-          ? <div className="settings-row-sub google-photos-note" role="status">⚠️ Google Photos stopped sharing with Kinwall, so screens show your other picks for now. Reconnect to bring it back.</div>
-          : <div className="settings-row-sub">Show photos from albums you pick in Google Photos, on every screen in the family. Google asks for its own permission, separate from Google Calendar.</div>}
-        <button className="btn btn-primary" disabled={busy} onClick={() => run(api.connectGooglePhotos)}>{state === 'reconnect' ? 'Reconnect Google Photos' : 'Connect Google Photos'}</button>
+      {(state === 'off' || state === 'reconnect' || state === 'refused') && <>
+        {state === 'reconnect' && <div className="settings-row-sub google-photos-note" role="status">⚠️ Google Photos stopped sharing with Kinwall, so screens show your other picks for now. Reconnect to bring it back.</div>}
+        {state === 'refused' && <div className="settings-row-sub google-photos-note" role="alert">⚠️ Google didn't allow Photos with this app; see the <a className="text-link" href={`${DOCS_URL}/self-hosting/configuration#google-photos`} target="_blank" rel="noopener">docs for the TV-client option</a>.</div>}
+        {state === 'off' && <div className="settings-row-sub">Show photos from albums you pick in Google Photos, on every screen in the family. Google asks for its own permission, separate from Google Calendar.</div>}
+        <button className="btn btn-primary" disabled={busy} onClick={connect}>{state === 'off' ? 'Connect Google Photos' : state === 'reconnect' ? 'Reconnect Google Photos' : 'Try again'}</button>
+      </>}
+      {state === 'signing-in' && gp.authUrl && <>
+        {/* Like Connect Google for Calendar: Google's page in this tab, back to this sheet after. */}
+        <a className="btn btn-primary" href={gp.authUrl} onClick={e => { if (!MOCK) return; e.preventDefault() }}>Continue to Google</a>
+        {!isPhone && <div className="settings-row-sub">Or connect from a phone or computer:</div>}
+        {qr(gp.authUrl)}
+        <div className="settings-row-sub" role="status">Waiting for you to sign in…</div>
       </>}
       {state === 'signing-in' && gp.userCode && gp.verificationUrl && <>
         <div className="settings-row-sub">On a phone or computer, go to <a className="text-link" href={gp.verificationUrl} target="_blank" rel="noreferrer">{gp.verificationUrl.replace(/^https:\/\/(www\.)?/, '')}</a> and enter this code:</div>

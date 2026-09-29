@@ -10,7 +10,7 @@ test('nightSources: Google Photos shows once it is ready', () => {
 })
 
 test('nightSources: Google Photos not ready or needing reconnecting falls back to the other picks', () => {
-  for (const googlePhotos of ['off', 'signing-in', 'choosing', 'reconnect', undefined] as const) {
+  for (const googlePhotos of ['off', 'signing-in', 'choosing', 'reconnect', 'refused', undefined] as const) {
     assert.deepEqual(nightSources(['drawings', 'google', 'art'], { photos: true, googlePhotos }), ['drawings', 'art'])
     // Picked alone: nature pictures stand in, like family photos turned off.
     assert.deepEqual(nightSources(['google'], { photos: true, googlePhotos }), ['nature'])
