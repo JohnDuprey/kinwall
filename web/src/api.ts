@@ -16,6 +16,8 @@ import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginCatalogEntry,
 
 /** Demo build: every call is served from mock.ts in memory - no server, nothing persists. */
 export const MOCK = import.meta.env.VITE_MOCK === '1'
+/** This device's push subscription id (Settings → This display → Notifications), for its own prefs. */
+export const PUSH_SUB_ID_KEY = 'kinwall.pushSubId'
 const KEY_STORAGE = 'kinwall.apiKey'
 const ADMIN_KEY_STORAGE = 'kinwall.adminKey' // sessionStorage: { key, expiresAt } — cleared after 5 min
 const ADMIN_TTL_MS = 5 * 60 * 1000

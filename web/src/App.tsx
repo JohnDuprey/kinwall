@@ -40,6 +40,7 @@ import Insights from './Insights.tsx'
 import Medications from './Medications.tsx'
 import Sheet from './Sheet.tsx'
 import { LeaveByLiveActivity } from './NowNext.tsx'
+import { MedicationLiveActivity } from './TakeNow.tsx'
 import { formatTime, resolveHour12, setHour12 } from './timeFormat.ts'
 import { dateKey } from './date.ts'
 
@@ -1230,6 +1231,7 @@ function AppRoutes() {
         {isPhone && <InstallNudge />}
         <QuietOverlay settings={settings} wall={wall} remote={nightScreen} />
         {inNativeApp() && <LeaveByLiveActivity />}
+        {inNativeApp() && <MedicationLiveActivity />}
       </div>
     </AppContext.Provider>
   )

@@ -61,7 +61,7 @@ export function tellAppAppearance(a: { mode: ThemeMode; dark: boolean; colors: {
   try { app.postMessage({ type: 'appearance', ...a }) } catch { /* not in the app */ }
 }
 
-export type AppActivityKind = 'cooking' | 'shopping' | 'leaveBy'
+export type AppActivityKind = 'cooking' | 'shopping' | 'leaveBy' | 'medication'
 // undefined: not told since this page loaded (so the first end always goes, in case the app still
 // shows one from before a reload); '': ended.
 const lastActivity: Partial<Record<AppActivityKind, string>> = {}

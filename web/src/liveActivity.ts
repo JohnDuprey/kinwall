@@ -5,7 +5,8 @@ import { leadOf } from './leadTime.ts'
 import { mealName, pickNudge, rememberNudge, type Nudge, type NudgeSeen } from './nudges.ts'
 import { ANY_STORE, anyStoreView, tripView } from './trip.ts'
 import { warningTimes, type TransitionReminders } from './transitions.ts'
-import type { AisleOrder, EventInstance, ListItem } from './types.ts'
+import { cardLabel } from './medications.ts'
+import type { AisleOrder, DueDose, EventInstance, ListItem } from './types.ts'
 
 const MIN = 60000
 
@@ -84,5 +85,34 @@ export function leaveByActivity(events: EventInstance[], me: { id: string; name:
   return {
     activity: `leaveBy:${e.id}@${new Date(e.start).toISOString()}`, eventId: e.id, title: e.title, prep: lead.prep, at: new Date(at).toISOString(), startsAt: e.start, endsAt: new Date(end).toISOString(),
     headline: line({ ...words, minutes: Math.ceil((at - now) / MIN) }), urgent: line({ ...words, minutes: 0 }),
+  }
+}
+
+// ---- A medicine dose that's due (Take now) ----
+
+/** A late window past this gets the follow-up (as server/src/notify.ts: halfway through it). */
+const FOLLOW_UP_AFTER_MS = 3 * 60 * MIN
+
+/** medicationId, date and time: what the app's Taken and Snooze buttons send to
+ * POST /api/medications/{medicationId}/doses. label: "Maya's medicine" unless this device turned on
+ * medicine names (it's on the Lock Screen). stage 'late': from the follow-up point. */
+export type MedicationActivity = {
+  medicationId: string; date: string; time: string; memberName: string; label: string; headline: string
+  dueAt: string; windowEndsAt: string; stage: 'due' | 'late'
+}
+
+/** This person's earliest dose that's due now (a "When I start my day" dose once their day started),
+ * until it's marked or its late window closes. Only their own: `me` is this device's person. */
+export function medicationActivity(doses: DueDose[], me: { id: string; name: string }, now: number, names: boolean): MedicationActivity | null {
+  const d = doses.filter(x => x.memberId === me.id && Date.parse(x.dueAt) <= now && now < Date.parse(x.until)).sort((a, b) => a.dueAt.localeCompare(b.dueAt))[0]
+  if (!d) return null
+  const due = Date.parse(d.dueAt), end = Date.parse(d.until)
+  const late = end - due > FOLLOW_UP_AFTER_MS && now >= due + (end - due) / 2
+  const who = me.name.split(' ')[0]
+  return {
+    medicationId: d.medicationId, date: d.date, time: d.time, memberName: who,
+    label: names && d.name ? cardLabel(d) : `${who}'s medicine`,
+    headline: late ? `Still time for ${who}'s medicine` : `Time for ${who}'s medicine`,
+    dueAt: d.dueAt, windowEndsAt: d.until, stage: late ? 'late' : 'due',
   }
 }

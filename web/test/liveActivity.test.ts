@@ -1,9 +1,9 @@
 // node --test test/ (npm test). What the iPhone app's Live Activities show (liveActivity.ts).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { cookingActivity, leaveByActivity, shoppingActivity, timerName } from '../src/liveActivity.ts'
+import { cookingActivity, leaveByActivity, medicationActivity, shoppingActivity, timerName } from '../src/liveActivity.ts'
 import { rememberNudge, type NudgeSeen } from '../src/nudges.ts'
-import type { EventInstance } from '../src/types.ts'
+import type { DueDose, EventInstance } from '../src/types.ts'
 
 test('cooking: the soonest running timer, +N more, then "done" once none is running', () => {
   const steps = ['Rinse', null, 'Simmer']
@@ -76,4 +76,38 @@ test('leave by: the headline holds for its stage, is remembered once, and the ca
     leaveByActivity([{ ...soccer, id: d, start: `${d}T16:00:00Z`, leaveAt: `${d}T15:40:00Z` }], sam, Date.parse(`${d}T15:20:00Z`), time, false, opts())!.headline)
   assert.equal(new Set(lines).size, lines.length, lines.join('\n'))
   assert.match(lines.join('\n'), /Cleats|Shin guards|Ball in the bag|⚽|🥅/)
+})
+
+// ---- A medicine dose that's due (medicationActivity) ----
+const H = 3_600_000
+const dose = (o: Partial<DueDose> = {}): DueDose => ({ medicationId: 'med1', memberId: 'm3', date: '2026-09-28', time: '08:00', dueAt: new Date(Date.UTC(2026, 8, 28, 15)).toISOString(), startedAt: null, until: new Date(Date.UTC(2026, 8, 29, 3)).toISOString(), name: 'Allergy medicine', dose: '1 tablet', ...o })
+const MAYA = { id: 'm3', name: 'Maya' }
+const T0 = Date.UTC(2026, 8, 28, 15) // due; the window runs 12 hours, to 8 PM at home
+
+test('medicationActivity: generic unless this device opted into medicine names, with what the app needs to mark it', () => {
+  assert.deepEqual(medicationActivity([dose()], MAYA, T0 + 60_000, false), {
+    medicationId: 'med1', date: '2026-09-28', time: '08:00', memberName: 'Maya', label: "Maya's medicine", headline: "Time for Maya's medicine",
+    dueAt: dose().dueAt, windowEndsAt: dose().until, stage: 'due',
+  })
+  assert.equal(medicationActivity([dose()], MAYA, T0 + 60_000, true)!.label, 'Allergy medicine · 1 tablet')
+  assert.equal(medicationActivity([dose({ name: null, dose: null })], MAYA, T0 + 60_000, true)!.label, "Maya's medicine", 'names the server withheld stay withheld')
+  assert.doesNotMatch(JSON.stringify(medicationActivity([dose()], MAYA, T0 + 60_000, false)), /Allergy|tablet/)
+})
+
+test('medicationActivity: "late" from the follow-up point (halfway through a window past 3 hours), kindly worded', () => {
+  assert.equal(medicationActivity([dose()], MAYA, T0 + 6 * H - 60_000, false)!.stage, 'due')
+  const late = medicationActivity([dose()], MAYA, T0 + 6 * H, false)!
+  assert.deepEqual([late.stage, late.headline], ['late', "Still time for Maya's medicine"])
+  const short = dose({ until: new Date(T0 + 3 * H).toISOString() })
+  assert.equal(medicationActivity([short], MAYA, T0 + 2.9 * H, false)!.stage, 'due', 'a 3-hour window has no follow-up')
+  for (const a of [medicationActivity([dose()], MAYA, T0, false)!, late]) assert.doesNotMatch(a.headline, /missed|late|forg/i)
+})
+
+test('medicationActivity: only their own doses, the earliest first, a start-of-day dose too; ends when marked or the window closes', () => {
+  const wake = dose({ medicationId: 'med3', time: 'wake', startedAt: new Date(T0 - H).toISOString(), dueAt: new Date(T0 - H).toISOString() })
+  assert.deepEqual(medicationActivity([dose(), wake], MAYA, T0, false)!.time, 'wake')
+  assert.equal(medicationActivity([dose({ memberId: 'm4' })], MAYA, T0, false), null, "someone else's dose")
+  assert.equal(medicationActivity([], MAYA, T0, false), null, 'marked: gone from the due list')
+  assert.equal(medicationActivity([dose()], MAYA, Date.parse(dose().until), false), null, 'the window closed')
+  assert.equal(medicationActivity([dose()], MAYA, T0 - 60_000, false), null, 'not due yet')
 })

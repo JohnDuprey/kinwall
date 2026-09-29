@@ -1,6 +1,6 @@
 import { createContext, Fragment, useContext, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { AppContext, useApp } from './AppContext.tsx'
-import { api, ApiError, clearKey } from './api.ts'
+import { api, ApiError, clearKey, PUSH_SUB_ID_KEY } from './api.ts'
 import type { Account, ApiKey, CalendarEntry, Category, ColorScheme, CustomColors, Density, DeviceDensity, Features, GeocodeResult, HostEvent, Me, Member, Passkey, Providers, PushSubscription, RemoteCalendar, Settings, TempCheckSettings, TextScale, ThemeMode, TimeFormat, Typeface, Webhook } from './types.ts'
 import { ProviderForm, PublicUrlRow } from './ProviderConfig.tsx'
 import { CATEGORY_EMOJI, CATEGORY_PRESETS, MEMBER_EMOJI, MEMBER_PALETTE, nextPaletteColor, REMINDER_OPTIONS } from './types.ts'
@@ -621,7 +621,6 @@ function ChoreSettingsSection({ settings, onSaved, toast }: { settings: Settings
   )
 }
 
-const PUSH_SUB_ID_KEY = 'kinwall.pushSubId'
 
 function pushSupported(): boolean {
   return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window

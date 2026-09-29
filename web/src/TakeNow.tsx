@@ -3,11 +3,13 @@
 // on the Board it's one of the count tiles (TakeNowTile), which opens the list in a sheet. The server decides what this device may see: a shared wall gets
 // everyone's doses as "Meds" unless the family turned names on, a person's own device only theirs.
 import { useEffect, useState } from 'react'
-import { api, ApiError } from './api.ts'
+import { api, ApiError, PUSH_SUB_ID_KEY } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { announce } from './a11y.tsx'
 import { inkFor } from './color.ts'
 import { cardLabel, cheerLine, doseTimeLabel } from './medications.ts'
+import { medicationActivity } from './liveActivity.ts'
+import { endAppActivity, tellAppActivity } from './native.ts'
 import { Confetti } from './Chores.tsx'
 import Sheet from './Sheet.tsx'
 import { PillIcon } from './icons.tsx'
@@ -37,6 +39,31 @@ export function useDueDoses() {
   return { doses: on && due ? due.doses : [], drop }
 }
 type Due = ReturnType<typeof useDueDoses>
+
+/** Inside the phone app: this device's person's dose that's due, as a Live Activity with Taken and
+ * Snooze (liveActivity.ts medicationActivity). Only the person's own doses, so it shows on their own
+ * device, or a parent's device that belongs to that parent; never a kid's dose on a parent's phone
+ * (parents get the "hasn't been marked yet" note) and never on a shared wall. It names the medicine
+ * only when this device turned on medicine names for notifications. Snooze ends it until the snooze
+ * runs out; Taken, Skip or the late window closing end it. Renders nothing. */
+export function MedicationLiveActivity() {
+  const { members, meMemberId, refreshTick } = useApp()
+  const { doses } = useDueDoses()
+  const [names, setNames] = useState(false)
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), RECHECK_MS); return () => clearInterval(t) }, [])
+  useEffect(() => {
+    let id: string | null = null
+    try { id = localStorage.getItem(PUSH_SUB_ID_KEY) } catch { /* storage blocked: generic */ }
+    if (!id) { setNames(false); return }
+    api.getPushSubscriptions().then(subs => setNames(!!subs.find(s => s.id === id)?.prefs.medicationNames)).catch(() => setNames(false))
+  }, [refreshTick])
+  const me = members.find(m => m.id === meMemberId)
+  const a = me ? medicationActivity(doses, me, now, names) : null
+  const json = JSON.stringify(a)
+  useEffect(() => { if (a) tellAppActivity('medication', a); else endAppActivity('medication') }, [json]) // eslint-disable-line react-hooks/exhaustive-deps
+  return null
+}
 
 const key = (d: DueDose) => `${d.medicationId}:${d.date}:${d.time}`
 
