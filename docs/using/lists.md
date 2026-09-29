@@ -45,7 +45,7 @@ A list can also be a chore's **checklist**, so a routine like "Bedtime" has to b
   * **Off** (the default for to-do lists): ticked items move to **Done (*N*)**, which you can expand, with **Clear checked** (or **Reset list** on a reusable list).
 * **Checkout** removes the ticked items. **Reset** unticks them for next time instead. Either one shows a short "Checked out 5 items · **Undo**" message; tap **Undo** within a few seconds and nothing changes. Items you tick after tapping Checkout aren't swept up.
 * Long titles wrap to two lines on the row (three in icon-first density); the item sheet always shows the whole title.
-* A colored dot before the title shows the item's **Priority** (see below), and a note icon after it means the item has **Notes** or a **Discussion**.
+* A badge before the title shows the item's **Priority** (see below), and a note icon after it means the item has **Notes** or a **Discussion**.
 * An item with a due date shows it in small text under the title: "Due today", "Due Fri, Oct 3", or "Overdue · Sep 22" in red.
 * Tap an item to edit it: **Title**, **Priority**, **Steps**, **Quantity** ("2, 1 lb, x3"), **Store**, **Aisle** and **Department** (shopping; see [Stores, aisles and departments](#stores-aisles-and-departments)), **Assign to** (to-do and reusable), **Due date** (to-do, with **Clear**), **Linked event**, **Notes** (the item's own description), **Discussion** (see below), and **Order** (**Move up** / **Move down**, manual sort only).
 
@@ -152,12 +152,12 @@ Each item has a **Priority**: Low, Normal, High or Urgent. Pick it in the item s
 
 | Priority | On the row | Order |
 |---|---|---|
-| **Urgent** | red dot and a red bar down the left edge | first |
-| **High** | orange dot | after urgent |
+| **Urgent** | a red **‼ Urgent** badge and a red bar down the left edge | first |
+| **High** | an orange **! High** badge | after urgent |
 | **Normal** | nothing | after high |
-| **Low** | muted green dot | last |
+| **Low** | a muted **↓ Low** | last |
 
-Screen readers hear the priority with the item ("Urgent priority"). Open items that are overdue move to the top of their priority. Done items drop their priority boost. In the [daily summary](notifications.md#daily-summary), urgent items are marked ‼️ and high ones ⭐.
+Each mark has its own shape and word, so priority never depends on telling red from orange. The same badges show in the item sheet's Priority picker, on the Board's **Due soon**, on a person's day and in an event's **Tasks**. Screen readers hear the priority with the item ("Urgent priority"). Open items that are overdue move to the top of their priority. Done items drop their priority boost. In the [daily summary](notifications.md#daily-summary), urgent items are marked ‼️ and high ones ⭐.
 
 ## Sorting
 

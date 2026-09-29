@@ -17,6 +17,7 @@ import { NowNextCard, TransitionWarnings } from './NowNext.tsx'
 import { warningTimes } from './transitions.ts'
 import NotesThread from './NotesThread.tsx'
 import Board from './Board.tsx'
+import { PriorityBadge } from './PriorityBadge.tsx'
 import { calendarGoal } from './tempCheck.ts'
 
 const PHONE_WEEK_DAYS = 3
@@ -1010,7 +1011,7 @@ function EventTasks({ eventId, canAdd }: { eventId: string; canAdd: boolean }) {
         <div key={i.id} className={`list-item-row ${i.done ? 'done' : ''}`}>
           <button className={`list-item-check ${i.done ? 'done' : ''}`} onClick={() => toggle(i)} role="checkbox" aria-checked={i.done} aria-label={i.title}>{i.done && <CheckIcon width={20} height={20} />}</button>
           <div className="list-item-body">
-            <div className="list-item-title">{i.title}</div>
+            <div className="list-item-title-row"><PriorityBadge p={i.priority} /><div className="list-item-title">{i.title}</div></div>
             <div className="list-item-meta">{i.listName}</div>
           </div>
         </div>

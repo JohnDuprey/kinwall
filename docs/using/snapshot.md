@@ -8,7 +8,7 @@ Tap a family member's avatar in the header (on a phone, tap the family button, t
 * **Weather**: now (temperature and conditions), today's high and low, and the chance of rain. Only shown once a [weather location](../settings/general.md#household) is set.
 * **Today**: their events plus everyone's (untagged) events, with times and 🚗 leave-by times.
 * **Chores**: theirs plus **Anyone** chores due today, with how many are left. Tap one to tick it off.
-* **To do**: [list items](lists.md) assigned to them that are due today, overdue, or marked Important or Urgent (with priority dots).
+* **To do**: [list items](lists.md) assigned to them that are due today, overdue, or marked High or Urgent (with a **! High** or **‼ Urgent** badge).
 * **Birthdays 🎂**: family members' birthdays (from [Settings → Family](../settings/family.md)) and events in a category named "Birthdays".
 * **Meals**: the family's [meals](meals.md) today, with times. Tap one to open it.
 * **Reading 📚**: the books they're in the middle of in [Trackers](trackers.md), with how far along they are ("Charlotte's Web — 45%"; 🎧 and time listened for an audiobook). Tap one to open Trackers.

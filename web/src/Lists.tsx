@@ -17,6 +17,7 @@ import { CalendarIcon, CheckIcon, ChevronLeft, ChevronRight, NoteIcon, PlusIcon,
 import { announce, pressable, Segmented } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
 import { CustomColorSwatch } from './ColorSwatch.tsx'
+import { PRIORITY_LABEL, PRIORITY_MARK, PriorityBadge } from './PriorityBadge.tsx'
 import NotesThread from './NotesThread.tsx'
 import { aisleAt, ANY_STORE, anyStoreView, departmentAisle, setShoppingModeList, setTripStore, tripLeftovers, tripStore, tripView } from './trip.ts'
 import { holdAwake } from './wakeLock.ts'
@@ -32,7 +33,6 @@ function countLabel(list: List) {
   return `${list.openCount} left`
 }
 
-const PRIORITY_LABEL: Record<ListItemPriority, string> = { low: 'Low', normal: 'Normal', high: 'High', urgent: 'Urgent' }
 const SORT_LABEL: Record<ListSortBy, string> = { manual: 'Manual', added: 'Date added', due: 'Due date', priority: 'Priority', alpha: 'A–Z', aisle: 'Aisle' }
 const SORT_HINT: Record<ListSortBy, string> = {
   manual: 'Your order, urgent and important first',
@@ -351,7 +351,7 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisle
       <label id="item-priority-label">Priority</label>
       <Segmented className="priority-seg" label="Priority" value={priority} onChange={setPriority}
         options={(['low', 'normal', 'high', 'urgent'] as ListItemPriority[]).map(p => ({
-          key: p, label: <>{p !== 'normal' && <span className={`prio-dot prio-${p}`} aria-hidden="true" />}{PRIORITY_LABEL[p]}</>,
+          key: p, label: <>{p !== 'normal' && <span className={`prio-mark prio-${p}`} aria-hidden="true">{PRIORITY_MARK[p]}</span>}{PRIORITY_LABEL[p]}</>,
         }))} />
     </div>
   )
@@ -589,7 +589,7 @@ function ItemRow({ item, kind, groupBy, members, event, onToggle, onOpen, handle
       <div className="list-item-body" {...pressable(onOpen)}
         aria-label={[`Edit ${item.title}`, item.done && 'checked off', prio && `${PRIORITY_LABEL[prio]} priority`, due?.text, (item.notes || (notesOn && item.noteCount)) && 'has notes', item.stepsTotal > 0 && `${item.stepsDone} of ${item.stepsTotal} steps done`].filter(Boolean).join(', ')}>
         <div className="list-item-title-row">
-          {prio && <span className={`prio-dot prio-${prio}`} role="img" aria-label={PRIORITY_LABEL[prio]} />}
+          {prio && <PriorityBadge p={prio} />}
           <div className="list-item-title">{item.title}</div>
           {(item.notes || (notesOn && !!item.noteCount)) && <NoteIcon className="list-item-note" width={14} height={14} aria-hidden={false} role="img" aria-label="Has notes" />}
         </div>

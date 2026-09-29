@@ -12,13 +12,13 @@ import TakeNow from './TakeNow.tsx'
 import BatteryCard from './Battery.tsx'
 import { batteryOn } from './battery.ts'
 import Sheet from './Sheet.tsx'
+import { PriorityBadge } from './PriorityBadge.tsx'
 import { Segmented, announce } from './a11y.tsx'
 import { inkFor } from './color.ts'
 import { clockTime, formatTime, todayKeyInTz } from './date.ts'
 import { MEAL_SLOTS, SLOT_LABEL } from './meal-date.ts'
 
 type Range = 'day' | 'week'
-const PRIORITY_LABEL = { low: 'Low', normal: 'Normal', high: 'Important', urgent: 'Urgent' } as const
 
 // First look at a member's day on this device, today: the greeting adds "Here's your day".
 const SEEN_KEY = 'kinwall.snapshotSeen'
@@ -352,13 +352,12 @@ function dueText(i: SnapshotItem, today: string): string | null {
 
 /** `after`: extra content at the row's end (the Board puts the owner's avatar there). */
 export function ItemRow({ i, today, close, after }: { i: SnapshotItem; today: string; close: () => void; after?: React.ReactNode }) {
-  const prio = i.priority !== 'normal' ? i.priority : null
   return (
     <li>
       <button className="snap-row" onClick={() => go(`#/lists?list=${encodeURIComponent(i.listId)}`, close)}>
         <span className="snap-time snap-emoji" aria-hidden="true">{i.listEmoji || '📝'}</span>
         <span className="snap-main">
-          <span className="snap-title">{prio && <span className={`prio-dot prio-${prio}`} role="img" aria-label={PRIORITY_LABEL[prio]} />}{i.title}</span>
+          <span className="snap-title">{i.priority !== 'normal' && <PriorityBadge p={i.priority} />}{i.title}</span>
           <span className={`snap-meta ${i.overdue ? 'snap-overdue' : ''}`}>{[dueText(i, today), i.listName, i.stepsTotal > 0 && `${i.stepsDone}/${i.stepsTotal} steps`].filter(Boolean).join(' · ')}</span>
         </span>
         {after}
