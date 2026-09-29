@@ -456,7 +456,9 @@ test('mcp: every tool declares an output schema, and real results pass it', asyn
   const tools = (await (await mcp('tools/list', {})).json() as any).result.tools as any[];
   for (const t of tools) assert.equal(t.outputSchema?.type, 'object', `${t.name} has no output schema`);
 
-  // A small but realistic household, then every tool once.
+  // A small but realistic household, then every tool once. In UTC, so "today" below is the household's
+  // today whatever the machine's time zone (late evening in the Americas is tomorrow in UTC).
+  await rest('/api/settings', { method: 'PATCH', body: JSON.stringify({ timezone: 'UTC' }) });
   await rest('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Ava', color: '#ff0000', avatar: '🦄' }) });
   await rest('/api/categories', { method: 'POST', body: JSON.stringify({ name: 'School', emoji: '🏫', color: '#3366ff', keywords: ['school'] }) });
   const cal = await (await rest('/api/calendars', { method: 'POST', body: JSON.stringify({ kind: 'local', name: 'Home' }) })).json() as any;
