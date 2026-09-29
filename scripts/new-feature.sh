@@ -11,4 +11,6 @@ git fetch -q origin main
 dir="$(dirname "$root")/kinwall-$name"
 git worktree add -q -b "$name" "$dir" origin/main
 (cd "$dir/server" && npm ci --silent) && (cd "$dir/web" && npm ci --silent)
+# Copy the local code graph (AGENTS.md) so the worktree has one; scripts/graph.sh refreshes it.
+[ -d graphify-out ] && cp -R graphify-out "$dir/"
 echo "Ready: $dir (branch $name). Run scripts/check.sh there before pushing."

@@ -15,6 +15,23 @@ first. This file adds how work gets done.
   (`--all` cleans up every landed one).
 - One feature per branch, in files that don't overlap with other work in progress.
 
+## Finding your way around
+
+Optional: `graphify-out/` is a local, gitignored knowledge graph of the code and docs, built by
+the [graphify](https://github.com/safishamsi/graphify) CLI from code structure only (no LLM,
+nothing leaves the machine). Before reading many files to answer "where is X", "what calls Y" or
+"how does Z flow", ask the graph, then open only the files it points to:
+
+```bash
+graphify explain "runNotifications()"            # a symbol's file, line, callers and callees
+graphify query "where are medication reminders sent" --budget 800   # broader, noisier search
+graphify path "batteryFor()" "battery()"         # how two symbols connect
+```
+
+`scripts/graph.sh` builds it (about 15 seconds) and refreshes it after changes;
+`scripts/new-feature.sh` copies the current one into a new worktree. Without graphify installed,
+search the code as usual.
+
 ## Test first
 
 - Write the failing test before the change: a bug gets a test that reproduces it, a feature gets
