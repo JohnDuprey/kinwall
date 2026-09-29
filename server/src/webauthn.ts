@@ -43,7 +43,7 @@ function isIpAddress(hostname: string): boolean {
  * share one rpID across families on subdomains, so the origin must be that host or under it.
  * Throws RpIdIsIpError for an IP address (WebAuthn RP IDs must be a registrable domain, and Chrome
  * silently rejects IPs other than localhost). */
-export async function resolveRpId(env: Env, requestUrl: string): Promise<{ rpID: string; origin: string }> {
+export async function resolveRpId(env: Env, requestUrl: string): Promise<{ rpID: string; origin: string; expectedOrigins: string[] }> {
   const publicUrl = await effectivePublicUrl(env, env.DB);
   const url = new URL(publicUrl.value || requestUrl);
   const rpID = env.WEBAUTHN_RP_ID || url.hostname;
@@ -51,5 +51,8 @@ export async function resolveRpId(env: Env, requestUrl: string): Promise<{ rpID:
   if (url.hostname !== rpID && !url.hostname.endsWith('.' + rpID)) {
     throw new Error(`${url.hostname} is not ${rpID} or a subdomain of it (WEBAUTHN_RP_ID)`);
   }
-  return { rpID, origin: url.origin };
+  // Behind a TLS-terminating proxy (Home Assistant ingress, a reverse proxy without PUBLIC_URL) the
+  // request arrives as http while the browser is on https, so also accept the same host over https.
+  const expectedOrigins = !publicUrl.value && url.protocol === 'http:' ? [url.origin, 'https://' + url.host] : [url.origin];
+  return { rpID, origin: url.origin, expectedOrigins };
 }

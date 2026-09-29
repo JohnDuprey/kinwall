@@ -224,16 +224,16 @@ passkeysRoutes.openapi(
       if (!resolved || resolved.scope !== 'admin') return c.json({ error: 'unauthorized' }, 401);
     }
 
-    let rpID: string, origin: string;
+    let rpID: string, expectedOrigins: string[];
     try {
-      ({ rpID, origin } = await resolveRpId(c.env, c.req.url));
+      ({ rpID, expectedOrigins } = await resolveRpId(c.env, c.req.url));
     } catch (err) {
       return c.json({ error: errorMessage(err) }, 400);
     }
 
     let verification;
     try {
-      verification = await verifyRegistrationResponse({ response: response as any, expectedChallenge: challenge, expectedOrigin: origin, expectedRPID: rpID });
+      verification = await verifyRegistrationResponse({ response: response as any, expectedChallenge: challenge, expectedOrigin: expectedOrigins, expectedRPID: rpID });
     } catch (err) {
       return c.json({ error: errorMessage(err, 'registration verification failed') }, 400);
     }
@@ -337,15 +337,15 @@ passkeysRoutes.openapi(
     const taken = await takeChallenge(c.env.DB, 'auth_challenge', challenge);
     if (!taken) return c.json({ error: 'login ceremony expired or already used - try again' }, 400);
 
-    let rpID: string, origin: string;
+    let rpID: string, expectedOrigins: string[];
     try {
-      ({ rpID, origin } = await resolveRpId(c.env, c.req.url));
+      ({ rpID, expectedOrigins } = await resolveRpId(c.env, c.req.url));
     } catch (err) {
       return c.json({ error: errorMessage(err) }, 400);
     }
 
     try {
-      const { key, expiresAt } = await finishPasskeyLogin(c.env, { response, expectedChallenge: challenge, expectedOrigin: origin, expectedRpId: rpID });
+      const { key, expiresAt } = await finishPasskeyLogin(c.env, { response, expectedChallenge: challenge, expectedOrigin: expectedOrigins, expectedRpId: rpID });
       return c.json({ key, expiresAt }, 200);
     } catch (err) {
       return c.json({ error: errorMessage(err, 'authentication verification failed') }, 401);
