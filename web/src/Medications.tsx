@@ -8,8 +8,8 @@ import { inkFor } from './color.ts'
 import { formatTime } from './timeFormat.ts'
 import { dayName } from './Snapshot.tsx'
 import { announce } from './a11y.tsx'
-import { catchUpLabel, doseTimeLabel, scheduleLabel, STATUS, weekCells } from './medications.ts'
-import TakeNow from './TakeNow.tsx'
+import { askWhenTaken, catchUpLabel, doseTimeLabel, scheduleLabel, STATUS, statusLabel, weekCells } from './medications.ts'
+import TakeNow, { WhenTakenSheet } from './TakeNow.tsx'
 import type { Medication, MedicationHistory } from './types.ts'
 
 type Day = MedicationHistory['days'][number]
@@ -21,6 +21,7 @@ export default function Medications({ memberId }: { memberId?: string }) {
   const [error, setError] = useState('')
   const [reload, setReload] = useState(0)
   const [busy, setBusy] = useState<string | null>(null)
+  const [asking, setAsking] = useState<{ date: string; d: Day['doses'][number] } | null>(null) // Taken, well after its time: when?
   useEffect(() => {
     if (!member) return
     let canceled = false
@@ -36,12 +37,13 @@ export default function Medications({ memberId }: { memberId?: string }) {
   const today = shown?.days.at(-1)
   const yesterday = shown?.days.at(-2)
   const behind = yesterday?.doses.filter(d => d.status === 'missed') ?? []
-  // Catch-up: mark a dose that's due or past its window. The server logs the time it's marked.
-  const mark = async (date: string, d: Day['doses'][number], action: 'taken' | 'skipped') => {
+  // Catch-up: mark a dose that's due or past its window, at the time it's marked or, for Taken well after
+  // its time, when they say they took it (WhenTakenSheet).
+  const mark = async (date: string, d: Day['doses'][number], action: 'taken' | 'skipped', at?: string) => {
     const k = `${date}:${d.medicationId}:${d.time}`
     setBusy(k)
     try {
-      await api.markDose(d.medicationId, { date, time: d.time, action })
+      await api.markDose(d.medicationId, { date, time: d.time, action, ...(at ? { at } : {}) })
       const said = action === 'taken' ? 'Marked taken ✓' : 'Marked skipped'
       toast(said); announce(said); setReload(x => x + 1)
     } catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't save that", true) }
@@ -58,9 +60,9 @@ export default function Medications({ memberId }: { memberId?: string }) {
           <li key={k} className={`meds-today-row meds-${d.status}`}>
             <span className="meds-today-time">{doseTimeLabel(d)}</span>
             <span className="meds-today-what">{medName(m)}</span>
-            <span className="meds-status"><span aria-hidden="true">{s.emoji}</span> {s.label}{d.at && (d.status === 'taken' || d.status === 'skipped') ? ` ${formatTime(d.at)}` : ''}</span>
+            <span className="meds-status"><span aria-hidden="true">{s.emoji}</span> {statusLabel(d)}{d.at && (d.status === 'taken' || d.status === 'skipped') ? ` ${formatTime(d.at)}` : ''}</span>
             {taken && <div className="meds-now-actions meds-catch-up" role="group" aria-label={`${medName(m)}, ${doseTimeLabel(d)}`}>
-              <button className="btn btn-primary" disabled={busy === k} onClick={() => mark(day.date, d, 'taken')}>{taken}</button>
+              <button className="btn btn-primary" disabled={busy === k} onClick={() => (askWhenTaken(d.dueAt, Date.now()) ? setAsking({ date: day.date, d }) : mark(day.date, d, 'taken'))}>{taken}</button>
               <button className="btn btn-secondary" disabled={busy === k} onClick={() => mark(day.date, d, 'skipped')}>Skipped</button>
             </div>}
           </li>
@@ -119,6 +121,8 @@ export default function Medications({ memberId }: { memberId?: string }) {
           <p className="meds-legend">{(['taken', 'skipped', 'missed'] as const).map(k => <span key={k}><span aria-hidden="true">{STATUS[k].emoji}</span> {STATUS[k].label}</span>)}</p>
         </section>
       </>}
+      {asking && shown && <WhenTakenSheet dose={{ date: asking.date, dueAt: asking.d.dueAt }} today={shown.today} onClose={() => setAsking(null)}
+        onPick={at => { setAsking(null); mark(asking.date, asking.d, 'taken', at) }} />}
     </div>
   )
 }

@@ -62,6 +62,23 @@ export const STATUS: Record<DoseStatus, { emoji: string; label: string }> = {
  *  its late window ("Not marked"), null when it's marked or still to come. */
 export const catchUpLabel = (s: DoseStatus): string | null => (s === 'due' ? 'Taken' : s === 'missed' ? 'Taken late' : null)
 
+/** What a marked dose says: "Taken late" when it was taken after its late window closed. */
+export const statusLabel = (d: { status: DoseStatus; late: boolean }) => (d.status === 'taken' && d.late ? 'Taken late' : STATUS[d.status].label)
+
+/** Taken this long after a dose's time asks "When did you take it?" (Just now, At its time, Earlier…);
+ *  sooner, the Take now card keeps one tap. */
+export const ASK_AFTER_MS = 15 * 60_000
+export const askWhenTaken = (dueAt: string, now: number) => now - Date.parse(dueAt) > ASK_AFTER_MS
+
+/** "Earlier…": a time input for today's dose, a date and time for yesterday's; from the start of the
+ *  dose's day to now, starting at the dose's time. On this device's clock (the server checks the range again). */
+export function earlierInput(date: string, today: string, dueAt: string, now: number): { type: 'time' | 'datetime-local'; min: string; max: string; value: string } {
+  const f = date === today ? 'HH:mm' : "yyyy-MM-dd'T'HH:mm"
+  return { type: date === today ? 'time' : 'datetime-local', min: date === today ? '00:00' : `${date}T00:00`, max: format(now, f), value: format(Math.min(Date.parse(dueAt), now), f) }
+}
+/** The Earlier… input's value as an instant (ISO), or null while it's empty. */
+export const pickedTime = (value: string, date: string): string | null => (value ? new Date(value.includes('T') ? value : `${date}T${value}`).toISOString() : null)
+
 const WORST_FIRST: DoseStatus[] = ['missed', 'due', 'skipped', 'upcoming', 'taken']
 
 /** The 7-day grid's row for one medicine: a cell per day, oldest first; the worst dose that day wins. */

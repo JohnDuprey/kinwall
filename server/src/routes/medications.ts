@@ -40,6 +40,9 @@ export const STRICT_MS = 60 * 60_000; // lateWindow 'none': the card stays an ho
 export const EVENING = '20:00'; // lateWindow 'evening'
 export const LATE_MS = 30 * 60_000; // a kid's dose not marked by then tells parents
 export const SNOOZE_MS = 10 * 60_000;
+// Marking with `at` (a dose taken earlier than the tap): up to this far ahead of the server's clock is
+// the phone's clock running fast, and is stored as now; further ahead is refused.
+export const CLOCK_SKEW_MS = 2 * 60_000;
 
 const TimeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'times: HH:MM');
 const DateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'date: YYYY-MM-DD');
@@ -80,7 +83,8 @@ const DoseSchema = z
   .object({
     medicationId: z.string(), date: z.string(), time: z.string().openapi({ description: 'HH:MM, or "wake" for a "When I start my day" dose.' }), status: z.enum(STATUSES),
     startedAt: z.string().nullable().openapi({ description: 'A "When I start my day" dose: when their day started (null until it does, or when the latest time came first).' }),
-    at: z.string().nullable().openapi({ description: 'When it was marked taken or skipped.' }),
+    at: z.string().nullable().openapi({ description: 'When it was taken or skipped: the time it was marked, or the `at` it was marked with.' }),
+    late: z.boolean().openapi({ description: 'Taken after its late window closed.' }),
     by: z.string().nullable().openapi({ description: 'The device that marked it.' }),
     snoozedUntil: z.string().nullable(),
   })
@@ -226,6 +230,9 @@ export function dueAt(t: DoseTime, date: string, tz: string, e: DoseEntry | unde
 }
 /** A log key's dose time on this medicine (a time it no longer has: as it was). */
 export const timeFor = (m: Pick<Medication, 'times'>, key: string): DoseTime => m.times.find((t) => timeKey(t) === key) ?? (key === WAKE ? { wake: true, latest: '12:00' } : key);
+
+/** Taken after its late window closed ("Taken late"); a dose marked with an earlier `at` inside its window is on time. */
+export const takenLate = (e: DoseEntry | undefined, end: number) => e?.status === 'taken' && !!e.at && Date.parse(e.at) > end;
 
 export function doseStatus(dueAt: number, end: number, e: DoseEntry | undefined, now: number): (typeof STATUSES)[number] {
   if (e?.status) return e.status;
@@ -425,8 +432,10 @@ medicationsRoutes.openapi(
   createRoute({
     method: 'post', path: '/api/medications/{id}/doses', tags: TAG, security: [{ Bearer: [] }],
     summary: "Mark a dose taken or skipped, or snooze it 10 minutes (today's or yesterday's). Parent devices, shared walls, and the person's own device for their own.",
-    request: { params: idParams, body: { content: json(z.object({ date: DateSchema, time: z.union([TimeSchema, z.literal(WAKE)]), action: z.enum(['taken', 'skipped', 'snooze']) }).openapi('MedicationDoseInput')) } },
-    responses: { 200: { description: 'saved', content: json(DoseSchema) }, 400: err('not one of its doses, or nothing to snooze'), 409: err('marked from another device at the same moment'), ...denied },
+    request: { params: idParams, body: { content: json(z.object({ date: DateSchema, time: z.union([TimeSchema, z.literal(WAKE)]), action: z.enum(['taken', 'skipped', 'snooze']),
+      at: z.string().datetime({ offset: true }).optional().openapi({ description: "Taken or skipped only: when it really happened (ISO), for a dose marked after the fact. From the start of the dose's household day (midnight) until now (2 minutes ahead is taken as now). Default: now." }),
+    }).openapi('MedicationDoseInput')) } },
+    responses: { 200: { description: 'saved', content: json(DoseSchema) }, 400: err('not one of its doses, nothing to snooze, or an `at` out of range'), 409: err('marked from another device at the same moment'), ...denied },
   }),
   async (c) => {
     const g = await gate(c);
@@ -434,10 +443,16 @@ medicationsRoutes.openapi(
     const m = await findMed(c, c.req.valid('param').id);
     if (!m) return c.json({ error: 'not found' }, 404);
     if (g.who.kind === 'own' && g.who.memberId !== m.memberId) return c.json({ error: 'This device can only mark its own medicines.' }, 403);
-    const { date, time, action } = c.req.valid('json');
+    const { date, time, action, at: when } = c.req.valid('json');
     if (date !== g.today && date !== addDays(g.today, -1)) return c.json({ error: "Only today's and yesterday's doses can be marked" }, 400);
     const t = m.times.find((x) => timeKey(x) === time);
     if (!t || !scheduledOn(m, date)) return c.json({ error: "That isn't one of its doses" }, 400);
+    const taken = when === undefined ? null : Date.parse(when);
+    if (taken !== null) {
+      if (action === 'snooze') return c.json({ error: 'A time goes with taken or skipped only' }, 400);
+      if (taken > Date.now() + CLOCK_SKEW_MS) return c.json({ error: "That time hasn't happened yet" }, 400);
+      if (taken < doseAt(date, '00:00', g.tz)) return c.json({ error: "That's before the dose's day started" }, 400);
+    }
     const by = (await requestKey(c))?.name ?? null;
     const done = await updateLog(c.env, m.id, date, (log, now) => {
       const startedAt = log[time]?.startedAt ? { startedAt: log[time].startedAt } : {}; // kept through a snooze or a mark
@@ -445,14 +460,15 @@ medicationsRoutes.openapi(
         const at = dueAt(t, date, g.tz, log[time]);
         if (doseStatus(at, windowEnd(m.lateWindow, date, at, g.tz), log[time], now.getTime()) !== 'due') return false;
         log[time] = { ...startedAt, snoozedUntil: new Date(now.getTime() + SNOOZE_MS).toISOString() };
-      } else log[time] = { ...startedAt, status: action, at: now.toISOString(), ...(by ? { by } : {}) };
+      } else log[time] = { ...startedAt, status: action, at: new Date(Math.min(taken ?? Infinity, now.getTime())).toISOString(), ...(by ? { by } : {}) };
       return true;
     });
     if (done === 'conflict') return c.json({ error: 'Someone else just marked it. Try again.' }, 409);
     if (!done) return c.json({ error: 'Only a dose that is due can be snoozed' }, 400);
     const e = done.log[time];
     const at = dueAt(t, date, g.tz, e);
-    return c.json({ medicationId: m.id, date, time, status: doseStatus(at, windowEnd(m.lateWindow, date, at, g.tz), e, done.now.getTime()), startedAt: e.startedAt ?? null, at: e.at ?? null, by: e.by ?? null, snoozedUntil: e.snoozedUntil ?? null }, 200);
+    const end = windowEnd(m.lateWindow, date, at, g.tz);
+    return c.json({ medicationId: m.id, date, time, status: doseStatus(at, end, e, done.now.getTime()), startedAt: e.startedAt ?? null, at: e.at ?? null, late: takenLate(e, end), by: e.by ?? null, snoozedUntil: e.snoozedUntil ?? null }, 200);
   },
 );
 
@@ -500,7 +516,8 @@ medicationsRoutes.openapi(
         return times.map((time) => {
           const e = log[time];
           const due = dueAt(timeFor(m, time), date, g.tz, e);
-          return { medicationId: m.id, time, dueAt: new Date(due).toISOString(), status: doseStatus(due, windowEnd(m.lateWindow, date, due, g.tz), e, now), startedAt: e?.startedAt ?? null, at: e?.at ?? null, by: e?.by ?? null };
+          const end = windowEnd(m.lateWindow, date, due, g.tz);
+          return { medicationId: m.id, time, dueAt: new Date(due).toISOString(), status: doseStatus(due, end, e, now), startedAt: e?.startedAt ?? null, at: e?.at ?? null, late: takenLate(e, end), by: e?.by ?? null };
         });
       }).sort((a, b) => a.dueAt.localeCompare(b.dueAt) || a.time.localeCompare(b.time));
       days.push({ date, doses });

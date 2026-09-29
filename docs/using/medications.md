@@ -39,6 +39,8 @@ At each dose time, a **💊 Take now** tile joins the [Board](calendar.md)'s cou
 * **Skip**: logs that it was skipped on purpose.
 * **Snooze 10 min**: hides the card for 10 minutes, then it comes back with one more reminder.
 
+Within 15 minutes of the dose's time, **Taken** is one tap. Later than that, it asks **When did you take it?**: **Just now**, **At 8:00 AM** (the dose's time), or **Earlier…** to pick a time between the start of the dose's day and now (a date and time for yesterday's dose). The Live Activity's **Taken** button always logs now.
+
 The card stays until the dose is marked, or until its late window closes: 3 hours after its time by default, 8 PM, midnight, or 1 hour for **Don't take late**. After that the dose counts as **Not marked**.
 
 On a shared wall screen the card says **Meds** instead of the medicine's name, unless the family turns on **Show medicine names on shared screens** (in **Trackers → Health → Medicines**). Anyone at the wall can mark a dose, since many families give medicines in the kitchen.
@@ -73,7 +75,7 @@ Open it with **Open medicines** on their [profile](profiles.md), or **History** 
 * **Yesterday**, when any of yesterday's doses weren't marked: the same buttons, for catching up the next morning;
 * **Last 7 days**: a row per medicine and a column per day.
 
-Catching up logs the time it was marked, not the dose's time, and a dose taken late counts toward a course's **doses left**. Older days can't be changed.
+Catching up asks **When did you take it?** too, and logs that time: a dose taken inside its late window shows ✅ **Taken** with its time even when it's marked hours later, and one taken after the window closed shows ✅ **Taken late**. A dose taken late counts toward a course's **doses left**. Older days can't be changed.
 
 It opens on the person's own device and on parents' devices, and both can catch up there. A shared wall screen shows only the Take now card (it has no history, so no catch-up); other people's devices get "private".
 
@@ -102,7 +104,7 @@ All medication routes answer 404 while the feature is off.
 * `DELETE /api/medications`: delete all medication data (parents only; works while off).
 * Each entry in `times` is `"HH:MM"`, or `{ "wake": true, "latest": "HH:MM" }` for **When I start my day** (one at most). Its doses use `time: "wake"`.
 * `GET /api/medications/due`: `{ names, doses: [{ medicationId, memberId, date, time, dueAt, startedAt, until, name, dose }] }`, the Take now cards. `startedAt` is when the person's day started (a `"wake"` dose), `until` when the late window closes. `name` and `dose` are `null` on a shared wall with names off.
-* `POST /api/medications/{id}/doses` with `{ date, time, action: "taken" | "skipped" | "snooze" }` (today's or yesterday's doses): parent devices, shared walls, and the person's own device.
-* `GET /api/members/{id}/medications?days=7`: `{ memberId, today, medications, days: [{ date, doses: [{ medicationId, time, dueAt, status, startedAt, at, by }] }] }`, oldest first. Their own device and parent devices only.
+* `POST /api/medications/{id}/doses` with `{ date, time, action: "taken" | "skipped" | "snooze", at? }` (today's or yesterday's doses): parent devices, shared walls, and the person's own device. `at` (ISO, taken or skipped only) is when it really happened, for a dose marked after the fact; the default is now. It must be between the start of the dose's household day (midnight) and now; up to 2 minutes ahead counts as a fast clock and is stored as now, anything else answers 400.
+* `GET /api/members/{id}/medications?days=7`: `{ memberId, today, medications, days: [{ date, doses: [{ medicationId, time, dueAt, status, startedAt, at, late, by }] }] }`, oldest first. `at` is when it was taken or skipped, `late` whether it was taken after its late window closed. Their own device and parent devices only.
 * `POST /api/members/{id}/day-started`: the person's own device opened the app today (204; again the same day changes nothing). Their own device only: 403 for parent devices, shared walls and anyone else.
 * Connected apps get 403 unless `aiHealthAccess` is on. There are no webhook events and no MCP tool.

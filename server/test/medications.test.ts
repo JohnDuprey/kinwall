@@ -344,6 +344,37 @@ test("catch-up: a dose past its window (yesterday's too) can still be marked, wi
   assert.equal((await s.mark(med.id, 'snooze', ADMIN, '08:00', '2026-09-27')).status, 400, 'nothing to snooze');
 });
 
+test('catch-up with `at`: when a forgotten dose was really taken; not in the future, not before its day; stored as the taken time', async (t) => {
+  t.after(() => mock.timers.reset());
+  const s = await setup({ now: at('07:00', '2026-09-27') });
+  const med = (await s.add(s.leo.id, { totalDoses: 5 })).json; // 8 AM, up to 3 hours late
+  const strict = (await s.add(s.leo.id, { times: ['08:00'], lateWindow: 'none' })).json; // 1 hour
+  const leos = await s.key(s.leo.id);
+  mock.timers.setTime(at('21:30').getTime());
+  const markAt = (id: string, when: Date | string, date = TODAY, action = 'taken') => s.req(`/api/medications/${id}/doses`, 'POST', { date, time: '08:00', action, at: typeof when === 'string' ? when : when.toISOString() }, leos);
+  assert.equal((await markAt(med.id, at('21:40'))).status, 400, 'not in the future');
+  assert.equal((await markAt(med.id, at('23:59', '2026-09-27'))).status, 400, "not before the start of the dose's day");
+  assert.equal((await markAt(med.id, at('23:59', '2026-09-26'), '2026-09-27')).status, 400, "a yesterday dose: not before yesterday's day start");
+  assert.equal((await markAt(med.id, 'noon')).status, 400, 'an ISO time');
+  assert.equal((await markAt(med.id, at('08:00'), TODAY, 'snooze')).status, 400, 'only for taken or skipped');
+  assert.deepEqual((await s.req(`/api/members/${s.leo.id}/medications`)).json.days.slice(-2).map((d: any) => d.doses.map((x: any) => x.status)), [['missed', 'missed'], ['missed', 'missed']], 'nothing stored');
+
+  const yesterday = await markAt(med.id, at('08:10', '2026-09-27'), '2026-09-27');
+  assert.deepEqual([yesterday.status, yesterday.json.status, yesterday.json.at, yesterday.json.late], [200, 'taken', at('08:10', '2026-09-27').toISOString(), false], "yesterday's dose, backdated: taken on time");
+  const skew = await markAt(med.id, new Date(Date.now() + 60_000));
+  assert.deepEqual([skew.status, skew.json.at], [200, at('21:30').toISOString()], "a minute ahead is the phone's clock: stored as now");
+  const early = await markAt(strict.id, at('07:45'));
+  assert.deepEqual([early.status, early.json.late], [200, false], 'taken a little early is on time');
+  const late = await markAt(strict.id, at('09:30'), '2026-09-27');
+  assert.deepEqual([late.status, late.json.late], [200, true], 'past its 1-hour window: taken late');
+
+  const h = (await s.req(`/api/members/${s.leo.id}/medications`)).json;
+  const row = (date: string, id: string) => h.days.find((d: any) => d.date === date).doses.find((x: any) => x.medicationId === id);
+  assert.deepEqual([row('2026-09-27', med.id).at, row('2026-09-27', med.id).late], [at('08:10', '2026-09-27').toISOString(), false], 'history has the time it was taken');
+  assert.deepEqual([row(TODAY, med.id).late, row(TODAY, strict.id).at, row('2026-09-27', strict.id).late], [true, at('07:45').toISOString(), true], 'stored as 9:30 PM: late');
+  assert.equal((await s.req('/api/medications')).json.find((m: any) => m.id === med.id).dosesLeft, 3, 'the course counts them');
+});
+
 test('history: today plus the last 6 days from each medicine\'s schedule, on its weekdays only', async (t) => {
   t.after(() => mock.timers.reset());
   const { req, leo, add, mark } = await setup({ now: at('07:00', '2026-09-21') });

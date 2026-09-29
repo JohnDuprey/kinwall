@@ -7,7 +7,9 @@ import { api, ApiError, PUSH_SUB_ID_KEY } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { announce } from './a11y.tsx'
 import { inkFor } from './color.ts'
-import { cardLabel, cheerLine, doseTimeLabel } from './medications.ts'
+import { askWhenTaken, cardLabel, cheerLine, doseTimeLabel, earlierInput, pickedTime } from './medications.ts'
+import { formatTime } from './timeFormat.ts'
+import { todayKeyInTz } from './date.ts'
 import { medicationActivity } from './liveActivity.ts'
 import { appMedicineNames, endAppActivity, MED_NAMES_EVENT, tellAppActivity } from './native.ts'
 import { Confetti } from './Chores.tsx'
@@ -106,15 +108,37 @@ export function TakeNowTile({ doses, drop }: Due) {
   </>
 }
 
+/** "When did you take it?" for a dose marked Taken more than ASK_AFTER_MS after its time: Just now (one
+ *  tap), At its time, or Earlier… (from the start of its day to now). onPick gets the time, none for now. */
+export function WhenTakenSheet({ dose, today, onPick, onClose }: { dose: { date: string; dueAt: string }; today: string; onPick: (at?: string) => void; onClose: () => void }) {
+  const [earlier, setEarlier] = useState<ReturnType<typeof earlierInput> | null>(null)
+  const picked = earlier && pickedTime(earlier.value, dose.date)
+  return (
+    <Sheet title="When did you take it?" variant="dialog" onClose={onClose}
+      actions={earlier && <button className="btn btn-primary" disabled={!picked} onClick={() => picked && onPick(picked)}>Save</button>}>
+      <div className="sheet-links">
+        <button type="button" className="sheet-link" onClick={() => onPick()}>Just now</button>
+        <button type="button" className="sheet-link" onClick={() => onPick(dose.dueAt)}>At {formatTime(new Date(dose.dueAt))}</button>
+        <button type="button" className="sheet-link" aria-expanded={!!earlier} onClick={() => setEarlier(earlierInput(dose.date, today, dose.dueAt, Date.now()))}>Earlier…</button>
+      </div>
+      {earlier && <div className="field">
+        <label htmlFor="when-taken">Taken at</label>
+        <input id="when-taken" type={earlier.type} min={earlier.min} max={earlier.max} value={earlier.value} onChange={e => setEarlier({ ...earlier, value: e.target.value })} />
+      </div>}
+    </Sheet>
+  )
+}
+
 function DoseList({ doses, drop }: Due) {
-  const { members, toast } = useApp()
+  const { members, settings, toast } = useApp()
   const [busy, setBusy] = useState<string | null>(null)
+  const [asking, setAsking] = useState<DueDose | null>(null) // Taken, well after its time: when?
   const [cheer, setCheer] = useState<{ key: string; line: string } | null>(null) // the dose just marked Taken: a moment of cheer before it goes
-  const mark = async (d: DueDose, action: 'taken' | 'skipped' | 'snooze') => {
+  const mark = async (d: DueDose, action: 'taken' | 'skipped' | 'snooze', at?: string) => {
     const who = members.find(m => m.id === d.memberId)?.name ?? 'Them'
     setBusy(key(d))
     try {
-      await api.markDose(d.medicationId, { date: d.date, time: d.time, action })
+      await api.markDose(d.medicationId, { date: d.date, time: d.time, action, ...(at ? { at } : {}) })
       if (action === 'taken') {
         // A small celebration, no points: points would give a reason to tap Taken without taking it.
         // Low-stimulation mode (per device): one calm line, and its CSS already hides the confetti.
@@ -130,7 +154,7 @@ function DoseList({ doses, drop }: Due) {
     finally { setBusy(null) }
   }
 
-  return (
+  return <>
     <ul className="meds-now-list">
       {doses.map(d => {
         const m = members.find(x => x.id === d.memberId)
@@ -143,7 +167,7 @@ function DoseList({ doses, drop }: Due) {
               <span>{label} · {doseTimeLabel(d)}</span>
             </p>
             {cheer?.key === key(d) ? <p className="meds-now-cheer" role="status">{cheer.line} Taken ✓<Confetti /></p> : <div className="meds-now-actions" role="group" aria-label={`${m?.name ?? 'Someone'}: ${label}, ${doseTimeLabel(d)}`}>
-              <button className="btn btn-primary" disabled={busy === key(d)} onClick={() => mark(d, 'taken')}>Taken</button>
+              <button className="btn btn-primary" disabled={busy === key(d)} onClick={() => (askWhenTaken(d.dueAt, Date.now()) ? setAsking(d) : mark(d, 'taken'))}>Taken</button>
               <button className="btn btn-secondary" disabled={busy === key(d)} onClick={() => mark(d, 'skipped')}>Skip</button>
               <button className="btn btn-secondary" disabled={busy === key(d)} onClick={() => mark(d, 'snooze')}>Snooze 10 min</button>
             </div>}
@@ -151,5 +175,7 @@ function DoseList({ doses, drop }: Due) {
         )
       })}
     </ul>
-  )
+    {asking && <WhenTakenSheet dose={asking} today={todayKeyInTz(settings.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone)} onClose={() => setAsking(null)}
+      onPick={at => { setAsking(null); mark(asking, 'taken', at) }} />}
+  </>
 }
