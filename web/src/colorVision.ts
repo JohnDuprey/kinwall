@@ -58,14 +58,21 @@ export function alikeUnder(a: string, b: string): Vision | null {
 
 export const looksAlike = (a: string, b: string) => alikeUnder(a, b) !== null
 
-/** From `palette`, the color farthest from every color in `taken` under every kind of vision, or null
- * when even the best one would look like someone's. */
+/** Typical-vision ΔE a suggestion should keep from everyone, so it doesn't sit next to a near twin
+ * (a rose beside a pink) even when it's far enough apart for color blindness. */
+export const DISTINCT_DE = 25
+
+/** From `palette`, a color for someone that looks like no one in `taken`: preferably clearly different
+ * with typical vision (ΔE ≥ DISTINCT_DE from everyone), and among those the one farthest from
+ * everyone under the color blindness simulations. With none that clear, the one farthest under every
+ * kind of vision. Null when even that would look like someone's. */
 export function suggestColor(taken: readonly string[], palette: readonly string[]): string | null {
-  let best: string | null = null, bestScore = ALIKE_DE
-  for (const c of palette) {
-    const score = Math.min(...taken.flatMap(t => VISIONS.map(v => deltaE(c, t, v))))
-    if (score >= bestScore) { best = c; bestScore = score }
-  }
+  const minDe = (c: string, visions: readonly Vision[]) => Math.min(...taken.flatMap(t => visions.map(v => deltaE(c, t, v))))
+  const ok = palette.filter(c => minDe(c, VISIONS) >= ALIKE_DE)
+  const clear = ok.filter(c => minDe(c, ['typical']) >= DISTINCT_DE)
+  const [pool, visions] = clear.length ? [clear, VISIONS.slice(1)] : [ok, VISIONS]
+  let best: string | null = null, bestScore = -1
+  for (const c of pool) { const s = minDe(c, visions); if (s > bestScore) { best = c; bestScore = s } }
   return best
 }
 

@@ -49,3 +49,13 @@ test('firstClash: the first pair in family order that looks alike, the later one
   assert.deepEqual(clash && [clash[0].name, clash[1].name, clash[2]], ['Sam', 'Maya', 'deutan'])
   assert.equal(firstClash([family[0], family[1], family[3]]), null)
 })
+
+test('suggestColor: clearly different with typical vision first (the demo: Maya gets no pink)', () => {
+  const others = ['#7AB8FF', '#FF8FA3', '#F5A65B'] // Alex, Sam, Leo
+  const pick = suggestColor(others, MEMBER_PALETTE)!
+  for (const o of others) {
+    assert.ok(deltaE(pick, o) >= 25, `${pick} vs ${o}: ${deltaE(pick, o).toFixed(1)}`)
+    assert.equal(looksAlike(pick, o), false)
+  }
+  assert.notEqual(pick, '#FFB6D9', 'not Rose, next to Sam\'s pink')
+})
