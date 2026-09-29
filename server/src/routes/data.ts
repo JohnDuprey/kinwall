@@ -243,7 +243,7 @@ dataRoutes.openapi(
       {
         version: EXPORT_VERSION,
         exportedAt: date,
-        settings: await readSettings(db),
+        settings: (({ googlePhotos: _, ...settings }) => settings)(await readSettings(db)), // a connection, not a setting
         members: await Promise.all((members as MemberRow[]).map(async ({ id, name, color, avatar, birthday, sort, grown_up, needs_approval, transitions, reward_goal, temp_check, temp_check_feelings }) => ({
           id, name, color, avatar, birthday, sort, grownUp: !!grown_up, needsApproval: !!needs_approval, transitionReminders: parseTransitions(transitions), rewardGoalId: reward_goal,
           tempCheck: parseTempCheck(temp_check), tempCheckFeelings: healthHidden ? [] : await readCustom(c.env, id, temp_check_feelings),

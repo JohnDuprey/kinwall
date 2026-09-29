@@ -5,6 +5,7 @@ import type { Env } from '../env.ts';
 import { emit } from '../bus.ts';
 import { isConnectedApp } from './mcp-oauth.ts';
 import { schemeContrastFailures } from '../colors.ts';
+import { GOOGLE_PHOTOS_STATE_SQL, type GooglePhotosState } from './google-photos.ts';
 import { TIME_FORMATS, TYPEFACES, COLOR_SCHEMES, CUSTOM_SCHEME_ID_RE, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, ErrorSchema, FeaturesSchema, LocationSchema, MealTimesSchema, SettingsPatchSchema, SettingsSchema, TidbitSettingsSchema } from '../schemas.ts';
 
 export const settingsRoutes = createRouter();
@@ -31,7 +32,10 @@ const DEFAULTS: Record<string, string> = {
 };
 
 export async function readSettings(db: KinwallDb) {
-  const { results } = await db.prepare('SELECT key, value FROM settings').all<{ key: string; value: string }>();
+  // Google Photos' state rides along in the same query (walls need it to offer the source).
+  const { results } = await db
+    .prepare(`SELECT key, value FROM settings UNION ALL SELECT 'googlePhotos:state', ${GOOGLE_PHOTOS_STATE_SQL} FROM google_photos`)
+    .all<{ key: string; value: string }>();
   const map = new Map(results.map((r) => [r.key, r.value]));
   const location = parseLocation(map.get('location'));
   return {
@@ -73,6 +77,7 @@ export async function readSettings(db: KinwallDb) {
     // Medication reminders (routes/medications.ts): off until a parent turns it on, and part of the Health tracker.
     medications: map.get('medications') === 'true' && parseFeatures(map.get('features')).trackersHealth,
     medicationNamesOnWalls: map.get('medicationNamesOnWalls') === 'true', // shared screens say "Meds" until the family turns names on
+    googlePhotos: (map.get('googlePhotos:state') ?? 'off') as GooglePhotosState, // routes/google-photos.ts; left out of the export
   };
 }
 

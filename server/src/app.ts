@@ -41,6 +41,7 @@ import { insightsRoutes } from './routes/insights.ts';
 import { medicationsRoutes } from './routes/medications.ts';
 import { rewardsRoutes } from './routes/rewards.ts';
 import { photosRoutes } from './routes/photos.ts';
+import { googlePhotosRoutes } from './routes/google-photos.ts';
 import { snapshotRoutes } from './routes/snapshot.ts';
 import { weatherRoutes } from './routes/weather.ts';
 import { tidbitRoutes } from './routes/tidbits.ts';
@@ -118,6 +119,7 @@ export function createApp() {
   app.route('/', medicationsRoutes);
   app.route('/', rewardsRoutes);
   app.route('/', photosRoutes);
+  app.route('/', googlePhotosRoutes);
   app.route('/', snapshotRoutes);
   app.route('/', weatherRoutes);
   app.route('/', tidbitRoutes);

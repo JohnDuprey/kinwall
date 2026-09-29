@@ -24,6 +24,8 @@ const HA_OPTIONS_PATH = '/data/options.json';
 const HA_ENV_MAP: Record<string, string> = {
   google_client_id: 'GOOGLE_CLIENT_ID',
   google_client_secret: 'GOOGLE_CLIENT_SECRET',
+  google_photos_client_id: 'GOOGLE_PHOTOS_CLIENT_ID',
+  google_photos_client_secret: 'GOOGLE_PHOTOS_CLIENT_SECRET',
   ms_client_id: 'MS_CLIENT_ID',
   ms_client_secret: 'MS_CLIENT_SECRET',
   microsoft_client_id: 'MS_CLIENT_ID', // the add-on's config.yaml option names
@@ -110,6 +112,8 @@ const env: Env = {
   CORS_ORIGINS: process.env.CORS_ORIGINS,
   GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
   GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
+  GOOGLE_PHOTOS_CLIENT_ID: process.env.GOOGLE_PHOTOS_CLIENT_ID,
+  GOOGLE_PHOTOS_CLIENT_SECRET: process.env.GOOGLE_PHOTOS_CLIENT_SECRET,
   MS_CLIENT_ID: process.env.MS_CLIENT_ID,
   MS_CLIENT_SECRET: process.env.MS_CLIENT_SECRET,
   MS_TENANT: process.env.MS_TENANT,

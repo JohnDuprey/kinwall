@@ -193,6 +193,7 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'GET', pattern: /^\/api\/photos(\/quota)?$/ },
   { method: 'POST', pattern: /^\/api\/photos$/ }, // Paint's "Save to family photos" on the wall; delete/edit stay admin-only
   { method: 'GET', pattern: /^\/api\/photos\/[^/]+\/image$/ },
+  { method: 'GET', pattern: /^\/api\/google-photos(\/next)?$/ }, // the Night screen and the Board show them; connecting is for parent devices
   // Trackers: reading and memories on the wall (kids log books there). The paths are shared with
   // health, so routes/trackers.ts refuses health to display keys itself. No DELETE.
   { method: 'GET', pattern: /^\/api\/trackers(\/[^/]+)?$/ },

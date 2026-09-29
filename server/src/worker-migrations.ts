@@ -61,6 +61,7 @@ import m0057 from '../migrations/0057_recipe_basics.sql';
 import m0058 from '../migrations/0058_battery_drained.sql';
 import m0059 from '../migrations/0059_live_activity_tokens.sql';
 import m0060 from '../migrations/0060_member_nudges.sql';
+import m0061 from '../migrations/0061_google_photos.sql';
 
 export const MIGRATIONS: Migration[] = [
   { name: '0001_init.sql', sql: m0001 },
@@ -123,4 +124,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0058_battery_drained.sql', sql: m0058 },
   { name: '0059_live_activity_tokens.sql', sql: m0059 },
   { name: '0060_member_nudges.sql', sql: m0060 },
+  { name: '0061_google_photos.sql', sql: m0061 },
 ];

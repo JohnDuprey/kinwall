@@ -58,6 +58,8 @@ General API calls aren't rate-limited. Only credential guessing is:
 | Recovery-code login | 10 per hour per address, 30 per hour overall |
 | Quiet-hours PIN check | 10 wrong tries in a row per key per 15 minutes (429) |
 | Shared recipe pages and photos (`/r/*`) | 120 per minute per address |
+| Google Photos pictures (`GET /api/google-photos/next`) | 300 per hour per key |
+| Connecting Google Photos | 20 per hour |
 
 On Workers, the free-tier quota (100k requests/day) is the practical ceiling. See [Cloudflare specifics](../self-hosting/cloudflare.md).
 
@@ -105,6 +107,7 @@ Feature switches on `PATCH /api/settings` are sent as the complete `features` ob
 | Rewards | `GET/POST /api/rewards`, `PATCH/DELETE /api/rewards/{id}`, `POST /api/rewards/{id}/redeem`, `GET /api/rewards/redemptions`, `POST /api/rewards/redemptions/{id}/approve`, `/decline`, `/given`, `PUT /api/members/{id}/reward-goal`. Display keys list, redeem and set a goal (a member's own device only for them); the rest is admin. See [Rewards](../using/rewards.md#export-api-and-integrations) |
 | Stickers | `GET /api/members/{id}/points`, `GET /api/stickers/packs`, `POST /api/stickers/packs/{packId}/buy`, `GET/POST /api/stickers/scrapbook/{memberId}`, `PATCH/DELETE /api/stickers/scrapbook/{memberId}/{id}` |
 | Photos | `GET/POST /api/photos` (POST body: the raw image), `GET /api/photos/quota`, `PATCH/DELETE /api/photos/{id}`, `GET /api/photos/{id}/image`, `GET /api/photos/export.zip`, `POST /api/photos/import` (body: the zip) |
+| Google Photos | `GET /api/google-photos`, `POST /api/google-photos/connect`, `DELETE /api/google-photos`, `GET /api/google-photos/next?w=&h=`. See [Google Photos](#google-photos). |
 | Notes | `GET/POST /api/notes`, `PATCH/DELETE /api/notes/{id}` |
 | Data | `GET /api/export`, `POST /api/import`, `GET /api/host-events` |
 
@@ -122,6 +125,15 @@ Start or end the [Night screen](../using/quiet-hours.md#start-it-from-home-assis
 curl -X POST -H "Authorization: Bearer $KEY" -H 'Content-Type: application/json' \
   -d '{"on":true}' https://kinwall.example/api/displays/night-screen
 ```
+
+## Google Photos
+
+[Google Photos](../using/photos.md#google-photos) for the Night screen and the Board. Connecting is for admin keys and parent devices; display keys may read the state and get pictures. There are no webhook events or MCP tools for it.
+
+* `POST /api/google-photos/connect` starts Google's sign-in and returns `{ available, state: "signing-in", userCode, verificationUrl, codeExpiresAt }`: show the code and the link. 503 when the server has no Google Photos client, 409 when already connected.
+* `GET /api/google-photos` returns `{ available, state }`, plus `userCode`/`verificationUrl` while `signing-in`, `settingsUri` (Google Photos' album picker) while `choosing` and when `ready`, and `photos` (how many) when `ready`. While connecting, call it every few seconds: each call also checks with Google, no more often than Google allows. `state` is `off`, `signing-in`, `choosing`, `ready` or `reconnect`. Display keys get `available` and `state` only. `GET /api/settings` has the same `state` as `googlePhotos`.
+* `GET /api/google-photos/next?w=1920&h=1080` returns the next picture's bytes (a shuffled pass over the picked photos), fitted within `w`×`h` (64 to 4096; default 1920×1080), with `Cache-Control: no-store`. 404: no photos in the picked albums. 409: not `ready` (including `reconnect`). 502: Google failed; try again at the next picture.
+* `DELETE /api/google-photos` disconnects: deletes the Photos device at Google, revokes the sign-in and forgets the photo list.
 
 ## Member stats
 
