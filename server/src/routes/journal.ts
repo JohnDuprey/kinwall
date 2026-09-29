@@ -63,6 +63,8 @@ const aad = (id: string, col: 'text' | 'mood') => `${id}:${col}`;
 export async function sealEntry(env: EncryptionEnv, r: JournalRow): Promise<JournalRow> {
   return { ...r, text: await seal(env, r.text, aad(r.id, 'text')), mood: r.mood === null ? null : await seal(env, r.mood, aad(r.id, 'mood')) };
 }
+/** Only an entry's mood, opened (Insights count entries and moods, never the words). */
+export const openMood = (env: EncryptionEnv, r: { id: string; mood: string | null }) => (r.mood === null ? null : unseal(env, r.mood, aad(r.id, 'mood')));
 /** A stored row, opened, as the API returns it (a sealed value that won't open throws: never read as empty). */
 export async function openEntry(env: EncryptionEnv, r: JournalRow) {
   return {

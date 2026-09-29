@@ -50,6 +50,15 @@ A person's [journal](../using/journal.md) entries (the words and the mood) are e
 * **Claude and other connected apps** get nothing from the journal until a parent turns on **Let connected apps see health entries**. There's no MCP tool for it.
 * The [export](export-import.md) holds entries in plain form; importing encrypts them again.
 
+### Insights
+
+[Insights](../using/insights.md) are built from Temp check answers, goal checks and journal moods, so they're treated like the journal:
+
+* **Computed on request, never stored.** Nothing new is saved, so there's nothing extra to encrypt, back up or delete: the server opens the encrypted answers, works out the charts and sentences for that one request and forgets them. Journal **words are never read**, only how many entries there were and their mood emoji.
+* **Who can open them:** the person's own device and parents' devices (for kids, parents can see them too). Never a shared wall screen (403, and it shows no link) or another person's device.
+* **Claude and other connected apps** get nothing (403) until a parent turns on **Let connected apps see health entries**. There's no MCP tool for Insights. Everything is plain arithmetic on the server: no AI writes or reads the insights.
+* Never in the server logs, webhooks, the snapshot, profiles or push text. The [export](export-import.md) doesn't include them: they're worked out from data it already has.
+
 ### Medications
 
 [Medication reminders](../using/medications.md) are off until a parent turns them on. A medicine's name, dose, times and weekdays, and each day's log of doses marked taken, skipped or snoozed (when, and on which device), are encrypted like health entries: bound to the row, refused without a key, never in the server logs. Only who the medicine is for and which day a log is for stay plain. Reminder bookkeeping stores a one-way hash, not the medicine or the time. Nothing about conditions or diagnoses is asked or kept.

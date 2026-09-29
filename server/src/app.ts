@@ -35,6 +35,7 @@ import { memberStatsRoutes } from './routes/member-stats.ts';
 import { checkInRoutes } from './routes/check-in.ts';
 import { tempCheckRoutes } from './routes/temp-check.ts';
 import { journalRoutes } from './routes/journal.ts';
+import { insightsRoutes } from './routes/insights.ts';
 import { medicationsRoutes } from './routes/medications.ts';
 import { rewardsRoutes } from './routes/rewards.ts';
 import { photosRoutes } from './routes/photos.ts';
@@ -108,6 +109,7 @@ export function createApp() {
   app.route('/', checkInRoutes);
   app.route('/', tempCheckRoutes);
   app.route('/', journalRoutes);
+  app.route('/', insightsRoutes);
   app.route('/', medicationsRoutes);
   app.route('/', rewardsRoutes);
   app.route('/', photosRoutes);
