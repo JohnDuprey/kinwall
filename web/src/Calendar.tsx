@@ -18,6 +18,7 @@ import { warningTimes } from './transitions.ts'
 import NotesThread from './NotesThread.tsx'
 import Board from './Board.tsx'
 import { PriorityBadge } from './PriorityBadge.tsx'
+import { isSingleEmoji } from './emoji.ts'
 import { calendarGoal } from './tempCheck.ts'
 
 const PHONE_WEEK_DAYS = 3
@@ -477,7 +478,8 @@ function eventVisual(ev: EventInstance, members: ChipMember[], categories: ChipC
   if (category) {
     // Category color always wins, but member avatars stay visible - without stripes, a solid
     // category color alone wouldn't say who's assigned.
-    return { background: category.color, avatars: assigned.map(m => m.avatar || m.name[0]), ink: inkFor(category.color), emoji: category.emoji, pill: true, solid: category.color }
+    // Its emoji, or its name when it has none: the category must not be told by its color alone.
+    return { background: category.color, avatars: assigned.map(m => m.avatar || m.name[0]), ink: inkFor(category.color), emoji: category.emoji || category.name, pill: true, solid: category.color }
   }
   if (assigned.length <= 1) {
     const color = assigned[0]?.color ?? ev.color
@@ -498,12 +500,17 @@ function LeaveMarker({ ev, tz, dayKey, hourPx, left, width, color }: { ev: Event
   return <div className="leave-marker" aria-hidden="true" style={{ top: (minutesSinceMidnight(ev.leaveAt, tz) / 60) * hourPx, left, width, borderColor: color }}><span>🚗</span></div>
 }
 
+/** A category's emoji (its own span so icon-first density can enlarge it apart from the title), or
+ * its name and a dot when it has no emoji. */
+function CategoryMark({ mark }: { mark: string }) {
+  return isSingleEmoji(mark) ? <span className="event-emoji">{mark}</span> : <>{mark} ·</>
+}
+
 /** Title text (truncating), optionally prefixed with a category emoji, plus - for striped
  * multi-member or categorized events - an inline avatar row and a translucent backing pill so
  * text stays readable over the stripes/category color. */
 function EventTitle({ title, avatars, emoji, pill }: { title: string; avatars: string[]; emoji?: string | null; pill?: boolean }) {
-  // The emoji is its own span so icon-first density can enlarge it apart from the title.
-  const text = emoji ? <><span className="event-emoji">{emoji}</span> {title}</> : title
+  const text = emoji ? <><CategoryMark mark={emoji} /> {title}</> : title
   if (avatars.length === 0) return <span className="event-title-text">{text}</span>
   return (
     <>
@@ -806,7 +813,7 @@ function ScheduleView({ anchor, events, tz, members, categories, onTap }: { anch
                 <div className="schedule-time" aria-hidden="true">{ev.allDay ? 'All day' : formatTime(ev.start, tz)}</div>
                 <div>
                   <button type="button" className="plain-btn schedule-title" aria-label={eventLabel(ev, tz, members, categories)}
-                    onClick={e => { e.stopPropagation(); onTap(ev) }}>{emoji && <><span className="event-emoji">{emoji}</span> </>}{ev.title}{avatars.length > 0 && <span className="event-avatars schedule-avatars">{avatars.join(' ')}</span>}{!!ev.noteCount && <span className="schedule-notes" aria-hidden="true">💬 {ev.noteCount}</span>}</button>
+                    onClick={e => { e.stopPropagation(); onTap(ev) }}>{emoji && <><CategoryMark mark={emoji} /> </>}{ev.title}{avatars.length > 0 && <span className="event-avatars schedule-avatars">{avatars.join(' ')}</span>}{!!ev.noteCount && <span className="schedule-notes" aria-hidden="true">💬 {ev.noteCount}</span>}</button>
                   {ev.leaveAt && <div className="leave-by" aria-hidden="true">🚗 Leave by {formatTime(ev.leaveAt, tz)}</div>}
                   {ev.location && (() => {
                     const href = locationHref(ev.location)

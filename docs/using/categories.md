@@ -1,6 +1,6 @@
 # Categories & auto-categorizing
 
-Categories (🎂 Birthdays, 🏥 Appointments, ⚽ Sports…) give events an emoji and a color. **A category's color overrides the member color**, and member avatars still show on the event.
+Categories (🎂 Birthdays, 🏥 Appointments, ⚽ Sports…) give events an emoji and a color. **A category's color overrides the member color**, and member avatars still show on the event. The emoji shows before the title too, so a category never depends on its color alone; a category without an emoji (one made through the API) shows its name instead ("Music · Piano Lesson").
 
 ## Managing categories
 

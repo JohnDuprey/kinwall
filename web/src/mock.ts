@@ -200,6 +200,8 @@ const calendars: CalendarEntry[] = [
 const categories: Category[] = [
   { id: 'cat1', name: 'Birthdays', emoji: '🎂', color: '#FF9E7A', keywords: ['birthday', 'bday', 'b-day'], sort: 0, createdAt: new Date().toISOString() },
   { id: 'cat2', name: 'Sports', emoji: '⚽', color: '#7ED9A6', keywords: ['practice', 'game', 'soccer'], sort: 1, createdAt: new Date().toISOString() },
+  // No emoji (one made through the API): the calendar shows its name instead.
+  { id: 'cat3', name: 'Music', emoji: null, color: '#B39DFF', keywords: ['piano'], sort: 2, createdAt: new Date().toISOString() },
 ]
 
 function at(daysFromToday: number, hh: number, mm = 0) {
@@ -228,7 +230,7 @@ const events: EventInstance[] = [
   { id: 'e2', calendarId: 'c1', title: 'Team Meeting', start: at(0, 16, 30), end: at(0, 17), allDay: false, location: null, description: null, memberIds: ['m1'], color: '#7AB8FF', rrule: null, occurrenceStart: null, readOnly: false, seriesId: null, memberScope: 'none', categoryId: null, categorySource: null, reminders: null, travelMinutes: null, leaveAt: null, remindBeforeLeave: false },
   { id: 'e3', calendarId: 'c2', title: 'Teacher In-Service (No School)', start: dateOnly(1), end: dateOnly(2), allDay: true, location: null, description: null, memberIds: ['m3'], color: '#FFD166', rrule: null, occurrenceStart: null, readOnly: true, seriesId: null, memberScope: 'none', categoryId: null, categorySource: null, reminders: null, travelMinutes: null, leaveAt: null, remindBeforeLeave: false },
   { id: 'e4', calendarId: 'c1', title: 'Family Dinner', start: at(2, 18), end: at(2, 19), allDay: false, location: 'Home', description: null, memberIds: [], color: '#B39DFF', rrule: null, occurrenceStart: null, readOnly: false, seriesId: null, memberScope: 'none', categoryId: null, categorySource: null, reminders: null, travelMinutes: null, leaveAt: null, remindBeforeLeave: false },
-  { id: 'e5', calendarId: 'c1', title: 'Piano Lesson', start: at(3, 15), end: at(3, 15, 45), allDay: false, location: null, description: null, memberIds: ['m3'], color: '#7ED9A6', rrule: null, occurrenceStart: null, readOnly: false, seriesId: null, memberScope: 'none', categoryId: null, categorySource: null, reminders: null, travelMinutes: null, leaveAt: null, remindBeforeLeave: false },
+  { id: 'e5', calendarId: 'c1', title: 'Piano Lesson', start: at(3, 15), end: at(3, 15, 45), allDay: false, location: null, description: null, memberIds: ['m3'], color: '#7ED9A6', rrule: null, occurrenceStart: null, readOnly: false, seriesId: null, memberScope: 'none', categoryId: 'cat3', categorySource: 'keyword', reminders: null, travelMinutes: null, leaveAt: null, remindBeforeLeave: false },
   { id: 'e6', calendarId: 'c1', title: 'Book Club', start: at(-1, 19), end: at(-1, 20), allDay: false, location: null, description: null, memberIds: ['m1'], color: '#7AB8FF', rrule: 'FREQ=WEEKLY', occurrenceStart: at(-1, 19), readOnly: false, seriesId: null, memberScope: 'none', categoryId: null, categorySource: null, reminders: null, travelMinutes: null, leaveAt: null, remindBeforeLeave: false },
   { id: 'e7', calendarId: 'c1', title: "Sam's Birthday", start: dateOnly(4), end: dateOnly(5), allDay: true, location: null, description: null, memberIds: ['m2'], color: '#FF8FA3', rrule: null, occurrenceStart: null, readOnly: false, seriesId: null, memberScope: 'none', categoryId: 'cat1', categorySource: 'keyword', reminders: null, travelMinutes: null, leaveAt: null, remindBeforeLeave: false },
   // A fuller two weeks around today so the demo never opens on an empty calendar.

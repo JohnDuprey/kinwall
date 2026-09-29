@@ -44,6 +44,7 @@ About 1 in 12 men and 1 in 200 women have some color blindness, most often red-g
 - **People**: every event, chore column and Board row shows the person's avatar or name as well as their color bar. The one exception is the phone's month view, where chips show only the title (tap the day to see who).
 - **Family colors**: Settings → Family warns when two people's colors would look alike ("Sam and Maya may look alike to someone with red-green color blindness") and suggests a palette color that stands out for one of them. The member editor says the same when you pick a clashing color. See [Members](settings/family.md#members).
 - **List priority**: a badge with a mark of its own shape and the word, "‼ Urgent", "! High" or "↓ Low", not a colored dot.
+- **Categories**: an event shows its category's emoji before the title, or the category's name when it has no emoji. The calendar filter and pickers show names.
 - **Charts**: parts differ by fill, not only by shade. Goals met are solid, partly met striped, not met an outline, and no check yet a dashed outline; the battery's days ahead are dashed.
 
 How the check works: each color is run through the Machado, Oliveira and Fernandes (2009) simulations of protanopia, deuteranopia and tritanopia (full severity, in linear RGB), and two colors count as alike when they're closer than 10 ΔE (CIE76, the distance in CIELAB) under any of them, or with typical vision. CIE76 is enough for "can you tell these apart at a glance?", which is a much bigger difference than the fine steps CIEDE2000 was made for.
