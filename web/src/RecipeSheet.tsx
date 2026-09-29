@@ -156,7 +156,7 @@ export default function RecipeSheet({ recipe, library = [], admin, owner, onClos
     {cookSteps.length > 0 && <button type="button" className="btn btn-primary cook-start" onClick={() => setCooking(true)}>
       🍳 {resumeAt > 0 && resumeAt < cookSteps.length ? `Resume cooking · step ${resumeAt + 1}` : 'Start cooking'}
     </button>}
-    <Ratings key={recipe.id} recipe={recipe} owner={owner} onRated={onRated} />
+    <Ratings key={`rating:${recipe.id}`} recipe={recipe} owner={owner} onRated={onRated} />
     <div className="recipe-servings">
       <h3>Ingredients</h3>
       {/* A basic is made as written: how much it makes, not servings. */}
@@ -167,11 +167,11 @@ export default function RecipeSheet({ recipe, library = [], admin, owner, onClos
       </div>}
     </div>
     <IngredientList recipe={recipe} servings={servings} onBasic={openBasic} />
-    {recipe.steps?.length ? <StepCards key={recipe.id} recipe={recipe} steps={recipe.steps} />
+    {recipe.steps?.length ? <StepCards key={`steps:${recipe.id}`} recipe={recipe} steps={recipe.steps} />
       : recipe.instructions && <><h3>Steps</h3><Steps text={recipe.instructions} /></>}
     {recipe.preparationNotes && <><h3>Preparation notes</h3><p className="meal-prose">{recipe.preparationNotes}</p></>}
     {recipe.sourceUrl && <div className="sheet-links"><SourceLink url={recipe.sourceUrl} pdfPath={`api/recipes/${encodeURIComponent(recipe.id)}/source.pdf`} title={recipe.name} /></div>}
-    {admin && <RecipeShare key={recipe.id} recipe={recipe} />}
+    {admin && <RecipeShare key={`share:${recipe.id}`} recipe={recipe} />}
   </Sheet>
   {cooking && <CookingMode recipe={recipe} steps={cookSteps} servings={servings} library={library} onClose={() => setCooking(false)} />}
   </>
