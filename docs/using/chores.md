@@ -18,7 +18,7 @@ Don't use chores? An admin can turn off **Chores & points** in **Settings → Ge
 
 A person's day (their snapshot) lists their chores for today, plus **Anyone** chores. Tap a chore to mark it done, or (after confirming) not done, the same as on the Chores tab. An **Anyone** chore done from someone's day counts for that person. A chore with a checklist that still has open items opens the checklist first.
 
-On a phone, open someone's day from the family button at the top left, then **Their day**.
+On a phone, open someone's day from the family button at the top left, then tap the person.
 
 ## Creating and editing
 

@@ -1,6 +1,6 @@
 # Daily & weekly snapshot
 
-Tap a family member's avatar in the header (on a phone, tap the family button, then **Their day** next to the person) to see **their day** at a glance. Switch to **Week** at the top for the next 7 days.
+Tap a family member's avatar in the header (on a phone, tap the family button, then the person) to see **their day** at a glance. Switch to **Week** at the top for the next 7 days.
 
 ## Day
 

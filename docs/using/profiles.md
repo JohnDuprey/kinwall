@@ -7,7 +7,7 @@ A profile is about one person. It never ranks brothers and sisters or puts their
 ## Opening a profile
 
 * **Chores**: tap someone's pill on the leaderboard.
-* **Header**: tap a person's avatar (on a phone, the family button, then **Their day**), then **Profile** at the top of their day.
+* **Header**: tap a person's avatar (on a phone, the family button, then the person), then **Profile** at the top of their day.
 * **Me**: a device that belongs to one person (set under [Settings → Access](../settings/access.md)) gets **Me** in the menu, right after Chores. It opens their own profile.
 * On a tablet or wall screen, the row of people at the top switches between profiles.
 

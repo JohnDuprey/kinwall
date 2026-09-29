@@ -5,7 +5,7 @@ import { api, clearKey, getKey, onSynced, setAdminKey, setKey, useOffline, usePo
 import { AppContext, useApp } from './AppContext.tsx'
 import type { Category, Member, Settings } from './types.ts'
 import { trackerKinds } from './types.ts'
-import { BookIcon, MoreIcon, BrushIcon, CalendarIcon, ChevronRight, ChoreIcon, CloudOffIcon, GiftIcon, ListIcon, MealIcon, PersonIcon, SettingsIcon } from './icons.tsx'
+import { BookIcon, MoreIcon, BrushIcon, CalendarIcon, ChoreIcon, CloudOffIcon, GiftIcon, ListIcon, MealIcon, PersonIcon, SettingsIcon } from './icons.tsx'
 import CalendarView from './Calendar.tsx'
 import Chores from './Chores.tsx'
 import Lists from './Lists.tsx'
@@ -695,7 +695,7 @@ function MemberAvatars({ members, selectedMemberId }: { members: Member[]; selec
 }
 
 /** Phone header: the family name and a pile of faces as one button. It opens the family sheet:
- * tap a person to show only them, "Their day" for their snapshot (where chores tick off). Same size for a family of three or nine, and the name is never squeezed. */
+ * tap a person for their day (their snapshot, where chores tick off); the round button on the right shows only them on the calendar. Same size for a family of three or nine, and the name is never squeezed. */
 function FamilyButton({ name, members, selectedMemberId }: { name: string; members: Member[]; selectedMemberId: string | null }) {
   const { setSelectedMemberId } = useApp()
   const [open, setOpen] = useState(false)
@@ -738,13 +738,13 @@ function FamilySheet({ name, members, selectedMemberId, onClose, onFilter, onSna
       <div className="family-list">
         {members.map(m => (
           <div key={m.id} className="family-row-wrap">
-            <button className={`family-row ${m.id === selectedMemberId ? 'on' : ''}`} aria-pressed={m.id === selectedMemberId}
-              onClick={() => onFilter(m.id === selectedMemberId ? null : m.id)}>
+            <button className={`family-row ${m.id === selectedMemberId ? 'on' : ''}`} aria-haspopup="dialog" onClick={() => onSnapshot(m)}>
               <span className={`member-avatar-sm ${m.id === selectedMemberId ? 'selected' : ''}`} style={{ background: m.color, color: inkFor(m.color) }} aria-hidden="true">{m.avatar || m.name[0]}</span>
               <span className="family-row-name">{m.name}</span>
               {(m.id === selectedMemberId || settings.features.chores) && <span className="family-row-sub">{m.id === selectedMemberId ? 'Calendar shows only them' : `${m.pointsToday} pts today`}</span>}
             </button>
-            <button className="family-day-btn" aria-haspopup="dialog" onClick={() => onSnapshot(m)} aria-label={`${m.name}'s day`}>Their day <ChevronRight width={16} height={16} /></button>
+            <button className={`family-pick ${m.id === selectedMemberId ? 'on' : ''}`} aria-pressed={m.id === selectedMemberId}
+              aria-label={`Show only ${m.name} on the calendar`} onClick={() => onFilter(m.id === selectedMemberId ? null : m.id)}><span aria-hidden="true" /></button>
           </div>
         ))}
       </div>
