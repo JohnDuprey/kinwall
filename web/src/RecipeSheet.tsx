@@ -3,7 +3,7 @@ import { api, MOCK } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { useDialog } from './dialog.tsx'
 import Sheet from './Sheet.tsx'
-import { CheckIcon, ChevronRight, EditIcon, ExternalIcon, FileIcon, LinkIcon, MinusIcon, PlusIcon } from './icons.tsx'
+import { CheckIcon, ChevronLeft, ChevronRight, EditIcon, ExternalIcon, FileIcon, LinkIcon, MinusIcon, PlusIcon } from './icons.tsx'
 import { ingredientAmount, isPdfUrl, recipeTime, servingsLabel, urlHost } from './meal-date.ts'
 import { KIT_QUALIFIER, type IngredientInput, type Recipe, type RecipeInput, type RecipeKind, type RecipeRating, type RecipeSnapshot, type RecipeStep } from './meal-types.ts'
 import { matchBasic } from './recipe-search.ts'
@@ -127,7 +127,7 @@ function Ratings({ recipe, owner, onRated }: { recipe: Recipe; owner?: string | 
 export default function RecipeSheet({ recipe, library = [], admin, owner, onClose, onSaved, onPlan, onRated, onEditMeal }: {
   recipe: Recipe | null; library?: Recipe[]; admin: boolean; owner?: string | null; onClose: () => void; onSaved: () => void; onPlan?: (recipe: Recipe) => void; onRated?: () => void
   /** Opened from a planned meal: a button back to that meal's details. */
-  onEditMeal?: { label: string; open: () => void }
+  onEditMeal?: { label: string; open: () => void; back?: boolean }
 }) {
   const [editing, setEditing] = useState(!recipe)
   // Reading a recipe while cooking: keep the screen on until it's closed (not while editing).
@@ -139,14 +139,14 @@ export default function RecipeSheet({ recipe, library = [], admin, owner, onClos
   const [basic, setBasic] = useState<Recipe | null>(null)
   if (editing || !recipe) return <RecipeEditor recipe={recipe} library={library} onClose={recipe ? () => setEditing(false) : onClose} onSaved={onSaved} />
   if (basic) return <RecipeSheet key={basic.id} recipe={basic} library={library} admin={admin} owner={owner} onClose={() => setBasic(null)} onSaved={onSaved} onRated={onRated}
-    onEditMeal={{ label: `Back to ${recipe.name}`, open: () => setBasic(null) }} />
+    onEditMeal={{ label: `Back to ${recipe.name}`, open: () => setBasic(null), back: true }} />
   const openBasic = (id: string) => { const found = library.find(r => r.id === id); if (found) setBasic(found) }
   const isBasic = recipe.kind === 'basic'
   const time = recipeTime(recipe)
   const step = (by: number) => setServings(n => Math.max(1, Math.round(n) + by))
   const cookSteps = cookingSteps(recipe), resumeAt = savedStep(recipe.id)
   return <><Sheet title={recipe.name} onClose={onClose} actions={admin || onEditMeal || (onPlan && !recipe.archived) ? <>
-    {onEditMeal && <button className="btn btn-secondary" onClick={onEditMeal.open}><EditIcon width={20} height={20} /> {onEditMeal.label}</button>}
+    {onEditMeal && <button className="btn btn-secondary" onClick={onEditMeal.open}>{onEditMeal.back ? <ChevronLeft width={20} height={20} /> : <EditIcon width={20} height={20} />} {onEditMeal.label}</button>}
     {admin && <button className="btn btn-secondary" onClick={() => setEditing(true)}><EditIcon width={20} height={20} /> Edit</button>}
     {onPlan && !recipe.archived && <button className="btn btn-primary" onClick={() => onPlan(recipe)}>Plan this meal</button>}
   </> : undefined}>
