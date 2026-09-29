@@ -1272,6 +1272,7 @@ function TimeCueRows() {
       </div>
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
         <div className="settings-row-label" aria-hidden="true">Transition warnings</div>
+        <div className="settings-row-sub">A calm banner before the next event, or before it's time to leave. Pick one or more times, add your own, or repeat them as the event gets close. Not during quiet hours.</div>
         <MinutesPicker idBase="warn" label="Transition warnings" presets={[10, 5, 1]} minutes={warnings} repeat={device.warningRepeat ?? null} repeatDefault={{ every: 1, within: 5 }}
           onOff={() => set({ warnings: undefined, warningRepeat: undefined })}
           onChange={(minutes, repeat) => set({ warnings: minutes.length ? minutes : undefined, warningRepeat: repeat ?? undefined })} />
@@ -1282,7 +1283,7 @@ function TimeCueRows() {
               onClick={() => set({ warningSound: !device.warningSound || undefined })}><span className="knob" /></button>
           </div>
         )}
-        <div className="settings-row-sub">A calm banner before the next event (or its leave-by time). Pick as many times as help, add your own, or repeat them as the event gets close. Never during quiet hours.</div>
+        {anyWarnings && <div className="settings-row-sub">A soft chime with each warning.</div>}
       </div>
     </>
   )
