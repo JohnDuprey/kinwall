@@ -113,7 +113,7 @@ export default function MealProjection({ from: initialFrom, to: initialTo, admin
       <button className="btn btn-secondary" onClick={() => setAsking(null)}>Cancel</button>
       <button className="btn btn-primary" onClick={() => void apply(asking)}>Add to list</button>
     </>}>
-      <p>{basics.length === 1 ? 'This is something you make yourself.' : 'These are things you make yourself.'} If it's made already, it stays off the list. If not, what goes into it is added instead.</p>
+      <p className="meal-sheet-intro">{basics.length === 1 ? 'This is something you make yourself.' : 'These are things you make yourself.'} If it's made already, it stays off the list. If not, what goes into it is added instead.</p>
       {basics.map(([basicId, name]) => <div key={basicId} className="field"><label htmlFor={`${id}-basic-${basicId}`}>{name}: made already?</label>
         <select id={`${id}-basic-${basicId}`} value={asking[basicId] ?? 'ingredients'} onChange={e => setAsking(a => ({ ...a, [basicId]: e.target.value as BasicChoices[string] }))}>
           <option value="made">Made already</option><option value="ingredients">Add its ingredients</option>

@@ -45,6 +45,7 @@
 .meal-check label { flex: 1; cursor: pointer; }
 .meal-ingredients { padding-left: 22px; }
 .meal-ingredients li { margin: 10px 0; overflow-wrap: anywhere; }
+.meal-sheet-intro { margin: 0 0 20px; }
 .meal-prose { white-space: pre-wrap; overflow-wrap: anywhere; }
 .meal-projection-list { list-style: none; padding: 0; }
 .meal-projection-item { padding: 12px 0 18px; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
@@ -188,6 +189,8 @@
 .cook-step-side { display: grid; gap: 16px; align-content: start; min-width: 0; }
 .cook-step-side .cook-ingredients { margin-top: 0; }
 .cook-ingredients { margin-top: 16px; padding: 12px 18px; border-radius: var(--radius-sm); background: var(--card); border: 1px solid var(--border); }
+/* Above the step text (no photo): the same 20px as between the photo and the step. */
+.cook-ingredients + .cook-step-text, .cook-ingredients + .cook-bullets { margin-top: 20px; }
 .cook-ingredients h4 { margin: 4px 0 0; font-size: 0.9375rem; color: var(--text-dim); }
 .cook-ingredients .meal-ingredients, .cook-drawer .meal-ingredients { font-size: 1.125rem; }
 .cook-nav { flex-shrink: 0; display: flex; gap: 12px; padding: 12px 16px calc(var(--safe-b) + 12px); background: var(--card); border-top: 1px solid var(--border); }
