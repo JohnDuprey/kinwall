@@ -33,7 +33,7 @@ Under **Appearance on this device** (tap **Change**):
 
 * **Mode**, **Text size** and **Density** are menus. The first option is **Household (*current value*)**, which follows the family setting.
 * **Color scheme** opens the same sheet as the household setting, with **Use the family's scheme** first, which follows the family setting. The family's own schemes are there too. See [Color schemes](#color-schemes).
-* **Typeface**: Default (Nunito), Hyperlegible (Atkinson Hyperlegible Next), Dyslexia-friendly (Lexend), Modern (Figtree), Playful (Fredoka), Storybook (Literata) or Handwritten (Kalam). A typeface other than the default is loaded from Google Fonts the first time this device picks it.
+* **Typeface**: tap the row (it shows the current typeface in itself) to open the **Typeface** sheet: Default (Nunito), Hyperlegible (Atkinson Hyperlegible Next), Dyslexia-friendly (Lexend), Modern (Figtree), Playful (Fredoka), Storybook (Literata) or Handwritten (Kalam). Each card shows a sample line in that typeface and what it's good for. Tap one to use it right away, then **Done**. The other typefaces are loaded from Google Fonts when this device opens the sheet or picks one.
 * **Low-stimulation mode**: a toggle that reduces motion and visual noise on this device.
 
 **Reset this device's appearance**, at the bottom of the Color scheme sheet, puts mode, color scheme, text size, density, typeface and low-stimulation mode back to the family's settings on this device. It asks first.

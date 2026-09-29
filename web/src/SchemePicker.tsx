@@ -1,5 +1,7 @@
-import type { KeyboardEvent, ReactNode } from 'react'
+import { useId, useState, type KeyboardEvent, type ReactNode } from 'react'
 import Sheet from './Sheet.tsx'
+import { loadFont } from './useTheme.ts'
+import type { FontChoice } from './useTheme.ts'
 import { findSkin, getSkin, SCHEME_BLURBS, SCHEME_GROUPS, seasonalNote, seasonalSkinId, tokensFor, type CustomScheme, type Skin } from './skins.ts'
 
 /** A scheme's light and dark look as a tiny Board: background, a card, two lines of text and an
@@ -97,5 +99,44 @@ export function SchemePickerSheet({ value, family, customs, familyScheme, onPick
       </div>
       <div className="scheme-sheet-foot">{footer}</div>
     </Sheet>
+  )
+}
+
+const SAMPLE = 'Soccer at 4:00 · Tacos for dinner'
+
+/** Typeface row and sheet (this device): the row shows the current typeface in itself; the sheet has
+ * one card per typeface with a sample line set in it. Opening the sheet loads every typeface so the
+ * samples are real. Tapping applies it live; Done closes. */
+export function TypefaceRow({ options, value, onPick }: {
+  options: { key: FontChoice | ''; label: string; desc: string }[]
+  value: FontChoice | ''
+  onPick: (key: FontChoice | '') => void
+}) {
+  const [open, setOpen] = useState(false)
+  const valueId = useId()
+  const current = options.find(o => o.key === value) ?? options[0]
+  return (
+    <div className="device-pref-row">
+      <span aria-hidden="true">Typeface</span>
+      <button type="button" className="settings-select scheme-row" aria-label="Typeface on this device" aria-describedby={valueId} aria-haspopup="dialog" onClick={() => setOpen(true)}>
+        <span id={valueId} className="scheme-row-name" style={{ fontFamily: loadFont(value || undefined) }}>{current.label}</span>
+      </button>
+      {open && (
+        <Sheet title="Typeface" onClose={() => setOpen(false)} actions={<button className="btn btn-primary btn-block" onClick={() => setOpen(false)}>Done</button>}>
+          <div className="scheme-groups" onKeyDown={onArrows}>
+            <div className="scheme-grid">
+              {options.map(o => (
+                <button key={o.key} type="button" className="scheme-card" aria-pressed={o.key === value} onClick={() => onPick(o.key)}>
+                  {o.key === value && <span className="scheme-card-check" aria-hidden="true">✓</span>}
+                  <span className="scheme-card-name typeface-name" style={{ fontFamily: loadFont(o.key || undefined) }}>{o.label}</span>
+                  <span className="typeface-sample" style={{ fontFamily: loadFont(o.key || undefined) }}>{SAMPLE}</span>
+                  <span className="scheme-card-desc">{o.desc}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </Sheet>
+      )}
+    </div>
   )
 }

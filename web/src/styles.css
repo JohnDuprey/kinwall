@@ -768,6 +768,8 @@ button {
 .scheme-mini-line.short { width: 55%; }
 .scheme-mini-pill { height: 9px; width: 45%; border-radius: 999px; margin-top: 2px; }
 .scheme-group .scheme-actions { margin-top: 10px; }
+.typeface-name { padding-right: 24px; }
+.typeface-sample { font-size: 1.0625rem; font-weight: 600; line-height: 1.35; }
 .scheme-sheet-foot { border-top: 1px solid var(--border); padding-top: 14px; }
 .scheme-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .scheme-list-row { display: flex; align-items: center; gap: 10px; }

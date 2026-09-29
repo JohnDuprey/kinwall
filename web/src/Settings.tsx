@@ -5,7 +5,7 @@ import type { Account, ApiKey, CalendarEntry, Category, ColorScheme, CustomColor
 import { ProviderForm, PublicUrlRow } from './ProviderConfig.tsx'
 import { CATEGORY_EMOJI, CATEGORY_PRESETS, MEMBER_EMOJI, MEMBER_PALETTE, nextPaletteColor, REMINDER_OPTIONS } from './types.ts'
 import Sheet from './Sheet.tsx'
-import { SchemePickerSheet } from './SchemePicker.tsx'
+import { SchemePickerSheet, TypefaceRow } from './SchemePicker.tsx'
 import TidbitsSheet from './TidbitsSheet.tsx'
 import { tidbitSummary } from './tidbits.ts'
 import { featuresSummary, nightSummary, timeCuesSummary, transitionRemindersSummary } from './settingsSummary.ts'
@@ -379,9 +379,14 @@ const DENSITIES: { key: Density; label: string }[] = [
 ]
 // Icon-first is per device: the household setting (server) only knows comfortable/compact.
 const DEVICE_DENSITIES: { key: DeviceDensity; label: string }[] = [...DENSITIES, { key: 'icons', label: 'Icon-first' }]
-const FONTS: { key: FontChoice | ''; label: string }[] = [
-  { key: '', label: 'Default (Nunito)' }, { key: 'hyperlegible', label: 'Hyperlegible (Atkinson)' }, { key: 'dyslexia', label: 'Dyslexia-friendly (Lexend)' },
-  { key: 'modern', label: 'Modern (Figtree)' }, { key: 'playful', label: 'Playful (Fredoka)' }, { key: 'storybook', label: 'Storybook (Literata)' }, { key: 'handwritten', label: 'Handwritten (Kalam)' },
+const FONTS: { key: FontChoice | ''; label: string; desc: string }[] = [
+  { key: '', label: 'Default (Nunito)', desc: "Rounded and friendly, Kinwall's own" },
+  { key: 'hyperlegible', label: 'Hyperlegible (Atkinson)', desc: 'Clear, distinct letters for low vision' },
+  { key: 'dyslexia', label: 'Dyslexia-friendly (Lexend)', desc: 'Wide, even spacing for easier reading' },
+  { key: 'modern', label: 'Modern (Figtree)', desc: 'Clean and geometric' },
+  { key: 'playful', label: 'Playful (Fredoka)', desc: 'Round and bubbly, fun for kids' },
+  { key: 'storybook', label: 'Storybook (Literata)', desc: 'A bookish serif, calm to read' },
+  { key: 'handwritten', label: 'Handwritten (Kalam)', desc: 'Like a note on the fridge' },
 ]
 
 function AppearanceSection({ settings, onSaved, toast }: { settings: Settings; onSaved: () => void; toast: (m: string, persist?: boolean) => void }) {
@@ -1067,12 +1072,7 @@ function DeviceAppearanceRows() {
           </div>
         )
       })}
-      <div className="device-pref-row">
-        <span>Typeface</span>
-        <select className="settings-select" aria-label="Typeface on this device" value={device.font ?? ''} onChange={e => set({ font: (e.target.value || undefined) as FontChoice | undefined })}>
-          {FONTS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
-        </select>
-      </div>
+      <TypefaceRow options={FONTS} value={device.font ?? ''} onPick={key => { set({ font: (key || undefined) as FontChoice | undefined }); announce(`${FONTS.find(f => f.key === key)?.label.split(' (')[0]} typeface`) }} />
       <div className="toggle-row">
         <label id="lowstim-label">Low-stimulation mode</label>
         <button className={`switch ${device.lowStim ? 'on' : ''}`} role="switch" aria-checked={!!device.lowStim} aria-labelledby="lowstim-label" aria-describedby="lowstim-sub"

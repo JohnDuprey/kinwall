@@ -116,8 +116,9 @@ export function effectiveDensity(household: Appearance['density'], device: Devic
   return device.lowStim && d === 'compact' ? 'comfortable' : d
 }
 
-// Google Fonts families for the typeface choice; the stylesheet is only requested once picked.
-const FONTS: Record<FontChoice, { family: string; query: string }> = {
+// Google Fonts families for the typeface choice; the stylesheet is only requested once picked
+// (or once the Typeface sheet shows them all).
+export const FONT_FAMILIES: Record<FontChoice, { family: string; query: string }> = {
   hyperlegible: { family: "'Atkinson Hyperlegible Next'", query: 'Atkinson+Hyperlegible+Next:wght@400;600;700;800' },
   dyslexia: { family: "'Lexend'", query: 'Lexend:wght@400;600;700;800' },
   modern: { family: "'Figtree'", query: 'Figtree:wght@400;600;700;800' },
@@ -125,10 +126,10 @@ const FONTS: Record<FontChoice, { family: string; query: string }> = {
   storybook: { family: "'Literata'", query: 'Literata:opsz,wght@7..72,400;7..72,600;7..72,700;7..72,800' },
   handwritten: { family: "'Kalam'", query: 'Kalam:wght@400;700' }, // 400 and 700 only; heavier weights use 700
 }
-function applyFont(font: FontChoice | undefined) {
-  const root = document.documentElement
-  const f = font && FONTS[font]
-  if (!f) { root.style.removeProperty('--font'); return }
+/** Adds a typeface's Google Fonts stylesheet once and returns its CSS family ('Nunito' for the default). */
+export function loadFont(font: FontChoice | undefined): string {
+  const f = font && FONT_FAMILIES[font]
+  if (!f) return "'Nunito'"
   const id = `kw-font-${font}`
   if (!document.getElementById(id)) {
     const link = document.createElement('link')
@@ -137,7 +138,11 @@ function applyFont(font: FontChoice | undefined) {
     link.href = `https://fonts.googleapis.com/css2?family=${f.query}&display=swap`
     document.head.appendChild(link)
   }
-  root.style.setProperty('--font', f.family)
+  return f.family
+}
+function applyFont(font: FontChoice | undefined) {
+  if (font && FONT_FAMILIES[font]) document.documentElement.style.setProperty('--font', loadFont(font))
+  else document.documentElement.style.removeProperty('--font')
 }
 
 function applyAppearance(household: Appearance, device: DeviceAppearance) {
