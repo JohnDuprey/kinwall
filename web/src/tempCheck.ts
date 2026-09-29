@@ -12,6 +12,7 @@ export const SLEEP = [
 export type Sleep = (typeof SLEEP)[number]['key']
 export const FEELINGS = ['great', 'good', 'fine', 'ok', 'bad', 'awful', 'tired', 'sore']
 export const GOAL_MAX = 140
+export const TEMP_CHECK_OFF: TempCheckSettings = { on: false, sleep: true, feelings: true, goal: true, showGoal: true, evening: false, eveningTime: '21:00', journal: true }
 
 type GoalMember = Pick<Member, 'id' | 'name'> & { tempCheck?: TempCheckSettings; todayGoal?: string | null }
 const hasGoal = (m: GoalMember) => !!(m.tempCheck?.on && m.tempCheck.goal && m.todayGoal)

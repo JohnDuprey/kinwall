@@ -12,7 +12,7 @@ import { priorityRankSql } from './routes/lists.ts';
 import { parseMemberIds } from './calendar-members.ts';
 import { sendWebPush } from './webpush.ts';
 import { readFeatures, type Features } from './routes/settings.ts';
-import { parseTransitions } from './routes/members.ts';
+import { parseTempCheck, parseTransitions } from './routes/members.ts';
 
 export const DEFAULT_PUSH_PREFS = {
   eventReminders: true,
@@ -120,7 +120,7 @@ async function pruneSentNotifications(db: KinwallDb, now: Date): Promise<void> {
   ]);
 }
 
-export type NotificationKind = 'reminder' | 'summary' | 'chore' | 'list' | 'message';
+export type NotificationKind = 'reminder' | 'summary' | 'chore' | 'list' | 'message' | 'goal';
 export type NotificationSource = 'system' | 'api' | 'mcp';
 
 // The in-app feed (GET /api/notifications): every send site records one row here, push or no
@@ -496,6 +496,35 @@ export function notifyListUpdate(env: Env, execCtx: WaitCtx | undefined, listId:
   );
 }
 
+// Evening goal check (Temp check, settings.evening): at a person's eveningTime (household time),
+// when they set a goal today (not skipped) and haven't answered, "Did you finish your goal? 🎯" to
+// devices that belong to them and one row in the in-app feed. Once per person per day (claimed in
+// one statement). Goals are family content, so the goal is the push text; the answer never is.
+// Quiet hours skip the push, not the feed row or the card on their day (routes/temp-check.ts).
+async function runGoalFollowups(env: Env, db: KinwallDb, now: Date, tz: string, windowStart: Date, quiet: boolean): Promise<void> {
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(now);
+  const { results } = await db
+    .prepare('SELECT m.id, m.temp_check, t.goal FROM members m JOIN temp_checks t ON t.member_id = m.id AND t.date = ? WHERE t.goal IS NOT NULL AND t.goal_skipped = 0 AND t.followup IS NULL')
+    .bind(today)
+    .all<{ id: string; temp_check: string | null; goal: string }>();
+  const [y, mo, d] = today.split('-').map(Number);
+  for (const m of results) {
+    const s = parseTempCheck(m.temp_check);
+    if (!s.on || !s.goal || !s.evening) continue;
+    const [h, mi] = s.eveningTime.split(':').map(Number);
+    const at = zonedTimeToUtc({ y, mo: mo - 1, d, h, mi, s: 0 }, tz).getTime();
+    if (at <= windowStart.getTime() || at > now.getTime()) continue;
+    const key = `goal:${m.id}:${today}`;
+    const claimed = await db.prepare('INSERT INTO sent_notifications (key, sent_at) VALUES (?, ?) ON CONFLICT(key) DO NOTHING').bind(key, now.toISOString()).run();
+    if (!claimed.meta.changes) continue;
+    const payload = { title: 'Did you finish your goal? 🎯', body: m.goal, url: `/#/journal/${m.id}`, tag: key };
+    await recordNotification(db, { kind: 'goal', title: payload.title, body: payload.body, url: payload.url, memberIds: [m.id], source: 'system', at: now });
+    if (quiet) continue;
+    const { results: subs } = await db.prepare('SELECT s.* FROM push_subscriptions s JOIN api_keys k ON k.id = s.api_key_id WHERE k.owner = ?').bind(m.id).all<PushSubRow>();
+    for (const sub of subs) await sendToSub(env, db, sub, payload);
+  }
+}
+
 // Entry point for the cron (Workers) and setInterval (Node) tickers.
 export async function runNotifications(env: Env, now: Date, _execCtx?: WaitCtx): Promise<void> {
   // No early bail on zero subscriptions: the in-app feed records reminders/summaries regardless.
@@ -524,6 +553,7 @@ export async function runNotifications(env: Env, now: Date, _execCtx?: WaitCtx):
   const features = await readFeatures(env.DB);
   await runDailySummary(env, env.DB, now, tz, subs, windowStart, features);
   if (features.chores) await runChoreNudge(env, env.DB, now, tz, subs, windowStart); // Chores turned off: no nudge
+  await runGoalFollowups(env, env.DB, now, tz, windowStart, quiet);
   await pruneSentNotifications(env.DB, now);
   await setTickWindowEnd(env.DB, now);
 }

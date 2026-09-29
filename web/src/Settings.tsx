@@ -26,6 +26,8 @@ import { QrCode } from './App.tsx'
 import { InstallRow } from './Install.tsx'
 import { inNativeApp } from './native.ts'
 import { useDialog } from './dialog.tsx'
+import { TEMP_CHECK_OFF } from './tempCheck.ts'
+import { EVENING_TIMES } from './journal.ts'
 import { announce, pressable, reducedMotion, Segmented } from './a11y.tsx'
 
 // Mirrors BusEventType in server/src/bus.ts.
@@ -1424,7 +1426,7 @@ function MemberEditSheet({ member, canDelete, onClose, onSaved, toast }: { membe
   const birthday = !bday ? null : noYear ? `--${bday.slice(5)}` : bday
   const [grownUp, setGrownUp] = useState(!!member?.grownUp)
   const [needsApproval, setNeedsApproval] = useState(!!member?.needsApproval)
-  const [tempCheck, setTempCheck] = useState<TempCheckSettings>(member?.tempCheck ?? { on: false, sleep: true, feelings: true, goal: true, showGoal: true })
+  const [tempCheck, setTempCheck] = useState<TempCheckSettings>({ ...TEMP_CHECK_OFF, ...member?.tempCheck })
   const save = async () => {
     if (!name.trim() || !isValidAvatar(avatar)) return
     try {
@@ -1503,7 +1505,7 @@ function TempCheckField({ member, name, value, onChange, toast }: { member: Memb
     try { setCustom((await api.putTempCheck(member.id, { custom: custom.filter(x => x !== f) })).custom ?? []); toast(`Removed: ${f}`) }
     catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't remove that", true) }
   }
-  const row = (key: 'sleep' | 'feelings' | 'goal' | 'showGoal', label: string) => (
+  const row = (key: 'sleep' | 'feelings' | 'goal' | 'showGoal' | 'evening' | 'journal', label: string) => (
     <div className="toggle-row" key={key}>
       <label id={`member-tc-${key}`}>{label}</label>
       <button className={`switch ${value[key] ? 'on' : ''}`} role="switch" aria-checked={value[key]} aria-labelledby={`member-tc-${key}`} onClick={() => set({ [key]: !value[key] })}><span className="knob" /></button>
@@ -1521,6 +1523,20 @@ function TempCheckField({ member, name, value, onChange, toast }: { member: Memb
         {row('feelings', 'How are you feeling?')}
         {row('goal', 'Goal for today')}
         {value.goal && row('showGoal', 'Show the goal on the Board')}
+        {value.goal && row('evening', 'Evening goal check')}
+        {value.goal && value.evening && <>
+          <div className="settings-row">
+            <div>
+              <div className="settings-row-label" id="member-tc-time">Ask at</div>
+              <div className="settings-row-sub">"Did you finish your goal?" on {name}'s devices and their day, until midnight.</div>
+            </div>
+            <select className="settings-select" aria-labelledby="member-tc-time" value={value.eveningTime} onChange={e => set({ eveningTime: e.target.value })}>
+              {EVENING_TIMES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
+          </div>
+          {row('journal', 'Keep answers in the journal')}
+          <div className="settings-row-sub">{value.journal ? `What helped, what got in the way and next time go in ${name}'s journal.` : 'Only yes, partly or not today is kept, never the notes.'}</div>
+        </>}
         {custom.length > 0 && (
           <div className="settings-row">
             <div>

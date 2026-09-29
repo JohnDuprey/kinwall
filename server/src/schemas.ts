@@ -133,9 +133,13 @@ export const TempCheckSettingsSchema = z
     feelings: z.boolean().default(true).openapi({ description: '"How are you feeling today?"' }),
     goal: z.boolean().default(true).openapi({ description: '"Goal for today"' }),
     showGoal: z.boolean().default(true).openapi({ description: "Show today's goal on the Board" }),
+    evening: z.boolean().default(false).openapi({ description: 'Evening goal check: "Did you finish your goal?" at eveningTime on a day they set one' }),
+    eveningTime: z.string().regex(/^([01]\d|2[0-3]):[03]0$/, 'eveningTime: HH:MM on the hour or half hour').default('21:00').openapi({ description: 'Household time, HH:00 or HH:30' }),
+    journal: z.boolean().default(true).openapi({ description: 'Keep follow-up notes in their journal. Off: only yes / partly / no is kept.' }),
   })
   .openapi('TempCheckSettings');
-export const TEMP_CHECK_OFF = { on: false, sleep: true, feelings: true, goal: true, showGoal: true };
+export const TEMP_CHECK_OFF = { on: false, sleep: true, feelings: true, goal: true, showGoal: true, evening: false, eveningTime: '21:00', journal: true };
+export const FOLLOWUP_OUTCOMES = ['yes', 'partly', 'no'] as const;
 export const SLEEP_ANSWERS = ['great', 'good', 'ok', 'poorly', 'terrible'] as const;
 export const FEELINGS = ['great', 'good', 'fine', 'ok', 'bad', 'awful', 'tired', 'sore'] as const; // built in; "Other" adds the person's own
 
@@ -860,7 +864,7 @@ export const NotificationSchema = z
   .object({
     id: z.string(),
     at: z.string(),
-    kind: z.enum(['reminder', 'summary', 'chore', 'list', 'message']),
+    kind: z.enum(['reminder', 'summary', 'chore', 'list', 'message', 'goal']),
     title: z.string(),
     body: z.string().nullable(),
     url: z.string().nullable(),

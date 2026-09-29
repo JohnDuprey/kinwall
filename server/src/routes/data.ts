@@ -24,7 +24,8 @@ import { decryptConfig, encryptConfig } from '../crypto.ts';
 import { isSafeFeedUrl } from '../outbound.ts';
 import type { CategoryRow } from '../calendar-categories.ts';
 import { isAdultBirthday, parseTempCheck, parseTransitions } from './members.ts';
-import { openTempCheck, readCustom, sealCustom, sealTempCheck, type TempCheckRow } from './temp-check.ts';
+import { FollowupSchema, openTempCheck, readCustom, sealCustom, sealTempCheck, type TempCheckRow } from './temp-check.ts';
+import { openEntry, sealEntry, type JournalRow } from './journal.ts';
 import { fromRow as contactFromRow, type ContactRow } from './contacts.ts';
 import {
   CalendarSchema,
@@ -130,7 +131,9 @@ const ExportSchema = z
     checkIns: z.array(z.object({ memberId: z.string(), date: z.string(), points: z.number(), at: z.string() })),
     // Temp check answers (0054), one per member per day. sleep/feelings are opened here (sealed again on import);
     // null for a connected app without aiHealthAccess.
-    tempChecks: z.array(z.object({ memberId: z.string(), date: z.string(), sleep: z.string().nullable(), feelings: z.array(z.string()).nullable(), goal: z.string().nullable(), goalSkipped: z.boolean(), createdAt: z.string(), updatedAt: z.string() })),
+    tempChecks: z.array(z.object({ memberId: z.string(), date: z.string(), sleep: z.string().nullable(), feelings: z.array(z.string()).nullable(), goal: z.string().nullable(), goalSkipped: z.boolean(), followup: FollowupSchema.nullable().default(null), createdAt: z.string(), updatedAt: z.string() })),
+    // Journal entries (0055): opened here, sealed again on import; none for a connected app without aiHealthAccess.
+    journalEntries: z.array(z.object({ id: z.string(), memberId: z.string(), date: z.string(), text: z.string(), mood: z.string().nullable(), createdAt: z.string(), updatedAt: z.string() })),
     scrapbook: z.array(StickerPlacementSchema),
     // Rewards (0039) and their redemptions; the points they took are in pointEntries.
     rewards: z.array(RewardSchema.omit({ used: true })),
@@ -183,7 +186,7 @@ dataRoutes.openapi(
     const db = c.env.DB;
     const healthHidden = !!(await healthBlock(c));
     // Column lists are explicit (never SELECT *) so a secret column can't leak in by accident.
-    const [members, categories, contactCategories, contacts, calendars, events, memberOverrides, categoryOverrides, travelOverrides, seriesMemberOverrides, seriesCategoryOverrides, chores, completions, lists, items, steps, groups, notes, pointEntries, stickerPacks, checkIns, tempChecks, scrapbook, rewards, redemptions, trackers, passkeys, webhooks] = (await db.batch<unknown>([
+    const [members, categories, contactCategories, contacts, calendars, events, memberOverrides, categoryOverrides, travelOverrides, seriesMemberOverrides, seriesCategoryOverrides, chores, completions, lists, items, steps, groups, notes, pointEntries, stickerPacks, checkIns, tempChecks, journal, scrapbook, rewards, redemptions, trackers, passkeys, webhooks] = (await db.batch<unknown>([
       db.prepare('SELECT id, name, color, avatar, birthday, sort, grown_up, needs_approval, transitions, reward_goal, temp_check, temp_check_feelings FROM members ORDER BY sort, created_at'),
       db.prepare('SELECT id, name, emoji, color, keywords, sort, created_at FROM categories ORDER BY sort, created_at'),
       db.prepare('SELECT id, name, color, sort, created_at, updated_at FROM contact_categories ORDER BY sort, name COLLATE NOCASE, id'),
@@ -215,7 +218,8 @@ dataRoutes.openapi(
       db.prepare('SELECT id, member_id, amount, reason, ref, at FROM point_entries ORDER BY at, id'),
       db.prepare('SELECT member_id, pack_id, unlocked_at FROM member_sticker_packs ORDER BY member_id, pack_id'),
       db.prepare('SELECT member_id, date, points, at FROM check_ins ORDER BY date, member_id'),
-      db.prepare('SELECT member_id, date, sleep, feelings, goal, goal_skipped, created_at, updated_at FROM temp_checks ORDER BY date, member_id'),
+      db.prepare('SELECT member_id, date, sleep, feelings, goal, goal_skipped, followup, created_at, updated_at FROM temp_checks ORDER BY date, member_id'),
+      db.prepare('SELECT id, member_id, date, text, mood, created_at, updated_at FROM journal_entries ORDER BY date, created_at, id'),
       db.prepare('SELECT id, member_id, sticker, x, y, scale, rotation, z, placed_at FROM scrapbook_stickers ORDER BY member_id, z, placed_at, id'),
       db.prepare('SELECT id, title, emoji, cost, member_ids, needs_approval, limit_period, limit_count, active, sort, created_at FROM rewards ORDER BY sort, created_at'),
       db.prepare('SELECT id, reward_id, member_id, title, emoji, cost, status, note, date, requested_at, decided_at, given_at FROM reward_redemptions ORDER BY requested_at, id'),
@@ -312,9 +316,10 @@ dataRoutes.openapi(
         stickerPacks: (stickerPacks as { member_id: string; pack_id: string; unlocked_at: string }[]).map((r) => ({ memberId: r.member_id, packId: r.pack_id, unlockedAt: r.unlocked_at })),
         checkIns: (checkIns as { member_id: string; date: string; points: number; at: string }[]).map((r) => ({ memberId: r.member_id, date: r.date, points: r.points, at: r.at })),
         tempChecks: await Promise.all((tempChecks as TempCheckRow[]).map(async (r) => {
-          const v = healthHidden ? { sleep: null, feelings: null, goal: r.goal, goalSkipped: !!r.goal_skipped } : await openTempCheck(c.env, r);
+          const v = healthHidden ? { sleep: null, feelings: null, goal: r.goal, goalSkipped: !!r.goal_skipped, followup: null } : await openTempCheck(c.env, r);
           return { memberId: r.member_id, date: r.date, ...v, createdAt: r.created_at, updatedAt: r.updated_at };
         })),
+        journalEntries: healthHidden ? [] : await Promise.all((journal as JournalRow[]).map((r) => openEntry(c.env, r))),
         scrapbook: (scrapbook as PlacementRow[]).map(toPlacementApi),
         rewards: (rewards as RewardRow[]).map(toRewardApi),
         rewardRedemptions: (redemptions as RedemptionRow[]).map(toRedemptionApi),
@@ -362,6 +367,7 @@ const ImportSchema = ExportSchema.extend({
   stickerPacks: ExportSchema.shape.stickerPacks.default([]),
   checkIns: ExportSchema.shape.checkIns.default([]),
   tempChecks: ExportSchema.shape.tempChecks.default([]),
+  journalEntries: ExportSchema.shape.journalEntries.default([]),
   scrapbook: ExportSchema.shape.scrapbook.default([]),
   rewards: ExportSchema.shape.rewards.default([]),
   rewardRedemptions: ExportSchema.shape.rewardRedemptions.default([]),
@@ -398,6 +404,7 @@ const ImportResultSchema = z
       stickerPacks: z.number(),
       checkIns: z.number(),
       tempChecks: z.number(),
+      journalEntries: z.number(),
       scrapbook: z.number(),
       rewards: z.number(),
       rewardRedemptions: z.number(),
@@ -523,6 +530,7 @@ dataRoutes.openapi(
     if (healthHidden) delete settings.data.aiHealthAccess;
     // Temp checks likewise (sleep and feelings are health): none from a connected app without aiHealthAccess.
     const tempChecks = healthHidden ? [] : body.tempChecks.filter((t) => fileMembers.has(t.memberId));
+    const journalEntries = healthHidden ? [] : body.journalEntries.filter((e) => fileMembers.has(e.memberId));
     const mealSources = body.mealShoppingSources.filter((s) => items.some((i) => i.id === s.itemId && i.listId === s.listId));
     const steps = items.flatMap((i) => i.steps.map((st) => ({ ...st, itemId: i.id, doneAt: st.done ? (i.doneAt ?? new Date().toISOString()) : null, createdAt: i.createdAt })));
 
@@ -536,6 +544,7 @@ dataRoutes.openapi(
     const grownUp = (m: (typeof body.members)[number]) => m.grownUp ?? isAdultBirthday(m.birthday, today);
     // Health entries are sealed again before anything is written (no key: the import fails, nothing stored).
     const sealedTempChecks = await Promise.all(tempChecks.map(async (t) => ({ member_id: t.memberId, date: t.date, ...(await sealTempCheck(c.env, t.memberId, t.date, t)), goal: t.goal, goal_skipped: t.goalSkipped ? 1 : 0, created_at: t.createdAt, updated_at: t.updatedAt })));
+    const sealedJournal = await Promise.all(journalEntries.map((e) => sealEntry(c.env, { id: e.id, member_id: e.memberId, date: e.date, text: e.text, mood: e.mood, created_at: e.createdAt, updated_at: e.updatedAt })));
     const memberFeelings = new Map(healthHidden ? [] : await Promise.all(body.members.map(async (m) => [m.id, await sealCustom(c.env, m.id, m.tempCheckFeelings)] as const)));
     const sealedTrackers = await Promise.all(trackers.map((t) => sealRow(c.env, { id: t.id, kind: t.kind, member_id: t.memberId, former_member: t.formerMember, date: t.date, title: t.title, photo_id: t.photoId, photo_own: t.photoOwned ? 1 : 0, data: JSON.stringify(t.data), created_at: t.createdAt, updated_at: t.updatedAt })));
     const writes = [
@@ -745,6 +754,7 @@ dataRoutes.openapi(
       ...upserts(db, 'point_entries', 'id', pointEntries.map((e) => ({ id: e.id, member_id: e.memberId, amount: e.amount, reason: e.reason, ref: e.ref, at: e.at })), { keep: ['member_id'] }),
       ...upserts(db, 'member_sticker_packs', 'member_id, pack_id', stickerPacks.map((p) => ({ member_id: p.memberId, pack_id: p.packId, unlocked_at: p.unlockedAt }))),
       ...upserts(db, 'temp_checks', 'member_id, date', sealedTempChecks, keepCreated),
+      ...upserts(db, 'journal_entries', 'id', sealedJournal, { keep: ['member_id', 'created_at'] }),
       ...upserts(db, 'check_ins', 'member_id, date', checkIns.map((ci) => ({ member_id: ci.memberId, date: ci.date, points: ci.points, at: ci.at }))),
       ...upserts(
         db,
@@ -809,6 +819,7 @@ dataRoutes.openapi(
       ['reward.changed', body.rewards.length + redemptions.length],
       ['tracker.changed', trackers.length],
       ['tempcheck.changed', tempChecks.length],
+      ['journal.changed', journalEntries.length],
       ['recipe.changed', body.recipes.length],
       ['meal.changed', body.meals.length],
     ];
@@ -838,6 +849,7 @@ dataRoutes.openapi(
           stickerPacks: stickerPacks.length,
           checkIns: checkIns.length,
           tempChecks: tempChecks.length,
+          journalEntries: journalEntries.length,
           scrapbook: scrapbook.length,
           rewards: body.rewards.length,
           rewardRedemptions: redemptions.length,

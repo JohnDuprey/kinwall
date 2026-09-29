@@ -1,9 +1,9 @@
 // Dev-only in-memory fixture, used when VITE_MOCK=1. Excluded from prod by the env check in api.ts.
 import type { OnlineTidbits, Plugin, PluginCatalogEntry,
   Account, ApiKey, AppNotification, CalendarEntry, Category, Chore, ChoreDay, EventInstance, LeaderboardEntry, LeaderboardPeriod, List, ListGroup,
-  Photo, PhotoQuota, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, ListItem, ListItemInput, ListItemPatch, ListItemStep, Member, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption, TempCheck, TempCheckInput, TempCheckSettings,
+  Photo, PhotoQuota, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, ListItem, ListItemInput, ListItemPatch, ListItemStep, Member, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption, TempCheck, TempCheckInput, Journal, JournalEntry,
 } from './types.ts'
-import { FEELINGS } from './tempCheck.ts'
+import { FEELINGS, TEMP_CHECK_OFF } from './tempCheck.ts'
 import { aisleOrderMap, compareItems } from './types.ts'
 import { itemKey } from './itemSuggest.ts'
 import { byListOrder, reorderWithin } from './listSections.ts'
@@ -16,9 +16,19 @@ const todayISO = () => new Date().toISOString().slice(0, 10)
 
 let rev = 1
 const checkIns = new Set<string>() // `${memberId}:${date}` - the demo's daily check-ins
-const tempChecks = new Map<string, Omit<TempCheck, 'settings' | 'private' | 'custom' | 'answered'>>() // `${memberId}:${date}`
+const tempChecks = new Map<string, Omit<TempCheck, 'settings' | 'private' | 'custom' | 'answered' | 'followupOpen'>>() // `${memberId}:${date}`
 const customFeelings = new Map<string, string[]>([['m3', ['excited']]]) // Maya added "excited" with "Other"
-const TEMP_CHECK_OFF: TempCheckSettings = { on: false, sleep: true, feelings: true, goal: true, showGoal: true }
+// Maya's journal: a goal today (the evening check shows any time of day in the demo), two past days and one entry.
+const demoDay = (n: number) => dateKey(new Date(Date.now() + n * 86_400_000))
+const noNotes = { helped: null, hindered: null, next: null }
+for (const [n, sleep, feelings, goal, followup] of [
+  [0, 'good', ['good', 'excited'], 'Finish my book report', null],
+  [-1, 'great', ['great'], 'Practice piano for 15 minutes', { outcome: 'yes', ...noNotes, helped: 'I did it right after snack' }],
+  [-2, 'ok', ['tired'], 'Tidy my room', { outcome: 'partly', helped: 'Music on', hindered: 'Too many Legos', next: 'Start with the Legos' }],
+] as const) tempChecks.set(`m3:${demoDay(n)}`, { memberId: 'm3', date: demoDay(n), sleep, feelings: [...feelings], goal, goalSkipped: false, followup })
+const journalEntries: JournalEntry[] = [
+  { id: 'je1', memberId: 'm3', date: demoDay(-1), text: 'We saw a double rainbow on the way home from soccer!', mood: '🌈', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+]
 const bump = () => { rev++ }
 
 const settings: Settings = {
@@ -56,7 +66,7 @@ const settings: Settings = {
 const members: Member[] = [
   { id: 'm1', name: 'Alex', color: '#7AB8FF', avatar: '🦊', birthday: '1988-03-14', grownUp: true, sort: 0, pointsToday: 10, pointsWeek: 40, balance: 12 },
   { id: 'm2', name: 'Sam', color: '#FF8FA3', avatar: '🐰', birthday: null, grownUp: true, sort: 1, pointsToday: 5, pointsWeek: 25, balance: 30 },
-  { id: 'm3', name: 'Maya', color: '#7ED9A6', avatar: '🦄', birthday: '2018-11-02', grownUp: false, sort: 2, pointsToday: 0, pointsWeek: 15, balance: 42, tempCheck: { on: true, sleep: true, feelings: true, goal: true, showGoal: true } },
+  { id: 'm3', name: 'Maya', color: '#7ED9A6', avatar: '🦄', birthday: '2018-11-02', grownUp: false, sort: 2, pointsToday: 0, pointsWeek: 15, balance: 42, tempCheck: { on: true, sleep: true, feelings: true, goal: true, showGoal: true, evening: true, eveningTime: '21:00', journal: true } },
   // Leo turns 6 tomorrow, so the snapshot's 🎂 always has something to show.
   { id: 'm4', name: 'Leo', color: '#F5A65B', avatar: '🦖', birthday: (t => `${t.getFullYear() - 6}${dateKey(t).slice(4)}`)(new Date(Date.now() + 86_400_000)), grownUp: false, sort: 3, pointsToday: 5, pointsWeek: 20, balance: 18 },
 ]
@@ -452,19 +462,47 @@ export const mock = {
   // The demo is a parent's device: it sees every answer.
   getTempCheck: async (memberId: string, date = dateKey(new Date())): Promise<TempCheck> => {
     const m = members.find(x => x.id === memberId); if (!m) throw new Error('member not found')
-    const row = tempChecks.get(`${memberId}:${date}`) ?? { memberId, date, sleep: null, feelings: null, goal: null, goalSkipped: false }
-    return { ...row, settings: m.tempCheck ?? TEMP_CHECK_OFF, private: false, custom: customFeelings.get(memberId) ?? [], answered: { sleep: !!row.sleep, feelings: !!row.feelings?.length, goal: !!row.goal || row.goalSkipped } }
+    const row = tempChecks.get(`${memberId}:${date}`) ?? { memberId, date, sleep: null, feelings: null, goal: null, goalSkipped: false, followup: null }
+    const s = { ...TEMP_CHECK_OFF, ...m.tempCheck }
+    return {
+      ...row, settings: s, private: false, custom: customFeelings.get(memberId) ?? [], answered: { sleep: !!row.sleep, feelings: !!row.feelings?.length, goal: !!row.goal || row.goalSkipped, followup: !!row.followup },
+      followupOpen: s.on && s.goal && s.evening && !!row.goal && date === dateKey(new Date()), // any time of day in the demo
+    }
   },
   putTempCheck: async (memberId: string, body: TempCheckInput, date = dateKey(new Date())): Promise<TempCheck> => {
     const prev = await mock.getTempCheck(memberId, date)
     if (!prev.settings.on) throw new Error('Temp check is off for them (Settings → Family)')
     const goal = body.goalSkipped ? null : body.goal !== undefined ? body.goal?.trim() || null : prev.goal
     const feelings = body.feelings !== undefined ? (body.feelings?.length ? body.feelings : null) : prev.feelings
-    tempChecks.set(`${memberId}:${date}`, { memberId, date, sleep: body.sleep !== undefined ? body.sleep : prev.sleep, feelings, goal, goalSkipped: !goal && (body.goalSkipped ?? prev.goalSkipped) })
+    const f = body.followup
+    const followup = f ? (prev.settings.journal ? { outcome: f.outcome, helped: f.helped?.trim() || null, hindered: f.hindered?.trim() || null, next: f.next?.trim() || null } : { outcome: f.outcome, ...noNotes }) : prev.followup
+    tempChecks.set(`${memberId}:${date}`, { memberId, date, sleep: body.sleep !== undefined ? body.sleep : prev.sleep, feelings, goal, goalSkipped: !goal && (body.goalSkipped ?? prev.goalSkipped), followup })
     const custom = body.custom ?? prev.custom ?? []
     customFeelings.set(memberId, [...custom, ...(body.feelings ?? []).filter(f => ![...FEELINGS, ...custom].some(k => k.toLowerCase() === f.toLowerCase()))])
     bump()
     return mock.getTempCheck(memberId, date)
+  },
+  // The demo is a parent's device: every journal opens.
+  getJournal: async (memberId: string, opts: { to?: string; days?: number } = {}): Promise<Journal> => {
+    const to = opts.to ?? dateKey(new Date())
+    const from = dateKey(new Date(Date.parse(`${to}T12:00:00Z`) - ((opts.days ?? 60) - 1) * 86_400_000))
+    const days = new Map<string, Journal['days'][number]>()
+    const day = (date: string) => days.get(date) ?? days.set(date, { date, tempCheck: null, entries: [] }).get(date)!
+    for (const t of tempChecks.values()) if (t.memberId === memberId && t.date >= from && t.date <= to) day(t.date).tempCheck = { sleep: t.sleep, feelings: t.feelings, goal: t.goal, goalSkipped: t.goalSkipped, followup: t.followup }
+    for (const e of [...journalEntries].reverse()) if (e.memberId === memberId && e.date >= from && e.date <= to) day(e.date).entries.push({ ...e })
+    return { memberId, from, to, days: [...days.values()].sort((a, b) => b.date.localeCompare(a.date)) }
+  },
+  addJournalEntry: async (memberId: string, b: { date?: string; text: string; mood?: string | null }): Promise<JournalEntry> => {
+    const now = new Date().toISOString()
+    const e: JournalEntry = { id: uid(), memberId, date: b.date ?? dateKey(new Date()), text: b.text.trim(), mood: b.mood ?? null, createdAt: now, updatedAt: now }
+    journalEntries.push(e); bump(); return { ...e }
+  },
+  updateJournalEntry: async (memberId: string, id: string, b: { date?: string; text?: string; mood?: string | null }): Promise<JournalEntry> => {
+    const e = journalEntries.find(x => x.id === id && x.memberId === memberId); if (!e) throw new Error('entry not found')
+    Object.assign(e, { date: b.date ?? e.date, text: b.text?.trim() ?? e.text, mood: b.mood !== undefined ? b.mood : e.mood, updatedAt: new Date().toISOString() }); bump(); return { ...e }
+  },
+  deleteJournalEntry: async (memberId: string, id: string): Promise<void> => {
+    const i = journalEntries.findIndex(x => x.id === id && x.memberId === memberId); if (i >= 0) journalEntries.splice(i, 1); bump()
   },
   createMember: async (m: Partial<Member>) => {
     const nm: Member = { id: uid(), name: m.name ?? 'New', color: m.color ?? '#FF9E7A', avatar: m.avatar ?? '🙂', birthday: m.birthday ?? null, grownUp: !!m.grownUp, needsApproval: !m.grownUp && !!m.needsApproval, sort: members.length, pointsToday: 0, pointsWeek: 0, balance: 0 }

@@ -34,6 +34,7 @@ import { stickersRoutes } from './routes/stickers.ts';
 import { memberStatsRoutes } from './routes/member-stats.ts';
 import { checkInRoutes } from './routes/check-in.ts';
 import { tempCheckRoutes } from './routes/temp-check.ts';
+import { journalRoutes } from './routes/journal.ts';
 import { rewardsRoutes } from './routes/rewards.ts';
 import { photosRoutes } from './routes/photos.ts';
 import { snapshotRoutes } from './routes/snapshot.ts';
@@ -105,6 +106,7 @@ export function createApp() {
   app.route('/', memberStatsRoutes);
   app.route('/', checkInRoutes);
   app.route('/', tempCheckRoutes);
+  app.route('/', journalRoutes);
   app.route('/', rewardsRoutes);
   app.route('/', photosRoutes);
   app.route('/', snapshotRoutes);

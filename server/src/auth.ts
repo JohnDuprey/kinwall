@@ -135,6 +135,11 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   // Temp check: answered on the wall like a chore; routes/temp-check.ts keeps the answers off shared screens.
   { method: 'GET', pattern: /^\/api\/members\/[^/]+\/temp-check$/ },
   { method: 'PUT', pattern: /^\/api\/members\/[^/]+\/temp-check$/ }, // daily check-in, like ticking a chore (a member's own device only for them)
+  // Journal: a member's own device only (routes/journal.ts refuses shared walls and other members' devices).
+  { method: 'GET', pattern: /^\/api\/members\/[^/]+\/journal$/ },
+  { method: 'POST', pattern: /^\/api\/members\/[^/]+\/journal$/ },
+  { method: 'PATCH', pattern: /^\/api\/members\/[^/]+\/journal\/[^/]+$/ },
+  { method: 'DELETE', pattern: /^\/api\/members\/[^/]+\/journal\/[^/]+$/ },
   { method: 'GET', pattern: /^\/api\/stickers\/packs$/ },
   { method: 'POST', pattern: /^\/api\/stickers\/packs\/[^/]+\/buy$/ },
   { method: 'GET', pattern: /^\/api\/stickers\/scrapbook\/[^/]+$/ },

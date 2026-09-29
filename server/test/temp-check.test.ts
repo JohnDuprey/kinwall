@@ -47,14 +47,14 @@ const url = (id: string, date?: string) => `/api/members/${id}/temp-check${date 
 test('temp check: off by default; settings live on the member', async (t) => {
   t.after(() => mock.timers.reset());
   const { req, maya, leo } = await setup();
-  assert.deepEqual(leo.tempCheck, { on: false, sleep: true, feelings: true, goal: true, showGoal: true });
+  assert.deepEqual(leo.tempCheck, { on: false, sleep: true, feelings: true, goal: true, showGoal: true, evening: false, eveningTime: '21:00', journal: true });
   assert.equal(maya.tempCheck.on, true);
   assert.equal((await req(url(leo.id), 'PUT', { sleep: 'good' })).status, 400); // off for Leo
   const patched = (await req(`/api/members/${leo.id}`, 'PATCH', { tempCheck: { on: true, sleep: false, feelings: true, goal: true, showGoal: false } })).json;
-  assert.deepEqual(patched.tempCheck, { on: true, sleep: false, feelings: true, goal: true, showGoal: false });
+  assert.deepEqual(patched.tempCheck, { on: true, sleep: false, feelings: true, goal: true, showGoal: false, evening: false, eveningTime: '21:00', journal: true });
   const got = (await req(url(leo.id))).json;
   assert.deepEqual([got.date, got.sleep, got.feelings, got.goal, got.goalSkipped, got.custom], [TODAY, null, null, null, false, []]);
-  assert.deepEqual(got.answered, { sleep: false, feelings: false, goal: false });
+  assert.deepEqual(got.answered, { sleep: false, feelings: false, goal: false, followup: false });
 });
 
 test('temp check: one row per member per day, updated in place; custom feelings join their options', async (t) => {
@@ -66,7 +66,7 @@ test('temp check: one row per member per day, updated in place; custom feelings 
   const b = (await req(url(maya.id), 'PUT', { feelings: ['good', 'tired', SECRET] })).json;
   assert.deepEqual([b.sleep, b.feelings, b.custom], ['great', ['good', 'tired', SECRET], [SECRET]]);
   const c = (await req(url(maya.id), 'PUT', { sleep: 'ok', goalSkipped: true })).json;
-  assert.deepEqual([c.sleep, c.goal, c.goalSkipped, c.answered], ['ok', null, true, { sleep: true, feelings: true, goal: true }]);
+  assert.deepEqual([c.sleep, c.goal, c.goalSkipped, c.answered], ['ok', null, true, { sleep: true, feelings: true, goal: true, followup: false }]);
   const d = (await req(url(maya.id), 'PUT', { goal: '  Finish my book report  ' })).json;
   assert.deepEqual([d.goal, d.goalSkipped], ['Finish my book report', false]);
   assert.equal(raw().length, 1);
@@ -116,7 +116,7 @@ test("temp check: a shared wall answers but only sees flags; a person's own devi
   const answered = await req(url(maya.id), 'PUT', { sleep: 'good', feelings: ['happy-ish'], goal: 'Read 20 pages' }, wall);
   assert.equal(answered.status, 200);
   const w = (await req(url(maya.id), 'GET', undefined, wall)).json;
-  assert.deepEqual([w.private, w.sleep, w.feelings, w.goal, w.answered], [true, null, null, 'Read 20 pages', { sleep: true, feelings: true, goal: true }]);
+  assert.deepEqual([w.private, w.sleep, w.feelings, w.goal, w.answered], [true, null, null, 'Read 20 pages', { sleep: true, feelings: true, goal: true, followup: false }]);
   assert.deepEqual(w.custom, ['happy-ish'], 'the wall still offers their options, so they can change an answer');
   assert.equal(answered.json.sleep, null, 'not even in the reply');
   assert.equal((await req(url(maya.id), 'PUT', { custom: [] }, wall)).status, 403, 'removing options is for their own or a parent device');

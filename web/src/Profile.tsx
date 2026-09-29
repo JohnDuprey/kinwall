@@ -1,7 +1,8 @@
 // A member's profile (#/profile/{memberId}): what they've been up to - chores and points by period,
 // streak, books, sticker book, activity time, badges, birthday. Opened from a leaderboard pill, a
 // header avatar's day sheet, or "Me" on a member's own device. About one person only: no sibling
-// rankings, just "vs your own last week". Health data never shows here.
+// rankings, just "vs your own last week". Health data never shows here. Their journal (and goals met
+// this week) only on their own device and parents' devices.
 import { useEffect, useState, type ReactNode } from 'react'
 import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
@@ -10,6 +11,7 @@ import { inkFor } from './color.ts'
 import { todayKeyInTz } from './date.ts'
 import { hoursMinutes } from './reading.ts'
 import { useIsPhone } from './useIsPhone.ts'
+import { goalsThisWeek } from './journal.ts'
 import { birthdayText, chartLabels, compareText, duration, periodWord, WEEKDAYS } from './profile.ts'
 import type { ChoreDay, Member, MemberStats, StatsPeriod } from './types.ts'
 
@@ -74,7 +76,7 @@ export default function Profile({ memberId }: { memberId?: string }) {
 }
 
 function ProfileBody({ member, s }: { member: Member; s: MemberStats }) {
-  const { settings, parentDevice } = useApp()
+  const { settings, parentDevice, meMemberId } = useApp()
   const f = settings.features
   const word = periodWord(s.period, s.to)
   const books = f.trackersReading && (s.books.shelf.length > 0 || s.books.reading.length > 0 || s.books.finished > 0)
@@ -120,6 +122,7 @@ function ProfileBody({ member, s }: { member: Member; s: MemberStats }) {
           </section>
         )}
         {parentDevice && f.chores && <WaitingCard member={member} />}
+        {(parentDevice || meMemberId === member.id) && <JournalCard member={member} />}
       </div>
     </>
   )
@@ -268,6 +271,26 @@ function WaitingCard({ member }: { member: Member }) {
       <h3 id="pf-waiting" className="snap-heading">Waiting for your OK <span>Grown-ups only</span></h3>
       <p className="profile-note">{[counts[0] && plural(counts[0], 'chore'), counts[1] && plural(counts[1], 'reward')].filter(Boolean).join(' and ')} from {member.name}.</p>
       <a className="btn btn-secondary profile-link" href={counts[0] ? '#/chores' : `#/rewards/${member.id}`}>{counts[0] ? 'Open Chores' : 'Open Rewards'}</a>
+    </section>
+  )
+}
+
+/** Their own device and parents' devices only: a way into their journal, and goals met this week. */
+function JournalCard({ member }: { member: Member }) {
+  const { settings, refreshTick } = useApp()
+  const [week, setWeek] = useState<{ met: number; of: number } | null>(null)
+  const evening = !!(member.tempCheck?.on && member.tempCheck.goal && member.tempCheck.evening)
+  useEffect(() => {
+    if (!evening) return
+    const today = todayKeyInTz(settings.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone)
+    api.getJournal(member.id, { days: 7 }).then(j => setWeek(goalsThisWeek(j.days, today))).catch(() => setWeek(null))
+  }, [member.id, evening, settings.timezone, refreshTick])
+  return (
+    <section className="board-card profile-card" aria-labelledby="pf-journal">
+      <h3 id="pf-journal" className="snap-heading">Journal <span>🔒 Private</span></h3>
+      {evening && week && week.of > 0 && <p className="profile-note">🎯 Goals met this week: <strong>{week.met} of {week.of}</strong></p>}
+      <p className="profile-note">Check-ins, goals and {member.name}'s own notes, day by day.</p>
+      <a className="btn btn-secondary profile-link" href={`#/journal/${member.id}`}>Open the journal</a>
     </section>
   )
 }

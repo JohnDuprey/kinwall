@@ -21,6 +21,7 @@ export type BusEventType =
   | 'chore.rejected'
   | 'checkin.completed'
   | 'tempcheck.changed'
+  | 'journal.changed'
   | 'list.changed'
   | 'list.item.changed'
   | 'category.changed'

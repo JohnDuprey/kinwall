@@ -20,6 +20,7 @@
 * [Chores](using/chores.md)
 * [Rewards](using/rewards.md)
 * [Profiles](using/profiles.md)
+* [Journal](using/journal.md)
 * [Lists](using/lists.md)
 * [Meals](using/meals.md)
 * [Activities (Paint)](using/activities.md)

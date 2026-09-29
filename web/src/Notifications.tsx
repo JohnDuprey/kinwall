@@ -26,7 +26,7 @@ function writeSeen(iso: string) {
   try { localStorage.setItem(SEEN_KEY, iso) } catch { /* private mode: badge just won't persist */ }
 }
 
-const KIND_ICON: Record<AppNotification['kind'], string> = { reminder: '🔔', summary: '☀️', chore: '✅', list: '🛒', message: '💬' }
+const KIND_ICON: Record<AppNotification['kind'], string> = { reminder: '🔔', summary: '☀️', chore: '✅', list: '🛒', message: '💬', goal: '🎯' }
 
 const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto', style: 'short' })
 function relTime(iso: string, tz: string): string {

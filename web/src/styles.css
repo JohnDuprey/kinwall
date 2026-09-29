@@ -2433,3 +2433,27 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
   .profile-tile-value { font-size: 1.5rem; }
   .profile-grid { grid-template-columns: minmax(0, 1fr); }
 }
+/* Goal check (evening follow-up on Temp check) and the journal (#/journal/<id>). */
+.snap-goalcheck-goal { margin: 0; font-weight: 800; overflow-wrap: anywhere; }
+.snap-goalcheck-choices { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.snap-goalcheck-choices .snap-temp-face { min-height: 84px; font-size: 0.9375rem; }
+.snap-goalcheck-notes { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 0; }
+.snap-goalcheck-notes p { margin: 0; font-weight: 700; }
+.snap-goalcheck-note { display: flex; flex-direction: column; gap: 4px; font-weight: 700; font-size: 0.875rem; }
+.snap-goalcheck-note input { min-height: 48px; padding: 10px 14px; border-radius: 12px; border: 2px solid var(--border); background: var(--card); color: var(--text); font: inherit; }
+.journal-days { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--gap); max-width: 760px; width: 100%; align-self: center; }
+.journal > .snap-goalcheck, .journal > .snap-empty, .journal-more { max-width: 760px; width: 100%; align-self: center; box-sizing: border-box; }
+.journal-day { display: flex; flex-direction: column; gap: 8px; }
+.journal-line { margin: 0; overflow-wrap: anywhere; }
+.journal-goal { display: flex; flex-direction: column; gap: 4px; }
+.journal-outcome { display: inline-block; margin-left: 8px; padding: 2px 10px; border-radius: 999px; background: var(--bg-alt); font-size: 0.8125rem; font-weight: 800; }
+.journal-outcome-yes { background: color-mix(in srgb, var(--success) 22%, var(--card)); }
+.journal-notes { margin: 0; padding-left: 18px; color: var(--text-dim); overflow-wrap: anywhere; }
+.journal-notes span { font-weight: 800; }
+.journal-entry {
+  display: flex; align-items: flex-start; gap: 10px; min-height: 44px; padding: 10px 12px; border-radius: var(--radius); border: none;
+  background: var(--bg-alt); color: var(--text); font: inherit; text-align: left; width: 100%; cursor: pointer;
+}
+.journal-mood { font-size: 1.5rem; line-height: 1.2; }
+.journal-text { white-space: pre-wrap; overflow-wrap: anywhere; flex: 1; min-width: 0; }
+.journal-new { flex: 0 0 auto; min-width: 180px; }

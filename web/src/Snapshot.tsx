@@ -7,6 +7,7 @@ import { ChecklistSheet, Confetti } from './Chores.tsx'
 import { checkInLabel, checkInState } from './checkIn.ts'
 import { feelingOptions, GOAL_MAX, SLEEP, tempCheckDone, toggleFeeling } from './tempCheck.ts'
 import { CheckIcon } from './icons.tsx'
+import GoalFollowUp from './GoalFollowUp.tsx'
 import Sheet from './Sheet.tsx'
 import { Segmented, announce } from './a11y.tsx'
 import { inkFor } from './color.ts'
@@ -114,6 +115,7 @@ export default function SnapshotSheet({ member, onClose }: { member: Member; onC
       {shown && (range === 'day' ? <DayView snap={shown} tz={tz} close={onClose} onToggle={toggleChore} books={settings.features.trackersReading ? books : []} /> : <WeekView snap={shown} tz={tz} close={onClose} />)}
       {shown?.range === 'day' && member.tempCheck?.on && <TempCheck member={member} />}
       {shown && <CheckIn snap={shown} onDone={() => setSnap(s => s && { ...s, checkedIn: true })} />}
+      {shown?.range === 'day' && member.tempCheck?.on && member.tempCheck.evening && <GoalFollowUp member={member} />}
       {!focusMemberId && (
         <div className="toggle-row snap-filter">
           <label id={`snap-filter-${member.id}`}>Show only {member.name} on the calendar</label>

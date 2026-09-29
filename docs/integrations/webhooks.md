@@ -28,7 +28,8 @@ URLs must be public `http(s)` addresses. Private and LAN addresses are refused u
 | `chore.uncompleted` | A completion is undone. `data`: `{ id, date, title, memberId }`. |
 | `chore.pending` | A chore that needs a [parent's OK](../using/chores.md#parent-approval) was ticked on a wall screen or kid's device and is waiting. `data`: `{ id, date, title, memberId }`. `chore.completed` follows when a parent approves it. |
 | `chore.rejected` | A parent said **Not yet** to a waiting chore: the tick is removed. `data`: `{ id, date, title, memberId, note }` (`note` may be `null`). |
-| `tempcheck.changed` | Someone answered or changed their [Temp check](../using/snapshot.md#temp-check). `data`: `{ memberId, date }`, never the answers. |
+| `tempcheck.changed` | Someone answered or changed their [Temp check](../using/snapshot.md#temp-check), including the evening goal check. `data`: `{ memberId, date }`, never the answers. |
+| `journal.changed` | A [journal](../using/journal.md) entry was added, changed or deleted. `data`: `{ memberId, date, id }`, never the words. |
 | `checkin.completed` | Someone checked in for the day from their [snapshot](../using/snapshot.md#daily-check-in) (sent once per person per day). `data`: `{ memberId, date, points }`. |
 | `list.changed` | A list is created, edited, archived, deleted, cleared, reset or reordered. |
 | `list.item.changed` | A list item is added, edited, ticked or deleted. |

@@ -44,7 +44,18 @@ Who sees what:
 * **The goal** is for the family: it stays up all day on the [Board](calendar.md#board-view) in the **Today** card (for people with **Show the goal on the Board** on) and as a line above the calendar when it shows just that person (pinned, filtered, or on their own device).
 * Sleep and feelings are health data: encrypted on the server and kept from Claude and other connected apps. See [Privacy](../your-data/privacy.md#temp-check).
 
-API: `GET /api/members/{id}/temp-check?date=` and `PUT /api/members/{id}/temp-check?date=` (today by default; body `{ sleep, feelings, goal, goalSkipped, custom }`, only what's sent changes). `private: true` means sleep and feelings are withheld from this device (`answered` still says which questions have answers). See the [REST API](../integrations/rest-api.md).
+### Evening goal check
+
+With **Evening goal check** on (in the person's [Temp check settings](../settings/family.md#temp-check)), a day they set a goal ends with a follow-up. At the time they chose (9:00 PM to start), if they haven't answered yet:
+
+* their own phones and tablets get a push: **Did you finish your goal? 🎯** with the goal. Tapping it opens their [journal](journal.md), where the check waits at the top. The bell's feed gets the same line. [Quiet hours](quiet-hours.md) hold back the push, not the feed or the card.
+* a **🎯 Goal check** card shows at the bottom of their **Day** view until midnight.
+
+Three big buttons: 🎉 **Yes**, 🌗 **Partly**, 🌱 **Not today**. The answer saves on the tap. Then, if their journal keeps notes, three optional lines: **What helped?**, **What got in the way?** and **Next time I'll…**, with **Save** or **No notes**. The card thanks them ("Nice work, Maya ✓", or something kind for Partly and Not today) and **Change** lets them answer again until midnight. There's one prompt per person per day, and none on days they skipped the goal.
+
+Who sees it: like sleep and feelings. Their own device and parents' devices show the answer and notes; a shared wall screen can take the answer but then shows only **Answered ✓**; another person's device can't answer for them. Answers and notes are encrypted on the server and kept from connected apps unless a parent allows it. See [Privacy](../your-data/privacy.md#temp-check).
+
+API: `GET /api/members/{id}/temp-check?date=` and `PUT /api/members/{id}/temp-check?date=` (today by default; body `{ sleep, feelings, goal, goalSkipped, custom, followup }`, only what's sent changes). `followup` is `{ outcome: "yes" | "partly" | "no", helped, hindered, next }` (notes up to 500 characters each), today only; the response has `followup`, `followupOpen` and `answered.followup`. `private: true` means sleep and feelings are withheld from this device (`answered` still says which questions have answers). See the [REST API](../integrations/rest-api.md).
 
 ## Week
 

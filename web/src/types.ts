@@ -144,8 +144,15 @@ export interface Member {
   todayGoal?: string | null // their Temp check goal for today
 }
 
-export interface TempCheckSettings { on: boolean; sleep: boolean; feelings: boolean; goal: boolean; showGoal: boolean }
-export interface TempCheckAnswered { sleep: boolean; feelings: boolean; goal: boolean }
+export interface TempCheckSettings {
+  on: boolean; sleep: boolean; feelings: boolean; goal: boolean; showGoal: boolean
+  evening: boolean // evening goal check: "Did you finish your goal?" at eveningTime
+  eveningTime: string // HH:MM, household time, on the hour or half hour
+  journal: boolean // keep the follow-up notes (off: only yes / partly / no)
+}
+export interface TempCheckAnswered { sleep: boolean; feelings: boolean; goal: boolean; followup: boolean }
+export type FollowupOutcome = 'yes' | 'partly' | 'no'
+export interface GoalFollowup { outcome: FollowupOutcome; helped: string | null; hindered: string | null; next: string | null }
 /** GET/PUT /api/members/{id}/temp-check. private: sleep and feelings are withheld from this device (a shared wall). */
 export interface TempCheck {
   memberId: string
@@ -158,8 +165,19 @@ export interface TempCheck {
   goalSkipped: boolean
   answered: TempCheckAnswered
   custom: string[] | null // their own feelings ("Other")
+  followup: GoalFollowup | null // the evening goal check (null on a shared wall: private)
+  followupOpen: boolean // showing now: on, a goal set today, past their eveningTime
 }
-export type TempCheckInput = Partial<{ sleep: string | null; feelings: string[] | null; goal: string | null; goalSkipped: boolean; custom: string[] }>
+export type TempCheckInput = Partial<{ sleep: string | null; feelings: string[] | null; goal: string | null; goalSkipped: boolean; custom: string[]; followup: { outcome: FollowupOutcome; helped?: string | null; hindered?: string | null; next?: string | null } }>
+
+/** GET /api/members/{id}/journal: their own device and parents' devices only. */
+export interface JournalEntry { id: string; memberId: string; date: string; text: string; mood: string | null; createdAt: string; updatedAt: string }
+export interface JournalDay {
+  date: string
+  tempCheck: { sleep: string | null; feelings: string[] | null; goal: string | null; goalSkipped: boolean; followup: GoalFollowup | null } | null
+  entries: JournalEntry[]
+}
+export interface Journal { memberId: string; from: string; to: string; days: JournalDay[] }
 
 export type CalendarKind = 'local' | 'ics' | 'google' | 'microsoft' | 'caldav'
 
@@ -652,7 +670,7 @@ export interface PushSubscriptionPrefs {
 export interface AppNotification {
   id: string
   at: string
-  kind: 'reminder' | 'summary' | 'chore' | 'list' | 'message'
+  kind: 'reminder' | 'summary' | 'chore' | 'list' | 'message' | 'goal'
   title: string
   body: string | null
   url: string | null // '/#/calendar?event=…', '/chores', '/lists', '/' - same deep link a push opens
