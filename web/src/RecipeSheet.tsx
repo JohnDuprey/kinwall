@@ -3,7 +3,7 @@ import { api, MOCK } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { useDialog } from './dialog.tsx'
 import Sheet from './Sheet.tsx'
-import { CheckIcon, ChevronLeft, ChevronRight, EditIcon, ExternalIcon, FileIcon, LinkIcon, MinusIcon, PlusIcon } from './icons.tsx'
+import { BookIcon, CheckIcon, ChevronLeft, ChevronRight, EditIcon, ExternalIcon, FileIcon, LinkIcon, MinusIcon, PlusIcon } from './icons.tsx'
 import { ingredientAmount, isPdfUrl, recipeTime, servingsLabel, urlHost } from './meal-date.ts'
 import { KIT_QUALIFIER, type IngredientInput, type Recipe, type RecipeInput, type RecipeKind, type RecipeRating, type RecipeSnapshot, type RecipeStep } from './meal-types.ts'
 import { matchBasic } from './recipe-search.ts'
@@ -12,6 +12,7 @@ import CookingMode from './CookingMode.tsx'
 import { cookingSteps, savedStep } from './cooking.ts'
 import RecipeCardSheet from './RecipeCardSheet.tsx'
 import RecipePhoto from './RecipePhoto.tsx'
+import PickField, { type PickOption } from './PickField.tsx'
 import RecipeShare from './RecipeShare.tsx'
 import { holdAwake } from './wakeLock.ts'
 
@@ -190,6 +191,9 @@ function RecipeEditor({ recipe, library, onClose, onSaved }: { recipe: Recipe | 
   }))
   // Basics an ingredient can be made from: every other active basic (a linked one stays listed).
   const basics = library.filter(r => r.kind === 'basic' && r.id !== recipe?.id && (!r.archived || draft.ingredients.some(i => i.basicId === r.id))).sort((a, b) => a.name.localeCompare(b.name))
+  // The "Made from a basic" picker's rows, like the meal sheet's recipe picker (photo or book, then name).
+  const basicOptions: PickOption[] = [{ value: '', label: 'Not from a basic' }, ...basics.map(b => ({ value: b.id, label: b.name + (b.archived ? ' (archived)' : ''),
+    detail: b.makes ? `Makes ${b.makes}` : undefined, lead: b.imageUrl ? <RecipePhoto id={b.id} className="recipe-pick-thumb" /> : <BookIcon /> }))]
   // Row ids survive removal/reordering so keyboard focus stays on the ingredient being edited.
   const [rowIds, setRowIds] = useState(() => draft.ingredients.map(() => crypto.randomUUID()))
   const [stepIds, setStepIds] = useState(() => (draft.steps ?? []).map(() => crypto.randomUUID()))
@@ -263,9 +267,8 @@ function RecipeEditor({ recipe, library, onClose, onSaved }: { recipe: Recipe | 
           <legend>Ingredient {index + 1}</legend>
           <div className="field"><label htmlFor={rowIds[index]}>Name</label><input type="text" id={rowIds[index]} required maxLength={200} value={row.name} onChange={e => ingredient(index, { name: e.target.value })} />
             {match && <button type="button" className="link-btn" onClick={() => ingredient(index, { basicId: match.id })}>Link to basic: {match.name}</button>}</div>
-          {basics.length > 0 && <div className="field"><label htmlFor={`${rowIds[index]}-basic`}>Made from a basic</label><select id={`${rowIds[index]}-basic`} value={row.basicId ?? ''} onChange={e => ingredient(index, { basicId: e.target.value || null })}>
-            <option value="">Not linked</option>{basics.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-          </select></div>}
+          {basics.length > 0 && <div className="field"><label htmlFor={`${rowIds[index]}-basic`}>Made from a basic</label><PickField id={`${rowIds[index]}-basic`} label={`Made from a basic, ingredient ${index + 1}`} title="Made from a basic" placeholder="Basic name"
+            options={basicOptions} value={[row.basicId ?? '']} onChange={v => ingredient(index, { basicId: v[0] || null })} /></div>}
           <div className="meal-form-row">
             <div className="field"><label htmlFor={`${rowIds[index]}-quantity`}>Quantity</label><input id={`${rowIds[index]}-quantity`} type="number" min="0" max="1000000" step="any" value={row.quantity ?? ''} onChange={e => ingredient(index, { quantity: e.target.value === '' ? null : Number(e.target.value) })} /></div>
             <div className="field"><label htmlFor={`${rowIds[index]}-unit`}>Unit</label><input type="text" id={`${rowIds[index]}-unit`} maxLength={50} placeholder="cup, lb…" value={row.unit ?? ''} onChange={e => ingredient(index, { unit: e.target.value || null })} /></div>
