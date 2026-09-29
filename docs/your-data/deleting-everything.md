@@ -2,6 +2,8 @@
 
 Kinwall has no in-app "delete my family" button. Your data lives wherever you deployed it, so you delete it there.
 
+On a parent's device, **Settings → Access → Your data → Deleting your family's data** sums up the steps below and links here.
+
 ## Before you delete
 
 * Optionally **Download export** (Settings → Access → Your data).

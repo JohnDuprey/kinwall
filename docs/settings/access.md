@@ -56,6 +56,7 @@ Admin keys for scripts and automations. **New admin key** shows the key once, wi
 * **Download export**: everything your family entered, as one JSON file.
 * **Import from a Kinwall export**: merges a file back in, after a confirmation that lists what it contains.
 * **Manage or delete this family**: only when your host set `HOST_PORTAL_URL`.
+* **Deleting your family's data**: without `HOST_PORTAL_URL` (self-hosted), parents' devices see how to delete the family where Kinwall runs (Docker, Cloudflare or Home Assistant), with a link to [Deleting everything](../your-data/deleting-everything.md).
 
 See [Export & import](../your-data/export-import.md).
 

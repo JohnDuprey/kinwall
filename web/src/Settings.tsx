@@ -1,5 +1,6 @@
 import { createContext, Fragment, useContext, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { AppContext, useApp } from './AppContext.tsx'
+import { DOCS_URL } from './Help.tsx'
 import { api, ApiError, clearKey, MOCK, PUSH_SUB_ID_KEY } from './api.ts'
 import type { Account, ApiKey, CalendarEntry, Category, ColorScheme, CustomColors, Density, DeviceDensity, Features, GeocodeResult, GooglePhotos, HostEvent, Me, Member, Passkey, Providers, PushSubscription, RemoteCalendar, Settings, TempCheckSettings, TextScale, ThemeMode, TimeFormat, Typeface, Webhook } from './types.ts'
 import { ProviderForm, PublicUrlRow } from './ProviderConfig.tsx'
@@ -2684,6 +2685,7 @@ const countOf = (n: number, noun: string, plural = `${noun}s`) => `${n} ${n === 
 
 function YourDataSection({ hostPortalUrl, toast, onImported }: { hostPortalUrl?: string; toast: (m: string, persist?: boolean) => void; onImported: () => void }) {
   const dialog = useDialog()
+  const { parentDevice } = useApp()
   const [busy, setBusy] = useState(false)
   const [importing, setImporting] = useState(false)
   const fileInput = useRef<HTMLInputElement>(null)
@@ -2732,6 +2734,19 @@ function YourDataSection({ hostPortalUrl, toast, onImported }: { hostPortalUrl?:
           onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) importFile(f) }} />
         {hostPortalUrl && <a className="text-link" href={hostPortalUrl} target="_blank" rel="noreferrer">Manage or delete this family</a>}
       </div>
+      {/* Self-hosted: nothing in the app deletes the family; it goes with wherever Kinwall runs. */}
+      {!hostPortalUrl && parentDevice && (
+        <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 4 }}>
+          <div className="settings-row-label">Deleting your family's data</div>
+          <p className="settings-row-sub">Download an export first if you might want any of it back. Then delete it where Kinwall runs:</p>
+          <ul className="settings-row-sub" style={{ margin: 0, paddingLeft: 20 }}>
+            <li>Docker: remove the container and its data folder (and any backups of it).</li>
+            <li>Cloudflare: delete the Worker and its D1 database.</li>
+            <li>Home Assistant: uninstall the add-on and remove its data.</li>
+          </ul>
+          <a className="text-link" href={`${DOCS_URL}/your-data/deleting-everything`} target="_blank" rel="noopener">How to delete everything</a>
+        </div>
+      )}
     </Section>
   )
 }
