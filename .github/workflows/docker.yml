@@ -3,10 +3,6 @@ on:
   push:
     branches: [main]
     tags: ['v*']
-  # From release-please.yml when release-please makes a release (its tag push starts no workflows).
-  workflow_call:
-    inputs:
-      tag: { type: string, required: true }
 permissions:
   contents: read
   packages: write
@@ -23,11 +19,10 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository_owner }}/kinwall
-          # A called run is a push to main, so the version comes from the tag input.
           tags: |
-            type=ref,event=branch,enable=${{ !inputs.tag }}
-            type=semver,pattern={{version}},value=${{ inputs.tag }}
-            type=semver,pattern={{major}}.{{minor}},value=${{ inputs.tag }}
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
       - uses: docker/build-push-action@v7
         with:
           platforms: linux/amd64,linux/arm64

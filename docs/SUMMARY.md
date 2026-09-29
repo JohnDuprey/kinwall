@@ -1,7 +1,6 @@
 # Table of contents
 
 * [Kinwall](README.md)
-* [What's new](whats-new.md)
 
 ## Getting started
 
