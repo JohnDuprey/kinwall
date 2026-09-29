@@ -17,7 +17,7 @@ import { addDays, clockLabel, doseAt, LATE_MS, loadLogs, loadMedications, medici
 import { sha256Hex } from './auth.ts';
 import { batteryFor } from './routes/insights.ts';
 import { mealLinksQuery, parseMealLinks, prepAt, prepFor } from './prepBy.ts';
-import { nudge } from './nudges.ts';
+import { nudge, pickNudge, rememberNudge, stepHint, type NudgeSeen } from './nudges.ts';
 import { apnsConfigured, sendLiveActivity, swiftDate, unixSeconds } from './apns.ts';
 import { unseal } from './crypto.ts';
 
@@ -193,7 +193,8 @@ async function sendToSub(env: Env, db: KinwallDb, row: PushSubRow, payload: { ti
 
 // One timed or all-day occurrence in the search window, with what the regular reminders use.
 // prepAt: a meal's event counts down to starting prep (prepBy.ts) instead of leaving, for prepFor.
-type Occurrence = { eventId: string; occurrenceKey: string; title: string; start: string; allDay: boolean; memberIds: string[]; effective: number[]; leadMinutes: number; travelMinutes: number; location: string | null; prepAt: string | null; prepFor: string[] };
+// category (name and emoji) and step (a meal recipe's first step) pick a transition headline's hint.
+type Occurrence = { eventId: string; occurrenceKey: string; title: string; start: string; allDay: boolean; memberIds: string[]; effective: number[]; leadMinutes: number; travelMinutes: number; location: string | null; prepAt: string | null; prepFor: string[]; category: string | null; step: string | null };
 
 async function runEventReminders(env: Env, db: KinwallDb, now: Date, tz: string, defaultReminders: number[], subs: PushSubRow[], quiet: boolean): Promise<void> {
   const eligible = subs.filter((s) => subPrefs(s).eventReminders);
@@ -204,7 +205,7 @@ async function runEventReminders(env: Env, db: KinwallDb, now: Date, tz: string,
   const [calsRes, eventsRes, categoriesRes, membersRes, travelRes, mealsRes] = await db.batch<unknown>([
     db.prepare("SELECT id, kind, name, member_ids, enabled FROM calendars WHERE enabled = 1"),
     db.prepare('SELECT * FROM events WHERE calendar_id IN (SELECT id FROM calendars WHERE enabled = 1)'),
-    db.prepare('SELECT id, emoji FROM categories'),
+    db.prepare('SELECT id, name, emoji FROM categories'),
     db.prepare('SELECT id, name FROM members'),
     // Synced events keep travel time here, not on the row (see migration 0019).
     db.prepare('SELECT calendar_id, external_id, travel_minutes, remind_before_leave FROM event_travel_overrides'),
@@ -215,7 +216,9 @@ async function runEventReminders(env: Env, db: KinwallDb, now: Date, tz: string,
   );
   const memberNames = new Map((membersRes.results as unknown as { id: string; name: string }[]).map((m) => [m.id, m.name]));
   const cals = new Map((calsRes.results as unknown as CalRow[]).map((c) => [c.id, c]));
-  const categoryEmojis = new Map((categoriesRes.results as unknown as { id: string; emoji: string | null }[]).map((c) => [c.id, c.emoji]));
+  const categoryRows = categoriesRes.results as unknown as { id: string; name: string; emoji: string | null }[];
+  const categoryEmojis = new Map(categoryRows.map((c) => [c.id, c.emoji]));
+  const categoryText = new Map(categoryRows.map((c) => [c.id, `${c.name} ${c.emoji ?? ''}`.trim()]));
   const events = eventsRes.results as unknown as EventRow[];
   const meals = parseMealLinks(mealsRes.results);
 
@@ -252,6 +255,7 @@ async function runEventReminders(env: Env, db: KinwallDb, now: Date, tz: string,
     const occ = (start: string): Occurrence => ({
       eventId: row.id, occurrenceKey: start, title: row.title, start, allDay: !!row.all_day, memberIds, effective, leadMinutes, travelMinutes: row.all_day ? 0 : travel?.travel_minutes ?? 0, location: row.location,
       prepAt: meal ? prepAt(start, meal.eventStart, meal.minutes) : null, prepFor: prepFor(meal, memberIds),
+      category: row.category_id ? categoryText.get(row.category_id) ?? null : null, step: stepHint(meal?.firstStep),
     });
 
     if (cal.kind === 'local' && row.rrule) {
@@ -343,17 +347,21 @@ export function inQuietHours(from: string | undefined, to: string | undefined, n
 async function runTransitionReminders(env: Env, db: KinwallDb, now: Date, tz: string, occurrences: Occurrence[], eligible: PushSubRow[]): Promise<void> {
   if (!eligible.length) return;
   const [membersRes, keysRes] = await db.batch<unknown>([
-    db.prepare('SELECT id, name, transitions FROM members WHERE transitions IS NOT NULL'),
+    db.prepare('SELECT id, name, transitions, nudges FROM members WHERE transitions IS NOT NULL'),
     db.prepare("SELECT id, owner FROM api_keys WHERE owner IS NOT NULL AND owner <> 'shared'"),
   ]);
   const ownerOfKey = new Map((keysRes.results as { id: string; owner: string }[]).map((k) => [k.id, k.owner]));
   const minute = (ms: number) => Math.floor(ms / 60000);
 
-  for (const m of membersRes.results as { id: string; name: string; transitions: string }[]) {
+  for (const m of membersRes.results as { id: string; name: string; transitions: string; nudges: string | null }[]) {
     const cfg = parseTransitions(m.transitions);
     const times = cfg.on ? transitionTimes(cfg.minutes, cfg.repeat) : [];
     const devices = eligible.filter((s) => s.api_key_id && ownerOfKey.get(s.api_key_id) === m.id);
     if (!times.length || !devices.length) continue;
+    // Their last few headlines (part indexes), so the next one is different: saved when one is sent.
+    let seen: NudgeSeen[] = [];
+    try { seen = m.nudges ? JSON.parse(m.nudges) : []; } catch { /* start over */ }
+    const seenBefore = seen;
 
     for (const occ of occurrences) {
       if (occ.allDay || !memberMatch([m.id], occ.prepFor)) continue;
@@ -372,9 +380,10 @@ async function runTransitionReminders(env: Env, db: KinwallDb, now: Date, tz: st
       const left = Math.max(1, Math.round((target - now.getTime()) / 60000)); // the truth, even on a late tick
       const by = fmtTime(new Date(target).toISOString(), tz), starts = fmtTime(occ.start, tz);
       const when = occ.prepAt ? (by === starts ? `Start prep by ${by}` : `Start prep by ${by} · starts ${starts}`) : lead ? `Leave by ${by} · starts ${starts}` : `Starts at ${starts}`;
+      // Varied, kind and escalating (nudges.ts), unlike their last few; the body keeps the plain facts.
+      const headline = pickNudge({ kind: occ.prepAt ? 'prep' : lead ? 'leave' : 'start', title: occ.title, minutes: left, at: by, seed: `${m.id}:${occ.eventId}:${occ.occurrenceKey.slice(0, 10)}`, ordinal: times.indexOf(due[due.length - 1]), name: m.name.split(' ')[0], category: occ.category, step: occ.step }, seen);
       const payload = {
-        // Varied, kind and escalating (nudges.ts); the body keeps the plain facts.
-        title: nudge({ kind: occ.prepAt ? 'prep' : lead ? 'leave' : 'start', title: occ.title, minutes: left, at: by, seed: `${m.id}:${occ.eventId}:${occ.occurrenceKey.slice(0, 10)}`, ordinal: times.indexOf(due[due.length - 1]), name: m.name.split(' ')[0] }),
+        title: headline.line,
         body: [when, occ.location && `📍 ${occ.location.replace(/\s*\n\s*/g, ', ')}`].filter(Boolean).join('\n'),
         url: `/#/calendar?event=${encodeURIComponent(occ.eventId)}&at=${encodeURIComponent(new Date(occ.start).toISOString())}`,
         tag: `transition:${occ.eventId}`, // each one replaces the last on the lock screen
@@ -384,10 +393,14 @@ async function runTransitionReminders(env: Env, db: KinwallDb, now: Date, tz: st
         const latest = due[due.length - 1];
         const fireMinute = minute(target - latest * 60000);
         const doubled = memberMatch(parseMemberIds(sub.member_ids), occ.memberIds) && regular.includes(fireMinute);
-        if (!doubled && !(await alreadySent(db, keys[keys.length - 1]))) await sendToSub(env, db, sub, payload);
+        if (!doubled && !(await alreadySent(db, keys[keys.length - 1]))) {
+          await sendToSub(env, db, sub, payload);
+          if (headline.seen) seen = rememberNudge(seen, headline.seen);
+        }
         for (const key of keys) await markSent(db, key, now);
       }
     }
+    if (seen !== seenBefore) await db.prepare('UPDATE members SET nudges = ? WHERE id = ?').bind(JSON.stringify(seen), m.id).run();
   }
 }
 
@@ -417,7 +430,7 @@ async function runLiveActivities(env: Env, db: KinwallDb, now: Date, tz: string,
   // What the activity shows (the app's KinwallActivityAttributes / ContentState, native side).
   const members = membersRes.results as { id: string; name: string; transitions: string }[];
   const shown = (occ: Occurrence, m: { id: string; name: string }, target: number) => {
-    const words = { kind: occ.prepAt ? 'prep' as const : 'leave' as const, title: occ.title, at: fmtTime(new Date(target).toISOString(), tz), seed: `${m.id}:${occ.eventId}:${occ.occurrenceKey.slice(0, 10)}`, name: m.name.split(' ')[0], live: true };
+    const words = { kind: occ.prepAt ? 'prep' as const : 'leave' as const, title: occ.title, at: fmtTime(new Date(target).toISOString(), tz), seed: `${m.id}:${occ.eventId}:${occ.occurrenceKey.slice(0, 10)}`, name: m.name.split(' ')[0], category: occ.category, step: occ.step, live: true };
     const headline = nudge({ ...words, minutes: Math.ceil((target - now.getTime()) / 60000) });
     return { headline, content: { title: headline, detail: nudge({ ...words, minutes: 0 }), date: swiftDate(target), count: 0, done: false } };
   };

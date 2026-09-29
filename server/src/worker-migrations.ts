@@ -60,6 +60,7 @@ import m0056 from '../migrations/0056_medications.sql';
 import m0057 from '../migrations/0057_recipe_basics.sql';
 import m0058 from '../migrations/0058_battery_drained.sql';
 import m0059 from '../migrations/0059_live_activity_tokens.sql';
+import m0060 from '../migrations/0060_member_nudges.sql';
 
 export const MIGRATIONS: Migration[] = [
   { name: '0001_init.sql', sql: m0001 },
@@ -121,4 +122,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0057_recipe_basics.sql', sql: m0057 },
   { name: '0058_battery_drained.sql', sql: m0058 },
   { name: '0059_live_activity_tokens.sql', sql: m0059 },
+  { name: '0060_member_nudges.sql', sql: m0060 },
 ];

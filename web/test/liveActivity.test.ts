@@ -2,6 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { cookingActivity, leaveByActivity, shoppingActivity, timerName } from '../src/liveActivity.ts'
+import { rememberNudge, type NudgeSeen } from '../src/nudges.ts'
 import type { EventInstance } from '../src/types.ts'
 
 test('cooking: the soonest running timer, +N more, then "done" once none is running', () => {
@@ -56,4 +57,20 @@ test('start prep by: a meal\'s event, for its cook; a cooking event stays a few 
   assert.equal(leaveByActivity([tacos], { ...leo, id: 'm1' }, Date.parse('2030-03-04T17:05:00Z'), time), null, 'Alex eats; Leo cooks')
   const cooking = ev('e4', 'Lunch · Soup', '2030-03-04T11:00:00Z', { prepAt: '2030-03-04T11:00:00Z' })
   assert.equal(leaveByActivity([cooking], leo, Date.parse('2030-03-04T11:04:00Z'), time)?.endsAt, '2030-03-04T11:05:00.000Z')
+})
+
+test('leave by: the headline holds for its stage, is remembered once, and the category picks its hints', () => {
+  const sam = { id: 'm2', name: 'Sam', transitionReminders: { on: true, minutes: [30], repeat: null, leaveBy: true } }
+  const time = (iso: string) => new Date(iso).toISOString().slice(11, 16)
+  const soccer = ev('e1', 'Practice', '2030-03-04T16:00:00Z', { memberIds: ['m2'], leaveAt: '2030-03-04T15:40:00Z', categoryId: 'c1' })
+  let seen: NudgeSeen[] = []
+  const opts = () => ({ category: (id: string | null) => (id === 'c1' ? 'Soccer ⚽' : null), seen, remember: (e: NudgeSeen) => { seen = rememberNudge(seen, e) } })
+  const a = leaveByActivity([soccer], sam, Date.parse('2030-03-04T15:20:00Z'), time, false, opts())!
+  assert.equal(seen.length, 2, 'the headline and the "now" line')
+  const b = leaveByActivity([soccer], sam, Date.parse('2030-03-04T15:21:00Z'), time, false, opts())!
+  assert.deepEqual([b.headline, b.urgent, seen.length], [a.headline, a.urgent, 2], 'the same while its stage lasts')
+  const lines = ['2030-03-04', '2030-03-05', '2030-03-06', '2030-03-07', '2030-03-08', '2030-03-09'].map(d =>
+    leaveByActivity([{ ...soccer, id: d, start: `${d}T16:00:00Z`, leaveAt: `${d}T15:40:00Z` }], sam, Date.parse(`${d}T15:20:00Z`), time, false, opts())!.headline)
+  assert.equal(new Set(lines).size, lines.length, lines.join('\n'))
+  assert.match(lines.join('\n'), /Cleats|Shin guards|Ball in the bag|⚽|🥅/)
 })

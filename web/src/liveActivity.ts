@@ -2,7 +2,7 @@
 // Island), built here from what the page already has and sent with tellAppActivity (native.ts).
 // Pure, so web/test/liveActivity.test.ts covers them. The app draws them; the text is decided here.
 import { leadOf } from './leadTime.ts'
-import { nudge } from './nudges.ts'
+import { pickNudge, rememberNudge, type Nudge, type NudgeSeen } from './nudges.ts'
 import { ANY_STORE, anyStoreView, tripView } from './trip.ts'
 import { warningTimes, type TransitionReminders } from './transitions.ts'
 import type { AisleOrder, EventInstance, ListItem } from './types.ts'
@@ -53,10 +53,14 @@ export const GRACE_MIN = 5
  * registers its update token under it and the server doesn't start a second one. */
 export type LeaveByActivity = { activity: string; eventId: string; title: string; prep: boolean; at: string; startsAt: string; endsAt: string; headline: string; urgent: string }
 
+/** How a headline is picked: the event's category text (name and emoji) for its hints, the
+ * person's recent headlines on this device, and where to add a new one (NowNext keeps them). */
+export type NudgeMemory = { category?: (id: string | null) => string | null; seen?: NudgeSeen[]; remember?: (e: NudgeSeen) => void }
+
 /** The person's next leave-by or start-prep time, from their first transition warning before it
  * until the event starts (or GRACE_MIN after the time, if later). Only their events: tagged with
  * them or nobody, and a meal's event only for its cook when it has one. Null when nothing is due. */
-export function leaveByActivity(events: EventInstance[], me: { id: string; name: string; transitionReminders?: TransitionReminders }, now: number, time: (iso: string) => string, calm = false): LeaveByActivity | null {
+export function leaveByActivity(events: EventInstance[], me: { id: string; name: string; transitionReminders?: TransitionReminders }, now: number, time: (iso: string) => string, calm = false, memory: NudgeMemory = {}): LeaveByActivity | null {
   const cfg = me.transitionReminders
   const first = cfg?.on ? warningTimes(cfg.minutes, cfg.repeat)[0] : undefined
   if (!first) return null
@@ -70,9 +74,15 @@ export function leaveByActivity(events: EventInstance[], me: { id: string; name:
   }).sort((a, b) => a.at - b.at)[0]
   if (!due) return null
   const { e, lead, at, end } = due
-  const words = { kind: lead.prep ? 'prep' as const : 'leave' as const, title: e.title, at: time(lead.at), seed: `${me.id}:${e.id}:${e.start.slice(0, 10)}`, name: me.name.split(' ')[0], calm, live: true }
+  const words = { kind: lead.prep ? 'prep' as const : 'leave' as const, title: e.title, at: time(lead.at), seed: `${me.id}:${e.id}:${e.start.slice(0, 10)}`, name: me.name.split(' ')[0], category: memory.category?.(e.categoryId) ?? null, calm, live: true }
+  let seen = memory.seen ?? []
+  const line = (n: Nudge) => {
+    const p = pickNudge(n, seen)
+    if (p.fresh && p.seen) { seen = rememberNudge(seen, p.seen); memory.remember?.(p.seen) }
+    return p.line
+  }
   return {
     activity: `leaveBy:${e.id}@${new Date(e.start).toISOString()}`, eventId: e.id, title: e.title, prep: lead.prep, at: new Date(at).toISOString(), startsAt: e.start, endsAt: new Date(end).toISOString(),
-    headline: nudge({ ...words, minutes: Math.ceil((at - now) / MIN) }), urgent: nudge({ ...words, minutes: 0 }),
+    headline: line({ ...words, minutes: Math.ceil((at - now) / MIN) }), urgent: line({ ...words, minutes: 0 }),
   }
 }

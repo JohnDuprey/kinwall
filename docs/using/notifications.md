@@ -30,7 +30,7 @@ For someone with the [energy battery](battery.md) on, their own phones and table
 
 ## Transition reminders
 
-A family member can also get **transition reminders**: calm heads-ups at the times a parent picks (for example 30 minutes before, plus every 5 minutes during the last 15), sent only to devices that belong to them. The headline changes each time and gets more direct as time runs out ("Soccer practice in 30 min: find your shoes 🚗", then "Leave now for Soccer practice! 🎒"), and a meal's event counts to starting prep instead. They're never sent during quiet hours, a reminder that would land in the same minute as a regular one isn't doubled, and each replaces the last on the lock screen. Set them in [Settings → Family](../settings/family.md#transition-reminders).
+A family member can also get **transition reminders**: calm heads-ups at the times a parent picks (for example 30 minutes before, plus every 5 minutes during the last 15), sent only to devices that belong to them. The headline changes each time, avoids the person's last 10, fits the event ("Leave at 3:40 PM for Soccer practice. Water bottle? 🥅") and gets more direct as time runs out ("Okay, leave now for Soccer practice! 🎒"), and a meal's event counts to starting prep instead. They're never sent during quiet hours, a reminder that would land in the same minute as a regular one isn't doubled, and each replaces the last on the lock screen. Set them in [Settings → Family](../settings/family.md#transition-reminders).
 
 ## Daily summary
 

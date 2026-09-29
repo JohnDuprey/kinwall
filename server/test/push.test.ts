@@ -709,7 +709,7 @@ async function transitionsSetup(transitions: Record<string, unknown>, event: Rec
     push.restore();
     return Promise.all(push.sent.map(async (s) => ({ device: s.url.split('/').pop()!, payload: JSON.parse(await referenceDecrypt(s.body!, devices[s.url.split('/').pop()!].keys.privateKey, devices[s.url.split('/').pop()!].keys.p256dh, devices[s.url.split('/').pop()!].keys.auth)) })));
   };
-  return { request, sam, run };
+  return { request, sam, run, env };
 }
 
 const at = (iso: string, plusMin: number) => new Date(Date.parse(iso) + plusMin * 60000);
@@ -733,6 +733,26 @@ test('transitions: pushes at each time before the member\'s event, only to their
   const ten = (await run(at(start, -10)))[0].payload.title, five = (await run(at(start, -5)))[0].payload.title;
   says(ten, 'Soccer practice', 10, '3:30 PM'); says(five, 'Soccer practice', 5, '3:30 PM');
   assert.equal(new Set([first[0].payload.title, ten, five]).size, 3, 'a different line each time');
+});
+
+test('transitions: a daily event\'s headlines avoid the person\'s last 10, remembered as part indexes', async () => {
+  const start = '2030-03-04T15:30:00Z';
+  const { run, env } = await transitionsSetup({ on: true, minutes: [10, 5] }, { start, end: at(start, 60).toISOString(), rrule: 'FREQ=DAILY' });
+  const titles: string[] = [];
+  const history: string[] = [];
+  for (let day = 0; day < 8; day++) for (const before of [-10, -5]) {
+    const sent = await run(at(start, day * 1440 + before));
+    assert.equal(sent.length, 1);
+    titles.push(sent[0].payload.title);
+    const row = await env.DB.prepare("SELECT nudges FROM members WHERE name = 'Leo'").first<{ nudges: string }>();
+    const seen = JSON.parse(row!.nudges) as { id: string; combo: string; opener: number }[];
+    history.push(seen[seen.length - 1].combo);
+  }
+  const stored = (await env.DB.prepare("SELECT nudges FROM members WHERE name = 'Leo'").first<{ nudges: string }>())!.nudges;
+  assert.equal(JSON.parse(stored).length, 10, 'pruned to the last 10');
+  assert.doesNotMatch(stored, /Soccer practice|Cleats|shoes|PM|min\b/i, 'part indexes, not text');
+  for (let i = 0; i < history.length; i++) assert.ok(!history.slice(Math.max(0, i - 10), i).includes(history[i]), `repeat: ${titles[i]}`);
+  assert.match(titles.join('\n'), /Cleats on\?|Shin guards\?|Ball in the bag\?|⚽|🥅/, 'soccer hints');
 });
 
 test('transitions: a late tick sends only the latest due time, worded truthfully', async () => {

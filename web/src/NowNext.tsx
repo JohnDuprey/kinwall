@@ -9,6 +9,7 @@ import { leadFor, leadIcon, leadOf } from './leadTime.ts'
 import { useApp } from './AppContext.tsx'
 import { api, MOCK } from './api.ts'
 import { leaveByActivity } from './liveActivity.ts'
+import { rememberNudge, type NudgeSeen } from './nudges.ts'
 import { endAppActivity, tellAppActivity, tellAppLeaveByPush } from './native.ts'
 import { useDeviceAppearance } from './useTheme.ts'
 
@@ -150,10 +151,19 @@ export function TransitionWarnings({ events, minutes, sound, settings }: { event
 /** Inside the iPhone app: tells it about this device's person's next leave-by or start-prep time,
  * so it can show a Live Activity from their first transition warning until the event starts
  * (liveActivity.ts). Renders nothing. While the app is closed, the server's push starts it instead. */
+// The person's last few Live Activity headlines on this device (nudges.ts), so the next one differs.
+const nudgesKey = (id: string) => `kinwall.nudges.${id}`
+function seenNudges(id: string): NudgeSeen[] {
+  try { return JSON.parse(localStorage.getItem(nudgesKey(id)) ?? '[]') } catch { return [] }
+}
+function rememberNudgeHere(id: string, e: NudgeSeen) {
+  try { localStorage.setItem(nudgesKey(id), JSON.stringify(rememberNudge(seenNudges(id), e))) } catch { /* storage blocked */ }
+}
+
 const DEMO_ME = (members: Member[]) => { const sam = members.find(m => m.name === 'Sam'); return sam && { ...sam, transitionReminders: { on: true, minutes: [30], repeat: null, leaveBy: true } } }
 
 export function LeaveByLiveActivity() {
-  const { settings, members, meMemberId, refreshTick } = useApp()
+  const { settings, members, categories, meMemberId, refreshTick } = useApp()
   const calm = !!useDeviceAppearance().lowStim
   const now = useNow(30000)
   const [events, setEvents] = useState<EventInstance[]>([])
@@ -164,7 +174,8 @@ export function LeaveByLiveActivity() {
   // The demo has no device owner: it shows Sam's, with a 30-minute heads-up, so the app's demo has one.
   const me = members.find(m => m.id === meMemberId) ?? (MOCK ? DEMO_ME(members) : undefined)
   const tz = settings.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone
-  const a = me ? leaveByActivity(events, me, now, iso => formatTime(iso, tz), calm) : null
+  const category = (id: string | null) => { const c = categories.find(x => x.id === id); return c ? `${c.name} ${c.emoji ?? ''}`.trim() : null }
+  const a = me ? leaveByActivity(events, me, now, iso => formatTime(iso, tz), calm, { category, seen: seenNudges(me.id), remember: e => rememberNudgeHere(me.id, e) }) : null
   const json = JSON.stringify(a)
   // Push-to-start only for a person who gets transition reminders (never the demo's stand-in).
   const push = !!members.find(m => m.id === meMemberId)?.transitionReminders?.on
