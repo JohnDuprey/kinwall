@@ -19,7 +19,8 @@ import AuthorizeScreen from './Authorize.tsx'
 import Setup, { readSetupResume, resumeAtPasskey } from './Setup.tsx'
 import { useIsPhone } from './useIsPhone.ts'
 import { useNavMode, type NavMode } from './useNavMode.ts'
-import { inTimeWindow, useDeviceAppearance, useTheme } from './useTheme.ts'
+import { useDeviceAppearance, useTheme } from './useTheme.ts'
+import { isWallScreen, nightScreenDue, wallDefaultsOn } from './wallScreen.ts'
 import { inkFor } from './color.ts'
 import { loginWithPasskey, passkeysSupported, registerPasskey } from './webauthn.ts'
 import { announce } from './a11y.tsx'
@@ -171,15 +172,14 @@ function useUpdateAvailable(enabled: boolean) {
   return { stale, scope }
 }
 
-const WAKE_MS = 5 * 60 * 1000
 const PREVIEW_MS = 20 * 1000
 const CLOCK_MOVE_MS = 3 * 60 * 1000
 
-/** Quiet hours: a paired wall display shows only a dim clock that moves around (or, per device, a dim
- * slideshow - see Screensaver.tsx) between settings.quietFrom and quietTo. Any touch keeps it awake
- * for WAKE_MS. Only display-scoped sessions ever dim; SAVER_PREVIEW_EVENT shows it for 20 s on any
- * device so an admin can see what the wall will do. */
-function QuietOverlay({ settings, isDisplay }: { settings: Settings; isDisplay: boolean }) {
+/** Quiet hours: a wall screen (wallScreen.ts) shows only a dim clock that moves around (or, per device,
+ * a dim slideshow - see Screensaver.tsx) between settings.quietFrom and quietTo. Any touch keeps it
+ * awake for WAKE_MS. SAVER_PREVIEW_EVENT shows it for 20 s on any device so an admin can see what the
+ * wall will do. */
+function QuietOverlay({ settings, wall }: { settings: Settings; wall: boolean }) {
   const device = useDeviceAppearance()
   const [now, setNow] = useState(new Date())
   const lastActive = useRef(0) // 0 = asleep from the start if loaded mid-window
@@ -199,8 +199,7 @@ function QuietOverlay({ settings, isDisplay }: { settings: Settings; isDisplay: 
     const id = setTimeout(() => setPreview(false), PREVIEW_MS)
     return () => clearTimeout(id)
   }, [preview])
-  const { quietFrom, quietTo } = settings
-  const asleep = preview || (isDisplay && !!quietFrom && !!quietTo && inTimeWindow(quietFrom, quietTo, now) && now.getTime() - lastActive.current > WAKE_MS)
+  const asleep = preview || nightScreenDue({ wall, quietFrom: settings.quietFrom, quietTo: settings.quietTo, now, lastActive: lastActive.current })
   // Photos turned off (Settings → Features): a display that picked them shows nature pictures instead.
   const sources = [...new Set((device.saverSources ?? []).map(src => src === 'photos' && !settings.features.photos ? 'nature' : src))]
   const fixed = device.clockPos && CLOCK_SPOTS[device.clockPos]
@@ -976,9 +975,10 @@ function AppRoutes() {
   // mustn't lose it. Tabbing, typing and wheel-scrolling all count as activity.
   // It's for the wall: on by default for wall screens and kids' devices, off for a parent's
   // phone or computer (Settings → This device can change either).
-  const idleReset = device.idleReset ?? !parentDevice
+  const idleReset = device.idleReset ?? wallDefaultsOn(parentDevice, device)
   // Wall screens and kids' devices stay on; a parent's phone locks as usual unless its own switch says otherwise.
-  const keepOn = device.keepAwake ?? !parentDevice
+  const keepOn = device.keepAwake ?? wallDefaultsOn(parentDevice, device)
+  const wall = isWallScreen(scope, device)
   useEffect(() => { holdAwake('device', keepOn) }, [keepOn])
   useEffect(() => {
     if (!idleReset) return
@@ -1098,7 +1098,7 @@ function AppRoutes() {
         {bannerMsg && <button className="toast update-banner" onClick={() => setBannerMsg(null)}>{bannerMsg}</button>}
         {updateAvailable && <button className="toast update-banner" onClick={() => location.reload()}>Kinwall updated — tap to reload</button>}
         {isPhone && <InstallNudge />}
-        <QuietOverlay settings={settings} isDisplay={scope === 'display'} />
+        <QuietOverlay settings={settings} wall={wall} />
       </div>
     </AppContext.Provider>
   )

@@ -6,6 +6,8 @@ import { accentFill, readableOn } from './color.ts'
 import { api, getKey } from './api.ts'
 import { findSkin, seasonalSkinId, tokensFor } from './skins.ts'
 import { surfaces, tellAppAppearance } from './native.ts'
+import { inTimeWindow } from './wallScreen.ts'
+export { inTimeWindow } // callers import it from here
 
 const SCALE: Record<TextScale, string> = { s: '0.9', m: '1', l: '1.15', xl: '1.3' }
 
@@ -29,6 +31,7 @@ export type DeviceAppearance = Partial<Pick<Appearance, 'themeMode' | 'textScale
   nowNext?: boolean // Now / Next card on the calendar; absent = on
   keepAwake?: boolean // keep the screen on while Kinwall is showing; absent = on for wall screens and kids' devices, off for parent devices
   idleReset?: boolean // back to the calendar after 2 idle minutes; absent = on for wall screens and kids' devices, off for parent devices
+  wallScreen?: boolean // act as a wall screen (night screen in quiet hours, the two defaults above); paired displays always do
   warnings?: number[] // transition warnings, minutes before an event (or its leave-by)
   warningRepeat?: WarningRepeat // ...plus every N minutes during the last M (transitions.ts)
   warningSound?: boolean
@@ -101,19 +104,6 @@ export function useDeviceAppearance(): DeviceAppearance {
     return () => { window.removeEventListener(DEVICE_EVENT, on); window.removeEventListener('storage', on) }
   }, [])
   return v
-}
-
-/** Is `now` inside the [from, to) HH:MM window (device-local clock time)? Handles ranges that
- * cross midnight (e.g. 20:00 -> 07:00). Used by scheduled dark mode and display quiet hours. */
-export function inTimeWindow(from: string, to: string, now = new Date()): boolean {
-  const [fh, fm] = from.split(':').map(Number)
-  const [th, tm] = to.split(':').map(Number)
-  if ([fh, fm, th, tm].some(Number.isNaN)) return false
-  const cur = now.getHours() * 60 + now.getMinutes()
-  const start = fh * 60 + fm
-  const end = th * 60 + tm
-  if (start === end) return false
-  return start < end ? cur >= start && cur < end : cur >= start || cur < end
 }
 
 /** Density actually in effect: low-stimulation mode never runs compact (it wants more room). */

@@ -1,0 +1,40 @@
+// node --test test/ (npm test). Which devices act as a wall screen, and when the night screen shows.
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import { isWallScreen, nightScreenDue, wallDefaultsOn, WAKE_MS } from '../src/wallScreen.ts'
+
+test('isWallScreen: paired displays always are; other devices only with the switch on', () => {
+  assert.equal(isWallScreen('display', {}), true)
+  assert.equal(isWallScreen('display', { wallScreen: false }), true, 'a paired display cannot opt out')
+  assert.equal(isWallScreen('admin', {}), false, 'a parent device is off by default')
+  assert.equal(isWallScreen('admin', { wallScreen: true }), true)
+  assert.equal(isWallScreen('', {}), false, 'scope not known yet')
+})
+
+test('wallDefaultsOn: keep awake / idle reset default on for wall screens and kids, off for parents', () => {
+  assert.equal(wallDefaultsOn(false, {}), true)
+  assert.equal(wallDefaultsOn(true, {}), false)
+  assert.equal(wallDefaultsOn(true, { wallScreen: true }), true)
+})
+
+const at = (h: number, m = 0) => new Date(2026, 8, 29, h, m)
+const quiet = { quietFrom: '22:00', quietTo: '06:00' }
+
+test('nightScreenDue: only on a wall screen, inside quiet hours that wrap past midnight', () => {
+  for (const [h, want] of [[21, false], [22, true], [23, true], [0, true], [5, true], [6, false], [12, false]] as const) {
+    assert.equal(nightScreenDue({ wall: true, ...quiet, now: at(h, h === 5 ? 59 : 0), lastActive: 0 }), want, `${h}:00`)
+  }
+  assert.equal(nightScreenDue({ wall: false, ...quiet, now: at(23), lastActive: 0 }), false, 'not a wall screen')
+})
+
+test('nightScreenDue: a same-day window, and quiet hours off', () => {
+  assert.equal(nightScreenDue({ wall: true, quietFrom: '13:00', quietTo: '15:00', now: at(14), lastActive: 0 }), true)
+  assert.equal(nightScreenDue({ wall: true, quietFrom: '13:00', quietTo: '15:00', now: at(23), lastActive: 0 }), false)
+  assert.equal(nightScreenDue({ wall: true, quietFrom: null, quietTo: null, now: at(23), lastActive: 0 }), false)
+})
+
+test('nightScreenDue: a tap wakes it until WAKE_MS without a touch', () => {
+  const now = at(23)
+  assert.equal(nightScreenDue({ wall: true, ...quiet, now, lastActive: now.getTime() - 1000 }), false)
+  assert.equal(nightScreenDue({ wall: true, ...quiet, now, lastActive: now.getTime() - WAKE_MS - 1 }), true)
+})

@@ -21,6 +21,7 @@ import { ColorClashHint, ColorClashNote } from './ColorClash.tsx'
 import { useIsPhone } from './useIsPhone.ts'
 import { useNavMode, setNavPref, type NavPref } from './useNavMode.ts'
 import { DEFAULT_ACCENT, resolveColors, setDeviceAppearance, useDeviceAppearance, type DeviceAppearance, type LockedView, type SaverSource } from './useTheme.ts'
+import { wallDefaultsOn } from './wallScreen.ts'
 import { baseFromPalette, findSkin, getSkin, OLD_BACKGROUNDS, paletteChecks, paletteOf, seasonalSkinId, tokensFor, type CustomScheme, type Palette } from './skins.ts'
 import { SAVER_PREVIEW_EVENT } from './Screensaver.tsx'
 import type { ClockPos } from './nightClock.ts'
@@ -484,7 +485,7 @@ function QuietHoursSection({ settings, onSaved, toast }: { settings: Settings; o
             <div className="field" style={{ margin: 0 }}><label>Quiet to</label><input type="time" value={settings.quietTo ?? ''} onChange={e => e.target.value && save({ quietFrom: settings.quietFrom, quietTo: e.target.value })} /></div>
           </div>
         )}
-        <div className="settings-row-sub">Paired wall displays show only a dim clock between these times (or a dim slideshow, set per display under Night screen). Tap the screen to wake it for five minutes. Phones are never affected.</div>
+        <div className="settings-row-sub">Wall screens show only a dim clock between these times (or a dim slideshow, set per display under Night screen). Tap the screen to wake it for five minutes. Other devices are never affected unless Use as a wall screen is on under This display.</div>
       </div>
     </Section>
   )
@@ -1096,16 +1097,16 @@ function DeviceAppearanceRows() {
 }
 
 /** Device-only behavior for this screen: member focus, locked calendar view, the Board's lists,
- * keeping the screen on and going back to the calendar when idle. Stored alongside the device
- * appearance. */
-function ScreenFocusRows() {
+ * acting as a wall screen, keeping the screen on and going back to the calendar when idle. Stored
+ * alongside the device appearance. `display`: a paired display, always a wall screen (no switch). */
+function ScreenFocusRows({ display }: { display: boolean }) {
   const { members, focusMemberId, focusLocked, parentDevice } = useApp()
   const isPhone = useIsPhone()
   const device = useDeviceAppearance()
   const set = (patch: DeviceAppearance) => setDeviceAppearance({ ...device, ...patch })
   const focus = members.find(m => m.id === focusMemberId)
-  const idleReset = device.idleReset ?? !parentDevice
-  const keepOn = device.keepAwake ?? !parentDevice
+  const idleReset = device.idleReset ?? wallDefaultsOn(parentDevice, device)
+  const keepOn = device.keepAwake ?? wallDefaultsOn(parentDevice, device)
   const views: { key: LockedView | ''; label: string }[] = [
     { key: '', label: 'Off' }, { key: 'week', label: isPhone ? '3 Day' : 'Week' }, { key: 'day', label: 'Day' }, { key: 'month', label: 'Month' }, { key: 'schedule', label: 'Schedule' }, { key: 'board', label: 'Board' },
   ]
@@ -1145,6 +1146,16 @@ function ScreenFocusRows() {
           </select>
         </div>
       </div>
+      {!display && (
+        <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+          <div className="toggle-row">
+            <label id="wall-screen-label">Use as a wall screen</label>
+            <button className={`switch ${device.wallScreen ? 'on' : ''}`} role="switch" aria-checked={!!device.wallScreen} aria-labelledby="wall-screen-label" aria-describedby="wall-screen-sub"
+              onClick={() => { set({ wallScreen: !device.wallScreen || undefined }); announce(device.wallScreen ? 'Wall screen off' : 'Wall screen on') }}><span className="knob" /></button>
+          </div>
+          <div className="settings-row-sub" id="wall-screen-sub">Acts like a wall screen: stays awake, returns to the calendar when idle, and shows the Night screen during quiet hours. Your access doesn't change.</div>
+        </div>
+      )}
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
         <div className="toggle-row">
           <label id="keep-awake-label">Keep the screen on</label>
@@ -1341,7 +1352,7 @@ function ScreensaverRows() {
         <div className="settings-row-sub">{device.clockPos ? 'The clock stays put. Moves around protects the screen from burn-in.' : 'Every few minutes the clock fades to a new spot, so no pixels stay lit in one place.'}</div>
       </>}
       <button className="btn btn-secondary saver-preview-btn" onClick={() => window.dispatchEvent(new Event(SAVER_PREVIEW_EVENT))}>Preview screensaver</button>
-      <div className="settings-row-sub">Shows what this screen does overnight for 20 seconds. Tap or press Escape to end it. Only paired wall displays dim on their own.</div>
+      <div className="settings-row-sub">Shows what this screen does overnight for 20 seconds. Tap or press Escape to end it. Only wall screens dim on their own: paired displays, and devices with Use as a wall screen on under This display.</div>
     </div>
   )
 }
@@ -1356,7 +1367,7 @@ function ThisDisplaySection({ keyName }: { keyName?: string }) {
           <div className="settings-row-label">Paired as {keyName || 'this display'}</div>
         </div>
       )}
-      <ScreenFocusRows />
+      <ScreenFocusRows display={keyName !== undefined} />
       <InstallRow />
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
         <div className="settings-row-label" aria-hidden="true">Navigation position</div>

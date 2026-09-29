@@ -1,0 +1,30 @@
+// Which devices act as a wall screen, and when their Night screen shows. Pure, so node tests load it.
+
+/** A tap keeps the Night screen away this long during quiet hours. */
+export const WAKE_MS = 5 * 60 * 1000
+
+/** Is `now` inside the [from, to) HH:MM window (device-local clock time)? Handles ranges that
+ * cross midnight (e.g. 20:00 -> 07:00). Used by scheduled dark mode and display quiet hours. */
+export function inTimeWindow(from: string, to: string, now = new Date()): boolean {
+  const [fh, fm] = from.split(':').map(Number)
+  const [th, tm] = to.split(':').map(Number)
+  if ([fh, fm, th, tm].some(Number.isNaN)) return false
+  const cur = now.getHours() * 60 + now.getMinutes()
+  const start = fh * 60 + fm
+  const end = th * 60 + tm
+  if (start === end) return false
+  return start < end ? cur >= start && cur < end : cur >= start || cur < end
+}
+
+/** A paired display (display key) always is one; any other device when its own "Use as a wall
+ * screen" switch is on. Display purposes only: it never changes what the device may do. */
+export const isWallScreen = (scope: string, device: { wallScreen?: boolean }) => scope === 'display' || !!device.wallScreen
+
+/** Default for "Keep the screen on" and "Back to the calendar when idle" when this device hasn't
+ * set them: on for wall screens and kids' devices, off for a parent's own phone or computer. */
+export const wallDefaultsOn = (parentDevice: boolean, device: { wallScreen?: boolean }) => !parentDevice || !!device.wallScreen
+
+/** Quiet hours on a wall screen: the Night screen shows once nobody has touched it for WAKE_MS. */
+export function nightScreenDue(o: { wall: boolean; quietFrom: string | null; quietTo: string | null; now: Date; lastActive: number }): boolean {
+  return o.wall && !!o.quietFrom && !!o.quietTo && inTimeWindow(o.quietFrom, o.quietTo, o.now) && o.now.getTime() - o.lastActive > WAKE_MS
+}

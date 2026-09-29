@@ -1,6 +1,6 @@
-# Quiet hours (displays only)
+# Quiet hours (wall screens only)
 
-Quiet hours turn a wall display into a dim clock overnight. That saves the screen, avoids burn-in and keeps the hallway dark.
+Quiet hours turn a wall screen into a dim clock overnight. That saves the screen, avoids burn-in and keeps the hallway dark.
 
 ## Set it up
 
@@ -8,7 +8,7 @@ Quiet hours turn a wall display into a dim clock overnight. That saves the scree
 
 ## Behavior
 
-* It applies **only to paired wall displays** (devices using a display key). Phones and admin devices are never dimmed.
+* It applies **only to wall screens**: paired displays (devices using a display key), and any other device with **Use as a wall screen** on under [Settings → This display](../settings/this-display.md#this-display). Other phones and parent devices are never dimmed. A parent's iPad or a kitchen laptop can be a wall screen and keep its parent access.
 * During the window, the display shows only the time on a dark screen. By default the clock moves around: every few minutes it fades in at a new spot, so no pixels stay lit in one place.
 * **Tap the screen** to wake it. It returns to the clock after **five minutes** without a touch.
 * The times are read on the display's own clock. The setting syncs to every display within about 30 seconds.
@@ -17,7 +17,7 @@ Quiet hours also hold back transition reminders that would arrive during them. T
 
 ## Screensaver
 
-Instead of the bare clock, a display can show a slow, dim slideshow overnight. It's set **per display**: **Settings → General**, tap **Change** under **Night screen**, then **During quiet hours show**. Turn on one or more sources. With more than one on, the pictures take turns (drawing, then family photo, then art, then nature, and so on). **Clock only** (the default) turns them all off.
+Instead of the bare clock, a display can show a slow, dim slideshow overnight. It's set **per device**: **Settings → General**, tap **Change** under **Night screen**, then **During quiet hours show**. Turn on one or more sources. With more than one on, the pictures take turns (drawing, then family photo, then art, then nature, and so on). **Clock only** (the default) turns them all off.
 
 * **Drawings**: pictures from this display's own [Paint gallery](activities.md#my-drawings), shuffled. If there are none yet, the display skips drawings (or shows the clock if drawings is the only source).
 * **Family photos**: your family's [photos](photos.md), shuffled, with their captions. They come from your own Kinwall server.
