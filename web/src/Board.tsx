@@ -114,7 +114,7 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
 
   return (
     <div className="board-scroll" ref={scrollRef}>
-      <TakeNow className="meds-now-board" />
+      <TakeNow className="meds-now-board" compact />
       <div className="board" style={boardAreas(shown)}>
         {has('tiles') && (
           <nav className="board-tiles" aria-label="At a glance">

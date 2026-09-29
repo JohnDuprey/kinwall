@@ -2499,7 +2499,7 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
 
 /* Medication reminders: the Take now card (Board, Day view, medicines page), the medicines page, Settings. */
 .meds-now { gap: 8px; border: 2px solid color-mix(in srgb, var(--accent) 45%, transparent); }
-.meds-now-board { margin: 4px var(--pad) var(--gap); }
+.meds-now-board { margin: 4px var(--pad) var(--gap); width: calc(100% - 2 * var(--pad)); font: inherit; text-align: left; cursor: pointer; }
 .meds-now-day { margin: 0 0 14px; }
 .meds-now-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .meds-now-item { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; padding: 10px 12px; border-radius: 12px; background: var(--bg-alt); }

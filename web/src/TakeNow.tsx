@@ -1,6 +1,6 @@
 // "Take now": a card for each medicine dose that's due (from its time until it's taken, skipped or
 // 3 hours on; a snooze hides it for 10 minutes). At the top of the Board, in a person's Day view and
-// on their medications page. The server decides what this device may see: a shared wall gets
+// on their medications page. On the Board (compact) it's one small tile that opens the list in a sheet. The server decides what this device may see: a shared wall gets
 // everyone's doses as "Meds" unless the family turned names on, a person's own device only theirs.
 import { useEffect, useState } from 'react'
 import { api, ApiError } from './api.ts'
@@ -9,15 +9,17 @@ import { announce } from './a11y.tsx'
 import { inkFor } from './color.ts'
 import { timeLabel } from './journal.ts'
 import { cardLabel } from './medications.ts'
+import Sheet from './Sheet.tsx'
 import type { DueDose, MedicationsDue } from './types.ts'
 
 const RECHECK_MS = 60_000 // a dose shows up at its time without waiting for the next refresh
 
-export default function TakeNow({ memberId, className = '' }: { memberId?: string; className?: string }) {
+export default function TakeNow({ memberId, className = '', compact = false }: { memberId?: string; className?: string; compact?: boolean }) {
   const { settings, members, refreshTick, toast } = useApp()
   const [due, setDue] = useState<MedicationsDue | null>(null)
   const [tick, setTick] = useState(0)
   const [busy, setBusy] = useState<string | null>(null)
+  const [open, setOpen] = useState(false)
   const on = settings.medications
   useEffect(() => {
     if (!on) return
@@ -46,9 +48,7 @@ export default function TakeNow({ memberId, className = '' }: { memberId?: strin
     finally { setBusy(null) }
   }
 
-  return (
-    <section className={`board-card meds-now ${className}`} aria-labelledby="meds-now-title">
-      <h3 id="meds-now-title" className="snap-heading">💊 Take now</h3>
+  const list = (
       <ul className="meds-now-list">
         {doses.map(d => {
           const m = members.find(x => x.id === d.memberId)
@@ -69,6 +69,28 @@ export default function TakeNow({ memberId, className = '' }: { memberId?: strin
           )
         })}
       </ul>
+  )
+  if (compact) {
+    const who = [...new Set(doses.map(d => d.memberId))].map(id => members.find(m => m.id === id)).filter(m => m !== undefined)
+    return <>
+      <button className={`board-tile meds-now meds-now-tile ${className}`} aria-haspopup="dialog" onClick={() => setOpen(true)}>
+        <span className="board-tile-label">💊 Take now</span>
+        <span className="board-tile-value">{doses.length} due</span>
+        <span className="board-tile-people">
+          {who.map(m => (
+            <span key={m.id} className="board-tile-person">
+              <span className="board-avatar" style={{ background: m.color, color: inkFor(m.color) }} aria-hidden="true">{m.avatar || m.name[0]}</span>{m.name}
+            </span>
+          ))}
+        </span>
+      </button>
+      {open && <Sheet title="💊 Take now" onClose={() => setOpen(false)}>{list}</Sheet>}
+    </>
+  }
+  return (
+    <section className={`board-card meds-now ${className}`} aria-labelledby="meds-now-title">
+      <h3 id="meds-now-title" className="snap-heading">💊 Take now</h3>
+      {list}
     </section>
   )
 }
