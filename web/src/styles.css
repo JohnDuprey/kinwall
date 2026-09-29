@@ -1347,7 +1347,9 @@ button {
   padding: 18px 10px;
 }
 
-::-webkit-scrollbar { width: 0; height: 0; }
+/* Touch screens (walls, tablets, phones) scroll by swiping, so hide the bars there; mouse users
+   need them to see that a page scrolls. */
+@media (pointer: coarse) { ::-webkit-scrollbar { width: 0; height: 0; } }
 
 /* ---------- Appearance settings ---------- */
 .bg-preview-dot { width: 14px; height: 14px; border-radius: 4px; display: inline-block; margin-right: 6px; border: 1px solid var(--border); vertical-align: -2px; }

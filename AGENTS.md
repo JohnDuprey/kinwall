@@ -81,6 +81,8 @@ changes, `docs/self-hosting/` for config. New routes are documented by their zod
   Enter/Space), shows a pointer and has a hover state. Both come from the shared "Pointer and hover"
   rules at the end of `styles.css`: add a new control's class to their lists, and keep hover inside
   `@media (hover: hover) and (pointer: fine)`.
+- Scrollbars: hidden only on touch screens (`pointer: coarse`); mouse users always see them. Don't
+  hide a scrollbar anywhere else.
 - Short choices use a `<select>` (not radio groups). A long list, picking several, or choices that
   need a preview (color schemes, typefaces, timezones, categories, members) use a row that opens a
   sheet (`PickField`, `SchemePicker`), never `<select multiple>`.
