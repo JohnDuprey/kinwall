@@ -19,11 +19,11 @@ Pick **Last 4 weeks**, **Last 3 months** or **Last year** at the top.
 * **Connections**: patterns once there's enough to go on (below), or how many days there are so far.
 * **Sleep**: each night's answer from Terrible to Great, as a line across the range. Nights without an answer leave a gap.
 * **Feelings**: how many days each feeling came up, most common first, and each week's count for the top four.
-* **Goals** per week: met, partly, not this time, and goals with no check yet, out of 7 days.
+* **Goals** per week: met (solid), partly (striped), not this time (an outline), and goals with no check yet (a dashed outline), out of 7 days.
 * **Chores done** and **Activity time** per week, when there are any.
 * **Busy days**: timed events each day, with a mark under evenings that ended after 8 PM.
 
-Charts are drawn to scale in the person's color and work in light and dark mode. Nothing needs a hover: every number is on the page or read out by screen readers. Feelings are never colored as good or bad.
+Charts are drawn to scale in the person's color and work in light and dark mode. Nothing needs a hover: every number is on the page or read out by screen readers. Feelings are never colored as good or bad. Parts of a chart differ by fill (solid, stripes, outline), not only by shade, so they read without color vision.
 
 ## What goes into it
 

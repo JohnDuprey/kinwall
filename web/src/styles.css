@@ -2554,13 +2554,16 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
 .insights-axis { display: flex; justify-content: space-between; font-size: 0.75rem; font-weight: 700; color: var(--text-dim); }
 .insights-bars { display: flex; align-items: stretch; gap: 3px; height: 140px; padding-top: 20px; box-sizing: border-box; border-bottom: 1px solid var(--border); }
 .insights-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; justify-content: flex-end; align-items: stretch; }
-.insights-stack { display: flex; flex-direction: column-reverse; height: 100%; }
+.insights-stack { display: flex; flex-direction: column-reverse; gap: 2px; height: 100%; }
 .insights-val { position: absolute; left: 0; right: 0; bottom: 100%; text-align: center; font-size: 0.75rem; font-weight: 800; color: var(--text-dim); }
 .insights-seg { display: block; flex: none; border-radius: 3px; position: relative; }
+/* Each part differs in fill, not only in shade, so it reads without color vision: met solid, partly
+   striped, not this time an outline, no check a dashed outline, a guess (battery days ahead) dashed and tinted. */
 .insights-seg.met { background: var(--m); }
-.insights-seg.partly { background: color-mix(in srgb, var(--m) 55%, var(--card)); }
-.insights-seg.no { background: color-mix(in srgb, var(--m) 25%, var(--card)); box-shadow: inset 0 0 0 2px var(--m); } /* outlined so it shows on a light card */
-.insights-seg.open { box-shadow: inset 0 0 0 2px var(--border); }
+.insights-seg.partly { background: repeating-linear-gradient(135deg, var(--m) 0 3px, color-mix(in srgb, var(--m) 25%, var(--card)) 3px 6px); }
+.insights-seg.no { box-shadow: inset 0 0 0 2px var(--m); }
+.insights-seg.open { border: 2px dashed var(--text-dim); }
+.insights-seg.forecast { background: color-mix(in srgb, var(--m) 30%, var(--card)); border: 2px dashed var(--m); }
 .insights-legend { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 0.8125rem; font-weight: 700; color: var(--text-dim); }
 .insights-legend li { display: flex; align-items: center; gap: 6px; }
 .insights-legend .insights-seg { width: 14px; height: 14px; }

@@ -53,7 +53,7 @@ export default function BatteryCard({ member, full = false }: { member: Member; 
           <div className="insights-bars" role="img" aria-label={`By evening each day: ${shown.days.map(d => `${label(d.date)} ${d.level}%${d.forecast ? ' (a guess)' : ''}`).join(', ')}.`}>
             {shown.days.map(d => (
               <span key={d.date} className="insights-col">
-                <span className={`insights-seg ${d.forecast ? 'partly' : 'met'}`} style={{ height: `${Math.max(2, d.level)}%` }}><span className="insights-val">{d.level}</span></span>
+                <span className={`insights-seg ${d.forecast ? 'forecast' : 'met'}`} style={{ height: `${Math.max(2, d.level)}%` }}><span className="insights-val">{d.level}</span></span>
               </span>
             ))}
           </div>
@@ -63,7 +63,7 @@ export default function BatteryCard({ member, full = false }: { member: Member; 
               {shown.days.map(d => <span key={d.date}>{drainedOf(d.felt)?.emoji ?? ''}</span>)}
             </div>
           )}
-          <ul className="insights-legend" aria-hidden="true"><li><span className="insights-seg met" />The last week</li><li><span className="insights-seg partly" />Days ahead (a guess)</li></ul>
+          <ul className="insights-legend" aria-hidden="true"><li><span className="insights-seg met" />The last week</li><li><span className="insights-seg forecast" />Days ahead (a guess)</li></ul>
           <p className="profile-note">A rough guide from sleep, feelings and how full each day is, not a measurement. Pick a day to see what went into it.{shown.days.some(d => d.felt) ? ` The faces are how drained ${member.name} said they felt that evening.` : ''}</p>
         </>
       )}

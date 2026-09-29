@@ -11,7 +11,7 @@ A parent turns on **Energy battery** in the person's **Temp check** settings in 
 ## Where you see it
 
 * **Their day**: a **🔋 Battery** card at the top of their [Day](snapshot.md#day): the level by this evening ("51% · Good by this evening · started at 75%"), a meter in their color, what went into it, and any heads-up for today or tomorrow. Only on their own device and parents' devices.
-* **Their [Insights](insights.md)**: a **Battery** card with the last week and the 3 days ahead as bars (days ahead are lighter: they're a guess), a face under each evening they answered **How drained do you feel?** (what it guessed against what they felt), every heads-up, and a **Day** picker to see what went into any of those days.
+* **Their [Insights](insights.md)**: a **Battery** card with the last week and the 3 days ahead as bars (days ahead are lighter with a dashed outline: they're a guess), a face under each evening they answered **How drained do you feel?** (what it guessed against what they felt), every heads-up, and a **Day** picker to see what went into any of those days.
 
 The words stay calm: **Full**, **Good**, **Getting low** and **Running low**.
 
