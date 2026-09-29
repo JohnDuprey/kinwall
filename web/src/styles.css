@@ -1153,7 +1153,7 @@ button {
 .checklist-hint { margin: 0 0 10px; }
 .checklist-rows { display: flex; flex-direction: column; }
 .checklist-edit { display: block; margin-top: 12px; text-align: center; }
-.list-detail-header .btn { flex: none; padding-inline: 22px; }
+.list-detail-header .btn { flex: none; min-height: 44px; padding: 8px 18px; }
 .list-detail-emoji { font-size: 1.75rem; flex-shrink: 0; }
 .list-detail-title { flex: 1; min-width: 0; }
 .list-detail-name { font-weight: 800; font-size: 1.0625rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1187,8 +1187,6 @@ button {
 .item-again { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px; }
 .item-again-label { font-size: 0.78125rem; font-weight: 800; color: var(--text-dim); margin-right: 2px; }
 
-.list-groupby { align-self: flex-start; flex-shrink: 0; }
-.list-store-chips { flex-shrink: 0; }
 
 .list-items { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 4px; }
 .list-group { margin-top: 6px; }
@@ -1222,12 +1220,6 @@ button {
 .segmented.priority-seg { width: 100%; }
 .segmented.priority-seg button { flex: 1; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; padding-inline: 6px; }
 .segmented.priority-seg .prio-mark { margin-right: 4px; }
-.segmented.sort-options { flex-direction: column; width: 100%; border-radius: var(--radius-sm); }
-.segmented.sort-options button { min-height: 44px; border-radius: 10px; display: flex; flex-direction: column; align-items: flex-start; text-align: left; padding: 8px 14px; }
-.sort-option-name { color: var(--text); }
-.sort-options button.active .sort-option-name::after { content: '  ✓' / ''; font-weight: 900; } /* aria-checked says it */
-.sort-option-hint { font-size: 0.75rem; font-weight: 600; color: var(--text-dim); }
-.list-sort-chip { margin-left: auto; }
 .due-field { display: flex; gap: 8px; align-items: center; }
 .due-field input { flex: 1; min-width: 0; }
 .due-field .btn { flex: none; width: auto; min-height: 44px; }
@@ -1257,7 +1249,6 @@ button {
 .list-done-section { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 4px; }
 .list-done-toggle { background: none; border: none; color: var(--text-dim); font-weight: 800; font-size: 0.8125rem; padding: 8px 4px; min-height: 36px; }
 
-.list-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-shrink: 0; flex-wrap: wrap; }
 .list-done-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 /* Groceries: crossed off in place (still tappable to uncheck), Checkout, undo, Stores & departments */
 .list-item-row.done .list-item-body, .list-item-row.done .list-item-chip { opacity: 0.55; }
@@ -1268,14 +1259,13 @@ button {
 .list-undo-btn { flex-shrink: 0; }
 .list-undo-btn { background: none; border: none; color: inherit; font: inherit; font-weight: 900; text-decoration: underline; min-height: 44px; min-width: 44px; padding: 0 12px; cursor: pointer; }
 .value-picker-new { margin-top: 8px; }
-.list-trip { display: flex; align-items: center; gap: 10px; flex-shrink: 0; flex-wrap: wrap; }
-.list-trip label { font-weight: 800; font-size: 0.875rem; color: var(--text-dim); }
-.list-trip select { flex: 1; min-width: 0; max-width: 360px; min-height: 44px; padding: 8px 40px 8px 12px; border-radius: 12px; border: 2px solid var(--border); background-color: var(--bg-alt); color: var(--text); font: inherit; font-weight: 800; }
-.list-trip.active select { border-color: var(--accent-strong); }
 .list-trip-other { opacity: 0.6; }
-.list-shop-btn { flex: 1 1 100%; min-height: 48px; padding-inline: 18px; gap: 8px; }
-.list-trip.active .list-shop-btn { min-height: 52px; }
+.list-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.list-actions .btn { flex: none; min-height: 44px; padding: 8px 18px; }
+.list-actions .list-shop-btn.on-trip { flex: 0 1 auto; min-width: 0; }
+.list-shop-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .list-shop-sub { font-weight: 700; opacity: 0.85; }
+.list-view-summary { flex-shrink: 0; margin-top: -6px; }
 
 /* ---------- Shopping mode (Lists.tsx): the trip alone, full screen, one-handed ---------- */
 .shop-mode {
@@ -1518,6 +1508,8 @@ button {
 .gate-links { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; }
 .filter-btn { position: relative; flex-shrink: 0; margin-left: auto; }
 .filter-btn.active { background: var(--accent-strong); color: var(--accent-ink); }
+/* One line under a Filters button summing up what differs from the defaults; tap it to change them. */
+.filter-summary { display: block; max-width: 100%; min-height: 44px; padding: 0 2px; border: none; background: none; color: var(--accent-text); font: inherit; font-size: .88rem; font-weight: 800; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
 .filter-badge { position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--text); color: var(--bg); font-size: 0.6875rem; font-weight: 800; display: flex; align-items: center; justify-content: center; }
 .location-link { color: var(--accent-text); text-decoration: underline; text-underline-offset: 3px; overflow-wrap: anywhere; }
 
@@ -2683,5 +2675,5 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
   :root[data-theme="dark"] .switch:not(.on, :disabled):hover { box-shadow: inset 0 0 0 2px var(--text-dim), 0 0 0 3px var(--accent-soft); }
   /* Events carry an inline background, so the wash is an inset shadow over it instead. */
   :where(.timed-event, .event-chip, .allday-chip, .month-chip):hover { box-shadow: inset 0 0 0 100vmax color-mix(in srgb, var(--text) 12%, transparent); }
-  :where(.link-btn, .text-link, .shop-store-btn, .reward-goal-btn, .contacts-filter-summary, .list-done-toggle, summary):hover { text-decoration: underline; text-underline-offset: 3px; }
+  :where(.link-btn, .text-link, .shop-store-btn, .reward-goal-btn, .filter-summary, .list-done-toggle, summary):hover { text-decoration: underline; text-underline-offset: 3px; }
 }

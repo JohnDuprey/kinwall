@@ -90,7 +90,7 @@ test('shopping mode resumes only while its trip is on, and only over the default
     assert.equal(resumeShoppingHash(''), '#/lists/l1/shop')
     assert.equal(resumeShoppingHash('#/calendar'), '#/lists/l1/shop')
     assert.equal(resumeShoppingHash('#/chores'), null) // a link somewhere else wins
-    setTripStore('l1', null) // Checkout / "Not shopping"
+    setTripStore('l1', null) // Checkout / End
     assert.equal(resumeShoppingHash(''), null)
   } finally { delete (globalThis as { localStorage?: Storage }).localStorage }
 })

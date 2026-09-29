@@ -13,7 +13,7 @@ import { MemberPicker } from './MemberPicker.tsx'
 import { isSingleEmoji } from './emoji.ts'
 import { colorName, inkFor } from './color.ts'
 import { useIsPhone } from './useIsPhone.ts'
-import { CalendarIcon, CheckIcon, ChevronLeft, ChevronRight, NoteIcon, PlusIcon, TrashIcon, XIcon } from './icons.tsx'
+import { CalendarIcon, CartIcon, CheckIcon, ChevronLeft, ChevronRight, FilterIcon, NoteIcon, PlusIcon, TrashIcon, XIcon } from './icons.tsx'
 import { announce, pressable, Segmented } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
 import { CustomColorSwatch } from './ColorSwatch.tsx'
@@ -43,6 +43,9 @@ const SORT_HINT: Record<ListSortBy, string> = {
   aisle: 'By store, in the order you walk the aisles',
 }
 const GROUP_LABEL: Record<ListGroupBy, string> = { store: 'Store', category: 'Category', aisle: 'Aisle', none: 'None' }
+/** What a new list of this kind starts with (the server's defaults); anything else counts on the View button. */
+const listViewDefaults = (kind: ListKind): { groupBy: ListGroupBy; sortBy: ListSortBy } =>
+  kind === 'shopping' ? { groupBy: 'aisle', sortBy: 'aisle' } : { groupBy: 'none', sortBy: 'manual' }
 /** Checkout on a shopping list, Reset on a reusable one (unchecks for next time), else Clear checked. */
 const CHECKOUT_LABEL: Record<ListKind, string> = { shopping: 'Checkout', reusable: 'Reset', todo: 'Clear checked' }
 const todayKey = () => dateKey(new Date())
@@ -557,14 +560,44 @@ function ReorderGroupsSheet({ listId, groupBy, names, onClose, onSaved }: {
   )
 }
 
-function SortSheet({ value, kind, onChange, onClose }: { value: ListSortBy; kind: ListKind; onChange: (v: ListSortBy) => void; onClose: () => void }) {
+/** Group, Sort and Show store for the list page (Filters button; Contacts uses the same pattern). */
+function ListViewSheet({ list, stores, store, onStore, onGroupBy, onSortBy, onReorder, onClose }: {
+  list: List; stores: string[]; store: string | null; onStore: (s: string | null) => void
+  onGroupBy: (g: ListGroupBy) => void; onSortBy: (s: ListSortBy) => void; onReorder?: () => void; onClose: () => void
+}) {
+  const shopping = list.kind === 'shopping'
+  const def = listViewDefaults(list.kind)
+  const changed = list.groupBy !== def.groupBy || list.sortBy !== def.sortBy || store !== null
   return (
-    <Sheet title="Sort items" onClose={onClose} variant="dialog" actions={<button className="btn btn-primary" onClick={onClose}>Done</button>}>
-      <Segmented className="sort-options" label="Sort items by" value={value} onChange={onChange}
-        options={(Object.keys(SORT_LABEL) as ListSortBy[]).filter(k => k !== 'aisle' || kind === 'shopping' || value === 'aisle').map(k => ({
-          key: k, label: <><span className="sort-option-name">{SORT_LABEL[k]}</span><span className="sort-option-hint">{SORT_HINT[k]}</span></>,
-        }))} />
-      {value !== 'manual' && <p className="list-item-meta" style={{ marginTop: 10 }}>Switch to Manual to drag items into your own order.</p>}
+    <Sheet title="View" onClose={onClose} actions={<>
+      <button className="btn btn-secondary" disabled={!changed} onClick={() => { if (shopping && list.groupBy !== def.groupBy) onGroupBy(def.groupBy); if (list.sortBy !== def.sortBy) onSortBy(def.sortBy); onStore(null) }}>Reset</button>
+      <button className="btn btn-primary" onClick={onClose}>Done</button>
+    </>}>
+      {shopping && (
+        <div className="field">
+          <label htmlFor={`list-group-${list.id}`}>Group by</label>
+          <select id={`list-group-${list.id}`} value={list.groupBy} onChange={e => onGroupBy(e.target.value as ListGroupBy)}>
+            {(['store', 'aisle', 'none'] as ListGroupBy[]).map(g => <option key={g} value={g}>{GROUP_LABEL[g]}</option>) /* no category: a department fills in the aisle */}
+          </select>
+          {onReorder && <button className="link-btn" onClick={onReorder}>Reorder {list.groupBy === 'store' ? 'stores' : 'categories'}</button>}
+        </div>
+      )}
+      <div className="field">
+        <label htmlFor={`list-sort-${list.id}`}>Sort</label>
+        <select id={`list-sort-${list.id}`} value={list.sortBy} onChange={e => onSortBy(e.target.value as ListSortBy)}>
+          {(Object.keys(SORT_LABEL) as ListSortBy[]).filter(k => k !== 'aisle' || shopping || list.sortBy === 'aisle').map(k => <option key={k} value={k}>{SORT_LABEL[k]}</option>)}
+        </select>
+        <p className="field-hint">{SORT_HINT[list.sortBy]}{list.sortBy !== 'manual' && '. Switch to Manual to drag items into your own order.'}</p>
+      </div>
+      {shopping && stores.length > 0 && (
+        <div className="field">
+          <label htmlFor={`list-store-${list.id}`}>Show store</label>
+          <select id={`list-store-${list.id}`} value={store ?? ''} onChange={e => onStore(e.target.value || null)}>
+            <option value="">All stores</option>
+            {stores.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+      )}
     </Sheet>
   )
 }
@@ -992,7 +1025,7 @@ function ListDetailPane({ listId, isPhone, shopMode, onBack, onArchivedOrDeleted
   const [editItem, setEditItem] = useState<ListItem | null>(null)
   const [editList, setEditList] = useState(false)
   const [reorderGroups, setReorderGroups] = useState(false)
-  const [sorting, setSorting] = useState(false)
+  const [viewing, setViewing] = useState(false) // the View sheet: group, sort, show store
   const [managing, setManaging] = useState(false)
   const [showDone, setShowDone] = useState(false)
   const [selectedStore, setSelectedStore] = useState<string | null>(null)
@@ -1001,22 +1034,22 @@ function ListDetailPane({ listId, isPhone, shopMode, onBack, onArchivedOrDeleted
   const { upcoming, byId } = useEventWindow(refreshTick)
 
   const load = () => api.getList(listId).then(d => { setDetail(d); setError(false); onLoaded(d.list) }).catch(() => setError(true))
-  // "Shopping at": a trip in one store, kept on this device only, until Checkout (or "Not shopping").
+  // "Shopping at": a trip in one store, kept on this device only, until Checkout (or End).
   const [trip, setTrip] = useState<string | null>(() => tripStore(listId))
   useEffect(() => { setSelectedStore(null); setShowDone(false); setTrip(tripStore(listId)) }, [listId])
   const changeTrip = (store: string | null) => {
     setTripStore(listId, store); setTrip(store); shopScroll.current = 0
-    announce(store ? `Shopping at ${store === ANY_STORE ? 'any store' : store}` : 'Not shopping')
+    announce(store ? `Shopping at ${store === ANY_STORE ? 'any store' : store}` : 'Shopping ended')
   }
 
-  // Shopping mode: the trip alone, full screen. "Done" leaves it with the trip still on (Resume
-  // shopping comes back to it); only Checkout or "Not shopping" ends the trip.
+  // Shopping mode: the trip alone, full screen. "Done" leaves it with the trip still on (Shopping at
+  // on the list comes back to it); only Checkout or End ends the trip.
   const enterShop = () => { location.hash = `#/lists/${listId}/shop` }
   const exitShop = () => { location.hash = '#/lists' }
   const [picking, setPicking] = useState(false) // the store step
   const [adding, setAdding] = useState(false) // its "Add an item" field
   const [leftovers, setLeftovers] = useState<ListItem[] | null>(null) // Checkout's "Didn't find these?" step
-  const shopScroll = useRef(0) // where the aisles were, for Resume shopping
+  const shopScroll = useRef(0) // where the aisles were, for going back to the trip
   const shopList = useRef<HTMLDivElement>(null)
   const shopHeading = useRef<HTMLHeadingElement>(null)
   const saveShopScroll = (e: React.UIEvent<HTMLElement>) => { shopScroll.current = e.currentTarget.scrollTop }
@@ -1032,7 +1065,7 @@ function ListDetailPane({ listId, isPhone, shopMode, onBack, onArchivedOrDeleted
     return () => {
       setShoppingModeList(null); holdAwake('shopping', false); shell?.removeAttribute('inert'); delete document.documentElement.dataset.fullscreenMode
       document.removeEventListener('keydown', onKey); setAdding(false)
-      setTimeout(() => document.querySelector<HTMLElement>('.list-shop-btn')?.focus({ preventScroll: true })) // back on Resume/Start shopping
+      setTimeout(() => document.querySelector<HTMLElement>('.list-shop-btn')?.focus({ preventScroll: true })) // back on the Shop button
     }
   }, [shopMode, listId]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1185,11 +1218,18 @@ function ListDetailPane({ listId, isPhone, shopMode, onBack, onArchivedOrDeleted
   )
   const pickStore = (store: string) => {
     if (store !== trip) changeTrip(store)
-    setPicking(false); setTimeout(() => shopHeading.current?.focus()) // after the sheet hands focus back
+    setPicking(false)
+    if (!shopping) enterShop() // from the list page's Shop button
+    else setTimeout(() => shopHeading.current?.focus()) // after the sheet hands focus back
   }
-  // No store yet (Start shopping, or a link straight in): ask first; backing out leaves the mode.
+  // Shop: with one store (or none) it starts right away; with more, it asks first.
+  const startShop = () => {
+    if (tripStores.length > 1) { setPicking(true); return }
+    changeTrip(tripStores[0] ?? ANY_STORE); enterShop()
+  }
+  // No store yet (Shop, or a link straight in): ask first; backing out of shopping mode leaves it.
   const storeSheet = (picking || (shopping && !trip)) && (
-    <Sheet title="Where are you shopping?" onClose={() => { setPicking(false); if (!trip) exitShop() }}>
+    <Sheet title="Where are you shopping?" onClose={() => { setPicking(false); if (shopping && !trip) exitShop() }}>
       <div className="shop-store-options">
         {[...tripStores, ANY_STORE].map(st => (
           <button key={st} className={`btn ${st === trip ? 'btn-primary' : 'btn-secondary'} btn-block`} aria-pressed={st === trip} onClick={() => pickStore(st)}>
@@ -1250,6 +1290,24 @@ function ListDetailPane({ listId, isPhone, shopMode, onBack, onArchivedOrDeleted
   }
 
   const siblingIds = items.slice().sort((a, b) => a.sort - b.sort).map(i => i.id)
+  // View: group, sort and the store filter behind one button, counted when they differ from a new
+  // list's, and summed up in one line under it (the Contacts pattern).
+  const viewDef = listViewDefaults(list.kind)
+  const groupChanged = list.kind === 'shopping' && list.groupBy !== viewDef.groupBy
+  const sortChanged = list.sortBy !== viewDef.sortBy
+  const viewCount = [groupChanged, sortChanged, !!selectedStore].filter(Boolean).length
+  const viewSummary = [
+    groupChanged && (list.groupBy === 'none' ? 'Not grouped' : `Grouped by ${GROUP_LABEL[list.groupBy].toLowerCase()}`),
+    sortChanged && (list.sortBy === 'manual' ? 'Your order' : `Sorted by ${SORT_LABEL[list.sortBy].replace(/^[A-Z](?=[a-z])/, c => c.toLowerCase())}`),
+    selectedStore && `${selectedStore} only`,
+  ].filter(Boolean).join(' · ')
+  const viewButton = (
+    <button className={`icon-btn filter-btn list-view-btn ${viewCount ? 'active' : ''}`} onClick={() => setViewing(true)} aria-haspopup="dialog"
+      aria-label={viewCount ? `View options, ${viewCount} changed` : 'View options'}>
+      <FilterIcon width={20} height={20} />
+      {viewCount > 0 && <span className="filter-badge" aria-hidden="true">{viewCount}</span>}
+    </button>
+  )
 
   return (
     <div className="list-detail">
@@ -1267,46 +1325,27 @@ function ListDetailPane({ listId, isPhone, shopMode, onBack, onArchivedOrDeleted
         <ItemAddField id={`list-add-${listId}`} value={draft} onChange={setDraft} onAdd={addItem} suggestions={suggestions.items} onList={onList} inputRef={inputRef}
           label={`Add to ${list.name}`} placeholder={list.kind === 'shopping' ? 'Add an item…' : 'Add something…'} />
         <button className="icon-btn" onClick={() => addItem()} disabled={!draft.trim()} aria-label="Add item"><PlusIcon width={20} height={20} /></button>
+        {list.kind !== 'shopping' && items.length > 0 && viewButton /* no Shop button to share a row with */}
       </div>
 
+      {/* Shopping lists: Shop (or the trip and End), and View once there's something to view. */}
       {list.kind === 'shopping' && (
-        <div className={`list-trip ${activeTrip ? 'active' : ''}`}>
-          {(tripStores.length > 0 || activeTrip) && <>
-            <label htmlFor={`list-trip-${listId}`}>Shopping at</label>
-            <select id={`list-trip-${listId}`} value={activeTrip ?? ''} onChange={e => changeTrip(e.target.value || null)}>
-              <option value="">Not shopping</option>
-              {tripStores.map(st => <option key={st} value={st}>{st}</option>)}
-              <option value={ANY_STORE}>Any store</option>
-            </select>
-          </>}
-          <button className={`btn ${activeTrip ? 'btn-primary' : 'btn-secondary'} list-shop-btn`} onClick={enterShop}>
-            <span aria-hidden="true">🛒</span>
-            {activeTrip ? <span>Resume shopping<span className="list-shop-sub"> · {storeLabel} · {tripLeft} left</span></span> : 'Start shopping'}
-          </button>
+        <div className="list-actions">
+          {activeTrip ? <>
+            <button className="btn btn-primary list-shop-btn on-trip" onClick={enterShop} aria-label={`Shopping at ${storeLabel}, ${tripLeft} left. Resume shopping`}>
+              <CartIcon width={18} height={18} /><span className="list-shop-label">Shopping at {storeLabel}<span className="list-shop-sub"> · {tripLeft} left</span></span>
+            </button>
+            <button className="btn btn-secondary list-end-btn" onClick={() => changeTrip(null)} aria-label={`End shopping at ${storeLabel}`}>End</button>
+          </> : (
+            <button className="btn btn-secondary list-shop-btn" onClick={startShop} aria-haspopup={tripStores.length > 1 ? 'dialog' : undefined}>
+              <CartIcon width={18} height={18} />Shop
+            </button>
+          )}
+          {!activeTrip && items.length > 0 && viewButton}
         </div>
       )}
-
-      {!activeTrip && <div className="list-toolbar">
-        {list.kind === 'shopping' && (
-          <Segmented className="list-groupby" label="Group by" value={list.groupBy} onChange={setGroupBy}
-            options={(['store', 'aisle', 'none'] as ListGroupBy[]).map(g => ({ key: g, label: GROUP_LABEL[g] }))} /* no category: a department fills in the aisle */ />
-        )}
-        {list.kind === 'shopping' && reorderable && reorderableNames.length > 1 && (
-          <button className="link-btn" onClick={() => setReorderGroups(true)}>Reorder {list.groupBy === 'store' ? 'stores' : 'categories'}</button>
-        )}
-        <button className="chip list-sort-chip" onClick={() => setSorting(true)} aria-haspopup="dialog" aria-label={`Sort: ${SORT_LABEL[list.sortBy]}. Change sort`}>
-          <span aria-hidden="true">⇅</span> Sort: {SORT_LABEL[list.sortBy]}
-        </button>
-      </div>}
-      {list.kind === 'shopping' && !activeTrip && (
-        <>
-          {stores.length > 0 && (
-            <div className="chip-row list-store-chips" role="group" aria-label="Show store">
-              <button className={`chip ${selectedStore === null ? 'active' : ''}`} aria-pressed={selectedStore === null} onClick={() => setSelectedStore(null)}>All</button>
-              {stores.map(s => <button key={s} className={`chip ${selectedStore === s ? 'active' : ''}`} aria-pressed={selectedStore === s} onClick={() => setSelectedStore(s)}>{s}</button>)}
-            </div>
-          )}
-        </>
+      {!activeTrip && viewSummary && items.length > 0 && (
+        <button className="filter-summary list-view-summary" onClick={() => setViewing(true)} aria-label={`View: ${viewSummary}. Change view`}>{viewSummary}</button>
       )}
 
       <div className="list-items scroll-y">
@@ -1382,6 +1421,7 @@ function ListDetailPane({ listId, isPhone, shopMode, onBack, onArchivedOrDeleted
         )}
       </div>
 
+      {!shopping && storeSheet}
       {leftoversSheet}
       {checkout && (
         <div className="toast list-undo-toast" role="status">
@@ -1400,7 +1440,10 @@ function ListDetailPane({ listId, isPhone, shopMode, onBack, onArchivedOrDeleted
           onSaved={() => { setEditList(false); load(); onArchivedOrDeleted() }}
           onDeleted={() => { setEditList(false); onArchivedOrDeleted() }} />
       )}
-      {sorting && <SortSheet value={list.sortBy} kind={list.kind} onChange={setSortBy} onClose={() => setSorting(false)} />}
+      {viewing && (
+        <ListViewSheet list={list} stores={stores} store={selectedStore} onStore={setSelectedStore} onGroupBy={setGroupBy} onSortBy={setSortBy} onClose={() => setViewing(false)}
+          onReorder={list.kind === 'shopping' && reorderable && reorderableNames.length > 1 ? () => { setViewing(false); setReorderGroups(true) } : undefined} />
+      )}
       {managing && <ManageValuesSheet suggestions={suggestions} aisleOrder={aisleOrder} onClose={() => setManaging(false)} onChanged={load} />}
       {reorderGroups && reorderable && (
         <ReorderGroupsSheet listId={listId} groupBy={list.groupBy === 'store' ? 'store' : 'category'} names={groupNamesForOrder.length ? groupNamesForOrder.filter(n => reorderableNames.includes(n)).concat(reorderableNames.filter(n => !groupNamesForOrder.includes(n))) : reorderableNames}

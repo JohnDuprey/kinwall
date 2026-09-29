@@ -23,7 +23,7 @@ The Lists tab groups your lists by kind under **Shopping**, **To-dos** and **Reu
 
 | Kind | For | Extras |
 |---|---|---|
-| **Shopping** | groceries, hardware runs | Items have a **Store**, an **Aisle** and a **Department**. Group by Aisle, Store or None (default Aisle); sorted by Aisle. [Shopping at](#shopping-at-a-store) walks the list in one store. |
+| **Shopping** | groceries, hardware runs | Items have a **Store**, an **Aisle** and a **Department**. Group by Aisle, Store or None (default Aisle); sorted by Aisle. [Shop](#shopping-at-a-store) walks the list in one store. |
 | **To-do** | jobs, errands | Items have an assignee (**Assign to**) and a **Due date**. |
 | **Reusable** | packing lists, routines | Items have an assignee. **Reset** unticks everything (steps too) so you can use it again. |
 
@@ -98,7 +98,9 @@ On a shopping list, the add bar (and **Add an item** in [Shopping mode](#shoppin
 
 ## Shopping at a store
 
-At the top of a shopping list, **Shopping at** starts a trip: pick the store you're in. The trip is kept on this device only (the wall and other phones aren't affected) and ends at **Checkout**, or when you pick **Not shopping**.
+Under **Add an item**, **Shop** starts a trip and opens [shopping mode](#shopping-mode). It asks **Where are you shopping?** with your stores and **Any store**; if your family has only one store (or none yet), it starts right away there (or at any store). The trip is kept on this device only (the wall and other phones aren't affected) and ends at **Checkout**, or when you tap **End**.
+
+While a trip is on, the list shows **Shopping at** the store and how many items are left in place of **Shop**. Tap it to go back to shopping mode, or tap **End** next to it to stop shopping without checking out.
 
 During a trip:
 
@@ -111,21 +113,21 @@ During a trip:
 * **Checkout (*N*)** removes the ticked items, remembers this store as where they were last bought, and ends the trip. **Undo** brings everything back, trip included. If anything wasn't ticked, the message says so: "Checked out 9 items. 3 left for next time."
 * **Didn't find these?** When a trip at one store ends with items still unticked, Checkout first lists them, each with a store picker (your stores, **New store…** or **Anywhere**). Pick another store for any you'll get elsewhere and tap **Move**, or tap **Leave them as they are**. Either way Checkout goes ahead, and **Undo** still undoes it (moved items stay moved). A moved item shows under **At other stores** next time you shop here. **Any store** trips skip this step.
 
-The toolbar (grouping, sort, store chips) is hidden during a trip, since the store's aisle order is the order.
+The **View** button (grouping, sort, store) is hidden during a trip, since the store's aisle order is the order.
 
-You can also pick **Any store**: nothing is tied to one store's layout, so the list goes store by store, each in its own aisle order.
+You can also shop at **Any store**: nothing is tied to one store's layout, so the list goes store by store, each in its own aisle order.
 
 ## Shopping mode
 
 Shopping mode is the list and nothing else, for your phone in the store: no header, no tab bar, no list settings.
 
-* Tap **Start shopping** on a shopping list. If you haven't picked a store yet, it asks which one (or **Any store**) first.
+* Tap **Shop** on a shopping list and pick the store (or **Any store**); with only one store it starts there straight away.
 * The top bar shows the list name, the store (tap it to change stores), how many items are left, and **Done**.
 * Items are grouped by aisle in walking order, with **Aisle unknown** and a dimmed **At other stores** at the end, just like a trip. Tap anywhere on a row to tick it; it stays crossed off in place. Quantities and the first line of an item's notes show on the row.
 * Remembered something in the store? Tap **+** at the bottom to open **Add an item**.
 * **Checkout (*N*)** at the bottom removes the ticked items, ends the trip and closes shopping mode. **Undo** brings it all back, including shopping mode. Anything left unticked gets the same [Didn't find these?](#shopping-at-a-store) step first.
-* **Done** (or Escape on a keyboard) closes shopping mode but keeps the trip: ticked items stay crossed off and the store stays picked. The list then shows **Resume shopping**, with the store and how many items are left; tap it to go back where you were. Items you add to the list in the meantime show up in shopping mode right away.
-* Only **Checkout**, or picking **Not shopping**, ends the trip.
+* **Done** (or Escape on a keyboard) closes shopping mode but keeps the trip: ticked items stay crossed off and the store stays picked. The list then shows **Shopping at** the store with how many items are left; tap it to go back where you were. Items you add to the list in the meantime show up in shopping mode right away.
+* Only **Checkout**, or **End** on the list, ends the trip.
 * The screen stays on while shopping mode is open, and a wall screen doesn't drift back to the calendar.
 * If the app or browser closes mid-trip, opening Kinwall again takes you straight back to shopping mode on this device.
 * A link to `#/lists/<list id>/shop` opens a list straight in shopping mode.
@@ -161,7 +163,11 @@ Each mark has its own shape and word, so priority never depends on telling red f
 
 ## Sorting
 
-**Sort** in the list toolbar picks how a list's items are ordered. The setting is saved on the list, so every screen shows the same order.
+**View** (the filter button next to **Shop** on a shopping list, or next to **+** on other lists) opens **Group by** (shopping lists), **Sort** and **Show store** (shopping lists with stores). Group and sort are saved on the list, so every screen shows the same order; the store you show is just for this screen. **Reset** goes back to a new list's grouping and sort, and all stores.
+
+When anything differs from a new list of that kind (grouped by aisle and sorted by aisle for shopping, not grouped and in your order for the rest), the button shows how many settings are changed, and one line under it sums them up, for example "Grouped by store · Neighborhood market only". Tap the line to change them. The button is hidden while a list is empty.
+
+**Sort** picks how a list's items are ordered.
 
 | Sort | Order |
 |---|---|
@@ -189,9 +195,9 @@ Break a bigger job into steps ("Tidy the living room": fold blankets, fluff cush
 
 ## Groups and order
 
-* On shopping lists, **Group by** switches between Store, Aisle and None. **Aisle** groups are per store ("Neighborhood market · Produce"), in store order and then the store's aisle order; an item with no aisle groups under its department's aisle when the store has one. **Reorder stores** lets you arrange the store groups in the order you shop them, then **Save order**. Shopping lists don't group by department: the department fills in the aisle instead, and a list grouped by category from before switches to Aisle.
+* On shopping lists, **View** → **Group by** switches between Store, Aisle and None. **Aisle** groups are per store ("Neighborhood market · Produce"), in store order and then the store's aisle order; an item with no aisle groups under its department's aisle when the store has one. **Reorder stores** (under Group by) lets you arrange the store groups in the order you shop them, then **Save order**. Shopping lists don't group by department: the department fills in the aisle instead, and a list grouped by category from before switches to Aisle.
 * Items added from [Meals](meals.md#adding-to-the-grocery-list) show which meals they're for ("For Taco night").
-* Store chips (**All**, then each store) show one store at a time.
+* **View** → **Show store** shows one store at a time (items with no store stay), or **All stores**.
 * **Drag** an item by its grip to reorder it within its group (Manual sort only). Other groups and done items keep their places. The keyboard alternative is Move up / Move down in the item sheet.
 
 ## Linking items to events

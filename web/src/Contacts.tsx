@@ -353,7 +353,7 @@ export default function Contacts() {
             {activeFilters > 0 && <span className="filter-badge" aria-hidden="true">{activeFilters}</span>}
           </button>
         </div>
-        {summary && <button className="contacts-filter-summary" onClick={() => setSheet('filters')} aria-label={`Filters: ${summary}. Change filters`}>{summary}</button>}
+        {summary && <button className="filter-summary contacts-filter-summary" onClick={() => setSheet('filters')} aria-label={`Filters: ${summary}. Change filters`}>{summary}</button>}
       </>}
       {loadError && <div className="empty-card" role="alert"><p>{loadError}</p><button className="btn btn-secondary" onClick={() => { setLoading(true); void load() }}>Try again</button></div>}
       {!loadError && loading && <div className="state-card">Loading contacts…</div>}
