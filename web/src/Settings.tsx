@@ -1,10 +1,11 @@
-import { createContext, Fragment, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createContext, Fragment, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { AppContext, useApp } from './AppContext.tsx'
 import { api, ApiError, clearKey } from './api.ts'
 import type { Account, ApiKey, CalendarEntry, Category, ColorScheme, CustomColors, Density, DeviceDensity, Features, GeocodeResult, HostEvent, Me, Member, Passkey, Providers, PushSubscription, RemoteCalendar, Settings, TempCheckSettings, TextScale, ThemeMode, Webhook } from './types.ts'
 import { ProviderForm, PublicUrlRow } from './ProviderConfig.tsx'
 import { CATEGORY_EMOJI, CATEGORY_PRESETS, MEMBER_EMOJI, MEMBER_PALETTE, nextPaletteColor, REMINDER_OPTIONS } from './types.ts'
 import Sheet from './Sheet.tsx'
+import { SchemePickerSheet } from './SchemePicker.tsx'
 import TidbitsSheet from './TidbitsSheet.tsx'
 import { tidbitSummary } from './tidbits.ts'
 import { featuresSummary, nightSummary, timeCuesSummary, transitionRemindersSummary } from './settingsSummary.ts'
@@ -415,7 +416,7 @@ function AppearanceSection({ settings, onSaved, toast }: { settings: Settings; o
         legacy={{ ...(settings.customColors ?? {}), ...(settings.accent.toUpperCase() !== DEFAULT_ACCENT ? { accent: settings.accent } : {}) }}
         legacyBackgrounds={{ light: settings.backgroundLight, dark: settings.backgroundDark }}
         legacyClear={{ customColors: null, accent: DEFAULT_ACCENT, backgroundLight: 'warm', backgroundDark: 'cocoa' }}
-        resetLabel="Reset to Peach"
+        resetLabel="Reset colors to Peach"
         onReset={() => save({ colorScheme: 'meadow', customColors: null, accent: DEFAULT_ACCENT, backgroundLight: 'warm', backgroundDark: 'cocoa' })}
       />
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
@@ -789,7 +790,7 @@ const newSchemeId = () => `custom-${Math.random().toString(36).slice(2, 10)}` as
  * household and for one device, plus Customize / Edit, which open the scheme editor sheet. On a
  * device, `scheme` undefined means "follow the household" and the first chip says so. Saved
  * schemes belong to the household, so a device's editor saves through `saveSettings` too. */
-function ColorControls({ scheme, householdScheme, onScheme, household, device, saveSettings, legacy, legacyBackgrounds, legacyClear, onClearLegacy, resetLabel, onReset }: {
+function ColorControls({ scheme, householdScheme, onScheme, household, device, saveSettings, legacy, legacyBackgrounds, legacyClear, onClearLegacy, resetLabel, onReset, resetConfirm }: {
   scheme: ColorScheme | undefined
   householdScheme?: ColorScheme // set on a device: shows the Household chip
   onScheme: (id: ColorScheme | undefined) => void
@@ -800,6 +801,7 @@ function ColorControls({ scheme, householdScheme, onScheme, household, device, s
   legacyClear?: Partial<Settings> // household: the patch that clears them
   onClearLegacy?: () => void // device: clears them locally
   resetLabel: string; onReset: () => void
+  resetConfirm?: string // asked first when the reset covers more than the scheme
 }) {
   const dark = document.documentElement.getAttribute('data-theme') === 'dark'
   // The family's schemes are edited on parent devices; any device can add one (saved for the family)
@@ -807,30 +809,27 @@ function ColorControls({ scheme, householdScheme, onScheme, household, device, s
   const { parentDevice, reloadCore } = useApp()
   const dialog = useDialog()
   const [manage, setManage] = useState(false)
+  const [picking, setPicking] = useState(false)
+  const valueId = useId()
   const customs = household.customSchemes ?? []
   const { skin } = resolveColors(household, device)
   const [editing, setEditing] = useState<{ draft: CustomScheme; isNew: boolean; fromLegacy?: boolean } | null>(null)
   const nameOf = (id: ColorScheme) => id === 'seasonal' ? `Seasonal (${getSkin(seasonalSkinId()).name})` : findSkin(id, customs).name
-  const dotsFor = (id: ColorScheme) => { const k = tokensFor(id === 'seasonal' ? getSkin(seasonalSkinId()) : findSkin(id, customs), dark); return [k.bg, k.card, k.accent] }
-  // The dropdown's groups, in order. On a device, the first option follows the household.
-  const HOUSEHOLD = '__household'
-  const groups: { label: string; ids: string[] }[] = [
-    { label: 'Automatic', ids: ['seasonal'] },
-    { label: 'Everyday', ids: ['meadow', 'field', 'ocean', 'lavender', 'midnight'] },
-    { label: 'Modern', ids: ['slate', 'ink', 'sage', 'graphite', 'berry'] },
-    { label: 'Seasons', ids: ['spring', 'summer', 'autumn', 'winter'] },
-    { label: 'Holidays', ids: ['harvest', 'festive'] },
-  ]
-  const optionLabel = (id: string) => id === 'seasonal' ? '🗓️ Seasonal' : `${getSkin(id).emoji} ${getSkin(id).name}`
-  const [swBg, , swAccent] = dotsFor(scheme ?? householdScheme ?? 'meadow')
-  const pick = (value: string) => {
-    const id = value === HOUSEHOLD ? undefined : value as ColorScheme
+  const skinOf = (id: ColorScheme) => id === 'seasonal' ? getSkin(seasonalSkinId()) : findSkin(id, customs)
+  const dotsFor = (id: ColorScheme) => { const k = tokensFor(skinOf(id), dark); return [k.bg, k.card, k.accent] }
+  // The row: the scheme in effect here, with a light+dark swatch ringed in its accent.
+  const current = scheme ?? householdScheme ?? 'meadow'
+  const [lightT, darkT] = [tokensFor(skinOf(current), false), tokensFor(skinOf(current), true)]
+  const emojiOf = (id: ColorScheme) => id === 'seasonal' ? '🗓️' : skinOf(id).emoji
+  const rowValue = scheme || !householdScheme ? `${emojiOf(current)} ${nameOf(current)}` : `🏠 Household (${nameOf(householdScheme)})`
+  const pick = (id: ColorScheme | undefined) => {
     onScheme(id)
     announce(`${id ? nameOf(id) : 'Household'} color scheme`)
   }
   const activeCustom = customs.find(c => c.id === skin.id)
   const startFrom = (base: typeof skin, name: string): CustomScheme =>
     ({ id: newSchemeId(), name: name.slice(0, 30), emoji: base.emoji, light: paletteOf(base, false), dark: paletteOf(base, true) })
+  const newScheme = () => setEditing({ draft: startFrom(skin, activeCustom ? `${skin.name} copy` : `My ${skin.name}`), isNew: true })
   const oldLight = legacyBackgrounds && legacyBackgrounds.light !== 'warm' ? OLD_BACKGROUNDS[legacyBackgrounds.light] : undefined
   const oldDark = legacyBackgrounds && legacyBackgrounds.dark !== 'cocoa' ? OLD_BACKGROUNDS[legacyBackgrounds.dark] : undefined
   const hasLegacy = Object.keys(legacy).length > 0 || !!oldLight || !!oldDark
@@ -861,26 +860,28 @@ function ColorControls({ scheme, householdScheme, onScheme, household, device, s
   }
   return (
     <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
-      <label className="settings-row-label" htmlFor="color-scheme-select">Color scheme</label>
-      <div className="scheme-picker">
-        <span className="scheme-swatch scheme-swatch-lg" aria-hidden="true" style={{ background: `linear-gradient(135deg, ${swBg} 50%, ${swAccent} 50%)` }} />
-        <select id="color-scheme-select" className="settings-select scheme-select" value={scheme ?? HOUSEHOLD} onChange={e => pick(e.target.value)}>
-          {householdScheme && (
-            <optgroup label="Follow the family"><option value={HOUSEHOLD}>Household · {nameOf(householdScheme)}</option></optgroup>
-          )}
-          {groups.map(g => (
-            <optgroup key={g.label} label={g.label}>
-              {g.ids.map(id => <option key={id} value={id}>{optionLabel(id)}</option>)}
-            </optgroup>
-          ))}
-          {customs.length > 0 && (
-            <optgroup label="Your schemes">
-              {customs.map(c => <option key={c.id} value={c.id}>{`${c.emoji || '🎨'} ${c.name}`}</option>)}
-            </optgroup>
-          )}
-        </select>
-        <button className="btn btn-secondary scheme-manage-btn" onClick={() => setManage(true)} aria-haspopup="dialog">Manage</button>
+      <div className="device-pref-row">
+        <span aria-hidden="true">Color scheme</span>
+        <button type="button" className="settings-select scheme-row" aria-label="Color scheme" aria-describedby={valueId} aria-haspopup="dialog" onClick={() => setPicking(true)}>
+          <span className="scheme-swatch scheme-swatch-lg" aria-hidden="true" style={{ background: `linear-gradient(135deg, ${lightT.bg} 50%, ${darkT.bg} 50%)`, borderColor: lightT.accentStrong }} />
+          <span id={valueId} className="scheme-row-name">{rowValue}</span>
+        </button>
       </div>
+      {picking && (
+        <SchemePickerSheet value={scheme} customs={customs} familyScheme={household.colorScheme}
+          family={householdScheme ? { name: nameOf(householdScheme), skin: skinOf(householdScheme) } : undefined}
+          onPick={id => pick(id as ColorScheme | undefined)} onClose={() => setPicking(false)}
+          customActions={<>
+            {customs.length > 0 && <button className="btn btn-secondary" aria-haspopup="dialog" onClick={() => { setPicking(false); setManage(true) }}>Manage</button>}
+            {customs.length < 10 && <button className="btn btn-secondary" onClick={() => { setPicking(false); newScheme() }}>＋ New scheme</button>}
+          </>}
+          footer={<button className="btn btn-secondary" onClick={async () => {
+            const body = resetConfirm ?? (hasLegacy ? 'This also removes the custom colors from an earlier version.' : undefined)
+            if (body && !await dialog.confirm({ title: `${resetLabel}?`, body, confirmLabel: 'Reset' })) return
+            onReset()
+          }}>{resetLabel}</button>}
+        />
+      )}
       {manage && (
         <Sheet title="Your schemes" onClose={() => setManage(false)}>
           {customs.length === 0 && <p className="settings-row-sub">The family hasn't saved any schemes yet. Start one from the scheme you're on.</p>}
@@ -905,11 +906,10 @@ function ColorControls({ scheme, householdScheme, onScheme, household, device, s
           )}
           {!parentDevice && customs.length > 0 && <p className="settings-row-sub">Editing and deleting the family's schemes is done on a parent's device.</p>}
           {customs.length < 10
-            ? <button className="btn btn-primary btn-block scheme-new-btn" onClick={() => { setManage(false); setEditing({ draft: startFrom(skin, activeCustom ? `${skin.name} copy` : `My ${skin.name}`), isNew: true }) }}>＋ New scheme</button>
+            ? <button className="btn btn-primary btn-block scheme-new-btn" onClick={() => { setManage(false); newScheme() }}>＋ New scheme</button>
             : <p className="settings-row-sub">The family has 10 saved schemes, the most it can keep.{parentDevice ? ' Delete one to make another.' : ''}</p>}
         </Sheet>
       )}
-      {scheme === 'seasonal' && <div className="settings-row-sub">Switches on its own through the year: Winter, Spring, Summer and Autumn, plus Harvest and Festive around the holidays.</div>}
       {hasLegacy && (
         <div className="scheme-legacy" role="note">
           {Object.keys(legacy).length > 0 && <span>Custom colors from an earlier version are applied on top of this scheme{householdScheme ? ' on this device' : ''}.</span>}
@@ -927,7 +927,6 @@ function ColorControls({ scheme, householdScheme, onScheme, household, device, s
           </div>
         </div>
       )}
-      <button className="btn btn-secondary" onClick={onReset}>{resetLabel}</button>
       {editing && <SchemeSheet draft={editing.draft} isNew={editing.isNew} onClose={() => setEditing(null)}
         onSave={c => saveScheme(c, editing.isNew, editing.fromLegacy)} onDelete={editing.isNew ? undefined : () => deleteScheme(editing.draft)} />}
     </div>
@@ -1051,8 +1050,9 @@ function DeviceAppearanceRows() {
         onScheme={id => set({ skin: id })}
         household={settings} device={device} saveSettings={saveHousehold}
         legacy={device.custom ?? {}} onClearLegacy={() => set({ custom: undefined })}
-        resetLabel="Use household colors"
-        onReset={() => { set({ skin: undefined, custom: undefined }); announce('This device uses the household colors') }}
+        resetLabel="Reset this device's appearance"
+        resetConfirm="Mode, color scheme, text size, density, typeface and low-stimulation mode go back to the family's settings on this device."
+        onReset={() => { set({ themeMode: undefined, skin: undefined, custom: undefined, textScale: undefined, density: undefined, font: undefined, lowStim: undefined }); announce("This device follows the family's appearance") }}
       />
 
       {rows.slice(1).map(r => {

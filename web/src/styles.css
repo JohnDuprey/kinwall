@@ -746,15 +746,35 @@ button {
 .skin-dots { display: inline-flex; gap: 2px; }
 .skin-dots span { width: 10px; height: 10px; border-radius: 50%; border: 1px solid var(--border); display: inline-block; }
 .scheme-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.scheme-picker { display: flex; align-items: center; gap: 10px; }
+/* Color scheme row (opens the sheet) and the sheet's preview cards (SchemePicker.tsx). */
+.scheme-row { display: flex; align-items: center; gap: 10px; width: 100%; min-width: 0; text-align: left; cursor: pointer; font-family: inherit; }
+.scheme-row .scheme-swatch-lg { border-width: 3px; }
+.scheme-row-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sheet:has(.scheme-groups) { max-width: 960px; }
+.scheme-group { margin-bottom: 18px; }
+.scheme-group-title { margin: 0 0 8px; font-size: 0.8125rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.02em; }
+.scheme-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+@media (min-width: 700px) { .scheme-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 1000px) { .scheme-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.scheme-card { position: relative; display: flex; flex-direction: column; gap: 4px; min-height: 44px; padding: 8px; border-radius: var(--radius-sm); border: 2px solid var(--border); background: var(--bg-alt); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.scheme-card[aria-pressed="true"] { border-color: var(--accent-strong); box-shadow: 0 0 0 1px var(--accent-strong); }
+.scheme-card-check { position: absolute; top: 2px; right: 2px; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--accent-strong); color: var(--accent-ink); font-size: 0.8125rem; font-weight: 800; }
+.scheme-card-name { font-weight: 800; font-size: 0.9375rem; margin-top: 2px; }
+.scheme-card-desc { font-size: 0.8125rem; font-weight: 600; color: var(--text-dim); line-height: 1.3; }
+.scheme-card-preview { display: grid; grid-template-columns: 1fr 1fr; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
+.scheme-mini { display: flex; padding: 8px 6px; }
+.scheme-mini-card { flex: 1; display: flex; flex-direction: column; gap: 4px; padding: 6px; border-radius: 6px; border: 1px solid; }
+.scheme-mini-line { height: 5px; border-radius: 3px; width: 80%; }
+.scheme-mini-line.short { width: 55%; }
+.scheme-mini-pill { height: 9px; width: 45%; border-radius: 999px; margin-top: 2px; }
+.scheme-group .scheme-actions { margin-top: 10px; }
+.scheme-sheet-foot { border-top: 1px solid var(--border); padding-top: 14px; }
 .scheme-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .scheme-list-row { display: flex; align-items: center; gap: 10px; }
 .scheme-list-name { flex: 1; min-width: 0; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .scheme-list-note { color: var(--text-dim); font-weight: 600; }
 .scheme-list-row .btn { flex: none; min-height: 40px; padding: 0 14px; }
-.scheme-manage-btn { flex: none; min-height: 44px; padding: 0 16px; }
 .scheme-new-btn { margin-top: 14px; }
-.scheme-select { flex: 1; min-width: 0; }
 .scheme-swatch.scheme-swatch-lg { width: 32px; height: 32px; }
 .scheme-swatch { width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--border); flex-shrink: 0; }
 @media (max-width: 600px) {

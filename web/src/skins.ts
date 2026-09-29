@@ -140,6 +140,38 @@ export function seasonalSkinId(d = new Date()): string {
   return 'autumn' // Sep-Nov
 }
 
+/** The Color scheme sheet's groups, in order (Settings -> Appearance). Every built-in skin is in one. */
+export const SCHEME_GROUPS: { label: string; ids: string[] }[] = [
+  { label: 'Automatic', ids: ['seasonal'] },
+  { label: 'Everyday', ids: ['meadow', 'field', 'ocean', 'lavender', 'midnight'] },
+  { label: 'Modern', ids: ['slate', 'ink', 'sage', 'graphite', 'berry'] },
+  { label: 'Seasons', ids: ['spring', 'summer', 'autumn', 'winter'] },
+  { label: 'Holidays', ids: ['harvest', 'festive'] },
+]
+
+/** One short line per built-in skin, under its name in the Color scheme sheet. */
+export const SCHEME_BLURBS: Record<string, string> = {
+  meadow: 'Warm cream with soft peach accents',
+  field: 'Soft greens with a grass-green accent',
+  ocean: 'Cool sea blues and teal',
+  lavender: 'Gentle lilac with a violet accent',
+  midnight: 'Deep navy, calm at night. Always dark',
+  slate: 'Cool gray with a clear blue accent',
+  ink: 'Crisp navy ink with an orange accent',
+  sage: 'Quiet gray-green, leafy accent',
+  graphite: 'Near black-and-white, red accent',
+  berry: 'Cool neutrals with a violet accent',
+  spring: 'Blossom pink with a fresh green accent',
+  summer: 'Sunny yellow by day, sea blue at night',
+  autumn: 'Warm tan with a burnt-orange accent',
+  winter: 'Icy blue, crisp and clean',
+  harvest: 'Pumpkin and wheat. Seasonal uses it Nov 15 to 30',
+  festive: 'Holiday red on warm white. Seasonal uses it Dec 15 to Jan 2',
+}
+
+/** Seasonal's line in the sheet, naming the skin it uses on `d`. */
+export const seasonalNote = (d = new Date()) => `Changes with the season. Now: ${getSkin(seasonalSkinId(d)).name}`
+
 /** Re-exported WCAG contrast ratio, used by the Settings custom-color badges too. */
 export const contrast = contrastRatio
 

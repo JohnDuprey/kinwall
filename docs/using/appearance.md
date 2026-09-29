@@ -32,9 +32,11 @@ Changes save as you make them, and other devices pick them up within about 30 se
 Under **Appearance on this device** (tap **Change**):
 
 * **Mode**, **Text size** and **Density** are menus. The first option is **Household (*current value*)**, which follows the family setting.
-* **Color scheme** has the same dropdown as the household setting, plus a first option, **Household · *scheme***, which follows the family setting. The family's own schemes are there too. See [Color schemes](#color-schemes).
+* **Color scheme** opens the same sheet as the household setting, with **Use the family's scheme** first, which follows the family setting. The family's own schemes are there too. See [Color schemes](#color-schemes).
 * **Typeface**: Default (Nunito), Hyperlegible (Atkinson Hyperlegible Next), Dyslexia-friendly (Lexend), Modern (Figtree), Playful (Fredoka), Storybook (Literata) or Handwritten (Kalam). A typeface other than the default is loaded from Google Fonts the first time this device picks it.
 * **Low-stimulation mode**: a toggle that reduces motion and visual noise on this device.
+
+**Reset this device's appearance**, at the bottom of the Color scheme sheet, puts mode, color scheme, text size, density, typeface and low-stimulation mode back to the family's settings on this device. It asks first.
 
 Overrides are saved in the browser's local storage on that device. They're never sent to the server and aren't in exports. A kitchen iPad can use Extra large text and the Midnight scheme while phones stay on the household defaults.
 
@@ -42,11 +44,13 @@ Overrides are saved in the browser's local storage on that device. They're never
 
 ## Color schemes
 
-<img src="../screenshots/ipad-schemes.png" width="420" alt="The Appearance card: the Color scheme dropdown, grouped as Automatic, Everyday, Modern, Seasons, Holidays and Your schemes" />
+<img src="../screenshots/ipad-schemes.png" width="420" alt="The Color scheme sheet: preview cards grouped as Automatic, Everyday, Modern, Seasons, Holidays and Your schemes" />
 
 A color scheme (a "skin") changes the whole palette: backgrounds, cards, text and accent. The household picks one for every device under **Appearance**. Any device can follow it or pick its own under **Appearance on this device**, so the kitchen wall can use Midnight while phones keep the family's scheme.
 
-**Color scheme** offers sixteen skins, each with its own light and dark palette:
+Tap the **Color scheme** row (it shows the current scheme and a light and dark swatch) to open the **Color scheme** sheet. Each scheme is a card with a tiny preview of the Board in light mode and dark mode side by side, drawn from the scheme's real colors, plus a one-line description. Tap a card to use it right away. The sheet stays open so you can compare, and the current one has a check and an outline. Tap **Done** when you're happy. On a keyboard, Tab or the arrow keys move between cards.
+
+There are sixteen skins, each with its own light and dark palette:
 
 | Skin | Notes |
 |---|---|
@@ -70,30 +74,32 @@ Every skin meets WCAG AA contrast (4.5:1) for text on its backgrounds.
 
 It checks once an hour, so it switches on the same day a season changes.
 
-**Reset to Peach** (household) sets the family back to the default look. **Use household colors** (device) sets the device back to following the family.
+**Seasonal**'s card says which skin it's using now, for example "Changes with the season. Now: Autumn".
+
+**Reset colors to Peach**, at the bottom of the household sheet, sets the family back to the default look. If the family still has custom colors from an earlier version, it asks first, since those go too.
 
 ## Your own color schemes
 
 ![The New color scheme sheet, with light and dark mode side by side and every contrast check passing](../screenshots/ipad-scheme-editor.png)
 
-Tap **Manage** (next to the Color scheme dropdown), then **＋ New scheme**, to make a scheme of your own. It starts as a copy of the scheme you're on, and opens in a sheet with both modes side by side:
+Open the **Color scheme** sheet and tap **＋ New scheme** (under **Your schemes**) to make a scheme of your own. It starts as a copy of the scheme you're on, and opens in a sheet with both modes side by side:
 
 * **Light mode** and **Dark mode** each have **Background**, **Cards**, **Text** and **Accent**, plus a live preview of a card.
 * The softer background, borders and dim text are worked out from your colors.
 * Each mode shows four contrast checks: text and dim text, on the background and on cards. **Save and use** stays off until every check reaches 4.5:1 in both modes, so a saved scheme is readable whatever the time of day. Accent buttons adjust themselves so their labels stay readable.
 
-Give it a name and an emoji and save. The scheme is saved for the whole family and appears under **Your schemes** in the dropdown on every device. A wall screen or kid's device can make one too (it's added to the family's list and used on that device), but only parent devices can edit or delete the family's schemes or choose the family's scheme. On a parent device, **Manage** lists the family's saved schemes, each with **Edit** and **Delete**, so you can change or remove one without selecting it:
+Give it a name and an emoji and save. The scheme is saved for the whole family and appears under **Your schemes** in the sheet on every device, with its own preview card. A wall screen or kid's device can make one too (it's added to the family's list and used on that device), but only parent devices can edit or delete the family's schemes or choose the family's scheme. On a parent device, **Manage** (under **Your schemes** in the sheet) lists the family's saved schemes, each with **Edit** and **Delete**, so you can change or remove one without selecting it:
 
 * Made from **Appearance**, it becomes the family's scheme.
 * Made from **Appearance on this device**, only this device switches to it. Other devices can still pick it.
 
 The same contrast rule applies to schemes saved through the [REST API](../integrations/rest-api.md) or the [MCP server](../integrations/mcp.md), so a family's schemes are always readable.
 
-When a saved scheme is selected, **Edit *name*** reopens it, and **+ New scheme** starts a new one from it. Deleting a scheme (in the sheet) moves any screen using it back to Peach. A family can keep up to 10 schemes.
+**＋ New scheme** starts from the scheme you're on. Deleting a scheme (in the sheet) moves any screen using it back to Peach. A family can keep up to 10 schemes.
 
 ### Custom colors from an earlier version
 
-Kinwall used to let you set single custom colors on top of a scheme, the same in light and dark mode, and pick a light and a dark background (Warm, White, Gray or Sage; Cocoa, Charcoal or Midnight). If you set any of these, a note under the Color scheme dropdown says so. Old backgrounds no longer show, so Peach always looks like its swatch. Leftover custom colors still apply until you choose:
+Kinwall used to let you set single custom colors on top of a scheme, the same in light and dark mode, and pick a light and a dark background (Warm, White, Gray or Sage; Cocoa, Charcoal or Midnight). If you set any of these, a note under the Color scheme row says so. Old backgrounds no longer show, so Peach always looks like its swatch. Leftover custom colors still apply until you choose:
 
 * **Save as a scheme** opens the editor with those colors (and the old background, if you had one) so you can check both modes and save them as a scheme.
 * **Remove them** goes back to the plain scheme.
