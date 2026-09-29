@@ -31,7 +31,7 @@ export function MedicationsToggle() {
     save({ medications: !on })
   }
   return (
-    <div className="toggle-row features-grouped">
+    <div className="toggle-row features-sub">
       <div>
         <label id="meds-on-label"><span className="sr-only">Trackers: </span>Medication reminders</label>
         <div className="settings-row-sub" id="meds-on-sub">Medicines in the Health tracker, a reminder at each dose and a Take now tile on the Board.</div>

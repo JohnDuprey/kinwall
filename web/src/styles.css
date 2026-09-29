@@ -2295,6 +2295,8 @@ button.board-empty-tap { display: block; width: 100%; text-align: left; backgrou
 }
 .features-group { margin: 14px 0 0; font-size: 0.8125rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.02em; }
 .features-grouped { padding-left: 14px; }
+/* A switch that belongs to the one above it (Medication reminders under Health): a step further in, with a guide line. */
+.features-sub { margin-left: 14px; padding-left: 14px; border-left: 3px solid var(--border); }
 .trk-photo-side { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; flex: 1; min-width: 0; }
 .trk-photo-side .toggle-row { width: 100%; padding: 0; }
 /* Phone bottom bar overflow (App.tsx Nav): the screens past the fourth, as big rows. */
