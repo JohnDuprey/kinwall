@@ -719,6 +719,9 @@ button {
 .switch.on { background: var(--accent-strong); }
 .switch .knob { position: absolute; top: 3px; left: 3px; width: 26px; height: 26px; border-radius: 50%; background: white; transition: transform 0.15s ease; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
 .switch.on .knob { transform: translateX(20px); }
+/* Dark: --text-dim is pale, so an off track in it outshone the on track and hid the white knob
+   (about 2:1). Off is a dark track with a --text-dim ring instead; on stays the accent. */
+:root[data-theme="dark"] .switch:not(.on) { background: var(--border); box-shadow: inset 0 0 0 2px var(--text-dim); }
 
 .chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip {

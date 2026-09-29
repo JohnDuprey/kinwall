@@ -20,13 +20,12 @@ export function warningsPhrase(minutes: number[], repeat?: WarningRepeat | null)
   return at && every ? `${at}, plus ${every}` : at || every
 }
 
-/** "Now / Next on · warnings at 10 and 5 min with sound · back to the calendar when idle". */
-export function timeCuesSummary(c: { idleReset: boolean; nowNext: boolean; warnings: number[]; repeat?: WarningRepeat | null; sound: boolean }): string {
+/** "Now / Next on · warnings at 10 and 5 min with sound". */
+export function timeCuesSummary(c: { nowNext: boolean; warnings: number[]; repeat?: WarningRepeat | null; sound: boolean }): string {
   const w = warningsPhrase(c.warnings, c.repeat)
   const parts = [
     c.nowNext && 'Now / Next on',
     w && `warnings ${w}${c.sound ? ' with sound' : ''}`,
-    c.idleReset && 'back to the calendar when idle',
   ].filter((p): p is string => !!p)
   return parts.length ? cap(parts.join(' · ')) : 'All off'
 }

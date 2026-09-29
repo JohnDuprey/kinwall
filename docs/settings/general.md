@@ -76,6 +76,6 @@ Mode, dark schedule, color scheme (including the family's own schemes), text siz
 
 ## Only on this device
 
-**This display**, **Appearance on this device**, **Time cues**, **Night screen**, **Notifications** and **Troubleshooting**. Appearance on this device, Time cues and Night screen show a one-line summary; tap **Change** under one to open its settings. See [This device](this-display.md).
+**This display**, **Appearance on this device**, **Time cues**, **Night screen**, **Notifications** and **Troubleshooting**. Appearance on this device, Time cues and Night screen show a one-line summary; tap **Change** under one to open its settings. **Keep the screen on** and **Back to the calendar when idle** are under **This display**. See [This device](this-display.md).
 
-Chore settings (late completion credit, streak grace, leaderboard and sticker shop) live on the **Family** tab, while **Chores & points** is on. See [Family](family.md) and [Chores](../using/chores.md).
+Chore settings (late completion credit, streak grace, daily check-in points, leaderboard, sticker shop and sticker prices) live on the **Family** tab, on parent devices, while **Chores & points** is on. See [Family](family.md) and [Chores](../using/chores.md).

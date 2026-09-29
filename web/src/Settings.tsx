@@ -129,7 +129,8 @@ export default function SettingsView() {
         {current === 'family' && <>
           <MembersSection members={members} onChanged={reloadCore} toast={toast} canManage={!isDisplay} />
           <CategoriesSection categories={categories} onChanged={reloadCore} toast={toast} />
-          {settings.features.chores && <ChoreSettingsSection settings={settings} onSaved={reloadCore} toast={toast} />}
+          {/* Chore rules are family settings a display key can't save (auth.ts), like General's family group. */}
+          {!isDisplay && settings.features.chores && <ChoreSettingsSection settings={settings} onSaved={reloadCore} toast={toast} />}
           {settings.features.meals && <MealSettingsSection settings={settings} onSaved={reloadCore} toast={toast} readOnly={isDisplay} />}
         </>}
         {current === 'calendars' && <>
@@ -1071,14 +1072,17 @@ function DeviceAppearanceRows() {
   )
 }
 
-/** Device-only behavior for this screen: member focus, locked calendar view, Now / Next card and
- * transition warnings. Stored alongside the device appearance. */
+/** Device-only behavior for this screen: member focus, locked calendar view, the Board's lists,
+ * keeping the screen on and going back to the calendar when idle. Stored alongside the device
+ * appearance. */
 function ScreenFocusRows() {
-  const { members, focusMemberId, focusLocked } = useApp()
+  const { members, focusMemberId, focusLocked, parentDevice } = useApp()
   const isPhone = useIsPhone()
   const device = useDeviceAppearance()
   const set = (patch: DeviceAppearance) => setDeviceAppearance({ ...device, ...patch })
   const focus = members.find(m => m.id === focusMemberId)
+  const idleReset = device.idleReset ?? !parentDevice
+  const keepOn = device.keepAwake ?? !parentDevice
   const views: { key: LockedView | ''; label: string }[] = [
     { key: '', label: 'Off' }, { key: 'week', label: isPhone ? '3 Day' : 'Week' }, { key: 'day', label: 'Day' }, { key: 'month', label: 'Month' }, { key: 'schedule', label: 'Schedule' }, { key: 'board', label: 'Board' },
   ]
@@ -1118,14 +1122,27 @@ function ScreenFocusRows() {
           </select>
         </div>
       </div>
+      <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+        <div className="toggle-row">
+          <label id="keep-awake-label">Keep the screen on</label>
+          <button className={`switch ${keepOn ? 'on' : ''}`} role="switch" aria-checked={keepOn} aria-labelledby="keep-awake-label" onClick={() => set({ keepAwake: !keepOn })}><span className="knob" /></button>
+        </div>
+        <div className="settings-row-sub">Stops this screen from dimming and locking while Kinwall is open. On by default for wall screens and kids' devices, off on parents' phones and computers. Shopping mode and an open recipe keep the screen on either way.</div>
+      </div>
+      <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+        <div className="toggle-row">
+          <label id="idle-reset-label">Back to the calendar when idle</label>
+          <button className={`switch ${idleReset ? 'on' : ''}`} role="switch" aria-checked={idleReset} aria-labelledby="idle-reset-label" onClick={() => set({ idleReset: !idleReset })}><span className="knob" /></button>
+        </div>
+        <div className="settings-row-sub">After 2 minutes without a tap, this screen closes what's open and shows today's calendar, but never while an activity is open. Handy on the wall; on by default there, off on parents' phones and computers.</div>
+      </div>
     </>
   )
 }
 
 function TimeCuesSection() {
-  const { parentDevice } = useApp()
   const d = useDeviceAppearance()
-  const summary = timeCuesSummary({ idleReset: d.idleReset ?? !parentDevice, nowNext: d.nowNext ?? true, warnings: d.warnings ?? [], repeat: d.warningRepeat, sound: !!d.warningSound })
+  const summary = timeCuesSummary({ nowNext: d.nowNext ?? true, warnings: d.warnings ?? [], repeat: d.warningRepeat, sound: !!d.warningSound })
   return <SummarySection title="Time cues" summary={summary}><TimeCueRows /></SummarySection>
 }
 
@@ -1136,25 +1153,8 @@ function TimeCueRows() {
   const warnings = device.warnings ?? []
   const anyWarnings = warningTimes(warnings, device.warningRepeat).length > 0
   const nowNext = device.nowNext ?? true
-  const { parentDevice } = useApp()
-  const idleReset = device.idleReset ?? !parentDevice
-  const keepOn = device.keepAwake ?? !parentDevice
   return (
     <>
-      <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-        <div className="toggle-row">
-          <label id="keep-awake-label">Keep the screen on</label>
-          <button className={`switch ${keepOn ? 'on' : ''}`} role="switch" aria-checked={keepOn} aria-labelledby="keep-awake-label" onClick={() => set({ keepAwake: !keepOn })}><span className="knob" /></button>
-        </div>
-        <div className="settings-row-sub">Stops this screen from dimming and locking while Kinwall is open. On by default for wall screens and kids' devices, off on parents' phones and computers. Shopping mode keeps the screen on either way.</div>
-      </div>
-      <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-        <div className="toggle-row">
-          <label id="idle-reset-label">Back to the calendar when idle</label>
-          <button className={`switch ${idleReset ? 'on' : ''}`} role="switch" aria-checked={idleReset} aria-labelledby="idle-reset-label" onClick={() => set({ idleReset: !idleReset })}><span className="knob" /></button>
-        </div>
-        <div className="settings-row-sub">After 2 minutes without a tap, this screen closes what's open and shows today's calendar, but never while an activity is open. Handy on the wall; on by default there, off on parents' phones and computers.</div>
-      </div>
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
         <div className="toggle-row">
           <label id="nownext-label">Now / Next</label>

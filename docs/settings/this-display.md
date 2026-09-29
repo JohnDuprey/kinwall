@@ -4,7 +4,7 @@ The second group of cards on **Settings → General**. Everything here applies t
 
 ## This display
 
-What this screen shows and how you get around it.
+What this screen shows, how you get around it, and whether it stays on and resets itself.
 
 | Item | Notes |
 |---|---|
@@ -14,6 +14,8 @@ What this screen shows and how you get around it.
 | **Lock view** | Fixes the calendar to one view (Board, Day, Week/3 Day, Month, Schedule) and hides the view switcher, so a pinned display can't be bumped into a different view. **Off** leaves the switcher free. |
 | **Board chores & to-dos** | **Auto**, **Counts** or **Full lists**: whether the [Board](../using/calendar.md#board-view) shows chores and to-dos as count tiles or as the full Chores today and Due soon cards. **Auto** shows the full cards only on a big screen. |
 | **Navigation position** | **Auto**, **Bottom**, **Left** or **Right**: where the tab buttons (Calendar, Chores, Lists, Meals, Trackers, Activities, Settings; fewer if some are turned off) sit, as a bottom tab bar or a side rail. Phones use the bottom bar, and a slim rail down the left side when turned sideways. |
+| **Keep the screen on** | Stops the screen from dimming and locking while Kinwall is open. On by default on wall screens and kids' devices, off on parents' phones and computers, which lock as usual. Shopping mode and an open recipe keep the screen on either way. On iPad walls, also set Auto-Lock to Never. |
+| **Back to the calendar when idle** | After 2 minutes without a tap, this screen closes what's open and shows today's calendar, but never while an activity (Paint, the sticker book or an added activity) is open. On by default on wall screens and kids' devices, off on parents' phones and computers. |
 
 A paired wall display also locks its own viewport (no pinch-zoom), so it can't be zoomed by a stray touch.
 
@@ -25,12 +27,10 @@ The card reads **Following the family**, or lists what this device overrides (fo
 
 ## Time cues
 
-The card lists the cues that are on (for example "Now / Next on · warnings at 10 min, plus every 1 min in the last 5 · back to the calendar when idle"). Tap **Change** under **Time cues** for these:
+The card lists the cues that are on (for example "Now / Next on · warnings at 10 min, plus every 1 min in the last 5"). Tap **Change** under **Time cues** for these:
 
 | Item | Notes |
 |---|---|
-| **Keep the screen on** | Stops the screen from dimming and locking while Kinwall is open. On by default on wall screens and kids' devices, off on parents' phones and computers, which lock as usual. Shopping mode and an open recipe keep the screen on either way. On iPad walls, also set Auto-Lock to Never. |
-| **Back to the calendar when idle** | After 2 minutes without a tap, closes what's open and shows today's calendar, but never while an activity (Paint, the sticker book or an added activity) is open. On by default on wall screens and kids' devices, off on parents' phones and computers. |
 | **Now / Next** | On by default. What's on now and what's next today, with a countdown, above the calendar on every view. On a wall display it hides when nothing is left today. On a phone it's a fixed two-line strip that reads "Nothing more today" when the day is done, so the screen never jumps. |
 | **Transition warnings** | A calm banner before the next event (or its leave-by time), such as "Soccer practice in 10 minutes" or "Leave for Soccer practice in 5 minutes". Tap **10 min**, **5 min** or **1 min**, or **Add…** your own time (1 to 120 minutes before; up to 8 times in all). Tap a time you added to remove it. **Repeat as it gets close** adds a warning every few minutes near the end, for example every minute during the last 5, on top of the times you picked. Times the repeat already covers are grayed out. **Off** clears them all. With any warning set, a **Sound** toggle adds a soft chime. Never shows during quiet hours. |
 
@@ -55,7 +55,7 @@ This device's push notifications: **Turn on notifications**, **Event reminders**
 
 A device with a display key gets two tabs:
 
-* **General**: both groups, without Default reminder under Household.
-* **Family**: Members (read-only) and Categories.
+* **General**: only **Only on this device**. The family settings are for parent devices.
+* **Family**: Members (read-only), Categories and, with Meals on, the usual meal times (read-only). Chore settings are for parent devices.
 
 **Calendars** and **Access** are never shown to a display, not even briefly. Settings shows the display view until the server confirms the device is an admin.

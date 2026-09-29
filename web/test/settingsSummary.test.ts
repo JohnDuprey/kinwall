@@ -10,11 +10,11 @@ test('features', () => {
 })
 
 test('time cues', () => {
-  assert.equal(timeCuesSummary({ idleReset: false, nowNext: false, warnings: [], sound: true }), 'All off')
-  assert.equal(timeCuesSummary({ idleReset: true, nowNext: true, warnings: [10, 5], sound: false }), 'Now / Next on · warnings at 10 and 5 min · back to the calendar when idle')
-  assert.equal(timeCuesSummary({ idleReset: false, nowNext: false, warnings: [1], sound: true }), 'Warnings at 1 min with sound')
-  assert.equal(timeCuesSummary({ idleReset: false, nowNext: true, warnings: [5, 10], repeat: { every: 5, within: 30 }, sound: false }), 'Now / Next on · warnings at 10 and 5 min, plus every 5 min in the last 30')
-  assert.equal(timeCuesSummary({ idleReset: false, nowNext: false, warnings: [], repeat: { every: 2, within: 10 }, sound: true }), 'Warnings every 2 min in the last 10 min with sound')
+  assert.equal(timeCuesSummary({ nowNext: false, warnings: [], sound: true }), 'All off')
+  assert.equal(timeCuesSummary({ nowNext: true, warnings: [10, 5], sound: false }), 'Now / Next on · warnings at 10 and 5 min')
+  assert.equal(timeCuesSummary({ nowNext: false, warnings: [1], sound: true }), 'Warnings at 1 min with sound')
+  assert.equal(timeCuesSummary({ nowNext: true, warnings: [5, 10], repeat: { every: 5, within: 30 }, sound: false }), 'Now / Next on · warnings at 10 and 5 min, plus every 5 min in the last 30')
+  assert.equal(timeCuesSummary({ nowNext: false, warnings: [], repeat: { every: 2, within: 10 }, sound: true }), 'Warnings every 2 min in the last 10 min with sound')
 })
 
 test('transition reminders (a family member)', () => {
