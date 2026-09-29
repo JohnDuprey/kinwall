@@ -18,7 +18,8 @@ const TIMEOUT_MS = 8000;
 // WMO weather interpretation codes (Open-Meteo's weather_code).
 const WMO: Record<number, [string, string]> = {
   0: ['☀️', 'Clear'], 1: ['🌤️', 'Mostly clear'], 2: ['⛅', 'Partly cloudy'], 3: ['☁️', 'Cloudy'],
-  45: ['🌫️', 'Fog'], 48: ['🌫️', 'Freezing fog'],
+  // Not 🌫️: iOS draws it as a gray blurry square that looks broken at this size.
+  45: ['☁️', 'Fog'], 48: ['☁️', 'Freezing fog'],
   51: ['🌦️', 'Light drizzle'], 53: ['🌦️', 'Drizzle'], 55: ['🌦️', 'Heavy drizzle'], 56: ['🌧️', 'Freezing drizzle'], 57: ['🌧️', 'Freezing drizzle'],
   61: ['🌧️', 'Light rain'], 63: ['🌧️', 'Rain'], 65: ['🌧️', 'Heavy rain'], 66: ['🌧️', 'Freezing rain'], 67: ['🌧️', 'Freezing rain'],
   71: ['🌨️', 'Light snow'], 73: ['🌨️', 'Snow'], 75: ['❄️', 'Heavy snow'], 77: ['🌨️', 'Snow grains'],
