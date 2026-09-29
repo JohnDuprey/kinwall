@@ -2383,6 +2383,12 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
 }
 .profile-person.active { background: var(--accent-tint); box-shadow: inset 0 0 0 2px var(--accent); }
 .profile-top { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--gap); }
+/* Every person page (profile, insights, journal, medicines) shares this header: the hero, then its controls at their natural width and 44px tall. */
+.profile-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.profile-actions .btn { flex: none; width: auto; min-height: 44px; padding: 6px 18px; text-decoration: none; }
+.profile-actions .settings-select { min-height: 44px; }
+/* Journal and medicines are one reading column; the header lines up with it. */
+.profile-narrow > * { max-width: 760px; width: 100%; align-self: center; box-sizing: border-box; }
 .profile-hero { display: flex; align-items: center; gap: 14px; min-width: 0; }
 .profile-avatar { width: 64px; height: 64px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2rem; flex-shrink: 0; box-shadow: 0 0 0 3px var(--card), 0 0 0 6px var(--m); }
 .profile-name { margin: 0; font-size: 1.5rem; font-weight: 900; }
@@ -2433,6 +2439,7 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
 @media (max-width: 600px) {
   .profile { padding: 12px 14px; }
   .profile-top { flex-direction: column; align-items: stretch; }
+  .profile-actions .btn { flex: 1 1 auto; } /* a phone's header buttons share the row */
   .profile-period { width: 100%; box-sizing: border-box; }
   .profile-period button { flex: 1; padding-left: 4px; padding-right: 4px; }
   .profile-tiles { grid-template-columns: 1fr 1fr; }
@@ -2447,8 +2454,8 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
 .snap-goalcheck-notes p { margin: 0; font-weight: 700; }
 .snap-goalcheck-note { display: flex; flex-direction: column; gap: 4px; font-weight: 700; font-size: 0.875rem; }
 .snap-goalcheck-note input { min-height: 48px; padding: 10px 14px; border-radius: 12px; border: 2px solid var(--border); background: var(--card); color: var(--text); font: inherit; }
-.journal-days { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--gap); max-width: 760px; width: 100%; align-self: center; }
-.journal > .snap-goalcheck, .journal > .snap-empty, .journal-more { max-width: 760px; width: 100%; align-self: center; box-sizing: border-box; }
+.journal-days { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--gap); }
+.journal-more.btn { flex: none; width: auto; min-height: 44px; padding: 8px 22px; } /* centered under the list */
 .journal-day { display: flex; flex-direction: column; gap: 8px; }
 .journal-line { margin: 0; overflow-wrap: anywhere; }
 .journal-goal { display: flex; flex-direction: column; gap: 4px; }
@@ -2462,12 +2469,8 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
 }
 .journal-mood { font-size: 1.5rem; line-height: 1.2; }
 .journal-text { white-space: pre-wrap; overflow-wrap: anywhere; flex: 1; min-width: 0; }
-.journal-new { flex: 0 0 auto; min-width: 180px; }
-.journal-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-@media (max-width: 600px) { .journal-actions > * { flex: 1 1 auto; } .journal-new { min-width: 0; } }
 
 /* Insights (#/insights/<id>): hand-rolled charts, to scale, in the member's color (--m). */
-.insights-range .settings-select { min-height: 44px; }
 .insights-summary { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-weight: 700; }
 .insights-wait { margin: 0; font-weight: 700; }
 .insights-connections { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
@@ -2536,9 +2539,6 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
 /* Medicine sheet → Ends: the date or dose count sits under the select, like the other fields. */
 .meds-ends-detail { margin-top: 8px; display: flex; align-items: center; gap: 10px; font-weight: 700; color: var(--text-dim); }
 .meds-ends-detail input[type="number"] { width: 7em; flex: none; }
-.meds-page .profile-top { flex-wrap: wrap; max-width: 760px; width: 100%; align-self: center; box-sizing: border-box; }
-.meds-page .profile-top .btn { flex: none; width: auto; }
-.meds-page-card { max-width: 760px; width: 100%; align-self: center; box-sizing: border-box; }
 .meds-today { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .meds-today-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 10px 4px; border-top: 1px solid var(--border); }
 .meds-today-row:first-child { border-top: none; }

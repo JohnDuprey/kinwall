@@ -44,7 +44,7 @@ export default function Insights({ memberId }: { memberId?: string }) {
           </div>
         </div>
         {!error && (
-          <div className="insights-range">
+          <div className="profile-actions">
             <label htmlFor="insights-range" className="sr-only">Time range</label>
             <select id="insights-range" className="settings-select" value={range} onChange={e => setRange(e.target.value as InsightRange)}>
               {RANGES.map(r => <option key={r.key} value={r.key}>{r.label}</option>)}

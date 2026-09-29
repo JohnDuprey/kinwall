@@ -31,7 +31,7 @@ export default function Medications({ memberId }: { memberId?: string }) {
   const today = shown?.days.at(-1)
 
   return (
-    <div className="profile meds-page scroll-y" style={{ ['--m' as string]: member.color }}>
+    <div className="profile profile-narrow meds-page scroll-y" style={{ ['--m' as string]: member.color }}>
       <section className="profile-top">
         <div className="profile-hero">
           <span className="profile-avatar" style={{ background: member.color, color: inkFor(member.color) }} aria-hidden="true">{member.avatar || member.name[0]}</span>
@@ -40,14 +40,14 @@ export default function Medications({ memberId }: { memberId?: string }) {
             <p className="profile-meta">🔒 {member.grownUp ? `Private to ${member.name}'s own devices and parent devices.` : `For ${member.name} and parents.`}</p>
           </div>
         </div>
-        {parentDevice && <a className="btn btn-secondary meds-link" href="#/trackers/health">Change medicines</a>}
+        {parentDevice && <div className="profile-actions"><a className="btn btn-secondary" href="#/trackers/health">Change medicines</a></div>}
       </section>
-      <TakeNow memberId={member.id} className="meds-page-card" />
+      <TakeNow memberId={member.id} />
       {error && <p className="snap-empty" role="alert">{error}</p>}
       {!shown && !error && <p className="snap-empty">Loading…</p>}
       {shown && shown.medications.length === 0 && <p className="snap-empty">No medicines for {member.name}.{parentDevice ? ' Add one in Trackers → Health.' : ''}</p>}
       {shown && today && shown.medications.length > 0 && <>
-        <section className="board-card meds-page-card" aria-labelledby="meds-today">
+        <section className="board-card" aria-labelledby="meds-today">
           <h3 id="meds-today" className="snap-heading">Today</h3>
           {today.doses.length === 0 ? <p className="snap-dim">Nothing today.</p> : (
             <ul className="meds-today">
@@ -65,7 +65,7 @@ export default function Medications({ memberId }: { memberId?: string }) {
             </ul>
           )}
         </section>
-        <section className="board-card meds-page-card" aria-labelledby="meds-week">
+        <section className="board-card" aria-labelledby="meds-week">
           <h3 id="meds-week" className="snap-heading">Last 7 days</h3>
           <div className="meds-grid-wrap">
             <table className="meds-grid">

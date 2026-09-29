@@ -46,7 +46,7 @@ export default function Journal({ memberId }: { memberId?: string }) {
   }
 
   return (
-    <div className="profile journal scroll-y" style={{ ['--m' as string]: member.color }}>
+    <div className="profile profile-narrow journal scroll-y" style={{ ['--m' as string]: member.color }}>
       <section className="profile-top">
         <div className="profile-hero">
           <span className="profile-avatar" style={{ background: member.color, color: inkFor(member.color) }} aria-hidden="true">{member.avatar || member.name[0]}</span>
@@ -56,9 +56,9 @@ export default function Journal({ memberId }: { memberId?: string }) {
           </div>
         </div>
         {!error && (
-          <div className="journal-actions">
-            <a className="btn btn-secondary profile-link" href={`#/insights/${member.id}`}>📈 Insights</a>
-            <button className="btn btn-primary journal-new" onClick={() => setEditing('new')}>+ New entry</button>
+          <div className="profile-actions">
+            <a className="btn btn-secondary" href={`#/insights/${member.id}`}>📈 Insights</a>
+            <button className="btn btn-primary" onClick={() => setEditing('new')}>+ New entry</button>
           </div>
         )}
       </section>
