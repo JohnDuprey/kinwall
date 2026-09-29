@@ -184,8 +184,13 @@ function MedicationSheet({ med, member, onClose, onSaved }: { med: Medication | 
           <option value="date">On a date</option>
           <option value="doses">After a number of doses</option>
         </select>
-        {ends === 'date' && <input type="date" aria-label="Last day" value={endDate} onChange={e => setEndDate(e.target.value)} />}
-        {ends === 'doses' && <input type="number" inputMode="numeric" min={1} max={1000} aria-label="Total doses" placeholder="20" value={totalDoses} onChange={e => setTotalDoses(e.target.value)} />}
+        {ends === 'date' && <div className="meds-ends-detail"><input type="date" aria-label="Last day" value={endDate} onChange={e => setEndDate(e.target.value)} /></div>}
+        {ends === 'doses' && (
+          <div className="meds-ends-detail">
+            <input type="number" inputMode="numeric" min={1} max={1000} aria-label="Total doses" placeholder="20" value={totalDoses} onChange={e => setTotalDoses(e.target.value)} />
+            <span aria-hidden="true">doses in all</span>
+          </div>
+        )}
         {ends !== 'never' && <p className="field-hint">{ends === 'date' ? 'Reminders stop after this day.' : med?.dosesLeft != null ? `Reminders stop once they're all taken. ${med.dosesLeft} left now.` : 'For a course like an antibiotic: reminders stop once they\'re all taken. Skipped doses don\'t count.'}</p>}
       </div>
     </Sheet>

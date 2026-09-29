@@ -659,7 +659,7 @@ button {
 .day-toggles button.active { border-color: var(--accent-strong); background: color-mix(in srgb, var(--accent) 22%, var(--bg-alt)); color: var(--text); }
 .field label { display: block; font-size: 0.8125rem; font-weight: 800; color: var(--text-dim); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.02em; }
 .field input[type="text"], .field input[type="date"], .field input[type="time"], .field input[type="url"],
-.field input[type="password"], .field select, .field textarea {
+.field input[type="password"], .field select, .field textarea, .meds-ends-detail input[type="number"] {
   width: 100%;
   padding: 13px 14px;
   border-radius: var(--radius-sm);
@@ -2523,6 +2523,9 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
 .meds-now-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .meds-now-actions .btn { min-height: 44px; padding: 8px 16px; flex: none; }
 @media (max-width: 560px) { .meds-now-actions { width: 100%; flex-wrap: nowrap; } .meds-now-actions .btn { flex: 1 1 auto; padding: 8px 10px; } }
+/* Medicine sheet → Ends: the date or dose count sits under the select, like the other fields. */
+.meds-ends-detail { margin-top: 8px; display: flex; align-items: center; gap: 10px; font-weight: 700; color: var(--text-dim); }
+.meds-ends-detail input[type="number"] { width: 7em; flex: none; }
 .meds-page .profile-top { flex-wrap: wrap; max-width: 760px; width: 100%; align-self: center; box-sizing: border-box; }
 .meds-page .profile-top .btn { flex: none; width: auto; }
 .meds-page-card { max-width: 760px; width: 100%; align-self: center; box-sizing: border-box; }
