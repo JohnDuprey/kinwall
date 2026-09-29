@@ -5,7 +5,7 @@ import type { Meal } from './meal-types.ts'
 import { EaterAvatars } from './MealSheet.tsx'
 import RecipePhoto from './RecipePhoto.tsx'
 
-/** A glanceable wall card from the Board's own data. Recipe editing stays in the full Meals section. */
+/** The Board's Today's meals card (its rows; Board.tsx wraps them in the card), from the Board's own data. Recipe editing stays in the full Meals section. */
 export default function TodaysMeals({ now, today, meals: all }: { now: Date; today: string; meals: Meal[] }) {
   const { settings, members, selectedMemberId } = useApp()
   const meals = all.filter(meal => mealForMember(meal, selectedMemberId))
@@ -14,9 +14,7 @@ export default function TodaysMeals({ now, today, meals: all }: { now: Date; tod
   const planned = meals.filter(meal => meal.status === 'planned').sort((a, b) => at(a) - at(b))
   const minute = minutesSinceMidnight(now.toISOString(), tz)
   const next = planned.find(meal => at(meal) >= minute) ?? planned[planned.length - 1]
-  return <section className="board-card board-meals" aria-label="Today's meals">
-    <h3 className="snap-heading">Today’s meals</h3>
-    <div className="board-body">
+  return <>
       {meals.length === 0 ? <button className="snap-empty board-empty-tap" onClick={() => { location.hash = '#/meals' }}>No meals planned today.</button> : <ul className="snap-list">
         {MEAL_SLOTS.flatMap(slot => meals.filter(meal => meal.slot === slot).map(meal => {
           const assignee = members.find(member => member.id === meal.assigneeMemberId)
@@ -30,6 +28,5 @@ export default function TodaysMeals({ now, today, meals: all }: { now: Date; tod
           </a></li>
         }))}
       </ul>}
-    </div>
-  </section>
+  </>
 }

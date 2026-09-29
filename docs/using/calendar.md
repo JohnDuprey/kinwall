@@ -53,7 +53,7 @@ Below them are the cards:
 
 Tap an event to open it, an item to open its list, or a chore bar to go to Chores. The member and category filters apply to the board's events too. The board refreshes every 10 minutes and whenever something changes. With low-stimulation mode or reduced motion on, the picture and quote change without fading.
 
-On a wall display the cards fill the screen in three columns, and long cards scroll on their own. **Board chores & to-dos** in [This display](../settings/this-display.md) picks **Counts** (just the tiles), **Full lists** (the Chores today and Due soon cards instead of their tiles) or **Auto** (the default: full lists only on a big screen, at least 1600 × 900 pixels of board, and counts otherwise). On phones they stack in one column, with a smaller picture.
+On a wall display or tablet the cards fill the screen in three columns without scrolling. A card shows what fits; when there's more, a **+3 more** button at the bottom opens the whole card in a sheet, right on the Board. **Board chores & to-dos** in [This display](../settings/this-display.md) picks **Counts** (just the tiles), **Full lists** (the Chores today and Due soon cards instead of their tiles) or **Auto** (the default: full lists only on a big screen, at least 1600 × 900 pixels of board, and counts otherwise). On phones they stack in one column, with a smaller picture.
 
 <img src="../screenshots/phone-board.png" width="32%" alt="Board view on a phone" />
 

@@ -1,7 +1,7 @@
 // Board view: the calendar as a family bulletin board - clock + weather, today, the week ahead,
 // what's due, chores, a rotating picture and a quote or fact. Read-mostly; rows open the same
 // things they do elsewhere (an event's detail sheet, the list, the chores tab).
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import type { Board as BoardData, EventInstance, List, Member, OnlineTidbits, SnapshotEvent } from './types.ts'
@@ -14,6 +14,8 @@ import { BirthdayRow, ItemRow, dayName } from './Snapshot.tsx'
 import TodaysMeals from './TodaysMeals.tsx'
 import { boardGoals } from './tempCheck.ts'
 import { TakeNowTile, useDueDoses } from './TakeNow.tsx'
+import Sheet from './Sheet.tsx'
+import { moreLabel, rowsThatFit } from './boardFit.ts'
 
 const REFRESH_MS = 10 * 60_000
 // Auto shows the full Chores and Due soon cards only on a board this big (CSS px); smaller boards get the count tiles.
@@ -28,8 +30,46 @@ function Card({ title, area, link, children }: { title: string; area: string; li
   return (
     <section className={`board-card board-${area}`} aria-label={title}>
       <h3 className="snap-heading">{title}{link}</h3>
-      <div className="board-body">{children}</div>
+      <FitBody title={title}>{children}</FitBody>
     </section>
+  )
+}
+
+const ROWS = '.snap-list > li, .snap-day-heading'
+const MORE_SPACE = 50 // the More button (44px) and the gap above it
+/** A card's body that shows the rows that fit its space and a "+3 more" button for the rest, which
+ *  opens the whole card in a sheet. Only a wall or tablet Board gives a card a fixed space; on a phone
+ *  the card grows to its rows, so everything fits and nothing is cut. */
+function FitBody({ title, rows = ROWS, bodyClass = 'board-body', children }: { title: string; rows?: string; bodyClass?: string; children: React.ReactNode }) {
+  const wrap = useRef<HTMLDivElement>(null)
+  const body = useRef<HTMLDivElement>(null)
+  const [more, setMore] = useState<string | null>(null)
+  const [open, setOpen] = useState(false)
+  const fit = useCallback(() => {
+    const w = wrap.current, b = body.current
+    if (!w || !b) return
+    const els = [...b.querySelectorAll<HTMLElement>(rows)]
+    const days = [...b.querySelectorAll<HTMLElement>('.board-day')]
+    for (const e of [...els, ...days]) e.hidden = false
+    const top = b.getBoundingClientRect().top
+    const info = els.map(e => ({ bottom: e.getBoundingClientRect().bottom - top, heading: e.matches('.snap-day-heading') }))
+    const shown = rowsThatFit(info, w.clientHeight, MORE_SPACE)
+    els.forEach((e, i) => { e.hidden = i >= shown })
+    for (const d of days) d.hidden = !!d.querySelector('.snap-day-heading[hidden]') // a day whose rows all went
+    setMore(shown < els.length ? moreLabel(info, shown) : null)
+  }, [rows])
+  useLayoutEffect(fit) // every render: the rows may have changed
+  useEffect(() => {
+    const ro = new ResizeObserver(() => fit())
+    if (wrap.current) ro.observe(wrap.current)
+    return () => ro.disconnect()
+  }, [fit])
+  return (
+    <div ref={wrap} className="board-fit">
+      <div ref={body} className={bodyClass}>{children}</div>
+      {more && <button className="btn btn-secondary board-more" aria-haspopup="dialog" onClick={() => setOpen(true)}>{more}</button>}
+      {open && <Sheet title={title} onClose={() => setOpen(false)}><div className="board-sheet">{children}</div></Sheet>}
+    </div>
   )
 }
 
@@ -202,7 +242,7 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
           })()}
         </Card>
 
-        {f.meals && <TodaysMeals now={now} today={today} meals={data.meals.filter(m => m.date === today)} />}
+        {f.meals && <Card title="Today’s meals" area="meals"><TodaysMeals now={now} today={today} meals={data.meals.filter(m => m.date === today)} /></Card>}
 
         <Card title="Coming up" area="coming">
           {later.length === 0 ? <p className="snap-empty">Nothing planned this week.</p> : later.map(d => {
@@ -306,10 +346,8 @@ function boardAreas(shown: string[]): React.CSSProperties {
     .map(col => col.reduce<string[]>((out, a) => [...out, has(a) ? a : out[out.length - 1]], []))
   const three = [...(has('tiles') ? ['"tiles tiles tiles"'] : []), ...[0, 1, 2, 3].map(r => `"${cols.map(c => c[r]).join(' ')}"`)]
   return {
-    // The last row is capped so a long meals or tidbit card can't squeeze the photo. The full Chores and Due soon
-    // cards need more height than a small wall screen has, so there the board scrolls rather than cut a card to its heading.
-    ['--board-rows-3' as string]: `${has('tiles') ? 'auto ' : ''}auto minmax(40px, 1fr) minmax(40px, 1fr) fit-content(24%)`,
-    ['--board-min-h-3' as string]: has('chores') || has('due') ? '740px' : '0px',
+    // The last row is capped so a long meals or tidbit card can't squeeze the photo.
+    ['--board-rows-3' as string]: `${has('tiles') ? 'auto ' : ''}auto minmax(40px, 1fr) minmax(40px, 1fr) fit-content(30%)`,
     ['--board-areas-1' as string]: shown.map(a => `"${a}"`).join(' '),
     ['--board-areas-2' as string]: two.join(' '),
     ['--board-areas-3' as string]: three.join(' '),
@@ -325,7 +363,7 @@ function TidbitCard({ tidbit }: { tidbit: Tidbit }) {
   const label = tidbit.kind === 'quote' ? 'Quote' : tidbit.kind === 'trivia' ? 'Trivia' : tidbit.kind === 'onthisday' ? 'On this day' : tidbit.kind === 'tip' ? 'Try this' : 'Did you know?'
   return (
     <section className="board-card board-tidbit" aria-label={label}>
-      <div key={key} className="board-tidbit-body">
+      <FitBody key={key} title={label} rows=".board-tidbit-body > *" bodyClass="board-tidbit-body">
         {tidbit.kind === 'quote' && <blockquote><p>“{tidbit.text}”</p><footer>— {tidbit.by}</footer></blockquote>}
         {tidbit.kind === 'fact' && <p><span className="board-tidbit-tag">💡 Did you know?</span> {tidbit.text}</p>}
         {tidbit.kind === 'tip' && <p><span className="board-tidbit-tag">🌱 Try this</span> {tidbit.text}</p>}
@@ -352,7 +390,7 @@ function TidbitCard({ tidbit }: { tidbit: Tidbit }) {
           </p>
           {guess !== null && <button className="btn btn-secondary" onClick={() => setGuess(null)}>Try again</button>}
         </>}
-      </div>
+      </FitBody>
     </section>
   )
 }

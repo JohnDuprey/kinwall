@@ -2057,7 +2057,7 @@ button.board-empty-tap { display: block; width: 100%; text-align: left; backgrou
 .weather-results .btn { min-height: 44px; justify-content: flex-start; text-align: left; }
 
 /* ---------- Board view (Board.tsx): one column on phones, two when there's room, and a
-   full-height three-column bulletin board on the wall (cards scroll inside themselves). ---------- */
+   full-height three-column bulletin board on the wall (cards show what fits, and "+3 more" opens the rest). ---------- */
 .board-scroll { height: 100%; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain; container: board / inline-size; }
 .board {
   display: grid; gap: var(--gap); padding: 4px var(--pad) var(--pad); grid-template-columns: minmax(0, 1fr);
@@ -2068,7 +2068,11 @@ button.board-empty-tap { display: block; width: 100%; text-align: left; backgrou
   min-width: 0; min-height: 0; display: flex; flex-direction: column;
 }
 .board-card > .snap-heading { flex-shrink: 0; }
-.board-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; }
+.board-fit { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 6px; } /* FitBody: gap + More = MORE_SPACE */
+.board-body, .board-fit > .board-tidbit-body { flex: 1; min-height: 0; overflow: hidden; }
+.board-fit [hidden] { display: none !important; } /* rows FitBody cut; some rows set their own display */
+.board-more.btn { flex: none; align-self: flex-start; min-height: 44px; padding: 6px 18px; }
+.board-sheet .board-day + .board-day { margin-top: 14px; }
 .board-clock { grid-area: clock; container: board-clock / inline-size; min-height: auto; overflow-y: auto; }
 .board-today { grid-area: today; }
 .board-goal-line { display: flex; align-items: center; gap: 10px; padding: 6px 12px; border-radius: 12px; background: var(--bg-alt); font-weight: 800; overflow-wrap: anywhere; }
@@ -2080,7 +2084,7 @@ button.board-empty-tap { display: block; width: 100%; text-align: left; backgrou
 .board-chores { grid-area: chores; }
 .board-meals { grid-area: meals; }
 .board-photo { grid-area: photo; }
-.board-tidbit { grid-area: tidbit; min-height: auto; overflow-y: auto; }
+.board-tidbit { grid-area: tidbit; min-height: auto; }
 .board-tiles { grid-area: tiles; display: grid; gap: var(--gap); grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .board-tile {
   background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 8px 14px; min-height: 64px; min-width: 0;
@@ -2103,8 +2107,8 @@ button.board-empty-tap { display: block; width: 100%; text-align: left; backgrou
 }
 @container board (min-width: 880px) {
   .board {
-    height: max(100%, var(--board-min-h-3)); grid-template-columns: repeat(3, minmax(0, 1fr));
-    grid-template-rows: var(--board-rows-3); /* from boardAreas(): 1024x768 fits without scrolling; cards scroll inside if they must */
+    height: 100%; grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: var(--board-rows-3); /* from boardAreas(): fits the screen; a card shows the rows that fit */
     grid-template-areas: var(--board-areas-3);
   }
   .board-tidbit blockquote p, .board-tidbit-body > p { font-size: 0.875rem; }
