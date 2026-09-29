@@ -1,11 +1,16 @@
 // Time-awareness helpers for the calendar: the Now / Next card and full-screen-ish transition
 // warnings ("Soccer Practice in 10 minutes"). Both work from today's already-loaded instances.
 import { useEffect, useRef, useState } from 'react'
-import type { EventInstance, Settings } from './types.ts'
+import type { EventInstance, Member, Settings } from './types.ts'
 import { formatTime } from './date.ts'
 import { announce } from './a11y.tsx'
 import { inTimeWindow } from './useTheme.ts'
 import { leadFor, leadIcon, leadOf } from './leadTime.ts'
+import { useApp } from './AppContext.tsx'
+import { api, MOCK } from './api.ts'
+import { leaveByActivity } from './liveActivity.ts'
+import { endAppActivity, tellAppActivity } from './native.ts'
+import { useDeviceAppearance } from './useTheme.ts'
 
 const MIN = 60000
 
@@ -140,4 +145,27 @@ export function TransitionWarnings({ events, minutes, sound, settings }: { event
       <span className="transition-banner-hint" aria-hidden="true">Tap to dismiss</span>
     </button>
   )
+}
+
+/** Inside the iPhone app: tells it about this device's person's next leave-by or start-prep time,
+ * so it can show a Live Activity from their first transition warning until the event starts
+ * (liveActivity.ts). Renders nothing. While the app is closed, the server's push starts it instead. */
+const DEMO_ME = (members: Member[]) => { const sam = members.find(m => m.name === 'Sam'); return sam && { ...sam, transitionReminders: { on: true, minutes: [30], repeat: null, leaveBy: true } } }
+
+export function LeaveByLiveActivity() {
+  const { settings, members, meMemberId, refreshTick } = useApp()
+  const calm = !!useDeviceAppearance().lowStim
+  const now = useNow(30000)
+  const [events, setEvents] = useState<EventInstance[]>([])
+  useEffect(() => {
+    const t = Date.now()
+    api.getEvents(new Date(t - 3 * 3600e3).toISOString(), new Date(t + 3 * 3600e3).toISOString()).then(setEvents).catch(() => {})
+  }, [refreshTick, Math.floor(now / 3600e3)]) // eslint-disable-line react-hooks/exhaustive-deps
+  // The demo has no device owner: it shows Sam's, with a 30-minute heads-up, so the app's demo has one.
+  const me = members.find(m => m.id === meMemberId) ?? (MOCK ? DEMO_ME(members) : undefined)
+  const tz = settings.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone
+  const a = me ? leaveByActivity(events, me, now, iso => formatTime(iso, tz), calm) : null
+  const json = JSON.stringify(a)
+  useEffect(() => { if (a) tellAppActivity('leaveBy', a); else endAppActivity('leaveBy') }, [json]) // eslint-disable-line react-hooks/exhaustive-deps
+  return null
 }

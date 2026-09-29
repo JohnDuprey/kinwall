@@ -61,6 +61,8 @@ A recipe with steps has a **Start cooking** button near the top of its view. It 
 
 A step's title shows above its text. When a step comes with its own timers (an imported meal kit's "Chicken · 25 min"), those are its timer buttons, named. Otherwise, when a step mentions a time ("10 minutes", "1 hour", "5-7 min"), tap its timer to start it; for a range, the timer runs to the shorter time so you can check. Running timers stay in a bar at the top as you move between steps, and you can run several at once. When one is up, a red banner flashes, the device beeps (and vibrates on a phone), and **OK** clears it. Timers only run while cooking mode is open.
 
+In the Kinwall app for iPhone, a running timer is also a Live Activity on the Lock Screen and in the Dynamic Island: the recipe, the timer's name and step, and a countdown ("+1 more" when several are running). When it's up it says "Done: Rice", and it goes away when you tap **OK** or close cooking mode.
+
 The screen stays on while you cook. Kinwall remembers which step you were on for each recipe on this device, so the button says **Resume cooking · step 4** next time; **Start over** goes back to step 1, and **Done** forgets it.
 
 In the recipe editor, a recipe with structured steps edits them as a list: each step has its text and its bullets (one per line), **Move up**, **Move down** and **Remove step**, and **Add step** adds one at the end. **Remove photo** drops a step's photo. A recipe with plain instructions keeps the one **Instructions** box.

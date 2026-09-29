@@ -131,6 +131,7 @@ Shopping mode is the list and nothing else, for your phone in the store: no head
 * The screen stays on while shopping mode is open, and a wall screen doesn't drift back to the calendar.
 * If the app or browser closes mid-trip, opening Kinwall again takes you straight back to shopping mode on this device.
 * A link to `#/lists/<list id>/shop` opens a list straight in shopping mode.
+* In the Kinwall app for iPhone, a trip is also a Live Activity on the Lock Screen and in the Dynamic Island: "Shaws · 5 left · next: Dairy" and the next item, in the store's walking order. **Got it** ticks that item right there, and **Open** opens shopping mode. It follows along as you tick items in the app, and ends at **Checkout** or **End**.
 
 ## Offline shopping
 

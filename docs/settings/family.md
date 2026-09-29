@@ -39,6 +39,8 @@ Who gets them:
 * **Never during quiet hours.** If a regular event reminder reaches the same device in the same minute, only that one is sent. When a check runs a little late (every 5 minutes on Cloudflare, about 2 on Docker), only the latest reminder goes out and it says the real time left.
 * They are in addition to regular event reminders and aren't added to the family's notification feed.
 
+In the Kinwall app for iPhone, the next leave-by or start-prep time is also a Live Activity on the person's own phone, from their first transition reminder until the event starts: "Soccer practice · leave in 18 min" with a countdown, switching to "Leave now" when it's time. The headline varies like the reminders do, but never with minutes in it (the countdown has those); with **Low stimulation** on for that phone it's one plain line ("Leave for Soccer practice at 3:40 PM"). While the app is open it starts from the app itself; with the app closed, it needs Apple push on the server (see [Live Activities](../self-hosting/configuration.md#live-activities-apple-push)).
+
 API: `transitionReminders` on `GET /api/members` and in `PATCH /api/members/{id}` (admin key), as `{ "on": true, "minutes": [10, 5], "repeat": { "every": 5, "within": 30 }, "leaveBy": true }`. `repeat` may be `null`. The MCP tool `update_member` takes the same object. It's included in [exports](../your-data/export-import.md).
 
 ### Temp check

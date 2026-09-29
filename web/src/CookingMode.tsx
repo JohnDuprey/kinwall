@@ -8,6 +8,8 @@ import type { Recipe, RecipeStep } from './meal-types.ts'
 import { IngredientList } from './RecipeSheet.tsx'
 import RecipePhoto from './RecipePhoto.tsx'
 import { holdAwake } from './wakeLock.ts'
+import { cookingActivity } from './liveActivity.ts'
+import { endAppActivity, tellAppActivity } from './native.ts'
 
 interface Timer { id: number; label: string; step: number; endsAt: number; done: boolean }
 
@@ -33,7 +35,7 @@ function beep() {
  * timers. Back/Next, swipes or arrow keys move; the step is remembered per recipe on this device.
  * A step's ingredient made from a basic (found in `library`) has "Make it": the basic's own cooking
  * mode opens on top, and closing it comes back to this step. */
-export default function CookingMode({ recipe, steps, servings, library = [], onClose }: { recipe: Recipe; steps: RecipeStep[]; servings: number; library?: Recipe[]; onClose: () => void }) {
+export default function CookingMode({ recipe, steps, servings, library = [], nested = false, onClose }: { recipe: Recipe; steps: RecipeStep[]; servings: number; library?: Recipe[]; nested?: boolean; onClose: () => void }) {
   const titleId = useId(), drawerId = useId()
   const [index, setIndex] = useState(() => Math.min(savedStep(recipe.id), steps.length - 1))
   const [showAll, setShowAll] = useState(false)
@@ -109,6 +111,15 @@ export default function CookingMode({ recipe, steps, servings, library = [], onC
     announce(`${label} timer started`)
   }
   const stop = (id: number) => setTimers(ts => ts.filter(t => t.id !== id))
+  // The iPhone app's Live Activity (liveActivity.ts): the soonest timer on the Lock Screen and in the
+  // Dynamic Island, "Done" once it rings, gone when dismissed or on the way out. A basic's cooking
+  // mode opened on top (nested) leaves it to this one.
+  useEffect(() => {
+    if (nested) return
+    const a = cookingActivity(recipe.name, timers, i => steps[i]?.title)
+    if (a) tellAppActivity('cooking', a); else endAppActivity('cooking')
+  }, [nested, recipe.name, steps, timers])
+  useEffect(() => () => { if (!nested) endAppActivity('cooking') }, [nested])
   const rang = timers.filter(t => t.done)
 
   const onPointerDown = (e: ReactPointerEvent) => { swipe.current = e.pointerType === 'mouse' ? null : { x: e.clientX, y: e.clientY } }
@@ -186,7 +197,7 @@ export default function CookingMode({ recipe, steps, servings, library = [], onC
         </div>
         <IngredientList recipe={recipe} servings={servings} />
       </div>}
-      {basic && <CookingMode key={basic.id} recipe={basic} steps={basicSteps.length ? basicSteps : [{ text: 'No steps written yet. Its ingredients are under All ingredients.', bullets: [] }]} servings={basic.defaultServings} library={library} onClose={() => setBasic(null)} />}
+      {basic && <CookingMode key={basic.id} nested recipe={basic} steps={basicSteps.length ? basicSteps : [{ text: 'No steps written yet. Its ingredients are under All ingredients.', bullets: [] }]} servings={basic.defaultServings} library={library} onClose={() => setBasic(null)} />}
     </div>,
     document.body,
   )

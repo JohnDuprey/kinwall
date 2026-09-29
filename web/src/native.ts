@@ -60,3 +60,30 @@ export function tellAppAppearance(a: { mode: ThemeMode; dark: boolean; colors: {
   lastAppearance = json
   try { app.postMessage({ type: 'appearance', ...a }) } catch { /* not in the app */ }
 }
+
+export type AppActivityKind = 'cooking' | 'shopping' | 'leaveBy'
+// undefined: not told since this page loaded (so the first end always goes, in case the app still
+// shows one from before a reload); '': ended.
+const lastActivity: Partial<Record<AppActivityKind, string>> = {}
+
+/** Starts or updates the app's Live Activity of this kind (liveActivity.ts builds the payload).
+ * Sent only when it changed. No-op in a browser. */
+export function tellAppActivity(kind: AppActivityKind, payload: object) {
+  const json = JSON.stringify(payload)
+  if (lastActivity[kind] === json) return
+  const w = window as Window & { webkit?: { messageHandlers?: { kinwall?: { postMessage: (m: unknown) => void } } } }
+  const app = w.webkit?.messageHandlers?.kinwall
+  if (!app) return
+  lastActivity[kind] = json
+  try { app.postMessage({ type: 'activity', kind, payload }) } catch { /* not in the app */ }
+}
+
+/** Ends the app's Live Activity of this kind. No-op in a browser, or when it's already ended. */
+export function endAppActivity(kind: AppActivityKind) {
+  if (lastActivity[kind] === '') return
+  const w = window as Window & { webkit?: { messageHandlers?: { kinwall?: { postMessage: (m: unknown) => void } } } }
+  const app = w.webkit?.messageHandlers?.kinwall
+  if (!app) return
+  lastActivity[kind] = ''
+  try { app.postMessage({ type: 'activityEnd', kind }) } catch { /* not in the app */ }
+}

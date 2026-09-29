@@ -38,6 +38,7 @@ import Journal from './Journal.tsx'
 import Insights from './Insights.tsx'
 import Medications from './Medications.tsx'
 import Sheet from './Sheet.tsx'
+import { LeaveByLiveActivity } from './NowNext.tsx'
 
 const NAV_ITEMS = [
   { key: 'calendar', href: '#/calendar', label: 'Calendar', Icon: CalendarIcon },
@@ -1199,6 +1200,7 @@ function AppRoutes() {
         {updateAvailable && <button className="toast update-banner" onClick={() => location.reload()}>Kinwall updated — tap to reload</button>}
         {isPhone && <InstallNudge />}
         <QuietOverlay settings={settings} wall={wall} />
+        {inNativeApp() && <LeaveByLiveActivity />}
       </div>
     </AppContext.Provider>
   )

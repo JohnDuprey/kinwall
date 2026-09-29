@@ -21,6 +21,8 @@ import { PRIORITY_LABEL, PRIORITY_MARK, PriorityBadge } from './PriorityBadge.ts
 import NotesThread from './NotesThread.tsx'
 import { aisleAt, ANY_STORE, anyStoreView, departmentAisle, setShoppingModeList, setTripStore, tripLeftovers, tripStore, tripView } from './trip.ts'
 import { holdAwake } from './wakeLock.ts'
+import { shoppingActivity } from './liveActivity.ts'
+import { endAppActivity, tellAppActivity } from './native.ts'
 import { itemKey, matchItems } from './itemSuggest.ts'
 import { listSections, reorderWithin } from './listSections.ts'
 
@@ -1096,6 +1098,18 @@ function ListDetailPane({ listId, isPhone, shopMode, onBack, onArchivedOrDeleted
     setCheckout(null); announce('Undone')
   }
   useEffect(() => { load() }, [listId, refreshTick]) // eslint-disable-line react-hooks/exhaustive-deps
+  // The iPhone app's Live Activity for the trip (liveActivity.ts): what's left and what's next, in the
+  // same walking order as the aisles below, on every change; End or Checkout ends it.
+  const hadTrip = useRef<string | null>(null) // the list whose trip it's showing
+  useEffect(() => {
+    if (!detail || detail.list.id !== listId || detail.list.kind !== 'shopping') return
+    if (!trip) { if (hadTrip.current === listId) endAppActivity('shopping'); hadTrip.current = null; return }
+    hadTrip.current = listId
+    const order = aisleOrderMap(detail)
+    const pending = checkout && !checkout.reset ? detail.items.filter(i => !checkout.ids.includes(i.id)) : detail.items
+    const items = trip !== ANY_STORE ? pending : pending.map(i => (i.aisle ? i : { ...i, aisle: departmentAisle(i.category, storeAisles(detail.suggestions, i.store, order)) }))
+    tellAppActivity('shopping', { list: detail.list.name, ...shoppingActivity(listId, trip, items, order, trip !== ANY_STORE ? storeAisles(detail.suggestions, trip, order) : []) })
+  }, [detail, trip, checkout, listId])
   // Adds, ticks, edits and deletes are queued (api.queue*): shown at once, sent in order, kept
   // offline. A refresh after they sync clears their pending mark (App bumps refreshTick).
   const showQueued = (op: Op | null) => { if (op) setDetail(d => d && applyListOps(d, [op])); else load() }
