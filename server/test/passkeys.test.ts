@@ -182,9 +182,17 @@ test('REQUIRE_PASSKEY_SETUP=1 -> /api/setup reports passkeyRequired', async () =
   assert.equal(s.hasPasskey, false);
 });
 
+test('behind a TLS-terminating proxy (no PUBLIC_URL, http request) the https origin of the same host is accepted', async () => {
+  const env = makeEnv('');
+  assert.deepEqual((await resolveRpId(env, 'http://ha.example.com:8443/api/passkeys/register')).expectedOrigins,
+    ['http://ha.example.com:8443', 'https://ha.example.com:8443']);
+  assert.deepEqual((await resolveRpId(makeEnv('http://kinwall.example.com'), 'http://x.test/')).expectedOrigins,
+    ['http://kinwall.example.com'], 'an explicit PUBLIC_URL is taken as is');
+});
+
 test('WEBAUTHN_RP_ID: shared rpID for a subdomain origin, refused for an unrelated host', async () => {
   const env = { ...makeEnv('https://smiths.example.com'), WEBAUTHN_RP_ID: 'example.com' };
-  assert.deepEqual(await resolveRpId(env, 'https://ignored.test/'), { rpID: 'example.com', origin: 'https://smiths.example.com' });
+  assert.deepEqual(await resolveRpId(env, 'https://ignored.test/'), { rpID: 'example.com', origin: 'https://smiths.example.com', expectedOrigins: ['https://smiths.example.com'] });
 
   const options = await (await makeApp(env)('/api/passkeys/register/options', { method: 'POST', body: '{}' })).json() as any;
   assert.equal(options.rp.id, 'example.com');

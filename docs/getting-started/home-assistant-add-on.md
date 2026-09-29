@@ -19,6 +19,7 @@ What this repository does for the add-on:
 | `vapid_subject` | `VAPID_SUBJECT` |
 | `timezone` | Seeds the household timezone the first time. |
 
+* **Passkeys** work through ingress over https, including when Home Assistant serves https itself (for example on port 8443): Kinwall accepts the https address of the host the request came in on. Opening Home Assistant by more than one address? Set `public_url` to the one you add passkeys from.
 * **Data** lives in the add-on's `/data`. It contains the SQLite database and `encryption.key`, so include it in your Home Assistant backups.
 * **Setup code**: find it under **Settings → Apps → Kinwall → Log** (**Settings → Add-ons** in older Home Assistant versions).
 
