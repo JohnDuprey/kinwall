@@ -71,6 +71,7 @@ An event can have a **travel time** (0–600 minutes). Kinwall then shows a **le
 * All-day events have no leave-by time.
 * On synced recurring events, it's set per occurrence.
 * API fields: `travelMinutes`, `remindBeforeLeave` (write) and `leaveAt` (read), on `POST/PATCH /api/events` and the MCP `create_event` / `update_event` tools.
+* A meal's event shows **start prep by** instead (🍳, see [Meals → The calendar](meals.md#the-calendar)).
 
 ## Members on events
 

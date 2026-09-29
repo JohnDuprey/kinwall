@@ -17,6 +17,7 @@ import { TakeNowTile, useDueDoses } from './TakeNow.tsx'
 import Sheet from './Sheet.tsx'
 import { CartIcon } from './icons.tsx'
 import { moreLabel, rowsThatFit } from './boardFit.ts'
+import { leadOf, leadText } from './leadTime.ts'
 
 const REFRESH_MS = 10 * 60_000
 // Auto shows the full Chores and Due soon cards only on a board this big (CSS px); smaller boards get the count tiles.
@@ -411,7 +412,7 @@ function EventLine({ e, tz, byId, onTap, past }: { e: SnapshotEvent; tz: string;
         <span className="snap-main" aria-hidden="true">
           <span className="board-when">{when}</span>
           <span className="snap-title">{e.title}</span>
-          {(e.leaveAt || e.location) && <span className="snap-meta">{[e.leaveAt && `🚗 Leave by ${formatTime(e.leaveAt, tz)}`, e.location && `📍 ${e.location.split('\n')[0]}`].filter(Boolean).join(' · ')}</span>}
+          {(leadOf(e) || e.location) && <span className="snap-meta">{[leadText(e, t => formatTime(t, tz)), e.location && `📍 ${e.location.split('\n')[0]}`].filter(Boolean).join(' · ')}</span>}
         </span>
         {who.length > 0 && <span className="board-avatars" aria-hidden="true">{who.map(m => <Avatar key={m.id} m={m} />)}</span>}
       </button>

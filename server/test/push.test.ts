@@ -752,6 +752,26 @@ test('transitions: leave-by counts to leaving when the event has travel time (an
   assert.equal((await toStart.run(at(start, -5)))[0].payload.title, 'Soccer practice in 5 minutes');
 });
 
+test('transitions: a meal\'s event counts to starting prep, for its cook only', async () => {
+  const far = '2030-03-05T15:30:00Z'; // Soccer the next day stays quiet
+  const cook = await transitionsSetup({ on: true, minutes: [5] }, { start: far, end: at(far, 60).toISOString() });
+  const tacos = (await (await cook.request('/api/recipes', { method: 'POST', body: JSON.stringify({ name: 'Tuesday Tacos', totalMinutes: 40, ingredients: [] }) })).json()) as any;
+  const leo = ((await (await cook.request('/api/members')).json()) as any[]).find((m) => m.name === 'Leo');
+  const meal = async (assigneeMemberId: string, eaterIds: string[], date: string) => {
+    const m = (await (await cook.request('/api/meals', { method: 'POST', body: JSON.stringify({ date, slot: 'dinner', plannedTime: '18:00', recipeId: tacos.id, assigneeMemberId, eaterIds }) })).json()) as any;
+    await cook.request(`/api/meals/${m.id}/calendar-event`, { method: 'POST', body: '{}' });
+  };
+  await meal(leo.id, [cook.sam.id], '2030-03-04');
+  // 6:00 PM dinner, 40 minutes of cooking: prep by 5:20 PM, Leo's 5-minute warning at 5:15 PM.
+  const sent = await cook.run(new Date('2030-03-04T17:15:00Z'));
+  assert.deepEqual(sent.map((s) => [s.device, s.payload.title, s.payload.body]), [['leo-phone', 'Start prep for Dinner · Tuesday Tacos in 5 minutes', 'Start prep by 5:20 PM · starts 6:00 PM']]);
+
+  // Leo eats but Sam cooks: nothing for Leo.
+  await meal(cook.sam.id, [leo.id], '2030-03-06');
+  assert.deepEqual(await cook.run(new Date('2030-03-06T17:15:00Z')), []);
+  assert.deepEqual(await cook.run(new Date('2030-03-06T17:55:00Z')), [], 'nor at the meal time');
+});
+
 test('transitions: not doubled with a regular reminder at the same minute on that device', async () => {
   const start = '2030-03-04T15:30:00Z';
   const { run } = await transitionsSetup({ on: true, minutes: [10, 5] }, { start, end: at(start, 60).toISOString(), reminders: [10] });

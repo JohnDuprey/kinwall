@@ -15,6 +15,7 @@ import { deterministicEventId } from '../event-id.ts';
 import { parseMemberIds } from '../calendar-members.ts';
 import { matchCategoryByKeyword, type CategoryRow } from '../calendar-categories.ts';
 import { eventWriteBlock } from '../auth.ts';
+import { mealLinksQuery, parseMealLinks, prepAt } from '../prepBy.ts';
 
 export const eventsRoutes = createRouter();
 
@@ -463,7 +464,7 @@ export async function eventInstances(db: KinwallDb, fromDate: Date, toDate: Date
   // events + all four override tables, all filtered by the same calendar id set - another batch.
   const calIds = calendars.map((cal) => cal.id);
   const placeholders = calIds.map(() => '?').join(',');
-  const [eventsRes, overridesRes, seriesOverridesRes, categoryOverridesRes, categorySeriesOverridesRes, travelOverridesRes, linkedRes, notesRes] = await db.batch<unknown>([
+  const [eventsRes, overridesRes, seriesOverridesRes, categoryOverridesRes, categorySeriesOverridesRes, travelOverridesRes, linkedRes, notesRes, mealsRes] = await db.batch<unknown>([
     db.prepare(`SELECT * FROM events WHERE calendar_id IN (${placeholders})`).bind(...calIds),
     db.prepare(`SELECT calendar_id, external_id, member_ids FROM event_member_overrides WHERE calendar_id IN (${placeholders})`).bind(...calIds),
     db
@@ -479,6 +480,7 @@ export async function eventInstances(db: KinwallDb, fromDate: Date, toDate: Date
     // Every event's open linked-item count (small, indexed) - no per-id IN list, which could pass D1's 100-param cap.
     db.prepare('SELECT event_id, COUNT(*) AS n FROM list_items WHERE done = 0 AND event_id IS NOT NULL GROUP BY event_id'),
     db.prepare("SELECT target_id, COUNT(*) AS n FROM notes WHERE target_type = 'event' GROUP BY target_id"),
+    mealLinksQuery(db),
   ]);
   const noteCounts = new Map((notesRes.results as { target_id: string; n: number }[]).map((r) => [r.target_id, r.n]));
   const linkedCounts = new Map((linkedRes.results as { event_id: string; n: number }[]).map((r) => [r.event_id, r.n]));
@@ -513,7 +515,12 @@ export async function eventInstances(db: KinwallDb, fromDate: Date, toDate: Date
     out.push(instanceFrom(row, cal, memberColors, null, row.start, row.end, override, seriesOverride, categories, categoryOverride, categorySeriesOverride, defaultReminderMinutes));
   }
 
-  const withCounts = out.map((ev) => ({ ...ev, linkedItemCount: linkedCounts.get(ev.id) ?? 0, noteCount: noteCounts.get(ev.id) ?? 0 }));
+  // A meal's event counts down to starting prep instead (prepBy.ts), for its cook.
+  const meals = parseMealLinks(mealsRes.results);
+  const withCounts = out.map((ev) => {
+    const meal = ev.allDay ? undefined : meals.get(ev.id);
+    return { ...ev, linkedItemCount: linkedCounts.get(ev.id) ?? 0, noteCount: noteCounts.get(ev.id) ?? 0, prepAt: meal ? prepAt(ev.start, meal.eventStart, meal.minutes) : null, cookId: meal?.cookId ?? null };
+  });
   withCounts.sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0));
   return withCounts;
 }

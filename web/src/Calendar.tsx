@@ -20,6 +20,7 @@ import Board from './Board.tsx'
 import { PriorityBadge } from './PriorityBadge.tsx'
 import { isSingleEmoji } from './emoji.ts'
 import { calendarGoal } from './tempCheck.ts'
+import { leadBy, leadIcon, leadOf, leadText } from './leadTime.ts'
 
 const PHONE_WEEK_DAYS = 3
 const NEW_LOCAL_CALENDAR = '__new_local'
@@ -461,7 +462,7 @@ type ChipCategory = { id: string; name: string; color: string; emoji: string | n
 function eventLabel(ev: EventInstance, tz: string, members: ChipMember[], categories: ChipCategory[]): string {
   const who = members.filter(m => ev.memberIds.includes(m.id)).map(m => m.name).join(' and ')
   const category = ev.categoryId ? categories.find(c => c.id === ev.categoryId)?.name : undefined
-  return [`${ev.allDay ? 'All day' : formatTime(ev.start, tz)} ${ev.title}`, who, ev.location, category, ev.leaveAt && `leave by ${formatTime(ev.leaveAt, tz)}`, ev.noteCount && `${ev.noteCount} note${ev.noteCount === 1 ? '' : 's'}`].filter(Boolean).join(', ')
+  return [`${ev.allDay ? 'All day' : formatTime(ev.start, tz)} ${ev.title}`, who, ev.location, category, ((l) => l && leadBy(l, formatTime(l.at, tz), true))(leadOf(ev)), ev.noteCount && `${ev.noteCount} note${ev.noteCount === 1 ? '' : 's'}`].filter(Boolean).join(', ')
 }
 
 /** Solid category color (overrides member color entirely) when the event has one, else: solid
@@ -494,10 +495,11 @@ function eventVisual(ev: EventInstance, members: ChipMember[], categories: ChipC
  * block for a neutral card with just a thin bar of the same color/stripes. */
 const evFill = (background: string, ink: string) => ({ background, color: ink, ['--ev-bg' as string]: background })
 
-/** Dashed line across an event's column at its leave-by time (same day only), in its color. */
+/** Dashed line across an event's column at its leave-by or start-prep time (same day only), in its color. */
 function LeaveMarker({ ev, tz, dayKey, hourPx, left, width, color }: { ev: EventInstance; tz: string; dayKey: string; hourPx: number; left: string; width: string; color: string }) {
-  if (!ev.leaveAt || zonedDayKey(ev.leaveAt, tz) !== dayKey) return null
-  return <div className="leave-marker" aria-hidden="true" style={{ top: (minutesSinceMidnight(ev.leaveAt, tz) / 60) * hourPx, left, width, borderColor: color }}><span>🚗</span></div>
+  const lead = leadOf(ev)
+  if (!lead || zonedDayKey(lead.at, tz) !== dayKey) return null
+  return <div className="leave-marker" aria-hidden="true" style={{ top: (minutesSinceMidnight(lead.at, tz) / 60) * hourPx, left, width, borderColor: color }}><span>{leadIcon(lead)}</span></div>
 }
 
 /** A category's emoji (its own span so icon-first density can enlarge it apart from the title), or
@@ -814,7 +816,7 @@ function ScheduleView({ anchor, events, tz, members, categories, onTap }: { anch
                 <div>
                   <button type="button" className="plain-btn schedule-title" aria-label={eventLabel(ev, tz, members, categories)}
                     onClick={e => { e.stopPropagation(); onTap(ev) }}>{emoji && <><CategoryMark mark={emoji} /> </>}{ev.title}{avatars.length > 0 && <span className="event-avatars schedule-avatars">{avatars.join(' ')}</span>}{!!ev.noteCount && <span className="schedule-notes" aria-hidden="true">💬 {ev.noteCount}</span>}</button>
-                  {ev.leaveAt && <div className="leave-by" aria-hidden="true">🚗 Leave by {formatTime(ev.leaveAt, tz)}</div>}
+                  {leadOf(ev) && <div className="leave-by" aria-hidden="true">{leadText(ev, t => formatTime(t, tz))}</div>}
                   {ev.location && (() => {
                     const href = locationHref(ev.location)
                     // stopPropagation: tapping the address opens maps; the rest of the row opens the event.
@@ -924,7 +926,7 @@ function EventDetailSheet({ event, members, categories, calendars, canEdit, tz, 
             🔔 {reminderLabel(event.reminders)}{event.remindBeforeLeave && event.leaveAt ? ' leaving' : ''}{event.reminderSource === 'default' ? ' · default' : ''}
           </div>
         )}
-        {event.leaveAt && <div className="leave-by">🚗 Leave by {formatTime(event.leaveAt, tz)}</div>}
+        {leadOf(event) && <div className="leave-by">{leadText(event, t => formatTime(t, tz))}</div>}
         {/* Read-only events have no edit sheet, so their travel time is set right here. */}
         {canEdit && event.readOnly && !event.allDay && (
           <TravelFields minutes={event.travelMinutes} remind={event.remindBeforeLeave} onChange={onSaveTravel} />

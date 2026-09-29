@@ -16,6 +16,7 @@ import { parseTempCheck, parseTransitions, todayInTz } from './routes/members.ts
 import { addDays, clockLabel, doseAt, LATE_MS, loadLogs, loadMedications, medicineLabel, scheduledOn, type Medication } from './routes/medications.ts';
 import { sha256Hex } from './auth.ts';
 import { batteryFor } from './routes/insights.ts';
+import { mealLinksQuery, parseMealLinks, prepAt, prepFor } from './prepBy.ts';
 
 export const DEFAULT_PUSH_PREFS = {
   eventReminders: true,
@@ -188,7 +189,8 @@ async function sendToSub(env: Env, db: KinwallDb, row: PushSubRow, payload: { ti
 }
 
 // One timed or all-day occurrence in the search window, with what the regular reminders use.
-type Occurrence = { eventId: string; occurrenceKey: string; title: string; start: string; allDay: boolean; memberIds: string[]; effective: number[]; leadMinutes: number; travelMinutes: number; location: string | null };
+// prepAt: a meal's event counts down to starting prep (prepBy.ts) instead of leaving, for prepFor.
+type Occurrence = { eventId: string; occurrenceKey: string; title: string; start: string; allDay: boolean; memberIds: string[]; effective: number[]; leadMinutes: number; travelMinutes: number; location: string | null; prepAt: string | null; prepFor: string[] };
 
 async function runEventReminders(env: Env, db: KinwallDb, now: Date, tz: string, defaultReminders: number[], subs: PushSubRow[], quiet: boolean): Promise<void> {
   const eligible = subs.filter((s) => subPrefs(s).eventReminders);
@@ -196,13 +198,14 @@ async function runEventReminders(env: Env, db: KinwallDb, now: Date, tz: string,
   const from = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   const to = new Date(now.getTime() + SEARCH_WINDOW_MS);
 
-  const [calsRes, eventsRes, categoriesRes, membersRes, travelRes] = await db.batch<unknown>([
+  const [calsRes, eventsRes, categoriesRes, membersRes, travelRes, mealsRes] = await db.batch<unknown>([
     db.prepare("SELECT id, kind, name, member_ids, enabled FROM calendars WHERE enabled = 1"),
     db.prepare('SELECT * FROM events WHERE calendar_id IN (SELECT id FROM calendars WHERE enabled = 1)'),
     db.prepare('SELECT id, emoji FROM categories'),
     db.prepare('SELECT id, name FROM members'),
     // Synced events keep travel time here, not on the row (see migration 0019).
     db.prepare('SELECT calendar_id, external_id, travel_minutes, remind_before_leave FROM event_travel_overrides'),
+    mealLinksQuery(db),
   ]);
   const travelOverrides = new Map(
     (travelRes.results as unknown as { calendar_id: string; external_id: string; travel_minutes: number | null; remind_before_leave: number }[]).map((r) => [`${r.calendar_id}\u0000${r.external_id}`, r]),
@@ -211,6 +214,7 @@ async function runEventReminders(env: Env, db: KinwallDb, now: Date, tz: string,
   const cals = new Map((calsRes.results as unknown as CalRow[]).map((c) => [c.id, c]));
   const categoryEmojis = new Map((categoriesRes.results as unknown as { id: string; emoji: string | null }[]).map((c) => [c.id, c.emoji]));
   const events = eventsRes.results as unknown as EventRow[];
+  const meals = parseMealLinks(mealsRes.results);
 
   // leadMinutes: travel time when the event reminds before leaving - reminders then count back from
   // the leave-by time (start - travel) instead of the start.
@@ -241,7 +245,11 @@ async function runEventReminders(env: Env, db: KinwallDb, now: Date, tz: string,
 
     const travel = cal.kind === 'local' ? row : row.external_id ? travelOverrides.get(`${cal.id}\u0000${row.external_id}`) : undefined;
     const leadMinutes = travel?.remind_before_leave && travel.travel_minutes && !row.all_day ? travel.travel_minutes : 0;
-    const occ = (start: string): Occurrence => ({ eventId: row.id, occurrenceKey: start, title: row.title, start, allDay: !!row.all_day, memberIds, effective, leadMinutes, travelMinutes: row.all_day ? 0 : travel?.travel_minutes ?? 0, location: row.location });
+    const meal = row.all_day ? undefined : meals.get(row.id);
+    const occ = (start: string): Occurrence => ({
+      eventId: row.id, occurrenceKey: start, title: row.title, start, allDay: !!row.all_day, memberIds, effective, leadMinutes, travelMinutes: row.all_day ? 0 : travel?.travel_minutes ?? 0, location: row.location,
+      prepAt: meal ? prepAt(start, meal.eventStart, meal.minutes) : null, prepFor: prepFor(meal, memberIds),
+    });
 
     if (cal.kind === 'local' && row.rrule) {
       for (const inst of expand(row.rrule, row.start, row.end, !!row.all_day, tz, from, to)) {
@@ -344,9 +352,10 @@ async function runTransitionReminders(env: Env, db: KinwallDb, now: Date, tz: st
     if (!times.length || !devices.length) continue;
 
     for (const occ of occurrences) {
-      if (occ.allDay || !memberMatch([m.id], occ.memberIds)) continue;
+      if (occ.allDay || !memberMatch([m.id], occ.prepFor)) continue;
+      // A meal counts to starting prep whatever the leave-by switch says: its start is the meal itself.
       const lead = cfg.leaveBy ? occ.travelMinutes : 0;
-      const target = Date.parse(occ.start) - lead * 60000;
+      const target = occ.prepAt ? Date.parse(occ.prepAt) : Date.parse(occ.start) - lead * 60000;
       if (target <= now.getTime()) continue;
       // Every time due in the lookback window. A late tick can catch several (repeat every 1-2
       // min on a 5-min cron): send only the latest, mark the rest so they don't trail in after.
@@ -357,10 +366,12 @@ async function runTransitionReminders(env: Env, db: KinwallDb, now: Date, tz: st
       if (!due.length) continue;
       const regular = occ.effective.map((r) => minute(Date.parse(occ.start) - (r + occ.leadMinutes) * 60000));
       const left = Math.max(1, Math.round((target - now.getTime()) / 60000)); // the truth, even on a late tick
-      const what = lead ? `Leave for ${occ.title}` : occ.title;
+      const by = fmtTime(new Date(target).toISOString(), tz), starts = fmtTime(occ.start, tz);
+      const what = occ.prepAt ? `Start prep for ${occ.title}` : lead ? `Leave for ${occ.title}` : occ.title;
+      const when = occ.prepAt ? (by === starts ? `Start prep by ${by}` : `Start prep by ${by} · starts ${starts}`) : lead ? `Leave by ${by} · starts ${starts}` : `Starts at ${starts}`;
       const payload = {
         title: `${what} in ${left} minute${left === 1 ? '' : 's'}`,
-        body: [lead ? `Leave by ${fmtTime(new Date(target).toISOString(), tz)} · starts ${fmtTime(occ.start, tz)}` : `Starts at ${fmtTime(occ.start, tz)}`, occ.location && `📍 ${occ.location.replace(/\s*\n\s*/g, ', ')}`].filter(Boolean).join('\n'),
+        body: [when, occ.location && `📍 ${occ.location.replace(/\s*\n\s*/g, ', ')}`].filter(Boolean).join('\n'),
         url: `/#/calendar?event=${encodeURIComponent(occ.eventId)}&at=${encodeURIComponent(new Date(occ.start).toISOString())}`,
         tag: `transition:${occ.eventId}`, // each one replaces the last on the lock screen
       };

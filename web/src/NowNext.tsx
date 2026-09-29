@@ -5,6 +5,7 @@ import type { EventInstance, Settings } from './types.ts'
 import { formatTime } from './date.ts'
 import { announce } from './a11y.tsx'
 import { inTimeWindow } from './useTheme.ts'
+import { leadFor, leadIcon, leadOf } from './leadTime.ts'
 
 const MIN = 60000
 
@@ -38,7 +39,8 @@ export function NowNextCard({ events, tz, placeholder }: { events: EventInstance
 
   // The card itself isn't a live region (it re-renders every 30 s); a screen reader hears the
   // countdown only once the next start or leave-by is 10 minutes out or less, once per minute.
-  const target = next && (next.leaveAt && Date.parse(next.leaveAt) > now ? { at: Date.parse(next.leaveAt), what: `Leave for ${next.title}` } : { at: Date.parse(next.start), what: next.title })
+  const lead = next && leadOf(next)
+  const target = next && (lead && Date.parse(lead.at) > now ? { at: Date.parse(lead.at), what: leadFor(lead, next.title) } : { at: Date.parse(next.start), what: next.title })
   const mins = target ? Math.ceil((target.at - now) / MIN) : null
   const lastSaid = useRef<string | null>(null)
   useEffect(() => {
@@ -64,7 +66,7 @@ export function NowNextCard({ events, tz, placeholder }: { events: EventInstance
           <span className="now-next-tag next">Next</span>
           <span className="now-next-title">{next.title}</span>
           <span className="now-next-meta"><span className="nn-long">at </span>{formatTime(next.start, tz)} · <span className="nn-long">in </span>{durationLabel(Date.parse(next.start) - now)}</span>
-          {next.leaveAt && <span className="now-next-meta">· 🚗 <span className="nn-long">leave by </span>{formatTime(next.leaveAt, tz)}</span>}
+          {lead && <span className="now-next-meta">· {leadIcon(lead)} <span className="nn-long">{lead.prep ? 'start prep' : 'leave'} by </span>{formatTime(lead.at, tz)}</span>}
         </div>
       )}
     </section>
@@ -106,7 +108,8 @@ export function TransitionWarnings({ events, minutes, sound, settings }: { event
     const quiet = !!settings.quietFrom && !!settings.quietTo && inTimeWindow(settings.quietFrom, settings.quietTo, new Date(now))
     for (const e of timed(events)) {
       const targets = [{ at: Date.parse(e.start), label: e.title }]
-      if (e.leaveAt) targets.push({ at: Date.parse(e.leaveAt), label: `Leave for ${e.title}` })
+      const lead = leadOf(e)
+      if (lead) targets.push({ at: Date.parse(lead.at), label: leadFor(lead, e.title) })
       for (const t of targets) {
         for (const m of minutes) {
           const key = `${e.id}:${t.at}:${m}`

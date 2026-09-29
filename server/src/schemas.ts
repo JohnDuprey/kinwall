@@ -432,6 +432,8 @@ export const EventInstanceSchema = z
     remindBeforeLeave: z.boolean(), // reminders count back from leaveAt instead of start
     linkedItemCount: z.number().optional(), // open list items linked to this event (GET /api/events only)
     noteCount: z.number().optional(), // notes in this event's thread (GET /api/events only)
+    prepAt: z.string().nullable().optional().openapi({ description: "A meal's event: when to start prep (the meal time minus the recipe's total or prep time, 30 minutes when it has none). GET /api/events only" }),
+    cookId: z.string().nullable().optional().openapi({ description: "A meal's event: who's cooking, the one its prep countdown is for. GET /api/events only" }),
   })
   .openapi('EventInstance');
 

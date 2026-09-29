@@ -28,6 +28,8 @@ Extra heads-ups before a person's events, sent as notifications to that person's
 * **Repeat as it gets close**: also remind every 5, 10 or 15 minutes near the end, for example every 5 minutes during the last 15. Times the repeat already covers are grayed out. (A wall screen's own on-screen warnings can repeat every minute; see Time cues.)
 * **Count down to leaving** (on by default): when an event has travel time, the reminders count to the time to leave instead of the start.
 
+A meal's event always counts to the time to start prep, and only its cook gets them when it has one ("Start prep for Dinner · Tuesday Tacos in 5 minutes", then "Start prep by 5:20 PM · starts 6:00 PM"; see [Meals](../using/meals.md#the-calendar)).
+
 The notification reads "Soccer practice in 10 minutes" (then "Starts at 4:00 PM"), or "Leave for Soccer practice in 5 minutes" (then "Leave by 3:40 PM · starts 4:00 PM"). Each one replaces the last on the lock screen, and tapping it opens the event.
 
 Who gets them:

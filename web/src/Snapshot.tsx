@@ -17,6 +17,7 @@ import { Segmented, announce } from './a11y.tsx'
 import { inkFor } from './color.ts'
 import { clockTime, formatTime, todayKeyInTz } from './date.ts'
 import { MEAL_SLOTS, SLOT_LABEL } from './meal-date.ts'
+import { leadOf, leadText } from './leadTime.ts'
 
 type Range = 'day' | 'week'
 
@@ -315,8 +316,8 @@ function EventRow({ e, tz, close }: { e: SnapshotEvent; tz: string; close: () =>
         <span className="snap-time">{e.allDay ? 'All day' : formatTime(e.start, tz)}</span>
         <span className="snap-main">
           <span className="snap-title"><span className="snap-swatch" aria-hidden="true" style={{ background: e.color }} />{e.title}</span>
-          {(e.leaveAt || e.location) && (
-            <span className="snap-meta">{[e.leaveAt && `🚗 Leave by ${formatTime(e.leaveAt, tz)}`, e.location && `📍 ${e.location.split('\n')[0]}`].filter(Boolean).join(' · ')}</span>
+          {(leadOf(e) || e.location) && (
+            <span className="snap-meta">{[leadText(e, t => formatTime(t, tz)), e.location && `📍 ${e.location.split('\n')[0]}`].filter(Boolean).join(' · ')}</span>
           )}
         </span>
       </button>
