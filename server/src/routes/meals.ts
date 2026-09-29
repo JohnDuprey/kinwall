@@ -7,7 +7,7 @@ import { hostTimezone } from '../env.ts';
 import { zonedTimeToUtc } from '../recurrence.ts';
 import { ErrorSchema } from '../schemas.ts';
 import { IngredientInputSchema, MealEventStartSchema, MealInputSchema, MealPatchSchema, MealRangeSchema, MealSchema, ProjectionApplySchema, ProjectionQuerySchema, ProjectionSchema, RecipeImportResultSchema, RecipeImportSchema, RecipeInputSchema, RecipeKindSchema, RecipePreviewResultSchema, RecipeRatingInputSchema, RecipeSchema, RecipeTextParseSchema, RecipeUrlImportSchema, type Meal, type Recipe } from '../meal-schemas.ts';
-import { applyProjection, basicKey, importIngredient, mealWrite, normalizeIngredient, normalizeSteps, readMeal, readMeals, readRecipes, shoppingProjection, stepsText } from '../meals.ts';
+import { applyProjection, importIngredient, matchBasic, mealWrite, normalizeIngredient, normalizeSteps, readMeal, readMeals, readRecipes, shoppingProjection, stepsText } from '../meals.ts';
 import type { KinwallDb } from '../db.ts';
 import type { Env } from '../env.ts';
 import { createEvent, deleteEvent, updateEvent } from './events.ts';
@@ -76,11 +76,12 @@ async function upsertImport(c: Ctx, input: Omit<z.infer<typeof RecipeImportSchem
   const db = c.env.DB;
   const found = await db.prepare('SELECT id FROM recipes WHERE source = ? AND external_id = ?').bind(input.source, input.externalId).first<{ id: string }>();
   const old = found ? (await readRecipes(db, { id: found.id, archived: true }))[0] : undefined;
-  // A line naming its basic (a share link) links to the family's basic of that name.
-  const basics = input.ingredients.some((l) => typeof l !== 'string' && l.basic) ? await readRecipes(db, { kind: 'basic' }) : [];
+  // A line links to the family's basic of the same name: the basic a share link names, else its own
+  // name ("Taco Seasoning Blend" is "Taco seasoning"). Otherwise it keeps the link it had.
+  const basics = await readRecipes(db, { kind: 'basic' });
   const ingredients = input.ingredients.map((line, sort) => {
     const { basic, ...ingredient } = importIngredient(line);
-    const linked = basic ? basics.find((b) => b.id !== old?.id && basicKey(b.name) === basicKey(basic)) : undefined;
+    const linked = (basic && matchBasic(basic, basics, old?.id)) || matchBasic(ingredient.name, basics, old?.id);
     return { ...ingredient, sort, ...(linked && { basicId: linked.id }) };
   });
   const recipe = await saveRecipe(db, {
@@ -164,6 +165,19 @@ mealsRoutes.openapi(createRoute({ method: 'delete', path: '/api/recipes/{id}', t
   const result = await c.env.DB.prepare('DELETE FROM recipes WHERE id = ?').bind(id).run();
   if (!result.meta.changes) return c.json({ error: 'recipe not found' }, 404);
   emit(c, 'recipe.changed', { id }); return c.json({ ok: true }, 200);
+});
+mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/recipes/{id}/link-uses', tags: ['Meals'], summary: "Link this basic to the other recipes' ingredient lines that name it and aren't linked yet (same matching as imports; a name two basics share is skipped) (admin)", security: [{ Bearer: [] }], request: { params },
+  responses: { 200: { description: 'how many lines were linked', content: { 'application/json': { schema: z.object({ linked: z.number().int() }) } } }, ...errors } }), async (c) => {
+  const { id } = c.req.valid('param');
+  const all = await readRecipes(c.env.DB, { archived: true });
+  const basic = all.find((r) => r.id === id);
+  if (!basic) return c.json({ error: 'recipe not found' }, 404);
+  if (basic.kind !== 'basic') return c.json({ error: 'only a basic can be linked to recipes' }, 400);
+  const basics = all.filter((r) => r.kind === 'basic' && (!r.archived || r.id === id));
+  const uses = all.filter((r) => r.id !== id).flatMap((r) => r.ingredients.filter((i) => !i.basicId && matchBasic(i.name, basics)?.id === id).map((i) => ({ recipeId: r.id, id: i.id })));
+  if (uses.length) await c.env.DB.prepare('UPDATE recipe_ingredients SET basic_id = ? WHERE basic_id IS NULL AND id IN (SELECT value FROM json_each(?))').bind(id, JSON.stringify(uses.map((u) => u.id))).run();
+  for (const recipeId of new Set(uses.map((u) => u.recipeId))) emit(c, 'recipe.changed', { id: recipeId });
+  return c.json({ linked: uses.length }, 200);
 });
 // Rating is a family action like ticking off a chore: wall screens and kids' devices may rate (a member's own device only for them).
 mealsRoutes.openapi(createRoute({ method: 'put', path: '/api/recipes/{id}/rating', tags: ['Meals'], summary: "Set or clear a family member's 1-5 star rating of a recipe", security: [{ Bearer: [] }], request: { params, body: body(RecipeRatingInputSchema) }, responses: { 200: recipeResponse, ...errors } }), async (c) => {

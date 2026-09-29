@@ -206,6 +206,48 @@ test('basics groceries: without an answer (older clients) the line is added as i
   assert.deepEqual((await items()).map((i: any) => i.title), ['Cumin', 'Ground beef', 'Rice', 'Taco seasoning', 'Taco seasoning blend']);
 });
 
+const kit = (ingredients: unknown[], externalId = 'hf-1') => ({ source: 'hellofresh', externalId, name: 'Southwest Chicken Tacos', servings: 2, ingredients });
+test('basics import: an imported ingredient whose name matches a basic links to it', async () => {
+  const { json } = fixture();
+  const basic = await json('/api/recipes', 'POST', seasoning);
+  const southwest = await json('/api/recipes', 'POST', { name: 'Southwest spice', kind: 'basic', ingredients: [] });
+  await json('/api/recipes', 'POST', { name: 'Ranch', kind: 'basic', ingredients: [] });
+  await json('/api/recipes', 'POST', { name: 'Ranch mix', kind: 'basic', ingredients: [] });
+  const archived = await json('/api/recipes', 'POST', { name: 'Pesto', kind: 'basic', archived: true, ingredients: [] });
+  await json('/api/recipes', 'POST', { name: 'Salsa', ingredients: [] }); // a meal, not a basic
+  const { recipeId } = await json('/api/recipes/import', 'POST', kit([
+    '1 tablespoon Taco Seasoning Blend', { text: '1 unit Southwest-Spice Mix', pantry: false }, '2 unit Taco Shells', '1 tablespoon Ranch', '1 ounce Pesto', '½ cup Salsa',
+  ]));
+  let recipe = await json(`/api/recipes/${recipeId}`);
+  assert.deepEqual(recipe.ingredients.map((i: any) => [i.name, i.basicId]), [
+    ['Taco Seasoning Blend', basic.id], ['Southwest-Spice Mix', southwest.id], ['Taco Shells', null], ['Ranch', null], ['Pesto', null], ['Salsa', null],
+  ]);
+  assert.equal(archived.archived, true);
+  // Reimporting keeps links, including one made by hand that the name doesn't match.
+  const shells = await json('/api/recipes', 'POST', { name: 'Taco shells from scratch', kind: 'basic', ingredients: [] });
+  await json(`/api/recipes/${recipeId}`, 'PATCH', { ingredients: recipe.ingredients.map((i: any) => (i.name === 'Taco Shells' ? { name: i.name, quantity: i.quantity, basicId: shells.id } : { name: i.name, quantity: i.quantity, unit: i.unit, qualifier: i.qualifier })) });
+  await json('/api/recipes/import', 'POST', kit(['1 tablespoon Taco Seasoning Blend', { text: '1 unit Southwest-Spice Mix', pantry: false }, '2 unit Taco Shells']));
+  recipe = await json(`/api/recipes/${recipeId}`);
+  assert.deepEqual(recipe.ingredients.map((i: any) => i.basicId), [basic.id, southwest.id, shells.id]);
+});
+
+test('basics import: link to recipes that use it links unlinked matching lines once, never the basic itself', async () => {
+  const { json, request } = fixture();
+  const tacosNow = await json('/api/recipes', 'POST', tacos(null));
+  const bowls = await json('/api/recipes', 'POST', { name: 'Burrito bowls', ingredients: [{ name: 'Taco seasoning blend', quantity: 1 }, { name: 'Taco', quantity: 1 }] });
+  const other = await json('/api/recipes', 'POST', { name: 'Other taco seasoning', kind: 'basic', ingredients: [] });
+  const chili = await json('/api/recipes', 'POST', { name: 'Chili', ingredients: [{ name: 'Taco seasoning', basicId: other.id }] });
+  const basic = await json('/api/recipes', 'POST', { ...seasoning, ingredients: [{ name: 'Taco seasoning', quantity: 1 }] });
+  assert.deepEqual(await json(`/api/recipes/${basic.id}/link-uses`, 'POST'), { linked: 2 });
+  assert.equal((await json(`/api/recipes/${tacosNow.id}`)).ingredients[1].basicId, basic.id);
+  assert.deepEqual((await json(`/api/recipes/${bowls.id}`)).ingredients.map((i: any) => i.basicId), [basic.id, null]);
+  assert.equal((await json(`/api/recipes/${chili.id}`)).ingredients[0].basicId, other.id, 'an existing link stays');
+  assert.equal((await json(`/api/recipes/${basic.id}`)).ingredients[0].basicId, null, 'not itself');
+  assert.deepEqual(await json(`/api/recipes/${basic.id}/link-uses`, 'POST'), { linked: 0 });
+  assert.equal((await request(`/api/recipes/${tacosNow.id}/link-uses`, 'POST')).status, 400, 'only a basic');
+  assert.equal((await request('/api/recipes/nope/link-uses', 'POST')).status, 404);
+});
+
 test('basics groceries: MCP apply_meal_projection takes the answers', async () => {
   const { tool, basic, list, items } = await plannedTacos();
   const result = await tool('apply_meal_projection', { from: '2026-10-05', to: '2026-10-11', listId: list.id, basics: { [basic.id]: 'made' } });

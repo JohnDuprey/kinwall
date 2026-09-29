@@ -2,6 +2,7 @@
 import { mock } from './mock.ts'
 import { dateKey } from './date.ts'
 import { ingredientAmount, mealWeek, MEAL_SLOTS } from './meal-date.ts'
+import { matchBasic } from './recipe-search.ts'
 import { KIT_QUALIFIER, type BasicChoices, type Meal, type MealInput, type Recipe, type RecipeInput, type ShoppingProjection } from './meal-types.ts'
 
 // Keep the same Sunday–Saturday menu on the current local week, including across DST changes.
@@ -210,6 +211,12 @@ export async function mockMealRequest(path: string, options: RequestInit): Promi
       const share = method === 'DELETE' ? null : old!.share ?? { url: `${location.origin}/r/demo-${old!.id}`, createdAt: new Date().toISOString() }
       recipes = recipes.map(r => r.id === id ? { ...r, share } : r)
       return share ? { ...share, token: `demo-${old!.id}` } : { ok: true }
+    }
+    if (action === 'link-uses') {
+      const basics = recipes.filter(r => r.kind === 'basic' && (!r.archived || r.id === id))
+      let linked = 0
+      recipes = recipes.map(r => r.id === id ? r : { ...r, ingredients: r.ingredients.map(i => !i.basicId && matchBasic(i.name, basics)?.id === id ? (linked++, { ...i, basicId: id, basicName: old!.name }) : i) })
+      return { linked }
     }
     if (action === 'rating') {
       const byMember = { ...old!.rating?.byMember }

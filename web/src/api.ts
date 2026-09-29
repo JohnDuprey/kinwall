@@ -245,6 +245,8 @@ export const api = {
   importRecipe: (body: RecipeImport) => post<{ recipeId: string; created: boolean }>('api/recipes/import', body),
   updateRecipe: (id: string, body: Partial<RecipeInput>) => patch<Recipe>(`api/recipes/${encodeURIComponent(id)}`, body),
   deleteRecipe: (id: string) => del(`api/recipes/${encodeURIComponent(id)}`),
+  // A basic: link it to the other recipes' unlinked lines that name it.
+  linkBasicUses: (id: string) => post<{ linked: number }>(`api/recipes/${encodeURIComponent(id)}/link-uses`),
   // A recipe's public link: made once (asking again returns the same one), and turned off.
   shareRecipe: (id: string) => post<RecipeShare & { token: string }>(`api/recipes/${encodeURIComponent(id)}/share`),
   unshareRecipe: (id: string) => del(`api/recipes/${encodeURIComponent(id)}/share`),

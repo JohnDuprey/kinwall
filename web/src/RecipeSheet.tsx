@@ -219,13 +219,23 @@ function RecipeEditor({ recipe, library, onClose, onSaved }: { recipe: Recipe | 
     if (!recipe || !await dialog.confirm({ title: `Delete “${recipe.name}”?`, body: 'This removes the recipe from the library. Existing meals keep their saved ingredients.', confirmLabel: 'Delete recipe', danger: true })) return
     void run(() => api.deleteRecipe(recipe.id), 'Recipe deleted')
   }
+  // Once, for a basic added after the recipes that use it: their lines that name it (and aren't linked) link to it.
+  const linkUses = async () => {
+    if (!recipe) return
+    setBusy(true); setError('')
+    try { const { linked } = await api.linkBasicUses(recipe.id); toast(linked ? `Linked ${linked} ingredient${linked === 1 ? '' : 's'} to ${recipe.name}` : `No other recipes name ${recipe.name}`); if (linked) onSaved() }
+    catch (e) { setError(e instanceof Error ? e.message : 'Could not link recipes.') }
+    finally { setBusy(false) }
+  }
   const close = () => { if (!busy) onClose() }
   return <Sheet title={recipe ? 'Edit recipe' : 'New recipe'} onClose={close} dismissable={!busy} actions={<>
     {recipe && <select className="settings-select actions-select" aria-label="Recipe actions" value="" disabled={busy} onChange={e => {
       if (e.target.value === 'archive') void run(() => api.updateRecipe(recipe.id, { archived: !recipe.archived }), recipe.archived ? 'Recipe restored' : 'Recipe archived')
       if (e.target.value === 'delete') void remove()
+      if (e.target.value === 'link-uses') void linkUses()
     }}>
       <option value="" disabled hidden>More…</option>
+      {recipe.kind === 'basic' && <option value="link-uses">Link to recipes that use it</option>}
       <option value="archive">{recipe.archived ? 'Restore recipe' : 'Archive recipe'}</option>
       <option value="delete">Delete recipe…</option>
     </select>}
