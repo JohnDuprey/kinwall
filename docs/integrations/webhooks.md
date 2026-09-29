@@ -47,6 +47,7 @@ URLs must be public `http(s)` addresses. Private and LAN addresses are refused u
 | `recipe.changed` | A [recipe](../using/meals.md) is added, edited, archived or deleted. `data`: `{ id }`. |
 | `meal.changed` | A meal is planned, edited or deleted. `data`: `{ id }`. |
 | `display.paired` | A wall display was paired. |
+| `display.night_screen` | The [Night screen](../using/quiet-hours.md#start-it-from-home-assistant) was started or ended remotely. `data`: `{ on, displays, until }`, where `displays` is the display key IDs or `null` for every wall screen, and `until` is when "on" runs out (`null` for off). |
 | `contact.changed` | A [contact](../using/contacts.md) is added, edited, deleted, imported or merged. `data`: `{ id, action }`, where `action` is `created`, `updated`, `deleted`, `imported` or `merged`. |
 | `contact.category.changed` | A contact category is added, edited or deleted. `data`: `{ id }`. |
 

@@ -142,6 +142,7 @@ test('mcp: tools/list returns the tools', async () => {
     'set_color_scheme',
     'set_event_category',
     'set_list_item_done',
+    'set_night_screen',
     'set_step_done',
     'set_store_aisle_order',
     'uncomplete_chore',
@@ -530,6 +531,7 @@ test('mcp: every tool declares an output schema, and real results pass it', asyn
   await call('get_list', { list: 'groceries' });
   await call('list_lists');
   await call('send_notification', { title: 'Hi', body: 'Dinner' });
+  await call('set_night_screen', { on: true });
   await call('list_notifications');
   const note = (await call('add_note', { target: `event:${ev.id}`, body: 'Bring flowers', member: 'ava' })).note;
   assert.equal(note.body, 'Bring flowers');

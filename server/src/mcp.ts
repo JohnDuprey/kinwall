@@ -21,6 +21,7 @@ import type { Env } from './env.ts';
 import { RecipeSchema, RecipeInputSchema, RecipeKindSchema, RecipeImportSchema, RecipeImportResultSchema, RecipePreviewResultSchema, RecipeUrlImportSchema, MealSchema, MealInputSchema, MealPatchSchema, ProjectionSchema, ProjectionApplySchema, ProjectionQuerySchema, MealRangeSchema } from './meal-schemas.ts';
 import { VERSION } from './version.ts';
 import { resolveKey } from './auth.ts';
+import { NightScreenSchema } from './routes/night-screen.ts';
 
 type App = OpenAPIHono<{ Bindings: Env }>;
 
@@ -124,10 +125,10 @@ async function resolveCategory(app: App, env: Env, auth: string, ref: string): P
 
 // Delete tools take an id or the exact name (any case), never a partial match: "tacos" must not
 // delete "Fish tacos".
-async function resolveExact(app: App, env: Env, auth: string, path: string, ref: string, what: string): Promise<{ id: string; name: string }> {
+async function resolveExact(app: App, env: Env, auth: string, path: string, ref: string, what: string, pick = (json: unknown) => json): Promise<{ id: string; name: string }> {
   const { status, json } = await call(app, env, auth, 'GET', path);
   if (status >= 400) throw new MemberResolutionError(`failed to look up the ${what}`);
-  const rows = (json as { id: string; name?: string; title?: string }[]).map((r) => ({ id: r.id, name: r.name ?? r.title ?? '' }));
+  const rows = (pick(json) as { id: string; name?: string; title?: string }[]).map((r) => ({ id: r.id, name: r.name ?? r.title ?? '' }));
   const hits = rows.filter((r) => r.id === ref || r.name.toLowerCase() === ref.trim().toLowerCase());
   if (hits.length === 1) return hits[0];
   throw new MemberResolutionError(hits.length ? `"${ref}" matches ${hits.length} ${what}s; use the id` : `no ${what} with id or exact name "${ref}"`);
@@ -242,6 +243,7 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
   create_contact_category: { category: ContactCategorySchema },
   update_contact_category: { category: ContactCategorySchema },
   send_notification: { result: z.object({ ok: z.boolean(), sent: z.number() }) },
+  set_night_screen: NightScreenSchema.shape,
   list_notifications: { notifications: z.array(NotificationSchema) },
   list_notes: { notes: z.array(NoteSchema) },
   add_note: { note: NoteSchema },
@@ -277,6 +279,7 @@ const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boole
   create_list: WRITE, update_list: SET, add_list_items: WRITE, update_list_item: SET, set_store_aisle_order: SET, set_list_item_done: SET, set_step_done: SET, update_category: SET, add_note: WRITE, update_note: SET,
   create_contact: WRITE, update_contact: SET, create_contact_category: WRITE, update_contact_category: SET,
   send_notification: { ...WRITE, openWorldHint: true },
+  set_night_screen: SET,
   delete_event: { ...WRITE, destructiveHint: true, idempotentHint: true, openWorldHint: true },
   delete_list: DELETE, delete_list_item: DELETE, delete_list_step: DELETE, delete_note: DELETE, delete_chore: DELETE,
   delete_tracker_entry: DELETE, delete_meal: DELETE, delete_recipe: DELETE, delete_reward: DELETE, delete_contact: DELETE, delete_contact_category: DELETE, import_contacts: WRITE, merge_contacts: WRITE,
@@ -1324,6 +1327,37 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       if (res.status >= 400) return errorResult(res.json, 'failed to send notification');
       const result = res.json as { sent: number };
       return okResult(`Sent to ${result.sent} device(s).`, { result });
+    },
+  );
+
+  tool(
+    'set_night_screen',
+    {
+      title: 'Start or end the Night screen',
+      description:
+        "Start (on: true) or end (on: false) the Night screen on the family's wall screens, e.g. when nobody's home. Omit displays for every wall screen. " +
+        'Each wall uses its own Night screen settings and a tap still wakes it. "On" runs out after hours (default 12). Full access only.',
+      inputSchema: {
+        on: z.boolean(),
+        displays: jsonList(z.array(z.string())).optional().describe('Paired display names or ids; omit for every wall screen.'),
+        hours: z.number().positive().max(168).optional().describe('How long "on" lasts. Default 12.'),
+      },
+    },
+    async ({ on, displays, hours }) => {
+      let ids: string[] | undefined;
+      if (displays?.length) {
+        try {
+          ids = [];
+          for (const d of displays) ids.push((await resolveExact(app, env, auth, '/api/displays/night-screen', d, 'display', (j) => (j as { displays: { id: string; name: string }[] }).displays)).id);
+        } catch (err) {
+          return errorResult(null, err instanceof Error ? err.message : 'display lookup failed');
+        }
+      }
+      const res = await call(app, env, auth, 'POST', '/api/displays/night-screen', { on, displays: ids, hours });
+      if (res.status >= 400) return errorResult(res.json, 'failed to set the Night screen');
+      const state = res.json as { displays: { id: string; name: string }[] };
+      const names = ids ? state.displays.filter((d) => ids.includes(d.id)).map((d) => d.name).join(', ') : 'every wall screen';
+      return okResult(`Night screen ${on ? 'on' : 'off'} for ${names}.`, state as unknown as Record<string, unknown>);
     },
   );
 

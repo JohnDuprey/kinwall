@@ -34,7 +34,8 @@ export type BusEventType =
   | 'reward.given'
   | 'photo.changed'
   | 'tracker.changed'
-  | 'display.paired';
+  | 'display.paired'
+  | 'display.night_screen';
 
 type WebhookRow = { id: string; url: string; events: string; secret: string };
 

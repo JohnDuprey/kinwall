@@ -63,7 +63,7 @@ On Workers, the free-tier quota (100k requests/day) is the practical ceiling. Se
 
 ## Change detection
 
-`GET /api/rev` returns `{rev}`, a counter that goes up on every write. Poll it cheaply and refetch when it changes. The apps do this every 30 seconds. For push-style updates, use [webhooks](webhooks.md).
+`GET /api/rev` returns `{ rev, nightScreen }`. `rev` is a counter that goes up on every write. Poll it cheaply and refetch when it changes. The apps do this every 30 seconds (wall screens every 10 while a remote Night screen is on). `nightScreen` is this key's remote [Night screen](#night-screen), `{ on, since, until }` or `null`. For push-style updates, use [webhooks](webhooks.md).
 
 ## Route groups
 
@@ -97,6 +97,7 @@ Feature switches on `PATCH /api/settings` are sent as the complete `features` ob
 | Daily check-in | `POST /api/members/{id}/check-in`: once per member per household day; display keys may (a member's own device only for them). See [Daily check-in](../using/snapshot.md#daily-check-in). |
 | Snapshot & weather | `GET /api/snapshot?member=&range=day\|week`, `GET /api/board?days=`, `GET /api/weather`, `GET /api/geocode?q=`, `GET /api/tidbits` |
 | Keys & pairing | `GET/POST /api/keys`, `PATCH/DELETE /api/keys/{id}`, `POST /api/pair`, `/api/pair/approve`, `/api/pair/poll` |
+| Displays | `GET/POST /api/displays/night-screen` (admin): start or end the Night screen on wall screens. See [Night screen](#night-screen). |
 | Passkeys & recovery | `/api/passkeys*`, `/api/sessions/logout`, `GET/POST /api/recovery-codes`, `POST /api/recovery/login` |
 | Connected apps | `GET /api/authorizations`, `GET /api/authorizations/request`, `POST /api/authorizations/approve`, `PATCH /api/authorizations/{id}`, `DELETE /api/authorizations/{id}` |
 | Webhooks | `GET/POST /api/webhooks`, `PATCH/DELETE /api/webhooks/{id}`, `POST /api/webhooks/{id}/rotate` |
@@ -106,6 +107,21 @@ Feature switches on `PATCH /api/settings` are sent as the complete `features` ob
 | Photos | `GET/POST /api/photos` (POST body: the raw image), `GET /api/photos/quota`, `PATCH/DELETE /api/photos/{id}`, `GET /api/photos/{id}/image`, `GET /api/photos/export.zip`, `POST /api/photos/import` (body: the zip) |
 | Notes | `GET/POST /api/notes`, `PATCH/DELETE /api/notes/{id}` |
 | Data | `GET /api/export`, `POST /api/import`, `GET /api/host-events` |
+
+## Night screen
+
+Start or end the [Night screen](../using/quiet-hours.md#start-it-from-home-assistant) on wall screens. Admin keys, parent devices and connected apps; display keys and kids' devices get 403.
+
+* `POST /api/displays/night-screen` with `{ on, displays?, hours? }`. `displays` is a list of paired display key IDs; leave it out for every wall screen, which also drops any per-screen choice. `on: true` runs out after `hours` (default 12, up to 168). With `displays`, each screen's own setting wins over the one for every wall screen, so you can wake one and leave the rest asleep. Unknown IDs get 400. Returns the same as the `GET`.
+* `GET /api/displays/night-screen` returns `{ all, displays }`: `all` is `{ on, since, until }` for every wall screen, or `null`; `displays` lists every paired display (`id`, `name`, `owner`) with its own `on`, `since` and `until`.
+* Each wall screen reads its state as `nightScreen` on `GET /api/rev`, which it already polls, so the change reaches walls within 30 seconds to start and about 10 seconds to wake. Reading it writes nothing.
+* It fires the `display.night_screen` [webhook](webhooks.md).
+
+```bash
+# Nobody's home: every wall screen
+curl -X POST -H "Authorization: Bearer $KEY" -H 'Content-Type: application/json' \
+  -d '{"on":true}' https://kinwall.example/api/displays/night-screen
+```
 
 ## Member stats
 
