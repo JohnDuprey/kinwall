@@ -94,3 +94,12 @@ export function resumeShoppingHash(hash: string): string | null {
   const id = shoppingModeList()
   return id && ['', '#', '#/', '#/calendar', '#/lists'].includes(hash) ? `#/lists/${id}/shop` : null
 }
+
+/** A store named in a link (#/lists/<id>/shop?store=<name>): one of the list's stores in any case,
+ * or "any" for Any store. null = not one of theirs, so the store step asks as usual. */
+export function tripStoreFor(name: string | null, stores: string[]): string | null {
+  const n = name?.trim().toLowerCase()
+  if (!n) return null
+  if (n === 'any') return ANY_STORE
+  return stores.find(s => s.toLowerCase() === n) ?? null
+}

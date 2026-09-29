@@ -19,7 +19,8 @@ import { useDialog } from './dialog.tsx'
 import { CustomColorSwatch } from './ColorSwatch.tsx'
 import { PRIORITY_LABEL, PRIORITY_MARK, PriorityBadge } from './PriorityBadge.tsx'
 import NotesThread from './NotesThread.tsx'
-import { aisleAt, ANY_STORE, anyStoreView, departmentAisle, setShoppingModeList, setTripReverse, setTripStore, tripLeftovers, tripReverse, tripStore, tripView } from './trip.ts'
+import { aisleAt, ANY_STORE, anyStoreView, departmentAisle, setShoppingModeList, setTripReverse, setTripStore, tripLeftovers, tripReverse, tripStore, tripStoreFor, tripView } from './trip.ts'
+import { hashPath, hashQuery } from './hashQuery.ts'
 import { holdAwake } from './wakeLock.ts'
 import { shoppingActivity } from './liveActivity.ts'
 import { endAppActivity, tellAppActivity } from './native.ts'
@@ -1044,6 +1045,23 @@ function ListDetailPane({ listId, isPhone, shopMode, onBack, onArchivedOrDeleted
     announce(store ? `Shopping at ${store === ANY_STORE ? 'any store' : store}` : 'Shopping ended')
   }
   // Walking this store backwards (trip.ts tripReverse): per store, on this device. Not for Any store.
+  // #/lists/<id>/shop?store=<name> (Siri, a shortcut): start the trip at that store, skipping the
+  // store step. A store that isn't one of the list's leaves the step to ask, as usual.
+  const linkedStore = () => (/\/shop$/.test(hashPath(location.hash)) ? hashQuery(location.hash).get('store') : null)
+  const [storeLink, setStoreLink] = useState<string | null>(linkedStore)
+  useEffect(() => {
+    const read = () => { const s = linkedStore(); if (s !== null) setStoreLink(s) }
+    window.addEventListener('hashchange', read)
+    return () => window.removeEventListener('hashchange', read)
+  }, [])
+  useEffect(() => {
+    if (storeLink === null || !shopMode || detail?.list.id !== listId) return
+    const current = tripStore(listId)
+    const store = tripStoreFor(storeLink, [...detail.suggestions.stores, ...(current && current !== ANY_STORE ? [current] : [])])
+    if (store && store !== current) changeTrip(store)
+    setStoreLink(null)
+    history.replaceState(null, '', hashPath(location.hash)) // handled: a reload doesn't start it again
+  }, [storeLink, shopMode, detail, listId]) // eslint-disable-line react-hooks/exhaustive-deps
   const [reversed, setReversed] = useState(() => !!trip && trip !== ANY_STORE && tripReverse(trip))
   useEffect(() => setReversed(!!trip && trip !== ANY_STORE && tripReverse(trip)), [trip])
   const flipReverse = () => {
@@ -1250,7 +1268,7 @@ function ListDetailPane({ listId, isPhone, shopMode, onBack, onArchivedOrDeleted
     changeTrip(tripStores[0] ?? ANY_STORE); enterShop()
   }
   // No store yet (Shop, or a link straight in): ask first; backing out of shopping mode leaves it.
-  const storeSheet = (picking || (shopping && !trip)) && (
+  const storeSheet = (picking || (shopping && !trip && storeLink === null)) && (
     <Sheet title="Where are you shopping?" onClose={() => { setPicking(false); if (shopping && !trip) exitShop() }}>
       <div className="shop-store-options">
         {[...tripStores, ANY_STORE].map(st => (

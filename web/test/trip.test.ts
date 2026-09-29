@@ -1,7 +1,7 @@
 // node --test test/ (npm test). "Shopping at" ordering and per-store aisle lookup.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { aisleAt, anyStoreView, departmentAisle, resumeShoppingHash, setShoppingModeList, setTripReverse, setTripStore, shoppingModeList, tripLeftovers, tripReverse, tripView, ANY_STORE } from '../src/trip.ts'
+import { aisleAt, anyStoreView, departmentAisle, resumeShoppingHash, setShoppingModeList, setTripReverse, setTripStore, shoppingModeList, tripLeftovers, tripReverse, tripStoreFor, tripView, ANY_STORE } from '../src/trip.ts'
 
 type P = { store: string | null; aisle: string | null }
 const item = (title: string, store: string | null, aisle: string | null = null, places: P[] = []) => ({ title, store, aisle, places })
@@ -140,4 +140,15 @@ test('tripLeftovers: unchecked items for this store or anywhere; any store count
   assert.deepEqual(tripLeftovers(items, 'Market').map(i => i.title), ['Eggs', 'Soap'])
   assert.deepEqual(tripLeftovers(items, ANY_STORE).map(i => i.title), ['Eggs', 'Soap', 'Tires'])
   assert.deepEqual(tripLeftovers(items.map(i => ({ ...i, done: true })), 'Market'), [])
+})
+
+test('tripStoreFor: a linked store matches the list\'s stores in any case; "any" is Any store', () => {
+  const stores = ['Market', "Trader Joe's"]
+  assert.equal(tripStoreFor('market', stores), 'Market')
+  assert.equal(tripStoreFor(" TRADER JOE'S ", stores), "Trader Joe's")
+  assert.equal(tripStoreFor('Any', stores), ANY_STORE)
+  assert.equal(tripStoreFor('any', []), ANY_STORE)
+  assert.equal(tripStoreFor('Corner shop', stores), null) // not one of theirs: ask as usual
+  assert.equal(tripStoreFor('', stores), null)
+  assert.equal(tripStoreFor(null, stores), null)
 })
