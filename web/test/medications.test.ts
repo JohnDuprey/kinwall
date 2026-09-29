@@ -1,7 +1,7 @@
 // node --test test/ (npm test). Medication reminders: schedule labels, card labels, the week grid.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { cardLabel, daysLabel, scheduleLabel, weekCells } from '../src/medications.ts'
+import { cardLabel, courseLabel, daysLabel, scheduleLabel, weekCells } from '../src/medications.ts'
 
 test('daysLabel: every day, weekdays, weekends, or the days in order', () => {
   assert.equal(daysLabel([0, 1, 2, 3, 4, 5, 6]), 'Every day')
@@ -29,4 +29,13 @@ test('weekCells: one cell per day, oldest first, the worst of the day wins; days
   ]
   assert.deepEqual(weekCells(days, 'a'), [{ date: '2026-09-26', status: null }, { date: '2026-09-27', status: 'missed' }, { date: '2026-09-28', status: 'taken' }])
   assert.deepEqual(weekCells(days, 'b').map(c => c.status), [null, null, 'skipped'])
+})
+
+test('courseLabel: until an end date, doses left, or done', () => {
+  assert.equal(courseLabel({ endDate: null, totalDoses: null, dosesLeft: null }), '')
+  assert.equal(courseLabel({ endDate: '2026-10-05', totalDoses: null, dosesLeft: null }), 'Until Mon, Oct 5')
+  assert.equal(courseLabel({ endDate: null, totalDoses: 20, dosesLeft: 7 }), '7 of 20 doses left')
+  assert.equal(courseLabel({ endDate: null, totalDoses: 20, dosesLeft: 1 }), '1 of 20 doses left')
+  assert.equal(courseLabel({ endDate: null, totalDoses: 20, dosesLeft: 0 }), 'Done: all 20 doses taken')
+  assert.equal(scheduleLabel({ times: ['08:00'], days: [0, 1, 2, 3, 4, 5, 6], endDate: '2026-10-05', totalDoses: null, dosesLeft: null }), '8:00 AM · Every day · Until Mon, Oct 5')
 })

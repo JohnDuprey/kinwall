@@ -45,11 +45,20 @@ const Dose = z.string().trim().max(40).openapi({ description: 'Free text, e.g. "
 const Times = z.array(TimeSchema).min(1).max(8).transform((t) => [...new Set(t)].sort()).openapi({ description: 'Household times, HH:MM (up to 8).' });
 const Days = z.array(z.number().int().min(0).max(6)).min(1).max(7).transform((d) => [...new Set(d)].sort((a, b) => a - b)).openapi({ description: 'Weekdays, 0 = Sunday. Every day by default.' });
 
+// A course (e.g. an antibiotic) ends on its endDate, or once totalDoses have been taken (skips don't count).
+const EndDate = DateSchema.nullable().openapi({ description: 'Last household day of doses (YYYY-MM-DD); null: no end.' });
+const TotalDoses = z.number().int().min(1).max(1000).nullable().openapi({ description: 'Stop after this many doses are taken; null: no limit.' });
+
 const MedicationSchema = z
-  .object({ id: z.string(), memberId: z.string(), name: z.string(), dose: z.string(), times: z.array(z.string()), days: z.array(z.number()), createdAt: z.string(), updatedAt: z.string() })
+  .object({
+    id: z.string(), memberId: z.string(), name: z.string(), dose: z.string(), times: z.array(z.string()), days: z.array(z.number()),
+    endDate: z.string().nullable(), totalDoses: z.number().nullable(),
+    dosesLeft: z.number().nullable().openapi({ description: 'totalDoses minus doses taken; null without totalDoses.' }),
+    createdAt: z.string(), updatedAt: z.string(),
+  })
   .openapi('Medication');
-const MedicationInputSchema = z.object({ memberId: z.string(), name: Name, dose: Dose.default(''), times: Times, days: Days.default([0, 1, 2, 3, 4, 5, 6]) }).openapi('MedicationInput');
-const MedicationPatchSchema = z.object({ name: Name.optional(), dose: Dose.optional(), times: Times.optional(), days: Days.optional() }).openapi('MedicationPatch');
+const MedicationInputSchema = z.object({ memberId: z.string(), name: Name, dose: Dose.default(''), times: Times, days: Days.default([0, 1, 2, 3, 4, 5, 6]), endDate: EndDate.default(null), totalDoses: TotalDoses.default(null) }).openapi('MedicationInput');
+const MedicationPatchSchema = z.object({ name: Name.optional(), dose: Dose.optional(), times: Times.optional(), days: Days.optional(), endDate: EndDate.optional(), totalDoses: TotalDoses.optional() }).openapi('MedicationPatch');
 const STATUSES = ['taken', 'skipped', 'due', 'missed', 'upcoming'] as const;
 const DoseSchema = z
   .object({
@@ -80,11 +89,19 @@ type LogRow = { medication_id: string; date: string; log: string; updated_at: st
 
 const dataAad = (id: string) => `${id}:data`;
 const logAad = (id: string, date: string) => `${id}:${date}:log`;
-export const sealMedication = async (env: EncryptionEnv, m: Pick<Medication, 'id' | 'name' | 'dose' | 'times' | 'days'>) =>
-  seal(env, JSON.stringify({ name: m.name, dose: m.dose, times: m.times, days: m.days }), dataAad(m.id));
-export async function openMedication(env: EncryptionEnv, r: MedRow): Promise<Medication> {
+export const sealMedication = async (env: EncryptionEnv, m: Pick<Medication, 'id' | 'name' | 'dose' | 'times' | 'days'> & Partial<Pick<Medication, 'endDate' | 'totalDoses'>>) =>
+  seal(env, JSON.stringify({ name: m.name, dose: m.dose, times: m.times, days: m.days, endDate: m.endDate ?? null, totalDoses: m.totalDoses ?? null }), dataAad(m.id));
+export async function openMedication(env: EncryptionEnv & { DB: KinwallDb }, r: MedRow): Promise<Medication> {
   const d = JSON.parse(await unseal(env, r.data, dataAad(r.id)));
-  return { id: r.id, memberId: r.member_id, name: d.name, dose: d.dose ?? '', times: d.times, days: d.days, createdAt: r.created_at, updatedAt: r.updated_at };
+  const m: Medication = { id: r.id, memberId: r.member_id, name: d.name, dose: d.dose ?? '', times: d.times, days: d.days, endDate: d.endDate ?? null, totalDoses: d.totalDoses ?? null, dosesLeft: null, createdAt: r.created_at, updatedAt: r.updated_at };
+  return withDosesLeft(env, m);
+}
+/** dosesLeft for a medicine with totalDoses: counts every taken dose in its log. */
+export async function withDosesLeft(env: EncryptionEnv & { DB: KinwallDb }, m: Medication): Promise<Medication> {
+  if (m.totalDoses == null) return { ...m, dosesLeft: null };
+  const { results } = await env.DB.prepare('SELECT * FROM medication_log WHERE medication_id = ?').bind(m.id).all<LogRow>();
+  const taken = (await Promise.all(results.map((r) => openLog(env, r)))).reduce((n, log) => n + Object.values(log).filter((e) => e.status === 'taken').length, 0);
+  return { ...m, dosesLeft: Math.max(0, m.totalDoses - taken) };
 }
 export const sealLog = (env: EncryptionEnv, id: string, date: string, log: DoseLog) => seal(env, JSON.stringify(log), logAad(id, date));
 export const openLog = async (env: EncryptionEnv, r: LogRow): Promise<DoseLog> => JSON.parse(await unseal(env, r.log, logAad(r.medication_id, r.date)));
@@ -102,7 +119,9 @@ export async function loadLogs(env: EncryptionEnv & { DB: KinwallDb }, ids: stri
 }
 
 export const addDays = (date: string, n: number) => new Date(Date.parse(`${date}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
-export const scheduledOn = (m: Pick<Medication, 'days'>, date: string) => m.days.includes(new Date(`${date}T12:00:00Z`).getUTCDay());
+/** Is a dose due that day: its weekday, not past its end date, and (for a counted course) doses left. */
+export const scheduledOn = (m: Pick<Medication, 'days' | 'endDate' | 'dosesLeft'>, date: string) =>
+  m.days.includes(new Date(`${date}T12:00:00Z`).getUTCDay()) && (!m.endDate || date <= m.endDate) && m.dosesLeft !== 0;
 /** The instant a dose is due: its HH:MM on that household day. */
 export function doseAt(date: string, time: string, tz: string): number {
   const [y, mo, d] = date.split('-').map(Number);
@@ -201,7 +220,7 @@ medicationsRoutes.openapi(
     const body = c.req.valid('json');
     if (!(await c.env.DB.prepare('SELECT 1 FROM members WHERE id = ?').bind(body.memberId).first())) return c.json({ error: 'member not found' }, 404);
     const now = new Date().toISOString();
-    const m: Medication = { id: crypto.randomUUID(), memberId: body.memberId, name: body.name, dose: body.dose, times: body.times, days: body.days, createdAt: now, updatedAt: now };
+    const m: Medication = { id: crypto.randomUUID(), memberId: body.memberId, name: body.name, dose: body.dose, times: body.times, days: body.days, endDate: body.endDate, totalDoses: body.totalDoses, dosesLeft: body.totalDoses, createdAt: now, updatedAt: now };
     await write(c, m);
     return c.json(m, 201);
   },
@@ -223,9 +242,12 @@ medicationsRoutes.openapi(
     const found = await findMed(c, c.req.valid('param').id);
     if (!found) return c.json({ error: 'not found' }, 404);
     const body = c.req.valid('json');
-    const m: Medication = { ...found, name: body.name ?? found.name, dose: body.dose ?? found.dose, times: body.times ?? found.times, days: body.days ?? found.days, updatedAt: new Date().toISOString() };
+    const m: Medication = {
+      ...found, name: body.name ?? found.name, dose: body.dose ?? found.dose, times: body.times ?? found.times, days: body.days ?? found.days,
+      endDate: body.endDate !== undefined ? body.endDate : found.endDate, totalDoses: body.totalDoses !== undefined ? body.totalDoses : found.totalDoses, updatedAt: new Date().toISOString(),
+    };
     await write(c, m);
-    return c.json(m, 200);
+    return c.json(await withDosesLeft(c.env, m), 200);
   },
 );
 
@@ -363,7 +385,7 @@ medicationsRoutes.openapi(
         const log = logs.get(`${m.id}:${date}`) ?? {};
         const since = todayInTz(g.tz, new Date(m.createdAt));
         // Its schedule on days since it was added, plus anything logged under a time it no longer has.
-        const times = [...new Set([...(date >= since && scheduledOn(m, date) ? m.times : []), ...Object.keys(log).filter((t) => log[t].status)])].sort();
+        const times = [...new Set([...(date >= since && scheduledOn({ ...m, dosesLeft: null }, date) ? m.times : []), ...Object.keys(log).filter((t) => log[t].status)])].sort();
         return times.map((time) => ({ medicationId: m.id, time, status: doseStatus(doseAt(date, time, g.tz), log[time], now), at: log[time]?.at ?? null, by: log[time]?.by ?? null }));
       }).sort((a, b) => a.time.localeCompare(b.time));
       days.push({ date, doses });

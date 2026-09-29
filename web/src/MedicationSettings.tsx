@@ -111,9 +111,15 @@ function MedicationSheet({ med, member, onClose, onSaved }: { med: Medication | 
   const [times, setTimes] = useState<string[]>(med?.times ?? ['08:00'])
   const [days, setDays] = useState<number[]>(med?.days ?? EVERY_DAY)
   const [mode, setMode] = useState<DaysMode>(modeOf(med?.days ?? EVERY_DAY))
-  const valid = name.trim() && times.length > 0 && times.every(Boolean) && days.length > 0
+  // A course (e.g. an antibiotic): no end, a last day, or a number of doses taken.
+  const [ends, setEnds] = useState<'never' | 'date' | 'doses'>(med?.totalDoses != null ? 'doses' : med?.endDate ? 'date' : 'never')
+  const [endDate, setEndDate] = useState(med?.endDate ?? '')
+  const [totalDoses, setTotalDoses] = useState(med?.totalDoses != null ? String(med.totalDoses) : '')
+  const total = Number(totalDoses)
+  const endsValid = ends === 'never' || (ends === 'date' ? /^\d{4}-\d{2}-\d{2}$/.test(endDate) : Number.isInteger(total) && total >= 1 && total <= 1000)
+  const valid = name.trim() && times.length > 0 && times.every(Boolean) && days.length > 0 && endsValid
   const save = async () => {
-    const body = { name: name.trim(), dose: dose.trim(), times, days }
+    const body = { name: name.trim(), dose: dose.trim(), times, days, endDate: ends === 'date' ? endDate : null, totalDoses: ends === 'doses' ? total : null }
     try {
       if (med) await api.updateMedication(med.id, body)
       else await api.addMedication({ memberId: member.id, ...body })
@@ -170,6 +176,17 @@ function MedicationSheet({ med, member, onClose, onSaved }: { med: Medication | 
           </div>
         )}
         {days.length === 0 && <p className="field-hint">Pick at least one day.</p>}
+      </div>
+      <div className="field">
+        <label htmlFor="med-ends">Ends</label>
+        <select id="med-ends" className="settings-select" value={ends} onChange={e => setEnds(e.target.value as typeof ends)}>
+          <option value="never">No end</option>
+          <option value="date">On a date</option>
+          <option value="doses">After a number of doses</option>
+        </select>
+        {ends === 'date' && <input type="date" aria-label="Last day" value={endDate} onChange={e => setEndDate(e.target.value)} />}
+        {ends === 'doses' && <input type="number" inputMode="numeric" min={1} max={1000} aria-label="Total doses" placeholder="20" value={totalDoses} onChange={e => setTotalDoses(e.target.value)} />}
+        {ends !== 'never' && <p className="field-hint">{ends === 'date' ? 'Reminders stop after this day.' : med?.dosesLeft != null ? `Reminders stop once they're all taken. ${med.dosesLeft} left now.` : 'For a course like an antibiotic: reminders stop once they\'re all taken. Skipped doses don\'t count.'}</p>}
       </div>
     </Sheet>
   )

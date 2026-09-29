@@ -14,6 +14,7 @@ On a parent's device, open **Trackers → Health**. The **💊 Medicines** secti
 * **Dose** (optional): free text, like "1 tablet" or "5 mg".
 * **Times**: one or more times a day (up to 8), in the household's time zone. **+ Add a time** adds another.
 * **Days**: **Every day**, **Weekdays**, **Weekends**, or **Certain days** with a button per weekday.
+* **Ends** (for a course, like an antibiotic): **No end**, **On a date** (the last day of doses), or **After a number of doses** (reminders stop once that many are marked **Taken**; skipped doses don't count). The list shows "Until Mon, Oct 5" or "7 of 20 doses left", then "Done: all 20 doses taken". The history keeps the finished course.
 
 Tap a medicine to change it. **More… → Delete medicine** removes it and its history. Only parent devices add, change or delete medicines.
 
@@ -66,7 +67,7 @@ Everything is encrypted on the server. See [Privacy](../your-data/privacy.md#med
 
 ## Not in this version
 
-Refills and pill counts, as-needed doses, schedules that change over time, interaction checks, and Home Assistant or webhook events.
+Refills and pill counts (a course can end after a number of doses, but there is no refill tracking), as-needed doses, schedules that change over time, interaction checks, and Home Assistant or webhook events.
 
 ## API
 

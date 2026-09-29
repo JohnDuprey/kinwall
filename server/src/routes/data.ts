@@ -138,7 +138,7 @@ const ExportSchema = z
     journalEntries: z.array(z.object({ id: z.string(), memberId: z.string(), date: z.string(), text: z.string(), mood: z.string().nullable(), createdAt: z.string(), updatedAt: z.string() })),
     // Medications (0056) and each dose marked or snoozed: opened here (the family's own backup), sealed again on
     // import; none for a connected app without aiHealthAccess.
-    medications: z.array(z.object({ id: z.string(), memberId: z.string(), name: z.string().min(1), dose: z.string(), times: z.array(z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/)).min(1), days: z.array(z.number().int().min(0).max(6)).min(1), createdAt: z.string(), updatedAt: z.string() })),
+    medications: z.array(z.object({ id: z.string(), memberId: z.string(), name: z.string().min(1), dose: z.string(), times: z.array(z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/)).min(1), days: z.array(z.number().int().min(0).max(6)).min(1), endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().default(null), totalDoses: z.number().int().min(1).max(1000).nullable().default(null), createdAt: z.string(), updatedAt: z.string() })),
     medicationLog: z.array(z.object({ medicationId: z.string(), date: z.string(), time: z.string(), status: z.enum(['taken', 'skipped']).nullable(), at: z.string().nullable(), by: z.string().nullable(), snoozedUntil: z.string().nullable() })),
     scrapbook: z.array(StickerPlacementSchema),
     // Rewards (0039) and their redemptions; the points they took are in pointEntries.

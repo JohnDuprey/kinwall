@@ -165,6 +165,37 @@ test('medications: parents add, edit and delete; name, dose, times and weekdays 
   assert.equal((await req(`/api/medications/${med.id}`, 'DELETE')).status, 404);
 });
 
+test('medications: a course ends on its end date or after its total doses are taken', async (t) => {
+  t.after(() => mock.timers.reset());
+  const s = await setup({ now: at('06:00') });
+  const due = async () => ((await s.req('/api/medications/due')).json.doses as { medicationId: string; date: string; time: string }[]);
+  // End date: due through that day, nothing after.
+  const ended = (await s.add(s.leo.id, { name: 'Ear drops', endDate: TODAY })).json;
+  assert.equal(ended.endDate, TODAY);
+  assert.equal((await s.req('/api/medications', 'POST', { memberId: s.leo.id, name: 'x', times: ['08:00'], endDate: '28-09-2026' })).status, 400);
+  // Total doses: two a day, 3 in all; stops once 3 are taken (skips don't count).
+  const course = (await s.add(s.maya.id, { name: 'Antibiotic', times: ['08:00', '20:00'], totalDoses: 3 })).json;
+  assert.deepEqual([course.totalDoses, course.dosesLeft], [3, 3]);
+  mock.timers.setTime(at('08:05').getTime());
+  assert.deepEqual((await due()).map((d) => d.medicationId).sort(), [course.id, ended.id].sort());
+  await s.mark(course.id, 'taken');
+  await s.mark(course.id, 'skipped', ADMIN, '20:00');
+  mock.timers.setTime(at('08:05', '2026-09-29').getTime());
+  assert.deepEqual((await due()).map((d) => d.medicationId), [course.id], 'the ear drops ended yesterday');
+  await s.mark(course.id, 'taken', ADMIN, '08:00', '2026-09-29');
+  assert.equal((await s.req('/api/medications')).json.find((m: { id: string }) => m.id === course.id).dosesLeft, 1);
+  mock.timers.setTime(at('20:05', '2026-09-29').getTime());
+  await s.mark(course.id, 'taken', ADMIN, '20:00', '2026-09-29');
+  assert.equal((await s.req('/api/medications')).json.find((m: { id: string }) => m.id === course.id).dosesLeft, 0);
+  mock.timers.setTime(at('08:05', '2026-09-30').getTime());
+  assert.deepEqual(await due(), [], 'course done');
+  const tick = await devices(s, [['maya-phone', await s.key(s.maya.id)]]);
+  assert.deepEqual(await tick(at('08:02', '2026-09-30')), {}, 'no reminder after the course');
+  // Clearing the limit brings it back.
+  await s.req(`/api/medications/${course.id}`, 'PATCH', { totalDoses: null });
+  assert.equal((await due()).length, 1);
+});
+
 test('medications: sealed at rest (names, doses, times, the log); without ENCRYPTION_KEY nothing is stored', async (t) => {
   t.after(() => mock.timers.reset());
   const { env, req, leo, add, mark, raw } = await setup({ now: at('08:05') });
@@ -416,11 +447,11 @@ test('medications: the export has them in plain form (it is their backup); impor
   t.after(() => mock.timers.reset());
   const source = await setup({ now: at('08:05') });
   const id = source.leo.id;
-  const med = (await source.add(id, { days: [1, 3] })).json;
+  const med = (await source.add(id, { days: [1, 3], endDate: '2026-10-05', totalDoses: 4 })).json;
   await source.mark(med.id, 'taken');
   const file = (await source.req('/api/export')).json;
   assert.equal(file.settings.medications, true);
-  assert.deepEqual(file.medications.map((m: any) => [m.id, m.memberId, m.name, m.dose, m.times, m.days]), [[med.id, id, NAME, DOSE, ['08:00'], [1, 3]]]);
+  assert.deepEqual(file.medications.map((m: any) => [m.id, m.memberId, m.name, m.dose, m.times, m.days, m.endDate, m.totalDoses]), [[med.id, id, NAME, DOSE, ['08:00'], [1, 3], '2026-10-05', 4]]);
   assert.deepEqual(file.medicationLog.map((d: any) => [d.medicationId, d.date, d.time, d.status, d.by]), [[med.id, TODAY, '08:00', 'taken', 'ADMIN_API_KEY']]);
   const hidden = (await source.req('/api/export', 'GET', undefined, ADMIN, APP)).json;
   assert.deepEqual([hidden.medications, hidden.medicationLog], [[], []], 'a connected app without aiHealthAccess gets neither');
@@ -434,7 +465,7 @@ test('medications: the export has them in plain form (it is their backup); impor
   assert.match(String(target.raw('medication_log')[0].log), /^enc:v1:/);
   assert.equal(JSON.stringify([target.raw('medications'), target.raw('medication_log')]).includes(NAME), false);
   const back = (await target.req(`/api/members/${id}/medications`)).json;
-  assert.deepEqual([back.medications[0].name, back.days.at(-1).doses[0].status], [NAME, 'taken']);
+  assert.deepEqual([back.medications[0].name, back.medications[0].endDate, back.medications[0].dosesLeft, back.days.at(-1).doses[0].status], [NAME, '2026-10-05', 3, 'taken']);
   assert.equal((await target.req('/api/import', 'POST', file)).status, 200); // again: no duplicates
   assert.deepEqual([target.raw('medications').length, target.raw('medication_log').length], [1, 1]);
   const refused = await target.req('/api/import', 'POST', { ...file, medications: [{ ...file.medications[0], id: 'other' }] }, ADMIN, APP);

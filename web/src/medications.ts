@@ -1,5 +1,6 @@
 // Medication reminders (TakeNow.tsx, Medications.tsx, Trackers → Health → Medicines). Pure, so
 // web/test/medications.test.ts covers it.
+import { format } from 'date-fns'
 import { timeLabel } from './journal.ts'
 import type { DoseStatus, Medication, MedicationHistory } from './types.ts'
 
@@ -15,10 +16,17 @@ export function daysLabel(days: number[]): string {
   return [...new Set(days)].sort((a, b) => a - b).map(i => WEEKDAYS[i]).join(', ')
 }
 
-/** "8:00 AM and 8:30 PM · Every day". */
-export function scheduleLabel(m: Pick<Medication, 'times' | 'days'>): string {
+/** "8:00 AM and 8:30 PM · Every day", plus the course when it has one (" · Until Mon, Oct 5"). */
+export function scheduleLabel(m: Pick<Medication, 'times' | 'days'> & Partial<Pick<Medication, 'endDate' | 'totalDoses' | 'dosesLeft'>>): string {
   const t = m.times.map(timeLabel)
-  return `${t.length > 1 ? `${t.slice(0, -1).join(', ')} and ${t.at(-1)}` : t[0]} · ${daysLabel(m.days)}`
+  const course = courseLabel({ endDate: m.endDate ?? null, totalDoses: m.totalDoses ?? null, dosesLeft: m.dosesLeft ?? null })
+  return `${t.length > 1 ? `${t.slice(0, -1).join(', ')} and ${t.at(-1)}` : t[0]} · ${daysLabel(m.days)}${course ? ` · ${course}` : ''}`
+}
+
+/** A course (e.g. an antibiotic): "Until Mon, Oct 5", "7 of 20 doses left", "Done: all 20 doses taken", or ''. */
+export function courseLabel(m: Pick<Medication, 'endDate' | 'totalDoses' | 'dosesLeft'>): string {
+  if (m.totalDoses != null) return m.dosesLeft === 0 ? `Done: all ${m.totalDoses} doses taken` : `${m.dosesLeft ?? m.totalDoses} of ${m.totalDoses} doses left`
+  return m.endDate ? `Until ${format(new Date(`${m.endDate}T12:00:00`), 'EEE, MMM d')}` : ''
 }
 
 /** What a Take now card says: the medicine where names show, "Meds" on a shared screen without them. */
