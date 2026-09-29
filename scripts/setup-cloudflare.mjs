@@ -18,6 +18,8 @@ import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline/promises';
+// npm and npx are .cmd files on Windows, which spawnSync only runs through a shell.
+const WIN = process.platform === 'win32';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const TOML = join(ROOT, 'wrangler.toml');
@@ -67,7 +69,7 @@ const show = (args) => say(`  $ ${args.join(' ')}`);
 function wrangler(args, { input, env } = {}) {
   const cmd = [...WRANGLER, ...args];
   if (DRY) return show(cmd);
-  const r = spawnSync(cmd[0], cmd.slice(1), { cwd: ROOT, stdio: [input == null ? 'inherit' : 'pipe', 'inherit', 'inherit'], input, env: { ...process.env, ...env } });
+  const r = spawnSync(cmd[0], cmd.slice(1), { cwd: ROOT, stdio: [input == null ? 'inherit' : 'pipe', 'inherit', 'inherit'], input, env: { ...process.env, ...env }, shell: WIN });
   if (r.signal) process.exit(130);
   if (r.status !== 0) fail(`\`wrangler ${args.join(' ')}\` failed (exit ${r.status}).`);
 }
@@ -116,7 +118,7 @@ async function main() {
   if (!existsSync(join(ROOT, 'server/node_modules/.bin/wrangler'))) {
     say('Installing server dependencies (includes wrangler)...');
     if (DRY) show(['npm', 'ci', '--prefix', 'server']);
-    else if (spawnSync('npm', ['ci', '--prefix', 'server'], { cwd: ROOT, stdio: 'inherit' }).status !== 0) fail('npm ci --prefix server failed.');
+    else if (spawnSync('npm', ['ci', '--prefix', 'server'], { cwd: ROOT, stdio: 'inherit', shell: WIN }).status !== 0) fail('npm ci --prefix server failed.');
   }
   wrangler(['--version']);
   let me = wranglerJson(['whoami', '--json'], { accounts: [{ name: '(dry run)', id: '-' }] });
