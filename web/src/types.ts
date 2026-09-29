@@ -45,6 +45,8 @@ export interface Settings {
   features: Features // Settings → Features: what the family uses; off = hidden on every screen
   mealTimes: Record<'breakfast' | 'lunch' | 'dinner' | 'snack', string> // HH:MM each meal usually is; a meal without its own time uses it on the calendar
   aiHealthAccess: boolean // false (default): MCP and connected apps can't see or change the Health tracker
+  medications: boolean // Medication reminders (off by default); off hides them everywhere, data kept
+  medicationNamesOnWalls: boolean // shared wall screens show medicine names (off: "Meds")
 }
 
 /** Household feature switches. Off hides the feature everywhere; its data is kept. */
@@ -178,6 +180,22 @@ export interface JournalDay {
   entries: JournalEntry[]
 }
 export interface Journal { memberId: string; from: string; to: string; days: JournalDay[] }
+
+/** GET /api/medications: a person's medicine. days: weekdays, 0 = Sunday. Parents' devices and their own. */
+export interface Medication { id: string; memberId: string; name: string; dose: string; times: string[]; days: number[]; createdAt: string; updatedAt: string }
+export type MedicationInput = { memberId: string; name: string; dose: string; times: string[]; days: number[] }
+export type DoseStatus = 'taken' | 'skipped' | 'due' | 'missed' | 'upcoming'
+/** GET /api/medications/due: the Take now cards. name/dose null on a shared wall with names off ("Meds"). */
+export interface DueDose { medicationId: string; memberId: string; date: string; time: string; dueAt: string; name: string | null; dose: string | null }
+export interface MedicationsDue { names: boolean; doses: DueDose[] }
+export interface MedicationDose { medicationId: string; date: string; time: string; status: DoseStatus; at: string | null; by: string | null; snoozedUntil: string | null }
+/** GET /api/members/{id}/medications: their own device and parents' devices only. days oldest first. */
+export interface MedicationHistory {
+  memberId: string
+  today: string
+  medications: Medication[]
+  days: { date: string; doses: { medicationId: string; time: string; status: DoseStatus; at: string | null; by: string | null }[] }[]
+}
 
 export type CalendarKind = 'local' | 'ics' | 'google' | 'microsoft' | 'caldav'
 
@@ -664,13 +682,14 @@ export interface PushSubscriptionPrefs {
   choreNudge: boolean
   choreNudgeTime: string
   listUpdates: boolean
+  medicationNames: boolean // medicine names in medication reminders on this device (off: generic text)
 }
 
 /** One row of the in-app notification feed (GET /api/notifications). */
 export interface AppNotification {
   id: string
   at: string
-  kind: 'reminder' | 'summary' | 'chore' | 'list' | 'message' | 'goal'
+  kind: 'reminder' | 'summary' | 'chore' | 'list' | 'message' | 'goal' | 'medication'
   title: string
   body: string | null
   url: string | null // '/#/calendar?event=…', '/chores', '/lists', '/' - same deep link a push opens

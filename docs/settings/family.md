@@ -73,3 +73,14 @@ See [Chores](../using/chores.md) for how these play out day to day.
 ## Meals
 
 When the Meals feature is on, this tab has the family's usual meal times: **Breakfast** 7:30 AM, **Lunch** 12:00 PM, **Dinner** 6:00 PM and **Snack** 3:00 PM unless you change them. A meal without its own time goes on the calendar at its usual time, and the meal sheet shows it under the **Time** field. Changing a usual time doesn't move events already on the calendar. API: `mealTimes` in `GET` / `PATCH /api/settings`, as `{ "breakfast": "07:30", "lunch": "12:00", "dinner": "18:00", "snack": "15:00" }` (send all four). See [Meals](../using/meals.md#the-calendar).
+
+## Medications
+
+Parent devices only. See [Medications](../using/medications.md).
+
+* **Medication reminders** (off by default). Turning it on first shows what Kinwall keeps and who sees it. Off hides medicines on every screen and stops their reminders; what's saved is kept.
+* **Show medicine names on shared screens** (off by default): wall screens say "Meds" on the Take now card until this is on. Parent devices and each person's own device always show names.
+* Under each person, their medicines (tap one to change it), **+ Add medicine** and **History**.
+* **More… → Delete all medication data**: every medicine, its log and its notifications, after you confirm.
+
+API: `medications` and `medicationNamesOnWalls` on `GET/PATCH /api/settings` (a connected app gets 403 changing them).

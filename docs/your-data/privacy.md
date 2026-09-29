@@ -50,6 +50,17 @@ A person's [journal](../using/journal.md) entries (the words and the mood) are e
 * **Claude and other connected apps** get nothing from the journal until a parent turns on **Let connected apps see health entries**. There's no MCP tool for it.
 * The [export](export-import.md) holds entries in plain form; importing encrypts them again.
 
+### Medications
+
+[Medication reminders](../using/medications.md) are off until a parent turns them on. A medicine's name, dose, times and weekdays, and each day's log of doses marked taken, skipped or snoozed (when, and on which device), are encrypted like health entries: bound to the row, refused without a key, never in the server logs. Only who the medicine is for and which day a log is for stay plain. Reminder bookkeeping stores a one-way hash, not the medicine or the time. Nothing about conditions or diagnoses is asked or kept.
+
+* **Who sees what:** parent devices see everyone's medicines and history and are the only ones that add, change or delete them. A person's own device sees and marks their own (a kid's too). A shared wall screen shows **Take now** cards for whoever is due, as "Meds" unless the family turns on **Show medicine names on shared screens**, and can mark them; it never shows the list or history. Other people's devices see nothing about someone else's medicines, in the app or in the bell's feed.
+* **Push text** is generic ("Time for Maya's medicine"; for parents, "Maya's 8:00 AM medicine hasn't been marked yet") unless that device turns on **Show medicine names in notifications on this device**. Push text passes through Apple or Google and shows on lock screens.
+* **Webhooks and Home Assistant** get no medication events at all.
+* **Claude and other connected apps** get nothing (403, and no MCP tool) until a parent turns on **Let connected apps see health entries**. They can't turn medications on or change its settings either.
+* **Snapshots, profiles and share links** never include medicines. A profile only links to the medicines page, on the person's own device and parents' devices.
+* The [export](export-import.md) holds medicines and their log in plain form (it's your backup); importing encrypts them again. **Delete all medication data** (Settings → Family → Medications → More…) removes every medicine, its log and its notifications. Deleting one medicine removes its log.
+
 ## Stored as one-way hashes (SHA-256)
 
 * API keys, passkey sessions and OAuth access/refresh tokens. Keys are shown once.

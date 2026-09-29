@@ -10,7 +10,7 @@ import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginCatalogEntry,
   StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota, Reward, Redemption, MemberStats, StatsPeriod,
   Account, ApiKey, AppNotification, Appearance, CalendarEntry, Category, Chore, ChoreDay, PendingApproval, EventInstance, LeaderboardEntry, LeaderboardPeriod, List,
   GeocodeResult, HostEvent, ImportResult, ListDetail, ListGroup, ListItem, ListItemInput, ListItemPatch, Member, Me, Note, NoteTarget, Passkey, TrackerEntry, TrackerInput, TrackerKind, Providers, PushSubscription, PushSubscriptionPrefs, RemoteCalendar, Settings, Snapshot, Board, Webhook, WebhookWithSecret,
-  TempCheck, TempCheckInput, Journal, JournalEntry,
+  TempCheck, TempCheckInput, Journal, JournalEntry, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory,
 } from './types.ts'
 
 /** Demo build: every call is served from mock.ts in memory - no server, nothing persists. */
@@ -383,6 +383,16 @@ export const api = {
     MOCK ? mock.updateJournalEntry(memberId, id, body) : patch<JournalEntry>(`api/members/${encodeURIComponent(memberId)}/journal/${encodeURIComponent(id)}`, body),
   deleteJournalEntry: (memberId: string, id: string) =>
     MOCK ? mock.deleteJournalEntry(memberId, id) : del<void>(`api/members/${encodeURIComponent(memberId)}/journal/${encodeURIComponent(id)}`),
+  // Medication reminders: health data, so never the offline cache. Adding and editing: parents' devices.
+  getMedications: (memberId?: string) => MOCK ? mock.getMedications(memberId) : req<Medication[]>(`api/medications${memberId ? `?memberId=${encodeURIComponent(memberId)}` : ''}`),
+  addMedication: (body: MedicationInput) => MOCK ? mock.addMedication(body) : post<Medication>('api/medications', body),
+  updateMedication: (id: string, body: Partial<Omit<MedicationInput, 'memberId'>>) => MOCK ? mock.updateMedication(id, body) : patch<Medication>(`api/medications/${encodeURIComponent(id)}`, body),
+  deleteMedication: (id: string) => MOCK ? mock.deleteMedication(id) : del<void>(`api/medications/${encodeURIComponent(id)}`),
+  deleteAllMedications: () => MOCK ? mock.deleteAllMedications() : del<{ deleted: number }>('api/medications'),
+  getMedicationsDue: () => MOCK ? mock.getMedicationsDue() : req<MedicationsDue>('api/medications/due'),
+  markDose: (medicationId: string, body: { date: string; time: string; action: 'taken' | 'skipped' | 'snooze' }) =>
+    MOCK ? mock.markDose(medicationId, body) : post<MedicationDose>(`api/medications/${encodeURIComponent(medicationId)}/doses`, body),
+  getMedicationHistory: (memberId: string, days = 7) => MOCK ? mock.getMedicationHistory(memberId, days) : req<MedicationHistory>(`api/members/${encodeURIComponent(memberId)}/medications?days=${days}`),
   // Daily check-in: once per household day; a second call awards nothing.
   checkIn: (memberId: string) =>
     MOCK ? mock.checkIn(memberId) : post<{ date: string; points: number; awarded: number; balance: number }>(`api/members/${encodeURIComponent(memberId)}/check-in`),

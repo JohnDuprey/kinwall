@@ -13,6 +13,8 @@ Quiet hours turn a wall display into a dim, slowly drifting clock overnight. Tha
 * **Tap the screen** to wake it. It returns to the clock after **five minutes** without a touch.
 * The times are read on the display's own clock. The setting syncs to every display within about 30 seconds.
 
+Quiet hours also hold back push notifications that would arrive during them: transition reminders, the evening goal check and [medication reminders](medications.md). The bell's feed and the Take now card still show.
+
 ## Screensaver
 
 Instead of the bare clock, a display can show a slow, dim slideshow overnight. It's set **per display**: **Settings → General**, tap **Change** under **Night screen**, then **During quiet hours show**. Turn on one or more sources. With more than one on, the pictures take turns (drawing, then family photo, then art, then nature, and so on). **Clock only** (the default) turns them all off.

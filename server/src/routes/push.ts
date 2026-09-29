@@ -7,6 +7,7 @@ import { getVapidPublicKey, sendWebPush } from '../webpush.ts';
 import { encrypt } from '../crypto.ts';
 import { readFeatures } from './settings.ts';
 import { DEFAULT_PUSH_PREFS, memberMatch, recordNotification } from '../notify.ts';
+import { medicationFeedFilter } from './medications.ts';
 import { ErrorSchema, NotificationSchema, NotifyInputSchema, PushSubscriptionInputSchema, PushSubscriptionPatchSchema, PushSubscriptionSchema } from '../schemas.ts';
 
 export const pushRoutes = createRouter();
@@ -255,8 +256,10 @@ pushRoutes.openapi(
   }),
   async (c) => {
     const { limit = 50, before } = c.req.valid('query');
-    const { results } = await c.env.DB.prepare('SELECT * FROM notifications WHERE at < ? ORDER BY at DESC, id DESC LIMIT ?')
-      .bind(before ?? '9999', limit)
+    // Medicine rows only for parents, shared walls and that person's own devices (routes/medications.ts).
+    const meds = await medicationFeedFilter(c);
+    const { results } = await c.env.DB.prepare(`SELECT * FROM notifications WHERE at < ?${meds.sql} ORDER BY at DESC, id DESC LIMIT ?`)
+      .bind(before ?? '9999', ...meds.binds, limit)
       .all<NotificationRow>();
     return c.json(
       results.map((r) => ({ id: r.id, at: r.at, kind: r.kind as z.infer<typeof NotificationSchema>['kind'], title: r.title, body: r.body, url: r.url, memberIds: parseMemberIds(r.member_ids), source: r.source })),

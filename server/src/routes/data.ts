@@ -6,6 +6,7 @@ import { bodyLimit } from 'hono/body-limit';
 import { createRouter } from '../router.ts';
 import { emit, type BusEventType } from '../bus.ts';
 import type { KinwallDb, KinwallStatement } from '../db.ts';
+import type { Env } from '../env.ts';
 import { RecipeSchema, MealSchema } from '../meal-schemas.ts';
 import { readRecipes, readMeals, normalizeIngredient } from '../meals.ts';
 import { itemKey } from '../item-memory.ts';
@@ -26,6 +27,7 @@ import type { CategoryRow } from '../calendar-categories.ts';
 import { isAdultBirthday, parseTempCheck, parseTransitions } from './members.ts';
 import { FollowupSchema, openTempCheck, readCustom, sealCustom, sealTempCheck, type TempCheckRow } from './temp-check.ts';
 import { openEntry, sealEntry, type JournalRow } from './journal.ts';
+import { loadLogs, loadMedications, sealLog, sealMedication, type DoseLog } from './medications.ts';
 import { fromRow as contactFromRow, type ContactRow } from './contacts.ts';
 import {
   CalendarSchema,
@@ -134,6 +136,10 @@ const ExportSchema = z
     tempChecks: z.array(z.object({ memberId: z.string(), date: z.string(), sleep: z.string().nullable(), feelings: z.array(z.string()).nullable(), goal: z.string().nullable(), goalSkipped: z.boolean(), followup: FollowupSchema.nullable().default(null), createdAt: z.string(), updatedAt: z.string() })),
     // Journal entries (0055): opened here, sealed again on import; none for a connected app without aiHealthAccess.
     journalEntries: z.array(z.object({ id: z.string(), memberId: z.string(), date: z.string(), text: z.string(), mood: z.string().nullable(), createdAt: z.string(), updatedAt: z.string() })),
+    // Medications (0056) and each dose marked or snoozed: opened here (the family's own backup), sealed again on
+    // import; none for a connected app without aiHealthAccess.
+    medications: z.array(z.object({ id: z.string(), memberId: z.string(), name: z.string().min(1), dose: z.string(), times: z.array(z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/)).min(1), days: z.array(z.number().int().min(0).max(6)).min(1), createdAt: z.string(), updatedAt: z.string() })),
+    medicationLog: z.array(z.object({ medicationId: z.string(), date: z.string(), time: z.string(), status: z.enum(['taken', 'skipped']).nullable(), at: z.string().nullable(), by: z.string().nullable(), snoozedUntil: z.string().nullable() })),
     scrapbook: z.array(StickerPlacementSchema),
     // Rewards (0039) and their redemptions; the points they took are in pointEntries.
     rewards: z.array(RewardSchema.omit({ used: true })),
@@ -320,6 +326,7 @@ dataRoutes.openapi(
           return { memberId: r.member_id, date: r.date, ...v, createdAt: r.created_at, updatedAt: r.updated_at };
         })),
         journalEntries: healthHidden ? [] : await Promise.all((journal as JournalRow[]).map((r) => openEntry(c.env, r))),
+        ...(healthHidden ? { medications: [], medicationLog: [] } : await exportMedications(c.env)),
         scrapbook: (scrapbook as PlacementRow[]).map(toPlacementApi),
         rewards: (rewards as RewardRow[]).map(toRewardApi),
         rewardRedemptions: (redemptions as RedemptionRow[]).map(toRedemptionApi),
@@ -368,6 +375,8 @@ const ImportSchema = ExportSchema.extend({
   checkIns: ExportSchema.shape.checkIns.default([]),
   tempChecks: ExportSchema.shape.tempChecks.default([]),
   journalEntries: ExportSchema.shape.journalEntries.default([]),
+  medications: ExportSchema.shape.medications.default([]),
+  medicationLog: ExportSchema.shape.medicationLog.default([]),
   scrapbook: ExportSchema.shape.scrapbook.default([]),
   rewards: ExportSchema.shape.rewards.default([]),
   rewardRedemptions: ExportSchema.shape.rewardRedemptions.default([]),
@@ -405,6 +414,8 @@ const ImportResultSchema = z
       checkIns: z.number(),
       tempChecks: z.number(),
       journalEntries: z.number(),
+      medications: z.number(),
+      medicationLog: z.number(),
       scrapbook: z.number(),
       rewards: z.number(),
       rewardRedemptions: z.number(),
@@ -527,10 +538,13 @@ dataRoutes.openapi(
     const healthHidden = !!(await healthBlock(c));
     const healthIds = healthHidden ? new Set((await db.prepare("SELECT id FROM tracker_entries WHERE kind = 'health'").all<{ id: string }>()).results.map((r) => r.id)) : new Set<string>();
     const trackers = body.trackers.filter((t) => (t.memberId === null || fileMembers.has(t.memberId)) && !(healthHidden && (t.kind === 'health' || healthIds.has(t.id))));
-    if (healthHidden) delete settings.data.aiHealthAccess;
+    if (healthHidden) for (const k of ['aiHealthAccess', 'medications', 'medicationNamesOnWalls'] as const) delete settings.data[k];
     // Temp checks likewise (sleep and feelings are health): none from a connected app without aiHealthAccess.
     const tempChecks = healthHidden ? [] : body.tempChecks.filter((t) => fileMembers.has(t.memberId));
     const journalEntries = healthHidden ? [] : body.journalEntries.filter((e) => fileMembers.has(e.memberId));
+    const medications = healthHidden ? [] : body.medications.filter((m) => fileMembers.has(m.memberId));
+    const medIds = new Set(medications.map((m) => m.id));
+    const medicationLog = body.medicationLog.filter((d) => medIds.has(d.medicationId));
     const mealSources = body.mealShoppingSources.filter((s) => items.some((i) => i.id === s.itemId && i.listId === s.listId));
     const steps = items.flatMap((i) => i.steps.map((st) => ({ ...st, itemId: i.id, doneAt: st.done ? (i.doneAt ?? new Date().toISOString()) : null, createdAt: i.createdAt })));
 
@@ -545,6 +559,13 @@ dataRoutes.openapi(
     // Health entries are sealed again before anything is written (no key: the import fails, nothing stored).
     const sealedTempChecks = await Promise.all(tempChecks.map(async (t) => ({ member_id: t.memberId, date: t.date, ...(await sealTempCheck(c.env, t.memberId, t.date, t)), goal: t.goal, goal_skipped: t.goalSkipped ? 1 : 0, created_at: t.createdAt, updated_at: t.updatedAt })));
     const sealedJournal = await Promise.all(journalEntries.map((e) => sealEntry(c.env, { id: e.id, member_id: e.memberId, date: e.date, text: e.text, mood: e.mood, created_at: e.createdAt, updated_at: e.updatedAt })));
+    const logDays = new Map<string, { medicationId: string; date: string; log: DoseLog }>();
+    for (const d of medicationLog) {
+      const day = logDays.get(`${d.medicationId}:${d.date}`) ?? logDays.set(`${d.medicationId}:${d.date}`, { medicationId: d.medicationId, date: d.date, log: {} }).get(`${d.medicationId}:${d.date}`)!;
+      day.log[d.time] = d.status ? { status: d.status, ...(d.at ? { at: d.at } : {}), ...(d.by ? { by: d.by } : {}) } : d.snoozedUntil ? { snoozedUntil: d.snoozedUntil } : {};
+    }
+    const sealedMeds = await Promise.all(medications.map(async (m) => ({ id: m.id, member_id: m.memberId, data: await sealMedication(c.env, m), created_at: m.createdAt, updated_at: m.updatedAt })));
+    const sealedLog = await Promise.all([...logDays.values()].map(async (d) => ({ medication_id: d.medicationId, date: d.date, log: await sealLog(c.env, d.medicationId, d.date, d.log), updated_at: new Date().toISOString() })));
     const memberFeelings = new Map(healthHidden ? [] : await Promise.all(body.members.map(async (m) => [m.id, await sealCustom(c.env, m.id, m.tempCheckFeelings)] as const)));
     const sealedTrackers = await Promise.all(trackers.map((t) => sealRow(c.env, { id: t.id, kind: t.kind, member_id: t.memberId, former_member: t.formerMember, date: t.date, title: t.title, photo_id: t.photoId, photo_own: t.photoOwned ? 1 : 0, data: JSON.stringify(t.data), created_at: t.createdAt, updated_at: t.updatedAt })));
     const writes = [
@@ -755,6 +776,8 @@ dataRoutes.openapi(
       ...upserts(db, 'member_sticker_packs', 'member_id, pack_id', stickerPacks.map((p) => ({ member_id: p.memberId, pack_id: p.packId, unlocked_at: p.unlockedAt }))),
       ...upserts(db, 'temp_checks', 'member_id, date', sealedTempChecks, keepCreated),
       ...upserts(db, 'journal_entries', 'id', sealedJournal, { keep: ['member_id', 'created_at'] }),
+      ...upserts(db, 'medications', 'id', sealedMeds, { keep: ['member_id', 'created_at'] }),
+      ...upserts(db, 'medication_log', 'medication_id, date', sealedLog),
       ...upserts(db, 'check_ins', 'member_id, date', checkIns.map((ci) => ({ member_id: ci.memberId, date: ci.date, points: ci.points, at: ci.at }))),
       ...upserts(
         db,
@@ -850,6 +873,8 @@ dataRoutes.openapi(
           checkIns: checkIns.length,
           tempChecks: tempChecks.length,
           journalEntries: journalEntries.length,
+          medications: medications.length,
+          medicationLog: medicationLog.length,
           scrapbook: scrapbook.length,
           rewards: body.rewards.length,
           rewardRedemptions: redemptions.length,
@@ -888,3 +913,14 @@ dataRoutes.openapi(
     return c.json(results, 200);
   },
 );
+
+/** Medicines and every dose marked or snoozed, opened: the family's own backup. */
+async function exportMedications(env: Env) {
+  const medications = await loadMedications(env);
+  const logs = await loadLogs(env, medications.map((m) => m.id), '0000-00-00', '9999-99-99');
+  const medicationLog = [...logs].flatMap(([k, log]) => {
+    const [medicationId, date] = [k.slice(0, k.lastIndexOf(':')), k.slice(k.lastIndexOf(':') + 1)];
+    return Object.entries(log).map(([time, e]) => ({ medicationId, date, time, status: e.status ?? null, at: e.at ?? null, by: e.by ?? null, snoozedUntil: e.snoozedUntil ?? null }));
+  }).sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time) || a.medicationId.localeCompare(b.medicationId));
+  return { medications, medicationLog };
+}

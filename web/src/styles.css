@@ -2457,3 +2457,45 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
 .journal-mood { font-size: 1.5rem; line-height: 1.2; }
 .journal-text { white-space: pre-wrap; overflow-wrap: anywhere; flex: 1; min-width: 0; }
 .journal-new { flex: 0 0 auto; min-width: 180px; }
+
+/* Medication reminders: the Take now card (Board, Day view, medicines page), the medicines page, Settings. */
+.meds-now { gap: 8px; border: 2px solid color-mix(in srgb, var(--accent) 45%, transparent); }
+.meds-now-board { margin: 4px var(--pad) var(--gap); }
+.meds-now-day { margin: 0 0 14px; }
+.meds-now-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.meds-now-item { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; padding: 10px 12px; border-radius: 12px; background: var(--bg-alt); }
+.meds-now-avatar { width: 40px; height: 40px; font-size: 1.25rem; }
+.meds-now-what { margin: 0; flex: 1 1 160px; min-width: 0; display: flex; flex-direction: column; gap: 2px; overflow-wrap: anywhere; }
+.meds-now-what strong { font-size: 1.0625rem; font-weight: 900; }
+.meds-now-what span { font-size: 0.875rem; font-weight: 700; color: var(--text-dim); }
+.meds-now-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.meds-now-actions .btn { min-height: 44px; padding: 8px 16px; flex: none; }
+@media (max-width: 560px) { .meds-now-actions { width: 100%; flex-wrap: nowrap; } .meds-now-actions .btn { flex: 1 1 auto; padding: 8px 10px; } }
+.meds-page .profile-top { flex-wrap: wrap; }
+.meds-page-card { max-width: 760px; width: 100%; align-self: center; box-sizing: border-box; }
+.meds-today { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.meds-today-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 10px 4px; border-top: 1px solid var(--border); }
+.meds-today-row:first-child { border-top: none; }
+.meds-today-time { font-weight: 900; min-width: 76px; }
+.meds-today-what { flex: 1 1 140px; min-width: 0; font-weight: 700; overflow-wrap: anywhere; }
+.meds-status { font-size: 0.875rem; font-weight: 800; color: var(--text-dim); }
+.meds-taken .meds-status { color: var(--success); }
+.meds-grid-wrap { overflow-x: auto; }
+.meds-grid { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+.meds-grid th, .meds-grid td { padding: 8px 4px; text-align: center; border-top: 1px solid var(--border); }
+.meds-grid thead th { border-top: none; font-weight: 800; color: var(--text-dim); font-size: 0.75rem; }
+.meds-grid tbody th { text-align: left; min-width: 110px; }
+.meds-grid td { font-size: 1.125rem; min-width: 32px; }
+.meds-grid-name { display: block; font-weight: 800; overflow-wrap: anywhere; }
+.meds-grid-sub { display: block; font-size: 0.75rem; font-weight: 700; color: var(--text-dim); }
+.meds-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 8px 0 0; font-size: 0.8125rem; font-weight: 700; color: var(--text-dim); }
+.meds-person { padding: 12px 2px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
+.meds-person-head { display: flex; align-items: center; gap: 10px; }
+.meds-set-row { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-height: 44px; padding: 8px 12px; border-radius: 12px; border: 2px solid var(--border); background: var(--bg-alt); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.meds-times { border: none; padding: 0; margin: 0 0 14px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.meds-times legend { padding: 0; margin-bottom: 6px; font-size: 0.8125rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.02em; }
+.meds-link { text-decoration: none; }
+.meds-grid thead th.meds-grid-today { color: var(--text); }
+.meds-time-row { display: flex; gap: 8px; align-items: center; }
+.meds-time-row input { min-height: 44px; }
+.meds-days { margin-top: 10px; }

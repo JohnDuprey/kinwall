@@ -286,6 +286,8 @@ export const SettingsSchema = z
     features: FeaturesSchema,
     mealTimes: MealTimesSchema, // when each meal slot usually is; a meal without its own time uses it for its calendar event
     aiHealthAccess: z.boolean(), // false (default): MCP and connected apps' OAuth tokens never see or change the Health tracker
+    medications: z.boolean().openapi({ description: 'Medication reminders (off by default). Off: the medication routes answer 404; the data is kept.' }),
+    medicationNamesOnWalls: z.boolean().openapi({ description: 'Show medicine names and doses on shared wall screens (off by default: "Meds").' }),
   })
   .openapi('Settings');
 
@@ -325,6 +327,8 @@ export const SettingsPatchSchema = z
     features: FeaturesSchema.optional(), // admin keys only (a display key gets 403)
     mealTimes: MealTimesSchema.optional(),
     aiHealthAccess: z.boolean().optional(), // the family's own devices only: a connected app gets 403
+    medications: z.boolean().optional(), // likewise
+    medicationNamesOnWalls: z.boolean().optional(), // likewise
   })
   // Quiet hours are a pair: send both, and either both set or both cleared ('' / null).
   .refine((p) => (p.quietFrom === undefined) === (p.quietTo === undefined) && !p.quietFrom === !p.quietTo, {
@@ -817,6 +821,7 @@ export const PushSubscriptionPrefsSchema = z
     choreNudge: z.boolean(),
     choreNudgeTime: z.string().regex(HHMM_RE),
     listUpdates: z.boolean(),
+    medicationNames: z.boolean().openapi({ description: 'Medicine names and doses in medication reminders on this device (off: "Time for Leo\'s medicine" only; push text shows on lock screens).' }),
   })
   .openapi('PushSubscriptionPrefs');
 
@@ -864,7 +869,7 @@ export const NotificationSchema = z
   .object({
     id: z.string(),
     at: z.string(),
-    kind: z.enum(['reminder', 'summary', 'chore', 'list', 'message', 'goal']),
+    kind: z.enum(['reminder', 'summary', 'chore', 'list', 'message', 'goal', 'medication']),
     title: z.string(),
     body: z.string().nullable(),
     url: z.string().nullable(),

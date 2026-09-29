@@ -1,0 +1,81 @@
+# Medications
+
+Medication reminders help the family remember each person's medicines: a reminder at each dose time, a **Take now** card on the wall, and a simple record of what was taken. It's off until a parent turns it on.
+
+## Turn it on
+
+On a parent's device: **Settings → Family → Medications → Medication reminders**. The first time, Kinwall says what it keeps and who sees it, and you tap **Turn on**. Turning it off hides everything again; what you saved is kept. See [Settings → Family](../settings/family.md#medications).
+
+## Add a medicine
+
+Under each person, tap **+ Add medicine**:
+
+* **Medicine**: a name the family knows it by, like "Allergy medicine". There's no place for what it's for, and no need for one.
+* **Dose** (optional): free text, like "1 tablet" or "5 mg".
+* **Times**: one or more times a day (up to 8), in the household's time zone. **+ Add a time** adds another.
+* **Days**: **Every day**, **Weekdays**, **Weekends**, or **Certain days** with a button per weekday.
+
+Tap a medicine to change it. **More… → Delete medicine** removes it and its history. Only parent devices add, change or delete medicines.
+
+## Take now
+
+At each dose time, a **💊 Take now** card appears at the top of the [Board](calendar.md) and in that person's **Day** view. It shows who, the medicine and the time, with three buttons:
+
+* **Taken**: logs when and on which device.
+* **Skip**: logs that it was skipped on purpose.
+* **Snooze 10 min**: hides the card for 10 minutes, then it comes back with one more reminder.
+
+The card stays until the dose is marked, or for 3 hours after its time. After that the dose counts as **Not marked**.
+
+On a shared wall screen the card says **Meds** instead of the medicine's name, unless the family turns on **Show medicine names on shared screens**. Anyone at the wall can mark a dose, since many families give medicines in the kitchen.
+
+## Reminders
+
+At each dose time:
+
+* the person's own phones and tablets get a push: **Time for Leo's medicine**. The medicine's name and dose are only in the text on devices that turn on **Show medicine names in notifications on this device** ([This display → Notifications](../settings/this-display.md#notifications)), since push text passes through Apple or Google and shows on the lock screen;
+* the bell's feed gets the same line.
+
+For a kid (not a [grown-up](../settings/family.md#members)), if a dose isn't marked **Taken** or **Skip** within 30 minutes, parent devices get **Maya's 8:00 AM medicine hasn't been marked yet**, once. Grown-ups' doses don't alert anyone.
+
+Each reminder is sent once per dose (and once per snooze), even if the server restarts. A dose that isn't scheduled that weekday sends nothing.
+
+**Quiet hours**: medication pushes follow the family's [quiet hours](quiet-hours.md), like other reminders: the family chose those hours, and a push in the middle of the night wakes everyone. During quiet hours the push is held (not sent later), but the bell's feed row and the Take now card still appear. Wall screens show their night clock during quiet hours; tap to wake it and see the card. If a dose falls inside your quiet hours, set the quiet hours around it.
+
+## A person's medicines page
+
+Open it with **Open medicines** on their [profile](profiles.md), or **History** next to their name in **Settings → Family → Medications**. It shows:
+
+* **Take now**, when something is due;
+* **Today**: each dose with ✅ Taken, ⏭️ Skipped, 💊 Due now, ⭕ Not marked or 🕒 Later;
+* **Last 7 days**: a row per medicine and a column per day.
+
+It opens on the person's own device and on parents' devices. A shared wall screen shows only the Take now card; other people's devices get "private".
+
+## Who sees what
+
+| Device | Sees | Can do |
+|---|---|---|
+| Parent devices | Everyone's medicines, cards with names, today and 7-day history | Add, change, delete; mark any dose |
+| A person's own device | Their own medicines, cards and history | Mark their own doses (kids too) |
+| Shared wall screen | Take now cards for whoever is due ("Meds" unless names are on) | Mark Taken, Skip or Snooze |
+| Another person's device | Nothing about others' medicines | Nothing |
+| Claude and other connected apps | Nothing, unless a parent turns on **Let connected apps see health entries** | Nothing (no MCP tool) |
+
+Everything is encrypted on the server. See [Privacy](../your-data/privacy.md#medications).
+
+## Not in this version
+
+Refills and pill counts, as-needed doses, schedules that change over time, interaction checks, and Home Assistant or webhook events.
+
+## API
+
+All medication routes answer 404 while the feature is off.
+
+* `GET /api/medications?memberId=`: medicines (`{ id, memberId, name, dose, times, days, createdAt, updatedAt }`, `days` 0 = Sunday). Parent devices: everyone's; a person's own device: theirs. 403 on a shared wall.
+* `POST /api/medications` with `{ memberId, name, dose?, times, days? }`, `PATCH /api/medications/{id}`, `DELETE /api/medications/{id}` (and its log): parent devices only.
+* `DELETE /api/medications`: delete all medication data (parents only; works while off).
+* `GET /api/medications/due`: `{ names, doses: [{ medicationId, memberId, date, time, dueAt, name, dose }] }`, the Take now cards. `name` and `dose` are `null` on a shared wall with names off.
+* `POST /api/medications/{id}/doses` with `{ date, time, action: "taken" | "skipped" | "snooze" }` (today's or yesterday's doses): parent devices, shared walls, and the person's own device.
+* `GET /api/members/{id}/medications?days=7`: `{ memberId, today, medications, days: [{ date, doses: [{ medicationId, time, status, at, by }] }] }`, oldest first. Their own device and parent devices only.
+* Connected apps get 403 unless `aiHealthAccess` is on. There are no webhook events and no MCP tool.

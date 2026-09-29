@@ -8,6 +8,7 @@ import { checkInLabel, checkInState } from './checkIn.ts'
 import { feelingOptions, GOAL_MAX, SLEEP, tempCheckDone, toggleFeeling } from './tempCheck.ts'
 import { CheckIcon } from './icons.tsx'
 import GoalFollowUp from './GoalFollowUp.tsx'
+import TakeNow from './TakeNow.tsx'
 import Sheet from './Sheet.tsx'
 import { Segmented, announce } from './a11y.tsx'
 import { inkFor } from './color.ts'
@@ -112,6 +113,7 @@ export default function SnapshotSheet({ member, onClose }: { member: Member; onC
         options={[{ key: 'day', label: 'Day' }, { key: 'week', label: 'Week' }]} />
       {error && <p className="snap-empty" role="alert">{error}</p>}
       {!shown && !error && <p className="snap-empty">Loading…</p>}
+      {range === 'day' && <TakeNow memberId={member.id} className="meds-now-day" />}
       {shown && (range === 'day' ? <DayView snap={shown} tz={tz} close={onClose} onToggle={toggleChore} books={settings.features.trackersReading ? books : []} /> : <WeekView snap={shown} tz={tz} close={onClose} />)}
       {shown?.range === 'day' && member.tempCheck?.on && <TempCheck member={member} />}
       {shown && <CheckIn snap={shown} onDone={() => setSnap(s => s && { ...s, checkedIn: true })} />}

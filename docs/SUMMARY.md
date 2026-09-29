@@ -21,6 +21,7 @@
 * [Rewards](using/rewards.md)
 * [Profiles](using/profiles.md)
 * [Journal](using/journal.md)
+* [Medications](using/medications.md)
 * [Lists](using/lists.md)
 * [Meals](using/meals.md)
 * [Activities (Paint)](using/activities.md)

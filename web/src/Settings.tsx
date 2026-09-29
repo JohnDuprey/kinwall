@@ -28,6 +28,7 @@ import { inNativeApp } from './native.ts'
 import { useDialog } from './dialog.tsx'
 import { TEMP_CHECK_OFF } from './tempCheck.ts'
 import { EVENING_TIMES } from './journal.ts'
+import MedicationSettings from './MedicationSettings.tsx'
 import { announce, pressable, reducedMotion, Segmented } from './a11y.tsx'
 
 // Mirrors BusEventType in server/src/bus.ts.
@@ -136,6 +137,7 @@ export default function SettingsView() {
           <CategoriesSection categories={categories} onChanged={reloadCore} toast={toast} />
           {settings.features.chores && <ChoreSettingsSection settings={settings} onSaved={reloadCore} toast={toast} />}
           {settings.features.meals && <MealSettingsSection settings={settings} onSaved={reloadCore} toast={toast} />}
+          {!isDisplay && <MedicationSettings />}
         </>}
         {current === 'calendars' && <>
           <CalendarsSection openAccountId={openAccountId} onOpenedAccount={() => setOpenAccountId(null)} toast={toast} />
@@ -569,7 +571,7 @@ function urlBase64ToUint8Array(base64url: string): Uint8Array {
   return Uint8Array.from([...raw].map(c => c.charCodeAt(0)))
 }
 
-const DEFAULT_PUSH_PREFS = { eventReminders: true, dailySummary: false, summaryTime: '07:30', choreNudge: false, choreNudgeTime: '08:00', listUpdates: false }
+const DEFAULT_PUSH_PREFS = { eventReminders: true, dailySummary: false, summaryTime: '07:30', choreNudge: false, choreNudgeTime: '08:00', listUpdates: false, medicationNames: false }
 
 /** "This display" → Notifications: subscribe/unsubscribe this device, and its own reminder/
  * summary/nudge/list-update preferences. Works for any key scope (display or admin) - it's
@@ -695,6 +697,13 @@ function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean)
           {settings.features.lists && <div className="toggle-row">
             <label>List updates</label>
             <button className={`switch ${prefs.listUpdates ? 'on' : ''}`} role="switch" aria-checked={prefs.listUpdates} aria-label="List updates" onClick={() => savePrefs({ listUpdates: !prefs.listUpdates })}><span className="knob" /></button>
+          </div>}
+          {settings.medications && <div className="toggle-row">
+            <div>
+              <label id="push-med-names-label">Show medicine names in notifications on this device</label>
+              <div className="settings-row-sub" id="push-med-names-sub">Off: “Time for Leo’s medicine”. Notification text passes through Apple or Google and shows on the lock screen.</div>
+            </div>
+            <button className={`switch ${prefs.medicationNames ? 'on' : ''}`} role="switch" aria-checked={prefs.medicationNames} aria-labelledby="push-med-names-label" aria-describedby="push-med-names-sub" onClick={() => savePrefs({ medicationNames: !prefs.medicationNames })}><span className="knob" /></button>
           </div>}
           <MemberPicker members={members} selected={sub.memberIds} onChange={saveMembers} label="Which family members?" noneLabel="Everyone" />
           <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>

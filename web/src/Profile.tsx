@@ -123,6 +123,7 @@ function ProfileBody({ member, s }: { member: Member; s: MemberStats }) {
         )}
         {parentDevice && f.chores && <WaitingCard member={member} />}
         {(parentDevice || meMemberId === member.id) && <JournalCard member={member} />}
+        {settings.medications && (parentDevice || meMemberId === member.id) && <MedicationsCard member={member} />}
       </div>
     </>
   )
@@ -291,6 +292,17 @@ function JournalCard({ member }: { member: Member }) {
       {evening && week && week.of > 0 && <p className="profile-note">🎯 Goals met this week: <strong>{week.met} of {week.of}</strong></p>}
       <p className="profile-note">Check-ins, goals and {member.name}'s own notes, day by day.</p>
       <a className="btn btn-secondary profile-link" href={`#/journal/${member.id}`}>Open the journal</a>
+    </section>
+  )
+}
+
+/** Their own device and parents' devices only: a way into their medicines page (no names or doses here). */
+function MedicationsCard({ member }: { member: Member }) {
+  return (
+    <section className="board-card profile-card" aria-labelledby="pf-meds">
+      <h3 id="pf-meds" className="snap-heading">Medicines <span>🔒 Private</span></h3>
+      <p className="profile-note">Today's doses and the last 7 days.</p>
+      <a className="btn btn-secondary profile-link" href={`#/medications/${member.id}`}>Open medicines</a>
     </section>
   )
 }

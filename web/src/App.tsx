@@ -32,6 +32,7 @@ import Slideshow, { SAVER_PREVIEW_EVENT } from './Screensaver.tsx'
 import SnapshotSheet from './Snapshot.tsx'
 import Profile from './Profile.tsx'
 import Journal from './Journal.tsx'
+import Medications from './Medications.tsx'
 import Sheet from './Sheet.tsx'
 
 const NAV_ITEMS = [
@@ -64,6 +65,7 @@ function navItems(s: Settings, me?: Member | null): NavItem[] {
  * that moved, or null. */
 function featureRedirect(s: Settings, section: string, sub: string | undefined): string | null {
   if (section === 'activities' && sub === 'rewards') return '#/rewards' // rewards used to be an activity
+  if (section === 'medications' && !s.medications) return '#/calendar'
   if (section === 'chores' || section === 'rewards' || section === 'lists' || section === 'meals' || section === 'trackers' || section === 'activities') {
     if (!navItems(s).some(i => i.key === section)) return '#/calendar'
     if (section === 'trackers') { const on = trackerKinds(s); return sub && !on.includes(sub) ? `#/trackers/${on[0]}` : null }
@@ -1006,8 +1008,8 @@ function AppRoutes() {
   }, [parentDevice, choresOn, pollTick, manualTick])
   const redirect = settings && featureRedirect(settings, section, sub)
   useEffect(() => { if (redirect) location.replace(redirect) }, [redirect])
-  const tabLabel = section === 'profile' ? 'Profile' : section === 'journal' ? 'Journal' : section === 'activities' && sub === 'paint' ? 'Paint' : section === 'activities' && sub === 'stickers' ? 'Sticker book' : section === 'activities' && sub === 'photos' ? 'Photos' : NAV_ITEMS.find(i => i.key === section)?.label ?? 'Calendar'
-  const inApp = hasKey && !!settings && !wizardActive && (section === 'profile' || section === 'journal' || NAV_ITEMS.some(i => i.key === section))
+  const tabLabel = section === 'profile' ? 'Profile' : section === 'journal' ? 'Journal' : section === 'medications' ? 'Medicines' : section === 'activities' && sub === 'paint' ? 'Paint' : section === 'activities' && sub === 'stickers' ? 'Sticker book' : section === 'activities' && sub === 'photos' ? 'Photos' : NAV_ITEMS.find(i => i.key === section)?.label ?? 'Calendar'
+  const inApp = hasKey && !!settings && !wizardActive && (section === 'profile' || section === 'journal' || section === 'medications' || NAV_ITEMS.some(i => i.key === section))
   // "Chores · Duprey Family": the family, not the product, is what tells tabs and home-screen icons apart.
   const familyName = settings?.familyName?.trim()
   useEffect(() => { document.title = inApp ? `${tabLabel} · ${familyName || 'Kinwall'}` : 'Kinwall' }, [tabLabel, inApp, familyName])
@@ -1052,7 +1054,7 @@ function AppRoutes() {
 
   const nav = navItems(settings, members.find(m => m.id === meMemberId))
   // "Me" is lit on their own profile only, not while looking at someone else's.
-  const navTab = (section === 'profile' || section === 'journal') && sub !== meMemberId ? '' : section
+  const navTab = (section === 'profile' || section === 'journal') && sub !== meMemberId ? '' : section === 'medications' ? '' : section
   return (
     <AppContext.Provider value={{
       settings, members, categories, selectedMemberId: effectiveMemberId, setSelectedMemberId: setMemberId,
@@ -1069,7 +1071,7 @@ function AppRoutes() {
           <Header settings={settings} members={focusMember ? [focusMember] : members} selectedMemberId={effectiveMemberId} isAdmin={scope === 'admin'} />
           <main className="content" id="main" tabIndex={-1}>
             <h1 className="sr-only">{tabLabel}</h1>
-            {redirect ? null : section === 'profile' ? <Profile memberId={sub} /> : section === 'journal' ? <Journal memberId={sub} /> : section === 'activities' ? <Activities sub={sub} rest={rest} /> : section === 'rewards' ? <Rewards memberId={sub} /> : section === 'meals' ? <Meals /> : tab === 'chores' ? <Chores /> : section === 'lists' ? <Lists /> : section === 'contacts' ? <Contacts /> : section === 'trackers' ? <Trackers sub={sub} /> : tab === 'settings' ? <SettingsView /> : <CalendarView />}
+            {redirect ? null : section === 'profile' ? <Profile memberId={sub} /> : section === 'journal' ? <Journal memberId={sub} /> : section === 'medications' ? <Medications memberId={sub} /> : section === 'activities' ? <Activities sub={sub} rest={rest} /> : section === 'rewards' ? <Rewards memberId={sub} /> : section === 'meals' ? <Meals /> : tab === 'chores' ? <Chores /> : section === 'lists' ? <Lists /> : section === 'contacts' ? <Contacts /> : section === 'trackers' ? <Trackers sub={sub} /> : tab === 'settings' ? <SettingsView /> : <CalendarView />}
           </main>
           {navMode === 'bottom' && <Nav tab={navTab} mode={navMode} items={nav} toApprove={toApprove} rewardRequests={rewardRequests} />}
         </div>

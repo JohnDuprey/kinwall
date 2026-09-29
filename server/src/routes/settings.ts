@@ -67,6 +67,8 @@ export async function readSettings(db: KinwallDb) {
     features: parseFeatures(map.get('features')),
     mealTimes: parseMealTimes(map.get('mealTimes')),
     aiHealthAccess: map.get('aiHealthAccess') === 'true', // off until a parent turns it on, for every family
+    medications: map.get('medications') === 'true', // Medication reminders: off until a parent turns it on (routes/medications.ts)
+    medicationNamesOnWalls: map.get('medicationNamesOnWalls') === 'true', // shared screens say "Meds" until the family turns names on
   };
 }
 
@@ -213,12 +215,13 @@ settingsRoutes.openapi(
     responses: {
       200: { description: 'ok', content: { 'application/json': { schema: SettingsSchema } } },
       400: { description: 'invalid', content: { 'application/json': { schema: ErrorSchema } } },
-      403: { description: 'aiHealthAccess, from a connected app', content: { 'application/json': { schema: ErrorSchema } } },
+      403: { description: 'aiHealthAccess or a medication setting, from a connected app', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
     const body = c.req.valid('json');
     if (body.aiHealthAccess !== undefined && (await isConnectedApp(c))) return c.json({ error: "Only a parent's own device can change what connected apps may see" }, 403);
+    if ((body.medications !== undefined || body.medicationNamesOnWalls !== undefined) && (await isConnectedApp(c))) return c.json({ error: "Medication settings are changed from a parent's own device" }, 403);
     // A saved scheme must be readable in both modes, the same bar as the app's editor.
     const failures = (body.customSchemes ?? []).flatMap(schemeContrastFailures);
     if (failures.length) return c.json({ error: `Not enough contrast. ${failures.join('. ')}.` }, 400);

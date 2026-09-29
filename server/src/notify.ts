@@ -12,7 +12,9 @@ import { priorityRankSql } from './routes/lists.ts';
 import { parseMemberIds } from './calendar-members.ts';
 import { sendWebPush } from './webpush.ts';
 import { readFeatures, type Features } from './routes/settings.ts';
-import { parseTempCheck, parseTransitions } from './routes/members.ts';
+import { parseTempCheck, parseTransitions, todayInTz } from './routes/members.ts';
+import { addDays, clockLabel, doseAt, LATE_MS, loadLogs, loadMedications, medicineLabel, scheduledOn, type Medication } from './routes/medications.ts';
+import { sha256Hex } from './auth.ts';
 
 export const DEFAULT_PUSH_PREFS = {
   eventReminders: true,
@@ -21,6 +23,7 @@ export const DEFAULT_PUSH_PREFS = {
   choreNudge: false,
   choreNudgeTime: '08:00',
   listUpdates: false,
+  medicationNames: false, // medicine names in medication reminders on this device (push text shows on lock screens)
 };
 
 const LOOKBACK_MS = 10 * 60 * 1000; // a missed tick still fires once
@@ -120,7 +123,7 @@ async function pruneSentNotifications(db: KinwallDb, now: Date): Promise<void> {
   ]);
 }
 
-export type NotificationKind = 'reminder' | 'summary' | 'chore' | 'list' | 'message' | 'goal';
+export type NotificationKind = 'reminder' | 'summary' | 'chore' | 'list' | 'message' | 'goal' | 'medication';
 export type NotificationSource = 'system' | 'api' | 'mcp';
 
 // The in-app feed (GET /api/notifications): every send site records one row here, push or no
@@ -525,6 +528,74 @@ async function runGoalFollowups(env: Env, db: KinwallDb, now: Date, tz: string, 
   }
 }
 
+// Medication reminders (routes/medications.ts), for each dose that isn't taken or skipped:
+// - at its time (household), "Time for Leo's medicine" to devices that belong to them (key owner),
+//   and one row in the in-app feed;
+// - when a snooze runs out, the same push again (once per snooze, no feed row);
+// - 30 minutes after its time, for a kid (not grownUp), "Leo's 8:00 AM medicine hasn't been marked
+//   yet" to parent devices (admin keys) and the feed.
+// Push text is generic unless the device turned on medicationNames. Each is claimed once (an
+// insert into sent_notifications, keyed by a hash so the table never says what or when) and only
+// within GRACE of its time, so a late tick still sends and a restart never repeats. Quiet hours hold
+// the pushes, like the goal check: the family chose them; the card on the wall and the feed row stay.
+const MED_GRACE_MS = 30 * 60_000;
+async function runMedicationReminders(env: Env, db: KinwallDb, now: Date, tz: string, quiet: boolean): Promise<void> {
+  const meds = await loadMedications(env);
+  if (!meds.length) return;
+  const today = todayInTz(tz, now);
+  const yesterday = addDays(today, -1);
+  const logs = await loadLogs(env, meds.map((m) => m.id), yesterday, today);
+  const { results: members } = await db.prepare('SELECT id, name, grown_up FROM members').all<{ id: string; name: string; grown_up: number }>();
+  const byId = new Map(members.map((m) => [m.id, m]));
+  const claim = async (target: number, what: string) => {
+    if (now.getTime() < target || now.getTime() - target >= MED_GRACE_MS) return false;
+    const key = `med:${await sha256Hex(what)}`;
+    return !!(await db.prepare('INSERT INTO sent_notifications (key, sent_at) VALUES (?, ?) ON CONFLICT(key) DO NOTHING').bind(key, now.toISOString()).run()).meta.changes;
+  };
+  const due = new Map<string, { meds: Medication[]; feed: boolean }>(); // by member
+  const late = new Map<string, { memberId: string; time: string; meds: Medication[] }>(); // by member + date + time
+  for (const m of meds) {
+    const member = byId.get(m.memberId);
+    if (!member) continue;
+    for (const date of [yesterday, today]) {
+      if (!scheduledOn(m, date)) continue;
+      for (const time of m.times) {
+        const e = logs.get(`${m.id}:${date}`)?.[time];
+        if (e?.status) continue;
+        const at = doseAt(date, time, tz);
+        const first = await claim(at, `due:${m.id}:${date}:${time}`);
+        if (first || (e?.snoozedUntil && (await claim(Date.parse(e.snoozedUntil), `snooze:${m.id}:${date}:${time}:${e.snoozedUntil}`)))) {
+          const d = due.get(m.memberId) ?? { meds: [], feed: false };
+          due.set(m.memberId, { meds: [...d.meds, m], feed: d.feed || first });
+        }
+        if (!member.grown_up && (await claim(at + LATE_MS, `late:${m.id}:${date}:${time}`))) {
+          const k = `${m.memberId}:${date}:${time}`;
+          late.set(k, { memberId: m.memberId, time, meds: [...(late.get(k)?.meds ?? []), m] });
+        }
+      }
+    }
+  }
+  const send = async (subs: PushSubRow[], title: string, generic: string, named: Medication[], url: string, tag: string) => {
+    for (const sub of subs) await sendToSub(env, db, sub, { title, body: subPrefs(sub).medicationNames ? named.map(medicineLabel).join(', ') : generic, url, tag });
+  };
+  for (const [memberId, d] of due) {
+    const title = `Time for ${byId.get(memberId)!.name}'s medicine`;
+    const url = `/#/medications/${memberId}`;
+    if (d.feed) await recordNotification(db, { kind: 'medication', title, url, memberIds: [memberId], source: 'system', at: now });
+    if (quiet) continue;
+    const { results: subs } = await db.prepare('SELECT s.* FROM push_subscriptions s JOIN api_keys k ON k.id = s.api_key_id WHERE k.owner = ?').bind(memberId).all<PushSubRow>();
+    await send(subs, title, 'Tap to mark it taken.', d.meds, url, `med:${memberId}`);
+  }
+  if (!late.size) return;
+  const { results: parents } = quiet ? { results: [] } : await db.prepare("SELECT s.* FROM push_subscriptions s JOIN api_keys k ON k.id = s.api_key_id WHERE k.scope = 'admin'").all<PushSubRow>();
+  for (const l of late.values()) {
+    const title = `${byId.get(l.memberId)!.name}'s ${clockLabel(l.time)} medicine hasn't been marked yet`;
+    const url = `/#/medications/${l.memberId}`;
+    await recordNotification(db, { kind: 'medication', title, url, memberIds: [l.memberId], source: 'system', at: now });
+    await send(parents, title, 'Tap to check.', l.meds, url, `med-late:${l.memberId}`);
+  }
+}
+
 // Entry point for the cron (Workers) and setInterval (Node) tickers.
 export async function runNotifications(env: Env, now: Date, _execCtx?: WaitCtx): Promise<void> {
   // No early bail on zero subscriptions: the in-app feed records reminders/summaries regardless.
@@ -554,6 +625,10 @@ export async function runNotifications(env: Env, now: Date, _execCtx?: WaitCtx):
   await runDailySummary(env, env.DB, now, tz, subs, windowStart, features);
   if (features.chores) await runChoreNudge(env, env.DB, now, tz, subs, windowStart); // Chores turned off: no nudge
   await runGoalFollowups(env, env.DB, now, tz, windowStart, quiet);
+  if ((await env.DB.prepare("SELECT value FROM settings WHERE key = 'medications'").first<{ value: string }>())?.value === 'true') {
+    // Never let a sealed value that won't open (no key) stop the other reminders; the error's name only, never data.
+    try { await runMedicationReminders(env, env.DB, now, tz, quiet); } catch (e) { console.error('medication reminders skipped:', e instanceof Error ? e.name : 'error'); }
+  }
   await pruneSentNotifications(env.DB, now);
   await setTickWindowEnd(env.DB, now);
 }

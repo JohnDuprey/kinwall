@@ -140,6 +140,12 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'POST', pattern: /^\/api\/members\/[^/]+\/journal$/ },
   { method: 'PATCH', pattern: /^\/api\/members\/[^/]+\/journal\/[^/]+$/ },
   { method: 'DELETE', pattern: /^\/api\/members\/[^/]+\/journal\/[^/]+$/ },
+  // Medications: Take now cards and marking doses on the wall and a person's own device; their own list
+  // and history on their own device (routes/medications.ts decides who sees what). Adding and editing: parents.
+  { method: 'GET', pattern: /^\/api\/medications$/ },
+  { method: 'GET', pattern: /^\/api\/medications\/due$/ },
+  { method: 'POST', pattern: /^\/api\/medications\/[^/]+\/doses$/ },
+  { method: 'GET', pattern: /^\/api\/members\/[^/]+\/medications$/ },
   { method: 'GET', pattern: /^\/api\/stickers\/packs$/ },
   { method: 'POST', pattern: /^\/api\/stickers\/packs\/[^/]+\/buy$/ },
   { method: 'GET', pattern: /^\/api\/stickers\/scrapbook\/[^/]+$/ },

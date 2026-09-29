@@ -42,7 +42,7 @@ The card reads **Clock only** or sums up the slideshow (for example "Drawings an
 
 ## Notifications
 
-This device's push notifications: **Turn on notifications**, **Event reminders**, **Daily summary**, **Chore reminder**, **List updates**, **Which family members?**, **Send test** and **Turn off**. See [Notifications](../using/notifications.md).
+This device's push notifications: **Turn on notifications**, **Event reminders**, **Daily summary**, **Chore reminder**, **List updates**, **Show medicine names in notifications on this device** (with [medications](../using/medications.md) on; off by default, so reminders say only "Time for Leo's medicine"), **Which family members?**, **Send test** and **Turn off**. See [Notifications](../using/notifications.md).
 
 ## Troubleshooting
 

@@ -1,7 +1,7 @@
 // Dev-only in-memory fixture, used when VITE_MOCK=1. Excluded from prod by the env check in api.ts.
 import type { OnlineTidbits, Plugin, PluginCatalogEntry,
   Account, ApiKey, AppNotification, CalendarEntry, Category, Chore, ChoreDay, EventInstance, LeaderboardEntry, LeaderboardPeriod, List, ListGroup,
-  Photo, PhotoQuota, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, ListItem, ListItemInput, ListItemPatch, ListItemStep, Member, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption, TempCheck, TempCheckInput, Journal, JournalEntry,
+  Photo, PhotoQuota, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, ListItem, ListItemInput, ListItemPatch, ListItemStep, Member, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption, TempCheck, TempCheckInput, Journal, JournalEntry, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory, DoseStatus,
 } from './types.ts'
 import { FEELINGS, TEMP_CHECK_OFF } from './tempCheck.ts'
 import { aisleOrderMap, compareItems } from './types.ts'
@@ -29,6 +29,20 @@ for (const [n, sleep, feelings, goal, followup] of [
 const journalEntries: JournalEntry[] = [
   { id: 'je1', memberId: 'm3', date: demoDay(-1), text: 'We saw a double rainbow on the way home from soccer!', mood: '🌈', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
 ]
+// Medication reminders: Leo's allergy medicine and Sam's vitamin, with a week of history. The demo is
+// a parent's device, and today's doses are due any time of day so the Take now card always shows.
+const medications: Medication[] = [
+  { id: 'med1', memberId: 'm4', name: 'Allergy medicine', dose: '1 tablet', times: ['08:00'], days: [0, 1, 2, 3, 4, 5, 6], createdAt: new Date(Date.now() - 30 * 86_400_000).toISOString(), updatedAt: new Date().toISOString() },
+  { id: 'med2', memberId: 'm2', name: 'Daily vitamin', dose: '1 capsule', times: ['08:00'], days: [0, 1, 2, 3, 4, 5, 6], createdAt: new Date(Date.now() - 30 * 86_400_000).toISOString(), updatedAt: new Date().toISOString() },
+]
+type MockDose = { status?: 'taken' | 'skipped'; at?: string; by?: string; snoozedUntil?: string }
+const medLog = new Map<string, Record<string, MockDose>>() // `${medicationId}:${date}`
+for (let n = 1; n <= 6; n++) {
+  const at = new Date(Date.now() - n * 86_400_000).toISOString()
+  if (n !== 4) medLog.set(`med1:${demoDay(-n)}`, { '08:00': { status: n === 2 ? 'skipped' : 'taken', at, by: 'Kitchen wall' } }) // 4 days ago: not marked
+  if (n !== 5) medLog.set(`med2:${demoDay(-n)}`, { '08:00': { status: 'taken', at, by: "Sam's phone" } })
+}
+const doseStatus = (date: string, e: MockDose | undefined): DoseStatus => e?.status ?? (date < dateKey(new Date()) ? 'missed' : 'due')
 const bump = () => { rev++ }
 
 const settings: Settings = {
@@ -57,6 +71,8 @@ const settings: Settings = {
   stickersEnabled: true,
   stickerPriceScale: 100,
   aiHealthAccess: false,
+  medications: true, // on in the demo, with samples for Leo and Sam
+  medicationNamesOnWalls: false,
   location: { name: 'Portland', lat: 45.5152, lon: -122.6784, countryCode: 'US' },
   temperatureUnit: 'fahrenheit',
   tidbits: { sources: ['quotes', 'facts', 'onthisday', 'trivia'], factCategories: [], tipCategories: [], onThisDay: ['holidays', 'births'], birthsAfter: 1900, triviaCategories: [27, 17, 22, 9], triviaDifficulties: ['easy'] },
@@ -503,6 +519,51 @@ export const mock = {
   },
   deleteJournalEntry: async (memberId: string, id: string): Promise<void> => {
     const i = journalEntries.findIndex(x => x.id === id && x.memberId === memberId); if (i >= 0) journalEntries.splice(i, 1); bump()
+  },
+  getMedications: async (memberId?: string): Promise<Medication[]> => medications.filter(m => !memberId || m.memberId === memberId).map(m => ({ ...m })),
+  addMedication: async (b: MedicationInput): Promise<Medication> => {
+    const now = new Date().toISOString()
+    const m: Medication = { id: uid(), ...b, name: b.name.trim(), dose: b.dose.trim(), times: [...new Set(b.times)].sort(), days: [...new Set(b.days)].sort(), createdAt: now, updatedAt: now }
+    medications.push(m); bump(); return { ...m }
+  },
+  updateMedication: async (id: string, b: Partial<Omit<MedicationInput, 'memberId'>>): Promise<Medication> => {
+    const m = medications.find(x => x.id === id); if (!m) throw new Error('not found')
+    Object.assign(m, Object.fromEntries(Object.entries(b).filter(([, v]) => v !== undefined)), { updatedAt: new Date().toISOString() }); bump(); return { ...m }
+  },
+  deleteMedication: async (id: string): Promise<void> => {
+    const i = medications.findIndex(x => x.id === id); if (i >= 0) medications.splice(i, 1)
+    for (const k of [...medLog.keys()]) if (k.startsWith(`${id}:`)) medLog.delete(k)
+    bump()
+  },
+  deleteAllMedications: async (): Promise<{ deleted: number }> => { const deleted = medications.length; medications.length = 0; medLog.clear(); bump(); return { deleted } },
+  getMedicationsDue: async (): Promise<MedicationsDue> => {
+    if (!settings.medications) throw new Error('Medications are turned off')
+    const date = dateKey(new Date()), now = Date.now()
+    const doses = medications.flatMap(m => m.days.includes(new Date().getDay()) ? m.times.flatMap(time => {
+      const e = medLog.get(`${m.id}:${date}`)?.[time]
+      if (doseStatus(date, e) !== 'due' || (e?.snoozedUntil && Date.parse(e.snoozedUntil) > now)) return []
+      return [{ medicationId: m.id, memberId: m.memberId, date, time, dueAt: new Date().toISOString(), name: m.name, dose: m.dose }]
+    }) : [])
+    const order = (id: string) => members.findIndex(x => x.id === id)
+    return { names: true, doses: doses.sort((a, b) => a.time.localeCompare(b.time) || order(a.memberId) - order(b.memberId)) }
+  },
+  markDose: async (medicationId: string, b: { date: string; time: string; action: 'taken' | 'skipped' | 'snooze' }): Promise<MedicationDose> => {
+    const log = medLog.get(`${medicationId}:${b.date}`) ?? {}
+    log[b.time] = b.action === 'snooze' ? { snoozedUntil: new Date(Date.now() + 10 * 60_000).toISOString() } : { status: b.action, at: new Date().toISOString(), by: 'This device' }
+    medLog.set(`${medicationId}:${b.date}`, log); bump()
+    const e = log[b.time]
+    return { medicationId, date: b.date, time: b.time, status: doseStatus(b.date, e), at: e.at ?? null, by: e.by ?? null, snoozedUntil: e.snoozedUntil ?? null }
+  },
+  getMedicationHistory: async (memberId: string, n = 7): Promise<MedicationHistory> => {
+    const mine = medications.filter(m => m.memberId === memberId)
+    const days = Array.from({ length: n }, (_, i) => demoDay(i - n + 1)).map(date => ({
+      date,
+      doses: mine.flatMap(m => m.days.includes(new Date(`${date}T12:00:00`).getDay()) ? m.times.map(time => {
+        const e = medLog.get(`${m.id}:${date}`)?.[time]
+        return { medicationId: m.id, time, status: doseStatus(date, e), at: e?.at ?? null, by: e?.by ?? null }
+      }) : []).sort((a, b) => a.time.localeCompare(b.time)),
+    }))
+    return { memberId, today: dateKey(new Date()), medications: mine.map(m => ({ ...m })), days }
   },
   createMember: async (m: Partial<Member>) => {
     const nm: Member = { id: uid(), name: m.name ?? 'New', color: m.color ?? '#FF9E7A', avatar: m.avatar ?? '🙂', birthday: m.birthday ?? null, grownUp: !!m.grownUp, needsApproval: !m.grownUp && !!m.needsApproval, sort: members.length, pointsToday: 0, pointsWeek: 0, balance: 0 }
