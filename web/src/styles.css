@@ -1113,7 +1113,11 @@ button {
 .list-card.active { border-color: var(--list-color, var(--accent)); }
 .list-card:active { transform: scale(0.98); }
 .list-card-accent { position: absolute; left: 0; top: 0; bottom: 0; width: 6px; background: var(--list-color, var(--accent)); }
-.list-card-emoji { font-size: 1.625rem; flex-shrink: 0; }
+.list-card-emoji { font-size: 1.25rem; flex-shrink: 0; }
+/* A family-picked emoji on a small round plate, so a gray one (🛒) still reads on any scheme's card. */
+.list-card-emoji, .list-detail-emoji, .emoji-plate { width: 1.6em; height: 1.6em; display: inline-grid; place-items: center; border-radius: 50%; background: var(--bg-alt); line-height: 1; }
+/* --bg-alt is darker than the card in dark mode, which sinks a gray emoji; lift the plate instead. */
+:root[data-theme="dark"] :is(.list-card-emoji, .list-detail-emoji, .emoji-plate) { background: color-mix(in srgb, var(--text) 30%, var(--card)); }
 .list-card-body { flex: 1; min-width: 0; }
 .list-card-name { font-weight: 800; font-size: 0.9375rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .list-card-sub { font-size: 0.78125rem; color: var(--text-dim); font-weight: 700; margin-top: 2px; }
@@ -1154,7 +1158,7 @@ button {
 .checklist-rows { display: flex; flex-direction: column; }
 .checklist-edit { display: block; margin-top: 12px; text-align: center; }
 .list-detail-header .btn { flex: none; min-height: 44px; padding: 8px 18px; }
-.list-detail-emoji { font-size: 1.75rem; flex-shrink: 0; }
+.list-detail-emoji { font-size: 1.375rem; flex-shrink: 0; }
 .list-detail-title { flex: 1; min-width: 0; }
 .list-detail-name { font-weight: 800; font-size: 1.0625rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .list-detail-sub { font-size: 0.78125rem; color: var(--text-dim); font-weight: 700; }
@@ -1277,6 +1281,7 @@ button {
 .shop-bar-title { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; }
 .shop-bar h2 { margin: 0; max-width: 100%; font-size: 1.0625rem; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .shop-bar h2:focus { outline: none; } /* focused on open so it's announced; not a control */
+.shop-store-btn > svg { margin-right: 4px; vertical-align: -3px; }
 .shop-store-btn { min-height: 32px; max-width: 100%; padding: 0; border: none; background: none; color: var(--accent-strong); font: inherit; font-size: 0.875rem; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
 .shop-left { font-size: 0.875rem; font-weight: 800; color: var(--text-dim); white-space: nowrap; }
 .shop-done { flex: none; padding-inline: 22px; }
@@ -1755,7 +1760,7 @@ button.toast { border: none; font-family: inherit; cursor: pointer; } /* errors:
 :root[data-density="icons"] .schedule-avatars { font-size: 1.375rem; }
 :root[data-density="icons"] .chore-emoji { font-size: 2.5rem; }
 :root[data-density="icons"] .chore-title { font-size: 0.8125rem; font-weight: 700; }
-:root[data-density="icons"] .list-card-emoji { font-size: 2.25rem; }
+:root[data-density="icons"] .list-card-emoji { font-size: 1.75rem; }
 :root[data-density="icons"] .list-card-name { font-weight: 700; font-size: 0.875rem; }
 :root[data-density="icons"] .list-item-row .member-avatar-sm { width: 40px; height: 40px; font-size: 1.375rem; }
 :root[data-density="icons"] .list-item-title { font-weight: 600; -webkit-line-clamp: 3; line-clamp: 3; }
@@ -2166,6 +2171,8 @@ button.board-empty-tap { display: block; width: 100%; text-align: left; backgrou
   display: flex; flex-wrap: wrap; align-items: center; align-content: center; gap: 2px 12px; color: var(--text); text-decoration: none;
 }
 .board-tile:active { transform: scale(0.99); }
+.board-tile-label > svg, .board-tile-label > .emoji-plate { margin-right: 6px; vertical-align: -3px; }
+.board-tile-label > .emoji-plate { font-size: 0.875rem; vertical-align: middle; }
 .board-tile-label { flex-basis: 100%; font-size: 0.8125rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .board-tile-value { font-size: 1.125rem; font-weight: 800; }
 .board-tile-value > span { white-space: nowrap; }

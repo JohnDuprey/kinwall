@@ -97,6 +97,10 @@ export const CartIcon = (p: P) => (
   // shopping cart from Lucide (ISC license, lucide.dev)
   <svg {...base(p)}><circle cx="8" cy="21" r="1" /><circle cx="19" cy="21" r="1" /><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12" /></svg>
 )
+export const PillIcon = (p: P) => (
+  // pill from Lucide (ISC license, lucide.dev)
+  <svg {...base(p)}><path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z" /><path d="m8.5 8.5 7 7" /></svg>
+)
 export const FilterIcon = (p: P) => (
   <svg {...base(p)}><path d="M3 5h18l-7 8.5V19l-4 2v-7.5z" /></svg>
 )

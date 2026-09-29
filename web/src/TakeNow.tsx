@@ -11,6 +11,7 @@ import { timeLabel } from './journal.ts'
 import { cardLabel, cheerLine } from './medications.ts'
 import { Confetti } from './Chores.tsx'
 import Sheet from './Sheet.tsx'
+import { PillIcon } from './icons.tsx'
 import type { DueDose, MedicationsDue } from './types.ts'
 
 const RECHECK_MS = 60_000 // a dose shows up at its time without waiting for the next refresh
@@ -59,7 +60,7 @@ export function TakeNowTile({ doses, drop }: Due) {
   const who = [...new Set(doses.map(d => d.memberId))].map(id => members.find(m => m.id === id)).filter(m => m !== undefined)
   return <>
     <button className="board-tile meds-now meds-now-tile" aria-haspopup="dialog" onClick={() => setOpen(true)}>
-      <span className="board-tile-label">💊 Take now</span>
+      <span className="board-tile-label"><PillIcon width={16} height={16} />Take now</span>
       <span className="board-tile-value">{doses.length} due</span>
       <span className="board-tile-people">
         {who.map(m => (

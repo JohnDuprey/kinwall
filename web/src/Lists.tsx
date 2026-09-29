@@ -1252,7 +1252,7 @@ function ListDetailPane({ listId, isPhone, shopMode, onBack, onArchivedOrDeleted
           <div className="shop-bar-title">
             <h2 id={`shop-title-${listId}`} ref={shopHeading} tabIndex={-1}>{list.name}<span className="sr-only">, shopping mode</span></h2>
             <button className="shop-store-btn" onClick={() => setPicking(true)} aria-label={`Shopping at ${storeLabel ?? 'no store yet'}. Change store`}>
-              <span aria-hidden="true">🛒 </span>{storeLabel ?? 'Pick a store'} <span aria-hidden="true">▾</span>
+              <CartIcon width={16} height={16} />{storeLabel ?? 'Pick a store'} <span aria-hidden="true">▾</span>
             </button>
           </div>
           {view && <div className="shop-left">{tripLeft} left</div>}

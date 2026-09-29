@@ -15,6 +15,7 @@ import TodaysMeals from './TodaysMeals.tsx'
 import { boardGoals } from './tempCheck.ts'
 import { TakeNowTile, useDueDoses } from './TakeNow.tsx'
 import Sheet from './Sheet.tsx'
+import { CartIcon } from './icons.tsx'
 import { moreLabel, rowsThatFit } from './boardFit.ts'
 
 const REFRESH_MS = 10 * 60_000
@@ -186,7 +187,7 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
             )}
             {tiles.includes('groceries') && (
               <a className="board-tile" href={groceries.length === 1 ? `#/lists?list=${encodeURIComponent(groceries[0].id)}` : '#/lists'}>
-                <span className="board-tile-label">{groceries.length === 1 ? `${groceries[0].emoji ?? '🛒'} ${groceries[0].name}` : '🛒 Groceries'}</span>
+                <span className="board-tile-label">{groceries.length === 1 && groceries[0].emoji ? <><span className="emoji-plate" aria-hidden="true">{groceries[0].emoji}</span></> : <CartIcon width={16} height={16} />}{groceries.length === 1 ? groceries[0].name : 'Groceries'}</span>
                 <span className="board-tile-value">{groceryCount ? `${groceryCount} on the list` : 'Nothing needed'}</span>
               </a>
             )}
