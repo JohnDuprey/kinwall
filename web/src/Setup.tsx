@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { HelpButton } from './Help.tsx'
 import { api, ApiError, getAdminKey, setAdminKey, clearAdminKey, setKey } from './api.ts'
 import { QrCode } from './App.tsx'
-import { CalendarCheckRow, initialPicks, RecoveryCodesView, timezoneList } from './Settings.tsx'
+import { CalendarCheckRow, initialPicks, RecoveryCodesView } from './Settings.tsx'
+import TimezoneField from './TimezoneField.tsx'
 import { announce } from './a11y.tsx'
 import { MEMBER_EMOJI, MEMBER_PALETTE, nextPaletteColor } from './types.ts'
 import type { Member, Settings } from './types.ts'
@@ -246,7 +247,6 @@ function RecoveryStep({ onNext }: { onNext: () => void }) {
 }
 
 function HouseholdStep({ useAdmin, onNext, onBack }: { useAdmin: boolean; onNext: () => void; onBack: () => void }) {
-  const tzs = useMemo(timezoneList, [])
   const [familyName, setFamilyName] = useState('Our Family')
   // A host may have set the name before the wizard runs (hosted signup asks for it); keep it.
   useEffect(() => { api.getSettings(useAdmin).then(s => { if (s.familyName && s.familyName !== 'Our Family') setFamilyName(s.familyName) }).catch(() => {}) }, [])
@@ -268,10 +268,8 @@ function HouseholdStep({ useAdmin, onNext, onBack }: { useAdmin: boolean; onNext
       <h1>Your household</h1>
       <div className="field"><label>Family name</label><input type="text" value={familyName} onChange={e => setFamilyName(e.target.value)} autoFocus /></div>
       <div className="field">
-        <label>Timezone</label>
-        <select className="settings-select setup-select" value={timezone} onChange={e => setTimezone(e.target.value)}>
-          {tzs.map(tz => <option key={tz} value={tz}>{tz}</option>)}
-        </select>
+        <label htmlFor="setup-timezone">Timezone</label>
+        <TimezoneField id="setup-timezone" value={timezone} onChange={setTimezone} />
       </div>
       <div className="field">
         <label>Week starts on</label>

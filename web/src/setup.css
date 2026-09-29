@@ -80,7 +80,6 @@
 .setup-role-title { font-weight: 800; font-size: 1.0625rem; color: var(--text); }
 .setup-role-sub { font-weight: 600; font-size: 0.8125rem; color: var(--text-dim); }
 
-.setup-select { width: 100%; min-height: 52px; }
 .setup-choice-row { display: flex; gap: 10px; }
 .setup-choice {
   flex: 1; min-height: 56px; border-radius: var(--radius-sm); border: 2px solid var(--border);

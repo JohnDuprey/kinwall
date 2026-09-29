@@ -663,6 +663,7 @@ button {
 .pick-swatch { flex-shrink: 0; width: 20px; height: 20px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--text) 15%, transparent); }
 .pick-sheet-search { min-height: 50vh; } /* the sheet keeps its height while the list narrows */
 .pick-sheet .sheet-links { margin-top: 0; }
+.settings-row .pick-btn { width: auto; max-width: 60%; min-height: 44px; }
 
 .field { margin-bottom: 16px; }
 .field-hint { font-size: 0.8125rem; color: var(--text-dim); margin: 6px 0 0; }
@@ -1436,6 +1437,7 @@ button {
   .settings-scroll { padding-left: 14px; padding-right: 14px; }
   .settings-row { flex-direction: column; align-items: stretch; gap: 6px; }
   .settings-row .settings-select, .settings-row select, .settings-row .theme-toggle { width: 100%; }
+  .settings-row .pick-btn { width: 100%; max-width: none; }
   .settings-select { width: 100%; }
   .family-name-input { text-align: left; width: 100%; min-width: 0; }
   /* Four tabs across a phone: stretch the segmented control to the full width. */

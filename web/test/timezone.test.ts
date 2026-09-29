@@ -1,0 +1,32 @@
+// node --test test/ (npm test). Timezone picker: offsets, local times, names and order.
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import { offsetLabel, tzCity, tzInfo, tzOrder } from '../src/timezone.ts'
+
+test('offsetLabel: GMT offsets read as UTC with a real minus sign', () => {
+  assert.equal(offsetLabel('GMT-4'), 'UTC−4')
+  assert.equal(offsetLabel('GMT+5:45'), 'UTC+5:45')
+  assert.equal(offsetLabel('GMT'), 'UTC')
+})
+
+test('tzInfo: local time and offset at a moment, daylight saving included', () => {
+  const summer = new Date('2026-07-01T00:04:00Z'), winter = new Date('2026-01-01T01:04:00Z')
+  assert.deepEqual(tzInfo('America/New_York', summer), { time: '8:04 PM', offset: 'UTC−4' })
+  assert.deepEqual(tzInfo('America/New_York', winter), { time: '8:04 PM', offset: 'UTC−5' })
+  assert.deepEqual(tzInfo('Asia/Kathmandu', summer), { time: '5:49 AM', offset: 'UTC+5:45' })
+  assert.deepEqual(tzInfo('UTC', summer), { time: '12:04 AM', offset: 'UTC' })
+})
+
+test('tzCity: the last part, with spaces', () => {
+  assert.equal(tzCity('America/New_York'), 'New York')
+  assert.equal(tzCity('America/Argentina/Buenos_Aires'), 'Buenos Aires')
+  assert.equal(tzCity('UTC'), 'UTC')
+})
+
+test('tzOrder: this device and the current zone first, once each', () => {
+  const all = ['UTC', 'America/Chicago', 'America/New_York', 'Europe/Paris']
+  assert.deepEqual(tzOrder(all, 'America/New_York', 'Europe/Paris'), ['America/New_York', 'Europe/Paris', 'UTC', 'America/Chicago'])
+  assert.deepEqual(tzOrder(all, 'America/New_York', 'America/New_York'), ['America/New_York', 'UTC', 'America/Chicago', 'Europe/Paris'])
+  // A saved zone the list lacks (an old alias like US/Eastern) still shows, so the row never lies.
+  assert.deepEqual(tzOrder(all, 'America/Chicago', 'US/Eastern'), ['America/Chicago', 'US/Eastern', 'UTC', 'America/New_York', 'Europe/Paris'])
+})

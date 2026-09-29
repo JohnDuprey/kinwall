@@ -14,7 +14,7 @@ The Kinwall version ("Kinwall v…") shows at the bottom.
 | Setting | Notes |
 |---|---|
 | **Family name** | Shown in the header. Default "Our Family". Saves when you leave the field. |
-| **Timezone** | The household timezone. Chores, reminders, summaries and "today" use it. If it's not set, the first device to load the app sets it from its own timezone. |
+| **Timezone** | The household timezone. Chores, reminders, summaries and "today" use it. If it's not set, the first device to load the app sets it from its own timezone. Tap it to choose from a list: this device's timezone and the current one come first, each row shows the time there and its UTC offset ("8:04 PM · UTC−4"), and the search finds a city or region ("New York", "America/New_York"). |
 | **Week starts on** | Sunday or Monday. Applies to the Week and Month views and the weekly leaderboard. |
 | **Default reminder** | *Admin only.* The reminder used for events that have none of their own: None, 5, 10, 15, 30 minutes, 1 hour or 1 day. Default 30 minutes. |
 

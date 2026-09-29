@@ -12,11 +12,11 @@ export const PickSwatch = ({ color }: { color: string }) => <span className="pic
  * current choice and opens a sheet of checkable rows (like the meal sheet's recipe picker).
  * Single choice picks and closes; multiple toggles, with Clear and Done. Search shows for long
  * lists. `top` rows (a detected timezone) are listed first, with the rest in `options` order. */
-export default function PickField({ id, label, title = label, options, value, onChange, multiple = false, search = options.length > 8, placeholder = 'Search', none = 'None', summary }: {
+export default function PickField({ id, label, title = label, options: given, value, onChange, multiple = false, search, placeholder = 'Search', none = 'None', summary }: {
   id?: string
   label: string // what the row is for, read with its value: "Categories: Medical, School"
   title?: string
-  options: PickOption[]
+  options: PickOption[] | (() => PickOption[]) // a function: built only while the sheet is open (give `summary`)
   value: string[]
   onChange: (value: string[]) => void
   multiple?: boolean
@@ -27,6 +27,8 @@ export default function PickField({ id, label, title = label, options, value, on
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
+  const options = typeof given === 'function' ? (open ? given() : []) : given
+  const searchable = search ?? options.length > 8
   const shown = options.filter(o => pickMatches(o, query))
   const text = summary ?? pickSummary(options, value, none)
   const lead = !multiple ? options.find(o => o.value === value[0])?.lead : null
@@ -50,8 +52,8 @@ export default function PickField({ id, label, title = label, options, value, on
       {multiple && <button type="button" className="btn btn-secondary" disabled={!value.length} onClick={() => onChange([])}>Clear</button>}
       <button type="button" className="btn btn-primary" onClick={close}>Done</button>
     </>}>
-      <div className={search ? 'pick-sheet pick-sheet-search' : 'pick-sheet'} onKeyDown={onKey}>
-        {search && <div className="field"><input type="search" aria-label={`Search ${title.toLocaleLowerCase()}`} placeholder={placeholder} value={query} onChange={e => setQuery(e.target.value)}
+      <div className={searchable ? 'pick-sheet pick-sheet-search' : 'pick-sheet'} onKeyDown={onKey}>
+        {searchable && <div className="field"><input type="search" aria-label={`Search ${title.toLocaleLowerCase()}`} placeholder={placeholder} value={query} onChange={e => setQuery(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && shown[0]) { e.preventDefault(); choose(shown[0].value) } }} /></div>}
         <div className="sheet-links">
           {shown.map(o => {

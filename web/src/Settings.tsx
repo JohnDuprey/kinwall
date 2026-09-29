@@ -1,4 +1,4 @@
-import { createContext, Fragment, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createContext, Fragment, useContext, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { AppContext, useApp } from './AppContext.tsx'
 import { api, ApiError, clearKey } from './api.ts'
 import type { Account, ApiKey, CalendarEntry, Category, ColorScheme, CustomColors, Density, DeviceDensity, Features, GeocodeResult, HostEvent, Me, Member, Passkey, Providers, PushSubscription, RemoteCalendar, Settings, TempCheckSettings, TextScale, ThemeMode, Webhook } from './types.ts'
@@ -11,6 +11,7 @@ import { tidbitSummary } from './tidbits.ts'
 import { featuresSummary, nightSummary, timeCuesSummary, transitionRemindersSummary } from './settingsSummary.ts'
 import { MAX_WARNING_TIMES, REPEAT_EVERY, REPEAT_WITHIN, warningTimes, type TransitionReminders, type WarningRepeat } from './transitions.ts'
 import { MemberPicker } from './MemberPicker.tsx'
+import TimezoneField from './TimezoneField.tsx'
 import { AnyEmojiField } from './AnyEmojiField.tsx'
 import { isValidAvatar } from './emoji.ts'
 import { accentFill, colorName, inkFor } from './color.ts'
@@ -36,16 +37,6 @@ import { FEATURE_ROWS } from './featureConfig.ts'
 
 // Mirrors BusEventType in server/src/bus.ts.
 const BUS_EVENTS = ['member.changed', 'calendar.changed', 'calendar.synced', 'events.changed', 'chore.changed', 'chore.completed', 'chore.uncompleted', 'chore.pending', 'chore.rejected', 'checkin.completed', 'tempcheck.changed', 'list.changed', 'list.item.changed', 'category.changed', 'settings.changed', 'sticker.changed', 'reward.changed', 'reward.redeemed', 'reward.approved', 'reward.declined', 'reward.given', 'recipe.changed', 'meal.changed', 'photo.changed', 'tracker.changed', 'contact.changed', 'contact.category.changed', 'display.paired']
-
-export function timezoneList() {
-  // Intl.supportedValuesOf('timeZone') doesn't include 'UTC' itself (the server's default
-  // settings.timezone), which left the <select> silently showing the wrong zone. Prepend it.
-  try {
-    return ['UTC', ...Intl.supportedValuesOf('timeZone')]
-  } catch {
-    return ['UTC', 'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles', 'Europe/London', 'Europe/Berlin']
-  }
-}
 
 type SettingsTab = 'general' | 'family' | 'calendars' | 'access'
 const SETTINGS_TABS: { key: SettingsTab; label: string; admin?: boolean }[] = [
@@ -190,7 +181,6 @@ function Section({ id, title, icon, children }: { id?: string; title: string; ic
 }
 
 function GeneralSection({ settings, onSaved, toast, isDisplay }: { settings: ReturnType<typeof useApp>['settings']; onSaved: () => void; toast: (m: string, persist?: boolean) => void; isDisplay: boolean }) {
-  const tzs = useMemo(timezoneList, [])
   const save = async (patch: Partial<typeof settings>) => {
     try { await api.updateSettings(patch); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save settings', true) }
   }
@@ -204,9 +194,7 @@ function GeneralSection({ settings, onSaved, toast, isDisplay }: { settings: Ret
       </div>
       <div className="settings-row">
         <div className="settings-row-label">Timezone</div>
-        <select className="settings-select" aria-label="Timezone" value={settings.timezone ?? ''} onChange={e => save({ timezone: e.target.value })}>
-          {tzs.map(tz => <option key={tz} value={tz}>{tz}</option>)}
-        </select>
+        <TimezoneField value={settings.timezone ?? null} onChange={timezone => save({ timezone })} />
       </div>
       <div className="settings-row">
         <div className="settings-row-label">Week starts on</div>
