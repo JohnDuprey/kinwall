@@ -91,7 +91,8 @@ test('temp check: sleep, feelings and custom feelings are sealed at rest; the go
   assert.equal(row.goal, 'Practice piano');
   const m = rawMember(maya.id);
   assert.match(m.temp_check_feelings!, /^enc:v1:/);
-  for (const s of ['terrible', 'sore', SECRET]) assert.equal(JSON.stringify([row, m]).includes(s), false, s);
+  // Ciphertext is random base64, so a short word like 'sore' can turn up inside it by chance: look only outside it.
+  for (const s of ['terrible', 'sore', SECRET]) assert.equal(JSON.stringify([row, m]).replace(/enc:v1:[^"\\]+/g, '').includes(s), false, s);
   assert.deepEqual((await req(url(maya.id))).json.feelings, ['sore', SECRET]);
 });
 

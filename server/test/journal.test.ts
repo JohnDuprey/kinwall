@@ -257,7 +257,7 @@ test('journal and follow-up are sealed at rest; without ENCRYPTION_KEY nothing i
   const [entry] = raw('journal_entries');
   assert.match(String(entry.text), /^enc:v1:/);
   assert.match(String(entry.mood), /^enc:v1:/);
-  for (const s of [SECRET, 'partly', '🤫']) assert.equal(JSON.stringify([row, entry]).includes(s), false, s);
+  for (const s of [SECRET, 'partly', '🤫']) assert.equal(JSON.stringify([row, entry]).replace(/enc:v1:[^"\\]+/g, '').includes(s), false, s);
 
   const noKey = await setup({ ENCRYPTION_KEY: undefined });
   await noKey.req(tc(noKey.maya.id), 'PUT', { goal: 'Practice piano' });
