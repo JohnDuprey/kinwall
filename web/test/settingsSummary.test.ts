@@ -30,4 +30,8 @@ test('night screen', () => {
   assert.equal(nightSummary({ sources: [], every: 5, bright: 'low', clock: true }), 'Clock only')
   assert.equal(nightSummary({ sources: ['Drawings', 'Family photos'], every: 5, bright: 'low', clock: true }), 'Drawings and family photos, every 5 min, clock on')
   assert.equal(nightSummary({ sources: ['Art (The Met)', 'Nature', 'Drawings'], every: 2, bright: 'medium', clock: false }), 'Art (The Met), nature, and drawings, every 2 min, medium brightness, no clock')
+  // A fixed clock position is named; "Moves around" (the default) isn't.
+  assert.equal(nightSummary({ sources: [], every: 5, bright: 'low', clock: true, pos: 'Top left' }), 'Clock only, top left')
+  assert.equal(nightSummary({ sources: ['Nature'], every: 5, bright: 'low', clock: true, pos: 'Center' }), 'Nature, every 5 min, clock center')
+  assert.equal(nightSummary({ sources: ['Nature'], every: 5, bright: 'low', clock: false, pos: 'Center' }), 'Nature, every 5 min, no clock')
 })

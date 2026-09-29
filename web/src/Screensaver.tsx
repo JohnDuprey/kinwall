@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { drawingIds, getDrawing } from './drawings-db.ts'
 import { api } from './api.ts'
 import type { DeviceAppearance, SaverSource } from './useTheme.ts'
+import { spotStyle, type Spot } from './nightClock.ts'
 
 interface Pic { key: number; src: string; caption?: string; revoke?: boolean }
 type Source = () => Promise<Omit<Pic, 'key'> | null> // null = nothing to show (no drawings)
@@ -138,7 +139,7 @@ export function useSlideshowPictures(sources: SaverSource[], everySeconds: numbe
   return { pics, failed, n }
 }
 
-export default function Slideshow({ sources, device, clock }: { sources: SaverSource[]; device: DeviceAppearance; clock: (small: boolean) => ReactNode }) {
+export default function Slideshow({ sources, device, clock, spot }: { sources: SaverSource[]; device: DeviceAppearance; clock: (small: boolean) => ReactNode; spot: Spot }) {
   const { pics, failed, n } = useSlideshowPictures(sources, (device.saverEvery ?? 5) * 60)
   const [drift, setDrift] = useState({ x: 0, y: 0 })
   const reduced = useRef(matchMedia('(prefers-reduced-motion: reduce)').matches).current
@@ -153,7 +154,7 @@ export default function Slideshow({ sources, device, clock }: { sources: SaverSo
         {pics.map(p => <img key={p.key} className="saver-img" src={p.src} alt="" style={{ filter: `brightness(${brightness})` }} />)}
       </div>
       {(device.saverClock !== false || current.caption) && (
-        <div className={`saver-corner saver-corner-${n % 4}`}>
+        <div className="saver-corner night-spot" key={`${spot.x},${spot.y}`} style={spotStyle(spot)}>
           {device.saverClock !== false && clock(true)}
           {current.caption && <div className="saver-caption">{current.caption}</div>}
         </div>

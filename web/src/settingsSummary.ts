@@ -40,8 +40,9 @@ export function transitionRemindersSummary(t: TransitionReminders | undefined): 
 }
 
 /** "Drawings and family photos, every 5 min, clock on", or "Clock only". */
-export function nightSummary(n: { sources: string[]; every: number; bright: 'low' | 'medium'; clock: boolean }): string {
-  if (!n.sources.length) return 'Clock only'
-  return [cap(list(n.sources.map(s => s.charAt(0).toLowerCase() + s.slice(1)))), `every ${n.every} min`, n.bright === 'medium' && 'medium brightness', n.clock ? 'clock on' : 'no clock']
+export function nightSummary(n: { sources: string[]; every: number; bright: 'low' | 'medium'; clock: boolean; pos?: string }): string {
+  const pos = n.pos?.toLowerCase() // a fixed clock position; absent = moves around (the default)
+  if (!n.sources.length) return pos ? `Clock only, ${pos}` : 'Clock only'
+  return [cap(list(n.sources.map(s => s.charAt(0).toLowerCase() + s.slice(1)))), `every ${n.every} min`, n.bright === 'medium' && 'medium brightness', !n.clock ? 'no clock' : pos ? `clock ${pos}` : 'clock on']
     .filter(Boolean).join(', ')
 }

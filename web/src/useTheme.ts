@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import type { ClockPos } from './nightClock.ts'
 import type { Appearance, ColorScheme, CustomColors, DeviceDensity, Settings, TextScale } from './types.ts'
 import { accentFill, readableOn } from './color.ts'
 import { api, getKey } from './api.ts'
@@ -35,6 +36,7 @@ export type DeviceAppearance = Partial<Pick<Appearance, 'themeMode' | 'textScale
   saverEvery?: number // minutes between pictures; absent = 5
   saverBright?: 'medium' // absent = low
   saverClock?: false // corner clock; absent = shown
+  clockPos?: ClockPos // quiet-hours clock (big or corner) stays here; absent = moves around (burn-in guard)
   skin?: ColorScheme // this device's color scheme (a skins.ts id or 'seasonal'); absent = the household's
   custom?: CustomColors // hex, layered on the scheme; surfaces ignored in low-stim
 }

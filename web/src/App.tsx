@@ -29,6 +29,7 @@ import { InstallNudge } from './Install.tsx'
 import { inNativeApp, tellAppLeaveDemo } from './native.ts'
 import { HelpButton } from './Help.tsx'
 import Slideshow, { SAVER_PREVIEW_EVENT } from './Screensaver.tsx'
+import { CLOCK_SPOTS, nextSpot, spotStyle, type Spot } from './nightClock.ts'
 import SnapshotSheet from './Snapshot.tsx'
 import Profile from './Profile.tsx'
 import Journal from './Journal.tsx'
@@ -172,8 +173,9 @@ function useUpdateAvailable(enabled: boolean) {
 
 const WAKE_MS = 5 * 60 * 1000
 const PREVIEW_MS = 20 * 1000
+const CLOCK_MOVE_MS = 3 * 60 * 1000
 
-/** Quiet hours: a paired wall display shows only a dim, slowly drifting clock (or, per device, a dim
+/** Quiet hours: a paired wall display shows only a dim clock that moves around (or, per device, a dim
  * slideshow - see Screensaver.tsx) between settings.quietFrom and quietTo. Any touch keeps it awake
  * for WAKE_MS. Only display-scoped sessions ever dim; SAVER_PREVIEW_EVENT shows it for 20 s on any
  * device so an admin can see what the wall will do. */
@@ -181,7 +183,7 @@ function QuietOverlay({ settings, isDisplay }: { settings: Settings; isDisplay: 
   const device = useDeviceAppearance()
   const [now, setNow] = useState(new Date())
   const lastActive = useRef(0) // 0 = asleep from the start if loaded mid-window
-  const [nudge, setNudge] = useState({ x: 0, y: 0 })
+  const [drift, setDrift] = useState<Spot>(CLOCK_SPOTS.center)
   const [preview, setPreview] = useState(false)
   useEffect(() => {
     const touch = () => { lastActive.current = Date.now(); setNow(new Date()); setPreview(false) }
@@ -199,27 +201,31 @@ function QuietOverlay({ settings, isDisplay }: { settings: Settings; isDisplay: 
   }, [preview])
   const { quietFrom, quietTo } = settings
   const asleep = preview || (isDisplay && !!quietFrom && !!quietTo && inTimeWindow(quietFrom, quietTo, now) && now.getTime() - lastActive.current > WAKE_MS)
-  useEffect(() => {
-    // Burn-in guard: shift the clock a little every few minutes (skipped for reduced motion).
-    if (!asleep || matchMedia('(prefers-reduced-motion: reduce)').matches) return
-    const id = setInterval(() => setNudge({ x: Math.round((Math.random() - 0.5) * 120), y: Math.round((Math.random() - 0.5) * 80) }), 3 * 60 * 1000)
-    return () => clearInterval(id)
-  }, [asleep])
-  if (!asleep) return null
   // Photos turned off (Settings → Features): a display that picked them shows nature pictures instead.
   const sources = [...new Set((device.saverSources ?? []).map(src => src === 'photos' && !settings.features.photos ? 'nature' : src))]
+  const fixed = device.clockPos && CLOCK_SPOTS[device.clockPos]
+  const corners = sources.length > 0 // over a slideshow the small clock keeps to the corners
+  useEffect(() => {
+    // "Moves around" (the default burn-in guard): a new spot every few minutes, faded in (.night-spot).
+    if (!asleep || fixed) return
+    setDrift(corners ? nextSpot(undefined, true) : CLOCK_SPOTS.center)
+    const id = setInterval(() => setDrift(d => nextSpot(d, corners)), CLOCK_MOVE_MS)
+    return () => clearInterval(id)
+  }, [asleep, fixed, corners])
+  if (!asleep) return null
+  const spot = fixed || drift
   const { time, date } = clockStrings(now, settings.timezone)
   const clock = (small: boolean) => small
     ? <div className="saver-clock"><div className="saver-time">{time}</div><div className="saver-date">{date}</div></div>
     : (
-      <div className="quiet-clock" style={{ transform: `translate(${nudge.x}px, ${nudge.y}px)` }}>
+      <div className="quiet-clock night-spot" key={`${spot.x},${spot.y}`} style={spotStyle(spot)}>
         <div className="quiet-time">{time}</div>
         <div className="quiet-date">{date}</div>
       </div>
     )
   return (
     <div className="quiet-overlay" role="button" tabIndex={0} aria-label="Wake display" onClick={() => { lastActive.current = Date.now(); setNow(new Date()) }}>
-      {sources.length ? <Slideshow sources={sources} device={device} clock={clock} /> : clock(false)}
+      {sources.length ? <Slideshow sources={sources} device={device} clock={clock} spot={spot} /> : clock(false)}
     </div>
   )
 }

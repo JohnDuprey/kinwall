@@ -1,6 +1,6 @@
 # Quiet hours (displays only)
 
-Quiet hours turn a wall display into a dim, slowly drifting clock overnight. That saves the screen, avoids burn-in and keeps the hallway dark.
+Quiet hours turn a wall display into a dim clock overnight. That saves the screen, avoids burn-in and keeps the hallway dark.
 
 ## Set it up
 
@@ -9,7 +9,7 @@ Quiet hours turn a wall display into a dim, slowly drifting clock overnight. Tha
 ## Behavior
 
 * It applies **only to paired wall displays** (devices using a display key). Phones and admin devices are never dimmed.
-* During the window, the display shows only the time on a dark screen. The clock moves slightly now and then so no pixels stay lit in one place.
+* During the window, the display shows only the time on a dark screen. By default the clock moves around: every few minutes it fades in at a new spot, so no pixels stay lit in one place.
 * **Tap the screen** to wake it. It returns to the clock after **five minutes** without a touch.
 * The times are read on the display's own clock. The setting syncs to every display within about 30 seconds.
 
@@ -28,7 +28,16 @@ Options once any source is on:
 
 * **Change picture every** 2, 5 (default), 10 or 20 minutes. Pictures crossfade; with reduced motion turned on they switch without a fade.
 * **Brightness**: **Low** (default) or **Medium**. It's a night mode, so pictures are always dimmed, never full brightness.
-* **Show clock**: a small time and date in a corner. The corner changes with each picture, and the picture shifts slightly, so nothing stays lit in one place.
+* **Show clock**: a small time and date. When it moves around it keeps to the corners, and the picture shifts slightly, so nothing stays lit in one place.
+
+## Clock position
+
+**Clock position**, in the same sheet, sets where the clock sits: the big clock, and the small one over a slideshow.
+
+* **Moves around** (the default): every few minutes the clock fades in at a new spot, never the same one twice in a row. Over a slideshow it keeps to the corners. This protects OLED and LCD screens from burn-in. With reduced motion or [low-stimulation mode](appearance.md#per-device-overrides) on, it jumps without the fade.
+* **Center**, **Top left**, **Top right**, **Bottom left** or **Bottom right**: the clock stays put.
+
+The clock stays fully on screen at any size and in either orientation.
 
 Tapping wakes the display as usual. **Preview screensaver** shows the quiet-hours screen for 20 seconds on whatever device you're using, so you can check it from a phone; tap or press Escape to end it early.
 

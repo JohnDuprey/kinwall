@@ -38,7 +38,7 @@ Everyone handles switching activities differently, so these are per device: a be
 
 ## Night screen
 
-The card reads **Clock only** or sums up the slideshow (for example "Drawings and family photos, every 5 min, clock on"); tap **Change** under **Night screen** to set it. What this display shows during the household's [quiet hours](../using/quiet-hours.md): **Clock only**, or a slideshow of **Drawings**, **Family photos**, **Art (The Met)** and **Nature**, with how often the picture changes, brightness and a corner clock. **Preview screensaver** shows it for 20 seconds.
+The card reads **Clock only** or sums up the slideshow (for example "Drawings and family photos, every 5 min, clock on"); tap **Change** under **Night screen** to set it. What this display shows during the household's [quiet hours](../using/quiet-hours.md): **Clock only**, or a slideshow of **Drawings**, **Family photos**, **Art (The Met)** and **Nature**, with how often the picture changes, brightness and a corner clock. **Clock position** is **Moves around** (the default, which protects the screen from burn-in) or a fixed spot: **Center** or a corner. **Preview screensaver** shows it for 20 seconds.
 
 ## Notifications
 

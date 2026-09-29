@@ -20,6 +20,7 @@ import { useNavMode, setNavPref, type NavPref } from './useNavMode.ts'
 import { DEFAULT_ACCENT, resolveColors, setDeviceAppearance, useDeviceAppearance, type DeviceAppearance, type FontChoice, type LockedView, type SaverSource } from './useTheme.ts'
 import { baseFromPalette, findSkin, getSkin, OLD_BACKGROUNDS, paletteChecks, paletteOf, seasonalSkinId, tokensFor, type CustomScheme, type Palette } from './skins.ts'
 import { SAVER_PREVIEW_EVENT } from './Screensaver.tsx'
+import type { ClockPos } from './nightClock.ts'
 import { countDrawings } from './drawings-db.ts'
 import { passkeysSupported, registerPasskey } from './webauthn.ts'
 import { QrCode } from './App.tsx'
@@ -1267,11 +1268,15 @@ function MinutesPicker({ idBase, label, presets, minutes, repeat, onChange: save
 const SAVER_OPTIONS: { key: SaverSource; label: string }[] = [
   { key: 'drawings', label: 'Drawings' }, { key: 'photos', label: 'Family photos' }, { key: 'art', label: 'Art (The Met)' }, { key: 'nature', label: 'Nature' },
 ]
+const CLOCK_POSITIONS: { key: ClockPos | ''; label: string }[] = [
+  { key: '', label: 'Moves around' }, { key: 'center', label: 'Center' }, { key: 'top-left', label: 'Top left' }, { key: 'top-right', label: 'Top right' }, { key: 'bottom-left', label: 'Bottom left' }, { key: 'bottom-right', label: 'Bottom right' },
+]
 function NightScreenSection() {
   const { settings } = useApp()
   const d = useDeviceAppearance()
   const sources = SAVER_OPTIONS.filter(o => d.saverSources?.includes(o.key) && (o.key !== 'photos' || settings.features.photos)).map(o => o.label)
-  const summary = nightSummary({ sources, every: d.saverEvery ?? 5, bright: d.saverBright ?? 'low', clock: d.saverClock !== false })
+  const pos = d.clockPos && CLOCK_POSITIONS.find(p => p.key === d.clockPos)?.label
+  const summary = nightSummary({ sources, every: d.saverEvery ?? 5, bright: d.saverBright ?? 'low', clock: d.saverClock !== false, pos })
   return <SummarySection title="Night screen" summary={summary}><ScreensaverRows /></SummarySection>
 }
 
@@ -1314,6 +1319,15 @@ function ScreensaverRows() {
           <button className={`switch ${device.saverClock !== false ? 'on' : ''}`} role="switch" aria-checked={device.saverClock !== false} aria-labelledby="saver-clock-label"
             onClick={() => set({ saverClock: device.saverClock === false ? undefined : false })}><span className="knob" /></button>
         </div>
+      </>}
+      {(sources.length === 0 || device.saverClock !== false) && <>
+        <div className="device-pref-row">
+          <span>Clock position</span>
+          <select className="settings-select" aria-label="Clock position" value={device.clockPos ?? ''} onChange={e => set({ clockPos: (e.target.value || undefined) as ClockPos | undefined })}>
+            {CLOCK_POSITIONS.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}
+          </select>
+        </div>
+        <div className="settings-row-sub">{device.clockPos ? 'The clock stays put. Moves around protects the screen from burn-in.' : 'Every few minutes the clock fades to a new spot, so no pixels stay lit in one place.'}</div>
       </>}
       <button className="btn btn-secondary saver-preview-btn" onClick={() => window.dispatchEvent(new Event(SAVER_PREVIEW_EVENT))}>Preview screensaver</button>
       <div className="settings-row-sub">Shows what this screen does overnight for 20 seconds. Tap or press Escape to end it. Only paired wall displays dim on their own.</div>
