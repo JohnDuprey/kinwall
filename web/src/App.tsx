@@ -191,8 +191,13 @@ function QuietOverlay({ settings, wall }: { settings: Settings; wall: boolean })
   const preview = manual === 'preview'
   const [keypad, setKeypad] = useState(false)
   const pinLocked = useRef(false) // mirrors `locked` below for the listeners
+  const showing = useRef(false) // mirrors `asleep` below
   useEffect(() => {
-    const touch = () => {
+    const touch = (e: Event) => {
+      // While the night screen shows, a pointer wakes it on the overlay's own click (below), so the
+      // whole tap lands on the overlay and never on what's underneath (a chore, an event). Keys
+      // reach the overlay too: it takes focus when it shows (below).
+      if (showing.current && e.type === 'pointerdown') return
       setManual('')
       if (pinLocked.current) { setKeypad(true); return }
       lastActive.current = Date.now(); setNow(new Date())
@@ -218,6 +223,9 @@ function QuietOverlay({ settings, wall }: { settings: Settings; wall: boolean })
   const wake = useCallback(() => { lastActive.current = Date.now(); setNow(new Date()); setKeypad(false) }, [])
   const hideKeypad = useCallback(() => setKeypad(false), [])
   const asleep = !!manual || due
+  const overlay = useRef<HTMLDivElement>(null)
+  useEffect(() => { showing.current = asleep; if (asleep) overlay.current?.focus({ preventScroll: true }) }, [asleep])
+  const activate = () => { setManual(''); if (pinLocked.current) setKeypad(true); else wake() }
   // Photos turned off (Settings → Features): a display that picked them shows nature pictures instead.
   const sources = [...new Set((device.saverSources ?? []).map(src => src === 'photos' && !settings.features.photos ? 'nature' : src))]
   const fixed = device.clockPos && CLOCK_SPOTS[device.clockPos]
@@ -241,7 +249,8 @@ function QuietOverlay({ settings, wall }: { settings: Settings; wall: boolean })
       </div>
     )
   return (
-    <div className="quiet-overlay" role="button" tabIndex={0} aria-label="Wake display" onClick={() => { if (!pinLocked.current) wake() }}>
+    <div ref={overlay} className="quiet-overlay" role="button" tabIndex={0} aria-label="Wake display" onClick={activate}
+      onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); activate() } }}>
       {locked && keypad ? <PinKeypad onWake={wake} onIdle={hideKeypad} />
         : sources.length ? <Slideshow sources={sources} device={device} clock={clock} spot={spot} /> : clock(false)}
     </div>
