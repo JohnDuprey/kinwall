@@ -63,11 +63,11 @@ A person's [journal](../using/journal.md) entries (the words and the mood) are e
 
 The [energy battery](../using/battery.md) is worked out from sleep and feelings, so it's treated like Insights:
 
-* **Computed on request, never stored.** The only new things saved are the person's on/off setting and, for the heads-up push, a one-way hash that says a push was handled, not who it was for or which day.
+* **Computed on request, never stored.** The only new things saved are the person's on/off setting, for the heads-up push a one-way hash that says a push was handled (not who it was for or which day), and their evening **How drained do you feel?** answers. Those are health data: encrypted with `ENCRYPTION_KEY` like sleep and feelings (bound to the person, the day and the column), refused without a key, and never in the server logs, webhooks or push text. The adjustment they make is worked out each time, never stored.
 * **Who can see it:** the person's own device and parents' devices. Never a shared wall screen, the Board, a profile or another person's device.
 * **Claude and other connected apps** get nothing (403, and no MCP tool) until a parent turns on **Let connected apps see health entries**.
 * **Push text** comes from the calendar and chores only ("Tomorrow looks full: 5 events and a late evening…"), never sleep or feelings, and goes only to the person's own devices. It isn't added to the family's notification feed.
-* Never in the server logs, webhooks, the snapshot or the export.
+* Never in the server logs, webhooks, the snapshot or the export. The drained answers are in a parent's [export](export-import.md) with the rest of Temp check.
 
 ### Medications
 

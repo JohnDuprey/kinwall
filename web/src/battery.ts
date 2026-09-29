@@ -1,12 +1,21 @@
 // The energy battery's meter helpers (Battery.tsx). Pure, so web/test/battery.test.ts covers them.
 // The numbers and reasons come from the server (server/src/battery.ts); these only word them.
-import type { BatteryReason, TempCheckSettings } from './types.ts'
+import type { BatteryReason, Drained, TempCheckSettings } from './types.ts'
 
 /** "+60", "−30" (a real minus sign). */
 export const points = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `−${-n}` : '0')
 
-/** "Sleep: ok (+60) · 3 events (−30)": everything behind the number. */
-export const reasonLine = (reasons: BatteryReason[]) => reasons.map(r => `${r.text} (${points(r.points)})`).join(' · ')
+/** "Sleep: ok (+60) · 3 events (−30)": everything behind the number. A note ("Learning: 4 of 10 check-ins") has no points. */
+export const reasonLine = (reasons: BatteryReason[]) => reasons.map(r => (r.points ? `${r.text} (${points(r.points)})` : r.text)).join(' · ')
+
+/** "How drained do you feel?" in the evening check (GoalFollowUp.tsx): calm faces, nothing scary. */
+export const DRAINED: { key: Drained; emoji: string; label: string }[] = [
+  { key: 'full', emoji: '😊', label: 'Full' },
+  { key: 'ok', emoji: '🙂', label: 'OK' },
+  { key: 'low', emoji: '😌', label: 'Low' },
+  { key: 'empty', emoji: '😴', label: 'Empty' },
+]
+export const drainedOf = (k: string | null | undefined) => DRAINED.find(d => d.key === k)
 
 /** Calm words for a level: nothing scary for kids. Under 25 matches the server's heads-up. */
 export const levelWord = (level: number) => (level >= 75 ? 'Full' : level >= 50 ? 'Good' : level >= 25 ? 'Getting low' : 'Running low')

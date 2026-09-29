@@ -25,7 +25,7 @@ import { decryptConfig, encryptConfig } from '../crypto.ts';
 import { isSafeFeedUrl } from '../outbound.ts';
 import type { CategoryRow } from '../calendar-categories.ts';
 import { isAdultBirthday, parseTempCheck, parseTransitions } from './members.ts';
-import { FollowupSchema, openTempCheck, readCustom, sealCustom, sealTempCheck, type TempCheckRow } from './temp-check.ts';
+import { DrainedSchema, FollowupSchema, openDrained, openTempCheck, readCustom, sealCustom, sealTempCheck, type TempCheckRow } from './temp-check.ts';
 import { openEntry, sealEntry, type JournalRow } from './journal.ts';
 import { loadLogs, loadMedications, sealLog, sealMedication, type DoseLog } from './medications.ts';
 import { fromRow as contactFromRow, type ContactRow } from './contacts.ts';
@@ -133,7 +133,7 @@ const ExportSchema = z
     checkIns: z.array(z.object({ memberId: z.string(), date: z.string(), points: z.number(), at: z.string() })),
     // Temp check answers (0054), one per member per day. sleep/feelings are opened here (sealed again on import);
     // null for a connected app without aiHealthAccess.
-    tempChecks: z.array(z.object({ memberId: z.string(), date: z.string(), sleep: z.string().nullable(), feelings: z.array(z.string()).nullable(), goal: z.string().nullable(), goalSkipped: z.boolean(), followup: FollowupSchema.nullable().default(null), createdAt: z.string(), updatedAt: z.string() })),
+    tempChecks: z.array(z.object({ memberId: z.string(), date: z.string(), sleep: z.string().nullable(), feelings: z.array(z.string()).nullable(), goal: z.string().nullable(), goalSkipped: z.boolean(), followup: FollowupSchema.nullable().default(null), drained: DrainedSchema.nullable().default(null), createdAt: z.string(), updatedAt: z.string() })),
     // Journal entries (0055): opened here, sealed again on import; none for a connected app without aiHealthAccess.
     journalEntries: z.array(z.object({ id: z.string(), memberId: z.string(), date: z.string(), text: z.string(), mood: z.string().nullable(), createdAt: z.string(), updatedAt: z.string() })),
     // Medications (0056) and each dose marked or snoozed: opened here (the family's own backup), sealed again on
@@ -224,7 +224,7 @@ dataRoutes.openapi(
       db.prepare('SELECT id, member_id, amount, reason, ref, at FROM point_entries ORDER BY at, id'),
       db.prepare('SELECT member_id, pack_id, unlocked_at FROM member_sticker_packs ORDER BY member_id, pack_id'),
       db.prepare('SELECT member_id, date, points, at FROM check_ins ORDER BY date, member_id'),
-      db.prepare('SELECT member_id, date, sleep, feelings, goal, goal_skipped, followup, created_at, updated_at FROM temp_checks ORDER BY date, member_id'),
+      db.prepare('SELECT member_id, date, sleep, feelings, goal, goal_skipped, followup, drained, created_at, updated_at FROM temp_checks ORDER BY date, member_id'),
       db.prepare('SELECT id, member_id, date, text, mood, created_at, updated_at FROM journal_entries ORDER BY date, created_at, id'),
       db.prepare('SELECT id, member_id, sticker, x, y, scale, rotation, z, placed_at FROM scrapbook_stickers ORDER BY member_id, z, placed_at, id'),
       db.prepare('SELECT id, title, emoji, cost, member_ids, needs_approval, limit_period, limit_count, active, sort, created_at FROM rewards ORDER BY sort, created_at'),
@@ -322,7 +322,7 @@ dataRoutes.openapi(
         stickerPacks: (stickerPacks as { member_id: string; pack_id: string; unlocked_at: string }[]).map((r) => ({ memberId: r.member_id, packId: r.pack_id, unlockedAt: r.unlocked_at })),
         checkIns: (checkIns as { member_id: string; date: string; points: number; at: string }[]).map((r) => ({ memberId: r.member_id, date: r.date, points: r.points, at: r.at })),
         tempChecks: await Promise.all((tempChecks as TempCheckRow[]).map(async (r) => {
-          const v = healthHidden ? { sleep: null, feelings: null, goal: r.goal, goalSkipped: !!r.goal_skipped, followup: null } : await openTempCheck(c.env, r);
+          const v = healthHidden ? { sleep: null, feelings: null, goal: r.goal, goalSkipped: !!r.goal_skipped, followup: null, drained: null } : { ...(await openTempCheck(c.env, r)), drained: await openDrained(c.env, r) };
           return { memberId: r.member_id, date: r.date, ...v, createdAt: r.created_at, updatedAt: r.updated_at };
         })),
         journalEntries: healthHidden ? [] : await Promise.all((journal as JournalRow[]).map((r) => openEntry(c.env, r))),

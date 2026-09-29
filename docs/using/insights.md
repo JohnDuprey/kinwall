@@ -14,7 +14,7 @@ Pick **Last 4 weeks**, **Last 3 months** or **Last year** at the top.
 
 ## The page
 
-* **🔋 Battery**, with the [energy battery](battery.md) on: the last week and the 3 days ahead, with what went into each day and any heads-up.
+* **🔋 Battery**, with the [energy battery](battery.md) on: the last week and the 3 days ahead, with what went into each day, how drained they said they felt each evening, and any heads-up.
 * **In short**: plain sentences for the range (below).
 * **Connections**: patterns once there's enough to go on (below), or how many days there are so far.
 * **Sleep**: each night's answer from Terrible to Great, as a line across the range. Nights without an answer leave a gap.

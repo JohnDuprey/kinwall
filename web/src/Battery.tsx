@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react'
 import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
-import { dayLabel, levelWord, reasonLine } from './battery.ts'
+import { dayLabel, drainedOf, levelWord, reasonLine } from './battery.ts'
 import type { Battery, Member } from './types.ts'
 
 export default function BatteryCard({ member, full = false }: { member: Member; full?: boolean }) {
@@ -58,8 +58,13 @@ export default function BatteryCard({ member, full = false }: { member: Member; 
             ))}
           </div>
           <div className="battery-days" aria-hidden="true">{shown.days.map(d => <span key={d.date} className={d.date === shown.today ? 'today' : ''}>{dayLabel(d.date, shown.today, true)}</span>)}</div>
+          {shown.days.some(d => d.felt) && (
+            <div className="battery-days battery-felt" role="img" aria-label={`How drained ${member.name} felt: ${shown.days.filter(d => d.felt).map(d => `${label(d.date)} ${drainedOf(d.felt)!.label}`).join(', ')}.`}>
+              {shown.days.map(d => <span key={d.date}>{drainedOf(d.felt)?.emoji ?? ''}</span>)}
+            </div>
+          )}
           <ul className="insights-legend" aria-hidden="true"><li><span className="insights-seg met" />The last week</li><li><span className="insights-seg partly" />Days ahead (a guess)</li></ul>
-          <p className="profile-note">A rough guide from sleep, feelings and how full each day is, not a measurement. Pick a day to see what went into it.</p>
+          <p className="profile-note">A rough guide from sleep, feelings and how full each day is, not a measurement. Pick a day to see what went into it.{shown.days.some(d => d.felt) ? ` The faces are how drained ${member.name} said they felt that evening.` : ''}</p>
         </>
       )}
     </>

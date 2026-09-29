@@ -17,7 +17,7 @@ const todayISO = () => new Date().toISOString().slice(0, 10)
 
 let rev = 1
 const checkIns = new Set<string>() // `${memberId}:${date}` - the demo's daily check-ins
-const tempChecks = new Map<string, Omit<TempCheck, 'settings' | 'private' | 'custom' | 'answered' | 'followupOpen'>>() // `${memberId}:${date}`
+const tempChecks = new Map<string, Omit<TempCheck, 'settings' | 'private' | 'custom' | 'answered' | 'followupOpen' | 'drainedOpen'>>() // `${memberId}:${date}`
 const customFeelings = new Map<string, string[]>([['m3', ['excited']]]) // Maya added "excited" with "Other"
 // Maya's journal: a goal today (the evening check shows any time of day in the demo), two past days and one entry.
 const demoDay = (n: number) => dateKey(new Date(Date.now() + n * 86_400_000))
@@ -493,8 +493,9 @@ export const mock = {
     const row = tempChecks.get(`${memberId}:${date}`) ?? { memberId, date, sleep: null, feelings: null, goal: null, goalSkipped: false, followup: null }
     const s = { ...TEMP_CHECK_OFF, ...m.tempCheck }
     return {
-      ...row, settings: s, private: false, custom: customFeelings.get(memberId) ?? [], answered: { sleep: !!row.sleep, feelings: !!row.feelings?.length, goal: !!row.goal || row.goalSkipped, followup: !!row.followup },
+      ...row, drained: row.drained ?? null, settings: s, private: false, custom: customFeelings.get(memberId) ?? [], answered: { sleep: !!row.sleep, feelings: !!row.feelings?.length, goal: !!row.goal || row.goalSkipped, followup: !!row.followup, drained: !!row.drained },
       followupOpen: s.on && s.goal && s.evening && !!row.goal && date === dateKey(new Date()), // any time of day in the demo
+      drainedOpen: s.on && !!s.battery && date === dateKey(new Date()),
     }
   },
   putTempCheck: async (memberId: string, body: TempCheckInput, date = dateKey(new Date())): Promise<TempCheck> => {
@@ -504,7 +505,7 @@ export const mock = {
     const feelings = body.feelings !== undefined ? (body.feelings?.length ? body.feelings : null) : prev.feelings
     const f = body.followup
     const followup = f ? (prev.settings.journal ? { outcome: f.outcome, helped: f.helped?.trim() || null, hindered: f.hindered?.trim() || null, next: f.next?.trim() || null } : { outcome: f.outcome, ...noNotes }) : prev.followup
-    tempChecks.set(`${memberId}:${date}`, { memberId, date, sleep: body.sleep !== undefined ? body.sleep : prev.sleep, feelings, goal, goalSkipped: !goal && (body.goalSkipped ?? prev.goalSkipped), followup })
+    tempChecks.set(`${memberId}:${date}`, { memberId, date, sleep: body.sleep !== undefined ? body.sleep : prev.sleep, feelings, goal, goalSkipped: !goal && (body.goalSkipped ?? prev.goalSkipped), followup, drained: body.drained ?? prev.drained })
     const custom = body.custom ?? prev.custom ?? []
     customFeelings.set(memberId, [...custom, ...(body.feelings ?? []).filter(f => ![...FEELINGS, ...custom].some(k => k.toLowerCase() === f.toLowerCase()))])
     bump()

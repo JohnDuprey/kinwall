@@ -17,13 +17,13 @@ import { hostTimezone } from '../env.ts';
 import { deviceOwner, requestKey } from '../auth.ts';
 import { zonedTimeToUtc } from '../recurrence.ts';
 import { analyze, type InsightDay } from '../insights.ts';
-import { battery, FORECAST_DAYS, HISTORY_DAYS, RECENT_DAYS, type BatteryInput } from '../battery.ts';
+import { battery, calibrate, CALIBRATE_DAYS, DRAINED_ANSWERS, FORECAST_DAYS, HISTORY_DAYS, RECENT_DAYS, type BatteryInput } from '../battery.ts';
 import { ErrorSchema, FOLLOWUP_OUTCOMES, SLEEP_ANSWERS } from '../schemas.ts';
 import { healthBlock } from './trackers.ts';
 import { parseTempCheck, todayInTz } from './members.ts';
 import { readFeatures, readSettings } from './settings.ts';
 import { dueDates, type ChoreRow } from './chores.ts';
-import { openTempCheck, type TempCheckRow } from './temp-check.ts';
+import { openDrained, openTempCheck, type TempCheckRow } from './temp-check.ts';
 import { openMood } from './journal.ts';
 import { eventInstances } from './events.ts';
 
@@ -189,10 +189,11 @@ const BatterySchema = z
       date: z.string(),
       forecast: z.boolean().openapi({ description: 'After today: from the calendar and chores, starting from their usual night.' }),
       start: z.number().int().openapi({ description: 'The morning charge, 0-100.' }),
-      drain: z.number().int().openapi({ description: 'What the day asks: events, chores, a goal.' }),
+      drain: z.number().int().openapi({ description: 'What the day asks: events, chore points, a goal, and the adjustment for how they have felt lately.' }),
       level: z.number().int().openapi({ description: 'start - drain, 0-100: what is left by evening.' }),
       reasons: z.array(ReasonSchema).openapi({ description: 'Everything behind the numbers, in order: the start, then the drain. No hidden score.' }),
       lowBefore: z.string().nullable().openapi({ description: 'The first event that takes the battery under 25%, or null.' }),
+      felt: z.enum(DRAINED_ANSWERS).nullable().openapi({ description: 'Their evening "How drained do you feel?" answer that day, or null (none, or Skip).' }),
     })).openapi({ description: 'The 7 days up to today, then 3 days ahead, oldest first.' }),
     warnings: z.array(z.object({ date: z.string(), text: z.string(), suggestions: z.array(z.string()) })).openapi({ description: 'A heads-up for each day from today on that looks likely to run under 25%.' }),
   })
@@ -204,19 +205,34 @@ export async function batteryFor(env: Env, memberId: string, tz: string, now = n
   const member = await env.DB.prepare('SELECT temp_check FROM members WHERE id = ?').bind(memberId).first<{ temp_check: string | null }>();
   const s = parseTempCheck(member?.temp_check);
   if (!s.on || !s.battery) return { memberId, on: false, today, days: [], warnings: [] };
-  const from = addDays(today, 1 - HISTORY_DAYS - RECENT_DAYS); // the days before the week feed its first starts
+  // The calibration's 4 weeks, and the days before them that feed their first starts.
+  const from = addDays(today, 1 - CALIBRATE_DAYS - RECENT_DAYS);
   const to = addDays(today, FORECAST_DAYS);
-  const [checks, chores] = await env.DB.batch<unknown>([
+  const [checks, chores, done] = await env.DB.batch<unknown>([
     env.DB.prepare('SELECT * FROM temp_checks WHERE member_id = ? AND date BETWEEN ? AND ?').bind(memberId, from, to),
     env.DB.prepare('SELECT * FROM chores WHERE active = 1 AND member_id = ?').bind(memberId),
+    env.DB.prepare('SELECT cc.chore_id, cc.date, cc.member_id, c.points FROM chore_completions cc JOIN chores c ON c.id = cc.chore_id WHERE cc.date BETWEEN ? AND ?').bind(from, to),
   ]);
   const days = new Map<string, BatteryInput>();
-  for (let d = from; d <= to; d = addDays(d, 1)) days.set(d, { date: d, sleep: null, feelings: [], goalSet: false, chores: 0, events: [] });
+  const felt: Record<string, string | null> = {};
+  for (let d = from; d <= to; d = addDays(d, 1)) days.set(d, { date: d, sleep: null, feelings: [], goalSet: false, chores: 0, choreDone: 0, choreDue: 0, events: [] });
   for (const r of checks.results as TempCheckRow[]) {
     const t = await openTempCheck(env, r);
     Object.assign(days.get(r.date)!, { sleep: t.sleep, feelings: t.feelings ?? [], goalSet: !!t.goal });
+    felt[r.date] = await openDrained(env, r);
   }
-  if ((await readFeatures(env.DB)).chores) for (const row of chores.results as ChoreRow[]) for (const d of dueDates(row, from, to, tz)) days.get(d)!.chores++;
+  // Chore points: the chore's points for each one they finished (theirs or anyone's, waiting for a
+  // parent's OK too: the effort is the same), and their own chores due that nobody has done yet.
+  if ((await readFeatures(env.DB)).chores) {
+    const completions = done.results as { chore_id: string; date: string; member_id: string | null; points: number }[];
+    const doneKeys = new Set(completions.map((c) => `${c.chore_id}:${c.date}`));
+    for (const c of completions) if (c.member_id === memberId) days.get(c.date)!.choreDone += c.points;
+    for (const row of chores.results as ChoreRow[]) for (const d of dueDates(row, from, to, tz)) {
+      const day = days.get(d)!;
+      day.chores++;
+      if (!doneKeys.has(`${row.id}:${d}`)) day.choreDue += row.points;
+    }
+  }
   // Timed events like Insights counts them: theirs and the family's, by the day they start.
   for (const ev of await eventInstances(env.DB, midnight(from, tz), midnight(addDays(to, 1), tz))) {
     if (ev.allDay || (ev.memberIds.length && !ev.memberIds.includes(memberId))) continue;
@@ -225,8 +241,11 @@ export async function batteryFor(env: Env, memberId: string, tz: string, now = n
     const end = new Date(ev.end);
     day.events.push({ title: ev.title, start: hm(tz, new Date(ev.start)), end: todayInTz(tz, end) > day.date ? '24:00' : hm(tz, end) });
   }
-  const b = battery([...days.values()], today);
-  return { memberId, on: true, today, days: b.days.slice(-(HISTORY_DAYS + FORECAST_DAYS)), warnings: b.warnings };
+  // How it has matched how they felt, from its own guesses before any adjustment; then the real run.
+  const inputs = [...days.values()];
+  const b = battery(inputs, today, calibrate(battery(inputs, today).days, felt, today));
+  const shown = b.days.slice(-(HISTORY_DAYS + FORECAST_DAYS)).map((d) => ({ ...d, felt: DRAINED_ANSWERS.find((a) => a === felt[d.date]) ?? null }));
+  return { memberId, on: true, today, days: shown, warnings: b.warnings };
 }
 
 insightsRoutes.openapi(

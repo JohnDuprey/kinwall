@@ -1,12 +1,13 @@
 // Writes src/mock-insights.ts: Maya's six weeks of made-up check-ins for the demo, and what the
 // server's own analysis (server/src/insights.ts) says about them for each range, so the demo's
 // Insights page shows real charts, summaries and connections with no server. Also her energy
-// battery (server/src/battery.ts) for the last week and the days ahead, with a full day tomorrow.
+// battery (server/src/battery.ts) for the last week and the days ahead, with a full day tomorrow, and
+// her evening "How drained do you feel?" answers (a bit lower than it guessed, so it adjusts).
 // Fictional, and the same every run (a fixed seed). Run after changing the analysis or the battery:
 // node scripts/demo-insights.mjs
 import { writeFileSync } from 'node:fs'
 import { analyze } from '../../server/src/insights.ts'
-import { battery, FORECAST_DAYS, HISTORY_DAYS, RECENT_DAYS } from '../../server/src/battery.ts'
+import { battery, calibrate, CALIBRATE_DAYS, FORECAST_DAYS, HISTORY_DAYS, RECENT_DAYS } from '../../server/src/battery.ts'
 
 const DAYS = 42
 let seed = 8
@@ -66,16 +67,24 @@ const AHEAD = {
   [-2]: [{ title: 'Piano lesson', start: '16:00', end: '17:00' }],
   [-3]: [],
 }
-const batteryAgo = Array.from({ length: HISTORY_DAYS + RECENT_DAYS + FORECAST_DAYS }, (_, i) => HISTORY_DAYS + RECENT_DAYS - 1 - i)
+const batteryAgo = Array.from({ length: CALIBRATE_DAYS + RECENT_DAYS + FORECAST_DAYS }, (_, i) => CALIBRATE_DAYS + RECENT_DAYS - 1 - i)
+// Chore points: what she did on days gone; today, one chore (5) still to do; 10 due each day ahead.
 const batteryInputs = dated(batteryAgo.map((ago) => ({ ago }))).map(({ ago, date }) => {
   const d = days.find((x) => x.ago === ago)
-  return d ? { date, sleep: d.sleep, feelings: d.feelings, goalSet: d.goalSet, chores: d.chores, events: rebuilt(d) } : { date, sleep: null, feelings: [], goalSet: false, chores: 2, events: AHEAD[ago] }
+  return d
+    ? { date, sleep: d.sleep, feelings: d.feelings, goalSet: d.goalSet, chores: d.chores, choreDone: ago ? d.points : d.points - 5, choreDue: ago ? 0 : 5, events: rebuilt(d) }
+    : { date, sleep: null, feelings: [], goalSet: false, chores: 2, choreDone: 0, choreDue: 10, events: AHEAD[ago] }
 })
 const batteryToday = dated([{ ago: 0 }])[0].date
 const agoOf = (date) => Math.round((Date.parse(batteryToday) - Date.parse(date)) / 86_400_000)
-const b = battery(batteryInputs, batteryToday)
+// How drained she felt: the evenings she checked in over the last 3 weeks, about 20 lower than it guessed.
+const word = (level) => (level >= 75 ? 'full' : level >= 50 ? 'ok' : level >= 25 ? 'low' : 'empty')
+const felt = Object.fromEntries(battery(batteryInputs, batteryToday).days
+  .filter((d) => { const ago = agoOf(d.date); return ago >= 1 && ago <= 20 && days.find((x) => x.ago === ago)?.checkedIn })
+  .map((d) => [d.date, word(Math.max(0, d.level - 20))]))
+const b = battery(batteryInputs, batteryToday, calibrate(battery(batteryInputs, batteryToday).days, felt, batteryToday))
 const mayaBattery = {
-  days: b.days.slice(-(HISTORY_DAYS + FORECAST_DAYS)).map(({ date, ...d }) => ({ ago: agoOf(date), ...d })),
+  days: b.days.slice(-(HISTORY_DAYS + FORECAST_DAYS)).map(({ date, ...d }) => ({ ago: agoOf(date), ...d, felt: felt[date] ?? null })),
   warnings: b.warnings.map(({ date, ...w }) => ({ ago: agoOf(date), ...w })),
 }
 

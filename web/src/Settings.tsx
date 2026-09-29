@@ -1547,7 +1547,7 @@ function TempCheckField({ member, name, value, onChange, toast }: { member: Memb
           <div className="settings-row-sub">{value.journal ? `What helped, what got in the way and next time go in ${name}'s journal.` : 'Only yes, partly or not today is kept, never the notes.'}</div>
         </>}
         {row('battery', 'Energy battery')}
-        <div className="settings-row-sub">A rough daily guess at {name}'s energy from sleep, feelings and how full the day is, with a heads-up before heavy days on {name}'s devices. Private to {name} and parents.</div>
+        <div className="settings-row-sub">A rough daily guess at {name}'s energy from sleep, feelings and how full the day is, with a heads-up before heavy days on {name}'s devices, and a "How drained do you feel?" each evening that tunes it. Private to {name} and parents.</div>
         {custom.length > 0 && (
           <div className="settings-row">
             <div>

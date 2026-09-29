@@ -153,7 +153,9 @@ export interface TempCheckSettings {
   journal: boolean // keep the follow-up notes (off: only yes / partly / no)
   battery?: boolean // energy battery (docs/using/battery.md): private to them and parents
 }
-export interface TempCheckAnswered { sleep: boolean; feelings: boolean; goal: boolean; followup: boolean }
+export interface TempCheckAnswered { sleep: boolean; feelings: boolean; goal: boolean; followup: boolean; drained?: boolean }
+/** The energy battery's evening "How drained do you feel?" (skip: asked, not answered). */
+export type Drained = 'full' | 'ok' | 'low' | 'empty'
 export type FollowupOutcome = 'yes' | 'partly' | 'no'
 export interface GoalFollowup { outcome: FollowupOutcome; helped: string | null; hindered: string | null; next: string | null }
 /** GET/PUT /api/members/{id}/temp-check. private: sleep and feelings are withheld from this device (a shared wall). */
@@ -170,8 +172,10 @@ export interface TempCheck {
   custom: string[] | null // their own feelings ("Other")
   followup: GoalFollowup | null // the evening goal check (null on a shared wall: private)
   followupOpen: boolean // showing now: on, a goal set today, past their eveningTime
+  drained?: Drained | 'skip' | null // null on a shared wall or another member's device (private)
+  drainedOpen?: boolean // showing now: battery on, past their eveningTime, their own device or a parent's
 }
-export type TempCheckInput = Partial<{ sleep: string | null; feelings: string[] | null; goal: string | null; goalSkipped: boolean; custom: string[]; followup: { outcome: FollowupOutcome; helped?: string | null; hindered?: string | null; next?: string | null } }>
+export type TempCheckInput = Partial<{ sleep: string | null; feelings: string[] | null; goal: string | null; goalSkipped: boolean; custom: string[]; followup: { outcome: FollowupOutcome; helped?: string | null; hindered?: string | null; next?: string | null }; drained: Drained | 'skip' }>
 
 /** GET /api/members/{id}/journal: their own device and parents' devices only. */
 export interface JournalEntry { id: string; memberId: string; date: string; text: string; mood: string | null; createdAt: string; updatedAt: string }
@@ -198,7 +202,7 @@ export interface Insights {
 
 /** GET /api/members/{id}/battery (server/src/battery.ts): their own device and parents' devices only. */
 export interface BatteryReason { text: string; points: number }
-export interface BatteryDay { date: string; forecast: boolean; start: number; drain: number; level: number; reasons: BatteryReason[]; lowBefore: string | null }
+export interface BatteryDay { date: string; forecast: boolean; start: number; drain: number; level: number; reasons: BatteryReason[]; lowBefore: string | null; felt?: Drained | null }
 export interface BatteryWarning { date: string; text: string; suggestions: string[] }
 export interface Battery { memberId: string; on: boolean; today: string; days: BatteryDay[]; warnings: BatteryWarning[] }
 

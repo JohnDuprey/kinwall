@@ -500,29 +500,37 @@ export function notifyListUpdate(env: Env, execCtx: WaitCtx | undefined, listId:
   );
 }
 
-// Evening goal check (Temp check, settings.evening): at a person's eveningTime (household time),
-// when they set a goal today (not skipped) and haven't answered, "Did you finish your goal? 🎯" to
-// devices that belong to them and one row in the in-app feed. Once per person per day (claimed in
-// one statement). Goals are family content, so the goal is the push text; the answer never is.
+// Evening check (Temp check), at a person's eveningTime (household time), one push a day to devices
+// that belong to them, when there's something to ask:
+// - the goal check (settings.evening): they set a goal today (not skipped) and haven't answered.
+//   "Did you finish your goal? 🎯" with the goal (family content), and one row in the in-app feed.
+//   The same card then asks "How drained do you feel?" too when their battery is on.
+// - otherwise, with their energy battery on (settings.battery) and no drained answer yet: "How
+//   drained do you feel? 🔋", generic text and no feed row (personal, like the battery heads-up).
+// Once per person per day (claimed in one statement). Answers are never in the text.
 // Sent during quiet hours too: it's the person's own chosen time (the family asked for that).
 async function runGoalFollowups(env: Env, db: KinwallDb, now: Date, tz: string, windowStart: Date): Promise<void> {
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(now);
   const { results } = await db
-    .prepare('SELECT m.id, m.temp_check, t.goal FROM members m JOIN temp_checks t ON t.member_id = m.id AND t.date = ? WHERE t.goal IS NOT NULL AND t.goal_skipped = 0 AND t.followup IS NULL')
+    .prepare('SELECT m.id, m.temp_check, t.goal, t.goal_skipped, t.followup, t.drained FROM members m LEFT JOIN temp_checks t ON t.member_id = m.id AND t.date = ? WHERE m.temp_check IS NOT NULL')
     .bind(today)
-    .all<{ id: string; temp_check: string | null; goal: string }>();
+    .all<{ id: string; temp_check: string; goal: string | null; goal_skipped: number | null; followup: string | null; drained: string | null }>();
   const [y, mo, d] = today.split('-').map(Number);
   for (const m of results) {
     const s = parseTempCheck(m.temp_check);
-    if (!s.on || !s.goal || !s.evening) continue;
+    if (!s.on) continue;
+    const goal = s.goal && s.evening && m.goal && !m.goal_skipped && !m.followup ? m.goal : null;
+    if (!goal && !(s.battery && !m.drained)) continue;
     const [h, mi] = s.eveningTime.split(':').map(Number);
     const at = zonedTimeToUtc({ y, mo: mo - 1, d, h, mi, s: 0 }, tz).getTime();
     if (at <= windowStart.getTime() || at > now.getTime()) continue;
     const key = `goal:${m.id}:${today}`;
     const claimed = await db.prepare('INSERT INTO sent_notifications (key, sent_at) VALUES (?, ?) ON CONFLICT(key) DO NOTHING').bind(key, now.toISOString()).run();
     if (!claimed.meta.changes) continue;
-    const payload = { title: 'Did you finish your goal? 🎯', body: m.goal, url: `/#/journal/${m.id}`, tag: key };
-    await recordNotification(db, { kind: 'goal', title: payload.title, body: payload.body, url: payload.url, memberIds: [m.id], source: 'system', at: now });
+    const payload = goal
+      ? { title: 'Did you finish your goal? 🎯', body: goal, url: `/#/journal/${m.id}`, tag: key }
+      : { title: 'How drained do you feel? 🔋', body: 'A quick check-in before bed.', url: `/#/journal/${m.id}`, tag: key };
+    if (goal) await recordNotification(db, { kind: 'goal', title: payload.title, body: payload.body, url: payload.url, memberIds: [m.id], source: 'system', at: now });
     const { results: subs } = await db.prepare('SELECT s.* FROM push_subscriptions s JOIN api_keys k ON k.id = s.api_key_id WHERE k.owner = ?').bind(m.id).all<PushSubRow>();
     for (const sub of subs) await sendToSub(env, db, sub, payload);
   }

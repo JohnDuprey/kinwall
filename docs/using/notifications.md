@@ -26,7 +26,7 @@ On the device that should get notifications, go to **Settings → General → No
 
 ## Energy battery heads-up
 
-For someone with the [energy battery](battery.md) on, their own phones and tablets get one calm push from 7:00 PM the evening before a day that looks likely to run them low: **🔋 Heads-up for tomorrow** with "Tomorrow looks full: 5 events and a late evening. Maybe plan a rest or move something?". Never during quiet hours (it waits until they end, and goes out that morning), never about sleep or feelings, and not in the family's feed.
+For someone with the [energy battery](battery.md) on, their own phones and tablets get one calm push from 7:00 PM the evening before a day that looks likely to run them low: **🔋 Heads-up for tomorrow** with "Tomorrow looks full: 5 events and a late evening. Maybe plan a rest or move something?". Never during quiet hours (it waits until they end, and goes out that morning), never about sleep or feelings, and not in the family's feed. At their evening time, on a day without a goal to check on, they also get **How drained do you feel? 🔋** (see [How drained do you feel?](battery.md#how-drained-do-you-feel)); on a day with one, it's part of the goal check's push.
 
 ## Transition reminders
 

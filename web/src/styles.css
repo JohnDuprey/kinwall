@@ -2513,6 +2513,9 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
 .battery-days { display: flex; gap: 3px; margin-top: -4px; font-size: 0.75rem; font-weight: 700; color: var(--text-dim); }
 .battery-days span { flex: 1 1 0; min-width: 0; overflow: hidden; text-align: center; white-space: nowrap; }
 .battery-days .today { color: var(--text); }
+/* How drained they felt each evening, under the days (predicted vs felt), and the question's four faces. */
+.battery-felt { margin-top: 0; font-size: 1rem; }
+.snap-drained-choices { grid-template-columns: repeat(4, 1fr); }
 
 /* Medication reminders: the Take now card (Board, Day view, medicines page), the medicines page, Settings. */
 .meds-now { gap: 8px; border: 2px solid color-mix(in srgb, var(--accent) 45%, transparent); }

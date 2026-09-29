@@ -45,7 +45,7 @@ Daily questions at the end of the person's [day](../using/snapshot.md#temp-check
 * **How are you feeling?**
 * **Goal for today**, and **Show the goal on the Board** (on by default).
 * **Evening goal check** (off by default, with the goal on): "Did you finish your goal?" at the time in **Ask at** (noon to 11:30 PM in half hours, 9:00 PM to start), on their own devices and at the bottom of their day. See [Evening goal check](../using/snapshot.md#evening-goal-check).
-* **Energy battery** (off by default): a rough daily guess at their energy from sleep, feelings and how full their days are, on their day and their Insights, with a heads-up push to their own devices the evening before a heavy day. See [Energy battery](../using/battery.md).
+* **Energy battery** (off by default): a rough daily guess at their energy from sleep, feelings and how full their days are, on their day and their Insights, with a heads-up push to their own devices the evening before a heavy day. It also asks **How drained do you feel?** at their evening time (**Ask at**, 9:00 PM to start), with or without a goal that day, and adjusts itself to the answers. See [Energy battery](../using/battery.md).
 * **Keep answers in the journal** (on by default): their notes (what helped, what got in the way, next time) go in their [journal](../using/journal.md). Off: only Yes, Partly or Not today is kept, and the notes aren't asked.
 
 Once it's saved on, **Open insights** goes to their [Insights](../using/insights.md): patterns in their check-ins over time.

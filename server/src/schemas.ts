@@ -136,7 +136,7 @@ export const TempCheckSettingsSchema = z
     evening: z.boolean().default(false).openapi({ description: 'Evening goal check: "Did you finish your goal?" at eveningTime on a day they set one' }),
     eveningTime: z.string().regex(/^([01]\d|2[0-3]):[03]0$/, 'eveningTime: HH:MM on the hour or half hour').default('21:00').openapi({ description: 'Household time, HH:00 or HH:30' }),
     journal: z.boolean().default(true).openapi({ description: 'Keep follow-up notes in their journal. Off: only yes / partly / no is kept.' }),
-    battery: z.boolean().default(false).openapi({ description: 'Energy battery: a rough daily guess from sleep, feelings and how full their days are, with a heads-up before heavy days (GET /api/members/{id}/battery). Private to them and parents.' }),
+    battery: z.boolean().default(false).openapi({ description: 'Energy battery: a rough daily guess from sleep, feelings and how full their days are, with a heads-up before heavy days (GET /api/members/{id}/battery), and an evening "How drained do you feel?" (temp-check drained) that calibrates it. Private to them and parents.' }),
   })
   .openapi('TempCheckSettings');
 export const TEMP_CHECK_OFF = { on: false, sleep: true, feelings: true, goal: true, showGoal: true, evening: false, eveningTime: '21:00', journal: true, battery: false };

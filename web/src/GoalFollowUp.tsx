@@ -3,12 +3,16 @@
 // journal. Yes / Partly / Not today saves right away; then three optional notes when their journal
 // keeps them. On a shared wall the server keeps the answer private (tc.private): once answered it
 // says "Answered ✓", and "Change" starts fresh.
+// With their energy battery on, the same card (or on its own, on a day without a goal) asks "How
+// drained do you feel?": Full / OK / Low / Empty or Skip, which calibrates their battery. The server
+// only opens that question on their own device or a parent's (drainedOpen), never on a shared wall.
 import { useEffect, useState } from 'react'
 import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { announce } from './a11y.tsx'
 import { followupThanks, OUTCOMES, outcomeOf } from './journal.ts'
-import type { FollowupOutcome, Member, TempCheck } from './types.ts'
+import { DRAINED, drainedOf } from './battery.ts'
+import type { Drained, FollowupOutcome, Member, TempCheck } from './types.ts'
 
 const NOTES = [
   { key: 'helped', label: 'What helped?' },
@@ -23,6 +27,7 @@ export default function GoalFollowUp({ member, onSaved }: { member: Member; onSa
   const [tc, setTc] = useState<TempCheck | null>(null)
   const [step, setStep] = useState<'ask' | 'notes' | 'done'>('ask')
   const [notes, setNotes] = useState<Notes>(EMPTY)
+  const [changeDrained, setChangeDrained] = useState(false)
   useEffect(() => {
     let canceled = false
     api.getTempCheck(member.id).then(t => {
@@ -33,7 +38,7 @@ export default function GoalFollowUp({ member, onSaved }: { member: Member; onSa
     }).catch(() => { /* no card rather than an error at the end of their day */ })
     return () => { canceled = true }
   }, [member.id])
-  if (!tc?.followupOpen) return null
+  if (!tc?.followupOpen && !tc?.drainedOpen) return null
 
   const save = async (outcome: FollowupOutcome, withNotes: boolean) => {
     try {
@@ -43,13 +48,20 @@ export default function GoalFollowUp({ member, onSaved }: { member: Member; onSa
       setStep('done'); announce(followupThanks(outcome, member.name)); onSaved?.()
     } catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't save that", true) }
   }
+  const saveDrained = async (drained: Drained | 'skip') => {
+    try {
+      setTc(await api.putTempCheck(member.id, { drained }))
+      setChangeDrained(false); announce(drained === 'skip' ? 'Skipped' : `Thanks for checking in, ${member.name} ✓`); onSaved?.()
+    } catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't save that", true) }
+  }
   const outcome = tc.followup?.outcome
   const picked = outcome && outcomeOf(outcome)
+  const felt = drainedOf(tc.drained)
 
   return (
-    <section className="snap-temp snap-goalcheck" aria-label="Goal check">
-      <h3 className="snap-heading">🎯 Goal check</h3>
-      {step === 'done' ? (
+    <section className="snap-temp snap-goalcheck" aria-label={tc.followupOpen ? 'Goal check' : 'Evening check'}>
+      <h3 className="snap-heading">{tc.followupOpen ? '🎯 Goal check' : '🔋 Evening check'}</h3>
+      {!tc.followupOpen ? null : step === 'done' ? (
         <div className="snap-temp-done">
           <p role="status">
             <strong>{tc.private || !outcome ? `Answered ✓` : followupThanks(outcome, member.name)}</strong>
@@ -88,6 +100,32 @@ export default function GoalFollowUp({ member, onSaved }: { member: Member; onSa
           )}
         </div>
       )}
+      {tc.drainedOpen && (tc.answered.drained && !changeDrained ? (
+        <div className="snap-temp-done">
+          <p role="status">
+            <strong>{felt ? `Thanks for checking in, ${member.name} ✓` : 'Skipped for today'}</strong>
+            {felt && <span className="snap-meta">{felt.emoji} Feeling {felt.label.toLowerCase()}</span>}
+          </p>
+          <button className="btn btn-secondary" onClick={() => setChangeDrained(true)}>Change</button>
+        </div>
+      ) : (
+        <div className="snap-temp-q">
+          <p className="snap-temp-ask">How drained do you feel?</p>
+          <div className="snap-goalcheck-choices snap-drained-choices" role="group" aria-label="How drained do you feel?">
+            {DRAINED.map(d => {
+              const on = tc.drained === d.key
+              return (
+                <button key={d.key} className={`snap-temp-face ${on ? 'active' : ''}`} aria-pressed={on} onClick={() => saveDrained(d.key)}>
+                  <span aria-hidden="true">{d.emoji}</span>{d.label}
+                </button>
+              )
+            })}
+          </div>
+          <div className="snap-temp-row">
+            <button className="btn btn-secondary" onClick={() => saveDrained('skip')}>Skip</button>
+          </div>
+        </div>
+      ))}
     </section>
   )
 }
