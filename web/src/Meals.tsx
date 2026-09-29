@@ -118,7 +118,7 @@ export default function Meals() {
       </div>}
     </section> : <section role="tabpanel" aria-labelledby="meals-tab-recipes">
       <div className="meals-toolbar">
-        <div className="field meals-search"><label htmlFor="recipe-search">Find a recipe</label><input id="recipe-search" type="search" placeholder="Recipe name or ingredient" value={search} onChange={e => setSearch(e.target.value)} /></div>
+        <div className="field meals-search"><label htmlFor="recipe-search">Find a recipe</label><input id="recipe-search" type="search" placeholder="Tacos, rice…" value={search} onChange={e => setSearch(e.target.value)} /></div>
         <div className="field"><label htmlFor="recipe-kind">Type</label><select id="recipe-kind" value={kind} onChange={e => setKind(e.target.value as '' | RecipeKind)}><option value="">All</option><option value="meal">Meals</option><option value="basic">Basics</option></select></div>
         <div className="field"><label htmlFor="recipe-filter">Show</label><select id="recipe-filter" value={filter} onChange={e => setFilter(e.target.value)}><option value="active">Active recipes</option><option value="archived">Archived recipes</option><option value="all">All recipes</option></select></div>
         <div className="field"><label htmlFor="recipe-category">Ingredient category</label><select id="recipe-category" value={category} onChange={e => setCategory(e.target.value)}><option value="">All categories</option>{categories.map(c => <option key={c}>{c}</option>)}</select></div>

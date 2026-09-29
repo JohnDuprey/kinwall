@@ -268,11 +268,11 @@ function RecipeEditor({ recipe, library, onClose, onSaved }: { recipe: Recipe | 
           </select></div>}
           <div className="meal-form-row">
             <div className="field"><label htmlFor={`${rowIds[index]}-quantity`}>Quantity</label><input id={`${rowIds[index]}-quantity`} type="number" min="0" max="1000000" step="any" value={row.quantity ?? ''} onChange={e => ingredient(index, { quantity: e.target.value === '' ? null : Number(e.target.value) })} /></div>
-            <div className="field"><label htmlFor={`${rowIds[index]}-unit`}>Unit</label><input type="text" id={`${rowIds[index]}-unit`} maxLength={50} placeholder="cup, lb, package…" value={row.unit ?? ''} onChange={e => ingredient(index, { unit: e.target.value || null })} /></div>
+            <div className="field"><label htmlFor={`${rowIds[index]}-unit`}>Unit</label><input type="text" id={`${rowIds[index]}-unit`} maxLength={50} placeholder="cup, lb…" value={row.unit ?? ''} onChange={e => ingredient(index, { unit: e.target.value || null })} /></div>
           </div>
           <div className="field"><label htmlFor={`${rowIds[index]}-preparation`}>Preparation</label><input type="text" id={`${rowIds[index]}-preparation`} maxLength={10000} placeholder="Diced, softened…" value={row.preparation ?? ''} onChange={e => ingredient(index, { preparation: e.target.value || null })} /></div>
           <div className="meal-form-row">
-            <div className="field"><label htmlFor={`${rowIds[index]}-qualifier`}>Quantity note</label><input type="text" id={`${rowIds[index]}-qualifier`} maxLength={100} placeholder="To taste, as needed…" value={row.qualifier ?? ''} onChange={e => ingredient(index, { qualifier: e.target.value || null })} /></div>
+            <div className="field"><label htmlFor={`${rowIds[index]}-qualifier`}>Quantity note</label><input type="text" id={`${rowIds[index]}-qualifier`} maxLength={100} placeholder="To taste…" value={row.qualifier ?? ''} onChange={e => ingredient(index, { qualifier: e.target.value || null })} /></div>
             <div className="field"><label htmlFor={`${rowIds[index]}-category`}>Category</label><input type="text" id={`${rowIds[index]}-category`} maxLength={100} placeholder="Produce…" value={row.category ?? ''} onChange={e => ingredient(index, { category: e.target.value || null })} /></div>
           </div>
           <button type="button" className="link-btn" aria-label={`Remove ingredient ${index + 1}${row.name ? `, ${row.name}` : ''}`} onClick={() => { update('ingredients', draft.ingredients.filter((_, i) => i !== index)); setRowIds(ids => ids.filter((_, i) => i !== index)) }}>Remove ingredient</button>
