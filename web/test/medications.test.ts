@@ -1,7 +1,7 @@
 // node --test test/ (npm test). Medication reminders: schedule labels, card labels, the week grid.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { cardLabel, courseLabel, daysLabel, scheduleLabel, weekCells } from '../src/medications.ts'
+import { cardLabel, cheerLine, courseLabel, daysLabel, scheduleLabel, weekCells } from '../src/medications.ts'
 
 test('daysLabel: every day, weekdays, weekends, or the days in order', () => {
   assert.equal(daysLabel([0, 1, 2, 3, 4, 5, 6]), 'Every day')
@@ -38,4 +38,12 @@ test('courseLabel: until an end date, doses left, or done', () => {
   assert.equal(courseLabel({ endDate: null, totalDoses: 20, dosesLeft: 1 }), '1 of 20 doses left')
   assert.equal(courseLabel({ endDate: null, totalDoses: 20, dosesLeft: 0 }), 'Done: all 20 doses taken')
   assert.equal(scheduleLabel({ times: ['08:00'], days: [0, 1, 2, 3, 4, 5, 6], endDate: '2026-10-05', totalDoses: null, dosesLeft: null }), '8:00 AM · Every day · Until Mon, Oct 5')
+})
+
+test('cheerLine: names the person, and never repeats the last cheer', () => {
+  const seq = [0, 0, 0.5]
+  const r = () => seq.shift() ?? 0.5
+  const first = cheerLine('Leo', undefined, () => 0)
+  assert.match(first, /Leo/)
+  assert.notEqual(cheerLine('Leo', first, r), first)
 })

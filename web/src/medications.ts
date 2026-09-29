@@ -51,3 +51,18 @@ export function weekCells(days: MedicationHistory['days'], medicationId: string)
     return { date: d.date, status: WORST_FIRST.find(s => mine.includes(s)) ?? null }
   })
 }
+
+// Taken: a different cheer each time. Novelty keeps a daily habit fresh (a strong driver for
+// neurodivergent kids); a fixed line fades into the background within a week.
+const CHEERS = [
+  '🎉 Nice job, {name}!', '🌟 Way to go, {name}!', '🚀 {name} for the win!', '🦄 Magical, {name}!',
+  '🏆 Champion move, {name}!', '🌈 You did it, {name}!', '⚡ Power up, {name}!', '🐢 Steady as always, {name}!',
+  '🎈 Hooray, {name}!', '🦖 Rawr-some, {name}!', '🍀 Great job, {name}!', '🎵 High five, {name}!',
+]
+/** A random cheer for Taken ("🚀 Leo for the win!"), never the same as the last one shown. */
+export function cheerLine(name: string, last?: string, random = Math.random): string {
+  const pick = () => CHEERS[Math.floor(random() * CHEERS.length)].replace('{name}', name)
+  let line = pick()
+  for (let i = 0; i < 5 && line === last; i++) line = pick()
+  return line
+}

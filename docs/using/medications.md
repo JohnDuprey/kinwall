@@ -22,7 +22,7 @@ Tap a medicine to change it. **More… → Delete medicine** removes it and its 
 
 At each dose time, a small **💊 Take now** tile appears at the top of the [Board](calendar.md) ("2 due", with who); tap it to open the doses in a sheet. The person's **Day** view shows their doses right there. Each dose shows who, the medicine and the time, with three buttons:
 
-* **Taken**: logs when and on which device.
+* **Taken**: logs when and on which device, with a quick cheer that changes each time ("🚀 Leo for the win!") and a little confetti. Low-stimulation mode keeps it to a calm "Nice job, Leo." with no confetti. There are no points for medicine: points would be a reason to tap Taken without taking it, and they show on the leaderboard.
 * **Skip**: logs that it was skipped on purpose.
 * **Snooze 10 min**: hides the card for 10 minutes, then it comes back with one more reminder.
 
