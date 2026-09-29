@@ -4,6 +4,26 @@ Insights turn a person's check-ins into patterns they can see: how they've been 
 
 It's built on [Temp check](snapshot.md#temp-check) answers, the [evening goal check](snapshot.md#evening-goal-check) and [journal](journal.md) moods, so it's as private as the journal.
 
+## Opening Insights
+
+* **📈 Insights** at the top of their [journal](journal.md).
+* **Open insights** on their [profile](profiles.md) (on their own device and parents' devices only).
+* **Settings → Family**, in the person's **Temp check** settings (parents), **Open insights**.
+
+Pick **Last 4 weeks**, **Last 3 months** or **Last year** at the top.
+
+## The page
+
+* **In short**: plain sentences for the range (below).
+* **Connections**: patterns once there's enough to go on (below), or how many days there are so far.
+* **Sleep**: each night's answer from Terrible to Great, as a line across the range. Nights without an answer leave a gap.
+* **Feelings**: how many days each feeling came up, most common first, and each week's count for the top four.
+* **Goals** per week: met, partly, not this time, and goals with no check yet, out of 7 days.
+* **Chores done** and **Activity time** per week, when there are any.
+* **Busy days**: timed events each day, with a mark under evenings that ended after 8 PM.
+
+Charts are drawn to scale in the person's color and work in light and dark mode. Nothing needs a hover: every number is on the page or read out by screen readers. Feelings are never colored as good or bad.
+
 ## What goes into it
 
 Everything is counted by the family's day, in the family's time zone ([Settings → General](../settings/general.md)).

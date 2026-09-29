@@ -1,13 +1,14 @@
 // Dev-only in-memory fixture, used when VITE_MOCK=1. Excluded from prod by the env check in api.ts.
 import type { OnlineTidbits, Plugin, PluginCatalogEntry,
   Account, ApiKey, AppNotification, CalendarEntry, Category, Chore, ChoreDay, EventInstance, LeaderboardEntry, LeaderboardPeriod, List, ListGroup,
-  Photo, PhotoQuota, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, ListItem, ListItemInput, ListItemPatch, ListItemStep, Member, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption, TempCheck, TempCheckInput, Journal, JournalEntry, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory, DoseStatus,
+  Photo, PhotoQuota, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, ListItem, ListItemInput, ListItemPatch, ListItemStep, Member, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption, TempCheck, TempCheckInput, Journal, JournalEntry, Insights, InsightDay, InsightRange, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory, DoseStatus,
 } from './types.ts'
 import { FEELINGS, TEMP_CHECK_OFF } from './tempCheck.ts'
 import { aisleOrderMap, compareItems } from './types.ts'
 import { itemKey } from './itemSuggest.ts'
 import { byListOrder, reorderWithin } from './listSections.ts'
 import { dateKey } from './date.ts'
+import { MAYA_ANALYSIS, MAYA_DAYS } from './mock-insights.ts'
 import type { Contact, ContactCategory, ContactInput, ImportPreviewEntry } from './contact-types.ts'
 import { emptyContact } from './contact-types.ts'
 
@@ -29,6 +30,17 @@ for (const [n, sleep, feelings, goal, followup] of [
 const journalEntries: JournalEntry[] = [
   { id: 'je1', memberId: 'm3', date: demoDay(-1), text: 'We saw a double rainbow on the way home from soccer!', mood: '🌈', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
 ]
+// Maya's six weeks of check-ins before that (mock-insights.ts, made up), so her journal and Insights have history.
+const DEMO_GOALS = ['Read for 20 minutes', 'Practice piano for 15 minutes', 'Tidy my room', 'Finish my homework before dinner', 'Help make dinner', 'Ride my bike to the park']
+const DEMO_LINES = ['Played tag at recess', 'Soccer practice was fun', 'Made pancakes with Dad', 'Built a fort with Leo', 'Finished a chapter of my book']
+for (const d of MAYA_DAYS) {
+  if (d.ago < 3 || !d.checkedIn) continue
+  const date = demoDay(-d.ago)
+  tempChecks.set(`m3:${date}`, { memberId: 'm3', date, sleep: d.sleep, feelings: d.feelings.length ? [...d.feelings] : null, goal: d.goalSet ? DEMO_GOALS[d.ago % DEMO_GOALS.length] : null, goalSkipped: false, followup: d.goalOutcome ? { outcome: d.goalOutcome, ...noNotes } : null })
+  d.journalMoods.forEach((mood, i) => journalEntries.push({ id: `je-${d.ago}-${i}`, memberId: 'm3', date, text: DEMO_LINES[d.ago % DEMO_LINES.length], mood, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }))
+}
+const INSIGHT_DAYS: Record<InsightRange, number> = { '4w': 28, '3m': 91, '1y': 364 }
+const blankInsightDay = (date: string): InsightDay => ({ date, checkedIn: false, sleep: null, feelings: [], goalSet: false, goalOutcome: null, journalEntries: 0, journalMoods: [], chores: 0, points: 0, activityMinutes: 0, booksFinished: 0, events: 0, lastEventEnd: null })
 // Medication reminders: Leo's allergy medicine and Sam's vitamin, with a week of history. The demo is
 // a parent's device, and today's doses are due any time of day so the Take now card always shows.
 const medications: Medication[] = [
@@ -507,6 +519,20 @@ export const mock = {
     for (const t of tempChecks.values()) if (t.memberId === memberId && t.date >= from && t.date <= to) day(t.date).tempCheck = { sleep: t.sleep, feelings: t.feelings, goal: t.goal, goalSkipped: t.goalSkipped, followup: t.followup }
     for (const e of [...journalEntries].reverse()) if (e.memberId === memberId && e.date >= from && e.date <= to) day(e.date).entries.push({ ...e })
     return { memberId, from, to, days: [...days.values()].sort((a, b) => b.date.localeCompare(a.date)) }
+  },
+  // Insights: Maya's made-up history with the server's own analysis of it (mock-insights.ts); nothing yet for everyone else.
+  getInsights: async (memberId: string, range: InsightRange): Promise<Insights> => {
+    const n = INSIGHT_DAYS[range]
+    const days = Array.from({ length: n }, (_, i) => {
+      const ago = n - 1 - i
+      const date = demoDay(-ago)
+      const d = memberId === 'm3' ? MAYA_DAYS.find(x => x.ago === ago) : undefined
+      if (!d) return blankInsightDay(date)
+      const { ago: _ago, ...rest } = d
+      return { ...rest, date, feelings: [...d.feelings], journalMoods: [...d.journalMoods] }
+    })
+    const analysis = memberId === 'm3' ? MAYA_ANALYSIS[range] : { summary: [{ id: 'checkins', text: `Checked in on 0 of ${n} days` }], topFeelings: [], connections: { ready: false, daysWithCheckIns: 0, needed: 21, list: [] } }
+    return { memberId, range, from: days[0].date, to: days[n - 1].date, days, ...analysis }
   },
   addJournalEntry: async (memberId: string, b: { date?: string; text: string; mood?: string | null }): Promise<JournalEntry> => {
     const now = new Date().toISOString()

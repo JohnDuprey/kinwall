@@ -55,7 +55,12 @@ export default function Journal({ memberId }: { memberId?: string }) {
             <p className="profile-meta">🔒 {member.grownUp ? `Private to ${member.name}'s own devices and parent devices.` : `Just for ${member.name}, and parents can see it too.`}</p>
           </div>
         </div>
-        {!error && <button className="btn btn-primary journal-new" onClick={() => setEditing('new')}>+ New entry</button>}
+        {!error && (
+          <div className="journal-actions">
+            <a className="btn btn-secondary profile-link" href={`#/insights/${member.id}`}>📈 Insights</a>
+            <button className="btn btn-primary journal-new" onClick={() => setEditing('new')}>+ New entry</button>
+          </div>
+        )}
       </section>
       {error && <p className="snap-empty" role="alert">{error}</p>}
       {!error && member.tempCheck?.on && <GoalFollowUp key={`${member.id}:${tick}`} member={member} onSaved={() => setTick(t => t + 1)} />}

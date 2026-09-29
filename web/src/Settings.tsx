@@ -1558,6 +1558,15 @@ function TempCheckField({ member, name, value, onChange, toast }: { member: Memb
             </select>
           </div>
         )}
+        {member && savedOn && (
+          <div className="settings-row">
+            <div>
+              <div className="settings-row-label">Insights</div>
+              <div className="settings-row-sub">Patterns in {name}'s check-ins, next to chores and busy days. Private to {name} and parents.</div>
+            </div>
+            <a className="btn btn-secondary profile-link" href={`#/insights/${member.id}`}>Open insights</a>
+          </div>
+        )}
       </>}
     </div>
   )

@@ -2,7 +2,7 @@
 // streak, books, sticker book, activity time, badges, birthday. Opened from a leaderboard pill, a
 // header avatar's day sheet, or "Me" on a member's own device. About one person only: no sibling
 // rankings, just "vs your own last week". Health data never shows here. Their journal (and goals met
-// this week) only on their own device and parents' devices.
+// this week) and Insights only on their own device and parents' devices.
 import { useEffect, useState, type ReactNode } from 'react'
 import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
@@ -123,6 +123,7 @@ function ProfileBody({ member, s }: { member: Member; s: MemberStats }) {
         )}
         {parentDevice && f.chores && <WaitingCard member={member} />}
         {(parentDevice || meMemberId === member.id) && <JournalCard member={member} />}
+        {(parentDevice || meMemberId === member.id) && <InsightsCard member={member} />}
         {settings.medications && (parentDevice || meMemberId === member.id) && <MedicationsCard member={member} />}
       </div>
     </>
@@ -139,7 +140,7 @@ function Tile({ label, value, note, up = false }: { label: string; value: ReactN
   )
 }
 
-function Bar({ label, value, max, text, color }: { label: string; value: number; max: number; text: string; color?: string }) {
+export function Bar({ label, value, max, text, color }: { label: string; value: number; max: number; text: string; color?: string }) {
   return (
     <div className="profile-bar">
       <span className="profile-bar-label">{label}</span>
@@ -292,6 +293,17 @@ function JournalCard({ member }: { member: Member }) {
       {evening && week && week.of > 0 && <p className="profile-note">🎯 Goals met this week: <strong>{week.met} of {week.of}</strong></p>}
       <p className="profile-note">Check-ins, goals and {member.name}'s own notes, day by day.</p>
       <a className="btn btn-secondary profile-link" href={`#/journal/${member.id}`}>Open the journal</a>
+    </section>
+  )
+}
+
+/** Their own device and parents' devices only: a way into their insights (nothing from them on the profile itself). */
+function InsightsCard({ member }: { member: Member }) {
+  return (
+    <section className="board-card profile-card" aria-labelledby="pf-insights">
+      <h3 id="pf-insights" className="snap-heading">Insights <span>🔒 Private</span></h3>
+      <p className="profile-note">How sleep, feelings and goals have been going, next to chores and busy days.</p>
+      <a className="btn btn-secondary profile-link" href={`#/insights/${member.id}`}>Open insights</a>
     </section>
   )
 }

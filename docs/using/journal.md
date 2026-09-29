@@ -12,7 +12,7 @@ Days, newest first. Each day shows what was recorded:
 * **🎯 The goal** with how it went (🎉 Yes, 🌗 Partly, 🌱 Not today) and their notes: what helped, what got in the way, next time.
 * **Their entries**: anything they wrote, with an optional mood emoji.
 
-On evenings with a goal, today's **Goal check** waits at the top until they answer (see [Evening goal check](snapshot.md#evening-goal-check)). **Show earlier** loads older days.
+On evenings with a goal, today's **Goal check** waits at the top until they answer (see [Evening goal check](snapshot.md#evening-goal-check)). **Show earlier** loads older days. **📈 Insights** at the top opens their [Insights](insights.md): the same check-ins as charts and patterns over weeks.
 
 ## Writing an entry
 

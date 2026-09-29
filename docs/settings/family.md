@@ -47,6 +47,8 @@ Daily questions at the end of the person's [day](../using/snapshot.md#temp-check
 * **Evening goal check** (off by default, with the goal on): "Did you finish your goal?" at the time in **Ask at** (noon to 11:30 PM in half hours, 9:00 PM to start), on their own devices and at the bottom of their day. See [Evening goal check](../using/snapshot.md#evening-goal-check).
 * **Keep answers in the journal** (on by default): their notes (what helped, what got in the way, next time) go in their [journal](../using/journal.md). Off: only Yes, Partly or Not today is kept, and the notes aren't asked.
 
+Once it's saved on, **Open insights** goes to their [Insights](../using/insights.md): patterns in their check-ins over time.
+
 Words they added with **Other…** are listed as **Maya's own feelings**; pick one under **Remove…** to take it off their list (answers they already gave keep it).
 
 API: `tempCheck` on `GET /api/members` and `PATCH /api/members/{id}` (admin key), as `{ "on": true, "sleep": true, "feelings": true, "goal": true, "showGoal": true, "evening": false, "eveningTime": "21:00", "journal": true }` (`eveningTime` is household time on the hour or half hour). Members also carry `todayGoal`, today's goal or `null`. Their own feelings list is `custom` on `/api/members/{id}/temp-check`. Both are in [exports](../your-data/export-import.md).

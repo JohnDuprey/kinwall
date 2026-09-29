@@ -180,6 +180,20 @@ export interface JournalDay {
   entries: JournalEntry[]
 }
 export interface Journal { memberId: string; from: string; to: string; days: JournalDay[] }
+/** GET /api/members/{id}/insights (server/src/insights.ts InsightDay): one person's household day. */
+export interface InsightDay {
+  date: string; checkedIn: boolean; sleep: 'great' | 'good' | 'ok' | 'poorly' | 'terrible' | null; feelings: string[]; goalSet: boolean; goalOutcome: FollowupOutcome | null
+  journalEntries: number; journalMoods: string[]; chores: number; points: number; activityMinutes: number; booksFinished: number
+  events: number; lastEventEnd: string | null // HH:MM household time; '24:00' past midnight
+}
+export type InsightRange = '4w' | '3m' | '1y'
+export type InsightTally = { hit: number; n: number }
+export interface InsightConnection { id: string; text: string; detail: string; confidence: 'early' | 'clear'; a: InsightTally; b: InsightTally }
+export interface Insights {
+  memberId: string; range: InsightRange; from: string; to: string; days: InsightDay[]
+  summary: { id: string; text: string }[]; topFeelings: { feeling: string; days: number }[]
+  connections: { ready: boolean; daysWithCheckIns: number; needed: number; list: InsightConnection[] }
+}
 
 /** GET /api/medications: a person's medicine. days: weekdays, 0 = Sunday. Parents' devices and their own. */
 export interface Medication { id: string; memberId: string; name: string; dose: string; times: string[]; days: number[]; createdAt: string; updatedAt: string }

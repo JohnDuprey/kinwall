@@ -10,7 +10,7 @@ import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginCatalogEntry,
   StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota, Reward, Redemption, MemberStats, StatsPeriod,
   Account, ApiKey, AppNotification, Appearance, CalendarEntry, Category, Chore, ChoreDay, PendingApproval, EventInstance, LeaderboardEntry, LeaderboardPeriod, List,
   GeocodeResult, HostEvent, ImportResult, ListDetail, ListGroup, ListItem, ListItemInput, ListItemPatch, Member, Me, Note, NoteTarget, Passkey, TrackerEntry, TrackerInput, TrackerKind, Providers, PushSubscription, PushSubscriptionPrefs, RemoteCalendar, Settings, Snapshot, Board, Webhook, WebhookWithSecret,
-  TempCheck, TempCheckInput, Journal, JournalEntry, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory,
+  TempCheck, TempCheckInput, Journal, JournalEntry, Insights, InsightRange, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory,
 } from './types.ts'
 
 /** Demo build: every call is served from mock.ts in memory - no server, nothing persists. */
@@ -377,6 +377,9 @@ export const api = {
     const qs = new URLSearchParams(Object.entries(opts).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])).toString()
     return MOCK ? mock.getJournal(memberId, opts) : req<Journal>(`api/members/${encodeURIComponent(memberId)}/journal${qs ? `?${qs}` : ''}`, {})
   },
+  // Insights: worked out on the server from their check-ins (their own device and parents' devices only). Never the offline cache.
+  getInsights: (memberId: string, range: InsightRange) =>
+    MOCK ? mock.getInsights(memberId, range) : req<Insights>(`api/members/${encodeURIComponent(memberId)}/insights?range=${range}`, {}),
   addJournalEntry: (memberId: string, body: { date?: string; text: string; mood?: string | null }) =>
     MOCK ? mock.addJournalEntry(memberId, body) : post<JournalEntry>(`api/members/${encodeURIComponent(memberId)}/journal`, body),
   updateJournalEntry: (memberId: string, id: string, body: { date?: string; text?: string; mood?: string | null }) =>

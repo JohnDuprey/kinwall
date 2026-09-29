@@ -29,6 +29,7 @@ Pick **Today**, **Week**, **Month**, **Year** or **All time** at the top. Days f
 * **Badges**: see below.
 * **Sticker book**: packs unlocked and stickers on the page.
 * **Journal** 🔒 (only on their own device and parents' devices): **Open the journal**, and with the [evening goal check](snapshot.md#evening-goal-check) on, **Goals met this week: 3 of 5** (goals answered Yes out of goals set in the last 7 days). See [Journal](journal.md).
+* **Insights** 🔒 (only on their own device and parents' devices): **Open insights**, for patterns in their check-ins. Nothing from Insights shows on the profile itself. See [Insights](insights.md).
 * **Medicines** 🔒 (with [medication reminders](medications.md) on, only on their own device and parents' devices): **Open medicines**. No names or doses on the profile itself.
 * **Birthday**, under their name, from [Settings → Family](../settings/family.md): a countdown in the 60 days before ("Turns 8 in 35 days"), "Turned 8 on Sep 13 🎂" for two weeks after, and their age ("8 years old") the rest of the year. Without a birth year it says "Birthday in 35 days" or "Birthday was Sep 13", and nothing the rest of the year.
 
