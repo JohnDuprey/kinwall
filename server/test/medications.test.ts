@@ -289,6 +289,41 @@ test('Take now: due from its time for 3 hours; "Meds" on a shared wall unless na
   assert.equal((await mark(leoMed.id, 'snooze')).status, 400, 'nothing to snooze once it is taken');
 });
 
+test('late window per medicine: up to 3 hours (default), until 8 PM, until the end of the day, or 1 hour when it shouldn\'t be taken late', async (t) => {
+  t.after(() => mock.timers.reset());
+  const s = await setup({ now: at('07:00') });
+  const due = async () => ((await s.req('/api/medications/due')).json.doses as { medicationId: string; time: string }[]).map((d) => d.medicationId).sort();
+  const plain = (await s.add(s.leo.id)).json;
+  assert.equal(plain.lateWindow, '3h', 'existing behavior by default');
+  const evening = (await s.add(s.leo.id, { lateWindow: 'evening' })).json;
+  const allDay = (await s.add(s.maya.id, { lateWindow: 'endOfDay' })).json;
+  const strict = (await s.add(s.maya.id, { lateWindow: 'none' })).json;
+  const supper = (await s.add(s.sam.id, { times: ['19:00'], lateWindow: 'evening' })).json; // after 5 PM: still 3 hours
+  assert.equal((await s.add(s.leo.id, { lateWindow: 'someday' })).status, 400);
+  assert.equal((await s.req(`/api/medications/${plain.id}`, 'PATCH', { lateWindow: 'tomorrow' })).status, 400);
+  mock.timers.setTime(at('08:59').getTime());
+  assert.deepEqual(await due(), [plain.id, evening.id, allDay.id, strict.id].sort());
+  mock.timers.setTime(at('09:01').getTime());
+  assert.deepEqual(await due(), [plain.id, evening.id, allDay.id].sort(), "don't take late: 1 hour");
+  mock.timers.setTime(at('11:01').getTime());
+  assert.deepEqual(await due(), [evening.id, allDay.id].sort());
+  mock.timers.setTime(at('19:59').getTime());
+  assert.deepEqual(await due(), [evening.id, allDay.id, supper.id].sort());
+  mock.timers.setTime(at('20:01').getTime());
+  assert.deepEqual(await due(), [allDay.id, supper.id].sort(), 'until 8 PM');
+  mock.timers.setTime(at('21:59').getTime());
+  assert.deepEqual(await due(), [allDay.id, supper.id].sort(), 'a 7 PM dose still gets its 3 hours');
+  mock.timers.setTime(at('23:59').getTime());
+  assert.deepEqual(await due(), [allDay.id]);
+  mock.timers.setTime(at('00:01', '2026-09-29').getTime());
+  assert.deepEqual(await due(), [], 'until the end of the day');
+  const statuses = async (id: string) => (await s.req(`/api/members/${id}/medications`)).json.days.at(-2).doses.map((d: any) => [d.medicationId, d.status]);
+  assert.deepEqual((await statuses(s.maya.id)).map((d: string[]) => d[1]), ['missed', 'missed']);
+  const patched = await s.req(`/api/medications/${plain.id}`, 'PATCH', { lateWindow: 'none' });
+  assert.deepEqual([patched.status, patched.json.lateWindow], [200, 'none']);
+  assert.equal(JSON.stringify(s.raw('medications')).includes('evening'), false, 'sealed with the rest');
+});
+
 test('history: today plus the last 6 days from each medicine\'s schedule, on its weekdays only', async (t) => {
   t.after(() => mock.timers.reset());
   const { req, leo, add, mark } = await setup({ now: at('07:00', '2026-09-21') });
@@ -447,11 +482,11 @@ test('medications: the export has them in plain form (it is their backup); impor
   t.after(() => mock.timers.reset());
   const source = await setup({ now: at('08:05') });
   const id = source.leo.id;
-  const med = (await source.add(id, { days: [1, 3], endDate: '2026-10-05', totalDoses: 4 })).json;
+  const med = (await source.add(id, { days: [1, 3], endDate: '2026-10-05', totalDoses: 4, lateWindow: 'evening' })).json;
   await source.mark(med.id, 'taken');
   const file = (await source.req('/api/export')).json;
   assert.equal(file.settings.medications, true);
-  assert.deepEqual(file.medications.map((m: any) => [m.id, m.memberId, m.name, m.dose, m.times, m.days, m.endDate, m.totalDoses]), [[med.id, id, NAME, DOSE, ['08:00'], [1, 3], '2026-10-05', 4]]);
+  assert.deepEqual(file.medications.map((m: any) => [m.id, m.memberId, m.name, m.dose, m.times, m.days, m.endDate, m.totalDoses, m.lateWindow]), [[med.id, id, NAME, DOSE, ['08:00'], [1, 3], '2026-10-05', 4, 'evening']]);
   assert.deepEqual(file.medicationLog.map((d: any) => [d.medicationId, d.date, d.time, d.status, d.by]), [[med.id, TODAY, '08:00', 'taken', 'ADMIN_API_KEY']]);
   const hidden = (await source.req('/api/export', 'GET', undefined, ADMIN, APP)).json;
   assert.deepEqual([hidden.medications, hidden.medicationLog], [[], []], 'a connected app without aiHealthAccess gets neither');
@@ -465,7 +500,11 @@ test('medications: the export has them in plain form (it is their backup); impor
   assert.match(String(target.raw('medication_log')[0].log), /^enc:v1:/);
   assert.equal(JSON.stringify([target.raw('medications'), target.raw('medication_log')]).includes(NAME), false);
   const back = (await target.req(`/api/members/${id}/medications`)).json;
-  assert.deepEqual([back.medications[0].name, back.medications[0].endDate, back.medications[0].dosesLeft, back.days.at(-1).doses[0].status], [NAME, '2026-10-05', 3, 'taken']);
+  assert.deepEqual([back.medications[0].name, back.medications[0].endDate, back.medications[0].dosesLeft, back.medications[0].lateWindow, back.days.at(-1).doses[0].status], [NAME, '2026-10-05', 3, 'evening', 'taken']);
+  const old = await setup({ now: at('08:05'), on: false });
+  const { lateWindow: _, ...before } = file.medications[0];
+  assert.equal((await old.req('/api/import', 'POST', { ...file, medications: [before] })).status, 200, 'a file from before late windows');
+  assert.equal((await old.req(`/api/members/${id}/medications`)).json.medications[0].lateWindow, '3h');
   assert.equal((await target.req('/api/import', 'POST', file)).status, 200); // again: no duplicates
   assert.deepEqual([target.raw('medications').length, target.raw('medication_log').length], [1, 1]);
   const refused = await target.req('/api/import', 'POST', { ...file, medications: [{ ...file.medications[0], id: 'other' }] }, ADMIN, APP);

@@ -10,7 +10,7 @@ import { useDialog } from './dialog.tsx'
 import { inkFor } from './color.ts'
 import Sheet from './Sheet.tsx'
 import { daysLabel, EVERY_DAY, scheduleLabel, WEEKDAYS } from './medications.ts'
-import type { Medication, Member } from './types.ts'
+import type { LateWindow, Medication, Member } from './types.ts'
 
 const NOTICE = 'Kinwall keeps each medicine’s name, dose and times, and when a dose was marked taken or skipped. It’s encrypted on the server. Parent devices see everyone’s; each person’s own device sees theirs. Wall screens show “Meds” when a dose is due, without names. Reminders say “Time for Leo’s medicine” unless a device turns names on. Nothing goes to connected apps, webhooks or Home Assistant.'
 
@@ -115,11 +115,12 @@ function MedicationSheet({ med, member, onClose, onSaved }: { med: Medication | 
   const [ends, setEnds] = useState<'never' | 'date' | 'doses'>(med?.totalDoses != null ? 'doses' : med?.endDate ? 'date' : 'never')
   const [endDate, setEndDate] = useState(med?.endDate ?? '')
   const [totalDoses, setTotalDoses] = useState(med?.totalDoses != null ? String(med.totalDoses) : '')
+  const [lateWindow, setLateWindow] = useState<LateWindow>(med?.lateWindow ?? '3h')
   const total = Number(totalDoses)
   const endsValid = ends === 'never' || (ends === 'date' ? /^\d{4}-\d{2}-\d{2}$/.test(endDate) : Number.isInteger(total) && total >= 1 && total <= 1000)
   const valid = name.trim() && times.length > 0 && times.every(Boolean) && days.length > 0 && endsValid
   const save = async () => {
-    const body = { name: name.trim(), dose: dose.trim(), times, days, endDate: ends === 'date' ? endDate : null, totalDoses: ends === 'doses' ? total : null }
+    const body = { name: name.trim(), dose: dose.trim(), times, days, endDate: ends === 'date' ? endDate : null, totalDoses: ends === 'doses' ? total : null, lateWindow }
     try {
       if (med) await api.updateMedication(med.id, body)
       else await api.addMedication({ memberId: member.id, ...body })
@@ -176,6 +177,16 @@ function MedicationSheet({ med, member, onClose, onSaved }: { med: Medication | 
           </div>
         )}
         {days.length === 0 && <p className="field-hint">Pick at least one day.</p>}
+      </div>
+      <div className="field">
+        <label htmlFor="med-late">Can be taken late</label>
+        <select id="med-late" className="settings-select" value={lateWindow} onChange={e => setLateWindow(e.target.value as LateWindow)} aria-describedby="med-late-hint">
+          <option value="3h">Up to 3 hours</option>
+          <option value="evening">Until evening (8 PM)</option>
+          <option value="endOfDay">Until the end of the day</option>
+          <option value="none">Don't take late</option>
+        </select>
+        <p className="field-hint" id="med-late-hint">Some medicines shouldn't be taken late. Check with your doctor or pharmacist.</p>
       </div>
       <div className="field">
         <label htmlFor="med-ends">Ends</label>

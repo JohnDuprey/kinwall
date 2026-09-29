@@ -44,8 +44,8 @@ const blankInsightDay = (date: string): InsightDay => ({ date, checkedIn: false,
 // Medication reminders: Leo's allergy medicine and Sam's vitamin, with a week of history. The demo is
 // a parent's device, and today's doses are due any time of day so the Take now card always shows.
 const medications: Medication[] = [
-  { id: 'med1', memberId: 'm4', name: 'Allergy medicine', dose: '1 tablet', times: ['08:00'], days: [0, 1, 2, 3, 4, 5, 6], endDate: null, totalDoses: null, dosesLeft: null, createdAt: new Date(Date.now() - 30 * 86_400_000).toISOString(), updatedAt: new Date().toISOString() },
-  { id: 'med2', memberId: 'm2', name: 'Daily vitamin', dose: '1 capsule', times: ['08:00'], days: [0, 1, 2, 3, 4, 5, 6], endDate: null, totalDoses: null, dosesLeft: null, createdAt: new Date(Date.now() - 30 * 86_400_000).toISOString(), updatedAt: new Date().toISOString() },
+  { id: 'med1', memberId: 'm4', name: 'Allergy medicine', dose: '1 tablet', times: ['08:00'], days: [0, 1, 2, 3, 4, 5, 6], endDate: null, totalDoses: null, lateWindow: 'evening', dosesLeft: null, createdAt: new Date(Date.now() - 30 * 86_400_000).toISOString(), updatedAt: new Date().toISOString() },
+  { id: 'med2', memberId: 'm2', name: 'Daily vitamin', dose: '1 capsule', times: ['08:00'], days: [0, 1, 2, 3, 4, 5, 6], endDate: null, totalDoses: null, lateWindow: 'endOfDay', dosesLeft: null, createdAt: new Date(Date.now() - 30 * 86_400_000).toISOString(), updatedAt: new Date().toISOString() },
 ]
 type MockDose = { status?: 'taken' | 'skipped'; at?: string; by?: string; snoozedUntil?: string }
 const medLog = new Map<string, Record<string, MockDose>>() // `${medicationId}:${date}`
@@ -568,7 +568,7 @@ export const mock = {
   getMedications: async (memberId?: string): Promise<Medication[]> => medications.filter(m => !memberId || m.memberId === memberId).map(m => ({ ...m })),
   addMedication: async (b: MedicationInput): Promise<Medication> => {
     const now = new Date().toISOString()
-    const m: Medication = { id: uid(), endDate: null, totalDoses: null, ...b, dosesLeft: b.totalDoses ?? null, name: b.name.trim(), dose: b.dose.trim(), times: [...new Set(b.times)].sort(), days: [...new Set(b.days)].sort(), createdAt: now, updatedAt: now }
+    const m: Medication = { id: uid(), endDate: null, totalDoses: null, lateWindow: '3h', ...b, dosesLeft: b.totalDoses ?? null, name: b.name.trim(), dose: b.dose.trim(), times: [...new Set(b.times)].sort(), days: [...new Set(b.days)].sort(), createdAt: now, updatedAt: now }
     medications.push(m); bump(); return { ...m }
   },
   updateMedication: async (id: string, b: Partial<Omit<MedicationInput, 'memberId'>>): Promise<Medication> => {

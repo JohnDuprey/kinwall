@@ -4,7 +4,7 @@
 //
 // Health data end to end (AGENTS.md "Health data"):
 // - Off until a parent turns it on (settings.medications); off hides everything (404) and keeps the data.
-// - Name, dose, times and weekdays are one sealed JSON (medications.data, aad '<id>:data'); a day's
+// - Name, dose, times, weekdays, course end and late window are one sealed JSON (medications.data, aad '<id>:data'); a day's
 //   taken / skipped / snoozed log is one sealed JSON per medicine per day (medication_log.log, aad
 //   '<medication_id>:<date>:log'). Only who (member_id) and which day stay plain. No key: 500, nothing stored.
 // - Never logged, no webhook events at all, no MCP tool, not in snapshots, profiles or share links.
@@ -34,7 +34,9 @@ import { readSettings } from './settings.ts';
 export const medicationsRoutes = createRouter();
 type C = Context<{ Bindings: Env }>;
 
-export const DUE_MS = 3 * 60 * 60_000; // a dose shows as "Take now" for 3 hours, then it's missed
+export const DUE_MS = 3 * 60 * 60_000; // a dose shows as "Take now" for 3 hours (its late window by default), then "Not marked"
+export const STRICT_MS = 60 * 60_000; // lateWindow 'none': the card stays an hour, time enough to notice it
+export const EVENING = '20:00'; // lateWindow 'evening'
 export const LATE_MS = 30 * 60_000; // a kid's dose not marked by then tells parents
 export const SNOOZE_MS = 10 * 60_000;
 
@@ -48,17 +50,22 @@ const Days = z.array(z.number().int().min(0).max(6)).min(1).max(7).transform((d)
 // A course (e.g. an antibiotic) ends on its endDate, or once totalDoses have been taken (skips don't count).
 const EndDate = DateSchema.nullable().openapi({ description: 'Last household day of doses (YYYY-MM-DD); null: no end.' });
 const TotalDoses = z.number().int().min(1).max(1000).nullable().openapi({ description: 'Stop after this many doses are taken; null: no limit.' });
+// How late a dose may still be taken: the Take now card, "due" and the reminders follow it. Never shorter
+// than 3 hours except 'none' (1 hour), so a 7 PM dose with 'evening' still gets until 10 PM.
+export const LATE_WINDOWS = ['3h', 'evening', 'endOfDay', 'none'] as const;
+export type LateWindow = (typeof LATE_WINDOWS)[number];
+export const LateWindowSchema = z.enum(LATE_WINDOWS).openapi({ description: "How late a dose can be taken: '3h' (default), 'evening' (until 8 PM), 'endOfDay' (until midnight), 'none' (the card stays 1 hour)." });
 
 const MedicationSchema = z
   .object({
     id: z.string(), memberId: z.string(), name: z.string(), dose: z.string(), times: z.array(z.string()), days: z.array(z.number()),
-    endDate: z.string().nullable(), totalDoses: z.number().nullable(),
+    endDate: z.string().nullable(), totalDoses: z.number().nullable(), lateWindow: LateWindowSchema,
     dosesLeft: z.number().nullable().openapi({ description: 'totalDoses minus doses taken; null without totalDoses.' }),
     createdAt: z.string(), updatedAt: z.string(),
   })
   .openapi('Medication');
-const MedicationInputSchema = z.object({ memberId: z.string(), name: Name, dose: Dose.default(''), times: Times, days: Days.default([0, 1, 2, 3, 4, 5, 6]), endDate: EndDate.default(null), totalDoses: TotalDoses.default(null) }).openapi('MedicationInput');
-const MedicationPatchSchema = z.object({ name: Name.optional(), dose: Dose.optional(), times: Times.optional(), days: Days.optional(), endDate: EndDate.optional(), totalDoses: TotalDoses.optional() }).openapi('MedicationPatch');
+const MedicationInputSchema = z.object({ memberId: z.string(), name: Name, dose: Dose.default(''), times: Times, days: Days.default([0, 1, 2, 3, 4, 5, 6]), endDate: EndDate.default(null), totalDoses: TotalDoses.default(null), lateWindow: LateWindowSchema.default('3h') }).openapi('MedicationInput');
+const MedicationPatchSchema = z.object({ name: Name.optional(), dose: Dose.optional(), times: Times.optional(), days: Days.optional(), endDate: EndDate.optional(), totalDoses: TotalDoses.optional(), lateWindow: LateWindowSchema.optional() }).openapi('MedicationPatch');
 const STATUSES = ['taken', 'skipped', 'due', 'missed', 'upcoming'] as const;
 const DoseSchema = z
   .object({
@@ -89,11 +96,11 @@ type LogRow = { medication_id: string; date: string; log: string; updated_at: st
 
 const dataAad = (id: string) => `${id}:data`;
 const logAad = (id: string, date: string) => `${id}:${date}:log`;
-export const sealMedication = async (env: EncryptionEnv, m: Pick<Medication, 'id' | 'name' | 'dose' | 'times' | 'days'> & Partial<Pick<Medication, 'endDate' | 'totalDoses'>>) =>
-  seal(env, JSON.stringify({ name: m.name, dose: m.dose, times: m.times, days: m.days, endDate: m.endDate ?? null, totalDoses: m.totalDoses ?? null }), dataAad(m.id));
+export const sealMedication = async (env: EncryptionEnv, m: Pick<Medication, 'id' | 'name' | 'dose' | 'times' | 'days'> & Partial<Pick<Medication, 'endDate' | 'totalDoses' | 'lateWindow'>>) =>
+  seal(env, JSON.stringify({ name: m.name, dose: m.dose, times: m.times, days: m.days, endDate: m.endDate ?? null, totalDoses: m.totalDoses ?? null, lateWindow: m.lateWindow ?? '3h' }), dataAad(m.id));
 export async function openMedication(env: EncryptionEnv & { DB: KinwallDb }, r: MedRow): Promise<Medication> {
   const d = JSON.parse(await unseal(env, r.data, dataAad(r.id)));
-  const m: Medication = { id: r.id, memberId: r.member_id, name: d.name, dose: d.dose ?? '', times: d.times, days: d.days, endDate: d.endDate ?? null, totalDoses: d.totalDoses ?? null, dosesLeft: null, createdAt: r.created_at, updatedAt: r.updated_at };
+  const m: Medication = { id: r.id, memberId: r.member_id, name: d.name, dose: d.dose ?? '', times: d.times, days: d.days, endDate: d.endDate ?? null, totalDoses: d.totalDoses ?? null, lateWindow: d.lateWindow ?? '3h', dosesLeft: null, createdAt: r.created_at, updatedAt: r.updated_at };
   return withDosesLeft(env, m);
 }
 /** dosesLeft for a medicine with totalDoses: counts every taken dose in its log. */
@@ -128,9 +135,15 @@ export function doseAt(date: string, time: string, tz: string): number {
   const [h, mi] = time.split(':').map(Number);
   return zonedTimeToUtc({ y, mo: mo - 1, d, h, mi, s: 0 }, tz).getTime();
 }
-export function doseStatus(dueAt: number, e: DoseEntry | undefined, now: number): (typeof STATUSES)[number] {
+/** When a dose due at `dueAt` (on household `date`) stops being "due" and becomes "Not marked". */
+export function windowEnd(lateWindow: LateWindow, date: string, dueAt: number, tz: string): number {
+  if (lateWindow === 'none') return dueAt + STRICT_MS;
+  const until = lateWindow === 'evening' ? doseAt(date, EVENING, tz) : lateWindow === 'endOfDay' ? doseAt(addDays(date, 1), '00:00', tz) : 0;
+  return Math.max(until, dueAt + DUE_MS);
+}
+export function doseStatus(dueAt: number, end: number, e: DoseEntry | undefined, now: number): (typeof STATUSES)[number] {
   if (e?.status) return e.status;
-  return now < dueAt ? 'upcoming' : now < dueAt + DUE_MS ? 'due' : 'missed';
+  return now < dueAt ? 'upcoming' : now < end ? 'due' : 'missed';
 }
 /** "Allergy medicine · 1 tablet" (for a device that opted into names). */
 export const medicineLabel = (m: Pick<Medication, 'name' | 'dose'>) => (m.dose ? `${m.name} · ${m.dose}` : m.name);
@@ -218,7 +231,7 @@ medicationsRoutes.openapi(
     const body = c.req.valid('json');
     if (!(await c.env.DB.prepare('SELECT 1 FROM members WHERE id = ?').bind(body.memberId).first())) return c.json({ error: 'member not found' }, 404);
     const now = new Date().toISOString();
-    const m: Medication = { id: crypto.randomUUID(), memberId: body.memberId, name: body.name, dose: body.dose, times: body.times, days: body.days, endDate: body.endDate, totalDoses: body.totalDoses, dosesLeft: body.totalDoses, createdAt: now, updatedAt: now };
+    const m: Medication = { id: crypto.randomUUID(), memberId: body.memberId, name: body.name, dose: body.dose, times: body.times, days: body.days, endDate: body.endDate, totalDoses: body.totalDoses, lateWindow: body.lateWindow, dosesLeft: body.totalDoses, createdAt: now, updatedAt: now };
     await write(c, m);
     return c.json(m, 201);
   },
@@ -242,7 +255,7 @@ medicationsRoutes.openapi(
     const body = c.req.valid('json');
     const m: Medication = {
       ...found, name: body.name ?? found.name, dose: body.dose ?? found.dose, times: body.times ?? found.times, days: body.days ?? found.days,
-      endDate: body.endDate !== undefined ? body.endDate : found.endDate, totalDoses: body.totalDoses !== undefined ? body.totalDoses : found.totalDoses, updatedAt: new Date().toISOString(),
+      endDate: body.endDate !== undefined ? body.endDate : found.endDate, totalDoses: body.totalDoses !== undefined ? body.totalDoses : found.totalDoses, lateWindow: body.lateWindow ?? found.lateWindow, updatedAt: new Date().toISOString(),
     };
     await write(c, m);
     return c.json(await withDosesLeft(c.env, m), 200);
@@ -297,7 +310,7 @@ medicationsRoutes.openapi(
 medicationsRoutes.openapi(
   createRoute({
     method: 'get', path: '/api/medications/due', tags: TAG, security: [{ Bearer: [] }],
-    summary: 'Doses to take now (from their time for 3 hours, until taken, skipped or snoozed): the "Take now" cards. A shared wall gets everyone\'s, with name and dose null unless medicationNamesOnWalls; a person\'s own device only theirs.',
+    summary: 'Doses to take now (from their time through their late window, 3 hours by default, until taken, skipped or snoozed): the "Take now" cards. A shared wall gets everyone\'s, with name and dose null unless medicationNamesOnWalls; a person\'s own device only theirs.',
     responses: { 200: { description: 'ok', content: json(DueSchema) }, ...denied },
   }),
   async (c) => {
@@ -311,7 +324,7 @@ medicationsRoutes.openapi(
     const doses = meds.flatMap((m) => [yesterday, g.today].flatMap((date) => (scheduledOn(m, date) ? m.times : []).flatMap((time) => {
       const e = logs.get(`${m.id}:${date}`)?.[time];
       const at = doseAt(date, time, g.tz);
-      if (doseStatus(at, e, now) !== 'due' || (e?.snoozedUntil && Date.parse(e.snoozedUntil) > now)) return [];
+      if (doseStatus(at, windowEnd(m.lateWindow, date, at, g.tz), e, now) !== 'due' || (e?.snoozedUntil && Date.parse(e.snoozedUntil) > now)) return [];
       return [{ medicationId: m.id, memberId: m.memberId, date, time, dueAt: new Date(at).toISOString(), name: names ? m.name : null, dose: names ? m.dose : null }];
     })));
     const order = new Map((await c.env.DB.prepare('SELECT id FROM members ORDER BY sort, created_at').all<{ id: string }>()).results.map((r, i) => [r.id, i]));
@@ -337,6 +350,7 @@ medicationsRoutes.openapi(
     if (date !== g.today && date !== addDays(g.today, -1)) return c.json({ error: "Only today's and yesterday's doses can be marked" }, 400);
     if (!m.times.includes(time) || !scheduledOn(m, date)) return c.json({ error: "That isn't one of its doses" }, 400);
     const at = doseAt(date, time, g.tz);
+    const end = windowEnd(m.lateWindow, date, at, g.tz);
     const by = (await requestKey(c))?.name ?? null;
     // Read, change and write back only if nobody wrote in between (a wall and a phone at once).
     for (let attempt = 0; attempt < 3; attempt++) {
@@ -344,7 +358,7 @@ medicationsRoutes.openapi(
       const log = row ? await openLog(c.env, row) : {};
       const now = new Date();
       if (action === 'snooze') {
-        if (doseStatus(at, log[time], now.getTime()) !== 'due') return c.json({ error: 'Only a dose that is due can be snoozed' }, 400);
+        if (doseStatus(at, end, log[time], now.getTime()) !== 'due') return c.json({ error: 'Only a dose that is due can be snoozed' }, 400);
         log[time] = { snoozedUntil: new Date(now.getTime() + SNOOZE_MS).toISOString() };
       } else log[time] = { status: action, at: now.toISOString(), ...(by ? { by } : {}) };
       const sealed = await sealLog(c.env, m.id, date, log);
@@ -354,7 +368,7 @@ medicationsRoutes.openapi(
       if (!res.meta.changes) continue;
       await bumpRev(c.env.DB).run();
       const e = log[time];
-      return c.json({ medicationId: m.id, date, time, status: doseStatus(at, e, now.getTime()), at: e.at ?? null, by: e.by ?? null, snoozedUntil: e.snoozedUntil ?? null }, 200);
+      return c.json({ medicationId: m.id, date, time, status: doseStatus(at, end, e, now.getTime()), at: e.at ?? null, by: e.by ?? null, snoozedUntil: e.snoozedUntil ?? null }, 200);
     }
     return c.json({ error: 'Someone else just marked it. Try again.' }, 409);
   },
@@ -384,7 +398,7 @@ medicationsRoutes.openapi(
         const since = todayInTz(g.tz, new Date(m.createdAt));
         // Its schedule on days since it was added, plus anything logged under a time it no longer has.
         const times = [...new Set([...(date >= since && scheduledOn({ ...m, dosesLeft: null }, date) ? m.times : []), ...Object.keys(log).filter((t) => log[t].status)])].sort();
-        return times.map((time) => ({ medicationId: m.id, time, status: doseStatus(doseAt(date, time, g.tz), log[time], now), at: log[time]?.at ?? null, by: log[time]?.by ?? null }));
+        return times.map((time) => { const due = doseAt(date, time, g.tz); return { medicationId: m.id, time, status: doseStatus(due, windowEnd(m.lateWindow, date, due, g.tz), log[time], now), at: log[time]?.at ?? null, by: log[time]?.by ?? null }; });
       }).sort((a, b) => a.time.localeCompare(b.time));
       days.push({ date, doses });
     }

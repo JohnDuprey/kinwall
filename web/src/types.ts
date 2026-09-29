@@ -216,8 +216,10 @@ export interface Battery { memberId: string; on: boolean; today: string; days: B
 
 /** GET /api/medications: a person's medicine. days: weekdays, 0 = Sunday. Parents' devices and their own. */
 /** endDate / totalDoses: an optional end to a course (e.g. an antibiotic); dosesLeft is null without totalDoses. */
-export interface Medication { id: string; memberId: string; name: string; dose: string; times: string[]; days: number[]; endDate: string | null; totalDoses: number | null; dosesLeft: number | null; createdAt: string; updatedAt: string }
-export type MedicationInput = { memberId: string; name: string; dose: string; times: string[]; days: number[]; endDate?: string | null; totalDoses?: number | null }
+/** lateWindow: how late a dose can be taken ('3h' default, 'evening' until 8 PM, 'endOfDay', 'none': the card stays 1 hour). */
+export type LateWindow = '3h' | 'evening' | 'endOfDay' | 'none'
+export interface Medication { id: string; memberId: string; name: string; dose: string; times: string[]; days: number[]; endDate: string | null; totalDoses: number | null; lateWindow: LateWindow; dosesLeft: number | null; createdAt: string; updatedAt: string }
+export type MedicationInput = { memberId: string; name: string; dose: string; times: string[]; days: number[]; endDate?: string | null; totalDoses?: number | null; lateWindow?: LateWindow }
 export type DoseStatus = 'taken' | 'skipped' | 'due' | 'missed' | 'upcoming'
 /** GET /api/medications/due: the Take now cards. name/dose null on a shared wall with names off ("Meds"). */
 export interface DueDose { medicationId: string; memberId: string; date: string; time: string; dueAt: string; name: string | null; dose: string | null }

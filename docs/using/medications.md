@@ -14,6 +14,7 @@ On a parent's device, open **Trackers → Health**. The **💊 Medicines** secti
 * **Dose** (optional): free text, like "1 tablet" or "5 mg".
 * **Times**: one or more times a day (up to 8), in the household's time zone. **+ Add a time** adds another.
 * **Days**: **Every day**, **Weekdays**, **Weekends**, or **Certain days** with a button per weekday.
+* **Can be taken late**: how long after its time a dose can still be taken. **Up to 3 hours** (the default), **Until evening (8 PM)**, **Until the end of the day**, or **Don't take late**. Some medicines shouldn't be taken late, so check with your doctor or pharmacist. A late window never ends sooner than 3 hours after the dose's time (a 7 PM dose set to **Until evening** still has until 10 PM), except **Don't take late**, where the card stays for 1 hour: long enough to notice it, short enough not to invite a late dose.
 * **Ends** (for a course, like an antibiotic): **No end**, **On a date** (the last day of doses), or **After a number of doses** (reminders stop once that many are marked **Taken**; skipped doses don't count). The list shows "Until Mon, Oct 5" or "7 of 20 doses left", then "Done: all 20 doses taken". The history keeps the finished course.
 
 Tap a medicine to change it. **More… → Delete medicine** removes it and its history. Only parent devices add, change or delete medicines.
@@ -26,7 +27,7 @@ At each dose time, a **💊 Take now** tile joins the [Board](calendar.md)'s cou
 * **Skip**: logs that it was skipped on purpose.
 * **Snooze 10 min**: hides the card for 10 minutes, then it comes back with one more reminder.
 
-The card stays until the dose is marked, or for 3 hours after its time. After that the dose counts as **Not marked**.
+The card stays until the dose is marked, or until its late window closes: 3 hours after its time by default, 8 PM, midnight, or 1 hour for **Don't take late**. After that the dose counts as **Not marked**.
 
 On a shared wall screen the card says **Meds** instead of the medicine's name, unless the family turns on **Show medicine names on shared screens** (in **Trackers → Health → Medicines**). Anyone at the wall can mark a dose, since many families give medicines in the kitchen.
 
@@ -73,8 +74,8 @@ Refills and pill counts (a course can end after a number of doses, but there is 
 
 All medication routes answer 404 while the feature is off.
 
-* `GET /api/medications?memberId=`: medicines (`{ id, memberId, name, dose, times, days, createdAt, updatedAt }`, `days` 0 = Sunday). Parent devices: everyone's; a person's own device: theirs. 403 on a shared wall.
-* `POST /api/medications` with `{ memberId, name, dose?, times, days? }`, `PATCH /api/medications/{id}`, `DELETE /api/medications/{id}` (and its log): parent devices only.
+* `GET /api/medications?memberId=`: medicines (`{ id, memberId, name, dose, times, days, endDate, totalDoses, lateWindow, dosesLeft, createdAt, updatedAt }`, `days` 0 = Sunday, `lateWindow` one of `3h` (default), `evening`, `endOfDay`, `none`). Parent devices: everyone's; a person's own device: theirs. 403 on a shared wall.
+* `POST /api/medications` with `{ memberId, name, dose?, times, days?, endDate?, totalDoses?, lateWindow? }`, `PATCH /api/medications/{id}`, `DELETE /api/medications/{id}` (and its log): parent devices only.
 * `DELETE /api/medications`: delete all medication data (parents only; works while off).
 * `GET /api/medications/due`: `{ names, doses: [{ medicationId, memberId, date, time, dueAt, name, dose }] }`, the Take now cards. `name` and `dose` are `null` on a shared wall with names off.
 * `POST /api/medications/{id}/doses` with `{ date, time, action: "taken" | "skipped" | "snooze" }` (today's or yesterday's doses): parent devices, shared walls, and the person's own device.
