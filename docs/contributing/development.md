@@ -28,6 +28,7 @@ CI (`.github/workflows/ci.yml`) runs the server typecheck and tests, plus the we
 * Every route declares a zod-openapi schema with `tags` and `summary`, which is how `/docs` stays complete.
 * New tables and columns go in a new `server/migrations/NNNN_name.sql`, which also has to be registered in `server/src/worker-migrations.ts` for the Worker bundle.
 * No UI kit and no state library in `web/`: plain CSS custom properties, React and `date-fns`.
+* Clickable things are real buttons or links with a pointer and a hover state, from the shared "Pointer and hover" rules at the end of `web/src/styles.css`. See AGENTS.md → Design for the rest.
 
 ## Workflows
 

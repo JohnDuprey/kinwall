@@ -77,9 +77,20 @@ changes, `docs/self-hosting/` for config. New routes are documented by their zod
   `.field`, `.settings-select`, `.board-card`, `Sheet`) before adding new ones. No UI kits.
 - Every screen works on a phone, a tablet, a wall display and in phone landscape, in light and dark.
 - Touch first: targets at least 44px, nothing that needs hover or a precise click.
-- Choices use a `<select>` (not radio groups); a long list or picking several uses `PickField` (a
-  row that opens a sheet of choices), never `<select multiple>`. Destructive or rare actions
-  (archive, delete) go in a "More…" select, never next to the primary button.
+- Pointer and hover: everything clickable is a real `<button>` or `<a>` (or `role="button"` with
+  Enter/Space), shows a pointer and has a hover state. Both come from the shared "Pointer and hover"
+  rules at the end of `styles.css`: add a new control's class to their lists, and keep hover inside
+  `@media (hover: hover) and (pointer: fine)`.
+- Short choices use a `<select>` (not radio groups). A long list, picking several, or choices that
+  need a preview (color schemes, typefaces, timezones, categories, members) use a row that opens a
+  sheet (`PickField`, `SchemePicker`), never `<select multiple>`.
+- A card summing up settings shows them as read-only `.chip-static` chips, one per setting with an
+  icon and a plain name; values inherited from the family are marked 🏠. No run-on sentences.
+- Color is never the only signal: pair it with a word, shape, emoji, avatar or pattern. Check new
+  colors with the color-vision helpers in `web/src/colorVision.ts`.
+- Buttons in headers and rows size to their content (`flex: none`); `.btn` stretches by default.
+- Destructive or rare actions (archive, delete) go in a "More…" select or at the bottom of a sheet,
+  never next to the primary button.
 - Copy: US English, short and plain, sentence case. Say what happens ("Saved: Tacos"), not how.
 - Kids use this: no dark patterns, nothing scary, parent-only actions stay behind parent access.
 
