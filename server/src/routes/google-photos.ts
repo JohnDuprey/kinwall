@@ -148,9 +148,13 @@ async function accessToken(c: Ctx, row: Row): Promise<string> {
 
 /** Google's short error code from an API error body (error.status, or the first details reason). */
 async function googleReason(res: Response): Promise<string | undefined> {
-  const b = (await res.json().catch(() => null)) as { error?: { status?: string; details?: { reason?: string }[] } } | null;
+  const b = (await res.json().catch(() => null)) as { error?: { status?: string; message?: string; details?: { reason?: string }[] } } | null;
   const code = b?.error?.details?.find((d) => d.reason)?.reason ?? b?.error?.status;
-  return typeof code === 'string' && /^[A-Z_]{2,64}$/.test(code) ? code : undefined;
+  if (typeof code !== 'string' || !/^[A-Z_]{2,64}$/.test(code)) return undefined;
+  // Google's own short message says which permission (e.g. the API isn't enabled, or the project isn't
+  // allowed); it never carries tokens. Kept to one line and 200 characters.
+  const msg = typeof b?.error?.message === 'string' ? b.error.message.replace(/\s+/g, ' ').slice(0, 200) : '';
+  return msg ? `${code} (${msg})` : code;
 }
 
 async function ambient<T>(c: Ctx, row: Row, path: string, init: RequestInit = {}, token?: string): Promise<T> {
@@ -234,7 +238,7 @@ export async function finishGooglePhotosWeb(c: Ctx, p: { code?: string; error?: 
     await createDevice(c, row, tokens.access_token);
   } catch (err) {
     // 403 on the device: the Ambient API isn't open to this client or project.
-    if (err instanceof GoogleError && err.status === 403) return refuse('device', err.message.match(/, ([A-Z_]+)\)$/)?.[1]);
+    if (err instanceof GoogleError && err.status === 403) return refuse('device', err.message.match(/HTTP 403, (.+)\)$/)?.[1]);
     await logFailure(err);
     await clear(c);
     return 'failed';
