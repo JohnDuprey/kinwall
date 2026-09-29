@@ -38,7 +38,7 @@ test('leave by: from the first transition warning until the event starts; the so
   const piano = ev('e2', 'Piano', '2030-03-04T17:00:00Z', { memberIds: ['m3'], leaveAt: '2030-03-04T16:45:00Z' })
   assert.equal(leaveByActivity([soccer, piano], sam, t('2030-03-04T15:09:00Z'), time), null, 'before the first warning (30 min)')
   const a = leaveByActivity([soccer, piano], sam, t('2030-03-04T15:22:00Z'), time)!
-  assert.deepEqual([a.eventId, a.prep, a.at, a.endsAt], ['e1', false, '2030-03-04T15:40:00.000Z', '2030-03-04T16:00:00.000Z'])
+  assert.deepEqual([a.activity, a.prep, a.at, a.endsAt], ['leaveBy:e1@2030-03-04T16:00:00.000Z', false, '2030-03-04T15:40:00.000Z', '2030-03-04T16:00:00.000Z'])
   assert.ok(a.headline.includes('Soccer practice') && a.headline.includes('15:40') && !/\d+ min/.test(a.headline), a.headline)
   assert.match(a.urgent, /now/)
   assert.equal(leaveByActivity([soccer], sam, t('2030-03-04T16:00:00Z'), time), null, 'ends when it starts')

@@ -114,6 +114,8 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
 
   { method: 'POST', pattern: /^\/api\/device-keys$/ }, // an app's widgets / watch key (everyday access only)
   { method: 'DELETE', pattern: /^\/api\/device-keys\/self$/ },
+  { method: 'PUT', pattern: /^\/api\/live-activities\/tokens$/ }, // the iPhone app's Live Activity tokens, for its own device
+  { method: 'DELETE', pattern: /^\/api\/live-activities\/tokens$/ },
   { method: 'GET', pattern: /^\/api\/me$/ },
   { method: 'GET', pattern: /^\/api\/members$/ },
   { method: 'GET', pattern: /^\/api\/calendars$/ },

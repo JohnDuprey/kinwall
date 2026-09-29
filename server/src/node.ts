@@ -12,6 +12,7 @@ import { openDb, applyMigrations } from './d1-sqlite.ts';
 import { isClaimed, regenerateSetupCode } from './routes/setup.ts';
 import { syncDue } from './sync.ts';
 import { runNotifications } from './notify.ts';
+import { http2Send } from './apns-node.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -124,6 +125,12 @@ const env: Env = {
   REQUIRE_PASSKEY_SETUP: process.env.REQUIRE_PASSKEY_SETUP,
   PLUGIN_CATALOG_URL: process.env.PLUGIN_CATALOG_URL,
   PLUGINS_CATALOG_ONLY: process.env.PLUGINS_CATALOG_ONLY,
+  APNS_KEY_ID: process.env.APNS_KEY_ID,
+  APNS_TEAM_ID: process.env.APNS_TEAM_ID,
+  APNS_KEY: process.env.APNS_KEY,
+  APNS_BUNDLE_ID: process.env.APNS_BUNDLE_ID,
+  APNS_SANDBOX: process.env.APNS_SANDBOX,
+  APNS_SEND: http2Send, // APNs needs HTTP/2 (apns.ts)
 };
 
 // Migrations already applied above (from the fs), so no lazy migrations here.

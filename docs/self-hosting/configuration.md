@@ -24,9 +24,24 @@ Kinwall is configured with environment variables. On Docker and Node they're pro
 | `HOST_PORTAL_URL` | — | For hosts running Kinwall for other families: a page where a family can manage or delete their instance. It's linked from **Settings → Access → Your data**. |
 | `PLUGIN_CATALOG_URL` | `https://app.kinwall.family/plugins/catalog.json` | Where the list of reviewed activity plugins comes from (fetched hourly). See [Building activity plugins](../contributing/plugins.md#getting-reviewed). |
 | `PLUGINS_CATALOG_ONLY` | — | `1` allows only reviewed plugins: no other repositories and no uploads. |
+| `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_KEY`, `APNS_BUNDLE_ID`, `APNS_SANDBOX` | — | Apple push for the iPhone app's Live Activities. See [below](#live-activities-apple-push). |
 | `PORT` | `8080` | Docker/Node only. |
 | `DATA_DIR` | `./data` (`/data` in the image and the Home Assistant add-on) | Docker/Node only. Holds `kinwall.sqlite` and `encryption.key`. |
 | `TZ` | system | Docker/Node: the fallback timezone until the household sets one. |
+
+### Live Activities (Apple push)
+
+The Kinwall app for iPhone shows a person's next leave-by or start-prep time as a Live Activity. While the app is open it starts one itself. For the phone to get one while the app is closed, and to have it end right when the event starts, the server pushes it through Apple. That's off, and does nothing, until all four of these are set:
+
+* `APNS_KEY_ID`: the key's ID, from an Apple Developer account's **Certificates, Identifiers & Profiles → Keys** (a key with **Apple Push Notifications service** turned on).
+* `APNS_TEAM_ID`: the account's team ID.
+* `APNS_KEY`: the key's `.p8` file, its whole contents (a secret: `wrangler secret put APNS_KEY` on Workers).
+* `APNS_BUNDLE_ID`: the app's bundle ID, `family.kinwall.app` for the Kinwall app.
+* `APNS_SANDBOX` (optional): `1` for apps installed from Xcode, which use Apple's development server.
+
+The app registers its tokens with `PUT /api/live-activities/tokens`, for its own device. They're stored encrypted, never shown or logged, and deleted when the device is removed under Settings → Access or signs out. A push goes only to the person's own phone (its owner is them), from their first [transition reminder](../settings/family.md#transition-reminders) until the event starts, and never during quiet hours.
+
+**On Cloudflare Workers** this doesn't work on its own: Apple only accepts HTTP/2, and a Worker's outgoing requests use HTTP/1.1. Docker and Node send over HTTP/2. A host embedding Kinwall on Workers can pass its own sender as `APNS_SEND` (for example a small relay), see [Embedding the server](../contributing/embedding.md).
 
 ### Precedence for provider settings
 

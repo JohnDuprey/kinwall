@@ -18,6 +18,8 @@ import { sha256Hex } from './auth.ts';
 import { batteryFor } from './routes/insights.ts';
 import { mealLinksQuery, parseMealLinks, prepAt, prepFor } from './prepBy.ts';
 import { nudge } from './nudges.ts';
+import { apnsConfigured, sendLiveActivity, swiftDate, unixSeconds } from './apns.ts';
+import { unseal } from './crypto.ts';
 
 export const DEFAULT_PUSH_PREFS = {
   eventReminders: true,
@@ -314,6 +316,7 @@ async function runEventReminders(env: Env, db: KinwallDb, now: Date, tz: string,
   }
 
   if (!quiet) await runTransitionReminders(env, db, now, tz, occurrences, eligible);
+  await runLiveActivities(env, db, now, tz, occurrences, quiet);
 }
 
 /** A person's transition times: their picked minutes plus every `repeat.every` during the last
@@ -383,6 +386,79 @@ async function runTransitionReminders(env: Env, db: KinwallDb, now: Date, tz: st
         const doubled = memberMatch(parseMemberIds(sub.member_ids), occ.memberIds) && regular.includes(fireMinute);
         if (!doubled && !(await alreadySent(db, keys[keys.length - 1]))) await sendToSub(env, db, sub, payload);
         for (const key of keys) await markSent(db, key, now);
+      }
+    }
+  }
+}
+
+// The iPhone app's leave-by / start-prep Live Activity while the app is closed (apns.ts; the app
+// starts it itself while open, web/src/liveActivity.ts). Pushed to start at the person's first
+// transition warning, to their own devices (the device's owner is them) that registered a
+// push-to-start token, never during quiet hours; ended with the activity's own update token once
+// the event starts (or GRACE after the time, if later). Nothing at all unless APNs is set up.
+const LIVE_GRACE_MS = 5 * 60000; // web/src/liveActivity.ts GRACE_MIN
+type LiveTokenRow = { id: string; device: string; kind: 'start' | 'update'; activity: string; token: string; ends_at: string | null; owner: string | null };
+
+async function runLiveActivities(env: Env, db: KinwallDb, now: Date, tz: string, occurrences: Occurrence[], quiet: boolean): Promise<void> {
+  if (!apnsConfigured(env)) return;
+  const [tokensRes, membersRes] = await db.batch<unknown>([
+    db.prepare('SELECT t.id, t.device, t.kind, t.activity, t.token, t.ends_at, COALESCE(k.owner, g.owner) AS owner FROM live_activity_tokens t LEFT JOIN api_keys k ON k.id = t.api_key_id LEFT JOIN oauth_grants g ON g.id = t.oauth_grant_id'),
+    db.prepare('SELECT id, name, transitions FROM members WHERE transitions IS NOT NULL'),
+  ]);
+  const tokens = tokensRes.results as LiveTokenRow[];
+  if (!tokens.length) return;
+  const send = async (t: LiveTokenRow, aps: Record<string, unknown>) => {
+    const res = await sendLiveActivity(env, await unseal(env, t.token, `live-activity-token:${t.id}`), aps);
+    if (res.gone) await db.prepare('DELETE FROM live_activity_tokens WHERE id = ?').bind(t.id).run();
+    return res;
+  };
+  const key = (occ: Occurrence) => `leaveBy:${occ.eventId}@${new Date(occ.start).toISOString()}`;
+
+  // What the activity shows (the app's KinwallActivityAttributes / ContentState, native side).
+  const members = membersRes.results as { id: string; name: string; transitions: string }[];
+  const shown = (occ: Occurrence, m: { id: string; name: string }, target: number) => {
+    const words = { kind: occ.prepAt ? 'prep' as const : 'leave' as const, title: occ.title, at: fmtTime(new Date(target).toISOString(), tz), seed: `${m.id}:${occ.eventId}:${occ.occurrenceKey.slice(0, 10)}`, name: m.name.split(' ')[0], live: true };
+    const headline = nudge({ ...words, minutes: Math.ceil((target - now.getTime()) / 60000) });
+    return { headline, content: { title: headline, detail: nudge({ ...words, minutes: 0 }), date: swiftDate(target), count: 0, done: false } };
+  };
+
+  // End the ones that are over (sent or not, the token is done).
+  for (const t of tokens.filter((x) => x.kind === 'update' && x.ends_at && Date.parse(x.ends_at) <= now.getTime())) {
+    await send(t, { timestamp: unixSeconds(now.getTime()), event: 'end', 'dismissal-date': unixSeconds(now.getTime()) });
+    await db.prepare('DELETE FROM live_activity_tokens WHERE id = ?').bind(t.id).run();
+  }
+  if (quiet) return;
+
+  for (const m of members) {
+    const cfg = parseTransitions(m.transitions);
+    const first = cfg.on ? transitionTimes(cfg.minutes, cfg.repeat)[0] : undefined;
+    const devices = tokens.filter((t) => t.kind === 'start' && t.owner === m.id);
+    if (!first || !devices.length) continue;
+    for (const occ of occurrences) {
+      if (occ.allDay || !memberMatch([m.id], occ.prepFor)) continue;
+      const lead = cfg.leaveBy ? occ.travelMinutes : 0;
+      if (!occ.prepAt && !lead) continue; // a leave-by or start-prep time only
+      const target = occ.prepAt ? Date.parse(occ.prepAt) : Date.parse(occ.start) - lead * 60000;
+      const ends = Math.max(Date.parse(occ.start), target + LIVE_GRACE_MS);
+      if (now.getTime() < target - first * 60000 || now.getTime() >= ends) continue;
+      const activity = key(occ);
+      const { headline, content } = shown(occ, m, target);
+      const by = fmtTime(new Date(target).toISOString(), tz);
+      for (const t of devices) {
+        // Already showing (the app started it, or an earlier push did and registered its token).
+        if (tokens.some((u) => u.kind === 'update' && u.device === t.device && u.activity === activity)) continue;
+        const sentKey = `la:${t.device}:${activity}`;
+        if (await alreadySent(db, sentKey)) continue;
+        const res = await send(t, {
+          timestamp: unixSeconds(now.getTime()),
+          event: 'start',
+          'attributes-type': 'KinwallActivityAttributes',
+          attributes: { kind: occ.prepAt ? 'prep' : 'leave', name: occ.title, eventId: occ.eventId, activity, endsAt: swiftDate(ends) },
+          'content-state': content,
+          'stale-date': unixSeconds(target),
+          alert: { title: headline, body: occ.prepAt ? `Start prep by ${by}` : `Leave by ${by} · starts ${fmtTime(occ.start, tz)}` },
+        });
+        if (res.ok || res.gone) await markSent(db, sentKey, now);
       }
     }
   }

@@ -49,7 +49,9 @@ export function shoppingActivity(listId: string, store: string, items: TripItem[
  * starts, and at least this long. */
 export const GRACE_MIN = 5
 
-export type LeaveByActivity = { eventId: string; title: string; prep: boolean; at: string; startsAt: string; endsAt: string; headline: string; urgent: string }
+/** `activity`: its name for the server's push (server/src/notify.ts runLiveActivities), so the app
+ * registers its update token under it and the server doesn't start a second one. */
+export type LeaveByActivity = { activity: string; eventId: string; title: string; prep: boolean; at: string; startsAt: string; endsAt: string; headline: string; urgent: string }
 
 /** The person's next leave-by or start-prep time, from their first transition warning before it
  * until the event starts (or GRACE_MIN after the time, if later). Only their events: tagged with
@@ -70,7 +72,7 @@ export function leaveByActivity(events: EventInstance[], me: { id: string; name:
   const { e, lead, at, end } = due
   const words = { kind: lead.prep ? 'prep' as const : 'leave' as const, title: e.title, at: time(lead.at), seed: `${me.id}:${e.id}:${e.start.slice(0, 10)}`, name: me.name.split(' ')[0], calm, live: true }
   return {
-    eventId: e.id, title: e.title, prep: lead.prep, at: new Date(at).toISOString(), startsAt: e.start, endsAt: new Date(end).toISOString(),
+    activity: `leaveBy:${e.id}@${new Date(e.start).toISOString()}`, eventId: e.id, title: e.title, prep: lead.prep, at: new Date(at).toISOString(), startsAt: e.start, endsAt: new Date(end).toISOString(),
     headline: nudge({ ...words, minutes: Math.ceil((at - now) / MIN) }), urgent: nudge({ ...words, minutes: 0 }),
   }
 }
