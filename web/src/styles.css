@@ -2372,6 +2372,8 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
 
 /* ---------- Member profiles (Profile.tsx) ---------- */
 .profile { padding: var(--pad); display: flex; flex-direction: column; gap: var(--gap); max-width: 1400px; margin: 0 auto; width: 100%; box-sizing: border-box; }
+/* The page scrolls, not its sections: without this a short screen (phone landscape) squashes the cards over each other. */
+.profile > * { flex-shrink: 0; }
 .profile-people { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 4px; }
 .profile-person {
   display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 4px 16px 4px 4px; border-radius: 999px;
