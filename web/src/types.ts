@@ -218,19 +218,22 @@ export interface Battery { memberId: string; on: boolean; today: string; days: B
 /** endDate / totalDoses: an optional end to a course (e.g. an antibiotic); dosesLeft is null without totalDoses. */
 /** lateWindow: how late a dose can be taken ('3h' default, 'evening' until 8 PM, 'endOfDay', 'none': the card stays 1 hour). */
 export type LateWindow = '3h' | 'evening' | 'endOfDay' | 'none'
-export interface Medication { id: string; memberId: string; name: string; dose: string; times: string[]; days: number[]; endDate: string | null; totalDoses: number | null; lateWindow: LateWindow; dosesLeft: number | null; createdAt: string; updatedAt: string }
-export type MedicationInput = { memberId: string; name: string; dose: string; times: string[]; days: number[]; endDate?: string | null; totalDoses?: number | null; lateWindow?: LateWindow }
+/** A dose time: 'HH:MM', or "When I start my day", due when their day starts (by `latest` at the latest). */
+export type MedTime = string | { wake: true; latest: string }
+export interface Medication { id: string; memberId: string; name: string; dose: string; times: MedTime[]; days: number[]; endDate: string | null; totalDoses: number | null; lateWindow: LateWindow; dosesLeft: number | null; createdAt: string; updatedAt: string }
+export type MedicationInput = { memberId: string; name: string; dose: string; times: MedTime[]; days: number[]; endDate?: string | null; totalDoses?: number | null; lateWindow?: LateWindow }
 export type DoseStatus = 'taken' | 'skipped' | 'due' | 'missed' | 'upcoming'
 /** GET /api/medications/due: the Take now cards. name/dose null on a shared wall with names off ("Meds"). */
-export interface DueDose { medicationId: string; memberId: string; date: string; time: string; dueAt: string; name: string | null; dose: string | null }
+/** time: 'HH:MM', or 'wake' for "When I start my day" (startedAt: when their day started, null if the latest time came first). until: when its late window closes. */
+export interface DueDose { medicationId: string; memberId: string; date: string; time: string; dueAt: string; startedAt: string | null; until: string; name: string | null; dose: string | null }
 export interface MedicationsDue { names: boolean; doses: DueDose[] }
-export interface MedicationDose { medicationId: string; date: string; time: string; status: DoseStatus; at: string | null; by: string | null; snoozedUntil: string | null }
+export interface MedicationDose { medicationId: string; date: string; time: string; status: DoseStatus; startedAt: string | null; at: string | null; by: string | null; snoozedUntil: string | null }
 /** GET /api/members/{id}/medications: their own device and parents' devices only. days oldest first. */
 export interface MedicationHistory {
   memberId: string
   today: string
   medications: Medication[]
-  days: { date: string; doses: { medicationId: string; time: string; status: DoseStatus; at: string | null; by: string | null }[] }[]
+  days: { date: string; doses: { medicationId: string; time: string; dueAt: string; status: DoseStatus; startedAt: string | null; at: string | null; by: string | null }[] }[]
 }
 
 export type CalendarKind = 'local' | 'ics' | 'google' | 'microsoft' | 'caldav'

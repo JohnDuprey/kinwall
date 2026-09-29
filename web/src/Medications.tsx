@@ -8,7 +8,7 @@ import { inkFor } from './color.ts'
 import { formatTime } from './timeFormat.ts'
 import { dayName } from './Snapshot.tsx'
 import { announce } from './a11y.tsx'
-import { catchUpLabel, scheduleLabel, STATUS, weekCells } from './medications.ts'
+import { catchUpLabel, doseTimeLabel, scheduleLabel, STATUS, weekCells } from './medications.ts'
 import TakeNow from './TakeNow.tsx'
 import type { Medication, MedicationHistory } from './types.ts'
 
@@ -56,10 +56,10 @@ export default function Medications({ memberId }: { memberId?: string }) {
         const k = `${day.date}:${d.medicationId}:${d.time}`
         return (
           <li key={k} className={`meds-today-row meds-${d.status}`}>
-            <span className="meds-today-time">{formatTime(d.time)}</span>
+            <span className="meds-today-time">{doseTimeLabel(d)}</span>
             <span className="meds-today-what">{medName(m)}</span>
             <span className="meds-status"><span aria-hidden="true">{s.emoji}</span> {s.label}{d.at && (d.status === 'taken' || d.status === 'skipped') ? ` ${formatTime(d.at)}` : ''}</span>
-            {taken && <div className="meds-now-actions meds-catch-up" role="group" aria-label={`${medName(m)}, ${formatTime(d.time)}`}>
+            {taken && <div className="meds-now-actions meds-catch-up" role="group" aria-label={`${medName(m)}, ${doseTimeLabel(d)}`}>
               <button className="btn btn-primary" disabled={busy === k} onClick={() => mark(day.date, d, 'taken')}>{taken}</button>
               <button className="btn btn-secondary" disabled={busy === k} onClick={() => mark(day.date, d, 'skipped')}>Skipped</button>
             </div>}

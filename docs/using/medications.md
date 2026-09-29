@@ -12,12 +12,24 @@ On a parent's device, open **Trackers → Health**. The **💊 Medicines** secti
 
 * **Medicine**: a name the family knows it by, like "Allergy medicine". There's no place for what it's for, and no need for one.
 * **Dose** (optional): free text, like "1 tablet" or "5 mg".
-* **Times**: one or more times a day (up to 8), in the household's time zone. **+ Add a time** adds another.
+* **Times**: one or more times a day (up to 8), in the household's time zone. **+ Add a time** adds another. Each time is **At a time** (a clock time) or **When I start my day**, with a latest time (12:00 PM unless you change it); see [When I start my day](#when-i-start-my-day). A medicine can have one of those.
 * **Days**: **Every day**, **Weekdays**, **Weekends**, or **Certain days** with a button per weekday.
 * **Can be taken late**: how long after its time a dose can still be taken. **Up to 3 hours** (the default), **Until evening (8 PM)**, **Until the end of the day**, or **Don't take late**. Some medicines shouldn't be taken late, so check with your doctor or pharmacist. A late window never ends sooner than 3 hours after the dose's time (a 7 PM dose set to **Until evening** still has until 10 PM), except **Don't take late**, where the card stays for 1 hour: long enough to notice it, short enough not to invite a late dose.
 * **Ends** (for a course, like an antibiotic): **No end**, **On a date** (the last day of doses), or **After a number of doses** (reminders stop once that many are marked **Taken**; skipped doses don't count). The list shows "Until Mon, Oct 5" or "7 of 20 doses left", then "Done: all 20 doses taken". The history keeps the finished course.
 
 Tap a medicine to change it. **More… → Delete medicine** removes it and its history. Only parent devices add, change or delete medicines.
+
+## When I start my day
+
+For a medicine taken first thing, whenever the day really starts (handy with irregular sleep), pick **When I start my day** instead of a clock time. The dose becomes due at the first of these, that day:
+
+* the person answers their [Temp check](snapshot.md#temp-check);
+* they check in by reading their day to the end (the daily check-in);
+* their own phone or tablet opens Kinwall;
+
+or at the latest time, if none of those happen first. From that moment it works like any dose: the reminder, the **Take now** card and the late window all start then, and the reminder is sent once (starting the day after the latest time changes nothing). The card and the person's page say **Started at 9:40 AM**, or **When you start your day** before then.
+
+Only the person counts. A parent's phone opening a kid's day, or a parent answering a Temp check or checking in for a kid, never starts a kid's day. Answering or checking in on a shared wall screen does (that's the kid, at the wall); so does a grown-up doing it on a parent device, since that's their own. The app tells the server once a day, on the person's own device only.
 
 ## Take now
 
@@ -82,7 +94,9 @@ All medication routes answer 404 while the feature is off.
 * `GET /api/medications?memberId=`: medicines (`{ id, memberId, name, dose, times, days, endDate, totalDoses, lateWindow, dosesLeft, createdAt, updatedAt }`, `days` 0 = Sunday, `lateWindow` one of `3h` (default), `evening`, `endOfDay`, `none`). Parent devices: everyone's; a person's own device: theirs. 403 on a shared wall.
 * `POST /api/medications` with `{ memberId, name, dose?, times, days?, endDate?, totalDoses?, lateWindow? }`, `PATCH /api/medications/{id}`, `DELETE /api/medications/{id}` (and its log): parent devices only.
 * `DELETE /api/medications`: delete all medication data (parents only; works while off).
-* `GET /api/medications/due`: `{ names, doses: [{ medicationId, memberId, date, time, dueAt, name, dose }] }`, the Take now cards. `name` and `dose` are `null` on a shared wall with names off.
+* Each entry in `times` is `"HH:MM"`, or `{ "wake": true, "latest": "HH:MM" }` for **When I start my day** (one at most). Its doses use `time: "wake"`.
+* `GET /api/medications/due`: `{ names, doses: [{ medicationId, memberId, date, time, dueAt, startedAt, until, name, dose }] }`, the Take now cards. `startedAt` is when the person's day started (a `"wake"` dose), `until` when the late window closes. `name` and `dose` are `null` on a shared wall with names off.
 * `POST /api/medications/{id}/doses` with `{ date, time, action: "taken" | "skipped" | "snooze" }` (today's or yesterday's doses): parent devices, shared walls, and the person's own device.
-* `GET /api/members/{id}/medications?days=7`: `{ memberId, today, medications, days: [{ date, doses: [{ medicationId, time, status, at, by }] }] }`, oldest first. Their own device and parent devices only.
+* `GET /api/members/{id}/medications?days=7`: `{ memberId, today, medications, days: [{ date, doses: [{ medicationId, time, dueAt, status, startedAt, at, by }] }] }`, oldest first. Their own device and parent devices only.
+* `POST /api/members/{id}/day-started`: the person's own device opened the app today (204; again the same day changes nothing). Their own device only: 403 for parent devices, shared walls and anyone else.
 * Connected apps get 403 unless `aiHealthAccess` is on. There are no webhook events and no MCP tool.

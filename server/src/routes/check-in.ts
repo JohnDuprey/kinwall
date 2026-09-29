@@ -9,6 +9,7 @@ import { emit } from '../bus.ts';
 import { ownerBlock } from '../auth.ts';
 import { balanceOf } from '../stickers.ts';
 import { readSettings } from './settings.ts';
+import { startDayFrom } from './medications.ts';
 import { todayInTz } from './members.ts';
 import { ErrorSchema } from '../schemas.ts';
 
@@ -60,6 +61,7 @@ checkInRoutes.openapi(
     const awarded = inserted.results[0]?.points ?? 0;
     const points = awarded || ((await db.prepare('SELECT points FROM check_ins WHERE member_id = ? AND date = ?').bind(id, date).first<{ points: number }>())?.points ?? 0);
     if (awarded) emit(c, 'checkin.completed', { memberId: id, date, points });
+    if (awarded) await startDayFrom(c, id); // reading your day starts it ("When I start my day" medicines)
     return c.json({ date, points, awarded, balance: await balanceOf(db, id) }, 200);
   },
 );

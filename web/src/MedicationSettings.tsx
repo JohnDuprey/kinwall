@@ -10,7 +10,7 @@ import { useDialog } from './dialog.tsx'
 import { inkFor } from './color.ts'
 import Sheet from './Sheet.tsx'
 import { daysLabel, EVERY_DAY, scheduleLabel, WEEKDAYS } from './medications.ts'
-import type { LateWindow, Medication, Member } from './types.ts'
+import type { LateWindow, Medication, Member, MedTime } from './types.ts'
 
 const NOTICE = 'Kinwall keeps each medicine’s name, dose and times, and when a dose was marked taken or skipped. It’s encrypted on the server. Parent devices see everyone’s; each person’s own device sees theirs. Wall screens show “Meds” when a dose is due, without names. Reminders say “Time for Leo’s medicine” unless a device turns names on. Nothing goes to connected apps, webhooks or Home Assistant.'
 
@@ -108,7 +108,9 @@ function MedicationSheet({ med, member, onClose, onSaved }: { med: Medication | 
   const dialog = useDialog()
   const [name, setName] = useState(med?.name ?? '')
   const [dose, setDose] = useState(med?.dose ?? '')
-  const [times, setTimes] = useState<string[]>(med?.times ?? ['08:00'])
+  const [times, setTimes] = useState<MedTime[]>(med?.times ?? ['08:00'])
+  const hasWake = times.some(t => typeof t !== 'string')
+  const setTime = (i: number, t: MedTime) => setTimes(ts => ts.map((x, j) => (j === i ? t : x)))
   const [days, setDays] = useState<number[]>(med?.days ?? EVERY_DAY)
   const [mode, setMode] = useState<DaysMode>(modeOf(med?.days ?? EVERY_DAY))
   // A course (e.g. an antibiotic): no end, a last day, or a number of doses taken.
@@ -118,7 +120,7 @@ function MedicationSheet({ med, member, onClose, onSaved }: { med: Medication | 
   const [lateWindow, setLateWindow] = useState<LateWindow>(med?.lateWindow ?? '3h')
   const total = Number(totalDoses)
   const endsValid = ends === 'never' || (ends === 'date' ? /^\d{4}-\d{2}-\d{2}$/.test(endDate) : Number.isInteger(total) && total >= 1 && total <= 1000)
-  const valid = name.trim() && times.length > 0 && times.every(Boolean) && days.length > 0 && endsValid
+  const valid = name.trim() && times.length > 0 && times.every(t => (typeof t === 'string' ? t : t.latest)) && days.length > 0 && endsValid
   const save = async () => {
     const body = { name: name.trim(), dose: dose.trim(), times, days, endDate: ends === 'date' ? endDate : null, totalDoses: ends === 'doses' ? total : null, lateWindow }
     try {
@@ -155,10 +157,18 @@ function MedicationSheet({ med, member, onClose, onSaved }: { med: Medication | 
         <legend>Times</legend>
         {times.map((t, i) => (
           <div key={i} className="meds-time-row">
-            <input type="time" aria-label={`Time ${i + 1}`} value={t} onChange={e => setTimes(ts => ts.map((x, j) => (j === i ? e.target.value : x)))} />
+            <select className="settings-select" aria-label={`Time ${i + 1}: when`} value={typeof t === 'string' ? 'at' : 'wake'}
+              onChange={e => setTime(i, e.target.value === 'wake' ? { wake: true, latest: '12:00' } : '08:00')}>
+              <option value="at">At a time</option>
+              <option value="wake" disabled={hasWake && typeof t === 'string'}>When I start my day</option>
+            </select>
+            {typeof t === 'string'
+              ? <input type="time" aria-label={`Time ${i + 1}`} value={t} onChange={e => setTime(i, e.target.value)} />
+              : <label className="meds-latest">By <input type="time" aria-label={`Time ${i + 1}: at the latest`} value={t.latest} onChange={e => setTime(i, { wake: true, latest: e.target.value })} /></label>}
             {times.length > 1 && <button type="button" className="btn btn-secondary" onClick={() => setTimes(ts => ts.filter((_, j) => j !== i))} aria-label={`Remove time ${i + 1}`}>Remove</button>}
           </div>
         ))}
+        {hasWake && <p className="field-hint">Due when {member.name} first opens Kinwall on their own device, answers their Temp check or checks in that day, or at the “By” time if that comes first.</p>}
         {times.length < 8 && <button type="button" className="btn btn-secondary" onClick={() => setTimes(ts => [...ts, '20:00'])}>+ Add a time</button>}
       </fieldset>
       <div className="field">

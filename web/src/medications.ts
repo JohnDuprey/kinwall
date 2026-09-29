@@ -2,7 +2,7 @@
 // web/test/medications.test.ts covers it.
 import { format } from 'date-fns'
 import { formatTime } from './timeFormat.ts'
-import type { DoseStatus, Medication, MedicationHistory } from './types.ts'
+import type { DoseStatus, Medication, MedicationHistory, MedTime } from './types.ts'
 
 export const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 export const EVERY_DAY = [0, 1, 2, 3, 4, 5, 6]
@@ -16,9 +16,25 @@ export function daysLabel(days: number[]): string {
   return [...new Set(days)].sort((a, b) => a - b).map(i => WEEKDAYS[i]).join(', ')
 }
 
+/** A dose time in a schedule: "8:00 AM", or "When I start my day (by 12:00 PM)". */
+export const timeLabel = (t: MedTime) => (typeof t === 'string' ? formatTime(t) : `When I start my day (by ${formatTime(t.latest)})`)
+
+/** A dose's time on a card or the person page: "8:00 AM", "When you start your day", or "Started at 9:40 AM". */
+export function doseTimeLabel(d: { time: string; startedAt: string | null }): string {
+  if (d.time !== 'wake') return formatTime(d.time)
+  return d.startedAt ? `Started at ${formatTime(new Date(d.startedAt))}` : 'When you start your day'
+}
+
+/** Should this device tell the server its person's day started (POST /api/members/{id}/day-started)?
+ *  Once a day (lastSent: the day it last did), only on a person's own device with medications on:
+ *  a parent's device opening a kid's day must never start it, and a shared wall belongs to no one. */
+export function dayStartDue(d: { medications: boolean; parentDevice: boolean; ownerId: string | null; today: string }, lastSent: string | null): boolean {
+  return d.medications && !d.parentDevice && !!d.ownerId && lastSent !== d.today
+}
+
 /** "8:00 AM and 8:30 PM · Every day", plus the course when it has one (" · Until Mon, Oct 5"). */
 export function scheduleLabel(m: Pick<Medication, 'times' | 'days'> & Partial<Pick<Medication, 'endDate' | 'totalDoses' | 'dosesLeft'>>): string {
-  const t = m.times.map(t => formatTime(t))
+  const t = m.times.map(timeLabel)
   const course = courseLabel({ endDate: m.endDate ?? null, totalDoses: m.totalDoses ?? null, dosesLeft: m.dosesLeft ?? null })
   return `${t.length > 1 ? `${t.slice(0, -1).join(', ')} and ${t.at(-1)}` : t[0]} · ${daysLabel(m.days)}${course ? ` · ${course}` : ''}`
 }

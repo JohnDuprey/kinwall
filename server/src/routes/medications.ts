@@ -5,8 +5,9 @@
 // Health data end to end (AGENTS.md "Health data"):
 // - Off until a parent turns it on (settings.medications); off hides everything (404) and keeps the data.
 // - Name, dose, times, weekdays, course end and late window are one sealed JSON (medications.data, aad '<id>:data'); a day's
-//   taken / skipped / snoozed log is one sealed JSON per medicine per day (medication_log.log, aad
-//   '<medication_id>:<date>:log'). Only who (member_id) and which day stay plain. No key: 500, nothing stored.
+//   taken / skipped / snoozed log, and when their day started for a "When I start my day" dose (startDay),
+//   is one sealed JSON per medicine per day (medication_log.log, aad '<medication_id>:<date>:log').
+//   Only who (member_id) and which day (date, and updated_at holds the day too) stay plain. No key: 500, nothing stored.
 // - Never logged, no webhook events at all, no MCP tool, not in snapshots, profiles or share links.
 //
 // Who sees what (see `caller`):
@@ -44,7 +45,15 @@ const TimeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'times: HH:MM')
 const DateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'date: YYYY-MM-DD');
 const Name = z.string().trim().min(1).max(60).openapi({ description: 'What it is, in the family\'s words (e.g. "Allergy medicine").' });
 const Dose = z.string().trim().max(40).openapi({ description: 'Free text, e.g. "5 mg" or "1 tablet".' });
-const Times = z.array(TimeSchema).min(1).max(8).transform((t) => [...new Set(t)].sort()).openapi({ description: 'Household times, HH:MM (up to 8).' });
+// A dose time: a clock time, or "When I start my day" by a latest time (see startDay). At most one of those.
+const WakeSchema = z.object({ wake: z.literal(true), latest: TimeSchema }).strict().openapi({ description: '"When I start my day": due when their day starts (startDay), or at latest.' });
+export const DoseTimesSchema = z.array(z.union([TimeSchema, WakeSchema])).min(1); // the export file's
+const Times = z
+  .array(z.union([TimeSchema, WakeSchema]))
+  .min(1).max(8)
+  .refine((t) => t.filter((x) => typeof x !== 'string').length <= 1, 'times: one "When I start my day" at most')
+  .transform((t) => [...t.filter((x) => typeof x !== 'string'), ...[...new Set(t.filter((x) => typeof x === 'string'))].sort()])
+  .openapi({ description: 'Household times, HH:MM, and at most one { wake: true, latest: "HH:MM" } (up to 8 in all).' });
 const Days = z.array(z.number().int().min(0).max(6)).min(1).max(7).transform((d) => [...new Set(d)].sort((a, b) => a - b)).openapi({ description: 'Weekdays, 0 = Sunday. Every day by default.' });
 
 // A course (e.g. an antibiotic) ends on its endDate, or once totalDoses have been taken (skips don't count).
@@ -58,7 +67,7 @@ export const LateWindowSchema = z.enum(LATE_WINDOWS).openapi({ description: "How
 
 const MedicationSchema = z
   .object({
-    id: z.string(), memberId: z.string(), name: z.string(), dose: z.string(), times: z.array(z.string()), days: z.array(z.number()),
+    id: z.string(), memberId: z.string(), name: z.string(), dose: z.string(), times: z.array(z.union([z.string(), WakeSchema])), days: z.array(z.number()),
     endDate: z.string().nullable(), totalDoses: z.number().nullable(), lateWindow: LateWindowSchema,
     dosesLeft: z.number().nullable().openapi({ description: 'totalDoses minus doses taken; null without totalDoses.' }),
     createdAt: z.string(), updatedAt: z.string(),
@@ -69,7 +78,8 @@ const MedicationPatchSchema = z.object({ name: Name.optional(), dose: Dose.optio
 const STATUSES = ['taken', 'skipped', 'due', 'missed', 'upcoming'] as const;
 const DoseSchema = z
   .object({
-    medicationId: z.string(), date: z.string(), time: z.string(), status: z.enum(STATUSES),
+    medicationId: z.string(), date: z.string(), time: z.string().openapi({ description: 'HH:MM, or "wake" for a "When I start my day" dose.' }), status: z.enum(STATUSES),
+    startedAt: z.string().nullable().openapi({ description: 'A "When I start my day" dose: when their day started (null until it does, or when the latest time came first).' }),
     at: z.string().nullable().openapi({ description: 'When it was marked taken or skipped.' }),
     by: z.string().nullable().openapi({ description: 'The device that marked it.' }),
     snoozedUntil: z.string().nullable(),
@@ -78,29 +88,39 @@ const DoseSchema = z
 const DueSchema = z
   .object({
     names: z.boolean().openapi({ description: 'false: a shared wall with names off; name and dose are null ("Meds").' }),
-    doses: z.array(z.object({ medicationId: z.string(), memberId: z.string(), date: z.string(), time: z.string(), dueAt: z.string(), name: z.string().nullable(), dose: z.string().nullable() })),
+    doses: z.array(z.object({
+      medicationId: z.string(), memberId: z.string(), date: z.string(), time: z.string().openapi({ description: 'HH:MM, or "wake".' }), dueAt: z.string(),
+      startedAt: z.string().nullable(), until: z.string().openapi({ description: 'When its late window closes.' }), name: z.string().nullable(), dose: z.string().nullable(),
+    })),
   })
   .openapi('MedicationsDue');
 const HistorySchema = z
   .object({
     memberId: z.string(), today: z.string(), medications: z.array(MedicationSchema),
-    days: z.array(z.object({ date: z.string(), doses: z.array(DoseSchema.omit({ date: true, snoozedUntil: true })) })).openapi({ description: 'Oldest first, today last.' }),
+    days: z.array(z.object({ date: z.string(), doses: z.array(DoseSchema.omit({ date: true, snoozedUntil: true }).extend({ dueAt: z.string() })) })).openapi({ description: 'Oldest first, today last.' }),
   })
   .openapi('MedicationHistory');
 
 export type Medication = z.infer<typeof MedicationSchema>;
-export type DoseEntry = { status?: 'taken' | 'skipped'; at?: string; by?: string; snoozedUntil?: string };
-export type DoseLog = Record<string, DoseEntry>; // by time, HH:MM
+export type DoseEntry = { status?: 'taken' | 'skipped'; at?: string; by?: string; snoozedUntil?: string; startedAt?: string };
+export type DoseLog = Record<string, DoseEntry>; // by time, HH:MM, or WAKE
+export type DoseTime = Medication['times'][number];
+export const WAKE = 'wake'; // a "When I start my day" dose's key in the log and the API
+/** A dose time's key: its HH:MM, or WAKE. */
+export const timeKey = (t: DoseTime) => (typeof t === 'string' ? t : WAKE);
+const wakeOf = (m: Pick<Medication, 'times'>) => m.times.find((t) => typeof t !== 'string');
 type MedRow = { id: string; member_id: string; data: string; created_at: string; updated_at: string };
 type LogRow = { medication_id: string; date: string; log: string; updated_at: string };
 
 const dataAad = (id: string) => `${id}:data`;
 const logAad = (id: string, date: string) => `${id}:${date}:log`;
 export const sealMedication = async (env: EncryptionEnv, m: Pick<Medication, 'id' | 'name' | 'dose' | 'times' | 'days'> & Partial<Pick<Medication, 'endDate' | 'totalDoses' | 'lateWindow'>>) =>
-  seal(env, JSON.stringify({ name: m.name, dose: m.dose, times: m.times, days: m.days, endDate: m.endDate ?? null, totalDoses: m.totalDoses ?? null, lateWindow: m.lateWindow ?? '3h' }), dataAad(m.id));
+  seal(env, JSON.stringify({ name: m.name, dose: m.dose, times: m.times.map((t) => (typeof t === 'string' ? { at: t } : t)), days: m.days, endDate: m.endDate ?? null, totalDoses: m.totalDoses ?? null, lateWindow: m.lateWindow ?? '3h' }), dataAad(m.id));
 export async function openMedication(env: EncryptionEnv & { DB: KinwallDb }, r: MedRow): Promise<Medication> {
   const d = JSON.parse(await unseal(env, r.data, dataAad(r.id)));
-  const m: Medication = { id: r.id, memberId: r.member_id, name: d.name, dose: d.dose ?? '', times: d.times, days: d.days, endDate: d.endDate ?? null, totalDoses: d.totalDoses ?? null, lateWindow: d.lateWindow ?? '3h', dosesLeft: null, createdAt: r.created_at, updatedAt: r.updated_at };
+  // Times sealed before "When I start my day" are plain "HH:MM"; now { at } or { wake, latest }. Written back in the new shape.
+  const times = (d.times as (string | { at: string } | { wake: true; latest: string })[]).map((t) => (typeof t === 'string' ? t : 'at' in t ? t.at : { wake: true as const, latest: t.latest }));
+  const m: Medication = { id: r.id, memberId: r.member_id, name: d.name, dose: d.dose ?? '', times, days: d.days, endDate: d.endDate ?? null, totalDoses: d.totalDoses ?? null, lateWindow: d.lateWindow ?? '3h', dosesLeft: null, createdAt: r.created_at, updatedAt: r.updated_at };
   return withDosesLeft(env, m);
 }
 /** dosesLeft for a medicine with totalDoses: counts every taken dose in its log. */
@@ -125,6 +145,62 @@ export async function loadLogs(env: EncryptionEnv & { DB: KinwallDb }, ids: stri
   return new Map(await Promise.all(results.map(async (r) => [`${r.medication_id}:${r.date}`, await openLog(env, r)] as const)));
 }
 
+/** Read a day's log, change it and write it back only if nobody wrote in between (a wall and a phone at
+ *  once). `change` edits the log in place; false leaves it as it was (null). 'conflict' after 3 tries.
+ *  updated_at keeps the day only: a clock time there would say, in plain text, when a dose was marked
+ *  or when someone's day started. */
+export async function updateLog(env: EncryptionEnv & { DB: KinwallDb }, id: string, date: string, change: (log: DoseLog, now: Date) => boolean): Promise<{ log: DoseLog; now: Date } | null | 'conflict'> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const row = await env.DB.prepare('SELECT * FROM medication_log WHERE medication_id = ? AND date = ?').bind(id, date).first<LogRow>();
+    const log = row ? await openLog(env, row) : {};
+    const now = new Date();
+    if (!change(log, now)) return null;
+    const sealed = await sealLog(env, id, date, log);
+    const res = row
+      ? await env.DB.prepare('UPDATE medication_log SET log = ?, updated_at = ? WHERE medication_id = ? AND date = ? AND log = ?').bind(sealed, date, id, date, row.log).run()
+      : await env.DB.prepare('INSERT INTO medication_log (medication_id, date, log, updated_at) VALUES (?,?,?,?) ON CONFLICT DO NOTHING').bind(id, date, sealed, date).run();
+    if (!res.meta.changes) continue;
+    await bumpRev(env.DB).run();
+    return { log, now };
+  }
+  return 'conflict';
+}
+
+// "When I start my day" doses: due at the earliest of their first Temp check answer, their first daily
+// check-in, or their own device opening the app (POST /api/members/{id}/day-started), else at the
+// latest time. Each of those calls startDay, and the first one writes the moment into that dose's
+// sealed log entry (startedAt, like the rest of the log: it says when someone woke up). Nothing is
+// kept for a person without such a dose that day, and nothing after the latest time (it's due by then).
+// For a kid, a parent's device never starts their day (dayStartCounts).
+export async function startDay(env: EncryptionEnv & { DB: KinwallDb }, memberId: string, tz: string): Promise<void> {
+  const now = new Date();
+  const date = todayInTz(tz, now);
+  for (const m of await loadMedications(env, memberId)) {
+    const wake = wakeOf(m);
+    if (!wake || typeof wake === 'string' || !scheduledOn(m, date) || now.getTime() >= doseAt(date, wake.latest, tz)) continue;
+    await updateLog(env, m.id, date, (log) => {
+      if (log[WAKE]?.startedAt || log[WAKE]?.status) return false;
+      log[WAKE] = { ...log[WAKE], startedAt: now.toISOString() };
+      return true;
+    });
+  }
+}
+/** Does this request start `memberId`'s day: their own device or a shared wall; a parent's device only for a grown-up. */
+async function dayStartCounts(c: C, memberId: string): Promise<boolean> {
+  const key = await requestKey(c);
+  if (key?.scope === 'display') return !key.owner || key.owner === 'shared' || key.owner === memberId;
+  return !!(await c.env.DB.prepare('SELECT grown_up FROM members WHERE id = ?').bind(memberId).first<{ grown_up: number }>())?.grown_up;
+}
+/** From the Temp check and check-in routes: start their day if medications are on and this counts.
+ *  Never fails the caller's request; the error's name only, never data. */
+export async function startDayFrom(c: C, memberId: string): Promise<void> {
+  try {
+    const settings = await readSettings(c.env.DB);
+    if (!settings.medications || !(await dayStartCounts(c, memberId))) return;
+    await startDay(c.env, memberId, settings.timezone ?? hostTimezone());
+  } catch (e) { console.error('start of day skipped:', e instanceof Error ? e.name : 'error'); }
+}
+
 export const addDays = (date: string, n: number) => new Date(Date.parse(`${date}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
 /** Is a dose due that day: its weekday, not past its end date, and (for a counted course) doses left. */
 export const scheduledOn = (m: Pick<Medication, 'days' | 'endDate' | 'dosesLeft'>, date: string) =>
@@ -141,6 +217,16 @@ export function windowEnd(lateWindow: LateWindow, date: string, dueAt: number, t
   const until = lateWindow === 'evening' ? doseAt(date, EVENING, tz) : lateWindow === 'endOfDay' ? doseAt(addDays(date, 1), '00:00', tz) : 0;
   return Math.max(until, dueAt + DUE_MS);
 }
+/** When a dose is due: its clock time, or for "When I start my day" when their day started, else its latest time. */
+export function dueAt(t: DoseTime, date: string, tz: string, e: DoseEntry | undefined): number {
+  if (typeof t === 'string') return doseAt(date, t, tz);
+  const latest = doseAt(date, t.latest, tz);
+  const started = e?.startedAt ? Date.parse(e.startedAt) : Infinity;
+  return Math.min(started, latest);
+}
+/** A log key's dose time on this medicine (a time it no longer has: as it was). */
+export const timeFor = (m: Pick<Medication, 'times'>, key: string): DoseTime => m.times.find((t) => timeKey(t) === key) ?? (key === WAKE ? { wake: true, latest: '12:00' } : key);
+
 export function doseStatus(dueAt: number, end: number, e: DoseEntry | undefined, now: number): (typeof STATUSES)[number] {
   if (e?.status) return e.status;
   return now < dueAt ? 'upcoming' : now < end ? 'due' : 'missed';
@@ -321,11 +407,13 @@ medicationsRoutes.openapi(
     const yesterday = addDays(g.today, -1);
     const logs = await loadLogs(c.env, meds.map((m) => m.id), yesterday, g.today);
     const now = Date.now();
-    const doses = meds.flatMap((m) => [yesterday, g.today].flatMap((date) => (scheduledOn(m, date) ? m.times : []).flatMap((time) => {
+    const doses = meds.flatMap((m) => [yesterday, g.today].flatMap((date) => (scheduledOn(m, date) ? m.times : []).flatMap((t) => {
+      const time = timeKey(t);
       const e = logs.get(`${m.id}:${date}`)?.[time];
-      const at = doseAt(date, time, g.tz);
-      if (doseStatus(at, windowEnd(m.lateWindow, date, at, g.tz), e, now) !== 'due' || (e?.snoozedUntil && Date.parse(e.snoozedUntil) > now)) return [];
-      return [{ medicationId: m.id, memberId: m.memberId, date, time, dueAt: new Date(at).toISOString(), name: names ? m.name : null, dose: names ? m.dose : null }];
+      const at = dueAt(t, date, g.tz, e);
+      const end = windowEnd(m.lateWindow, date, at, g.tz);
+      if (doseStatus(at, end, e, now) !== 'due' || (e?.snoozedUntil && Date.parse(e.snoozedUntil) > now)) return [];
+      return [{ medicationId: m.id, memberId: m.memberId, date, time, dueAt: new Date(at).toISOString(), startedAt: e?.startedAt ?? null, until: new Date(end).toISOString(), name: names ? m.name : null, dose: names ? m.dose : null }];
     })));
     const order = new Map((await c.env.DB.prepare('SELECT id FROM members ORDER BY sort, created_at').all<{ id: string }>()).results.map((r, i) => [r.id, i]));
     doses.sort((a, b) => a.dueAt.localeCompare(b.dueAt) || (order.get(a.memberId) ?? 0) - (order.get(b.memberId) ?? 0));
@@ -337,7 +425,7 @@ medicationsRoutes.openapi(
   createRoute({
     method: 'post', path: '/api/medications/{id}/doses', tags: TAG, security: [{ Bearer: [] }],
     summary: "Mark a dose taken or skipped, or snooze it 10 minutes (today's or yesterday's). Parent devices, shared walls, and the person's own device for their own.",
-    request: { params: idParams, body: { content: json(z.object({ date: DateSchema, time: TimeSchema, action: z.enum(['taken', 'skipped', 'snooze']) }).openapi('MedicationDoseInput')) } },
+    request: { params: idParams, body: { content: json(z.object({ date: DateSchema, time: z.union([TimeSchema, z.literal(WAKE)]), action: z.enum(['taken', 'skipped', 'snooze']) }).openapi('MedicationDoseInput')) } },
     responses: { 200: { description: 'saved', content: json(DoseSchema) }, 400: err('not one of its doses, or nothing to snooze'), 409: err('marked from another device at the same moment'), ...denied },
   }),
   async (c) => {
@@ -348,29 +436,40 @@ medicationsRoutes.openapi(
     if (g.who.kind === 'own' && g.who.memberId !== m.memberId) return c.json({ error: 'This device can only mark its own medicines.' }, 403);
     const { date, time, action } = c.req.valid('json');
     if (date !== g.today && date !== addDays(g.today, -1)) return c.json({ error: "Only today's and yesterday's doses can be marked" }, 400);
-    if (!m.times.includes(time) || !scheduledOn(m, date)) return c.json({ error: "That isn't one of its doses" }, 400);
-    const at = doseAt(date, time, g.tz);
-    const end = windowEnd(m.lateWindow, date, at, g.tz);
+    const t = m.times.find((x) => timeKey(x) === time);
+    if (!t || !scheduledOn(m, date)) return c.json({ error: "That isn't one of its doses" }, 400);
     const by = (await requestKey(c))?.name ?? null;
-    // Read, change and write back only if nobody wrote in between (a wall and a phone at once).
-    for (let attempt = 0; attempt < 3; attempt++) {
-      const row = await c.env.DB.prepare('SELECT * FROM medication_log WHERE medication_id = ? AND date = ?').bind(m.id, date).first<LogRow>();
-      const log = row ? await openLog(c.env, row) : {};
-      const now = new Date();
+    const done = await updateLog(c.env, m.id, date, (log, now) => {
+      const startedAt = log[time]?.startedAt ? { startedAt: log[time].startedAt } : {}; // kept through a snooze or a mark
       if (action === 'snooze') {
-        if (doseStatus(at, end, log[time], now.getTime()) !== 'due') return c.json({ error: 'Only a dose that is due can be snoozed' }, 400);
-        log[time] = { snoozedUntil: new Date(now.getTime() + SNOOZE_MS).toISOString() };
-      } else log[time] = { status: action, at: now.toISOString(), ...(by ? { by } : {}) };
-      const sealed = await sealLog(c.env, m.id, date, log);
-      const res = row
-        ? await c.env.DB.prepare('UPDATE medication_log SET log = ?, updated_at = ? WHERE medication_id = ? AND date = ? AND log = ?').bind(sealed, now.toISOString(), m.id, date, row.log).run()
-        : await c.env.DB.prepare('INSERT INTO medication_log (medication_id, date, log, updated_at) VALUES (?,?,?,?) ON CONFLICT DO NOTHING').bind(m.id, date, sealed, now.toISOString()).run();
-      if (!res.meta.changes) continue;
-      await bumpRev(c.env.DB).run();
-      const e = log[time];
-      return c.json({ medicationId: m.id, date, time, status: doseStatus(at, end, e, now.getTime()), at: e.at ?? null, by: e.by ?? null, snoozedUntil: e.snoozedUntil ?? null }, 200);
-    }
-    return c.json({ error: 'Someone else just marked it. Try again.' }, 409);
+        const at = dueAt(t, date, g.tz, log[time]);
+        if (doseStatus(at, windowEnd(m.lateWindow, date, at, g.tz), log[time], now.getTime()) !== 'due') return false;
+        log[time] = { ...startedAt, snoozedUntil: new Date(now.getTime() + SNOOZE_MS).toISOString() };
+      } else log[time] = { ...startedAt, status: action, at: now.toISOString(), ...(by ? { by } : {}) };
+      return true;
+    });
+    if (done === 'conflict') return c.json({ error: 'Someone else just marked it. Try again.' }, 409);
+    if (!done) return c.json({ error: 'Only a dose that is due can be snoozed' }, 400);
+    const e = done.log[time];
+    const at = dueAt(t, date, g.tz, e);
+    return c.json({ medicationId: m.id, date, time, status: doseStatus(at, windowEnd(m.lateWindow, date, at, g.tz), e, done.now.getTime()), startedAt: e.startedAt ?? null, at: e.at ?? null, by: e.by ?? null, snoozedUntil: e.snoozedUntil ?? null }, 200);
+  },
+);
+
+medicationsRoutes.openapi(
+  createRoute({
+    method: 'post', path: '/api/members/{id}/day-started', tags: TAG, security: [{ Bearer: [] }],
+    summary: 'Their own device opened the app today: starts the day for "When I start my day" doses (the first call a day counts; again changes nothing). The person\'s own device only; the web app calls it once a day.',
+    request: { params: idParams },
+    responses: { 204: { description: 'noted (or nothing to note)' }, ...denied },
+  }),
+  async (c) => {
+    const g = await gate(c);
+    if ('fail' in g) return c.json(g.fail, g.status);
+    const { id } = c.req.valid('param');
+    if (g.who.kind !== 'own' || g.who.memberId !== id) return c.json({ error: "Only that person's own device can start their day." }, 403);
+    await startDay(c.env, id, g.tz);
+    return c.body(null, 204);
   },
 );
 
@@ -397,9 +496,13 @@ medicationsRoutes.openapi(
         const log = logs.get(`${m.id}:${date}`) ?? {};
         const since = todayInTz(g.tz, new Date(m.createdAt));
         // Its schedule on days since it was added, plus anything logged under a time it no longer has.
-        const times = [...new Set([...(date >= since && scheduledOn({ ...m, dosesLeft: null }, date) ? m.times : []), ...Object.keys(log).filter((t) => log[t].status)])].sort();
-        return times.map((time) => { const due = doseAt(date, time, g.tz); return { medicationId: m.id, time, status: doseStatus(due, windowEnd(m.lateWindow, date, due, g.tz), log[time], now), at: log[time]?.at ?? null, by: log[time]?.by ?? null }; });
-      }).sort((a, b) => a.time.localeCompare(b.time));
+        const times = [...new Set([...(date >= since && scheduledOn({ ...m, dosesLeft: null }, date) ? m.times.map(timeKey) : []), ...Object.keys(log).filter((t) => log[t].status)])];
+        return times.map((time) => {
+          const e = log[time];
+          const due = dueAt(timeFor(m, time), date, g.tz, e);
+          return { medicationId: m.id, time, dueAt: new Date(due).toISOString(), status: doseStatus(due, windowEnd(m.lateWindow, date, due, g.tz), e, now), startedAt: e?.startedAt ?? null, at: e?.at ?? null, by: e?.by ?? null };
+        });
+      }).sort((a, b) => a.dueAt.localeCompare(b.dueAt) || a.time.localeCompare(b.time));
       days.push({ date, doses });
     }
     return c.json({ memberId: id, today: g.today, medications: meds, days }, 200);

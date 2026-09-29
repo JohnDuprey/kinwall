@@ -405,6 +405,7 @@ export const api = {
   getMedicationsDue: () => MOCK ? mock.getMedicationsDue() : req<MedicationsDue>('api/medications/due'),
   markDose: (medicationId: string, body: { date: string; time: string; action: 'taken' | 'skipped' | 'snooze' }) =>
     MOCK ? mock.markDose(medicationId, body) : post<MedicationDose>(`api/medications/${encodeURIComponent(medicationId)}/doses`, body),
+  dayStarted: (memberId: string) => MOCK ? Promise.resolve() : post<void>(`api/members/${encodeURIComponent(memberId)}/day-started`),
   getMedicationHistory: (memberId: string, days = 7) => MOCK ? mock.getMedicationHistory(memberId, days) : req<MedicationHistory>(`api/members/${encodeURIComponent(memberId)}/medications?days=${days}`),
   // Daily check-in: once per household day; a second call awards nothing.
   checkIn: (memberId: string) =>

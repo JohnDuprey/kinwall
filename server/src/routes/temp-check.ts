@@ -38,6 +38,7 @@ import { healthBlock, HEALTH_PRIVATE } from './trackers.ts';
 import { DRAINED_ANSWERS } from '../battery.ts';
 import { parseTempCheck, todayInTz } from './members.ts';
 import { readSettings } from './settings.ts';
+import { startDayFrom } from './medications.ts';
 
 export const tempCheckRoutes = createRouter();
 type C = Context<{ Bindings: Env }>;
@@ -264,6 +265,7 @@ tempCheckRoutes.openapi(
       ...(customChanged ? [c.env.DB.prepare('UPDATE members SET temp_check_feelings = ? WHERE id = ?').bind(await sealCustom(c.env, id, nextCustom), id)] : []),
     ]);
     emit(c, 'tempcheck.changed', { memberId: id, date }); // who and which day, never the answers
+    if (date === today) await startDayFrom(c, id); // answering starts the day ("When I start my day" medicines)
     return c.json(await respond(c, id, date, (await load(c, id, date))!, who), 200);
   },
 );

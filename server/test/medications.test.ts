@@ -9,6 +9,7 @@ import path from 'node:path';
 import { createApp } from '../src/app.ts';
 import { openDb, applyMigrations } from '../src/d1-sqlite.ts';
 import { runNotifications } from '../src/notify.ts';
+import { seal, unseal } from '../src/crypto.ts';
 import type { Env } from '../src/env.ts';
 
 const MIGRATIONS = path.join(import.meta.dirname, '..', 'migrations');
@@ -570,4 +571,158 @@ test('medications: the export has them in plain form (it is their backup); impor
   assert.deepEqual([target.raw('medications').length, target.raw('medication_log').length], [1, 1]);
   const refused = await target.req('/api/import', 'POST', { ...file, medications: [{ ...file.medications[0], id: 'other' }] }, ADMIN, APP);
   assert.equal(refused.json?.imported?.medications ?? 0, 0, 'a connected app without aiHealthAccess brings none in');
+});
+
+// ---- "When I start my day" doses ----
+const WAKE = { wake: true, latest: '12:00' };
+const started = (s: Awaited<ReturnType<typeof setup>>, id: string, k: string) => s.req(`/api/members/${id}/day-started`, 'POST', undefined, k);
+const dueDoses = async (s: Awaited<ReturnType<typeof setup>>) => ((await s.req('/api/medications/due')).json.doses as any[]).map((d) => [d.memberId, d.date, d.time, d.startedAt, d.dueAt, d.until]);
+
+test('start of day: due when their own device first opens the app, pushed once from then; the late window runs from there', async (t) => {
+  t.after(() => mock.timers.reset());
+  const s = await setup({ now: at('06:00') });
+  const med = (await s.add(s.sam.id, { times: [WAKE, '20:00', '20:00'] })).json;
+  assert.deepEqual(med.times, [WAKE, '20:00'], 'a start-of-day dose first, then the clock times');
+  const sams = await s.key(s.sam.id);
+  const tick = await devices(s, [['sams-phone', sams]]);
+  assert.deepEqual(await tick(at('07:00')), {});
+  assert.deepEqual(await dueDoses(s), []);
+  const today = async () => (await s.req(`/api/members/${s.sam.id}/medications`)).json.days.at(-1).doses.map((d: any) => [d.time, d.status, d.startedAt]);
+  assert.deepEqual(await today(), [['wake', 'upcoming', null], ['20:00', 'upcoming', null]]);
+
+  mock.timers.setTime(at('09:40').getTime());
+  assert.equal((await started(s, s.sam.id, sams)).status, 204);
+  mock.timers.setTime(at('09:50').getTime());
+  assert.equal((await started(s, s.sam.id, sams)).status, 204, 'again: no change');
+  const nine40 = at('09:40').toISOString();
+  assert.deepEqual(await dueDoses(s), [[s.sam.id, TODAY, 'wake', nine40, nine40, at('12:40').toISOString()]]);
+  assert.deepEqual(await today(), [['wake', 'due', nine40], ['20:00', 'upcoming', null]]);
+  assert.deepEqual(await tick(at('09:52')), { 'sams-phone': [{ title: "Time for Sam's medicine", body: 'Tap to mark it taken.' }] });
+  assert.deepEqual(await tick(at('09:55')), {}, 'once');
+  assert.deepEqual(await tick(at('12:02')), {}, 'no second push at the latest time');
+  mock.timers.setTime(at('12:41').getTime());
+  assert.deepEqual(await dueDoses(s), [], '3 hours from when the day started');
+  mock.timers.setTime(at('12:45').getTime());
+  const marked = await s.mark(med.id, 'taken', sams, 'wake');
+  assert.deepEqual([marked.status, marked.json.status, marked.json.startedAt], [200, 'taken', nine40]);
+  assert.equal((await s.mark(med.id, 'taken', sams, '12:00')).status, 400, 'its latest time is not a dose of its own');
+});
+
+test('start of day: with no signal, the latest time; a signal after it changes nothing', async (t) => {
+  t.after(() => mock.timers.reset());
+  const s = await setup({ now: at('06:00') });
+  await s.add(s.sam.id, { times: [{ wake: true, latest: '11:30' }], lateWindow: 'evening' });
+  const sams = await s.key(s.sam.id);
+  const tick = await devices(s, [['sams-phone', sams]]);
+  assert.deepEqual(await tick(at('11:20')), {});
+  assert.equal((await tick(at('11:32')))['sams-phone'].length, 1, 'due at 11:30');
+  mock.timers.setTime(at('11:45').getTime());
+  assert.equal((await started(s, s.sam.id, sams)).status, 204);
+  assert.deepEqual(await dueDoses(s), [[s.sam.id, TODAY, 'wake', null, at('11:30').toISOString(), at('20:00').toISOString()]]);
+  assert.deepEqual(await tick(at('11:47')), {}, 'no double push');
+});
+
+test('start of day: the earliest of Temp check, check-in and their own device; for a kid, never a parent device', async (t) => {
+  t.after(() => mock.timers.reset());
+  const s = await setup({ now: at('06:00') });
+  await s.req('/api/settings', 'PATCH', { checkInPoints: 3 });
+  for (const m of [s.leo, s.maya, s.sam]) await s.req(`/api/members/${m.id}`, 'PATCH', { tempCheck: { on: true, sleep: true, feelings: true, goal: true, showGoal: true } });
+  for (const m of [s.leo, s.maya, s.sam]) await s.add(m.id, { times: [WAKE] });
+  const [leos, mayas, wall] = [await s.key(s.leo.id), await s.key(s.maya.id), await s.key()];
+  const startOf = async (id: string) => ((await s.req(`/api/members/${id}/medications`)).json.days.at(-1).doses[0].startedAt as string | null);
+
+  // A parent's device opening a kid's day, answering or checking in for them: not their start.
+  mock.timers.setTime(at('06:30').getTime());
+  assert.equal((await started(s, s.leo.id, ADMIN)).status, 403, 'own device only');
+  assert.equal((await started(s, s.leo.id, mayas)).status, 403);
+  assert.equal((await started(s, s.leo.id, wall)).status, 403);
+  assert.equal((await s.req(`/api/members/${s.leo.id}/temp-check`, 'PUT', { sleep: 'good' })).status, 200);
+  assert.equal((await s.req(`/api/members/${s.leo.id}/check-in`, 'POST')).status, 200);
+  assert.equal(await startOf(s.leo.id), null);
+  // Leo's own Temp check answer (on the wall or his device) is.
+  mock.timers.setTime(at('07:10').getTime());
+  assert.equal((await s.req(`/api/members/${s.leo.id}/temp-check`, 'PUT', { feelings: ['happy'] }, wall)).status, 200);
+  mock.timers.setTime(at('07:30').getTime());
+  await started(s, s.leo.id, leos);
+  assert.equal(await startOf(s.leo.id), at('07:10').toISOString(), 'the earliest wins');
+  // Maya: her check-in from her own device, before she opens the app.
+  mock.timers.setTime(at('07:05').getTime());
+  assert.equal((await s.req(`/api/members/${s.maya.id}/check-in`, 'POST', undefined, mayas)).status, 200);
+  mock.timers.setTime(at('08:00').getTime());
+  await started(s, s.maya.id, mayas);
+  assert.equal(await startOf(s.maya.id), at('07:05').toISOString());
+  // A grown-up answering their own Temp check on a parent device counts.
+  assert.equal((await s.req(`/api/members/${s.sam.id}/temp-check`, 'PUT', { sleep: 'ok' })).status, 200);
+  assert.equal(await startOf(s.sam.id), at('08:00').toISOString());
+});
+
+test("start of day: the household's day and clock, not UTC's", async (t) => {
+  t.after(() => mock.timers.reset());
+  const s = await setup({ now: at('06:00') });
+  await s.add(s.sam.id, { times: [{ wake: true, latest: '20:00' }] });
+  const sams = await s.key(s.sam.id);
+  mock.timers.setTime(at('17:30').getTime()); // already the 29th in UTC
+  assert.equal(new Date().toISOString().slice(0, 10), '2026-09-29');
+  await started(s, s.sam.id, sams);
+  assert.deepEqual((await dueDoses(s)).map((d) => [d[1], d[3]]), [[TODAY, at('17:30').toISOString()]]);
+  mock.timers.setTime(at('00:30', '2026-09-29').getTime());
+  assert.equal((await started(s, s.sam.id, sams)).status, 204);
+  const h = (await s.req(`/api/members/${s.sam.id}/medications`)).json.days;
+  assert.deepEqual(h.slice(-2).map((d: any) => [d.date, d.doses[0].startedAt]), [[TODAY, at('17:30').toISOString()], ['2026-09-29', at('00:30', '2026-09-29').toISOString()]]);
+});
+
+test('start of day: sealed with the log, never logged; old plain times still read and are rewritten in the new shape; export and import keep it', async (t) => {
+  t.after(() => mock.timers.reset());
+  const lines: string[] = [];
+  const methods = ['log', 'info', 'warn', 'error', 'debug'] as const;
+  const saved = methods.map((m) => console[m]);
+  for (const m of methods) console[m] = (...args: unknown[]) => { lines.push(args.map((a) => (a instanceof Error ? `${a.message} ${a.stack}` : typeof a === 'string' ? a : JSON.stringify(a))).join(' ')); };
+  let s: Awaited<ReturnType<typeof setup>>;
+  let med: any;
+  try {
+    s = await setup({ now: at('06:00') });
+    med = (await s.add(s.sam.id, { times: [WAKE] })).json;
+    const sams = await s.key(s.sam.id);
+    mock.timers.setTime(at('09:17').getTime());
+    await started(s, s.sam.id, sams);
+    await started(s, s.sam.id, ADMIN); // 403
+    await s.req(`/api/members/${s.sam.id}/day-started`, 'POST', { at: '05:00' }, sams); // no body needed or used
+    const noKey = await setup({ extra: { ENCRYPTION_KEY: undefined }, now: at('09:17') });
+    await noKey.db.prepare('INSERT INTO medications (id, member_id, data, created_at, updated_at) VALUES (?,?,?,?,?)').bind('m1', noKey.sam.id, 'enc:v1:nope', 'x', 'x').run();
+    assert.equal((await started(noKey, noKey.sam.id, await noKey.key(noKey.sam.id))).status, 500, 'no key: fails closed');
+    await runNotifications(s.env, at('09:19'));
+  } finally {
+    methods.forEach((m, i) => { console[m] = saved[i]; });
+  }
+  for (const x of [NAME, DOSE, '09:17', at('09:17').toISOString(), 'startedAt']) assert.equal(lines.join('\n').includes(x), false, `logs: ${x}`);
+  const stored = JSON.stringify([s!.raw('medications'), s!.raw('medication_log'), s!.raw('sent_notifications')]);
+  for (const x of ['09:17', at('09:17').toISOString(), 'startedAt', 'wake', '12:00']) assert.equal(stored.includes(x), false, `stored: ${x}`);
+
+  // A medicine sealed before this change: plain "HH:MM" times, no late window.
+  await s!.db.prepare('INSERT INTO medications (id, member_id, data, created_at, updated_at) VALUES (?,?,?,?,?)')
+    .bind('old', s!.leo.id, await seal(s!.env, JSON.stringify({ name: 'Old', dose: '', times: ['08:00', '20:00'], days: [0, 1, 2, 3, 4, 5, 6] }), 'old:data'), at('06:00').toISOString(), at('06:00').toISOString()).run();
+  const old = (await s!.req('/api/medications')).json.find((m: any) => m.id === 'old');
+  assert.deepEqual([old.times, old.lateWindow], [['08:00', '20:00'], '3h']);
+  await s!.req('/api/medications/old', 'PATCH', { dose: '1 tablet' });
+  const row = s!.raw('medications').find((r) => r.id === 'old')!;
+  assert.deepEqual(JSON.parse(await unseal(s!.env, String(row.data), 'old:data')).times, [{ at: '08:00' }, { at: '20:00' }], 'written in the new shape');
+
+  const file = (await s!.req('/api/export')).json;
+  assert.deepEqual(file.medications.find((m: any) => m.id === med.id).times, [WAKE]);
+  assert.deepEqual(file.medications.find((m: any) => m.id === 'old').times, ['08:00', '20:00'], 'clock times stay plain strings in the file');
+  assert.deepEqual(file.medicationLog.map((d: any) => [d.time, d.status, d.startedAt]), [['wake', null, at('09:17').toISOString()]]);
+  const target = await setup({ now: at('09:30'), on: false });
+  assert.equal((await target.req('/api/import', 'POST', file)).status, 200);
+  await target.req('/api/settings', 'PATCH', { medications: true });
+  const back = (await target.req(`/api/members/${s!.sam.id}/medications`)).json;
+  assert.deepEqual([back.medications[0].times, back.days.at(-1).doses[0].startedAt], [[WAKE], at('09:17').toISOString()]);
+});
+
+test('start of day: times are checked (one start-of-day dose at most, a valid latest time)', async (t) => {
+  t.after(() => mock.timers.reset());
+  const s = await setup();
+  for (const times of [[WAKE, { wake: true, latest: '10:00' }], [{ wake: true }], [{ wake: true, latest: '25:00' }], [{ wake: false, latest: '10:00' }], [{ at: '08:00' }]]) {
+    assert.equal((await s.add(s.sam.id, { times })).status, 400, JSON.stringify(times));
+  }
+  assert.equal((await s.add(s.sam.id, { times: [WAKE] })).status, 201);
 });

@@ -1,7 +1,7 @@
 // node --test test/ (npm test). Medication reminders: schedule labels, card labels, the week grid.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { cardLabel, catchUpLabel, cheerLine, courseLabel, daysLabel, scheduleLabel, weekCells } from '../src/medications.ts'
+import { cardLabel, catchUpLabel, cheerLine, dayStartDue, doseTimeLabel, timeLabel, courseLabel, daysLabel, scheduleLabel, weekCells } from '../src/medications.ts'
 import { setHour12 } from '../src/timeFormat.ts'
 
 test('daysLabel: every day, weekdays, weekends, or the days in order', () => {
@@ -57,4 +57,24 @@ test('catchUpLabel: a due dose gets "Taken", one past its window "Taken late"; m
   assert.equal(catchUpLabel('due'), 'Taken')
   assert.equal(catchUpLabel('missed'), 'Taken late')
   for (const s of ['taken', 'skipped', 'upcoming'] as const) assert.equal(catchUpLabel(s), null)
+})
+
+test('"When I start my day": its schedule label, and a dose that says when the day started', () => {
+  setHour12(true)
+  const wake = { wake: true as const, latest: '12:00' }
+  assert.equal(timeLabel(wake), 'When I start my day (by 12:00 PM)')
+  assert.equal(scheduleLabel({ times: [wake, '20:00'], days: [0, 1, 2, 3, 4, 5, 6] }), 'When I start my day (by 12:00 PM) and 8:00 PM · Every day')
+  assert.equal(doseTimeLabel({ time: 'wake', startedAt: null }), 'When you start your day')
+  assert.equal(doseTimeLabel({ time: 'wake', startedAt: new Date(2026, 8, 28, 9, 40).toISOString() }), 'Started at 9:40 AM')
+  assert.equal(doseTimeLabel({ time: '08:00', startedAt: null }), '8:00 AM')
+})
+
+test('dayStartDue: once a day per person-owned device with medications on; never on a parent device or a shared wall', () => {
+  const own = { medications: true, parentDevice: false, ownerId: 'm4', today: '2026-09-28' }
+  assert.equal(dayStartDue(own, null), true)
+  assert.equal(dayStartDue(own, '2026-09-27'), true)
+  assert.equal(dayStartDue(own, '2026-09-28'), false, 'already today')
+  assert.equal(dayStartDue({ ...own, parentDevice: true }, null), false, "a parent's device never starts anyone's day")
+  assert.equal(dayStartDue({ ...own, ownerId: null }, null), false, 'a shared wall')
+  assert.equal(dayStartDue({ ...own, medications: false }, null), false)
 })

@@ -2,6 +2,7 @@ import { holdAwake } from './wakeLock.ts'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { encode } from 'uqr'
 import { api, clearKey, getKey, onSynced, setAdminKey, setKey, useOffline, usePoll, useSaveState, ApiError, MOCK } from './api.ts'
+import { dayStartDue } from './medications.ts'
 import { AppContext, useApp } from './AppContext.tsx'
 import type { Category, Member, Settings } from './types.ts'
 import { trackerKinds } from './types.ts'
@@ -40,6 +41,7 @@ import Medications from './Medications.tsx'
 import Sheet from './Sheet.tsx'
 import { LeaveByLiveActivity } from './NowNext.tsx'
 import { formatTime, resolveHour12, setHour12 } from './timeFormat.ts'
+import { dateKey } from './date.ts'
 
 const NAV_ITEMS = [
   { key: 'calendar', href: '#/calendar', label: 'Calendar', Icon: CalendarIcon },
@@ -177,6 +179,7 @@ function useUpdateAvailable(enabled: boolean) {
 
 const PREVIEW_MS = 20 * 1000
 const NIGHT_POLL_MS = 10 * 1000
+const DAY_STARTED_KEY = 'kinwall-day-started' // the day this device last told the server its person's day started
 const CLOCK_MOVE_MS = 3 * 60 * 1000
 
 /** Quiet hours: a wall screen (wallScreen.ts) shows only a dim clock that moves around (or, per device,
@@ -1126,6 +1129,17 @@ function AppRoutes() {
     return () => clearTimeout(id)
   }, [toastMsg])
   useEffect(() => { if (bannerMsg) announce(bannerMsg) }, [bannerMsg])
+  // "When I start my day" medicines: a person's own device opening the app starts their day, once a
+  // day (the server keeps the first of that, their Temp check and their check-in). Never a parent's device.
+  const medsOn = !!settings?.medications
+  const dayOwner = ownerLocks ? meMemberId : null
+  useEffect(() => {
+    const today = dateKey(new Date())
+    let last: string | null = null
+    try { last = localStorage.getItem(DAY_STARTED_KEY) } catch { /* storage blocked: ask again, the server ignores repeats */ }
+    if (!dayOwner || !dayStartDue({ medications: medsOn, parentDevice, ownerId: dayOwner, today }, last)) return
+    api.dayStarted(dayOwner).then(() => { try { localStorage.setItem(DAY_STARTED_KEY, today) } catch { /* as above */ } }).catch(() => { /* next refresh tries again */ })
+  }, [medsOn, parentDevice, dayOwner, pollTick, manualTick])
   const choresOn = !!settings?.features.chores
   useEffect(() => {
     if (!parentDevice || !choresOn) { setToApprove(0); setRewardRequests(0); return }

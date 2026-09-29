@@ -1,7 +1,7 @@
 // Dev-only in-memory fixture, used when VITE_MOCK=1. Excluded from prod by the env check in api.ts.
 import type { OnlineTidbits, Plugin, PluginCatalogEntry,
   Account, ApiKey, AppNotification, CalendarEntry, Category, Chore, ChoreDay, EventInstance, LeaderboardEntry, LeaderboardPeriod, List, ListGroup,
-  Photo, PhotoQuota, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, ListItem, ListItemInput, ListItemPatch, ListItemStep, Member, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption, TempCheck, TempCheckInput, Journal, JournalEntry, Insights, InsightDay, InsightRange, Battery, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory, DoseStatus,
+  Photo, PhotoQuota, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, ListItem, ListItemInput, ListItemPatch, ListItemStep, Member, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption, TempCheck, TempCheckInput, Journal, JournalEntry, Insights, InsightDay, InsightRange, Battery, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory, DoseStatus, MedTime,
 } from './types.ts'
 import { FEELINGS, TEMP_CHECK_OFF } from './tempCheck.ts'
 import { aisleOrderMap, compareItems } from './types.ts'
@@ -41,19 +41,26 @@ for (const d of MAYA_DAYS) {
 }
 const INSIGHT_DAYS: Record<InsightRange, number> = { '4w': 28, '3m': 91, '1y': 364 }
 const blankInsightDay = (date: string): InsightDay => ({ date, checkedIn: false, sleep: null, feelings: [], goalSet: false, goalOutcome: null, journalEntries: 0, journalMoods: [], chores: 0, points: 0, activityMinutes: 0, booksFinished: 0, events: 0, lastEventEnd: null })
-// Medication reminders: Leo's allergy medicine and Sam's vitamin, with a week of history. The demo is
-// a parent's device, and today's doses are due any time of day so the Take now card always shows.
+// Medication reminders: Leo's allergy medicine, Sam's vitamin and Sam's "When I start my day" medicine
+// (his day started at 9:40 AM), with a week of history; Sam's vitamin wasn't marked yesterday, for the
+// catch-up buttons. The demo is a parent's device, and today's doses are due any time of day so the
+// Take now card always shows.
 const medications: Medication[] = [
   { id: 'med1', memberId: 'm4', name: 'Allergy medicine', dose: '1 tablet', times: ['08:00'], days: [0, 1, 2, 3, 4, 5, 6], endDate: null, totalDoses: null, lateWindow: 'evening', dosesLeft: null, createdAt: new Date(Date.now() - 30 * 86_400_000).toISOString(), updatedAt: new Date().toISOString() },
+  { id: 'med3', memberId: 'm2', name: 'Morning medicine', dose: '1 tablet', times: [{ wake: true, latest: '12:00' }], days: [0, 1, 2, 3, 4, 5, 6], endDate: null, totalDoses: null, lateWindow: '3h', dosesLeft: null, createdAt: new Date(Date.now() - 30 * 86_400_000).toISOString(), updatedAt: new Date().toISOString() },
   { id: 'med2', memberId: 'm2', name: 'Daily vitamin', dose: '1 capsule', times: ['08:00'], days: [0, 1, 2, 3, 4, 5, 6], endDate: null, totalDoses: null, lateWindow: 'endOfDay', dosesLeft: null, createdAt: new Date(Date.now() - 30 * 86_400_000).toISOString(), updatedAt: new Date().toISOString() },
 ]
-type MockDose = { status?: 'taken' | 'skipped'; at?: string; by?: string; snoozedUntil?: string }
+type MockDose = { status?: 'taken' | 'skipped'; at?: string; by?: string; snoozedUntil?: string; startedAt?: string }
+const timeKey = (t: MedTime) => (typeof t === 'string' ? t : 'wake')
+const startedAt = (daysAgo: number) => { const d = new Date(Date.now() - daysAgo * 86_400_000); d.setHours(9, 40 - daysAgo * 7, 0, 0); return d.toISOString() }
 const medLog = new Map<string, Record<string, MockDose>>() // `${medicationId}:${date}`
 for (let n = 1; n <= 6; n++) {
   const at = new Date(Date.now() - n * 86_400_000).toISOString()
   if (n !== 4) medLog.set(`med1:${demoDay(-n)}`, { '08:00': { status: n === 2 ? 'skipped' : 'taken', at, by: 'Kitchen wall' } }) // 4 days ago: not marked
-  if (n !== 5) medLog.set(`med2:${demoDay(-n)}`, { '08:00': { status: 'taken', at, by: "Sam's phone" } })
+  if (n !== 1) medLog.set(`med2:${demoDay(-n)}`, { '08:00': { status: 'taken', at, by: "Sam's phone" } }) // yesterday: not marked
+  medLog.set(`med3:${demoDay(-n)}`, { wake: { startedAt: startedAt(n), status: 'taken', at: startedAt(n), by: "Sam's phone" } })
 }
+medLog.set(`med3:${demoDay(0)}`, { wake: { startedAt: startedAt(0) } })
 const doseStatus = (date: string, e: MockDose | undefined): DoseStatus => e?.status ?? (date < dateKey(new Date()) ? 'missed' : 'due')
 const bump = () => { rev++ }
 
@@ -568,7 +575,7 @@ export const mock = {
   getMedications: async (memberId?: string): Promise<Medication[]> => medications.filter(m => !memberId || m.memberId === memberId).map(m => ({ ...m })),
   addMedication: async (b: MedicationInput): Promise<Medication> => {
     const now = new Date().toISOString()
-    const m: Medication = { id: uid(), endDate: null, totalDoses: null, lateWindow: '3h', ...b, dosesLeft: b.totalDoses ?? null, name: b.name.trim(), dose: b.dose.trim(), times: [...new Set(b.times)].sort(), days: [...new Set(b.days)].sort(), createdAt: now, updatedAt: now }
+    const m: Medication = { id: uid(), endDate: null, totalDoses: null, lateWindow: '3h', ...b, dosesLeft: b.totalDoses ?? null, name: b.name.trim(), dose: b.dose.trim(), times: b.times, days: [...new Set(b.days)].sort(), createdAt: now, updatedAt: now }
     medications.push(m); bump(); return { ...m }
   },
   updateMedication: async (id: string, b: Partial<Omit<MedicationInput, 'memberId'>>): Promise<Medication> => {
@@ -584,29 +591,32 @@ export const mock = {
   getMedicationsDue: async (): Promise<MedicationsDue> => {
     if (!settings.medications) throw new Error('Medications are turned off')
     const date = dateKey(new Date()), now = Date.now()
-    const doses = medications.flatMap(m => m.days.includes(new Date().getDay()) ? m.times.flatMap(time => {
+    const doses = medications.flatMap(m => m.days.includes(new Date().getDay()) ? m.times.flatMap(t => {
+      const time = timeKey(t)
       const e = medLog.get(`${m.id}:${date}`)?.[time]
       if (doseStatus(date, e) !== 'due' || (e?.snoozedUntil && Date.parse(e.snoozedUntil) > now)) return []
-      return [{ medicationId: m.id, memberId: m.memberId, date, time, dueAt: new Date().toISOString(), name: m.name, dose: m.dose }]
+      return [{ medicationId: m.id, memberId: m.memberId, date, time, dueAt: e?.startedAt ?? new Date().toISOString(), startedAt: e?.startedAt ?? null, until: new Date(now + 3 * 3_600_000).toISOString(), name: m.name, dose: m.dose }]
     }) : [])
     const order = (id: string) => members.findIndex(x => x.id === id)
-    return { names: true, doses: doses.sort((a, b) => a.time.localeCompare(b.time) || order(a.memberId) - order(b.memberId)) }
+    return { names: true, doses: doses.sort((a, b) => order(a.memberId) - order(b.memberId) || a.time.localeCompare(b.time)) }
   },
   markDose: async (medicationId: string, b: { date: string; time: string; action: 'taken' | 'skipped' | 'snooze' }): Promise<MedicationDose> => {
     const log = medLog.get(`${medicationId}:${b.date}`) ?? {}
-    log[b.time] = b.action === 'snooze' ? { snoozedUntil: new Date(Date.now() + 10 * 60_000).toISOString() } : { status: b.action, at: new Date().toISOString(), by: 'This device' }
+    const kept = log[b.time]?.startedAt ? { startedAt: log[b.time].startedAt } : {}
+    log[b.time] = b.action === 'snooze' ? { ...kept, snoozedUntil: new Date(Date.now() + 10 * 60_000).toISOString() } : { ...kept, status: b.action, at: new Date().toISOString(), by: 'This device' }
     medLog.set(`${medicationId}:${b.date}`, log); bump()
     const e = log[b.time]
-    return { medicationId, date: b.date, time: b.time, status: doseStatus(b.date, e), at: e.at ?? null, by: e.by ?? null, snoozedUntil: e.snoozedUntil ?? null }
+    return { medicationId, date: b.date, time: b.time, status: doseStatus(b.date, e), startedAt: e.startedAt ?? null, at: e.at ?? null, by: e.by ?? null, snoozedUntil: e.snoozedUntil ?? null }
   },
   getMedicationHistory: async (memberId: string, n = 7): Promise<MedicationHistory> => {
     const mine = medications.filter(m => m.memberId === memberId)
     const days = Array.from({ length: n }, (_, i) => demoDay(i - n + 1)).map(date => ({
       date,
-      doses: mine.flatMap(m => m.days.includes(new Date(`${date}T12:00:00`).getDay()) ? m.times.map(time => {
+      doses: mine.flatMap(m => m.days.includes(new Date(`${date}T12:00:00`).getDay()) ? m.times.map(t => {
+        const time = timeKey(t)
         const e = medLog.get(`${m.id}:${date}`)?.[time]
-        return { medicationId: m.id, time, status: doseStatus(date, e), at: e?.at ?? null, by: e?.by ?? null }
-      }) : []).sort((a, b) => a.time.localeCompare(b.time)),
+        return { medicationId: m.id, time, dueAt: e?.startedAt ?? new Date(`${date}T${typeof t === 'string' ? t : t.latest}:00`).toISOString(), status: doseStatus(date, e), startedAt: e?.startedAt ?? null, at: e?.at ?? null, by: e?.by ?? null }
+      }) : []).sort((a, b) => a.dueAt.localeCompare(b.dueAt)),
     }))
     return { memberId, today: dateKey(new Date()), medications: mine.map(m => ({ ...m })), days }
   },

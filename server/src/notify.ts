@@ -13,7 +13,7 @@ import { parseMemberIds } from './calendar-members.ts';
 import { sendWebPush } from './webpush.ts';
 import { readFeatures, type Features } from './routes/settings.ts';
 import { parseTempCheck, parseTransitions, todayInTz } from './routes/members.ts';
-import { addDays, doseAt, DUE_MS, LATE_MS, loadLogs, loadMedications, medicineLabel, scheduledOn, windowEnd, type Medication } from './routes/medications.ts';
+import { addDays, dueAt, DUE_MS, LATE_MS, loadLogs, loadMedications, medicineLabel, scheduledOn, timeKey, WAKE, windowEnd, type Medication } from './routes/medications.ts';
 import { sha256Hex } from './auth.ts';
 import { batteryFor } from './routes/insights.ts';
 import { mealLinksQuery, parseMealLinks, prepAt, prepFor } from './prepBy.ts';
@@ -638,7 +638,7 @@ async function runGoalFollowups(env: Env, db: KinwallDb, now: Date, tz: string, 
 }
 
 // Medication reminders (routes/medications.ts), for each dose that isn't taken or skipped:
-// - at its time (household), "Time for Leo's medicine" to devices that belong to them (key owner),
+// - at its time (household; a "When I start my day" dose when their day starts), "Time for Leo's medicine" to devices that belong to them (key owner),
 //   and one row in the in-app feed;
 // - when a snooze runs out, the same push again (once per snooze, no feed row);
 // - when its late window is longer than 3 hours ('evening', 'endOfDay'), one kind follow-up halfway
@@ -675,10 +675,13 @@ async function runMedicationReminders(env: Env, db: KinwallDb, now: Date, tz: st
     if (!member) continue;
     for (const date of [yesterday, today]) {
       if (!scheduledOn(m, date)) continue;
-      for (const time of m.times) {
+      for (const t of m.times) {
+        const time = timeKey(t);
         const e = logs.get(`${m.id}:${date}`)?.[time];
         if (e?.status) continue;
-        const at = doseAt(date, time, tz);
+        // A "When I start my day" dose: from when their day started (startDay), else its latest time.
+        // The claims are keyed by 'wake', so a start that comes in later never sends it twice.
+        const at = dueAt(t, date, tz, e);
         const end = windowEnd(m.lateWindow, date, at, tz);
         if (end - at > DUE_MS && (await claim(at + (end - at) / 2, `follow:${m.id}:${date}:${time}`))) {
           const k = `${m.memberId}:${end}`;
@@ -716,7 +719,7 @@ async function runMedicationReminders(env: Env, db: KinwallDb, now: Date, tz: st
   if (!late.size) return;
   const { results: parents } = await db.prepare("SELECT s.* FROM push_subscriptions s JOIN api_keys k ON k.id = s.api_key_id WHERE k.scope = 'admin'").all<PushSubRow>();
   for (const l of late.values()) {
-    const title = `${byId.get(l.memberId)!.name}'s ${formatTime(l.time, { h12 })} medicine hasn't been marked yet`;
+    const title = `${byId.get(l.memberId)!.name}'s ${l.time === WAKE ? 'start-of-day' : formatTime(l.time, { h12 })} medicine hasn't been marked yet`;
     const url = `/#/medications/${l.memberId}`;
     await recordNotification(db, { kind: 'medication', title, url, memberIds: [l.memberId], source: 'system', at: now });
     await send(parents, title, 'Tap to check.', l.meds, url, `med-late:${l.memberId}`);
