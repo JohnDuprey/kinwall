@@ -11,6 +11,8 @@ export type ColorScheme = 'meadow' | 'field' | 'autumn' | 'winter' | 'spring' | 
 export type CustomColors = { accent?: string; bg?: string; card?: string; text?: string }
 export type BackgroundDark = 'cocoa' | 'charcoal' | 'midnight'
 export type TextScale = 's' | 'm' | 'l' | 'xl'
+/** 'default' is Nunito; see typeface.ts. */
+export type Typeface = 'default' | 'hyperlegible' | 'dyslexia' | 'modern' | 'playful' | 'storybook' | 'handwritten'
 export type Density = 'comfortable' | 'compact'
 /** Per-device only: the server's household density is comfortable/compact. */
 export type DeviceDensity = Density | 'icons'
@@ -32,6 +34,7 @@ export interface Settings {
   backgroundDark: BackgroundDark
   textScale: TextScale
   density: Density
+  typeface: Typeface // the family's; a device can pick its own
   defaultReminderMinutes: number[]
   lateCompletionCredit: number // 0-100: % of points a chore earns when ticked off for a past day
   streakGraceDays: number // 0-3 missed days per rolling week a streak survives
@@ -127,7 +130,7 @@ export interface WeatherLocation { name: string; lat: number; lon: number; count
 export interface GeocodeResult extends WeatherLocation { label: string }
 
 /** Subset of Settings the pre-pairing screen can read with no key — see GET /api/appearance. */
-export type Appearance = Pick<Settings, 'themeMode' | 'darkFrom' | 'darkTo' | 'accent' | 'colorScheme' | 'customColors' | 'customSchemes' | 'backgroundLight' | 'backgroundDark' | 'textScale' | 'density'>
+export type Appearance = Pick<Settings, 'themeMode' | 'darkFrom' | 'darkTo' | 'accent' | 'colorScheme' | 'customColors' | 'customSchemes' | 'backgroundLight' | 'backgroundDark' | 'textScale' | 'density' | 'typeface'>
 
 export interface Member {
   id: string

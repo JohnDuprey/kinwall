@@ -71,7 +71,7 @@ test('appearance: GET /api/appearance works with no auth and returns only appear
   const body = await res.json() as any;
   assert.equal(body.accent, '#123ABC');
   assert.equal(body.density, 'compact');
-  assert.deepEqual(Object.keys(body).sort(), ['accent', 'backgroundDark', 'backgroundLight', 'colorScheme', 'customColors', 'customSchemes', 'darkFrom', 'darkTo', 'density', 'textScale', 'themeMode']);
+  assert.deepEqual(Object.keys(body).sort(), ['accent', 'backgroundDark', 'backgroundLight', 'colorScheme', 'customColors', 'customSchemes', 'darkFrom', 'darkTo', 'density', 'textScale', 'themeMode', 'typeface']);
   assert.equal(body.familyName, undefined);
 });
 
@@ -192,4 +192,16 @@ test('custom color schemes: the server refuses a palette that fails contrast in 
   assert.equal(res.status, 400);
   assert.match(((await res.json()) as any).error, /Murky \(dark mode\): Text on background is \d/);
   assert.deepEqual(((await (await request('/api/settings')).json()) as any).customSchemes.map((x: any) => x.id), ['custom-okay1']); // nothing saved
+});
+
+test('family typeface: defaults to default, round-trips, reaches the public appearance and rejects unknown ones', async () => {
+  const request = makeApp(makeEnv());
+  assert.equal((await json<any>(await request('/api/settings'))).typeface, 'default');
+  const body = await json<any>(await request('/api/settings', { method: 'PATCH', body: JSON.stringify({ typeface: 'storybook' }) }));
+  assert.equal(body.typeface, 'storybook');
+  assert.equal((await json<any>(await request('/api/appearance'))).typeface, 'storybook');
+  for (const bad of ['comic-sans', '', null, 3]) {
+    assert.equal((await request('/api/settings', { method: 'PATCH', body: JSON.stringify({ typeface: bad }) })).status, 400, String(bad));
+  }
+  assert.equal((await json<any>(await request('/api/settings'))).typeface, 'storybook');
 });

@@ -5,7 +5,7 @@ import type { Env } from '../env.ts';
 import { emit } from '../bus.ts';
 import { isConnectedApp } from './mcp-oauth.ts';
 import { schemeContrastFailures } from '../colors.ts';
-import { COLOR_SCHEMES, CUSTOM_SCHEME_ID_RE, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, ErrorSchema, FeaturesSchema, LocationSchema, MealTimesSchema, SettingsPatchSchema, SettingsSchema, TidbitSettingsSchema } from '../schemas.ts';
+import { TYPEFACES, COLOR_SCHEMES, CUSTOM_SCHEME_ID_RE, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, ErrorSchema, FeaturesSchema, LocationSchema, MealTimesSchema, SettingsPatchSchema, SettingsSchema, TidbitSettingsSchema } from '../schemas.ts';
 
 export const settingsRoutes = createRouter();
 
@@ -54,6 +54,7 @@ export async function readSettings(db: KinwallDb) {
     backgroundDark: (map.get('backgroundDark') ?? DEFAULTS.backgroundDark) as 'cocoa' | 'charcoal' | 'midnight',
     textScale: (map.get('textScale') ?? DEFAULTS.textScale) as 's' | 'm' | 'l' | 'xl',
     density: (map.get('density') ?? DEFAULTS.density) as 'comfortable' | 'compact',
+    typeface: TYPEFACES.find((t) => t === map.get('typeface')) ?? 'default',
     defaultReminderMinutes: parseReminderMinutes(map.get('defaultReminderMinutes') ?? DEFAULTS.defaultReminderMinutes),
     lateCompletionCredit: Number(map.get('lateCompletionCredit') ?? DEFAULTS.lateCompletionCredit),
     streakGraceDays: Number(map.get('streakGraceDays') ?? DEFAULTS.streakGraceDays),

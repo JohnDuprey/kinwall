@@ -1,7 +1,7 @@
 import { createContext, Fragment, useContext, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { AppContext, useApp } from './AppContext.tsx'
 import { api, ApiError, clearKey } from './api.ts'
-import type { Account, ApiKey, CalendarEntry, Category, ColorScheme, CustomColors, Density, DeviceDensity, Features, GeocodeResult, HostEvent, Me, Member, Passkey, Providers, PushSubscription, RemoteCalendar, Settings, TempCheckSettings, TextScale, ThemeMode, Webhook } from './types.ts'
+import type { Account, ApiKey, CalendarEntry, Category, ColorScheme, CustomColors, Density, DeviceDensity, Features, GeocodeResult, HostEvent, Me, Member, Passkey, Providers, PushSubscription, RemoteCalendar, Settings, TempCheckSettings, TextScale, ThemeMode, Typeface, Webhook } from './types.ts'
 import { ProviderForm, PublicUrlRow } from './ProviderConfig.tsx'
 import { CATEGORY_EMOJI, CATEGORY_PRESETS, MEMBER_EMOJI, MEMBER_PALETTE, nextPaletteColor, REMINDER_OPTIONS } from './types.ts'
 import Sheet from './Sheet.tsx'
@@ -20,7 +20,7 @@ import { CustomColorSwatch } from './ColorSwatch.tsx'
 import { ColorClashHint, ColorClashNote } from './ColorClash.tsx'
 import { useIsPhone } from './useIsPhone.ts'
 import { useNavMode, setNavPref, type NavPref } from './useNavMode.ts'
-import { DEFAULT_ACCENT, resolveColors, setDeviceAppearance, useDeviceAppearance, type DeviceAppearance, type FontChoice, type LockedView, type SaverSource } from './useTheme.ts'
+import { DEFAULT_ACCENT, resolveColors, setDeviceAppearance, useDeviceAppearance, type DeviceAppearance, type LockedView, type SaverSource } from './useTheme.ts'
 import { baseFromPalette, findSkin, getSkin, OLD_BACKGROUNDS, paletteChecks, paletteOf, seasonalSkinId, tokensFor, type CustomScheme, type Palette } from './skins.ts'
 import { SAVER_PREVIEW_EVENT } from './Screensaver.tsx'
 import type { ClockPos } from './nightClock.ts'
@@ -369,8 +369,8 @@ const DENSITIES: { key: Density; label: string }[] = [
 ]
 // Icon-first is per device: the household setting (server) only knows comfortable/compact.
 const DEVICE_DENSITIES: { key: DeviceDensity; label: string }[] = [...DENSITIES, { key: 'icons', label: 'Icon-first' }]
-const FONTS: { key: FontChoice | ''; label: string; desc: string }[] = [
-  { key: '', label: 'Default (Nunito)', desc: "Rounded and friendly, Kinwall's own" },
+const FONTS: { key: Typeface; label: string; desc: string }[] = [
+  { key: 'default', label: 'Default (Nunito)', desc: "Rounded and friendly, Kinwall's own" },
   { key: 'hyperlegible', label: 'Hyperlegible (Atkinson)', desc: 'Clear, distinct letters for low vision' },
   { key: 'dyslexia', label: 'Dyslexia-friendly (Lexend)', desc: 'Wide, even spacing for easier reading' },
   { key: 'modern', label: 'Modern (Figtree)', desc: 'Clean and geometric' },
@@ -378,6 +378,7 @@ const FONTS: { key: FontChoice | ''; label: string; desc: string }[] = [
   { key: 'storybook', label: 'Storybook (Literata)', desc: 'A bookish serif, calm to read' },
   { key: 'handwritten', label: 'Handwritten (Kalam)', desc: 'Like a note on the fridge' },
 ]
+const fontName = (k: Typeface) => FONTS.find(f => f.key === k)?.label.split(' (')[0]
 
 function AppearanceSection({ settings, onSaved, toast }: { settings: Settings; onSaved: () => void; toast: (m: string, persist?: boolean) => void }) {
   const device = useDeviceAppearance()
@@ -415,6 +416,7 @@ function AppearanceSection({ settings, onSaved, toast }: { settings: Settings; o
         onReset={() => save({ colorScheme: 'meadow', customColors: null, accent: DEFAULT_ACCENT, backgroundLight: 'warm', backgroundDark: 'cocoa' })}
       />
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+        <TypefaceRow options={FONTS} value={settings.typeface ?? 'default'} onPick={key => { if (key) { save({ typeface: key }); announce(`${fontName(key)} typeface`) } }} />
         <div className="device-pref-row">
           <span>Text size</span>
           <select className="settings-select" aria-label="Text size" value={settings.textScale} onChange={e => save({ textScale: e.target.value as TextScale })}>
@@ -1062,7 +1064,7 @@ function DeviceAppearanceRows() {
           </div>
         )
       })}
-      <TypefaceRow options={FONTS} value={device.font ?? ''} onPick={key => { set({ font: (key || undefined) as FontChoice | undefined }); announce(`${FONTS.find(f => f.key === key)?.label.split(' (')[0]} typeface`) }} />
+      <TypefaceRow options={FONTS} value={device.font} family={settings.typeface ?? 'default'} onPick={key => { set({ font: key }); announce(key ? `${fontName(key)} typeface` : 'Household typeface') }} />
       <div className="toggle-row">
         <label id="lowstim-label">Low-stimulation mode</label>
         <button className={`switch ${device.lowStim ? 'on' : ''}`} role="switch" aria-checked={!!device.lowStim} aria-labelledby="lowstim-label" aria-describedby="lowstim-sub"

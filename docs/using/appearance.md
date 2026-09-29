@@ -18,6 +18,7 @@ Quiet hours are a separate card, right after Appearance. See [Quiet hours](quiet
 | **Mode** | Light, Dark, Auto (follows the device's system setting), Scheduled | Light |
 | **Dark from / Dark to** (Scheduled) | Two times. The window can cross midnight. | 20:00 → 07:00 |
 | **Color scheme** | Seasonal, one of sixteen skins, or one of the family's own schemes. See [Color schemes](#color-schemes). | Peach |
+| **Typeface** | Default (Nunito), Hyperlegible, Dyslexia-friendly, Modern, Playful, Storybook or Handwritten. See [Typeface](#typeface). | Default (Nunito) |
 | **Text size** | Small, Medium, Large, Extra large | Medium |
 | **Density** | Comfortable, Compact (shorter hour rows in the time grid) | Comfortable |
 
@@ -33,7 +34,7 @@ Under **Appearance on this device** (tap **Change**):
 
 * **Mode**, **Text size** and **Density** are menus. The first option is **Household (*current value*)**, which follows the family setting.
 * **Color scheme** opens the same sheet as the household setting, with **Use the family's scheme** first, which follows the family setting. The family's own schemes are there too. See [Color schemes](#color-schemes).
-* **Typeface**: tap the row (it shows the current typeface in itself) to open the **Typeface** sheet: Default (Nunito), Hyperlegible (Atkinson Hyperlegible Next), Dyslexia-friendly (Lexend), Modern (Figtree), Playful (Fredoka), Storybook (Literata) or Handwritten (Kalam). Each card shows a sample line in that typeface and what it's good for. Tap one to use it right away, then **Done**. The other typefaces are loaded from Google Fonts when this device opens the sheet or picks one.
+* **Typeface** opens the same sheet as the household setting, with **Use the family's typeface** first, which follows the family setting. While it does, the row reads **🏠 Household (*typeface*)**. See [Typeface](#typeface).
 * **Low-stimulation mode**: a toggle that reduces motion and visual noise on this device.
 
 **Reset this device's appearance**, at the bottom of the Color scheme sheet, puts mode, color scheme, text size, density, typeface and low-stimulation mode back to the family's settings on this device. It asks first.
@@ -41,6 +42,12 @@ Under **Appearance on this device** (tap **Change**):
 Overrides are saved in the browser's local storage on that device. They're never sent to the server and aren't in exports. A kitchen iPad can use Extra large text and the Midnight scheme while phones stay on the household defaults.
 
 **Navigation position** (Auto, Bottom, Left, Right) for tablets and desktops is in the **This display** card. Phones use the bottom bar, and a slim rail down the left side when turned sideways. See [This device](../settings/this-display.md).
+
+## Typeface
+
+Tap the **Typeface** row (it shows the current typeface in itself) to open the **Typeface** sheet: Default (Nunito), Hyperlegible (Atkinson Hyperlegible Next), Dyslexia-friendly (Lexend), Modern (Figtree), Playful (Fredoka), Storybook (Literata) or Handwritten (Kalam). Each card shows a sample line in that typeface and what it's good for. Tap one to use it right away, then **Done**. The other typefaces are loaded from Google Fonts when a device opens the sheet or uses one.
+
+The household picks one for every device under **Appearance**. A device follows it unless it picks its own under **Appearance on this device**, so a kid's tablet can use Dyslexia-friendly while the rest of the family uses Storybook. A device that picked a typeface before the family setting existed keeps it; a device left on Default follows the family.
 
 ## Color schemes
 

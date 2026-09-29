@@ -68,7 +68,7 @@ API: `features` `{ chores, lists, contacts, paint, photos, notes, messages, trac
 
 ### Appearance
 
-Mode, dark schedule, color scheme (including the family's own schemes), text size and density. See [Appearance](../using/appearance.md).
+Mode, dark schedule, color scheme (including the family's own schemes), typeface, text size and density. See [Appearance](../using/appearance.md).
 
 ### Quiet hours
 

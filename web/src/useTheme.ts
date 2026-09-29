@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { ClockPos } from './nightClock.ts'
-import type { Appearance, ColorScheme, CustomColors, DeviceDensity, Settings, TextScale } from './types.ts'
+import type { Appearance, ColorScheme, CustomColors, DeviceDensity, Settings, TextScale, Typeface } from './types.ts'
+import { deviceTypeface, resolveTypeface } from './typeface.ts'
 import { accentFill, readableOn } from './color.ts'
 import { api, getKey } from './api.ts'
 import { findSkin, seasonalSkinId, tokensFor } from './skins.ts'
@@ -17,12 +18,12 @@ const DEVICE_KEY = 'kinwall.deviceAppearance'
 const DEVICE_EVENT = 'kinwall:device-appearance'
 // The same object also carries this device's other preferences (focus, warnings, locked view…),
 // so every per-device choice lives in one place and one event re-renders whoever reads it.
-export type FontChoice = 'hyperlegible' | 'dyslexia' | 'modern' | 'playful' | 'storybook' | 'handwritten'
+export type FontChoice = Exclude<Typeface, 'default'>
 export type LockedView = 'week' | 'day' | 'month' | 'schedule' | 'board'
 export type DeviceAppearance = Partial<Pick<Appearance, 'themeMode' | 'textScale'>> & {
   density?: DeviceDensity // 'icons' (icon-first) exists per device only
   lowStim?: boolean // flat, calm, no motion - see [data-lowstim] in styles.css
-  font?: FontChoice // absent = Nunito
+  font?: Typeface // this device's typeface ('default' = Nunito); absent = the family's
   nowNext?: boolean // Now / Next card on the calendar; absent = on
   keepAwake?: boolean // keep the screen on while Kinwall is showing; absent = on for wall screens and kids' devices, off for parent devices
   idleReset?: boolean // back to the calendar after 2 idle minutes; absent = on for wall screens and kids' devices, off for parent devices
@@ -76,6 +77,9 @@ export function readDeviceAppearance(): DeviceAppearance {
       if (!v.saverSources && ['drawings', 'art', 'nature'].includes(v.saver)) v.saverSources = [v.saver]
       delete v.saver
     }
+    // Only a real pick is an override; Default used to be saved as nothing, so it follows the family.
+    v.font = deviceTypeface(v.font)
+    if (!v.font) delete v.font
     return v
   } catch { return {} }
 }
@@ -127,8 +131,8 @@ export const FONT_FAMILIES: Record<FontChoice, { family: string; query: string }
   handwritten: { family: "'Kalam'", query: 'Kalam:wght@400;700' }, // 400 and 700 only; heavier weights use 700
 }
 /** Adds a typeface's Google Fonts stylesheet once and returns its CSS family ('Nunito' for the default). */
-export function loadFont(font: FontChoice | undefined): string {
-  const f = font && FONT_FAMILIES[font]
+export function loadFont(font: Typeface | undefined): string {
+  const f = font && font !== 'default' ? FONT_FAMILIES[font] : undefined
   if (!f) return "'Nunito'"
   const id = `kw-font-${font}`
   if (!document.getElementById(id)) {
@@ -140,8 +144,8 @@ export function loadFont(font: FontChoice | undefined): string {
   }
   return f.family
 }
-function applyFont(font: FontChoice | undefined) {
-  if (font && FONT_FAMILIES[font]) document.documentElement.style.setProperty('--font', loadFont(font))
+function applyFont(font: Typeface) {
+  if (font !== 'default') document.documentElement.style.setProperty('--font', loadFont(font))
   else document.documentElement.style.removeProperty('--font')
 }
 
@@ -149,7 +153,7 @@ function applyAppearance(household: Appearance, device: DeviceAppearance) {
   const a = { ...household, ...device, density: effectiveDensity(household.density, device) }
   const root = document.documentElement
   root.toggleAttribute('data-lowstim', !!a.lowStim)
-  applyFont(a.font)
+  applyFont(resolveTypeface(household.typeface, device.font))
 
   const apply = () => {
     let dark: boolean

@@ -23,7 +23,7 @@ On a phone's bottom bar, only the first four tabs get their own button; the rest
 
 ## Appearance on this device
 
-The card reads **Following the family**, or lists what this device overrides (for example "Midnight · text L · dark mode"). Tap **Change** under **Appearance on this device** for the settings: Mode, Color scheme, Text size and Density, each starting on **Household** to follow the family's setting, plus **Typeface** and **Low-stimulation mode**. Typeface opens a sheet with a sample line in each typeface. Color scheme opens the same sheet as the family setting, with **Use the family's scheme** first, the same schemes (including the family's own and **＋ New scheme**), and **Reset this device's appearance** at the bottom to go back to the family's look. See [Appearance](../using/appearance.md#per-device-overrides).
+The card reads **Following the family**, or lists what this device overrides (for example "Midnight · text L · dark mode"). Tap **Change** under **Appearance on this device** for the settings: Mode, Color scheme, Text size, Density and Typeface, each starting on **Household** to follow the family's setting, plus **Low-stimulation mode**. Typeface opens a sheet with a sample line in each typeface and **Use the family's typeface** first. Color scheme opens the same sheet as the family setting, with **Use the family's scheme** first, the same schemes (including the family's own and **＋ New scheme**), and **Reset this device's appearance** at the bottom to go back to the family's look. See [Appearance](../using/appearance.md#per-device-overrides).
 
 ## Time cues
 
