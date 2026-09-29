@@ -211,6 +211,19 @@ export function pickNudge(n: Nudge, seen: NudgeSeen[] = []): { line: string; see
   return { line: pick.line, seen: pick.seen, fresh: true };
 }
 
+// Medicine follow-ups (notify.ts runMedicationReminders): one more push partway through a late window
+// longer than 3 hours. Same tone as the rest: kind, never "missed" or "late", and nothing urgent.
+// {n} the person, {at} when the window closes ("8 PM"). Never the medicine: that's the push body,
+// and only on a device that opted into names. One per dose, picked by the dose (the seed).
+export const MED_FOLLOWUPS = [
+  "Still time for {n}'s medicine (until {at})",
+  "No rush: {n}'s medicine is good until {at}",
+  "{n}'s medicine can still be taken until {at}",
+  "Whenever you're ready: {n}'s medicine, until {at}",
+  "A gentle nudge for {n}'s medicine (until {at})",
+];
+export const medFollowup = (name: string, at: string, seed: string) => MED_FOLLOWUPS[hash(seed) % MED_FOLLOWUPS.length].replace('{n}', name).replace('{at}', at);
+
 export function nudge(n: Nudge, seen: NudgeSeen[] = []): string {
   return pickNudge(n, seen).line;
 }

@@ -13,11 +13,11 @@ import { parseMemberIds } from './calendar-members.ts';
 import { sendWebPush } from './webpush.ts';
 import { readFeatures, type Features } from './routes/settings.ts';
 import { parseTempCheck, parseTransitions, todayInTz } from './routes/members.ts';
-import { addDays, doseAt, LATE_MS, loadLogs, loadMedications, medicineLabel, scheduledOn, type Medication } from './routes/medications.ts';
+import { addDays, doseAt, DUE_MS, LATE_MS, loadLogs, loadMedications, medicineLabel, scheduledOn, windowEnd, type Medication } from './routes/medications.ts';
 import { sha256Hex } from './auth.ts';
 import { batteryFor } from './routes/insights.ts';
 import { mealLinksQuery, parseMealLinks, prepAt, prepFor } from './prepBy.ts';
-import { nudge, pickNudge, rememberNudge, stepHint, type NudgeSeen } from './nudges.ts';
+import { medFollowup, nudge, pickNudge, rememberNudge, stepHint, type NudgeSeen } from './nudges.ts';
 import { apnsConfigured, sendLiveActivity, swiftDate, unixSeconds } from './apns.ts';
 import { unseal } from './crypto.ts';
 import { formatTime, hour12For } from './timeFormat.ts';
@@ -641,6 +641,9 @@ async function runGoalFollowups(env: Env, db: KinwallDb, now: Date, tz: string, 
 // - at its time (household), "Time for Leo's medicine" to devices that belong to them (key owner),
 //   and one row in the in-app feed;
 // - when a snooze runs out, the same push again (once per snooze, no feed row);
+// - when its late window is longer than 3 hours ('evening', 'endOfDay'), one kind follow-up halfway
+//   through, "Still time for Leo's medicine (until 8 PM)" (nudges.ts MED_FOLLOWUPS), to the same
+//   devices and no feed row: halfway leaves real time to take it, and one is enough;
 // - 30 minutes after its time, for a kid (not grownUp), "Leo's 8:00 AM medicine hasn't been marked
 //   yet" to parent devices (admin keys) and the feed.
 // Push text is generic unless the device turned on medicationNames. Each is claimed once (an
@@ -663,6 +666,7 @@ async function runMedicationReminders(env: Env, db: KinwallDb, now: Date, tz: st
   };
   const due = new Map<string, { meds: Medication[]; feed: boolean }>(); // by member
   const late = new Map<string, { memberId: string; time: string; meds: Medication[] }>(); // by member + date + time
+  const follow = new Map<string, { memberId: string; seed: string; end: number; meds: Medication[] }>(); // by member + window end
   for (const m of meds) {
     const member = byId.get(m.memberId);
     if (!member) continue;
@@ -672,6 +676,11 @@ async function runMedicationReminders(env: Env, db: KinwallDb, now: Date, tz: st
         const e = logs.get(`${m.id}:${date}`)?.[time];
         if (e?.status) continue;
         const at = doseAt(date, time, tz);
+        const end = windowEnd(m.lateWindow, date, at, tz);
+        if (end - at > DUE_MS && (await claim(at + (end - at) / 2, `follow:${m.id}:${date}:${time}`))) {
+          const k = `${m.memberId}:${end}`;
+          follow.set(k, { memberId: m.memberId, seed: `${m.id}:${date}:${time}`, end, meds: [...(follow.get(k)?.meds ?? []), m] });
+        }
         const first = await claim(at, `due:${m.id}:${date}:${time}`);
         if (first || (e?.snoozedUntil && (await claim(Date.parse(e.snoozedUntil), `snooze:${m.id}:${date}:${time}:${e.snoozedUntil}`)))) {
           const d = due.get(m.memberId) ?? { meds: [], feed: false };
@@ -693,6 +702,12 @@ async function runMedicationReminders(env: Env, db: KinwallDb, now: Date, tz: st
     if (d.feed) await recordNotification(db, { kind: 'medication', title, url, memberIds: [memberId], source: 'system', at: now });
     const { results: subs } = await db.prepare('SELECT s.* FROM push_subscriptions s JOIN api_keys k ON k.id = s.api_key_id WHERE k.owner = ?').bind(memberId).all<PushSubRow>();
     await send(subs, title, 'Tap to mark it taken.', d.meds, url, `med:${memberId}`);
+  }
+  for (const f of follow.values()) {
+    const hm = formatTime(new Date(f.end), { h12: false, tz });
+    const title = medFollowup(byId.get(f.memberId)!.name, hm === '00:00' ? 'midnight' : formatTime(hm, { h12, hourOnly: hm.endsWith(':00') }), f.seed);
+    const { results: subs } = await db.prepare('SELECT s.* FROM push_subscriptions s JOIN api_keys k ON k.id = s.api_key_id WHERE k.owner = ?').bind(f.memberId).all<PushSubRow>();
+    await send(subs, title, 'Tap to mark it taken.', f.meds, `/#/medications/${f.memberId}`, `med:${f.memberId}`);
   }
   if (!late.size) return;
   const { results: parents } = await db.prepare("SELECT s.* FROM push_subscriptions s JOIN api_keys k ON k.id = s.api_key_id WHERE k.scope = 'admin'").all<PushSubRow>();

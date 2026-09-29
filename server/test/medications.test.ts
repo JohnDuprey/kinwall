@@ -420,6 +420,32 @@ test("reminders: a kid's dose not marked in 30 minutes tells parents' devices on
   assert.deepEqual(feed(s.db).map((f) => f.title).filter((x) => x.includes('marked')), ["Leo's 8:00 AM medicine hasn't been marked yet"]);
 });
 
+test('reminders: a late window longer than 3 hours gets one kind follow-up halfway through, once, never for a marked dose', async (t) => {
+  t.after(() => mock.timers.reset());
+  const s = await setup({ now: at('06:00') });
+  await s.add(s.sam.id, { lateWindow: 'evening' }); // 8 AM to 8 PM: halfway is 2 PM
+  const allDay = (await s.add(s.leo.id, { lateWindow: 'endOfDay' })).json; // 8 AM to midnight: 4 PM
+  await s.add(s.maya.id); // 3 hours: no follow-up
+  await s.add(s.maya.id, { lateWindow: 'none' });
+  const tick = await devices(s, [['sams-phone', await s.key(s.sam.id)], ['sams-tablet', await s.key(s.sam.id), { medicationNames: true }], ['leo-tablet', await s.key(s.leo.id)], ['maya-phone', await s.key(s.maya.id)], ['parent', await s.key(undefined, 'admin')]]);
+  await tick(at('08:02'));
+  assert.deepEqual(await tick(at('11:02')), {}, 'nothing for the 3-hour window');
+  assert.deepEqual(await tick(at('13:58')), {});
+  const sent = await tick(at('14:03'));
+  assert.deepEqual(Object.keys(sent).sort(), ['sams-phone', 'sams-tablet']);
+  const [{ title, body }] = sent['sams-phone'];
+  assert.match(title, /Sam/);
+  assert.match(title, /until 8 PM/);
+  assert.doesNotMatch(title, /\b(missed|late|forg[eo]t\w*|again)\b/i);
+  assert.equal(body, 'Tap to mark it taken.');
+  assert.equal(sent['sams-tablet'][0].body, `${NAME} · ${DOSE}`, 'names only where the device opted in');
+  assert.deepEqual(await tick(at('14:20')), {}, 'once');
+  mock.timers.setTime(at('15:00').getTime());
+  await s.mark(allDay.id, 'taken', ADMIN);
+  assert.deepEqual(await tick(at('16:02')), {}, 'taken: no follow-up');
+  assert.equal(feed(s.db).filter((f) => /until/.test(f.title)).length, 0, 'a nudge, not a feed row');
+});
+
 test('reminders: medicine pushes still go out during quiet hours', async (t) => {
   t.after(() => mock.timers.reset());
   const s = await setup({ now: at('06:00') });

@@ -38,9 +38,11 @@ At each dose time:
 * the person's own phones and tablets get a push: **Time for Leo's medicine**. The medicine's name and dose are only in the text on devices that turn on **Show medicine names in notifications on this device** ([This display → Notifications](../settings/this-display.md#notifications)), since push text passes through Apple or Google and shows on the lock screen;
 * the bell's feed gets the same line.
 
+When a medicine's late window is longer than 3 hours (**Until evening** or **Until the end of the day**) and the dose still isn't marked halfway through it, the person's own devices get one more, gentler push, like **Still time for Maya's medicine (until 8 PM)**. For an 8 AM dose that's at 2 PM (until 8 PM) or 4 PM (until midnight): halfway leaves real time to take it, and one is enough. The wording changes from dose to dose and never says "missed" or "late". It isn't added to the bell's feed, and like the first reminder it names the medicine only on devices that turned names on.
+
 For a kid (not a [grown-up](../settings/family.md#members)), if a dose isn't marked **Taken** or **Skip** within 30 minutes, parent devices get **Maya's 8:00 AM medicine hasn't been marked yet**, once. Grown-ups' doses don't alert anyone.
 
-Each reminder is sent once per dose (and once per snooze), even if the server restarts. A dose that isn't scheduled that weekday sends nothing.
+Each reminder is sent once per dose (and once per snooze and follow-up), even if the server restarts. A dose that isn't scheduled that weekday sends nothing.
 
 **Quiet hours**: medication reminders still come through during [quiet hours](quiet-hours.md), both the reminder to the person and the note to parents. Wall screens show their night clock during quiet hours; tap to wake it and see the Take now card.
 

@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { calmNudge, compose, mealName, CORES, EMOJI, GENERAL_HINTS, HINT_SETS, hintSet, NUDGE_MEMORY, nudge, nudgeStage, OPENERS, pickNudge, rememberNudge, stepHint, type Nudge, type NudgeKind, type NudgeSeen, type NudgeStage } from '../src/nudges.ts';
+import { calmNudge, compose, medFollowup, MED_FOLLOWUPS, mealName, CORES, EMOJI, GENERAL_HINTS, HINT_SETS, hintSet, NUDGE_MEMORY, nudge, nudgeStage, OPENERS, pickNudge, rememberNudge, stepHint, type Nudge, type NudgeKind, type NudgeSeen, type NudgeStage } from '../src/nudges.ts';
 
 const KINDS: NudgeKind[] = ['leave', 'prep', 'start'];
 const STAGES: NudgeStage[] = ['early', 'mid', 'soon', 'now'];
@@ -57,6 +57,20 @@ test('nudges: kind words only, in every part and hint (kids read these), and not
   for (const part of parts) assert.doesNotMatch(part, BANNED, part);
   for (const part of parts) assert.doesNotMatch(part, MEDICAL, part);
   assert.deepEqual(HINT_SETS.find((s) => s.key === 'doctor')!.hints.filter((h) => /card/i.test(h)), ['Insurance card?']);
+});
+
+test('nudges: medicine follow-ups are kind (no "missed" or "late"), say who and until when, never the medicine, and fit a lock screen', () => {
+  assert.ok(MED_FOLLOWUPS.length >= 4);
+  for (const line of MED_FOLLOWUPS) {
+    assert.doesNotMatch(line, BANNED, line);
+    assert.ok(line.includes('{n}') && line.includes('{at}'), line);
+    const filled = medFollowup('Alexandria', '12:00 AM', line);
+    assert.ok([...filled].length <= 60, filled);
+    assert.ok(grammatical(filled), filled);
+  }
+  const lines = new Set(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map((seed) => medFollowup('Maya', '8 PM', seed)));
+  assert.ok(lines.size > 1, 'varies by dose');
+  assert.equal(medFollowup('Maya', '8 PM', 'x'), medFollowup('Maya', '8 PM', 'x'), 'the same dose, the same line');
 });
 
 test('nudges: the same person, event, day and history give the same line (a restart never reshuffles)', () => {
