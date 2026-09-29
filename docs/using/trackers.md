@@ -2,7 +2,7 @@
 
 The **Trackers** tab keeps the family's logs: the books and audiobooks everyone is reading, a journal of daily memories, and doctor and dentist visits. Each entry belongs to one person or to the whole family.
 
-The header's member filter works here too: pick a person and you see their entries plus the family's.
+In Reading and Memories, the header's member filter works too: pick a person and you see their entries plus the family's. Health has its own switcher (below).
 
 ## Reading 📚
 
@@ -33,6 +33,8 @@ A memory's own photos count toward the family's photo storage (200 photos, 100 M
 ## Health 🩺
 
 Doctor, dentist and other visits: the date and time, the type (checkup, dentist, specialist, vaccine, sick visit, other), the reason, the doctor or office, notes, measurements (height, weight, temperature, each in the unit you pick) and a follow-up date. Upcoming visits come first, then past ones.
+
+**Whose health** at the top of the tab shows **Everyone** or one person: their visits and their medicines, and a visit you add is theirs to start with. This device remembers the choice, and it starts from the header's member filter when one is set. It doesn't change the header's filter, so the calendar stays as it was.
 
 **Add to calendar** on an upcoming visit adds a normal calendar event, like "🦷 Dentist · Maya", at the visit's time with the office as its location. Only the type and the person go on the calendar; the reason, notes and measurements stay in Trackers.
 

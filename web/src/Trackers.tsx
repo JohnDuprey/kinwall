@@ -1,7 +1,7 @@
 // Trackers (server: routes/trackers.ts): the family's reading log, memories journal and health
 // visits. Reading and Memories work on the wall; Health is for phones and computers only - the
 // server refuses it to display keys, and this screen only offers it once GET /api/me says admin.
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { format } from 'date-fns'
 import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
@@ -17,6 +17,8 @@ import type { HealthData, HealthType, Member, MemoryData, Photo, ReadingData, Re
 import { hoursMinutes, isAudiobook, left, logReachesEnd, readingPercent, shelfLine, shelfTotals, splitMinutes, toMinutes } from './reading.ts'
 import { trackerKinds } from './types.ts'
 import { MedicineList } from './MedicationSettings.tsx'
+import PickField from './PickField.tsx'
+import { forPerson, HEALTH_PERSON_KEY, personIn, startPerson } from './trackerPerson.ts'
 
 // ponytail: TABS, SUB_TO_KIND and trackerKinds() (types.ts, for App's nav) list the kinds in the same order.
 const TABS: { key: TrackerKind; label: string; emoji: string }[] = [
@@ -63,10 +65,23 @@ export default function Trackers({ sub }: { sub?: string }) {
   useEffect(() => { if (entries) load() }, [refreshTick])
   useEffect(() => { if (kind === 'memory' && settings.features.photos) api.getPhotos().then(setPhotos).catch(() => {}) }, [kind, settings.features.photos, refreshTick])
 
-  // The header's member filter: that member's entries (plus the family's, which are everyone's).
-  const shown = (entries ?? []).filter(e => !selectedMemberId || e.memberId === selectedMemberId || isFamily(e))
+  // Health has its own person switcher, remembered on this device and starting from the header's
+  // member filter; it never changes that filter (the calendar's). Reading and Memories follow the header.
+  const [healthPick, setHealthPick] = useState<string | null>(() => {
+    let saved: string | null = null
+    try { saved = localStorage.getItem(HEALTH_PERSON_KEY) } catch { /* storage blocked: everyone */ }
+    return startPerson(selectedMemberId, saved)
+  })
+  const healthPerson = personIn(healthPick, members.map(m => m.id))
+  const pickHealthPerson = (id: string | null) => {
+    setHealthPick(id)
+    try { localStorage.setItem(HEALTH_PERSON_KEY, id ?? '') } catch { /* storage blocked: this visit only */ }
+  }
+  const personId = kind === 'health' ? healthPerson : selectedMemberId
+  // That member's entries (plus the family's, which are everyone's).
+  const shown = forPerson(entries ?? [], personId)
   const formers = [...new Set(shown.filter(e => e.formerMember && !e.memberId).map(e => e.formerMember!))].map(formerWho)
-  const people: Who[] = [...members.filter(m => !selectedMemberId || m.id === selectedMemberId), FAMILY, ...formers]
+  const people: Who[] = [...members.filter(m => !personId || m.id === personId), FAMILY, ...formers]
 
   const save = async (e: TrackerEntry, body: TrackerInput, msg?: string) => {
     setEntries(list => list && list.map(x => x.id === e.id ? { ...x, ...body, data: { ...x.data, ...body.data } as never } : x)) // optimistic
@@ -83,12 +98,17 @@ export default function Trackers({ sub }: { sub?: string }) {
         {entries === null ? <div className="state-card">Loading…</div>
           : kind === 'reading' ? <Reading entries={shown} people={people} onEdit={setEditing} onSave={save} />
           : kind === 'memory' ? <Memories entries={shown} today={today} onEdit={setEditing} onAdd={() => setEditing({ new: true, date: today })} />
-          : <Health entries={shown} today={today} onEdit={setEditing} onSave={save} meds={settings.medications} memberId={selectedMemberId} />}
+          : <Health entries={shown} today={today} onEdit={setEditing} onSave={save} meds={settings.medications} memberId={healthPerson} switcher={
+            <div className="field">
+              <label htmlFor="trk-person">Whose health</label>
+              <PickField id="trk-person" label="Whose health" title="Whose health?" value={[healthPerson ?? '']} onChange={([v]) => pickHealthPerson(v || null)}
+                options={[{ value: '', label: 'Everyone', lead: <Avatar m={FAMILY} size={26} /> }, ...members.map(m => ({ value: m.id, label: m.name, lead: <Avatar m={m} size={26} /> }))]} />
+            </div>} />}
       </div>
       <button className="fab" onClick={() => setEditing({ new: true })} aria-label={kind === 'reading' ? 'Add a book' : kind === 'memory' ? 'Add a memory' : 'Add a health visit'}><PlusIcon /></button>
       {editing && (
         <EntrySheet kind={kind} entry={'new' in editing ? null : editing} date={'new' in editing ? editing.date ?? today : undefined}
-          admin={admin} photos={photos}
+          admin={admin} photos={photos} memberId={personId}
           onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load() }} />
       )}
     </div>
@@ -273,7 +293,7 @@ function measureText(d: HealthData) {
 }
 
 // Health visits and, when medication reminders are on, each person's medicines (parent devices only).
-function Health({ entries, today, onEdit, onSave, meds, memberId }: { entries: TrackerEntry[]; today: string; onEdit: (e: TrackerEntry) => void; onSave: (e: TrackerEntry, body: TrackerInput, msg?: string) => void; meds: boolean; memberId: string | null }) {
+function Health({ entries, today, onEdit, onSave, meds, memberId, switcher }: { entries: TrackerEntry[]; today: string; onEdit: (e: TrackerEntry) => void; onSave: (e: TrackerEntry, body: TrackerInput, msg?: string) => void; meds: boolean; memberId: string | null; switcher: ReactNode }) {
   const who = useWho()
   const { toast } = useApp()
   const upcoming = entries.filter(e => e.date >= today).sort((a, b) => a.date.localeCompare(b.date))
@@ -308,6 +328,7 @@ function Health({ entries, today, onEdit, onSave, meds, memberId }: { entries: T
   }
   return (
     <div className="trk-journal">
+      {switcher}
       <p className="trk-privacy">🔒 Health stays on phones and computers, never on the wall screen.</p>
       {meds && <MedicineList memberId={memberId} />}
       {entries.length === 0 && <div className="empty-card"><span className="emoji">🩺</span>No visits yet. Tap + to log a checkup or a dentist visit.</div>}
@@ -346,16 +367,16 @@ type Form = {
   height: string; heightUnit: 'in' | 'cm'; weight: string; weightUnit: 'lb' | 'kg'; temperature: string; temperatureUnit: 'F' | 'C'
 }
 
-function EntrySheet({ kind, entry, date, admin, photos, onClose, onSaved }: {
-  kind: TrackerKind; entry: TrackerEntry | null; date?: string; admin: boolean; photos: Photo[]; onClose: () => void; onSaved: () => void
+function EntrySheet({ kind, entry, date, admin, photos, memberId, onClose, onSaved }: {
+  kind: TrackerKind; entry: TrackerEntry | null; date?: string; admin: boolean; photos: Photo[]; memberId: string | null; onClose: () => void; onSaved: () => void
 }) {
-  const { members, settings, selectedMemberId, toast } = useApp()
+  const { members, settings, toast } = useApp()
   const dialog = useDialog()
   const imperial = settings.temperatureUnit === 'fahrenheit'
   const d = (entry?.data ?? {}) as Partial<ReadingData & MemoryData & HealthData>
   const num = (v?: number) => v === undefined ? '' : String(v)
   const [f, setF] = useState<Form>(() => ({
-    memberId: entry ? (!entry.memberId && entry.formerMember ? FORMER : entry.memberId) : selectedMemberId, date: entry?.date ?? date ?? '', title: entry?.title ?? '',
+    memberId: entry ? (!entry.memberId && entry.formerMember ? FORMER : entry.memberId) : memberId, date: entry?.date ?? date ?? '', title: entry?.title ?? '',
     photoId: entry?.photoId ?? null, photoOwned: !!entry?.photoOwned, photoFamily: !!entry?.photoFamily, pending: null,
     format: d.format ?? 'book', author: d.author ?? '', narrator: d.narrator ?? '', status: d.status ?? 'reading', pagesRead: num(d.pagesRead), totalPages: num(d.totalPages),
     listened: splitMinutes(d.minutesListened), length: splitMinutes(d.totalMinutes), finishedOn: d.finishedOn ?? '', rating: d.rating ?? null, notes: d.notes ?? '',
