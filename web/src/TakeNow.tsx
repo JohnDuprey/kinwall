@@ -7,7 +7,7 @@ import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { announce } from './a11y.tsx'
 import { inkFor } from './color.ts'
-import { timeLabel } from './journal.ts'
+import { formatTime } from './timeFormat.ts'
 import { cardLabel, cheerLine } from './medications.ts'
 import { Confetti } from './Chores.tsx'
 import Sheet from './Sheet.tsx'
@@ -108,9 +108,9 @@ function DoseList({ doses, drop }: Due) {
             {m && <span className="board-avatar meds-now-avatar" style={{ background: m.color, color: inkFor(m.color) }} aria-hidden="true">{m.avatar || m.name[0]}</span>}
             <p className="meds-now-what">
               <strong>{m?.name ?? 'Someone'}</strong>
-              <span>{label} · {timeLabel(d.time)}</span>
+              <span>{label} · {formatTime(d.time)}</span>
             </p>
-            {cheer?.key === key(d) ? <p className="meds-now-cheer" role="status">{cheer.line} Taken ✓<Confetti /></p> : <div className="meds-now-actions" role="group" aria-label={`${m?.name ?? 'Someone'}: ${label}, ${timeLabel(d.time)}`}>
+            {cheer?.key === key(d) ? <p className="meds-now-cheer" role="status">{cheer.line} Taken ✓<Confetti /></p> : <div className="meds-now-actions" role="group" aria-label={`${m?.name ?? 'Someone'}: ${label}, ${formatTime(d.time)}`}>
               <button className="btn btn-primary" disabled={busy === key(d)} onClick={() => mark(d, 'taken')}>Taken</button>
               <button className="btn btn-secondary" disabled={busy === key(d)} onClick={() => mark(d, 'skipped')}>Skip</button>
               <button className="btn btn-secondary" disabled={busy === key(d)} onClick={() => mark(d, 'snooze')}>Snooze 10 min</button>

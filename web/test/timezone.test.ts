@@ -2,6 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { offsetLabel, tzCity, tzInfo, tzOrder } from '../src/timezone.ts'
+import { setHour12 } from '../src/timeFormat.ts'
 
 test('offsetLabel: GMT offsets read as UTC with a real minus sign', () => {
   assert.equal(offsetLabel('GMT-4'), 'UTC−4')
@@ -11,10 +12,14 @@ test('offsetLabel: GMT offsets read as UTC with a real minus sign', () => {
 
 test('tzInfo: local time and offset at a moment, daylight saving included', () => {
   const summer = new Date('2026-07-01T00:04:00Z'), winter = new Date('2026-01-01T01:04:00Z')
+  setHour12(true)
   assert.deepEqual(tzInfo('America/New_York', summer), { time: '8:04 PM', offset: 'UTC−4' })
   assert.deepEqual(tzInfo('America/New_York', winter), { time: '8:04 PM', offset: 'UTC−5' })
   assert.deepEqual(tzInfo('Asia/Kathmandu', summer), { time: '5:49 AM', offset: 'UTC+5:45' })
   assert.deepEqual(tzInfo('UTC', summer), { time: '12:04 AM', offset: 'UTC' })
+  setHour12(false)
+  assert.deepEqual(tzInfo('America/New_York', summer), { time: '20:04', offset: 'UTC−4' })
+  setHour12(true)
 })
 
 test('tzCity: the last part, with spaces', () => {

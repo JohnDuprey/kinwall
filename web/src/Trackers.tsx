@@ -8,7 +8,8 @@ import { useApp } from './AppContext.tsx'
 import { useDialog } from './dialog.tsx'
 import { announce, Segmented } from './a11y.tsx'
 import { inkFor } from './color.ts'
-import { clockTime, todayKeyInTz } from './date.ts'
+import { todayKeyInTz } from './date.ts'
+import { formatTime } from './timeFormat.ts'
 import { PlusIcon } from './icons.tsx'
 import Sheet from './Sheet.tsx'
 import { preparePhoto, PhotoFormatError } from './photos.ts'
@@ -292,7 +293,7 @@ function Health({ entries, today, onEdit, onSave, meds, memberId }: { entries: T
           <span className="trk-visit-emoji" aria-hidden="true">{t.emoji}</span>
           <span className="trk-memory-body">
             <span className="trk-book-title">{e.title || t.label}</span>
-            <span className="trk-sub">{niceDate(e.date, true)}{d.time ? ` · ${clockTime(d.time)}` : ''}{d.provider ? ` · ${d.provider}` : ''}</span>
+            <span className="trk-sub">{niceDate(e.date, true)}{d.time ? ` · ${formatTime(d.time)}` : ''}{d.provider ? ` · ${d.provider}` : ''}</span>
             {measures && <span className="trk-tag">{measures}</span>}
             {d.followUp && <span className="trk-sub">Follow-up {niceDate(d.followUp, true)}</span>}
           </span>

@@ -1,7 +1,7 @@
 // Medication reminders (TakeNow.tsx, Medications.tsx, Trackers → Health → Medicines). Pure, so
 // web/test/medications.test.ts covers it.
 import { format } from 'date-fns'
-import { timeLabel } from './journal.ts'
+import { formatTime } from './timeFormat.ts'
 import type { DoseStatus, Medication, MedicationHistory } from './types.ts'
 
 export const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -18,7 +18,7 @@ export function daysLabel(days: number[]): string {
 
 /** "8:00 AM and 8:30 PM · Every day", plus the course when it has one (" · Until Mon, Oct 5"). */
 export function scheduleLabel(m: Pick<Medication, 'times' | 'days'> & Partial<Pick<Medication, 'endDate' | 'totalDoses' | 'dosesLeft'>>): string {
-  const t = m.times.map(timeLabel)
+  const t = m.times.map(t => formatTime(t))
   const course = courseLabel({ endDate: m.endDate ?? null, totalDoses: m.totalDoses ?? null, dosesLeft: m.dosesLeft ?? null })
   return `${t.length > 1 ? `${t.slice(0, -1).join(', ')} and ${t.at(-1)}` : t[0]} · ${daysLabel(m.days)}${course ? ` · ${course}` : ''}`
 }

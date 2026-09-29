@@ -2,17 +2,9 @@
 // web/test/journal.test.ts covers it.
 import type { FollowupOutcome, JournalDay } from './types.ts'
 
-/** "21:00" -> "9:00 PM". */
-export function timeLabel(hm: string): string {
-  const [h, m] = hm.split(':').map(Number)
-  return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`
-}
-
-/** The evening check's times: noon to 11:30 PM in half hours (midnight ends the day). */
-export const EVENING_TIMES = Array.from({ length: 24 }, (_, i) => {
-  const value = `${String(12 + Math.floor(i / 2)).padStart(2, '0')}:${i % 2 ? '30' : '00'}`
-  return { value, label: timeLabel(value) }
-})
+/** The evening check's times, "HH:MM": noon to 11:30 PM in half hours (midnight ends the day).
+ * Labeled with formatTime where they're shown, so they follow the time format. */
+export const EVENING_TIMES = Array.from({ length: 24 }, (_, i) => `${String(12 + Math.floor(i / 2)).padStart(2, '0')}:${i % 2 ? '30' : '00'}`)
 
 export const OUTCOMES: { key: FollowupOutcome; emoji: string; label: string }[] = [
   { key: 'yes', emoji: '🎉', label: 'Yes' },

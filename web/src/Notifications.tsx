@@ -8,7 +8,8 @@ import { SendMessageForm } from './Settings.tsx'
 import { announce } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
 import { inkFor } from './color.ts'
-import { formatTime, todayKeyInTz, zonedDayKey } from './date.ts'
+import { todayKeyInTz, zonedDayKey } from './date.ts'
+import { formatTime } from './timeFormat.ts'
 
 // Read state is per device, like the other device prefs: everything newer than this is unread.
 const SEEN_KEY = 'kinwall.notificationsSeenAt'

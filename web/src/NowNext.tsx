@@ -2,7 +2,7 @@
 // warnings ("Soccer Practice in 10 minutes"). Both work from today's already-loaded instances.
 import { useEffect, useRef, useState } from 'react'
 import type { EventInstance, Member, Settings } from './types.ts'
-import { formatTime } from './date.ts'
+import { formatTime } from './timeFormat.ts'
 import { announce } from './a11y.tsx'
 import { inTimeWindow } from './useTheme.ts'
 import { leadFor, leadIcon, leadOf } from './leadTime.ts'

@@ -2,6 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { cardLabel, cheerLine, courseLabel, daysLabel, scheduleLabel, weekCells } from '../src/medications.ts'
+import { setHour12 } from '../src/timeFormat.ts'
 
 test('daysLabel: every day, weekdays, weekends, or the days in order', () => {
   assert.equal(daysLabel([0, 1, 2, 3, 4, 5, 6]), 'Every day')
@@ -11,8 +12,12 @@ test('daysLabel: every day, weekdays, weekends, or the days in order', () => {
 })
 
 test('scheduleLabel: times for people, then the days', () => {
+  setHour12(true)
   assert.equal(scheduleLabel({ times: ['08:00', '20:30'], days: [0, 1, 2, 3, 4, 5, 6] }), '8:00 AM and 8:30 PM · Every day')
   assert.equal(scheduleLabel({ times: ['07:15'], days: [2] }), '7:15 AM · Tue')
+  setHour12(false)
+  assert.equal(scheduleLabel({ times: ['08:00', '20:30'], days: [0, 1, 2, 3, 4, 5, 6] }), '08:00 and 20:30 · Every day')
+  setHour12(true)
 })
 
 test('cardLabel: the name and dose where names show, "Meds" on a shared screen without them', () => {

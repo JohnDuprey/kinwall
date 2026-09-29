@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { inkFor } from './color.ts'
-import { timeLabel } from './journal.ts'
+import { formatTime } from './timeFormat.ts'
 import { dayName } from './Snapshot.tsx'
 import { scheduleLabel, STATUS, weekCells } from './medications.ts'
 import TakeNow from './TakeNow.tsx'
@@ -56,9 +56,9 @@ export default function Medications({ memberId }: { memberId?: string }) {
                 const s = STATUS[d.status]
                 return (
                   <li key={`${d.medicationId}:${d.time}`} className={`meds-today-row meds-${d.status}`}>
-                    <span className="meds-today-time">{timeLabel(d.time)}</span>
+                    <span className="meds-today-time">{formatTime(d.time)}</span>
                     <span className="meds-today-what">{m ? (m.dose ? `${m.name} · ${m.dose}` : m.name) : 'Removed medicine'}</span>
-                    <span className="meds-status"><span aria-hidden="true">{s.emoji}</span> {s.label}{d.at && (d.status === 'taken' || d.status === 'skipped') ? ` ${new Date(d.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : ''}</span>
+                    <span className="meds-status"><span aria-hidden="true">{s.emoji}</span> {s.label}{d.at && (d.status === 'taken' || d.status === 'skipped') ? ` ${formatTime(d.at)}` : ''}</span>
                   </li>
                 )
               })}

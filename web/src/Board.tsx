@@ -6,7 +6,8 @@ import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import type { Board as BoardData, EventInstance, List, Member, OnlineTidbits, SnapshotEvent } from './types.ts'
 import { inkFor } from './color.ts'
-import { formatTime, zonedParts } from './date.ts'
+import { zonedParts } from './date.ts'
+import { formatTime } from './timeFormat.ts'
 import { useDeviceAppearance } from './useTheme.ts'
 import { useSlideshowPictures } from './Screensaver.tsx'
 import { tidbitFor, type Tidbit } from './tidbits.ts'
@@ -202,7 +203,7 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
         )}
         {/* The header already shows the clock and date, so this card is the forecast alone. */}
         <section className="board-card board-clock" aria-label="Time and weather">
-          <div className="board-time">{new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', timeZone: tz }).format(now)}</div>
+          <div className="board-time">{formatTime(now, tz)}</div>
           <div className="board-date">{new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric', timeZone: tz }).format(now)}</div>
           {w && <div className="board-wx-where snap-dim">{w.location}</div>}
           {w && (

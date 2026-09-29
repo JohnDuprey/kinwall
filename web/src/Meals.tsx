@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { Segmented } from './a11y.tsx'
-import { clockTime, todayKeyInTz } from './date.ts'
+import { todayKeyInTz } from './date.ts'
+import { formatTime } from './timeFormat.ts'
 import { ChevronLeft, ChevronRight, LinkIcon, ListIcon, PlusIcon } from './icons.tsx'
 import { MEAL_SLOTS, SLOT_LABEL, mealDayLabel, mealForMember, mealWeek, minutesLabel, moveMealDate, servingsLabel } from './meal-date.ts'
 import MealSheet, { EaterAvatars, type MealDraft } from './MealSheet.tsx'
@@ -107,7 +108,7 @@ export default function Meals() {
             return <button key={meal.id} className={`meal-card ${meal.status !== 'planned' ? 'meal-complete' : ''}`} onClick={() => recipe && meal.mealKind === 'recipe' ? setRecipeSheet({ recipe, readOnly: true, meal }) : setEditing({ meal, initial: { date, slot } })} aria-label={`${SLOT_LABEL[slot]}, ${mealDayLabel(date)}, ${meal.title}, ${meal.status}${assignee ? `, cooked by ${assignee.name}` : ''}${meal.eaterIds?.length ? `, for ${members.filter(m => meal.eaterIds.includes(m.id)).map(m => m.name).join(', ')}` : ''}`}>
               {recipe?.imageUrl && <RecipePhoto id={recipe.id} className="meal-thumb" />}
               <strong>{meal.mealKind === 'dining_out' && <span aria-label="Dining out">↗ </span>}{meal.title}</strong>
-              <span>{meal.plannedTime ? `${clockTime(meal.plannedTime)} · ` : ''}{servingsLabel(meal.servings)}{total ? ` · ${minutesLabel(total)}` : ''}</span>
+              <span>{meal.plannedTime ? `${formatTime(meal.plannedTime)} · ` : ''}{servingsLabel(meal.servings)}{total ? ` · ${minutesLabel(total)}` : ''}</span>
               {assignee && <span>Cooking: {assignee.avatar} {assignee.name}</span>}
               <EaterAvatars ids={meal.eaterIds ?? []} members={members} />
               {meal.status !== 'planned' && <span>✓ {meal.status === 'prepared' ? 'Prepared' : 'Handled'}</span>}

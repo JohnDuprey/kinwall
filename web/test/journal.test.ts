@@ -1,14 +1,13 @@
 // node --test test/ (npm test). Goal follow-up and the journal: times, messages, the week's goals.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { EVENING_TIMES, followupThanks, goalsThisWeek, timeLabel } from '../src/journal.ts'
+import { EVENING_TIMES, followupThanks, goalsThisWeek } from '../src/journal.ts'
 
-test('EVENING_TIMES: noon to 11:30 PM in half hours, labeled for people', () => {
+test('EVENING_TIMES: noon to 11:30 PM in half hours', () => {
   assert.equal(EVENING_TIMES.length, 24)
-  assert.deepEqual(EVENING_TIMES[0], { value: '12:00', label: '12:00 PM' })
-  assert.deepEqual(EVENING_TIMES.at(-1), { value: '23:30', label: '11:30 PM' })
-  assert.ok(EVENING_TIMES.some(t => t.value === '21:00' && t.label === '9:00 PM'))
-  assert.equal(timeLabel('00:30'), '12:30 AM')
+  assert.equal(EVENING_TIMES[0], '12:00')
+  assert.equal(EVENING_TIMES.at(-1), '23:30')
+  assert.ok(EVENING_TIMES.includes('21:00'))
 })
 
 test('followupThanks: warm for yes, kind for partly and not today', () => {

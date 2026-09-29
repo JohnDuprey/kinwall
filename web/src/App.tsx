@@ -39,6 +39,7 @@ import Insights from './Insights.tsx'
 import Medications from './Medications.tsx'
 import Sheet from './Sheet.tsx'
 import { LeaveByLiveActivity } from './NowNext.tsx'
+import { formatTime } from './timeFormat.ts'
 
 const NAV_ITEMS = [
   { key: 'calendar', href: '#/calendar', label: 'Calendar', Icon: CalendarIcon },
@@ -321,7 +322,7 @@ function PinKeypad({ onWake, onIdle }: { onWake: () => void; onIdle: () => void 
 function clockStrings(now: Date, timeZone: string | null) {
   const tz = timeZone ?? undefined
   return {
-    time: new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', timeZone: tz }).format(now),
+    time: formatTime(now, tz),
     date: new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric', timeZone: tz }).format(now),
   }
 }

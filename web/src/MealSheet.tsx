@@ -6,7 +6,8 @@ import Sheet from './Sheet.tsx'
 import { BookIcon, CalendarIcon, ChevronRight, TrashIcon } from './icons.tsx'
 import { SourceLink } from './RecipeSheet.tsx'
 import RecipePhoto from './RecipePhoto.tsx'
-import { clockTime, todayKeyInTz } from './date.ts'
+import { todayKeyInTz } from './date.ts'
+import { formatTime } from './timeFormat.ts'
 import MealCalendarSheet from './MealCalendarSheet.tsx'
 import { MemberPicker } from './MemberPicker.tsx'
 import { inkFor } from './color.ts'
@@ -119,7 +120,7 @@ export default function MealSheet({ meal, initial, recipes, admin, owner, onClos
           <div className="field"><label htmlFor={`${formId}-servings`}>Servings</label><input id={`${formId}-servings`} type="number" required min="0.01" max="10000" step="any" value={draft.servings || ''} onChange={e => update('servings', Number(e.target.value))} /></div>
           <div className="field"><label htmlFor={`${formId}-time`}>Time</label><input id={`${formId}-time`} type="time" placeholder={settings.mealTimes[draft.slot]} aria-describedby={`${formId}-time-hint`} value={draft.plannedTime ?? ''} onChange={e => update('plannedTime', e.target.value || null)} />
             {/* A time field can't show a placeholder, so the usual time sits under it. */}
-            <p className="field-hint" id={`${formId}-time-hint`}>{draft.plannedTime ? 'Clear it to use the usual time.' : `Usual ${SLOT_LABEL[draft.slot].toLowerCase()} time: ${clockTime(settings.mealTimes[draft.slot])}`}</p></div>
+            <p className="field-hint" id={`${formId}-time-hint`}>{draft.plannedTime ? 'Clear it to use the usual time.' : `Usual ${SLOT_LABEL[draft.slot].toLowerCase()} time: ${formatTime(settings.mealTimes[draft.slot])}`}</p></div>
         </div>
         <div className="field"><label htmlFor={`${formId}-assignee`}>Cooking</label><select id={`${formId}-assignee`} value={draft.assigneeMemberId ?? ''} onChange={e => update('assigneeMemberId', e.target.value || null)}><option value="">Nobody yet</option>{members.map(m => <option key={m.id} value={m.id}>{m.avatar} {m.name}</option>)}</select></div>
         {draft.mealKind === 'dining_out' && <div className="field"><label htmlFor={`${formId}-url`}>Website (optional)</label><input id={`${formId}-url`} type="url" pattern="https?://.*" maxLength={2000} value={draft.sourceUrl ?? ''} onChange={e => update('sourceUrl', e.target.value || null)} /></div>}
@@ -129,7 +130,7 @@ export default function MealSheet({ meal, initial, recipes, admin, owner, onClos
         {draft.eaterIds.length > 0 && <p className="meal-eaters-row">Eating <EaterAvatars ids={draft.eaterIds} members={members} /></p>}
       </>}
       {snapshot && (time || meal?.recipeSnapshot) && <section aria-label="Recipe">
-        {time && <p className="recipe-time">⏱ {time}{start ? ` · Start by ${clockTime(start)}` : ''}</p>}
+        {time && <p className="recipe-time">⏱ {time}{start ? ` · Start by ${formatTime(start)}` : ''}</p>}
         {meal?.recipeSnapshot && <p className="field-hint">The recipe is saved with this meal, so later recipe edits don’t change it.</p>}
         {admin && meal?.recipeSnapshot && selectedRecipe && !selectedRecipe.archived && draft.recipeId === meal.recipeId && <label className="meal-check"><input type="checkbox" checked={refreshRecipe} disabled={busy} onChange={e => setRefreshRecipe(e.target.checked)} /> Refresh from the current recipe when saving</label>}
       </section>}

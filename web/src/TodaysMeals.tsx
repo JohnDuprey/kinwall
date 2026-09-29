@@ -1,5 +1,6 @@
 import { useApp } from './AppContext.tsx'
-import { clockTime, minutesSinceMidnight } from './date.ts'
+import { minutesSinceMidnight } from './date.ts'
+import { formatTime } from './timeFormat.ts'
 import { MEAL_SLOTS, SLOT_LABEL, mealForMember, minutesLabel } from './meal-date.ts'
 import type { Meal } from './meal-types.ts'
 import { EaterAvatars } from './MealSheet.tsx'
@@ -19,7 +20,7 @@ export default function TodaysMeals({ now, today, meals: all }: { now: Date; tod
         {MEAL_SLOTS.flatMap(slot => meals.filter(meal => meal.slot === slot).map(meal => {
           const assignee = members.find(member => member.id === meal.assigneeMemberId)
           return <li key={meal.id}><a href={`#/meals?date=${today}&meal=${encodeURIComponent(meal.id)}`} className={`snap-row today-meal ${meal.id === next?.id ? 'today-meal-next' : ''}`}>
-            <span className="snap-main"><span className="board-when">{SLOT_LABEL[meal.slot]}{meal.plannedTime ? ` · ${clockTime(meal.plannedTime)}` : ''}{meal.id === next?.id ? at(meal) >= minute ? ' · Next' : ' · Planned' : ''}</span>
+            <span className="snap-main"><span className="board-when">{SLOT_LABEL[meal.slot]}{meal.plannedTime ? ` · ${formatTime(meal.plannedTime)}` : ''}{meal.id === next?.id ? at(meal) >= minute ? ' · Next' : ' · Planned' : ''}</span>
               <span className="snap-title">{meal.mealKind === 'dining_out' ? '↗ ' : ''}{meal.title}</span>
               <EaterAvatars ids={meal.eaterIds ?? []} members={members} />
               <span className="snap-meta">{[meal.mealKind === 'dining_out' ? 'Dining out' : null, meal.recipeSnapshot?.totalMinutes ? minutesLabel(meal.recipeSnapshot.totalMinutes) : null, assignee ? `Cooking: ${assignee.avatar ?? ''} ${assignee.name}` : null, meal.status !== 'planned' ? meal.status === 'prepared' ? 'Prepared' : 'Handled' : null].filter(Boolean).join(' · ')}</span>

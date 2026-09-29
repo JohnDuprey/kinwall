@@ -2,7 +2,7 @@ import { useEffect, useId, useState } from 'react'
 import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import Sheet from './Sheet.tsx'
-import { clockTime } from './date.ts'
+import { formatTime } from './timeFormat.ts'
 import { SLOT_LABEL, mealDayLabel, minutesLabel, moveMealDate } from './meal-date.ts'
 import type { Meal } from './meal-types.ts'
 import type { CalendarEntry, EventInstance } from './types.ts'
@@ -57,7 +57,7 @@ export default function MealCalendarSheet({ meal, onClose, onLinked }: { meal: M
   const owned = !!meal.calendarEventStart
 
   return <Sheet title="Meal on the calendar" onClose={() => { if (!busy) onClose() }} dismissable={!busy}>
-    <p>{meal.title} · {mealDayLabel(meal.date)} · {clockTime(time)}{meal.plannedTime ? '' : ` (usual ${SLOT_LABEL[meal.slot].toLowerCase()} time)`}</p>
+    <p>{meal.title} · {mealDayLabel(meal.date)} · {formatTime(time)}{meal.plannedTime ? '' : ` (usual ${SLOT_LABEL[meal.slot].toLowerCase()} time)`}</p>
     {meal.calendarEventId ? <>
       <p className="field-hint">{owned
         ? 'Kinwall made this event, so it follows the meal: saving the meal updates its day, time, title, notes and people, and deleting the meal deletes it.'
@@ -77,7 +77,7 @@ export default function MealCalendarSheet({ meal, onClose, onLinked }: { meal: M
         <option value="meal">At the meal time</option>
         <option value="cooking">When cooking starts</option>
       </select></div>
-      <p className="field-hint">{clockTime(hhmm(from))} to {clockTime(hhmm(to))} ({minutesLabel(minutes)}{meal.recipeSnapshot?.totalMinutes ? ', the recipe’s total time' : ''}). {chosen && chosen.kind !== 'local' ? `It’s also added to ${chosen.name} on ${PROVIDER[chosen.kind] ?? 'that calendar'}.` : ''}</p>
+      <p className="field-hint">{formatTime(hhmm(from))} to {formatTime(hhmm(to))} ({minutesLabel(minutes)}{meal.recipeSnapshot?.totalMinutes ? ', the recipe’s total time' : ''}). {chosen && chosen.kind !== 'local' ? `It’s also added to ${chosen.name} on ${PROVIDER[chosen.kind] ?? 'that calendar'}.` : ''}</p>
       <button className="btn btn-primary" disabled={busy || loading || calendarId === null} onClick={() => void create()}>Add to calendar</button>
       <h3>Or link an event you already have</h3>
       <div className="field"><label htmlFor={`${id}-event`}>Event near this meal’s date</label><select id={`${id}-event`} value={eventId} onChange={e => setEventId(e.target.value)}><option value="">Choose an event</option>{events.map(event => <option key={event.id} value={event.id}>{event.title} · {event.start.slice(0, 10)}</option>)}</select></div>

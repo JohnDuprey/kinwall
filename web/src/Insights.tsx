@@ -13,6 +13,7 @@ import { Bar } from './Profile.tsx'
 import BatteryCard from './Battery.tsx'
 import { batteryOn } from './battery.ts'
 import { chartMax, confidenceLabel, keepCheckingIn, RANGES, shortDate, sleepPath, weekly, type Week } from './insights.ts'
+import { formatTime } from './timeFormat.ts'
 import type { InsightDay, InsightRange, Insights as InsightsData, Member } from './types.ts'
 
 export default function Insights({ memberId }: { memberId?: string }) {
@@ -214,7 +215,7 @@ function BusyChart({ days }: { days: InsightDay[] }) {
   return (
     <>
       <svg className="insights-plot insights-busy" viewBox={`0 0 1000 ${H + 12}`} preserveAspectRatio="none" role="img"
-        aria-label={`Events each day, up to ${Math.max(...days.map(x => x.events))}. ${lates} ${lates === 1 ? 'evening' : 'evenings'} with an event ending after 8 PM.`}>
+        aria-label={`Events each day, up to ${Math.max(...days.map(x => x.events))}. ${lates} ${lates === 1 ? 'evening' : 'evenings'} with an event ending after ${formatTime('20:00', undefined, { hourOnly: true })}.`}>
         <line x1="0" x2="1000" y1={H} y2={H} />
         {days.map((x, i) => x.events > 0 && <rect key={x.date} className="bar" x={i * w + w * 0.15} width={w * 0.7} y={H - (x.events / max) * H} height={(x.events / max) * H} />)}
         {days.map((x, i) => x.lastEventEnd && x.lastEventEnd > '20:00' && <rect key={`l${x.date}`} className="late" x={i * w + w * 0.15} width={w * 0.7} y={H + 4} height={8} />)}
@@ -222,7 +223,7 @@ function BusyChart({ days }: { days: InsightDay[] }) {
       <Axis from={shortDate(days[0].date)} to="Today" />
       <ul className="insights-legend" aria-hidden="true">
         <li><span className="insights-seg met" />Events (top: {max})</li>
-        <li><span className="insights-seg late" />Ended after 8 PM</li>
+        <li><span className="insights-seg late" />Ended after {formatTime('20:00', undefined, { hourOnly: true })}</li>
       </ul>
     </>
   )

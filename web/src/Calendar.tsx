@@ -4,7 +4,8 @@ import { useApp } from './AppContext.tsx'
 import { api, ApiError, MOCK, stripHtmlToText } from './api.ts'
 import type { CalendarEntry, Category, EventInstance, List, ListItem } from './types.ts'
 import { REMINDER_OPTIONS, reminderLabel } from './types.ts'
-import { dateKey, formatTime, minutesSinceMidnight, zonedDayKey } from './date.ts'
+import { dateKey, minutesSinceMidnight, zonedDayKey } from './date.ts'
+import { formatTime } from './timeFormat.ts'
 import { inkFor } from './color.ts'
 import Sheet from './Sheet.tsx'
 import { CheckIcon, ChevronLeft, ChevronRight, FilterIcon, LocationIcon, PlusIcon, RepeatIcon, TrashIcon, EditIcon } from './icons.tsx'
@@ -583,7 +584,7 @@ function WeekView({ days, events, tz, members, categories, onTap, onSlotTap, onD
       </div>
       <div className="timegrid" style={{ gridTemplateColumns: `50px repeat(${days.length}, minmax(0, 1fr))`, height: 24 * HOUR_PX }}>
         <div className="time-gutter">
-          {Array.from({ length: 24 }, (_, h) => <div className="time-label" key={h}>{h === 0 ? '' : format(new Date(2000, 0, 1, h), 'h a')}</div>)}
+          {Array.from({ length: 24 }, (_, h) => <div className="time-label" key={h}>{h === 0 ? '' : formatTime(`${h}:00`, undefined, { hourOnly: true })}</div>)}
         </div>
         {days.map((d, i) => {
           const laidOut = layoutColumns(timedByDay[i], tz, minMinutes)
@@ -663,7 +664,7 @@ function DayView({ anchor, events, tz, members, categories, onlyMemberId, onTap,
       </div>
       <div className="timegrid" style={{ gridTemplateColumns: `50px repeat(${cols.length}, minmax(0, 1fr))`, height: 24 * HOUR_PX }}>
         <div className="time-gutter">
-          {Array.from({ length: 24 }, (_, h) => <div className="time-label" key={h}>{h === 0 ? '' : format(new Date(2000, 0, 1, h), 'h a')}</div>)}
+          {Array.from({ length: 24 }, (_, h) => <div className="time-label" key={h}>{h === 0 ? '' : formatTime(`${h}:00`, undefined, { hourOnly: true })}</div>)}
         </div>
         {isToday && <div className="now-line" style={{ top: (nowMinutes / 60) * HOUR_PX, left: 50, right: 0 }}><span className="now-dot" /></div>}
         {cols.map(m => {

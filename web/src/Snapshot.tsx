@@ -15,7 +15,8 @@ import Sheet from './Sheet.tsx'
 import { PriorityBadge } from './PriorityBadge.tsx'
 import { Segmented, announce } from './a11y.tsx'
 import { inkFor } from './color.ts'
-import { clockTime, formatTime, todayKeyInTz } from './date.ts'
+import { todayKeyInTz } from './date.ts'
+import { formatTime } from './timeFormat.ts'
 import { MEAL_SLOTS, SLOT_LABEL } from './meal-date.ts'
 import { leadOf, leadText } from './leadTime.ts'
 
@@ -413,7 +414,7 @@ function DayView({ snap, tz, close, onToggle, books }: { snap: Snapshot; tz: str
           <ul className="snap-list">{meals.map(m => (
             <li key={m.id}>
               <button className="snap-row" onClick={() => go(`#/meals?date=${m.date}&meal=${encodeURIComponent(m.id)}`, close)}>
-                <span className="snap-time">{m.plannedTime ? clockTime(m.plannedTime) : SLOT_LABEL[m.slot]}</span>
+                <span className="snap-time">{m.plannedTime ? formatTime(m.plannedTime) : SLOT_LABEL[m.slot]}</span>
                 <span className="snap-main"><span className="snap-title">{m.title}</span></span>
               </button>
             </li>

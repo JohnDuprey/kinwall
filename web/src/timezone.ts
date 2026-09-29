@@ -1,4 +1,5 @@
 // The household timezone picker (Settings → General, setup wizard): names, local times and offsets.
+import { formatTime } from './timeFormat.ts'
 
 export function timezoneList() {
   // Intl.supportedValuesOf('timeZone') doesn't include 'UTC' itself (the server's default
@@ -18,10 +19,9 @@ const formats = new Map<string, Intl.DateTimeFormat>() // making one is the slow
 export function tzInfo(tz: string, now: Date): { time: string; offset: string } {
   try {
     let format = formats.get(tz)
-    if (!format) formats.set(tz, format = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit', timeZoneName: 'shortOffset' }))
-    const parts = format.formatToParts(now)
-    const offset = parts.find(p => p.type === 'timeZoneName')?.value ?? ''
-    return { time: parts.filter(p => p.type !== 'timeZoneName').map(p => p.value).join('').replace(/\s+/g, ' ').trim(), offset: offsetLabel(offset) }
+    if (!format) formats.set(tz, format = new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'shortOffset' }))
+    const offset = format.formatToParts(now).find(p => p.type === 'timeZoneName')?.value ?? ''
+    return { time: formatTime(now, tz), offset: offsetLabel(offset) }
   } catch { return { time: '', offset: '' } } // a saved zone this browser doesn't know
 }
 

@@ -13,6 +13,8 @@ export type BackgroundDark = 'cocoa' | 'charcoal' | 'midnight'
 export type TextScale = 's' | 'm' | 'l' | 'xl'
 /** 'default' is Nunito; see typeface.ts. */
 export type Typeface = 'default' | 'hyperlegible' | 'dyslexia' | 'modern' | 'playful' | 'storybook' | 'handwritten'
+/** Clock times: 'auto' follows the device's locale; see timeFormat.ts. */
+export type TimeFormat = 'auto' | '12' | '24'
 export type Density = 'comfortable' | 'compact'
 /** Per-device only: the server's household density is comfortable/compact. */
 export type DeviceDensity = Density | 'icons'

@@ -34,6 +34,7 @@ import { appLiveActivities, inNativeApp, liveActivitiesLine } from './native.ts'
 import { useDialog } from './dialog.tsx'
 import { TEMP_CHECK_OFF } from './tempCheck.ts'
 import { EVENING_TIMES } from './journal.ts'
+import { formatTime } from './timeFormat.ts'
 import { MedicationsToggle } from './MedicationSettings.tsx'
 import { announce, pressable, reducedMotion, Segmented } from './a11y.tsx'
 import { FEATURE_ROWS } from './featureConfig.ts'
@@ -1043,7 +1044,7 @@ function SchemeSheet({ draft, isNew, onClose, onSave, onDelete }: {
               <div className="scheme-preview" style={{ background: b.bg, borderColor: b.border }} aria-hidden="true">
                 <div className="scheme-preview-card" style={{ background: b.card, color: b.text, borderColor: b.border }}>
                   <strong>Soccer practice</strong>
-                  <span style={{ color: b.textDim }}>4:00 PM · Park field</span>
+                  <span style={{ color: b.textDim }}>{formatTime('16:00')} · Park field</span>
                   <span className="scheme-preview-btn" style={{ background: accentFill(b.accent) }}>Done</span>
                 </div>
               </div>
@@ -1611,7 +1612,7 @@ function TempCheckField({ member, name, value, onChange, toast }: { member: Memb
               <div className="settings-row-sub">"Did you finish your goal?" on {name}'s devices and their day, until midnight.</div>
             </div>
             <select className="settings-select" aria-labelledby="member-tc-time" value={value.eveningTime} onChange={e => set({ eveningTime: e.target.value })}>
-              {EVENING_TIMES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+              {EVENING_TIMES.map(t => <option key={t} value={t}>{formatTime(t)}</option>)}
             </select>
           </div>
           {row('journal', 'Keep answers in the journal')}
