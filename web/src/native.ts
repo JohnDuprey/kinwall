@@ -1,6 +1,9 @@
-// Inside the Kinwall iPhone/iPad app (kinwall-apple repo: a native frame around this web app).
-// The app injects window.kinwallNative before the page loads and adds "KinwallApp/<version>" to
-// the user agent. Keep in sync with KinwallWebView.bridgeScript there.
+import type { Skin } from './skins.ts'
+import type { CustomColors, ThemeMode } from './types.ts'
+
+// Inside the Kinwall iPhone/iPad/Android app (kinwall-mobile repo: a native frame around this web
+// app). The app injects window.kinwallNative before the page loads and adds "KinwallApp/<version>"
+// to the user agent. Keep in sync with the bridge in src/WebShell.tsx there.
 export const inNativeApp = (): boolean =>
   typeof window !== 'undefined' && (!!(window as Window & { kinwallNative?: unknown }).kinwallNative || /\bKinwallApp\//.test(navigator.userAgent))
 
@@ -34,4 +37,26 @@ export function tellAppKeepAwake(on: boolean) {
 export function tellAppLeaveDemo() {
   const w = window as Window & { webkit?: { messageHandlers?: { kinwall?: { postMessage: (m: unknown) => void } } } }
   try { w.webkit?.messageHandlers?.kinwall?.postMessage({ type: 'leaveDemo' }) } catch { /* not in the app */ }
+}
+
+type Surface = { bg: string; card: string }
+
+/** The page's background and card colors in light and dark: custom colors over the scheme's. */
+export function surfaces(skin: Skin, custom: CustomColors): { light: Surface; dark: Surface } {
+  const pick = (t: Skin['light']) => ({ bg: custom.bg || t.bg, card: custom.card || t.card })
+  return { light: pick(skin.light), dark: pick(skin.dark) }
+}
+
+let lastAppearance = ''
+/** The look in effect, so the app paints its frame (and the next launch) in the page's colors
+ * instead of flashing its own. Both variants go, so in 'auto' the app can follow the system on
+ * its own. Sent only when something changed. No-op in a browser. */
+export function tellAppAppearance(a: { mode: ThemeMode; dark: boolean; colors: { light: Surface; dark: Surface } }) {
+  const json = JSON.stringify(a)
+  if (json === lastAppearance) return
+  const w = window as Window & { webkit?: { messageHandlers?: { kinwall?: { postMessage: (m: unknown) => void } } } }
+  const app = w.webkit?.messageHandlers?.kinwall
+  if (!app) return
+  lastAppearance = json
+  try { app.postMessage({ type: 'appearance', ...a }) } catch { /* not in the app */ }
 }

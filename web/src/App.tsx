@@ -896,6 +896,9 @@ function AppRoutes() {
   // Sticky banner-style toast (tap to dismiss), e.g. after a recovery-code sign-in.
   const [bannerMsg, setBannerMsg] = useState<string | null>(null)
   const [loadError, setLoadError] = useState(false)
+  // The key stopped working (revoked, or the app's sign-in lapsed while it slept). Inside the app,
+  // the app takes it from here: it refreshes and reloads, or shows its own sign-in screen.
+  const [rejected, setRejected] = useState(false)
   const tab = useHashTab()
   const [route, sub, ...more] = tab.split('/') // #/activities/paint -> nav item 'activities', sub-page 'paint'
   const section = route === 'recipes' ? 'meals' : route // #/recipes/import?url=… (a shared link) opens in Meals
@@ -927,7 +930,7 @@ function AppRoutes() {
       if (me) { setOwner(me.owner ?? null); setOwnerLocks(!!me.locked); setParentDevice(me.scope === 'admin') }
       setLoadError(false)
     } catch (e) {
-      if (e instanceof ApiError && e.status === 401) { clearKey('rejected'); setHasKey(false); return }
+      if (e instanceof ApiError && e.status === 401) { clearKey('rejected'); setRejected(true); setHasKey(false); return }
       setLoadError(true)
     }
   }, [hasKey])
@@ -950,6 +953,7 @@ function AppRoutes() {
   useEffect(() => {
     if (!unauthorized) return
     clearKey('rejected')
+    setRejected(true)
     setHasKey(false)
   }, [unauthorized])
 
@@ -1050,6 +1054,8 @@ function AppRoutes() {
     return <AdminSetupScreen token={token} />
   }
 
+  // Blank, not the pairing screen, so a signed-in phone never flashes "Pair this app".
+  if (!hasKey && rejected && inNativeApp()) return <div className="gate-screen" role="main" />
   if (!hasKey) return <PairingGate onKey={banner => { if (banner) setBannerMsg(banner); setHasKey(true) }} />
   if (!settings) {
     return (

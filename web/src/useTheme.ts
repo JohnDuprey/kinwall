@@ -4,6 +4,7 @@ import type { Appearance, ColorScheme, CustomColors, DeviceDensity, Settings, Te
 import { accentFill, readableOn } from './color.ts'
 import { api, getKey } from './api.ts'
 import { findSkin, seasonalSkinId, tokensFor } from './skins.ts'
+import { surfaces, tellAppAppearance } from './native.ts'
 
 const SCALE: Record<TextScale, string> = { s: '0.9', m: '1', l: '1.15', xl: '1.3' }
 
@@ -189,6 +190,7 @@ function applyAppearance(household: Appearance, device: DeviceAppearance) {
       document.head.appendChild(meta)
     }
     meta.content = getComputedStyle(root).getPropertyValue('--bg').trim() || (dark ? '#1C1712' : '#FFFBF5')
+    tellAppAppearance({ mode: a.themeMode, dark, colors: surfaces(skin, custom) })
   }
 
   apply()
