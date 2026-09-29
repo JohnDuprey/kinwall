@@ -2502,7 +2502,7 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
 .insights .profile-bar-label, .insights-trend-label { text-transform: capitalize; }
 /* Energy battery (Battery.tsx): on a person's day and their Insights, in their color (--m). */
 .battery { display: flex; flex-direction: column; gap: 8px; }
-.snap-section.battery { margin-bottom: 14px; }
+.snap-section.battery { margin-bottom: 14px; padding: 12px 14px; border-radius: 14px; background: var(--bg-alt); } /* a card, like the weather below it */
 .battery .settings-select { min-height: 44px; align-self: flex-start; }
 .battery-now { margin: 0; display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; }
 .battery-level { font-size: 1.75rem; font-weight: 800; }
