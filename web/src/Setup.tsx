@@ -291,6 +291,18 @@ function MembersStep({ useAdmin, onNext, onBack }: { useAdmin: boolean; onNext: 
   const [avatar, setAvatar] = useState(MEMBER_EMOJI[0])
   const [error, setError] = useState('')
   const nameRef = useRef<HTMLInputElement>(null)
+  // Coming back to this step (Back from calendars, or a resumed setup): show who's already been added,
+  // so they aren't lost from view or added twice.
+  useEffect(() => {
+    let live = true
+    api.getMembers(useAdmin).then(list => {
+      if (!live || !list.length) return
+      // Merge, in case someone was added while this loaded.
+      setMembers(cur => [...list, ...cur.filter(m => !list.some(x => x.id === m.id))])
+      if (!name.trim()) { setColor(nextPaletteColor(list.map(x => x.color))); setAvatar(MEMBER_EMOJI[list.length % MEMBER_EMOJI.length]) }
+    }).catch(() => {})
+    return () => { live = false }
+  }, [useAdmin]) // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Adds the typed member; resolves whether it was added. */
   const add = async (): Promise<boolean> => {
@@ -349,7 +361,7 @@ function MembersStep({ useAdmin, onNext, onBack }: { useAdmin: boolean; onNext: 
           ))}
         </div>
       )}
-      <StepNav onBack={onBack} onNext={next} nextDisabled={members.length === 0} />
+      <StepNav onBack={onBack} onNext={next} nextDisabled={members.length === 0 && !name.trim()} />
     </div>
   )
 }
