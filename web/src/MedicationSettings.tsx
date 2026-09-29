@@ -34,7 +34,7 @@ export function MedicationsToggle() {
     <div className="toggle-row features-grouped">
       <div>
         <label id="meds-on-label"><span className="sr-only">Trackers: </span>Medication reminders</label>
-        <div className="settings-row-sub" id="meds-on-sub">Medicines in the Health tracker, a reminder at each dose and a Take now card on the Board.</div>
+        <div className="settings-row-sub" id="meds-on-sub">Medicines in the Health tracker, a reminder at each dose and a Take now tile on the Board.</div>
       </div>
       <button className={`switch ${on ? 'on' : ''}`} role="switch" aria-checked={on} aria-labelledby="meds-on-label" aria-describedby="meds-on-sub" onClick={toggle}><span className="knob" /></button>
     </div>

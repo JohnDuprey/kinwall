@@ -13,7 +13,7 @@ import { tidbitFor, type Tidbit } from './tidbits.ts'
 import { BirthdayRow, ItemRow, dayName } from './Snapshot.tsx'
 import TodaysMeals from './TodaysMeals.tsx'
 import { boardGoals } from './tempCheck.ts'
-import TakeNow from './TakeNow.tsx'
+import { TakeNowTile, useDueDoses } from './TakeNow.tsx'
 
 const REFRESH_MS = 10 * 60_000
 // Auto shows the full Chores and Due soon cards only on a board this big (CSS px); smaller boards get the count tiles.
@@ -68,6 +68,7 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
   const scrollRef = useRef<HTMLDivElement>(null)
   const [big, setBig] = useState(false)
   const loaded = !!data
+  const meds = useDueDoses()
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return
@@ -99,8 +100,9 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
 
   const full = device.boardLists === 'full' || (device.boardLists !== 'counts' && big)
   const groceries = lists.filter(l => l.kind === 'shopping' && (!focusMemberId || l.memberIds.includes(focusMemberId) || (focusShowsShared && !l.memberIds.length)))
+  // Take now shows whenever doses are due, Full lists too: then it's the tiles row's only tile (after the clock on a phone).
   const tiles = [
-    f.chores && !full && 'chores', f.lists && !full && 'due', f.lists && groceries.length > 0 && 'groceries', f.chores && rewardRequests > 0 && 'rewards',
+    meds.doses.length > 0 && 'meds', f.chores && !full && 'chores', f.lists && !full && 'due', f.lists && groceries.length > 0 && 'groceries', f.chores && rewardRequests > 0 && 'rewards',
   ].filter((t): t is string => !!t)
   // Saving for a reward: shown on the person's chores row, or a row of its own when they have no chores today.
   const goalsOnly = members.filter(m => m.rewardGoal && !data.chores.some(c => c.memberId === m.id))
@@ -114,10 +116,10 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
 
   return (
     <div className="board-scroll" ref={scrollRef}>
-      <TakeNow className="meds-now-board" compact />
       <div className="board" style={boardAreas(shown)}>
         {has('tiles') && (
           <nav className="board-tiles" aria-label="At a glance">
+            {tiles.includes('meds') && <TakeNowTile {...meds} />}
             {tiles.includes('chores') && (
               <a className="board-tile" href="#/chores">
                 <span className="board-tile-label">✅ Chores</span>
