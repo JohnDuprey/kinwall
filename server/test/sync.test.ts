@@ -288,9 +288,12 @@ test('sync: an event moving to another slice is kept whichever slice syncs first
   assert.equal(row.start, '2026-10-12T10:00:00.000Z');
 });
 
+// One base time for every feed in a run: taken from Date.now() per call, two feeds built either side
+// of a second boundary moved every event (and so every ICS id), which made the write counts flaky.
+const FEED_BASE = Math.floor(Date.now() / 3600_000) * 3600_000 + 7 * 24 * 3600_000;
 function makeFeed(summaries: string[]) {
   const icsDate = (d: Date) => d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-  const base = Date.now() + 7 * 24 * 3600_000;
+  const base = FEED_BASE;
   const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0'];
   summaries.forEach((s, i) => lines.push('BEGIN:VEVENT', `UID:evt-${i}@example.test`, `DTSTART:${icsDate(new Date(base + i * 3600_000))}`, `DTEND:${icsDate(new Date(base + i * 3600_000 + 1800_000))}`, `SUMMARY:${s}`, 'END:VEVENT'));
   lines.push('END:VCALENDAR', '');
