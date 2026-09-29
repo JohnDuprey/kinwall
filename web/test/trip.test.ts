@@ -1,7 +1,7 @@
 // node --test test/ (npm test). "Shopping at" ordering and per-store aisle lookup.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { aisleAt, anyStoreView, departmentAisle, resumeShoppingHash, setShoppingModeList, setTripStore, shoppingModeList, tripLeftovers, tripView, ANY_STORE } from '../src/trip.ts'
+import { aisleAt, anyStoreView, departmentAisle, resumeShoppingHash, setShoppingModeList, setTripReverse, setTripStore, shoppingModeList, tripLeftovers, tripReverse, tripView, ANY_STORE } from '../src/trip.ts'
 
 type P = { store: string | null; aisle: string | null }
 const item = (title: string, store: string | null, aisle: string | null = null, places: P[] = []) => ({ title, store, aisle, places })
@@ -40,6 +40,40 @@ test('tripView: aisles in walking order (custom, else natural), aisle unknown, t
   assert.deepEqual(club.aisles.map(g => [g.aisle, g.items.map(i => i.title)]), [['Aisle 14', ['Paper towels']]])
   assert.deepEqual(club.unknown.map(i => i.title), ['Batteries', 'Soup'])
   assert.deepEqual(club.other.map(i => i.title), ['Apples', 'Beans', 'Ice cream', 'Rice', 'Stamps'])
+})
+
+test('tripView reversed: aisle groups walk backwards (custom order, then natural); unknown and other stay last', () => {
+  const items = [
+    item('Ice cream', 'Market', 'Frozen'),
+    item('Rice', 'Market', 'Aisle 2'),
+    item('Beans', 'Market', 'Aisle 2'),
+    item('Soup', 'Market', 'Aisle 10'),
+    item('Apples', 'Market', 'Produce'),
+    item('Batteries', null),
+    item('Stamps', 'Post office'),
+  ]
+  const order = new Map([['Market', ['Produce', 'Frozen']]])
+  const fwd = tripView(items, 'Market', order)
+  assert.deepEqual(fwd.aisles.map(g => g.aisle), ['Produce', 'Frozen', 'Aisle 2', 'Aisle 10'])
+  const rev = tripView(items, 'Market', order, [], true)
+  assert.deepEqual(rev.aisles.map(g => [g.aisle, g.items.map(i => i.title)]), [['Aisle 10', ['Soup']], ['Aisle 2', ['Beans', 'Rice']], ['Frozen', ['Ice cream']], ['Produce', ['Apples']]], 'items keep A-Z within an aisle')
+  assert.deepEqual(rev.unknown.map(i => i.title), ['Batteries'])
+  assert.deepEqual(rev.other.map(i => i.title), ['Stamps'])
+})
+
+test('tripReverse: remembered per store on this device', () => {
+  const store = new Map<string, string>()
+  globalThis.localStorage = { getItem: k => store.get(k) ?? null, setItem: (k, v) => void store.set(k, v), removeItem: k => void store.delete(k) } as Storage
+  try {
+    assert.equal(tripReverse('Shaws'), false)
+    setTripReverse('Shaws', true)
+    assert.equal(tripReverse('Shaws'), true)
+    assert.equal(tripReverse('Market'), false)
+    setTripReverse('Shaws', false)
+    assert.equal(tripReverse('Shaws'), false)
+    assert.equal(store.size, 0)
+  } finally { delete (globalThis as { localStorage?: Storage }).localStorage }
+  assert.equal(tripReverse('Shaws'), false, 'no storage: not reversed')
 })
 
 test('departmentAisle: a department naming one of the store\'s aisles, any case', () => {

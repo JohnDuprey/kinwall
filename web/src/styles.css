@@ -1283,6 +1283,10 @@ button {
 .shop-bar h2:focus { outline: none; } /* focused on open so it's announced; not a control */
 .shop-store-btn > svg { margin-right: 4px; vertical-align: -3px; }
 .shop-store-btn { min-height: 32px; max-width: 100%; padding: 0; border: none; background: none; color: var(--accent-strong); font: inherit; font-size: 0.875rem; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.shop-left:has(.shop-reversed) { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.shop-reversed { padding: 1px 8px; font-size: 0.75rem; }
+.shop-reverse-btn { flex: none; font-size: 1.25rem; font-weight: 800; }
+.shop-reverse-btn[aria-pressed="true"] { background: var(--accent-strong); color: var(--accent-ink); }
 .shop-left { font-size: 0.875rem; font-weight: 800; color: var(--text-dim); white-space: nowrap; }
 .shop-done { flex: none; padding-inline: 22px; }
 .shop-mode > .state-card { margin: 24px 16px; }

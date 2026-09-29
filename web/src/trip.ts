@@ -20,8 +20,9 @@ export function aisleAt(item: TripItem, store: string, storeAisles: string[] = [
 
 /** Items planned for this store or for anywhere, grouped by their aisle there (see aisleAt) in walking order
  * (the store's custom order, else natural), A-Z within an aisle; then those with no aisle known
- * there; then those planned for other stores (by store). Checked items keep their place. */
-export function tripView<T extends TripItem>(items: T[], store: string, order: AisleOrder, storeAisles: string[] = []) {
+ * there; then those planned for other stores (by store). Checked items keep their place.
+ * `reverse` walks the aisles backwards (tripReverse); aisle unknown and other stores stay last. */
+export function tripView<T extends TripItem>(items: T[], store: string, order: AisleOrder, storeAisles: string[] = [], reverse = false) {
   const byTitle = (a: T, b: T) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' })
   const aisles = new Map<string, T[]>()
   const unknown: T[] = [], other: T[] = []
@@ -31,8 +32,9 @@ export function tripView<T extends TripItem>(items: T[], store: string, order: A
     if (aisle) aisles.set(aisle, [...(aisles.get(aisle) ?? []), item])
     else unknown.push(item)
   }
+  const walk = [...aisles.keys()].sort((a, b) => compareAisles(store, a, b, order))
   return {
-    aisles: [...aisles.keys()].sort((a, b) => compareAisles(store, a, b, order)).map(aisle => ({ aisle, items: aisles.get(aisle)!.sort(byTitle) })),
+    aisles: (reverse ? walk.reverse() : walk).map(aisle => ({ aisle, items: aisles.get(aisle)!.sort(byTitle) })),
     unknown: unknown.sort(byTitle),
     other: other.sort((a, b) => (a.store ?? '').localeCompare(b.store ?? '') || byTitle(a, b)),
   }
@@ -45,6 +47,16 @@ export function tripStore(listId: string): string | null {
 }
 export function setTripStore(listId: string, store: string | null) {
   try { if (store) localStorage.setItem(tripKey(listId), store); else localStorage.removeItem(tripKey(listId)) } catch { /* not kept */ }
+}
+
+// Walking a store backwards (in from the other end), per store, on this device. Only the trip's
+// order: the store's saved aisle order is untouched.
+const reverseKey = (store: string) => `kinwall.tripReverse.${store}`
+export function tripReverse(store: string): boolean {
+  try { return localStorage.getItem(reverseKey(store)) === '1' } catch { return false }
+}
+export function setTripReverse(store: string, on: boolean) {
+  try { if (on) localStorage.setItem(reverseKey(store), '1'); else localStorage.removeItem(reverseKey(store)) } catch { /* not kept */ }
 }
 
 /** "Any store": a trip with no one store's layout. Kept as the trip's store. */

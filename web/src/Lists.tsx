@@ -19,7 +19,7 @@ import { useDialog } from './dialog.tsx'
 import { CustomColorSwatch } from './ColorSwatch.tsx'
 import { PRIORITY_LABEL, PRIORITY_MARK, PriorityBadge } from './PriorityBadge.tsx'
 import NotesThread from './NotesThread.tsx'
-import { aisleAt, ANY_STORE, anyStoreView, departmentAisle, setShoppingModeList, setTripStore, tripLeftovers, tripStore, tripView } from './trip.ts'
+import { aisleAt, ANY_STORE, anyStoreView, departmentAisle, setShoppingModeList, setTripReverse, setTripStore, tripLeftovers, tripReverse, tripStore, tripView } from './trip.ts'
 import { holdAwake } from './wakeLock.ts'
 import { shoppingActivity } from './liveActivity.ts'
 import { endAppActivity, tellAppActivity } from './native.ts'
@@ -1043,6 +1043,14 @@ function ListDetailPane({ listId, isPhone, shopMode, onBack, onArchivedOrDeleted
     setTripStore(listId, store); setTrip(store); shopScroll.current = 0
     announce(store ? `Shopping at ${store === ANY_STORE ? 'any store' : store}` : 'Shopping ended')
   }
+  // Walking this store backwards (trip.ts tripReverse): per store, on this device. Not for Any store.
+  const [reversed, setReversed] = useState(() => !!trip && trip !== ANY_STORE && tripReverse(trip))
+  useEffect(() => setReversed(!!trip && trip !== ANY_STORE && tripReverse(trip)), [trip])
+  const flipReverse = () => {
+    if (!trip || trip === ANY_STORE) return
+    setTripReverse(trip, !reversed); setReversed(!reversed)
+    announce(reversed ? 'Aisles in walking order' : 'Aisles reversed')
+  }
 
   // Shopping mode: the trip alone, full screen. "Done" leaves it with the trip still on (Shopping at
   // on the list comes back to it); only Checkout or End ends the trip.
@@ -1108,8 +1116,8 @@ function ListDetailPane({ listId, isPhone, shopMode, onBack, onArchivedOrDeleted
     const order = aisleOrderMap(detail)
     const pending = checkout && !checkout.reset ? detail.items.filter(i => !checkout.ids.includes(i.id)) : detail.items
     const items = trip !== ANY_STORE ? pending : pending.map(i => (i.aisle ? i : { ...i, aisle: departmentAisle(i.category, storeAisles(detail.suggestions, i.store, order)) }))
-    tellAppActivity('shopping', { list: detail.list.name, ...shoppingActivity(listId, trip, items, order, trip !== ANY_STORE ? storeAisles(detail.suggestions, trip, order) : []) })
-  }, [detail, trip, checkout, listId])
+    tellAppActivity('shopping', { list: detail.list.name, ...shoppingActivity(listId, trip, items, order, trip !== ANY_STORE ? storeAisles(detail.suggestions, trip, order) : [], reversed) })
+  }, [detail, trip, checkout, listId, reversed])
   // Adds, ticks, edits and deletes are queued (api.queue*): shown at once, sent in order, kept
   // offline. A refresh after they sync clears their pending mark (App bumps refreshTick).
   const showQueued = (op: Op | null) => { if (op) setDetail(d => d && applyListOps(d, [op])); else load() }
@@ -1201,7 +1209,7 @@ function ListDetailPane({ listId, isPhone, shopMode, onBack, onArchivedOrDeleted
   const tripAt = activeTrip === ANY_STORE ? null : activeTrip // one store: its aisles, in its order
   const storeLabel = activeTrip === ANY_STORE ? 'Any store' : activeTrip
   const tripAisles = tripAt ? storeAisles(suggestions, tripAt, aisleOrder) : []
-  const view = !activeTrip ? null : tripAt ? tripView(pending, tripAt, aisleOrder, tripAisles) : anyStoreView(items, aisleOrder)
+  const view = !activeTrip ? null : tripAt ? tripView(pending, tripAt, aisleOrder, tripAisles, reversed) : anyStoreView(items, aisleOrder)
   const tripLeft = view ? [...view.aisles.flatMap(g => g.items), ...view.unknown].filter(i => !i.done).length : 0
   const tripChecked = items.filter(i => i.done)
   const tripRow = (item: ListItem, other = false) => (
@@ -1269,7 +1277,12 @@ function ListDetailPane({ listId, isPhone, shopMode, onBack, onArchivedOrDeleted
               <CartIcon width={16} height={16} />{storeLabel ?? 'Pick a store'} <span aria-hidden="true">▾</span>
             </button>
           </div>
-          {view && <div className="shop-left">{tripLeft} left</div>}
+          {view && <div className="shop-left">{tripLeft} left{tripAt && reversed && <span className="chip chip-static shop-reversed">Reversed</span>}</div>}
+          {tripAt && (
+            <button className="icon-btn shop-reverse-btn" onClick={flipReverse} aria-pressed={reversed} aria-label="Walk the aisles in reverse">
+              <span aria-hidden="true">⇅</span>
+            </button>
+          )}
           <button className="btn btn-secondary shop-done" onClick={exitShop}>Done</button>
         </div>
         <div className="shop-items scroll-y" ref={shopList} onScroll={saveShopScroll}>

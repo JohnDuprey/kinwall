@@ -35,9 +35,9 @@ export type ShoppingActivity = { listId: string; store: string; left: number; ne
 
 /** How many are left and what's next, in the trip's walking order (trip.ts): so "Got it" on the
  * Lock Screen can tick the next one and show the one after without the page, `upcoming` carries
- * the next few. Items planned for other stores aren't on this trip. */
-export function shoppingActivity(listId: string, store: string, items: TripItem[], order: AisleOrder, storeAisles: string[] = []): ShoppingActivity {
-  const view = store === ANY_STORE ? anyStoreView(items, order) : tripView(items, store, order, storeAisles)
+ * the next few. Items planned for other stores aren't on this trip. `reverse`: the store walked backwards. */
+export function shoppingActivity(listId: string, store: string, items: TripItem[], order: AisleOrder, storeAisles: string[] = [], reverse = false): ShoppingActivity {
+  const view = store === ANY_STORE ? anyStoreView(items, order) : tripView(items, store, order, storeAisles, reverse)
   const walk = [...view.aisles.flatMap(g => g.items.map(i => ({ i, aisle: store === ANY_STORE ? i.aisle ?? null : g.aisle }))), ...view.unknown.map(i => ({ i, aisle: null }))].filter(x => !x.i.done)
   const upcoming = walk.slice(0, 5).map(({ i, aisle }) => ({ id: i.id, title: i.title, aisle }))
   return { listId, store: store === ANY_STORE ? 'Any store' : store, left: walk.length, next: upcoming[0] ?? null, upcoming }
