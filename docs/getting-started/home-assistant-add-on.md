@@ -1,5 +1,7 @@
 # Home Assistant add-on
 
+> New to this? Start with [the easy guide](self-host-quick-start.md).
+
 If you already run Home Assistant, the add-on is the easiest install. It lives in a separate repository, [JohnDuprey/kinwall-homeassistant](https://github.com/JohnDuprey/kinwall-homeassistant), together with the Home Assistant integration. Install steps are in that repository.
 
 What this repository does for the add-on:

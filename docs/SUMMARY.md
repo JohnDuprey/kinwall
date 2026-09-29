@@ -5,6 +5,7 @@
 ## Getting started
 
 * [What is Kinwall](getting-started/what-is-kinwall.md)
+* [Run it yourself: the easy guide](getting-started/self-host-quick-start.md)
 * [Quick start (Docker)](getting-started/quick-start-docker.md)
 * [Deploy to Cloudflare Workers](getting-started/deploy-cloudflare.md)
 * [Home Assistant add-on](getting-started/home-assistant-add-on.md)

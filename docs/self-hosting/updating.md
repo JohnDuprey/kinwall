@@ -1,5 +1,7 @@
 # Updating
 
+> New to this? Start with [the easy guide](../getting-started/self-host-quick-start.md).
+
 Database migrations run automatically on every target: at boot on Docker/Node, and on the first request or cron tick on Workers. You never run them by hand. After an update, open wall displays show **Kinwall updated — tap to reload**.
 
 ## Docker

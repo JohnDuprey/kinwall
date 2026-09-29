@@ -1,5 +1,7 @@
 # Quick start (Docker)
 
+> New to this? Start with [the easy guide](self-host-quick-start.md).
+
 The image is `ghcr.io/johnduprey/kinwall`, built for `linux/amd64` and `linux/arm64`, so it runs on a Raspberry Pi, a NAS or any VPS.
 
 ```bash

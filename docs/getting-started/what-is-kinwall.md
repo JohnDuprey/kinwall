@@ -27,6 +27,8 @@ Kinwall is a family calendar, chore chart and list app you host yourself. The ma
 
 ## How it runs
 
+New to running apps at home? Start with [Run Kinwall yourself: the easy guide](self-host-quick-start.md). It helps you pick a way and walks you through it step by step.
+
 The same code runs in three places:
 
 * **Cloudflare Workers**: fits the free tier, uses D1 as the database and comes with HTTPS. See [Deploy to Cloudflare Workers](deploy-cloudflare.md).

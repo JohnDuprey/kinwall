@@ -1,5 +1,7 @@
 # Troubleshooting
 
+> New to this? Start with [the easy guide](../getting-started/self-host-quick-start.md).
+
 ## Stale app after an update
 
 Home Screen apps on iOS can keep an old version in memory.

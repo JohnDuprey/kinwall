@@ -1,5 +1,7 @@
 # Configuration
 
+> New to this? Start with [the easy guide](../getting-started/self-host-quick-start.md).
+
 Kinwall is configured with environment variables. On Docker and Node they're process environment variables. On Workers they're `[vars]` in `wrangler.toml` plus `wrangler secret put` for secrets. Kinwall never reads `process.env` outside the Node entry point, so an embedding host builds the same set itself. See [Embedding the server](../contributing/embedding.md).
 
 ## Server variables

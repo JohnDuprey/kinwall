@@ -1,5 +1,7 @@
 # Docker Compose
 
+> New to this? Start with [the easy guide](../getting-started/self-host-quick-start.md).
+
 The repository's `docker-compose.yml` builds from source. To use the published image instead, replace `build: .` with `image: ghcr.io/johnduprey/kinwall`.
 
 ```yaml

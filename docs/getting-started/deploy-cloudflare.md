@@ -1,5 +1,7 @@
 # Deploy to Cloudflare Workers
 
+> New to this? Start with [the easy guide](self-host-quick-start.md).
+
 Kinwall runs on the Workers free tier: Workers for the API, D1 for the database, Cron Triggers for sync and notifications, and static assets for the UI. HTTPS comes with it, so Google/Microsoft sign-in and passkeys work without extra steps.
 
 There are three ways to deploy. Pick one.

@@ -1,5 +1,7 @@
 # Cloudflare specifics
 
+> New to this? Start with [the easy guide](../getting-started/self-host-quick-start.md).
+
 For deployment steps, see [Deploy to Cloudflare Workers](../getting-started/deploy-cloudflare.md). This page covers how Kinwall behaves on Workers.
 
 ## Free-tier limits
