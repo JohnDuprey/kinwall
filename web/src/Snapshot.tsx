@@ -9,6 +9,8 @@ import { feelingOptions, GOAL_MAX, SLEEP, tempCheckDone, toggleFeeling } from '.
 import { CheckIcon } from './icons.tsx'
 import GoalFollowUp from './GoalFollowUp.tsx'
 import TakeNow from './TakeNow.tsx'
+import BatteryCard from './Battery.tsx'
+import { batteryOn } from './battery.ts'
 import Sheet from './Sheet.tsx'
 import { Segmented, announce } from './a11y.tsx'
 import { inkFor } from './color.ts'
@@ -36,7 +38,7 @@ const eventHash = (e: SnapshotEvent) => `#/calendar?event=${encodeURIComponent(e
 
 /** Header avatar tap: one member's day (or week) - weather, their events, chores, due items, birthdays. */
 export default function SnapshotSheet({ member, onClose }: { member: Member; onClose: () => void }) {
-  const { settings, refreshTick, selectedMemberId, setSelectedMemberId, focusMemberId, reloadCore, toast } = useApp()
+  const { settings, refreshTick, selectedMemberId, setSelectedMemberId, focusMemberId, reloadCore, toast, parentDevice, meMemberId } = useApp()
   const tz = settings.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone
   const [range, setRange] = useState<Range>('day')
   const [snap, setSnap] = useState<Snapshot | null>(null)
@@ -114,6 +116,8 @@ export default function SnapshotSheet({ member, onClose }: { member: Member; onC
       {error && <p className="snap-empty" role="alert">{error}</p>}
       {!shown && !error && <p className="snap-empty">Loading…</p>}
       {range === 'day' && <TakeNow memberId={member.id} className="meds-now-day" />}
+      {/* Their battery: private, so only on their own device and parents' devices (never a shared wall). */}
+      {range === 'day' && batteryOn(member.tempCheck) && (parentDevice || meMemberId === member.id) && <BatteryCard member={member} />}
       {shown && (range === 'day' ? <DayView snap={shown} tz={tz} close={onClose} onToggle={toggleChore} books={settings.features.trackersReading ? books : []} /> : <WeekView snap={shown} tz={tz} close={onClose} />)}
       {shown?.range === 'day' && member.tempCheck?.on && <TempCheck member={member} />}
       {shown && <CheckIn snap={shown} onDone={() => setSnap(s => s && { ...s, checkedIn: true })} />}

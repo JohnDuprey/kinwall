@@ -1514,10 +1514,10 @@ function TempCheckField({ member, name, value, onChange, toast }: { member: Memb
     try { setCustom((await api.putTempCheck(member.id, { custom: custom.filter(x => x !== f) })).custom ?? []); toast(`Removed: ${f}`) }
     catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't remove that", true) }
   }
-  const row = (key: 'sleep' | 'feelings' | 'goal' | 'showGoal' | 'evening' | 'journal', label: string) => (
+  const row = (key: 'sleep' | 'feelings' | 'goal' | 'showGoal' | 'evening' | 'journal' | 'battery', label: string) => (
     <div className="toggle-row" key={key}>
       <label id={`member-tc-${key}`}>{label}</label>
-      <button className={`switch ${value[key] ? 'on' : ''}`} role="switch" aria-checked={value[key]} aria-labelledby={`member-tc-${key}`} onClick={() => set({ [key]: !value[key] })}><span className="knob" /></button>
+      <button className={`switch ${value[key] ? 'on' : ''}`} role="switch" aria-checked={!!value[key]} aria-labelledby={`member-tc-${key}`} onClick={() => set({ [key]: !value[key] })}><span className="knob" /></button>
     </div>
   )
   return (
@@ -1546,6 +1546,8 @@ function TempCheckField({ member, name, value, onChange, toast }: { member: Memb
           {row('journal', 'Keep answers in the journal')}
           <div className="settings-row-sub">{value.journal ? `What helped, what got in the way and next time go in ${name}'s journal.` : 'Only yes, partly or not today is kept, never the notes.'}</div>
         </>}
+        {row('battery', 'Energy battery')}
+        <div className="settings-row-sub">A rough daily guess at {name}'s energy from sleep, feelings and how full the day is, with a heads-up before heavy days on {name}'s devices. Private to {name} and parents.</div>
         {custom.length > 0 && (
           <div className="settings-row">
             <div>

@@ -14,6 +14,8 @@ Tap a family member's avatar in the header (on a phone, tap the family button, t
 * **Reading 📚**: the books they're in the middle of in [Trackers](trackers.md), with how far along they are ("Charlotte's Web — 45%"; 🎧 and time listened for an audiobook). Tap one to open Trackers.
 * **Tomorrow at a glance**: tomorrow's weather, birthdays, events, items due and meals.
 
+With the [energy battery](battery.md) on for them, a **🔋 Battery** card sits near the top on their own device and parents' devices (never a shared wall): how much energy they're likely to have left this evening, what went into it, and a heads-up if today or tomorrow looks full.
+
 Every section has a friendly empty state ("Nothing on the calendar — enjoy it.").
 
 ## Daily check-in

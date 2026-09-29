@@ -10,7 +10,7 @@ import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginCatalogEntry,
   StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota, Reward, Redemption, MemberStats, StatsPeriod,
   Account, ApiKey, AppNotification, Appearance, CalendarEntry, Category, Chore, ChoreDay, PendingApproval, EventInstance, LeaderboardEntry, LeaderboardPeriod, List,
   GeocodeResult, HostEvent, ImportResult, ListDetail, ListGroup, ListItem, ListItemInput, ListItemPatch, Member, Me, Note, NoteTarget, Passkey, TrackerEntry, TrackerInput, TrackerKind, Providers, PushSubscription, PushSubscriptionPrefs, RemoteCalendar, Settings, Snapshot, Board, Webhook, WebhookWithSecret,
-  TempCheck, TempCheckInput, Journal, JournalEntry, Insights, InsightRange, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory,
+  TempCheck, TempCheckInput, Journal, JournalEntry, Insights, InsightRange, Battery, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory,
 } from './types.ts'
 
 /** Demo build: every call is served from mock.ts in memory - no server, nothing persists. */
@@ -382,6 +382,9 @@ export const api = {
   // Insights: worked out on the server from their check-ins (their own device and parents' devices only). Never the offline cache.
   getInsights: (memberId: string, range: InsightRange) =>
     MOCK ? mock.getInsights(memberId, range) : req<Insights>(`api/members/${encodeURIComponent(memberId)}/insights?range=${range}`, {}),
+  // Energy battery: worked out on the server (their own device and parents' devices only). Never the offline cache.
+  getBattery: (memberId: string) =>
+    MOCK ? mock.getBattery(memberId) : req<Battery>(`api/members/${encodeURIComponent(memberId)}/battery`, {}),
   addJournalEntry: (memberId: string, body: { date?: string; text: string; mood?: string | null }) =>
     MOCK ? mock.addJournalEntry(memberId, body) : post<JournalEntry>(`api/members/${encodeURIComponent(memberId)}/journal`, body),
   updateJournalEntry: (memberId: string, id: string, body: { date?: string; text?: string; mood?: string | null }) =>

@@ -8,6 +8,13 @@ It's a guide, not a measurement. The numbers are simple weights picked by hand (
 
 A parent turns on **Energy battery** in the person's **Temp check** settings in [Settings → Family](../settings/family.md#temp-check). It's off by default and needs Temp check on, since sleep and feelings are what charge it. There are no other settings.
 
+## Where you see it
+
+* **Their day**: a **🔋 Battery** card at the top of their [Day](snapshot.md#day): the level by this evening ("51% · Good by this evening · started at 75%"), a meter in their color, what went into it, and any heads-up for today or tomorrow. Only on their own device and parents' devices.
+* **Their [Insights](insights.md)**: a **Battery** card with the last week and the 3 days ahead as bars (days ahead are lighter: they're a guess), every heads-up, and a **Day** picker to see what went into any of those days.
+
+The words stay calm: **Full**, **Good**, **Getting low** and **Running low**.
+
 ## How it works
 
 Each day starts with a charge from 0% to 100%, and the day's plans drain it. What's left by evening is the day's **level**.

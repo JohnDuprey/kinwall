@@ -151,6 +151,7 @@ export interface TempCheckSettings {
   evening: boolean // evening goal check: "Did you finish your goal?" at eveningTime
   eveningTime: string // HH:MM, household time, on the hour or half hour
   journal: boolean // keep the follow-up notes (off: only yes / partly / no)
+  battery?: boolean // energy battery (docs/using/battery.md): private to them and parents
 }
 export interface TempCheckAnswered { sleep: boolean; feelings: boolean; goal: boolean; followup: boolean }
 export type FollowupOutcome = 'yes' | 'partly' | 'no'
@@ -194,6 +195,12 @@ export interface Insights {
   summary: { id: string; text: string }[]; topFeelings: { feeling: string; days: number }[]
   connections: { ready: boolean; daysWithCheckIns: number; needed: number; list: InsightConnection[] }
 }
+
+/** GET /api/members/{id}/battery (server/src/battery.ts): their own device and parents' devices only. */
+export interface BatteryReason { text: string; points: number }
+export interface BatteryDay { date: string; forecast: boolean; start: number; drain: number; level: number; reasons: BatteryReason[]; lowBefore: string | null }
+export interface BatteryWarning { date: string; text: string; suggestions: string[] }
+export interface Battery { memberId: string; on: boolean; today: string; days: BatteryDay[]; warnings: BatteryWarning[] }
 
 /** GET /api/medications: a person's medicine. days: weekdays, 0 = Sunday. Parents' devices and their own. */
 /** endDate / totalDoses: an optional end to a course (e.g. an antibiotic); dosesLeft is null without totalDoses. */

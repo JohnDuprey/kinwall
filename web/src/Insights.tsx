@@ -10,6 +10,8 @@ import { inkFor } from './color.ts'
 import { SLEEP } from './tempCheck.ts'
 import { duration } from './profile.ts'
 import { Bar } from './Profile.tsx'
+import BatteryCard from './Battery.tsx'
+import { batteryOn } from './battery.ts'
 import { chartMax, confidenceLabel, keepCheckingIn, RANGES, shortDate, sleepPath, weekly, type Week } from './insights.ts'
 import type { InsightDay, InsightRange, Insights as InsightsData, Member } from './types.ts'
 
@@ -63,6 +65,7 @@ function Body({ member, d }: { member: Member; d: InsightsData }) {
   const c = d.connections
   return (
     <div className="profile-grid">
+      {batteryOn(member.tempCheck) && <BatteryCard member={member} full />}
       <Card id="in-summary" title="In short" note={`${shortDate(d.from)} to today`}>
         <ul className="insights-summary">{d.summary.map(s => <li key={s.id}>{s.text}</li>)}</ul>
         {!member.tempCheck?.on && !any(x => x.checkedIn) && <p className="profile-note">Temp check is off for {member.name}. A parent can turn it on in Settings → Family.</p>}

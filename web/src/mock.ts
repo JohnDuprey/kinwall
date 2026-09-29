@@ -1,14 +1,14 @@
 // Dev-only in-memory fixture, used when VITE_MOCK=1. Excluded from prod by the env check in api.ts.
 import type { OnlineTidbits, Plugin, PluginCatalogEntry,
   Account, ApiKey, AppNotification, CalendarEntry, Category, Chore, ChoreDay, EventInstance, LeaderboardEntry, LeaderboardPeriod, List, ListGroup,
-  Photo, PhotoQuota, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, ListItem, ListItemInput, ListItemPatch, ListItemStep, Member, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption, TempCheck, TempCheckInput, Journal, JournalEntry, Insights, InsightDay, InsightRange, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory, DoseStatus,
+  Photo, PhotoQuota, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, ListItem, ListItemInput, ListItemPatch, ListItemStep, Member, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption, TempCheck, TempCheckInput, Journal, JournalEntry, Insights, InsightDay, InsightRange, Battery, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory, DoseStatus,
 } from './types.ts'
 import { FEELINGS, TEMP_CHECK_OFF } from './tempCheck.ts'
 import { aisleOrderMap, compareItems } from './types.ts'
 import { itemKey } from './itemSuggest.ts'
 import { byListOrder, reorderWithin } from './listSections.ts'
 import { dateKey } from './date.ts'
-import { MAYA_ANALYSIS, MAYA_DAYS } from './mock-insights.ts'
+import { MAYA_ANALYSIS, MAYA_BATTERY, MAYA_DAYS } from './mock-insights.ts'
 import type { Contact, ContactCategory, ContactInput, ImportPreviewEntry } from './contact-types.ts'
 import { emptyContact } from './contact-types.ts'
 
@@ -94,7 +94,7 @@ const settings: Settings = {
 const members: Member[] = [
   { id: 'm1', name: 'Alex', color: '#7AB8FF', avatar: '🦊', birthday: '1988-03-14', grownUp: true, sort: 0, pointsToday: 10, pointsWeek: 40, balance: 12 },
   { id: 'm2', name: 'Sam', color: '#FF8FA3', avatar: '🐰', birthday: null, grownUp: true, sort: 1, pointsToday: 5, pointsWeek: 25, balance: 30 },
-  { id: 'm3', name: 'Maya', color: '#7ED9A6', avatar: '🦄', birthday: '2018-11-02', grownUp: false, sort: 2, pointsToday: 0, pointsWeek: 15, balance: 42, tempCheck: { on: true, sleep: true, feelings: true, goal: true, showGoal: true, evening: true, eveningTime: '21:00', journal: true } },
+  { id: 'm3', name: 'Maya', color: '#7ED9A6', avatar: '🦄', birthday: '2018-11-02', grownUp: false, sort: 2, pointsToday: 0, pointsWeek: 15, balance: 42, tempCheck: { on: true, sleep: true, feelings: true, goal: true, showGoal: true, evening: true, eveningTime: '21:00', journal: true, battery: true } },
   // Leo turns 6 tomorrow, so the snapshot's 🎂 always has something to show.
   { id: 'm4', name: 'Leo', color: '#F5A65B', avatar: '🦖', birthday: (t => `${t.getFullYear() - 6}${dateKey(t).slice(4)}`)(new Date(Date.now() + 86_400_000)), grownUp: false, sort: 3, pointsToday: 5, pointsWeek: 20, balance: 18 },
 ]
@@ -533,6 +533,15 @@ export const mock = {
     })
     const analysis = memberId === 'm3' ? MAYA_ANALYSIS[range] : { summary: [{ id: 'checkins', text: `Checked in on 0 of ${n} days` }], topFeelings: [], connections: { ready: false, daysWithCheckIns: 0, needed: 21, list: [] } }
     return { memberId, range, from: days[0].date, to: days[n - 1].date, days, ...analysis }
+  },
+  // Energy battery: Maya's made-up week and a full day tomorrow (mock-insights.ts, the server's own model); off for everyone else.
+  getBattery: async (memberId: string): Promise<Battery> => {
+    const on = memberId === 'm3'
+    return {
+      memberId, on, today: demoDay(0),
+      days: on ? MAYA_BATTERY.days.map(({ ago, ...d }) => ({ ...d, date: demoDay(-ago), reasons: d.reasons.map(r => ({ ...r })) })) : [],
+      warnings: on ? MAYA_BATTERY.warnings.map(({ ago, ...w }) => ({ ...w, date: demoDay(-ago), suggestions: [...w.suggestions] })) : [],
+    }
   },
   addJournalEntry: async (memberId: string, b: { date?: string; text: string; mood?: string | null }): Promise<JournalEntry> => {
     const now = new Date().toISOString()
