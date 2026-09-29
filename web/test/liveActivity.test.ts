@@ -53,7 +53,7 @@ test('start prep by: a meal\'s event, for its cook; a cooking event stays a few 
   const time = (iso: string) => new Date(iso).toISOString().slice(11, 16)
   const tacos = ev('e3', 'Dinner · Tuesday Tacos', '2030-03-04T18:00:00Z', { memberIds: ['m1', 'm4'], prepAt: '2030-03-04T17:15:00Z', cookId: 'm4' })
   const a = leaveByActivity([tacos], leo, Date.parse('2030-03-04T17:05:00Z'), time, true)!
-  assert.deepEqual([a.prep, a.headline, a.urgent], [true, 'Start prep for Dinner · Tuesday Tacos at 17:15', 'Start prep for Dinner · Tuesday Tacos now'], 'low stimulation: plain lines')
+  assert.deepEqual([a.prep, a.headline, a.urgent], [true, 'Start prep for Tuesday Tacos at 17:15', 'Start prep for Tuesday Tacos now'], 'low stimulation: plain lines')
   assert.equal(leaveByActivity([tacos], { ...leo, id: 'm1' }, Date.parse('2030-03-04T17:05:00Z'), time), null, 'Alex eats; Leo cooks')
   const cooking = ev('e4', 'Lunch · Soup', '2030-03-04T11:00:00Z', { prepAt: '2030-03-04T11:00:00Z' })
   assert.equal(leaveByActivity([cooking], leo, Date.parse('2030-03-04T11:04:00Z'), time)?.endsAt, '2030-03-04T11:05:00.000Z')

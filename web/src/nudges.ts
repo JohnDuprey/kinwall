@@ -45,7 +45,7 @@ export const CORES: Record<NudgeKind, Record<NudgeStage, string[]>> = {
     early: ['Leave for {t} at {at}', '{m} until you leave for {t}', 'Leave at {at} for {t}', 'You leave for {t} at {at}', '{t} is in {m}. Leave at {at}', 'Plan to leave at {at} for {t}'],
     mid: ['{m} to leave for {t}', 'Leave in {m} for {t}', 'Leave at {at} for {t}', 'Out the door at {at} for {t}', 'Get ready for {t}. Leave at {at}', 'Leave for {t} in {m}'],
     soon: ['{m} left to leave for {t}', 'Leave for {t} in {m}!', 'Almost go time! {t} at {at}', 'Nearly there! Leave for {t} in {m}', 'Leave at {at} for {t}!', 'Go time for {t} is {at}'],
-    now: ['Leave now for {t}!', 'Out the door now for {t}!', 'Time to go to {t} now!', 'Go now for {t}!', '{t} time! Leave now'],
+    now: ['Leave now for {t}!', 'Out the door now for {t}!', 'Time to go to {t} now!', 'Go now for {t}!', 'Head out now for {t}'],
   },
   prep: {
     early: ['Start prep for {t} at {at}', '{t} prep starts at {at}', 'Chef time for {t} in {m}', '{m} until {t} prep', 'Cooking {t} starts at {at}', 'Plan to start {t} at {at}'],
@@ -57,7 +57,7 @@ export const CORES: Record<NudgeKind, Record<NudgeStage, string[]>> = {
     early: ['{t} in {m}', '{t} starts at {at}', '{t} is at {at}', '{m} until {t}', 'Next up at {at} is {t}', '{t} is coming up at {at}'],
     mid: ['{m} until {t}', '{t} starts in {m}', '{t} at {at}. Finish up soon', 'Finish up soon for {t} at {at}', '{t} is in {m}', 'Get ready for {t} at {at}'],
     soon: ['{t} in {m}!', 'Almost time! {t} in {m}', 'Nearly there! {t} at {at}', 'Get ready, {t} starts at {at}', '{t} starts in {m}', '{t} is almost here, at {at}'],
-    now: ['{t} starts now', 'Time for {t} now!', 'Here we go! {t} now', '{t} is starting now', "It's {t} time now!"],
+    now: ['{t} starts now', 'Time for {t} now!', 'Here we go! {t} now', '{t} is starting now', '{t}, starting now'],
   },
 };
 
@@ -100,6 +100,10 @@ export function stepHint(step: { title?: string | null; text: string; bullets?: 
   return first && first.length <= 18 ? first[0].toUpperCase() + first.slice(1) : null;
 }
 
+/** A meal's event title without its slot ("Dinner · Tuesday Tacos" -> "Tuesday Tacos"), for when
+ * the meal's own name isn't at hand. */
+export const mealName = (title: string) => title.replace(/^(Breakfast|Lunch|Dinner|Snack) · /, '');
+
 /** Low-stimulation: one plain line, the same every time. With `at`, the time instead of minutes left. */
 export function calmNudge(kind: NudgeKind, title: string, minutes: number, at?: string): string {
   const when = minutes <= 0 ? 'now' : at ? `at ${at}` : `in ${minutes} min`;
@@ -120,15 +124,16 @@ function hash(s: string): number {
 
 /** One line: its parts, then shortened to fit (hint dropped, then opener). `hint` and `emoji` are the text. */
 export function compose(kind: NudgeKind, stage: NudgeStage, parts: { opener: number; core: number; hint: string; emoji: string }, v: { t: string; m: string; at: string; n: string }) {
-  const opener = OPENERS[parts.opener];
   const core = CORES[kind][stage][parts.core];
+  // Never two "!" in a line: an excited opener before an excited core goes (no opener instead).
+  const opener = OPENERS[parts.opener].text.includes('!') && core.includes('!') ? OPENERS[0] : OPENERS[parts.opener];
   const fill = (s: string) => s.replace('{t}', v.t).replace('{m}', v.m).replace('{at}', v.at).replace('{n}', v.n);
   const lower = (s: string) => (opener.lower && !s.startsWith('{') ? s[0].toLowerCase() + s.slice(1) : s);
   const render = (o: string, h: string) => `${o ? `${fill(o)} ${fill(lower(core))}` : fill(core)}${h ? `${/[!?.]$/.test(core) ? ' ' : '. '}${h}` : ''} ${parts.emoji}`;
   let hint = parts.hint, o = opener.text;
   if ([...render(o, hint)].length > MAX) hint = '';
   if ([...render(o, hint)].length > MAX) o = '';
-  return { line: render(o, hint), hint, opener: o ? parts.opener : 0, whole: hint === parts.hint && o === opener.text };
+  return { line: render(o, hint), hint, opener: o ? parts.opener : 0, whole: hint === parts.hint && o === OPENERS[parts.opener].text };
 }
 
 export type Nudge = {

@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { calmNudge, compose, CORES, EMOJI, GENERAL_HINTS, HINT_SETS, hintSet, NUDGE_MEMORY, nudge, nudgeStage, OPENERS, pickNudge, rememberNudge, stepHint, type Nudge, type NudgeKind, type NudgeSeen, type NudgeStage } from '../src/nudges.ts';
+import { calmNudge, compose, mealName, CORES, EMOJI, GENERAL_HINTS, HINT_SETS, hintSet, NUDGE_MEMORY, nudge, nudgeStage, OPENERS, pickNudge, rememberNudge, stepHint, type Nudge, type NudgeKind, type NudgeSeen, type NudgeStage } from '../src/nudges.ts';
 
 const KINDS: NudgeKind[] = ['leave', 'prep', 'start'];
 const STAGES: NudgeStage[] = ['early', 'mid', 'soon', 'now'];
@@ -36,6 +36,7 @@ test('nudges: every composed combination has the what and the when, is grammatic
       assert.ok(line.includes(`${minutes} min`) || line.includes('12:45 PM') || (stage === 'now' && /\bnow\b/i.test(line)), `no when: ${line}`);
       assert.ok([...line].length <= 60, `too long (${[...line].length}): ${line}`);
       assert.ok(grammatical(line), `${kind} ${stage} ${core}: ${line}`);
+      assert.ok((line.match(/!/g) ?? []).length <= 1, `two "!": ${line}`);
     }
   }
   assert.ok(n > 50000, `enumerated ${n}`);
@@ -114,6 +115,16 @@ test('nudges: an event\'s category or title picks its hints', () => {
   const tacos = lines({ kind: 'prep', title: 'Dinner · Tuesday Tacos', minutes: 0, at: '5:15 PM', step: 'Brown the beef' });
   assert.match(tacos, /Brown the beef/);
   assert.match(tacos, /Wash your hands|Apron on/);
+});
+
+test('nudges: a meal\'s event goes by the meal\'s name', () => {
+  assert.equal(mealName('Dinner · Tuesday Tacos'), 'Tuesday Tacos');
+  assert.equal(mealName('Breakfast · Pancakes · with berries'), 'Pancakes · with berries');
+  assert.equal(mealName('Soccer · finals'), 'Soccer · finals', 'only a meal slot');
+});
+
+test('nudges: "now" cores read right with any title (no "Dentist time!")', () => {
+  for (const kind of KINDS) for (const core of CORES[kind].now) assert.doesNotMatch(core, /\{t\} time/, core);
 });
 
 test('nudges: a recipe\'s first step becomes a short hint, when it is short', () => {

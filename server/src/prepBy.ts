@@ -21,15 +21,16 @@ export function prepAt(start: string, eventStart: 'meal' | 'cooking' | null | un
   return eventStart === 'cooking' ? new Date(start).toISOString() : new Date(Date.parse(start) - minutes * 60000).toISOString();
 }
 
-/** firstStep: the recipe's first step, for a transition reminder's hint (nudges.ts stepHint). */
-export type MealLink = { eventStart: 'meal' | 'cooking' | null; minutes: number; cookId: string | null; firstStep?: { title?: string | null; text: string; bullets?: string[] } | null };
+/** name: the meal's own ("Tuesday Tacos", where its event says "Dinner · Tuesday Tacos").
+ * firstStep: the recipe's first step, for a transition reminder's hint (nudges.ts stepHint). */
+export type MealLink = { eventStart: 'meal' | 'cooking' | null; minutes: number; cookId: string | null; name?: string; firstStep?: { title?: string | null; text: string; bullets?: string[] } | null };
 
-type LinkRow = { event_id: string; event_start: 'meal' | 'cooking' | null; cook: string | null; snapshot: string | null; total_minutes: number | null; prep_minutes: number | null; steps: string | null };
+type LinkRow = { event_id: string; event_start: 'meal' | 'cooking' | null; cook: string | null; snapshot: string | null; total_minutes: number | null; prep_minutes: number | null; steps: string | null; meal_title: string };
 
 /** Every event a meal is linked to, as one statement (for a caller's db.batch; read with parseMealLinks). */
 export const mealLinksQuery = (db: KinwallDb) =>
   db.prepare(
-    'SELECT m.calendar_event_id AS event_id, m.calendar_event_start AS event_start, m.assignee_member_id AS cook, m.recipe_snapshot AS snapshot, r.total_minutes, r.prep_minutes, r.steps ' +
+    'SELECT m.calendar_event_id AS event_id, m.title AS meal_title, m.calendar_event_start AS event_start, m.assignee_member_id AS cook, m.recipe_snapshot AS snapshot, r.total_minutes, r.prep_minutes, r.steps ' +
       'FROM meals m LEFT JOIN recipes r ON r.id = m.recipe_id WHERE m.calendar_event_id IS NOT NULL',
   );
 
@@ -43,7 +44,7 @@ export function parseMealLinks(rows: unknown[]): Map<string, MealLink> {
     const minutes = mealPrepMinutes({ totalMinutes: snap?.totalMinutes ?? r.total_minutes, prepMinutes: snap?.prepMinutes ?? r.prep_minutes });
     let firstStep: MealLink['firstStep'] = null;
     try { firstStep = r.steps ? JSON.parse(r.steps)[0] ?? null : null; } catch { /* no hint */ }
-    out.set(r.event_id, { eventStart: r.event_start, minutes, cookId: r.cook, firstStep });
+    out.set(r.event_id, { eventStart: r.event_start, minutes, cookId: r.cook, name: r.meal_title, firstStep });
   }
   return out;
 }

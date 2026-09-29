@@ -792,7 +792,8 @@ test('transitions: a meal\'s event counts to starting prep, for its cook only', 
   // 6:00 PM dinner, 40 minutes of cooking: prep by 5:20 PM, Leo's 5-minute warning at 5:15 PM.
   const sent = await cook.run(new Date('2030-03-04T17:15:00Z'));
   assert.deepEqual(sent.map((s) => [s.device, s.payload.body]), [['leo-phone', 'Start prep by 5:20 PM · starts 6:00 PM']]);
-  says(sent[0].payload.title, 'Dinner · Tuesday Tacos', 5, '5:20 PM');
+  says(sent[0].payload.title, 'Tuesday Tacos', 5, '5:20 PM');
+  assert.doesNotMatch(sent[0].payload.title, /Dinner ·/, 'the meal\'s name, not the event title');
 
   // Leo eats but Sam cooks: nothing for Leo.
   await meal(cook.sam.id, [leo.id], '2030-03-06');

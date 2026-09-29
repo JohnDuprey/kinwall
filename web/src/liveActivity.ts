@@ -2,7 +2,7 @@
 // Island), built here from what the page already has and sent with tellAppActivity (native.ts).
 // Pure, so web/test/liveActivity.test.ts covers them. The app draws them; the text is decided here.
 import { leadOf } from './leadTime.ts'
-import { pickNudge, rememberNudge, type Nudge, type NudgeSeen } from './nudges.ts'
+import { mealName, pickNudge, rememberNudge, type Nudge, type NudgeSeen } from './nudges.ts'
 import { ANY_STORE, anyStoreView, tripView } from './trip.ts'
 import { warningTimes, type TransitionReminders } from './transitions.ts'
 import type { AisleOrder, EventInstance, ListItem } from './types.ts'
@@ -74,7 +74,7 @@ export function leaveByActivity(events: EventInstance[], me: { id: string; name:
   }).sort((a, b) => a.at - b.at)[0]
   if (!due) return null
   const { e, lead, at, end } = due
-  const words = { kind: lead.prep ? 'prep' as const : 'leave' as const, title: e.title, at: time(lead.at), seed: `${me.id}:${e.id}:${e.start.slice(0, 10)}`, name: me.name.split(' ')[0], category: memory.category?.(e.categoryId) ?? null, calm, live: true }
+  const words = { kind: lead.prep ? 'prep' as const : 'leave' as const, title: lead.prep ? mealName(e.title) : e.title, at: time(lead.at), seed: `${me.id}:${e.id}:${e.start.slice(0, 10)}`, name: me.name.split(' ')[0], category: memory.category?.(e.categoryId) ?? null, calm, live: true }
   let seen = memory.seen ?? []
   const line = (n: Nudge) => {
     const p = pickNudge(n, seen)

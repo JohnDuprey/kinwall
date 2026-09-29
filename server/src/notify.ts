@@ -193,8 +193,9 @@ async function sendToSub(env: Env, db: KinwallDb, row: PushSubRow, payload: { ti
 
 // One timed or all-day occurrence in the search window, with what the regular reminders use.
 // prepAt: a meal's event counts down to starting prep (prepBy.ts) instead of leaving, for prepFor.
-// category (name and emoji) and step (a meal recipe's first step) pick a transition headline's hint.
-type Occurrence = { eventId: string; occurrenceKey: string; title: string; start: string; allDay: boolean; memberIds: string[]; effective: number[]; leadMinutes: number; travelMinutes: number; location: string | null; prepAt: string | null; prepFor: string[]; category: string | null; step: string | null };
+// category (name and emoji) and step (a meal recipe's first step) pick a transition headline's hint;
+// mealName names a meal's event there ("Tuesday Tacos", not "Dinner · Tuesday Tacos").
+type Occurrence = { eventId: string; occurrenceKey: string; title: string; start: string; allDay: boolean; memberIds: string[]; effective: number[]; leadMinutes: number; travelMinutes: number; location: string | null; prepAt: string | null; prepFor: string[]; category: string | null; step: string | null; mealName: string | null };
 
 async function runEventReminders(env: Env, db: KinwallDb, now: Date, tz: string, defaultReminders: number[], subs: PushSubRow[], quiet: boolean): Promise<void> {
   const eligible = subs.filter((s) => subPrefs(s).eventReminders);
@@ -255,7 +256,7 @@ async function runEventReminders(env: Env, db: KinwallDb, now: Date, tz: string,
     const occ = (start: string): Occurrence => ({
       eventId: row.id, occurrenceKey: start, title: row.title, start, allDay: !!row.all_day, memberIds, effective, leadMinutes, travelMinutes: row.all_day ? 0 : travel?.travel_minutes ?? 0, location: row.location,
       prepAt: meal ? prepAt(start, meal.eventStart, meal.minutes) : null, prepFor: prepFor(meal, memberIds),
-      category: row.category_id ? categoryText.get(row.category_id) ?? null : null, step: stepHint(meal?.firstStep),
+      category: row.category_id ? categoryText.get(row.category_id) ?? null : null, step: stepHint(meal?.firstStep), mealName: meal?.name ?? null,
     });
 
     if (cal.kind === 'local' && row.rrule) {
@@ -381,7 +382,7 @@ async function runTransitionReminders(env: Env, db: KinwallDb, now: Date, tz: st
       const by = fmtTime(new Date(target).toISOString(), tz), starts = fmtTime(occ.start, tz);
       const when = occ.prepAt ? (by === starts ? `Start prep by ${by}` : `Start prep by ${by} · starts ${starts}`) : lead ? `Leave by ${by} · starts ${starts}` : `Starts at ${starts}`;
       // Varied, kind and escalating (nudges.ts), unlike their last few; the body keeps the plain facts.
-      const headline = pickNudge({ kind: occ.prepAt ? 'prep' : lead ? 'leave' : 'start', title: occ.title, minutes: left, at: by, seed: `${m.id}:${occ.eventId}:${occ.occurrenceKey.slice(0, 10)}`, ordinal: times.indexOf(due[due.length - 1]), name: m.name.split(' ')[0], category: occ.category, step: occ.step }, seen);
+      const headline = pickNudge({ kind: occ.prepAt ? 'prep' : lead ? 'leave' : 'start', title: occ.mealName ?? occ.title, minutes: left, at: by, seed: `${m.id}:${occ.eventId}:${occ.occurrenceKey.slice(0, 10)}`, ordinal: times.indexOf(due[due.length - 1]), name: m.name.split(' ')[0], category: occ.category, step: occ.step }, seen);
       const payload = {
         title: headline.line,
         body: [when, occ.location && `📍 ${occ.location.replace(/\s*\n\s*/g, ', ')}`].filter(Boolean).join('\n'),
@@ -430,7 +431,7 @@ async function runLiveActivities(env: Env, db: KinwallDb, now: Date, tz: string,
   // What the activity shows (the app's KinwallActivityAttributes / ContentState, native side).
   const members = membersRes.results as { id: string; name: string; transitions: string }[];
   const shown = (occ: Occurrence, m: { id: string; name: string }, target: number) => {
-    const words = { kind: occ.prepAt ? 'prep' as const : 'leave' as const, title: occ.title, at: fmtTime(new Date(target).toISOString(), tz), seed: `${m.id}:${occ.eventId}:${occ.occurrenceKey.slice(0, 10)}`, name: m.name.split(' ')[0], category: occ.category, step: occ.step, live: true };
+    const words = { kind: occ.prepAt ? 'prep' as const : 'leave' as const, title: occ.mealName ?? occ.title, at: fmtTime(new Date(target).toISOString(), tz), seed: `${m.id}:${occ.eventId}:${occ.occurrenceKey.slice(0, 10)}`, name: m.name.split(' ')[0], category: occ.category, step: occ.step, live: true };
     const headline = nudge({ ...words, minutes: Math.ceil((target - now.getTime()) / 60000) });
     return { headline, content: { title: headline, detail: nudge({ ...words, minutes: 0 }), date: swiftDate(target), count: 0, done: false } };
   };
