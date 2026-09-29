@@ -41,6 +41,7 @@ export default function Meals() {
   const [importing, setImporting] = useState<{ url: string } | null>(null)
   const [tick, setTick] = useState(0)
   const [pendingMeal, setPendingMeal] = useState<string | null>(null)
+  const [pendingRecipe, setPendingRecipe] = useState<string | null>(null) // #/meals?recipe=<id> (Spotlight, Siri)
   const admin = me?.scope === 'admin'
   useEffect(() => {
     const read = () => {
@@ -51,6 +52,7 @@ export default function Meals() {
       const date = query.get('date')
       if (date && /^\d{4}-\d{2}-\d{2}$/.test(date) && !Number.isNaN(Date.parse(date))) setAnchor(date)
       if (query.get('meal')) { setPendingMeal(query.get('meal')); setView('week') }
+      if (query.get('recipe')) setPendingRecipe(query.get('recipe'))
       if (query.toString()) history.replaceState(null, '', '#/meals')
     }
     read(); window.addEventListener('hashchange', read)
@@ -71,6 +73,13 @@ export default function Meals() {
     api.getRecipes(true).then(values => { if (!canceled) { setRecipes(values); setRecipesLoaded(true); setRecipeError('') } }).catch(e => { if (!canceled) setRecipeError(e instanceof Error ? e.message : 'Could not load recipes.') })
     return () => { canceled = true }
   }, [tick, refreshTick])
+  // A linked recipe opens like a tap in the recipe library, once the library has loaded; an unknown id just shows Meals.
+  useEffect(() => {
+    if (!pendingRecipe || !recipesLoaded) return
+    const recipe = recipes.find(r => r.id === pendingRecipe)
+    if (recipe) { setView('recipes'); setRecipeSheet({ recipe }) }
+    setPendingRecipe(null)
+  }, [pendingRecipe, recipesLoaded, recipes])
   const saved = () => { setEditing(null); setPendingMeal(null); setRecipeSheet(null); setTick(t => t + 1); reloadCore() }
   const meals = data?.from === from && data.to === to ? data.meals : null
   const mealError = data?.from === from && data.to === to ? data.error : undefined

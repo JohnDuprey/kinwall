@@ -10,6 +10,8 @@ Contacts support multiple categories, tags, phone numbers, email addresses, post
 
 Search by name, place or phone number. Tap the **Filters** button next to the search to sort the list and narrow it by **Show** (all contacts, favorites, emergency or on wall), **Contact kind** and **Category**. Changes apply right away; **Clear filters** puts everything back. While a filter is on, the button shows how many are on and a line under the search lists them; tap that line to change them. Filters reset when you leave the page.
 
+A link to `#/contacts?contact=<contact id>` opens that contact (Spotlight and Siri in the phone app use it). An id that doesn't exist, or a contact this device can't see, just opens Contacts.
+
 **Add** is at the top of the page. To bring in contacts from a phone or a vCard file, choose **Import contacts…** from the **More…** menu next to it. With no contacts yet, the page shows just **Add a contact** and **Import**.
 
 In a contact's editor, **Categories**, **Associated household members** and **Who can see it on their own device** each show what's chosen ("Medical, School", "Maya and Leo", "None"). Tap one to open the list: tap rows to tick or untick them, **Clear** unticks them all and **Done** closes it. Categories show their color, and a long list has a search box. The import review has the same **Categories** and **Household members** rows for each contact.

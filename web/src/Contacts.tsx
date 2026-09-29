@@ -5,6 +5,7 @@ import { announce } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
 import { FilterIcon, PlusIcon } from './icons.tsx'
 import Sheet from './Sheet.tsx'
+import { hashPath, hashQuery } from './hashQuery.ts'
 import PickField, { PickSwatch, type PickOption } from './PickField.tsx'
 import { inkFor } from './color.ts'
 import type { Member } from './types.ts'
@@ -308,6 +309,17 @@ export default function Contacts() {
     finally { setLoading(false) }
   }
   useEffect(() => { void load(); void api.getContactCategories().then(setCategories).catch(() => {}) }, [refreshTick])
+  // #/contacts?contact=<id> (Spotlight, Siri): that contact's sheet, once loaded; an unknown id just shows Contacts.
+  useEffect(() => {
+    const read = () => {
+      const id = hashQuery(location.hash).get('contact')
+      if (!location.hash.startsWith('#/contacts') || !id) return
+      setSelectedId(id); setSheet('detail')
+      history.replaceState(null, '', hashPath(location.hash))
+    }
+    read(); window.addEventListener('hashchange', read)
+    return () => window.removeEventListener('hashchange', read)
+  }, [])
   const selected = contacts.find(c => c.id === selectedId) ?? null
   const visible = useMemo(() => {
     const q = query.trim().toLocaleLowerCase()

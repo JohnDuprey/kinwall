@@ -26,6 +26,8 @@ The **Recipe library** lists the family's recipes. Search by name or ingredient,
 
 Tap a recipe to see it: its times, the ingredients (with **−** and **+** to see them for more or fewer servings), the numbered steps, preparation notes and its source link. Admins get **Edit** (the editor, where **More…** next to **Save recipe** also archives or deletes it) and **Plan this meal**, which opens a new meal with the recipe chosen. **Open recipe** in a meal's sheet opens the same view. A wall display sees the view without **Edit**.
 
+A link to `#/meals?recipe=<recipe id>` opens that recipe's view, the same as tapping it in the library (Spotlight and Siri in the phone app use it). An id that doesn't exist just opens Meals.
+
 A recipe with a time shows it as **⏱ 35 min · 10 min prep** in its sheet and the meal's sheet, and as a quiet "35 min" on the recipe card, the planned meal in the week planner and the Board's **Today's meals** card. When the meal has a time, its sheet also says when to start ("Start by 5:25 PM").
 
 ### Basics
