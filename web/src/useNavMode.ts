@@ -34,9 +34,10 @@ export function useNavMode(): { mode: NavMode; pref: NavPref } {
 
   useEffect(() => {
     const onPref = () => setPref(readPref())
+    const onStorage = (e: StorageEvent) => { if (e.key === KEY || e.key === null) onPref() } // only this setting, not every key
     window.addEventListener(NAV_PREF_EVENT, onPref)
-    window.addEventListener('storage', onPref)
-    return () => { window.removeEventListener(NAV_PREF_EVENT, onPref); window.removeEventListener('storage', onPref) }
+    window.addEventListener('storage', onStorage)
+    return () => { window.removeEventListener(NAV_PREF_EVENT, onPref); window.removeEventListener('storage', onStorage) }
   }, [])
 
   if (short) return { mode: pref === 'right' ? 'right' : 'left', pref }

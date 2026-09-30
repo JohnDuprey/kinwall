@@ -98,6 +98,11 @@ export function readDeviceAppearance(): DeviceAppearance {
   } catch { return {} }
 }
 
+/** Writes only a changed value: a write fires 'storage' in every other window of the app. */
+function saveIfChanged(key: string, value: string) {
+  if (localStorage.getItem(key) !== value) localStorage.setItem(key, value)
+}
+
 export function setDeviceAppearance(next: DeviceAppearance) {
   const clean = Object.fromEntries(Object.entries(next).filter(([, v]) => v !== undefined))
   try { localStorage.setItem(DEVICE_KEY, JSON.stringify(clean)) } catch { /* private mode */ }
@@ -108,9 +113,12 @@ export function useDeviceAppearance(): DeviceAppearance {
   const [v, setV] = useState(readDeviceAppearance)
   useEffect(() => {
     const on = () => setV(readDeviceAppearance())
+    // Only this device's settings changing in another window: reacting to every key made two windows
+    // (a tab and the installed app) re-apply and rewrite the saved look back and forth without end.
+    const onStorage = (e: StorageEvent) => { if (e.key === DEVICE_KEY || e.key === null) on() }
     window.addEventListener(DEVICE_EVENT, on)
-    window.addEventListener('storage', on)
-    return () => { window.removeEventListener(DEVICE_EVENT, on); window.removeEventListener('storage', on) }
+    window.addEventListener('storage', onStorage)
+    return () => { window.removeEventListener(DEVICE_EVENT, on); window.removeEventListener('storage', onStorage) }
   }, [])
   return v
 }
@@ -193,7 +201,7 @@ function applyAppearance(household: Appearance, device: DeviceAppearance) {
     if (/^#[0-9a-f]{6}$/i.test(surface)) root.style.setProperty('--accent-text', readableOn(accent, surface))
     root.style.setProperty('--text-scale', SCALE[a.textScale])
 
-    try { localStorage.setItem(LAST_THEME_KEY, dark ? 'dark' : 'light'); localStorage.setItem(LAST_LOOK_KEY, root.style.cssText) } catch { /* private mode */ }
+    try { saveIfChanged(LAST_THEME_KEY, dark ? 'dark' : 'light'); saveIfChanged(LAST_LOOK_KEY, root.style.cssText) } catch { /* private mode */ }
     // index.html has a light and a dark theme-color (by media) for before this runs; now both are the real background.
     const metas = [...document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')]
     if (!metas.length) { const m = document.createElement('meta'); m.name = 'theme-color'; document.head.appendChild(m); metas.push(m) }
