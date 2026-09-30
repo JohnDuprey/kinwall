@@ -92,6 +92,11 @@ export class D1Sqlite implements KinwallDb {
 export function openDb(path: string, counter?: RoundTripCounter): D1Sqlite {
   const raw = new DatabaseSync(path);
   raw.exec('PRAGMA journal_mode = WAL');
+  // With WAL, NORMAL skips an fsync on every write (slow on SD cards) and stays crash-safe: only a
+  // power cut can drop the last few writes, never corrupt the file.
+  raw.exec('PRAGMA synchronous = NORMAL');
+  // Wait for a backup or the sqlite3 shell holding a lock instead of failing at once.
+  raw.exec('PRAGMA busy_timeout = 5000');
   raw.exec('PRAGMA foreign_keys = ON');
   return new D1Sqlite(raw, counter);
 }
