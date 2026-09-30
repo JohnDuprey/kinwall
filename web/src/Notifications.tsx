@@ -94,6 +94,7 @@ export default function NotificationBell({ isAdmin }: { isAdmin: boolean }) {
     groups.at(-1)!.rows.push(n)
   }
   const sheetUnread = items.some(n => n.at > sheetSeenAt)
+  const canMessage = isAdmin && settings.features.messages
 
   return (
     <>
@@ -103,12 +104,14 @@ export default function NotificationBell({ isAdmin }: { isAdmin: boolean }) {
       </button>
       {open && (
         <Sheet title="Notifications" onClose={closeSheet}>
-          {(sheetUnread || (isAdmin && items.length > 0)) && (
+          {(canMessage || sheetUnread || (isAdmin && items.length > 0)) && (
             <div className="notif-toolbar">
+              {canMessage && !composing && <button className="btn btn-secondary notif-compose-btn" onClick={() => setComposing(true)}>💬 Send a message</button>}
               {sheetUnread && <button className="btn btn-secondary" onClick={markAllRead}>Mark all read</button>}
               {isAdmin && items.length > 0 && <button className="btn btn-secondary" onClick={clearAll}>Clear all</button>}
             </div>
           )}
+          {canMessage && composing && <SendMessageForm onSent={() => { setComposing(false); load() }} />}
           {items.length === 0 && <p className="notif-empty">Nothing yet — reminders and messages will show up here.</p>}
           {groups.map(g => (
             <section key={g.key} className="notif-group" aria-label={dayLabel(g.key, tz)}>
@@ -147,9 +150,6 @@ export default function NotificationBell({ isAdmin }: { isAdmin: boolean }) {
               </ul>
             </section>
           ))}
-          {isAdmin && settings.features.messages && (composing
-            ? <SendMessageForm onSent={() => { setComposing(false); load() }} />
-            : <div className="notif-compose"><button className="btn btn-secondary" onClick={() => setComposing(true)}>💬 Send a message</button></div>)}
         </Sheet>
       )}
     </>

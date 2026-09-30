@@ -52,7 +52,7 @@ Every notification Kinwall sends is also kept in the app, whether or not any dev
 * Tapping one with a link opens it, just like tapping the push: a reminder opens its event, a chore reminder opens Chores, and a list update opens that list.
 * **Read state is per device**, like the other "on this device" settings. Opening the feed clears the badge; **Mark all read** clears the unread highlight in the list. A device's first visit starts caught up.
 * The feed keeps the **household** copy: a reminder is listed once, not once per phone. The daily summary and chore reminder are listed once a day at their default times (07:30 and 08:00), or earlier if a device has picked an earlier time. They cover the whole family, since the wall isn't following anyone in particular.
-* Admins get a **Send a message** button at the bottom of the sheet, the same form as in Settings → Access.
+* Admins get a **Send a message** button at the top of the sheet, next to **Mark all read** and **Clear all**; it opens the same form as in Settings → Access.
 * Admins can also **remove** a notification (the × beside it) or **Clear all** from the top of the sheet. The feed is the household's one copy, so this clears it on every device; displays can only mark things read. The same via the API: `DELETE /api/notifications/:id` and `DELETE /api/notifications` (admin key).
 * Display keys can read the feed. Entries older than 90 days are removed.
 * The API is `GET /api/notifications?limit=50&before=<ISO time>` (newest first), and the MCP tool is `list_notifications`.

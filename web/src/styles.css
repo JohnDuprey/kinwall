@@ -1877,12 +1877,12 @@ a.activity-card:active { transform: scale(0.98); }
   background: var(--danger); color: white; font-size: 0.75rem; font-weight: 800; line-height: 22px; text-align: center;
   box-shadow: 0 0 0 2px var(--card);
 }
-.notif-toolbar { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 4px; }
+.notif-toolbar { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
+.notif-compose-btn { margin-right: auto; }
 .notif-row { display: flex; align-items: flex-start; gap: 4px; }
 .notif-row .notif-item { flex: 1; min-width: 0; }
 .notif-remove { flex: none; min-width: 44px; min-height: 44px; font-size: 1.25rem; color: var(--text-dim); }
-.notif-toolbar .btn, .notif-compose .btn { flex: none; min-height: 44px; padding: 8px 16px; }
-.notif-compose { display: flex; justify-content: center; margin-top: 16px; }
+.notif-toolbar .btn { flex: none; min-height: 44px; padding: 8px 16px; }
 .notif-empty { color: var(--text-dim); font-weight: 600; text-align: center; padding: 24px 8px; }
 .notif-day { font-size: 0.8125rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.02em; margin: 14px 4px 6px; }
 .notif-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
