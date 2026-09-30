@@ -34,7 +34,7 @@ Phones and computers that sign in with a passkey. Parents (admins) can change ev
 
 ## Connected apps
 
-Apps connected through OAuth sign-in, such as a Claude connector pointed at `https://<your-kinwall>/mcp` or the Kinwall app on a phone. Each shows **Full access** or **Everyday access**, when it was connected and when it was last used. Delete one to disconnect it ("It will need to be approved again to use Kinwall"). See [MCP server](../integrations/mcp.md).
+Apps connected through OAuth sign-in, such as a Claude connector pointed at `https://<your-kinwall>/mcp` or the Kinwall app on a phone. Each shows **Full access** or **Everyday access**, when it was connected and when it was last used. Delete one to disconnect it ("It will need to be approved again to use Kinwall"). A connected app can't make itself keys, passkeys or recovery codes, so disconnecting it ends its access. The Kinwall app is the exception: it's a parent's or kid's own device. See [MCP server](../integrations/mcp.md#what-connected-apps-cant-do).
 
 The Kinwall app also has a picker for whose device it is: **Anyone (whole family)** or one member, chosen on the consent screen ("Whose device is this?") and changeable here. What it does depends on the access:
 

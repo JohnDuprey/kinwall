@@ -12,7 +12,7 @@ import type { Context } from 'hono';
 import { cors } from 'hono/cors';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
-import { createApiKey, requestKey, resolveKey, sha256Hex, validOwner, type KeyScope } from '../auth.ts';
+import { createApiKey, deviceAppGrant, DEVICE_APP_SCHEME, isDeviceAppLink, resolveKey, sha256Hex, validOwner, type KeyScope } from '../auth.ts';
 import { effectivePublicUrl } from '../providers/config.ts';
 import { emit } from '../bus.ts';
 import { recordDeviceOwner } from '../notify.ts';
@@ -83,13 +83,10 @@ function clientHasRedirect(client: ClientRow, redirectUri: string): boolean {
   return (JSON.parse(client.redirect_uris) as string[]).includes(redirectUri);
 }
 
-// Kinwall's own phone/tablet app signs in on its family.kinwall.app: link. Only its sign-ins are a
-// person's device, so only they ask "Whose device is this?" and get an owner; MCP and automation
-// clients (https or loopback redirects, other apps' schemes) never do.
-const DEVICE_APP_SCHEME = 'family.kinwall.app:';
-export function isDeviceApp(redirectUris: string[]): boolean {
-  return redirectUris.some((u) => u.startsWith(DEVICE_APP_SCHEME));
-}
+// Only the Kinwall app's own sign-ins are a person's device (auth.ts deviceAppGrant), so only they ask
+// "Whose device is this?" and get an owner; MCP and automation clients (https or loopback redirects,
+// other apps' schemes) never do.
+export { isConnectedApp } from '../auth.ts';
 
 export async function revokeGrant(db: KinwallDb, grantId: string): Promise<void> {
   await db.batch([
@@ -163,6 +160,10 @@ mcpOAuthRoutes.post('/oauth/register', async (c) => {
   if (uris.length === 0 || uris.length > 5 || uris.some((u) => u.length > 500 || !redirectUriAllowed(u))) {
     return oauthError(c, 'invalid_redirect_uri', 'redirect_uris must be 1-5 https URLs, loopback http URLs, or reverse-domain app links (like com.example.app:/oauth), without fragments');
   }
+  // The Kinwall app's link is its own: a client that uses it uses nothing else.
+  if (uris.some(isDeviceAppLink) && !uris.every(isDeviceAppLink)) {
+    return oauthError(c, 'invalid_redirect_uri', `${DEVICE_APP_SCHEME} links can't be registered together with other redirect addresses`);
+  }
   const name = (typeof body.client_name === 'string' && body.client_name.trim().slice(0, 80)) || 'MCP client';
   const id = crypto.randomUUID();
   const createdAt = new Date().toISOString();
@@ -209,10 +210,12 @@ mcpOAuthRoutes.get('/api/authorizations/request', async (c) => {
   const client = await getClient(c.env.DB, c.req.query('client_id'));
   const redirectUri = c.req.query('redirect_uri') ?? '';
   if (!client || !clientHasRedirect(client, redirectUri)) return c.json({ error: 'unknown app or redirect address' }, 400);
-  // Where the consent screen says you'll return: a web address's host, or "the app" for an app link.
+  // Where the consent screen says you'll return: a web address's host, the Kinwall app, or another
+  // app's link scheme, marked unverified (any app can claim a scheme, and the name is the client's own).
   const back = new URL(redirectUri);
-  const redirectHost = back.protocol === 'https:' || back.protocol === 'http:' ? back.host : 'the app';
-  return c.json({ clientName: client.name, redirectHost, requestedScope: scopeFrom(c.req.query('scope')) ?? 'admin', deviceApp: isDeviceApp([redirectUri]) });
+  const deviceApp = isDeviceAppLink(redirectUri);
+  const redirectHost = back.protocol === 'https:' || back.protocol === 'http:' ? back.host : deviceApp ? 'the Kinwall app' : `an unverified app (${back.protocol})`;
+  return c.json({ clientName: client.name, redirectHost, requestedScope: scopeFrom(c.req.query('scope')) ?? 'admin', deviceApp });
 });
 
 mcpOAuthRoutes.post('/api/authorizations/approve', async (c) => {
@@ -233,7 +236,7 @@ mcpOAuthRoutes.post('/api/authorizations/approve', async (c) => {
   if (!body.code_challenge || body.code_challenge_method !== 'S256') return c.json({ error: 'S256 code_challenge required' }, 400);
   // Whose device: the app's sign-in only (default the whole family); ignored for anything else.
   let owner: string | null = null;
-  if (isDeviceApp([body.redirect_uri])) {
+  if (isDeviceAppLink(body.redirect_uri)) {
     owner = await validOwner(c.env.DB, body.owner || 'shared');
     if (!owner) return c.json({ error: 'unknown family member' }, 400);
   }
@@ -272,7 +275,8 @@ mcpOAuthRoutes.post('/oauth/token', async (c) => {
     if (!client) return oauthError(c, 'invalid_client', 'unknown client');
     const grantId = crypto.randomUUID();
     await db.batch([
-      db.prepare('INSERT INTO oauth_grants (id, client_id, scope, approved_by, created_at, owner) VALUES (?,?,?,?,?,?)').bind(grantId, client.id, row.scope, row.approved_by, now, row.owner),
+      // A family device only when it signed in on the Kinwall app's own link (auth.ts deviceAppGrant).
+      db.prepare('INSERT INTO oauth_grants (id, client_id, scope, approved_by, created_at, owner, device_app) VALUES (?,?,?,?,?,?,?)').bind(grantId, client.id, row.scope, row.approved_by, now, row.owner, isDeviceAppLink(row.redirect_uri) ? 1 : 0),
       db.prepare('UPDATE oauth_codes SET grant_id = ? WHERE hash = ?').bind(grantId, hash),
       db.prepare('DELETE FROM oauth_codes WHERE expires_at < ?').bind(new Date(Date.now() - 24 * 3600e3).toISOString()),
     ]);
@@ -327,33 +331,15 @@ async function managerGrant(db: KinwallDb, caller: Awaited<ReturnType<typeof res
   return { ok: !!ownGrant, ownGrant };
 }
 
-/** The grant of an OAuth key that Kinwall's own app signed in with, else null. */
-async function deviceAppGrant(db: KinwallDb, keyId: string | undefined): Promise<string | null> {
-  const row = await db.prepare('SELECT g.id, cl.redirect_uris FROM api_keys k JOIN oauth_grants g ON g.id = k.oauth_grant_id JOIN oauth_clients cl ON cl.id = g.client_id WHERE k.id = ?')
-    .bind(keyId ?? '').first<{ id: string; redirect_uris: string }>();
-  return row && isDeviceApp(JSON.parse(row.redirect_uris) as string[]) ? row.id : null;
-}
-
-/** A connected app (Claude and other AI connectors, automations), not one of the family's own
- * devices: every MCP tool call (mcp.ts marks its in-process requests), whatever key it uses, and
- * an OAuth token on REST unless Kinwall's own app signed in with it. The family's own API keys,
- * passkey sessions and pairings on REST are the family's. Health stays away from these unless the
- * family turns on aiHealthAccess (AGENTS.md "Health data"). */
-export async function isConnectedApp(c: Context<{ Bindings: Env }>): Promise<boolean> {
-  if (c.req.header('X-Kinwall-Source') === 'mcp') return true;
-  const key = await requestKey(c);
-  return key?.kind === 'oauth' && !(await deviceAppGrant(c.env.DB, key.id));
-}
-
 mcpOAuthRoutes.get('/api/authorizations', async (c) => {
   const m = await managerGrant(c.env.DB, await resolveKey(c));
   if (!m.ok) return c.json({ error: 'sign in as an admin to manage connected apps' }, 403);
   const { results } = await c.env.DB.prepare(
-    'SELECT g.id, g.scope, g.approved_by, g.created_at, g.last_used_at, g.owner, cl.name AS client_name, cl.redirect_uris FROM oauth_grants g JOIN oauth_clients cl ON cl.id = g.client_id ORDER BY g.created_at',
-  ).all<{ id: string; scope: string; approved_by: string | null; created_at: string; last_used_at: string | null; owner: string | null; client_name: string; redirect_uris: string }>();
+    'SELECT g.id, g.scope, g.approved_by, g.created_at, g.last_used_at, g.owner, g.device_app, cl.name AS client_name FROM oauth_grants g JOIN oauth_clients cl ON cl.id = g.client_id ORDER BY g.created_at',
+  ).all<{ id: string; scope: string; approved_by: string | null; created_at: string; last_used_at: string | null; owner: string | null; device_app: number; client_name: string }>();
   return c.json(results.map((r) => ({
     id: r.id, clientName: r.client_name, scope: r.scope, approvedBy: r.approved_by, createdAt: r.created_at, lastUsedAt: r.last_used_at,
-    owner: r.owner, deviceApp: isDeviceApp(JSON.parse(r.redirect_uris) as string[]), current: r.id === m.ownGrant,
+    owner: r.owner, deviceApp: !!r.device_app, current: r.id === m.ownGrant,
   })));
 });
 
@@ -368,8 +354,8 @@ mcpOAuthRoutes.patch('/api/authorizations/:id', async (c) => {
   const body = (await c.req.json().catch(() => ({}))) as { owner?: unknown };
   const owner = typeof body.owner === 'string' ? await validOwner(c.env.DB, body.owner) : null;
   if (!owner) return c.json({ error: 'unknown family member' }, 400);
-  const grant = await c.env.DB.prepare('SELECT cl.redirect_uris, cl.name, g.owner FROM oauth_grants g JOIN oauth_clients cl ON cl.id = g.client_id WHERE g.id = ?').bind(id).first<{ redirect_uris: string; name: string; owner: string | null }>();
-  if (!grant || !isDeviceApp(JSON.parse(grant.redirect_uris) as string[])) return c.json({ error: 'not found' }, 404);
+  const grant = await c.env.DB.prepare('SELECT cl.name, g.owner, g.device_app FROM oauth_grants g JOIN oauth_clients cl ON cl.id = g.client_id WHERE g.id = ?').bind(id).first<{ name: string; owner: string | null; device_app: number }>();
+  if (!grant || !grant.device_app) return c.json({ error: 'not found' }, 404);
   if (grant.owner !== owner) await recordDeviceOwner(c.env.DB, grant.name, owner); // it may open their private journal
   await c.env.DB.batch([
     c.env.DB.prepare('UPDATE oauth_grants SET owner = ? WHERE id = ?').bind(owner, id),

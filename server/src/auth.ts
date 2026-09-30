@@ -226,6 +226,55 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'POST', pattern: /^\/api\/push\/test\/[^/]+$/ },
 ];
 
+// What a connected app may never do, whatever its scope: manage how anyone signs in. That's API and
+// device keys, recovery codes, passkeys, pairing displays, whose device a sign-in is, the sign-in
+// providers and the public address, and other connected apps. Otherwise an app could mint itself a
+// permanent key that outlives revoking it. The passkey ceremony routes are public, so
+// routes/passkeys.ts asks connectedAppBlock itself.
+const CONNECTED_APP_DENIED: { method: RegExp; pattern: RegExp }[] = [
+  { method: /^(POST)$/, pattern: /^\/api\/keys$/ },
+  { method: /^(PATCH|DELETE)$/, pattern: /^\/api\/keys\/[^/]+$/ },
+  { method: /^(POST)$/, pattern: /^\/api\/device-keys$/ },
+  { method: /^(DELETE)$/, pattern: /^\/api\/device-keys\/self$/ },
+  { method: /^(POST)$/, pattern: /^\/api\/recovery-codes$/ },
+  { method: /^(POST)$/, pattern: /^\/api\/passkeys\/register-token$/ },
+  { method: /^(PATCH|DELETE)$/, pattern: /^\/api\/passkeys\/[^/]+$/ },
+  { method: /^(POST)$/, pattern: /^\/api\/pair\/approve$/ },
+  { method: /^(PUT)$/, pattern: /^\/api\/me\/owner$/ },
+  { method: /^(PUT|DELETE)$/, pattern: /^\/api\/providers\/[^/]+$/ },
+  { method: /./, pattern: /^\/api\/authorizations(\/.*)?$/ },
+];
+
+/** The 403 message when a connected app (mcp-oauth isConnectedApp) asks to manage sign-ins, else null. */
+export async function connectedAppBlock(c: Context<{ Bindings: Env }>): Promise<string | null> {
+  return (await isConnectedApp(c)) ? "Connected apps can't create or change sign-ins. Do this from a parent's own device." : null;
+}
+
+// Kinwall's own phone/tablet app signs in on its family.kinwall.app: link. Only its sign-ins are a
+// person's device. Decided from the link the sign-in actually used (oauth_grants.device_app, set at
+// the code exchange), never from what else the client registered.
+export const DEVICE_APP_SCHEME = 'family.kinwall.app:';
+export const isDeviceAppLink = (uri: string) => uri.startsWith(DEVICE_APP_SCHEME);
+
+/** The grant of an OAuth key that Kinwall's own app signed in with, else null. */
+export async function deviceAppGrant(db: KinwallDb, keyId: string | undefined): Promise<string | null> {
+  const row = await db.prepare('SELECT g.id FROM api_keys k JOIN oauth_grants g ON g.id = k.oauth_grant_id WHERE k.id = ? AND g.device_app = 1')
+    .bind(keyId ?? '').first<{ id: string }>();
+  return row?.id ?? null;
+}
+
+/** A connected app (Claude and other AI connectors, automations), not one of the family's own
+ * devices: every MCP tool call (mcp.ts marks its in-process requests), whatever key it uses, and
+ * an OAuth token on REST unless Kinwall's own app signed in with it. The family's own API keys,
+ * passkey sessions and pairings on REST are the family's. Health stays away from these unless the
+ * family turns on aiHealthAccess (AGENTS.md "Health data"), and they never manage sign-ins
+ * (CONNECTED_APP_DENIED). */
+export async function isConnectedApp(c: Context<{ Bindings: Env }>): Promise<boolean> {
+  if (c.req.header('X-Kinwall-Source') === 'mcp') return true;
+  const key = await requestKey(c);
+  return key?.kind === 'oauth' && !(await deviceAppGrant(c.env.DB, key.id));
+}
+
 function isDisplayAllowed(method: string, path: string): boolean {
   return DISPLAY_ALLOWED.some((rule) => rule.method === method && rule.pattern.test(path));
 }
@@ -277,6 +326,10 @@ export async function requireAuth(c: Context<{ Bindings: Env }>, next: Next) {
 
   if (resolved.scope === 'display' && !isDisplayAllowed(c.req.method, c.req.path)) {
     return c.json({ error: 'display key cannot access this route' }, 403);
+  }
+  if (CONNECTED_APP_DENIED.some((r) => r.method.test(c.req.method) && r.pattern.test(c.req.path))) {
+    const blocked = await connectedAppBlock(c);
+    if (blocked) return c.json({ error: blocked }, 403);
   }
 
   // Tracking last_used_at is best-effort telemetry, not something any request should wait on:

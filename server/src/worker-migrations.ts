@@ -64,6 +64,7 @@ import m0060 from '../migrations/0060_member_nudges.sql';
 import m0061 from '../migrations/0061_google_photos.sql';
 import m0062 from '../migrations/0062_google_photos_web.sql';
 import m0063 from '../migrations/0063_private_journals.sql';
+import m0064 from '../migrations/0064_oauth_device_app.sql';
 
 export const MIGRATIONS: Migration[] = [
   { name: '0001_init.sql', sql: m0001 },
@@ -129,4 +130,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0061_google_photos.sql', sql: m0061 },
   { name: '0062_google_photos_web.sql', sql: m0062 },
   { name: '0063_private_journals.sql', sql: m0063 },
+  { name: '0064_oauth_device_app.sql', sql: m0064 },
 ];

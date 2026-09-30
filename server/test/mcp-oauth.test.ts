@@ -160,7 +160,7 @@ test('oauth: a native app signs in with its own reverse-domain link (RFC 8252)',
   assert.ok(reg.client_id, JSON.stringify(reg));
   const { verifier, challenge } = pkce();
   const info = await (await t.req(`/api/authorizations/request?${new URLSearchParams({ client_id: reg.client_id, redirect_uri: APP })}`, {}, ADMIN_KEY)).json() as any;
-  assert.equal(info.redirectHost, 'the app');
+  assert.equal(info.redirectHost, 'the Kinwall app');
   const approved = await (await t.req('/api/authorizations/approve', {
     method: 'POST',
     body: JSON.stringify({ decision: 'approve', client_id: reg.client_id, redirect_uri: APP, code_challenge: challenge, code_challenge_method: 'S256', state: 's1', scope: 'display' }),
@@ -283,4 +283,113 @@ test('oauth: the Kinwall app (admin) manages connected apps and sees itself as c
   const mcp = await (await exchange(t, await authorize(t, 'admin'))).json() as any;
   assert.equal((await t.req('/api/authorizations', {}, mcp.access_token)).status, 403, 'MCP client');
   assert.equal((await t.req(`/api/authorizations/${grants[0].id}`, { method: 'DELETE' }, mcp.access_token)).status, 403);
+});
+
+// A connected app (an MCP client's OAuth token, or any MCP tool call) uses the family's data but never
+// manages how anyone signs in: otherwise it could mint itself a permanent key that outlives revoking it.
+test('oauth: a connected app cannot create, change or remove sign-ins; the Kinwall app and API keys can', async () => {
+  const t = setup();
+  const alex = await (await t.req('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Alex', color: '#336699', grownUp: true }) }, ADMIN_KEY)).json() as any;
+  const mcp = (await (await exchange(t, await authorize(t, 'admin'))).json() as any).access_token as string;
+  const existing = (await (await t.req('/api/keys', { method: 'POST', body: JSON.stringify({ name: 'Hallway', scope: 'display' }) }, ADMIN_KEY)).json() as any).id;
+  const credentialCalls: [string, string, unknown?][] = [
+    ['POST', '/api/keys', { name: 'x', scope: 'admin' }],
+    ['PATCH', `/api/keys/${existing}`, { owner: 'shared' }],
+    ['DELETE', `/api/keys/${existing}`],
+    ['POST', '/api/device-keys', { name: 'Widgets' }],
+    ['POST', '/api/recovery-codes'],
+    ['POST', '/api/passkeys/register-token'],
+    ['POST', '/api/passkeys/register/options', {}],
+    ['PATCH', '/api/passkeys/p1', { name: 'x' }],
+    ['DELETE', '/api/passkeys/p1'],
+    ['POST', '/api/pair/approve', { code: '123456', name: 'Wall' }],
+    ['PUT', '/api/me/owner', { owner: alex.id }],
+    ['PUT', '/api/providers/public-url', { url: 'https://elsewhere.example' }],
+    ['PUT', '/api/providers/google', { clientId: 'x', clientSecret: 'y' }],
+    ['DELETE', '/api/providers/google'],
+    ['PATCH', '/api/settings', { aiHealthAccess: true }],
+    ['GET', '/api/authorizations'],
+  ];
+  const call = (method: string, p: string, body: unknown, key: string, headers: Record<string, string> = {}) =>
+    t.req(p, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) }, key);
+  for (const [method, p, body] of credentialCalls) {
+    const res = await call(method, p, body, mcp);
+    assert.equal(res.status, 403, `${method} ${p} from an MCP token`);
+    // any key, when it comes through the MCP server
+    assert.equal((await call(method, p, body, ADMIN_KEY, { 'X-Kinwall-Source': 'mcp' })).status, 403, `${method} ${p} through MCP`);
+  }
+  assert.match((await (await call('POST', '/api/keys', { name: 'x' }, mcp)).json() as any).error, /connected app/i);
+  assert.equal(((await (await t.req('/api/keys', {}, ADMIN_KEY)).json()) as any[]).length, 1, 'no key was made or removed');
+  // Everyday use still works for the app.
+  assert.equal((await t.req('/api/members', {}, mcp)).status, 200);
+  assert.equal((await t.req('/api/keys', {}, mcp)).status, 200, 'it may still see which keys exist');
+
+  // The Kinwall app's own sign-in is a family device, and an admin API key is the family's.
+  const app = (await appSignIn(t, 'admin')).access_token as string;
+  assert.equal((await call('POST', '/api/keys', { name: 'From the app', scope: 'admin' }, app)).status, 201);
+  assert.equal((await call('POST', '/api/device-keys', { name: 'Widgets' }, app)).status, 201);
+  assert.equal((await call('POST', '/api/recovery-codes', undefined, app)).status, 200);
+  const key = (await (await call('POST', '/api/keys', { name: 'Script', scope: 'admin' }, ADMIN_KEY)).json() as any).key;
+  assert.equal((await call('POST', '/api/keys', { name: 'Another', scope: 'display' }, key)).status, 201);
+  assert.equal((await call('POST', '/api/passkeys/register-token', undefined, key)).status, 200);
+});
+
+test('oauth: only a client whose links are all the Kinwall app, signing in on that link, is the Kinwall app', async () => {
+  const t = setup();
+  const APP = 'family.kinwall.app:/oauth';
+  const register = (uris: string[]) => t.req('/oauth/register', { method: 'POST', body: JSON.stringify({ client_name: 'Some AI', redirect_uris: uris }) });
+  const mixed = await register([REDIRECT, APP]);
+  assert.equal(mixed.status, 400, "the Kinwall app's link can't be mixed with others");
+  assert.equal(((await mixed.json()) as any).error, 'invalid_redirect_uri');
+  assert.equal((await register([APP, 'family.kinwall.app:/other'])).status, 201);
+
+  // A client registered before this rule, with both links, that signs in on the web one.
+  const id = crypto.randomUUID();
+  await t.env.DB.prepare('INSERT INTO oauth_clients (id, name, redirect_uris, created_at) VALUES (?,?,?,?)').bind(id, 'Some AI', JSON.stringify([REDIRECT, APP]), new Date().toISOString()).run();
+  const info = await (await t.req(`/api/authorizations/request?${new URLSearchParams({ client_id: id, redirect_uri: REDIRECT })}`, {}, ADMIN_KEY)).json() as any;
+  assert.equal(info.deviceApp, false);
+  const { verifier, challenge } = pkce();
+  const approved = await (await t.req('/api/authorizations/approve', { method: 'POST', body: JSON.stringify({ decision: 'approve', client_id: id, redirect_uri: REDIRECT, code_challenge: challenge, code_challenge_method: 'S256' }) }, ADMIN_KEY)).json() as any;
+  const code = new URL(approved.redirect).searchParams.get('code')!;
+  const tok = await (await t.req('/oauth/token', t.form({ grant_type: 'authorization_code', code, code_verifier: verifier, client_id: id, redirect_uri: REDIRECT }))).json() as any;
+  assert.equal((await t.req('/api/authorizations', {}, tok.access_token)).status, 403, 'not a family device');
+  assert.equal((await t.req('/api/settings', { method: 'PATCH', body: JSON.stringify({ aiHealthAccess: true }) }, tok.access_token)).status, 403);
+  assert.equal((await t.req('/api/trackers?kind=health', {}, tok.access_token)).status, 403, 'health stays with the family');
+  const grants = await (await t.req('/api/authorizations', {}, ADMIN_KEY)).json() as any[];
+  assert.equal(grants.find((g) => g.clientName === 'Some AI').deviceApp, false);
+});
+
+test("oauth: the consent screen names the Kinwall app, and marks any other app's link unverified", async () => {
+  const t = setup();
+  const info = async (uri: string) => {
+    const reg = await (await t.req('/oauth/register', { method: 'POST', body: JSON.stringify({ client_name: 'X', redirect_uris: [uri] }) })).json() as any;
+    return (await (await t.req(`/api/authorizations/request?${new URLSearchParams({ client_id: reg.client_id, redirect_uri: uri })}`, {}, ADMIN_KEY)).json()) as any;
+  };
+  assert.equal((await info('family.kinwall.app:/oauth')).redirectHost, 'the Kinwall app');
+  assert.equal((await info('com.example.notes:/cb')).redirectHost, 'an unverified app (com.example.notes:)');
+  assert.equal((await info(REDIRECT)).redirectHost, 'claude.ai');
+});
+
+test("oauth migration: the Kinwall app's existing sign-ins stay family devices; a client with mixed links loses that", async () => {
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kw-mig-'));
+  const all = fs.readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith('.sql')).sort();
+  const NEW = all.find((f) => f.includes('oauth_device_app'))!;
+  for (const f of all.filter((f) => f < NEW)) fs.copyFileSync(path.join(MIGRATIONS_DIR, f), path.join(dir, f));
+  const db = openDb(':memory:');
+  applyMigrations(db, dir);
+  const now = new Date().toISOString();
+  const client = (id: string, uris: string[]) => db.prepare('INSERT INTO oauth_clients (id, name, redirect_uris, created_at) VALUES (?,?,?,?)').bind(id, id, JSON.stringify(uris), now).run();
+  const grant = (id: string, clientId: string) => db.prepare("INSERT INTO oauth_grants (id, client_id, scope, created_at) VALUES (?,?,'admin',?)").bind(id, clientId, now).run();
+  await client('app', ['family.kinwall.app:/oauth']);
+  await client('mixed', [REDIRECT, 'family.kinwall.app:/oauth']);
+  await client('ai', [REDIRECT]);
+  await grant('g-app', 'app');
+  await grant('g-mixed', 'mixed');
+  await grant('g-ai', 'ai');
+  applyMigrations(db, MIGRATIONS_DIR);
+  const rows = db.prepare('SELECT id, device_app FROM oauth_grants ORDER BY id').all<{ id: string; device_app: number }>().results;
+  assert.deepEqual(rows.map((r) => [r.id, r.device_app]), [['g-ai', 0], ['g-app', 1], ['g-mixed', 0]]);
+  fs.rmSync(dir, { recursive: true });
 });

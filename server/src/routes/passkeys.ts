@@ -6,7 +6,7 @@ import type { KinwallDb } from '../db.ts';
 import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
-import { createApiKey, resolveKey } from '../auth.ts';
+import { connectedAppBlock, createApiKey, resolveKey } from '../auth.ts';
 import { emit } from '../bus.ts';
 import { errorMessage } from '../redact.ts';
 import { ErrorSchema } from '../schemas.ts';
@@ -110,7 +110,7 @@ function transportsOf(row: PasskeyRow): string[] {
 // Resolves whether this request is allowed to register a passkey: either an admin bearer key
 // (adding a passkey from an already-signed-in device), or a valid one-time register-token (the
 // "finish on your phone" flow, where the device has no key at all yet).
-async function authorizeRegistration(c: any, token: string | undefined): Promise<{ ok: true; viaToken: boolean } | { ok: false; status: 401 | 400; error: string }> {
+async function authorizeRegistration(c: any, token: string | undefined): Promise<{ ok: true; viaToken: boolean } | { ok: false; status: 401 | 400 | 403; error: string }> {
   if (token) {
     const row = await c.env.DB.prepare('SELECT 1 FROM webauthn_challenges WHERE kind = ? AND subject = ? AND expires_at > ?')
       .bind('reg_token', token, new Date().toISOString())
@@ -120,6 +120,8 @@ async function authorizeRegistration(c: any, token: string | undefined): Promise
   }
   const resolved = await resolveKey(c);
   if (!resolved || resolved.scope !== 'admin') return { ok: false, status: 401, error: 'unauthorized' };
+  const blocked = await connectedAppBlock(c); // these routes skip requireAuth, which refuses connected apps elsewhere
+  if (blocked) return { ok: false, status: 403, error: blocked };
   return { ok: true, viaToken: false };
 }
 
@@ -143,6 +145,7 @@ passkeysRoutes.openapi(
       200: { description: 'ok', content: { 'application/json': { schema: z.record(z.string(), z.any()) } } },
       400: { description: 'bad token / rpID is an IP', content: { 'application/json': { schema: ErrorSchema } } },
       401: { description: 'unauthorized', content: { 'application/json': { schema: ErrorSchema } } },
+      403: { description: 'a connected app', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
@@ -199,6 +202,7 @@ passkeysRoutes.openapi(
       200: { description: 'ok', content: { 'application/json': { schema: RegisterVerifyResponseSchema } } },
       400: { description: 'bad ceremony / token', content: { 'application/json': { schema: ErrorSchema } } },
       401: { description: 'unauthorized', content: { 'application/json': { schema: ErrorSchema } } },
+      403: { description: 'a connected app', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {

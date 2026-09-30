@@ -31,7 +31,13 @@ The sign-in flow: no key to copy, and each app gets its own revocable grant. Kin
    * **Deny**.
 4. Connected apps are listed and revocable under **Settings → Access → Connected apps**.
 
-Details: authorization code with **PKCE S256 only**, public clients, and redirect URIs that must be https or loopback. Codes last 5 minutes and work once. Access tokens last 1 hour. Refresh tokens last 90 days and rotate on every use; reusing an old one revokes the whole grant. `POST /oauth/revoke` is supported.
+The consent screen shows where you'll return afterwards: a website's address, **the Kinwall app**, or, for another app's own link, **an unverified app** with that link's scheme. The app's name is whatever it registered itself as, so check the address before approving.
+
+### What connected apps can't do
+
+Even with full access, a connected app uses the family's data but never manages how anyone signs in. Over MCP (whatever key it uses) and with a connected app's OAuth token on the [REST API](rest-api.md), Kinwall refuses (403) creating, changing or removing API keys and device keys, recovery codes, adding or removing passkeys, approving a display pairing, saying whose device a sign-in is, changing the sign-in providers or the public address, managing connected apps, and turning on [health for connected apps](#health-entries). So disconnecting an app under **Settings → Access → Connected apps** always ends everything it could do. Do these from a parent's own device. Kinwall's own phone app counts as a parent's device, not a connected app.
+
+Details: authorization code with **PKCE S256 only**, public clients, and redirect URIs that must be https, loopback, or an app's reverse-domain link (like `com.example.app:/oauth`). The Kinwall app's own link (`family.kinwall.app:`) can't be registered together with any other redirect, and a sign-in counts as the Kinwall app only when it used that link. Codes last 5 minutes and work once. Access tokens last 1 hour. Refresh tokens last 90 days and rotate on every use; reusing an old one revokes the whole grant. `POST /oauth/revoke` is supported.
 
 ### Bearer key
 
