@@ -154,16 +154,6 @@
 .cook-all-btn { flex: none; min-height: 48px; padding: 8px 18px; }
 .cook-progress { flex-shrink: 0; height: 6px; background: var(--border); }
 .cook-progress > div { height: 100%; background: var(--accent-strong); transition: width 0.2s ease; }
-.cook-alarm { flex-shrink: 0; display: flex; align-items: center; gap: 16px; padding: 12px 16px; background: var(--danger-fill); color: #fff; font-size: 1.25rem; font-weight: 800; }
-.cook-alarm span { flex: 1; }
-.cook-alarm .btn { flex: none; min-width: 96px; background: #fff; color: var(--danger-fill); }
-.cook-ringing .cook-alarm { animation: cook-flash 0.8s ease-in-out 6 alternate; }
-@keyframes cook-flash { to { filter: brightness(1.35); } }
-.cook-timer-bar { flex-shrink: 0; display: flex; gap: 8px; overflow-x: auto; margin: 0; padding: 8px 16px; list-style: none; background: var(--card-soft); border-bottom: 1px solid var(--border); }
-.cook-timer-bar li { flex: none; display: flex; align-items: center; gap: 10px; padding: 2px 2px 2px 14px; border-radius: 999px; background: var(--card); border: 2px solid var(--border); font-weight: 700; }
-.cook-timer-bar .icon-btn { width: 44px; height: 44px; box-shadow: none; }
-.cook-clock { font-variant-numeric: tabular-nums; font-size: 1.125rem; }
-.cook-clock-paused { color: var(--text-dim); }
 .cook-main { flex: 1; min-height: 0; touch-action: pan-y; }
 .cook-step { width: 100%; max-width: 1100px; margin: 0 auto; padding: 20px 20px 28px; display: grid; gap: 20px; }
 .cook-photo { width: 100%; max-height: 40vh; aspect-ratio: 4 / 3; object-fit: cover; border-radius: var(--radius-sm); background: var(--card); }
@@ -176,6 +166,8 @@
 .cook-bullets { margin: 12px 0 0; padding-left: 1.2em; font-size: clamp(1.25rem, 0.9rem + 1.4vw, 2.25rem); line-height: 1.4; }
 .cook-bullets li { margin: 6px 0; overflow-wrap: anywhere; }
 .cook-timers { display: flex; flex-wrap: wrap; gap: 10px; }
+/* The timers bar (Timers.tsx) under the cook bar, flat across the top. */
+.cook-timer-bar { flex-shrink: 0; padding: 8px 16px; background: var(--card-soft); border-bottom: 1px solid var(--border); }
 .cook-timer-chip { min-height: 52px; padding: 8px 20px; border-radius: 999px; border: 2px solid var(--accent-strong); background: var(--accent-tint); color: var(--text); font: inherit; font-size: 1.125rem; font-weight: 800; font-variant-numeric: tabular-nums; cursor: pointer; }
 .cook-timer-chip:disabled { border-style: dashed; }
 .cook-step-side { display: grid; gap: 16px; align-content: start; min-width: 0; }
@@ -211,7 +203,7 @@
   .cook-step-text { font-size: clamp(1.25rem, 0.8rem + 2vw, 2rem); }
   .cook-step-side .cook-photo { max-height: 30vh; } /* leaves room for the step's ingredients under it */
 }
-@media (prefers-reduced-motion: reduce) { .cook-ringing .cook-alarm { animation: none; } .cook-progress > div { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .cook-progress > div { transition: none; } }
 
 /* The meal sheet's recipe field opens the picker: a photo thumb and the name, a row per recipe there. */
 .recipe-pick-thumb { flex-shrink: 0; width: 40px; height: 40px; object-fit: cover; border-radius: 8px; background: var(--bg-alt); }

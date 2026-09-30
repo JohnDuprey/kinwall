@@ -32,6 +32,7 @@ import { InstallNudge } from './Install.tsx'
 import { inNativeApp, tellAppLeaveDemo } from './native.ts'
 import { HelpButton } from './Help.tsx'
 import Slideshow, { SAVER_PREVIEW_EVENT, SAVER_START_EVENT } from './Screensaver.tsx'
+import { TimerButton, TimerHost } from './Timers.tsx'
 import { CLOCK_SPOTS, nextSpot, spotStyle, type Spot } from './nightClock.ts'
 import SnapshotSheet from './Snapshot.tsx'
 import Profile from './Profile.tsx'
@@ -885,6 +886,7 @@ function Header({ settings, members, selectedMemberId, isAdmin, wall }: {
         <FamilyButton name={settings.familyName || 'Our Family'} members={members} selectedMemberId={selectedMemberId} />
         <div className="header-right">
           <OfflineIcon />
+          <TimerButton />
           <NotificationBell isAdmin={isAdmin} />
           {wall && <NightScreenButton />}
           <HelpButton />
@@ -907,6 +909,7 @@ function Header({ settings, members, selectedMemberId, isAdmin, wall }: {
       <div className="header-right">
         <MemberAvatars members={members} selectedMemberId={selectedMemberId} />
         <OfflineIcon />
+        <TimerButton />
         <NotificationBell isAdmin={isAdmin} />
         {wall && <NightScreenButton />}
         <HelpButton />
@@ -972,8 +975,9 @@ function SaveIndicator() {
 if (MOCK) document.documentElement.style.setProperty('--safe-t', 'calc(env(safe-area-inset-top, 0px) + 28px)')
 
 // Dialogs (confirm/prompt/alert) are available everywhere, the setup wizard and gates included.
+// Timers ring wherever the app is (Timers.tsx).
 export default function App() {
-  return <DialogProvider><AppRoutes /></DialogProvider>
+  return <DialogProvider><AppRoutes /><TimerHost /></DialogProvider>
 }
 
 function AppRoutes() {

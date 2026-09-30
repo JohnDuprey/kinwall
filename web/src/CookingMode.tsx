@@ -2,46 +2,26 @@ import { useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEv
 import { createPortal } from 'react-dom'
 import { announce } from './a11y.tsx'
 import { cookingSteps, saveStep, savedStep, stepIngredients, stepTimers } from './cooking.ts'
-import { CheckIcon, ChevronLeft, ChevronRight, PauseIcon, PlayIcon, ResetIcon, XIcon } from './icons.tsx'
+import { CheckIcon, ChevronLeft, ChevronRight, XIcon } from './icons.tsx'
 import { servingsLabel } from './meal-date.ts'
 import type { Recipe, RecipeStep } from './meal-types.ts'
 import { IngredientList } from './RecipeSheet.tsx'
 import RecipePhoto from './RecipePhoto.tsx'
 import { holdAwake } from './wakeLock.ts'
-import { cookingActivity, timerName } from './liveActivity.ts'
-import { endAppActivity, inNativeApp, tellAppActivity } from './native.ts'
-
-// `left`: set while paused (ms to go); `endsAt` only counts while it's running. `seconds`: for Reset.
-interface Timer { id: number; label: string; step: number; seconds: number; endsAt: number; done: boolean; left?: number }
-
-const clock = (ms: number) => {
-  const s = Math.max(0, Math.ceil(ms / 1000)), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), pad = (n: number) => String(n).padStart(2, '0')
-  return h ? `${h}:${pad(m)}:${pad(s % 60)}` : `${m}:${pad(s % 60)}`
-}
-
-// Created on the first timer's tap (browsers only allow sound after a user gesture).
-let audio: AudioContext | null = null
-function beep() {
-  if (!audio) return
-  void audio.resume()
-  for (let i = 0; i < 3; i++) {
-    const t = audio.currentTime + i * 0.35, osc = audio.createOscillator(), gain = audio.createGain()
-    osc.frequency.value = 880
-    gain.gain.setValueAtTime(0.0001, t); gain.gain.exponentialRampToValueAtTime(0.3, t + 0.02); gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.25)
-    osc.connect(gain).connect(audio.destination); osc.start(t); osc.stop(t + 0.3)
-  }
-}
+import { start, TimerList, useNow, useTimers } from './Timers.tsx'
+import { clock, isRunning, remaining } from './timers.ts'
 
 /** Full-screen cooking: one step at a time in big type, its ingredients (scaled to `servings`) and
  * timers. Back/Next, swipes or arrow keys move; the step is remembered per recipe on this device.
  * A step's ingredient made from a basic (found in `library`) has "Make it": the basic's own cooking
- * mode opens on top, and closing it comes back to this step. */
-export default function CookingMode({ recipe, steps, servings, library = [], nested = false, onClose }: { recipe: Recipe; steps: RecipeStep[]; servings: number; library?: Recipe[]; nested?: boolean; onClose: () => void }) {
+ * mode opens on top, and closing it comes back to this step. Timers are the app's (Timers.tsx):
+ * they keep running, and ring, after cooking mode closes. */
+export default function CookingMode({ recipe, steps, servings, library = [], onClose }: { recipe: Recipe; steps: RecipeStep[]; servings: number; library?: Recipe[]; onClose: () => void }) {
   const titleId = useId(), drawerId = useId()
   const [index, setIndex] = useState(() => Math.min(savedStep(recipe.id), steps.length - 1))
   const [showAll, setShowAll] = useState(false)
-  const [timers, setTimers] = useState<Timer[]>([])
-  const [now, setNow] = useState(Date.now)
+  const timers = useTimers()
+  const now = useNow(timers.some(isRunning))
   const [basic, setBasic] = useState<Recipe | null>(null)
   const root = useRef<HTMLDivElement>(null)
   const heading = useRef<HTMLHeadingElement>(null)
@@ -90,48 +70,8 @@ export default function CookingMode({ recipe, steps, servings, library = [], nes
   const openDrawer = () => { setShowAll(true); setTimeout(() => drawer.current?.focus()) }
   const closeDrawer = () => { setShowAll(false); allBtn.current?.focus() }
 
-  // Timers keep running across steps; each rings once (sound, vibration, banner) when it's up.
-  const running = timers.some(t => !t.done)
-  useEffect(() => {
-    if (!running) return
-    const tick = setInterval(() => setNow(Date.now()), 500)
-    return () => clearInterval(tick)
-  }, [running])
-  useEffect(() => {
-    const up = timers.filter(t => !t.done && t.left === undefined && t.endsAt <= now)
-    if (!up.length) return
-    setTimers(ts => ts.map(t => up.some(u => u.id === t.id) ? { ...t, done: true } : t))
-    beep(); navigator.vibrate?.([300, 150, 300])
-    announce(`Timer done: ${up.map(t => `${t.label}, step ${t.step + 1}`).join('; ')}`, true)
-    // In another tab or app: a notification, if this device already allows them (never asks here).
-    // Inside the iPhone/Android app the app rings them itself (the Live Activity's alarms).
-    if (document.hidden && !inNativeApp() && 'Notification' in window && Notification.permission === 'granted') {
-      void navigator.serviceWorker?.ready.then(reg => reg.showNotification(`Time's up: ${up.map(t => timerName(t.label)).join(', ')}`, { body: recipe.name, tag: 'kinwall-cooking' })).catch(() => {})
-    }
-  }, [now, timers])
-  const start = (label: string, seconds: number) => {
-    try { audio ??= new AudioContext(); void audio.resume() } catch { /* no Web Audio: banner and vibration only */ }
-    const at = Date.now()
-    setNow(at)
-    setTimers(ts => [...ts, { id: at, label, step: index, seconds, endsAt: at + seconds * 1000, done: false }])
-    announce(`${label} timer started`)
-  }
-  const stop = (id: number) => setTimers(ts => ts.filter(t => t.id !== id))
-  const pause = (id: number) => { const at = Date.now(); setNow(at); setTimers(ts => ts.map(t => t.id === id ? { ...t, left: Math.max(0, t.endsAt - at) } : t)) }
-  const resume = (id: number) => { const at = Date.now(); setNow(at); setTimers(ts => ts.map(t => t.id === id && t.left !== undefined ? { ...t, endsAt: at + t.left, left: undefined } : t)) }
-  // Back to the full time; a paused timer stays paused.
-  const reset = (id: number) => { const at = Date.now(); setNow(at); setTimers(ts => ts.map(t => t.id !== id ? t : t.left !== undefined ? { ...t, left: t.seconds * 1000 } : { ...t, endsAt: at + t.seconds * 1000 })) }
-  const remaining = (t: Timer) => t.left ?? t.endsAt - now
-  // The iPhone app's Live Activity (liveActivity.ts): the soonest timer on the Lock Screen and in the
-  // Dynamic Island, "Done" once it rings, gone when dismissed or on the way out. A basic's cooking
-  // mode opened on top (nested) leaves it to this one.
-  useEffect(() => {
-    if (nested) return
-    const a = cookingActivity(recipe.name, timers.map(t => ({ ...t, paused: t.left !== undefined })), i => steps[i]?.title)
-    if (a) tellAppActivity('cooking', a); else endAppActivity('cooking')
-  }, [nested, recipe.name, steps, timers])
-  useEffect(() => () => { if (!nested) endAppActivity('cooking') }, [nested])
-  const rang = timers.filter(t => t.done)
+  const stepLine = (i: number) => `Step ${i + 1}${steps[i]?.title ? ` · ${steps[i].title}` : ''}`
+  const timerKey = (label: string) => `${recipe.id}:${index}:${label}`
 
   const onPointerDown = (e: ReactPointerEvent) => { swipe.current = e.pointerType === 'mouse' ? null : { x: e.clientX, y: e.clientY } }
   const onPointerUp = (e: ReactPointerEvent) => {
@@ -150,27 +90,15 @@ export default function CookingMode({ recipe, steps, servings, library = [], nes
   // A basic without steps still opens, on one step that points at its ingredients.
   const basicSteps = basic ? cookingSteps(basic) : []
   return createPortal(
-    <div ref={root} className={`cook-mode ${rang.length ? 'cook-ringing' : ''}`} role="dialog" aria-modal="true" aria-labelledby={titleId}>
+    <div ref={root} className="cook-mode" role="dialog" aria-modal="true" aria-labelledby={titleId}>
       <header className="cook-bar">
         <button type="button" className="icon-btn" aria-label="Exit cooking mode" onClick={onClose}><XIcon width={24} height={24} /></button>
         <h2 id={titleId} className="cook-title">{recipe.name}</h2>
         <button type="button" ref={allBtn} className="btn btn-secondary cook-all-btn" aria-expanded={showAll} aria-controls={drawerId} onClick={() => showAll ? closeDrawer() : openDrawer()}>All ingredients</button>
       </header>
       <div className="cook-progress" aria-hidden="true"><div style={{ width: `${(index + 1) / steps.length * 100}%` }} /></div>
-      {rang.length > 0 && <div className="cook-alarm">
-        <span>⏰ Time's up: {rang.map(t => `${t.label} (step ${t.step + 1})`).join(', ')}</span>
-        <button type="button" className="btn btn-primary" onClick={() => setTimers(ts => ts.filter(t => !t.done))}>OK</button>
-      </div>}
-      {running && <ul className="cook-timer-bar" aria-label="Running timers">
-        {timers.filter(t => !t.done).map(t => <li key={t.id}>
-          <span>Step {t.step + 1} · {t.label}</span><strong className={`cook-clock ${t.left !== undefined ? 'cook-clock-paused' : ''}`}>{clock(remaining(t))}{t.left !== undefined && <span className="sr-only">, paused</span>}</strong>
-          {t.left !== undefined
-            ? <button type="button" className="icon-btn" aria-label={`Resume ${t.label} timer, step ${t.step + 1}`} onClick={() => resume(t.id)}><PlayIcon width={18} height={18} /></button>
-            : <button type="button" className="icon-btn" aria-label={`Pause ${t.label} timer, step ${t.step + 1}`} onClick={() => pause(t.id)}><PauseIcon width={18} height={18} /></button>}
-          <button type="button" className="icon-btn" aria-label={`Reset ${t.label} timer, step ${t.step + 1}`} onClick={() => reset(t.id)}><ResetIcon width={18} height={18} /></button>
-          <button type="button" className="icon-btn" aria-label={`Cancel ${t.label} timer, step ${t.step + 1}`} onClick={() => stop(t.id)}><XIcon width={18} height={18} /></button>
-        </li>)}
-      </ul>}
+      {/* Every running timer, a quick one from the header too: the app's header is out of view here. */}
+      {timers.some(t => !t.done) && <TimerList timers={timers} now={now} className="cook-timer-bar" />}
       <div className="cook-main scroll-y" onPointerDown={onPointerDown} onPointerUp={onPointerUp} onPointerCancel={() => { swipe.current = null }}>
         <div className="cook-step">
           {/* This step's ingredients right under the photo (beside the text when there's room), so they're in view without scrolling. */}
@@ -187,9 +115,9 @@ export default function CookingMode({ recipe, steps, servings, library = [], nes
             {(step.title || durations.length > 0) && <div className="cook-title-row">
               {step.title && <h4 className="cook-step-title">{step.title}</h4>}
               {durations.length > 0 && <div className="cook-timers">{durations.map(d => {
-                const on = timers.find(t => !t.done && t.step === index && t.label === d.label)
-                return <button key={d.label} type="button" className="cook-timer-chip" disabled={!!on} aria-label={on ? undefined : `Start ${d.label} timer`} onClick={() => start(d.label, d.seconds)}>
-                  ⏱ {on ? <>{d.label} · {clock(remaining(on))} {on.left !== undefined ? 'paused' : 'left'}</> : d.label}
+                const on = timers.find(t => !t.done && t.key === timerKey(d.label))
+                return <button key={d.label} type="button" className="cook-timer-chip" disabled={!!on} aria-label={on ? undefined : `Start ${d.label} timer`} onClick={() => start({ label: d.label, seconds: d.seconds, title: recipe.name, detail: stepLine(index), key: timerKey(d.label) })}>
+                  ⏱ {on ? <>{d.label} · {clock(remaining(on, now))} {on.left !== undefined ? 'paused' : 'left'}</> : d.label}
                 </button>
               })}</div>}
             </div>}
@@ -212,7 +140,7 @@ export default function CookingMode({ recipe, steps, servings, library = [], nes
         </div>
         <IngredientList recipe={recipe} servings={servings} />
       </div>}
-      {basic && <CookingMode key={basic.id} nested recipe={basic} steps={basicSteps.length ? basicSteps : [{ text: 'No steps written yet. Its ingredients are under All ingredients.', bullets: [] }]} servings={basic.defaultServings} library={library} onClose={() => setBasic(null)} />}
+      {basic && <CookingMode key={basic.id} recipe={basic} steps={basicSteps.length ? basicSteps : [{ text: 'No steps written yet. Its ingredients are under All ingredients.', bullets: [] }]} servings={basic.defaultServings} library={library} onClose={() => setBasic(null)} />}
     </div>,
     document.body,
   )

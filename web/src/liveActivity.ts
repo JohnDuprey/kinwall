@@ -10,25 +10,27 @@ import type { AisleOrder, DueDose, EventInstance, ListItem } from './types.ts'
 
 const MIN = 60000
 
-// ---- Cooking timers (CookingMode) ----
+// ---- Timers (timers.ts: quick timers and cooking mode's) ----
 
-export type CookingTimer = { label: string; step: number; endsAt: number; done: boolean; paused?: boolean }
-/** `alarms`: every running timer's finish, for the app to ring as a notification with the phone locked. */
-export type CookingActivity = { recipe: string; timer: string; step: string; endsAt: number; done: boolean; more: number; alarms: { at: number; title: string; body: string }[] }
+export type ActivityTimer = { label: string; title?: string; detail?: string; endsAt: number; done: boolean; paused?: boolean }
+/** The app's "cooking" activity, whatever the timer is for: `recipe` is what it's for (a quick
+ * timer's is "Timer"), `step` its detail. `alarms`: every running timer's finish, for the app to
+ * ring as a notification with the phone locked. */
+export type TimerActivity = { recipe: string; timer: string; step: string; endsAt: number; done: boolean; more: number; alarms: { at: number; title: string; body: string }[] }
 
 /** "Rice · 15 min" (a named timer) -> "Rice"; an unnamed "10 min" stays as it is. */
 export const timerName = (label: string) => label.split(' · ')[0]
 
 /** The soonest running timer, with how many others are on; once none is running, the one that
  * rang ("Done: Rice") until it's dismissed. Null when there are none. */
-export function cookingActivity(recipe: string, timers: CookingTimer[], stepTitle: (step: number) => string | null | undefined): CookingActivity | null {
+export function timerActivity(timers: ActivityTimer[]): TimerActivity | null {
   // A paused timer isn't counting down, so it's not on the Lock Screen and doesn't ring.
   const running = timers.filter(t => !t.done && !t.paused).sort((a, b) => a.endsAt - b.endsAt)
   const shown = running[0] ?? timers.filter(t => t.done).sort((a, b) => b.endsAt - a.endsAt)[0]
   if (!shown) return null
-  const stepLine = (t: CookingTimer) => { const title = stepTitle(t.step); return `Step ${t.step + 1}${title ? ` · ${title}` : ''}` }
-  const alarms = running.map(t => ({ at: t.endsAt, title: `Time's up: ${timerName(t.label)}`, body: `${recipe} · ${stepLine(t)}` }))
-  return { recipe, timer: timerName(shown.label), step: stepLine(shown), endsAt: shown.endsAt, done: shown.done, more: running.filter(t => t !== shown).length, alarms }
+  const title = (t: ActivityTimer) => t.title ?? 'Timer'
+  const alarms = running.map(t => ({ at: t.endsAt, title: `Time's up: ${timerName(t.label)}`, body: [title(t), t.detail].filter(Boolean).join(' · ') }))
+  return { recipe: title(shown), timer: timerName(shown.label), step: shown.detail ?? '', endsAt: shown.endsAt, done: shown.done, more: running.filter(t => t !== shown).length, alarms }
 }
 
 // ---- A shopping trip (Lists, shopping mode) ----

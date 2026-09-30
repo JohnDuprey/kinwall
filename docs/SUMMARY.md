@@ -27,6 +27,7 @@
 * [Medications](using/medications.md)
 * [Lists](using/lists.md)
 * [Meals](using/meals.md)
+* [Timers](using/timers.md)
 * [Activities (Paint)](using/activities.md)
 * [Photos](using/photos.md)
 * [Trackers](using/trackers.md)
