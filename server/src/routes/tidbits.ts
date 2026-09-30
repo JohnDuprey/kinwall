@@ -1,16 +1,18 @@
 // Online tidbits for the Board's quote / fact card: Wikipedia's "On this day" and an Open Trivia DB
 // question. Both are free and keyless, fetched by the server (never the displays) at most once a
 // day each and kept in weather_cache, so the browser never talks to a third party and the CSP stays
-// 'self'. Nothing about the household is sent. Only the sources a family turned on are fetched.
+// 'self'. Nothing about the household is sent. Only the sources a family (or a display that picked
+// its own, via query params) turned on are fetched.
 import type { KinwallDb } from '../db.ts';
-import { createRoute, type z } from '@hono/zod-openapi';
+import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import { hostTimezone } from '../env.ts';
-import { TidbitsSchema } from '../schemas.ts';
+import { ErrorSchema, TidbitSettingsSchema, TidbitsSchema } from '../schemas.ts';
 import { readSettings } from './settings.ts';
 
 export const tidbitRoutes = createRouter();
 type Tidbits = z.infer<typeof TidbitsSchema>;
+type TidbitSettings = z.infer<typeof TidbitSettingsSchema>;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const RETRY_MS = 60 * 60 * 1000; // after a failed fetch
@@ -85,6 +87,15 @@ function triviaUrl(category: number, difficulty: string | null, amount = 10): st
   return `https://opentdb.com/api.php?${q}`;
 }
 
+// Open Trivia DB answers one request per IP every 5 seconds (response_code 5). Several trivia cards
+// fetching their categories at once would trip that, so wait it out once.
+async function triviaGet(url: string): Promise<TriviaResponse> {
+  const r = (await getJson(url)) as TriviaResponse;
+  if (r.response_code !== 5) return r;
+  await new Promise((ok) => setTimeout(ok, 5100));
+  return (await getJson(url)) as TriviaResponse;
+}
+
 export function shapeTrivia(res: TriviaResponse | null): Tidbits['trivia'] {
   if (!res || res.response_code !== 0) return [];
   const decode = (s: string) => { try { return decodeURIComponent(s) } catch { return s } };
@@ -98,12 +109,13 @@ export function shapeTrivia(res: TriviaResponse | null): Tidbits['trivia'] {
 
 // MARK: Route
 
-export async function getTidbits(db: KinwallDb, now = new Date()): Promise<Tidbits> {
+/** `choice`: a display's own sources and categories (validated), else the household's. */
+export async function getTidbits(db: KinwallDb, now = new Date(), choice?: TidbitSettings): Promise<Tidbits> {
   const settings = await readSettings(db);
   const tz = settings.timezone ?? hostTimezone();
   const date = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
   const [, mm, dd] = date.split('-');
-  const t = settings.tidbits;
+  const t = choice ?? settings.tidbits;
   const out: Tidbits = { date, onThisDay: [], trivia: [] };
 
   if (t.sources.includes('onthisday')) {
@@ -122,12 +134,12 @@ export async function getTidbits(db: KinwallDb, now = new Date()): Promise<Tidbi
     const levels = t.triviaDifficulties;
     const res = await cachedJson<TriviaResponse>(db, `tidbits:trivia:${category}:${[...levels].sort().join('+')}:${date}`, now, async () => {
       // One level: ask for it. Two or three: one mixed batch, keeping the picked levels.
-      let r = (await getJson(levels.length === 1 ? triviaUrl(category, levels[0]) : triviaUrl(category, null, 30))) as TriviaResponse;
+      let r = await triviaGet(levels.length === 1 ? triviaUrl(category, levels[0]) : triviaUrl(category, null, 30));
       if (levels.length > 1 && r.response_code === 0) {
         const kept = (r.results ?? []).filter((q) => levels.includes(q.difficulty as (typeof levels)[number])).slice(0, 10);
-        r = kept.length ? { ...r, results: kept } : ((await getJson(triviaUrl(category, levels[0]))) as TriviaResponse);
+        r = kept.length ? { ...r, results: kept } : await triviaGet(triviaUrl(category, levels[0]));
       }
-      if (r.response_code === 1) r = (await getJson(triviaUrl(category, null))) as TriviaResponse; // too few at that level: any level
+      if (r.response_code === 1) r = await triviaGet(triviaUrl(category, null)); // too few at that level: any level
       if (r.response_code !== 0) throw new Error(`Open Trivia DB response_code ${r.response_code}`);
       return r;
     });
@@ -136,14 +148,53 @@ export async function getTidbits(db: KinwallDb, now = new Date()): Promise<Tidbi
   return out;
 }
 
+// A display's own choice (Settings -> This display): comma-separated lists; each one given replaces
+// the household's value for that field. Validated with the household schema, so only known sources,
+// categories and levels get through, and the cache keys stay the same small set as before.
+const list = (d: string) => z.string().optional().openapi({ description: d });
+const TidbitsQuery = z.object({
+  sources: list('Comma-separated: quotes, facts, tips, onthisday, trivia. Empty for none.'),
+  onThisDay: list('Comma-separated: holidays, births, events.'),
+  birthsAfter: list('A year, or "any".'),
+  triviaCategories: list('Comma-separated Open Trivia DB category ids (9-32).'),
+  triviaDifficulties: list('Comma-separated: easy, medium, hard.'),
+});
+
+export function displayChoice(household: TidbitSettings, q: z.infer<typeof TidbitsQuery>): { ok: true; choice?: TidbitSettings } | { ok: false; error: string } {
+  const csv = (v?: string) => (v === undefined ? undefined : v.split(',').map((x) => x.trim()).filter(Boolean));
+  const given = {
+    sources: csv(q.sources),
+    onThisDay: csv(q.onThisDay),
+    birthsAfter: q.birthsAfter === undefined ? undefined : q.birthsAfter === 'any' ? null : Number(q.birthsAfter),
+    triviaCategories: csv(q.triviaCategories)?.map(Number),
+    triviaDifficulties: csv(q.triviaDifficulties),
+  };
+  const set = Object.fromEntries(Object.entries(given).filter(([, v]) => v !== undefined));
+  if (!Object.keys(set).length) return { ok: true };
+  const parsed = TidbitSettingsSchema.safeParse({ ...household, ...set });
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    return { ok: false, error: `${issue?.path.join('.') || 'query'}: ${issue?.message ?? 'invalid'}` };
+  }
+  return { ok: true, choice: parsed.data };
+}
+
 tidbitRoutes.openapi(
   createRoute({
     method: 'get',
     path: '/api/tidbits',
     tags: ['Snapshot'],
-    summary: "Today's online tidbits for the Board's quote / fact card (Wikipedia On this day, Open Trivia DB), per the household's Quotes & facts settings. Each source is fetched at most once a day; turned-off sources come back empty.",
+    summary: "Today's online tidbits for the Board's quote / fact cards (Wikipedia On this day, Open Trivia DB), per the household's Quotes & facts settings, or a display's own choice given as query params. Each source is fetched at most once a day; turned-off sources come back empty.",
     security: [{ Bearer: [] }],
-    responses: { 200: { description: 'ok', content: { 'application/json': { schema: TidbitsSchema } } } },
+    request: { query: TidbitsQuery },
+    responses: {
+      200: { description: 'ok', content: { 'application/json': { schema: TidbitsSchema } } },
+      400: { description: 'An unknown source, category or level', content: { 'application/json': { schema: ErrorSchema } } },
+    },
   }),
-  async (c) => c.json(await getTidbits(c.env.DB), 200),
+  async (c) => {
+    const r = displayChoice((await readSettings(c.env.DB)).tidbits, c.req.valid('query'));
+    if (!r.ok) return c.json({ error: r.error }, 400);
+    return c.json(await getTidbits(c.env.DB, new Date(), r.choice), 200);
+  },
 );

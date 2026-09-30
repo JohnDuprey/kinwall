@@ -103,3 +103,36 @@ test('tidbits: a saved single difficulty carries over; several levels fetch one 
   }
 });
 
+
+test('tidbits: a display can ask for its own sources and categories; bad values are refused', async () => {
+  const req = setup();
+  const realFetch = globalThis.fetch;
+  const urls: string[] = [];
+  globalThis.fetch = (async (url: unknown) => {
+    const u = new URL(String(url));
+    urls.push(String(url));
+    return new Response(JSON.stringify(u.host === 'opentdb.com' ? TRIVIA : FEED), { status: 200 });
+  }) as typeof fetch;
+  try {
+    // The household has online sources off; this display turns trivia on for itself, in one category.
+    const t = (await (await req('/api/tidbits?sources=trivia&triviaCategories=17&triviaDifficulties=easy,medium')).json()) as any;
+    assert.equal(t.trivia[0].answer, 'Australia');
+    assert.deepEqual(t.onThisDay, []);
+    assert.equal(urls.length, 1);
+    assert.ok(urls[0].includes('category=17'));
+    // On this day with only holidays and any birth year.
+    const o = (await (await req('/api/tidbits?sources=onthisday&onThisDay=holidays&birthsAfter=any')).json()) as any;
+    assert.deepEqual(o.onThisDay.map((x: any) => x.kind), ['holidays']);
+    // No params: the household's choice, as before (online off, nothing new fetched).
+    const before = urls.length;
+    const h = (await (await req('/api/tidbits')).json()) as any;
+    assert.deepEqual([h.onThisDay, h.trivia], [[], []]);
+    assert.equal(urls.length, before);
+    for (const bad of ['sources=horoscopes', 'triviaCategories=99', 'triviaCategories=abc', 'triviaDifficulties=impossible', 'onThisDay=wars', 'birthsAfter=soon']) {
+      const res = await req(`/api/tidbits?${bad}`);
+      assert.equal(res.status, 400, bad);
+    }
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
