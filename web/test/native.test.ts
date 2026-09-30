@@ -112,3 +112,22 @@ test('Android settings buttons: offered only when the app says so, and post the 
     { type: 'addTile', tile: 'night' },
   ])
 })
+
+test('shared contacts: a vCard from the app opens Contacts once; anything else is ignored', async () => {
+  const { receiveSharedContacts, takeSharedContacts } = await import('../src/native.ts')
+  const g = globalThis as { window?: unknown; location?: unknown }
+  const events: string[] = []
+  g.window = { dispatchEvent: (e: Event) => events.push(e.type) }
+  g.location = { hash: '#/calendar' }
+  assert.equal(receiveSharedContacts(42), false)
+  assert.equal(receiveSharedContacts('just some text'), false)
+  assert.equal(receiveSharedContacts('BEGIN:VCARD\n' + 'x'.repeat(2_000_001)), false)
+  assert.equal(takeSharedContacts(), null)
+  const card = 'BEGIN:VCARD\r\nVERSION:3.0\r\nFN:Ms. Rivera\r\nEND:VCARD'
+  assert.equal(receiveSharedContacts(card), true)
+  assert.equal((g.location as { hash: string }).hash, '#/contacts')
+  assert.deepEqual(events, ['kinwall:contacts-shared'])
+  assert.equal(takeSharedContacts(), card)
+  assert.equal(takeSharedContacts(), null)
+  delete g.window; delete g.location
+})

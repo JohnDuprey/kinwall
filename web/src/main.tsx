@@ -2,9 +2,10 @@ import './compat.ts' // first: shims for old Safari
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './styles.css'
-import { markNativeApp } from './native.ts'
+import { IMPORT_CONTACTS_EVENT, markNativeApp, receiveSharedContacts } from './native.ts'
 import { resumeShoppingHash } from './trip.ts'
 markNativeApp()
+window.addEventListener(IMPORT_CONTACTS_EVENT, e => { receiveSharedContacts((e as CustomEvent).detail) })
 
 // Android / Chrome / Edge offer to install once the page qualifies, often before the App chunk
 // has loaded, so keep the event here for Install.tsx's "Install" button.

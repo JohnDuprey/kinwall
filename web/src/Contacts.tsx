@@ -6,6 +6,7 @@ import { useDialog } from './dialog.tsx'
 import { FilterIcon, PlusIcon } from './icons.tsx'
 import Sheet from './Sheet.tsx'
 import { hashPath, hashQuery } from './hashQuery.ts'
+import { CONTACTS_SHARED_EVENT, takeSharedContacts } from './native.ts'
 import PickField, { PickSwatch, type PickOption } from './PickField.tsx'
 import { inkFor } from './color.ts'
 import type { Member } from './types.ts'
@@ -175,7 +176,7 @@ function ContactDetail({ contact, categories, members, canEdit, onClose, onEdit,
   </Sheet>
 }
 
-function ImportSheet({ contacts, categories, members, onClose, onImported }: { contacts: Contact[]; categories: ContactCategory[]; members: Member[]; onClose: () => void; onImported: () => void }) {
+function ImportSheet({ contacts, categories, members, shared, onClose, onImported }: { contacts: Contact[]; categories: ContactCategory[]; members: Member[]; shared?: string | null; onClose: () => void; onImported: () => void }) {
   const { toast } = useApp()
   const dialog = useDialog()
   const fileInput = useRef<HTMLInputElement>(null)
@@ -201,6 +202,9 @@ function ImportSheet({ contacts, categories, members, onClose, onImported }: { c
     } catch (error) { setMessage(errorText(error, failed)) }
     finally { setBusy(false) }
   }
+  // A contact shared from the phone's share sheet goes straight to review.
+  const sharedOnce = useRef(shared)
+  useEffect(() => { if (sharedOnce.current) void stage({ vcard: sharedOnce.current }, 'Could not read the shared contact.') }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const fileChosen = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     event.target.value = ''
@@ -303,6 +307,7 @@ export default function Contacts() {
   const [filters, setFilters] = useState<ContactFilters>(DEFAULT_CONTACT_FILTERS)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [sheet, setSheet] = useState<'detail' | 'edit' | 'create' | 'import' | 'filters' | null>(null)
+  const [shared, setShared] = useState<{ vcard: string; n: number } | null>(null)
   const load = async () => {
     try { setContacts(await api.getContacts()); setLoadError('') }
     catch (error) { setLoadError(errorText(error, 'Could not load contacts.')) }
@@ -320,6 +325,17 @@ export default function Contacts() {
     read(); window.addEventListener('hashchange', read)
     return () => window.removeEventListener('hashchange', read)
   }, [])
+  // A contact shared into the app (native.ts receiveSharedContacts): the Import sheet reviews it.
+  useEffect(() => {
+    const take = () => {
+      const vcard = takeSharedContacts()
+      if (!vcard) return
+      if (!parentDevice) { toast('Ask a parent to add contacts to Kinwall.'); return }
+      setShared(s => ({ vcard, n: (s?.n ?? 0) + 1 })); setSheet('import')
+    }
+    take(); window.addEventListener(CONTACTS_SHARED_EVENT, take)
+    return () => window.removeEventListener(CONTACTS_SHARED_EVENT, take)
+  }, [parentDevice, toast])
   const selected = contacts.find(c => c.id === selectedId) ?? null
   const visible = useMemo(() => {
     const q = query.trim().toLocaleLowerCase()
@@ -376,6 +392,6 @@ export default function Contacts() {
     {sheet === 'edit' && selected && parentDevice && <ContactForm key={selected.id} initial={selected} categories={categories} members={members} onClose={() => setSheet('detail')} onSaved={saved} />}
     {sheet === 'create' && parentDevice && <ContactForm initial={null} categories={categories} members={members} onClose={() => setSheet(null)} onSaved={saved} />}
     {sheet === 'filters' && <FiltersSheet filters={filters} categories={categories} onChange={setFilters} onClose={() => setSheet(null)} />}
-    {sheet === 'import' && parentDevice && <ImportSheet contacts={contacts} categories={categories} members={members} onClose={() => setSheet(null)} onImported={() => { void load() }} />}
+    {sheet === 'import' && parentDevice && <ImportSheet key={shared?.n ?? 0} shared={shared?.vcard} contacts={contacts} categories={categories} members={members} onClose={() => { setSheet(null); setShared(null) }} onImported={() => { void load() }} />}
   </div>
 }

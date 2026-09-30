@@ -41,7 +41,16 @@ Import is a one-time snapshot into Kinwall; it is not synchronization and Kinwal
 
 Before saving, review each proposed contact. Possible and exact duplicates are suggestions only. Choose Skip, Create/Keep both, or Merge; merging requires an explicit decision and keeps every unique phone, email, address, category and tag. A merged contact is never shown to more people than before: it keeps the stricter **Who can see it** setting, each wall switch stays on only if both copies had it on, and fields private in either copy stay private. The Browser Contact Picker is feature-detected and shown only in a secure top-level browsing context. If it is unavailable, export/share contacts from the phone as a `.vcf` file and import that file instead.
 
-Direct full address-book access requires platform-specific native permissions. This web-first version does not ship native iOS or Android code or continuous phone-contact synchronization. The import boundary is intentionally normalized so future native adapters can provide contact drafts without changing the directory API.
+## Share a contact from your phone
+
+In the Kinwall app for iPhone, iPad and Android, you can send a contact straight to Kinwall from the phone's Contacts app, or from any app that shares contacts as a vCard. Open the contact, tap **Share Contact** (Android: **Share**) and pick **Kinwall**.
+
+- **iPhone and iPad**: Kinwall reads the contact in the share sheet and shows it for review, marking any that look like a saved contact as a possible duplicate. Choose **Add** or **Skip** for each new contact, and **Skip**, **Merge** (adds the missing details to the saved contact) or **Keep both** for a possible duplicate, then tap **Import**. Kinwall saves it there and then; there's no need to open the app.
+- **Android**: Kinwall opens on Contacts with the same review you get from **Import**.
+
+Either way, nothing is saved until you import, and photos on a shared contact are left behind. Importing contacts is for parent devices: on a kid's device or a wall screen, Kinwall says to ask a parent instead.
+
+Direct full address-book access requires platform-specific native permissions. Kinwall doesn't read the phone's address book on its own or keep contacts in sync with it; sharing a contact is a one-time import. The import boundary is intentionally normalized so future native adapters can provide contact drafts without changing the directory API.
 
 ## REST and MCP
 

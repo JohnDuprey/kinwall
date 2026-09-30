@@ -161,3 +161,24 @@ export function addAppTile(tile: 'groceries' | 'night') {
   const w = window as Window & { webkit?: { messageHandlers?: { kinwall?: { postMessage: (m: unknown) => void } } } }
   try { w.webkit?.messageHandlers?.kinwall?.postMessage({ type: 'addTile', tile }) } catch { /* not in the app */ }
 }
+
+// A contact shared into the app (Android's share sheet: kinwall-mobile src/WebShell.tsx). The app
+// fires IMPORT_CONTACTS_EVENT with the vCard text; main.tsx hands it to receiveSharedContacts,
+// which keeps it and opens Contacts, whose Import sheet takes it (parent devices only).
+export const IMPORT_CONTACTS_EVENT = 'kinwall:import-contacts'
+export const CONTACTS_SHARED_EVENT = 'kinwall:contacts-shared'
+let sharedVcard: string | null = null
+/** Keeps a shared vCard (up to 2 MB, like a chosen file) and opens Contacts; false if it isn't one. */
+export function receiveSharedContacts(vcard: unknown): boolean {
+  if (typeof vcard !== 'string' || vcard.length > 2_000_000 || !/BEGIN:VCARD/i.test(vcard)) return false
+  sharedVcard = vcard
+  location.hash = '#/contacts'
+  window.dispatchEvent(new Event(CONTACTS_SHARED_EVENT))
+  return true
+}
+/** The shared vCard, once. */
+export function takeSharedContacts(): string | null {
+  const v = sharedVcard
+  sharedVcard = null
+  return v
+}
