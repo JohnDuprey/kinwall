@@ -163,10 +163,14 @@ test('import-url: previews without saving, then save upserts by page address', a
   assert.equal(preview.json.recipe.sourceUrl, `${base}/chili`); // after the redirect
   assert.deepEqual(preview.json.warnings, []);
   assert.equal(preview.json.recipeId, undefined);
+  assert.equal(preview.json.updates, undefined); // nothing to update yet
   const first = await post('/api/recipes/import-url', { url: `${base}/chili`, save: true });
   assert.equal(first.json.created, true);
   const again = await post('/api/recipes/import-url', { url: `${base}/chili`, save: true });
   assert.deepEqual([again.json.recipeId, again.json.created], [first.json.recipeId, false]);
+  // Now the preview says which recipe saving will replace (a page can claim any address).
+  const second = await post('/api/recipes/import-url', { url: `${base}/moved` });
+  assert.deepEqual(second.json.updates, { id: first.json.recipeId, name: 'Weeknight Chili' });
   // The web app saves an edited preview through /api/recipes/import with the same key: still one recipe.
   const edited = await post('/api/recipes/import', { source: 'web', externalId: `${base}/chili`, name: 'Our Chili', servings: 4, ingredients: preview.json.recipe.ingredients.map((i: any) => i.text), steps: preview.json.recipe.steps });
   assert.equal(edited.json.recipeId, first.json.recipeId);

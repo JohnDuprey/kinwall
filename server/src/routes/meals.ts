@@ -137,7 +137,11 @@ mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/recipes/import-url
   const recipe = parseRecipeHtml(page.html, page.url);
   if (!recipe) return c.json({ error: 'This page has no recipe data Kinwall can read. Paste the recipe text instead.' }, 422);
   const warnings = previewWarnings(recipe);
-  if (!save) return c.json({ recipe, warnings }, 200);
+  if (!save) {
+    // Saving replaces the recipe already imported from this address; say so, since a page can claim any address.
+    const updates = recipe.sourceUrl ? await c.env.DB.prepare("SELECT id, name FROM recipes WHERE source = 'web' AND external_id = ?").bind(recipe.sourceUrl).first<{ id: string; name: string }>() : null;
+    return c.json({ recipe, warnings, ...(updates && { updates: { id: updates.id, name: updates.name } }) }, 200);
+  }
   if (!recipe.name) return c.json({ error: 'This recipe has no name. Preview it, name it, then save.' }, 422);
   const saved = await upsertImport(c, {
     source: 'web', externalId: recipe.sourceUrl!, name: recipe.name, description: recipe.description, sourceUrl: recipe.sourceUrl, imageUrl: recipe.imageUrl ?? undefined,

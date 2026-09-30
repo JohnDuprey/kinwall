@@ -56,7 +56,8 @@ export interface RecipePreview {
   steps: RecipeStep[]
   kind?: RecipeKind; makes?: string | null // from a Kinwall share link
 }
-export interface RecipePreviewResult { recipe: RecipePreview; warnings: string[] }
+// updates: the recipe already imported from this address, which saving replaces.
+export interface RecipePreviewResult { recipe: RecipePreview; warnings: string[]; updates?: { id: string; name: string } }
 /** POST /api/recipes/import: upserts by source + externalId (a web recipe is keyed by its address). */
 export interface RecipeImport {
   source: string; externalId: string; name: string; description?: string | null; sourceUrl?: string | null; imageUrl?: string

@@ -35,16 +35,17 @@ export default function RecipeImportSheet({ url: initialUrl = '', admin, onClose
     if (admin && link) api.previewRecipeUrl(link).then(show, failed).finally(() => setBusy(false))
   }, []) // eslint-disable-line react-hooks/exhaustive-deps -- only the link the sheet opened with
 
-  const save = () => run(async () => {
+  // asNew: keep the recipe this page's address already belongs to and add another one.
+  const save = (asNew = false) => run(async () => {
     const r = preview!.recipe
     if (!name.trim()) throw new Error('Give the recipe a name.')
     const common = { name: name.trim(), description: r.description, prepMinutes: r.prepMinutes, totalMinutes: r.totalMinutes, steps: r.steps, ...(r.kind && { kind: r.kind, makes: r.makes ?? null }) }
     // From a page: keyed by its address, so importing it again updates this recipe.
-    const saved = r.sourceUrl
+    const saved = r.sourceUrl && !asNew
       ? await api.getRecipe((await api.importRecipe({ ...common, source: 'web', externalId: r.sourceUrl, sourceUrl: r.sourceUrl, ...(r.imageUrl && { imageUrl: r.imageUrl }), servings, ingredients: r.ingredients.map(i => i.qualifier !== undefined ? i : i.text) })).recipeId)
-      : await api.createRecipe({ ...common, instructions: null, preparationNotes: null, sourceUrl: null, defaultServings: servings, archived: false,
-        ingredients: r.ingredients.map(({ name, quantity, unit }, sort) => ({ name, quantity, unit, preparation: null, qualifier: null, category: null, sort })) })
-    toast('Recipe saved'); onSaved(saved)
+      : await api.createRecipe({ ...common, instructions: null, preparationNotes: null, sourceUrl: r.sourceUrl, ...(r.imageUrl && { imageUrl: r.imageUrl }), defaultServings: servings, archived: false,
+        ingredients: r.ingredients.map(({ name, quantity, unit, qualifier, preparation, category }, sort) => ({ name, quantity, unit, preparation: preparation ?? null, qualifier: qualifier ?? null, category: category ?? null, sort })) })
+    toast(preview!.updates && !asNew ? `Updated: ${saved.name}` : `Saved: ${saved.name}`); onSaved(saved)
   })
 
   if (!admin) return <Sheet title="Import a recipe" variant="dialog" onClose={onClose} actions={<button className="btn btn-primary" onClick={onClose}>OK</button>}>
@@ -58,15 +59,20 @@ export default function RecipeImportSheet({ url: initialUrl = '', admin, onClose
   const errorLine = error && <p className="field-error" role="alert">{error}</p>
 
   const r = preview?.recipe
+  const updates = preview?.updates
   const time = r && recipeTime(r)
   // One sheet throughout (link or text, then the preview), so it doesn't slide in again at each stage.
   // Keyed buttons: React must not reuse the Back button as the submit button mid-click (the click
   // would then submit the form and read the recipe again).
   return <Sheet title={r ? 'Check the recipe' : 'Import a recipe'} onClose={onClose} dismissable={!busy} actions={r ? <>
     <button key="back" type="button" className="btn btn-secondary" disabled={busy} onClick={() => { setPreview(null); setError('') }}>Back</button>
-    <button key="save" type="button" className="btn btn-primary" disabled={busy} onClick={() => void save()}>{busy ? 'Saving…' : 'Save recipe'}</button>
+    <button key="save" type="button" className="btn btn-primary" disabled={busy} onClick={() => void save()}>{busy ? 'Saving…' : updates ? 'Update recipe' : 'Save recipe'}</button>
   </> : <button key="read" className="btn btn-primary" type="submit" form={id} disabled={busy}>{busy ? 'Reading…' : mode === 'url' ? 'Get recipe' : 'Read recipe'}</button>}>
     {r ? <>
+      {updates && <div className="recipe-import-updates" role="status">
+        <p>This updates your recipe “{updates.name}”.</p>
+        <button type="button" className="link-btn" disabled={busy} onClick={() => void save(true)}>Save as a new recipe</button>
+      </div>}
       <fieldset className="meal-fieldset" disabled={busy}>
         <div className="field"><label htmlFor={`${id}-name`}>Name</label><input id={`${id}-name`} type="text" required maxLength={200} value={name} onChange={e => setName(e.target.value)} /></div>
         <div className="field"><label htmlFor={`${id}-servings`}>Servings</label><input id={`${id}-servings`} type="number" min="1" max="10000" step="any" value={servings || ''} onChange={e => setServings(Number(e.target.value))} /></div>

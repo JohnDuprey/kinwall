@@ -122,6 +122,7 @@ export const RecipeTextParseSchema = z.object({
 export const RecipePreviewResultSchema = z.object({
   recipe: RecipePreviewSchema, warnings: z.array(z.string()),
   recipeId: z.string().optional().describe('With save: the saved recipe.'), created: z.boolean().optional(),
+  updates: z.object({ id: z.string(), name: z.string() }).optional().describe('Preview only: the recipe already imported from this address, which saving replaces.'),
 }).openapi('RecipePreviewResult');
 export const RecipeSnapshotSchema = z.object({ name: z.string(), defaultServings: servings, prepMinutes: minutes.optional(), totalMinutes: minutes.optional(), ingredients: z.array(IngredientSchema) }).openapi('RecipeSnapshot');
 export const MealInputSchema = z.object({
