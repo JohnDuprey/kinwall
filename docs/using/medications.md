@@ -66,6 +66,8 @@ Each reminder is sent once per dose (and once per snooze and follow-up), even if
 
 **Quiet hours**: medication reminders still come through during [quiet hours](quiet-hours.md), both the reminder to the person and the note to parents. Wall screens show their night clock during quiet hours; tap to wake it and see the Take now card.
 
+**Do Not Disturb (Kinwall app for Android)**: a phone's own Do Not Disturb still silences medicine reminders. To let them through, tap **Let medicine reminders through Do Not Disturb** under [This display → Notifications](../settings/this-display.md#notifications). It opens Android's settings for Kinwall's **Medicine** notifications; turn on **Override Do Not Disturb** there. Other Kinwall notifications stay quiet.
+
 ## A person's medicines page
 
 Open it with **Open medicines** on their [profile](profiles.md), or **History** next to their name in **Trackers → Health**. It shows:

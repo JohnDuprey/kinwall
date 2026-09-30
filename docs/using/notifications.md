@@ -65,6 +65,7 @@ In the Kinwall app for iPhone, some things also show on the Lock Screen and in t
 * A leave-by or start-prep countdown follows the reminders: it shows only on a phone that belongs to someone who has [transition reminders](../settings/family.md#transition-reminders) on, and with the app's notifications allowed. It starts at their first transition reminder and ends when the event starts.
 * To turn them all off, go to iPhone **Settings → Kinwall → Live Activities**. The Notifications section in the app's Settings says whether they're on.
 * In the Kinwall app for Android they show as ongoing notifications instead. Turn them off in Android **Settings → Apps → Kinwall → Notifications**; the Notifications section says whether they're on.
+* On Android, medicine reminders can come through Do Not Disturb: see [Medications → Reminders](medications.md#reminders).
 
 ## Platform notes
 

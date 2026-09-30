@@ -31,7 +31,7 @@ import { countDrawings } from './drawings-db.ts'
 import { passkeysSupported, registerPasskey } from './webauthn.ts'
 import { QrCode } from './App.tsx'
 import { InstallRow } from './Install.tsx'
-import { appLiveActivities, appMedicineNames, appPlatform, inNativeApp, liveActivitiesLine, setAppMedicineNames } from './native.ts'
+import { addAppTile, appLiveActivities, appMedicineNames, appNotificationSettings, appPlatform, appQuickSettingsTiles, inNativeApp, liveActivitiesLine, openAppNotificationSettings, setAppMedicineNames } from './native.ts'
 import { useDialog } from './dialog.tsx'
 import { TEMP_CHECK_OFF } from './tempCheck.ts'
 import { EVENING_TIMES } from './journal.ts'
@@ -737,6 +737,10 @@ function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean)
             <div className="settings-row-sub" id="app-med-names-sub">Off: a due dose says “Leo’s medicine”. It shows on the lock screen.</div>
           </div>
           <button className={`switch ${appNames ? 'on' : ''}`} role="switch" aria-checked={appNames} aria-labelledby="app-med-names-label" aria-describedby="app-med-names-sub" onClick={() => { setAppMedicineNames(!appNames); setAppNames(!appNames) }}><span className="knob" /></button>
+        </div>}
+        {settings.medications && appNotificationSettings() && <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+          <button className="btn btn-secondary" onClick={() => openAppNotificationSettings('medicine')}>Let medicine reminders through Do Not Disturb</button>
+          <div className="settings-row-sub">Opens Android's settings for Kinwall's Medicine notifications. Turn on Override Do Not Disturb.</div>
         </div>}
       </Section>
     )
@@ -1527,6 +1531,7 @@ function GooglePhotosRows() {
 function ThisDisplaySection({ keyName }: { keyName?: string }) {
   const isPhone = useIsPhone()
   const { pref } = useNavMode()
+  const { settings } = useApp()
   return (
     <Section title="This display" icon={<MonitorIcon width={16} height={16} />}>
       {keyName !== undefined && (
@@ -1541,6 +1546,12 @@ function ThisDisplaySection({ keyName }: { keyName?: string }) {
         <Segmented label="Navigation position" value={pref} onChange={setNavPref} options={NAV_PREF_OPTIONS} disabled={isPhone} style={isPhone ? { opacity: 0.5 } : undefined} />
         <div className="settings-row-sub">{isPhone ? 'Phones use the bottom bar, or a side rail when turned sideways.' : 'Where the Calendar, Chores and Lists buttons sit.'}</div>
       </div>
+      {appQuickSettingsTiles() && <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+        <div className="settings-row-label">Add a Quick Settings tile</div>
+        <div className="settings-row-sub">A tile is a button in the panel you swipe down from the top of the screen, so you can use Kinwall without opening it. Android asks before adding it.</div>
+        {settings.features.lists && <button className="btn btn-secondary" onClick={() => addAppTile('groceries')}>Add to Groceries</button>}
+        <button className="btn btn-secondary" onClick={() => addAppTile('night')}>Night screen</button>
+      </div>}
     </Section>
   )
 }
