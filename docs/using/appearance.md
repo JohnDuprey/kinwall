@@ -66,7 +66,7 @@ There are sixteen skins, each with its own light and dark palette:
 | 🍂 Autumn, ❄️ Winter, 🌸 Spring, ☀️ Summer | The four seasons. |
 | 🌊 Ocean, 💜 Lavender | |
 | 🌌 Midnight | A deep navy that looks the same in light and dark mode. |
-| 🩶 Slate, 🖋️ Ink, 🪴 Sage, ✏️ Graphite, 🫐 Berry | **Modern**: clean, cool neutrals with one clear accent: blue, orange, green, red and violet. |
+| 🩶 Slate, 🖋️ Ink, 🪴 Sage, ✏️ Graphite, 🫐 Berry | **Modern**: clean and calm, with backgrounds and cards softly tinted in the scheme's color (blue-gray, navy, sage green, pencil gray, blueberry) and one clear accent: blue, orange, green, red and violet. |
 | 🎃 Harvest, 🎄 Festive | For the holidays. |
 
 Every skin meets WCAG AA contrast (4.5:1) for text on its backgrounds.
