@@ -145,6 +145,22 @@ test('meals add ingredients to Groceries lists only', async () => {
   assert.equal((await raw('POST', '/api/meals/projection/apply', { from: '2026-10-05', to: '2026-10-11', listId: hardware.id })).status, 400);
 });
 
+test('MCP: create_list takes groceries as a type; catalog tools take a catalog (default groceries)', async () => {
+  const { tool, send } = await twoLists();
+  const created = await tool('create_list', { name: 'Warehouse club', kind: 'groceries' });
+  assert.deepEqual([created.structuredContent.list.kind, created.structuredContent.list.catalog], ['shopping', 'groceries']);
+  const retyped = await tool('update_list', { list: 'Warehouse club', kind: 'shopping' });
+  assert.equal(retyped.structuredContent.list.catalog, 'shopping');
+  const lists = (await tool('list_lists', {})).structuredContent.lists;
+  assert.deepEqual(lists.map((l: any) => [l.name, l.catalog]), [['Food', 'groceries'], ['Hardware store', 'shopping'], ['Warehouse club', 'shopping']]);
+  assert.deepEqual((await tool('list_remembered_items', {})).structuredContent.items.map((i: any) => i.title), ['Milk']);
+  assert.deepEqual((await tool('list_remembered_items', { catalog: 'shopping' })).structuredContent.items.map((i: any) => i.title), ['Hammer']);
+  const saved = await tool('update_remembered_item', { name: 'Hammer', catalog: 'shopping', tags: ['Tools'] });
+  assert.ok(!saved.isError, JSON.stringify(saved));
+  assert.ok((await tool('update_remembered_item', { name: 'Hammer', tags: ['Tools'] })).isError); // not in the grocery catalog
+  assert.deepEqual((await send('GET', '/api/lists/remembered?catalog=shopping'))[0].tags, ['Tools']);
+});
+
 test('export/import: list types and catalogs round-trip; an older file gets the name rule', async () => {
   const source = await twoLists();
   await source.send('PUT', '/api/lists/remembered/hammer?catalog=shopping', { tags: ['Tools'] });

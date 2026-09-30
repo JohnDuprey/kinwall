@@ -191,7 +191,16 @@ const NOTE_TARGET_DOC = 'event:<eventId> (from list_events) or list_item:<itemId
 const SORT_BY_DOC = 'Item order: manual (priority first, overdue first, then hand-set order), added (newest first), due (soonest first, undated last), priority (priority, then soonest due), alpha (A-Z), aisle (shopping lists: by store, then the store\'s aisle order - custom when set, else natural - no aisle last, then A-Z; the default for new shopping lists).';
 const AISLE_DOC = 'Where in the store, e.g. "Aisle 4", "Produce" or "Back wall" (per store).';
 const CATEGORY_DOC = 'On a shopping list this is the department (e.g. "Produce"): with no aisle known at a store, the item shows in that store\'s aisle of the same name.';
-const REMEMBER_DOC = 'On a shopping list, an omitted store/category/aisle is filled from what the family used last time for that item name.';
+const REMEMBER_DOC = 'On a shopping list, an omitted store/category/aisle is filled from what the family used last time for that item name on lists of the same type (Groceries or Shopping).';
+const KIND_DOC = 'groceries (food and household groceries; meals add ingredients here), shopping (other shopping, e.g. a hardware store; both are grouped by aisle or store, an item\'s category is its department, and each type has its own catalog), todo (items can have an assignee and due date), reusable (packing lists, routines - can be reset). groceries and shopping both come back as kind shopping, with catalog groceries or shopping.';
+const CATALOG_ARG = z.enum(['groceries', 'shopping']).optional().describe('Which catalog: groceries (Groceries lists; the default) or shopping (other shopping lists).');
+/** An MCP list kind as the REST fields: groceries/shopping are shopping lists of that type. On create,
+ * plain shopping lets a grocery-named list be Groceries (older callers made "Groceries" as shopping). */
+function listKind(kind: 'groceries' | 'shopping' | 'todo' | 'reusable', explicit: boolean) {
+  if (kind === 'groceries') return { kind: 'shopping', catalog: 'groceries' };
+  if (kind === 'shopping') return explicit ? { kind, catalog: 'shopping' } : { kind };
+  return { kind };
+}
 const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
   list_recipes: { recipes: z.array(RecipeSchema) }, get_recipe: { recipe: RecipeSchema }, create_recipe: { recipe: RecipeSchema }, update_recipe: { recipe: RecipeSchema }, rate_recipe: { recipe: RecipeSchema }, import_recipe: RecipeImportResultSchema.shape, import_recipe_from_url: RecipePreviewResultSchema.shape,
   list_meals: { meals: z.array(MealSchema) }, create_meal: { meal: MealSchema }, update_meal: { meal: MealSchema },
@@ -355,7 +364,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     const result = await call(app, env, auth, 'PATCH', `/api/meals/${encodeURIComponent(id)}`, input);
     return result.status >= 400 ? errorResult(result.json, 'failed to update meal') : okResult('Meal updated', { meal: result.json });
   });
-  tool('get_meal_projection', { title: 'Preview meal groceries', description: 'Admin: review scaled ingredients, per-meal/day sources, existing list matches, applied and changed amounts before applying. Ambiguous amounts need review. Select a shopping list to include matches and prior applications; no list returns an unscoped preview.', inputSchema: { ...ProjectionQuerySchema.shape, listName: z.string().optional().describe('Shopping list name, case-insensitive; use this or listId. listId takes precedence.') } }, async ({ from, to, listId, listName }) => {
+  tool('get_meal_projection', { title: 'Preview meal groceries', description: 'Admin: review scaled ingredients, per-meal/day sources, existing list matches, applied and changed amounts before applying. Ambiguous amounts need review. Select a Groceries list to include matches and prior applications; no list returns an unscoped preview.', inputSchema: { ...ProjectionQuerySchema.shape, listName: z.string().optional().describe('Groceries list name, case-insensitive; use this or listId. listId takes precedence.') } }, async ({ from, to, listId, listName }) => {
     try {
       if (!listId && listName) listId = (await resolveList(app, env, auth, listName)).id;
     } catch (err) {
@@ -365,10 +374,10 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     const result = await call(app, env, auth, 'GET', `/api/meals/projection?${query}`);
     return result.status >= 400 ? errorResult(result.json, 'failed to project groceries') : okResult('Shopping projection', result.json as Record<string, unknown>);
   });
-  tool('apply_meal_projection', { title: 'Apply meal groceries', description: 'Admin: after the user reviews get_meal_projection and chooses a shopping list, add unclaimed ingredients. Repeated or overlapping applications to the same list do not duplicate groceries. Existing items are never rewritten, including changed amounts already applied. Items with a basicId are made from a basic (a seasoning blend, sauce or dough): ask once per basic whether it is made already, then pass basics: { [basicId]: "made" } to skip it or "ingredients" to add the basic\'s own ingredients instead (as written, once).', inputSchema: {
+  tool('apply_meal_projection', { title: 'Apply meal groceries', description: 'Admin: after the user reviews get_meal_projection and chooses a Groceries list (meals add to Groceries lists only), add unclaimed ingredients. Repeated or overlapping applications to the same list do not duplicate groceries. Existing items are never rewritten, including changed amounts already applied. Items with a basicId are made from a basic (a seasoning blend, sauce or dough): ask once per basic whether it is made already, then pass basics: { [basicId]: "made" } to skip it or "ingredients" to add the basic\'s own ingredients instead (as written, once).', inputSchema: {
     ...ProjectionApplySchema.shape,
-    listId: ProjectionApplySchema.shape.listId.optional().describe('Target shopping list id; use this or listName. Takes precedence over listName.'),
-    listName: z.string().optional().describe('Target shopping list name, case-insensitive; use this or listId.'),
+    listId: ProjectionApplySchema.shape.listId.optional().describe('Target Groceries list id; use this or listName. Takes precedence over listName.'),
+    listName: z.string().optional().describe('Target Groceries list name, case-insensitive; use this or listId.'),
     omitKeys: jsonList(ProjectionApplySchema.shape.omitKeys).describe('Exact item keys from get_meal_projection to omit (for example, pantry ingredients).'),
     includeNotes: ProjectionApplySchema.shape.includeNotes.describe('Include meal/date/recipe source notes on added shopping items. Default: false.'),
     includeKitItems: ProjectionApplySchema.shape.includeKitItems.describe('Also add imported meal-kit ingredients that ship in the box (qualifier "in the kit"). Default: false.'),
@@ -1049,7 +1058,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'list_lists',
     {
       title: 'List lists',
-      description: 'List all lists (shopping/todo/reusable) with item and open counts.',
+      description: 'List all lists with item and open counts. kind is todo, shopping or reusable; a shopping list\'s catalog is its type: groceries (Groceries) or shopping (other shopping, e.g. a hardware store).',
       inputSchema: { archived: z.boolean().optional().describe('Include archived lists. Default: false.') },
     },
     async ({ archived }) => {
@@ -1065,10 +1074,10 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'create_list',
     {
       title: 'Create list',
-      description: 'Create a list. Kinds: shopping (grouped by aisle or store; an item\'s category is its department), todo (items can have an assignee and due date), reusable (packing lists, routines - can be reset).',
+      description: `Create a list. Kinds: ${KIND_DOC}`,
       inputSchema: {
         name: z.string().describe('List name, e.g. "Groceries".'),
-        kind: z.enum(['shopping', 'todo', 'reusable']).optional().describe('Default: todo.'),
+        kind: z.enum(['groceries', 'shopping', 'todo', 'reusable']).optional().describe('Default: todo. shopping: a new list named like groceries (Groceries, Food, Market...) is made a Groceries list.'),
         emoji: z.string().optional().describe('A single emoji shown with the list.'),
         members: jsonList(z.array(z.string())).optional().describe('Owner member names or ids. Default: the whole family.'),
       },
@@ -1080,10 +1089,10 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       } catch (err) {
         return errorResult(null, err instanceof Error ? err.message : 'member lookup failed');
       }
-      const res = await call(app, env, auth, 'POST', '/api/lists', { name, kind: kind ?? 'todo', emoji, memberIds });
+      const res = await call(app, env, auth, 'POST', '/api/lists', { name, ...listKind(kind ?? 'todo', false), emoji, memberIds });
       if (res.status >= 400) return errorResult(res.json, 'failed to create list');
-      const list = res.json as { name: string; kind: string };
-      return okResult(`Created ${list.kind} list "${list.name}".`, { list: res.json as Record<string, unknown> });
+      const list = res.json as { name: string; kind: string; catalog: string | null };
+      return okResult(`Created ${list.catalog ?? list.kind} list "${list.name}".`, { list: res.json as Record<string, unknown> });
     },
   );
 
@@ -1426,11 +1435,11 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'update_list',
     {
       title: 'Update list',
-      description: 'Change a list: rename it, switch its kind (todo / shopping / reusable), emoji, owners, item sort order, grouping, whether checked items stay in place, or archive it. Only provided fields change.',
+      description: `Change a list: rename it, switch its kind (${KIND_DOC}), emoji, owners, item sort order, grouping, whether checked items stay in place, or archive it. Only provided fields change.`,
       inputSchema: {
         list: z.string().describe('List id or name.'),
         name: z.string().optional(),
-        kind: z.enum(['shopping', 'todo', 'reusable']).optional(),
+        kind: z.enum(['groceries', 'shopping', 'todo', 'reusable']).optional(),
         emoji: z.string().optional(),
         members: jsonList(z.array(z.string())).optional().describe('Owner member names or ids; [] = the whole family.'),
         sortBy: z.enum(['manual', 'added', 'due', 'priority', 'alpha', 'aisle']).optional().describe(SORT_BY_DOC),
@@ -1439,7 +1448,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         archived: z.boolean().optional(),
       },
     },
-    async ({ list, members, ...input }) => {
+    async ({ list, members, kind, ...input }) => {
       let listId: string;
       let memberIds: string[] | undefined;
       try {
@@ -1448,10 +1457,10 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       } catch (err) {
         return errorResult(null, err instanceof Error ? err.message : 'lookup failed');
       }
-      const res = await call(app, env, auth, 'PATCH', `/api/lists/${encodeURIComponent(listId)}`, { ...input, ...(memberIds ? { memberIds } : {}) });
+      const res = await call(app, env, auth, 'PATCH', `/api/lists/${encodeURIComponent(listId)}`, { ...input, ...(kind ? listKind(kind, true) : {}), ...(memberIds ? { memberIds } : {}) });
       if (res.status >= 400) return errorResult(res.json, 'failed to update list');
-      const updated = res.json as { name: string; kind: string };
-      return okResult(`Updated ${updated.kind} list "${updated.name}".`, { list: res.json as Record<string, unknown> });
+      const updated = res.json as { name: string; kind: string; catalog: string | null };
+      return okResult(`Updated ${updated.catalog ?? updated.kind} list "${updated.name}".`, { list: res.json as Record<string, unknown> });
     },
   );
 
@@ -1512,12 +1521,12 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
   tool(
     'list_remembered_items',
     {
-      title: 'List grocery catalog',
-      description: 'The grocery catalog: every shopping item the family has added before, by name, with its department (category), the family\'s own categories (tags, e.g. "Breakfast", "Lunchbox") and the stores it is found at, each with its aisle there. lastStore is where a new add goes. search matches names; store keeps items found at that store; tag keeps items in that category. They combine.',
-      inputSchema: { search: z.string().optional(), store: z.string().optional().describe('Store name, as on the items.'), tag: z.string().optional().describe('A category (tag) from the items, case ignored.') },
+      title: 'List catalog',
+      description: 'A catalog: every item the family has added before to lists of one type (groceries, the default, or shopping), by name, with its department (category), the family\'s own categories (tags, e.g. "Breakfast", "Lunchbox") and the stores it is found at, each with its aisle there. lastStore is where a new add goes. search matches names; store keeps items found at that store; tag keeps items in that category. They combine.',
+      inputSchema: { catalog: CATALOG_ARG, search: z.string().optional(), store: z.string().optional().describe('Store name, as on the items.'), tag: z.string().optional().describe('A category (tag) from the items, case ignored.') },
     },
-    async ({ search, store, tag }) => {
-      const qs = new URLSearchParams({ ...(search ? { q: search } : {}), ...(store ? { store } : {}), ...(tag ? { tag } : {}) }).toString();
+    async ({ catalog, search, store, tag }) => {
+      const qs = new URLSearchParams({ ...(catalog ? { catalog } : {}), ...(search ? { q: search } : {}), ...(store ? { store } : {}), ...(tag ? { tag } : {}) }).toString();
       const res = await call(app, env, auth, 'GET', `/api/lists/remembered${qs ? `?${qs}` : ''}`);
       if (res.status >= 400) return errorResult(res.json, 'failed to list the catalog');
       const items = res.json as { title: string }[];
@@ -1528,9 +1537,10 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
   tool(
     'update_remembered_item',
     {
-      title: 'Edit grocery catalog item',
-      description: 'Edit an item in the grocery catalog (list_remembered_items): title respells or renames it, category sets its department, tags replaces its own categories (e.g. ["Breakfast", "Lunchbox"]; [] clears them), places replaces the stores it is found at, each with its aisle there (stores left out are forgotten). Only given fields change. Adds on shopping lists then use them. create: true adds it to the catalog when it is not there yet.',
+      title: 'Edit catalog item',
+      description: 'Edit an item in a catalog (list_remembered_items; groceries unless catalog says shopping): title respells or renames it, category sets its department, tags replaces its own categories (e.g. ["Breakfast", "Lunchbox"]; [] clears them), places replaces the stores it is found at, each with its aisle there (stores left out are forgotten). Only given fields change. Adds on lists of that type then use them. create: true adds it to the catalog when it is not there yet.',
       inputSchema: {
+        catalog: CATALOG_ARG,
         name: z.string().describe('The item\'s name or key from list_remembered_items (case and simple plurals ignored).'),
         title: z.string().optional(),
         category: z.string().nullable().optional().describe(CATEGORY_DOC),
@@ -1539,17 +1549,18 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         create: z.boolean().optional(),
       },
     },
-    async ({ name, create, ...edit }) => {
+    async ({ catalog = 'groceries', name, create, ...edit }) => {
       // A key as given, else the name's key (a key isn't always its own key: "chees" is cheese's).
-      const all = await call(app, env, auth, 'GET', '/api/lists/remembered');
+      const qs = `?catalog=${catalog}`;
+      const all = await call(app, env, auth, 'GET', `/api/lists/remembered${qs}`);
       if (all.status >= 400) return errorResult(all.json, 'failed to read the catalog');
       const found = (all.json as { key: string }[]).find((i) => i.key === name) ?? (all.json as { key: string }[]).find((i) => i.key === itemKey(name));
-      if (!found && !create) return errorResult(null, `"${name}" is not in the grocery catalog.`);
+      if (!found && !create) return errorResult(null, `"${name}" is not in the ${catalog === 'groceries' ? 'grocery' : 'shopping'} catalog.`);
       const res = found
-        ? await call(app, env, auth, 'PUT', `/api/lists/remembered/${encodeURIComponent(found.key)}`, edit)
-        : await call(app, env, auth, 'POST', '/api/lists/remembered', { ...edit, title: edit.title ?? name });
+        ? await call(app, env, auth, 'PUT', `/api/lists/remembered/${encodeURIComponent(found.key)}${qs}`, edit)
+        : await call(app, env, auth, 'POST', `/api/lists/remembered${qs}`, { ...edit, title: edit.title ?? name });
       if (res.status >= 400) return errorResult(res.json, 'failed to update the catalog');
-      return okResult(`Saved "${(res.json as { title: string }).title}" in the grocery catalog.`, { item: res.json as Record<string, unknown> });
+      return okResult(`Saved "${(res.json as { title: string }).title}" in the ${catalog === 'groceries' ? 'grocery' : 'shopping'} catalog.`, { item: res.json as Record<string, unknown> });
     },
   );
 
