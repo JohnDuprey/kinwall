@@ -364,6 +364,11 @@ function goalText(m: Member | undefined): { text: string; label: string } | null
   }
 }
 
+function TidbitBody({ trivia, fitKey, title, children }: { trivia: boolean; fitKey: string; title: string; children: React.ReactNode }) {
+  if (trivia) return <div className="board-fit"><div className="board-tidbit-body board-trivia-body">{children}</div></div>
+  return <FitBody key={fitKey} title={title} rows=".board-tidbit-body > *" bodyClass="board-tidbit-body">{children}</FitBody>
+}
+
 /** A quote / fact card. Trivia shows its question as tappable choices: a tap marks that guess
  *  right or wrong and highlights the answer, and Try again resets it for the next person. Online
  *  tidbits credit their source. With several cards each has a `title` from what it shows, shown
@@ -375,7 +380,9 @@ function TidbitCard({ tidbit, area, title, heading }: { tidbit: Tidbit; area: st
   return (
     <section className={`board-card board-tidbit ${area === 'tidbit' ? '' : 'board-tidbit-extra'}`} style={{ gridArea: area }} aria-label={title ?? label}>
       {title && heading && <h3 className="snap-heading">{title}</h3>}{/* one source: its tag already says what it is */}
-      <FitBody key={key} title={title ?? label} rows=".board-tidbit-body > *" bodyClass="board-tidbit-body">
+      {/* Trivia keeps its answers on the card (answering happens right here), so it never trims rows
+          into a "+N more" sheet; when space is tight its body scrolls instead. */}
+      <TidbitBody trivia={tidbit.kind === 'trivia'} fitKey={key} title={title ?? label}>
         {tidbit.kind === 'quote' && <blockquote><p>“{tidbit.text}”</p><footer>— {tidbit.by}</footer></blockquote>}
         {tidbit.kind === 'fact' && <p><span className="board-tidbit-tag">💡 Did you know?</span> {tidbit.text}</p>}
         {tidbit.kind === 'tip' && <p><span className="board-tidbit-tag">🌱 Try this</span> {tidbit.text}</p>}
@@ -402,7 +409,7 @@ function TidbitCard({ tidbit, area, title, heading }: { tidbit: Tidbit; area: st
           </p>
           {guess !== null && <button className="btn btn-secondary" onClick={() => setGuess(null)}>Try again</button>}
         </>}
-      </FitBody>
+      </TidbitBody>
     </section>
   )
 }
