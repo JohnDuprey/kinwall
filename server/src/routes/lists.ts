@@ -192,7 +192,7 @@ export function todayIn(tz: string | null | undefined) {
 }
 
 /** Today (YYYY-MM-DD) in the household's timezone: before it, an open item's due date is overdue. */
-async function householdToday(db: D1Database) {
+async function householdToday(db: KinwallDb) {
   const row = await db.prepare("SELECT value FROM settings WHERE key = 'timezone'").first<{ value: string }>();
   return todayIn(row?.value);
 }
@@ -274,19 +274,24 @@ listsRoutes.openapi(
   }),
   async (c) => {
     const { archived } = c.req.valid('query');
-    const today = await householdToday(c.env.DB);
-    // Single round trip: counts computed via LEFT JOIN + GROUP BY rather than a per-list query.
-    const { results } = await c.env.DB.prepare(
-      `SELECT l.*, COUNT(li.id) AS item_count, COALESCE(SUM(CASE WHEN li.done = 0 THEN 1 ELSE 0 END), 0) AS open_count,
-         COALESCE(SUM(CASE WHEN li.done = 0 AND li.due_date IS NOT NULL AND li.due_date < ? THEN 1 ELSE 0 END), 0) AS overdue_count
-       FROM lists l LEFT JOIN list_items li ON li.list_id = l.id
-       WHERE (? = 1 OR l.archived = 0)
-       GROUP BY l.id
-       ORDER BY l.sort, l.created_at`,
-    )
-      .bind(today, archived === 'true' ? 1 : 0)
-      .all<ListRow & { item_count: number; open_count: number; overdue_count: number }>();
-    return c.json(results.map((row) => toApi(row, row.item_count, row.open_count, row.overdue_count)), 200);
+    // Single round trip: counts computed via LEFT JOIN + GROUP BY rather than a per-list query, batched
+    // with the timezone and the open items' due dates (overdue = before today, in the household's zone).
+    const [listsRes, tzRes, dueRes] = await c.env.DB.batch<unknown>([
+      c.env.DB.prepare(
+        `SELECT l.*, COUNT(li.id) AS item_count, COALESCE(SUM(CASE WHEN li.done = 0 THEN 1 ELSE 0 END), 0) AS open_count
+         FROM lists l LEFT JOIN list_items li ON li.list_id = l.id
+         WHERE (? = 1 OR l.archived = 0)
+         GROUP BY l.id
+         ORDER BY l.sort, l.created_at`,
+      ).bind(archived === 'true' ? 1 : 0),
+      c.env.DB.prepare("SELECT value FROM settings WHERE key = 'timezone'"),
+      c.env.DB.prepare('SELECT list_id, due_date, COUNT(*) AS n FROM list_items WHERE done = 0 AND due_date IS NOT NULL GROUP BY list_id, due_date'),
+    ]);
+    const today = todayIn((tzRes.results as { value: string }[])[0]?.value);
+    const overdue = new Map<string, number>();
+    for (const r of dueRes.results as { list_id: string; due_date: string; n: number }[]) if (r.due_date < today) overdue.set(r.list_id, (overdue.get(r.list_id) ?? 0) + r.n);
+    const results = listsRes.results as (ListRow & { item_count: number; open_count: number })[];
+    return c.json(results.map((row) => toApi(row, row.item_count, row.open_count, overdue.get(row.id) ?? 0)), 200);
   },
 );
 
