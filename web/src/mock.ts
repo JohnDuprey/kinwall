@@ -3,7 +3,7 @@ import type { OnlineTidbits, Plugin, PluginCatalogEntry,
   Account, ApiKey, AppNotification, CalendarEntry, Category, Chore, ChoreDay, EventInstance, HiddenEvent, LeaderboardEntry, LeaderboardPeriod, List, ListGroup,
   Photo, PhotoQuota, GooglePhotos, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, ListItem, ListItemInput, ListItemPatch, ListItemStep, Member, RememberedItem, RememberedItemInput, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption, TempCheck, TempCheckInput, Journal, JournalEntry, Insights, InsightDay, InsightRange, Battery, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory, DoseStatus, MedTime,
 } from './types.ts'
-import { FEELINGS, TEMP_CHECK_OFF } from './tempCheck.ts'
+import { eveningPending, FEELINGS, lastNightDate, TEMP_CHECK_OFF } from './tempCheck.ts'
 import { aisleOrderMap, compareItems } from './types.ts'
 import { itemKey } from './itemSuggest.ts'
 import { byListOrder, reorderWithin } from './listSections.ts'
@@ -18,24 +18,27 @@ const todayISO = () => new Date().toISOString().slice(0, 10)
 
 let rev = 1
 const checkIns = new Set<string>() // `${memberId}:${date}` - the demo's daily check-ins
-const tempChecks = new Map<string, Omit<TempCheck, 'settings' | 'private' | 'custom' | 'answered' | 'followupOpen' | 'drainedOpen'>>() // `${memberId}:${date}`
+const tempChecks = new Map<string, Omit<TempCheck, 'settings' | 'private' | 'custom' | 'answered' | 'followupOpen' | 'drainedOpen' | 'lastNight'>>() // `${memberId}:${date}`
+const lastNightSkips = new Set<string>() // `${memberId}:${date}`: last night's check-in skipped
 const customFeelings = new Map<string, string[]>([['m3', ['excited']]]) // Maya added "excited" with "Other"
 // Maya's journal: a goal today (the evening check shows any time of day in the demo), two past days and one entry.
+// Before noon it's all a day earlier: she hasn't checked in yet, and last night's check-in is waiting.
+const demoShift = lastNightDate(new Date()) ? -1 : 0
 const demoDay = (n: number) => dateKey(new Date(Date.now() + n * 86_400_000))
 const noNotes = { helped: null, hindered: null, next: null }
 for (const [n, sleep, feelings, goal, followup] of [
   [0, 'good', ['good', 'excited'], 'Finish my book report', null],
   [-1, 'great', ['great'], 'Practice piano for 15 minutes', { outcome: 'yes', ...noNotes, helped: 'I did it right after snack' }],
   [-2, 'ok', ['tired'], 'Tidy my room', { outcome: 'partly', helped: 'Music on', hindered: 'Too many Legos', next: 'Start with the Legos' }],
-] as const) tempChecks.set(`m3:${demoDay(n)}`, { memberId: 'm3', date: demoDay(n), sleep, feelings: [...feelings], goal, goalSkipped: false, followup })
+] as const) tempChecks.set(`m3:${demoDay(n + demoShift)}`, { memberId: 'm3', date: demoDay(n + demoShift), sleep, feelings: [...feelings], goal, goalSkipped: false, followup })
 const journalEntries: JournalEntry[] = [
-  { id: 'je1', memberId: 'm3', date: demoDay(-1), text: 'We saw a double rainbow on the way home from soccer!', mood: '🌈', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: 'je1', memberId: 'm3', date: demoDay(-1 + demoShift), text: 'We saw a double rainbow on the way home from soccer!', mood: '🌈', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
 ]
 // Maya's six weeks of check-ins before that (mock-insights.ts, made up), so her journal and Insights have history.
 const DEMO_GOALS = ['Read for 20 minutes', 'Practice piano for 15 minutes', 'Tidy my room', 'Finish my homework before dinner', 'Help make dinner', 'Ride my bike to the park']
 const DEMO_LINES = ['Played tag at recess', 'Soccer practice was fun', 'Made pancakes with Dad', 'Built a fort with Leo', 'Finished a chapter of my book']
 for (const d of MAYA_DAYS) {
-  if (d.ago < 3 || !d.checkedIn) continue
+  if (d.ago < 3 - demoShift || !d.checkedIn) continue
   const date = demoDay(-d.ago)
   tempChecks.set(`m3:${date}`, { memberId: 'm3', date, sleep: d.sleep, feelings: d.feelings.length ? [...d.feelings] : null, goal: d.goalSet ? DEMO_GOALS[d.ago % DEMO_GOALS.length] : null, goalSkipped: false, followup: d.goalOutcome ? { outcome: d.goalOutcome, ...noNotes } : null })
   // A few written while her journal was private (a parent's device sees the mood only).
@@ -601,15 +604,24 @@ export const mock = {
     const m = members.find(x => x.id === memberId); if (!m) throw new Error('member not found')
     const row = tempChecks.get(`${memberId}:${date}`) ?? { memberId, date, sleep: null, feelings: null, goal: null, goalSkipped: false, followup: null }
     const s = { ...TEMP_CHECK_OFF, ...m.tempCheck }
+    // Last night's check-in (as the server): open until noon, a morning answer or a skip.
+    const today = dateKey(new Date()), night = lastNightDate(new Date())
+    const t = tempChecks.get(`${memberId}:${today}`)
+    const nightRow = night ? tempChecks.get(`${memberId}:${night}`) : undefined
+    const nightOpen = !!night && !lastNightSkips.has(`${memberId}:${night}`) && !(t && (t.sleep || t.feelings?.length || t.goal || t.goalSkipped))
+    const asks = nightOpen && s.on && (!!s.battery || (s.goal && s.evening && !!nightRow?.goal && !nightRow.goalSkipped))
+    const evening = (date === today && !asks) || (date === night && nightOpen) // any time of day in the demo, once last night's is done
     return {
       ...row, drained: row.drained ?? null, settings: s, private: false, custom: customFeelings.get(memberId) ?? [], answered: { sleep: !!row.sleep, feelings: !!row.feelings?.length, goal: !!row.goal || row.goalSkipped, followup: !!row.followup, drained: !!row.drained },
-      followupOpen: s.on && s.goal && s.evening && !!row.goal && date === dateKey(new Date()), // any time of day in the demo
-      drainedOpen: s.on && !!s.battery && date === dateKey(new Date()),
+      followupOpen: s.on && s.goal && s.evening && !!row.goal && evening,
+      drainedOpen: s.on && !!s.battery && evening,
+      lastNight: date === today && asks ? { date: night!, pending: eveningPending(s, nightRow ?? { goal: null, goalSkipped: false, followup: null }) } : null,
     }
   },
   putTempCheck: async (memberId: string, body: TempCheckInput, date = dateKey(new Date())): Promise<TempCheck> => {
     const prev = await mock.getTempCheck(memberId, date)
     if (!prev.settings.on) throw new Error('Temp check is off for them (Settings → Family)')
+    if (body.lastNightSkipped) { lastNightSkips.add(`${memberId}:${date}`); bump(); return mock.getTempCheck(memberId, date) }
     const goal = body.goalSkipped ? null : body.goal !== undefined ? body.goal?.trim() || null : prev.goal
     const feelings = body.feelings !== undefined ? (body.feelings?.length ? body.feelings : null) : prev.feelings
     const f = body.followup

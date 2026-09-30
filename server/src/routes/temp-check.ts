@@ -28,20 +28,29 @@
 // full / ok / low / empty or skip, sealed on its own (drained, aad '<member>:<date>:drained'). It
 // calibrates their battery (battery.ts calibrate). Only their own device and parents' devices (and
 // connected apps with aiHealthAccess) see or answer it: never a shared wall or another member's device.
+//
+// Last night's check-in: the goal check and "How drained?" for day D stay open after midnight
+// (?date=D, followupOpen / drainedOpen) until LAST_NIGHT_UNTIL on D+1, their morning Temp check
+// (sleep, feelings or goal answered for D+1), or a skip (lastNightSkipped), whichever comes first.
+// Opening the app doesn't close it (day-started): that's how they'd come back to answer. Answers
+// stay on D, so the journal, Insights and the battery read them there. Today's response says so
+// (lastNight: D, and pending while something is unanswered); notify.ts sends one generic morning
+// push for a pending one. A skip is kept as a sent_notifications key (a hash: it never says who
+// or which day), outliving the window.
 import { createRoute, z } from '@hono/zod-openapi';
 import type { Context } from 'hono';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
 import { hostTimezone } from '../env.ts';
 import { emit } from '../bus.ts';
-import { deviceOwner, ownerBlock, resolveKey } from '../auth.ts';
+import { deviceOwner, ownerBlock, resolveKey, sha256Hex } from '../auth.ts';
 import { seal, unseal, type EncryptionEnv } from '../crypto.ts';
 import { ErrorSchema, FEELINGS, FOLLOWUP_OUTCOMES, SLEEP_ANSWERS, TempCheckSettingsSchema } from '../schemas.ts';
 import { healthBlock, HEALTH_PRIVATE } from './trackers.ts';
 import { DRAINED_ANSWERS } from '../battery.ts';
 import { parseTempCheck, todayInTz } from './members.ts';
 import { readSettings } from './settings.ts';
-import { startDayFrom } from './medications.ts';
+import { addDays, startDayFrom } from './medications.ts';
 import { journalOwner, privateNow } from '../journal-privacy.ts';
 
 export const tempCheckRoutes = createRouter();
@@ -75,7 +84,8 @@ const TempCheckSchema = z
     followupOpen: z.boolean().openapi({ description: 'The evening goal check is showing: on, a goal set today, and past their eveningTime (household time).' }),
     custom: z.array(z.string()).nullable().openapi({ description: 'Their own feelings, added with "Other" (the built-in ones are great, good, fine, ok, bad, awful, tired, sore). null when withheld.' }),
     drained: DrainedSchema.nullable().openapi({ description: '"How drained do you feel?" (energy battery on): full, ok, low, empty or skip. null when not answered or withheld (private).' }),
-    drainedOpen: z.boolean().openapi({ description: 'The drained question is showing: battery on, today, past their eveningTime, and this is their own device or a parent\'s.' }),
+    drainedOpen: z.boolean().openapi({ description: 'The drained question is showing: battery on, today past their eveningTime (or last night\'s, still open), and this is their own device or a parent\'s.' }),
+    lastNight: z.object({ date: z.string(), pending: z.boolean() }).nullable().openapi({ description: "Today's response only: last night's evening check (date) is still open until noon, their morning Temp check or a skip; pending while one of its questions is unanswered. null otherwise." }),
   })
   .openapi('TempCheck');
 
@@ -89,8 +99,9 @@ const TempCheckInputSchema = z
     followup: z
       .object({ outcome: z.enum(FOLLOWUP_OUTCOMES), helped: NoteSchema, hindered: NoteSchema, next: NoteSchema })
       .optional()
-      .openapi({ description: 'The evening goal check (today only, with the evening check on and a goal set). Notes up to 500 characters each; dropped when their journal setting is off.' }),
-    drained: DrainedSchema.optional().openapi({ description: '"How drained do you feel?" (today only, with their energy battery on). Their own device or a parent\'s.' }),
+      .openapi({ description: 'The evening goal check (today, or last night while open, with the evening check on and a goal set). Notes up to 500 characters each; dropped when their journal setting is off.' }),
+    drained: DrainedSchema.optional().openapi({ description: '"How drained do you feel?" (today, or last night while open, with their energy battery on). Their own device or a parent\'s.' }),
+    lastNightSkipped: z.literal(true).optional().openapi({ description: "With ?date= last night: skip last night's check-in. Closes it for good (no more answers, no morning reminder). Sent on its own." }),
   })
   .openapi('TempCheckInput');
 
@@ -142,6 +153,26 @@ export async function sealTempCheck(env: EncryptionEnv, memberId: string, date: 
 /** HH:MM now in the household's timezone. */
 const nowHm = (tz: string) => new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date());
 
+/** Last night's check-in closes at this household time on the next day at the latest. */
+export const LAST_NIGHT_UNTIL = '12:00';
+type DayAnswers = Pick<TempCheckRow, 'sleep' | 'feelings' | 'goal' | 'goal_skipped'> | null | undefined;
+type EveningAnswers = Pick<TempCheckRow, 'goal' | 'goal_skipped' | 'followup' | 'drained'> | null | undefined;
+/** Their morning Temp check was answered: their day started, last night closes. */
+export const morningAnswered = (r: DayAnswers) => !!(r && (r.sleep || r.feelings || r.goal || r.goal_skipped));
+/** An evening question on that day is still unanswered (the drained one only for a caller who may answer it). */
+export const eveningPending = (s: ReturnType<typeof parseTempCheck>, r: EveningAnswers, full = true) =>
+  s.on && ((s.goal && s.evening && !!r?.goal && !r.goal_skipped && !r.followup) || (s.battery && full && !r?.drained));
+export const lastNightSkipKey = async (memberId: string, date: string) => `lastnight-skip:${await sha256Hex(`${memberId}:${date}`)}`;
+
+/** Is `date` last night, still open: before noon, their morning Temp check not answered, not skipped. */
+async function lastNightOpen(c: C, memberId: string, date: string, tz: string): Promise<boolean> {
+  const today = todayInTz(tz);
+  if (date !== addDays(today, -1) || nowHm(tz) >= LAST_NIGHT_UNTIL) return false;
+  const morning = await c.env.DB.prepare('SELECT sleep, feelings, goal, goal_skipped FROM temp_checks WHERE member_id = ? AND date = ?').bind(memberId, today).first<DayAnswers>();
+  if (morningAnswered(morning)) return false;
+  return !(await c.env.DB.prepare('SELECT 1 FROM sent_notifications WHERE key = ?').bind(await lastNightSkipKey(memberId, date)).first());
+}
+
 async function load(c: C, memberId: string, date: string) {
   const member = await c.env.DB.prepare('SELECT temp_check, temp_check_feelings, grown_up, journal_private, journal_private_allowed FROM members WHERE id = ?').bind(memberId)
     .first<{ temp_check: string | null; temp_check_feelings: string | null; grown_up: number; journal_private: number | null; journal_private_allowed: number }>();
@@ -157,13 +188,21 @@ async function respond(c: C, memberId: string, date: string, found: NonNullable<
   const v = found.row ? (who === 'full' ? await openTempCheck(c.env, found.row, (await journalOwner(c)) === memberId) : { ...empty, goal: found.row.goal, goalSkipped: !!found.row.goal_skipped }) : empty;
   const answered = { sleep: !!found.row?.sleep, feelings: !!found.row?.feelings, goal: !!found.row?.goal || !!found.row?.goal_skipped, followup: !!found.row?.followup, drained: !!found.row?.drained };
   const tz = await householdTz(c);
-  const evening = date === todayInTz(tz) && nowHm(tz) >= settings.eveningTime;
+  const today = todayInTz(tz);
+  const evening = (date === today && nowHm(tz) >= settings.eveningTime) || (await lastNightOpen(c, memberId, date, tz));
   const followupOpen = settings.on && settings.goal && settings.evening && !!found.row?.goal && evening;
   // Never on a wall or another member's device: only a caller who may see the answer is asked.
   const drainedOpen = settings.on && settings.battery && who === 'full' && evening;
+  let lastNight: { date: string; pending: boolean } | null = null;
+  const yesterday = addDays(today, -1);
+  if (date === today && settings.on && (settings.battery || (settings.goal && settings.evening)) && (await lastNightOpen(c, memberId, yesterday, tz))) {
+    const y = await c.env.DB.prepare('SELECT goal, goal_skipped, followup, drained FROM temp_checks WHERE member_id = ? AND date = ?').bind(memberId, yesterday).first<EveningAnswers>();
+    const asks = (settings.battery && who === 'full') || (settings.goal && settings.evening && !!y?.goal && !y.goal_skipped);
+    if (asks) lastNight = { date: yesterday, pending: eveningPending(settings, y, who === 'full') };
+  }
   return {
     memberId, date, settings, private: who !== 'full', answered, followup: v.followup, followupHidden: v.followupHidden, followupOpen,
-    drained: who === 'full' && found.row ? await openDrained(c.env, found.row) : null, drainedOpen,
+    drained: who === 'full' && found.row ? await openDrained(c.env, found.row) : null, drainedOpen, lastNight,
     sleep: v.sleep, feelings: v.feelings, goal: v.goal, goalSkipped: v.goalSkipped,
     custom: who === 'none' ? null : await readCustom(c.env, memberId, found.member.temp_check_feelings),
   };
@@ -202,13 +241,13 @@ tempCheckRoutes.openapi(
     method: 'put',
     path: '/api/members/{id}/temp-check',
     tags: ['Members'],
-    summary: "Answer (or change) a member's Temp check for a day (today by default). Only the fields sent change. Display keys: today only, and a member's own device only for them. Connected apps may set the goal; sleep, feelings, followup and drained need aiHealthAccess. followup and drained: today only; drained never from a shared wall.",
+    summary: "Answer (or change) a member's Temp check for a day (today by default). Only the fields sent change. Display keys: today only (and last night's followup and drained while open), and a member's own device only for them. Connected apps may set the goal; sleep, feelings, followup and drained need aiHealthAccess. followup and drained: today, or last night until noon, their morning Temp check or lastNightSkipped; drained never from a shared wall.",
     security: [{ Bearer: [] }],
     request: { params, query, body: { content: json(TempCheckInputSchema) } },
     responses: {
       200: { description: 'saved', content: json(TempCheckSchema) },
       400: { description: 'Temp check is off for them, or a bad answer', content: json(ErrorSchema) },
-      403: { description: "someone else's device, another day from a display, or health from a connected app", content: json(ErrorSchema) },
+      403: { description: "someone else's device, another day from a display, the evening check outside its window, or health from a connected app", content: json(ErrorSchema) },
       404: { description: 'member not found', content: json(ErrorSchema) },
     },
   }),
@@ -223,15 +262,26 @@ tempCheckRoutes.openapi(
     if (!found) return c.json({ error: 'member not found' }, 404);
     const settings = parseTempCheck(found.member.temp_check);
     if (!settings.on) return c.json({ error: 'Temp check is off for them (Settings → Family)' }, 400);
+    // The evening check is open today, or last night until noon, their morning Temp check or a skip.
+    const lastNight = date !== today && (await lastNightOpen(c, id, date, await householdTz(c)));
+    const closed = { error: "The evening check can be changed that evening, or the next morning until they've checked in" };
+    const eveningOnly = Object.keys(body).every((k) => k === 'followup' || k === 'drained' || k === 'lastNightSkipped');
     const display = (await resolveKey(c))?.scope === 'display';
-    if (display && date !== today) return c.json({ error: 'This device can only answer for today' }, 403);
+    if (display && date !== today && !(lastNight && eveningOnly)) return c.json({ error: 'This device can only answer for today' }, 403);
     const who = await access(c, id);
     const health = body.sleep !== undefined || body.feelings !== undefined || body.custom !== undefined || body.followup !== undefined || body.drained !== undefined;
     if (health && who === 'none') return c.json(HEALTH_PRIVATE, 403);
+    if (body.lastNightSkipped) {
+      if (!lastNight) return c.json(closed, 403);
+      if (who === 'none') return c.json(HEALTH_PRIVATE, 403);
+      await c.env.DB.prepare('INSERT INTO sent_notifications (key, sent_at) VALUES (?, ?) ON CONFLICT(key) DO NOTHING').bind(await lastNightSkipKey(id, date), new Date().toISOString()).run();
+      emit(c, 'tempcheck.changed', { memberId: id, date });
+      return c.json(await respond(c, id, date, found, who), 200);
+    }
     if (body.drained !== undefined) {
       if (who !== 'full') return c.json({ error: "This can be answered from their own device or a parent's" }, 403);
       if (!settings.battery) return c.json({ error: 'The energy battery is off for them (Settings → Family)' }, 400);
-      if (date !== today) return c.json({ error: 'This can only be changed until midnight' }, 403);
+      if (date !== today && !lastNight) return c.json(closed, 403);
     }
     if (body.custom !== undefined && who !== 'full') return c.json({ error: "Feelings can be removed from their own device or a parent's" }, 403);
     // Private goal-check notes: only their own device changes them (anyone else can't see what they'd overwrite).
@@ -244,8 +294,8 @@ tempCheckRoutes.openapi(
     const goalSkipped = goal ? false : (body.goalSkipped ?? !!found.row?.goal_skipped);
     if (body.followup) {
       if (!settings.evening || !settings.goal) return c.json({ error: 'The evening goal check is off for them (Settings → Family)' }, 400);
-      if (!goal) return c.json({ error: 'There is no goal today to check on' }, 400);
-      if (date !== today) return c.json({ error: 'The goal check can only be changed until midnight' }, 403);
+      if (date !== today && !lastNight) return c.json(closed, 403);
+      if (!goal) return c.json({ error: 'There is no goal that day to check on' }, 400);
     }
     // Journal off: only yes / partly / no is kept, never the notes.
     const followup = body.followup && (settings.journal ? body.followup : { outcome: body.followup.outcome, helped: null, hindered: null, next: null });

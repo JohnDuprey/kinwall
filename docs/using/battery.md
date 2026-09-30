@@ -58,7 +58,7 @@ Every day shows its reasons, for example "Sleep: ok (+60) · Late evening yester
 
 ## How drained do you feel?
 
-With the battery on, the evening check asks one more question from the person's evening time (**Ask at** in their Temp check settings, 9:00 PM to start) until midnight: **How drained do you feel?** with 😊 **Full**, 🙂 **OK**, 😌 **Low** and 😴 **Empty**, or **Skip**. It saves on the tap, and **Change** lets them answer again until midnight.
+With the battery on, the evening check asks one more question from the person's evening time (**Ask at** in their Temp check settings, 9:00 PM to start) until midnight: **How drained do you feel?** with 😊 **Full**, 🙂 **OK**, 😌 **Low** and 😴 **Empty**, or **Skip**. It saves on the tap, and **Change** lets them answer again until midnight. After midnight it stays open as [last night's check-in](snapshot.md#last-nights-check-in) until noon or their morning Temp check, and the answer counts for the evening's own day.
 
 * On a day with a goal and **Evening goal check** on, it's part of the **🎯 Goal check** card, and the push is the goal check's own **Did you finish your goal? 🎯**. One push, not two.
 * On a day without one, a **🔋 Evening check** card asks just this, and their own phones and tablets get one push: **How drained do you feel? 🔋** ("A quick check-in before bed."). Tapping it opens their [journal](journal.md). It's not added to the family's feed, and it comes through during [quiet hours](quiet-hours.md) like the goal check.

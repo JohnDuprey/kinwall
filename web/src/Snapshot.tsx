@@ -136,6 +136,8 @@ export default function SnapshotSheet({ member, onClose, toCheckIn }: { member: 
       {/* Their battery: private, so only on their own device and parents' devices (never a shared wall). */}
       {range === 'day' && batteryOn(member.tempCheck) && (parentDevice || meMemberId === member.id) && <BatteryCard member={member} />}
       {shown && (range === 'day' ? <DayView snap={shown} tz={tz} close={onClose} onToggle={toggleChore} books={settings.features.trackersReading ? books : []} /> : <WeekView snap={shown} tz={tz} close={onClose} />)}
+      {/* Last night's check-in, still open after midnight: before this morning's questions. */}
+      {shown?.range === 'day' && member.tempCheck?.on && (member.tempCheck.evening || member.tempCheck.battery) && <GoalFollowUp member={member} lastNight />}
       {shown?.range === 'day' && member.tempCheck?.on && <TempCheck member={member} />}
       {shown && <CheckIn snap={shown} onDone={() => setSnap(s => s && { ...s, checkedIn: true })} />}
       {shown?.range === 'day' && member.tempCheck?.on && (member.tempCheck.evening || member.tempCheck.battery) && <GoalFollowUp member={member} />}

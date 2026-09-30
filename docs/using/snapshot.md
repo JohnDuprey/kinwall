@@ -52,15 +52,25 @@ Who sees what:
 With **Evening goal check** on (in the person's [Temp check settings](../settings/family.md#temp-check)), a day they set a goal ends with a follow-up. At the time they chose (9:00 PM to start), if they haven't answered yet:
 
 * their own phones and tablets get a push: **Did you finish your goal? 🎯** with the goal. Tapping it opens their [journal](journal.md), where the check waits at the top. The bell's feed gets the same line. It comes through during [quiet hours](quiet-hours.md) too.
-* a **🎯 Goal check** card shows at the bottom of their **Day** view until midnight.
+* a **🎯 Goal check** card shows at the bottom of their **Day** view until midnight. After that it becomes [last night's check-in](#last-nights-check-in).
 
 With the [energy battery](battery.md#how-drained-do-you-feel) on, the same card also asks **How drained do you feel?** (Full, OK, Low, Empty or Skip), still with one push. On a day without a goal it asks just that, as a **🔋 Evening check** card at the same time, only on their own device and parents' devices.
 
-Three big buttons: 🎉 **Yes**, 🌗 **Partly**, 🌱 **Not today**. The answer saves on the tap. Then, if their journal keeps notes, three optional lines: **What helped?**, **What got in the way?** and **Next time I'll…**, with **Save** or **No notes**. The card thanks them ("Nice work, Maya ✓", or something kind for Partly and Not today) and **Change** lets them answer again until midnight. There's one prompt per person per day, and none on days they skipped the goal.
+Three big buttons: 🎉 **Yes**, 🌗 **Partly**, 🌱 **Not today**. The answer saves on the tap. Then, if their journal keeps notes, three optional lines: **What helped?**, **What got in the way?** and **Next time I'll…**, with **Save** or **No notes**. The card thanks them ("Nice work, Maya ✓", or something kind for Partly and Not today) and **Change** lets them answer again until midnight, or the next morning while [last night's check-in](#last-nights-check-in) is open. There's one prompt per person per day, and none on days they skipped the goal.
 
 Who sees it: like sleep and feelings. Their own device and parents' devices show the answer and notes; a shared wall screen can take the answer but then shows only **Answered ✓**; another person's device can't answer for them. Answers and notes are encrypted on the server and kept from connected apps unless a parent allows it. See [Privacy](../your-data/privacy.md#temp-check).
 
-API: `GET /api/members/{id}/temp-check?date=` and `PUT /api/members/{id}/temp-check?date=` (today by default; body `{ sleep, feelings, goal, goalSkipped, custom, followup, drained }`, only what's sent changes). `followup` is `{ outcome: "yes" | "partly" | "no", helped, hindered, next }` (notes up to 500 characters each), today only; the response has `followup`, `followupOpen` and `answered.followup`. `drained` (`full`, `ok`, `low`, `empty` or `skip`) is the energy battery's question, today only, with `drainedOpen` and `answered.drained`. `private: true` means sleep and feelings are withheld from this device (`answered` still says which questions have answers). See the [REST API](../integrations/rest-api.md).
+### Last night's check-in
+
+Late evenings run past midnight (a parent's evening check at 11:00 PM, say), so the evening check doesn't vanish when the date changes. After midnight it stays open as **🌙 Last night's check-in**, with that day's date, until the first of:
+
+* **noon** the next day,
+* their **morning Temp check** (answering sleep, feelings or the goal for the new day starts it; opening the app doesn't), or
+* **Skip last night**, which closes it for good.
+
+It shows at the top of their journal and in their **Day** view above the morning questions. While something is unanswered it asks **Finish last night's check-in?** (with **Skip last night**); once answered, **Change** still works until it closes. Answers are saved to the evening's own day, so the journal, [Insights](insights.md) and the [energy battery](battery.md) count them there, and answering it isn't this morning's Temp check. Who can see and answer it, and private journals, work as above.
+
+API: `GET /api/members/{id}/temp-check?date=` and `PUT /api/members/{id}/temp-check?date=` (today by default; body `{ sleep, feelings, goal, goalSkipped, custom, followup, drained, lastNightSkipped }`, only what's sent changes). `followup` is `{ outcome: "yes" | "partly" | "no", helped, hindered, next }` (notes up to 500 characters each), today only, or yesterday while last night's check-in is open; the response has `followup`, `followupOpen` and `answered.followup`. `drained` (`full`, `ok`, `low`, `empty` or `skip`) is the energy battery's question, with the same days, `drainedOpen` and `answered.drained`. Today's response has `lastNight`: `{ date, pending }` while last night's check-in is open (`pending`: something is unanswered), else `null`. `lastNightSkipped: true` with `?date=` last night closes it. Anything else outside that window answers 403. `private: true` means sleep and feelings are withheld from this device (`answered` still says which questions have answers). See the [REST API](../integrations/rest-api.md).
 
 ## Week
 

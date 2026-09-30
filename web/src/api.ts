@@ -397,8 +397,9 @@ export const api = {
     MOCK ? Promise.all([mock.getMembers(), import('./mock-profiles.ts')]).then(([ms, { mockMemberStats }]) => mockMemberStats(memberId, period, ms.find(m => m.id === memberId)?.birthday ?? null))
       : get<MemberStats>(`api/members/${encodeURIComponent(memberId)}/stats?period=${period}`),
   // Temp check: a person's daily questions (sleep and feelings come back null on a shared wall: private).
-  getTempCheck: (memberId: string) => MOCK ? mock.getTempCheck(memberId) : req<TempCheck>(`api/members/${encodeURIComponent(memberId)}/temp-check`, {}), // never the offline cache: health data
-  putTempCheck: (memberId: string, body: TempCheckInput) => MOCK ? mock.putTempCheck(memberId, body) : put<TempCheck>(`api/members/${encodeURIComponent(memberId)}/temp-check`, body),
+  // date: today by default (last night's check-in while it's open)
+  getTempCheck: (memberId: string, date?: string) => MOCK ? mock.getTempCheck(memberId, date) : req<TempCheck>(`api/members/${encodeURIComponent(memberId)}/temp-check${date ? `?date=${date}` : ''}`, {}), // never the offline cache: health data
+  putTempCheck: (memberId: string, body: TempCheckInput, date?: string) => MOCK ? mock.putTempCheck(memberId, body, date) : put<TempCheck>(`api/members/${encodeURIComponent(memberId)}/temp-check${date ? `?date=${date}` : ''}`, body),
   // Journal: a person's days and their own entries (their own device and parents' devices only). Never the offline cache.
   getJournal: (memberId: string, opts: { to?: string; days?: number } = {}) => {
     const qs = new URLSearchParams(Object.entries(opts).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])).toString()

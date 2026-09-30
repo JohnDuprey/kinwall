@@ -186,9 +186,10 @@ export interface TempCheck {
   followupHidden?: boolean // their goal-check notes are private and this device isn't theirs (followup has the outcome, notes null)
   followupOpen: boolean // showing now: on, a goal set today, past their eveningTime
   drained?: Drained | 'skip' | null // null on a shared wall or another member's device (private)
-  drainedOpen?: boolean // showing now: battery on, past their eveningTime, their own device or a parent's
+  drainedOpen?: boolean // showing now: battery on, past their eveningTime (or last night's, still open), their own device or a parent's
+  lastNight?: { date: string; pending: boolean } | null // today's only: last night's check-in is still open (until noon, their morning Temp check or a skip); pending: something unanswered
 }
-export type TempCheckInput = Partial<{ sleep: string | null; feelings: string[] | null; goal: string | null; goalSkipped: boolean; custom: string[]; followup: { outcome: FollowupOutcome; helped?: string | null; hindered?: string | null; next?: string | null }; drained: Drained | 'skip' }>
+export type TempCheckInput = Partial<{ sleep: string | null; feelings: string[] | null; goal: string | null; goalSkipped: boolean; custom: string[]; followup: { outcome: FollowupOutcome; helped?: string | null; hindered?: string | null; next?: string | null }; drained: Drained | 'skip'; lastNightSkipped: true }>
 
 /** GET /api/members/{id}/journal: their own device and parents' devices only. */
 /** text is null when the entry is private and this device isn't theirs (the mood still shows). */

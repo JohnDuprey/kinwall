@@ -91,6 +91,7 @@ export default function Journal({ memberId }: { memberId?: string }) {
           <button className="btn btn-secondary" onClick={claimDevice}>This is {member.name}'s device</button>
         </div>
       )}
+      {!error && member.tempCheck?.on && <GoalFollowUp key={`last:${member.id}:${tick}`} member={member} lastNight onSaved={() => setTick(t => t + 1)} />}
       {!error && member.tempCheck?.on && <GoalFollowUp key={`${member.id}:${tick}`} member={member} onSaved={() => setTick(t => t + 1)} />}
       {!shown && !error && <p className="snap-empty">Loading…</p>}
       {shown && shown.days.length === 0 && <p className="snap-empty">Nothing here yet. Tap <strong>+ New entry</strong> to write about your day.</p>}

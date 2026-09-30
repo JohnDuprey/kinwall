@@ -1,7 +1,7 @@
 // node --test test/ (npm test). Temp check: the daily questions at the end of a person's day.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { boardGoals, calendarGoal, feelingOptions, tempCheckDone, toggleFeeling } from '../src/tempCheck.ts'
+import { boardGoals, calendarGoal, eveningPending, feelingOptions, lastNightDate, lastNightTitle, tempCheckDone, toggleFeeling, TEMP_CHECK_OFF } from '../src/tempCheck.ts'
 
 const on = { on: true, sleep: true, feelings: true, goal: true, showGoal: true }
 const m = (id: string, tempCheck: typeof on, todayGoal: string | null) => ({ id, name: id, tempCheck, todayGoal })
@@ -41,4 +41,26 @@ test('tempCheckDone: every question they get has an answer (a skipped goal count
   assert.equal(tempCheckDone({ ...on, goal: false }, answered), true)
   assert.equal(tempCheckDone(on, { ...answered, goal: true }), true)
   assert.equal(tempCheckDone({ ...on, sleep: false, feelings: false, goal: false }, { sleep: false, feelings: false, goal: false }), false, 'no questions: nothing to be done with')
+})
+
+test("lastNightDate: yesterday until noon (the last night's check-in window), then nothing", () => {
+  assert.equal(lastNightDate(new Date(2026, 8, 30, 0, 40)), '2026-09-29')
+  assert.equal(lastNightDate(new Date(2026, 8, 30, 11, 59)), '2026-09-29')
+  assert.equal(lastNightDate(new Date(2026, 8, 30, 12, 0)), null)
+  assert.equal(lastNightDate(new Date(2026, 9, 1, 7, 30)), '2026-09-30', 'across a month')
+})
+
+test('lastNightTitle: the day it belongs to', () => {
+  assert.equal(lastNightTitle('2026-09-29'), 'Tue, Sep 29')
+})
+
+test('eveningPending: an unanswered goal check or drained question', () => {
+  const s = { ...TEMP_CHECK_OFF, on: true, evening: true }
+  const row = { goal: 'Read', goalSkipped: false, followup: null, drained: null }
+  assert.equal(eveningPending(s, row), true)
+  assert.equal(eveningPending(s, { ...row, followup: { outcome: 'yes' as const, helped: null, hindered: null, next: null } }), false)
+  assert.equal(eveningPending(s, { ...row, goal: null }), false, 'no goal, battery off: nothing asked')
+  assert.equal(eveningPending({ ...s, battery: true }, { ...row, goal: null }), true)
+  assert.equal(eveningPending({ ...s, battery: true }, { ...row, goal: null, drained: 'skip' as const }), false)
+  assert.equal(eveningPending({ ...s, on: false }, row), false)
 })

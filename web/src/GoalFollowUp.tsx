@@ -7,12 +7,17 @@
 // With their energy battery on, the same card (or on its own, on a day without a goal) asks "How
 // drained do you feel?": Full / OK / Low / Empty or Skip, which calibrates their battery. The server
 // only opens that question on their own device or a parent's (drainedOpen), never on a shared wall.
+// With `lastNight`, the same card for last night's check-in, after midnight while the server keeps it
+// open (until noon, their morning Temp check or a skip): "🌙 Last night's check-in" with its date,
+// answers saved to that day, and while something is unanswered "Finish last night's check-in?" with
+// a Skip that closes it for good. It sits above the morning Temp check.
 import { useEffect, useState } from 'react'
 import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { announce } from './a11y.tsx'
 import { followupThanks, OUTCOMES, outcomeOf } from './journal.ts'
 import { DRAINED, drainedOf } from './battery.ts'
+import { lastNightTitle } from './tempCheck.ts'
 import type { Drained, FollowupOutcome, Member, TempCheck } from './types.ts'
 
 const NOTES = [
@@ -23,27 +28,37 @@ const NOTES = [
 type Notes = Record<(typeof NOTES)[number]['key'], string>
 const EMPTY: Notes = { helped: '', hindered: '', next: '' }
 
-export default function GoalFollowUp({ member, onSaved }: { member: Member; onSaved?: () => void }) {
+export default function GoalFollowUp({ member, onSaved, lastNight }: { member: Member; onSaved?: () => void; lastNight?: boolean }) {
   const { toast } = useApp()
   const [tc, setTc] = useState<TempCheck | null>(null)
+  const [night, setNight] = useState<{ date: string } | null>(null) // lastNight: which day
   const [step, setStep] = useState<'ask' | 'notes' | 'done'>('ask')
   const [notes, setNotes] = useState<Notes>(EMPTY)
   const [changeDrained, setChangeDrained] = useState(false)
   useEffect(() => {
     let canceled = false
-    api.getTempCheck(member.id).then(t => {
-      if (canceled) return
+    const load = async () => {
+      if (!lastNight) return api.getTempCheck(member.id)
+      const n = (await api.getTempCheck(member.id)).lastNight
+      if (canceled || !n) return null
+      setNight(n)
+      return api.getTempCheck(member.id, n.date)
+    }
+    load().then(t => {
+      if (canceled || !t) return
       setTc(t)
       if (t.followup) setNotes({ helped: t.followup.helped ?? '', hindered: t.followup.hindered ?? '', next: t.followup.next ?? '' })
       setStep(t.answered.followup ? 'done' : 'ask')
     }).catch(() => { /* no card rather than an error at the end of their day */ })
     return () => { canceled = true }
-  }, [member.id])
+  }, [member.id, lastNight])
   if (!tc?.followupOpen && !tc?.drainedOpen) return null
+  const date = night?.date
+  const pending = (tc.followupOpen && !tc.answered.followup) || (!!tc.drainedOpen && !tc.answered.drained)
 
   const save = async (outcome: FollowupOutcome, withNotes: boolean) => {
     try {
-      const t = await api.putTempCheck(member.id, { followup: { outcome, ...(withNotes ? notes : {}) } })
+      const t = await api.putTempCheck(member.id, { followup: { outcome, ...(withNotes ? notes : {}) } }, date)
       setTc(t)
       if (!withNotes && t.settings.journal && !t.private) { setStep('notes'); return }
       setStep('done'); announce(followupThanks(outcome, member.name)); onSaved?.()
@@ -51,8 +66,14 @@ export default function GoalFollowUp({ member, onSaved }: { member: Member; onSa
   }
   const saveDrained = async (drained: Drained | 'skip') => {
     try {
-      setTc(await api.putTempCheck(member.id, { drained }))
+      setTc(await api.putTempCheck(member.id, { drained }, date))
       setChangeDrained(false); announce(drained === 'skip' ? 'Skipped' : `Thanks for checking in, ${member.name} ✓`); onSaved?.()
+    } catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't save that", true) }
+  }
+  const skipLastNight = async () => {
+    try {
+      setTc(await api.putTempCheck(member.id, { lastNightSkipped: true }, date))
+      announce("Skipped last night's check-in"); onSaved?.()
     } catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't save that", true) }
   }
   const outcome = tc.followup?.outcome
@@ -60,8 +81,9 @@ export default function GoalFollowUp({ member, onSaved }: { member: Member; onSa
   const felt = drainedOf(tc.drained)
 
   return (
-    <section className="snap-temp snap-goalcheck" aria-label={tc.followupOpen ? 'Goal check' : 'Evening check'}>
-      <h3 className="snap-heading">{tc.followupOpen ? '🎯 Goal check' : '🔋 Evening check'}</h3>
+    <section className="snap-temp snap-goalcheck" aria-label={date ? "Last night's check-in" : tc.followupOpen ? 'Goal check' : 'Evening check'}>
+      <h3 className="snap-heading">{date ? "🌙 Last night's check-in" : tc.followupOpen ? '🎯 Goal check' : '🔋 Evening check'}</h3>
+      {date && <p className="snap-dim">{lastNightTitle(date)}{pending ? ' · Finish last night’s check-in?' : ''}</p>}
       {!tc.followupOpen ? null : step === 'done' ? (
         <div className="snap-temp-done">
           <p role="status">
@@ -122,11 +144,18 @@ export default function GoalFollowUp({ member, onSaved }: { member: Member; onSa
               )
             })}
           </div>
-          <div className="snap-temp-row">
-            <button className="btn btn-secondary" onClick={() => saveDrained('skip')}>Skip</button>
-          </div>
+          {!date && (
+            <div className="snap-temp-row">
+              <button className="btn btn-secondary" onClick={() => saveDrained('skip')}>Skip</button>
+            </div>
+          )}
         </div>
       ))}
+      {date && pending && (
+        <div className="snap-temp-row">
+          <button className="btn btn-secondary" onClick={skipLastNight}>Skip last night</button>
+        </div>
+      )}
     </section>
   )
 }
