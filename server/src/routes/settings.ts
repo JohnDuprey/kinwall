@@ -121,7 +121,7 @@ function parseMealTimes(raw: string | undefined): z.infer<typeof MealTimesSchema
 export type Features = z.infer<typeof FeaturesSchema>;
 export const DEFAULT_FEATURES: Features = { chores: true, lists: true, contacts: true, paint: true, photos: true, notes: true, messages: true, trackersReading: true, trackersMemories: true, trackersHealth: true, meals: true };
 // Saved over the defaults, so a switch added later starts on for families that saved before it existed.
-function parseFeatures(raw: string | undefined): Features {
+export function parseFeatures(raw: string | undefined): Features {
   try {
     const saved = JSON.parse(raw ?? '{}');
     // Saved while Trackers had one switch: it stands for all three until they're set on their own.

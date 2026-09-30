@@ -30,7 +30,7 @@ import { zonedTimeToUtc } from '../recurrence.ts';
 import { ErrorSchema } from '../schemas.ts';
 import { isConnectedApp } from './mcp-oauth.ts';
 import { todayInTz } from './members.ts';
-import { readSettings } from './settings.ts';
+import { parseFeatures } from './settings.ts';
 
 export const medicationsRoutes = createRouter();
 type C = Context<{ Bindings: Env }>;
@@ -202,7 +202,7 @@ async function dayStartCounts(c: C, memberId: string): Promise<boolean> {
  *  Never fails the caller's request; the error's name only, never data. */
 export async function startDayFrom(c: C, memberId: string): Promise<void> {
   try {
-    const settings = await readSettings(c.env.DB);
+    const settings = await medSettings(c.env.DB);
     if (!settings.medications || !(await dayStartCounts(c, memberId))) return;
     await startDay(c.env, memberId, settings.timezone ?? hostTimezone());
   } catch (e) { console.error('start of day skipped:', e instanceof Error ? e.name : 'error'); }
@@ -251,6 +251,22 @@ const PRIVATE = { error: "Medications are private: they show on that person's ow
 const OFF = { error: 'Medications are turned off (Settings → General → Features, under Health)' };
 
 /** Who's asking (see the top of the file), or why they may not. */
+/** The settings these routes use (parsed as routes/settings.ts readSettings does), by key: every open
+ * screen asks GET /api/medications/due each minute, and readSettings reads every settings row (hosted
+ * is billed per row read). */
+async function medSettings(db: KinwallDb) {
+  const { results } = await db
+    .prepare("SELECT key, value FROM settings WHERE key IN ('medications', 'features', 'aiHealthAccess', 'timezone', 'medicationNamesOnWalls')")
+    .all<{ key: string; value: string }>();
+  const map = new Map(results.map((r) => [r.key, r.value]));
+  return {
+    medications: map.get('medications') === 'true' && parseFeatures(map.get('features')).trackersHealth,
+    aiHealthAccess: map.get('aiHealthAccess') === 'true',
+    medicationNamesOnWalls: map.get('medicationNamesOnWalls') === 'true',
+    timezone: map.get('timezone') ?? null,
+  };
+}
+
 async function caller(c: C, settings: { aiHealthAccess: boolean }): Promise<Caller | { error: string }> {
   if ((await isConnectedApp(c)) && !settings.aiHealthAccess) return APPS;
   const key = await requestKey(c);
@@ -259,7 +275,7 @@ async function caller(c: C, settings: { aiHealthAccess: boolean }): Promise<Call
 }
 /** Settings, the caller and the household day, or what to answer instead (feature off: 404). */
 async function gate(c: C) {
-  const settings = await readSettings(c.env.DB);
+  const settings = await medSettings(c.env.DB);
   if (!settings.medications) return { fail: OFF, status: 404 as const };
   const who = await caller(c, settings);
   if ('error' in who) return { fail: who, status: 403 as const };
@@ -269,7 +285,7 @@ async function gate(c: C) {
 
 /** SQL for the bell's feed (routes/push.ts): which 'medication' rows this caller may see, with its bind values. */
 export async function medicationFeedFilter(c: C): Promise<{ sql: string; binds: string[] }> {
-  const settings = await readSettings(c.env.DB);
+  const settings = await medSettings(c.env.DB);
   const who = settings.medications ? await caller(c, settings) : OFF;
   if ('error' in who) return { sql: " AND kind != 'medication'", binds: [] };
   if (who.kind === 'own') return { sql: " AND (kind != 'medication' OR EXISTS (SELECT 1 FROM json_each(member_ids) WHERE value = ?))", binds: [who.memberId] };
@@ -387,7 +403,7 @@ medicationsRoutes.openapi(
     responses: { 200: { description: 'deleted', content: json(z.object({ deleted: z.number() })) }, 403: denied[403] },
   }),
   async (c) => {
-    const who = await caller(c, await readSettings(c.env.DB));
+    const who = await caller(c, await medSettings(c.env.DB));
     if ('error' in who) return c.json(who, 403);
     if (who.kind !== 'parent') return c.json(PARENTS, 403);
     const db = c.env.DB;
