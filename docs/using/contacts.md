@@ -33,7 +33,7 @@ A member's own device is one whose owner is that member under [Settings → Acce
 
 ## Emergency contacts
 
-The Contacts page has an Emergency filter (under **Filters → Show**) and blank templates for Poison Control, Animal Control, emergency services, police non-emergency, fire department, pediatrician, veterinarian, pharmacy, school office, utility company, locksmith, insurance provider, and custom services. Templates never guess country-specific phone numbers. Enter and verify those numbers for your household. Emergency records can include service hours or a 24/7 flag and support `tel:`, `sms:`, email, copy, and map actions.
+The Contacts page has an Emergency filter (under **Filters → Show**) and blank templates for Poison Control, Animal Control, emergency services, police non-emergency, fire department, pediatrician, veterinarian, pharmacy, school office, utility company, locksmith, insurance provider, and custom services. Templates never guess country-specific phone numbers. Enter and verify those numbers for your household. Emergency records can include service hours or a 24/7 flag and support `tel:`, `sms:`, email, copy, and map actions. On an iPhone, iPad or Mac, phone numbers and email addresses also get **FaceTime**, which starts a FaceTime video call (by number or Apple ID email).
 
 ## Importing vCards
 
