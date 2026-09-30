@@ -161,6 +161,7 @@
 .cook-timer-bar li { flex: none; display: flex; align-items: center; gap: 10px; padding: 2px 2px 2px 14px; border-radius: 999px; background: var(--card); border: 2px solid var(--border); font-weight: 700; }
 .cook-timer-bar .icon-btn { width: 44px; height: 44px; box-shadow: none; }
 .cook-clock { font-variant-numeric: tabular-nums; font-size: 1.125rem; }
+.cook-clock-paused { color: var(--text-dim); }
 .cook-main { flex: 1; min-height: 0; touch-action: pan-y; }
 .cook-step { width: 100%; max-width: 1100px; margin: 0 auto; padding: 20px 20px 28px; display: grid; gap: 20px; }
 .cook-photo { width: 100%; max-height: 40vh; aspect-ratio: 4 / 3; object-fit: cover; border-radius: var(--radius-sm); background: var(--card); }

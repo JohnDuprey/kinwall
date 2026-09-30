@@ -2,16 +2,17 @@ import { useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEv
 import { createPortal } from 'react-dom'
 import { announce } from './a11y.tsx'
 import { cookingSteps, saveStep, savedStep, stepIngredients, stepTimers } from './cooking.ts'
-import { CheckIcon, ChevronLeft, ChevronRight, XIcon } from './icons.tsx'
+import { CheckIcon, ChevronLeft, ChevronRight, PauseIcon, PlayIcon, ResetIcon, XIcon } from './icons.tsx'
 import { servingsLabel } from './meal-date.ts'
 import type { Recipe, RecipeStep } from './meal-types.ts'
 import { IngredientList } from './RecipeSheet.tsx'
 import RecipePhoto from './RecipePhoto.tsx'
 import { holdAwake } from './wakeLock.ts'
-import { cookingActivity } from './liveActivity.ts'
-import { endAppActivity, tellAppActivity } from './native.ts'
+import { cookingActivity, timerName } from './liveActivity.ts'
+import { endAppActivity, inNativeApp, tellAppActivity } from './native.ts'
 
-interface Timer { id: number; label: string; step: number; endsAt: number; done: boolean }
+// `left`: set while paused (ms to go); `endsAt` only counts while it's running. `seconds`: for Reset.
+interface Timer { id: number; label: string; step: number; seconds: number; endsAt: number; done: boolean; left?: number }
 
 const clock = (ms: number) => {
   const s = Math.max(0, Math.ceil(ms / 1000)), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), pad = (n: number) => String(n).padStart(2, '0')
@@ -97,26 +98,36 @@ export default function CookingMode({ recipe, steps, servings, library = [], nes
     return () => clearInterval(tick)
   }, [running])
   useEffect(() => {
-    const up = timers.filter(t => !t.done && t.endsAt <= now)
+    const up = timers.filter(t => !t.done && t.left === undefined && t.endsAt <= now)
     if (!up.length) return
     setTimers(ts => ts.map(t => up.some(u => u.id === t.id) ? { ...t, done: true } : t))
     beep(); navigator.vibrate?.([300, 150, 300])
     announce(`Timer done: ${up.map(t => `${t.label}, step ${t.step + 1}`).join('; ')}`, true)
+    // In another tab or app: a notification, if this device already allows them (never asks here).
+    // Inside the iPhone/Android app the app rings them itself (the Live Activity's alarms).
+    if (document.hidden && !inNativeApp() && 'Notification' in window && Notification.permission === 'granted') {
+      void navigator.serviceWorker?.ready.then(reg => reg.showNotification(`Time's up: ${up.map(t => timerName(t.label)).join(', ')}`, { body: recipe.name, tag: 'kinwall-cooking' })).catch(() => {})
+    }
   }, [now, timers])
   const start = (label: string, seconds: number) => {
     try { audio ??= new AudioContext(); void audio.resume() } catch { /* no Web Audio: banner and vibration only */ }
     const at = Date.now()
     setNow(at)
-    setTimers(ts => [...ts, { id: at, label, step: index, endsAt: at + seconds * 1000, done: false }])
+    setTimers(ts => [...ts, { id: at, label, step: index, seconds, endsAt: at + seconds * 1000, done: false }])
     announce(`${label} timer started`)
   }
   const stop = (id: number) => setTimers(ts => ts.filter(t => t.id !== id))
+  const pause = (id: number) => { const at = Date.now(); setNow(at); setTimers(ts => ts.map(t => t.id === id ? { ...t, left: Math.max(0, t.endsAt - at) } : t)) }
+  const resume = (id: number) => { const at = Date.now(); setNow(at); setTimers(ts => ts.map(t => t.id === id && t.left !== undefined ? { ...t, endsAt: at + t.left, left: undefined } : t)) }
+  // Back to the full time; a paused timer stays paused.
+  const reset = (id: number) => { const at = Date.now(); setNow(at); setTimers(ts => ts.map(t => t.id !== id ? t : t.left !== undefined ? { ...t, left: t.seconds * 1000 } : { ...t, endsAt: at + t.seconds * 1000 })) }
+  const remaining = (t: Timer) => t.left ?? t.endsAt - now
   // The iPhone app's Live Activity (liveActivity.ts): the soonest timer on the Lock Screen and in the
   // Dynamic Island, "Done" once it rings, gone when dismissed or on the way out. A basic's cooking
   // mode opened on top (nested) leaves it to this one.
   useEffect(() => {
     if (nested) return
-    const a = cookingActivity(recipe.name, timers, i => steps[i]?.title)
+    const a = cookingActivity(recipe.name, timers.map(t => ({ ...t, paused: t.left !== undefined })), i => steps[i]?.title)
     if (a) tellAppActivity('cooking', a); else endAppActivity('cooking')
   }, [nested, recipe.name, steps, timers])
   useEffect(() => () => { if (!nested) endAppActivity('cooking') }, [nested])
@@ -152,7 +163,11 @@ export default function CookingMode({ recipe, steps, servings, library = [], nes
       </div>}
       {running && <ul className="cook-timer-bar" aria-label="Running timers">
         {timers.filter(t => !t.done).map(t => <li key={t.id}>
-          <span>Step {t.step + 1} · {t.label}</span><strong className="cook-clock">{clock(t.endsAt - now)}</strong>
+          <span>Step {t.step + 1} · {t.label}</span><strong className={`cook-clock ${t.left !== undefined ? 'cook-clock-paused' : ''}`}>{clock(remaining(t))}{t.left !== undefined && <span className="sr-only">, paused</span>}</strong>
+          {t.left !== undefined
+            ? <button type="button" className="icon-btn" aria-label={`Resume ${t.label} timer, step ${t.step + 1}`} onClick={() => resume(t.id)}><PlayIcon width={18} height={18} /></button>
+            : <button type="button" className="icon-btn" aria-label={`Pause ${t.label} timer, step ${t.step + 1}`} onClick={() => pause(t.id)}><PauseIcon width={18} height={18} /></button>}
+          <button type="button" className="icon-btn" aria-label={`Reset ${t.label} timer, step ${t.step + 1}`} onClick={() => reset(t.id)}><ResetIcon width={18} height={18} /></button>
           <button type="button" className="icon-btn" aria-label={`Cancel ${t.label} timer, step ${t.step + 1}`} onClick={() => stop(t.id)}><XIcon width={18} height={18} /></button>
         </li>)}
       </ul>}
@@ -174,7 +189,7 @@ export default function CookingMode({ recipe, steps, servings, library = [], nes
               {durations.length > 0 && <div className="cook-timers">{durations.map(d => {
                 const on = timers.find(t => !t.done && t.step === index && t.label === d.label)
                 return <button key={d.label} type="button" className="cook-timer-chip" disabled={!!on} aria-label={on ? undefined : `Start ${d.label} timer`} onClick={() => start(d.label, d.seconds)}>
-                  ⏱ {on ? <>{d.label} · {clock(on.endsAt - now)} left</> : d.label}
+                  ⏱ {on ? <>{d.label} · {clock(remaining(on))} {on.left !== undefined ? 'paused' : 'left'}</> : d.label}
                 </button>
               })}</div>}
             </div>}

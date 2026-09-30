@@ -10,12 +10,18 @@ test('cooking: the soonest running timer, +N more, then "done" once none is runn
   const t = (label: string, step: number, endsAt: number, done = false) => ({ label, step, endsAt, done })
   assert.equal(cookingActivity('Tuesday Tacos', [], () => null), null)
   const two = cookingActivity('Tuesday Tacos', [t('Rice · 15 min', 2, 9000), t('5 min', 1, 4000)], i => steps[i])
-  assert.deepEqual(two, { recipe: 'Tuesday Tacos', timer: '5 min', step: 'Step 2', endsAt: 4000, done: false, more: 1 })
+  assert.deepEqual(two, { recipe: 'Tuesday Tacos', timer: '5 min', step: 'Step 2', endsAt: 4000, done: false, more: 1, alarms: [
+    { at: 4000, title: "Time's up: 5 min", body: 'Tuesday Tacos · Step 2' },
+    { at: 9000, title: "Time's up: Rice", body: 'Tuesday Tacos · Step 3 · Simmer' },
+  ] })
   const rang = cookingActivity('Tuesday Tacos', [t('Rice · 15 min', 2, 9000), t('5 min', 1, 4000, true)], i => steps[i])
   assert.deepEqual([rang?.timer, rang?.step, rang?.more], ['Rice', 'Step 3 · Simmer', 0], 'a rung timer waits behind a running one')
   const done = cookingActivity('Tuesday Tacos', [t('Rice · 15 min', 2, 9000, true)], i => steps[i])
   assert.deepEqual([done?.timer, done?.done], ['Rice', true])
   assert.equal(timerName('Sauce · 10 min'), 'Sauce')
+  const paused = cookingActivity('Tuesday Tacos', [{ ...t('Rice · 15 min', 2, 9000), paused: true }, t('5 min', 1, 4000)], i => steps[i])
+  assert.deepEqual([paused?.timer, paused?.more, paused?.alarms.length], ['5 min', 0, 1], 'a paused timer is not shown and does not ring')
+  assert.equal(cookingActivity('Tuesday Tacos', [{ ...t('Rice · 15 min', 2, 9000), paused: true }], i => steps[i]), null, 'only paused: nothing on the Lock Screen')
 })
 
 test('shopping: what\'s left and the next items in the store\'s walking order', () => {

@@ -154,3 +154,12 @@ export const ExternalIcon = (p: P) => (
 export const MinusIcon = (p: P) => (
   <svg {...base(p)}><path d="M5 12h14" /></svg>
 )
+export const PlayIcon = (p: P) => (
+  <svg {...base(p)}><path d="M7 4.5v15l12-7.5z" fill="currentColor" /></svg>
+)
+export const PauseIcon = (p: P) => (
+  <svg {...base(p)}><path d="M8 5v14M16 5v14" strokeWidth={3} /></svg>
+)
+export const ResetIcon = (p: P) => (
+  <svg {...base(p)}><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /></svg>
+)
