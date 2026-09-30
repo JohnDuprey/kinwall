@@ -20,7 +20,7 @@ Quiet hours also hold back transition reminders that would arrive during them. T
 So little ones can't turn the wall on at night, a parent can set a PIN under **Settings → General → Quiet hours → PIN to wake during quiet hours** (4 to 8 digits, asked twice). It's off by default and only set from a parent device, never from a wall screen or a connected app.
 
 * During quiet hours, a tap on a wall screen's Night screen shows a keypad instead of waking it. That includes a parent's own device with **Use as a wall screen** on: being a parent device doesn't skip the PIN. The right PIN wakes it as usual; it goes back to sleep after five minutes without a touch, and asks again.
-* A wrong PIN says "Try again". After 5 wrong tries in a row the keypad waits a minute, then longer after each further wrong try (up to 30 minutes). The server also limits guesses from each device.
+* A wrong PIN says "Try again". After 5 wrong tries in a row the keypad waits a minute, then longer after each further wrong try (up to 30 minutes). The server also allows only 10 wrong tries in a row per 15 minutes for the whole family, across every screen, so a parent's device may need to wait too (or set a new PIN, which ends the wait).
 * The keypad hides after 30 seconds without a touch. If the server can't be reached, the screen stays asleep.
 * Outside quiet hours there's no PIN. The Night screen button and **Preview screensaver** never ask for it either, unless quiet hours are on and the screen has already gone back to sleep.
 * **Forgot it?** Remove it under **More… → Remove PIN** on any parent device.

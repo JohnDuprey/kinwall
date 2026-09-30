@@ -4,7 +4,7 @@
 // more, so it never reaches a client, a webhook or the export. Request bodies here are never logged.
 import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
-import { requestKey, timingSafeEqual } from '../auth.ts';
+import { timingSafeEqual } from '../auth.ts';
 import { emit } from '../bus.ts';
 import { checkRate, resetRate } from '../ratelimit.ts';
 import { ErrorSchema } from '../schemas.ts';
@@ -14,9 +14,10 @@ export const quietPinRoutes = createRouter();
 
 const KEY = 'quietPinHash';
 const ITERATIONS = 100_000; // the most Workers' PBKDF2 allows
-const MAX_TRIES = 10; // per key, per window: the screen itself waits after 5 (web/src/quietPin.ts)
+const MAX_TRIES = 10; // for the whole family, per window: the screen itself waits after 5 (web/src/quietPin.ts)
 const WINDOW_MS = 15 * 60 * 1000;
-const rateKey = (id: string) => `quiet-pin:${id}`;
+// One counter for the family, not per key: a wall can mint itself fresh device keys.
+const RATE_KEY = 'quiet-pin';
 
 const hex = (b: ArrayBuffer | Uint8Array) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, '0')).join('');
 async function derive(pin: string, saltHex: string, iterations: number): Promise<string> {
@@ -58,7 +59,7 @@ quietPinRoutes.openapi(
     const db = c.env.DB;
     await db.batch([
       db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').bind(KEY, await hashPin(pin)),
-      db.prepare("DELETE FROM rate_limits WHERE key LIKE 'quiet-pin:%'"), // a new PIN ends every screen's wait
+      db.prepare("DELETE FROM rate_limits WHERE key LIKE 'quiet-pin%'"), // a new PIN ends the wait
     ]);
     emit(c, 'settings.changed', {});
     return c.json({ ok: true }, 200);
@@ -84,25 +85,23 @@ quietPinRoutes.openapi(
 
 quietPinRoutes.openapi(
   createRoute({
-    method: 'post', path: '/api/quiet-pin/verify', tags: ['Settings'], summary: 'Check the quiet-hours PIN (wall screens may call it; rate-limited per key)',
+    method: 'post', path: '/api/quiet-pin/verify', tags: ['Settings'], summary: 'Check the quiet-hours PIN (wall screens may call it; rate-limited for the whole family)',
     security: [{ Bearer: [] }],
     request: { body: { content: { 'application/json': { schema: PinBody } } } },
     responses: {
       200: { description: 'ok: true when it matches, or no PIN is set', content: { 'application/json': { schema: OkSchema } } },
       400: { description: 'not 4 to 8 digits', content: { 'application/json': { schema: ErrorSchema } } },
       403: { description: 'a connected app', content: { 'application/json': { schema: ErrorSchema } } },
-      429: { description: 'too many tries from this key; wait and try again', content: { 'application/json': { schema: ErrorSchema } } },
+      429: { description: 'too many wrong tries across the family; wait and try again', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
     if (await isConnectedApp(c)) return c.json({ error: 'Connected apps cannot check the PIN' }, 403);
-    const key = await requestKey(c);
     const db = c.env.DB;
-    const rk = rateKey(key?.id ?? key?.name ?? 'unknown');
-    if (!(await checkRate(db, rk, MAX_TRIES, WINDOW_MS))) return c.json({ error: 'Too many tries. Wait a few minutes.' }, 429);
+    if (!(await checkRate(db, RATE_KEY, MAX_TRIES, WINDOW_MS))) return c.json({ error: 'Too many tries. Wait a few minutes.' }, 429);
     const stored = (await db.prepare('SELECT value FROM settings WHERE key = ?').bind(KEY).first<{ value: string }>())?.value;
     const ok = !stored || (await pinMatches(c.req.valid('json').pin, stored));
-    if (ok) await resetRate(db, rk); // only wrong guesses in a row count
+    if (ok) await resetRate(db, RATE_KEY); // only wrong guesses in a row count
     return c.json({ ok }, 200);
   },
 );

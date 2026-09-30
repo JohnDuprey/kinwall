@@ -58,7 +58,7 @@ General API calls aren't rate-limited. Only credential guessing is:
 | Setup code claim | 10 per hour |
 | Passkey login | 20 per 10 minutes per address |
 | Recovery-code login | 10 per hour per address, 30 per hour overall |
-| Quiet-hours PIN check | 10 wrong tries in a row per key per 15 minutes (429) |
+| Quiet-hours PIN check | 10 wrong tries in a row per 15 minutes for the whole family, across every screen and key (429) |
 | Shared recipe pages and photos (`/r/*`) | 120 per minute per address |
 | Google Photos pictures (`GET /api/google-photos/next`) | 300 per hour per key |
 | Connecting Google Photos | 20 per hour |
