@@ -95,3 +95,95 @@ export function nameSuggestions(
   }
   return out.slice(0, SUGGESTION_CAP);
 }
+
+// The grocery catalog (GET/POST /api/lists/remembered, PUT/DELETE /api/lists/remembered/{key}):
+// every remembered name, its department and where it's found at each store.
+export type CatalogItem = {
+  key: string;
+  title: string;
+  uses: number;
+  lastUsed: string | null;
+  category: string | null;
+  places: { store: string; aisle: string | null; updatedAt: string }[];
+  lastStore: string | null;
+};
+
+/** Every remembered item (names, plus places whose name was never kept), by title - or just `key`. */
+export async function catalog(db: KinwallDb, key?: string): Promise<CatalogItem[]> {
+  const only = key === undefined ? '' : ' WHERE k.name_key = ?';
+  const binds = key === undefined ? [] : [key];
+  const [names, memory] = await db.batch<unknown>([
+    db.prepare(
+      `SELECT k.name_key, n.title, n.uses, n.last_used FROM (SELECT name_key FROM item_names UNION SELECT name_key FROM item_memory) k
+       LEFT JOIN item_names n ON n.name_key = k.name_key${only}`,
+    ).bind(...binds),
+    db.prepare(`SELECT * FROM item_memory${key === undefined ? '' : ' WHERE name_key = ?'} ORDER BY updated_at DESC`).bind(...binds),
+  ]);
+  const rows = new Map<string, MemoryRow[]>();
+  for (const r of memory.results as MemoryRow[]) rows.set(r.name_key, [...(rows.get(r.name_key) ?? []), r]);
+  return (names.results as { name_key: string; title: string | null; uses: number | null; last_used: string | null }[])
+    .filter((n) => n.name_key)
+    .map((n) => {
+      const mine = rows.get(n.name_key) ?? []; // newest first
+      return {
+        key: n.name_key,
+        title: n.title ?? n.name_key,
+        uses: n.uses ?? 0,
+        lastUsed: n.last_used,
+        category: mine.find((r) => r.category)?.category ?? null,
+        places: mine.filter((r) => r.store).map((r) => ({ store: r.store, aisle: r.aisle, updatedAt: r.updated_at })).sort((a, b) => a.store.localeCompare(b.store, undefined, { sensitivity: 'base' })),
+        lastStore: mine.find((r) => r.store)?.store ?? null,
+      };
+    })
+    .sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
+}
+
+/** Search (title or matching key) and store filters for the catalog. */
+export function filterCatalog(items: CatalogItem[], q?: string, store?: string): CatalogItem[] {
+  const text = q?.normalize('NFKC').trim().toLowerCase().replace(/\s+/g, ' ');
+  const key = text ? itemKey(text) : '';
+  return items.filter(
+    (i) => (!text || i.title.toLowerCase().includes(text) || i.key.includes(key)) && (!store || i.places.some((p) => p.store === store)),
+  );
+}
+
+export type CatalogEdit = { title?: string; category?: string | null; places?: { store: string; aisle?: string | null }[] };
+
+/** The writes for a catalog edit of `from` (an existing item, or a new one when `existing` is null):
+ * a new title respells it (a different matching key moves it there), category sets its department
+ * on every place, and places replaces its stores (aisle per store; stores left out are forgotten).
+ * New places are the newest, as if just bought there. The department is kept even with no place. */
+export function catalogWrites(db: KinwallDb, from: string, existing: CatalogItem | null, edit: CatalogEdit, now: string): { key: string; writes: KinwallStatement[] } {
+  const key = edit.title !== undefined ? itemKey(edit.title) : from;
+  const writes: KinwallStatement[] = [];
+  if (key !== from) {
+    writes.push(db.prepare('UPDATE item_names SET name_key = ? WHERE name_key = ?').bind(key, from));
+    writes.push(db.prepare('UPDATE item_memory SET name_key = ? WHERE name_key = ?').bind(key, from));
+  }
+  if (edit.title !== undefined || !existing) {
+    writes.push(
+      db.prepare('INSERT INTO item_names (name_key, title, uses, last_used) VALUES (?, ?, 0, ?) ON CONFLICT(name_key) DO UPDATE SET title = excluded.title')
+        .bind(key, (edit.title ?? existing?.title ?? key).trim(), now),
+    );
+  }
+  const category = edit.category !== undefined ? edit.category : existing?.category ?? null;
+  if (edit.category !== undefined) writes.push(db.prepare('UPDATE item_memory SET category = ? WHERE name_key = ?').bind(category, key));
+  if (edit.places) {
+    const stores = edit.places.map((p) => p.store);
+    writes.push(db.prepare("DELETE FROM item_memory WHERE name_key = ? AND store != '' AND store NOT IN (SELECT value FROM json_each(?))").bind(key, JSON.stringify(stores)));
+    for (const p of edit.places) {
+      writes.push(
+        db.prepare(
+          `INSERT INTO item_memory (name_key, store, category, aisle, updated_at) VALUES (?, ?, ?, ?, ?)
+           ON CONFLICT(name_key, store) DO UPDATE SET aisle = excluded.aisle, category = excluded.category`,
+        ).bind(key, p.store, category, p.aisle ?? null, now),
+      );
+    }
+  }
+  // No place left (or none yet): a "no store" row keeps the department.
+  writes.push(
+    db.prepare("INSERT INTO item_memory (name_key, store, category, aisle, updated_at) SELECT ?, '', ?, NULL, ? WHERE ? IS NOT NULL AND NOT EXISTS (SELECT 1 FROM item_memory WHERE name_key = ?)")
+      .bind(key, category, now, category, key),
+  );
+  return { key, writes };
+}

@@ -135,6 +135,7 @@ test('mcp: tools/list returns the tools', async () => {
     'list_notifications',
     'list_pending_approvals',
     'list_recipes',
+    'list_remembered_items',
     'list_reward_requests',
     'list_rewards',
     'list_tracker_entries',
@@ -164,6 +165,7 @@ test('mcp: tools/list returns the tools', async () => {
     'update_member',
     'update_note',
     'update_recipe',
+    'update_remembered_item',
     'update_reward',
     'update_tracker_entry',
   ]);

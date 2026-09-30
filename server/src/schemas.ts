@@ -742,6 +742,34 @@ export const ListValueRenameSchema = z
   })
   .openapi('ListValueRename');
 
+// The grocery catalog: a remembered item, where it's found per store, and edits to it.
+export const RememberedItemSchema = z
+  .object({
+    key: z.string().openapi({ description: 'Matching key (case, spacing and simple plurals ignored); use it in /api/lists/remembered/{key}.' }),
+    title: z.string(),
+    uses: z.number().openapi({ description: 'Times added to a shopping list (0: added to the catalog only).' }),
+    lastUsed: z.string().nullable(),
+    category: z.string().nullable().openapi({ description: 'Department, e.g. "Produce".' }),
+    places: z.array(z.object({ store: z.string(), aisle: z.string().nullable(), updatedAt: z.string() })).openapi({ description: 'Stores it is found at (by name), each with its aisle there.' }),
+    lastStore: z.string().nullable().openapi({ description: 'Where it was last bought or planned: a new add goes there.' }),
+  })
+  .openapi('RememberedItem');
+
+const CatalogValue = z.string().trim().min(1).max(60);
+export const RememberedItemPatchSchema = z
+  .object({
+    title: z.string().trim().min(1).max(200).optional().openapi({ description: 'New spelling. A different name moves it (409 if that name is already in the catalog).' }),
+    category: CatalogValue.nullable().optional(),
+    places: z
+      .array(z.object({ store: CatalogValue, aisle: CatalogValue.nullable().optional() }))
+      .max(50)
+      .refine((ps) => new Set(ps.map((p) => p.store)).size === ps.length, 'each store once')
+      .optional()
+      .openapi({ description: 'Replaces its stores: each with its aisle there (null = not known). Stores left out are forgotten.' }),
+  })
+  .openapi('RememberedItemPatch');
+export const RememberedItemInputSchema = RememberedItemPatchSchema.extend({ title: z.string().trim().min(1).max(200) }).openapi('RememberedItemInput');
+
 export const StoreAislesSchema = z
   .object({ store: z.string().nullable(), aisles: z.array(z.string().min(1).max(60)).max(200) })
   .openapi('StoreAisles');

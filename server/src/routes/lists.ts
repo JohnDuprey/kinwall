@@ -8,7 +8,7 @@ import { notifyListUpdate } from '../notify.ts';
 import { parseMemberIds, resolveMemberIds } from '../calendar-members.ts';
 import { eventWriteBlock } from '../auth.ts';
 import type { Context } from 'hono';
-import { SUGGESTION_CAP, fillPlace, itemKey, nameSuggestions, recall, rememberName, rememberPlace } from '../item-memory.ts';
+import { SUGGESTION_CAP, catalog, catalogWrites, filterCatalog, fillPlace, itemKey, nameSuggestions, recall, rememberName, rememberPlace, type CatalogEdit, type CatalogItem } from '../item-memory.ts';
 import {
   ErrorSchema,
   ListDetailSchema,
@@ -25,6 +25,9 @@ import {
   ListPatchSchema,
   ListValueRenameSchema,
   StoreAislesSchema,
+  RememberedItemSchema,
+  RememberedItemInputSchema,
+  RememberedItemPatchSchema,
   ListReorderSchema,
   ListOrderSchema,
   ListSchema,
@@ -331,6 +334,78 @@ listsRoutes.openapi(
     return c.json(toApi(row, 0, 0), 201);
   },
 );
+
+// The grocery catalog. Registered before /api/lists/{id}, which would otherwise take "remembered" for a list id.
+listsRoutes.openapi(
+  createRoute({
+    method: 'get',
+    path: '/api/lists/remembered',
+    tags: ['Lists'],
+    summary: 'The grocery catalog: every remembered shopping item by title, with its department and the stores it is found at (aisle per store). q searches names; store keeps items found at that store.',
+    security: [{ Bearer: [] }],
+    request: { query: z.object({ q: z.string().optional(), store: z.string().optional() }) },
+    responses: { 200: { description: 'ok', content: { 'application/json': { schema: z.array(RememberedItemSchema) } } } },
+  }),
+  async (c) => {
+    const { q, store } = c.req.valid('query');
+    return c.json(filterCatalog(await catalog(c.env.DB), q, store), 200);
+  },
+);
+
+listsRoutes.openapi(
+  createRoute({
+    method: 'post',
+    path: '/api/lists/remembered',
+    tags: ['Lists'],
+    summary: 'Add an item to the grocery catalog without putting it on a list: its name, department and where it is found per store. Adds on shopping lists then use them.',
+    security: [{ Bearer: [] }],
+    request: { body: { content: { 'application/json': { schema: RememberedItemInputSchema } } } },
+    responses: {
+      201: { description: 'created', content: { 'application/json': { schema: RememberedItemSchema } } },
+      409: { description: 'already in the catalog', content: { 'application/json': { schema: ErrorSchema } } },
+    },
+  }),
+  async (c) => {
+    const body = c.req.valid('json');
+    const key = itemKey(body.title);
+    const [clash] = await catalog(c.env.DB, key);
+    if (clash) return c.json({ error: `Already in the catalog as ${clash.title}` }, 409);
+    return c.json(await saveCatalogItem(c, key, null, body), 201);
+  },
+);
+
+listsRoutes.openapi(
+  createRoute({
+    method: 'put',
+    path: '/api/lists/remembered/{key}',
+    tags: ['Lists'],
+    summary: 'Edit a grocery catalog item: title (a respelling; a different name moves it), category (its department) and places (replaces the stores it is found at, each with its aisle). Only given fields change. A new aisle is offered in that store\'s aisle picker.',
+    security: [{ Bearer: [] }],
+    request: { params: z.object({ key: z.string() }), body: { content: { 'application/json': { schema: RememberedItemPatchSchema } } } },
+    responses: {
+      200: { description: 'ok', content: { 'application/json': { schema: RememberedItemSchema } } },
+      404: { description: 'not in the catalog', content: { 'application/json': { schema: ErrorSchema } } },
+      409: { description: 'the new name is another catalog item', content: { 'application/json': { schema: ErrorSchema } } },
+    },
+  }),
+  async (c) => {
+    const { key } = c.req.valid('param');
+    const body = c.req.valid('json');
+    const [existing] = await catalog(c.env.DB, key);
+    if (!existing) return c.json({ error: 'not found' }, 404);
+    const to = body.title !== undefined ? itemKey(body.title) : key;
+    const [clash] = to !== key ? await catalog(c.env.DB, to) : [];
+    if (clash) return c.json({ error: `Already in the catalog as ${clash.title}` }, 409);
+    return c.json(await saveCatalogItem(c, key, existing, body), 200);
+  },
+);
+
+async function saveCatalogItem(c: Context<{ Bindings: Env }>, from: string, existing: CatalogItem | null, edit: CatalogEdit): Promise<CatalogItem> {
+  const { key, writes } = catalogWrites(c.env.DB, from, existing, edit, new Date().toISOString());
+  await c.env.DB.batch(writes);
+  emit(c, 'list.changed', { remembered: key });
+  return (await catalog(c.env.DB, key))[0]!;
+}
 
 listsRoutes.openapi(
   createRoute({

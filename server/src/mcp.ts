@@ -16,11 +16,12 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { hostTimezone } from './env.ts';
 import { effectivePublicUrl } from './providers/config.ts';
-import { BoardSchema, CalendarSchema, CategorySchema, ContactCategoryInputSchema, ContactCategorySchema, ContactInputSchema, ContactPatchSchema, ContactSchema, ChoreDaySchema, ChoreSchema, EventInstanceSchema, LeaderboardEntrySchema, ListDetailSchema, ListItemSchema, ListSchema, MemberSchema, NoteSchema, StoreAislesSchema, TrackerEntrySchema, TRACKER_KINDS, NotificationSchema, PointsSchema, SettingsSchema, SnapshotSchema, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, TransitionRemindersSchema, RewardSchema, RewardInputSchema, RedemptionSchema, RewardLimitSchema, MemberStatsSchema, StatsPeriodSchema } from './schemas.ts';
+import { BoardSchema, CalendarSchema, CategorySchema, ContactCategoryInputSchema, ContactCategorySchema, ContactInputSchema, ContactPatchSchema, ContactSchema, ChoreDaySchema, ChoreSchema, EventInstanceSchema, LeaderboardEntrySchema, ListDetailSchema, ListItemSchema, ListSchema, MemberSchema, NoteSchema, RememberedItemSchema, StoreAislesSchema, TrackerEntrySchema, TRACKER_KINDS, NotificationSchema, PointsSchema, SettingsSchema, SnapshotSchema, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, TransitionRemindersSchema, RewardSchema, RewardInputSchema, RedemptionSchema, RewardLimitSchema, MemberStatsSchema, StatsPeriodSchema } from './schemas.ts';
 import type { Env } from './env.ts';
 import { RecipeSchema, RecipeInputSchema, RecipeKindSchema, RecipeImportSchema, RecipeImportResultSchema, RecipePreviewResultSchema, RecipeUrlImportSchema, MealSchema, MealInputSchema, MealPatchSchema, ProjectionSchema, ProjectionApplySchema, ProjectionQuerySchema, MealRangeSchema } from './meal-schemas.ts';
 import { VERSION } from './version.ts';
 import { resolveKey } from './auth.ts';
+import { itemKey } from './item-memory.ts';
 import { NightScreenSchema } from './routes/night-screen.ts';
 
 type App = OpenAPIHono<{ Bindings: Env }>;
@@ -230,6 +231,8 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
   add_list_items: { items: z.array(ListItemSchema) },
   update_list_item: { item: ListItemSchema },
   set_store_aisle_order: { order: StoreAislesSchema },
+  list_remembered_items: { items: z.array(RememberedItemSchema) },
+  update_remembered_item: { item: RememberedItemSchema },
   set_list_item_done: { item: ListItemSchema },
   set_step_done: { item: ListItemSchema },
   get_event_items: { items: z.array(ListItemSchema.extend({ listName: z.string() })) },
@@ -276,7 +279,7 @@ const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boole
   create_chore: WRITE, update_chore: SET, complete_chore: SET, uncomplete_chore: SET, list_pending_approvals: READ, approve_chore: SET, reject_chore: SET,
   list_rewards: READ, create_reward: WRITE, update_reward: SET, redeem_reward: WRITE, list_reward_requests: READ, approve_reward: SET, decline_reward: SET, mark_reward_given: SET,
   add_member: WRITE, update_member: SET,
-  create_list: WRITE, update_list: SET, add_list_items: WRITE, update_list_item: SET, set_store_aisle_order: SET, set_list_item_done: SET, set_step_done: SET, update_category: SET, add_note: WRITE, update_note: SET,
+  create_list: WRITE, update_list: SET, add_list_items: WRITE, update_list_item: SET, set_store_aisle_order: SET, list_remembered_items: READ, update_remembered_item: WRITE, set_list_item_done: SET, set_step_done: SET, update_category: SET, add_note: WRITE, update_note: SET,
   create_contact: WRITE, update_contact: SET, create_contact_category: WRITE, update_contact_category: SET,
   send_notification: { ...WRITE, openWorldHint: true },
   set_night_screen: SET,
@@ -1501,6 +1504,49 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       if (res.status >= 400) return errorResult(res.json, 'failed to set aisle order');
       const order = res.json as { aisles: string[] };
       return okResult(order.aisles.length ? `Set ${store ?? 'no-store'} aisle order: ${order.aisles.join(', ')}.` : `Cleared ${store ?? 'no-store'} aisle order.`, { order: res.json as Record<string, unknown> });
+    },
+  );
+
+  tool(
+    'list_remembered_items',
+    {
+      title: 'List grocery catalog',
+      description: 'The grocery catalog: every shopping item the family has added before, by name, with its department (category) and the stores it is found at, each with its aisle there. lastStore is where a new add goes. search matches names; store keeps items found at that store.',
+      inputSchema: { search: z.string().optional(), store: z.string().optional().describe('Store name, as on the items.') },
+    },
+    async ({ search, store }) => {
+      const qs = new URLSearchParams({ ...(search ? { q: search } : {}), ...(store ? { store } : {}) }).toString();
+      const res = await call(app, env, auth, 'GET', `/api/lists/remembered${qs ? `?${qs}` : ''}`);
+      if (res.status >= 400) return errorResult(res.json, 'failed to list the catalog');
+      const items = res.json as { title: string }[];
+      return okResult(`${items.length} item(s)${items.length ? `: ${items.slice(0, 50).map((i) => i.title).join(', ')}${items.length > 50 ? ', ...' : ''}` : ''}.`, { items: res.json as Record<string, unknown>[] });
+    },
+  );
+
+  tool(
+    'update_remembered_item',
+    {
+      title: 'Edit grocery catalog item',
+      description: 'Edit an item in the grocery catalog (list_remembered_items): title respells or renames it, category sets its department, places replaces the stores it is found at, each with its aisle there (stores left out are forgotten). Only given fields change. Adds on shopping lists then use them. create: true adds it to the catalog when it is not there yet.',
+      inputSchema: {
+        name: z.string().describe('The item\'s name or key from list_remembered_items (case and simple plurals ignored).'),
+        title: z.string().optional(),
+        category: z.string().nullable().optional().describe(CATEGORY_DOC),
+        places: jsonList(z.array(z.object({ store: z.string(), aisle: z.string().nullable().optional().describe(AISLE_DOC) }))).optional(),
+        create: z.boolean().optional(),
+      },
+    },
+    async ({ name, create, ...edit }) => {
+      // A key as given, else the name's key (a key isn't always its own key: "chees" is cheese's).
+      const all = await call(app, env, auth, 'GET', '/api/lists/remembered');
+      if (all.status >= 400) return errorResult(all.json, 'failed to read the catalog');
+      const found = (all.json as { key: string }[]).find((i) => i.key === name) ?? (all.json as { key: string }[]).find((i) => i.key === itemKey(name));
+      if (!found && !create) return errorResult(null, `"${name}" is not in the grocery catalog.`);
+      const res = found
+        ? await call(app, env, auth, 'PUT', `/api/lists/remembered/${encodeURIComponent(found.key)}`, edit)
+        : await call(app, env, auth, 'POST', '/api/lists/remembered', { ...edit, title: edit.title ?? name });
+      if (res.status >= 400) return errorResult(res.json, 'failed to update the catalog');
+      return okResult(`Saved "${(res.json as { title: string }).title}" in the grocery catalog.`, { item: res.json as Record<string, unknown> });
     },
   );
 

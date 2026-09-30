@@ -226,6 +226,10 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'GET', pattern: /^\/api\/lists$/ },
   { method: 'POST', pattern: /^\/api\/lists$/ },
   { method: 'PUT', pattern: /^\/api\/lists\/order$/ }, // the family's list order, like any list edit
+  // The grocery catalog: read and edited like list items (which remember the same places); forgetting is for parent devices.
+  { method: 'GET', pattern: /^\/api\/lists\/remembered$/ },
+  { method: 'POST', pattern: /^\/api\/lists\/remembered$/ },
+  { method: 'PUT', pattern: /^\/api\/lists\/remembered\/[^/]+$/ },
   { method: 'GET', pattern: /^\/api\/lists\/[^/]+$/ },
   { method: 'PATCH', pattern: /^\/api\/lists\/[^/]+$/ },
   { method: 'DELETE', pattern: /^\/api\/lists\/[^/]+$/ },
