@@ -1030,7 +1030,7 @@ function AppRoutes() {
   const device = useDeviceAppearance()
   const wall = isWallScreen(scope, device)
   // Wall screens poll faster while a remote Night screen is on, so they wake soon after someone's home.
-  const { tick: pollTick, unauthorized, nightScreen } = usePoll(30000, wall ? NIGHT_POLL_MS : 30000)
+  const { tick: pollTick, areaTicks, unauthorized, nightScreen } = usePoll(30000, wall ? NIGHT_POLL_MS : 30000, wall)
   const [manualTick, setManualTick] = useState(0)
   // Wall displays can't be zoomed: a pinch from a small hand leaves the wall stuck zoomed in, and
   // the text-size setting covers legibility there. Phones keep pinch-zoom for accessibility.
@@ -1059,7 +1059,8 @@ function AppRoutes() {
     }
   }, [hasKey])
 
-  useEffect(() => { loadCore() }, [loadCore, pollTick, manualTick])
+  // Settings, members (their points too) and categories: not after a change to a list alone.
+  useEffect(() => { loadCore() }, [loadCore, areaTicks.events, areaTicks.chores, manualTick])
 
   // Queued (offline) changes reached the server: refresh every view so pending marks clear, and
   // say which ones the server refused (e.g. an item deleted on another device meanwhile).
@@ -1153,7 +1154,7 @@ function AppRoutes() {
     // Chores and rewards waiting for an OK (approved rewards not given yet don't count: nothing to decide).
     Promise.all([api.getPendingApprovals(), api.getRedemptions({ status: 'pending' })])
       .then(([c, r]) => { setToApprove(c.length + r.length); setRewardRequests(r.length) }).catch(() => { /* keep the last count */ })
-  }, [parentDevice, choresOn, pollTick, manualTick])
+  }, [parentDevice, choresOn, areaTicks.chores, manualTick])
   const redirect = settings && featureRedirect(settings, section, sub)
   useEffect(() => { if (redirect) location.replace(redirect) }, [redirect])
   const tabLabel = section === 'profile' ? 'Profile' : section === 'journal' ? 'Journal' : section === 'insights' ? 'Insights' : section === 'medications' ? 'Medicines' : section === 'activities' && sub === 'paint' ? 'Paint' : section === 'activities' && sub === 'stickers' ? 'Sticker book' : section === 'activities' && sub === 'photos' ? 'Photos' : NAV_ITEMS.find(i => i.key === section)?.label ?? 'Calendar'

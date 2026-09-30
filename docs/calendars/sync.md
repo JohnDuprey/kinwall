@@ -30,4 +30,4 @@ Turn **Enabled** off in the calendar's **Edit calendar** sheet to stop syncing a
 
 ## Live updates in the UI
 
-The apps poll `GET /api/rev` every 30 seconds and when they come back into view. The number goes up on every write, including syncs that changed events, failed or cleared an error, and the apps then refetch. A sync that found nothing new leaves it alone.
+The apps poll `GET /api/rev` every 30 seconds while they're on screen, and as soon as they come back into view; a wall screen keeps polling even when hidden. The number goes up on every write, including syncs that changed events, failed or cleared an error, and the apps then refetch. A sync that found nothing new leaves it alone. The app reloads the family's settings and members only when `revs` says events, chores or settings changed, not after a change to a list.

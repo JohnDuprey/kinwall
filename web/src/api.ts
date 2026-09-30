@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { remoteNightKey, type DeviceKind, type RemoteNight } from './wallScreen.ts'
 import { tellAppSignedIn, tellAppSignedOut } from './native.ts'
+import { changedAreas, type RevAnswer } from './revs.ts'
 import { mock, mockPlugins } from './mock.ts'
 import { applyChoreOps, applyListOps, cacheGet, cachePut, clearOffline, enqueue, flush, onOutboxChange, outboxReady, pendingOps, type Dropped, type Op } from './outbox.ts'
 import type { CustomScheme } from './skins.ts'
@@ -271,7 +272,7 @@ export const api = {
   getMealProjection: (from: string, to: string, listId?: string) => get<ShoppingProjection>(`api/meals/projection?${new URLSearchParams({ from, to, ...(listId ? { listId } : {}) })}`),
   applyMealProjection: (body: { from: string; to: string; listId: string; omitKeys: string[]; includeNotes: boolean; includeKitItems?: boolean; basics?: BasicChoices }) => post<{ added: number; itemIds: string[]; projection: ShoppingProjection }>('api/meals/projection/apply', body),
 
-  getRev: (): Promise<{ rev: number; nightScreen?: RemoteNight }> => MOCK ? mock.getRev() : get('api/rev'),
+  getRev: (): Promise<RevAnswer & { nightScreen?: RemoteNight }> => MOCK ? mock.getRev() : get('api/rev'),
 
   // First-run setup (no auth). MOCK always reports claimed so the mock UI never shows the wizard.
   getSetup: (): Promise<{ claimed: boolean; oauth: { google: boolean; microsoft: boolean }; passkeys: boolean; passkeyRequired: boolean; hasPasskey: boolean }> =>
@@ -677,25 +678,33 @@ export function stripHtmlToText(input: string): string {
  * revoked from another session) so App.tsx can drop back to the pairing/key-gate screen without
  * waiting for the next manual action. `nightScreen` is this device's remote Night screen from the
  * same response (undefined until the first poll); while it's on, polls come every `nightIntervalMs`
- * so a wall wakes soon after someone gets home (one cheap read, no writes). */
-export function usePoll(intervalMs = 30000, nightIntervalMs = intervalMs) {
+ * so a wall wakes soon after someone gets home (one cheap read, no writes).
+ * `tick` moves on any change; `areaTicks` only when that area changed (revs.ts), for refetches that
+ * don't need to follow every change. A hidden tab doesn't poll (it checks as soon as it's shown
+ * again) unless `live`: a wall screen keeps going. */
+export function usePoll(intervalMs = 30000, nightIntervalMs = intervalMs, live = false) {
   const [tick, setTick] = useState(0)
+  const [areaTicks, setAreaTicks] = useState({ events: 0, lists: 0, chores: 0 })
   const [unauthorized, setUnauthorized] = useState(false)
   const [nightScreen, setNightScreen] = useState<RemoteNight | undefined>(undefined)
-  const lastRev = useRef<number | null>(null)
+  const last = useRef<RevAnswer | null>(null)
   const every = nightScreen ? nightIntervalMs : intervalMs
 
   useEffect(() => {
     let canceled = false
     const check = async () => {
       if (!getKey()) return // no key yet (pairing screen) - nothing to poll, and a 401 here is meaningless
+      if (!live && document.visibilityState === 'hidden') return
       try {
-        const { rev, nightScreen: night } = await api.getRev()
+        const { rev, revs, nightScreen: night } = await api.getRev()
         if (canceled) return
         const next = night ?? null
         setNightScreen(cur => cur !== undefined && remoteNightKey(cur) === remoteNightKey(next) ? cur : next)
-        if (lastRev.current !== null && rev !== lastRev.current) setTick(t => t + 1)
-        lastRev.current = rev
+        const changed = changedAreas(last.current, { rev, revs })
+        last.current = { rev, revs }
+        if (!changed.any) return
+        setTick(t => t + 1)
+        setAreaTicks(t => ({ events: t.events + +changed.events, lists: t.lists + +changed.lists, chores: t.chores + +changed.chores }))
       } catch (e) {
         if (!canceled && e instanceof ApiError && e.status === 401) setUnauthorized(true)
         // otherwise offline / transient — ignore, next poll will retry
@@ -706,7 +715,7 @@ export function usePoll(intervalMs = 30000, nightIntervalMs = intervalMs) {
     const onVis = () => { if (document.visibilityState === 'visible') check() }
     document.addEventListener('visibilitychange', onVis)
     return () => { canceled = true; clearInterval(id); document.removeEventListener('visibilitychange', onVis) }
-  }, [every])
+  }, [every, live])
 
-  return { tick, unauthorized, nightScreen }
+  return { tick, areaTicks, unauthorized, nightScreen }
 }
