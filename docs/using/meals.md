@@ -201,8 +201,8 @@ An event Kinwall made follows the meal, on whichever calendar it's on. Saving th
 
 ## On the wall and in someone's day
 
-* The Board has a **Today's meals** card, with the next one marked and who's eating.
-* A person's day (tap their avatar) lists today's meals, and tomorrow's in **Tomorrow at a glance**. See [Daily & weekly snapshot](snapshot.md).
+* The Board has a **Today's meals** card, with the next one marked and who's eating. Tapping a meal opens it right there, the same sheet as tapping it in the week planner, and closing it leaves you on the Board.
+* A person's day (tap their avatar) lists today's meals, which open the same way over their day, and tomorrow's in **Tomorrow at a glance**. See [Daily & weekly snapshot](snapshot.md).
 * The morning summary includes the day's meals. See [Notifications](notifications.md).
 
 A wall display (a display key) can see the week and the recipes, but not plan, edit recipes or use the shopping projection. A device that belongs to someone can update the **Notes** and **Status** of meals assigned to that person, for example marking dinner **Prepared**.

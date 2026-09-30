@@ -18,6 +18,8 @@ import { inkFor } from './color.ts'
 import { minutesSinceMidnight, todayKeyInTz } from './date.ts'
 import { formatTime } from './timeFormat.ts'
 import { MEAL_SLOTS, SLOT_LABEL } from './meal-date.ts'
+import MealQuickSheet from './MealQuickSheet.tsx'
+import type { Meal } from './meal-types.ts'
 import { leadOf, leadText } from './leadTime.ts'
 
 type Range = 'day' | 'week'
@@ -396,6 +398,7 @@ export function BirthdayRow({ b, you, close }: { b: SnapshotBirthday; you: strin
 
 function DayView({ snap, tz, close, onToggle, books }: { snap: Snapshot; tz: string; close: () => void; onToggle: (c: SnapshotChore) => void; books: TrackerEntry<ReadingData>[] }) {
   const { features } = useApp().settings
+  const [meal, setMeal] = useState<Meal | null>(null)
   const today = snap.from
   const t = snap.tomorrow
   const tw = snap.weather?.days.find(d => d.date === t?.date)
@@ -430,12 +433,13 @@ function DayView({ snap, tz, close, onToggle, books }: { snap: Snapshot; tz: str
         <Section title="Meals">
           <ul className="snap-list">{meals.map(m => (
             <li key={m.id}>
-              <button className="snap-row" onClick={() => go(`#/meals?date=${m.date}&meal=${encodeURIComponent(m.id)}`, close)}>
+              <button className="snap-row" onClick={() => setMeal(m)}>
                 <span className="snap-time">{m.plannedTime ? formatTime(m.plannedTime) : SLOT_LABEL[m.slot]}</span>
                 <span className="snap-main"><span className="snap-title">{m.title}</span></span>
               </button>
             </li>
           ))}</ul>
+          {meal && <MealQuickSheet meal={meal} onClose={() => setMeal(null)} />}
         </Section>
       )}
       {snap.birthdays.length > 0 && (

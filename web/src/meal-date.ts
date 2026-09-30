@@ -63,3 +63,6 @@ export function startBy(plannedTime: string | null, total: number | null | undef
 /** A person's filtered view (the header's member filter): meals they eat or cook, and meals with nobody picked. */
 export const mealForMember = (meal: { eaterIds?: string[]; assigneeMemberId: string | null }, memberId: string | null) =>
   !memberId || !meal.eaterIds?.length || meal.eaterIds.includes(memberId) || meal.assigneeMemberId === memberId
+/** Tapping a planned meal opens its recipe (read-only, "Edit meal" a tap away) when the library has it; otherwise the meal's own sheet. */
+export const mealRecipe = <R extends { id: string }>(meal: { mealKind: string; recipeId: string | null }, recipes: R[]): R | undefined =>
+  meal.mealKind === 'recipe' ? recipes.find(r => r.id === meal.recipeId) : undefined
