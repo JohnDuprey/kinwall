@@ -11,10 +11,10 @@ import { inkFor } from './color.ts'
 import { todayKeyInTz } from './date.ts'
 import { dayName } from './Snapshot.tsx'
 import { SLEEP } from './tempCheck.ts'
-import { JOURNAL_TEXT_MAX, MOODS, outcomeOf } from './journal.ts'
+import { JOURNAL_TEXT_MAX, MOODS, outcomeOf, privacyLine } from './journal.ts'
 import GoalFollowUp from './GoalFollowUp.tsx'
 import Sheet from './Sheet.tsx'
-import type { Journal as JournalData, JournalDay, JournalEntry, JournalPrivacy, Member } from './types.ts'
+import type { Journal as JournalData, JournalDay, JournalEntry, Member } from './types.ts'
 
 const PAGE_DAYS = 60
 const dayBefore = (d: string) => new Date(Date.parse(`${d}T12:00:00Z`) - 86_400_000).toISOString().slice(0, 10)
@@ -103,15 +103,6 @@ export default function Journal({ memberId }: { memberId?: string }) {
       {editing && <EntrySheet member={member} entry={editing === 'new' ? null : editing} today={today} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); setTick(t => t + 1) }} />}
     </div>
   )
-}
-
-/** The line under their name: who reads this journal, from this device's point of view. */
-function privacyLine(member: Member, p: JournalPrivacy | undefined): string {
-  if (!p) return '🔒'
-  if (p.on && p.mine) return '🔒 Private: only you can read these. Parents see your mood, not what you write.'
-  if (p.on) return `🔒 Private: only ${member.name} can read these. You see ${member.name}'s mood, not what they write.`
-  if (p.mine) return member.grownUp ? 'Shared: parent devices can read your journal.' : 'Just for you, and parents can see it too.'
-  return member.grownUp ? `${member.name}'s own devices and parent devices can read this.` : `Just for ${member.name}, and parents can see it too.`
 }
 
 function Day({ day, today, onEdit }: { day: JournalDay; today: string; onEdit: (e: JournalEntry) => void }) {

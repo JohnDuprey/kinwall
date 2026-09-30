@@ -29,7 +29,7 @@ Entries (the words and the mood) and goal check answers are encrypted on the ser
 
 ## Private journals
 
-A private journal is for writing only you can read. The page says so: **Private: only you can read these. Parents see your mood, not what you write.**
+A private journal is for writing only you can read. The page says so: **Private: only you can read these. Other parent devices see your mood, not what you write.** on a grown-up's journal, and **… Parents see your mood, not what you write.** on a kid's.
 
 * **What others see.** On anyone else's device, parents' devices included, each private entry shows its day, its mood and **🔒 Private entry**, never the words. The same goes for that day's goal check notes (what helped, what got in the way, next time): the outcome shows, the notes say **🔒 Notes are private**. [Insights](insights.md) and the [energy battery](battery.md) keep working, because they only use moods and answers, never the words.
 * **Marked on the entry.** An entry written while the journal is private stays private for good. Turning privacy off later only affects new entries; nothing written before is shown.

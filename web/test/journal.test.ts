@@ -1,7 +1,8 @@
 // node --test test/ (npm test). Goal follow-up and the journal: times, messages, the week's goals.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { EVENING_TIMES, followupThanks, goalsThisWeek } from '../src/journal.ts'
+import { EVENING_TIMES, followupThanks, goalsThisWeek, privacyLine } from '../src/journal.ts'
+import type { JournalPrivacy, Member } from '../src/types.ts'
 
 test('EVENING_TIMES: noon to 11:30 PM in half hours', () => {
   assert.equal(EVENING_TIMES.length, 24)
@@ -31,4 +32,13 @@ test('goalsThisWeek: goals met out of goals set in the last 7 days (today counts
   ]
   assert.deepEqual(goalsThisWeek(days, '2026-09-26'), { met: 2, of: 4 })
   assert.deepEqual(goalsThisWeek([], '2026-09-26'), { met: 0, of: 0 })
+})
+
+test("privacyLine: a grown-up's own private journal never uses the kid wording", () => {
+  const alex = { name: 'Alex', grownUp: true } as Member
+  const maya = { name: 'Maya', grownUp: false } as Member
+  const own = { on: true, mine: true } as JournalPrivacy
+  assert.doesNotMatch(privacyLine(alex, own), /Parents see/)
+  assert.match(privacyLine(alex, own), /only you can read these/)
+  assert.match(privacyLine(maya, own), /Parents see your mood, not what you write/)
 })
