@@ -2370,14 +2370,14 @@ function PasskeysSection({ me, toast, onChanged }: { me: Me; toast: (m: string, 
 const NUDGE_DISMISSED_KEY = 'kinwall.secondWayInDismissedAt'
 const NUDGE_SNOOZE_MS = 30 * 24 * 60 * 60 * 1000
 
-/** Top of Access: shown while there's only one way in (≤1 passkey, or no unused recovery codes).
+/** Top of Access: shown while there's only one way in (≤1 passkey and no unused recovery codes).
  * Dismissing snoozes it on this device for 30 days. */
 function SecondWayInNudge({ tick }: { tick: number }) {
   const [show, setShow] = useState(false)
   useEffect(() => {
     try { if (Date.now() - Number(localStorage.getItem(NUDGE_DISMISSED_KEY) ?? 0) < NUDGE_SNOOZE_MS) return } catch { /* storage blocked */ }
     Promise.all([api.getPasskeys(), api.getRecoveryCodes()])
-      .then(([passkeys, codes]) => setShow(passkeys.length <= 1 || codes.remaining === 0))
+      .then(([passkeys, codes]) => setShow(passkeys.length <= 1 && codes.remaining === 0))
       .catch(() => {})
   }, [tick])
   if (!show) return null

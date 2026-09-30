@@ -49,7 +49,7 @@ Recovery codes are your way back in if every passkey device is lost.
 * A recovery-code sign-in belongs to no one, so it never opens a [private journal](journal.md#private-journals).
 * Only hashes are stored. Attempts are limited to 10 per hour per address and 30 per hour overall.
 
-While you have only one passkey or no unused recovery codes, **Access** shows a banner: "Add a second way in — a second passkey or recovery codes — so losing one device doesn't lock the family out." **Not now** hides it on that device for 30 days.
+While you have only one passkey and no unused recovery codes, **Access** shows a banner: "Add a second way in — a second passkey or recovery codes — so losing one device doesn't lock the family out." **Not now** hides it on that device for 30 days.
 
 ## Admin API keys
 
