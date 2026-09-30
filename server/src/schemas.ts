@@ -781,7 +781,9 @@ export const ApiKeySchema = z
     createdAt: z.string(),
     lastUsedAt: z.string().nullable(),
     owner: z.string().nullable().openapi({ description: "Who the device belongs to: 'shared' (the whole family), a member id it's pinned to, or null (paired before owners; the device picks)" }),
-    kind: z.enum(['wall', 'kid', 'grownup']).nullable().openapi({ description: "What the device is: 'wall' (a wall screen), 'kid' (a kid's own device), 'grownup' (a grown-up's own device), or null (not said: an app's widgets, a shared full-access key)" }),
+    kind: z.enum(['wall', 'kid', 'grownup', 'widgets']).nullable().openapi({ description: "What the device is: 'wall' (a wall screen), 'kid' (a kid's own device), 'grownup' (a grown-up's own device), 'widgets' (the Kinwall app's widgets or Watch, made with POST /api/device-keys), or null (not said: a shared full-access key)" }),
+    parentKeyId: z.string().nullable().openapi({ description: "Widgets: the key that made them (a phone's key, or the widgets' key for a Watch). Removing it removes them. Null when made by the Kinwall app's sign-in (parentGrantId) or before Kinwall linked them" }),
+    parentGrantId: z.string().nullable().openapi({ description: "Widgets: the Kinwall app's sign-in (GET /api/authorizations id) that made them. Disconnecting it removes them" }),
   })
   .openapi('ApiKey');
 
@@ -795,7 +797,7 @@ export const MeSchema = z
     keyName: z.string(),
     kind: z.enum(['api', 'session', 'oauth']),
     owner: z.string().nullable().optional().openapi({ description: "Whose device this is: 'shared', a member id, or null. On a full-access key it's only for personal defaults" }),
-    deviceKind: z.enum(['wall', 'kid', 'grownup']).nullable().optional().openapi({ description: "What this device is, when an admin said so (see ApiKey.kind)" }),
+    deviceKind: z.enum(['wall', 'kid', 'grownup', 'widgets']).nullable().optional().openapi({ description: "What this device is, when an admin said so (see ApiKey.kind)" }),
     locked: z.boolean().openapi({ description: "The owner locks this device's family filter (everyday-access keys with an owner: a member id pins it, 'shared' shows everyone). Never true for full access" }),
     version: z.string(),
     hostPortalUrl: z.string().optional(),

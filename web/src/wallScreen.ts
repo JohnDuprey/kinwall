@@ -50,6 +50,21 @@ export function remoteNightAction(seen: string | undefined, remote: RemoteNight 
  * with a grown-up owner (paired before that was refused) reads 'grownup' here: it needs a fix. */
 export type DeviceKind = 'wall' | 'kid' | 'grownup'
 
+/** Where the Kinwall app's widgets and Watch key ('widgets') show in Settings → Access: under the key
+ * (listed in GET /api/keys) or the app sign-in that made it, through the widgets' key for a Watch.
+ * Null when that isn't known (made before Kinwall linked them, or by a passkey sign-in). */
+type LinkedKey = { id: string; kind?: string | null; parentKeyId?: string | null; parentGrantId?: string | null }
+export function widgetParent(key: LinkedKey, all: LinkedKey[]): { keyId: string } | { grantId: string } | null {
+  let cur: LinkedKey | undefined = key
+  for (let hop = 0; cur && hop < 5; hop++) {
+    if (cur.parentGrantId) return { grantId: cur.parentGrantId }
+    const up: LinkedKey | undefined = all.find(k => k.id === cur!.parentKeyId)
+    if (up?.kind !== 'widgets') return up ? { keyId: up.id } : null
+    cur = up
+  }
+  return null
+}
+
 /** A device's kind: the one saved on it, else what its owner says (older keys). Null when nobody's said. */
 export function deviceKindOf(key: { kind?: DeviceKind | null; owner?: string | null }, members: { id: string; grownUp?: boolean }[]): DeviceKind | null {
   if (key.kind) return key.kind

@@ -22,7 +22,7 @@ import { ColorClashHint, ColorClashNote } from './ColorClash.tsx'
 import { useIsPhone } from './useIsPhone.ts'
 import { useNavMode, setNavPref, type NavPref } from './useNavMode.ts'
 import { DEFAULT_ACCENT, resolveColors, setDeviceAppearance, useDeviceAppearance, type DeviceAppearance, type LockedView, type SaverSource } from './useTheme.ts'
-import { deviceKindOf, deviceKindValue, parseDeviceKind, wallDefaultsOn, type DeviceKind } from './wallScreen.ts'
+import { deviceKindOf, deviceKindValue, parseDeviceKind, wallDefaultsOn, widgetParent, type DeviceKind } from './wallScreen.ts'
 import { PIN_RE } from './quietPin.ts'
 import { baseFromPalette, findSkin, getSkin, OLD_BACKGROUNDS, paletteChecks, paletteOf, seasonalSkinId, tokensFor, type CustomScheme, type Palette } from './skins.ts'
 import { SAVER_PREVIEW_EVENT } from './Screensaver.tsx'
@@ -2468,6 +2468,35 @@ function RecoveryCodesSection({ toast, onChanged }: { toast: (m: string, persist
 // list only shows admin keys to keep that one job in Displays.
 /** OAuth connections (e.g. a Claude connector) - approved on the consent screen, revoked here.
  * Kinwall's own app also has an owner ("Whose device is this?"), changeable here. */
+/** The Kinwall app's widgets and Watch keys under `parent` (the device or app sign-in that made them,
+ * wallScreen.ts widgetParent), or, with `parent` null, the ones Kinwall can't place. */
+const widgetsUnder = (all: ApiKey[], parent: { keyId: string } | { grantId: string } | null) =>
+  all.filter(k => k.kind === 'widgets' && JSON.stringify(widgetParent(k, all)) === JSON.stringify(parent))
+
+/** A line under a phone for its widgets and Watch, each removable (say the phone was lost). They go
+ * with the phone anyway: removing or disconnecting it signs them out too. */
+function WidgetKeys({ keys, onChanged, toast }: { keys: ApiKey[]; onChanged: () => void; toast: (m: string, persist?: boolean) => void }) {
+  const dialog = useDialog()
+  if (keys.length === 0) return null
+  const remove = async (k: ApiKey) => {
+    if (!await dialog.confirm({ title: `Remove "${k.name}"?`, body: 'They stop updating until the phone signs in again.', confirmLabel: 'Remove', danger: true })) return
+    try { await api.deleteKey(k.id); onChanged() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not remove it', true) }
+  }
+  return (
+    <div className="widget-keys" role="group" aria-label="Widgets and Watch">
+      {keys.map(k => (
+        <div key={k.id} className="widget-key">
+          <div className="key-item-info">
+            <div className="settings-row-label">{/watch/i.test(k.name) ? '⌚' : '🧩'} {k.name}</div>
+            <div className="settings-row-sub">{k.lastUsedAt ? `used ${new Date(k.lastUsedAt).toLocaleDateString()}` : 'never used'}</div>
+          </div>
+          <button className="icon-btn" onClick={() => remove(k)} aria-label={`Remove ${k.name}`}><TrashIcon width={16} height={16} /></button>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function ConnectedAppsSection({ toast }: { toast: (m: string, persist?: boolean) => void }) {
   const dialog = useDialog()
   const { reloadCore, members, settings } = useApp()
@@ -2476,10 +2505,12 @@ function ConnectedAppsSection({ toast }: { toast: (m: string, persist?: boolean)
   }
   const ownerName = (o: string | null) => { const m = o && o !== 'shared' ? members.find(x => x.id === o) : undefined; return m ? `${m.avatar} ${m.name}'s device` : 'Anyone can use it' }
   const [apps, setApps] = useState<Awaited<ReturnType<typeof api.getAuthorizations>>>([])
-  const load = () => { api.getAuthorizations().then(setApps).catch(() => {}) }
+  const [keys, setKeys] = useState<ApiKey[]>([])
+  const load = () => { api.getAuthorizations().then(setApps).catch(() => {}); api.getKeys().then(setKeys).catch(() => {}) }
   useEffect(load, [])
   const revoke = async (id: string, name: string) => {
-    if (!await dialog.confirm({ title: `Disconnect ${name}?`, body: 'It will need to be approved again to use Kinwall.', confirmLabel: 'Disconnect', danger: true })) return
+    const widgets = widgetsUnder(keys, { grantId: id }).length > 0
+    if (!await dialog.confirm({ title: `Disconnect ${name}?`, body: `It will need to be approved again to use Kinwall.${widgets ? ' Its widgets and Watch are signed out too.' : ''}`, confirmLabel: 'Disconnect', danger: true })) return
     try { await api.revokeAuthorization(id); load() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not disconnect', true) }
   }
   const changeOwner = async (id: string, owner: string) => {
@@ -2489,20 +2520,23 @@ function ConnectedAppsSection({ toast }: { toast: (m: string, persist?: boolean)
     <Section title="Connected apps" icon={<LinkIcon width={16} height={16} />}>
       {apps.length === 0 && <p className="settings-row-sub">Apps you connect with sign-in (like a Claude connector) appear here. Point them at {location.origin}/mcp.</p>}
       {apps.map(a => (
-        <div key={a.id} className={a.deviceApp && !a.current ? 'key-item key-item-owned' : 'key-item'}>
-          <div className="key-item-info">
-            <div className="settings-row-label">{a.clientName}{a.current && <> <span className="cal-kind-badge">This device</span></>}</div>
-            <div className="settings-row-sub">
-              {a.scope === 'admin' ? 'Full access' : 'Everyday access'}
-              {a.current && ` · ${ownerName(a.owner)}`}
-              {' · '}connected {new Date(a.createdAt).toLocaleDateString()}
-              {a.lastUsedAt ? ` · used ${new Date(a.lastUsedAt).toLocaleDateString()}` : ''}
+        <Fragment key={a.id}>
+          <div className={a.deviceApp && !a.current ? 'key-item key-item-owned' : 'key-item'}>
+            <div className="key-item-info">
+              <div className="settings-row-label">{a.clientName}{a.current && <> <span className="cal-kind-badge">This device</span></>}</div>
+              <div className="settings-row-sub">
+                {a.scope === 'admin' ? 'Full access' : 'Everyday access'}
+                {a.current && ` · ${ownerName(a.owner)}`}
+                {' · '}connected {new Date(a.createdAt).toLocaleDateString()}
+                {a.lastUsedAt ? ` · used ${new Date(a.lastUsedAt).toLocaleDateString()}` : ''}
+              </div>
             </div>
+            {/* Everyday access is a kid's or shared, never a grown-up's (it would open their journal). */}
+            {a.deviceApp && !a.current && <OwnerSelect value={a.owner ?? 'shared'} members={a.scope === 'display' ? members.filter(m => !m.grownUp || m.id === a.owner) : undefined} onChange={v => changeOwner(a.id, v)} label={`Whose device ${a.clientName} is`} />}
+            {!a.current && <button className="icon-btn" onClick={() => revoke(a.id, a.clientName)} aria-label={`Disconnect ${a.clientName}`}><TrashIcon width={16} height={16} /></button>}
           </div>
-          {/* Everyday access is a kid's or shared, never a grown-up's (it would open their journal). */}
-          {a.deviceApp && !a.current && <OwnerSelect value={a.owner ?? 'shared'} members={a.scope === 'display' ? members.filter(m => !m.grownUp || m.id === a.owner) : undefined} onChange={v => changeOwner(a.id, v)} label={`Whose device ${a.clientName} is`} />}
-          {!a.current && <button className="icon-btn" onClick={() => revoke(a.id, a.clientName)} aria-label={`Disconnect ${a.clientName}`}><TrashIcon width={16} height={16} /></button>}
-        </div>
+          <WidgetKeys keys={widgetsUnder(keys, { grantId: a.id })} onChanged={load} toast={toast} />
+        </Fragment>
       ))}
       <div className="toggle-row">
         <div>
@@ -2544,11 +2578,12 @@ function ThisDeviceOwnerSection({ me, toast }: { me: Me; toast: (m: string, pers
 function KeysSection({ toast }: { toast: (m: string, persist?: boolean) => void }) {
   const dialog = useDialog()
   const { members, reloadCore } = useApp()
-  const [keys, setKeys] = useState<ApiKey[]>([])
+  const [all, setAll] = useState<ApiKey[]>([])
+  const keys = all.filter(k => k.scope === 'admin')
   const [newKey, setNewKey] = useState<{ name: string; key: string } | null>(null)
   const [creating, setCreating] = useState(false)
   const [name, setName] = useState('')
-  const load = () => { api.getKeys().then(ks => setKeys(ks.filter(k => k.scope === 'admin'))).catch(() => {}) }
+  const load = () => { api.getKeys().then(setAll).catch(() => {}) }
   useEffect(load, [])
 
   const create = async () => {
@@ -2560,7 +2595,7 @@ function KeysSection({ toast }: { toast: (m: string, persist?: boolean) => void 
       load()
     } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not create key', true) }
   }
-  const del = async (id: string) => { if (!await dialog.confirm({ title: 'Delete this API key?', body: 'Anything using it stops working immediately.', confirmLabel: 'Delete', danger: true })) return; try { await api.deleteKey(id); load() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not delete key', true) } }
+  const del = async (id: string) => { if (!await dialog.confirm({ title: 'Delete this API key?', body: `Anything using it stops working immediately.${widgetsUnder(all, { keyId: id }).length ? ' So do the widgets and Watch it made.' : ''}`, confirmLabel: 'Delete', danger: true })) return; try { await api.deleteKey(id); load() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not delete key', true) } }
   const copy = async (key: string) => { try { await navigator.clipboard.writeText(key); toast('Key copied') } catch { toast('Could not copy — select and copy manually', true) } }
 
   return (
@@ -2573,15 +2608,18 @@ function KeysSection({ toast }: { toast: (m: string, persist?: boolean) => void 
         </div>
       )}
       {keys.map(k => (
-        <div key={k.id} className="key-item key-item-owned">
-          <div className="key-item-info">
-            <div className="settings-row-label">{k.name} <span className="cal-kind-badge">{k.scope}</span></div>
-            <div className="settings-row-sub">{[k.prefix && `${k.prefix}…`, k.lastUsedAt ? `used ${new Date(k.lastUsedAt).toLocaleDateString()}` : 'never used'].filter(Boolean).join(' · ')}</div>
+        <Fragment key={k.id}>
+          <div className="key-item key-item-owned">
+            <div className="key-item-info">
+              <div className="settings-row-label">{k.name} <span className="cal-kind-badge">{k.scope}</span></div>
+              <div className="settings-row-sub">{[k.prefix && `${k.prefix}…`, k.lastUsedAt ? `used ${new Date(k.lastUsedAt).toLocaleDateString()}` : 'never used'].filter(Boolean).join(' · ')}</div>
+            </div>
+            {/* A full-access key can belong to a grown-up: then it reads their private journal. */}
+            <OwnerSelect value={k.owner ?? 'shared'} members={members.filter(m => m.grownUp)} onChange={v => api.setKeyOwner(k.id, v).then(() => { load(); reloadCore() }, e => toast(e instanceof ApiError ? e.message : 'Could not change who it belongs to', true))} label={`Who ${k.name} belongs to`} />
+            <button className="icon-btn" onClick={() => del(k.id)} aria-label={`Delete ${k.name}`}><TrashIcon width={16} height={16} /></button>
           </div>
-          {/* A full-access key can belong to a grown-up: then it reads their private journal. */}
-          <OwnerSelect value={k.owner ?? 'shared'} members={members.filter(m => m.grownUp)} onChange={v => api.setKeyOwner(k.id, v).then(() => { load(); reloadCore() }, e => toast(e instanceof ApiError ? e.message : 'Could not change who it belongs to', true))} label={`Who ${k.name} belongs to`} />
-          <button className="icon-btn" onClick={() => del(k.id)} aria-label={`Delete ${k.name}`}><TrashIcon width={16} height={16} /></button>
-        </div>
+          <WidgetKeys keys={widgetsUnder(all, { keyId: k.id })} onChanged={load} toast={toast} />
+        </Fragment>
       ))}
       {creating ? (
         <div className="field" style={{ margin: '10px 0 0' }}>
@@ -2640,12 +2678,15 @@ const KIND_GROUPS: { kind: DeviceKind | null; title: string; sub?: string }[] = 
 function DisplaysSection({ toast }: { toast: (m: string, persist?: boolean) => void }) {
   const dialog = useDialog()
   const { reloadCore, members } = useApp()
-  const [keys, setKeys] = useState<ApiKey[]>([])
+  const [all, setAll] = useState<ApiKey[]>([])
+  // The app's widgets and Watch show under the device that made them, not as paired devices.
+  const keys = all.filter((k): k is ApiKey & { kind?: DeviceKind | null } => k.scope === 'display' && k.kind !== 'widgets')
+  const unplaced = widgetsUnder(all, null)
   const [code, setCode] = useState('')
   const [name, setName] = useState('Wall screen')
   const [busy, setBusy] = useState(false)
   const [adding, setAdding] = useState(false)
-  const load = () => { api.getKeys().then(ks => setKeys(ks.filter(k => k.scope === 'display'))).catch(() => {}) }
+  const load = () => { api.getKeys().then(setAll).catch(() => {}) }
   useEffect(load, [])
 
   const [what, setWhat] = useState('wall')
@@ -2668,7 +2709,7 @@ function DisplaysSection({ toast }: { toast: (m: string, persist?: boolean) => v
     try { await api.setKeyKind(k.id, parseDeviceKind(next)); load(); reloadCore() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not change what it is', true) }
   }
   const revoke = async (k: ApiKey) => {
-    if (!await dialog.confirm({ title: `Remove "${k.name}"?`, body: 'It will be signed out and need pairing again.', confirmLabel: 'Remove', danger: true })) return
+    if (!await dialog.confirm({ title: `Remove "${k.name}"?`, body: `It will be signed out and need pairing again.${widgetsUnder(all, { keyId: k.id }).length ? ' So will its widgets and Watch.' : ''}`, confirmLabel: 'Remove', danger: true })) return
     try { await api.deleteKey(k.id); load() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not revoke display', true) }
   }
 
@@ -2681,20 +2722,28 @@ function DisplaysSection({ toast }: { toast: (m: string, persist?: boolean) => v
           <div className="settings-row-label device-kind-title" id={`device-kind-${g.kind ?? 'none'}`}>{g.kind === 'grownup' ? '⚠️ ' : ''}{g.title}</div>
           {g.sub && <p className="settings-row-sub">{g.sub}</p>}
           {g.keys.map(k => (
-            <div key={k.id} className="key-item key-item-owned">
-              <div className="key-item-info">
-                <div className="settings-row-label">{k.name}</div>
-                <div className="settings-row-sub">
-                  created {new Date(k.createdAt).toLocaleDateString()}
-                  {k.lastUsedAt ? ` · used ${new Date(k.lastUsedAt).toLocaleDateString()}` : ' · never used'}
+            <Fragment key={k.id}>
+              <div className="key-item key-item-owned">
+                <div className="key-item-info">
+                  <div className="settings-row-label">{k.name}</div>
+                  <div className="settings-row-sub">
+                    created {new Date(k.createdAt).toLocaleDateString()}
+                    {k.lastUsedAt ? ` · used ${new Date(k.lastUsedAt).toLocaleDateString()}` : ' · never used'}
+                  </div>
                 </div>
+                <DeviceKindSelect value={deviceKindValue(k, members)} onChange={v => changeKind(k, v)} label={`What ${k.name} is`} legacy={!deviceKindValue(k, members)} />
+                <button className="icon-btn" onClick={() => revoke(k)} aria-label={`Remove ${k.name}`}><TrashIcon width={16} height={16} /></button>
               </div>
-              <DeviceKindSelect value={deviceKindValue(k, members)} onChange={v => changeKind(k, v)} label={`What ${k.name} is`} legacy={!deviceKindValue(k, members)} />
-              <button className="icon-btn" onClick={() => revoke(k)} aria-label={`Remove ${k.name}`}><TrashIcon width={16} height={16} /></button>
-            </div>
+              <WidgetKeys keys={widgetsUnder(all, { keyId: k.id })} onChanged={load} toast={toast} />
+            </Fragment>
           ))}
         </div>
       ))}
+      {unplaced.length > 0 && <div role="group" aria-labelledby="device-kind-widgets">
+        <div className="settings-row-label device-kind-title" id="device-kind-widgets">Widgets and Watch</div>
+        <p className="settings-row-sub">From the Kinwall app on a phone that isn't listed here, most made before Kinwall kept track of which phone. Remove any you don't recognize; the phone makes new ones when it signs in again.</p>
+        <WidgetKeys keys={unplaced} onChanged={load} toast={toast} />
+      </div>}
       <button className="add-row-btn" onClick={() => setAdding(true)}><PlusIcon width={20} height={20} />Add a wall screen or kid's device</button>
 
       {adding && (

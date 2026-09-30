@@ -247,6 +247,24 @@ test("oauth owner: widget/watch keys follow a pinned device's owner, but a paren
   assert.equal(parent.locked, true, 'still an everyday-access key');
 });
 
+test('oauth: widget keys the Kinwall app makes belong to its sign-in: they outlive token refreshes and go when it is disconnected', async () => {
+  const t = setup();
+  const tok = await appSignIn(t, 'admin');
+  const widgets = await (await t.req('/api/device-keys', { method: 'POST', body: JSON.stringify({ name: 'Widgets on iPhone' }) }, tok.access_token)).json() as any;
+  const grants = await (await t.req('/api/authorizations', {}, ADMIN_KEY)).json() as any[];
+  const listed = (await (await t.req('/api/keys', {}, ADMIN_KEY)).json() as any[]).find((k) => k.id === widgets.id);
+  assert.deepEqual([listed.kind, listed.parentKeyId, listed.parentGrantId], ['widgets', null, grants[0].id]);
+  // A refresh retires the old access key; the widgets stay signed in.
+  const refreshed = await (await t.req('/oauth/token', t.form({ grant_type: 'refresh_token', refresh_token: tok.refresh_token }))).json() as any;
+  assert.ok(refreshed.access_token);
+  await t.env.DB.prepare('UPDATE api_keys SET expires_at = ? WHERE kind = ?').bind('2000-01-01T00:00:00Z', 'oauth').run();
+  await t.req('/oauth/token', t.form({ grant_type: 'refresh_token', refresh_token: refreshed.refresh_token })); // prunes expired access keys
+  assert.equal((await t.req('/api/settings', {}, widgets.key)).status, 200);
+  // Disconnecting the app signs its widgets out.
+  assert.equal((await t.req(`/api/authorizations/${grants[0].id}`, { method: 'DELETE' }, ADMIN_KEY)).status, 200);
+  assert.equal((await t.req('/api/settings', {}, widgets.key)).status, 401);
+});
+
 test("oauth owner: an admin can change a signed-in app's owner later; not an MCP client's", async () => {
   const t = setup();
   const alex = await addMember(t, 'Alex');

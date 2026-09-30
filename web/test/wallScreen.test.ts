@@ -1,7 +1,7 @@
 // node --test test/ (npm test). Which devices act as a wall screen, and when the night screen shows.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { deviceKindOf, deviceKindValue, isWallScreen, nightScreenDue, parseDeviceKind, remoteNightAction, remoteNightKey, wallDefaultsOn, WAKE_MS } from '../src/wallScreen.ts'
+import { deviceKindOf, deviceKindValue, isWallScreen, widgetParent, nightScreenDue, parseDeviceKind, remoteNightAction, remoteNightKey, wallDefaultsOn, WAKE_MS } from '../src/wallScreen.ts'
 
 test('isWallScreen: paired displays always are; other devices only with the switch on', () => {
   assert.equal(isWallScreen('display', {}), true)
@@ -67,4 +67,22 @@ test('remoteNightAction: Home Assistant starts and wakes wall screens, once per 
   assert.equal(remoteNightAction(undefined, on('a'), false), null, 'not a wall screen')
   assert.equal(remoteNightKey(on('a')), 'a')
   assert.equal(remoteNightKey(null), '')
+})
+
+test('widgetParent: widgets hang under the key or app sign-in that made them; a Watch through the widgets; unknown is null', () => {
+  const keys = [
+    { id: 'phone', kind: null },
+    { id: 'w1', kind: 'widgets', parentKeyId: 'phone' },
+    { id: 'watch', kind: 'widgets', parentKeyId: 'w1' },
+    { id: 'w2', kind: 'widgets', parentGrantId: 'g1' },
+    { id: 'watch2', kind: 'widgets', parentKeyId: 'w2' },
+    { id: 'old', kind: 'widgets' }, // made before Kinwall linked them
+    { id: 'session', kind: 'widgets', parentKeyId: 'not-listed' }, // a passkey sign-in isn't in the key list
+  ]
+  assert.deepEqual(widgetParent(keys[1], keys), { keyId: 'phone' })
+  assert.deepEqual(widgetParent(keys[2], keys), { keyId: 'phone' })
+  assert.deepEqual(widgetParent(keys[3], keys), { grantId: 'g1' })
+  assert.deepEqual(widgetParent(keys[4], keys), { grantId: 'g1' })
+  assert.equal(widgetParent(keys[5], keys), null)
+  assert.equal(widgetParent(keys[6], keys), null)
 })

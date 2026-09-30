@@ -51,7 +51,7 @@ export const nightRowKeys = (keyId: string | undefined) => (keyId ? [FAMILY, `${
 async function readState(db: KinwallDb) {
   const [rows, keys] = await db.batch([
     db.prepare("SELECT key, value FROM settings WHERE key = 'nightScreen' OR key LIKE 'nightScreen:%'"),
-    db.prepare("SELECT id, name, owner FROM api_keys WHERE kind = 'api' AND scope = 'display' ORDER BY created_at"),
+    db.prepare("SELECT id, name, owner FROM api_keys WHERE kind = 'api' AND scope = 'display' AND device_kind IS NOT 'widgets' ORDER BY created_at"), // not the app's widgets
   ]);
   const map = new Map((rows.results as { key: string; value: string }[]).map((r) => [r.key, r.value]));
   const all = effectiveNight(map, undefined);

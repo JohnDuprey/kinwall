@@ -25,7 +25,7 @@ export function generateApiKey(): string {
 }
 
 export type KeyScope = 'admin' | 'display';
-export type ResolvedKey = { id?: string; scope: KeyScope; name: string; kind: 'api' | 'session' | 'oauth'; lastUsedAt?: string | null; owner?: string | null; deviceKind?: DeviceKind | null };
+export type ResolvedKey = { id?: string; scope: KeyScope; name: string; kind: 'api' | 'session' | 'oauth'; lastUsedAt?: string | null; owner?: string | null; deviceKind?: KeyDeviceKind | null };
 
 // Shared by POST /api/keys and the pairing-approval flow (routes/pair.ts) so key creation +
 // hashing lives in exactly one place. `kind` defaults to 'api' (permanent automation keys);
@@ -34,13 +34,13 @@ export async function createApiKey(
   db: KinwallDb,
   name: string,
   scope: KeyScope,
-  opts: { kind?: 'api' | 'session' | 'oauth'; expiresAt?: string; passkeyId?: string; owner?: string | null; deviceKind?: DeviceKind | null } = {},
+  opts: { kind?: 'api' | 'session' | 'oauth'; expiresAt?: string; passkeyId?: string; owner?: string | null; deviceKind?: KeyDeviceKind | null; parentKeyId?: string | null; parentGrantId?: string | null } = {},
 ): Promise<{ id: string; key: string }> {
   const key = generateApiKey();
   const id = crypto.randomUUID();
   await db
-    .prepare('INSERT INTO api_keys (id, name, hash, prefix, scope, created_at, kind, expires_at, passkey_id, owner, device_kind) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
-    .bind(id, name, await sha256Hex(key), key.slice(0, 8), scope, new Date().toISOString(), opts.kind ?? 'api', opts.expiresAt ?? null, opts.passkeyId ?? null, opts.owner ?? null, opts.deviceKind ?? null)
+    .prepare('INSERT INTO api_keys (id, name, hash, prefix, scope, created_at, kind, expires_at, passkey_id, owner, device_kind, parent_key_id, parent_grant_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)')
+    .bind(id, name, await sha256Hex(key), key.slice(0, 8), scope, new Date().toISOString(), opts.kind ?? 'api', opts.expiresAt ?? null, opts.passkeyId ?? null, opts.owner ?? null, opts.deviceKind ?? null, opts.parentKeyId ?? null, opts.parentGrantId ?? null)
     .run();
   return { id, key };
 }
@@ -64,6 +64,8 @@ export const GROWN_UP_PAIRING = "A paired device can't be a grown-up's. Grown-up
 /** What a device is: the family's wall screen, a kid's own device or a grown-up's own device. */
 export const DEVICE_KINDS = ['wall', 'kid', 'grownup'] as const;
 export type DeviceKind = (typeof DEVICE_KINDS)[number];
+/** On a key, also 'widgets': the Kinwall app's widgets and Watch (POST /api/device-keys), which follow the device that made them. */
+export type KeyDeviceKind = DeviceKind | 'widgets';
 
 /** A device's kind and owner from an admin (pairing, PATCH /api/keys), checked against each other:
  * a wall screen is shared, a kid's device is a kid's. A paired device (display key) is only ever
@@ -346,7 +348,7 @@ export async function resolveKey(c: Context<{ Bindings: Env }>): Promise<Resolve
 
   const row = await c.env.DB.prepare('SELECT id, name, scope, expires_at, kind, last_used_at, owner, device_kind FROM api_keys WHERE hash = ?')
     .bind(hash)
-    .first<{ id: string; name: string; scope: string | null; expires_at: string | null; kind: string | null; last_used_at: string | null; owner: string | null; device_kind: DeviceKind | null }>();
+    .first<{ id: string; name: string; scope: string | null; expires_at: string | null; kind: string | null; last_used_at: string | null; owner: string | null; device_kind: KeyDeviceKind | null }>();
   if (!row) return null;
   if (row.expires_at && row.expires_at < new Date().toISOString()) return null; // expired session key
   return {

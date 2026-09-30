@@ -1089,6 +1089,10 @@ button {
 /* A device row with an owner picker: on a phone, name and delete on top, the picker full width below. */
 .key-item-owned .key-item-info { min-width: 0; }
 .device-kind-title { margin: 14px 4px 0; color: var(--text-dim); font-size: 0.85rem; }
+/* A phone's widgets and Watch, nested under its row in Settings → Access. */
+.widget-keys { margin: 0 4px 10px 18px; padding-left: 12px; border-left: 2px solid var(--border); }
+.widget-key { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 0; }
+.widget-key .key-item-info { min-width: 0; }
 @media (max-width: 600px) {
   .key-item-owned { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "info remove" "owner owner"; align-items: center; }
   .key-item-owned .key-item-info { grid-area: info; }

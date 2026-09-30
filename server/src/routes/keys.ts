@@ -1,18 +1,18 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
-import { createApiKey, DEVICE_KINDS, deviceKindOwner, resolveKey, type DeviceKind } from '../auth.ts';
+import { createApiKey, DEVICE_KINDS, deviceKindOwner, resolveKey, type KeyDeviceKind } from '../auth.ts';
 import { emit } from '../bus.ts';
 import { recordDeviceOwner } from '../notify.ts';
 import { ApiKeyCreatedSchema, ApiKeySchema, ErrorSchema } from '../schemas.ts';
 
 export const keysRoutes = createRouter();
 
-type KeyRow = { id: string; name: string; scope: string; created_at: string; last_used_at: string | null; owner: string | null; device_kind: DeviceKind | null };
-const KEY_COLUMNS = 'id, name, scope, created_at, last_used_at, owner, device_kind';
+type KeyRow = { id: string; name: string; scope: string; created_at: string; last_used_at: string | null; owner: string | null; device_kind: KeyDeviceKind | null; parent_key_id: string | null; parent_grant_id: string | null };
+const KEY_COLUMNS = 'id, name, scope, created_at, last_used_at, owner, device_kind, parent_key_id, parent_grant_id';
 
 function toApi(row: KeyRow) {
-  return { id: row.id, name: row.name, scope: (row.scope === 'display' ? 'display' : 'admin') as 'admin' | 'display', createdAt: row.created_at, lastUsedAt: row.last_used_at, owner: row.owner, kind: row.device_kind };
+  return { id: row.id, name: row.name, scope: (row.scope === 'display' ? 'display' : 'admin') as 'admin' | 'display', createdAt: row.created_at, lastUsedAt: row.last_used_at, owner: row.owner, kind: row.device_kind, parentKeyId: row.parent_key_id, parentGrantId: row.parent_grant_id };
 }
 
 keysRoutes.openapi(
@@ -85,6 +85,7 @@ keysRoutes.openapi(
     if (!before) return c.json({ error: 'not found' }, 404);
     const body = c.req.valid('json');
     if (!body.kind && !body.owner) return c.json({ error: 'Say what the device is or who it belongs to' }, 400);
+    if (before.device_kind === 'widgets') return c.json({ error: 'Widgets and a Watch follow the phone that made them. Remove them here, or change the phone.' }, 400);
     const checked = await deviceKindOwner(c.env.DB, before.scope === 'display' ? 'display' : 'admin', body.kind, body.owner);
     if ('error' in checked) return c.json({ error: checked.error }, 400);
     const { owner, kind } = checked;
@@ -121,7 +122,9 @@ keysRoutes.openapi(
 // Device keys: an app's widgets or watch get their own everyday-access key, so they never share
 // the app's own sign-in (an OAuth key rotates, and two refreshers would end the grant). Any
 // signed-in key may create one (it can't grant more than everyday access) and a key may revoke
-// itself - never another. They show under Settings → Access → Displays, revocable there too.
+// itself - never another. Each is marked 'widgets' and linked to what made it: the calling key, or
+// for the Kinwall app's sign-in its grant (its access keys rotate). Removing that removes them too
+// (migration 0067's cascade); Settings → Access lists them under it, revocable there too.
 const MAX_KEYS = 200;
 
 keysRoutes.openapi(
@@ -145,7 +148,11 @@ keysRoutes.openapi(
     // Widgets follow the device only when the device itself is pinned (a kid's phone signed in
     // with everyday access). They're everyday-access keys, and an owner pins those, so a parent's
     // phone (full access, never locked) gets shared widgets that show the whole family.
-    const { id, key } = await createApiKey(c.env.DB, name, 'display', { owner: me?.scope === 'display' ? me.owner ?? null : 'shared' });
+    const grant = me?.kind === 'oauth' ? await c.env.DB.prepare('SELECT oauth_grant_id FROM api_keys WHERE id = ?').bind(me.id).first<{ oauth_grant_id: string | null }>() : null;
+    const { id, key } = await createApiKey(c.env.DB, name, 'display', {
+      owner: me?.scope === 'display' ? me.owner ?? null : 'shared', deviceKind: 'widgets',
+      ...(grant ? { parentGrantId: grant.oauth_grant_id } : { parentKeyId: me?.id ?? null }),
+    });
     emit(c, 'settings.changed', { keyId: id });
     return c.json({ id, name, scope: 'display' as const, key }, 201);
   },

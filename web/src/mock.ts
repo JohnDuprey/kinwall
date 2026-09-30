@@ -933,6 +933,7 @@ export const mock = {
   getKeys: async (): Promise<ApiKey[]> => [
     { id: 'k1', name: 'Kitchen wall', prefix: 'kw_ab12', scope: 'display', createdAt: new Date().toISOString(), lastUsedAt: new Date().toISOString(), owner: 'shared', kind: 'wall' },
     { id: 'k2', name: "Leo's tablet", prefix: 'kw_cd34', scope: 'display', createdAt: new Date().toISOString(), lastUsedAt: null, owner: 'm4', kind: 'kid' },
+    { id: 'k3', name: 'Widgets on Android', prefix: 'kw_ef56', scope: 'display', createdAt: new Date().toISOString(), lastUsedAt: new Date().toISOString(), owner: 'm4', kind: 'widgets', parentKeyId: 'k2' },
   ],
   createKey: async (name: string) => ({ id: uid(), name, key: 'kw_' + uid().replace(/-/g, '').slice(0, 24) }),
   deleteKey: async (_id: string) => {},
