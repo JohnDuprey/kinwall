@@ -7,7 +7,7 @@ An activity plugin is a small web page that shows up under **Activities** on a f
 ## How a plugin runs
 
 - **It's a package, not source.** Your repo's GitHub release has a `kinwall-plugin.zip` attached, built by the example's workflow. Kinwall downloads that package, checks it, and stores the files, so wall screens never contact GitHub.
-- **It runs in a sandbox.** The page is shown in a sandboxed frame with its own strict security policy. It has no network at all, no browser storage, no pop-ups, and it can't see Kinwall's pages, data or sign-in.
+- **It runs in a sandbox.** The page is shown in a sandboxed frame with its own strict security policy. It can't fetch or load anything from the internet, has no browser storage and no pop-ups, and it can't see Kinwall's pages, data or sign-in. It gets only who's playing, the theme and its own saved progress, through the SDK.
 - **It talks to Kinwall through the SDK only.** `Kinwall.ready()` says who's playing (first name, emoji, color), the theme, text size, motion preference and locale. `Kinwall.load()` and `Kinwall.save()` keep progress per person or for the whole family. `Kinwall.close()` goes back to Activities.
 - **Saving counts as playing.** A family can make a chore of your activity, like "5 min of Sight words". Kinwall times it, not your plugin, and it counts time only while your page is on screen and has saved in the last two minutes. So call `Kinwall.save()` on each answer or step, not just at the end, or the play won't count.
 - **It's one page.** If the page loads another page (a link, `location`, a reload), Kinwall stops the plugin. Switch screens in JavaScript.

@@ -13,9 +13,11 @@
 //
 // Isolation: files are served from /plugins/<id>/ with their own CSP: `sandbox allow-scripts`
 // (an opaque origin: no access to Kinwall's storage, cookies or key), scripts and styles only from
-// that plugin's own folder, and connect-src 'none' (no network at all). The web app shows them in
-// a sandboxed iframe and answers a small postMessage API (web/src/Plugins.tsx): who's playing,
-// the theme, and per-person saved data through the routes below.
+// that plugin's own folder, and connect-src 'none' (no fetches or loads from anywhere else). The web
+// app shows them in a sandboxed iframe and answers a small postMessage API (web/src/Plugins.tsx):
+// who's playing, the theme, and per-person saved data through the routes below. No policy can stop
+// a page navigating its own frame elsewhere, carrying what it was told in the address; the web app
+// stops answering a frame once it does, and review (the catalog) is what keeps such plugins out.
 import { createRoute, z } from '@hono/zod-openapi';
 import type { Context } from 'hono';
 import { createRouter } from '../router.ts';

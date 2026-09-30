@@ -110,7 +110,7 @@ Admins can add activities made by others: tap **Activities → Get more activiti
 - **Reviewed by Kinwall** lists activities Kinwall has checked. Tap **Install**. When a newer version has been reviewed, the activity shows **Update to v…**.
 - **From anywhere** (self-hosted only) adds any GitHub repository that publishes a Kinwall package, or an uploaded `kinwall-plugin.zip`. These haven't been reviewed, so only add ones you trust. **Update** installs the newest release.
 
-Every added activity runs in a sandbox: it has no internet and sees only who's playing (first name, emoji and color), never your calendar, chores, lists or photos. Each person's progress is saved in your Kinwall. Turning an activity off hides it; **Remove** deletes it and everyone's progress in it.
+Every added activity runs in a sandbox: it can't load anything from the internet and sees only who's playing (first name, emoji and color) and its own saved progress, never your calendar, chores, lists or photos. Each person's progress is saved in your Kinwall. If an activity tries to leave Kinwall for another site, Kinwall stops it, shows **tried to leave Kinwall**, and stops answering it; open it again from **Activities** to restart it. A sandbox can't stop a page from trying, and what it already saw (who's playing and its progress) could go with it, which is why unreviewed activities need your trust. Turning an activity off hides it; **Remove** deletes it and everyone's progress in it.
 
 When you open one, Kinwall asks **Who's playing?** unless the header is set to one person. **Just playing** plays without saving to anyone. A chore can ask for minutes of an activity; see [Activity chores](chores.md#activity-chores).
 

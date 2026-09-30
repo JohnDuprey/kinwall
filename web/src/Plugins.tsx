@@ -2,8 +2,12 @@
 // and answers its messages, and the admin sheet to install, update, turn off and remove them.
 //
 // The frame is `sandbox="allow-scripts"` (an opaque origin) and its files carry a CSP with no
-// network, so a plugin can't read Kinwall's key or data or send anything anywhere. The bridge below
-// is the only way in: it answers messages from that one frame, for the person picked to play.
+// network, so a plugin can't read Kinwall's key, storage or pages, and can't fetch or load anything
+// from elsewhere. The bridge below is the only way in: it answers messages from that one frame, for
+// the person picked to play. What a sandbox can't stop is a page navigating its own frame to another
+// site, and taking what it was told (who's playing, its saved progress) along in the address. So the
+// bridge stops for good once the frame loads a second page (pluginFrame.ts), and only reviewed
+// plugins can be installed on hosted Kinwall (PLUGINS_CATALOG_ONLY).
 import { useEffect, useRef, useState } from 'react'
 import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
@@ -12,6 +16,7 @@ import { inkFor } from './color.ts'
 import { announce, reducedMotion } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
 import { Confetti } from './Chores.tsx'
+import { frameLive, frameLoaded } from './pluginFrame.ts'
 import type { ActivityChoreProgress, Member, Plugin, PluginCatalogEntry } from './types.ts'
 
 type Msg = { kinwall: 1; id?: number; type: string; key?: string; value?: unknown; shared?: boolean }
@@ -54,7 +59,8 @@ export function PluginPlayer({ id }: { id: string }) {
   const lastSave = useRef(0) // when the plugin last saved: it's "active" for ACTIVE_MS after
   const [chores, setChores] = useState<ActivityChoreProgress[]>([])
   const [burst, setBurst] = useState(0) // a completed chore's confetti (keyed, so each one replays)
-  // A plugin page that navigates its frame somewhere else has left its package: stop it.
+  // A plugin page that navigates its frame somewhere else has left its package: stop it. Only
+  // reopening it from Activities starts it again.
   const [left, setLeft] = useState(false)
 
   useEffect(() => {
@@ -65,21 +71,26 @@ export function PluginPlayer({ id }: { id: string }) {
     if (!plugin || player === undefined) return
     const member = player?.id ?? ''
     const saves: number[] = [] // times of recent saves, for the rate limit below
-    const reply = (msg: Msg, ok: boolean, value?: unknown, error?: string) =>
-      frame.current?.contentWindow?.postMessage({ kinwall: 1, re: msg.id, ok, value, error }, '*')
+    // '*': the frame's origin is opaque, so no target origin matches it. Checked at send time (an
+    // answer can arrive after the page left), never to a frame that has loaded a second page.
+    const send = (data: unknown) => {
+      const f = frame.current
+      if (f && frameLive(f)) f.contentWindow?.postMessage(data, '*')
+    }
+    const reply = (msg: Msg, ok: boolean, value?: unknown, error?: string) => send({ kinwall: 1, re: msg.id, ok, value, error })
     const onMessage = async (e: MessageEvent) => {
       // Only this plugin's frame; its origin is opaque ('null'), so the window is what identifies it.
-      if (!frame.current || e.source !== frame.current.contentWindow) return
+      if (!frame.current || e.source !== frame.current.contentWindow || !frameLive(frame.current)) return
       const msg = e.data as Msg
       if (!msg || msg.kinwall !== 1) return
       if (msg.type === 'ready') {
-        frame.current.contentWindow!.postMessage({
+        send({
           kinwall: 1, type: 'context',
           context: {
             member: player ? { id: player.id, name: player.name, avatar: player.avatar, color: player.color } : null,
             theme: themeForPlugin(), textScale: settings.textScale, reducedMotion: reducedMotion(), locale: navigator.language,
           },
-        }, '*')
+        })
       } else if (msg.type === 'load') {
         api.getPluginData(plugin.id, msg.shared ? '' : member).then(v => reply(msg, true, v), err => reply(msg, false, undefined, String(err)))
       } else if (msg.type === 'save' && typeof msg.key === 'string') {
@@ -136,7 +147,7 @@ export function PluginPlayer({ id }: { id: string }) {
   const chip = chores.find(c => !c.completed) ?? chores[chores.length - 1]
 
   if (plugin === undefined) return null
-  if (left) return <div className="state-card">{plugin?.name ?? 'This activity'} tried to open a page outside itself, so it was stopped. <a href="#/activities">Back to Activities</a></div>
+  if (left) return <div className="state-card">{plugin?.name ?? 'This activity'} tried to leave Kinwall, so it was stopped. <a href="#/activities">Back to Activities</a></div>
   if (plugin === null) return <div className="state-card">This activity isn't installed or is turned off. <a href="#/activities">Back to Activities</a></div>
   if (player === undefined) {
     return (
@@ -171,7 +182,7 @@ export function PluginPlayer({ id }: { id: string }) {
       {/* key: switching players restarts the plugin with the new person's progress */}
       <iframe key={player?.id ?? 'nobody'} ref={frame} className="plugin-frame" title={plugin.name} src={api.pluginUrl(plugin)}
         sandbox="allow-scripts" allow="autoplay" referrerPolicy="no-referrer"
-        onLoad={e => { const f = e.currentTarget; f.dataset.loads = String(Number(f.dataset.loads ?? 0) + 1); if (f.dataset.loads !== '1') setLeft(true) }} />
+        onLoad={e => { if (frameLoaded(e.currentTarget)) setLeft(true) }} />
     </div>
   )
 }
@@ -220,7 +231,7 @@ export function PluginsSheet({ onClose, onChanged }: { onClose: () => void; onCh
       </>}
       {catalog && !catalog.catalogOnly && <>
         <h3 className="plugin-list-title">From anywhere</h3>
-        <p className="settings-row-sub">Any GitHub repository whose release has a <code>kinwall-plugin.zip</code> package can be added. Activities run in a sandbox, with no internet and no access to your family's data beyond who's playing, but these haven't been reviewed: only add ones you trust.</p>
+        <p className="settings-row-sub">Any GitHub repository whose release has a <code>kinwall-plugin.zip</code> package can be added. Activities run in a sandbox and see only who's playing and their own saved progress, but these haven't been reviewed: only add ones you trust.</p>
         <form className="plugin-install" onSubmit={e => { e.preventDefault(); if (url.trim()) run('install', async () => { const p = await api.installPlugin(url.trim()); setUrl(''); return p }, 'Activity installed') }}>
           <label htmlFor="plugin-url" className="settings-row-label">GitHub repository</label>
           <div className="plugin-install-row">
