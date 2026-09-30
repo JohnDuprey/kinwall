@@ -469,7 +469,8 @@ export default function Chores() {
   }
 
   // #/chores?done=<id> (from the app's Chores widget): tap that chore once it's loaded, so it asks
-  // "Who did it?" or opens its checklist, just like a tap here.
+  // "Who did it?" or opens its checklist, just like a tap here. A link can come from anywhere, so a
+  // chore that would be ticked off straight away asks first.
   const [hashTick, setHashTick] = useState(0) // the app may set the link while this tab is already open
   useEffect(() => {
     const onHash = () => setHashTick(t => t + 1)
@@ -482,7 +483,11 @@ export default function Chores() {
     if (key !== dateKey(new Date())) { setSelectedDate(new Date()); return } // the widget shows today
     history.replaceState(null, '', '#/chores')
     const c = chores.find(x => x.id === id)
-    if (c && !c.completed && !c.pending) toggle(c)
+    if (!c || c.completed || c.pending) return
+    const opensSheet = (c.checklist && c.checklist.done < c.checklist.total) || (!c.memberId && !selectedMemberId && members.length > 0)
+    if (opensSheet) { toggle(c); return }
+    const who = members.find(m => m.id === (c.memberId ?? selectedMemberId))?.name
+    dialog.confirm({ title: `Mark "${c.title}" done${who ? ` for ${who}` : ''}?`, confirmLabel: 'Mark done' }).then(ok => { if (ok) toggle(c) })
   }, [loading, chores, hashTick]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const columns = [...members, { id: '__anyone', name: 'Anyone', color: '#C7B8A8', avatar: '🌟', pointsToday: 0, pointsWeek: 0, sort: 999 }]
