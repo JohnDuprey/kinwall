@@ -183,6 +183,41 @@ test("owned devices: a member's own display key completes, uncompletes and buys 
   assert.equal((await buy(wall, maya.id)).status, 200);
 });
 
+test("owned devices: a grown-up's own full-access device is credited for an Anyone chore; it still acts for anyone", async () => {
+  const env = makeEnv();
+  await env.DB.prepare("INSERT INTO settings (key, value) VALUES ('timezone', 'UTC')").run();
+  const admin = makeApp(env);
+  const post = (req: ReturnType<typeof makeApp>, path: string, body: unknown) => req(path, { method: 'POST', body: JSON.stringify(body) });
+  const sam = await (await post(admin, '/api/members', { name: 'Sam', color: '#e57', grownUp: true })).json() as any;
+  const maya = await (await post(admin, '/api/members', { name: 'Maya', color: '#57e' })).json() as any;
+  const adminKey = async (owner?: string) => {
+    const k = await (await post(admin, '/api/keys', { name: `phone ${owner}`, scope: 'admin' })).json() as any;
+    if (owner) assert.equal((await admin(`/api/keys/${k.id}`, { method: 'PATCH', body: JSON.stringify({ owner }) })).status, 200);
+    return makeApp(env, k.key);
+  };
+  const samsPhone = await adminKey(sam.id);
+  const unowned = await adminKey();
+  const today = new Date().toISOString().slice(0, 10);
+  const chore = async (body: object) => (await (await post(admin, '/api/chores', { points: 20, dueDate: today, ...body })).json() as any).id as string;
+  const doneBy = async (id: string) => (await env.DB.prepare('SELECT member_id FROM chore_completions WHERE chore_id = ? AND date = ?').bind(id, today).first<{ member_id: string | null }>())?.member_id;
+  const complete = (req: ReturnType<typeof makeApp>, id: string, memberId?: string, headers: Record<string, string> = {}) =>
+    req(`/api/chores/${id}/complete`, { method: 'POST', body: JSON.stringify({ date: today, memberId }), headers });
+
+  const a = await chore({ title: 'Empty dishwasher' });
+  assert.equal((await complete(samsPhone, a)).status, 200);
+  assert.equal(await doneBy(a), sam.id, "Sam's phone credits Sam");
+  const b = await chore({ title: 'Water plants' });
+  assert.equal((await complete(unowned, b)).status, 200);
+  assert.equal(await doneBy(b), null, 'a full-access key nobody owns credits no one');
+  const c = await chore({ title: 'Sweep' });
+  assert.equal((await complete(samsPhone, c, undefined, { 'X-Kinwall-Source': 'mcp' })).status, 200);
+  assert.equal(await doneBy(c), null, "a connected app is never anyone's own device");
+  // Unlike a kid's device, a parent's own device still acts for anyone.
+  const mayas = await chore({ title: 'Feed fish', memberId: maya.id });
+  assert.equal((await complete(samsPhone, mayas)).status, 200);
+  assert.equal(await doneBy(mayas), maya.id);
+});
+
 test('secrets never appear in a GET response body, even as raw text', async () => {
   const env = makeEnv();
   const request = makeApp(env);

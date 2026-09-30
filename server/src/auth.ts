@@ -122,6 +122,20 @@ export async function deviceOwner(c: Context<{ Bindings: Env }>): Promise<string
   return key?.scope === 'display' && key.owner && key.owner !== 'shared' ? key.owner : null;
 }
 
+/** Whose own device this is: a display key owned by one member (deviceOwner), or a full-access key
+ * a grown-up owns (their phone or computer: an API key, a passkey's sessions or the Kinwall app's
+ * sign-in, set under "Whose device is this?", PUT /api/me/owner). Never a connected app's. For the
+ * things a person's own device does for them (starting their day, being credited); limits on what
+ * a device may do stay with deviceOwner (ownerBlock), since a parent's device acts for anyone. */
+export async function ownDevice(c: Context<{ Bindings: Env }>): Promise<string | null> {
+  const paired = await deviceOwner(c);
+  if (paired) return paired;
+  const key = await requestKey(c);
+  if (key?.scope !== 'admin' || !key.owner || key.owner === 'shared' || (await isConnectedApp(c))) return null;
+  const m = await c.env.DB.prepare('SELECT grown_up FROM members WHERE id = ?').bind(key.owner).first<{ grown_up: number }>();
+  return m?.grown_up ? key.owner : null;
+}
+
 /** A member's own device acts only for them: the 403 message when any of `memberIds` is someone
  * else, or null when it may. Null / undefined ids are ignored. */
 export async function ownerBlock(c: Context<{ Bindings: Env }>, ...memberIds: (string | null | undefined)[]): Promise<string | null> {

@@ -26,10 +26,11 @@ export function doseTimeLabel(d: { time: string; startedAt: string | null }): st
 }
 
 /** Should this device tell the server its person's day started (POST /api/members/{id}/day-started)?
- *  Once a day (lastSent: the day it last did), only on a person's own device with medications on:
- *  a parent's device opening a kid's day must never start it, and a shared wall belongs to no one. */
-export function dayStartDue(d: { medications: boolean; parentDevice: boolean; ownerId: string | null; today: string }, lastSent: string | null): boolean {
-  return d.medications && !d.parentDevice && !!d.ownerId && lastSent !== d.today
+ *  Once a day (lastSent: the day it last did), only on a person's own device with medications on: a
+ *  kid's or a grown-up's own phone (a parent device a grown-up owns). A parent's device opening a
+ *  kid's day must never start it, and a shared wall or an unowned parent device belongs to no one. */
+export function dayStartDue(d: { medications: boolean; parentDevice: boolean; ownerId: string | null; ownerGrownUp: boolean; today: string }, lastSent: string | null): boolean {
+  return d.medications && !!d.ownerId && (!d.parentDevice || d.ownerGrownUp) && lastSent !== d.today
 }
 
 /** "8:00 AM and 8:30 PM · Every day", plus the course when it has one (" · Until Mon, Oct 5"). */

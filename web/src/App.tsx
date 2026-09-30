@@ -1135,16 +1135,18 @@ function AppRoutes() {
   }, [toastMsg])
   useEffect(() => { if (bannerMsg) announce(bannerMsg) }, [bannerMsg])
   // "When I start my day" medicines: a person's own device opening the app starts their day, once a
-  // day (the server keeps the first of that, their Temp check and their check-in). Never a parent's device.
+  // day (the server keeps the first of that, their Temp check and their check-in): a kid's device, or
+  // a grown-up's own phone (a parent device they own). Never a parent's device for a kid.
   const medsOn = !!settings?.medications
-  const dayOwner = ownerLocks ? meMemberId : null
+  const dayOwner = ownerLocks || parentDevice ? meMemberId : null
+  const dayOwnerGrownUp = !!members.find(m => m.id === dayOwner)?.grownUp
   useEffect(() => {
     const today = dateKey(new Date())
     let last: string | null = null
     try { last = localStorage.getItem(DAY_STARTED_KEY) } catch { /* storage blocked: ask again, the server ignores repeats */ }
-    if (!dayOwner || !dayStartDue({ medications: medsOn, parentDevice, ownerId: dayOwner, today }, last)) return
+    if (!dayOwner || !dayStartDue({ medications: medsOn, parentDevice, ownerId: dayOwner, ownerGrownUp: dayOwnerGrownUp, today }, last)) return
     api.dayStarted(dayOwner).then(() => { try { localStorage.setItem(DAY_STARTED_KEY, today) } catch { /* as above */ } }).catch(() => { /* next refresh tries again */ })
-  }, [medsOn, parentDevice, dayOwner, pollTick, manualTick])
+  }, [medsOn, parentDevice, dayOwner, dayOwnerGrownUp, pollTick, manualTick])
   const choresOn = !!settings?.features.chores
   useEffect(() => {
     if (!parentDevice || !choresOn) { setToApprove(0); setRewardRequests(0); return }

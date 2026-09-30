@@ -24,7 +24,7 @@ import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
 import { hostTimezone } from '../env.ts';
 import type { KinwallDb } from '../db.ts';
-import { requestKey } from '../auth.ts';
+import { ownDevice, requestKey } from '../auth.ts';
 import { seal, unseal, type EncryptionEnv } from '../crypto.ts';
 import { zonedTimeToUtc } from '../recurrence.ts';
 import { ErrorSchema } from '../schemas.ts';
@@ -189,10 +189,13 @@ export async function startDay(env: EncryptionEnv & { DB: KinwallDb }, memberId:
     });
   }
 }
-/** Does this request start `memberId`'s day: their own device or a shared wall; a parent's device only for a grown-up. */
+/** Does this request start `memberId`'s day: their own device (a grown-up's phone too) or a shared
+ *  wall; another parent's device never; a parent's device nobody owns only for a grown-up. */
 async function dayStartCounts(c: C, memberId: string): Promise<boolean> {
   const key = await requestKey(c);
   if (key?.scope === 'display') return !key.owner || key.owner === 'shared' || key.owner === memberId;
+  const own = await ownDevice(c);
+  if (own) return own === memberId;
   return !!(await c.env.DB.prepare('SELECT grown_up FROM members WHERE id = ?').bind(memberId).first<{ grown_up: number }>())?.grown_up;
 }
 /** From the Temp check and check-in routes: start their day if medications are on and this counts.
@@ -475,7 +478,7 @@ medicationsRoutes.openapi(
 medicationsRoutes.openapi(
   createRoute({
     method: 'post', path: '/api/members/{id}/day-started', tags: TAG, security: [{ Bearer: [] }],
-    summary: 'Their own device opened the app today: starts the day for "When I start my day" doses (the first call a day counts; again changes nothing). The person\'s own device only; the web app calls it once a day.',
+    summary: 'Their own device opened the app today: starts the day for "When I start my day" doses (the first call a day counts; again changes nothing). The person\'s own device only (theirs paired, or a grown-up\'s own full-access device; never a connected app); the web app calls it once a day.',
     request: { params: idParams },
     responses: { 204: { description: 'noted (or nothing to note)' }, ...denied },
   }),
@@ -483,7 +486,7 @@ medicationsRoutes.openapi(
     const g = await gate(c);
     if ('fail' in g) return c.json(g.fail, g.status);
     const { id } = c.req.valid('param');
-    if (g.who.kind !== 'own' || g.who.memberId !== id) return c.json({ error: "Only that person's own device can start their day." }, 403);
+    if ((await ownDevice(c)) !== id) return c.json({ error: "Only that person's own device can start their day." }, 403);
     await startDay(c.env, id, g.tz);
     return c.body(null, 204);
   },

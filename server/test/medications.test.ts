@@ -687,6 +687,29 @@ test('start of day: the earliest of Temp check, check-in and their own device; f
   assert.equal(await startOf(s.sam.id), at('08:00').toISOString());
 });
 
+test("start of day: a grown-up's own full-access device (their phone) counts like their own device; not an unowned one or a connected app", async (t) => {
+  t.after(() => mock.timers.reset());
+  const s = await setup({ now: at('06:00') });
+  const alex = (await s.req('/api/members', 'POST', { name: 'Alex', color: '#6C8EF5', grownUp: true })).json;
+  for (const m of [s.sam, alex]) await s.req(`/api/members/${m.id}`, 'PATCH', { tempCheck: { on: true, sleep: true, feelings: true, goal: true, showGoal: true } });
+  for (const m of [s.sam, alex]) await s.add(m.id, { times: [WAKE] });
+  const [samsPhone, shared] = [await s.key(s.sam.id, 'admin'), await s.key(undefined, 'admin')];
+  const startOf = async (id: string) => ((await s.req(`/api/members/${id}/medications`)).json.days.at(-1).doses[0].startedAt as string | null);
+
+  mock.timers.setTime(at('06:30').getTime());
+  assert.equal((await started(s, alex.id, samsPhone)).status, 403, "Sam's phone isn't Alex's");
+  assert.equal((await started(s, s.sam.id, shared)).status, 403, 'a full-access key nobody owns');
+  const app = await s.req(`/api/members/${s.sam.id}/day-started`, 'POST', undefined, samsPhone, { 'X-Kinwall-Source': 'mcp' });
+  assert.equal(app.status, 403, 'a connected app is never anyone\'s own device');
+  // Sam's phone answering Alex's Temp check doesn't start Alex's day (it would on an unowned parent device).
+  assert.equal((await s.req(`/api/members/${alex.id}/temp-check`, 'PUT', { sleep: 'ok' }, samsPhone)).status, 200);
+  assert.equal(await startOf(alex.id), null);
+  assert.equal(await startOf(s.sam.id), null);
+  mock.timers.setTime(at('07:00').getTime());
+  assert.equal((await started(s, s.sam.id, samsPhone)).status, 204);
+  assert.equal(await startOf(s.sam.id), at('07:00').toISOString());
+});
+
 test("start of day: the household's day and clock, not UTC's", async (t) => {
   t.after(() => mock.timers.reset());
   const s = await setup({ now: at('06:00') });

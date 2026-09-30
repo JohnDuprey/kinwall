@@ -25,11 +25,11 @@ For a medicine taken first thing, whenever the day really starts (handy with irr
 
 * the person answers their [Temp check](snapshot.md#temp-check);
 * they check in by reading their day to the end (the daily check-in);
-* their own phone or tablet opens Kinwall;
+* their own phone or tablet opens Kinwall (for a grown-up, the phone or computer they picked themselves for under **Whose device is this?**);
 
 or at the latest time, if none of those happen first. From that moment it works like any dose: the reminder, the **Take now** card and the late window all start then, and the reminder is sent once (starting the day after the latest time changes nothing). The card and the person's page say **Started at 9:40 AM**, or **When you start your day** before then.
 
-Only the person counts. A parent's phone opening a kid's day, or a parent answering a Temp check or checking in for a kid, never starts a kid's day. Answering or checking in on a shared wall screen does (that's the kid, at the wall); so does a grown-up doing it on a parent device, since that's their own. The app tells the server once a day, on the person's own device only.
+Only the person counts. A parent's phone opening a kid's day, or a parent answering a Temp check or checking in for a kid, never starts a kid's day. Answering or checking in on a shared wall screen does (that's the kid, at the wall); so does a grown-up doing it on a parent device nobody owns, or on their own. Another grown-up's phone doesn't: answering Sam's Temp check on Alex's phone doesn't start Sam's day. The app tells the server once a day, on the person's own device only. Connected apps (like Claude) are never anyone's own device.
 
 ## Take now
 
@@ -106,5 +106,5 @@ All medication routes answer 404 while the feature is off.
 * `GET /api/medications/due`: `{ names, doses: [{ medicationId, memberId, date, time, dueAt, startedAt, until, name, dose }] }`, the Take now cards. `startedAt` is when the person's day started (a `"wake"` dose), `until` when the late window closes. `name` and `dose` are `null` on a shared wall with names off.
 * `POST /api/medications/{id}/doses` with `{ date, time, action: "taken" | "skipped" | "snooze", at? }` (today's or yesterday's doses): parent devices, shared walls, and the person's own device. `at` (ISO, taken or skipped only) is when it really happened, for a dose marked after the fact; the default is now. It must be between the start of the dose's household day (midnight) and now; up to 2 minutes ahead counts as a fast clock and is stored as now, anything else answers 400.
 * `GET /api/members/{id}/medications?days=7`: `{ memberId, today, medications, days: [{ date, doses: [{ medicationId, time, dueAt, status, startedAt, at, late, by }] }] }`, oldest first. `at` is when it was taken or skipped, `late` whether it was taken after its late window closed. Their own device and parent devices only.
-* `POST /api/members/{id}/day-started`: the person's own device opened the app today (204; again the same day changes nothing). Their own device only: 403 for parent devices, shared walls and anyone else.
+* `POST /api/members/{id}/day-started`: the person's own device opened the app today (204; again the same day changes nothing). Their own device only: a device paired as theirs, or for a grown-up a full-access key, passkey or Kinwall app sign-in they own (`PUT /api/me/owner`). 403 for other parent devices, shared walls, connected apps and anyone else.
 * Connected apps get 403 unless `aiHealthAccess` is on. There are no webhook events and no MCP tool.

@@ -8,7 +8,7 @@ import { emit } from '../bus.ts';
 import { expand, isValidRrule } from '../recurrence.ts';
 import { ChoreDaySchema, ChoreInputSchema, ChoreSchema, ErrorSchema } from '../schemas.ts';
 import { resetListItems } from './lists.ts';
-import { deviceOwner, ownerBlock, requestKey } from '../auth.ts';
+import { deviceOwner, ownDevice, ownerBlock, requestKey } from '../auth.ts';
 import { notifyChoreApproval } from '../notify.ts';
 
 export const choresRoutes = createRouter();
@@ -340,6 +340,8 @@ export async function completeChore(c: Context<{ Bindings: Env }>, id: string, d
   if (!chore) return 'not found';
   const blocked = await ownerBlock(c, memberId, chore.member_id, chore.done_by);
   if (blocked) return { blocked };
+  // So does a grown-up's own full-access device (their phone), which otherwise acts for anyone.
+  if (!memberId && !chore.member_id) memberId = (await ownDevice(c)) ?? undefined;
   // The checklist gates completion: the list's items for this chore's member (or whoever is
   // completing an "anyone" chore) plus unassigned ones. An empty set doesn't gate.
   const forMember = chore.member_id ?? memberId ?? null;

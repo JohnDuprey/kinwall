@@ -69,12 +69,14 @@ test('"When I start my day": its schedule label, and a dose that says when the d
   assert.equal(doseTimeLabel({ time: '08:00', startedAt: null }), '8:00 AM')
 })
 
-test('dayStartDue: once a day per person-owned device with medications on; never on a parent device or a shared wall', () => {
-  const own = { medications: true, parentDevice: false, ownerId: 'm4', today: '2026-09-28' }
+test("dayStartDue: once a day per person-owned device with medications on, a grown-up's own parent device too; never a shared one", () => {
+  const own = { medications: true, parentDevice: false, ownerId: 'm4', ownerGrownUp: false, today: '2026-09-28' }
   assert.equal(dayStartDue(own, null), true)
   assert.equal(dayStartDue(own, '2026-09-27'), true)
   assert.equal(dayStartDue(own, '2026-09-28'), false, 'already today')
-  assert.equal(dayStartDue({ ...own, parentDevice: true }, null), false, "a parent's device never starts anyone's day")
+  assert.equal(dayStartDue({ ...own, parentDevice: true, ownerGrownUp: true }, null), true, "a grown-up's own phone starts their day")
+  assert.equal(dayStartDue({ ...own, parentDevice: true }, null), false, "a parent's device never starts a kid's day")
+  assert.equal(dayStartDue({ ...own, parentDevice: true, ownerId: null }, null), false, "a parent's device nobody owns")
   assert.equal(dayStartDue({ ...own, ownerId: null }, null), false, 'a shared wall')
   assert.equal(dayStartDue({ ...own, medications: false }, null), false)
 })
