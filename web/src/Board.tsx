@@ -1,7 +1,7 @@
 // Board view: the calendar as a family bulletin board - clock + weather, today, the week ahead,
 // what's due, chores, a rotating picture and a quote or fact. Read-mostly; rows open the same
 // things they do elsewhere (an event's detail sheet, the list, the chores tab).
-import { listType } from './listSections.ts'
+import { boardListTiles } from './listSections.ts'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
@@ -18,7 +18,7 @@ import TodaysMeals from './TodaysMeals.tsx'
 import { boardGoals } from './tempCheck.ts'
 import { TakeNowTile, useDueDoses } from './TakeNow.tsx'
 import Sheet from './Sheet.tsx'
-import { CartIcon } from './icons.tsx'
+import { BasketIcon, CartIcon } from './icons.tsx'
 import { boardAreas, boardChores, moreLabel, rowsThatFit, tidbitCardsThatFit } from './boardFit.ts'
 import { layoutAreas, layoutFor, type BoardCardId, type CardDensity } from './boardLayout.ts'
 import { leadOf, leadText } from './leadTime.ts'
@@ -175,11 +175,11 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
   const later = [...new Set([...events.map(e => e.date), ...data.birthdays.map(b => b.date)])].filter(d => d > today).sort()
 
   const full = device.boardLists === 'full' || (device.boardLists !== 'counts' && big)
-  const groceries = lists.filter(l => listType(l) === 'groceries' && (!focusMemberId || l.memberIds.includes(focusMemberId) || (focusShowsShared && !l.memberIds.length)))
+  const listTiles = boardListTiles(lists.filter(l => !focusMemberId || l.memberIds.includes(focusMemberId) || (focusShowsShared && !l.memberIds.length)))
   // Take now shows whenever doses are due, Full lists too: then it's the tiles row's only tile (after the clock on a phone).
   const tiles = [
     // In a layout, the Chores and Due soon tiles stand in for their cards when those aren't placed.
-    meds.doses.length > 0 && 'meds', f.chores && (layout ? !placed.has('chores') : !full) && 'chores', f.lists && (layout ? !placed.has('due') : !full) && 'due', f.lists && groceries.length > 0 && 'groceries', f.chores && rewardRequests > 0 && 'rewards',
+    meds.doses.length > 0 && 'meds', f.chores && (layout ? !placed.has('chores') : !full) && 'chores', f.lists && (layout ? !placed.has('due') : !full) && 'due', ...(f.lists ? listTiles.map(t => t.type) : []), f.chores && rewardRequests > 0 && 'rewards',
   ].filter((t): t is string => !!t)
   // Whose chores count: a kid's device (or a picked person) sees only theirs, like the Chores tab.
   const chores = boardChores(data.chores, selectedMemberId, focusMemberId, focusShowsShared)
@@ -196,7 +196,6 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
   const choresLeft = chores.reduce((n, c) => n + c.remaining, 0)
   const overdue = data.items.filter(i => i.overdue).length
   const dueWeek = data.items.filter(i => !i.overdue && i.dueDate).length
-  const groceryCount = groceries.reduce((n, l) => n + l.openCount, 0)
 
   return (
     <div className="board-scroll" ref={scrollRef}>
@@ -228,12 +227,16 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
                 </span>
               </a>
             )}
-            {tiles.includes('groceries') && (
-              <a className="board-tile" href={groceries.length === 1 ? `#/lists?list=${encodeURIComponent(groceries[0].id)}` : '#/lists'}>
-                <span className="board-tile-label">{groceries.length === 1 && groceries[0].emoji ? <><span className="emoji-plate" aria-hidden="true">{groceries[0].emoji}</span></> : <CartIcon width={16} height={16} />}{groceries.length === 1 ? groceries[0].name : 'Groceries'}</span>
-                <span className="board-tile-value">{groceryCount ? `${groceryCount} on the list` : 'Nothing needed'}</span>
-              </a>
-            )}
+            {/* Groceries, and Shopping while a Shopping list has something on it: one list opens it, several the Lists page. */}
+            {listTiles.filter(t => tiles.includes(t.type)).map(({ type, lists: ls, open }) => {
+              const Icon = type === 'groceries' ? BasketIcon : CartIcon
+              return (
+                <a key={type} className="board-tile" href={ls.length === 1 ? `#/lists?list=${encodeURIComponent(ls[0].id)}` : '#/lists'}>
+                  <span className="board-tile-label">{ls.length === 1 && ls[0].emoji ? <span className="emoji-plate" aria-hidden="true">{ls[0].emoji}</span> : <Icon width={16} height={16} />}{ls.length === 1 ? ls[0].name : type === 'groceries' ? 'Groceries' : 'Shopping'}</span>
+                  <span className="board-tile-value">{open ? `${open} on the list` : 'Nothing needed'}</span>
+                </a>
+              )
+            })}
             {tiles.includes('rewards') && (
               <a className="board-tile" href="#/rewards">
                 <span className="board-tile-label">🎁 Rewards</span>

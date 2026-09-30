@@ -37,3 +37,13 @@ test('reorderWithin: the moved section takes its own slots; every other list sta
   assert.deepEqual(reorderWithin(all, ['e', 'c']), ['g', 'e', 'h', 'c', 'p'])
   assert.deepEqual(reorderWithin(all, ['h', 'g']), ['h', 'c', 'g', 'e', 'p'])
 })
+
+test('boardListTiles: Groceries counts only Groceries lists; Shopping shows only while a Shopping list has open items', async () => {
+  const { boardListTiles } = await import('../src/listSections.ts')
+  const t = (id: string, catalog: 'groceries' | 'shopping', openCount: number) => ({ id, kind: 'shopping' as const, catalog, openCount })
+  const tiles = (ls: ReturnType<typeof t>[]) => boardListTiles(ls).map(x => [x.type, x.open, x.lists.map(l => l.id)])
+  assert.deepEqual(tiles([t('g', 'groceries', 0), t('h', 'shopping', 4)]), [['groceries', 0, ['g']], ['shopping', 4, ['h']]])
+  assert.deepEqual(tiles([t('g', 'groceries', 3), t('h', 'shopping', 0)]), [['groceries', 3, ['g']]])
+  assert.deepEqual(tiles([t('h', 'shopping', 0)]), [])
+  assert.deepEqual(boardListTiles([{ id: 'x', kind: 'todo', openCount: 5 }]), [])
+})

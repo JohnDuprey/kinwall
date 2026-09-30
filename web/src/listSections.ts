@@ -35,3 +35,11 @@ export function reorderWithin(all: Ordered[], ids: string[]): string[] {
   const next = [...ids]
   return [...all].sort(byListOrder).map(l => (ids.includes(l.id) ? next.shift()! : l.id))
 }
+
+/** The Board's list tiles: Groceries whenever the family has a Groceries list, and Shopping only
+ * while a Shopping list has open items (so a hardware run doesn't show as groceries). */
+export function boardListTiles<T extends Typed & { openCount: number }>(lists: T[]): { type: 'groceries' | 'shopping'; lists: T[]; open: number }[] {
+  return (['groceries', 'shopping'] as const)
+    .map(type => { const of = lists.filter(l => listType(l) === type); return { type, lists: of, open: of.reduce((n, l) => n + l.openCount, 0) } })
+    .filter(t => t.lists.length > 0 && (t.type === 'groceries' || t.open > 0))
+}

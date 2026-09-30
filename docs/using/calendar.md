@@ -37,7 +37,10 @@ Across the top, count tiles sum things up; tap one to open its screen (on a phon
 * **💊 Take now**: medicine doses due now, with who; tap it to mark them in a sheet. Only while a dose is due, with [medication reminders](medications.md) on. It shows with **Full lists** too, as the only tile when the others are cards.
 * **Chores**: how many of today's chores are left, with each person's avatar and count (a ✓ once they're done), or **All done ✓**.
 * **Due soon**: how many to-dos are overdue (in red) and how many are due this week.
-* **Groceries**: how many items are still on your shopping list. Hidden if you have no shopping list.
+* **Groceries**: how many items are still on your [Groceries lists](lists.md#list-types). Hidden if you have none.
+* **Shopping**: the same for your Shopping lists (the hardware store and the like). Only while one of them has something on it.
+
+With one list of a type, its tile shows the list's emoji and name and opens it; with several, it opens the Lists page.
 * **Rewards**: reward requests waiting for a parent's OK. Hidden when there are none.
 
 Below them are the cards:
