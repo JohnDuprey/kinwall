@@ -180,6 +180,23 @@ export async function encryptPushPayload(sub: PushSubscriptionKeys, plaintext: s
 
 // ---- Send ----
 
+// The server POSTs to a subscription's endpoint, so only the browsers' own push services are
+// accepted (on subscribe, and again before every send): never the family's network or the server
+// itself. Chrome, Edge (FCM or WNS), Safari, Firefox.
+const PUSH_HOSTS = ['fcm.googleapis.com', 'android.googleapis.com', 'updates.push.services.mozilla.com'];
+const PUSH_HOST_SUFFIXES = ['.push.apple.com', '.notify.windows.com', '.push.services.mozilla.com'];
+export function pushEndpointAllowed(endpoint: string): boolean {
+  let u: URL;
+  try {
+    u = new URL(endpoint);
+  } catch {
+    return false;
+  }
+  if (u.protocol !== 'https:' || u.port || u.username || u.password) return false;
+  return PUSH_HOSTS.includes(u.hostname) || PUSH_HOST_SUFFIXES.some((s) => u.hostname.endsWith(s));
+}
+const SEND_TIMEOUT_MS = 10_000;
+
 export type PushSendResult = { ok: true } | { ok: false; status: number; gone: boolean };
 
 // A push_subscriptions row: p256dh/auth are encrypted at rest (crypto.ts, AAD = row id) - with
@@ -205,6 +222,8 @@ export async function sendWebPush(
   sub: StoredPushSubscription,
   payload: { title: string; body: string; url?: string; tag?: string },
 ): Promise<PushSendResult> {
+  // A row stored before endpoints were checked: never fetched, and gone tells the caller to delete it.
+  if (!pushEndpointAllowed(sub.endpoint)) return { ok: false, status: 0, gone: true };
   const { publicKey, privateKey } = await ensureVapidKeys(env, db);
   const keys = { endpoint: sub.endpoint, p256dh: await decrypt(env, sub.p256dh, sub.id), auth: await decrypt(env, sub.auth, sub.id) };
   const [auth, body] = await Promise.all([vapidAuthHeader(env, privateKey, publicKey, sub.endpoint), encryptPushPayload(keys, JSON.stringify(payload))]);
@@ -219,6 +238,8 @@ export async function sendWebPush(
         Urgency: 'normal',
       },
       body: body as BodyInit,
+      redirect: 'manual', // a push service never redirects; following one would leave the allow-list
+      signal: AbortSignal.timeout(SEND_TIMEOUT_MS), // one slow service can't hold up everyone's reminders
     });
     if (res.ok) {
       await rewrapLegacyKeys(env, db, sub, keys);

@@ -37,7 +37,7 @@ async function setup() {
     globalThis.fetch = realFetch;
   };
   const events = () => sent.filter((s) => s.url.startsWith('https://hooks.example.com')).map((s) => JSON.parse(s.body) as { type: string; data: any });
-  const pushes = (device: string) => sent.filter((s) => s.url === `https://push.example/${device}`).length;
+  const pushes = (device: string) => sent.filter((s) => s.url === `https://fcm.googleapis.com/fcm/send/${device}`).length;
 
   const leo = (await req('/api/members', 'POST', { name: 'Leo', color: '#e57' })).json;
   const maya = (await req('/api/members', 'POST', { name: 'Maya', color: '#57e' })).json;
@@ -47,7 +47,7 @@ async function setup() {
     const pair = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
     const p256dh = b64u(new Uint8Array(await crypto.subtle.exportKey('raw', pair.publicKey)));
     const auth = b64u(crypto.getRandomValues(new Uint8Array(16)));
-    assert.ok((await req('/api/push/subscriptions', 'POST', { subscription: { endpoint: `https://push.example/${name}`, keys: { p256dh, auth } }, deviceName: name }, k.key)).status < 300);
+    assert.ok((await req('/api/push/subscriptions', 'POST', { subscription: { endpoint: `https://fcm.googleapis.com/fcm/send/${name}`, keys: { p256dh, auth } }, deviceName: name }, k.key)).status < 300);
     return k.key as string;
   };
   const leoKey = await deviceKey('leo-tablet', 'display', leo.id);

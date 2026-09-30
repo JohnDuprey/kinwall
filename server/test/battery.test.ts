@@ -403,7 +403,7 @@ async function devices(s: S, list: [name: string, key: string][]) {
   for (const [name, key] of list) {
     const pair = (await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits'])) as CryptoKeyPair;
     const sub = { privateKey: pair.privateKey, p256dh: b64u(new Uint8Array(await crypto.subtle.exportKey('raw', pair.publicKey))), auth: b64u(crypto.getRandomValues(new Uint8Array(16))) };
-    const res = await s.req('/api/push/subscriptions', 'POST', { subscription: { endpoint: `https://push.example/${name}`, keys: { p256dh: sub.p256dh, auth: sub.auth } }, deviceName: name }, key);
+    const res = await s.req('/api/push/subscriptions', 'POST', { subscription: { endpoint: `https://fcm.googleapis.com/fcm/send/${name}`, keys: { p256dh: sub.p256dh, auth: sub.auth } }, deviceName: name }, key);
     assert.equal(res.status, 201, JSON.stringify(res.json));
     subs.set(name, sub);
   }

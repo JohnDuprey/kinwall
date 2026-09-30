@@ -106,7 +106,7 @@ async function referenceDecrypt(body: Uint8Array, subscriberPrivateKey: CryptoKe
 test('webpush: RFC 8291 aes128gcm payload round-trips through an independent reference decryptor', async () => {
   const sub = await makeSubscriberKeys();
   const plaintext = 'When I grow up, I want to be a watermelon';
-  const body = await encryptPushPayload({ endpoint: 'https://push.example/x', p256dh: sub.p256dh, auth: sub.auth }, plaintext);
+  const body = await encryptPushPayload({ endpoint: 'https://fcm.googleapis.com/fcm/send/x', p256dh: sub.p256dh, auth: sub.auth }, plaintext);
 
   // Header shape: salt(16) || rs(4 BE) || idlen(1) || keyid(65 for a P-256 uncompressed point).
   assert.equal(body.length > 16 + 4 + 1 + 65, true);
@@ -120,8 +120,8 @@ test('webpush: RFC 8291 aes128gcm payload round-trips through an independent ref
 
 test('webpush: two encryptions of the same payload use different salts/ciphertexts (fresh ephemeral key + random salt)', async () => {
   const sub = await makeSubscriberKeys();
-  const a = await encryptPushPayload({ endpoint: 'https://push.example/x', p256dh: sub.p256dh, auth: sub.auth }, 'hello');
-  const b = await encryptPushPayload({ endpoint: 'https://push.example/x', p256dh: sub.p256dh, auth: sub.auth }, 'hello');
+  const a = await encryptPushPayload({ endpoint: 'https://fcm.googleapis.com/fcm/send/x', p256dh: sub.p256dh, auth: sub.auth }, 'hello');
+  const b = await encryptPushPayload({ endpoint: 'https://fcm.googleapis.com/fcm/send/x', p256dh: sub.p256dh, auth: sub.auth }, 'hello');
   assert.notEqual(Buffer.from(a).toString('base64'), Buffer.from(b).toString('base64'));
 });
 
@@ -160,7 +160,7 @@ async function subscribe(request: ReturnType<typeof makeApp>, key: string, devic
   const sub = await makeSubscriberKeys();
   const res = await request(
     '/api/push/subscriptions',
-    { method: 'POST', body: JSON.stringify({ subscription: { endpoint: `https://push.example/${deviceName}`, keys: { p256dh: sub.p256dh, auth: sub.auth } }, deviceName, prefs }) },
+    { method: 'POST', body: JSON.stringify({ subscription: { endpoint: `https://fcm.googleapis.com/fcm/send/${deviceName}`, keys: { p256dh: sub.p256dh, auth: sub.auth } }, deviceName, prefs }) },
     key,
   );
   return { row: (await res.json()) as any, keys: sub };
@@ -238,7 +238,7 @@ test('push: subscription keys are encrypted at rest; re-subscribing keeps the ro
 
   // Same endpoint again (browser re-registers): ON CONFLICT keeps the original id = AAD.
   const again = await makeSubscriberKeys();
-  await request('/api/push/subscriptions', { method: 'POST', body: JSON.stringify({ subscription: { endpoint: 'https://push.example/phone', keys: { p256dh: again.p256dh, auth: again.auth } }, deviceName: 'phone' }) });
+  await request('/api/push/subscriptions', { method: 'POST', body: JSON.stringify({ subscription: { endpoint: 'https://fcm.googleapis.com/fcm/send/phone', keys: { p256dh: again.p256dh, auth: again.auth } }, deviceName: 'phone' }) });
   const after = await env.DB.prepare('SELECT id, auth FROM push_subscriptions').first<{ id: string; auth: string }>();
   assert.equal(after!.id, row.id);
   assert.equal(await decrypt(env, after!.auth, row.id), again.auth);
@@ -248,7 +248,7 @@ test('push: a legacy plaintext-key row still sends and is re-wrapped after the s
   const env = makeEnv();
   const request = makeApp(env);
   const keys = await makeSubscriberKeys();
-  await env.DB.prepare("INSERT INTO push_subscriptions (id, api_key_id, endpoint, p256dh, auth, device_name, member_ids, prefs, created_at) VALUES ('legacy', NULL, 'https://push.example/old', ?, ?, 'old', '[]', '{}', ?)")
+  await env.DB.prepare("INSERT INTO push_subscriptions (id, api_key_id, endpoint, p256dh, auth, device_name, member_ids, prefs, created_at) VALUES ('legacy', NULL, 'https://fcm.googleapis.com/fcm/send/old', ?, ?, 'old', '[]', '{}', ?)")
     .bind(keys.p256dh, keys.auth, new Date().toISOString())
     .run();
   const push = stubPush();
@@ -274,7 +274,7 @@ test('push: /api/push/test sends a push and records last_success_at; a 410 delet
   const afterOk = (await (await request('/api/push/subscriptions')).json()) as any[];
   assert.ok(afterOk[0].lastSuccessAt);
 
-  const gone = stubPush(new Set([`push.example/phone`]));
+  const gone = stubPush(new Set([`fcm.googleapis.com/fcm/send/phone`]));
   await request(`/api/push/test/${row.id}`, { method: 'POST' });
   gone.restore();
   const afterGone = (await (await request('/api/push/subscriptions')).json()) as any[];
@@ -841,4 +841,87 @@ test('transitions: times follow the family time format, or the location\'s count
   const berlin = await transitionsSetup({ on: true, minutes: [5] }, event);
   await berlin.request('/api/settings', { method: 'PATCH', body: JSON.stringify({ location: { name: 'Berlin', lat: 52.52, lon: 13.4, countryCode: 'DE' } }) });
   assert.equal((await berlin.run(at(start, -25)))[0].payload.body, 'Leave by 15:10 · starts 15:30', 'auto in Germany: 24-hour');
+});
+
+// Push endpoints are where the server POSTs, so only real browser push services are accepted:
+// never a family's own network, the server itself, or any other address.
+test('push: only https endpoints on the browser push services are accepted', async () => {
+  const env = makeEnv();
+  const request = makeApp(env);
+  const wall = (await (await request('/api/keys', { method: 'POST', body: JSON.stringify({ name: 'Wall', scope: 'display' }) })).json()) as any;
+  const keys = await makeSubscriberKeys();
+  const sub = (endpoint: string) =>
+    request('/api/push/subscriptions', { method: 'POST', body: JSON.stringify({ subscription: { endpoint, keys: { p256dh: keys.p256dh, auth: keys.auth } }, deviceName: 'd' }) }, wall.key);
+  for (const bad of [
+    'http://127.0.0.1:8080/internal',
+    'https://127.0.0.1/x',
+    'https://10.0.0.1/x',
+    'https://homeassistant.local/api',
+    'https://evil.example/fcm/send/x',
+    'http://fcm.googleapis.com/fcm/send/x',
+    'https://fcm.googleapis.com.evil.example/x',
+    'https://evilpush.apple.com.example/x',
+    'https://fcm.googleapis.com:8443/fcm/send/x',
+    'https://user@fcm.googleapis.com/fcm/send/x',
+    'https://storage.googleapis.com/bucket/x',
+    'ftp://updates.push.services.mozilla.com/x',
+  ]) {
+    assert.equal((await sub(bad)).status, 400, bad);
+  }
+  for (const good of [
+    'https://fcm.googleapis.com/fcm/send/abc',
+    'https://fcm.googleapis.com/wp/abc',
+    'https://android.googleapis.com/gcm/send/abc',
+    'https://web.push.apple.com/QGx',
+    'https://api.push.apple.com/3/device/abc',
+    'https://updates.push.services.mozilla.com/wpush/v2/abc',
+    'https://wns2-par02p.notify.windows.com/w/?token=abc',
+  ]) {
+    assert.equal((await sub(good)).status, 201, good);
+  }
+});
+
+test('push: a stored endpoint off the push services is never fetched and is removed; sends never follow redirects and time out', async () => {
+  const env = makeEnv();
+  const request = makeApp(env);
+  const keys = await makeSubscriberKeys();
+  await env.DB.prepare("INSERT INTO push_subscriptions (id, api_key_id, endpoint, p256dh, auth, device_name, member_ids, prefs, created_at) VALUES ('bad', NULL, 'http://127.0.0.1:9/x', ?, ?, 'old', '[]', '{}', ?)")
+    .bind(keys.p256dh, keys.auth, new Date().toISOString())
+    .run();
+  const realFetch = globalThis.fetch;
+  const calls: { url: string; init?: RequestInit }[] = [];
+  globalThis.fetch = (async (url: any, init?: RequestInit) => {
+    calls.push({ url: String(url), init });
+    return new Response('', { status: 201 });
+  }) as typeof fetch;
+  try {
+    const res = (await (await request('/api/push/test/bad', { method: 'POST' })).json()) as any;
+    assert.equal(res.ok, false);
+    assert.equal(calls.length, 0, 'nothing was fetched');
+    assert.equal(await env.DB.prepare("SELECT 1 FROM push_subscriptions WHERE id = 'bad'").first(), null, 'the row is gone');
+
+    const { row } = await subscribe(request, ADMIN_KEY, 'phone');
+    assert.equal(((await (await request(`/api/push/test/${row.id}`, { method: 'POST' })).json()) as any).ok, true);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].init?.redirect, 'manual');
+    assert.ok(calls[0].init?.signal instanceof AbortSignal, 'a send has a timeout');
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+test('push: a device keeps at most 10 subscriptions; a new one replaces its oldest', async () => {
+  const env = makeEnv();
+  const request = makeApp(env);
+  const wall = (await (await request('/api/keys', { method: 'POST', body: JSON.stringify({ name: 'Wall', scope: 'display' }) })).json()) as any;
+  for (let i = 0; i < 12; i++) {
+    await subscribe(request, wall.key, `d${String(i).padStart(2, '0')}`);
+    await new Promise((r) => setTimeout(r, 2)); // distinct created_at
+  }
+  const mine = (await (await request('/api/push/subscriptions', {}, wall.key)).json()) as any[];
+  assert.equal(mine.length, 10);
+  assert.deepEqual(mine.map((s) => s.deviceName).sort().slice(0, 2), ['d02', 'd03'], 'the two oldest were replaced');
+  // Another device's subscriptions don't count against this one.
+  await subscribe(request, ADMIN_KEY, 'parent');
+  assert.equal(((await (await request('/api/push/subscriptions', {}, wall.key)).json()) as any[]).length, 10);
 });

@@ -49,7 +49,7 @@ async function subscription(name: string) {
   const pair = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
   const b64u = (b: Uint8Array) => btoa(String.fromCharCode(...b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   const p256dh = b64u(new Uint8Array(await crypto.subtle.exportKey('raw', (pair as CryptoKeyPair).publicKey)));
-  return { subscription: { endpoint: `https://push.example/${name}`, keys: { p256dh, auth: b64u(crypto.getRandomValues(new Uint8Array(16))) } }, deviceName: name };
+  return { subscription: { endpoint: `https://fcm.googleapis.com/fcm/send/${name}`, keys: { p256dh, auth: b64u(crypto.getRandomValues(new Uint8Array(16))) } }, deviceName: name };
 }
 
 const tc = (id: string, date?: string) => `/api/members/${id}/temp-check${date ? `?date=${date}` : ''}`;
@@ -132,7 +132,7 @@ test('evening prompt: once per person per day at their time, to their own device
   const tick = async (local: string) => { sent.length = 0; await runNotifications(env, at(local)); return [...sent]; };
   try {
     assert.deepEqual(await tick('20:55'), [], 'not yet');
-    assert.deepEqual(await tick('21:02'), ['https://push.example/maya-phone']);
+    assert.deepEqual(await tick('21:02'), ['https://fcm.googleapis.com/fcm/send/maya-phone']);
     assert.deepEqual(feed(), [{ title: 'Did you finish your goal? 🎯', body: 'Finish my book report', url: `/#/journal/${maya.id}`, member_ids: JSON.stringify([maya.id]) }]);
     assert.deepEqual(await tick('21:05'), [], 'once');
     await db.prepare("DELETE FROM settings WHERE key = 'notifyLastTick'").run(); // a restart: the window starts over
@@ -153,7 +153,7 @@ test('evening prompt: still pushed during quiet hours', async (t) => {
   const sent: string[] = [];
   globalThis.fetch = (async (u: unknown) => { sent.push(String(u)); return new Response('', { status: 201 }); }) as typeof fetch;
   try { await runNotifications(s.env, at('21:02')); } finally { globalThis.fetch = realFetch; }
-  assert.deepEqual(sent, ['https://push.example/maya-phone']);
+  assert.deepEqual(sent, ['https://fcm.googleapis.com/fcm/send/maya-phone']);
 });
 
 test('evening prompt: nothing when the goal was skipped or answered, the setting is off', async (t) => {

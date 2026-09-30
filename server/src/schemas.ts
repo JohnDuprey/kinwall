@@ -2,6 +2,7 @@
 import { z } from '@hono/zod-openapi';
 import { MealSchema } from './meal-schemas.ts';
 import { isSingleEmoji, isValidAvatar } from './emoji.ts';
+import { pushEndpointAllowed } from './webpush.ts';
 
 export const ErrorSchema = z.object({ error: z.string() }).openapi('Error');
 
@@ -858,7 +859,7 @@ export const PushSubscriptionSchema = z
 export const PushSubscriptionInputSchema = z
   .object({
     subscription: z.object({
-      endpoint: z.string().url(),
+      endpoint: z.string().url().refine(pushEndpointAllowed, 'must be an https address on a browser push service (Apple, Google, Microsoft or Mozilla)').openapi({ description: "The browser's push endpoint, from pushManager.subscribe(): https on Apple's, Google's, Microsoft's or Mozilla's push service only." }),
       keys: z.object({ p256dh: z.string(), auth: z.string() }),
     }),
     deviceName: z.string().min(1),

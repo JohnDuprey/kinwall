@@ -12,6 +12,8 @@ import { ErrorSchema, NotificationSchema, NotifyInputSchema, PushSubscriptionInp
 
 export const pushRoutes = createRouter();
 
+const MAX_SUBS_PER_KEY = 10;
+
 type PushSubRow = {
   id: string;
   api_key_id: string | null;
@@ -84,7 +86,10 @@ pushRoutes.openapi(
     summary: 'Register (or update, by endpoint) this device for push notifications',
     security: [{ Bearer: [] }],
     request: { body: { content: { 'application/json': { schema: PushSubscriptionInputSchema } } } },
-    responses: { 201: { description: 'created', content: { 'application/json': { schema: PushSubscriptionSchema } } } },
+    responses: {
+      201: { description: 'created', content: { 'application/json': { schema: PushSubscriptionSchema } } },
+      400: { description: 'not an https endpoint on a browser push service', content: { 'application/json': { schema: ErrorSchema } } },
+    },
   }),
   async (c) => {
     const body = c.req.valid('json');
@@ -95,6 +100,12 @@ pushRoutes.openapi(
     // existing id - ON CONFLICT keeps the old id, not the fresh one in VALUES.
     const existing = await c.env.DB.prepare('SELECT id FROM push_subscriptions WHERE endpoint = ?').bind(body.subscription.endpoint).first<{ id: string }>();
     const id = existing?.id ?? crypto.randomUUID();
+    // At most MAX_SUBS_PER_KEY per device key: a new one replaces that key's oldest.
+    if (!existing) {
+      await c.env.DB.prepare(
+        'DELETE FROM push_subscriptions WHERE id IN (SELECT id FROM push_subscriptions WHERE api_key_id IS ? ORDER BY created_at DESC, id LIMIT -1 OFFSET ?)',
+      ).bind(resolved?.id ?? null, MAX_SUBS_PER_KEY - 1).run();
+    }
     const [p256dh, auth] = await Promise.all([encrypt(c.env, body.subscription.keys.p256dh, id), encrypt(c.env, body.subscription.keys.auth, id)]);
     await c.env.DB.prepare(
       'INSERT INTO push_subscriptions (id, api_key_id, endpoint, p256dh, auth, device_name, member_ids, prefs, created_at) VALUES (?,?,?,?,?,?,?,?,?) ' +
