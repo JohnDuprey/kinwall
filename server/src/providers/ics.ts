@@ -39,9 +39,12 @@ export function prefilterIcs(icsText: string, from: Date): string {
     const chunk = chunks[i];
     const endIdx = chunk.indexOf('END:VEVENT');
     const scanRegion = endIdx === -1 ? chunk : chunk.slice(0, endIdx + 'END:VEVENT'.length);
+    // A dropped event still leaves what follows its END:VEVENT: END:VCALENDAR when it's the last
+    // one (without it the whole feed failed to parse and every event vanished), or a VTIMEZONE.
+    const rest = chunk.slice(scanRegion.length);
 
     if (/[\r\n]RECURRENCE-ID[:;]/i.test(`\n${scanRegion}`)) {
-      kept.push(chunk);
+      kept.push('BEGIN:VEVENT' + chunk);
       continue;
     }
     const rruleMatch = scanRegion.match(/[\r\n]RRULE[:;]([^\r\n]*)/i);
@@ -50,20 +53,26 @@ export function prefilterIcs(icsText: string, from: Date): string {
       if (dtstartMatch) {
         const d = dtstartMatch[1];
         const dtstartMs = Date.UTC(Number(d.slice(0, 4)), Number(d.slice(4, 6)) - 1, Number(d.slice(6, 8)));
-        if (dtstartMs < cutoffMs) continue; // clearly old, no recurrence to bring it forward
+        if (dtstartMs < cutoffMs) {
+          kept.push(rest); // clearly old, no recurrence to bring it forward
+          continue;
+        }
       }
-      kept.push(chunk);
+      kept.push('BEGIN:VEVENT' + chunk);
       continue;
     }
     const untilMatch = rruleMatch[1].match(/UNTIL=(\d{8})/i);
     if (untilMatch) {
       const u = untilMatch[1];
       const untilMs = Date.UTC(Number(u.slice(0, 4)), Number(u.slice(4, 6)) - 1, Number(u.slice(6, 8)));
-      if (untilMs < from.getTime()) continue; // series ended before the window opens
+      if (untilMs < from.getTime()) {
+        kept.push(rest); // series ended before the window opens
+        continue;
+      }
     }
-    kept.push(chunk);
+    kept.push('BEGIN:VEVENT' + chunk);
   }
-  return header + kept.map((b) => 'BEGIN:VEVENT' + b).join('');
+  return header + kept.join('');
 }
 
 async function sha256Hex(data: string): Promise<string> {

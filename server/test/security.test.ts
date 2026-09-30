@@ -273,6 +273,33 @@ test('ics: prefilter drops a clearly-old non-recurring event but keeps a RECURRE
   assert.ok(events.length > 0);
 });
 
+test('ics: dropping an old last event keeps END:VCALENDAR, so the rest of the feed still parses', async () => {
+  const ics = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'BEGIN:VEVENT',
+    'UID:soon@test',
+    'DTSTART:20260110T090000Z',
+    'DTEND:20260110T100000Z',
+    'SUMMARY:Coming up',
+    'END:VEVENT',
+    'BEGIN:VEVENT',
+    'UID:ancient@test',
+    'DTSTART:20200101T090000Z',
+    'DTEND:20200101T100000Z',
+    'SUMMARY:Long ago',
+    'END:VEVENT',
+    'END:VCALENDAR',
+    '',
+  ].join('\r\n');
+  const from = new Date('2026-01-01T00:00:00Z');
+  const filtered = prefilterIcs(ics, from);
+  assert.ok(!filtered.includes('ancient@test'));
+  assert.ok(filtered.trimEnd().endsWith('END:VCALENDAR'));
+  const events = await parseIcsEvents(ics, from, new Date('2026-02-01T00:00:00Z'));
+  assert.deepEqual(events.map((e) => e.title), ['Coming up']);
+});
+
 test('ics: floating (no TZID, no Z) times are interpreted in the household timezone', async () => {
   const ics = [
     'BEGIN:VCALENDAR',
