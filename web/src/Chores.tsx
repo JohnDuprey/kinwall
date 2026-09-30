@@ -397,7 +397,7 @@ export default function Chores() {
   const dialog = useDialog()
   const [selectedDate, setSelectedDate] = useState(() => new Date())
   const [chores, setChores] = useState<ChoreDay[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loadedKey, setLoadedKey] = useState<string | null>(null) // the day `chores` holds
   const [error, setError] = useState(false)
   const [editChore, setEditChore] = useState<Chore | 'new' | null>(null)
   const [checklistFor, setChecklistFor] = useState<ChoreDay | null>(null) // the chore whose checklist sheet is open
@@ -406,12 +406,18 @@ export default function Chores() {
   useEffect(() => { saveLbPeriod(lbPeriod) }, [lbPeriod])
 
   const key = dateKey(selectedDate)
+  // Loading only while a new day's chores are on their way. A refresh of the same day (a sheet
+  // saved, the rev moved) keeps what's on screen, so the columns don't collapse and jump back.
+  const loading = loadedKey !== key
   // Keep the selected chip visible when the day changes programmatically (e.g. after adding a chore).
   useEffect(() => { document.querySelector('.date-chip.active')?.scrollIntoView({ inline: 'center', block: 'nearest' }) }, [key])
 
+  const keyRef = useRef(key)
+  keyRef.current = key
   const load = () => {
-    setLoading(true)
-    api.getChoresDay(key).then(c => { setChores(c); setError(false) }).catch(() => setError(true)).finally(() => setLoading(false))
+    const k = key
+    api.getChoresDay(k).then(c => { if (keyRef.current === k) { setChores(c); setError(false); setLoadedKey(k) } })
+      .catch(() => { if (keyRef.current === k) { setError(true); setLoadedKey(k) } })
   }
   useEffect(load, [key, refreshTick])
 
