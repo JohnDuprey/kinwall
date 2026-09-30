@@ -448,6 +448,29 @@ function hideKeys(row: Pick<EventRow, 'id' | 'external_id' | 'series_id' | 'rrul
   return { occurrence: localSeries ? `${row.id}@${instStart}` : row.external_id ?? row.id, series: localSeries ? row.id : cal.kind === 'local' ? null : row.series_id };
 }
 const hiddenKey = (calendarId: string, scope: 'occurrence' | 'series', key: string) => `${calendarId}\u0000${scope}\u0000${key}`;
+
+// The rows that can reach back more than a week: local repeats and long rows (idx_events_open,
+// migration 0071, whose WHERE this must match exactly).
+const EVENT_OPEN = '(rrule IS NOT NULL OR (julianday(end) - julianday(start) <= 7) IS NOT 1)';
+const OPEN_DAYS = 7;
+
+/** Two statements (for a batch) reading the event rows of `calendars` (an SQL condition on
+ * calendar_id) that can have an instance overlapping [from, to): rows starting up to a week before
+ * `from`, plus the open ones above. Hosted is billed per row read, and this reads by index instead of
+ * the whole table. Bounds are compared as text with a day of slack each way (all-day rows store dates,
+ * a synced row may carry an offset), so a row can come back from both or outside the window: pass the
+ * results to eventRowsFrom, and callers still check the overlap themselves. */
+export function eventRowsStmts(db: KinwallDb, calendars: string, binds: unknown[], from: Date, to: Date) {
+  const lo = new Date(from.getTime() - (OPEN_DAYS + 1) * 86400000).toISOString();
+  const hi = new Date(to.getTime() + 86400000).toISOString();
+  return [
+    db.prepare(`SELECT * FROM events WHERE calendar_id ${calendars} AND start >= ? AND start < ?`).bind(...binds, lo, hi),
+    db.prepare(`SELECT * FROM events WHERE calendar_id ${calendars} AND start < ? AND ${EVENT_OPEN}`).bind(...binds, hi),
+  ];
+}
+export function eventRowsFrom(results: { results: unknown[] }[]): EventRow[] {
+  return [...new Map(results.flatMap((r) => r.results as EventRow[]).map((r) => [r.id, r])).values()];
+}
 type HiddenReason = 'event' | 'series' | 'filter' | null;
 
 // Every event instance overlapping [from, to), members/categories/travel resolved, sorted by start -
@@ -455,7 +478,9 @@ type HiddenReason = 'event' | 'series' | 'filter' | null;
 // family has hidden (event_hidden) or filtered out (calendar-filter.ts) are left out here, the one
 // place every consumer reads through; includeHidden keeps them, marked with why (Settings' preview
 // and a parent's Show hidden).
-export async function eventInstances(db: KinwallDb, fromDate: Date, toDate: Date, calendarId?: string, opts: { includeHidden?: boolean } = {}) {
+// `rows`: event rows the caller already read with eventRowsStmts for this window (notify.ts), so
+// they aren't read twice.
+export async function eventInstances(db: KinwallDb, fromDate: Date, toDate: Date, calendarId?: string, opts: { includeHidden?: boolean; rows?: EventRow[] } = {}) {
   // calendars, household timezone, member colors and categories (for keyword matching) are
   // independent reads - one batch.
   const calendarsStmt = calendarId
@@ -480,8 +505,9 @@ export async function eventInstances(db: KinwallDb, fromDate: Date, toDate: Date
   // events + all four override tables, all filtered by the same calendar id set - another batch.
   const calIds = calendars.map((cal) => cal.id);
   const placeholders = calIds.map(() => '?').join(',');
-  const [eventsRes, overridesRes, seriesOverridesRes, categoryOverridesRes, categorySeriesOverridesRes, travelOverridesRes, linkedRes, notesRes, mealsRes, hiddenRes] = await db.batch<unknown>([
-    db.prepare(`SELECT * FROM events WHERE calendar_id IN (${placeholders})`).bind(...calIds),
+  const eventStmts = opts.rows ? [] : eventRowsStmts(db, `IN (${placeholders})`, calIds, fromDate, toDate);
+  const res = await db.batch<unknown>([
+    ...eventStmts,
     db.prepare(`SELECT calendar_id, external_id, member_ids FROM event_member_overrides WHERE calendar_id IN (${placeholders})`).bind(...calIds),
     db
       .prepare(`SELECT calendar_id, series_id, member_ids FROM event_series_member_overrides WHERE calendar_id IN (${placeholders})`)
@@ -499,11 +525,12 @@ export async function eventInstances(db: KinwallDb, fromDate: Date, toDate: Date
     mealLinksQuery(db),
     db.prepare(`SELECT calendar_id, scope, key FROM event_hidden WHERE calendar_id IN (${placeholders})`).bind(...calIds),
   ]);
+  const [overridesRes, seriesOverridesRes, categoryOverridesRes, categorySeriesOverridesRes, travelOverridesRes, linkedRes, notesRes, mealsRes, hiddenRes] = res.slice(eventStmts.length);
   const hiddenSet = new Set((hiddenRes.results as { calendar_id: string; scope: 'occurrence' | 'series'; key: string }[]).map((r) => hiddenKey(r.calendar_id, r.scope, r.key)));
   const noteCounts = new Map((notesRes.results as { target_id: string; n: number }[]).map((r) => [r.target_id, r.n]));
   const linkedCounts = new Map((linkedRes.results as { event_id: string; n: number }[]).map((r) => [r.event_id, r.n]));
   const travelOverrides = buildTravelOverrideMap(travelOverridesRes.results as TravelOverrideRow[]);
-  const rows = eventsRes.results as unknown as EventRow[];
+  const rows = opts.rows ?? eventRowsFrom(res.slice(0, eventStmts.length));
   const overrides = buildOverrideMap(overridesRes.results as OverrideRow[]);
   const seriesOverrides = buildSeriesOverrideMap(seriesOverridesRes.results as SeriesOverrideRow[]);
   const categoryOverrides = buildCategoryOverrideMap(categoryOverridesRes.results as CategoryOverrideRow[]);
@@ -554,9 +581,8 @@ export async function eventInstances(db: KinwallDb, fromDate: Date, toDate: Date
 
 /** notify.ts reads event rows itself (reminders, transitions, Live Activities, the daily summary):
  * the (event id, start) keys of the instances in [from, to) the family doesn't see, to skip. */
-export async function hiddenInstanceKeys(db: KinwallDb, fromDate: Date, toDate: Date): Promise<Set<string>> {
-  // ponytail: a second full read of the events per notify tick; share one read if ticks get slow.
-  return new Set((await eventInstances(db, fromDate, toDate, undefined, { includeHidden: true })).filter((ev) => ev.hidden).map((ev) => instanceKey(ev.id, ev.start)));
+export async function hiddenInstanceKeys(db: KinwallDb, fromDate: Date, toDate: Date, rows: EventRow[]): Promise<Set<string>> {
+  return new Set((await eventInstances(db, fromDate, toDate, undefined, { includeHidden: true, rows })).filter((ev) => ev.hidden).map((ev) => instanceKey(ev.id, ev.start)));
 }
 export const instanceKey = (id: string, start: string) => `${id}\u0000${start}`;
 

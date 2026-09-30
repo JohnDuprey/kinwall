@@ -22,7 +22,7 @@ import { medFollowup, nudge, pickNudge, rememberNudge, stepHint, type NudgeSeen 
 import { apnsConfigured, sendLiveActivity, swiftDate, unixSeconds } from './apns.ts';
 import { unseal } from './crypto.ts';
 import { formatTime, hour12For } from './timeFormat.ts';
-import { hiddenInstanceKeys, instanceKey } from './routes/events.ts';
+import { eventRowsFrom, eventRowsStmts, hiddenInstanceKeys, instanceKey } from './routes/events.ts';
 
 export const DEFAULT_PUSH_PREFS = {
   eventReminders: true,
@@ -186,6 +186,8 @@ type EventRow = {
   remind_before_leave: number;
 };
 
+const ENABLED = 'IN (SELECT id FROM calendars WHERE enabled = 1)';
+
 type CalRow = { id: string; kind: string; name: string; member_ids: string; enabled: number };
 
 function fireTime(startIso: string, allDay: boolean, minutes: number, tz: string): number {
@@ -214,9 +216,9 @@ async function runEventReminders(env: Env, db: KinwallDb, now: Date, tz: string,
   const from = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   const to = new Date(now.getTime() + SEARCH_WINDOW_MS);
 
-  const [calsRes, eventsRes, categoriesRes, membersRes, travelRes, mealsRes] = await db.batch<unknown>([
+  const [calsRes, eventsRes, openRes, categoriesRes, membersRes, travelRes, mealsRes] = await db.batch<unknown>([
     db.prepare("SELECT id, kind, name, member_ids, enabled FROM calendars WHERE enabled = 1"),
-    db.prepare('SELECT * FROM events WHERE calendar_id IN (SELECT id FROM calendars WHERE enabled = 1)'),
+    ...eventRowsStmts(db, ENABLED, [], from, to),
     db.prepare('SELECT id, name, emoji FROM categories'),
     db.prepare('SELECT id, name FROM members'),
     // Synced events keep travel time here, not on the row (see migration 0019).
@@ -231,10 +233,10 @@ async function runEventReminders(env: Env, db: KinwallDb, now: Date, tz: string,
   const categoryRows = categoriesRes.results as unknown as { id: string; name: string; emoji: string | null }[];
   const categoryEmojis = new Map(categoryRows.map((c) => [c.id, c.emoji]));
   const categoryText = new Map(categoryRows.map((c) => [c.id, `${c.name} ${c.emoji ?? ''}`.trim()]));
-  const events = eventsRes.results as unknown as EventRow[];
+  const events = eventRowsFrom([eventsRes, openRes]);
   const meals = parseMealLinks(mealsRes.results);
   // Hidden and filtered-out events get no reminders, transition warnings or Live Activities.
-  const hidden = await hiddenInstanceKeys(db, from, to);
+  const hidden = await hiddenInstanceKeys(db, from, to, events);
 
   // leadMinutes: travel time when the event reminds before leaving - reminders then count back from
   // the leave-by time (start - travel) instead of the start.
@@ -506,8 +508,8 @@ async function runDailySummary(env: Env, db: KinwallDb, now: Date, tz: string, s
 
     const dayStart = new Date(`${today}T00:00:00Z`);
     const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
-    const [eventsRes, choresRes, linkedRes, dueRes, mealsRes] = await db.batch<unknown>([
-      db.prepare("SELECT * FROM events WHERE calendar_id IN (SELECT id FROM calendars WHERE enabled = 1)"),
+    const [eventsRes, openRes, choresRes, linkedRes, dueRes, mealsRes] = await db.batch<unknown>([
+      ...eventRowsStmts(db, ENABLED, [], dayStart, dayEnd),
       db.prepare('SELECT * FROM chores WHERE active = 1'),
       // Urgent/important items first (so they make the top 3) and marked.
       db.prepare(`SELECT event_id, title, priority FROM list_items WHERE done = 0 AND event_id IS NOT NULL ORDER BY ${priorityRankSql()}, sort, created_at`),
@@ -520,8 +522,8 @@ async function runDailySummary(env: Env, db: KinwallDb, now: Date, tz: string, s
     for (const r of features.lists ? linkedRes.results as unknown as { event_id: string; title: string; priority: string }[] : []) {
       linked.set(r.event_id, [...(linked.get(r.event_id) ?? []), mark(r)]);
     }
-    const events = eventsRes.results as unknown as EventRow[];
-    hidden ??= await hiddenInstanceKeys(db, dayStart, dayEnd);
+    const events = eventRowsFrom([eventsRes, openRes]);
+    hidden ??= await hiddenInstanceKeys(db, dayStart, dayEnd, events);
     const deviceMemberIds = sub ? parseMemberIds(sub.member_ids) : [];
     const todaysTitles: string[] = [];
     const todo: string[] = []; // "• Soccer — cleats, water" for today's events with open linked items
