@@ -264,3 +264,30 @@ test('sync: syncCalendar writes through the ics provider (network stubbed) and b
     globalThis.fetch = realFetch;
   }
 });
+
+test('rev: per-area revs say whether lists, chores or everything else changed', async () => {
+  const env = makeEnv();
+  const request = makeApp(env);
+  const tick = () => new Promise((resolve) => setTimeout(resolve, 20)); // emit() lands in the background
+  const revs = async () => ((await (await request('/api/rev')).json()) as any).revs;
+  const start = await revs();
+  assert.deepEqual(Object.keys(start).sort(), ['chores', 'events', 'lists']);
+
+  const list = (await (await request('/api/lists', { method: 'POST', body: JSON.stringify({ name: 'Groceries', kind: 'shopping' }) })).json()) as any;
+  await tick();
+  const afterList = await revs();
+  assert.ok(afterList.lists > start.lists);
+  assert.deepEqual([afterList.events, afterList.chores], [start.events, start.chores]);
+
+  await request('/api/chores', { method: 'POST', body: JSON.stringify({ title: 'Feed the cat', points: 1, rrule: 'FREQ=DAILY' }) });
+  await tick();
+  const afterChore = await revs();
+  assert.ok(afterChore.chores > afterList.chores);
+  assert.deepEqual([afterChore.events, afterChore.lists], [afterList.events, afterList.lists]);
+
+  await request('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Cy', color: '#0000ff' }) });
+  await tick();
+  const afterMember = await revs();
+  assert.ok(afterMember.events > afterChore.events);
+  assert.ok(list.id);
+});

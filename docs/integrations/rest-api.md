@@ -67,7 +67,7 @@ On Workers, the free-tier quota (100k requests/day) is the practical ceiling. Se
 
 ## Change detection
 
-`GET /api/rev` returns `{ rev, nightScreen }`. `rev` is a counter that goes up on every write. Poll it cheaply and refetch when it changes. The apps do this every 30 seconds (wall screens every 10 while a remote Night screen is on). `nightScreen` is this key's remote [Night screen](#night-screen), `{ on, since, until }` or `null`. For push-style updates, use [webhooks](webhooks.md).
+`GET /api/rev` returns `{ rev, revs, nightScreen }`. `rev` is a counter that goes up on every write. Poll it cheaply and refetch when it changes. `revs` (`{ events, lists, chores }`) counts changes per area, so a client can refetch only the part that changed: `lists` for lists and their items, `chores` for chores, completions and rewards (points), and `events` for everything else that's shown (events, calendars, members, settings, meals). Changes to contacts, recipes, journals, trackers and photos move only `rev`. Older servers leave `revs` out: refetch everything then. The apps do this every 30 seconds (wall screens every 10 while a remote Night screen is on). `nightScreen` is this key's remote [Night screen](#night-screen), `{ on, since, until }` or `null`. For push-style updates, use [webhooks](webhooks.md).
 
 ## Route groups
 

@@ -39,18 +39,31 @@ export type BusEventType =
 
 type WebhookRow = { id: string; url: string; events: string; secret: string };
 
-// Bumps rev and fetches enabled webhooks in a single D1 round trip: the increment is done
-// entirely in SQL (no read-then-write) so it can sit in the same batch as the webhook lookup.
-async function bumpRevAndListWebhooks(db: KinwallDb, bumpRev: boolean): Promise<WebhookRow[]> {
+type RevArea = 'events' | 'lists' | 'chores';
+// Changes that can't touch events, calendars, members, lists or chores bump no area.
+const NO_AREA = new Set<BusEventType>(['contact.changed', 'contact.category.changed', 'recipe.changed', 'journal.changed', 'tracker.changed', 'photo.changed']);
+
+/** Which per-area rev (GET /api/rev `revs`) a change bumps, so a sync client refetches only that
+ * part. 'events' is everything else that isn't lists or chores (calendars, members, settings, meals). */
+export function revArea(type: BusEventType): RevArea | null {
+  if (type.startsWith('list.')) return 'lists';
+  if (type.startsWith('chore.') || type.startsWith('reward.')) return 'chores'; // points change with both
+  return NO_AREA.has(type) ? null : 'events';
+}
+
+const BUMP_REV = "INSERT INTO settings (key, value) VALUES ('rev', '1') ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + 1";
+// The area revs share one JSON row ('revs'), so every /api/rev poll reads one more row, not three.
+const BUMP_AREA =
+  "INSERT INTO settings (key, value) VALUES ('revs', json_object(?1, 1)) ON CONFLICT(key) DO UPDATE SET value = json_set(value, '$.' || ?1, coalesce(json_extract(value, '$.' || ?1), 0) + 1)";
+
+// Bumps rev (and the change's area rev) and fetches enabled webhooks in a single D1 round trip: the
+// increments are done entirely in SQL (no read-then-write) so they sit in the same batch as the lookup.
+async function bumpRevAndListWebhooks(db: KinwallDb, type: BusEventType, bumpRev: boolean): Promise<WebhookRow[]> {
   const list = db.prepare('SELECT id, url, events, secret FROM webhooks WHERE enabled = 1');
   if (!bumpRev) return (await list.all<WebhookRow>()).results;
-  const [, webhooks] = await db.batch<WebhookRow>([
-    db.prepare(
-      "INSERT INTO settings (key, value) VALUES ('rev', '1') ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + 1",
-    ),
-    list,
-  ]);
-  return webhooks.results;
+  const area = revArea(type);
+  const results = await db.batch<WebhookRow>([db.prepare(BUMP_REV), ...(area ? [db.prepare(BUMP_AREA).bind(area)] : []), list]);
+  return results[results.length - 1].results;
 }
 
 // SSRF guard for webhook targets lives in outbound.ts (shared with calendar feeds). Webhooks never
@@ -111,7 +124,7 @@ export function publish(env: Env, execCtx: WaitCtx | undefined, type: BusEventTy
   waitUntil(
     execCtx,
     (async () => {
-      const webhooks = await bumpRevAndListWebhooks(env.DB, bumpRev);
+      const webhooks = await bumpRevAndListWebhooks(env.DB, type, bumpRev);
       await deliverWebhooks(env, type, data, webhooks);
     })(),
   );

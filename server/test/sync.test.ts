@@ -312,12 +312,12 @@ test('sync: a changed ICS feed and a full sync write only the difference, and re
     await flush();
 
     // Changed feed: one event renamed. ICS ids hash title + time (feeds may regenerate UIDs), so
-    // that's 1 insert + 1 delete, plus 1 calendars bookkeeping row and 1 rev bump; A and C untouched.
+    // that's 1 insert + 1 delete, plus 1 calendars bookkeeping row and the rev and area rev bumps; A and C untouched.
     feed = makeFeed(['A', 'B2', 'C']);
     let w = await writes(env);
     let r = await rev(env);
     await syncCalendarTick(env, cal.id);
-    assert.equal((await writes(env)) - w, 4);
+    assert.equal((await writes(env)) - w, 5);
     assert.equal((await rev(env)) - r, 1);
 
     // Full sync ("Sync now") with the same data: only the calendars bookkeeping row, no rev bump.
@@ -338,7 +338,7 @@ test('sync: a changed ICS feed and a full sync write only the difference, and re
     feed = makeFeed(['A', 'B2']);
     w = await writes(env);
     await request(`/api/calendars/${cal.id}/sync`, { method: 'POST' });
-    assert.equal((await writes(env)) - w, 1 + 1 + 1);
+    assert.equal((await writes(env)) - w, 1 + 1 + 2); // delete, bookkeeping, rev + area rev
     const left = await (await request(`/api/events?from=2020-01-01&to=2035-01-01&calendarId=${cal.id}`)).json() as any[];
     assert.deepEqual(left.map((e) => e.title).sort(), ['A', 'B2']);
   } finally {
