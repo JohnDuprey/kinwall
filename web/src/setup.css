@@ -85,6 +85,8 @@
   flex: 1; min-height: 56px; border-radius: var(--radius-sm); border: 2px solid var(--border);
   background: var(--bg-alt); font-weight: 800; font-size: 0.9375rem; color: var(--text);
 }
+.setup-choice-wrap { flex-wrap: wrap; }
+.setup-choice-wrap .setup-choice { flex: 1 1 140px; padding: 0 12px; }
 .setup-choice.active { border-color: var(--accent-strong); background: color-mix(in srgb, var(--accent) 22%, var(--bg-alt)); }
 
 .setup-add-btn { width: 100%; justify-content: center; margin-top: 4px; }

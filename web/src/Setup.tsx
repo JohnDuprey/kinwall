@@ -8,7 +8,7 @@ import { announce } from './a11y.tsx'
 import { MEMBER_EMOJI, MEMBER_PALETTE, nextPaletteColor } from './types.ts'
 import type { Member, Settings } from './types.ts'
 import { CheckIcon, PlusIcon, TrashIcon } from './icons.tsx'
-import { useTheme } from './useTheme.ts'
+import { readDeviceAppearance, setDeviceAppearance, useTheme } from './useTheme.ts'
 import { AnyEmojiField } from './AnyEmojiField.tsx'
 import { isValidAvatar } from './emoji.ts'
 import { colorName, inkFor } from './color.ts'
@@ -18,14 +18,15 @@ import type { Providers } from './types.ts'
 import { MemberPicker } from './MemberPicker.tsx'
 import './setup.css'
 
-type Step = 'welcome' | 'role' | 'passkey' | 'recovery' | 'household' | 'members' | 'calendars' | 'chores' | 'done'
+type Step = 'welcome' | 'role' | 'passkey' | 'recovery' | 'household' | 'members' | 'owner' | 'calendars' | 'chores' | 'displayKind' | 'done'
 type DeviceRole = 'admin' | 'display'
 const PROGRESS_STEPS: Step[] = ['household', 'members', 'calendars', 'chores', 'done']
 
 // Persisted across the OAuth start->callback round trip (Google/Outlook connect from the
-// Calendars step), which reloads the page. Only the step + role are stored — never a key.
+// Calendars step), which reloads the page. Only the step, role and the display key's id are
+// stored — never a key.
 const RESUME_KEY = 'kinwall.setupResume'
-export interface SetupResume { step: Step; deviceRole: DeviceRole }
+export interface SetupResume { step: Step; deviceRole: DeviceRole; displayKeyId?: string }
 export function readSetupResume(): SetupResume | null {
   try {
     const raw = sessionStorage.getItem(RESUME_KEY)
@@ -49,7 +50,7 @@ const CHORE_TEMPLATES = [
 ]
 
 function Progress({ step }: { step: Step }) {
-  const at = PROGRESS_STEPS.indexOf(step)
+  const at = PROGRESS_STEPS.indexOf(step === 'owner' ? 'members' : step === 'displayKind' ? 'chores' : step)
   if (at < 0) return null
   return (
     <div className="setup-progress" role="img" aria-label={`Step ${at + 1} of ${PROGRESS_STEPS.length}`}>
@@ -595,6 +596,84 @@ function ChoresStep({ members, onNext, onBack }: { members: Member[]; onNext: ()
 
 const SETUP_PASSKEY_POLL_MS = 3000
 
+/** A parent's device, once the family's in: whose it is (PUT /api/me/owner, on its passkey or key),
+ * so it reads their private journal right away. Only a grown-up owns one, so whoever's picked is
+ * marked as one. Skip leaves it shared. */
+function OwnerStep({ members, onNext, onBack }: { members: Member[]; onNext: () => void; onBack: () => void }) {
+  const [pick, setPick] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const save = async () => {
+    const m = members.find(x => x.id === pick)
+    if (!m) return
+    setBusy(true); setError('')
+    try {
+      if (!m.grownUp) await api.updateMember(m.id, { grownUp: true })
+      await api.setMyOwner(m.id)
+      onNext()
+    } catch (e) { setError(e instanceof ApiError ? e.message : 'Could not save') } finally { setBusy(false) }
+  }
+  return (
+    <div className="setup-step">
+      <h1>Whose device is this?</h1>
+      <p className="setup-sub">Grown-ups' journals are private. Pick yourself to read yours here. You'll be marked as a grown-up.</p>
+      <div className="setup-choice-row setup-choice-wrap" role="group" aria-label="Whose device this is">
+        {members.map(m => (
+          <button key={m.id} className={`setup-choice ${pick === m.id ? 'active' : ''}`} aria-pressed={pick === m.id} onClick={() => setPick(m.id)}>{m.avatar} {m.name}</button>
+        ))}
+      </div>
+      {error && <p className="setup-error" role="alert">{error}</p>}
+      <StepNav onBack={onBack} onSkip={onNext} onNext={save} nextDisabled={busy || !pick} nextLabel={busy ? 'Saving…' : 'Next'} />
+    </div>
+  )
+}
+
+/** A wall display set up through the wizard, at the end (so the chores step still acts for the
+ * whole family): the family's wall screen, or a kid's own device (PATCH /api/keys, with the
+ * claim's admin key). */
+function DisplayKindStep({ members, displayKeyId, adminKey, onNext, onBack }: { members: Member[]; displayKeyId?: string; adminKey: string | null; onNext: () => void; onBack: () => void }) {
+  const kids = members.filter(m => !m.grownUp)
+  const [kind, setKind] = useState<'wall' | 'kid'>('wall')
+  const [kid, setKid] = useState<string | null>(null)
+  const [unlocked, setUnlocked] = useState(() => !!adminKey || !!getAdminKey())
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const save = async () => {
+    setBusy(true); setError('')
+    try {
+      if (kind === 'wall') setDeviceAppearance({ ...readDeviceAppearance(), wallScreen: true })
+      else {
+        if (!displayKeyId || !kid) return
+        if (adminKey) setAdminKey(adminKey) // the 5-minute admin key may have lapsed during the chores step
+        await api.setKeyKind(displayKeyId, { kind: 'kid', owner: kid })
+      }
+      onNext()
+    } catch (e) { setError(e instanceof ApiError ? e.message : 'Could not save') } finally { setBusy(false) }
+  }
+  const canKid = !!displayKeyId && kids.length > 0
+  return (
+    <div className="setup-step">
+      <h1>Wall screen or a kid's device?</h1>
+      <p className="setup-sub">A wall screen is the whole family's. A kid's device shows only their events, chores and lists. A parent can change this later under Settings → Access.</p>
+      <div className="setup-choice-row" role="group" aria-label="What this device is">
+        <button className={`setup-choice ${kind === 'wall' ? 'active' : ''}`} aria-pressed={kind === 'wall'} onClick={() => setKind('wall')}>🖼️ Wall screen</button>
+        {canKid && <button className={`setup-choice ${kind === 'kid' ? 'active' : ''}`} aria-pressed={kind === 'kid'} onClick={() => setKind('kid')}>🧒 A kid's device</button>}
+      </div>
+      {kind === 'kid' && (
+        <div className="field" style={{ marginTop: 16 }}>
+          <label id="setup-kid-label">Whose?</label>
+          <div className="setup-choice-row setup-choice-wrap" role="group" aria-labelledby="setup-kid-label">
+            {kids.map(m => <button key={m.id} className={`setup-choice ${kid === m.id ? 'active' : ''}`} aria-pressed={kid === m.id} onClick={() => setKid(m.id)}>{m.avatar} {m.name}</button>)}
+          </div>
+          {!unlocked && <AdminUnlockInline onUnlocked={() => setUnlocked(true)} />}
+        </div>
+      )}
+      {error && <p className="setup-error" role="alert">{error}</p>}
+      <StepNav onBack={onBack} onNext={save} nextDisabled={busy || (kind === 'kid' && (!kid || !unlocked))} nextLabel={busy ? 'Saving…' : 'Next'} />
+    </div>
+  )
+}
+
 /** Wall-display role's final screen: offers "finish on your phone" (a QR code carrying a
  * one-time register-token — see `#/admin-setup` in App.tsx) instead of showing the raw admin
  * key. Polls GET /api/setup for its `passkeys` flag to notice when the phone finishes, then
@@ -706,6 +785,7 @@ export default function Setup({ oauth, setupCode, passkeyRequired, onDone }: { o
   const [deviceRole, setDeviceRole] = useState<DeviceRole | null>(resume?.deviceRole ?? null)
   const [adminKey, setAdminKeyMem] = useState<string | null>(() => (resume ? getAdminKey() : null))
   const [adminKeyId, setAdminKeyId] = useState<string | null>(null)
+  const [displayKeyId, setDisplayKeyId] = useState<string | undefined>(resume?.displayKeyId)
   const [members, setMembers] = useState<Member[]>([])
   const [code, setCode] = useState(setupCode ?? '')
   const [claimBusy, setClaimBusy] = useState(false)
@@ -718,8 +798,8 @@ export default function Setup({ oauth, setupCode, passkeyRequired, onDone }: { o
   useEffect(() => { if (deviceRole) api.getSettings().then(setThemeSettings).catch(() => {}) }, [deviceRole, step])
 
   useEffect(() => {
-    saveResume(deviceRole && step !== 'welcome' && step !== 'role' && step !== 'done' ? { step, deviceRole } : null)
-  }, [step, deviceRole])
+    saveResume(deviceRole && step !== 'welcome' && step !== 'role' && step !== 'done' ? { step, deviceRole, displayKeyId } : null)
+  }, [step, deviceRole, displayKeyId])
 
   // Resuming after an OAuth round trip: members created earlier this session are gone from local
   // state (page reloaded), so re-fetch them for the calendars/chores steps' member pickers.
@@ -734,6 +814,7 @@ export default function Setup({ oauth, setupCode, passkeyRequired, onDone }: { o
       setAdminKeyId(res.adminKeyId)
       if (role === 'display') {
         setKey(res.displayKey!)
+        setDisplayKeyId(res.displayKeyId)
         setAdminKey(res.adminKey)
         setAdminKeyMem(res.adminKey)
         setStep('household')
@@ -758,7 +839,7 @@ export default function Setup({ oauth, setupCode, passkeyRequired, onDone }: { o
   }, [step])
 
   const startOAuth = (kind: 'google' | 'microsoft') => {
-    saveResume({ step: 'calendars', deviceRole: deviceRole ?? 'admin' })
+    saveResume({ step: 'calendars', deviceRole: deviceRole ?? 'admin', displayKeyId })
     location.href = api.oauthStartUrl(kind)
   }
 
@@ -773,14 +854,16 @@ export default function Setup({ oauth, setupCode, passkeyRequired, onDone }: { o
         {step === 'recovery' && <RecoveryStep onNext={() => setStep('household')} />}
         {step === 'household' && <HouseholdStep useAdmin={deviceRole === 'display'} onBack={() => setStep('role')} onNext={() => setStep('members')} />}
         {step === 'members' && (
-          <MembersStep useAdmin={deviceRole === 'display'} onBack={() => setStep('household')} onNext={async () => { setMembers(await api.getMembers().catch(() => members)); setStep('calendars') }} />
+          <MembersStep useAdmin={deviceRole === 'display'} onBack={() => setStep('household')} onNext={async () => { setMembers(await api.getMembers().catch(() => members)); setStep(deviceRole === 'display' ? 'calendars' : 'owner') }} />
         )}
+        {step === 'owner' && <OwnerStep members={members} onBack={() => setStep('members')} onNext={async () => { setMembers(await api.getMembers().catch(() => members)); setStep('calendars') }} />}
         {step === 'calendars' && (
           <CalendarsStep members={members} oauth={oauth} deviceRole={deviceRole ?? 'admin'}
-            onBack={() => setStep('members')} onNext={() => setStep('chores')}
+            onBack={() => setStep(deviceRole === 'display' ? 'members' : 'owner')} onNext={() => setStep('chores')}
             onOAuthStart={startOAuth} />
         )}
-        {step === 'chores' && <ChoresStep members={members} onBack={() => setStep('calendars')} onNext={() => setStep('done')} />}
+        {step === 'chores' && <ChoresStep members={members} onBack={() => setStep('calendars')} onNext={() => setStep(deviceRole === 'display' ? 'displayKind' : 'done')} />}
+        {step === 'displayKind' && <DisplayKindStep members={members} displayKeyId={displayKeyId} adminKey={adminKey} onBack={() => setStep('chores')} onNext={() => setStep('done')} />}
         {step === 'done' && <DoneStep deviceRole={deviceRole ?? 'admin'} adminKey={adminKey} adminKeyId={adminKeyId} onGoToCalendar={() => { saveResume(null); onDone() }} />}
       </div>
     </main>

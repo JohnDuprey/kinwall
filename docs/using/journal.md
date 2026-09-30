@@ -45,7 +45,8 @@ A private journal is for writing only you can read. The page says so: **Private:
 
 "Your own device" means one that belongs to you:
 
-* a phone, tablet or wall screen paired as yours (**Settings → Access → Wall screens & kids' devices**);
+* a phone, tablet or screen paired as yours: **A kid's device** or **A grown-up's device** under **Settings → Access → Paired devices**;
+* the first parent phone or computer, when you pick yourself at **Whose device is this?** in the [setup wizard](../getting-started/setup-wizard.md#steps). It opens your journal, private entries too, from the start;
 * a parent's phone or computer that says it's yours: **Settings → Access → This device → Whose device is this?**, or **This is Alex's device** on Alex's journal. A full-access device can only belong to a grown-up. Signed in with a passkey, the passkey remembers it, so the next sign-in with it is yours too. Kinwall's app asks "Whose device is this?" when it signs in.
 
 When a device is set to belong to someone, the family's notifications say so ("Alex's phone now belongs to Alex"). Devices that belong to no one, the setup admin key, a sign-in with a recovery code, the hosted service's support sign-in and connected apps can never read private entries.
