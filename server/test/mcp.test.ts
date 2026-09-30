@@ -51,6 +51,13 @@ test('mcp: 401 without a key, with WWW-Authenticate: Bearer', async () => {
   assert.match(res.headers.get('WWW-Authenticate') ?? '', /^Bearer resource_metadata="http[^"]+\/\.well-known\/oauth-protected-resource"$/);
 });
 
+test('mcp: GET (a standalone SSE stream) answers 405 instead of a stream that never closes', async () => {
+  const env = makeEnv();
+  const res = await createApp().request('/mcp', { headers: { Authorization: `Bearer ${ADMIN_KEY}`, Accept: 'text/event-stream' } }, env);
+  assert.equal(res.status, 405);
+  assert.equal(res.headers.get('Allow'), 'POST, DELETE');
+});
+
 test('mcp: initialize handshake', async () => {
   const env = makeEnv();
   const { mcp } = makeApp(env);

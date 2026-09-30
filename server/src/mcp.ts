@@ -1,4 +1,4 @@
-// MCP (Model Context Protocol) endpoint: POST/GET/DELETE /mcp, stateless Streamable HTTP.
+// MCP (Model Context Protocol) endpoint: POST/DELETE /mcp, stateless Streamable HTTP (GET answers 405: no SSE stream).
 //
 // Library: @modelcontextprotocol/sdk's WebStandardStreamableHTTPServerTransport - it's built on
 // Request/Response/ReadableStream (no node:* imports), so the same code runs on Workers and Node.
@@ -1922,6 +1922,10 @@ export async function handleMcp(c: Context<{ Bindings: Env }>, app: App): Promis
       'WWW-Authenticate': `Bearer resource_metadata="${base}/.well-known/oauth-protected-resource"`,
     });
   }
+  // No standalone SSE stream: a stateless server never sends on it, and a client holding one open
+  // keeps a hosted family's Durable Object awake (billed) around the clock. The spec's answer for
+  // "no stream here" is 405, which clients handle by just POSTing.
+  if (c.req.method === 'GET') return c.body(null, 405, { Allow: 'POST, DELETE' });
 
   // Icon + website let clients show Kinwall's own icon instead of a letter placeholder.
   const origin = new URL(c.req.url).origin;

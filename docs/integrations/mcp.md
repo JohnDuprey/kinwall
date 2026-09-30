@@ -2,7 +2,7 @@
 
 Kinwall has a built-in [Model Context Protocol](https://modelcontextprotocol.io) server. An AI assistant can answer "what's on Saturday?", add an event, tick off a chore, add milk to the groceries or check the leaderboard.
 
-* **Endpoint**: `https://<your-kinwall>/mcp`, using the **Streamable HTTP** transport (`POST`/`GET`/`DELETE`). It's stateless, with no sessions.
+* **Endpoint**: `https://<your-kinwall>/mcp`, using the **Streamable HTTP** transport (`POST`/`DELETE`). It's stateless, with no sessions, and offers no SSE stream (`GET` answers 405), so clients never hold a connection open.
 * **Same rules as REST**: every tool calls the REST routes internally with your credentials, so scopes, validation, webhooks and `rev` bumps behave exactly as they do for the [REST API](rest-api.md). A REST error becomes a tool result with `isError: true` and the route's error text.
 * **Names instead of IDs**: members, lists and categories can be referred to by name (`"member": "Maya"`, `"list": "Groceries"`). Matching is case-insensitive. An ambiguous name returns an error that lists the matches.
 * **Household time**: "today" means today in the household timezone. `get_household` returns that timezone.
