@@ -1042,12 +1042,12 @@ function CatalogItemSheet({ item, newTitle, suggestions, aisleOrder, onClose, on
           onChange={v => otherStores.includes(v) ? addStore(v) : setNewStore(v)} />
         {newStore.trim() && <button className="btn btn-secondary" onClick={() => addStore(newStore)}>Add</button>}
       </div>
-      {item && (
-        <div className="field catalog-forget">
-          <p className="field-hint">{boughtLabel(item.uses)}{item.lastStore ? `, last at ${item.lastStore}` : ''}.</p>
+      {item && <>
+        <p className="field-hint catalog-stats">{boughtLabel(item.uses)}{item.lastStore ? `, last at ${item.lastStore}` : ''}.</p>
+        <div className="catalog-forget">
           <button className="btn btn-danger btn-block" onClick={forget}><TrashIcon width={18} height={18} />Forget this item</button>
         </div>
-      )}
+      </>}
     </Sheet>
   )
 }

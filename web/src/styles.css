@@ -1381,7 +1381,9 @@ button {
 .catalog-place .field { flex: 1; min-width: 0; }
 .catalog-place > .icon-btn, .catalog-place > .btn { flex: none; width: auto; min-width: 44px; height: 44px; margin-bottom: 20px; }
 .catalog-hint { margin-bottom: 12px; }
-.catalog-forget { margin-top: 20px; }
+/* The item's stats, then Forget on its own below a divider, clear of the store picker. */
+.catalog-stats { margin: var(--gap) 0 0; }
+.catalog-forget { margin-top: calc(var(--gap) * 2); padding-top: calc(var(--gap) * 1.5); border-top: 1px solid var(--border); }
 
 /* ---------- Key gate ---------- */
 .gate-screen { height: 100vh; height: 100dvh; display: flex; align-items: center; justify-content: center; padding: 24px; }
