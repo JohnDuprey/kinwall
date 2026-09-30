@@ -86,7 +86,8 @@ function FitBody({ title, rows = ROWS, bodyClass = 'board-body', children }: { t
 
 /** `show`: the calendar's member/category filter, so a focused display's board matches its calendar. */
 export default function Board({ show, onTap }: { show: (e: EventInstance) => boolean; onTap: (e: EventInstance) => void }) {
-  const { settings, members, refreshTick, selectedMemberId, focusMemberId, focusShowsShared } = useApp()
+  const { settings, members, refreshTick, selectedMemberId, focusMemberId, focusShowsShared, parentDevice, meMemberId } = useApp()
+  const kidDevice = !parentDevice && !!meMemberId && members.find(m => m.id === meMemberId)?.grownUp === false
   const device = useDeviceAppearance()
   const tz = settings.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone
   const [now, setNow] = useState(() => new Date())
@@ -275,7 +276,7 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
             const bdays = data.birthdays.filter(b => b.date === today)
             const todays = events.filter(e => e.date === today)
             // Temp check goals, for the people who chose to show theirs.
-            const goals = boardGoals(members, focusMemberId).map(m => (
+            const goals = boardGoals(members, focusMemberId, { selected: selectedMemberId, kidDevice }).map(m => (
               <li key={`goal:${m.id}`} className="board-goal-line"><Avatar m={m} /><span><span className="sr-only">{m.name}'s goal: </span>🎯 {m.todayGoal}</span></li>
             ))
             if (!bdays.length && !todays.length) return <>{goals.length > 0 && <ul className="snap-list">{goals}</ul>}<p className="snap-empty">Nothing on the calendar today.</p></>

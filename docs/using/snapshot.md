@@ -44,7 +44,7 @@ Who sees what:
 
 * **Their own device and parents' devices** show their answers (😄 Slept great · Feeling good, tired · 🎯 Finish my book report).
 * **A shared wall screen** lets them answer, but once they have it shows only **Answered ✓**, never how they slept or felt. **Change** starts the questions fresh there.
-* **The goal** is for the family: it stays up all day on the [Board](calendar.md#board-view) in the **Today** card (for people with **Show the goal on the Board** on) and as a line above the calendar when it shows just that person (pinned, filtered, or on their own device).
+* **The goal** is for the family: it stays up all day on the [Board](calendar.md#board-view) in the **Today** card (for people with **Show the goal on the Board** on; when you pick one person in the family filter it shows only theirs, and a kid's own device leaves out the grown-ups' goals) and as a line above the calendar when it shows just that person (pinned, filtered, or on their own device).
 * Sleep and feelings are health data: encrypted on the server and kept from Claude and other connected apps. See [Privacy](../your-data/privacy.md#temp-check).
 
 ### Evening goal check

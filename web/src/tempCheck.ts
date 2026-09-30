@@ -16,12 +16,13 @@ export const FEELINGS = ['great', 'good', 'fine', 'ok', 'bad', 'awful', 'tired',
 export const GOAL_MAX = 140
 export const TEMP_CHECK_OFF: TempCheckSettings = { on: false, sleep: true, feelings: true, goal: true, showGoal: true, evening: false, eveningTime: '21:00', journal: true, battery: false }
 
-type GoalMember = Pick<Member, 'id' | 'name'> & { tempCheck?: TempCheckSettings; todayGoal?: string | null }
+type GoalMember = Pick<Member, 'id' | 'name'> & { tempCheck?: TempCheckSettings; todayGoal?: string | null; grownUp?: boolean }
 const hasGoal = (m: GoalMember) => !!(m.tempCheck?.on && m.tempCheck.goal && m.todayGoal)
 
 /** The Board's "Today's goals": people who set one and chose to show it (only the pinned person on a pinned display). */
-export function boardGoals<M extends GoalMember>(members: M[], focusMemberId?: string | null): M[] {
-  return members.filter(m => hasGoal(m) && m.tempCheck!.showGoal && (!focusMemberId || m.id === focusMemberId))
+export function boardGoals<M extends GoalMember>(members: M[], focusMemberId?: string | null, opts: { selected?: string | null; kidDevice?: boolean } = {}): M[] {
+  const only = focusMemberId || opts.selected // a pinned display, or the person picked in the family filter
+  return members.filter(m => hasGoal(m) && m.tempCheck!.showGoal && (!only || m.id === only) && !(opts.kidDevice && m.grownUp)) // kids don't need grown-ups' goals
 }
 
 /** The goal line on the calendar when it shows one person (pinned, filtered, or their own device). */

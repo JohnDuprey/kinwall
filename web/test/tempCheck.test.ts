@@ -18,6 +18,13 @@ test('boardGoals: only people with the goal question on who chose to show it and
   assert.deepEqual(boardGoals(members, 'leo'), [], 'a display pinned to Leo shows only Leo')
 })
 
+test('boardGoals: follows the person picked in the family filter, and a kid sees no grown-up goals', () => {
+  const members = [{ ...m('maya', on, 'Finish my book report'), grownUp: false }, { ...m('alex', on, 'Call the plumber'), grownUp: true }, { ...m('leo', on, 'Lego ship'), grownUp: false }]
+  assert.deepEqual(boardGoals(members, null, { selected: 'alex' }).map(g => g.id), ['alex'], 'the filter picks one person')
+  assert.deepEqual(boardGoals(members, null, { kidDevice: true }).map(g => g.id), ['maya', 'leo'], "a kid's device leaves out grown-ups")
+  assert.deepEqual(boardGoals(members, null, { kidDevice: true, selected: 'alex' }), [], 'even when a kid picks a grown-up')
+})
+
 test('calendarGoal: the person the calendar shows, whether or not they share it on the Board', () => {
   const members = [m('maya', on, 'Read 20 pages'), m('leo', { ...on, showGoal: false }, 'Tidy up')]
   assert.equal(calendarGoal(members, 'maya'), 'Read 20 pages')
