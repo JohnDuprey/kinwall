@@ -71,6 +71,9 @@ html { font-size: calc(16px * var(--text-scale)); }
 /* Before main.tsx sets data-theme (the first paint, no JS yet): the page background follows the
    system, since the default mode is Auto. */
 @media (prefers-color-scheme: dark) { :root:not([data-theme]) { color-scheme: dark; --bg: #1C1712; --text: #F3EAE0; } }
+/* Kinwall's light mode can be on while the system is dark (a forced or scheduled mode), so say so:
+   otherwise scrollbars and form controls follow the system and draw a pale thumb on a light page. */
+:root[data-theme="light"] { color-scheme: light; }
 :root[data-theme="dark"] {
   color-scheme: dark;
   --bg: #1C1712;
@@ -1350,6 +1353,8 @@ button {
 /* Touch screens (walls, tablets, phones) scroll by swiping, so hide the bars there; mouse users
    need them to see that a page scrolls. */
 @media (pointer: coarse) { ::-webkit-scrollbar { width: 0; height: 0; } }
+/* Mouse users: a thumb drawn from the text color, clear on every scheme's background. */
+@media (pointer: fine) { :root { scrollbar-color: color-mix(in srgb, var(--text) 40%, transparent) transparent; } }
 
 /* ---------- Appearance settings ---------- */
 .bg-preview-dot { width: 14px; height: 14px; border-radius: 4px; display: inline-block; margin-right: 6px; border: 1px solid var(--border); vertical-align: -2px; }
