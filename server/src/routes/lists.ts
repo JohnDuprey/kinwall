@@ -49,6 +49,7 @@ export type ListRow = {
   sort: number;
   archived: number;
   created_at: string;
+  items_rev?: number; // migration 0074's triggers; absent on a row built in code before insert
 };
 
 export type ListItemRow = {
@@ -93,6 +94,7 @@ export function toApi(row: ListRow, itemCount: number, openCount: number, overdu
     itemCount,
     openCount,
     overdueCount,
+    itemsRev: row.items_rev ?? 0,
   };
 }
 
@@ -202,6 +204,10 @@ async function householdToday(db: KinwallDb) {
 }
 
 /** Steps of the items matching `where` (a condition on list_items), grouped by item id, in order. */
+// Open items that are due or high priority (the board and snapshots show these). Matches the WHERE of
+// migration 0074's idx_list_items_flagged_open exactly, so SQLite reads only those rows.
+export const FLAGGED_OPEN = "done = 0 AND (due_date IS NOT NULL OR priority IN ('high', 'urgent'))";
+
 export function stepsQuery(db: KinwallDb, where: string, ...binds: unknown[]) {
   return db.prepare(`SELECT * FROM list_item_steps WHERE item_id IN (SELECT id FROM list_items WHERE ${where}) ORDER BY sort, created_at`).bind(...binds);
 }
@@ -289,7 +295,9 @@ listsRoutes.openapi(
          ORDER BY l.sort, l.created_at`,
       ).bind(archived === 'true' ? 1 : 0),
       c.env.DB.prepare("SELECT value FROM settings WHERE key = 'timezone'"),
-      c.env.DB.prepare('SELECT list_id, due_date, COUNT(*) AS n FROM list_items WHERE done = 0 AND due_date IS NOT NULL GROUP BY list_id, due_date'),
+      // FLAGGED_OPEN (implied by the due date) lets the partial index answer this without reading every
+      // item; named, as SQLite would rather walk idx_list_items_list for the GROUP BY.
+      c.env.DB.prepare(`SELECT list_id, due_date, COUNT(*) AS n FROM list_items INDEXED BY idx_list_items_flagged_open WHERE ${FLAGGED_OPEN} AND due_date IS NOT NULL GROUP BY list_id, due_date`),
     ]);
     const today = todayIn((tzRes.results as { value: string }[])[0]?.value);
     const overdue = new Map<string, number>();
@@ -436,14 +444,46 @@ async function saveCatalogItem(c: Context<{ Bindings: Env }>, from: string, exis
   return (await catalog(c.env.DB, key))[0]!;
 }
 
+type ValueRow = { store: string | null; category: string | null; aisle: string | null };
+const sorted = (values: Iterable<string>) => [...new Set(values)].sort();
+
+/** The detail's store/category/aisle suggestions from one pass each over items, remembered places
+ * and stores' aisle orders (memory's store is '' for none, an item's null). */
+export function suggestedValues(items: ValueRow[], memory: ValueRow[], storeAisles: { store: string; aisle: string }[]) {
+  const stores = sorted([
+    ...items.filter((r) => r.store !== null).map((r) => r.store as string),
+    ...[...memory, ...storeAisles].filter((r) => r.store).map((r) => r.store as string),
+  ]);
+  const categories = sorted([...items, ...memory].filter((r) => r.category !== null).map((r) => r.category as string));
+  const pairs = [...items, ...memory].filter((r) => r.aisle !== null).map((r) => [r.store ?? '', r.aisle as string]).concat(storeAisles.map((r) => [r.store, r.aisle]));
+  const aisles = [...new Map(pairs.map((p) => [JSON.stringify(p), p])).values()]
+    .sort(([s1, a1], [s2, a2]) => (s1 === s2 ? (a1 < a2 ? -1 : a1 > a2 ? 1 : 0) : s1 < s2 ? -1 : 1))
+    .map(([store, aisle]) => ({ store: store || null, aisle }));
+  return { stores, categories, aisles };
+}
+
+/** Remembered places of the names suggested (the top SUGGESTION_CAP), newest first. */
+const memoryOf = (names: { name_key: string }[], memory: { name_key: string; updated_at: string }[]) => {
+  const keys = new Set(names.map((n) => n.name_key));
+  return memory.filter((m) => keys.has(m.name_key)).sort((a, b) => (a.updated_at < b.updated_at ? 1 : a.updated_at > b.updated_at ? -1 : 0));
+};
+
 listsRoutes.openapi(
   createRoute({
     method: 'get',
     path: '/api/lists/{id}',
     tags: ['Lists'],
-    summary: 'List detail: the list, its items (each with the planned meals it was added for), its group ordering, household-wide store/category/aisle suggestions, and stores\' custom aisle orders',
+    summary: 'List detail: the list, its items (each with the planned meals it was added for), its group ordering, household-wide store/category/aisle suggestions (shopping lists), and stores\' custom aisle orders',
+    description:
+      'Changed: `suggestions` is filled only for shopping lists; to-do and reusable lists get empty `stores`, `categories` and `aisles`. `suggestions=false` leaves suggestions (empty) and each item\'s `places` out of a shopping list too: a cheaper read for clients that only show the items.',
     security: [{ Bearer: [] }],
-    request: { params: z.object({ id: z.string() }), query: z.object({ store: z.string().min(1).optional().openapi({ description: 'Also return `trip`: the list as shopped at this store.' }) }) },
+    request: {
+      params: z.object({ id: z.string() }),
+      query: z.object({
+        store: z.string().min(1).optional().openapi({ description: 'Also return `trip`: the list as shopped at this store.' }),
+        suggestions: z.enum(['true', 'false']).optional().openapi({ description: '`false`: skip suggestions and item places (sync clients).' }),
+      }),
+    },
     responses: {
       200: { description: 'ok', content: { 'application/json': { schema: ListDetailSchema } } },
       404: { description: 'not found', content: { 'application/json': { schema: ErrorSchema } } },
@@ -451,19 +491,22 @@ listsRoutes.openapi(
   }),
   async (c) => {
     const { id } = c.req.valid('param');
-    // One round trip: list + items + groups + both suggestion lists, all independent reads.
-    const shoppingOnly = "(SELECT kind FROM lists WHERE id = ?) = 'shopping'";
-    const topNames = `SELECT name_key FROM item_names ORDER BY uses DESC, last_used DESC LIMIT ${SUGGESTION_CAP}`;
-    const [listRes, itemsRes, groupsRes, stepsRes, storesRes, categoriesRes, tzRes, notesRes, aislesRes, orderRes, mealsRes, placesRes, namesRes, namePlacesRes, ingredientsRes] = await c.env.DB.batch<unknown>([
+    const { store: tripStore, suggestions } = c.req.valid('query');
+    const want = suggestions === 'false' && !tripStore ? 0 : 1; // a trip needs the aisles
+    // One round trip: list + items + groups + suggestions, all independent reads. The shopping-only
+    // reads start from the list's row (`shop`, CROSS JOIN keeps it the outer loop), so on any other list
+    // (or with suggestions=false) SQLite finds no row there and never reads the household-wide tables:
+    // hosted is billed per row read.
+    const shop = "l.id = ?1 AND l.kind = 'shopping' AND ?2";
+    const [listRes, itemsRes, groupsRes, stepsRes, valuesRes, tzRes, notesRes, orderRes, mealsRes, placesRes, namesRes, memoryRes, ingredientsRes] = await c.env.DB.batch<unknown>([
       c.env.DB.prepare('SELECT * FROM lists WHERE id = ?').bind(id),
       c.env.DB.prepare('SELECT * FROM list_items WHERE list_id = ?').bind(id), // ordered below, by the list's sortBy
       c.env.DB.prepare('SELECT * FROM list_groups WHERE list_id = ? ORDER BY kind, sort').bind(id),
       stepsQuery(c.env.DB, 'list_id = ?', id),
-      c.env.DB.prepare("SELECT store FROM list_items WHERE store IS NOT NULL UNION SELECT store FROM item_memory WHERE store != '' UNION SELECT store FROM store_aisles WHERE store != '' ORDER BY 1"),
-      c.env.DB.prepare('SELECT category FROM list_items WHERE category IS NOT NULL UNION SELECT category FROM item_memory WHERE category IS NOT NULL ORDER BY 1'),
+      // Every store/category/aisle used on any item, in one pass (with memoryRes: stores, categories and aisles below).
+      c.env.DB.prepare(`SELECT DISTINCT li.store, li.category, li.aisle FROM lists l CROSS JOIN list_items li WHERE ${shop}`).bind(id, want),
       c.env.DB.prepare("SELECT value FROM settings WHERE key = 'timezone'"),
       c.env.DB.prepare(`SELECT target_id, COUNT(*) AS n FROM notes WHERE ${ITEM_NOTES} IN (SELECT id FROM list_items WHERE list_id = ?) GROUP BY target_id`).bind(id),
-      c.env.DB.prepare("SELECT coalesce(store, '') AS store, aisle FROM list_items WHERE aisle IS NOT NULL UNION SELECT store, aisle FROM item_memory WHERE aisle IS NOT NULL UNION SELECT store, aisle FROM store_aisles ORDER BY 1, 2"),
       c.env.DB.prepare('SELECT store, aisle FROM store_aisles ORDER BY store, sort'),
       // Which planned meals an item came from: meal_shopping_sources refs are "meal-plan:<mealId>:ingredient:<id>".
       c.env.DB.prepare(
@@ -473,13 +516,15 @@ listsRoutes.openapi(
       ).bind(id),
       // Where each item has been kept, per store, newest first: any store's trip renders from this.
       c.env.DB.prepare(
-        `SELECT li.id AS item_id, m.store, m.aisle FROM list_items li JOIN item_memory m ON m.name_key = li.name_key
-         WHERE li.list_id = ? AND (SELECT kind FROM lists WHERE id = ?) = 'shopping' ORDER BY m.updated_at DESC`,
-      ).bind(id, id),
+        `SELECT li.id AS item_id, m.store, m.aisle FROM lists l CROSS JOIN list_items li ON li.list_id = l.id JOIN item_memory m ON m.name_key = li.name_key
+         WHERE ${shop} ORDER BY m.updated_at DESC`,
+      ).bind(id, want),
       // Autocomplete (shopping lists): remembered names, where they go, and recipe ingredients.
-      c.env.DB.prepare(`SELECT name_key, title, uses FROM item_names WHERE ${shoppingOnly} ORDER BY uses DESC, last_used DESC LIMIT ${SUGGESTION_CAP}`).bind(id),
-      c.env.DB.prepare(`SELECT name_key, store, category, aisle FROM item_memory WHERE ${shoppingOnly} AND name_key IN (${topNames}) ORDER BY updated_at DESC`).bind(id),
-      c.env.DB.prepare(`SELECT DISTINCT ri.name, ri.category FROM recipe_ingredients ri JOIN recipes r ON r.id = ri.recipe_id WHERE ${shoppingOnly} AND r.archived = 0 ORDER BY ri.name`).bind(id),
+      c.env.DB.prepare(`SELECT n.name_key, n.title, n.uses FROM lists l CROSS JOIN item_names n WHERE ${shop} ORDER BY n.uses DESC, n.last_used DESC LIMIT ${SUGGESTION_CAP}`).bind(id, want),
+      // Everything remembered: the values above, and where the top names go (memoryOf; sorted there, as a
+      // SQL ORDER BY would read every row twice).
+      c.env.DB.prepare(`SELECT m.name_key, m.store, m.category, m.aisle, m.updated_at FROM lists l CROSS JOIN item_memory m WHERE ${shop}`).bind(id, want),
+      c.env.DB.prepare(`SELECT DISTINCT ri.name, ri.category FROM lists l CROSS JOIN recipes r JOIN recipe_ingredients ri ON ri.recipe_id = r.id WHERE ${shop} AND r.archived = 0 ORDER BY ri.name`).bind(id, want),
     ]);
     const noteCounts = new Map((notesRes.results as { target_id: string; n: number }[]).map((r) => [r.target_id, r.n]));
     const list = (listRes.results as ListRow[])[0];
@@ -491,11 +536,11 @@ listsRoutes.openapi(
     }
     const groups = groupsRes.results as unknown as ListGroupRow[];
     const steps = groupSteps(stepsRes.results as ListItemStepRow[]);
-    const stores = (storesRes.results as { store: string }[]).map((r) => r.store);
-    const categories = (categoriesRes.results as { category: string }[]).map((r) => r.category);
-    const aisles = (aislesRes.results as { store: string; aisle: string }[]).map((r) => ({ store: r.store || null, aisle: r.aisle }));
+    const orderRows = orderRes.results as { store: string; aisle: string }[];
+    const suggest = list.kind === 'shopping' && want === 1;
+    const { stores, categories, aisles } = suggest ? suggestedValues(valuesRes.results as ValueRow[], memoryRes.results as ValueRow[], orderRows) : { stores: [], categories: [], aisles: [] };
     const aisleOrder: AisleOrder = new Map();
-    for (const r of orderRes.results as { store: string; aisle: string }[]) aisleOrder.set(r.store, [...(aisleOrder.get(r.store) ?? []), r.aisle]);
+    for (const r of orderRows) aisleOrder.set(r.store, [...(aisleOrder.get(r.store) ?? []), r.aisle]);
     const meals = new Map<string, string[]>();
     for (const r of mealsRes.results as { item_id: string; title: string }[]) {
       const titles = meals.get(r.item_id) ?? [];
@@ -506,9 +551,8 @@ listsRoutes.openapi(
     const overdueCount = items.filter((i) => !i.done && i.due_date && i.due_date < today).length;
     const order = compareItems(list.sort_by, today, { keepChecked: !!list.keep_checked, aisleOrder });
     const apiItems = items
-      .map((i) => ({ ...toItemApi(i, steps.get(i.id)), noteCount: noteCounts.get(i.id) ?? 0, ...(meals.has(i.id) ? { meals: meals.get(i.id) } : {}), ...(list.kind === 'shopping' ? { places: placesByItem.get(i.id) ?? [] } : {}) }))
+      .map((i) => ({ ...toItemApi(i, steps.get(i.id)), noteCount: noteCounts.get(i.id) ?? 0, ...(meals.has(i.id) ? { meals: meals.get(i.id) } : {}), ...(suggest ? { places: placesByItem.get(i.id) ?? [] } : {}) }))
       .sort(order);
-    const tripStore = c.req.valid('query').store;
     return c.json(
       {
         list: toApi(list, items.length, openCount, overdueCount),
@@ -518,8 +562,8 @@ listsRoutes.openapi(
           stores,
           categories,
           aisles,
-          ...(list.kind === 'shopping'
-            ? { items: nameSuggestions(namesRes.results as never, namePlacesRes.results as never, ingredientsRes.results as never, tripStore) }
+          ...(suggest
+            ? { items: nameSuggestions(namesRes.results as never, memoryOf(namesRes.results as { name_key: string }[], memoryRes.results as { name_key: string; updated_at: string }[]) as never, ingredientsRes.results as never, tripStore) }
             : {}),
         },
         aisleOrder: [...aisleOrder].map(([store, names]) => ({ store: store || null, aisles: names })),

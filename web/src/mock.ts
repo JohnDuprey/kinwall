@@ -1067,7 +1067,9 @@ export const mock = {
     const categories = uniq(known.map(i => i.category))
     const aisles = [...new Map([...known.filter(i => i.aisle).map(i => ({ store: i.store, aisle: i.aisle! })), ...aisleOrder.flatMap(o => o.aisles.map(aisle => ({ store: o.store, aisle })))]
       .map(a => [`${a.store}|${a.aisle}`, a])).values()]
-    return { list: l, items, groups, suggestions: { stores, categories, aisles, ...(l.kind === 'shopping' ? { items: nameSuggestions() } : {}) }, aisleOrder }
+    // Like the server: suggestions only on shopping lists.
+    const suggestions = l.kind === 'shopping' ? { stores, categories, aisles, items: nameSuggestions() } : { stores: [], categories: [], aisles: [] }
+    return { list: l, items, groups, suggestions, aisleOrder }
   },
   updateList: async (id: string, patch: Partial<List>) => {
     const l = lists.find(x => x.id === id); if (!l) throw new Error('not found')

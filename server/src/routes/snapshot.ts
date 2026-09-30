@@ -10,7 +10,7 @@ import { readMeals } from '../meals.ts';
 import { readSettings } from './settings.ts';
 import { eventInstances } from './events.ts';
 import { dueOnDate, type ChoreRow } from './chores.ts';
-import { groupSteps, priorityRankSql, stepsQuery, toItemApi, type ListItemRow, type ListItemStepRow } from './lists.ts';
+import { FLAGGED_OPEN, groupSteps, priorityRankSql, stepsQuery, toItemApi, type ListItemRow, type ListItemStepRow } from './lists.ts';
 import { todayInTz } from './members.ts';
 import { getWeather } from './weather.ts';
 
@@ -98,11 +98,11 @@ snapshotRoutes.openapi(
       db
         .prepare(
           `SELECT li.*, l.name AS list_name, l.emoji AS list_emoji FROM list_items li JOIN lists l ON l.id = li.list_id
-           WHERE l.archived = 0 AND li.done = 0 AND li.member_id = ? AND (li.due_date IS NOT NULL OR li.priority IN ('high', 'urgent'))
+           WHERE l.archived = 0 AND ${FLAGGED_OPEN} AND li.member_id = ?
            ORDER BY li.due_date IS NULL, li.due_date, ${priorityRankSql('li.priority')}, li.sort`,
         )
         .bind(memberId),
-      stepsQuery(db, 'member_id = ? AND done = 0', memberId),
+      stepsQuery(db, `member_id = ? AND ${FLAGGED_OPEN}`, memberId),
       db.prepare("SELECT id FROM categories WHERE name LIKE '%birthday%'"),
       db.prepare('SELECT 1 FROM check_ins WHERE member_id = ? AND date = ?').bind(memberId, today),
     ]);
@@ -214,10 +214,10 @@ snapshotRoutes.openapi(
       db.prepare('SELECT chore_id, status FROM chore_completions WHERE date = ?').bind(today),
       db.prepare(
         `SELECT li.*, l.name AS list_name, l.emoji AS list_emoji FROM list_items li JOIN lists l ON l.id = li.list_id
-         WHERE l.archived = 0 AND li.done = 0 AND (li.due_date IS NOT NULL OR li.priority IN ('high', 'urgent'))
+         WHERE l.archived = 0 AND ${FLAGGED_OPEN}
          ORDER BY li.due_date IS NULL, li.due_date, ${priorityRankSql('li.priority')}, li.sort`,
       ),
-      stepsQuery(db, 'done = 0'),
+      stepsQuery(db, FLAGGED_OPEN),
       db.prepare("SELECT id FROM categories WHERE name LIKE '%birthday%'"),
     ]);
     const members = membersRes.results as { id: string; name: string; color: string; avatar: string | null; birthday: string | null }[];

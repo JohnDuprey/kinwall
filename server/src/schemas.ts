@@ -564,6 +564,7 @@ export const ListSchema = z
     itemCount: z.number(),
     openCount: z.number(),
     overdueCount: z.number().openapi({ description: 'Items not done whose due date is before today (household timezone).' }),
+    itemsRev: z.number().openapi({ description: "Goes up whenever this list's items or their steps change. Sync clients compare it to skip refetching an unchanged list's detail." }),
   })
   .openapi('List');
 

@@ -28,3 +28,10 @@ test('worker-migrations.ts lists every migration file', () => {
   const src = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'worker-migrations.ts'), 'utf8');
   for (const f of files) assert.ok(src.includes(`name: '${f}'`) && src.includes(`/migrations/${f}'`), `${f} missing from src/worker-migrations.ts`);
 });
+
+test('sqlStatements keeps a trigger body in one statement', () => {
+  assert.deepEqual(sqlStatements('CREATE TRIGGER t AFTER INSERT ON a BEGIN\n  UPDATE b SET n = n + 1;\nEND;\nCREATE INDEX i ON a(x);'), [
+    'CREATE TRIGGER t AFTER INSERT ON a BEGIN\n  UPDATE b SET n = n + 1;\nEND',
+    'CREATE INDEX i ON a(x)',
+  ]);
+});

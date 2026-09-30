@@ -543,3 +543,31 @@ test('lists: order is a list edit - a display key may set it, no key may not', a
   assert.equal((await request('/api/lists/order', { method: 'PUT', body: JSON.stringify({ ids: [a, b] }) }, 'fc_wrong')).status, 401);
   assert.deepEqual((await json(await request('/api/lists'))).map((l: any) => l.id), [b, a]);
 });
+
+test('lists: itemsRev goes up when a list\'s items or steps change, and only that list\'s', async () => {
+  const env = makeEnv();
+  const request = makeApp(env);
+  const a = await json(await request('/api/lists', { method: 'POST', body: JSON.stringify({ name: 'A', kind: 'todo' }) }));
+  const b = await json(await request('/api/lists', { method: 'POST', body: JSON.stringify({ name: 'B', kind: 'todo' }) }));
+  const revs = async () => Object.fromEntries((await json(await request('/api/lists'))).map((l: any) => [l.name, l.itemsRev]));
+  let last = await revs();
+  assert.equal(typeof last.A, 'number');
+  const bumped = async (what: string) => {
+    const now = await revs();
+    assert.ok(now.A > last.A, `${what} bumps A`);
+    assert.equal(now.B, last.B, `${what} leaves B`);
+    last = now;
+  };
+  const [item] = await json(await request(`/api/lists/${a.id}/items`, { method: 'POST', body: JSON.stringify({ title: 'Tidy' }) }));
+  await bumped('add');
+  await request(`/api/lists/${a.id}/items/${item.id}`, { method: 'PATCH', body: JSON.stringify({ title: 'Tidy up' }) });
+  await bumped('edit');
+  const withStep = await json(await request(`/api/lists/${a.id}/items/${item.id}/steps`, { method: 'POST', body: JSON.stringify({ title: 'Toys' }) }));
+  await bumped('add step');
+  await request(`/api/lists/${a.id}/items/${item.id}/steps/${withStep.steps[0].id}`, { method: 'DELETE' });
+  await bumped('delete step');
+  await request(`/api/lists/${a.id}/items/${item.id}`, { method: 'DELETE' });
+  await bumped('delete');
+  const detail = await json(await request(`/api/lists/${a.id}`));
+  assert.equal(detail.list.itemsRev, last.A);
+});

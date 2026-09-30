@@ -1091,7 +1091,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'get_list',
     {
       title: 'Get list',
-      description: 'Get a list by id or name (case-insensitive), including its items (in the list sortBy order, each with its ordered steps and, on a shopping list, the aisle it was kept in at each store), group ordering, store/category/aisle suggestions and stores\' aisle orders. With store, also `trip`: the list as shopped at that store - items in aisle order with their aisle there, then those with no aisle known there, then those planned for other stores. An item with no aisle known there whose category (department) names one of the store\'s aisles, any case, shows in that aisle (not saved).',
+      description: 'Get a list by id or name (case-insensitive), including its items (in the list sortBy order, each with its ordered steps and, on a shopping list, the aisle it was kept in at each store), group ordering, store/category/aisle suggestions (shopping lists; empty on others) and stores\' aisle orders. With store, also `trip`: the list as shopped at that store - items in aisle order with their aisle there, then those with no aisle known there, then those planned for other stores. An item with no aisle known there whose category (department) names one of the store\'s aisles, any case, shows in that aisle (not saved).',
       inputSchema: { list: z.string().describe('List id or name.'), store: z.string().optional().describe('Shopping at this store: adds the trip view.') },
     },
     async ({ list, store }) => {

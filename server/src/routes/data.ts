@@ -116,6 +116,7 @@ const ExportSchema = z
         sortBy: ListSchema.shape.sortBy.default('manual'), // older exports predate it
         keepChecked: z.boolean().optional(), // older exports: the kind's default (0040)
         overdueCount: z.number().optional(), // computed, and older exports predate it
+        itemsRev: z.number().optional(), // computed, and older exports predate it
         items: z.array(
           // Older exports predate event links, priority, steps and aisles.
           ListItemSchema.omit({ meals: true }).extend({

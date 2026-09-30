@@ -371,3 +371,29 @@ test('autocomplete: migration 0041 backfills names from shopping items and remem
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('list detail: suggestions only on shopping lists; suggestions=false leaves them and places out', async () => {
+  const { send } = makeApp();
+  const list = await shoppingList(send);
+  await send('POST', `/api/lists/${list.id}/items`, [{ title: 'Milk', store: 'Costco', category: 'Dairy', aisle: 'Aisle 4' }, { title: 'Bread', store: 'Safeway' }]);
+  await send('PUT', '/api/lists/aisles', { store: 'Costco', aisles: ['Produce', 'Aisle 4'] });
+  const todo = await send('POST', '/api/lists', { name: 'Chores', kind: 'todo' });
+  await send('POST', `/api/lists/${todo.id}/items`, { title: 'Sweep' });
+
+  const shop = await send('GET', `/api/lists/${list.id}`);
+  assert.deepEqual(shop.suggestions.stores, ['Costco', 'Safeway']);
+  assert.deepEqual(shop.suggestions.categories, ['Dairy']);
+  assert.deepEqual(shop.suggestions.aisles, [{ store: 'Costco', aisle: 'Aisle 4' }, { store: 'Costco', aisle: 'Produce' }]);
+  assert.ok(shop.suggestions.items.length > 0);
+  assert.ok(shop.items.every((i: any) => Array.isArray(i.places)));
+
+  const other = await send('GET', `/api/lists/${todo.id}`);
+  assert.deepEqual(other.suggestions, { stores: [], categories: [], aisles: [] });
+  assert.deepEqual(other.items.map((i: any) => i.title), ['Sweep']);
+
+  const lean = await send('GET', `/api/lists/${list.id}?suggestions=false`);
+  assert.deepEqual(lean.suggestions, { stores: [], categories: [], aisles: [] });
+  assert.deepEqual(lean.items.map((i: any) => [i.title, i.places]), shop.items.map((i: any) => [i.title, undefined]));
+  assert.deepEqual(lean.aisleOrder, shop.aisleOrder);
+  assert.deepEqual(lean.list, shop.list);
+});

@@ -74,6 +74,7 @@ import m0070 from '../migrations/0070_item_tags.sql';
 import m0071 from '../migrations/0071_event_window_indexes.sql';
 import m0072 from '../migrations/0072_sent_notifications_sent_at.sql';
 import m0073 from '../migrations/0073_event_busy.sql';
+import m0074 from '../migrations/0074_list_items_rev.sql';
 
 export const MIGRATIONS: Migration[] = [
   { name: '0001_init.sql', sql: m0001 },
@@ -149,4 +150,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0071_event_window_indexes.sql', sql: m0071 },
   { name: '0072_sent_notifications_sent_at.sql', sql: m0072 },
   { name: '0073_event_busy.sql', sql: m0073 },
+  { name: '0074_list_items_rev.sql', sql: m0074 },
 ];
