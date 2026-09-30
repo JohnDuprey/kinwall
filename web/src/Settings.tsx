@@ -22,7 +22,7 @@ import { ColorClashHint, ColorClashNote } from './ColorClash.tsx'
 import { useIsPhone } from './useIsPhone.ts'
 import { useNavMode, setNavPref, type NavPref } from './useNavMode.ts'
 import { DEFAULT_ACCENT, resolveColors, setDeviceAppearance, useDeviceAppearance, type DeviceAppearance, type LockedView, type SaverSource } from './useTheme.ts'
-import { wallDefaultsOn } from './wallScreen.ts'
+import { deviceKindOf, deviceKindValue, parseDeviceKind, wallDefaultsOn, type DeviceKind } from './wallScreen.ts'
 import { PIN_RE } from './quietPin.ts'
 import { baseFromPalette, findSkin, getSkin, OLD_BACKGROUNDS, paletteChecks, paletteOf, seasonalSkinId, tokensFor, type CustomScheme, type Palette } from './skins.ts'
 import { SAVER_PREVIEW_EVENT } from './Screensaver.tsx'
@@ -123,7 +123,7 @@ export default function SettingsView() {
             </SettingsGroup>
           )}
           <SettingsGroup title="Only on this device" sub="Saved on this screen or phone. Other devices aren't affected.">
-            {isDisplay ? <ThisDisplaySection keyName={me.keyName} /> : <ThisDisplaySection />}
+            {isDisplay ? <ThisDisplaySection keyName={me.keyName} ownDevice={me.deviceKind === 'grownup'} /> : <ThisDisplaySection />}
             <DeviceAppearanceSection />
             <TimeCuesSection />
             <NightScreenSection />
@@ -1173,7 +1173,7 @@ function DeviceAppearanceRows() {
 
 /** Device-only behavior for this screen: member focus, locked calendar view, the Board's lists,
  * acting as a wall screen, keeping the screen on and going back to the calendar when idle. Stored
- * alongside the device appearance. `display`: a paired display, always a wall screen (no switch). */
+ * alongside the device appearance. `display`: a paired wall screen or kid's device, always a wall screen (no switch). */
 function ScreenFocusRows({ display }: { display: boolean }) {
   const { members, focusMemberId, focusLocked, parentDevice } = useApp()
   const isPhone = useIsPhone()
@@ -1205,7 +1205,7 @@ function ScreenFocusRows({ display }: { display: boolean }) {
               onClick={() => set({ focusHideShared: !device.focusHideShared || undefined })}><span className="knob" /></button>
           </div>
         )}
-        <div className="settings-row-sub">{focus ? `Only ${focus.name}'s events, chores and lists show here${device.focusHideShared ? '' : ', plus ones with nobody assigned'}.` : focusLocked ? 'This display is shared by the whole family. An admin can change who it belongs to under Settings → Access → Displays.' : 'Pin this screen to one person — handy for a display in a bedroom.'}</div>
+        <div className="settings-row-sub">{focus ? `Only ${focus.name}'s events, chores and lists show here${device.focusHideShared ? '' : ', plus ones with nobody assigned'}.` : focusLocked ? 'This display is shared by the whole family. A parent can change who it belongs to under Settings → Access.' : 'Pin this screen to one person — handy for a display in a bedroom.'}</div>
         <div className="device-pref-row">
           <span>Lock view</span>
           <select className="settings-select" aria-label="Lock calendar view" value={device.lockView ?? ''} onChange={e => set({ lockView: (e.target.value || undefined) as LockedView | undefined })}>
@@ -1524,7 +1524,8 @@ function GooglePhotosRows() {
   )
 }
 
-function ThisDisplaySection({ keyName }: { keyName?: string }) {
+/** `ownDevice`: a grown-up's own paired device, which isn't a wall screen unless its switch says so. */
+function ThisDisplaySection({ keyName, ownDevice }: { keyName?: string; ownDevice?: boolean }) {
   const isPhone = useIsPhone()
   const { pref } = useNavMode()
   return (
@@ -1534,7 +1535,7 @@ function ThisDisplaySection({ keyName }: { keyName?: string }) {
           <div className="settings-row-label">Paired as {keyName || 'this display'}</div>
         </div>
       )}
-      <ScreenFocusRows display={keyName !== undefined} />
+      <ScreenFocusRows display={keyName !== undefined && !ownDevice} />
       <InstallRow />
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
         <div className="settings-row-label" aria-hidden="true">Navigation position</div>
@@ -1587,7 +1588,7 @@ function TroubleshootSection({ keyName }: { keyName?: string }) {
       ) : keyName !== undefined && (
         <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
           <button className="btn btn-danger" onClick={unpair}>Unpair this display</button>
-          <div className="settings-row-sub">Clears the key stored on this device and returns to the pairing screen. This doesn't revoke the key. A parent can do that under Settings → Access → Wall screens & kids' devices.</div>
+          <div className="settings-row-sub">Clears the key stored on this device and returns to the pairing screen. This doesn't revoke the key. A parent can do that under Settings → Access → Paired devices.</div>
         </div>
       )}
     </Section>
@@ -2601,23 +2602,43 @@ function KeysSection({ toast }: { toast: (m: string, persist?: boolean) => void 
 // Display keys are minted only via pairing (device-flow: a display shows a code, this form
 // approves it) rather than a raw "create key" button — see the API Keys section comment above
 // for why. Listing + Revoke reuse the same GET/DELETE /api/keys the API Keys section uses.
-/** Who a device belongs to: the whole family, or one member it's pinned to. `legacy` adds the
- * "chosen on the device" state of displays paired before owners existed. */
-export function OwnerSelect({ value, onChange, members, id, label, legacy }: { value: string; onChange: (v: string) => void; members?: Member[]; id?: string; label?: string; legacy?: boolean }) {
+/** Who a full-access device (a parent's key, the Kinwall app's sign-in) belongs to: the whole family, or one grown-up. */
+export function OwnerSelect({ value, onChange, members, id, label }: { value: string; onChange: (v: string) => void; members?: Member[]; id?: string; label?: string }) {
   const ctx = useContext(AppContext)
   const list = members ?? ctx?.members ?? []
   return (
     <select className="settings-select" id={id} aria-label={label} value={value} onChange={e => onChange(e.target.value)}>
-      {legacy && <option value="" disabled>Chosen on the device</option>}
       <option value="shared">Anyone (whole family)</option>
       {list.map(m => <option key={m.id} value={m.id}>{m.avatar} {m.name}</option>)}
     </select>
   )
 }
 
+/** "What is this device?": the family's wall screen, a kid's device (which kid) or a grown-up's
+ * device (which grown-up), in one picker. Value: 'wall' or kind:memberId (wallScreen.ts
+ * deviceKindValue); '' (only with `legacy`) for a device paired before anyone said. */
+export function DeviceKindSelect({ value, onChange, members, id, label, legacy }: { value: string; onChange: (v: string) => void; members?: Member[]; id?: string; label?: string; legacy?: boolean }) {
+  const ctx = useContext(AppContext)
+  const list = members ?? ctx?.members ?? []
+  const kids = list.filter(m => !m.grownUp)
+  const grownUps = list.filter(m => m.grownUp)
+  return (
+    <select className="settings-select" id={id} aria-label={label} value={value} onChange={e => onChange(e.target.value)}>
+      {legacy && <option value="" disabled>Not set yet</option>}
+      <option value="wall">🖼️ Wall screen (whole family)</option>
+      {kids.length > 0 && <optgroup label="A kid's device">{kids.map(m => <option key={m.id} value={`kid:${m.id}`}>{m.avatar} {m.name}'s device</option>)}</optgroup>}
+      {grownUps.length > 0 && <optgroup label="A grown-up's device">{grownUps.map(m => <option key={m.id} value={`grownup:${m.id}`}>{m.avatar} {m.name}'s device</option>)}</optgroup>}
+    </select>
+  )
+}
+
+const KIND_GROUPS: { kind: DeviceKind | null; title: string }[] = [
+  { kind: 'wall', title: 'Wall screens' }, { kind: 'kid', title: "Kids' devices" }, { kind: 'grownup', title: "Grown-ups' devices" }, { kind: null, title: 'Not set yet' },
+]
+
 function DisplaysSection({ toast }: { toast: (m: string, persist?: boolean) => void }) {
   const dialog = useDialog()
-  const { reloadCore } = useApp()
+  const { reloadCore, members } = useApp()
   const [keys, setKeys] = useState<ApiKey[]>([])
   const [code, setCode] = useState('')
   const [name, setName] = useState('Wall screen')
@@ -2626,12 +2647,12 @@ function DisplaysSection({ toast }: { toast: (m: string, persist?: boolean) => v
   const load = () => { api.getKeys().then(ks => setKeys(ks.filter(k => k.scope === 'display'))).catch(() => {}) }
   useEffect(load, [])
 
-  const [owner, setOwner] = useState('shared')
+  const [what, setWhat] = useState('wall')
   const pair = async () => {
     if (code.length !== 6 || !name.trim()) return
     setBusy(true)
     try {
-      await api.pairApprove(code, name.trim(), owner)
+      await api.pairApprove(code, name.trim(), parseDeviceKind(what))
       setCode('')
       setAdding(false)
       toast('Display paired')
@@ -2642,8 +2663,8 @@ function DisplaysSection({ toast }: { toast: (m: string, persist?: boolean) => v
       setBusy(false)
     }
   }
-  const changeOwner = async (k: ApiKey, next: string) => {
-    try { await api.setKeyOwner(k.id, next); load(); reloadCore() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not change who it belongs to', true) }
+  const changeKind = async (k: ApiKey, next: string) => {
+    try { await api.setKeyKind(k.id, parseDeviceKind(next)); load(); reloadCore() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not change what it is', true) }
   }
   const revoke = async (k: ApiKey) => {
     if (!await dialog.confirm({ title: `Remove "${k.name}"?`, body: 'It will be signed out and need pairing again.', confirmLabel: 'Remove', danger: true })) return
@@ -2651,20 +2672,25 @@ function DisplaysSection({ toast }: { toast: (m: string, persist?: boolean) => v
   }
 
   return (
-    <Section title="Wall screens & kids' devices" icon={<MonitorIcon width={16} height={16} />}>
-      <p className="settings-row-sub">Paired with a code. They get the calendar, chores and lists, but not settings, and can be shared or belong to one kid.</p>
+    <Section title="Paired devices" icon={<MonitorIcon width={16} height={16} />}>
+      <p className="settings-row-sub">Paired with a code. They get the calendar, chores and lists, but not settings. A kid's or grown-up's device shows only their things and opens their journal.</p>
       {keys.length === 0 && <p className="settings-row-sub">None yet. Open Kinwall on the screen and choose "Set up a wall screen or kid's device" to get a code.</p>}
-      {keys.map(k => (
-        <div key={k.id} className="key-item key-item-owned">
-          <div className="key-item-info">
-            <div className="settings-row-label">{k.name}</div>
-            <div className="settings-row-sub">
-              created {new Date(k.createdAt).toLocaleDateString()}
-              {k.lastUsedAt ? ` · used ${new Date(k.lastUsedAt).toLocaleDateString()}` : ' · never used'}
+      {KIND_GROUPS.map(g => ({ ...g, keys: keys.filter(k => deviceKindOf(k, members) === g.kind) })).filter(g => g.keys.length > 0).map(g => (
+        <div key={g.title} role="group" aria-labelledby={`device-kind-${g.kind ?? 'none'}`}>
+          <div className="settings-row-label device-kind-title" id={`device-kind-${g.kind ?? 'none'}`}>{g.title}</div>
+          {g.keys.map(k => (
+            <div key={k.id} className="key-item key-item-owned">
+              <div className="key-item-info">
+                <div className="settings-row-label">{k.name}</div>
+                <div className="settings-row-sub">
+                  created {new Date(k.createdAt).toLocaleDateString()}
+                  {k.lastUsedAt ? ` · used ${new Date(k.lastUsedAt).toLocaleDateString()}` : ' · never used'}
+                </div>
+              </div>
+              <DeviceKindSelect value={deviceKindValue(k, members)} onChange={v => changeKind(k, v)} label={`What ${k.name} is`} legacy={!deviceKindOf(k, members)} />
+              <button className="icon-btn" onClick={() => revoke(k)} aria-label={`Remove ${k.name}`}><TrashIcon width={16} height={16} /></button>
             </div>
-          </div>
-          <OwnerSelect value={k.owner ?? ''} onChange={v => changeOwner(k, v)} label={`Who ${k.name} belongs to`} legacy={!k.owner} />
-          <button className="icon-btn" onClick={() => revoke(k)} aria-label={`Remove ${k.name}`}><TrashIcon width={16} height={16} /></button>
+          ))}
         </div>
       ))}
       <button className="add-row-btn" onClick={() => setAdding(true)}><PlusIcon width={20} height={20} />Add a wall screen or kid's device</button>
@@ -2690,9 +2716,9 @@ function DisplaysSection({ toast }: { toast: (m: string, persist?: boolean) => v
             </div>
           </div>
           <div className="field">
-            <label htmlFor="pair-owner">Who uses it</label>
-            <OwnerSelect id="pair-owner" value={owner} onChange={setOwner} />
-            <p className="settings-row-sub">A kid's device shows only their events, chores and lists. Only a parent can change this later.</p>
+            <label htmlFor="pair-kind">What is this device?</label>
+            <DeviceKindSelect id="pair-kind" value={what} onChange={setWhat} />
+            <p className="settings-row-sub">A wall screen is the whole family's. A kid's or grown-up's device shows only their events, chores and lists. Only a parent can change this later.</p>
           </div>
         </Sheet>
       )}

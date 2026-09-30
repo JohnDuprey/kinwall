@@ -133,7 +133,8 @@ const ClaimInputSchema = z
 
 // adminKeyId lets the client delete the just-issued admin key after it upgrades to a passkey
 // session (see routes/passkeys.ts + Setup.tsx) so no long-lived admin key is left lying around.
-const ClaimResponseSchema = z.object({ adminKey: z.string(), adminKeyId: z.string(), displayKey: z.string().optional() }).openapi('SetupClaimResponse');
+// displayKeyId: the wizard's "Wall screen or a kid's device?" step changes it (PATCH /api/keys/{id}).
+const ClaimResponseSchema = z.object({ adminKey: z.string(), adminKeyId: z.string(), displayKey: z.string().optional(), displayKeyId: z.string().optional() }).openapi('SetupClaimResponse');
 
 setupRoutes.openapi(
   createRoute({
@@ -159,11 +160,9 @@ setupRoutes.openapi(
 
     await clearSetupCode(c.env.DB);
     const admin = await createApiKey(c.env.DB, deviceRole === 'admin' ? deviceName : `${deviceName} (admin)`, 'admin');
-    let displayKey: string | undefined;
-    if (deviceRole === 'display') {
-      displayKey = (await createApiKey(c.env.DB, deviceName, 'display', { owner: 'shared' })).key; // the family's wall
-    }
+    // The family's wall, until the wizard's next question says it's a kid's device.
+    const display = deviceRole === 'display' ? await createApiKey(c.env.DB, deviceName, 'display', { owner: 'shared', deviceKind: 'wall' }) : null;
     emit(c, 'settings.changed', {});
-    return c.json({ adminKey: admin.key, adminKeyId: admin.id, displayKey }, 200);
+    return c.json({ adminKey: admin.key, adminKeyId: admin.id, displayKey: display?.key, displayKeyId: display?.id }, 200);
   },
 );

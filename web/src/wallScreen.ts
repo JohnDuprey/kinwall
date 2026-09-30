@@ -16,9 +16,11 @@ export function inTimeWindow(from: string, to: string, now = new Date()): boolea
   return start < end ? cur >= start && cur < end : cur >= start || cur < end
 }
 
-/** A paired display (display key) always is one; any other device when its own "Use as a wall
- * screen" switch is on. Display purposes only: it never changes what the device may do. */
-export const isWallScreen = (scope: string, device: { wallScreen?: boolean }) => scope === 'display' || !!device.wallScreen
+/** A paired display (display key) always is one, so a kid can't switch the Night screen off, except
+ * a grown-up's own device; any other device when its own "Use as a wall screen" switch is on.
+ * Display purposes only: it never changes what the device may do. */
+export const isWallScreen = (scope: string, device: { wallScreen?: boolean }, deviceKind?: DeviceKind | null) =>
+  (scope === 'display' && deviceKind !== 'grownup') || !!device.wallScreen
 
 /** Default for "Keep the screen on" and "Back to the calendar when idle" when this device hasn't
  * set them: on for wall screens and kids' devices, off for a parent's own phone or computer. */
@@ -43,4 +45,27 @@ export function remoteNightAction(seen: string | undefined, remote: RemoteNight 
   const key = remoteNightKey(remote)
   if (key === (seen ?? '')) return null
   return key ? 'start' : 'stop'
+}
+
+/** What a paired device is (Settings → Access, pairing): the family's wall screen, a kid's own
+ * device or a grown-up's own device (server auth.ts deviceKindOwner). */
+export type DeviceKind = 'wall' | 'kid' | 'grownup'
+
+/** A device's kind: the one saved on it, else what its owner says (older keys). Null when nobody's said. */
+export function deviceKindOf(key: { kind?: DeviceKind | null; owner?: string | null }, members: { id: string; grownUp?: boolean }[]): DeviceKind | null {
+  if (key.kind) return key.kind
+  if (!key.owner) return null
+  if (key.owner === 'shared') return 'wall'
+  return members.find(m => m.id === key.owner)?.grownUp ? 'grownup' : 'kid'
+}
+
+/** The "What is this device?" picker's value: 'wall', or kind:memberId. '' when nobody's said. */
+export function deviceKindValue(key: { kind?: DeviceKind | null; owner?: string | null }, members: { id: string; grownUp?: boolean }[]): string {
+  const kind = deviceKindOf(key, members)
+  return !kind ? '' : kind === 'wall' ? 'wall' : `${kind}:${key.owner}`
+}
+
+export function parseDeviceKind(value: string): { kind: DeviceKind; owner?: string } {
+  const [kind, owner] = value.split(':')
+  return owner ? { kind: kind as DeviceKind, owner } : { kind: kind as DeviceKind }
 }

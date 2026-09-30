@@ -148,11 +148,12 @@ export async function recordNotification(
 
 /** The family log line when a device (a wall, a kid's device, a parent's phone) now belongs to a
  * member: it can read their private journal (routes/journal.ts), so that never changes silently. */
-export async function recordDeviceOwner(db: KinwallDb, device: string, owner: string | null | undefined): Promise<void> {
+export async function recordDeviceOwner(db: KinwallDb, device: string, owner: string | null | undefined, kind?: 'wall' | 'kid' | 'grownup' | null): Promise<void> {
   if (!owner || owner === 'shared') return;
   const m = await db.prepare('SELECT name FROM members WHERE id = ?').bind(owner).first<{ name: string }>();
   if (!m) return;
-  await recordNotification(db, { kind: 'privacy', title: `${device} now belongs to ${m.name}`, body: `It opens ${m.name}'s journal, private entries too.`, memberIds: [owner], source: 'system' });
+  const what = kind === 'kid' ? "A kid's device. " : kind === 'grownup' ? "A grown-up's device. " : '';
+  await recordNotification(db, { kind: 'privacy', title: `${device} now belongs to ${m.name}`, body: `${what}It opens ${m.name}'s journal, private entries too.`, memberIds: [owner], source: 'system' });
 }
 
 // The feed records the household-wide summary/nudge once a day: at the default time, or earlier

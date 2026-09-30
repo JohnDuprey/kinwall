@@ -1,3 +1,4 @@
+import type { DeviceKind } from './wallScreen.ts'
 import type { CustomScheme } from './skins.ts'
 import type { Meal } from './meal-types.ts'
 import type { TransitionReminders } from './transitions.ts'
@@ -513,6 +514,7 @@ export interface ApiKey {
   createdAt: string
   lastUsedAt: string | null
   owner?: string | null // devices: 'shared', a member id, or null (paired before owners; the device picks)
+  kind?: DeviceKind | null // what the device is (wallScreen.ts deviceKindOf); null when nobody's said
 }
 
 export interface Passkey {
@@ -530,6 +532,7 @@ export interface Me {
   kind: 'api' | 'session' | 'oauth'
   owner?: string | null // who this device belongs to (see ApiKey.owner); set by an admin only
   locked?: boolean // the owner locks the family filter (everyday access only; a parent's device never is)
+  deviceKind?: DeviceKind | null // what an admin says this device is (ApiKey.kind)
   version?: string
   hostPortalUrl?: string // set by a host serving this family (HOST_PORTAL_URL)
 }

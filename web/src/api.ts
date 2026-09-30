@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { remoteNightKey, type RemoteNight } from './wallScreen.ts'
+import { remoteNightKey, type DeviceKind, type RemoteNight } from './wallScreen.ts'
 import { tellAppSignedIn, tellAppSignedOut } from './native.ts'
 import { mock, mockPlugins } from './mock.ts'
 import { applyChoreOps, applyListOps, cacheGet, cachePut, clearOffline, enqueue, flush, onOutboxChange, outboxReady, pendingOps, type Dropped, type Op } from './outbox.ts'
@@ -272,7 +272,7 @@ export const api = {
   getSetup: (): Promise<{ claimed: boolean; oauth: { google: boolean; microsoft: boolean }; passkeys: boolean; passkeyRequired: boolean; hasPasskey: boolean }> =>
     MOCK ? Promise.resolve({ claimed: true, oauth: { google: false, microsoft: false }, passkeys: false, passkeyRequired: false, hasPasskey: false }) : get('api/setup'),
   claimSetup: (code: string, deviceRole: 'admin' | 'display', deviceName: string) =>
-    post<{ adminKey: string; adminKeyId: string; displayKey?: string }>('api/setup/claim', { code, deviceRole, deviceName }),
+    post<{ adminKey: string; adminKeyId: string; displayKey?: string; displayKeyId?: string }>('api/setup/claim', { code, deviceRole, deviceName }),
 
   // Strict check (no fail-open) against the sessionStorage admin key — used by the
   // "Unlock with admin key" prompt to verify what was just typed in.
@@ -559,9 +559,10 @@ export const api = {
   // one screen mock mode has no stand-in for.
   pairStart: () => post<{ pairingId: string; code: string; pollToken: string; expiresAt: string }>('api/pair'),
   pairPoll: (pairingId: string, pollToken: string) =>
-    post<{ status: 'pending' | 'approved'; key?: string }>('api/pair/poll', { pairingId, pollToken }),
-  pairApprove: (code: string, name: string, owner: string) => post<{ keyId: string; name: string }>('api/pair/approve', { code, name, owner }, true),
+    post<{ status: 'pending' | 'approved'; key?: string; kind?: DeviceKind | null }>('api/pair/poll', { pairingId, pollToken }),
+  pairApprove: (code: string, name: string, device: { kind: DeviceKind; owner?: string }) => post<{ keyId: string; name: string; kind: DeviceKind }>('api/pair/approve', { code, name, ...device }, true),
   setKeyOwner: (id: string, owner: string) => patch<ApiKey>(`api/keys/${id}`, { owner }, true),
+  setKeyKind: (id: string, device: { kind: DeviceKind; owner?: string }) => patch<ApiKey>(`api/keys/${id}`, device, true),
   // OAuth consent (#/authorize) and Settings → Access → Connected apps.
   authorizationRequest: (qs: string) => get<{ clientName: string; redirectHost: string; requestedScope: 'admin' | 'display'; deviceApp?: boolean }>(`api/authorizations/request?${qs}`, true),
   decideAuthorization: (body: Record<string, string | undefined>) => post<{ redirect: string }>('api/authorizations/approve', body, true),

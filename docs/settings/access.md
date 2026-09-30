@@ -8,9 +8,15 @@ When you have only one way in, a banner at the top suggests a second parent devi
 
 On a parent's phone or computer: **Whose device is this?** picks a grown-up, or **No one in particular**. A device that belongs to someone opens their [private journal](../using/journal.md#private-journals) (Alex's journal also offers **This is Alex's device**). Signed in with a passkey, the passkey remembers it for later sign-ins too; in the Kinwall app it's the same as the app's "Whose device is this?". A full-access device can only belong to a grown-up. The setup admin key and a sign-in with a recovery code (or the hosted service's support sign-in) can't belong to anyone. Every change adds a 🔒 line to the family's [notifications](../using/notifications.md#notification-feed) ("Alex's phone now belongs to Alex").
 
-## Wall screens & kids' devices
+## Paired devices
 
-Shared wall screens and kids' tablets or phones, paired with a code. Each has a display key: the calendar, chores and lists, but not settings. On chores, a display ticks them off and undoes that; adding, editing and deleting chores needs a parent device. **Add a wall screen or kid's device** opens a sheet asking for the 6-digit **Code** shown on the screen and a **Name**, and **Who uses it**: **Anyone (whole family)** or one member, then **Add it**. Scanning the screen's QR code with your phone works too. A device that belongs to one member shows only their events, chores and lists, and credits "Anyone" chores done there to them. The display itself can't change this; each display in the list has a picker to change it here. Displays paired before this option show "Chosen on the device" until you pick one. Removing a display signs it out. A device that belongs to a member opens that member's [private journal](../using/journal.md#private-journals), so pairing one for someone, or changing whose it is, adds a 🔒 line to the family's notifications. See [Put it on the wall](../getting-started/put-it-on-the-wall.md).
+Wall screens, kids' tablets or phones, and grown-ups' devices paired with a code (the Kinwall app paired with a code, say). Each has a display key: the calendar, chores and lists, but not settings. On chores, a display ticks them off and undoes that; adding, editing and deleting chores needs a parent device. **Add a wall screen or kid's device** opens a sheet asking for the 6-digit **Code** shown on the screen, a **Name** and **What is this device?**, then **Add it**:
+
+* **🖼️ Wall screen (whole family)**: shared by everyone. The screen turns on **Use as a wall screen** by itself.
+* **A kid's device** (pick the kid): shows only that kid's things.
+* **A grown-up's device** (pick the grown-up): shows only that grown-up's things. It isn't a wall screen unless they turn on **Use as a wall screen** on it.
+
+Only kids are offered for a kid's device and only grown-ups (marked in [Settings → Family](family.md)) for a grown-up's. Scanning the screen's QR code with your phone works too. The list is grouped the same way: **Wall screens**, **Kids' devices**, **Grown-ups' devices**, and **Not set yet** for displays paired before owners existed. A device that belongs to one member shows only their events, chores and lists, and credits "Anyone" chores done there to them. The device itself can't change this; each one in the list has a picker to change it here. Removing a device signs it out. Parents' own phones and computers are under [Parent devices](#parent-devices), keys for scripts under [API Keys](#api-keys) and apps under [Connected apps](#connected-apps). A device that belongs to a member opens that member's [private journal](../using/journal.md#private-journals), so pairing one for someone, or changing whose it is, adds a 🔒 line to the family's notifications ("Maya's tablet now belongs to Maya. A kid's device."). See [Put it on the wall](../getting-started/put-it-on-the-wall.md).
 
 What a display can change on the calendar:
 
@@ -41,7 +47,7 @@ The Kinwall app also has a picker for whose device it is: **Anyone (whole family
 * **Everyday access** (a kid's phone): like a paired display, the app shows only that member's events, chores and lists.
 * **Full access** (a parent's phone): nothing is locked. The family filter starts on everyone and every member stays selectable. The owner is used for personal defaults, such as who notes are posted as and whose sticker book opens first, and it opens that grown-up's [private journal](../using/journal.md#private-journals) (only a grown-up's: a kid's journal never opens as private on a full-access phone).
 
-The widgets and Apple Watch key the app makes from that sign-in follow it on a kid's device (everyday access), so they show only that child. On a parent's phone (full access) they're **Shared** and show the whole family. They're listed under **Wall screens & kids' devices**, where you can change them separately. An app signed in before this option shows **Anyone** until you pick someone. The phone you are using is marked **This device** and shows whose it is; change it from another parent device. Other connected apps (Claude and other MCP clients) have no owner.
+The widgets and Apple Watch key the app makes from that sign-in follow it on a kid's device (everyday access), so they show only that child. On a parent's phone (full access) they're **Shared** and show the whole family. They're listed under **Paired devices**, where you can change them separately. An app signed in before this option shows **Anyone** until you pick someone. The phone you are using is marked **This device** and shows whose it is; change it from another parent device. Other connected apps (Claude and other MCP clients) have no owner.
 
 ### Let connected apps see health entries
 
@@ -49,7 +55,7 @@ Off by default. While it's off, Claude and other connected apps can't read or ch
 
 ## API Keys
 
-Admin keys for scripts and automations. **New admin key** shows the key once, with **Copy key**. Each key has a picker for who it belongs to: **Anyone (whole family)** or a grown-up, whose [private journal](../using/journal.md#private-journals) it then opens (a 🔒 line in the family's notifications says so). Display keys are managed under **Displays** instead. See [REST API](../integrations/rest-api.md).
+Admin keys for scripts and automations. **New admin key** shows the key once, with **Copy key**. Each key has a picker for who it belongs to: **Anyone (whole family)** or a grown-up, whose [private journal](../using/journal.md#private-journals) it then opens (a 🔒 line in the family's notifications says so). Display keys are managed under **Paired devices** instead. See [REST API](../integrations/rest-api.md).
 
 ## Webhooks
 

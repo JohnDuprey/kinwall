@@ -295,6 +295,7 @@ test('oauth: a connected app cannot create, change or remove sign-ins; the Kinwa
   const credentialCalls: [string, string, unknown?][] = [
     ['POST', '/api/keys', { name: 'x', scope: 'admin' }],
     ['PATCH', `/api/keys/${existing}`, { owner: 'shared' }],
+    ['PATCH', `/api/keys/${existing}`, { kind: 'wall' }],
     ['DELETE', `/api/keys/${existing}`],
     ['POST', '/api/device-keys', { name: 'Widgets' }],
     ['POST', '/api/recovery-codes'],
@@ -303,6 +304,7 @@ test('oauth: a connected app cannot create, change or remove sign-ins; the Kinwa
     ['PATCH', '/api/passkeys/p1', { name: 'x' }],
     ['DELETE', '/api/passkeys/p1'],
     ['POST', '/api/pair/approve', { code: '123456', name: 'Wall' }],
+    ['POST', '/api/pair/approve', { code: '123456', name: 'Wall', kind: 'wall' }],
     ['PUT', '/api/me/owner', { owner: alex.id }],
     ['PUT', '/api/providers/public-url', { url: 'https://elsewhere.example' }],
     ['PUT', '/api/providers/google', { clientId: 'x', clientSecret: 'y' }],

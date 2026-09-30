@@ -1,17 +1,18 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
-import { createApiKey, resolveKey, validOwner } from '../auth.ts';
+import { createApiKey, DEVICE_KINDS, deviceKindOwner, resolveKey, type DeviceKind } from '../auth.ts';
 import { emit } from '../bus.ts';
 import { recordDeviceOwner } from '../notify.ts';
 import { ApiKeyCreatedSchema, ApiKeySchema, ErrorSchema } from '../schemas.ts';
 
 export const keysRoutes = createRouter();
 
-type KeyRow = { id: string; name: string; scope: string; created_at: string; last_used_at: string | null; owner: string | null };
+type KeyRow = { id: string; name: string; scope: string; created_at: string; last_used_at: string | null; owner: string | null; device_kind: DeviceKind | null };
+const KEY_COLUMNS = 'id, name, scope, created_at, last_used_at, owner, device_kind';
 
 function toApi(row: KeyRow) {
-  return { id: row.id, name: row.name, scope: (row.scope === 'display' ? 'display' : 'admin') as 'admin' | 'display', createdAt: row.created_at, lastUsedAt: row.last_used_at, owner: row.owner };
+  return { id: row.id, name: row.name, scope: (row.scope === 'display' ? 'display' : 'admin') as 'admin' | 'display', createdAt: row.created_at, lastUsedAt: row.last_used_at, owner: row.owner, kind: row.device_kind };
 }
 
 keysRoutes.openapi(
@@ -26,7 +27,7 @@ keysRoutes.openapi(
   async (c) => {
     // Passkey-login sessions (kind='session') are a separate concept (see Settings → Passkeys),
     // not automation keys - keep them out of this listing.
-    const { results } = await c.env.DB.prepare("SELECT id, name, scope, created_at, last_used_at, owner FROM api_keys WHERE kind = 'api' ORDER BY created_at").all<KeyRow>();
+    const { results } = await c.env.DB.prepare(`SELECT ${KEY_COLUMNS} FROM api_keys WHERE kind = 'api' ORDER BY created_at`).all<KeyRow>();
     return c.json(results.map(toApi), 200);
   },
 );
@@ -56,37 +57,40 @@ keysRoutes.openapi(
   },
 );
 
-// Who a device belongs to. Admin only (not in auth.ts DISPLAY_ALLOWED), so a device can never
-// re-assign itself; the device reads its owner from GET /api/me. A full-access key (a parent's
-// phone or browser) belongs only to a grown-up: it then reads their private journal. A device
-// that now belongs to someone leaves a line in the family's notification feed.
+// What a device is and who it belongs to. Admin only (not in auth.ts DISPLAY_ALLOWED), so a device
+// can never re-assign itself; the device reads both from GET /api/me. The kind and owner must fit
+// (auth.ts deviceKindOwner); older clients send only an owner and the kind follows it. A
+// full-access key (a parent's phone or browser) belongs only to a grown-up: it then reads their
+// private journal. A device that now belongs to someone leaves a line in the family's feed.
 keysRoutes.openapi(
   createRoute({
     method: 'patch',
     path: '/api/keys/{id}',
     tags: ['API Keys'],
-    summary: "Set a device's owner: 'shared' (the whole family) or a member id it's pinned to. A full-access key only belongs to a grown-up (it opens their private journal).",
+    summary: "Set what a device is (kind: 'wall', 'kid', 'grownup') and who it belongs to (owner: 'shared' or a member id). They must fit; a full-access key only belongs to a grown-up (it opens their private journal).",
     security: [{ Bearer: [] }],
     request: {
       params: z.object({ id: z.string() }),
-      body: { content: { 'application/json': { schema: z.object({ owner: z.string().min(1) }) } } },
+      body: { content: { 'application/json': { schema: z.object({ kind: z.enum(DEVICE_KINDS).optional(), owner: z.string().min(1).optional() }) } } },
     },
     responses: {
       200: { description: 'ok', content: { 'application/json': { schema: ApiKeySchema } } },
-      400: { description: 'unknown owner', content: { 'application/json': { schema: ErrorSchema } } },
+      400: { description: "unknown owner, or an owner that doesn't fit the kind", content: { 'application/json': { schema: ErrorSchema } } },
       404: { description: 'not found', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
     const { id } = c.req.valid('param');
-    const before = await c.env.DB.prepare("SELECT id, name, scope, created_at, last_used_at, owner FROM api_keys WHERE id = ? AND kind = 'api'").bind(id).first<KeyRow>();
+    const before = await c.env.DB.prepare(`SELECT ${KEY_COLUMNS} FROM api_keys WHERE id = ? AND kind = 'api'`).bind(id).first<KeyRow>();
     if (!before) return c.json({ error: 'not found' }, 404);
-    const admin = before.scope !== 'display';
-    const owner = await validOwner(c.env.DB, c.req.valid('json').owner, admin ? 'admin' : 'display');
-    if (!owner) return c.json({ error: admin ? 'A full-access device can only belong to a grown-up' : 'unknown family member' }, 400);
-    await c.env.DB.prepare('UPDATE api_keys SET owner = ? WHERE id = ?').bind(owner, id).run();
-    const row = { ...before, owner };
-    if (owner !== before.owner) await recordDeviceOwner(c.env.DB, before.name, owner);
+    const body = c.req.valid('json');
+    if (!body.kind && !body.owner) return c.json({ error: 'Say what the device is or who it belongs to' }, 400);
+    const checked = await deviceKindOwner(c.env.DB, before.scope === 'display' ? 'display' : 'admin', body.kind, body.owner);
+    if ('error' in checked) return c.json({ error: checked.error }, 400);
+    const { owner, kind } = checked;
+    await c.env.DB.prepare('UPDATE api_keys SET owner = ?, device_kind = ? WHERE id = ?').bind(owner, kind, id).run();
+    const row = { ...before, owner, device_kind: kind };
+    if (owner !== before.owner) await recordDeviceOwner(c.env.DB, before.name, owner, kind);
     emit(c, 'settings.changed', { keyId: id });
     return c.json(toApi(row!), 200);
   },

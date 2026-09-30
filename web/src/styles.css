@@ -1088,6 +1088,7 @@ button {
 .key-item:first-of-type, .webhook-item:first-of-type { border-top: none; }
 /* A device row with an owner picker: on a phone, name and delete on top, the picker full width below. */
 .key-item-owned .key-item-info { min-width: 0; }
+.device-kind-title { margin: 14px 4px 0; color: var(--text-dim); font-size: 0.85rem; }
 @media (max-width: 600px) {
   .key-item-owned { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "info remove" "owner owner"; align-items: center; }
   .key-item-owned .key-item-info { grid-area: info; }

@@ -1,7 +1,7 @@
 // node --test test/ (npm test). Which devices act as a wall screen, and when the night screen shows.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { isWallScreen, nightScreenDue, remoteNightAction, remoteNightKey, wallDefaultsOn, WAKE_MS } from '../src/wallScreen.ts'
+import { deviceKindOf, deviceKindValue, isWallScreen, nightScreenDue, parseDeviceKind, remoteNightAction, remoteNightKey, wallDefaultsOn, WAKE_MS } from '../src/wallScreen.ts'
 
 test('isWallScreen: paired displays always are; other devices only with the switch on', () => {
   assert.equal(isWallScreen('display', {}), true)
@@ -9,6 +9,23 @@ test('isWallScreen: paired displays always are; other devices only with the swit
   assert.equal(isWallScreen('admin', {}), false, 'a parent device is off by default')
   assert.equal(isWallScreen('admin', { wallScreen: true }), true)
   assert.equal(isWallScreen('', {}), false, 'scope not known yet')
+  assert.equal(isWallScreen('display', {}, 'kid'), true, "a kid's device keeps the Night screen")
+  assert.equal(isWallScreen('display', {}, 'grownup'), false, "a grown-up's own device uses the switch")
+  assert.equal(isWallScreen('display', { wallScreen: true }, 'grownup'), true)
+})
+
+test('device kinds: what a device is follows its owner, and round-trips through the picker', () => {
+  const members = [{ id: 'alex', grownUp: true }, { id: 'leo' }]
+  assert.equal(deviceKindOf({ kind: null, owner: 'shared' }, members), 'wall')
+  assert.equal(deviceKindOf({ kind: null, owner: 'leo' }, members), 'kid')
+  assert.equal(deviceKindOf({ owner: 'alex' }, members), 'grownup')
+  assert.equal(deviceKindOf({ kind: 'kid', owner: 'leo' }, members), 'kid')
+  assert.equal(deviceKindOf({ owner: null }, members), null, 'paired before owners')
+  assert.equal(deviceKindValue({ owner: 'shared' }, members), 'wall')
+  assert.equal(deviceKindValue({ owner: 'leo' }, members), 'kid:leo')
+  assert.equal(deviceKindValue({ owner: null }, members), '')
+  assert.deepEqual(parseDeviceKind('wall'), { kind: 'wall' })
+  assert.deepEqual(parseDeviceKind('grownup:alex'), { kind: 'grownup', owner: 'alex' })
 })
 
 test('wallDefaultsOn: keep awake / idle reset default on for wall screens and kids, off for parents', () => {

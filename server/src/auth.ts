@@ -25,7 +25,7 @@ export function generateApiKey(): string {
 }
 
 export type KeyScope = 'admin' | 'display';
-export type ResolvedKey = { id?: string; scope: KeyScope; name: string; kind: 'api' | 'session' | 'oauth'; lastUsedAt?: string | null; owner?: string | null };
+export type ResolvedKey = { id?: string; scope: KeyScope; name: string; kind: 'api' | 'session' | 'oauth'; lastUsedAt?: string | null; owner?: string | null; deviceKind?: DeviceKind | null };
 
 // Shared by POST /api/keys and the pairing-approval flow (routes/pair.ts) so key creation +
 // hashing lives in exactly one place. `kind` defaults to 'api' (permanent automation keys);
@@ -34,13 +34,13 @@ export async function createApiKey(
   db: KinwallDb,
   name: string,
   scope: KeyScope,
-  opts: { kind?: 'api' | 'session' | 'oauth'; expiresAt?: string; passkeyId?: string; owner?: string | null } = {},
+  opts: { kind?: 'api' | 'session' | 'oauth'; expiresAt?: string; passkeyId?: string; owner?: string | null; deviceKind?: DeviceKind | null } = {},
 ): Promise<{ id: string; key: string }> {
   const key = generateApiKey();
   const id = crypto.randomUUID();
   await db
-    .prepare('INSERT INTO api_keys (id, name, hash, prefix, scope, created_at, kind, expires_at, passkey_id, owner) VALUES (?,?,?,?,?,?,?,?,?,?)')
-    .bind(id, name, await sha256Hex(key), key.slice(0, 8), scope, new Date().toISOString(), opts.kind ?? 'api', opts.expiresAt ?? null, opts.passkeyId ?? null, opts.owner ?? null)
+    .prepare('INSERT INTO api_keys (id, name, hash, prefix, scope, created_at, kind, expires_at, passkey_id, owner, device_kind) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
+    .bind(id, name, await sha256Hex(key), key.slice(0, 8), scope, new Date().toISOString(), opts.kind ?? 'api', opts.expiresAt ?? null, opts.passkeyId ?? null, opts.owner ?? null, opts.deviceKind ?? null)
     .run();
   return { id, key };
 }
@@ -52,6 +52,31 @@ export async function validOwner(db: KinwallDb, owner: string, scope: KeyScope =
   if (owner === 'shared') return owner;
   const m = await db.prepare('SELECT id, grown_up FROM members WHERE id = ?').bind(owner).first<{ id: string; grown_up: number }>();
   return m && (scope === 'display' || m.grown_up) ? m.id : null;
+}
+
+/** What a device is: the family's wall screen, a kid's own device or a grown-up's own device. */
+export const DEVICE_KINDS = ['wall', 'kid', 'grownup'] as const;
+export type DeviceKind = (typeof DEVICE_KINDS)[number];
+
+/** A device's kind and owner from an admin (pairing, PATCH /api/keys), checked against each other:
+ * a wall screen is shared, a kid's device is a kid's, a grown-up's device a grown-up's. Without a
+ * kind (older clients) it follows the owner ('shared' when that's missing too). A full-access key
+ * is a parent's device: only a grown-up's, or shared with no kind (automation). */
+export async function deviceKindOwner(db: KinwallDb, scope: KeyScope, kind: DeviceKind | undefined, ownerIn: string | undefined): Promise<{ kind: DeviceKind | null; owner: string } | { error: string }> {
+  const admin = scope === 'admin';
+  if (kind === 'wall') {
+    if (admin) return { error: "A full-access device can't be a wall screen" };
+    if (ownerIn && ownerIn !== 'shared') return { error: 'A wall screen belongs to the whole family' };
+    return { kind, owner: 'shared' };
+  }
+  const owner = ownerIn ?? 'shared';
+  if (owner === 'shared') return kind ? { error: 'Pick whose device it is' } : { kind: admin ? null : 'wall', owner };
+  const m = await db.prepare('SELECT id, name, grown_up FROM members WHERE id = ?').bind(owner).first<{ id: string; name: string; grown_up: number }>();
+  if (!m) return { error: 'unknown family member' };
+  if (admin && !m.grown_up) return { error: 'A full-access device can only belong to a grown-up' };
+  const theirs: DeviceKind = m.grown_up ? 'grownup' : 'kid';
+  if (kind && kind !== theirs) return { error: kind === 'kid' ? `A kid's device belongs to a kid. ${m.name} is a grown-up.` : `A grown-up's device belongs to a grown-up. ${m.name} isn't marked as one.` };
+  return { kind: theirs, owner: m.id };
 }
 
 // The one rule for who may change a calendar's events (create, edit, delete, and linking tasks to
@@ -295,9 +320,9 @@ export async function resolveKey(c: Context<{ Bindings: Env }>): Promise<Resolve
     return { scope: 'admin', name: 'ADMIN_API_KEY', kind: 'api' };
   }
 
-  const row = await c.env.DB.prepare('SELECT id, name, scope, expires_at, kind, last_used_at, owner FROM api_keys WHERE hash = ?')
+  const row = await c.env.DB.prepare('SELECT id, name, scope, expires_at, kind, last_used_at, owner, device_kind FROM api_keys WHERE hash = ?')
     .bind(hash)
-    .first<{ id: string; name: string; scope: string | null; expires_at: string | null; kind: string | null; last_used_at: string | null; owner: string | null }>();
+    .first<{ id: string; name: string; scope: string | null; expires_at: string | null; kind: string | null; last_used_at: string | null; owner: string | null; device_kind: DeviceKind | null }>();
   if (!row) return null;
   if (row.expires_at && row.expires_at < new Date().toISOString()) return null; // expired session key
   return {
@@ -307,6 +332,7 @@ export async function resolveKey(c: Context<{ Bindings: Env }>): Promise<Resolve
     kind: row.kind === 'session' ? 'session' : row.kind === 'oauth' ? 'oauth' : 'api',
     lastUsedAt: row.last_used_at,
     owner: row.owner,
+    deviceKind: row.device_kind,
   };
 }
 

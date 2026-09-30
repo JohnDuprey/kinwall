@@ -6,7 +6,7 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
-import { createApiKey, timingSafeEqual, validOwner } from '../auth.ts';
+import { createApiKey, DEVICE_KINDS, deviceKindOwner, timingSafeEqual, type DeviceKind } from '../auth.ts';
 import { encrypt, decrypt } from '../crypto.ts';
 import { emit } from '../bus.ts';
 import { recordDeviceOwner } from '../notify.ts';
@@ -114,10 +114,17 @@ pairRoutes.openapi(
   },
 );
 
-// owner: 'shared' (the whole family) or a member id the display is pinned to. Only an admin can
-// change it later (PATCH /api/keys/{id}); omitted = shared.
-const PairApproveInputSchema = z.object({ code: z.string().length(CODE_DIGITS), name: z.string().min(1), owner: z.string().min(1).optional() }).openapi('PairApproveInput');
-const PairApproveResponseSchema = z.object({ keyId: z.string(), name: z.string() }).openapi('PairApproveResponse');
+// kind: what the device is (auth.ts deviceKindOwner). owner: 'shared' (the whole family) or the
+// member it's pinned to, and it has to match the kind. Older clients send only an owner (omitted =
+// shared); the kind then follows it. Only an admin can change either later (PATCH /api/keys/{id}).
+const DeviceKindSchema = z.enum(DEVICE_KINDS).openapi({ description: "What the device is: 'wall' (a wall screen, the whole family's), 'kid' (a kid's own device) or 'grownup' (a grown-up's own device)" });
+const PairApproveInputSchema = z.object({
+  code: z.string().length(CODE_DIGITS),
+  name: z.string().min(1),
+  kind: DeviceKindSchema.optional(),
+  owner: z.string().min(1).optional().openapi({ description: "'shared' or a member id: the kid for 'kid', the grown-up for 'grownup', 'shared' (or left out) for 'wall'. Without a kind, the kind follows it." }),
+}).openapi('PairApproveInput');
+const PairApproveResponseSchema = z.object({ keyId: z.string(), name: z.string(), kind: DeviceKindSchema }).openapi('PairApproveResponse');
 
 pairRoutes.openapi(
   createRoute({
@@ -129,36 +136,38 @@ pairRoutes.openapi(
     request: { body: { content: { 'application/json': { schema: PairApproveInputSchema } } } },
     responses: {
       200: { description: 'ok', content: { 'application/json': { schema: PairApproveResponseSchema } } },
-      400: { description: 'unknown owner', content: { 'application/json': { schema: ErrorSchema } } },
+      400: { description: "unknown owner, or an owner that doesn't fit the kind", content: { 'application/json': { schema: ErrorSchema } } },
       404: { description: 'not found or expired', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
-    const { code, name, owner: ownerIn } = c.req.valid('json');
-    const owner = await validOwner(c.env.DB, ownerIn ?? 'shared');
-    if (!owner) return c.json({ error: 'unknown family member' }, 400);
+    const { code, name, kind: kindIn, owner: ownerIn } = c.req.valid('json');
+    const checked = await deviceKindOwner(c.env.DB, 'display', kindIn, ownerIn);
+    if ('error' in checked) return c.json({ error: checked.error }, 400);
+    const { owner } = checked;
+    const kind = checked.kind!; // a display always has one
     const nowIso = new Date().toISOString();
     const pairing = await c.env.DB.prepare('SELECT * FROM pairings WHERE code = ? AND approved = 0 AND expires_at > ?')
       .bind(code, nowIso)
       .first<PairingRow>();
     if (!pairing) return c.json({ error: 'Code not found or expired' }, 404);
 
-    const { id: keyId, key } = await createApiKey(c.env.DB, name, 'display', { owner });
+    const { id: keyId, key } = await createApiKey(c.env.DB, name, 'display', { owner, deviceKind: kind });
     const encryptedKey = await encrypt(c.env, key, pairing.id);
 
     await c.env.DB.prepare('UPDATE pairings SET approved = 1, key_id = ?, key_name = ?, encrypted_key = ? WHERE id = ?')
       .bind(keyId, name, encryptedKey, pairing.id)
       .run();
 
-    await recordDeviceOwner(c.env.DB, name, owner); // it opens their private journal: never silently
+    await recordDeviceOwner(c.env.DB, name, owner, kind); // it opens their private journal: never silently
     emit(c, 'display.paired', { keyId, name });
-    return c.json({ keyId, name }, 200);
+    return c.json({ keyId, name, kind }, 200);
   },
 );
 
 const PairPollInputSchema = z.object({ pairingId: z.string(), pollToken: z.string() }).openapi('PairPollInput');
 const PairPollResponseSchema = z
-  .object({ status: z.enum(['pending', 'approved']), key: z.string().optional() })
+  .object({ status: z.enum(['pending', 'approved']), key: z.string().optional(), kind: DeviceKindSchema.nullable().optional().openapi({ description: "With the key: what the device is, so a wall screen turns on Use as a wall screen by itself" }) })
   .openapi('PairPollResponse');
 
 pairRoutes.openapi(
@@ -187,7 +196,8 @@ pairRoutes.openapi(
     }
 
     const key = await decrypt(c.env, pairing.encrypted_key, pairing.id);
+    const kind = (await c.env.DB.prepare('SELECT device_kind FROM api_keys WHERE id = ?').bind(pairing.key_id).first<{ device_kind: DeviceKind | null }>())?.device_kind ?? null;
     await c.env.DB.prepare('DELETE FROM pairings WHERE id = ?').bind(pairing.id).run();
-    return c.json({ status: 'approved' as const, key }, 200);
+    return c.json({ status: 'approved' as const, key, kind }, 200);
   },
 );

@@ -9,7 +9,7 @@ Kinwall has no usernames or passwords. Every request carries a **key**, and each
 
 ### Whose device a key is
 
-Paired displays and the Kinwall app's sign-in also record whose device it is: **Anyone (whole family)** or one member. A parent picks it when pairing a display (**Who uses it**) or on the app's consent screen (**Whose device is this?**), and can change it under [Settings → Access](../settings/access.md). The device itself can't.
+Paired displays and the Kinwall app's sign-in also record whose device it is: **Anyone (whole family)** or one member. A parent picks it when pairing a display (**What is this device?**: a wall screen, a kid's device or a grown-up's device) or on the app's consent screen (**Whose device is this?**), and can change it under [Settings → Access](../settings/access.md). The device itself can't.
 
 * On a **display** key (a wall screen, a kid's device, an "Everyday access" app, and the app's widgets and watch), a member owner pins the view to that member, and **Shared** keeps it on the whole family. Either way the device can't pick its own filter.
 * On an **admin** key (a parent's phone with "Full access"), the owner never locks anything. It only sets personal defaults, and the family filter works as on any parent device.
