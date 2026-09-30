@@ -1,7 +1,7 @@
 // node --test test/ (npm test). Fitting a Board card's rows to its space.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { boardChores, moreLabel, rowsThatFit } from '../src/boardFit.ts'
+import { boardChores, boardItems, moreLabel, rowsThatFit } from '../src/boardFit.ts'
 
 const rows = (...bottoms: number[]) => bottoms.map(bottom => ({ bottom }))
 
@@ -36,4 +36,21 @@ test("boardChores: a kid's device counts only their chores, plus Anyone's unless
   assert.deepEqual(boardChores(chores, 'maya', 'maya', false).map(c => c.memberId), ['maya'])
   // A parent's filter (not a pinned device) keeps Anyone's, like the Chores tab.
   assert.deepEqual(boardChores(chores, 'leo', null, false).map(c => c.memberId), ['leo', null])
+})
+
+test("boardItems: Due soon follows the person picked, like their chores", () => {
+  const lists = [{ id: 'family', memberIds: [] }, { id: 'maya', memberIds: ['maya'] }, { id: 'alex', memberIds: ['alex'] }]
+  const item = (id: string, listId: string, memberId: string | null) => ({ id, listId, memberId })
+  const items = [item('a', 'family', 'maya'), item('b', 'family', 'alex'), item('c', 'family', null), item('d', 'maya', null), item('e', 'alex', null), item('f', 'alex', 'maya')]
+  const ids = (sel: string | null, focus: string | null = null, shared = true) => boardItems(items, lists, sel, focus, shared).map(i => i.id)
+  assert.deepEqual(ids(null), ['a', 'b', 'c', 'd', 'e', 'f'], 'everyone: everything')
+  assert.deepEqual(ids('maya'), ['a', 'c', 'd', 'f'], "theirs (assigned, or unassigned on their list) and the family's unassigned")
+  assert.deepEqual(ids('maya', 'maya', false), ['a', 'd', 'f'], "a display pinned to them can hide the family's")
+  assert.deepEqual(boardItems([item('g', 'gone', null)], [], 'maya', 'maya', true), [], 'an unassigned item on a list not loaded yet waits')
+})
+
+test('boardChores: also narrows reward requests to the person picked', () => {
+  const reqs = [{ memberId: 'maya' }, { memberId: 'leo' }]
+  assert.equal(boardChores(reqs, 'maya', 'maya', true).length, 1)
+  assert.equal(boardChores(reqs, null, null, true).length, 2)
 })

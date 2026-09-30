@@ -5,7 +5,7 @@ import { boardListTiles } from './listSections.ts'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
-import type { Board as BoardData, EventInstance, List, Member, OnlineTidbits, SnapshotEvent } from './types.ts'
+import type { Board as BoardData, EventInstance, List, Member, OnlineTidbits, Redemption, SnapshotEvent } from './types.ts'
 import { inkFor } from './color.ts'
 import { zonedParts } from './date.ts'
 import { formatTime } from './timeFormat.ts'
@@ -19,7 +19,7 @@ import { boardGoals } from './tempCheck.ts'
 import { TakeNowTile, useDueDoses } from './TakeNow.tsx'
 import Sheet from './Sheet.tsx'
 import { BasketIcon, CartIcon } from './icons.tsx'
-import { boardAreas, boardChores, moreLabel, rowsThatFit, tidbitCardsThatFit } from './boardFit.ts'
+import { boardAreas, boardChores, boardItems, moreLabel, rowsThatFit, tidbitCardsThatFit } from './boardFit.ts'
 import { layoutAreas, layoutFor, type BoardCardId, type CardDensity } from './boardLayout.ts'
 import { leadOf, leadText } from './leadTime.ts'
 
@@ -109,11 +109,11 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
   // For the tiles: grocery lists' open items and reward requests waiting for a parent.
   const f = settings.features
   const [lists, setLists] = useState<List[]>([])
-  const [rewardRequests, setRewardRequests] = useState(0)
+  const [redemptions, setRedemptions] = useState<Redemption[]>([])
   useEffect(() => {
     let canceled = false
     if (f.lists) api.getLists().then(l => { if (!canceled) setLists(l) }).catch(() => { /* keep the last count */ })
-    if (f.chores) api.getRedemptions({ status: 'pending' }).then(r => { if (!canceled) setRewardRequests(r.length) }).catch(() => { /* likewise */ })
+    if (f.chores) api.getRedemptions({ status: 'pending' }).then(r => { if (!canceled) setRedemptions(r) }).catch(() => { /* likewise */ })
     return () => { canceled = true }
   }, [refreshTick, tick, f.lists, f.chores])
   // Auto: measure the board to decide between full lists and counts.
@@ -175,6 +175,9 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
   const wToday = w?.days.find(d => d.date === today)
   const later = [...new Set([...events.map(e => e.date), ...data.birthdays.map(b => b.date)])].filter(d => d > today).sort()
 
+  // Due soon and reward requests follow who's shown, like the chores below (a kid's device: only theirs).
+  const items = boardItems(data.items, lists, selectedMemberId, focusMemberId, focusShowsShared)
+  const rewardRequests = boardChores(redemptions, selectedMemberId, focusMemberId, focusShowsShared).length
   const full = device.boardLists === 'full' || (device.boardLists !== 'counts' && big)
   const listTiles = boardListTiles(lists.filter(l => !focusMemberId || l.memberIds.includes(focusMemberId) || (focusShowsShared && !l.memberIds.length)))
   // Take now shows whenever doses are due, Full lists too: then it's the tiles row's only tile (after the clock on a phone).
@@ -195,8 +198,8 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
   const has = (a: string) => shown.includes(a)
   const dense = (a: string) => custom?.density.get(a)
   const choresLeft = chores.reduce((n, c) => n + c.remaining, 0)
-  const overdue = data.items.filter(i => i.overdue).length
-  const dueWeek = data.items.filter(i => !i.overdue && i.dueDate).length
+  const overdue = items.filter(i => i.overdue).length
+  const dueWeek = items.filter(i => !i.overdue && i.dueDate).length
 
   return (
     <div className="board-scroll" ref={scrollRef}>
@@ -312,9 +315,9 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
         </Card>}
 
         {has('due') && <Card title="Due soon" area="due" density={dense('due')}>
-          {data.items.length === 0 ? <p className="snap-empty">Nothing due — all caught up.</p> : (
+          {items.length === 0 ? <p className="snap-empty">Nothing due — all caught up.</p> : (
             <ul className="snap-list">
-              {data.items.map(i => {
+              {items.map(i => {
                 const owner = i.memberId ? byId.get(i.memberId) : undefined
                 return <ItemRow key={i.id} i={i} today={today} close={noop} after={owner && <span className="board-avatars" aria-label={owner.name}><Avatar m={owner} /></span>} />
               })}

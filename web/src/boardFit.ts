@@ -25,6 +25,19 @@ export function boardChores<T extends { memberId: string | null }>(chores: T[], 
   return chores.filter(c => c.memberId === selectedMemberId || (!c.memberId && (!focusMemberId || focusShowsShared)))
 }
 
+/** Due soon's items for who's shown, the same rule as the chores: with someone picked, items
+ *  assigned to them or unassigned on a list that's theirs, plus unassigned ones on a list for
+ *  nobody (which only a device pinned to them can hide). `lists` says whose each list is. */
+export function boardItems<T extends { memberId: string | null; listId: string }>(items: T[], lists: { id: string; memberIds: string[] }[], selectedMemberId: string | null, focusMemberId: string | null, focusShowsShared: boolean): T[] {
+  if (!selectedMemberId) return items
+  const whose = new Map(lists.map(l => [l.id, l.memberIds]))
+  return items.filter(i => {
+    if (i.memberId) return i.memberId === selectedMemberId
+    const on = whose.get(i.listId)
+    return !!on && (on.includes(selectedMemberId) || (!on.length && (!focusMemberId || focusShowsShared)))
+  })
+}
+
 /** grid-template-areas for the cards actually on the Board, one per layout (styles.css picks one
  * per container width), so a card that's turned off leaves no hole. `shown` is in phone order. */
 export function boardAreas(shown: string[]): Record<string, string> {
