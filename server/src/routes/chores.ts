@@ -486,7 +486,7 @@ function approvalPoints(row: PendingRow, s: { tz: string; credit: number }): num
   return lateCompletionPoints(row.points, row.date < todayInTz(s.tz, new Date(row.completed_at)), s.credit);
 }
 
-const PENDING_SQL =
+export const PENDING_SQL =
   "SELECT cc.chore_id, c.title, c.emoji, cc.date, cc.member_id, cc.completed_at, c.points FROM chore_completions cc JOIN chores c ON c.id = cc.chore_id WHERE cc.status = 'pending'";
 
 choresRoutes.openapi(
