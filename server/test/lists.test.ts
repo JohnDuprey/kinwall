@@ -117,11 +117,11 @@ test('lists: "remembers where things go" - omitted store/category fill from the 
   const env = makeEnv();
   const request = makeApp(env);
   const a = await json(await request('/api/lists', { method: 'POST', body: JSON.stringify({ name: 'List A', kind: 'shopping' }) }));
-  const b = await json(await request('/api/lists', { method: 'POST', body: JSON.stringify({ name: 'List B', kind: 'shopping' }) }));
+  const b = await json(await request('/api/lists', { method: 'POST', body: JSON.stringify({ name: 'List B', kind: 'shopping', catalog: 'groceries' }) }));
 
   await request(`/api/lists/${a.id}/items`, { method: 'POST', body: JSON.stringify({ title: 'Milk', store: 'Costco', category: 'Dairy' }) });
 
-  // Omitted store/category on a different list, same (trimmed/cased) title -> remembered.
+  // Omitted store/category on a different list of the same type, same (trimmed/cased) title -> remembered.
   const remembered = await json(await request(`/api/lists/${b.id}/items`, { method: 'POST', body: JSON.stringify({ title: '  milk  ' }) }));
   assert.equal(remembered[0].store, 'Costco');
   assert.equal(remembered[0].category, 'Dairy');

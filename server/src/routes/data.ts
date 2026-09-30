@@ -10,7 +10,7 @@ import type { Env } from '../env.ts';
 import { RecipeSchema, MealSchema } from '../meal-schemas.ts';
 import { parseFilter } from '../calendar-filter.ts';
 import { readRecipes, readMeals, normalizeIngredient } from '../meals.ts';
-import { itemKey } from '../item-memory.ts';
+import { CATALOGS, itemKey, looksLikeGroceries, type Catalog } from '../item-memory.ts';
 import { readSettings, settingsWrites } from './settings.ts';
 import { toApi as categoryToApi } from './categories.ts';
 import { toApi as choreToApi, type ChoreRow } from './chores.ts';
@@ -115,6 +115,7 @@ const ExportSchema = z
       ListSchema.extend({
         sortBy: ListSchema.shape.sortBy.default('manual'), // older exports predate it
         keepChecked: z.boolean().optional(), // older exports: the kind's default (0040)
+        catalog: z.enum(CATALOGS).nullable().optional(), // older exports predate list types (0076): see catalogsFor
         overdueCount: z.number().optional(), // computed, and older exports predate it
         itemsRev: z.number().optional(), // computed, and older exports predate it
         items: z.array(
@@ -160,12 +161,13 @@ const ExportSchema = z
     mealShoppingSources: z.array(z.object({ listId: z.string(), sourceRef: z.string(), itemId: z.string(), fingerprint: z.string() })),
     // Where the household keeps things (0040): the store/category/aisle last used per item name
     // (nameKey is the matching key, store '' = none), and stores' aisle walking orders.
-    itemMemory: z.array(z.object({ nameKey: z.string(), store: z.string(), category: z.string().nullable(), aisle: z.string().nullable(), updatedAt: z.string() })),
+    // catalog (0076): which list type's catalog; older exports predate it (see catalogsFor).
+    itemMemory: z.array(z.object({ catalog: z.enum(CATALOGS).optional(), nameKey: z.string(), store: z.string(), category: z.string().nullable(), aisle: z.string().nullable(), updatedAt: z.string() })),
     storeAisles: z.array(z.object({ store: z.string(), aisles: z.array(z.string()) })),
     // Names to autocomplete on shopping lists (0041): the spelling last used and how often.
-    itemNames: z.array(z.object({ nameKey: z.string(), title: z.string(), uses: z.number(), lastUsed: z.string() })),
+    itemNames: z.array(z.object({ catalog: z.enum(CATALOGS).optional(), nameKey: z.string(), title: z.string(), uses: z.number(), lastUsed: z.string() })),
     // Grocery catalog categories (0070): the family's own groupings per item name, in order.
-    itemTags: z.array(z.object({ nameKey: z.string(), tag: z.string() })),
+    itemTags: z.array(z.object({ catalog: z.enum(CATALOGS).optional(), nameKey: z.string(), tag: z.string() })),
     passkeys: z.array(z.object({ name: z.string(), createdAt: z.string() })),
     webhooks: z.array(WebhookSchema),
   })
@@ -221,7 +223,7 @@ dataRoutes.openapi(
       db.prepare('SELECT calendar_id, series_id, category_id FROM event_series_category_overrides ORDER BY calendar_id, series_id'),
       db.prepare('SELECT id, title, emoji, member_id, points, rrule, due_date, due_time, active, sort, created_at, list_id, plugin_id, plugin_minutes, needs_approval, approve_timed_play, archived FROM chores ORDER BY sort, created_at'),
       db.prepare('SELECT id, chore_id, date, member_id, completed_at, points_awarded, status FROM chore_completions ORDER BY date'),
-      db.prepare('SELECT id, name, emoji, color, kind, member_ids, group_by, sort_by, keep_checked, sort, archived, created_at FROM lists ORDER BY sort, created_at'),
+      db.prepare('SELECT id, name, emoji, color, kind, member_ids, group_by, sort_by, keep_checked, catalog, sort, archived, created_at FROM lists ORDER BY sort, created_at'),
       db.prepare(
         'SELECT id, list_id, title, notes, quantity, store, category, aisle, member_id, due_date, event_id, priority, done, done_at, done_by, sort, created_at, updated_at FROM list_items ORDER BY sort, created_at',
       ),
@@ -354,12 +356,12 @@ dataRoutes.openapi(
         recipes: await readRecipes(db, { archived: true }),
         meals: await readMeals(db, '0000-01-01', '9999-12-31'),
         mealShoppingSources: (await db.prepare('SELECT list_id, source_ref, item_id, fingerprint FROM meal_shopping_sources ORDER BY list_id, source_ref').all<{ list_id: string; source_ref: string; item_id: string; fingerprint: string }>()).results.map((r) => ({ listId: r.list_id, sourceRef: r.source_ref, itemId: r.item_id, fingerprint: r.fingerprint })),
-        itemMemory: (await db.prepare('SELECT name_key, store, category, aisle, updated_at FROM item_memory ORDER BY name_key, store').all<{ name_key: string; store: string; category: string | null; aisle: string | null; updated_at: string }>()).results
-          .map((r) => ({ nameKey: r.name_key, store: r.store, category: r.category, aisle: r.aisle, updatedAt: r.updated_at })),
-        itemNames: (await db.prepare('SELECT name_key, title, uses, last_used FROM item_names ORDER BY name_key').all<{ name_key: string; title: string; uses: number; last_used: string }>()).results
-          .map((r) => ({ nameKey: r.name_key, title: r.title, uses: r.uses, lastUsed: r.last_used })),
-        itemTags: (await db.prepare('SELECT name_key, tag FROM item_tags ORDER BY name_key, sort').all<{ name_key: string; tag: string }>()).results
-          .map((r) => ({ nameKey: r.name_key, tag: r.tag })),
+        itemMemory: (await db.prepare('SELECT catalog, name_key, store, category, aisle, updated_at FROM item_memory ORDER BY catalog, name_key, store').all<{ catalog: Catalog; name_key: string; store: string; category: string | null; aisle: string | null; updated_at: string }>()).results
+          .map((r) => ({ catalog: r.catalog, nameKey: r.name_key, store: r.store, category: r.category, aisle: r.aisle, updatedAt: r.updated_at })),
+        itemNames: (await db.prepare('SELECT catalog, name_key, title, uses, last_used FROM item_names ORDER BY catalog, name_key').all<{ catalog: Catalog; name_key: string; title: string; uses: number; last_used: string }>()).results
+          .map((r) => ({ catalog: r.catalog, nameKey: r.name_key, title: r.title, uses: r.uses, lastUsed: r.last_used })),
+        itemTags: (await db.prepare('SELECT catalog, name_key, tag FROM item_tags ORDER BY catalog, name_key, sort').all<{ catalog: Catalog; name_key: string; tag: string }>()).results
+          .map((r) => ({ catalog: r.catalog, nameKey: r.name_key, tag: r.tag })),
         storeAisles: (await db.prepare('SELECT store, aisle FROM store_aisles ORDER BY store, sort').all<{ store: string; aisle: string }>()).results
           .reduce<{ store: string; aisles: string[] }[]>((out, r) => {
             if (out.at(-1)?.store !== r.store) out.push({ store: r.store, aisles: [] });
@@ -497,6 +499,30 @@ function upserts(db: KinwallDb, table: string, conflict: string, rows: Row[], op
   return stmts;
 }
 
+type ImportBody = z.infer<typeof ImportSchema>;
+/** Each list's type and each remembered row's catalog. A file from before list types (0076: no
+ * catalog anywhere) gets the migration's rules: a shopping list is Groceries when named like
+ * groceries, when meals were added to it, or when it's the file's only shopping list; a remembered
+ * name goes to the grocery catalog unless it's only on Shopping lists, and to the shopping catalog
+ * too when it's on one. */
+export function catalogsFor(body: Pick<ImportBody, 'lists' | 'mealShoppingSources' | 'itemMemory' | 'itemNames' | 'itemTags'>) {
+  const legacy = !body.lists.some((l) => l.catalog) && ![...body.itemMemory, ...body.itemNames, ...body.itemTags].some((r) => r.catalog);
+  const shopping = body.lists.filter((l) => l.kind === 'shopping');
+  const meals = new Set(body.mealShoppingSources.map((s) => s.listId));
+  const list = (l: ImportBody['lists'][number]): Catalog | null =>
+    l.kind !== 'shopping' ? null : !legacy ? (l.catalog ?? 'groceries') : looksLikeGroceries(l.name) || meals.has(l.id) || shopping.length === 1 ? 'groceries' : 'shopping';
+  const onType = (cat: Catalog) => new Set(shopping.filter((l) => list(l) === cat).flatMap((l) => l.items.map((i) => itemKey(i.title))));
+  const onGroceries = onType('groceries'), onShopping = onType('shopping');
+  const rows = <T extends { catalog?: Catalog; nameKey: string }>(rs: T[]): (T & { catalog: Catalog })[] =>
+    legacy
+      ? rs.flatMap((r) => [
+          ...(onShopping.has(r.nameKey) && !onGroceries.has(r.nameKey) ? [] : [{ ...r, catalog: 'groceries' as const }]),
+          ...(onShopping.has(r.nameKey) ? [{ ...r, catalog: 'shopping' as const }] : []),
+        ])
+      : rs.map((r) => ({ ...r, catalog: r.catalog ?? 'groceries' }));
+  return { list, rows };
+}
+
 dataRoutes.use('/api/import', bodyLimit({ maxSize: MAX_IMPORT_BYTES, onError: (c) => c.json({ error: 'Import file is larger than 10 MB' }, 413) }));
 
 dataRoutes.openapi(
@@ -572,6 +598,7 @@ dataRoutes.openapi(
     const medIds = new Set(medications.map((m) => m.id));
     const medicationLog = body.medicationLog.filter((d) => medIds.has(d.medicationId));
     const mealSources = body.mealShoppingSources.filter((s) => items.some((i) => i.id === s.itemId && i.listId === s.listId));
+    const catalogs = catalogsFor(body);
     const steps = items.flatMap((i) => i.steps.map((st) => ({ ...st, itemId: i.id, doneAt: st.done ? (i.doneAt ?? new Date().toISOString()) : null, createdAt: i.createdAt })));
 
     // Members and chores have no createdAt in the export; stamp new rows 1 ms apart in file order so
@@ -770,6 +797,7 @@ dataRoutes.openapi(
           group_by: l.groupBy,
           sort_by: l.sortBy,
           keep_checked: (l.keepChecked ?? l.kind !== 'todo') ? 1 : 0,
+          catalog: catalogs.list(l),
           sort: l.sort,
           archived: l.archived ? 1 : 0,
           created_at: l.createdAt,
@@ -866,13 +894,13 @@ dataRoutes.openapi(
       ...upserts(db, 'meals', 'id', body.meals.map((m) => ({ id: m.id, date: m.date, slot: m.slot, title: m.title, meal_kind: m.mealKind, recipe_id: m.recipeId, recipe_snapshot: m.recipeSnapshot ? JSON.stringify(m.recipeSnapshot) : null, servings: m.servings, assignee_member_id: m.assigneeMemberId, eater_ids: JSON.stringify(m.eaterIds ?? []), notes: m.notes, planned_time: m.plannedTime, calendar_event_id: m.calendarEventId, calendar_event_start: m.calendarEventId ? m.calendarEventStart ?? null : null, status: m.status, source_url: m.sourceUrl, created_at: m.createdAt, updated_at: m.updatedAt })), { ...keepCreated, expr: { recipe_id: "(SELECT id FROM recipes WHERE id = j.value->>'recipe_id')", assignee_member_id: memberRef('assignee_member_id') } }),
       ...upserts(db, 'meal_shopping_sources', 'list_id, source_ref', mealSources.map((s) => ({ list_id: s.listId, source_ref: s.sourceRef, item_id: s.itemId, fingerprint: s.fingerprint }))),
       // Newer knowledge wins: a remembered place only replaces one that is older.
-      ...upserts(db, 'item_memory', 'name_key, store', body.itemMemory.map((m) => ({ name_key: m.nameKey, store: m.store, category: m.category, aisle: m.aisle, updated_at: m.updatedAt })), { where: 'excluded.updated_at > item_memory.updated_at' }),
+      ...upserts(db, 'item_memory', 'catalog, name_key, store', catalogs.rows(body.itemMemory).map((m) => ({ catalog: m.catalog, name_key: m.nameKey, store: m.store, category: m.category, aisle: m.aisle, updated_at: m.updatedAt })), { where: 'excluded.updated_at > item_memory.updated_at' }),
       // A store's aisle order in the file replaces this instance's order for that store.
       db.prepare('DELETE FROM store_aisles WHERE store IN (SELECT value FROM json_each(?))').bind(JSON.stringify(body.storeAisles.map((a) => a.store))),
       ...upserts(db, 'store_aisles', 'store, aisle', body.storeAisles.flatMap((a) => [...new Set(a.aisles)].map((aisle, sort) => ({ store: a.store, aisle, sort })))),
-      ...upserts(db, 'item_names', 'name_key', body.itemNames.map((n) => ({ name_key: n.nameKey, title: n.title, uses: n.uses, last_used: n.lastUsed })), { where: 'excluded.last_used > item_names.last_used' }),
+      ...upserts(db, 'item_names', 'catalog, name_key', catalogs.rows(body.itemNames).map((n) => ({ catalog: n.catalog, name_key: n.nameKey, title: n.title, uses: n.uses, last_used: n.lastUsed })), { where: 'excluded.last_used > item_names.last_used' }),
       // An item's categories in the file are added to the ones it has here, in the file's order after them.
-      ...upserts(db, 'item_tags', 'name_key, tag', body.itemTags.map((t, n) => ({ name_key: t.nameKey, tag: t.tag, sort: 1000 + n }))),
+      ...upserts(db, 'item_tags', 'catalog, name_key, tag', catalogs.rows(body.itemTags).map((t, n) => ({ catalog: t.catalog, name_key: t.nameKey, tag: t.tag, sort: 1000 + n }))),
     ];
     if (writes.length) await db.batch(writes);
     // An entry already here as health keeps its kind (kind is kept on conflict), so sweep up anything the file brought in as another kind.

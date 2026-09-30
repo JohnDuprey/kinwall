@@ -1,7 +1,7 @@
 // Dev-only in-memory fixture, used when VITE_MOCK=1. Excluded from prod by the env check in api.ts.
 import type { OnlineTidbits, Plugin, PluginCatalogEntry,
   Account, ApiKey, AppNotification, CalendarEntry, Category, Chore, ChoreDay, EventInstance, HiddenEvent, LeaderboardEntry, LeaderboardPeriod, List, ListGroup,
-  Photo, PhotoQuota, GooglePhotos, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, ListItem, ListItemInput, ListItemPatch, ListItemStep, Member, RememberedItem, RememberedItemInput, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption, TempCheck, TempCheckInput, Journal, JournalEntry, Insights, InsightDay, InsightRange, Battery, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory, DoseStatus, MedTime,
+  Photo, PhotoQuota, GooglePhotos, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, ListItem, ListItemInput, ListItemPatch, ListItemStep, ListCatalog, Member, RememberedItem, RememberedItemInput, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption, TempCheck, TempCheckInput, Journal, JournalEntry, Insights, InsightDay, InsightRange, Battery, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory, DoseStatus, MedTime,
 } from './types.ts'
 import { eveningPending, FEELINGS, lastNightDate, TEMP_CHECK_OFF } from './tempCheck.ts'
 import { aisleOrderMap, compareItems } from './types.ts'
@@ -356,7 +356,8 @@ const chores: Chore[] = [
 const completions = new Map<string, { completedAt: string; memberId: string | null }>() // key `${choreId}:${date}`
 
 const lists: List[] = [
-  { id: 'l1', name: 'Groceries', emoji: '🛒', color: '#7ED9A6', kind: 'shopping', memberIds: [], groupBy: 'store', sortBy: 'aisle', keepChecked: true, sort: 0, archived: false, createdAt: new Date().toISOString(), itemCount: 5, openCount: 4 },
+  { id: 'l1', name: 'Groceries', emoji: '🛒', color: '#7ED9A6', kind: 'shopping', catalog: 'groceries', memberIds: [], groupBy: 'store', sortBy: 'aisle', keepChecked: true, sort: 0, archived: false, createdAt: new Date().toISOString(), itemCount: 5, openCount: 4 },
+  { id: 'l5', name: 'Hardware store', emoji: '🔨', color: '#FFB86B', kind: 'shopping', catalog: 'shopping', memberIds: [], groupBy: 'aisle', sortBy: 'aisle', keepChecked: true, sort: 4, archived: false, createdAt: new Date().toISOString(), itemCount: 3, openCount: 2 },
   { id: 'l2', name: 'Weekend To-Dos', emoji: '✅', color: '#7AB8FF', kind: 'todo', memberIds: ['m1'], groupBy: 'none', sortBy: 'due', keepChecked: false, sort: 1, archived: false, createdAt: new Date().toISOString(), itemCount: 5, openCount: 4 },
   { id: 'l3', name: 'Camping Packing List', emoji: '🎒', color: '#FFD166', kind: 'reusable', memberIds: [], groupBy: 'none', sortBy: 'manual', keepChecked: true, sort: 2, archived: false, createdAt: new Date().toISOString(), itemCount: 4, openCount: 4 },
   { id: 'l4', name: 'Living room reset', emoji: '🛋️', color: '#C9A7FF', kind: 'reusable', memberIds: [], groupBy: 'none', sortBy: 'manual', keepChecked: true, sort: 3, archived: false, createdAt: new Date().toISOString(), itemCount: 3, openCount: 3 },
@@ -389,6 +390,9 @@ let listItems: ListItem[] = ([
     steps: [{ id: uid(), title: 'Fold the blankets', done: true, sort: 0 }, { id: uid(), title: 'Fluff the cushions', done: false, sort: 1 }, { id: uid(), title: 'Find the remote', done: false, sort: 2 }] },
   { id: 'li16', listId: 'l4', title: 'Toys back in their bins', notes: null, quantity: null, store: null, category: null, memberId: 'm4', dueDate: inDays(2), eventId: null, done: false, doneAt: null, doneBy: null, sort: 1, createdAt: iso(), updatedAt: iso(),
     steps: ['Blocks in the red bin', 'Cars in the blue bin', 'Books on the shelf', 'Stuffies on the bed', 'Check under the couch'] },
+  { id: 'li18', listId: 'l5', title: 'Wood screws', notes: null, quantity: '1 box', store: 'Home center', aisle: 'Aisle 12', category: 'Fasteners', memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 0, createdAt: iso(), updatedAt: iso() },
+  { id: 'li19', listId: 'l5', title: 'Furnace filter', notes: '16x25x1', quantity: '2', store: 'Home center', aisle: 'Aisle 21', category: 'Heating', memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 1, createdAt: iso(), updatedAt: iso() },
+  { id: 'li20', listId: 'l5', title: "Painter's tape", notes: null, quantity: null, store: 'Home center', aisle: 'Aisle 9', category: 'Paint', memberId: null, dueDate: null, eventId: null, done: true, doneAt: iso(), doneBy: 'm1', sort: 2, createdAt: iso(), updatedAt: iso() },
   { id: 'li17', listId: 'l4', title: 'Clear the coffee table', notes: null, quantity: null, store: null, category: null, memberId: 'm2', dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 2, createdAt: iso(), priority: 'low', updatedAt: iso() },
 ] as SeedItem[]).map(seedItem)
 // A starter grocery run for the meal fixtures; projection can still add the week's full quantities.
@@ -414,49 +418,53 @@ let aisleOrder: { store: string | null; aisles: string[] }[] = [
   { store: 'Neighborhood market', aisles: ['Produce', 'Bakery', 'Deli', 'Meat', 'Seafood', 'Aisle 3', 'Aisle 4', 'Aisle 5', 'Frozen', 'Aisle 6', 'Dairy'] },
 ]
 let remembered: ListItem[] = []
+// Each shopping list type keeps its own catalog: an item (on a list, or remembered from one) belongs to its list's.
+const catalogOf = (listId: string): ListCatalog => lists.find(l => l.id === listId)?.catalog ?? 'groceries'
+const inCatalog = (catalog: ListCatalog) => (i: ListItem) => (lists.find(l => l.id === i.listId)?.kind ?? 'shopping') === 'shopping' && catalogOf(i.listId) === catalog
 const sameName = (a: string, b: string) => a.trim().toLowerCase().replace(/s$/, '') === b.trim().toLowerCase().replace(/s$/, '')
 // Where an item has been kept, per store, newest first (the server's item_memory, roughly).
-const placesOf = (title: string) => {
+const placesOf = (title: string, catalog: ListCatalog = 'groceries') => {
   const seen = new Map<string | null, string | null>()
-  for (const i of [...listItems, ...remembered].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))) {
+  for (const i of [...listItems, ...remembered].filter(inCatalog(catalog)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))) {
     if (sameName(i.title, title) && !seen.has(i.store)) seen.set(i.store, i.aisle)
   }
   return [...seen].map(([store, aisle]) => ({ store, aisle }))
 }
 // The market's usual spots for things on the list that are planned for "anywhere" or the club.
-const seenAt = (title: string, store: string, aisle: string | null) => remembered.push(seedItem({ id: uid(), listId: '', title, notes: null, quantity: null, store, aisle, category: null, memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 0, createdAt: minsAgo(9000), updatedAt: minsAgo(9000) }))
+const seenAt = (title: string, store: string, aisle: string | null, listId = 'l1') => remembered.push(seedItem({ id: uid(), listId, title, notes: null, quantity: null, store, aisle, category: null, memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 0, createdAt: minsAgo(9000), updatedAt: minsAgo(9000) }))
 // Autocomplete: every shopping name seen (the server's item_names, roughly), most used first,
 // plus a few from past trips.
 const pastGroceries = ['Bananas', 'Banana milk', 'Bagels', 'Baby spinach', 'Basil', 'Blueberries', 'Butter', 'Cheddar', 'Coffee', 'Oat milk', 'Yogurt', 'Tortillas', 'Rice', 'Pasta']
 const forgotten = new Set<string>()
-function nameSuggestions() {
+function nameSuggestions(catalog: ListCatalog) {
   const out = new Map<string, { title: string; key: string; uses: number; category?: string; place?: { store: string; aisle: string | null } }>()
-  const shopping = new Set(lists.filter(l => l.kind === 'shopping').map(l => l.id))
-  for (const i of [...remembered, ...listItems.filter(i => shopping.has(i.listId))].sort((a, b) => a.updatedAt.localeCompare(b.updatedAt))) {
+  for (const i of [...remembered, ...listItems].filter(inCatalog(catalog)).sort((a, b) => a.updatedAt.localeCompare(b.updatedAt))) {
     const key = itemKey(i.title), was = out.get(key)
     out.set(key, { title: i.title, key, uses: (was?.uses ?? 0) + 1, category: i.category ?? was?.category, place: i.store ? { store: i.store, aisle: i.aisle ?? null } : was?.place })
   }
-  pastGroceries.forEach((title, n) => { const key = itemKey(title); if (!out.has(key)) out.set(key, { title, key, uses: pastGroceries.length - n }) })
-  return [...out.values()].filter(s => !forgotten.has(s.key)).sort((a, b) => b.uses - a.uses)
+  if (catalog === 'groceries') pastGroceries.forEach((title, n) => { const key = itemKey(title); if (!out.has(key)) out.set(key, { title, key, uses: pastGroceries.length - n }) })
+  return [...out.values()].filter(s => !forgotten.has(`${catalog}:${s.key}`)).sort((a, b) => b.uses - a.uses)
 }
-let catalogItems: Map<string, RememberedItem> | null = null
-function mockCatalog() {
-  catalogItems ??= new Map(nameSuggestions().map(s => {
-    const places = placesOf(s.title).filter((p): p is { store: string; aisle: string | null } => !!p.store)
+const catalogItems = new Map<ListCatalog, Map<string, RememberedItem>>()
+function mockCatalog(catalog: ListCatalog) {
+  if (!catalogItems.has(catalog)) catalogItems.set(catalog, new Map(nameSuggestions(catalog).map(s => {
+    const places = placesOf(s.title, catalog).filter((p): p is { store: string; aisle: string | null } => !!p.store)
     return [s.key, { key: s.key, title: s.title, uses: s.uses, lastUsed: iso(), category: s.category ?? DEMO_DEPARTMENT[s.title] ?? null, lastStore: places[0]?.store ?? null,
       places: places.map(p => ({ ...p, updatedAt: iso() })).sort((a, b) => a.store.localeCompare(b.store)), tags: DEMO_TAGS[s.title] ?? [] }]
-  }))
-  return catalogItems
+  })))
+  return catalogItems.get(catalog)!
 }
 // The demo family's own catalog categories.
 const DEMO_TAGS: Record<string, string[]> = {
   Bananas: ['Breakfast', 'Snacks', 'Lunchbox'], Bagels: ['Breakfast'], Yogurt: ['Breakfast', 'Lunchbox'], 'Oat milk': ['Breakfast'], Coffee: ['Breakfast', 'Pantry staples'],
   Blueberries: ['Snacks', 'Breakfast'], Cheddar: ['Lunchbox', 'Snacks'], Tortillas: ['Lunchbox'], Rice: ['Pantry staples'], Pasta: ['Pantry staples'],
   'Paper towels': ['Cleaning'], 'Dish soap': ['Cleaning'], Milk: ['Breakfast'], Eggs: ['Breakfast'],
+  'Light bulbs': ['Around the house'], Batteries: ['Around the house'], 'Furnace filter': ['Seasonal'], 'Wood screws': ['Projects'], "Painter's tape": ['Projects'],
 }
 const DEMO_DEPARTMENT: Record<string, string> = {
   Bananas: 'Produce', 'Baby spinach': 'Produce', Basil: 'Produce', Blueberries: 'Produce', Butter: 'Dairy', Cheddar: 'Dairy', Yogurt: 'Dairy', 'Oat milk': 'Dairy', 'Banana milk': 'Dairy',
   Coffee: 'Pantry', Rice: 'Pantry', Pasta: 'Pantry', Tortillas: 'Bakery', Bagels: 'Bakery', 'Paper towels': 'Household',
+  'Light bulbs': 'Lighting', Batteries: 'Electrical',
 }
 recomputeListCounts('l1')
 let listGroups: ListGroup[] = []
@@ -472,6 +480,10 @@ for (const [title, store, aisle] of [
 ] as const) seenAt(title, store, aisle)
 listItems.push(seedItem({ id: 'demo-grocery-anywhere', listId: 'l1', title: 'Dish soap', notes: null, quantity: null, store: null, category: 'Household', memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 20, createdAt: iso(), updatedAt: iso() }))
 recomputeListCounts('l1')
+// The hardware store's own catalog: past trips there.
+seenAt('Light bulbs', 'Home center', 'Aisle 18', 'l5')
+seenAt('Batteries', 'Home center', 'Aisle 1', 'l5')
+recomputeListCounts('l5')
 let notes: Note[] = [
   { id: 'n1', targetType: 'event', targetId: 'e1', memberId: 'm1', body: 'Coach says bring a light and a dark shirt.', createdAt: minsAgo(300), updatedAt: minsAgo(300) },
   { id: 'n2', targetType: 'event', targetId: 'e1', memberId: 'm2', body: 'I can drive this week!\nPickup is by the north gate.', createdAt: minsAgo(95), updatedAt: minsAgo(40) },
@@ -1050,7 +1062,7 @@ export const mock = {
   createList: async (body: Partial<List>): Promise<List> => {
     const nl: List = {
       id: uid(), name: body.name ?? 'New list', emoji: body.emoji ?? '📝', color: body.color ?? '#FF9E7A',
-      kind: body.kind ?? 'todo', memberIds: body.memberIds ?? [], groupBy: body.groupBy ?? (body.kind === 'shopping' ? 'aisle' : 'none'), sortBy: body.sortBy ?? (body.kind === 'shopping' ? 'aisle' : 'manual'),
+      kind: body.kind ?? 'todo', catalog: body.kind === 'shopping' ? body.catalog ?? 'groceries' : null, memberIds: body.memberIds ?? [], groupBy: body.groupBy ?? (body.kind === 'shopping' ? 'aisle' : 'none'), sortBy: body.sortBy ?? (body.kind === 'shopping' ? 'aisle' : 'manual'),
       keepChecked: body.keepChecked ?? body.kind !== 'todo',
       sort: Math.max(-1, ...lists.map(l => l.sort)) + 1, archived: false, createdAt: new Date().toISOString(), itemCount: 0, openCount: 0,
     }
@@ -1060,21 +1072,21 @@ export const mock = {
     const l = lists.find(x => x.id === id); if (!l) throw new Error('not found')
     const order = aisleOrderMap({ aisleOrder })
     const items = listItems.filter(i => i.listId === id).sort(compareItems(l.sortBy, dateKey(new Date()), { keepChecked: l.keepChecked, aisleOrder: order }))
-      .map(i => ({ ...i, noteCount: noteCount('list_item', i.id), ...(l.kind === 'shopping' ? { places: placesOf(i.title) } : {}) }))
+      .map(i => ({ ...i, noteCount: noteCount('list_item', i.id), ...(l.kind === 'shopping' ? { places: placesOf(i.title, catalogOf(id)) } : {}) }))
     const groups = listGroups.filter(g => g.name) // per-list groups aren't keyed by list in this fixture; kept simple for demo
-    const known = [...listItems, ...remembered]
+    const known = [...listItems, ...remembered].filter(inCatalog(catalogOf(id)))
     const uniq = (v: (string | null)[]) => [...new Set(v.filter((x): x is string => !!x))].sort()
     const stores = uniq([...known.map(i => i.store), ...aisleOrder.map(o => o.store)])
     const categories = uniq(known.map(i => i.category))
     const aisles = [...new Map([...known.filter(i => i.aisle).map(i => ({ store: i.store, aisle: i.aisle! })), ...aisleOrder.flatMap(o => o.aisles.map(aisle => ({ store: o.store, aisle })))]
       .map(a => [`${a.store}|${a.aisle}`, a])).values()]
     // Like the server: suggestions only on shopping lists.
-    const suggestions = l.kind === 'shopping' ? { stores, categories, aisles, items: nameSuggestions() } : { stores: [], categories: [], aisles: [] }
+    const suggestions = l.kind === 'shopping' ? { stores, categories, aisles, items: nameSuggestions(catalogOf(id)) } : { stores: [], categories: [], aisles: [] }
     return { list: l, items, groups, suggestions, aisleOrder }
   },
   updateList: async (id: string, patch: Partial<List>) => {
     const l = lists.find(x => x.id === id); if (!l) throw new Error('not found')
-    Object.assign(l, patch); bump(); return l
+    Object.assign(l, patch, patch.kind && patch.kind !== 'shopping' ? { catalog: null } : patch.kind === 'shopping' && !l.catalog ? { catalog: patch.catalog ?? 'groceries' } : {}); bump(); return l
   },
   deleteList: async (id: string) => {
     const i = lists.findIndex(x => x.id === id); if (i >= 0) lists.splice(i, 1)
@@ -1087,7 +1099,7 @@ export const mock = {
       // "remembers where things go" (shopping lists): omitted store/category/aisle (undefined) come
       // from the most recently updated same-name item, even a checked-out one; null means "none".
       const shopping = lists.find(l => l.id === listId)?.kind === 'shopping'
-      const known = shopping ? [...listItems, ...remembered].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).filter(i => sameName(i.title, input.title)) : []
+      const known = shopping ? [...listItems, ...remembered].filter(inCatalog(catalogOf(listId))).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).filter(i => sameName(i.title, input.title)) : []
       const store = input.store !== undefined ? input.store : (known[0]?.store ?? null)
       const item: ListItem = {
         id: uid(), listId, title: input.title.trim(), notes: input.notes ?? null,
@@ -1109,7 +1121,7 @@ export const mock = {
     const i = listItems.find(x => x.id === itemId && x.listId === listId); if (!i) throw new Error('not found')
     // A trip's aisle: remembered for that store; the item takes it only if planned there or anywhere.
     if (aisleStore && patch.aisle !== undefined) {
-      if (patch.aisle) { seenAt(i.title, aisleStore, patch.aisle); remembered.at(-1)!.updatedAt = iso() }
+      if (patch.aisle) { seenAt(i.title, aisleStore, patch.aisle, listId); remembered.at(-1)!.updatedAt = iso() }
       const planned = patch.store !== undefined ? patch.store : i.store
       if (planned && planned !== aisleStore) delete patch.aisle
     }
@@ -1159,14 +1171,14 @@ export const mock = {
     const before = listItems.length
     const gone = (i: ListItem) => i.listId === listId && i.done && (!itemIds || itemIds.includes(i.id))
     // Bought on a trip: remembered at that store, keeping the aisle known there.
-    remembered.push(...listItems.filter(gone).map(i => ({ ...i, updatedAt: iso(), ...(store ? { store, aisle: placesOf(i.title).find(p => p.store === store)?.aisle ?? null } : {}) })))
+    remembered.push(...listItems.filter(gone).map(i => ({ ...i, updatedAt: iso(), ...(store ? { store, aisle: placesOf(i.title, catalogOf(listId)).find(p => p.store === store)?.aisle ?? null } : {}) })))
     listItems = listItems.filter(i => !gone(i))
     recomputeListCounts(listId); bump()
     return { deleted: before - listItems.length }
   },
-  renameListValue: async ({ field, from, to, store }: { field: 'store' | 'category' | 'aisle'; from: string; to: string | null; store?: string | null }) => {
+  renameListValue: async ({ field, from, to, store, catalog }: { field: 'store' | 'category' | 'aisle'; from: string; to: string | null; store?: string | null; catalog?: ListCatalog }) => {
     let updated = 0
-    for (const i of [...listItems, ...remembered]) {
+    for (const i of [...listItems, ...remembered].filter(i => field !== 'category' || !catalog || inCatalog(catalog)(i))) {
       if (i[field] !== from || (field === 'aisle' && i.store !== (store ?? null))) continue
       i[field] = to; if (listItems.includes(i)) updated++
     }
@@ -1174,16 +1186,16 @@ export const mock = {
     if (field === 'aisle') aisleOrder = aisleOrder.map(o => o.store !== (store ?? null) ? o : { ...o, aisles: to ? o.aisles.map(a => a === from ? to : a) : o.aisles.filter(a => a !== from) })
     bump(); return { updated }
   },
-  // The grocery catalog: seeded from what's remembered above, then edited on its own (roughly the server's).
-  getRemembered: async () => [...mockCatalog().values()].sort((a, b) => a.title.localeCompare(b.title)).map(i => ({ ...i, places: [...i.places] })),
-  addRemembered: async (body: RememberedItemInput & { title: string }) => {
-    const key = itemKey(body.title)
-    if (mockCatalog().has(key)) throw new Error(`Already in the catalog as ${mockCatalog().get(key)!.title}`)
-    mockCatalog().set(key, { key, title: body.title.trim(), uses: 0, lastUsed: iso(), category: null, places: [], lastStore: null, tags: [] })
-    return mock.updateRemembered(key, body)
+  // The catalogs (one per shopping list type): seeded from what's remembered above, then edited on their own (roughly the server's).
+  getRemembered: async (catalog: ListCatalog) => [...mockCatalog(catalog).values()].sort((a, b) => a.title.localeCompare(b.title)).map(i => ({ ...i, places: [...i.places] })),
+  addRemembered: async (catalog: ListCatalog, body: RememberedItemInput & { title: string }) => {
+    const key = itemKey(body.title), cat = mockCatalog(catalog)
+    if (cat.has(key)) throw new Error(`Already in the catalog as ${cat.get(key)!.title}`)
+    cat.set(key, { key, title: body.title.trim(), uses: 0, lastUsed: iso(), category: null, places: [], lastStore: null, tags: [] })
+    return mock.updateRemembered(catalog, key, body)
   },
-  updateRemembered: async (key: string, body: RememberedItemInput) => {
-    const cat = mockCatalog(), was = cat.get(key)
+  updateRemembered: async (catalog: ListCatalog, key: string, body: RememberedItemInput) => {
+    const cat = mockCatalog(catalog), was = cat.get(key)
     if (!was) throw new Error('not found')
     const to = body.title ? itemKey(body.title) : key
     if (to !== key && cat.has(to)) throw new Error(`Already in the catalog as ${cat.get(to)!.title}`)
@@ -1192,21 +1204,22 @@ export const mock = {
       tags: body.tags ? tagsInput(body.tags, [...cat.values()].filter(i => i.key !== key).flatMap(i => i.tags)) : was.tags,
       lastStore: places.some(p => p.store === was.lastStore) ? was.lastStore : places[0]?.store ?? null }
     cat.delete(key); cat.set(to, item)
-    for (const p of item.places) seenAt(item.title, p.store, p.aisle) // so adds and the aisle pickers use it
-    remembered.forEach(r => { if (itemKey(r.title) === to && item.category) r.category = item.category })
+    const listId = lists.find(l => l.kind === 'shopping' && catalogOf(l.id) === catalog)?.id ?? 'l1'
+    for (const p of item.places) seenAt(item.title, p.store, p.aisle, listId) // so adds and the aisle pickers use it
+    remembered.forEach(r => { if (itemKey(r.title) === to && item.category && inCatalog(catalog)(r)) r.category = item.category })
     bump(); return item
   },
-  renameCatalogTag: async (from: string, to: string | null) => {
+  renameCatalogTag: async (catalog: ListCatalog, from: string, to: string | null) => {
     let updated = 0
-    for (const i of mockCatalog().values()) {
+    for (const i of mockCatalog(catalog).values()) {
       if (!i.tags.some(t => t.toLowerCase() === from.toLowerCase())) continue
       updated++
       i.tags = tagsInput(i.tags.map(t => (t.toLowerCase() === from.toLowerCase() ? to ?? '' : t)), [])
     }
     bump(); return { updated }
   },
-  forgetItemName: async (key: string) => {
-    forgotten.add(key); mockCatalog().delete(key); remembered = remembered.filter(i => itemKey(i.title) !== key); bump(); return { ok: true }
+  forgetItemName: async (catalog: ListCatalog, key: string) => {
+    forgotten.add(`${catalog}:${key}`); mockCatalog(catalog).delete(key); remembered = remembered.filter(i => itemKey(i.title) !== key || !inCatalog(catalog)(i)); bump(); return { ok: true }
   },
   setStoreAisles: async (store: string | null, aisles: string[]) => {
     aisleOrder = [...aisleOrder.filter(o => o.store !== store), ...(aisles.length ? [{ store, aisles }] : [])]

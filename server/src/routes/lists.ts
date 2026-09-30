@@ -8,7 +8,7 @@ import { notifyListUpdate } from '../notify.ts';
 import { parseMemberIds, resolveMemberIds } from '../calendar-members.ts';
 import { eventWriteBlock } from '../auth.ts';
 import type { Context } from 'hono';
-import { SUGGESTION_CAP, catalog, catalogWrites, filterCatalog, fillPlace, itemKey, nameSuggestions, recall, rememberName, rememberPlace, tagsInput, type CatalogEdit, type CatalogItem } from '../item-memory.ts';
+import { SUGGESTION_CAP, catalog, catalogWrites, filterCatalog, fillPlace, itemKey, listCatalog, nameSuggestions, recall, rememberName, rememberPlace, tagsInput, type Catalog, type CatalogEdit, type CatalogItem } from '../item-memory.ts';
 import {
   ErrorSchema,
   ListDetailSchema,
@@ -32,6 +32,7 @@ import {
   ListReorderSchema,
   ListOrderSchema,
   ListSchema,
+  ListCatalogSchema,
 } from '../schemas.ts';
 
 export const listsRoutes = createRouter();
@@ -46,6 +47,7 @@ export type ListRow = {
   group_by: 'store' | 'category' | 'aisle' | 'none';
   sort_by: 'manual' | 'added' | 'due' | 'priority' | 'alpha' | 'aisle';
   keep_checked: number;
+  catalog: Catalog | null; // shopping lists: groceries or shopping (0076); null on others
   sort: number;
   archived: number;
   created_at: string;
@@ -88,6 +90,7 @@ export function toApi(row: ListRow, itemCount: number, openCount: number, overdu
     groupBy: row.kind === 'shopping' && row.group_by === 'category' ? 'aisle' : row.group_by, // groceries group by aisle; a department fills it in
     sortBy: row.sort_by ?? 'manual',
     keepChecked: !!row.keep_checked,
+    catalog: row.kind === 'shopping' ? (row.catalog ?? 'groceries') : null,
     sort: row.sort,
     archived: !!row.archived,
     createdAt: row.created_at,
@@ -330,34 +333,37 @@ listsRoutes.openapi(
       group_by: body.groupBy ?? defaultGroupBy(body.kind),
       sort_by: body.sortBy ?? (body.kind === 'shopping' ? 'aisle' : 'manual'),
       keep_checked: body.keepChecked !== undefined ? (body.keepChecked ? 1 : 0) : defaultKeepChecked(body.kind),
+      catalog: await listCatalog(c.env.DB, body.kind, body.name, body.catalog),
       sort: (await c.env.DB.prepare('SELECT COALESCE(MAX(sort), -1) + 1 AS n FROM lists').first<{ n: number }>())?.n ?? 0, // new lists go last
       archived: 0,
       created_at: new Date().toISOString(),
     };
     await c.env.DB.prepare(
-      'INSERT INTO lists (id, name, emoji, color, kind, member_ids, group_by, sort_by, keep_checked, sort, archived, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+      'INSERT INTO lists (id, name, emoji, color, kind, member_ids, group_by, sort_by, keep_checked, catalog, sort, archived, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
     )
-      .bind(row.id, row.name, row.emoji, row.color, row.kind, row.member_ids, row.group_by, row.sort_by, row.keep_checked, row.sort, row.archived, row.created_at)
+      .bind(row.id, row.name, row.emoji, row.color, row.kind, row.member_ids, row.group_by, row.sort_by, row.keep_checked, row.catalog, row.sort, row.archived, row.created_at)
       .run();
     emit(c, 'list.changed', { id: row.id });
     return c.json(toApi(row, 0, 0), 201);
   },
 );
 
-// The grocery catalog. Registered before /api/lists/{id}, which would otherwise take "remembered" for a list id.
+// The catalogs (one per shopping list type). Registered before /api/lists/{id}, which would otherwise
+// take "remembered" for a list id. ?catalog picks one; groceries when left out (older clients).
+const CatalogQuery = z.object({ catalog: ListCatalogSchema.default('groceries') });
 listsRoutes.openapi(
   createRoute({
     method: 'get',
     path: '/api/lists/remembered',
     tags: ['Lists'],
-    summary: 'The grocery catalog: every remembered shopping item by title, with its department and the stores it is found at (aisle per store) and its categories (tags). q searches names; store keeps items found at that store; tag keeps items in that category (case ignored). They combine.',
+    summary: 'A catalog (catalog=groceries, the default, or shopping): every item remembered from lists of that type, by title, with its department and the stores it is found at (aisle per store) and its categories (tags). q searches names; store keeps items found at that store; tag keeps items in that category (case ignored). They combine.',
     security: [{ Bearer: [] }],
-    request: { query: z.object({ q: z.string().optional(), store: z.string().optional(), tag: z.string().optional() }) },
+    request: { query: CatalogQuery.extend({ q: z.string().optional(), store: z.string().optional(), tag: z.string().optional() }) },
     responses: { 200: { description: 'ok', content: { 'application/json': { schema: z.array(RememberedItemSchema) } } } },
   }),
   async (c) => {
-    const { q, store, tag } = c.req.valid('query');
-    return c.json(filterCatalog(await catalog(c.env.DB), q, store, tag), 200);
+    const { catalog: cat, q, store, tag } = c.req.valid('query');
+    return c.json(filterCatalog(await catalog(c.env.DB, cat), q, store, tag), 200);
   },
 );
 
@@ -366,9 +372,9 @@ listsRoutes.openapi(
     method: 'post',
     path: '/api/lists/remembered',
     tags: ['Lists'],
-    summary: 'Add an item to the grocery catalog without putting it on a list: its name, department and where it is found per store. Adds on shopping lists then use them.',
+    summary: 'Add an item to a catalog (catalog=groceries, the default, or shopping) without putting it on a list: its name, department and where it is found per store. Adds on lists of that type then use them.',
     security: [{ Bearer: [] }],
-    request: { body: { content: { 'application/json': { schema: RememberedItemInputSchema } } } },
+    request: { query: CatalogQuery, body: { content: { 'application/json': { schema: RememberedItemInputSchema } } } },
     responses: {
       201: { description: 'created', content: { 'application/json': { schema: RememberedItemSchema } } },
       409: { description: 'already in the catalog', content: { 'application/json': { schema: ErrorSchema } } },
@@ -376,10 +382,11 @@ listsRoutes.openapi(
   }),
   async (c) => {
     const body = c.req.valid('json');
+    const { catalog: cat } = c.req.valid('query');
     const key = itemKey(body.title);
-    const [clash] = await catalog(c.env.DB, key);
+    const [clash] = await catalog(c.env.DB, cat, key);
     if (clash) return c.json({ error: `Already in the catalog as ${clash.title}` }, 409);
-    return c.json(await saveCatalogItem(c, key, null, body), 201);
+    return c.json(await saveCatalogItem(c, cat, key, null, body), 201);
   },
 );
 
@@ -388,9 +395,9 @@ listsRoutes.openapi(
     method: 'put',
     path: '/api/lists/remembered/{key}',
     tags: ['Lists'],
-    summary: 'Edit a grocery catalog item: title (a respelling; a different name moves it, categories too), category (its department), tags (its categories) and places (replaces the stores it is found at, each with its aisle). Only given fields change. A new aisle is offered in that store\'s aisle picker.',
+    summary: 'Edit a catalog item (catalog=groceries, the default, or shopping): title (a respelling; a different name moves it, categories too), category (its department), tags (its categories) and places (replaces the stores it is found at, each with its aisle). Only given fields change. A new aisle is offered in that store\'s aisle picker.',
     security: [{ Bearer: [] }],
-    request: { params: z.object({ key: z.string() }), body: { content: { 'application/json': { schema: RememberedItemPatchSchema } } } },
+    request: { params: z.object({ key: z.string() }), query: CatalogQuery, body: { content: { 'application/json': { schema: RememberedItemPatchSchema } } } },
     responses: {
       200: { description: 'ok', content: { 'application/json': { schema: RememberedItemSchema } } },
       404: { description: 'not in the catalog', content: { 'application/json': { schema: ErrorSchema } } },
@@ -399,13 +406,14 @@ listsRoutes.openapi(
   }),
   async (c) => {
     const { key } = c.req.valid('param');
+    const { catalog: cat } = c.req.valid('query');
     const body = c.req.valid('json');
-    const [existing] = await catalog(c.env.DB, key);
+    const [existing] = await catalog(c.env.DB, cat, key);
     if (!existing) return c.json({ error: 'not found' }, 404);
     const to = body.title !== undefined ? itemKey(body.title) : key;
-    const [clash] = to !== key ? await catalog(c.env.DB, to) : [];
+    const [clash] = to !== key ? await catalog(c.env.DB, cat, to) : [];
     if (clash) return c.json({ error: `Already in the catalog as ${clash.title}` }, 409);
-    return c.json(await saveCatalogItem(c, key, existing, body), 200);
+    return c.json(await saveCatalogItem(c, cat, key, existing, body), 200);
   },
 );
 
@@ -414,34 +422,37 @@ listsRoutes.openapi(
     method: 'patch',
     path: '/api/lists/remembered-tags',
     tags: ['Lists'],
-    summary: 'Rename (to: a name) or remove (to: null) a grocery catalog category (tag) on every item that has it; from matches ignoring case. Renaming onto a category an item already has merges them.',
+    summary: 'Rename (to: a name) or remove (to: null) a catalog category (tag) on every item in that catalog (catalog=groceries, the default, or shopping) that has it; from matches ignoring case. Renaming onto a category an item already has merges them.',
     security: [{ Bearer: [] }],
-    request: { body: { content: { 'application/json': { schema: RememberedTagRenameSchema } } } },
+    request: { query: CatalogQuery, body: { content: { 'application/json': { schema: RememberedTagRenameSchema } } } },
     responses: { 200: { description: 'items changed', content: { 'application/json': { schema: z.object({ updated: z.number() }) } } } },
   }),
   async (c) => {
     const { from, to } = c.req.valid('json');
+    const { catalog: cat } = c.req.valid('query');
     const db = c.env.DB;
     const clean = to?.replace(/\s+/g, ' ');
     // The count runs first, in the same batch. OR REPLACE: an item that already has `to` keeps one.
     const [counted] = await db.batch<{ n: number }>([
-      db.prepare('SELECT COUNT(*) AS n FROM item_tags WHERE tag = ?').bind(from),
-      clean ? db.prepare('UPDATE OR REPLACE item_tags SET tag = ? WHERE tag = ?').bind(clean, from) : db.prepare('DELETE FROM item_tags WHERE tag = ?').bind(from),
+      db.prepare('SELECT COUNT(*) AS n FROM item_tags WHERE catalog = ? AND tag = ?').bind(cat, from),
+      clean
+        ? db.prepare('UPDATE OR REPLACE item_tags SET tag = ? WHERE catalog = ? AND tag = ?').bind(clean, cat, from)
+        : db.prepare('DELETE FROM item_tags WHERE catalog = ? AND tag = ?').bind(cat, from),
     ]);
     emit(c, 'list.changed', { tag: from });
     return c.json({ updated: counted.results[0]?.n ?? 0 }, 200);
   },
 );
 
-async function saveCatalogItem(c: Context<{ Bindings: Env }>, from: string, existing: CatalogItem | null, edit: CatalogEdit): Promise<CatalogItem> {
+async function saveCatalogItem(c: Context<{ Bindings: Env }>, cat: Catalog, from: string, existing: CatalogItem | null, edit: CatalogEdit): Promise<CatalogItem> {
   if (edit.tags) {
-    const { results } = await c.env.DB.prepare('SELECT DISTINCT tag FROM item_tags WHERE name_key != ?').bind(from).all<{ tag: string }>();
+    const { results } = await c.env.DB.prepare('SELECT DISTINCT tag FROM item_tags WHERE catalog = ? AND name_key != ?').bind(cat, from).all<{ tag: string }>();
     edit = { ...edit, tags: tagsInput(edit.tags, results.map((r) => r.tag)) };
   }
-  const { key, writes } = catalogWrites(c.env.DB, from, existing, edit, new Date().toISOString());
+  const { key, writes } = catalogWrites(c.env.DB, cat, from, existing, edit, new Date().toISOString());
   await c.env.DB.batch(writes);
   emit(c, 'list.changed', { remembered: key });
-  return (await catalog(c.env.DB, key))[0]!;
+  return (await catalog(c.env.DB, cat, key))[0]!;
 }
 
 type ValueRow = { store: string | null; category: string | null; aisle: string | null };
@@ -473,7 +484,7 @@ listsRoutes.openapi(
     method: 'get',
     path: '/api/lists/{id}',
     tags: ['Lists'],
-    summary: 'List detail: the list, its items (each with the planned meals it was added for), its group ordering, household-wide store/category/aisle suggestions (shopping lists), and stores\' custom aisle orders',
+    summary: 'List detail: the list, its items (each with the planned meals it was added for), its group ordering, store/category/aisle suggestions and autocomplete from the catalog of its type (shopping lists), and stores\' custom aisle orders',
     description:
       'Changed: `suggestions` is filled only for shopping lists; to-do and reusable lists get empty `stores`, `categories` and `aisles`. `suggestions=false` leaves suggestions (empty) and each item\'s `places` out of a shopping list too: a cheaper read for clients that only show the items.',
     security: [{ Bearer: [] }],
@@ -497,6 +508,7 @@ listsRoutes.openapi(
     // reads start from the list's row (`shop`, CROSS JOIN keeps it the outer loop), so on any other list
     // (or with suggestions=false) SQLite finds no row there and never reads the household-wide tables:
     // hosted is billed per row read.
+    // Everything remembered comes from the list's own catalog (groceries or shopping).
     const shop = "l.id = ?1 AND l.kind = 'shopping' AND ?2";
     const [listRes, itemsRes, groupsRes, stepsRes, valuesRes, tzRes, notesRes, orderRes, mealsRes, placesRes, namesRes, memoryRes, ingredientsRes] = await c.env.DB.batch<unknown>([
       c.env.DB.prepare('SELECT * FROM lists WHERE id = ?').bind(id),
@@ -504,7 +516,10 @@ listsRoutes.openapi(
       c.env.DB.prepare('SELECT * FROM list_groups WHERE list_id = ? ORDER BY kind, sort').bind(id),
       stepsQuery(c.env.DB, 'list_id = ?', id),
       // Every store/category/aisle used on any item, in one pass (with memoryRes: stores, categories and aisles below).
-      c.env.DB.prepare(`SELECT DISTINCT li.store, li.category, li.aisle FROM lists l CROSS JOIN list_items li WHERE ${shop}`).bind(id, want),
+      c.env.DB.prepare(
+        `SELECT DISTINCT li.store, li.category, li.aisle FROM lists l CROSS JOIN lists o JOIN list_items li ON li.list_id = o.id
+         WHERE ${shop} AND o.kind = 'shopping' AND coalesce(o.catalog, 'groceries') = coalesce(l.catalog, 'groceries')`,
+      ).bind(id, want),
       c.env.DB.prepare("SELECT value FROM settings WHERE key = 'timezone'"),
       c.env.DB.prepare(`SELECT target_id, COUNT(*) AS n FROM notes WHERE ${ITEM_NOTES} IN (SELECT id FROM list_items WHERE list_id = ?) GROUP BY target_id`).bind(id),
       c.env.DB.prepare('SELECT store, aisle FROM store_aisles ORDER BY store, sort'),
@@ -516,15 +531,17 @@ listsRoutes.openapi(
       ).bind(id),
       // Where each item has been kept, per store, newest first: any store's trip renders from this.
       c.env.DB.prepare(
-        `SELECT li.id AS item_id, m.store, m.aisle FROM lists l CROSS JOIN list_items li ON li.list_id = l.id JOIN item_memory m ON m.name_key = li.name_key
+        `SELECT li.id AS item_id, m.store, m.aisle FROM lists l CROSS JOIN list_items li ON li.list_id = l.id
+         JOIN item_memory m ON m.catalog = coalesce(l.catalog, 'groceries') AND m.name_key = li.name_key
          WHERE ${shop} ORDER BY m.updated_at DESC`,
       ).bind(id, want),
       // Autocomplete (shopping lists): remembered names, where they go, and recipe ingredients.
-      c.env.DB.prepare(`SELECT n.name_key, n.title, n.uses FROM lists l CROSS JOIN item_names n WHERE ${shop} ORDER BY n.uses DESC, n.last_used DESC LIMIT ${SUGGESTION_CAP}`).bind(id, want),
+      c.env.DB.prepare(`SELECT n.name_key, n.title, n.uses FROM lists l CROSS JOIN item_names n WHERE ${shop} AND n.catalog = coalesce(l.catalog, 'groceries') ORDER BY n.uses DESC, n.last_used DESC LIMIT ${SUGGESTION_CAP}`).bind(id, want),
       // Everything remembered: the values above, and where the top names go (memoryOf; sorted there, as a
       // SQL ORDER BY would read every row twice).
-      c.env.DB.prepare(`SELECT m.name_key, m.store, m.category, m.aisle, m.updated_at FROM lists l CROSS JOIN item_memory m WHERE ${shop}`).bind(id, want),
-      c.env.DB.prepare(`SELECT DISTINCT ri.name, ri.category FROM lists l CROSS JOIN recipes r JOIN recipe_ingredients ri ON ri.recipe_id = r.id WHERE ${shop} AND r.archived = 0 ORDER BY ri.name`).bind(id, want),
+      c.env.DB.prepare(`SELECT m.name_key, m.store, m.category, m.aisle, m.updated_at FROM lists l CROSS JOIN item_memory m WHERE ${shop} AND m.catalog = coalesce(l.catalog, 'groceries')`).bind(id, want),
+      // Recipe ingredients: groceries only.
+      c.env.DB.prepare(`SELECT DISTINCT ri.name, ri.category FROM lists l CROSS JOIN recipes r JOIN recipe_ingredients ri ON ri.recipe_id = r.id WHERE ${shop} AND coalesce(l.catalog, 'groceries') = 'groceries' AND r.archived = 0 ORDER BY ri.name`).bind(id, want),
     ]);
     const noteCounts = new Map((notesRes.results as { target_id: string; n: number }[]).map((r) => [r.target_id, r.n]));
     const list = (listRes.results as ListRow[])[0];
@@ -593,6 +610,7 @@ listsRoutes.openapi(
     const existing = await c.env.DB.prepare('SELECT * FROM lists WHERE id = ?').bind(id).first<ListRow>();
     if (!existing) return c.json({ error: 'not found' }, 404);
     const memberIds = body.memberIds !== undefined ? await resolveMemberIds(c.env.DB, body.memberIds) : parseMemberIds(existing.member_ids);
+    const kind = body.kind ?? existing.kind;
     const updated: ListRow = {
       ...existing,
       name: body.name ?? existing.name,
@@ -604,11 +622,13 @@ listsRoutes.openapi(
       sort_by: body.sortBy ?? existing.sort_by,
       // A kind change takes that kind's default unless the caller says otherwise.
       keep_checked: body.keepChecked !== undefined ? (body.keepChecked ? 1 : 0) : body.kind && body.kind !== existing.kind ? defaultKeepChecked(body.kind) : existing.keep_checked,
+      // A shopping list keeps its type unless told otherwise; one that becomes a shopping list takes the name rule.
+      catalog: await listCatalog(c.env.DB, kind, body.name ?? existing.name, body.catalog ?? (existing.kind === 'shopping' ? existing.catalog : null)),
       sort: body.sort ?? existing.sort,
       archived: body.archived !== undefined ? (body.archived ? 1 : 0) : existing.archived,
     };
-    await c.env.DB.prepare('UPDATE lists SET name=?, emoji=?, color=?, kind=?, member_ids=?, group_by=?, sort_by=?, keep_checked=?, sort=?, archived=? WHERE id=?')
-      .bind(updated.name, updated.emoji, updated.color, updated.kind, updated.member_ids, updated.group_by, updated.sort_by, updated.keep_checked, updated.sort, updated.archived, id)
+    await c.env.DB.prepare('UPDATE lists SET name=?, emoji=?, color=?, kind=?, member_ids=?, group_by=?, sort_by=?, keep_checked=?, catalog=?, sort=?, archived=? WHERE id=?')
+      .bind(updated.name, updated.emoji, updated.color, updated.kind, updated.member_ids, updated.group_by, updated.sort_by, updated.keep_checked, updated.catalog, updated.sort, updated.archived, id)
       .run();
     emit(c, 'list.changed', { id });
     const counts = await c.env.DB.prepare(
@@ -666,7 +686,7 @@ listsRoutes.openapi(
     const body = c.req.valid('json');
     const inputs = Array.isArray(body) ? body : [body];
 
-    const list = await c.env.DB.prepare('SELECT id, name, kind FROM lists WHERE id = ?').bind(id).first<{ id: string; name: string; kind: ListRow['kind'] }>();
+    const list = await c.env.DB.prepare("SELECT id, name, kind, coalesce(catalog, 'groceries') AS catalog FROM lists WHERE id = ?").bind(id).first<{ id: string; name: string; kind: ListRow['kind']; catalog: Catalog }>();
     if (!list) return c.json({ error: 'not found' }, 404);
     if (await missingEventIds(c.env.DB, inputs.map((i) => i.eventId))) return c.json({ error: 'event not found' }, 400);
     const block = await taskLinkBlock(c, inputs.map((i) => i.eventId));
@@ -698,7 +718,7 @@ listsRoutes.openapi(
     // "Remembers where things go" (shopping lists): only OMITTED fields fill from memory -
     // explicit null means "none" and must not be overwritten.
     const shopping = list.kind === 'shopping';
-    const memory = shopping ? await recall(c.env.DB, fresh.map((i) => i.title)) : new Map();
+    const memory = shopping ? await recall(c.env.DB, list.catalog, fresh.map((i) => i.title)) : new Map();
     for (const input of fresh) {
       const { store, category, aisle } = shopping
         ? fillPlace(memory, input.title, input)
@@ -760,8 +780,8 @@ listsRoutes.openapi(
             st.id, st.item_id, st.title, st.done, st.done_at, st.sort, st.created_at,
           ),
         ),
-        ...(shopping ? rows.map((r) => rememberPlace(c.env.DB, r.title, r, now)).filter((st) => st !== null) : []),
-        ...(shopping ? rows.map((r) => rememberName(c.env.DB, r.title, now)) : []),
+        ...(shopping ? rows.map((r) => rememberPlace(c.env.DB, list.catalog, r.title, r, now)).filter((st) => st !== null) : []),
+        ...(shopping ? rows.map((r) => rememberName(c.env.DB, list.catalog, r.title, now)) : []),
       ]);
       emit(c, 'list.item.changed', { listId: id, ids: rows.map((r) => r.id) });
       let execCtx: Parameters<typeof notifyListUpdate>[1];
@@ -803,9 +823,9 @@ listsRoutes.openapi(
   async (c) => {
     const { id, itemId } = c.req.valid('param');
     const body = c.req.valid('json');
-    const existing = await c.env.DB.prepare("SELECT li.*, l.kind = 'shopping' AS shopping FROM list_items li JOIN lists l ON l.id = li.list_id WHERE li.id = ? AND li.list_id = ?")
+    const existing = await c.env.DB.prepare("SELECT li.*, l.kind = 'shopping' AS shopping, coalesce(l.catalog, 'groceries') AS catalog FROM list_items li JOIN lists l ON l.id = li.list_id WHERE li.id = ? AND li.list_id = ?")
       .bind(itemId, id)
-      .first<ListItemRow & { shopping: number }>();
+      .first<ListItemRow & { shopping: number; catalog: Catalog }>();
     if (!existing) return c.json({ error: 'not found' }, 404);
     if (await missingEventIds(c.env.DB, [body.eventId])) return c.json({ error: 'event not found' }, 400);
     if (body.eventId !== undefined && body.eventId !== existing.event_id) {
@@ -871,12 +891,12 @@ listsRoutes.openapi(
       // is remembered for the trip's store, and an "anywhere" item doesn't remember one for no store.
       ...(existing.shopping && [body.title, body.store, body.category, body.aisle].some((v) => v !== undefined)
         ? [
-            trip && !updated.store ? null : rememberPlace(c.env.DB, updated.title, updated, now),
-            trip ? rememberPlace(c.env.DB, updated.title, { store: trip.store, category: updated.category, aisle: trip.aisle }, now) : null,
+            trip && !updated.store ? null : rememberPlace(c.env.DB, existing.catalog, updated.title, updated, now),
+            trip ? rememberPlace(c.env.DB, existing.catalog, updated.title, { store: trip.store, category: updated.category, aisle: trip.aisle }, now) : null,
           ].filter((st) => st !== null)
         : []),
       // A rename is the spelling to suggest from now on (not another use).
-      ...(existing.shopping && body.title !== undefined && updated.title !== existing.title ? [rememberName(c.env.DB, updated.title, now, 0)] : []),
+      ...(existing.shopping && body.title !== undefined && updated.title !== existing.title ? [rememberName(c.env.DB, existing.catalog, updated.title, now, 0)] : []),
     ]);
     emit(c, 'list.item.changed', { listId: id, id: itemId, done: !!updated.done });
     return c.json((await loadItem(c.env.DB, id, itemId))!, 200);
@@ -923,13 +943,17 @@ listsRoutes.openapi(
     // Checkout at the end of a trip: these were bought at `store` - the newest place for each, so the
     // item editor can suggest it next time. The aisle known there is kept.
     if (store) {
-      const bought = (await c.env.DB.prepare(`SELECT title, category FROM list_items WHERE ${where}`).bind(id, ids, ids).all<{ title: string; category: string | null }>()).results;
+      const [bought, list] = await c.env.DB.batch<unknown>([
+        c.env.DB.prepare(`SELECT title, category FROM list_items WHERE ${where}`).bind(id, ids, ids),
+        c.env.DB.prepare("SELECT coalesce(catalog, 'groceries') AS catalog FROM lists WHERE id = ?").bind(id),
+      ]);
+      const cat = (list.results as { catalog: Catalog }[])[0]?.catalog ?? 'groceries';
       const now = new Date().toISOString();
-      if (bought.length) {
-        await c.env.DB.batch(bought.map((b) => c.env.DB.prepare(
-          `INSERT INTO item_memory (name_key, store, category, aisle, updated_at) VALUES (?, ?, ?, NULL, ?)
-           ON CONFLICT(name_key, store) DO UPDATE SET category = coalesce(excluded.category, item_memory.category), updated_at = excluded.updated_at`,
-        ).bind(itemKey(b.title), store, b.category, now)));
+      if (bought.results.length) {
+        await c.env.DB.batch((bought.results as { title: string; category: string | null }[]).map((b) => c.env.DB.prepare(
+          `INSERT INTO item_memory (catalog, name_key, store, category, aisle, updated_at) VALUES (?, ?, ?, ?, NULL, ?)
+           ON CONFLICT(catalog, name_key, store) DO UPDATE SET category = coalesce(excluded.category, item_memory.category), updated_at = excluded.updated_at`,
+        ).bind(cat, itemKey(b.title), store, b.category, now)));
       }
     }
     await c.env.DB.prepare(`DELETE FROM notes WHERE ${ITEM_NOTES} IN (SELECT id FROM list_items WHERE ${where})`).bind(id, ids, ids).run();
@@ -982,15 +1006,18 @@ listsRoutes.openapi(
     method: 'post',
     path: '/api/lists/values',
     tags: ['Lists'],
-    summary: 'Rename (to: a name) or remove (to: null) a store, category or aisle everywhere: items on every list, remembered places, group and aisle orders. An aisle belongs to a store (store: null = items with no store).',
+    summary: 'Rename (to: a name) or remove (to: null) a store, category or aisle everywhere: items on every list, remembered places, group and aisle orders. An aisle belongs to a store (store: null = items with no store). A category with catalog changes only lists of that type and that catalog.',
     security: [{ Bearer: [] }],
     request: { body: { content: { 'application/json': { schema: ListValueRenameSchema } } } },
     responses: { 200: { description: 'items changed', content: { 'application/json': { schema: z.object({ updated: z.number() }) } } } },
   }),
   async (c) => {
-    const { field, from, to } = c.req.valid('json');
+    const { field, from, to, catalog: cat } = c.req.valid('json');
     const store = c.req.valid('json').store ?? null;
     const db = c.env.DB;
+    // A department is per catalog when one is given: only items on lists of that type (and their groups).
+    const inCatalog = field === 'category' && cat ? " AND list_id IN (SELECT id FROM lists WHERE kind = 'shopping' AND coalesce(catalog, 'groceries') = ?)" : '';
+    const catalogBind = inCatalog ? [cat] : [];
     const writes =
       field === 'store'
         ? [
@@ -1004,11 +1031,11 @@ listsRoutes.openapi(
           ]
         : field === 'category'
           ? [
-              db.prepare('UPDATE list_items SET category = ? WHERE category = ?').bind(to, from),
-              db.prepare('UPDATE item_memory SET category = ? WHERE category = ?').bind(to, from),
+              db.prepare(`UPDATE list_items SET category = ? WHERE category = ?${inCatalog}`).bind(to, from, ...catalogBind),
+              db.prepare(`UPDATE item_memory SET category = ? WHERE category = ?${cat ? ' AND catalog = ?' : ''}`).bind(to, from, ...(cat ? [cat] : [])),
               to
-                ? db.prepare("UPDATE OR REPLACE list_groups SET name = ? WHERE kind = 'category' AND name = ?").bind(to, from)
-                : db.prepare("DELETE FROM list_groups WHERE kind = 'category' AND name = ?").bind(from),
+                ? db.prepare(`UPDATE OR REPLACE list_groups SET name = ? WHERE kind = 'category' AND name = ?${inCatalog}`).bind(to, from, ...catalogBind)
+                : db.prepare(`DELETE FROM list_groups WHERE kind = 'category' AND name = ?${inCatalog}`).bind(from, ...catalogBind),
             ]
           : [
               db.prepare("UPDATE list_items SET aisle = ? WHERE aisle = ? AND coalesce(store, '') = coalesce(?, '')").bind(to, from, store),
@@ -1018,7 +1045,7 @@ listsRoutes.openapi(
                 : db.prepare("DELETE FROM store_aisles WHERE aisle = ? AND store = coalesce(?, '')").bind(from, store),
             ];
     // The count runs first, in the same batch, so it's the items this rename touches.
-    const count = db.prepare(`SELECT COUNT(*) AS n FROM list_items WHERE ${field} = ?${field === 'aisle' ? " AND coalesce(store, '') = coalesce(?, '')" : ''}`).bind(...(field === 'aisle' ? [from, store] : [from]));
+    const count = db.prepare(`SELECT COUNT(*) AS n FROM list_items WHERE ${field} = ?${field === 'aisle' ? " AND coalesce(store, '') = coalesce(?, '')" : inCatalog}`).bind(...(field === 'aisle' ? [from, store] : [from, ...catalogBind]));
     const [counted] = await db.batch<{ n: number }>([count, ...writes]);
     emit(c, 'list.changed', { value: field });
     return c.json({ updated: counted.results[0]?.n ?? 0 }, 200);
@@ -1077,17 +1104,18 @@ listsRoutes.openapi(
     method: 'delete',
     path: '/api/lists/remembered/{key}',
     tags: ['Lists'],
-    summary: 'Forget a remembered item name (key: its matching key from suggestions.items): it stops being suggested, and where it goes and its categories are forgotten. Items on lists keep it.',
+    summary: 'Forget a remembered item name in a catalog (catalog=groceries, the default, or shopping; key: its matching key from suggestions.items): it stops being suggested there, and where it goes and its categories are forgotten. Items on lists keep it.',
     security: [{ Bearer: [] }],
-    request: { params: z.object({ key: z.string() }) },
+    request: { params: z.object({ key: z.string() }), query: CatalogQuery },
     responses: { 200: { description: 'ok', content: { 'application/json': { schema: z.object({ ok: z.boolean() }) } } } },
   }),
   async (c) => {
     const { key } = c.req.valid('param');
+    const { catalog: cat } = c.req.valid('query');
     await c.env.DB.batch([
-      c.env.DB.prepare('DELETE FROM item_names WHERE name_key = ?').bind(key),
-      c.env.DB.prepare('DELETE FROM item_memory WHERE name_key = ?').bind(key),
-      c.env.DB.prepare('DELETE FROM item_tags WHERE name_key = ?').bind(key),
+      c.env.DB.prepare('DELETE FROM item_names WHERE catalog = ? AND name_key = ?').bind(cat, key),
+      c.env.DB.prepare('DELETE FROM item_memory WHERE catalog = ? AND name_key = ?').bind(cat, key),
+      c.env.DB.prepare('DELETE FROM item_tags WHERE catalog = ? AND name_key = ?').bind(cat, key),
     ]);
     emit(c, 'list.changed', { forgot: key });
     return c.json({ ok: true }, 200);

@@ -12,28 +12,33 @@ The Lists tab shows your lists and their open-item counts. On the wall display, 
 
 ## Organizing lists
 
-The Lists tab groups your lists by kind under **Shopping**, **To-dos** and **Reusable**, in that order, each with how many lists it has. A kind with no lists doesn't show. On the wall display and tablets the same sections fill the column beside the open list.
+The Lists tab groups your lists by type under **Groceries**, **Shopping**, **To-dos** and **Reusable**, in that order, each with how many lists it has. A type with no lists doesn't show. On the wall display and tablets the same sections fill the column beside the open list.
 
 * **Fold a section**: tap its heading. This device remembers which sections are folded; other screens keep their own.
 * **Reorder**: tap **Reorder** under the lists (it shows once a section has two or more). Drag a list by its grip, or tap the up and down arrows to move it one place. Holding a dragged list near the top or bottom edge scrolls. Tap **Done** when you're finished.
-* The order is the family's: every phone, the wall and the assistant see it, and anywhere else lists appear (the grocery list picker in Meals, the task picker on an event, a chore's checklist picker) follows it. A list moves within its own section; changing its kind moves it to that section.
+* The order is the family's: every phone, the wall and the assistant see it, and anywhere else lists appear (the grocery list picker in Meals, the task picker on an event, a chore's checklist picker) follows it. A list moves within its own section; changing its type moves it to that section.
 * New lists go to the end of their section. A restored list comes back where it was.
 
-## Kinds
+## List types
 
-| Kind | For | Extras |
+| Type | For | Extras |
 |---|---|---|
-| **Shopping** | groceries, hardware runs | Items have a **Store**, an **Aisle** and a **Department**. Group by Aisle, Store or None (default Aisle); sorted by Aisle. [Shop](#shopping-at-a-store) walks the list in one store. |
+| **Groceries** 🧺 | food and household groceries | Items have a **Store**, an **Aisle** and a **Department**. Group by Aisle, Store or None (default Aisle); sorted by Aisle. [Shop](#shopping-at-a-store) walks the list in one store. [Meals](meals.md#adding-to-the-grocery-list) add ingredients here. Uses the **Grocery catalog**. |
+| **Shopping** 🛒 | hardware store, department store, gifts | Everything a Groceries list has, with its own **Shopping catalog**. Meals don't add to it. |
 | **To-do** | jobs, errands | Items have an assignee (**Assign to**) and a **Due date**. |
 | **Reusable** | packing lists, routines | Items have an assignee. **Reset** unticks everything (steps too) so you can use it again. |
 
-You can change a list's kind later.
+You can change a list's type later, in **Edit** → **Type**.
+
+Groceries and Shopping lists work the same way (stores, aisles, shopping mode, Checkout). What differs is what they remember: each type has its own [catalog](#catalogs), so a hammer from the hardware store isn't suggested on the grocery list, and milk isn't suggested at the hardware store. Stores and their aisle orders are shared by both, since a store is the same store whichever list you shop it from.
+
+**Before list types**, every shopping list was one kind with one catalog. When your Kinwall updated, a shopping list became **Groceries** when its name looks like groceries (it has "grocer", "food", "market", "produce" or "pantry" in it, in any case, so "Groceries", "Supermarket" and "Farmers market" all count), when meals were added to it, or when it was your only shopping list; the others became **Shopping**. Everything remembered went to the Grocery catalog, except names that were only on Shopping lists, which went to the Shopping catalog (a name on both kinds of list went to both). Change a list's type in **Edit** if it guessed wrong. A new shopping list made by the assistant or an older app without a type follows the same name rule, and your first shopping list is always Groceries.
 
 A list can also be a chore's **checklist**, so a routine like "Bedtime" has to be ticked off before the chore counts. A reusable checklist resets itself each time the chore is completed. See [Chores → Checklists](chores.md#checklists).
 
 ## Editing a list
 
-**Edit** opens **Name**, **Kind**, **Keep checked items in place** (see below), **Emoji**, **Color** and **Owners (nobody = whole family)**. On a shopping list it also opens [Stores & departments](#stores--departments). It also has **Archive** (next to delete) and delete, which removes all the list's items too. Archived lists are hidden from the main Lists view and collect in a collapsed **Archived (*N*)** section at the bottom of the list overview. Expand it to **Restore** a list or delete it for good. The API returns them with `GET /api/lists?archived=true`; `PATCH /api/lists/{id} {archived}` archives or restores.
+**Edit** opens **Name**, **Type**, **Keep checked items in place** (see below), **Emoji**, **Color** and **Owners (nobody = whole family)**. On a shopping list it also opens [Stores & departments](#stores--departments). It also has **Archive** (next to delete) and delete, which removes all the list's items too. Archived lists are hidden from the main Lists view and collect in a collapsed **Archived (*N*)** section at the bottom of the list overview. Expand it to **Restore** a list or delete it for good. The API returns them with `GET /api/lists?archived=true`; `PATCH /api/lists/{id} {archived}` archives or restores.
 
 ## Adding and ticking items
 
@@ -66,17 +71,17 @@ This is only how the item is shown. The aisle isn't saved, so if the store's ais
 
 ### Remembered places
 
-When you save a shopping item with a store, department or aisle, Kinwall remembers it for that item name, on the server, so every phone, the wall and the assistant share it. Next time anyone adds "milk" (typed, from Meals, or through the assistant), it gets the same store, department and aisle. Anything you set yourself wins, including choosing **None**.
+When you save a shopping item with a store, department or aisle, Kinwall remembers it for that item name in the list type's [catalog](#catalogs), on the server, so every phone, the wall and the assistant share it. Next time anyone adds "milk" to a Groceries list (typed, from Meals, or through the assistant), it gets the same store, department and aisle. Anything you set yourself wins, including choosing **None**.
 
 * Names match ignoring capitals, extra spaces and simple plurals: "Eggs" is "egg", "Tomatoes" is "tomato", "Berries" is "berry".
 * The aisle is remembered per store. Milk can be in Aisle 4 at one store and on the back wall at another; each store's aisle comes back when the item is planned for that store.
 * The memory outlives the item: checking out milk doesn't forget where it goes.
-* To see or change everything that's remembered, open the [Grocery catalog](#grocery-catalog).
+* To see or change everything that's remembered, open the list's [catalog](#catalogs).
 * To-do and reusable lists don't use it.
 
 ### Autocomplete
 
-On a shopping list, the add bar (and **Add an item** in [Shopping mode](#shopping-mode)) suggests names your family has added before, on any shopping list, from the first letter you type. Type "ba" and you get Bananas, Banana milk, Bagels and so on, the ones you add most first. Ingredients from your saved recipes are suggested too, after the things you've actually bought.
+On a Groceries or Shopping list, the add bar (and **Add an item** in [Shopping mode](#shopping-mode)) suggests names your family has added before on lists of the same type, from the first letter you type. Type "ba" on the grocery list and you get Bananas, Banana milk, Bagels and so on, the ones you add most first. On Groceries lists, ingredients from your saved recipes are suggested too, after the things you've actually bought.
 
 * Each suggestion shows where it goes, for example "Produce · Market".
 * Capitals and simple plurals don't matter: "egg" finds Eggs.
@@ -86,20 +91,20 @@ On a shopping list, the add bar (and **Add an item** in [Shopping mode](#shoppin
 * Suggestions come with the list, so they work offline too.
 * Names are remembered household-wide, on the server, whether you add from the app, from Meals or through the assistant. Renaming an item changes the spelling suggested next time.
 * Items from before this update show in simple lowercase (for example "banana milk") until you add them again; the next add keeps your spelling.
-* To forget one, open it in the [Grocery catalog](#grocery-catalog) and tap **Forget this item**. It stops being suggested and where it goes is forgotten; items on lists keep it. (A recipe ingredient still comes back as a suggestion while a saved recipe uses it.)
+* To forget one, open it in the list's [catalog](#catalogs) and tap **Forget this item**. It stops being suggested and where it goes is forgotten; items on lists keep it. (A recipe ingredient still comes back as a suggestion while a saved recipe uses it.)
 
 ### Stores & departments
 
 **Edit** → **Stores & departments** (shopping lists) lists every store, department and aisle your family uses:
 
-* **Rename** changes the name everywhere: items on every list and what's remembered. Rename "Costco" to "Warehouse club" once and every item follows.
+* **Rename** changes the name everywhere: items on every list and what's remembered. Rename "Costco" to "Warehouse club" once and every item follows. Stores and aisles are shared by Groceries and Shopping lists; a department is renamed only in this list type's catalog (and on lists of this type).
 * The trash button **removes** a name: it's cleared from every item that uses it and forgotten.
-* **Items**: **Open the grocery catalog** (see [Grocery catalog](#grocery-catalog)).
+* **Items**: **Open the grocery catalog** (or **Open the shopping catalog** on a Shopping list; see [Catalogs](#catalogs)).
 * **Aisles**: pick a store, then drag its aisles into the order you walk the store, for example Produce, Bakery, Deli, Meat, Aisle 3 to Aisle 18 with Frozen in the middle, Dairy, Pharmacy. Aisles don't have to be numbers, and one no item uses yet can be added here so it's in the dropdown. **Aisle** sort and grouping follow this order; aisles you haven't placed come after, in natural order.
 
-### Grocery catalog
+### Catalogs
 
-Tap **Catalog** on a shopping list to see everything your family has bought before, A to Z, with its department, its categories (🏷️), how many times it was bought, and where it's found at each store ("Warehouse club · Aisle 12", "Neighborhood market · Dairy").
+Each shopping list type has its own catalog: the **Grocery catalog** for Groceries lists and the **Shopping catalog** for Shopping lists. Tap **Catalog** on a list to open its type's catalog and see everything your family has bought before on lists of that type, A to Z, with its department, its categories (🏷️), how many times it was bought, and where it's found at each store ("Warehouse club · Aisle 12", "Neighborhood market · Dairy").
 
 * **Find an item** searches names; capitals and simple plurals don't matter.
 * **Filter & sort** opens a sheet with everything that narrows or orders the list. Changes show in the catalog behind it right away; tap **Done** when you're finished. The button shows how many filters are on (**2**, say).
@@ -259,8 +264,10 @@ Devices with **List updates** on get "List updated — *Groceries* has new items
 * `POST /api/lists/values` `{field: "store" | "category" | "aisle", from, to, store?}` renames (`to`) or removes (`to: null`) a value everywhere; an aisle needs its `store`. `PUT /api/lists/aisles` `{store, aisles}` sets a store's aisle order (`[]` clears it).
 * Items carry `priority` (`low`, `normal`, `high` or `urgent`; older clients sending `high` keep working), `steps` (`[{id, title, done, sort}]`, in order), `stepsDone` and `stepsTotal`.
 * Steps: `POST /api/lists/{id}/items/{itemId}/steps` (`{title}`), `PATCH …/steps/{stepId}` (`title`, `done`, `sort`), `DELETE …/steps/{stepId}`, `POST …/steps/reorder` (`{stepIds}`). Each returns the whole updated item, including any automatic complete or re-open.
-* Grocery catalog: `GET /api/lists/remembered` (`?q=` searches names, `?store=` keeps items found there, `?tag=` keeps items in that category, ignoring case; they combine) returns every remembered item by title: `{key, title, uses, lastUsed, category, places: [{store, aisle, updatedAt}], lastStore, tags}` (`lastStore`: where a new add goes; `tags`: its categories, in order). `PUT /api/lists/remembered/{key}` edits one: `title` (a respelling; a different name moves it to that name's key, `409` if that's another item), `category` (its department), `tags` (replaces its categories: up to 10, 40 characters each, trimmed, each once ignoring case; a category another item already has keeps that spelling; `[]` clears them; a new name carries them along) and `places: [{store, aisle}]`, which replaces its stores (stores left out are forgotten). Only given fields change. `POST /api/lists/remembered` adds one (`title`, `category`, `tags`, `places`) without putting it on a list; `409` if it's already there. `PATCH /api/lists/remembered-tags` `{from, to}` renames a category on every item (`from` ignores case; an item that already has `to` keeps one), `to: null` removes it; it returns `{updated}`, the items changed. Display keys can read, add and edit items, including their categories; renaming or removing a category everywhere and forgetting an item are admin only (forgetting also forgets its categories).
+* List types: a shopping list's `catalog` is its type, `groceries` or `shopping` (`null` on to-do and reusable lists); `kind` stays `shopping` for both, so older apps keep working. `POST /api/lists` and `PATCH /api/lists/{id}` take `catalog`. Without one, a new shopping list is `groceries` when its name looks like groceries or the family has no Groceries list yet, else `shopping`, and a list switched to shopping keeps its type or takes the same rule.
+* **Changed (2026-09-30):** remembered places, names, categories and autocomplete are per catalog. `GET /api/lists/{id}` suggests what's remembered from lists of the same type (and recipe ingredients on Groceries lists only), and adds fill from and remember into that catalog. Every catalog route takes `?catalog=groceries|shopping`, `groceries` when left out. `POST /api/lists/values` takes `catalog` to rename a department in one catalog only; stores and aisles are shared. Meals add ingredients to Groceries lists only.
+* Catalogs: `GET /api/lists/remembered` (`?catalog=`, `?q=` searches names, `?store=` keeps items found there, `?tag=` keeps items in that category, ignoring case; they combine) returns every remembered item by title: `{key, title, uses, lastUsed, category, places: [{store, aisle, updatedAt}], lastStore, tags}` (`lastStore`: where a new add goes; `tags`: its categories, in order). `PUT /api/lists/remembered/{key}` edits one: `title` (a respelling; a different name moves it to that name's key, `409` if that's another item), `category` (its department), `tags` (replaces its categories: up to 10, 40 characters each, trimmed, each once ignoring case; a category another item already has keeps that spelling; `[]` clears them; a new name carries them along) and `places: [{store, aisle}]`, which replaces its stores (stores left out are forgotten). Only given fields change. `POST /api/lists/remembered` adds one (`title`, `category`, `tags`, `places`) without putting it on a list; `409` if it's already there. `PATCH /api/lists/remembered-tags` `{from, to}` renames a category on every item in the catalog (`from` ignores case; an item that already has `to` keeps one), `to: null` removes it; it returns `{updated}`, the items changed. Display keys can read, add and edit items, including their categories; renaming or removing a category everywhere and forgetting an item are admin only (forgetting also forgets its categories).
 * MCP: `list_lists`, `create_list`, `update_list` (including `sortBy`, `groupBy` and `keepChecked`), `get_list` (with `store` for the trip view), `add_list_items` and `update_list_item` (both with `aisle`; adds use the remembered places), `set_store_aisle_order`, `list_remembered_items` (with `tag`) and `update_remembered_item` (with `tags`) (the grocery catalog), `set_list_item_done`, `set_step_done`, `get_event_items`. Lists can be referred to by name.
 * Discussion: `GET /api/notes?target=list_item:<id>`, `POST /api/notes` `{target, body, memberId?}`, `PATCH/DELETE /api/notes/{id}`; items in `GET /api/lists/{id}` carry `noteCount`. MCP: `list_notes`, `add_note`, `update_note`.
 * Display keys have full access to lists, steps and discussions included.
-* Export and import include each list's sort and **Keep checked items in place**, each item's priority, aisle and steps, the remembered places, the remembered item names, the grocery catalog categories (`itemTags`, added to an item's categories on import) and each store's aisle order. Older export files import with Manual sort and the kind's default for keeping checked items.
+* Export and import include each list's sort, type (`catalog`) and **Keep checked items in place**, each item's priority, aisle and steps, the remembered places, the remembered item names, the catalog categories (`itemTags`, added to an item's categories on import), each with its `catalog`, and each store's aisle order. Older export files import with Manual sort, the kind's default for keeping checked items, and the [name rule](#list-types) for list types and catalogs.

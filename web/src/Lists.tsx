@@ -4,7 +4,7 @@ import { addDays, format } from 'date-fns'
 import { useApp } from './AppContext.tsx'
 import { api, ApiError } from './api.ts'
 import { applyListOps, type Op } from './outbox.ts'
-import type { EventInstance, ItemSuggestion, List, ListDetail, ListGroupBy, ListItem, ListItemPriority, ListItemStep, ListKind, ListSortBy, Member, RememberedItem } from './types.ts'
+import type { EventInstance, ItemSuggestion, List, ListCatalog, ListDetail, ListGroupBy, ListItem, ListItemPriority, ListItemStep, ListKind, ListSortBy, Member, RememberedItem } from './types.ts'
 import { aisleOrderMap, compareAisles, compareItems, LIST_EMOJI, MEMBER_PALETTE, type AisleOrder } from './types.ts'
 import { dateKey } from './date.ts'
 import Sheet from './Sheet.tsx'
@@ -13,7 +13,7 @@ import { MemberPicker } from './MemberPicker.tsx'
 import { isSingleEmoji } from './emoji.ts'
 import { colorName, inkFor } from './color.ts'
 import { useIsPhone } from './useIsPhone.ts'
-import { CalendarIcon, CartIcon, CheckIcon, ChevronLeft, ChevronRight, FilterIcon, NoteIcon, PlusIcon, TrashIcon, XIcon } from './icons.tsx'
+import { BasketIcon, CalendarIcon, CartIcon, CheckIcon, ChevronLeft, ChevronRight, FilterIcon, NoteIcon, PlusIcon, RepeatIcon, TrashIcon, XIcon } from './icons.tsx'
 import { announce, pressable, Segmented } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
 import { CustomColorSwatch } from './ColorSwatch.tsx'
@@ -25,10 +25,14 @@ import { holdAwake } from './wakeLock.ts'
 import { shoppingActivity } from './liveActivity.ts'
 import { endAppActivity, tellAppActivity } from './native.ts'
 import { itemKey, matchItems } from './itemSuggest.ts'
-import { listSections, reorderWithin } from './listSections.ts'
+import { listSections, listType, reorderWithin, TYPE_LABEL, typeFields, type ListType } from './listSections.ts'
 import { activeCatalogFilters, boughtLabel, CATALOG_GROUP_LABELS, CATALOG_SORT_LABELS, catalogDepartments, catalogFilterSummary, catalogStores, catalogTags, catalogView, filterCatalog, groupCatalog, placeLabel, placesFor, placesInput, setCatalogView, sortCatalog, STARTER_TAGS, tagsInput, type CatalogGroup, type CatalogSort } from './catalog.ts'
 
-const KIND_LABEL: Record<ListKind, string> = { todo: 'To-do', shopping: 'Shopping', reusable: 'Reusable' }
+// The list types in the edit sheet, each with its icon (Groceries first among the shopping ones).
+const TYPE_ICON: Record<ListType, typeof CartIcon> = { todo: CheckIcon, groceries: BasketIcon, shopping: CartIcon, reusable: RepeatIcon }
+const TYPE_ORDER: ListType[] = ['todo', 'groceries', 'shopping', 'reusable']
+/** A shopping list's catalog, by type: "Grocery catalog" / "Shopping catalog". */
+const catalogName = (catalog: ListCatalog) => (catalog === 'groceries' ? 'Grocery catalog' : 'Shopping catalog')
 
 /** "3 left" / "All done" summary shown on a list card, per SPEC. */
 function countLabel(list: List) {
@@ -148,7 +152,7 @@ function ReorderCard({ list, handle, first, last, onMove }: { list: List; handle
 }
 
 const COLLAPSED_KEY = 'kinwall.listsCollapsed' // this device's folded sections on the Lists page
-function readCollapsed(): ListKind[] {
+function readCollapsed(): ListType[] {
   try { return JSON.parse(localStorage.getItem(COLLAPSED_KEY) || '[]') } catch { return [] }
 }
 
@@ -160,7 +164,8 @@ function ListEditSheet({ list, onClose, onSaved, onDeleted, onManage }: {
   const { members, toast } = useApp()
   const existing = list === 'new' ? null : list
   const [name, setName] = useState(existing?.name ?? '')
-  const [kind, setKind] = useState<ListKind>(existing?.kind ?? 'todo')
+  const [type, setType] = useState<ListType>(existing ? listType(existing) : 'todo')
+  const kind = typeFields(type).kind
   const [emoji, setEmoji] = useState(existing?.emoji ?? LIST_EMOJI[0])
   const [color, setColor] = useState(existing?.color ?? MEMBER_PALETTE[0])
   const [memberIds, setMemberIds] = useState<string[]>(existing?.memberIds ?? [])
@@ -170,7 +175,7 @@ function ListEditSheet({ list, onClose, onSaved, onDeleted, onManage }: {
 
   const submit = async () => {
     if (!name.trim() || !isSingleEmoji(emoji)) return
-    const body = { name: name.trim(), kind, emoji, color, memberIds, ...(keepTouched !== null ? { keepChecked } : {}) }
+    const body = { name: name.trim(), ...typeFields(type), emoji, color, memberIds, ...(keepTouched !== null ? { keepChecked } : {}) }
     try {
       if (existing) await api.updateList(existing.id, body)
       else await api.createList(body)
@@ -203,8 +208,12 @@ function ListEditSheet({ list, onClose, onSaved, onDeleted, onManage }: {
         <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="List name" autoComplete="off" autoFocus={!existing} />
       </div>
       <div className="field">
-        <label>Kind</label>
-        <Segmented label="Kind" value={kind} onChange={setKind} options={(['todo', 'shopping', 'reusable'] as ListKind[]).map(k => ({ key: k, label: KIND_LABEL[k] }))} />
+        <label>Type</label>
+        <Segmented label="Type" className="list-type-seg" value={type} onChange={setType}
+          options={TYPE_ORDER.map(t => { const Icon = TYPE_ICON[t]; return { key: t, label: <><Icon width={20} height={20} aria-hidden="true" />{TYPE_LABEL[t]}</> } })} />
+        {(type === 'groceries' || type === 'shopping') && (
+          <p className="field-hint">{type === 'groceries' ? 'Food and household groceries. Meals add ingredients here.' : 'Hardware, clothes, gifts and other shopping.'} It has its own catalog of things you buy.</p>
+        )}
       </div>
       <div className="field">
         <div className="steps-head">
@@ -838,9 +847,10 @@ function groupItems(items: ListItem[], groupBy: ListGroupBy, savedOrder: string[
 
 /** "Stores & departments": rename or remove a store, department (the category field) or aisle everywhere (every list and
  * what's remembered), and drag a store's aisles into the order you walk them. */
-function ManageValuesSheet({ suggestions, aisleOrder, onClose, onChanged, onCatalog }: {
+function ManageValuesSheet({ catalog, suggestions, aisleOrder, onClose, onChanged, onCatalog }: {
+  catalog: ListCatalog // departments are renamed in this list type's catalog; stores and aisles are shared
   suggestions: ListDetail['suggestions']; aisleOrder: AisleOrder; onClose: () => void; onChanged: () => void
-  onCatalog?: () => void // shopping lists: open the grocery catalog
+  onCatalog?: () => void // shopping lists: open the list type's catalog
 }) {
   const dialog = useDialog()
   const { toast } = useApp()
@@ -855,7 +865,7 @@ function ManageValuesSheet({ suggestions, aisleOrder, onClose, onChanged, onCata
 
   const rename = async (field: Field, from: string, to: string | null) => {
     try {
-      const { updated } = await api.renameListValue({ field, from, to, ...(field === 'aisle' ? { store } : {}) })
+      const { updated } = await api.renameListValue({ field, from, to, ...(field === 'aisle' ? { store } : {}), ...(field === 'category' ? { catalog } : {}) })
       announce(to ? `Renamed ${from} to ${to}${updated ? `, ${updated} item${updated === 1 ? '' : 's'} updated` : ''}` : `Removed ${from}`)
       setEditing(null); setOverride(null); onChanged()
     } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save', true) }
@@ -919,18 +929,18 @@ function ManageValuesSheet({ suggestions, aisleOrder, onClose, onChanged, onCata
       {onCatalog && <>
         <h3 className="manage-head">Items</h3>
         <p className="field-hint">Everything you've bought before, where it's found at each store, and its department.</p>
-        <button className="btn btn-secondary btn-block" onClick={onCatalog}>Open the grocery catalog</button>
+        <button className="btn btn-secondary btn-block" onClick={onCatalog}>Open the {catalogName(catalog).toLowerCase()}</button>
       </>}
     </Sheet>
   )
 }
 
-/** The grocery catalog: everything the family has bought before, its department, the family's own
+/** A list type's catalog (Grocery or Shopping): everything the family has bought before on lists of that type, its department, the family's own
  * categories and where it's found at each store. Search; filter by store, category and department
  * (they combine) and sort and group (kept per device) in the Filter & sort sheet, which applies live over it;
  * add one to this list, or tap it to edit (a sheet in place). */
-function GroceryCatalog({ listId, listName, onList, suggestions, aisleOrder, onClose, onChanged }: {
-  listId: string; listName: string; onList: Set<string>; suggestions: ListDetail['suggestions']; aisleOrder: AisleOrder
+function ListCatalogSheet({ catalog, listId, listName, onList, suggestions, aisleOrder, onClose, onChanged }: {
+  catalog: ListCatalog; listId: string; listName: string; onList: Set<string>; suggestions: ListDetail['suggestions']; aisleOrder: AisleOrder
   onClose: () => void; onChanged: () => void // onChanged: this list (and its pickers) may have changed
 }) {
   const { toast, parentDevice } = useApp()
@@ -942,7 +952,7 @@ function GroceryCatalog({ listId, listName, onList, suggestions, aisleOrder, onC
   const [view, setView] = useState(catalogView)
   const [filtering, setFiltering] = useState(false) // the Filter & sort sheet, over this one
   const [editing, setEditing] = useState<RememberedItem | 'new' | 'tags' | null>(null)
-  const load = () => api.getRemembered().then(setItems).catch(() => { setItems([]); toast('Could not load the catalog', true) })
+  const load = () => api.getRemembered(catalog).then(setItems).catch(() => { setItems([]); toast('Could not load the catalog', true) })
   useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const all = items ?? []
   const stores = catalogStores(all), tags = catalogTags(all), departments = catalogDepartments(all)
@@ -969,9 +979,9 @@ function GroceryCatalog({ listId, listName, onList, suggestions, aisleOrder, onC
     </button>
   )
 
-  if (editing === 'tags') return <CatalogTagsSheet tags={tags} onClose={() => setEditing(null)} onChanged={() => { load(); onChanged() }} />
+  if (editing === 'tags') return <CatalogTagsSheet catalog={catalog} tags={tags} onClose={() => setEditing(null)} onChanged={() => { load(); onChanged() }} />
   if (editing) return (
-    <CatalogItemSheet item={editing === 'new' ? null : editing} newTitle={query.trim()} suggestions={suggestions} aisleOrder={aisleOrder} familyTags={tags.map(t => t.name)}
+    <CatalogItemSheet catalog={catalog} item={editing === 'new' ? null : editing} newTitle={query.trim()} suggestions={suggestions} aisleOrder={aisleOrder} familyTags={tags.map(t => t.name)}
       onClose={() => setEditing(null)} onSaved={saved} />
   )
   const row = (i: RememberedItem) => (
@@ -991,7 +1001,7 @@ function GroceryCatalog({ listId, listName, onList, suggestions, aisleOrder, onC
     </div>
   )
   return (
-    <Sheet title="Grocery catalog" onClose={onClose} actions={<button className="btn btn-primary" onClick={onClose}>Done</button>}>
+    <Sheet title={catalogName(catalog)} onClose={onClose} actions={<button className="btn btn-primary" onClick={onClose}>Done</button>}>
       <div className="catalog-bar">
         <input type="search" className="manage-find" value={query} onChange={e => setQuery(e.target.value)} placeholder="Find an item…" aria-label="Find an item" autoComplete="off" />
         <button className="btn btn-secondary catalog-options-btn" onClick={() => setFiltering(true)} aria-haspopup="dialog" title="Filter & sort"
@@ -1062,7 +1072,7 @@ function GroceryCatalog({ listId, listName, onList, suggestions, aisleOrder, onC
 }
 
 /** Rename or remove a catalog category on every item that has it. */
-function CatalogTagsSheet({ tags, onClose, onChanged }: { tags: { name: string; count: number }[]; onClose: () => void; onChanged: () => void }) {
+function CatalogTagsSheet({ catalog, tags, onClose, onChanged }: { catalog: ListCatalog; tags: { name: string; count: number }[]; onClose: () => void; onChanged: () => void }) {
   const dialog = useDialog()
   const { toast } = useApp()
   const [list, setList] = useState(tags)
@@ -1070,7 +1080,7 @@ function CatalogTagsSheet({ tags, onClose, onChanged }: { tags: { name: string; 
   const [draft, setDraft] = useState('')
   const rename = async (from: string, to: string | null) => {
     try {
-      await api.renameCatalogTag(from, to)
+      await api.renameCatalogTag(catalog, from, to)
       announce(to ? `Renamed ${from} to ${to}` : `Removed ${from}`)
       setList(to ? list.filter(t => t.name !== from && t.name.toLowerCase() !== to.toLowerCase()).concat({ name: to, count: 0 }).sort((a, b) => a.name.localeCompare(b.name)) : list.filter(t => t.name !== from))
       setEditing(null); onChanged()
@@ -1101,9 +1111,9 @@ function CatalogTagsSheet({ tags, onClose, onChanged }: { tags: { name: string; 
   )
 }
 
-/** Edit (or add) a grocery catalog item: its name, department and the stores it's found at, each with its aisle. */
-function CatalogItemSheet({ item, newTitle, suggestions, aisleOrder, familyTags, onClose, onSaved }: {
-  item: RememberedItem | null; newTitle: string; suggestions: ListDetail['suggestions']; aisleOrder: AisleOrder
+/** Edit (or add) a catalog item: its name, department and the stores it's found at, each with its aisle. */
+function CatalogItemSheet({ catalog, item, newTitle, suggestions, aisleOrder, familyTags, onClose, onSaved }: {
+  catalog: ListCatalog; item: RememberedItem | null; newTitle: string; suggestions: ListDetail['suggestions']; aisleOrder: AisleOrder
   familyTags: string[] // every category the family uses, for picking
   onClose: () => void; onSaved: () => void
 }) {
@@ -1132,14 +1142,14 @@ function CatalogItemSheet({ item, newTitle, suggestions, aisleOrder, familyTags,
     const body = { title: title.replace(/\s+/g, ' ').trim(), category: category.trim() || null, places: placesInput(rows), tags: tagsInput(newTag.trim() ? [...tags, newTag] : tags, familyTags).slice(0, 10) }
     if (!body.title) return
     try {
-      if (item) await api.updateRemembered(item.key, body)
-      else await api.addRemembered(body)
+      if (item) await api.updateRemembered(catalog, item.key, body)
+      else await api.addRemembered(catalog, body)
       announce(`Saved ${body.title}`); onSaved()
     } catch (e) { toast(e instanceof Error && e.message ? e.message : 'Could not save', true) }
   }
   const forget = async () => {
     if (!item || !await dialog.confirm({ title: `Forget "${item.title}"?`, body: 'It leaves the catalog, stops being suggested as you add, and where it goes is forgotten. Items on lists keep it.', confirmLabel: 'Forget', danger: true })) return
-    try { await api.forgetItemName(item.key); announce(`Forgot ${item.title}`); onSaved() }
+    try { await api.forgetItemName(catalog, item.key); announce(`Forgot ${item.title}`); onSaved() }
     catch (e) { toast(e instanceof ApiError ? e.message : 'Could not forget it', true) }
   }
   return (
@@ -1292,7 +1302,7 @@ function ListDetailPane({ listId, isPhone, shopMode, onBack, onArchivedOrDeleted
   const [reorderGroups, setReorderGroups] = useState(false)
   const [viewing, setViewing] = useState(false) // the View sheet: group, sort, show store
   const [managing, setManaging] = useState(false)
-  const [cataloging, setCataloging] = useState(false) // the grocery catalog
+  const [cataloging, setCataloging] = useState(false) // the list type's catalog
   const [showDone, setShowDone] = useState(false)
   const [selectedStore, setSelectedStore] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
@@ -1624,7 +1634,7 @@ function ListDetailPane({ listId, isPhone, shopMode, onBack, onArchivedOrDeleted
         <div className="list-detail-emoji" aria-hidden="true">{list.emoji || '📝'}</div>
         <div className="list-detail-title">
           <h2 className="list-detail-name">{list.name}</h2>
-          <div className="list-detail-sub">{KIND_LABEL[list.kind]} · <CountLine list={list} /></div>
+          <div className="list-detail-sub">{TYPE_LABEL[listType(list)]} · <CountLine list={list} /></div>
         </div>
         <button className="btn btn-secondary" onClick={() => setEditList(true)} aria-label={`Edit list ${list.name}`}>Edit</button>
       </div>
@@ -1649,7 +1659,7 @@ function ListDetailPane({ listId, isPhone, shopMode, onBack, onArchivedOrDeleted
               <CartIcon width={18} height={18} />Shop
             </button>
           )}
-          {!activeTrip && <button className="btn btn-secondary list-catalog-btn" onClick={() => setCataloging(true)} aria-haspopup="dialog" aria-label="Grocery catalog">Catalog</button>}
+          {!activeTrip && <button className="btn btn-secondary list-catalog-btn" onClick={() => setCataloging(true)} aria-haspopup="dialog" aria-label={catalogName(list.catalog ?? 'groceries')}>Catalog</button>}
           {!activeTrip && items.length > 0 && viewButton}
         </div>
       )}
@@ -1753,9 +1763,9 @@ function ListDetailPane({ listId, isPhone, shopMode, onBack, onArchivedOrDeleted
         <ListViewSheet list={list} stores={stores} store={selectedStore} onStore={setSelectedStore} onGroupBy={setGroupBy} onSortBy={setSortBy} onClose={() => setViewing(false)}
           onReorder={list.kind === 'shopping' && reorderable && reorderableNames.length > 1 ? () => { setViewing(false); setReorderGroups(true) } : undefined} />
       )}
-      {managing && <ManageValuesSheet suggestions={suggestions} aisleOrder={aisleOrder} onClose={() => setManaging(false)} onChanged={load}
+      {managing && <ManageValuesSheet catalog={list.catalog ?? 'groceries'} suggestions={suggestions} aisleOrder={aisleOrder} onClose={() => setManaging(false)} onChanged={load}
         onCatalog={list.kind === 'shopping' ? () => { setManaging(false); setCataloging(true) } : undefined} />}
-      {cataloging && <GroceryCatalog listId={listId} listName={list.name} onList={onList} suggestions={suggestions} aisleOrder={aisleOrder} onClose={() => setCataloging(false)} onChanged={load} />}
+      {cataloging && <ListCatalogSheet catalog={list.catalog ?? 'groceries'} listId={listId} listName={list.name} onList={onList} suggestions={suggestions} aisleOrder={aisleOrder} onClose={() => setCataloging(false)} onChanged={load} />}
       {reorderGroups && reorderable && (
         <ReorderGroupsSheet listId={listId} groupBy={list.groupBy === 'store' ? 'store' : 'category'} names={groupNamesForOrder.length ? groupNamesForOrder.filter(n => reorderableNames.includes(n)).concat(reorderableNames.filter(n => !groupNamesForOrder.includes(n))) : reorderableNames}
           onClose={() => setReorderGroups(false)} onSaved={() => { setReorderGroups(false); load() }} />
@@ -1804,9 +1814,9 @@ export default function Lists() {
   const lists = useMemo(() => visible.filter(l => !l.archived), [visible])
   const archived = useMemo(() => visible.filter(l => l.archived), [visible])
   const sections = useMemo(() => listSections(lists), [lists])
-  const [collapsed, setCollapsed] = useState<ListKind[]>(readCollapsed)
-  const toggleSection = (kind: ListKind) => {
-    const next = collapsed.includes(kind) ? collapsed.filter(k => k !== kind) : [...collapsed, kind]
+  const [collapsed, setCollapsed] = useState<ListType[]>(readCollapsed)
+  const toggleSection = (type: ListType) => {
+    const next = collapsed.includes(type) ? collapsed.filter(k => k !== type) : [...collapsed, type]
     setCollapsed(next)
     try { localStorage.setItem(COLLAPSED_KEY, JSON.stringify(next)) } catch { /* private mode */ }
   }
@@ -1882,11 +1892,11 @@ export default function Lists() {
   const cards = (
     <div className="lists-col">
       {sections.map(s => {
-        const open = reordering || !collapsed.includes(s.kind)
+        const open = reordering || !collapsed.includes(s.type)
         const ids = s.lists.map(l => l.id)
         return (
-          <section key={s.kind} className="lists-section" aria-label={s.label}>
-            <button className="lists-section-head" aria-expanded={open} onClick={() => toggleSection(s.kind)} disabled={reordering}>
+          <section key={s.type} className="lists-section" aria-label={s.label}>
+            <button className="lists-section-head" aria-expanded={open} onClick={() => toggleSection(s.type)} disabled={reordering}>
               <ChevronRight width={18} height={18} aria-hidden="true" style={{ transform: open ? 'rotate(90deg)' : undefined }} />
               <span className="lists-section-label">{s.label}</span>
               <span className="lists-section-count">{s.lists.length}</span>

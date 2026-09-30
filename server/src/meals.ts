@@ -196,7 +196,7 @@ export async function applyProjection(db: KinwallDb, projection: Projection, lis
   // What ships in a meal kit is already in the box, so it stays off the list unless asked for.
   const wanted = projection.items.filter((item) => !omitted.has(item.key) && !item.applied && (includeKitItems || item.qualifier !== KIT_QUALIFIER));
   // Where the household keeps each ingredient (store, category, aisle); the recipe's category otherwise.
-  const memory = await recall(db, wanted.map((item) => item.name));
+  const memory = await recall(db, 'groceries', wanted.map((item) => item.name)); // meals add to Groceries lists only
   const rows = wanted.map((item) => ({ item, place: fillPlace(memory, item.name, {}) })).map(({ item, place }) => ({
     id: crypto.randomUUID(), name: item.name, key: itemKey(item.name), category: place.category ?? item.category, store: place.store, aisle: place.aisle, qualifier: item.qualifier,
     suffix: `${item.unit ? ` ${item.unit}` : ''}${item.qualifier ? ` · ${item.qualifier}` : ''}`,
@@ -227,9 +227,9 @@ export async function applyProjection(db: KinwallDb, projection: Projection, lis
       WHERE NOT EXISTS (SELECT 1 FROM meal_shopping_sources claimed WHERE claimed.list_id=? AND claimed.source_ref=s.value->>'ref')
       GROUP BY i.key`).bind(listId, listId, now, now, payload, listId));
     // Autocomplete remembers the names actually added (src/item-memory.ts rememberName).
-    writes.push(db.prepare(`INSERT INTO item_names (name_key,title,uses,last_used)
-      SELECT i.value->>'key', i.value->>'name', 1, ? FROM json_each(?) i WHERE EXISTS (SELECT 1 FROM list_items WHERE id=i.value->>'id')
-      ON CONFLICT(name_key) DO UPDATE SET title=excluded.title, uses=item_names.uses+1, last_used=excluded.last_used`).bind(now, payload));
+    writes.push(db.prepare(`INSERT INTO item_names (catalog,name_key,title,uses,last_used)
+      SELECT 'groceries', i.value->>'key', i.value->>'name', 1, ? FROM json_each(?) i WHERE EXISTS (SELECT 1 FROM list_items WHERE id=i.value->>'id')
+      ON CONFLICT(catalog,name_key) DO UPDATE SET title=excluded.title, uses=item_names.uses+1, last_used=excluded.last_used`).bind(now, payload));
     writes.push(db.prepare(`INSERT INTO meal_shopping_sources (list_id,source_ref,item_id,fingerprint)
       SELECT ?,s.value->>'ref',i.value->>'id',s.value->>'fingerprint' FROM json_each(?) i JOIN json_each(i.value->'sources') s
       WHERE EXISTS (SELECT 1 FROM list_items WHERE id=i.value->>'id') ON CONFLICT(list_id,source_ref) DO NOTHING`).bind(listId, payload));

@@ -571,6 +571,10 @@ export const ListSortBySchema = z.enum(['manual', 'added', 'due', 'priority', 'a
 export const ListGroupBySchema = z.enum(['store', 'category', 'aisle', 'none']);
 const KeepCheckedDoc = 'Checked items stay in place, crossed off, until Checkout (or Reset on a reusable list). Default: on for shopping and reusable lists, off for to-do lists (which move checked items to a Done section).';
 export const ListItemPrioritySchema = z.enum(['low', 'normal', 'high', 'urgent']);
+// A shopping list's type (0076): groceries or other shopping, each with its own catalog. kind stays 'shopping' for both.
+export const ListCatalogSchema = z.enum(['groceries', 'shopping']).openapi({
+  description: "A shopping list's type: groceries (food and household groceries; meals add ingredients here) or shopping (hardware store, department store...). Each has its own catalog of remembered items, places and categories. Given on shopping lists only (null on others); a new shopping list without one is groceries when its name looks like groceries (Groceries, Grocery, Food, Supermarket, Market, Produce, Pantry), else shopping.",
+});
 
 export const ListSchema = z
   .object({
@@ -583,6 +587,7 @@ export const ListSchema = z
     groupBy: ListGroupBySchema,
     sortBy: ListSortBySchema, // item order within each group
     keepChecked: z.boolean().openapi({ description: KeepCheckedDoc }),
+    catalog: ListCatalogSchema.nullable(),
     sort: z.number(),
     archived: z.boolean(),
     createdAt: z.string(),
@@ -603,6 +608,7 @@ export const ListInputSchema = z
     groupBy: ListGroupBySchema.optional(),
     sortBy: ListSortBySchema.optional(),
     keepChecked: z.boolean().optional().openapi({ description: KeepCheckedDoc }),
+    catalog: ListCatalogSchema.optional(),
   })
   .openapi('ListInput');
 
@@ -616,6 +622,7 @@ export const ListPatchSchema = z
     groupBy: ListGroupBySchema.optional(),
     sortBy: ListSortBySchema.optional(),
     keepChecked: z.boolean().optional().openapi({ description: KeepCheckedDoc }),
+    catalog: ListCatalogSchema.optional(),
     sort: z.number().optional(),
     archived: z.boolean().optional(),
   })
@@ -750,7 +757,7 @@ export const ListDetailSchema = z
       categories: z.array(z.string()),
       aisles: z.array(z.object({ store: z.string().nullable(), aisle: z.string() })),
       // Shopping lists: names to autocomplete, most used first (up to 300) - remembered from past adds
-      // on any shopping list, then recipe ingredients (uses 0). key is the matching key; place is
+      // on lists of the same type (catalog), then, on Groceries, recipe ingredients (uses 0). key is the matching key; place is
       // where it goes at ?store=, else its newest store.
       items: z
         .array(
@@ -778,10 +785,11 @@ export const ListValueRenameSchema = z
     from: z.string().min(1),
     to: z.string().trim().min(1).max(60).nullable(),
     store: z.string().nullable().optional(),
+    catalog: ListCatalogSchema.optional().openapi({ description: 'field category only: rename the department in this catalog only (items on lists of this type and their remembered places). Stores and aisles are shared by both types.' }),
   })
   .openapi('ListValueRename');
 
-// The grocery catalog: a remembered item, where it's found per store, and edits to it.
+// A catalog (groceries or shopping): a remembered item, where it's found per store, and edits to it.
 export const RememberedItemSchema = z
   .object({
     key: z.string().openapi({ description: 'Matching key (case, spacing and simple plurals ignored); use it in /api/lists/remembered/{key}.' }),

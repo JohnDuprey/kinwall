@@ -578,6 +578,8 @@ export interface Webhook {
 export type WebhookWithSecret = Webhook & { secret: string }
 
 export type ListKind = 'todo' | 'shopping' | 'reusable'
+/** A shopping list's type (and its catalog): Groceries or other Shopping. */
+export type ListCatalog = 'groceries' | 'shopping'
 export type ListGroupBy = 'store' | 'category' | 'aisle' | 'none' // aisle: shopping lists only
 export type ListSortBy = 'manual' | 'added' | 'due' | 'priority' | 'alpha' | 'aisle' // aisle: shopping lists only
 
@@ -591,6 +593,7 @@ export interface List {
   groupBy: ListGroupBy
   sortBy: ListSortBy // item order within each group
   keepChecked: boolean // checked items stay in place, crossed off, until Checkout / Reset
+  catalog?: ListCatalog | null // shopping lists: Groceries or Shopping, each with its own catalog (older servers leave it out: groceries)
   sort: number
   archived: boolean
   createdAt: string

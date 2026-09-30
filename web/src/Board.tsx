@@ -1,6 +1,7 @@
 // Board view: the calendar as a family bulletin board - clock + weather, today, the week ahead,
 // what's due, chores, a rotating picture and a quote or fact. Read-mostly; rows open the same
 // things they do elsewhere (an event's detail sheet, the list, the chores tab).
+import { listType } from './listSections.ts'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
@@ -174,7 +175,7 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
   const later = [...new Set([...events.map(e => e.date), ...data.birthdays.map(b => b.date)])].filter(d => d > today).sort()
 
   const full = device.boardLists === 'full' || (device.boardLists !== 'counts' && big)
-  const groceries = lists.filter(l => l.kind === 'shopping' && (!focusMemberId || l.memberIds.includes(focusMemberId) || (focusShowsShared && !l.memberIds.length)))
+  const groceries = lists.filter(l => listType(l) === 'groceries' && (!focusMemberId || l.memberIds.includes(focusMemberId) || (focusShowsShared && !l.memberIds.length)))
   // Take now shows whenever doses are due, Full lists too: then it's the tiles row's only tile (after the clock on a phone).
   const tiles = [
     // In a layout, the Chores and Due soon tiles stand in for their cards when those aren't placed.

@@ -2,7 +2,30 @@
 // every device and the MCP (migration 0040). One row per (name, store): the newest row gives the
 // store and category, the row for the chosen store gives the aisle - milk can be in Aisle 4 at one
 // store and on the back wall at another.
+// Each shopping list type has its own catalog (migration 0076): 'groceries' or 'shopping', a list's
+// `catalog`. Every read and write here is scoped to one. Stores' aisle orders are shared.
 import type { KinwallDb, KinwallStatement } from './db.ts';
+
+export type Catalog = 'groceries' | 'shopping';
+export const CATALOGS = ['groceries', 'shopping'] as const;
+
+/** A shopping list named like groceries, in generic words ("Groceries", "Grocery run", "Food",
+ * "Supermarket", "Farmers market", "Produce", "Pantry"; never store brands). Picks a new shopping list's type when none is given, and an older
+ * export's. migrations/0076_list_catalogs.sql uses the same words. */
+export function looksLikeGroceries(name: string): boolean {
+  return /grocer|food|market|produce|pantry/i.test(name);
+}
+
+/** A list's catalog column: null unless it's a shopping list; else the given type, else groceries
+ * when the name looks like it or the family has no Groceries list yet (the first shopping list is
+ * the grocery list, as before list types), else shopping. */
+export async function listCatalog(db: KinwallDb, kind: string, name: string, catalog?: Catalog | null): Promise<Catalog | null> {
+  if (kind !== 'shopping') return null;
+  if (catalog) return catalog;
+  if (looksLikeGroceries(name)) return 'groceries';
+  const any = await db.prepare("SELECT 1 FROM lists WHERE kind = 'shopping' AND coalesce(catalog, 'groceries') = 'groceries' AND archived = 0 LIMIT 1").first();
+  return any ? 'shopping' : 'groceries';
+}
 
 /** A matching key, not a display name: case, spacing and simple-plural insensitive, so "Eggs" =
  * "egg", "Tomatoes" = "tomato", "Berries" = "berry", "Cookies" = "cookie". Drops a plural s, then
@@ -19,13 +42,13 @@ export type Place = { store: string | null; category: string | null; aisle: stri
 type MemoryRow = { name_key: string; store: string; category: string | null; aisle: string | null; updated_at: string };
 
 /** Every remembered row for these titles, newest first per name - one query. */
-export async function recall(db: KinwallDb, titles: string[]): Promise<Map<string, MemoryRow[]>> {
+export async function recall(db: KinwallDb, catalog: Catalog, titles: string[]): Promise<Map<string, MemoryRow[]>> {
   const keys = [...new Set(titles.map(itemKey))];
   const out = new Map<string, MemoryRow[]>();
   if (!keys.length) return out;
   const { results } = await db
-    .prepare('SELECT * FROM item_memory WHERE name_key IN (SELECT value FROM json_each(?)) ORDER BY updated_at DESC')
-    .bind(JSON.stringify(keys))
+    .prepare('SELECT * FROM item_memory WHERE catalog = ? AND name_key IN (SELECT value FROM json_each(?)) ORDER BY updated_at DESC')
+    .bind(catalog, JSON.stringify(keys))
     .all<MemoryRow>();
   for (const r of results) out.set(r.name_key, [...(out.get(r.name_key) ?? []), r]);
   return out;
@@ -42,25 +65,25 @@ export function fillPlace(memory: Map<string, MemoryRow[]>, title: string, input
 }
 
 /** Remember an item's place, or null when it has none (nothing to remember - never forgets). */
-export function rememberPlace(db: KinwallDb, title: string, place: Place, now: string): KinwallStatement | null {
+export function rememberPlace(db: KinwallDb, catalog: Catalog, title: string, place: Place, now: string): KinwallStatement | null {
   if (!place.store && !place.category && !place.aisle) return null;
   return db
     .prepare(
-      `INSERT INTO item_memory (name_key, store, category, aisle, updated_at) VALUES (?, ?, ?, ?, ?)
-       ON CONFLICT(name_key, store) DO UPDATE SET category = excluded.category, aisle = excluded.aisle, updated_at = excluded.updated_at`,
+      `INSERT INTO item_memory (catalog, name_key, store, category, aisle, updated_at) VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(catalog, name_key, store) DO UPDATE SET category = excluded.category, aisle = excluded.aisle, updated_at = excluded.updated_at`,
     )
-    .bind(itemKey(title), place.store ?? '', place.category, place.aisle, now);
+    .bind(catalog, itemKey(title), place.store ?? '', place.category, place.aisle, now);
 }
 
 /** Remember an item's name for autocomplete (migration 0041): its spelling, and one more use when
  * added (uses 0 for a rename). Goes in the same batch as the add. */
-export function rememberName(db: KinwallDb, title: string, now: string, uses = 1): KinwallStatement {
+export function rememberName(db: KinwallDb, catalog: Catalog, title: string, now: string, uses = 1): KinwallStatement {
   return db
     .prepare(
-      `INSERT INTO item_names (name_key, title, uses, last_used) VALUES (?, ?, max(?, 1), ?)
-       ON CONFLICT(name_key) DO UPDATE SET title = excluded.title, uses = item_names.uses + ?, last_used = excluded.last_used`,
+      `INSERT INTO item_names (catalog, name_key, title, uses, last_used) VALUES (?, ?, ?, max(?, 1), ?)
+       ON CONFLICT(catalog, name_key) DO UPDATE SET title = excluded.title, uses = item_names.uses + ?, last_used = excluded.last_used`,
     )
-    .bind(itemKey(title), title.trim(), uses, now, uses);
+    .bind(catalog, itemKey(title), title.trim(), uses, now, uses);
 }
 
 export const SUGGESTION_CAP = 300;
@@ -96,7 +119,7 @@ export function nameSuggestions(
   return out.slice(0, SUGGESTION_CAP);
 }
 
-// The grocery catalog (GET/POST /api/lists/remembered, PUT/DELETE /api/lists/remembered/{key}):
+// A catalog (GET/POST /api/lists/remembered, PUT/DELETE /api/lists/remembered/{key}):
 // every remembered name, its department and where it's found at each store.
 export type CatalogItem = {
   key: string;
@@ -110,16 +133,16 @@ export type CatalogItem = {
 };
 
 /** Every remembered item (names, plus places whose name was never kept), by title - or just `key`. */
-export async function catalog(db: KinwallDb, key?: string): Promise<CatalogItem[]> {
-  const only = key === undefined ? '' : ' WHERE k.name_key = ?';
-  const binds = key === undefined ? [] : [key];
+export async function catalog(db: KinwallDb, cat: Catalog, key?: string): Promise<CatalogItem[]> {
+  const only = key === undefined ? '' : ' AND name_key = ?';
+  const binds = key === undefined ? [cat] : [cat, key];
   const [names, memory, tagRows] = await db.batch<unknown>([
     db.prepare(
-      `SELECT k.name_key, n.title, n.uses, n.last_used FROM (SELECT name_key FROM item_names UNION SELECT name_key FROM item_memory) k
-       LEFT JOIN item_names n ON n.name_key = k.name_key${only}`,
+      `SELECT k.name_key, n.title, n.uses, n.last_used FROM (SELECT name_key FROM item_names WHERE catalog = ?1 UNION SELECT name_key FROM item_memory WHERE catalog = ?1) k
+       LEFT JOIN item_names n ON n.catalog = ?1 AND n.name_key = k.name_key${key === undefined ? '' : ' WHERE k.name_key = ?2'}`,
     ).bind(...binds),
-    db.prepare(`SELECT * FROM item_memory${key === undefined ? '' : ' WHERE name_key = ?'} ORDER BY updated_at DESC`).bind(...binds),
-    db.prepare(`SELECT name_key, tag FROM item_tags${key === undefined ? '' : ' WHERE name_key = ?'} ORDER BY sort`).bind(...binds),
+    db.prepare(`SELECT * FROM item_memory WHERE catalog = ?${only} ORDER BY updated_at DESC`).bind(...binds),
+    db.prepare(`SELECT name_key, tag FROM item_tags WHERE catalog = ?${only} ORDER BY sort`).bind(...binds),
   ]);
   const tags = new Map<string, string[]>();
   for (const r of tagRows.results as { name_key: string; tag: string }[]) tags.set(r.name_key, [...(tags.get(r.name_key) ?? []), r.tag]);
@@ -172,42 +195,42 @@ export function tagsInput(tags: string[], family: string[]): string[] {
  * on every place, and places replaces its stores (aisle per store; stores left out are forgotten).
  * New places are the newest, as if just bought there. The department is kept even with no place.
  * tags (already cleaned by tagsInput) replace its categories. */
-export function catalogWrites(db: KinwallDb, from: string, existing: CatalogItem | null, edit: CatalogEdit, now: string): { key: string; writes: KinwallStatement[] } {
+export function catalogWrites(db: KinwallDb, cat: Catalog, from: string, existing: CatalogItem | null, edit: CatalogEdit, now: string): { key: string; writes: KinwallStatement[] } {
   const key = edit.title !== undefined ? itemKey(edit.title) : from;
   const writes: KinwallStatement[] = [];
   if (key !== from) {
-    writes.push(db.prepare('UPDATE item_names SET name_key = ? WHERE name_key = ?').bind(key, from));
-    writes.push(db.prepare('UPDATE item_memory SET name_key = ? WHERE name_key = ?').bind(key, from));
-    writes.push(db.prepare('UPDATE OR REPLACE item_tags SET name_key = ? WHERE name_key = ?').bind(key, from));
+    writes.push(db.prepare('UPDATE item_names SET name_key = ? WHERE catalog = ? AND name_key = ?').bind(key, cat, from));
+    writes.push(db.prepare('UPDATE item_memory SET name_key = ? WHERE catalog = ? AND name_key = ?').bind(key, cat, from));
+    writes.push(db.prepare('UPDATE OR REPLACE item_tags SET name_key = ? WHERE catalog = ? AND name_key = ?').bind(key, cat, from));
   }
   if (edit.tags) {
-    writes.push(db.prepare('DELETE FROM item_tags WHERE name_key = ?').bind(key));
-    writes.push(db.prepare('INSERT INTO item_tags (name_key, tag, sort) SELECT ?, value, key FROM json_each(?)').bind(key, JSON.stringify(edit.tags)));
+    writes.push(db.prepare('DELETE FROM item_tags WHERE catalog = ? AND name_key = ?').bind(cat, key));
+    writes.push(db.prepare('INSERT INTO item_tags (catalog, name_key, tag, sort) SELECT ?, ?, value, key FROM json_each(?)').bind(cat, key, JSON.stringify(edit.tags)));
   }
   if (edit.title !== undefined || !existing) {
     writes.push(
-      db.prepare('INSERT INTO item_names (name_key, title, uses, last_used) VALUES (?, ?, 0, ?) ON CONFLICT(name_key) DO UPDATE SET title = excluded.title')
-        .bind(key, (edit.title ?? existing?.title ?? key).trim(), now),
+      db.prepare('INSERT INTO item_names (catalog, name_key, title, uses, last_used) VALUES (?, ?, ?, 0, ?) ON CONFLICT(catalog, name_key) DO UPDATE SET title = excluded.title')
+        .bind(cat, key, (edit.title ?? existing?.title ?? key).trim(), now),
     );
   }
   const category = edit.category !== undefined ? edit.category : existing?.category ?? null;
-  if (edit.category !== undefined) writes.push(db.prepare('UPDATE item_memory SET category = ? WHERE name_key = ?').bind(category, key));
+  if (edit.category !== undefined) writes.push(db.prepare('UPDATE item_memory SET category = ? WHERE catalog = ? AND name_key = ?').bind(category, cat, key));
   if (edit.places) {
     const stores = edit.places.map((p) => p.store);
-    writes.push(db.prepare("DELETE FROM item_memory WHERE name_key = ? AND store != '' AND store NOT IN (SELECT value FROM json_each(?))").bind(key, JSON.stringify(stores)));
+    writes.push(db.prepare("DELETE FROM item_memory WHERE catalog = ? AND name_key = ? AND store != '' AND store NOT IN (SELECT value FROM json_each(?))").bind(cat, key, JSON.stringify(stores)));
     for (const p of edit.places) {
       writes.push(
         db.prepare(
-          `INSERT INTO item_memory (name_key, store, category, aisle, updated_at) VALUES (?, ?, ?, ?, ?)
-           ON CONFLICT(name_key, store) DO UPDATE SET aisle = excluded.aisle, category = excluded.category`,
-        ).bind(key, p.store, category, p.aisle ?? null, now),
+          `INSERT INTO item_memory (catalog, name_key, store, category, aisle, updated_at) VALUES (?, ?, ?, ?, ?, ?)
+           ON CONFLICT(catalog, name_key, store) DO UPDATE SET aisle = excluded.aisle, category = excluded.category`,
+        ).bind(cat, key, p.store, category, p.aisle ?? null, now),
       );
     }
   }
   // No place left (or none yet): a "no store" row keeps the department.
   writes.push(
-    db.prepare("INSERT INTO item_memory (name_key, store, category, aisle, updated_at) SELECT ?, '', ?, NULL, ? WHERE ? IS NOT NULL AND NOT EXISTS (SELECT 1 FROM item_memory WHERE name_key = ?)")
-      .bind(key, category, now, category, key),
+    db.prepare("INSERT INTO item_memory (catalog, name_key, store, category, aisle, updated_at) SELECT ?1, ?2, '', ?3, NULL, ?4 WHERE ?3 IS NOT NULL AND NOT EXISTS (SELECT 1 FROM item_memory WHERE catalog = ?1 AND name_key = ?2)")
+      .bind(cat, key, category, now),
   );
   return { key, writes };
 }
