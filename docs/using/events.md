@@ -111,7 +111,7 @@ Every event is **busy** or **free**, like "Show as" in Google Calendar and Outlo
 
 A free event:
 
-* is outlined and striped instead of filled, with **Free ·** before its title, so it never relies on color alone;
+* is outlined and striped instead of filled (on the Board, its color bar is faded), so it never relies on color alone; screen readers hear "free" with it;
 * sits behind busy events in the Day and Week grids, at full width, and never pushes a busy event into half a column. A busy event that overlaps it steps in a little so the free event's edge still shows;
 * is never **Now** or **Next** in the [Now / Next](calendar.md#now--next) strip;
 * gets no transition warnings, no leave-by time and no leave-by Live Activity (its travel time is kept, for if it's busy again);
