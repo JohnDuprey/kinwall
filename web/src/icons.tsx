@@ -163,6 +163,9 @@ export const PauseIcon = (p: P) => (
 export const ResetIcon = (p: P) => (
   <svg {...base(p)}><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /></svg>
 )
+export const LayoutIcon = (p: P) => (
+  <svg {...base(p)}><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16M15 4v16M15 12h6" /></svg>
+)
 export const TimerIcon = (p: P) => (
   <svg {...base(p)}><circle cx="12" cy="14" r="8" /><path d="M12 10v4l2.5 2M9.5 2.5h5M12 2.5V6" /></svg>
 )

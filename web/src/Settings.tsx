@@ -35,6 +35,7 @@ import { QrCode } from './App.tsx'
 import { InstallRow } from './Install.tsx'
 import { addAppTile, appLiveActivities, appMedicineNames, appNotificationSettings, appPlatform, appQuickSettingsTiles, inNativeApp, liveActivitiesLine, openAppNotificationSettings, setAppMedicineNames } from './native.ts'
 import { useDialog } from './dialog.tsx'
+import { BoardPresetRows, DeviceBoardLayoutRows } from './BoardEditor.tsx'
 import { TEMP_CHECK_OFF } from './tempCheck.ts'
 import { EVENING_TIMES } from './journal.ts'
 import { deviceTimeFormat, formatTime, resolveHour12 } from './timeFormat.ts'
@@ -95,7 +96,20 @@ export default function SettingsView() {
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { api.meStrict().then(setMe).catch(() => setMe({ scope: 'display', keyName: '', kind: 'api' })) }, [])
+  const [meReady, setMeReady] = useState(false)
+  useEffect(() => { api.meStrict().then(setMe).catch(() => setMe({ scope: 'display', keyName: '', kind: 'api' })).finally(() => setMeReady(true)) }, [])
+  // A link to one spot in a tab (#/settings?tab=general&section=board-layout, from the Board's
+  // Manage layouts): scroll to it once /api/me has answered, so the parent-only sections above it
+  // are already in place and don't push it back down.
+  useEffect(() => {
+    if (!meReady) return
+    const q = new URLSearchParams(location.hash.split('?')[1] || '')
+    const el = document.getElementById(q.get('section') ?? '')
+    if (!el) return
+    el.scrollIntoView({ block: 'start', behavior: reducedMotion() ? 'auto' : 'smooth' })
+    q.delete('section')
+    history.replaceState(null, '', `#/settings?${q}`)
+  }, [meReady])
 
   // Display keys get the everyday settings; admin-only sections (calendar accounts, displays,
   // passkeys, API keys, webhooks) aren't rendered at all.
@@ -119,6 +133,7 @@ export default function SettingsView() {
               <GeneralSection settings={settings} onSaved={reloadCore} toast={toast} isDisplay={false} />
               <WeatherSection settings={settings} onSaved={reloadCore} toast={toast} />
               <TidbitsSection settings={settings} onSaved={reloadCore} toast={toast} />
+              <Section id="board-presets" title="Board presets"><div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}><BoardPresetRows toast={toast} /></div></Section>
               <FeaturesSection settings={settings} onSaved={reloadCore} toast={toast} />
               <AppearanceSection settings={settings} onSaved={reloadCore} toast={toast} />
               <QuietHoursSection settings={settings} onSaved={reloadCore} toast={toast} />
@@ -1218,14 +1233,15 @@ function ScreenFocusRows({ display }: { display: boolean }) {
             {views.map(v => <option key={v.key} value={v.key}>{v.label}</option>)}
           </select>
         </div>
-        <div className="device-pref-row">
+        <DeviceBoardLayoutRows />
+        {!device.boardLayout && <div className="device-pref-row">
           <span>Board chores &amp; to-dos</span>
           <select className="settings-select" aria-label="Board chores and to-dos" value={device.boardLists ?? ''} onChange={e => set({ boardLists: (e.target.value || undefined) as DeviceAppearance['boardLists'] })}>
             <option value="">Auto</option>
             <option value="counts">Counts</option>
             <option value="full">Full lists</option>
           </select>
-        </div>
+        </div>}
       </div>
       <DeviceTidbitRows />
       {!display && (

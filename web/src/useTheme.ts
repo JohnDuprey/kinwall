@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import type { BoardLayout } from './boardLayout.ts'
 import type { ClockPos } from './nightClock.ts'
 import type { Appearance, ColorScheme, CustomColors, DeviceDensity, Settings, TextScale, TidbitSettings, Typeface } from './types.ts'
 import { deviceTypeface, resolveTypeface } from './typeface.ts'
@@ -43,6 +44,8 @@ export type DeviceAppearance = Partial<Pick<Appearance, 'themeMode' | 'textScale
   lockView?: LockedView // calendar stays on this view, no switcher
   tidbitCards?: TidbitSettings[] // the Board's quote / fact cards, 1-3 with their own sources (tidbits.ts); absent = the family's one card
   boardLists?: 'counts' | 'full' // the Board's Chores and Due soon: count tiles or full cards; absent = auto (full on a big screen)
+  boardLayout?: string // the Board's layout (boardLayout.ts): a preset's id or 'custom' (boardCustom); absent = the default arrangement
+  boardCustom?: BoardLayout // this screen's own layout
   saverSources?: SaverSource[] // quiet-hours screensaver, round-robin; absent/empty = the plain clock
   saverEvery?: number // minutes between pictures; absent = 5
   saverBright?: 'medium' // absent = low

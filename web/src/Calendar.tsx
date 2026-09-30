@@ -19,6 +19,7 @@ import { NowNextCard, TransitionWarnings } from './NowNext.tsx'
 import { warningTimes } from './transitions.ts'
 import NotesThread from './NotesThread.tsx'
 import Board from './Board.tsx'
+import { BoardLayoutPicker } from './BoardEditor.tsx'
 import SnapshotSheet from './Snapshot.tsx'
 import { hashQuery } from './hashQuery.ts'
 import { PriorityBadge } from './PriorityBadge.tsx'
@@ -386,6 +387,8 @@ export default function CalendarView() {
         </div>
         {/* Show hidden and the filter sit together at the end, same size and gap. */}
         <div className="toolbar-end">
+          {/* The Board's layout, off to the side like the filter; not on a screen whose view is locked. */}
+          {viewMode === 'board' && !device.lockView && <BoardLayoutPicker />}
           {parentDevice && viewMode !== 'board' && (
             <button className={`icon-btn hidden-toggle ${showHidden ? 'active' : ''}`} onClick={() => setShowHidden(v => !v)} aria-pressed={showHidden}
               aria-label="Show hidden events" title="Show hidden events">

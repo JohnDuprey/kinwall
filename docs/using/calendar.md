@@ -57,6 +57,22 @@ On a wall display or tablet the cards fill the screen in three columns without s
 
 <img src="../screenshots/phone-board.png" width="32%" alt="Board view on a phone" />
 
+### Board layouts
+
+Each screen can arrange its own Board. Under [Settings → This display → Board layout](../settings/this-display.md#this-display), pick a built-in layout (**Kids** with big text, **Kitchen** with meals up front, **Parents** with more on the screen, **Simple** with just the clock, a picture and today), one of the family's [presets](../settings/general.md#board-presets), or **Own layout** to make one just for this screen.
+
+To switch quickly, tap the **layout** button at the end of the Board's toolbar: a sheet lists the same layouts (and **Own layout**, once this screen has one), and **Manage layouts** goes to Settings (to **Board presets** on a parent device, to **Board layout** under This display otherwise). The button is hidden when the screen's view is locked under **Lock view**, so a locked wall stays as set.
+
+The layout editor shows the Board as columns of cards (1 to 4 columns, up to 6 cards in each):
+
+* **Drag** a card by its grip to another place or column, or use its arrows: **↑ ↓** within the column, **← →** to the next column.
+* **Height**: **Short**, **Medium** or **Tall**, its share of the column.
+* **Text size**: **Big text** to read from across the room, **Normal**, or **Small text** to fit more rows.
+* **✕** takes a card off; **Add a card** puts it back. **Count tiles across the top** turns the tiles row on or off; in a layout, the Chores and Due soon tiles show only when their full cards aren't on the Board.
+* **Start from** replaces the layout with the family wall layout, a built-in one or a family preset, to change from there.
+
+A card for something the family turned off (like Meals) stays hidden, and so does a quote card with nothing to show. Phones and narrow screens show the layout's cards in one or two columns, in order, column by column.
+
 To keep a display on the board, set **Lock view** to **Board** in [This display](../settings/this-display.md).
 
 ## The header

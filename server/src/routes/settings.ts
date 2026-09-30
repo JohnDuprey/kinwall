@@ -6,7 +6,7 @@ import { emit } from '../bus.ts';
 import { isConnectedApp } from './mcp-oauth.ts';
 import { schemeContrastFailures } from '../colors.ts';
 import { GOOGLE_PHOTOS_STATE_SQL, type GooglePhotosState } from './google-photos.ts';
-import { TIME_FORMATS, TYPEFACES, COLOR_SCHEMES, CUSTOM_SCHEME_ID_RE, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, ErrorSchema, FeaturesSchema, LocationSchema, MealTimesSchema, SettingsPatchSchema, SettingsSchema, TidbitSettingsSchema } from '../schemas.ts';
+import { BoardPresetSchema, TIME_FORMATS, TYPEFACES, COLOR_SCHEMES, CUSTOM_SCHEME_ID_RE, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, ErrorSchema, FeaturesSchema, LocationSchema, MealTimesSchema, SettingsPatchSchema, SettingsSchema, TidbitSettingsSchema } from '../schemas.ts';
 
 export const settingsRoutes = createRouter();
 
@@ -71,6 +71,7 @@ export async function readSettings(db: KinwallDb) {
     location,
     temperatureUnit: (map.get('temperatureUnit') || defaultUnit(location, map.get('timezone'))) as 'celsius' | 'fahrenheit',
     tidbits: parseTidbits(map.get('tidbits')),
+    boardPresets: parseBoardPresets(map.get('boardPresets')),
     features: parseFeatures(map.get('features')),
     mealTimes: parseMealTimes(map.get('mealTimes')),
     aiHealthAccess: map.get('aiHealthAccess') === 'true', // off until a parent turns it on, for every family
@@ -149,6 +150,16 @@ function parseCustomSchemes(raw: string | undefined): z.infer<typeof CustomSchem
   try {
     const v = JSON.parse(raw);
     return Array.isArray(v) ? v.flatMap((x) => { const p = CustomSchemeSchema.safeParse(x); return p.success ? [p.data] : []; }) : [];
+  } catch {
+    return [];
+  }
+}
+
+// Stored as JSON; a preset that no longer validates is dropped rather than failing the read.
+function parseBoardPresets(raw: string | undefined): z.infer<typeof BoardPresetSchema>[] {
+  try {
+    const v = JSON.parse(raw ?? '[]');
+    return Array.isArray(v) ? v.flatMap((x) => { const p = BoardPresetSchema.safeParse(x); return p.success ? [p.data] : []; }) : [];
   } catch {
     return [];
   }

@@ -240,6 +240,25 @@ export const TidbitSettingsSchema = z
   })
   .openapi('TidbitSettings');
 
+// The Board's layouts (web/src/boardLayout.ts): columns of cards, each with how much of its column's
+// height it takes (s/m/l) and how big its text is. A family preset is one a parent saved for every
+// screen to pick; a screen's own layout stays on the device.
+export const BOARD_CARDS = ['clock', 'today', 'meals', 'photo', 'coming', 'due', 'chores', 'tidbit', 'tidbit2', 'tidbit3'] as const;
+export const MAX_BOARD_PRESETS = 10;
+export const BoardLayoutSchema = z
+  .object({
+    tiles: z.boolean().openapi({ description: 'The row of count tiles across the top' }),
+    columns: z
+      .array(z.array(z.object({ id: z.enum(BOARD_CARDS), size: z.enum(['s', 'm', 'l']), density: z.enum(['big', 'normal', 'small']) })).max(6))
+      .min(1)
+      .max(4),
+  })
+  .refine((l) => { const ids = l.columns.flat().map((c) => c.id); return new Set(ids).size === ids.length; }, 'a card can be on the Board once')
+  .openapi('BoardLayout');
+export const BoardPresetSchema = z
+  .object({ id: z.string().regex(/^p_[a-z0-9_-]{1,40}$/), name: z.string().trim().min(1).max(40), layout: BoardLayoutSchema })
+  .openapi('BoardPreset');
+
 // Household feature switches (Settings -> For the whole family -> Features). Off hides the feature
 // on every screen and stops its notifications; its data is kept and its API keeps answering.
 export const FeaturesSchema = z
@@ -296,6 +315,7 @@ export const SettingsSchema = z
     location: LocationSchema.nullable(), // for the snapshot's weather; null = no weather
     temperatureUnit: z.enum(['celsius', 'fahrenheit']), // default: fahrenheit for a US location (or US timezone), else celsius
     tidbits: TidbitSettingsSchema,
+    boardPresets: z.array(BoardPresetSchema).openapi({ description: "Board layouts a parent saved for the family; each screen picks one (or a built-in one, or its own) on the device." }),
     features: FeaturesSchema,
     mealTimes: MealTimesSchema, // when each meal slot usually is; a meal without its own time uses it for its calendar event
     aiHealthAccess: z.boolean(), // false (default): MCP and connected apps' OAuth tokens never see or change the Health tracker
@@ -340,6 +360,11 @@ export const SettingsPatchSchema = z
     location: LocationSchema.nullable().optional(),
     temperatureUnit: z.enum(['celsius', 'fahrenheit']).optional(),
     tidbits: TidbitSettingsSchema.optional(),
+    boardPresets: z
+      .array(BoardPresetSchema)
+      .max(MAX_BOARD_PRESETS)
+      .refine((l) => new Set(l.map((x) => x.id)).size === l.length, 'preset ids must be unique')
+      .optional(), // the whole list
     features: FeaturesSchema.optional(), // admin keys only (a display key gets 403)
     mealTimes: MealTimesSchema.optional(),
     aiHealthAccess: z.boolean().optional(), // the family's own devices only: a connected app gets 403

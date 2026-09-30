@@ -111,6 +111,7 @@ const settings: Settings = {
   medicationNamesOnWalls: false,
   location: { name: 'Portland', lat: 45.5152, lon: -122.6784, countryCode: 'US' },
   temperatureUnit: 'fahrenheit',
+  boardPresets: [],
   tidbits: { sources: ['quotes', 'facts', 'onthisday', 'trivia'], factCategories: [], tipCategories: [], onThisDay: ['holidays', 'births'], birthsAfter: 1900, triviaCategories: [27, 17, 22, 9], triviaDifficulties: ['easy'] },
   features: { chores: true, lists: true, contacts: true, paint: true, photos: true, notes: true, messages: true, trackersReading: true, trackersMemories: true, trackersHealth: true, meals: true },
 }

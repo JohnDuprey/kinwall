@@ -19,6 +19,7 @@ import { TakeNowTile, useDueDoses } from './TakeNow.tsx'
 import Sheet from './Sheet.tsx'
 import { CartIcon } from './icons.tsx'
 import { boardAreas, boardChores, moreLabel, rowsThatFit, tidbitCardsThatFit } from './boardFit.ts'
+import { layoutAreas, layoutFor, type BoardCardId, type CardDensity } from './boardLayout.ts'
 import { leadOf, leadText } from './leadTime.ts'
 
 const REFRESH_MS = 10 * 60_000
@@ -30,9 +31,12 @@ function Avatar({ m }: { m: Pick<Member, 'name' | 'color' | 'avatar'> }) {
   return <span className="board-avatar" style={{ background: m.color, color: inkFor(m.color) }}>{m.avatar || m.name[0]}</span>
 }
 
-function Card({ title, area, link, children }: { title: string; area: string; link?: React.ReactNode; children: React.ReactNode }) {
+/** A card's text size in a layout (boardLayout.ts), as a class. */
+const densityClass = (d: CardDensity | undefined) => d && d !== 'normal' ? ` board-density-${d}` : ''
+
+function Card({ title, area, link, density, children }: { title: string; area: string; link?: React.ReactNode; density?: CardDensity; children: React.ReactNode }) {
   return (
-    <section className={`board-card board-${area}`} aria-label={title}>
+    <section className={`board-card board-${area}${densityClass(density)}`} aria-label={title}>
       <h3 className="snap-heading">{title}{link}</h3>
       <FitBody title={title}>{children}</FitBody>
     </section>
@@ -57,7 +61,9 @@ function FitBody({ title, rows = ROWS, bodyClass = 'board-body', children }: { t
     for (const e of [...els, ...days]) e.hidden = false
     const top = b.getBoundingClientRect().top
     const info = els.map(e => ({ bottom: e.getBoundingClientRect().bottom - top, heading: e.matches('.snap-day-heading') }))
-    const shown = rowsThatFit(info, w.clientHeight, MORE_SPACE)
+    // A card with bigger or smaller text is zoomed: measure the space as drawn, like the rows.
+    const space = w.getBoundingClientRect().height, scale = w.clientHeight ? space / w.clientHeight : 1
+    const shown = rowsThatFit(info, space, MORE_SPACE * scale)
     els.forEach((e, i) => { e.hidden = i >= shown })
     for (const d of days) d.hidden = !!d.querySelector('.snap-day-heading[hidden]') // a day whose rows all went
     setMore(shown < els.length ? moreLabel(info, shown) : null)
@@ -131,7 +137,11 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
   // with no params, as before, and each own card with its sources and categories (one at a time,
   // so a free API isn't asked twice at once). Keyed by query; '' is the family's.
   const own = !!device.tidbitCards?.length
-  const cards = tidbitCards(settings.tidbits, device.tidbitCards).slice(0, roomFor)
+  // A layout (Settings -> This display -> Board layout) places its cards itself; the default arrangement
+  // takes as many quote cards as the screen has room for.
+  const layout = layoutFor(device.boardLayout, device.boardCustom, settings.boardPresets ?? [])
+  const placed = new Set(layout?.columns.flat().map(c => c.id))
+  const cards = tidbitCards(settings.tidbits, device.tidbitCards).slice(0, layout ? 3 : roomFor)
   const queries = [...new Set(cards.map(c => tidbitQuery(c) === null ? null : own ? tidbitQuery(c)! : ''))].filter((q): q is string => q !== null)
   const dayKey = `${p.year}-${p.month}-${p.day}`
   const [online, setOnline] = useState<Record<string, OnlineTidbits>>({})
@@ -167,16 +177,21 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
   const groceries = lists.filter(l => l.kind === 'shopping' && (!focusMemberId || l.memberIds.includes(focusMemberId) || (focusShowsShared && !l.memberIds.length)))
   // Take now shows whenever doses are due, Full lists too: then it's the tiles row's only tile (after the clock on a phone).
   const tiles = [
-    meds.doses.length > 0 && 'meds', f.chores && !full && 'chores', f.lists && !full && 'due', f.lists && groceries.length > 0 && 'groceries', f.chores && rewardRequests > 0 && 'rewards',
+    // In a layout, the Chores and Due soon tiles stand in for their cards when those aren't placed.
+    meds.doses.length > 0 && 'meds', f.chores && (layout ? !placed.has('chores') : !full) && 'chores', f.lists && (layout ? !placed.has('due') : !full) && 'due', f.lists && groceries.length > 0 && 'groceries', f.chores && rewardRequests > 0 && 'rewards',
   ].filter((t): t is string => !!t)
   // Whose chores count: a kid's device (or a picked person) sees only theirs, like the Chores tab.
   const chores = boardChores(data.chores, selectedMemberId, focusMemberId, focusShowsShared)
   // Saving for a reward: shown on the person's chores row, or a row of its own when they have no chores today.
   const goalsOnly = members.filter(m => m.rewardGoal && (!selectedMemberId || m.id === selectedMemberId) && !chores.some(c => c.memberId === m.id))
-  const shown = ['clock', 'tiles', 'today', 'meals', 'photo', 'coming', 'due', 'chores', ...tidbitAreas].filter(a =>
-    a === 'tiles' ? tiles.length > 0 : a === 'photo' ? f.photos : a === 'due' ? f.lists && full : a === 'chores' ? f.chores && full : a === 'meals' ? f.meals
-    : tidbitAreas.includes(a) ? !!tidbits[tidbitAreas.indexOf(a)] : true)
+  // What can show at all: a feature that's off, or a quote card with nothing to say, takes its card away.
+  const can = (a: BoardCardId | 'tiles') => a === 'tiles' ? tiles.length > 0 : a === 'photo' ? f.photos : a === 'due' ? f.lists : a === 'chores' ? f.chores : a === 'meals' ? f.meals
+    : tidbitAreas.includes(a) ? !!tidbits[tidbitAreas.indexOf(a)] : true
+  const custom = layout && layoutAreas(layout, can)
+  const shown = custom ? custom.shown : ['clock', 'tiles', 'today', 'meals', 'photo', 'coming', 'due', 'chores', ...tidbitAreas].filter(a =>
+    a === 'due' ? f.lists && full : a === 'chores' ? f.chores && full : can(a as BoardCardId | 'tiles'))
   const has = (a: string) => shown.includes(a)
+  const dense = (a: string) => custom?.density.get(a)
   const choresLeft = chores.reduce((n, c) => n + c.remaining, 0)
   const overdue = data.items.filter(i => i.overdue).length
   const dueWeek = data.items.filter(i => !i.overdue && i.dueDate).length
@@ -184,7 +199,7 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
 
   return (
     <div className="board-scroll" ref={scrollRef}>
-      <div className="board" style={boardAreas(shown)}>
+      <div className="board" style={custom ? custom.style : boardAreas(shown)}>
         {has('tiles') && (
           <nav className="board-tiles" aria-label="At a glance">
             {tiles.includes('meds') && <TakeNowTile {...meds} />}
@@ -227,7 +242,7 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
           </nav>
         )}
         {/* The header already shows the clock and date, so this card is the forecast alone. */}
-        <section className="board-card board-clock" aria-label="Time and weather">
+        {has('clock') && <section className={`board-card board-clock${densityClass(dense('clock'))}`} aria-label="Time and weather">
           <div className="board-time">{formatTime(now, tz)}</div>
           <div className="board-date">{new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric', timeZone: tz }).format(now)}</div>
           {w && <div className="board-wx-where snap-dim">{w.location}</div>}
@@ -249,9 +264,9 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
               </ul>
             </div>
           )}
-        </section>
+        </section>}
 
-        <Card title="Today" area="today">
+        {has('today') && <Card title="Today" area="today" density={dense('today')}>
           {(() => {
             const bdays = data.birthdays.filter(b => b.date === today)
             const todays = events.filter(e => e.date === today)
@@ -268,11 +283,11 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
               </ul>
             )
           })()}
-        </Card>
+        </Card>}
 
-        {f.meals && <Card title="Today’s meals" area="meals"><TodaysMeals now={now} meals={data.meals.filter(m => m.date === today)} /></Card>}
+        {has('meals') && <Card title="Today’s meals" area="meals" density={dense('meals')}><TodaysMeals now={now} meals={data.meals.filter(m => m.date === today)} /></Card>}
 
-        <Card title="Coming up" area="coming">
+        {has('coming') && <Card title="Coming up" area="coming" density={dense('coming')}>
           {later.length === 0 ? <p className="snap-empty">Nothing planned this week.</p> : later.map(d => {
             const wd = w?.days.find(x => x.date === d)
             const label = dayName(d, { weekday: 'long', month: 'short', day: 'numeric' })
@@ -289,9 +304,9 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
               </section>
             )
           })}
-        </Card>
+        </Card>}
 
-        {has('due') && <Card title="Due soon" area="due">
+        {has('due') && <Card title="Due soon" area="due" density={dense('due')}>
           {data.items.length === 0 ? <p className="snap-empty">Nothing due — all caught up.</p> : (
             <ul className="snap-list">
               {data.items.map(i => {
@@ -302,7 +317,7 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
           )}
         </Card>}
 
-        {has('chores') && <Card title="Chores today" area="chores" link={<a className="board-card-link" href="#/rewards">🎁 Rewards</a>}>
+        {has('chores') && <Card title="Chores today" area="chores" density={dense('chores')} link={<a className="board-card-link" href="#/rewards">🎁 Rewards</a>}>
           {chores.length === 0 && !goalsOnly.length ? <p className="snap-empty">No chores today.</p> : (
             <ul className="snap-list">
               {chores.map(c => {
@@ -342,10 +357,10 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
           )}
         </Card>}
 
-        {f.photos && <PhotoCard />}
+        {has('photo') && <PhotoCard density={dense('photo')} />}
 
-        {tidbits.map((t, i) => t && (
-          <TidbitCard key={`${i}:${t.kind === 'trivia' ? t.question : t.text}`} tidbit={t} area={tidbitAreas[i]} title={own ? tidbitCardTitle(cards[i]) : undefined} heading={cards[i].sources.length > 1} />
+        {tidbits.map((t, i) => t && has(tidbitAreas[i]) && (
+          <TidbitCard density={dense(tidbitAreas[i])} key={`${i}:${t.kind === 'trivia' ? t.question : t.text}`} tidbit={t} area={tidbitAreas[i]} title={own ? tidbitCardTitle(cards[i]) : undefined} heading={cards[i].sources.length > 1} />
         ))}
       </div>
     </div>
@@ -373,12 +388,12 @@ function TidbitBody({ trivia, fitKey, title, children }: { trivia: boolean; fitK
  *  right or wrong and highlights the answer, and Try again resets it for the next person. Online
  *  tidbits credit their source. With several cards each has a `title` from what it shows, shown
  *  as a `heading` when the card mixes sources; `area` is its grid slot (tidbit, tidbit2, tidbit3). */
-function TidbitCard({ tidbit, area, title, heading }: { tidbit: Tidbit; area: string; title?: string; heading: boolean }) {
+function TidbitCard({ tidbit, area, title, heading, density }: { tidbit: Tidbit; area: string; title?: string; heading: boolean; density?: CardDensity }) {
   const [guess, setGuess] = useState<string | null>(null) // resets with each tidbit: the parent keys the card by it
   const key = tidbit.kind === 'trivia' ? tidbit.question : tidbit.text
   const label = tidbit.kind === 'quote' ? 'Quote' : tidbit.kind === 'trivia' ? 'Trivia' : tidbit.kind === 'onthisday' ? 'On this day' : tidbit.kind === 'tip' ? 'Try this' : 'Did you know?'
   return (
-    <section className={`board-card board-tidbit ${area === 'tidbit' ? '' : 'board-tidbit-extra'}`} style={{ gridArea: area }} aria-label={title ?? label}>
+    <section className={`board-card board-tidbit ${area === 'tidbit' ? '' : 'board-tidbit-extra'}${densityClass(density)}`} style={{ gridArea: area }} aria-label={title ?? label}>
       {title && heading && <h3 className="snap-heading">{title}</h3>}{/* one source: its tag already says what it is */}
       {/* Trivia keeps its answers on the card (answering happens right here), so it never trims rows
           into a "+N more" sheet; when space is tight its body scrolls instead. */}
@@ -439,7 +454,7 @@ function EventLine({ e, tz, byId, onTap, past }: { e: SnapshotEvent; tz: string;
 
 /** The screensaver's pictures, a new one every minute: this display's sources, or if none are picked
  * the family's own (Google Photos and family photos; nature photos until there are some). */
-function PhotoCard() {
+function PhotoCard({ density }: { density?: CardDensity }) {
   const device = useDeviceAppearance()
   const { refreshTick, settings } = useApp()
   const [hasPhotos, setHasPhotos] = useState(false)
@@ -448,7 +463,7 @@ function PhotoCard() {
   const { pics, failed } = useSlideshowPictures(boardSources(device.saverSources ?? [], { photos: settings.features.photos, googlePhotos: settings.googlePhotos }, hasPhotos), 60)
   const current = pics[pics.length - 1]
   return (
-    <section className="board-card board-photo" aria-label="Picture">
+    <section className={`board-card board-photo${densityClass(density)}`} aria-label="Picture">
       {!failed && current ? (
         <>
           {/* The whole picture, never cropped (drawings and tall photos lose too much to cover), over a
