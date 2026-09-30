@@ -16,7 +16,7 @@ Each calendar row shows its color, name, kind and status: "Synced *time*", "Neve
   * **Filter**: which of its events the family sees: **All events**, only events that match, or all except them, by words in the title, all-day or timed, and category, with presets like **School: days off & half days** and a preview of the next 3 months. See [Calendar filters](../using/calendar.md#calendar-filters).
   * **Hidden events**: events a parent hid one by one (or by series), with **Show again** on each. See [Hiding events](../using/calendar.md#hiding-events).
   * **Enabled**: when off, the calendar stops syncing and its events are hidden.
-  * **Wall screens and kids' devices can edit**: on to start with. When off, only parents' devices add, change or delete its events; wall screens and kids' devices show them read-only. A kid's device only ever changes calendars that are for them. See [Who can change events](../using/events.md#who-can-change-events).
+  * **Wall screens and kids' devices can edit**: on to start with. When off, only parents' devices add, change or delete its events; wall screens and kids' devices show them read-only. A kid's device only ever changes calendars that are for them. Read-only calendars (ICS feed links and read-only shared calendars) don't show this switch; they say they're read-only instead, and you can still filter them and hide events. See [Who can change events](../using/events.md#who-can-change-events).
   * **Calendar ID** at the bottom, for automations that name a calendar, like the Home Assistant meal kit blueprint's **Add dinners to calendar**.
 
 Add buttons:

@@ -2110,13 +2110,14 @@ function EditCalendarSheet({ calendar, onClose, onSaved, onSync, onRemove, toast
         <label id="calendar-enabled-label">Enabled</label>
         <button className={`switch ${enabled ? 'on' : ''}`} role="switch" aria-checked={enabled} aria-labelledby="calendar-enabled-label" onClick={() => setEnabled(v => !v)}><span className="knob" /></button>
       </div>
-      <div className="toggle-row">
+      {/* Read-only feeds (ICS links, read-only shared calendars): nobody edits their events, so no switch. */}
+      {!calendar.writable ? <p className="settings-row-sub">Read-only: this calendar's events come from {calendar.kind === 'ics' ? 'a feed link' : 'its account'} and can't be added to or changed in Kinwall. You can still hide events or filter it.</p> : <div className="toggle-row">
         <div>
           <label id="calendar-display-edit-label">Wall screens and kids' devices can edit</label>
           <div className="settings-row-sub" id="calendar-display-edit-sub">Off: only parents' devices add, change or delete its events. A kid's device can only ever change calendars that are for them.</div>
         </div>
         <button className={`switch ${displayEdit ? 'on' : ''}`} role="switch" aria-checked={displayEdit} aria-labelledby="calendar-display-edit-label" aria-describedby="calendar-display-edit-sub" onClick={() => setDisplayEdit(v => !v)}><span className="knob" /></button>
-      </div>
+      </div>}
       <div className="cal-actions" style={{ marginTop: 4 }}>
         {calendar.kind !== 'local' && <button className="link-btn" onClick={onSync}>Sync now</button>}
         <button className="link-btn" style={{ color: 'var(--danger)' }} onClick={onRemove}>Remove</button>
