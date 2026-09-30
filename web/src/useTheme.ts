@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { ClockPos } from './nightClock.ts'
-import type { Appearance, ColorScheme, CustomColors, DeviceDensity, Settings, TextScale, Typeface } from './types.ts'
+import type { Appearance, ColorScheme, CustomColors, DeviceDensity, Settings, TextScale, TidbitSettings, Typeface } from './types.ts'
 import { deviceTypeface, resolveTypeface } from './typeface.ts'
 import { deviceTimeFormat } from './timeFormat.ts'
 import { accentFill, readableOn } from './color.ts'
@@ -41,6 +41,7 @@ export type DeviceAppearance = Partial<Pick<Appearance, 'themeMode' | 'textScale
   focusMemberId?: string // this display shows only one member's things
   focusHideShared?: boolean // ...and hides the ones assigned to nobody
   lockView?: LockedView // calendar stays on this view, no switcher
+  tidbitCards?: TidbitSettings[] // the Board's quote / fact cards, 1-3 with their own sources (tidbits.ts); absent = the family's one card
   boardLists?: 'counts' | 'full' // the Board's Chores and Due soon: count tiles or full cards; absent = auto (full on a big screen)
   saverSources?: SaverSource[] // quiet-hours screensaver, round-robin; absent/empty = the plain clock
   saverEvery?: number // minutes between pictures; absent = 5

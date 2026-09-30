@@ -28,7 +28,7 @@ The Kinwall version ("Kinwall v…") shows at the bottom.
 
 ### Quotes & facts
 
-What the Board's quote card shows. The row shows what's on; **Change** opens a sheet with the choices. The card takes turns through every source that's on, changing every half hour, and every screen shows the same one. Turn everything off to hide the card. API: `tidbits` (see below).
+What the Board's quote card shows. The row shows what's on; **Change** opens a sheet with the choices. The card takes turns through every source that's on, changing every half hour, and every screen on the family's choice shows the same one. Turn everything off to hide the card. A screen can show its own picks, or several cards, instead: see [This display → Board quotes & facts](this-display.md#this-display). API: `tidbits` (see below).
 
 | Source | Notes |
 |---|---|

@@ -2254,7 +2254,8 @@ button.board-empty-tap { display: block; width: 100%; text-align: left; backgrou
 .board-chores { grid-area: chores; }
 .board-meals { grid-area: meals; }
 .board-photo { grid-area: photo; }
-.board-tidbit { grid-area: tidbit; min-height: auto; }
+.board-tidbit { grid-area: tidbit; min-height: auto; } /* a second and third card set their own area inline */
+.board-tidbit > .snap-heading { margin-bottom: 4px; }
 .board-tiles { grid-area: tiles; display: grid; gap: var(--gap); grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .board-tile {
   background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 8px 14px; min-height: 64px; min-width: 0;
@@ -2285,6 +2286,8 @@ button.board-empty-tap { display: block; width: 100%; text-align: left; backgrou
   }
   .board-tidbit blockquote p, .board-tidbit-body > p { font-size: 0.875rem; }
   .board-clock, .board-tidbit { padding: 8px 12px; }
+  /* Several tidbit cards share the capped bottom row: each shows what fits, "+2 more" opens the rest. */
+  .board:has(.board-tidbit-extra) .board-tidbit { min-height: 0; }
   .board-clock .board-card-title { font-size: 0.9375rem; margin-bottom: 2px; }
 }
 
@@ -2384,6 +2387,12 @@ button.board-empty-tap { display: block; width: 100%; text-align: left; backgrou
 
 /* Settings → Quotes & facts sheet: one block per source, its options under its switch. */
 .tidbit-source { display: grid; gap: 8px; padding: 12px 0; border-top: 1px solid var(--border); }
+.tidbit-remove.btn { margin-top: 16px; }
+/* Settings → This display: a device's own cards, one row each with its Change button. */
+.tidbit-card-row { display: flex; align-items: center; gap: 12px; }
+.tidbit-card-row > span { flex: 1; min-width: 0; display: grid; gap: 2px; overflow-wrap: anywhere; }
+.tidbit-card-row > .btn, .tidbit-card-add.btn { flex: none; min-height: 44px; }
+.tidbit-card-add.btn { align-self: flex-start; }
 
 /* Activity plugins (Plugins.tsx): the player fills the content area; the plugin draws its own UI. */
 .plugin-player { display: flex; flex-direction: column; height: 100%; min-height: 0; gap: 8px; padding: 8px 12px 12px; }

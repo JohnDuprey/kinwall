@@ -1,8 +1,12 @@
 // Settings → For the whole family → Quotes & facts: which sources the Board's quote / fact card
 // draws from, and the categories within each. A sheet of its own so the settings list stays short.
+// The same sheet edits a device's own cards (Settings → This display, DeviceTidbitRows below).
 import { useState } from 'react'
 import Sheet from './Sheet.tsx'
-import { FACT_CATEGORY_LABELS, SOURCE_TITLES, TIP_CATEGORY_LABELS } from './tidbits.ts'
+import { announce } from './a11y.tsx'
+import { setDeviceAppearance, useDeviceAppearance } from './useTheme.ts'
+import { useApp } from './AppContext.tsx'
+import { FACT_CATEGORY_LABELS, MAX_TIDBIT_CARDS, SOURCE_TITLES, TIP_CATEGORY_LABELS, tidbitCardTitle, tidbitSummary } from './tidbits.ts'
 import type { FactCategory, OnThisDayKind, TidbitSettings, TidbitSource, TipCategory } from './types.ts'
 
 // Open Trivia DB categories that suit a family wall (ids from opentdb.com/api_category.php).
@@ -26,7 +30,12 @@ const SOURCES: { key: TidbitSource; sub: string }[] = [
   { key: 'trivia', sub: 'From Open Trivia DB, multiple choice. Tap an answer to see if it’s right; Try again resets it.' },
 ]
 
-export default function TidbitsSheet({ value, onClose, onSave }: { value: TidbitSettings; onClose: () => void; onSave: (t: TidbitSettings) => Promise<void> }) {
+const FAMILY_INTRO = 'The Board’s quote card takes turns through what’s on here, changing every half hour. Every screen on the family’s choice shows the same one. Turn everything off to hide the card.'
+
+/** `title`, `intro`, `onRemove`: for one of a device's own cards (DeviceTidbitRows). */
+export default function TidbitsSheet({ value, onClose, onSave, title = 'Quotes & facts', intro = FAMILY_INTRO, onRemove }: {
+  value: TidbitSettings; onClose: () => void; onSave: (t: TidbitSettings) => Promise<void>; title?: string; intro?: string; onRemove?: () => void
+}) {
   const [t, setT] = useState(value)
   const [busy, setBusy] = useState(false)
   const toggle = <K,>(list: K[], k: K) => (list.includes(k) ? list.filter(x => x !== k) : [...list, k])
@@ -36,9 +45,9 @@ export default function TidbitsSheet({ value, onClose, onSave }: { value: Tidbit
   )
   const valid = t.onThisDay.length > 0 && t.triviaCategories.length > 0 && t.triviaDifficulties.length > 0
   return (
-    <Sheet title="Quotes & facts" onClose={onClose}
+    <Sheet title={title} onClose={onClose}
       actions={<button className="btn btn-primary" disabled={!valid || busy} onClick={async () => { setBusy(true); try { await onSave(t) } finally { setBusy(false) } }}>Save</button>}>
-      <p className="settings-row-sub">The Board’s quote card takes turns through what’s on here, changing every half hour. Every screen shows the same one. Turn everything off to hide the card.</p>
+      <p className="settings-row-sub">{intro}</p>
       {SOURCES.map(s => (
         <div key={s.key} className="tidbit-source">
           <div className="toggle-row">
@@ -95,6 +104,68 @@ export default function TidbitsSheet({ value, onClose, onSave }: { value: Tidbit
       {(on('onthisday') || on('trivia')) && (
         <p className="settings-row-sub">Your Kinwall server fetches these once a day. Nothing about your family is sent, and screens never contact Wikipedia or Open Trivia DB themselves. When they can’t be reached, the built-in quotes and facts fill in.</p>
       )}
+      {onRemove && <button className="btn btn-secondary tidbit-remove" onClick={onRemove}>Remove this card</button>}
     </Sheet>
+  )
+}
+
+/** "Trivia: 🐾 Animals, 🔬 Science & nature · 🙂 Easy", one line per source that's on. */
+function cardDetail(c: TidbitSettings): string {
+  const labels = <K,>(all: { key: K; label: string }[], picked: K[]) => all.filter(x => picked.includes(x.key)).map(x => x.label).join(', ')
+  const parts = c.sources.map(s =>
+    s === 'facts' ? `${SOURCE_TITLES.facts}: ${c.factCategories.length ? c.factCategories.map(k => FACT_CATEGORY_LABELS[k]).join(', ') : 'all'}`
+    : s === 'tips' ? `Tips: ${c.tipCategories?.length ? c.tipCategories.map(k => TIP_CATEGORY_LABELS[k]).join(', ') : 'all'}`
+    : s === 'onthisday' ? `${SOURCE_TITLES.onthisday}: ${labels(ON_THIS_DAY, c.onThisDay)}`
+    : s === 'trivia' ? `Trivia: ${labels(TRIVIA_CATEGORIES.map(t => ({ key: t.id, label: t.label })), c.triviaCategories)} · ${labels(DIFFICULTIES, c.triviaDifficulties)}`
+    : SOURCE_TITLES[s])
+  return parts.length ? parts.join('. ') : 'Off: this card is hidden.'
+}
+
+/** Settings → This display: the Board's quote / fact cards on this device. The family's choice
+ *  (default), or up to MAX_TIDBIT_CARDS cards of this device's own, each with its own sources. */
+export function DeviceTidbitRows() {
+  const { settings } = useApp()
+  const device = useDeviceAppearance()
+  const cards = device.tidbitCards ?? []
+  const [editing, setEditing] = useState<number | null>(null)
+  const save = (next: TidbitSettings[] | undefined) => setDeviceAppearance({ ...device, tidbitCards: next?.length ? next : undefined })
+  const name = (c: TidbitSettings) => c.sources.length ? tidbitCardTitle(c) : 'Nothing on'
+  return (
+    <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
+      <div className="device-pref-row">
+        <span>Board quotes &amp; facts</span>
+        <select className="settings-select" aria-label="Board quotes and facts" value={cards.length ? 'own' : ''}
+          onChange={e => {
+            if (e.target.value) { save([{ ...settings.tidbits }]); announce('This device picks its own quotes and facts') }
+            else { save(undefined); announce("This device follows the family's quotes and facts") }
+          }}>
+          <option value="">Family’s choice</option>
+          <option value="own">Own picks</option>
+        </select>
+      </div>
+      {!cards.length ? <div className="settings-row-sub">This screen shows the family’s quote card ({tidbitSummary(settings.tidbits)}).</div> : <>
+        <div className="settings-row-sub">Up to {MAX_TIDBIT_CARDS} cards, each taking turns through its own picks. A phone, or a tablet on its side, shows the first one.</div>
+        {cards.map((c, i) => (
+          <div key={i} className="tidbit-card-row">
+            <span>
+              <span className="settings-row-label">{i + 1}. {name(c)}</span>
+              <span className="settings-row-sub">{cardDetail(c)}</span>
+            </span>
+            <button className="btn btn-secondary tidbit-card-edit" aria-haspopup="dialog" aria-label={`Change card ${i + 1}, ${name(c)}`} onClick={() => setEditing(i)}>Change</button>
+          </div>
+        ))}
+        {cards.length < MAX_TIDBIT_CARDS && (
+          <button className="btn btn-secondary tidbit-card-add" aria-haspopup="dialog"
+            onClick={() => { save([...cards, { ...settings.tidbits, sources: ['trivia'] }]); setEditing(cards.length) }}>Add a card</button>
+        )}
+      </>}
+      {editing !== null && cards[editing] && (
+        <TidbitsSheet value={{ ...settings.tidbits, ...cards[editing] }} title={`Card ${editing + 1} on this device`}
+          intro="This card takes turns through what’s on here. Only this screen changes. Turn everything off to hide the card."
+          onClose={() => setEditing(null)}
+          onSave={async t => { save(cards.map((c, i) => i === editing ? t : c)); setEditing(null); announce(`Saved: ${name(t)}`) }}
+          onRemove={cards.length > 1 ? () => { save(cards.filter((_, i) => i !== editing)); setEditing(null); announce('Card removed') } : undefined} />
+      )}
+    </div>
   )
 }

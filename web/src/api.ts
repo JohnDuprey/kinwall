@@ -313,7 +313,8 @@ export const api = {
     : get<Snapshot>(`api/snapshot?member=${encodeURIComponent(memberId)}&range=${range}`),
   // Server-side lookup (Open-Meteo): the browser never talks to the geocoder itself.
   getBoard: (days = 7) => MOCK ? Promise.all([mock.getBoard(days), import('./mock-meals.ts')]).then(([b, { mockMeals }]) => ({ ...b, meals: mockMeals(b.today, b.to) })) : get<Board>(`api/board?days=${days}`),
-  getTidbits: () => MOCK ? mock.getTidbits() : get<OnlineTidbits>('api/tidbits'),
+  // `query`: a display's own sources and categories (tidbitQuery); none = the family's.
+  getTidbits: (query?: string) => MOCK ? mock.getTidbits() : get<OnlineTidbits>(query ? `api/tidbits?${query}` : 'api/tidbits'),
 
   // Activity plugins. The demo serves the reviewed ones baked into its build (mock.ts mockPlugins).
   getPluginCatalog: () => MOCK ? mockPlugins.catalog() : get<{ catalogOnly: boolean; plugins: PluginCatalogEntry[] }>('api/plugins/catalog'),

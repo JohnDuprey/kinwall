@@ -7,7 +7,7 @@ import { ProviderForm, PublicUrlRow } from './ProviderConfig.tsx'
 import { CATEGORY_EMOJI, CATEGORY_PRESETS, MEMBER_EMOJI, MEMBER_PALETTE, nextPaletteColor, REMINDER_OPTIONS } from './types.ts'
 import Sheet from './Sheet.tsx'
 import { SchemePickerSheet, TypefaceRow } from './SchemePicker.tsx'
-import TidbitsSheet from './TidbitsSheet.tsx'
+import TidbitsSheet, { DeviceTidbitRows } from './TidbitsSheet.tsx'
 import { tidbitSummary } from './tidbits.ts'
 import { appearanceChips, featuresSummary, nightSummary, timeCuesSummary, transitionRemindersSummary, type Chip } from './settingsSummary.ts'
 import { MAX_WARNING_TIMES, REPEAT_EVERY, REPEAT_WITHIN, warningTimes, type TransitionReminders, type WarningRepeat } from './transitions.ts'
@@ -1227,6 +1227,7 @@ function ScreenFocusRows({ display }: { display: boolean }) {
           </select>
         </div>
       </div>
+      <DeviceTidbitRows />
       {!display && (
         <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
           <div className="toggle-row">

@@ -11,14 +11,14 @@ import { formatTime } from './timeFormat.ts'
 import { useDeviceAppearance } from './useTheme.ts'
 import { useSlideshowPictures } from './Screensaver.tsx'
 import { boardSources } from './saverSources.ts'
-import { tidbitFor, type Tidbit } from './tidbits.ts'
+import { tidbitCardTitle, tidbitCards, tidbitFor, tidbitQuery, tidbitSlot, type Tidbit } from './tidbits.ts'
 import { BirthdayRow, ItemRow, dayName } from './Snapshot.tsx'
 import TodaysMeals from './TodaysMeals.tsx'
 import { boardGoals } from './tempCheck.ts'
 import { TakeNowTile, useDueDoses } from './TakeNow.tsx'
 import Sheet from './Sheet.tsx'
 import { CartIcon } from './icons.tsx'
-import { boardChores, moreLabel, rowsThatFit } from './boardFit.ts'
+import { boardAreas, boardChores, moreLabel, rowsThatFit, tidbitCardsThatFit } from './boardFit.ts'
 import { leadOf, leadText } from './leadTime.ts'
 
 const REFRESH_MS = 10 * 60_000
@@ -111,28 +111,49 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
   // Auto: measure the board to decide between full lists and counts.
   const scrollRef = useRef<HTMLDivElement>(null)
   const [big, setBig] = useState(false)
+  const [roomFor, setRoomFor] = useState(1) // tidbit cards
   const loaded = !!data
   const meds = useDueDoses()
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return
-    const ro = new ResizeObserver(([e]) => setBig(e.contentRect.width >= FULL_W && e.contentRect.height >= FULL_H))
+    const ro = new ResizeObserver(([e]) => {
+      setBig(e.contentRect.width >= FULL_W && e.contentRect.height >= FULL_H)
+      setRoomFor(tidbitCardsThatFit(e.contentRect.width, e.contentRect.height))
+    })
     ro.observe(el)
     return () => ro.disconnect()
   }, [loaded])
 
   const p = zonedParts(now.toISOString(), tz)
-  // Online tidbits (Settings → Quotes & facts): fetched when the day or the settings change.
-  const onlineOn = settings.tidbits.sources.some(s => s === 'onthisday' || s === 'trivia')
+  // Tidbit cards: the family's one (Settings → Quotes & facts) or this device's own (Settings →
+  // This display). Online sources are fetched when the day or the choice changes: the family's
+  // with no params, as before, and each own card with its sources and categories (one at a time,
+  // so a free API isn't asked twice at once). Keyed by query; '' is the family's.
+  const own = !!device.tidbitCards?.length
+  const cards = tidbitCards(settings.tidbits, device.tidbitCards).slice(0, roomFor)
+  const queries = [...new Set(cards.map(c => tidbitQuery(c) === null ? null : own ? tidbitQuery(c)! : ''))].filter((q): q is string => q !== null)
   const dayKey = `${p.year}-${p.month}-${p.day}`
-  const [online, setOnline] = useState<OnlineTidbits | null>(null)
+  const [online, setOnline] = useState<Record<string, OnlineTidbits>>({})
   useEffect(() => {
-    if (!onlineOn) return
     let canceled = false
-    api.getTidbits().then(t => { if (!canceled) setOnline(t) }).catch(() => { /* offline: the built-in lists fill in */ })
+    void (async () => {
+      for (const q of queries) {
+        try {
+          const t = await api.getTidbits(q || undefined)
+          if (canceled) return
+          setOnline(o => ({ ...o, [q]: t }))
+        } catch { /* offline: the built-in lists fill in */ }
+      }
+    })()
     return () => { canceled = true }
-  }, [onlineOn, dayKey, JSON.stringify(settings.tidbits)]) // eslint-disable-line react-hooks/exhaustive-deps
-  const tidbit = tidbitFor(new Date(p.year, p.month - 1, p.day), Math.floor((p.hour * 60 + p.minute) / 30), settings.tidbits, onlineOn ? online : null)
+  }, [dayKey, queries.join('|')]) // eslint-disable-line react-hooks/exhaustive-deps
+  const slot = tidbitSlot(p.hour, p.minute, !!device.lowStim)
+  const tidbits = cards.map((c, i) => {
+    const q = tidbitQuery(c)
+    return tidbitFor(new Date(p.year, p.month - 1, p.day), slot, c, q === null ? null : online[own ? q : ''] ?? null, i)
+  })
+  const tidbitAreas = ['tidbit', 'tidbit2', 'tidbit3']
 
   if (!data) return error ? <div className="state-card">Couldn't load the board. Check your connection.</div> : null
   const byId = new Map(members.map(m => [m.id, m]))
@@ -152,8 +173,9 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
   const chores = boardChores(data.chores, selectedMemberId, focusMemberId, focusShowsShared)
   // Saving for a reward: shown on the person's chores row, or a row of its own when they have no chores today.
   const goalsOnly = members.filter(m => m.rewardGoal && (!selectedMemberId || m.id === selectedMemberId) && !chores.some(c => c.memberId === m.id))
-  const shown = ['clock', 'tiles', 'today', 'meals', 'photo', 'coming', 'due', 'chores', 'tidbit'].filter(a =>
-    a === 'tiles' ? tiles.length > 0 : a === 'photo' ? f.photos : a === 'due' ? f.lists && full : a === 'chores' ? f.chores && full : a === 'meals' ? f.meals : a === 'tidbit' ? !!tidbit : true)
+  const shown = ['clock', 'tiles', 'today', 'meals', 'photo', 'coming', 'due', 'chores', ...tidbitAreas].filter(a =>
+    a === 'tiles' ? tiles.length > 0 : a === 'photo' ? f.photos : a === 'due' ? f.lists && full : a === 'chores' ? f.chores && full : a === 'meals' ? f.meals
+    : tidbitAreas.includes(a) ? !!tidbits[tidbitAreas.indexOf(a)] : true)
   const has = (a: string) => shown.includes(a)
   const choresLeft = chores.reduce((n, c) => n + c.remaining, 0)
   const overdue = data.items.filter(i => i.overdue).length
@@ -322,7 +344,9 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
 
         {f.photos && <PhotoCard />}
 
-        {tidbit && <TidbitCard key={tidbit.kind === 'trivia' ? tidbit.question : tidbit.text} tidbit={tidbit} />}
+        {tidbits.map((t, i) => t && (
+          <TidbitCard key={`${i}:${t.kind === 'trivia' ? t.question : t.text}`} tidbit={t} area={tidbitAreas[i]} title={own ? tidbitCardTitle(cards[i]) : undefined} heading={cards[i].sources.length > 1} />
+        ))}
       </div>
     </div>
   )
@@ -340,36 +364,18 @@ function goalText(m: Member | undefined): { text: string; label: string } | null
   }
 }
 
-/** grid-template-areas for the cards actually on the Board, one per layout (styles.css picks one
- * per container width), so a card that's turned off leaves no hole. `shown` is in phone order. */
-function boardAreas(shown: string[]): React.CSSProperties {
-  const has = (a: string) => shown.includes(a)
-  // Two columns: rows of two cards; a card whose partner is off spans the row.
-  const two = [['tiles'], ['clock', 'photo'], ['today', 'coming'], ['due', 'chores'], ['meals', 'tidbit']]
-    .map(row => row.filter(has)).filter(row => row.length).map(([a, b = a]) => `"${a} ${b}"`)
-  // Three full-height columns: a missing card's rows go to the card above it.
-  const cols = [['clock', 'photo', 'photo', 'tidbit'], ['today', 'today', 'chores', 'meals'], ['coming', 'coming', 'due', 'due']]
-    .map(col => col.reduce<string[]>((out, a) => [...out, has(a) ? a : out[out.length - 1]], []))
-  const three = [...(has('tiles') ? ['"tiles tiles tiles"'] : []), ...[0, 1, 2, 3].map(r => `"${cols.map(c => c[r]).join(' ')}"`)]
-  return {
-    // The last row is capped so a long meals or tidbit card can't squeeze the photo.
-    ['--board-rows-3' as string]: `${has('tiles') ? 'auto ' : ''}auto minmax(40px, 1fr) minmax(40px, 1fr) fit-content(30%)`,
-    ['--board-areas-1' as string]: shown.map(a => `"${a}"`).join(' '),
-    ['--board-areas-2' as string]: two.join(' '),
-    ['--board-areas-3' as string]: three.join(' '),
-  }
-}
-
-/** The quote / fact card. Trivia shows its question as tappable choices: a tap marks that guess
+/** A quote / fact card. Trivia shows its question as tappable choices: a tap marks that guess
  *  right or wrong and highlights the answer, and Try again resets it for the next person. Online
- *  tidbits credit their source. */
-function TidbitCard({ tidbit }: { tidbit: Tidbit }) {
+ *  tidbits credit their source. With several cards each has a `title` from what it shows, shown
+ *  as a `heading` when the card mixes sources; `area` is its grid slot (tidbit, tidbit2, tidbit3). */
+function TidbitCard({ tidbit, area, title, heading }: { tidbit: Tidbit; area: string; title?: string; heading: boolean }) {
   const [guess, setGuess] = useState<string | null>(null) // resets with each tidbit: the parent keys the card by it
   const key = tidbit.kind === 'trivia' ? tidbit.question : tidbit.text
   const label = tidbit.kind === 'quote' ? 'Quote' : tidbit.kind === 'trivia' ? 'Trivia' : tidbit.kind === 'onthisday' ? 'On this day' : tidbit.kind === 'tip' ? 'Try this' : 'Did you know?'
   return (
-    <section className="board-card board-tidbit" aria-label={label}>
-      <FitBody key={key} title={label} rows=".board-tidbit-body > *" bodyClass="board-tidbit-body">
+    <section className={`board-card board-tidbit ${area === 'tidbit' ? '' : 'board-tidbit-extra'}`} style={{ gridArea: area }} aria-label={title ?? label}>
+      {title && heading && <h3 className="snap-heading">{title}</h3>}{/* one source: its tag already says what it is */}
+      <FitBody key={key} title={title ?? label} rows=".board-tidbit-body > *" bodyClass="board-tidbit-body">
         {tidbit.kind === 'quote' && <blockquote><p>“{tidbit.text}”</p><footer>— {tidbit.by}</footer></blockquote>}
         {tidbit.kind === 'fact' && <p><span className="board-tidbit-tag">💡 Did you know?</span> {tidbit.text}</p>}
         {tidbit.kind === 'tip' && <p><span className="board-tidbit-tag">🌱 Try this</span> {tidbit.text}</p>}

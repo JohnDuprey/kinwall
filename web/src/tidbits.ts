@@ -247,7 +247,7 @@ export type Tidbit =
  *  null when no source is on. Takes turns through the sources that have anything, stepping
  *  through each list with a stride coprime to its length, so neighboring slots jump between
  *  topics and every entry comes round before any repeats. Every display computes the same one. */
-export function tidbitFor(date: Date, slot: number, settings: TidbitSettings, online: OnlineTidbits | null): Tidbit | null {
+export function tidbitFor(date: Date, slot: number, settings: TidbitSettings, online: OnlineTidbits | null, card = 0): Tidbit | null {
   const facts = FACTS.filter(f => settings.factCategories.length === 0 || settings.factCategories.includes(f.category))
   const pools: Tidbit[][] = []
   const tips = TIPS.filter(t => !settings.tipCategories?.length || settings.tipCategories.includes(t.category))
@@ -265,7 +265,41 @@ export function tidbitFor(date: Date, slot: number, settings: TidbitSettings, on
   if (!pools.length && settings.sources.length) pools.push(QUOTES.map(q => ({ kind: 'quote', ...q })), FACTS.map(f => ({ kind: 'fact', text: f.text })))
   if (!pools.length) return null
   const day = Math.floor(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86_400_000)
-  const n = day * 48 + slot
+  const n = day * 48 + slot + card * 5 // a second or third card starts elsewhere, so alike cards don't match
   const pool = pools[n % pools.length]
   return pool[(Math.floor(n / pools.length) * 37) % pool.length]
+}
+
+/** The 30-minute slot of the day (0-47) a card shows; low-stimulation mode changes once an hour. */
+export function tidbitSlot(hour: number, minute: number, calm: boolean): number {
+  return calm ? hour * 2 : Math.floor((hour * 60 + minute) / 30)
+}
+
+// MARK: Cards per device
+
+/** A device can show up to this many tidbit cards, each with its own sources (Settings → This display). */
+export const MAX_TIDBIT_CARDS = 3
+
+/** The cards this device shows: its own choice (Settings → This display), else the family's one
+ *  card. A card with nothing turned on is left out; missing fields (an older build) come from the family. */
+export function tidbitCards(family: TidbitSettings, own: TidbitSettings[] | undefined): TidbitSettings[] {
+  const cards = own?.length ? own.slice(0, MAX_TIDBIT_CARDS).map(c => ({ ...family, ...c })) : [family]
+  return cards.filter(c => c.sources?.length)
+}
+
+/** Query params for GET /api/tidbits asking for this card's online sources, or null when it has none. */
+export function tidbitQuery(card: TidbitSettings): string | null {
+  const online = card.sources.filter(s => s === 'onthisday' || s === 'trivia')
+  if (!online.length) return null
+  return new URLSearchParams({
+    sources: online.join(','), onThisDay: card.onThisDay.join(','), birthsAfter: card.birthsAfter === null ? 'any' : String(card.birthsAfter),
+    triviaCategories: card.triviaCategories.join(','), triviaDifficulties: card.triviaDifficulties.join(','),
+  }).toString()
+}
+
+const SHORT_TITLES: Record<TidbitSource, string> = { quotes: 'Quotes', facts: 'Fun facts', tips: 'Tips', onthisday: 'On this day', trivia: 'Trivia' }
+/** A card's heading from what it shows: "Trivia", "Quotes & fun facts", "Quotes, fun facts & more". */
+export function tidbitCardTitle(card: TidbitSettings): string {
+  const names = (Object.keys(SHORT_TITLES) as TidbitSource[]).filter(s => card.sources.includes(s)).map((s, i) => i ? SHORT_TITLES[s].toLowerCase() : SHORT_TITLES[s])
+  return names.length <= 2 ? names.join(' & ') : `${names[0]}, ${names[1]} & more`
 }
