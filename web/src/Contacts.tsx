@@ -351,11 +351,8 @@ export default function Contacts() {
     <div className="contacts-inner">
       <div className="contacts-heading"><div><h2>Contacts</h2><p>{count} household contact{count === 1 ? '' : 's'}{!parentDevice && ' available on this display'}</p></div>
         {parentDevice && <div className="contacts-heading-actions">
-          <select className="settings-select actions-select" aria-label="More contact actions" value="" onChange={e => { if (e.target.value === 'import') setSheet('import') }}>
-            <option value="" disabled hidden>More…</option>
-            <option value="import">Import contacts…</option>
-          </select>
-          <button className="btn btn-primary" onClick={addContact}><PlusIcon width={18} height={18} /> Add</button></div>}</div>
+          <button className="btn btn-secondary" onClick={() => setSheet('import')}>Import</button>
+          <button className="btn btn-primary" onClick={addContact}><PlusIcon width={16} height={16} /> Add</button></div>}</div>
       {count > 0 && <>
         <div className="contacts-tools">
           <input type="search" aria-label="Search contacts" value={query} onChange={e => setQuery(e.target.value)} placeholder="Search contacts" />
@@ -370,8 +367,7 @@ export default function Contacts() {
       {loadError && <div className="empty-card" role="alert"><p>{loadError}</p><button className="btn btn-secondary" onClick={() => { setLoading(true); void load() }}>Try again</button></div>}
       {!loadError && loading && <div className="state-card">Loading contacts…</div>}
       {!loadError && !loading && count === 0 && <div className="empty-card"><span className="emoji" aria-hidden="true">☎️</span>
-        <p>{parentDevice ? 'No contacts yet. Add the people and places your family calls: school, doctor, sitter, neighbors.' : 'No contacts here yet.'}</p>
-        {parentDevice && <div className="contacts-empty-actions"><button className="btn btn-secondary" onClick={() => setSheet('import')}>Import</button><button className="btn btn-primary" onClick={addContact}><PlusIcon width={18} height={18} /> Add a contact</button></div>}</div>}
+        <p>{parentDevice ? 'No contacts yet. Add the people and places your family calls: school, doctor, sitter, neighbors.' : 'No contacts here yet.'}</p></div>}
       {!loadError && !loading && count > 0 && visible.length === 0 && <div className="empty-card"><span className="emoji" aria-hidden="true">☎️</span><p>No contacts match{activeFilters ? ' these filters' : ''}.</p>
         {activeFilters > 0 && <button className="btn btn-secondary" onClick={() => setFilters(DEFAULT_CONTACT_FILTERS)}>Clear filters</button>}</div>}
       {!loadError && visible.length > 0 && <div className="contacts-grid" aria-live="polite">{visible.map(c => <ContactCard key={c.id} contact={c} categoryNames={categoryNames} onOpen={() => { setSelectedId(c.id); setSheet('detail') }} />)}</div>}

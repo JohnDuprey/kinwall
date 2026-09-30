@@ -12,7 +12,7 @@ Search by name, place or phone number. Tap the **Filters** button next to the se
 
 A link to `#/contacts?contact=<contact id>` opens that contact (Spotlight and Siri in the phone app use it). An id that doesn't exist, or a contact this device can't see, just opens Contacts.
 
-**Add** is at the top of the page. To bring in contacts from a phone or a vCard file, choose **Import contacts…** from the **More…** menu next to it. With no contacts yet, the page shows just **Add a contact** and **Import**.
+**Import** and **Add** are at the top of the page. **Import** brings in contacts from a phone, a vCard file or pasted vCard text; **Add** starts a new contact. Both are on parent devices only.
 
 In a contact's editor, **Categories**, **Associated household members** and **Who can see it on their own device** each show what's chosen ("Medical, School", "Maya and Leo", "None"). Tap one to open the list: tap rows to tick or untick them, **Clear** unticks them all and **Done** closes it. Categories show their color, and a long list has a search box. The import review has the same **Categories** and **Household members** rows for each contact.
 
