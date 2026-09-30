@@ -210,6 +210,24 @@ test('google photos: connect asks for the Photos scope and who is signing in, wi
   });
 });
 
+test('google photos: Google refusing the Photos device after the TV sign-in says so right away', async () => {
+  const t = makeApp();
+  const fake = fakeGoogle();
+  const logs: string[] = [];
+  await withGoogle(fake, async () => {
+    await t.send('POST', '/api/google-photos/connect');
+    fake.g.authorized = true;
+    fake.g.createStatus = 403;
+    await t.pollNow();
+    assert.equal((await t.send('GET', '/api/google-photos')).body.state, 'refused', 'not stuck signing in until the code runs out');
+    assert.equal((await t.send('GET', '/api/settings')).body.googlePhotos, 'refused');
+    assert.ok(logs.some((l) => l.includes('refused at device: PERMISSION_DENIED')));
+    // Trying again starts over.
+    fake.g.createStatus = 200;
+    assert.equal((await t.send('POST', '/api/google-photos/connect')).body.state, 'signing-in');
+  }, logs);
+});
+
 test('google photos: waits for albums, following pollInterval, then ready', async () => {
   const t = makeApp();
   const fake = fakeGoogle();

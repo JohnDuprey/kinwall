@@ -192,7 +192,17 @@ async function advance(c: Ctx, row: Row): Promise<void> {
     const sealed = await encryptConfig(c.env, AAD, tokens);
     await update(c, { config: sealed, user_code: null, verification_url: null, code_expires_at: null, ...accountOf(body.id_token) });
     row.config = sealed;
-    await createDevice(c, row, tokens.access_token);
+    try {
+      await createDevice(c, row, tokens.access_token);
+    } catch (err) {
+      // 403 on the device: the Ambient API isn't open to this project (not a Photos partner yet).
+      // Say so now instead of polling a used sign-in code until it runs out.
+      if (!(err instanceof GoogleError && err.status === 403)) throw err;
+      console.warn(`google photos refused at device: ${err.message.match(/HTTP 403, (.+)\)$/)?.[1] ?? 'HTTP 403'}`);
+      await update(c, { problem: 'refused' });
+      emit(c, 'settings.changed', {});
+      return;
+    }
   } else {
     const device = await ambient<Device>(c, row, `/devices/${encodeURIComponent(row.device_id)}`);
     const poll = pollSeconds(device, row.poll_seconds);

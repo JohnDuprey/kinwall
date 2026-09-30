@@ -44,7 +44,7 @@ Kinwall is configured with environment variables. On Docker and Node they're pro
 1. In the [Google Cloud console](https://console.cloud.google.com/), in the project with your Google Calendar client, go to **APIs & Services → Library**, find **Photos Ambient API** and **Enable** it.
 2. Under **Data access** (the OAuth consent screen's scopes), add `https://www.googleapis.com/auth/photosambient.mediaitems`, plus `openid`, `.../auth/userinfo.email` and `.../auth/userinfo.profile` (Kinwall shows which Google account is connected).
 
-Google's documentation describes only the TV sign-in below for this API, so whether it accepts a web client can't be known ahead of time: only trying it tells. If it doesn't, the Night sheet says "Google didn't allow Photos with this app" (Google refused the permission for this client, or refused to set up the Photos device). Then use option 2.
+Google's documentation describes only the TV sign-in below for this API, so whether it accepts a web client can't be known ahead of time: only trying it tells. If it doesn't, the Night sheet says "Google didn't allow Photos with this app" (Google refused the permission for this client, or refused to set up the Photos device). Then use option 2. With either option, the same message means the project isn't a Photos partner yet (Google answers 403 PERMISSION_DENIED when creating the device, which the server log shows as `google photos refused at device`).
 
 **2. With a TV client.** Google's documented way: a **TVs and Limited Input devices** client, where the parent enters a code at `google.com/device` (on a phone, or by scanning the sheet's QR code). No redirect URI is involved.
 

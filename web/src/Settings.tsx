@@ -1616,7 +1616,7 @@ function GooglePhotosRows() {
       {MOCK && <div className="settings-row-sub">Demo: this only pretends to connect. Nothing goes to Google.</div>}
       {(state === 'off' || state === 'reconnect' || state === 'refused') && <>
         {state === 'reconnect' && <div className="settings-row-sub google-photos-note" role="status">⚠️ Google Photos stopped sharing with Kinwall, so screens show your other picks for now. Reconnect to bring it back.</div>}
-        {state === 'refused' && <div className="settings-row-sub google-photos-note" role="alert">⚠️ Google didn't allow Photos with this app; see the <a className="text-link" href={`${DOCS_URL}/self-hosting/configuration#google-photos`} target="_blank" rel="noopener">docs for the TV-client option</a>.</div>}
+        {state === 'refused' && <div className="settings-row-sub google-photos-note" role="alert">⚠️ Google didn't allow Photos with this app. Google opens Photos only to its approved Photos partners; see the <a className="text-link" href={`${DOCS_URL}/self-hosting/configuration#google-photos`} target="_blank" rel="noopener">Google Photos setup docs</a>.</div>}
         {state === 'off' && <>
           <div className="settings-row-sub">Show photos from albums you choose in Google Photos on the family's screens. When you connect, Google asks you to let Kinwall:</div>
           <ul className="google-photos-scopes settings-row-sub">
