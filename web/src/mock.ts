@@ -37,8 +37,16 @@ for (const d of MAYA_DAYS) {
   if (d.ago < 3 || !d.checkedIn) continue
   const date = demoDay(-d.ago)
   tempChecks.set(`m3:${date}`, { memberId: 'm3', date, sleep: d.sleep, feelings: d.feelings.length ? [...d.feelings] : null, goal: d.goalSet ? DEMO_GOALS[d.ago % DEMO_GOALS.length] : null, goalSkipped: false, followup: d.goalOutcome ? { outcome: d.goalOutcome, ...noNotes } : null })
-  d.journalMoods.forEach((mood, i) => journalEntries.push({ id: `je-${d.ago}-${i}`, memberId: 'm3', date, text: DEMO_LINES[d.ago % DEMO_LINES.length], mood, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }))
+  // A few written while her journal was private (a parent's device sees the mood only).
+  d.journalMoods.forEach((mood, i) => journalEntries.push({ id: `je-${d.ago}-${i}`, memberId: 'm3', date, text: DEMO_LINES[d.ago % DEMO_LINES.length], mood, private: d.ago % 4 === 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }))
 }
+journalEntries.push({ id: 'je-alex', memberId: 'm1', date: demoDay(-1), text: 'Long week. Glad the weekend is here.', mood: '😌', private: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() })
+// Private journals: grown-ups private by default; Maya is allowed one (and has it off now). The demo is a parent's device that
+// belongs to no one until "This is my device".
+const journalPrivate = new Map<string, boolean>()
+const journalAllowed = new Set(['m3'])
+let demoOwner: string | null = null
+const privacyOf = (m: Member) => ({ on: m.grownUp ? journalPrivate.get(m.id) ?? true : journalAllowed.has(m.id) && !!journalPrivate.get(m.id), allowed: !!m.grownUp || journalAllowed.has(m.id) })
 const INSIGHT_DAYS: Record<InsightRange, number> = { '4w': 28, '3m': 91, '1y': 364 }
 const blankInsightDay = (date: string): InsightDay => ({ date, checkedIn: false, sleep: null, feelings: [], goalSet: false, goalOutcome: null, journalEntries: 0, journalMoods: [], chores: 0, points: 0, activityMinutes: 0, booksFinished: 0, events: 0, lastEventEnd: null })
 // Medication reminders: Leo's allergy medicine, Sam's vitamin and Sam's "When I start my day" medicine
@@ -503,7 +511,7 @@ export const mock = {
   getRev: async () => ({ rev }),
   getNotifications: async () => [...notifications],
   deleteNotification: async (id: string) => { const i = notifications.findIndex(n => n.id === id); if (i >= 0) notifications.splice(i, 1); bump(); return { ok: true } },
-  clearNotifications: async () => { const deleted = notifications.length; notifications.length = 0; bump(); return { ok: true as const, deleted } },
+  clearNotifications: async () => { const kept = notifications.filter(n => n.kind === 'privacy'); const deleted = notifications.length - kept.length; notifications.splice(0, notifications.length, ...kept); bump(); return { ok: true as const, deleted } },
   sendNotification: async (b: { title: string; body: string; memberIds?: string[]; url?: string }) => {
     notifications.unshift({ id: uid(), at: new Date().toISOString(), kind: 'message', title: b.title, body: b.body, url: b.url ?? null, memberIds: b.memberIds ?? [], source: 'api' })
     bump()
@@ -518,7 +526,7 @@ export const mock = {
 
   getMembers: async () => [...members].sort((a, b) => a.sort - b.sort).map(m => {
     const tc = m.tempCheck ?? TEMP_CHECK_OFF
-    return { ...m, rewardGoal: goalOf(m.id), tempCheck: tc, todayGoal: tc.on && tc.goal ? tempChecks.get(`${m.id}:${dateKey(new Date())}`)?.goal ?? null : null }
+    return { ...m, rewardGoal: goalOf(m.id), tempCheck: tc, todayGoal: tc.on && tc.goal ? tempChecks.get(`${m.id}:${dateKey(new Date())}`)?.goal ?? null : null, privateJournal: privacyOf(m) }
   }),
   // The demo is a parent's device: it sees every answer.
   getTempCheck: async (memberId: string, date = dateKey(new Date())): Promise<TempCheck> => {
@@ -551,9 +559,23 @@ export const mock = {
     const days = new Map<string, Journal['days'][number]>()
     const day = (date: string) => days.get(date) ?? days.set(date, { date, tempCheck: null, entries: [] }).get(date)!
     for (const t of tempChecks.values()) if (t.memberId === memberId && t.date >= from && t.date <= to) day(t.date).tempCheck = { sleep: t.sleep, feelings: t.feelings, goal: t.goal, goalSkipped: t.goalSkipped, followup: t.followup }
-    for (const e of [...journalEntries].reverse()) if (e.memberId === memberId && e.date >= from && e.date <= to) day(e.date).entries.push({ ...e })
-    return { memberId, from, to, days: [...days.values()].sort((a, b) => b.date.localeCompare(a.date)) }
+    const mine = demoOwner === memberId
+    for (const e of [...journalEntries].reverse()) if (e.memberId === memberId && e.date >= from && e.date <= to) day(e.date).entries.push({ ...e, text: e.private && !mine ? null : e.text })
+    const m = members.find(x => x.id === memberId)
+    const p = m ? privacyOf(m) : { on: false, allowed: false }
+    return { memberId, from, to, privacy: { ...p, mine, canChange: mine && p.allowed }, days: [...days.values()].sort((a, b) => b.date.localeCompare(a.date)) }
   },
+  setJournalPrivacy: async (memberId: string, b: { private?: boolean; allowed?: boolean }) => {
+    const m = members.find(x => x.id === memberId); if (!m) throw new Error('member not found')
+    if (b.allowed !== undefined) { if (b.allowed) journalAllowed.add(memberId); else { journalAllowed.delete(memberId); journalPrivate.delete(memberId) } }
+    if (b.private !== undefined) journalPrivate.set(memberId, b.private)
+    bump()
+    const mine = demoOwner === memberId
+    const p = privacyOf(m)
+    return { ...p, mine, canChange: mine && p.allowed }
+  },
+  myOwner: () => demoOwner,
+  setMyOwner: async (owner: string) => { demoOwner = owner === 'shared' ? null : owner; bump(); return { owner } },
   // Insights: Maya's made-up history with the server's own analysis of it (mock-insights.ts); nothing yet for everyone else.
   getInsights: async (memberId: string, range: InsightRange): Promise<Insights> => {
     const n = INSIGHT_DAYS[range]
@@ -579,7 +601,8 @@ export const mock = {
   },
   addJournalEntry: async (memberId: string, b: { date?: string; text: string; mood?: string | null }): Promise<JournalEntry> => {
     const now = new Date().toISOString()
-    const e: JournalEntry = { id: uid(), memberId, date: b.date ?? dateKey(new Date()), text: b.text.trim(), mood: b.mood ?? null, createdAt: now, updatedAt: now }
+    const m = members.find(x => x.id === memberId)
+    const e: JournalEntry = { id: uid(), memberId, date: b.date ?? dateKey(new Date()), text: b.text.trim(), mood: b.mood ?? null, private: !!m && privacyOf(m).on, createdAt: now, updatedAt: now }
     journalEntries.push(e); bump(); return { ...e }
   },
   updateJournalEntry: async (memberId: string, id: string, b: { date?: string; text?: string; mood?: string | null }): Promise<JournalEntry> => {

@@ -47,9 +47,30 @@ The **evening goal check** answer and its notes (what helped, what got in the wa
 A person's [journal](../using/journal.md) entries (the words and the mood) are encrypted like health entries: bound to the entry and the column, refused without a key, never in the server logs. Who wrote them and which day stay plain so the journal can list them.
 
 * **Who can open it:** the person's own device and parents' devices. Never a shared wall screen or another person's device.
+* **Private journals:** a grown-up's journal is private by default, and a kid's can be when a parent allows it (see [Private journals](../using/journal.md#private-journals)). A private entry's words, and that day's goal check notes, open only on a device that belongs to that person. Everyone else, parents included, sees the mood and that there's an entry.
 * **Webhooks** get `journal.changed` with the person, the day and the entry ID, never the words.
-* **Claude and other connected apps** get nothing from the journal until a parent turns on **Let connected apps see health entries**. There's no MCP tool for it.
-* The [export](export-import.md) holds entries in plain form; importing encrypts them again.
+* **Claude and other connected apps** get nothing from the journal until a parent turns on **Let connected apps see health entries**. Even then, never a private entry's words or notes. There's no MCP tool for it.
+* The [export](export-import.md) holds entries in plain form, except private ones: their words and goal check notes are left out for everyone, the mood and day stay. Importing encrypts them again, and never overwrites a private entry that's already there.
+
+#### What a private journal protects
+
+A private journal is an access rule in Kinwall, not a lock only you hold a key to.
+
+It keeps your words from:
+
+* the rest of the family: brothers, sisters and the other parent, on their own phones and computers;
+* parent devices that don't belong to you, wall screens, and any device that belongs to no one;
+* Claude and other connected apps, whatever their settings;
+* the export and anything restored from one;
+* someone who has a copy of the database or a backup but not the encryption key.
+
+It doesn't keep your words from:
+
+* **whoever runs the server.** On a self-hosted Kinwall, anyone with `ENCRYPTION_KEY` and the database can decrypt every entry. On hosted Kinwall, the operator holds the key the family's key is made from.
+* **a parent who sets things up to read it.** Full access can pair a new device as yours or say a phone is yours. Kinwall doesn't prevent that, but it shows every change of whose device something is in the family's notifications, so it can't happen quietly.
+* **someone holding your unlocked device.**
+
+Moods, sleep, feelings, whether you answered and goal check outcomes are still seen by parents: that's what keeps Insights and the energy battery working.
 
 ### Insights
 

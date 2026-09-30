@@ -3,6 +3,7 @@ import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
 import { createApiKey, resolveKey, validOwner } from '../auth.ts';
 import { emit } from '../bus.ts';
+import { recordDeviceOwner } from '../notify.ts';
 import { ApiKeyCreatedSchema, ApiKeySchema, ErrorSchema } from '../schemas.ts';
 
 export const keysRoutes = createRouter();
@@ -56,13 +57,15 @@ keysRoutes.openapi(
 );
 
 // Who a device belongs to. Admin only (not in auth.ts DISPLAY_ALLOWED), so a device can never
-// re-assign itself; the device reads its owner from GET /api/me.
+// re-assign itself; the device reads its owner from GET /api/me. A full-access key (a parent's
+// phone or browser) belongs only to a grown-up: it then reads their private journal. A device
+// that now belongs to someone leaves a line in the family's notification feed.
 keysRoutes.openapi(
   createRoute({
     method: 'patch',
     path: '/api/keys/{id}',
     tags: ['API Keys'],
-    summary: "Set a device's owner: 'shared' (the whole family) or a member id it's pinned to",
+    summary: "Set a device's owner: 'shared' (the whole family) or a member id it's pinned to. A full-access key only belongs to a grown-up (it opens their private journal).",
     security: [{ Bearer: [] }],
     request: {
       params: z.object({ id: z.string() }),
@@ -76,11 +79,14 @@ keysRoutes.openapi(
   }),
   async (c) => {
     const { id } = c.req.valid('param');
-    const owner = await validOwner(c.env.DB, c.req.valid('json').owner);
-    if (!owner) return c.json({ error: 'unknown family member' }, 400);
-    const result = await c.env.DB.prepare("UPDATE api_keys SET owner = ? WHERE id = ? AND kind = 'api' AND scope = 'display'").bind(owner, id).run();
-    if (result.meta.changes === 0) return c.json({ error: 'not found' }, 404);
-    const row = await c.env.DB.prepare('SELECT id, name, scope, created_at, last_used_at, owner FROM api_keys WHERE id = ?').bind(id).first<KeyRow>();
+    const before = await c.env.DB.prepare("SELECT id, name, scope, created_at, last_used_at, owner FROM api_keys WHERE id = ? AND kind = 'api'").bind(id).first<KeyRow>();
+    if (!before) return c.json({ error: 'not found' }, 404);
+    const admin = before.scope !== 'display';
+    const owner = await validOwner(c.env.DB, c.req.valid('json').owner, admin ? 'admin' : 'display');
+    if (!owner) return c.json({ error: admin ? 'A full-access device can only belong to a grown-up' : 'unknown family member' }, 400);
+    await c.env.DB.prepare('UPDATE api_keys SET owner = ? WHERE id = ?').bind(owner, id).run();
+    const row = { ...before, owner };
+    if (owner !== before.owner) await recordDeviceOwner(c.env.DB, before.name, owner);
     emit(c, 'settings.changed', { keyId: id });
     return c.json(toApi(row!), 200);
   },

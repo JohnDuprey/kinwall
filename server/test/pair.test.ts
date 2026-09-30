@@ -202,7 +202,9 @@ test('device owner: set at approval, visible to the device, locked for the devic
   assert.equal(((await changed.json()) as any).owner, leo.id);
   assert.equal(((await (await device('/api/me')).json()) as any).owner, leo.id);
   const adminKey = await (await admin('/api/keys', { method: 'POST', body: JSON.stringify({ name: 'Automation', scope: 'admin' }) })).json() as any;
-  assert.equal((await admin(`/api/keys/${adminKey.id}`, { method: 'PATCH', body: JSON.stringify({ owner: 'shared' }) })).status, 404);
+  // A full-access key belongs only to a grown-up (it opens their private journal): never a kid.
+  assert.equal((await admin(`/api/keys/${adminKey.id}`, { method: 'PATCH', body: JSON.stringify({ owner: leo.id }) })).status, 400);
+  assert.equal((await admin(`/api/keys/${adminKey.id}`, { method: 'PATCH', body: JSON.stringify({ owner: 'shared' }) })).status, 200);
 
   // deleting the owner leaves the device shared (still locked)
   await admin(`/api/members/${leo.id}`, { method: 'DELETE' });

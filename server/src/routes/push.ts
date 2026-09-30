@@ -269,7 +269,8 @@ pushRoutes.openapi(
 );
 
 // Clearing the feed is household-wide (there's one copy), so admin-only; displays keep their
-// per-device read state and can't remove anything.
+// per-device read state and can't remove anything. Privacy lines (kind 'privacy': whose device
+// something is, private journal changes) stay their 90 days: they're how a change can't be quiet.
 pushRoutes.openapi(
   createRoute({
     method: 'delete',
@@ -282,7 +283,7 @@ pushRoutes.openapi(
   async (c) => {
     const resolved = await resolveKey(c);
     if (resolved?.scope !== 'admin') return c.json({ error: 'Admin key required' }, 403);
-    const r = await c.env.DB.prepare('DELETE FROM notifications').run();
+    const r = await c.env.DB.prepare("DELETE FROM notifications WHERE kind != 'privacy'").run();
     return c.json({ ok: true as const, deleted: r.meta?.changes ?? 0 }, 200);
   },
 );
@@ -300,8 +301,11 @@ pushRoutes.openapi(
   async (c) => {
     const resolved = await resolveKey(c);
     if (resolved?.scope !== 'admin') return c.json({ error: 'Admin key required' }, 403);
-    const r = await c.env.DB.prepare('DELETE FROM notifications WHERE id = ?').bind(c.req.valid('param').id).run();
-    if (!r.meta?.changes) return c.json({ error: 'Not found' }, 404);
+    const id = c.req.valid('param').id;
+    const row = await c.env.DB.prepare('SELECT kind FROM notifications WHERE id = ?').bind(id).first<{ kind: string }>();
+    if (!row) return c.json({ error: 'Not found' }, 404);
+    if (row.kind === 'privacy') return c.json({ error: 'Privacy notes stay in the feed for 90 days.' }, 403);
+    await c.env.DB.prepare('DELETE FROM notifications WHERE id = ?').bind(id).run();
     return c.json({ ok: true as const }, 200);
   },
 );

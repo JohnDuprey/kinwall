@@ -27,7 +27,7 @@ function writeSeen(iso: string) {
   try { localStorage.setItem(SEEN_KEY, iso) } catch { /* private mode: badge just won't persist */ }
 }
 
-const KIND_ICON: Record<AppNotification['kind'], string> = { reminder: '🔔', summary: '☀️', chore: '✅', list: '🛒', message: '💬', goal: '🎯', medication: '💊' }
+const KIND_ICON: Record<AppNotification['kind'], string> = { reminder: '🔔', summary: '☀️', chore: '✅', list: '🛒', message: '💬', goal: '🎯', medication: '💊', privacy: '🔒' }
 
 const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto', style: 'short' })
 function relTime(iso: string, tz: string): string {
@@ -82,7 +82,7 @@ export default function NotificationBell({ isAdmin }: { isAdmin: boolean }) {
   }
   const clearAll = async () => {
     if (!await dialog.confirm({ title: 'Clear all notifications?', body: 'Removes them for the whole family, on every device.', confirmLabel: 'Clear all', danger: true })) return
-    setItems([])
+    setItems(list => list.filter(n => n.kind === 'privacy')) // privacy notes stay their 90 days (the server keeps them)
     try { await api.clearNotifications(); announce('Notifications cleared') } catch { load() }
   }
 
@@ -143,7 +143,7 @@ export default function NotificationBell({ isAdmin }: { isAdmin: boolean }) {
                       {n.url
                         ? <button className={`notif-item ${isUnread ? 'unread' : ''}`} onClick={() => go(n)}>{content}</button>
                         : <div className={`notif-item ${isUnread ? 'unread' : ''}`}>{content}</div>}
-                      {isAdmin && <button className="icon-btn notif-remove" onClick={() => remove(n)} aria-label={`Remove: ${n.title}`}>×</button>}
+                      {isAdmin && n.kind !== 'privacy' && <button className="icon-btn notif-remove" onClick={() => remove(n)} aria-label={`Remove: ${n.title}`}>×</button>}
                     </li>
                   )
                 })}

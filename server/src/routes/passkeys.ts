@@ -39,7 +39,7 @@ passkeysRoutes.use('/api/passkeys/login/*', async (c, next) => {
   return next();
 });
 
-type PasskeyRow = { id: string; credential_id: string; public_key: string; counter: number; transports: string | null; name: string; created_at: string; last_used_at: string | null };
+type PasskeyRow = { id: string; credential_id: string; public_key: string; counter: number; transports: string | null; name: string; created_at: string; last_used_at: string | null; owner?: string | null };
 
 function bytesToBase64Url(bytes: Uint8Array): string {
   let bin = '';
@@ -382,15 +382,19 @@ export async function finishPasskeyLogin(
 
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS).toISOString();
   const keyName = `Passkey: ${passkey.name}`;
-  const session = await createApiKey(env.DB, keyName, 'admin', { kind: 'session', expiresAt, passkeyId: passkey.id });
+  // Whose passkey it is (PUT /api/me/owner saves it here): the session is theirs, so it reads their private journal.
+  const session = await createApiKey(env.DB, keyName, 'admin', { kind: 'session', expiresAt, passkeyId: passkey.id, owner: passkey.owner ?? null });
   return { key: session.key, expiresAt, scope: 'admin', keyName };
 }
 
 function toApi(row: PasskeyRow) {
-  return { id: row.id, name: row.name, createdAt: row.created_at, lastUsedAt: row.last_used_at, transports: transportsOf(row) };
+  return { id: row.id, name: row.name, createdAt: row.created_at, lastUsedAt: row.last_used_at, transports: transportsOf(row), owner: row.owner ?? null };
 }
 const PasskeySchema = z
-  .object({ id: z.string(), name: z.string(), createdAt: z.string(), lastUsedAt: z.string().nullable(), transports: z.array(z.string()) })
+  .object({
+    id: z.string(), name: z.string(), createdAt: z.string(), lastUsedAt: z.string().nullable(), transports: z.array(z.string()),
+    owner: z.string().nullable().openapi({ description: "The grown-up this passkey belongs to (set from a device signed in with it: PUT /api/me/owner), or null. Its sessions read that person's private journal." }),
+  })
   .openapi('Passkey');
 
 passkeysRoutes.openapi(

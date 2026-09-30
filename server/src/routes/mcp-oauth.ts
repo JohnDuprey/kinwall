@@ -15,6 +15,7 @@ import type { Env } from '../env.ts';
 import { createApiKey, requestKey, resolveKey, sha256Hex, validOwner, type KeyScope } from '../auth.ts';
 import { effectivePublicUrl } from '../providers/config.ts';
 import { emit } from '../bus.ts';
+import { recordDeviceOwner } from '../notify.ts';
 
 export const mcpOAuthRoutes = createRouter();
 
@@ -237,6 +238,7 @@ mcpOAuthRoutes.post('/api/authorizations/approve', async (c) => {
     if (!owner) return c.json({ error: 'unknown family member' }, 400);
   }
   const code = randomToken();
+  await recordDeviceOwner(c.env.DB, client.name, owner); // it may open their private journal: never silently
   await c.env.DB.prepare('INSERT INTO oauth_codes (hash, client_id, scope, redirect_uri, code_challenge, approved_by, expires_at, owner) VALUES (?,?,?,?,?,?,?,?)')
     .bind(await sha256Hex(code), client.id, scope, body.redirect_uri, body.code_challenge, approver.name, new Date(Date.now() + CODE_TTL_MS).toISOString(), owner)
     .run();
@@ -366,8 +368,9 @@ mcpOAuthRoutes.patch('/api/authorizations/:id', async (c) => {
   const body = (await c.req.json().catch(() => ({}))) as { owner?: unknown };
   const owner = typeof body.owner === 'string' ? await validOwner(c.env.DB, body.owner) : null;
   if (!owner) return c.json({ error: 'unknown family member' }, 400);
-  const grant = await c.env.DB.prepare('SELECT cl.redirect_uris FROM oauth_grants g JOIN oauth_clients cl ON cl.id = g.client_id WHERE g.id = ?').bind(id).first<{ redirect_uris: string }>();
+  const grant = await c.env.DB.prepare('SELECT cl.redirect_uris, cl.name, g.owner FROM oauth_grants g JOIN oauth_clients cl ON cl.id = g.client_id WHERE g.id = ?').bind(id).first<{ redirect_uris: string; name: string; owner: string | null }>();
   if (!grant || !isDeviceApp(JSON.parse(grant.redirect_uris) as string[])) return c.json({ error: 'not found' }, 404);
+  if (grant.owner !== owner) await recordDeviceOwner(c.env.DB, grant.name, owner); // it may open their private journal
   await c.env.DB.batch([
     c.env.DB.prepare('UPDATE oauth_grants SET owner = ? WHERE id = ?').bind(owner, id),
     c.env.DB.prepare('UPDATE api_keys SET owner = ? WHERE oauth_grant_id = ?').bind(owner, id),

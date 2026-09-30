@@ -2573,6 +2573,11 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
 }
 .journal-mood { font-size: 1.5rem; line-height: 1.2; }
 .journal-text { white-space: pre-wrap; overflow-wrap: anywhere; flex: 1; min-width: 0; }
+.journal-entry-private { cursor: default; align-items: center; } /* the mood and "Private" only: nothing to open */
+.journal-private { margin: 0; color: var(--text-dim); font-weight: 700; }
+.journal-privacy { display: flex; flex-direction: column; gap: 10px; margin-bottom: var(--gap); }
+.journal-privacy.toggle-row { flex-direction: row; align-items: center; justify-content: space-between; }
+.journal-privacy .btn { flex: none; align-self: flex-start; }
 
 /* Insights (#/insights/<id>): hand-rolled charts, to scale, in the member's color (--m). */
 .insights-summary { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-weight: 700; }

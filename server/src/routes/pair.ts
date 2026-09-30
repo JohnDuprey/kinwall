@@ -9,6 +9,7 @@ import type { Env } from '../env.ts';
 import { createApiKey, timingSafeEqual, validOwner } from '../auth.ts';
 import { encrypt, decrypt } from '../crypto.ts';
 import { emit } from '../bus.ts';
+import { recordDeviceOwner } from '../notify.ts';
 import { ErrorSchema } from '../schemas.ts';
 import { clientIp } from '../ratelimit.ts';
 
@@ -149,6 +150,7 @@ pairRoutes.openapi(
       .bind(keyId, name, encryptedKey, pairing.id)
       .run();
 
+    await recordDeviceOwner(c.env.DB, name, owner); // it opens their private journal: never silently
     emit(c, 'display.paired', { keyId, name });
     return c.json({ keyId, name }, 200);
   },

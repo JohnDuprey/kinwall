@@ -34,6 +34,7 @@ Passkey sign-in attempts are rate-limited to 20 per 10 minutes per address.
 * **Add a passkey on another device**: shows a QR code with a one-time token, valid for 15 minutes, that lets another device register exactly one passkey.
 * Rename a passkey, or remove it. Removing a passkey also signs out every session created with it. Removing the last one warns you first.
 * **Sign out** ends this device's passkey session.
+* A passkey can belong to a grown-up: set it from a device signed in with it (**Settings → Access → This device**). Every later sign-in with it then opens that person's [private journal](journal.md#private-journals).
 
 Passkeys are bound to your domain (the *rpID*). By default that's the host of `PUBLIC_URL`. Multi-family hosts can share one rpID across subdomains with `WEBAUTHN_RP_ID`. See [Configuration](../self-hosting/configuration.md).
 
@@ -44,6 +45,7 @@ Recovery codes are your way back in if every passkey device is lost.
 * The setup wizard, or **Settings → Access → Recovery codes → Generate recovery codes**, creates **8 one-time codes** (format `XXXX-XXXX-XXXX`). They're shown once, with **Copy all** and **Download .txt**.
 * The section shows "*N* of 8 left". **Generate new codes** replaces the set, and the old codes stop working at once.
 * On the sign-in screen, **Use a recovery code** signs you in for **30 days**, so you can add a new passkey.
+* A recovery-code sign-in belongs to no one, so it never opens a [private journal](journal.md#private-journals).
 * Only hashes are stored. Attempts are limited to 10 per hour per address and 30 per hour overall.
 
 While you have only one passkey or no unused recovery codes, **Access** shows a banner: "Add a second way in — a second passkey or recovery codes — so losing one device doesn't lock the family out." **Not now** hides it on that device for 30 days.

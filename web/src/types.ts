@@ -153,6 +153,7 @@ export interface Member {
   rewardGoal?: { rewardId: string; title: string; emoji: string | null; cost: number } | null // the reward they're saving for
   tempCheck?: TempCheckSettings // their daily questions (a parent sets them)
   todayGoal?: string | null // their Temp check goal for today
+  privateJournal?: { on: boolean; allowed: boolean } // new entries private (only their own devices read the words); allowed: grown-ups always, kids when a parent allows it
 }
 
 export interface TempCheckSettings {
@@ -180,6 +181,7 @@ export interface TempCheck {
   answered: TempCheckAnswered
   custom: string[] | null // their own feelings ("Other")
   followup: GoalFollowup | null // the evening goal check (null on a shared wall: private)
+  followupHidden?: boolean // their goal-check notes are private and this device isn't theirs (followup has the outcome, notes null)
   followupOpen: boolean // showing now: on, a goal set today, past their eveningTime
   drained?: Drained | 'skip' | null // null on a shared wall or another member's device (private)
   drainedOpen?: boolean // showing now: battery on, past their eveningTime, their own device or a parent's
@@ -187,13 +189,16 @@ export interface TempCheck {
 export type TempCheckInput = Partial<{ sleep: string | null; feelings: string[] | null; goal: string | null; goalSkipped: boolean; custom: string[]; followup: { outcome: FollowupOutcome; helped?: string | null; hindered?: string | null; next?: string | null }; drained: Drained | 'skip' }>
 
 /** GET /api/members/{id}/journal: their own device and parents' devices only. */
-export interface JournalEntry { id: string; memberId: string; date: string; text: string; mood: string | null; createdAt: string; updatedAt: string }
+/** text is null when the entry is private and this device isn't theirs (the mood still shows). */
+export interface JournalEntry { id: string; memberId: string; date: string; text: string | null; mood: string | null; private?: boolean; createdAt: string; updatedAt: string }
 export interface JournalDay {
   date: string
-  tempCheck: { sleep: string | null; feelings: string[] | null; goal: string | null; goalSkipped: boolean; followup: GoalFollowup | null } | null
+  tempCheck: { sleep: string | null; feelings: string[] | null; goal: string | null; goalSkipped: boolean; followup: GoalFollowup | null; followupHidden?: boolean } | null
   entries: JournalEntry[]
 }
-export interface Journal { memberId: string; from: string; to: string; days: JournalDay[] }
+/** on: new entries are private; allowed: they may keep one; mine: this device is theirs; canChange: mine and allowed. */
+export interface JournalPrivacy { on: boolean; allowed: boolean; mine: boolean; canChange: boolean }
+export interface Journal { memberId: string; from: string; to: string; privacy?: JournalPrivacy; days: JournalDay[] }
 /** GET /api/members/{id}/insights (server/src/insights.ts InsightDay): one person's household day. */
 export interface InsightDay {
   date: string; checkedIn: boolean; sleep: 'great' | 'good' | 'ok' | 'poorly' | 'terrible' | null; feelings: string[]; goalSet: boolean; goalOutcome: FollowupOutcome | null
@@ -516,6 +521,7 @@ export interface Passkey {
   createdAt: string
   lastUsedAt: string | null
   transports?: string[] // as reported by the authenticator at registration
+  owner?: string | null // the grown-up it belongs to (its sign-ins read their private journal)
 }
 
 export interface Me {
@@ -745,7 +751,7 @@ export interface PushSubscriptionPrefs {
 export interface AppNotification {
   id: string
   at: string
-  kind: 'reminder' | 'summary' | 'chore' | 'list' | 'message' | 'goal' | 'medication'
+  kind: 'reminder' | 'summary' | 'chore' | 'list' | 'message' | 'goal' | 'medication' | 'privacy'
   title: string
   body: string | null
   url: string | null // '/#/calendar?event=…', '/chores', '/lists', '/' - same deep link a push opens

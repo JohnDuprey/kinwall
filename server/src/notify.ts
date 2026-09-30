@@ -129,7 +129,7 @@ async function pruneSentNotifications(db: KinwallDb, now: Date): Promise<void> {
   ]);
 }
 
-export type NotificationKind = 'reminder' | 'summary' | 'chore' | 'list' | 'message' | 'goal' | 'medication';
+export type NotificationKind = 'reminder' | 'summary' | 'chore' | 'list' | 'message' | 'goal' | 'medication' | 'privacy';
 export type NotificationSource = 'system' | 'api' | 'mcp';
 
 // The in-app feed (GET /api/notifications): every send site records one row here, push or no
@@ -144,6 +144,15 @@ export async function recordNotification(
       .bind(crypto.randomUUID(), (n.at ?? new Date()).toISOString(), n.kind, n.title, n.body ?? null, n.url ?? null, JSON.stringify(n.memberIds ?? []), n.source),
     db.prepare("INSERT INTO settings (key, value) VALUES ('rev', '1') ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + 1"),
   ]);
+}
+
+/** The family log line when a device (a wall, a kid's device, a parent's phone) now belongs to a
+ * member: it can read their private journal (routes/journal.ts), so that never changes silently. */
+export async function recordDeviceOwner(db: KinwallDb, device: string, owner: string | null | undefined): Promise<void> {
+  if (!owner || owner === 'shared') return;
+  const m = await db.prepare('SELECT name FROM members WHERE id = ?').bind(owner).first<{ name: string }>();
+  if (!m) return;
+  await recordNotification(db, { kind: 'privacy', title: `${device} now belongs to ${m.name}`, body: `It opens ${m.name}'s journal, private entries too.`, memberIds: [owner], source: 'system' });
 }
 
 // The feed records the household-wide summary/nudge once a day: at the default time, or earlier

@@ -20,6 +20,8 @@ A person's day (tap their avatar) lists what they're reading, like "Charlotte's 
 
 A family journal. **Add today's memory** opens a new entry for today: what happened, an optional headline, a mood and one photo (optional).
 
+Memories are for the whole family: anyone in the family, wall screens and connected apps can read them, and they're not private even when they belong to one person. For writing only you can read, use your own [Journal](journal.md#private-journals).
+
 A memory has at most one photo:
 
 * **Add a photo** (or **Replace photo**) adds a new one that belongs to the memory. It shows only in that memory: not in Activities → [Photos](photos.md), on the Board's picture card, on the night screen or in the photos zip as a family photo. Turn on **Also in family photos** to share it there too, and off again to take it back out.

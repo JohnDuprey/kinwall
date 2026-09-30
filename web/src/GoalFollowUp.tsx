@@ -2,7 +2,8 @@
 // person's chosen time until midnight, at the bottom of their Day view and at the top of their
 // journal. Yes / Partly / Not today saves right away; then three optional notes when their journal
 // keeps them. On a shared wall the server keeps the answer private (tc.private): once answered it
-// says "Answered ✓", and "Change" starts fresh.
+// says "Answered ✓", and "Change" starts fresh. Private notes (tc.followupHidden: written in their
+// private journal, and this isn't their device) show the same way, with no "Change": only they can.
 // With their energy battery on, the same card (or on its own, on a day without a goal) asks "How
 // drained do you feel?": Full / OK / Low / Empty or Skip, which calibrates their battery. The server
 // only opens that question on their own device or a parent's (drainedOpen), never on a shared wall.
@@ -65,9 +66,9 @@ export default function GoalFollowUp({ member, onSaved }: { member: Member; onSa
         <div className="snap-temp-done">
           <p role="status">
             <strong>{tc.private || !outcome ? `Answered ✓` : followupThanks(outcome, member.name)}</strong>
-            {!tc.private && picked && <span className="snap-meta">{picked.emoji} {picked.label}: {tc.goal}{[tc.followup?.helped, tc.followup?.hindered, tc.followup?.next].some(Boolean) ? ' · notes saved' : ''}</span>}
+            {!tc.private && picked && <span className="snap-meta">{picked.emoji} {picked.label}: {tc.goal}{tc.followupHidden ? ' · 🔒 notes are private' : [tc.followup?.helped, tc.followup?.hindered, tc.followup?.next].some(Boolean) ? ' · notes saved' : ''}</span>}
           </p>
-          <button className="btn btn-secondary" onClick={() => { if (tc.private) setNotes(EMPTY); setStep('ask') }}>Change</button>
+          {!tc.followupHidden && <button className="btn btn-secondary" onClick={() => { if (tc.private) setNotes(EMPTY); setStep('ask') }}>Change</button>}
         </div>
       ) : (
         <div className="snap-temp-q">

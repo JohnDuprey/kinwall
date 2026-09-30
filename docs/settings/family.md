@@ -60,6 +60,12 @@ Words they added with **Other…** are listed as **Maya's own feelings**; pick o
 
 API: `tempCheck` on `GET /api/members` and `PATCH /api/members/{id}` (admin key), as `{ "on": true, "sleep": true, "feelings": true, "goal": true, "showGoal": true, "evening": false, "eveningTime": "21:00", "journal": true, "battery": false }` (`eveningTime` is household time on the hour or half hour). Members also carry `todayGoal`, today's goal or `null`. Their own feelings list is `custom` on `/api/members/{id}/temp-check`. Both are in [exports](../your-data/export-import.md).
 
+### Private journal
+
+Kids only (grown-ups' journals are private by default, and they decide for themselves on their own device). **Let Maya keep a private journal** (off by default) lets Maya turn **Private journal** on from her own device. Then her new entries' words, and that day's goal check notes, open only on her own devices: parent devices see the mood and **🔒 Private entry**. It saves right away and adds a 🔒 line to the family's [notifications](../using/notifications.md#notification-feed). Turning it off makes her new entries readable on parent devices again; entries she wrote while it was private stay private. See [Private journals](../using/journal.md#private-journals).
+
+API: `privateJournal` on `GET /api/members` as `{ "on": false, "allowed": true }`; change it with `PUT /api/members/{id}/journal/privacy` and `{ "allowed": true }` (a parent's device) or `{ "private": true }` (a device that belongs to them). It's not in [exports](../your-data/export-import.md).
+
 ## Categories
 
 Add, edit, reorder (↑ / ↓) and delete event categories. Both admin and display devices can do this. See [Categories & auto-categorizing](../using/categories.md).

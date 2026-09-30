@@ -20,6 +20,9 @@
 // "Did you finish your goal?" yes / partly / no with optional notes (followup, one sealed JSON,
 // aad '<member>:<date>:followup'), treated like sleep and feelings above. notify.ts sends the
 // prompt. Editable until midnight (today only). settings.journal off keeps only the outcome.
+// The notes are journal text: answered while their journal is private (journal-privacy.ts), the day
+// is marked private (temp_checks.private, never cleared) and the notes open only on a device that
+// belongs to them. Others get the outcome with null notes (followupHidden) and can't change it.
 //
 // "How drained do you feel?" (settings.battery, the energy battery): from eveningTime until midnight,
 // full / ok / low / empty or skip, sealed on its own (drained, aad '<member>:<date>:drained'). It
@@ -39,6 +42,7 @@ import { DRAINED_ANSWERS } from '../battery.ts';
 import { parseTempCheck, todayInTz } from './members.ts';
 import { readSettings } from './settings.ts';
 import { startDayFrom } from './medications.ts';
+import { journalOwner, privateNow } from '../journal-privacy.ts';
 
 export const tempCheckRoutes = createRouter();
 type C = Context<{ Bindings: Env }>;
@@ -67,6 +71,7 @@ const TempCheckSchema = z
     goalSkipped: z.boolean(),
     answered: z.object({ sleep: z.boolean(), feelings: z.boolean(), goal: z.boolean(), followup: z.boolean(), drained: z.boolean() }), // goal: set or skipped
     followup: FollowupSchema.nullable().openapi({ description: 'Their evening goal check. null when not answered or withheld (private).' }),
+    followupHidden: z.boolean().openapi({ description: "The goal-check notes were written in a private journal and this device isn't theirs: followup has the outcome, notes null." }),
     followupOpen: z.boolean().openapi({ description: 'The evening goal check is showing: on, a goal set today, and past their eveningTime (household time).' }),
     custom: z.array(z.string()).nullable().openapi({ description: 'Their own feelings, added with "Other" (the built-in ones are great, good, fine, ok, bad, awful, tired, sore). null when withheld.' }),
     drained: DrainedSchema.nullable().openapi({ description: '"How drained do you feel?" (energy battery on): full, ok, low, empty or skip. null when not answered or withheld (private).' }),
@@ -89,7 +94,7 @@ const TempCheckInputSchema = z
   })
   .openapi('TempCheckInput');
 
-export type TempCheckRow = { member_id: string; date: string; sleep: string | null; feelings: string | null; goal: string | null; goal_skipped: number; followup: string | null; drained?: string | null; created_at: string; updated_at: string };
+export type TempCheckRow = { member_id: string; date: string; sleep: string | null; feelings: string | null; goal: string | null; goal_skipped: number; followup: string | null; drained?: string | null; private?: number; created_at: string; updated_at: string };
 type Access = 'full' | 'wall' | 'none';
 
 /** What this caller may see of `memberId`'s answers (see the top of the file). */
@@ -111,13 +116,16 @@ export async function readCustom(env: EncryptionEnv, memberId: string, stored: s
 }
 export const sealCustom = async (env: EncryptionEnv, memberId: string, list: string[]) => (list.length ? seal(env, JSON.stringify(list), customAad(memberId)) : null);
 
-/** A stored row, opened (sealed values throw without the right key: never read as empty). */
-export async function openTempCheck(env: EncryptionEnv, r: TempCheckRow) {
+/** A stored row, opened (sealed values throw without the right key: never read as empty). On a
+ * private day the goal-check notes stay out (followupHidden) unless `readPrivate` (the caller is theirs). */
+export async function openTempCheck(env: EncryptionEnv, r: TempCheckRow, readPrivate = true) {
   const feelings = await openMaybe(env, r.feelings, aad(r.member_id, r.date, 'feelings'));
-  const followup = await openMaybe(env, r.followup ?? null, aad(r.member_id, r.date, 'followup'));
+  const opened = await openMaybe(env, r.followup ?? null, aad(r.member_id, r.date, 'followup'));
+  const followupHidden = !!r.private && !readPrivate && opened !== null;
+  const followup = opened === null ? null : (JSON.parse(opened) as Followup);
   return {
     sleep: (await openMaybe(env, r.sleep, aad(r.member_id, r.date, 'sleep'))) as (typeof SLEEP_ANSWERS)[number] | null, feelings: feelings === null ? null : (JSON.parse(feelings) as string[]),
-    goal: r.goal, goalSkipped: !!r.goal_skipped, followup: followup === null ? null : (JSON.parse(followup) as Followup),
+    goal: r.goal, goalSkipped: !!r.goal_skipped, followup: followup && followupHidden ? { outcome: followup.outcome, helped: null, hindered: null, next: null } : followup, followupHidden,
   };
 }
 /** "How drained do you feel?", opened: kept apart from openTempCheck so only the battery, this route and the export read it. */
@@ -135,7 +143,8 @@ export async function sealTempCheck(env: EncryptionEnv, memberId: string, date: 
 const nowHm = (tz: string) => new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date());
 
 async function load(c: C, memberId: string, date: string) {
-  const member = await c.env.DB.prepare('SELECT temp_check, temp_check_feelings FROM members WHERE id = ?').bind(memberId).first<{ temp_check: string | null; temp_check_feelings: string | null }>();
+  const member = await c.env.DB.prepare('SELECT temp_check, temp_check_feelings, grown_up, journal_private, journal_private_allowed FROM members WHERE id = ?').bind(memberId)
+    .first<{ temp_check: string | null; temp_check_feelings: string | null; grown_up: number; journal_private: number | null; journal_private_allowed: number }>();
   if (!member) return null;
   const row = await c.env.DB.prepare('SELECT * FROM temp_checks WHERE member_id = ? AND date = ?').bind(memberId, date).first<TempCheckRow>();
   return { member, row };
@@ -143,9 +152,9 @@ async function load(c: C, memberId: string, date: string) {
 
 async function respond(c: C, memberId: string, date: string, found: NonNullable<Awaited<ReturnType<typeof load>>>, who: Access) {
   const settings = parseTempCheck(found.member.temp_check);
-  const empty = { sleep: null, feelings: null, goal: null, goalSkipped: false, followup: null };
-  // The answers are opened only for a caller who may see them.
-  const v = found.row ? (who === 'full' ? await openTempCheck(c.env, found.row) : { ...empty, goal: found.row.goal, goalSkipped: !!found.row.goal_skipped }) : empty;
+  const empty = { sleep: null, feelings: null, goal: null, goalSkipped: false, followup: null, followupHidden: false };
+  // The answers are opened only for a caller who may see them (private notes only for their own device).
+  const v = found.row ? (who === 'full' ? await openTempCheck(c.env, found.row, (await journalOwner(c)) === memberId) : { ...empty, goal: found.row.goal, goalSkipped: !!found.row.goal_skipped }) : empty;
   const answered = { sleep: !!found.row?.sleep, feelings: !!found.row?.feelings, goal: !!found.row?.goal || !!found.row?.goal_skipped, followup: !!found.row?.followup, drained: !!found.row?.drained };
   const tz = await householdTz(c);
   const evening = date === todayInTz(tz) && nowHm(tz) >= settings.eveningTime;
@@ -153,7 +162,7 @@ async function respond(c: C, memberId: string, date: string, found: NonNullable<
   // Never on a wall or another member's device: only a caller who may see the answer is asked.
   const drainedOpen = settings.on && settings.battery && who === 'full' && evening;
   return {
-    memberId, date, settings, private: who !== 'full', answered, followup: v.followup, followupOpen,
+    memberId, date, settings, private: who !== 'full', answered, followup: v.followup, followupHidden: v.followupHidden, followupOpen,
     drained: who === 'full' && found.row ? await openDrained(c.env, found.row) : null, drainedOpen,
     sleep: v.sleep, feelings: v.feelings, goal: v.goal, goalSkipped: v.goalSkipped,
     custom: who === 'none' ? null : await readCustom(c.env, memberId, found.member.temp_check_feelings),
@@ -225,6 +234,9 @@ tempCheckRoutes.openapi(
       if (date !== today) return c.json({ error: 'This can only be changed until midnight' }, 403);
     }
     if (body.custom !== undefined && who !== 'full') return c.json({ error: "Feelings can be removed from their own device or a parent's" }, 403);
+    // Private goal-check notes: only their own device changes them (anyone else can't see what they'd overwrite).
+    const own = (await journalOwner(c)) === id;
+    if (body.followup !== undefined && found.row?.private && found.row.followup && !own) return c.json({ error: 'Their goal check is private: only their own devices can change it.' }, 403);
 
     // Only the fields sent change; the rest stay as stored (still sealed), so a wall never opens them.
     const feelings = body.feelings === undefined ? undefined : body.feelings?.length ? [...new Map(body.feelings.map((f) => [f.toLowerCase(), f])).values()] : null;
@@ -243,6 +255,7 @@ tempCheckRoutes.openapi(
     const feelingsStored = feelings !== undefined ? fresh.feelings : (found.row?.feelings ?? null);
     const followupStored = followup ? fresh.followup : (found.row?.followup ?? null);
     const drainedStored = body.drained ? fresh.drained : (found.row?.drained ?? null);
+    const priv = found.row?.private || (followup && privateNow(found.member)) ? 1 : 0; // never cleared
 
     // Their own feelings list: "Other" answers join it; `custom` replaces it.
     const custom = body.custom ?? (await readCustom(c.env, id, found.member.temp_check_feelings));
@@ -259,9 +272,9 @@ tempCheckRoutes.openapi(
     const now = new Date().toISOString();
     await c.env.DB.batch([
       c.env.DB.prepare(
-        `INSERT INTO temp_checks (member_id, date, sleep, feelings, goal, goal_skipped, followup, drained, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(member_id, date) DO UPDATE SET sleep = excluded.sleep, feelings = excluded.feelings, goal = excluded.goal, goal_skipped = excluded.goal_skipped, followup = excluded.followup, drained = excluded.drained, updated_at = excluded.updated_at`,
-      ).bind(id, date, sleepStored, feelingsStored, goal, goalSkipped ? 1 : 0, followupStored, drainedStored, now, now),
+        `INSERT INTO temp_checks (member_id, date, sleep, feelings, goal, goal_skipped, followup, drained, private, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(member_id, date) DO UPDATE SET sleep = excluded.sleep, feelings = excluded.feelings, goal = excluded.goal, goal_skipped = excluded.goal_skipped, followup = excluded.followup, drained = excluded.drained, private = excluded.private, updated_at = excluded.updated_at`,
+      ).bind(id, date, sleepStored, feelingsStored, goal, goalSkipped ? 1 : 0, followupStored, drainedStored, priv, now, now),
       ...(customChanged ? [c.env.DB.prepare('UPDATE members SET temp_check_feelings = ? WHERE id = ?').bind(await sealCustom(c.env, id, nextCustom), id)] : []),
     ]);
     emit(c, 'tempcheck.changed', { memberId: id, date }); // who and which day, never the answers

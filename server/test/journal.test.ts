@@ -193,7 +193,7 @@ test('journal: days with their temp check and follow-up, plus their own entries,
   const j = (await req(jr(maya.id))).json;
   assert.deepEqual([j.memberId, j.to], [maya.id, TODAY]);
   assert.deepEqual(j.days.map((d: any) => d.date), [TODAY, '2026-09-25', '2026-09-24']);
-  assert.deepEqual(j.days[0].tempCheck, { sleep: 'ok', feelings: null, goal: 'Finish my book report', goalSkipped: false, followup: { outcome: 'yes', helped: 'Mom quizzed me', hindered: null, next: null } });
+  assert.deepEqual(j.days[0].tempCheck, { sleep: 'ok', feelings: null, goal: 'Finish my book report', goalSkipped: false, followup: { outcome: 'yes', helped: 'Mom quizzed me', hindered: null, next: null }, followupHidden: false });
   assert.deepEqual(j.days[0].entries.map((e: any) => e.text), ['Pizza night']);
   assert.equal(j.days[1].tempCheck, null);
   assert.equal(j.days[2].tempCheck.sleep, 'great');

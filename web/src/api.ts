@@ -11,7 +11,7 @@ import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginCatalogEntry,
   StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota, GooglePhotos, Reward, Redemption, MemberStats, StatsPeriod,
   Account, ApiKey, AppNotification, Appearance, CalendarEntry, Category, Chore, ChoreDay, PendingApproval, EventInstance, LeaderboardEntry, LeaderboardPeriod, List,
   GeocodeResult, HostEvent, ImportResult, ListDetail, ListGroup, ListItem, ListItemInput, ListItemPatch, Member, Me, Note, NoteTarget, Passkey, TrackerEntry, TrackerInput, TrackerKind, Providers, PushSubscription, PushSubscriptionPrefs, RemoteCalendar, Settings, Snapshot, Board, Webhook, WebhookWithSecret,
-  TempCheck, TempCheckInput, Journal, JournalEntry, Insights, InsightRange, Battery, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory,
+  TempCheck, TempCheckInput, Journal, JournalEntry, JournalPrivacy, Insights, InsightRange, Battery, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory,
 } from './types.ts'
 
 /** Demo build: every call is served from mock.ts in memory - no server, nothing persists. */
@@ -279,7 +279,7 @@ export const api = {
   checkAdminKey: (): Promise<Me> => MOCK ? Promise.resolve({ scope: 'admin', keyName: 'mock', kind: 'api' }) : get<Me>('api/me', true),
   // Strict check (no fail-open) against whatever key is currently stored — used by the QR-pairing
   // "confirm" screen and Settings (which must fail closed to the display view, not assume admin).
-  meStrict: (): Promise<Me> => MOCK ? Promise.resolve({ scope: 'admin', keyName: 'mock', kind: 'api', locked: false }) : get<Me>('api/me'),
+  meStrict: (): Promise<Me> => MOCK ? Promise.resolve({ scope: 'admin', keyName: 'mock', kind: 'api', locked: false, owner: mock.myOwner() }) : get<Me>('api/me'),
 
   getSettings: (useAdmin?: boolean) => MOCK ? mock.getSettings() : get<Settings>('api/settings', useAdmin),
   // useAdmin: the setup wizard saves household settings with the in-memory admin key when this
@@ -398,6 +398,11 @@ export const api = {
     MOCK ? mock.updateJournalEntry(memberId, id, body) : patch<JournalEntry>(`api/members/${encodeURIComponent(memberId)}/journal/${encodeURIComponent(id)}`, body),
   deleteJournalEntry: (memberId: string, id: string) =>
     MOCK ? mock.deleteJournalEntry(memberId, id) : del<void>(`api/members/${encodeURIComponent(memberId)}/journal/${encodeURIComponent(id)}`),
+  // Private journal: `private` from a device that's theirs; `allowed` (a kid) from a parent's device.
+  setJournalPrivacy: (memberId: string, body: { private?: boolean; allowed?: boolean }) =>
+    MOCK ? mock.setJournalPrivacy(memberId, body) : put<JournalPrivacy>(`api/members/${encodeURIComponent(memberId)}/journal/privacy`, body),
+  // "This is my device" (a parent's device): a grown-up's id, or 'shared' for no one. It then reads their private journal.
+  setMyOwner: (owner: string) => MOCK ? mock.setMyOwner(owner) : put<{ owner: string }>('api/me/owner', { owner }),
   // Medication reminders: health data, so never the offline cache. Adding and editing: parents' devices.
   getMedications: (memberId?: string) => MOCK ? mock.getMedications(memberId) : req<Medication[]>(`api/medications${memberId ? `?memberId=${encodeURIComponent(memberId)}` : ''}`),
   addMedication: (body: MedicationInput) => MOCK ? mock.addMedication(body) : post<Medication>('api/medications', body),

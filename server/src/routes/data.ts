@@ -63,7 +63,7 @@ const ExportSchema = z
     version: z.number(),
     exportedAt: z.string(),
     settings: SettingsSchema,
-    members: z.array(MemberSchema.omit({ pointsToday: true, pointsWeek: true, balance: true, rewardGoal: true, todayGoal: true, tempCheck: true }).extend({ tempCheck: TempCheckSettingsSchema.optional(), tempCheckFeelings: z.array(z.string()).default([]),  birthday: BirthdaySchema.nullable().default(null), grownUp: z.boolean().optional(), needsApproval: z.boolean().default(false), transitionReminders: TransitionRemindersSchema.optional(), rewardGoalId: z.string().nullable().default(null) })),
+    members: z.array(MemberSchema.omit({ pointsToday: true, pointsWeek: true, balance: true, rewardGoal: true, todayGoal: true, tempCheck: true, privateJournal: true }).extend({ tempCheck: TempCheckSettingsSchema.optional(), tempCheckFeelings: z.array(z.string()).default([]),  birthday: BirthdaySchema.nullable().default(null), grownUp: z.boolean().optional(), needsApproval: z.boolean().default(false), transitionReminders: TransitionRemindersSchema.optional(), rewardGoalId: z.string().nullable().default(null) })),
     categories: z.array(CategorySchema),
     contactCategories: z.array(ContactCategorySchema),
     contacts: z.array(ContactSchema),
@@ -132,10 +132,13 @@ const ExportSchema = z
     // Daily check-ins (0053), one per member per day; the points they earned are in pointEntries.
     checkIns: z.array(z.object({ memberId: z.string(), date: z.string(), points: z.number(), at: z.string() })),
     // Temp check answers (0054), one per member per day. sleep/feelings are opened here (sealed again on import);
-    // null for a connected app without aiHealthAccess.
-    tempChecks: z.array(z.object({ memberId: z.string(), date: z.string(), sleep: z.string().nullable(), feelings: z.array(z.string()).nullable(), goal: z.string().nullable(), goalSkipped: z.boolean(), followup: FollowupSchema.nullable().default(null), drained: DrainedSchema.nullable().default(null), createdAt: z.string(), updatedAt: z.string() })),
+    // null for a connected app without aiHealthAccess. A private day's goal-check notes (0063) are left out
+    // (the outcome stays); importing never replaces a private day's notes.
+    tempChecks: z.array(z.object({ memberId: z.string(), date: z.string(), sleep: z.string().nullable(), feelings: z.array(z.string()).nullable(), goal: z.string().nullable(), goalSkipped: z.boolean(), followup: FollowupSchema.nullable().default(null), drained: DrainedSchema.nullable().default(null), private: z.boolean().default(false), createdAt: z.string(), updatedAt: z.string() })),
     // Journal entries (0055): opened here, sealed again on import; none for a connected app without aiHealthAccess.
-    journalEntries: z.array(z.object({ id: z.string(), memberId: z.string(), date: z.string(), text: z.string(), mood: z.string().nullable(), createdAt: z.string(), updatedAt: z.string() })),
+    // A private entry's text (0063) is never exported (null; the mood and day stay), for anyone; importing
+    // never overwrites a private entry, and brings a missing one back without its words.
+    journalEntries: z.array(z.object({ id: z.string(), memberId: z.string(), date: z.string(), text: z.string().nullable(), mood: z.string().nullable(), private: z.boolean().default(false), createdAt: z.string(), updatedAt: z.string() })),
     // Medications (0056) and each dose marked or snoozed: opened here (the family's own backup), sealed again on
     // import; none for a connected app without aiHealthAccess.
     medications: z.array(z.object({ id: z.string(), memberId: z.string(), name: z.string().min(1), dose: z.string(), times: DoseTimesSchema, days: z.array(z.number().int().min(0).max(6)).min(1), endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().default(null), totalDoses: z.number().int().min(1).max(1000).nullable().default(null), lateWindow: LateWindowSchema.default('3h'), createdAt: z.string(), updatedAt: z.string() })),
@@ -224,8 +227,8 @@ dataRoutes.openapi(
       db.prepare('SELECT id, member_id, amount, reason, ref, at FROM point_entries ORDER BY at, id'),
       db.prepare('SELECT member_id, pack_id, unlocked_at FROM member_sticker_packs ORDER BY member_id, pack_id'),
       db.prepare('SELECT member_id, date, points, at FROM check_ins ORDER BY date, member_id'),
-      db.prepare('SELECT member_id, date, sleep, feelings, goal, goal_skipped, followup, drained, created_at, updated_at FROM temp_checks ORDER BY date, member_id'),
-      db.prepare('SELECT id, member_id, date, text, mood, created_at, updated_at FROM journal_entries ORDER BY date, created_at, id'),
+      db.prepare('SELECT member_id, date, sleep, feelings, goal, goal_skipped, followup, drained, private, created_at, updated_at FROM temp_checks ORDER BY date, member_id'),
+      db.prepare('SELECT id, member_id, date, text, mood, private, created_at, updated_at FROM journal_entries ORDER BY date, created_at, id'),
       db.prepare('SELECT id, member_id, sticker, x, y, scale, rotation, z, placed_at FROM scrapbook_stickers ORDER BY member_id, z, placed_at, id'),
       db.prepare('SELECT id, title, emoji, cost, member_ids, needs_approval, limit_period, limit_count, active, sort, created_at FROM rewards ORDER BY sort, created_at'),
       db.prepare('SELECT id, reward_id, member_id, title, emoji, cost, status, note, date, requested_at, decided_at, given_at FROM reward_redemptions ORDER BY requested_at, id'),
@@ -322,10 +325,11 @@ dataRoutes.openapi(
         stickerPacks: (stickerPacks as { member_id: string; pack_id: string; unlocked_at: string }[]).map((r) => ({ memberId: r.member_id, packId: r.pack_id, unlockedAt: r.unlocked_at })),
         checkIns: (checkIns as { member_id: string; date: string; points: number; at: string }[]).map((r) => ({ memberId: r.member_id, date: r.date, points: r.points, at: r.at })),
         tempChecks: await Promise.all((tempChecks as TempCheckRow[]).map(async (r) => {
-          const v = healthHidden ? { sleep: null, feelings: null, goal: r.goal, goalSkipped: !!r.goal_skipped, followup: null, drained: null } : { ...(await openTempCheck(c.env, r)), drained: await openDrained(c.env, r) };
-          return { memberId: r.member_id, date: r.date, ...v, createdAt: r.created_at, updatedAt: r.updated_at };
+          const opened = async () => { const { followupHidden: _, ...t } = await openTempCheck(c.env, r, false); return { ...t, drained: await openDrained(c.env, r) }; };
+          const v = healthHidden ? { sleep: null, feelings: null, goal: r.goal, goalSkipped: !!r.goal_skipped, followup: null, drained: null } : await opened();
+          return { memberId: r.member_id, date: r.date, ...v, private: !!r.private, createdAt: r.created_at, updatedAt: r.updated_at };
         })),
-        journalEntries: healthHidden ? [] : await Promise.all((journal as JournalRow[]).map((r) => openEntry(c.env, r))),
+        journalEntries: healthHidden ? [] : await Promise.all((journal as JournalRow[]).map((r) => openEntry(c.env, r, false))), // never a private entry's words
         ...(healthHidden ? { medications: [], medicationLog: [] } : await exportMedications(c.env)),
         scrapbook: (scrapbook as PlacementRow[]).map(toPlacementApi),
         rewards: (rewards as RewardRow[]).map(toRewardApi),
@@ -557,8 +561,20 @@ dataRoutes.openapi(
     const today = new Date().toISOString().slice(0, 10);
     const grownUp = (m: (typeof body.members)[number]) => m.grownUp ?? isAdultBirthday(m.birthday, today);
     // Health entries are sealed again before anything is written (no key: the import fails, nothing stored).
-    const sealedTempChecks = await Promise.all(tempChecks.map(async (t) => ({ member_id: t.memberId, date: t.date, ...(await sealTempCheck(c.env, t.memberId, t.date, t)), goal: t.goal, goal_skipped: t.goalSkipped ? 1 : 0, created_at: t.createdAt, updated_at: t.updatedAt })));
-    const sealedJournal = await Promise.all(journalEntries.map((e) => sealEntry(c.env, { id: e.id, member_id: e.memberId, date: e.date, text: e.text, mood: e.mood, created_at: e.createdAt, updated_at: e.updatedAt })));
+    // Private journal days and entries already here are never overwritten (the file can't have their words).
+    const [privateDays, privateEntries] = (await db.batch<unknown>([
+      db.prepare('SELECT member_id, date, followup FROM temp_checks WHERE private = 1'),
+      db.prepare('SELECT id FROM journal_entries WHERE private = 1'),
+    ])).map((r) => r.results);
+    const keptNotes = new Map((privateDays as { member_id: string; date: string; followup: string | null }[]).map((r) => [`${r.member_id}:${r.date}`, r.followup]));
+    const keptEntries = new Set((privateEntries as { id: string }[]).map((r) => r.id));
+    const sealedTempChecks = await Promise.all(tempChecks.map(async (t) => {
+      const kept = keptNotes.get(`${t.memberId}:${t.date}`);
+      const sealed = await sealTempCheck(c.env, t.memberId, t.date, t);
+      return { member_id: t.memberId, date: t.date, ...sealed, followup: kept !== undefined ? kept : sealed.followup, private: kept !== undefined || t.private ? 1 : 0, goal: t.goal, goal_skipped: t.goalSkipped ? 1 : 0, created_at: t.createdAt, updated_at: t.updatedAt };
+    }));
+    const sealedJournal = await Promise.all(journalEntries.filter((e) => !keptEntries.has(e.id)).map((e) =>
+      sealEntry(c.env, { id: e.id, member_id: e.memberId, date: e.date, text: e.text ?? '', mood: e.mood, private: e.private || e.text === null ? 1 : 0, created_at: e.createdAt, updated_at: e.updatedAt })));
     const logDays = new Map<string, { medicationId: string; date: string; log: DoseLog }>();
     for (const d of medicationLog) {
       const day = logDays.get(`${d.medicationId}:${d.date}`) ?? logDays.set(`${d.medicationId}:${d.date}`, { medicationId: d.medicationId, date: d.date, log: {} }).get(`${d.medicationId}:${d.date}`)!;

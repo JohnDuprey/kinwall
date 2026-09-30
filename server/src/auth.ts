@@ -45,10 +45,13 @@ export async function createApiKey(
   return { id, key };
 }
 
-/** A device owner from an admin: 'shared' or an existing member's id. Null when it's neither. */
-export async function validOwner(db: KinwallDb, owner: string): Promise<string | null> {
+/** A device owner from an admin: 'shared' or an existing member's id. Null when it's neither. A
+ * full-access (admin) device belongs only to a grown-up, so no parent's device can pass as a kid's
+ * (routes/journal.ts private journals). */
+export async function validOwner(db: KinwallDb, owner: string, scope: KeyScope = 'display'): Promise<string | null> {
   if (owner === 'shared') return owner;
-  return (await db.prepare('SELECT id FROM members WHERE id = ?').bind(owner).first<{ id: string }>())?.id ?? null;
+  const m = await db.prepare('SELECT id, grown_up FROM members WHERE id = ?').bind(owner).first<{ id: string; grown_up: number }>();
+  return m && (scope === 'display' || m.grown_up) ? m.id : null;
 }
 
 // The one rule for who may change a calendar's events (create, edit, delete, and linking tasks to
@@ -142,6 +145,7 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'POST', pattern: /^\/api\/members\/[^/]+\/journal$/ },
   { method: 'PATCH', pattern: /^\/api\/members\/[^/]+\/journal\/[^/]+$/ },
   { method: 'DELETE', pattern: /^\/api\/members\/[^/]+\/journal\/[^/]+$/ },
+  { method: 'PUT', pattern: /^\/api\/members\/[^/]+\/journal\/privacy$/ }, // a kid turns their private journal on or off (routes/journal.ts: own device only)
   { method: 'GET', pattern: /^\/api\/members\/[^/]+\/(insights|battery)$/ }, // a member's own device only (routes/insights.ts refuses shared walls and other members' devices)
   // Medications: Take now cards and marking doses on the wall and a person's own device; their own list
   // and history on their own device (routes/medications.ts decides who sees what). Adding and editing: parents.

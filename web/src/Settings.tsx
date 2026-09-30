@@ -144,6 +144,7 @@ export default function SettingsView() {
         </>}
         {current === 'access' && <>
           <SecondWayInNudge tick={accessTick} />
+          <ThisDeviceOwnerSection me={me} toast={toast} />
           <DisplaysSection toast={toast} />
           <NotificationDevicesSection toast={toast} />
           <PasskeysSection me={me} toast={toast} onChanged={bumpAccess} />
@@ -1691,7 +1692,30 @@ function MemberEditSheet({ member, canDelete, onClose, onSaved, toast }: { membe
       </>}
       {canDelete && <TransitionRemindersField name={name.trim() || 'this person'} value={transitions} onChange={setTransitions} />}
       {canDelete && <TempCheckField member={member} name={name.trim() || 'this person'} value={tempCheck} onChange={setTempCheck} toast={toast} />}
+      {canDelete && member && !member.grownUp && <PrivateJournalField member={member} toast={toast} />}
     </Sheet>
+  )
+}
+
+/** A parent lets a kid keep a private journal (saved right away, and noted in the family's notifications).
+ * Grown-ups' journals are private by default and they decide on their own device. */
+function PrivateJournalField({ member, toast }: { member: Member; toast: (m: string, persist?: boolean) => void }) {
+  const { reloadCore } = useApp()
+  const [allowed, setAllowed] = useState(!!member.privateJournal?.allowed)
+  const change = async (next: boolean) => {
+    try { setAllowed((await api.setJournalPrivacy(member.id, { allowed: next })).allowed); reloadCore(); toast('Saved') }
+    catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't change that", true) }
+  }
+  return (
+    <div className="field">
+      <div className="toggle-row">
+        <label id="member-private-journal">Let {member.name} keep a private journal</label>
+        <button className={`switch ${allowed ? 'on' : ''}`} role="switch" aria-checked={allowed} aria-labelledby="member-private-journal" onClick={() => change(!allowed)}><span className="knob" /></button>
+      </div>
+      <div className="settings-row-sub">{allowed
+        ? `${member.name} can turn it on from their own device. Then you see their mood, not what they write.${member.privateJournal?.on ? ` It's on now.` : ''}`
+        : `Off: parent devices can read ${member.name}'s journal. Turning this off later keeps entries already private.`}</div>
+    </div>
   )
 }
 
@@ -2491,8 +2515,34 @@ function ConnectedAppsSection({ toast }: { toast: (m: string, persist?: boolean)
   )
 }
 
+/** Whose device this parent's device is (PUT /api/me/owner): a grown-up, so it reads their private
+ * journal. The admin key, a recovery sign-in and connected apps can't belong to anyone (the server says so). */
+function ThisDeviceOwnerSection({ me, toast }: { me: Me; toast: (m: string, persist?: boolean) => void }) {
+  const { members, meMemberId, reloadCore } = useApp()
+  const grownUps = members.filter(m => m.grownUp)
+  if (me.scope !== 'admin' || grownUps.length === 0) return null
+  const change = async (owner: string) => {
+    try { await api.setMyOwner(owner); reloadCore(); toast('Saved') } catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't change that", true) }
+  }
+  return (
+    <Section title="This device">
+      <div className="settings-row">
+        <div>
+          <div className="settings-row-label" id="this-device-owner">Whose device is this?</div>
+          <div className="settings-row-sub">It opens that person's private journal. The family sees a note when this changes.</div>
+        </div>
+        <select className="settings-select" aria-labelledby="this-device-owner" value={meMemberId ?? 'shared'} onChange={e => change(e.target.value)}>
+          <option value="shared">No one in particular</option>
+          {grownUps.map(m => <option key={m.id} value={m.id}>{m.avatar} {m.name}</option>)}
+        </select>
+      </div>
+    </Section>
+  )
+}
+
 function KeysSection({ toast }: { toast: (m: string, persist?: boolean) => void }) {
   const dialog = useDialog()
+  const { members, reloadCore } = useApp()
   const [keys, setKeys] = useState<ApiKey[]>([])
   const [newKey, setNewKey] = useState<{ name: string; key: string } | null>(null)
   const [creating, setCreating] = useState(false)
@@ -2522,11 +2572,13 @@ function KeysSection({ toast }: { toast: (m: string, persist?: boolean) => void 
         </div>
       )}
       {keys.map(k => (
-        <div key={k.id} className="key-item">
-          <div>
+        <div key={k.id} className="key-item key-item-owned">
+          <div className="key-item-info">
             <div className="settings-row-label">{k.name} <span className="cal-kind-badge">{k.scope}</span></div>
             <div className="settings-row-sub">{[k.prefix && `${k.prefix}…`, k.lastUsedAt ? `used ${new Date(k.lastUsedAt).toLocaleDateString()}` : 'never used'].filter(Boolean).join(' · ')}</div>
           </div>
+          {/* A full-access key can belong to a grown-up: then it reads their private journal. */}
+          <OwnerSelect value={k.owner ?? 'shared'} members={members.filter(m => m.grownUp)} onChange={v => api.setKeyOwner(k.id, v).then(() => { load(); reloadCore() }, e => toast(e instanceof ApiError ? e.message : 'Could not change who it belongs to', true))} label={`Who ${k.name} belongs to`} />
           <button className="icon-btn" onClick={() => del(k.id)} aria-label={`Delete ${k.name}`}><TrashIcon width={16} height={16} /></button>
         </div>
       ))}

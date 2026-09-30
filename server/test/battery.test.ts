@@ -441,7 +441,7 @@ test('heads-up push: the evening before a heavy day, once, to their own devices 
   const claims = s.db.prepare('SELECT key FROM sent_notifications').all<{ key: string }>().results.map((r) => r.key).filter((k) => k.startsWith('battery:'));
   assert.equal(claims.length, 1);
   assert.match(claims[0], /^battery:[0-9a-f]{64}$/, 'the claim never says who or which day');
-  assert.equal(s.db.prepare('SELECT COUNT(*) AS n FROM notifications').first<{ n: number }>()!.n, 0, 'personal: not in the family feed');
+  assert.equal(s.db.prepare("SELECT COUNT(*) AS n FROM notifications WHERE kind != 'privacy'").first<{ n: number }>()!.n, 0, 'personal: not in the family feed');
 });
 
 test('heads-up push: held through quiet hours until the morning, then "today"', async (t) => {
@@ -551,7 +551,7 @@ test('evening push: one, whether she has a goal, the battery, or both', async (t
   assert.deepEqual(await onlyTick(at('20:55')), {}, 'not yet');
   assert.deepEqual(await onlyTick(at('21:02')), { 'maya-phone': [{ title: 'How drained do you feel? 🔋', body: 'A quick check-in before bed.' }] });
   assert.deepEqual(await onlyTick(at('21:10')), {}, 'once');
-  assert.equal(only.db.prepare('SELECT COUNT(*) AS n FROM notifications').first<{ n: number }>()!.n, 0);
+  assert.equal(only.db.prepare("SELECT COUNT(*) AS n FROM notifications WHERE kind != 'privacy'").first<{ n: number }>()!.n, 0);
 
   // Answered already, or the battery off (and no goal): nothing.
   const done = await setup(at('18:00'));

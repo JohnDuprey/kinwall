@@ -169,6 +169,9 @@ export const MemberSchema = z
       .openapi({ description: 'The reward they are saving for (progress = balance / cost), or null.' }),
     tempCheck: TempCheckSettingsSchema,
     todayGoal: z.string().nullable().openapi({ description: "Their Temp check goal for today (household day), or null. Family content: the Board shows it when tempCheck.showGoal is on." }),
+    privateJournal: z
+      .object({ on: z.boolean(), allowed: z.boolean() })
+      .openapi({ description: "Private journal: on = new entries are private (only their own devices read the words); allowed = always for a grown-up, for a kid when a parent allows it. Changed with PUT /api/members/{id}/journal/privacy." }),
   })
   .openapi('Member');
 
@@ -884,7 +887,7 @@ export const NotificationSchema = z
   .object({
     id: z.string(),
     at: z.string(),
-    kind: z.enum(['reminder', 'summary', 'chore', 'list', 'message', 'goal', 'medication']),
+    kind: z.enum(['reminder', 'summary', 'chore', 'list', 'message', 'goal', 'medication', 'privacy']),
     title: z.string(),
     body: z.string().nullable(),
     url: z.string().nullable(),
