@@ -148,7 +148,10 @@ export function compareAisles(store: string | null | undefined, a: string | null
   return natural(a, b);
 }
 
-type TripItem = { id: string; title: string; quantity: string | null; done: boolean; store: string | null; aisle: string | null; category?: string | null; places?: { store: string | null; aisle: string | null }[] };
+type TripItem = {
+  id: string; title: string; quantity: string | null; done: boolean; store: string | null; aisle: string | null; category?: string | null; places?: { store: string | null; aisle: string | null }[]
+  listId?: string; listName?: string; // an item from the other type's list (alsoAtStore)
+};
 
 /** A department (the category field) that names one of the store's aisles (any case) stands in for
  * an aisle not known there: "Produce" lands in the store's Produce aisle. Display only - never
@@ -167,7 +170,10 @@ export function tripView(items: TripItem[], store: string, order: AisleOrder, st
   const rows = items.map((i) => {
     const other = !!i.store && i.store !== store;
     const aisle = other ? i.aisle : (i.store === store && i.aisle) || i.places?.find((p) => p.store === store)?.aisle || departmentAisle(i.category, storeAisles);
-    return { id: i.id, title: i.title, quantity: i.quantity, done: i.done, store: i.store, aisle, section: other ? ('other' as const) : aisle ? ('aisle' as const) : ('unknown' as const) };
+    return {
+      id: i.id, title: i.title, quantity: i.quantity, done: i.done, store: i.store, aisle, section: other ? ('other' as const) : aisle ? ('aisle' as const) : ('unknown' as const),
+      ...(i.listName ? { listId: i.listId, listName: i.listName } : {}),
+    };
   });
   const rank = { aisle: 0, unknown: 1, other: 2 };
   rows.sort((a, b) => rank[a.section] - rank[b.section]
@@ -268,6 +274,15 @@ async function taskLinkBlock(c: Context<{ Bindings: Env }>, ids: (string | null 
 
 // Notes on list items (routes/notes.ts): no FK, so every path that deletes items deletes their notes.
 const ITEM_NOTES = "target_type = 'list_item' AND target_id";
+
+/** FROM for a trip's items from the other type's shopping lists (?1 the list, ?2 the store): planned
+ * for the store, or for anywhere with a place remembered there in their own catalog (m, the place
+ * at the store, if any). Archived lists stay out. */
+const ALSO_AT_STORE = `lists l CROSS JOIN lists o JOIN list_items li ON li.list_id = o.id
+  LEFT JOIN item_memory m ON m.catalog = coalesce(o.catalog, 'groceries') AND m.name_key = li.name_key AND m.store = ?2
+  WHERE l.id = ?1 AND l.kind = 'shopping' AND o.kind = 'shopping' AND o.archived = 0 AND o.id != l.id
+    AND coalesce(o.catalog, 'groceries') != coalesce(l.catalog, 'groceries')
+    AND (li.store = ?2 OR (li.store IS NULL AND m.store IS NOT NULL))`;
 
 // shopping defaults to grouping and sorting by aisle; todo/reusable to no grouping, manual.
 function defaultGroupBy(kind: ListRow['kind']): ListRow['group_by'] {
@@ -491,7 +506,7 @@ listsRoutes.openapi(
     request: {
       params: z.object({ id: z.string() }),
       query: z.object({
-        store: z.string().min(1).optional().openapi({ description: 'Also return `trip`: the list as shopped at this store.' }),
+        store: z.string().min(1).optional().openapi({ description: 'Also return `trip`: the list as shopped at this store, and `alsoAtStore`: the other type\'s shopping lists\' items for this store (Groceries and Shopping lists share a trip), which `trip` walks too.' }),
         suggestions: z.enum(['true', 'false']).optional().openapi({ description: '`false`: skip suggestions and item places (sync clients).' }),
       }),
     },
@@ -510,7 +525,7 @@ listsRoutes.openapi(
     // hosted is billed per row read.
     // Everything remembered comes from the list's own catalog (groceries or shopping).
     const shop = "l.id = ?1 AND l.kind = 'shopping' AND ?2";
-    const [listRes, itemsRes, groupsRes, stepsRes, valuesRes, tzRes, notesRes, orderRes, mealsRes, placesRes, namesRes, memoryRes, ingredientsRes] = await c.env.DB.batch<unknown>([
+    const batch = await c.env.DB.batch<unknown>([
       c.env.DB.prepare('SELECT * FROM lists WHERE id = ?').bind(id),
       c.env.DB.prepare('SELECT * FROM list_items WHERE list_id = ?').bind(id), // ordered below, by the list's sortBy
       c.env.DB.prepare('SELECT * FROM list_groups WHERE list_id = ? ORDER BY kind, sort').bind(id),
@@ -542,7 +557,16 @@ listsRoutes.openapi(
       c.env.DB.prepare(`SELECT m.name_key, m.store, m.category, m.aisle, m.updated_at FROM lists l CROSS JOIN item_memory m WHERE ${shop} AND m.catalog = coalesce(l.catalog, 'groceries')`).bind(id, want),
       // Recipe ingredients: groceries only.
       c.env.DB.prepare(`SELECT DISTINCT ri.name, ri.category FROM lists l CROSS JOIN recipes r JOIN recipe_ingredients ri ON ri.recipe_id = r.id WHERE ${shop} AND coalesce(l.catalog, 'groceries') = 'groceries' AND r.archived = 0 ORDER BY ri.name`).bind(id, want),
+      // A trip at a store also walks the other type's lists' items for that store: planned for it, or
+      // for anywhere and found there before (their own catalog's places) - with their aisle there.
+      ...(tripStore
+        ? [
+            c.env.DB.prepare(`SELECT li.*, o.name AS list_name, m.store AS place_store, m.aisle AS place_aisle FROM ${ALSO_AT_STORE} ORDER BY li.title COLLATE NOCASE, li.id`).bind(id, tripStore),
+          ]
+        : []),
     ]);
+    const [alsoRes] = batch.slice(13);
+    const [listRes, itemsRes, groupsRes, stepsRes, valuesRes, tzRes, notesRes, orderRes, mealsRes, placesRes, namesRes, memoryRes, ingredientsRes] = batch;
     const noteCounts = new Map((notesRes.results as { target_id: string; n: number }[]).map((r) => [r.target_id, r.n]));
     const list = (listRes.results as ListRow[])[0];
     if (!list) return c.json({ error: 'not found' }, 404);
@@ -570,10 +594,16 @@ listsRoutes.openapi(
     const apiItems = items
       .map((i) => ({ ...toItemApi(i, steps.get(i.id)), noteCount: noteCounts.get(i.id) ?? 0, ...(meals.has(i.id) ? { meals: meals.get(i.id) } : {}), ...(suggest ? { places: placesByItem.get(i.id) ?? [] } : {}) }))
       .sort(order);
+    const also = ((alsoRes?.results ?? []) as (ListItemRow & { list_name: string; place_store: string | null; place_aisle: string | null })[]).map((r) => ({
+      ...toItemApi(r),
+      listName: r.list_name,
+      places: r.place_store ? [{ store: r.place_store, aisle: r.place_aisle }] : [],
+    }));
     return c.json(
       {
         list: toApi(list, items.length, openCount, overdueCount),
         items: apiItems,
+        ...(tripStore ? { alsoAtStore: also } : {}),
         groups: groups.map(toGroupApi),
         suggestions: {
           stores,
@@ -584,7 +614,7 @@ listsRoutes.openapi(
             : {}),
         },
         aisleOrder: [...aisleOrder].map(([store, names]) => ({ store: store || null, aisles: names })),
-        ...(tripStore ? { trip: tripView(apiItems, tripStore, aisleOrder, aisles.filter((a) => a.store === tripStore).map((a) => a.aisle)) } : {}),
+        ...(tripStore ? { trip: tripView([...apiItems, ...also], tripStore, aisleOrder, aisles.filter((a) => a.store === tripStore).map((a) => a.aisle)) } : {}),
       },
       200,
     );

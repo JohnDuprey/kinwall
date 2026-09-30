@@ -620,9 +620,10 @@ function ListViewSheet({ list, stores, store, onStore, onGroupBy, onSortBy, onRe
   )
 }
 
-function ItemRow({ item, kind, groupBy, members, event, onToggle, onOpen, handle }: {
+function ItemRow({ item, kind, groupBy, members, event, onToggle, onOpen, handle, from }: {
   item: ListItem; kind: ListKind; groupBy: ListGroupBy; members: Member[]; event?: EventInstance; onToggle: () => void; onOpen: () => void
   handle?: React.ReactNode
+  from?: React.ReactNode // a combined trip: the other list it's on (FromTag)
 }) {
   const assignee = kind !== 'shopping' && item.memberId ? members.find(m => m.id === item.memberId) : null
   const showStore = kind === 'shopping' && groupBy !== 'store' && groupBy !== 'aisle' && item.store
@@ -642,6 +643,7 @@ function ItemRow({ item, kind, groupBy, members, event, onToggle, onOpen, handle
         <div className="list-item-title-row">
           {prio && <PriorityBadge p={prio} />}
           <div className="list-item-title">{item.title}</div>
+          {from}
           {(item.notes || (notesOn && !!item.noteCount)) && <NoteIcon className="list-item-note" width={14} height={14} aria-hidden={false} role="img" aria-label="Has notes" />}
         </div>
         {due && <div className={`list-item-meta list-item-due ${due.overdue ? 'overdue' : ''}`} aria-hidden="true">{due.text}</div>}
@@ -664,14 +666,21 @@ function ItemRow({ item, kind, groupBy, members, event, onToggle, onOpen, handle
   )
 }
 
+/** On a combined trip, which other list an item is on: that type's icon and the list's name. */
+function FromTag({ name, catalog }: { name: string; catalog: ListCatalog }) {
+  const Icon = catalog === 'groceries' ? BasketIcon : CartIcon
+  return <span className="list-from-tag"><Icon width={12} height={12} aria-hidden="true" /><span className="sr-only">On </span>{name}</span>
+}
+
 /** A row in shopping mode: the whole row ticks the item (no editing mid-aisle). */
-function ShopRow({ item, meta, onToggle }: { item: ListItem; meta?: string | null; onToggle: () => void }) {
+function ShopRow({ item, meta, onToggle, from }: { item: ListItem; meta?: string | null; onToggle: () => void; from?: React.ReactNode }) {
   const sub = [meta, item.notes?.split('\n')[0]].filter(Boolean).join(' · ')
   return (
     <button className={`shop-row ${item.done ? 'done' : ''} ${item.pending ? 'pending' : ''}`} role="checkbox" aria-checked={item.done} onClick={onToggle} title={item.pending ? 'Not synced yet' : undefined}>
       <span className="shop-check" aria-hidden="true">{item.done && <CheckIcon width={20} height={20} />}</span>
       <span className="shop-row-body">
         <span className="shop-row-title">{item.title}</span>
+        {from}
         {sub && <span className="shop-row-note">{sub}</span>}
       </span>
       {item.quantity && <span className="list-item-chip">{item.quantity}</span>}
@@ -1309,7 +1318,11 @@ function ListDetailPane({ listId, isPhone, shopMode, onBack, onArchivedOrDeleted
   const inputRef = useRef<HTMLInputElement>(null)
   const { upcoming, byId } = useEventWindow(refreshTick)
 
-  const load = () => api.getList(listId).then(d => { setDetail(d); setError(false); onLoaded(d.list) }).catch(() => setError(true))
+  // On a one-store trip, the other list type's items for that store come too (alsoAtStore).
+  const load = () => {
+    const at = tripStore(listId)
+    return api.getList(listId, at && at !== ANY_STORE ? at : undefined).then(d => { setDetail(d); setError(false); onLoaded(d.list) }).catch(() => setError(true))
+  }
   // "Shopping at": a trip in one store, kept on this device only, until Checkout (or End).
   const [trip, setTrip] = useState<string | null>(() => tripStore(listId))
   useEffect(() => { setSelectedStore(null); setShowDone(false); setTrip(tripStore(listId)) }, [listId])
@@ -1384,7 +1397,10 @@ function ListDetailPane({ listId, isPhone, shopMode, onBack, onArchivedOrDeleted
     setCheckout({ ids, reset, trip, shop: shopMode, left })
     if (trip) { setTripStore(listId, null); setTrip(null); shopScroll.current = 0 } // Checkout ends the trip
     pendingCheckout.current = async () => {
-      try { await (reset ? api.resetList(listId, ids) : api.clearListCompleted(listId, ids, trip && trip !== ANY_STORE ? trip : undefined)) }
+      // A combined trip checks out each list's own ticked items.
+      const byList = new Map<string, string[]>()
+      for (const i of checked) byList.set(i.listId || listId, [...(byList.get(i.listId || listId) ?? []), i.id])
+      try { await Promise.all([...byList].map(([id, its]) => (reset ? api.resetList(id, its) : api.clearListCompleted(id, its, trip && trip !== ANY_STORE ? trip : undefined)))) }
       catch (e) { toast(e instanceof ApiError ? e.message : reset ? 'Could not reset the list' : 'Could not clear checked items', true) }
       setCheckout(null); load()
     }
@@ -1396,7 +1412,7 @@ function ListDetailPane({ listId, isPhone, shopMode, onBack, onArchivedOrDeleted
     if (checkout?.shop) enterShop() // back to the aisles
     setCheckout(null); announce('Undone')
   }
-  useEffect(() => { load() }, [listId, refreshTick]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { load() }, [listId, refreshTick, trip]) // eslint-disable-line react-hooks/exhaustive-deps
   // The iPhone app's Live Activity for the trip (liveActivity.ts): what's left and what's next, in the
   // same walking order as the aisles below, on every change; End or Checkout ends it.
   const hadTrip = useRef<string | null>(null) // the list whose trip it's showing
@@ -1405,7 +1421,8 @@ function ListDetailPane({ listId, isPhone, shopMode, onBack, onArchivedOrDeleted
     if (!trip) { if (hadTrip.current === listId) endAppActivity('shopping'); hadTrip.current = null; return }
     hadTrip.current = listId
     const order = aisleOrderMap(detail)
-    const pending = checkout && !checkout.reset ? detail.items.filter(i => !checkout.ids.includes(i.id)) : detail.items
+    const walked = [...detail.items, ...(trip !== ANY_STORE ? detail.alsoAtStore ?? [] : [])] // a combined trip counts both lists
+    const pending = checkout && !checkout.reset ? walked.filter(i => !checkout.ids.includes(i.id)) : walked
     const items = trip !== ANY_STORE ? pending : pending.map(i => (i.aisle ? i : { ...i, aisle: departmentAisle(i.category, storeAisles(detail.suggestions, i.store, order)) }))
     tellAppActivity('shopping', { list: detail.list.name, ...shoppingActivity(listId, trip, items, order, trip !== ANY_STORE ? storeAisles(detail.suggestions, trip, order) : [], reversed) })
   }, [detail, trip, checkout, listId, reversed])
@@ -1437,6 +1454,12 @@ function ListDetailPane({ listId, isPhone, shopMode, onBack, onArchivedOrDeleted
   }
 
   const toggle = async (item: ListItem) => {
+    if (item.listId && item.listId !== listId) { // the other list's, on a combined trip: ticked there
+      setDetail(d => d && { ...d, alsoAtStore: d.alsoAtStore?.map(i => (i.id === item.id ? { ...i, done: !item.done } : i)) })
+      try { await api.queueUpdateListItem(item.listId, item.id, { done: !item.done }) }
+      catch (e) { toast(e instanceof ApiError ? e.message : 'Could not update item', true); load() }
+      return
+    }
     try { showQueued(await api.queueUpdateListItem(listId, item.id, { done: !item.done })) }
     catch (e) { toast(e instanceof ApiError ? e.message : 'Could not update item', true) }
   }
@@ -1500,12 +1523,19 @@ function ListDetailPane({ listId, isPhone, shopMode, onBack, onArchivedOrDeleted
   const tripAt = activeTrip === ANY_STORE ? null : activeTrip // one store: its aisles, in its order
   const storeLabel = activeTrip === ANY_STORE ? 'Any store' : activeTrip
   const tripAisles = tripAt ? storeAisles(suggestions, tripAt, aisleOrder) : []
-  const view = !activeTrip ? null : tripAt ? tripView(pending, tripAt, aisleOrder, tripAisles, reversed) : anyStoreView(items, aisleOrder)
+  // A one-store trip also walks the other list type's items for that store, tagged with their list.
+  const also = !tripAt ? [] : (detail.alsoAtStore ?? []).filter(i => !(checkout && !checkout.reset && checkout.ids.includes(i.id)))
+  const fromTag = (item: ListItem) => {
+    const other = item.listId !== listId && also.find(i => i.id === item.id)
+    return other ? <FromTag name={other.listName} catalog={list.catalog === 'shopping' ? 'groceries' : 'shopping'} /> : undefined
+  }
+  const view = !activeTrip ? null : tripAt ? tripView([...pending, ...also], tripAt, aisleOrder, tripAisles, reversed) : anyStoreView(items, aisleOrder)
   const tripLeft = view ? [...view.aisles.flatMap(g => g.items), ...view.unknown].filter(i => !i.done).length : 0
-  const tripChecked = items.filter(i => i.done)
+  const tripChecked = [...items, ...also].filter(i => i.done)
   const tripRow = (item: ListItem, other = false) => (
     <ItemRow key={item.id} item={other || !tripAt ? item : { ...item, aisle: aisleAt(item, tripAt, tripAisles) }} kind={list.kind} groupBy={other ? 'none' : tripAt ? 'aisle' : 'store'} members={members}
-      event={item.eventId ? byId.get(item.eventId) : undefined} onToggle={() => toggle(item)} onOpen={() => openItem(item)} />
+      event={item.eventId ? byId.get(item.eventId) : undefined} onToggle={() => toggle(item)} from={fromTag(item)}
+      onOpen={() => (item.listId !== listId ? (location.hash = `#/lists?list=${encodeURIComponent(item.listId)}`) : openItem(item))} />
   )
   const tripStores = [...new Set([...suggestions.stores, ...(tripAt ? [tripAt] : [])])]
   // Checkout on a trip: at one store, anything unchecked gets a "Didn't find these?" step first.
@@ -1555,7 +1585,7 @@ function ListDetailPane({ listId, isPhone, shopMode, onBack, onArchivedOrDeleted
   )
 
   if (shopping) {
-    const row = (item: ListItem, other = false) => <ShopRow key={item.id} item={item} meta={other ? item.store : !tripAt ? item.aisle : null} onToggle={() => toggle(item)} />
+    const row = (item: ListItem, other = false) => <ShopRow key={item.id} item={item} meta={other ? item.store : !tripAt ? item.aisle : null} onToggle={() => toggle(item)} from={fromTag(item)} />
     const group = (title: string, rows: React.ReactNode, className = '') => (
       <section key={title} className={`shop-group ${className}`} aria-label={title}><h3 className="list-group-title" aria-hidden="true">{title}</h3>{rows}</section>
     )

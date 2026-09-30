@@ -119,3 +119,10 @@ test('medicationActivity: only their own doses, the earliest first, a start-of-d
   assert.equal(medicationActivity([dose()], MAYA, Date.parse(dose().until), false), null, 'the window closed')
   assert.equal(medicationActivity([dose()], MAYA, T0 - 60_000, false), null, 'not due yet')
 })
+
+test('shopping: a combined trip counts the other list\'s items too, each saying which list to tick it on', () => {
+  const i = (id: string, listId: string, title: string, aisle: string) => ({ id, listId, title, aisle, done: false, store: 'Supercenter', places: [] })
+  const a = shoppingActivity('g', 'Supercenter', [i('1', 'g', 'Milk', 'Aisle 4'), i('2', 'h', 'Batteries', 'Aisle 2')], new Map())
+  assert.equal(a.left, 2)
+  assert.deepEqual(a.upcoming, [{ id: '2', title: 'Batteries', aisle: 'Aisle 2', listId: 'h' }, { id: '1', title: 'Milk', aisle: 'Aisle 4' }])
+})

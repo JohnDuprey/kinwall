@@ -735,6 +735,9 @@ export interface ListDetail {
   groups: ListGroup[]
   suggestions: { stores: string[]; categories: string[]; aisles: { store: string | null; aisle: string }[]; items?: ItemSuggestion[] }
   aisleOrder: { store: string | null; aisles: string[] }[] // stores with a custom aisle walking order
+  /** With ?store= (a one-store trip): the other type's shopping lists' items for that store, walked on
+   * the same trip; tick and check them out on their own list (listId). */
+  alsoAtStore?: (ListItem & { listName: string })[]
 }
 
 /** POST /api/lists/{id}/items body shape - store/category are OMITTED (not sent) unless the

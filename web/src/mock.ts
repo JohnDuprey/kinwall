@@ -357,7 +357,7 @@ const completions = new Map<string, { completedAt: string; memberId: string | nu
 
 const lists: List[] = [
   { id: 'l1', name: 'Groceries', emoji: '🛒', color: '#7ED9A6', kind: 'shopping', catalog: 'groceries', memberIds: [], groupBy: 'store', sortBy: 'aisle', keepChecked: true, sort: 0, archived: false, createdAt: new Date().toISOString(), itemCount: 5, openCount: 4 },
-  { id: 'l5', name: 'Hardware store', emoji: '🔨', color: '#FFB86B', kind: 'shopping', catalog: 'shopping', memberIds: [], groupBy: 'aisle', sortBy: 'aisle', keepChecked: true, sort: 4, archived: false, createdAt: new Date().toISOString(), itemCount: 3, openCount: 2 },
+  { id: 'l5', name: 'Hardware store', emoji: '🔨', color: '#FFB86B', kind: 'shopping', catalog: 'shopping', memberIds: [], groupBy: 'aisle', sortBy: 'aisle', keepChecked: true, sort: 4, archived: false, createdAt: new Date().toISOString(), itemCount: 5, openCount: 4 },
   { id: 'l2', name: 'Weekend To-Dos', emoji: '✅', color: '#7AB8FF', kind: 'todo', memberIds: ['m1'], groupBy: 'none', sortBy: 'due', keepChecked: false, sort: 1, archived: false, createdAt: new Date().toISOString(), itemCount: 5, openCount: 4 },
   { id: 'l3', name: 'Camping Packing List', emoji: '🎒', color: '#FFD166', kind: 'reusable', memberIds: [], groupBy: 'none', sortBy: 'manual', keepChecked: true, sort: 2, archived: false, createdAt: new Date().toISOString(), itemCount: 4, openCount: 4 },
   { id: 'l4', name: 'Living room reset', emoji: '🛋️', color: '#C9A7FF', kind: 'reusable', memberIds: [], groupBy: 'none', sortBy: 'manual', keepChecked: true, sort: 3, archived: false, createdAt: new Date().toISOString(), itemCount: 3, openCount: 3 },
@@ -393,6 +393,11 @@ let listItems: ListItem[] = ([
   { id: 'li18', listId: 'l5', title: 'Wood screws', notes: null, quantity: '1 box', store: 'Home center', aisle: 'Aisle 12', category: 'Fasteners', memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 0, createdAt: iso(), updatedAt: iso() },
   { id: 'li19', listId: 'l5', title: 'Furnace filter', notes: '16x25x1', quantity: '2', store: 'Home center', aisle: 'Aisle 21', category: 'Heating', memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 1, createdAt: iso(), updatedAt: iso() },
   { id: 'li20', listId: 'l5', title: "Painter's tape", notes: null, quantity: null, store: 'Home center', aisle: 'Aisle 9', category: 'Paint', memberId: null, dueDate: null, eventId: null, done: true, doneAt: iso(), doneBy: 'm1', sort: 2, createdAt: iso(), updatedAt: iso() },
+  // A supercenter trip walks both lists: a few things for each.
+  { id: 'li21', listId: 'l1', title: 'Cereal', notes: null, quantity: '2 boxes', store: 'Supercenter', aisle: 'Aisle 7', category: 'Breakfast', memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 30, createdAt: iso(), updatedAt: iso() },
+  { id: 'li22', listId: 'l1', title: 'Sparkling water', notes: null, quantity: '12 pack', store: 'Supercenter', aisle: 'Aisle 12', category: 'Drinks', memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 31, createdAt: iso(), updatedAt: iso() },
+  { id: 'li23', listId: 'l5', title: 'Extension cord', notes: null, quantity: null, store: 'Supercenter', aisle: 'Aisle 21', category: 'Electrical', memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 3, createdAt: iso(), updatedAt: iso() },
+  { id: 'li24', listId: 'l5', title: 'Storage bins', notes: null, quantity: '3', store: 'Supercenter', aisle: 'Aisle 9', category: 'Storage', memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 4, createdAt: iso(), updatedAt: iso() },
   { id: 'li17', listId: 'l4', title: 'Clear the coffee table', notes: null, quantity: null, store: null, category: null, memberId: 'm2', dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 2, createdAt: iso(), priority: 'low', updatedAt: iso() },
 ] as SeedItem[]).map(seedItem)
 // A starter grocery run for the meal fixtures; projection can still add the week's full quantities.
@@ -1068,7 +1073,7 @@ export const mock = {
     }
     lists.push(nl); bump(); return nl
   },
-  getList: async (id: string) => {
+  getList: async (id: string, store?: string) => {
     const l = lists.find(x => x.id === id); if (!l) throw new Error('not found')
     const order = aisleOrderMap({ aisleOrder })
     const items = listItems.filter(i => i.listId === id).sort(compareItems(l.sortBy, dateKey(new Date()), { keepChecked: l.keepChecked, aisleOrder: order }))
@@ -1082,7 +1087,12 @@ export const mock = {
       .map(a => [`${a.store}|${a.aisle}`, a])).values()]
     // Like the server: suggestions only on shopping lists.
     const suggestions = l.kind === 'shopping' ? { stores, categories, aisles, items: nameSuggestions(catalogOf(id)) } : { stores: [], categories: [], aisles: [] }
-    return { list: l, items, groups, suggestions, aisleOrder }
+    // A one-store trip: the other type's lists' items for that store (the server's alsoAtStore, roughly).
+    const alsoAtStore = !store || l.kind !== 'shopping' ? undefined : lists
+      .filter(o => o.id !== id && o.kind === 'shopping' && !o.archived && catalogOf(o.id) !== catalogOf(id))
+      .flatMap(o => listItems.filter(i => i.listId === o.id && (i.store === store || (!i.store && placesOf(i.title, catalogOf(o.id)).some(p => p.store === store))))
+        .map(i => ({ ...i, listName: o.name, places: placesOf(i.title, catalogOf(o.id)).filter(p => p.store === store) })))
+    return { list: l, items, groups, suggestions, aisleOrder, ...(alsoAtStore ? { alsoAtStore } : {}) }
   },
   updateList: async (id: string, patch: Partial<List>) => {
     const l = lists.find(x => x.id === id); if (!l) throw new Error('not found')

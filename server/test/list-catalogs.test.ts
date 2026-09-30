@@ -223,3 +223,38 @@ test('migration 0076: a family with one shopping list keeps it as Groceries, wha
   applyMigrations(db, MIGRATIONS_DIR);
   assert.equal(db.prepare("SELECT catalog FROM lists WHERE id = 'only'").first<{ catalog: string }>()!.catalog, 'groceries');
 });
+
+test('combined trip: a trip at a store also walks the other type\'s items for that store', async () => {
+  const { send, groceries, hardware } = await twoLists();
+  await send('POST', `/api/lists/${groceries.id}/items`, [{ title: 'Bread', store: 'Supercenter', aisle: 'Aisle 4' }]);
+  await send('POST', '/api/lists/remembered?catalog=shopping', { title: 'Tape', places: [{ store: 'Supercenter', aisle: 'Aisle 9' }] });
+  const [batteries] = await send('POST', `/api/lists/${hardware.id}/items`, [{ title: 'Batteries', store: 'Supercenter', aisle: 'Aisle 2' }, { title: 'Tape', store: null }, { title: 'Glue', store: null }]);
+
+  const trip = await send('GET', `/api/lists/${groceries.id}?store=Supercenter`);
+  // Planned for Supercenter, or found there before (Tape); Glue (anywhere, never seen there) and the Home Center hammer stay off.
+  assert.deepEqual(trip.alsoAtStore.map((i: any) => [i.title, i.listId, i.listName, i.places]), [
+    ['Batteries', hardware.id, 'Hardware store', [{ store: 'Supercenter', aisle: 'Aisle 2' }]],
+    ['Tape', hardware.id, 'Hardware store', [{ store: 'Supercenter', aisle: 'Aisle 9' }]],
+  ]);
+  assert.deepEqual(trip.trip.items.map((i: any) => [i.title, i.aisle, i.section, i.listName ?? null]), [
+    ['Batteries', 'Aisle 2', 'aisle', 'Hardware store'],
+    ['Bread', 'Aisle 4', 'aisle', null],
+    ['Tape', 'Aisle 9', 'aisle', 'Hardware store'],
+    ['Milk', 'Aisle 4', 'other', null],
+  ]);
+  assert.equal(trip.items.length, 2); // the list's own items are unchanged
+  assert.equal((await send('GET', `/api/lists/${groceries.id}`)).alsoAtStore, undefined);
+  assert.deepEqual((await send('GET', `/api/lists/${groceries.id}?store=Market`)).alsoAtStore, []);
+  // The other way round too.
+  assert.deepEqual((await send('GET', `/api/lists/${hardware.id}?store=Supercenter`)).alsoAtStore.map((i: any) => i.title), ['Bread']);
+
+  // Checkout at the end of the trip: each list's ticked items go, remembered at Supercenter in their own catalog.
+  const bread = trip.items.find((i: any) => i.title === 'Bread');
+  await send('PATCH', `/api/lists/${groceries.id}/items/${bread.id}`, { done: true });
+  await send('PATCH', `/api/lists/${hardware.id}/items/${batteries.id}`, { done: true });
+  await send('POST', `/api/lists/${groceries.id}/clear-completed`, { itemIds: [bread.id], store: 'Supercenter' });
+  await send('POST', `/api/lists/${hardware.id}/clear-completed`, { itemIds: [batteries.id], store: 'Supercenter' });
+  assert.deepEqual((await send('GET', `/api/lists/${groceries.id}`)).items.map((i: any) => i.title), ['Milk']);
+  assert.deepEqual((await send('GET', `/api/lists/${hardware.id}`)).items.map((i: any) => i.title).sort(), ['Glue', 'Hammer', 'Tape']);
+  assert.deepEqual((await send('GET', '/api/lists/remembered?catalog=shopping')).find((i: any) => i.title === 'Batteries').lastStore, 'Supercenter');
+});

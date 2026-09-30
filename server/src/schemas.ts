@@ -740,6 +740,8 @@ export const ListTripSchema = z
         store: z.string().nullable(),
         aisle: z.string().nullable(),
         section: z.enum(['aisle', 'unknown', 'other']),
+        listId: z.string().optional().openapi({ description: 'Set on an item from another list (alsoAtStore): tick it there.' }),
+        listName: z.string().optional(),
       }),
     ),
   })
@@ -774,6 +776,13 @@ export const ListDetailSchema = z
     // Stores whose aisles have a custom walking order (aisle sort and grouping follow it).
     aisleOrder: z.array(z.object({ store: z.string().nullable(), aisles: z.array(z.string()) })),
     trip: ListTripSchema.optional(),
+    alsoAtStore: z
+      .array(ListItemSchema.extend({ listName: z.string(), places: z.array(z.object({ store: z.string().nullable(), aisle: z.string().nullable() })) }))
+      .optional()
+      .openapi({
+        description:
+          "With ?store= on a shopping list: items on the other type's shopping lists (a Groceries trip gets Shopping lists' items, and the other way round) planned for that store, or for anywhere and found there before, with the place there. Each has its listId and listName: tick and check them out on that list. Archived lists are left out.",
+      }),
   })
   .openapi('ListDetail');
 

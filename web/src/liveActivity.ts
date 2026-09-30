@@ -35,8 +35,9 @@ export function timerActivity(timers: ActivityTimer[]): TimerActivity | null {
 
 // ---- A shopping trip (Lists, shopping mode) ----
 
-type TripItem = Pick<ListItem, 'id' | 'title' | 'done' | 'store' | 'aisle' | 'places'> & { category?: string | null }
-export type ShoppingEntry = { id: string; title: string; aisle: string | null }
+type TripItem = Pick<ListItem, 'id' | 'title' | 'done' | 'store' | 'aisle' | 'places'> & { category?: string | null; listId?: string }
+/** listId: set on an item from another list (a combined Groceries + Shopping trip): tick it there. */
+export type ShoppingEntry = { id: string; title: string; aisle: string | null; listId?: string }
 export type ShoppingActivity = { listId: string; store: string; left: number; next: ShoppingEntry | null; upcoming: ShoppingEntry[] }
 
 /** How many are left and what's next, in the trip's walking order (trip.ts): so "Got it" on the
@@ -45,7 +46,7 @@ export type ShoppingActivity = { listId: string; store: string; left: number; ne
 export function shoppingActivity(listId: string, store: string, items: TripItem[], order: AisleOrder, storeAisles: string[] = [], reverse = false): ShoppingActivity {
   const view = store === ANY_STORE ? anyStoreView(items, order) : tripView(items, store, order, storeAisles, reverse)
   const walk = [...view.aisles.flatMap(g => g.items.map(i => ({ i, aisle: store === ANY_STORE ? i.aisle ?? null : g.aisle }))), ...view.unknown.map(i => ({ i, aisle: null }))].filter(x => !x.i.done)
-  const upcoming = walk.slice(0, 5).map(({ i, aisle }) => ({ id: i.id, title: i.title, aisle }))
+  const upcoming = walk.slice(0, 5).map(({ i, aisle }) => ({ id: i.id, title: i.title, aisle, ...(i.listId && i.listId !== listId ? { listId: i.listId } : {}) }))
   return { listId, store: store === ANY_STORE ? 'Any store' : store, left: walk.length, next: upcoming[0] ?? null, upcoming }
 }
 
