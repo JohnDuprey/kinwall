@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
+import { compress } from 'hono/compress';
 import { createKinwall } from './entry.ts';
 import type { Env } from './env.ts';
 import { syncIntervalMinutes } from './env.ts';
@@ -152,6 +153,10 @@ if (existsSync(WEB_DIST)) {
     if (RESERVED_PATH.test(c.req.path) || c.res.headers.has('Cache-Control')) return;
     c.res.headers.set('Cache-Control', c.req.path.startsWith('/assets/') ? 'public, max-age=31536000, immutable' : 'no-cache');
   });
+  // The web app gzipped (about a quarter of the bytes): Node has no CDN in front to do it. Not
+  // /api/*: those answers are small and polled often.
+  const gzip = compress();
+  app.use('*', (c, next) => (RESERVED_PATH.test(c.req.path) ? next() : gzip(c, next)));
   app.use('*', serveStatic({ root: WEB_DIST }));
 }
 app.get('*', (c) => {
