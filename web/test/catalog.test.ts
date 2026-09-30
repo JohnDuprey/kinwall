@@ -1,7 +1,7 @@
 // node --test test/ (npm test). The grocery catalog's search, store filter and labels.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { boughtLabel, catalogDepartments, catalogStores, catalogTags, filterCatalog, groupCatalog, placeLabel, placesFor, placesInput, sortCatalog, tagsInput } from '../src/catalog.ts'
+import { activeCatalogFilters, boughtLabel, catalogDepartments, catalogFilterSummary, catalogStores, catalogTags, filterCatalog, groupCatalog, placeLabel, placesFor, placesInput, sortCatalog, tagsInput } from '../src/catalog.ts'
 import { itemKey } from '../src/itemSuggest.ts'
 import type { RememberedItem } from '../src/types.ts'
 
@@ -88,4 +88,18 @@ test('groupCatalog: by department or category (an item under each of its categor
 
 test('tagsInput: trimmed, blanks dropped, each once ignoring case, the family spelling kept', () => {
   assert.deepEqual(tagsInput([' Snacks ', 'snacks', '', 'lunchbox', 'New  one'], ['Lunchbox']), ['Snacks', 'Lunchbox', 'New one'])
+})
+
+test('activeCatalogFilters and catalogFilterSummary: the badge count and the line above the items', () => {
+  const none = { store: null, tag: null, department: null }
+  const alpha = { sort: 'alpha', group: 'none' } as const
+  assert.equal(activeCatalogFilters(none), 0)
+  assert.equal(catalogFilterSummary(none, { sort: 'bought', group: 'department' }), '')
+  const f = { store: 'Market', tag: 'Breakfast', department: null }
+  assert.equal(activeCatalogFilters(f), 2)
+  assert.equal(activeCatalogFilters({ ...f, department: 'Dairy' }), 3)
+  assert.equal(catalogFilterSummary(f, alpha), 'Market · Breakfast')
+  assert.equal(catalogFilterSummary(f, { sort: 'bought', group: 'none' }), 'Market · Breakfast · Most bought')
+  assert.equal(catalogFilterSummary(f, { sort: 'aisle', group: 'category' }), 'Market · Breakfast · Aisle at Market · By category')
+  assert.equal(catalogFilterSummary({ ...none, department: 'Dairy' }, { sort: 'recent', group: 'department' }), 'Dairy · Recently used · By department')
 })

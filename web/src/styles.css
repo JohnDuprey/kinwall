@@ -1376,25 +1376,23 @@ button {
 .manage-row .btn { flex: none; width: auto; min-height: 44px; }
 .manage-row .icon-btn { background: none; box-shadow: none; width: 44px; height: 44px; flex-shrink: 0; }
 .list-actions .list-catalog-btn { padding: 8px 14px; }
-/* The grocery catalog: search + New, store chips, then a row per item (tap to edit, + to add to the list). */
+/* The grocery catalog: search, Filter & sort and New, a one-line summary of the filters, then a row per
+   item (tap to edit, + to add to the list). */
 .catalog-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
 .catalog-bar .manage-find { flex: 1; min-width: 0; margin: 0; }
 .catalog-bar .btn { flex: none; width: auto; min-height: 44px; }
-/* Store and category chips: one row each that scrolls sideways, so the items stay in view on a phone. */
-.catalog-chips { flex-wrap: nowrap; overflow-x: auto; margin-bottom: 8px; padding-bottom: 2px; }
-.catalog-chips .chip { flex: none; white-space: nowrap; }
-.catalog-options-btn { position: relative; }
 .catalog-tag-picks { margin-bottom: 12px; }
-@media (max-width: 480px) { .catalog-bar .btn { padding-left: 12px; padding-right: 12px; } }
+/* On a phone Filter & sort is its icon (and count), so the search keeps room to type. */
+@media (max-width: 480px) { .catalog-bar .btn { padding-left: 12px; padding-right: 12px; } .catalog-options-label { display: none; } }
 .catalog-options-on { min-width: 20px; height: 20px; padding: 0 5px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-size: 0.75rem; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; }
 .chip-count { font-weight: 700; color: var(--text-dim); font-variant-numeric: tabular-nums; }
-/* Department filter, sort and group: compact selects that wrap on a phone. */
-.catalog-view { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0 var(--gap); margin-bottom: 4px; }
-.catalog-view .field { flex: 1 1 140px; min-width: 0; margin-bottom: 10px; }
-.catalog-view .field label { font-size: 0.8125rem; }
+.catalog-summary { display: flex; align-items: center; gap: 12px; margin: -6px 0 4px; }
+.catalog-summary .filter-summary { flex: 0 1 auto; min-width: 0; }
+.catalog-summary .link-btn { flex: none; }
+/* The Filter & sort sheet: chip sections, then sort and group as selects side by side (stacked on a phone). */
+.catalog-view { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0 var(--gap); margin-top: 16px; }
+.catalog-view .field { flex: 1 1 180px; min-width: 0; }
 .catalog-view .settings-select { width: 100%; }
-.catalog-view .link-btn { flex: none; margin-bottom: 10px; }
-.catalog-view { padding: var(--gap) 0 0; border-top: 1px solid var(--border); }
 .catalog-group { display: flex; align-items: baseline; gap: 6px; margin-top: calc(var(--gap) * 1.5); }
 .catalog-group-count { font-weight: 700; letter-spacing: 0; }
 .catalog-row { display: flex; align-items: center; gap: 6px; border-top: 1px solid var(--border); }

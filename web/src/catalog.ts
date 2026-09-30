@@ -56,6 +56,21 @@ export function sortCatalog(items: RememberedItem[], sort: CatalogSort, store: s
   return [...items].sort((a, b) => cmp(a, b) || byName(a.title, b.title))
 }
 
+export const CATALOG_SORT_LABELS: Record<CatalogSort, string> = { alpha: 'A–Z', bought: 'Most bought', department: 'Department', aisle: 'Aisle', recent: 'Recently used' }
+export const CATALOG_GROUP_LABELS: Record<CatalogGroup, string> = { none: 'None', department: 'Department', category: 'Category' }
+export type CatalogFilters = { store: string | null; tag: string | null; department: string | null }
+
+/** How many of store, category and department are picked (the Filter & sort button's badge). */
+export const activeCatalogFilters = (f: CatalogFilters) => [f.store, f.tag, f.department].filter(Boolean).length
+
+/** The line above the items: "Shaws · Breakfast · Most bought" (the sort and grouping only when not the
+ * default); empty when nothing is filtered. */
+export function catalogFilterSummary(f: CatalogFilters, view: { sort: CatalogSort; group: CatalogGroup }): string {
+  if (!activeCatalogFilters(f)) return ''
+  const sort = view.sort === 'alpha' ? null : view.sort === 'aisle' && f.store ? `Aisle at ${f.store}` : CATALOG_SORT_LABELS[view.sort]
+  return [f.store, f.tag, f.department, sort, view.group === 'none' ? null : `By ${CATALOG_GROUP_LABELS[view.group].toLowerCase()}`].filter(Boolean).join(' · ')
+}
+
 /** Sections for the list: one untitled section, or one per department / category (an item with
  * several categories is under each), A-Z with "No department" / "No category" last. Keeps the order. */
 export function groupCatalog(items: RememberedItem[], by: CatalogGroup): { name: string | null; items: RememberedItem[] }[] {

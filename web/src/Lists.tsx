@@ -26,7 +26,7 @@ import { shoppingActivity } from './liveActivity.ts'
 import { endAppActivity, tellAppActivity } from './native.ts'
 import { itemKey, matchItems } from './itemSuggest.ts'
 import { listSections, reorderWithin } from './listSections.ts'
-import { boughtLabel, catalogDepartments, catalogStores, catalogTags, catalogView, filterCatalog, groupCatalog, placeLabel, placesFor, placesInput, setCatalogView, sortCatalog, STARTER_TAGS, tagsInput, type CatalogGroup, type CatalogSort } from './catalog.ts'
+import { activeCatalogFilters, boughtLabel, CATALOG_GROUP_LABELS, CATALOG_SORT_LABELS, catalogDepartments, catalogFilterSummary, catalogStores, catalogTags, catalogView, filterCatalog, groupCatalog, placeLabel, placesFor, placesInput, setCatalogView, sortCatalog, STARTER_TAGS, tagsInput, type CatalogGroup, type CatalogSort } from './catalog.ts'
 
 const KIND_LABEL: Record<ListKind, string> = { todo: 'To-do', shopping: 'Shopping', reusable: 'Reusable' }
 
@@ -927,7 +927,8 @@ function ManageValuesSheet({ suggestions, aisleOrder, onClose, onChanged, onCata
 
 /** The grocery catalog: everything the family has bought before, its department, the family's own
  * categories and where it's found at each store. Search; filter by store, category and department
- * (they combine); sort and group (kept per device); add one to this list, or tap it to edit (a sheet in place). */
+ * (they combine) and sort and group (kept per device) in the Filter & sort sheet, which applies live over it;
+ * add one to this list, or tap it to edit (a sheet in place). */
 function GroceryCatalog({ listId, listName, onList, suggestions, aisleOrder, onClose, onChanged }: {
   listId: string; listName: string; onList: Set<string>; suggestions: ListDetail['suggestions']; aisleOrder: AisleOrder
   onClose: () => void; onChanged: () => void // onChanged: this list (and its pickers) may have changed
@@ -939,7 +940,7 @@ function GroceryCatalog({ listId, listName, onList, suggestions, aisleOrder, onC
   const [tag, setTag] = useState<string | null>(null)
   const [department, setDepartment] = useState<string | null>(null)
   const [view, setView] = useState(catalogView)
-  const [options, setOptions] = useState(false) // the sort & filter panel
+  const [filtering, setFiltering] = useState(false) // the Filter & sort sheet, over this one
   const [editing, setEditing] = useState<RememberedItem | 'new' | 'tags' | null>(null)
   const load = () => api.getRemembered().then(setItems).catch(() => { setItems([]); toast('Could not load the catalog', true) })
   useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -952,6 +953,10 @@ function GroceryCatalog({ listId, listName, onList, suggestions, aisleOrder, onC
   const shown = sortCatalog(filterCatalog(all, query, atStore, { tag: onlyTag, department: onlyDept }), sort, atStore, aisleOrder)
   const sections = groupCatalog(shown, view.group)
   const changeView = (next: Partial<typeof view>) => { const v = { ...view, ...next }; setView(v); setCatalogView(v) }
+  const filters = { store: atStore, tag: onlyTag, department: onlyDept }
+  const active = activeCatalogFilters(filters)
+  const summary = catalogFilterSummary(filters, { sort, group: view.group })
+  const clearFilters = () => { setStore(null); setTag(null); setDepartment(null) }
   const add = async (i: RememberedItem) => {
     // Filtered to a store: planned for it (its aisle there comes along); else wherever it was last bought.
     try { await api.queueAddListItem(listId, { title: i.title, ...(atStore ? { store: atStore } : {}) }); announce(`Added ${i.title} to ${listName}`); onChanged() }
@@ -989,54 +994,60 @@ function GroceryCatalog({ listId, listName, onList, suggestions, aisleOrder, onC
     <Sheet title="Grocery catalog" onClose={onClose} actions={<button className="btn btn-primary" onClick={onClose}>Done</button>}>
       <div className="catalog-bar">
         <input type="search" className="manage-find" value={query} onChange={e => setQuery(e.target.value)} placeholder="Find an item…" aria-label="Find an item" autoComplete="off" />
-        <button className="btn btn-secondary catalog-options-btn" onClick={() => setOptions(!options)} aria-expanded={options} aria-controls="catalog-view"
-          aria-label={`Sort and filter${onlyDept ? ', 1 filter on' : ''}`}>
-          <FilterIcon width={18} height={18} />Sort{onlyDept && <span className="catalog-options-on" aria-hidden="true">1</span>}
+        <button className="btn btn-secondary catalog-options-btn" onClick={() => setFiltering(true)} aria-haspopup="dialog" title="Filter & sort"
+          aria-label={`Filter and sort${active ? `, ${active} ${active === 1 ? 'filter' : 'filters'} on` : ''}`}>
+          <FilterIcon width={18} height={18} /><span className="catalog-options-label">Filter & sort</span>{active > 0 && <span className="catalog-options-on" aria-hidden="true">{active}</span>}
         </button>
         <button className="btn btn-secondary" onClick={() => setEditing('new')}><PlusIcon width={18} height={18} />New</button>
       </div>
-      {options && (
-        <div className="catalog-view" id="catalog-view">
-          {departments.length > 0 && (
+      {summary && (
+        <div className="catalog-summary">
+          <button className="filter-summary" onClick={() => setFiltering(true)} aria-label={`Filters: ${summary}. Change filters`}>{summary}</button>
+          <button className="link-btn" onClick={clearFilters}>Clear</button>
+        </div>
+      )}
+      {filtering && (
+        <Sheet title="Filter & sort" onClose={() => setFiltering(false)} actions={<>
+          <button className="btn btn-secondary" disabled={!active && sort === 'alpha' && view.group === 'none'} onClick={() => { clearFilters(); changeView({ sort: 'alpha', group: 'none' }) }}>Reset</button>
+          <button className="btn btn-primary" onClick={() => setFiltering(false)}>Done</button>
+        </>}>
+          {stores.length > 0 && <>
+            <h3 className="manage-head">Store</h3>
+            <div className="chip-row" role="group" aria-label="Store">
+              {[null, ...stores].map(st => chip(st ?? 'All stores', atStore === st, () => setStore(st)))}
+            </div>
+          </>}
+          {tags.length > 0 && <>
+            <h3 className="manage-head">Category</h3>
+            <div className="chip-row" role="group" aria-label="Category">
+              {chip('All categories', !onlyTag, () => setTag(null))}
+              {tags.map(t => chip(t.name, onlyTag === t.name, () => setTag(onlyTag === t.name ? null : t.name), t.count))}
+            </div>
+          </>}
+          {departments.length > 0 && <>
+            <h3 className="manage-head">Department</h3>
+            <div className="chip-row" role="group" aria-label="Department">
+              {chip('All departments', !onlyDept, () => setDepartment(null))}
+              {departments.map(d => chip(d.name, onlyDept === d.name, () => setDepartment(onlyDept === d.name ? null : d.name), d.count))}
+            </div>
+          </>}
+          <div className="catalog-view">
             <div className="field">
-              <label htmlFor="catalog-dept">Department</label>
-              <select id="catalog-dept" className="settings-select" value={onlyDept ?? ''} onChange={e => setDepartment(e.target.value || null)}>
-                <option value="">All departments</option>
-                {departments.map(d => <option key={d.name} value={d.name}>{d.name} ({d.count})</option>)}
+              <label htmlFor="catalog-sort">Sort</label>
+              <select id="catalog-sort" className="settings-select" value={sort} onChange={e => changeView({ sort: e.target.value as CatalogSort })}>
+                {(Object.keys(CATALOG_SORT_LABELS) as CatalogSort[]).filter(k => k !== 'aisle' || atStore).map(k =>
+                  <option key={k} value={k}>{k === 'aisle' ? `Aisle at ${atStore}` : CATALOG_SORT_LABELS[k]}</option>)}
               </select>
             </div>
-          )}
-          <div className="field">
-            <label htmlFor="catalog-sort">Sort</label>
-            <select id="catalog-sort" className="settings-select" value={sort} onChange={e => changeView({ sort: e.target.value as CatalogSort })}>
-              <option value="alpha">A–Z</option>
-              <option value="bought">Most bought</option>
-              <option value="department">Department</option>
-              {atStore && <option value="aisle">Aisle at {atStore}</option>}
-              <option value="recent">Recently used</option>
-            </select>
+            <div className="field">
+              <label htmlFor="catalog-group">Group by</label>
+              <select id="catalog-group" className="settings-select" value={view.group} onChange={e => changeView({ group: e.target.value as CatalogGroup })}>
+                {(Object.keys(CATALOG_GROUP_LABELS) as CatalogGroup[]).map(k => <option key={k} value={k}>{CATALOG_GROUP_LABELS[k]}</option>)}
+              </select>
+            </div>
           </div>
-          <div className="field">
-            <label htmlFor="catalog-group">Group by</label>
-            <select id="catalog-group" className="settings-select" value={view.group} onChange={e => changeView({ group: e.target.value as CatalogGroup })}>
-              <option value="none">None</option>
-              <option value="department">Department</option>
-              <option value="category">Category</option>
-            </select>
-          </div>
-          {parentDevice && <button className="link-btn" onClick={() => setEditing('tags')}>Edit categories</button>} {/* renaming or removing one everywhere is parents only */}
-        </div>
-      )}
-      {stores.length > 0 && (
-        <div className="chip-row catalog-chips" role="group" aria-label="Store">
-          {[null, ...stores].map(st => chip(st ?? 'All stores', atStore === st, () => setStore(st)))}
-        </div>
-      )}
-      {tags.length > 0 && (
-        <div className="chip-row catalog-chips" role="group" aria-label="Category">
-          {chip('All categories', !onlyTag, () => setTag(null))}
-          {tags.map(t => chip(t.name, onlyTag === t.name, () => setTag(onlyTag === t.name ? null : t.name), t.count))}
-        </div>
+          {parentDevice && <button className="link-btn" onClick={() => { setFiltering(false); setEditing('tags') }}>Edit categories</button>} {/* renaming or removing one everywhere is parents only */}
+        </Sheet>
       )}
       {items === null ? <p className="list-item-meta">Loading…</p>
         : !shown.length ? <p className="list-item-meta">{items.length ? (query.trim() ? 'Nothing by that name.' : 'Nothing matches these filters.') : 'Nothing yet. Items you add to a shopping list show up here.'}</p>

@@ -102,15 +102,17 @@ On a shopping list, the add bar (and **Add an item** in [Shopping mode](#shoppin
 Tap **Catalog** on a shopping list to see everything your family has bought before, A to Z, with its department, its categories (🏷️), how many times it was bought, and where it's found at each store ("Warehouse club · Aisle 12", "Neighborhood market · Dairy").
 
 * **Find an item** searches names; capitals and simple plurals don't matter.
-* The store chips (**All stores**, then each store) show only what's found at that store.
-* The category chips (**All categories**, then each category with how many items are in it) show only that category. Swipe a chip row sideways to see more.
-* **Sort** opens the sort and filter options:
-  * **Department** shows only one department (the button shows **1** while it's on).
-  * **Sort**: **A–Z**, **Most bought**, **Department**, **Aisle at** the store (with a store chip picked, in the order you walk it; items not found there go last) or **Recently used**.
+* **Filter & sort** opens a sheet with everything that narrows or orders the list. Changes show in the catalog behind it right away; tap **Done** when you're finished. The button shows how many filters are on (**2**, say).
+  * **Store** (**All stores**, then each store) shows only what's found at that store.
+  * **Category** (**All categories**, then each category with how many items are in it) shows only that category.
+  * **Department** (**All departments**, then each department with its count) shows only that department.
+  * **Sort**: **A–Z**, **Most bought**, **Department**, **Aisle at** the store (with a store picked, in the order you walk it; items not found there go last) or **Recently used**.
   * **Group by**: **Department** or **Category**, with a heading and count for each. An item in several categories is listed under each one; items with none are under **No department** or **No category** at the end.
-  * **Edit categories** renames or removes a category on every item that has it.
+  * **Reset** clears the filters and goes back to A–Z with no grouping.
+  * **Edit categories** (on a parent's device) renames or removes a category on every item that has it.
   * Sort and grouping are kept on this device. Search, store, category and department all apply together.
-* **+** adds it to the list you opened the catalog from, with its remembered store, department and aisle. With a store chip picked, it's planned for that store. Things already on the list show **On list** instead.
+* While a filter is on, one line above the items sums it up ("Neighborhood market · Breakfast · Most bought"). Tap it to change the filters, or tap **Clear** to show everything again.
+* **+** adds it to the list you opened the catalog from, with its remembered store, department and aisle. With a store picked, it's planned for that store. Things already on the list show **On list** instead.
 * Tap an item to edit it: its **Name** (a respelling, or a new name), its **Department**, its **Categories**, and its **Stores**, each with the aisle it's in there (**Not known** when you don't know yet). **Add a store** adds another; the trash button next to a store forgets it there. **Save** keeps the changes, and the next time anyone adds it to a list it lands in the right aisle. An aisle you type here shows up in that store's aisle picker, like one saved on an item.
 * **Categories** are your family's own groupings, apart from the store department: Breakfast, Snacks, Lunchbox, Pantry staples, Cleaning, Baby, Pet, or anything you like. An item can have up to 10. Tap a category chip to add or remove it, or type a **New category** (your family's categories are suggested as you type) and tap **Add**. Until your family has any, a few starters are offered; none are added unless you tap them. Capitals don't matter: "snacks" joins Snacks.
 * **New** adds something to the catalog without putting it on a list, so it's suggested and lands in the right aisle the first time.
