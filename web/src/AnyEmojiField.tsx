@@ -21,7 +21,7 @@ export function AnyEmojiField({ value, onChange, allowInitials }: { value: strin
           enterKeyHint="done"
           aria-invalid={!!error || undefined}
           aria-describedby={error ? errorId : undefined}
-          placeholder="Tap here, then 😀 on the keyboard"
+          placeholder="Type or paste one"
           value={draft}
           onChange={e => {
             const raw = e.target.value.trim()
