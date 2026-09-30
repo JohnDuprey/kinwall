@@ -339,3 +339,42 @@ test('recipe share: the JSON-LD still reads for other apps', async () => {
     { text: '', bullets: ['Sear the chicken.', 'Skin side down.', 'Flip once.'] },
   ]);
 });
+
+test('recipe share: a stored source that is not a web address is left off, never a link', async () => {
+  const { db, json, request } = fixture();
+  const recipe = await json('/api/recipes', 'POST', { name: 'Old toast', ingredients: [], steps: [{ text: 'Toast it.' }] });
+  const share = await json(`/api/recipes/${recipe.id}/share`, 'POST');
+  // Rows written before sources were checked (or restored by hand) can hold anything.
+  for (const bad of ['not a url', 'javascript:alert(1)', 'data:text/html,<b>x</b>']) {
+    await db.prepare('UPDATE recipes SET source_url = ? WHERE id = ?').bind(bad, recipe.id).run();
+    const res = await request(`/r/${share.token}`, 'GET', undefined, '');
+    assert.equal(res.status, 200, bad);
+    const html = await res.text();
+    assert.ok(!/href="(javascript|data):/i.test(html), bad);
+    assert.ok(!html.includes('<p class="src">'), bad);
+    assert.equal(parseRecipeHtml(html, share.url)!.sourceUrl, share.url, 'the page itself is the source');
+  }
+});
+
+test('recipe share: amounts read like the app (fractions, plural units); a basic says how much it makes', async () => {
+  const { json, request } = fixture();
+  const recipe = await json('/api/recipes', 'POST', { name: 'Pie crust', kind: 'basic', makes: '2 crusts', defaultServings: 8,
+    ingredients: [{ name: 'Flour', quantity: 2.5, unit: 'cup' }, { name: 'Sugar', quantity: 1 / 3, unit: 'cup' }, { name: 'Water', quantity: 2, unit: 'tablespoon' }, { name: 'Butter', quantity: 8, unit: 'oz' }] });
+  const share = await json(`/api/recipes/${recipe.id}/share`, 'POST');
+  const html = await (await request(`/r/${share.token}`, 'GET', undefined, '')).text();
+  for (const line of ['2½ cups Flour', '⅓ cup Sugar', '2 tablespoons Water', '8 oz Butter']) assert.ok(html.includes(`<li>${line}</li>`), line);
+  assert.match(html, /<p class="facts">Makes 2 crusts<\/p>/);
+  // The data for other apps keeps the plain numbers.
+  const ld = JSON.parse(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(html)![1]);
+  assert.equal(ld.recipeIngredient[1], '0.333 cup Sugar');
+});
+
+test('recipe share: a photo that cannot be fetched (not https) is left off the page and the preview', async () => {
+  const { json, request } = fixture();
+  const recipe = await json('/api/recipes', 'POST', { name: 'Toast', imageUrl: 'http://example.com/toast.jpg', ingredients: [], steps: [{ text: 'Toast it.', imageUrl: 'http://example.com/s.jpg' }] });
+  const share = await json(`/api/recipes/${recipe.id}/share`, 'POST');
+  const html = await (await request(`/r/${share.token}`, 'GET', undefined, '')).text();
+  assert.doesNotMatch(html, /<img/);
+  assert.doesNotMatch(html, /og:image/);
+  assert.match(html, /<meta name="twitter:card" content="summary">/);
+});

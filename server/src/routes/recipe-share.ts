@@ -78,12 +78,22 @@ const jsonScript = (v: unknown) => JSON.stringify(v).replace(/</g, '\\u003c').re
 const qty = (n: number) => String(Number(n.toFixed(3)));
 const ingredientLine = (i: Recipe['ingredients'][number]) =>
   [i.quantity !== null ? qty(i.quantity) : '', i.unit, i.name, i.qualifier].filter(Boolean).join(' ') + (i.preparation ? `, ${i.preparation}` : '');
+// The page's own lines read like the app's (web/src/meal-date.ts): "2½ cups", "⅓ cup", "8 oz"; the data
+// blocks keep ingredientLine's plain numbers for other apps.
+const FRACTIONS: Record<string, string> = { '0.125': '⅛', '0.250': '¼', '0.333': '⅓', '0.375': '⅜', '0.500': '½', '0.625': '⅝', '0.667': '⅔', '0.750': '¾', '0.875': '⅞' };
+const amount = (n: number) => { const whole = Math.floor(n), f = FRACTIONS[(n - whole).toFixed(3)]; return f ? `${whole || ''}${f}` : String(Number(n.toFixed(2))); };
+const ABBREVIATED = /^(oz|fl\.? ?oz|tsp|tbsp|tbs|lbs?|g|kg|mg|ml|l|doz|pt|qt|gal)\.?$/i;
+const unitFor = (n: number | null, unit: string) => (n === null || n <= 1 || ABBREVIATED.test(unit) || /s$/i.test(unit) ? unit : /(ch|sh|x)$/i.test(unit) ? `${unit}es` : `${unit}s`);
+const shownLine = (i: Recipe['ingredients'][number]) =>
+  [i.quantity !== null ? amount(i.quantity) : '', i.unit && unitFor(i.quantity, i.unit), i.name, i.qualifier].filter(Boolean).join(' ') + (i.preparation ? `, ${i.preparation}` : '');
+/** A web address, or null: rows written before sources were checked can hold anything. */
+const web = (url: string | null | undefined) => { try { return url && /^https?:$/.test(new URL(url).protocol) ? url : null; } catch { return null; } };
 const minutes = (m: number) => (m >= 60 ? `${Math.floor(m / 60)} hr${m % 60 ? ` ${m % 60} min` : ''}` : `${m} min`);
-type ShownStep = { title: string | null; text: string; bullets: string[]; image: boolean };
+type ShownStep = { title: string | null; text: string; bullets: string[] };
 function shownSteps(r: Recipe): ShownStep[] {
   // `title` may be set by newer servers' structured steps; read it when present.
-  if (r.steps?.length) return r.steps.map((s) => ({ title: (s as { title?: string | null }).title || null, text: s.text, bullets: s.bullets ?? [], image: !!s.imageUrl }));
-  return (r.instructions ?? '').split('\n').map((l) => l.replace(/^\s*\d+[.)]\s+/, '').trim()).filter(Boolean).map((text) => ({ title: null, text, bullets: [], image: false }));
+  if (r.steps?.length) return r.steps.map((s) => ({ title: (s as { title?: string | null }).title || null, text: s.text, bullets: s.bullets ?? [] }));
+  return (r.instructions ?? '').split('\n').map((l) => l.replace(/^\s*\d+[.)]\s+/, '').trim()).filter(Boolean).map((text) => ({ title: null, text, bullets: [] }));
 }
 /** JSON-LD photos are the stored originals (https only), so a copy keeps its photos after the link is
  * stopped; the page's own <img> tags use this link's proxy routes, so a viewer never contacts that host. */
@@ -92,7 +102,7 @@ const original = (stored: string | null | undefined) => (stored && /^https:\/\//
  * reads it back): the same fields as the page, none of the family's (notes, ratings, meals, ids). */
 const kinwallData = (r: Recipe, self: string) => ({ kinwall: 1, recipe: {
   name: r.name, description: r.description, kind: r.kind, makes: r.makes, servings: r.defaultServings, prepMinutes: r.prepMinutes ?? null, totalMinutes: r.totalMinutes ?? null,
-  imageUrl: original(r.imageUrl), sourceUrl: r.sourceUrl ?? self,
+  imageUrl: original(r.imageUrl), sourceUrl: web(r.sourceUrl) ?? self,
   ingredients: r.ingredients.map((i) => ({ text: ingredientLine(i).slice(0, 300), name: i.name, quantity: i.quantity, unit: i.unit, qualifier: i.qualifier, preparation: i.preparation, category: i.category, pantry: i.qualifier !== KIT_QUALIFIER, ...(i.basicName && { basic: i.basicName }) })),
   steps: shownSteps(r).map((s, i) => ({ text: s.text, bullets: s.bullets, title: s.title, timers: r.steps?.[i]?.timers ?? [], imageUrl: original(r.steps?.[i]?.imageUrl) })),
 } });
@@ -115,7 +125,9 @@ a{color:inherit;text-underline-offset:3px}.src{margin:24px 0 0;overflow-wrap:any
 form{display:grid;gap:8px;margin-top:8px}label{font-weight:700}
 .row{display:flex;gap:8px;flex-wrap:wrap}input{flex:1 1 220px;min-height:48px;padding:10px 14px;font:inherit;color:var(--text);background:var(--bg);border:2px solid var(--border);border-radius:14px}
 button{min-height:48px;padding:10px 20px;font:inherit;font-weight:800;color:var(--ink);background:var(--accent);border:0;border-radius:999px;cursor:pointer}
-aside{margin-top:32px}aside h2{margin-top:0}.hint{color:var(--dim);font-size:.9rem;margin:0}footer{color:var(--dim);font-size:.9rem;margin-top:32px;text-align:center}footer a{color:inherit}`;
+aside{margin-top:32px}aside h2{margin-top:0}.hint{color:var(--dim);font-size:.9rem;margin:0}footer{color:var(--dim);font-size:.9rem;margin-top:32px;text-align:center}footer a{color:inherit}
+.desc,ol.steps p{white-space:pre-line}
+@media print{:root{--bg:#fff;--card:#fff;--text:#000;--dim:#444;--border:#ccc}body{font-size:12pt}main{max-width:none;padding:0}aside{display:none}.hero{max-height:240px;width:auto;max-width:100%}.step-img{max-width:200px}ul.ing li,ol.steps>li{break-inside:avoid}}`;
 
 function page(nonce: string, title: string, body: string, head = ''): string {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><meta name="referrer" content="no-referrer"><title>${esc(title)}</title><style nonce="${nonce}">${CSS}</style>${head}</head><body><main>${body}<footer>Shared from <a href="https://kinwall.family" rel="noopener">Kinwall</a></footer></main></body></html>`;
@@ -147,11 +159,16 @@ recipeShareRoutes.openapi(createRoute({ method: 'get', path: '/r/{token}', tags:
   if (!r) return missing(c, nonce);
   const self = shareUrl(c, token);
   const steps = shownSteps(r);
+  const source = web(r.sourceUrl);
+  // Only photos the image routes can fetch (https; http too when a self-hoster allows it), so the page
+  // and link previews never show a broken image.
+  const photo = (url: string | null | undefined) => !!url && (/^https:\/\//i.test(url) || (c.env.ALLOW_PRIVATE_FEED_URLS === '1' && /^http:\/\//i.test(url)));
+  const hero = photo(r.imageUrl);
   const ld = {
     '@context': 'https://schema.org', '@type': 'Recipe', name: r.name,
     ...(r.description && { description: r.description }),
     ...(original(r.imageUrl) && { image: original(r.imageUrl) }),
-    ...(r.sourceUrl && { url: r.sourceUrl }),
+    ...(source && { url: source }),
     recipeYield: String(r.defaultServings),
     ...(r.prepMinutes && { prepTime: `PT${r.prepMinutes}M` }),
     ...(r.totalMinutes && { totalTime: `PT${r.totalMinutes}M` }),
@@ -161,15 +178,15 @@ recipeShareRoutes.openapi(createRoute({ method: 'get', path: '/r/{token}', tags:
       ...(original(r.steps?.[i]?.imageUrl) && { image: original(r.steps?.[i]?.imageUrl) }),
     })),
   };
-  const meta = [`Serves ${qty(r.defaultServings)}`, r.prepMinutes && `Prep ${minutes(r.prepMinutes)}`, r.totalMinutes && `Total ${minutes(r.totalMinutes)}`].filter(Boolean).join(' · ');
+  const meta = [r.kind === 'basic' && r.makes ? `Makes ${r.makes}` : `Serves ${qty(r.defaultServings)}`, r.prepMinutes && `Prep ${minutes(r.prepMinutes)}`, r.totalMinutes && `Total ${minutes(r.totalMinutes)}`].filter(Boolean).join(' · ');
   const body = [
-    r.imageUrl && `<img class="hero" src="/r/${esc(token)}/image" alt="${esc(r.name)}">`,
+    hero && `<img class="hero" src="/r/${esc(token)}/image" alt="${esc(r.name)}">`,
     `<h1>${esc(r.name)}</h1>`,
     r.description && `<p class="desc">${esc(r.description)}</p>`,
     `<p class="facts">${esc(meta)}</p>`,
-    r.ingredients.length && `<h2>Ingredients</h2><ul class="ing">${r.ingredients.map((i) => `<li>${esc(ingredientLine(i))}</li>`).join('')}</ul>`,
-    steps.length && `<h2>Steps</h2><ol class="steps">${steps.map((s, i) => `<li>${s.title ? `<h3>${esc(s.title)}</h3>` : ''}${s.image ? `<img class="step-img" src="/r/${esc(token)}/steps/${i + 1}/image" alt="Step ${i + 1}" loading="lazy">` : ''}${s.text ? `<p>${esc(s.text)}</p>` : ''}${s.bullets.length ? `<ul>${s.bullets.map((b) => `<li>${esc(b)}</li>`).join('')}</ul>` : ''}</li>`).join('')}</ol>`,
-    r.sourceUrl && `<p class="src">Source: <a href="${esc(r.sourceUrl)}" rel="noopener noreferrer nofollow">${esc(new URL(r.sourceUrl).host)}</a></p>`,
+    r.ingredients.length && `<h2>Ingredients</h2><ul class="ing">${r.ingredients.map((i) => `<li>${esc(shownLine(i))}</li>`).join('')}</ul>`,
+    steps.length && `<h2>Steps</h2><ol class="steps" role="list">${steps.map((s, i) => `<li>${s.title ? `<h3>${esc(s.title)}</h3>` : ''}${photo(r.steps?.[i]?.imageUrl) ? `<img class="step-img" src="/r/${esc(token)}/steps/${i + 1}/image" alt="Step ${i + 1}" loading="lazy">` : ''}${s.text ? `<p>${esc(s.text)}</p>` : ''}${s.bullets.length ? `<ul>${s.bullets.map((b) => `<li>${esc(b)}</li>`).join('')}</ul>` : ''}</li>`).join('')}</ol>`,
+    source && `<p class="src">Source: <a href="${esc(source)}" rel="noopener noreferrer nofollow">${esc(new URL(source).hostname.replace(/^www\./, ''))}</a></p>`,
   ].filter(Boolean).join('');
   const aside = [
     `<h2>Save to my Kinwall</h2><form id="save" data-url="${esc(self)}"><label for="addr">Your Kinwall address</label><div class="row"><input id="addr" type="text" inputmode="url" autocapitalize="none" autocomplete="url" spellcheck="false" placeholder="yourfamily.kinwall.family" required><button type="submit">Save recipe</button></div><p class="hint">Opens your Kinwall to import this recipe. Remembered on this device.</p></form>`,
@@ -179,8 +196,8 @@ recipeShareRoutes.openapi(createRoute({ method: 'get', path: '/r/{token}', tags:
   const preview = [
     ['property', 'og:type', 'article'], ['property', 'og:site_name', 'Kinwall'], ['property', 'og:title', r.name],
     ['property', 'og:description', summary], ['property', 'og:url', self],
-    ...(r.imageUrl ? [['property', 'og:image', `${self}/image`]] : []),
-    ['name', 'twitter:card', r.imageUrl ? 'summary_large_image' : 'summary'],
+    ...(hero ? [['property', 'og:image', `${self}/image`]] : []),
+    ['name', 'twitter:card', hero ? 'summary_large_image' : 'summary'],
   ].map(([attr, key, value]) => `<meta ${attr}="${key}" content="${esc(value)}">`).join('');
   const head = `${preview}<script type="application/ld+json">${jsonScript(ld)}</script><script type="application/json" id="kinwall-recipe">${jsonScript(kinwallData(r, self))}</script><script nonce="${nonce}">document.addEventListener('DOMContentLoaded',function(){${SAVE_JS}})</script>`;
   return send(c, page(nonce, r.name, `<article>${body}</article><aside>${aside}</aside>`, head), nonce, 200);
