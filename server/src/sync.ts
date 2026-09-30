@@ -128,17 +128,17 @@ function sameAsStored(ev: NormalizedEvent, row: StoredEvent): boolean {
 // ids, update rows whose provider fields changed, delete stored rows the provider no longer has.
 // An unchanged event is never touched. `window` limits deletes to events that start inside it
 // (a slice); without it the whole calendar is compared (full sync, ICS). Stored rows are read by
-// window and by id, since providers also return events that started before the window.
+// window and by id, since providers also return events that started before the window. Rows read are
+// billed too: the window half reads idx_events_calendar_start, the id half the primary key (`+` keeps
+// SQLite from walking the whole calendar for it instead).
 async function diffEventStmts(env: Env, calendarId: string, events: NormalizedEvent[], window: { from: Date; to: Date } | null) {
   const ids = await deterministicEventIds(calendarId, events.map((ev) => ev.externalId));
   const cols = 'id, title, start, end, all_day, location, description, series_id, reminders';
   const stored = window
-    ? env.DB.prepare(`SELECT ${cols} FROM events WHERE calendar_id = ? AND ((start >= ? AND start < ?) OR id IN (SELECT value FROM json_each(?)))`).bind(
-        calendarId,
-        window.from.toISOString(),
-        window.to.toISOString(),
-        JSON.stringify(ids),
-      )
+    ? env.DB.prepare(
+        `SELECT ${cols} FROM events WHERE calendar_id = ? AND start >= ? AND start < ?
+         UNION SELECT ${cols} FROM events WHERE id IN (SELECT value FROM json_each(?)) AND +calendar_id = ?`,
+      ).bind(calendarId, window.from.toISOString(), window.to.toISOString(), JSON.stringify(ids), calendarId)
     : env.DB.prepare(`SELECT ${cols} FROM events WHERE calendar_id = ?`).bind(calendarId);
   const byId = new Map((await stored.all<StoredEvent>()).results.map((r) => [r.id, r]));
   const now = new Date();
