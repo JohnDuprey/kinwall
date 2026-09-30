@@ -317,16 +317,28 @@ button {
   box-shadow: var(--shadow);
 }
 
+/* Three columns: view tabs at the start, paging and the period centered, Show hidden and the
+   filter at the end. The side columns share the leftover space, so the middle stays centered. */
 .calendar-toolbar {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
   padding: calc(var(--gap) * 0.8) var(--pad);
   gap: var(--gap);
   flex-shrink: 0;
-  flex-wrap: wrap;
 }
-.toolbar-nav { display: flex; align-items: center; gap: 8px; margin-left: auto; } /* with the filter after it, both sit at the right */
+.calendar-toolbar .segmented { grid-column: 1; justify-self: start; }
+.toolbar-nav { grid-column: 2; display: flex; align-items: center; gap: 8px; }
+.toolbar-nav .period-label { white-space: nowrap; line-height: 1.2; }
+.toolbar-end { grid-column: 3; justify-self: end; display: flex; align-items: center; gap: 8px; }
+.toolbar-end:empty { display: none; }
+/* Portrait tablets: not room for all three in one row, so paging and the period get the second row, centered. */
+@media (min-width: 601px) and (max-width: 960px) {
+  .calendar-toolbar { grid-template-columns: 1fr auto; }
+  .toolbar-end { grid-column: 2; grid-row: 1; }
+  .toolbar-nav { grid-column: 1 / -1; grid-row: 2; justify-self: center; }
+  .toolbar-nav:empty { display: none; }
+}
 .icon-btn {
   flex-shrink: 0; /* a round button in a tight row stays round */
   width: var(--ctl-h); height: var(--ctl-h);
@@ -1485,10 +1497,12 @@ button {
   .toolbar-nav .period-label { flex: 1; }
   /* Switcher and filter share the first row on every view (the tabs never change width), day
      navigation gets the second row to itself; the Board has no paging, so no second row. */
-  .calendar-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+  .calendar-toolbar { grid-template-columns: minmax(0, 1fr) auto; }
   .calendar-toolbar .segmented { grid-column: 1; }
+  .toolbar-end { display: contents; }
   .calendar-toolbar .filter-btn { grid-column: 2; grid-row: 1; }
-  .calendar-toolbar .toolbar-nav { grid-column: 1 / -1; }
+  .calendar-toolbar .toolbar-nav { grid-column: 1; grid-row: 2; }
+  .calendar-toolbar .hidden-toggle { grid-column: 2; grid-row: 2; }
   .toolbar-nav:empty { display: none; }
   .icon-btn { width: 44px; height: 44px; } /* smaller than wall, but never below a 44px hit area */
   .calendar-toolbar .icon-btn { width: 40px; height: 40px; }
