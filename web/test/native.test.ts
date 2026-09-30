@@ -91,3 +91,24 @@ test('app medicine names: this device\'s choice in the app, off by default and w
     assert.equal(appMedicineNames(), false)
   } finally { delete g.localStorage; delete g.window }
 })
+
+test('Android settings buttons: offered only when the app says so, and post the app\'s messages', async () => {
+  const { addAppTile, appNotificationSettings, appQuickSettingsTiles, openAppNotificationSettings } = await import('../src/native.ts')
+  const g = globalThis as { window?: unknown }
+  g.window = {}
+  assert.equal(appNotificationSettings(), false) // a browser
+  assert.equal(appQuickSettingsTiles(), false)
+  openAppNotificationSettings('medicine') // nowhere to send
+  const sent: unknown[] = []
+  g.window = { kinwallNative: { platform: 'android', notificationSettings: true, quickSettingsTiles: false }, webkit: { messageHandlers: { kinwall: { postMessage: (m: unknown) => sent.push(m) } } } }
+  assert.equal(appNotificationSettings(), true)
+  assert.equal(appQuickSettingsTiles(), false) // Android 12 and earlier
+  openAppNotificationSettings('medicine')
+  addAppTile('groceries')
+  addAppTile('night')
+  assert.deepEqual(sent, [
+    { type: 'notificationSettings', channel: 'medicine' },
+    { type: 'addTile', tile: 'groceries' },
+    { type: 'addTile', tile: 'night' },
+  ])
+})

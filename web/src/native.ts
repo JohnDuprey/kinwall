@@ -140,3 +140,24 @@ export function setAppMedicineNames(on: boolean) {
   try { if (on) localStorage.setItem(MED_NAMES_KEY, '1'); else localStorage.removeItem(MED_NAMES_KEY) } catch { /* not kept */ }
   window.dispatchEvent(new Event(MED_NAMES_EVENT))
 }
+
+const nativeFlag = (key: 'notificationSettings' | 'quickSettingsTiles'): boolean =>
+  typeof window !== 'undefined' && (window as Window & { kinwallNative?: Record<string, unknown> }).kinwallNative?.[key] === true
+
+/** The Android app can open one of its notification channels in Android Settings. */
+export const appNotificationSettings = () => nativeFlag('notificationSettings')
+/** The Android app can offer its Quick Settings tiles (Android 13 and later). */
+export const appQuickSettingsTiles = () => nativeFlag('quickSettingsTiles')
+
+/** Opens a notification channel's page in Android Settings, e.g. 'medicine' for Override Do Not
+ * Disturb. No-op in a browser. */
+export function openAppNotificationSettings(channel: 'medicine') {
+  const w = window as Window & { webkit?: { messageHandlers?: { kinwall?: { postMessage: (m: unknown) => void } } } }
+  try { w.webkit?.messageHandlers?.kinwall?.postMessage({ type: 'notificationSettings', channel }) } catch { /* not in the app */ }
+}
+
+/** Asks Android to add one of the app's Quick Settings tiles; Android asks the person. No-op in a browser. */
+export function addAppTile(tile: 'groceries' | 'night') {
+  const w = window as Window & { webkit?: { messageHandlers?: { kinwall?: { postMessage: (m: unknown) => void } } } }
+  try { w.webkit?.messageHandlers?.kinwall?.postMessage({ type: 'addTile', tile }) } catch { /* not in the app */ }
+}
