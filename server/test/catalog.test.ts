@@ -192,12 +192,13 @@ test('catalog tags: PATCH /api/lists/remembered-tags renames or removes a catego
   assert.equal((await raw('PATCH', '/api/lists/remembered-tags', { from: 'x', to: 'y'.repeat(41) })).status, 400);
 });
 
-test('catalog tags: a wall display edits and renames them like the catalog', async () => {
+test('catalog tags: a wall display edits an item’s categories, but only parents rename or remove one everywhere', async () => {
   const { send, raw } = await seeded();
   const { key } = await send('POST', '/api/keys', { name: 'wall', scope: 'display' });
   assert.equal((await raw('PUT', '/api/lists/remembered/milk', { tags: ['Breakfast'] }, key)).status, 200);
-  assert.equal((await raw('PATCH', '/api/lists/remembered-tags', { from: 'Breakfast', to: 'Mornings' }, key)).status, 200);
-  assert.deepEqual((await send('GET', '/api/lists/remembered?tag=Mornings')).map((i: any) => i.key), ['milk']);
+  assert.equal((await raw('PATCH', '/api/lists/remembered-tags', { from: 'Breakfast', to: 'Mornings' }, key)).status, 403);
+  assert.equal((await raw('PATCH', '/api/lists/remembered-tags', { from: 'Breakfast', to: null }, key)).status, 403);
+  assert.deepEqual((await send('GET', '/api/lists/remembered?tag=Breakfast')).map((i: any) => i.key), ['milk']);
 });
 
 test('catalog tags: MCP filters by tag and sets tags', async () => {

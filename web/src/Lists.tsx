@@ -932,7 +932,7 @@ function GroceryCatalog({ listId, listName, onList, suggestions, aisleOrder, onC
   listId: string; listName: string; onList: Set<string>; suggestions: ListDetail['suggestions']; aisleOrder: AisleOrder
   onClose: () => void; onChanged: () => void // onChanged: this list (and its pickers) may have changed
 }) {
-  const { toast } = useApp()
+  const { toast, parentDevice } = useApp()
   const [items, setItems] = useState<RememberedItem[] | null>(null)
   const [query, setQuery] = useState('')
   const [store, setStore] = useState<string | null>(null)
@@ -1024,7 +1024,7 @@ function GroceryCatalog({ listId, listName, onList, suggestions, aisleOrder, onC
               <option value="category">Category</option>
             </select>
           </div>
-          <button className="link-btn" onClick={() => setEditing('tags')}>Edit categories</button>
+          {parentDevice && <button className="link-btn" onClick={() => setEditing('tags')}>Edit categories</button>} {/* renaming or removing one everywhere is parents only */}
         </div>
       )}
       {stores.length > 0 && (

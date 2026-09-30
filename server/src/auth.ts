@@ -230,10 +230,9 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'GET', pattern: /^\/api\/lists\/remembered$/ },
   { method: 'POST', pattern: /^\/api\/lists\/remembered$/ },
   { method: 'PUT', pattern: /^\/api\/lists\/remembered\/[^/]+$/ },
-  { method: 'PATCH', pattern: /^\/api\/lists\/remembered-tags$/ }, // rename or remove a catalog category, like editing items
-  { method: 'GET', pattern: /^\/api\/lists\/[^/]+$/ },
-  { method: 'PATCH', pattern: /^\/api\/lists\/[^/]+$/ },
-  { method: 'DELETE', pattern: /^\/api\/lists\/[^/]+$/ },
+  { method: 'GET', pattern: /^\/api\/lists\/(?!(?:remembered-tags|values|aisles|order)$)[^/]+$/ }, // a list id, never a fixed route like remembered-tags (parents only)
+  { method: 'PATCH', pattern: /^\/api\/lists\/(?!(?:remembered-tags|values|aisles|order)$)[^/]+$/ }, // a list id, never a fixed route like remembered-tags (parents only)
+  { method: 'DELETE', pattern: /^\/api\/lists\/(?!(?:remembered-tags|values|aisles|order)$)[^/]+$/ }, // a list id, never a fixed route like remembered-tags (parents only)
   { method: 'POST', pattern: /^\/api\/lists\/[^/]+\/items$/ },
   { method: 'PATCH', pattern: /^\/api\/lists\/[^/]+\/items\/[^/]+$/ },
   { method: 'DELETE', pattern: /^\/api\/lists\/[^/]+\/items\/[^/]+$/ },
