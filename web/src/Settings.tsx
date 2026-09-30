@@ -23,6 +23,7 @@ import { CustomColorSwatch } from './ColorSwatch.tsx'
 import { ColorClashHint, ColorClashNote } from './ColorClash.tsx'
 import { useIsPhone } from './useIsPhone.ts'
 import { useNavMode, setNavPref, type NavPref } from './useNavMode.ts'
+import { familyNightFields, nightFieldsFor, ownsNight, toNightLook, type NightFields } from './saverSources.ts'
 import { DEFAULT_ACCENT, resolveColors, setDeviceAppearance, useDeviceAppearance, type DeviceAppearance, type LockedView, type SaverSource } from './useTheme.ts'
 import { deviceKindOf, deviceKindValue, parseDeviceKind, wallDefaultsOn, widgetParent, type DeviceKind } from './wallScreen.ts'
 import { PIN_RE } from './quietPin.ts'
@@ -137,6 +138,7 @@ export default function SettingsView() {
               <FeaturesSection settings={settings} onSaved={reloadCore} toast={toast} />
               <AppearanceSection settings={settings} onSaved={reloadCore} toast={toast} />
               <QuietHoursSection settings={settings} onSaved={reloadCore} toast={toast} />
+              <FamilyNightScreenSection settings={settings} onSaved={reloadCore} toast={toast} />
             </SettingsGroup>
           )}
           <SettingsGroup title="Only on this device" sub="Saved on this screen or phone. Other devices aren't affected.">
@@ -294,7 +296,7 @@ function SummaryChips({ chips }: { chips: Chip[] }) {
   )
 }
 
-function SummarySection({ title, icon, summary, detail, children, startOpen = false }: { title: string; icon?: ReactNode; summary: string | Chip[]; detail?: string; children: ReactNode; startOpen?: boolean }) {
+function SummarySection({ title, icon, summary, detail, children, startOpen = false }: { title: string; icon?: ReactNode; summary: string | Chip[]; detail?: string; children: ReactNode | ((close: () => void) => ReactNode); startOpen?: boolean }) {
   const [open, setOpen] = useState(startOpen)
   return (
     <Section title={title} icon={icon}>
@@ -309,7 +311,7 @@ function SummarySection({ title, icon, summary, detail, children, startOpen = fa
       </div>
       {open && (
         <Sheet title={title} onClose={() => setOpen(false)} actions={<button className="btn btn-primary btn-block" onClick={() => setOpen(false)}>Done</button>}>
-          {children}
+          {typeof children === 'function' ? children(() => setOpen(false)) : children}
         </Sheet>
       )}
     </Section>
@@ -509,7 +511,7 @@ function QuietHoursSection({ settings, onSaved, toast }: { settings: Settings; o
   }
   const quietOn = !!settings.quietFrom && !!settings.quietTo
   return (
-    <Section title="Quiet hours">
+    <Section id="quiet-hours" title="Quiet hours">
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
         <div className="settings-row-label" aria-hidden="true">Quiet hours</div>
         <Segmented label="Quiet hours" value={quietOn ? 'on' : 'off'}
@@ -521,7 +523,7 @@ function QuietHoursSection({ settings, onSaved, toast }: { settings: Settings; o
             <div className="field" style={{ margin: 0 }}><label>Quiet to</label><input type="time" value={settings.quietTo ?? ''} onChange={e => e.target.value && save({ quietFrom: settings.quietFrom, quietTo: e.target.value })} /></div>
           </div>
         )}
-        <div className="settings-row-sub">Wall screens show only a dim clock between these times (or a dim slideshow, set per display under Night screen). Tap the screen to wake it for five minutes. Other devices are never affected unless Use as a wall screen is on under This display.</div>
+        <div className="settings-row-sub">Wall screens show the Night screen between these times: a dim clock, or pictures picked under Night screen below. Tap the screen to wake it for five minutes. Other devices are never affected unless Use as a wall screen is on under This display.</div>
       </div>
       {quietOn && <QuietPinRow settings={settings} onSaved={onSaved} toast={toast} />}
     </Section>
@@ -1384,8 +1386,8 @@ function MinutesPicker({ idBase, label, presets, minutes, repeat, onChange: save
   )
 }
 
-/** Quiet hours on this display: the plain clock, or a dim slideshow cycling through the picked
- * sources (Screensaver.tsx). */
+/** The Night screen's pictures: the plain clock, or a dim slideshow cycling through the picked
+ * sources (Screensaver.tsx). The family picks for every wall screen; a screen can pick its own. */
 const SAVER_OPTIONS: { key: SaverSource; label: string }[] = [
   { key: 'drawings', label: 'Drawings' }, { key: 'photos', label: 'Family photos' }, { key: 'google', label: 'Google Photos' }, { key: 'art', label: 'Art (The Met)' }, { key: 'nature', label: 'Nature' },
 ]
@@ -1394,11 +1396,19 @@ const saverOffered = (key: SaverSource, settings: Settings) => (key !== 'photos'
 const CLOCK_POSITIONS: { key: ClockPos | ''; label: string }[] = [
   { key: '', label: 'Moves around' }, { key: 'center', label: 'Center' }, { key: 'top-left', label: 'Top left' }, { key: 'top-right', label: 'Top right' }, { key: 'bottom-left', label: 'Bottom left' }, { key: 'bottom-right', label: 'Bottom right' },
 ]
-/** Back from Google Photos' sign-in (routes/oauth.ts → #/settings?googlePhotos=…): reopen this sheet. */
+/** Back from Google Photos' sign-in (routes/oauth.ts → #/settings?googlePhotos=…): reopen the family's Night screen. */
 const googlePhotosReturn = () => new URLSearchParams(location.hash.split('?')[1] || '').get('googlePhotos')
 
-function NightScreenSection() {
-  const { settings, toast } = useApp()
+/** Summary chips for a Night screen's choices; `family`: marked as the family's (🏠). */
+function nightChips(n: NightFields, settings: Settings, family = false): Chip[] {
+  const sources = SAVER_OPTIONS.filter(o => n.saverSources?.includes(o.key) && saverOffered(o.key, settings)).map(o => o.label)
+  const pos = n.clockPos && CLOCK_POSITIONS.find(p => p.key === n.clockPos)?.label
+  const chips = nightSummary({ sources, every: n.saverEvery ?? 5, bright: n.saverBright ?? 'low', clock: n.saverClock !== false, pos })
+  return family ? chips.map(c => ({ ...c, family: true })) : chips
+}
+
+/** For the whole family: what wall screens show during quiet hours, and the Google Photos connection. */
+function FamilyNightScreenSection({ settings, onSaved, toast }: { settings: Settings; onSaved: () => void; toast: (m: string, persist?: boolean) => void }) {
   const [returned] = useState(googlePhotosReturn)
   useEffect(() => {
     if (!returned) return
@@ -1408,68 +1418,116 @@ function NightScreenSection() {
     q.delete('googlePhotos')
     history.replaceState(null, '', `#/settings${q.toString() ? `?${q}` : ''}`)
   }, [returned]) // eslint-disable-line react-hooks/exhaustive-deps
-  const d = useDeviceAppearance()
-  const sources = SAVER_OPTIONS.filter(o => d.saverSources?.includes(o.key) && saverOffered(o.key, settings)).map(o => o.label)
-  const pos = d.clockPos && CLOCK_POSITIONS.find(p => p.key === d.clockPos)?.label
-  const summary = nightSummary({ sources, every: d.saverEvery ?? 5, bright: d.saverBright ?? 'low', clock: d.saverClock !== false, pos })
-  return <SummarySection title="Night screen" summary={summary} startOpen={!!returned}><ScreensaverRows /></SummarySection>
+  const value = familyNightFields(settings.nightLook)
+  const save = async (patch: NightFields) => {
+    try { await api.updateSettings({ nightLook: toNightLook({ ...value, ...patch }) }); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save settings', true) }
+  }
+  const quietOn = !!settings.quietFrom && !!settings.quietTo
+  return (
+    <SummarySection title="Night screen" summary={nightChips(value, settings)} startOpen={!!returned}>
+      {close => <>
+        <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+          <div className="settings-row-sub">What wall screens show during quiet hours. A screen can pick its own under Night screen on this device.</div>
+          <NightRows value={value} onChange={save} />
+          <GooglePhotosRows />
+        </div>
+        <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+          <div className="settings-row-label">Quiet hours</div>
+          <SummaryChips chips={quietOn
+            ? [{ icon: '🌙', label: `${formatTime(settings.quietFrom!)} to ${formatTime(settings.quietTo!)}` }, { icon: '🔒', label: settings.quietPin ? 'Wake PIN on' : 'No wake PIN' }]
+            : [{ label: 'Off' }]} />
+          {!quietOn && <div className="settings-row-sub">Wall screens show the Night screen only during quiet hours, or when it's started from Home Assistant.</div>}
+          <button className="btn btn-secondary" style={{ flex: 'none', alignSelf: 'flex-start' }} onClick={() => { close(); requestAnimationFrame(() => document.getElementById('quiet-hours')?.scrollIntoView({ block: 'start', behavior: reducedMotion() ? 'auto' : 'smooth' })) }}>
+            {quietOn ? 'Change quiet hours or PIN' : 'Set quiet hours'}
+          </button>
+        </div>
+      </>}
+    </SummarySection>
+  )
 }
 
-function ScreensaverRows() {
+/** Only on this device: the family's Night screen (default) or this screen's own, and a preview. */
+function NightScreenSection() {
   const { settings } = useApp()
   const device = useDeviceAppearance()
-  const set = (patch: DeviceAppearance) => setDeviceAppearance({ ...device, ...patch })
-  const sources = device.saverSources ?? []
+  const own = ownsNight(device)
+  const summary = own ? nightChips(nightFieldsFor(device, settings.nightLook), settings) : nightChips(familyNightFields(settings.nightLook), settings, true)
+  const clear = { nightOwn: undefined, saverSources: undefined, saverEvery: undefined, saverBright: undefined, saverClock: undefined, clockPos: undefined }
+  return (
+    <SummarySection title="Night screen on this device" summary={summary}>
+      <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+        <div className="device-pref-row">
+          <span>Night screen</span>
+          <select className="settings-select" aria-label="Night screen" value={own ? 'own' : ''}
+            onChange={e => {
+              if (e.target.value) { setDeviceAppearance({ ...device, ...clear, nightOwn: true, ...familyNightFields(settings.nightLook) }); announce('This screen picks its own Night screen') }
+              else { setDeviceAppearance({ ...device, ...clear }); announce("This screen follows the family's Night screen") }
+            }}>
+            <option value="">Family’s choice</option>
+            <option value="own">This screen’s own</option>
+          </select>
+        </div>
+        {own
+          ? <NightRows value={nightFieldsFor(device, settings.nightLook)} onChange={patch => setDeviceAppearance({ ...device, ...patch })} here />
+          : <div className="settings-row-sub">This screen shows what the family picked for wall screens. Parents change it under For the whole family → Night screen.</div>}
+        <button className="btn btn-secondary saver-preview-btn" onClick={() => window.dispatchEvent(new Event(SAVER_PREVIEW_EVENT))}>Preview screensaver</button>
+        <div className="settings-row-sub">Shows what this screen does overnight for 20 seconds. Tap or press Escape to end it. Only wall screens dim on their own: paired displays, and devices with Use as a wall screen on under This display.</div>
+      </div>
+    </SummarySection>
+  )
+}
+
+/** A Night screen's choices (the family's or one screen's). `here`: this screen's own, so the
+ * notes can speak about this display. */
+function NightRows({ value, onChange, here = false }: { value: NightFields; onChange: (patch: NightFields) => void; here?: boolean }) {
+  const { settings } = useApp()
+  const sources = value.saverSources ?? []
   const toggle = (k: SaverSource) => {
     const next = sources.includes(k) ? sources.filter(x => x !== k) : SAVER_OPTIONS.map(o => o.key).filter(x => x === k || sources.includes(x))
-    set({ saverSources: next.length ? next : undefined })
+    onChange({ saverSources: next.length ? next : undefined })
   }
-  const hasDrawings = sources.includes('drawings')
+  const hasDrawings = here && sources.includes('drawings')
   const [noDrawings, setNoDrawings] = useState(false)
   useEffect(() => {
     if (hasDrawings) countDrawings().then(n => setNoDrawings(n === 0)).catch(() => setNoDrawings(true))
   }, [hasDrawings])
   const services = [sources.includes('art') && 'The Metropolitan Museum of Art (public-domain works)', sources.includes('nature') && 'Lorem Picsum (free Unsplash photos)'].filter(Boolean).join(' and ')
-  return (
-    <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-      <div className="settings-row-label" aria-hidden="true">During quiet hours show</div>
-      <div className="chip-row" role="group" aria-label="During quiet hours show">
-        <button className={`chip ${sources.length === 0 ? 'active' : ''}`} aria-pressed={sources.length === 0} onClick={() => set({ saverSources: undefined })}>Clock only</button>
-        {SAVER_OPTIONS.filter(o => saverOffered(o.key, settings) || (o.key === 'google' && sources.includes('google'))).map(o => ( // photos off: nature pictures stand in (saverSources.ts)
-          <button key={o.key} className={`chip ${sources.includes(o.key) ? 'active' : ''}`} aria-pressed={sources.includes(o.key)} onClick={() => toggle(o.key)}>{o.label}</button>
-        ))}
-      </div>
-      {sources.length > 1 && <div className="settings-row-sub">Takes turns between the ones you pick.</div>}
-      {hasDrawings && noDrawings && <div className="settings-row-sub">No drawings on this display yet — open Activities → Paint.{sources.length === 1 && ' Until then it shows the clock.'}</div>}
-      {services && <div className="settings-row-sub">Pictures are fetched by this display directly from {services}; {services.includes(' and ') ? 'they' : 'it'} will see this device's address.</div>}
-      {sources.includes('google') && <div className="settings-row-sub">Google Photos pictures come through your Kinwall server, which keeps only which photos to show, never the photos.</div>}
-      {sources.length > 0 && <>
-        <div className="settings-row-label" aria-hidden="true">Change picture every</div>
-        <Segmented label="Change picture every" value={String(device.saverEvery ?? 5)} onChange={v => set({ saverEvery: v === '5' ? undefined : Number(v) })}
-          options={[2, 5, 10, 20].map(m => ({ key: String(m), label: `${m} min` }))} />
-        <div className="settings-row-label" aria-hidden="true">Brightness</div>
-        <Segmented label="Brightness" value={device.saverBright ?? 'low'} onChange={v => set({ saverBright: v === 'medium' ? 'medium' : undefined })}
-          options={[{ key: 'low', label: 'Low' }, { key: 'medium', label: 'Medium' }]} />
-        <div className="toggle-row">
-          <label id="saver-clock-label">Show clock</label>
-          <button className={`switch ${device.saverClock !== false ? 'on' : ''}`} role="switch" aria-checked={device.saverClock !== false} aria-labelledby="saver-clock-label"
-            onClick={() => set({ saverClock: device.saverClock === false ? undefined : false })}><span className="knob" /></button>
-        </div>
-      </>}
-      {(sources.length === 0 || device.saverClock !== false) && <>
-        <div className="device-pref-row">
-          <span>Clock position</span>
-          <select className="settings-select" aria-label="Clock position" value={device.clockPos ?? ''} onChange={e => set({ clockPos: (e.target.value || undefined) as ClockPos | undefined })}>
-            {CLOCK_POSITIONS.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}
-          </select>
-        </div>
-        <div className="settings-row-sub">{device.clockPos ? 'The clock stays put. Moves around protects the screen from burn-in.' : 'Every few minutes the clock fades to a new spot, so no pixels stay lit in one place.'}</div>
-      </>}
-      <button className="btn btn-secondary saver-preview-btn" onClick={() => window.dispatchEvent(new Event(SAVER_PREVIEW_EVENT))}>Preview screensaver</button>
-      <div className="settings-row-sub">Shows what this screen does overnight for 20 seconds. Tap or press Escape to end it. Only wall screens dim on their own: paired displays, and devices with Use as a wall screen on under This display.</div>
-      <GooglePhotosRows />
+  return <>
+    <div className="settings-row-label" aria-hidden="true">During quiet hours show</div>
+    <div className="chip-row" role="group" aria-label="During quiet hours show">
+      <button className={`chip ${sources.length === 0 ? 'active' : ''}`} aria-pressed={sources.length === 0} onClick={() => onChange({ saverSources: undefined })}>Clock only</button>
+      {SAVER_OPTIONS.filter(o => saverOffered(o.key, settings) || (o.key === 'google' && sources.includes('google'))).map(o => ( // photos off: nature pictures stand in (saverSources.ts)
+        <button key={o.key} className={`chip ${sources.includes(o.key) ? 'active' : ''}`} aria-pressed={sources.includes(o.key)} onClick={() => toggle(o.key)}>{o.label}</button>
+      ))}
     </div>
-  )
+    {sources.length > 1 && <div className="settings-row-sub">Takes turns between the ones you pick.</div>}
+    {sources.includes('drawings') && !here && <div className="settings-row-sub">Each screen shows the drawings made on it (Activities → Paint).</div>}
+    {hasDrawings && noDrawings && <div className="settings-row-sub">No drawings on this display yet — open Activities → Paint.{sources.length === 1 && ' Until then it shows the clock.'}</div>}
+    {services && <div className="settings-row-sub">Pictures are fetched by {here ? 'this display' : 'each screen'} directly from {services}; {services.includes(' and ') ? 'they' : 'it'} will see {here ? "this device's" : "the screen's"} address.</div>}
+    {sources.includes('google') && <div className="settings-row-sub">Google Photos pictures come through your Kinwall server, which keeps only which photos to show, never the photos.</div>}
+    {sources.length > 0 && <>
+      <div className="settings-row-label" aria-hidden="true">Change picture every</div>
+      <Segmented label="Change picture every" value={String(value.saverEvery ?? 5)} onChange={v => onChange({ saverEvery: v === '5' ? undefined : Number(v) })}
+        options={[2, 5, 10, 20].map(m => ({ key: String(m), label: `${m} min` }))} />
+      <div className="settings-row-label" aria-hidden="true">Brightness</div>
+      <Segmented label="Brightness" value={value.saverBright ?? 'low'} onChange={v => onChange({ saverBright: v === 'medium' ? 'medium' : undefined })}
+        options={[{ key: 'low', label: 'Low' }, { key: 'medium', label: 'Medium' }]} />
+      <div className="toggle-row">
+        <label id={`saver-clock-label${here ? '-here' : ''}`}>Show clock</label>
+        <button className={`switch ${value.saverClock !== false ? 'on' : ''}`} role="switch" aria-checked={value.saverClock !== false} aria-labelledby={`saver-clock-label${here ? '-here' : ''}`}
+          onClick={() => onChange({ saverClock: value.saverClock === false ? undefined : false })}><span className="knob" /></button>
+      </div>
+    </>}
+    {(sources.length === 0 || value.saverClock !== false) && <>
+      <div className="device-pref-row">
+        <span>Clock position</span>
+        <select className="settings-select" aria-label="Clock position" value={value.clockPos ?? ''} onChange={e => onChange({ clockPos: (e.target.value || undefined) as ClockPos | undefined })}>
+          {CLOCK_POSITIONS.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}
+        </select>
+      </div>
+      <div className="settings-row-sub">{value.clockPos ? 'The clock stays put. Moves around protects the screen from burn-in.' : 'Every few minutes the clock fades to a new spot, so no pixels stay lit in one place.'}</div>
+    </>}
+  </>
 }
 
 /** Connecting Google Photos for the whole family (parent devices): Google's own sign-in, with a
@@ -1481,7 +1539,7 @@ function GooglePhotosRows() {
   const [gp, setGp] = useState<GooglePhotos | null>(null)
   const [busy, setBusy] = useState(false)
   const device = useDeviceAppearance()
-  const picked = !!device.saverSources?.includes('google')
+  const picked = !!settings.nightLook?.sources.includes('google')
   const state = gp?.state
   const lastState = useRef(settings.googlePhotos)
   useEffect(() => {
@@ -1537,7 +1595,7 @@ function GooglePhotosRows() {
         <div className="settings-row-sub" role="status">Waiting for you to sign in…</div>
       </>}
       {state === 'choosing' && <div className="settings-row-sub" role="status">Waiting for you to choose albums…</div>}
-      {state === 'ready' && <div className="settings-row-sub">Connected{gp.photos !== undefined && `: ${gp.photos} ${gp.photos === 1 ? 'photo' : 'photos'}`}.{!picked && ' Pick Google Photos above to show them on this screen.'}</div>}
+      {state === 'ready' && <div className="settings-row-sub">Connected{gp.photos !== undefined && `: ${gp.photos} ${gp.photos === 1 ? 'photo' : 'photos'}`}.{!picked && ' Pick Google Photos above to show it on wall screens.'}</div>}
       {(state === 'choosing' || state === 'ready') && gp.settingsUri && <>
         <a className="btn btn-secondary" href={gp.settingsUri} target="_blank" rel="noreferrer">{state === 'choosing' ? 'Choose albums in Google Photos' : 'Change albums'}</a>
         {state === 'choosing' && qr(gp.settingsUri)}

@@ -11,7 +11,7 @@ import { zonedParts } from './date.ts'
 import { formatTime } from './timeFormat.ts'
 import { useDeviceAppearance } from './useTheme.ts'
 import { useSlideshowPictures } from './Screensaver.tsx'
-import { boardSources } from './saverSources.ts'
+import { boardSources, nightFieldsFor } from './saverSources.ts'
 import { tidbitCardTitle, tidbitCards, tidbitFor, tidbitQuery, tidbitSlot, type Tidbit } from './tidbits.ts'
 import { BirthdayRow, ItemRow, dayName } from './Snapshot.tsx'
 import TodaysMeals from './TodaysMeals.tsx'
@@ -462,9 +462,10 @@ function PhotoCard({ density }: { density?: CardDensity }) {
   const device = useDeviceAppearance()
   const { refreshTick, settings } = useApp()
   const [hasPhotos, setHasPhotos] = useState(false)
-  const picked = !!device.saverSources?.length
+  const nightPicks = nightFieldsFor(device, settings.nightLook).saverSources ?? [] // this screen's Night screen, or the family's
+  const picked = nightPicks.length > 0
   useEffect(() => { if (!picked) api.getPhotoQuota().then(q => setHasPhotos(q.count - (q.memoryPhotos ?? 0) > 0)).catch(() => {}) }, [picked, refreshTick])
-  const { pics, failed } = useSlideshowPictures(boardSources(device.saverSources ?? [], { photos: settings.features.photos, googlePhotos: settings.googlePhotos }, hasPhotos), 60)
+  const { pics, failed } = useSlideshowPictures(boardSources(nightPicks, { photos: settings.features.photos, googlePhotos: settings.googlePhotos }, hasPhotos), 60)
   const current = pics[pics.length - 1]
   return (
     <section className={`board-card board-photo${densityClass(density)}`} aria-label="Picture">

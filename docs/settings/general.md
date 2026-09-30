@@ -79,12 +79,24 @@ Mode (Auto, following each device's system setting, until the family picks one),
 
 ### Quiet hours
 
-**Off** or **On**, with **Quiet from** and **Quiet to**. Wall screens (paired displays, and devices with **Use as a wall screen** on) show a dim clock (or a slideshow, set per device under **Night screen**) between these times. Other devices are never affected. See [Quiet hours](../using/quiet-hours.md).
+**Off** or **On**, with **Quiet from** and **Quiet to**. Wall screens (paired displays, and devices with **Use as a wall screen** on) show the [Night screen](#night-screen) between these times: a dim clock, or a slideshow. Other devices are never affected. See [Quiet hours](../using/quiet-hours.md).
 
 **PIN to wake during quiet hours** (off by default, shown once quiet hours are on): **Set PIN** asks for 4 to 8 digits twice. Then a wall screen asks for it before waking during quiet hours. **Change PIN** replaces it; **More… → Remove PIN** turns it off, and is the way out of a forgotten PIN from any parent device. See [PIN to wake](../using/quiet-hours.md#pin-to-wake).
 
+### Night screen
+
+What wall screens show during quiet hours, for the whole family. The card sums it up as chips (for example "Google Photos", "Art (The Met)", "Every 5 min", "Clock on"); tap **Change** to set it:
+
+* **During quiet hours show**: **Clock only** (the default), or a slideshow of **Drawings** (each screen's own), **Family photos**, **Google Photos** (once connected), **Art (The Met)** and **Nature**, with **Change picture every**, **Brightness** and **Show clock**. **Clock position**: **Moves around** (the default, against burn-in) or a fixed spot. See [Screensaver](../using/quiet-hours.md#screensaver).
+* **Google Photos**: connect it here for the whole family: **Connect Google Photos**, then **Choose albums in Google Photos** (a link, with a QR code on bigger screens), **Change albums** and **Disconnect Google Photos**. While connecting it goes to Google's sign-in (a wall screen shows a QR code to sign in on a phone instead), or with a TV client shows the code to enter at `google.com/device`, then "Waiting for you to choose albums…". If Google won't allow Photos with the server's Google app, it says so. If Google stops sharing, it shows **Reconnect Google Photos**. After Google's sign-in, Kinwall comes back to this sheet. See [Google Photos](../using/photos.md#google-photos).
+* **Quiet hours**: the schedule and whether a wake PIN is on, with a button to [Quiet hours](#quiet-hours) to change them.
+
+Each screen follows this unless it picks its own under [Night screen on this device](this-display.md#night-screen-on-this-device).
+
+API: `nightLook` `{ sources, every, brightness, clock, clockPosition }` in `GET` / `PATCH /api/settings`: `sources` from `drawings`, `photos`, `google`, `art`, `nature` (each once; empty = the plain clock), `every` 2, 5, 10 or 20 (minutes), `brightness` `low` or `medium`, `clock` a boolean, `clockPosition` `center`, `top-left`, `top-right`, `bottom-left`, `bottom-right` or `null` (moves around). A `PATCH` sends the whole object. Display keys can't change it (403). It's part of the [export](../your-data/export-import.md).
+
 ## Only on this device
 
-**This display**, **Appearance on this device**, **Time cues**, **Night screen**, **Notifications** and **Troubleshooting**. Appearance on this device, Time cues and Night screen show a one-line summary; tap **Change** under one to open its settings. **Keep the screen on** and **Back to the calendar when idle** are under **This display**. See [This device](this-display.md).
+**This display**, **Appearance on this device**, **Time cues**, **Night screen on this device**, **Notifications** and **Troubleshooting**. Appearance on this device, Time cues and Night screen on this device show a one-line summary; tap **Change** under one to open its settings. **Keep the screen on** and **Back to the calendar when idle** are under **This display**. See [This device](this-display.md).
 
 Chore settings (late completion credit, streak grace, daily check-in points, leaderboard, sticker shop and sticker prices) live on the **Family** tab, on parent devices, while **Chores & points** is on. See [Family](family.md) and [Chores](../using/chores.md).

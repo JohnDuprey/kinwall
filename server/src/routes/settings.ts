@@ -6,7 +6,7 @@ import { emit } from '../bus.ts';
 import { isConnectedApp } from './mcp-oauth.ts';
 import { schemeContrastFailures } from '../colors.ts';
 import { GOOGLE_PHOTOS_STATE_SQL, type GooglePhotosState } from './google-photos.ts';
-import { BoardPresetSchema, TIME_FORMATS, TYPEFACES, COLOR_SCHEMES, CUSTOM_SCHEME_ID_RE, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, ErrorSchema, FeaturesSchema, LocationSchema, MealTimesSchema, SettingsPatchSchema, SettingsSchema, TidbitSettingsSchema } from '../schemas.ts';
+import { BoardPresetSchema, TIME_FORMATS, TYPEFACES, COLOR_SCHEMES, CUSTOM_SCHEME_ID_RE, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, ErrorSchema, FeaturesSchema, LocationSchema, MealTimesSchema, NightLookSchema, SettingsPatchSchema, SettingsSchema, TidbitSettingsSchema } from '../schemas.ts';
 
 export const settingsRoutes = createRouter();
 
@@ -71,6 +71,7 @@ export async function readSettings(db: KinwallDb) {
     location,
     temperatureUnit: (map.get('temperatureUnit') || defaultUnit(location, map.get('timezone'))) as 'celsius' | 'fahrenheit',
     tidbits: parseTidbits(map.get('tidbits')),
+    nightLook: parseNightLook(map.get('nightLook')),
     boardPresets: parseBoardPresets(map.get('boardPresets')),
     features: parseFeatures(map.get('features')),
     mealTimes: parseMealTimes(map.get('mealTimes')),
@@ -109,6 +110,14 @@ function parseTidbits(raw: string | undefined): z.infer<typeof TidbitSettingsSch
     const parsed = TidbitSettingsSchema.safeParse({ ...DEFAULT_TIDBITS, ...saved });
     return parsed.success ? parsed.data : DEFAULT_TIDBITS;
   } catch { return DEFAULT_TIDBITS; }
+}
+
+export const DEFAULT_NIGHT_LOOK: z.infer<typeof NightLookSchema> = { sources: [], every: 5, brightness: 'low', clock: true, clockPosition: null };
+function parseNightLook(raw: string | undefined): z.infer<typeof NightLookSchema> {
+  try {
+    const parsed = NightLookSchema.safeParse({ ...DEFAULT_NIGHT_LOOK, ...JSON.parse(raw ?? '{}') });
+    return parsed.success ? parsed.data : DEFAULT_NIGHT_LOOK;
+  } catch { return DEFAULT_NIGHT_LOOK; }
 }
 
 export const DEFAULT_MEAL_TIMES: z.infer<typeof MealTimesSchema> = { breakfast: '07:30', lunch: '12:00', dinner: '18:00', snack: '15:00' };

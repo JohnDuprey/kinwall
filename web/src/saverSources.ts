@@ -1,7 +1,8 @@
 // Which picture sources a screen uses: the Night screen's slideshow (App.tsx) and the Board's
 // picture card (Board.tsx). Sources the family can't show right now drop out and the rest carry on.
-import type { GooglePhotosState } from './types.ts'
-import type { SaverSource } from './useTheme.ts'
+import type { GooglePhotosState, NightLook } from './types.ts'
+import type { DeviceAppearance, SaverSource } from './useTheme.ts'
+export type { NightLook }
 
 type Family = { photos: boolean; googlePhotos?: GooglePhotosState }
 
@@ -24,3 +25,35 @@ export function boardSources(picked: SaverSource[], family: Family, hasPhotos: b
   if (family.photos && hasPhotos) own.push('photos')
   return own.length ? own : ['nature']
 }
+
+/** A Night screen's choices, in this device's own shape (useTheme.ts). */
+export type NightFields = Pick<DeviceAppearance, 'saverSources' | 'saverEvery' | 'saverBright' | 'saverClock' | 'clockPos'>
+
+/** This screen picks its own Night screen (Settings → This display) rather than the family's. A
+ * device that picked anything before the family default existed keeps that as its own. */
+export const ownsNight = (d: DeviceAppearance) =>
+  !!d.nightOwn || !!d.saverSources?.length || d.saverClock === false || !!d.clockPos || d.saverEvery !== undefined || d.saverBright !== undefined
+
+/** The family's Night screen (settings.nightLook) in the device's shape; defaults are left out. */
+export function familyNightFields(f: NightLook | undefined): NightFields {
+  if (!f) return {} // settings from before the family default: the plain clock
+  const out: NightFields = {}
+  if (f.sources.length) out.saverSources = [...f.sources]
+  if (f.every !== 5) out.saverEvery = f.every
+  if (f.brightness === 'medium') out.saverBright = 'medium'
+  if (!f.clock) out.saverClock = false
+  if (f.clockPosition) out.clockPos = f.clockPosition
+  return out
+}
+
+/** What this screen's Night screen does: its own choices, else the family's. */
+export function nightFieldsFor(d: DeviceAppearance, family: NightLook | undefined): NightFields {
+  if (!ownsNight(d)) return familyNightFields(family)
+  const { saverSources, saverEvery, saverBright, saverClock, clockPos } = d
+  return Object.fromEntries(Object.entries({ saverSources, saverEvery, saverBright, saverClock, clockPos }).filter(([, v]) => v !== undefined)) as NightFields
+}
+
+/** Back to the family setting's shape, for saving. */
+export const toNightLook = (n: NightFields): NightLook => ({
+  sources: n.saverSources ?? [], every: (n.saverEvery ?? 5) as NightLook['every'], brightness: n.saverBright ?? 'low', clock: n.saverClock !== false, clockPosition: n.clockPos ?? null,
+})

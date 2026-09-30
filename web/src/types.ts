@@ -4,6 +4,8 @@ import type { DeviceKind } from './wallScreen.ts'
 import type { CustomScheme } from './skins.ts'
 import type { Meal } from './meal-types.ts'
 import type { TransitionReminders } from './transitions.ts'
+import type { SaverSource } from './useTheme.ts'
+import type { ClockPos } from './nightClock.ts'
 // Shapes mirror SPEC.md "API". Assumption: JSON keys are camelCase throughout
 // (SPEC shows this explicitly for EventInstance / chores/day; applied consistently here).
 
@@ -52,6 +54,7 @@ export interface Settings {
   location: WeatherLocation | null // for the snapshot's weather; null = no weather
   temperatureUnit: 'celsius' | 'fahrenheit'
   tidbits: TidbitSettings // the Board's quote / fact card
+  nightLook: NightLook // what wall screens show during quiet hours unless a screen picks its own (saverSources.ts)
   boardPresets: BoardPreset[] // Board layouts a parent saved for the family (boardLayout.ts)
   features: Features // Settings → Features: what the family uses; off = hidden on every screen
   mealTimes: Record<'breakfast' | 'lunch' | 'dinner' | 'snack', string> // HH:MM each meal usually is; a meal without its own time uses it on the calendar
@@ -59,6 +62,15 @@ export interface Settings {
   medications: boolean // Medication reminders (off by default; only on with the Health tracker); off hides them everywhere, data kept
   medicationNamesOnWalls: boolean // shared wall screens show medicine names (off: "Meds")
   googlePhotos?: GooglePhotosState // Google Photos for the Night screen and the Board (read-only)
+}
+
+/** The family's Night screen: pictures to take turns through (none = the plain clock) and the clock. */
+export interface NightLook {
+  sources: SaverSource[]
+  every: 2 | 5 | 10 | 20 // minutes between pictures
+  brightness: 'low' | 'medium'
+  clock: boolean // the small clock over the pictures
+  clockPosition: ClockPos | null // null = moves around (burn-in guard)
 }
 
 /** Household feature switches. Off hides the feature everywhere; its data is kept. */

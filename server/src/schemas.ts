@@ -278,6 +278,20 @@ export const FeaturesSchema = z
   })
   .openapi('Features');
 
+// The family's Night screen (Settings -> For the whole family -> Night screen): what wall screens
+// show during quiet hours unless a screen picks its own (a device setting in the app).
+export const NIGHT_SOURCES = ['drawings', 'photos', 'google', 'art', 'nature'] as const;
+export const NightLookSchema = z
+  .object({
+    sources: z.array(z.enum(NIGHT_SOURCES)).max(NIGHT_SOURCES.length).refine((l) => new Set(l).size === l.length, 'a source can be picked once')
+      .openapi({ description: 'Pictures to take turns through, in order; empty = the plain clock' }),
+    every: z.union([z.literal(2), z.literal(5), z.literal(10), z.literal(20)]).openapi({ description: 'Minutes between pictures' }),
+    brightness: z.enum(['low', 'medium']),
+    clock: z.boolean().openapi({ description: 'The small clock over the pictures' }),
+    clockPosition: z.enum(['center', 'top-left', 'top-right', 'bottom-left', 'bottom-right']).nullable().openapi({ description: 'Where the clock stays; null = it moves around (guards against burn-in)' }),
+  })
+  .openapi('NightLook');
+
 export const MealTimesSchema = z
   .object({ breakfast: z.string().regex(HHMM_RE, 'must be HH:MM'), lunch: z.string().regex(HHMM_RE, 'must be HH:MM'), dinner: z.string().regex(HHMM_RE, 'must be HH:MM'), snack: z.string().regex(HHMM_RE, 'must be HH:MM') })
   .openapi('MealTimes');
@@ -315,6 +329,7 @@ export const SettingsSchema = z
     location: LocationSchema.nullable(), // for the snapshot's weather; null = no weather
     temperatureUnit: z.enum(['celsius', 'fahrenheit']), // default: fahrenheit for a US location (or US timezone), else celsius
     tidbits: TidbitSettingsSchema,
+    nightLook: NightLookSchema.openapi({ description: "What wall screens show during quiet hours, unless a screen picks its own on the device." }),
     boardPresets: z.array(BoardPresetSchema).openapi({ description: "Board layouts a parent saved for the family; each screen picks one (or a built-in one, or its own) on the device." }),
     features: FeaturesSchema,
     mealTimes: MealTimesSchema, // when each meal slot usually is; a meal without its own time uses it for its calendar event
@@ -360,6 +375,7 @@ export const SettingsPatchSchema = z
     location: LocationSchema.nullable().optional(),
     temperatureUnit: z.enum(['celsius', 'fahrenheit']).optional(),
     tidbits: TidbitSettingsSchema.optional(),
+    nightLook: NightLookSchema.optional(),
     boardPresets: z
       .array(BoardPresetSchema)
       .max(MAX_BOARD_PRESETS)

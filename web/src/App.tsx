@@ -44,7 +44,7 @@ import { LeaveByLiveActivity } from './NowNext.tsx'
 import { MedicationLiveActivity } from './TakeNow.tsx'
 import { formatTime, resolveHour12, setHour12 } from './timeFormat.ts'
 import { dateKey } from './date.ts'
-import { nightSources } from './saverSources.ts'
+import { nightFieldsFor, nightSources } from './saverSources.ts'
 
 const NAV_ITEMS = [
   { key: 'calendar', href: '#/calendar', label: 'Calendar', Icon: CalendarIcon },
@@ -247,8 +247,9 @@ function QuietOverlay({ settings, wall, remote }: { settings: Settings; wall: bo
   useEffect(() => { showing.current = asleep; if (asleep) overlay.current?.focus({ preventScroll: true }) }, [asleep])
   const activate = () => { setManual(''); if (pinLocked.current) setKeypad(true); else wake() }
   // Photos turned off (Settings → Features) or Google Photos not ready: the other picks, or nature pictures.
-  const sources = nightSources(device.saverSources ?? [], { photos: settings.features.photos, googlePhotos: settings.googlePhotos })
-  const fixed = device.clockPos && CLOCK_SPOTS[device.clockPos]
+  const night = { ...device, ...nightFieldsFor(device, settings.nightLook) } // this screen's own, or the family's
+  const sources = nightSources(night.saverSources ?? [], { photos: settings.features.photos, googlePhotos: settings.googlePhotos })
+  const fixed = night.clockPos && CLOCK_SPOTS[night.clockPos]
   const corners = sources.length > 0 // over a slideshow the small clock keeps to the corners
   useEffect(() => {
     // "Moves around" (the default burn-in guard): a new spot every few minutes, faded in (.night-spot).
@@ -272,7 +273,7 @@ function QuietOverlay({ settings, wall, remote }: { settings: Settings; wall: bo
     <div ref={overlay} className="quiet-overlay" role="button" tabIndex={0} aria-label="Wake display" onClick={activate}
       onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); activate() } }}>
       {locked && keypad ? <PinKeypad onWake={wake} onIdle={hideKeypad} />
-        : sources.length ? <Slideshow sources={sources} device={device} clock={clock} spot={spot} /> : clock(false)}
+        : sources.length ? <Slideshow sources={sources} device={night} clock={clock} spot={spot} /> : clock(false)}
     </div>
   )
 }

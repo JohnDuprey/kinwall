@@ -28,13 +28,13 @@ So little ones can't turn the wall on at night, a parent can set a PIN under **S
 
 ## Night screen now
 
-Wall screens have a moon button in the header, next to the bell and help. Tap it to show the Night screen right away, at any time of day, with this device's Night screen settings. It stays on, and keeps the screen awake, until you tap the screen or press a key, then shows today's calendar. Unlike **Preview screensaver**, it doesn't end on its own.
+Wall screens have a moon button in the header, next to the bell and help. Tap it to show the Night screen right away, at any time of day, with this screen's Night screen settings (its own, or the family's). It stays on, and keeps the screen awake, until you tap the screen or press a key, then shows today's calendar. Unlike **Preview screensaver**, it doesn't end on its own.
 
 ## Start it from Home Assistant
 
 Home Assistant (or a parent's device, or a connected app) can start the Night screen on every wall screen, or on chosen paired displays, and end it again. For example: start it when nobody's home, wake the walls when someone gets back. The [Home Assistant integration](../integrations/home-assistant.md) has a `kinwall.night_screen` action, a switch per wall screen and a ready-made blueprint for this.
 
-* **On** works like the moon button: each wall uses its own Night screen settings, and the screen stays awake. Walls pick it up within 30 seconds.
+* **On** works like the moon button: each wall uses its Night screen settings (its own, or the family's), and the screen stays awake. Walls pick it up within 30 seconds.
 * **Off** ends it. While it's on, walls check every 10 seconds, so they wake within about 10 seconds of someone getting home. During quiet hours a wall follows quiet hours as usual.
 * **A tap still wakes a wall**, the same as always (the [PIN](#pin-to-wake) only during quiet hours). It stays awake even though the remote Night screen is still on. It goes back to the Night screen only on the next remote change (off then on, or a new "on"), or at quiet hours.
 * **It runs out on its own** after 12 hours (or the `hours` sent), so a forgotten "on" can't keep the walls dark for days.
@@ -45,11 +45,11 @@ API: `POST /api/displays/night-screen` and `GET /api/displays/night-screen`, see
 
 ## Screensaver
 
-Instead of the bare clock, a display can show a slow, dim slideshow overnight. It's set **per device**: **Settings → General**, tap **Change** under **Night screen**, then **During quiet hours show**. Turn on one or more sources. With more than one on, the pictures take turns (drawing, then family photo, then art, then nature, and so on). **Clock only** (the default) turns them all off.
+Instead of the bare clock, wall screens can show a slow, dim slideshow overnight. A parent sets it for the whole family: **Settings → General → For the whole family**, tap **Change** under **Night screen**, then **During quiet hours show**. A screen can pick its own instead under **Only on this device → Night screen on this device** (**Night screen: This screen's own**); otherwise every screen follows the family's choice. Turn on one or more sources. With more than one on, the pictures take turns (drawing, then family photo, then art, then nature, and so on). **Clock only** (the default) turns them all off.
 
 * **Drawings**: pictures from this display's own [Paint gallery](activities.md#my-drawings), shuffled. If there are none yet, the display skips drawings (or shows the clock if drawings is the only source).
 * **Family photos**: your family's [photos](photos.md), shuffled, with their captions. They come from your own Kinwall server.
-* **Google Photos** (not available yet; see [Google Photos](photos.md#google-photos)): albums a parent picked in Google Photos, shuffled. Shown once a parent has [connected Google Photos](photos.md#google-photos) (at the bottom of this sheet) and picked albums. The pictures come through your Kinwall server, sized for this screen.
+* **Google Photos** (not available yet; see [Google Photos](photos.md#google-photos)): albums a parent picked in Google Photos, shuffled. Shown once a parent has [connected Google Photos](photos.md#google-photos) (in the family's Night screen sheet) and picked albums. The pictures come through your Kinwall server, sized for this screen.
 * **Art (The Met)**: public-domain highlight paintings from [The Metropolitan Museum of Art](https://metmuseum.github.io/) open-access collection (CC0), with the title, artist and date in the corner.
 * **Nature**: photos from [Lorem Picsum](https://picsum.photos), which serves free-to-use Unsplash photos.
 
