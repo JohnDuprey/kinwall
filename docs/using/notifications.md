@@ -28,6 +28,10 @@ On the device that should get notifications, go to **Settings → General → No
 
 For someone with the [energy battery](battery.md) on, their own phones and tablets get one calm push from 7:00 PM the evening before a day that looks likely to run them low: **🔋 Heads-up for tomorrow** with "Tomorrow looks full: 5 events and a late evening. Maybe plan a rest or move something?". Never during quiet hours (it waits until they end, and goes out that morning), never about sleep or feelings, and not in the family's feed. At their evening time, on a day without a goal to check on, they also get **How drained do you feel? 🔋** (see [How drained do you feel?](battery.md#how-drained-do-you-feel)); on a day with one, it's part of the goal check's push.
 
+## Last night's check-in
+
+When someone's evening check (the goal check or **How drained do you feel?**) is still unanswered in the morning, their own phones and tablets get one push from 7:00 AM: **Last night's check-in is still open 🌙**, "Finish it or skip it." It waits for [quiet hours](quiet-hours.md) to end, stops at noon, never says what they answered or their goal, and isn't in the family's feed. None once they finished it, skipped it or answered their morning Temp check. See [Last night's check-in](snapshot.md#last-nights-check-in).
+
 ## Transition reminders
 
 A family member can also get **transition reminders**: calm heads-ups at the times a parent picks (for example 30 minutes before, plus every 5 minutes during the last 15), sent only to devices that belong to them. The headline changes each time, avoids the person's last 10, fits the event ("Leave at 3:40 PM for Soccer practice. Water bottle? 🥅") and gets more direct as time runs out ("Okay, leave now for Soccer practice! 🎒"), and a meal's event counts to starting prep instead. They're never sent during quiet hours, a reminder that would land in the same minute as a regular one isn't doubled, and each replaces the last on the lock screen. Set them in [Settings → Family](../settings/family.md#transition-reminders).

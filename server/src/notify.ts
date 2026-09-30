@@ -16,6 +16,7 @@ import { parseTempCheck, parseTransitions, todayInTz } from './routes/members.ts
 import { addDays, dueAt, DUE_MS, LATE_MS, loadLogs, loadMedications, medicineLabel, scheduledOn, timeKey, WAKE, windowEnd, type Medication } from './routes/medications.ts';
 import { sha256Hex } from './auth.ts';
 import { batteryFor } from './routes/insights.ts';
+import { eveningPending, LAST_NIGHT_UNTIL, lastNightSkipKey, morningAnswered } from './routes/temp-check.ts';
 import { mealLinksQuery, parseMealLinks, prepAt, prepFor } from './prepBy.ts';
 import { medFollowup, nudge, pickNudge, rememberNudge, stepHint, type NudgeSeen } from './nudges.ts';
 import { apnsConfigured, sendLiveActivity, swiftDate, unixSeconds } from './apns.ts';
@@ -653,6 +654,35 @@ async function runGoalFollowups(env: Env, db: KinwallDb, now: Date, tz: string, 
   }
 }
 
+// Last night's check-in (routes/temp-check.ts): when yesterday's evening check (goal check or
+// "How drained?") was left unanswered and is still open (not skipped, their morning Temp check not
+// answered), one generic push to devices that belong to them, from LAST_NIGHT_PUSH_AT until the
+// window closes at noon, held through quiet hours. Once per person per night (a hash key, like the
+// battery's). The text says nothing about the answers or the goal; not in the family feed.
+export const LAST_NIGHT_PUSH_AT = '07:00';
+async function runLastNightReminders(env: Env, db: KinwallDb, now: Date, tz: string): Promise<void> {
+  const clock = new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(now);
+  if (clock < LAST_NIGHT_PUSH_AT || clock >= LAST_NIGHT_UNTIL) return;
+  const today = todayInTz(tz, now);
+  const night = addDays(today, -1);
+  const { results } = await db
+    .prepare(`SELECT m.id, m.temp_check, y.goal, y.goal_skipped, y.followup, y.drained, t.sleep, t.feelings, t.goal AS t_goal, t.goal_skipped AS t_goal_skipped
+      FROM members m LEFT JOIN temp_checks y ON y.member_id = m.id AND y.date = ? LEFT JOIN temp_checks t ON t.member_id = m.id AND t.date = ? WHERE m.temp_check IS NOT NULL`)
+    .bind(night, today)
+    .all<{ id: string; temp_check: string; goal: string | null; goal_skipped: number | null; followup: string | null; drained: string | null; sleep: string | null; feelings: string | null; t_goal: string | null; t_goal_skipped: number | null }>();
+  for (const m of results) {
+    if (!eveningPending(parseTempCheck(m.temp_check), { goal: m.goal, goal_skipped: m.goal_skipped ?? 0, followup: m.followup, drained: m.drained })) continue;
+    if (morningAnswered({ sleep: m.sleep, feelings: m.feelings, goal: m.t_goal, goal_skipped: m.t_goal_skipped ?? 0 })) continue;
+    if (await db.prepare('SELECT 1 FROM sent_notifications WHERE key = ?').bind(await lastNightSkipKey(m.id, night)).first()) continue;
+    const { results: subs } = await db.prepare('SELECT s.* FROM push_subscriptions s JOIN api_keys k ON k.id = s.api_key_id WHERE k.owner = ?').bind(m.id).all<PushSubRow>();
+    if (!subs.length) continue;
+    const key = `lastnight:${await sha256Hex(`${m.id}:${night}`)}`;
+    if (!(await db.prepare('INSERT INTO sent_notifications (key, sent_at) VALUES (?, ?) ON CONFLICT(key) DO NOTHING').bind(key, now.toISOString()).run()).meta.changes) continue;
+    const payload = { title: "Last night's check-in is still open 🌙", body: 'Finish it or skip it.', url: `/#/journal/${m.id}`, tag: `lastnight:${m.id}` };
+    for (const sub of subs) await sendToSub(env, db, sub, payload);
+  }
+}
+
 // Medication reminders (routes/medications.ts), for each dose that isn't taken or skipped:
 // - at its time (household; a "When I start my day" dose when their day starts), "Time for Leo's medicine" to devices that belong to them (key owner),
 //   and one row in the in-app feed;
@@ -803,6 +833,7 @@ export async function runNotifications(env: Env, now: Date, _execCtx?: WaitCtx):
   await runGoalFollowups(env, env.DB, now, tz, windowStart);
   // Held during quiet hours; a sealed answer that won't open (no key) never stops the rest. The error's name only.
   if (!quiet) try { await runBatteryHeadsUp(env, env.DB, now, tz); } catch (e) { console.error('battery heads-up skipped:', e instanceof Error ? e.name : 'error'); }
+  if (!quiet) await runLastNightReminders(env, env.DB, now, tz); // held during quiet hours
   if (features.trackersHealth && (await env.DB.prepare("SELECT value FROM settings WHERE key = 'medications'").first<{ value: string }>())?.value === 'true') {
     // Never let a sealed value that won't open (no key) stop the other reminders; the error's name only, never data.
     try { await runMedicationReminders(env, env.DB, now, tz, h12); } catch (e) { console.error('medication reminders skipped:', e instanceof Error ? e.name : 'error'); }

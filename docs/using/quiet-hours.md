@@ -13,7 +13,7 @@ Quiet hours turn a wall screen into a dim clock overnight. That saves the screen
 * **Tap the screen** to wake it (or enter the [PIN](#pin-to-wake), if the family set one). It returns to the clock after **five minutes** without a touch.
 * The times are read on the display's own clock. The setting syncs to every display within about 30 seconds.
 
-Quiet hours also hold back transition reminders that would arrive during them. The evening goal check and [medication reminders](medications.md) still come through: they're at times the family picked on purpose.
+Quiet hours also hold back transition reminders that would arrive during them, and the morning [last night's check-in](snapshot.md#last-nights-check-in) reminder waits until they end. The evening goal check and [medication reminders](medications.md) still come through: they're at times the family picked on purpose.
 
 ## PIN to wake
 

@@ -449,6 +449,7 @@ test('heads-up push: held through quiet hours until the morning, then "today"', 
   const s = await setup(at('18:00'));
   await busyTomorrow(s);
   await s.req('/api/settings', 'PATCH', { quietFrom: '18:00', quietTo: '07:00' });
+  await s.check(s.maya.id, TODAY, { drained: 'ok' }); // answered: no "Last night's check-in" push in the morning
   const tick = await devices(s, [['maya-phone', await s.key(s.maya.id)]]);
   assert.deepEqual(await tick(at('19:02')), {}, 'quiet hours');
   assert.deepEqual(await tick(at('06:55', '2026-09-27')), {}, 'still quiet');

@@ -40,7 +40,7 @@ What stays readable in the database, so the list can be filtered and sorted: the
 * The snapshot, profiles and push notifications never include sleep or feelings.
 * The [export](export-import.md) holds them in plain form (it's your backup); importing encrypts them again.
 
-The **evening goal check** answer and its notes (what helped, what got in the way, next time) get the same treatment as sleep and feelings. The push and the bell's feed say "Did you finish your goal? 🎯" with the goal (family content), never the answer. With **Keep answers in the journal** off, only Yes, Partly or Not today is stored.
+The **evening goal check** answer and its notes (what helped, what got in the way, next time) get the same treatment as sleep and feelings. The push and the bell's feed say "Did you finish your goal? 🎯" with the goal (family content), never the answer. With **Keep answers in the journal** off, only Yes, Partly or Not today is stored. After midnight, [last night's check-in](../using/snapshot.md#last-nights-check-in) keeps the same rules; its morning push says only "Last night's check-in is still open", and a skip or a sent reminder is kept as a one-way hash (not who or which day).
 
 ### Journal
 
