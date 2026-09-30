@@ -21,7 +21,7 @@ function escapeRegex(s: string): string {
 // match "soccerball". Keywords are literal text (regex-special chars escaped). Boundaries use
 // \p{L}/\p{N} instead of \b so non-Latin scripts (e.g. accented names) still get real word
 // boundaries, not just ASCII ones.
-function keywordMatches(title: string, keyword: string): boolean {
+export function keywordMatches(title: string, keyword: string): boolean {
   const trimmed = keyword.trim();
   if (!trimmed) return false;
   const re = new RegExp(`(?:^|[^\\p{L}\\p{N}])${escapeRegex(trimmed)}(?:$|[^\\p{L}\\p{N}])`, 'iu');

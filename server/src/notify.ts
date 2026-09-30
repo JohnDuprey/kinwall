@@ -21,6 +21,7 @@ import { medFollowup, nudge, pickNudge, rememberNudge, stepHint, type NudgeSeen 
 import { apnsConfigured, sendLiveActivity, swiftDate, unixSeconds } from './apns.ts';
 import { unseal } from './crypto.ts';
 import { formatTime, hour12For } from './timeFormat.ts';
+import { hiddenInstanceKeys, instanceKey } from './routes/events.ts';
 
 export const DEFAULT_PUSH_PREFS = {
   eventReminders: true,
@@ -231,6 +232,8 @@ async function runEventReminders(env: Env, db: KinwallDb, now: Date, tz: string,
   const categoryText = new Map(categoryRows.map((c) => [c.id, `${c.name} ${c.emoji ?? ''}`.trim()]));
   const events = eventsRes.results as unknown as EventRow[];
   const meals = parseMealLinks(mealsRes.results);
+  // Hidden and filtered-out events get no reminders, transition warnings or Live Activities.
+  const hidden = await hiddenInstanceKeys(db, from, to);
 
   // leadMinutes: travel time when the event reminds before leaving - reminders then count back from
   // the leave-by time (start - travel) instead of the start.
@@ -270,6 +273,7 @@ async function runEventReminders(env: Env, db: KinwallDb, now: Date, tz: string,
 
     if (cal.kind === 'local' && row.rrule) {
       for (const inst of expand(row.rrule, row.start, row.end, !!row.all_day, tz, from, to)) {
+        if (hidden.has(instanceKey(row.id, inst.start))) continue;
         occurrences.push(occ(inst.start));
         for (const minutes of effective) {
           candidates.push({ eventId: row.id, occurrenceKey: inst.start, title: row.title, start: inst.start, allDay: !!row.all_day, memberIds, categoryId: row.category_id, minutes, leadMinutes, row, calName: cal.name });
@@ -278,7 +282,7 @@ async function runEventReminders(env: Env, db: KinwallDb, now: Date, tz: string,
       continue;
     }
     const startMs = row.all_day ? Date.parse(`${row.start}T00:00:00Z`) : Date.parse(row.start);
-    if (startMs < from.getTime() || startMs >= to.getTime()) continue;
+    if (startMs < from.getTime() || startMs >= to.getTime() || hidden.has(instanceKey(row.id, row.start))) continue;
     occurrences.push(occ(row.start));
     for (const minutes of effective) {
       candidates.push({ eventId: row.id, occurrenceKey: row.start, title: row.title, start: row.start, allDay: !!row.all_day, memberIds, categoryId: row.category_id, minutes, leadMinutes, row, calName: cal.name });
@@ -494,6 +498,7 @@ async function runDailySummary(env: Env, db: KinwallDb, now: Date, tz: string, s
   const targets: (PushSubRow | null)[] = subs.filter((s) => subPrefs(s).dailySummary && timeInWindow(subPrefs(s).summaryTime, tz, windowStart, now));
   if (feedTime(subs, 'dailySummary', 'summaryTime', tz, windowStart, now)) targets.push(null);
 
+  let hidden: Set<string> | undefined; // read once, for the first target that needs it
   for (const sub of targets) {
     const key = sub ? `sum:${sub.id}:${today}` : `feed:sum:${today}`;
     if (await alreadySent(db, key)) continue;
@@ -515,6 +520,7 @@ async function runDailySummary(env: Env, db: KinwallDb, now: Date, tz: string, s
       linked.set(r.event_id, [...(linked.get(r.event_id) ?? []), mark(r)]);
     }
     const events = eventsRes.results as unknown as EventRow[];
+    hidden ??= await hiddenInstanceKeys(db, dayStart, dayEnd);
     const deviceMemberIds = sub ? parseMemberIds(sub.member_ids) : [];
     const todaysTitles: string[] = [];
     const todo: string[] = []; // "• Soccer — cleats, water" for today's events with open linked items
@@ -529,7 +535,7 @@ async function runDailySummary(env: Env, db: KinwallDb, now: Date, tz: string, s
       if (memberIds.length === 0 && cal) memberIds = parseMemberIds(cal.member_ids);
       if (!memberMatch(deviceMemberIds, memberIds)) continue;
       if (row.rrule) {
-        const insts = expand(row.rrule, row.start, row.end, !!row.all_day, tz, dayStart, dayEnd);
+        const insts = expand(row.rrule, row.start, row.end, !!row.all_day, tz, dayStart, dayEnd).filter((i) => !hidden!.has(instanceKey(row.id, i.start)));
         if (insts.length > 0) {
           eventCount += insts.length;
           todaysTitles.push(row.title);
@@ -539,7 +545,7 @@ async function runDailySummary(env: Env, db: KinwallDb, now: Date, tz: string, s
       }
       const startMs = row.all_day ? Date.parse(`${row.start}T00:00:00Z`) : Date.parse(row.start);
       const endMs = row.all_day ? Date.parse(`${row.end}T00:00:00Z`) : Date.parse(row.end);
-      if (endMs > dayStart.getTime() && startMs < dayEnd.getTime()) {
+      if (endMs > dayStart.getTime() && startMs < dayEnd.getTime() && !hidden.has(instanceKey(row.id, row.start))) {
         eventCount++;
         todaysTitles.push(row.title);
         addTodo(row);

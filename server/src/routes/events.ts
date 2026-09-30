@@ -14,7 +14,8 @@ import { ErrorSchema, EventInputSchema, EventInstanceSchema } from '../schemas.t
 import { deterministicEventId } from '../event-id.ts';
 import { parseMemberIds } from '../calendar-members.ts';
 import { matchCategoryByKeyword, type CategoryRow } from '../calendar-categories.ts';
-import { eventWriteBlock } from '../auth.ts';
+import { eventWriteBlock, requestKey } from '../auth.ts';
+import { filterShows, parseFilter } from '../calendar-filter.ts';
 import { mealLinksQuery, parseMealLinks, prepAt } from '../prepBy.ts';
 
 export const eventsRoutes = createRouter();
@@ -52,6 +53,7 @@ type CalendarRow = {
   writable: number;
   enabled: number;
   display_edit: number;
+  filter?: string | null;
 };
 
 type AccountRow = { id: string; kind: string; name: string; config: string };
@@ -439,8 +441,10 @@ async function buildCtx(db: KinwallDb, cal: CalendarRow, env: Env): Promise<Prov
 }
 
 // Every event instance overlapping [from, to), members/categories/travel resolved, sorted by start -
-// GET /api/events, and the snapshot (routes/snapshot.ts).
-export async function eventInstances(db: KinwallDb, fromDate: Date, toDate: Date, calendarId?: string) {
+// GET /api/events, the board and snapshot (routes/snapshot.ts), insights and notify.ts. Events the
+// family has filtered out (calendar-filter.ts) are left out here, the one place every consumer reads
+// through; includeHidden keeps them, marked with why (Settings' preview and a parent's Show hidden).
+export async function eventInstances(db: KinwallDb, fromDate: Date, toDate: Date, calendarId?: string, opts: { includeHidden?: boolean } = {}) {
   // calendars, household timezone, member colors and categories (for keyword matching) are
   // independent reads - one batch.
   const calendarsStmt = calendarId
@@ -460,6 +464,7 @@ export async function eventInstances(db: KinwallDb, fromDate: Date, toDate: Date
   const defaultReminderMinutes = parseDefaultReminderMinutes(settingsMap.get('defaultReminderMinutes'));
   const memberColors = new Map((membersRes.results as { id: string; color: string }[]).map((r) => [r.id, r.color]));
   const categories = categoriesRes.results as unknown as CategoryRow[];
+  const filters = new Map(calendars.map((cal) => [cal.id, parseFilter(cal.filter)]));
 
   // events + all four override tables, all filtered by the same calendar id set - another batch.
   const calIds = calendars.map((cal) => cal.id);
@@ -517,13 +522,22 @@ export async function eventInstances(db: KinwallDb, fromDate: Date, toDate: Date
 
   // A meal's event counts down to starting prep instead (prepBy.ts), for its cook.
   const meals = parseMealLinks(mealsRes.results);
-  const withCounts = out.map((ev) => {
+  const marked = out.map((ev) => ({ ...ev, hidden: filterShows(filters.get(ev.calendarId)!, ev) ? null : ('filter' as const) }));
+  const withCounts = (opts.includeHidden ? marked : marked.filter((ev) => !ev.hidden)).map((ev) => {
     const meal = ev.allDay ? undefined : meals.get(ev.id);
     return { ...ev, linkedItemCount: linkedCounts.get(ev.id) ?? 0, noteCount: noteCounts.get(ev.id) ?? 0, prepAt: meal ? prepAt(ev.start, meal.eventStart, meal.minutes) : null, cookId: meal?.cookId ?? null };
   });
   withCounts.sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0));
   return withCounts;
 }
+
+/** notify.ts reads event rows itself (reminders, transitions, Live Activities, the daily summary):
+ * the (event id, start) keys of the instances in [from, to) the family doesn't see, to skip. */
+export async function hiddenInstanceKeys(db: KinwallDb, fromDate: Date, toDate: Date): Promise<Set<string>> {
+  // ponytail: a second full read of the events per notify tick; share one read if ticks get slow.
+  return new Set((await eventInstances(db, fromDate, toDate, undefined, { includeHidden: true })).filter((ev) => ev.hidden).map((ev) => instanceKey(ev.id, ev.start)));
+}
+export const instanceKey = (id: string, start: string) => `${id}\u0000${start}`;
 
 eventsRoutes.openapi(
   createRoute({
@@ -533,13 +547,23 @@ eventsRoutes.openapi(
     summary: 'List events in a range, merging local (expanded) and synced remote instances',
     security: [{ Bearer: [] }],
     request: {
-      query: z.object({ from: z.string(), to: z.string(), memberId: z.string().optional(), calendarId: z.string().optional() }),
+      query: z.object({
+        from: z.string(),
+        to: z.string(),
+        memberId: z.string().optional(),
+        calendarId: z.string().optional(),
+        includeHidden: z.enum(['true', 'false']).optional().openapi({ description: "Parents' devices only: also the events the family doesn't see, each with `hidden` saying why" }),
+      }),
     },
-    responses: { 200: { description: 'ok', content: { 'application/json': { schema: z.array(EventInstanceSchema) } } } },
+    responses: {
+      200: { description: 'ok', content: { 'application/json': { schema: z.array(EventInstanceSchema) } } },
+      403: { description: "includeHidden from a wall screen or kid's device", content: { 'application/json': { schema: ErrorSchema } } },
+    },
   }),
   async (c) => {
-    const { from, to, memberId, calendarId } = c.req.valid('query');
-    let filtered = await eventInstances(c.env.DB, new Date(from), new Date(to), calendarId);
+    const { from, to, memberId, calendarId, includeHidden } = c.req.valid('query');
+    if (includeHidden === 'true' && (await requestKey(c))?.scope !== 'admin') return c.json({ error: "Only parents' devices can see hidden events." }, 403);
+    let filtered = await eventInstances(c.env.DB, new Date(from), new Date(to), calendarId, { includeHidden: includeHidden === 'true' });
     if (memberId) filtered = filtered.filter((ev) => ev.memberIds.includes(memberId));
     return c.json(filtered, 200);
   },

@@ -379,6 +379,15 @@ export const AccountSchema = z
   })
   .openapi('Account');
 
+export const CalendarFilterSchema = z
+  .object({
+    mode: z.enum(['all', 'only', 'except']).openapi({ description: "'only': just the events that match; 'except': everything but them; 'all': no filter" }),
+    keywords: z.array(z.string().trim().min(1).max(200)).max(200).openapi({ description: 'Words or phrases, matched as whole words in the title, ignoring case (like category keywords). An event matches with any of them' }),
+    allDay: z.enum(['any', 'allDay', 'timed']).openapi({ description: 'An event matches only if it is all-day (allDay) or timed (timed)' }),
+    categoryIds: z.array(z.string()).max(100).openapi({ description: 'An event matches only if it has one of these categories' }),
+  })
+  .openapi('CalendarFilter', { description: 'Which of a calendar\'s events the family sees. An event matches when every condition that is set holds; a filter with no conditions does nothing' });
+
 export const CalendarSchema = z
   .object({
     id: z.string(),
@@ -397,6 +406,7 @@ export const CalendarSchema = z
     lastSyncedAt: z.string().nullable(),
     lastError: z.string().nullable(),
     needsReconnect: z.boolean(), // imported placeholder: settings kept, not syncing until reconnected
+    filter: CalendarFilterSchema,
   })
   .openapi('Calendar');
 
@@ -443,6 +453,7 @@ export const EventInstanceSchema = z
     noteCount: z.number().optional(), // notes in this event's thread (GET /api/events only)
     prepAt: z.string().nullable().optional().openapi({ description: "A meal's event: when to start prep (the meal time minus the recipe's total or prep time, 30 minutes when it has none). GET /api/events only" }),
     cookId: z.string().nullable().optional().openapi({ description: "A meal's event: who's cooking, the one its prep countdown is for. GET /api/events only" }),
+    hidden: z.enum(['filter']).nullable().optional().openapi({ description: "Why the family doesn't see it: its calendar's filter ('filter'). Set with includeHidden=true; null = shown" }),
   })
   .openapi('EventInstance');
 

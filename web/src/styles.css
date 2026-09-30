@@ -663,6 +663,16 @@ button {
 .pick-btn > .pick-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
 .sheet-link > svg.pick-check { color: var(--accent-strong); }
 .sheet-link > .member-avatar-sm, .sheet-link > .pick-swatch { flex: none; } /* not the label's flex: 1 */
+/* Calendar filter preview (CalendarFilterSheet): what the draft filter shows and hides. */
+.filter-preview { margin-top: 16px; padding-top: 14px; border-top: 2px solid var(--border); }
+.filter-preview h3 { margin: 0 0 10px; font-size: 1rem; font-weight: 800; }
+.filter-preview-group + .filter-preview-group { margin-top: 14px; }
+.filter-preview-group h4 { margin: 0 0 6px; font-size: 0.875rem; font-weight: 800; color: var(--text-dim); }
+.filter-preview-group ul { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.filter-preview-group li { display: flex; gap: 10px; padding: 6px 10px; border-radius: var(--radius-sm); background: var(--bg-alt); font-weight: 700; font-size: 0.875rem; }
+.filter-preview-group.is-hidden li { color: var(--text-dim); font-weight: 600; }
+.filter-preview-group.is-hidden li > span:last-child { text-decoration: line-through; text-decoration-thickness: 1px; }
+.filter-preview-when { flex: none; min-width: 7.5em; white-space: nowrap; color: var(--text-dim); font-weight: 600; }
 .pick-swatch { flex-shrink: 0; width: 20px; height: 20px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--text) 15%, transparent); }
 .pick-sheet-search { min-height: 50vh; } /* the sheet keeps its height while the list narrows */
 .pick-sheet .sheet-links { margin-top: 0; }

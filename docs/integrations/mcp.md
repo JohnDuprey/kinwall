@@ -78,9 +78,9 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 
 | Tool | Does |
 |---|---|
-| `get_household` | Settings (family name, timezone, week start, color scheme), members and a calendar summary. |
+| `get_household` | Settings (family name, timezone, week start, color scheme), members and a calendar summary, with each calendar's `filter`. |
 | `list_color_schemes` | The household's color scheme and every scheme it can use: Seasonal, the built-in schemes by the name people see (Peach is the default, Meadow the green one), and the family's own schemes with their light and dark palettes. |
-| `list_events` | Events across all calendars in a range (default: today plus 7 days). Can filter by member or calendar. |
+| `list_events` | Events across all calendars in a range (default: today plus 7 days). Can filter by member or calendar. Events a [calendar filter](../using/calendar.md#calendar-filters) leaves out aren't listed, here or in `get_board` and `get_snapshot`. |
 | `get_event` | One event by ID (the series row for a recurring local event). |
 | `get_event_items` | List items linked to an event, across all lists, open first, with list names. |
 | `list_chores` | Chores due on a date (default today), with completion state. |

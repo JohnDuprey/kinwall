@@ -68,6 +68,7 @@ import m0064 from '../migrations/0064_oauth_device_app.sql';
 import m0065 from '../migrations/0065_device_kinds.sql';
 import m0066 from '../migrations/0066_no_grownup_paired_devices.sql';
 import m0067 from '../migrations/0067_widget_keys.sql';
+import m0068 from '../migrations/0068_calendar_filters.sql';
 
 export const MIGRATIONS: Migration[] = [
   { name: '0001_init.sql', sql: m0001 },
@@ -137,4 +138,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0065_device_kinds.sql', sql: m0065 },
   { name: '0066_no_grownup_paired_devices.sql', sql: m0066 },
   { name: '0067_widget_keys.sql', sql: m0067 },
+  { name: '0068_calendar_filters.sql', sql: m0068 },
 ];

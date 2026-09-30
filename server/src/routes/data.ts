@@ -8,6 +8,7 @@ import { emit, type BusEventType } from '../bus.ts';
 import type { KinwallDb, KinwallStatement } from '../db.ts';
 import type { Env } from '../env.ts';
 import { RecipeSchema, MealSchema } from '../meal-schemas.ts';
+import { parseFilter } from '../calendar-filter.ts';
 import { readRecipes, readMeals, normalizeIngredient } from '../meals.ts';
 import { itemKey } from '../item-memory.ts';
 import { readSettings, settingsWrites } from './settings.ts';
@@ -31,6 +32,7 @@ import { DoseTimesSchema, LateWindowSchema, loadLogs, loadMedications, sealLog, 
 import { fromRow as contactFromRow, type ContactRow } from './contacts.ts';
 import {
   CalendarSchema,
+  CalendarFilterSchema,
   CategorySchema,
   ContactCategorySchema,
   ContactSchema,
@@ -71,7 +73,7 @@ const ExportSchema = z
     // that keep their settings and are reconnected, and their events re-fetched.
     // ICS feeds also carry their url (the export is the family's own, admin-only file), so they come
     // back connected on import; provider accounts never do - those hold tokens and are reconnected.
-    calendars: z.array(CalendarSchema.pick({ id: true, kind: true, name: true, color: true, remoteId: true, memberIds: true, categoryId: true, enabled: true }).extend({ url: z.string().url().optional(), displayEdit: z.boolean().optional() })),
+    calendars: z.array(CalendarSchema.pick({ id: true, kind: true, name: true, color: true, remoteId: true, memberIds: true, categoryId: true, enabled: true }).extend({ url: z.string().url().optional(), displayEdit: z.boolean().optional(), filter: CalendarFilterSchema.optional() })),
     events: z.array(
       z.object({
         id: z.string(),
@@ -164,7 +166,7 @@ const ExportSchema = z
   .openapi('Export');
 
 type MemberRow = { id: string; name: string; color: string; avatar: string | null; birthday: string | null; sort: number; grown_up: number; needs_approval: number; transitions: string | null; reward_goal: string | null; temp_check: string | null; temp_check_feelings: string | null };
-type CalendarRow = { id: string; kind: z.infer<typeof CalendarSchema>['kind']; remote_id: string | null; name: string; color: string | null; member_ids: string; category_id: string | null; enabled: number; display_edit: number };
+type CalendarRow = { id: string; kind: z.infer<typeof CalendarSchema>['kind']; remote_id: string | null; name: string; color: string | null; member_ids: string; category_id: string | null; enabled: number; display_edit: number; filter: string | null };
 type EventRow = {
   id: string; calendar_id: string; title: string; start: string; end: string; all_day: number; location: string | null;
   description: string | null; rrule: string | null; member_ids: string; category_id: string | null; reminders: string | null;
@@ -201,7 +203,7 @@ dataRoutes.openapi(
       db.prepare('SELECT id, name, emoji, color, keywords, sort, created_at FROM categories ORDER BY sort, created_at'),
       db.prepare('SELECT id, name, color, sort, created_at, updated_at FROM contact_categories ORDER BY sort, name COLLATE NOCASE, id'),
       db.prepare('SELECT id, kind, name, organization, title, given_name, family_name, nickname, relationship, favorite, emergency, phones, emails, addresses, websites, dates, notes, category_ids, tags, member_ids, service_hours, service_area, always_open, wall_visible, emergency_visible, phone_visible_on_wall, address_visible_on_wall, visibility, selected_member_ids, source_metadata, private_fields, created_at, updated_at FROM contacts ORDER BY name COLLATE NOCASE, id'),
-      db.prepare('SELECT id, kind, remote_id, name, color, member_ids, category_id, enabled, display_edit, config FROM calendars ORDER BY name'),
+      db.prepare('SELECT id, kind, remote_id, name, color, member_ids, category_id, enabled, display_edit, filter, config FROM calendars ORDER BY name'),
       db.prepare(
         `SELECT e.id, e.calendar_id, e.title, e.start, e.end, e.all_day, e.location, e.description, e.rrule, e.member_ids, e.category_id, e.reminders, e.travel_minutes, e.remind_before_leave, e.sync_source, e.external_id
          FROM events e JOIN calendars c ON c.id = e.calendar_id WHERE c.kind = 'local' ORDER BY e.start`,
@@ -265,6 +267,7 @@ dataRoutes.openapi(
           categoryId: r.category_id,
           enabled: !!r.enabled,
           displayEdit: !!r.display_edit,
+          filter: parseFilter(r.filter),
           ...(r.kind === 'ics' && r.config ? { url: (await decryptConfig(c.env, r.id, r.config).catch(() => ({}))).url as string | undefined } : {}),
         }))),
         events: (events as EventRow[]).map((r) => ({
@@ -621,6 +624,7 @@ dataRoutes.openapi(
             category_id: cal.categoryId,
             enabled: cal.enabled ? 1 : 0,
             display_edit: cal.displayEdit === false ? 0 : 1, // exports from before the switch: on
+            filter: cal.filter ? JSON.stringify(cal.filter) : null,
             writable: local ? 1 : 0, // placeholders are read-only until sync refreshes it
             account_id: null,
             config: local ? '{}' : feed ?? '',

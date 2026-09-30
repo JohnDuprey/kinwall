@@ -1,3 +1,4 @@
+import type { CalendarFilter } from './calendarFilter.ts'
 import type { DeviceKind } from './wallScreen.ts'
 import type { CustomScheme } from './skins.ts'
 import type { Meal } from './meal-types.ts'
@@ -262,6 +263,7 @@ export interface CalendarEntry {
   lastSyncedAt: string | null
   lastError: string | null
   needsReconnect?: boolean // imported placeholder: settings kept, not syncing until reconnected
+  filter?: CalendarFilter // which events the family sees (calendarFilter.ts); absent = all
 }
 
 export interface EventInstance {
@@ -291,6 +293,7 @@ export interface EventInstance {
   remindBeforeLeave: boolean // reminders count back from leaveAt instead of start
   prepAt?: string | null // a meal's event: when to start prep (server/src/prepBy.ts); GET /api/events only
   cookId?: string | null // a meal's event: who's cooking, the one the prep countdown is for
+  hidden?: 'filter' | null // why the family doesn't see it (only with includeHidden, on parents' devices)
 }
 
 /** Reminder select options shared by the event edit sheet and Settings' household default. */

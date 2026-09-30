@@ -12,11 +12,13 @@ import { tidbitSummary } from './tidbits.ts'
 import { appearanceChips, featuresSummary, nightSummary, timeCuesSummary, transitionRemindersSummary, type Chip } from './settingsSummary.ts'
 import { MAX_WARNING_TIMES, REPEAT_EVERY, REPEAT_WITHIN, warningTimes, type TransitionReminders, type WarningRepeat } from './transitions.ts'
 import { MemberPicker } from './MemberPicker.tsx'
+import CalendarFilterSheet from './CalendarFilterSheet.tsx'
+import { filterSummary } from './calendarFilter.ts'
 import TimezoneField from './TimezoneField.tsx'
 import { AnyEmojiField } from './AnyEmojiField.tsx'
 import { isValidAvatar } from './emoji.ts'
 import { accentFill, colorName, inkFor } from './color.ts'
-import { BellIcon, KeyIcon, LinkIcon, LockIcon, MonitorIcon, PaletteIcon, PlusIcon, TrashIcon, WebhookIcon } from './icons.tsx'
+import { BellIcon, ChevronRight, KeyIcon, LinkIcon, LockIcon, MonitorIcon, PaletteIcon, PlusIcon, TrashIcon, WebhookIcon } from './icons.tsx'
 import { CustomColorSwatch } from './ColorSwatch.tsx'
 import { ColorClashHint, ColorClashNote } from './ColorClash.tsx'
 import { useIsPhone } from './useIsPhone.ts'
@@ -2055,6 +2057,8 @@ function EditCalendarSheet({ calendar, onClose, onSaved, onSync, onRemove, toast
   const [categoryId, setCategoryId] = useState(calendar.categoryId)
   const [enabled, setEnabled] = useState(calendar.enabled)
   const [displayEdit, setDisplayEdit] = useState(calendar.displayEdit !== false)
+  const [filter, setFilter] = useState(calendar.filter)
+  const [filterOpen, setFilterOpen] = useState(false)
 
   const save = async () => {
     if (!name.trim()) return
@@ -2083,6 +2087,13 @@ function EditCalendarSheet({ calendar, onClose, onSaved, onSync, onRemove, toast
         </select>
         <div className="settings-row-sub">Applied to events here with no keyword match or their own category.</div>
       </div>
+      <div className="field">
+        <label htmlFor="calendar-filter">Filter</label>
+        <button id="calendar-filter" type="button" className="sheet-link" aria-haspopup="dialog" aria-label={`Filter: ${filterSummary(filter)}`} onClick={() => setFilterOpen(true)}>
+          <span>{filterSummary(filter)}<small>Which events the family sees</small></span><ChevronRight />
+        </button>
+      </div>
+      {filterOpen && <CalendarFilterSheet calendar={{ ...calendar, filter }} onClose={() => setFilterOpen(false)} onSaved={f => { setFilter(f); setFilterOpen(false) }} />}
       <div className="toggle-row">
         <label id="calendar-enabled-label">Enabled</label>
         <button className={`switch ${enabled ? 'on' : ''}`} role="switch" aria-checked={enabled} aria-labelledby="calendar-enabled-label" onClick={() => setEnabled(v => !v)}><span className="knob" /></button>

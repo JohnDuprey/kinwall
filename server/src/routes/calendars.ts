@@ -8,7 +8,8 @@ import type { Context } from 'hono';
 import { encryptConfig } from '../crypto.ts';
 import { FEED_URL_ERROR, isSafeFeedUrl } from '../outbound.ts';
 import { errorMessage } from '../redact.ts';
-import { CalendarInputSchema, CalendarSchema, ErrorSchema } from '../schemas.ts';
+import { CalendarFilterSchema, CalendarInputSchema, CalendarSchema, ErrorSchema } from '../schemas.ts';
+import { parseFilter } from '../calendar-filter.ts';
 import { parseMemberIds, resolveMemberIds } from '../calendar-members.ts';
 import { canChangeEvents, requestKey } from '../auth.ts';
 
@@ -29,6 +30,7 @@ type CalendarRow = {
   display_edit: number;
   last_synced_at: string | null;
   last_error: string | null;
+  filter?: string | null;
 };
 
 // canEditEvents: whether the requesting key may change this calendar's events (auth.ts). Only GET
@@ -52,6 +54,7 @@ function toApi(row: CalendarRow, canEditEvents = true) {
     lastSyncedAt: row.last_synced_at,
     lastError: row.last_error,
     needsReconnect: row.kind !== 'local' && row.config === '',
+    filter: parseFilter(row.filter),
   };
 }
 
@@ -184,6 +187,15 @@ calendarsRoutes.openapi(
   },
 );
 
+// Keywords deduped ignoring case. "All events" keeps its rule, so switching back keeps the keywords.
+function storedFilter(f: z.infer<typeof CalendarFilterSchema> | null): string | null {
+  if (!f) return null;
+  const seen = new Set<string>();
+  const keywords = f.keywords.filter((k) => !seen.has(k.toLowerCase()) && !!seen.add(k.toLowerCase()));
+  const empty = f.mode === 'all' && !keywords.length && f.allDay === 'any' && !f.categoryIds.length;
+  return empty ? null : JSON.stringify({ mode: f.mode, keywords, allDay: f.allDay, categoryIds: [...new Set(f.categoryIds)] });
+}
+
 const CalendarPatchSchema = z
   .object({
     name: z.string().min(1).optional(),
@@ -194,6 +206,7 @@ const CalendarPatchSchema = z
     enabled: z.boolean().optional(),
     displayEdit: z.boolean().optional(), // wall screens and kids' devices may change its events
     url: z.string().url().optional(), // ICS only: set/replace the feed URL (reconnects an imported ICS calendar)
+    filter: CalendarFilterSchema.nullable().optional().openapi({ description: 'Which events the family sees (read time: no resync needed); null clears it' }),
   })
   .openapi('CalendarPatch');
 
@@ -246,9 +259,10 @@ calendarsRoutes.openapi(
       category_id: body.categoryId !== undefined ? body.categoryId : existing.category_id,
       enabled: body.enabled !== undefined ? (body.enabled ? 1 : 0) : existing.enabled,
       display_edit: body.displayEdit !== undefined ? (body.displayEdit ? 1 : 0) : existing.display_edit,
+      filter: body.filter !== undefined ? storedFilter(body.filter) : existing.filter,
     };
-    await c.env.DB.prepare('UPDATE calendars SET name = ?, color = ?, member_ids = ?, category_id = ?, enabled = ?, display_edit = ? WHERE id = ?')
-      .bind(updated.name, updated.color, updated.member_ids, updated.category_id, updated.enabled, updated.display_edit, id)
+    await c.env.DB.prepare('UPDATE calendars SET name = ?, color = ?, member_ids = ?, category_id = ?, enabled = ?, display_edit = ?, filter = ? WHERE id = ?')
+      .bind(updated.name, updated.color, updated.member_ids, updated.category_id, updated.enabled, updated.display_edit, updated.filter ?? null, id)
       .run();
     emit(c, 'calendar.changed', { id });
     if (body.url !== undefined) syncInBackground(c, id);

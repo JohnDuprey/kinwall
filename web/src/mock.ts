@@ -8,6 +8,7 @@ import { aisleOrderMap, compareItems } from './types.ts'
 import { itemKey } from './itemSuggest.ts'
 import { byListOrder, reorderWithin } from './listSections.ts'
 import { dateKey } from './date.ts'
+import { FILTER_PRESETS, NO_FILTER, filterShows } from './calendarFilter.ts'
 import { MAYA_ANALYSIS, MAYA_BATTERY, MAYA_DAYS } from './mock-insights.ts'
 import type { Contact, ContactCategory, ContactInput, ImportPreviewEntry } from './contact-types.ts'
 import { emptyContact } from './contact-types.ts'
@@ -231,6 +232,8 @@ const calendars: CalendarEntry[] = [
   { id: 'c1', kind: 'local', accountId: null, remoteId: null, name: 'Family', color: '#B39DFF', memberId: null, memberIds: [], categoryId: null, writable: true, enabled: true, lastSyncedAt: null, lastError: null },
   { id: 'c2', kind: 'ics', accountId: null, remoteId: null, name: 'School (ICS)', color: '#FFD166', memberId: null, memberIds: [], categoryId: null, writable: false, enabled: true, lastSyncedAt: new Date().toISOString(), lastError: null },
   { id: 'c3', kind: 'google', accountId: 'demo-google', remoteId: 'remote-1', name: 'Work', color: '#7AB8FF', memberId: null, memberIds: [], categoryId: null, writable: true, enabled: true, lastSyncedAt: new Date().toISOString(), lastError: null },
+  // A school's whole calendar, filtered down to days off and half days (Settings → Calendars → Filter).
+  { id: 'c4', kind: 'ics', accountId: null, remoteId: null, name: 'Oak Hill Elementary', color: '#F5A65B', memberId: null, memberIds: ['m3', 'm4'], categoryId: null, writable: false, enabled: true, lastSyncedAt: new Date().toISOString(), lastError: null, filter: FILTER_PRESETS[0].filter },
 ]
 
 const categories: Category[] = [
@@ -288,6 +291,29 @@ const events: EventInstance[] = [
   { id: 'e21', calendarId: 'c1', title: 'Reading Time', start: fromNow(-20), end: fromNow(25), allDay: false, location: null, description: null, memberIds: ['m3'], color: '#7ED9A6', rrule: null, occurrenceStart: null, readOnly: false, seriesId: null, memberScope: 'none', categoryId: null, categorySource: null, reminders: null, travelMinutes: null, leaveAt: null, remindBeforeLeave: false },
   { id: 'e22', calendarId: 'c1', title: 'Piano Lesson', start: fromNow(70), end: fromNow(115), allDay: false, location: 'Music school', description: null, memberIds: ['m2'], color: '#FF8FA3', rrule: null, occurrenceStart: null, readOnly: false, seriesId: null, memberScope: 'none', categoryId: null, categorySource: null, reminders: null, travelMinutes: 45, leaveAt: null, remindBeforeLeave: true },
 ]
+
+// Oak Hill Elementary's feed: everything a school publishes, mostly all-day. Its filter keeps only
+// days off and half days; the rest shows in Settings' preview and with Show hidden.
+const SCHOOL_EVENTS: [number, string, number?, number?][] = [ // [days from today, title, start hour, length in days or hours]
+  [0, 'Spirit Day: Pajamas'], [1, 'Breakfast with the Principal', 8], [3, 'Book Fair', undefined, 3], [4, 'PTA Meeting', 18],
+  [6, 'Early Release – Half Day'], [8, 'Picture Day Retakes'], [11, 'Professional Development Day – No School'], [13, 'Science Fair', 17],
+  [15, 'Field Trip: Science Museum'], [18, 'Veterans Day – No School'], [20, 'Report Cards Go Home'], [22, 'Math Night', 18],
+  [26, 'Thanksgiving Break – No School', undefined, 3], [33, 'Parent-Teacher Conferences – Half Day'], [36, 'Holiday Concert', 18],
+  [40, 'Spelling Bee'], [45, 'Winter Break – No School', undefined, 9], [57, 'Classes Resume'], [60, 'Martin Luther King Jr. Day – No School'],
+  [64, 'Winter Carnival', 17], [72, 'Snow Day Make-Up'], [80, 'Early Dismissal – Staff Training'], [86, "Presidents' Day – No School"],
+]
+for (const [i, [day, title, hour, length]] of SCHOOL_EVENTS.entries()) {
+  const timed = hour !== undefined
+  events.push({
+    id: `s${i + 1}`, calendarId: 'c4', title, start: timed ? at(day, hour) : dateOnly(day), end: timed ? at(day, hour + (length ?? 1)) : dateOnly(day + (length ?? 1)),
+    allDay: !timed, location: null, description: null, memberIds: ['m3', 'm4'], color: '#F5A65B', rrule: null, occurrenceStart: null, readOnly: true, seriesId: null,
+    memberScope: 'calendar', categoryId: null, categorySource: null, reminders: null, travelMinutes: null, leaveAt: null, remindBeforeLeave: false,
+  })
+}
+
+/** Why the family doesn't see an event, like the server (calendarFilter.ts): null = shown. */
+const hiddenWhy = (e: EventInstance): EventInstance['hidden'] =>
+  filterShows(calendars.find(c => c.id === e.calendarId)?.filter ?? NO_FILTER, e) ? null : 'filter'
 
 // Mirrors the server: leaveAt = start - travelMinutes, only for timed events.
 const withLeave = (e: EventInstance): EventInstance =>
@@ -757,7 +783,10 @@ export const mock = {
     { remoteId: 'remote-4', name: 'Birthdays', color: '#FF8FA3', writable: false },
   ]),
 
-  getEvents: async (from: string, to: string) => events.filter(e => e.start < to && e.end > from)
+  getEvents: async (from: string, to: string, calendarId?: string, includeHidden?: boolean) => events
+    .filter(e => e.start < to && e.end > from && (!calendarId || e.calendarId === calendarId))
+    .map(e => ({ ...e, hidden: hiddenWhy(e) })).filter(e => includeHidden || !e.hidden)
+    .sort((a, b) => a.start.localeCompare(b.start))
     .map(e => ({ ...withLeave(e), linkedItemCount: listItems.filter(i => i.eventId === e.id && !i.done).length, noteCount: noteCount('event', e.id) })),
   getEventItems: async (eventId: string) => listItems.filter(i => i.eventId === eventId)
     .sort((a, b) => Number(a.done) - Number(b.done) || a.sort - b.sort)
@@ -1217,7 +1246,7 @@ function birthdaysOn(dates: string[], all: (EventInstance & { date: string })[])
 function eventsThrough(last: string) {
   const today = inDays(0)
   const dayOf = (e: EventInstance) => { const d = e.allDay ? e.start.slice(0, 10) : dateKey(new Date(e.start)); return d < today ? today : d }
-  return events.map(e => ({ ...withLeave(e), date: dayOf(e) }))
+  return events.filter(e => !hiddenWhy(e)).map(e => ({ ...withLeave(e), date: dayOf(e) }))
     .filter(e => e.date <= last && (e.allDay ? e.end.slice(0, 10) > today : dateKey(new Date(e.end)) >= today))
     .sort((a, b) => a.start.localeCompare(b.start))
 }

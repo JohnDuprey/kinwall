@@ -124,6 +124,29 @@ When any categories exist, a **filter** button appears in the toolbar. It opens 
 
 The member and category filters combine, and every view honors both.
 
+## Calendar filters
+
+A calendar can show the family only some of its events. The school's calendar, for example, can keep just the days off and half days and leave out every book fair and spirit day. A filter is set per calendar for the whole household, from a parent's device: open **Settings → Calendars**, tap the calendar, then **Filter**. Wall screens and kids' devices can't change it. (To hide a category on one device only, use the [category filter](#by-category) above.)
+
+* **Show**: **All events** (no filter), **Only events that match**, or **All except events that match**.
+* **Words in the title**: words or phrases, separated by commas. They match whole words in any case, like [category keywords](categories.md): "break" matches "Winter Break – No School" but not "Breakfast with the Principal". An event matches with any one of them.
+* **All-day or timed**: **Either**, **All-day only** or **Timed only**.
+* **Categories**: optional. When you pick some, an event matches only with one of them.
+
+An event matches when it fits every choice you made: one of the words, and all-day (if you picked that), and one of the categories (if you picked any). A filter with no words, categories or all-day choice does nothing.
+
+**Start from a preset** fills everything in, and you can change it after:
+
+| Preset | Shows | Words |
+|---|---|---|
+| **School: days off & half days** | Only matching all-day events | no school, closed, day off, vacation, break, holiday, recess, half day, early release, early dismissal, professional development, PD day, teacher workshop, in-service, snow day, conferences, and US holidays like Labor Day and Thanksgiving |
+| **Holidays only** | Only matching events | holiday, and holidays like Thanksgiving, Christmas, Hanukkah, Diwali and Lunar New Year |
+| **Hide birthdays** | All except matching | birthday, bday, b-day |
+
+While you edit, the sheet previews the next 3 months: "Showing 14 of 212 events in the next 3 months", with the shown and hidden events listed, soonest first. **Save** applies it right away.
+
+A filtered-out event is gone everywhere the family sees events: every calendar view, the Board, Now / Next, [reminders, transition warnings and leave-by pushes](notifications.md), Live Activities, the daily summary, [snapshots](snapshot.md) and the [assistant](../integrations/mcp.md). Nothing is deleted: Kinwall still syncs every event and decides what to show when it reads them, so changing a filter needs no resync and hidden events come back as soon as you change it.
+
 ## How events are colored
 
 * **Category set**: the category color, with the category emoji before the title. Member avatars still show.

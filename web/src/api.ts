@@ -353,11 +353,13 @@ export const api = {
   getRemoteCalendars: (accountId: string) => MOCK ? mock.getRemoteCalendars(accountId) : get<RemoteCalendar[]>(`api/accounts/${accountId}/remote-calendars`, true),
   oauthStartUrl: (kind: 'google' | 'microsoft') => apiUrl(`api/oauth/${kind}/start?key=${encodeURIComponent(getAdminKey() ?? getKey() ?? '')}`),
 
-  getEvents: (from: string, to: string, memberId?: string, calendarId?: string) => {
-    if (MOCK) return mock.getEvents(from, to)
+  // includeHidden (parents' devices): also the events the family doesn't see, each with `hidden` saying why.
+  getEvents: (from: string, to: string, memberId?: string, calendarId?: string, includeHidden?: boolean) => {
+    if (MOCK) return mock.getEvents(from, to, calendarId, includeHidden)
     const q = new URLSearchParams({ from, to })
     if (memberId) q.set('memberId', memberId)
     if (calendarId) q.set('calendarId', calendarId)
+    if (includeHidden) q.set('includeHidden', 'true')
     return get<EventInstance[]>(`api/events?${q}`)
   },
   createEvent: (body: Partial<EventInstance>) => MOCK ? mock.createEvent(body) : post<EventInstance>('api/events', body),
