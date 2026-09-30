@@ -1,0 +1,32 @@
+// The setup wizard's (Setup.tsx) choices, resume and error copy. Pure, so it's tested in
+// test/setupSteps.test.ts.
+import type { Member } from './types.ts'
+
+export type Step = 'welcome' | 'role' | 'passkey' | 'recovery' | 'household' | 'members' | 'owner' | 'calendars' | 'chores' | 'displayKind' | 'done'
+export type DeviceRole = 'admin' | 'display'
+export interface SetupResume { step: Step; deviceRole: DeviceRole; displayKeyId?: string }
+
+/** The first person added is usually the parent doing setup; everyone after, a kid. */
+export const defaultGrownUp = (added: number) => added === 0
+
+/** "Whose device is this?": a full-access device only ever belongs to a grown-up. */
+export const ownerChoices = (members: Member[]) => members.filter(m => m.grownUp)
+
+/** "A kid's device": whose. */
+export const kidChoices = (members: Member[]) => members.filter(m => !m.grownUp)
+
+/** What a reload reopens. Once claimed (a role is set) setup always continues, at the household
+ * step if it somehow sits on the role picker, since claiming again can't work. */
+export function resumeFor(step: Step, deviceRole: DeviceRole | null, displayKeyId?: string): SetupResume | null {
+  if (!deviceRole || step === 'welcome' || step === 'done') return null
+  return { step: step === 'role' ? 'household' : step, deviceRole, displayKeyId }
+}
+
+/** Wizard error copy from an API error's status: never the server's raw words. */
+export function setupErrorText(status: number | undefined, fallback: string): string {
+  if (status === 0) return "You're offline. Check your connection and try again."
+  if (status === 401 || status === 403) return "This device can't do this part of setup. Skip it for now and finish it later in Settings."
+  if (status === 409) return 'This Kinwall is already set up. Reload the page to sign in.'
+  if (status === 429) return 'Too many tries. Wait a few minutes and try again.'
+  return fallback
+}

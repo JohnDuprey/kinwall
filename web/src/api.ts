@@ -304,7 +304,7 @@ export const api = {
   // useAdmin: the setup wizard creates/removes members with the in-memory admin key when this
   // device only just claimed a display-scope key (member create/delete aren't display-allowed).
   createMember: (body: Partial<Member>, useAdmin?: boolean) => MOCK ? mock.createMember(body) : post<Member>('api/members', body, useAdmin),
-  updateMember: (id: string, body: Partial<Member>) => MOCK ? mock.updateMember(id, body) : patch<Member>(`api/members/${id}`, body),
+  updateMember: (id: string, body: Partial<Member>, useAdmin?: boolean) => MOCK ? mock.updateMember(id, body) : patch<Member>(`api/members/${id}`, body, useAdmin),
   deleteMember: (id: string, useAdmin?: boolean) => MOCK ? mock.deleteMember(id) : del(`api/members/${id}`, useAdmin),
 
   getSnapshot: (memberId: string, range: 'day' | 'week') =>
@@ -367,7 +367,8 @@ export const api = {
 
   getChoresDay: (date: string) => MOCK ? mock.getChoresDay(date)
     : Promise.all([get<ChoreDay[]>(`api/chores/day?date=${date}`), outboxReady()]).then(([c]) => applyChoreOps(c, date, pendingOps(outboxTag()))),
-  createChore: (body: Partial<Chore>) => MOCK ? mock.createChore(body) : post<Chore>('api/chores', body),
+  // useAdmin: the setup wizard's starter chores on a device that just claimed a display-scope key.
+  createChore: (body: Partial<Chore>, useAdmin?: boolean) => MOCK ? mock.createChore(body) : post<Chore>('api/chores', body, useAdmin),
   updateChore: (id: string, body: Partial<Chore>) => MOCK ? mock.updateChore(id, body) : patch<Chore>(`api/chores/${id}`, body),
   deleteChore: (id: string) => MOCK ? mock.deleteChore(id) : del(`api/chores/${id}`),
   completeChore: (id: string, date: string, memberId?: string) =>

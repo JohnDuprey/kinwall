@@ -16,17 +16,20 @@ import { passkeysSupported, registerPasskey } from './webauthn.ts'
 import { ProviderForm } from './ProviderConfig.tsx'
 import type { Providers } from './types.ts'
 import { MemberPicker } from './MemberPicker.tsx'
+import { defaultGrownUp, kidChoices, ownerChoices, resumeFor, setupErrorText } from './setupSteps.ts'
+import type { DeviceRole, SetupResume, Step } from './setupSteps.ts'
 import './setup.css'
 
-type Step = 'welcome' | 'role' | 'passkey' | 'recovery' | 'household' | 'members' | 'owner' | 'calendars' | 'chores' | 'displayKind' | 'done'
-type DeviceRole = 'admin' | 'display'
 const PROGRESS_STEPS: Step[] = ['household', 'members', 'calendars', 'chores', 'done']
 
 // Persisted across the OAuth start->callback round trip (Google/Outlook connect from the
 // Calendars step), which reloads the page. Only the step, role and the display key's id are
 // stored — never a key.
 const RESUME_KEY = 'kinwall.setupResume'
-export interface SetupResume { step: Step; deviceRole: DeviceRole; displayKeyId?: string }
+/** Wizard error copy: friendly words for the status, never the server's own text. */
+const oops = (e: unknown, fallback: string) => setupErrorText(e instanceof ApiError ? e.status : undefined, fallback)
+/** Calendar forms keep the reason a feed or provider was refused (a bad link, a rejected login). */
+const calendarOops = (e: unknown, fallback: string) => e instanceof ApiError && (e.status === 400 || e.status === 502) ? e.message : oops(e, fallback)
 export function readSetupResume(): SetupResume | null {
   try {
     const raw = sessionStorage.getItem(RESUME_KEY)
@@ -59,11 +62,12 @@ function Progress({ step }: { step: Step }) {
   )
 }
 
-function StepNav({ onBack, onNext, nextLabel = 'Next', nextDisabled, onSkip }: {
+function StepNav({ onBack, onNext, nextLabel = 'Next', nextDisabled, onSkip, sticky }: {
   onBack?: () => void; onNext?: () => void; nextLabel?: string; nextDisabled?: boolean; onSkip?: () => void
+  sticky?: boolean // stays at the bottom of the card while a long step scrolls
 }) {
   return (
-    <div className="setup-nav">
+    <div className={`setup-nav ${sticky ? 'setup-nav-sticky' : ''}`}>
       <div>{onBack && <button className="btn btn-secondary setup-btn" onClick={onBack}>Back</button>}</div>
       <div className="setup-nav-right">
         {onSkip && <button className="link-btn" onClick={onSkip}>Skip</button>}
@@ -89,7 +93,7 @@ function AdminUnlockInline({ onUnlocked }: { onUnlocked: () => void }) {
       if (me.scope !== 'admin') throw new ApiError(403, 'That key is not admin-scoped')
       onUnlocked()
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Admin key rejected')
+      setError(e instanceof ApiError && e.status !== 0 ? "That key didn't work. Check it and try again." : oops(e, "That key didn't work. Check it and try again."))
     } finally { setBusy(false) }
   }
   return (
@@ -106,7 +110,7 @@ function AdminUnlockInline({ onUnlocked }: { onUnlocked: () => void }) {
   )
 }
 
-function WelcomeStep({ code, setCode, onNext }: { code: string; setCode: (v: string) => void; onNext: () => void }) {
+function WelcomeStep({ code, setCode, error, onNext }: { code: string; setCode: (v: string) => void; error: string; onNext: () => void }) {
   const [hint, setHint] = useState(false)
   // The setup code is 6 digits; the server also accepts the ADMIN_API_KEY secret, which is long.
   const [useKey, setUseKey] = useState(false)
@@ -145,10 +149,11 @@ function WelcomeStep({ code, setCode, onNext }: { code: string; setCode: (v: str
       {hint && !useKey && (
         <div className="setup-hint-box">
           <p><strong>Docker:</strong> <code>docker logs kinwall</code></p>
-          <p><strong>Home Assistant add-on:</strong> Settings → Add-ons → Kinwall → Log</p>
+          <p><strong>Home Assistant:</strong> Settings → Apps → Kinwall → Log (Add-ons in older versions)</p>
           <p><strong>Cloudflare Workers:</strong> the Worker's logs, or use your <code>ADMIN_API_KEY</code> secret instead</p>
         </div>
       )}
+      {error && <p className="setup-error" role="alert">{error}</p>}
       <StepNav onNext={onNext} nextDisabled={!ready} nextLabel="Continue" />
     </div>
   )
@@ -196,7 +201,7 @@ function PasskeyStep({ adminKeyId, onDone, onSkip }: { adminKeyId: string | null
       }
       onDone()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not create passkey')
+      setError(e instanceof ApiError ? oops(e, 'Could not create the passkey. Try again.') : e instanceof Error ? e.message : 'Could not create the passkey. Try again.')
     } finally {
       setBusy(false)
     }
@@ -227,7 +232,7 @@ function RecoveryStep({ onNext }: { onNext: () => void }) {
   useEffect(() => {
     if (generated.current) return // StrictMode double-mount would otherwise replace the set
     generated.current = true
-    api.generateRecoveryCodes().then(r => setCodes(r.codes)).catch(e => setError(e instanceof ApiError ? e.message : 'Could not create recovery codes'))
+    api.generateRecoveryCodes().then(r => setCodes(r.codes)).catch(e => setError(oops(e, 'Could not create recovery codes. You can make them later in Settings → Access.')))
   }, [])
   return (
     <div className="setup-step">
@@ -247,7 +252,7 @@ function RecoveryStep({ onNext }: { onNext: () => void }) {
   )
 }
 
-function HouseholdStep({ useAdmin, onNext, onBack }: { useAdmin: boolean; onNext: () => void; onBack: () => void }) {
+function HouseholdStep({ useAdmin, onNext }: { useAdmin: boolean; onNext: () => void }) {
   const [familyName, setFamilyName] = useState('Our Family')
   // A host may have set the name before the wizard runs (hosted signup asks for it); keep it.
   useEffect(() => { api.getSettings(useAdmin).then(s => { if (s.familyName && s.familyName !== 'Our Family') setFamilyName(s.familyName) }).catch(() => {}) }, [])
@@ -261,7 +266,7 @@ function HouseholdStep({ useAdmin, onNext, onBack }: { useAdmin: boolean; onNext
     try {
       await api.updateSettings({ familyName: familyName.trim() || 'Our Family', timezone, weekStart }, useAdmin)
       onNext()
-    } catch (e) { setError(e instanceof ApiError ? e.message : 'Could not save') } finally { setBusy(false) }
+    } catch (e) { setError(oops(e, 'Could not save. Try again.')) } finally { setBusy(false) }
   }
 
   return (
@@ -280,7 +285,8 @@ function HouseholdStep({ useAdmin, onNext, onBack }: { useAdmin: boolean; onNext
         </div>
       </div>
       {error && <p className="setup-error" role="alert">{error}</p>}
-      <StepNav onBack={onBack} onNext={save} nextDisabled={busy} nextLabel={busy ? 'Saving…' : 'Next'} />
+      {/* No Back: the device is claimed now, and the role step can't be done twice. */}
+      <StepNav onNext={save} nextDisabled={busy} nextLabel={busy ? 'Saving…' : 'Next'} />
     </div>
   )
 }
@@ -290,8 +296,15 @@ function MembersStep({ useAdmin, onNext, onBack }: { useAdmin: boolean; onNext: 
   const [name, setName] = useState('')
   const [color, setColor] = useState(MEMBER_PALETTE[0])
   const [avatar, setAvatar] = useState(MEMBER_EMOJI[0])
+  const [grownUp, setGrownUp] = useState(defaultGrownUp(0))
   const [error, setError] = useState('')
   const nameRef = useRef<HTMLInputElement>(null)
+  // Ready for the next person: their color, avatar and grown-up/kid default.
+  const resetFor = (list: Member[]) => {
+    setColor(nextPaletteColor(list.map(x => x.color)))
+    setAvatar(MEMBER_EMOJI[list.length % MEMBER_EMOJI.length])
+    setGrownUp(defaultGrownUp(list.length))
+  }
   // Coming back to this step (Back from calendars, or a resumed setup): show who's already been added,
   // so they aren't lost from view or added twice.
   useEffect(() => {
@@ -300,7 +313,7 @@ function MembersStep({ useAdmin, onNext, onBack }: { useAdmin: boolean; onNext: 
       if (!live || !list.length) return
       // Merge, in case someone was added while this loaded.
       setMembers(cur => [...list, ...cur.filter(m => !list.some(x => x.id === m.id))])
-      if (!name.trim()) { setColor(nextPaletteColor(list.map(x => x.color))); setAvatar(MEMBER_EMOJI[list.length % MEMBER_EMOJI.length]) }
+      if (!name.trim()) resetFor(list)
     }).catch(() => {})
     return () => { live = false }
   }, [useAdmin]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -311,30 +324,57 @@ function MembersStep({ useAdmin, onNext, onBack }: { useAdmin: boolean; onNext: 
     if (!isValidAvatar(avatar)) { setError('Pick an avatar first.'); return false }
     setError('')
     try {
-      const m = await api.createMember({ name: name.trim(), color, avatar }, useAdmin)
+      const m = await api.createMember({ name: name.trim(), color, avatar, grownUp }, useAdmin)
       const list = [...members, m]
       setMembers(list)
       setName('')
-      setColor(nextPaletteColor(list.map(x => x.color)))
-      setAvatar(MEMBER_EMOJI[list.length % MEMBER_EMOJI.length])
+      resetFor(list)
       nameRef.current?.focus()
       return true
-    } catch (e) { setError(e instanceof ApiError ? e.message : 'Could not add member'); return false }
+    } catch (e) { setError(oops(e, `Could not add ${name.trim()}. Try again.`)); return false }
   }
   // A typed-but-not-added name is added on Next rather than dropped.
   const next = async () => { if (!name.trim() || await add()) onNext() }
   const remove = async (id: string) => {
     try { await api.deleteMember(id, useAdmin); setMembers(ms => ms.filter(m => m.id !== id)) }
-    catch (e) { setError(e instanceof ApiError ? e.message : 'Could not remove member') }
+    catch (e) { setError(oops(e, 'Could not remove them. Try again.')) }
+  }
+  const setKind = async (m: Member, grown: boolean) => {
+    try { const u = await api.updateMember(m.id, { grownUp: grown }, useAdmin); setMembers(ms => ms.map(x => x.id === m.id ? { ...x, grownUp: u.grownUp } : x)) }
+    catch (e) { setError(oops(e, `Could not change ${m.name}. Try again.`)) }
   }
 
   return (
     <div className="setup-step">
       <h1>Who's in the family?</h1>
       <p className="setup-sub">Add everyone who'll show up on the wall.</p>
-      <div className="field"><label>Name</label>
+      {/* Above the form, so everyone added stays in view as the list grows. */}
+      {members.length > 0 && (
+        <div className="member-row-list setup-member-list">
+          {members.map(m => (
+            <div key={m.id} className="member-list-item">
+              <div className="member-avatar-sm" style={{ background: m.color, color: inkFor(m.color) }}>{m.avatar}</div>
+              <div className="name">{m.name}</div>
+              <select className="settings-select setup-kind-select" value={m.grownUp ? 'grown' : 'kid'} aria-label={`${m.name}: grown-up or kid`}
+                onChange={e => setKind(m, e.target.value === 'grown')}>
+                <option value="grown">🧑 Grown-up</option>
+                <option value="kid">🧒 Kid</option>
+              </select>
+              <button className="icon-btn" onClick={() => remove(m.id)} aria-label={`Remove ${m.name}`}><TrashIcon width={16} height={16} /></button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="field"><label>{members.length ? 'Next person' : 'Name'}</label>
         <input ref={nameRef} type="text" value={name} onChange={e => setName(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && add()} placeholder="e.g. Sam" autoFocus />
+      </div>
+      <div className="field">
+        <label id="setup-grown-label">Grown-up or kid?</label>
+        <div className="setup-choice-row" role="group" aria-labelledby="setup-grown-label">
+          <button className={`setup-choice ${grownUp ? 'active' : ''}`} aria-pressed={grownUp} onClick={() => setGrownUp(true)}>🧑 Grown-up</button>
+          <button className={`setup-choice ${grownUp ? '' : 'active'}`} aria-pressed={!grownUp} onClick={() => setGrownUp(false)}>🧒 Kid</button>
+        </div>
       </div>
       <div className="field">
         <label>Color</label>
@@ -351,18 +391,7 @@ function MembersStep({ useAdmin, onNext, onBack }: { useAdmin: boolean; onNext: 
       </div>
       <button className="add-row-btn setup-add-btn" onClick={add} disabled={!name.trim() || !isValidAvatar(avatar)}><PlusIcon width={20} height={20} />{members.length ? 'Add another' : 'Add'}</button>
       {error && <p className="setup-error" role="alert">{error}</p>}
-      {members.length > 0 && (
-        <div className="member-row-list setup-member-list">
-          {members.map(m => (
-            <div key={m.id} className="member-list-item">
-              <div className="member-avatar-sm" style={{ background: m.color, color: inkFor(m.color) }}>{m.avatar}</div>
-              <div className="name">{m.name}</div>
-              <button className="icon-btn" onClick={() => remove(m.id)} aria-label={`Remove ${m.name}`}><TrashIcon width={16} height={16} /></button>
-            </div>
-          ))}
-        </div>
-      )}
-      <StepNav onBack={onBack} onNext={next} nextDisabled={members.length === 0 && !name.trim()} />
+      <StepNav sticky onBack={onBack} onNext={next} nextDisabled={members.length === 0 && !name.trim()} />
     </div>
   )
 }
@@ -381,7 +410,7 @@ function IcsForm({ members, onDone }: { members: Member[]; onDone: () => void })
       const cal = await api.createCalendar({ kind: 'ics', name: 'Subscribed calendar', url: url.trim(), color: nextPaletteColor([]), memberIds })
       const sync = await api.syncCalendar(cal.id, true)
       setResult(`Added — ${sync.count} events synced`)
-    } catch (e) { setError(e instanceof ApiError ? e.message : 'Could not add calendar') } finally { setBusy(false) }
+    } catch (e) { setError(calendarOops(e, 'Could not add the calendar. Try again.')) } finally { setBusy(false) }
   }
 
   return (
@@ -422,7 +451,7 @@ function CaldavForm({ onPending }: { onPending: (p: PendingAdd | null) => void }
       const rs = await api.getRemoteCalendars(acc.id)
       setRemotes(rs)
       setChecked(initialPicks(rs.map(rc => rc.remoteId)))
-    } catch (e) { setError(e instanceof ApiError ? e.message : 'Could not connect') } finally { setBusy(false) }
+    } catch (e) { setError(calendarOops(e, 'Could not connect. Try again.')) } finally { setBusy(false) }
   }
 
   // The step's Next button adds the ticked calendars one by one, then moves on (false = stay).
@@ -437,7 +466,7 @@ function CaldavForm({ onPending }: { onPending: (p: PendingAdd | null) => void }
         done++
         setAdded(s => new Set(s).add(rc.remoteId))
       } catch (e) {
-        const msg = e instanceof ApiError ? e.message : 'Could not add calendar'
+        const msg = calendarOops(e, 'Could not add the calendar. Try again.')
         setError(msg); announce(msg, true); setProgress(null)
         return false
       }
@@ -541,7 +570,9 @@ function CalendarsStep({ members, oauth, deviceRole, onNext, onBack, onOAuthStar
   )
 }
 
-function ChoresStep({ members, onNext, onBack }: { members: Member[]; onNext: () => void; onBack: () => void }) {
+/** `adminKey`: a wall display's in-memory claim key (chores aren't display-allowed), renewed on save
+ * since its 5-minute copy may lapse while people pick. null on a parent's device. */
+function ChoresStep({ members, adminKey, onNext, onBack }: { members: Member[]; adminKey: string | null; onNext: () => void; onBack: () => void }) {
   const [selected, setSelected] = useState<Record<number, string | null>>({})
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -554,13 +585,14 @@ function ChoresStep({ members, onNext, onBack }: { members: Member[]; onNext: ()
 
   const create = async () => {
     setBusy(true); setError('')
+    if (adminKey) setAdminKey(adminKey)
     try {
       await Promise.all(Object.entries(selected).map(([i, memberId]) => {
         const t = CHORE_TEMPLATES[Number(i)]
-        return api.createChore({ title: t.title, emoji: t.emoji, points: t.points, rrule: t.rrule, memberId: memberId ?? undefined, active: true })
+        return api.createChore({ title: t.title, emoji: t.emoji, points: t.points, rrule: t.rrule, memberId: memberId ?? undefined, active: true }, !!adminKey)
       }))
       onNext()
-    } catch (e) { setError(e instanceof ApiError ? e.message : 'Could not create chores') } finally { setBusy(false) }
+    } catch (e) { setError(oops(e, 'Could not create the chores. Try again, or skip and add them later in Chores.')) } finally { setBusy(false) }
   }
 
   return (
@@ -597,28 +629,28 @@ function ChoresStep({ members, onNext, onBack }: { members: Member[]; onNext: ()
 const SETUP_PASSKEY_POLL_MS = 3000
 
 /** A parent's device, once the family's in: whose it is (PUT /api/me/owner, on its passkey or key),
- * so it reads their private journal right away. Only a grown-up owns one, so whoever's picked is
- * marked as one. Skip leaves it shared. */
+ * so it reads their private journal right away. Only a grown-up owns one, so only grown-ups (marked
+ * on the members step) are offered, and no kid is ever turned into one. Skip leaves it shared. */
 function OwnerStep({ members, onNext, onBack }: { members: Member[]; onNext: () => void; onBack: () => void }) {
+  const grownUps = ownerChoices(members)
   const [pick, setPick] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const save = async () => {
-    const m = members.find(x => x.id === pick)
-    if (!m) return
+    if (!pick) return
     setBusy(true); setError('')
     try {
-      if (!m.grownUp) await api.updateMember(m.id, { grownUp: true })
-      await api.setMyOwner(m.id)
+      await api.setMyOwner(pick)
       onNext()
-    } catch (e) { setError(e instanceof ApiError ? e.message : 'Could not save') } finally { setBusy(false) }
+    } catch (e) { setError(oops(e, 'Could not save. Try again, or skip and set it later in Settings → Access.')) } finally { setBusy(false) }
   }
   return (
     <div className="setup-step">
       <h1>Whose device is this?</h1>
-      <p className="setup-sub">Grown-ups' journals are private. Pick yourself to read yours here. You'll be marked as a grown-up.</p>
+      <p className="setup-sub">{grownUps.length ? "Grown-ups' journals are private. Pick yourself to read yours here."
+        : 'Only a grown-up can own this device, and no one is marked a grown-up yet. Go Back to mark yourself, or skip.'}</p>
       <div className="setup-choice-row setup-choice-wrap" role="group" aria-label="Whose device this is">
-        {members.map(m => (
+        {grownUps.map(m => (
           <button key={m.id} className={`setup-choice ${pick === m.id ? 'active' : ''}`} aria-pressed={pick === m.id} onClick={() => setPick(m.id)}>{m.avatar} {m.name}</button>
         ))}
       </div>
@@ -632,7 +664,7 @@ function OwnerStep({ members, onNext, onBack }: { members: Member[]; onNext: () 
  * whole family): the family's wall screen, or a kid's own device (PATCH /api/keys, with the
  * claim's admin key). */
 function DisplayKindStep({ members, displayKeyId, adminKey, onNext, onBack }: { members: Member[]; displayKeyId?: string; adminKey: string | null; onNext: () => void; onBack: () => void }) {
-  const kids = members.filter(m => !m.grownUp)
+  const kids = kidChoices(members)
   const [kind, setKind] = useState<'wall' | 'kid'>('wall')
   const [kid, setKid] = useState<string | null>(null)
   const [unlocked, setUnlocked] = useState(() => !!adminKey || !!getAdminKey())
@@ -648,7 +680,7 @@ function DisplayKindStep({ members, displayKeyId, adminKey, onNext, onBack }: { 
         await api.setKeyKind(displayKeyId, { kind: 'kid', owner: kid })
       }
       onNext()
-    } catch (e) { setError(e instanceof ApiError ? e.message : 'Could not save') } finally { setBusy(false) }
+    } catch (e) { setError(oops(e, 'Could not save. Try again, or pick Wall screen and change it later in Settings → Access.')) } finally { setBusy(false) }
   }
   const canKid = !!displayKeyId && kids.length > 0
   return (
@@ -768,8 +800,8 @@ function DoneStep({ deviceRole, adminKey, adminKeyId, onGoToCalendar }: { device
       <h1>All set! 🎉</h1>
       <p className="setup-sub">Now put Kinwall on your wall:</p>
       <ol className="setup-steps-list">
-        <li>Open <strong>{location.origin}{location.pathname}</strong> in Safari on the wall iPad</li>
-        <li>Tap Share → <strong>Add to Home Screen</strong></li>
+        <li>Open <strong>{location.origin}{location.pathname}</strong> in the browser on the wall tablet or screen</li>
+        <li>Add it to the home screen (on an iPad: Share → <strong>Add to Home Screen</strong>)</li>
         <li>Open it from the home screen — it'll show a pairing code / QR</li>
         <li>Scan that code with this phone, or enter it in Settings → Access → Add a wall screen or kid's device</li>
       </ol>
@@ -797,9 +829,9 @@ export default function Setup({ oauth, setupCode, passkeyRequired, onDone }: { o
   useTheme(themeSettings)
   useEffect(() => { if (deviceRole) api.getSettings().then(setThemeSettings).catch(() => {}) }, [deviceRole, step])
 
-  useEffect(() => {
-    saveResume(deviceRole && step !== 'welcome' && step !== 'role' && step !== 'done' ? { step, deviceRole, displayKeyId } : null)
-  }, [step, deviceRole, displayKeyId])
+  useEffect(() => { saveResume(resumeFor(step, deviceRole, displayKeyId)) }, [step, deviceRole, displayKeyId])
+  // A wall display works with its in-memory claim key, whose 5-minute stored copy is renewed at each step.
+  useEffect(() => { if (deviceRole === 'display' && adminKey) setAdminKey(adminKey) }, [step, deviceRole, adminKey])
 
   // Resuming after an OAuth round trip: members created earlier this session are gone from local
   // state (page reloaded), so re-fetch them for the calendars/chores steps' member pickers.
@@ -824,7 +856,9 @@ export default function Setup({ oauth, setupCode, passkeyRequired, onDone }: { o
         setStep(passkeysSupported() ? 'passkey' : 'household')
       }
     } catch (e) {
-      setClaimError(e instanceof ApiError ? e.message : 'Could not claim this instance')
+      // A wrong code goes back to the code; anything else stays here with friendly words.
+      if (e instanceof ApiError && e.status === 401) { setClaimError("That code didn't work. Check it and try again."); setStep('welcome') }
+      else setClaimError(oops(e, 'Could not start setup. Try again.'))
     } finally { setClaimBusy(false) }
   }
 
@@ -848,11 +882,11 @@ export default function Setup({ oauth, setupCode, passkeyRequired, onDone }: { o
       <div className="setup-card" ref={cardRef}>
         <HelpButton className="help-float" />
         <Progress step={step} />
-        {step === 'welcome' && <WelcomeStep code={code} setCode={setCode} onNext={() => setStep('role')} />}
+        {step === 'welcome' && <WelcomeStep code={code} setCode={v => { setCode(v); setClaimError('') }} error={claimError} onNext={() => { setClaimError(''); setStep('role') }} />}
         {step === 'role' && <RoleStep busy={claimBusy} error={claimError} onChoose={claim} />}
         {step === 'passkey' && <PasskeyStep adminKeyId={adminKeyId} onDone={() => setStep('recovery')} onSkip={passkeyRequired ? undefined : () => setStep('household')} />}
         {step === 'recovery' && <RecoveryStep onNext={() => setStep('household')} />}
-        {step === 'household' && <HouseholdStep useAdmin={deviceRole === 'display'} onBack={() => setStep('role')} onNext={() => setStep('members')} />}
+        {step === 'household' && <HouseholdStep useAdmin={deviceRole === 'display'} onNext={() => setStep('members')} />}
         {step === 'members' && (
           <MembersStep useAdmin={deviceRole === 'display'} onBack={() => setStep('household')} onNext={async () => { setMembers(await api.getMembers().catch(() => members)); setStep(deviceRole === 'display' ? 'calendars' : 'owner') }} />
         )}
@@ -862,7 +896,7 @@ export default function Setup({ oauth, setupCode, passkeyRequired, onDone }: { o
             onBack={() => setStep(deviceRole === 'display' ? 'members' : 'owner')} onNext={() => setStep('chores')}
             onOAuthStart={startOAuth} />
         )}
-        {step === 'chores' && <ChoresStep members={members} onBack={() => setStep('calendars')} onNext={() => setStep(deviceRole === 'display' ? 'displayKind' : 'done')} />}
+        {step === 'chores' && <ChoresStep members={members} adminKey={deviceRole === 'display' ? adminKey : null} onBack={() => setStep('calendars')} onNext={() => setStep(deviceRole === 'display' ? 'displayKind' : 'done')} />}
         {step === 'displayKind' && <DisplayKindStep members={members} displayKeyId={displayKeyId} adminKey={adminKey} onBack={() => setStep('chores')} onNext={() => setStep('done')} />}
         {step === 'done' && <DoneStep deviceRole={deviceRole ?? 'admin'} adminKey={adminKey} adminKeyId={adminKeyId} onGoToCalendar={() => { saveResume(null); onDone() }} />}
       </div>
