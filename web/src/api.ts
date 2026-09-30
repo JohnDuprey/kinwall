@@ -549,6 +549,8 @@ export const api = {
   updateRemembered: (key: string, body: RememberedItemInput) =>
     MOCK ? mock.updateRemembered(key, body) : put<RememberedItem>(`api/lists/remembered/${encodeURIComponent(key)}`, body),
   addRemembered: (body: RememberedItemInput & { title: string }) => MOCK ? mock.addRemembered(body) : post<RememberedItem>('api/lists/remembered', body),
+  // Rename (to) or remove (to: null) a catalog category on every item.
+  renameCatalogTag: (from: string, to: string | null) => MOCK ? mock.renameCatalogTag(from, to) : patch<{ updated: number }>('api/lists/remembered-tags', { from, to }),
   // Stop suggesting a remembered item name (and forget where it goes).
   forgetItemName: (key: string) => MOCK ? mock.forgetItemName(key) : del<{ ok: boolean }>(`api/lists/remembered/${encodeURIComponent(key)}`),
   setStoreAisles: (store: string | null, aisles: string[]) =>

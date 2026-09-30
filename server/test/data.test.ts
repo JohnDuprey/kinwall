@@ -49,7 +49,7 @@ test('export: seeded household has every section and no credentials', async () =
     const body = JSON.parse(text);
     assert.deepEqual(Object.keys(body), [
       'version', 'exportedAt', 'settings', 'members', 'categories', 'contactCategories', 'contacts', 'calendars', 'events', 'eventMemberOverrides', 'eventCategoryOverrides',
-      'eventTravelOverrides', 'eventSeriesMemberOverrides', 'eventSeriesCategoryOverrides', 'hiddenEvents', 'chores', 'choreCompletions', 'lists', 'notes', 'pointEntries', 'stickerPacks', 'checkIns', 'tempChecks', 'journalEntries', 'medications', 'medicationLog', 'scrapbook', 'rewards', 'rewardRedemptions', 'trackers', 'recipes', 'meals', 'mealShoppingSources', 'itemMemory', 'itemNames', 'storeAisles', 'passkeys', 'webhooks',
+      'eventTravelOverrides', 'eventSeriesMemberOverrides', 'eventSeriesCategoryOverrides', 'hiddenEvents', 'chores', 'choreCompletions', 'lists', 'notes', 'pointEntries', 'stickerPacks', 'checkIns', 'tempChecks', 'journalEntries', 'medications', 'medicationLog', 'scrapbook', 'rewards', 'rewardRedemptions', 'trackers', 'recipes', 'meals', 'mealShoppingSources', 'itemMemory', 'itemNames', 'itemTags', 'storeAisles', 'passkeys', 'webhooks',
     ]);
     assert.equal(body.members[0].name, 'Ada');
     assert.equal(body.calendars.length, 2);
@@ -129,6 +129,7 @@ async function seed(request: ReturnType<typeof makeApp>) {
   await request(`/api/lists/${list.id}/items/${bread.id}/steps/${bread.steps[0].id}`, { method: 'PATCH', body: JSON.stringify({ done: true }) });
   await request(`/api/lists/${list.id}/groups`, { method: 'PUT', body: JSON.stringify({ groups: [{ kind: 'category', name: 'Dairy' }, { kind: 'store', name: 'Aldi' }] }) });
   await request('/api/lists/aisles', { method: 'PUT', body: JSON.stringify({ store: 'Aldi', aisles: ['Produce', 'Aisle 9', 'Frozen'] }) });
+  await request('/api/lists/remembered/milk', { method: 'PUT', body: JSON.stringify({ tags: ['Breakfast', 'Staples'] }) });
   await request.post('/api/notes', { target: `event:${dentist.id}`, body: 'Bring the forms', memberId: ada.id });
   await request.post('/api/notes', { target: `list_item:${milk.id}`, body: 'Oat milk this time' });
   // A note on a synced event isn't exported (its target isn't in the file).
@@ -172,6 +173,7 @@ test('import: export -> fresh instance -> import -> export round-trips; a second
   assert.deepEqual([file.lists[0].keepChecked, file.lists[0].items.find((i: any) => i.title === 'Milk').aisle], [true, 'Aisle 9']);
   assert.deepEqual(file.itemMemory.map((m: any) => [m.nameKey, m.store, m.category, m.aisle]), [['milk', 'Aldi', 'Dairy', 'Aisle 9']]);
   assert.deepEqual(file.storeAisles, [{ store: 'Aldi', aisles: ['Produce', 'Aisle 9', 'Frozen'] }]);
+  assert.deepEqual(file.itemTags, [{ nameKey: 'milk', tag: 'Breakfast' }, { nameKey: 'milk', tag: 'Staples' }]);
   file.settings = { ...file.settings, lateCompletionCredit: 25, streakGraceDays: 3, leaderboardEnabled: false }; // non-defaults must survive too
 
   const target = makeApp();
@@ -179,7 +181,7 @@ test('import: export -> fresh instance -> import -> export round-trips; a second
   assert.equal(res.status, 200);
   const byName = (n: string) => file.calendars.find((c: any) => c.name === n);
   assert.deepEqual(await res.json(), {
-    imported: { members: 2, categories: 1, contactCategories: 13, contacts: 0, calendars: 3, events: 2, eventMemberOverrides: 1, eventCategoryOverrides: 1, eventTravelOverrides: 1, eventSeriesMemberOverrides: 1, eventSeriesCategoryOverrides: 1, hiddenEvents: 0, chores: 2, choreCompletions: 1, lists: 1, listItems: 2, listItemSteps: 2, notes: 2, pointEntries: 2, stickerPacks: 1, checkIns: 0, tempChecks: 0, journalEntries: 0, medications: 0, medicationLog: 0, scrapbook: 2, rewards: 0, rewardRedemptions: 0, trackers: 0, recipes: 0, meals: 0, mealShoppingSources: 0, itemMemory: 1, storeAisles: 1, itemNames: 2 },
+    imported: { members: 2, categories: 1, contactCategories: 13, contacts: 0, calendars: 3, events: 2, eventMemberOverrides: 1, eventCategoryOverrides: 1, eventTravelOverrides: 1, eventSeriesMemberOverrides: 1, eventSeriesCategoryOverrides: 1, hiddenEvents: 0, chores: 2, choreCompletions: 1, lists: 1, listItems: 2, listItemSteps: 2, notes: 2, pointEntries: 2, stickerPacks: 1, checkIns: 0, tempChecks: 0, journalEntries: 0, medications: 0, medicationLog: 0, scrapbook: 2, rewards: 0, rewardRedemptions: 0, trackers: 0, recipes: 0, meals: 0, mealShoppingSources: 0, itemMemory: 1, storeAisles: 1, itemNames: 2, itemTags: 2 },
     needsReconnect: [{ id: byName('Work').id, kind: 'google', name: 'Work' }], // the ICS feed came back with its url
     skipped: { passkeys: 1, webhooks: 1 },
   });

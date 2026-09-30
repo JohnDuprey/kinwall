@@ -147,3 +147,63 @@ test('catalog: MCP list_remembered_items and update_remembered_item', async () =
   assert.equal(made.structuredContent.item.key, 'lemon');
   assert.equal((await tool('update_remembered_item', { name: 'Nope', category: 'x' })).isError, true);
 });
+
+test('catalog tags: PUT and POST set categories (trimmed, deduped ignoring case, family spelling), GET filters by tag', async () => {
+  const { send, raw } = await seeded();
+  const milk = await send('PUT', '/api/lists/remembered/milk', { tags: [' Breakfast ', 'breakfast', 'Staples'] });
+  assert.deepEqual(milk.tags, ['Breakfast', 'Staples']);
+  assert.deepEqual((await send('GET', '/api/lists/remembered?q=banana'))[0].tags, []);
+  // A new spelling of a category the family already has takes the family's spelling.
+  const oat = await send('POST', '/api/lists/remembered', { title: 'Oat milk', tags: ['BREAKFAST', 'Lunchbox'] });
+  assert.deepEqual(oat.tags, ['Breakfast', 'Lunchbox']);
+  assert.deepEqual((await send('GET', '/api/lists/remembered?tag=breakfast')).map((i: any) => i.key), ['milk', 'oat milk']);
+  assert.deepEqual((await send('GET', '/api/lists/remembered?tag=Lunchbox&q=oat')).map((i: any) => i.key), ['oat milk']);
+  // Only given fields change; an empty list clears them.
+  assert.deepEqual((await send('PUT', '/api/lists/remembered/milk', { category: 'Dairy' })).tags, ['Breakfast', 'Staples']);
+  assert.deepEqual((await send('PUT', '/api/lists/remembered/milk', { tags: [] })).tags, []);
+  assert.equal((await raw('PUT', '/api/lists/remembered/milk', { tags: ['x'.repeat(41)] })).status, 400);
+  assert.equal((await raw('PUT', '/api/lists/remembered/milk', { tags: Array.from({ length: 11 }, (_, n) => `T${n}`) })).status, 400);
+  assert.equal((await raw('PUT', '/api/lists/remembered/milk', { tags: ['  '] })).status, 400);
+});
+
+test('catalog tags: a rename carries them; forgetting removes them', async () => {
+  const { send } = await seeded();
+  await send('PUT', '/api/lists/remembered/milk', { tags: ['Breakfast'] });
+  const moved = await send('PUT', '/api/lists/remembered/milk', { title: 'Whole milk' });
+  assert.deepEqual(moved.tags, ['Breakfast']);
+  await send('DELETE', '/api/lists/remembered/whole%20milk');
+  // Added back later, it starts with no categories.
+  assert.deepEqual((await send('POST', '/api/lists/remembered', { title: 'Whole milk' })).tags, []);
+});
+
+test('catalog tags: PATCH /api/lists/remembered-tags renames or removes a category on every item', async () => {
+  const { send, raw } = await seeded();
+  await send('PUT', '/api/lists/remembered/milk', { tags: ['Breakfast', 'Snacks'] });
+  await send('PUT', '/api/lists/remembered/banana', { tags: ['Snacks'] });
+  assert.deepEqual(await send('PATCH', '/api/lists/remembered-tags', { from: 'snacks', to: 'Snack time' }), { updated: 2 });
+  let all = await send('GET', '/api/lists/remembered');
+  assert.deepEqual(all.map((i: any) => i.tags), [['Snack time'], ['Breakfast', 'Snack time']]);
+  // Renaming onto a category an item already has merges them.
+  assert.deepEqual(await send('PATCH', '/api/lists/remembered-tags', { from: 'Snack time', to: 'Breakfast' }), { updated: 2 });
+  all = await send('GET', '/api/lists/remembered');
+  assert.deepEqual(all.map((i: any) => i.tags), [['Breakfast'], ['Breakfast']]);
+  assert.deepEqual(await send('PATCH', '/api/lists/remembered-tags', { from: 'Breakfast', to: null }), { updated: 2 });
+  assert.deepEqual((await send('GET', '/api/lists/remembered')).map((i: any) => i.tags), [[], []]);
+  assert.equal((await raw('PATCH', '/api/lists/remembered-tags', { from: 'x', to: 'y'.repeat(41) })).status, 400);
+});
+
+test('catalog tags: a wall display edits and renames them like the catalog', async () => {
+  const { send, raw } = await seeded();
+  const { key } = await send('POST', '/api/keys', { name: 'wall', scope: 'display' });
+  assert.equal((await raw('PUT', '/api/lists/remembered/milk', { tags: ['Breakfast'] }, key)).status, 200);
+  assert.equal((await raw('PATCH', '/api/lists/remembered-tags', { from: 'Breakfast', to: 'Mornings' }, key)).status, 200);
+  assert.deepEqual((await send('GET', '/api/lists/remembered?tag=Mornings')).map((i: any) => i.key), ['milk']);
+});
+
+test('catalog tags: MCP filters by tag and sets tags', async () => {
+  const { tool } = await seeded();
+  const updated = await tool('update_remembered_item', { name: 'milk', tags: ['Breakfast'] });
+  assert.deepEqual(updated.structuredContent.item.tags, ['Breakfast']);
+  const listed = await tool('list_remembered_items', { tag: 'breakfast' });
+  assert.deepEqual(listed.structuredContent.items.map((i: any) => i.key), ['milk']);
+});

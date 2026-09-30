@@ -106,19 +106,23 @@ export type CatalogItem = {
   category: string | null;
   places: { store: string; aisle: string | null; updatedAt: string }[];
   lastStore: string | null;
+  tags: string[];
 };
 
 /** Every remembered item (names, plus places whose name was never kept), by title - or just `key`. */
 export async function catalog(db: KinwallDb, key?: string): Promise<CatalogItem[]> {
   const only = key === undefined ? '' : ' WHERE k.name_key = ?';
   const binds = key === undefined ? [] : [key];
-  const [names, memory] = await db.batch<unknown>([
+  const [names, memory, tagRows] = await db.batch<unknown>([
     db.prepare(
       `SELECT k.name_key, n.title, n.uses, n.last_used FROM (SELECT name_key FROM item_names UNION SELECT name_key FROM item_memory) k
        LEFT JOIN item_names n ON n.name_key = k.name_key${only}`,
     ).bind(...binds),
     db.prepare(`SELECT * FROM item_memory${key === undefined ? '' : ' WHERE name_key = ?'} ORDER BY updated_at DESC`).bind(...binds),
+    db.prepare(`SELECT name_key, tag FROM item_tags${key === undefined ? '' : ' WHERE name_key = ?'} ORDER BY sort`).bind(...binds),
   ]);
+  const tags = new Map<string, string[]>();
+  for (const r of tagRows.results as { name_key: string; tag: string }[]) tags.set(r.name_key, [...(tags.get(r.name_key) ?? []), r.tag]);
   const rows = new Map<string, MemoryRow[]>();
   for (const r of memory.results as MemoryRow[]) rows.set(r.name_key, [...(rows.get(r.name_key) ?? []), r]);
   return (names.results as { name_key: string; title: string | null; uses: number | null; last_used: string | null }[])
@@ -133,32 +137,52 @@ export async function catalog(db: KinwallDb, key?: string): Promise<CatalogItem[
         category: mine.find((r) => r.category)?.category ?? null,
         places: mine.filter((r) => r.store).map((r) => ({ store: r.store, aisle: r.aisle, updatedAt: r.updated_at })).sort((a, b) => a.store.localeCompare(b.store, undefined, { sensitivity: 'base' })),
         lastStore: mine.find((r) => r.store)?.store ?? null,
+        tags: tags.get(n.name_key) ?? [],
       };
     })
     .sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
 }
 
-/** Search (title or matching key) and store filters for the catalog. */
-export function filterCatalog(items: CatalogItem[], q?: string, store?: string): CatalogItem[] {
+/** Search (title or matching key), store and category (tag, case ignored) filters for the catalog. */
+export function filterCatalog(items: CatalogItem[], q?: string, store?: string, tag?: string): CatalogItem[] {
+  const t = tag?.trim().toLowerCase();
   const text = q?.normalize('NFKC').trim().toLowerCase().replace(/\s+/g, ' ');
   const key = text ? itemKey(text) : '';
   return items.filter(
-    (i) => (!text || i.title.toLowerCase().includes(text) || i.key.includes(key)) && (!store || i.places.some((p) => p.store === store)),
+    (i) => (!text || i.title.toLowerCase().includes(text) || i.key.includes(key)) && (!store || i.places.some((p) => p.store === store)) && (!t || i.tags.some((x) => x.toLowerCase() === t)),
   );
 }
 
-export type CatalogEdit = { title?: string; category?: string | null; places?: { store: string; aisle?: string | null }[] };
+export type CatalogEdit = { title?: string; category?: string | null; places?: { store: string; aisle?: string | null }[]; tags?: string[] };
+
+/** An item's categories as saved: trimmed, each once ignoring case (the first spelling wins, or the
+ * family's spelling when another item already has it). */
+export function tagsInput(tags: string[], family: string[]): string[] {
+  const known = new Map(family.map((t) => [t.toLowerCase(), t] as const));
+  const out = new Map<string, string>();
+  for (const raw of tags) {
+    const t = raw.trim().replace(/\s+/g, ' ');
+    if (t && !out.has(t.toLowerCase())) out.set(t.toLowerCase(), known.get(t.toLowerCase()) ?? t);
+  }
+  return [...out.values()];
+}
 
 /** The writes for a catalog edit of `from` (an existing item, or a new one when `existing` is null):
  * a new title respells it (a different matching key moves it there), category sets its department
  * on every place, and places replaces its stores (aisle per store; stores left out are forgotten).
- * New places are the newest, as if just bought there. The department is kept even with no place. */
+ * New places are the newest, as if just bought there. The department is kept even with no place.
+ * tags (already cleaned by tagsInput) replace its categories. */
 export function catalogWrites(db: KinwallDb, from: string, existing: CatalogItem | null, edit: CatalogEdit, now: string): { key: string; writes: KinwallStatement[] } {
   const key = edit.title !== undefined ? itemKey(edit.title) : from;
   const writes: KinwallStatement[] = [];
   if (key !== from) {
     writes.push(db.prepare('UPDATE item_names SET name_key = ? WHERE name_key = ?').bind(key, from));
     writes.push(db.prepare('UPDATE item_memory SET name_key = ? WHERE name_key = ?').bind(key, from));
+    writes.push(db.prepare('UPDATE OR REPLACE item_tags SET name_key = ? WHERE name_key = ?').bind(key, from));
+  }
+  if (edit.tags) {
+    writes.push(db.prepare('DELETE FROM item_tags WHERE name_key = ?').bind(key));
+    writes.push(db.prepare('INSERT INTO item_tags (name_key, tag, sort) SELECT ?, value, key FROM json_each(?)').bind(key, JSON.stringify(edit.tags)));
   }
   if (edit.title !== undefined || !existing) {
     writes.push(

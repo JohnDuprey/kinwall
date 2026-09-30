@@ -162,6 +162,8 @@ const ExportSchema = z
     storeAisles: z.array(z.object({ store: z.string(), aisles: z.array(z.string()) })),
     // Names to autocomplete on shopping lists (0041): the spelling last used and how often.
     itemNames: z.array(z.object({ nameKey: z.string(), title: z.string(), uses: z.number(), lastUsed: z.string() })),
+    // Grocery catalog categories (0070): the family's own groupings per item name, in order.
+    itemTags: z.array(z.object({ nameKey: z.string(), tag: z.string() })),
     passkeys: z.array(z.object({ name: z.string(), createdAt: z.string() })),
     webhooks: z.array(WebhookSchema),
   })
@@ -353,6 +355,8 @@ dataRoutes.openapi(
           .map((r) => ({ nameKey: r.name_key, store: r.store, category: r.category, aisle: r.aisle, updatedAt: r.updated_at })),
         itemNames: (await db.prepare('SELECT name_key, title, uses, last_used FROM item_names ORDER BY name_key').all<{ name_key: string; title: string; uses: number; last_used: string }>()).results
           .map((r) => ({ nameKey: r.name_key, title: r.title, uses: r.uses, lastUsed: r.last_used })),
+        itemTags: (await db.prepare('SELECT name_key, tag FROM item_tags ORDER BY name_key, sort').all<{ name_key: string; tag: string }>()).results
+          .map((r) => ({ nameKey: r.name_key, tag: r.tag })),
         storeAisles: (await db.prepare('SELECT store, aisle FROM store_aisles ORDER BY store, sort').all<{ store: string; aisle: string }>()).results
           .reduce<{ store: string; aisles: string[] }[]>((out, r) => {
             if (out.at(-1)?.store !== r.store) out.push({ store: r.store, aisles: [] });
@@ -402,6 +406,7 @@ const ImportSchema = ExportSchema.extend({
   itemMemory: ExportSchema.shape.itemMemory.default([]),
   storeAisles: ExportSchema.shape.storeAisles.default([]),
   itemNames: ExportSchema.shape.itemNames.default([]),
+  itemTags: ExportSchema.shape.itemTags.default([]),
 }).openapi('Import');
 
 const ImportResultSchema = z
@@ -442,6 +447,7 @@ const ImportResultSchema = z
       itemMemory: z.number(),
       storeAisles: z.number(),
       itemNames: z.number(),
+      itemTags: z.number(),
     }),
     // Synced calendars waiting to be reconnected (imported placeholders, from this or an earlier import).
     needsReconnect: z.array(z.object({ id: z.string(), kind: z.string(), name: z.string() })),
@@ -861,6 +867,8 @@ dataRoutes.openapi(
       db.prepare('DELETE FROM store_aisles WHERE store IN (SELECT value FROM json_each(?))').bind(JSON.stringify(body.storeAisles.map((a) => a.store))),
       ...upserts(db, 'store_aisles', 'store, aisle', body.storeAisles.flatMap((a) => [...new Set(a.aisles)].map((aisle, sort) => ({ store: a.store, aisle, sort })))),
       ...upserts(db, 'item_names', 'name_key', body.itemNames.map((n) => ({ name_key: n.nameKey, title: n.title, uses: n.uses, last_used: n.lastUsed })), { where: 'excluded.last_used > item_names.last_used' }),
+      // An item's categories in the file are added to the ones it has here, in the file's order after them.
+      ...upserts(db, 'item_tags', 'name_key, tag', body.itemTags.map((t, n) => ({ name_key: t.nameKey, tag: t.tag, sort: 1000 + n }))),
     ];
     if (writes.length) await db.batch(writes);
     // An entry already here as health keeps its kind (kind is kept on conflict), so sweep up anything the file brought in as another kind.
@@ -875,7 +883,7 @@ dataRoutes.openapi(
       ['calendar.changed', calendars.length],
       ['events.changed', events.length + memberOverrides.length + categoryOverrides.length + travelOverrides.length + seriesMemberOverrides.length + seriesCategoryOverrides.length + hiddenEvents.length],
       ['chore.changed', body.chores.length + completions.length],
-      ['list.changed', body.lists.length + notes.length + body.itemMemory.length + body.storeAisles.length],
+      ['list.changed', body.lists.length + notes.length + body.itemMemory.length + body.storeAisles.length + body.itemTags.length],
       ['sticker.changed', pointEntries.length + stickerPacks.length + checkIns.length + scrapbook.length],
       ['reward.changed', body.rewards.length + redemptions.length],
       ['tracker.changed', trackers.length],
@@ -924,6 +932,7 @@ dataRoutes.openapi(
           itemMemory: body.itemMemory.length,
           storeAisles: body.storeAisles.length,
           itemNames: body.itemNames.length,
+          itemTags: body.itemTags.length,
         },
         needsReconnect: (await db.prepare("SELECT id, kind, name FROM calendars WHERE kind != 'local' AND config = '' ORDER BY name").all<{ id: string; kind: string; name: string }>()).results,
         skipped: {

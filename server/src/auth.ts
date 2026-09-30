@@ -230,6 +230,7 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'GET', pattern: /^\/api\/lists\/remembered$/ },
   { method: 'POST', pattern: /^\/api\/lists\/remembered$/ },
   { method: 'PUT', pattern: /^\/api\/lists\/remembered\/[^/]+$/ },
+  { method: 'PATCH', pattern: /^\/api\/lists\/remembered-tags$/ }, // rename or remove a catalog category, like editing items
   { method: 'GET', pattern: /^\/api\/lists\/[^/]+$/ },
   { method: 'PATCH', pattern: /^\/api\/lists\/[^/]+$/ },
   { method: 'DELETE', pattern: /^\/api\/lists\/[^/]+$/ },

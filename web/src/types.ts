@@ -711,12 +711,14 @@ export interface RememberedItem {
   category: string | null // department
   places: { store: string; aisle: string | null; updatedAt: string }[] // A-Z by store
   lastStore: string | null // where a new add goes
+  tags: string[] // the family's own categories ("Breakfast", "Lunchbox"), not the department
 }
 /** PUT /api/lists/remembered/{key} (and POST, with title): only given fields change; places replaces its stores. */
 export interface RememberedItemInput {
   title?: string
   category?: string | null
   places?: { store: string; aisle: string | null }[]
+  tags?: string[] // replaces its categories
 }
 
 /** GET /api/lists/{id} response. suggestions are the store/category/aisle values known anywhere

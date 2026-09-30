@@ -1511,11 +1511,11 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'list_remembered_items',
     {
       title: 'List grocery catalog',
-      description: 'The grocery catalog: every shopping item the family has added before, by name, with its department (category) and the stores it is found at, each with its aisle there. lastStore is where a new add goes. search matches names; store keeps items found at that store.',
-      inputSchema: { search: z.string().optional(), store: z.string().optional().describe('Store name, as on the items.') },
+      description: 'The grocery catalog: every shopping item the family has added before, by name, with its department (category), the family\'s own categories (tags, e.g. "Breakfast", "Lunchbox") and the stores it is found at, each with its aisle there. lastStore is where a new add goes. search matches names; store keeps items found at that store; tag keeps items in that category. They combine.',
+      inputSchema: { search: z.string().optional(), store: z.string().optional().describe('Store name, as on the items.'), tag: z.string().optional().describe('A category (tag) from the items, case ignored.') },
     },
-    async ({ search, store }) => {
-      const qs = new URLSearchParams({ ...(search ? { q: search } : {}), ...(store ? { store } : {}) }).toString();
+    async ({ search, store, tag }) => {
+      const qs = new URLSearchParams({ ...(search ? { q: search } : {}), ...(store ? { store } : {}), ...(tag ? { tag } : {}) }).toString();
       const res = await call(app, env, auth, 'GET', `/api/lists/remembered${qs ? `?${qs}` : ''}`);
       if (res.status >= 400) return errorResult(res.json, 'failed to list the catalog');
       const items = res.json as { title: string }[];
@@ -1527,12 +1527,13 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'update_remembered_item',
     {
       title: 'Edit grocery catalog item',
-      description: 'Edit an item in the grocery catalog (list_remembered_items): title respells or renames it, category sets its department, places replaces the stores it is found at, each with its aisle there (stores left out are forgotten). Only given fields change. Adds on shopping lists then use them. create: true adds it to the catalog when it is not there yet.',
+      description: 'Edit an item in the grocery catalog (list_remembered_items): title respells or renames it, category sets its department, tags replaces its own categories (e.g. ["Breakfast", "Lunchbox"]; [] clears them), places replaces the stores it is found at, each with its aisle there (stores left out are forgotten). Only given fields change. Adds on shopping lists then use them. create: true adds it to the catalog when it is not there yet.',
       inputSchema: {
         name: z.string().describe('The item\'s name or key from list_remembered_items (case and simple plurals ignored).'),
         title: z.string().optional(),
         category: z.string().nullable().optional().describe(CATEGORY_DOC),
         places: jsonList(z.array(z.object({ store: z.string(), aisle: z.string().nullable().optional().describe(AISLE_DOC) }))).optional(),
+        tags: jsonList(z.array(z.string())).optional().describe('Its categories (up to 10). Use the family\'s existing ones from list_remembered_items when they fit.'),
         create: z.boolean().optional(),
       },
     },

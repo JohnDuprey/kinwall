@@ -26,7 +26,7 @@ import { shoppingActivity } from './liveActivity.ts'
 import { endAppActivity, tellAppActivity } from './native.ts'
 import { itemKey, matchItems } from './itemSuggest.ts'
 import { listSections, reorderWithin } from './listSections.ts'
-import { boughtLabel, catalogStores, filterCatalog, placeLabel, placesFor, placesInput } from './catalog.ts'
+import { boughtLabel, catalogDepartments, catalogStores, catalogTags, catalogView, filterCatalog, groupCatalog, placeLabel, placesFor, placesInput, setCatalogView, sortCatalog, STARTER_TAGS, tagsInput, type CatalogGroup, type CatalogSort } from './catalog.ts'
 
 const KIND_LABEL: Record<ListKind, string> = { todo: 'To-do', shopping: 'Shopping', reusable: 'Reusable' }
 
@@ -925,8 +925,9 @@ function ManageValuesSheet({ suggestions, aisleOrder, onClose, onChanged, onCata
   )
 }
 
-/** The grocery catalog: everything the family has bought before, its department and where it's found
- * at each store. Search, filter by store, add one to this list, or tap it to edit (a sheet in place). */
+/** The grocery catalog: everything the family has bought before, its department, the family's own
+ * categories and where it's found at each store. Search; filter by store, category and department
+ * (they combine); sort and group (kept per device); add one to this list, or tap it to edit (a sheet in place). */
 function GroceryCatalog({ listId, listName, onList, suggestions, aisleOrder, onClose, onChanged }: {
   listId: string; listName: string; onList: Set<string>; suggestions: ListDetail['suggestions']; aisleOrder: AisleOrder
   onClose: () => void; onChanged: () => void // onChanged: this list (and its pickers) may have changed
@@ -935,60 +936,165 @@ function GroceryCatalog({ listId, listName, onList, suggestions, aisleOrder, onC
   const [items, setItems] = useState<RememberedItem[] | null>(null)
   const [query, setQuery] = useState('')
   const [store, setStore] = useState<string | null>(null)
-  const [editing, setEditing] = useState<RememberedItem | 'new' | null>(null)
+  const [tag, setTag] = useState<string | null>(null)
+  const [department, setDepartment] = useState<string | null>(null)
+  const [view, setView] = useState(catalogView)
+  const [options, setOptions] = useState(false) // the sort & filter panel
+  const [editing, setEditing] = useState<RememberedItem | 'new' | 'tags' | null>(null)
   const load = () => api.getRemembered().then(setItems).catch(() => { setItems([]); toast('Could not load the catalog', true) })
   useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
-  const stores = catalogStores(items ?? [])
-  const shown = filterCatalog(items ?? [], query, store && stores.includes(store) ? store : null)
+  const all = items ?? []
+  const stores = catalogStores(all), tags = catalogTags(all), departments = catalogDepartments(all)
+  const atStore = store && stores.includes(store) ? store : null
+  const onlyTag = tags.find(t => t.name === tag)?.name ?? null
+  const onlyDept = departments.find(d => d.name === department)?.name ?? null
+  const sort: CatalogSort = view.sort === 'aisle' && !atStore ? 'alpha' : view.sort // aisle order needs a store
+  const shown = sortCatalog(filterCatalog(all, query, atStore, { tag: onlyTag, department: onlyDept }), sort, atStore, aisleOrder)
+  const sections = groupCatalog(shown, view.group)
+  const changeView = (next: Partial<typeof view>) => { const v = { ...view, ...next }; setView(v); setCatalogView(v) }
   const add = async (i: RememberedItem) => {
     // Filtered to a store: planned for it (its aisle there comes along); else wherever it was last bought.
-    try { await api.queueAddListItem(listId, { title: i.title, ...(store ? { store } : {}) }); announce(`Added ${i.title} to ${listName}`); onChanged() }
+    try { await api.queueAddListItem(listId, { title: i.title, ...(atStore ? { store: atStore } : {}) }); announce(`Added ${i.title} to ${listName}`); onChanged() }
     catch (e) { toast(e instanceof ApiError ? e.message : 'Could not add item', true) }
   }
   const saved = () => { setEditing(null); load(); onChanged() }
+  const chip = (label: string, on: boolean, pick: () => void, count?: number) => (
+    <button key={label} className={`chip ${on ? 'active' : ''}`} aria-pressed={on} onClick={pick}>
+      {label}{count !== undefined && <span className="chip-count">{count}</span>}
+    </button>
+  )
 
+  if (editing === 'tags') return <CatalogTagsSheet tags={tags} onClose={() => setEditing(null)} onChanged={() => { load(); onChanged() }} />
   if (editing) return (
-    <CatalogItemSheet item={editing === 'new' ? null : editing} newTitle={query.trim()} suggestions={suggestions} aisleOrder={aisleOrder}
+    <CatalogItemSheet item={editing === 'new' ? null : editing} newTitle={query.trim()} suggestions={suggestions} aisleOrder={aisleOrder} familyTags={tags.map(t => t.name)}
       onClose={() => setEditing(null)} onSaved={saved} />
+  )
+  const row = (i: RememberedItem) => (
+    <div className="catalog-row" key={i.key}>
+      <button className="catalog-row-main" onClick={() => setEditing(i)} aria-label={`Edit ${i.title}`}>
+        <span className="catalog-row-title">{i.title}</span>
+        <span className="catalog-row-meta">{[i.category, i.tags.length ? `🏷️ ${i.tags.join(', ')}` : null, boughtLabel(i.uses)].filter(Boolean).join(' · ')}</span>
+        {i.places.length > 0 && (
+          <span className="catalog-row-places">
+            {placesFor(i, atStore).map(p => <span key={p.store} className="chip chip-static">{placeLabel(p)}</span>)}
+          </span>
+        )}
+      </button>
+      {onList.has(i.key)
+        ? <span className="catalog-on-list"><CheckIcon width={16} height={16} aria-hidden="true" />On list</span>
+        : <button className="icon-btn catalog-add" onClick={() => add(i)} aria-label={`Add ${i.title} to ${listName}`} title={`Add to ${listName}`}><PlusIcon width={20} height={20} /></button>}
+    </div>
   )
   return (
     <Sheet title="Grocery catalog" onClose={onClose} actions={<button className="btn btn-primary" onClick={onClose}>Done</button>}>
       <div className="catalog-bar">
         <input type="search" className="manage-find" value={query} onChange={e => setQuery(e.target.value)} placeholder="Find an item…" aria-label="Find an item" autoComplete="off" />
+        <button className="btn btn-secondary catalog-options-btn" onClick={() => setOptions(!options)} aria-expanded={options} aria-controls="catalog-view"
+          aria-label={`Sort and filter${onlyDept ? ', 1 filter on' : ''}`}>
+          <FilterIcon width={18} height={18} />Sort{onlyDept && <span className="catalog-options-on" aria-hidden="true">1</span>}
+        </button>
         <button className="btn btn-secondary" onClick={() => setEditing('new')}><PlusIcon width={18} height={18} />New</button>
       </div>
+      {options && (
+        <div className="catalog-view" id="catalog-view">
+          {departments.length > 0 && (
+            <div className="field">
+              <label htmlFor="catalog-dept">Department</label>
+              <select id="catalog-dept" className="settings-select" value={onlyDept ?? ''} onChange={e => setDepartment(e.target.value || null)}>
+                <option value="">All departments</option>
+                {departments.map(d => <option key={d.name} value={d.name}>{d.name} ({d.count})</option>)}
+              </select>
+            </div>
+          )}
+          <div className="field">
+            <label htmlFor="catalog-sort">Sort</label>
+            <select id="catalog-sort" className="settings-select" value={sort} onChange={e => changeView({ sort: e.target.value as CatalogSort })}>
+              <option value="alpha">A–Z</option>
+              <option value="bought">Most bought</option>
+              <option value="department">Department</option>
+              {atStore && <option value="aisle">Aisle at {atStore}</option>}
+              <option value="recent">Recently used</option>
+            </select>
+          </div>
+          <div className="field">
+            <label htmlFor="catalog-group">Group by</label>
+            <select id="catalog-group" className="settings-select" value={view.group} onChange={e => changeView({ group: e.target.value as CatalogGroup })}>
+              <option value="none">None</option>
+              <option value="department">Department</option>
+              <option value="category">Category</option>
+            </select>
+          </div>
+          <button className="link-btn" onClick={() => setEditing('tags')}>Edit categories</button>
+        </div>
+      )}
       {stores.length > 0 && (
-        <div className="chip-row catalog-stores" role="group" aria-label="Store">
-          {[null, ...stores].map(st => (
-            <button key={st ?? ''} className={`chip ${store === st ? 'active' : ''}`} aria-pressed={store === st} onClick={() => setStore(st)}>{st ?? 'All stores'}</button>
-          ))}
+        <div className="chip-row catalog-chips" role="group" aria-label="Store">
+          {[null, ...stores].map(st => chip(st ?? 'All stores', atStore === st, () => setStore(st)))}
+        </div>
+      )}
+      {tags.length > 0 && (
+        <div className="chip-row catalog-chips" role="group" aria-label="Category">
+          {chip('All categories', !onlyTag, () => setTag(null))}
+          {tags.map(t => chip(t.name, onlyTag === t.name, () => setTag(onlyTag === t.name ? null : t.name), t.count))}
         </div>
       )}
       {items === null ? <p className="list-item-meta">Loading…</p>
-        : !shown.length ? <p className="list-item-meta">{items.length ? 'Nothing by that name.' : 'Nothing yet. Items you add to a shopping list show up here.'}</p>
-        : shown.map(i => (
-          <div className="catalog-row" key={i.key}>
-            <button className="catalog-row-main" onClick={() => setEditing(i)} aria-label={`Edit ${i.title}`}>
-              <span className="catalog-row-title">{i.title}</span>
-              <span className="catalog-row-meta">{[i.category, boughtLabel(i.uses)].filter(Boolean).join(' · ')}</span>
-              {i.places.length > 0 && (
-                <span className="catalog-row-places">
-                  {placesFor(i, store).map(p => <span key={p.store} className="chip chip-static">{placeLabel(p)}</span>)}
-                </span>
-              )}
-            </button>
-            {onList.has(i.key)
-              ? <span className="catalog-on-list"><CheckIcon width={16} height={16} aria-hidden="true" />On list</span>
-              : <button className="icon-btn catalog-add" onClick={() => add(i)} aria-label={`Add ${i.title} to ${listName}`} title={`Add to ${listName}`}><PlusIcon width={20} height={20} /></button>}
-          </div>
+        : !shown.length ? <p className="list-item-meta">{items.length ? (query.trim() ? 'Nothing by that name.' : 'Nothing matches these filters.') : 'Nothing yet. Items you add to a shopping list show up here.'}</p>
+        : sections.map(sec => sec.name === null ? sec.items.map(row) : (
+          <section key={sec.name} aria-label={sec.name}>
+            <h3 className="manage-head catalog-group">{sec.name} <span className="catalog-group-count">{sec.items.length}</span></h3>
+            {sec.items.map(row)}
+          </section>
         ))}
     </Sheet>
   )
 }
 
+/** Rename or remove a catalog category on every item that has it. */
+function CatalogTagsSheet({ tags, onClose, onChanged }: { tags: { name: string; count: number }[]; onClose: () => void; onChanged: () => void }) {
+  const dialog = useDialog()
+  const { toast } = useApp()
+  const [list, setList] = useState(tags)
+  const [editing, setEditing] = useState<string | null>(null)
+  const [draft, setDraft] = useState('')
+  const rename = async (from: string, to: string | null) => {
+    try {
+      await api.renameCatalogTag(from, to)
+      announce(to ? `Renamed ${from} to ${to}` : `Removed ${from}`)
+      setList(to ? list.filter(t => t.name !== from && t.name.toLowerCase() !== to.toLowerCase()).concat({ name: to, count: 0 }).sort((a, b) => a.name.localeCompare(b.name)) : list.filter(t => t.name !== from))
+      setEditing(null); onChanged()
+    } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save', true) }
+  }
+  const remove = async (t: string) => {
+    if (await dialog.confirm({ title: `Remove "${t}"?`, body: 'Items keep everything else; this category is taken off them.', confirmLabel: 'Remove', danger: true })) rename(t, null)
+  }
+  return (
+    <Sheet title="Categories" onClose={onClose} actions={<button className="btn btn-primary" onClick={onClose}>Done</button>}>
+      <p className="field-hint">Renaming changes every catalog item in the category. Removing takes it off them.</p>
+      {!list.length && <p className="list-item-meta">No categories yet. Add one to an item.</p>}
+      {list.map(({ name }) => editing === name ? (
+        <div className="manage-row" key={name}>
+          <input type="text" value={draft} onChange={e => setDraft(e.target.value)} aria-label={`New name for ${name}`} maxLength={40} autoFocus
+            onKeyDown={e => { if (e.key === 'Enter' && draft.trim()) rename(name, draft.trim()); if (e.key === 'Escape') setEditing(null) }} />
+          <button className="btn btn-primary" disabled={!draft.trim() || draft.trim() === name} onClick={() => rename(name, draft.trim())}>Save</button>
+          <button className="btn btn-secondary" onClick={() => setEditing(null)}>Cancel</button>
+        </div>
+      ) : (
+        <div className="manage-row" key={name}>
+          <span className="manage-row-name">{name}</span>
+          <button className="link-btn" onClick={() => { setEditing(name); setDraft(name) }} aria-label={`Rename ${name}`}>Rename</button>
+          <button className="icon-btn" onClick={() => remove(name)} aria-label={`Remove ${name}`}><TrashIcon width={16} height={16} /></button>
+        </div>
+      ))}
+    </Sheet>
+  )
+}
+
 /** Edit (or add) a grocery catalog item: its name, department and the stores it's found at, each with its aisle. */
-function CatalogItemSheet({ item, newTitle, suggestions, aisleOrder, onClose, onSaved }: {
-  item: RememberedItem | null; newTitle: string; suggestions: ListDetail['suggestions']; aisleOrder: AisleOrder; onClose: () => void; onSaved: () => void
+function CatalogItemSheet({ item, newTitle, suggestions, aisleOrder, familyTags, onClose, onSaved }: {
+  item: RememberedItem | null; newTitle: string; suggestions: ListDetail['suggestions']; aisleOrder: AisleOrder
+  familyTags: string[] // every category the family uses, for picking
+  onClose: () => void; onSaved: () => void
 }) {
   const dialog = useDialog()
   const { toast } = useApp()
@@ -997,6 +1103,14 @@ function CatalogItemSheet({ item, newTitle, suggestions, aisleOrder, onClose, on
   const [rows, setRows] = useState(() => (item?.places ?? []).map(p => ({ store: p.store, aisle: p.aisle ?? '' })))
   const [newStore, setNewStore] = useState('')
   const [pickerKey, setPickerKey] = useState(0) // resets the "Add a store" picker after an add
+  const [tags, setTags] = useState(item?.tags ?? [])
+  const [newTag, setNewTag] = useState('')
+  // The family's categories to pick from; until it has some, a few starters (one tap adds one).
+  const starters = !familyTags.length
+  const tagOptions = tagsInput([...(starters ? STARTER_TAGS : familyTags), ...tags], familyTags)
+  const has = (t: string) => tags.some(x => x.toLowerCase() === t.toLowerCase())
+  const toggleTag = (t: string) => setTags(has(t) ? tags.filter(x => x.toLowerCase() !== t.toLowerCase()) : tagsInput([...tags, t], familyTags).slice(0, 10))
+  const addTag = () => { if (newTag.trim()) setTags(tagsInput([...tags, newTag], familyTags).slice(0, 10)); setNewTag('') }
   const otherStores = suggestions.stores.filter(st => !rows.some(r => r.store === st))
   const addStore = (name: string) => {
     const st = name.trim()
@@ -1004,7 +1118,7 @@ function CatalogItemSheet({ item, newTitle, suggestions, aisleOrder, onClose, on
     setNewStore(''); setPickerKey(k => k + 1)
   }
   const save = async () => {
-    const body = { title: title.replace(/\s+/g, ' ').trim(), category: category.trim() || null, places: placesInput(rows) }
+    const body = { title: title.replace(/\s+/g, ' ').trim(), category: category.trim() || null, places: placesInput(rows), tags: tagsInput(newTag.trim() ? [...tags, newTag] : tags, familyTags).slice(0, 10) }
     if (!body.title) return
     try {
       if (item) await api.updateRemembered(item.key, body)
@@ -1028,6 +1142,24 @@ function CatalogItemSheet({ item, newTitle, suggestions, aisleOrder, onClose, on
         <input id="catalog-title" type="text" value={title} onChange={e => setTitle(e.target.value)} maxLength={200} autoComplete="off" autoFocus={!item} placeholder="e.g. Oat milk" />
       </div>
       <ValuePicker id="catalog-category" label="Department" value={category} options={suggestions.categories} newLabel="New department…" placeholder="e.g. Produce" onChange={setCategory} />
+      <h3 className="manage-head">Categories</h3>
+      <p className="field-hint catalog-hint">{starters ? 'Your own groupings, like Breakfast or Lunchbox. Tap any that fit, or add your own.' : 'Your own groupings. Tap any that fit, or add a new one.'}</p>
+      <div className="chip-row catalog-tag-picks" role="group" aria-label="Categories">
+        {tagOptions.map(t => (
+          <button key={t} className={`chip ${has(t) ? 'active' : ''}`} aria-pressed={has(t)} onClick={() => toggleTag(t)} disabled={!has(t) && tags.length >= 10}>
+            {!has(t) && <PlusIcon width={14} height={14} aria-hidden="true" />}{t}
+          </button>
+        ))}
+      </div>
+      <div className="catalog-place">
+        <div className="field">
+          <label htmlFor="catalog-new-tag">New category</label>
+          <input id="catalog-new-tag" type="text" value={newTag} onChange={e => setNewTag(e.target.value)} maxLength={40} list="catalog-tag-list" autoComplete="off"
+            placeholder="e.g. Snacks" enterKeyHint="done" onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTag() } }} />
+          <datalist id="catalog-tag-list">{familyTags.filter(t => !has(t)).map(t => <option key={t} value={t} />)}</datalist>
+        </div>
+        <button className="btn btn-secondary" onClick={addTag} disabled={!newTag.trim() || tags.length >= 10}>Add</button>
+      </div>
       <h3 className="manage-head">Stores</h3>
       <p className="field-hint catalog-hint">Where it's found. Adding it to a list at one of these stores puts it in that aisle.</p>
       {rows.map((r, n) => (

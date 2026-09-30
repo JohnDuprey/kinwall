@@ -8,7 +8,7 @@ import { notifyListUpdate } from '../notify.ts';
 import { parseMemberIds, resolveMemberIds } from '../calendar-members.ts';
 import { eventWriteBlock } from '../auth.ts';
 import type { Context } from 'hono';
-import { SUGGESTION_CAP, catalog, catalogWrites, filterCatalog, fillPlace, itemKey, nameSuggestions, recall, rememberName, rememberPlace, type CatalogEdit, type CatalogItem } from '../item-memory.ts';
+import { SUGGESTION_CAP, catalog, catalogWrites, filterCatalog, fillPlace, itemKey, nameSuggestions, recall, rememberName, rememberPlace, tagsInput, type CatalogEdit, type CatalogItem } from '../item-memory.ts';
 import {
   ErrorSchema,
   ListDetailSchema,
@@ -28,6 +28,7 @@ import {
   RememberedItemSchema,
   RememberedItemInputSchema,
   RememberedItemPatchSchema,
+  RememberedTagRenameSchema,
   ListReorderSchema,
   ListOrderSchema,
   ListSchema,
@@ -341,14 +342,14 @@ listsRoutes.openapi(
     method: 'get',
     path: '/api/lists/remembered',
     tags: ['Lists'],
-    summary: 'The grocery catalog: every remembered shopping item by title, with its department and the stores it is found at (aisle per store). q searches names; store keeps items found at that store.',
+    summary: 'The grocery catalog: every remembered shopping item by title, with its department and the stores it is found at (aisle per store) and its categories (tags). q searches names; store keeps items found at that store; tag keeps items in that category (case ignored). They combine.',
     security: [{ Bearer: [] }],
-    request: { query: z.object({ q: z.string().optional(), store: z.string().optional() }) },
+    request: { query: z.object({ q: z.string().optional(), store: z.string().optional(), tag: z.string().optional() }) },
     responses: { 200: { description: 'ok', content: { 'application/json': { schema: z.array(RememberedItemSchema) } } } },
   }),
   async (c) => {
-    const { q, store } = c.req.valid('query');
-    return c.json(filterCatalog(await catalog(c.env.DB), q, store), 200);
+    const { q, store, tag } = c.req.valid('query');
+    return c.json(filterCatalog(await catalog(c.env.DB), q, store, tag), 200);
   },
 );
 
@@ -379,7 +380,7 @@ listsRoutes.openapi(
     method: 'put',
     path: '/api/lists/remembered/{key}',
     tags: ['Lists'],
-    summary: 'Edit a grocery catalog item: title (a respelling; a different name moves it), category (its department) and places (replaces the stores it is found at, each with its aisle). Only given fields change. A new aisle is offered in that store\'s aisle picker.',
+    summary: 'Edit a grocery catalog item: title (a respelling; a different name moves it, categories too), category (its department), tags (its categories) and places (replaces the stores it is found at, each with its aisle). Only given fields change. A new aisle is offered in that store\'s aisle picker.',
     security: [{ Bearer: [] }],
     request: { params: z.object({ key: z.string() }), body: { content: { 'application/json': { schema: RememberedItemPatchSchema } } } },
     responses: {
@@ -400,7 +401,35 @@ listsRoutes.openapi(
   },
 );
 
+listsRoutes.openapi(
+  createRoute({
+    method: 'patch',
+    path: '/api/lists/remembered-tags',
+    tags: ['Lists'],
+    summary: 'Rename (to: a name) or remove (to: null) a grocery catalog category (tag) on every item that has it; from matches ignoring case. Renaming onto a category an item already has merges them.',
+    security: [{ Bearer: [] }],
+    request: { body: { content: { 'application/json': { schema: RememberedTagRenameSchema } } } },
+    responses: { 200: { description: 'items changed', content: { 'application/json': { schema: z.object({ updated: z.number() }) } } } },
+  }),
+  async (c) => {
+    const { from, to } = c.req.valid('json');
+    const db = c.env.DB;
+    const clean = to?.replace(/\s+/g, ' ');
+    // The count runs first, in the same batch. OR REPLACE: an item that already has `to` keeps one.
+    const [counted] = await db.batch<{ n: number }>([
+      db.prepare('SELECT COUNT(*) AS n FROM item_tags WHERE tag = ?').bind(from),
+      clean ? db.prepare('UPDATE OR REPLACE item_tags SET tag = ? WHERE tag = ?').bind(clean, from) : db.prepare('DELETE FROM item_tags WHERE tag = ?').bind(from),
+    ]);
+    emit(c, 'list.changed', { tag: from });
+    return c.json({ updated: counted.results[0]?.n ?? 0 }, 200);
+  },
+);
+
 async function saveCatalogItem(c: Context<{ Bindings: Env }>, from: string, existing: CatalogItem | null, edit: CatalogEdit): Promise<CatalogItem> {
+  if (edit.tags) {
+    const { results } = await c.env.DB.prepare('SELECT DISTINCT tag FROM item_tags WHERE name_key != ?').bind(from).all<{ tag: string }>();
+    edit = { ...edit, tags: tagsInput(edit.tags, results.map((r) => r.tag)) };
+  }
   const { key, writes } = catalogWrites(c.env.DB, from, existing, edit, new Date().toISOString());
   await c.env.DB.batch(writes);
   emit(c, 'list.changed', { remembered: key });
@@ -1004,7 +1033,7 @@ listsRoutes.openapi(
     method: 'delete',
     path: '/api/lists/remembered/{key}',
     tags: ['Lists'],
-    summary: 'Forget a remembered item name (key: its matching key from suggestions.items): it stops being suggested, and where it goes is forgotten. Items on lists keep it.',
+    summary: 'Forget a remembered item name (key: its matching key from suggestions.items): it stops being suggested, and where it goes and its categories are forgotten. Items on lists keep it.',
     security: [{ Bearer: [] }],
     request: { params: z.object({ key: z.string() }) },
     responses: { 200: { description: 'ok', content: { 'application/json': { schema: z.object({ ok: z.boolean() }) } } } },
@@ -1014,6 +1043,7 @@ listsRoutes.openapi(
     await c.env.DB.batch([
       c.env.DB.prepare('DELETE FROM item_names WHERE name_key = ?').bind(key),
       c.env.DB.prepare('DELETE FROM item_memory WHERE name_key = ?').bind(key),
+      c.env.DB.prepare('DELETE FROM item_tags WHERE name_key = ?').bind(key),
     ]);
     emit(c, 'list.changed', { forgot: key });
     return c.json({ ok: true }, 200);

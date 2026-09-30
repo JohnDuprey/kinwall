@@ -70,6 +70,7 @@ import m0066 from '../migrations/0066_no_grownup_paired_devices.sql';
 import m0067 from '../migrations/0067_widget_keys.sql';
 import m0068 from '../migrations/0068_calendar_filters.sql';
 import m0069 from '../migrations/0069_event_hidden.sql';
+import m0070 from '../migrations/0070_item_tags.sql';
 
 export const MIGRATIONS: Migration[] = [
   { name: '0001_init.sql', sql: m0001 },
@@ -141,4 +142,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0067_widget_keys.sql', sql: m0067 },
   { name: '0068_calendar_filters.sql', sql: m0068 },
   { name: '0069_event_hidden.sql', sql: m0069 },
+  { name: '0070_item_tags.sql', sql: m0070 },
 ];

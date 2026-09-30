@@ -763,10 +763,15 @@ export const RememberedItemSchema = z
     category: z.string().nullable().openapi({ description: 'Department, e.g. "Produce".' }),
     places: z.array(z.object({ store: z.string(), aisle: z.string().nullable(), updatedAt: z.string() })).openapi({ description: 'Stores it is found at (by name), each with its aisle there.' }),
     lastStore: z.string().nullable().openapi({ description: 'Where it was last bought or planned: a new add goes there.' }),
+    tags: z.array(z.string()).openapi({ description: 'The family\'s own categories for it, e.g. "Breakfast", "Lunchbox" (not its store department).' }),
   })
   .openapi('RememberedItem');
 
 const CatalogValue = z.string().trim().min(1).max(60);
+const CatalogTag = z.string().trim().min(1).max(40);
+export const RememberedTagRenameSchema = z
+  .object({ from: z.string().min(1), to: CatalogTag.nullable().openapi({ description: 'New name, or null to remove it from every item.' }) })
+  .openapi('RememberedTagRename');
 export const RememberedItemPatchSchema = z
   .object({
     title: z.string().trim().min(1).max(200).optional().openapi({ description: 'New spelling. A different name moves it (409 if that name is already in the catalog).' }),
@@ -777,6 +782,11 @@ export const RememberedItemPatchSchema = z
       .refine((ps) => new Set(ps.map((p) => p.store)).size === ps.length, 'each store once')
       .optional()
       .openapi({ description: 'Replaces its stores: each with its aisle there (null = not known). Stores left out are forgotten.' }),
+    tags: z
+      .array(CatalogTag)
+      .max(10)
+      .optional()
+      .openapi({ description: 'Replaces its categories (up to 10, 40 characters each). Trimmed and deduped ignoring case; a category the family already has keeps its spelling. [] clears them.' }),
   })
   .openapi('RememberedItemPatch');
 export const RememberedItemInputSchema = RememberedItemPatchSchema.extend({ title: z.string().trim().min(1).max(200) }).openapi('RememberedItemInput');

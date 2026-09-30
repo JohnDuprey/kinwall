@@ -6,6 +6,7 @@ import type { OnlineTidbits, Plugin, PluginCatalogEntry,
 import { eveningPending, FEELINGS, lastNightDate, TEMP_CHECK_OFF } from './tempCheck.ts'
 import { aisleOrderMap, compareItems } from './types.ts'
 import { itemKey } from './itemSuggest.ts'
+import { tagsInput } from './catalog.ts'
 import { byListOrder, reorderWithin } from './listSections.ts'
 import { dateKey } from './date.ts'
 import { FILTER_PRESETS, NO_FILTER, filterShows } from './calendarFilter.ts'
@@ -440,9 +441,15 @@ function mockCatalog() {
   catalogItems ??= new Map(nameSuggestions().map(s => {
     const places = placesOf(s.title).filter((p): p is { store: string; aisle: string | null } => !!p.store)
     return [s.key, { key: s.key, title: s.title, uses: s.uses, lastUsed: iso(), category: s.category ?? DEMO_DEPARTMENT[s.title] ?? null, lastStore: places[0]?.store ?? null,
-      places: places.map(p => ({ ...p, updatedAt: iso() })).sort((a, b) => a.store.localeCompare(b.store)) }]
+      places: places.map(p => ({ ...p, updatedAt: iso() })).sort((a, b) => a.store.localeCompare(b.store)), tags: DEMO_TAGS[s.title] ?? [] }]
   }))
   return catalogItems
+}
+// The demo family's own catalog categories.
+const DEMO_TAGS: Record<string, string[]> = {
+  Bananas: ['Breakfast', 'Snacks', 'Lunchbox'], Bagels: ['Breakfast'], Yogurt: ['Breakfast', 'Lunchbox'], 'Oat milk': ['Breakfast'], Coffee: ['Breakfast', 'Pantry staples'],
+  Blueberries: ['Snacks', 'Breakfast'], Cheddar: ['Lunchbox', 'Snacks'], Tortillas: ['Lunchbox'], Rice: ['Pantry staples'], Pasta: ['Pantry staples'],
+  'Paper towels': ['Cleaning'], 'Dish soap': ['Cleaning'], Milk: ['Breakfast'], Eggs: ['Breakfast'],
 }
 const DEMO_DEPARTMENT: Record<string, string> = {
   Bananas: 'Produce', 'Baby spinach': 'Produce', Basil: 'Produce', Blueberries: 'Produce', Butter: 'Dairy', Cheddar: 'Dairy', Yogurt: 'Dairy', 'Oat milk': 'Dairy', 'Banana milk': 'Dairy',
@@ -1166,7 +1173,7 @@ export const mock = {
   addRemembered: async (body: RememberedItemInput & { title: string }) => {
     const key = itemKey(body.title)
     if (mockCatalog().has(key)) throw new Error(`Already in the catalog as ${mockCatalog().get(key)!.title}`)
-    mockCatalog().set(key, { key, title: body.title.trim(), uses: 0, lastUsed: null, category: null, places: [], lastStore: null })
+    mockCatalog().set(key, { key, title: body.title.trim(), uses: 0, lastUsed: iso(), category: null, places: [], lastStore: null, tags: [] })
     return mock.updateRemembered(key, body)
   },
   updateRemembered: async (key: string, body: RememberedItemInput) => {
@@ -1176,11 +1183,21 @@ export const mock = {
     if (to !== key && cat.has(to)) throw new Error(`Already in the catalog as ${cat.get(to)!.title}`)
     const places = body.places ? body.places.map(p => ({ ...p, updatedAt: was.places.find(w => w.store === p.store)?.updatedAt ?? iso() })).sort((a, b) => a.store.localeCompare(b.store)) : was.places
     const item: RememberedItem = { ...was, key: to, title: body.title?.trim() ?? was.title, category: body.category !== undefined ? body.category : was.category, places,
+      tags: body.tags ? tagsInput(body.tags, [...cat.values()].filter(i => i.key !== key).flatMap(i => i.tags)) : was.tags,
       lastStore: places.some(p => p.store === was.lastStore) ? was.lastStore : places[0]?.store ?? null }
     cat.delete(key); cat.set(to, item)
     for (const p of item.places) seenAt(item.title, p.store, p.aisle) // so adds and the aisle pickers use it
     remembered.forEach(r => { if (itemKey(r.title) === to && item.category) r.category = item.category })
     bump(); return item
+  },
+  renameCatalogTag: async (from: string, to: string | null) => {
+    let updated = 0
+    for (const i of mockCatalog().values()) {
+      if (!i.tags.some(t => t.toLowerCase() === from.toLowerCase())) continue
+      updated++
+      i.tags = tagsInput(i.tags.map(t => (t.toLowerCase() === from.toLowerCase() ? to ?? '' : t)), [])
+    }
+    bump(); return { updated }
   },
   forgetItemName: async (key: string) => {
     forgotten.add(key); mockCatalog().delete(key); remembered = remembered.filter(i => itemKey(i.title) !== key); bump(); return { ok: true }

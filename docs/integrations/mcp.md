@@ -129,8 +129,8 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 | `add_list_items` | Adds items: plain titles or objects (notes, quantity, store, category (a shopping item's department), aisle, member, dueDate, eventId, priority, steps). `steps` is a list of step titles in order. On a shopping list, a store, category or aisle left out comes from what the family used last time for that item. |
 | `update_list_item` | Edits an item's title, notes, quantity, store, category, aisle, assignee, due date, linked event or priority (`low` / `normal` / `high` / `urgent`). |
 | `set_store_aisle_order` | Sets the order a store's aisles are walked in (`store`, `aisles`), e.g. Produce, Bakery, Aisle 4, Frozen, Aisle 5, Dairy. Aisle sort and trips follow it. |
-| `list_remembered_items` | The grocery catalog: every shopping item the family has added before, with its department and the stores it's found at, each with its aisle there. `search` and `store` filter. |
-| `update_remembered_item` | Edits a grocery catalog item (by `name` or key): `title`, `category` (department) and `places` (`[{store, aisle}]`, replaces its stores). `create: true` adds it when it isn't there yet. |
+| `list_remembered_items` | The grocery catalog: every shopping item the family has added before, with its department, its categories (`tags`) and the stores it's found at, each with its aisle there. `search`, `store` and `tag` (a category) filter. |
+| `update_remembered_item` | Edits a grocery catalog item (by `name` or key): `title`, `category` (department), `tags` (its categories, e.g. `["Breakfast", "Lunchbox"]`; replaces them) and `places` (`[{store, aisle}]`, replaces its stores). `create: true` adds it when it isn't there yet. |
 | `set_list_item_done` | Ticks or unticks an item, and all its steps with it. |
 | `set_step_done` | Ticks or unticks one step of an item (step IDs come from `get_list`). Ticking the last open step completes the item; unticking a step of a done item re-opens it. |
 | `add_note` | Adds a note to an event's or list item's thread, posted as a member (by name or ID) or "Someone". |

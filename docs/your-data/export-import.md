@@ -14,7 +14,7 @@
 | Points spent, daily check-ins, sticker packs unlocked and sticker book pages | |
 | [Temp check](../using/snapshot.md#temp-check) settings and answers (evening goal checks and energy battery check-ins too), each person's own feelings, and [journal](../using/journal.md) entries. [Medications](../using/medications.md) and their taken/skipped log. Sleep, feelings, goal checks, journal entries and medications are encrypted on the server but **in plain form in this file** (a connected app's export leaves them out). A [private journal](../using/journal.md#private-journals) entry's words and a private day's goal check notes are never in the file, for anyone: its mood and day are. Whether journals are private isn't in the file either | |
 | Rewards (archived ones too), every reward request with its status and note, and each person's goal | |
-| Lists, items, group order, remembered store/category/aisle per item, stores' aisle orders | Push subscriptions |
+| Lists, items, group order, remembered store/category/aisle per item, grocery catalog categories, stores' aisle orders | Push subscriptions |
 | Local calendars **with their events** (reminders, travel time) | Synced events themselves (they're fetched again) |
 | Every calendar's name, color, members, default category, filter and hidden events | Per-device appearance (it lives in each browser) |
 | Per-event member, category and travel-time tags on synced events, and series-wide member and category tags on synced recurring events | |

@@ -1,17 +1,94 @@
-// The grocery catalog (GET /api/lists/remembered): pure helpers for its search, store filter and labels.
+// The grocery catalog (GET /api/lists/remembered): pure helpers for its search, filters, sort, groups and labels.
 import { itemKey } from './itemSuggest.ts'
-import type { RememberedItem } from './types.ts'
+import { compareAisles, type AisleOrder, type RememberedItem } from './types.ts'
+
+const byName = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: 'base' })
 
 /** Every store an item is found at, A-Z (for the filter chips). */
 export function catalogStores(items: RememberedItem[]): string[] {
   return [...new Set(items.flatMap(i => i.places.map(p => p.store)))].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
 }
 
-/** Items whose name (or matching key: "tomatoes" finds Tomato) has the search, found at `store` when given. */
-export function filterCatalog(items: RememberedItem[], query: string, store: string | null): RememberedItem[] {
+/** Each value once (case ignored, the first spelling), A-Z, with how many items have it. */
+function counted(values: string[][]): { name: string; count: number }[] {
+  const out = new Map<string, { name: string; count: number }>()
+  for (const vs of values) {
+    for (const v of new Set(vs.map(x => x.toLowerCase()))) {
+      const was = out.get(v)
+      out.set(v, { name: was?.name ?? vs.find(x => x.toLowerCase() === v)!, count: (was?.count ?? 0) + 1 })
+    }
+  }
+  return [...out.values()].sort((a, b) => byName(a.name, b.name))
+}
+/** The family's categories (tags) and the departments in use, for the filters. */
+export const catalogTags = (items: RememberedItem[]) => counted(items.map(i => i.tags))
+export const catalogDepartments = (items: RememberedItem[]) => counted(items.map(i => (i.category ? [i.category] : [])))
+
+/** Offered in the edit sheet until the family has categories of its own. */
+export const STARTER_TAGS = ['Breakfast', 'Snacks', 'Lunchbox', 'Pantry staples', 'Cleaning', 'Baby', 'Pet']
+
+/** Items whose name (or matching key: "tomatoes" finds Tomato) has the search, found at `store`, in
+ * category `tag` and department `department` when given (case ignored). All of them combine. */
+export function filterCatalog(items: RememberedItem[], query: string, store: string | null, only: { tag?: string | null; department?: string | null } = {}): RememberedItem[] {
   const q = query.normalize('NFKC').trim().toLowerCase().replace(/\s+/g, ' ')
   const key = q.length > 3 ? itemKey(q) : q
-  return items.filter(i => (!q || i.title.toLowerCase().includes(q) || i.key.includes(key)) && (!store || i.places.some(p => p.store === store)))
+  const tag = only.tag?.toLowerCase(), dept = only.department?.toLowerCase()
+  return items.filter(i => (!q || i.title.toLowerCase().includes(q) || i.key.includes(key)) && (!store || i.places.some(p => p.store === store))
+    && (!tag || i.tags.some(t => t.toLowerCase() === tag)) && (!dept || i.category?.toLowerCase() === dept))
+}
+
+export type CatalogSort = 'alpha' | 'bought' | 'department' | 'aisle' | 'recent'
+export type CatalogGroup = 'none' | 'department' | 'category'
+
+/** A-Z; most bought; by department (none last); by aisle at `store` (its walking order, items not
+ * found there last; A-Z with no store); most recently added to a list first. Ties go A-Z. */
+export function sortCatalog(items: RememberedItem[], sort: CatalogSort, store: string | null, order: AisleOrder): RememberedItem[] {
+  const aisleAt = (i: RememberedItem) => i.places.find(p => p.store === store)
+  const cmp: (a: RememberedItem, b: RememberedItem) => number =
+    sort === 'bought' ? (a, b) => b.uses - a.uses
+    : sort === 'department' ? (a, b) => byName(a.category ?? '\uffff', b.category ?? '\uffff')
+    : sort === 'recent' ? (a, b) => (b.lastUsed ?? '').localeCompare(a.lastUsed ?? '')
+    : sort === 'aisle' && store ? (a, b) => {
+      const pa = aisleAt(a), pb = aisleAt(b)
+      return !pa || !pb ? (pa ? -1 : pb ? 1 : 0) : compareAisles(store, pa.aisle, pb.aisle, order)
+    }
+    : () => 0
+  return [...items].sort((a, b) => cmp(a, b) || byName(a.title, b.title))
+}
+
+/** Sections for the list: one untitled section, or one per department / category (an item with
+ * several categories is under each), A-Z with "No department" / "No category" last. Keeps the order. */
+export function groupCatalog(items: RememberedItem[], by: CatalogGroup): { name: string | null; items: RememberedItem[] }[] {
+  if (by === 'none') return [{ name: null, items }]
+  const none = by === 'department' ? 'No department' : 'No category'
+  const names = counted(items.map(i => (by === 'department' ? (i.category ? [i.category] : []) : i.tags))).map(v => v.name)
+  const has = (i: RememberedItem, n: string) => (by === 'department' ? [i.category ?? ''] : i.tags).some(v => v.toLowerCase() === n.toLowerCase())
+  const loose = items.filter(i => !names.some(n => has(i, n)))
+  return [...names.map(name => ({ name, items: items.filter(i => has(i, name)) })), ...(loose.length ? [{ name: none, items: loose }] : [])]
+}
+
+/** An item's categories as saved: trimmed, blanks dropped, each once ignoring case, a category the
+ * family already has keeps its spelling (the server does the same). */
+export function tagsInput(tags: string[], family: string[]): string[] {
+  const known = new Map(family.map(t => [t.toLowerCase(), t] as const))
+  const out = new Map<string, string>()
+  for (const raw of tags) {
+    const t = raw.trim().replace(/\s+/g, ' ')
+    if (t && !out.has(t.toLowerCase())) out.set(t.toLowerCase(), known.get(t.toLowerCase()) ?? t)
+  }
+  return [...out.values()]
+}
+
+// The catalog's sort and grouping, per device.
+const VIEW_KEY = 'kinwall.catalogView'
+export function catalogView(): { sort: CatalogSort; group: CatalogGroup } {
+  try {
+    const v = JSON.parse(localStorage.getItem(VIEW_KEY) || '{}')
+    return { sort: ['bought', 'department', 'aisle', 'recent'].includes(v.sort) ? v.sort : 'alpha', group: ['department', 'category'].includes(v.group) ? v.group : 'none' }
+  } catch { return { sort: 'alpha', group: 'none' } }
+}
+export function setCatalogView(view: { sort: CatalogSort; group: CatalogGroup }) {
+  try { localStorage.setItem(VIEW_KEY, JSON.stringify(view)) } catch { /* not kept */ }
 }
 
 /** "Shaws · Aisle 7", or just "Shaws" when the aisle there isn't known. */
