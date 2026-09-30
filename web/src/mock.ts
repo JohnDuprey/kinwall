@@ -218,7 +218,14 @@ const photos: Photo[] = [
 const DEMO_GOOGLE = [1018, 1036, 1044, 1050, 1069]
 let googleAt = 0 // when Connect was tapped; 0 = not connected
 let googleN = 0
-const googleState = (): GooglePhotos['state'] => !googleAt ? 'off' : Date.now() - googleAt < 6000 ? 'signing-in' : Date.now() - googleAt < 16000 ? 'choosing' : 'ready'
+// For screenshots of every state, sessionStorage 'kinwall.demoGooglePhotos' can pin one: 'reconnect',
+// 'refused', or 'legacy' (connected before Kinwall kept the account).
+const demoGoogle = () => { try { return sessionStorage.getItem('kinwall.demoGooglePhotos') } catch { return null } }
+const googleState = (): GooglePhotos['state'] => {
+  const pinned = demoGoogle()
+  if (pinned === 'reconnect' || pinned === 'refused') return pinned
+  return !googleAt ? 'off' : Date.now() - googleAt < 6000 ? 'signing-in' : Date.now() - googleAt < 16000 ? 'choosing' : 'ready'
+}
 const googleStatus = (): GooglePhotos => {
   const state = googleState()
   if (settings.googlePhotos !== state) { settings.googlePhotos = state; bump() }
@@ -227,6 +234,7 @@ const googleStatus = (): GooglePhotos => {
     ...(state === 'signing-in' ? { authUrl: 'https://accounts.google.com/', codeExpiresAt: new Date(googleAt + 600_000).toISOString() } : {}),
     ...(state === 'choosing' || state === 'ready' ? { settingsUri: 'https://photos.google.com/' } : {}),
     ...(state === 'ready' ? { photos: DEMO_GOOGLE.length } : {}),
+    ...((state === 'choosing' || state === 'ready') && demoGoogle() !== 'legacy' ? { account: { name: 'Alex', email: 'alex@example.com' } } : {}),
   }
 }
 

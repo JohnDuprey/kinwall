@@ -1567,10 +1567,27 @@ function GooglePhotosRows() {
     return g
   })
   const disconnect = async () => {
-    if (!await dialog.confirm({ title: 'Disconnect Google Photos?', body: "Google Photos stops showing on every screen. Your photos stay in Google Photos. Google Calendar isn't affected.", confirmLabel: 'Disconnect', danger: true })) return
+    if (!await dialog.confirm({ title: 'Disconnect Google Photos?', body: 'Google Photos stops showing on every screen. Kinwall removes its device from your Google Photos, cancels its access to your Google account and forgets which photos to show. Your photos stay in Google Photos. Google Calendar isn\'t affected.', confirmLabel: 'Disconnect', danger: true })) return
     run(api.disconnectGooglePhotos)
   }
+  // Reconnecting an older connection, to show its account: start over (albums are picked again).
+  const reconnect = async () => {
+    if (!await dialog.confirm({ title: 'Reconnect Google Photos?', body: "You'll sign in to Google again and choose albums again. Until then, screens show your other picks.", confirmLabel: 'Reconnect' })) return
+    run(async () => { await api.disconnectGooglePhotos(); const g = await api.connectGooglePhotos(); if (g.authUrl && !wall && !MOCK) location.href = g.authUrl; return g })
+  }
   const qr = (value: string) => !isPhone && <div className="google-photos-qr"><QrCode value={value} size={value.length > 200 ? 220 : 148} /><div className="settings-row-sub">Scan with your phone.</div></div>
+  // Which Google account: the name and email on a parent's phone or computer; on a wall screen (a
+  // shared, public spot) only an avatar, per Google's guidelines.
+  const account = gp.account
+  const who = account && (
+    <div className="google-photos-account">
+      <span className="google-photos-avatar" aria-hidden="true">{(account.name || account.email).charAt(0).toUpperCase()}</span>
+      <span>
+        <span className="settings-row-label">Connected to Google Photos</span>
+        {!wall && <span className="settings-row-sub">{account.name ? `${account.name} · ` : ''}{account.email}</span>}
+      </span>
+    </div>
+  )
   return (
     <div className="google-photos">
       <div className="settings-row-label">Google Photos</div>
@@ -1578,11 +1595,19 @@ function GooglePhotosRows() {
       {(state === 'off' || state === 'reconnect' || state === 'refused') && <>
         {state === 'reconnect' && <div className="settings-row-sub google-photos-note" role="status">⚠️ Google Photos stopped sharing with Kinwall, so screens show your other picks for now. Reconnect to bring it back.</div>}
         {state === 'refused' && <div className="settings-row-sub google-photos-note" role="alert">⚠️ Google didn't allow Photos with this app; see the <a className="text-link" href={`${DOCS_URL}/self-hosting/configuration#google-photos`} target="_blank" rel="noopener">docs for the TV-client option</a>.</div>}
-        {state === 'off' && <div className="settings-row-sub">Show photos from albums you pick in Google Photos, on every screen in the family. Google asks for its own permission, separate from Google Calendar.</div>}
+        {state === 'off' && <>
+          <div className="settings-row-sub">Show photos from albums you choose in Google Photos on the family's screens. When you connect, Google asks you to let Kinwall:</div>
+          <ul className="google-photos-scopes settings-row-sub">
+            <li><b>See the photos in albums you choose</b> for Kinwall, to show them on the Night screen and the Board.</li>
+            <li><b>See your name and email</b>, to show here which Google account is connected.</li>
+          </ul>
+          <div className="settings-row-sub">Kinwall never changes, uploads or shares your photos, and keeps only which ones to show. This is separate from Google Calendar.</div>
+        </>}
         <button className="btn btn-primary" disabled={busy} onClick={connect}>{state === 'off' ? 'Connect Google Photos' : state === 'reconnect' ? 'Reconnect Google Photos' : 'Try again'}</button>
       </>}
       {state === 'signing-in' && gp.authUrl && <>
         {/* Like Connect Google for Calendar: Google's page in this tab, back to this sheet after. */}
+        <div className="settings-row-sub">Sign in with the Google account that has your photos, then choose albums for Kinwall.</div>
         <a className="btn btn-primary" href={gp.authUrl} onClick={e => { if (!MOCK) return; e.preventDefault() }}>Continue to Google</a>
         {!isPhone && <div className="settings-row-sub">Or connect from a phone or computer:</div>}
         {qr(gp.authUrl)}
@@ -1594,13 +1619,19 @@ function GooglePhotosRows() {
         {qr(gp.verificationUrl)}
         <div className="settings-row-sub" role="status">Waiting for you to sign in…</div>
       </>}
-      {state === 'choosing' && <div className="settings-row-sub" role="status">Waiting for you to choose albums…</div>}
-      {state === 'ready' && <div className="settings-row-sub">Connected{gp.photos !== undefined && `: ${gp.photos} ${gp.photos === 1 ? 'photo' : 'photos'}`}.{!picked && ' Pick Google Photos above to show it on wall screens.'}</div>}
+      {(state === 'choosing' || state === 'ready') && (who || <div className="settings-row-label">Connected to Google Photos</div>)}
+      {state === 'choosing' && <div className="settings-row-sub" role="status">Waiting for you to choose albums in Google Photos…</div>}
+      {state === 'ready' && <div className="settings-row-sub">{gp.photos !== undefined && `${gp.photos} ${gp.photos === 1 ? 'photo' : 'photos'} to show. `}{!picked && 'Pick Google Photos above to show them on wall screens. '}Google Photos leaves out screenshots, blurry shots and very personal photos, and Kinwall shows photos only, not videos.</div>}
       {(state === 'choosing' || state === 'ready') && gp.settingsUri && <>
-        <a className="btn btn-secondary" href={gp.settingsUri} target="_blank" rel="noreferrer">{state === 'choosing' ? 'Choose albums in Google Photos' : 'Change albums'}</a>
+        <a className="btn btn-secondary" href={gp.settingsUri} target="_blank" rel="noreferrer">{state === 'choosing' ? 'Choose albums in Google Photos' : 'Change albums in Google Photos'}</a>
         {state === 'choosing' && qr(gp.settingsUri)}
       </>}
-      {state !== 'off' && <button className="link-btn google-photos-disconnect" disabled={busy} onClick={state === 'signing-in' ? () => run(api.disconnectGooglePhotos) : disconnect}>{state === 'signing-in' ? 'Cancel' : 'Disconnect Google Photos'}</button>}
+      {state === 'ready' && !account && <>
+        <div className="settings-row-sub">Connected before Kinwall showed the account. Reconnect to see which Google account it uses; you'll choose albums again.</div>
+        <button className="link-btn google-photos-disconnect" disabled={busy} onClick={reconnect}>Reconnect to show the account</button>
+      </>}
+      {state === 'signing-in' && <button className="link-btn google-photos-disconnect" disabled={busy} onClick={() => run(api.disconnectGooglePhotos)}>Cancel</button>}
+      {state !== 'off' && state !== 'signing-in' && <button className="btn btn-secondary google-photos-disconnect" disabled={busy} onClick={disconnect}>Disconnect Google Photos</button>}
     </div>
   )
 }

@@ -2,7 +2,8 @@
 // (developers.google.com/photos/ambient). Family level, one row in google_photos (migration 0061),
 // apart from calendar accounts so either disconnects alone.
 //
-// Connect, asking for the Photos scope alone (a consent separate from Calendar), one of two ways:
+// Connect, asking for the Photos scope and who is signing in (openid email profile, so Settings can
+// show which Google account is connected), a consent separate from Calendar, one of two ways:
 // - The web sign-in (the default): the family's Google Calendar web client, its redirect URI and
 //   its callback (routes/oauth.ts, state purpose 'photos'). The callback stores the tokens here and
 //   creates the family's Ambient device. Google's docs describe only the device sign-in for this
@@ -31,7 +32,7 @@ import { googlePhotosAuthUrl } from './oauth.ts';
 
 type Ctx = Context<{ Bindings: Env }>;
 
-const SCOPE = 'https://www.googleapis.com/auth/photosambient.mediaitems';
+const SCOPE = 'https://www.googleapis.com/auth/photosambient.mediaitems openid email profile';
 const DEVICE_CODE_URL = 'https://oauth2.googleapis.com/device/code';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const REVOKE_URL = 'https://oauth2.googleapis.com/revoke';
@@ -59,6 +60,8 @@ type Row = {
   next_poll_at: string | null;
   items_at: string | null;
   problem: string | null;
+  account_name: string | null;
+  account_email: string | null;
 };
 type Tokens = { access_token: string; refresh_token: string; expires_at: number };
 type Device = { id: string; settingsUri?: string; mediaSourcesSet?: boolean; pollingConfig?: { pollInterval?: string } };
@@ -179,7 +182,7 @@ async function advance(c: Ctx, row: Row): Promise<void> {
   if (!row.device_id) {
     const { device_code } = (await decryptConfig(c.env, AAD, row.config)) as { device_code: string };
     const res = await fetch(TOKEN_URL, form({ client_id: app.id, client_secret: app.secret, device_code, grant_type: 'urn:ietf:params:oauth:grant-type:device_code' }));
-    const body = (await res.json().catch(() => ({}))) as { error?: string; access_token?: string; refresh_token?: string; expires_in?: number };
+    const body = (await res.json().catch(() => ({}))) as { error?: string; access_token?: string; refresh_token?: string; expires_in?: number; id_token?: string };
     if (!res.ok || !body.access_token) {
       if (body.error === 'authorization_pending') return update(c, { next_poll_at: later(row.poll_seconds) });
       if (body.error === 'slow_down') return update(c, { poll_seconds: row.poll_seconds + 5, next_poll_at: later(row.poll_seconds + 5) });
@@ -187,7 +190,7 @@ async function advance(c: Ctx, row: Row): Promise<void> {
     }
     const tokens: Tokens = { access_token: body.access_token, refresh_token: body.refresh_token ?? '', expires_at: Date.now() + (body.expires_in ?? 3600) * 1000 };
     const sealed = await encryptConfig(c.env, AAD, tokens);
-    await update(c, { config: sealed, user_code: null, verification_url: null, code_expires_at: null });
+    await update(c, { config: sealed, user_code: null, verification_url: null, code_expires_at: null, ...accountOf(body.id_token) });
     row.config = sealed;
     await createDevice(c, row, tokens.access_token);
   } else {
@@ -196,6 +199,18 @@ async function advance(c: Ctx, row: Row): Promise<void> {
     await update(c, { settings_uri: device.settingsUri ?? row.settings_uri, sources_set: device.mediaSourcesSet ? 1 : 0, poll_seconds: poll, next_poll_at: later(poll) });
   }
   if (stateOf(await load(c)) === 'ready') emit(c, 'settings.changed', {});
+}
+
+/** Who signed in, from the token response's ID token (it came straight from Google's token endpoint
+ * over TLS, so its payload is read without checking the signature). Shown in Settings only. */
+function accountOf(idToken: string | undefined): Pick<Row, 'account_name' | 'account_email'> {
+  try {
+    const p = JSON.parse(atob((idToken ?? '').split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))) as { name?: unknown; email?: unknown };
+    const text = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, 200) : null);
+    return { account_name: text(p.name), account_email: text(p.email) };
+  } catch {
+    return { account_name: null, account_email: null };
+  }
 }
 
 /** The family's Ambient device, under the sign-in's requestId. */
@@ -229,14 +244,14 @@ export async function finishGooglePhotosWeb(c: Ctx, p: { code?: string; error?: 
   if (!app || !p.code) return clear(c).then(() => 'failed' as const);
   try {
     const res = await fetch(TOKEN_URL, form({ client_id: app.id, client_secret: app.secret, code: p.code, redirect_uri: p.redirectUri, grant_type: 'authorization_code', code_verifier: p.verifier }));
-    const body = (await res.json().catch(() => ({}))) as { error?: string; access_token?: string; refresh_token?: string; expires_in?: number };
+    const body = (await res.json().catch(() => ({}))) as { error?: string; access_token?: string; refresh_token?: string; expires_in?: number; id_token?: string };
     if (!res.ok || !body.access_token) {
       if (REFUSALS.includes(body.error ?? '')) return refuse('token', body.error);
       throw new GoogleError('sign-in', res.status);
     }
     const tokens: Tokens = { access_token: body.access_token, refresh_token: body.refresh_token ?? '', expires_at: Date.now() + (body.expires_in ?? 3600) * 1000 };
     const sealed = await encryptConfig(c.env, AAD, tokens);
-    await update(c, { config: sealed, auth_url: null, code_expires_at: null });
+    await update(c, { config: sealed, auth_url: null, code_expires_at: null, ...accountOf(body.id_token) });
     row.config = sealed;
     await createDevice(c, row, tokens.access_token);
   } catch (err) {
@@ -309,6 +324,7 @@ const StatusSchema = z
     codeExpiresAt: z.string().optional(),
     settingsUri: z.string().optional().describe("Parent devices only: Google Photos' page for this family's albums"),
     photos: z.number().optional().describe('Photos in the list right now (parent devices, when ready)'),
+    account: z.object({ name: z.string().nullable(), email: z.string() }).optional().describe('Parent devices only, once signed in: the Google account Google Photos is connected to. Missing for connections made before Kinwall kept it.'),
   })
   .openapi('GooglePhotos');
 
@@ -323,6 +339,7 @@ async function status(c: Ctx, row: Row | null): Promise<z.infer<typeof StatusSch
       : { userCode: row.user_code ?? undefined, verificationUrl: row.verification_url ?? undefined, codeExpiresAt: row.code_expires_at ?? undefined });
   }
   if (row.settings_uri && (state === 'choosing' || state === 'ready')) out.settingsUri = row.settings_uri;
+  if (row.account_email && state !== 'signing-in') out.account = { name: row.account_name, email: row.account_email };
   if (state === 'ready') out.photos = (await c.env.DB.prepare('SELECT COUNT(*) AS n FROM google_photo_items').first<{ n: number }>())?.n ?? 0;
   return out;
 }

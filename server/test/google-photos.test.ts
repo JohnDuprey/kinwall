@@ -14,6 +14,10 @@ const ADMIN_KEY = 'fc_test_admin_key';
 const ACCESS = 'ya29.FAKE-ACCESS-TOKEN';
 const REFRESH = '1//FAKE-REFRESH-TOKEN';
 const DEVICE_CODE = 'FAKE-DEVICE-CODE';
+// An ID token as Google returns it with the openid scope: only its payload is read (it came
+// straight from Google's token endpoint over TLS).
+const ID_TOKEN = ['e30', Buffer.from(JSON.stringify({ name: 'Alex', email: 'alex@example.com', sub: '1' })).toString('base64url'), 'sig'].join('.');
+const SCOPES = 'https://www.googleapis.com/auth/photosambient.mediaitems openid email profile';
 const IMAGE = Uint8Array.from([0xff, 0xd8, 0xff, 1, 2, 3]);
 
 type Call = { method: string; url: URL; body: string; auth: string | null };
@@ -52,10 +56,10 @@ function fakeGoogle() {
     }
     if (url.href === 'https://oauth2.googleapis.com/token') {
       if (form.get('grant_type') === 'authorization_code') {
-        return g.exchangeError ? json({ error: g.exchangeError }, 400) : json({ access_token: ACCESS, refresh_token: REFRESH, expires_in: 3600 });
+        return g.exchangeError ? json({ error: g.exchangeError }, 400) : json({ access_token: ACCESS, refresh_token: REFRESH, expires_in: 3600, id_token: ID_TOKEN });
       }
       if (form.get('grant_type') === 'urn:ietf:params:oauth:grant-type:device_code') {
-        return g.authorized ? json({ access_token: ACCESS, refresh_token: REFRESH, expires_in: 3600, scope: form.get('scope') }) : json({ error: 'authorization_pending' }, 428);
+        return g.authorized ? json({ access_token: ACCESS, refresh_token: REFRESH, expires_in: 3600, scope: form.get('scope'), id_token: ID_TOKEN }) : json({ error: 'authorization_pending' }, 428);
       }
       return g.refreshFails ? json({ error: 'invalid_grant' }, 400) : json({ access_token: ACCESS, expires_in: 3600 });
     }
@@ -157,7 +161,7 @@ test('google photos: off and unavailable until the server has a Google Photos cl
   });
 });
 
-test('google photos: connect asks only for the Photos scope with the device sign-in, seals the tokens, creates the Ambient device', async () => {
+test('google photos: connect asks for the Photos scope and who is signing in, with the device sign-in, seals the tokens, creates the Ambient device', async () => {
   const t = makeApp();
   const fake = fakeGoogle();
   await withGoogle(fake, async () => {
@@ -170,7 +174,7 @@ test('google photos: connect asks only for the Photos scope with the device sign
 
     const start = new URLSearchParams(fake.g.calls[0].body);
     assert.equal(start.get('client_id'), 'tv-client.apps.googleusercontent.com');
-    assert.equal(start.get('scope'), 'https://www.googleapis.com/auth/photosambient.mediaitems');
+    assert.equal(start.get('scope'), SCOPES, 'Photos, plus the name and email to show which account is connected');
     const state = JSON.parse(start.get('state')!);
     assert.match(state.requestId, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
     assert.equal(state.displayName, 'Our Family Kinwall');
@@ -191,6 +195,8 @@ test('google photos: connect asks only for the Photos scope with the device sign
     assert.equal(s.body.state, 'choosing');
     assert.equal(s.body.settingsUri, 'https://photos.google.com/ambient/dev-1');
     assert.equal(s.body.userCode, undefined);
+    assert.deepEqual(s.body.account, { name: 'Alex', email: 'alex@example.com' }, 'which Google account is connected');
+    assert.equal((await t.send('GET', '/api/google-photos', await t.displayKey())).body.account, undefined, 'never on a wall screen');
     const create = fake.g.calls.find((x) => x.method === 'POST' && x.url.pathname === '/v1/devices')!;
     assert.equal(create.url.searchParams.get('requestId'), state.requestId, 'the same requestId as the sign-in, so Google opens the album picker');
     assert.equal(JSON.parse(create.body).displayName, 'Our Family Kinwall');
@@ -461,7 +467,7 @@ test('google photos: the TV client wins; without it, Calendar\'s web client; wit
   });
 });
 
-test('google photos web: asks for only the Photos scope, offline, with consent, on the Calendar redirect URI', async () => {
+test('google photos web: asks for the Photos scope and who is signing in, offline, with consent, on the Calendar redirect URI', async () => {
   const t = makeApp({ web: true });
   const fake = fakeGoogle();
   await withGoogle(fake, async () => {
@@ -469,7 +475,7 @@ test('google photos web: asks for only the Photos scope, offline, with consent, 
     assert.equal(url.origin + url.pathname, 'https://accounts.google.com/o/oauth2/v2/auth');
     const q = url.searchParams;
     assert.equal(q.get('client_id'), 'web-client.apps.googleusercontent.com');
-    assert.equal(q.get('scope'), 'https://www.googleapis.com/auth/photosambient.mediaitems', 'no calendar, email or profile scopes');
+    assert.equal(q.get('scope'), SCOPES, 'no calendar scopes; the name and email show which account is connected');
     assert.equal(q.get('access_type'), 'offline');
     assert.equal(q.get('prompt'), 'select_account consent', 'consent (for a refresh token), and the account chooser for the one with the photos');
     assert.equal(q.get('response_type'), 'code');
@@ -514,6 +520,7 @@ test('google photos web: the callback stores sealed tokens apart from Calendar, 
     const s = await t.send('GET', '/api/google-photos');
     assert.equal(s.body.state, 'choosing');
     assert.equal(s.body.settingsUri, 'https://photos.google.com/ambient/dev-1');
+    assert.deepEqual(s.body.account, { name: 'Alex', email: 'alex@example.com' });
 
     // A state is single-use.
     assert.match(await callback(t, { code: 'FAKE-CODE', state: url.searchParams.get('state')! }), /oauthError=/);
@@ -577,5 +584,22 @@ test('google photos web: a Calendar sign-in through the same callback still make
     assert.match(location, /#\/settings\?account=/);
     assert.equal(await t.count('accounts'), 1);
     assert.equal(await t.row(), undefined, 'Photos untouched');
+  });
+});
+
+test('google photos: a connection from before the account was kept shows none, and disconnecting forgets it', async () => {
+  const t = makeApp();
+  const fake = fakeGoogle();
+  await withGoogle(fake, async () => {
+    await connected(t, fake);
+    assert.equal((await t.row())!.account_email, 'alex@example.com');
+    await t.sql('UPDATE google_photos SET account_name = NULL, account_email = NULL');
+    const s = await t.send('GET', '/api/google-photos');
+    assert.equal(s.body.state, 'ready');
+    assert.equal(s.body.account, undefined);
+    await t.send('DELETE', '/api/google-photos');
+    assert.equal(await t.count('google_photos'), 0, 'the account goes with the connection');
+    assert.equal(fake.count((x) => x.url.pathname === '/revoke'), 1, 'access revoked at Google');
+    assert.equal(fake.count((x) => x.method === 'DELETE' && x.url.pathname === '/v1/devices/dev-1'), 1, 'the Ambient device deleted');
   });
 });

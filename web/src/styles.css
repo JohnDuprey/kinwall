@@ -1692,6 +1692,10 @@ button {
 .google-photos-qr { display: flex; align-items: center; gap: 12px; }
 .google-photos-note { color: var(--text); }
 .google-photos-disconnect { align-self: flex-start; min-height: 44px; }
+.google-photos-account { display: flex; align-items: center; gap: 12px; }
+.google-photos-account > span:last-child { display: flex; flex-direction: column; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+.google-photos-avatar { flex: none; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--accent-soft); color: var(--text); font-weight: 800; font-size: 1.1rem; border: 1px solid var(--border); }
+.google-photos-scopes { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
 .device-pref-row .settings-select { width: 100%; min-width: 0; text-overflow: ellipsis; }
 /* Transition times (MinutesPicker): "[20] min before [Add]" and "Every [5 min] during the last [30 min]" read as one line. */
 .minutes-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-weight: 700; font-size: 0.9375rem; }

@@ -55,18 +55,21 @@ A parent can also show albums from Google Photos on the Night screen and the Boa
 
 **Connect it** from a parent device: **Settings → General → For the whole family**, tap **Change** under **Night screen**, then **Connect Google Photos**.
 
-1. Sign in to the Google account whose photos you want. Google asks for permission to show the photos you pick on a device. That's its own permission: it doesn't use or change your [Google Calendar](../calendars/google.md) connection, and connecting Calendar never asks for Photos.
+Before you connect, the sheet says what Kinwall asks Google for: **see the photos in albums you choose** (to show them on the Night screen and the Board) and **see your name and email** (to show which Google account is connected). Kinwall never changes, uploads or shares your photos.
+
+1. Sign in to the Google account whose photos you want. Google asks for permission to show the photos you pick on a device, and to share your name and email with Kinwall. That's its own permission: it doesn't use or change your [Google Calendar](../calendars/google.md) connection, and connecting Calendar never asks for Photos.
    * Usually Google's sign-in opens in the same tab, like connecting a calendar, and brings you back to this sheet. On a wall screen the sheet shows a QR code instead: scan it and sign in on your phone (or tap **Continue to Google**).
    * If your server uses a [TV client](../self-hosting/configuration.md#google-photos), Kinwall shows a short code instead: on a phone or computer, go to `google.com/device` (the link, or the QR code on a big screen) and enter it.
 2. Pick albums for "Our Family Kinwall" (your family's name): tap **Choose albums in Google Photos** (or scan its QR code). With the code sign-in, Google usually opens this page for you. The sheet says "Waiting for you to choose albums…" until you're done.
-3. Once albums are picked, the sheet says how many photos there are, and **Google Photos** appears under **During quiet hours show**. Turn it on there for every wall screen, or on a screen that picks its own under **Night screen on this device**. The Board's picture card shows them on displays that haven't picked any sources.
+3. Once albums are picked, the sheet says **Connected to Google Photos** with the account's name and email (on a wall screen, only its initial), how many photos there are, and **Google Photos** appears under **During quiet hours show**. Turn it on there for every wall screen, or on a screen that picks its own under **Night screen on this device**. The Board's picture card shows them on displays that haven't picked any sources.
 
 It's one connection for the whole family: every screen can show the photos, but only a parent device can connect, change albums or disconnect. Wall screens and kids' devices can't.
 
-* **Change albums** opens the same Google Photos page to pick different albums. New picks show up within the hour.
-* **Disconnect Google Photos** removes Kinwall from the Google Photos device list, cancels its permission and forgets the list of photos. Your photos and Google Calendar aren't touched. You can also remove access in your Google Account under **Security → Third-party apps & services**.
+* **Change albums in Google Photos** opens the same Google Photos page to pick different albums. New picks show up within the hour.
+* **Disconnect Google Photos** (it asks first) removes Kinwall from the Google Photos device list, cancels its access to your Google account and forgets the list of photos and the account's name and email. Your photos and Google Calendar aren't touched. You can also remove access in your Google Account under **Security → Third-party apps & services**.
 * **"Google didn't allow Photos with this app."** Google turned down the Photos permission for the server's Google app. The person who runs the server can switch to a TV client: see [Google Photos](../self-hosting/configuration.md#google-photos) in Configuration.
 * **Reconnect.** If Google stops sharing (you removed the permission in your Google Account, or deleted the device in Google Photos), screens quietly go back to their other picks (nature pictures if Google Photos was the only one), and the sheet shows **Reconnect Google Photos** to parents.
+* **Connected before the account was shown?** A connection made before Kinwall kept the account says **Connected to Google Photos** without it. **Reconnect to show the account** signs in again (you choose albums again); nothing forces it.
 * Google Photos leaves out screenshots, receipts, blurry shots and pictures it considers too personal for a shared screen. Kinwall shows photos only and skips videos.
 * There are no webhooks or MCP tools for Google Photos: it only picks pictures for screens.
 
