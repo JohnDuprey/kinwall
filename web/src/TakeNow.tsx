@@ -19,8 +19,14 @@ import type { DueDose, MedicationsDue } from './types.ts'
 
 const RECHECK_MS = 60_000 // a dose shows up at its time without waiting for the next refresh
 
-/** Today's due doses for this device, refetched on each refresh and every minute. The Board uses it
- *  to know whether to show its Take now tile; `drop` removes a dose once it's marked. */
+// The board's tile and the phone app's Live Activity both ask, at the same moments (a refresh, the
+// top of each minute): they share one request.
+let dueRequest: Promise<MedicationsDue> | null = null
+const fetchDue = () => (dueRequest ??= api.getMedicationsDue().finally(() => { dueRequest = null }))
+
+/** Today's due doses for this device, refetched on each refresh and at the top of every minute
+ * while the screen is showing. The Board uses it to know whether to show its Take now tile; `drop`
+ * removes a dose once it's marked. */
 export function useDueDoses() {
   const { settings, refreshTick } = useApp()
   const [due, setDue] = useState<MedicationsDue | null>(null)
@@ -29,13 +35,17 @@ export function useDueDoses() {
   useEffect(() => {
     if (!on) return
     let canceled = false
-    api.getMedicationsDue().then(d => { if (!canceled) setDue(d) }).catch(() => { if (!canceled) setDue(null) }) // no card rather than an error
+    fetchDue().then(d => { if (!canceled) setDue(d) }).catch(() => { if (!canceled) setDue(null) }) // no card rather than an error
     return () => { canceled = true }
   }, [on, refreshTick, tick])
   useEffect(() => {
     if (!on) return
-    const t = setInterval(() => setTick(x => x + 1), RECHECK_MS)
-    return () => clearInterval(t)
+    let t: ReturnType<typeof setTimeout>
+    const next = () => { t = setTimeout(() => { if (document.visibilityState !== 'hidden') setTick(x => x + 1); next() }, RECHECK_MS - Date.now() % RECHECK_MS) }
+    const onVis = () => { if (document.visibilityState === 'visible') setTick(x => x + 1) }
+    next()
+    document.addEventListener('visibilitychange', onVis)
+    return () => { clearTimeout(t); document.removeEventListener('visibilitychange', onVis) }
   }, [on])
   const drop = (d: DueDose) => setDue(x => x && { ...x, doses: x.doses.filter(y => key(y) !== key(d)) })
   return { doses: on && due ? due.doses : [], drop }
