@@ -74,7 +74,7 @@ export default function AuthorizeScreen() {
     setBusy(true); setError('')
     try {
       const { redirect } = await api.decideAuthorization({
-        decision, scope, owner: info?.deviceApp ? owner : undefined,
+        decision, scope, owner: info?.deviceApp && (scope === 'admin' || !members.find(m => m.id === owner)?.grownUp) ? owner : undefined,
         client_id: params.get('client_id') ?? undefined,
         redirect_uri: params.get('redirect_uri') ?? undefined,
         state: params.get('state') ?? undefined,
@@ -143,7 +143,8 @@ export default function AuthorizeScreen() {
                 <label id="authorize-owner">Whose device is this?</label>
                 <div className="chip-row" role="group" aria-labelledby="authorize-owner">
                   <button type="button" className={`chip ${owner === 'shared' ? 'active' : ''}`} aria-pressed={owner === 'shared'} onClick={() => setOwner('shared')}>👪 Shared</button>
-                  {members.map(m => (
+                  {/* Everyday access is a kid's or shared, never a grown-up's (it would open their journal). */}
+                  {members.filter(m => scope === 'admin' || !m.grownUp).map(m => (
                     <button key={m.id} type="button" className={`chip ${owner === m.id ? 'active' : ''}`} aria-pressed={owner === m.id}
                       style={{ ['--chip-color' as string]: m.color }} onClick={() => setOwner(m.id)}>{m.avatar} {m.name}</button>
                   ))}

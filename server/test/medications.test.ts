@@ -11,6 +11,7 @@ import { openDb, applyMigrations } from '../src/d1-sqlite.ts';
 import { runNotifications } from '../src/notify.ts';
 import { seal, unseal } from '../src/crypto.ts';
 import type { Env } from '../src/env.ts';
+import { createApiKey } from '../src/auth.ts';
 
 const MIGRATIONS = path.join(import.meta.dirname, '..', 'migrations');
 const ADMIN = 'kw_test_admin';
@@ -37,11 +38,10 @@ async function setup(opts: { extra?: Partial<Env>; now?: Date; on?: boolean } = 
   const sam = (await req('/api/members', 'POST', { name: 'Sam', color: '#FF8FA3', grownUp: true })).json;
   const maya = (await req('/api/members', 'POST', { name: 'Maya', color: '#7ED9A6' })).json;
   const leo = (await req('/api/members', 'POST', { name: 'Leo', color: '#F5A65B' })).json;
-  const key = async (owner?: string, scope = 'display') => {
-    const k = (await req('/api/keys', 'POST', { name: `k-${owner ?? (scope === 'display' ? 'wall' : scope)}`, scope })).json;
-    if (owner) assert.equal((await req(`/api/keys/${k.id}`, 'PATCH', { owner })).status, 200);
-    return k.key as string;
-  };
+  // Straight into the table: a grown-up's (Sam's) paired device can't be made any more (auth.ts
+  // validOwner), but ones paired before that keep working for their medications.
+  const key = async (owner?: string, scope: 'admin' | 'display' = 'display') =>
+    (await createApiKey(db as never, `k-${owner ?? (scope === 'display' ? 'wall' : scope)}`, scope, { owner: owner ?? null })).key;
   const add = (memberId: string, body: Record<string, unknown> = {}, k = ADMIN) => req('/api/medications', 'POST', { memberId, name: NAME, dose: DOSE, times: ['08:00'], ...body }, k);
   const mark = (medId: string, action: string, k = ADMIN, time = '08:00', date = TODAY) => req(`/api/medications/${medId}/doses`, 'POST', { date, time, action }, k);
   const raw = (table: 'medications' | 'medication_log' | 'sent_notifications') => db.prepare(`SELECT * FROM ${table}`).all<Record<string, unknown>>().results;

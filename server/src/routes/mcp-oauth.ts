@@ -12,7 +12,7 @@ import type { Context } from 'hono';
 import { cors } from 'hono/cors';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
-import { createApiKey, deviceAppGrant, DEVICE_APP_SCHEME, isDeviceAppLink, resolveKey, sha256Hex, validOwner, type KeyScope } from '../auth.ts';
+import { createApiKey, deviceAppGrant, DEVICE_APP_SCHEME, isDeviceAppLink, resolveKey, sha256Hex, GROWN_UP_PAIRING, validOwner, type KeyScope } from '../auth.ts';
 import { effectivePublicUrl } from '../providers/config.ts';
 import { emit } from '../bus.ts';
 import { recordDeviceOwner } from '../notify.ts';
@@ -237,8 +237,9 @@ mcpOAuthRoutes.post('/api/authorizations/approve', async (c) => {
   // Whose device: the app's sign-in only (default the whole family); ignored for anything else.
   let owner: string | null = null;
   if (isDeviceAppLink(body.redirect_uri)) {
-    owner = await validOwner(c.env.DB, body.owner || 'shared');
-    if (!owner) return c.json({ error: 'unknown family member' }, 400);
+    // Everyday access is a kid's device or shared, never a grown-up's (it would open their journal).
+    owner = await validOwner(c.env.DB, body.owner || 'shared', scope === 'display' ? 'display' : 'app');
+    if (!owner) return c.json({ error: scope === 'display' ? `Everyday access is for a kid or the whole family. ${GROWN_UP_PAIRING}` : 'unknown family member' }, 400);
   }
   const code = randomToken();
   await recordDeviceOwner(c.env.DB, client.name, owner); // it may open their private journal: never silently
@@ -352,10 +353,11 @@ mcpOAuthRoutes.patch('/api/authorizations/:id', async (c) => {
   if (!m.ok || m.ownGrant === c.req.param('id')) return c.json({ error: 'sign in as an admin to manage connected apps' }, 403);
   const id = c.req.param('id');
   const body = (await c.req.json().catch(() => ({}))) as { owner?: unknown };
-  const owner = typeof body.owner === 'string' ? await validOwner(c.env.DB, body.owner) : null;
-  if (!owner) return c.json({ error: 'unknown family member' }, 400);
-  const grant = await c.env.DB.prepare('SELECT cl.name, g.owner, g.device_app FROM oauth_grants g JOIN oauth_clients cl ON cl.id = g.client_id WHERE g.id = ?').bind(id).first<{ name: string; owner: string | null; device_app: number }>();
+  const grant = await c.env.DB.prepare('SELECT cl.name, g.owner, g.device_app, g.scope FROM oauth_grants g JOIN oauth_clients cl ON cl.id = g.client_id WHERE g.id = ?').bind(id).first<{ name: string; owner: string | null; device_app: number; scope: string }>();
   if (!grant || !grant.device_app) return c.json({ error: 'not found' }, 404);
+  const everyday = grant.scope === 'display';
+  const owner = typeof body.owner === 'string' ? await validOwner(c.env.DB, body.owner, everyday ? 'display' : 'app') : null;
+  if (!owner) return c.json({ error: everyday ? `Everyday access is for a kid or the whole family. ${GROWN_UP_PAIRING}` : 'unknown family member' }, 400);
   if (grant.owner !== owner) await recordDeviceOwner(c.env.DB, grant.name, owner); // it may open their private journal
   await c.env.DB.batch([
     c.env.DB.prepare('UPDATE oauth_grants SET owner = ? WHERE id = ?').bind(owner, id),

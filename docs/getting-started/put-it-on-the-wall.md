@@ -11,8 +11,9 @@
 
    Either way you also pick **What is this device?**:
    * **🖼️ Wall screen (whole family)** for a kitchen wall. It turns on **Use as a wall screen** by itself.
-   * **A kid's device**: one kid (say Maya, for her tablet or bedroom screen). It shows only her things and opens her journal.
-   * **A grown-up's device**: one grown-up (say Alex, pairing the Kinwall app on a phone). It shows only Alex's things and opens Alex's [private journal](../using/journal.md#private-journals). It isn't a wall screen unless Alex turns that on under **Settings → General → This display**.
+   * **A kid's device**: one kid (say Maya, for her tablet or bedroom screen). It shows only her things.
+
+   A paired device is never a grown-up's: whoever approves a code would otherwise get a device that opens that grown-up's [private journal](../using/journal.md#private-journals). Grown-ups sign in on their own phone or computer with a passkey (or the Kinwall app with full access), then pick themselves under **Whose device is this?**.
 
    Only a parent can change it later, under **Settings → Access → Paired devices**.
 3. The display shows "You're connected! 🎉" and loads the calendar. It now holds a **display** key, which can't manage members, accounts, keys or webhooks.

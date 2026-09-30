@@ -222,3 +222,16 @@ test("migration 0063: grown-ups' existing entries become private, kids' stay as 
   const rows = db.prepare('SELECT id, private FROM journal_entries ORDER BY id').all<{ id: string; private: number }>().results;
   assert.deepEqual(rows.map((r) => [r.id, r.private]), [['ea', 1], ['el', 0]]);
 });
+
+test("a paired device (everyday access) never opens a grown-up's private journal, even one paired as theirs before", async (t) => {
+  t.after(() => mock.timers.reset());
+  const { db, req, alex, alexPhone } = await setup();
+  await req(jr(alex.id), 'POST', { text: SECRET, mood: '😊' }, alexPhone);
+  const k = (await req('/api/keys', 'POST', { name: 'Alex tablet', scope: 'display' })).json;
+  assert.equal((await req(`/api/keys/${k.id}`, 'PATCH', { owner: alex.id })).status, 400, "an admin can't make one a grown-up's now");
+  // One paired as Alex's before that rule (or through an older app sign-in).
+  const legacy = (await createApiKey(db as any, 'Alex tablet (old)', 'display', { owner: alex.id })).key;
+  const res = await req(jr(alex.id), 'GET', undefined, legacy);
+  assert.ok(!JSON.stringify(res.json).includes(SECRET), `status ${res.status}`);
+  assert.equal((await req(jr(alex.id), 'POST', { text: 'from the tablet' }, legacy)).status, 403);
+});

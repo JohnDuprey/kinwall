@@ -21,7 +21,7 @@ import Setup, { readSetupResume, resumeAtPasskey } from './Setup.tsx'
 import { useIsPhone } from './useIsPhone.ts'
 import { useNavMode, type NavMode } from './useNavMode.ts'
 import { readDeviceAppearance, setDeviceAppearance, useDeviceAppearance, useTheme } from './useTheme.ts'
-import { isWallScreen, nightScreenDue, parseDeviceKind, type DeviceKind, remoteNightAction, remoteNightKey, wallDefaultsOn, type RemoteNight } from './wallScreen.ts'
+import { isWallScreen, nightScreenDue, parseDeviceKind, remoteNightAction, remoteNightKey, wallDefaultsOn, type RemoteNight } from './wallScreen.ts'
 import { PIN_RE, pinWaitMs, pressPinKey } from './quietPin.ts'
 import { inkFor } from './color.ts'
 import { loginWithPasskey, passkeysSupported, registerPasskey } from './webauthn.ts'
@@ -156,10 +156,9 @@ function useHashTab() {
 function useUpdateAvailable(enabled: boolean) {
   const [stale, setStale] = useState(false)
   const [scope, setScope] = useState('')
-  const [deviceKind, setDeviceKind] = useState<DeviceKind | null>(null)
   useEffect(() => {
     if (!enabled) return
-    api.meStrict().then(me => { setScope(me.scope); setDeviceKind(me.deviceKind ?? null) }).catch(() => {})
+    api.meStrict().then(me => setScope(me.scope)).catch(() => {})
     const mine = (document.querySelector('script[src*="/assets/"]') as HTMLScriptElement | null)?.src.split('/').pop()
     if (!mine) return
     const check = () => fetch('/', { cache: 'no-store' }).then(r => r.ok ? r.text() : '')
@@ -177,7 +176,7 @@ function useUpdateAvailable(enabled: boolean) {
     window.addEventListener(IDLE_RESET_EVENT, onIdle)
     return () => window.removeEventListener(IDLE_RESET_EVENT, onIdle)
   }, [stale, scope])
-  return { stale, scope, deviceKind }
+  return { stale, scope }
 }
 
 const PREVIEW_MS = 20 * 1000
@@ -688,7 +687,7 @@ function PairPhoneScreen({ code }: { code: string }) {
           <div className="field" style={{ textAlign: 'left' }}>
             <label htmlFor="pair-kind">What is this device?</label>
             <DeviceKindSelect id="pair-kind" value={what} onChange={setWhat} members={members} />
-            <p className="settings-row-sub">A wall screen is the whole family's. A kid's or grown-up's device shows only their events, chores and lists. Only a parent can change this later.</p>
+            <p className="settings-row-sub">A wall screen is the whole family's. A kid's device shows only their events, chores and lists. Only a parent can change this later. Grown-ups sign in on their own phone with a passkey instead.</p>
           </div>
         )}
         {!checkingAdmin && !isAdmin && (useAdminField || !passkeysSupported()) && (
@@ -1027,9 +1026,9 @@ function AppRoutes() {
   const rest = more.join('/') // #/activities/plugin/sight-words -> 'sight-words'
   const { mode: navMode } = useNavMode()
   const isPhone = useIsPhone()
-  const { stale: updateAvailable, scope, deviceKind } = useUpdateAvailable(hasKey)
+  const { stale: updateAvailable, scope } = useUpdateAvailable(hasKey)
   const device = useDeviceAppearance()
-  const wall = isWallScreen(scope, device, deviceKind)
+  const wall = isWallScreen(scope, device)
   // Wall screens poll faster while a remote Night screen is on, so they wake soon after someone's home.
   const { tick: pollTick, unauthorized, nightScreen } = usePoll(30000, wall ? NIGHT_POLL_MS : 30000)
   const [manualTick, setManualTick] = useState(0)

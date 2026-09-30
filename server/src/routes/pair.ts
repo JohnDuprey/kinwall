@@ -6,7 +6,7 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
-import { createApiKey, DEVICE_KINDS, deviceKindOwner, timingSafeEqual, type DeviceKind } from '../auth.ts';
+import { createApiKey, deviceKindOwner, timingSafeEqual } from '../auth.ts';
 import { encrypt, decrypt } from '../crypto.ts';
 import { emit } from '../bus.ts';
 import { recordDeviceOwner } from '../notify.ts';
@@ -114,15 +114,16 @@ pairRoutes.openapi(
   },
 );
 
-// kind: what the device is (auth.ts deviceKindOwner). owner: 'shared' (the whole family) or the
-// member it's pinned to, and it has to match the kind. Older clients send only an owner (omitted =
+// kind: what the device is (auth.ts deviceKindOwner). owner: 'shared' (the whole family) or the kid
+// it's pinned to, and it has to match the kind. Never a grown-up: whoever approves a code mustn't
+// get a key that opens a grown-up's private journal. Older clients send only an owner (omitted =
 // shared); the kind then follows it. Only an admin can change either later (PATCH /api/keys/{id}).
-const DeviceKindSchema = z.enum(DEVICE_KINDS).openapi({ description: "What the device is: 'wall' (a wall screen, the whole family's), 'kid' (a kid's own device) or 'grownup' (a grown-up's own device)" });
+const DeviceKindSchema = z.enum(['wall', 'kid']).openapi({ description: "What the device is: 'wall' (a wall screen, the whole family's) or 'kid' (a kid's own device). Never a grown-up's: grown-ups sign in on their own device and claim it (PUT /api/me/owner)." });
 const PairApproveInputSchema = z.object({
   code: z.string().length(CODE_DIGITS),
   name: z.string().min(1),
   kind: DeviceKindSchema.optional(),
-  owner: z.string().min(1).optional().openapi({ description: "'shared' or a member id: the kid for 'kid', the grown-up for 'grownup', 'shared' (or left out) for 'wall'. Without a kind, the kind follows it." }),
+  owner: z.string().min(1).optional().openapi({ description: "'shared' or a kid's member id: the kid for 'kid', 'shared' (or left out) for 'wall'. Without a kind, the kind follows it. A grown-up is refused (400)." }),
 }).openapi('PairApproveInput');
 const PairApproveResponseSchema = z.object({ keyId: z.string(), name: z.string(), kind: DeviceKindSchema }).openapi('PairApproveResponse');
 
@@ -145,7 +146,7 @@ pairRoutes.openapi(
     const checked = await deviceKindOwner(c.env.DB, 'display', kindIn, ownerIn);
     if ('error' in checked) return c.json({ error: checked.error }, 400);
     const { owner } = checked;
-    const kind = checked.kind!; // a display always has one
+    const kind = checked.kind as 'wall' | 'kid'; // a display is always one of these
     const nowIso = new Date().toISOString();
     const pairing = await c.env.DB.prepare('SELECT * FROM pairings WHERE code = ? AND approved = 0 AND expires_at > ?')
       .bind(code, nowIso)
@@ -196,7 +197,7 @@ pairRoutes.openapi(
     }
 
     const key = await decrypt(c.env, pairing.encrypted_key, pairing.id);
-    const kind = (await c.env.DB.prepare('SELECT device_kind FROM api_keys WHERE id = ?').bind(pairing.key_id).first<{ device_kind: DeviceKind | null }>())?.device_kind ?? null;
+    const kind = (await c.env.DB.prepare('SELECT device_kind FROM api_keys WHERE id = ?').bind(pairing.key_id).first<{ device_kind: 'wall' | 'kid' | null }>())?.device_kind ?? null;
     await c.env.DB.prepare('DELETE FROM pairings WHERE id = ?').bind(pairing.id).run();
     return c.json({ status: 'approved' as const, key, kind }, 200);
   },

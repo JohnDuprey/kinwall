@@ -9,9 +9,6 @@ test('isWallScreen: paired displays always are; other devices only with the swit
   assert.equal(isWallScreen('admin', {}), false, 'a parent device is off by default')
   assert.equal(isWallScreen('admin', { wallScreen: true }), true)
   assert.equal(isWallScreen('', {}), false, 'scope not known yet')
-  assert.equal(isWallScreen('display', {}, 'kid'), true, "a kid's device keeps the Night screen")
-  assert.equal(isWallScreen('display', {}, 'grownup'), false, "a grown-up's own device uses the switch")
-  assert.equal(isWallScreen('display', { wallScreen: true }, 'grownup'), true)
 })
 
 test('device kinds: what a device is follows its owner, and round-trips through the picker', () => {
@@ -24,8 +21,9 @@ test('device kinds: what a device is follows its owner, and round-trips through 
   assert.equal(deviceKindValue({ owner: 'shared' }, members), 'wall')
   assert.equal(deviceKindValue({ owner: 'leo' }, members), 'kid:leo')
   assert.equal(deviceKindValue({ owner: null }, members), '')
+  assert.equal(deviceKindValue({ owner: 'alex' }, members), '', "a paired grown-up's device needs a fix")
   assert.deepEqual(parseDeviceKind('wall'), { kind: 'wall' })
-  assert.deepEqual(parseDeviceKind('grownup:alex'), { kind: 'grownup', owner: 'alex' })
+  assert.deepEqual(parseDeviceKind('kid:leo'), { kind: 'kid', owner: 'leo' })
 })
 
 test('wallDefaultsOn: keep awake / idle reset default on for wall screens and kids, off for parents', () => {

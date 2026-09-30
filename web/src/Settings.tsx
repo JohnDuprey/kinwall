@@ -123,7 +123,7 @@ export default function SettingsView() {
             </SettingsGroup>
           )}
           <SettingsGroup title="Only on this device" sub="Saved on this screen or phone. Other devices aren't affected.">
-            {isDisplay ? <ThisDisplaySection keyName={me.keyName} ownDevice={me.deviceKind === 'grownup'} /> : <ThisDisplaySection />}
+            {isDisplay ? <ThisDisplaySection keyName={me.keyName} /> : <ThisDisplaySection />}
             <DeviceAppearanceSection />
             <TimeCuesSection />
             <NightScreenSection />
@@ -1524,8 +1524,7 @@ function GooglePhotosRows() {
   )
 }
 
-/** `ownDevice`: a grown-up's own paired device, which isn't a wall screen unless its switch says so. */
-function ThisDisplaySection({ keyName, ownDevice }: { keyName?: string; ownDevice?: boolean }) {
+function ThisDisplaySection({ keyName }: { keyName?: string }) {
   const isPhone = useIsPhone()
   const { pref } = useNavMode()
   return (
@@ -1535,7 +1534,7 @@ function ThisDisplaySection({ keyName, ownDevice }: { keyName?: string; ownDevic
           <div className="settings-row-label">Paired as {keyName || 'this display'}</div>
         </div>
       )}
-      <ScreenFocusRows display={keyName !== undefined && !ownDevice} />
+      <ScreenFocusRows display={keyName !== undefined} />
       <InstallRow />
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
         <div className="settings-row-label" aria-hidden="true">Navigation position</div>
@@ -2500,7 +2499,8 @@ function ConnectedAppsSection({ toast }: { toast: (m: string, persist?: boolean)
               {a.lastUsedAt ? ` · used ${new Date(a.lastUsedAt).toLocaleDateString()}` : ''}
             </div>
           </div>
-          {a.deviceApp && !a.current && <OwnerSelect value={a.owner ?? 'shared'} onChange={v => changeOwner(a.id, v)} label={`Whose device ${a.clientName} is`} />}
+          {/* Everyday access is a kid's or shared, never a grown-up's (it would open their journal). */}
+          {a.deviceApp && !a.current && <OwnerSelect value={a.owner ?? 'shared'} members={a.scope === 'display' ? members.filter(m => !m.grownUp || m.id === a.owner) : undefined} onChange={v => changeOwner(a.id, v)} label={`Whose device ${a.clientName} is`} />}
           {!a.current && <button className="icon-btn" onClick={() => revoke(a.id, a.clientName)} aria-label={`Disconnect ${a.clientName}`}><TrashIcon width={16} height={16} /></button>}
         </div>
       ))}
@@ -2614,26 +2614,27 @@ export function OwnerSelect({ value, onChange, members, id, label }: { value: st
   )
 }
 
-/** "What is this device?": the family's wall screen, a kid's device (which kid) or a grown-up's
- * device (which grown-up), in one picker. Value: 'wall' or kind:memberId (wallScreen.ts
- * deviceKindValue); '' (only with `legacy`) for a device paired before anyone said. */
+/** "What is this device?" for a paired device: the family's wall screen or a kid's device (which
+ * kid), in one picker. Never a grown-up's: whoever approves a code mustn't get a key that opens a
+ * grown-up's private journal. Value: 'wall' or kid:memberId (wallScreen.ts deviceKindValue); ''
+ * (only with `legacy`) for one paired before anyone said, or as a grown-up's (needs a fix). */
 export function DeviceKindSelect({ value, onChange, members, id, label, legacy }: { value: string; onChange: (v: string) => void; members?: Member[]; id?: string; label?: string; legacy?: boolean }) {
   const ctx = useContext(AppContext)
   const list = members ?? ctx?.members ?? []
   const kids = list.filter(m => !m.grownUp)
-  const grownUps = list.filter(m => m.grownUp)
   return (
     <select className="settings-select" id={id} aria-label={label} value={value} onChange={e => onChange(e.target.value)}>
-      {legacy && <option value="" disabled>Not set yet</option>}
+      {legacy && <option value="" disabled>Pick one</option>}
       <option value="wall">🖼️ Wall screen (whole family)</option>
       {kids.length > 0 && <optgroup label="A kid's device">{kids.map(m => <option key={m.id} value={`kid:${m.id}`}>{m.avatar} {m.name}'s device</option>)}</optgroup>}
-      {grownUps.length > 0 && <optgroup label="A grown-up's device">{grownUps.map(m => <option key={m.id} value={`grownup:${m.id}`}>{m.avatar} {m.name}'s device</option>)}</optgroup>}
     </select>
   )
 }
 
-const KIND_GROUPS: { kind: DeviceKind | null; title: string }[] = [
-  { kind: 'wall', title: 'Wall screens' }, { kind: 'kid', title: "Kids' devices" }, { kind: 'grownup', title: "Grown-ups' devices" }, { kind: null, title: 'Not set yet' },
+// 'grownup': paired as a grown-up's before that was refused. It no longer opens their journal.
+const KIND_GROUPS: { kind: DeviceKind | null; title: string; sub?: string }[] = [
+  { kind: 'grownup', title: 'Needs a fix', sub: "Paired as a grown-up's device, which isn't allowed any more: it no longer opens their journal. Make it a wall screen or a kid's device, or remove it and sign in there with a passkey." },
+  { kind: 'wall', title: 'Wall screens' }, { kind: 'kid', title: "Kids' devices" }, { kind: null, title: 'Not set yet' },
 ]
 
 function DisplaysSection({ toast }: { toast: (m: string, persist?: boolean) => void }) {
@@ -2673,11 +2674,12 @@ function DisplaysSection({ toast }: { toast: (m: string, persist?: boolean) => v
 
   return (
     <Section title="Paired devices" icon={<MonitorIcon width={16} height={16} />}>
-      <p className="settings-row-sub">Paired with a code. They get the calendar, chores and lists, but not settings. A kid's or grown-up's device shows only their things and opens their journal.</p>
+      <p className="settings-row-sub">Paired with a code. They get the calendar, chores and lists, but not settings. A kid's device shows only their things. Grown-ups sign in on their own phone with a passkey instead.</p>
       {keys.length === 0 && <p className="settings-row-sub">None yet. Open Kinwall on the screen and choose "Set up a wall screen or kid's device" to get a code.</p>}
       {KIND_GROUPS.map(g => ({ ...g, keys: keys.filter(k => deviceKindOf(k, members) === g.kind) })).filter(g => g.keys.length > 0).map(g => (
         <div key={g.title} role="group" aria-labelledby={`device-kind-${g.kind ?? 'none'}`}>
-          <div className="settings-row-label device-kind-title" id={`device-kind-${g.kind ?? 'none'}`}>{g.title}</div>
+          <div className="settings-row-label device-kind-title" id={`device-kind-${g.kind ?? 'none'}`}>{g.kind === 'grownup' ? '⚠️ ' : ''}{g.title}</div>
+          {g.sub && <p className="settings-row-sub">{g.sub}</p>}
           {g.keys.map(k => (
             <div key={k.id} className="key-item key-item-owned">
               <div className="key-item-info">
@@ -2687,7 +2689,7 @@ function DisplaysSection({ toast }: { toast: (m: string, persist?: boolean) => v
                   {k.lastUsedAt ? ` · used ${new Date(k.lastUsedAt).toLocaleDateString()}` : ' · never used'}
                 </div>
               </div>
-              <DeviceKindSelect value={deviceKindValue(k, members)} onChange={v => changeKind(k, v)} label={`What ${k.name} is`} legacy={!deviceKindOf(k, members)} />
+              <DeviceKindSelect value={deviceKindValue(k, members)} onChange={v => changeKind(k, v)} label={`What ${k.name} is`} legacy={!deviceKindValue(k, members)} />
               <button className="icon-btn" onClick={() => revoke(k)} aria-label={`Remove ${k.name}`}><TrashIcon width={16} height={16} /></button>
             </div>
           ))}
@@ -2718,7 +2720,7 @@ function DisplaysSection({ toast }: { toast: (m: string, persist?: boolean) => v
           <div className="field">
             <label htmlFor="pair-kind">What is this device?</label>
             <DeviceKindSelect id="pair-kind" value={what} onChange={setWhat} />
-            <p className="settings-row-sub">A wall screen is the whole family's. A kid's or grown-up's device shows only their events, chores and lists. Only a parent can change this later.</p>
+            <p className="settings-row-sub">A wall screen is the whole family's. A kid's device shows only their events, chores and lists. Only a parent can change this later. Grown-ups sign in on their own phone with a passkey instead.</p>
           </div>
         </Sheet>
       )}

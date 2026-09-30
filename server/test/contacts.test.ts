@@ -4,6 +4,7 @@ import path from 'node:path';
 import { createApp } from '../src/app.ts';
 import { openDb, applyMigrations } from '../src/d1-sqlite.ts';
 import type { Env } from '../src/env.ts';
+import { createApiKey } from '../src/auth.ts';
 import { duplicateScore, mergeContacts, parseVCards } from '../src/contacts-domain.ts';
 import { ContactInputSchema } from '../src/schemas.ts';
 
@@ -184,11 +185,9 @@ test('visibility levels: admin, shared wall, a kid’s own device and a grown-up
   const alex = (await t.req('/api/members', 'POST', { name: 'Alex', color: '#57e', grownUp: true })).body;
   const leo = (await t.req('/api/members', 'POST', { name: 'Leo', color: '#e57' })).body;
   const maya = (await t.req('/api/members', 'POST', { name: 'Maya', color: '#5e7' })).body;
-  const device = async (owner: string) => {
-    const k = (await t.req('/api/keys', 'POST', { name: `tablet ${owner}`, scope: 'display' })).body;
-    assert.equal((await t.req(`/api/keys/${k.id}`, 'PATCH', { owner })).status, 200);
-    return k.key as string;
-  };
+  // Straight into the table: a grown-up's paired device can't be made any more (auth.ts validOwner),
+  // but ones paired before that keep working here.
+  const device = async (owner: string) => (await createApiKey(t.db as never, `tablet ${owner}`, 'display', { owner })).key;
   const keys = { admin: ADMIN, wall: await device('shared'), leo: await device(leo.id), alex: await device(alex.id) };
   const make = async (name: string, extra: object) => (await t.req('/api/contacts', 'POST', { name, ...extra })).body.id as string;
   const ids = {
