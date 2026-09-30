@@ -71,6 +71,7 @@ When you save a shopping item with a store, department or aisle, Kinwall remembe
 * Names match ignoring capitals, extra spaces and simple plurals: "Eggs" is "egg", "Tomatoes" is "tomato", "Berries" is "berry".
 * The aisle is remembered per store. Milk can be in Aisle 4 at one store and on the back wall at another; each store's aisle comes back when the item is planned for that store.
 * The memory outlives the item: checking out milk doesn't forget where it goes.
+* To see or change everything that's remembered, open the [Grocery catalog](#grocery-catalog).
 * To-do and reusable lists don't use it.
 
 ### Autocomplete
@@ -85,7 +86,7 @@ On a shopping list, the add bar (and **Add an item** in [Shopping mode](#shoppin
 * Suggestions come with the list, so they work offline too.
 * Names are remembered household-wide, on the server, whether you add from the app, from Meals or through the assistant. Renaming an item changes the spelling suggested next time.
 * Items from before this update show in simple lowercase (for example "banana milk") until you add them again; the next add keeps your spelling.
-* To forget one, open **Edit** → **Stores & departments** → **Items**, find it and tap the trash button. It stops being suggested and where it goes is forgotten; items on lists keep it. (A recipe ingredient still comes back as a suggestion while a saved recipe uses it.)
+* To forget one, open it in the [Grocery catalog](#grocery-catalog) and tap **Forget this item**. It stops being suggested and where it goes is forgotten; items on lists keep it. (A recipe ingredient still comes back as a suggestion while a saved recipe uses it.)
 
 ### Stores & departments
 
@@ -93,8 +94,20 @@ On a shopping list, the add bar (and **Add an item** in [Shopping mode](#shoppin
 
 * **Rename** changes the name everywhere: items on every list and what's remembered. Rename "Costco" to "Warehouse club" once and every item follows.
 * The trash button **removes** a name: it's cleared from every item that uses it and forgotten.
-* **Items**: search the names the add bar suggests and remove one (see [Autocomplete](#autocomplete)).
+* **Items**: **Open the grocery catalog** (see [Grocery catalog](#grocery-catalog)).
 * **Aisles**: pick a store, then drag its aisles into the order you walk the store, for example Produce, Bakery, Deli, Meat, Aisle 3 to Aisle 18 with Frozen in the middle, Dairy, Pharmacy. Aisles don't have to be numbers, and one no item uses yet can be added here so it's in the dropdown. **Aisle** sort and grouping follow this order; aisles you haven't placed come after, in natural order.
+
+### Grocery catalog
+
+Tap **Catalog** on a shopping list to see everything your family has bought before, A to Z, with its department, how many times it was bought, and where it's found at each store ("Warehouse club · Aisle 12", "Neighborhood market · Dairy").
+
+* **Find an item** searches names; capitals and simple plurals don't matter.
+* The store chips (**All stores**, then each store) show only what's found at that store.
+* **+** adds it to the list you opened the catalog from, with its remembered store, department and aisle. With a store chip picked, it's planned for that store. Things already on the list show **On list** instead.
+* Tap an item to edit it: its **Name** (a respelling, or a new name), its **Department**, and its **Stores**, each with the aisle it's in there (**Not known** when you don't know yet). **Add a store** adds another; the trash button next to a store forgets it there. **Save** keeps the changes, and the next time anyone adds it to a list it lands in the right aisle. An aisle you type here shows up in that store's aisle picker, like one saved on an item.
+* **New** adds something to the catalog without putting it on a list, so it's suggested and lands in the right aisle the first time.
+* **Forget this item**, at the bottom of an item, removes it from the catalog (see [Autocomplete](#autocomplete)).
+* Wall screens and kids' devices can browse and edit the catalog like they edit list items; forgetting an item needs a parent's device.
 
 ## Shopping at a store
 
@@ -229,12 +242,13 @@ Devices with **List updates** on get "List updated — *Groceries* has new items
 
 * `GET/POST /api/lists`, `GET/PATCH/DELETE /api/lists/{id}` (lists carry `sortBy`: `manual`, `added`, `due`, `priority`, `alpha` or `aisle`; `groupBy`: `store`, `category`, `aisle` or `none`, where a shopping list reads `category` as `aisle`; and `keepChecked`, which defaults by kind), `POST /api/lists/{id}/items` (one item or an array; `priority` and `steps: string[]` are optional; an optional client-made UUID `id` makes a retried add safe: an id already on that list returns the existing item, one used on another list is a `409`), `PATCH/DELETE /api/lists/{id}/items/{itemId}`, `POST /api/lists/{id}/clear-completed`, `POST /api/lists/{id}/reset`, `POST /api/lists/{id}/reorder`, `PUT /api/lists/{id}/groups`, `GET /api/events/{id}/items`.
 * `PUT /api/lists/order` `{ids}` sets the family's list order (`sort` is the position). Lists left out, archived ones included, keep their order after the given ones; an unknown or repeated id is a `400`. `GET /api/lists` returns lists in this order. New lists go last.
-* Shopping: items carry `aisle`. On a shopping list, `POST …/items` fills an omitted `store`, `category` or `aisle` from what's remembered for the name (an explicit value or `null` wins), and saving an item remembers it. `GET /api/lists/{id}` returns `suggestions` (`stores`, `categories`, `aisles: [{store, aisle}]`, and on a shopping list `items: [{title, key, uses, category?, place?: {store, aisle}}]`, up to 300 names to autocomplete, most used first, then recipe ingredients with `uses` 0; `place` is at `?store=` when given, else the newest store), `DELETE /api/lists/remembered/{key}` forgets one, `aisleOrder: [{store, aisles}]`, and on each shopping item `places: [{store, aisle}]` (where it's been kept, newest first) and `meals` (the planned meals it was added for). `?store=<name>` adds `trip`: the list as shopped there, `items: [{id, title, quantity, done, store, aisle, section}]` with `section` `aisle`, `unknown` or `other`. An item with no aisle known there whose `category` (department) matches one of the store's aisles, ignoring case, gets that aisle in `trip` only; nothing is saved.
+* Shopping: items carry `aisle`. On a shopping list, `POST …/items` fills an omitted `store`, `category` or `aisle` from what's remembered for the name (an explicit value or `null` wins), and saving an item remembers it. `GET /api/lists/{id}` returns `suggestions` (`stores`, `categories`, `aisles: [{store, aisle}]`, and on a shopping list `items: [{title, key, uses, category?, place?: {store, aisle}}]`, up to 300 names to autocomplete, most used first, then recipe ingredients with `uses` 0; `place` is at `?store=` when given, else the newest store), `DELETE /api/lists/remembered/{key}` forgets one (admin), `aisleOrder: [{store, aisles}]`, and on each shopping item `places: [{store, aisle}]` (where it's been kept, newest first) and `meals` (the planned meals it was added for). `?store=<name>` adds `trip`: the list as shopped there, `items: [{id, title, quantity, done, store, aisle, section}]` with `section` `aisle`, `unknown` or `other`. An item with no aisle known there whose `category` (department) matches one of the store's aisles, ignoring case, gets that aisle in `trip` only; nothing is saved.
 * `clear-completed` and `reset` take an optional body `{itemIds, store}`: only those items (if still ticked), and for Checkout the store they were bought at. `PATCH` an item with `{aisle, aisleStore}` to set its aisle at a store it isn't planned for (a trip).
 * `POST /api/lists/values` `{field: "store" | "category" | "aisle", from, to, store?}` renames (`to`) or removes (`to: null`) a value everywhere; an aisle needs its `store`. `PUT /api/lists/aisles` `{store, aisles}` sets a store's aisle order (`[]` clears it).
 * Items carry `priority` (`low`, `normal`, `high` or `urgent`; older clients sending `high` keep working), `steps` (`[{id, title, done, sort}]`, in order), `stepsDone` and `stepsTotal`.
 * Steps: `POST /api/lists/{id}/items/{itemId}/steps` (`{title}`), `PATCH …/steps/{stepId}` (`title`, `done`, `sort`), `DELETE …/steps/{stepId}`, `POST …/steps/reorder` (`{stepIds}`). Each returns the whole updated item, including any automatic complete or re-open.
-* MCP: `list_lists`, `create_list`, `update_list` (including `sortBy`, `groupBy` and `keepChecked`), `get_list` (with `store` for the trip view), `add_list_items` and `update_list_item` (both with `aisle`; adds use the remembered places), `set_store_aisle_order`, `set_list_item_done`, `set_step_done`, `get_event_items`. Lists can be referred to by name.
+* Grocery catalog: `GET /api/lists/remembered` (`?q=` searches names, `?store=` keeps items found there) returns every remembered item by title: `{key, title, uses, lastUsed, category, places: [{store, aisle, updatedAt}], lastStore}` (`lastStore`: where a new add goes). `PUT /api/lists/remembered/{key}` edits one: `title` (a respelling; a different name moves it to that name's key, `409` if that's another item), `category` (its department) and `places: [{store, aisle}]`, which replaces its stores (stores left out are forgotten). Only given fields change. `POST /api/lists/remembered` adds one (`title`, `category`, `places`) without putting it on a list; `409` if it's already there. Display keys can read, add and edit; forgetting is admin.
+* MCP: `list_lists`, `create_list`, `update_list` (including `sortBy`, `groupBy` and `keepChecked`), `get_list` (with `store` for the trip view), `add_list_items` and `update_list_item` (both with `aisle`; adds use the remembered places), `set_store_aisle_order`, `list_remembered_items` and `update_remembered_item` (the grocery catalog), `set_list_item_done`, `set_step_done`, `get_event_items`. Lists can be referred to by name.
 * Discussion: `GET /api/notes?target=list_item:<id>`, `POST /api/notes` `{target, body, memberId?}`, `PATCH/DELETE /api/notes/{id}`; items in `GET /api/lists/{id}` carry `noteCount`. MCP: `list_notes`, `add_note`, `update_note`.
 * Display keys have full access to lists, steps and discussions included.
 * Export and import include each list's sort and **Keep checked items in place**, each item's priority, aisle and steps, the remembered places, the remembered item names and each store's aisle order. Older export files import with Manual sort and the kind's default for keeping checked items.

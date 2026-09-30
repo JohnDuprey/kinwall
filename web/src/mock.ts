@@ -1,7 +1,7 @@
 // Dev-only in-memory fixture, used when VITE_MOCK=1. Excluded from prod by the env check in api.ts.
 import type { OnlineTidbits, Plugin, PluginCatalogEntry,
   Account, ApiKey, AppNotification, CalendarEntry, Category, Chore, ChoreDay, EventInstance, LeaderboardEntry, LeaderboardPeriod, List, ListGroup,
-  Photo, PhotoQuota, GooglePhotos, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, ListItem, ListItemInput, ListItemPatch, ListItemStep, Member, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption, TempCheck, TempCheckInput, Journal, JournalEntry, Insights, InsightDay, InsightRange, Battery, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory, DoseStatus, MedTime,
+  Photo, PhotoQuota, GooglePhotos, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, ListItem, ListItemInput, ListItemPatch, ListItemStep, Member, RememberedItem, RememberedItemInput, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption, TempCheck, TempCheckInput, Journal, JournalEntry, Insights, InsightDay, InsightRange, Battery, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory, DoseStatus, MedTime,
 } from './types.ts'
 import { FEELINGS, TEMP_CHECK_OFF } from './tempCheck.ts'
 import { aisleOrderMap, compareItems } from './types.ts'
@@ -372,7 +372,7 @@ const placesOf = (title: string) => {
   return [...seen].map(([store, aisle]) => ({ store, aisle }))
 }
 // The market's usual spots for things on the list that are planned for "anywhere" or the club.
-const seenAt = (title: string, store: string, aisle: string) => remembered.push(seedItem({ id: uid(), listId: '', title, notes: null, quantity: null, store, aisle, category: null, memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 0, createdAt: minsAgo(9000), updatedAt: minsAgo(9000) }))
+const seenAt = (title: string, store: string, aisle: string | null) => remembered.push(seedItem({ id: uid(), listId: '', title, notes: null, quantity: null, store, aisle, category: null, memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 0, createdAt: minsAgo(9000), updatedAt: minsAgo(9000) }))
 // Autocomplete: every shopping name seen (the server's item_names, roughly), most used first,
 // plus a few from past trips.
 const pastGroceries = ['Bananas', 'Banana milk', 'Bagels', 'Baby spinach', 'Basil', 'Blueberries', 'Butter', 'Cheddar', 'Coffee', 'Oat milk', 'Yogurt', 'Tortillas', 'Rice', 'Pasta']
@@ -387,11 +387,31 @@ function nameSuggestions() {
   pastGroceries.forEach((title, n) => { const key = itemKey(title); if (!out.has(key)) out.set(key, { title, key, uses: pastGroceries.length - n }) })
   return [...out.values()].filter(s => !forgotten.has(s.key)).sort((a, b) => b.uses - a.uses)
 }
+let catalogItems: Map<string, RememberedItem> | null = null
+function mockCatalog() {
+  catalogItems ??= new Map(nameSuggestions().map(s => {
+    const places = placesOf(s.title).filter((p): p is { store: string; aisle: string | null } => !!p.store)
+    return [s.key, { key: s.key, title: s.title, uses: s.uses, lastUsed: iso(), category: s.category ?? DEMO_DEPARTMENT[s.title] ?? null, lastStore: places[0]?.store ?? null,
+      places: places.map(p => ({ ...p, updatedAt: iso() })).sort((a, b) => a.store.localeCompare(b.store)) }]
+  }))
+  return catalogItems
+}
+const DEMO_DEPARTMENT: Record<string, string> = {
+  Bananas: 'Produce', 'Baby spinach': 'Produce', Basil: 'Produce', Blueberries: 'Produce', Butter: 'Dairy', Cheddar: 'Dairy', Yogurt: 'Dairy', 'Oat milk': 'Dairy', 'Banana milk': 'Dairy',
+  Coffee: 'Pantry', Rice: 'Pantry', Pasta: 'Pantry', Tortillas: 'Bakery', Bagels: 'Bakery', 'Paper towels': 'Household',
+}
 recomputeListCounts('l1')
 let listGroups: ListGroup[] = []
 const minsAgo = (m: number) => new Date(Date.now() - m * 60_000).toISOString()
 seenAt('Paper towels', 'Neighborhood market', 'Aisle 6')
 seenAt('Dish soap', 'Neighborhood market', 'Aisle 6')
+// Past trips for the grocery catalog: where things are found at each store.
+for (const [title, store, aisle] of [
+  ['Milk', 'Warehouse club', 'Aisle 12'], ['Eggs', 'Warehouse club', 'Aisle 12'], ['Coffee', 'Warehouse club', 'Aisle 7'], ['Rice', 'Warehouse club', 'Aisle 9'],
+  ['Bananas', 'Neighborhood market', 'Produce'], ['Baby spinach', 'Neighborhood market', 'Produce'], ['Butter', 'Neighborhood market', 'Dairy'], ['Cheddar', 'Neighborhood market', 'Dairy'],
+  ['Yogurt', 'Neighborhood market', 'Dairy'], ['Oat milk', 'Neighborhood market', 'Dairy'], ['Coffee', 'Neighborhood market', 'Aisle 4'], ['Pasta', 'Neighborhood market', 'Aisle 3'],
+  ['Bagels', 'Neighborhood market', 'Bakery'], ['Tortillas', 'Neighborhood market', 'Aisle 5'], ['Pasta', 'Warehouse club', 'Aisle 9'],
+] as const) seenAt(title, store, aisle)
 listItems.push(seedItem({ id: 'demo-grocery-anywhere', listId: 'l1', title: 'Dish soap', notes: null, quantity: null, store: null, category: 'Household', memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 20, createdAt: iso(), updatedAt: iso() }))
 recomputeListCounts('l1')
 let notes: Note[] = [
@@ -1068,8 +1088,29 @@ export const mock = {
     if (field === 'aisle') aisleOrder = aisleOrder.map(o => o.store !== (store ?? null) ? o : { ...o, aisles: to ? o.aisles.map(a => a === from ? to : a) : o.aisles.filter(a => a !== from) })
     bump(); return { updated }
   },
+  // The grocery catalog: seeded from what's remembered above, then edited on its own (roughly the server's).
+  getRemembered: async () => [...mockCatalog().values()].sort((a, b) => a.title.localeCompare(b.title)).map(i => ({ ...i, places: [...i.places] })),
+  addRemembered: async (body: RememberedItemInput & { title: string }) => {
+    const key = itemKey(body.title)
+    if (mockCatalog().has(key)) throw new Error(`Already in the catalog as ${mockCatalog().get(key)!.title}`)
+    mockCatalog().set(key, { key, title: body.title.trim(), uses: 0, lastUsed: null, category: null, places: [], lastStore: null })
+    return mock.updateRemembered(key, body)
+  },
+  updateRemembered: async (key: string, body: RememberedItemInput) => {
+    const cat = mockCatalog(), was = cat.get(key)
+    if (!was) throw new Error('not found')
+    const to = body.title ? itemKey(body.title) : key
+    if (to !== key && cat.has(to)) throw new Error(`Already in the catalog as ${cat.get(to)!.title}`)
+    const places = body.places ? body.places.map(p => ({ ...p, updatedAt: was.places.find(w => w.store === p.store)?.updatedAt ?? iso() })).sort((a, b) => a.store.localeCompare(b.store)) : was.places
+    const item: RememberedItem = { ...was, key: to, title: body.title?.trim() ?? was.title, category: body.category !== undefined ? body.category : was.category, places,
+      lastStore: places.some(p => p.store === was.lastStore) ? was.lastStore : places[0]?.store ?? null }
+    cat.delete(key); cat.set(to, item)
+    for (const p of item.places) seenAt(item.title, p.store, p.aisle) // so adds and the aisle pickers use it
+    remembered.forEach(r => { if (itemKey(r.title) === to && item.category) r.category = item.category })
+    bump(); return item
+  },
   forgetItemName: async (key: string) => {
-    forgotten.add(key); remembered = remembered.filter(i => itemKey(i.title) !== key); bump(); return { ok: true }
+    forgotten.add(key); mockCatalog().delete(key); remembered = remembered.filter(i => itemKey(i.title) !== key); bump(); return { ok: true }
   },
   setStoreAisles: async (store: string | null, aisles: string[]) => {
     aisleOrder = [...aisleOrder.filter(o => o.store !== store), ...(aisles.length ? [{ store, aisles }] : [])]

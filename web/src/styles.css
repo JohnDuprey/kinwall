@@ -1338,6 +1338,25 @@ button {
 .manage-row input { flex: 1; min-width: 0; min-height: 44px; padding: 8px 12px; border-radius: 10px; border: 2px solid var(--border); background: var(--bg-alt); color: var(--text); font: inherit; font-weight: 700; }
 .manage-row .btn { flex: none; width: auto; min-height: 44px; }
 .manage-row .icon-btn { background: none; box-shadow: none; width: 44px; height: 44px; flex-shrink: 0; }
+.list-actions .list-catalog-btn { padding: 8px 14px; }
+/* The grocery catalog: search + New, store chips, then a row per item (tap to edit, + to add to the list). */
+.catalog-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.catalog-bar .manage-find { flex: 1; min-width: 0; margin: 0; }
+.catalog-bar .btn { flex: none; width: auto; min-height: 44px; }
+.catalog-stores { margin-bottom: 10px; }
+.catalog-row { display: flex; align-items: center; gap: 6px; border-top: 1px solid var(--border); }
+.catalog-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-height: 56px; padding: 8px 6px;
+  background: none; border: 0; border-radius: var(--radius-sm); color: var(--text); font: inherit; text-align: left; }
+.catalog-row-title { font-weight: 800; overflow-wrap: anywhere; }
+.catalog-row-meta { font-size: 0.8125rem; color: var(--text-dim); font-weight: 600; }
+.catalog-row-places { display: flex; flex-wrap: wrap; gap: 4px; }
+.catalog-row .icon-btn { width: 44px; height: 44px; flex: none; }
+.catalog-on-list { flex: none; display: inline-flex; align-items: center; gap: 4px; padding: 0 8px; font-size: 0.8125rem; font-weight: 700; color: var(--text-dim); }
+.catalog-place { display: flex; align-items: flex-end; gap: 8px; }
+.catalog-place .field { flex: 1; min-width: 0; }
+.catalog-place > .icon-btn, .catalog-place > .btn { flex: none; width: auto; min-width: 44px; height: 44px; margin-bottom: 20px; }
+.catalog-hint { margin-bottom: 12px; }
+.catalog-forget { margin-top: 20px; }
 
 /* ---------- Key gate ---------- */
 .gate-screen { height: 100vh; height: 100dvh; display: flex; align-items: center; justify-content: center; padding: 24px; }
@@ -2712,7 +2731,7 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
   :where(.btn-primary, .btn-danger, .icon-btn, .fab, .today-btn, .segmented button, .tab-btn, .nav-rail-btn, .who-btn,
     .family-row, .family-pick, .board-tile, .snap-row, .board-empty-tap, .notif-item, .member-list-item, .cal-list-item,
     .schedule-item, .month-cell, .list-item-row, .lists-section-head, .add-row-btn, .trk-book-main, .trk-visit-main, .trk-memory,
-    .activity-card, .recipe-step, .note, .more-row, .setup-chore-tap):not(:disabled, .active):hover {
+    .activity-card, .recipe-step, .note, .more-row, .setup-chore-tap, .catalog-row-main):not(:disabled, .active):hover {
     background-image: linear-gradient(color-mix(in srgb, var(--text) 8%, transparent) 0 0);
   }
   /* Switches: a soft accent ring (the dark "off" track keeps its own inset ring). */

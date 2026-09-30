@@ -694,6 +694,24 @@ export interface ItemSuggestion {
   place?: { store: string; aisle: string | null }
 }
 
+/** The grocery catalog (GET /api/lists/remembered): an item the family has added before, its
+ * department and where it's found at each store. key is its matching key (itemSuggest.ts itemKey). */
+export interface RememberedItem {
+  key: string
+  title: string
+  uses: number // adds to a shopping list; 0 = only in the catalog
+  lastUsed: string | null
+  category: string | null // department
+  places: { store: string; aisle: string | null; updatedAt: string }[] // A-Z by store
+  lastStore: string | null // where a new add goes
+}
+/** PUT /api/lists/remembered/{key} (and POST, with title): only given fields change; places replaces its stores. */
+export interface RememberedItemInput {
+  title?: string
+  category?: string | null
+  places?: { store: string; aisle: string | null }[]
+}
+
 /** GET /api/lists/{id} response. suggestions are the store/category/aisle values known anywhere
  * in the household (items and remembered places), for the item sheet's pickers. */
 export interface ListDetail {

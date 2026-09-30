@@ -4,7 +4,7 @@ import { addDays, format } from 'date-fns'
 import { useApp } from './AppContext.tsx'
 import { api, ApiError } from './api.ts'
 import { applyListOps, type Op } from './outbox.ts'
-import type { EventInstance, ItemSuggestion, List, ListDetail, ListGroupBy, ListItem, ListItemPriority, ListItemStep, ListKind, ListSortBy, Member } from './types.ts'
+import type { EventInstance, ItemSuggestion, List, ListDetail, ListGroupBy, ListItem, ListItemPriority, ListItemStep, ListKind, ListSortBy, Member, RememberedItem } from './types.ts'
 import { aisleOrderMap, compareAisles, compareItems, LIST_EMOJI, MEMBER_PALETTE, type AisleOrder } from './types.ts'
 import { dateKey } from './date.ts'
 import Sheet from './Sheet.tsx'
@@ -26,6 +26,7 @@ import { shoppingActivity } from './liveActivity.ts'
 import { endAppActivity, tellAppActivity } from './native.ts'
 import { itemKey, matchItems } from './itemSuggest.ts'
 import { listSections, reorderWithin } from './listSections.ts'
+import { boughtLabel, catalogStores, filterCatalog, placeLabel, placesFor, placesInput } from './catalog.ts'
 
 const KIND_LABEL: Record<ListKind, string> = { todo: 'To-do', shopping: 'Shopping', reusable: 'Reusable' }
 
@@ -837,8 +838,9 @@ function groupItems(items: ListItem[], groupBy: ListGroupBy, savedOrder: string[
 
 /** "Stores & departments": rename or remove a store, department (the category field) or aisle everywhere (every list and
  * what's remembered), and drag a store's aisles into the order you walk them. */
-function ManageValuesSheet({ suggestions, aisleOrder, onClose, onChanged }: {
+function ManageValuesSheet({ suggestions, aisleOrder, onClose, onChanged, onCatalog }: {
   suggestions: ListDetail['suggestions']; aisleOrder: AisleOrder; onClose: () => void; onChanged: () => void
+  onCatalog?: () => void // shopping lists: open the grocery catalog
 }) {
   const dialog = useDialog()
   const { toast } = useApp()
@@ -849,12 +851,6 @@ function ManageValuesSheet({ suggestions, aisleOrder, onClose, onChanged }: {
   const [store, setStore] = useState<string | null>(aisleStores[0] ?? null)
   const [newAisle, setNewAisle] = useState('')
   const [override, setOverride] = useState<{ store: string | null; aisles: string[] } | null>(null) // a drag, shown before the reload
-  const [findItem, setFindItem] = useState('')
-  const forget = async (s: ItemSuggestion) => {
-    if (!await dialog.confirm({ title: `Forget "${s.title}"?`, body: 'It stops being suggested as you add, and where it goes is forgotten. Items on lists keep it.', confirmLabel: 'Forget', danger: true })) return
-    try { await api.forgetItemName(s.key); announce(`Forgot ${s.title}`); onChanged() }
-    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not forget it', true) }
-  }
   const aisles = override?.store === store ? override.aisles : storeAisles(suggestions, store, aisleOrder)
 
   const rename = async (field: Field, from: string, to: string | null) => {
@@ -920,20 +916,138 @@ function ManageValuesSheet({ suggestions, aisleOrder, onClose, onChanged }: {
           placeholder={`Add an aisle${store ? ` at ${store}` : ''}…`} aria-label={`Add an aisle${store ? ` at ${store}` : ''}`} enterKeyHint="done" />
         <button className="icon-btn" onClick={addAisle} disabled={!newAisle.trim()} aria-label="Add aisle"><PlusIcon width={20} height={20} /></button>
       </div>
-      {suggestions.items && <>
+      {onCatalog && <>
         <h3 className="manage-head">Items</h3>
-        <p className="field-hint">Names you've added are suggested as you type. Find one to forget it.</p>
-        <input type="search" className="manage-find" value={findItem} onChange={e => setFindItem(e.target.value)} placeholder="Find an item…" aria-label="Find a remembered item" autoComplete="off" />
-        {findItem.trim() && (() => {
-          const found = matchItems(findItem, suggestions.items.filter(s => s.uses > 0), new Set(), 20)
-          return found.length ? found.map(s => (
-            <div className="manage-row" key={s.key}>
-              <span className="manage-row-name">{s.title}</span>
-              <button className="icon-btn" onClick={() => forget(s)} aria-label={`Forget ${s.title}`}><TrashIcon width={16} height={16} /></button>
-            </div>
-          )) : <p className="list-item-meta">Nothing remembered by that name.</p>
-        })()}
+        <p className="field-hint">Everything you've bought before, where it's found at each store, and its department.</p>
+        <button className="btn btn-secondary btn-block" onClick={onCatalog}>Open the grocery catalog</button>
       </>}
+    </Sheet>
+  )
+}
+
+/** The grocery catalog: everything the family has bought before, its department and where it's found
+ * at each store. Search, filter by store, add one to this list, or tap it to edit (a sheet in place). */
+function GroceryCatalog({ listId, listName, onList, suggestions, aisleOrder, onClose, onChanged }: {
+  listId: string; listName: string; onList: Set<string>; suggestions: ListDetail['suggestions']; aisleOrder: AisleOrder
+  onClose: () => void; onChanged: () => void // onChanged: this list (and its pickers) may have changed
+}) {
+  const { toast } = useApp()
+  const [items, setItems] = useState<RememberedItem[] | null>(null)
+  const [query, setQuery] = useState('')
+  const [store, setStore] = useState<string | null>(null)
+  const [editing, setEditing] = useState<RememberedItem | 'new' | null>(null)
+  const load = () => api.getRemembered().then(setItems).catch(() => { setItems([]); toast('Could not load the catalog', true) })
+  useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  const stores = catalogStores(items ?? [])
+  const shown = filterCatalog(items ?? [], query, store && stores.includes(store) ? store : null)
+  const add = async (i: RememberedItem) => {
+    // Filtered to a store: planned for it (its aisle there comes along); else wherever it was last bought.
+    try { await api.queueAddListItem(listId, { title: i.title, ...(store ? { store } : {}) }); announce(`Added ${i.title} to ${listName}`); onChanged() }
+    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not add item', true) }
+  }
+  const saved = () => { setEditing(null); load(); onChanged() }
+
+  if (editing) return (
+    <CatalogItemSheet item={editing === 'new' ? null : editing} newTitle={query.trim()} suggestions={suggestions} aisleOrder={aisleOrder}
+      onClose={() => setEditing(null)} onSaved={saved} />
+  )
+  return (
+    <Sheet title="Grocery catalog" onClose={onClose} actions={<button className="btn btn-primary" onClick={onClose}>Done</button>}>
+      <div className="catalog-bar">
+        <input type="search" className="manage-find" value={query} onChange={e => setQuery(e.target.value)} placeholder="Find an item…" aria-label="Find an item" autoComplete="off" />
+        <button className="btn btn-secondary" onClick={() => setEditing('new')}><PlusIcon width={18} height={18} />New</button>
+      </div>
+      {stores.length > 0 && (
+        <div className="chip-row catalog-stores" role="group" aria-label="Store">
+          {[null, ...stores].map(st => (
+            <button key={st ?? ''} className={`chip ${store === st ? 'active' : ''}`} aria-pressed={store === st} onClick={() => setStore(st)}>{st ?? 'All stores'}</button>
+          ))}
+        </div>
+      )}
+      {items === null ? <p className="list-item-meta">Loading…</p>
+        : !shown.length ? <p className="list-item-meta">{items.length ? 'Nothing by that name.' : 'Nothing yet. Items you add to a shopping list show up here.'}</p>
+        : shown.map(i => (
+          <div className="catalog-row" key={i.key}>
+            <button className="catalog-row-main" onClick={() => setEditing(i)} aria-label={`Edit ${i.title}`}>
+              <span className="catalog-row-title">{i.title}</span>
+              <span className="catalog-row-meta">{[i.category, boughtLabel(i.uses)].filter(Boolean).join(' · ')}</span>
+              {i.places.length > 0 && (
+                <span className="catalog-row-places">
+                  {placesFor(i, store).map(p => <span key={p.store} className="chip chip-static">{placeLabel(p)}</span>)}
+                </span>
+              )}
+            </button>
+            {onList.has(i.key)
+              ? <span className="catalog-on-list"><CheckIcon width={16} height={16} aria-hidden="true" />On list</span>
+              : <button className="icon-btn catalog-add" onClick={() => add(i)} aria-label={`Add ${i.title} to ${listName}`} title={`Add to ${listName}`}><PlusIcon width={20} height={20} /></button>}
+          </div>
+        ))}
+    </Sheet>
+  )
+}
+
+/** Edit (or add) a grocery catalog item: its name, department and the stores it's found at, each with its aisle. */
+function CatalogItemSheet({ item, newTitle, suggestions, aisleOrder, onClose, onSaved }: {
+  item: RememberedItem | null; newTitle: string; suggestions: ListDetail['suggestions']; aisleOrder: AisleOrder; onClose: () => void; onSaved: () => void
+}) {
+  const dialog = useDialog()
+  const { toast } = useApp()
+  const [title, setTitle] = useState(item?.title ?? newTitle)
+  const [category, setCategory] = useState(item?.category ?? '')
+  const [rows, setRows] = useState(() => (item?.places ?? []).map(p => ({ store: p.store, aisle: p.aisle ?? '' })))
+  const [newStore, setNewStore] = useState('')
+  const [pickerKey, setPickerKey] = useState(0) // resets the "Add a store" picker after an add
+  const otherStores = suggestions.stores.filter(st => !rows.some(r => r.store === st))
+  const addStore = (name: string) => {
+    const st = name.trim()
+    if (st && !rows.some(r => r.store === st)) setRows([...rows, { store: st, aisle: '' }])
+    setNewStore(''); setPickerKey(k => k + 1)
+  }
+  const save = async () => {
+    const body = { title: title.replace(/\s+/g, ' ').trim(), category: category.trim() || null, places: placesInput(rows) }
+    if (!body.title) return
+    try {
+      if (item) await api.updateRemembered(item.key, body)
+      else await api.addRemembered(body)
+      announce(`Saved ${body.title}`); onSaved()
+    } catch (e) { toast(e instanceof Error && e.message ? e.message : 'Could not save', true) }
+  }
+  const forget = async () => {
+    if (!item || !await dialog.confirm({ title: `Forget "${item.title}"?`, body: 'It leaves the catalog, stops being suggested as you add, and where it goes is forgotten. Items on lists keep it.', confirmLabel: 'Forget', danger: true })) return
+    try { await api.forgetItemName(item.key); announce(`Forgot ${item.title}`); onSaved() }
+    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not forget it', true) }
+  }
+  return (
+    <Sheet title={item ? 'Edit catalog item' : 'New catalog item'} onClose={onClose}
+      actions={<>
+        <button className="btn btn-secondary" onClick={onClose}>Back</button>
+        <button className="btn btn-primary" onClick={save} disabled={!title.trim()}>Save</button>
+      </>}>
+      <div className="field">
+        <label htmlFor="catalog-title">Name</label>
+        <input id="catalog-title" type="text" value={title} onChange={e => setTitle(e.target.value)} maxLength={200} autoComplete="off" autoFocus={!item} placeholder="e.g. Oat milk" />
+      </div>
+      <ValuePicker id="catalog-category" label="Department" value={category} options={suggestions.categories} newLabel="New department…" placeholder="e.g. Produce" onChange={setCategory} />
+      <h3 className="manage-head">Stores</h3>
+      <p className="field-hint catalog-hint">Where it's found. Adding it to a list at one of these stores puts it in that aisle.</p>
+      {rows.map((r, n) => (
+        <div className="catalog-place" key={r.store}>
+          <ValuePicker id={`catalog-aisle-${n}`} label={`Aisle at ${r.store}`} value={r.aisle} noneLabel="Not known" options={storeAisles(suggestions, r.store, aisleOrder)}
+            newLabel="New aisle…" placeholder="e.g. Aisle 4, Produce, Back wall" onChange={v => setRows(rows.map((x, i) => i === n ? { ...x, aisle: v } : x))} />
+          <button className="icon-btn" onClick={() => setRows(rows.filter((_, i) => i !== n))} aria-label={`Remove ${r.store}`}><TrashIcon width={18} height={18} /></button>
+        </div>
+      ))}
+      <div className="catalog-place">
+        <ValuePicker key={pickerKey} id="catalog-add-store" label="Add a store" value={newStore} options={otherStores} noneLabel="Pick a store…" newLabel="New store…" placeholder="Store name"
+          onChange={v => otherStores.includes(v) ? addStore(v) : setNewStore(v)} />
+        {newStore.trim() && <button className="btn btn-secondary" onClick={() => addStore(newStore)}>Add</button>}
+      </div>
+      {item && (
+        <div className="field catalog-forget">
+          <p className="field-hint">{boughtLabel(item.uses)}{item.lastStore ? `, last at ${item.lastStore}` : ''}.</p>
+          <button className="btn btn-danger btn-block" onClick={forget}><TrashIcon width={18} height={18} />Forget this item</button>
+        </div>
+      )}
     </Sheet>
   )
 }
@@ -1035,6 +1149,7 @@ function ListDetailPane({ listId, isPhone, shopMode, onBack, onArchivedOrDeleted
   const [reorderGroups, setReorderGroups] = useState(false)
   const [viewing, setViewing] = useState(false) // the View sheet: group, sort, show store
   const [managing, setManaging] = useState(false)
+  const [cataloging, setCataloging] = useState(false) // the grocery catalog
   const [showDone, setShowDone] = useState(false)
   const [selectedStore, setSelectedStore] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
@@ -1391,6 +1506,7 @@ function ListDetailPane({ listId, isPhone, shopMode, onBack, onArchivedOrDeleted
               <CartIcon width={18} height={18} />Shop
             </button>
           )}
+          {!activeTrip && <button className="btn btn-secondary list-catalog-btn" onClick={() => setCataloging(true)} aria-haspopup="dialog" aria-label="Grocery catalog">Catalog</button>}
           {!activeTrip && items.length > 0 && viewButton}
         </div>
       )}
@@ -1494,7 +1610,9 @@ function ListDetailPane({ listId, isPhone, shopMode, onBack, onArchivedOrDeleted
         <ListViewSheet list={list} stores={stores} store={selectedStore} onStore={setSelectedStore} onGroupBy={setGroupBy} onSortBy={setSortBy} onClose={() => setViewing(false)}
           onReorder={list.kind === 'shopping' && reorderable && reorderableNames.length > 1 ? () => { setViewing(false); setReorderGroups(true) } : undefined} />
       )}
-      {managing && <ManageValuesSheet suggestions={suggestions} aisleOrder={aisleOrder} onClose={() => setManaging(false)} onChanged={load} />}
+      {managing && <ManageValuesSheet suggestions={suggestions} aisleOrder={aisleOrder} onClose={() => setManaging(false)} onChanged={load}
+        onCatalog={list.kind === 'shopping' ? () => { setManaging(false); setCataloging(true) } : undefined} />}
+      {cataloging && <GroceryCatalog listId={listId} listName={list.name} onList={onList} suggestions={suggestions} aisleOrder={aisleOrder} onClose={() => setCataloging(false)} onChanged={load} />}
       {reorderGroups && reorderable && (
         <ReorderGroupsSheet listId={listId} groupBy={list.groupBy === 'store' ? 'store' : 'category'} names={groupNamesForOrder.length ? groupNamesForOrder.filter(n => reorderableNames.includes(n)).concat(reorderableNames.filter(n => !groupNamesForOrder.includes(n))) : reorderableNames}
           onClose={() => setReorderGroups(false)} onSaved={() => { setReorderGroups(false); load() }} />

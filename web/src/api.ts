@@ -11,7 +11,7 @@ import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginCatalogEntry,
   StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota, GooglePhotos, Reward, Redemption, MemberStats, StatsPeriod,
   Account, ApiKey, AppNotification, Appearance, CalendarEntry, Category, Chore, ChoreDay, PendingApproval, EventInstance, LeaderboardEntry, LeaderboardPeriod, List,
   GeocodeResult, HostEvent, ImportResult, ListDetail, ListGroup, ListItem, ListItemInput, ListItemPatch, Member, Me, Note, NoteTarget, Passkey, TrackerEntry, TrackerInput, TrackerKind, Providers, PushSubscription, PushSubscriptionPrefs, RemoteCalendar, Settings, Snapshot, Board, Webhook, WebhookWithSecret,
-  TempCheck, TempCheckInput, Journal, JournalEntry, JournalPrivacy, Insights, InsightRange, Battery, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory,
+  TempCheck, TempCheckInput, Journal, JournalEntry, JournalPrivacy, Insights, InsightRange, Battery, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory, RememberedItem, RememberedItemInput,
 } from './types.ts'
 
 /** Demo build: every call is served from mock.ts in memory - no server, nothing persists. */
@@ -533,6 +533,11 @@ export const api = {
   // Stores & departments: rename (to) or remove (to: null) a value everywhere; a store's aisle order.
   renameListValue: (body: { field: 'store' | 'category' | 'aisle'; from: string; to: string | null; store?: string | null }) =>
     MOCK ? mock.renameListValue(body) : post<{ updated: number }>('api/lists/values', body),
+  // The grocery catalog: every remembered item and where it's found per store; edit or add one.
+  getRemembered: () => MOCK ? mock.getRemembered() : get<RememberedItem[]>('api/lists/remembered'),
+  updateRemembered: (key: string, body: RememberedItemInput) =>
+    MOCK ? mock.updateRemembered(key, body) : put<RememberedItem>(`api/lists/remembered/${encodeURIComponent(key)}`, body),
+  addRemembered: (body: RememberedItemInput & { title: string }) => MOCK ? mock.addRemembered(body) : post<RememberedItem>('api/lists/remembered', body),
   // Stop suggesting a remembered item name (and forget where it goes).
   forgetItemName: (key: string) => MOCK ? mock.forgetItemName(key) : del<{ ok: boolean }>(`api/lists/remembered/${encodeURIComponent(key)}`),
   setStoreAisles: (store: string | null, aisles: string[]) =>
