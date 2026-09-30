@@ -1,3 +1,4 @@
+import { listType } from './listSections.ts'
 import { useEffect, useId, useState } from 'react'
 import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
@@ -13,7 +14,7 @@ const lastList = () => { try { return localStorage.getItem(LAST_LIST_KEY) } catc
 const rememberList = (id: string) => { try { localStorage.setItem(LAST_LIST_KEY, id) } catch { /* private mode: just not remembered */ } }
 
 /** The server owns normalization, conversions and source claims. Previewing never writes a list.
- * Only grocery (shopping) lists can take ingredients; with just one it is chosen for you. */
+ * Only Groceries lists can take ingredients; with just one it is chosen for you. */
 export default function MealProjection({ from: initialFrom, to: initialTo, admin, onClose }: {
   from: string; to: string; admin: boolean; onClose: () => void
 }) {
@@ -40,7 +41,7 @@ export default function MealProjection({ from: initialFrom, to: initialTo, admin
     let canceled = false
     api.getLists().then(data => {
       if (canceled) return
-      const grocery = data.filter(list => list.kind === 'shopping' && !list.archived)
+      const grocery = data.filter(list => listType(list) === 'groceries' && !list.archived) // meals add to Groceries lists only
       setLists(grocery); setListError('')
       // One grocery list: that one. Several: the one this device used last, if it's still there.
       setListId(id => id || (grocery.length === 1 ? grocery[0].id : grocery.find(list => list.id === lastList())?.id ?? ''))
@@ -84,7 +85,7 @@ export default function MealProjection({ from: initialFrom, to: initialTo, admin
       {!validRange && <p className="field-error" role="alert">Choose an ordered date range of up to 367 days.</p>}
       {lists && lists.length > 1 && <div className="field"><label htmlFor={`${id}-list`}>Grocery list</label><select id={`${id}-list`} value={listId} onChange={e => { setListId(e.target.value); setOmitted([]) }}><option value="">Choose a grocery list</option>{lists.map(list => <option key={list.id} value={list.id}>{list.emoji} {list.name}</option>)}</select></div>}
       {lists?.length === 1 && <p className="field-hint">Adding to {lists[0].emoji} {lists[0].name}.</p>}
-      {lists?.length === 0 && <p>No grocery lists yet. <a href="#/lists" onClick={close}>Create a shopping list in Lists</a> to add these ingredients.</p>}
+      {lists?.length === 0 && <p>No grocery lists yet. <a href="#/lists" onClick={close}>Create a Groceries list in Lists</a> to add these ingredients.</p>}
       {admin && <label className="meal-check"><input type="checkbox" checked={includeNotes} onChange={e => setIncludeNotes(e.target.checked)} /> Include source meals and preparation details as notes</label>}
       {!admin && <p className="field-hint">An admin can add these ingredients to a grocery list.</p>}
       {loading && <p role="status">Calculating ingredients…</p>}

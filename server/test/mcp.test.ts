@@ -669,7 +669,7 @@ test('mcp: meal planning preserves route authorization and returns resolution/va
   for (const name of ['get_meal_projection', 'apply_meal_projection']) {
     await fail(name, { ...range, listName: 'groc' }, /multiple lists/);
     await fail(name, { ...range, listName: 'Missing' }, /no list found/);
-    await fail(name, { ...range, listName: 'Tasks' }, /active shopping list not found/);
+    await fail(name, { ...range, listName: 'Tasks' }, /active Groceries list not found/);
   }
   await fail('apply_meal_projection', range, /listId or listName is required/);
   await fail('get_recipe', { id: 'missing' }, /recipe not found/);

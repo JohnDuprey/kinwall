@@ -137,6 +137,14 @@ test('shopping behavior applies to both types: keep checked, trip view and check
   assert.ok(!(await send('GET', '/api/lists/remembered')).some((i: any) => i.key === 'nail'));
 });
 
+test('meals add ingredients to Groceries lists only', async () => {
+  const { raw, groceries, hardware } = await twoLists();
+  const range = 'from=2026-10-05&to=2026-10-11';
+  assert.equal((await raw('GET', `/api/meals/projection?${range}&listId=${groceries.id}`)).status, 200);
+  assert.equal((await raw('GET', `/api/meals/projection?${range}&listId=${hardware.id}`)).status, 400);
+  assert.equal((await raw('POST', '/api/meals/projection/apply', { from: '2026-10-05', to: '2026-10-11', listId: hardware.id })).status, 400);
+});
+
 test('export/import: list types and catalogs round-trip; an older file gets the name rule', async () => {
   const source = await twoLists();
   await source.send('PUT', '/api/lists/remembered/hammer?catalog=shopping', { tags: ['Tools'] });

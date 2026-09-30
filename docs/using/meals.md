@@ -171,7 +171,7 @@ Some amounts don't scale, and Kinwall shows them as they are with **Check amount
 
 **Groceries** (admins) adds up the ingredients of every recipe meal in a date range, the planner's week by default:
 
-1. Pick the range and a grocery list. Only shopping lists can take ingredients. If you have just one, it's already chosen; with several, Kinwall picks the one this device used last. The preview shows each ingredient's total, which meals it's for, and any item already on that list with the same name.
+1. Pick the range and a grocery list. Only [Groceries lists](lists.md#list-types) can take ingredients (not Shopping lists like the hardware store). If you have just one, it's already chosen; with several, Kinwall picks the one this device used last. The preview shows each ingredient's total, which meals it's for, and any item already on that list with the same name.
 2. Untick what you already have (salt, rice in the pantry). Meal-kit ingredients that ship in the box (**in the kit**) start unticked.
 3. Tap **Add … items to list**. Optionally, each new item gets a note with the meals it's for.
 4. When some of the meals use a [basic](#basics) you make yourself, one sheet asks **Made already?** with a choice for each basic ("Taco seasoning: made already?"): **Made already** leaves it off the list, **Add its ingredients** (the default) adds what goes into it instead of the basic itself, as its recipe writes it (not scaled), once for the whole range even when several meals use it, each with a note saying which basic it's for. Unticking a basic in the preview skips the question for it. Once its ingredients are on the list, adding the range again doesn't ask or add them again.
