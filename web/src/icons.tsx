@@ -181,3 +181,16 @@ export const EyeOffIcon = (p: P) => (
   // eye-off from Lucide (ISC license, lucide.dev): a hidden event's mark, never color alone
   <svg {...base(p)}><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c4.97 0 8.5 3.5 9.94 6.65a1 1 0 0 1 0 .7 10.75 10.75 0 0 1-1.44 2.49M14.08 14.16a3 3 0 0 1-4.24-4.24M17.48 17.5A10.75 10.75 0 0 1 2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 4.44-5.15M2 2l20 20" /></svg>
 )
+// Calendar views, for the phone's view button and sheet (Month is CalendarIcon, Schedule ListIcon).
+export const BoardViewIcon = (p: P) => (
+  <svg {...base(p)}><rect x="3" y="3" width="8" height="8" rx="2" /><rect x="13" y="3" width="8" height="8" rx="2" /><rect x="3" y="13" width="8" height="8" rx="2" /><rect x="13" y="13" width="8" height="8" rx="2" /></svg>
+)
+export const DayViewIcon = (p: P) => (
+  <svg {...base(p)}><rect x="3" y="3" width="18" height="18" rx="3" /><path d="M7 8h10M7 12h6M7 16h8" /></svg>
+)
+export const ThreeDayViewIcon = (p: P) => (
+  <svg {...base(p)}><rect x="3" y="3" width="18" height="18" rx="3" /><path d="M9 3v18M15 3v18" /></svg>
+)
+export const ChevronDown = (p: P) => (
+  <svg {...base(p)}><path d="M6 9l6 6 6-6" /></svg>
+)

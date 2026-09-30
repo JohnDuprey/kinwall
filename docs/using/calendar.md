@@ -6,7 +6,7 @@ The Calendar tab is the main screen. It merges every enabled calendar into one v
 
 ## Views
 
-Use the segmented control at the top to switch views.
+Use the tabs at the top to switch views. On a phone the tabs don't fit, so one button shows the current view (like **Board ⌄**): tap it, and a sheet lists the views with a line on what each shows and a ✓ on the current one. Tap a view to switch to it.
 
 | View | Shows | Paging (◀ ▶ or swipe) |
 |---|---|---|
@@ -64,7 +64,7 @@ On a wall display or tablet the cards fill the screen in three columns without s
 
 Each screen can arrange its own Board. Under [Settings → This display → Board layout](../settings/this-display.md#this-display), pick a built-in layout (**Kids** with big text, **Kitchen** with meals up front, **Parents** with more on the screen, **Simple** with just the clock, a picture and today), one of the family's [presets](../settings/general.md#board-presets), or **Own layout** to make one just for this screen.
 
-To switch quickly, tap the **layout** button at the end of the Board's toolbar: a sheet lists the same layouts (and **Own layout**, once this screen has one), and **Manage layouts** goes to Settings (to **Board presets** on a parent device, to **Board layout** under This display otherwise). The button is hidden when the screen's view is locked under **Lock view**, so a locked wall stays as set.
+To switch quickly, tap the **layout** button at the end of the Board's toolbar (on a phone, next to the view button): a sheet lists the same layouts (and **Own layout**, once this screen has one), and **Manage layouts** goes to Settings (to **Board presets** on a parent device, to **Board layout** under This display otherwise). The button is hidden when the screen's view is locked under **Lock view**, so a locked wall stays as set.
 
 The layout editor shows the Board as columns of cards (1 to 4 columns, up to 6 cards in each):
 
@@ -129,7 +129,7 @@ Tap the family button at the top left. The family sheet lists everyone, with how
 * **Tap a person** to open [their day](snapshot.md), where you can also tick off their chores.
 * **The round button** on the right shows only them on the calendar: it fills in, the row says "Calendar shows only them", and their face moves to the front of the pile on the family button. Tap it again to show the whole family.
 
-On phones, the view switcher spans the full width, just under the header.
+On phones, the view button sits just under the header, in one row with the Board's layout button (on the Board), **Show hidden** and the filter. Day, 3 Day, Month and Schedule add a second row with ◀ **Today** ▶ and the dates shown.
 
 ### By category
 

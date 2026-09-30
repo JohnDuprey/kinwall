@@ -1502,20 +1502,18 @@ button {
 
   /* ---------- Calendar toolbar ---------- */
   .calendar-toolbar { padding: 6px 14px 4px; gap: 6px; }
-  /* The view switcher is the one control that should read at a glance: full width, equal tabs. */
-  .calendar-toolbar .segmented { width: 100%; padding: 3px; gap: 1px; }
-  .calendar-toolbar .segmented button { flex: 1; padding: 7px 4px; font-size: 0.8125rem; min-height: 38px; }
   .toolbar-nav { gap: 4px; flex-wrap: nowrap; min-width: 0; width: 100%; }
   .toolbar-nav .period-label { flex: 1; order: 0; } /* phones: after the buttons, filling the row, so they stay put at the start */
-  /* Switcher and filter share the first row on every view (the tabs never change width), day
-     navigation gets the second row to itself; the Board has no paging, so no second row. */
-  .calendar-toolbar { grid-template-columns: minmax(0, 1fr) auto; }
-  .calendar-toolbar .segmented { grid-column: 1; }
+  /* One row: the view button (the tabs don't fit), the Board's layout next to it, then Show
+     hidden and the filter at the end. Day navigation gets the second row to itself; the Board has
+     no paging, so no second row. */
+  .calendar-toolbar { grid-template-columns: auto minmax(0, 1fr) auto auto; }
+  .calendar-toolbar .view-pick { grid-column: 1; grid-row: 1; }
   .toolbar-end { display: contents; }
-  .calendar-toolbar .filter-btn { grid-column: 2; grid-row: 1; }
-  .calendar-toolbar .toolbar-nav { grid-column: 1; grid-row: 2; }
-  .calendar-toolbar .hidden-toggle { grid-column: 2; grid-row: 2; }
-  .calendar-toolbar .board-layout-pick { grid-column: 1 / -1; grid-row: 2; justify-self: end; } /* the Board's layout: its own row, at the end */
+  .calendar-toolbar .board-layout-pick { grid-column: 2; grid-row: 1; justify-self: start; max-width: 100%; min-width: 0; }
+  .calendar-toolbar .hidden-toggle { grid-column: 3; grid-row: 1; }
+  .calendar-toolbar .filter-btn { grid-column: 4; grid-row: 1; }
+  .calendar-toolbar .toolbar-nav { grid-column: 1 / -1; grid-row: 2; }
   .toolbar-nav:empty { display: none; }
   .icon-btn { width: 44px; height: 44px; } /* smaller than wall, but never below a 44px hit area */
   .calendar-toolbar .icon-btn { width: 40px; height: 40px; }
@@ -2324,6 +2322,9 @@ button.board-empty-tap { display: block; width: 100%; text-align: left; backgrou
 a.btn { text-decoration: none; } /* a link that looks like a button (the Board's Manage layouts) */
 .board-layout-pick.btn { flex: none; gap: 8px; min-height: 44px; padding: 6px 16px; max-width: 16rem; }
 .board-layout-pick span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Phones: the calendar view, switched in a sheet (Calendar.tsx ViewPicker). */
+.view-pick.btn { flex: none; gap: 6px; min-height: 44px; padding: 6px 12px; }
+.view-pick > svg:last-child { color: var(--text-dim); }
 /* The full-screen sheet has no padding of its own (it's made for the recipe viewer). */
 .board-editor-page { max-width: 1400px; margin: 0 auto; padding: 16px var(--pad) calc(var(--pad) + 8px); }
 .board-editor-options { display: flex; flex-direction: column; gap: 10px; margin-bottom: 8px; }
