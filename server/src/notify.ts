@@ -184,6 +184,7 @@ type EventRow = {
   description: string | null;
   travel_minutes: number | null;
   remind_before_leave: number;
+  busy: number;
 };
 
 const ENABLED = 'IN (SELECT id FROM calendars WHERE enabled = 1)';
@@ -266,7 +267,9 @@ async function runEventReminders(env: Env, db: KinwallDb, now: Date, tz: string,
     const effective = reminders ?? defaultReminders ?? [];
 
     const travel = cal.kind === 'local' ? row : row.external_id ? travelOverrides.get(`${cal.id}\u0000${row.external_id}`) : undefined;
-    const leadMinutes = travel?.remind_before_leave && travel.travel_minutes && !row.all_day ? travel.travel_minutes : 0;
+    // A free event (busy = 0) keeps its own reminders, but no leave-by, transition warnings or Live Activity.
+    const free = row.busy === 0;
+    const leadMinutes = !free && travel?.remind_before_leave && travel.travel_minutes && !row.all_day ? travel.travel_minutes : 0;
     const meal = row.all_day ? undefined : meals.get(row.id);
     const occ = (start: string): Occurrence => ({
       eventId: row.id, occurrenceKey: start, title: row.title, start, allDay: !!row.all_day, memberIds, effective, leadMinutes, travelMinutes: row.all_day ? 0 : travel?.travel_minutes ?? 0, location: row.location,
@@ -277,7 +280,7 @@ async function runEventReminders(env: Env, db: KinwallDb, now: Date, tz: string,
     if (cal.kind === 'local' && row.rrule) {
       for (const inst of expand(row.rrule, row.start, row.end, !!row.all_day, tz, from, to)) {
         if (hidden.has(instanceKey(row.id, inst.start))) continue;
-        occurrences.push(occ(inst.start));
+        if (!free) occurrences.push(occ(inst.start));
         for (const minutes of effective) {
           candidates.push({ eventId: row.id, occurrenceKey: inst.start, title: row.title, start: inst.start, allDay: !!row.all_day, memberIds, categoryId: row.category_id, minutes, leadMinutes, row, calName: cal.name });
         }
@@ -286,7 +289,7 @@ async function runEventReminders(env: Env, db: KinwallDb, now: Date, tz: string,
     }
     const startMs = row.all_day ? Date.parse(`${row.start}T00:00:00Z`) : Date.parse(row.start);
     if (startMs < from.getTime() || startMs >= to.getTime() || hidden.has(instanceKey(row.id, row.start))) continue;
-    occurrences.push(occ(row.start));
+    if (!free) occurrences.push(occ(row.start));
     for (const minutes of effective) {
       candidates.push({ eventId: row.id, occurrenceKey: row.start, title: row.title, start: row.start, allDay: !!row.all_day, memberIds, categoryId: row.category_id, minutes, leadMinutes, row, calName: cal.name });
     }

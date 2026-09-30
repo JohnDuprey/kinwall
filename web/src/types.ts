@@ -292,6 +292,7 @@ export interface EventInstance {
   travelMinutes: number | null // Kinwall-only travel time, never sent to Google/Outlook
   leaveAt: string | null // start - travelMinutes (ISO); null when no travel time or all-day
   remindBeforeLeave: boolean // reminders count back from leaveAt instead of start
+  busy?: boolean // Show as: false = free (never Now/Next, no leave-by or transition warnings); missing = busy
   prepAt?: string | null // a meal's event: when to start prep (server/src/prepBy.ts); GET /api/events only
   cookId?: string | null // a meal's event: who's cooking, the one the prep countdown is for
   hidden?: 'event' | 'series' | 'filter' | null // why the family doesn't see it (only with includeHidden, on parents' devices)

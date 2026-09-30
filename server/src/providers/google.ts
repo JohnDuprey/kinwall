@@ -158,6 +158,8 @@ function toNormalized(item: any, calendarDefaults: number[] | null = null): Norm
     description: item.description || undefined,
     seriesId: item.recurringEventId || undefined,
     reminders: reminderMinutes(item, calendarDefaults),
+    // Google leaves transparency out for the default, 'opaque' (busy).
+    busy: item.transparency !== 'transparent',
   };
 }
 
@@ -175,6 +177,7 @@ function fromInput(ev: Partial<EventInput>): Record<string, unknown> {
       if (ev.end !== undefined) body.end = { dateTime: ev.end };
     }
   }
+  if (ev.busy !== undefined) body.transparency = ev.busy ? 'opaque' : 'transparent';
   // null = the calendar's own default reminders; [] = none; else pop-up reminders at those minutes.
   if (ev.reminders !== undefined) {
     body.reminders = ev.reminders === null

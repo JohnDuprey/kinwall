@@ -55,6 +55,7 @@ test('leave by: from the first transition warning until the event starts; the so
   assert.equal(leaveByActivity([soccer], { ...sam, transitionReminders: { ...sam.transitionReminders, on: false } }, t('2030-03-04T15:30:00Z'), time), null)
   assert.equal(leaveByActivity([soccer], { ...sam, transitionReminders: { ...sam.transitionReminders, leaveBy: false } }, t('2030-03-04T15:30:00Z'), time), null)
   assert.equal(leaveByActivity([piano], sam, t('2030-03-04T16:30:00Z'), time), null, 'not Sam\'s')
+  assert.equal(leaveByActivity([{ ...soccer, busy: false }], sam, t('2030-03-04T15:30:00Z'), time), null, 'shown as free: nobody has to leave')
 })
 
 test('start prep by: a meal\'s event, for its cook; a cooking event stays a few minutes past its start', () => {

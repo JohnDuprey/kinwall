@@ -211,6 +211,8 @@ test('insights: events per day and late evenings in household time; theirs and t
   await ev(family.id, '2026-09-22T05:00:00.000Z', '2026-09-22T08:00:00.000Z'); // 10 PM on the 21st to 1 AM
   await ev(leos.id, '2026-09-23T17:00:00.000Z', '2026-09-23T18:00:00.000Z'); // Leo's alone
   await ev(family.id, '2026-09-24', '2026-09-25', true); // all day: not a busy hour
+  // Free (a delivery window): not a busy hour.
+  assert.equal((await req('/api/events', 'POST', { calendarId: family.id, title: 'Delivery', start: '2026-09-22T17:00:00.000Z', end: '2026-09-23T03:00:00.000Z', allDay: false, busy: false })).status, 201);
   const days = new Map((await req(ins(maya.id))).json.days.map((d: any) => [d.date, [d.events, d.lastEventEnd]]));
   assert.deepEqual(days.get('2026-09-19'), [2, '21:30']);
   assert.deepEqual(days.get('2026-09-20'), [1, '20:00']);

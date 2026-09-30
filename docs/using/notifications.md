@@ -34,7 +34,7 @@ When someone's evening check (the goal check or **How drained do you feel?**) is
 
 ## Transition reminders
 
-A family member can also get **transition reminders**: calm heads-ups at the times a parent picks (for example 30 minutes before, plus every 5 minutes during the last 15), sent only to devices that belong to them. The headline changes each time, avoids the person's last 10, fits the event ("Leave at 3:40 PM for Soccer practice. Water bottle? 🥅") and gets more direct as time runs out ("Okay, leave now for Soccer practice! 🎒"), and a meal's event counts to starting prep instead. They're never sent during quiet hours, a reminder that would land in the same minute as a regular one isn't doubled, and each replaces the last on the lock screen. Set them in [Settings → Family](../settings/family.md#transition-reminders).
+A family member can also get **transition reminders**: calm heads-ups at the times a parent picks (for example 30 minutes before, plus every 5 minutes during the last 15), sent only to devices that belong to them. The headline changes each time, avoids the person's last 10, fits the event ("Leave at 3:40 PM for Soccer practice. Water bottle? 🥅") and gets more direct as time runs out ("Okay, leave now for Soccer practice! 🎒"), and a meal's event counts to starting prep instead. Events shown as [free](events.md#free-or-busy) get none (their own reminders still fire). They're never sent during quiet hours, a reminder that would land in the same minute as a regular one isn't doubled, and each replaces the last on the lock screen. Set them in [Settings → Family](../settings/family.md#transition-reminders).
 
 ## Daily summary
 

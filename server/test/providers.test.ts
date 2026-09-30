@@ -138,6 +138,7 @@ test('google: refreshes an expired token, saves it, and maps events (timed + all
       description: undefined,
       seriesId: undefined,
       reminders: null,
+      busy: true,
     });
     assert.equal(events[1].allDay, true);
     assert.equal(events[1].start, '2026-02-01');
@@ -326,4 +327,88 @@ test('google: useDefault with unknown calendar defaults is null (default applies
   } finally {
     restore();
   }
+});
+
+// ---------- Free/busy ("Show as") ----------
+
+test('google: transparency transparent is free, opaque or missing is busy; writes send transparency', async () => {
+  const bodies: any[] = [];
+  const { restore } = stubFetch({
+    'oauth2.googleapis.com': () => Response.json({ access_token: 'tok', expires_in: 3600 }),
+    '/events?': () => Response.json({ items: [
+      { id: 'a', summary: 'Delivery', transparency: 'transparent', start: { dateTime: '2026-01-05T13:00:00Z' }, end: { dateTime: '2026-01-06T01:00:00Z' } },
+      { id: 'b', summary: 'Dentist', transparency: 'opaque', start: { dateTime: '2026-01-05T15:00:00Z' }, end: { dateTime: '2026-01-05T16:00:00Z' } },
+      { id: 'c', summary: 'Soccer', start: { dateTime: '2026-01-05T17:00:00Z' }, end: { dateTime: '2026-01-05T18:00:00Z' } },
+      { id: 'd', summary: 'Holiday', transparency: 'transparent', start: { date: '2026-01-06' }, end: { date: '2026-01-07' } },
+    ] }),
+    '/events/': (init?: RequestInit) => { const b = JSON.parse(String(init?.body)); bodies.push(b); return Response.json({ id: 'a', summary: 'x', transparency: b.transparency, start: { dateTime: '2030-01-01T10:00:00Z' }, end: { dateTime: '2030-01-01T11:00:00Z' } }); },
+    '/events': (init?: RequestInit) => { const b = JSON.parse(String(init?.body)); bodies.push(b); return Response.json({ id: 'n', summary: 'x', transparency: b.transparency, start: { dateTime: '2030-01-01T10:00:00Z' }, end: { dateTime: '2030-01-01T11:00:00Z' } }); },
+  });
+  try {
+    const ctx = { env: {}, account: { id: 'a1', config: { access_token: 'tok', refresh_token: 'r', expires_at: Date.now() + 3600e3 } }, calendar: { id: 'c1', remoteId: 'cal1', config: {} }, saveAccountConfig: async () => {} } as unknown as ProviderCtx;
+    const events = await googleProvider.listEvents(ctx, FROM, TO);
+    assert.deepEqual(events.map((e) => [e.externalId, e.busy]), [['a', false], ['b', true], ['c', true], ['d', false]]);
+    assert.equal((await googleProvider.updateEvent!(ctx, 'a', { busy: false })).busy, false);
+    assert.equal(bodies[0].transparency, 'transparent');
+    await googleProvider.updateEvent!(ctx, 'a', { busy: true });
+    assert.equal(bodies[1].transparency, 'opaque');
+    await googleProvider.updateEvent!(ctx, 'a', { title: 'Only the title' });
+    assert.equal('transparency' in bodies[2], false, 'untouched unless asked');
+    await googleProvider.createEvent!(ctx, { title: 'Delivery', start: '2030-01-01T10:00:00Z', end: '2030-01-01T11:00:00Z', allDay: false, busy: false });
+    assert.equal(bodies[3].transparency, 'transparent');
+  } finally {
+    restore();
+  }
+});
+
+test('microsoft: showAs free is free; tentative, busy, oof and workingElsewhere are busy; writes send showAs', async () => {
+  const bodies: any[] = [];
+  const urls: string[] = [];
+  const ev = (id: string, showAs?: string) => ({ id, subject: id, isAllDay: false, ...(showAs ? { showAs } : {}), start: { dateTime: '2026-01-05T15:00:00.0000000' }, end: { dateTime: '2026-01-05T16:00:00.0000000' } });
+  const { restore } = stubFetch({
+    'login.microsoftonline.com': () => Response.json({ access_token: 'tok', refresh_token: 'r2', expires_in: 3600 }),
+    calendarView: () => Response.json({ value: [ev('free', 'free'), ev('tentative', 'tentative'), ev('busy', 'busy'), ev('oof', 'oof'), ev('workingElsewhere', 'workingElsewhere'), ev('unknown')] }),
+    '/me/events/': (init?: RequestInit) => { const b = JSON.parse(String(init?.body)); bodies.push(b); return Response.json({ ...ev('x', b.showAs) }); },
+  });
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async (url: any, init?: RequestInit) => { urls.push(String(url)); return realFetch(url, init); }) as typeof fetch;
+  try {
+    const ctx = { env: { MS_TENANT: 'common' }, account: { id: 'a1', config: { access_token: 'tok', refresh_token: 'r1', expires_at: Date.now() + 3600e3 } }, calendar: { id: 'c1', remoteId: 'cal1', config: {} }, saveAccountConfig: async () => {} } as ProviderCtx;
+    const events = await msProvider.listEvents(ctx, FROM, TO);
+    assert.deepEqual(events.map((e) => [e.externalId, e.busy]), [['free', false], ['tentative', true], ['busy', true], ['oof', true], ['workingElsewhere', true], ['unknown', true]]);
+    assert.ok(decodeURIComponent(urls.find((u) => u.includes('calendarView'))!).includes('showAs'), 'showAs is selected');
+    assert.equal((await msProvider.updateEvent!(ctx, 'x', { busy: false })).busy, false);
+    assert.equal(bodies[0].showAs, 'free');
+    await msProvider.updateEvent!(ctx, 'x', { busy: true });
+    assert.equal(bodies[1].showAs, 'busy');
+    await msProvider.updateEvent!(ctx, 'x', { title: 'Only the title' });
+    assert.equal('showAs' in bodies[2], false, 'a tentative event stays tentative unless asked');
+  } finally {
+    globalThis.fetch = realFetch;
+    restore();
+  }
+});
+
+test('ics: TRANSP:TRANSPARENT is free, OPAQUE or none is busy (repeats too); CalDAV writes TRANSP', async () => {
+  const ics = [
+    'BEGIN:VCALENDAR', 'VERSION:2.0',
+    'BEGIN:VEVENT', 'UID:free@test', 'DTSTART:20260115T130000Z', 'DTEND:20260116T010000Z', 'SUMMARY:Delivery', 'TRANSP:TRANSPARENT', 'END:VEVENT',
+    'BEGIN:VEVENT', 'UID:busy@test', 'DTSTART:20260115T150000Z', 'DTEND:20260115T160000Z', 'SUMMARY:Dentist', 'TRANSP:OPAQUE', 'END:VEVENT',
+    'BEGIN:VEVENT', 'UID:none@test', 'DTSTART;VALUE=DATE:20260116', 'DTEND;VALUE=DATE:20260117', 'SUMMARY:Fair', 'END:VEVENT',
+    'BEGIN:VEVENT', 'UID:weekly@test', 'DTSTART:20260105T150000Z', 'DTEND:20260105T160000Z', 'RRULE:FREQ=WEEKLY;COUNT=2', 'SUMMARY:Office hours', 'TRANSP:TRANSPARENT', 'END:VEVENT',
+    'END:VCALENDAR', '',
+  ].join('\r\n');
+  const events = await expandICS(ics, FROM, TO);
+  const busy = (uid: string) => events.filter((e) => e.externalId.startsWith(uid)).map((e) => e.busy);
+  assert.deepEqual(busy('free'), [false]);
+  assert.deepEqual(busy('busy'), [true]);
+  assert.deepEqual(busy('none'), [true], 'RFC 5545 default: opaque');
+  assert.deepEqual(busy('weekly'), [false, false]);
+
+  const { buildVevent } = await import('../src/providers/caldav.ts');
+  const base = { title: 'Delivery', start: '2030-01-01T10:00:00.000Z', end: '2030-01-01T11:00:00.000Z', allDay: false };
+  assert.match(buildVevent('u1', { ...base, busy: false }), /\r\nTRANSP:TRANSPARENT\r\n/);
+  assert.match(buildVevent('u1', base), /\r\nTRANSP:OPAQUE\r\n/);
+  const roundTrip = await expandICS(buildVevent('u1', { ...base, busy: false }), new Date('2029-12-01'), new Date('2030-02-01'));
+  assert.equal(roundTrip[0].busy, false, 'what Kinwall writes reads back the same');
 });

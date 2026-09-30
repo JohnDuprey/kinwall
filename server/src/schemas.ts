@@ -449,6 +449,7 @@ export const EventInstanceSchema = z
     travelMinutes: z.number().nullable(), // Kinwall-only travel time; never sent to the provider
     leaveAt: z.string().nullable(), // start - travelMinutes; null when no travel time or all-day
     remindBeforeLeave: z.boolean(), // reminders count back from leaveAt instead of start
+    busy: z.boolean().openapi({ description: "Show as busy (true, the default) or free (false). A free event isn't Now/Next, gets no transition warnings or leave-by and doesn't count as a busy hour; its own reminders still fire. Synced from Google (transparency), Outlook (showAs) and ICS (TRANSP)" }),
     linkedItemCount: z.number().optional(), // open list items linked to this event (GET /api/events only)
     noteCount: z.number().optional(), // notes in this event's thread (GET /api/events only)
     prepAt: z.string().nullable().optional().openapi({ description: "A meal's event: when to start prep (the meal time minus the recipe's total or prep time, 30 minutes when it has none). GET /api/events only" }),
@@ -472,6 +473,7 @@ export const EventInputSchema = z
     reminders: z.array(z.number().int().min(0).max(40320)).nullable().optional(), // [] = none; null = default (household, or the Google calendar's own). Written through to Google/Outlook
     travelMinutes: z.number().int().min(0).max(600).nullable().optional(), // Kinwall-only, works on any calendar (even read-only)
     remindBeforeLeave: z.boolean().optional(),
+    busy: z.boolean().optional().openapi({ description: 'Show as: true = busy (default), false = free. Written through to Google, Outlook and CalDAV' }),
   })
   .openapi('EventInput');
 

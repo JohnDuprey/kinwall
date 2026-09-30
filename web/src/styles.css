@@ -679,6 +679,12 @@ button {
 .ev-hidden { opacity: 0.5; outline: 2px dashed var(--text-dim); outline-offset: -2px; }
 .ev-hidden-mark { display: inline-flex; align-items: center; gap: 3px; margin-right: 4px; font-weight: 800; vertical-align: bottom; }
 .ev-hidden-mark svg { flex: none; }
+/* Show as free (a delivery window): outlined and striped instead of filled, and the word "Free" before
+   the title, so it reads as "on, but not blocking" without relying on color. */
+.ev-free { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--ev-solid, var(--text-dim)) 22%, var(--card)) 0 6px, var(--card) 6px 12px) !important; color: var(--text) !important; box-shadow: inset 0 0 0 2px var(--ev-solid, var(--text-dim)); }
+.ev-free .event-title-pill, :root[data-theme] .ev-free .event-title-pill { background: none; color: inherit; }
+.ev-free-mark { font-weight: 800; margin-right: 4px; color: var(--text-dim); }
+.ev-free-row .board-bar { opacity: 0.45; }
 .hidden-note { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px 14px; border: 2px dashed var(--border); border-radius: var(--radius-sm); color: var(--text-dim); font-weight: 700; }
 .hidden-note > span { flex: 1; min-width: 12em; }
 .hidden-note > .btn { flex: none; }

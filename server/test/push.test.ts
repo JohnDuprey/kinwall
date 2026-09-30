@@ -925,3 +925,12 @@ test('push: a device keeps at most 10 subscriptions; a new one replaces its olde
   await subscribe(request, ADMIN_KEY, 'parent');
   assert.equal(((await (await request('/api/push/subscriptions', {}, wall.key)).json()) as any[]).length, 10);
 });
+
+test('transitions: a free event gets no transition pushes, but its own reminders still fire', async () => {
+  const start = '2030-03-04T15:30:00Z';
+  const { run } = await transitionsSetup({ on: true, minutes: [10] }, { start, end: at(start, 600).toISOString(), title: 'Delivery window', busy: false, reminders: [30] });
+  assert.ok((await run(at(start, -30))).length > 0, 'its own reminder fires');
+  assert.deepEqual(await run(at(start, -10)), [], 'no transition warning');
+  const busy = await transitionsSetup({ on: true, minutes: [10] }, { start, end: at(start, 60).toISOString(), reminders: [30] });
+  assert.equal((await busy.run(at(start, -10))).some((s) => String(s.payload.tag ?? '').startsWith('transition:')), true, 'the same event shown as busy does');
+});

@@ -30,6 +30,7 @@ Tap **+**, or tap an empty slot in the time grid (this pre-fills the time). The 
 | **Calendar** | Only writable, enabled calendars this device may change are listed. On a kid's device that's only their own calendars, with the first one picked. If you have no local calendar yet, **Kinwall only (not synced)** creates one called "Kinwall". |
 | **Location** | Optional. |
 | **Who** | Family member chips. |
+| **Show as** | **Busy** (the default) or **Free (doesn't block time)**. See [Free or busy](#free-or-busy). |
 | **Reminder** | Local, Google and Outlook calendars only. Options: None, 5, 10, 15 or 30 minutes, 1 hour, 1 day, plus **Household default** (local) or **Google calendar default** (Google). Outlook has no "default" to write back. Reminders that came from the provider and don't match a preset stay as they are. |
 | **Repeat** | Does not repeat, Daily, Weekly or Monthly. More complex rules from a provider or the API are kept as long as you don't change this menu. |
 | **Category** | **Automatic** (keyword or calendar default, with a hint showing which) or a specific category. On a recurring event, **Apply the category to** offers **All events** or **This event**. |
@@ -104,10 +105,35 @@ Anyone can leave a note on an event: "Bring shin guards", "I can drive", a link 
 * Notes are Kinwall-only and never go to Google or Outlook. Export includes notes on local events (and list items); notes on synced events are not exported.
 * API: `GET /api/notes?target=event:<id>`, `POST /api/notes` `{target, body, memberId?}` (1–2000 characters; no `memberId` = "Someone"), `PATCH /api/notes/{id}` `{body}`, `DELETE /api/notes/{id}`. Events from `GET /api/events` carry `noteCount`. Display keys can read and write notes. MCP: `list_notes`, `add_note`, `update_note`.
 
+## Free or busy
+
+Every event is **busy** or **free**, like "Show as" in Google Calendar and Outlook. Most events are busy. Mark one **free** when it's worth seeing but doesn't take anyone's time: a delivery window ("📦 HelloFresh delivery, 8 AM – 8 PM"), a school's office hours, a "maybe" block. Change it in the edit sheet under **Show as**.
+
+A free event:
+
+* is outlined and striped instead of filled, with **Free ·** before its title, so it never relies on color alone;
+* sits behind busy events in the Day and Week grids, at full width, and never pushes a busy event into half a column. A busy event that overlaps it steps in a little so the free event's edge still shows;
+* is never **Now** or **Next** in the [Now / Next](calendar.md#now--next) strip;
+* gets no transition warnings, no leave-by time and no leave-by Live Activity (its travel time is kept, for if it's busy again);
+* doesn't count as a busy hour in [Insights](insights.md) or the [energy battery](battery.md);
+* still fires its own reminders, and still shows on the Board, in snapshots and in the daily summary.
+
+Where it comes from:
+
+| Calendar | Free when | Written back |
+|---|---|---|
+| **Local** | You pick **Free** | — |
+| **Google** | The event's "Show as" is **Free** (`transparency: transparent`). Google marks new all-day events free on its own. | Yes |
+| **Outlook** | "Show as" is **Free** (`showAs: free`). **Tentative**, **Busy**, **Away** and **Working elsewhere** all count as busy. | Yes; an edit that doesn't touch Show as leaves a tentative or away event as it is |
+| **CalDAV / iCloud** | `TRANSP:TRANSPARENT` | Yes (`TRANSP`) |
+| **ICS feeds** | `TRANSP:TRANSPARENT`; with no `TRANSP`, busy | Read-only |
+
+In the API and the assistant it's `busy` (`true` or `false`) on `POST/PATCH /api/events`, `PUT /api/calendars/{id}/events/sync` and the MCP `create_event` / `update_event` tools.
+
 ## Kinwall-only vs synced fields
 
 | Stays in Kinwall | Goes to the provider (writable calendars) |
 |---|---|
-| Members, category, travel time / leave-by, hidden, linked tasks, notes | Title, time, all-day, location, description, recurrence, reminders (Google/Outlook) |
+| Members, category, travel time / leave-by, hidden, linked tasks, notes | Title, time, all-day, location, description, recurrence, reminders (Google/Outlook), free/busy |
 
 When an event is read-only, the sheet says: "Only the family members and travel time are saved in Kinwall — the event itself comes from *calendar name*". For how that's decided, see [Writable vs read-only](../calendars/writable-vs-read-only.md).

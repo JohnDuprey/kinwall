@@ -15,6 +15,9 @@ export type NormalizedEvent = {
   // Minutes-before reminders, from the provider's own alarm/reminder config. Undefined/null means
   // "the provider gave none" - notify.ts falls back to the household default in that case.
   reminders?: number[] | null;
+  // Free/busy ("Show as"). false = free (Google transparency 'transparent', Outlook showAs 'free',
+  // ICS TRANSP:TRANSPARENT); true or undefined = busy, the default everywhere.
+  busy?: boolean;
 };
 
 export type EventInput = Omit<NormalizedEvent, 'externalId'>;

@@ -204,6 +204,7 @@ export async function expandICS(
         description: item.description || undefined,
         seriesId,
         reminders: minutesFromValarms(item.component),
+        busy: !isTransparent(item.component),
       });
     }
   }
@@ -233,7 +234,14 @@ function pushSingle(
     location: event.location || undefined,
     description: event.description || undefined,
     reminders: minutesFromValarms(event.component),
+    busy: !isTransparent(event.component),
   });
+}
+
+// TRANSP:TRANSPARENT = free; OPAQUE or no TRANSP = busy (RFC 5545's default).
+function isTransparent(component: ICAL.Component): boolean {
+  const transp = component.getFirstPropertyValue('transp') as string | null;
+  return typeof transp === 'string' && transp.toUpperCase() === 'TRANSPARENT';
 }
 
 // VALARM reminders: only ACTION:DISPLAY/AUDIO (an EMAIL alarm isn't a push notification), and

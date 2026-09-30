@@ -292,6 +292,8 @@ const events: EventInstance[] = [
   { id: 'e20', calendarId: 'c1', title: 'Car Service', start: at(-4, 8), end: at(-4, 9), allDay: false, location: null, description: null, memberIds: ['m1'], color: '#7AB8FF', rrule: null, occurrenceStart: null, readOnly: false, seriesId: null, memberScope: 'none', categoryId: null, categorySource: null, reminders: null, travelMinutes: null, leaveAt: null, remindBeforeLeave: false },
   { id: 'e23', calendarId: 'c1', title: "Leo's playdate with Theo", start: at(1, 14), end: at(1, 16), allDay: false, location: null, description: null, memberIds: ['m4'], color: '#F5A65B', rrule: null, occurrenceStart: null, readOnly: false, seriesId: null, memberScope: 'none', categoryId: null, categorySource: null, reminders: null, travelMinutes: null, leaveAt: null, remindBeforeLeave: false },
   // Relative to now, so the Now / Next card always has something to show in the demo.
+  // A delivery window shown as free: in the calendar, but never "Now" all day.
+  { id: 'e24', calendarId: 'c1', title: '📦 HelloFresh delivery', start: at(0, 8), end: at(0, 20), allDay: false, location: null, description: 'Tuesday Tacos\nLemon Chicken\n2 of 3 meals picked', memberIds: [], color: '#B39DFF', rrule: null, occurrenceStart: null, readOnly: false, seriesId: null, memberScope: 'none', categoryId: null, categorySource: null, reminders: null, travelMinutes: null, leaveAt: null, remindBeforeLeave: false, busy: false },
   { id: 'e21', calendarId: 'c1', title: 'Reading Time', start: fromNow(-20), end: fromNow(25), allDay: false, location: null, description: null, memberIds: ['m3'], color: '#7ED9A6', rrule: null, occurrenceStart: null, readOnly: false, seriesId: null, memberScope: 'none', categoryId: null, categorySource: null, reminders: null, travelMinutes: null, leaveAt: null, remindBeforeLeave: false },
   { id: 'e22', calendarId: 'c1', title: 'Piano Lesson', start: fromNow(70), end: fromNow(115), allDay: false, location: 'Music school', description: null, memberIds: ['m2'], color: '#FF8FA3', rrule: null, occurrenceStart: null, readOnly: false, seriesId: null, memberScope: 'none', categoryId: null, categorySource: null, reminders: null, travelMinutes: 45, leaveAt: null, remindBeforeLeave: true },
 ]
@@ -338,9 +340,9 @@ const hiddenWhy = (e: EventInstance): EventInstance['hidden'] => {
   return filterShows(calendars.find(c => c.id === e.calendarId)?.filter ?? NO_FILTER, e) ? null : 'filter'
 }
 
-// Mirrors the server: leaveAt = start - travelMinutes, only for timed events.
+// Mirrors the server: leaveAt = start - travelMinutes, only for timed events shown as busy.
 const withLeave = (e: EventInstance): EventInstance =>
-  ({ ...e, leaveAt: e.travelMinutes && !e.allDay ? new Date(new Date(e.start).getTime() - e.travelMinutes * 60000).toISOString() : null })
+  ({ ...e, leaveAt: e.travelMinutes && !e.allDay && e.busy !== false ? new Date(new Date(e.start).getTime() - e.travelMinutes * 60000).toISOString() : null })
 
 const chores: Chore[] = [
   { id: 'ch1', title: 'Make bed', emoji: '🛏️', memberId: 'm2', points: 5, rrule: 'FREQ=DAILY', dueDate: null, dueTime: null, active: true, sort: 0, listId: null, pluginId: null, pluginMinutes: null },
@@ -841,6 +843,7 @@ export const mock = {
       categoryId: body.categoryId ?? null, categorySource: body.categoryId ? 'event' : null,
       reminders: body.reminders ?? null,
       travelMinutes: body.travelMinutes ?? null, leaveAt: null, remindBeforeLeave: !!body.remindBeforeLeave,
+      busy: body.busy !== false,
     }
     events.push(ev); bump(); return withLeave(ev)
   },

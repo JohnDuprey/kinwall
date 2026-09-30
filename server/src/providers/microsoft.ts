@@ -140,6 +140,8 @@ function toNormalized(item: any): NormalizedEvent {
     description: item.bodyPreview || undefined,
     seriesId: item.seriesMasterId || undefined,
     reminders: item.isReminderOn === false ? [] : typeof item.reminderMinutesBeforeStart === 'number' ? [item.reminderMinutesBeforeStart] : null,
+    // Only 'free' is free; tentative, busy, oof (away) and workingElsewhere all block the time.
+    busy: item.showAs !== 'free',
   };
 }
 
@@ -151,6 +153,8 @@ function fromInput(ev: Partial<EventInput>): Record<string, unknown> {
   if (ev.allDay !== undefined) body.isAllDay = ev.allDay;
   if (ev.start !== undefined) body.start = { dateTime: normalizeForGraph(ev.start, ev.allDay), timeZone: 'UTC' };
   if (ev.end !== undefined) body.end = { dateTime: normalizeForGraph(ev.end, ev.allDay), timeZone: 'UTC' };
+  // Writing busy back never turns a tentative/away event into plain busy unless the family changed it.
+  if (ev.busy !== undefined) body.showAs = ev.busy ? 'busy' : 'free';
   // Outlook keeps a single reminder per event: the first (earliest-listed) one wins.
   if (ev.reminders !== undefined && ev.reminders !== null) {
     body.isReminderOn = ev.reminders.length > 0;
@@ -181,7 +185,7 @@ export const provider: Provider = {
       startDateTime: from.toISOString(),
       endDateTime: to.toISOString(),
       $top: '500',
-      $select: 'id,subject,start,end,isAllDay,location,bodyPreview,seriesMasterId,isReminderOn,reminderMinutesBeforeStart',
+      $select: 'id,subject,start,end,isAllDay,location,bodyPreview,seriesMasterId,isReminderOn,reminderMinutesBeforeStart,showAs',
     });
     let url: string | undefined =
       `${GRAPH}/me/calendars/${encodeURIComponent(ctx.calendar.remoteId ?? '')}/calendarView?${params}`;

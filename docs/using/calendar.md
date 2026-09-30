@@ -11,7 +11,7 @@ Use the segmented control at the top to switch views.
 | View | Shows | Paging (◀ ▶ or swipe) |
 |---|---|---|
 | **Board** | A family bulletin board for today and the week ahead. See [Board view](#board-view). | None: always today onward |
-| **Day** | A time grid for one day, one column per family member. | ±1 day |
+| **Day** | A time grid for one day, one column per family member. [Free](events.md#free-or-busy) events sit behind the busy ones, striped and marked "Free". | ±1 day |
 | **Week** (iPad / desktop) | 7 day columns with an all-day row and a time grid. The week starts on Sunday or Monday, per [General](../settings/general.md). | ±1 week |
 | **3 Day** (phones) | The same grid, 3 days from the anchor date. | ±3 days |
 | **Month** | A month grid with event chips. When a day is full, it shows "+N more". | ±1 month |
@@ -76,7 +76,7 @@ The browser tab or window title shows the screen and your family name, for examp
 
 ### Now / Next
 
-A strip above the calendar shows what's on now and what's next today, with a countdown and any 🚗 leave-by time. It shows on every view.
+A strip above the calendar shows what's on now and what's next today, with a countdown and any 🚗 leave-by time. It shows on every view. Events shown as [free](events.md#free-or-busy), like a delivery window, are left out, so a 12-hour window never sits there as "Now" all day.
 
 * On a wall display it hides when nothing is left today.
 * On a phone it's always two lines, so the screen never jumps. When the day is done it reads "Nothing more today".

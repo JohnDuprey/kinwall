@@ -30,3 +30,7 @@ Outlook events hold one reminder. Kinwall writes the reminder you choose to the 
 ## Tip: read-only without OAuth
 
 Outlook's **published calendar** ICS link works as an [ICS feed](ics-feeds.md).
+
+## Free or busy
+
+Outlook's **Show as** comes along: **Free** shows as [free](../using/events.md#free-or-busy) in Kinwall; **Tentative**, **Busy**, **Away** and **Working elsewhere** show as busy, since they all hold the time. Changing **Show as** in Kinwall writes **Free** or **Busy** back; edits that don't touch it leave a tentative or away event as it is.

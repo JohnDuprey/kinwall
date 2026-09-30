@@ -25,6 +25,7 @@ import { PriorityBadge } from './PriorityBadge.tsx'
 import { isSingleEmoji } from './emoji.ts'
 import { calendarGoal } from './tempCheck.ts'
 import { leadBy, leadIcon, leadOf, leadText } from './leadTime.ts'
+import { layoutDay } from './dayLayout.ts'
 
 const PHONE_WEEK_DAYS = 3
 const NEW_LOCAL_CALENDAR = '__new_local'
@@ -51,31 +52,6 @@ function isAllDayOnDate(ev: EventInstance, key: string) {
 }
 function isTimedOnDate(ev: EventInstance, key: string, tz: string) {
   return zonedDayKey(ev.start, tz) === key || (zonedDayKey(ev.start, tz) < key && zonedDayKey(ev.end, tz) >= key)
-}
-
-/** Greedy column packing for overlapping timed events on one day. Simple, not cluster-optimal.
- * ponytail: good enough for a wall calendar's visual density; revisit with an interval-graph
- * algorithm if events routinely overlap 4+ ways. */
-function layoutColumns(evs: EventInstance[], tz: string, minMinutes = 20) {
-  const withMin = evs
-    .map(ev => ({ ev, s: minutesSinceMidnight(ev.start, tz), e: Math.max(minutesSinceMidnight(ev.end, tz), minutesSinceMidnight(ev.start, tz) + minMinutes) }))
-    .sort((a, b) => a.s - b.s)
-  // Columns are counted per cluster of overlapping events, not per day - otherwise one 9am
-  // clash would halve the width of every other event that day.
-  const out: ((typeof withMin)[number] & { col: number; totalCols: number })[] = []
-  let cluster: ((typeof withMin)[number] & { col: number })[] = []
-  let colEnds: number[] = []
-  let clusterEnd = -1
-  const flush = () => { for (const p of cluster) out.push({ ...p, totalCols: Math.max(1, colEnds.length) }) }
-  for (const item of withMin) {
-    if (item.s >= clusterEnd) { flush(); cluster = []; colEnds = [] }
-    let col = colEnds.findIndex(end => end <= item.s)
-    if (col === -1) { col = colEnds.length; colEnds.push(item.e) } else { colEnds[col] = item.e }
-    cluster.push({ ...item, col })
-    clusterEnd = Math.max(clusterEnd, item.e)
-  }
-  flush()
-  return out
 }
 
 /** Current minute-of-day in `tz`, refreshed every minute (for the now-line + auto-scroll). */
@@ -520,7 +496,7 @@ type ChipCategory = { id: string; name: string; color: string; emoji: string | n
 function eventLabel(ev: EventInstance, tz: string, members: ChipMember[], categories: ChipCategory[]): string {
   const who = members.filter(m => ev.memberIds.includes(m.id)).map(m => m.name).join(' and ')
   const category = ev.categoryId ? categories.find(c => c.id === ev.categoryId)?.name : undefined
-  return [`${ev.hidden ? 'Hidden: ' : ''}${ev.allDay ? 'All day' : formatTime(ev.start, tz)} ${ev.title}`, who, ev.location, category, ((l) => l && leadBy(l, formatTime(l.at, tz), true))(leadOf(ev)), ev.noteCount && `${ev.noteCount} note${ev.noteCount === 1 ? '' : 's'}`].filter(Boolean).join(', ')
+  return [`${ev.hidden ? 'Hidden: ' : ''}${ev.allDay ? 'All day' : formatTime(ev.start, tz)} ${ev.title}`, ev.busy === false && 'free', who, ev.location, category, ((l) => l && leadBy(l, formatTime(l.at, tz), true))(leadOf(ev)), ev.noteCount && `${ev.noteCount} note${ev.noteCount === 1 ? '' : 's'}`].filter(Boolean).join(', ')
 }
 
 /** Solid category color (overrides member color entirely) when the event has one, else: solid
@@ -551,7 +527,8 @@ function eventVisual(ev: EventInstance, members: ChipMember[], categories: ChipC
 
 /** Inline fill for an event block. `--ev-bg` lets low-stimulation mode (styles.css) swap the filled
  * block for a neutral card with just a thin bar of the same color/stripes. */
-const evFill = (background: string, ink: string) => ({ background, color: ink, ['--ev-bg' as string]: background })
+// --ev-solid: one color for a free event's outline (background can be stripes).
+const evFill = (background: string, ink: string, solid?: string) => ({ background, color: ink, ['--ev-bg' as string]: background, ...(solid ? { ['--ev-solid' as string]: solid } : {}) })
 
 /** Dashed line across an event's column at its leave-by or start-prep time (same day only), in its color. */
 function LeaveMarker({ ev, tz, dayKey, hourPx, left, width, color }: { ev: EventInstance; tz: string; dayKey: string; hourPx: number; left: string; width: string; color: string }) {
@@ -569,8 +546,8 @@ function CategoryMark({ mark }: { mark: string }) {
 /** Title text (truncating), optionally prefixed with a category emoji, plus - for striped
  * multi-member or categorized events - an inline avatar row and a translucent backing pill so
  * text stays readable over the stripes/category color. */
-function EventTitle({ title, avatars, emoji, pill, hidden }: { title: string; avatars: string[]; emoji?: string | null; pill?: boolean; hidden?: boolean }) {
-  const text = <>{hidden && <HiddenMark />}{emoji ? <><CategoryMark mark={emoji} /> {title}</> : title}</>
+function EventTitle({ title, avatars, emoji, pill, hidden, free }: { title: string; avatars: string[]; emoji?: string | null; pill?: boolean; hidden?: boolean; free?: boolean }) {
+  const text = <>{hidden && <HiddenMark />}{free && <FreeMark />}{emoji ? <><CategoryMark mark={emoji} /> {title}</> : title}</>
   if (avatars.length === 0) return <span className="event-title-text">{text}</span>
   return (
     <>
@@ -582,13 +559,15 @@ function EventTitle({ title, avatars, emoji, pill, hidden }: { title: string; av
 
 /** A hidden event, shown with Show hidden: faded (.ev-hidden) and marked, never by color alone. */
 const HiddenMark = () => <span className="ev-hidden-mark"><EyeOffIcon width={12} height={12} />Hidden ·</span>
-const hiddenClass = (ev: EventInstance) => ev.hidden ? ' ev-hidden' : ''
+/** Show as free: outlined and striped instead of filled (.ev-free), and says "Free" (never color alone). */
+const FreeMark = () => <span className="ev-free-mark">Free ·</span>
+const evClass = (ev: EventInstance) => (ev.hidden ? ' ev-hidden' : '') + (ev.busy === false ? ' ev-free' : '')
 
 function EventChip({ ev, tz, members, categories, small, onTap }: { ev: EventInstance; tz: string; members: ChipMember[]; categories: ChipCategory[]; small?: boolean; onTap: () => void }) {
-  const { background, avatars, ink, emoji, pill } = eventVisual(ev, members, categories, small ? 7 : 10)
+  const { background, avatars, ink, emoji, pill, solid } = eventVisual(ev, members, categories, small ? 7 : 10)
   return (
-    <div className={(small ? 'allday-chip' : 'event-chip') + hiddenClass(ev)} style={evFill(background, ink)} {...pressable(onTap)} aria-label={eventLabel(ev, tz, members, categories)}>
-      <EventTitle title={ev.title} avatars={avatars} emoji={emoji} pill={pill} hidden={!!ev.hidden} />
+    <div className={(small ? 'allday-chip' : 'event-chip') + evClass(ev)} style={evFill(background, ink, solid)} {...pressable(onTap)} aria-label={eventLabel(ev, tz, members, categories)}>
+      <EventTitle title={ev.title} avatars={avatars} emoji={emoji} pill={pill} hidden={!!ev.hidden} free={ev.busy === false} />
     </div>
   )
 }
@@ -648,7 +627,7 @@ function WeekView({ days, events, tz, members, categories, onTap, onSlotTap, onD
           {Array.from({ length: 24 }, (_, h) => <div className="time-label" key={h}>{h === 0 ? '' : formatTime(`${h}:00`, undefined, { hourOnly: true })}</div>)}
         </div>
         {days.map((d, i) => {
-          const laidOut = layoutColumns(timedByDay[i], tz, minMinutes)
+          const laidOut = layoutDay(timedByDay[i], tz, minMinutes)
           return (
             <div key={i} className={`day-col ${dateKey(d) === todayStr ? 'today' : ''}`}
               onClick={e => {
@@ -661,16 +640,15 @@ function WeekView({ days, events, tz, members, categories, onTap, onSlotTap, onD
               }}>
               {Array.from({ length: 24 }, (_, h) => <div className="hour-line" key={h} />)}
               {dateKey(d) === todayStr && <div className="now-line" style={{ top: (nowMinutes / 60) * HOUR_PX }}><span className="now-dot" /></div>}
-              {laidOut.map(({ ev, s, e, col, totalCols }) => {
+              {laidOut.map(({ ev, s, e, left, width }) => {
                 const { background, avatars, ink, emoji, pill, solid } = eventVisual(ev, members, categories, 10)
-                const left = `calc(${(col / totalCols) * 100}% + 2px)`, width = `calc(${100 / totalCols}% - 4px)`
                 return (
                   <Fragment key={ev.id}>
                     <LeaveMarker ev={ev} tz={tz} dayKey={dayKeys[i]} hourPx={HOUR_PX} left={left} width={width} color={solid} />
-                    <div className={`timed-event${hiddenClass(ev)}`}
-                      style={{ top: (s / 60) * HOUR_PX, height: Math.max(((e - s) / 60) * HOUR_PX - 2, 24), left, width, ...evFill(background, ink) }}
+                    <div className={`timed-event${evClass(ev)}`}
+                      style={{ top: (s / 60) * HOUR_PX, height: Math.max(((e - s) / 60) * HOUR_PX - 2, 24), left, width, ...evFill(background, ink, solid) }}
                       {...pressable(() => onTap(ev))} aria-label={eventLabel(ev, tz, members, categories)}>
-                      <div className="event-title-row"><EventTitle title={ev.title} avatars={avatars} emoji={emoji} pill={pill} hidden={!!ev.hidden} /></div>
+                      <div className="event-title-row"><EventTitle title={ev.title} avatars={avatars} emoji={emoji} pill={pill} hidden={!!ev.hidden} free={ev.busy === false} /></div>
                       <span style={{ opacity: 0.85 }}>{formatTime(ev.start, tz)}</span>
                     </div>
                   </Fragment>
@@ -730,7 +708,7 @@ function DayView({ anchor, events, tz, members, categories, onlyMemberId, onTap,
         {isToday && <div className="now-line" style={{ top: (nowMinutes / 60) * HOUR_PX, left: 50, right: 0 }}><span className="now-dot" /></div>}
         {cols.map(m => {
           const dayEvents = events.filter(e => !e.allDay && isTimedOnDate(e, key, tz) && (m.id === '__none' || e.memberIds.includes(m.id) || e.memberIds.length === 0))
-          const laidOut = layoutColumns(dayEvents, tz, (24 / HOUR_PX) * 60)
+          const laidOut = layoutDay(dayEvents, tz, (24 / HOUR_PX) * 60)
           return (
             <div key={m.id} className="day-col today"
               onClick={e => {
@@ -742,17 +720,16 @@ function DayView({ anchor, events, tz, members, categories, onlyMemberId, onTap,
                 onSlotTap({ start: start.toISOString(), end: end.toISOString(), allDay: false, memberIds: m.id === '__none' ? [] : [m.id] })
               }}>
               {Array.from({ length: 24 }, (_, h) => <div className="hour-line" key={h} />)}
-              {laidOut.map(({ ev, s, e, col, totalCols }) => {
+              {laidOut.map(({ ev, s, e, left, width }) => {
                 const { background, avatars, ink, emoji, pill, solid } = eventVisual(ev, members, categories, 10)
-                const left = `calc(${(col / totalCols) * 100}% + 2px)`, width = `calc(${100 / totalCols}% - 4px)`
                 return (
                   <Fragment key={ev.id}>
                     <LeaveMarker ev={ev} tz={tz} dayKey={key} hourPx={HOUR_PX} left={left} width={width} color={solid} />
-                    <div className={`timed-event${hiddenClass(ev)}`}
-                      style={{ top: (s / 60) * HOUR_PX, height: Math.max(((e - s) / 60) * HOUR_PX - 2, 24), left, width, ...evFill(background, ink) }}
+                    <div className={`timed-event${evClass(ev)}`}
+                      style={{ top: (s / 60) * HOUR_PX, height: Math.max(((e - s) / 60) * HOUR_PX - 2, 24), left, width, ...evFill(background, ink, solid) }}
                       {...pressable(() => onTap(ev))} aria-label={eventLabel(ev, tz, members, categories)}>
                       {/* The column already says whose it is; a lone avatar would only repeat it. */}
-                      <div className="event-title-row"><EventTitle title={ev.title} avatars={pill ? avatars : []} emoji={emoji} pill={pill} hidden={!!ev.hidden} /></div>
+                      <div className="event-title-row"><EventTitle title={ev.title} avatars={pill ? avatars : []} emoji={emoji} pill={pill} hidden={!!ev.hidden} free={ev.busy === false} /></div>
                       <span style={{ opacity: 0.85 }}>{formatTime(ev.start, tz)}</span>
                     </div>
                   </Fragment>
@@ -831,11 +808,11 @@ function MonthView({ anchor, events, tz, weekStart, members, categories, onTap, 
                 aria-label={`${format(d, 'EEEE, MMMM d')}, ${dayEvents.length} event${dayEvents.length === 1 ? '' : 's'}. Open day`}
                 onClick={e => { e.stopPropagation(); onDayTap(d) }}>{format(d, 'd')}</button>
               {shown.map(ev => {
-                const { background, avatars, ink, emoji, pill } = eventVisual(ev, members, categories, 6)
+                const { background, avatars, ink, emoji, pill, solid } = eventVisual(ev, members, categories, 6)
                 return (
-                  <div key={ev.id} className={`month-chip${hiddenClass(ev)}`} style={evFill(background, ink)} {...pressable(() => onTap(ev))} aria-label={eventLabel(ev, tz, members, categories)}>
+                  <div key={ev.id} className={`month-chip${evClass(ev)}`} style={evFill(background, ink, solid)} {...pressable(() => onTap(ev))} aria-label={eventLabel(ev, tz, members, categories)}>
                     {/* A phone's month cell is ~50px wide: time or avatars alone filled it, so show just the title. */}
-                    <EventTitle title={`${ev.allDay || isPhone ? '' : formatTime(ev.start, tz) + ' '}${ev.title}`} avatars={isPhone ? [] : avatars} emoji={emoji} pill={pill} hidden={!!ev.hidden} />
+                    <EventTitle title={`${ev.allDay || isPhone ? '' : formatTime(ev.start, tz) + ' '}${ev.title}`} avatars={isPhone ? [] : avatars} emoji={emoji} pill={pill} hidden={!!ev.hidden} free={ev.busy === false} />
                   </div>
                 )
               })}
@@ -872,12 +849,12 @@ function ScheduleView({ anchor, events, tz, members, categories, onTap }: { anch
               const { background, avatars, emoji } = eventVisual(ev, members, categories, 8)
               return (
               // The whole row is tappable; its title is the real button (the location link can't nest in one).
-              <div key={ev.id} className={`schedule-item${hiddenClass(ev)}`} onClick={() => onTap(ev)}>
+              <div key={ev.id} className={`schedule-item${evClass(ev)}`} onClick={() => onTap(ev)}>
                 <div className="schedule-color-bar" style={{ background }} />
                 <div className="schedule-time" aria-hidden="true">{ev.allDay ? 'All day' : formatTime(ev.start, tz)}</div>
                 <div>
                   <button type="button" className="plain-btn schedule-title" aria-label={eventLabel(ev, tz, members, categories)}
-                    onClick={e => { e.stopPropagation(); onTap(ev) }}>{ev.hidden && <HiddenMark />}{emoji && <><CategoryMark mark={emoji} /> </>}{ev.title}{avatars.length > 0 && <span className="event-avatars schedule-avatars">{avatars.join(' ')}</span>}{!!ev.noteCount && <span className="schedule-notes" aria-hidden="true">💬 {ev.noteCount}</span>}</button>
+                    onClick={e => { e.stopPropagation(); onTap(ev) }}>{ev.hidden && <HiddenMark />}{ev.busy === false && <FreeMark />}{emoji && <><CategoryMark mark={emoji} /> </>}{ev.title}{avatars.length > 0 && <span className="event-avatars schedule-avatars">{avatars.join(' ')}</span>}{!!ev.noteCount && <span className="schedule-notes" aria-hidden="true">💬 {ev.noteCount}</span>}</button>
                   {leadOf(ev) && <div className="leave-by" aria-hidden="true">{leadText(ev, t => formatTime(t, tz))}</div>}
                   {ev.location && (() => {
                     const href = locationHref(ev.location)
@@ -984,6 +961,7 @@ function EventDetailSheet({ event, members, categories, calendars, canEdit, tz, 
           </div>
         )}
         {catLabel && <div style={{ color: 'var(--text-dim)', fontSize: '0.8125rem', fontWeight: 700 }}>{catLabel}</div>}
+        {event.busy === false && <div style={{ color: 'var(--text-dim)', fontSize: '0.8125rem', fontWeight: 700 }}>Free: doesn't block time</div>}
         {reminderLabel(event.reminders) && (
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', color: 'var(--text-dim)', fontSize: '0.8125rem', fontWeight: 700 }}>
             🔔 {reminderLabel(event.reminders)}{event.remindBeforeLeave && event.leaveAt ? ' leaving' : ''}{event.reminderSource === 'default' ? ' · default' : ''}
@@ -1233,6 +1211,7 @@ function EventEditSheet({ event, prefill, calendars, offerNewLocal, members, cat
     : 'keep'
   const [reminder, setReminder] = useState(initialReminder)
   const [travel, setTravel] = useState<{ minutes: number | null; remind: boolean }>({ minutes: base.travelMinutes ?? null, remind: !!base.remindBeforeLeave })
+  const [busy, setBusy] = useState(base.busy !== false)
 
   // All-day values are plain dates ('YYYY-MM-DD', end exclusive): read them as local days, never via
   // new Date('YYYY-MM-DD'), which is UTC midnight and shows the previous day west of UTC.
@@ -1289,6 +1268,8 @@ function EventEditSheet({ event, prefill, calendars, offerNewLocal, members, cat
     const travelMinutes = allDay ? null : travel.minutes
     if (travelMinutes !== (base.travelMinutes ?? null)) body.travelMinutes = travelMinutes
     if ((travelMinutes !== null && travel.remind) !== !!base.remindBeforeLeave) body.remindBeforeLeave = travelMinutes !== null && travel.remind
+    // Only when changed: an Outlook event shown as tentative or away stays that way after other edits.
+    if (busy !== (base.busy !== false)) body.busy = busy
     onSave(body, event?.id ?? null, categoryChanged && inSeries ? { categoryId, scope: categoryScope } : undefined)
   }
 
@@ -1361,6 +1342,13 @@ function EventEditSheet({ event, prefill, calendars, offerNewLocal, members, cat
           </select>
         </div>
       )}
+      <div className="field">
+        <label htmlFor="event-show-as">Show as</label>
+        <select id="event-show-as" value={busy ? 'busy' : 'free'} onChange={e => setBusy(e.target.value === 'busy')}>
+          <option value="busy">Busy</option>
+          <option value="free">Free (doesn't block time)</option>
+        </select>
+      </div>
       {!allDay && <TravelFields minutes={travel.minutes} remind={travel.remind} onChange={(minutes, remind) => setTravel({ minutes, remind })} />}
       <div className="field">
         <label>Repeat</label>

@@ -59,7 +59,7 @@ export async function verifyAccount(
   return { name: username, config: { serverUrl, username, password } };
 }
 
-function buildVevent(uid: string, ev: EventInput): string {
+export function buildVevent(uid: string, ev: EventInput): string {
   const dt = (v: string, allDay: boolean) =>
     allDay ? `;VALUE=DATE:${v.replace(/-/g, '')}` : `:${v.replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z')}`;
   const lines = [
@@ -72,6 +72,7 @@ function buildVevent(uid: string, ev: EventInput): string {
     `DTSTART${dt(ev.start, ev.allDay)}`,
     `DTEND${dt(ev.end, ev.allDay)}`,
     `SUMMARY:${escapeText(ev.title)}`,
+    `TRANSP:${ev.busy === false ? 'TRANSPARENT' : 'OPAQUE'}`,
   ];
   if (ev.location) lines.push(`LOCATION:${escapeText(ev.location)}`);
   if (ev.description) lines.push(`DESCRIPTION:${escapeText(ev.description)}`);
@@ -174,6 +175,7 @@ export const provider: Provider = {
         allDay: ev.allDay ?? base?.allDay ?? false,
         location: ev.location ?? base?.location,
         description: ev.description ?? base?.description,
+        busy: ev.busy ?? base?.busy,
       };
       const res = await c.updateCalendarObject({
         calendarObject: { url: href, data: buildVevent(uid, merged), etag: existing?.etag },

@@ -47,7 +47,7 @@ const InsightDaySchema = z
     points: z.number().int(),
     activityMinutes: z.number().int(),
     booksFinished: z.number().int(),
-    events: z.number().int().openapi({ description: "Timed events starting that day (household time): theirs and the family's untagged ones. All-day events don't count." }),
+    events: z.number().int().openapi({ description: "Timed events starting that day (household time): theirs and the family's untagged ones. All-day and free events don't count." }),
     lastEventEnd: z.string().nullable().openapi({ description: "HH:MM household time: the latest end of those events; '24:00' when one runs past midnight." }),
   })
   .openapi('InsightDay');
@@ -133,7 +133,7 @@ export async function insightDays(c: C, memberId: string, from: string, to: stri
   }
   // Timed events, by the household day they start on; all-day ones (birthdays, school holidays) aren't busy hours.
   for (const ev of await eventInstances(db, midnight(from, tz), midnight(addDays(to, 1), tz))) {
-    if (ev.allDay || (ev.memberIds.length && !ev.memberIds.includes(memberId))) continue;
+    if (ev.allDay || !ev.busy || (ev.memberIds.length && !ev.memberIds.includes(memberId))) continue; // free events aren't busy hours
     const day = days.get(todayInTz(tz, new Date(ev.start)));
     if (!day) continue;
     const end = new Date(ev.end);
@@ -237,7 +237,7 @@ export async function batteryFor(env: Env, memberId: string, tz: string, now = n
   }
   // Timed events like Insights counts them: theirs and the family's, by the day they start.
   for (const ev of await eventInstances(env.DB, midnight(from, tz), midnight(addDays(to, 1), tz))) {
-    if (ev.allDay || (ev.memberIds.length && !ev.memberIds.includes(memberId))) continue;
+    if (ev.allDay || !ev.busy || (ev.memberIds.length && !ev.memberIds.includes(memberId))) continue; // free events aren't busy hours
     const day = days.get(todayInTz(tz, new Date(ev.start)));
     if (!day) continue;
     const end = new Date(ev.end);

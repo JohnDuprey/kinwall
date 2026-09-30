@@ -416,12 +416,12 @@ function EventLine({ e, tz, byId, onTap, past }: { e: SnapshotEvent; tz: string;
   const when = e.allDay ? 'All day' : formatTime(e.start, tz)
   return (
     <li>
-      <button className={`snap-row board-event ${past ? 'past' : ''}`} onClick={() => onTap(e)}
-        aria-label={[`${when} ${e.title}`, who.map(m => m.name).join(' and '), past && 'finished'].filter(Boolean).join(', ')}>
+      <button className={`snap-row board-event ${past ? 'past' : ''}${e.busy === false ? ' ev-free-row' : ''}`} onClick={() => onTap(e)}
+        aria-label={[`${when} ${e.title}`, e.busy === false && 'free', who.map(m => m.name).join(' and '), past && 'finished'].filter(Boolean).join(', ')}>
         <span className="board-bar" style={{ background: bar }} aria-hidden="true" />
         <span className="snap-main" aria-hidden="true">
           <span className="board-when">{when}</span>
-          <span className="snap-title">{e.title}</span>
+          <span className="snap-title">{e.busy === false && <span className="ev-free-mark">Free ·</span>}{e.title}</span>
           {(leadOf(e) || e.location) && <span className="snap-meta">{[leadText(e, t => formatTime(t, tz)), e.location && `📍 ${e.location.split('\n')[0]}`].filter(Boolean).join(' · ')}</span>}
         </span>
         {who.length > 0 && <span className="board-avatars" aria-hidden="true">{who.map(m => <Avatar key={m.id} m={m} />)}</span>}

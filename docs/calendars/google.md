@@ -35,3 +35,7 @@ Reminders you set in Kinwall are written to the Google event as popup reminders.
 ## Tip: read-only without OAuth
 
 If you only need to *see* a Google calendar, use its **secret address in iCal format** as an [ICS feed](ics-feeds.md). No OAuth client is needed.
+
+## Free or busy
+
+An event's **Show as** in Google comes along: **Free** (`transparency: transparent`) shows as [free](../using/events.md#free-or-busy) in Kinwall, and **Busy** (or nothing set) as busy. Google marks new all-day events free on its own, so they come in free too. Changing **Show as** in Kinwall writes it back.

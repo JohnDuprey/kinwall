@@ -34,7 +34,7 @@ Everything is counted by the family's day, in the family's time zone ([Settings 
 * **Journal**: how many entries and their mood emoji. The words are never read.
 * **Chores** done and approved for them, and their points.
 * **Activity time** in [activities](activities.md), and **books finished** from [Trackers](trackers.md).
-* **Busy days**: timed events on their calendars and the family's shared ones, by the day they start. All-day events (birthdays, school holidays) don't count. The latest end time of the day's events marks a **late event** when it's after 8 PM.
+* **Busy days**: timed events on their calendars and the family's shared ones, by the day they start. All-day events (birthdays, school holidays) and events shown as [free](events.md#free-or-busy) don't count. The latest end time of the day's events marks a **late event** when it's after 8 PM.
 
 ## Summaries
 

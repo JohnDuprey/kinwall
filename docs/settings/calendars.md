@@ -31,6 +31,8 @@ Add buttons:
 
 After connecting an account, **Calendars for *account*** lists its calendars. Pick members, then **Add calendar** on each one you want.
 
+Synced calendars bring each event's free/busy ("Show as") along from Google, Outlook, CalDAV and ICS, and write it back where the calendar is writable. There's no per-calendar setting: mark single events free in their edit sheet. See [Free or busy](../using/events.md#free-or-busy).
+
 ## Calendar providers
 
 * **Public URL**: the base URL used for OAuth redirect URIs and the passkey domain, for example `https://cal.home.example`. The server warns about a bare IP address or plain `http` on a non-localhost host. If `PUBLIC_URL` is set in the environment, this shows "Set via PUBLIC_URL" and is locked.

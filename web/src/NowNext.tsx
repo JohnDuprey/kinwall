@@ -5,7 +5,7 @@ import type { EventInstance, Member, Settings } from './types.ts'
 import { formatTime } from './timeFormat.ts'
 import { announce } from './a11y.tsx'
 import { inTimeWindow } from './useTheme.ts'
-import { leadFor, leadIcon, leadOf } from './leadTime.ts'
+import { blocksTime, leadFor, leadIcon, leadOf } from './leadTime.ts'
 import { useApp } from './AppContext.tsx'
 import { api, MOCK } from './api.ts'
 import { leaveByActivity } from './liveActivity.ts'
@@ -33,7 +33,7 @@ export function durationLabel(ms: number): string {
   return r ? `${h} h ${r} min` : `${h} h`
 }
 
-const timed = (evs: EventInstance[]) => evs.filter(e => !e.allDay)
+const timed = (evs: EventInstance[]) => evs.filter(blocksTime)
 
 /** "Now: Soccer Practice · ends in 42 min" / "Next: Piano at 5:00 PM · in 1 h 10 min · leave by 4:40 PM".
  * `events` = today's timed + all-day instances; hidden when nothing is on or left today. */

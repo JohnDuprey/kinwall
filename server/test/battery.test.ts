@@ -234,6 +234,8 @@ async function busyTomorrow(s: S) {
   await add(family.id, 'Soccer practice', '2026-09-28T02:00:00.000Z', '2026-09-28T03:30:00.000Z'); // 7-8:30 PM on the 27th
   await add(leos.id, 'Leo only', '2026-09-27T17:00:00.000Z', '2026-09-27T18:00:00.000Z');
   await add(family.id, 'Fair', '2026-09-27', '2026-09-28', true); // all day: not a busy hour
+  // Shown as free (a delivery window): not a busy hour either.
+  assert.equal((await s.req('/api/events', 'POST', { calendarId: family.id, title: 'Delivery window', start: '2026-09-27T15:00:00.000Z', end: '2026-09-28T03:00:00.000Z', allDay: false, busy: false, reminders: [] })).status, 201);
   assert.equal((await s.req('/api/chores', 'POST', { title: 'Feed the cat', points: 5, memberId: s.maya.id, rrule: 'FREQ=DAILY' })).status, 201);
   assert.equal((await s.req('/api/chores', 'POST', { title: 'Walk the dog', points: 5, memberId: s.leo.id, rrule: 'FREQ=DAILY' })).status, 201);
   assert.equal((await s.req('/api/chores', 'POST', { title: 'Anyone: dishes', points: 5, rrule: 'FREQ=DAILY' })).status, 201);

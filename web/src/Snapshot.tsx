@@ -333,7 +333,7 @@ function EventRow({ e, tz, close }: { e: SnapshotEvent; tz: string; close: () =>
       <button className="snap-row" onClick={() => go(eventHash(e), close)}>
         <span className="snap-time">{e.allDay ? 'All day' : formatTime(e.start, tz)}</span>
         <span className="snap-main">
-          <span className="snap-title"><span className="snap-swatch" aria-hidden="true" style={{ background: e.color }} />{e.title}</span>
+          <span className="snap-title"><span className="snap-swatch" aria-hidden="true" style={{ background: e.color }} />{e.busy === false && <span className="ev-free-mark">Free ·</span>}{e.title}</span>
           {(leadOf(e) || e.location) && (
             <span className="snap-meta">{[leadText(e, t => formatTime(t, tz)), e.location && `📍 ${e.location.split('\n')[0]}`].filter(Boolean).join(' · ')}</span>
           )}

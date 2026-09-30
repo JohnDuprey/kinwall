@@ -827,3 +827,16 @@ test('mcp: booleans sent as text ("true"/"false") are accepted, and still advert
   assert.deepEqual(props.needsApproval.type, ['boolean', 'null'], JSON.stringify(props.needsApproval));
   assert.equal(props.approveTimedPlay.type, 'boolean');
 });
+
+test('mcp: create_event and update_event take busy (Show as free or busy)', async () => {
+  const env = makeEnv();
+  const { rest, mcp } = makeApp(env);
+  const cal = await (await rest('/api/calendars', { method: 'POST', body: JSON.stringify({ kind: 'local', name: 'Fam' }) })).json() as any;
+  const made = await (await mcp('tools/call', { name: 'create_event', arguments: { calendarId: cal.id, title: 'Delivery window', start: '2030-01-01T13:00:00Z', end: '2030-01-02T01:00:00Z', busy: false } })).json() as any;
+  assert.equal(made.result.isError, undefined, JSON.stringify(made));
+  assert.equal(made.result.structuredContent.event.busy, false);
+  const upd = await (await mcp('tools/call', { name: 'update_event', arguments: { id: made.result.structuredContent.event.id, busy: true } })).json() as any;
+  assert.equal(upd.result.structuredContent.event.busy, true);
+  const plain = await (await mcp('tools/call', { name: 'create_event', arguments: { calendarId: cal.id, title: 'Soccer', start: '2030-01-01T15:00:00Z', end: '2030-01-01T16:00:00Z' } })).json() as any;
+  assert.equal(plain.result.structuredContent.event.busy, true, 'busy by default');
+});

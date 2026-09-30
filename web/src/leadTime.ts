@@ -5,6 +5,10 @@ import type { EventInstance } from './types.ts'
 
 export type Lead = { at: string; prep: boolean }
 
+/** Timed and shown as busy: what Now / Next, transition warnings and leave-by count. A free event
+ * (a delivery window) is on the calendar but never "now", and nobody has to leave for it. */
+export const blocksTime = (e: Pick<EventInstance, 'allDay' | 'busy'>) => !e.allDay && e.busy !== false
+
 /** A meal's prep time first (meals have no travel time), else the leave-by time; null for neither. */
 export function leadOf(e: Pick<EventInstance, 'leaveAt'> & { prepAt?: string | null }): Lead | null {
   return e.prepAt ? { at: e.prepAt, prep: true } : e.leaveAt ? { at: e.leaveAt, prep: false } : null

@@ -104,3 +104,35 @@ test('export and import keep an event synced, so the next sync updates it instea
   assert.equal((await b.json('/api/import', 'POST', file)).status, 200);
   assert.deepEqual((await b.sync({ source: 'ha:hellofresh', events: [delivery] }, ADMIN, a.cal)).body, { created: 0, updated: 0, deleted: 0 });
 });
+
+test('free/busy: events are busy unless told otherwise; REST create, update and the sync take busy', async () => {
+  const { env, json, cal, events, sync } = await setup();
+  // A row written before migration 0073 (no busy column value) reads as busy.
+  await env.DB.prepare("INSERT INTO events (id, calendar_id, title, start, end, all_day, member_ids, updated_at) VALUES ('old', ?, 'Old', '2026-10-01T10:00:00.000Z', '2026-10-01T11:00:00.000Z', 0, '[]', '')").bind(cal).run();
+  const made = await json('/api/events', 'POST', { calendarId: cal, title: 'Soccer', start: '2026-10-02T10:00:00Z', end: '2026-10-02T11:00:00Z', allDay: false, travelMinutes: 15 });
+  assert.equal(made.body.busy, true);
+  assert.ok(made.body.leaveAt, 'busy: has a leave-by');
+  const free = await json(`/api/events/${made.body.id}`, 'PATCH', { busy: false });
+  assert.equal(free.status, 200);
+  assert.equal(free.body.busy, false);
+  assert.equal(free.body.leaveAt, null, 'a free event never asks anyone to leave');
+  assert.equal(free.body.travelMinutes, 15, 'travel time is kept');
+  const window = await json('/api/events', 'POST', { calendarId: cal, title: 'Window', start: '2026-10-03T10:00:00Z', end: '2026-10-03T20:00:00Z', allDay: false, busy: false });
+  assert.equal(window.body.busy, false);
+
+  await sync({ source: 'ha:hellofresh', events: [{ ...delivery, busy: false }, deadline] });
+  const byTitle = async () => new Map((await events()).map((e) => [e.title, e.busy]));
+  let list = await byTitle();
+  assert.deepEqual([list.get('Old'), list.get('Soccer'), list.get('Window'), list.get('HelloFresh delivery'), list.get('Pick HelloFresh meals')], [true, false, false, false, true]);
+  // Same payload: nothing changes. Dropping busy makes it busy again (the sync is the whole truth).
+  assert.deepEqual((await sync({ source: 'ha:hellofresh', events: [{ ...delivery, busy: false }, deadline] })).body, { created: 0, updated: 0, deleted: 0 });
+  assert.deepEqual((await sync({ source: 'ha:hellofresh', events: [delivery, deadline] })).body, { created: 0, updated: 1, deleted: 0 });
+  list = await byTitle();
+  assert.equal(list.get('HelloFresh delivery'), true);
+
+  // Export and import keep it.
+  await sync({ source: 'ha:hellofresh', events: [{ ...delivery, busy: false }] });
+  const exported = (await json('/api/export')).body;
+  assert.equal(exported.events.find((e: any) => e.title === 'HelloFresh delivery').busy, false);
+  assert.equal(exported.events.find((e: any) => e.title === 'Old').busy, true);
+});

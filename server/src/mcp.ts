@@ -489,6 +489,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         reminders: jsonList(z.array(z.number().int().min(0)).nullable()).optional().describe('Reminder minutes before start, e.g. [30] or [10, 1440]. [] = no reminders, null = default. Written to Google/Outlook for synced events.'),
         travelMinutes: z.number().int().min(0).max(600).nullable().optional().describe('Travel time in minutes: the event gets a leave-by time (start minus this). Kinwall-only, never sent to Google/Outlook. null clears it.'),
         remindBeforeLeave: z.boolean().optional().describe('When true (and travelMinutes is set), reminders count back from the leave-by time instead of the start.'),
+        busy: z.boolean().optional().describe("Show as: true = busy (default), false = free, e.g. a delivery window. A free event isn't shown as Now/Next and gets no leave-by or transition warnings. Written to Google/Outlook/CalDAV for synced events."),
       },
     },
     async ({ members, ...input }) => {
@@ -523,6 +524,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         reminders: jsonList(z.array(z.number().int().min(0)).nullable()).optional().describe('Reminder minutes before start, e.g. [30] or [10, 1440]. [] = no reminders, null = default. Written to Google/Outlook for synced events.'),
         travelMinutes: z.number().int().min(0).max(600).nullable().optional().describe('Travel time in minutes: the event gets a leave-by time (start minus this). Kinwall-only, never sent to Google/Outlook. null clears it.'),
         remindBeforeLeave: z.boolean().optional().describe('When true (and travelMinutes is set), reminders count back from the leave-by time instead of the start.'),
+        busy: z.boolean().optional().describe("Show as: true = busy (default), false = free, e.g. a delivery window. A free event isn't shown as Now/Next and gets no leave-by or transition warnings. Written to Google/Outlook/CalDAV for synced events."),
         scope: z
           .enum(['occurrence', 'series'])
           .optional()

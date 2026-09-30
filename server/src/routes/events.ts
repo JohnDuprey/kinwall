@@ -38,6 +38,7 @@ type EventRow = {
   reminders: string | null;
   travel_minutes: number | null;
   remind_before_leave: number;
+  busy: number; // 1 busy (default), 0 free - migration 0073
 };
 
 type CalendarRow = {
@@ -417,8 +418,10 @@ function instanceFrom(
     reminders: reminders && reminders.length > 0 ? reminders : null,
     reminderSource: reminders && reminders.length > 0 ? reminderSource : null,
     travelMinutes: row.travel_minutes,
-    leaveAt: row.travel_minutes != null && !row.all_day ? new Date(Date.parse(start) - row.travel_minutes * 60000).toISOString() : null,
+    // A free event never asks anyone to leave: no leave-by (its travel time is kept for when it's busy again).
+    leaveAt: row.travel_minutes != null && !row.all_day && row.busy !== 0 ? new Date(Date.parse(start) - row.travel_minutes * 60000).toISOString() : null,
     remindBeforeLeave: !!row.remind_before_leave,
+    busy: row.busy !== 0,
   };
 }
 
@@ -660,6 +663,7 @@ export async function createEvent(c: Ctx, body: z.infer<typeof EventInputSchema>
   let location = body.location ?? null;
   let description = body.description ?? null;
   let seriesId: string | null = null;
+  let busy = body.busy ?? true;
 
   if (cal.kind !== 'local') {
     const provider = getProvider(cal.kind as 'ics' | 'google' | 'microsoft' | 'caldav');
@@ -674,6 +678,7 @@ export async function createEvent(c: Ctx, body: z.infer<typeof EventInputSchema>
         location: location ?? undefined,
         description: description ?? undefined,
         ...(body.reminders !== undefined ? { reminders: body.reminders } : {}),
+        ...(body.busy !== undefined ? { busy: body.busy } : {}),
       });
       externalId = created.externalId;
       title = created.title;
@@ -682,6 +687,7 @@ export async function createEvent(c: Ctx, body: z.infer<typeof EventInputSchema>
       location = created.location ?? null;
       description = created.description ?? null;
       seriesId = created.seriesId ?? null;
+      if (created.busy !== undefined) busy = created.busy;
     } catch (err) {
       return { error: errorMessage(err, 'provider write failed'), status: 502 };
     }
@@ -708,14 +714,15 @@ export async function createEvent(c: Ctx, body: z.infer<typeof EventInputSchema>
     reminders: Array.isArray(body.reminders) ? JSON.stringify(body.reminders) : null,
     travel_minutes: body.travelMinutes ?? null,
     remind_before_leave: body.remindBeforeLeave ? 1 : 0,
+    busy: busy ? 1 : 0,
   };
   // Synced rows are wiped on resync, so their travel time goes to the override table (the row's
   // own columns stay empty, like sync writes them).
   const local = cal.kind === 'local';
   await c.env.DB.prepare(
-    'INSERT INTO events (id, calendar_id, external_id, title, start, end, all_day, location, description, rrule, member_ids, updated_at, series_id, category_id, reminders, travel_minutes, remind_before_leave) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    'INSERT INTO events (id, calendar_id, external_id, title, start, end, all_day, location, description, rrule, member_ids, updated_at, series_id, category_id, reminders, travel_minutes, remind_before_leave, busy) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
   )
-    .bind(row.id, row.calendar_id, row.external_id, row.title, row.start, row.end, row.all_day, row.location, row.description, row.rrule, row.member_ids, row.updated_at, row.series_id, row.category_id, row.reminders, local ? row.travel_minutes : null, local ? row.remind_before_leave : 0)
+    .bind(row.id, row.calendar_id, row.external_id, row.title, row.start, row.end, row.all_day, row.location, row.description, row.rrule, row.member_ids, row.updated_at, row.series_id, row.category_id, row.reminders, local ? row.travel_minutes : null, local ? row.remind_before_leave : 0, row.busy)
     .run();
   if (!local && externalId && (row.travel_minutes !== null || row.remind_before_leave)) await setTravelOverride(c.env.DB, cal.id, externalId, row.travel_minutes, !!row.remind_before_leave);
   // Like travel time, people on a synced event live in the override table - a full sync rewrites the row.
@@ -842,8 +849,9 @@ export async function updateEvent(c: Ctx, id: string, body: z.infer<typeof Event
     body.location !== undefined ||
     body.description !== undefined ||
     body.rrule !== undefined ||
-    // Reminders live on the provider's event, so on Google/Outlook changing them is a real write.
-    body.reminders !== undefined;
+    // Reminders and free/busy live on the provider's event, so on a synced calendar changing them is a real write.
+    body.reminders !== undefined ||
+    body.busy !== undefined;
   // Member assignment and category assignment on a remote-kind event are local-only annotations
   // (event-member-overrides / event-category-overrides, keyed by external_id - the row is rewritten
   // from the provider on sync). A memberIds/categoryId-only patch never touches the provider, so it
@@ -861,6 +869,7 @@ export async function updateEvent(c: Ctx, id: string, body: z.infer<typeof Event
   let description = body.description !== undefined ? body.description : row.description;
 
   let remoteReminders: string | null | undefined;
+  let busy = body.busy !== undefined ? (body.busy ? 1 : 0) : row.busy;
   if (cal.kind !== 'local' && otherFieldsPresent) {
     const provider = getProvider(cal.kind as 'ics' | 'google' | 'microsoft' | 'caldav');
     if (!provider.updateEvent || !row.external_id) return { error: `${cal.kind} calendars are read-only`, status: 400 };
@@ -875,7 +884,9 @@ export async function updateEvent(c: Ctx, id: string, body: z.infer<typeof Event
         location: location ?? undefined,
         description: description ?? undefined,
         ...(body.reminders !== undefined ? { reminders: body.reminders } : {}),
+        ...(body.busy !== undefined ? { busy: body.busy } : {}),
       });
+      if (updated.busy !== undefined && body.busy !== undefined) busy = updated.busy ? 1 : 0;
       if (body.reminders !== undefined) remoteReminders = Array.isArray(updated.reminders) ? JSON.stringify(updated.reminders) : null;
       title = updated.title;
       start = updated.start;
@@ -936,6 +947,7 @@ export async function updateEvent(c: Ctx, id: string, body: z.infer<typeof Event
     member_ids: cal.kind === 'local' && body.memberIds !== undefined ? JSON.stringify(body.memberIds) : row.member_ids,
     category_id: cal.kind === 'local' && body.categoryId !== undefined ? body.categoryId : row.category_id,
     reminders: remoteReminders !== undefined ? remoteReminders : cal.kind === 'local' && body.reminders !== undefined ? (Array.isArray(body.reminders) ? JSON.stringify(body.reminders) : null) : row.reminders,
+    busy,
     updated_at: new Date().toISOString(),
   };
   let lookups: Awaited<ReturnType<typeof colorsAndCategories>> | undefined;
@@ -943,7 +955,7 @@ export async function updateEvent(c: Ctx, id: string, body: z.infer<typeof Event
     // The response's member-colors/categories lookups ride along in the same batch - one round trip.
     const updateStmt = c.env.DB
       .prepare(
-        'UPDATE events SET title = ?, start = ?, end = ?, all_day = ?, location = ?, description = ?, rrule = ?, member_ids = ?, category_id = ?, reminders = ?, travel_minutes = ?, remind_before_leave = ?, updated_at = ? WHERE id = ?',
+        'UPDATE events SET title = ?, start = ?, end = ?, all_day = ?, location = ?, description = ?, rrule = ?, member_ids = ?, category_id = ?, reminders = ?, travel_minutes = ?, remind_before_leave = ?, busy = ?, updated_at = ? WHERE id = ?',
       )
       .bind(
         updatedRow.title,
@@ -958,6 +970,7 @@ export async function updateEvent(c: Ctx, id: string, body: z.infer<typeof Event
         updatedRow.reminders,
         updatedRow.travel_minutes,
         updatedRow.remind_before_leave,
+        updatedRow.busy,
         updatedRow.updated_at,
         id,
       );
@@ -1181,6 +1194,7 @@ const EventSyncInputSchema = z
           allDay: z.boolean(),
           notes: z.string().nullable().optional(),
           location: z.string().nullable().optional(),
+          busy: z.boolean().optional().openapi({ description: "Show as: false = free (a delivery window, a reminder that doesn't block time). Default true" }),
         }),
       )
       .max(500),
@@ -1210,9 +1224,9 @@ eventsRoutes.openapi(
     if (cal.kind !== 'local') return c.json({ error: 'only local calendars take synced events' }, 400);
 
     const { results: existing } = await db
-      .prepare('SELECT id, external_id, title, start, end, all_day, location, description FROM events WHERE calendar_id = ? AND sync_source = ?')
+      .prepare('SELECT id, external_id, title, start, end, all_day, location, description, busy FROM events WHERE calendar_id = ? AND sync_source = ?')
       .bind(calId, source)
-      .all<Pick<EventRow, 'id' | 'external_id' | 'title' | 'start' | 'end' | 'all_day' | 'location' | 'description'>>();
+      .all<Pick<EventRow, 'id' | 'external_id' | 'title' | 'start' | 'end' | 'all_day' | 'location' | 'description' | 'busy'>>();
     const byExternalId = new Map(existing.map((r) => [r.external_id, r]));
     const now = new Date().toISOString();
     const writes: ReturnType<KinwallDb['prepare']>[] = [];
@@ -1223,21 +1237,21 @@ eventsRoutes.openapi(
       seen.add(e.externalId);
       // Stored like every other event: timed in UTC ISO, all-day as YYYY-MM-DD (exclusive end).
       const norm = (s: string) => (e.allDay ? s.slice(0, 10) : new Date(s).toISOString());
-      const next = { title: e.title, start: norm(e.start), end: norm(e.end), all_day: e.allDay ? 1 : 0, location: e.location ?? null, description: e.notes ?? null };
+      const next = { title: e.title, start: norm(e.start), end: norm(e.end), all_day: e.allDay ? 1 : 0, location: e.location ?? null, description: e.notes ?? null, busy: e.busy === false ? 0 : 1 };
       const old = byExternalId.get(e.externalId);
       if (!old) {
         created++;
         writes.push(
           db
-            .prepare('INSERT INTO events (id, calendar_id, external_id, sync_source, title, start, end, all_day, location, description, member_ids, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)')
-            .bind(crypto.randomUUID(), calId, e.externalId, source, next.title, next.start, next.end, next.all_day, next.location, next.description, '[]', now),
+            .prepare('INSERT INTO events (id, calendar_id, external_id, sync_source, title, start, end, all_day, location, description, busy, member_ids, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)')
+            .bind(crypto.randomUUID(), calId, e.externalId, source, next.title, next.start, next.end, next.all_day, next.location, next.description, next.busy, '[]', now),
         );
       } else if ((Object.keys(next) as (keyof typeof next)[]).some((k) => old[k] !== next[k])) {
         updated++;
         writes.push(
           db
-            .prepare('UPDATE events SET title = ?, start = ?, end = ?, all_day = ?, location = ?, description = ?, updated_at = ? WHERE id = ?')
-            .bind(next.title, next.start, next.end, next.all_day, next.location, next.description, now, old.id),
+            .prepare('UPDATE events SET title = ?, start = ?, end = ?, all_day = ?, location = ?, description = ?, busy = ?, updated_at = ? WHERE id = ?')
+            .bind(next.title, next.start, next.end, next.all_day, next.location, next.description, next.busy, now, old.id),
         );
       }
     }

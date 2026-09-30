@@ -130,4 +130,4 @@ test('a notification tick reads the events once, near now', async () => {
   assert.ok(n.rows < 40, `read ${n.rows} event rows`);
 });
 
-const GOLDEN = '6579:2cf3aad6da1e81d8'; // captured from the whole-table read
+const GOLDEN = '6579:85b60bbcba6a7a42'; // captured from the whole-table read (re-captured when instances gained busy, same rows otherwise)

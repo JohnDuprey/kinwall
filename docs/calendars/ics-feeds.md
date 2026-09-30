@@ -12,6 +12,7 @@ Any `https://` (or `webcal://`) iCalendar URL can be subscribed to **read-only**
 * The feed URL is treated as a secret. It's encrypted at rest and never returned by the API. It *is* included in your own [export](../your-data/export-import.md), so an import reconnects the feed.
 * If the feed hasn't changed since the last sync, Kinwall recognizes it by fingerprint and skips it, which keeps CPU use low.
 * Reminders (VALARMs) in the feed are used as the event's reminders.
+* An event with `TRANSP:TRANSPARENT` shows as [free](../using/events.md#free-or-busy); without `TRANSP`, it's busy.
 * Redirects are followed, but each hop is checked again. Private and LAN addresses are refused unless you set `ALLOW_PRIVATE_FEED_URLS=1`. See [Private / LAN feeds](private-feeds.md).
 
 On the Cloudflare free tier, a very large feed can exceed the 10 ms CPU limit. See [Cloudflare specifics](../self-hosting/cloudflare.md).

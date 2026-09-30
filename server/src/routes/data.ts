@@ -90,6 +90,7 @@ const ExportSchema = z
         reminders: z.array(z.number()).nullable(),
         travelMinutes: z.number().nullable().default(null), // older exports predate travel time
         remindBeforeLeave: z.boolean().default(false),
+        busy: z.boolean().default(true),
         // Pushed by an automation (PUT /api/calendars/{id}/events/sync); older exports have neither.
         syncSource: z.string().nullable().default(null),
         externalId: z.string().nullable().default(null),
@@ -174,7 +175,7 @@ type CalendarRow = { id: string; kind: z.infer<typeof CalendarSchema>['kind']; r
 type EventRow = {
   id: string; calendar_id: string; title: string; start: string; end: string; all_day: number; location: string | null;
   description: string | null; rrule: string | null; member_ids: string; category_id: string | null; reminders: string | null;
-  travel_minutes: number | null; remind_before_leave: number; sync_source: string | null; external_id: string | null;
+  travel_minutes: number | null; remind_before_leave: number; sync_source: string | null; external_id: string | null; busy: number;
 };
 type CompletionRow = { id: string; chore_id: string; date: string; member_id: string | null; completed_at: string; points_awarded: number | null; status: 'approved' | 'pending' };
 type ContactCategoryRow = { id: string; name: string; color: string | null; sort: number; created_at: string; updated_at: string };
@@ -209,7 +210,7 @@ dataRoutes.openapi(
       db.prepare('SELECT id, kind, name, organization, title, given_name, family_name, nickname, relationship, favorite, emergency, phones, emails, addresses, websites, dates, notes, category_ids, tags, member_ids, service_hours, service_area, always_open, wall_visible, emergency_visible, phone_visible_on_wall, address_visible_on_wall, visibility, selected_member_ids, source_metadata, private_fields, created_at, updated_at FROM contacts ORDER BY name COLLATE NOCASE, id'),
       db.prepare('SELECT id, kind, remote_id, name, color, member_ids, category_id, enabled, display_edit, filter, config FROM calendars ORDER BY name'),
       db.prepare(
-        `SELECT e.id, e.calendar_id, e.title, e.start, e.end, e.all_day, e.location, e.description, e.rrule, e.member_ids, e.category_id, e.reminders, e.travel_minutes, e.remind_before_leave, e.sync_source, e.external_id
+        `SELECT e.id, e.calendar_id, e.title, e.start, e.end, e.all_day, e.location, e.description, e.rrule, e.member_ids, e.category_id, e.reminders, e.travel_minutes, e.remind_before_leave, e.sync_source, e.external_id, e.busy
          FROM events e JOIN calendars c ON c.id = e.calendar_id WHERE c.kind = 'local' ORDER BY e.start`,
       ),
       db.prepare('SELECT calendar_id, external_id, member_ids FROM event_member_overrides ORDER BY calendar_id, external_id'),
@@ -290,6 +291,7 @@ dataRoutes.openapi(
           reminders: parseReminders(r.reminders),
           travelMinutes: r.travel_minutes,
           remindBeforeLeave: !!r.remind_before_leave,
+          busy: r.busy !== 0,
           syncSource: r.sync_source,
           externalId: r.external_id,
         })),
@@ -706,6 +708,7 @@ dataRoutes.openapi(
           reminders: e.reminders ? JSON.stringify(e.reminders) : null,
           travel_minutes: e.travelMinutes,
           remind_before_leave: e.remindBeforeLeave ? 1 : 0,
+          busy: e.busy ? 1 : 0,
           sync_source: e.syncSource,
           external_id: e.syncSource ? e.externalId : null,
           updated_at: new Date(now).toISOString(),

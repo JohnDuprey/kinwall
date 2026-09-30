@@ -1,7 +1,7 @@
 // What the iPhone app shows in its Live Activities (kinwall-mobile: Lock Screen and Dynamic
 // Island), built here from what the page already has and sent with tellAppActivity (native.ts).
 // Pure, so web/test/liveActivity.test.ts covers them. The app draws them; the text is decided here.
-import { leadOf } from './leadTime.ts'
+import { blocksTime, leadOf } from './leadTime.ts'
 import { mealName, pickNudge, rememberNudge, type Nudge, type NudgeSeen } from './nudges.ts'
 import { ANY_STORE, anyStoreView, tripView } from './trip.ts'
 import { warningTimes, type TransitionReminders } from './transitions.ts'
@@ -71,7 +71,7 @@ export function leaveByActivity(events: EventInstance[], me: { id: string; name:
   const mine = (ids: string[]) => ids.length === 0 || ids.includes(me.id)
   const due = events.flatMap(e => {
     const lead = leadOf(e)
-    if (e.allDay || !lead || (!lead.prep && !cfg!.leaveBy)) return []
+    if (!blocksTime(e) || !lead || (!lead.prep && !cfg!.leaveBy)) return []
     if (!(lead.prep && e.cookId ? e.cookId === me.id : mine(e.memberIds))) return []
     const at = Date.parse(lead.at), end = Math.max(Date.parse(e.start), at + GRACE_MIN * MIN)
     return now >= at - first * MIN && now < end ? [{ e, lead, at, end }] : []

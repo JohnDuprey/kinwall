@@ -44,7 +44,7 @@ Other feelings don't change it. The start never goes under 0% or over 100%.
 | A Temp check goal for the day | −5 |
 | Adjusted for how they've felt lately (see below) | up to ±25 |
 
-All-day events (birthdays, school holidays) don't count, and chores only count while **Chores & points** is on.
+All-day events (birthdays, school holidays) and [free](events.md#free-or-busy) ones (a delivery window) don't count, and chores only count while **Chores & points** is on.
 
 Which chore points count:
 
