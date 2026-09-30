@@ -15,6 +15,7 @@ Tap an event to open its sheet. It shows:
 * **Description**, always shown as plain text.
 * **Tasks**: list items linked to this event. See [Linked tasks](#linked-tasks).
 * **Notes**: the family's notes on this event. See [Notes](#notes).
+* **Hide…**, on parents' devices: hide this event, every one in its series, or every event like it, from the whole family. See [Hiding events](calendar.md#hiding-events). A hidden event (with the calendar's **Show hidden** eye on) says "Hidden" with **Show again** instead.
 * **Edit** and **Delete**, only on writable calendars this device may change (see [Who can change events](#who-can-change-events)). Delete asks for **Confirm delete**. An event from Google or Outlook is deleted there too.
 
 ## Creating and editing
@@ -107,6 +108,6 @@ Anyone can leave a note on an event: "Bring shin guards", "I can drive", a link 
 
 | Stays in Kinwall | Goes to the provider (writable calendars) |
 |---|---|
-| Members, category, travel time / leave-by, linked tasks, notes | Title, time, all-day, location, description, recurrence, reminders (Google/Outlook) |
+| Members, category, travel time / leave-by, hidden, linked tasks, notes | Title, time, all-day, location, description, recurrence, reminders (Google/Outlook) |
 
 When an event is read-only, the sheet says: "Only the family members and travel time are saved in Kinwall — the event itself comes from *calendar name*". For how that's decided, see [Writable vs read-only](../calendars/writable-vs-read-only.md).

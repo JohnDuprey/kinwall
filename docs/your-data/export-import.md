@@ -16,7 +16,7 @@
 | Rewards (archived ones too), every reward request with its status and note, and each person's goal | |
 | Lists, items, group order, remembered store/category/aisle per item, stores' aisle orders | Push subscriptions |
 | Local calendars **with their events** (reminders, travel time) | Synced events themselves (they're fetched again) |
-| Every calendar's name, color, members, default category and filter | Per-device appearance (it lives in each browser) |
+| Every calendar's name, color, members, default category, filter and hidden events | Per-device appearance (it lives in each browser) |
 | Per-event member, category and travel-time tags on synced events, and series-wide member and category tags on synced recurring events | |
 | Notes threads on local events and list items | Notes on synced events |
 | [Trackers](../using/trackers.md): books, memories and health visits. Health is encrypted on the server but **in plain form in this file** (it's your backup), so keep the file private | Photos (download them separately from Photos) |

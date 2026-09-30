@@ -6,14 +6,14 @@ import { useApp } from './AppContext.tsx'
 import { api, ApiError } from './api.ts'
 import Sheet from './Sheet.tsx'
 import PickField, { PickSwatch } from './PickField.tsx'
-import { ChevronRight } from './icons.tsx'
+import { ChevronRight, EyeIcon } from './icons.tsx'
 import { formatTime } from './timeFormat.ts'
 import { FILTER_PRESETS, NO_FILTER, filterActive, parseKeywordList, previewFilter, type CalendarFilter } from './calendarFilter.ts'
-import type { CalendarEntry, EventInstance } from './types.ts'
+import type { CalendarEntry, EventInstance, HiddenEvent } from './types.ts'
 
 const PREVIEW_ROWS = 40
 
-function eventWhen(ev: EventInstance, tz: string): string {
+function eventWhen(ev: Pick<EventInstance, 'start' | 'allDay'>, tz: string): string {
   return ev.allDay ? format(new Date(`${ev.start.slice(0, 10)}T00:00:00`), 'EEE, MMM d') : `${format(new Date(ev.start), 'EEE, MMM d')} · ${formatTime(ev.start, tz)}`
 }
 
@@ -117,5 +117,32 @@ function PreviewList({ title, events, tz, hidden }: { title: string; events: Eve
       </ul>}
       {events.length > rows.length && <button type="button" className="sheet-link" onClick={() => setAll(true)}><span>Show all {events.length}</span><ChevronRight /></button>}
     </div>
+  )
+}
+
+/** Settings → Calendars → a calendar → Hidden events: what's been hidden one by one, to show again. */
+export function HiddenEventsSheet({ calendar, hidden, onClose, onChanged }: { calendar: CalendarEntry; hidden: HiddenEvent[]; onClose: () => void; onChanged: (hidden: HiddenEvent[]) => void }) {
+  const { settings, toast, reloadCore } = useApp()
+  const tz = settings.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone
+  const show = async (h: HiddenEvent) => {
+    try {
+      await api.showHiddenEvent(calendar.id, h.id)
+      onChanged(hidden.filter(x => x.id !== h.id))
+      reloadCore()
+      toast(`Showing again: ${h.title}`)
+    } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not show the event', true) }
+  }
+  return (
+    <Sheet title={`Hidden: ${calendar.name}`} onClose={onClose} actions={<button className="btn btn-primary btn-block" onClick={onClose}>Done</button>}>
+      <p className="settings-row-sub" style={{ margin: '0 0 12px' }}>Events a parent hid from the family. Events the filter leaves out aren't listed here: change the filter to bring those back.</p>
+      {hidden.length === 0 ? <p className="settings-row-sub">Nothing hidden. To hide an event, open it on the calendar and tap Hide.</p> : <div className="hidden-list">
+        {hidden.map(h => (
+          <div key={h.id} className="hidden-row">
+            <span>{h.title}<small>{h.scope === 'series' ? `Every one in the series, from ${eventWhen(h, tz)}` : eventWhen(h, tz)}</small></span>
+            <button type="button" className="btn btn-secondary" onClick={() => show(h)} aria-label={`Show ${h.title} again`}><EyeIcon width={18} height={18} />Show again</button>
+          </div>
+        ))}
+      </div>}
+    </Sheet>
   )
 }

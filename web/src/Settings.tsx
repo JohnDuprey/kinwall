@@ -2,7 +2,7 @@ import { createContext, Fragment, useContext, useEffect, useId, useRef, useState
 import { AppContext, useApp } from './AppContext.tsx'
 import { DOCS_URL } from './Help.tsx'
 import { api, ApiError, clearKey, MOCK, PUSH_SUB_ID_KEY } from './api.ts'
-import type { Account, ApiKey, CalendarEntry, Category, ColorScheme, CustomColors, Density, DeviceDensity, Features, GeocodeResult, GooglePhotos, HostEvent, Me, Member, Passkey, Providers, PushSubscription, RemoteCalendar, Settings, TempCheckSettings, TextScale, ThemeMode, TimeFormat, Typeface, Webhook } from './types.ts'
+import type { Account, ApiKey, CalendarEntry, Category, HiddenEvent, ColorScheme, CustomColors, Density, DeviceDensity, Features, GeocodeResult, GooglePhotos, HostEvent, Me, Member, Passkey, Providers, PushSubscription, RemoteCalendar, Settings, TempCheckSettings, TextScale, ThemeMode, TimeFormat, Typeface, Webhook } from './types.ts'
 import { ProviderForm, PublicUrlRow } from './ProviderConfig.tsx'
 import { CATEGORY_EMOJI, CATEGORY_PRESETS, MEMBER_EMOJI, MEMBER_PALETTE, nextPaletteColor, REMINDER_OPTIONS } from './types.ts'
 import Sheet from './Sheet.tsx'
@@ -12,7 +12,7 @@ import { tidbitSummary } from './tidbits.ts'
 import { appearanceChips, featuresSummary, nightSummary, timeCuesSummary, transitionRemindersSummary, type Chip } from './settingsSummary.ts'
 import { MAX_WARNING_TIMES, REPEAT_EVERY, REPEAT_WITHIN, warningTimes, type TransitionReminders, type WarningRepeat } from './transitions.ts'
 import { MemberPicker } from './MemberPicker.tsx'
-import CalendarFilterSheet from './CalendarFilterSheet.tsx'
+import CalendarFilterSheet, { HiddenEventsSheet } from './CalendarFilterSheet.tsx'
 import { filterSummary } from './calendarFilter.ts'
 import TimezoneField from './TimezoneField.tsx'
 import { AnyEmojiField } from './AnyEmojiField.tsx'
@@ -2059,6 +2059,9 @@ function EditCalendarSheet({ calendar, onClose, onSaved, onSync, onRemove, toast
   const [displayEdit, setDisplayEdit] = useState(calendar.displayEdit !== false)
   const [filter, setFilter] = useState(calendar.filter)
   const [filterOpen, setFilterOpen] = useState(false)
+  const [hidden, setHidden] = useState<HiddenEvent[] | null>(null)
+  const [hiddenOpen, setHiddenOpen] = useState(false)
+  useEffect(() => { api.getHiddenEvents(calendar.id).then(setHidden).catch(() => setHidden([])) }, [calendar.id])
 
   const save = async () => {
     if (!name.trim()) return
@@ -2094,6 +2097,14 @@ function EditCalendarSheet({ calendar, onClose, onSaved, onSync, onRemove, toast
         </button>
       </div>
       {filterOpen && <CalendarFilterSheet calendar={{ ...calendar, filter }} onClose={() => setFilterOpen(false)} onSaved={f => { setFilter(f); setFilterOpen(false) }} />}
+      <div className="field">
+        <label htmlFor="calendar-hidden">Hidden events</label>
+        <button id="calendar-hidden" type="button" className="sheet-link" aria-haspopup="dialog" onClick={() => setHiddenOpen(true)}
+          aria-label={`Hidden events: ${hidden === null ? 'loading' : hidden.length || 'none'}`}>
+          <span>{hidden === null ? '…' : hidden.length ? `${hidden.length} hidden` : 'None'}<small>Hidden one by one, to show again</small></span><ChevronRight />
+        </button>
+      </div>
+      {hiddenOpen && hidden && <HiddenEventsSheet calendar={calendar} hidden={hidden} onChanged={setHidden} onClose={() => setHiddenOpen(false)} />}
       <div className="toggle-row">
         <label id="calendar-enabled-label">Enabled</label>
         <button className={`switch ${enabled ? 'on' : ''}`} role="switch" aria-checked={enabled} aria-labelledby="calendar-enabled-label" onClick={() => setEnabled(v => !v)}><span className="knob" /></button>

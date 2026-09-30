@@ -10,7 +10,7 @@ import type { Contact, ContactCategory, ContactInput, ImportPreviewEntry } from 
 import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginCatalogEntry,
   StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota, GooglePhotos, Reward, Redemption, MemberStats, StatsPeriod,
   Account, ApiKey, AppNotification, Appearance, CalendarEntry, Category, Chore, ChoreDay, PendingApproval, EventInstance, LeaderboardEntry, LeaderboardPeriod, List,
-  GeocodeResult, HostEvent, ImportResult, ListDetail, ListGroup, ListItem, ListItemInput, ListItemPatch, Member, Me, Note, NoteTarget, Passkey, TrackerEntry, TrackerInput, TrackerKind, Providers, PushSubscription, PushSubscriptionPrefs, RemoteCalendar, Settings, Snapshot, Board, Webhook, WebhookWithSecret,
+  GeocodeResult, HiddenEvent, HostEvent, ImportResult, ListDetail, ListGroup, ListItem, ListItemInput, ListItemPatch, Member, Me, Note, NoteTarget, Passkey, TrackerEntry, TrackerInput, TrackerKind, Providers, PushSubscription, PushSubscriptionPrefs, RemoteCalendar, Settings, Snapshot, Board, Webhook, WebhookWithSecret,
   TempCheck, TempCheckInput, Journal, JournalEntry, JournalPrivacy, Insights, InsightRange, Battery, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory, RememberedItem, RememberedItemInput,
 } from './types.ts'
 
@@ -366,6 +366,14 @@ export const api = {
   updateEvent: (id: string, body: Partial<EventInstance> & { scope?: 'occurrence' | 'series' }) =>
     MOCK ? mock.updateEvent(id, body) : patch<EventInstance>(`api/events/${id}`, body),
   deleteEvent: (id: string) => MOCK ? mock.deleteEvent(id) : del(`api/events/${id}`),
+  // Hiding events (parents' devices): just this one or its whole series; Show again from the event or the calendar's list.
+  hideEvent: (id: string, scope: 'occurrence' | 'series', occurrenceStart?: string | null) =>
+    MOCK ? mock.hideEvent(id, scope, occurrenceStart) : put<HiddenEvent>(`api/events/${encodeURIComponent(id)}/hidden`, { scope, occurrenceStart: occurrenceStart ?? undefined }),
+  unhideEvent: (id: string, scope: 'occurrence' | 'series', occurrenceStart?: string | null) =>
+    MOCK ? mock.unhideEvent(id, scope, occurrenceStart) : del(`api/events/${encodeURIComponent(id)}/hidden?${new URLSearchParams({ scope, ...(occurrenceStart ? { occurrenceStart } : {}) })}`),
+  getHiddenEvents: (calendarId: string) => MOCK ? mock.getHiddenEvents(calendarId) : get<HiddenEvent[]>(`api/calendars/${encodeURIComponent(calendarId)}/hidden`),
+  showHiddenEvent: (calendarId: string, hiddenId: string) =>
+    MOCK ? mock.showHiddenEvent(calendarId, hiddenId) : del(`api/calendars/${encodeURIComponent(calendarId)}/hidden/${encodeURIComponent(hiddenId)}`),
 
   getChoresDay: (date: string) => MOCK ? mock.getChoresDay(date)
     : Promise.all([get<ChoreDay[]>(`api/chores/day?date=${date}`), outboxReady()]).then(([c]) => applyChoreOps(c, date, pendingOps(outboxTag()))),

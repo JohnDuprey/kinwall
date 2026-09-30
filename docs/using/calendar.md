@@ -122,7 +122,7 @@ When any categories exist, a **filter** button appears in the toolbar. It opens 
 * The filter is saved **per device**. A wall display can hide work events for good while phones still see everything.
 * Categories deleted since you picked them are ignored, so a stale filter can't hide everything.
 
-The member and category filters combine, and every view honors both.
+The member and category filters combine, and every view honors both. To hide events for the whole family instead, see [Calendar filters](#calendar-filters) and [Hiding events](#hiding-events).
 
 ## Calendar filters
 
@@ -146,6 +146,20 @@ An event matches when it fits every choice you made: one of the words, and all-d
 While you edit, the sheet previews the next 3 months: "Showing 14 of 212 events in the next 3 months", with the shown and hidden events listed, soonest first. **Save** applies it right away.
 
 A filtered-out event is gone everywhere the family sees events: every calendar view, the Board, Now / Next, [reminders, transition warnings and leave-by pushes](notifications.md), Live Activities, the daily summary, [snapshots](snapshot.md) and the [assistant](../integrations/mcp.md). Nothing is deleted: Kinwall still syncs every event and decides what to show when it reads them, so changing a filter needs no resync and hidden events come back as soon as you change it.
+
+## Hiding events
+
+A parent can hide one event from the whole family, even one that comes from a read-only calendar like a school feed. Open the event, then **Hide…** at the bottom of its sheet (parents' devices only; wall screens and kids' devices don't have it):
+
+* **Hide this event**, or for a recurring event **Just this one** or **Every one in the series**. Occurrences a synced series adds later are hidden too.
+* **Hide events like this**: adds the event's title to the calendar's [filter](#calendar-filters) as an exception ("All except events that match"), after asking. Every event with those words in its title stays hidden, including new ones. When the calendar shows **Only events that match**, a word can't hide more, so the sheet says to change the filter in Settings instead.
+
+Hidden events are gone everywhere a filtered-out event is (see above), and they stay hidden after every sync: Kinwall remembers them by the provider's own ids, like the members and categories you set on synced events.
+
+To bring one back:
+
+* **Settings → Calendars**, tap the calendar, then **Hidden events**: each one hidden (or each series, "Every one in the series") with **Show again**.
+* Or on the calendar, tap the **eye** button next to the dates (parents' devices, every view but the Board). Hidden and filtered-out events then show faded, with a dashed border and an eye-slash and "Hidden" before the title, so they never rely on color. Open one for **Show again**, or, for one the filter leaves out, a link to change the filter. Tap the eye again to hide them.
 
 ## How events are colored
 

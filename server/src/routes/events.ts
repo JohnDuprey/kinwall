@@ -440,10 +440,21 @@ async function buildCtx(db: KinwallDb, cal: CalendarRow, env: Env): Promise<Prov
   };
 }
 
+// Hidden events (event_hidden, migration 0069): the keys an instance is hidden under. Synced events
+// use the provider's ids so a resync never brings them back; a local recurring event is one row, so
+// one of its occurrences is '<id>@<start>' and the series is the row itself.
+function hideKeys(row: Pick<EventRow, 'id' | 'external_id' | 'series_id' | 'rrule'>, cal: Pick<CalendarRow, 'kind'>, instStart: string): { occurrence: string; series: string | null } {
+  const localSeries = cal.kind === 'local' && !!row.rrule;
+  return { occurrence: localSeries ? `${row.id}@${instStart}` : row.external_id ?? row.id, series: localSeries ? row.id : cal.kind === 'local' ? null : row.series_id };
+}
+const hiddenKey = (calendarId: string, scope: 'occurrence' | 'series', key: string) => `${calendarId}\u0000${scope}\u0000${key}`;
+type HiddenReason = 'event' | 'series' | 'filter' | null;
+
 // Every event instance overlapping [from, to), members/categories/travel resolved, sorted by start -
 // GET /api/events, the board and snapshot (routes/snapshot.ts), insights and notify.ts. Events the
-// family has filtered out (calendar-filter.ts) are left out here, the one place every consumer reads
-// through; includeHidden keeps them, marked with why (Settings' preview and a parent's Show hidden).
+// family has hidden (event_hidden) or filtered out (calendar-filter.ts) are left out here, the one
+// place every consumer reads through; includeHidden keeps them, marked with why (Settings' preview
+// and a parent's Show hidden).
 export async function eventInstances(db: KinwallDb, fromDate: Date, toDate: Date, calendarId?: string, opts: { includeHidden?: boolean } = {}) {
   // calendars, household timezone, member colors and categories (for keyword matching) are
   // independent reads - one batch.
@@ -469,7 +480,7 @@ export async function eventInstances(db: KinwallDb, fromDate: Date, toDate: Date
   // events + all four override tables, all filtered by the same calendar id set - another batch.
   const calIds = calendars.map((cal) => cal.id);
   const placeholders = calIds.map(() => '?').join(',');
-  const [eventsRes, overridesRes, seriesOverridesRes, categoryOverridesRes, categorySeriesOverridesRes, travelOverridesRes, linkedRes, notesRes, mealsRes] = await db.batch<unknown>([
+  const [eventsRes, overridesRes, seriesOverridesRes, categoryOverridesRes, categorySeriesOverridesRes, travelOverridesRes, linkedRes, notesRes, mealsRes, hiddenRes] = await db.batch<unknown>([
     db.prepare(`SELECT * FROM events WHERE calendar_id IN (${placeholders})`).bind(...calIds),
     db.prepare(`SELECT calendar_id, external_id, member_ids FROM event_member_overrides WHERE calendar_id IN (${placeholders})`).bind(...calIds),
     db
@@ -486,7 +497,9 @@ export async function eventInstances(db: KinwallDb, fromDate: Date, toDate: Date
     db.prepare('SELECT event_id, COUNT(*) AS n FROM list_items WHERE done = 0 AND event_id IS NOT NULL GROUP BY event_id'),
     db.prepare("SELECT target_id, COUNT(*) AS n FROM notes WHERE target_type = 'event' GROUP BY target_id"),
     mealLinksQuery(db),
+    db.prepare(`SELECT calendar_id, scope, key FROM event_hidden WHERE calendar_id IN (${placeholders})`).bind(...calIds),
   ]);
+  const hiddenSet = new Set((hiddenRes.results as { calendar_id: string; scope: 'occurrence' | 'series'; key: string }[]).map((r) => hiddenKey(r.calendar_id, r.scope, r.key)));
   const noteCounts = new Map((notesRes.results as { target_id: string; n: number }[]).map((r) => [r.target_id, r.n]));
   const linkedCounts = new Map((linkedRes.results as { event_id: string; n: number }[]).map((r) => [r.event_id, r.n]));
   const travelOverrides = buildTravelOverrideMap(travelOverridesRes.results as TravelOverrideRow[]);
@@ -495,7 +508,16 @@ export async function eventInstances(db: KinwallDb, fromDate: Date, toDate: Date
   const seriesOverrides = buildSeriesOverrideMap(seriesOverridesRes.results as SeriesOverrideRow[]);
   const categoryOverrides = buildCategoryOverrideMap(categoryOverridesRes.results as CategoryOverrideRow[]);
   const categorySeriesOverrides = buildCategorySeriesOverrideMap(categorySeriesOverridesRes.results as CategorySeriesOverrideRow[]);
-  const out: ReturnType<typeof instanceFrom>[] = [];
+  const out: (ReturnType<typeof instanceFrom> & { hidden: HiddenReason })[] = [];
+  // Hidden on its own or with its series, else by its calendar's filter (which needs the resolved category).
+  const push = (row: EventRow, cal: CalendarRow, inst: ReturnType<typeof instanceFrom>) => {
+    const keys = hideKeys(row, cal, inst.start);
+    const hidden: HiddenReason = keys.series && hiddenSet.has(hiddenKey(cal.id, 'series', keys.series)) ? 'series'
+      : hiddenSet.has(hiddenKey(cal.id, 'occurrence', keys.occurrence)) ? 'event'
+      : filterShows(filters.get(cal.id)!, inst) ? null : 'filter';
+    if (hidden && !opts.includeHidden) return;
+    out.push({ ...inst, hidden });
+  };
 
   for (const storedRow of rows) {
     const cal = calById.get(storedRow.calendar_id);
@@ -508,7 +530,7 @@ export async function eventInstances(db: KinwallDb, fromDate: Date, toDate: Date
 
     if (cal.kind === 'local' && row.rrule) {
       for (const inst of expand(row.rrule, row.start, row.end, !!row.all_day, tz, fromDate, toDate)) {
-        out.push(instanceFrom(row, cal, memberColors, inst.start, inst.start, inst.end, override, seriesOverride, categories, categoryOverride, categorySeriesOverride, defaultReminderMinutes));
+        push(row, cal, instanceFrom(row, cal, memberColors, inst.start, inst.start, inst.end, override, seriesOverride, categories, categoryOverride, categorySeriesOverride, defaultReminderMinutes));
       }
       continue;
     }
@@ -517,13 +539,12 @@ export async function eventInstances(db: KinwallDb, fromDate: Date, toDate: Date
     const startMs = row.all_day ? Date.parse(`${row.start}T00:00:00Z`) : Date.parse(row.start);
     const endMs = row.all_day ? Date.parse(`${row.end}T00:00:00Z`) : Date.parse(row.end);
     if (endMs <= fromDate.getTime() || startMs >= toDate.getTime()) continue;
-    out.push(instanceFrom(row, cal, memberColors, null, row.start, row.end, override, seriesOverride, categories, categoryOverride, categorySeriesOverride, defaultReminderMinutes));
+    push(row, cal, instanceFrom(row, cal, memberColors, null, row.start, row.end, override, seriesOverride, categories, categoryOverride, categorySeriesOverride, defaultReminderMinutes));
   }
 
   // A meal's event counts down to starting prep instead (prepBy.ts), for its cook.
   const meals = parseMealLinks(mealsRes.results);
-  const marked = out.map((ev) => ({ ...ev, hidden: filterShows(filters.get(ev.calendarId)!, ev) ? null : ('filter' as const) }));
-  const withCounts = (opts.includeHidden ? marked : marked.filter((ev) => !ev.hidden)).map((ev) => {
+  const withCounts = out.map((ev) => {
     const meal = ev.allDay ? undefined : meals.get(ev.id);
     return { ...ev, linkedItemCount: linkedCounts.get(ev.id) ?? 0, noteCount: noteCounts.get(ev.id) ?? 0, prepAt: meal ? prepAt(ev.start, meal.eventStart, meal.minutes) : null, cookId: meal?.cookId ?? null };
   });
@@ -977,10 +998,146 @@ export async function deleteEvent(c: Ctx, id: string): Promise<Fail<400 | 403 | 
     c.env.DB.prepare('DELETE FROM events WHERE id = ?').bind(id),
     c.env.DB.prepare("DELETE FROM notes WHERE target_type = 'event' AND target_id = ?").bind(id),
     c.env.DB.prepare('UPDATE meals SET calendar_event_id = NULL, calendar_event_start = NULL, updated_at = ? WHERE calendar_event_id = ?').bind(new Date().toISOString(), id),
+    // A deleted Kinwall event's hides go too (a synced one's stay, in case it comes back).
+    c.env.DB.prepare('DELETE FROM event_hidden WHERE calendar_id = ? AND (key = ? OR substr(key, 1, ?) = ?)').bind(cal.id, cal.kind === 'local' ? id : '', id.length + 1, cal.kind === 'local' ? `${id}@` : ''),
   ]);
   emit(c, 'events.changed', { calendarId: cal.id });
   return { ok: true };
 }
+
+// Hiding an event (docs/using/calendar.md "Hiding events"): parents' devices only (not in auth.ts's
+// display allow-list), on any calendar, read-only ones too - it's Kinwall-only, like member tags.
+const HideSchema = z
+  .object({
+    scope: z.enum(['occurrence', 'series']).openapi({ description: "'occurrence': just this one; 'series': every one in its series (a recurring event)" }),
+    occurrenceStart: z.string().optional().openapi({ description: "Which one, for one occurrence of a recurring Kinwall event: its `occurrenceStart`" }),
+  })
+  .openapi('EventHide');
+const HiddenEventSchema = z
+  .object({
+    id: z.string(),
+    calendarId: z.string(),
+    scope: z.enum(['occurrence', 'series']),
+    title: z.string(),
+    start: z.string().openapi({ description: 'When the hidden one starts (the first one hidden, for a series)' }),
+    allDay: z.boolean(),
+    createdAt: z.string(),
+  })
+  .openapi('HiddenEvent');
+
+/** The event_hidden key for hiding (or showing) this event at `scope`, or an error. */
+async function hideTarget(db: KinwallDb, id: string, body: z.infer<typeof HideSchema>): Promise<Fail<400 | 404> | { row: EventRow; cal: CalendarRow; key: string; start: string }> {
+  const found = await loadEventAndCalendar(db, id);
+  if (!found) return { error: 'not found', status: 404 };
+  const { row, cal } = found;
+  if (cal.kind === 'local' && row.rrule && body.scope === 'occurrence' && !body.occurrenceStart) return { error: 'occurrenceStart is needed for one occurrence of a recurring event', status: 400 };
+  const start = body.occurrenceStart ?? row.start;
+  const keys = hideKeys(row, cal, start);
+  const key = body.scope === 'series' ? keys.series : keys.occurrence;
+  if (!key) return { error: 'this event is not part of a series', status: 400 };
+  return { row, cal, key, start };
+}
+
+eventsRoutes.openapi(
+  createRoute({
+    method: 'put',
+    path: '/api/events/{id}/hidden',
+    tags: ['Events'],
+    summary: "Hide an event, or every one in its series, everywhere the family sees events (parents' devices; survives resyncs)",
+    security: [{ Bearer: [] }],
+    request: { params: z.object({ id: z.string() }), body: { content: { 'application/json': { schema: HideSchema } } } },
+    responses: {
+      200: { description: 'hidden', content: { 'application/json': { schema: HiddenEventSchema } } },
+      400: { description: 'invalid', content: { 'application/json': { schema: ErrorSchema } } },
+      404: { description: 'not found', content: { 'application/json': { schema: ErrorSchema } } },
+    },
+  }),
+  async (c) => {
+    const db = c.env.DB;
+    const body = c.req.valid('json');
+    const t = await hideTarget(db, c.req.valid('param').id, body);
+    if ('error' in t) return c.json({ error: t.error }, t.status);
+    const hid = { id: crypto.randomUUID(), calendarId: t.cal.id, scope: body.scope, title: t.row.title, start: t.start, allDay: !!t.row.all_day, createdAt: new Date().toISOString() };
+    const writes = [
+      db.prepare('INSERT INTO event_hidden (id, calendar_id, scope, key, title, start, all_day, created_at) VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(calendar_id, scope, key) DO NOTHING')
+        .bind(hid.id, hid.calendarId, hid.scope, t.key, hid.title, hid.start, hid.allDay ? 1 : 0, hid.createdAt),
+    ];
+    // The whole series covers its occurrences: hiding one on its own too would keep it hidden after "Show again" on the series.
+    if (body.scope === 'series') {
+      writes.push(t.cal.kind === 'local'
+        ? db.prepare("DELETE FROM event_hidden WHERE calendar_id = ? AND scope = 'occurrence' AND substr(key, 1, ?) = ?").bind(t.cal.id, t.row.id.length + 1, `${t.row.id}@`)
+        : db.prepare("DELETE FROM event_hidden WHERE calendar_id = ? AND scope = 'occurrence' AND key IN (SELECT external_id FROM events WHERE calendar_id = ? AND series_id = ?)").bind(t.cal.id, t.cal.id, t.key));
+    }
+    await db.batch(writes);
+    const stored = await db.prepare('SELECT id, created_at FROM event_hidden WHERE calendar_id = ? AND scope = ? AND key = ?').bind(t.cal.id, body.scope, t.key).first<{ id: string; created_at: string }>();
+    emit(c, 'events.changed', { calendarId: t.cal.id });
+    return c.json({ ...hid, id: stored?.id ?? hid.id, createdAt: stored?.created_at ?? hid.createdAt }, 200);
+  },
+);
+
+eventsRoutes.openapi(
+  createRoute({
+    method: 'delete',
+    path: '/api/events/{id}/hidden',
+    tags: ['Events'],
+    summary: "Show a hidden event again: just this one, or its series (parents' devices)",
+    security: [{ Bearer: [] }],
+    request: { params: z.object({ id: z.string() }), query: HideSchema },
+    responses: {
+      200: { description: 'ok', content: { 'application/json': { schema: z.object({ ok: z.boolean() }) } } },
+      400: { description: 'invalid', content: { 'application/json': { schema: ErrorSchema } } },
+      404: { description: 'not found', content: { 'application/json': { schema: ErrorSchema } } },
+    },
+  }),
+  async (c) => {
+    const body = c.req.valid('query');
+    const t = await hideTarget(c.env.DB, c.req.valid('param').id, body);
+    if ('error' in t) return c.json({ error: t.error }, t.status);
+    await c.env.DB.prepare('DELETE FROM event_hidden WHERE calendar_id = ? AND scope = ? AND key = ?').bind(t.cal.id, body.scope, t.key).run();
+    emit(c, 'events.changed', { calendarId: t.cal.id });
+    return c.json({ ok: true }, 200);
+  },
+);
+
+eventsRoutes.openapi(
+  createRoute({
+    method: 'get',
+    path: '/api/calendars/{id}/hidden',
+    tags: ['Events'],
+    summary: "A calendar's hidden events, soonest first (parents' devices)",
+    security: [{ Bearer: [] }],
+    request: { params: z.object({ id: z.string() }) },
+    responses: { 200: { description: 'ok', content: { 'application/json': { schema: z.array(HiddenEventSchema) } } } },
+  }),
+  async (c) => {
+    const { results } = await c.env.DB.prepare('SELECT id, calendar_id, scope, title, start, all_day, created_at FROM event_hidden WHERE calendar_id = ? ORDER BY start, title')
+      .bind(c.req.valid('param').id)
+      .all<{ id: string; calendar_id: string; scope: 'occurrence' | 'series'; title: string; start: string; all_day: number; created_at: string }>();
+    return c.json(results.map((r) => ({ id: r.id, calendarId: r.calendar_id, scope: r.scope, title: r.title, start: r.start, allDay: !!r.all_day, createdAt: r.created_at })), 200);
+  },
+);
+
+eventsRoutes.openapi(
+  createRoute({
+    method: 'delete',
+    path: '/api/calendars/{id}/hidden/{hiddenId}',
+    tags: ['Events'],
+    summary: "Show a hidden event (or series) again, from the calendar's Hidden events list (parents' devices)",
+    security: [{ Bearer: [] }],
+    request: { params: z.object({ id: z.string(), hiddenId: z.string() }) },
+    responses: {
+      200: { description: 'ok', content: { 'application/json': { schema: z.object({ ok: z.boolean() }) } } },
+      404: { description: 'not found', content: { 'application/json': { schema: ErrorSchema } } },
+    },
+  }),
+  async (c) => {
+    const { id, hiddenId } = c.req.valid('param');
+    const res = await c.env.DB.prepare('DELETE FROM event_hidden WHERE id = ? AND calendar_id = ?').bind(hiddenId, id).run();
+    if (!res.meta.changes) return c.json({ error: 'not found' }, 404);
+    emit(c, 'events.changed', { calendarId: id });
+    return c.json({ ok: true }, 200);
+  },
+);
 
 const DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'must be YYYY-MM-DD');
 const EventSyncInputSchema = z

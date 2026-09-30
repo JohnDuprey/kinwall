@@ -163,3 +163,11 @@ export const PauseIcon = (p: P) => (
 export const ResetIcon = (p: P) => (
   <svg {...base(p)}><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /></svg>
 )
+export const EyeIcon = (p: P) => (
+  // eye from Lucide (ISC license, lucide.dev)
+  <svg {...base(p)}><path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0" /><circle cx="12" cy="12" r="3" /></svg>
+)
+export const EyeOffIcon = (p: P) => (
+  // eye-off from Lucide (ISC license, lucide.dev): a hidden event's mark, never color alone
+  <svg {...base(p)}><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c4.97 0 8.5 3.5 9.94 6.65a1 1 0 0 1 0 .7 10.75 10.75 0 0 1-1.44 2.49M14.08 14.16a3 3 0 0 1-4.24-4.24M17.48 17.5A10.75 10.75 0 0 1 2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 4.44-5.15M2 2l20 20" /></svg>
+)

@@ -663,6 +663,21 @@ button {
 .pick-btn > .pick-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
 .sheet-link > svg.pick-check { color: var(--accent-strong); }
 .sheet-link > .member-avatar-sm, .sheet-link > .pick-swatch { flex: none; } /* not the label's flex: 1 */
+/* Hidden events (Calendar's Show hidden, parents only): faded, dashed and marked "Hidden", never by color alone. */
+.ev-hidden { opacity: 0.5; outline: 2px dashed var(--text-dim); outline-offset: -2px; }
+.ev-hidden-mark { display: inline-flex; align-items: center; gap: 3px; margin-right: 4px; font-weight: 800; vertical-align: bottom; }
+.ev-hidden-mark svg { flex: none; }
+.hidden-note { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px 14px; border: 2px dashed var(--border); border-radius: var(--radius-sm); color: var(--text-dim); font-weight: 700; }
+.hidden-note > span { flex: 1; min-width: 12em; }
+.hidden-note > .btn { flex: none; }
+.hide-open { align-self: flex-start; flex: none; }
+.hide-choices { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 2px solid var(--border); }
+.hide-choices > .link-btn { align-self: center; min-height: 44px; }
+.hidden-list { display: flex; flex-direction: column; gap: 8px; }
+.hidden-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--bg-alt); }
+.hidden-row > span { flex: 1; min-width: 0; display: flex; flex-direction: column; font-weight: 800; }
+.hidden-row small { color: var(--text-dim); font-weight: 600; }
+.hidden-row > .btn { flex: none; }
 /* Calendar filter preview (CalendarFilterSheet): what the draft filter shows and hides. */
 .filter-preview { margin-top: 16px; padding-top: 14px; border-top: 2px solid var(--border); }
 .filter-preview h3 { margin: 0 0 10px; font-size: 1rem; font-weight: 800; }
@@ -1558,7 +1573,8 @@ button {
 .chores-hint { text-align: center; font-size: 0.8125rem; font-weight: 600; color: var(--text-dim); margin: 0; padding: 4px var(--pad) 8px; }
 .gate-links { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; }
 .filter-btn { position: relative; flex-shrink: 0; margin-left: auto; }
-.filter-btn.active { background: var(--accent-strong); color: var(--accent-ink); }
+.filter-btn.active, .hidden-toggle.active { background: var(--accent-strong); color: var(--accent-ink); }
+.hidden-toggle { flex-shrink: 0; }
 /* One line under a Filters button summing up what differs from the defaults; tap it to change them. */
 .filter-summary { display: block; max-width: 100%; min-height: 44px; padding: 0 2px; border: none; background: none; color: var(--accent-text); font: inherit; font-size: .88rem; font-weight: 800; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
 .filter-badge { position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--text); color: var(--bg); font-size: 0.6875rem; font-weight: 800; display: flex; align-items: center; justify-content: center; }

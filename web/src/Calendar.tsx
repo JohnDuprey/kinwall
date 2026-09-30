@@ -8,7 +8,8 @@ import { dateKey, minutesSinceMidnight, zonedDayKey } from './date.ts'
 import { formatTime } from './timeFormat.ts'
 import { inkFor } from './color.ts'
 import Sheet from './Sheet.tsx'
-import { CheckIcon, ChevronLeft, ChevronRight, FilterIcon, LocationIcon, PlusIcon, RepeatIcon, TrashIcon, EditIcon } from './icons.tsx'
+import { CheckIcon, ChevronLeft, ChevronRight, EyeIcon, EyeOffIcon, FilterIcon, LocationIcon, PlusIcon, RepeatIcon, TrashIcon, EditIcon } from './icons.tsx'
+import { hideLikeThis, NO_FILTER, type CalendarFilter } from './calendarFilter.ts'
 import { IDLE_RESET_EVENT } from './App.tsx'
 import { useIsPhone } from './useIsPhone.ts'
 import { announce, pressable, Segmented, useRovingGrid } from './a11y.tsx'
@@ -115,7 +116,7 @@ function useSwipe(onLeft: () => void, onRight: () => void) {
 
 export default function CalendarView() {
   const dialog = useDialog()
-  const { settings, members, categories, selectedMemberId, focusMemberId, focusShowsShared, focusLocked, meMemberId, toast, reloadCore, refreshTick } = useApp()
+  const { settings, members, categories, selectedMemberId, focusMemberId, focusShowsShared, focusLocked, meMemberId, parentDevice, toast, reloadCore, refreshTick } = useApp()
   const device = useDeviceAppearance()
   const isPhone = useIsPhone()
   const tz = settings.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -169,15 +170,20 @@ export default function CalendarView() {
     return { from: startOfDay(anchor), to: addDays(startOfDay(anchor), 30) } // schedule: rolling 30-day agenda
   }, [viewMode, anchor, settings.weekStart, weekDays])
 
+  // Show hidden (parents' devices): hidden and filtered-out events too, faded and marked, so they can be shown again.
+  const [showHiddenPicked, setShowHidden] = useState(false)
+  const showHidden = parentDevice && showHiddenPicked && viewMode !== 'board'
+  const loadEvents = () => api.getEvents(range.from.toISOString(), range.to.toISOString(), undefined, undefined, showHidden)
   useEffect(() => {
     let canceled = false
     setLoading(true)
-    api.getEvents(range.from.toISOString(), range.to.toISOString())
+    loadEvents()
       .then(evs => { if (!canceled) { setEvents(evs); setError(false) } })
       .catch(() => { if (!canceled) setError(true) })
       .finally(() => { if (!canceled) setLoading(false) })
     return () => { canceled = true }
-  }, [range.from, range.to, refreshTick])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [range.from, range.to, refreshTick, showHidden])
 
   // #/calendar?event=<id>&at=<start> (a tapped notification): jump to that day, then open the event
   // once it's loaded. Also handled on hashchange, for when the app was already open.
@@ -259,7 +265,7 @@ export default function CalendarView() {
   useEffect(() => {
     const todayKey = dateKey(new Date())
     if (loading || range.from > new Date() || range.to <= new Date()) return
-    setTodayEvents(visibleEvents.filter(e => e.allDay ? isAllDayOnDate(e, todayKey) : isTimedOnDate(e, todayKey, tz)))
+    setTodayEvents(visibleEvents.filter(e => !e.hidden && (e.allDay ? isAllDayOnDate(e, todayKey) : isTimedOnDate(e, todayKey, tz))))
   }, [visibleEvents, loading, range.from, range.to, tz])
   const showNowNext = device.nowNext ?? true
 
@@ -306,7 +312,7 @@ export default function CalendarView() {
       setEditState(null)
       reloadCore()
       setEvents(evs => [...evs]) // no-op to be explicit; real refetch happens via refreshTick after reloadCore bump isn't guaranteed for mock — force refetch:
-      api.getEvents(range.from.toISOString(), range.to.toISOString()).then(setEvents).catch(() => {})
+      loadEvents().then(setEvents).catch(() => {})
       toast(id ? 'Event updated' : 'Event added')
     } catch (e) {
       toast(e instanceof ApiError ? e.message : 'Could not save event', true)
@@ -363,6 +369,26 @@ export default function CalendarView() {
     }
   }
 
+  // Hiding (parents' devices): gone for the whole family until shown again (docs/using/calendar.md "Hiding events").
+  const afterHide = (message: string) => { setDetail(null); reloadCore(); loadEvents().then(setEvents).catch(() => {}); toast(message) }
+  const hideEvent = async (ev: EventInstance, scope: 'occurrence' | 'series') => {
+    try { await api.hideEvent(ev.id, scope, ev.occurrenceStart); afterHide(scope === 'series' ? `Hidden: every ${ev.title}` : `Hidden: ${ev.title}`) }
+    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not hide the event', true) }
+  }
+  const unhideEvent = async (ev: EventInstance) => {
+    try { await api.unhideEvent(ev.id, ev.hidden === 'series' ? 'series' : 'occurrence', ev.occurrenceStart); afterHide(`Showing again: ${ev.title}`) }
+    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not show the event', true) }
+  }
+  const hideEventsLike = async (ev: EventInstance, filter: CalendarFilter) => {
+    const cal = calendars.find(c => c.id === ev.calendarId)
+    if (!cal || !await dialog.confirm({ title: `Hide every "${ev.title}"?`, body: `Every event on ${cal.name} with "${ev.title}" in its title stays hidden, including new ones. Change it any time in Settings → Calendars → ${cal.name} → Filter.`, confirmLabel: 'Hide them' })) return
+    try {
+      await api.updateCalendar(cal.id, { filter })
+      setCalendars(cs => cs.map(c => c.id === cal.id ? { ...c, filter } : c))
+      afterHide(`Hidden: events like ${ev.title}`)
+    } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not change the filter', true) }
+  }
+
   return (
     <div className="content">
       {showNowNext && <NowNextCard events={todayEvents} tz={tz} placeholder={isPhone} warnMinutes={warnTimes} />}
@@ -379,6 +405,12 @@ export default function CalendarView() {
           <button className="today-btn" onClick={() => { setSlideDir(0); setAnchor(new Date()) }}>Today</button>
           <button className="icon-btn" onClick={() => step(1)} aria-label={`Next ${viewMode === 'schedule' ? '30 days' : viewMode === 'week' && isPhone ? '3 days' : viewMode}`}><ChevronRight width={20} height={20} /></button>
           <h2 className="period-label" aria-live="polite" ref={periodRef} tabIndex={-1}>{periodLabel}</h2>
+          {parentDevice && (
+            <button className={`icon-btn hidden-toggle ${showHidden ? 'active' : ''}`} onClick={() => setShowHidden(v => !v)} aria-pressed={showHidden}
+              aria-label="Show hidden events" title="Show hidden events">
+              {showHidden ? <EyeIcon width={20} height={20} /> : <EyeOffIcon width={20} height={20} />}
+            </button>
+          )}
           </>}
         </div>
         {categories.length > 0 && (
@@ -455,6 +487,10 @@ export default function CalendarView() {
           onToggleMember={toggleDetailMember}
           onSaveScopedMembers={saveDetailMembers}
           onSaveTravel={saveTravel}
+          parent={parentDevice}
+          onHide={scope => hideEvent(detail, scope)}
+          onUnhide={() => unhideEvent(detail)}
+          onHideLike={filter => hideEventsLike(detail, filter)}
         />
       )}
       {editState && (
@@ -481,7 +517,7 @@ type ChipCategory = { id: string; name: string; color: string; emoji: string | n
 function eventLabel(ev: EventInstance, tz: string, members: ChipMember[], categories: ChipCategory[]): string {
   const who = members.filter(m => ev.memberIds.includes(m.id)).map(m => m.name).join(' and ')
   const category = ev.categoryId ? categories.find(c => c.id === ev.categoryId)?.name : undefined
-  return [`${ev.allDay ? 'All day' : formatTime(ev.start, tz)} ${ev.title}`, who, ev.location, category, ((l) => l && leadBy(l, formatTime(l.at, tz), true))(leadOf(ev)), ev.noteCount && `${ev.noteCount} note${ev.noteCount === 1 ? '' : 's'}`].filter(Boolean).join(', ')
+  return [`${ev.hidden ? 'Hidden: ' : ''}${ev.allDay ? 'All day' : formatTime(ev.start, tz)} ${ev.title}`, who, ev.location, category, ((l) => l && leadBy(l, formatTime(l.at, tz), true))(leadOf(ev)), ev.noteCount && `${ev.noteCount} note${ev.noteCount === 1 ? '' : 's'}`].filter(Boolean).join(', ')
 }
 
 /** Solid category color (overrides member color entirely) when the event has one, else: solid
@@ -530,8 +566,8 @@ function CategoryMark({ mark }: { mark: string }) {
 /** Title text (truncating), optionally prefixed with a category emoji, plus - for striped
  * multi-member or categorized events - an inline avatar row and a translucent backing pill so
  * text stays readable over the stripes/category color. */
-function EventTitle({ title, avatars, emoji, pill }: { title: string; avatars: string[]; emoji?: string | null; pill?: boolean }) {
-  const text = emoji ? <><CategoryMark mark={emoji} /> {title}</> : title
+function EventTitle({ title, avatars, emoji, pill, hidden }: { title: string; avatars: string[]; emoji?: string | null; pill?: boolean; hidden?: boolean }) {
+  const text = <>{hidden && <HiddenMark />}{emoji ? <><CategoryMark mark={emoji} /> {title}</> : title}</>
   if (avatars.length === 0) return <span className="event-title-text">{text}</span>
   return (
     <>
@@ -541,11 +577,15 @@ function EventTitle({ title, avatars, emoji, pill }: { title: string; avatars: s
   )
 }
 
+/** A hidden event, shown with Show hidden: faded (.ev-hidden) and marked, never by color alone. */
+const HiddenMark = () => <span className="ev-hidden-mark"><EyeOffIcon width={12} height={12} />Hidden ·</span>
+const hiddenClass = (ev: EventInstance) => ev.hidden ? ' ev-hidden' : ''
+
 function EventChip({ ev, tz, members, categories, small, onTap }: { ev: EventInstance; tz: string; members: ChipMember[]; categories: ChipCategory[]; small?: boolean; onTap: () => void }) {
   const { background, avatars, ink, emoji, pill } = eventVisual(ev, members, categories, small ? 7 : 10)
   return (
-    <div className={small ? 'allday-chip' : 'event-chip'} style={evFill(background, ink)} {...pressable(onTap)} aria-label={eventLabel(ev, tz, members, categories)}>
-      <EventTitle title={ev.title} avatars={avatars} emoji={emoji} pill={pill} />
+    <div className={(small ? 'allday-chip' : 'event-chip') + hiddenClass(ev)} style={evFill(background, ink)} {...pressable(onTap)} aria-label={eventLabel(ev, tz, members, categories)}>
+      <EventTitle title={ev.title} avatars={avatars} emoji={emoji} pill={pill} hidden={!!ev.hidden} />
     </div>
   )
 }
@@ -624,10 +664,10 @@ function WeekView({ days, events, tz, members, categories, onTap, onSlotTap, onD
                 return (
                   <Fragment key={ev.id}>
                     <LeaveMarker ev={ev} tz={tz} dayKey={dayKeys[i]} hourPx={HOUR_PX} left={left} width={width} color={solid} />
-                    <div className="timed-event"
+                    <div className={`timed-event${hiddenClass(ev)}`}
                       style={{ top: (s / 60) * HOUR_PX, height: Math.max(((e - s) / 60) * HOUR_PX - 2, 24), left, width, ...evFill(background, ink) }}
                       {...pressable(() => onTap(ev))} aria-label={eventLabel(ev, tz, members, categories)}>
-                      <div className="event-title-row"><EventTitle title={ev.title} avatars={avatars} emoji={emoji} pill={pill} /></div>
+                      <div className="event-title-row"><EventTitle title={ev.title} avatars={avatars} emoji={emoji} pill={pill} hidden={!!ev.hidden} /></div>
                       <span style={{ opacity: 0.85 }}>{formatTime(ev.start, tz)}</span>
                     </div>
                   </Fragment>
@@ -705,11 +745,11 @@ function DayView({ anchor, events, tz, members, categories, onlyMemberId, onTap,
                 return (
                   <Fragment key={ev.id}>
                     <LeaveMarker ev={ev} tz={tz} dayKey={key} hourPx={HOUR_PX} left={left} width={width} color={solid} />
-                    <div className="timed-event"
+                    <div className={`timed-event${hiddenClass(ev)}`}
                       style={{ top: (s / 60) * HOUR_PX, height: Math.max(((e - s) / 60) * HOUR_PX - 2, 24), left, width, ...evFill(background, ink) }}
                       {...pressable(() => onTap(ev))} aria-label={eventLabel(ev, tz, members, categories)}>
                       {/* The column already says whose it is; a lone avatar would only repeat it. */}
-                      <div className="event-title-row"><EventTitle title={ev.title} avatars={pill ? avatars : []} emoji={emoji} pill={pill} /></div>
+                      <div className="event-title-row"><EventTitle title={ev.title} avatars={pill ? avatars : []} emoji={emoji} pill={pill} hidden={!!ev.hidden} /></div>
                       <span style={{ opacity: 0.85 }}>{formatTime(ev.start, tz)}</span>
                     </div>
                   </Fragment>
@@ -790,9 +830,9 @@ function MonthView({ anchor, events, tz, weekStart, members, categories, onTap, 
               {shown.map(ev => {
                 const { background, avatars, ink, emoji, pill } = eventVisual(ev, members, categories, 6)
                 return (
-                  <div key={ev.id} className="month-chip" style={evFill(background, ink)} {...pressable(() => onTap(ev))} aria-label={eventLabel(ev, tz, members, categories)}>
+                  <div key={ev.id} className={`month-chip${hiddenClass(ev)}`} style={evFill(background, ink)} {...pressable(() => onTap(ev))} aria-label={eventLabel(ev, tz, members, categories)}>
                     {/* A phone's month cell is ~50px wide: time or avatars alone filled it, so show just the title. */}
-                    <EventTitle title={`${ev.allDay || isPhone ? '' : formatTime(ev.start, tz) + ' '}${ev.title}`} avatars={isPhone ? [] : avatars} emoji={emoji} pill={pill} />
+                    <EventTitle title={`${ev.allDay || isPhone ? '' : formatTime(ev.start, tz) + ' '}${ev.title}`} avatars={isPhone ? [] : avatars} emoji={emoji} pill={pill} hidden={!!ev.hidden} />
                   </div>
                 )
               })}
@@ -829,12 +869,12 @@ function ScheduleView({ anchor, events, tz, members, categories, onTap }: { anch
               const { background, avatars, emoji } = eventVisual(ev, members, categories, 8)
               return (
               // The whole row is tappable; its title is the real button (the location link can't nest in one).
-              <div key={ev.id} className="schedule-item" onClick={() => onTap(ev)}>
+              <div key={ev.id} className={`schedule-item${hiddenClass(ev)}`} onClick={() => onTap(ev)}>
                 <div className="schedule-color-bar" style={{ background }} />
                 <div className="schedule-time" aria-hidden="true">{ev.allDay ? 'All day' : formatTime(ev.start, tz)}</div>
                 <div>
                   <button type="button" className="plain-btn schedule-title" aria-label={eventLabel(ev, tz, members, categories)}
-                    onClick={e => { e.stopPropagation(); onTap(ev) }}>{emoji && <><CategoryMark mark={emoji} /> </>}{ev.title}{avatars.length > 0 && <span className="event-avatars schedule-avatars">{avatars.join(' ')}</span>}{!!ev.noteCount && <span className="schedule-notes" aria-hidden="true">💬 {ev.noteCount}</span>}</button>
+                    onClick={e => { e.stopPropagation(); onTap(ev) }}>{ev.hidden && <HiddenMark />}{emoji && <><CategoryMark mark={emoji} /> </>}{ev.title}{avatars.length > 0 && <span className="event-avatars schedule-avatars">{avatars.join(' ')}</span>}{!!ev.noteCount && <span className="schedule-notes" aria-hidden="true">💬 {ev.noteCount}</span>}</button>
                   {leadOf(ev) && <div className="leave-by" aria-hidden="true">{leadText(ev, t => formatTime(t, tz))}</div>}
                   {ev.location && (() => {
                     const href = locationHref(ev.location)
@@ -881,11 +921,12 @@ function locationHref(location: string): string | null {
   return /iPhone|iPad|Macintosh/.test(navigator.userAgent) ? `https://maps.apple.com/?q=${q}` : `https://www.google.com/maps/search/?api=1&query=${q}`
 }
 
-function EventDetailSheet({ event, members, categories, calendars, canEdit, tz, onClose, onEdit, onDelete, onToggleMember, onSaveScopedMembers, onSaveTravel }: {
+function EventDetailSheet({ event, members, categories, calendars, canEdit, tz, onClose, onEdit, onDelete, onToggleMember, onSaveScopedMembers, onSaveTravel, parent, onHide, onUnhide, onHideLike }: {
   event: EventInstance; members: { id: string; name: string; color: string; avatar: string }[]; categories: Category[]; calendars: CalendarEntry[]; canEdit: boolean; tz: string
   onClose: () => void; onEdit: () => void; onDelete: () => void; onToggleMember: (memberId: string) => void
   onSaveScopedMembers: (id: string, memberIds: string[], scope: 'occurrence' | 'series') => void
   onSaveTravel: (travelMinutes: number | null, remindBeforeLeave: boolean) => void
+  parent: boolean; onHide: (scope: 'occurrence' | 'series') => void; onUnhide: () => void; onHideLike: (filter: CalendarFilter) => void
 }) {
   const { settings } = useApp()
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -995,8 +1036,43 @@ function EventDetailSheet({ event, members, categories, calendars, canEdit, tz, 
             Only the family members and travel time are saved in Kinwall — the event itself comes from {calendarName}.
           </div>
         )}
+        {parent && <HideSection event={event} calendar={calendars.find(c => c.id === event.calendarId)} onHide={onHide} onUnhide={onUnhide} onHideLike={onHideLike} />}
       </div>
     </Sheet>
+  )
+}
+
+/** Bottom of a parent's event sheet: hide it (or its series, or every event like it), or show a hidden one again. */
+function HideSection({ event, calendar, onHide, onUnhide, onHideLike }: {
+  event: EventInstance; calendar?: CalendarEntry; onHide: (scope: 'occurrence' | 'series') => void; onUnhide: () => void; onHideLike: (filter: CalendarFilter) => void
+}) {
+  const [choosing, setChoosing] = useState(false)
+  const name = calendar?.name ?? 'this calendar'
+  if (event.hidden === 'filter') return (
+    <div className="hidden-note"><EyeOffIcon width={20} height={20} />
+      <span>Hidden by {name}'s filter. <a className="text-link" href="#/settings?tab=calendars">Change it in Settings → Calendars</a></span>
+    </div>
+  )
+  if (event.hidden) return (
+    <div className="hidden-note"><EyeOffIcon width={20} height={20} />
+      <span>{event.hidden === 'series' ? 'Hidden: every one in the series' : 'Hidden'}</span>
+      <button type="button" className="btn btn-secondary" onClick={onUnhide}><EyeIcon width={18} height={18} />Show again</button>
+    </div>
+  )
+  if (!choosing) return <button type="button" className="btn btn-secondary hide-open" onClick={() => setChoosing(true)} aria-expanded={false}><EyeOffIcon width={18} height={18} />Hide…</button>
+  const likeThis = calendar ? hideLikeThis(calendar.filter ?? NO_FILTER, event) : null
+  const recurring = !!(event.seriesId || event.rrule)
+  return (
+    <div className="hide-choices" role="group" aria-label={`Hide ${event.title}`}>
+      <p className="settings-row-sub">Hidden events are gone for the whole family: the calendar, the Board, reminders and the assistant. Show them again any time from Settings → Calendars → {name}.</p>
+      {recurring ? <>
+        <button type="button" className="btn btn-secondary" onClick={() => onHide('occurrence')}>Just this one</button>
+        <button type="button" className="btn btn-secondary" onClick={() => onHide('series')}>Every one in the series</button>
+      </> : <button type="button" className="btn btn-secondary" onClick={() => onHide('occurrence')}>Hide this event</button>}
+      {likeThis ? <button type="button" className="btn btn-secondary" onClick={() => onHideLike(likeThis)}>Hide events like this</button>
+        : calendar?.filter?.mode === 'only' && <p className="settings-row-sub">{name} shows only events that match its filter. To hide more like this one, change the filter in Settings → Calendars.</p>}
+      <button type="button" className="link-btn" onClick={() => setChoosing(false)}>Cancel</button>
+    </div>
   )
 }
 

@@ -103,6 +103,8 @@ const ExportSchema = z
     // Series-wide tags on recurring synced events, keyed by the provider's series id (0007/0011).
     eventSeriesMemberOverrides: z.array(z.object({ calendarId: z.string(), seriesId: z.string(), memberIds: z.array(z.string()) })),
     eventSeriesCategoryOverrides: z.array(z.object({ calendarId: z.string(), seriesId: z.string(), categoryId: z.string() })),
+    // Events hidden one by one or by series (0069), keyed like the overrides above.
+    hiddenEvents: z.array(z.object({ calendarId: z.string(), scope: z.enum(['occurrence', 'series']), key: z.string(), title: z.string(), start: z.string(), allDay: z.boolean() })),
     // listId: exports before 0027 lack it; pluginId/pluginMinutes before 0033.
     // needsApproval/approveTimedPlay before 0037.
     chores: z.array(ChoreSchema.extend({ listId: z.string().nullable().optional(), pluginId: z.string().nullable().optional(), pluginMinutes: z.number().nullable().optional(), needsApproval: z.boolean().nullable().default(null), approveTimedPlay: z.boolean().default(false), archived: z.boolean().default(false) })), // archived: deleted after it was done, kept for its history
@@ -198,7 +200,7 @@ dataRoutes.openapi(
     const db = c.env.DB;
     const healthHidden = !!(await healthBlock(c));
     // Column lists are explicit (never SELECT *) so a secret column can't leak in by accident.
-    const [members, categories, contactCategories, contacts, calendars, events, memberOverrides, categoryOverrides, travelOverrides, seriesMemberOverrides, seriesCategoryOverrides, chores, completions, lists, items, steps, groups, notes, pointEntries, stickerPacks, checkIns, tempChecks, journal, scrapbook, rewards, redemptions, trackers, passkeys, webhooks] = (await db.batch<unknown>([
+    const [members, categories, contactCategories, contacts, calendars, events, memberOverrides, categoryOverrides, travelOverrides, seriesMemberOverrides, seriesCategoryOverrides, chores, completions, lists, items, steps, groups, notes, pointEntries, stickerPacks, checkIns, tempChecks, journal, scrapbook, rewards, redemptions, trackers, passkeys, webhooks, hiddenEvents] = (await db.batch<unknown>([
       db.prepare('SELECT id, name, color, avatar, birthday, sort, grown_up, needs_approval, transitions, reward_goal, temp_check, temp_check_feelings FROM members ORDER BY sort, created_at'),
       db.prepare('SELECT id, name, emoji, color, keywords, sort, created_at FROM categories ORDER BY sort, created_at'),
       db.prepare('SELECT id, name, color, sort, created_at, updated_at FROM contact_categories ORDER BY sort, name COLLATE NOCASE, id'),
@@ -238,6 +240,7 @@ dataRoutes.openapi(
       db.prepare('SELECT t.*, p.family AS photo_family FROM tracker_entries t LEFT JOIN photos p ON p.id = t.photo_id ORDER BY t.date, t.created_at'),
       db.prepare('SELECT name, created_at FROM passkeys ORDER BY created_at'),
       db.prepare('SELECT id, url, events, enabled, created_at FROM webhooks ORDER BY created_at'),
+      db.prepare('SELECT calendar_id, scope, key, title, start, all_day FROM event_hidden ORDER BY calendar_id, start, key'),
     ])).map((r) => r.results);
 
     const itemRows = items as ListItemRow[];
@@ -314,6 +317,9 @@ dataRoutes.openapi(
           seriesId: r.series_id,
           categoryId: r.category_id,
         })),
+        hiddenEvents: (hiddenEvents as { calendar_id: string; scope: 'occurrence' | 'series'; key: string; title: string; start: string; all_day: number }[]).map((r) => ({
+          calendarId: r.calendar_id, scope: r.scope, key: r.key, title: r.title, start: r.start, allDay: !!r.all_day,
+        })),
         chores: (chores as ChoreRow[]).map((r) => ({ ...choreToApi(r), archived: !!r.archived })),
         choreCompletions: (completions as CompletionRow[]).map((r) => ({ id: r.id, choreId: r.chore_id, date: r.date, memberId: r.member_id, completedAt: r.completed_at, pointsAwarded: r.points_awarded, status: r.status })),
         lists: (lists as ListRow[]).map((l) => {
@@ -377,6 +383,7 @@ const ImportSchema = ExportSchema.extend({
   eventTravelOverrides: ExportSchema.shape.eventTravelOverrides.default([]),
   eventSeriesMemberOverrides: ExportSchema.shape.eventSeriesMemberOverrides.default([]),
   eventSeriesCategoryOverrides: ExportSchema.shape.eventSeriesCategoryOverrides.default([]),
+  hiddenEvents: ExportSchema.shape.hiddenEvents.default([]),
   notes: ExportSchema.shape.notes.default([]),
   pointEntries: ExportSchema.shape.pointEntries.default([]),
   stickerPacks: ExportSchema.shape.stickerPacks.default([]),
@@ -411,6 +418,7 @@ const ImportResultSchema = z
       eventTravelOverrides: z.number(),
       eventSeriesMemberOverrides: z.number(),
       eventSeriesCategoryOverrides: z.number(),
+      hiddenEvents: z.number(),
       chores: z.number(),
       choreCompletions: z.number(),
       lists: z.number(),
@@ -527,6 +535,7 @@ dataRoutes.openapi(
     const travelOverrides = body.eventTravelOverrides.filter((o) => calendarIds.has(o.calendarId));
     const seriesMemberOverrides = body.eventSeriesMemberOverrides.filter((o) => calendarIds.has(o.calendarId));
     const seriesCategoryOverrides = body.eventSeriesCategoryOverrides.filter((o) => calendarIds.has(o.calendarId));
+    const hiddenEvents = body.hiddenEvents.filter((h) => calendarIds.has(h.calendarId));
     const choreIds = new Set(body.chores.map((ch) => ch.id));
     const completions = body.choreCompletions.filter((cc) => choreIds.has(cc.choreId));
     const items = body.lists.flatMap((l) => l.items.map((i) => ({ ...i, listId: l.id })));
@@ -664,6 +673,13 @@ dataRoutes.openapi(
         'event_series_category_overrides',
         'calendar_id, series_id',
         seriesCategoryOverrides.map((o) => ({ calendar_id: o.calendarId, series_id: o.seriesId, category_id: o.categoryId, updated_at: new Date(now).toISOString() })),
+      ),
+      ...upserts(
+        db,
+        'event_hidden',
+        'calendar_id, scope, key',
+        hiddenEvents.map((h) => ({ id: crypto.randomUUID(), calendar_id: h.calendarId, scope: h.scope, key: h.key, title: h.title, start: h.start, all_day: h.allDay ? 1 : 0, created_at: new Date(now).toISOString() })),
+        { keep: ['id', 'created_at'] },
       ),
       ...upserts(
         db,
@@ -857,7 +873,7 @@ dataRoutes.openapi(
       ['contact.changed', body.contacts.length],
       ['contact.category.changed', body.contactCategories.length],
       ['calendar.changed', calendars.length],
-      ['events.changed', events.length + memberOverrides.length + categoryOverrides.length + travelOverrides.length + seriesMemberOverrides.length + seriesCategoryOverrides.length],
+      ['events.changed', events.length + memberOverrides.length + categoryOverrides.length + travelOverrides.length + seriesMemberOverrides.length + seriesCategoryOverrides.length + hiddenEvents.length],
       ['chore.changed', body.chores.length + completions.length],
       ['list.changed', body.lists.length + notes.length + body.itemMemory.length + body.storeAisles.length],
       ['sticker.changed', pointEntries.length + stickerPacks.length + checkIns.length + scrapbook.length],
@@ -884,6 +900,7 @@ dataRoutes.openapi(
           eventTravelOverrides: travelOverrides.length,
           eventSeriesMemberOverrides: seriesMemberOverrides.length,
           eventSeriesCategoryOverrides: seriesCategoryOverrides.length,
+          hiddenEvents: hiddenEvents.length,
           chores: body.chores.length,
           choreCompletions: completions.length,
           lists: body.lists.length,

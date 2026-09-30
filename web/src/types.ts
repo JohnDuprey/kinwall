@@ -293,8 +293,11 @@ export interface EventInstance {
   remindBeforeLeave: boolean // reminders count back from leaveAt instead of start
   prepAt?: string | null // a meal's event: when to start prep (server/src/prepBy.ts); GET /api/events only
   cookId?: string | null // a meal's event: who's cooking, the one the prep countdown is for
-  hidden?: 'filter' | null // why the family doesn't see it (only with includeHidden, on parents' devices)
+  hidden?: 'event' | 'series' | 'filter' | null // why the family doesn't see it (only with includeHidden, on parents' devices)
 }
+
+/** GET /api/calendars/{id}/hidden: an event (or series) hidden from the family, for Show again. */
+export interface HiddenEvent { id: string; calendarId: string; scope: 'occurrence' | 'series'; title: string; start: string; allDay: boolean; createdAt: string }
 
 /** Reminder select options shared by the event edit sheet and Settings' household default. */
 export const REMINDER_OPTIONS: { value: string; label: string; minutes: number[] }[] = [

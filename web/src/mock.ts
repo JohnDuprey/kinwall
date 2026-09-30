@@ -1,6 +1,6 @@
 // Dev-only in-memory fixture, used when VITE_MOCK=1. Excluded from prod by the env check in api.ts.
 import type { OnlineTidbits, Plugin, PluginCatalogEntry,
-  Account, ApiKey, AppNotification, CalendarEntry, Category, Chore, ChoreDay, EventInstance, LeaderboardEntry, LeaderboardPeriod, List, ListGroup,
+  Account, ApiKey, AppNotification, CalendarEntry, Category, Chore, ChoreDay, EventInstance, HiddenEvent, LeaderboardEntry, LeaderboardPeriod, List, ListGroup,
   Photo, PhotoQuota, GooglePhotos, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, ListItem, ListItemInput, ListItemPatch, ListItemStep, Member, RememberedItem, RememberedItemInput, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption, TempCheck, TempCheckInput, Journal, JournalEntry, Insights, InsightDay, InsightRange, Battery, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory, DoseStatus, MedTime,
 } from './types.ts'
 import { FEELINGS, TEMP_CHECK_OFF } from './tempCheck.ts'
@@ -297,10 +297,10 @@ const events: EventInstance[] = [
 const SCHOOL_EVENTS: [number, string, number?, number?][] = [ // [days from today, title, start hour, length in days or hours]
   [0, 'Spirit Day: Pajamas'], [1, 'Breakfast with the Principal', 8], [3, 'Book Fair', undefined, 3], [4, 'PTA Meeting', 18],
   [6, 'Early Release – Half Day'], [8, 'Picture Day Retakes'], [11, 'Professional Development Day – No School'], [13, 'Science Fair', 17],
-  [15, 'Field Trip: Science Museum'], [18, 'Veterans Day – No School'], [20, 'Report Cards Go Home'], [22, 'Math Night', 18],
-  [26, 'Thanksgiving Break – No School', undefined, 3], [33, 'Parent-Teacher Conferences – Half Day'], [36, 'Holiday Concert', 18],
-  [40, 'Spelling Bee'], [45, 'Winter Break – No School', undefined, 9], [57, 'Classes Resume'], [60, 'Martin Luther King Jr. Day – No School'],
-  [64, 'Winter Carnival', 17], [72, 'Snow Day Make-Up'], [80, 'Early Dismissal – Staff Training'], [86, "Presidents' Day – No School"],
+  [15, 'Field Trip: Science Museum'], [18, 'Teacher Workday – No School'], [20, 'Report Cards Go Home'], [22, 'Math Night', 18],
+  [26, 'Fall Break – No School', undefined, 3], [33, 'Parent-Teacher Conferences – Half Day'], [36, 'Fall Concert', 18],
+  [40, 'Spelling Bee'], [45, 'Mid-Term Break – No School', undefined, 5], [57, 'Classes Resume'], [60, 'Staff Development Day – No School'],
+  [64, 'Winter Carnival', 17], [72, 'Snow Day Make-Up'], [80, 'Early Dismissal – Staff Training'], [86, 'Winter Recess – No School', undefined, 5],
 ]
 for (const [i, [day, title, hour, length]] of SCHOOL_EVENTS.entries()) {
   const timed = hour !== undefined
@@ -311,9 +311,28 @@ for (const [i, [day, title, hour, length]] of SCHOOL_EVENTS.entries()) {
   })
 }
 
-/** Why the family doesn't see an event, like the server (calendarFilter.ts): null = shown. */
-const hiddenWhy = (e: EventInstance): EventInstance['hidden'] =>
-  filterShows(calendars.find(c => c.id === e.calendarId)?.filter ?? NO_FILTER, e) ? null : 'filter'
+// Hidden one by one (Settings → Calendars → Hidden events): a make-up day is a school day, whatever the filter says.
+const hiddenEvents: (HiddenEvent & { key: string })[] = []
+const hideKeys = (e: EventInstance) => ({ occurrence: e.rrule ? `${e.id}@${e.occurrenceStart ?? e.start}` : e.id, series: e.seriesId ?? (e.rrule ? e.id : null) })
+const hideInMock = (e: EventInstance, scope: 'occurrence' | 'series'): HiddenEvent => {
+  const key = scope === 'series' ? hideKeys(e).series : hideKeys(e).occurrence
+  if (!key) throw new Error('this event is not part of a series')
+  const existing = hiddenEvents.find(h => h.calendarId === e.calendarId && h.scope === scope && h.key === key)
+  if (existing) return existing
+  const h = { id: uid(), calendarId: e.calendarId, scope, key, title: e.title, start: e.start, allDay: e.allDay, createdAt: new Date().toISOString() }
+  hiddenEvents.push(h)
+  return h
+}
+{ const makeUp = events.find(e => e.title === 'Snow Day Make-Up'); if (makeUp) hideInMock(makeUp, 'occurrence') }
+
+/** Why the family doesn't see an event, like the server: hidden on its own or with its series, or by its calendar's filter (calendarFilter.ts). */
+const hiddenWhy = (e: EventInstance): EventInstance['hidden'] => {
+  const keys = hideKeys(e)
+  const is = (scope: 'occurrence' | 'series', key: string | null) => !!key && hiddenEvents.some(h => h.calendarId === e.calendarId && h.scope === scope && h.key === key)
+  if (is('series', keys.series)) return 'series'
+  if (is('occurrence', keys.occurrence)) return 'event'
+  return filterShows(calendars.find(c => c.id === e.calendarId)?.filter ?? NO_FILTER, e) ? null : 'filter'
+}
 
 // Mirrors the server: leaveAt = start - travelMinutes, only for timed events.
 const withLeave = (e: EventInstance): EventInstance =>
@@ -811,6 +830,19 @@ export const mock = {
     Object.assign(e, patch); bump(); return withLeave(e)
   },
   deleteEvent: async (id: string) => { const i = events.findIndex(x => x.id === id); if (i >= 0) events.splice(i, 1); bump() },
+  hideEvent: async (id: string, scope: 'occurrence' | 'series', occurrenceStart?: string | null): Promise<HiddenEvent> => {
+    const e = events.find(x => x.id === id); if (!e) throw new Error('not found')
+    const h = hideInMock({ ...e, occurrenceStart: occurrenceStart ?? e.occurrenceStart }, scope); bump(); return h
+  },
+  unhideEvent: async (id: string, scope: 'occurrence' | 'series', occurrenceStart?: string | null) => {
+    const e = events.find(x => x.id === id); if (!e) throw new Error('not found')
+    const keys = hideKeys({ ...e, occurrenceStart: occurrenceStart ?? e.occurrenceStart })
+    const i = hiddenEvents.findIndex(h => h.calendarId === e.calendarId && h.scope === scope && h.key === (scope === 'series' ? keys.series : keys.occurrence))
+    if (i >= 0) hiddenEvents.splice(i, 1)
+    bump(); return { ok: true }
+  },
+  getHiddenEvents: async (calendarId: string): Promise<HiddenEvent[]> => hiddenEvents.filter(h => h.calendarId === calendarId).sort((a, b) => a.start.localeCompare(b.start)).map(({ key: _, ...h }) => h),
+  showHiddenEvent: async (_calendarId: string, hiddenId: string) => { const i = hiddenEvents.findIndex(h => h.id === hiddenId); if (i >= 0) hiddenEvents.splice(i, 1); bump(); return { ok: true } },
 
   getChoresDay: async (date: string): Promise<ChoreDay[]> => chores.filter(c => c.active).map(c => {
     const comp = completions.get(`${c.id}:${date}`)
