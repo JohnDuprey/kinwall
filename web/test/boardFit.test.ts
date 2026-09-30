@@ -1,7 +1,7 @@
 // node --test test/ (npm test). Fitting a Board card's rows to its space.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { moreLabel, rowsThatFit } from '../src/boardFit.ts'
+import { boardChores, moreLabel, rowsThatFit } from '../src/boardFit.ts'
 
 const rows = (...bottoms: number[]) => bottoms.map(bottom => ({ bottom }))
 
@@ -25,4 +25,15 @@ test('moreLabel: counts rows, not headings', () => {
   assert.equal(moreLabel(r, 2), '+2 more')
   assert.equal(moreLabel(r, 5), 'More')
   assert.equal(moreLabel(r, 0), 'Show 3') // nothing fit above the button
+})
+
+const chore = (memberId: string | null, remaining: number) => ({ memberId, name: memberId, avatar: null, color: null, remaining, total: remaining })
+const chores = [chore('maya', 2), chore('leo', 1), chore(null, 1)]
+
+test("boardChores: a kid's device counts only their chores, plus Anyone's unless hidden", () => {
+  assert.deepEqual(boardChores(chores, null, null, true), chores)
+  assert.deepEqual(boardChores(chores, 'maya', 'maya', true).map(c => c.memberId), ['maya', null])
+  assert.deepEqual(boardChores(chores, 'maya', 'maya', false).map(c => c.memberId), ['maya'])
+  // A parent's filter (not a pinned device) keeps Anyone's, like the Chores tab.
+  assert.deepEqual(boardChores(chores, 'leo', null, false).map(c => c.memberId), ['leo', null])
 })

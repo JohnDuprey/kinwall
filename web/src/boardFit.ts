@@ -1,4 +1,4 @@
-// How many of a Board card's rows fit its space (Board.tsx FitBody measures, this decides). Pure, so
+// How many of a Board card's rows fit its space (Board.tsx FitBody measures, this decides), and whose chores it counts. Pure, so
 // it's tested in test/boardFit.test.ts.
 
 /** Rows in order, each with its bottom edge (px from the top of the card's body) and whether it's a
@@ -16,4 +16,11 @@ export function rowsThatFit(rows: { bottom: number; heading?: boolean }[], space
 export function moreLabel(rows: { heading?: boolean }[], shown: number): string {
   const n = rows.slice(shown).filter(r => !r.heading).length
   return n === 0 ? 'More' : shown === 0 ? `Show ${n}` : `+${n} more`
+}
+
+/** The Board's chore rows for who's shown, the same rule as the Chores tab: with someone picked,
+ *  only their chores plus Anyone's, which only a device pinned to them (`focusMemberId`) can hide. */
+export function boardChores<T extends { memberId: string | null }>(chores: T[], selectedMemberId: string | null, focusMemberId: string | null, focusShowsShared: boolean): T[] {
+  if (!selectedMemberId) return chores
+  return chores.filter(c => c.memberId === selectedMemberId || (!c.memberId && (!focusMemberId || focusShowsShared)))
 }

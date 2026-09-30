@@ -18,7 +18,7 @@ import { boardGoals } from './tempCheck.ts'
 import { TakeNowTile, useDueDoses } from './TakeNow.tsx'
 import Sheet from './Sheet.tsx'
 import { CartIcon } from './icons.tsx'
-import { moreLabel, rowsThatFit } from './boardFit.ts'
+import { boardChores, moreLabel, rowsThatFit } from './boardFit.ts'
 import { leadOf, leadText } from './leadTime.ts'
 
 const REFRESH_MS = 10 * 60_000
@@ -79,7 +79,7 @@ function FitBody({ title, rows = ROWS, bodyClass = 'board-body', children }: { t
 
 /** `show`: the calendar's member/category filter, so a focused display's board matches its calendar. */
 export default function Board({ show, onTap }: { show: (e: EventInstance) => boolean; onTap: (e: EventInstance) => void }) {
-  const { settings, members, refreshTick, focusMemberId, focusShowsShared } = useApp()
+  const { settings, members, refreshTick, selectedMemberId, focusMemberId, focusShowsShared } = useApp()
   const device = useDeviceAppearance()
   const tz = settings.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone
   const [now, setNow] = useState(() => new Date())
@@ -148,12 +148,14 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
   const tiles = [
     meds.doses.length > 0 && 'meds', f.chores && !full && 'chores', f.lists && !full && 'due', f.lists && groceries.length > 0 && 'groceries', f.chores && rewardRequests > 0 && 'rewards',
   ].filter((t): t is string => !!t)
+  // Whose chores count: a kid's device (or a picked person) sees only theirs, like the Chores tab.
+  const chores = boardChores(data.chores, selectedMemberId, focusMemberId, focusShowsShared)
   // Saving for a reward: shown on the person's chores row, or a row of its own when they have no chores today.
-  const goalsOnly = members.filter(m => m.rewardGoal && !data.chores.some(c => c.memberId === m.id))
+  const goalsOnly = members.filter(m => m.rewardGoal && (!selectedMemberId || m.id === selectedMemberId) && !chores.some(c => c.memberId === m.id))
   const shown = ['clock', 'tiles', 'today', 'meals', 'photo', 'coming', 'due', 'chores', 'tidbit'].filter(a =>
     a === 'tiles' ? tiles.length > 0 : a === 'photo' ? f.photos : a === 'due' ? f.lists && full : a === 'chores' ? f.chores && full : a === 'meals' ? f.meals : a === 'tidbit' ? !!tidbit : true)
   const has = (a: string) => shown.includes(a)
-  const choresLeft = data.chores.reduce((n, c) => n + c.remaining, 0)
+  const choresLeft = chores.reduce((n, c) => n + c.remaining, 0)
   const overdue = data.items.filter(i => i.overdue).length
   const dueWeek = data.items.filter(i => !i.overdue && i.dueDate).length
   const groceryCount = groceries.reduce((n, l) => n + l.openCount, 0)
@@ -167,10 +169,10 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
             {tiles.includes('chores') && (
               <a className="board-tile" href="#/chores">
                 <span className="board-tile-label">✅ Chores</span>
-                <span className="board-tile-value">{choresLeft ? `${choresLeft} left today` : data.chores.length ? 'All done ✓' : 'None today'}</span>
-                {data.chores.length > 0 && (
+                <span className="board-tile-value">{choresLeft ? `${choresLeft} left today` : chores.length ? 'All done ✓' : 'None today'}</span>
+                {chores.length > 0 && (
                   <span className="board-tile-people">
-                    {data.chores.map(c => (
+                    {chores.map(c => (
                       <span key={c.memberId ?? 'anyone'} className={`board-tile-person ${c.remaining ? '' : 'done'}`} aria-label={`${c.name ?? 'Anyone'}: ${c.remaining ? `${c.remaining} left` : 'done'}`}>
                         <Avatar m={{ name: c.name ?? 'Anyone', color: c.color ?? 'var(--bg)', avatar: c.avatar ?? '⭐' }} />
                         <span aria-hidden="true">{c.remaining || '✓'}</span>
@@ -279,9 +281,9 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
         </Card>}
 
         {has('chores') && <Card title="Chores today" area="chores" link={<a className="board-card-link" href="#/rewards">🎁 Rewards</a>}>
-          {data.chores.length === 0 && !goalsOnly.length ? <p className="snap-empty">No chores today.</p> : (
+          {chores.length === 0 && !goalsOnly.length ? <p className="snap-empty">No chores today.</p> : (
             <ul className="snap-list">
-              {data.chores.map(c => {
+              {chores.map(c => {
                 const done = c.total - c.remaining
                 const name = c.name ?? 'Anyone'
                 const waiting = c.pending ? `${c.pending} waiting for OK` : '' // ticked, not counted until a parent approves
