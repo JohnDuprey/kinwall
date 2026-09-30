@@ -11,6 +11,7 @@ import RecipeSheet, { Stars } from './RecipeSheet.tsx'
 import RecipeImportSheet from './RecipeImportSheet.tsx'
 import RecipePhoto from './RecipePhoto.tsx'
 import MealProjection from './MealProjection.tsx'
+import { useIsPhone } from './useIsPhone.ts'
 import { recipeMatches } from './recipe-search.ts'
 import type { Meal, Recipe, RecipeKind } from './meal-types.ts'
 import type { Me } from './types.ts'
@@ -23,6 +24,12 @@ export default function Meals() {
   const [anchor, setAnchor] = useState(today)
   const days = mealWeek(anchor, settings.weekStart)
   const from = days[0], to = days[6]
+  // Phones start on one day (a week of cards is a long scroll); Week is a tap away.
+  const isPhone = useIsPhone()
+  const [span, setSpan] = useState<'day' | 'week'>('day')
+  const dayView = isPhone && span === 'day'
+  const step = dayView ? 1 : 7
+  const shown = dayView ? [anchor] : days
   const [view, setView] = useState<'week' | 'recipes'>('week')
   const [me, setMe] = useState<Me | null>(null)
   const [authError, setAuthError] = useState('')
@@ -103,12 +110,13 @@ export default function Meals() {
     {me && !admin && <p className="field-hint">Admins manage recipes and plans. Your assigned meals allow notes and status updates.</p>}
     {view === 'week' ? <section role="tabpanel" aria-labelledby="meals-tab-week">
       <div className="meals-toolbar">
-        <div className="meal-actions"><button className="icon-btn" aria-label="Previous meal week" onClick={() => setAnchor(moveMealDate(anchor, -7))}><ChevronLeft /></button><button className="btn btn-secondary" onClick={() => setAnchor(today)}>This week</button><button className="icon-btn" aria-label="Next meal week" onClick={() => setAnchor(moveMealDate(anchor, 7))}><ChevronRight /></button></div>
-        <h2 aria-live="polite">{mealDayLabel(from, { month: 'short', day: 'numeric' })} – {mealDayLabel(to, { month: 'short', day: 'numeric', year: 'numeric' })}</h2>
+        {isPhone && <Segmented label="Show" value={span} onChange={setSpan} options={[{ key: 'day', label: 'Day' }, { key: 'week', label: 'Week' }]} />}
+        <div className="meal-actions"><button className="icon-btn" aria-label={dayView ? 'Previous day' : 'Previous meal week'} onClick={() => setAnchor(moveMealDate(anchor, -step))}><ChevronLeft /></button><button className="btn btn-secondary" onClick={() => setAnchor(today)}>{dayView ? 'Today' : 'This week'}</button><button className="icon-btn" aria-label={dayView ? 'Next day' : 'Next meal week'} onClick={() => setAnchor(moveMealDate(anchor, step))}><ChevronRight /></button></div>
+        <h2 aria-live="polite">{dayView ? mealDayLabel(anchor, { weekday: 'long', month: 'short', day: 'numeric' }) : <>{mealDayLabel(from, { month: 'short', day: 'numeric' })} – {mealDayLabel(to, { month: 'short', day: 'numeric', year: 'numeric' })}</>}</h2>
       </div>
       {recipeError && <p className="field-error" role="alert">The recipe library could not refresh. <button className="link-btn" onClick={() => setTick(t => t + 1)}>Retry</button></p>}
       {mealError ? <div className="state-card" role="alert">Could not load the meal plan: {mealError} <button className="btn btn-secondary" onClick={() => setTick(t => t + 1)}>Retry</button></div> : !meals ? <p role="status">Loading meals…</p> : <div className="meal-grid-scroll" tabIndex={0} role="region" aria-label="Weekly meal plan">
-        <table className="meal-grid"><caption className="sr-only">Meals from {from} through {to}</caption><thead><tr><th scope="col">Date</th>{MEAL_SLOTS.map(slot => <th key={slot} scope="col">{SLOT_LABEL[slot]}</th>)}</tr></thead><tbody>{days.map(date => <tr key={date} className={date === today ? 'meal-today' : ''}>
+        <table className="meal-grid"><caption className="sr-only">Meals from {from} through {to}</caption><thead><tr><th scope="col">Date</th>{MEAL_SLOTS.map(slot => <th key={slot} scope="col">{SLOT_LABEL[slot]}</th>)}</tr></thead><tbody>{shown.map(date => <tr key={date} className={date === today ? 'meal-today' : ''}>
           <th scope="row"><time dateTime={date}>{mealDayLabel(date, { weekday: 'long' })}<span>{mealDayLabel(date, { month: 'short', day: 'numeric' })}</span></time>{date === today && <span className="meal-today-label">Today</span>}</th>
           {MEAL_SLOTS.map(slot => <td key={slot} data-slot={SLOT_LABEL[slot]}>{(bySlot.get(`${date}:${slot}`) ?? []).map(meal => {
             const assignee = members.find(member => member.id === meal.assigneeMemberId)

@@ -4,7 +4,7 @@ The **Meals** tab answers two questions: what are we eating this week, and what 
 
 ## Planning the week
 
-The week planner shows the household week (it starts on Sunday or Monday, per [General](../settings/general.md)) with a row per day and a column for **Breakfast**, **Lunch**, **Dinner** and **Snack**. On a phone each day is a card with its four slots listed. Use the arrows to page through weeks and **This week** to come back.
+The week planner shows the household week (it starts on Sunday or Monday, per [General](../settings/general.md)) with a row per day and a column for **Breakfast**, **Lunch**, **Dinner** and **Snack**. Use the arrows to page through weeks and **This week** to come back. On a phone it opens on **Day**: today as one card with its four slots, the arrows stepping a day at a time and **Today** to come back. Switch to **Week** for the whole week as a card per day.
 
 Tap **+** in a slot (or **Plan meal**) to add a meal:
 
