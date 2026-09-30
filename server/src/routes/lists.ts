@@ -17,6 +17,7 @@ import {
   ListInputSchema,
   ListItemInputBodySchema,
   ListItemPatchSchema,
+  ListItemMoveSchema,
   ListItemSchema,
   ListItemStepInputSchema,
   ListItemStepPatchSchema,
@@ -930,6 +931,60 @@ listsRoutes.openapi(
     ]);
     emit(c, 'list.item.changed', { listId: id, id: itemId, done: !!updated.done });
     return c.json((await loadItem(c.env.DB, id, itemId))!, 200);
+  },
+);
+
+listsRoutes.openapi(
+  createRoute({
+    method: 'post',
+    path: '/api/lists/{id}/items/move',
+    tags: ['Lists'],
+    summary: 'Move items to another list of the same type (to-do, reusable, Groceries or Shopping). Each keeps its id and everything on it: fields, steps, notes thread and the meals it was added for; it goes to the end of the target list. Returns the moved items.',
+    security: [{ Bearer: [] }],
+    request: { params: z.object({ id: z.string() }), body: { content: { 'application/json': { schema: ListItemMoveSchema } } } },
+    responses: {
+      200: { description: 'moved', content: { 'application/json': { schema: z.array(ListItemSchema) } } },
+      400: { description: 'the target is another type of list, or the same list', content: { 'application/json': { schema: ErrorSchema } } },
+      404: { description: 'a list or item not found', content: { 'application/json': { schema: ErrorSchema } } },
+    },
+  }),
+  async (c) => {
+    const { id } = c.req.valid('param');
+    const { itemIds, toListId } = c.req.valid('json');
+    const db = c.env.DB;
+    const [listsRes, itemsRes] = await db.batch<unknown>([
+      db.prepare('SELECT * FROM lists WHERE id IN (?, ?)').bind(id, toListId),
+      db.prepare('SELECT * FROM list_items WHERE list_id = ? AND id IN (SELECT value FROM json_each(?))').bind(id, JSON.stringify(itemIds)),
+    ]);
+    const lists = listsRes.results as ListRow[];
+    const from = lists.find((l) => l.id === id), to = lists.find((l) => l.id === toListId);
+    if (!from || !to) return c.json({ error: 'list not found' }, 404);
+    const typeOf = (l: ListRow) => (l.kind === 'shopping' ? `shopping:${l.catalog ?? 'groceries'}` : l.kind);
+    if (from.id === to.id || typeOf(from) !== typeOf(to)) return c.json({ error: 'items move only to another list of the same type' }, 400);
+    const rows = itemsRes.results as ListItemRow[];
+    if (rows.length !== new Set(itemIds).size) return c.json({ error: 'item not found' }, 404);
+    const ids = JSON.stringify(rows.map((r) => r.id));
+    const now = new Date().toISOString();
+    // Same type, so the same catalog: remember where they go, like a save.
+    const cat = (to.catalog ?? 'groceries') as Catalog;
+    await db.batch([
+      // To the end of the target, in their order here. (Triggers bump both lists' itemsRev.)
+      db.prepare(
+        `UPDATE list_items SET list_id = ?1, updated_at = ?2,
+           sort = (SELECT coalesce(max(sort), -1) FROM list_items WHERE list_id = ?1) + 1 + (SELECT count(*) FROM list_items o WHERE o.list_id = ?3 AND o.id IN (SELECT value FROM json_each(?4)) AND (o.sort < list_items.sort OR (o.sort = list_items.sort AND o.id < list_items.id)))
+         WHERE list_id = ?3 AND id IN (SELECT value FROM json_each(?4))`,
+      ).bind(toListId, now, id, ids),
+      // Meal links follow (a claim the target already has for the same meal ingredient stays; the moved one's goes).
+      db.prepare('UPDATE OR IGNORE meal_shopping_sources SET list_id = ? WHERE list_id = ? AND item_id IN (SELECT value FROM json_each(?))').bind(toListId, id, ids),
+      db.prepare('DELETE FROM meal_shopping_sources WHERE list_id = ? AND item_id IN (SELECT value FROM json_each(?))').bind(id, ids),
+      ...(to.kind === 'shopping' ? rows.map((r) => rememberPlace(db, cat, r.title, r, now)).filter((st) => st !== null) : []),
+    ]);
+    emit(c, 'list.item.changed', { listId: id, ids: rows.map((r) => r.id) });
+    emit(c, 'list.item.changed', { listId: toListId, ids: rows.map((r) => r.id) });
+    emit(c, 'list.changed', { id });
+    emit(c, 'list.changed', { id: toListId });
+    const moved = await Promise.all(itemIds.filter((v, i) => itemIds.indexOf(v) === i).map((itemId) => loadItem(db, toListId, itemId)));
+    return c.json(moved.filter((m) => m !== null), 200);
   },
 );
 

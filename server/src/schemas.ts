@@ -844,6 +844,10 @@ export const StoreAislesSchema = z
 // store (Checkout at the end of a shopping trip): remembered as where these items were last bought.
 export const ListCheckedSchema = z.object({ itemIds: z.array(z.string()).max(1000).optional(), store: z.string().min(1).optional() }).openapi('ListChecked');
 
+export const ListItemMoveSchema = z
+  .object({ itemIds: z.array(z.string()).min(1).max(1000), toListId: z.string().min(1).openapi({ description: 'Another list of the same type.' }) })
+  .openapi('ListItemMove');
+
 export const ListReorderSchema = z.object({ itemIds: z.array(z.string()) }).openapi('ListReorder');
 
 export const ListOrderSchema = z

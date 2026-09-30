@@ -244,6 +244,7 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
   update_remembered_item: { item: RememberedItemSchema },
   set_list_item_done: { item: ListItemSchema },
   set_step_done: { item: ListItemSchema },
+  move_list_items: { items: z.array(ListItemSchema) },
   get_event_items: { items: z.array(ListItemSchema.extend({ listName: z.string() })) },
   list_categories: { categories: z.array(CategorySchema) },
   update_category: { category: CategorySchema },
@@ -288,7 +289,7 @@ const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boole
   create_chore: WRITE, update_chore: SET, complete_chore: SET, uncomplete_chore: SET, list_pending_approvals: READ, approve_chore: SET, reject_chore: SET,
   list_rewards: READ, create_reward: WRITE, update_reward: SET, redeem_reward: WRITE, list_reward_requests: READ, approve_reward: SET, decline_reward: SET, mark_reward_given: SET,
   add_member: WRITE, update_member: SET,
-  create_list: WRITE, update_list: SET, add_list_items: WRITE, update_list_item: SET, set_store_aisle_order: SET, list_remembered_items: READ, update_remembered_item: WRITE, set_list_item_done: SET, set_step_done: SET, update_category: SET, add_note: WRITE, update_note: SET,
+  create_list: WRITE, update_list: SET, add_list_items: WRITE, update_list_item: SET, set_store_aisle_order: SET, list_remembered_items: READ, update_remembered_item: WRITE, set_list_item_done: SET, set_step_done: SET, move_list_items: SET, update_category: SET, add_note: WRITE, update_note: SET,
   create_contact: WRITE, update_contact: SET, create_contact_category: WRITE, update_contact_category: SET,
   send_notification: { ...WRITE, openWorldHint: true },
   set_night_screen: SET,
@@ -1406,6 +1407,41 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       const res = await call(app, env, auth, 'PATCH', `/api/lists/${encodeURIComponent(listId)}/items/${encodeURIComponent(itemId)}`, { done });
       if (res.status >= 400) return errorResult(res.json, 'failed to update item');
       return okResult(done ? 'Marked item done.' : 'Marked item not done.', { item: res.json as Record<string, unknown> });
+    },
+  );
+
+  tool(
+    'move_list_items',
+    {
+      title: 'Move list items',
+      description: 'Move items to another list of the same type (to-do, reusable, Groceries or Shopping lists; e.g. from Groceries to another Groceries list). Each keeps everything on it: notes, steps, assignee, due date, store and aisle, discussion and the meals it was added for.',
+      inputSchema: {
+        list: z.string().describe('The list they are on: id or name.'),
+        items: jsonList(z.array(z.string())).describe('Item ids (from get_list) or titles (case ignored).'),
+        toList: z.string().describe('The list to move them to: id or name.'),
+      },
+    },
+    async ({ list, items, toList }) => {
+      let from: string, to: string;
+      try {
+        from = (await resolveList(app, env, auth, list)).id;
+        to = (await resolveList(app, env, auth, toList)).id;
+      } catch (err) {
+        return errorResult(null, err instanceof Error ? err.message : 'list lookup failed');
+      }
+      const detail = await call(app, env, auth, 'GET', `/api/lists/${encodeURIComponent(from)}?suggestions=false`);
+      if (detail.status >= 400) return errorResult(detail.json, 'failed to read the list');
+      const onList = (detail.json as { items: { id: string; title: string }[] }).items;
+      const itemIds: string[] = [];
+      for (const it of items) {
+        const found = onList.find((i) => i.id === it) ?? onList.find((i) => i.title.toLowerCase() === it.trim().toLowerCase());
+        if (!found) return errorResult(null, `"${it}" is not on that list.`);
+        itemIds.push(found.id);
+      }
+      const res = await call(app, env, auth, 'POST', `/api/lists/${encodeURIComponent(from)}/items/move`, { itemIds, toListId: to });
+      if (res.status >= 400) return errorResult(res.json, 'failed to move items');
+      const moved = res.json as { title: string }[];
+      return okResult(`Moved ${moved.map((i) => i.title).join(', ')}.`, { items: res.json as Record<string, unknown>[] });
     },
   );
 

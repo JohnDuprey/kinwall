@@ -234,6 +234,7 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'PATCH', pattern: /^\/api\/lists\/(?!(?:remembered-tags|values|aisles|order)$)[^/]+$/ }, // a list id, never a fixed route like remembered-tags (parents only)
   { method: 'DELETE', pattern: /^\/api\/lists\/(?!(?:remembered-tags|values|aisles|order)$)[^/]+$/ }, // a list id, never a fixed route like remembered-tags (parents only)
   { method: 'POST', pattern: /^\/api\/lists\/[^/]+\/items$/ },
+  { method: 'POST', pattern: /^\/api\/lists\/[^/]+\/items\/move$/ }, // moving between lists, like editing items on both
   { method: 'PATCH', pattern: /^\/api\/lists\/[^/]+\/items\/[^/]+$/ },
   { method: 'DELETE', pattern: /^\/api\/lists\/[^/]+\/items\/[^/]+$/ },
   { method: 'POST', pattern: /^\/api\/lists\/[^/]+\/items\/[^/]+\/steps(\/reorder)?$/ },

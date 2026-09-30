@@ -281,8 +281,9 @@ function storeAisles(suggestions: ListDetail['suggestions'], store: string | nul
   return suggestions.aisles.filter(a => a.store === store).map(a => a.aisle).sort((a, b) => compareAisles(store, a, b, order))
 }
 
-function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisleOrder, trip, siblingIds, upcoming, byId, onClose, onSaved }: {
+function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisleOrder, trip, siblingIds, upcoming, byId, moveTargets, onClose, onSaved }: {
   listId: string; item: ListItem; kind: ListKind; manual: boolean; members: Member[]
+  moveTargets: List[] // the other lists of this type: "Move to…" (hidden when there are none)
   suggestions: ListDetail['suggestions']; aisleOrder: AisleOrder
   trip: string | null // shopping at this store: the aisle picker is this store's
   upcoming: EventInstance[]; byId: Map<string, EventInstance> // for the "Linked event" picker
@@ -291,6 +292,11 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisle
 }) {
   const dialog = useDialog()
   const { toast, settings } = useApp()
+  const [moving, setMoving] = useState(false)
+  const moveTo = async (to: List) => {
+    try { await api.moveListItems(listId, [item.id], to.id); announce(`Moved ${item.title} to ${to.name}`); onSaved() }
+    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not move it', true) }
+  }
   const [title, setTitle] = useState(item.title)
   const [quantity, setQuantity] = useState(item.quantity ?? '')
   const [notes, setNotes] = useState(item.notes ?? '')
@@ -418,6 +424,19 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisle
       {kind !== 'shopping' && priorityField}
       <StepsEditor listId={listId} item={live} onChange={setLive} />
       {kind !== 'shopping' && quantityAndPlace}
+      {moveTargets.length > 0 && (
+        <div className="field">
+          <button className="btn btn-secondary btn-block" onClick={() => setMoving(true)} aria-haspopup="dialog">Move to another list…</button>
+        </div>
+      )}
+      {moving && (
+        <Sheet title="Move to…" onClose={() => setMoving(false)}>
+          <p className="field-hint">{item.title} keeps everything on it: notes, steps and discussion.</p>
+          <div className="shop-store-options">
+            {moveTargets.map(l => <button key={l.id} className="btn btn-secondary btn-block" onClick={() => moveTo(l)}>{l.emoji ? `${l.emoji} ` : ''}{l.name}</button>)}
+          </div>
+        </Sheet>
+      )}
       {kind !== 'shopping' && (
           <div className="field">
             <label>Assign to</label>
@@ -1299,8 +1318,9 @@ function ItemAddField({ id, value, onChange, onAdd, suggestions, onList, inputRe
   )
 }
 
-function ListDetailPane({ listId, isPhone, shopMode, onBack, onArchivedOrDeleted, onLoaded }: {
+function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOrDeleted, onLoaded }: {
   listId: string; isPhone: boolean; onBack: () => void; onArchivedOrDeleted: () => void; onLoaded: (list: List) => void
+  lists: List[] // the family's lists on this screen: where an item can move
   shopMode: boolean // #/lists/<id>/shop: shopping mode, full screen
 }) {
   const { members, toast, refreshTick } = useApp()
@@ -1782,6 +1802,7 @@ function ListDetailPane({ listId, isPhone, shopMode, onBack, onArchivedOrDeleted
 
       {editItem && (
         <ItemEditSheet listId={listId} item={editItem} kind={list.kind} manual={manual} members={members} suggestions={suggestions} aisleOrder={aisleOrder} trip={tripAt} siblingIds={siblingIds} upcoming={upcoming} byId={byId}
+          moveTargets={lists.filter(l => !l.archived && l.id !== listId && listType(l) === listType(list))}
           onClose={() => { setEditItem(null); load() }} onSaved={() => { setEditItem(null); load() }} />
       )}
       {editList && (
@@ -1956,7 +1977,7 @@ export default function Lists() {
     <div className="content lists-content">
       {isPhone ? (
         selectedId ? (
-          <ListDetailPane listId={selectedId} isPhone shopMode={shopId === selectedId} onBack={() => setSelectedId(null)} onArchivedOrDeleted={() => { setSelectedId(null); load() }} onLoaded={syncCard} />
+          <ListDetailPane listId={selectedId} lists={lists} isPhone shopMode={shopId === selectedId} onBack={() => setSelectedId(null)} onArchivedOrDeleted={() => { setSelectedId(null); load() }} onLoaded={syncCard} />
         ) : (
           <div className="lists-shell lists-shell-phone">{cards}</div>
         )
@@ -1964,7 +1985,7 @@ export default function Lists() {
         <div className="lists-shell">
           {cards}
           {selectedId
-            ? <ListDetailPane listId={selectedId} isPhone={false} shopMode={shopId === selectedId} onBack={() => setSelectedId(null)} onArchivedOrDeleted={() => { setSelectedId(null); load() }} onLoaded={syncCard} />
+            ? <ListDetailPane listId={selectedId} lists={lists} isPhone={false} shopMode={shopId === selectedId} onBack={() => setSelectedId(null)} onArchivedOrDeleted={() => { setSelectedId(null); load() }} onLoaded={syncCard} />
             : <div className="list-detail list-detail-empty"><div className="empty-card"><span className="emoji">👈</span>Pick a list to open it.</div></div>}
         </div>
       )}

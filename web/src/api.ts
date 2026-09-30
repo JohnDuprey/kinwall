@@ -527,6 +527,9 @@ export const api = {
   addNote: (target: NoteTarget, body: string, memberId: string | null) => MOCK ? mock.addNote(target, body, memberId) : post<Note>('api/notes', { target, body, memberId }),
   updateNote: (id: string, body: string) => MOCK ? mock.updateNote(id, body) : patch<Note>(`api/notes/${id}`, { body }),
   deleteNote: (id: string) => MOCK ? mock.deleteNote(id) : del(`api/notes/${id}`),
+  // Move items to another list of the same type; each keeps its id and everything on it.
+  moveListItems: (listId: string, itemIds: string[], toListId: string) =>
+    MOCK ? mock.moveListItems(listId, itemIds, toListId) : post<ListItem[]>(`api/lists/${listId}/items/move`, { itemIds, toListId }),
   deleteListItem: (listId: string, itemId: string) => MOCK ? mock.deleteListItem(listId, itemId) : del(`api/lists/${listId}/items/${itemId}`),
   // Offline-capable versions for the Lists and Chores tabs: each resolves at once with the queued
   // change (apply it with applyListOps for an instant UI); the demo runs its mock and gets null.

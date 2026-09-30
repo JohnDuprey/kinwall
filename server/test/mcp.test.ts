@@ -141,6 +141,7 @@ test('mcp: tools/list returns the tools', async () => {
     'list_tracker_entries',
     'mark_reward_given',
     'merge_contacts',
+    'move_list_items',
     'preview_contact_import',
     'rate_recipe',
     'redeem_reward',

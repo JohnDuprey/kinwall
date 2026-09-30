@@ -1172,6 +1172,12 @@ export const mock = {
     Object.assign(n, { body: body.trim(), updatedAt: iso() }); bump(); return n
   },
   deleteNote: async (id: string) => { notes = notes.filter(n => n.id !== id); bump() },
+  moveListItems: async (listId: string, itemIds: string[], toListId: string) => {
+    const moved = listItems.filter(i => i.listId === listId && itemIds.includes(i.id))
+    const top = Math.max(-1, ...listItems.filter(i => i.listId === toListId).map(i => i.sort))
+    moved.forEach((i, n) => Object.assign(i, { listId: toListId, sort: top + 1 + n, updatedAt: iso() }))
+    recomputeListCounts(listId); recomputeListCounts(toListId); bump(); return moved
+  },
   deleteListItem: async (listId: string, itemId: string) => {
     const i = listItems.findIndex(x => x.id === itemId && x.listId === listId)
     if (i >= 0) listItems.splice(i, 1)
