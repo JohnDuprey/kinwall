@@ -55,8 +55,12 @@ export function isAdultBirthday(birthday: string | null | undefined, today: stri
 }
 
 // Exported for reuse by routes/leaderboard.ts (period boundaries use the same household tz/weekStart).
+// Cached per timezone (a board or snapshot asks once per event).
+const dayFormats = new Map<string, Intl.DateTimeFormat>();
 export function todayInTz(tz: string, at = new Date()): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(at); // en-CA -> YYYY-MM-DD
+  let f = dayFormats.get(tz);
+  if (!f) dayFormats.set(tz, (f = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }))); // en-CA -> YYYY-MM-DD
+  return f.format(at);
 }
 
 export function weekStartDate(tz: string, weekStart: 0 | 1, at = new Date()): string {

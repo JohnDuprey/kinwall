@@ -9,17 +9,25 @@ const RRule = ((RRuleNS as unknown as { RRule?: typeof import('rrule').RRule }).
 
 export type DateParts = { y: number; mo: number; d: number; h: number; mi: number; s: number };
 
+// One formatter per timezone: building an Intl.DateTimeFormat costs far more than using one, and
+// expanding a week of repeating events asks for thousands of these.
+const formatters = new Map<string, Intl.DateTimeFormat>();
+
 function zonedParts(utcDate: Date, tz: string): DateParts {
-  const dtf = new Intl.DateTimeFormat('en-US', {
-    timeZone: tz,
-    hourCycle: 'h23',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  });
+  let dtf = formatters.get(tz);
+  if (!dtf) {
+    dtf = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      hourCycle: 'h23',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+    formatters.set(tz, dtf);
+  }
   const map: Record<string, string> = {};
   for (const p of dtf.formatToParts(utcDate)) map[p.type] = p.value;
   return {

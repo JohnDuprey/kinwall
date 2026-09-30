@@ -237,7 +237,7 @@ export function dueDates(row: ChoreRow, from: string, to: string, tz: string): S
   if (!row.rrule) return new Set(row.due_date && row.due_date >= from && row.due_date <= to ? [row.due_date] : []);
   // The creation *day* in the household tz: created_at is UTC, so an evening chore west of UTC
   // would otherwise anchor on tomorrow and not show up until then.
-  const anchor = row.due_date ?? new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date(row.created_at));
+  const anchor = row.due_date ?? todayInTz(tz, new Date(row.created_at));
   const start = new Date(`${from}T00:00:00Z`);
   const end = new Date(new Date(`${to}T00:00:00Z`).getTime() + 24 * 60 * 60 * 1000);
   try {
