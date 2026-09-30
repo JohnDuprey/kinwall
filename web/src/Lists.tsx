@@ -33,7 +33,12 @@ const KIND_LABEL: Record<ListKind, string> = { todo: 'To-do', shopping: 'Shoppin
 function countLabel(list: List) {
   if (list.itemCount === 0) return 'Empty'
   if (list.openCount === 0) return 'All done'
-  return `${list.openCount} left`
+  return `${list.openCount} left${list.overdueCount ? `, ${list.overdueCount} overdue` : ''}`
+}
+/** "3 left · ⚠ 2 overdue": the overdue part in the danger color with an icon, so it's not color alone. */
+function CountLine({ list }: { list: List }) {
+  if (!list.overdueCount || list.openCount === 0) return <>{countLabel(list)}</>
+  return <>{list.openCount} left · <span className="list-overdue">⚠ {list.overdueCount} overdue</span></>
 }
 
 const SORT_LABEL: Record<ListSortBy, string> = { manual: 'Manual', added: 'Date added', due: 'Due date', priority: 'Priority', alpha: 'A–Z', aisle: 'Aisle' }
@@ -114,7 +119,7 @@ function ListCard({ list, active, members, onSelect, onEdit }: {
       <div className="list-card-emoji">{list.emoji || '📝'}</div>
       <div className="list-card-body">
         <div className="list-card-name">{list.name}</div>
-        <div className="list-card-sub">{countLabel(list)}</div>
+        <div className="list-card-sub"><CountLine list={list} /></div>
       </div>
       {owners.length > 0 && (
         <div className="list-card-owners">
@@ -1361,7 +1366,7 @@ function ListDetailPane({ listId, isPhone, shopMode, onBack, onArchivedOrDeleted
         <div className="list-detail-emoji" aria-hidden="true">{list.emoji || '📝'}</div>
         <div className="list-detail-title">
           <h2 className="list-detail-name">{list.name}</h2>
-          <div className="list-detail-sub">{KIND_LABEL[list.kind]} · {countLabel(list)}</div>
+          <div className="list-detail-sub">{KIND_LABEL[list.kind]} · <CountLine list={list} /></div>
         </div>
         <button className="btn btn-secondary" onClick={() => setEditList(true)} aria-label={`Edit list ${list.name}`}>Edit</button>
       </div>

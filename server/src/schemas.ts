@@ -549,6 +549,7 @@ export const ListSchema = z
     createdAt: z.string(),
     itemCount: z.number(),
     openCount: z.number(),
+    overdueCount: z.number().openapi({ description: 'Items not done whose due date is before today (household timezone).' }),
   })
   .openapi('List');
 

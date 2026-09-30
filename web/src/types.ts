@@ -581,6 +581,7 @@ export interface List {
   createdAt: string
   itemCount: number // computed
   openCount: number // computed
+  overdueCount?: number // computed: open items due before today (older servers leave it out)
 }
 
 export interface ListItem {

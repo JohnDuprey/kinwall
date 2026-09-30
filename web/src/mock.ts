@@ -421,7 +421,10 @@ function recomputeListCounts(id: string) {
   const items = listItems.filter(i => i.listId === id)
   l.itemCount = items.length
   l.openCount = items.filter(i => !i.done).length
+  const today = new Date().toLocaleDateString('en-CA')
+  l.overdueCount = items.filter(i => !i.done && i.dueDate && i.dueDate < today).length
 }
+for (const l of lists) recomputeListCounts(l.id)
 
 // Notification feed: a few days of what the server would have recorded (newest first).
 const notifications: AppNotification[] = [

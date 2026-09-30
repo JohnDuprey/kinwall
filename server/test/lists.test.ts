@@ -54,6 +54,24 @@ test('lists: create/list, and computed itemCount/openCount', async () => {
   assert.equal(found.openCount, 2);
 });
 
+test('lists: overdueCount counts open items due before today, on the list, its detail and after an update', async () => {
+  const env = makeEnv();
+  const request = makeApp(env);
+  const list = await json(await request('/api/lists', { method: 'POST', body: JSON.stringify({ name: 'Chores', kind: 'todo' }) }));
+  assert.equal(list.overdueCount, 0);
+  const day = (n: number) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
+  const added = await json(await request(`/api/lists/${list.id}/items`, { method: 'POST', body: JSON.stringify([
+    { title: 'Late', dueDate: day(-3) }, { title: 'Also late', dueDate: day(-1) }, { title: 'Later', dueDate: day(5) }, { title: 'No date' },
+  ]) }));
+  await request(`/api/lists/${list.id}/items/${added[1].id}`, { method: 'PATCH', body: JSON.stringify({ done: true }) });
+  const all = await json(await request('/api/lists'));
+  assert.equal(all.find((l: any) => l.id === list.id).overdueCount, 1, 'done items and future/undated ones do not count');
+  const detail = await json(await request(`/api/lists/${list.id}`));
+  assert.equal(detail.list.overdueCount, 1);
+  const renamed = await json(await request(`/api/lists/${list.id}`, { method: 'PATCH', body: JSON.stringify({ name: 'House' }) }));
+  assert.equal(renamed.overdueCount, 1);
+});
+
 test('lists: shopping defaults to groupBy aisle, others to none; explicit groupBy wins; groceries never group by category', async () => {
   const env = makeEnv();
   const request = makeApp(env);

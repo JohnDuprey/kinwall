@@ -72,7 +72,7 @@ export type ListItemStepRow = { id: string; item_id: string; title: string; done
 
 export type ListGroupRow = { list_id: string; kind: 'store' | 'category'; name: string; sort: number };
 
-export function toApi(row: ListRow, itemCount: number, openCount: number) {
+export function toApi(row: ListRow, itemCount: number, openCount: number, overdueCount = 0) {
   return {
     id: row.id,
     name: row.name,
@@ -88,6 +88,7 @@ export function toApi(row: ListRow, itemCount: number, openCount: number) {
     createdAt: row.created_at,
     itemCount,
     openCount,
+    overdueCount,
   };
 }
 
@@ -190,6 +191,12 @@ export function todayIn(tz: string | null | undefined) {
   return new Intl.DateTimeFormat('en-CA', { timeZone: tz || hostTimezone() }).format(new Date());
 }
 
+/** Today (YYYY-MM-DD) in the household's timezone: before it, an open item's due date is overdue. */
+async function householdToday(db: D1Database) {
+  const row = await db.prepare("SELECT value FROM settings WHERE key = 'timezone'").first<{ value: string }>();
+  return todayIn(row?.value);
+}
+
 /** Steps of the items matching `where` (a condition on list_items), grouped by item id, in order. */
 export function stepsQuery(db: KinwallDb, where: string, ...binds: unknown[]) {
   return db.prepare(`SELECT * FROM list_item_steps WHERE item_id IN (SELECT id FROM list_items WHERE ${where}) ORDER BY sort, created_at`).bind(...binds);
@@ -267,17 +274,19 @@ listsRoutes.openapi(
   }),
   async (c) => {
     const { archived } = c.req.valid('query');
+    const today = await householdToday(c.env.DB);
     // Single round trip: counts computed via LEFT JOIN + GROUP BY rather than a per-list query.
     const { results } = await c.env.DB.prepare(
-      `SELECT l.*, COUNT(li.id) AS item_count, COALESCE(SUM(CASE WHEN li.done = 0 THEN 1 ELSE 0 END), 0) AS open_count
+      `SELECT l.*, COUNT(li.id) AS item_count, COALESCE(SUM(CASE WHEN li.done = 0 THEN 1 ELSE 0 END), 0) AS open_count,
+         COALESCE(SUM(CASE WHEN li.done = 0 AND li.due_date IS NOT NULL AND li.due_date < ? THEN 1 ELSE 0 END), 0) AS overdue_count
        FROM lists l LEFT JOIN list_items li ON li.list_id = l.id
        WHERE (? = 1 OR l.archived = 0)
        GROUP BY l.id
        ORDER BY l.sort, l.created_at`,
     )
-      .bind(archived === 'true' ? 1 : 0)
-      .all<ListRow & { item_count: number; open_count: number }>();
-    return c.json(results.map((row) => toApi(row, row.item_count, row.open_count)), 200);
+      .bind(today, archived === 'true' ? 1 : 0)
+      .all<ListRow & { item_count: number; open_count: number; overdue_count: number }>();
+    return c.json(results.map((row) => toApi(row, row.item_count, row.open_count, row.overdue_count)), 200);
   },
 );
 
@@ -384,14 +393,16 @@ listsRoutes.openapi(
       if (!titles.includes(r.title)) meals.set(r.item_id, [...titles, r.title]);
     }
     const openCount = items.filter((i) => !i.done).length;
-    const order = compareItems(list.sort_by, todayIn((tzRes.results as { value: string }[])[0]?.value), { keepChecked: !!list.keep_checked, aisleOrder });
+    const today = todayIn((tzRes.results as { value: string }[])[0]?.value);
+    const overdueCount = items.filter((i) => !i.done && i.due_date && i.due_date < today).length;
+    const order = compareItems(list.sort_by, today, { keepChecked: !!list.keep_checked, aisleOrder });
     const apiItems = items
       .map((i) => ({ ...toItemApi(i, steps.get(i.id)), noteCount: noteCounts.get(i.id) ?? 0, ...(meals.has(i.id) ? { meals: meals.get(i.id) } : {}), ...(list.kind === 'shopping' ? { places: placesByItem.get(i.id) ?? [] } : {}) }))
       .sort(order);
     const tripStore = c.req.valid('query').store;
     return c.json(
       {
-        list: toApi(list, items.length, openCount),
+        list: toApi(list, items.length, openCount, overdueCount),
         items: apiItems,
         groups: groups.map(toGroupApi),
         suggestions: {
@@ -448,11 +459,13 @@ listsRoutes.openapi(
       .run();
     emit(c, 'list.changed', { id });
     const counts = await c.env.DB.prepare(
-      'SELECT COUNT(*) AS n, COALESCE(SUM(CASE WHEN done = 0 THEN 1 ELSE 0 END), 0) AS open FROM list_items WHERE list_id = ?',
+      `SELECT COUNT(*) AS n, COALESCE(SUM(CASE WHEN done = 0 THEN 1 ELSE 0 END), 0) AS open,
+         COALESCE(SUM(CASE WHEN done = 0 AND due_date IS NOT NULL AND due_date < ? THEN 1 ELSE 0 END), 0) AS overdue
+       FROM list_items WHERE list_id = ?`,
     )
-      .bind(id)
-      .first<{ n: number; open: number }>();
-    return c.json(toApi(updated, counts?.n ?? 0, counts?.open ?? 0), 200);
+      .bind(await householdToday(c.env.DB), id)
+      .first<{ n: number; open: number; overdue: number }>();
+    return c.json(toApi(updated, counts?.n ?? 0, counts?.open ?? 0, counts?.overdue ?? 0), 200);
   },
 );
 

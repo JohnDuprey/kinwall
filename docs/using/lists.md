@@ -46,7 +46,7 @@ A list can also be a chore's **checklist**, so a routine like "Bedtime" has to b
 * **Checkout** removes the ticked items. **Reset** unticks them for next time instead. Either one shows a short "Checked out 5 items · **Undo**" message; tap **Undo** within a few seconds and nothing changes. Items you tick after tapping Checkout aren't swept up.
 * Long titles wrap to two lines on the row (three in icon-first density); the item sheet always shows the whole title.
 * A badge before the title shows the item's **Priority** (see below), and a note icon after it means the item has **Notes** or a **Discussion**.
-* An item with a due date shows it in small text under the title: "Due today", "Due Fri, Oct 3", or "Overdue · Sep 22" in red.
+* An item with a due date shows it in small text under the title: "Due today", "Due Fri, Oct 3", or "Overdue · Sep 22" in red. A list with overdue items says so on its card and at the top of the list ("5 left · ⚠ 2 overdue"), so you can see where to look without opening each one. The API returns the count as `overdueCount`.
 * Tap an item to edit it: **Title**, **Priority**, **Steps**, **Quantity** ("2, 1 lb, x3"), **Store**, **Aisle** and **Department** (shopping; see [Stores, aisles and departments](#stores-aisles-and-departments)), **Assign to** (to-do and reusable), **Due date** (to-do, with **Clear**), **Linked event**, **Notes** (the item's own description), **Discussion** (see below), and **Order** (**Move up** / **Move down**, manual sort only).
 
 ## Stores, aisles and departments

@@ -1252,6 +1252,7 @@ button {
 .list-item-chip { font-size: 0.75rem; font-weight: 800; color: var(--text-dim); background: var(--bg-alt); padding: 4px 9px; border-radius: 999px; flex-shrink: 0; }
 .list-item-due { color: var(--accent-text); }
 .list-item-due.overdue { color: var(--danger); font-weight: 800; }
+.list-overdue { color: var(--danger); font-weight: 800; white-space: nowrap; }
 
 .list-done-section { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 4px; }
 .list-done-toggle { background: none; border: none; color: var(--text-dim); font-weight: 800; font-size: 0.8125rem; padding: 8px 4px; min-height: 36px; }
