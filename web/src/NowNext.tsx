@@ -37,20 +37,22 @@ const timed = (evs: EventInstance[]) => evs.filter(e => !e.allDay)
 
 /** "Now: Soccer Practice · ends in 42 min" / "Next: Piano at 5:00 PM · in 1 h 10 min · leave by 4:40 PM".
  * `events` = today's timed + all-day instances; hidden when nothing is on or left today. */
-export function NowNextCard({ events, tz, placeholder }: { events: EventInstance[]; tz: string; placeholder?: boolean }) {
+export function NowNextCard({ events, tz, placeholder, warnMinutes = [] }: { events: EventInstance[]; tz: string; placeholder?: boolean; warnMinutes?: number[] }) {
   const now = useNow(30000)
   const list = timed(events)
   const current = list.filter(e => Date.parse(e.start) <= now && now < Date.parse(e.end)).sort((a, b) => a.end.localeCompare(b.end))[0]
   const next = list.filter(e => Date.parse(e.start) > now).sort((a, b) => a.start.localeCompare(b.start))[0]
 
   // The card itself isn't a live region (it re-renders every 30 s); a screen reader hears the
-  // countdown only once the next start or leave-by is 10 minutes out or less, once per minute.
+  // countdown once the next start or leave-by is inside this device's earliest transition warning
+  // (Time cues; 10 minutes with none set), once per minute, and the Next row lights up then too.
+  const soonMins = warnMinutes.length ? Math.max(...warnMinutes) : 10
   const lead = next && leadOf(next)
   const target = next && (lead && Date.parse(lead.at) > now ? { at: Date.parse(lead.at), what: leadFor(lead, next.title) } : { at: Date.parse(next.start), what: next.title })
   const mins = target ? Math.ceil((target.at - now) / MIN) : null
   const lastSaid = useRef<string | null>(null)
   useEffect(() => {
-    if (!target || mins === null || mins > 10) return
+    if (!target || mins === null || mins > soonMins) return
     const msg = `${target.what} in ${mins} minute${mins === 1 ? '' : 's'}`
     if (msg !== lastSaid.current) { lastSaid.current = msg; announce(msg) }
   }, [target?.what, mins]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -68,7 +70,7 @@ export function NowNextCard({ events, tz, placeholder }: { events: EventInstance
         </div>
       )}
       {next && (
-        <div className="now-next-row">
+        <div className={`now-next-row ${mins !== null && mins <= soonMins ? 'now-next-soon' : ''}`}>
           <span className="now-next-tag next">Next</span>
           <span className="now-next-title">{next.title}</span>
           <span className="now-next-meta"><span className="nn-long">at </span>{formatTime(next.start, tz)} · <span className="nn-long">in </span>{durationLabel(Date.parse(next.start) - now)}</span>

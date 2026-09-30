@@ -20,6 +20,7 @@ import type { WarningRepeat } from './transitions.ts'
 const DEVICE_KEY = 'kinwall.deviceAppearance'
 /** The last light/dark this device showed, for the first paint before settings load (main.tsx). */
 const LAST_THEME_KEY = 'kinwall.lastTheme' // read by main.tsx (not imported there: it would load api.ts early)
+const LAST_LOOK_KEY = 'kinwall.lastLook' // the root's inline colors, also restored by main.tsx before the first render
 const DEVICE_EVENT = 'kinwall:device-appearance'
 // The same object also carries this device's other preferences (focus, warnings, locked view…),
 // so every per-device choice lives in one place and one event re-renders whoever reads it.
@@ -188,7 +189,7 @@ function applyAppearance(household: Appearance, device: DeviceAppearance) {
     if (/^#[0-9a-f]{6}$/i.test(surface)) root.style.setProperty('--accent-text', readableOn(accent, surface))
     root.style.setProperty('--text-scale', SCALE[a.textScale])
 
-    try { localStorage.setItem(LAST_THEME_KEY, dark ? 'dark' : 'light') } catch { /* private mode */ }
+    try { localStorage.setItem(LAST_THEME_KEY, dark ? 'dark' : 'light'); localStorage.setItem(LAST_LOOK_KEY, root.style.cssText) } catch { /* private mode */ }
     // index.html has a light and a dark theme-color (by media) for before this runs; now both are the real background.
     const metas = [...document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')]
     if (!metas.length) { const m = document.createElement('meta'); m.name = 'theme-color'; document.head.appendChild(m); metas.push(m) }

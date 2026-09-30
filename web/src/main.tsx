@@ -57,10 +57,13 @@ if (MOCK) {
   }
 }
 
-// Until useTheme applies the family's look, paint the last look this device showed, else the
-// system's (the default mode is Auto), so "Loading…" doesn't flash light on a dark screen.
+// Until useTheme applies the family's look, paint the last look this device showed (mode and the
+// color scheme's colors), else the system's (the default mode is Auto), so a refresh doesn't flash
+// the default colors, or light on a dark screen.
 try {
   document.documentElement.setAttribute('data-theme', localStorage.getItem('kinwall.lastTheme') ?? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))
+  const look = localStorage.getItem('kinwall.lastLook')
+  if (look) document.documentElement.style.cssText = look
 } catch { /* storage blocked: styles.css follows the system */ }
 
 if (import.meta.env.DEV) import('./skins.ts').then(({ assertSkinsAA }) => assertSkinsAA())

@@ -1720,6 +1720,9 @@ button.toast { border: none; font-family: inherit; cursor: pointer; } /* errors:
 .now-next-tag { font-size: 0.6875rem; font-weight: 900; text-transform: uppercase; letter-spacing: 0.04em; padding: 2px 8px; border-radius: 999px; background: var(--accent-strong); color: var(--accent-ink); }
 .now-next-tag.next { background: var(--bg-alt); color: var(--text); border: 1px solid var(--border); }
 .now-next-title { font-weight: 800; }
+/* Inside this device's first transition warning: the Next row is the one to watch. */
+.now-next-soon .now-next-tag.next { background: var(--accent-strong); color: var(--accent-ink); border-color: transparent; }
+.now-next-soon .now-next-meta { color: var(--accent-text); font-weight: 700; }
 .now-next-meta { font-weight: 700; color: var(--text-dim); font-variant-numeric: tabular-nums; }
 /* Phones (and phones on their side): a quiet ticker under the header, not a third card that reads like another schedule row. */
 @media (max-width: 600px), (max-height: 500px) and (orientation: landscape) {
