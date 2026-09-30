@@ -1047,7 +1047,7 @@ function AppRoutes() {
     try {
       const [s, m, cats, me] = await Promise.all([api.getSettings(), api.getMembers(), api.getCategories(), api.meStrict().catch(() => null)])
       // First-run default for a fresh household: no timezone set yet, so adopt this display's.
-      const settings = s.timezone ? s : await api.updateSettings({ timezone: Intl.DateTimeFormat().resolvedOptions().timeZone }).catch(() => s)
+      const settings = s.timezone ? s : await api.adoptTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone).catch(() => s)
       setSettings(settings)
       setMembers(m)
       setCategories(cats)

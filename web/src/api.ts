@@ -93,11 +93,15 @@ export function useSaveState(): 'idle' | 'saving' | 'saved' {
   const [, rerender] = useState(0)
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined
-    const onChange = () => {
-      rerender(n => n + 1)
+    // "Saved" hides 1.5s after the last save, including one made just before this mounted (the
+    // setup wizard's last step, then the app): without that timer it would stay up for good.
+    const hideSaved = () => {
       clearTimeout(timer)
-      if (savesInFlight === 0 && Date.now() - lastSavedAt < 100) timer = setTimeout(() => rerender(n => n + 1), 1500)
+      const left = 1500 - (Date.now() - lastSavedAt)
+      if (savesInFlight === 0 && left > 0) timer = setTimeout(() => rerender(n => n + 1), left)
     }
+    const onChange = () => { rerender(n => n + 1); hideSaved() }
+    hideSaved()
     saveListeners.add(onChange)
     return () => { saveListeners.delete(onChange); clearTimeout(timer) }
   }, [])
@@ -181,9 +185,10 @@ if (!MOCK && typeof window !== 'undefined') {
   else clearOffline().catch(() => {}) // signed out (however it happened): nothing kept for the next person
 }
 
-async function req<T>(path: string, opts: RequestInit & { useAdmin?: boolean } = {}): Promise<T> {
-  // Reading a recipe page into a preview changes nothing, so it doesn't flash "Saved".
-  const isChange = !!opts.method && opts.method !== 'GET' && !/^api\/(pair\/poll|recipes\/(import-url|parse-text))$/.test(path)
+async function req<T>(path: string, { quiet, ...opts }: RequestInit & { useAdmin?: boolean; quiet?: boolean } = {}): Promise<T> {
+  // Reading a recipe page into a preview changes nothing, so it doesn't flash "Saved"; nor does a
+  // write the app makes on its own (`quiet`), since the person didn't save anything.
+  const isChange = !quiet && !!opts.method && opts.method !== 'GET' && !/^api\/(pair\/poll|recipes\/(import-url|parse-text))$/.test(path)
   return isChange ? trackSave(send<T>(path, opts)) : send<T>(path, opts)
 }
 
@@ -290,6 +295,8 @@ export const api = {
   removeQuietPin: () => MOCK ? mock.setQuietPin(null) : del<{ ok: boolean }>('api/quiet-pin'),
   verifyQuietPin: (pin: string) => MOCK ? mock.verifyQuietPin(pin) : post<{ ok: boolean }>('api/quiet-pin/verify', { pin }),
   updateSettings: (body: Partial<Settings>, useAdmin?: boolean) => MOCK ? mock.updateSettings(body) : patch<Settings>('api/settings', body, useAdmin),
+  // A fresh household's first-run default, made by the app on load: no "Saved" pill.
+  adoptTimezone: (timezone: string) => MOCK ? mock.updateSettings({ timezone }) : req<Settings>('api/settings', { method: 'PATCH', body: JSON.stringify({ timezone }), quiet: true }),
   // No-auth subset of Settings for the pre-pairing screen (useTheme.ts) — see GET /api/appearance.
   getAppearance: (): Promise<Appearance> => MOCK ? mock.getSettings() : get<Appearance>('api/appearance'),
 
