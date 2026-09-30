@@ -185,12 +185,12 @@ const NIGHT_POLL_MS = 10 * 1000
 const DAY_STARTED_KEY = 'kinwall-day-started' // the day this device last told the server its person's day started
 const CLOCK_MOVE_MS = 3 * 60 * 1000
 
-/** Quiet hours: a wall screen (wallScreen.ts) shows only a dim clock that moves around (or, per device,
- * a dim slideshow - see Screensaver.tsx) between settings.quietFrom and quietTo. Any touch keeps it
+/** Night hours: a resting wall screen (wallScreen.ts nightScreenDue) shows a dim clock that moves around (or
+ * a dim slideshow - see Screensaver.tsx; the family's choice or the screen's own). Any touch keeps it
  * awake for WAKE_MS. SAVER_PREVIEW_EVENT shows it for 20 s on any device so an admin can see what the
  * wall will do; SAVER_START_EVENT (the header's Night screen button) shows it until a tap or key.
- * With the family's quiet-hours PIN set, a tap during quiet hours shows PinKeypad instead of waking;
- * the preview and the Night screen button never ask for it (outside quiet hours). */
+ * With the family's night PIN set, a tap during night hours shows PinKeypad instead of waking;
+ * the preview and the Night screen button never ask for it (outside night hours). */
 function QuietOverlay({ settings, wall, remote }: { settings: Settings; wall: boolean; remote: RemoteNight | undefined }) {
   const device = useDeviceAppearance()
   const [now, setNow] = useState(new Date())
@@ -214,7 +214,7 @@ function QuietOverlay({ settings, wall, remote }: { settings: Settings; wall: bo
     const events = ['pointerdown', 'keydown']
     events.forEach(ev => window.addEventListener(ev, touch))
     const id = setInterval(() => setNow(new Date()), 15000)
-    const onPreview = () => { setManual('preview'); announce('Previewing the quiet-hours screen for 20 seconds. Tap or press Escape to end.') }
+    const onPreview = () => { setManual('preview'); announce('Previewing the Night screen for 20 seconds. Tap or press Escape to end.') }
     const onStart = () => { setManual('hold'); location.hash = '#/calendar'; announce('Night screen on. Tap or press any key to end.') }
     window.addEventListener(SAVER_PREVIEW_EVENT, onPreview)
     window.addEventListener(SAVER_START_EVENT, onStart)
@@ -237,7 +237,7 @@ function QuietOverlay({ settings, wall, remote }: { settings: Settings; wall: bo
     if (action === 'start') window.dispatchEvent(new Event(SAVER_START_EVENT))
     else if (action === 'stop') setManual(m => (m === 'hold' ? '' : m))
   }, [remoteKey, wall]) // eslint-disable-line react-hooks/exhaustive-deps
-  const due = nightScreenDue({ wall, quietFrom: settings.quietFrom, quietTo: settings.quietTo, now, lastActive: lastActive.current })
+  const due = nightScreenDue({ ...settings, wall, now, lastActive: lastActive.current })
   const locked = settings.quietPin && due
   useEffect(() => { pinLocked.current = locked }, [locked])
   const wake = useCallback(() => { lastActive.current = Date.now(); setNow(new Date()); setKeypad(false) }, [])
@@ -284,7 +284,7 @@ let pinFailures = 0
 let pinWaitUntil = 0
 const PIN_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'back', '0', 'ok']
 
-/** The quiet-hours PIN pad on the night screen: big buttons, no hint, no on-screen keyboard. The
+/** The night PIN pad on the night screen: big buttons, no hint, no on-screen keyboard. The
  * server checks the PIN; if it can't be reached the screen stays asleep. Hides after 30 s idle. */
 function PinKeypad({ onWake, onIdle }: { onWake: () => void; onIdle: () => void }) {
   const [entry, setEntry] = useState('')

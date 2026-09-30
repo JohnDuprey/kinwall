@@ -674,13 +674,17 @@ test('transitions: member setting defaults off, validates, round-trips, and only
 });
 
 test('transitions: expand repeat times, dedupe, latest first', async () => {
-  const { transitionTimes, inQuietHours } = await import('../src/notify.ts');
+  const { transitionTimes, isNight } = await import('../src/notify.ts');
   assert.deepEqual(transitionTimes([10, 5], { every: 5, within: 15 }), [15, 10, 5]);
   assert.deepEqual(transitionTimes([1], { every: 10, within: 30 }), [30, 20, 10, 1]);
   assert.deepEqual(transitionTimes([7, 7], null), [7]);
-  assert.equal(inQuietHours('21:00', '07:00', new Date('2030-03-04T23:30:00Z'), 'UTC'), true);
-  assert.equal(inQuietHours('21:00', '07:00', new Date('2030-03-04T12:00:00Z'), 'UTC'), false);
-  assert.equal(inQuietHours('13:00', '14:00', new Date('2030-03-04T13:59:00Z'), 'UTC'), true);
+  assert.equal(isNight('21:00', '07:00', new Date('2030-03-04T23:30:00Z'), 'UTC'), true);
+  assert.equal(isNight('21:00', '07:00', new Date('2030-03-04T06:59:00Z'), 'UTC'), true, 'past midnight');
+  assert.equal(isNight('21:00', '07:00', new Date('2030-03-04T12:00:00Z'), 'UTC'), false);
+  assert.equal(isNight('13:00', '14:00', new Date('2030-03-04T13:59:00Z'), 'UTC'), true);
+  assert.equal(isNight(undefined, undefined, new Date('2030-03-04T23:30:00Z'), 'UTC'), false, 'night hours off');
+  assert.equal(isNight('21:00', '21:00', new Date('2030-03-04T21:00:00Z'), 'UTC'), false, 'an empty window');
+  assert.equal(isNight('21:00', '07:00', new Date('2030-03-04T23:30:00Z'), 'America/New_York'), false, "the household's timezone: 19:30 there");
 });
 
 // Leo (transitions on) owns "leo-phone"; Sam owns "sam-phone"; "family-ipad" is shared.
@@ -812,11 +816,16 @@ test('transitions: not doubled with a regular reminder at the same minute on tha
   says((await run(at(start, -5))).find((s) => s.device === 'leo-phone')!.payload.title, 'Soccer practice', 5, '3:30 PM');
 });
 
-test('transitions: never during quiet hours; nothing when off or for other people\'s events', async () => {
+test('transitions: held at night (unless the family turns that off); nothing when off or for other people\'s events', async () => {
   const start = '2030-03-04T22:30:00Z';
   const quiet = await transitionsSetup({ on: true, minutes: [10] }, { start, end: at(start, 60).toISOString() });
   await quiet.request('/api/settings', { method: 'PATCH', body: JSON.stringify({ quietFrom: '22:00', quietTo: '07:00' }) });
   assert.deepEqual(await quiet.run(at(start, -10)), []);
+
+  // Hold reminders at night off: they come through at night too.
+  const through = await transitionsSetup({ on: true, minutes: [10] }, { start, end: at(start, 60).toISOString() });
+  await through.request('/api/settings', { method: 'PATCH', body: JSON.stringify({ quietFrom: '22:00', quietTo: '07:00', nightHoldReminders: false }) });
+  says((await through.run(at(start, -10))).find((s) => s.device === 'leo-phone')!.payload.title, 'Soccer practice', 10, '10:30 PM');
 
   const day = '2030-03-04T15:30:00Z';
   const off = await transitionsSetup({ on: false, minutes: [10] }, { start: day, end: at(day, 60).toISOString() });

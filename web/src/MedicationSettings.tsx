@@ -88,7 +88,7 @@ export function MedicineList({ memberId }: { memberId?: string | null }) {
           onClick={() => save({ medicationNamesOnWalls: !settings.medicationNamesOnWalls })}><span className="knob" /></button>
       </div>
       <div className="settings-row">
-        <div className="settings-row-sub">Reminders come through during quiet hours too.</div>
+        <div className="settings-row-sub">Reminders come through at night too.</div>
         <select className="settings-select" aria-label="More medication actions" value="" onChange={e => more(e.target.value)}>
           <option value="">More…</option>
           <option value="delete-all">Delete all medication data</option>

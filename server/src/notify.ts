@@ -211,7 +211,7 @@ async function sendToSub(env: Env, db: KinwallDb, row: PushSubRow, payload: { ti
 // mealName names a meal's event there ("Tuesday Tacos", not "Dinner · Tuesday Tacos").
 type Occurrence = { eventId: string; occurrenceKey: string; title: string; start: string; allDay: boolean; memberIds: string[]; effective: number[]; leadMinutes: number; travelMinutes: number; location: string | null; prepAt: string | null; prepFor: string[]; category: string | null; step: string | null; mealName: string | null };
 
-async function runEventReminders(env: Env, db: KinwallDb, now: Date, tz: string, h12: boolean, defaultReminders: number[], subs: PushSubRow[], quiet: boolean): Promise<void> {
+async function runEventReminders(env: Env, db: KinwallDb, now: Date, tz: string, h12: boolean, defaultReminders: number[], subs: PushSubRow[], hold: boolean): Promise<void> {
   const eligible = subs.filter((s) => subPrefs(s).eventReminders);
 
   const from = new Date(now.getTime() - 24 * 60 * 60 * 1000);
@@ -339,8 +339,8 @@ async function runEventReminders(env: Env, db: KinwallDb, now: Date, tz: string,
     }
   }
 
-  if (!quiet) await runTransitionReminders(env, db, now, tz, h12, occurrences, eligible);
-  await runLiveActivities(env, db, now, tz, h12, occurrences, quiet);
+  if (!hold) await runTransitionReminders(env, db, now, tz, h12, occurrences, eligible);
+  await runLiveActivities(env, db, now, tz, h12, occurrences, hold);
 }
 
 /** A person's transition times: their picked minutes plus every `repeat.every` during the last
@@ -351,8 +351,9 @@ export function transitionTimes(minutes: number[], repeat: { every: number; with
   return [...all].filter((m) => m >= 1 && m <= 120).sort((a, b) => b - a);
 }
 
-// Is `now` (household tz) inside quiet hours "HH:MM"-"HH:MM" (may wrap midnight)?
-export function inQuietHours(from: string | undefined, to: string | undefined, now: Date, tz: string): boolean {
+// Is it night? `now` (household tz) inside the family's night hours "HH:MM"-"HH:MM" (quietFrom /
+// quietTo; may wrap midnight). The server's one check; walls use web/src/wallScreen.ts isNight.
+export function isNight(from: string | undefined, to: string | undefined, now: Date, tz: string): boolean {
   if (!from || !to || from === to) return false;
   const hm = new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(now);
   return from < to ? hm >= from && hm < to : hm >= from || hm < to;
@@ -362,7 +363,7 @@ export function inQuietHours(from: string | undefined, to: string | undefined, n
 // timed events ("Soccer in 10 minutes", "Leave for Soccer in 5 minutes") to devices that belong to
 // them (the device's key has them as owner) and have event reminders on. Untagged events count as
 // everyone's, like everywhere else. Skipped when a regular reminder for the same event lands on
-// that device in the same minute, and during quiet hours (the caller checks). Not recorded in the
+// that device in the same minute, and during night hours (the caller checks). Not recorded in the
 // household feed: they're personal and frequent.
 async function runTransitionReminders(env: Env, db: KinwallDb, now: Date, tz: string, h12: boolean, occurrences: Occurrence[], eligible: PushSubRow[]): Promise<void> {
   if (!eligible.length) return;
@@ -427,12 +428,12 @@ async function runTransitionReminders(env: Env, db: KinwallDb, now: Date, tz: st
 // The iPhone app's leave-by / start-prep Live Activity while the app is closed (apns.ts; the app
 // starts it itself while open, web/src/liveActivity.ts). Pushed to start at the person's first
 // transition warning, to their own devices (the device's owner is them) that registered a
-// push-to-start token, never during quiet hours; ended with the activity's own update token once
+// push-to-start token, never during night hours; ended with the activity's own update token once
 // the event starts (or GRACE after the time, if later). Nothing at all unless APNs is set up.
 const LIVE_GRACE_MS = 5 * 60000; // web/src/liveActivity.ts GRACE_MIN
 type LiveTokenRow = { id: string; device: string; kind: 'start' | 'update'; activity: string; token: string; ends_at: string | null; owner: string | null };
 
-async function runLiveActivities(env: Env, db: KinwallDb, now: Date, tz: string, h12: boolean, occurrences: Occurrence[], quiet: boolean): Promise<void> {
+async function runLiveActivities(env: Env, db: KinwallDb, now: Date, tz: string, h12: boolean, occurrences: Occurrence[], hold: boolean): Promise<void> {
   if (!apnsConfigured(env)) return;
   const [tokensRes, membersRes] = await db.batch<unknown>([
     db.prepare('SELECT t.id, t.device, t.kind, t.activity, t.token, t.ends_at, COALESCE(k.owner, g.owner) AS owner FROM live_activity_tokens t LEFT JOIN api_keys k ON k.id = t.api_key_id LEFT JOIN oauth_grants g ON g.id = t.oauth_grant_id'),
@@ -460,7 +461,7 @@ async function runLiveActivities(env: Env, db: KinwallDb, now: Date, tz: string,
     await send(t, { timestamp: unixSeconds(now.getTime()), event: 'end', 'dismissal-date': unixSeconds(now.getTime()) });
     await db.prepare('DELETE FROM live_activity_tokens WHERE id = ?').bind(t.id).run();
   }
-  if (quiet) return;
+  if (hold) return;
 
   for (const m of members) {
     const cfg = parseTransitions(m.transitions);
@@ -631,7 +632,7 @@ export function notifyListUpdate(env: Env, execCtx: WaitCtx | undefined, listId:
 // - otherwise, with their energy battery on (settings.battery) and no drained answer yet: "How
 //   drained do you feel? 🔋", generic text and no feed row (personal, like the battery heads-up).
 // Once per person per day (claimed in one statement). Answers are never in the text.
-// Sent during quiet hours too: it's the person's own chosen time (the family asked for that).
+// Sent during night hours too: it's the person's own chosen time (the family asked for that).
 async function runGoalFollowups(env: Env, db: KinwallDb, now: Date, tz: string, windowStart: Date): Promise<void> {
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(now);
   const { results } = await db
@@ -662,7 +663,7 @@ async function runGoalFollowups(env: Env, db: KinwallDb, now: Date, tz: string, 
 // Last night's check-in (routes/temp-check.ts): when yesterday's evening check (goal check or
 // "How drained?") was left unanswered and is still open (not skipped, their morning Temp check not
 // answered), one generic push to devices that belong to them, from LAST_NIGHT_PUSH_AT until the
-// window closes at noon, held through quiet hours. Once per person per night (a hash key, like the
+// window closes at noon, held through night hours. Once per person per night (a hash key, like the
 // battery's). The text says nothing about the answers or the goal; not in the family feed.
 export const LAST_NIGHT_PUSH_AT = '07:00';
 async function runLastNightReminders(env: Env, db: KinwallDb, now: Date, tz: string): Promise<void> {
@@ -702,7 +703,7 @@ async function runLastNightReminders(env: Env, db: KinwallDb, now: Date, tz: str
 // Push text is generic unless the device turned on medicationNames. Each is claimed once (an
 // insert into sent_notifications, keyed by a hash so the table never says what or when) and only
 // within GRACE of its time, so a late tick still sends and a restart never repeats. Medicine pushes
-// go out during quiet hours too: a missed dose matters more than a quiet night (the family asked).
+// go out during night hours too: a missed dose matters more than a quiet night (the family asked).
 const MED_GRACE_MS = 30 * 60_000;
 const NOTE_BEFORE_END_MS = 60 * 60_000;
 async function runMedicationReminders(env: Env, db: KinwallDb, now: Date, tz: string, h12: boolean): Promise<void> {
@@ -779,11 +780,11 @@ async function runMedicationReminders(env: Env, db: KinwallDb, now: Date, tz: st
 
 // Energy battery heads-up (battery.ts, Temp check → battery): when a person's next day looks likely
 // to run their battery low, one calm push to devices that belong to them: from 7 PM the evening
-// before, or held through quiet hours until they end (by noon, then it says "today"). Once per person
+// before, or held through night hours until they end (by noon, then it says "today"). Once per person
 // per day: claimed in one insert, keyed by a hash so sent_notifications never says who or which day.
 // The text is from the calendar and chores only, never sleep or feelings; not in the family feed.
 export const BATTERY_PUSH_AT = '19:00';
-export const BATTERY_PUSH_UNTIL = '12:00'; // a push held by quiet hours still goes out the morning of the day
+export const BATTERY_PUSH_UNTIL = '12:00'; // a push held by night hours still goes out the morning of the day
 async function runBatteryHeadsUp(env: Env, db: KinwallDb, now: Date, tz: string): Promise<void> {
   const clock = new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(now);
   const today = todayInTz(tz, now);
@@ -812,7 +813,7 @@ export async function runNotifications(env: Env, now: Date, _execCtx?: WaitCtx):
   const [tzRow, defaultRemindersRow, prefsRes] = await Promise.all([
     env.DB.prepare("SELECT value FROM settings WHERE key = 'timezone'").first<{ value: string }>(),
     env.DB.prepare("SELECT value FROM settings WHERE key = 'defaultReminderMinutes'").first<{ value: string }>(),
-    env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('quietFrom', 'quietTo', 'timeFormat', 'location')").all<{ key: string; value: string }>(),
+    env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('quietFrom', 'quietTo', 'nightHoldReminders', 'timeFormat', 'location')").all<{ key: string; value: string }>(),
   ]);
   const prefs = new Map(prefsRes.results.map((r) => [r.key, r.value]));
   const tz = tzRow?.value ?? hostTimezone();
@@ -830,15 +831,17 @@ export async function runNotifications(env: Env, now: Date, _execCtx?: WaitCtx):
 
   const windowStart = await getTickWindowStart(env.DB, now);
 
-  const quiet = inQuietHours(prefs.get('quietFrom'), prefs.get('quietTo'), now, tz);
-  await runEventReminders(env, env.DB, now, tz, h12, defaultReminders, subs, quiet);
+  // Hold reminders at night (on unless the family turned it off): transitions, Live Activities,
+  // battery alerts and the morning check-in reminder wait; event and medicine reminders don't.
+  const hold = prefs.get('nightHoldReminders') !== 'false' && isNight(prefs.get('quietFrom'), prefs.get('quietTo'), now, tz);
+  await runEventReminders(env, env.DB, now, tz, h12, defaultReminders, subs, hold);
   const features = await readFeatures(env.DB);
   await runDailySummary(env, env.DB, now, tz, subs, windowStart, features);
   if (features.chores) await runChoreNudge(env, env.DB, now, tz, subs, windowStart); // Chores turned off: no nudge
   await runGoalFollowups(env, env.DB, now, tz, windowStart);
-  // Held during quiet hours; a sealed answer that won't open (no key) never stops the rest. The error's name only.
-  if (!quiet) try { await runBatteryHeadsUp(env, env.DB, now, tz); } catch (e) { console.error('battery heads-up skipped:', e instanceof Error ? e.name : 'error'); }
-  if (!quiet) await runLastNightReminders(env, env.DB, now, tz); // held during quiet hours
+  // Held at night; a sealed answer that won't open (no key) never stops the rest. The error's name only.
+  if (!hold) try { await runBatteryHeadsUp(env, env.DB, now, tz); } catch (e) { console.error('battery heads-up skipped:', e instanceof Error ? e.name : 'error'); }
+  if (!hold) await runLastNightReminders(env, env.DB, now, tz); // held at night
   if (features.trackersHealth && (await env.DB.prepare("SELECT value FROM settings WHERE key = 'medications'").first<{ value: string }>())?.value === 'true') {
     // Never let a sealed value that won't open (no key) stop the other reminders; the error's name only, never data.
     try { await runMedicationReminders(env, env.DB, now, tz, h12); } catch (e) { console.error('medication reminders skipped:', e instanceof Error ? e.name : 'error'); }

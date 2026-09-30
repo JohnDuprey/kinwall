@@ -9,7 +9,7 @@ import Sheet from './Sheet.tsx'
 import { SchemePickerSheet, TypefaceRow } from './SchemePicker.tsx'
 import TidbitsSheet, { DeviceTidbitRows } from './TidbitsSheet.tsx'
 import { tidbitSummary } from './tidbits.ts'
-import { appearanceChips, featuresSummary, nightSummary, timeCuesSummary, transitionRemindersSummary, type Chip } from './settingsSummary.ts'
+import { appearanceChips, featuresSummary, nightHoursChips, nightSummary, timeCuesSummary, transitionRemindersSummary, type Chip } from './settingsSummary.ts'
 import { MAX_WARNING_TIMES, REPEAT_EVERY, REPEAT_WITHIN, warningTimes, type TransitionReminders, type WarningRepeat } from './transitions.ts'
 import { MemberPicker } from './MemberPicker.tsx'
 import CalendarFilterSheet, { HiddenEventsSheet } from './CalendarFilterSheet.tsx'
@@ -137,8 +137,7 @@ export default function SettingsView() {
               <Section id="board-presets" title="Board presets"><div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}><BoardPresetRows toast={toast} /></div></Section>
               <FeaturesSection settings={settings} onSaved={reloadCore} toast={toast} />
               <AppearanceSection settings={settings} onSaved={reloadCore} toast={toast} />
-              <QuietHoursSection settings={settings} onSaved={reloadCore} toast={toast} />
-              <FamilyNightScreenSection settings={settings} onSaved={reloadCore} toast={toast} />
+              <NightSection settings={settings} onSaved={reloadCore} toast={toast} />
             </SettingsGroup>
           )}
           <SettingsGroup title="Only on this device" sub="Saved on this screen or phone. Other devices aren't affected.">
@@ -296,10 +295,10 @@ function SummaryChips({ chips }: { chips: Chip[] }) {
   )
 }
 
-function SummarySection({ title, icon, summary, detail, children, startOpen = false }: { title: string; icon?: ReactNode; summary: string | Chip[]; detail?: string; children: ReactNode | ((close: () => void) => ReactNode); startOpen?: boolean }) {
+function SummarySection({ id, title, icon, summary, detail, children, startOpen = false }: { id?: string; title: string; icon?: ReactNode; summary: string | Chip[]; detail?: string; children: ReactNode | ((close: () => void) => ReactNode); startOpen?: boolean }) {
   const [open, setOpen] = useState(startOpen)
   return (
-    <Section title={title} icon={icon}>
+    <Section id={id} title={title} icon={icon}>
       <div className="settings-row">
         <div className="summary-body">
           {typeof summary === 'string' ? <div className="settings-row-label">{summary}</div> : <SummaryChips chips={summary} />}
@@ -468,12 +467,21 @@ function AppearanceSection({ settings, onSaved, toast }: { settings: Settings; o
             {THEME_MODES.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
           </select>
         </div>
-        {settings.themeMode === 'scheduled' && (
-          <div className="row-2" style={{ marginTop: 4 }}>
-            <div className="field" style={{ margin: 0 }}><label>Dark from</label><input type="time" value={settings.darkFrom} onChange={e => save({ darkFrom: e.target.value })} /></div>
-            <div className="field" style={{ margin: 0 }}><label>Dark to</label><input type="time" value={settings.darkTo} onChange={e => save({ darkTo: e.target.value })} /></div>
+        {settings.themeMode === 'scheduled' && <>
+          <div className="device-pref-row">
+            <span>Dark hours</span>
+            <select className="settings-select" aria-label="Dark hours" value={settings.darkWithNight ? 'night' : ''} onChange={e => save({ darkWithNight: !!e.target.value })}>
+              <option value="night">Same as night</option>
+              <option value="">Their own times</option>
+            </select>
           </div>
-        )}
+          {settings.darkWithNight
+            ? <div className="settings-row-sub">{settings.quietFrom && settings.quietTo ? `Dark ${formatTime(settings.darkFrom)}–${formatTime(settings.darkTo)}, the night hours set under Night.` : `Night hours are off, so it's dark ${formatTime(settings.darkFrom)}–${formatTime(settings.darkTo)}.`}</div>
+            : <div className="row-2" style={{ marginTop: 4 }}>
+              <div className="field" style={{ margin: 0 }}><label>Dark from</label><input type="time" value={settings.darkFrom} onChange={e => save({ darkFrom: e.target.value })} /></div>
+              <div className="field" style={{ margin: 0 }}><label>Dark to</label><input type="time" value={settings.darkTo} onChange={e => save({ darkTo: e.target.value })} /></div>
+            </div>}
+        </>}
       </div>
       <ColorControls
         scheme={settings.colorScheme}
@@ -505,32 +513,7 @@ function AppearanceSection({ settings, onSaved, toast }: { settings: Settings; o
   )
 }
 
-function QuietHoursSection({ settings, onSaved, toast }: { settings: Settings; onSaved: () => void; toast: (m: string, persist?: boolean) => void }) {
-  const save = async (patch: Partial<Settings>) => {
-    try { await api.updateSettings(patch); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save settings', true) }
-  }
-  const quietOn = !!settings.quietFrom && !!settings.quietTo
-  return (
-    <Section id="quiet-hours" title="Quiet hours">
-      <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-        <div className="settings-row-label" aria-hidden="true">Quiet hours</div>
-        <Segmented label="Quiet hours" value={quietOn ? 'on' : 'off'}
-          onChange={v => { if (v === 'off') save({ quietFrom: null, quietTo: null }); else if (!quietOn) save({ quietFrom: '22:00', quietTo: '06:00' }) }}
-          options={[{ key: 'off', label: 'Off' }, { key: 'on', label: 'On' }]} />
-        {quietOn && (
-          <div className="row-2" style={{ marginTop: 4 }}>
-            <div className="field" style={{ margin: 0 }}><label>Quiet from</label><input type="time" value={settings.quietFrom ?? ''} onChange={e => e.target.value && save({ quietFrom: e.target.value, quietTo: settings.quietTo })} /></div>
-            <div className="field" style={{ margin: 0 }}><label>Quiet to</label><input type="time" value={settings.quietTo ?? ''} onChange={e => e.target.value && save({ quietFrom: settings.quietFrom, quietTo: e.target.value })} /></div>
-          </div>
-        )}
-        <div className="settings-row-sub">Wall screens show the Night screen between these times: a dim clock, or pictures picked under Night screen below. Tap the screen to wake it for five minutes. Other devices are never affected unless Use as a wall screen is on under This display.</div>
-      </div>
-      {quietOn && <QuietPinRow settings={settings} onSaved={onSaved} toast={toast} />}
-    </Section>
-  )
-}
-
-/** "PIN to wake during quiet hours": set or changed here (asked twice), removed under More…, which
+/** "PIN to wake at night": set or changed here (asked twice), removed under More…, which
  * is also the way out of a forgotten PIN. Only ever sent to the server, never stored here. */
 function QuietPinRow({ settings, onSaved, toast }: { settings: Settings; onSaved: () => void; toast: (m: string, persist?: boolean) => void }) {
   const dialog = useDialog()
@@ -542,12 +525,12 @@ function QuietPinRow({ settings, onSaved, toast }: { settings: Settings; onSaved
     try { await api.setQuietPin(pin); onSaved(); toast('PIN saved') } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save the PIN', true) }
   }
   const more = async (v: string) => {
-    if (v !== 'remove' || !await dialog.confirm({ title: 'Remove the PIN?', body: 'A tap will wake wall screens during quiet hours again.', confirmLabel: 'Remove', danger: true })) return
+    if (v !== 'remove' || !await dialog.confirm({ title: 'Remove the PIN?', body: 'A tap will wake wall screens at night again.', confirmLabel: 'Remove', danger: true })) return
     try { await api.removeQuietPin(); onSaved(); toast('PIN removed') } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not remove the PIN', true) }
   }
   return (
     <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-      <div className="settings-row-label">PIN to wake during quiet hours{settings.quietPin ? ': on' : ''}</div>
+      <div className="settings-row-label">PIN to wake at night{settings.quietPin ? ': on' : ''}</div>
       <div style={{ display: 'flex', gap: 8 }}>
         <button className="btn btn-secondary" style={{ flex: 1 }} onClick={setPin}>{settings.quietPin ? 'Change PIN' : 'Set PIN'}</button>
         {settings.quietPin && (
@@ -557,7 +540,7 @@ function QuietPinRow({ settings, onSaved, toast }: { settings: Settings; onSaved
           </select>
         )}
       </div>
-      <div className="settings-row-sub">A wall screen asks for it before waking during quiet hours, so little ones can't turn the wall on at night. Forgot it? Remove it here on any parent device.</div>
+      <div className="settings-row-sub">A wall screen asks for it before waking during night hours, so little ones can't turn the wall on at night. Forgot it? Remove it here on any parent device.</div>
     </div>
   )
 }
@@ -748,6 +731,7 @@ function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean)
     const liveLine = liveActivitiesLine(liveActivities, appPlatform() ?? 'ios')
     return (
       <Section title="Notifications" icon={<BellIcon width={16} height={16} />}>
+        {nightHoldNote(settings) && <p className="settings-row-sub">{nightHoldNote(settings)}</p>}
         <p className="settings-row-sub">The Kinwall app reminds you about events on this device, at each event's reminder times. To turn them off, go to the device's Settings → Notifications → Kinwall. Daily summaries, chore nudges and list updates aren't sent to the app yet; they still arrive in the bell at the top.</p>
         {liveLine && <p className="settings-row-sub">{liveLine}</p>}
         {settings.medications && <div className="toggle-row">
@@ -780,6 +764,7 @@ function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean)
 
   return (
     <Section title="Notifications" icon={<BellIcon width={16} height={16} />}>
+      {sub && nightHoldNote(settings) && <p className="settings-row-sub" style={{ margin: '10px 2px 0' }}>{nightHoldNote(settings)}</p>}
       {sub === undefined ? (
         <div className="settings-row-sub">Checking…</div>
       ) : !sub ? (
@@ -1253,7 +1238,7 @@ function ScreenFocusRows({ display }: { display: boolean }) {
             <button className={`switch ${device.wallScreen ? 'on' : ''}`} role="switch" aria-checked={!!device.wallScreen} aria-labelledby="wall-screen-label" aria-describedby="wall-screen-sub"
               onClick={() => { set({ wallScreen: !device.wallScreen || undefined }); announce(device.wallScreen ? 'Wall screen off' : 'Wall screen on') }}><span className="knob" /></button>
           </div>
-          <div className="settings-row-sub" id="wall-screen-sub">Acts like a wall screen: stays awake, returns to the calendar when idle, and shows the Night screen during quiet hours. Your access doesn't change.</div>
+          <div className="settings-row-sub" id="wall-screen-sub">Acts like a wall screen: stays awake, returns to the calendar when idle, and rests on the Night screen at night. Your access doesn't change.</div>
         </div>
       )}
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
@@ -1298,7 +1283,7 @@ function TimeCueRows() {
       </div>
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
         <div className="settings-row-label" aria-hidden="true">Transition warnings</div>
-        <div className="settings-row-sub">A calm banner before the next event, or before it's time to leave. Pick one or more times, add your own, or repeat them as the event gets close. Not during quiet hours.</div>
+        <div className="settings-row-sub">A calm banner before the next event, or before it's time to leave. Pick one or more times, add your own, or repeat them as the event gets close. Held at night, unless the family turns that off under Night.</div>
         <MinutesPicker idBase="warn" label="Transition warnings" presets={[10, 5, 1]} minutes={warnings} repeat={device.warningRepeat ?? null} repeatDefault={{ every: 1, within: 5 }}
           onOff={() => set({ warnings: undefined, warningRepeat: undefined })}
           onChange={(minutes, repeat) => set({ warnings: minutes.length ? minutes : undefined, warningRepeat: repeat ?? undefined })} />
@@ -1407,8 +1392,10 @@ function nightChips(n: NightFields, settings: Settings, family = false): Chip[] 
   return family ? chips.map(c => ({ ...c, family: true })) : chips
 }
 
-/** For the whole family: what wall screens show during quiet hours, and the Google Photos connection. */
-function FamilyNightScreenSection({ settings, onSaved, toast }: { settings: Settings; onSaved: () => void; toast: (m: string, persist?: boolean) => void }) {
+/** For the whole family: Night. One schedule (the night hours, quietFrom / quietTo) and what it
+ * does: wall screens rest (showing the Night screen, with what they show and the wake PIN) and
+ * reminders are held (notify.ts, wallScreen.ts remindersHeld). Each effect can be turned off. */
+function NightSection({ settings, onSaved, toast }: { settings: Settings; onSaved: () => void; toast: (m: string, persist?: boolean) => void }) {
   const [returned] = useState(googlePhotosReturn)
   useEffect(() => {
     if (!returned) return
@@ -1418,32 +1405,67 @@ function FamilyNightScreenSection({ settings, onSaved, toast }: { settings: Sett
     q.delete('googlePhotos')
     history.replaceState(null, '', `#/settings${q.toString() ? `?${q}` : ''}`)
   }, [returned]) // eslint-disable-line react-hooks/exhaustive-deps
-  const value = familyNightFields(settings.nightLook)
-  const save = async (patch: NightFields) => {
-    try { await api.updateSettings({ nightLook: toNightLook({ ...value, ...patch }) }); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save settings', true) }
+  const saveSettings = async (patch: Partial<Settings>) => {
+    try { await api.updateSettings(patch); onSaved() } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save settings', true) }
   }
-  const quietOn = !!settings.quietFrom && !!settings.quietTo
+  const look = familyNightFields(settings.nightLook)
+  const saveLook = (patch: NightFields) => saveSettings({ nightLook: toNightLook({ ...look, ...patch }) })
+  const on = !!settings.quietFrom && !!settings.quietTo
+  const rest = settings.nightRest !== false
+  const hold = settings.nightHoldReminders !== false
+  const summary = nightHoursChips(on ? { hours: nightHoursLabel(settings), rest, hold, pin: settings.quietPin } : null)
   return (
-    <SummarySection title="Night screen" summary={nightChips(value, settings)} startOpen={!!returned}>
-      {close => <>
-        <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-          <div className="settings-row-sub">What wall screens show during quiet hours. A screen can pick its own under Night screen on this device.</div>
-          <NightRows value={value} onChange={save} />
-          <GooglePhotosRows />
+    <SummarySection id="night" title="Night" summary={summary} startOpen={!!returned}>
+      <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+        <div className="settings-row-label" aria-hidden="true">Night hours</div>
+        <Segmented label="Night hours" value={on ? 'on' : 'off'}
+          onChange={v => { if (v === 'off') saveSettings({ quietFrom: null, quietTo: null }); else if (!on) saveSettings({ quietFrom: '22:00', quietTo: '06:00' }) }}
+          options={[{ key: 'off', label: 'Off' }, { key: 'on', label: 'On' }]} />
+        {on && (
+          <div className="row-2" style={{ marginTop: 4 }}>
+            <div className="field" style={{ margin: 0 }}><label>Night from</label><input type="time" value={settings.quietFrom ?? ''} onChange={e => e.target.value && saveSettings({ quietFrom: e.target.value, quietTo: settings.quietTo })} /></div>
+            <div className="field" style={{ margin: 0 }}><label>Night to</label><input type="time" value={settings.quietTo ?? ''} onChange={e => e.target.value && saveSettings({ quietFrom: settings.quietFrom, quietTo: e.target.value })} /></div>
+          </div>
+        )}
+        <div className="settings-row-sub">{on ? 'One schedule for the whole family. What it does is below.' : 'Set night hours to rest wall screens and hold reminders overnight.'}</div>
+      </div>
+      <h3 className="settings-subhead">Wall screens</h3>
+      {on && <div className="settings-row">
+        <div className="toggle-row" style={{ flex: 1 }}>
+          <div>
+            <label id="night-rest-label">Rest at night</label>
+            <div className="settings-row-sub" id="night-rest-sub">Wall screens show the Night screen during night hours. A tap wakes one for five minutes.</div>
+          </div>
+          <button className={`switch ${rest ? 'on' : ''}`} role="switch" aria-checked={rest} aria-labelledby="night-rest-label" aria-describedby="night-rest-sub" onClick={() => saveSettings({ nightRest: !rest })}><span className="knob" /></button>
         </div>
+      </div>}
+      <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+        <NightRows value={look} onChange={saveLook} label="What they show" />
+        <div className="settings-row-sub">{on && rest ? 'At night, and whenever' : 'Whenever'} the Night screen is started from the moon button or Home Assistant. A screen can pick its own under Night screen on this device.</div>
+        <GooglePhotosRows />
+      </div>
+      {on && rest && <QuietPinRow settings={settings} onSaved={onSaved} toast={toast} />}
+      {on && <>
+        <h3 className="settings-subhead">Notifications</h3>
         <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-          <div className="settings-row-label">Quiet hours</div>
-          <SummaryChips chips={quietOn
-            ? [{ icon: '🌙', label: `${formatTime(settings.quietFrom!)} to ${formatTime(settings.quietTo!)}` }, { icon: '🔒', label: settings.quietPin ? 'Wake PIN on' : 'No wake PIN' }]
-            : [{ label: 'Off' }]} />
-          {!quietOn && <div className="settings-row-sub">Wall screens show the Night screen only during quiet hours, or when it's started from Home Assistant.</div>}
-          <button className="btn btn-secondary" style={{ flex: 'none', alignSelf: 'flex-start' }} onClick={() => { close(); requestAnimationFrame(() => document.getElementById('quiet-hours')?.scrollIntoView({ block: 'start', behavior: reducedMotion() ? 'auto' : 'smooth' })) }}>
-            {quietOn ? 'Change quiet hours or PIN' : 'Set quiet hours'}
-          </button>
+          <div className="toggle-row">
+            <label id="night-hold-label">Hold reminders at night</label>
+            <button className={`switch ${hold ? 'on' : ''}`} role="switch" aria-checked={hold} aria-labelledby="night-hold-label" onClick={() => saveSettings({ nightHoldReminders: !hold })}><span className="knob" /></button>
+          </div>
+          <div className="settings-row-sub">{hold ? 'Wait until morning' : 'Come through at night too'}: transition reminders, time cues, Live Activities, low battery alerts and the morning check-in reminder.</div>
+          <div className="settings-row-sub">Always come through: event reminders, medicine reminders, the evening goal check, daily summaries and messages.</div>
         </div>
       </>}
     </SummarySection>
   )
+}
+
+/** "10:00 PM–6:00 AM" in this device's time format. */
+const nightHoursLabel = (s: Settings) => `${formatTime(s.quietFrom!)}–${formatTime(s.quietTo!)}`
+
+/** For a device's Notifications card: that some reminders wait out the night, when they do. */
+function nightHoldNote(s: Settings): string | null {
+  return s.quietFrom && s.quietTo && s.nightHoldReminders !== false ? `At night (${nightHoursLabel(s)}) some reminders wait until morning: see Hold reminders at night, under Night.` : null
 }
 
 /** Only on this device: the family's Night screen (default) or this screen's own, and a preview. */
@@ -1469,7 +1491,7 @@ function NightScreenSection() {
         </div>
         {own
           ? <NightRows value={nightFieldsFor(device, settings.nightLook)} onChange={patch => setDeviceAppearance({ ...device, ...patch })} here />
-          : <div className="settings-row-sub">This screen shows what the family picked for wall screens. Parents change it under For the whole family → Night screen.</div>}
+          : <div className="settings-row-sub">This screen shows what the family picked for wall screens. Parents change it under For the whole family → Night.</div>}
         <button className="btn btn-secondary saver-preview-btn" onClick={() => window.dispatchEvent(new Event(SAVER_PREVIEW_EVENT))}>Preview screensaver</button>
         <div className="settings-row-sub">Shows what this screen does overnight for 20 seconds. Tap or press Escape to end it. Only wall screens dim on their own: paired displays, and devices with Use as a wall screen on under This display.</div>
       </div>
@@ -1479,7 +1501,7 @@ function NightScreenSection() {
 
 /** A Night screen's choices (the family's or one screen's). `here`: this screen's own, so the
  * notes can speak about this display. */
-function NightRows({ value, onChange, here = false }: { value: NightFields; onChange: (patch: NightFields) => void; here?: boolean }) {
+function NightRows({ value, onChange, here = false, label = 'Show' }: { value: NightFields; onChange: (patch: NightFields) => void; here?: boolean; label?: string }) {
   const { settings } = useApp()
   const sources = value.saverSources ?? []
   const toggle = (k: SaverSource) => {
@@ -1493,8 +1515,8 @@ function NightRows({ value, onChange, here = false }: { value: NightFields; onCh
   }, [hasDrawings])
   const services = [sources.includes('art') && 'The Metropolitan Museum of Art (public-domain works)', sources.includes('nature') && 'Lorem Picsum (free Unsplash photos)'].filter(Boolean).join(' and ')
   return <>
-    <div className="settings-row-label" aria-hidden="true">During quiet hours show</div>
-    <div className="chip-row" role="group" aria-label="During quiet hours show">
+    <div className="settings-row-label" aria-hidden="true">{label}</div>
+    <div className="chip-row" role="group" aria-label={label}>
       <button className={`chip ${sources.length === 0 ? 'active' : ''}`} aria-pressed={sources.length === 0} onClick={() => onChange({ saverSources: undefined })}>Clock only</button>
       {SAVER_OPTIONS.filter(o => saverOffered(o.key, settings) || (o.key === 'google' && sources.includes('google'))).map(o => ( // photos off: nature pictures stand in (saverSources.ts)
         <button key={o.key} className={`chip ${sources.includes(o.key) ? 'active' : ''}`} aria-pressed={sources.includes(o.key)} onClick={() => toggle(o.key)}>{o.label}</button>
@@ -1931,7 +1953,7 @@ function TransitionRemindersField({ name, value, onChange }: { name: string; val
             <button className={`switch ${value.leaveBy ? 'on' : ''}`} role="switch" aria-checked={value.leaveBy} aria-labelledby="member-transitions-leave-label"
               onClick={() => set({ leaveBy: !value.leaveBy })}><span className="knob" /></button>
           </div>
-          <div className="settings-row-sub">When an event has travel time, reminders count to the time to leave ("Leave for Soccer in 5 minutes"). They go to phones and tablets set up as {name}'s under Settings → Access, with notifications on. Never during quiet hours.</div>
+          <div className="settings-row-sub">When an event has travel time, reminders count to the time to leave ("Leave for Soccer in 5 minutes"). They go to phones and tablets set up as {name}'s under Settings → Access, with notifications on. Held at night, unless the family turns that off under Night.</div>
         </>
       )}
     </div>

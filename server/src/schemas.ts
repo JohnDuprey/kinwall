@@ -279,7 +279,7 @@ export const FeaturesSchema = z
   .openapi('Features');
 
 // The family's Night screen (Settings -> For the whole family -> Night screen): what wall screens
-// show during quiet hours unless a screen picks its own (a device setting in the app).
+// show during night hours unless a screen picks its own (a device setting in the app).
 export const NIGHT_SOURCES = ['drawings', 'photos', 'google', 'art', 'nature'] as const;
 export const NightLookSchema = z
   .object({
@@ -304,10 +304,13 @@ export const SettingsSchema = z
     themeMode: z.enum(['light', 'dark', 'auto', 'scheduled']),
     darkFrom: z.string(),
     darkTo: z.string(),
-    // Quiet hours for paired displays (HH:MM, household-local). Both null = off.
-    quietFrom: z.string().nullable(),
-    quietTo: z.string().nullable(),
-    quietPin: z.boolean().openapi({ description: 'A PIN is needed to wake a wall screen during quiet hours (set with PUT /api/quiet-pin). Never the PIN itself.' }),
+    // Night hours (once called quiet hours): HH:MM, household-local. Both null = off.
+    quietFrom: z.string().nullable().openapi({ description: 'Night hours start (HH:MM, household time); null = no night hours' }),
+    quietTo: z.string().nullable().openapi({ description: 'Night hours end (HH:MM, household time)' }),
+    nightRest: z.boolean().openapi({ description: 'Wall screens show the Night screen during night hours (on unless turned off)' }),
+    nightHoldReminders: z.boolean().openapi({ description: 'Transition reminders, time cues, Live Activities, battery alerts and the morning check-in reminder wait out the night hours (on unless turned off). Event and medicine reminders and the evening goal check always come through.' }),
+    darkWithNight: z.boolean().openapi({ description: "Scheduled dark mode uses the night hours; darkFrom / darkTo then read as the night hours (while they're set)" }),
+    quietPin: z.boolean().openapi({ description: 'A PIN is needed to wake a wall screen during night hours (set with PUT /api/quiet-pin). Never the PIN itself.' }),
     accent: z.string(), // '#FF9E7A' (the default) = the color scheme's own accent; anything else is a custom accent
     colorScheme: ColorSchemeIdSchema, // a built-in scheme, 'seasonal', or a customSchemes id
     customColors: CustomColorsSchema.nullable(), // legacy: surfaces layered on the scheme (no longer set by the app)
@@ -329,7 +332,7 @@ export const SettingsSchema = z
     location: LocationSchema.nullable(), // for the snapshot's weather; null = no weather
     temperatureUnit: z.enum(['celsius', 'fahrenheit']), // default: fahrenheit for a US location (or US timezone), else celsius
     tidbits: TidbitSettingsSchema,
-    nightLook: NightLookSchema.openapi({ description: "What wall screens show during quiet hours, unless a screen picks its own on the device." }),
+    nightLook: NightLookSchema.openapi({ description: "What wall screens show during night hours, unless a screen picks its own on the device." }),
     boardPresets: z.array(BoardPresetSchema).openapi({ description: "Board layouts a parent saved for the family; each screen picks one (or a built-in one, or its own) on the device." }),
     features: FeaturesSchema,
     mealTimes: MealTimesSchema, // when each meal slot usually is; a meal without its own time uses it for its calendar event
@@ -351,6 +354,9 @@ export const SettingsPatchSchema = z
     darkTo: z.string().regex(HHMM_RE, 'must be HH:MM').optional(),
     quietFrom: z.union([z.string().regex(HHMM_RE, 'must be HH:MM'), z.literal(''), z.null()]).optional(),
     quietTo: z.union([z.string().regex(HHMM_RE, 'must be HH:MM'), z.literal(''), z.null()]).optional(),
+    nightRest: z.boolean().optional(),
+    nightHoldReminders: z.boolean().optional(),
+    darkWithNight: z.boolean().optional(),
     accent: z.string().regex(HEX_COLOR_RE, 'must be a hex color like #RRGGBB').optional(),
     colorScheme: ColorSchemeIdSchema.optional(),
     customColors: CustomColorsSchema.nullable().optional(),
@@ -387,7 +393,7 @@ export const SettingsPatchSchema = z
     medications: z.boolean().optional(), // likewise
     medicationNamesOnWalls: z.boolean().optional(), // likewise
   })
-  // Quiet hours are a pair: send both, and either both set or both cleared ('' / null).
+  // Night hours are a pair: send both, and either both set or both cleared ('' / null).
   .refine((p) => (p.quietFrom === undefined) === (p.quietTo === undefined) && !p.quietFrom === !p.quietTo, {
     message: 'quietFrom and quietTo must be set (or cleared) together',
     path: ['quietTo'],

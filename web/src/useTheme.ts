@@ -35,7 +35,7 @@ export type DeviceAppearance = Partial<Pick<Appearance, 'themeMode' | 'textScale
   nowNext?: boolean // Now / Next card on the calendar; absent = on
   keepAwake?: boolean // keep the screen on while Kinwall is showing; absent = on for wall screens and kids' devices, off for parent devices
   idleReset?: boolean // back to the calendar after 2 idle minutes; absent = on for wall screens and kids' devices, off for parent devices
-  wallScreen?: boolean // act as a wall screen (night screen in quiet hours, the two defaults above); paired displays always do
+  wallScreen?: boolean // act as a wall screen (Night screen at night, the two defaults above); paired displays always do
   warnings?: number[] // transition warnings, minutes before an event (or its leave-by)
   warningRepeat?: WarningRepeat // ...plus every N minutes during the last M (transitions.ts)
   warningSound?: boolean
@@ -47,11 +47,11 @@ export type DeviceAppearance = Partial<Pick<Appearance, 'themeMode' | 'textScale
   boardLayout?: string // the Board's layout (boardLayout.ts): a preset's id or 'custom' (boardCustom); absent = the default arrangement
   boardCustom?: BoardLayout // this screen's own layout
   nightOwn?: true // this screen's own Night screen (the saver fields below); absent = the family's (saverSources.ts ownsNight)
-  saverSources?: SaverSource[] // quiet-hours screensaver, round-robin; absent/empty = the plain clock
+  saverSources?: SaverSource[] // Night screen slideshow, round-robin; absent/empty = the plain clock
   saverEvery?: number // minutes between pictures; absent = 5
   saverBright?: 'medium' // absent = low
   saverClock?: false // corner clock; absent = shown
-  clockPos?: ClockPos // quiet-hours clock (big or corner) stays here; absent = moves around (burn-in guard)
+  clockPos?: ClockPos // Night screen clock (big or corner) stays here; absent = moves around (burn-in guard)
   skin?: ColorScheme // this device's color scheme (a skins.ts id or 'seasonal'); absent = the household's
   custom?: CustomColors // hex, layered on the scheme; surfaces ignored in low-stim
 }

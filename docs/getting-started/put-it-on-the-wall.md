@@ -75,7 +75,7 @@ Kinwall needs a connection to your server whether it's installed or not. It does
 
 * **Settings → Display & Brightness → Auto-Lock → Never**.
 * **Settings → Accessibility → Guided Access → On**. Open Kinwall and triple-click the side/top button to start it. This keeps the iPad on Kinwall and disables the home gesture.
-* Optional: turn on [Quiet hours](../using/quiet-hours.md) so the screen shows only a dim clock overnight.
+* Optional: turn on [Night hours](../using/night.md) so the screen shows only a dim clock overnight.
 
 ## How the wall display behaves
 

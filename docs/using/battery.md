@@ -61,7 +61,7 @@ Every day shows its reasons, for example "Sleep: ok (+60) · Late evening yester
 With the battery on, the evening check asks one more question from the person's evening time (**Ask at** in their Temp check settings, 9:00 PM to start) until midnight: **How drained do you feel?** with 😊 **Full**, 🙂 **OK**, 😌 **Low** and 😴 **Empty**, or **Skip**. It saves on the tap, and **Change** lets them answer again until midnight. After midnight it stays open as [last night's check-in](snapshot.md#last-nights-check-in) until noon or their morning Temp check, and the answer counts for the evening's own day.
 
 * On a day with a goal and **Evening goal check** on, it's part of the **🎯 Goal check** card, and the push is the goal check's own **Did you finish your goal? 🎯**. One push, not two.
-* On a day without one, a **🔋 Evening check** card asks just this, and their own phones and tablets get one push: **How drained do you feel? 🔋** ("A quick check-in before bed."). Tapping it opens their [journal](journal.md). It's not added to the family's feed, and it comes through during [quiet hours](quiet-hours.md) like the goal check.
+* On a day without one, a **🔋 Evening check** card asks just this, and their own phones and tablets get one push: **How drained do you feel? 🔋** ("A quick check-in before bed."). Tapping it opens their [journal](journal.md). It's not added to the family's feed, and it comes through during the [night hours](night.md) like the goal check.
 * Only on their own device and parents' devices. A shared wall screen or another person's device never asks it or shows the answer.
 
 ### How the answers adjust it
@@ -87,7 +87,7 @@ with a couple of plain ideas: **Rest before Art class** (the event that takes th
 From **7:00 PM** (household time) the evening before a day like that, their own phones and tablets get one push: **🔋 Heads-up for tomorrow**, with the same line. Tapping it opens their [Insights](insights.md). It's at most one per person per day.
 
 * Only devices that belong to them (set under **Settings → Access**) with notifications on. Never a shared wall or a parent's device, and it's not added to the family's notification feed.
-* Never during [quiet hours](quiet-hours.md). If quiet hours cover the evening, it waits until they end and goes out that morning (until noon) as **🔋 Heads-up for today**.
+* Held at [night](night.md#reminders-at-night) (unless the family turns that off). If the night hours cover the evening, it waits until they end and goes out that morning (until noon) as **🔋 Heads-up for today**.
 * The text comes from the calendar and chores only. It never mentions sleep or feelings.
 
 ## Who can see it

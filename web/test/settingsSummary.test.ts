@@ -1,7 +1,7 @@
 // node --test test/ (npm test). The Settings → General sheet summaries read true to the values.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { appearanceChips, featuresSummary, nightSummary, timeCuesSummary, transitionRemindersSummary } from '../src/settingsSummary.ts'
+import { appearanceChips, featuresSummary, nightHoursChips, nightSummary, timeCuesSummary, transitionRemindersSummary } from '../src/settingsSummary.ts'
 
 const text = (chips: { icon?: string; label: string; family?: boolean }[]) => chips.map(c => [c.family && '🏠', c.icon, c.label].filter(Boolean).join(' '))
 
@@ -56,4 +56,10 @@ test('night screen: one chip per choice', () => {
   assert.deepEqual(text(nightSummary({ sources: [], every: 5, bright: 'low', clock: true, pos: 'Top left' })), ['🕒 Clock only, top left'])
   assert.deepEqual(text(nightSummary({ sources: ['Nature'], every: 5, bright: 'low', clock: true, pos: 'Center' })), ['Nature', '⏱️ Every 5 min', '🕒 Clock center'])
   assert.deepEqual(text(nightSummary({ sources: ['Nature'], every: 5, bright: 'low', clock: false, pos: 'Center' })), ['Nature', '⏱️ Every 5 min', 'No clock'])
+})
+
+test('nightHoursChips: the hours, then what they do', () => {
+  assert.deepEqual(text(nightHoursChips(null)), ['🌙 Night hours off'])
+  assert.deepEqual(text(nightHoursChips({ hours: '10:00 PM–6:00 AM', rest: true, hold: true, pin: true })), ['🌙 10:00 PM–6:00 AM', '🖼️ Walls rest', '🔕 Reminders held', '🔒 PIN'])
+  assert.deepEqual(text(nightHoursChips({ hours: '22:00–06:00', rest: false, hold: false, pin: true })), ['🌙 22:00–06:00', 'Walls stay on', 'Reminders on'], 'no PIN chip when walls stay on')
 })

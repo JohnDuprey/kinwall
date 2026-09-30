@@ -1,4 +1,4 @@
-// The quiet-hours PIN keypad's rules (App.tsx PinKeypad). Pure, so node tests load it. The server
+// The night PIN keypad's rules (App.tsx PinKeypad). Pure, so node tests load it. The server
 // checks the PIN and rate-limits guesses too (server/src/routes/quiet-pin.ts).
 
 export const PIN_RE = /^\d{4,8}$/

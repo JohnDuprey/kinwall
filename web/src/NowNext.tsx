@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { EventInstance, Member, Settings } from './types.ts'
 import { formatTime } from './timeFormat.ts'
 import { announce } from './a11y.tsx'
-import { inTimeWindow } from './useTheme.ts'
+import { remindersHeld } from './wallScreen.ts'
 import { blocksTime, leadFor, leadIcon, leadOf } from './leadTime.ts'
 import { useApp } from './AppContext.tsx'
 import { api, MOCK } from './api.ts'
@@ -105,7 +105,7 @@ function chime() {
 const BANNER_MS = 30000
 
 /** Shows a calm banner when an event (or its leave-by) is exactly one of `minutes` away. One at a
- * time, never during quiet hours, gone after 30 s or on tap. */
+ * time, held at night (Hold reminders at night), gone after 30 s or on tap. */
 export function TransitionWarnings({ events, minutes, sound, settings }: { events: EventInstance[]; minutes: number[]; sound: boolean; settings: Settings }) {
   const now = useNow(15000)
   const fired = useRef(new Set<string>())
@@ -113,7 +113,7 @@ export function TransitionWarnings({ events, minutes, sound, settings }: { event
 
   useEffect(() => {
     if (!minutes.length) return
-    const quiet = !!settings.quietFrom && !!settings.quietTo && inTimeWindow(settings.quietFrom, settings.quietTo, new Date(now))
+    const held = remindersHeld(settings, new Date(now))
     for (const e of timed(events)) {
       const targets = [{ at: Date.parse(e.start), label: e.title }]
       const lead = leadOf(e)
@@ -122,10 +122,10 @@ export function TransitionWarnings({ events, minutes, sound, settings }: { event
         for (const m of minutes) {
           const key = `${e.id}:${t.at}:${m}`
           const due = t.at - m * MIN
-          // Inside the minute the warning is for; fired once, even if skipped (quiet/stacked).
+          // Inside the minute the warning is for; fired once, even if skipped (held/stacked).
           if (now < due || now >= due + MIN || fired.current.has(key)) continue
           fired.current.add(key)
-          if (quiet || (banner && banner.until > now)) continue
+          if (held || (banner && banner.until > now)) continue
           const msg = `${t.label} in ${m} minute${m === 1 ? '' : 's'}`
           setBanner({ msg, until: now + BANNER_MS })
           announce(msg)

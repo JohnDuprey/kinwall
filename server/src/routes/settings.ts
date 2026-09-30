@@ -38,6 +38,11 @@ export async function readSettings(db: KinwallDb) {
     .all<{ key: string; value: string }>();
   const map = new Map(results.map((r) => [r.key, r.value]));
   const location = parseLocation(map.get('location'));
+  // Night hours: off by default; cleared is stored as '' (the loop in PATCH below), read back as null.
+  const quietFrom = map.get('quietFrom') || null;
+  const quietTo = map.get('quietTo') || null;
+  const darkWithNight = map.get('darkWithNight') === 'true';
+  const nightDark = darkWithNight && quietFrom && quietTo; // dark mode follows the night hours while there are some
   return {
     familyName: map.get('familyName') ?? DEFAULTS.familyName,
     // No household default - stays null until set explicitly (server fallback: hostTimezone()) or
@@ -45,11 +50,14 @@ export async function readSettings(db: KinwallDb) {
     timezone: map.get('timezone') ?? null,
     weekStart: Number(map.get('weekStart') ?? DEFAULTS.weekStart) as 0 | 1,
     themeMode: (map.get('themeMode') ?? DEFAULTS.themeMode) as 'light' | 'dark' | 'auto' | 'scheduled',
-    darkFrom: map.get('darkFrom') ?? DEFAULTS.darkFrom,
-    darkTo: map.get('darkTo') ?? DEFAULTS.darkTo,
-    // Off by default; cleared is stored as '' (the loop in PATCH below), read back as null.
-    quietFrom: map.get('quietFrom') || null,
-    quietTo: map.get('quietTo') || null,
+    darkFrom: nightDark ? quietFrom : map.get('darkFrom') ?? DEFAULTS.darkFrom,
+    darkTo: nightDark ? quietTo : map.get('darkTo') ?? DEFAULTS.darkTo,
+    quietFrom,
+    quietTo,
+    // Both on unless turned off: a family with quiet hours from before keeps what they did.
+    nightRest: map.get('nightRest') !== 'false',
+    nightHoldReminders: map.get('nightHoldReminders') !== 'false',
+    darkWithNight,
     quietPin: !!map.get('quietPinHash'), // routes/quiet-pin.ts; the hash itself never leaves the server
     accent: map.get('accent') ?? DEFAULTS.accent,
     colorScheme: parseColorScheme(map.get('colorScheme')),

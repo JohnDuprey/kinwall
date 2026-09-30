@@ -1,6 +1,6 @@
 # Settings → General
 
-Parent devices see both groups of cards below. Wall screens and kids' devices see only **Only on this device**: the family settings are for parents, so a device can't change the family name, timezone, weather, quote sources, appearance or quiet hours (it can still pick its own look under **Appearance on this device**, and add a new color scheme there, which is saved to the family's list).
+Parent devices see both groups of cards below. Wall screens and kids' devices see only **Only on this device**: the family settings are for parents, so a device can't change the family name, timezone, weather, quote sources, appearance or night (it can still pick its own look under **Appearance on this device**, and add a new color scheme there, which is saved to the family's list).
 
 * **For the whole family**: saved on the server, so every screen and phone in the household uses them.
 * **Only on this device**: saved in this browser, so other devices aren't affected. See [This device](this-display.md).
@@ -16,7 +16,7 @@ The Kinwall version ("Kinwall v…") shows at the bottom.
 | **Family name** | Shown in the header. Default "Our Family". Saves when you leave the field. |
 | **Timezone** | The household timezone. Chores, reminders, summaries and "today" use it. If it's not set, the first device to load the app sets it from its own timezone. Tap it to choose from a list: this device's timezone and the current one come first, each row shows the time there and its UTC offset ("8:04 PM · UTC−4"), and the search finds a city or region ("New York", "America/New_York"). |
 | **Week starts on** | Sunday or Monday. Applies to the Week and Month views and the weekly leaderboard. |
-| **Time format** | **Automatic** (the default), **12-hour (3:40 PM)** or **24-hour (15:40)**. Every clock time in the app follows it: the Board's clock, the calendar's hour labels and events, Now / Next, meals, medicines, the night screen and leave-by times. Automatic uses each device's language and region, and a device can pick its own under [Appearance on this device](this-display.md#appearance-on-this-device). Notifications and Live Activity headlines the server writes use this setting too; on Automatic they go by the weather location's country (12-hour in the US, Canada, Australia, New Zealand, the Philippines, India, Pakistan, Bangladesh, Egypt, Saudi Arabia and Malaysia, 24-hour everywhere else) and stay 12-hour with no location. Time fields you type into (quiet hours, meal times) use the device's own clock style, which the browser decides. API: `timeFormat` `auto` / `12` / `24`. |
+| **Time format** | **Automatic** (the default), **12-hour (3:40 PM)** or **24-hour (15:40)**. Every clock time in the app follows it: the Board's clock, the calendar's hour labels and events, Now / Next, meals, medicines, the night screen and leave-by times. Automatic uses each device's language and region, and a device can pick its own under [Appearance on this device](this-display.md#appearance-on-this-device). Notifications and Live Activity headlines the server writes use this setting too; on Automatic they go by the weather location's country (12-hour in the US, Canada, Australia, New Zealand, the Philippines, India, Pakistan, Bangladesh, Egypt, Saudi Arabia and Malaysia, 24-hour everywhere else) and stay 12-hour with no location. Time fields you type into (night hours, meal times) use the device's own clock style, which the browser decides. API: `timeFormat` `auto` / `12` / `24`. |
 | **Default reminder** | *Admin only.* The reminder used for events that have none of their own: None, 5, 10, 15, 30 minutes, 1 hour or 1 day. Default 30 minutes. |
 
 ### Weather
@@ -75,25 +75,25 @@ API: `features` `{ chores, lists, contacts, paint, photos, notes, messages, trac
 
 ### Appearance
 
-Mode (Auto, following each device's system setting, until the family picks one), dark schedule, color scheme (including the family's own schemes), typeface, text size and density. See [Appearance](../using/appearance.md).
+Mode (Auto, following each device's system setting, until the family picks one), dark schedule (its own times, or **Same as night**), color scheme (including the family's own schemes), typeface, text size and density. See [Appearance](../using/appearance.md).
 
-### Quiet hours
+### Night
 
-**Off** or **On**, with **Quiet from** and **Quiet to**. Wall screens (paired displays, and devices with **Use as a wall screen** on) show the [Night screen](#night-screen) between these times: a dim clock, or a slideshow. Other devices are never affected. See [Quiet hours](../using/quiet-hours.md).
+One card for the family's night: the **night hours** and what they do. The card sums it up as chips, for example "10:00 PM–6:00 AM", "Walls rest", "Reminders held" and "PIN" (or "Night hours off"); tap **Change** to set it. See [Night](../using/night.md).
 
-**PIN to wake during quiet hours** (off by default, shown once quiet hours are on): **Set PIN** asks for 4 to 8 digits twice. Then a wall screen asks for it before waking during quiet hours. **Change PIN** replaces it; **More… → Remove PIN** turns it off, and is the way out of a forgotten PIN from any parent device. See [PIN to wake](../using/quiet-hours.md#pin-to-wake).
+* **Night hours**: **Off** or **On**, with **Night from** and **Night to** (once called quiet hours).
+* **Wall screens**:
+  * **Rest at night** (on by default, shown while night hours are on): wall screens (paired displays, and devices with **Use as a wall screen** on) show the Night screen during the night hours. Other devices are never affected.
+  * **What they show**: **Clock only** (the default), or a slideshow of **Drawings** (each screen's own), **Family photos**, **Google Photos** (once connected), **Art (The Met)** and **Nature**, with **Change picture every**, **Brightness** and **Show clock**. **Clock position**: **Moves around** (the default, against burn-in) or a fixed spot. Also used when the Night screen is started from the moon button or Home Assistant. See [Screensaver](../using/night.md#screensaver).
+  * **Google Photos**: connect it here for the whole family: **Connect Google Photos**, then **Choose albums in Google Photos** (a link, with a QR code on bigger screens), **Change albums** and **Disconnect Google Photos**. While connecting it goes to Google's sign-in (a wall screen shows a QR code to sign in on a phone instead), or with a TV client shows the code to enter at `google.com/device`, then "Waiting for you to choose albums…". If Google won't allow Photos with the server's Google app, it says so. If Google stops sharing, it shows **Reconnect Google Photos**. After Google's sign-in, Kinwall comes back to this sheet. See [Google Photos](../using/photos.md#google-photos).
+  * **PIN to wake at night** (off by default, shown while night hours and **Rest at night** are on): **Set PIN** asks for 4 to 8 digits twice. Then a wall screen asks for it before waking during the night hours. **Change PIN** replaces it; **More… → Remove PIN** turns it off, and is the way out of a forgotten PIN from any parent device. See [PIN to wake](../using/night.md#pin-to-wake).
+* **Notifications**: **Hold reminders at night** (on by default, shown while night hours are on). The sheet lists what waits until morning (transition reminders, time cues, Live Activities, low battery alerts, the morning check-in reminder) and what always comes through (event and medicine reminders, the evening goal check, daily summaries, messages). See [Reminders at night](../using/night.md#reminders-at-night).
 
-### Night screen
-
-What wall screens show during quiet hours, for the whole family. The card sums it up as chips (for example "Google Photos", "Art (The Met)", "Every 5 min", "Clock on"); tap **Change** to set it:
-
-* **During quiet hours show**: **Clock only** (the default), or a slideshow of **Drawings** (each screen's own), **Family photos**, **Google Photos** (once connected), **Art (The Met)** and **Nature**, with **Change picture every**, **Brightness** and **Show clock**. **Clock position**: **Moves around** (the default, against burn-in) or a fixed spot. See [Screensaver](../using/quiet-hours.md#screensaver).
-* **Google Photos**: connect it here for the whole family: **Connect Google Photos**, then **Choose albums in Google Photos** (a link, with a QR code on bigger screens), **Change albums** and **Disconnect Google Photos**. While connecting it goes to Google's sign-in (a wall screen shows a QR code to sign in on a phone instead), or with a TV client shows the code to enter at `google.com/device`, then "Waiting for you to choose albums…". If Google won't allow Photos with the server's Google app, it says so. If Google stops sharing, it shows **Reconnect Google Photos**. After Google's sign-in, Kinwall comes back to this sheet. See [Google Photos](../using/photos.md#google-photos).
-* **Quiet hours**: the schedule and whether a wake PIN is on, with a button to [Quiet hours](#quiet-hours) to change them.
+A family that had quiet hours before keeps **Rest at night** and **Hold reminders at night** on, so nothing changes. Dark mode stays under [Appearance](#appearance), with **Dark hours: Same as night** to use these hours.
 
 Each screen follows this unless it picks its own under [Night screen on this device](this-display.md#night-screen-on-this-device).
 
-API: `nightLook` `{ sources, every, brightness, clock, clockPosition }` in `GET` / `PATCH /api/settings`: `sources` from `drawings`, `photos`, `google`, `art`, `nature` (each once; empty = the plain clock), `every` 2, 5, 10 or 20 (minutes), `brightness` `low` or `medium`, `clock` a boolean, `clockPosition` `center`, `top-left`, `top-right`, `bottom-left`, `bottom-right` or `null` (moves around). A `PATCH` sends the whole object. Display keys can't change it (403). It's part of the [export](../your-data/export-import.md).
+API: the night hours are `quietFrom` / `quietTo`, the two effects `nightRest` and `nightHoldReminders` (booleans, `true` unless turned off), and what walls show is `nightLook` `{ sources, every, brightness, clock, clockPosition }`, all in `GET` / `PATCH /api/settings`. In `nightLook`, `sources` from `drawings`, `photos`, `google`, `art`, `nature` (each once; empty = the plain clock), `every` 2, 5, 10 or 20 (minutes), `brightness` `low` or `medium`, `clock` a boolean, `clockPosition` `center`, `top-left`, `top-right`, `bottom-left`, `bottom-right` or `null` (moves around). A `PATCH` sends the whole object. Display keys can't change it (403). It's part of the [export](../your-data/export-import.md).
 
 ## Only on this device
 

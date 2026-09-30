@@ -1,5 +1,5 @@
 // Paint's drawings, stored only on this device (IndexedDB 'kinwall-paint'). Shared by Paint and the
-// quiet-hours screensaver.
+// Night screen slideshow.
 export interface Meta { id: string; name: string; memberId: string | null; created: number; updated: number }
 export interface Drawing extends Meta { png: Blob; thumb: Blob }
 

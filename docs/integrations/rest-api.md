@@ -75,6 +75,8 @@ On Workers, the free-tier quota (100k requests/day) is the practical ceiling. Se
 |---|---|
 | Household | `GET/PATCH /api/settings`, `PUT/DELETE /api/quiet-pin` (`{ pin }`, 4 to 8 digits; parent devices only, not display keys or connected apps; `settings.quietPin` says only whether one is set), `POST /api/quiet-pin/verify` (`{ pin }` → `{ ok }`, `ok: true` when no PIN is set; display keys may, connected apps can't), `GET /api/appearance`, `GET /api/me`, `GET /api/rev`, `GET /api/health` |
 
+Night settings on `PATCH /api/settings`: the family's night hours are still `quietFrom` / `quietTo` (`HH:MM`, household time; both `null` = off), so existing scripts and automations keep working. `nightRest` (walls show the Night screen during them) and `nightHoldReminders` (transition reminders, Live Activities, low battery alerts and the morning check-in reminder wait until they end) are booleans, `true` unless turned off. `darkWithNight: true` makes the dark schedule use the night hours; `darkFrom` / `darkTo` (here and on `GET /api/appearance`) then read as the night hours while they're set. `nightLook` is what wall screens show. See [Night](../using/night.md#api).
+
 Color settings on `PATCH /api/settings`: `colorScheme` is a built-in id (`meadow` is shown as Peach, `field` as Meadow, plus `ocean`, `lavender`, `midnight`, `spring`, `summer`, `autumn`, `winter`, `harvest`, `festive`), `seasonal`, or a `customSchemes` id. `customSchemes` is the family's own schemes, up to 10, each `{ id: "custom-…", name, emoji, light, dark }` with `light`/`dark` as `{ bg, card, text, accent }` hex colors. A scheme whose text or derived dim text is under 4.5:1 on its background or cards, in either mode, is refused with 400 and the failing pairs. `accent`, `backgroundLight`, `backgroundDark` and `customColors` are kept for older clients.
 `themeMode` is `light`, `dark`, `auto` (follow the device's system setting, the default for a family that hasn't picked one) or `scheduled` (dark between `darkFrom` and `darkTo`).
 `typeface` is the family's typeface: `default` (Nunito, the default), `hyperlegible`, `dyslexia`, `modern`, `playful`, `storybook` or `handwritten`; anything else is refused with 400. It's also on `GET /api/appearance`, and a device can override it locally. Like the other family settings, a display key gets 403 changing it.
@@ -115,7 +117,7 @@ Feature switches on `PATCH /api/settings` are sent as the complete `features` ob
 
 ## Night screen
 
-Start or end the [Night screen](../using/quiet-hours.md#start-it-from-home-assistant) on wall screens. Admin keys, parent devices and connected apps; display keys and kids' devices get 403.
+Start or end the [Night screen](../using/night.md#start-it-from-home-assistant) on wall screens. Admin keys, parent devices and connected apps; display keys and kids' devices get 403.
 
 * `POST /api/displays/night-screen` with `{ on, displays?, hours? }`. `displays` is a list of paired display key IDs; leave it out for every wall screen, which also drops any per-screen choice. `on: true` runs out after `hours` (default 12, up to 168). With `displays`, each screen's own setting wins over the one for every wall screen, so you can wake one and leave the rest asleep. Unknown IDs get 400. Returns the same as the `GET`.
 * `GET /api/displays/night-screen` returns `{ all, displays }`: `all` is `{ on, since, until }` for every wall screen, or `null`; `displays` lists every paired display (`id`, `name`, `owner`) with its own `on`, `since` and `until`.

@@ -1,10 +1,10 @@
 // Which devices act as a wall screen, and when their Night screen shows. Pure, so node tests load it.
 
-/** A tap keeps the Night screen away this long during quiet hours. */
+/** A tap keeps the Night screen away this long during night hours. */
 export const WAKE_MS = 5 * 60 * 1000
 
 /** Is `now` inside the [from, to) HH:MM window (device-local clock time)? Handles ranges that
- * cross midnight (e.g. 20:00 -> 07:00). Used by scheduled dark mode and display quiet hours. */
+ * cross midnight (e.g. 20:00 -> 07:00). Used by scheduled dark mode and the night hours (isNight). */
 export function inTimeWindow(from: string, to: string, now = new Date()): boolean {
   const [fh, fm] = from.split(':').map(Number)
   const [th, tm] = to.split(':').map(Number)
@@ -24,9 +24,22 @@ export const isWallScreen = (scope: string, device: { wallScreen?: boolean }) =>
  * set them: on for wall screens and kids' devices, off for a parent's own phone or computer. */
 export const wallDefaultsOn = (parentDevice: boolean, device: { wallScreen?: boolean }) => !parentDevice || !!device.wallScreen
 
-/** Quiet hours on a wall screen: the Night screen shows once nobody has touched it for WAKE_MS. */
-export function nightScreenDue(o: { wall: boolean; quietFrom: string | null; quietTo: string | null; now: Date; lastActive: number }): boolean {
-  return o.wall && !!o.quietFrom && !!o.quietTo && inTimeWindow(o.quietFrom, o.quietTo, o.now) && o.now.getTime() - o.lastActive > WAKE_MS
+/** The family's night hours (settings quietFrom / quietTo) and what they do; each effect is on
+ * unless the family turned it off (older settings don't have the switches). */
+export type NightSettings = { quietFrom: string | null; quietTo: string | null; nightRest?: boolean; nightHoldReminders?: boolean }
+
+/** Is it night (the family's night hours, on this device's clock)? The one check both night effects
+ * use: walls resting (nightScreenDue) and reminders held (remindersHeld). The server's twin is
+ * notify.ts isNight. */
+export const isNight = (s: NightSettings, now = new Date()) => !!s.quietFrom && !!s.quietTo && inTimeWindow(s.quietFrom, s.quietTo, now)
+
+/** Reminders wait out the night: time cues here, transition reminders and the like on the server. */
+export const remindersHeld = (s: NightSettings, now = new Date()) => s.nightHoldReminders !== false && isNight(s, now)
+
+/** Walls rest at night: the Night screen shows once nobody has touched it for WAKE_MS. (It also
+ * shows when started now, from the moon button or Home Assistant, and in a preview: App.tsx.) */
+export function nightScreenDue(o: NightSettings & { wall: boolean; now: Date; lastActive: number }): boolean {
+  return o.wall && o.nightRest !== false && isNight(o, o.now) && o.now.getTime() - o.lastActive > WAKE_MS
 }
 
 /** The remote Night screen from GET /api/rev (Home Assistant, a parent, a connected app): on, or null. */
@@ -37,7 +50,7 @@ export const remoteNightKey = (remote: RemoteNight) => (remote?.on ? remote.sinc
 
 /** What a wall screen does when a poll brings the remote state. `seen` is the key it last acted on
  * (undefined before the first poll). It acts only on a change, so after a local tap wakes it while
- * the remote state is still on, it stays awake until the next remote change (or quiet hours). */
+ * the remote state is still on, it stays awake until the next remote change (or night hours). */
 export function remoteNightAction(seen: string | undefined, remote: RemoteNight | undefined, wall: boolean): 'start' | 'stop' | null {
   if (!wall || remote === undefined) return null
   const key = remoteNightKey(remote)

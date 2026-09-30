@@ -83,3 +83,16 @@ export function nightSummary(n: { sources: string[]; every: number; bright: 'low
   ]
   return chips.filter((x): x is Chip => !!x)
 }
+
+/** The family's Night card: the night hours, then what they do. `null` = no night hours. The PIN
+ * shows only while walls rest (it's what wakes them). */
+export function nightHoursChips(n: { hours: string; rest: boolean; hold: boolean; pin: boolean } | null): Chip[] {
+  if (!n) return [{ icon: '🌙', label: 'Night hours off' }]
+  const chips: (Chip | false)[] = [
+    { icon: '🌙', label: n.hours },
+    n.rest ? { icon: '🖼️', label: 'Walls rest' } : { label: 'Walls stay on' },
+    n.hold ? { icon: '🔕', label: 'Reminders held' } : { label: 'Reminders on' },
+    n.rest && n.pin && { icon: '🔒', label: 'PIN' },
+  ]
+  return chips.filter((x): x is Chip => !!x)
+}

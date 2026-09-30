@@ -87,6 +87,9 @@ const settings: Settings = {
   darkTo: '07:00',
   quietFrom: null,
   quietTo: null,
+  nightRest: true,
+  nightHoldReminders: true,
+  darkWithNight: false,
   quietPin: false,
   accent: '#FF9E7A',
   colorScheme: 'meadow',
@@ -626,7 +629,11 @@ export const mock = {
   },
 
   getSettings: async (): Promise<Settings> => ({ ...settings }),
-  updateSettings: async (patch: Partial<Settings>) => { Object.assign(settings, patch); bump(); return { ...settings } },
+  updateSettings: async (patch: Partial<Settings>) => {
+    Object.assign(settings, patch)
+    if (settings.darkWithNight && settings.quietFrom && settings.quietTo) Object.assign(settings, { darkFrom: settings.quietFrom, darkTo: settings.quietTo }) // like the server
+    bump(); return { ...settings }
+  },
   // Demo only: the PIN is kept in memory as typed; the real server keeps only a salted hash.
   setQuietPin: async (pin: string | null) => { quietPin = pin; settings.quietPin = !!pin; bump(); return { ok: true } },
   verifyQuietPin: async (pin: string) => ({ ok: !quietPin || pin === quietPin }),

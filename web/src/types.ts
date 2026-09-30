@@ -31,9 +31,12 @@ export interface Settings {
   themeMode: ThemeMode
   darkFrom: string // HH:MM, household timezone
   darkTo: string // HH:MM, household timezone
-  quietFrom: string | null // HH:MM; both null = no quiet hours (wall screens only)
+  quietFrom: string | null // night hours, HH:MM (once called quiet hours); both null = no night hours
   quietTo: string | null
-  quietPin: boolean // a PIN is needed to wake a wall screen during quiet hours (never the PIN itself)
+  nightRest?: boolean // wall screens show the Night screen during night hours; absent (older servers) = on
+  nightHoldReminders?: boolean // reminders wait out the night hours (wallScreen.ts remindersHeld); absent = on
+  darkWithNight?: boolean // scheduled dark mode uses the night hours (the server then reports them as darkFrom / darkTo)
+  quietPin: boolean // a PIN is needed to wake a wall screen during night hours (never the PIN itself)
   accent: string // hex; DEFAULT_ACCENT (useTheme.ts) = the color scheme's own accent
   colorScheme: ColorScheme
   customColors: Omit<CustomColors, 'accent'> | null // legacy: household surfaces over the scheme (the app no longer sets these)
@@ -54,7 +57,7 @@ export interface Settings {
   location: WeatherLocation | null // for the snapshot's weather; null = no weather
   temperatureUnit: 'celsius' | 'fahrenheit'
   tidbits: TidbitSettings // the Board's quote / fact card
-  nightLook: NightLook // what wall screens show during quiet hours unless a screen picks its own (saverSources.ts)
+  nightLook: NightLook // what wall screens show during night hours unless a screen picks its own (saverSources.ts)
   boardPresets: BoardPreset[] // Board layouts a parent saved for the family (boardLayout.ts)
   features: Features // Settings → Features: what the family uses; off = hidden on every screen
   mealTimes: Record<'breakfast' | 'lunch' | 'dinner' | 'snack', string> // HH:MM each meal usually is; a meal without its own time uses it on the calendar

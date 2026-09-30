@@ -47,7 +47,7 @@ A device holds up to **50 drawings**. When it's full, Paint says so and stops sa
 ### On a wall display
 
 * The wall never goes back to the calendar while an activity is open (Paint, the sticker book, or an added activity like Sight words), so nobody gets pulled out mid-picture or mid-game. Paint still saves as you draw.
-* [Quiet hours](quiet-hours.md) still dim the display as usual. The display's drawings can also be its [night screensaver](quiet-hours.md#screensaver).
+* The [night hours](night.md) still rest the display as usual. The display's drawings can also be its [night screensaver](night.md#screensaver).
 
 ## Where drawings are stored
 

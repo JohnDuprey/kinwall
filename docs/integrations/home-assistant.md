@@ -11,8 +11,8 @@ Install it through HACS, then add it under **Settings → Devices & Services** w
 * **Sensors**: points today, points this week and chores left today, per member.
 * **A binary sensor per chore**: on once it's done today. It also reports the chore's checklist progress, so an automation can wait for "the after-school checklist is done".
 * **Events**: every Kinwall webhook also fires as `kinwall_<type>` on the Home Assistant event bus (for example `kinwall_chore_completed`).
-* **Actions**: `kinwall.import_recipe` and `kinwall.plan_meal` put recipes and meals on the meal plan from a script or automation. `kinwall.night_screen` starts or ends the [Night screen](../using/quiet-hours.md#start-it-from-home-assistant) on wall screens. They need the integration's key to be an admin key.
-* **Night screen switches**: one for **All wall screens** and one per paired display. There's a blueprint that starts the Night screen when nobody's home and wakes the walls when someone arrives.
+* **Actions**: `kinwall.import_recipe` and `kinwall.plan_meal` put recipes and meals on the meal plan from a script or automation. `kinwall.night_screen` starts or ends the [Night screen](../using/night.md#start-it-from-home-assistant) on wall screens. They need the integration's key to be an admin key.
+* **Night screen switches**: one for **All wall screens** and one per paired display. They start the Night screen at any time, apart from the family's [night hours](../using/night.md) (once called quiet hours), which still read as `quietFrom` / `quietTo` in the settings. There's a blueprint that starts the Night screen when nobody's home and wakes the walls when someone arrives.
 
 The integration registers a Kinwall webhook for itself, so changes show up in Home Assistant right away. It also polls `GET /api/rev` as a backstop (every 30 seconds by default).
 

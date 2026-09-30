@@ -148,7 +148,7 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 | `update_tracker_entry` | Edits an entry, for example pages read, minutes listened or a rating. `data` is merged; `null` clears a field. Health entries only once a parent turns on [health for connected apps](#health-entries). |
 | `update_category` | Changes a category's name, emoji, color or keywords. |
 | `send_notification` | Pushes a message now to devices following given members, or all devices (admin). It also appears in the in-app notification feed. |
-| `set_night_screen` | Starts (`on: true`) or ends (`on: false`) the [Night screen](../using/quiet-hours.md#start-it-from-home-assistant) on every wall screen, or on `displays` (paired display names or IDs). "On" runs out after `hours` (default 12). A tap still wakes a wall. Full access. |
+| `set_night_screen` | Starts (`on: true`) or ends (`on: false`) the [Night screen](../using/night.md#start-it-from-home-assistant) on every wall screen, or on `displays` (paired display names or IDs). "On" runs out after `hours` (default 12). A tap still wakes a wall. Full access. |
 | `set_color_scheme` | Sets the household's color scheme by name ("Peach", "Meadow", "Seasonal", or one of the family's own). Devices that follow the family setting switch to it; a device that picked its own scheme in the app keeps it. |
 | `save_color_scheme` | Creates one of the family's own schemes, or overwrites one (`replace`). Takes four colors per mode (`light` and `dark`: `bg`, `card`, `text`, `accent`). Refused, with the ratios that fell short, unless text and dim text reach 4.5:1 on the background and cards in both modes. Up to 10 per family. `use: true` also makes it the household's scheme. |
 

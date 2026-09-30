@@ -1081,6 +1081,7 @@ button {
 .settings-section-title { font-size: 0.8125rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.03em; padding-bottom: 12px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
 /* The title carries the divider, so the first item never doubles it; bare content gets breathing room. */
 .settings-section-title + * { border-top: none !important; }
+.settings-subhead { margin: 20px 0 0; font-size: 0.8125rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.03em; }
 .settings-section-title + .field, .settings-section-title + p { margin-top: 14px; }
 .settings-section-title + .member-row-list { margin-top: 6px; }
 .settings-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 2px; border-top: 1px solid var(--border); gap: 12px; }
@@ -1701,9 +1702,9 @@ button {
 .minutes-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-weight: 700; font-size: 0.9375rem; }
 .minutes-row input[type=number] { width: 5.5em; }
 .minutes-row .settings-select, .field .minutes-row select { width: auto; }
-/* Quiet hours (paired displays): near-black screen with a dim clock, above sheets and toasts. */
+/* The Night screen (wall screens at night): near-black screen with a dim clock, above sheets and toasts. */
 .quiet-overlay { position: fixed; inset: 0; z-index: 1000; background: #050403; display: flex; align-items: center; justify-content: center; cursor: pointer; }
-/* Quiet-hours clock position (nightClock.ts): x% / y% of the free space, pulled back by its own
+/* Night screen clock position (nightClock.ts): x% / y% of the free space, pulled back by its own
    size, so every spot is fully on screen. Keyed on the spot, so a move fades in; no fade (a plain
    jump) with reduced motion or low stimulation. */
 .night-spot {
@@ -1718,7 +1719,7 @@ button {
 .quiet-clock { color: #8a7f74; opacity: 0.55; }
 .quiet-time { font-size: clamp(4rem, 16vw, 12rem); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
 .quiet-date { margin-top: 12px; font-size: clamp(1.1rem, 3vw, 2rem); font-weight: 700; }
-/* Quiet-hours PIN pad (App.tsx PinKeypad): as dim as the clock, big keys, no hint. */
+/* Night PIN pad (App.tsx PinKeypad): as dim as the clock, big keys, no hint. */
 .quiet-keypad { display: flex; flex-direction: column; align-items: center; gap: 12px; color: #8a7f74; cursor: default; }
 .quiet-keypad-dots { display: flex; gap: 14px; min-height: 16px; }
 .quiet-keypad-dots span { width: 14px; height: 14px; border-radius: 50%; background: #8a7f74; }

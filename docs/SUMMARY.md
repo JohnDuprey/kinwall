@@ -34,7 +34,7 @@
 * [Household Contacts Directory](using/contacts.md)
 * [Notifications](using/notifications.md)
 * [Appearance](using/appearance.md)
-* [Quiet hours](using/quiet-hours.md)
+* [Night](using/night.md)
 * [Sign-in & security](using/sign-in-and-security.md)
 
 ## Connecting calendars

@@ -1,7 +1,7 @@
 // node --test test/ (npm test). Which devices act as a wall screen, and when the night screen shows.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { deviceKindOf, deviceKindValue, isWallScreen, widgetParent, nightScreenDue, parseDeviceKind, remoteNightAction, remoteNightKey, wallDefaultsOn, WAKE_MS } from '../src/wallScreen.ts'
+import { deviceKindOf, deviceKindValue, isNight, isWallScreen, remindersHeld, widgetParent, nightScreenDue, parseDeviceKind, remoteNightAction, remoteNightKey, wallDefaultsOn, WAKE_MS } from '../src/wallScreen.ts'
 
 test('isWallScreen: paired displays always are; other devices only with the switch on', () => {
   assert.equal(isWallScreen('display', {}), true)
@@ -85,4 +85,23 @@ test('widgetParent: widgets hang under the key or app sign-in that made them; a 
   assert.deepEqual(widgetParent(keys[4], keys), { grantId: 'g1' })
   assert.equal(widgetParent(keys[5], keys), null)
   assert.equal(widgetParent(keys[6], keys), null)
+})
+
+test('isNight: the one night-hours check, wrapping past midnight, off when unset or empty', () => {
+  assert.equal(isNight(quiet, at(23)), true)
+  assert.equal(isNight(quiet, at(5, 59)), true)
+  assert.equal(isNight(quiet, at(6)), false)
+  assert.equal(isNight({ quietFrom: null, quietTo: null }, at(23)), false)
+  assert.equal(isNight({ quietFrom: '22:00', quietTo: '22:00' }, at(22)), false, 'an empty window')
+})
+
+test('nightScreenDue: walls rest only with Rest at night on (on unless turned off)', () => {
+  assert.equal(nightScreenDue({ wall: true, ...quiet, nightRest: true, now: at(23), lastActive: 0 }), true)
+  assert.equal(nightScreenDue({ wall: true, ...quiet, nightRest: false, now: at(23), lastActive: 0 }), false)
+})
+
+test('remindersHeld: at night while Hold reminders at night is on (on unless turned off)', () => {
+  assert.equal(remindersHeld({ ...quiet }, at(23)), true)
+  assert.equal(remindersHeld({ ...quiet, nightHoldReminders: false }, at(23)), false)
+  assert.equal(remindersHeld({ ...quiet, nightHoldReminders: true }, at(12)), false, 'daytime')
 })

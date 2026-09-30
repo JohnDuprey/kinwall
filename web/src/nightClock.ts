@@ -1,4 +1,4 @@
-// Where the quiet-hours clock sits (Settings → This display → Night screen → Clock position).
+// Where the Night screen clock sits (Settings → Night → What they show → Clock position, or a screen's own).
 // A spot is a percentage of the free space: CSS puts the clock at left x%, top y% and pulls it back
 // by x%, y% of its own size (.night-spot), so any spot keeps it fully on screen at any size.
 

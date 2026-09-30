@@ -53,9 +53,9 @@ How the check works: each color is run through the Machado, Oliveira and Fernand
 
 ## Motion and timing
 
-- With **Reduce Motion** on, page and sheet slides, the chore confetti, the leaderboard crown bounce, sheet drag spring-back and the quiet-hours clock drift are all turned off.
+- With **Reduce Motion** on, page and sheet slides, the chore confetti, the leaderboard crown bounce, sheet drag spring-back and the Night screen's clock drift are all turned off.
 - A wall display returns to today's calendar after 2 minutes without a touch or key press, but never while you're typing in a field.
-- **Transition support** for people who find switching activities hard (ADHD, autism, or just being deep in play). Each screen can show calm transition warnings at any times you pick, repeated every few minutes as an event gets close, with an optional soft chime ([Time cues](settings/this-display.md#time-cues)). Each person can also get transition reminders on their own phone or tablet, counting down to when to leave when there's travel time ([Transition reminders](settings/family.md#transition-reminders)). Both are quiet during quiet hours, and everything is adjustable, since everyone is different.
+- **Transition support** for people who find switching activities hard (ADHD, autism, or just being deep in play). Each screen can show calm transition warnings at any times you pick, repeated every few minutes as an event gets close, with an optional soft chime ([Time cues](settings/this-display.md#time-cues)). Each person can also get transition reminders on their own phone or tablet, counting down to when to leave when there's travel time ([Transition reminders](settings/family.md#transition-reminders)). Both wait out the family's [night hours](using/night.md#reminders-at-night), and everything is adjustable, since everyone is different.
 - Information doesn't vanish on a timer: short confirmations fade after 4 seconds (and are repeated to screen readers); errors and results stay until tapped.
 
 ## Touch
@@ -69,7 +69,7 @@ We'd rather list these than pretend they aren't there:
 - Tapping an empty time slot to start a new event at that time is pointer-only. With a keyboard or screen reader, use **Add event** and set the time in the form.
 - On a phone's month view, event chips are small; tap the day to open it instead.
 - In the default look, input, chip and card borders are softer than the 3:1 WCAG asks for non-text boundaries. Turn on your device's Increase contrast setting to get solid borders.
-- The quiet-hours clock is deliberately dim (it's a night light, not a screen to read).
+- The Night screen's clock is deliberately dim (it's a night light, not a screen to read).
 - Scrollbars are hidden and text outside form fields can't be selected, because the app is designed for a wall-mounted touch screen.
 - The quick-add fields in a list ("Add an item…") and on an event ("Add task…") are labeled for screen readers but show only a placeholder on screen.
 - Emoji avatars are read by their Unicode names ("fox", "bear face").

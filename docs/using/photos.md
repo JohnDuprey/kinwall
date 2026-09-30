@@ -1,6 +1,6 @@
 # Photos
 
-**Activities → Photos** keeps a small album of family pictures. They show up on the calendar's [Board view](calendar.md#board-view) picture card and, if you choose, in a display's [quiet-hours screensaver](quiet-hours.md#screensaver).
+**Activities → Photos** keeps a small album of family pictures. They show up on the calendar's [Board view](calendar.md#board-view) picture card and, if you choose, in a display's [Night screen slideshow](night.md#screensaver).
 
 An admin can turn off **Photos** in **Settings → General** (tap **Change** under **Features**): Activities → Photos and the Board's picture card are hidden, the photos are kept, and a night screen set to **Family photos** shows nature pictures instead. See [Features](../settings/general.md#features).
 
@@ -45,7 +45,7 @@ JPEG, PNG, WebP and anything else your browser can open. HEIC photos straight fr
 ## Where photos show up
 
 * **Board view**: the picture card rotates through this display's screensaver sources (its own, or the family's). If none are chosen, it shows your family photos and [Google Photos](#google-photos) when it's connected (or nature photos until there are some).
-* **Screensaver**: turn on **Family photos** under **During quiet hours show** (**Settings → General**, tap **Change** under **Night screen**, for the whole family or under **Night screen on this device** for one screen).
+* **Screensaver**: turn on **Family photos** under **What they show** (**Settings → General**, tap **Change** under **Night**, for the whole family or under **Night screen on this device** for one screen).
 
 ## Google Photos
 
@@ -53,7 +53,7 @@ JPEG, PNG, WebP and anything else your browser can open. HEIC photos straight fr
 
 A parent can also show albums from Google Photos on the Night screen and the Board's picture card, without copying them into Kinwall. The photos stay in Google Photos; Kinwall keeps only which ones to show.
 
-**Connect it** from a parent device: **Settings → General → For the whole family**, tap **Change** under **Night screen**, then **Connect Google Photos**.
+**Connect it** from a parent device: **Settings → General → For the whole family**, tap **Change** under **Night**, then **Connect Google Photos**.
 
 Before you connect, the sheet says what Kinwall asks Google for: **see the photos in albums you choose** (to show them on the Night screen and the Board) and **see your name and email** (to show which Google account is connected). Kinwall never changes, uploads or shares your photos.
 
@@ -61,7 +61,7 @@ Before you connect, the sheet says what Kinwall asks Google for: **see the photo
    * Usually Google's sign-in opens in the same tab, like connecting a calendar, and brings you back to this sheet. On a wall screen the sheet shows a QR code instead: scan it and sign in on your phone (or tap **Continue to Google**).
    * If your server uses a [TV client](../self-hosting/configuration.md#google-photos), Kinwall shows a short code instead: on a phone or computer, go to `google.com/device` (the link, or the QR code on a big screen) and enter it.
 2. Pick albums for "Our Family Kinwall" (your family's name): tap **Choose albums in Google Photos** (or scan its QR code). With the code sign-in, Google usually opens this page for you. The sheet says "Waiting for you to choose albums…" until you're done.
-3. Once albums are picked, the sheet says **Connected to Google Photos** with the account's name and email (on a wall screen, only its initial), how many photos there are, and **Google Photos** appears under **During quiet hours show**. Turn it on there for every wall screen, or on a screen that picks its own under **Night screen on this device**. The Board's picture card shows them on displays that haven't picked any sources.
+3. Once albums are picked, the sheet says **Connected to Google Photos** with the account's name and email (on a wall screen, only its initial), how many photos there are, and **Google Photos** appears under **What they show**. Turn it on there for every wall screen, or on a screen that picks its own under **Night screen on this device**. The Board's picture card shows them on displays that haven't picked any sources.
 
 It's one connection for the whole family: every screen can show the photos, but only a parent device can connect, change albums or disconnect. Wall screens and kids' devices can't.
 

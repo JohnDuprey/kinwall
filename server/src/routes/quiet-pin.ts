@@ -1,4 +1,4 @@
-// PIN to wake the quiet-hours night screen (docs/using/quiet-hours.md#pin-to-wake). Set and removed
+// PIN to wake the night-hours Night screen (docs/using/night.md#pin-to-wake). Set and removed
 // from a parent's own device; checked by wall screens. Stored only as a salted PBKDF2 hash in the
 // settings table (quietPinHash), which readSettings reports as quietPin: true/false and nothing
 // more, so it never reaches a client, a webhook or the export. Request bodies here are never logged.
@@ -44,7 +44,7 @@ const parentOnly = "The PIN is set from a parent's own device";
 
 quietPinRoutes.openapi(
   createRoute({
-    method: 'put', path: '/api/quiet-pin', tags: ['Settings'], summary: 'Set the PIN that wakes a wall screen during quiet hours (parent devices only)',
+    method: 'put', path: '/api/quiet-pin', tags: ['Settings'], summary: 'Set the PIN that wakes a wall screen during night hours (parent devices only)',
     security: [{ Bearer: [] }],
     request: { body: { content: { 'application/json': { schema: PinBody } } } },
     responses: {

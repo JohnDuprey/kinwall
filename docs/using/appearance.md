@@ -11,12 +11,12 @@ Appearance works on two levels:
 
 ## Household settings
 
-Quiet hours are a separate card, right after Appearance. See [Quiet hours](quiet-hours.md).
+The night hours (walls resting, reminders held) are a separate card, right after Appearance. See [Night](night.md).
 
 | Setting | Options | Default |
 |---|---|---|
 | **Mode** | Light, Dark, Auto (follows the device's system setting), Scheduled | Auto |
-| **Dark from / Dark to** (Scheduled) | Two times. The window can cross midnight. | 20:00 → 07:00 |
+| **Dark hours** (Scheduled) | **Same as night** (the family's [night hours](night.md)) or **Their own times**: **Dark from** and **Dark to**, a window that can cross midnight. | Their own times, 20:00 → 07:00 |
 | **Color scheme** | Seasonal, one of sixteen skins, or one of the family's own schemes. See [Color schemes](#color-schemes). | Peach |
 | **Typeface** | Default (Nunito), Hyperlegible, Dyslexia-friendly, Modern, Playful, Storybook or Handwritten. See [Typeface](#typeface). | Default (Nunito) |
 | **Text size** | Small, Medium, Large, Extra large | Medium |
@@ -26,7 +26,7 @@ Changes save as you make them, and other devices pick them up within about 30 se
 
 ### Dark schedule
 
-**Scheduled** switches to dark between **Dark from** and **Dark to** in the device's local time, and it re-checks every minute. It's a good fit for a wall display that should dim in the evening without going dark all day. **Auto** follows the operating system's light/dark setting instead.
+**Scheduled** switches to dark between **Dark from** and **Dark to** in the device's local time, and it re-checks every minute. It's a good fit for a wall display that should dim in the evening without going dark all day. **Dark hours: Same as night** uses the family's [night hours](night.md) instead, so there's one time to set; while the night hours are off it uses its own times. API: `darkWithNight` in `PATCH /api/settings` (`darkFrom` / `darkTo` then read as the night hours). **Auto** follows the operating system's light/dark setting instead.
 
 ## Per-device overrides
 

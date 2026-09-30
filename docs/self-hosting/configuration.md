@@ -44,7 +44,7 @@ Kinwall is configured with environment variables. On Docker and Node they're pro
 1. In the [Google Cloud console](https://console.cloud.google.com/), in the project with your Google Calendar client, go to **APIs & Services → Library**, find **Photos Ambient API** and **Enable** it.
 2. Under **Data access** (the OAuth consent screen's scopes), add `https://www.googleapis.com/auth/photosambient.mediaitems`, plus `openid`, `.../auth/userinfo.email` and `.../auth/userinfo.profile` (Kinwall shows which Google account is connected).
 
-Google's documentation describes only the TV sign-in below for this API, so whether it accepts a web client can't be known ahead of time: only trying it tells. If it doesn't, the Night screen sheet says "Google didn't allow Photos with this app" (Google refused the permission for this client, or refused to set up the Photos device). Then use option 2.
+Google's documentation describes only the TV sign-in below for this API, so whether it accepts a web client can't be known ahead of time: only trying it tells. If it doesn't, the Night sheet says "Google didn't allow Photos with this app" (Google refused the permission for this client, or refused to set up the Photos device). Then use option 2.
 
 **2. With a TV client.** Google's documented way: a **TVs and Limited Input devices** client, where the parent enters a code at `google.com/device` (on a phone, or by scanning the sheet's QR code). No redirect URI is involved.
 
@@ -69,7 +69,7 @@ The Kinwall app for iPhone shows a person's next leave-by or start-prep time as 
 * `APNS_BUNDLE_ID`: the app's bundle ID, `family.kinwall.app` for the Kinwall app.
 * `APNS_SANDBOX` (optional): `1` for apps installed from Xcode, which use Apple's development server.
 
-The app registers its tokens with `PUT /api/live-activities/tokens`, for its own device. They're stored encrypted, never shown or logged, and deleted when the device is removed under Settings → Access or signs out. A push goes only to the person's own phone (its owner is them), from their first [transition reminder](../settings/family.md#transition-reminders) until the event starts, and never during quiet hours.
+The app registers its tokens with `PUT /api/live-activities/tokens`, for its own device. They're stored encrypted, never shown or logged, and deleted when the device is removed under Settings → Access or signs out. A push goes only to the person's own phone (its owner is them), from their first [transition reminder](../settings/family.md#transition-reminders) until the event starts, and not during the family's [night hours](../using/night.md#reminders-at-night) while reminders are held.
 
 Apple only accepts HTTP/2. Docker and Node send with Node's HTTP/2 client. A deployed Cloudflare Worker sends with a plain `fetch`, which reaches Apple over HTTP/2 from Cloudflare's edge; local `wrangler dev` on macOS can't, so test pushes on a deployed Worker. A host can also pass its own sender as `APNS_SEND` (optional; see [Embedding the server](../contributing/embedding.md)).
 

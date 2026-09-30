@@ -1,4 +1,4 @@
-// Quiet-hours screensaver: a dim slideshow shown inside QuietOverlay (App.tsx) instead of the bare
+// Night screen slideshow: a dim slideshow shown inside QuietOverlay (App.tsx) instead of the bare
 // clock. Mounted only while the overlay is up, so nothing is fetched or animated otherwise.
 // useSlideshowPictures (the picture sources) is shared with the Board view's photo card.
 import { useEffect, useRef, useState, type ReactNode } from 'react'

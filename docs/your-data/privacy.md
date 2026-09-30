@@ -108,7 +108,7 @@ The [energy battery](../using/battery.md) is worked out from sleep and feelings,
 * Recovery codes.
 * The setup code, and display pairing poll tokens.
 
-The [quiet-hours PIN](../using/quiet-hours.md#pin-to-wake) is stored as a salted PBKDF2-SHA256 hash (100,000 rounds). The PIN and its hash never go to any device, webhook or connected app, and never into the server logs or the export. A PIN is only 4 to 8 digits, so the hash alone wouldn't stop someone with a copy of the database from working it out; it's there to keep kids from waking the wall, not to guard secrets.
+The [night PIN](../using/night.md#pin-to-wake) is stored as a salted PBKDF2-SHA256 hash (100,000 rounds). The PIN and its hash never go to any device, webhook or connected app, and never into the server logs or the export. A PIN is only 4 to 8 digits, so the hash alone wouldn't stop someone with a copy of the database from working it out; it's there to keep kids from waking the wall, not to guard secrets.
 
 ## Stored in plain form
 
@@ -134,7 +134,7 @@ Your family's content: member names, events, chores, lists, settings, [trackers]
 | Your webhook URLs | Change events you subscribed to. |
 | Open-Meteo (`api.open-meteo.com`, `geocoding-api.open-meteo.com`) | Only if a weather location is set: the **server** fetches the forecast for its coordinates (at most hourly) and looks up place names you search for in Settings → General. Your device's address is not sent; no account or key is used. |
 | Google Fonts | Each browser loads the Nunito font from `fonts.googleapis.com` / `fonts.gstatic.com`. |
-| The Metropolitan Museum of Art / Lorem Picsum | Only if a display's [quiet-hours screensaver](../using/quiet-hours.md#screensaver) is set to Art or Nature, or it shows the calendar's [Board view](../using/calendar.md#board-view) (nature photos when no screensaver sources are chosen and the family has no photos): that display fetches pictures directly (its IP address, nothing else). Off by default. |
+| The Metropolitan Museum of Art / Lorem Picsum | Only if a display's [Night screen slideshow](../using/night.md#screensaver) is set to Art or Nature, or it shows the calendar's [Board view](../using/calendar.md#board-view) (nature photos when no screensaver sources are chosen and the family has no photos): that display fetches pictures directly (its IP address, nothing else). Off by default. |
 
 ### Google Photos
 
@@ -143,7 +143,7 @@ Your family's content: member names, events, chores, lists, settings, [trackers]
 * **What Google sees:** that your Kinwall server is showing the albums you picked on a device named after your family ("Our Family Kinwall"), and your server's address when it asks for the list and the pictures. Displays never contact Google for photos; the pictures pass through your server. Nothing else about your family is sent.
 * **What Kinwall stores:** the sign-in, encrypted like calendar credentials, in its own record apart from calendar accounts; Google's ID for the family's Photos device and its album page link; the Google account's name and email (shown to parents in Settings; a wall screen shows only an initial); and for each picked photo only its Google ID, the date it was taken, its size and when it was last shown, plus Google's temporary link to it, which stops working within an hour. **Never the pictures:** each one goes straight from Google to the screen, is marked not to be cached, and isn't kept on the server. None of it is in the [export](export-import.md).
 * **Who can use it:** parent devices connect, change albums and disconnect. Wall screens and kids' devices can only show the pictures.
-* **Disconnect** (in the family's Night screen settings) deletes the Photos device in your Google account, cancels the permission and deletes everything above. You can also remove Kinwall under your Google Account's **Security → Third-party apps & services**; screens then stop showing Google Photos and parents see **Reconnect Google Photos**.
+* **Disconnect** (in the family's Night settings) deletes the Photos device in your Google account, cancels the permission and deletes everything above. You can also remove Kinwall under your Google Account's **Security → Third-party apps & services**; screens then stop showing Google Photos and parents see **Reconnect Google Photos**.
 * Tokens and codes are never logged or returned by the API.
 
 ## Shared recipe links
