@@ -128,7 +128,7 @@ A member's 🔥 streak counts consecutive days on which **every chore assigned t
 
 Above the columns, a leaderboard ranks members by points for **Today**, **Week** or **Month**. The period is remembered per device, and the week follows the household week start. Tap someone's pill to open their [profile](profiles.md).
 
-* Ranking is by points, then completions, then name. Members with equal points and completions share a rank.
+* Ranking is by points, then completions, then name. Members with equal points and completions share a rank. Someone with no points yet shows no rank, so a fresh day doesn't put everyone at #1.
 * The leader gets 👑 (bouncing when the lead changes). Members with no activity still appear.
 * `leaderboardEnabled` (default on): turn it off for families that prefer no competition. Apps then hide the leaderboard and rank badges. The API still answers.
 

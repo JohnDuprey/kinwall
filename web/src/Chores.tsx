@@ -65,8 +65,8 @@ function Leaderboard({ period }: { period: LeaderboardPeriod }) {
         {board.map(e => (
           <div key={e.memberId} role="listitem" className="leaderboard-item">
           <a className="leaderboard-pill" href={`#/profile/${e.memberId}`}
-            aria-label={[`${e.name}, rank ${e.rank}, ${e.points} points`, e.rank === 1 && e.points > 0 && 'leader', e.streak >= 2 && `${e.streak} day streak`, spendable(e.memberId) !== null && `${spendable(e.memberId)} to spend`].filter(Boolean).join(', ')}>
-            <div className="lb-rank">#{e.rank}</div>
+            aria-label={[e.points > 0 ? `${e.name}, rank ${e.rank}, ${e.points} points` : `${e.name}, no points yet`, e.rank === 1 && e.points > 0 && 'leader', e.streak >= 2 && `${e.streak} day streak`, spendable(e.memberId) !== null && `${spendable(e.memberId)} to spend`].filter(Boolean).join(', ')}>
+            <div className="lb-rank">{e.points > 0 && `#${e.rank}`}</div>{/* no rank until they have points, not everyone "#1" at 0 */}
             <div
               className={`lb-avatar ${bounceId === e.memberId ? 'crown-bounce' : ''}`}
               style={{ background: e.color, color: inkFor(e.color), ['--lb-color' as string]: e.color }}
