@@ -6,15 +6,16 @@ The **Meals** tab answers two questions: what are we eating this week, and what 
 
 The week planner shows the household week (it starts on Sunday or Monday, per [General](../settings/general.md)) with a row per day and a column for **Breakfast**, **Lunch**, **Dinner** and **Snack**. Use the arrows to page through weeks and **This week** to come back. On a phone it opens on **Day**: today as one card with its four slots, the arrows stepping a day at a time and **Today** to come back. Switch to **Week** for the whole week as a card per day.
 
-Tap **+** in a slot (or **Plan meal**) to add a meal:
+Tap **+** in a slot (or **Plan meal**) to add a meal. The sheet starts with what you're eating, then when, then the rest:
 
 * **Meal type**: **Recipe** (from the library), **Free-form meal** (just a name, like "Leftover soup") or **Dining out** (like "Pizza place").
 * **Recipe**: tap it to choose one. The picker opens with a search box (recipe name or ingredient; arrow keys and Enter work too) and lists recipes A to Z with their photo, time and family rating ("★ 4.5"). Archived recipes stay out unless the meal already uses one. Choosing a recipe fills in the meal's name and servings. The meal's sheet doesn't list the ingredients: **Open recipe** shows them, scaled to any number of servings.
+* **Meal name**, then **Date** and **Meal slot** (filled in from the slot you tapped).
+* **Servings**, an optional **Time** ("7:30 PM"; left empty, the meal is at the family's usual time for that meal, shown under the field), **Cooking** (who's making it) and, for dining out, an optional website.
 * **Who's eating**: tap family members. Picking people sets **Servings** to how many (you can still change servings). With nobody picked, a note says how many people the servings are for ("2 servings: pick 2 people"); it's only a hint and never stops you saving.
-* **Servings**, an optional **Time** ("7:30 PM"; left empty, the meal is at the family's usual time for that meal, shown under the field), **Cooking** (who's making it), **Notes** and an optional website.
-* **Status**: **Planned**, **Prepared** or **Handled**. A meal that's done shows dashed.
+* **Status** (**Planned**, **Prepared** or **Handled**; a meal that's done shows dashed) and **Notes**.
 
-To trade two meals around, open a planned meal and tap **Swap with…**: it lists the other meals from today through the end of that meal's week, and picking one swaps their days and slots (Tuesday's dinner and Thursday's dinner change places). A calendar event Kinwall made for either meal moves with it; an event you linked yourself stays put.
+To trade two meals around, open a planned meal's sheet and tap **Swap with…**, right under the meal's name: it lists the other meals from today through the end of that meal's week, and picking one swaps their days and slots (Tuesday's dinner and Thursday's dinner change places). A calendar event Kinwall made for either meal moves with it; an event you linked yourself stays put.
 
 A slot can hold more than one meal. Tap a meal with a recipe to see the recipe (with **Edit meal** or, for a non-admin, **Meal details** to open the meal sheet); tap a meal without one to open its sheet directly, where you can also delete it. A planned meal shows small avatars of who's eating.
 
