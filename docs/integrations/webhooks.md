@@ -21,7 +21,7 @@ URLs must be public `http(s)` addresses. Private and LAN addresses are refused u
 |---|---|
 | `member.changed` | A member is added, edited or removed. |
 | `calendar.changed` | A calendar is added, edited or removed. |
-| `calendar.synced` | A calendar finished syncing (includes `error` on failure). |
+| `calendar.synced` | A calendar finished syncing and something changed, or you pressed Sync now (includes `error` on failure; a background sync repeating the same error doesn't send it again). |
 | `events.changed` | Events were created, edited or deleted, including by a sync that brought in changes. |
 | `chore.changed` | A chore is added, edited or deleted. |
 | `chore.completed` | A chore is marked done for a date (for a chore that needs a parent's OK, when it's approved). `data`: `{ id, date, title, memberId, points }`. `memberId` is who gets the credit (for an Anyone chore, the person it was ticked off for, or `null`), and `points` is what was awarded, so late completions show the reduced amount. |

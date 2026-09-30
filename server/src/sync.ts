@@ -244,6 +244,15 @@ export async function replaceSlice(env: Env, provider: ReturnType<typeof getProv
   return { count: events.length, changed };
 }
 
+// A background tick that found nothing new stays silent: no rev bump and no calendar.synced webhook,
+// which clients (Home Assistant up to 1.7.0) took as "refetch everything" every 10 minutes. It speaks
+// up when events changed (events.changed bumps rev) or when it clears an error the family was shown.
+function tickSynced(env: Env, execCtx: WaitCtx | undefined, cal: CalendarRow, data: Record<string, unknown>, changed: boolean): void {
+  const clearedError = cal.last_error !== null;
+  if (changed || clearedError) publish(env, execCtx, 'calendar.synced', data, clearedError); // rev only moves to clear a shown error
+  if (changed) publish(env, execCtx, 'events.changed', { calendarId: cal.id });
+}
+
 async function syncRemoteTick(env: Env, cal: CalendarRow, now: Date, execCtx: WaitCtx | undefined): Promise<{ ok: true }> {
   const provider = getProvider(cal.kind as ProviderKind);
   const ctx = await buildProviderCtx(env, cal);
@@ -270,8 +279,7 @@ async function syncRemoteTick(env: Env, cal: CalendarRow, now: Date, execCtx: Wa
   await env.DB.prepare('UPDATE calendars SET last_synced_at = ?, last_error = NULL, sync_cursor = ? WHERE id = ?')
     .bind(now.toISOString(), JSON.stringify(nextCursor), cal.id)
     .run();
-  publish(env, execCtx, 'calendar.synced', { calendarId: cal.id, count }, cal.last_error !== null); // rev only moves to clear a shown error
-  if (changed) publish(env, execCtx, 'events.changed', { calendarId: cal.id });
+  tickSynced(env, execCtx, cal, { calendarId: cal.id, count }, changed);
   return { ok: true };
 }
 
@@ -283,7 +291,7 @@ async function syncIcsTick(env: Env, cal: CalendarRow, now: Date, execCtx: WaitC
   const result = await fetchIcsConditional(env, url, cal.etag, cal.last_modified);
   if (result.notModified) {
     await env.DB.prepare('UPDATE calendars SET last_synced_at = ?, last_error = NULL WHERE id = ?').bind(now.toISOString(), cal.id).run();
-    publish(env, execCtx, 'calendar.synced', { calendarId: cal.id, count: 0, notModified: true }, cal.last_error !== null); // rev only moves to clear a shown error
+    tickSynced(env, execCtx, cal, { calendarId: cal.id, count: 0, notModified: true }, false);
     return { ok: true };
   }
 
@@ -297,7 +305,7 @@ async function syncIcsTick(env: Env, cal: CalendarRow, now: Date, execCtx: WaitC
     await env.DB.prepare('UPDATE calendars SET last_synced_at = ?, last_error = NULL, etag = ?, last_modified = ? WHERE id = ?')
       .bind(now.toISOString(), result.etag, result.lastModified, cal.id)
       .run();
-    publish(env, execCtx, 'calendar.synced', { calendarId: cal.id, count: 0, notModified: true }, cal.last_error !== null); // rev only moves to clear a shown error
+    tickSynced(env, execCtx, cal, { calendarId: cal.id, count: 0, notModified: true }, false);
     return { ok: true };
   }
 
@@ -316,8 +324,7 @@ async function syncIcsTick(env: Env, cal: CalendarRow, now: Date, execCtx: WaitC
       cal.id,
     ),
   ]);
-  publish(env, execCtx, 'calendar.synced', { calendarId: cal.id, count: events.length }, cal.last_error !== null); // rev only moves to clear a shown error
-  if (changed) publish(env, execCtx, 'events.changed', { calendarId: cal.id });
+  tickSynced(env, execCtx, cal, { calendarId: cal.id, count: events.length }, changed);
   return { ok: true };
 }
 
@@ -333,7 +340,7 @@ export async function syncCalendarTick(env: Env, calendarId: string, execCtx?: W
   } catch (err) {
     const message = redact(err instanceof Error ? err.message : String(err));
     await env.DB.prepare('UPDATE calendars SET last_synced_at = ?, last_error = ? WHERE id = ?').bind(now.toISOString(), message, cal.id).run();
-    publish(env, execCtx, 'calendar.synced', { calendarId: cal.id, error: message });
+    if (message !== cal.last_error) publish(env, execCtx, 'calendar.synced', { calendarId: cal.id, error: message }); // a repeat of the shown error is news to no one
     return { ok: false, error: message };
   }
 }

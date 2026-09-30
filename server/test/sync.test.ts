@@ -6,6 +6,8 @@ import { createApp } from '../src/app.ts';
 import { openDb, applyMigrations } from '../src/d1-sqlite.ts';
 import { refreshWritable, replaceSlice, syncCalendarTick } from '../src/sync.ts';
 import type { Env } from '../src/env.ts';
+import { encryptConfig } from '../src/crypto.ts';
+import { expandICS } from '../src/providers/ics.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MIGRATIONS_DIR = path.join(__dirname, '..', 'migrations');
@@ -341,6 +343,178 @@ test('sync: a changed ICS feed and a full sync write only the difference, and re
     assert.equal((await writes(env)) - w, 1 + 1 + 2); // delete, bookkeeping, rev + area rev
     const left = await (await request(`/api/events?from=2020-01-01&to=2035-01-01&calendarId=${cal.id}`)).json() as any[];
     assert.deepEqual(left.map((e) => e.title).sort(), ['A', 'B2']);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+// Background ticks run every 10 minutes. One that finds nothing new must stay silent: no event
+// writes, no rev bump and no webhook, since Home Assistant up to 1.7.0 refetched everything on
+// every webhook (hosted 2026-09-30: ~26k rows read every 10 minutes). Each provider kind, with
+// free and busy events, recurring instances, all-day and timed, and events outside the slice.
+const settle = () => new Promise((r) => setTimeout(r, 30)); // fire-and-forget publish + webhook POST
+
+async function idleTicks(kind: 'google' | 'microsoft' | 'ics', serve: (url: string) => Response | undefined) {
+  const env = makeEnv();
+  const request = makeApp(env);
+  const realFetch = globalThis.fetch;
+  const hooks: string[] = [];
+  globalThis.fetch = (async (u: any, init: RequestInit = {}) => {
+    const url = u instanceof Request ? u.url : String(u);
+    if (url.startsWith('https://hooks.example.com/')) {
+      hooks.push(JSON.parse(String(init.body)).type);
+      return new Response('ok');
+    }
+    return serve(url) ?? new Response('not mocked', { status: 500 });
+  }) as typeof fetch;
+  try {
+    await request('/api/webhooks', { method: 'POST', body: JSON.stringify({ url: 'https://hooks.example.com/ha', events: [] }) });
+    let calId: string;
+    if (kind === 'ics') {
+      calId = ((await (await request('/api/calendars', { method: 'POST', body: JSON.stringify({ kind: 'ics', name: 'School', url: 'https://example.test/school.ics' }) })).json()) as any).id;
+    } else {
+      calId = 'c1';
+      const token = { access_token: 't', refresh_token: 'r', expires_at: Date.now() + 3600_000 };
+      await env.DB.prepare("INSERT INTO accounts (id, kind, name, config, created_at) VALUES ('a1', ?, 'Acct', ?, '2026-01-01')").bind(kind, await encryptConfig(env, 'a1', token)).run();
+      await env.DB.prepare("INSERT INTO calendars (id, kind, account_id, remote_id, name, config, writable, enabled) VALUES ('c1', ?, 'a1', 'cal1', 'Family', ?, 1, 1)")
+        .bind(kind, await encryptConfig(env, 'c1', {}))
+        .run();
+    }
+    const res = await syncCalendarTick(env, calId);
+    assert.equal(res.ok, true, JSON.stringify(res));
+    await settle();
+    const stored = await env.DB.prepare('SELECT COUNT(*) AS n FROM events WHERE calendar_id = ?').bind(calId).first<{ n: number }>();
+    assert.ok(stored!.n > 0, 'the first tick stored the events');
+    assert.ok(hooks.includes('events.changed'), 'the first tick announced them');
+
+    const w = await writes(env);
+    const r = await rev(env);
+    hooks.length = 0;
+    assert.equal((await syncCalendarTick(env, calId)).ok, true);
+    await settle();
+    assert.equal((await writes(env)) - w, 1, 'only the calendars bookkeeping row');
+    assert.equal(await rev(env), r, 'rev stays put');
+    assert.deepEqual(hooks, [], 'no webhook');
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+}
+
+const at = (days: number) => new Date(Date.now() + days * 86400_000);
+const dateOnly = (days: number) => at(days).toISOString().slice(0, 10);
+
+test('sync: an idle Google tick writes and publishes nothing', async () => {
+  const items = [
+    { id: 'busy', summary: 'Dentist', start: { dateTime: at(2).toISOString() }, end: { dateTime: at(2.05).toISOString() }, reminders: { useDefault: true } },
+    { id: 'free', summary: 'Hold', transparency: 'transparent', start: { dateTime: at(3).toISOString() }, end: { dateTime: at(3.1).toISOString() } },
+    { id: 'opaque', summary: 'Work', transparency: 'opaque', start: { date: dateOnly(4) }, end: { date: dateOnly(5) } },
+    { id: 'series_1', summary: 'Soccer', recurringEventId: 'series', start: { dateTime: at(5).toISOString() }, end: { dateTime: at(5.05).toISOString() }, reminders: { useDefault: false, overrides: [{ method: 'popup', minutes: 10 }] } },
+    { id: 'series_2', summary: 'Soccer', recurringEventId: 'series', start: { dateTime: at(12).toISOString() }, end: { dateTime: at(12.05).toISOString() } },
+    { id: 'started', summary: 'Trip', start: { date: dateOnly(-3) }, end: { date: dateOnly(2) } }, // began before the slice
+    { id: 'far', summary: 'Wedding', start: { dateTime: at(90).toISOString() }, end: { dateTime: at(90.2).toISOString() } }, // a far slice
+  ];
+  await idleTicks('google', (url) => {
+    if (url.includes('/calendarList/')) return Response.json({ defaultReminders: [{ method: 'popup', minutes: 30 }] });
+    if (url.includes('/calendarList')) return Response.json({ items: [{ id: 'cal1', accessRole: 'owner' }] });
+    if (url.includes('/events?')) {
+      const q = new URL(url).searchParams;
+      const from = q.get('timeMin')!;
+      const to = q.get('timeMax')!;
+      const iso = (t: any) => t.dateTime ?? `${t.date}T00:00:00.000Z`;
+      return Response.json({ items: items.filter((i) => iso(i.end) > from && iso(i.start) < to) });
+    }
+  });
+});
+
+test('sync: an idle Microsoft tick writes and publishes nothing', async () => {
+  const graph = (d: Date) => d.toISOString().slice(0, 19);
+  const items = [
+    { id: 'busy', subject: 'Dentist', start: { dateTime: graph(at(2)) }, end: { dateTime: graph(at(2.05)) }, showAs: 'busy', isReminderOn: true, reminderMinutesBeforeStart: 15 },
+    { id: 'free', subject: 'Hold', start: { dateTime: graph(at(3)) }, end: { dateTime: graph(at(3.1)) }, showAs: 'free', isReminderOn: false },
+    { id: 'tentative', subject: 'Maybe', start: { dateTime: graph(at(4)) }, end: { dateTime: graph(at(4.1)) }, showAs: 'tentative' },
+    { id: 'noshow', subject: 'Old client', start: { dateTime: graph(at(5)) }, end: { dateTime: graph(at(5.1)) } }, // no showAs at all
+    { id: 'allday', subject: 'Holiday', isAllDay: true, start: { dateTime: `${dateOnly(6)}T00:00:00.0000000` }, end: { dateTime: `${dateOnly(7)}T00:00:00.0000000` }, seriesMasterId: 'm1' },
+  ];
+  await idleTicks('microsoft', (url) => {
+    if (url.includes('/calendarView')) return Response.json({ value: items });
+    if (url.includes('/me/calendars')) return Response.json({ value: [{ id: 'cal1', name: 'Family', canEdit: true }] });
+  });
+});
+
+test('sync: an idle ICS tick writes and publishes nothing, even when the feed body changes', async () => {
+  const icsDate = (d: Date) => d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+  const start = new Date(FEED_BASE);
+  const vevent = (uid: string, extra: string[]) => ['BEGIN:VEVENT', `UID:${uid}`, ...extra, 'END:VEVENT'];
+  let fetches = 0;
+  const feed = () => [
+    'BEGIN:VCALENDAR', 'VERSION:2.0',
+    `X-WR-CALDESC:Generated ${fetches}`, // a feed that rewrites its header on every fetch
+    ...vevent('busy@x', [`DTSTART:${icsDate(start)}`, `DTEND:${icsDate(new Date(FEED_BASE + 3600_000))}`, 'SUMMARY:Concert', 'TRANSP:OPAQUE']),
+    ...vevent('free@x', [`DTSTART;VALUE=DATE:${dateOnly(9).replace(/-/g, '')}`, `DTEND;VALUE=DATE:${dateOnly(10).replace(/-/g, '')}`, 'SUMMARY:Spirit week', 'TRANSP:TRANSPARENT']),
+    ...vevent('plain@x', [`DTSTART:${icsDate(new Date(FEED_BASE + 2 * 86400_000))}`, `DTEND:${icsDate(new Date(FEED_BASE + 2 * 86400_000 + 3600_000))}`, 'SUMMARY:Picture day']),
+    ...vevent('weekly@x', [`DTSTART:${icsDate(new Date(FEED_BASE - 14 * 86400_000))}`, `DTEND:${icsDate(new Date(FEED_BASE - 14 * 86400_000 + 3600_000))}`, 'RRULE:FREQ=WEEKLY;COUNT=10', 'SUMMARY:Band']),
+    ...vevent('old@x', [`DTSTART:${icsDate(at(-400))}`, `DTEND:${icsDate(at(-399.9))}`, 'SUMMARY:Long ago']), // outside the window
+    'END:VCALENDAR', '',
+  ].join('\r\n');
+  await idleTicks('ics', (url) => {
+    if (url.startsWith('https://example.test/school.ics')) {
+      fetches++;
+      return new Response(feed(), { status: 200 });
+    }
+  });
+});
+
+// CalDAV shares the chunked tick (and so tickSynced) with Google and Microsoft; its events come from
+// the same ICS parser, so check that path's data diffs to nothing on a repeat.
+test('sync: a CalDAV slice with no changes writes nothing', async () => {
+  const env = makeEnv();
+  await env.DB.prepare("INSERT INTO calendars (id, kind, name, config, writable, enabled) VALUES ('c1', 'caldav', 'Nextcloud', '{}', 1, 1)").run();
+  const icsDate = (d: Date) => d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+  const from = at(-1);
+  const to = at(31);
+  const objects = [
+    ['BEGIN:VCALENDAR', 'BEGIN:VEVENT', 'UID:a', `DTSTART:${icsDate(at(2))}`, `DTEND:${icsDate(at(2.1))}`, 'SUMMARY:Busy', 'TRANSP:OPAQUE', 'END:VEVENT', 'END:VCALENDAR'],
+    ['BEGIN:VCALENDAR', 'BEGIN:VEVENT', 'UID:b', `DTSTART:${icsDate(at(3))}`, `DTEND:${icsDate(at(3.1))}`, 'SUMMARY:Free', 'TRANSP:TRANSPARENT', 'END:VEVENT', 'END:VCALENDAR'],
+    ['BEGIN:VCALENDAR', 'BEGIN:VEVENT', 'UID:c', `DTSTART:${icsDate(at(-10))}`, `DTEND:${icsDate(at(-9.9))}`, 'RRULE:FREQ=DAILY;COUNT=40', 'SUMMARY:Walk', 'END:VEVENT', 'END:VCALENDAR'],
+  ].map((l) => l.join('\r\n'));
+  const provider = {
+    listEvents: async (_ctx: unknown, f: Date, t: Date) =>
+      (await Promise.all(objects.map(async (o, i) => (await expandICS(o, f, t)).map((ev) => ({ ...ev, externalId: `/cal/${i}.ics::${ev.externalId}` }))))).flat(),
+  } as any;
+  const cal = { id: 'c1' } as any;
+  const first = await replaceSlice(env, provider, cal, {} as any, from, to);
+  assert.equal(first.changed, true);
+  const w = await writes(env);
+  const again = await replaceSlice(env, provider, cal, {} as any, from, to);
+  assert.equal(again.changed, false);
+  assert.equal((await writes(env)) - w, 0);
+});
+
+test('sync: a tick that keeps failing the same way announces the error once', async () => {
+  const env = makeEnv();
+  const request = makeApp(env);
+  const realFetch = globalThis.fetch;
+  const hooks: string[] = [];
+  globalThis.fetch = (async (u: any, init: RequestInit = {}) => {
+    if ((u instanceof Request ? u.url : String(u)).startsWith('https://hooks.example.com/')) {
+      hooks.push(JSON.parse(String(init.body)).type);
+      return new Response('ok');
+    }
+    return new Response('gone', { status: 404 });
+  }) as typeof fetch;
+  try {
+    await request('/api/webhooks', { method: 'POST', body: JSON.stringify({ url: 'https://hooks.example.com/ha', events: [] }) });
+    const cal = (await (await request('/api/calendars', { method: 'POST', body: JSON.stringify({ kind: 'ics', name: 'Feed', url: 'https://example.test/feed.ics' }) })).json()) as any;
+    await settle();
+    hooks.length = 0;
+    assert.equal((await syncCalendarTick(env, cal.id)).ok, false);
+    await settle();
+    assert.deepEqual(hooks, ['calendar.synced']);
+    const r = await rev(env);
+    assert.equal((await syncCalendarTick(env, cal.id)).ok, false);
+    await settle();
+    assert.deepEqual(hooks, ['calendar.synced'], 'the same error again is not news');
+    assert.equal(await rev(env), r);
   } finally {
     globalThis.fetch = realFetch;
   }

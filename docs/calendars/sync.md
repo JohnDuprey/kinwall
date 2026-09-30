@@ -24,7 +24,7 @@ Calendars sync **stalest first**, so a newly added calendar (never synced) goes 
 
 ## Status and errors
 
-Each calendar row in **Settings → Calendars** shows "Synced *time*", "Never synced", "Local calendar", or the **last error** (with secrets redacted). A failed sync keeps the previous events. Each sync fires a `calendar.synced` [webhook](../integrations/webhooks.md) (with `error` on failure), and `events.changed` when any event was added, changed or removed.
+Each calendar row in **Settings → Calendars** shows "Synced *time*", "Never synced", "Local calendar", or the **last error** (with secrets redacted). A failed sync keeps the previous events. A sync that changed something fires a `calendar.synced` [webhook](../integrations/webhooks.md) (with `error` on failure), and `events.changed` when any event was added, changed or removed. The automatic background sync stays quiet when nothing changed: no webhook, and a failure that repeats the error already shown isn't sent again. **Sync now** always fires `calendar.synced`.
 
 Turn **Enabled** off in the calendar's **Edit calendar** sheet to stop syncing and hide its events without removing it.
 
