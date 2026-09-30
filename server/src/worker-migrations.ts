@@ -72,6 +72,7 @@ import m0068 from '../migrations/0068_calendar_filters.sql';
 import m0069 from '../migrations/0069_event_hidden.sql';
 import m0070 from '../migrations/0070_item_tags.sql';
 import m0071 from '../migrations/0071_event_window_indexes.sql';
+import m0072 from '../migrations/0072_sent_notifications_sent_at.sql';
 
 export const MIGRATIONS: Migration[] = [
   { name: '0001_init.sql', sql: m0001 },
@@ -145,4 +146,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0069_event_hidden.sql', sql: m0069 },
   { name: '0070_item_tags.sql', sql: m0070 },
   { name: '0071_event_window_indexes.sql', sql: m0071 },
+  { name: '0072_sent_notifications_sent_at.sql', sql: m0072 },
 ];
