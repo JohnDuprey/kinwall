@@ -108,6 +108,7 @@ export default function CalendarView() {
   const [calendars, setCalendars] = useState<CalendarEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
+  const [retry, setRetry] = useState(0) // bumped by "Try again" to refetch the range
   const [detail, setDetail] = useState<EventInstance | null>(null)
   const [editState, setEditState] = useState<{ event: EventInstance | null; prefill?: Partial<EventInstance> } | null>(null)
 
@@ -159,7 +160,7 @@ export default function CalendarView() {
       .finally(() => { if (!canceled) setLoading(false) })
     return () => { canceled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [range.from, range.to, refreshTick, showHidden])
+  }, [range.from, range.to, refreshTick, showHidden, retry])
 
   // #/calendar?event=<id>&at=<start> (a tapped notification): jump to that day, then open the event
   // once it's loaded. Also handled on hashchange, for when the app was already open.
@@ -431,7 +432,7 @@ export default function CalendarView() {
         {viewMode === 'board' ? (
           <Board show={shows} onTap={setDetail} />
         ) : error ? (
-          <div className="state-card">Couldn't load events. Pull to retry or check your connection.</div>
+          <div className="state-card" role="alert">Couldn't load events. Check your connection. <button className="btn btn-secondary" onClick={() => setRetry(r => r + 1)}>Try again</button></div>
         ) : !loading && visibleEvents.length === 0 && viewMode === 'schedule' ? (
           <div className="empty-card"><span className="emoji">🗓️</span>{activeCategoryFilter.length ? 'No events in the next 30 days match the category filter.' : 'No events in the next 30 days.'}</div>
         ) : viewMode === 'week' ? (

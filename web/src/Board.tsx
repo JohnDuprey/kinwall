@@ -155,7 +155,7 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
   })
   const tidbitAreas = ['tidbit', 'tidbit2', 'tidbit3']
 
-  if (!data) return error ? <div className="state-card">Couldn't load the board. Check your connection.</div> : null
+  if (!data) return error ? <div className="state-card" role="alert">Couldn't load the board. Check your connection. <button className="btn btn-secondary" onClick={() => setTick(t => t + 1)}>Try again</button></div> : null
   const byId = new Map(members.map(m => [m.id, m]))
   const today = data.today
   const events = data.events.filter(show)
