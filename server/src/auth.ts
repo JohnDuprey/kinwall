@@ -148,7 +148,25 @@ export async function actorOf(c: Context<{ Bindings: Env }>): Promise<Actor> {
   const memberId = await ownDevice(c);
   if (memberId) return { memberId, label: null };
   const key = await requestKey(c);
+  const credited = key?.id && key.deviceKind === 'widgets' ? await widgetsGrownUp(c.env.DB, key.id) : null;
+  if (credited) return { memberId: credited, label: null };
   return { memberId: null, label: key?.id && (key.scope === 'display' || key.kind === 'api') ? key.name : null };
+}
+
+/** A parent's phone's widgets key (and its Watch's) is shared, so it shows the whole family, but
+ * what it adds or ticks is credited to the grown-up whose full-access sign-in made it (its parent
+ * key's or app sign-in's owner; a Watch key's parent is the widgets' key). Only for actorOf: what
+ * the key may do stays a shared key's. */
+async function widgetsGrownUp(db: KinwallDb, keyId: string): Promise<string | null> {
+  const row = await db.prepare(
+    `SELECT m.id FROM api_keys k
+       LEFT JOIN api_keys p ON p.id = k.parent_key_id
+       LEFT JOIN api_keys pp ON pp.id = p.parent_key_id
+       LEFT JOIN oauth_grants g ON g.id = coalesce(k.parent_grant_id, p.parent_grant_id)
+       JOIN members m ON m.grown_up = 1 AND m.id = CASE WHEN g.scope = 'admin' THEN g.owner WHEN p.scope = 'admin' THEN p.owner WHEN pp.scope = 'admin' THEN pp.owner END
+     WHERE k.id = ?`,
+  ).bind(keyId).first<{ id: string }>();
+  return row?.id ?? null;
 }
 
 /** A member's own device acts only for them: the 403 message when any of `memberIds` is someone

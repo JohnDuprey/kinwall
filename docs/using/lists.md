@@ -59,6 +59,7 @@ A list can also be a chore's **checklist**, so a routine like "Bedtime" has to b
 Kinwall notes who adds each item and who ticks it off, so when "candy" shows up on the grocery list you can see where it came from. Tap the item: under its title, a small line says **Added by Maya · Tue 4:12 PM**, and once it's ticked, **Checked off by Leo · 5:02 PM**.
 
 * A person's own device (a kid's tablet, a grown-up's phone that knows **Whose device is this?**) shows their avatar and name.
+* A grown-up's phone's widgets, Siri and Apple Watch (the Kinwall app's widgets key) show that grown-up, when their phone knows **Whose device is this?**. The widgets still show the whole family.
 * A wall screen shows its name ("Kitchen wall"), and an automation key its own name (for example "Home Assistant").
 * An AI connector (Claude and other MCP apps) shows as **Assistant**.
 * A browser that hasn't said whose it is, and items from before this was kept, show nothing.
