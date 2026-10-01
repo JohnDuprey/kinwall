@@ -28,6 +28,7 @@ import { calendarGoal } from './tempCheck.ts'
 import { leadBy, leadIcon, leadOf, leadText } from './leadTime.ts'
 import { layoutDay } from './dayLayout.ts'
 import { VIEW_MODES, viewHint, viewLabel, type ViewMode } from './calendarViews.ts'
+import { onMinute } from './minuteTick.ts'
 
 const PHONE_WEEK_DAYS = 3
 const NEW_LOCAL_CALENDAR = '__new_local'
@@ -58,8 +59,8 @@ function isTimedOnDate(ev: EventInstance, key: string, tz: string) {
 function useNowMinutes(tz: string) {
   const [minutes, setMinutes] = useState(() => minutesSinceMidnight(new Date().toISOString(), tz))
   useEffect(() => {
-    const id = setInterval(() => setMinutes(minutesSinceMidnight(new Date().toISOString(), tz)), 60000)
-    return () => clearInterval(id)
+    setMinutes(minutesSinceMidnight(new Date().toISOString(), tz))
+    return onMinute(() => setMinutes(minutesSinceMidnight(new Date().toISOString(), tz)))
   }, [tz])
   return minutes
 }

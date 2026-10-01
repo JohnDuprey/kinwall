@@ -32,6 +32,7 @@ export type DeviceAppearance = Partial<Pick<Appearance, 'themeMode' | 'textScale
   lowStim?: boolean // flat, calm, no motion - see [data-lowstim] in styles.css
   font?: Typeface // this device's typeface ('default' = Nunito); absent = the family's
   timeFormat?: '12' | '24' // this device's clock times; absent = the family's (timeFormat.ts)
+  clockZone?: 'device' // the clock and date show this device's own time zone; absent = the family's (timezone.ts clockTimeZone)
   nowNext?: boolean // Now / Next card on the calendar; absent = on
   keepAwake?: boolean // keep the screen on while Kinwall is showing; absent = on for wall screens and kids' devices, off for parent devices
   idleReset?: boolean // back to the calendar after 2 idle minutes; absent = on for wall screens and kids' devices, off for parent devices

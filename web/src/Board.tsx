@@ -22,6 +22,8 @@ import { BasketIcon, CartIcon } from './icons.tsx'
 import { boardAreas, boardChores, boardItems, moreLabel, rowsThatFit, tidbitCardsThatFit } from './boardFit.ts'
 import { layoutAreas, layoutFor, type BoardCardId, type CardDensity } from './boardLayout.ts'
 import { leadOf, leadText } from './leadTime.ts'
+import { onMinute } from './minuteTick.ts'
+import { clockTimeZone } from './timezone.ts'
 
 const REFRESH_MS = 10 * 60_000
 // Auto shows the full Chores and Due soon cards only on a board this big (CSS px); smaller boards get the count tiles.
@@ -93,9 +95,9 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
   const [now, setNow] = useState(() => new Date())
   const [tick, setTick] = useState(0)
   useEffect(() => {
-    const clock = setInterval(() => setNow(new Date()), 15_000)
+    const stopClock = onMinute(() => setNow(new Date()))
     const refresh = setInterval(() => setTick(t => t + 1), REFRESH_MS)
-    return () => { clearInterval(clock); clearInterval(refresh) }
+    return () => { stopClock(); clearInterval(refresh) }
   }, [])
   const [data, setData] = useState<BoardData | null>(null)
   const [error, setError] = useState(false)
@@ -251,8 +253,8 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
         )}
         {/* The header already shows the clock and date, so this card is the forecast alone. */}
         {has('clock') && <section className={`board-card board-clock${densityClass(dense('clock'))}`} aria-label="Time and weather">
-          <div className="board-time">{formatTime(now, tz)}</div>
-          <div className="board-date">{new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric', timeZone: tz }).format(now)}</div>
+          <div className="board-time">{formatTime(now, clockTimeZone(tz, device))}</div>
+          <div className="board-date">{new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric', timeZone: clockTimeZone(tz, device) }).format(now)}</div>
           {w && <div className="board-wx-where snap-dim">{w.location}</div>}
           {w && (
             <div className="board-weather" role="group" aria-label={`Weather in ${w.location}`}>

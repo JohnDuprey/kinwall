@@ -45,6 +45,8 @@ import { MedicationLiveActivity } from './TakeNow.tsx'
 import { formatTime, resolveHour12, setHour12 } from './timeFormat.ts'
 import { dateKey } from './date.ts'
 import { nightFieldsFor, nightSources } from './saverSources.ts'
+import { onMinute } from './minuteTick.ts'
+import { clockTimeZone } from './timezone.ts'
 
 const NAV_ITEMS = [
   { key: 'calendar', href: '#/calendar', label: 'Calendar', Icon: CalendarIcon },
@@ -213,12 +215,12 @@ function QuietOverlay({ settings, wall, remote }: { settings: Settings; wall: bo
     }
     const events = ['pointerdown', 'keydown']
     events.forEach(ev => window.addEventListener(ev, touch))
-    const id = setInterval(() => setNow(new Date()), 15000)
+    const stopTick = onMinute(() => setNow(new Date()))
     const onPreview = () => { setManual('preview'); announce('Previewing the Night screen for 20 seconds. Tap or press Escape to end.') }
     const onStart = () => { setManual('hold'); location.hash = '#/calendar'; announce('Night screen on. Tap or press any key to end.') }
     window.addEventListener(SAVER_PREVIEW_EVENT, onPreview)
     window.addEventListener(SAVER_START_EVENT, onStart)
-    return () => { clearInterval(id); events.forEach(ev => window.removeEventListener(ev, touch)); window.removeEventListener(SAVER_PREVIEW_EVENT, onPreview); window.removeEventListener(SAVER_START_EVENT, onStart) }
+    return () => { stopTick(); events.forEach(ev => window.removeEventListener(ev, touch)); window.removeEventListener(SAVER_PREVIEW_EVENT, onPreview); window.removeEventListener(SAVER_START_EVENT, onStart) }
   }, [])
   useEffect(() => {
     if (!preview) return
@@ -260,7 +262,7 @@ function QuietOverlay({ settings, wall, remote }: { settings: Settings; wall: bo
   }, [asleep, fixed, corners])
   if (!asleep) return null
   const spot = fixed || drift
-  const { time, date } = clockStrings(now, settings.timezone)
+  const { time, date } = clockStrings(now, clockTimeZone(settings.timezone, device))
   const clock = (small: boolean) => small
     ? <div className="saver-clock"><div className="saver-time">{time}</div><div className="saver-date">{date}</div></div>
     : (
@@ -338,8 +340,7 @@ function PinKeypad({ onWake, onIdle }: { onWake: () => void; onIdle: () => void 
   )
 }
 
-function clockStrings(now: Date, timeZone: string | null) {
-  const tz = timeZone ?? undefined
+function clockStrings(now: Date, tz: string | undefined) {
   return {
     time: formatTime(now, tz),
     date: new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric', timeZone: tz }).format(now),
@@ -872,11 +873,10 @@ function Header({ settings, members, selectedMemberId, isAdmin, wall }: {
 }) {
   const isPhone = useIsPhone()
   const [now, setNow] = useState(new Date())
-  useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 15000)
-    return () => clearInterval(id)
-  }, [])
-  const { time: timeStr, date: dateStr } = useMemo(() => clockStrings(now, settings.timezone), [now, settings.timezone])
+  useEffect(() => onMinute(() => setNow(new Date())), [])
+  const device = useDeviceAppearance()
+  const clockTz = clockTimeZone(settings.timezone, device)
+  const { time: timeStr, date: dateStr } = useMemo(() => clockStrings(now, clockTz), [now, clockTz])
 
   // Phones get one row: family name, people, bell, help. No clock or date: the phone's status bar
   // shows the time and every view names its date. Kept as a separate render path so the

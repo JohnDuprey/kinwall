@@ -42,3 +42,10 @@ export function tzOrder(all: string[], device: string | null, current: string | 
   const top = [...new Set([device, current].filter((z): z is string => !!z))]
   return [...top, ...all.filter(z => !top.includes(z))]
 }
+
+/** The zone this device's clock and date show: the family's, or with "This device's" picked
+ * (Appearance on this device) the device's own. Only the clock: chores, reminders and "today"
+ * stay on the family's zone. */
+export function clockTimeZone(family: string | null | undefined, device: { clockZone?: 'device' }, own = Intl.DateTimeFormat().resolvedOptions().timeZone): string | undefined {
+  return device.clockZone === 'device' ? own : family ?? undefined
+}

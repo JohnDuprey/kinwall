@@ -40,6 +40,7 @@ import { BoardPresetRows, DeviceBoardLayoutRows } from './BoardEditor.tsx'
 import { TEMP_CHECK_OFF } from './tempCheck.ts'
 import { EVENING_TIMES } from './journal.ts'
 import { deviceTimeFormat, formatTime, resolveHour12 } from './timeFormat.ts'
+import { tzCity } from './timezone.ts'
 import { MedicationsToggle } from './MedicationSettings.tsx'
 import { announce, pressable, reducedMotion, Segmented } from './a11y.tsx'
 import { FEATURE_ROWS } from './featureConfig.ts'
@@ -1146,7 +1147,7 @@ function DeviceAppearanceRows() {
         legacy={device.custom ?? {}} onClearLegacy={() => set({ custom: undefined })}
         resetLabel="Reset this device's appearance"
         resetConfirm="Mode, color scheme, text size, density, typeface, time format and low-stimulation mode go back to the family's settings on this device."
-        onReset={() => { set({ themeMode: undefined, skin: undefined, custom: undefined, textScale: undefined, density: undefined, font: undefined, timeFormat: undefined, lowStim: undefined }); announce("This device follows the family's appearance") }}
+        onReset={() => { set({ themeMode: undefined, skin: undefined, custom: undefined, textScale: undefined, density: undefined, font: undefined, timeFormat: undefined, clockZone: undefined, lowStim: undefined }); announce("This device follows the family's appearance") }}
       />
 
       {rows.slice(1).map(r => {
@@ -1167,6 +1168,13 @@ function DeviceAppearanceRows() {
         <select className="settings-select" aria-label="Time format on this device" value={device.timeFormat ?? ''} onChange={e => set({ timeFormat: deviceTimeFormat(e.target.value) })}>
           <option value="">🏠 Use the family's ({TIME_FORMATS.find(o => o.key === (settings.timeFormat ?? 'auto'))?.label.split(' (')[0]})</option>
           {TIME_FORMATS.slice(1).map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+        </select>
+      </div>
+      <div className="device-pref-row">
+        <span>Clock time zone</span>
+        <select className="settings-select" aria-label="Clock time zone on this device" value={device.clockZone ?? ''} onChange={e => { set({ clockZone: e.target.value === 'device' ? 'device' : undefined }); announce(e.target.value ? "The clock shows this device's time zone" : "The clock shows the family's time zone") }}>
+          <option value="">🏠 The family's ({tzCity(settings.timezone ?? 'UTC')})</option>
+          <option value="device">This device's ({tzCity(Intl.DateTimeFormat().resolvedOptions().timeZone)})</option>
         </select>
       </div>
       <div className="toggle-row">
