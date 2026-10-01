@@ -132,7 +132,7 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 | `move_list_items` | Moves items (by id or title) from one list to another of the same type, keeping everything on them. |
 | `list_remembered_items` | A catalog (`catalog`: `groceries`, the default, or `shopping`): every item the family has added before to lists of that type, with its department, its categories (`tags`) and the stores it's found at, each with its aisle there. `search`, `store` and `tag` (a category) filter. |
 | `update_remembered_item` | Edits a catalog item (by `name` or key; `catalog` as above): `title`, `category` (department), `tags` (its categories, e.g. `["Breakfast", "Lunchbox"]`; replaces them) and `places` (`[{store, aisle}]`, replaces its stores). `create: true` adds it when it isn't there yet. |
-| `set_list_item_done` | Ticks or unticks an item, and all its steps with it. |
+| `set_list_item_done` | Ticks or unticks an item, and all its steps with it. Items it ticks show **Checked off by Assistant**, like items added through MCP show **Added by Assistant**; `get_list` returns `addedBy` and `checkedBy` on items and steps (`{memberId}` or `{label}`, or null). |
 | `set_step_done` | Ticks or unticks one step of an item (step IDs come from `get_list`). Ticking the last open step completes the item; unticking a step of a done item re-opens it. |
 | `add_note` | Adds a note to an event's or list item's thread, posted as a member (by name or ID) or "Someone". |
 | `update_note` | Replaces a note's text (note IDs come from `list_notes`). |

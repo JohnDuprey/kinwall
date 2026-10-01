@@ -1,7 +1,7 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import type { Context } from 'hono';
 import { createRouter } from '../router.ts';
-import { ownerBlock, resolveKey } from '../auth.ts';
+import { actorOf, ownerBlock, resolveKey } from '../auth.ts';
 import { emit } from '../bus.ts';
 import { hostTimezone } from '../env.ts';
 import { zonedTimeToUtc } from '../recurrence.ts';
@@ -219,7 +219,7 @@ mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/meals/projection/a
   const { from, to, listId, omitKeys = [], includeNotes = false, includeKitItems = false, basics = {} } = c.req.valid('json');
   if (!await shoppingList(c.env.DB, listId)) return c.json({ error: 'active Groceries list not found' }, 400);
   const projection = await shoppingProjection(c.env.DB, from, to, listId, basics);
-  const itemIds = await applyProjection(c.env.DB, projection, listId, omitKeys, includeNotes, includeKitItems);
+  const itemIds = await applyProjection(c.env.DB, projection, listId, omitKeys, includeNotes, includeKitItems, await actorOf(c));
   if (itemIds.length) emit(c, 'list.item.changed', { listId });
   return c.json({ added: itemIds.length, itemIds, projection: await shoppingProjection(c.env.DB, from, to, listId) }, 200);
 });

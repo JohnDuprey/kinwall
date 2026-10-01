@@ -1,5 +1,6 @@
 // Meal planning domain: recipes are definitions; a meal owns the snapshot it was planned with.
 import type { KinwallDb, KinwallStatement } from './db.ts';
+import type { Actor } from './auth.ts';
 import { KIT_QUALIFIER, type Ingredient, type Meal, type Recipe, type RecipeStep, type Projection } from './meal-schemas.ts';
 import { fillPlace, itemKey, recall } from './item-memory.ts';
 
@@ -190,7 +191,7 @@ export async function shoppingProjection(db: KinwallDb, from: string, to: string
 
 /** Each item insert and its source claims run in one transaction. The SQL rechecks the ledger,
  * so concurrent/overlapping previews add only still-unclaimed contributions, never duplicates. */
-export async function applyProjection(db: KinwallDb, projection: Projection, listId: string, omitKeys: string[], includeNotes: boolean, includeKitItems = false): Promise<string[]> {
+export async function applyProjection(db: KinwallDb, projection: Projection, listId: string, omitKeys: string[], includeNotes: boolean, includeKitItems = false, by: Actor = { memberId: null, label: null }): Promise<string[]> {
   const omitted = new Set(omitKeys);
   const now = new Date().toISOString();
   // What ships in a meal kit is already in the box, so it stays off the list unless asked for.
@@ -217,15 +218,15 @@ export async function applyProjection(db: KinwallDb, projection: Projection, lis
   if (chunk.length) chunks.push(JSON.stringify(chunk));
   const writes: KinwallStatement[] = [];
   for (const payload of chunks) {
-    writes.push(db.prepare(`INSERT INTO list_items (id,list_id,title,name_key,quantity,notes,category,store,aisle,sort,created_at,updated_at)
+    writes.push(db.prepare(`INSERT INTO list_items (id,list_id,title,name_key,quantity,notes,category,store,aisle,sort,created_at,updated_at,added_by,added_by_label)
       SELECT i.value->>'id', ?, i.value->>'name', i.value->>'key',
         CASE WHEN count(s.value->>'quantity') = 0 THEN i.value->>'qualifier'
           ELSE rtrim(rtrim(printf('%.6f',sum(s.value->>'quantity')),'0'),'.') || (i.value->>'suffix') END,
         group_concat(s.value->>'note', char(10)), i.value->>'category', i.value->>'store', i.value->>'aisle',
-        (SELECT coalesce(max(sort),-1) FROM list_items WHERE list_id=?) + row_number() OVER (ORDER BY cast(i.key AS INTEGER)), ?, ?
+        (SELECT coalesce(max(sort),-1) FROM list_items WHERE list_id=?) + row_number() OVER (ORDER BY cast(i.key AS INTEGER)), ?, ?, ?, ?
       FROM json_each(?) i JOIN json_each(i.value->'sources') s
       WHERE NOT EXISTS (SELECT 1 FROM meal_shopping_sources claimed WHERE claimed.list_id=? AND claimed.source_ref=s.value->>'ref')
-      GROUP BY i.key`).bind(listId, listId, now, now, payload, listId));
+      GROUP BY i.key`).bind(listId, listId, now, now, by.memberId, by.label, payload, listId));
     // Autocomplete remembers the names actually added (src/item-memory.ts rememberName).
     writes.push(db.prepare(`INSERT INTO item_names (catalog,name_key,title,uses,last_used)
       SELECT 'groceries', i.value->>'key', i.value->>'name', 1, ? FROM json_each(?) i WHERE EXISTS (SELECT 1 FROM list_items WHERE id=i.value->>'id')

@@ -288,7 +288,9 @@ membersRoutes.openapi(
       c.env.DB.prepare('UPDATE tracker_entries SET former_member = (SELECT name FROM members WHERE id = ?) WHERE member_id = ?').bind(id, id),
       c.env.DB.prepare('DELETE FROM members WHERE id = ?').bind(id), ...updates,
       c.env.DB.prepare('UPDATE meals SET eater_ids = (SELECT json_group_array(value) FROM json_each(meals.eater_ids) WHERE value != ?) WHERE eater_ids LIKE ?').bind(id, `%${id}%`), c.env.DB.prepare("UPDATE api_keys SET owner = 'shared' WHERE owner = ?").bind(id),
-      c.env.DB.prepare("UPDATE oauth_grants SET owner = 'shared' WHERE owner = ?").bind(id), c.env.DB.prepare('UPDATE passkeys SET owner = NULL WHERE owner = ?').bind(id)]);
+      c.env.DB.prepare("UPDATE oauth_grants SET owner = 'shared' WHERE owner = ?").bind(id), c.env.DB.prepare('UPDATE passkeys SET owner = NULL WHERE owner = ?').bind(id),
+      // Who checked off an item (0078's added_by and the rest have an FK; done_by predates it).
+      c.env.DB.prepare('UPDATE list_items SET done_by = NULL WHERE done_by = ?').bind(id)]);
     emit(c, 'member.changed', { id });
     return c.json({ ok: true }, 200);
   },

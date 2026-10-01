@@ -6,7 +6,7 @@ import { hostTimezone } from '../env.ts';
 import { emit } from '../bus.ts';
 import { notifyListUpdate } from '../notify.ts';
 import { parseMemberIds, resolveMemberIds } from '../calendar-members.ts';
-import { eventWriteBlock } from '../auth.ts';
+import { actorOf, eventWriteBlock, type Actor } from '../auth.ts';
 import type { Context } from 'hono';
 import { SUGGESTION_CAP, catalog, catalogWrites, filterCatalog, fillPlace, itemKey, listCatalog, nameSuggestions, recall, rememberName, rememberPlace, tagsInput, type Catalog, type CatalogEdit, type CatalogItem } from '../item-memory.ts';
 import {
@@ -53,6 +53,9 @@ export type ListRow = {
   archived: number;
   created_at: string;
   items_rev?: number; // migration 0074's triggers; absent on a row built in code before insert
+  last_done_at?: string | null; // 0078: when a reusable list was last reset with something checked, and by whom
+  last_done_by?: string | null;
+  last_done_by_label?: string | null;
 };
 
 export type ListItemRow = {
@@ -70,13 +73,20 @@ export type ListItemRow = {
   priority: 'low' | 'normal' | 'high' | 'urgent';
   done: number;
   done_at: string | null;
-  done_by: string | null;
+  done_by: string | null; // a member id (0078: or a device / app in done_by_label)
   sort: number;
   created_at: string;
   updated_at: string;
-};
+} & ActorCols;
 
-export type ListItemStepRow = { id: string; item_id: string; title: string; done: number; done_at: string | null; sort: number; created_at: string };
+/** Who added and who checked off an item or step (migration 0078; absent on rows from older queries). */
+type ActorCols = { added_by?: string | null; added_by_label?: string | null; done_by?: string | null; done_by_label?: string | null };
+
+export type ListItemStepRow = { id: string; item_id: string; title: string; done: number; done_at: string | null; sort: number; created_at: string } & ActorCols;
+
+/** An actor in the API (ActorSchema): { memberId } or { label }, null when nobody is known. */
+export const actorApi = (memberId: string | null | undefined, label: string | null | undefined) =>
+  memberId ? { memberId } : label ? { label } : null;
 
 export type ListGroupRow = { list_id: string; kind: 'store' | 'category'; name: string; sort: number };
 
@@ -99,6 +109,8 @@ export function toApi(row: ListRow, itemCount: number, openCount: number, overdu
     openCount,
     overdueCount,
     itemsRev: row.items_rev ?? 0,
+    lastDoneAt: row.last_done_at ?? null,
+    lastDoneBy: actorApi(row.last_done_by, row.last_done_by_label),
   };
 }
 
@@ -119,10 +131,12 @@ export function toItemApi(row: ListItemRow, steps: ListItemStepRow[] = []) {
     done: !!row.done,
     doneAt: row.done_at,
     doneBy: row.done_by,
+    addedBy: actorApi(row.added_by, row.added_by_label),
+    checkedBy: actorApi(row.done_by, row.done_by_label),
     sort: row.sort,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-    steps: steps.map((st) => ({ id: st.id, title: st.title, done: !!st.done, sort: st.sort })),
+    steps: steps.map((st) => ({ id: st.id, title: st.title, done: !!st.done, sort: st.sort, addedBy: actorApi(st.added_by, st.added_by_label), checkedBy: actorApi(st.done_by, st.done_by_label) })),
     stepsDone: steps.filter((st) => st.done).length,
     stepsTotal: steps.length,
   };
@@ -239,14 +253,16 @@ async function loadItem(db: KinwallDb, listId: string, itemId: string) {
 
 // An item with steps is done exactly when every step is: flip it when a step change broke that
 // (last open step ticked -> done; a step unticked or added on a done item -> open again).
-function syncItemFromSteps(db: KinwallDb, itemId: string, now: string) {
+// Done by whoever made that change (`by`).
+function syncItemFromSteps(db: KinwallDb, itemId: string, now: string, by: Actor) {
   return db
     .prepare(
-      `UPDATE list_items SET done = 1 - done, done_at = CASE WHEN done = 0 THEN ?1 ELSE NULL END, done_by = NULL, updated_at = ?1
+      `UPDATE list_items SET done = 1 - done, done_at = CASE WHEN done = 0 THEN ?1 ELSE NULL END,
+         done_by = CASE WHEN done = 0 THEN ?3 END, done_by_label = CASE WHEN done = 0 THEN ?4 END, updated_at = ?1
        WHERE id = ?2 AND EXISTS (SELECT 1 FROM list_item_steps WHERE item_id = ?2)
          AND done = EXISTS (SELECT 1 FROM list_item_steps WHERE item_id = ?2 AND done = 0)`,
     )
-    .bind(now, itemId);
+    .bind(now, itemId, by.memberId, by.label);
 }
 
 export function toGroupApi(row: ListGroupRow) {
@@ -745,6 +761,7 @@ listsRoutes.openapi(
     let nextSort = (maxSort?.m ?? -1) + 1;
 
     const now = new Date().toISOString();
+    const by = await actorOf(c);
     const rows: ListItemRow[] = [];
     // "Remembers where things go" (shopping lists): only OMITTED fields fill from memory -
     // explicit null means "none" and must not be overwritten.
@@ -770,6 +787,8 @@ listsRoutes.openapi(
         done: 0,
         done_at: null,
         done_by: null,
+        added_by: by.memberId,
+        added_by_label: by.label,
         sort: nextSort++,
         created_at: now,
         updated_at: now,
@@ -777,13 +796,13 @@ listsRoutes.openapi(
     }
 
     const steps: ListItemStepRow[] = rows.flatMap((r, i) =>
-      (fresh[i].steps ?? []).map((title, sort) => ({ id: crypto.randomUUID(), item_id: r.id, title: title.trim(), done: 0, done_at: null, sort, created_at: now })),
+      (fresh[i].steps ?? []).map((title, sort) => ({ id: crypto.randomUUID(), item_id: r.id, title: title.trim(), done: 0, done_at: null, sort, created_at: now, added_by: by.memberId, added_by_label: by.label })),
     );
     if (rows.length) {
       await c.env.DB.batch([
         ...rows.map((r) =>
           c.env.DB.prepare(
-            'INSERT INTO list_items (id, list_id, title, name_key, notes, quantity, store, category, aisle, member_id, due_date, event_id, priority, done, done_at, done_by, sort, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+            'INSERT INTO list_items (id, list_id, title, name_key, notes, quantity, store, category, aisle, member_id, due_date, event_id, priority, done, done_at, done_by, added_by, added_by_label, sort, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
           ).bind(
             r.id,
             r.list_id,
@@ -801,14 +820,16 @@ listsRoutes.openapi(
             r.done,
             r.done_at,
             r.done_by,
+            r.added_by,
+            r.added_by_label,
             r.sort,
             r.created_at,
             r.updated_at,
           ),
         ),
         ...steps.map((st) =>
-          c.env.DB.prepare('INSERT INTO list_item_steps (id, item_id, title, done, done_at, sort, created_at) VALUES (?,?,?,?,?,?,?)').bind(
-            st.id, st.item_id, st.title, st.done, st.done_at, st.sort, st.created_at,
+          c.env.DB.prepare('INSERT INTO list_item_steps (id, item_id, title, done, done_at, sort, created_at, added_by, added_by_label) VALUES (?,?,?,?,?,?,?,?,?)').bind(
+            st.id, st.item_id, st.title, st.done, st.done_at, st.sort, st.created_at, st.added_by, st.added_by_label,
           ),
         ),
         ...(shopping ? rows.map((r) => rememberPlace(c.env.DB, list.catalog, r.title, r, now)).filter((st) => st !== null) : []),
@@ -872,6 +893,9 @@ listsRoutes.openapi(
 
     const now = new Date().toISOString();
     const done = body.done !== undefined ? body.done : !!existing.done;
+    // Ticked now (not already done): by whoever ticked it - or the member a caller names in doneBy.
+    const ticked = body.done === true && (!existing.done || body.doneBy !== undefined);
+    const by = ticked ? (body.doneBy ? { memberId: (await resolveMemberIds(c.env.DB, [body.doneBy]))[0] ?? null, label: null } : await actorOf(c)) : null;
     const updated: ListItemRow = {
       ...existing,
       title: body.title !== undefined ? body.title.trim() : existing.title,
@@ -885,8 +909,9 @@ listsRoutes.openapi(
       event_id: body.eventId !== undefined ? body.eventId : existing.event_id,
       priority: body.priority ?? existing.priority,
       done: done ? 1 : 0,
-      done_at: body.done === undefined ? existing.done_at : done ? now : null,
-      done_by: body.done === undefined ? existing.done_by : done ? (body.doneBy ?? null) : null,
+      done_at: body.done === undefined || (done && existing.done) ? existing.done_at : done ? now : null,
+      done_by: by ? by.memberId : done ? existing.done_by ?? null : null,
+      done_by_label: by ? by.label : done ? existing.done_by_label ?? null : null,
       updated_at: now,
     };
     // A shopping trip sets the aisle at the trip's store: the item takes it only if it's planned for
@@ -895,7 +920,7 @@ listsRoutes.openapi(
     if (trip) updated.aisle = !updated.store || updated.store === trip.store ? trip.aisle : existing.aisle;
     await c.env.DB.batch([
       c.env.DB.prepare(
-        'UPDATE list_items SET title=?, name_key=?, notes=?, quantity=?, store=?, category=?, aisle=?, member_id=?, due_date=?, event_id=?, priority=?, done=?, done_at=?, done_by=?, updated_at=? WHERE id=?',
+        'UPDATE list_items SET title=?, name_key=?, notes=?, quantity=?, store=?, category=?, aisle=?, member_id=?, due_date=?, event_id=?, priority=?, done=?, done_at=?, done_by=?, done_by_label=?, updated_at=? WHERE id=?',
       ).bind(
         updated.title,
         itemKey(updated.title),
@@ -911,12 +936,14 @@ listsRoutes.openapi(
         updated.done,
         updated.done_at,
         updated.done_by,
+        updated.done_by_label,
         updated.updated_at,
         itemId,
       ),
       // Ticking the item ticks every step (and unticking unticks them), keeping "done = all steps done".
       ...(body.done !== undefined
-        ? [c.env.DB.prepare('UPDATE list_item_steps SET done = ?, done_at = ? WHERE item_id = ? AND done != ?').bind(updated.done, updated.done ? now : null, itemId, updated.done)]
+        ? [c.env.DB.prepare('UPDATE list_item_steps SET done = ?1, done_at = ?2, done_by = ?3, done_by_label = ?4 WHERE item_id = ?5 AND done != ?1')
+            .bind(updated.done, updated.done ? now : null, updated.done ? updated.done_by : null, updated.done ? updated.done_by_label : null, itemId)]
         : []),
       // Saving where an item goes remembers it for next time (not a plain tick). On a trip, the aisle
       // is remembered for the trip's store, and an "anywhere" item doesn't remember one for no store.
@@ -1060,7 +1087,8 @@ listsRoutes.openapi(
   }),
   async (c) => {
     const { id } = c.req.valid('param');
-    const reset = await resetListItems(c.env.DB, id, null, (await checkedBody(c)).ids);
+    const ids = (await checkedBody(c)).ids;
+    const reset = await resetListItems(c.env.DB, id, null, ids, ids ? null : await actorOf(c)); // all of it: the list was done
     emit(c, 'list.changed', { id });
     return c.json({ reset }, 200);
   },
@@ -1075,14 +1103,23 @@ async function checkedBody(c: Context<{ Bindings: Env }>): Promise<{ ids: string
 
 /** Uncheck items (and their steps) in a list; returns how many items were ticked. With `forMember`,
  * only that member's items and unassigned ones - what a chore's checklist covers (routes/chores.ts).
- * With `ids` (a JSON array), only those items. */
-export async function resetListItems(db: KinwallDb, id: string, forMember: string | null = null, ids: string | null = null): Promise<number> {
+ * With `ids` (a JSON array), only those items. With `doneBy` (a reset that means the list was done),
+ * a reusable list with something ticked remembers when and by whom (lastDoneAt / lastDoneBy): its
+ * one extra row write. */
+export async function resetListItems(db: KinwallDb, id: string, forMember: string | null = null, ids: string | null = null, doneBy: Actor | null = null): Promise<number> {
   const scope = 'list_id = ? AND (? IS NULL OR member_id IS NULL OR member_id = ?) AND (? IS NULL OR id IN (SELECT value FROM json_each(?)))';
   const binds = [id, forMember, forMember, ids, ids];
-  const result = await db.prepare(`UPDATE list_items SET done = 0, done_at = NULL, done_by = NULL, updated_at = ? WHERE ${scope} AND done = 1`)
-    .bind(new Date().toISOString(), ...binds)
+  const now = new Date().toISOString();
+  // First, while the ticks are still there to see.
+  if (doneBy) {
+    await db.prepare(`UPDATE lists SET last_done_at = ?, last_done_by = ?, last_done_by_label = ? WHERE id = ? AND kind = 'reusable' AND EXISTS (SELECT 1 FROM list_items WHERE ${scope} AND done = 1)`)
+      .bind(now, doneBy.memberId, doneBy.label, id, ...binds)
+      .run();
+  }
+  const result = await db.prepare(`UPDATE list_items SET done = 0, done_at = NULL, done_by = NULL, done_by_label = NULL, updated_at = ? WHERE ${scope} AND done = 1`)
+    .bind(now, ...binds)
     .run();
-  await db.prepare(`UPDATE list_item_steps SET done = 0, done_at = NULL WHERE done = 1 AND item_id IN (SELECT id FROM list_items WHERE ${scope})`).bind(...binds).run();
+  await db.prepare(`UPDATE list_item_steps SET done = 0, done_at = NULL, done_by = NULL, done_by_label = NULL WHERE done = 1 AND item_id IN (SELECT id FROM list_items WHERE ${scope})`).bind(...binds).run();
   return result.meta.changes;
 }
 
@@ -1306,11 +1343,12 @@ listsRoutes.openapi(
     const item = await db.prepare('SELECT id FROM list_items WHERE id = ? AND list_id = ?').bind(itemId, id).first();
     if (!item) return c.json({ error: 'not found' }, 404);
     const now = new Date().toISOString();
+    const by = await actorOf(c);
     await db.batch([
       db
-        .prepare('INSERT INTO list_item_steps (id, item_id, title, done, done_at, sort, created_at) SELECT ?, ?, ?, 0, NULL, COALESCE(MAX(sort), -1) + 1, ? FROM list_item_steps WHERE item_id = ?')
-        .bind(crypto.randomUUID(), itemId, title.trim(), now, itemId),
-      syncItemFromSteps(db, itemId, now),
+        .prepare('INSERT INTO list_item_steps (id, item_id, title, done, done_at, sort, created_at, added_by, added_by_label) SELECT ?, ?, ?, 0, NULL, COALESCE(MAX(sort), -1) + 1, ?, ?, ? FROM list_item_steps WHERE item_id = ?')
+        .bind(crypto.randomUUID(), itemId, title.trim(), now, by.memberId, by.label, itemId),
+      syncItemFromSteps(db, itemId, now, by),
     ]);
     emit(c, 'list.item.changed', { listId: id, id: itemId });
     return c.json((await loadItem(db, id, itemId))!, 200);
@@ -1338,11 +1376,14 @@ listsRoutes.openapi(
     if (!step) return c.json({ error: 'not found' }, 404);
     const now = new Date().toISOString();
     const done = body.done !== undefined ? (body.done ? 1 : 0) : step.done;
+    const by = await actorOf(c);
+    // Who ticked it changes only with the tick: unchanged, it keeps its own.
+    const [doneBy, doneByLabel] = done === step.done ? [step.done_by ?? null, step.done_by_label ?? null] : done ? [by.memberId, by.label] : [null, null];
     await db.batch([
       db
-        .prepare('UPDATE list_item_steps SET title = ?, done = ?, done_at = ?, sort = ? WHERE id = ?')
-        .bind(body.title !== undefined ? body.title.trim() : step.title, done, done === step.done ? step.done_at : done ? now : null, body.sort ?? step.sort, stepId),
-      syncItemFromSteps(db, itemId, now),
+        .prepare('UPDATE list_item_steps SET title = ?, done = ?, done_at = ?, sort = ?, done_by = ?, done_by_label = ? WHERE id = ?')
+        .bind(body.title !== undefined ? body.title.trim() : step.title, done, done === step.done ? step.done_at : done ? now : null, body.sort ?? step.sort, doneBy, doneByLabel, stepId),
+      syncItemFromSteps(db, itemId, now, by),
     ]);
     const updated = (await loadItem(db, id, itemId))!;
     emit(c, 'list.item.changed', { listId: id, id: itemId, done: updated.done });
@@ -1368,7 +1409,7 @@ listsRoutes.openapi(
       .bind(stepId, itemId, id)
       .run();
     if (deleted.meta.changes === 0) return c.json({ error: 'not found' }, 404);
-    await syncItemFromSteps(db, itemId, new Date().toISOString()).run();
+    await syncItemFromSteps(db, itemId, new Date().toISOString(), await actorOf(c)).run();
     emit(c, 'list.item.changed', { listId: id, id: itemId });
     return c.json((await loadItem(db, id, itemId))!, 200);
   },

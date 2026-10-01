@@ -598,6 +598,13 @@ export const ListCatalogSchema = z.enum(['groceries', 'shopping']).openapi({
   description: "A shopping list's type: groceries (food and household groceries; meals add ingredients here) or shopping (hardware store, department store...). Each has its own catalog of remembered items, places and categories. Given on shopping lists only (null on others); a new shopping list without one is groceries when its name looks like groceries (Groceries, Grocery, Food, Supermarket, Market, Produce, Pantry), else shopping.",
 });
 
+/** Who did something on a list: a family member (memberId), or a device or app that is nobody's
+ * (label: a wall screen's name such as "Kitchen wall", an automation key's name, or "Assistant" for an
+ * AI connector). Exactly one of the two is set; the field is null when nobody is known. */
+export const ActorSchema = z
+  .object({ memberId: z.string().optional(), label: z.string().optional() })
+  .openapi('Actor', { description: 'Who did it: a family member (memberId) or a named device or app (label, e.g. "Kitchen wall", "Assistant"). Exactly one is set.' });
+
 export const ListSchema = z
   .object({
     id: z.string(),
@@ -617,6 +624,8 @@ export const ListSchema = z
     openCount: z.number(),
     overdueCount: z.number().openapi({ description: 'Items not done whose due date is before today (household timezone).' }),
     itemsRev: z.number().openapi({ description: "Goes up whenever this list's items or their steps change. Sync clients compare it to skip refetching an unchanged list's detail." }),
+    lastDoneAt: z.string().nullable().openapi({ description: 'Reusable lists: when it was last reset with something checked (Reset, or its chore done). Null until then.' }),
+    lastDoneBy: ActorSchema.nullable().openapi({ description: 'Reusable lists: who last did it (whoever reset it, or did its chore). Null when unknown.' }),
   })
   .openapi('List');
 
@@ -652,7 +661,11 @@ export const ListPatchSchema = z
 
 
 export const ListItemStepSchema = z
-  .object({ id: z.string(), title: z.string(), done: z.boolean(), sort: z.number() })
+  .object({
+    id: z.string(), title: z.string(), done: z.boolean(), sort: z.number(),
+    addedBy: ActorSchema.nullable().openapi({ description: 'Who added the step; null when unknown.' }),
+    checkedBy: ActorSchema.nullable().openapi({ description: 'Who ticked the step; null when not done or unknown.' }),
+  })
   .openapi('ListItemStep');
 
 const StepTitleSchema = z.string().min(1).refine((s) => s.trim().length > 0, 'must not be empty');
@@ -681,7 +694,9 @@ export const ListItemSchema = z
     priority: ListItemPrioritySchema, // open urgent/high items sort first, low last (see ListSortBySchema)
     done: z.boolean(),
     doneAt: z.string().nullable(),
-    doneBy: z.string().nullable(),
+    doneBy: z.string().nullable().openapi({ description: 'The member who checked it off (checkedBy.memberId); null when not done, unknown or not a person. Kept for older clients: checkedBy also names wall screens and apps.' }),
+    addedBy: ActorSchema.nullable().openapi({ description: 'Who added the item; null when unknown (items from before this was kept).' }),
+    checkedBy: ActorSchema.nullable().openapi({ description: 'Who checked it off; null when not done or unknown. Cleared by untick and Reset.' }),
     sort: z.number(),
     createdAt: z.string(),
     updatedAt: z.string(),

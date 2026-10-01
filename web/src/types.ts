@@ -616,7 +616,12 @@ export interface List {
   itemCount: number // computed
   openCount: number // computed
   overdueCount?: number // computed: open items due before today (older servers leave it out)
+  lastDoneAt?: string | null // reusable lists: last reset with something ticked, or its chore done (older servers leave it out)
+  lastDoneBy?: Actor | null
 }
+
+/** Who did something on a list: a family member, or a device or app that is nobody's ("Kitchen wall", "Assistant"). */
+export type Actor = { memberId?: string; label?: string }
 
 export interface ListItem {
   id: string
@@ -633,7 +638,9 @@ export interface ListItem {
   priority: ListItemPriority // open urgent/high items sort first, low last (see compareItems)
   done: boolean
   doneAt: string | null
-  doneBy: string | null
+  doneBy: string | null // the member who checked it off (checkedBy says more)
+  addedBy?: Actor | null // who added it / checked it off; older servers and older items leave them out
+  checkedBy?: Actor | null
   sort: number
   createdAt: string
   updatedAt: string
@@ -704,6 +711,8 @@ export interface ListItemStep {
   title: string
   done: boolean
   sort: number
+  addedBy?: Actor | null
+  checkedBy?: Actor | null
 }
 
 /** User ordering of stores/categories within a list (drives group-header sort). */

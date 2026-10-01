@@ -19,6 +19,7 @@ import { useDialog } from './dialog.tsx'
 import { CustomColorSwatch } from './ColorSwatch.tsx'
 import { PRIORITY_LABEL, PRIORITY_MARK, PriorityBadge } from './PriorityBadge.tsx'
 import NotesThread from './NotesThread.tsx'
+import { actorName, byLine, nowrap, whenLabel } from './addedBy.ts'
 import { aisleAt, ANY_STORE, anyStoreView, departmentAisle, setShoppingModeList, setTripReverse, setTripStore, tripLeftovers, tripReverse, tripStore, tripStoreFor, tripView } from './trip.ts'
 import { hashPath, hashQuery } from './hashQuery.ts'
 import { holdAwake } from './wakeLock.ts'
@@ -419,6 +420,7 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisle
         {/* A textarea so a long title shows in full; Enter doesn't add a line break. */}
         <textarea id="item-title" className="item-title-input" rows={2} value={title} onChange={e => setTitle(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') e.preventDefault() }} />
+        <ItemByLines item={live} members={members} />
       </div>
       {kind === 'shopping' && quantityAndPlace /* on a shopping list, where it goes comes first */}
       {kind !== 'shopping' && priorityField}
@@ -478,6 +480,20 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisle
       )}
     </Sheet>
   )
+}
+
+/** "Added by Maya · Tue 4:12 PM" and, once ticked, "Checked off by Leo · 5:02 PM"; nothing when nobody is known. */
+function ItemByLines({ item, members }: { item: ListItem; members: Member[] }) {
+  const lines = [byLine('Added by', item.addedBy, item.createdAt, members), item.done ? byLine('Checked off by', item.checkedBy, item.doneAt, members) : null].filter(l => l !== null)
+  if (lines.length === 0) return null
+  return <div className="item-by-lines">{lines.map(l => <div key={l}>{l}</div>)}</div>
+}
+
+/** "Last done: Maya · Tue 8:10 PM" on a reusable list; nothing until it's been done. */
+function lastDoneLine(list: List, members: Member[]): string | null {
+  if (list.kind !== 'reusable' || !list.lastDoneAt) return null
+  const who = actorName(list.lastDoneBy, members)
+  return `Last done: ${who ? `${who} · ` : ''}${nowrap(whenLabel(list.lastDoneAt))}`
 }
 
 /** An item's steps as a checklist (tick, add, drag or Alt+arrow to reorder, delete), or - "One at a
@@ -1685,6 +1701,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
         <div className="list-detail-title">
           <h2 className="list-detail-name">{list.name}</h2>
           <div className="list-detail-sub">{TYPE_LABEL[listType(list)]} · <CountLine list={list} /></div>
+          {lastDoneLine(list, members) && <div className="list-detail-sub list-last-done">{lastDoneLine(list, members)}</div>}
         </div>
         <button className="btn btn-secondary" onClick={() => setEditList(true)} aria-label={`Edit list ${list.name}`}>Edit</button>
       </div>

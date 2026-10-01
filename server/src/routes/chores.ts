@@ -8,7 +8,7 @@ import { emit } from '../bus.ts';
 import { expand, isValidRrule } from '../recurrence.ts';
 import { ChoreDaySchema, ChoreInputSchema, ChoreSchema, ErrorSchema } from '../schemas.ts';
 import { resetListItems } from './lists.ts';
-import { deviceOwner, ownDevice, ownerBlock, requestKey } from '../auth.ts';
+import { actorOf, deviceOwner, ownDevice, ownerBlock, requestKey } from '../auth.ts';
 import { notifyChoreApproval } from '../notify.ts';
 
 export const choresRoutes = createRouter();
@@ -375,7 +375,7 @@ export async function completeChore(c: Context<{ Bindings: Env }>, id: string, d
   // A reusable checklist starts fresh for the next time the chore comes round - just this
   // member's items and the shared ones, so a sibling's ticks on the same list survive.
   if (chore.list_id && checklistKind === 'reusable') {
-    await resetListItems(c.env.DB, chore.list_id, forMember);
+    await resetListItems(c.env.DB, chore.list_id, forMember, null, who ? { memberId: who, label: null } : await actorOf(c));
     emit(c, 'list.changed', { id: chore.list_id });
   }
   if (written.status === 'pending') {

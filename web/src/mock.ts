@@ -1,5 +1,5 @@
 // Dev-only in-memory fixture, used when VITE_MOCK=1. Excluded from prod by the env check in api.ts.
-import type { OnlineTidbits, Plugin, PluginCatalogEntry,
+import type { Actor, OnlineTidbits, Plugin, PluginCatalogEntry,
   Account, ApiKey, AppNotification, CalendarEntry, Category, Chore, ChoreDay, EventInstance, HiddenEvent, LeaderboardEntry, LeaderboardPeriod, List, ListGroup,
   Photo, PhotoQuota, GooglePhotos, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, ListItem, ListItemInput, ListItemPatch, ListItemStep, ListCatalog, Member, RememberedItem, RememberedItemInput, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption, TempCheck, TempCheckInput, Journal, JournalEntry, Insights, InsightDay, InsightRange, Battery, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory, DoseStatus, MedTime,
 } from './types.ts'
@@ -371,7 +371,8 @@ const lists: List[] = [
   { id: 'l1', name: 'Groceries', emoji: '🛒', color: '#7ED9A6', kind: 'shopping', catalog: 'groceries', memberIds: [], groupBy: 'store', sortBy: 'aisle', keepChecked: true, sort: 0, archived: false, createdAt: new Date().toISOString(), itemCount: 5, openCount: 4 },
   { id: 'l5', name: 'Hardware store', emoji: '🔨', color: '#FFB86B', kind: 'shopping', catalog: 'shopping', memberIds: [], groupBy: 'aisle', sortBy: 'aisle', keepChecked: true, sort: 4, archived: false, createdAt: new Date().toISOString(), itemCount: 5, openCount: 4 },
   { id: 'l2', name: 'Weekend To-Dos', emoji: '✅', color: '#7AB8FF', kind: 'todo', memberIds: ['m1'], groupBy: 'none', sortBy: 'due', keepChecked: false, sort: 1, archived: false, createdAt: new Date().toISOString(), itemCount: 5, openCount: 4 },
-  { id: 'l3', name: 'Camping Packing List', emoji: '🎒', color: '#FFD166', kind: 'reusable', memberIds: [], groupBy: 'none', sortBy: 'manual', keepChecked: true, sort: 2, archived: false, createdAt: new Date().toISOString(), itemCount: 4, openCount: 4 },
+  { id: 'l3', name: 'Camping Packing List', emoji: '🎒', color: '#FFD166', kind: 'reusable', memberIds: [], groupBy: 'none', sortBy: 'manual', keepChecked: true, sort: 2, archived: false, createdAt: new Date().toISOString(), itemCount: 4, openCount: 4,
+    lastDoneAt: new Date(Date.now() - 4 * 86_400_000 - 2 * 3_600_000).toISOString(), lastDoneBy: { memberId: 'm3' } },
   { id: 'l4', name: 'Living room reset', emoji: '🛋️', color: '#C9A7FF', kind: 'reusable', memberIds: [], groupBy: 'none', sortBy: 'manual', keepChecked: true, sort: 3, archived: false, createdAt: new Date().toISOString(), itemCount: 3, openCount: 3 },
 ]
 type SeedItem = Omit<ListItem, 'priority' | 'steps' | 'stepsDone' | 'stepsTotal' | 'aisle'> & { priority?: ListItem['priority']; steps?: string[] | ListItemStep[]; aisle?: string | null }
@@ -412,6 +413,17 @@ let listItems: ListItem[] = ([
   { id: 'li24', listId: 'l5', title: 'Storage bins', notes: null, quantity: '3', store: 'Supercenter', aisle: 'Aisle 9', category: 'Storage', memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 4, createdAt: iso(), updatedAt: iso() },
   { id: 'li17', listId: 'l4', title: 'Clear the coffee table', notes: null, quantity: null, store: null, category: null, memberId: 'm2', dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 2, createdAt: iso(), priority: 'low', updatedAt: iso() },
 ] as SeedItem[]).map(seedItem)
+// Who added and checked off what (the item sheet's "Added by" line): kids add snacks, the wall adds
+// staples, the Assistant planned a meal. Hours ago, so the times read like a real week.
+const hoursAgo = (h: number) => new Date(Date.now() - h * 3_600_000).toISOString()
+for (const [id, addedBy, hours, checkedBy] of [
+  ['li1', { label: 'Kitchen wall' }, 26], ['li2', { memberId: 'm2' }, 50], ['li3', { memberId: 'm1' }, 75, { memberId: 'm3' }],
+  ['li4', { label: 'Assistant' }, 4], ['li21', { memberId: 'm4' }, 3], ['li22', { memberId: 'm3' }, 28],
+  ['li8', { memberId: 'm2' }, 30, { memberId: 'm1' }], ['li15', { memberId: 'm1' }, 52], ['li20', { memberId: 'm1' }, 100, { label: 'Kitchen wall' }],
+] as [string, Actor, number, Actor?][]) {
+  const i = listItems.find(x => x.id === id)!
+  Object.assign(i, { addedBy, createdAt: hoursAgo(hours), ...(checkedBy ? { checkedBy, doneAt: hoursAgo(1.5) } : {}) })
+}
 // A starter grocery run for the meal fixtures; projection can still add the week's full quantities.
 const mealGroceries: [string, string, string, string, boolean, string, string[]][] = [
   ['Ground beef', '2.5 lb', 'Meat', 'Tuesday Tacos and Spaghetti Bolognese', false, 'Meat', ['Tuesday Tacos', 'Spaghetti Bolognese']],
@@ -1154,6 +1166,7 @@ export const mock = {
     if (patch.done !== undefined) {
       i.doneAt = patch.done ? new Date().toISOString() : null
       i.doneBy = patch.done ? (patch.doneBy ?? null) : null
+      i.checkedBy = patch.done && patch.doneBy ? { memberId: patch.doneBy } : null // the demo doesn't know whose device this is
     }
     Object.assign(i, patch, { updatedAt: new Date().toISOString() })
     if (patch.done !== undefined) { i.steps.forEach(st => { st.done = !!patch.done }); withStepCounts(i) }
@@ -1259,7 +1272,9 @@ export const mock = {
   },
   resetList: async (listId: string, itemIds?: string[]) => {
     const items = listItems.filter(i => i.listId === listId && i.done && (!itemIds || itemIds.includes(i.id)))
-    items.forEach(i => { i.done = false; i.doneAt = null; i.doneBy = null })
+    items.forEach(i => { i.done = false; i.doneAt = null; i.doneBy = null; i.checkedBy = null })
+    const list = lists.find(l => l.id === listId)
+    if (list?.kind === 'reusable' && !itemIds && items.length) Object.assign(list, { lastDoneAt: new Date().toISOString(), lastDoneBy: null })
     ;(itemIds ? items : listItems.filter(i => i.listId === listId)).forEach(i => { i.steps.forEach(st => { st.done = false }); withStepCounts(i) })
     recomputeListCounts(listId); bump()
     return { reset: items.length }

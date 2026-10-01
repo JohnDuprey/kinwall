@@ -39,6 +39,8 @@ import {
   ChoreSchema,
   ListGroupSchema,
   ListItemSchema,
+  ListItemStepSchema,
+  ActorSchema,
   ListSchema,
   ErrorSchema,
   BirthdaySchema,
@@ -118,13 +120,17 @@ const ExportSchema = z
         catalog: z.enum(CATALOGS).nullable().optional(), // older exports predate list types (0076): see catalogsFor
         overdueCount: z.number().optional(), // computed, and older exports predate it
         itemsRev: z.number().optional(), // computed, and older exports predate it
+        lastDoneAt: z.string().nullable().default(null), // older exports predate who-did-what (0078)
+        lastDoneBy: ActorSchema.nullable().default(null),
         items: z.array(
           // Older exports predate event links, priority, steps and aisles.
           ListItemSchema.omit({ meals: true }).extend({
             aisle: z.string().nullable().default(null),
             eventId: z.string().nullable().default(null),
             priority: ListItemSchema.shape.priority.default('normal'),
-            steps: ListItemSchema.shape.steps.default([]),
+            steps: z.array(ListItemStepSchema.extend({ addedBy: ActorSchema.nullable().default(null), checkedBy: ActorSchema.nullable().default(null) })).default([]),
+            addedBy: ActorSchema.nullable().default(null),
+            checkedBy: ActorSchema.nullable().default(null),
             stepsDone: z.number().default(0),
             stepsTotal: z.number().default(0),
           }),
@@ -223,11 +229,11 @@ dataRoutes.openapi(
       db.prepare('SELECT calendar_id, series_id, category_id FROM event_series_category_overrides ORDER BY calendar_id, series_id'),
       db.prepare('SELECT id, title, emoji, member_id, points, rrule, due_date, due_time, active, sort, created_at, list_id, plugin_id, plugin_minutes, needs_approval, approve_timed_play, archived FROM chores ORDER BY sort, created_at'),
       db.prepare('SELECT id, chore_id, date, member_id, completed_at, points_awarded, status FROM chore_completions ORDER BY date'),
-      db.prepare('SELECT id, name, emoji, color, kind, member_ids, group_by, sort_by, keep_checked, catalog, sort, archived, created_at FROM lists ORDER BY sort, created_at'),
+      db.prepare('SELECT id, name, emoji, color, kind, member_ids, group_by, sort_by, keep_checked, catalog, sort, archived, created_at, last_done_at, last_done_by, last_done_by_label FROM lists ORDER BY sort, created_at'),
       db.prepare(
-        'SELECT id, list_id, title, notes, quantity, store, category, aisle, member_id, due_date, event_id, priority, done, done_at, done_by, sort, created_at, updated_at FROM list_items ORDER BY sort, created_at',
+        'SELECT id, list_id, title, notes, quantity, store, category, aisle, member_id, due_date, event_id, priority, done, done_at, done_by, done_by_label, added_by, added_by_label, sort, created_at, updated_at FROM list_items ORDER BY sort, created_at',
       ),
-      db.prepare('SELECT id, item_id, title, done, done_at, sort, created_at FROM list_item_steps ORDER BY sort, created_at'),
+      db.prepare('SELECT id, item_id, title, done, done_at, sort, created_at, added_by, added_by_label, done_by, done_by_label FROM list_item_steps ORDER BY sort, created_at'),
       db.prepare('SELECT list_id, kind, name, sort FROM list_groups ORDER BY sort'),
       db.prepare(
         `SELECT n.id, n.target_type, n.target_id, n.member_id, n.body, n.created_at, n.updated_at FROM notes n
@@ -801,8 +807,11 @@ dataRoutes.openapi(
           sort: l.sort,
           archived: l.archived ? 1 : 0,
           created_at: l.createdAt,
+          last_done_at: l.lastDoneAt,
+          last_done_by: l.lastDoneBy?.memberId ?? null,
+          last_done_by_label: l.lastDoneBy?.label ?? null,
         })),
-        keepCreated,
+        { ...keepCreated, expr: { last_done_by: memberRef('last_done_by') } },
       ),
       ...upserts(
         db,
@@ -824,20 +833,26 @@ dataRoutes.openapi(
           priority: i.priority,
           done: i.done ? 1 : 0,
           done_at: i.doneAt,
-          done_by: i.doneBy,
+          done_by: i.checkedBy ? i.checkedBy.memberId ?? null : i.doneBy,
+          done_by_label: i.checkedBy?.label ?? null,
+          added_by: i.addedBy?.memberId ?? null,
+          added_by_label: i.addedBy?.label ?? null,
           sort: i.sort,
           created_at: i.createdAt,
           updated_at: i.updatedAt,
         })),
-        { ...keepCreated, expr: { member_id: memberRef('member_id') } },
+        { ...keepCreated, expr: { member_id: memberRef('member_id'), done_by: memberRef('done_by'), added_by: memberRef('added_by') } },
       ),
       // Steps export without timestamps: a ticked one takes its item's doneAt, all take its createdAt.
       ...upserts(
         db,
         'list_item_steps',
         'id',
-        steps.map((st) => ({ id: st.id, item_id: st.itemId, title: st.title, done: st.done ? 1 : 0, done_at: st.doneAt, sort: st.sort, created_at: st.createdAt })),
-        keepCreated,
+        steps.map((st) => ({
+          id: st.id, item_id: st.itemId, title: st.title, done: st.done ? 1 : 0, done_at: st.doneAt, sort: st.sort, created_at: st.createdAt,
+          added_by: st.addedBy?.memberId ?? null, added_by_label: st.addedBy?.label ?? null, done_by: st.checkedBy?.memberId ?? null, done_by_label: st.checkedBy?.label ?? null,
+        })),
+        { ...keepCreated, expr: { added_by: memberRef('added_by'), done_by: memberRef('done_by') } },
       ),
       ...upserts(db, 'list_groups', 'list_id, kind, name', groups.map((g) => ({ list_id: g.listId, kind: g.kind, name: g.name, sort: g.sort }))),
       ...upserts(

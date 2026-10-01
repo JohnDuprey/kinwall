@@ -138,6 +138,19 @@ export async function ownDevice(c: Context<{ Bindings: Env }>): Promise<string |
   return m?.grown_up ? key.owner : null;
 }
 
+/** Who is doing this, for "Added by" / "Checked off by" on lists: a person (their own device,
+ * ownDevice) as a member id; an AI connector as "Assistant"; a device that is nobody's (a wall
+ * screen, a named automation key like Home Assistant's) by its name. Null when there's nothing
+ * worth showing (the server's ADMIN_API_KEY, an unclaimed passkey or recovery sign-in). */
+export type Actor = { memberId: string | null; label: string | null };
+export async function actorOf(c: Context<{ Bindings: Env }>): Promise<Actor> {
+  if (await isConnectedApp(c)) return { memberId: null, label: 'Assistant' };
+  const memberId = await ownDevice(c);
+  if (memberId) return { memberId, label: null };
+  const key = await requestKey(c);
+  return { memberId: null, label: key?.id && (key.scope === 'display' || key.kind === 'api') ? key.name : null };
+}
+
 /** A member's own device acts only for them: the 403 message when any of `memberIds` is someone
  * else, or null when it may. Null / undefined ids are ignored. */
 export async function ownerBlock(c: Context<{ Bindings: Env }>, ...memberIds: (string | null | undefined)[]): Promise<string | null> {
