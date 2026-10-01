@@ -1,15 +1,18 @@
-// The calendar's views, in switcher order, with the names and hints the view tabs and the phone's
-// view sheet show. The switcher has three tabs, Board | Calendar | Schedule; Calendar holds Day,
-// Week (3 Day on a phone) and Month, and remembers which of them this device used last.
+// Home's views, in switcher order, with the names and hints the view tabs and the phone's view
+// sheet show. The switcher has four tabs, Board | Calendar | Schedule | Newscast; Calendar holds
+// Day, Week (3 Day on a phone) and Month, and remembers which of them this device used last.
+// Newscast goes when the family turns it off (Settings → Features).
 
 import { format } from 'date-fns'
 
-export type ViewMode = 'week' | 'day' | 'month' | 'schedule' | 'board'
-export type ViewTab = 'board' | 'calendar' | 'schedule'
+export type ViewMode = 'week' | 'day' | 'month' | 'schedule' | 'board' | 'newscast'
+export type ViewTab = 'board' | 'calendar' | 'schedule' | 'newscast'
 export type CalendarView = 'day' | 'week' | 'month'
 
-export const VIEW_MODES: readonly ViewMode[] = ['board', 'day', 'week', 'month', 'schedule']
-export const VIEW_TABS: readonly ViewTab[] = ['board', 'calendar', 'schedule']
+export const VIEW_MODES: readonly ViewMode[] = ['board', 'day', 'week', 'month', 'schedule', 'newscast']
+export const VIEW_TABS: readonly ViewTab[] = ['board', 'calendar', 'schedule', 'newscast']
+/** The tabs this family has: Newscast only while it's on. */
+export const viewTabs = (newscast: boolean) => newscast ? VIEW_TABS : VIEW_TABS.filter(t => t !== 'newscast')
 export const CALENDAR_VIEWS: readonly CalendarView[] = ['day', 'week', 'month']
 
 /** A phone's Week view shows 3 days, so it says so. */
@@ -21,6 +24,7 @@ const HINTS: Record<ViewMode, string> = {
   week: 'The whole week, hour by hour',
   month: 'The month at a glance',
   schedule: 'The next 30 days as a list',
+  newscast: 'What the family did and shared',
 }
 
 export const viewHint = (v: ViewMode, isPhone: boolean) => v === 'week' && isPhone ? '3 days side by side, hour by hour' : HINTS[v]

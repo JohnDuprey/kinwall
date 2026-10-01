@@ -1,11 +1,11 @@
 // node --test test/ (npm test). The calendar's views: names and one-line hints for the phone's view sheet.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { CALENDAR_VIEWS, VIEW_MODES, VIEW_TABS, dayOrigin, lastCalendarView, monthDayLabel, rememberCalendarView, tabOf, viewForTab, viewHint, viewLabel } from '../src/calendarViews.ts'
+import { CALENDAR_VIEWS, VIEW_MODES, VIEW_TABS, dayOrigin, lastCalendarView, monthDayLabel, rememberCalendarView, tabOf, viewForTab, viewHint, viewLabel, viewTabs } from '../src/calendarViews.ts'
 
-test('views run Board, Day, Week, Month, Schedule; Week is 3 Day on a phone', () => {
-  assert.deepEqual(VIEW_MODES.map(v => viewLabel(v, false)), ['Board', 'Day', 'Week', 'Month', 'Schedule'])
-  assert.deepEqual(VIEW_MODES.map(v => viewLabel(v, true)), ['Board', 'Day', '3 Day', 'Month', 'Schedule'])
+test('views run Board, Day, Week, Month, Schedule, Newscast; Week is 3 Day on a phone', () => {
+  assert.deepEqual(VIEW_MODES.map(v => viewLabel(v, false)), ['Board', 'Day', 'Week', 'Month', 'Schedule', 'Newscast'])
+  assert.deepEqual(VIEW_MODES.map(v => viewLabel(v, true)), ['Board', 'Day', '3 Day', 'Month', 'Schedule', 'Newscast'])
 })
 
 test('every view has a short hint, and 3 Day says three days', () => {
@@ -17,9 +17,12 @@ test('every view has a short hint, and 3 Day says three days', () => {
   assert.match(viewHint('week', false), /week/)
 })
 
-test('three tabs, Board | Calendar | Schedule; Day, Week and Month sit under Calendar', () => {
-  assert.deepEqual(VIEW_TABS, ['board', 'calendar', 'schedule'])
-  assert.deepEqual(VIEW_MODES.map(tabOf), ['board', 'calendar', 'calendar', 'calendar', 'schedule'])
+test('four tabs, Board | Calendar | Schedule | Newscast; Day, Week and Month sit under Calendar', () => {
+  assert.deepEqual(VIEW_TABS, ['board', 'calendar', 'schedule', 'newscast'])
+  assert.deepEqual(VIEW_MODES.map(tabOf), ['board', 'calendar', 'calendar', 'calendar', 'schedule', 'newscast'])
+  assert.deepEqual(viewTabs(true), VIEW_TABS)
+  assert.deepEqual(viewTabs(false), ['board', 'calendar', 'schedule'], 'Newscast turned off: no tab')
+  assert.equal(viewForTab('newscast', 'week', 'month'), 'newscast')
   assert.deepEqual(CALENDAR_VIEWS, ['day', 'week', 'month'])
 })
 

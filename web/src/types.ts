@@ -64,6 +64,8 @@ export interface Settings {
   aiHealthAccess: boolean // false (default): MCP and connected apps can't see or change the Health tracker
   medications: boolean // Medication reminders (off by default; only on with the Health tracker); off hides them everywhere, data kept
   medicationNamesOnWalls: boolean // shared wall screens show medicine names (off: "Meds")
+  newscastNotFeatured?: string[] // members whose chores, photos, books and so on stay out of Newscast; absent (older servers) = none
+  newscastPostingPaused?: string[] // members who can't post in Newscast for now (a parent turns it back on)
   googlePhotos?: GooglePhotosState // Google Photos for the Night screen and the Board (read-only)
 }
 
@@ -90,6 +92,7 @@ export interface Features {
   trackersMemories: boolean
   trackersHealth: boolean
   meals: boolean // Meals tab, the Board's meals card, meals in the daily summary
+  newscast: boolean // Home's Newscast tab (with its routes)
 }
 
 // Trackers (server: routes/trackers.ts). `data` holds the kind's fields; health never reaches a display key.
@@ -477,6 +480,25 @@ export interface Photo {
   url: string
   family?: boolean // false = a memory's own photo (never in GET /api/photos)
 }
+/** Newscast (server: routes/newscast.ts): what the family did and shared, one item per person per kind per day. */
+export type NewscastKind = 'post' | 'chores' | 'reward' | 'photos' | 'drawings' | 'book' | 'memory' | 'birthday'
+export type NewscastReaction = '👏' | '❤️' | '🎉'
+export interface NewscastItem {
+  key: string // stable: post:<id>, chores:<member>:<date>, ...
+  kind: NewscastKind
+  date: string // household day
+  at: string | null
+  memberId: string | null // who it's about or who posted; null = the family
+  emoji: string
+  title: string // one plain sentence; a post's text
+  detail: string | null
+  count: number // chores, photos or drawings it groups; 1 otherwise
+  photos: { id: string; url: string }[]
+  post: { id: string; text: string | null; emoji: string | null; audience: 'everyone' | 'grownups'; removed: boolean } | null
+  reactions: { emoji: NewscastReaction; memberIds: string[] }[]
+}
+export interface Newscast { today: string; from: string; to: string; earlier: boolean; items: NewscastItem[] }
+export interface NewscastPostInput { text: string; emoji?: string | null; photoId?: string | null; audience?: 'everyone' | 'grownups'; memberId?: string }
 /** count and bytes include memoryPhotos (memories' own photos count toward storage too). */
 export type GooglePhotosState = 'off' | 'signing-in' | 'choosing' | 'ready' | 'reconnect' | 'refused'
 /** GET /api/google-photos. Codes and links only on parent devices. */

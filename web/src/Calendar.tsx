@@ -8,7 +8,7 @@ import { dateKey, minutesSinceMidnight, zonedDayKey } from './date.ts'
 import { formatTime } from './timeFormat.ts'
 import { inkFor } from './color.ts'
 import Sheet from './Sheet.tsx'
-import { BoardViewIcon, CalendarIcon, CheckIcon, ChevronDown, ChevronLeft, ChevronRight, DayViewIcon, EyeIcon, ListIcon, ThreeDayViewIcon, EyeOffIcon, FilterIcon, LocationIcon, PlusIcon, RepeatIcon, TrashIcon, EditIcon } from './icons.tsx'
+import { BoardViewIcon, NewscastIcon, CalendarIcon, CheckIcon, ChevronDown, ChevronLeft, ChevronRight, DayViewIcon, EyeIcon, ListIcon, ThreeDayViewIcon, EyeOffIcon, FilterIcon, LocationIcon, PlusIcon, RepeatIcon, TrashIcon, EditIcon } from './icons.tsx'
 import { hideLikeThis, NO_FILTER, type CalendarFilter } from './calendarFilter.ts'
 import { IDLE_RESET_EVENT } from './App.tsx'
 import { SHORT_LANDSCAPE, useIsPhone, useMediaQuery } from './useIsPhone.ts'
@@ -27,7 +27,8 @@ import { isSingleEmoji } from './emoji.ts'
 import { calendarGoal } from './tempCheck.ts'
 import { leadBy, leadIcon, leadOf, leadText } from './leadTime.ts'
 import { dedupeEvents, eventPeople, hourPx, layoutDay, newEventDay, newEventTimes } from './dayLayout.ts'
-import { CALENDAR_VIEWS, VIEW_TABS, dayOrigin, isCalendarView, lastCalendarView, monthDayLabel, rememberCalendarView, tabOf, viewForTab, viewHint, viewLabel, type CalendarView, type ViewMode } from './calendarViews.ts'
+import NewscastView from './Newscast.tsx'
+import { CALENDAR_VIEWS, dayOrigin, isCalendarView, lastCalendarView, monthDayLabel, rememberCalendarView, tabOf, viewForTab, viewHint, viewLabel, viewTabs, type CalendarView, type ViewMode } from './calendarViews.ts'
 import { onMinute } from './minuteTick.ts'
 
 const PHONE_WEEK_DAYS = 3
@@ -96,7 +97,11 @@ export default function CalendarView() {
   // keeps Week. Only the initial default differs — switching views afterward still works either way.
   // A device can lock the view (This display → Lock view): the switcher goes and it never changes.
   const [chosenView, setViewMode] = useState<ViewMode>(() => (MOCK && (sessionStorage.getItem('kinwall.demoView') as ViewMode | null)) || 'board') // the board is the default everywhere; a display can still lock any view
-  const viewMode: ViewMode = device.lockView ?? chosenView
+  // Newscast turned off (Settings → Features): its tab goes, and a screen showing or locked to it shows the Board.
+  const newscastOn = settings.features.newscast !== false
+  const viewMode: ViewMode = ((v: ViewMode) => v === 'newscast' && !newscastOn ? 'board' : v)(device.lockView ?? chosenView)
+  // Board and Newscast are for reading: no paging, adding, hidden events or category filter.
+  const calendarish = viewMode !== 'board' && viewMode !== 'newscast'
   // Picked in the switcher: a calendar view (Day, Week, Month) is what Calendar opens next time on this device.
   const pickView = (v: ViewMode) => { if (isCalendarView(v)) rememberCalendarView(v); setViewMode(v); setDayFrom(null) }
   // A day opened by tapping it in the Week or Month grid: Back (phones) and the Calendar tab return there.
@@ -374,13 +379,13 @@ export default function CalendarView() {
     <div className="content">
       {showNowNext && <NowNextCard events={todayEvents} tz={tz} placeholder={isPhone} warnMinutes={warnTimes} />}
       {warnTimes.length > 0 && <TransitionWarnings events={todayEvents} minutes={warnTimes} sound={!!device.warningSound} settings={settings} />}
-      {(!device.lockView || viewMode !== 'board' || categories.length > 0) && <div className={`calendar-toolbar ${!device.lockView && !isPhone && tabOf(viewMode) === 'calendar' ? 'cal-open' : ''}`}>
+      {(!device.lockView || calendarish || (viewMode === 'board' && categories.length > 0)) && <div className={`calendar-toolbar ${!device.lockView && !isPhone && tabOf(viewMode) === 'calendar' ? 'cal-open' : ''}`}>
         {!device.lockView && (
-          isPhone ? <ViewPicker value={viewMode} onChange={pickView} /> : <ViewTabs value={viewMode} origin={dayFrom} onChange={pickView} />
+          isPhone ? <ViewPicker value={viewMode} newscast={newscastOn} onChange={pickView} /> : <ViewTabs value={viewMode} origin={dayFrom} newscast={newscastOn} onChange={pickView} />
         )}
         <div className="toolbar-nav">
-          {/* The board always shows today onward: no paging. */}
-          {viewMode !== 'board' && <>
+          {/* The board always shows today onward, and Newscast pages itself: no paging. */}
+          {calendarish && <>
           <button className="icon-btn" onClick={() => step(-1)} aria-label={`Previous ${viewMode === 'schedule' ? '30 days' : viewMode === 'week' && isPhone ? '3 days' : viewMode}`}><ChevronLeft width={20} height={20} /></button>
           <button className="today-btn" onClick={() => { setSlideDir(0); setAnchor(new Date()) }}>Today</button>
           <button className="icon-btn" onClick={() => step(1)} aria-label={`Next ${viewMode === 'schedule' ? '30 days' : viewMode === 'week' && isPhone ? '3 days' : viewMode}`}><ChevronRight width={20} height={20} /></button>
@@ -396,13 +401,13 @@ export default function CalendarView() {
               <ChevronLeft width={18} height={18} />{viewLabel(dayFrom, true)}
             </button>
           )}
-          {parentDevice && viewMode !== 'board' && (
+          {parentDevice && calendarish && (
             <button className={`icon-btn hidden-toggle ${showHidden ? 'active' : ''}`} onClick={() => setShowHidden(v => !v)} aria-pressed={showHidden}
               aria-label="Show hidden events" title="Show hidden events">
               {showHidden ? <EyeIcon width={20} height={20} /> : <EyeOffIcon width={20} height={20} />}
             </button>
           )}
-          {categories.length > 0 && (
+          {categories.length > 0 && viewMode !== 'newscast' && (
             <button className={`icon-btn filter-btn ${activeCategoryFilter.length ? 'active' : ''}`} onClick={() => setFilterOpen(true)}
               aria-label={activeCategoryFilter.length ? `Filter: ${activeCategoryFilter.length} categories` : 'Filter by category'}>
               <FilterIcon width={20} height={20} />
@@ -433,14 +438,16 @@ export default function CalendarView() {
         </Sheet>
       )}
 
-      {viewMode !== 'board' && goalLine && <p className="cal-goal"><span className="sr-only">{goalLine.name}'s goal: </span><span aria-hidden="true">🎯</span> {goalLine.goal}</p>}
+      {calendarish && goalLine && <p className="cal-goal"><span className="sr-only">{goalLine.name}'s goal: </span><span aria-hidden="true">🎯</span> {goalLine.goal}</p>}
 
-      <div className="swipe-area" {...(viewMode === 'board' ? {} : swipe)} role={device.lockView || isPhone ? 'region' : 'tabpanel'}
+      <div className="swipe-area" {...(calendarish ? swipe : {})} role={device.lockView || isPhone ? 'region' : 'tabpanel'}
         aria-labelledby={device.lockView || isPhone ? undefined : `calview-${tabOf(viewMode)}`} aria-label={device.lockView || isPhone ? `${viewLabel(viewMode, isPhone)} view` : undefined}>
         {/* Keyed by view + period so each change re-mounts and plays the slide/fade in. */}
-        <div key={viewMode === 'board' ? 'board' : `${viewMode}:${dateKey(range.from)}`} className={`view-anim ${slideDir === 1 ? 'from-right' : slideDir === -1 ? 'from-left' : ''}`}>
+        <div key={calendarish ? `${viewMode}:${dateKey(range.from)}` : viewMode} className={`view-anim ${slideDir === 1 ? 'from-right' : slideDir === -1 ? 'from-left' : ''}`}>
         {viewMode === 'board' ? (
           <Board show={shows} onTap={setDetail} />
+        ) : viewMode === 'newscast' ? (
+          <NewscastView />
         ) : error ? (
           <div className="state-card" role="alert">Couldn't load events. Check your connection. <button className="btn btn-secondary" onClick={() => setRetry(r => r + 1)}>Try again</button></div>
         ) : !loading && visibleEvents.length === 0 && viewMode === 'schedule' ? (
@@ -460,7 +467,7 @@ export default function CalendarView() {
       </div>
 
       {/* Not on the board: it would sit over the Due soon card, and the board is for reading. */}
-      {viewMode !== 'board' && (canAdd ? <button className="fab" onClick={addOnShownDay} aria-label="Add event"><PlusIcon /></button>
+      {calendarish && (canAdd ? <button className="fab" onClick={addOnShownDay} aria-label="Add event"><PlusIcon /></button>
         : kidDevice && calendars.length > 0 && <p className="fab-hint">{calendars.some(c => c.memberIds.includes(meMemberId!))
           ? 'Ask a parent to let this device change your calendar in Settings → Calendars.'
           : 'Ask a parent to give you a calendar in Settings → Calendars.'}</p>)}
@@ -1341,18 +1348,18 @@ function EventEditSheet({ event, prefill, calendars, offerNewLocal, members, cat
   )
 }
 
-const VIEW_ICONS: Record<ViewMode, typeof CalendarIcon> = { board: BoardViewIcon, day: DayViewIcon, week: ThreeDayViewIcon, month: CalendarIcon, schedule: ListIcon }
+const VIEW_ICONS: Record<ViewMode, typeof CalendarIcon> = { board: BoardViewIcon, day: DayViewIcon, week: ThreeDayViewIcon, month: CalendarIcon, schedule: ListIcon, newscast: NewscastIcon }
 
-/** Tablets and up: Board | Calendar | Schedule in one pill, and Calendar opens out into Day | Week |
- * Month right beside it. The tab list is display: contents, so the calendar views (their own radio
- * group, after the tabs in Tab order) can sit between Calendar and Schedule on screen. */
-function ViewTabs({ value, origin, onChange }: { value: ViewMode; origin: CalendarView | null; onChange: (v: ViewMode) => void }) {
+/** Tablets and up: Board | Calendar | Schedule | Newscast in one pill, and Calendar opens out into
+ * Day | Week | Month right beside it. The tab list is display: contents, so the calendar views
+ * (their own radio group, after the tabs in Tab order) can sit between Calendar and Schedule on screen. */
+function ViewTabs({ value, origin, newscast, onChange }: { value: ViewMode; origin: CalendarView | null; newscast: boolean; onChange: (v: ViewMode) => void }) {
   const tab = tabOf(value)
   return (
     <div className={`segmented view-tabs ${tab === 'calendar' ? 'open' : ''}`}>
       <Segmented tabs idBase="calview" label="View" className="view-tablist" value={tab}
         onChange={t => onChange(viewForTab(t, value, lastCalendarView(), origin))}
-        options={VIEW_TABS.map(t => ({ key: t, label: t === 'calendar' ? 'Calendar' : viewLabel(t, false) }))} />
+        options={viewTabs(newscast).map(t => ({ key: t, label: t === 'calendar' ? 'Calendar' : viewLabel(t, false) }))} />
       {tab === 'calendar' && (
         <Segmented label="Calendar view" className="view-sub" value={value as CalendarView} onChange={onChange}
           options={CALENDAR_VIEWS.map(v => ({ key: v, label: viewLabel(v, false), ariaLabel: `Calendar view: ${viewLabel(v, false)}` }))} />
@@ -1362,12 +1369,12 @@ function ViewTabs({ value, origin, onChange }: { value: ViewMode; origin: Calend
 }
 
 /** Phones: the view tabs don't fit, so one button shows the view and opens a sheet of them: Board,
- * Calendar with Day, 3 Day and Month in it, and Schedule. One tap picks any of them. */
-function ViewPicker({ value, onChange }: { value: ViewMode; onChange: (v: ViewMode) => void }) {
+ * Calendar with Day, 3 Day and Month in it, Schedule and Newscast. One tap picks any of them. */
+function ViewPicker({ value, newscast, onChange }: { value: ViewMode; newscast: boolean; onChange: (v: ViewMode) => void }) {
   const [open, setOpen] = useState(false)
   const Icon = VIEW_ICONS[value]
   const pick = (v: ViewMode) => { onChange(v); setOpen(false) }
-  const row = (v: 'board' | 'schedule') => {
+  const row = (v: 'board' | 'schedule' | 'newscast') => {
     const VIcon = VIEW_ICONS[v]
     return (
       <button type="button" className="sheet-link" aria-pressed={v === value} onClick={() => pick(v)}>
@@ -1390,6 +1397,7 @@ function ViewPicker({ value, onChange }: { value: ViewMode; onChange: (v: ViewMo
                 options={CALENDAR_VIEWS.map(v => ({ key: v, label: viewLabel(v, true), ariaLabel: `Calendar view: ${viewLabel(v, true)}` }))} />
             </div>
             {row('schedule')}
+            {newscast && row('newscast')}
           </div>
         </Sheet>
       )}

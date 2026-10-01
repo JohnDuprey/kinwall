@@ -49,7 +49,7 @@ import { announce, pressable, reducedMotion, Segmented } from './a11y.tsx'
 import { FEATURE_ROWS } from './featureConfig.ts'
 
 // Mirrors BusEventType in server/src/bus.ts.
-const BUS_EVENTS = ['member.changed', 'calendar.changed', 'calendar.synced', 'events.changed', 'chore.changed', 'chore.completed', 'chore.uncompleted', 'chore.pending', 'chore.rejected', 'checkin.completed', 'tempcheck.changed', 'list.changed', 'list.item.changed', 'category.changed', 'settings.changed', 'sticker.changed', 'reward.changed', 'reward.redeemed', 'reward.approved', 'reward.declined', 'reward.given', 'recipe.changed', 'meal.changed', 'photo.changed', 'tracker.changed', 'contact.changed', 'contact.category.changed', 'display.paired', 'display.night_screen']
+const BUS_EVENTS = ['member.changed', 'calendar.changed', 'calendar.synced', 'events.changed', 'chore.changed', 'chore.completed', 'chore.uncompleted', 'chore.pending', 'chore.rejected', 'checkin.completed', 'tempcheck.changed', 'list.changed', 'list.item.changed', 'category.changed', 'settings.changed', 'sticker.changed', 'reward.changed', 'reward.redeemed', 'reward.approved', 'reward.declined', 'reward.given', 'recipe.changed', 'meal.changed', 'photo.changed', 'tracker.changed', 'newscast.posted', 'newscast.changed', 'contact.changed', 'contact.category.changed', 'display.paired', 'display.night_screen']
 
 type SettingsTab = 'general' | 'family' | 'calendars' | 'access'
 const SETTINGS_TABS: { key: SettingsTab; label: string; admin?: boolean }[] = [
@@ -1199,7 +1199,7 @@ function DeviceAppearanceRows() {
  * acting as a wall screen, keeping the screen on and going back to Home when idle. Stored
  * alongside the device appearance. `display`: a paired wall screen or kid's device, always a wall screen (no switch). */
 function ScreenFocusRows({ display }: { display: boolean }) {
-  const { members, focusMemberId, focusLocked, parentDevice } = useApp()
+  const { members, focusMemberId, focusLocked, parentDevice, settings } = useApp()
   const isPhone = useIsPhone()
   const device = useDeviceAppearance()
   const set = (patch: DeviceAppearance) => setDeviceAppearance({ ...device, ...patch })
@@ -1229,7 +1229,7 @@ function ScreenFocusRows({ display }: { display: boolean }) {
         <div className="settings-row-sub">{focus ? `Only ${focus.name}'s events, chores and lists show here${device.focusHideShared ? '' : ', plus ones with nobody assigned'}.` : focusLocked ? 'This display is shared by the whole family. A parent can change who it belongs to under Settings → Access.' : 'Pin this screen to one person — handy for a display in a bedroom.'}</div>
         <div className="device-pref-row">
           <span>Lock view</span>
-          {/* Home's views as its switcher shows them: Board, Calendar (Day, Week, Month), Schedule. */}
+          {/* Home's views as its switcher shows them: Board, Calendar (Day, Week, Month), Schedule, Newscast. */}
           <select className="settings-select" aria-label="Lock Home's view" value={device.lockView ?? ''} onChange={e => set({ lockView: (e.target.value || undefined) as LockedView | undefined })}>
             <option value="">Off</option>
             <option value="board">Board</option>
@@ -1237,6 +1237,7 @@ function ScreenFocusRows({ display }: { display: boolean }) {
               {CALENDAR_VIEWS.map(v => <option key={v} value={v}>{viewLabel(v, isPhone)}</option>)}
             </optgroup>
             <option value="schedule">Schedule</option>
+            {settings.features.newscast !== false && <option value="newscast">Newscast</option>}
           </select>
         </div>
         <DeviceBoardLayoutRows />
@@ -1847,7 +1848,35 @@ function MemberEditSheet({ member, canDelete, onClose, onSaved, toast }: { membe
       {canDelete && <TransitionRemindersField name={name.trim() || 'this person'} value={transitions} onChange={setTransitions} />}
       {canDelete && <TempCheckField member={member} name={name.trim() || 'this person'} value={tempCheck} onChange={setTempCheck} toast={toast} />}
       {canDelete && member && !member.grownUp && <PrivateJournalField member={member} toast={toast} />}
+      {canDelete && member && <NewscastMemberField member={member} toast={toast} />}
     </Sheet>
+  )
+}
+
+/** Newscast, per person (saved right away): featured or not, and posting on or paused for now. */
+function NewscastMemberField({ member, toast }: { member: Member; toast: (m: string, persist?: boolean) => void }) {
+  const { settings, reloadCore } = useApp()
+  if (settings.features.newscast === false) return null
+  const featured = !(settings.newscastNotFeatured ?? []).includes(member.id)
+  const posting = !(settings.newscastPostingPaused ?? []).includes(member.id)
+  const set = async (key: 'newscastNotFeatured' | 'newscastPostingPaused', off: boolean) => {
+    const rest = (settings[key] ?? []).filter(id => id !== member.id)
+    try { await api.updateSettings({ [key]: off ? [...rest, member.id] : rest }); reloadCore(); toast('Saved') }
+    catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't change that", true) }
+  }
+  return (
+    <div className="field">
+      <div className="toggle-row">
+        <label id="member-news-featured">Featured in Newscast</label>
+        <button className={`switch ${featured ? 'on' : ''}`} role="switch" aria-checked={featured} aria-labelledby="member-news-featured" onClick={() => set('newscastNotFeatured', featured)}><span className="knob" /></button>
+      </div>
+      <div className="settings-row-sub">{featured ? `${member.name}'s chores, rewards, photos, books, memories and birthday show in Newscast.` : `None of ${member.name}'s chores, rewards, photos, books, memories or birthday show. Their own posts still do.`}</div>
+      <div className="toggle-row">
+        <label id="member-news-posting">Can post in Newscast</label>
+        <button className={`switch ${posting ? 'on' : ''}`} role="switch" aria-checked={posting} aria-labelledby="member-news-posting" onClick={() => set('newscastPostingPaused', posting)}><span className="knob" /></button>
+      </div>
+      <div className="settings-row-sub">{posting ? `${member.name} can share announcements.` : `Posting is paused for ${member.name}. They still see Newscast and react; turn it back on any time.`}</div>
+    </div>
   )
 }
 

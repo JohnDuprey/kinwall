@@ -1,6 +1,7 @@
 // Dev-only in-memory fixture, used when VITE_MOCK=1. Excluded from prod by the env check in api.ts.
 import type { Actor, OnlineTidbits, Plugin, PluginCatalogEntry,
   Account, ApiKey, AppNotification, SecurityEvent, CalendarEntry, Category, Chore, ChoreDay, EventInstance, HiddenEvent, LeaderboardEntry, LeaderboardPeriod, List, ListGroup,
+  Newscast, NewscastItem, NewscastPostInput, NewscastReaction,
   Photo, PhotoQuota, GooglePhotos, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, ListItem, ListItemInput, ListItemPatch, ListItemStep, ListCatalog, Member, RememberedItem, RememberedItemInput, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption, TempCheck, TempCheckInput, Journal, JournalEntry, Insights, InsightDay, InsightRange, Battery, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory, DoseStatus, MedTime,
 } from './types.ts'
 import { eveningPending, FEELINGS, lastNightDate, TEMP_CHECK_OFF } from './tempCheck.ts'
@@ -119,7 +120,9 @@ const settings: Settings = {
   boardPresets: [],
   nightLook: { sources: [], every: 5, brightness: 'low', clock: true, clockPosition: null },
   tidbits: { sources: ['quotes', 'facts', 'onthisday', 'trivia'], factCategories: [], tipCategories: [], onThisDay: ['holidays', 'births'], birthsAfter: 1900, triviaCategories: [27, 17, 22, 9], triviaDifficulties: ['easy'] },
-  features: { chores: true, lists: true, contacts: true, paint: true, photos: true, notes: true, messages: true, trackersReading: true, trackersMemories: true, trackersHealth: true, meals: true },
+  features: { chores: true, lists: true, contacts: true, paint: true, photos: true, notes: true, messages: true, trackersReading: true, trackersMemories: true, trackersHealth: true, meals: true, newscast: true },
+  newscastNotFeatured: [],
+  newscastPostingPaused: [],
 }
 
 const members: Member[] = [
@@ -624,6 +627,83 @@ const trackerData = (kind: TrackerKind, data: Record<string, unknown>) => {
   return kind === 'reading' && d.status === 'finished' ? { ...d, finishedOn: d.finishedOn ?? todayISO(), ...(d.totalPages ? { pagesRead: d.totalPages } : {}), ...(d.totalMinutes ? { minutesListened: d.totalMinutes } : {}) } : d
 }
 
+// Newscast: a lively week for Our Family, laid out like the server's (routes/newscast.ts), plus
+// whatever is posted or reacted in the demo. Times are hours before now, so today always has some.
+type DemoPost = { id: string; memberId: string; text: string; emoji: string | null; photo: { id: string; url: string } | null; audience: 'everyone' | 'grownups'; removed: boolean; at: string }
+const pic = (n: number) => ({ id: `news${n}`, url: `https://picsum.photos/id/${n}/640/480` })
+// The demo's Paint drawings: simple crayon-style pictures, drawn here so they look like a kid's.
+const drawing = (id: string, body: string) => ({ id, url: `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 240">${body}</svg>`)}` })
+const NIGHT_GARDEN = drawing('newsDraw1', '<rect width="320" height="240" fill="#1d2a5b"/><circle cx="250" cy="55" r="28" fill="#fff4b0"/><circle cx="60" cy="40" r="3" fill="#fff"/><circle cx="120" cy="70" r="2" fill="#fff"/><circle cx="180" cy="30" r="3" fill="#fff"/><rect y="170" width="320" height="70" fill="#2e6b3a"/><g stroke="#5fbf5a" stroke-width="6" stroke-linecap="round"><path d="M60 200v-50M120 205v-60M190 200v-45M255 205v-55"/></g><g fill="#ff8fb1"><circle cx="60" cy="145" r="14"/><circle cx="190" cy="150" r="14"/></g><g fill="#ffd166"><circle cx="120" cy="140" r="15"/><circle cx="255" cy="145" r="14"/></g>')
+const ROCKET = drawing('newsDraw2', '<rect width="320" height="240" fill="#0f1b3d"/><circle cx="260" cy="60" r="34" fill="#e8e8e8"/><circle cx="250" cy="50" r="6" fill="#c9c9c9"/><g transform="rotate(35 140 140)"><rect x="120" y="70" width="40" height="110" rx="20" fill="#f4f4f4"/><path d="M120 95 140 50 160 95z" fill="#ef476f"/><circle cx="140" cy="115" r="10" fill="#118ab2"/><path d="M120 160 100 190h20zM160 160l20 30h-20z" fill="#ef476f"/><path d="M128 180h24l-12 36z" fill="#ffd166"/></g>')
+const newsPosts: DemoPost[] = [
+  { id: 'np1', memberId: 'm2', text: 'Pizza night is moving to Friday so we can all be home. Pick your toppings on the Groceries list!', emoji: '🍕', photo: null, audience: 'everyone', removed: false, at: hoursAgo(0.6) },
+  { id: 'np2', memberId: 'm4', text: 'I lost my first tooth!!!', emoji: '🦷', photo: null, audience: 'everyone', removed: false, at: hoursAgo(22) },
+  { id: 'np3', memberId: 'm1', text: "Leo's birthday is coming up. Gift ideas are on the Gifts list, shh!", emoji: '🎁', photo: null, audience: 'grownups', removed: false, at: hoursAgo(26) },
+  { id: 'np4', memberId: 'm1', text: 'Grandma lands at 3 on Saturday. Who wants to come to the airport?', emoji: '✈️', photo: null, audience: 'everyone', removed: false, at: hoursAgo(4 * 24 + 3) },
+  { id: 'np5', memberId: 'm3', text: 'Our class hatched ducklings today', emoji: '🐣', photo: pic(1074), audience: 'everyone', removed: false, at: hoursAgo(11 * 24) },
+]
+type DemoNews = Omit<NewscastItem, 'reactions' | 'post' | 'date' | 'at' | 'count' | 'photos' | 'detail'> & { ago: number; count?: number; detail?: string | null; photos?: { id: string; url: string }[]; allDay?: boolean }
+const DEMO_NEWS: DemoNews[] = [
+  { key: 'chores:m4:0', kind: 'chores', ago: 1, memberId: 'm4', emoji: '✅', title: 'Leo finished 4 chores', detail: 'Feed the cat · Make bed · Toys away · Water plants', count: 4 },
+  { key: 'drawings:m3:0', kind: 'drawings', ago: 2.5, memberId: 'm3', emoji: '🎨', title: 'Maya saved a drawing: “Our garden at night”', photos: [NIGHT_GARDEN] },
+  { key: 'book:demo1', kind: 'book', ago: 3.5, memberId: 'm3', emoji: '📚', title: "Maya finished Charlotte's Web", detail: '⭐⭐⭐⭐⭐' },
+  { key: 'chores:m1:0', kind: 'chores', ago: 5, memberId: 'm1', emoji: '✅', title: 'Alex finished 2 chores', detail: 'Mow the lawn · Fix the gate', count: 2 },
+  { key: 'reward:demo1', kind: 'reward', ago: 21, memberId: 'm4', emoji: '🎁', title: 'Leo got a reward: 🍦 Ice cream trip' },
+  { key: 'photos:m1:1', kind: 'photos', ago: 23, memberId: 'm1', emoji: '📸', title: 'Alex added 3 photos', detail: '“Apple picking at the orchard”', count: 3, photos: [pic(1080), pic(1043), pic(1015)] },
+  { key: 'chores:m3:1', kind: 'chores', ago: 25, memberId: 'm3', emoji: '✅', title: 'Maya finished 3 chores', detail: 'Set the table · Fold laundry · Feed the cat', count: 3 },
+  { key: 'memory:demo1', kind: 'memory', ago: 2 * 24 + 2, memberId: 'm2', emoji: '📝', title: 'Sam added a memory', detail: '“First frost on the pumpkins”' },
+  { key: 'book:demo2', kind: 'book', ago: 2 * 24 + 4, memberId: 'm4', emoji: '📚', title: 'Leo finished Frog and Toad Are Friends', detail: '⭐⭐⭐⭐' },
+  { key: 'chores:m4:2', kind: 'chores', ago: 2 * 24 + 5, memberId: 'm4', emoji: '✅', title: 'Leo finished 3 chores', detail: 'Make bed · Toys away · Brush teeth', count: 3 },
+  { key: 'chores:m2:2', kind: 'chores', ago: 2 * 24 + 6, memberId: 'm2', emoji: '✅', title: 'Sam finished 2 chores', detail: 'Laundry · Pay the water bill', count: 2 },
+  { key: 'photos:family:3', kind: 'photos', ago: 3 * 24 + 1, memberId: null, emoji: '📸', title: '2 new photos', detail: '“Soccer Saturday”', count: 2, photos: [pic(1058), pic(1011)] },
+  { key: 'reward:demo2', kind: 'reward', ago: 3 * 24 + 3, memberId: 'm3', emoji: '🎁', title: 'Maya got a reward: 🎬 Movie night pick' },
+  { key: 'chores:m3:3', kind: 'chores', ago: 3 * 24 + 4, memberId: 'm3', emoji: '✅', title: 'Maya finished 5 chores', detail: 'Feed the cat · Set the table · Make bed · Piano practice · Fold laundry', count: 5 },
+  { key: 'chores:m4:4', kind: 'chores', ago: 4 * 24 + 2, memberId: 'm4', emoji: '✅', title: 'Leo finished Feed the cat', count: 1 },
+  { key: 'drawings:m4:5', kind: 'drawings', ago: 5 * 24 + 1, memberId: 'm4', emoji: '🎨', title: 'Leo saved a drawing: “Rocket to the moon”', photos: [ROCKET] },
+  { key: 'chores:m1:5', kind: 'chores', ago: 5 * 24 + 3, memberId: 'm1', emoji: '✅', title: 'Alex finished Clean the gutters', count: 1 },
+  { key: 'memory:demo2', kind: 'memory', ago: 6 * 24 + 2, memberId: null, emoji: '📝', title: 'The family added a memory', detail: '“Beach day with the cousins”', photos: [pic(1050)] },
+  { key: 'chores:m3:6', kind: 'chores', ago: 6 * 24 + 4, memberId: 'm3', emoji: '✅', title: 'Maya finished 2 chores', detail: 'Feed the cat · Make bed', count: 2 },
+  { key: 'book:demo3', kind: 'book', ago: 9 * 24, memberId: 'm2', emoji: '📚', title: 'Sam finished The Night Circus', detail: '⭐⭐⭐⭐⭐' },
+  { key: 'chores:m4:12', kind: 'chores', ago: 12 * 24, memberId: 'm4', emoji: '✅', title: 'Leo finished 3 chores', detail: 'Make bed · Toys away · Feed the cat', count: 3 },
+  { key: 'reward:demo3', kind: 'reward', ago: 16 * 24, memberId: 'm4', emoji: '🎁', title: 'Leo got a reward: 🛝 Park after school' },
+]
+const newsReactions = new Map<string, Map<NewscastReaction, string[]>>([
+  ['post:np1', new Map([['🎉', ['m1', 'm4']], ['❤️', ['m3']]])],
+  ['chores:m4:0', new Map([['👏', ['m1', 'm2']]])],
+  ['drawings:m3:0', new Map([['❤️', ['m2', 'm1']]])],
+  ['book:demo1', new Map([['🎉', ['m1', 'm2', 'm4']]])],
+  ['post:np2', new Map([['🎉', ['m1', 'm2', 'm3']], ['❤️', ['m2']]])],
+  ['photos:m1:1', new Map([['❤️', ['m2', 'm3', 'm4']]])],
+  ['reward:demo1', new Map([['🎉', ['m3']]])],
+] as [string, Map<NewscastReaction, string[]>][])
+const NEWS_REACTIONS: NewscastReaction[] = ['👏', '❤️', '🎉']
+const newsReactionsOf = (key: string) => NEWS_REACTIONS.flatMap(emoji => newsReactions.get(key)?.get(emoji)?.length ? [{ emoji, memberIds: [...newsReactions.get(key)!.get(emoji)!] }] : [])
+const NEWS_FEATURE: Partial<Record<NewscastItem['kind'], () => boolean>> = {
+  chores: () => settings.features.chores, reward: () => settings.features.chores, photos: () => settings.features.photos,
+  drawings: () => settings.features.photos && settings.features.paint, book: () => settings.features.trackersReading, memory: () => settings.features.trackersMemories,
+}
+function mockNewscast(q: { days?: number; before?: string }): Newscast {
+  const today = dateKey(new Date())
+  const shift = (d: string, n: number) => { const [y, m, dd] = d.split('-').map(Number); return dateKey(new Date(y, m - 1, dd + n)) }
+  const oldest = shift(today, -29)
+  const to = q.before && q.before <= today ? shift(q.before, -1) : today
+  const from = [shift(to, -((q.days ?? 7) - 1)), oldest].sort()[1]
+  const hidden = new Set(settings.newscastNotFeatured ?? [])
+  const items: NewscastItem[] = [
+    ...DEMO_NEWS.filter(d => (!d.memberId || !hidden.has(d.memberId)) && (NEWS_FEATURE[d.kind]?.() ?? true)).map(({ ago, ...d }): NewscastItem => {
+      const at = hoursAgo(ago)
+      return { detail: null, count: 1, photos: [], ...d, date: dateKey(new Date(at)), at, post: null, reactions: [] }
+    }),
+    ...newsPosts.map((p): NewscastItem => ({
+      key: `post:${p.id}`, kind: 'post', date: dateKey(new Date(p.at)), at: p.at, memberId: p.memberId, emoji: '📣', title: p.removed ? 'Removed by a parent' : p.text, detail: null, count: 1,
+      photos: p.photo && !p.removed ? [p.photo] : [], post: { id: p.id, text: p.removed ? null : p.text, emoji: p.removed ? null : p.emoji, audience: p.audience, removed: p.removed }, reactions: [],
+    })),
+  ].filter(i => i.date >= from && i.date <= to)
+  for (const i of items) i.reactions = newsReactionsOf(i.key)
+  items.sort((a, b) => b.date.localeCompare(a.date) || (b.at ?? '').localeCompare(a.at ?? ''))
+  return { today, from, to, earlier: from > oldest, items }
+}
+
 export const mock = {
   getContacts: async () => contacts.map(c => ({ ...c, phones: [...c.phones], emails: [...c.emails] })),
   getContactCategories: async () => [...contactCategories],
@@ -659,6 +739,35 @@ export const mock = {
     return { created: body.strategy === 'create' ? ids.length : 0, merged: body.strategy === 'merge' ? ids.length : 0, skipped: 0, ids }
   },
   getRev: async () => ({ rev }),
+  getNewscast: async (q: { days?: number; before?: string }) => mockNewscast(q),
+  postNewscast: async (b: NewscastPostInput): Promise<NewscastItem> => {
+    const memberId = b.memberId ?? demoOwner ?? 'm1'
+    if (settings.newscastPostingPaused?.includes(memberId)) throw new Error(`${members.find(m => m.id === memberId)?.name} is taking a break from posting for now. A parent can turn it back on in Settings.`)
+    const photo = b.photoId ? photos.find(p => p.id === b.photoId) : undefined
+    newsPosts.push({ id: uid(), memberId, text: b.text.trim(), emoji: b.emoji ?? null, photo: photo ? { id: photo.id, url: photo.url } : null, audience: b.audience ?? 'everyone', removed: false, at: new Date().toISOString() })
+    bump()
+    return mockNewscast({ days: 1 }).items.find(i => i.key === `post:${newsPosts[newsPosts.length - 1].id}`)!
+  },
+  removeNewscastPost: async (id: string, alsoPhoto: boolean) => {
+    const p = newsPosts.find(x => x.id === id)
+    if (!p) throw new Error('not found')
+    if (alsoPhoto && p.photo) { const i = photos.findIndex(x => x.id === p.photo!.id); if (i >= 0) photos.splice(i, 1); p.photo = null }
+    // The demo is a parent's device: its own posts go, anyone else's show "Removed by a parent" to them.
+    const mine = !!demoOwner && p.memberId === demoOwner
+    if (mine) newsPosts.splice(newsPosts.indexOf(p), 1); else p.removed = true
+    bump()
+    return { ok: true as const, removed: mine ? 'deleted' as const : 'hidden' as const }
+  },
+  reactNewscast: async (b: { itemKey: string; emoji: NewscastReaction; on: boolean; memberId?: string }) => {
+    const who = b.memberId ?? demoOwner
+    if (!who) throw new Error("Pick who's reacting.")
+    const byEmoji = newsReactions.get(b.itemKey) ?? new Map<NewscastReaction, string[]>()
+    const ids = (byEmoji.get(b.emoji) ?? []).filter(id => id !== who)
+    byEmoji.set(b.emoji, b.on ? [...ids, who] : ids)
+    newsReactions.set(b.itemKey, byEmoji)
+    bump()
+    return { reactions: newsReactionsOf(b.itemKey) }
+  },
   getNotifications: async () => [...notifications],
   // Like the server: ?before= is a cursor into the whole log, then ?kinds= and ?q= narrow it.
   getSecurityEvents: async ({ before, q = '', kinds = [] }: { before?: string; q?: string; kinds?: readonly string[] } = {}) => {

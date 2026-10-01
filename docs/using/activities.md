@@ -40,7 +40,7 @@ A device holds up to **50 drawings**. When it's full, Paint says so and stops sa
 
 ### Save, share and print
 
-* **♥ Save to family photos** adds the drawing to the family's [photos](photos.md), captioned with its name and who drew it (for example "Drawing 3 by Maya"). It then turns up on the Board's picture card and in the screensaver.
+* **♥ Save to family photos** adds the drawing to the family's [photos](photos.md), captioned with its name and who drew it (for example "Drawing 3 by Maya"). It then turns up on the Board's picture card, in the screensaver and in [Newscast](newscast.md) ("Maya saved a drawing: “Drawing 3”").
 * **Save** downloads the picture as a PNG. On an iPhone or iPad it opens the share sheet instead, so you can choose **Save Image** to put it in Photos. If sharing isn't available, the picture opens in a new tab: press and hold it to save.
 * **Print** prints just the picture, scaled to fit the page, with its name and date in small type at the bottom.
 

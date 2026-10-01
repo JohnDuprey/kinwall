@@ -318,12 +318,12 @@ button {
   box-shadow: var(--shadow);
 }
 
-/* The calendar's view tabs: Board | Calendar | Schedule in one pill. Selected, Calendar opens out
+/* Home's view tabs: Board | Calendar | Schedule | Newscast in one pill. Selected, Calendar opens out
    into one bubble with Day | Week | Month beside it; the picked view is a tinted pill in bolder
    text (weight, not just color). The tab list is display: contents so its tabs and the calendar
    views share the pill (Calendar.tsx). */
 .segmented.view-tablist { display: contents; }
-.view-tablist > button:last-child { order: 2; }
+.view-tablist > button:nth-child(n + 3) { order: 2; } /* Schedule and Newscast: after Calendar's own views */
 .segmented.view-sub { order: 1; margin-left: -2px; padding: 0 4px 0 0; gap: 2px; background: var(--card); box-shadow: var(--shadow); border-radius: 0 999px 999px 0; }
 .view-tabs.open .view-tablist > button.active { border-radius: 999px 0 0 999px; padding-right: calc(var(--pad) * 0.45); }
 .segmented.view-sub button { position: relative; padding-inline: calc(var(--pad) * 0.85); min-width: 4.5em; }
@@ -2962,6 +2962,70 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
 .meds-time-row input { min-height: 44px; }
 .meds-days { margin-top: 10px; }
 
+/* ---------- Newscast (Home → Newscast, Newscast.tsx) ----------
+   A calm feed: day sections of cards, a side column (share + this week) on wide screens. Reactions
+   are pills with the reactors' faces, never counts. Posts carry the poster's color as a left edge,
+   always with their name and face (color is never the only signal). */
+.newscast { height: 100%; overflow-y: auto; overscroll-behavior-y: contain; display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--gap); align-items: start; align-content: start; padding: 4px var(--pad) calc(var(--pad) * 2); }
+@media (min-width: 900px) { .newscast { grid-template-columns: minmax(0, 820px) minmax(260px, 340px); justify-content: center; } }
+.news-feed { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.news-side { position: sticky; top: 0; display: flex; flex-direction: column; gap: var(--gap); }
+.news-loading { height: 100%; }
+.news-day { display: flex; flex-direction: column; gap: 10px; }
+.news-day + .news-day { margin-top: 8px; }
+.news-day-head { margin: 4px 2px 0; font-size: 1.0625rem; font-weight: 800; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.news-day-head span { font-size: 0.8125rem; font-weight: 600; color: var(--text-dim); }
+.news-item, .news-card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 12px 14px; min-width: 0; }
+.news-post { border-left: 5px solid var(--news-color, var(--accent)); }
+.news-head { display: flex; gap: 10px; align-items: flex-start; }
+.news-body { flex: 1; min-width: 0; }
+.news-title { font-weight: 700; overflow-wrap: anywhere; }
+.news-detail { color: var(--text-dim); font-size: 0.875rem; margin-top: 2px; overflow-wrap: anywhere; }
+.news-kind { font-size: 0.8125rem; font-weight: 800; color: var(--text-dim); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.news-audience { font-size: 0.75rem; padding: 1px 8px; min-height: 0; }
+.news-say { margin: 4px 0 0; font-size: 1.0625rem; overflow-wrap: anywhere; white-space: pre-wrap; }
+.news-when { color: var(--text-dim); font-size: 0.75rem; white-space: nowrap; flex: none; padding-top: 2px; }
+.news-face { border-radius: 50%; display: grid; place-items: center; flex: none; background: var(--bg-alt); font-weight: 800; }
+.news-face-md { width: 40px; height: 40px; font-size: 1.25rem; }
+.news-face-sm { width: 22px; height: 22px; font-size: 0.75rem; box-shadow: 0 0 0 2px var(--card); }
+.news-face-sm + .news-face-sm { margin-left: -6px; }
+.news-photos { display: flex; gap: 6px; margin-top: 10px; }
+.news-photos img { flex: 1; min-width: 0; max-width: 220px; aspect-ratio: 4 / 3; object-fit: cover; border-radius: var(--radius-sm); background: var(--bg-alt); }
+.news-foot { display: flex; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.news-reacts { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; min-width: 0; }
+.news-react { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; min-width: 44px; justify-content: center; padding: 2px 12px; border-radius: 999px; border: 2px solid var(--border); background: var(--bg-alt); color: var(--text); font: inherit; font-size: 1rem; }
+.news-react.mine { border-color: var(--accent); background: var(--accent-tint); }
+.news-react-faces { display: inline-flex; }
+.news-more-btn { box-shadow: none; background: transparent; color: var(--text-dim); }
+.news-menu { display: flex; flex-direction: column; gap: 10px; }
+.news-menu .btn { width: 100%; }
+.news-removed { display: flex; gap: 10px; align-items: center; color: var(--text-dim); font-style: italic; box-shadow: none; border: 2px dashed var(--border); background: transparent; }
+.news-removed p { margin: 0; }
+.news-more.btn { flex: none; align-self: stretch; min-height: 44px; }
+.news-new { display: flex; justify-content: center; position: sticky; top: 0; z-index: 2; }
+.news-new .btn { flex: none; border-radius: 999px; box-shadow: var(--shadow); }
+.news-share { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 52px; padding: 6px 8px; border-radius: 999px; border: 2px solid var(--border); background: var(--card); color: var(--text-dim); font: inherit; font-weight: 700; text-align: left; }
+.news-share > span:nth-child(2) { flex: 1; }
+.news-share-go { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: var(--accent-ink); }
+.news-card h3 { margin: 0 0 8px; font-size: 1rem; }
+.news-week ul { list-style: none; margin: 0; padding: 0; }
+.news-week li { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border); }
+.news-week li:last-child { border-bottom: 0; }
+.news-note { font-size: 0.8125rem; color: var(--text-dim); margin: 8px 0 0; }
+.news-compose textarea { width: 100%; resize: vertical; min-height: 84px; }
+.news-count { text-align: right; font-size: 0.75rem; color: var(--text-dim); margin-top: 2px; }
+.news-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+.news-row .settings-select { flex: 1 1 140px; }
+.news-row .spacer { flex: 1; }
+.news-row .btn { flex: none; }
+.news-photo-btn { cursor: pointer; }
+.news-photo-pick { display: flex; gap: 10px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
+.news-photo-pick img { width: 96px; height: 72px; object-fit: cover; border-radius: var(--radius-sm); }
+.news-photo-pick .btn { flex: none; }
+.news-who { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
+.news-who-btn { display: flex; flex-direction: column; align-items: center; gap: 6px; min-height: 88px; padding: 10px; border-radius: var(--radius-sm); border: 2px solid var(--border); background: var(--bg-alt); color: var(--text); font: inherit; font-weight: 700; }
+.news-who-btn.active { border-color: var(--accent); background: var(--accent-tint); }
+
 /* ---------- Pointer and hover ----------
    Anything clickable shows a pointer; a disabled control shows not-allowed. :where() keeps this at
    zero specificity, so a component's own cursor (a grab handle, a crosshair) still wins. */
@@ -2975,7 +3039,7 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
   /* Bordered surfaces: the border goes to the accent (the .sheet-link / PickField row is the model). */
   :where(.sheet-link, .btn-secondary, button.chip, select, .emoji-swatch, .color-swatch, .date-chip, .member-avatar, .list-card,
     .list-item-check, .meal-card, .recipe-card, .meal-add, .contact-card, .contact-import-choice, .contact-action, .scheme-card,
-    .meds-set-row, .snap-temp-face, .activity-card-more, .cook-timer-chip, .board-trivia-choices button,
+    .meds-set-row, .snap-temp-face, .activity-card-more, .cook-timer-chip, .board-trivia-choices button, .news-react, .news-share, .news-who-btn,
     .setup-choice, .setup-provider-card, .get-started-item
   ):not(:disabled, :focus-visible, .active, .selected, .done, [aria-pressed="true"], [aria-current]):hover { border-color: var(--accent); }
   /* Everything else: a faint wash of the text color over its own background (darker in light, lighter in dark). */

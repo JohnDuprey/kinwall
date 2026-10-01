@@ -388,7 +388,7 @@ export default function Paint() {
       const png = await current()
       const { blob, width, height } = await preparePhoto(new File([png], `${r.meta.name}.png`, { type: 'image/png' }))
       const by = members.find(x => x.id === r.meta?.memberId)
-      await api.uploadPhoto(blob, width, height, by ? `${r.meta.name} by ${by.name}` : r.meta.name)
+      await api.uploadPhoto(blob, width, height, by ? `${r.meta.name} by ${by.name}` : r.meta.name, true, { drawing: true, by: by?.id })
       toast('Saved to family photos'); announce('Saved to family photos')
     } catch (e) {
       toast(e instanceof ApiError ? e.message : 'Could not save to family photos', true)

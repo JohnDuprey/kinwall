@@ -12,6 +12,7 @@ export const FEATURE_ROWS: readonly FeatureRow[] = [
   { key: 'notes', label: 'Notes', sub: 'Notes and discussions on events and list items.' },
   { key: 'meals', label: 'Meals', sub: 'The Meals tab with recipes and the week’s plan, and today’s meals on the Board.' },
   { key: 'messages', label: 'Family messages', sub: 'Sending a message from the bell. Messages already sent still show.' },
+  { key: 'newscast', label: 'Newscast', sub: 'Home’s Newscast tab: chores done, rewards, photos, books and announcements, with reactions.' },
   { key: 'trackersReading', group: 'Trackers', label: 'Reading', sub: 'Books with progress and ratings, and the reading line in someone’s day.' },
   { key: 'trackersMemories', group: 'Trackers', label: 'Memories', sub: 'The family journal.' },
   { key: 'trackersHealth', group: 'Trackers', label: 'Health', sub: 'Doctor and dentist visits. Health stays on phones and computers, never on the wall screen.' },

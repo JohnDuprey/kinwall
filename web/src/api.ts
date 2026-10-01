@@ -13,6 +13,7 @@ import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginCatalogEntry,
   StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota, GooglePhotos, Reward, Redemption, MemberStats, StatsPeriod,
   Account, ApiKey, AppNotification, Appearance, CalendarEntry, Category, Chore, ChoreDay, PendingApproval, EventInstance, LeaderboardEntry, LeaderboardPeriod, List,
   GeocodeResult, HiddenEvent, HostEvent, ImportResult, SecurityEvent, ListDetail, ListGroup, ListItem, ListItemInput, ListItemPatch, Member, Me, Note, NoteTarget, Passkey, TrackerEntry, TrackerInput, TrackerKind, Providers, PushSubscription, PushSubscriptionPrefs, RemoteCalendar, Settings, Snapshot, Board, Webhook, WebhookWithSecret,
+  Newscast, NewscastItem, NewscastPostInput, NewscastReaction,
   TempCheck, TempCheckInput, Journal, JournalEntry, JournalPrivacy, Insights, InsightRange, Battery, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory, RememberedItem, RememberedItemInput, ListCatalog,
 } from './types.ts'
 
@@ -469,8 +470,9 @@ export const api = {
   getPhotos: () => MOCK ? mock.getPhotos() : get<Photo[]>('api/photos'),
   getPhotoQuota: () => MOCK ? mock.getPhotoQuota() : get<PhotoQuota>('api/photos/quota'),
   /** family false: a memory's own photo, kept out of the family photos (attach it to the memory). */
-  uploadPhoto: (blob: Blob, width: number, height: number, caption?: string, family = true) => MOCK ? mock.uploadPhoto(blob, width, height, caption, family)
-    : req<Photo>(`api/photos?${new URLSearchParams({ ...(caption ? { caption } : {}), ...(family ? {} : { family: '0' }) })}`, {
+  /** drawing / by: a Paint drawing and its artist (Newscast says "Maya saved a drawing"). */
+  uploadPhoto: (blob: Blob, width: number, height: number, caption?: string, family = true, credit: { drawing?: boolean; by?: string } = {}) => MOCK ? mock.uploadPhoto(blob, width, height, caption, family)
+    : req<Photo>(`api/photos?${new URLSearchParams({ ...(caption ? { caption } : {}), ...(family ? {} : { family: '0' }), ...(credit.drawing ? { drawing: '1' } : {}), ...(credit.by ? { by: credit.by } : {}) })}`, {
       method: 'POST', body: blob, useAdmin: true,
       headers: { 'Content-Type': blob.type, 'X-Photo-Width': String(width), 'X-Photo-Height': String(height) },
     }),
@@ -528,6 +530,15 @@ export const api = {
   addTracker: (body: TrackerInput & { kind: TrackerKind }) => MOCK ? mock.addTracker(body) : post<TrackerEntry>('api/trackers', body),
   updateTracker: (id: string, body: TrackerInput) => MOCK ? mock.updateTracker(id, body) : patch<TrackerEntry>(`api/trackers/${id}`, body),
   deleteTracker: (id: string) => MOCK ? mock.deleteTracker(id) : del(`api/trackers/${id}`),
+  // Newscast (server: routes/newscast.ts). Not cached offline: it's for now, not for later.
+  getNewscast: (q: { days?: number; before?: string } = {}) => MOCK ? mock.getNewscast(q)
+    : req<Newscast>(`api/newscast?${new URLSearchParams({ ...(q.days ? { days: String(q.days) } : {}), ...(q.before ? { before: q.before } : {}) })}`),
+  postNewscast: (body: NewscastPostInput) => MOCK ? mock.postNewscast(body) : post<NewscastItem>('api/newscast/posts', body),
+  /** A parent's device removes anyone's (alsoPhoto: from family photos too); the author's own device deletes theirs. */
+  removeNewscastPost: (id: string, alsoPhoto = false) => MOCK ? mock.removeNewscastPost(id, alsoPhoto)
+    : del<{ ok: true; removed: 'deleted' | 'hidden' }>(`api/newscast/posts/${id}${alsoPhoto ? '?alsoPhoto=true' : ''}`, true),
+  reactNewscast: (body: { itemKey: string; emoji: NewscastReaction; on: boolean; memberId?: string }) => MOCK ? mock.reactNewscast(body)
+    : put<{ reactions: NewscastItem['reactions'] }>('api/newscast/reactions', body),
   getNotes: (target: NoteTarget) => MOCK ? mock.getNotes(target) : get<Note[]>(`api/notes?target=${encodeURIComponent(target)}`),
   addNote: (target: NoteTarget, body: string, memberId: string | null) => MOCK ? mock.addNote(target, body, memberId) : post<Note>('api/notes', { target, body, memberId }),
   updateNote: (id: string, body: string) => MOCK ? mock.updateNote(id, body) : patch<Note>(`api/notes/${id}`, { body }),

@@ -6,9 +6,9 @@
 
 ## Views
 
-Home has three tabs at the top: **Board**, **Calendar** and **Schedule**. Tap **Calendar** and it opens out, right beside it, into **Day**, **Week** and **Month**; the one you're on is tinted and underlined. Calendar opens the view you used last on that device (Week the first time), and tapping it again while it's open keeps that view. Board and Schedule fold it back up.
+Home has four tabs at the top: **Board**, **Calendar**, **Schedule** and **Newscast**. Tap **Calendar** and it opens out, right beside it, into **Day**, **Week** and **Month**; the one you're on is tinted and underlined. Calendar opens the view you used last on that device (Week the first time), and tapping it again while it's open keeps that view. Board, Schedule and Newscast fold it back up. **Newscast** goes when the family turns it off in [Features](../settings/general.md#features).
 
-On a phone the tabs don't fit, so one button shows the current view (like **Board ⌄**): tap it, and a sheet lists **Board**, **Calendar** with **Day**, **3 Day** and **Month** side by side in it, and **Schedule**, with a line on what each shows and the current one marked. Tap any of them to switch to it.
+On a phone the tabs don't fit, so one button shows the current view (like **Board ⌄**): tap it, and a sheet lists **Board**, **Calendar** with **Day**, **3 Day** and **Month** side by side in it, **Schedule** and **Newscast**, with a line on what each shows and the current one marked. Tap any of them to switch to it.
 
 | View | Shows | Paging (◀ ▶ or swipe) |
 |---|---|---|
@@ -18,6 +18,7 @@ On a phone the tabs don't fit, so one button shows the current view (like **Boar
 | **3 Day** (phones) | The same grid, 3 days from the anchor date. | ±3 days |
 | **Month** | A month grid with event chips. When a day is full, it shows "+N more". | ±1 month |
 | **Schedule** | An agenda of the next 30 days, grouped by day. Location lines link to maps. | ±30 days |
+| **Newscast** | What the family did and shared: chores done, rewards, photos, books and announcements, with reactions. See [Newscast](newscast.md). | None: the last 7 days, then **Earlier this month** |
 
 Every device opens Home on **Board**. You can switch views any time, and a display can be locked to any view (Settings → General → This display → Lock view), which hides the tabs. Links to `#/calendar` (notifications, widgets, [Home Assistant](../integrations/home-assistant.md)) open Home, as does `#/home`.
 

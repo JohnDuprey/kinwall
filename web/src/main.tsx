@@ -24,7 +24,7 @@ window.addEventListener('appinstalled', () => {
 // Not imported from api.ts: that would load the mock data before the demo clock below is in place.
 const MOCK = import.meta.env.VITE_MOCK === '1'
 
-// Demo build only: ?theme=dark|light, ?skin=<id>, ?view=board|week|day|month|schedule and ?clean=1
+// Demo build only: ?theme=dark|light, ?skin=<id>, ?lowstim=1, ?view=board|week|day|month|schedule|newscast and ?clean=1
 // (no demo bar) preset a fresh copy - for screenshots and shareable links; never in real builds.
 if (MOCK) {
   const q = new URLSearchParams(location.search)
@@ -33,6 +33,7 @@ if (MOCK) {
       const prefs = JSON.parse(localStorage.getItem('kinwall.deviceAppearance') || '{}')
       if (q.get('theme')) prefs.themeMode = q.get('theme')
       if (q.get('skin')) prefs.skin = q.get('skin')
+      if (q.get('lowstim')) prefs.lowStim = true
       localStorage.setItem('kinwall.deviceAppearance', JSON.stringify(prefs))
       if (q.get('view')) sessionStorage.setItem('kinwall.demoView', q.get('view')!)
       if (q.get('clean')) sessionStorage.setItem('kinwall.demoClean', '1')

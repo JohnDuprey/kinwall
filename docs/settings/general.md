@@ -50,7 +50,7 @@ API: `boardPresets` in `GET` / `PATCH /api/settings`, the whole list, each `{ id
 
 ### Features
 
-*Admin only.* The card shows how many are on ("All 11 on", or "8 of 11 on" with the ones that are off); tap **Change** under **Features** for the switches. Turn off what your family doesn't use. It's hidden on every screen and phone; nothing is deleted, and turning it back on brings everything back as it was. Every feature is on by default.
+*Admin only.* The card shows how many are on ("All 12 on", or "9 of 12 on" with the ones that are off); tap **Change** under **Features** for the switches. Turn off what your family doesn't use. It's hidden on every screen and phone; nothing is deleted, and turning it back on brings everything back as it was. Every feature is on by default.
 
 | Switch | When it's off |
 |---|---|
@@ -65,13 +65,14 @@ API: `boardPresets` in `GET` / `PATCH /api/settings`, the whole list, each `{ id
 | **Trackers: Memories** | No **Memories** in Trackers. |
 | **Trackers: Health** | No **Health** in Trackers, and no [medication reminders](../using/medications.md) (they're part of it). (Health is never on a wall display anyway.) |
 | **Medication reminders** (under Health, off by default) | Medicines in Trackers → Health, their reminders and Take now cards. Turning it on first shows what Kinwall keeps and who sees it. Off hides them everywhere; what's saved is kept. |
+| **Newscast** | No **Newscast** tab on Home (a screen locked to it shows the Board), and `/api/newscast` answers 404. Posts and reactions are kept until they're 30 days old. See [Newscast](../using/newscast.md). |
 | **Family messages** | No **Send a message** in the bell or in Settings → Access → Notifications. Messages already sent stay in the bell. `POST /api/notify` (and the MCP tool `send_notification`) answers 403. |
 
 When every activity is off (Paint, Photos, and the Sticker book, which is off when Chores or the sticker shop is), the **Activities** tab goes too, and the **Trackers** tab goes when Reading, Memories and Health are all off. A link to a screen that's off, such as a bookmark or an old notification, opens the calendar instead. The Board rearranges its cards so a hidden one leaves no gap.
 
 Apart from sending messages, the API keeps answering for features that are off (like the leaderboard switch), so nothing is lost and integrations keep working.
 
-API: `features` `{ chores, lists, contacts, paint, photos, notes, messages, trackersReading, trackersMemories, trackersHealth, meals }` (all booleans) in `GET` / `PATCH /api/settings`. Medication reminders are `medications` and `medicationNamesOnWalls` in the same settings; `medications` reads `false` while `trackersHealth` is off, and a connected app gets 403 changing either. A `PATCH` sends the whole object (older clients may leave out contacts, tracker and meals switches; they then read as on). Display keys can't change it (403).
+API: `features` `{ chores, lists, contacts, paint, photos, notes, messages, trackersReading, trackersMemories, trackersHealth, meals, newscast }` (all booleans) in `GET` / `PATCH /api/settings`. Medication reminders are `medications` and `medicationNamesOnWalls` in the same settings; `medications` reads `false` while `trackersHealth` is off, and a connected app gets 403 changing either. A `PATCH` sends the whole object (older clients may leave out contacts, tracker, meals and newscast switches; they then read as on). Display keys can't change it (403).
 
 ### Appearance
 

@@ -63,6 +63,10 @@ Every notification Kinwall sends is also kept in the app, whether or not any dev
 * **On a wall screen** the feed is the family's, minus those parent-facing medicine notes, any message meant only for grown-ups and 🔒 privacy notes. Parent devices see everything except other people's 🔒 privacy notes.
 * The API is `GET /api/notifications?limit=50&before=<ISO time>` (newest first), and the MCP tool is `list_notifications`.
 
+## Newscast isn't the bell
+
+[Newscast](newscast.md) is Home's fourth tab: what the family did and shared, to notice and celebrate. The bell is for things to act on. Newscast never sends a push, has no badge, isn't in the bell's feed, and reacting to something notifies no one. Posting an announcement doesn't send a notification either (use **Send a message** for that).
+
 ## Live Activities (Kinwall app for iPhone)
 
 In the Kinwall app for iPhone, some things also show on the Lock Screen and in the Dynamic Island while they're happening: a [cooking timer](meals.md#start-cooking), a [shopping trip](lists.md#shopping-mode), and the next leave-by or start-prep time for the person the phone belongs to. There's no Kinwall setting for them:
