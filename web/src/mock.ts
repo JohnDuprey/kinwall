@@ -1,6 +1,6 @@
 // Dev-only in-memory fixture, used when VITE_MOCK=1. Excluded from prod by the env check in api.ts.
 import type { Actor, OnlineTidbits, Plugin, PluginCatalogEntry,
-  Account, ApiKey, AppNotification, CalendarEntry, Category, Chore, ChoreDay, EventInstance, HiddenEvent, LeaderboardEntry, LeaderboardPeriod, List, ListGroup,
+  Account, ApiKey, AppNotification, SecurityEvent, CalendarEntry, Category, Chore, ChoreDay, EventInstance, HiddenEvent, LeaderboardEntry, LeaderboardPeriod, List, ListGroup,
   Photo, PhotoQuota, GooglePhotos, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, ListItem, ListItemInput, ListItemPatch, ListItemStep, ListCatalog, Member, RememberedItem, RememberedItemInput, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption, TempCheck, TempCheckInput, Journal, JournalEntry, Insights, InsightDay, InsightRange, Battery, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory, DoseStatus, MedTime,
 } from './types.ts'
 import { eveningPending, FEELINGS, lastNightDate, TEMP_CHECK_OFF } from './tempCheck.ts'
@@ -9,6 +9,7 @@ import { itemKey } from './itemSuggest.ts'
 import { tagsInput } from './catalog.ts'
 import { byListOrder, reorderWithin } from './listSections.ts'
 import { dateKey } from './date.ts'
+import { SECURITY_PAGE } from './securityActivity.ts'
 import { FILTER_PRESETS, NO_FILTER, filterShows } from './calendarFilter.ts'
 import { MAYA_ANALYSIS, MAYA_BATTERY, MAYA_DAYS } from './mock-insights.ts'
 import type { Contact, ContactCategory, ContactInput, ImportPreviewEntry } from './contact-types.ts'
@@ -559,6 +560,22 @@ const notifications: AppNotification[] = [
   { id: 'n9', at: at(-2, 16, 30), kind: 'reminder', title: '⚽ Swim Lessons', body: 'In 30 minutes · 5:00 PM\n📍 Community pool\n👥 Leo', url: `/#/calendar?event=e9&at=${encodeURIComponent(at(-2, 17))}`, memberIds: ['m4'], source: 'system' },
 ].sort((a, b) => b.at.localeCompare(a.at)) as AppNotification[]
 
+// Security activity (Settings → Access): what the server would have logged, newest first. Alex
+// signs in every few days on the same phone, so there's a second page for "Show more".
+const securityEvents: SecurityEvent[] = [
+  { id: 's1', at: fromNow(-25), kind: 'passkey.added', summary: 'Passkey "Alex\'s iPhone" added', by: { memberId: 'm1' }, device: "Alex's iPhone", detail: null },
+  { id: 's2', at: fromNow(-140), kind: 'device.paired', summary: '"Kitchen wall" paired as a wall screen', by: { memberId: 'm2' }, device: 'Kitchen wall', detail: { kind: 'wall' } },
+  { id: 's3', at: at(-1, 19, 40), kind: 'device.owner', summary: '"Sam\'s laptop" now belongs to Sam (a grown-up\'s device)', by: null, device: "Sam's laptop", detail: null },
+  { id: 's4', at: at(-1, 16, 12), kind: 'signin.recovery', summary: 'Recovery code used to sign in (7 left)', by: null, device: null, detail: { remaining: 7 } },
+  { id: 's5', at: at(-2, 20, 5), kind: 'app.connected', summary: 'Claude connected with full access', by: { memberId: 'm1' }, device: 'Claude', detail: { scope: 'admin' } },
+  { id: 's6', at: at(-2, 9, 30), kind: 'journal.privacy', summary: 'Maya can keep a private journal', by: { memberId: 'm2' }, device: null, detail: null },
+  { id: 's7', at: at(-3, 18, 0), kind: 'pin.set', summary: 'Quiet-hours PIN changed', by: { memberId: 'm1' }, device: null, detail: null },
+  { id: 's8', at: at(-4, 8, 15), kind: 'key.created', summary: 'Full-access API key "Home Assistant" created', by: { memberId: 'm1' }, device: 'Home Assistant', detail: { scope: 'admin' } },
+  { id: 's9', at: at(-5, 21, 0), kind: 'passkey.removed', summary: 'Passkey "Old iPad" removed; its sign-ins ended', by: { memberId: 'm2' }, device: 'Old iPad', detail: null },
+  { id: 's10', at: at(-6, 17, 45), kind: 'device.paired', summary: '"Leo\'s tablet" paired as Leo\'s device', by: { memberId: 'm2' }, device: "Leo's tablet", detail: { kind: 'kid' } },
+  ...Array.from({ length: 16 }, (_, i): SecurityEvent => ({ id: `s${11 + i}`, at: at(-7 - i * 3, 7, 50), kind: 'signin.passkey', summary: 'Signed in with passkey "Alex\'s iPhone"', by: { memberId: 'm1' }, device: "Alex's iPhone", detail: null })),
+]
+
 // Trackers: a few books, memories and one checkup (dates relative to today, so "On this day" has a year-ago entry).
 const daysAgo = (n: number) => dateKey(new Date(Date.now() - n * 86_400_000))
 const tracker = (kind: TrackerKind, memberId: string | null, date: string, title: string | null, data: Record<string, unknown>, photoId: string | null = null): TrackerEntry =>
@@ -630,6 +647,7 @@ export const mock = {
   },
   getRev: async () => ({ rev }),
   getNotifications: async () => [...notifications],
+  getSecurityEvents: async (before?: string) => { const from = before ? securityEvents.findIndex(e => e.id === before) + 1 : 0; return securityEvents.slice(from, from + SECURITY_PAGE) },
   deleteNotification: async (id: string) => { const i = notifications.findIndex(n => n.id === id); if (i >= 0) notifications.splice(i, 1); bump(); return { ok: true } },
   clearNotifications: async () => { const kept = notifications.filter(n => n.kind === 'privacy'); const deleted = notifications.length - kept.length; notifications.splice(0, notifications.length, ...kept); bump(); return { ok: true as const, deleted } },
   sendNotification: async (b: { title: string; body: string; memberIds?: string[]; url?: string }) => {

@@ -575,6 +575,17 @@ export interface ImportResult {
   skipped: { passkeys: number; webhooks: number }
 }
 
+/** One line of Settings → Access → Security activity (GET /api/security-events). */
+export interface SecurityEvent {
+  id: string
+  at: string
+  kind: string // 'passkey.added', 'signin.recovery', 'device.paired', …
+  summary: string
+  by: Actor | null
+  device: string | null
+  detail: Record<string, string | number | boolean | null> | null
+}
+
 export interface HostEvent {
   id: string
   at: string

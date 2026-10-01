@@ -1136,6 +1136,10 @@ button {
 
 .key-item, .webhook-item { padding: 12px 4px; border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .key-item:first-of-type, .webhook-item:first-of-type { border-top: none; }
+.security-list { list-style: none; margin: 0; padding: 0; }
+.security-list .key-item { justify-content: flex-start; align-items: flex-start; }
+.security-icon { flex: none; width: 24px; text-align: center; font-size: 1.1rem; line-height: 1.35; }
+.security-list .key-item-info { min-width: 0; overflow-wrap: anywhere; }
 /* A device row with an owner picker: on a phone, name and delete on top, the picker full width below. */
 .key-item-owned .key-item-info { min-width: 0; }
 .device-kind-title { margin: 14px 4px 0; color: var(--text-dim); font-size: 0.85rem; }

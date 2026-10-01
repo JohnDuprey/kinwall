@@ -3,6 +3,7 @@ import { remoteNightKey, type DeviceKind, type RemoteNight } from './wallScreen.
 import { tellAppSignedIn, tellAppSignedOut } from './native.ts'
 import { changedAreas, type RevAnswer } from './revs.ts'
 import { mock, mockPlugins } from './mock.ts'
+import { SECURITY_PAGE } from './securityActivity.ts'
 import { applyChoreOps, applyListOps, cacheGet, cachePut, clearOffline, enqueue, flush, onOutboxChange, outboxReady, pendingOps, type Dropped, type Op } from './outbox.ts'
 import type { CustomScheme } from './skins.ts'
 import type { PasskeyAuthenticator } from './webauthn.ts'
@@ -11,7 +12,7 @@ import type { Contact, ContactCategory, ContactInput, ImportPreviewEntry } from 
 import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginCatalogEntry,
   StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota, GooglePhotos, Reward, Redemption, MemberStats, StatsPeriod,
   Account, ApiKey, AppNotification, Appearance, CalendarEntry, Category, Chore, ChoreDay, PendingApproval, EventInstance, LeaderboardEntry, LeaderboardPeriod, List,
-  GeocodeResult, HiddenEvent, HostEvent, ImportResult, ListDetail, ListGroup, ListItem, ListItemInput, ListItemPatch, Member, Me, Note, NoteTarget, Passkey, TrackerEntry, TrackerInput, TrackerKind, Providers, PushSubscription, PushSubscriptionPrefs, RemoteCalendar, Settings, Snapshot, Board, Webhook, WebhookWithSecret,
+  GeocodeResult, HiddenEvent, HostEvent, ImportResult, SecurityEvent, ListDetail, ListGroup, ListItem, ListItemInput, ListItemPatch, Member, Me, Note, NoteTarget, Passkey, TrackerEntry, TrackerInput, TrackerKind, Providers, PushSubscription, PushSubscriptionPrefs, RemoteCalendar, Settings, Snapshot, Board, Webhook, WebhookWithSecret,
   TempCheck, TempCheckInput, Journal, JournalEntry, JournalPrivacy, Insights, InsightRange, Battery, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory, RememberedItem, RememberedItemInput, ListCatalog,
 } from './types.ts'
 
@@ -628,6 +629,7 @@ export const api = {
   },
   importData: (file: unknown) => post<ImportResult>('api/import', file, true),
   getHostEvents: () => MOCK ? Promise.resolve([]) : get<HostEvent[]>('api/host-events', true),
+  getSecurityEvents: (before?: string) => MOCK ? mock.getSecurityEvents(before) : get<SecurityEvent[]>(`api/security-events?limit=${SECURITY_PAGE}${before ? `&before=${encodeURIComponent(before)}` : ''}`, true),
   createWebhook: (url: string, events: string[], secret?: string) =>
     MOCK ? mock.createWebhook(url, events) : post<WebhookWithSecret>('api/webhooks', { url, events, secret }, true),
   rotateWebhookSecret: (id: string) => MOCK ? mock.rotateWebhookSecret(id) : post<WebhookWithSecret>(`api/webhooks/${id}/rotate`, {}, true),

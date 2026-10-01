@@ -2,7 +2,8 @@ import { createContext, Fragment, useContext, useEffect, useId, useRef, useState
 import { AppContext, useApp } from './AppContext.tsx'
 import { DOCS_URL } from './Help.tsx'
 import { api, ApiError, clearKey, MOCK, PUSH_SUB_ID_KEY } from './api.ts'
-import type { Account, ApiKey, CalendarEntry, Category, HiddenEvent, ColorScheme, CustomColors, Density, DeviceDensity, Features, GeocodeResult, GooglePhotos, HostEvent, Me, Member, Passkey, Providers, PushSubscription, RemoteCalendar, Settings, TempCheckSettings, TextScale, ThemeMode, TimeFormat, Typeface, Webhook } from './types.ts'
+import { SECURITY_PAGE, securityLine } from './securityActivity.ts'
+import type { Account, ApiKey, CalendarEntry, Category, HiddenEvent, ColorScheme, CustomColors, Density, DeviceDensity, Features, GeocodeResult, GooglePhotos, HostEvent, Me, Member, SecurityEvent, Passkey, Providers, PushSubscription, RemoteCalendar, Settings, TempCheckSettings, TextScale, ThemeMode, TimeFormat, Typeface, Webhook } from './types.ts'
 import { ProviderForm, PublicUrlRow } from './ProviderConfig.tsx'
 import { CATEGORY_EMOJI, CATEGORY_PRESETS, MEMBER_EMOJI, MEMBER_PALETTE, nextPaletteColor, REMINDER_OPTIONS } from './types.ts'
 import Sheet from './Sheet.tsx'
@@ -171,6 +172,7 @@ export default function SettingsView() {
           <ConnectedAppsSection toast={toast} />
           <KeysSection toast={toast} />
           <WebhooksSection toast={toast} />
+          <SecurityActivitySection tick={accessTick} />
           <YourDataSection hostPortalUrl={me.hostPortalUrl} toast={toast} onImported={reloadCore} />
           <HostingActivitySection />
         </>}
@@ -1844,7 +1846,7 @@ function MemberEditSheet({ member, canDelete, onClose, onSaved, toast }: { membe
   )
 }
 
-/** A parent lets a kid keep a private journal (saved right away, and noted in the family's notifications).
+/** A parent lets a kid keep a private journal (saved right away, noted in Security activity and on the kid's own devices).
  * Grown-ups' journals are private by default and they decide on their own device. */
 function PrivateJournalField({ member, toast }: { member: Member; toast: (m: string, persist?: boolean) => void }) {
   const { reloadCore } = useApp()
@@ -2741,7 +2743,7 @@ function ThisDeviceOwnerSection({ me, toast }: { me: Me; toast: (m: string, pers
       <div className="settings-row">
         <div>
           <div className="settings-row-label" id="this-device-owner">Whose device is this?</div>
-          <div className="settings-row-sub">It opens that person's private journal. The family sees a note when this changes.</div>
+          <div className="settings-row-sub">It opens that person's private journal. Their own devices get a note when this changes, and it's in Security activity below.</div>
         </div>
         <select className="settings-select" aria-labelledby="this-device-owner" value={meMemberId ?? 'shared'} onChange={e => change(e.target.value)}>
           <option value="shared">No one in particular</option>
@@ -3104,6 +3106,43 @@ function timeAgo(iso: string): string {
 }
 
 // Actions taken by whoever hosts this instance. Self-hosters never have any, so it stays hidden.
+/** The family's security log, newest first: sign-ins, passkeys, keys, devices, connected apps.
+ * Only on parent devices (the Access tab); the server refuses everyone else. */
+function SecurityActivitySection({ tick }: { tick: number }) {
+  const { members } = useApp()
+  const [events, setEvents] = useState<SecurityEvent[] | null>(null)
+  const [more, setMore] = useState(false)
+  useEffect(() => {
+    api.getSecurityEvents().then(page => { setEvents(page); setMore(page.length === SECURITY_PAGE) }).catch(() => setEvents([]))
+  }, [tick])
+  const loadMore = () => {
+    const last = events?.at(-1)
+    if (last) api.getSecurityEvents(last.id).then(page => { setEvents(e => [...(e ?? []), ...page]); setMore(page.length === SECURITY_PAGE) }).catch(() => {})
+  }
+  if (!events) return null
+  return (
+    <Section id="security-activity" title="Security activity" icon={<LockIcon width={16} height={16} />}>
+      <p className="settings-row-sub">Sign-ins, passkeys, recovery codes, keys, paired devices and connected apps, kept for a year. Only parent devices see this.</p>
+      {events.length === 0 && <p className="settings-row-sub">Nothing yet.</p>}
+      <ul className="security-list">
+        {events.map(e => {
+          const line = securityLine(e, members)
+          return (
+            <li key={e.id} className="key-item">
+              <span className="security-icon" aria-hidden>{line.icon}</span>
+              <div className="key-item-info">
+                <div className="settings-row-label">{line.text}</div>
+                <div className="settings-row-sub"><time dateTime={e.at}>{line.when}</time></div>
+              </div>
+            </li>
+          )
+        })}
+      </ul>
+      {more && <button className="link-btn" onClick={loadMore}>Show more</button>}
+    </Section>
+  )
+}
+
 function HostingActivitySection() {
   const [events, setEvents] = useState<HostEvent[]>([])
   useEffect(() => { api.getHostEvents().then(setEvents).catch(() => {}) }, [])
