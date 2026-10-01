@@ -4,7 +4,7 @@ Categories (🎂 Birthdays, 🏥 Appointments, ⚽ Sports…) give events an emo
 
 ## Managing categories
 
-Go to **Settings → Family → Categories**. Both admin and display devices can do this.
+Go to **Settings → Family → Categories** on a parent's device. Wall screens and kids' devices show the categories but can't change them.
 
 * **Add category** offers presets with starter keywords, or **Custom**:
 
@@ -50,5 +50,5 @@ The calendar's category filter shows only the categories you pick. See [Calendar
 
 ## API and MCP
 
-* REST: `GET/POST /api/categories`, `PATCH/DELETE /api/categories/{id}`, `POST /api/categories/reorder`. Set an event's category with `PATCH /api/events/{id}` `{categoryId, scope}`.
+* REST: `GET/POST /api/categories`, `PATCH/DELETE /api/categories/{id}`, `POST /api/categories/reorder`. Display keys may only read them (`GET`); the rest is admin. Set an event's category with `PATCH /api/events/{id}` `{categoryId, scope}`.
 * MCP: `list_categories`, `update_category`, `set_event_category` (accepts a category by name).

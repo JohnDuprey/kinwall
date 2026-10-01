@@ -68,6 +68,6 @@ In the Kinwall phone app this section instead says how the app's own reminders w
 A device with a display key gets two tabs:
 
 * **General**: only **Only on this device**. The family settings are for parent devices.
-* **Family**: Members (read-only), Categories and, with Meals on, the usual meal times (read-only). Chore settings are for parent devices.
+* **Family**: Members and Categories (read-only) and, with Meals on, the usual meal times (read-only). Chore settings are for parent devices.
 
 **Calendars** and **Access** are never shown to a display, not even briefly. Settings shows the display view until the server confirms the device is an admin.

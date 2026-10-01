@@ -232,10 +232,6 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'PUT', pattern: /^\/api\/members\/[^/]+\/reward-goal$/ },
   { method: 'GET', pattern: /^\/api\/categories$/ },
   { method: 'GET', pattern: /^\/api\/(?:contacts(?:\/categories|\/[0-9a-f-]+)?|contact-categories(?:\/[0-9a-f-]+)?)$/ },
-  { method: 'POST', pattern: /^\/api\/categories$/ },
-  { method: 'PATCH', pattern: /^\/api\/categories\/[^/]+$/ },
-  { method: 'DELETE', pattern: /^\/api\/categories\/[^/]+$/ },
-  { method: 'POST', pattern: /^\/api\/categories\/reorder$/ },
   { method: 'GET', pattern: /^\/api\/lists$/ },
   { method: 'POST', pattern: /^\/api\/lists$/ },
   // The grocery catalog: read and edited like list items (which remember the same places); forgetting is for parent devices.

@@ -1,4 +1,4 @@
-// Event categories: CRUD, display-key access, keyword auto-match, resolution precedence,
+// Event categories: CRUD, display keys read only, keyword auto-match, resolution precedence,
 // override survival across re-sync, series vs occurrence scope, calendar default, and delete
 // cleanup. Mirrors series-member-overrides.test.ts's structure for the sync/scope cases.
 import { test } from 'node:test';
@@ -58,19 +58,24 @@ test('categories: CRUD - create, list ordered by sort, patch, delete', async () 
   assert.equal((await request(`/api/categories/${sports.id}`, { method: 'PATCH', body: JSON.stringify({ name: 'x' }) })).status, 404);
 });
 
-test('categories: a display-scoped key can manage categories (allow-listed in auth.ts)', async () => {
-  const env = makeEnv();
-  const admin = makeApp(env);
-  const created = await json<any>(await admin('/api/keys', { method: 'POST', body: JSON.stringify({ name: 'wall', scope: 'display' }) }));
-  const display = makeApp(env, created.key);
+for (const kind of ['kid', 'wall'] as const) {
+  test(`categories: a ${kind} display reads categories but can't change them`, async () => {
+    const env = makeEnv();
+    const admin = makeApp(env);
+    const leo = await json<any>(await admin('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Leo', color: '#993366' }) }));
+    const created = await json<any>(await admin('/api/keys', { method: 'POST', body: JSON.stringify({ name: kind, scope: 'display' }) }));
+    assert.equal((await admin(`/api/keys/${created.id}`, { method: 'PATCH', body: JSON.stringify({ kind, owner: kind === 'kid' ? leo.id : 'shared' }) })).status, 200);
+    const display = makeApp(env, created.key);
+    const cat = await json<any>(await admin('/api/categories', { method: 'POST', body: JSON.stringify({ name: 'Travel', color: '#4DA3FF' }) }));
 
-  const cat = await json<any>(await display('/api/categories', { method: 'POST', body: JSON.stringify({ name: 'Travel', color: '#4DA3FF' }) }));
-  assert.equal(cat.name, 'Travel');
-  assert.equal((await display('/api/categories')).status, 200);
-  assert.equal((await display(`/api/categories/${cat.id}`, { method: 'PATCH', body: JSON.stringify({ color: '#B39DFF' }) })).status, 200);
-  assert.equal((await display('/api/categories/reorder', { method: 'POST', body: JSON.stringify({ ids: [cat.id] }) })).status, 200);
-  assert.equal((await display(`/api/categories/${cat.id}`, { method: 'DELETE' })).status, 200);
-});
+    assert.equal((await display('/api/categories')).status, 200);
+    assert.equal((await display('/api/categories', { method: 'POST', body: JSON.stringify({ name: 'Sports', color: '#7ED9A6' }) })).status, 403);
+    assert.equal((await display(`/api/categories/${cat.id}`, { method: 'PATCH', body: JSON.stringify({ name: 'Trips' }) })).status, 403);
+    assert.equal((await display('/api/categories/reorder', { method: 'POST', body: JSON.stringify({ ids: [cat.id] }) })).status, 403);
+    assert.equal((await display(`/api/categories/${cat.id}`, { method: 'DELETE' })).status, 403);
+    assert.equal((await json<any[]>(await admin('/api/categories')))[0].name, 'Travel');
+  });
+}
 
 test('categories: keyword whole-word/phrase match, case-insensitive, regex-special chars escaped', async () => {
   const env = makeEnv();

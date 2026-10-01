@@ -152,7 +152,7 @@ export default function SettingsView() {
         </>}
         {current === 'family' && <>
           <MembersSection members={members} onChanged={reloadCore} toast={toast} canManage={!isDisplay} />
-          <CategoriesSection categories={categories} onChanged={reloadCore} toast={toast} />
+          <CategoriesSection categories={categories} onChanged={reloadCore} toast={toast} canManage={!isDisplay} />
           {/* Chore rules are family settings a display key can't save (auth.ts), like General's family group. */}
           {!isDisplay && settings.features.chores && <ChoreSettingsSection settings={settings} onSaved={reloadCore} toast={toast} />}
           {settings.features.meals && <MealSettingsSection settings={settings} onSaved={reloadCore} toast={toast} readOnly={isDisplay} />}
@@ -1972,7 +1972,7 @@ function TransitionRemindersField({ name, value, onChange }: { name: string; val
   )
 }
 
-function CategoriesSection({ categories, onChanged, toast }: { categories: Category[]; onChanged: () => void; toast: (m: string, persist?: boolean) => void }) {
+function CategoriesSection({ categories, onChanged, toast, canManage = true }: { categories: Category[]; onChanged: () => void; toast: (m: string, persist?: boolean) => void; canManage?: boolean }) {
   const [edit, setEdit] = useState<Category | null>(null)
   const [draft, setDraft] = useState<Partial<Category> | null>(null) // non-null while creating (blank, or preset-prefilled)
   const [showPresets, setShowPresets] = useState(false)
@@ -1990,7 +1990,15 @@ function CategoriesSection({ categories, onChanged, toast }: { categories: Categ
   return (
     <Section title="Categories">
       <div className="member-row-list">
-        {sorted.map((c, i) => (
+        {/* Changing categories is for parent devices (auth.ts); a wall screen or kid's device just sees them. */}
+        {!canManage && sorted.map(c => (
+          <div key={c.id} className="member-list-item">
+            <div className="member-avatar-sm" aria-hidden="true" style={{ background: c.color, color: inkFor(c.color) }}>{c.emoji ?? '🏷️'}</div>
+            <div className="name">{c.name}{c.keywords.length > 0 && <div className="settings-row-sub">{c.keywords.join(', ')}</div>}</div>
+          </div>
+        ))}
+        {!canManage && sorted.length === 0 && <div className="settings-row-sub">No categories yet. Add them from a parent's device.</div>}
+        {canManage && sorted.map((c, i) => (
           <div key={c.id} className="member-list-item" onClick={() => setEdit(c)}>
             <div className="member-avatar-sm" aria-hidden="true" style={{ background: c.color, color: inkFor(c.color) }}>{c.emoji ?? '🏷️'}</div>
             {/* The name is the keyboard/screen-reader button; the row stays tappable around it. */}
@@ -2004,7 +2012,7 @@ function CategoriesSection({ categories, onChanged, toast }: { categories: Categ
             </div>
           </div>
         ))}
-        {!showPresets && <button className="add-row-btn" onClick={() => setShowPresets(true)}><PlusIcon width={20} height={20} />Add category</button>}
+        {canManage && !showPresets && <button className="add-row-btn" onClick={() => setShowPresets(true)}><PlusIcon width={20} height={20} />Add category</button>}
         {showPresets && (
           <div className="chip-row" style={{ marginTop: 8 }}>
             {CATEGORY_PRESETS.map(p => (

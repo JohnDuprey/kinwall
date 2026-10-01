@@ -68,7 +68,7 @@ API: `privateJournal` on `GET /api/members` as `{ "on": false, "allowed": true }
 
 ## Categories
 
-Add, edit, reorder (↑ / ↓) and delete event categories. Both admin and display devices can do this. See [Categories & auto-categorizing](../using/categories.md).
+Add, edit, reorder (↑ / ↓) and delete event categories. Admin only; on a display, the list is read-only. See [Categories & auto-categorizing](../using/categories.md).
 
 ## Chores
 

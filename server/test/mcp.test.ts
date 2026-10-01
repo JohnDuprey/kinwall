@@ -417,10 +417,10 @@ test('mcp: update_chore/update_member/update_category match their REST routes\' 
   assert.equal(memberRes.result.isError, true, JSON.stringify(memberRes));
 
   const categoryRes = await (await mcp('tools/call', { name: 'update_category', arguments: { category: category.id, color: '#00ff00' } }, displayKey.key)).json() as any;
-  assert.equal(categoryRes.result.isError, undefined, JSON.stringify(categoryRes));
+  assert.equal(categoryRes.result.isError, true, JSON.stringify(categoryRes));
 
-  // add_member (POST /api/members) is admin-only too - display can edit an existing category in
-  // place, but never members or chores, and never create new ones.
+  // add_member (POST /api/members) is admin-only too - a display never changes members, chores
+  // or categories, and never creates members.
   const addRes = await (await mcp('tools/call', { name: 'add_member', arguments: { name: 'Nope', color: '#000000' } }, displayKey.key)).json() as any;
   assert.equal(addRes.result.isError, true);
 
