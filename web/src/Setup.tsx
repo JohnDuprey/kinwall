@@ -86,12 +86,42 @@ function StepNav({ onBack, onNext, nextLabel = 'Next', nextDisabled, onSkip, sti
   )
 }
 
-function WelcomeStep({ code, setCode, error, onNext }: { code: string; setCode: (v: string) => void; error: string; onNext: () => void }) {
+/** Continue claims the instance for this device, which then makes the passkey: the device you
+ * manage Kinwall from. Someone starting on the wall screen gets "start on your phone" instead: a QR
+ * that opens setup there (with this code filled in, once typed: `#key=…`, see App.tsx
+ * captureKeyFromUrl). Once the phone claims, this screen reloads into the pairing screen. */
+function WelcomeStep({ code, setCode, busy, error, onNext }: { code: string; setCode: (v: string) => void; busy: boolean; error: string; onNext: () => void }) {
   const [hint, setHint] = useState(false)
+  const [wallFirst, setWallFirst] = useState(false)
   // The setup code is 6 digits; the server also accepts the ADMIN_API_KEY secret, which is long.
   const [useKey, setUseKey] = useState(false)
   const ready = useKey ? code.length >= 6 : code.length === 6
   const switchMode = () => { setUseKey(k => !k); setCode('') }
+  useEffect(() => {
+    if (!wallFirst) return
+    const id = setInterval(() => { api.getSetup().then(s => { if (s.claimed) location.reload() }).catch(() => {}) }, SETUP_PASSKEY_POLL_MS)
+    return () => clearInterval(id)
+  }, [wallFirst])
+
+  if (wallFirst) {
+    const withCode = !useKey && code.length === 6
+    const qrValue = new URL(withCode ? `#key=${code}` : '', document.baseURI).href
+    return (
+      <div className="setup-step">
+        <h1>Start on your phone</h1>
+        <p className="setup-sub">Your phone holds the passkey that manages Kinwall, so set it up first. Scan this with your phone's camera to open Kinwall{withCode ? ' with the code already filled in' : ''}.</p>
+        <div className="setup-key-row setup-qr-center"><QrCode value={qrValue} size={168} /></div>
+        <p className="settings-row-sub">No camera? Go to <strong>{new URL(document.baseURI).host}</strong> on your phone{withCode ? <> and enter <strong>{code.slice(0, 3)} {code.slice(3)}</strong></> : ' and enter the setup code'}.</p>
+        <ol className="setup-steps-list">
+          <li>On your phone, finish setup and create your passkey.</li>
+          <li>This screen then shows a pairing code. On your phone, open Settings → Access → Add a wall screen or kid's device and enter it.</li>
+        </ol>
+        <p className="settings-row-sub">Waiting for your phone…</p>
+        <button className="link-btn" onClick={() => setWallFirst(false)}>Back</button>
+      </div>
+    )
+  }
+
   return (
     <div className="setup-step">
       <h1>Welcome to Kinwall 👋</h1>
@@ -105,7 +135,7 @@ function WelcomeStep({ code, setCode, error, onNext }: { code: string; setCode: 
           className="setup-key-input"
           type="password" autoComplete="off" autoCapitalize="off" spellCheck={false} autoFocus
           value={code} onChange={e => setCode(e.target.value.trim())}
-          onKeyDown={e => e.key === 'Enter' && ready && onNext()}
+          onKeyDown={e => e.key === 'Enter' && ready && !busy && onNext()}
           placeholder="ADMIN_API_KEY"
         />
       ) : (
@@ -114,7 +144,7 @@ function WelcomeStep({ code, setCode, error, onNext }: { code: string; setCode: 
           className="setup-code-input"
           type="text" inputMode="numeric" pattern="[0-9]*" autoFocus
           value={code} onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-          onKeyDown={e => e.key === 'Enter' && ready && onNext()}
+          onKeyDown={e => e.key === 'Enter' && ready && !busy && onNext()}
           placeholder="000 000"
         />
       )}
@@ -130,68 +160,12 @@ function WelcomeStep({ code, setCode, error, onNext }: { code: string; setCode: 
         </div>
       )}
       {error && <p className="setup-error" role="alert">{error}</p>}
-      <StepNav onNext={onNext} nextDisabled={!ready} nextLabel="Continue" />
+      <StepNav onNext={onNext} nextDisabled={!ready || busy} nextLabel={busy ? 'Starting…' : 'Continue'} />
+      <button className="link-btn setup-hint-toggle" onClick={() => setWallFirst(true)}>Setting up the wall screen? Start on your phone</button>
     </div>
   )
 }
 
-/** Phone first: it registers the passkey that manages Kinwall. A wall display claimed first only
- * gets a passkey at the end of the wizard, on a claim key that lapses after 5 minutes, so picking
- * the wall here sends you to your phone instead: a QR that opens setup there with this code filled
- * in (`#key=…`, see App.tsx captureKeyFromUrl). Once the phone claims, this screen reloads into the
- * pairing screen, and the phone adds it as a wall screen. */
-function RoleStep({ code, busy, error, onClaim }: { code: string; busy: boolean; error: string; onClaim: () => void }) {
-  const [wallFirst, setWallFirst] = useState(false)
-  useEffect(() => {
-    if (!wallFirst) return
-    const id = setInterval(() => { api.getSetup().then(s => { if (s.claimed) location.reload() }).catch(() => {}) }, SETUP_PASSKEY_POLL_MS)
-    return () => clearInterval(id)
-  }, [wallFirst])
-
-  if (wallFirst) {
-    const qrValue = new URL(`#key=${code}`, document.baseURI).href
-    return (
-      <div className="setup-step">
-        <h1>Start on your phone</h1>
-        <p className="setup-sub">Your phone holds the passkey that manages Kinwall, so set it up first. Scan this with your phone's camera. It opens Kinwall with the code already filled in.</p>
-        <div className="setup-key-row setup-qr-center"><QrCode value={qrValue} size={168} /></div>
-        <p className="settings-row-sub">No camera? Go to <strong>{new URL(document.baseURI).host}</strong> on your phone and enter <strong>{code.slice(0, 3)} {code.slice(3)}</strong>.</p>
-        <ol className="setup-sub setup-steps-list">
-          <li>On your phone, pick <strong>This is my phone or computer</strong> and create your passkey.</li>
-          <li>This screen then shows a pairing code. On your phone, open Settings → Access → Add a wall screen or kid's device and enter it.</li>
-        </ol>
-        <p className="settings-row-sub">Waiting for your phone…</p>
-        <button className="link-btn" onClick={() => setWallFirst(false)}>Back</button>
-      </div>
-    )
-  }
-
-  return (
-    <div className="setup-step">
-      <h1>What is this device?</h1>
-      <p className="setup-sub">Start with the phone or computer you'll manage Kinwall from. You'll add the wall screen after.</p>
-      <div className="setup-role-cards">
-        <button className="setup-role-card setup-role-card-primary" disabled={busy} onClick={onClaim}>
-          <div className="setup-role-badge">Recommended first</div>
-          <div className="setup-role-emoji">📱</div>
-          <div className="setup-role-title">This is my phone or computer</div>
-          <div className="setup-role-sub">Creates your passkey. You'll manage Kinwall from here.</div>
-        </button>
-        <button className="setup-role-card" disabled={busy} onClick={() => setWallFirst(true)}>
-          <div className="setup-role-emoji">🖼️</div>
-          <div className="setup-role-title">This is the wall display</div>
-          <div className="setup-role-sub">The iPad or screen mounted on the wall</div>
-        </button>
-      </div>
-      {busy && <p className="setup-sub">Claiming…</p>}
-      {error && <p className="setup-error" role="alert">{error}</p>}
-    </div>
-  )
-}
-
-/** Admin device role, right after claim: swap the just-issued admin key for a passkey + session,
- * so no long-lived admin key is left stored on this device. Registers using the device's current
- * key (the raw admin key from claim), then on success deletes that claim key server-side. */
 /** No Skip: without a passkey this device's admin key is the only way back in. A browser that
  * can't make one gets `onNoPasskey` after a failed try (recovery codes instead), unless the host
  * requires a passkey. */
@@ -679,10 +653,10 @@ function DoneStep({ onGoToCalendar }: { onGoToCalendar: () => void }) {
   )
 }
 
-/** `setupCode` (e.g. handed over as `#key=…` by a hosting provider) skips the code-entry step. */
+/** `setupCode` (handed over as `#key=…` by a hosting provider, or the wall screen's QR) fills in the code. */
 export default function Setup({ oauth, setupCode, passkeyRequired, onDone }: { oauth: { google: boolean; microsoft: boolean }; setupCode?: string; passkeyRequired?: boolean; onDone: () => void }) {
   const resume = useMemo(readSetupResume, [])
-  const [step, setStep] = useState<Step>(resume?.step ?? (setupCode ? 'role' : 'welcome'))
+  const [step, setStep] = useState<Step>(resume?.step ?? 'welcome')
   const [claimed, setClaimed] = useState(!!resume)
   const [adminKeyId, setAdminKeyId] = useState<string | null>(null)
   // No passkey on this device (none possible, or the browser couldn't make one): recovery codes required.
@@ -740,8 +714,7 @@ export default function Setup({ oauth, setupCode, passkeyRequired, onDone }: { o
       <div className="setup-card" ref={cardRef}>
         <HelpButton className="help-float" />
         <Progress step={step} />
-        {step === 'welcome' && <WelcomeStep code={code} setCode={v => { setCode(v); setClaimError('') }} error={claimError} onNext={() => { setClaimError(''); setStep('role') }} />}
-        {step === 'role' && <RoleStep code={code} busy={claimBusy} error={claimError} onClaim={claim} />}
+        {step === 'welcome' && <WelcomeStep code={code} setCode={v => { setCode(v); setClaimError('') }} busy={claimBusy} error={claimError} onNext={claim} />}
         {step === 'passkey' && <PasskeyStep adminKeyId={adminKeyId} onDone={() => setStep('recovery')} onNoPasskey={passkeyRequired ? undefined : () => { setNoPasskey(true); setStep('recovery') }} />}
         {step === 'recovery' && <RecoveryStep required={noPasskey} onNext={() => setStep('household')} />}
         {step === 'household' && <HouseholdStep onNext={() => setStep('members')} />}

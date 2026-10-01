@@ -68,21 +68,6 @@
 .setup-hint-box p { margin: 4px 0; }
 .setup-hint-box code { background: var(--border); border-radius: 4px; padding: 1px 5px; }
 
-.setup-role-cards { display: flex; flex-direction: column; gap: 14px; margin: 10px 0; }
-.setup-role-card {
-  display: flex; flex-direction: column; align-items: center; gap: 6px;
-  padding: 26px 16px;
-  border-radius: var(--radius);
-  border: 2px solid var(--border);
-  background: var(--bg-alt);
-  min-height: 130px;
-  text-align: center;
-}
-.setup-role-card:active { transform: scale(0.98); }
-.setup-role-emoji { font-size: 2.25rem; }
-.setup-role-title { font-weight: 800; font-size: 1.0625rem; color: var(--text); }
-.setup-role-sub { font-weight: 600; font-size: 0.8125rem; color: var(--text-dim); }
-
 .setup-choice-row { display: flex; gap: 10px; }
 .setup-choice {
   flex: 1; min-height: 56px; border-radius: var(--radius-sm); border: 2px solid var(--border);
@@ -131,12 +116,4 @@
 .setup-input-label { display: block; font-size: 0.8125rem; font-weight: 800; color: var(--text-dim); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.02em; }
 .setup-step h1:focus { outline: none; } /* focused on step change for screen readers, not a control */
 
-/* Role step: the phone/computer card is the one to pick first */
-.setup-role-card-primary { border-color: var(--accent); }
-.setup-role-badge {
-  font-size: 0.6875rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em;
-  color: var(--accent-text); background: var(--bg); border: 1px solid var(--accent); border-radius: 999px; padding: 2px 10px;
-}
 .setup-qr-center { justify-content: center; }
-.setup-steps-list { text-align: left; padding-left: 20px; }
-.setup-steps-list li { margin: 6px 0; }

@@ -2,7 +2,7 @@
 // test/setupSteps.test.ts.
 import type { Member } from './types.ts'
 
-export type Step = 'welcome' | 'role' | 'passkey' | 'recovery' | 'household' | 'members' | 'owner' | 'calendars' | 'chores' | 'done'
+export type Step = 'welcome' | 'passkey' | 'recovery' | 'household' | 'members' | 'owner' | 'calendars' | 'chores' | 'done'
 export type DeviceRole = 'admin'
 export interface SetupResume { step: Step; deviceRole: DeviceRole }
 
@@ -12,11 +12,11 @@ export const defaultGrownUp = (added: number) => added === 0
 /** "Whose device is this?": a full-access device only ever belongs to a grown-up. */
 export const ownerChoices = (members: Member[]) => members.filter(m => m.grownUp)
 
-/** What a reload reopens. Once claimed (a role is set) setup always continues, at the household
- * step if it somehow sits on the role picker, since claiming again can't work. */
+/** What a reload reopens. Once claimed (a role is set) setup always continues, since claiming
+ * again can't work. */
 export function resumeFor(step: Step, deviceRole: DeviceRole | null): SetupResume | null {
   if (!deviceRole || step === 'welcome' || step === 'done') return null
-  return { step: step === 'role' ? 'household' : step, deviceRole }
+  return { step, deviceRole }
 }
 
 /** Wizard error copy from an API error's status: never the server's raw words. */

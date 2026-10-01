@@ -20,8 +20,7 @@ test('ownerChoices: only grown-ups can own a parent device', () => {
 
 test('resumeFor: a claimed device always resumes setup, never lands in an empty app', () => {
   assert.equal(resumeFor('welcome', null), null)
-  assert.equal(resumeFor('role', null), null) // not claimed yet: the wizard opens fresh anyway
-  assert.deepEqual(resumeFor('role', 'admin'), { step: 'household', deviceRole: 'admin' })
+  assert.equal(resumeFor('passkey', null), null) // not claimed yet: the wizard opens fresh anyway
   assert.deepEqual(resumeFor('members', 'admin'), { step: 'members', deviceRole: 'admin' })
   assert.equal(resumeFor('done', 'admin'), null)
 })
