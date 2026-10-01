@@ -238,14 +238,12 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'POST', pattern: /^\/api\/categories\/reorder$/ },
   { method: 'GET', pattern: /^\/api\/lists$/ },
   { method: 'POST', pattern: /^\/api\/lists$/ },
-  { method: 'PUT', pattern: /^\/api\/lists\/order$/ }, // the family's list order, like any list edit
   // The grocery catalog: read and edited like list items (which remember the same places); forgetting is for parent devices.
   { method: 'GET', pattern: /^\/api\/lists\/remembered$/ },
   { method: 'POST', pattern: /^\/api\/lists\/remembered$/ },
   { method: 'PUT', pattern: /^\/api\/lists\/remembered\/[^/]+$/ },
   { method: 'GET', pattern: /^\/api\/lists\/(?!(?:remembered-tags|values|aisles|order)$)[^/]+$/ }, // a list id, never a fixed route like remembered-tags (parents only)
-  { method: 'PATCH', pattern: /^\/api\/lists\/(?!(?:remembered-tags|values|aisles|order)$)[^/]+$/ }, // a list id, never a fixed route like remembered-tags (parents only)
-  { method: 'DELETE', pattern: /^\/api\/lists\/(?!(?:remembered-tags|values|aisles|order)$)[^/]+$/ }, // a list id, never a fixed route like remembered-tags (parents only)
+  { method: 'PATCH', pattern: /^\/api\/lists\/(?!(?:remembered-tags|values|aisles|order)$)[^/]+$/ }, // a list id, never a fixed route like remembered-tags (parents only); routes/lists.ts keeps displays to view fields; deleting lists and their order are for parent devices
   { method: 'POST', pattern: /^\/api\/lists\/[^/]+\/items$/ },
   { method: 'POST', pattern: /^\/api\/lists\/[^/]+\/items\/move$/ }, // moving between lists, like editing items on both
   { method: 'PATCH', pattern: /^\/api\/lists\/[^/]+\/items\/[^/]+$/ },

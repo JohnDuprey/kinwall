@@ -731,14 +731,15 @@ async function deleteSetup() {
   return { rest, call, ok, displayKey };
 }
 
-test('mcp: delete_list removes a list by exact name only; display keys may (as REST allows)', async () => {
+test('mcp: delete_list removes a list by exact name only; display keys may not (as REST)', async () => {
   const { call, ok, displayKey } = await deleteSetup();
   await ok('create_list', { name: 'Fish tacos' });
   await ok('create_list', { name: 'Old chores' });
   const partial = await call('delete_list', { list: 'tacos' });
   assert.equal(partial.isError, true);
   assert.match(partial.content[0].text, /exact name/);
-  assert.match((await call('delete_list', { list: 'OLD CHORES' }, displayKey)).content[0].text, /Deleted list "Old chores"/);
+  assert.equal((await call('delete_list', { list: 'OLD CHORES' }, displayKey)).isError, true);
+  assert.match((await call('delete_list', { list: 'OLD CHORES' })).content[0].text, /Deleted list "Old chores"/);
   await ok('delete_list', { list: 'fish tacos' });
   assert.deepEqual((await ok('list_lists', {})).lists, []);
 });

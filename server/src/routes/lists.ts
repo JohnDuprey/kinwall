@@ -6,7 +6,7 @@ import { hostTimezone } from '../env.ts';
 import { emit } from '../bus.ts';
 import { notifyListUpdate } from '../notify.ts';
 import { parseMemberIds, resolveMemberIds } from '../calendar-members.ts';
-import { actorOf, deviceOwner, eventWriteBlock, ownerBlock, type Actor } from '../auth.ts';
+import { actorOf, deviceOwner, eventWriteBlock, ownerBlock, requestKey, type Actor } from '../auth.ts';
 import type { Context } from 'hono';
 import { SUGGESTION_CAP, catalog, catalogWrites, filterCatalog, fillPlace, itemKey, listCatalog, nameSuggestions, recall, rememberName, rememberPlace, tagsInput, type Catalog, type CatalogEdit, type CatalogItem } from '../item-memory.ts';
 import {
@@ -303,6 +303,7 @@ async function itemOwnerBlock(c: Context<{ Bindings: Env }>, listId: string, ite
   ).bind(listId, itemIds, owner).first<{ member_id: string }>();
   return other ? ownerBlock(c, other.member_id) : null;
 }
+const LIST_VIEW_FIELDS = ['sortBy', 'groupBy', 'keepChecked'];
 const oneItem = (itemId: string) => JSON.stringify([itemId]);
 
 // The catalogs learn from grown-ups' devices and wall screens: a kid's own device uses what's remembered
@@ -679,16 +680,20 @@ listsRoutes.openapi(
     path: '/api/lists/{id}',
     tags: ['Lists'],
     summary: 'Update a list',
+    description: "A wall screen or kid's device (display key) may change only sortBy, groupBy and keepChecked.",
     security: [{ Bearer: [] }],
     request: { params: z.object({ id: z.string() }), body: { content: { 'application/json': { schema: ListPatchSchema } } } },
     responses: {
       200: { description: 'ok', content: { 'application/json': { schema: ListSchema } } },
+      403: { description: 'a display key changing more than the view', content: { 'application/json': { schema: ErrorSchema } } },
       404: { description: 'not found', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
     const { id } = c.req.valid('param');
     const body = c.req.valid('json');
+    // Wall screens and kids' devices change only how a list is viewed; its settings are for parent devices.
+    if ((await requestKey(c))?.scope === 'display' && Object.keys(body).some((k) => !LIST_VIEW_FIELDS.includes(k))) return c.json({ error: 'Ask a grown-up to change this list.' }, 403);
     const existing = await c.env.DB.prepare('SELECT * FROM lists WHERE id = ?').bind(id).first<ListRow>();
     if (!existing) return c.json({ error: 'not found' }, 404);
     const memberIds = body.memberIds !== undefined ? await resolveMemberIds(c.env.DB, body.memberIds) : parseMemberIds(existing.member_ids);

@@ -125,7 +125,7 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 | `add_member` | Adds a family member (admin), optionally with a `birthday` (`YYYY-MM-DD`, or `--MM-DD` without a year) and `grownUp` (a parent or other adult; default false). |
 | `update_member` | Changes a member's name, color, avatar, `birthday` (`null` clears it), `grownUp` (their chores never wait for a parent's OK; turns `needsApproval` off), `needsApproval` (their chores need a parent's OK by default; ignored for a grown-up) or `transitionReminders` (see [Transition reminders](../settings/family.md#transition-reminders)). Admin. |
 | `create_list` | Creates a groceries, shopping, to-do or reusable list. `shopping` without a type makes a list named like groceries (or the family's first shopping list) a Groceries list. |
-| `update_list` | Renames, changes kind (`groceries`, `shopping`, `todo`, `reusable`), emoji, owners, item sort (`sortBy`: `manual`, `added`, `due`, `priority`, `alpha`, `aisle`), grouping (`groupBy`: `store`, `category`, `aisle`, `none`; shopping lists use `aisle` for `category`), whether checked items stay in place (`keepChecked`), or archives a list. |
+| `update_list` | Renames, changes kind (`groceries`, `shopping`, `todo`, `reusable`), emoji, owners, item sort (`sortBy`: `manual`, `added`, `due`, `priority`, `alpha`, `aisle`), grouping (`groupBy`: `store`, `category`, `aisle`, `none`; shopping lists use `aisle` for `category`), whether checked items stay in place (`keepChecked`), or archives a list. Everyday access may change only `sortBy`, `groupBy` and `keepChecked`. |
 | `add_list_items` | Adds items: plain titles or objects (notes, quantity, store, category (a shopping item's department), aisle, member, dueDate, eventId, priority, steps). `steps` is a list of step titles in order. On a shopping list, a store, category or aisle left out comes from what the family used last time for that item. |
 | `update_list_item` | Edits an item's title, notes, quantity, store, category, aisle, assignee, due date, linked event or priority (`low` / `normal` / `high` / `urgent`). |
 | `set_store_aisle_order` | Sets the order a store's aisles are walked in (`store`, `aisles`), e.g. Produce, Bakery, Aisle 4, Frozen, Aisle 5, Dairy. Aisle sort and trips follow it. |
@@ -160,7 +160,7 @@ Deleting is permanent: nothing here can be undone. Events, lists, list items, st
 |---|---|
 | `delete_color_scheme` | Deletes one of the family's own schemes. If the household was using it, the household goes back to Peach. |
 | `delete_event` | Deletes an event (the whole series for recurring local events). This also deletes it at the provider. |
-| `delete_list` | Deletes a list (by ID or exact name) with all its items, their steps and notes, and its groups. |
+| `delete_list` | Deletes a list (by ID or exact name) with all its items, their steps and notes, and its groups. Admin. |
 | `delete_list_item` | Deletes an item from a list, with its steps and notes. |
 | `delete_list_step` | Deletes one step of an item. If every remaining step is done, the item becomes done. |
 | `delete_note` | Deletes one note from an event's or list item's thread. |

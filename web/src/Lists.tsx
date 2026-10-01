@@ -99,14 +99,14 @@ function ownersOf(list: List, members: Member[]) {
 }
 
 function ListCard({ list, active, members, onSelect, onEdit }: {
-  list: List; active: boolean; members: Member[]; onSelect: () => void; onEdit: () => void
+  list: List; active: boolean; members: Member[]; onSelect: () => void; onEdit?: () => void
 }) {
-  // Long-press to edit, short tap to open - same interaction as ChoreCard.
+  // Long-press to edit (parent devices only: no onEdit elsewhere), short tap to open - same interaction as ChoreCard.
   const pressTimer = useRef<ReturnType<typeof setTimeout>>()
   const longPressed = useRef(false)
   const handleDown = () => {
     longPressed.current = false
-    pressTimer.current = setTimeout(() => { longPressed.current = true; onEdit() }, 500)
+    if (onEdit) pressTimer.current = setTimeout(() => { longPressed.current = true; onEdit() }, 500)
   }
   const handleUp = () => {
     clearTimeout(pressTimer.current)
@@ -117,7 +117,7 @@ function ListCard({ list, active, members, onSelect, onEdit }: {
   const { role, tabIndex, onKeyDown } = pressable(onSelect)
   return (
     <div className={`list-card ${active ? 'active' : ''}`} role={role} tabIndex={tabIndex} onKeyDown={onKeyDown}
-      aria-current={active || undefined} onContextMenu={e => { e.preventDefault(); onEdit() }}
+      aria-current={active || undefined} onContextMenu={onEdit && (e => { e.preventDefault(); onEdit() })}
       aria-label={[list.name, countLabel(list), owners.length ? `for ${owners.map(m => m.name).join(' and ')}` : ''].filter(Boolean).join(', ')}
       style={{ ['--list-color' as string]: list.color || 'var(--accent)' }}
       onPointerDown={handleDown} onPointerUp={handleUp} onPointerLeave={() => clearTimeout(pressTimer.current)}>
@@ -1715,7 +1715,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
           <div className="list-detail-sub">{TYPE_LABEL[listType(list)]} · <CountLine list={list} /></div>
           {lastDoneLine(list, members) && <div className="list-detail-sub list-last-done">{lastDoneLine(list, members)}</div>}
         </div>
-        <button className="btn btn-secondary" onClick={() => setEditList(true)} aria-label={`Edit list ${list.name}`}>Edit</button>
+        {parentDevice && <button className="btn btn-secondary" onClick={() => setEditList(true)} aria-label={`Edit list ${list.name}`}>Edit</button>} {/* a list's settings, archive and delete are for parent devices; View stays */}
       </div>
 
       <div className="list-add-bar">
@@ -1884,7 +1884,7 @@ function ArchivedLists({ lists, onChanged }: { lists: List[]; onChanged: () => v
 }
 
 export default function Lists() {
-  const { members, refreshTick, focusMemberId, focusShowsShared, toast } = useApp()
+  const { members, refreshTick, focusMemberId, focusShowsShared, toast, parentDevice } = useApp()
   const isPhone = useIsPhone()
   const [allLists, setLists] = useState<List[]>([])
   // A display pinned to one member shows that member's lists (and the family's, unless hidden).
@@ -1985,7 +1985,7 @@ export default function Lists() {
               ? <DragList items={s.lists.map(l => ({ ...l, title: l.name }))} onReorder={reorder}
                   renderRow={(l, handle) => <ReorderCard list={l} handle={handle} first={ids[0] === l.id} last={ids[ids.length - 1] === l.id} onMove={dir => nudge(ids, l, dir)} />} />
               : s.lists.map(l => (
-                <ListCard key={l.id} list={l} active={selectedId === l.id} members={members} onSelect={() => setSelectedId(l.id)} onEdit={() => setEditList(l)} />
+                <ListCard key={l.id} list={l} active={selectedId === l.id} members={members} onSelect={() => setSelectedId(l.id)} onEdit={parentDevice ? () => setEditList(l) : undefined} />
               )))}
           </section>
         )
@@ -1995,10 +1995,10 @@ export default function Lists() {
         : (
           <div className="lists-col-actions">
             <button className="btn btn-secondary list-new-btn" onClick={() => setEditList('new')}><PlusIcon width={18} height={18} /> New list</button>
-            {sections.some(s => s.lists.length > 1) && <button className="btn btn-secondary" onClick={() => setReordering(true)}>Reorder</button>}
+            {parentDevice && sections.some(s => s.lists.length > 1) && <button className="btn btn-secondary" onClick={() => setReordering(true)}>Reorder</button>}
           </div>
         )}
-      {!reordering && <ArchivedLists lists={archived} onChanged={load} />}
+      {!reordering && parentDevice && <ArchivedLists lists={archived} onChanged={load} />}
     </div>
   )
 

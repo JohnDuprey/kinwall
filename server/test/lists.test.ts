@@ -533,13 +533,14 @@ test('lists: order rejects unknown or repeated ids and changes nothing', async (
   assert.deepEqual((await json(await request('/api/lists'))).map((l: any) => l.id), [a, b]);
 });
 
-test('lists: order is a list edit - a display key may set it, no key may not', async () => {
+test('lists: order is for parent devices - a display key may not set it, no key may not', async () => {
   const env = makeEnv();
   const request = makeApp(env);
   const a = (await json(await request('/api/lists', { method: 'POST', body: JSON.stringify({ name: 'A', kind: 'todo' }) }))).id;
   const b = (await json(await request('/api/lists', { method: 'POST', body: JSON.stringify({ name: 'B', kind: 'todo' }) }))).id;
   const displayKey = await json(await request('/api/keys', { method: 'POST', body: JSON.stringify({ name: 'wall', scope: 'display' }) }));
-  assert.equal((await request('/api/lists/order', { method: 'PUT', body: JSON.stringify({ ids: [b, a] }) }, displayKey.key)).status, 200);
+  assert.equal((await request('/api/lists/order', { method: 'PUT', body: JSON.stringify({ ids: [b, a] }) }, displayKey.key)).status, 403);
+  assert.equal((await request('/api/lists/order', { method: 'PUT', body: JSON.stringify({ ids: [b, a] }) })).status, 200);
   assert.equal((await request('/api/lists/order', { method: 'PUT', body: JSON.stringify({ ids: [a, b] }) }, 'fc_wrong')).status, 401);
   assert.deepEqual((await json(await request('/api/lists'))).map((l: any) => l.id), [b, a]);
 });
