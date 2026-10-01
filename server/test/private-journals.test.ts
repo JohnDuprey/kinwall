@@ -199,9 +199,12 @@ test('admin devices get an owner: only a grown-up; never the recovery session or
   const line = (await feed(session)).find((n: any) => n.kind === 'privacy' && n.title.includes('Alex')) as any;
   assert.ok(line, "on Alex's own devices");
   assert.ok((await security()).some((e) => e.kind === 'device.owner' && e.summary.includes('now belongs to Alex')), 'in the security log');
-  assert.equal((await req(`/api/notifications/${line.id}`, 'DELETE')).status, 403, 'and it stays');
+  assert.equal((await req(`/api/notifications/${line.id}`, 'DELETE')).status, 403, 'an admin key with no owner can\'t remove it');
   await req('/api/notifications', 'DELETE');
-  assert.ok((await feed(session)).some((n: any) => n.id === line.id), 'clearing the feed keeps it too');
+  assert.ok((await feed(session)).some((n: any) => n.id === line.id), 'or clear it');
+  assert.equal((await req(`/api/notifications/${line.id}`, 'DELETE', undefined, session)).status, 200, 'Alex can, from Alex\'s own device');
+  assert.ok(!(await feed(session)).some((n: any) => n.id === line.id));
+  assert.ok((await security()).some((e) => e.kind === 'device.owner' && e.summary.includes('now belongs to Alex')), 'the security log keeps it');
 
   const recovery = (await createApiKey(db as any, 'Recovery (support)', 'admin', { kind: 'session', expiresAt: '2030-01-01T00:00:00Z' })).key;
   assert.equal((await req('/api/me/owner', 'PUT', { owner: alex.id }, recovery)).status, 400);

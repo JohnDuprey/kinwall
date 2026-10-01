@@ -304,22 +304,23 @@ pushRoutes.openapi(
 );
 
 // Clearing the feed is household-wide (there's one copy), so admin-only; displays keep their
-// per-device read state and can't remove anything. Privacy lines (kind 'privacy': whose device
-// something is, private journal changes) stay their 90 days on that person's own devices: they're
-// how a change can't be quiet, so another parent can't clear them first.
+// per-device read state. Privacy notes (kind 'privacy': whose device something is, private journal
+// changes) are removed only by the person they're about, from their own device (ownDevice, as in
+// PRIVACY_MINE), so another parent can't clear one before it's seen. Dismissing loses nothing:
+// the same change is in Security activity (routes/security-events.ts), which can't be cleared.
 pushRoutes.openapi(
   createRoute({
     method: 'delete',
     path: '/api/notifications',
     tags: ['Push'],
-    summary: 'Clear the whole in-app notification feed (admin only)',
+    summary: "Clear the in-app notification feed (admin only); privacy notes only when they're about this device's owner",
     security: [{ Bearer: [] }],
     responses: { 200: { description: 'ok', content: { 'application/json': { schema: z.object({ ok: z.literal(true), deleted: z.number() }) } } }, 403: { description: 'not admin', content: { 'application/json': { schema: ErrorSchema } } } },
   }),
   async (c) => {
     const resolved = await resolveKey(c);
     if (resolved?.scope !== 'admin') return c.json({ error: 'Admin key required' }, 403);
-    const r = await c.env.DB.prepare("DELETE FROM notifications WHERE kind != 'privacy'").run();
+    const r = await c.env.DB.prepare(`DELETE FROM notifications WHERE 1${PRIVACY_MINE}`).bind((await ownDevice(c)) ?? '').run();
     return c.json({ ok: true as const, deleted: r.meta?.changes ?? 0 }, 200);
   },
 );
@@ -329,18 +330,21 @@ pushRoutes.openapi(
     method: 'delete',
     path: '/api/notifications/{id}',
     tags: ['Push'],
-    summary: 'Remove one notification from the feed (admin only)',
+    summary: "Remove one notification from the feed (admin only; a privacy note only from the device of the person it's about)",
     security: [{ Bearer: [] }],
     request: { params: z.object({ id: z.string() }) },
     responses: { 200: { description: 'ok', content: { 'application/json': { schema: z.object({ ok: z.literal(true) }) } } }, 403: { description: 'not admin', content: { 'application/json': { schema: ErrorSchema } } }, 404: { description: 'no such notification', content: { 'application/json': { schema: ErrorSchema } } } },
   }),
   async (c) => {
-    const resolved = await resolveKey(c);
-    if (resolved?.scope !== 'admin') return c.json({ error: 'Admin key required' }, 403);
+    const admin = (await resolveKey(c))?.scope === 'admin';
+    const mine = await ownDevice(c);
+    if (!admin && !mine) return c.json({ error: 'Admin key required' }, 403);
     const id = c.req.valid('param').id;
-    const row = await c.env.DB.prepare('SELECT kind FROM notifications WHERE id = ?').bind(id).first<{ kind: string }>();
+    const row = await c.env.DB.prepare('SELECT kind, member_ids FROM notifications WHERE id = ?').bind(id).first<{ kind: string; member_ids: string }>();
     if (!row) return c.json({ error: 'Not found' }, 404);
-    if (row.kind === 'privacy') return c.json({ error: 'Privacy notes stay in the feed for 90 days.' }, 403);
+    if (row.kind === 'privacy' ? !mine || !parseMemberIds(row.member_ids).includes(mine) : !admin) {
+      return c.json({ error: row.kind === 'privacy' ? 'Only the person this note is about can remove it, from their own device.' : 'Admin key required' }, 403);
+    }
     await c.env.DB.prepare('DELETE FROM notifications WHERE id = ?').bind(id).run();
     return c.json({ ok: true as const }, 200);
   },

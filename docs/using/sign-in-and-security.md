@@ -95,7 +95,7 @@ Security events don't go into the family's [notifications](notifications.md#noti
 * **🔑 New passkey**: a new way to sign in as a parent. If it wasn't you, remove it.
 * **🔐 Recovery code used to sign in**: the usual sign of someone getting in without a passkey.
 
-And when a device now belongs to someone, or their private journal changes, that person's own devices still get a 🔒 note in their bell, since it's about who can read their journal (a kid can't see Security activity).
+And when a device now belongs to someone, or their private journal changes, that person's own devices still get a 🔒 note in their bell, since it's about who can read their journal (a kid can't see Security activity). Only they can remove it, from their own device; Security activity keeps the record.
 
 ## Exposing Kinwall to the internet
 

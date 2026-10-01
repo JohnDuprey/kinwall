@@ -39,7 +39,7 @@ A private journal is for writing only you can read. The page says so: **Private:
 
 * **Grown-ups** (anyone marked a grown-up in [Settings → Family](../settings/family.md)): private by default. Turn **Private journal** off or on at the top of your journal, on your own device.
 * **Kids**: off until a parent turns on **Let Maya keep a private journal** in [Settings → Family](../settings/family.md#private-journal) (Maya's settings). Then Maya turns **Private journal** on or off from her own device. If a parent turns the permission off later, Maya's new entries can be read on parent devices again, and the ones she wrote while it was private stay private.
-* Every change is logged in [Security activity](sign-in-and-security.md#security-activity) ("Maya's journal is private") and leaves a 🔒 note in Maya's own [notifications](notifications.md), so nothing changes quietly.
+* Every change is logged in [Security activity](sign-in-and-security.md#security-activity) ("Maya's journal is private") and leaves a 🔒 note in Maya's own [notifications](notifications.md), so nothing changes quietly. Only Maya can remove that note, from her own device; the Security activity line stays.
 
 ### Your own devices
 

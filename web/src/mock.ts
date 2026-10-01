@@ -649,7 +649,7 @@ export const mock = {
   getNotifications: async () => [...notifications],
   getSecurityEvents: async (before?: string) => { const from = before ? securityEvents.findIndex(e => e.id === before) + 1 : 0; return securityEvents.slice(from, from + SECURITY_PAGE) },
   deleteNotification: async (id: string) => { const i = notifications.findIndex(n => n.id === id); if (i >= 0) notifications.splice(i, 1); bump(); return { ok: true } },
-  clearNotifications: async () => { const kept = notifications.filter(n => n.kind === 'privacy'); const deleted = notifications.length - kept.length; notifications.splice(0, notifications.length, ...kept); bump(); return { ok: true as const, deleted } },
+  clearNotifications: async () => { const deleted = notifications.length; notifications.splice(0); bump(); return { ok: true as const, deleted } },
   sendNotification: async (b: { title: string; body: string; memberIds?: string[]; url?: string }) => {
     notifications.unshift({ id: uid(), at: new Date().toISOString(), kind: 'message', title: b.title, body: b.body, url: b.url ?? null, memberIds: b.memberIds ?? [], source: 'api' })
     bump()

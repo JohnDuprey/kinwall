@@ -303,6 +303,7 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'POST', pattern: /^\/api\/quiet-pin\/verify$/ }, // waking the night screen; setting the PIN is for parent devices
   { method: 'GET', pattern: /^\/api\/rev$/ },
   { method: 'GET', pattern: /^\/api\/notifications$/ },
+  { method: 'DELETE', pattern: /^\/api\/notifications\/[^/]+$/ }, // a kid's own device removes its own privacy notes only (routes/push.ts)
   { method: 'GET', pattern: /^\/api\/push\/vapid-public-key$/ },
   { method: 'GET', pattern: /^\/api\/push\/subscriptions$/ },
   { method: 'POST', pattern: /^\/api\/push\/subscriptions$/ },

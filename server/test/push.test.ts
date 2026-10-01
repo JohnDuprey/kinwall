@@ -642,6 +642,44 @@ test('feed: DELETE /api/notifications/:id and DELETE /api/notifications clear en
   assert.equal((await feed(request)).length, 0);
 });
 
+test("feed: a privacy note is removed only by the person it's about, from their own device; the security log keeps it", async () => {
+  const { env, request, alex, leo, kid, wall } = await kidSetup();
+  const sam = (await (await request('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Sam', color: '#5ae', grownUp: true }) })).json()) as any;
+  const phone = async (name: string, owner: string) => {
+    const k = (await (await request('/api/keys', { method: 'POST', body: JSON.stringify({ name, scope: 'admin' }) })).json()) as any;
+    assert.equal((await request(`/api/keys/${k.id}`, { method: 'PATCH', body: JSON.stringify({ owner }) })).status, 200);
+    return k.key as string;
+  };
+  const alexPhone = await phone("Alex's phone", alex.id);
+  const samPhone = await phone("Sam's phone", sam.id);
+  await recordNotification(env.DB, { kind: 'message', title: 'Dinner at 6', source: 'api' });
+  await recordNotification(env.DB, { kind: 'privacy', title: "Alex's journal is private", memberIds: [alex.id], source: 'system' });
+  const rows = async () => (await env.DB.prepare('SELECT id, kind, title FROM notifications').all<{ id: string; kind: string; title: string }>()).results;
+  const id = async (title: string) => (await rows()).find((r) => r.title === title)!.id;
+  const del = (nid: string, key?: string) => request(`/api/notifications/${nid}`, { method: 'DELETE' }, key);
+
+  // One at a time: nobody else, not even a parent or the household admin key.
+  const alexNote = await id("Alex's journal is private");
+  for (const key of [ADMIN_KEY, samPhone, wall, kid]) assert.equal((await del(alexNote, key)).status, 403, key);
+  assert.equal((await del(alexNote, alexPhone)).status, 200);
+  assert.ok(!(await rows()).some((r) => r.id === alexNote));
+  // A kid's own device removes its own note, and still nothing else.
+  assert.equal((await del(await id("Leo's iPad now belongs to Leo"), kid)).status, 200);
+  assert.equal((await del(await id('Dinner at 6'), kid)).status, 403);
+
+  // Clear all: the household admin key leaves privacy notes alone; Alex's phone also clears Alex's.
+  await request('/api/notifications', { method: 'DELETE' });
+  assert.deepEqual((await rows()).map((r) => r.title).sort(), ["Alex's phone now belongs to Alex", "Sam's phone now belongs to Sam"]);
+  await recordNotification(env.DB, { kind: 'message', title: 'Pizza night', source: 'api' });
+  const cleared = (await (await request('/api/notifications', { method: 'DELETE' }, alexPhone)).json()) as any;
+  assert.deepEqual(cleared, { ok: true, deleted: 2 });
+  assert.deepEqual((await rows()).map((r) => r.title), ["Sam's phone now belongs to Sam"]);
+  assert.equal((await request('/api/notifications', { method: 'DELETE' }, kid)).status, 403, 'clearing everything stays a parent thing');
+
+  const log = (await (await request('/api/security-events?limit=100')).json()) as { kind: string; summary: string }[];
+  assert.ok(log.some((e) => e.kind === 'device.owner' && e.summary.includes('now belongs to Alex')), 'Security activity keeps the record');
+});
+
 // --- Per-person transition reminders ---
 
 test('transitions: member setting defaults off, validates, round-trips, and only admins set it', async () => {

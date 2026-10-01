@@ -82,7 +82,7 @@ export default function NotificationBell({ isAdmin }: { isAdmin: boolean }) {
   }
   const clearAll = async () => {
     if (!await dialog.confirm({ title: 'Clear all notifications?', body: 'Removes them for the whole family, on every device.', confirmLabel: 'Clear all', danger: true })) return
-    setItems(list => list.filter(n => n.kind === 'privacy')) // privacy notes stay their 90 days (the server keeps them)
+    setItems([]) // privacy notes only reach the feed of the person they're about, who may clear them
     try { await api.clearNotifications(); announce('Notifications cleared') } catch { load() }
   }
 
@@ -126,6 +126,7 @@ export default function NotificationBell({ isAdmin }: { isAdmin: boolean }) {
                       <span className="notif-main">
                         <span className="notif-title">{isUnread && <><span className="notif-dot" /><span className="sr-only">Unread: </span></>}{n.title}</span>
                         {n.body && <span className="notif-body">{n.body}</span>}
+                        {n.kind === 'privacy' && isAdmin && <span className="notif-meta">Kept in Settings → Access → Security activity</span>}
                         <span className="notif-meta">
                           <time dateTime={n.at}>{relTime(n.at, tz)}</time>
                           {who.length > 0 && (
@@ -143,7 +144,7 @@ export default function NotificationBell({ isAdmin }: { isAdmin: boolean }) {
                       {n.url
                         ? <button className={`notif-item ${isUnread ? 'unread' : ''}`} onClick={() => go(n)}>{content}</button>
                         : <div className={`notif-item ${isUnread ? 'unread' : ''}`}>{content}</div>}
-                      {isAdmin && n.kind !== 'privacy' && <button className="icon-btn notif-remove" onClick={() => remove(n)} aria-label={`Remove: ${n.title}`}>×</button>}
+                      {(isAdmin || n.kind === 'privacy') && <button className="icon-btn notif-remove" onClick={() => remove(n)} aria-label={`Remove: ${n.title}`}>×</button>}
                     </li>
                   )
                 })}
