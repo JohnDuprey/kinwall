@@ -23,6 +23,7 @@ import type { Context } from 'hono';
 import { createRouter } from '../router.ts';
 import { emit } from '../bus.ts';
 import { ErrorSchema } from '../schemas.ts';
+import { ownerBlock } from '../auth.ts';
 import type { KinwallDb } from '../db.ts';
 import type { Env } from '../env.ts';
 import { hostTimezone } from '../env.ts';
@@ -411,11 +412,13 @@ pluginsRoutes.openapi(
     method: 'put', path: '/api/plugins/{id}/data', tags: ['Plugins'], security: [{ Bearer: [] }],
     summary: `Save one value for a plugin (per person, or shared with member ''); value null deletes it. At most ${PLUGIN_LIMITS.maxKeys} keys per person and ${PLUGIN_LIMITS.maxValueBytes / 1024} KB per value.`,
     request: { params: IdParam, body: { required: true, content: { 'application/json': { schema: z.object({ member: z.string().default(''), key: z.string().min(1).max(64), value: z.unknown() }) } } } },
-    responses: { 204: { description: 'saved' }, 400: errors[400], 404: errors[404] },
+    responses: { 204: { description: 'saved' }, 400: errors[400], 403: { description: 'this device belongs to someone else', content: json(ErrorSchema) }, 404: errors[404] },
   }),
   async (c) => {
     const { id } = c.req.valid('param');
     const { member, key, value } = c.req.valid('json');
+    const blocked = await ownerBlock(c, member);
+    if (blocked) return c.json({ error: blocked }, 403);
     const db = c.env.DB;
     if (!(await db.prepare('SELECT 1 FROM plugins WHERE id = ?').bind(id).first())) return c.json({ error: 'plugin not found' }, 404);
     if (member && !(await db.prepare('SELECT 1 FROM members WHERE id = ?').bind(member).first())) return c.json({ error: 'member not found' }, 404);
@@ -455,11 +458,13 @@ pluginsRoutes.openapi(
     method: 'post', path: '/api/plugins/{id}/playtime', tags: ['Plugins'], security: [{ Bearer: [] }],
     summary: `Add seconds of active play for one person (at most ${PLUGIN_LIMITS.maxPlaytimeCall} per call, ${PLUGIN_LIMITS.maxPlaytimeDay / 3600} hours a day) and complete their chores linked to this plugin that are due today once the day's play reaches them. seconds 0 just reads the progress. Returns that person's linked chores due today.`,
     request: { params: IdParam, body: { required: true, content: { 'application/json': { schema: z.object({ member: z.string().min(1), seconds: z.number().min(0) }) } } } },
-    responses: { 200: { description: 'ok', content: json(z.array(ActivityChoreProgressSchema)) }, 404: errors[404] },
+    responses: { 200: { description: 'ok', content: json(z.array(ActivityChoreProgressSchema)) }, 403: { description: 'this device belongs to someone else', content: json(ErrorSchema) }, 404: errors[404] },
   }),
   async (c) => {
     const { id } = c.req.valid('param');
     const { member, seconds } = c.req.valid('json');
+    const blocked = await ownerBlock(c, member);
+    if (blocked) return c.json({ error: blocked }, 403);
     const db = c.env.DB;
     const [pluginRes, memberRes, tzRes] = await db.batch<unknown>([
       db.prepare('SELECT 1 FROM plugins WHERE id = ? AND enabled = 1').bind(id),

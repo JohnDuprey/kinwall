@@ -46,7 +46,9 @@ const MAX_HEARTBEAT_SECONDS = 45
 
 /** #/activities/plugin/<id>[?member=<id>]: asks who's playing (unless the link names them or the family is filtered to one person), then runs it. */
 export function PluginPlayer({ id }: { id: string }) {
-  const { members, selectedMemberId, settings, toast, reloadCore } = useApp()
+  const { members: everyone, selectedMemberId, settings, toast, reloadCore, parentDevice, focusLocked, meMemberId } = useApp()
+  // A kid's own device plays only as the kid (the server refuses saving or timing anyone else).
+  const members = !parentDevice && focusLocked && meMemberId ? everyone.filter(m => m.id === meMemberId) : everyone
   const [plugin, setPlugin] = useState<Plugin | null | undefined>(undefined)
   // undefined = still asking; null = nobody in particular. Derived, not initial state: the family
   // may still be loading on a fresh page load. A chore's link (?member=) or a filter (or pin) to

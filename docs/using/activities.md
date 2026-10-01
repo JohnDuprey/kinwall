@@ -114,6 +114,6 @@ Admins can add activities made by others: tap **Activities → Get more activiti
 
 Every added activity runs in a sandbox: it can't load anything from the internet and sees only who's playing (first name, emoji and color) and its own saved progress, never your calendar, chores, lists or photos. Each person's progress is saved in your Kinwall. If an activity tries to leave Kinwall for another site, Kinwall stops it, shows **tried to leave Kinwall**, and stops answering it; open it again from **Activities** to restart it. A sandbox can't stop a page from trying, and what it already saw (who's playing and its progress) could go with it, which is why unreviewed activities need your trust. Turning an activity off hides it; **Remove** deletes it and everyone's progress in it.
 
-When you open one, Kinwall asks **Who's playing?** unless the header is set to one person. **Just playing** plays without saving to anyone. A chore can ask for minutes of an activity; see [Activity chores](chores.md#activity-chores).
+When you open one, Kinwall asks **Who's playing?** unless the header is set to one person. **Just playing** plays without saving to anyone. A kid's own device always plays as the kid: the server saves progress and play time from it only for them (or the family's shared progress). A chore can ask for minutes of an activity; see [Activity chores](chores.md#activity-chores).
 
 Want to build one? See [Building activity plugins](../contributing/plugins.md).

@@ -166,12 +166,12 @@ test("owned devices: a member's own display key completes, uncompletes and buys 
   assert.equal((await complete(wall, anyone, maya.id)).status, 200);
   assert.equal((await undo(admin, anyone)).status, 200);
 
-  // Activity playtime: Leo's device can't finish a chore for Maya with her playtime.
+  // Activity playtime: Leo's device can't add Maya's playtime (so can't finish a chore for her with it).
   const now = new Date().toISOString();
   await env.DB.prepare("INSERT INTO plugins (id, name, version, manifest, enabled, installed_at, updated_at) VALUES ('words', 'Sight words', '1.0.0', '{}', 1, ?, ?)").bind(now, now).run();
   const words = await chore({ title: 'Words', pluginId: 'words', pluginMinutes: 1 });
   const play = async (member: string) => (await (await post(leoTab, '/api/plugins/words/playtime', { member, seconds: 60 })).json() as any[]).find((p) => p.choreId === words);
-  assert.equal((await play(maya.id)).justCompleted, false);
+  assert.equal((await post(leoTab, '/api/plugins/words/playtime', { member: maya.id, seconds: 60 })).status, 403);
   assert.equal(await doneBy(words), undefined);
   assert.equal((await play(leo.id)).justCompleted, true);
   assert.equal(await doneBy(words), leo.id);

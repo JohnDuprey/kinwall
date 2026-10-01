@@ -108,3 +108,16 @@ test("stickers: a kid's device places stickers only on its owner's scrapbook pag
   assert.equal((await raw('DELETE', `/api/stickers/scrapbook/${maya.id}/${mayas.id}`, undefined, wallKey)).status, 200);
 });
 
+test("plugins: a kid's device saves data and play time only for its owner (or the family's shared data)", async () => {
+  const { raw, leo, maya, leoKey, wallKey } = await setup();
+  const put = (member: string, key: string) => raw('PUT', '/api/plugins/sight-words/data', { member, key: 'progress', value: 1 }, key);
+  const play = (member: string, key: string) => raw('POST', '/api/plugins/sight-words/playtime', { member, seconds: 30 }, key);
+  // Past the owner check, a missing plugin is a 404.
+  assert.equal((await put(maya.id, leoKey)).status, 403);
+  assert.equal((await play(maya.id, leoKey)).status, 403);
+  assert.equal((await put(leo.id, leoKey)).status, 404);
+  assert.equal((await put('', leoKey)).status, 404);
+  assert.equal((await play(leo.id, leoKey)).status, 404);
+  assert.equal((await put(maya.id, wallKey)).status, 404);
+  assert.equal((await play(maya.id, wallKey)).status, 404);
+});
