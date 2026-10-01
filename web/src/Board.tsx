@@ -19,7 +19,7 @@ import { boardGoals } from './tempCheck.ts'
 import { TakeNowTile, useDueDoses } from './TakeNow.tsx'
 import Sheet from './Sheet.tsx'
 import { BasketIcon, CartIcon } from './icons.tsx'
-import { boardAreas, boardChores, boardItems, moreLabel, rowsThatFit, tidbitCardsThatFit } from './boardFit.ts'
+import { boardAreas, boardChores, boardItems, moreLabel, rowsThatFit, tidbitCardsThatFit, tileColumns } from './boardFit.ts'
 import { layoutAreas, layoutFor, type BoardCardId, type CardDensity } from './boardLayout.ts'
 import { leadOf, leadText } from './leadTime.ts'
 import { onMinute } from './minuteTick.ts'
@@ -122,6 +122,7 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
   const scrollRef = useRef<HTMLDivElement>(null)
   const [big, setBig] = useState(false)
   const [roomFor, setRoomFor] = useState(1) // tidbit cards
+  const [boardW, setBoardW] = useState(0)
   const loaded = !!data
   const meds = useDueDoses()
   useEffect(() => {
@@ -130,6 +131,7 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
     const ro = new ResizeObserver(([e]) => {
       setBig(e.contentRect.width >= FULL_W && e.contentRect.height >= FULL_H)
       setRoomFor(tidbitCardsThatFit(e.contentRect.width, e.contentRect.height))
+      setBoardW(e.contentRect.width)
     })
     ro.observe(el)
     return () => ro.disconnect()
@@ -207,7 +209,7 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
     <div className="board-scroll" ref={scrollRef}>
       <div className="board" style={custom ? custom.style : boardAreas(shown)}>
         {has('tiles') && (
-          <nav className="board-tiles" aria-label="At a glance">
+          <nav className="board-tiles" aria-label="At a glance" style={{ '--tile-cols': tileColumns(boardW, tiles.length) } as React.CSSProperties}>
             {tiles.includes('meds') && <TakeNowTile {...meds} />}
             {tiles.includes('chores') && (
               <a className="board-tile" href="#/chores">

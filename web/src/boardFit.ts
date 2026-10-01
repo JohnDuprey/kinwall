@@ -68,3 +68,10 @@ export function tidbitCardsThatFit(width: number, height: number): number {
   if (width < 620) return 1
   return width < 880 || height >= 640 ? 3 : 1
 }
+
+/** Columns for the Board's count tiles: one row when each gets `min` px, else as few balanced rows as
+ * fit (six on a tablet: 3 + 3, not six slivers with their words cut off, nor 4 + 2). */
+export function tileColumns(width: number, count: number, min = 160, gap = 12): number {
+  const fit = Math.max(1, Math.floor((width + gap) / (min + gap)))
+  return Math.ceil(count / Math.ceil(count / fit))
+}

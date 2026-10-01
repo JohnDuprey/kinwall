@@ -2394,7 +2394,7 @@ a.btn { text-decoration: none; } /* a link that looks like a button (the Board's
 .board-tile:active { transform: scale(0.99); }
 .board-tile-label > svg, .board-tile-label > .emoji-plate { margin-right: 6px; vertical-align: -3px; }
 .board-tile-label > .emoji-plate { font-size: 0.875rem; vertical-align: middle; }
-.board-tile-label { flex-basis: 100%; font-size: 0.8125rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.board-tile-label { flex-basis: 100%; min-width: 0; font-size: 0.8125rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.02em; overflow-wrap: break-word; } /* a long list name wraps, never cut off */
 .board-tile-value { font-size: 1.125rem; font-weight: 800; }
 .board-tile-value > span { white-space: nowrap; }
 .board-tile-people { display: flex; flex-wrap: wrap; gap: 4px 10px; }
@@ -2403,7 +2403,8 @@ a.btn { text-decoration: none; } /* a link that looks like a button (the Board's
 .board-tile-person.done { opacity: 0.5; }
 /* Two to a row on a phone: an odd last tile takes the whole row rather than leave half of it empty. */
 @container board (max-width: 619.98px) { .board-tile:last-child:nth-child(odd) { grid-column: 1 / -1; } }
-@container board (min-width: 620px) { .board-tiles { grid-template-columns: none; grid-auto-columns: minmax(0, 1fr); grid-auto-flow: column; } }
+/* One row when each tile has room, else balanced rows (boardFit.ts tileColumns): a tablet gets 3 + 3. */
+@container board (min-width: 620px) { .board-tiles { grid-template-columns: repeat(var(--tile-cols, 3), minmax(0, 1fr)); } }
 
 @container board (min-width: 620px) {
   .board { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: var(--board-areas-2); }

@@ -32,7 +32,7 @@ The board carries its own large clock and date, so while it's showing, the wall'
 
 **Board** turns the calendar into a bulletin board to read from across the room. It always shows today onward, so it has no ◀ ▶ or swipe paging.
 
-Across the top, count tiles sum things up; tap one to open its screen (on a phone they come after the clock):
+Across the top, count tiles sum things up; tap one to open its screen (on a phone they come after the clock, and on a tablet too narrow for one row they take two even rows):
 
 * **💊 Take now**: medicine doses due now, with who; tap it to mark them in a sheet. Only while a dose is due, with [medication reminders](medications.md) on. It shows with **Full lists** too, as the only tile when the others are cards.
 * **Chores**: how many of today's chores are left, with each person's avatar and count (a ✓ once they're done), or **All done ✓**.

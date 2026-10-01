@@ -1,7 +1,7 @@
 // node --test test/ (npm test). Fitting a Board card's rows to its space.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { boardChores, boardItems, moreLabel, rowsThatFit } from '../src/boardFit.ts'
+import { boardChores, boardItems, moreLabel, rowsThatFit, tileColumns } from '../src/boardFit.ts'
 
 const rows = (...bottoms: number[]) => bottoms.map(bottom => ({ bottom }))
 
@@ -53,4 +53,13 @@ test('boardChores: also narrows reward requests to the person picked', () => {
   const reqs = [{ memberId: 'maya' }, { memberId: 'leo' }]
   assert.equal(boardChores(reqs, 'maya', 'maya', true).length, 1)
   assert.equal(boardChores(reqs, null, null, true).length, 2)
+})
+
+test('tileColumns: one row when every tile gets room, else balanced rows', () => {
+  assert.equal(tileColumns(1238, 6), 6, 'wall: one row')
+  assert.equal(tileColumns(713, 6), 3, 'tablet portrait: 3 + 3, not six slivers')
+  assert.equal(tileColumns(896, 6), 3, 'tablet landscape: 3 + 3, not 4 + 2')
+  assert.equal(tileColumns(713, 5), 3, '3 + 2')
+  assert.equal(tileColumns(713, 4), 4, 'four still fit in a row')
+  assert.equal(tileColumns(100, 3), 1)
 })
