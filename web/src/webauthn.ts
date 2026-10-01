@@ -14,8 +14,16 @@ export function passkeysSupported(): boolean {
   return typeof window !== 'undefined' && window.isSecureContext && !!window.PublicKeyCredential
 }
 
+/** Shown inside another page's frame, like Home Assistant's panel. Safari won't make a passkey
+ * there (it throws "Invalid 'sameOriginWithAncestors' value"), but the same address opened in its
+ * own tab works. */
+export function inFrame(): boolean {
+  try { return window.self !== window.top } catch { return true } // a cross-origin parent throws
+}
+
 function friendlyError(e: unknown): string {
   if (e instanceof ApiError) return e.message
+  if (inFrame() && e instanceof Error && e.name !== 'AbortError') return 'Your browser won\'t add a passkey inside this panel. Open Kinwall in its own tab and add it there.'
   if (e instanceof Error && e.name === 'NotAllowedError') return 'Cancelled.'
   return e instanceof Error ? e.message : 'Passkey action failed.'
 }

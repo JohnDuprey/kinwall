@@ -31,7 +31,7 @@ import { baseFromPalette, DEFAULT_SKIN_ID, findSkin, getSkin, OLD_BACKGROUNDS, p
 import { SAVER_PREVIEW_EVENT } from './Screensaver.tsx'
 import type { ClockPos } from './nightClock.ts'
 import { countDrawings } from './drawings-db.ts'
-import { passkeysSupported, registerPasskey } from './webauthn.ts'
+import { inFrame, passkeysSupported, registerPasskey } from './webauthn.ts'
 import { QrCode } from './App.tsx'
 import { InstallRow } from './Install.tsx'
 import { addAppTile, appLiveActivities, appMedicineNames, appNotificationSettings, appPlatform, appQuickSettingsTiles, inNativeApp, liveActivitiesLine, openAppNotificationSettings, setAppMedicineNames } from './native.ts'
@@ -2488,6 +2488,7 @@ function PasskeysSection({ me, toast, onChanged }: { me: Me; toast: (m: string, 
   return (
     <Section id="passkeys" title="Parent devices" icon={<KeyIcon width={16} height={16} />}>
       <p className="settings-row-sub">Phones and computers that sign in with a passkey. Parents (admins) can change everything.</p>
+      {inFrame() && <p className="settings-row-sub">Inside Home Assistant's panel, some browsers won't add a passkey. <a className="text-link" href={location.href} target="_blank" rel="noopener">Open Kinwall in its own tab</a> to add one.</p>}
       {me.kind === 'session' && (
         <div className="settings-row">
           <div className="settings-row-label">{me.keyName === 'Recovery code' ? 'Signed in with a recovery code' : 'Signed in with a passkey'}</div>
