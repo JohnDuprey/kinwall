@@ -82,6 +82,7 @@
 
 ## Contributing
 
+* [Contributing & Code of Conduct](contributing/code-of-conduct.md)
 * [Development setup](contributing/development.md)
 * [Architecture](contributing/architecture.md)
 * [Embedding the server](contributing/embedding.md)
