@@ -1504,7 +1504,7 @@ function NightScreenSection() {
         {own
           ? <NightRows value={nightFieldsFor(device, settings.nightLook)} onChange={patch => setDeviceAppearance({ ...device, ...patch })} here />
           : <div className="settings-row-sub">This screen shows what the family picked for wall screens. Parents change it under For the whole family → Night.</div>}
-        <button className="btn btn-secondary saver-preview-btn" onClick={() => window.dispatchEvent(new Event(SAVER_PREVIEW_EVENT))}>Preview screensaver</button>
+        <button className="btn btn-secondary saver-preview-btn" onClick={() => window.dispatchEvent(new Event(SAVER_PREVIEW_EVENT))}>Preview Night screen</button>
         <div className="settings-row-sub">Shows what this screen does overnight for 20 seconds. Tap or press Escape to end it. Only wall screens dim on their own: paired displays, and devices with Use as a wall screen on under This display.</div>
       </div>
     </SummarySection>

@@ -41,13 +41,13 @@ So little ones can't turn the wall on at night, a parent can set a PIN under **S
 * During the night hours, a tap on a wall screen's Night screen shows a keypad instead of waking it. That includes a parent's own device with **Use as a wall screen** on: being a parent device doesn't skip the PIN. The right PIN wakes it as usual; it goes back to sleep after five minutes without a touch, and asks again.
 * A wrong PIN says "Try again". After 5 wrong tries in a row the keypad waits a minute, then longer after each further wrong try (up to 30 minutes). The server also allows only 5 wrong tries per 15 minutes from each screen, so one screen guessing doesn't lock the others out, and 30 for the whole family across every screen, so even a 4-digit PIN would take days to guess. Past that every screen waits, a parent's device too (or set a new PIN, which ends the wait). The right PIN never counts.
 * The keypad hides after 30 seconds without a touch. If the server can't be reached, the screen stays asleep.
-* Outside the night hours there's no PIN. The Night screen button and **Preview screensaver** never ask for it either, unless it's night and the screen has already gone back to sleep.
+* Outside the night hours there's no PIN. The Night screen button and **Preview Night screen** never ask for it either, unless it's night and the screen has already gone back to sleep.
 * **Forgot it?** Remove it under **More… → Remove PIN** on any parent device.
 * Only a salted hash of the PIN is stored, and it isn't in the [export](../your-data/export-import.md): set it again after a restore. See [Privacy](../your-data/privacy.md).
 
 ## Night screen now
 
-Wall screens have a moon button in the header, next to the bell and help. Tap it to show the Night screen right away, at any time of day, with this screen's Night screen settings (its own, or the family's). It stays on, and keeps the screen awake, until you tap the screen or press a key, then shows today's calendar. Unlike **Preview screensaver**, it doesn't end on its own.
+Wall screens have a moon button in the header, next to the bell and help. Tap it to show the Night screen right away, at any time of day, with this screen's Night screen settings (its own, or the family's). It stays on, and keeps the screen awake, until you tap the screen or press a key, then shows today's calendar. Unlike **Preview Night screen**, it doesn't end on its own.
 
 ## Start it from Home Assistant
 
@@ -87,7 +87,7 @@ Options once any source is on:
 
 The clock stays fully on screen at any size and in either orientation.
 
-Tapping wakes the display as usual. **Preview screensaver** shows the Night screen for 20 seconds on whatever device you're using, so you can check it from a phone; tap or press Escape to end it early.
+Tapping wakes the display as usual. **Preview Night screen** shows the Night screen for 20 seconds on whatever device you're using, so you can check it from a phone; tap or press Escape to end it early.
 
 **Privacy:** Art and Nature are off by default. When chosen, the display fetches pictures **directly** from that service (no Kinwall server in between), so the service sees the display's IP address. Nature makes one request per picture. Art fetches the list of highlight paintings once a night, then looks up one artwork and loads its image per change. Nothing about your household is sent. Drawings never leave the device, and family photos come only from your Kinwall server. Google Photos pictures come through your Kinwall server too, so Google sees your server, not the display (see [Privacy](../your-data/privacy.md#google-photos)). If Google Photos needs reconnecting, has no photos or can't be reached, the display shows its other picks meanwhile (nature pictures if Google Photos is the only one). If a service can't be reached, the display skips it for that change and uses the next source. If none can be used, it quietly shows the clock and tries again at the next change.
 
