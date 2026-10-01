@@ -1422,6 +1422,7 @@ button {
 .catalog-row { display: flex; align-items: center; gap: 6px; border-top: 1px solid var(--border); }
 .catalog-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-height: 56px; padding: 8px 6px;
   background: none; border: 0; border-radius: var(--radius-sm); color: var(--text); font: inherit; text-align: left; }
+.catalog-row-main:disabled { cursor: default; opacity: 1; } /* a kid's device: read, not edited */
 .catalog-row-title { font-weight: 800; overflow-wrap: anywhere; }
 .catalog-row-meta { font-size: 0.8125rem; color: var(--text-dim); font-weight: 600; }
 .catalog-row-places { display: flex; flex-wrap: wrap; gap: 4px; }

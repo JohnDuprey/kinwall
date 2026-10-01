@@ -133,3 +133,35 @@ test('kid device rule: wall screens, parents\' devices and MCP are unchanged', a
   assert.ok(!(await tool('set_list_item_done', { listId: family.id, itemId: anyone.id, done: true })).isError);
   assert.equal((await raw('POST', `/api/lists/${family.id}/reset`, { itemIds: [hers.id] }, wallKey)).status, 200);
 });
+
+// The catalogs (remembered items, places, names and categories) learn from grown-ups and wall screens only.
+test('kid device: adds use the catalog but never teach it; catalog edits are refused', async () => {
+  const { raw, send, db, leoKey, wallKey, alexKey } = await setup();
+  const groceries = await send('POST', '/api/lists', { name: 'Groceries', kind: 'shopping', catalog: 'groceries' });
+  const rows = async (sql: string) => (await db.prepare(sql).all()).results;
+  const memory = async () => JSON.stringify(await Promise.all(['item_memory ORDER BY name_key, store', 'item_names ORDER BY name_key', 'item_tags ORDER BY name_key, tag'].map((t) => rows(`SELECT * FROM ${t}`))));
+  await send('POST', `/api/lists/${groceries.id}/items`, { title: 'Milk', store: 'Neighborhood market', aisle: 'Dairy', category: 'Dairy' }, alexKey);
+  await send('POST', `/api/lists/${groceries.id}/items`, { title: 'Bread', store: 'Neighborhood market', aisle: 'Bakery' }, wallKey);
+  const before = await memory();
+  assert.match(before, /bread/, 'a wall screen still teaches the catalog');
+
+  const [milk] = await send('POST', `/api/lists/${groceries.id}/items`, { title: 'milk' }, leoKey);
+  assert.deepEqual([milk.store, milk.aisle, milk.category], ['Neighborhood market', 'Dairy', 'Dairy'], 'remembered places still fill in');
+  const [candy] = await send('POST', `/api/lists/${groceries.id}/items`, { title: 'Candy', store: 'Corner store', aisle: 'Front', category: 'Sweets' }, leoKey);
+  await send('PATCH', `/api/lists/${groceries.id}/items/${milk.id}`, { store: 'Corner store', aisle: 'Aisle 1', title: 'Chocolate milk' }, leoKey);
+  await send('PATCH', `/api/lists/${groceries.id}/items/${candy.id}`, { done: true }, leoKey);
+  await send('POST', `/api/lists/${groceries.id}/clear-completed`, { store: 'Corner store' }, leoKey);
+  assert.equal(await memory(), before, 'nothing learned from a kid\'s adds, edits or checkout');
+
+  const refused = await raw('POST', '/api/lists/remembered', { title: 'Gum' }, leoKey);
+  assert.equal(refused.status, 403);
+  assert.match((await refused.json() as any).error, /grown-up/);
+  assert.equal((await raw('PUT', '/api/lists/remembered/milk', { category: 'Candy' }, leoKey)).status, 403);
+  assert.equal(await memory(), before);
+  assert.equal((await raw('GET', '/api/lists/remembered', undefined, leoKey)).status, 200, 'reading the catalog is fine');
+
+  // A grown-up's edit of the same item teaches it as usual.
+  await send('PATCH', `/api/lists/${groceries.id}/items/${milk.id}`, { aisle: 'Aisle 2' }, alexKey);
+  assert.notEqual(await memory(), before);
+  assert.equal((await raw('PUT', '/api/lists/remembered/bread', { category: 'Bakery' }, wallKey)).status, 200);
+});

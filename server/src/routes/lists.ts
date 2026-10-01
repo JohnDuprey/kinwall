@@ -305,6 +305,12 @@ async function itemOwnerBlock(c: Context<{ Bindings: Env }>, listId: string, ite
 }
 const oneItem = (itemId: string) => JSON.stringify([itemId]);
 
+// The catalogs learn from grown-ups' devices and wall screens: a kid's own device uses what's remembered
+// (places fill in, names are suggested) but its adds, edits and checkouts teach nothing, and it can't
+// edit the catalog itself. A grown-up's later edit or checkout of the same item teaches as usual.
+const teaches = async (c: Context<{ Bindings: Env }>) => !(await deviceOwner(c));
+const KID_CATALOG = "The catalog is changed from a grown-up's device or a wall screen.";
+
 /** Whose items a whole-list Reset or Checkout sweeps on this device: a kid's own device only theirs and
  * nobody's (unless the list is theirs); null (everything) anywhere else. */
 async function sweepFor(c: Context<{ Bindings: Env }>, listId: string): Promise<string | null> {
@@ -434,10 +440,12 @@ listsRoutes.openapi(
     request: { query: CatalogQuery, body: { content: { 'application/json': { schema: RememberedItemInputSchema } } } },
     responses: {
       201: { description: 'created', content: { 'application/json': { schema: RememberedItemSchema } } },
+      403: { description: "a kid's own device", content: { 'application/json': { schema: ErrorSchema } } },
       409: { description: 'already in the catalog', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
+    if (!(await teaches(c))) return c.json({ error: KID_CATALOG }, 403);
     const body = c.req.valid('json');
     const { catalog: cat } = c.req.valid('query');
     const key = itemKey(body.title);
@@ -457,11 +465,13 @@ listsRoutes.openapi(
     request: { params: z.object({ key: z.string() }), query: CatalogQuery, body: { content: { 'application/json': { schema: RememberedItemPatchSchema } } } },
     responses: {
       200: { description: 'ok', content: { 'application/json': { schema: RememberedItemSchema } } },
+      403: { description: "a kid's own device", content: { 'application/json': { schema: ErrorSchema } } },
       404: { description: 'not in the catalog', content: { 'application/json': { schema: ErrorSchema } } },
       409: { description: 'the new name is another catalog item', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
+    if (!(await teaches(c))) return c.json({ error: KID_CATALOG }, 403);
     const { key } = c.req.valid('param');
     const { catalog: cat } = c.req.valid('query');
     const body = c.req.valid('json');
@@ -791,6 +801,7 @@ listsRoutes.openapi(
     // "Remembers where things go" (shopping lists): only OMITTED fields fill from memory -
     // explicit null means "none" and must not be overwritten.
     const shopping = list.kind === 'shopping';
+    const teach = shopping && (await teaches(c));
     const memory = shopping ? await recall(c.env.DB, list.catalog, fresh.map((i) => i.title)) : new Map();
     for (const input of fresh) {
       const { store, category, aisle } = shopping
@@ -857,8 +868,8 @@ listsRoutes.openapi(
             st.id, st.item_id, st.title, st.done, st.done_at, st.sort, st.created_at, st.added_by, st.added_by_label,
           ),
         ),
-        ...(shopping ? rows.map((r) => rememberPlace(c.env.DB, list.catalog, r.title, r, now)).filter((st) => st !== null) : []),
-        ...(shopping ? rows.map((r) => rememberName(c.env.DB, list.catalog, r.title, now)) : []),
+        ...(teach ? rows.map((r) => rememberPlace(c.env.DB, list.catalog, r.title, r, now)).filter((st) => st !== null) : []),
+        ...(teach ? rows.map((r) => rememberName(c.env.DB, list.catalog, r.title, now)) : []),
       ]);
       emit(c, 'list.item.changed', { listId: id, ids: rows.map((r) => r.id) });
       let execCtx: Parameters<typeof notifyListUpdate>[1];
@@ -974,14 +985,14 @@ listsRoutes.openapi(
         : []),
       // Saving where an item goes remembers it for next time (not a plain tick). On a trip, the aisle
       // is remembered for the trip's store, and an "anywhere" item doesn't remember one for no store.
-      ...(existing.shopping && [body.title, body.store, body.category, body.aisle].some((v) => v !== undefined)
+      ...(existing.shopping && [body.title, body.store, body.category, body.aisle].some((v) => v !== undefined) && (await teaches(c))
         ? [
             trip && !updated.store ? null : rememberPlace(c.env.DB, existing.catalog, updated.title, updated, now),
             trip ? rememberPlace(c.env.DB, existing.catalog, updated.title, { store: trip.store, category: updated.category, aisle: trip.aisle }, now) : null,
           ].filter((st) => st !== null)
         : []),
       // A rename is the spelling to suggest from now on (not another use).
-      ...(existing.shopping && body.title !== undefined && updated.title !== existing.title ? [rememberName(c.env.DB, existing.catalog, updated.title, now, 0)] : []),
+      ...(existing.shopping && body.title !== undefined && updated.title !== existing.title && (await teaches(c)) ? [rememberName(c.env.DB, existing.catalog, updated.title, now, 0)] : []),
     ]);
     emit(c, 'list.item.changed', { listId: id, id: itemId, done: !!updated.done });
     return c.json((await loadItem(c.env.DB, id, itemId))!, 200);
@@ -1034,7 +1045,7 @@ listsRoutes.openapi(
       // Meal links follow (a claim the target already has for the same meal ingredient stays; the moved one's goes).
       db.prepare('UPDATE OR IGNORE meal_shopping_sources SET list_id = ? WHERE list_id = ? AND item_id IN (SELECT value FROM json_each(?))').bind(toListId, id, ids),
       db.prepare('DELETE FROM meal_shopping_sources WHERE list_id = ? AND item_id IN (SELECT value FROM json_each(?))').bind(id, ids),
-      ...(to.kind === 'shopping' ? rows.map((r) => rememberPlace(db, cat, r.title, r, now)).filter((st) => st !== null) : []),
+      ...(to.kind === 'shopping' && (await teaches(c)) ? rows.map((r) => rememberPlace(db, cat, r.title, r, now)).filter((st) => st !== null) : []),
     ]);
     emit(c, 'list.item.changed', { listId: id, ids: rows.map((r) => r.id) });
     emit(c, 'list.item.changed', { listId: toListId, ids: rows.map((r) => r.id) });
@@ -1090,7 +1101,7 @@ listsRoutes.openapi(
     const where = `list_id = ? AND done = 1 AND (? IS NULL OR id IN (SELECT value FROM json_each(?))) AND (? IS NULL OR member_id IS NULL OR member_id = ?)`;
     // Checkout at the end of a trip: these were bought at `store` - the newest place for each, so the
     // item editor can suggest it next time. The aisle known there is kept.
-    if (store) {
+    if (store && (await teaches(c))) {
       const [bought, list] = await c.env.DB.batch<unknown>([
         c.env.DB.prepare(`SELECT title, category FROM list_items WHERE ${where}`).bind(id, ids, ids, mine, mine),
         c.env.DB.prepare("SELECT coalesce(catalog, 'groceries') AS catalog FROM lists WHERE id = ?").bind(id),

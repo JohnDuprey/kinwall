@@ -995,7 +995,8 @@ function ListCatalogSheet({ catalog, listId, listName, onList, suggestions, aisl
   catalog: ListCatalog; listId: string; listName: string; onList: Set<string>; suggestions: ListDetail['suggestions']; aisleOrder: AisleOrder
   onClose: () => void; onChanged: () => void // onChanged: this list (and its pickers) may have changed
 }) {
-  const { toast, parentDevice } = useApp()
+  const { toast, parentDevice, focusLocked, meMemberId } = useApp()
+  const kid = !parentDevice && focusLocked && !!meMemberId // a kid's own device: browse and add, but the catalog is changed from a grown-up's device or a wall screen
   const [items, setItems] = useState<RememberedItem[] | null>(null)
   const [query, setQuery] = useState('')
   const [store, setStore] = useState<string | null>(null)
@@ -1038,7 +1039,7 @@ function ListCatalogSheet({ catalog, listId, listName, onList, suggestions, aisl
   )
   const row = (i: RememberedItem) => (
     <div className="catalog-row" key={i.key}>
-      <button className="catalog-row-main" onClick={() => setEditing(i)} aria-label={`Edit ${i.title}`}>
+      <button className="catalog-row-main" onClick={kid ? undefined : () => setEditing(i)} disabled={kid} aria-label={kid ? i.title : `Edit ${i.title}`}>
         <span className="catalog-row-title">{i.title}</span>
         <span className="catalog-row-meta">{[i.category, i.tags.length ? `🏷️ ${i.tags.join(', ')}` : null, boughtLabel(i.uses)].filter(Boolean).join(' · ')}</span>
         {i.places.length > 0 && (
@@ -1060,7 +1061,7 @@ function ListCatalogSheet({ catalog, listId, listName, onList, suggestions, aisl
           aria-label={`Filter and sort${active ? `, ${active} ${active === 1 ? 'filter' : 'filters'} on` : ''}`}>
           <FilterIcon width={18} height={18} /><span className="catalog-options-label">Filter & sort</span>{active > 0 && <span className="catalog-options-on" aria-hidden="true">{active}</span>}
         </button>
-        <button className="btn btn-secondary" onClick={() => setEditing('new')}><PlusIcon width={18} height={18} />New</button>
+        {!kid && <button className="btn btn-secondary" onClick={() => setEditing('new')}><PlusIcon width={18} height={18} />New</button>}
       </div>
       {summary && (
         <div className="catalog-summary">
