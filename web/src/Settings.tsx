@@ -659,7 +659,9 @@ function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean)
     window.addEventListener('kinwallnative', on)
     return () => window.removeEventListener('kinwallnative', on)
   }, [])
-  const { members, settings } = useApp()
+  const { members, settings, parentDevice, meMemberId } = useApp()
+  // A kid's own device follows only them (the server holds to that), so there's nobody to pick.
+  const kid = !parentDevice && meMemberId ? members.find(m => m.id === meMemberId && !m.grownUp) : undefined
   const [appNames, setAppNames] = useState(appMedicineNames) // in the app: this device's own choice (no push subscription)
   const [sub, setSub] = useState<PushSubscription | null | undefined>(undefined) // undefined = still checking
   const [busy, setBusy] = useState(false)
@@ -803,7 +805,9 @@ function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean)
             </div>
             <button className={`switch ${prefs.medicationNames ? 'on' : ''}`} role="switch" aria-checked={prefs.medicationNames} aria-labelledby="push-med-names-label" aria-describedby="push-med-names-sub" onClick={() => savePrefs({ medicationNames: !prefs.medicationNames })}><span className="knob" /></button>
           </div>}
-          <MemberPicker members={members} selected={sub.memberIds} onChange={saveMembers} label="Which family members?" noneLabel="Everyone" />
+          {kid
+            ? <p className="settings-row-sub" style={{ margin: '10px 2px 0' }}>For {kid.name} and the whole family.</p>
+            : <MemberPicker members={members} selected={sub.memberIds} onChange={saveMembers} label="Which family members?" noneLabel="Everyone" />}
           <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
             <button className="btn btn-secondary" onClick={sendTest}>Send test</button>
             <button className="btn btn-danger" onClick={turnOff} disabled={busy}>Turn off</button>

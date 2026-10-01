@@ -12,7 +12,7 @@ On the device that should get notifications, go to **Settings → General → No
 | **Daily summary** + time | off, 07:30 | "Today": event and chore counts, the first event titles, and open linked tasks. |
 | **Chore reminder** + time | off, 08:00 | "*N* chores left today", listing the first three. Sent only if something is still open. |
 | **List updates** | off | "List updated — *Groceries* has new items". At most one per list every 10 minutes. |
-| **Which family members?** | Everyone | Only events and chores for these people. A device following nobody gets everything. |
+| **Which family members?** | Everyone | Only events and chores for these people. A device following nobody gets everything. A kid's own device doesn't have this: it follows only that kid (and everything for the whole family), and says so. |
 
 **Send test** sends "Notifications are on 🎉" to this device. **Turn off** unsubscribes it. Times use the household timezone.
 

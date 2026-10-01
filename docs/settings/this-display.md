@@ -50,7 +50,7 @@ Google Photos is connected for the whole family under [Night](general.md#night) 
 
 ## Notifications
 
-This device's push notifications: **Turn on notifications**, **Event reminders**, **Daily summary**, **Chore reminder**, **List updates**, **Show medicine names in notifications on this device** (with [medications](../using/medications.md) on; off by default, so reminders say only "Time for Leo's medicine"), **Which family members?**, **Send test** and **Turn off**. See [Notifications](../using/notifications.md).
+This device's push notifications: **Turn on notifications**, **Event reminders**, **Daily summary**, **Chore reminder**, **List updates**, **Show medicine names in notifications on this device** (with [medications](../using/medications.md) on; off by default, so reminders say only "Time for Leo's medicine"), **Which family members?** (on a kid's own device, "For Leo and the whole family." instead: it follows only them), **Send test** and **Turn off**. See [Notifications](../using/notifications.md).
 
 While the family's night hours hold reminders, the card says so at the top ("At night (10:00 PM–6:00 AM) some reminders wait until morning"): that's **Hold reminders at night**, under [Night](general.md#night).
 
