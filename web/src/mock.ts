@@ -13,6 +13,7 @@ import { FILTER_PRESETS, NO_FILTER, filterShows } from './calendarFilter.ts'
 import { MAYA_ANALYSIS, MAYA_BATTERY, MAYA_DAYS } from './mock-insights.ts'
 import type { Contact, ContactCategory, ContactInput, ImportPreviewEntry } from './contact-types.ts'
 import { emptyContact } from './contact-types.ts'
+import { duplicateScore, parseVCards } from './vcard.ts'
 
 const uid = () => crypto.randomUUID()
 const todayISO = () => new Date().toISOString().slice(0, 10)
@@ -611,14 +612,11 @@ export const mock = {
     if (index < 0) throw new Error('Contact not found')
     contacts.splice(index, 1); bump()
   },
-  // The demo has no server to parse vCards: it reads each card's FN and TEL lines only.
+  // The server's parser and duplicate rule (vcard.ts), with the API's defaults filled in.
   previewContactImport: async (body: { vcard: string } | { contacts: ContactInput[] }): Promise<{ entries: ImportPreviewEntry[] }> => {
-    const drafts = 'contacts' in body ? body.contacts : body.vcard.split(/END:VCARD/i).flatMap(card => {
-      const name = /^FN[^:]*:(.*)$/im.exec(card)?.[1]?.trim()
-      return name ? [{ ...emptyContact(), name, phones: [...card.matchAll(/^TEL[^:]*:(.*)$/gim)].map(m => ({ label: 'Phone', value: m[1].trim() })) }] : []
-    })
-    if (!drafts.length) throw new Error('no vCards found')
-    return { entries: drafts.map(contact => ({ contact, duplicateIds: contacts.filter(c => c.name.toLocaleLowerCase() === contact.name.toLocaleLowerCase()).map(c => c.id) })) }
+    const drafts = 'contacts' in body ? body.contacts : parseVCards(body.vcard).map(draft => ({ ...emptyContact(), ...draft }))
+    const kinded = (c: ContactInput) => ({ ...c, kind: c.kind ?? 'person' })
+    return { entries: drafts.map(contact => ({ contact, duplicateIds: contacts.filter(c => duplicateScore(kinded(contact), kinded(c)) > 0).map(c => c.id) })) }
   },
   importContacts: async (body: { contacts: ContactInput[]; strategy: 'create' | 'merge'; mergeTargets?: string[] }) => {
     const ids = body.contacts.map((input, i) => {

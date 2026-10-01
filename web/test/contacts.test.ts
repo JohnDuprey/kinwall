@@ -39,3 +39,24 @@ test('contact labels and dates read as words', () => {
   assert.equal(contactDate('--11-02'), 'November 2')
   assert.equal(contactDate('--02-29'), 'February 29')
 })
+
+test('demo import preview: parses an Apple vCard like the server and finds demo duplicates', async () => {
+  const { mock } = await import('../src/mock.ts')
+  const vcard = ['BEGIN:VCARD', 'VERSION:3.0', 'N:Lee;Jordan;;;', 'FN:Jordan Lee',
+    'item1.TEL;type=pref:555-010-4400', 'item1.X-ABLabel:_$!<Mobile>!$_',
+    'item2.EMAIL;type=INTERNET:jordan.work@example.org', 'item2.X-ABLabel:Soccer club',
+    'BDAY;X-APPLE-OMIT-YEAR=1604:1604-03-09', 'ORG:Maple Grove Soccer;', 'TITLE:Coach', 'END:VCARD',
+    'BEGIN:VCARD', 'VERSION:3.0', 'FN:New Friend', 'TEL;TYPE=CELL:555-010-0001', 'END:VCARD'].join('\r\n')
+  const { entries } = await mock.previewContactImport({ vcard })
+  assert.equal(entries.length, 2)
+  const [jordan, friend] = entries
+  assert.deepEqual(jordan.contact.phones, [{ label: 'Mobile', value: '555-010-4400' }])
+  assert.deepEqual(jordan.contact.emails, [{ label: 'Soccer club', value: 'jordan.work@example.org' }])
+  assert.deepEqual(jordan.contact.dates, [{ label: 'birthday', date: '--03-09' }])
+  assert.equal(jordan.contact.organization, 'Maple Grove Soccer')
+  assert.equal(jordan.contact.title, 'Coach')
+  assert.equal(jordan.contact.givenName, 'Jordan')
+  assert.deepEqual(jordan.duplicateIds, ['contact-neighbor'], 'same phone as the demo neighbor')
+  assert.deepEqual(friend.contact.phones, [{ label: 'Mobile', value: '555-010-0001' }])
+  assert.deepEqual(friend.duplicateIds, [])
+})

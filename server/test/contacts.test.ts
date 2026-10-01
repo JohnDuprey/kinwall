@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { createApp } from '../src/app.ts';
 import { openDb, applyMigrations } from '../src/d1-sqlite.ts';
@@ -245,3 +246,8 @@ test('merge updates the target and deletes the source together, or not at all', 
   assert.equal((await t.req(`/api/contacts/${source.id}`)).status, 404);
 });
 async function app500(run: () => Promise<{ status: number }>) { try { return (await run()).status; } catch { return 500; } }
+
+test('vcard: the web app\'s copy is identical', () => {
+  const read = (p: string) => readFileSync(new URL(p, import.meta.url), 'utf8');
+  assert.equal(read('../../web/src/vcard.ts'), read('../src/vcard.ts'), 'copy server/src/vcard.ts to web/src/vcard.ts');
+});
