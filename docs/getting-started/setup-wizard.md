@@ -10,26 +10,27 @@ A new instance is *unclaimed*. The first browser to open it gets the setup wizar
    * Cloudflare Workers: the Worker's logs, or use your `ADMIN_API_KEY` secret
 
    A wrong code brings you back here with "That code didn't work".
-2. **What is this device?** This decides which key is stored on the device:
-   * **This is my phone or computer**: you'll manage Kinwall from here.
-   * **This is the wall display**: the iPad or screen on the wall.
-
-   Choosing claims the instance for your family, so there's no going back to this step afterwards.
+2. **What is this device?** Start with the phone or computer you'll manage Kinwall from; the wall screen comes after.
+   * **This is my phone or computer** (marked **Recommended first**): creates your passkey, and you'll manage Kinwall from here. Choosing it claims the instance for your family, so there's no going back to this step afterwards.
+   * **This is the wall display**: shows **Start on your phone** instead of claiming. See [below](#if-you-started-on-the-wall-display).
 3. **Create a passkey for this device** (phone/computer only, when passkeys are supported). You sign in with Face ID, Touch ID or your screen lock instead of saving a key. You can **Skip** this step, except on hosted Kinwall (or any server with `REQUIRE_PASSKEY_SETUP=1`), where the passkey is how you sign back in. There, if the page reloads before the passkey is made, the wizard reopens at this step. Inside Home Assistant's panel, some browsers (Safari especially) won't make a passkey: the step shows an **Open Kinwall in its own tab** link, and setup carries on from this step in the new tab.
 4. **Save your recovery codes**: 8 one-time codes with **Copy all** and **Download .txt** buttons. They're your way back in if every passkey device is lost. See [Sign-in & security](../using/sign-in-and-security.md#recovery-codes).
 5. **Your household**: family name, timezone (this device's, unless you pick another; search by city), and whether the week starts on Sunday or Monday. This step has no **Back**: the device is already claimed.
 6. **Who's in the family?** Add each person with a name, **🧑 Grown-up** or **🧒 Kid**, a color and an avatar (an emoji or 1–2 letter initial). The first person starts as a grown-up and everyone after as a kid; tap the other choice before **Add** to change it, or change someone already added with the select next to their name. Grown-ups' chores never wait for a parent's OK and their journals are private. Everyone added shows above the form, and **Back** and **Next** stay at the bottom while you scroll. You need at least one member.
 7. **Whose device is this?** (phone/computer only): pick yourself. Only grown-ups are listed, since a parent's device can only belong to one; picking never changes who's a grown-up. If no one is marked a grown-up, go **Back** and mark yourself. Grown-ups' journals are [private](../using/journal.md#private-journals), and this phone then opens yours right away, private entries too. It's saved on this device's passkey (or key), so later sign-ins with it are yours too, and [Security activity](../using/sign-in-and-security.md#security-activity) says so ("My phone now belongs to Alex"). **Skip** leaves the device shared; you can set it later under [Settings → Access → This device](../settings/access.md#this-device).
 8. **Connect a calendar** (optional): 📆 Google, 📧 Outlook, 🍎 iCloud (CalDAV) or 🔗 Subscribe to a link. If Google or Outlook isn't configured yet, the wizard shows the provider form inline. **Continue without calendars** skips the step.
-9. **Set up some chores**: tap starter chores and pick who does each one, or **Anyone**. This works on the wall display too, with the admin key the display holds during setup.
-10. **Wall screen or a kid's device?** (wall display only): **🖼️ Wall screen** is the whole family's and turns on **Use as a wall screen** for this device. **🧒 A kid's device** asks **Whose?** (only kids are listed) and pins the screen to that kid, so it shows only their events, chores and lists. A parent can change it later under [Settings → Access → Paired devices](../settings/access.md#paired-devices).
-11. **All set! 🎉**
+9. **Set up some chores**: tap starter chores and pick who does each one, or **Anyone**.
+10. **All set! 🎉**
 
-## If you picked "This is the wall display"
+## If you started on the wall display
 
-The wall display shouldn't keep an admin key. The last step shows **Finish on your phone** with a QR code. Scan it with your phone to create your admin passkey there. Once the passkey exists, the display drops its temporary admin key ("Passkey created on your phone! 🎉").
+Your passkey belongs on your phone, not the wall, so the wall display doesn't claim the instance. It shows **Start on your phone** with a QR code instead:
 
-If you can't use a phone, **Show admin key instead** reveals the admin key once, with a QR code and **Copy key**. Save it: it won't be shown again.
+1. Scan it with your phone's camera. Kinwall opens with the setup code already filled in. No camera? Type the address shown into your phone's browser and enter the code.
+2. On your phone, pick **This is my phone or computer** and go through setup.
+3. The wall display notices and switches to its pairing screen. On your phone, open **Settings → Access → Add a wall screen or kid's device** and enter the code it shows.
+
+No phone at all? Pick **This is my phone or computer** on the wall device itself so you still get a passkey, then turn on **Use as a wall screen** for it in Settings.
 
 ## If you picked "This is my phone or computer"
 

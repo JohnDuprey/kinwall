@@ -169,21 +169,52 @@ function WelcomeStep({ code, setCode, error, onNext }: { code: string; setCode: 
   )
 }
 
-function RoleStep({ busy, error, onChoose }: { busy: boolean; error: string; onChoose: (role: DeviceRole) => void }) {
+/** Phone first: it registers the passkey that manages Kinwall. A wall display claimed first only
+ * gets a passkey at the end of the wizard, on a claim key that lapses after 5 minutes, so picking
+ * the wall here sends you to your phone instead: a QR that opens setup there with this code filled
+ * in (`#key=…`, see App.tsx captureKeyFromUrl). Once the phone claims, this screen reloads into the
+ * pairing screen, and the phone adds it as a wall screen. */
+function RoleStep({ code, busy, error, onChoose }: { code: string; busy: boolean; error: string; onChoose: (role: DeviceRole) => void }) {
+  const [wallFirst, setWallFirst] = useState(false)
+  useEffect(() => {
+    if (!wallFirst) return
+    const id = setInterval(() => { api.getSetup().then(s => { if (s.claimed) location.reload() }).catch(() => {}) }, SETUP_PASSKEY_POLL_MS)
+    return () => clearInterval(id)
+  }, [wallFirst])
+
+  if (wallFirst) {
+    const qrValue = new URL(`#key=${code}`, document.baseURI).href
+    return (
+      <div className="setup-step">
+        <h1>Start on your phone</h1>
+        <p className="setup-sub">Your phone holds the passkey that manages Kinwall, so set it up first. Scan this with your phone's camera. It opens Kinwall with the code already filled in.</p>
+        <div className="setup-key-row setup-qr-center"><QrCode value={qrValue} size={168} /></div>
+        <p className="settings-row-sub">No camera? Go to <strong>{new URL(document.baseURI).host}</strong> on your phone and enter <strong>{code.slice(0, 3)} {code.slice(3)}</strong>.</p>
+        <ol className="setup-sub setup-steps-list">
+          <li>On your phone, pick <strong>This is my phone or computer</strong> and create your passkey.</li>
+          <li>This screen then shows a pairing code. On your phone, open Settings → Access → Add a wall screen or kid's device and enter it.</li>
+        </ol>
+        <p className="settings-row-sub">Waiting for your phone…</p>
+        <button className="link-btn" onClick={() => setWallFirst(false)}>Back</button>
+      </div>
+    )
+  }
+
   return (
     <div className="setup-step">
       <h1>What is this device?</h1>
-      <p className="setup-sub">This decides which key gets stored here.</p>
+      <p className="setup-sub">Start with the phone or computer you'll manage Kinwall from. You'll add the wall screen after.</p>
       <div className="setup-role-cards">
-        <button className="setup-role-card" disabled={busy} onClick={() => onChoose('display')}>
+        <button className="setup-role-card setup-role-card-primary" disabled={busy} onClick={() => onChoose('admin')}>
+          <div className="setup-role-badge">Recommended first</div>
+          <div className="setup-role-emoji">📱</div>
+          <div className="setup-role-title">This is my phone or computer</div>
+          <div className="setup-role-sub">Creates your passkey. You'll manage Kinwall from here.</div>
+        </button>
+        <button className="setup-role-card" disabled={busy} onClick={() => setWallFirst(true)}>
           <div className="setup-role-emoji">🖼️</div>
           <div className="setup-role-title">This is the wall display</div>
           <div className="setup-role-sub">The iPad or screen mounted on the wall</div>
-        </button>
-        <button className="setup-role-card" disabled={busy} onClick={() => onChoose('admin')}>
-          <div className="setup-role-emoji">📱</div>
-          <div className="setup-role-title">This is my phone or computer</div>
-          <div className="setup-role-sub">You'll manage Kinwall from here</div>
         </button>
       </div>
       {busy && <p className="setup-sub">Claiming…</p>}
@@ -894,7 +925,7 @@ export default function Setup({ oauth, setupCode, passkeyRequired, onDone }: { o
         <HelpButton className="help-float" />
         <Progress step={step} />
         {step === 'welcome' && <WelcomeStep code={code} setCode={v => { setCode(v); setClaimError('') }} error={claimError} onNext={() => { setClaimError(''); setStep('role') }} />}
-        {step === 'role' && <RoleStep busy={claimBusy} error={claimError} onChoose={claim} />}
+        {step === 'role' && <RoleStep code={code} busy={claimBusy} error={claimError} onChoose={claim} />}
         {step === 'passkey' && <PasskeyStep adminKeyId={adminKeyId} onDone={() => setStep('recovery')} onSkip={passkeyRequired ? undefined : () => setStep('household')} />}
         {step === 'recovery' && <RecoveryStep onNext={() => setStep('household')} />}
         {step === 'household' && <HouseholdStep useAdmin={deviceRole === 'display'} onNext={() => setStep('members')} />}
