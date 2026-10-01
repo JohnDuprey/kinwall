@@ -1,5 +1,5 @@
 // PIN to wake the quiet-hours night screen: set from a parent's own device, stored only as a salted
-// PBKDF2 hash, checked by POST /api/quiet-pin/verify (wall screens may call it), rate-limited for the whole family.
+// PBKDF2 hash, checked by POST /api/quiet-pin/verify (wall screens may call it), rate-limited per device and for the family.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -82,15 +82,15 @@ test('quiet pin: wall screens and connected apps cannot set or remove it', async
   assert.equal((await req('GET', '/api/settings')).body.quietPin, false);
 });
 
-test('quiet pin: guesses are rate-limited for the whole family; a new PIN clears the wait', async () => {
+test('quiet pin: wrong guesses are limited per device, so one screen guessing does not lock the others out; a new PIN clears the wait', async () => {
   const { req, display } = setup();
   const wall = await display(), other = await display('Kitchen');
   await req('PUT', '/api/quiet-pin', { pin: PIN });
   for (let i = 0; i < 12; i++) assert.deepEqual((await req('POST', '/api/quiet-pin/verify', { pin: PIN }, wall)).body, { ok: true }, 'waking it often is fine');
-  for (let i = 0; i < 10; i++) assert.equal((await req('POST', '/api/quiet-pin/verify', { pin: '1111' }, wall)).status, 200, `try ${i + 1}`);
+  for (let i = 0; i < 5; i++) assert.equal((await req('POST', '/api/quiet-pin/verify', { pin: '1111' }, wall)).status, 200, `try ${i + 1}`);
   const blocked = await req('POST', '/api/quiet-pin/verify', { pin: PIN }, wall);
-  assert.equal(blocked.status, 429, 'even the right PIN waits');
-  assert.equal((await req('POST', '/api/quiet-pin/verify', { pin: PIN }, other)).status, 429, 'another screen waits too');
+  assert.equal(blocked.status, 429, 'even the right PIN waits on that screen');
+  assert.deepEqual((await req('POST', '/api/quiet-pin/verify', { pin: PIN }, other)).body, { ok: true }, 'another screen still wakes');
   await req('PUT', '/api/quiet-pin', { pin: '2468' });
   assert.deepEqual((await req('POST', '/api/quiet-pin/verify', { pin: '2468' }, wall)).body, { ok: true });
 });
@@ -116,20 +116,22 @@ test('quiet pin: the PIN never reaches the logs', async () => {
   assert.equal(lines.join('\n').includes(PIN.slice(1)), false);
 });
 
-test('quiet pin: wrong guesses count for the whole family, so a new device key does not reset them', async () => {
+test('quiet pin: the family has a ceiling too, so minting fresh device keys does not buy more guesses', async () => {
   const { req, display } = setup();
   await req('PUT', '/api/quiet-pin', { pin: PIN });
   const wall = await display();
+  for (let i = 0; i < 40; i++) assert.deepEqual((await req('POST', '/api/quiet-pin/verify', { pin: PIN }, wall)).body, { ok: true }, 'right PINs never use up the family ceiling');
   let key = (await req('POST', '/api/device-keys', { name: 'w' }, wall)).body.key as string;
-  let limited = 0;
-  for (let i = 0; i < 25; i++) {
+  let checked = 0;
+  for (let i = 0; i < 60; i++) {
     const r = await req('POST', '/api/quiet-pin/verify', { pin: String(10000000 + i) }, key);
-    if (r.status === 429) {
-      limited++;
+    if (r.status === 200) checked++;
+    else {
+      assert.equal(r.status, 429);
       await req('DELETE', '/api/device-keys/self', undefined, key);
       key = (await req('POST', '/api/device-keys', { name: 'w' }, wall)).body.key as string;
     }
   }
-  assert.equal(limited, 15, 'only the first 10 guesses were checked');
-  assert.equal((await req('POST', '/api/quiet-pin/verify', { pin: PIN }, await display('Kitchen'))).status, 429, 'another wall waits too');
+  assert.equal(checked, 30, 'only 30 guesses were checked across the family');
+  assert.equal((await req('POST', '/api/quiet-pin/verify', { pin: PIN }, await display('Kitchen'))).status, 429, 'then every screen waits');
 });

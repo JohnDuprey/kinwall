@@ -4,9 +4,9 @@
 // more, so it never reaches a client, a webhook or the export. Request bodies here are never logged.
 import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
-import { timingSafeEqual } from '../auth.ts';
+import { requestKey, timingSafeEqual } from '../auth.ts';
 import { emit } from '../bus.ts';
-import { checkRate, resetRate } from '../ratelimit.ts';
+import { checkRate } from '../ratelimit.ts';
 import { ErrorSchema } from '../schemas.ts';
 import { isConnectedApp } from './mcp-oauth.ts';
 
@@ -14,10 +14,14 @@ export const quietPinRoutes = createRouter();
 
 const KEY = 'quietPinHash';
 const ITERATIONS = 100_000; // the most Workers' PBKDF2 allows
-const MAX_TRIES = 10; // for the whole family, per window: the screen itself waits after 5 (web/src/quietPin.ts)
+// Wrong guesses per window: 5 per device (the screen itself waits after 5, web/src/quietPin.ts), so
+// one device guessing can't lock every other screen out; and 30 for the whole family, since a device
+// can mint itself fresh keys (POST /api/device-keys). 30 per 15 minutes still means days of
+// guessing for even a 4-digit PIN.
+const DEVICE_TRIES = 5;
+const FAMILY_TRIES = 30;
 const WINDOW_MS = 15 * 60 * 1000;
-// One counter for the family, not per key: a wall can mint itself fresh device keys.
-const RATE_KEY = 'quiet-pin';
+const RATE_KEY = 'quiet-pin'; // the family's; each device's is quiet-pin:<key id>
 
 const hex = (b: ArrayBuffer | Uint8Array) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, '0')).join('');
 async function derive(pin: string, saltHex: string, iterations: number): Promise<string> {
@@ -85,23 +89,32 @@ quietPinRoutes.openapi(
 
 quietPinRoutes.openapi(
   createRoute({
-    method: 'post', path: '/api/quiet-pin/verify', tags: ['Settings'], summary: 'Check the quiet-hours PIN (wall screens may call it; rate-limited for the whole family)',
+    method: 'post', path: '/api/quiet-pin/verify', tags: ['Settings'], summary: 'Check the quiet-hours PIN (wall screens may call it; 5 wrong tries per device and 30 for the whole family per 15 minutes)',
     security: [{ Bearer: [] }],
     request: { body: { content: { 'application/json': { schema: PinBody } } } },
     responses: {
       200: { description: 'ok: true when it matches, or no PIN is set', content: { 'application/json': { schema: OkSchema } } },
       400: { description: 'not 4 to 8 digits', content: { 'application/json': { schema: ErrorSchema } } },
       403: { description: 'a connected app', content: { 'application/json': { schema: ErrorSchema } } },
-      429: { description: 'too many wrong tries across the family; wait and try again', content: { 'application/json': { schema: ErrorSchema } } },
+      429: { description: 'too many wrong tries from this device or across the family; wait and try again', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
     if (await isConnectedApp(c)) return c.json({ error: 'Connected apps cannot check the PIN' }, 403);
     const db = c.env.DB;
-    if (!(await checkRate(db, RATE_KEY, MAX_TRIES, WINDOW_MS))) return c.json({ error: 'Too many tries. Wait a few minutes.' }, 429);
+    const device = `${RATE_KEY}:${(await requestKey(c))?.id ?? 'admin'}`;
+    const tooMany = () => c.json({ error: 'Too many tries. Wait a few minutes.' }, 429);
+    if (!(await checkRate(db, device, DEVICE_TRIES, WINDOW_MS))) return tooMany();
+    if (!(await checkRate(db, RATE_KEY, FAMILY_TRIES, WINDOW_MS))) return tooMany();
     const stored = (await db.prepare('SELECT value FROM settings WHERE key = ?').bind(KEY).first<{ value: string }>())?.value;
     const ok = !stored || (await pinMatches(c.req.valid('json').pin, stored));
-    if (ok) await resetRate(db, RATE_KEY); // only wrong guesses in a row count
+    if (ok) {
+      // Only wrong guesses count: this device starts over, and the family's count gives this try back.
+      await db.batch([
+        db.prepare('DELETE FROM rate_limits WHERE key = ?').bind(device),
+        db.prepare('UPDATE rate_limits SET count = count - 1 WHERE key = ? AND count > 0').bind(RATE_KEY),
+      ]);
+    }
     return c.json({ ok }, 200);
   },
 );

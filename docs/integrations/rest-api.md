@@ -73,7 +73,7 @@ On Workers, the free-tier quota (100k requests/day) is the practical ceiling. Se
 
 | Area | Routes |
 |---|---|
-| Household | `GET/PATCH /api/settings`, `PUT/DELETE /api/quiet-pin` (`{ pin }`, 4 to 8 digits; parent devices only, not display keys or connected apps; `settings.quietPin` says only whether one is set), `POST /api/quiet-pin/verify` (`{ pin }` → `{ ok }`, `ok: true` when no PIN is set; display keys may, connected apps can't), `GET /api/appearance`, `GET /api/me`, `GET /api/rev`, `GET /api/health` |
+| Household | `GET/PATCH /api/settings`, `PUT/DELETE /api/quiet-pin` (`{ pin }`, 4 to 8 digits; parent devices only, not display keys or connected apps; `settings.quietPin` says only whether one is set), `POST /api/quiet-pin/verify` (`{ pin }` → `{ ok }`, `ok: true` when no PIN is set; display keys may, connected apps can't; `429` after 5 wrong tries from one key or 30 across the family per 15 minutes), `GET /api/appearance`, `GET /api/me`, `GET /api/rev`, `GET /api/health` |
 
 Night settings on `PATCH /api/settings`: the family's night hours are still `quietFrom` / `quietTo` (`HH:MM`, household time; both `null` = off), so existing scripts and automations keep working. `nightRest` (walls show the Night screen during them) and `nightHoldReminders` (transition reminders, Live Activities, low battery alerts and the morning check-in reminder wait until they end) are booleans, `true` unless turned off. `darkWithNight: true` makes the dark schedule use the night hours; `darkFrom` / `darkTo` (here and on `GET /api/appearance`) then read as the night hours while they're set. `nightLook` is what wall screens show. See [Night](../using/night.md#api).
 
