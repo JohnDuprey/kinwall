@@ -44,3 +44,18 @@ test('skipExisting: an open item stays, a ticked one is unticked, a new one is a
   assert.notEqual(plain[0].id, garlic.id);
   assert.equal(plain[0].existing, undefined);
 });
+
+test('skipExisting: a reopened item with steps has its steps unticked too, so it stays open', async () => {
+  const send = makeApp();
+  const list = (await send('POST', '/api/lists', { name: 'Packing', kind: 'todo' })).json;
+  const [bag] = (await send('POST', `/api/lists/${list.id}/items`, [{ title: 'Pack bag', steps: ['Socks', 'Shirt'] }])).json;
+  await send('PATCH', `/api/lists/${list.id}/items/${bag.id}`, { done: true });
+
+  const [again] = (await send('POST', `/api/lists/${list.id}/items?skipExisting=1`, [{ title: 'pack bag' }])).json;
+  assert.equal(again.existing, 'reopened');
+  assert.equal(again.done, false);
+  assert.equal(again.stepsDone, 0);
+  // A later step edit doesn't close it again.
+  const after = (await send('PATCH', `/api/lists/${list.id}/items/${bag.id}/steps/${again.steps[0].id}`, { title: 'Warm socks' })).json;
+  assert.equal(after.done, false);
+});

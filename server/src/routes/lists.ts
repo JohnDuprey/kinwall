@@ -856,6 +856,8 @@ listsRoutes.openapi(
     if (rows.length || reopened.length) {
       await c.env.DB.batch([
         ...reopened.map((rid) => c.env.DB.prepare('UPDATE list_items SET done = 0, done_at = NULL, done_by = NULL, done_by_label = NULL, updated_at = ? WHERE id = ?').bind(now, rid)),
+        // Its steps too, keeping "done = all steps done" (else the next step change closes it again).
+        ...reopened.map((rid) => c.env.DB.prepare('UPDATE list_item_steps SET done = 0, done_at = NULL, done_by = NULL, done_by_label = NULL WHERE item_id = ? AND done = 1').bind(rid)),
         ...rows.map((r) =>
           c.env.DB.prepare(
             'INSERT INTO list_items (id, list_id, title, name_key, notes, quantity, store, category, aisle, member_id, due_date, event_id, priority, done, done_at, done_by, added_by, added_by_label, sort, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
