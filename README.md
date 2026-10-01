@@ -73,6 +73,8 @@ Kinwall is built by John Duprey with [Claude Code](https://claude.com/claude-cod
 
 Kinwall is free and self-hostable. If it's on your wall, [sponsoring on GitHub](https://github.com/sponsors/JohnDuprey) helps keep it that way.
 
+The docs are hosted on [GitBook](https://www.gitbook.com), which supports Kinwall as an open-source project.
+
 ## License
 
 AGPL-3.0-or-later. See [LICENSE](LICENSE). The bundled typefaces in `web/src/fonts/` are under the SIL Open Font License 1.1; each folder holds its `OFL.txt`.

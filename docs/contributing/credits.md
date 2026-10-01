@@ -83,6 +83,10 @@ Kinwall connects to these open-source projects; they're credited where they come
 * The [HelloFresh integration](https://github.com/kedube/ha-hellofresh) for Home Assistant by Katherine Dubé, behind the [meal kit blueprints](../integrations/home-assistant.md#meal-kits).
 * [n8n](https://n8n.io), for [workflows](../integrations/n8n.md).
 
+## Supporters
+
+* [GitBook](https://www.gitbook.com) hosts these docs through its program for open-source projects.
+
 ## Something missing?
 
 If Kinwall uses your work and it isn't credited here, please [open an issue](https://github.com/JohnDuprey/kinwall/issues) and we'll fix it.
