@@ -8,6 +8,7 @@ test('offsetLabel: GMT offsets read as UTC with a real minus sign', () => {
   assert.equal(offsetLabel('GMT-4'), 'UTC−4')
   assert.equal(offsetLabel('GMT+5:45'), 'UTC+5:45')
   assert.equal(offsetLabel('GMT'), 'UTC')
+  assert.equal(offsetLabel('GMT+0'), 'UTC', 'newer ICU (Node 26) says GMT+0 for UTC')
 })
 
 test('tzInfo: local time and offset at a moment, daylight saving included', () => {

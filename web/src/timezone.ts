@@ -11,8 +11,8 @@ export function timezoneList() {
   }
 }
 
-/** "GMT-4" → "UTC−4" (a real minus sign), "GMT" → "UTC". */
-export const offsetLabel = (gmt: string) => gmt.replace('GMT', 'UTC').replace('-', '−')
+/** "GMT-4" → "UTC−4" (a real minus sign), "GMT" (or newer ICU's "GMT+0") → "UTC". */
+export const offsetLabel = (gmt: string) => gmt.replace(/^GMT\+0$/, 'GMT').replace('GMT', 'UTC').replace('-', '−')
 
 /** The local time and UTC offset in a zone at `now`: { time: '8:04 PM', offset: 'UTC−4' }. */
 const formats = new Map<string, Intl.DateTimeFormat>() // making one is the slow part, and the picker lists ~400
