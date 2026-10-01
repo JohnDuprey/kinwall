@@ -6,7 +6,7 @@ import { hostTimezone } from '../env.ts';
 import { emit } from '../bus.ts';
 import { notifyListUpdate } from '../notify.ts';
 import { parseMemberIds, resolveMemberIds } from '../calendar-members.ts';
-import { actorOf, eventWriteBlock, type Actor } from '../auth.ts';
+import { actorOf, deviceOwner, eventWriteBlock, ownerBlock, type Actor } from '../auth.ts';
 import type { Context } from 'hono';
 import { SUGGESTION_CAP, catalog, catalogWrites, filterCatalog, fillPlace, itemKey, listCatalog, nameSuggestions, recall, rememberName, rememberPlace, tagsInput, type Catalog, type CatalogEdit, type CatalogItem } from '../item-memory.ts';
 import {
@@ -287,6 +287,31 @@ async function taskLinkBlock(c: Context<{ Bindings: Env }>, ids: (string | null 
     .bind(...wanted)
     .all<{ member_ids: string; display_edit: number }>();
   return eventWriteBlock(c, results);
+}
+
+// A kid's own device follows the chores rule (auth.ts deviceOwner, ownerBlock): it changes only items
+// that are theirs, nobody's, or on a list that's theirs. Adding is open to everyone, and wall screens,
+// parents' devices and connected apps aren't limited, so they skip the read.
+/** The 403 message when an item in `itemIds` (a JSON array) on list `listId` isn't this kid's device's to change, else null. */
+async function itemOwnerBlock(c: Context<{ Bindings: Env }>, listId: string, itemIds: string): Promise<string | null> {
+  const owner = await deviceOwner(c);
+  if (!owner) return null;
+  const other = await c.env.DB.prepare(
+    `SELECT li.member_id FROM list_items li JOIN lists l ON l.id = li.list_id
+     WHERE li.list_id = ?1 AND li.id IN (SELECT value FROM json_each(?2)) AND li.member_id IS NOT NULL AND li.member_id != ?3
+       AND NOT EXISTS (SELECT 1 FROM json_each(l.member_ids) WHERE value = ?3) LIMIT 1`,
+  ).bind(listId, itemIds, owner).first<{ member_id: string }>();
+  return other ? ownerBlock(c, other.member_id) : null;
+}
+const oneItem = (itemId: string) => JSON.stringify([itemId]);
+
+/** Whose items a whole-list Reset or Checkout sweeps on this device: a kid's own device only theirs and
+ * nobody's (unless the list is theirs); null (everything) anywhere else. */
+async function sweepFor(c: Context<{ Bindings: Env }>, listId: string): Promise<string | null> {
+  const owner = await deviceOwner(c);
+  if (!owner) return null;
+  const list = await c.env.DB.prepare('SELECT member_ids FROM lists WHERE id = ?').bind(listId).first<{ member_ids: string }>();
+  return list && parseMemberIds(list.member_ids).includes(owner) ? null : owner;
 }
 
 // Notes on list items (routes/notes.ts): no FK, so every path that deletes items deletes their notes.
@@ -874,6 +899,8 @@ listsRoutes.openapi(
   }),
   async (c) => {
     const { id, itemId } = c.req.valid('param');
+    const blocked = await itemOwnerBlock(c, id, oneItem(itemId));
+    if (blocked) return c.json({ error: blocked }, 403);
     const body = c.req.valid('json');
     const existing = await c.env.DB.prepare("SELECT li.*, l.kind = 'shopping' AS shopping, coalesce(l.catalog, 'groceries') AS catalog FROM list_items li JOIN lists l ON l.id = li.list_id WHERE li.id = ? AND li.list_id = ?")
       .bind(itemId, id)
@@ -972,12 +999,15 @@ listsRoutes.openapi(
     responses: {
       200: { description: 'moved', content: { 'application/json': { schema: z.array(ListItemSchema) } } },
       400: { description: 'the target is another type of list, or the same list', content: { 'application/json': { schema: ErrorSchema } } },
+      403: { description: "a kid's own device: someone else's item", content: { 'application/json': { schema: ErrorSchema } } },
       404: { description: 'a list or item not found', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
     const { id } = c.req.valid('param');
     const { itemIds, toListId } = c.req.valid('json');
+    const blocked = await itemOwnerBlock(c, id, JSON.stringify(itemIds));
+    if (blocked) return c.json({ error: blocked }, 403);
     const db = c.env.DB;
     const [listsRes, itemsRes] = await db.batch<unknown>([
       db.prepare('SELECT * FROM lists WHERE id IN (?, ?)').bind(id, toListId),
@@ -1025,11 +1055,14 @@ listsRoutes.openapi(
     request: { params: z.object({ id: z.string(), itemId: z.string() }) },
     responses: {
       200: { description: 'ok', content: { 'application/json': { schema: z.object({ ok: z.boolean() }) } } },
+      403: { description: "a kid's own device: someone else's item", content: { 'application/json': { schema: ErrorSchema } } },
       404: { description: 'not found', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
     const { id, itemId } = c.req.valid('param');
+    const blocked = await itemOwnerBlock(c, id, oneItem(itemId));
+    if (blocked) return c.json({ error: blocked }, 403);
     await c.env.DB.prepare(`DELETE FROM notes WHERE ${ITEM_NOTES} IN (SELECT id FROM list_items WHERE id = ? AND list_id = ?)`).bind(itemId, id).run();
     const result = await c.env.DB.prepare('DELETE FROM list_items WHERE id = ? AND list_id = ?').bind(itemId, id).run();
     if (result.meta.changes === 0) return c.json({ error: 'not found' }, 404);
@@ -1046,17 +1079,20 @@ listsRoutes.openapi(
     summary: 'Checkout: delete the checked items in a list - only those in itemIds (still checked) when given, else every checked item. Optional JSON body { itemIds, store }: store (the end of a shopping trip) is remembered as where they were last bought.',
     security: [{ Bearer: [] }],
     request: { params: z.object({ id: z.string() }) }, // optional JSON body { itemIds } (ListChecked), read by checkedIds
-    responses: { 200: { description: 'ok', content: { 'application/json': { schema: z.object({ deleted: z.number() }) } } } },
+    responses: { 200: { description: 'ok', content: { 'application/json': { schema: z.object({ deleted: z.number() }) } } }, 403: { description: "a kid's own device: someone else's item", content: { 'application/json': { schema: ErrorSchema } } }, },
   }),
   async (c) => {
     const { id } = c.req.valid('param');
     const { ids, store } = await checkedBody(c);
-    const where = `list_id = ? AND done = 1 AND (? IS NULL OR id IN (SELECT value FROM json_each(?)))`;
+    const blocked = ids ? await itemOwnerBlock(c, id, ids) : null;
+    if (blocked) return c.json({ error: blocked }, 403);
+    const mine = ids ? null : await sweepFor(c, id);
+    const where = `list_id = ? AND done = 1 AND (? IS NULL OR id IN (SELECT value FROM json_each(?))) AND (? IS NULL OR member_id IS NULL OR member_id = ?)`;
     // Checkout at the end of a trip: these were bought at `store` - the newest place for each, so the
     // item editor can suggest it next time. The aisle known there is kept.
     if (store) {
       const [bought, list] = await c.env.DB.batch<unknown>([
-        c.env.DB.prepare(`SELECT title, category FROM list_items WHERE ${where}`).bind(id, ids, ids),
+        c.env.DB.prepare(`SELECT title, category FROM list_items WHERE ${where}`).bind(id, ids, ids, mine, mine),
         c.env.DB.prepare("SELECT coalesce(catalog, 'groceries') AS catalog FROM lists WHERE id = ?").bind(id),
       ]);
       const cat = (list.results as { catalog: Catalog }[])[0]?.catalog ?? 'groceries';
@@ -1068,8 +1104,8 @@ listsRoutes.openapi(
         ).bind(cat, itemKey(b.title), store, b.category, now)));
       }
     }
-    await c.env.DB.prepare(`DELETE FROM notes WHERE ${ITEM_NOTES} IN (SELECT id FROM list_items WHERE ${where})`).bind(id, ids, ids).run();
-    const result = await c.env.DB.prepare(`DELETE FROM list_items WHERE ${where}`).bind(id, ids, ids).run();
+    await c.env.DB.prepare(`DELETE FROM notes WHERE ${ITEM_NOTES} IN (SELECT id FROM list_items WHERE ${where})`).bind(id, ids, ids, mine, mine).run();
+    const result = await c.env.DB.prepare(`DELETE FROM list_items WHERE ${where}`).bind(id, ids, ids, mine, mine).run();
     emit(c, 'list.changed', { id });
     return c.json({ deleted: result.meta.changes }, 200);
   },
@@ -1083,12 +1119,14 @@ listsRoutes.openapi(
     summary: 'Uncheck every item (and every step) in a list (for reusable lists) - only those in itemIds when given',
     security: [{ Bearer: [] }],
     request: { params: z.object({ id: z.string() }) }, // optional JSON body { itemIds } (ListChecked), read by checkedIds
-    responses: { 200: { description: 'ok', content: { 'application/json': { schema: z.object({ reset: z.number() }) } } } },
+    responses: { 200: { description: 'ok', content: { 'application/json': { schema: z.object({ reset: z.number() }) } } }, 403: { description: "a kid's own device: someone else's item", content: { 'application/json': { schema: ErrorSchema } } }, },
   }),
   async (c) => {
     const { id } = c.req.valid('param');
     const ids = (await checkedBody(c)).ids;
-    const reset = await resetListItems(c.env.DB, id, null, ids, ids ? null : await actorOf(c)); // all of it: the list was done
+    const blocked = ids ? await itemOwnerBlock(c, id, ids) : null;
+    if (blocked) return c.json({ error: blocked }, 403);
+    const reset = await resetListItems(c.env.DB, id, ids ? null : await sweepFor(c, id), ids, ids ? null : await actorOf(c)); // all of it: the list was done
     emit(c, 'list.changed', { id });
     return c.json({ reset }, 200);
   },
@@ -1323,6 +1361,7 @@ listsRoutes.openapi(
 const stepParams = z.object({ id: z.string(), itemId: z.string() });
 const stepResponses = {
   200: { description: 'the updated item', content: { 'application/json': { schema: ListItemSchema } } },
+  403: { description: "a kid's own device: someone else's item", content: { 'application/json': { schema: ErrorSchema } } },
   404: { description: 'not found', content: { 'application/json': { schema: ErrorSchema } } },
 };
 
@@ -1338,6 +1377,8 @@ listsRoutes.openapi(
   }),
   async (c) => {
     const { id, itemId } = c.req.valid('param');
+    const blocked = await itemOwnerBlock(c, id, oneItem(itemId));
+    if (blocked) return c.json({ error: blocked }, 403);
     const { title } = c.req.valid('json');
     const db = c.env.DB;
     const item = await db.prepare('SELECT id FROM list_items WHERE id = ? AND list_id = ?').bind(itemId, id).first();
@@ -1367,6 +1408,8 @@ listsRoutes.openapi(
   }),
   async (c) => {
     const { id, itemId, stepId } = c.req.valid('param');
+    const blocked = await itemOwnerBlock(c, id, oneItem(itemId));
+    if (blocked) return c.json({ error: blocked }, 403);
     const body = c.req.valid('json');
     const db = c.env.DB;
     const step = await db
@@ -1403,6 +1446,8 @@ listsRoutes.openapi(
   }),
   async (c) => {
     const { id, itemId, stepId } = c.req.valid('param');
+    const blocked = await itemOwnerBlock(c, id, oneItem(itemId));
+    if (blocked) return c.json({ error: blocked }, 403);
     const db = c.env.DB;
     const deleted = await db
       .prepare('DELETE FROM list_item_steps WHERE id = ? AND item_id IN (SELECT id FROM list_items WHERE id = ? AND list_id = ?)')
@@ -1427,6 +1472,8 @@ listsRoutes.openapi(
   }),
   async (c) => {
     const { id, itemId } = c.req.valid('param');
+    const blocked = await itemOwnerBlock(c, id, oneItem(itemId));
+    if (blocked) return c.json({ error: blocked }, 403);
     const { stepIds } = c.req.valid('json');
     const db = c.env.DB;
     const item = await db.prepare('SELECT id FROM list_items WHERE id = ? AND list_id = ?').bind(itemId, id).first();

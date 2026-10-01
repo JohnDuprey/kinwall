@@ -26,7 +26,7 @@ import { holdAwake } from './wakeLock.ts'
 import { shoppingActivity } from './liveActivity.ts'
 import { endAppActivity, tellAppActivity } from './native.ts'
 import { itemKey, matchItems } from './itemSuggest.ts'
-import { listSections, listType, reorderWithin, TYPE_LABEL, typeFields, type ListType } from './listSections.ts'
+import { canChangeItem, listSections, listType, reorderWithin, TYPE_LABEL, typeFields, type ListType } from './listSections.ts'
 import { activeCatalogFilters, boughtLabel, CATALOG_GROUP_LABELS, CATALOG_SORT_LABELS, catalogDepartments, catalogFilterSummary, catalogStores, catalogTags, catalogView, filterCatalog, groupCatalog, placeLabel, placesFor, placesInput, setCatalogView, sortCatalog, STARTER_TAGS, tagsInput, type CatalogGroup, type CatalogSort } from './catalog.ts'
 
 // The list types in the edit sheet, each with its icon (Groceries first among the shopping ones).
@@ -282,8 +282,9 @@ function storeAisles(suggestions: ListDetail['suggestions'], store: string | nul
   return suggestions.aisles.filter(a => a.store === store).map(a => a.aisle).sort((a, b) => compareAisles(store, a, b, order))
 }
 
-function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisleOrder, trip, siblingIds, upcoming, byId, moveTargets, onClose, onSaved }: {
+function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisleOrder, trip, siblingIds, upcoming, byId, moveTargets, readOnly, onClose, onSaved }: {
   listId: string; item: ListItem; kind: ListKind; manual: boolean; members: Member[]
+  readOnly?: boolean // a kid's device, someone else's item: shown, not changed (the server refuses it too)
   moveTargets: List[] // the other lists of this type: "Move to…" (hidden when there are none)
   suggestions: ListDetail['suggestions']; aisleOrder: AisleOrder
   trip: string | null // shopping at this store: the aisle picker is this store's
@@ -410,11 +411,14 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisle
   )
 
   return (
-    <Sheet title="Edit item" onClose={onClose}
-      actions={<>
+    <Sheet title={readOnly ? 'Item' : 'Edit item'} onClose={onClose}
+      actions={readOnly ? <button className="btn btn-primary" onClick={onClose}>Done</button> : <>
         <button className="btn btn-danger" onClick={del} aria-label="Delete"><TrashIcon width={18} height={18} /></button>
         <button className="btn btn-primary" onClick={submit} disabled={!title.trim()}>Save</button>
       </>}>
+      {readOnly && <p className="field-hint item-read-only">{`This one is ${members.find(m => m.id === item.memberId)?.name ?? 'someone else'}'s.`}</p>}
+      {/* Read-only: every field and button inside is disabled; the discussion below stays open. */}
+      <fieldset className="item-sheet-fields" disabled={readOnly}>
       <div className="field">
         <label htmlFor="item-title">Title</label>
         {/* A textarea so a long title shows in full; Enter doesn't add a line break. */}
@@ -468,8 +472,9 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisle
           {eventAndNotes}
         </details>
       ) : eventAndNotes}
+      </fieldset>
       {settings.features.notes && <NotesThread target={`list_item:${item.id}`} title="Discussion" />}
-      {manual && (
+      {manual && !readOnly && (
         <div className="field">
           <label>Order</label>
           <div className="chip-row">
@@ -655,8 +660,9 @@ function ListViewSheet({ list, stores, store, onStore, onGroupBy, onSortBy, onRe
   )
 }
 
-function ItemRow({ item, kind, groupBy, members, event, onToggle, onOpen, handle, from }: {
+function ItemRow({ item, kind, groupBy, members, event, onToggle, onOpen, handle, from, readOnly }: {
   item: ListItem; kind: ListKind; groupBy: ListGroupBy; members: Member[]; event?: EventInstance; onToggle: () => void; onOpen: () => void
+  readOnly?: boolean // a kid's device, someone else's item: the tick shows but doesn't change
   handle?: React.ReactNode
   from?: React.ReactNode // a combined trip: the other list it's on (FromTag)
 }) {
@@ -670,7 +676,8 @@ function ItemRow({ item, kind, groupBy, members, event, onToggle, onOpen, handle
   const notesOn = useApp().settings.features.notes // off: an item's own notes still show, its thread's count doesn't
   return (
     <div className={`list-item-row ${item.done ? 'done' : ''} ${prio === 'urgent' && !item.done ? 'urgent' : ''} ${item.pending ? 'pending' : ''}`} title={item.pending ? 'Not synced yet' : undefined}>
-      <button className={`list-item-check ${item.done ? 'done' : ''}`} onClick={onToggle} role="checkbox" aria-checked={item.done} aria-label={item.pending ? `${item.title}, not synced yet` : item.title}>
+      <button className={`list-item-check ${item.done ? 'done' : ''} ${readOnly ? 'read-only' : ''}`} onClick={readOnly ? undefined : onToggle} role="checkbox" aria-checked={item.done} aria-disabled={readOnly || undefined}
+        aria-label={item.pending ? `${item.title}, not synced yet` : readOnly && assignee ? `${item.title}, ${assignee.name}'s` : item.title}>
         {item.done && <CheckIcon width={20} height={20} />}
       </button>
       <div className="list-item-body" {...pressable(onOpen)}
@@ -708,10 +715,11 @@ function FromTag({ name, catalog }: { name: string; catalog: ListCatalog }) {
 }
 
 /** A row in shopping mode: the whole row ticks the item (no editing mid-aisle). */
-function ShopRow({ item, meta, onToggle, from }: { item: ListItem; meta?: string | null; onToggle: () => void; from?: React.ReactNode }) {
+function ShopRow({ item, meta, onToggle, from, readOnly }: { item: ListItem; meta?: string | null; onToggle: () => void; from?: React.ReactNode; readOnly?: boolean }) {
   const sub = [meta, item.notes?.split('\n')[0]].filter(Boolean).join(' · ')
   return (
-    <button className={`shop-row ${item.done ? 'done' : ''} ${item.pending ? 'pending' : ''}`} role="checkbox" aria-checked={item.done} onClick={onToggle} title={item.pending ? 'Not synced yet' : undefined}>
+    <button className={`shop-row ${item.done ? 'done' : ''} ${item.pending ? 'pending' : ''} ${readOnly ? 'read-only' : ''}`} role="checkbox" aria-checked={item.done} aria-disabled={readOnly || undefined}
+      onClick={readOnly ? undefined : onToggle} title={item.pending ? 'Not synced yet' : undefined}>
       <span className="shop-check" aria-hidden="true">{item.done && <CheckIcon width={20} height={20} />}</span>
       <span className="shop-row-body">
         <span className="shop-row-title">{item.title}</span>
@@ -1339,7 +1347,8 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   lists: List[] // the family's lists on this screen: where an item can move
   shopMode: boolean // #/lists/<id>/shop: shopping mode, full screen
 }) {
-  const { members, toast, refreshTick } = useApp()
+  const { members, toast, refreshTick, parentDevice, focusLocked, meMemberId } = useApp()
+  const kid = !parentDevice && focusLocked ? meMemberId : null // a kid's own device: only their items change (canChangeItem)
   const [detail, setDetail] = useState<ListDetail | null>(null)
   const [error, setError] = useState(false)
   const [editItem, setEditItem] = useState<ListItem | null>(null)
@@ -1538,6 +1547,8 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   const items = list.kind !== 'shopping' ? pending
     : pending.map(i => (i.aisle ? i : { ...i, aisle: departmentAisle(i.category, storeAisles(suggestions, i.store, aisleOrder)) }))
   const openItem = (item: ListItem) => setEditItem(detail.items.find(i => i.id === item.id) ?? item)
+  // The other list's items on a combined trip: that list's owners aren't loaded here, so just the item's own.
+  const mine = (i: ListItem) => canChangeItem(i, !i.listId || i.listId === listId ? list : { memberIds: [] }, kid)
   const stores = [...new Set(items.map(i => i.store).filter((v): v is string => !!v))].sort()
   const filtered = selectedStore ? items.filter(i => i.store === selectedStore || i.store === null) : items
   // Keep checked in place: ticked items stay put, crossed off, and the order doesn't move under you.
@@ -1545,7 +1556,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   const cmp = compareItems(list.sortBy, todayKey(), { keepChecked: keep, aisleOrder })
   const openItems = keep ? filtered : filtered.filter(i => !i.done)
   const doneItems = keep ? [] : filtered.filter(i => i.done)
-  const checked = filtered.filter(i => i.done)
+  const checked = filtered.filter(i => i.done && mine(i)) // a kid's device checks out only what it may change
   const groupKind = list.groupBy === 'aisle' ? 'store' : list.groupBy // aisle groups follow the store order
   const groupNamesForOrder = groups.filter(g => g.kind === groupKind).sort((a, b) => a.sort - b.sort).map(g => g.name)
   const groupedOpen = groupItems(openItems, list.groupBy, groupNamesForOrder, list.sortBy, cmp, aisleOrder)
@@ -1567,10 +1578,10 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   }
   const view = !activeTrip ? null : tripAt ? tripView([...pending, ...also], tripAt, aisleOrder, tripAisles, reversed) : anyStoreView(items, aisleOrder)
   const tripLeft = view ? [...view.aisles.flatMap(g => g.items), ...view.unknown].filter(i => !i.done).length : 0
-  const tripChecked = [...items, ...also].filter(i => i.done)
+  const tripChecked = [...items, ...also].filter(i => i.done && mine(i))
   const tripRow = (item: ListItem, other = false) => (
     <ItemRow key={item.id} item={other || !tripAt ? item : { ...item, aisle: aisleAt(item, tripAt, tripAisles) }} kind={list.kind} groupBy={other ? 'none' : tripAt ? 'aisle' : 'store'} members={members}
-      event={item.eventId ? byId.get(item.eventId) : undefined} onToggle={() => toggle(item)} from={fromTag(item)}
+      event={item.eventId ? byId.get(item.eventId) : undefined} onToggle={() => toggle(item)} from={fromTag(item)} readOnly={!mine(item)}
       onOpen={() => (item.listId !== listId ? (location.hash = `#/lists?list=${encodeURIComponent(item.listId)}`) : openItem(item))} />
   )
   const tripStores = [...new Set([...suggestions.stores, ...(tripAt ? [tripAt] : [])])]
@@ -1621,7 +1632,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   )
 
   if (shopping) {
-    const row = (item: ListItem, other = false) => <ShopRow key={item.id} item={item} meta={other ? item.store : !tripAt ? item.aisle : null} onToggle={() => toggle(item)} from={fromTag(item)} />
+    const row = (item: ListItem, other = false) => <ShopRow key={item.id} item={item} meta={other ? item.store : !tripAt ? item.aisle : null} onToggle={() => toggle(item)} from={fromTag(item)} readOnly={!mine(item)} />
     const group = (title: string, rows: React.ReactNode, className = '') => (
       <section key={title} className={`shop-group ${className}`} aria-label={title}><h3 className="list-group-title" aria-hidden="true">{title}</h3>{rows}</section>
     )
@@ -1763,7 +1774,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
             <div className="empty-card"><span className="emoji">✨</span>All done!</div>
           ) : (
             <DragList items={openItems.slice().sort(cmp)} onReorder={reorderWithin} locked={locked}
-              renderRow={(item, handle) => <ItemRow item={item} kind={list.kind} groupBy={list.groupBy} members={members} event={item.eventId ? byId.get(item.eventId) : undefined} onToggle={() => toggle(item)} onOpen={() => openItem(item)} handle={handle} />} />
+              renderRow={(item, handle) => <ItemRow item={item} kind={list.kind} groupBy={list.groupBy} members={members} event={item.eventId ? byId.get(item.eventId) : undefined} onToggle={() => toggle(item)} onOpen={() => openItem(item)} handle={handle} readOnly={!mine(item)} />} />
           )
         ) : groupedOpen.length === 0 ? (
           <div className="empty-card"><span className="emoji">✨</span>All done!</div>
@@ -1772,7 +1783,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
             <div key={g.name} className="list-group">
               <h3 className="list-group-title" style={{ margin: 0 }}>{g.name}</h3>
               <DragList items={g.items} onReorder={reorderWithin} locked={locked}
-                renderRow={(item, handle) => <ItemRow item={item} kind={list.kind} groupBy={list.groupBy} members={members} event={item.eventId ? byId.get(item.eventId) : undefined} onToggle={() => toggle(item)} onOpen={() => openItem(item)} handle={handle} />} />
+                renderRow={(item, handle) => <ItemRow item={item} kind={list.kind} groupBy={list.groupBy} members={members} event={item.eventId ? byId.get(item.eventId) : undefined} onToggle={() => toggle(item)} onOpen={() => openItem(item)} handle={handle} readOnly={!mine(item)} />} />
             </div>
           ))
         )}
@@ -1783,10 +1794,10 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
                 in a permanent footer that cost a phone a row of items. */}
             <div className="list-done-head">
               <button className="list-done-toggle" onClick={() => setShowDone(s => !s)} aria-expanded={showDone}><span aria-hidden="true">{showDone ? '▾' : '▸'}</span> Done ({doneItems.length})</button>
-              <button className="link-btn" onClick={() => startCheckout(doneItems, list.kind)}>{list.kind === 'reusable' ? 'Reset list' : 'Clear checked'}</button>
+              <button className="link-btn" onClick={() => startCheckout(doneItems.filter(mine), list.kind)}>{list.kind === 'reusable' ? 'Reset list' : 'Clear checked'}</button>
             </div>
             {showDone && doneItems.slice().sort((a, b) => a.sort - b.sort).map(item => (
-              <ItemRow key={item.id} item={item} kind={list.kind} groupBy={list.groupBy} members={members} event={item.eventId ? byId.get(item.eventId) : undefined} onToggle={() => toggle(item)} onOpen={() => openItem(item)} />
+              <ItemRow key={item.id} item={item} kind={list.kind} groupBy={list.groupBy} members={members} event={item.eventId ? byId.get(item.eventId) : undefined} onToggle={() => toggle(item)} onOpen={() => openItem(item)} readOnly={!mine(item)} />
             ))}
           </div>
         )}
@@ -1818,7 +1829,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
 
 
       {editItem && (
-        <ItemEditSheet listId={listId} item={editItem} kind={list.kind} manual={manual} members={members} suggestions={suggestions} aisleOrder={aisleOrder} trip={tripAt} siblingIds={siblingIds} upcoming={upcoming} byId={byId}
+        <ItemEditSheet listId={listId} item={editItem} kind={list.kind} readOnly={!mine(editItem)} manual={manual} members={members} suggestions={suggestions} aisleOrder={aisleOrder} trip={tripAt} siblingIds={siblingIds} upcoming={upcoming} byId={byId}
           moveTargets={lists.filter(l => !l.archived && l.id !== listId && listType(l) === listType(list))}
           onClose={() => { setEditItem(null); load() }} onSaved={() => { setEditItem(null); load() }} />
       )}

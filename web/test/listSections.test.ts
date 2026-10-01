@@ -1,7 +1,7 @@
 // node --test test/ (npm test). The Lists page's sections by type, and reordering inside one.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { listSections, listType, reorderWithin, typeFields } from '../src/listSections.ts'
+import { canChangeItem, listSections, listType, reorderWithin, typeFields } from '../src/listSections.ts'
 
 type L = { id: string; kind: 'todo' | 'shopping' | 'reusable'; catalog?: 'groceries' | 'shopping' | null; sort: number; createdAt: string }
 const l = (id: string, kind: L['kind'], sort: number, createdAt = '2026-01-01', catalog?: L['catalog']) => ({ id, kind, sort, createdAt, catalog })
@@ -46,4 +46,13 @@ test('boardListTiles: Groceries counts only Groceries lists; Shopping shows only
   assert.deepEqual(tiles([t('g', 'groceries', 3), t('h', 'shopping', 0)]), [['groceries', 3, ['g']]])
   assert.deepEqual(tiles([t('h', 'shopping', 0)]), [])
   assert.deepEqual(boardListTiles([{ id: 'x', kind: 'todo', openCount: 5 }]), [])
+})
+
+test('canChangeItem: a kid\'s device changes theirs, nobody\'s, and anything on their own list', () => {
+  const family = { memberIds: [] }, leos = { memberIds: ['leo'] }
+  assert.equal(canChangeItem({ memberId: 'leo' }, family, 'leo'), true)
+  assert.equal(canChangeItem({ memberId: null }, family, 'leo'), true)
+  assert.equal(canChangeItem({ memberId: 'maya' }, family, 'leo'), false)
+  assert.equal(canChangeItem({ memberId: 'maya' }, leos, 'leo'), true)
+  assert.equal(canChangeItem({ memberId: 'maya' }, family, null), true, 'wall screens and parents: anything')
 })

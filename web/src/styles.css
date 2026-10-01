@@ -1296,6 +1296,11 @@ button {
 /* "Added by Maya · Tue 4:12 PM" under the title in the item sheet; "Last done" under a reusable list's name. */
 .item-by-lines { margin-top: 6px; font-size: 0.8125rem; color: var(--text-dim); display: flex; flex-direction: column; gap: 2px; }
 .list-detail-sub.list-last-done { font-weight: 600; margin-top: 2px; }
+/* A kid's device, someone else's item: the tick shows but doesn't change, and the sheet is read-only. */
+.list-item-check.read-only, .shop-row.read-only { opacity: 0.4; cursor: default; }
+.item-sheet-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
+.item-sheet-fields:disabled > * { opacity: 0.75; }
+.field-hint.item-read-only { margin: 0 0 12px; }
 /* An item's notes can be long (a feature request, a recipe tip): room to read, grows with the text. */
 .field textarea.item-notes-input { min-height: 9.5em; max-height: 50vh; field-sizing: content; font-weight: 500; line-height: 1.5; resize: vertical; }
 /* Steps in the item sheet */

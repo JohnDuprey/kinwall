@@ -43,3 +43,8 @@ export function boardListTiles<T extends Typed & { openCount: number }>(lists: T
     .map(type => { const of = lists.filter(l => listType(l) === type); return { type, lists: of, open: of.reduce((n, l) => n + l.openCount, 0) } })
     .filter(t => t.lists.length > 0 && (t.type === 'groceries' || t.open > 0))
 }
+
+/** On a kid's own device (`kid`: its owner; null anywhere else), the items it may tick, edit or delete:
+ * theirs, nobody's, or any on a list that's theirs. The server's rule (routes/lists.ts itemOwnerBlock). */
+export const canChangeItem = (item: { memberId: string | null }, list: { memberIds: string[] }, kid: string | null) =>
+  !kid || !item.memberId || item.memberId === kid || list.memberIds.includes(kid)
