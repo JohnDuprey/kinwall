@@ -59,7 +59,7 @@ export default function Rewards({ memberId: fromUrl }: { memberId?: string }) {
 
 /** One member's balance, goal, rewards (ready now / keep saving / used up), requests and history. */
 function RewardsPanel({ member }: { member: Member }) {
-  const { refreshTick, reloadCore, toast, parentDevice, settings } = useApp()
+  const { refreshTick, reloadCore, toast, parentDevice, settings, meMemberId } = useApp()
   const dialog = useDialog()
   const [rewards, setRewards] = useState<Reward[] | null>(null)
   const [history, setHistory] = useState<Redemption[]>([])
@@ -106,6 +106,26 @@ function RewardsPanel({ member }: { member: Member }) {
       toast(e instanceof ApiError ? e.message : `Couldn't get ${r.title}.`, true)
       load()
     }
+  }
+
+  // A kid's own device cancels a request still waiting for a grown-up; the points come back.
+  const ownDevice = !parentDevice && meMemberId === member.id
+  const cancelRequest = async (h: Redemption) => {
+    if (!await dialog.confirm({
+      title: `Cancel the request for ${rewardLabel(h)}?`,
+      body: `${member.name} gets the ${plural(h.cost, 'point')} back.`,
+      confirmLabel: 'Cancel request',
+      cancelLabel: 'Keep it',
+    })) return
+    try {
+      const res = await api.cancelRedemption(h.id)
+      setBalance(res.balance)
+      const msg = `Canceled: ${h.title}. ${plural(h.cost, 'point')} back.`
+      toast(msg)
+      announce(msg)
+    } catch (e) { toast(e instanceof ApiError ? e.message : `Couldn't cancel ${h.title}.`, true) }
+    load()
+    reloadCore()
   }
 
   const addSuggestion = async (s: Partial<Reward>) => {
@@ -173,7 +193,7 @@ function RewardsPanel({ member }: { member: Member }) {
       {waiting.length > 0 && (
         <section className="reward-history" aria-labelledby="reward-waiting-heading">
           <h3 id="reward-waiting-heading" className="snap-heading">Waiting for a grown-up</h3>
-          <ul className="snap-list">{waiting.map(h => <HistoryRow key={h.id} h={h} />)}</ul>
+          <ul className="snap-list">{waiting.map(h => <HistoryRow key={h.id} h={h} onCancel={ownDevice && h.status === 'pending' ? () => cancelRequest(h) : undefined} />)}</ul>
         </section>
       )}
 
@@ -226,7 +246,7 @@ function Meter({ have, need, color }: { have: number; need: number; color: strin
   return <span className="board-meter reward-meter" aria-hidden="true"><span style={{ width: `${Math.min(100, (Math.max(0, have) / need) * 100)}%`, background: color }} /></span>
 }
 
-function HistoryRow({ h }: { h: Redemption }) {
+function HistoryRow({ h, onCancel }: { h: Redemption; onCancel?: () => void }) {
   return (
     <li className="reward-history-row">
       <span className="approve-emoji" aria-hidden="true">{h.emoji ?? '🎁'}</span>
@@ -235,6 +255,7 @@ function HistoryRow({ h }: { h: Redemption }) {
         <span className="snap-meta">{format(new Date(h.requestedAt), 'EEE, MMM d')} · {plural(h.cost, 'point')}</span>
       </span>
       <span className={`reward-status ${h.status}`}>{STATUS_TEXT[h.status]}{h.status === 'declined' && h.note ? `: ${h.note}` : ''}</span>
+      {onCancel && <button className="btn btn-secondary reward-cancel" onClick={onCancel} aria-label={`Cancel the request for ${h.title}`}>Cancel request</button>}
     </li>
   )
 }

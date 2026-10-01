@@ -1002,6 +1002,12 @@ export const mock = {
     else Object.assign(r, { status: action === 'approve' ? 'approved' : 'given' })
     bump(); return { ...r }
   },
+  cancelRedemption: async (id: string) => {
+    const i = redemptions.findIndex(x => x.id === id && x.status === 'pending'); if (i < 0) throw new Error('Not waiting any more')
+    const m = members.find(x => x.id === redemptions[i].memberId)!
+    m.balance += redemptions[i].cost; redemptions.splice(i, 1); bump()
+    return { ok: true, balance: m.balance }
+  },
   setRewardGoal: async (memberId: string, rewardId: string | null) => { goals.set(memberId, rewardId); bump(); return { rewardId } },
 
   getStickerPacks: async (memberId: string) => STICKER_PACKS.map(packFor(memberId)),

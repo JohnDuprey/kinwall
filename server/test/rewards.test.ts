@@ -180,6 +180,49 @@ test('rewards: decline refunds and tells the kid; cancel an approved one refunds
   }
 });
 
+test("rewards: a kid takes back their own pending request; points back once; not a sibling's, a wall's or after a decision", async () => {
+  const t = await setup();
+  try {
+    const r = await t.reward({ limit: { count: 1, period: 'day' } });
+    await t.earn(t.leo.id, 100);
+    await t.earn(t.maya.id, 100);
+    const a = (await t.redeem(r.id, t.leo.id)).json.redemption;
+    assert.equal(a.status, 'pending');
+    assert.equal(await t.balance(t.leo.id), 50);
+    const mayaKey = (await t.req('/api/keys', 'POST', { name: 'maya-tablet', scope: 'display' })).json;
+    await t.req(`/api/keys/${mayaKey.id}`, 'PATCH', { owner: t.maya.id });
+    const cancel = (id: string, key?: string) => t.req(`/api/rewards/redemptions/${id}/cancel`, 'POST', undefined, key);
+    assert.equal((await cancel(a.id, mayaKey.key)).status, 403, "a sibling's device");
+    assert.equal((await cancel(a.id, t.wallKey)).status, 403, 'a wall screen');
+    assert.equal(await t.balance(t.leo.id), 50);
+
+    const res = await cancel(a.id, t.leoKey);
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.json, { ok: true, balance: 100 });
+    assert.equal(await t.balance(t.leo.id), 100);
+    assert.equal((await cancel(a.id, t.leoKey)).status, 404, 'gone, and refunded once');
+    assert.equal(await t.balance(t.leo.id), 100);
+    const pts = (await t.req(`/api/members/${t.leo.id}/points`)).json;
+    assert.deepEqual([pts.earnedTotal, pts.spentTotal], [100, 0], "a refund isn't earning");
+    assert.deepEqual((await t.req(`/api/rewards/redemptions?memberId=${t.leo.id}`)).json, [], 'no trace in history');
+    assert.equal((await t.redeem(r.id, t.leo.id)).status, 201, "a taken-back request doesn't use up the day's limit");
+
+    // Once a parent decides, it's theirs: approved can't be taken back here (a parent declines it).
+    const b = (await t.req(`/api/rewards/redemptions?memberId=${t.leo.id}`)).json[0];
+    await t.req(`/api/rewards/redemptions/${b.id}/approve`, 'POST');
+    assert.equal((await cancel(b.id, t.leoKey)).status, 409);
+    assert.equal(await t.balance(t.leo.id), 50);
+    // A parent's device may take one back too.
+    const m = (await t.redeem(r.id, t.maya.id, t.wallKey)).json.redemption;
+    assert.equal((await cancel(m.id)).status, 200);
+    assert.equal(await t.balance(t.maya.id), 100);
+    await t.flush();
+    assert.ok(t.events().some((e) => e.type === 'reward.changed' && e.data.redemptionId === a.id && e.data.canceled));
+  } finally {
+    await t.restore();
+  }
+});
+
 test("rewards: no-approval rewards and a parent's device approve at once", async () => {
   const t = await setup();
   try {

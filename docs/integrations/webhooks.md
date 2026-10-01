@@ -37,7 +37,7 @@ URLs must be public `http(s)` addresses. Private and LAN addresses are refused u
 | `category.changed` | A category is added, edited, reordered or deleted. |
 | `settings.changed` | Household settings changed. |
 | `sticker.changed` | A sticker pack is bought, or the scrapbook is edited. |
-| `reward.changed` | A [reward](../using/rewards.md) is added, edited, archived or deleted. `data`: `{ id }`. |
+| `reward.changed` | A [reward](../using/rewards.md) is added, edited, archived or deleted. `data`: `{ id }`. Also when a kid cancels a pending request: `{ id, redemptionId, memberId, canceled: true }`. |
 | `reward.redeemed` | Someone spent points on a reward. `data`: `{ id, rewardId, memberId, title, emoji, cost, status }`, where `id` is the request and `status` is `pending` (waiting for a parent's OK) or `approved`. |
 | `reward.approved` | A parent approved a waiting reward. `data`: `{ id, rewardId, memberId, title, emoji, cost }`. |
 | `reward.declined` | A parent said **Not this time**, or canceled an approved one; the points went back. `data`: the same plus `note` (may be `null`). |

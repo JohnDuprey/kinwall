@@ -455,6 +455,8 @@ export const api = {
     : get<Redemption[]>(`api/rewards/redemptions?${new URLSearchParams(Object.entries(opts).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)]))}`),
   decideRedemption: (id: string, action: 'approve' | 'decline' | 'given', note?: string) =>
     MOCK ? mock.decideRedemption(id, action, note) : post<Redemption>(`api/rewards/redemptions/${id}/${action}`, action === 'decline' ? { note } : undefined),
+  /** A kid takes back their own request while it waits: the points come back. */
+  cancelRedemption: (id: string) => MOCK ? mock.cancelRedemption(id) : post<{ ok: boolean; balance: number }>(`api/rewards/redemptions/${id}/cancel`),
   setRewardGoal: (memberId: string, rewardId: string | null) =>
     MOCK ? mock.setRewardGoal(memberId, rewardId) : put<{ rewardId: string | null }>(`api/members/${memberId}/reward-goal`, { rewardId }),
   getScrapbook: (memberId: string) => MOCK ? mock.getScrapbook(memberId) : get<StickerPlacement[]>(`api/stickers/scrapbook/${memberId}`),

@@ -2196,6 +2196,9 @@ button.notif-item:active { transform: scale(0.99); }
 .reward-state { margin-top: auto; min-height: 48px; display: grid; place-items: center; font-weight: 800; color: var(--text-dim); }
 .reward-history { margin-top: 20px; }
 .reward-history-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+.reward-history-row:has(.reward-cancel) { flex-wrap: wrap; } /* the button drops under the request on a phone */
+.reward-history-row:has(.reward-cancel) .snap-main { min-width: 10em; }
+.reward-cancel { flex: none; min-height: 44px; margin-left: auto; }
 .reward-status { font-size: 0.875rem; font-weight: 800; color: var(--text-dim); text-align: right; max-width: 45%; overflow-wrap: anywhere; }
 .reward-status.approved, .reward-status.given { color: var(--success); }
 .reward-manage { margin-top: 16px; }

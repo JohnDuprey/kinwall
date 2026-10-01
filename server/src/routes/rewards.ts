@@ -8,7 +8,7 @@ import type { Context } from 'hono';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
 import { emit } from '../bus.ts';
-import { ownerBlock, requestKey } from '../auth.ts';
+import { deviceOwner, ownerBlock, requestKey } from '../auth.ts';
 import { notifyChoreApproval } from '../notify.ts';
 import { BALANCE_EXPR, pointTotalsStmt, type PointTotals } from '../stickers.ts';
 import { household, todayInTz, weekStartDate } from './members.ts';
@@ -309,6 +309,51 @@ rewardsRoutes.openapi(
   },
 );
 
+/** Gives a redemption's points back while it's in `status`, once ever (guarded on the ref). Batched
+ * with the status change, so the two land together or not at all. */
+const refund = (c: { env: Env }, id: string, status: Status, now: string) =>
+  c.env.DB.prepare(
+    "INSERT INTO point_entries (id, member_id, amount, reason, ref, at) SELECT ?, member_id, cost, 'reward_refund', id, ? FROM reward_redemptions WHERE id = ? AND status = ? AND NOT EXISTS (SELECT 1 FROM point_entries WHERE reason = 'reward_refund' AND ref = ?)",
+  ).bind(crypto.randomUUID(), now, id, status, id);
+
+rewardsRoutes.openapi(
+  createRoute({
+    method: 'post',
+    path: '/api/rewards/redemptions/{id}/cancel',
+    tags: ['Rewards'],
+    summary:
+      "Take back a request still waiting for a parent's OK: the points come back and the request is removed (it never happened, so it doesn't count toward the reward's limit). The member's own device, or a parent's; not a wall screen or another member's device.",
+    security: [{ Bearer: [] }],
+    request: { params: z.object({ id: z.string() }) },
+    responses: {
+      200: json(z.object({ ok: z.boolean(), balance: z.number() })),
+      403: err("not this member's own device"),
+      404: err('not found'),
+      409: err('not waiting any more (approved, given or declined)'),
+    },
+  }),
+  async (c) => {
+    const { id } = c.req.valid('param');
+    const db = c.env.DB;
+    const found = await db.prepare('SELECT member_id FROM reward_redemptions WHERE id = ?').bind(id).first<{ member_id: string }>();
+    if (!found) return c.json({ error: 'not found' }, 404);
+    const key = await requestKey(c);
+    if (key?.scope === 'display' && (await deviceOwner(c)) !== found.member_id) {
+      return c.json({ error: "Only their own device or a parent's can take back this request." }, 403);
+    }
+    // Refund + remove in one batch, both only while it's still pending, so it can't race a parent's decision.
+    const [, del] = await db.batch<RedemptionRow>([
+      refund(c, id, 'pending', new Date().toISOString()),
+      db.prepare("DELETE FROM reward_redemptions WHERE id = ? AND status = 'pending' RETURNING *").bind(id),
+    ]);
+    const row = del.results[0];
+    if (!row) return c.json({ error: 'Not waiting any more' }, 409);
+    emit(c, 'reward.changed', { id: row.reward_id, redemptionId: id, memberId: row.member_id, canceled: true });
+    const after = (await pointTotalsStmt(db, row.member_id).first<PointTotals>())!;
+    return c.json({ ok: true, balance: after.earned - after.spent }, 200);
+  },
+);
+
 // ---- Parents decide. Not in auth.ts's display allow-list, so only parent devices reach these.
 
 const decideParams = z.object({ id: z.string() });
@@ -362,9 +407,7 @@ rewardsRoutes.openapi(
     // Status change + refund in one batch; the refund is guarded so it can only ever land once.
     const [res] = await c.env.DB.batch<RedemptionRow>([
       c.env.DB.prepare("UPDATE reward_redemptions SET status = 'declined', note = ?, decided_at = ? WHERE id = ? AND status IN ('pending', 'approved') RETURNING *").bind(note, now, id),
-      c.env.DB.prepare(
-        "INSERT INTO point_entries (id, member_id, amount, reason, ref, at) SELECT ?, member_id, cost, 'reward_refund', id, ? FROM reward_redemptions WHERE id = ? AND status = 'declined' AND NOT EXISTS (SELECT 1 FROM point_entries WHERE reason = 'reward_refund' AND ref = ?)",
-      ).bind(crypto.randomUUID(), now, id, id),
+      refund(c, id, 'declined', now),
     ]);
     const row = res.results[0];
     if (!row) {

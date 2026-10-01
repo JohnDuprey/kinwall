@@ -230,6 +230,7 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'GET', pattern: /^\/api\/rewards$/ },
   { method: 'GET', pattern: /^\/api\/rewards\/redemptions$/ },
   { method: 'POST', pattern: /^\/api\/rewards\/[^/]+\/redeem$/ },
+  { method: 'POST', pattern: /^\/api\/rewards\/redemptions\/[^/]+\/cancel$/ }, // take back their own pending request (routes/rewards.ts: own device only)
   { method: 'PUT', pattern: /^\/api\/members\/[^/]+\/reward-goal$/ },
   { method: 'GET', pattern: /^\/api\/categories$/ },
   { method: 'GET', pattern: /^\/api\/(?:contacts(?:\/categories|\/[0-9a-f-]+)?|contact-categories(?:\/[0-9a-f-]+)?)$/ },
