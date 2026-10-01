@@ -146,7 +146,7 @@ function WelcomeStep({ code, setCode, error, onNext }: { code: string; setCode: 
         <input
           id="setup-code"
           className="setup-code-input"
-          type="text" inputMode="numeric" pattern="[0-9]*" maxLength={6} autoFocus
+          type="text" inputMode="numeric" pattern="[0-9]*" autoFocus
           value={code} onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
           onKeyDown={e => e.key === 'Enter' && ready && onNext()}
           placeholder="000 000"
