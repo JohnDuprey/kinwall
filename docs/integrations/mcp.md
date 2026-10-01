@@ -104,8 +104,8 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 
 | Tool | Does |
 |---|---|
-| `create_event` | Creates an event. Writes to Google, Outlook or CalDAV for those calendars. Accepts `travelMinutes`, `remindBeforeLeave` and `busy` (`false` = [free](../using/events.md#free-or-busy), like a delivery window). |
-| `update_event` | Changes only the fields you give it (the whole series for recurring local events). |
+| `create_event` | Creates an event. Writes to Google, Outlook or CalDAV for those calendars. Accepts `description` (the event's [notes](../using/events.md#event-notes), plain text), `travelMinutes`, `remindBeforeLeave` and `busy` (`false` = [free](../using/events.md#free-or-busy), like a delivery window). |
+| `update_event` | Changes only the fields you give it (the whole series for recurring local events). `description` replaces the event's notes; `""` clears them. |
 | `set_event_category` | Sets or clears an event's category (by name). Clearing falls back to keyword or calendar default. |
 | `create_chore` | Creates a recurring or one-off chore. `list` links a checklist (a list by name or ID) that has to be ticked off before the chore completes. `needsApproval` and `approveTimedPlay` set [parent approval](../using/chores.md#parent-approval). |
 | `update_chore` | Changes title, emoji, assignee, points, recurrence (`RRULE`, optional `UNTIL`), due date or time, checklist (`list`, or `null` to unlink), parent approval (`needsApproval`, `approveTimedPlay`), or active state. |

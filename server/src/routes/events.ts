@@ -661,7 +661,7 @@ export async function createEvent(c: Ctx, body: z.infer<typeof EventInputSchema>
   let start = body.start;
   let end = body.end;
   let location = body.location ?? null;
-  let description = body.description ?? null;
+  let description = body.description || null;
   let seriesId: string | null = null;
   let busy = body.busy ?? true;
 
@@ -685,7 +685,7 @@ export async function createEvent(c: Ctx, body: z.infer<typeof EventInputSchema>
       start = created.start;
       end = created.end;
       location = created.location ?? null;
-      description = created.description ?? null;
+      description = created.description || null;
       seriesId = created.seriesId ?? null;
       if (created.busy !== undefined) busy = created.busy;
     } catch (err) {
@@ -866,7 +866,7 @@ export async function updateEvent(c: Ctx, id: string, body: z.infer<typeof Event
   let start = body.start ?? row.start;
   let end = body.end ?? row.end;
   let location = body.location !== undefined ? body.location : row.location;
-  let description = body.description !== undefined ? body.description : row.description;
+  let description = body.description !== undefined ? body.description || null : row.description;
 
   let remoteReminders: string | null | undefined;
   let busy = body.busy !== undefined ? (body.busy ? 1 : 0) : row.busy;
@@ -882,7 +882,9 @@ export async function updateEvent(c: Ctx, id: string, body: z.infer<typeof Event
         end,
         allDay: body.allDay ?? !!row.all_day,
         location: location ?? undefined,
-        description: description ?? undefined,
+        // Only when the notes changed: Kinwall keeps them as plain text, and writing that back on
+        // every edit would flatten the provider's own formatting (Google/Outlook HTML).
+        ...(body.description !== undefined ? { description: body.description } : {}),
         ...(body.reminders !== undefined ? { reminders: body.reminders } : {}),
         ...(body.busy !== undefined ? { busy: body.busy } : {}),
       });
@@ -892,7 +894,7 @@ export async function updateEvent(c: Ctx, id: string, body: z.infer<typeof Event
       start = updated.start;
       end = updated.end;
       location = updated.location ?? null;
-      description = updated.description ?? null;
+      description = updated.description || null;
     } catch (err) {
       return { error: errorMessage(err, 'provider write failed'), status: 502 };
     }

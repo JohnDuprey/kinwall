@@ -2126,6 +2126,7 @@ button.notif-item:active { transform: scale(0.99); }
 /* ---------- Notes threads (event + list item sheets; NotesThread.tsx) ---------- */
 .notes-thread { display: flex; flex-direction: column; gap: 6px; }
 .notes-title { font-weight: 800; font-size: 0.8125rem; color: var(--text-dim); margin: 0; }
+.event-notes { font-weight: 600; white-space: pre-wrap; overflow-wrap: anywhere; }
 .notes-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .note { border-left: 4px solid var(--note-color); background: var(--card-soft, var(--bg-alt)); border-radius: 4px 12px 12px 4px; padding: 6px 12px 10px; cursor: pointer; }
 .note-head { display: flex; align-items: center; gap: 8px; min-height: 44px; flex-wrap: wrap; }

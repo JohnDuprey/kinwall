@@ -3,6 +3,7 @@
 import ICAL from 'ical.js';
 import { zonedTimeToUtc } from '../recurrence.ts';
 import { feedFetch, type FeedEnv } from '../outbound.ts';
+import { notesText } from './notes.ts';
 import type { NormalizedEvent, Provider, ProviderCtx } from './types.ts';
 
 // Floating times (no TZID, no Z) must be interpreted in the household timezone, not UTC (and
@@ -210,7 +211,7 @@ export async function expandICS(
         end: allDay ? isoDate(endD) : endD.toISOString(),
         allDay,
         location: item.location || undefined,
-        description: item.description || undefined,
+        description: notesText(item.description),
         seriesId,
         reminders: minutesFromValarms(item.component),
         busy: !isTransparent(item.component),
@@ -241,7 +242,7 @@ function pushSingle(
     end: allDay ? isoDate(endD) : endD.toISOString(),
     allDay,
     location: event.location || undefined,
-    description: event.description || undefined,
+    description: notesText(event.description),
     reminders: minutesFromValarms(event.component),
     busy: !isTransparent(event.component),
   });

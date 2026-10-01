@@ -22,7 +22,7 @@ function relTime(iso: string): string {
 
 // Plain text with http(s) links made clickable. React escapes the text, so nothing in a note is ever HTML.
 const URL_RE = /(https?:\/\/[^\s<>"]+[^\s<>".,;:!?)\]'])/g
-function Linkified({ text }: { text: string }) {
+export function Linkified({ text }: { text: string }) {
   return <>{text.split(URL_RE).map((part, i) => i % 2
     ? <a key={i} href={part} target="_blank" rel="noopener noreferrer nofollow">{part}</a>
     : <Fragment key={i}>{part}</Fragment>)}</>

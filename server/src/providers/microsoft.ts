@@ -1,4 +1,5 @@
 // Microsoft 365 / Outlook.com provider: OAuth2 auth-code flow + Graph v1.0 REST (plain fetch).
+import { notesText } from './notes.ts';
 import type {
   EventInput,
   NormalizedEvent,
@@ -113,7 +114,7 @@ async function api(
       ...init.headers,
       authorization: `Bearer ${token}`,
       'content-type': 'application/json',
-      prefer: 'outlook.timezone="UTC"',
+      prefer: 'outlook.timezone="UTC", outlook.body-content-type="text"',
     },
   });
   if (res.status === 401) throw new Error('Microsoft token revoked — reconnect the account');
@@ -137,7 +138,8 @@ function toNormalized(item: any): NormalizedEvent {
     end: allDay ? item.end.dateTime.slice(0, 10) : new Date(`${item.end.dateTime}Z`).toISOString(),
     allDay,
     location: item.location?.displayName || undefined,
-    description: item.bodyPreview || undefined,
+    // The whole body (bodyPreview stops at 255 characters), as text via the Prefer header in api().
+    description: notesText(item.body?.content),
     seriesId: item.seriesMasterId || undefined,
     reminders: item.isReminderOn === false ? [] : typeof item.reminderMinutesBeforeStart === 'number' ? [item.reminderMinutesBeforeStart] : null,
     // Only 'free' is free; tentative, busy, oof (away) and workingElsewhere all block the time.
@@ -185,7 +187,7 @@ export const provider: Provider = {
       startDateTime: from.toISOString(),
       endDateTime: to.toISOString(),
       $top: '500',
-      $select: 'id,subject,start,end,isAllDay,location,bodyPreview,seriesMasterId,isReminderOn,reminderMinutesBeforeStart,showAs',
+      $select: 'id,subject,start,end,isAllDay,location,body,seriesMasterId,isReminderOn,reminderMinutesBeforeStart,showAs',
     });
     let url: string | undefined =
       `${GRAPH}/me/calendars/${encodeURIComponent(ctx.calendar.remoteId ?? '')}/calendarView?${params}`;

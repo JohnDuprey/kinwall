@@ -1,4 +1,5 @@
 // Google Calendar provider: OAuth2 auth-code flow + Calendar v3 REST (plain fetch, no SDK).
+import { notesText } from './notes.ts';
 import type {
   EventInput,
   NormalizedEvent,
@@ -155,7 +156,7 @@ function toNormalized(item: any, calendarDefaults: number[] | null = null): Norm
     end: allDay ? item.end.date : new Date(item.end.dateTime).toISOString(),
     allDay,
     location: item.location || undefined,
-    description: item.description || undefined,
+    description: notesText(item.description),
     seriesId: item.recurringEventId || undefined,
     reminders: reminderMinutes(item, calendarDefaults),
     // Google leaves transparency out for the default, 'opaque' (busy).

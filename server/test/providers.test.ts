@@ -412,3 +412,70 @@ test('ics: TRANSP:TRANSPARENT is free, OPAQUE or none is busy (repeats too); Cal
   const roundTrip = await expandICS(buildVevent('u1', { ...base, busy: false }), new Date('2029-12-01'), new Date('2030-02-01'));
   assert.equal(roundTrip[0].busy, false, 'what Kinwall writes reads back the same');
 });
+
+test('notes: Google HTML and Outlook bodies arrive as plain text with line breaks; writes send text', async () => {
+  const bodies: any[] = [];
+  const urls: string[] = [];
+  const prefers: string[] = [];
+  const at = { start: { dateTime: '2026-01-05T15:00:00Z' }, end: { dateTime: '2026-01-05T16:00:00Z' } };
+  const msAt = { isAllDay: false, start: { dateTime: '2026-01-05T15:00:00.0000000' }, end: { dateTime: '2026-01-05T16:00:00.0000000' } };
+  const long = 'Bring shin guards. '.repeat(30).trim();
+  const { restore } = stubFetch({
+    'oauth2.googleapis.com': () => Response.json({ access_token: 'tok', expires_in: 3600 }),
+    '/events?': () => Response.json({ items: [
+      { id: 'html', summary: 'Soccer', description: '<b>Bring</b> shin guards<br>Snack &amp; water', ...at },
+      { id: 'plain', summary: 'Piano', description: 'Book 2\nPage 14', ...at },
+      { id: 'none', summary: 'Swim', ...at },
+    ] }),
+    'www.googleapis.com/calendar/v3/calendars/cal1/events/g': (init?: RequestInit) => { const b = JSON.parse(String(init?.body)); bodies.push(b); return Response.json({ id: 'g', summary: 'x', description: b.description, ...at }); },
+    calendarView: (init?: RequestInit) => {
+      prefers.push(String((init?.headers as Record<string, string>)?.prefer));
+      return Response.json({ value: [
+        { id: 'm1', subject: 'Dentist', bodyPreview: long.slice(0, 255), body: { contentType: 'text', content: `${long}\r\nRoom 2` }, ...msAt },
+        { id: 'm2', subject: 'Dinner', body: { contentType: 'html', content: '<html><body><p>Bring salad</p><p>7 PM</p></body></html>' }, ...msAt },
+      ] });
+    },
+    '/me/events/': (init?: RequestInit) => { const b = JSON.parse(String(init?.body)); bodies.push(b); return Response.json({ id: 'm', subject: 'x', body: b.body ?? { contentType: 'text', content: '' }, ...msAt }); },
+  });
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async (url: any, init?: RequestInit) => { urls.push(String(url)); return realFetch(url, init); }) as typeof fetch;
+  try {
+    const g = { env: {}, account: { id: 'a1', config: { access_token: 'tok', refresh_token: 'r', expires_at: Date.now() + 3600e3 } }, calendar: { id: 'c1', remoteId: 'cal1', config: {} }, saveAccountConfig: async () => {} } as unknown as ProviderCtx;
+    const gEvents = await googleProvider.listEvents(g, FROM, TO);
+    assert.deepEqual(gEvents.map((e) => e.description), ['Bring shin guards\nSnack & water', 'Book 2\nPage 14', undefined]);
+    await googleProvider.updateEvent!(g, 'g', { description: 'Line 1\nLine 2' });
+    assert.equal(bodies[0].description, 'Line 1\nLine 2');
+    await googleProvider.updateEvent!(g, 'g', { description: '' });
+    assert.equal(bodies[1].description, '', 'clearing writes an empty description');
+
+    const ms = { env: { MS_TENANT: 'common' }, account: { id: 'a1', config: { access_token: 'tok', refresh_token: 'r1', expires_at: Date.now() + 3600e3 } }, calendar: { id: 'c1', remoteId: 'cal1', config: {} }, saveAccountConfig: async () => {} } as ProviderCtx;
+    const msEvents = await msProvider.listEvents(ms, FROM, TO);
+    assert.deepEqual(msEvents.map((e) => e.description), [`${long}\nRoom 2`, 'Bring salad\n7 PM'], 'the whole body, not the 255-character preview');
+    assert.ok(decodeURIComponent(urls.find((u) => u.includes('calendarView'))!).includes('body,'), 'body is selected');
+    assert.match(prefers[0], /outlook\.body-content-type="text"/);
+    await msProvider.updateEvent!(ms, 'm', { description: 'Line 1\nLine 2' });
+    assert.deepEqual(bodies[2].body, { contentType: 'text', content: 'Line 1\nLine 2' });
+  } finally {
+    globalThis.fetch = realFetch;
+    restore();
+  }
+});
+
+test('notes: ICS DESCRIPTION is unescaped, HTML in it stripped; CalDAV writes DESCRIPTION that reads back the same', async () => {
+  const ics = [
+    'BEGIN:VCALENDAR', 'VERSION:2.0',
+    'BEGIN:VEVENT', 'UID:plain@test', 'DTSTART:20260115T150000Z', 'DTEND:20260115T160000Z', 'SUMMARY:Field trip', 'DESCRIPTION:Bring lunch\\, water\\nPermission slip due', 'END:VEVENT',
+    'BEGIN:VEVENT', 'UID:html@test', 'DTSTART:20260115T150000Z', 'DTEND:20260115T160000Z', 'SUMMARY:Concert', 'DESCRIPTION:<p>Doors at 6</p><p>Wear black</p>', 'END:VEVENT',
+    'END:VCALENDAR', '',
+  ].join('\r\n');
+  const events = await expandICS(ics, FROM, TO);
+  const notes = (uid: string) => events.find((e) => e.externalId.startsWith(uid))?.description;
+  assert.equal(notes('plain'), 'Bring lunch, water\nPermission slip due');
+  assert.equal(notes('html'), 'Doors at 6\nWear black');
+
+  const { buildVevent } = await import('../src/providers/caldav.ts');
+  const ev = { title: 'Trip', start: '2030-01-01T10:00:00.000Z', end: '2030-01-01T11:00:00.000Z', allDay: false, description: 'Lunch; water, hat\nBus at 8\\9' };
+  assert.match(buildVevent('u1', ev), /\r\nDESCRIPTION:Lunch\\; water\\, hat\\nBus at 8\\\\9\r\n/);
+  const back = await expandICS(buildVevent('u1', ev), new Date('2029-12-01'), new Date('2030-02-01'));
+  assert.equal(back[0].description, ev.description);
+});

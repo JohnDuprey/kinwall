@@ -17,7 +17,7 @@ import { useDialog } from './dialog.tsx'
 import { effectiveDensity, useDeviceAppearance } from './useTheme.ts'
 import { NowNextCard, TransitionWarnings } from './NowNext.tsx'
 import { warningTimes } from './transitions.ts'
-import NotesThread from './NotesThread.tsx'
+import NotesThread, { Linkified } from './NotesThread.tsx'
 import Board from './Board.tsx'
 import { BoardLayoutPicker } from './BoardEditor.tsx'
 import SnapshotSheet from './Snapshot.tsx'
@@ -1009,9 +1009,15 @@ function EventDetailSheet({ event, members, categories, calendars, canEdit, tz, 
             )}
           </div>
         )}
-        {event.description && <div style={{ color: 'var(--text-dim)', fontWeight: 600, whiteSpace: 'pre-line' }}>{stripHtmlToText(event.description)}</div>}
+        {event.description && (
+          <section className="notes-thread" aria-label="Notes">
+            <h3 className="notes-title">Notes</h3>
+            <div className="event-notes"><Linkified text={stripHtmlToText(event.description)} /></div>
+          </section>
+        )}
         {settings.features.lists && <EventTasks eventId={event.id} canAdd={canEdit} />}
-        {settings.features.notes && <NotesThread target={`event:${event.id}`} />}
+        {/* The family's back-and-forth, kept apart from the event's own Notes above. */}
+        {settings.features.notes && <NotesThread target={`event:${event.id}`} title="Discussion" />}
         {!canEdit && (
           <div style={{ color: 'var(--text-dim)', fontSize: '0.8125rem', fontWeight: 700 }}>
             This device can't change events on {calendarName}.
@@ -1204,6 +1210,9 @@ function EventEditSheet({ event, prefill, calendars, offerNewLocal, members, cat
   const [categoryScope, setCategoryScope] = useState<'occurrence' | 'series'>(event?.categorySource === 'event' ? 'occurrence' : 'series')
   const autoHint = event && categoryId === null ? categoryLabel(event, categories) : null
   const [location, setLocation] = useState(base.location ?? '')
+  // Notes are plain text; a provider's HTML (from before the server stored it as text) shows as text too.
+  const initialNotes = base.description ? stripHtmlToText(base.description).trim() : ''
+  const [notes, setNotes] = useState(initialNotes)
   const initialRepeat: '' | 'daily' | 'weekly' | 'monthly' = base.rrule?.includes('DAILY') ? 'daily' : base.rrule?.includes('WEEKLY') ? 'weekly' : base.rrule?.includes('MONTHLY') ? 'monthly' : ''
   const [rrule, setRrule] = useState(initialRepeat)
   // reminderSource says whether the reminders are the event's own or the default. The event's own
@@ -1275,6 +1284,9 @@ function EventEditSheet({ event, prefill, calendars, offerNewLocal, members, cat
     if ((travelMinutes !== null && travel.remind) !== !!base.remindBeforeLeave) body.remindBeforeLeave = travelMinutes !== null && travel.remind
     // Only when changed: an Outlook event shown as tentative or away stays that way after other edits.
     if (busy !== (base.busy !== false)) body.busy = busy
+    // Only when changed (new events: when there are any), so other edits never rewrite a synced
+    // event's notes and its formatting there. '' clears them.
+    if (event ? notes.trim() !== initialNotes : notes.trim()) body.description = notes.trim()
     onSave(body, event?.id ?? null, categoryChanged && inSeries ? { categoryId, scope: categoryScope } : undefined)
   }
 
@@ -1363,6 +1375,10 @@ function EventEditSheet({ event, prefill, calendars, offerNewLocal, members, cat
           <option value="weekly">Weekly</option>
           <option value="monthly">Monthly</option>
         </select>
+      </div>
+      <div className="field">
+        <label htmlFor="event-notes">Notes</label>
+        <textarea id="event-notes" rows={3} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional: what to bring, a link, a gate code" />
       </div>
       <div className="field">
         <label>Category</label>
