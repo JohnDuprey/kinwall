@@ -1668,7 +1668,7 @@ button {
 .inline-form input { flex: 1; min-width: 0; padding: 10px 14px; border-radius: var(--radius-sm); border: 2px solid var(--border); background: var(--bg-alt); color: var(--text); font: inherit; font-size: max(1rem, 16px); font-weight: 700; min-height: 48px; }
 .inline-form .btn { flex: none; min-height: 48px; padding-block: 0; padding-inline: 22px; }
 .key-item .inline-form { margin-top: 0; }
-.list-item-grip { flex-shrink: 0; width: 44px; height: 44px; margin-right: -8px; display: flex; align-items: center; justify-content: center; border: none; background: none; color: var(--text-dim); cursor: grab; touch-action: none; }
+.list-item-grip { flex-shrink: 0; width: 44px; height: 44px; margin-right: -4px; /* the row's 4px padding; more pokes into .list-items and lets it pan sideways */ display: flex; align-items: center; justify-content: center; border: none; background: none; color: var(--text-dim); cursor: grab; touch-action: none; }
 .list-item-grip:active { cursor: grabbing; }
 .list-item-grip.locked { opacity: 0.35; cursor: not-allowed; }
 .drag-row { position: relative; }
