@@ -13,6 +13,8 @@ A profile is about one person. It never ranks brothers and sisters or puts their
 
 Everyone in the family can see everyone's profile, on every device. An idle wall screen goes back to the calendar as usual.
 
+**Your own avatar**: on a kid's own device, tap the avatar (it has a ✏️) on their own profile to pick a new emoji or initial, then **Save**. That's the only thing a kid can change about themselves; the name, color and everything else stay under [Settings → Family](../settings/family.md) on a parent's device. Wall screens can't change avatars.
+
 ## What's on it
 
 Pick **Today**, **Week**, **Month**, **Year** or **All time** at the top. Days follow the family's time zone and the week starts on the day set in [Settings → General](../settings/general.md).

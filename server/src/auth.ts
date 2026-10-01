@@ -200,6 +200,7 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'GET', pattern: /^\/api\/leaderboard$/ },
   { method: 'GET', pattern: /^\/api\/members\/[^/]+\/points$/ },
   { method: 'GET', pattern: /^\/api\/members\/[^/]+\/stats$/ }, // profiles: the whole family sees the fun stats
+  { method: 'PUT', pattern: /^\/api\/members\/[^/]+\/avatar$/ }, // a kid's own device, its own avatar only (routes/members.ts)
   { method: 'POST', pattern: /^\/api\/members\/[^/]+\/check-in$/ },
   // Temp check: answered on the wall like a chore; routes/temp-check.ts keeps the answers off shared screens.
   { method: 'GET', pattern: /^\/api\/members\/[^/]+\/temp-check$/ },

@@ -4,10 +4,11 @@ import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
 import { emit } from '../bus.ts';
 import { hostTimezone } from '../env.ts';
-import { ErrorSchema, MemberInputSchema, MemberSchema, TEMP_CHECK_OFF, TRANSITIONS_OFF } from '../schemas.ts';
+import { AvatarSchema, ErrorSchema, MemberInputSchema, MemberSchema, TEMP_CHECK_OFF, TRANSITIONS_OFF } from '../schemas.ts';
 import { parseMemberIds } from '../calendar-members.ts';
 import { balanceOf, pointTotalsStmt, type PointTotals } from '../stickers.ts';
 import { privacyOf } from '../journal-privacy.ts';
+import { deviceOwner, requestKey } from '../auth.ts';
 
 export const membersRoutes = createRouter();
 
@@ -247,6 +248,36 @@ membersRoutes.openapi(
     emit(c, 'member.changed', { id });
     const { tz, weekStart } = await household(c.env.DB);
     return c.json(toApi(updated, { ...(await pointsFor(c.env.DB, id, tz, weekStart)), balance: await balanceOf(c.env.DB, id) }, await goalRewards(c.env.DB), todayGoals((await recentGoals(c.env.DB).all<GoalRow>()).results, todayInTz(tz), [updated])), 200);
+  },
+);
+
+// A kid's own device picks its own avatar (the one thing about a member it may change); parents
+// change it, and the rest, with PATCH above. Wall screens and the app's widget keys can't.
+membersRoutes.openapi(
+  createRoute({
+    method: 'put',
+    path: '/api/members/{id}/avatar',
+    tags: ['Members'],
+    summary: "Set a member's avatar (an emoji or 1-2 letter initial, or null). Parents for anyone; a member's own device (not its widgets) only for them.",
+    security: [{ Bearer: [] }],
+    request: { params: z.object({ id: z.string() }), body: { content: { 'application/json': { schema: z.object({ avatar: AvatarSchema.nullable() }) } } } },
+    responses: {
+      200: { description: 'ok', content: { 'application/json': { schema: z.object({ avatar: z.string().nullable() }) } } },
+      403: { description: "not this member's own device", content: { 'application/json': { schema: ErrorSchema } } },
+      404: { description: 'not found', content: { 'application/json': { schema: ErrorSchema } } },
+    },
+  }),
+  async (c) => {
+    const { id } = c.req.valid('param');
+    const { avatar } = c.req.valid('json');
+    const key = await requestKey(c);
+    if (key?.scope === 'display' && (key.deviceKind === 'widgets' || (await deviceOwner(c)) !== id)) {
+      return c.json({ error: "Only a parent's device or their own device can change this avatar." }, 403);
+    }
+    const res = await c.env.DB.prepare('UPDATE members SET avatar = ? WHERE id = ?').bind(avatar, id).run();
+    if (res.meta.changes === 0) return c.json({ error: 'not found' }, 404);
+    emit(c, 'member.changed', { id });
+    return c.json({ avatar }, 200);
   },
 );
 

@@ -15,7 +15,7 @@ import { MemberPicker } from './MemberPicker.tsx'
 import CalendarFilterSheet, { HiddenEventsSheet } from './CalendarFilterSheet.tsx'
 import { filterSummary } from './calendarFilter.ts'
 import TimezoneField from './TimezoneField.tsx'
-import { AnyEmojiField } from './AnyEmojiField.tsx'
+import { AnyEmojiField, AvatarPicker } from './AnyEmojiField.tsx'
 import { isValidAvatar } from './emoji.ts'
 import { accentFill, colorName, inkFor } from './color.ts'
 import { BellIcon, ChevronRight, KeyIcon, LinkIcon, LockIcon, MonitorIcon, PaletteIcon, PlusIcon, TrashIcon, WebhookIcon } from './icons.tsx'
@@ -1810,13 +1810,7 @@ function MemberEditSheet({ member, canDelete, onClose, onSaved, toast }: { membe
         </div>
         <ColorClashHint color={color} memberId={member?.id ?? null} onPick={setColor} />
       </div>
-      <div className="field">
-        <label>Avatar</label>
-        <div className="emoji-swatch-row">
-          {MEMBER_EMOJI.map(e => <button key={e} className={`emoji-swatch ${avatar === e ? 'active' : ''}`} aria-pressed={avatar === e} onClick={() => setAvatar(e)}>{e}</button>)}
-        </div>
-        <AnyEmojiField value={avatar} onChange={setAvatar} allowInitials />
-      </div>
+      <AvatarPicker value={avatar} onChange={setAvatar} />
       {canDelete && (
         <div className="field">
           <div className="toggle-row">

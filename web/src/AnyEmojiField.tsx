@@ -1,5 +1,6 @@
 import { useId, useState } from 'react'
 import { isSingleEmoji, lastGrapheme } from './emoji.ts'
+import { MEMBER_EMOJI } from './types.ts'
 
 /** "Any emoji" picker to pair with a curated emoji-swatch grid: shows the current choice as a
  * selected tile (custom emojis aren't in the grid, so this is the only place they're visible) next
@@ -41,6 +42,20 @@ export function AnyEmojiField({ value, onChange, allowInitials }: { value: strin
         />
       </label>
       {error && <div className="settings-row-sub any-emoji-error" id={errorId} role="alert">{error}</div>}
+    </div>
+  )
+}
+
+/** A member's avatar: the curated emoji grid plus any emoji or a 1-2 letter initial. Member edit
+ * (Settings) and a kid's own profile share it. */
+export function AvatarPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="field">
+      <label>Avatar</label>
+      <div className="emoji-swatch-row">
+        {MEMBER_EMOJI.map(e => <button key={e} className={`emoji-swatch ${value === e ? 'active' : ''}`} aria-pressed={value === e} onClick={() => onChange(e)}>{e}</button>)}
+      </div>
+      <AnyEmojiField value={value} onChange={onChange} allowInitials />
     </div>
   )
 }

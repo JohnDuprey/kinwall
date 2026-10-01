@@ -307,6 +307,8 @@ export const api = {
   createMember: (body: Partial<Member>, useAdmin?: boolean) => MOCK ? mock.createMember(body) : post<Member>('api/members', body, useAdmin),
   updateMember: (id: string, body: Partial<Member>, useAdmin?: boolean) => MOCK ? mock.updateMember(id, body) : patch<Member>(`api/members/${id}`, body, useAdmin),
   deleteMember: (id: string, useAdmin?: boolean) => MOCK ? mock.deleteMember(id) : del(`api/members/${id}`, useAdmin),
+  /** A kid's own device sets its own avatar; parents use updateMember. */
+  setMemberAvatar: (id: string, avatar: string) => MOCK ? mock.updateMember(id, { avatar }).then(() => ({ avatar })) : put<{ avatar: string | null }>(`api/members/${id}/avatar`, { avatar }),
 
   getSnapshot: (memberId: string, range: 'day' | 'week') =>
     MOCK ? Promise.all([mock.getSnapshot(memberId, range), import('./mock-meals.ts')]).then(([s, { mockMeals }]) =>

@@ -6,6 +6,9 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
+import Sheet from './Sheet.tsx'
+import { AvatarPicker } from './AnyEmojiField.tsx'
+import { isValidAvatar } from './emoji.ts'
 import { Segmented } from './a11y.tsx'
 import { inkFor } from './color.ts'
 import { todayKeyInTz } from './date.ts'
@@ -23,12 +26,13 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 
 const plural = (n: number, w: string) => `${n.toLocaleString()} ${w}${n === 1 ? '' : 's'}`
 
 export default function Profile({ memberId }: { memberId?: string }) {
-  const { members, settings, refreshTick, meMemberId } = useApp()
+  const { members, settings, refreshTick, meMemberId, parentDevice } = useApp()
   const isPhone = useIsPhone()
   const member = members.find(m => m.id === memberId) ?? members.find(m => m.id === meMemberId) ?? members[0]
   const [period, setPeriod] = useState<StatsPeriod>('week')
   const [stats, setStats] = useState<MemberStats | null>(null)
   const [error, setError] = useState('')
+  const [picking, setPicking] = useState(false)
 
   useEffect(() => {
     if (!member) return
@@ -40,6 +44,7 @@ export default function Profile({ memberId }: { memberId?: string }) {
   }, [member?.id, period, refreshTick]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!member) return <div className="state-card">No one in the family yet.</div>
+  const own = !parentDevice && meMemberId === member.id // a kid's own device: they pick their own avatar
   const shown = stats?.memberId === member.id && stats.period === period ? stats : null
   const f = settings.features
 
@@ -57,7 +62,12 @@ export default function Profile({ memberId }: { memberId?: string }) {
       )}
       <section className="profile-top">
         <div className="profile-hero">
-          <span className="profile-avatar" style={{ background: member.color, color: inkFor(member.color) }} aria-hidden="true">{member.avatar || member.name[0]}</span>
+          {own
+            ? <button className="profile-avatar-btn" onClick={() => setPicking(true)} aria-label="Change your avatar">
+                <span className="profile-avatar" style={{ background: member.color, color: inkFor(member.color) }} aria-hidden="true">{member.avatar || member.name[0]}</span>
+                <span className="profile-avatar-edit" aria-hidden="true">✏️</span>
+              </button>
+            : <span className="profile-avatar" style={{ background: member.color, color: inkFor(member.color) }} aria-hidden="true">{member.avatar || member.name[0]}</span>}
           <div>
             <h2 className="profile-name">{member.name}</h2>
             <p className="profile-meta">
@@ -71,7 +81,31 @@ export default function Profile({ memberId }: { memberId?: string }) {
       {error && <p className="snap-empty" role="alert">{error}</p>}
       {!shown && !error && <p className="snap-empty">Loading…</p>}
       {shown && <ProfileBody member={member} s={shown} />}
+      {picking && <AvatarSheet member={member} onClose={() => setPicking(false)} />}
     </div>
+  )
+}
+
+/** A kid's own device picks its own avatar (PUT /api/members/{id}/avatar); the rest stays with parents. */
+function AvatarSheet({ member, onClose }: { member: Member; onClose: () => void }) {
+  const { reloadCore, toast } = useApp()
+  const [avatar, setAvatar] = useState(member.avatar || member.name[0])
+  const [saving, setSaving] = useState(false)
+  const save = async () => {
+    setSaving(true)
+    try {
+      await api.setMemberAvatar(member.id, avatar)
+      reloadCore()
+      onClose()
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : "Couldn't change your avatar.", true)
+      setSaving(false)
+    }
+  }
+  return (
+    <Sheet title="Your avatar" onClose={onClose} actions={<button className="btn btn-primary" onClick={save} disabled={saving || !isValidAvatar(avatar)}>Save</button>}>
+      <AvatarPicker value={avatar} onChange={setAvatar} />
+    </Sheet>
   )
 }
 
