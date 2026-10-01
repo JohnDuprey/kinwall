@@ -1267,6 +1267,9 @@ button {
   border: 2px solid var(--border); background: var(--bg-alt); color: var(--text); font-weight: 700; font-size: 0.9375rem;
 }
 .list-add-bar .icon-btn { width: var(--ctl-h); height: var(--ctl-h); background: var(--accent-strong); color: var(--accent-ink); flex-shrink: 0; }
+/* In a sheet, stick to the very top of the scroll area (over .sheet-body's 4px top padding) so rows
+   scrolling underneath don't peek out between the sheet's title and the bar. */
+.sheet-body .list-add-bar { top: -4px; margin-top: -4px; padding-top: 6px; }
 /* Autocomplete: the suggestions drop below the field, or open above it (Shopping mode's dock). */
 .item-add { position: relative; flex: 1; min-width: 0; display: flex; }
 .item-suggest, .item-again {
