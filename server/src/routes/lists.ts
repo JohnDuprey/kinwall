@@ -757,11 +757,11 @@ listsRoutes.openapi(
     method: 'post',
     path: '/api/lists/{id}/items',
     tags: ['Lists'],
-    summary: 'Add one or more items to a list (always returns an array). An optional client-made UUID `id` makes a retried add idempotent: an id already on this list returns that item unchanged. On a shopping list, an omitted store/category/aisle is filled from what the household remembers for that item name (case, spacing and simple plurals ignored; aisle per store); explicit values, including null, win - and are remembered.',
+    summary: 'Add one or more items to a list (always returns an array). An optional client-made UUID `id` makes a retried add idempotent: an id already on this list returns that item unchanged. On a shopping list, an omitted store/category/aisle is filled from what the household remembers for that item name (case, spacing and simple plurals ignored; aisle per store); explicit values, including null, win - and are remembered. With `?skipExisting=1` (Siri\'s adds) a name already on the list, matched the same way, isn\'t added again: an open one comes back as it is with `existing: "open"`, a ticked one is unticked and comes back with `existing: "reopened"`.',
     security: [{ Bearer: [] }],
-    request: { params: z.object({ id: z.string() }), body: { content: { 'application/json': { schema: ListItemInputBodySchema } } } },
+    request: { params: z.object({ id: z.string() }), query: z.object({ skipExisting: z.enum(['1', 'true']).optional() }), body: { content: { 'application/json': { schema: ListItemInputBodySchema } } } },
     responses: {
-      201: { description: 'created', content: { 'application/json': { schema: z.array(ListItemSchema) } } },
+      201: { description: 'created', content: { 'application/json': { schema: z.array(ListItemSchema.extend({ existing: z.enum(['open', 'reopened']).optional() })) } } },
       400: { description: 'event not found, or the same item id twice', content: { 'application/json': { schema: ErrorSchema } } },
       403: { description: "this device may not change that event's tasks", content: { 'application/json': { schema: ErrorSchema } } },
       404: { description: 'not found', content: { 'application/json': { schema: ErrorSchema } } },
@@ -796,6 +796,20 @@ listsRoutes.openapi(
       if ([...already.values()].some((l) => l !== id)) return c.json({ error: 'item id already used' }, 409);
     }
     const fresh = inputs.filter((i) => !i.id || !already.has(i.id));
+    // ?skipExisting: the item on the list with the same name (an open one first, else the latest ticked).
+    const matched = new Map<(typeof inputs)[number], { id: string; done: number }>();
+    if (c.req.valid('query').skipExisting && fresh.length) {
+      const keys = fresh.map((i) => itemKey(i.title));
+      const { results } = await c.env.DB.prepare(`SELECT id, name_key, done FROM list_items WHERE list_id = ? AND name_key IN (${keys.map(() => '?').join(',')}) ORDER BY done ASC, updated_at DESC`)
+        .bind(id, ...keys)
+        .all<{ id: string; name_key: string; done: number }>();
+      for (const input of fresh) {
+        const hit = results.find((r) => r.name_key === itemKey(input.title));
+        if (hit) matched.set(input, hit);
+      }
+    }
+    const adding = fresh.filter((i) => !matched.has(i));
+    const reopened = [...matched.values()].filter((m) => m.done).map((m) => m.id);
 
     const maxSort = await c.env.DB.prepare('SELECT COALESCE(MAX(sort), -1) AS m FROM list_items WHERE list_id = ?').bind(id).first<{ m: number }>();
     let nextSort = (maxSort?.m ?? -1) + 1;
@@ -807,8 +821,8 @@ listsRoutes.openapi(
     // explicit null means "none" and must not be overwritten.
     const shopping = list.kind === 'shopping';
     const teach = shopping && (await teaches(c));
-    const memory = shopping ? await recall(c.env.DB, list.catalog, fresh.map((i) => i.title)) : new Map();
-    for (const input of fresh) {
+    const memory = shopping ? await recall(c.env.DB, list.catalog, adding.map((i) => i.title)) : new Map();
+    for (const input of adding) {
       const { store, category, aisle } = shopping
         ? fillPlace(memory, input.title, input)
         : { store: input.store ?? null, category: input.category ?? null, aisle: input.aisle ?? null };
@@ -837,10 +851,11 @@ listsRoutes.openapi(
     }
 
     const steps: ListItemStepRow[] = rows.flatMap((r, i) =>
-      (fresh[i].steps ?? []).map((title, sort) => ({ id: crypto.randomUUID(), item_id: r.id, title: title.trim(), done: 0, done_at: null, sort, created_at: now, added_by: by.memberId, added_by_label: by.label })),
+      (adding[i].steps ?? []).map((title, sort) => ({ id: crypto.randomUUID(), item_id: r.id, title: title.trim(), done: 0, done_at: null, sort, created_at: now, added_by: by.memberId, added_by_label: by.label })),
     );
-    if (rows.length) {
+    if (rows.length || reopened.length) {
       await c.env.DB.batch([
+        ...reopened.map((rid) => c.env.DB.prepare('UPDATE list_items SET done = 0, done_at = NULL, done_by = NULL, done_by_label = NULL, updated_at = ? WHERE id = ?').bind(now, rid)),
         ...rows.map((r) =>
           c.env.DB.prepare(
             'INSERT INTO list_items (id, list_id, title, name_key, notes, quantity, store, category, aisle, member_id, due_date, event_id, priority, done, done_at, done_by, added_by, added_by_label, sort, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
@@ -876,7 +891,7 @@ listsRoutes.openapi(
         ...(teach ? rows.map((r) => rememberPlace(c.env.DB, list.catalog, r.title, r, now)).filter((st) => st !== null) : []),
         ...(teach ? rows.map((r) => rememberName(c.env.DB, list.catalog, r.title, now)) : []),
       ]);
-      emit(c, 'list.item.changed', { listId: id, ids: rows.map((r) => r.id) });
+      emit(c, 'list.item.changed', { listId: id, ids: [...rows.map((r) => r.id), ...reopened] });
       let execCtx: Parameters<typeof notifyListUpdate>[1];
       try {
         execCtx = c.executionCtx;
@@ -888,7 +903,9 @@ listsRoutes.openapi(
     const stepsByItem = groupSteps(steps);
     const out = await Promise.all(inputs.map(async (input) => {
       if (input.id && already.has(input.id)) return (await loadItem(c.env.DB, id, input.id))!;
-      const r = rows[fresh.indexOf(input)]!;
+      const hit = matched.get(input);
+      if (hit) return { ...(await loadItem(c.env.DB, id, hit.id))!, existing: hit.done ? ('reopened' as const) : ('open' as const) };
+      const r = rows[adding.indexOf(input)]!;
       return toItemApi(r, stepsByItem.get(r.id));
     }));
     return c.json(out, 201);
