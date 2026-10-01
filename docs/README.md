@@ -1,6 +1,8 @@
 # Kinwall
 
-Kinwall is an open-source, self-hosted family wall calendar, chore chart and shared lists app. It's built for a wall-mounted iPad and works just as well on phones. It merges Google, Outlook, iCloud/CalDAV and ICS calendars into one color-coded view and gives every family member their own chores and points.
+**The family life organizer, on your wall and every phone.**
+
+Kinwall keeps the household's moving parts in one calm place: calendars, chores, lists, meals, routines, medicines, contacts and memories. A tablet on the wall shows the day at a glance from across the room, every phone carries the same thing, and kids can check off their own chores and routines. It's built with neurodivergent family members in mind, and it's free, open source and self-hosted, so your family's data stays on your own server.
 
 ![Board view on a wall-mounted iPad](screenshots/ipad-board.png)
 
@@ -19,4 +21,6 @@ Kinwall is an open-source, self-hosted family wall calendar, chore chart and sha
 * **Building a learning game?** See [Building activity plugins](contributing/plugins.md) and start from the [hello-world starter](https://github.com/JohnDuprey/kinwall-plugin-hello-world).
 * **Automating things?** See the [REST API](integrations/rest-api.md), [Webhooks](integrations/webhooks.md) and the [MCP server](integrations/mcp.md) for AI assistants.
 
-Just want a look first? The [demo build](self-hosting/demo-build.md) runs entirely in the browser on sample data.
+Just want a look first? The [live demo](https://demo.kinwall.family) runs entirely in your browser with a sample family, and nothing is saved. To build it yourself, see [Demo build](self-hosting/demo-build.md).
+
+Kinwall stands on a lot of open-source work; see [Credits](contributing/credits.md).

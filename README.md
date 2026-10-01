@@ -1,6 +1,12 @@
 # Kinwall
 
-Kinwall is an open-source, self-hosted family wall calendar, chore chart and shared list app, built for a wall-mounted iPad and just as handy on everyone's phone. It merges Google, Outlook, iCloud/CalDAV and ICS calendars into one color-coded view, gives each family member chores with points and streaks, and keeps the shopping list in sync. Everything it does is also available through a REST API, webhooks and an MCP server.
+**The family life organizer, on your wall and every phone.** Your whole family, on the same page.
+
+Kinwall keeps the household's moving parts in one calm place: calendars, chores, lists, meals, routines, medicines, contacts and memories. A tablet on the wall shows the day at a glance from across the room, every phone carries the same thing, and kids can check off their own chores and routines. It's not one more app for one busy grown-up; it's where the whole family keeps its plans, so nobody has to carry it all in their head.
+
+Kinwall is built with neurodivergent family members in mind, and it's free, open source (AGPL) and self-hosted: your family's data lives on your own server, with no ads and no tracking. Every feature is in this repo.
+
+**[Try the live demo](https://demo.kinwall.family)** (it runs in your browser with a sample family; nothing is saved) or [run it yourself](#deploy).
 
 ![Board view on a wall-mounted iPad: big clock, weather, today, coming up, chores and a family photo](docs/screenshots/ipad-board.png)
 
@@ -10,29 +16,50 @@ Kinwall is an open-source, self-hosted family wall calendar, chore chart and sha
   <img src="docs/screenshots/phone-chores-dark.png" width="30%" alt="Chores in dark mode" />
 </p>
 
-## Features
+## What lives in Kinwall
 
-- **One family calendar**: Google, Microsoft 365 / Outlook, iCloud and CalDAV (two-way), and any ICS feed (read-only), color-coded by person.
-- **Board view**: the first screen, a bulletin board to read from across the room: a big clock, the weather and a 4-day forecast, today, coming up, chores progress, items due soon, a family photo and a card that rotates through quotes, fun facts, "On this day", trivia (tap to answer) and tips for neurodivergent minds, from sources you pick.
-- **Views for every screen**: Board, Day, Week, Month and Schedule. Week becomes a 3-day view on phones. Swipe to page, and it returns to today when idle.
-- **Events that help**: reminders written through to Google and Outlook, travel time with a leave-by time, map links, and tasks linked from your lists.
-- **Categories**: 🎂 Birthdays, 🏥 Appointments and more, auto-matched by keyword, with a multi-select filter.
-- **Daily & weekly snapshot**: tap someone's avatar for their day: a greeting, the weather, their events and leave-by times, chores to tick off, due and important list items, birthdays 🎂, and tomorrow at a glance, or flip to their week.
-- **Chores**: one-off or recurring, points, streaks with grace days, late-completion credit and an optional leaderboard. Link a checklist ("Bedtime: shower, pajamas, brush teeth") that has to be ticked off before the chore counts, or an activity ("5 min of Sight words") that completes the chore once the child has played that long. Chores can need a parent's OK before the points count.
-- **Rewards**: parent-defined rewards kids spend chore points on, with limits, goals to save for and optional parent approval. See [docs](docs/using/rewards.md).
-- **Lists**: shopping, to-do and reusable lists. Shopping items remember their store, department and aisle, group and sort by aisle, and Shopping mode walks the store in order.
-- **Meals**: plan the week's breakfasts, lunches, dinners and snacks from a recipe library, scale servings, and add the week's ingredients to a shopping list without doubling up.
-- **Trackers**: a reading log with progress bars, star ratings and books finished this year; a family memories journal with photos and "On this day"; and doctor and dentist visits with measurements and follow-ups. Health stays on phones and computers, never on the wall screen.
-- **Activities**: a kids' Paint app with forty colors plus a color wheel, a rainbow brush, fill bucket and undo. Drawings stay on the device and can be printed, saved, or added to the family photos.
-  - **More activities**: add learning games made by others, like [Sight words](https://github.com/JohnDuprey/kinwall-plugin-sight-words) and [Math practice](https://github.com/JohnDuprey/kinwall-plugin-math). Each runs in a sandbox with no internet and no access to the family's data, saves progress per child, and Kinwall reviews the ones it lists. [Build your own](docs/contributing/plugins.md) from the [hello-world starter](https://github.com/JohnDuprey/kinwall-plugin-hello-world).
-  - **Sticker book**: kids spend chore points on emoji sticker packs and decorate their own scrapbook page.
-  - **Family photos**: a shared album that feeds the Board's picture card and the overnight screensaver. Photos shrink on upload and back up as a zip.
-- **Push notifications**: per-device event reminders, a morning summary, chore nudges and list updates, all also kept in an in-app notification feed behind the header bell.
-- **Made for the wall**: display pairing by code or QR, quiet hours with a dim clock or photo slideshow overnight, dark mode on a schedule, and a Now / Next strip with countdowns.
-- **Color schemes**: eighteen skins (Peacock, the default, plus Eucalyptus, Meadow, Midnight, Slate, Sage, Autumn and more), Seasonal, or the family's own schemes with light and dark palettes checked for contrast, for the whole family or per device.
-- **Only what you use**: turn off chores, lists, meals, Paint, photos, notes, messages or any tracker, and it disappears from every screen.
-- **Made for phones too**: one compact header with a family button to filter the calendar to one person or open their day, and Help on every screen.
-- **Secure by default**: passkeys, recovery codes, scoped keys, and credentials encrypted at rest.
+Use all of it or just a few parts. Turn off what you don't use (chores, lists, meals, contacts, Paint, photos, notes, messages, any tracker) and it disappears from every screen.
+
+- **The Board**: the first thing every screen shows, readable from across the room: a big clock, the weather and the next four days, today, coming up, chores, lists, meals, a family photo and a card with a quote, fun fact, "On this day", trivia or tip. Each screen can have its own layout, big and simple for the kids or meals first in the kitchen.
+- **Calendar**: Google, Microsoft 365 / Outlook and iCloud / CalDAV (two-way) and any ICS feed (read-only), merged and color-coded by person. Day, Week, Month and Schedule views, with 3 Day on phones. Events get reminders, a leave-by time for the drive, categories (🎂 Birthdays, 🏥 Appointments) and linked tasks. Filter a busy school or team calendar down to what matters, skip all-day noise, or hide one event or a whole series.
+- **Someone's day**: tap an avatar for that person's day: their events and when to leave, chores to tick off, things due, birthdays and a peek at tomorrow, or flip to their week.
+- **Chores and rewards**: one-off or recurring chores with points, streaks that survive an off day, partial credit for late, and an optional leaderboard. Checklists ("Bedtime: shower, pajamas, teeth"), activity chores ("5 min of Sight words") and, if you want it, a parent's OK before points count. Kids save up for rewards and fill a sticker book.
+- **Lists**: Groceries, Shopping, To-dos and Reusable lists, shared live. Grocery and shopping items remember their store and aisle, and Shopping mode walks the store in order. To-dos have owners, due dates and steps; packing lists reset for next time.
+- **Meals**: plan the week's breakfasts, lunches, dinners and snacks from a recipe library. Import a recipe from a link, scale servings, cook along with step timers, and send the week's ingredients to the grocery list without doubling up.
+- **Routines and reminders**: a Now / Next strip with a live countdown, calm transition warnings before it's time to switch, push reminders, a morning summary and timers anyone can start from the header.
+- **Medicines and health**: medication reminders with a Take now card on the wall, plus checkups, vaccines and measurements. Off until a parent turns it on, always encrypted, and shared screens say "Meds", not the medicine.
+- **Contacts**: the household's people and places outside the family: the babysitter, grandparents, the school office, the pediatrician.
+- **Memories and play**: a shared photo album for the Board, a reading log, a family memories journal, Paint with drawings saved to the album, and sandboxed learning games like [Sight words](https://github.com/JohnDuprey/kinwall-plugin-sight-words) and [Math practice](https://github.com/JohnDuprey/kinwall-plugin-math) (no internet, no family data). [Build your own](docs/contributing/plugins.md) from the [hello-world starter](https://github.com/JohnDuprey/kinwall-plugin-hello-world).
+- **Check-ins**: an optional Temp check, energy battery and evening check-in, with a private journal and insights for each person.
+
+## Made for kids, too
+
+Kinwall is built to be used by kids, not just about them: no ads, no streak guilt, no dark patterns.
+
+- **A device of their own**: pair a tablet as a kid's device and it shows only their events, chores and lists. Grown-up settings stay behind a parent's passkey.
+- **Chores that forgive**: late still earns partial credit, a streak survives an off day, and kids can ask for a reward for a parent to OK.
+
+## Built for brains that work differently
+
+Designed with neurodivergent family members in mind, and aiming for WCAG 2.2 AA throughout. See [Accessibility](docs/accessibility.md).
+
+- **Now and Next** with a countdown on every view, and calm **transition warnings** before the next thing or the leave-by time, on the wall and on that person's phone.
+- **Low-stimulation mode**: flat, calm colors and no motion.
+- **Type that fits**: seven bundled typefaces, including [Atkinson Hyperlegible Next](https://www.brailleinstitute.org/freefont/) and the dyslexia-friendly [Lexend](https://www.lexend.com), in four text sizes.
+- **Color is never the only clue**: every color comes with a name, emoji or avatar, and Kinwall warns when two people's colors look alike to color-blind eyes.
+
+## Made for the wall
+
+- **Touch-first**: big targets, swipe between weeks, and it drifts back to today on its own. Pair a wall screen with a code or QR.
+- **Rests at night**: during the night hours, walls dim to a drifting clock or a slideshow of family photos and drawings, and reminders wait until morning. See [Night](docs/using/night.md).
+- **Your family's look**: sixteen color schemes checked for contrast (Sage is the default), a seasonal switch, or your own, in light and dark. The whole family can share one, or each screen picks its own.
+
+## Private by design
+
+- **On your own server**: your calendar, chores and photos live in a database you own. No ads, no tracking, no one else's cloud.
+- **No accounts, no passwords**: parents sign in with a passkey. Wall screens and kids' tablets pair with a code and never see settings.
+- **Health stays locked**: medicines and checkups are always encrypted, and stay out of webhooks and AI assistants unless you turn each one on.
+- **Nothing held back**: every feature is in the open-source app. What you see in the demo is all of it.
 
 ## Deploy
 
@@ -49,7 +76,7 @@ docker run -d --name kinwall -p 8080:8080 -v ./data:/data \
 node scripts/setup-cloudflare.mjs
 ```
 
-There's also a [Home Assistant add-on](https://github.com/JohnDuprey/kinwall-homeassistant). A hosted version of Kinwall is coming soon.
+There's also a [Home Assistant add-on](https://github.com/JohnDuprey/kinwall-homeassistant).
 
 The setup wizard, putting it on the wall, connecting calendars, every setting and environment variable, backups and troubleshooting are all in the **[documentation](https://docs.kinwall.family)** (also in [`docs/`](docs/README.md)).
 
@@ -73,12 +100,8 @@ Kinwall is built by John Duprey with [Claude Code](https://claude.com/claude-cod
 
 Kinwall is free and self-hostable. If it's on your wall, [sponsoring on GitHub](https://github.com/sponsors/JohnDuprey) helps keep it that way.
 
-The docs are hosted on [GitBook](https://www.gitbook.com), which supports Kinwall as an open-source project.
-
 ## License
 
 AGPL-3.0-or-later. See [LICENSE](LICENSE). The bundled typefaces in `web/src/fonts/` are under the SIL Open Font License 1.1; each folder holds its `OFL.txt`.
-
-Want to help? Read [CONTRIBUTING.md](CONTRIBUTING.md) and our [Code of Conduct](CODE_OF_CONDUCT.md).
 
 Kinwall stands on a lot of open-source work and open data. [Credits](docs/contributing/credits.md) lists the projects, typefaces and data sources it uses, with their authors and licenses.
