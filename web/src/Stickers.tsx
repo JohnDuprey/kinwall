@@ -20,7 +20,9 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 type Tab = 'book' | 'shop'
 
 export default function Stickers() {
-  const { members, selectedMemberId, meMemberId, settings, refreshTick, reloadCore, toast } = useApp()
+  const { members: everyone, selectedMemberId, meMemberId, settings, refreshTick, reloadCore, toast, parentDevice, focusLocked } = useApp()
+  // A kid's own device opens only the kid's book (the server refuses anyone else's).
+  const members = !parentDevice && focusLocked && meMemberId ? everyone.filter(m => m.id === meMemberId) : everyone
   const dialog = useDialog()
   // #/activities/stickers?member=<id>&tab=shop is how Rewards' "Sticker packs" opens the shop.
   const [query] = useState(() => new URLSearchParams(location.hash.split('?')[1] || ''))

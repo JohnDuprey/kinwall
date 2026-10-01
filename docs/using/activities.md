@@ -66,6 +66,8 @@ The page fills the screen, with a tray of that member's stickers along the botto
 * **Tap** a sticker to select it. A toolbar appears with **Bigger**, **Smaller**, **Rotate**, **To front** and **Remove**.
 * With a keyboard, Tab to a sticker. The arrow keys move it (hold Shift for bigger steps), **+** and **−** resize it, **R** turns it, and **Delete** removes it.
 
+On a kid's own device, only the kid's sticker book opens.
+
 Changes save by themselves a moment after you stop. Pages are stored on the Kinwall server, so a sticker book looks the same on the wall, a phone and a tablet. Positions are kept as a share of the page, not pixels.
 
 ### Shop
@@ -95,7 +97,7 @@ Sticker pages, unlocked packs and the points ledger are part of [export & import
 
 ### API
 
-Display keys can use all of these, so the wall can shop and decorate.
+Display keys can use all of these, so the wall can shop and decorate. A member's own device buys and decorates only for that member (`403` for anyone else).
 
 * `GET /api/stickers/packs?memberId=`: every pack with its price after scaling, and whether that member has it unlocked.
 * `POST /api/stickers/packs/{packId}/buy {memberId}`: `409` if it's already unlocked, `402 {error, balance, price}` if there aren't enough points, `403` if the shop is off.

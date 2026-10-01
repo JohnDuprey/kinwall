@@ -180,7 +180,7 @@ stickersRoutes.openapi(
     request: { params: scrapParams, body: { content: { 'application/json': { schema: StickerPlacementInputSchema } } } },
     responses: {
       201: { description: 'created', content: { 'application/json': { schema: StickerPlacementSchema } } },
-      403: { description: 'sticker not unlocked', content: { 'application/json': { schema: ErrorSchema } } },
+      403: { description: 'sticker not unlocked, or this device belongs to someone else', content: { 'application/json': { schema: ErrorSchema } } },
       404: notFound,
       409: { description: 'page full', content: { 'application/json': { schema: ErrorSchema } } },
     },
@@ -189,6 +189,8 @@ stickersRoutes.openapi(
     const { memberId } = c.req.valid('param');
     const body = c.req.valid('json');
     const db = c.env.DB;
+    const blocked = await ownerBlock(c, memberId);
+    if (blocked) return c.json({ error: blocked }, 403);
     const [memberRes, ownedRes, pageRes] = await db.batch<unknown>([
       db.prepare('SELECT id FROM members WHERE id = ?').bind(memberId),
       db.prepare('SELECT pack_id FROM member_sticker_packs WHERE member_id = ?').bind(memberId),
@@ -231,12 +233,14 @@ stickersRoutes.openapi(
     summary: 'Move, resize, rotate or restack a placed sticker',
     security: [{ Bearer: [] }],
     request: { params: placementParams, body: { content: { 'application/json': { schema: StickerPlacementPatchSchema } } } },
-    responses: { 200: { description: 'ok', content: { 'application/json': { schema: StickerPlacementSchema } } }, 404: notFound },
+    responses: { 200: { description: 'ok', content: { 'application/json': { schema: StickerPlacementSchema } } }, 403: { description: "this device belongs to someone else", content: { 'application/json': { schema: ErrorSchema } } }, 404: notFound },
   }),
   async (c) => {
     const { memberId, id } = c.req.valid('param');
     const body = c.req.valid('json');
     const db = c.env.DB;
+    const blocked = await ownerBlock(c, memberId);
+    if (blocked) return c.json({ error: blocked }, 403);
     const existing = await db.prepare('SELECT * FROM scrapbook_stickers WHERE id = ? AND member_id = ?').bind(id, memberId).first<PlacementRow>();
     if (!existing) return c.json({ error: 'not found' }, 404);
     const row: PlacementRow = { ...existing, ...body };
@@ -254,10 +258,12 @@ stickersRoutes.openapi(
     summary: "Peel a sticker off a member's page",
     security: [{ Bearer: [] }],
     request: { params: placementParams },
-    responses: { 200: { description: 'ok', content: { 'application/json': { schema: z.object({ ok: z.boolean() }) } } }, 404: notFound },
+    responses: { 200: { description: 'ok', content: { 'application/json': { schema: z.object({ ok: z.boolean() }) } } }, 403: { description: "this device belongs to someone else", content: { 'application/json': { schema: ErrorSchema } } }, 404: notFound },
   }),
   async (c) => {
     const { memberId, id } = c.req.valid('param');
+    const blocked = await ownerBlock(c, memberId);
+    if (blocked) return c.json({ error: blocked }, 403);
     const result = await c.env.DB.prepare('DELETE FROM scrapbook_stickers WHERE id = ? AND member_id = ?').bind(id, memberId).run();
     if (result.meta.changes === 0) return c.json({ error: 'not found' }, 404);
     emit(c, 'sticker.changed', { memberId, id });

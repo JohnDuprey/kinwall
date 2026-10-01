@@ -92,3 +92,19 @@ test("trackers: a kid's device adds, edits and deletes only its owner's entries"
   assert.deepEqual((await send('GET', '/api/trackers')).map((e: any) => e.id), [family.id]);
 });
 
+test("stickers: a kid's device places stickers only on its owner's scrapbook page", async () => {
+  const { raw, leo, maya, leoKey, wallKey, alexKey } = await setup();
+  const place = (memberId: string, key: string) => raw('POST', `/api/stickers/scrapbook/${memberId}`, { sticker: '🐶' }, key);
+
+  assert.equal((await place(maya.id, leoKey)).status, 403);
+  const own = await (await place(leo.id, leoKey)).json() as any;
+  const mayas = await (await place(maya.id, wallKey)).json() as any;
+  assert.equal((await place(maya.id, alexKey)).status, 201);
+
+  assert.equal((await raw('PATCH', `/api/stickers/scrapbook/${maya.id}/${mayas.id}`, { x: 0.1 }, leoKey)).status, 403);
+  assert.equal((await raw('DELETE', `/api/stickers/scrapbook/${maya.id}/${mayas.id}`, undefined, leoKey)).status, 403);
+  assert.equal((await raw('PATCH', `/api/stickers/scrapbook/${leo.id}/${own.id}`, { x: 0.1 }, leoKey)).status, 200);
+  assert.equal((await raw('DELETE', `/api/stickers/scrapbook/${leo.id}/${own.id}`, undefined, leoKey)).status, 200);
+  assert.equal((await raw('DELETE', `/api/stickers/scrapbook/${maya.id}/${mayas.id}`, undefined, wallKey)).status, 200);
+});
+
