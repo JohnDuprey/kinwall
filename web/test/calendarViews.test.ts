@@ -1,7 +1,7 @@
 // node --test test/ (npm test). The calendar's views: names and one-line hints for the phone's view sheet.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { CALENDAR_VIEWS, VIEW_MODES, VIEW_TABS, lastCalendarView, rememberCalendarView, tabOf, viewForTab, viewHint, viewLabel } from '../src/calendarViews.ts'
+import { CALENDAR_VIEWS, VIEW_MODES, VIEW_TABS, dayOrigin, lastCalendarView, monthDayLabel, rememberCalendarView, tabOf, viewForTab, viewHint, viewLabel } from '../src/calendarViews.ts'
 
 test('views run Board, Day, Week, Month, Schedule; Week is 3 Day on a phone', () => {
   assert.deepEqual(VIEW_MODES.map(v => viewLabel(v, false)), ['Board', 'Day', 'Week', 'Month', 'Schedule'])
@@ -45,4 +45,27 @@ test('the last calendar view is kept per device; Week when none, junk or blocked
     rememberCalendarView('day')
     assert.equal(lastCalendarView(), 'week')
   } finally { delete g.localStorage }
+})
+
+test('a day opened from the Week or Month grid remembers where it came from', () => {
+  assert.equal(dayOrigin('month'), 'month')
+  assert.equal(dayOrigin('week'), 'week')
+  assert.equal(dayOrigin('day'), null)
+  assert.equal(dayOrigin('schedule'), null)
+  assert.equal(dayOrigin('board'), null)
+})
+
+test('the Calendar tab on a day opened from Month goes back to Month; a picked Day stays', () => {
+  assert.equal(viewForTab('calendar', 'day', 'month', 'month'), 'month')
+  assert.equal(viewForTab('calendar', 'day', 'week', 'week'), 'week')
+  assert.equal(viewForTab('calendar', 'day', 'day', null), 'day')
+  assert.equal(viewForTab('calendar', 'month', 'month', null), 'month')
+  assert.equal(viewForTab('board', 'day', 'month', 'month'), 'board')
+})
+
+test('a month day reads as its date and how many events it has', () => {
+  const thu = new Date(2026, 9, 1)
+  assert.equal(monthDayLabel(thu, 4), 'Thursday, October 1: 4 events')
+  assert.equal(monthDayLabel(thu, 1), 'Thursday, October 1: 1 event')
+  assert.equal(monthDayLabel(thu, 0), 'Thursday, October 1: no events')
 })

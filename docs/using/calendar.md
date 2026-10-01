@@ -120,6 +120,8 @@ You can turn it off per device under [Time cues](../settings/this-display.md#tim
 * **◀ / ▶** or **swipe** left and right to page. The new period slides in from the side you swiped toward.
 * **Today** jumps back to the current date.
 * Tap a **day header** (Week) or a **day cell** (Month) to open that day in Day view.
+* On a phone, a Month day is too small to aim at one event, so tapping anywhere in it (its events too) opens that day in Day view, where every event is big enough to tap. A **‹ Month** button next to the view button goes back to the month (**‹ 3 Day** when you came from 3 Day). On tablets and wall screens, tapping an event in Month still opens it, and the rest of the day (or "+N more") opens the day.
+* Tapping **Calendar** again on a day you opened from Week or Month goes back to that view. A day you open this way doesn't change which view **Calendar** opens next time.
 * Tap an **empty slot** in the time grid to add an event at that time, or tap the **+** button.
 * Tap an **event** to open its detail sheet. See [Events](events.md).
 * Keyboard: arrow keys move between day headers, and Enter opens the day.

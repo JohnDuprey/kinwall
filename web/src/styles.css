@@ -587,6 +587,9 @@ button {
 }
 .month-chip .event-avatars { font-size: 0.625rem; }
 .month-more { font-size: 0.625rem; color: var(--text-dim); font-weight: 700; cursor: pointer; }
+/* Phones: the whole day is one button (opens the Day view), chips inside are just a preview. */
+button.month-cell { font: inherit; color: inherit; text-align: left; background: transparent; border-top: 0; border-left: 0; border-radius: 0; margin: 0; min-width: 0; align-items: stretch; justify-content: flex-start; }
+button.month-cell .month-daynum { flex: none; }
 
 /* ---------- Schedule view ---------- */
 .schedule-list { height: 100%; padding: 8px var(--pad) 100px; display: flex; flex-direction: column; gap: var(--gap); }
@@ -1575,6 +1578,7 @@ button {
   .calendar-toolbar .view-pick { grid-column: 1; grid-row: 1; }
   .toolbar-end { display: contents; }
   .calendar-toolbar .board-layout-pick { grid-column: 2; grid-row: 1; justify-self: start; max-width: 100%; min-width: 0; }
+  .calendar-toolbar .day-back { grid-column: 2; grid-row: 1; justify-self: start; flex: none; min-height: 44px; padding: 8px 14px 8px 8px; gap: 2px; }
   .calendar-toolbar .hidden-toggle { grid-column: 3; grid-row: 1; }
   .calendar-toolbar .filter-btn { grid-column: 4; grid-row: 1; }
   .calendar-toolbar .toolbar-nav { grid-column: 1 / -1; grid-row: 2; }

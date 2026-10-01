@@ -27,7 +27,7 @@ import { isSingleEmoji } from './emoji.ts'
 import { calendarGoal } from './tempCheck.ts'
 import { leadBy, leadIcon, leadOf, leadText } from './leadTime.ts'
 import { layoutDay } from './dayLayout.ts'
-import { CALENDAR_VIEWS, VIEW_TABS, isCalendarView, lastCalendarView, rememberCalendarView, tabOf, viewForTab, viewHint, viewLabel, type CalendarView, type ViewMode } from './calendarViews.ts'
+import { CALENDAR_VIEWS, VIEW_TABS, dayOrigin, isCalendarView, lastCalendarView, monthDayLabel, rememberCalendarView, tabOf, viewForTab, viewHint, viewLabel, type CalendarView, type ViewMode } from './calendarViews.ts'
 import { onMinute } from './minuteTick.ts'
 
 const PHONE_WEEK_DAYS = 3
@@ -103,7 +103,9 @@ export default function CalendarView() {
   const [chosenView, setViewMode] = useState<ViewMode>(() => (MOCK && (sessionStorage.getItem('kinwall.demoView') as ViewMode | null)) || 'board') // the board is the default everywhere; a display can still lock any view
   const viewMode: ViewMode = device.lockView ?? chosenView
   // Picked in the switcher: a calendar view (Day, Week, Month) is what Calendar opens next time on this device.
-  const pickView = (v: ViewMode) => { if (isCalendarView(v)) rememberCalendarView(v); setViewMode(v) }
+  const pickView = (v: ViewMode) => { if (isCalendarView(v)) rememberCalendarView(v); setViewMode(v); setDayFrom(null) }
+  // A day opened by tapping it in the Week or Month grid: Back (phones) and the Calendar tab return there.
+  const [dayFrom, setDayFrom] = useState<CalendarView | null>(null)
   // The board carries its own big clock, so the header drops its clock while it's showing.
   useEffect(() => { document.documentElement.dataset.view = viewMode; return () => { delete document.documentElement.dataset.view } }, [viewMode])
   const [anchor, setAnchor] = useState(() => new Date())
@@ -276,7 +278,7 @@ export default function CalendarView() {
   // Opening a day from the week/month grid replaces the focused cell; land focus on the new
   // period heading instead of dropping it to the top of the page.
   const periodRef = useRef<HTMLHeadingElement>(null)
-  const openDay = (d: Date) => { setAnchor(d); setViewMode('day'); requestAnimationFrame(() => periodRef.current?.focus()) }
+  const openDay = (d: Date) => { setDayFrom(dayOrigin(viewMode)); setAnchor(d); setViewMode('day'); requestAnimationFrame(() => periodRef.current?.focus()) }
   const openEdit = (ev: EventInstance) => { setDetail(null); setEditState({ event: ev }) }
 
   const saveEvent = async (body: Partial<EventInstance>, id: string | null, seriesCategory?: { categoryId: string | null; scope: 'occurrence' | 'series' }) => {
@@ -375,7 +377,7 @@ export default function CalendarView() {
       {warnTimes.length > 0 && <TransitionWarnings events={todayEvents} minutes={warnTimes} sound={!!device.warningSound} settings={settings} />}
       {(!device.lockView || viewMode !== 'board' || categories.length > 0) && <div className={`calendar-toolbar ${!device.lockView && !isPhone && tabOf(viewMode) === 'calendar' ? 'cal-open' : ''}`}>
         {!device.lockView && (
-          isPhone ? <ViewPicker value={viewMode} onChange={pickView} /> : <ViewTabs value={viewMode} onChange={pickView} />
+          isPhone ? <ViewPicker value={viewMode} onChange={pickView} /> : <ViewTabs value={viewMode} origin={dayFrom} onChange={pickView} />
         )}
         <div className="toolbar-nav">
           {/* The board always shows today onward: no paging. */}
@@ -390,6 +392,11 @@ export default function CalendarView() {
         <div className="toolbar-end">
           {/* The Board's layout, off to the side like the filter; not on a screen whose view is locked. */}
           {viewMode === 'board' && !device.lockView && <BoardLayoutPicker />}
+          {isPhone && viewMode === 'day' && dayFrom && !device.lockView && (
+            <button type="button" className="btn btn-secondary day-back" aria-label={`Back to ${viewLabel(dayFrom, true)}`} onClick={() => { setViewMode(dayFrom); setDayFrom(null) }}>
+              <ChevronLeft width={18} height={18} />{viewLabel(dayFrom, true)}
+            </button>
+          )}
           {parentDevice && viewMode !== 'board' && (
             <button className={`icon-btn hidden-toggle ${showHidden ? 'active' : ''}`} onClick={() => setShowHidden(v => !v)} aria-pressed={showHidden}
               aria-label="Show hidden events" title="Show hidden events">
@@ -444,7 +451,7 @@ export default function CalendarView() {
         ) : viewMode === 'day' ? (
           <DayView anchor={anchor} events={visibleEvents} tz={tz} members={members} categories={categories} onlyMemberId={focusMemberId ?? selectedMemberId} onTap={setDetail} onSlotTap={openAdd} />
         ) : viewMode === 'month' ? (
-          <MonthView anchor={anchor} events={visibleEvents} tz={tz} weekStart={settings.weekStart} members={members} categories={categories} onTap={setDetail} onDayTap={openDay} />
+          <MonthView anchor={anchor} events={visibleEvents} tz={tz} weekStart={settings.weekStart} members={members} categories={categories} onTap={setDetail} onDayTap={openDay} dayOnly={isPhone && !device.lockView} />
         ) : (
           <ScheduleView anchor={anchor} events={visibleEvents} tz={tz} members={members} categories={categories} onTap={setDetail} />
         )}
@@ -755,9 +762,11 @@ function DayView({ anchor, events, tz, members, categories, onlyMemberId, onTap,
 const MONTH_CHIP_ROW_PX = 21
 const MONTH_DAYNUM_ROW_PX = 32
 
-function MonthView({ anchor, events, tz, weekStart, members, categories, onTap, onDayTap }: {
+function MonthView({ anchor, events, tz, weekStart, members, categories, onTap, onDayTap, dayOnly }: {
   anchor: Date; events: EventInstance[]; tz: string; weekStart: 0 | 1; members: ChipMember[]; categories: ChipCategory[]
   onTap: (e: EventInstance) => void; onDayTap: (d: Date) => void
+  /** Phones: a cell is too small to aim at one event, so the whole day is one button that opens it. */
+  dayOnly?: boolean
 }) {
   const isPhone = useIsPhone()
   const days = useMemo(() => {
@@ -806,6 +815,21 @@ function MonthView({ anchor, events, tz, weekStart, members, categories, onTap, 
           const overflow = dayEvents.length > maxFit
           const shown = overflow ? dayEvents.slice(0, Math.max(1, maxFit - 1)) : dayEvents
           const hidden = dayEvents.length - shown.length
+          if (dayOnly) return (
+            <button key={i} type="button" data-roving tabIndex={roving.tabIndex(i)} className={`month-cell ${isSameMonth(d, anchor) ? '' : 'dim'}`}
+              aria-current={key === todayStr ? 'date' : undefined} aria-label={monthDayLabel(d, dayEvents.length)} onClick={() => onDayTap(d)}>
+              <span aria-hidden="true" className={`month-daynum ${key === todayStr ? 'today' : ''}`}>{format(d, 'd')}</span>
+              {shown.map(ev => {
+                const { background, ink, emoji, pill, solid } = eventVisual(ev, members, categories, 6)
+                return (
+                  <span key={ev.id} aria-hidden="true" className={`month-chip${evClass(ev)}`} style={evFill(background, ink, solid)}>
+                    <EventTitle title={ev.title} avatars={[]} emoji={emoji} pill={pill} hidden={!!ev.hidden} free={ev.busy === false} />
+                  </span>
+                )
+              })}
+              {hidden > 0 && <span className="month-more" aria-hidden="true">+{hidden} more</span>}
+            </button>
+          )
           return (
             <div key={i} className={`month-cell ${isSameMonth(d, anchor) ? '' : 'dim'}`} onClick={() => onDayTap(d)}>
               <button type="button" data-roving tabIndex={roving.tabIndex(i)} className={`month-daynum ${key === todayStr ? 'today' : ''}`}
@@ -1339,6 +1363,10 @@ function EventEditSheet({ event, prefill, calendars, offerNewLocal, members, cat
         <input type="text" value={location} onChange={e => setLocation(e.target.value)} placeholder="Optional" />
       </div>
       <div className="field">
+        <label htmlFor="event-notes">Notes</label>
+        <textarea id="event-notes" rows={3} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional: what to bring, a link, a gate code" />
+      </div>
+      <div className="field">
         <label>Who</label>
         <div className="chip-row">
           {members.map(m => (
@@ -1377,10 +1405,6 @@ function EventEditSheet({ event, prefill, calendars, offerNewLocal, members, cat
         </select>
       </div>
       <div className="field">
-        <label htmlFor="event-notes">Notes</label>
-        <textarea id="event-notes" rows={3} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional: what to bring, a link, a gate code" />
-      </div>
-      <div className="field">
         <label>Category</label>
         <select value={categoryId ?? ''} onChange={e => setCategoryId(e.target.value || null)}>
           <option value="">Automatic</option>
@@ -1401,12 +1425,12 @@ const VIEW_ICONS: Record<ViewMode, typeof CalendarIcon> = { board: BoardViewIcon
 /** Tablets and up: Board | Calendar | Schedule in one pill, and Calendar opens out into Day | Week |
  * Month right beside it. The tab list is display: contents, so the calendar views (their own radio
  * group, after the tabs in Tab order) can sit between Calendar and Schedule on screen. */
-function ViewTabs({ value, onChange }: { value: ViewMode; onChange: (v: ViewMode) => void }) {
+function ViewTabs({ value, origin, onChange }: { value: ViewMode; origin: CalendarView | null; onChange: (v: ViewMode) => void }) {
   const tab = tabOf(value)
   return (
     <div className={`segmented view-tabs ${tab === 'calendar' ? 'open' : ''}`}>
       <Segmented tabs idBase="calview" label="View" className="view-tablist" value={tab}
-        onChange={t => onChange(viewForTab(t, value, lastCalendarView()))}
+        onChange={t => onChange(viewForTab(t, value, lastCalendarView(), origin))}
         options={VIEW_TABS.map(t => ({ key: t, label: t === 'calendar' ? 'Calendar' : viewLabel(t, false) }))} />
       {tab === 'calendar' && (
         <Segmented label="Calendar view" className="view-sub" value={value as CalendarView} onChange={onChange}

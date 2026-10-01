@@ -2,6 +2,8 @@
 // view sheet show. The switcher has three tabs, Board | Calendar | Schedule; Calendar holds Day,
 // Week (3 Day on a phone) and Month, and remembers which of them this device used last.
 
+import { format } from 'date-fns'
+
 export type ViewMode = 'week' | 'day' | 'month' | 'schedule' | 'board'
 export type ViewTab = 'board' | 'calendar' | 'schedule'
 export type CalendarView = 'day' | 'week' | 'month'
@@ -29,9 +31,17 @@ export const isCalendarView = (v: unknown): v is CalendarView => CALENDAR_VIEWS.
 export const tabOf = (v: ViewMode): ViewTab => isCalendarView(v) ? 'calendar' : v
 
 /** The view a tab opens: Calendar opens the last calendar view used, and tapping it again while
- * one is showing keeps that one. */
-export const viewForTab = (tab: ViewTab, current: ViewMode, last: CalendarView): ViewMode =>
-  tab !== 'calendar' ? tab : isCalendarView(current) ? current : last
+ * one is showing keeps that one, except a day opened from the Week or Month grid (`origin`), which
+ * goes back to that grid. */
+export const viewForTab = (tab: ViewTab, current: ViewMode, last: CalendarView, origin: CalendarView | null = null): ViewMode =>
+  tab !== 'calendar' ? tab : current === 'day' && origin ? origin : isCalendarView(current) ? current : last
+
+/** Where a day opened by tapping it in a grid goes back to: Week or Month, else nowhere. */
+export const dayOrigin = (from: ViewMode): CalendarView | null => from === 'week' || from === 'month' ? from : null
+
+/** A Month day's accessible name: "Thursday, October 1: 4 events". */
+export const monthDayLabel = (d: Date, count: number) =>
+  `${format(d, 'EEEE, MMMM d')}: ${count === 0 ? 'no events' : `${count} event${count === 1 ? '' : 's'}`}`
 
 const LAST_KEY = 'kinwall.calendarView'
 
