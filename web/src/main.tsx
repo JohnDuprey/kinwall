@@ -1,6 +1,7 @@
 import './compat.ts' // first: shims for old Safari
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import './fonts/fonts.css'
 import './styles.css'
 import { IMPORT_CONTACTS_EVENT, markNativeApp, receiveSharedContacts } from './native.ts'
 import { resumeShoppingHash } from './trip.ts'

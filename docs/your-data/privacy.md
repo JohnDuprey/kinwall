@@ -125,6 +125,8 @@ Your family's content: member names, events, chores, lists, settings, [trackers]
 
 ## Leaving your server
 
+Fonts aren't on this list: every typeface is bundled with Kinwall and served by your server, so screens make no third-party font requests.
+
 | Goes to | When |
 |---|---|
 | Google / Microsoft / your CalDAV server | Syncing and writing connected calendars. The calendar sign-in asks only for calendar scopes. |
@@ -133,7 +135,6 @@ Your family's content: member names, events, chores, lists, settings, [trackers]
 | Browser push services (Apple, Google, Mozilla) | Notification payloads, encrypted end to end with the device's keys (RFC 8291). |
 | Your webhook URLs | Change events you subscribed to. |
 | Open-Meteo (`api.open-meteo.com`, `geocoding-api.open-meteo.com`) | Only if a weather location is set: the **server** fetches the forecast for its coordinates (at most hourly) and looks up place names you search for in Settings → General. Your device's address is not sent; no account or key is used. |
-| Google Fonts | Each browser loads the Nunito font from `fonts.googleapis.com` / `fonts.gstatic.com`. |
 | The Metropolitan Museum of Art / Lorem Picsum | Only if a display's [Night screen slideshow](../using/night.md#screensaver) is set to Art or Nature, or it shows the calendar's [Board view](../using/calendar.md#board-view) (nature photos when no screensaver sources are chosen and the family has no photos): that display fetches pictures directly (its IP address, nothing else). Off by default. |
 
 ### Google Photos

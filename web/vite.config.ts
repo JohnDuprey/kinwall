@@ -48,7 +48,8 @@ export default defineConfig({
   ],
   // One stylesheet serves both builds: let the CSS minifier add fallbacks old Safari needs
   // (inset -> top/right/bottom/left, -webkit- prefixes, ...). Modern browsers ignore the extras.
-  build: { cssTarget: ['safari12', 'chrome111', 'firefox114', 'edge111'] },
+  // Never inline a font as a data: URL: the CSP's font-src is 'self' only.
+  build: { assetsInlineLimit: (file) => (file.endsWith('.woff2') ? false : undefined), cssTarget: ['safari12', 'chrome111', 'firefox114', 'edge111'] },
   server: {
     host: true,
     proxy: {

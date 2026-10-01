@@ -75,4 +75,4 @@ Kinwall is free and self-hostable. If it's on your wall, [sponsoring on GitHub](
 
 ## License
 
-AGPL-3.0-or-later. See [LICENSE](LICENSE).
+AGPL-3.0-or-later. See [LICENSE](LICENSE). The bundled typefaces in `web/src/fonts/` are under the SIL Open Font License 1.1; each folder holds its `OFL.txt`.

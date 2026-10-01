@@ -528,3 +528,10 @@ test('self-host CSP matches web/public/_headers (the Workers one)', () => {
   const csp = headers.match(/Content-Security-Policy: (.+)/)?.[1].trim();
   assert.equal(CSP_DEFAULT, csp);
 });
+
+test('the app CSP loads fonts only from Kinwall itself, never Google', () => {
+  assert.doesNotMatch(CSP_DEFAULT, /fonts\.googleapis\.com|fonts\.gstatic\.com/);
+  assert.match(CSP_DEFAULT, /font-src 'self';/);
+  const html = readFileSync(path.join(__dirname, '..', '..', 'web', 'index.html'), 'utf8');
+  assert.doesNotMatch(html, /googleapis|gstatic/);
+});

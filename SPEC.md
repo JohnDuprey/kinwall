@@ -388,7 +388,7 @@ For a phone in a store with poor or no signal. Design note; user docs in `docs/u
 
 **OAuth**: PKCE + single-use state; Google scopes `calendar.events calendar.readonly openid email` (not full `calendar`); revoke Google token on account delete.
 
-**Untrusted content**: event titles/descriptions from providers render as text only (never HTML). Server sends `Content-Security-Policy: default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://images.metmuseum.org https://picsum.photos https://fastly.picsum.photos; connect-src 'self' https://collectionapi.metmuseum.org; frame-ancestors 'self'` (HA ingress frames it). Never log tokens/keys; redact secrets from `last_error`.
+**Untrusted content**: event titles/descriptions from providers render as text only (never HTML). Server sends `Content-Security-Policy: default-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob: https://images.metmuseum.org https://picsum.photos https://fastly.picsum.photos; connect-src 'self' https://collectionapi.metmuseum.org; frame-ancestors 'self'` (HA ingress frames it). Never log tokens/keys; redact secrets from `last_error`.
 
 **Exposure**
 

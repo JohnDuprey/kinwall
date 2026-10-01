@@ -131,29 +131,19 @@ export function effectiveDensity(household: Appearance['density'], device: Devic
   return device.lowStim && d === 'compact' ? 'comfortable' : d
 }
 
-// Google Fonts families for the typeface choice; the stylesheet is only requested once picked
-// (or once the Typeface sheet shows them all).
-export const FONT_FAMILIES: Record<FontChoice, { family: string; query: string }> = {
-  hyperlegible: { family: "'Atkinson Hyperlegible Next'", query: 'Atkinson+Hyperlegible+Next:wght@400;600;700;800' },
-  dyslexia: { family: "'Lexend'", query: 'Lexend:wght@400;600;700;800' },
-  modern: { family: "'Figtree'", query: 'Figtree:wght@400;600;700;800' },
-  playful: { family: "'Fredoka'", query: 'Fredoka:wght@400;500;600;700' }, // tops out at 700; 800 text renders at 700
-  storybook: { family: "'Literata'", query: 'Literata:opsz,wght@7..72,400;7..72,600;7..72,700;7..72,800' },
-  handwritten: { family: "'Kalam'", query: 'Kalam:wght@400;700' }, // 400 and 700 only; heavier weights use 700
+// CSS families for the typeface choice. All are bundled (src/fonts/fonts.css); a browser fetches a
+// face's files only once text uses it (it's picked, or the Typeface sheet shows them all).
+export const FONT_FAMILIES: Record<FontChoice, string> = {
+  hyperlegible: "'Atkinson Hyperlegible Next'",
+  dyslexia: "'Lexend'",
+  modern: "'Figtree'",
+  playful: "'Fredoka'", // tops out at 700; 800 text renders at 700
+  storybook: "'Literata'",
+  handwritten: "'Kalam'", // 400 and 700 only; heavier weights use 700
 }
-/** Adds a typeface's Google Fonts stylesheet once and returns its CSS family ('Nunito' for the default). */
+/** A typeface's CSS family ('Nunito' for the default). */
 export function loadFont(font: Typeface | undefined): string {
-  const f = font && font !== 'default' ? FONT_FAMILIES[font] : undefined
-  if (!f) return "'Nunito'"
-  const id = `kw-font-${font}`
-  if (!document.getElementById(id)) {
-    const link = document.createElement('link')
-    link.id = id
-    link.rel = 'stylesheet'
-    link.href = `https://fonts.googleapis.com/css2?family=${f.query}&display=swap`
-    document.head.appendChild(link)
-  }
-  return f.family
+  return (font && font !== 'default' && FONT_FAMILIES[font]) || "'Nunito'"
 }
 function applyFont(font: Typeface) {
   if (font !== 'default') document.documentElement.style.setProperty('--font', loadFont(font))

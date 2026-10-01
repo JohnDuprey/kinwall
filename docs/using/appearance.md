@@ -45,7 +45,7 @@ Overrides are saved in the browser's local storage on that device. They're never
 
 ## Typeface
 
-Tap the **Typeface** row (it shows the current typeface in itself) to open the **Typeface** sheet: Default (Nunito), Hyperlegible (Atkinson Hyperlegible Next), Dyslexia-friendly (Lexend), Modern (Figtree), Playful (Fredoka), Storybook (Literata) or Handwritten (Kalam). Each card shows a sample line in that typeface and what it's good for. Tap one to use it right away, then **Done**. The other typefaces are loaded from Google Fonts when a device opens the sheet or uses one.
+Tap the **Typeface** row (it shows the current typeface in itself) to open the **Typeface** sheet: Default (Nunito), Hyperlegible (Atkinson Hyperlegible Next), Dyslexia-friendly (Lexend), Modern (Figtree), Playful (Fredoka), Storybook (Literata) or Handwritten (Kalam). Each card shows a sample line in that typeface and what it's good for. Tap one to use it right away, then **Done**. Every typeface is bundled with Kinwall and served by your own server (no requests to Google or other font services); a device downloads one only when it opens the sheet or uses it.
 
 The household picks one for every device under **Appearance**. A device follows it unless it picks its own under **Appearance on this device**, so a kid's tablet can use Dyslexia-friendly while the rest of the family uses Storybook. A device that picked a typeface before the family setting existed keeps it; a device left on Default follows the family.
 
