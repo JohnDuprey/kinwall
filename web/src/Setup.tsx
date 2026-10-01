@@ -16,7 +16,7 @@ import { inFrame, passkeysSupported, registerPasskey } from './webauthn.ts'
 import { ProviderForm } from './ProviderConfig.tsx'
 import type { Providers } from './types.ts'
 import { MemberPicker } from './MemberPicker.tsx'
-import { defaultGrownUp, kidChoices, ownerChoices, resumeFor, setupErrorText } from './setupSteps.ts'
+import { defaultGrownUp, freshHandoff, kidChoices, ownerChoices, resumeFor, setupErrorText } from './setupSteps.ts'
 import type { DeviceRole, SetupResume, Step } from './setupSteps.ts'
 import './setup.css'
 
@@ -35,15 +35,19 @@ const calendarOops = (e: unknown, fallback: string) => e instanceof ApiError && 
 const HANDOFF_KEY = 'kinwall.setupHandoff'
 export function readSetupResume(): SetupResume | null {
   try {
-    const handoff = localStorage.getItem(HANDOFF_KEY)
-    if (handoff) { localStorage.removeItem(HANDOFF_KEY); sessionStorage.setItem(RESUME_KEY, handoff) }
+    const handoff = freshHandoff(localStorage.getItem(HANDOFF_KEY), Date.now())
+    localStorage.removeItem(HANDOFF_KEY) // used once, or stale: either way gone
+    if (handoff) sessionStorage.setItem(RESUME_KEY, JSON.stringify(handoff))
     const raw = sessionStorage.getItem(RESUME_KEY)
     return raw ? JSON.parse(raw) as SetupResume : null
   } catch { return null }
 }
-const handOffPasskeyStep = () => { try { localStorage.setItem(HANDOFF_KEY, JSON.stringify({ step: 'passkey', deviceRole: 'admin' })) } catch { /* ignore */ } }
+const handOffPasskeyStep = () => { try { localStorage.setItem(HANDOFF_KEY, JSON.stringify({ step: 'passkey', deviceRole: 'admin', at: Date.now() })) } catch { /* ignore */ } }
 function saveResume(r: SetupResume | null) {
-  try { r ? sessionStorage.setItem(RESUME_KEY, JSON.stringify(r)) : sessionStorage.removeItem(RESUME_KEY) } catch { /* ignore */ }
+  try {
+    if (r) sessionStorage.setItem(RESUME_KEY, JSON.stringify(r))
+    else { sessionStorage.removeItem(RESUME_KEY); localStorage.removeItem(HANDOFF_KEY) } // setup done here: drop an unused handoff too
+  } catch { /* ignore */ }
 }
 /** Claimed but no passkey yet on a host that requires one (see App.tsx): reopen at that step. */
 export const resumeAtPasskey = () => saveResume({ step: 'passkey', deviceRole: 'admin' })

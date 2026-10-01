@@ -1,7 +1,7 @@
 // node --test test/ (npm test). The setup wizard's choices, resume and error copy.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { defaultGrownUp, kidChoices, ownerChoices, resumeFor, setupErrorText } from '../src/setupSteps.ts'
+import { defaultGrownUp, freshHandoff, HANDOFF_MS, kidChoices, ownerChoices, resumeFor, setupErrorText } from '../src/setupSteps.ts'
 import type { Member } from '../src/types.ts'
 
 const m = (name: string, grownUp: boolean) => ({ id: name, name, grownUp }) as Member
@@ -42,4 +42,14 @@ test("setupErrorText: friendly copy, never the server's raw words", () => {
   assert.match(setupErrorText(429, fallback), /Too many tries/)
   assert.equal(setupErrorText(500, fallback), fallback)
   assert.equal(setupErrorText(undefined, fallback), fallback)
+})
+
+test('a passkey step handed to a new tab resumes only while fresh', () => {
+  const now = Date.parse('2026-10-01T12:00:00Z')
+  const handoff = (at: number) => JSON.stringify({ step: 'passkey', deviceRole: 'admin', at })
+  assert.deepEqual(freshHandoff(handoff(now - 1000), now), { step: 'passkey', deviceRole: 'admin' })
+  assert.equal(freshHandoff(handoff(now - HANDOFF_MS - 1), now), null, 'never picked up: a later visit is not mid-setup')
+  assert.equal(freshHandoff(JSON.stringify({ step: 'passkey', deviceRole: 'admin' }), now), null, 'no time: from before this check')
+  assert.equal(freshHandoff('not json', now), null)
+  assert.equal(freshHandoff(null, now), null)
 })

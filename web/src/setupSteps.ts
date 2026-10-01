@@ -30,3 +30,19 @@ export function setupErrorText(status: number | undefined, fallback: string): st
   if (status === 429) return 'Too many tries. Wait a few minutes and try again.'
   return fallback
 }
+
+/** How long a passkey step handed to a new tab (Setup.tsx handOffPasskeyStep) stays valid. A
+ * handoff the new tab never picked up (the link opened in another browser, setup finished in the
+ * panel) must not reopen the wizard on a later visit. */
+export const HANDOFF_MS = 10 * 60_000
+
+/** The handed-off place, if it's still fresh; null for none, an old one or anything unreadable. */
+export function freshHandoff(raw: string | null, now: number): SetupResume | null {
+  if (!raw) return null
+  try {
+    const h = JSON.parse(raw) as SetupResume & { at?: number }
+    if (typeof h.at !== 'number' || now - h.at > HANDOFF_MS || h.at > now) return null
+    const { at: _at, ...resume } = h
+    return resume
+  } catch { return null }
+}
