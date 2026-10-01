@@ -9,7 +9,7 @@ import { openDb, applyMigrations } from '../src/d1-sqlite.ts';
 import type { Env } from '../src/env.ts';
 import { encryptPushPayload, ensureVapidKeys, vapidAuthHeader } from '../src/webpush.ts';
 import { decrypt } from '../src/crypto.ts';
-import { runNotifications } from '../src/notify.ts';
+import { MED_LATE, recordNotification, runNotifications } from '../src/notify.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MIGRATIONS_DIR = path.join(__dirname, '..', 'migrations');
@@ -942,4 +942,82 @@ test('transitions: a free event gets no transition pushes, but its own reminders
   assert.deepEqual(await run(at(start, -10)), [], 'no transition warning');
   const busy = await transitionsSetup({ on: true, minutes: [10] }, { start, end: at(start, 60).toISOString(), reminders: [30] });
   assert.equal((await busy.run(at(start, -10))).some((s) => String(s.payload.tag ?? '').startsWith('transition:')), true, 'the same event shown as busy does');
+});
+
+// A kid's own device (a display key owned by a kid) hears about the kid and the whole family only:
+// its subscription follows just them, sends skip anything for other people, and its feed leaves out
+// grown-ups' messages, reminders, summaries and privacy notes and parent-facing medicine notes.
+async function kidSetup() {
+  const env = makeEnv();
+  const request = makeApp(env);
+  const mk = async (name: string, grownUp: boolean) => (await (await request('/api/members', { method: 'POST', body: JSON.stringify({ name, color: '#5ae', grownUp }) })).json()) as any;
+  const alex = await mk('Alex', true);
+  const leo = await mk('Leo', false);
+  const maya = await mk('Maya', false);
+  const kid = (await (await request('/api/keys', { method: 'POST', body: JSON.stringify({ name: "Leo's iPad", scope: 'display' }) })).json()) as any;
+  await request(`/api/keys/${kid.id}`, { method: 'PATCH', body: JSON.stringify({ owner: leo.id }) });
+  const wall = (await (await request('/api/keys', { method: 'POST', body: JSON.stringify({ name: 'Kitchen', scope: 'display' }) })).json()) as any;
+  return { env, request, alex, leo, maya, kid: kid.key as string, kidId: kid.id as string, wall: wall.key as string };
+}
+
+test('push: a kid\'s device follows only the kid, whatever it asks for', async () => {
+  const { request, alex, leo, kid } = await kidSetup();
+  const sub = await makeSubscriberKeys();
+  const res = await request('/api/push/subscriptions', { method: 'POST', body: JSON.stringify({ subscription: { endpoint: 'https://fcm.googleapis.com/fcm/send/leo', keys: { p256dh: sub.p256dh, auth: sub.auth } }, deviceName: "Leo's iPad", memberIds: [alex.id] }) }, kid);
+  const row = (await res.json()) as any;
+  assert.deepEqual(row.memberIds, [leo.id], 'asking for a parent follows the kid');
+  const everyone = (await (await request(`/api/push/subscriptions/${row.id}`, { method: 'PATCH', body: JSON.stringify({ memberIds: [] }) }, kid)).json()) as any;
+  assert.deepEqual(everyone.memberIds, [leo.id], '"Everyone" follows the kid');
+  // A parent's device still follows whoever it picks.
+  const { row: parent } = await subscribe(request, ADMIN_KEY, 'alex-phone');
+  const picked = (await (await request(`/api/push/subscriptions/${parent.id}`, { method: 'PATCH', body: JSON.stringify({ memberIds: [leo.id] }) })).json()) as any;
+  assert.deepEqual(picked.memberIds, [leo.id]);
+  assert.deepEqual((await (await request(`/api/push/subscriptions/${parent.id}`, { method: 'PATCH', body: JSON.stringify({ memberIds: [] }) })).json() as any).memberIds, []);
+});
+
+test('notify: a kid\'s device that still follows everyone (an older row) gets no pushes for a parent', async () => {
+  const { env, request, alex, leo, kidId } = await kidSetup();
+  const keys = await makeSubscriberKeys();
+  // Saved before the clamp: follows everyone.
+  await env.DB.prepare("INSERT INTO push_subscriptions (id, api_key_id, endpoint, p256dh, auth, device_name, member_ids, prefs, created_at) VALUES ('old', ?, 'https://fcm.googleapis.com/fcm/send/leo', ?, ?, 'Leo', '[]', '{\"eventReminders\":true}', ?)")
+    .bind(kidId, keys.p256dh, keys.auth, new Date().toISOString()).run();
+  await subscribe(request, ADMIN_KEY, 'alex-phone', { eventReminders: true });
+  const cal = (await (await request('/api/calendars', { method: 'POST', body: JSON.stringify({ kind: 'local', name: 'Home' }) })).json()) as any;
+  const now = new Date();
+  const start = new Date(now.getTime() + 30 * 60 * 1000);
+  for (const [title, memberIds] of [['Alex dentist', [alex.id]], ['Leo soccer', [leo.id]], ['Family dinner', []]] as const) {
+    await request('/api/events', { method: 'POST', body: JSON.stringify({ calendarId: cal.id, title, start: start.toISOString(), end: new Date(start.getTime() + 1800000).toISOString(), allDay: false, memberIds, reminders: [30] }) });
+  }
+  const push = stubPush();
+  await runNotifications(env, now);
+  await request('/api/notify', { method: 'POST', body: JSON.stringify({ title: 'For Alex only', body: 'b', memberIds: [alex.id] }) });
+  push.restore();
+  const to = (d: string) => push.sent.filter((s) => s.url.endsWith(`/${d}`)).length;
+  assert.equal(to('leo'), 2, "Leo's own event and the family's, not Alex's or a message to Alex");
+  assert.equal(to('alex-phone'), 4, 'the parent hears everything');
+});
+
+test('feed: a kid\'s device sees the family\'s rows and its own, not grown-ups\' or parent-facing ones; walls skip private notes', async () => {
+  const { env, request, alex, leo, maya, kid, wall } = await kidSetup();
+  await request('/api/settings', { method: 'PATCH', body: JSON.stringify({ medications: true }) });
+  const add = (kind: Parameters<typeof recordNotification>[1]['kind'], title: string, memberIds: string[] = []) => recordNotification(env.DB, { kind, title, memberIds, source: 'system' });
+  await add('message', 'Dinner at 6');
+  await add('message', 'For Alex only', [alex.id]);
+  await add('message', 'For Leo', [leo.id]);
+  await add('reminder', 'Alex dentist', [alex.id]);
+  await add('reminder', 'Leo soccer', [leo.id]);
+  await add('reminder', 'Family dinner');
+  await add('summary', 'Today');
+  await add('list', 'List updated');
+  await add('privacy', "Alex's phone now belongs to Alex", [alex.id]);
+  await add('privacy', "Leo's journal: an entry is now private", [leo.id]);
+  await add('medication', "Time for Leo's medicine", [leo.id]);
+  await add('medication', `Leo's 8:00 AM${MED_LATE}`, [leo.id]);
+  await add('medication', `Maya's 7:30 PM${MED_LATE}`, [maya.id]);
+  const titles = async (key: string) => (await feed(request, '', key)).map((n) => n.title).sort();
+  assert.deepEqual(await titles(kid), ['Dinner at 6', 'Family dinner', 'For Leo', 'Leo soccer', "Leo's iPad now belongs to Leo", "Leo's journal: an entry is now private", 'List updated', "Time for Leo's medicine"].sort());
+  const wallSees = await titles(wall);
+  for (const t of ['For Alex only', "Alex's phone now belongs to Alex", `Leo's 8:00 AM${MED_LATE}`, `Maya's 7:30 PM${MED_LATE}`]) assert.ok(!wallSees.includes(t), t);
+  for (const t of ['Today', 'Alex dentist', 'For Leo', "Leo's iPad now belongs to Leo"]) assert.ok(wallSees.includes(t), t);
+  assert.equal((await titles(ADMIN_KEY)).length, 14, 'a parent sees everything (and the pairing note)');
 });

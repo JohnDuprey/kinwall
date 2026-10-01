@@ -59,6 +59,8 @@ Every notification Kinwall sends is also kept in the app, whether or not any dev
 * Admins get a **Send a message** button at the top of the sheet, next to **Mark all read** and **Clear all**; it opens the same form as in Settings → Access.
 * Admins can also **remove** a notification (the × beside it) or **Clear all** from the top of the sheet. The feed is the household's one copy, so this clears it on every device; displays can only mark things read. 🔒 Privacy notes can't be removed: they stay their 90 days, so a change of whose device something is can't happen quietly. The same via the API: `DELETE /api/notifications/:id` and `DELETE /api/notifications` (admin key).
 * Display keys can read the feed. Entries older than 90 days are removed.
+* **On a kid's own device** (paired as a kid's under [Settings → Access](../settings/access.md)) the feed shows what's for the whole family and what's for that kid, nothing else: no messages, reminders or 🔒 privacy notes meant for someone else, no household daily summary (it lists the grown-ups' plans too), and none of the parent-facing "Leo's 8:00 AM medicine hasn't been marked yet" notes, not even about them.
+* **On a wall screen** the feed is the family's, minus those parent-facing medicine notes and any message or 🔒 privacy note meant only for grown-ups. Parent devices see everything.
 * The API is `GET /api/notifications?limit=50&before=<ISO time>` (newest first), and the MCP tool is `list_notifications`.
 
 ## Live Activities (Kinwall app for iPhone)

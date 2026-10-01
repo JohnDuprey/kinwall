@@ -102,6 +102,20 @@ function subPrefs(row: PushSubRow): typeof DEFAULT_PUSH_PREFS {
   }
 }
 
+// Every push subscription, for sends that pick devices by who they follow. A kid's own device (a
+// display key owned by a member, auth.ts deviceOwner) follows only that kid, whatever its row says:
+// routes/push.ts saves it that way, and this covers rows saved before it did.
+export async function loadSubs(db: KinwallDb): Promise<PushSubRow[]> {
+  const { results } = await db
+    .prepare("SELECT s.*, CASE WHEN k.scope = 'display' AND k.owner IS NOT NULL AND k.owner <> 'shared' THEN k.owner END AS kid FROM push_subscriptions s LEFT JOIN api_keys k ON k.id = s.api_key_id")
+    .all<PushSubRow & { kid: string | null }>();
+  return results.map(({ kid, ...s }) => (kid ? { ...s, member_ids: JSON.stringify([kid]) } : s));
+}
+
+/** The end of a parent-facing medicine note's title ("Leo's 8:00 AM medicine hasn't been marked
+ * yet"): the feed leaves these off kids' devices and walls (routes/push.ts). */
+export const MED_LATE = " medicine hasn't been marked yet";
+
 // A device with no member_ids follows everyone. An event/target with no member_ids applies to
 // everyone. Otherwise: does the device follow at least one of the target's members?
 export function memberMatch(deviceMemberIds: string[], targetMemberIds: string[] | undefined | null): boolean {
@@ -771,7 +785,7 @@ async function runMedicationReminders(env: Env, db: KinwallDb, now: Date, tz: st
   if (!late.size) return;
   const { results: parents } = await db.prepare("SELECT s.* FROM push_subscriptions s JOIN api_keys k ON k.id = s.api_key_id WHERE k.scope = 'admin'").all<PushSubRow>();
   for (const l of late.values()) {
-    const title = `${byId.get(l.memberId)!.name}'s ${l.time === WAKE ? 'start-of-day' : formatTime(l.time, { h12 })} medicine hasn't been marked yet`;
+    const title = `${byId.get(l.memberId)!.name}'s ${l.time === WAKE ? 'start-of-day' : formatTime(l.time, { h12 })}${MED_LATE}`;
     const url = `/#/medications/${l.memberId}`;
     await recordNotification(db, { kind: 'medication', title, url, memberIds: [l.memberId], source: 'system', at: now });
     await send(parents, title, 'Tap to check.', l.meds, url, `med-late:${l.memberId}`);
@@ -808,7 +822,7 @@ async function runBatteryHeadsUp(env: Env, db: KinwallDb, now: Date, tz: string)
 // Entry point for the cron (Workers) and setInterval (Node) tickers.
 export async function runNotifications(env: Env, now: Date, _execCtx?: WaitCtx): Promise<void> {
   // No early bail on zero subscriptions: the in-app feed records reminders/summaries regardless.
-  const { results: subs } = await env.DB.prepare('SELECT * FROM push_subscriptions').all<PushSubRow>();
+  const subs = await loadSubs(env.DB);
 
   const [tzRow, defaultRemindersRow, prefsRes] = await Promise.all([
     env.DB.prepare("SELECT value FROM settings WHERE key = 'timezone'").first<{ value: string }>(),

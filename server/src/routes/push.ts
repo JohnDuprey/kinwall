@@ -1,12 +1,12 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
-import { resolveKey } from '../auth.ts';
+import { deviceOwner, requestKey, resolveKey } from '../auth.ts';
 import { parseMemberIds, resolveMemberIds } from '../calendar-members.ts';
 import { getVapidPublicKey, sendWebPush } from '../webpush.ts';
 import { encrypt } from '../crypto.ts';
 import { readFeatures } from './settings.ts';
-import { DEFAULT_PUSH_PREFS, memberMatch, recordNotification } from '../notify.ts';
+import { DEFAULT_PUSH_PREFS, loadSubs, MED_LATE, memberMatch, recordNotification } from '../notify.ts';
 import { medicationFeedFilter } from './medications.ts';
 import { ErrorSchema, NotificationSchema, NotifyInputSchema, PushSubscriptionInputSchema, PushSubscriptionPatchSchema, PushSubscriptionSchema } from '../schemas.ts';
 
@@ -94,7 +94,9 @@ pushRoutes.openapi(
   async (c) => {
     const body = c.req.valid('json');
     const resolved = await resolveKey(c);
-    const memberIds = await resolveMemberIds(c.env.DB, body.memberIds ?? []);
+    // A kid's own device follows only them (notify.ts loadSubs holds to that on every send).
+    const kid = await deviceOwner(c);
+    const memberIds = kid ? [kid] : await resolveMemberIds(c.env.DB, body.memberIds ?? []);
     const prefs = { ...DEFAULT_PUSH_PREFS, ...(body.prefs ?? {}) };
     // Keys are encrypted with the row id as AAD, so a re-subscribe (same endpoint) must reuse the
     // existing id - ON CONFLICT keeps the old id, not the fresh one in VALUES.
@@ -150,7 +152,8 @@ pushRoutes.openapi(
     if (!row) return c.json({ error: 'not found' }, 404);
     if (!ownsOrAdmin(await resolveKey(c), row)) return c.json({ error: 'forbidden' }, 403);
 
-    const memberIds = body.memberIds !== undefined ? await resolveMemberIds(c.env.DB, body.memberIds) : parseMemberIds(row.member_ids);
+    const kid = await deviceOwner(c);
+    const memberIds = kid ? [kid] : body.memberIds !== undefined ? await resolveMemberIds(c.env.DB, body.memberIds) : parseMemberIds(row.member_ids);
     const existingPrefs = { ...DEFAULT_PUSH_PREFS, ...JSON.parse(row.prefs || '{}') };
     const prefs = body.prefs !== undefined ? { ...existingPrefs, ...body.prefs } : existingPrefs;
     const deviceName = body.deviceName ?? row.device_name;
@@ -232,9 +235,8 @@ pushRoutes.openapi(
     // The MCP server calls this route in-process and tags itself; anything else is the REST API.
     const source = c.req.header('X-Kinwall-Source') === 'mcp' ? 'mcp' : 'api';
     await recordNotification(c.env.DB, { kind: 'message', title: body.title, body: body.body, url: body.url, memberIds: body.memberIds, source });
-    const { results } = await c.env.DB.prepare('SELECT * FROM push_subscriptions').all<PushSubRow>();
     let sent = 0;
-    for (const row of results) {
+    for (const row of await loadSubs(c.env.DB)) {
       if (!memberMatch(parseMemberIds(row.member_ids), body.memberIds)) continue;
       const result = await sendWebPush(c.env, c.env.DB, row, { title: body.title, body: body.body, url: body.url });
       if (result.ok) {
@@ -247,6 +249,22 @@ pushRoutes.openapi(
     return c.json({ ok: true, sent }, 200);
   },
 );
+
+// Who sees which feed rows, on top of medicationFeedFilter. Parents' devices and keys: everything.
+// A kid's own device (deviceOwner): rows for the whole family or for them, never the household
+// "Today" summary (it lists grown-ups' plans too; their own comes by push) and never a parent-facing
+// "hasn't been marked yet" medicine note, even about them. A wall screen (shared or legacy display):
+// the family feed, minus those medicine notes and messages and privacy notes meant only for grown-ups.
+const LATE_NOTE = " AND NOT (kind = 'medication' AND title LIKE ?)";
+async function feedFilter(c: Parameters<typeof deviceOwner>[0]): Promise<{ sql: string; binds: string[] }> {
+  const key = await requestKey(c);
+  if (key?.scope !== 'display') return { sql: '', binds: [] };
+  const late = `%${MED_LATE}`;
+  const kid = await deviceOwner(c);
+  if (kid) return { sql: ` AND (json_array_length(member_ids) = 0 OR EXISTS (SELECT 1 FROM json_each(member_ids) WHERE value = ?)) AND kind != 'summary'${LATE_NOTE}`, binds: [kid, late] };
+  const grownUpsOnly = "kind IN ('message', 'privacy') AND json_array_length(member_ids) > 0 AND NOT EXISTS (SELECT 1 FROM json_each(member_ids) j JOIN members m ON m.id = j.value WHERE m.grown_up = 0)";
+  return { sql: `${LATE_NOTE} AND NOT (${grownUpsOnly})`, binds: [late] };
+}
 
 type NotificationRow = { id: string; at: string; kind: string; title: string; body: string | null; url: string | null; member_ids: string; source: string | null };
 
@@ -269,8 +287,9 @@ pushRoutes.openapi(
     const { limit = 50, before } = c.req.valid('query');
     // Medicine rows only for parents, shared walls and that person's own devices (routes/medications.ts).
     const meds = await medicationFeedFilter(c);
-    const { results } = await c.env.DB.prepare(`SELECT * FROM notifications WHERE at < ?${meds.sql} ORDER BY at DESC, id DESC LIMIT ?`)
-      .bind(before ?? '9999', ...meds.binds, limit)
+    const who = await feedFilter(c);
+    const { results } = await c.env.DB.prepare(`SELECT * FROM notifications WHERE at < ?${meds.sql}${who.sql} ORDER BY at DESC, id DESC LIMIT ?`)
+      .bind(before ?? '9999', ...meds.binds, ...who.binds, limit)
       .all<NotificationRow>();
     return c.json(
       results.map((r) => ({ id: r.id, at: r.at, kind: r.kind as z.infer<typeof NotificationSchema>['kind'], title: r.title, body: r.body, url: r.url, memberIds: parseMemberIds(r.member_ids), source: r.source })),
