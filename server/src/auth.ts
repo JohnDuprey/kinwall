@@ -262,10 +262,12 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'GET', pattern: /^\/api\/photos\/[^/]+\/image$/ },
   { method: 'GET', pattern: /^\/api\/google-photos(\/next)?$/ }, // the Night screen and the Board show them; connecting is for parent devices
   // Trackers: reading and memories on the wall (kids log books there). The paths are shared with
-  // health, so routes/trackers.ts refuses health to display keys itself. No DELETE.
+  // health, so routes/trackers.ts refuses health to display keys itself. DELETE: the route allows
+  // only a member's own device, on their own entries.
   { method: 'GET', pattern: /^\/api\/trackers(\/[^/]+)?$/ },
   { method: 'POST', pattern: /^\/api\/trackers$/ },
   { method: 'PATCH', pattern: /^\/api\/trackers\/[^/]+$/ },
+  { method: 'DELETE', pattern: /^\/api\/trackers\/[^/]+$/ },
   { method: 'GET', pattern: /^\/api\/weather$/ },
   { method: 'GET', pattern: /^\/api\/tidbits$/ },
   { method: 'GET', pattern: /^\/api\/plugins$/ },

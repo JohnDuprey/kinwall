@@ -25,7 +25,7 @@ import type { Context } from 'hono';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
 import { emit } from '../bus.ts';
-import { resolveKey } from '../auth.ts';
+import { deviceOwner, ownerBlock, resolveKey } from '../auth.ts';
 import { isConnectedApp } from './mcp-oauth.ts';
 import { todayIn } from './lists.ts';
 import { isSealed, seal, unseal, type EncryptionEnv } from '../crypto.ts';
@@ -256,13 +256,15 @@ trackersRoutes.openapi(
     responses: {
       201: { description: 'created', content: json(TrackerEntrySchema) },
       400: { description: 'invalid', content: json(ErrorSchema) },
-      403: { description: 'health, from a display key or a connected app without aiHealthAccess', content: json(ErrorSchema) },
+      403: { description: 'health, from a display key or a connected app without aiHealthAccess; or a member\'s own device and someone else', content: json(ErrorSchema) },
     },
   }),
   async (c) => {
     const body = c.req.valid('json');
     const blocked = body.kind === 'health' && (await healthBlock(c));
     if (blocked) return c.json(blocked, 403);
+    const notYours = await ownerBlock(c, body.memberId);
+    if (notYours) return c.json({ error: notYours }, 403);
     const today = await householdToday(c);
     const parsed = parseData(body.kind, body.data);
     if ('error' in parsed) return c.json({ error: parsed.error }, 400);
@@ -328,7 +330,7 @@ trackersRoutes.openapi(
     responses: {
       200: { description: 'ok', content: json(TrackerEntrySchema) },
       400: { description: 'invalid', content: json(ErrorSchema) },
-      403: { description: 'health, from a display key or a connected app without aiHealthAccess', content: json(ErrorSchema) },
+      403: { description: 'health, from a display key or a connected app without aiHealthAccess; or a member\'s own device and someone else\'s entry', content: json(ErrorSchema) },
       404: { description: 'not found', content: json(ErrorSchema) },
     },
   }),
@@ -349,6 +351,8 @@ trackersRoutes.openapi(
       photoId: body.photoId !== undefined ? body.photoId : row.photo_id,
       data: row.kind === 'reading' ? finishBook(parsed.data, today) : parsed.data,
     };
+    const notYours = await ownerBlock(c, row.member_id, entry.memberId); // a kid's device: their own entries, and only to themselves
+    if (notYours) return c.json({ error: notYours }, 403);
     const ok = await check(c, entry, row);
     if ('error' in ok) return c.json(ok, 400);
     const updated: Row = {
@@ -371,18 +375,24 @@ trackersRoutes.openapi(
     method: 'delete',
     path: '/api/trackers/{id}',
     tags: ['Trackers'],
-    summary: "Delete an entry (admin keys only). A memory's own photo goes with it, unless it's also a family photo.",
+    summary: "Delete an entry: admin keys, or a member's own device for their own entries. A memory's own photo goes with it, unless it's also a family photo.",
     security: [{ Bearer: [] }],
     request: { params: idParam },
     responses: {
       200: { description: 'ok', content: json(z.object({ ok: z.boolean() })) },
-      403: { description: 'health, from a connected app without aiHealthAccess', content: json(ErrorSchema) },
+      403: { description: "health, from a connected app without aiHealthAccess; or a display key that isn't the entry's member's own device", content: json(ErrorSchema) },
       404: { description: 'not found', content: json(ErrorSchema) },
     },
   }),
   async (c) => {
     const got = await load(c, c.req.valid('param').id, false); // deleting needs nothing opened (nor a key)
     if ('res' in got) return got.res as never;
+    // Display keys: only a kid's own device, only their own entries (a book logged by mistake).
+    // Wall screens and family entries stay with a parent's device.
+    if ((await resolveKey(c))?.scope === 'display') {
+      const owner = await deviceOwner(c);
+      if (!owner || got.row.member_id !== owner) return c.json({ error: "Only a parent's device, or the person's own, can delete this." }, 403);
+    }
     await c.env.DB.prepare('DELETE FROM tracker_entries WHERE id = ?').bind(got.row.id).run();
     await settlePhotos(c, got.row, undefined, got.row.photo_own ? got.row.photo_id : null);
     emit(c, 'tracker.changed', { id: got.row.id, kind: got.row.kind, deleted: true });

@@ -69,3 +69,26 @@ test("notes: a kid's device posts as its owner and changes only its own notes; a
   assert.equal((await send('GET', `/api/notes?target=${target}`)).length, 3);
 });
 
+test("trackers: a kid's device adds, edits and deletes only its owner's entries", async () => {
+  const { raw, send, leo, maya, leoKey, wallKey, alexKey } = await setup();
+  const add = (memberId: string | null, key: string) => raw('POST', '/api/trackers', { kind: 'reading', title: 'Matilda', memberId, data: {} }, key);
+
+  assert.equal((await add(maya.id, leoKey)).status, 403);
+  const own = await (await add(leo.id, leoKey)).json() as any;
+  const mayas = await (await add(maya.id, wallKey)).json() as any;
+  const family = await (await add(null, alexKey)).json() as any;
+
+  assert.equal((await raw('PATCH', `/api/trackers/${mayas.id}`, { title: 'Mine now' }, leoKey)).status, 403);
+  assert.equal((await raw('PATCH', `/api/trackers/${own.id}`, { memberId: maya.id }, leoKey)).status, 403, "can't hand it to a sibling");
+  assert.equal((await raw('PATCH', `/api/trackers/${own.id}`, { title: 'Matilda (again)' }, leoKey)).status, 200);
+  assert.equal((await raw('PATCH', `/api/trackers/${mayas.id}`, { title: 'Wall edit' }, wallKey)).status, 200);
+
+  // Delete: the kid's own only; a wall screen none (as before); a parent's device any.
+  assert.equal((await raw('DELETE', `/api/trackers/${mayas.id}`, undefined, leoKey)).status, 403);
+  assert.equal((await raw('DELETE', `/api/trackers/${family.id}`, undefined, leoKey)).status, 403);
+  assert.equal((await raw('DELETE', `/api/trackers/${mayas.id}`, undefined, wallKey)).status, 403);
+  assert.equal((await raw('DELETE', `/api/trackers/${own.id}`, undefined, leoKey)).status, 200);
+  assert.equal((await raw('DELETE', `/api/trackers/${mayas.id}`, undefined, alexKey)).status, 200);
+  assert.deepEqual((await send('GET', '/api/trackers')).map((e: any) => e.id), [family.id]);
+});
+

@@ -45,7 +45,10 @@ const niceDate = (d: string, withYear = false) => format(new Date(`${d}T12:00:00
 const errMsg = (e: unknown, fallback: string) => e instanceof ApiError ? e.message : fallback
 
 export default function Trackers({ sub }: { sub?: string }) {
-  const { settings, members, selectedMemberId, refreshTick, toast } = useApp()
+  const { settings, members, selectedMemberId, refreshTick, toast, parentDevice, focusLocked, meMemberId } = useApp()
+  // A kid's own device changes only their entries and the family's (the server refuses the rest).
+  const kid = !parentDevice && focusLocked ? meMemberId : null
+  const canEdit = (e: TrackerEntry) => !kid || !e.memberId || e.memberId === kid
   const tz = settings.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone
   const today = todayKeyInTz(tz)
   // Fail closed: Health only once the key is known to be admin (never on a wall display).
@@ -96,7 +99,7 @@ export default function Trackers({ sub }: { sub?: string }) {
       </div>
       <div className="trackers-body scroll-y" role="tabpanel" aria-labelledby={`trk-tab-${kind}`}>
         {entries === null ? <div className="state-card">Loading…</div>
-          : kind === 'reading' ? <Reading entries={shown} people={people} onEdit={setEditing} onSave={save} />
+          : kind === 'reading' ? <Reading entries={shown} people={people} canEdit={canEdit} onEdit={setEditing} onSave={save} />
           : kind === 'memory' ? <Memories entries={shown} today={today} onEdit={setEditing} onAdd={() => setEditing({ new: true, date: today })} />
           : <Health entries={shown} today={today} onEdit={setEditing} onSave={save} meds={settings.medications} memberId={healthPerson} switcher={
             <div className="field">
@@ -108,7 +111,7 @@ export default function Trackers({ sub }: { sub?: string }) {
       <button className="fab" onClick={() => setEditing({ new: true })} aria-label={kind === 'reading' ? 'Add a book' : kind === 'memory' ? 'Add a memory' : 'Add a health visit'}><PlusIcon /></button>
       {editing && (
         <EntrySheet kind={kind} entry={'new' in editing ? null : editing} date={'new' in editing ? editing.date ?? today : undefined}
-          admin={admin} photos={photos} memberId={personId}
+          admin={admin} kid={kid} photos={photos} memberId={personId}
           onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load() }} />
       )}
     </div>
@@ -138,8 +141,8 @@ function Stars({ value, onChange, label }: { value?: number; onChange?: (v: numb
 }
 
 // ---------- Reading ----------
-function Reading({ entries, people, onEdit, onSave }: {
-  entries: TrackerEntry[]; people: Who[]
+function Reading({ entries, people, canEdit, onEdit, onSave }: {
+  entries: TrackerEntry[]; people: Who[]; canEdit: (e: TrackerEntry) => boolean
   onEdit: (e: TrackerEntry) => void; onSave: (e: TrackerEntry, body: TrackerInput, msg?: string) => void
 }) {
   const [logFor, setLogFor] = useState<TrackerEntry | null>(null)
@@ -177,7 +180,7 @@ function Reading({ entries, people, onEdit, onSave }: {
                     {d.status === 'want' && <span className="trk-tag">Want to read</span>}
                     {d.status === 'finished' && <span className="trk-sub">Finished {d.finishedOn ? niceDate(d.finishedOn) : ''}</span>}
                   </button>
-                  {d.status === 'reading' && (
+                  {d.status === 'reading' && canEdit(b) && (
                     <div className="trk-progress-row">
                       <div className="trk-progress" role="progressbar" aria-label={`${b.title} progress`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct ?? 0}>
                         <div style={{ width: `${pct ?? 0}%`, background: p.color }} />
@@ -186,7 +189,7 @@ function Reading({ entries, people, onEdit, onSave }: {
                       <button className="btn btn-secondary trk-small-btn" onClick={() => setLogFor(b)}>{audio ? 'Log listening' : 'Log pages'}</button>
                     </div>
                   )}
-                  {d.status === 'finished' && <Stars value={d.rating} label={`Rate ${b.title}`} onChange={v => onSave(b, { data: { rating: v } }, v ? `${b.title}: ${v} stars` : 'Rating cleared')} />}
+                  {d.status === 'finished' && <Stars value={d.rating} label={`Rate ${b.title}`} onChange={!canEdit(b) ? undefined : v => onSave(b, { data: { rating: v } }, v ? `${b.title}: ${v} stars` : 'Rating cleared')} />}
                 </li>
               )
             })}
@@ -367,16 +370,19 @@ type Form = {
   height: string; heightUnit: 'in' | 'cm'; weight: string; weightUnit: 'lb' | 'kg'; temperature: string; temperatureUnit: 'F' | 'C'
 }
 
-function EntrySheet({ kind, entry, date, admin, photos, memberId, onClose, onSaved }: {
+function EntrySheet({ kind, entry, date, admin, kid, photos, memberId, onClose, onSaved }: {
   kind: TrackerKind; entry: TrackerEntry | null; date?: string; admin: boolean; photos: Photo[]; memberId: string | null; onClose: () => void; onSaved: () => void
+  kid: string | null // a kid's own device: their entries (and the family's) only; someone else's opens read-only
 }) {
-  const { members, settings, toast } = useApp()
+  const { members: everyone, settings, toast } = useApp()
+  const members = kid ? everyone.filter(m => m.id === kid) : everyone
+  const readOnly = !!(kid && entry?.memberId && entry.memberId !== kid)
   const dialog = useDialog()
   const imperial = settings.temperatureUnit === 'fahrenheit'
   const d = (entry?.data ?? {}) as Partial<ReadingData & MemoryData & HealthData>
   const num = (v?: number) => v === undefined ? '' : String(v)
   const [f, setF] = useState<Form>(() => ({
-    memberId: entry ? (!entry.memberId && entry.formerMember ? FORMER : entry.memberId) : memberId, date: entry?.date ?? date ?? '', title: entry?.title ?? '',
+    memberId: entry ? (!entry.memberId && entry.formerMember ? FORMER : entry.memberId) : kid ?? memberId, date: entry?.date ?? date ?? '', title: entry?.title ?? '',
     photoId: entry?.photoId ?? null, photoOwned: !!entry?.photoOwned, photoFamily: !!entry?.photoFamily, pending: null,
     format: d.format ?? 'book', author: d.author ?? '', narrator: d.narrator ?? '', status: d.status ?? 'reading', pagesRead: num(d.pagesRead), totalPages: num(d.totalPages),
     listened: splitMinutes(d.minutesListened), length: splitMinutes(d.totalMinutes), finishedOn: d.finishedOn ?? '', rating: d.rating ?? null, notes: d.notes ?? '',
@@ -428,11 +434,13 @@ function EntrySheet({ kind, entry, date, admin, photos, memberId, onClose, onSav
 
   const noun = kind === 'reading' ? 'book' : kind === 'memory' ? 'memory' : 'visit'
   return (
-    <Sheet title={entry ? `Edit ${noun}` : kind === 'reading' ? 'Add a book' : kind === 'memory' ? 'New memory' : 'Health visit'} onClose={onClose}
-      actions={<>
-        {entry && admin && <button className="btn btn-danger" onClick={del}>Delete</button>}
+    <Sheet title={readOnly ? `${everyone.find(m => m.id === entry?.memberId)?.name ?? 'Someone'}'s ${noun}` : entry ? `Edit ${noun}` : kind === 'reading' ? 'Add a book' : kind === 'memory' ? 'New memory' : 'Health visit'} onClose={onClose}
+      actions={readOnly ? <button className="btn btn-primary" onClick={onClose}>Done</button> : <>
+        {entry && (admin || (!!kid && entry.memberId === kid)) && <button className="btn btn-danger" onClick={del}>Delete</button>}
         <button className="btn btn-primary" onClick={submit} disabled={!ready || busy}>{entry ? 'Save' : 'Add'}</button>
       </>}>
+      {/* Read-only: every field inside is disabled. */}
+      <fieldset className="item-sheet-fields" disabled={readOnly}>
       {kind === 'health' && <p className="trk-privacy">🔒 Health stays on phones and computers, never on the wall screen.</p>}
       <div className="field">
         <label id="trk-who">Whose {noun}?</label>
@@ -516,6 +524,7 @@ function EntrySheet({ kind, entry, date, admin, photos, memberId, onClose, onSav
         <div className="field"><label htmlFor="trk-notes">Notes</label><textarea id="trk-notes" value={f.notes} onChange={e => set({ notes: e.target.value })} placeholder="What the doctor said, medicine, next steps…" /></div>
         <div className="field"><label htmlFor="trk-follow">Follow-up</label><input id="trk-follow" type="date" value={f.followUp} onChange={e => set({ followUp: e.target.value })} /></div>
       </>}
+      </fieldset>
     </Sheet>
   )
 }

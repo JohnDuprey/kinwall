@@ -56,10 +56,12 @@ Keep in mind that a visit you add to the calendar is a normal event, and the cal
 
 ## Who can do what
 
-| | Admin (phones, computers) | Wall display |
-|---|---|---|
-| Reading and Memories | See, add, edit, delete | See, add, edit (no delete) |
-| Health | See, add, edit, delete | Nothing |
+| | Admin (phones, computers) | Kid's own device | Wall display |
+|---|---|---|---|
+| Reading and Memories | See, add, edit, delete | See all; add, edit and delete their own; add and edit the family's | See, add, edit (no delete) |
+| Health | See, add, edit, delete | Nothing | Nothing |
+
+On a kid's own device, **Whose book?** (or memory) offers only the kid and **Family**, and someone else's entry opens read-only.
 
 Removing a family member keeps their tracker entries under their name, for example a **Sam (removed)** shelf in Reading and "Sam (removed)" on their memories and visits. They don't become the family's. Editing one and picking someone else (or **Family**) moves it for good.
 
@@ -72,10 +74,10 @@ An admin can turn off **Reading**, **Memories** and **Health** one at a time und
 | Method | Path | Does |
 |---|---|---|
 | `GET` | `/api/trackers?kind=&memberId=&from=&to=&q=` | Entries, newest first. `q` searches titles and fields. |
-| `POST` | `/api/trackers` | Add `{ kind, memberId?, date?, title?, photoId?, photoFamily?, data }`. `date` defaults to today. |
+| `POST` | `/api/trackers` | Add `{ kind, memberId?, date?, title?, photoId?, photoFamily?, data }`. `date` defaults to today. A member's own device: only for them or the family (else `403`). |
 | `GET` | `/api/trackers/{id}` | One entry. |
-| `PATCH` | `/api/trackers/{id}` | Edit. `data` is merged over the entry's fields; `null` clears one. |
-| `DELETE` | `/api/trackers/{id}` | Delete (admin keys only). |
+| `PATCH` | `/api/trackers/{id}` | Edit. `data` is merged over the entry's fields; `null` clears one. A member's own device: only their or the family's entries, given to them or the family (else `403`). |
+| `DELETE` | `/api/trackers/{id}` | Delete: admin keys, or a member's own device for their own entries (else `403`). |
 | `GET` | `/api/trackers/summary?year=` | Reading stats per person: books and audiobooks finished that year, `pages`, `minutes` listened, books in progress with a percent. |
 
 Each entry also has `formerMember` (the name of a removed member it belonged to, with `memberId` null), and for a memory's photo `photoOwned` (added for the memory) and `photoFamily` (also a family photo). A memory's own photo is uploaded with `POST /api/photos?family=0` and attached with `photoId`; `photoFamily: true` shares it. Only memories take a photo, one each.
