@@ -9,7 +9,7 @@ import { itemKey } from './itemSuggest.ts'
 import { tagsInput } from './catalog.ts'
 import { byListOrder, reorderWithin } from './listSections.ts'
 import { dateKey } from './date.ts'
-import { SECURITY_PAGE } from './securityActivity.ts'
+import { SECURITY_PAGE, matchesSecurityQuery } from './securityActivity.ts'
 import { FILTER_PRESETS, NO_FILTER, filterShows } from './calendarFilter.ts'
 import { MAYA_ANALYSIS, MAYA_BATTERY, MAYA_DAYS } from './mock-insights.ts'
 import type { Contact, ContactCategory, ContactInput, ImportPreviewEntry } from './contact-types.ts'
@@ -560,8 +560,8 @@ const notifications: AppNotification[] = [
   { id: 'n9', at: at(-2, 16, 30), kind: 'reminder', title: '⚽ Swim Lessons', body: 'In 30 minutes · 5:00 PM\n📍 Community pool\n👥 Leo', url: `/#/calendar?event=e9&at=${encodeURIComponent(at(-2, 17))}`, memberIds: ['m4'], source: 'system' },
 ].sort((a, b) => b.at.localeCompare(a.at)) as AppNotification[]
 
-// Security activity (Settings → Access): what the server would have logged, newest first. Alex
-// signs in every few days on the same phone, so there's a second page for "Show more".
+// Security activity (Settings → Access): what the server would have logged, newest first, over a
+// couple of months and every filter chip, so the sheet has days to group and pages to scroll.
 const securityEvents: SecurityEvent[] = [
   { id: 's1', at: fromNow(-25), kind: 'passkey.added', summary: 'Passkey "Alex\'s iPhone" added', by: { memberId: 'm1' }, device: "Alex's iPhone", detail: null },
   { id: 's2', at: fromNow(-140), kind: 'device.paired', summary: '"Kitchen wall" paired as a wall screen', by: { memberId: 'm2' }, device: 'Kitchen wall', detail: { kind: 'wall' } },
@@ -573,8 +573,18 @@ const securityEvents: SecurityEvent[] = [
   { id: 's8', at: at(-4, 8, 15), kind: 'key.created', summary: 'Full-access API key "Home Assistant" created', by: { memberId: 'm1' }, device: 'Home Assistant', detail: { scope: 'admin' } },
   { id: 's9', at: at(-5, 21, 0), kind: 'passkey.removed', summary: 'Passkey "Old iPad" removed; its sign-ins ended', by: { memberId: 'm2' }, device: 'Old iPad', detail: null },
   { id: 's10', at: at(-6, 17, 45), kind: 'device.paired', summary: '"Leo\'s tablet" paired as Leo\'s device', by: { memberId: 'm2' }, device: "Leo's tablet", detail: { kind: 'kid' } },
-  ...Array.from({ length: 16 }, (_, i): SecurityEvent => ({ id: `s${11 + i}`, at: at(-7 - i * 3, 7, 50), kind: 'signin.passkey', summary: 'Signed in with passkey "Alex\'s iPhone"', by: { memberId: 'm1' }, device: "Alex's iPhone", detail: null })),
-]
+  { id: 's11', at: at(0, 7, 10), kind: 'signin.passkey', summary: 'Signed in with passkey "Sam\'s Pixel"', by: { memberId: 'm2' }, device: "Sam's Pixel", detail: null },
+  { id: 's12', at: at(-1, 8, 2), kind: 'widgets.added', summary: 'Widgets key "Kitchen widgets" added', by: { label: 'Kitchen wall' }, device: 'Kitchen widgets', detail: null },
+  { id: 's13', at: at(-6, 18, 5), kind: 'signout', summary: 'Signed out (passkey "Old iPad")', by: { memberId: 'm2' }, device: 'Old iPad', detail: null },
+  { id: 's14', at: at(-4, 8, 0), kind: 'recovery.generated', summary: 'Recovery codes made', by: { memberId: 'm1' }, device: null, detail: null },
+  { id: 's15', at: at(-8, 19, 30), kind: 'app.disconnected', summary: 'Old assistant disconnected', by: { memberId: 'm1' }, device: 'Old assistant', detail: null },
+  { id: 's16', at: at(-9, 12, 0), kind: 'passkey.renamed', summary: 'Passkey "iPhone" renamed to "Alex\'s iPhone"', by: { memberId: 'm1' }, device: "Alex's iPhone", detail: null },
+  { id: 's17', at: at(-12, 20, 15), kind: 'key.removed', summary: 'API key "Test script" removed and signed out', by: { memberId: 'm2' }, device: 'Test script', detail: null },
+  { id: 's18', at: at(-15, 21, 10), kind: 'pin.removed', summary: 'Night PIN removed', by: { memberId: 'm2' }, device: null, detail: null },
+  { id: 's19', at: at(-20, 10, 0), kind: 'widgets.removed', summary: 'Widgets key "Hall widgets" signed out', by: { memberId: 'm1' }, device: 'Hall widgets', detail: null },
+  // Alex signs in every few days on the same phone, so scrolling loads more pages.
+  ...Array.from({ length: 30 }, (_, i): SecurityEvent => ({ id: `s${20 + i}`, at: at(-5 - i * 2, 7, 50), kind: 'signin.passkey', summary: 'Signed in with passkey "Alex\'s iPhone"', by: { memberId: 'm1' }, device: "Alex's iPhone", detail: null })),
+].sort((a, b) => b.at.localeCompare(a.at))
 
 // Trackers: a few books, memories and one checkup (dates relative to today, so "On this day" has a year-ago entry).
 const daysAgo = (n: number) => dateKey(new Date(Date.now() - n * 86_400_000))
@@ -647,7 +657,11 @@ export const mock = {
   },
   getRev: async () => ({ rev }),
   getNotifications: async () => [...notifications],
-  getSecurityEvents: async (before?: string) => { const from = before ? securityEvents.findIndex(e => e.id === before) + 1 : 0; return securityEvents.slice(from, from + SECURITY_PAGE) },
+  // Like the server: ?before= is a cursor into the whole log, then ?kinds= and ?q= narrow it.
+  getSecurityEvents: async ({ before, q = '', kinds = [] }: { before?: string; q?: string; kinds?: readonly string[] } = {}) => {
+    const from = before ? securityEvents.findIndex(e => e.id === before) + 1 : 0
+    return securityEvents.slice(from).filter(e => (!kinds.length || kinds.includes(e.kind)) && matchesSecurityQuery(e, q, members)).slice(0, SECURITY_PAGE)
+  },
   deleteNotification: async (id: string) => { const i = notifications.findIndex(n => n.id === id); if (i >= 0) notifications.splice(i, 1); bump(); return { ok: true } },
   clearNotifications: async () => { const deleted = notifications.length; notifications.splice(0); bump(); return { ok: true as const, deleted } },
   sendNotification: async (b: { title: string; body: string; memberIds?: string[]; url?: string }) => {

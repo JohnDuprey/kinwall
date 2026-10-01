@@ -1140,6 +1140,12 @@ button {
 .security-list .key-item { justify-content: flex-start; align-items: flex-start; }
 .security-icon { flex: none; width: 24px; text-align: center; font-size: 1.1rem; line-height: 1.35; }
 .security-list .key-item-info { min-width: 0; overflow-wrap: anywhere; }
+/* The sheet's filter chips: one row that scrolls sideways on a phone instead of three rows. */
+@media (max-width: 600px) {
+  .security-filters { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
+  .security-filters .chip { flex: none; }
+}
+.security-results { min-height: min(60vh, 560px); }
 /* A device row with an owner picker: on a phone, name and delete on top, the picker full width below. */
 .key-item-owned .key-item-info { min-width: 0; }
 .device-kind-title { margin: 14px 4px 0; color: var(--text-dim); font-size: 0.85rem; }

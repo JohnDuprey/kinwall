@@ -75,7 +75,7 @@ For what's encrypted and how data is stored, see [Privacy & what's encrypted](..
 
 ## Security activity
 
-**Settings → Access → Security activity** lists the latest 20 security events in plain words, newest first, with **Show more** for older ones: "Passkey "iPhone" added by 🦊 Alex · Tue 4:12 PM", "Recovery code used to sign in (7 left)", ""Kitchen wall" paired as a wall screen by Sam". It shows only on parent devices; wall screens and kids' devices never see it, and neither do connected apps.
+**Settings → Access → Security activity** shows the latest security event; **View** opens all of them in plain words, newest first and grouped by day: "Passkey "iPhone" added by 🦊 Alex · 4:12 PM", "Recovery code used to sign in (7 left)", ""Kitchen wall" paired as a wall screen by Sam". Older ones load as you scroll. Search for a name (a passkey, device, key, app or person) or narrow it with the chips (**Sign-ins**, **Passkeys**, **Devices**, **Keys & apps**, **PIN**, **Journal**); both look through the whole year. It shows only on parent devices; wall screens and kids' devices never see it, and neither do connected apps.
 
 It records:
 

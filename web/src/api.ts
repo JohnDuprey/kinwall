@@ -629,7 +629,14 @@ export const api = {
   },
   importData: (file: unknown) => post<ImportResult>('api/import', file, true),
   getHostEvents: () => MOCK ? Promise.resolve([]) : get<HostEvent[]>('api/host-events', true),
-  getSecurityEvents: (before?: string) => MOCK ? mock.getSecurityEvents(before) : get<SecurityEvent[]>(`api/security-events?limit=${SECURITY_PAGE}${before ? `&before=${encodeURIComponent(before)}` : ''}`, true),
+  getSecurityEvents: (o: { before?: string; q?: string; kinds?: readonly string[] } = {}) => {
+    if (MOCK) return mock.getSecurityEvents(o)
+    const p = new URLSearchParams({ limit: String(SECURITY_PAGE) })
+    if (o.before) p.set('before', o.before)
+    if (o.q?.trim()) p.set('q', o.q.trim())
+    if (o.kinds?.length) p.set('kinds', o.kinds.join(','))
+    return get<SecurityEvent[]>(`api/security-events?${p}`, true)
+  },
   createWebhook: (url: string, events: string[], secret?: string) =>
     MOCK ? mock.createWebhook(url, events) : post<WebhookWithSecret>('api/webhooks', { url, events, secret }, true),
   rotateWebhookSecret: (id: string) => MOCK ? mock.rotateWebhookSecret(id) : post<WebhookWithSecret>(`api/webhooks/${id}/rotate`, {}, true),

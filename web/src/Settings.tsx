@@ -2,7 +2,8 @@ import { createContext, Fragment, useContext, useEffect, useId, useRef, useState
 import { AppContext, useApp } from './AppContext.tsx'
 import { DOCS_URL } from './Help.tsx'
 import { api, ApiError, clearKey, MOCK, PUSH_SUB_ID_KEY } from './api.ts'
-import { SECURITY_PAGE, securityLine } from './securityActivity.ts'
+import { securityHint } from './securityActivity.ts'
+import SecurityActivitySheet from './SecurityActivitySheet.tsx'
 import type { Account, ApiKey, CalendarEntry, Category, HiddenEvent, ColorScheme, CustomColors, Density, DeviceDensity, Features, GeocodeResult, GooglePhotos, HostEvent, Me, Member, SecurityEvent, Passkey, Providers, PushSubscription, RemoteCalendar, Settings, TempCheckSettings, TextScale, ThemeMode, TimeFormat, Typeface, Webhook } from './types.ts'
 import { ProviderForm, PublicUrlRow } from './ProviderConfig.tsx'
 import { CATEGORY_EMOJI, CATEGORY_PRESETS, MEMBER_EMOJI, MEMBER_PALETTE, nextPaletteColor, REMINDER_OPTIONS } from './types.ts'
@@ -3105,44 +3106,28 @@ function timeAgo(iso: string): string {
   return relativeTime.format(0, 'minute')
 }
 
-// Actions taken by whoever hosts this instance. Self-hosters never have any, so it stays hidden.
-/** The family's security log, newest first: sign-ins, passkeys, keys, devices, connected apps.
- * Only on parent devices (the Access tab); the server refuses everyone else. */
+/** The family's security log: the latest event here, everything in a sheet (SecurityActivitySheet).
+ * Only on parent devices (the Access tab); the server refuses everyone else. A push about a new
+ * passkey links to section=security-activity, which opens the sheet. */
 function SecurityActivitySection({ tick }: { tick: number }) {
-  const { members } = useApp()
-  const [events, setEvents] = useState<SecurityEvent[] | null>(null)
-  const [more, setMore] = useState(false)
-  useEffect(() => {
-    api.getSecurityEvents().then(page => { setEvents(page); setMore(page.length === SECURITY_PAGE) }).catch(() => setEvents([]))
-  }, [tick])
-  const loadMore = () => {
-    const last = events?.at(-1)
-    if (last) api.getSecurityEvents(last.id).then(page => { setEvents(e => [...(e ?? []), ...page]); setMore(page.length === SECURITY_PAGE) }).catch(() => {})
-  }
-  if (!events) return null
+  const [latest, setLatest] = useState<SecurityEvent | undefined | null>(null)
+  const [open, setOpen] = useState(() => new URLSearchParams(location.hash.split('?')[1] || '').get('section') === 'security-activity')
+  useEffect(() => { api.getSecurityEvents().then(page => setLatest(page[0])).catch(() => setLatest(undefined)) }, [tick])
+  if (latest === null) return null
   return (
     <Section id="security-activity" title="Security activity" icon={<LockIcon width={16} height={16} />}>
-      <p className="settings-row-sub">Sign-ins, passkeys, recovery codes, keys, paired devices and connected apps, kept for a year. Only parent devices see this.</p>
-      {events.length === 0 && <p className="settings-row-sub">Nothing yet.</p>}
-      <ul className="security-list">
-        {events.map(e => {
-          const line = securityLine(e, members)
-          return (
-            <li key={e.id} className="key-item">
-              <span className="security-icon" aria-hidden>{line.icon}</span>
-              <div className="key-item-info">
-                <div className="settings-row-label">{line.text}</div>
-                <div className="settings-row-sub"><time dateTime={e.at}>{line.when}</time></div>
-              </div>
-            </li>
-          )
-        })}
-      </ul>
-      {more && <button className="link-btn" onClick={loadMore}>Show more</button>}
+      <div className="settings-row">
+        <div className="summary-body"><div className="settings-row-sub">{securityHint(latest)}</div></div>
+        <div className="settings-inline-btns">
+          <button className="btn btn-secondary" aria-label="View security activity" aria-haspopup="dialog" onClick={() => setOpen(true)}>View</button>
+        </div>
+      </div>
+      {open && <SecurityActivitySheet onClose={() => setOpen(false)} />}
     </Section>
   )
 }
 
+// Actions taken by whoever hosts this instance. Self-hosters never have any, so it stays hidden.
 function HostingActivitySection() {
   const [events, setEvents] = useState<HostEvent[]>([])
   useEffect(() => { api.getHostEvents().then(setEvents).catch(() => {}) }, [])
