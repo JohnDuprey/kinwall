@@ -1,6 +1,6 @@
 // Dev-only in-memory fixture, used when VITE_MOCK=1. Excluded from prod by the env check in api.ts.
 import type { Actor, OnlineTidbits, Plugin, PluginCatalogEntry,
-  Account, ApiKey, AppNotification, SecurityEvent, CalendarEntry, Category, Chore, ChoreDay, EventInstance, HiddenEvent, LeaderboardEntry, LeaderboardPeriod, List, ListGroup,
+  Account, ApiKey, AppNotification, SecurityEvent, CalendarEntry, Category, Chore, ChoreDay, LibraryChore, LibraryChoreInput, EventInstance, HiddenEvent, LeaderboardEntry, LeaderboardPeriod, List, ListGroup,
   Newscast, NewscastItem, NewscastPostInput, NewscastReaction,
   Photo, PhotoQuota, GooglePhotos, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, ListItem, ListItemInput, ListItemPatch, ListItemStep, ListCatalog, Member, RememberedItem, RememberedItemInput, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption, TempCheck, TempCheckInput, Journal, JournalEntry, Insights, InsightDay, InsightRange, Battery, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory, DoseStatus, MedTime,
 } from './types.ts'
@@ -377,6 +377,44 @@ const chores: Chore[] = [
   { id: 'ch6', title: 'Tidy toys', emoji: '🧸', memberId: 'm4', points: 5, rrule: 'FREQ=DAILY', dueDate: null, dueTime: null, active: true, sort: 5, listId: 'l4', pluginId: null, pluginMinutes: null },
 ]
 const completions = new Map<string, { completedAt: string; memberId: string | null }>() // key `${choreId}:${date}`
+
+// The chore library: occasional jobs, a few due-ish, one already handed out (the dog's bath, Saturday).
+const dayOffset = (n: number) => dateKey(new Date(Date.now() + n * 86_400_000))
+const saturday = () => { const d = new Date(); return dateKey(new Date(d.getFullYear(), d.getMonth(), d.getDate() + ((6 - d.getDay() + 7) % 7 || 0))) }
+type DemoLibrary = Omit<LibraryChore, 'lastDone' | 'open' | 'timesAssigned' | 'lastMemberId'> & { seenDone: LibraryChore['lastDone']; seenMember: string | null; seenTimes: number }
+const lib = (id: string, emoji: string, title: string, points: number, every: [number, LibraryChore['everyUnit']] | null, done: [number, string] | null, memberId: string | null = null, notes: string | null = null): DemoLibrary => ({
+  id, title, emoji, points, listId: null, memberId, everyN: every?.[0] ?? null, everyUnit: every?.[1] ?? null, needsApproval: null, notes, createdAt: '2026-01-01T00:00:00.000Z',
+  seenDone: done ? { date: dayOffset(-done[0]), memberId: done[1] } : null, seenMember: done?.[1] ?? null, seenTimes: done ? 3 : 0,
+})
+const library: DemoLibrary[] = [
+  lib('lib-car', '🚗', 'Clean out the car', 10, [4, 'week'], [36, 'm3'], 'm3', 'Vacuum the mats and empty the cup holders.'),
+  lib('lib-windows', '🪟', 'Wash the windows', 15, [3, 'month'], [100, 'm1'], 'm1'),
+  lib('lib-baseboards', '🧽', 'Wipe the baseboards', 10, [2, 'month'], [58, 'm2']),
+  lib('lib-fridge', '🧊', 'Deep-clean the fridge', 10, [2, 'month'], [20, 'm2'], 'm2'),
+  lib('lib-dog', '🛁', 'Give the dog a bath', 10, [1, 'month'], [33, 'm3'], 'm3'),
+  lib('lib-mattress', '🛏️', 'Flip the mattresses', 5, [6, 'month'], [150, 'm1']),
+  lib('lib-garage', '🧰', 'Organize the garage', 20, [6, 'month'], null, 'm1'),
+  lib('lib-leaves', '🍂', 'Rake leaves', 15, null, [340, 'm4'], 'm4'),
+  lib('lib-toys', '🧸', 'Sort out old toys to give away', 10, null, null, 'm4'),
+]
+chores.push({ id: 'ch-lib-dog', title: 'Give the dog a bath', emoji: '🛁', memberId: 'm3', points: 10, rrule: null, dueDate: saturday(), dueTime: null, active: true, sort: 6, listId: null, pluginId: null, pluginMinutes: null, libraryId: 'lib-dog' })
+function libraryView(l: DemoLibrary): LibraryChore {
+  const { seenDone, seenMember, seenTimes, ...item } = l
+  const made = chores.filter(c => c.libraryId === l.id)
+  let lastDone = seenDone
+  for (const [k, v] of completions) {
+    const [choreId, date] = [k.slice(0, k.lastIndexOf(':')), k.slice(k.lastIndexOf(':') + 1)]
+    const c = made.find(x => x.id === choreId)
+    if (c && (!lastDone || date >= lastDone.date)) lastDone = { date, memberId: v.memberId ?? c.memberId }
+  }
+  const open = made.filter(c => c.active && (c.rrule || ![...completions.keys()].some(k => k.startsWith(`${c.id}:`)))).sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''))[0]
+  return { ...item, lastDone, lastMemberId: made.length ? made[made.length - 1].memberId : seenMember, timesAssigned: seenTimes + made.length, open: open ? { choreId: open.id, dueDate: open.dueDate, memberId: open.memberId, repeats: !!open.rrule } : null }
+}
+const libraryRow = (body: LibraryChoreInput, from?: Chore): DemoLibrary => ({
+  id: uid(), title: body.title ?? from?.title ?? 'New chore', emoji: body.emoji ?? from?.emoji ?? null, points: body.points ?? from?.points ?? 0, listId: body.listId ?? from?.listId ?? null,
+  memberId: body.memberId !== undefined ? body.memberId : from?.memberId ?? null, everyN: body.everyN ?? null, everyUnit: body.everyUnit ?? null, needsApproval: body.needsApproval ?? from?.needsApproval ?? null,
+  notes: body.notes?.trim() || null, createdAt: new Date().toISOString(), seenDone: null, seenMember: null, seenTimes: 0,
+})
 
 const lists: List[] = [
   { id: 'l1', name: 'Groceries', emoji: '🛒', color: '#7ED9A6', kind: 'shopping', catalog: 'groceries', memberIds: [], groupBy: 'store', sortBy: 'aisle', keepChecked: true, sort: 0, archived: false, createdAt: new Date().toISOString(), itemCount: 5, openCount: 4 },
@@ -1054,14 +1092,14 @@ export const mock = {
   getHiddenEvents: async (calendarId: string): Promise<HiddenEvent[]> => hiddenEvents.filter(h => h.calendarId === calendarId).sort((a, b) => a.start.localeCompare(b.start)).map(({ key: _, ...h }) => h),
   showHiddenEvent: async (_calendarId: string, hiddenId: string) => { const i = hiddenEvents.findIndex(h => h.id === hiddenId); if (i >= 0) hiddenEvents.splice(i, 1); bump(); return { ok: true } },
 
-  getChoresDay: async (date: string): Promise<ChoreDay[]> => chores.filter(c => c.active).map(c => {
+  getChoresDay: async (date: string): Promise<ChoreDay[]> => chores.filter(c => c.active && (c.rrule || !c.dueDate || c.dueDate === date)).map(c => {
     const comp = completions.get(`${c.id}:${date}`)
     const list = c.listId ? lists.find(l => l.id === c.listId) : undefined
     const its = list ? listItems.filter(i => i.listId === list.id && (!c.memberId || !i.memberId || i.memberId === c.memberId)) : []
     return { ...c, completed: !!comp, completedAt: comp?.completedAt ?? null, completedBy: comp?.memberId ?? null, checklist: list ? { listId: list.id, name: list.name, total: its.length, done: its.filter(i => i.done).length } : null, activity: null }
   }),
   createChore: async (body: Partial<Chore>) => {
-    const nc: Chore = { id: uid(), title: body.title ?? 'New chore', emoji: body.emoji ?? '⭐', memberId: body.memberId ?? null, points: body.points ?? 5, rrule: body.rrule ?? null, dueDate: body.dueDate ?? null, dueTime: body.dueTime ?? null, active: true, sort: chores.length, listId: body.listId ?? null, pluginId: body.pluginId ?? null, pluginMinutes: body.pluginId ? body.pluginMinutes ?? 5 : null }
+    const nc: Chore = { id: uid(), title: body.title ?? 'New chore', emoji: body.emoji ?? '⭐', memberId: body.memberId ?? null, points: body.points ?? 5, rrule: body.rrule ?? null, dueDate: body.dueDate ?? null, dueTime: body.dueTime ?? null, active: true, sort: chores.length, listId: body.listId ?? null, pluginId: body.pluginId ?? null, pluginMinutes: body.pluginId ? body.pluginMinutes ?? 5 : null, needsApproval: body.needsApproval ?? null, libraryId: body.libraryId ?? null }
     chores.push(nc); bump(); return nc
   },
   updateChore: async (id: string, patch: Partial<Chore>) => {
@@ -1069,6 +1107,27 @@ export const mock = {
     Object.assign(c, patch); bump(); return c
   },
   deleteChore: async (id: string) => { const i = chores.findIndex(x => x.id === id); if (i >= 0) chores.splice(i, 1); bump() },
+  getChoreLibrary: async () => library.map(libraryView).sort((a, b) => a.title.localeCompare(b.title)),
+  createLibraryChore: async (body: LibraryChoreInput) => {
+    const from = body.fromChoreId ? chores.find(c => c.id === body.fromChoreId) : undefined
+    const row = libraryRow(body, from); library.push(row)
+    if (from) from.libraryId = row.id
+    bump(); return libraryView(row)
+  },
+  updateLibraryChore: async (id: string, body: LibraryChoreInput) => {
+    const row = library.find(l => l.id === id); if (!row) throw new Error('not found')
+    Object.assign(row, Object.fromEntries(Object.entries(body).filter(([, v]) => v !== undefined))); bump(); return libraryView(row)
+  },
+  deleteLibraryChore: async (id: string) => {
+    const i = library.findIndex(l => l.id === id); if (i >= 0) library.splice(i, 1)
+    for (const c of chores) if (c.libraryId === id) c.libraryId = null
+    bump(); return { ok: true }
+  },
+  assignLibraryChore: async (id: string, body: { date: string; memberId?: string | null; rrule?: string | null }) => {
+    const l = library.find(x => x.id === id); if (!l) throw new Error('not found')
+    const c: Chore = { id: uid(), title: l.title, emoji: l.emoji ?? '⭐', memberId: body.memberId !== undefined ? body.memberId : l.memberId, points: l.points, rrule: body.rrule ?? null, dueDate: body.date, dueTime: null, active: true, sort: chores.length, listId: l.listId, pluginId: null, pluginMinutes: null, needsApproval: l.needsApproval, libraryId: l.id }
+    chores.push(c); bump(); return c
+  },
   completeChore: async (id: string, date: string, memberId?: string) => {
     const c = chores.find(x => x.id === id)
     if (c?.listId) {

@@ -31,6 +31,7 @@ export type ChoreRow = {
   needs_approval?: number | null; // null = follow the member's default
   approve_timed_play?: number;
   archived?: number; // deleted after it was done: kept for its history (migration 0050)
+  library_id?: string | null; // made from a chore library item (migration 0082)
 };
 
 export function toApi(row: ChoreRow) {
@@ -50,6 +51,7 @@ export function toApi(row: ChoreRow) {
     pluginMinutes: row.plugin_id ? row.plugin_minutes ?? DEFAULT_ACTIVITY_MINUTES : null,
     needsApproval: row.needs_approval == null ? null : !!row.needs_approval,
     approveTimedPlay: !!row.approve_timed_play,
+    libraryId: row.library_id ?? null,
   };
 }
 
@@ -67,6 +69,22 @@ async function checkList(c: { env: Env }, listId: string | null | undefined): Pr
   if (!listId) return null;
   const row = await c.env.DB.prepare('SELECT id FROM lists WHERE id = ? AND archived = 0').bind(listId).first();
   return row ? null : 'unknown list';
+}
+
+async function checkLibrary(c: { env: Env }, libraryId: string | null | undefined): Promise<string | null> {
+  if (!libraryId) return null;
+  const row = await c.env.DB.prepare('SELECT id FROM chore_library WHERE id = ?').bind(libraryId).first();
+  return row ? null : 'unknown library chore';
+}
+
+/** Writes a new chore row (POST /api/chores, and assigning from the chore library). */
+export async function insertChore(db: Env['DB'], row: ChoreRow): Promise<void> {
+  await db
+    .prepare(
+      'INSERT INTO chores (id, title, emoji, member_id, points, rrule, due_date, due_time, active, sort, created_at, list_id, plugin_id, plugin_minutes, needs_approval, approve_timed_play, library_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    )
+    .bind(row.id, row.title, row.emoji, row.member_id, row.points, row.rrule, row.due_date, row.due_time, row.active, row.sort, row.created_at, row.list_id ?? null, row.plugin_id ?? null, row.plugin_minutes ?? null, row.needs_approval ?? null, row.approve_timed_play ?? 0, row.library_id ?? null)
+    .run();
 }
 
 choresRoutes.openapi(
@@ -94,13 +112,13 @@ choresRoutes.openapi(
     request: { body: { content: { 'application/json': { schema: ChoreInputSchema } } } },
     responses: {
       201: { description: 'created', content: { 'application/json': { schema: ChoreSchema } } },
-      400: { description: 'invalid rrule, unknown list or unknown plugin', content: { 'application/json': { schema: ErrorSchema } } },
+      400: { description: 'invalid rrule, unknown list, plugin or library chore', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
     const body = c.req.valid('json');
     if (body.rrule && !isValidRrule(body.rrule)) return c.json({ error: 'invalid rrule' }, 400);
-    const listError = (await checkList(c, body.listId)) ?? (await checkPlugin(c, body.pluginId));
+    const listError = (await checkList(c, body.listId)) ?? (await checkPlugin(c, body.pluginId)) ?? (await checkLibrary(c, body.libraryId));
     if (listError) return c.json({ error: listError }, 400);
     const row: ChoreRow = {
       id: crypto.randomUUID(),
@@ -119,12 +137,9 @@ choresRoutes.openapi(
       plugin_minutes: body.pluginId ? body.pluginMinutes ?? DEFAULT_ACTIVITY_MINUTES : null,
       needs_approval: body.needsApproval == null ? null : body.needsApproval ? 1 : 0,
       approve_timed_play: body.approveTimedPlay ? 1 : 0,
+      library_id: body.libraryId ?? null,
     };
-    await c.env.DB.prepare(
-      'INSERT INTO chores (id, title, emoji, member_id, points, rrule, due_date, due_time, active, sort, created_at, list_id, plugin_id, plugin_minutes, needs_approval, approve_timed_play) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-    )
-      .bind(row.id, row.title, row.emoji, row.member_id, row.points, row.rrule, row.due_date, row.due_time, row.active, row.sort, row.created_at, row.list_id, row.plugin_id, row.plugin_minutes, row.needs_approval, row.approve_timed_play)
-      .run();
+    await insertChore(c.env.DB, row);
     emit(c, 'chore.changed', { id: row.id });
     return c.json(toApi(row), 201);
   },
@@ -137,7 +152,7 @@ choresRoutes.openapi(
     tags: ['Chores'],
     summary: 'Update a chore',
     security: [{ Bearer: [] }],
-    request: { params: z.object({ id: z.string() }), body: { content: { 'application/json': { schema: ChoreInputSchema.partial() } } } },
+    request: { params: z.object({ id: z.string() }), body: { content: { 'application/json': { schema: ChoreInputSchema.omit({ libraryId: true }).partial() } } } },
     responses: {
       200: { description: 'ok', content: { 'application/json': { schema: ChoreSchema } } },
       400: { description: 'invalid rrule, unknown list or unknown plugin', content: { 'application/json': { schema: ErrorSchema } } },

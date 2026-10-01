@@ -546,6 +546,7 @@ export const ChoreSchema = z
     pluginMinutes: z.number().nullable().openapi({ description: 'Minutes of active play the activity needs (1-60), when pluginId is set.' }),
     needsApproval: z.boolean().nullable().openapi({ description: "Ticks from wall screens and kids' devices wait for a parent's OK. null follows the person's default (Member.needsApproval)." }),
     approveTimedPlay: z.boolean().openapi({ description: "Activity chores: completion by timed play also waits for a parent's OK (it auto-approves otherwise)." }),
+    libraryId: z.string().nullable().openapi({ description: 'The chore library item it was made from (see /api/chore-library), if any. Its completions count as that item\'s "last done".' }),
   })
   .openapi('Chore');
 
@@ -565,6 +566,7 @@ export const ChoreInputSchema = z
     pluginMinutes: z.number().int().min(1).max(60).optional().openapi({ description: 'Minutes of active play needed, 1-60 (default 5).' }),
     needsApproval: z.boolean().nullable().optional().openapi({ description: "true/false overrides the person's default; null follows it." }),
     approveTimedPlay: z.boolean().optional(),
+    libraryId: z.string().nullable().optional().openapi({ description: 'Create only: the chore library item this chore is made from (e.g. a repeating version of it).' }),
   })
   .openapi('ChoreInput');
 

@@ -10,7 +10,7 @@
 |---|---|
 | Household settings (including Newscast's per-person **Featured** and **Can post** switches) | Passwords, OAuth tokens, CalDAV logins |
 | Members, categories | API keys, sessions, recovery codes, the night PIN (set it again after a restore) |
-| Chores **with completion history** (points awarded, and whether each is approved or waiting for a parent's OK), and the parent-approval settings on chores and members, and who's a grown-up | Webhook secrets, and "Not yet" notes on chores |
+| Chores **with completion history** (points awarded, and whether each is approved or waiting for a parent's OK), the [chore library](../using/chores.md#chore-library) and which chores came from it, and the parent-approval settings on chores and members, and who's a grown-up | Webhook secrets, and "Not yet" notes on chores |
 | Points spent, daily check-ins, sticker packs unlocked and sticker book pages | |
 | [Temp check](../using/snapshot.md#temp-check) settings and answers (evening goal checks and energy battery check-ins too), each person's own feelings, and [journal](../using/journal.md) entries. [Medications](../using/medications.md) and their taken/skipped log. Sleep, feelings, goal checks, journal entries and medications are encrypted on the server but **in plain form in this file** (a connected app's export leaves them out). A [private journal](../using/journal.md#private-journals) entry's words and a private day's goal check notes are never in the file, for anyone: its mood and day are. Whether journals are private isn't in the file either | |
 | Rewards (archived ones too), every reward request with its status and note, and each person's goal | |

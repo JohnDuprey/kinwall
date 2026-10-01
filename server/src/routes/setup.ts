@@ -13,6 +13,7 @@ import { emit } from '../bus.ts';
 import { effectivePublicUrl, providerSources } from '../providers/config.ts';
 import { ErrorSchema } from '../schemas.ts';
 import { hasAnyPasskey } from './passkeys.ts';
+import { seedChoreLibrary } from './chore-library.ts';
 import { checkRate, resetRate } from '../ratelimit.ts';
 
 export const setupRoutes = createRouter();
@@ -159,6 +160,7 @@ setupRoutes.openapi(
     if (!(await verifyCode(c.env, code))) return c.json({ error: 'invalid setup code' }, 401);
 
     await clearSetupCode(c.env.DB);
+    await seedChoreLibrary(c.env.DB); // a new family starts with a few occasional chores to hand out
     const admin = await createApiKey(c.env.DB, deviceRole === 'admin' ? deviceName : `${deviceName} (admin)`, 'admin');
     // The family's wall, until the wizard's next question says it's a kid's device.
     const display = deviceRole === 'display' ? await createApiKey(c.env.DB, deviceName, 'display', { owner: 'shared', deviceKind: 'wall' }) : null;

@@ -28,6 +28,7 @@ URLs must be public `http(s)` addresses. Private and LAN addresses are refused u
 | `chore.uncompleted` | A completion is undone. `data`: `{ id, date, title, memberId }`. |
 | `chore.pending` | A chore that needs a [parent's OK](../using/chores.md#parent-approval) was ticked on a wall screen or kid's device and is waiting. `data`: `{ id, date, title, memberId }`. `chore.completed` follows when a parent approves it. |
 | `chore.rejected` | A parent said **Not yet** to a waiting chore: the tick is removed. `data`: `{ id, date, title, memberId, note }` (`note` may be `null`). |
+| `chore.library.changed` | A [chore library](../using/chores.md#chore-library) item is added, edited or removed. `data`: `{ id }`. Handing one out sends `chore.changed` with `{ id, libraryId }`. |
 | `tempcheck.changed` | Someone answered or changed their [Temp check](../using/snapshot.md#temp-check), including the evening goal check. `data`: `{ memberId, date }`, never the answers. |
 | (no medication events) | [Medications](../using/medications.md) never send a webhook, not even an ID. |
 | `journal.changed` | A [journal](../using/journal.md) entry was added, changed or deleted. `data`: `{ memberId, date, id }`, never the words. |

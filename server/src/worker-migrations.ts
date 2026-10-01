@@ -82,6 +82,7 @@ import m0078 from '../migrations/0078_list_added_by.sql';
 import m0079 from '../migrations/0079_pin_peach_scheme.sql';
 import m0080 from '../migrations/0080_security_events.sql';
 import m0081 from '../migrations/0081_newscast.sql';
+import m0082 from '../migrations/0082_chore_library.sql';
 
 export const MIGRATIONS: Migration[] = [
   { name: '0001_init.sql', sql: m0001 },
@@ -165,4 +166,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0079_pin_peach_scheme.sql', sql: m0079 },
   { name: '0080_security_events.sql', sql: m0080 },
   { name: '0081_newscast.sql', sql: m0081 },
+  { name: '0082_chore_library.sql', sql: m0082 },
 ];

@@ -41,7 +41,7 @@ Details: authorization code with **PKCE S256 only**, public clients, and redirec
 
 ### Bearer key
 
-Any API key in an `Authorization` header. Use a **display** key for an everyday assistant. It can add and complete events, chores and lists, but not manage members, accounts, keys or webhooks. Use an **admin** key only if the assistant needs `add_member`, `update_member`, `send_notification` or `set_night_screen`.
+Any API key in an `Authorization` header. Use a **display** key for an everyday assistant. It can add and complete events, chores and lists, but not manage members, accounts, keys or webhooks. Use an **admin** key only if the assistant needs `add_member`, `update_member`, `send_notification`, `set_night_screen` or the chore library tools.
 
 ## Connecting clients
 
@@ -115,6 +115,8 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 | `list_pending_approvals` | Chores waiting for a [parent's OK](../using/chores.md#parent-approval), oldest first, with the points approving would award (admin). |
 | `approve_chore` | Approves a waiting chore for a date (default today) and awards its points (admin). |
 | `reject_chore` | "Not yet": removes a waiting chore's tick, with an optional `note` the kid sees on the card (admin). |
+| `list_chore_library` | The [chore library](../using/chores.md#chore-library): saved chores that aren't on a schedule, with points, checklist, suggested person, the soft "about every" interval, when one was last done and by whom, and any still to do (admin). |
+| `assign_chore_from_library` | Hands out a library chore: a normal chore due on `date` (default today) for `member` (default: its suggested person; `null` for anyone), with its points, checklist and approval rule. `rrule` makes it repeat instead (admin). |
 | `list_rewards` | [Rewards](../using/rewards.md); `member` (name or ID) narrows to the ones for them, `archived` includes archived ones. |
 | `create_reward` | Adds a reward: `title`, `emoji`, `cost`, `members` (names or IDs; empty for everyone), `needsApproval` (default true) and `limit` (`{ count: 1-20, period: "day" \| "week" }` or `null`). Admin. |
 | `update_reward` | Changes a reward's fields; `active: false` archives it. Admin. |

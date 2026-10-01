@@ -187,10 +187,13 @@ event_series_category_overrides(calendar_id, series_id, category_id, updated_at,
        -- per-occurrence / per-series category override for synced events, keyed the same way (and
        -- for the same reason - deterministic ids survive re-sync) as the member-tag override tables
 chores(id, title, emoji, member_id NULL, points INT, rrule NULL, due_date NULL, due_time NULL,
-       active INT, sort, created_at, archived INT)
+       active INT, sort, created_at, archived INT, library_id NULL)
        -- archived = deleted after it was done: kept (inactive, hidden) so its completions survive.
        -- rrule NULL + due_date => one-off. rrule e.g. 'FREQ=DAILY' or 'FREQ=WEEKLY;BYDAY=MO,WE,FR'
 chore_completions(id, chore_id, date 'YYYY-MM-DD', member_id NULL, completed_at, UNIQUE(chore_id, date))
+chore_library(id, title, emoji NULL, points INT, list_id NULL, member_id NULL, every_n NULL, every_unit NULL,
+       needs_approval NULL, notes NULL, created_at)
+       -- saved, unscheduled chores; "last done" is derived from completions of chores with that library_id.
 lists(id, name, emoji NULL, color NULL, kind 'todo'|'shopping'|'reusable', member_ids JSON '[]',
       group_by 'store'|'category'|'none', sort, archived INT, created_at)
 list_items(id, list_id, title, notes NULL, quantity NULL, store NULL, category NULL, member_id NULL,

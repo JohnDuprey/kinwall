@@ -20,6 +20,7 @@ import { BoardSchema, CalendarSchema, CategorySchema, ContactCategoryInputSchema
 import type { Env } from './env.ts';
 import { RecipeSchema, RecipeInputSchema, RecipeKindSchema, RecipeImportSchema, RecipeImportResultSchema, RecipePreviewResultSchema, RecipeUrlImportSchema, MealSchema, MealInputSchema, MealPatchSchema, ProjectionSchema, ProjectionApplySchema, ProjectionQuerySchema, MealRangeSchema } from './meal-schemas.ts';
 import { NewscastSchema } from './routes/newscast.ts';
+import { LibraryChoreSchema } from './routes/chore-library.ts';
 import { VERSION } from './version.ts';
 import { resolveKey } from './auth.ts';
 import { itemKey } from './item-memory.ts';
@@ -221,6 +222,8 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
   list_pending_approvals: { approvals: z.array(z.object({ choreId: z.string(), title: z.string(), emoji: z.string().nullable(), date: z.string(), memberId: z.string().nullable(), completedAt: z.string(), points: z.number() })) },
   approve_chore: { ok: z.boolean(), points: z.number() },
   reject_chore: OK,
+  list_chore_library: { library: z.array(LibraryChoreSchema) },
+  assign_chore_from_library: { chore: ChoreSchema },
   list_rewards: { rewards: z.array(RewardSchema) },
   create_reward: { reward: RewardSchema },
   update_reward: { reward: RewardSchema },
@@ -288,7 +291,7 @@ const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boole
   list_contacts: READ, get_contact: READ, list_contact_categories: READ, preview_contact_import: READ,
   delete_color_scheme: { ...WRITE, destructiveHint: true, idempotentHint: true },
   create_event: { ...WRITE, openWorldHint: true }, update_event: { ...SET, openWorldHint: true }, set_event_category: SET,
-  create_chore: WRITE, update_chore: SET, complete_chore: SET, uncomplete_chore: SET, list_pending_approvals: READ, approve_chore: SET, reject_chore: SET,
+  create_chore: WRITE, update_chore: SET, complete_chore: SET, uncomplete_chore: SET, list_pending_approvals: READ, approve_chore: SET, reject_chore: SET, list_chore_library: READ, assign_chore_from_library: WRITE,
   list_rewards: READ, create_reward: WRITE, update_reward: SET, redeem_reward: WRITE, list_reward_requests: READ, approve_reward: SET, decline_reward: SET, mark_reward_given: SET,
   add_member: WRITE, update_member: SET,
   create_list: WRITE, update_list: SET, add_list_items: WRITE, update_list_item: SET, set_store_aisle_order: SET, list_remembered_items: READ, update_remembered_item: WRITE, set_list_item_done: SET, set_step_done: SET, move_list_items: SET, update_category: SET, add_note: WRITE, update_note: SET,
@@ -707,6 +710,51 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       const res = await call(app, env, auth, 'DELETE', `/api/chores/${encodeURIComponent(choreId)}/complete?date=${encodeURIComponent(day)}`);
       if (res.status >= 400) return errorResult(res.json, 'failed to uncomplete chore');
       return okResult(`Undid completion for ${day}.`, { ok: true });
+    },
+  );
+
+  tool(
+    'list_chore_library',
+    {
+      title: 'List the chore library',
+      description:
+        'Admin: the chore library - saved chores that are not on a schedule (clean out the car, wash the windows) for a parent to hand out. Each has its points, checklist, suggested person, an optional "about every N day/week/month" (a soft interval, not a schedule), when a chore made from it was last done and by whom, and any still to do (open). Hand one out with assign_chore_from_library.',
+      inputSchema: {},
+    },
+    async () => {
+      const res = await call(app, env, auth, 'GET', '/api/chore-library');
+      if (res.status >= 400) return errorResult(res.json, 'failed to read the chore library');
+      const library = res.json as { title: string }[];
+      return okResult(`${library.length} chore(s) in the library.`, { library });
+    },
+  );
+
+  tool(
+    'assign_chore_from_library',
+    {
+      title: 'Assign a chore from the library',
+      description:
+        "Admin: hand out a library chore (from list_chore_library). Makes a normal chore - title, emoji, points, checklist and parent-approval rule carried over - due on date, for member (or the item's suggested person). rrule makes it repeat from that date instead of a one-off.",
+      inputSchema: {
+        libraryId: z.string(),
+        member: z.string().nullable().optional().describe('Who does it, by name or id; null for "anyone". Omit for the suggested person.'),
+        date: z.string().optional().describe('YYYY-MM-DD, household timezone. Default: today.'),
+        dueTime: z.string().optional(),
+        rrule: z.string().optional().describe('Make it repeat, e.g. FREQ=WEEKLY;INTERVAL=4 or FREQ=MONTHLY. Omit for a one-off.'),
+      },
+    },
+    async ({ libraryId, member, date, ...input }) => {
+      let memberId: string | null | undefined;
+      try {
+        if (member !== undefined) memberId = member === null ? null : await resolveMember(app, env, auth, member);
+      } catch (err) {
+        return errorResult(null, err instanceof Error ? err.message : 'member lookup failed');
+      }
+      const day = date ?? await todayInHousehold(env);
+      const res = await call(app, env, auth, 'POST', `/api/chore-library/${encodeURIComponent(libraryId)}/assign`, { ...input, date: day, ...(memberId !== undefined ? { memberId } : {}) });
+      if (res.status >= 400) return errorResult(res.json, 'failed to assign the chore');
+      const chore = res.json as { title: string };
+      return okResult(`Assigned "${chore.title}" for ${day}.`, { chore: res.json as Record<string, unknown> });
     },
   );
 

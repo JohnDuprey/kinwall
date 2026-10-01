@@ -14,6 +14,7 @@ import { CATALOGS, itemKey, looksLikeGroceries, type Catalog } from '../item-mem
 import { readSettings, settingsWrites } from './settings.ts';
 import { toApi as categoryToApi } from './categories.ts';
 import { toApi as choreToApi, type ChoreRow } from './chores.ts';
+import { LibraryChoreSchema, type LibraryRow } from './chore-library.ts';
 import { toApi as listToApi, toItemApi, toGroupApi, groupSteps, type ListRow, type ListItemRow, type ListItemStepRow, type ListGroupRow } from './lists.ts';
 import { toApi as webhookToApi, type WebhookRow } from './webhooks.ts';
 import { toNoteApi, type NoteRow } from './notes.ts';
@@ -110,7 +111,9 @@ const ExportSchema = z
     hiddenEvents: z.array(z.object({ calendarId: z.string(), scope: z.enum(['occurrence', 'series']), key: z.string(), title: z.string(), start: z.string(), allDay: z.boolean() })),
     // listId: exports before 0027 lack it; pluginId/pluginMinutes before 0033.
     // needsApproval/approveTimedPlay before 0037.
-    chores: z.array(ChoreSchema.extend({ listId: z.string().nullable().optional(), pluginId: z.string().nullable().optional(), pluginMinutes: z.number().nullable().optional(), needsApproval: z.boolean().nullable().default(null), approveTimedPlay: z.boolean().default(false), archived: z.boolean().default(false) })), // archived: deleted after it was done, kept for its history
+    chores: z.array(ChoreSchema.extend({ libraryId: z.string().nullable().default(null), listId: z.string().nullable().optional(), pluginId: z.string().nullable().optional(), pluginMinutes: z.number().nullable().optional(), needsApproval: z.boolean().nullable().default(null), approveTimedPlay: z.boolean().default(false), archived: z.boolean().default(false) })), // archived: deleted after it was done, kept for its history
+    // The chore library (0082): saved chores to hand out. Older exports predate it.
+    choreLibrary: z.array(LibraryChoreSchema.pick({ id: true, title: true, emoji: true, points: true, listId: true, memberId: true, everyN: true, everyUnit: true, needsApproval: true, notes: true, createdAt: true })),
     // pointsAwarded: older exports predate it - null imports as the chore's full points.
     choreCompletions: z.array(z.object({ id: z.string(), choreId: z.string(), date: z.string(), memberId: z.string().nullable(), completedAt: z.string(), pointsAwarded: z.number().nullable().default(null), status: z.enum(['approved', 'pending']).default('approved') })),
     lists: z.array(
@@ -227,7 +230,7 @@ dataRoutes.openapi(
       db.prepare('SELECT calendar_id, external_id, travel_minutes, remind_before_leave FROM event_travel_overrides ORDER BY calendar_id, external_id'),
       db.prepare('SELECT calendar_id, series_id, member_ids FROM event_series_member_overrides ORDER BY calendar_id, series_id'),
       db.prepare('SELECT calendar_id, series_id, category_id FROM event_series_category_overrides ORDER BY calendar_id, series_id'),
-      db.prepare('SELECT id, title, emoji, member_id, points, rrule, due_date, due_time, active, sort, created_at, list_id, plugin_id, plugin_minutes, needs_approval, approve_timed_play, archived FROM chores ORDER BY sort, created_at'),
+      db.prepare('SELECT id, title, emoji, member_id, points, rrule, due_date, due_time, active, sort, created_at, list_id, plugin_id, plugin_minutes, needs_approval, approve_timed_play, archived, library_id FROM chores ORDER BY sort, created_at'),
       db.prepare('SELECT id, chore_id, date, member_id, completed_at, points_awarded, status FROM chore_completions ORDER BY date'),
       db.prepare('SELECT id, name, emoji, color, kind, member_ids, group_by, sort_by, keep_checked, catalog, sort, archived, created_at, last_done_at, last_done_by, last_done_by_label FROM lists ORDER BY sort, created_at'),
       db.prepare(
@@ -334,6 +337,9 @@ dataRoutes.openapi(
           calendarId: r.calendar_id, scope: r.scope, key: r.key, title: r.title, start: r.start, allDay: !!r.all_day,
         })),
         chores: (chores as ChoreRow[]).map((r) => ({ ...choreToApi(r), archived: !!r.archived })),
+        choreLibrary: (await db.prepare('SELECT id, title, emoji, points, list_id, member_id, every_n, every_unit, needs_approval, notes, created_at FROM chore_library ORDER BY created_at, id').all<LibraryRow>()).results.map((r) => ({
+          id: r.id, title: r.title, emoji: r.emoji, points: r.points, listId: r.list_id, memberId: r.member_id, everyN: r.every_n, everyUnit: r.every_unit, needsApproval: r.needs_approval == null ? null : !!r.needs_approval, notes: r.notes, createdAt: r.created_at,
+        })),
         choreCompletions: (completions as CompletionRow[]).map((r) => ({ id: r.id, choreId: r.chore_id, date: r.date, memberId: r.member_id, completedAt: r.completed_at, pointsAwarded: r.points_awarded, status: r.status })),
         lists: (lists as ListRow[]).map((l) => {
           const mine = itemRows.filter((i) => i.list_id === l.id);
@@ -409,6 +415,7 @@ const ImportSchema = ExportSchema.extend({
   medicationLog: ExportSchema.shape.medicationLog.default([]),
   scrapbook: ExportSchema.shape.scrapbook.default([]),
   rewards: ExportSchema.shape.rewards.default([]),
+  choreLibrary: ExportSchema.shape.choreLibrary.default([]),
   rewardRedemptions: ExportSchema.shape.rewardRedemptions.default([]),
   trackers: ExportSchema.shape.trackers.default([]),
   recipes: ExportSchema.shape.recipes.default([]),
@@ -437,6 +444,7 @@ const ImportResultSchema = z
       hiddenEvents: z.number(),
       chores: z.number(),
       choreCompletions: z.number(),
+      choreLibrary: z.number(),
       lists: z.number(),
       listItems: z.number(),
       listItemSteps: z.number(),
@@ -748,6 +756,18 @@ dataRoutes.openapi(
           updated_at: new Date(now).toISOString(),
         })),
       ),
+      // Before chores, which point at it (library_id).
+      ...upserts(
+        db,
+        'chore_library',
+        'id',
+        body.choreLibrary.map((l) => ({
+          id: l.id, title: l.title, emoji: l.emoji, points: l.points, member_id: l.memberId, every_n: l.everyN, every_unit: l.everyUnit,
+          needs_approval: l.needsApproval == null ? null : l.needsApproval ? 1 : 0, notes: l.notes, created_at: l.createdAt,
+          list_id: l.listId && body.lists.some((x) => x.id === l.listId) ? l.listId : null, // as chores: only a list in this file
+        })),
+        { ...keepCreated, expr: { member_id: memberRef('member_id') } },
+      ),
       ...upserts(
         db,
         'chores',
@@ -772,8 +792,9 @@ dataRoutes.openapi(
           needs_approval: ch.needsApproval == null ? null : ch.needsApproval ? 1 : 0,
           approve_timed_play: ch.approveTimedPlay ? 1 : 0,
           archived: ch.archived ? 1 : 0,
+          library_id: ch.libraryId,
         })),
-        { ...keepCreated, expr: { member_id: memberRef('member_id') } },
+        { ...keepCreated, expr: { member_id: memberRef('member_id'), library_id: "(SELECT id FROM chore_library WHERE id = j.value->>'library_id')" } },
       ),
       // UNIQUE(chore_id, date) is the natural key (as in POST /chores/:id/complete); an existing tick keeps its id.
       ...upserts(
@@ -930,6 +951,7 @@ dataRoutes.openapi(
       ['calendar.changed', calendars.length],
       ['events.changed', events.length + memberOverrides.length + categoryOverrides.length + travelOverrides.length + seriesMemberOverrides.length + seriesCategoryOverrides.length + hiddenEvents.length],
       ['chore.changed', body.chores.length + completions.length],
+      ['chore.library.changed', body.choreLibrary.length],
       ['list.changed', body.lists.length + notes.length + body.itemMemory.length + body.storeAisles.length + body.itemTags.length],
       ['sticker.changed', pointEntries.length + stickerPacks.length + checkIns.length + scrapbook.length],
       ['reward.changed', body.rewards.length + redemptions.length],
@@ -958,6 +980,7 @@ dataRoutes.openapi(
           hiddenEvents: hiddenEvents.length,
           chores: body.chores.length,
           choreCompletions: completions.length,
+          choreLibrary: body.choreLibrary.length,
           lists: body.lists.length,
           listItems: items.length,
           listItemSteps: steps.length,

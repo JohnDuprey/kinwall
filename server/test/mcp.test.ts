@@ -85,6 +85,7 @@ test('mcp: tools/list returns the tools', async () => {
     'apply_meal_projection',
     'approve_chore',
     'approve_reward',
+    'assign_chore_from_library',
     'complete_chore',
     'create_chore',
     'create_contact',
@@ -124,6 +125,7 @@ test('mcp: tools/list returns the tools', async () => {
     'import_recipe',
     'import_recipe_from_url',
     'list_categories',
+    'list_chore_library',
     'list_chores',
     'list_color_schemes',
     'list_contact_categories',
@@ -493,6 +495,10 @@ test('mcp: every tool declares an output schema, and real results pass it', asyn
   await call('update_chore', { choreId: chore.id, points: 3 });
   await call('complete_chore', { choreId: chore.id, date: today });
   await call('list_chores', { date: today });
+  const libItem = await rest('/api/chore-library', { method: 'POST', body: JSON.stringify({ title: 'Wash the car', emoji: '🚗', points: 10, everyN: 1, everyUnit: 'month' }) });
+  assert.equal((await call('list_chore_library')).library[0].title, 'Wash the car');
+  const handed = (await call('assign_chore_from_library', { libraryId: ((await libItem.json()) as any).id, member: 'ava' })).chore;
+  assert.deepEqual([handed.title, handed.dueDate, handed.points, handed.rrule], ['Wash the car', today, 10, null]);
   await call('uncomplete_chore', { choreId: chore.id, date: today });
   await call('get_leaderboard', { period: 'week' });
   await call('complete_chore', { choreId: chore.id, date: today });

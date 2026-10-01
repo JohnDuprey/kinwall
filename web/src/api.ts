@@ -11,7 +11,7 @@ import type { BasicChoices, Meal, MealInput, Recipe, RecipeImport, RecipeInput, 
 import type { Contact, ContactCategory, ContactInput, ImportPreviewEntry } from './contact-types.ts'
 import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginCatalogEntry,
   StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota, GooglePhotos, Reward, Redemption, MemberStats, StatsPeriod,
-  Account, ApiKey, AppNotification, Appearance, CalendarEntry, Category, Chore, ChoreDay, PendingApproval, EventInstance, LeaderboardEntry, LeaderboardPeriod, List,
+  Account, ApiKey, AppNotification, Appearance, CalendarEntry, Category, Chore, ChoreDay, LibraryChore, LibraryChoreInput, PendingApproval, EventInstance, LeaderboardEntry, LeaderboardPeriod, List,
   GeocodeResult, HiddenEvent, HostEvent, ImportResult, SecurityEvent, ListDetail, ListGroup, ListItem, ListItemInput, ListItemPatch, Member, Me, Note, NoteTarget, Passkey, TrackerEntry, TrackerInput, TrackerKind, Providers, PushSubscription, PushSubscriptionPrefs, RemoteCalendar, Settings, Snapshot, Board, Webhook, WebhookWithSecret,
   Newscast, NewscastItem, NewscastPostInput, NewscastReaction,
   TempCheck, TempCheckInput, Journal, JournalEntry, JournalPrivacy, Insights, InsightRange, Battery, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory, RememberedItem, RememberedItemInput, ListCatalog,
@@ -387,6 +387,12 @@ export const api = {
   createChore: (body: Partial<Chore>, useAdmin?: boolean) => MOCK ? mock.createChore(body) : post<Chore>('api/chores', body, useAdmin),
   updateChore: (id: string, body: Partial<Chore>) => MOCK ? mock.updateChore(id, body) : patch<Chore>(`api/chores/${id}`, body),
   deleteChore: (id: string) => MOCK ? mock.deleteChore(id) : del(`api/chores/${id}`),
+  // The chore library: parent devices only (the server answers 403 to wall screens and kids' devices).
+  getChoreLibrary: () => MOCK ? mock.getChoreLibrary() : get<LibraryChore[]>('api/chore-library'),
+  createLibraryChore: (body: LibraryChoreInput) => MOCK ? mock.createLibraryChore(body) : post<LibraryChore>('api/chore-library', body),
+  updateLibraryChore: (id: string, body: LibraryChoreInput) => MOCK ? mock.updateLibraryChore(id, body) : patch<LibraryChore>(`api/chore-library/${id}`, body),
+  deleteLibraryChore: (id: string) => MOCK ? mock.deleteLibraryChore(id) : del(`api/chore-library/${id}`),
+  assignLibraryChore: (id: string, body: { date: string; memberId?: string | null; rrule?: string | null }) => MOCK ? mock.assignLibraryChore(id, body) : post<Chore>(`api/chore-library/${id}/assign`, body),
   completeChore: (id: string, date: string, memberId?: string) =>
     MOCK ? mock.completeChore(id, date, memberId) : post(`api/chores/${id}/complete`, { date, memberId }),
   uncompleteChore: (id: string, date: string) =>

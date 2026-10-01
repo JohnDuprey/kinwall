@@ -374,7 +374,29 @@ export interface Chore {
   pluginMinutes: number | null
   needsApproval?: boolean | null // ticks from wall screens and kids' devices wait for a parent's OK; null = the person's default
   approveTimedPlay?: boolean // activity chores: timed play waits for an OK too (auto-approves otherwise)
+  libraryId?: string | null // made from this chore library item
 }
+
+/** A saved chore in the chore library (server: routes/chore-library.ts). Parent devices only. */
+export type LibraryUnit = 'day' | 'week' | 'month'
+export interface LibraryChore {
+  id: string
+  title: string
+  emoji: string | null
+  points: number
+  listId: string | null
+  memberId: string | null // suggested person
+  everyN: number | null // "about every everyN everyUnit": a soft interval for nudges, not a schedule
+  everyUnit: LibraryUnit | null
+  needsApproval: boolean | null
+  notes: string | null
+  createdAt: string
+  lastDone: { date: string; memberId: string | null } | null
+  lastMemberId: string | null // who the last chore made from it went to ("Again")
+  timesAssigned: number
+  open: { choreId: string; dueDate: string | null; memberId: string | null; repeats: boolean } | null
+}
+export type LibraryChoreInput = Partial<Pick<LibraryChore, 'title' | 'emoji' | 'points' | 'listId' | 'memberId' | 'everyN' | 'everyUnit' | 'needsApproval' | 'notes'>> & { fromChoreId?: string }
 
 export interface ChoreDay extends Chore {
   completed: boolean // done and counted

@@ -14,6 +14,8 @@ import { CheckIcon, PlusIcon } from './icons.tsx'
 import { IDLE_RESET_EVENT } from './App.tsx'
 import { announce, Segmented } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
+import { ChoreLibrarySheet, type RepeatDraft } from './ChoreLibrary.tsx'
+import { intervalRrule, repeatText } from './choreLibrary.ts'
 
 const CONFETTI_COLORS = ['#FF9E7A', '#FFD166', '#7ED9A6', '#7AB8FF', '#B39DFF', '#FF8FA3']
 
@@ -401,6 +403,8 @@ export default function Chores() {
   const [error, setError] = useState(false)
   const [editChore, setEditChore] = useState<Chore | 'new' | null>(null)
   const [checklistFor, setChecklistFor] = useState<ChoreDay | null>(null) // the chore whose checklist sheet is open
+  const [libraryOpen, setLibraryOpen] = useState(false)
+  const [repeatDraft, setRepeatDraft] = useState<RepeatDraft | null>(null) // the library's "Make it repeat", in the chore editor
 
   const [lbPeriod, setLbPeriod] = useState<LeaderboardPeriod>(loadLbPeriod)
   useEffect(() => { saveLbPeriod(lbPeriod) }, [lbPeriod])
@@ -422,7 +426,7 @@ export default function Chores() {
   useEffect(load, [key, refreshTick])
 
   useEffect(() => {
-    const onIdle = () => { setSelectedDate(new Date()); setEditChore(null); setChecklistFor(null) }
+    const onIdle = () => { setSelectedDate(new Date()); setEditChore(null); setChecklistFor(null); setLibraryOpen(false); setRepeatDraft(null) }
     window.addEventListener(IDLE_RESET_EVENT, onIdle)
     return () => window.removeEventListener(IDLE_RESET_EVENT, onIdle)
   }, [])
@@ -516,6 +520,7 @@ export default function Chores() {
         <h2 className="period-label" aria-label={format(selectedDate, 'EEEE, MMMM d')}>{format(selectedDate, isPhone ? 'EEE, MMM d' : 'EEEE, MMMM d')}</h2>
         {settings.leaderboardEnabled && <PeriodControl className="chores-period" period={lbPeriod} onChange={setLbPeriod} />}
         {!isPhone && leaderboard}
+        {parentDevice && <button type="button" className="btn btn-secondary chores-rewards-btn chores-library-btn" onClick={() => setLibraryOpen(true)}><span aria-hidden="true">🧰</span> <span className="chores-rewards-label">Library</span></button>}
         <a className="btn btn-secondary chores-rewards-btn" href={selectedMemberId ? `#/rewards/${selectedMemberId}` : '#/rewards'}><span aria-hidden="true">🎁</span> <span className="chores-rewards-label">Rewards</span></a>
       </div>
       <div className="date-strip" role="group" aria-label="Day">
@@ -597,12 +602,18 @@ export default function Chores() {
         <ChecklistSheet chore={checklistFor} onClose={() => { setChecklistFor(null); load() }}
           onComplete={async () => { const c = checklistFor; setChecklistFor(null); await toggle({ ...c, checklist: null }) }} />
       )}
-      {editChore && (
+      {libraryOpen && parentDevice && (
+        <ChoreLibrarySheet onClose={() => setLibraryOpen(false)}
+          onAssigned={date => { if (date !== key) setSelectedDate(new Date(`${date}T00:00:00`)); load(); reloadCore() }}
+          onRepeat={d => { setLibraryOpen(false); setRepeatDraft(d) }} />
+      )}
+      {(editChore || repeatDraft) && (
         <ChoreEditSheet
-          chore={editChore === 'new' ? null : editChore}
-          onClose={() => setEditChore(null)}
+          chore={editChore && editChore !== 'new' ? editChore : null}
+          draft={repeatDraft}
+          onClose={() => { setEditChore(null); setRepeatDraft(null) }}
           onSaved={first => {
-            setEditChore(null)
+            setEditChore(null); setRepeatDraft(null)
             // A new chore that isn't scheduled for the day on screen would otherwise vanish on save.
             if (first && !isSameDay(first, selectedDate)) { setSelectedDate(first); toast(`Added — first on ${format(first, 'EEE, MMM d')}`) }
             load(); reloadCore()
@@ -693,28 +704,33 @@ export function ChecklistSheet({ chore, onClose, onComplete }: { chore: ChoreDay
   )
 }
 
-function ChoreEditSheet({ chore, onClose, onSaved }: { chore: Chore | null; onClose: () => void; onSaved: (firstDate?: Date) => void }) {
+/** Add or edit a chore. `draft` (the library's "Make it repeat") fills a new chore from a library
+ * item, repeating at its "about every" interval from the picked day. */
+function ChoreEditSheet({ chore, draft, onClose, onSaved }: { chore: Chore | null; draft?: RepeatDraft | null; onClose: () => void; onSaved: (firstDate?: Date) => void }) {
   const dialog = useDialog()
   const { members, toast, settings } = useApp()
-  const [title, setTitle] = useState(chore?.title ?? '')
-  const [emoji, setEmoji] = useState(chore?.emoji ?? MEMBER_EMOJI[0])
-  const [points, setPoints] = useState(chore?.points ?? 5)
-  const [memberId, setMemberId] = useState<string | null>(chore?.memberId ?? null)
-  const [listId, setListId] = useState<string | null>(chore?.listId ?? null)
+  const from = draft?.item
+  const draftRrule = from ? intervalRrule(from.everyN, from.everyUnit) : null
+  const storedRrule = chore ? chore.rrule : draftRrule // sent back as-is unless the schedule is edited
+  const [title, setTitle] = useState(chore?.title ?? from?.title ?? '')
+  const [emoji, setEmoji] = useState(chore?.emoji ?? from?.emoji ?? MEMBER_EMOJI[0])
+  const [points, setPoints] = useState(chore?.points ?? from?.points ?? 5)
+  const [memberId, setMemberId] = useState<string | null>(chore?.memberId ?? (draft ? draft.memberId : null))
+  const [listId, setListId] = useState<string | null>(chore?.listId ?? from?.listId ?? null)
   const [lists, setLists] = useState<List[]>([])
   useEffect(() => { api.getLists().then(setLists).catch(() => { /* picker just stays empty */ }) }, [])
   const [pluginId, setPluginId] = useState<string | null>(chore?.pluginId ?? null)
   const [minutes, setMinutes] = useState(chore?.pluginMinutes ?? 5)
-  const [needsApproval, setNeedsApproval] = useState<boolean | null>(chore?.needsApproval ?? null)
+  const [needsApproval, setNeedsApproval] = useState<boolean | null>(chore?.needsApproval ?? from?.needsApproval ?? null)
   const [approveTimedPlay, setApproveTimedPlay] = useState(!!chore?.approveTimedPlay)
   const [plugins, setPlugins] = useState<Plugin[]>([])
   useEffect(() => { api.getPlugins().then(setPlugins).catch(() => { /* no activities to offer */ }) }, [])
   // The family's activities that are on, plus the linked one even if it's off (so saving keeps it).
   const activities = plugins.filter(p => p.enabled || p.id === pluginId)
-  const [dueDate, setDueDate] = useState(chore?.dueDate ?? dateKey(new Date()))
+  const [dueDate, setDueDate] = useState(chore?.dueDate ?? draft?.date ?? dateKey(new Date()))
   const [sched, setSched] = useState(() => {
-    const f = rruleToForm(chore?.rrule ?? null)
-    return chore ? f : { ...f, days: [new Date().getDay()] } // new chore: preselect today, the day it anchors on
+    const f = rruleToForm(storedRrule)
+    return chore || draft ? f : { ...f, days: [new Date().getDay()] } // new chore: preselect today, the day it anchors on
   })
   const [schedTouched, setSchedTouched] = useState(false) // untouched = send the stored rrule back as-is (keeps custom rules)
   const editSched = (patch: Partial<ScheduleForm>) => { setSched(s => ({ ...s, ...patch, custom: false })); setSchedTouched(true) }
@@ -726,8 +742,9 @@ function ChoreEditSheet({ chore, onClose, onSaved }: { chore: Chore | null; onCl
 
   const submit = async () => {
     if (!title.trim() || !isSingleEmoji(emoji)) return
-    const rrule = schedTouched || !chore ? formToRrule(sched) : chore.rrule
-    const body = { title: title.trim(), emoji, points, memberId, rrule, dueDate: rrule ? null : dueDate, listId, pluginId, ...(pluginId ? { pluginMinutes: Math.min(60, Math.max(1, minutes)) } : {}), needsApproval, approveTimedPlay: !!pluginId && approveTimedPlay }
+    const rrule = schedTouched || (!chore && !draft) ? formToRrule(sched) : storedRrule
+    // A repeat from the library starts on the day picked there (its anchor); others on their creation day.
+    const body = { title: title.trim(), emoji, points, memberId, rrule, dueDate: rrule && !draft ? null : dueDate, listId, pluginId, ...(pluginId ? { pluginMinutes: Math.min(60, Math.max(1, minutes)) } : {}), needsApproval, approveTimedPlay: !!pluginId && approveTimedPlay, ...(from ? { libraryId: from.id } : {}) }
     try {
       if (chore) await api.updateChore(chore.id, body)
       else await api.createChore(body)
@@ -736,6 +753,10 @@ function ChoreEditSheet({ chore, onClose, onSaved }: { chore: Chore | null; onCl
       toast(e instanceof ApiError ? e.message : 'Could not save chore', true)
     }
   }
+  const saveToLibrary = async () => {
+    if (!chore) return
+    try { await api.createLibraryChore({ fromChoreId: chore.id }); toast(`Saved to the library: ${chore.title}`) } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save it to the library', true) }
+  }
   const del = async () => {
     if (!chore) return
     if (!await dialog.confirm({ title: `Delete "${chore.title}"?`, body: 'It leaves the list. Points already earned from it stay.', confirmLabel: 'Delete', danger: true })) return
@@ -743,11 +764,12 @@ function ChoreEditSheet({ chore, onClose, onSaved }: { chore: Chore | null; onCl
   }
 
   return (
-    <Sheet title={chore ? 'Edit chore' : 'New chore'} onClose={onClose}
+    <Sheet title={chore ? 'Edit chore' : draft ? 'Make it repeat' : 'New chore'} onClose={onClose}
       actions={
         <>
-          {chore && <select className="settings-select actions-select" aria-label="Chore actions" value="" onChange={e => { if (e.target.value === 'delete') void del() }}>
+          {chore && <select className="settings-select actions-select" aria-label="Chore actions" value="" onChange={e => { if (e.target.value === 'delete') void del(); if (e.target.value === 'library') void saveToLibrary() }}>
             <option value="" disabled hidden>More…</option>
+            {!chore.libraryId && <option value="library">Save to library</option>}
             <option value="delete">Delete chore…</option>
           </select>}
           <button className="btn btn-primary" onClick={submit} disabled={!title.trim() || !isSingleEmoji(emoji)}>{chore ? 'Save' : 'Add chore'}</button>
@@ -826,7 +848,7 @@ function ChoreEditSheet({ chore, onClose, onSaved }: { chore: Chore | null; onCl
           {repeat === null && <option value="custom" disabled>Custom</option>}
           {(['once', 'daily', 'weekly'] as const).map(r => <option key={r} value={r}>{r[0].toUpperCase() + r.slice(1)}</option>)}
         </select>
-        {sched.custom && <p className="field-hint">Custom schedule ({chore?.rrule}). Picking an option replaces it.</p>}
+        {sched.custom && <p className="field-hint">Custom schedule ({repeatText(storedRrule)}). Picking an option replaces it.</p>}
       </div>
       {repeat === 'weekly' && (
         <div className="field">
@@ -849,9 +871,9 @@ function ChoreEditSheet({ chore, onClose, onSaved }: { chore: Chore | null; onCl
           <input id="chore-until" type="date" value={sched.until} min={today} onChange={e => editSched({ until: e.target.value })} />
         </div>
       )}
-      {repeat === 'once' && (
+      {(repeat === 'once' || (draft && !schedTouched)) && (
         <div className="field">
-          <label>Due date</label>
+          <label>{repeat === 'once' ? 'Due date' : 'Starts'}</label>
           <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} />
         </div>
       )}

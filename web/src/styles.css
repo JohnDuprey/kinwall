@@ -2248,7 +2248,20 @@ button.notif-item:active { transform: scale(0.99); }
 .rewards-empty p { margin: 0 0 10px; }
 .rewards-suggestions { justify-content: center; margin-bottom: 14px; }
 .rewards-suggestions .chip { min-height: 44px; }
+.chores-library-btn + .chores-rewards-btn { margin-left: 0; } /* Library and Rewards sit together at the end */
 .chores-rewards-btn { flex: none; margin-left: auto; min-height: 44px; padding: 8px 16px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+/* Chore library (ChoreLibrary.tsx): a row per saved chore, with "Again" beside it. */
+.lib-intro { margin: 0 0 12px; }
+.lib-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.lib-row { display: flex; align-items: center; gap: 8px; }
+.lib-pick { flex: 1; min-width: 0; }
+.sheet-link > .lib-emoji { flex: none; font-size: 1.5rem; }
+.lib-pick small { white-space: normal; }
+.sheet-link small.lib-due { color: var(--text); font-weight: 800; }
+.lib-again { flex: none; min-height: 44px; padding: 8px 14px; }
+.lib-every { display: flex; gap: 8px; }
+.lib-every input { flex: 0 0 5.5em; }
+.lib-every select { flex: 1; }
 .chore-col-spend { font-size: 0.75rem; font-weight: 800; color: var(--accent-text); text-decoration: none; min-height: 24px; display: inline-flex; align-items: center; }
 .board-card-link { float: right; text-transform: none; letter-spacing: 0; color: var(--accent-text); text-decoration: none; }
 .reward-card.goal { box-shadow: var(--shadow), inset 0 0 0 2px var(--accent); }

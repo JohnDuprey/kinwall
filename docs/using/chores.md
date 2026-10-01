@@ -107,6 +107,21 @@ A chore can wait for a parent's OK before it counts. Ticks from wall screens and
 * Webhooks: `chore.pending` when a tick waits, `chore.completed` only when it's approved, `chore.rejected` on **Not yet**. See [Webhooks](../integrations/webhooks.md#events).
 * MCP: `list_pending_approvals`, `approve_chore`, `reject_chore`, and `needsApproval`/`approveTimedPlay` on `create_chore` and `update_chore`.
 
+## Chore library
+
+Some jobs don't fit a schedule: clean out the car, wash the windows, flip the mattress. The **chore library** keeps them ready to hand out. Open it with **🧰 Library** at the top of the Chores tab (parent devices only).
+
+* Each saved chore has a title, emoji, points, and optionally a checklist, the person it usually goes to, notes, whether it needs a parent's OK, and **About every** a number of days, weeks or months.
+* **About every** is not a schedule. It's a hint: once a chore has been about that long since it was last done (90% of the way there), it moves to the top with **⏰ Due-ish**. Each row says how it's going, for example "Last done 5 weeks ago · usually every 4 weeks", "Not done yet" or "To do: Maya, Sat".
+* **Tap a chore** to hand it out: pick **Who** (or **Anyone**) and **When** (**Today**, **Tomorrow**, **This weekend** or **Pick a date**), then **Add chore**. It becomes a normal one-off chore with the same points, checklist and approval setting. The library stays open, so you can hand out a few in a row.
+* **Again** gives a chore to whoever got it last time, for today, in one tap.
+* **More… → Make it repeat…** opens the chore editor filled in, repeating at the chore's **About every** (for example every 4 weeks). Change the schedule there if you like.
+* **More… → Edit library chore…** changes the saved chore (chores already handed out stay as they are), and **Remove from library…** at the bottom of that sheet deletes it.
+* **Save to library** (in a chore's edit sheet, under **More…**) saves an existing chore to the library. Its history comes along, so "last done" is right from the start.
+* **New library chore** adds one from scratch. A new family starts with a few common ones (clean out the car, wash the windows, deep-clean the fridge, flip the mattress, organize the garage, wipe the baseboards, rake leaves, sort out the closet). Remove the ones you don't need; they don't come back.
+
+"Last done" counts chores made from the library item and approved, so a tick still waiting for a parent's OK doesn't count yet. Wall screens and kids' devices can't open or change the library, but they do the chores handed out from it as usual. The library is included in [export and import](../your-data/export-import.md).
+
 ## Points, late completion credit
 
 Points are fixed at the moment you tick a chore off. Changing a chore's points later doesn't rewrite history.
@@ -164,4 +179,5 @@ A per-device **Chore reminder** at a set time lists chores still open today for 
 * `GET /api/chores/pending`, `POST /api/chores/{id}/approve {date}`, `POST /api/chores/{id}/reject {date, note?}` (parent devices)
 * `GET /api/leaderboard?period=today|week|month`
 * `GET /api/members/{id}/points`
-* MCP: `list_chores`, `create_chore`, `update_chore`, `complete_chore`, `uncomplete_chore`, `list_pending_approvals`, `approve_chore`, `reject_chore`, `get_leaderboard`, `get_points`
+* `GET/POST /api/chore-library`, `PATCH/DELETE /api/chore-library/{id}`, `POST /api/chore-library/{id}/assign {date, memberId?, rrule?}` (parent devices)
+* MCP: `list_chores`, `create_chore`, `update_chore`, `complete_chore`, `uncomplete_chore`, `list_pending_approvals`, `approve_chore`, `reject_chore`, `list_chore_library`, `assign_chore_from_library`, `get_leaderboard`, `get_points`
