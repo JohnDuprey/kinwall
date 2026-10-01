@@ -19,6 +19,15 @@ export function swapWindow(date: string, today: string, weekStart: 0 | 1): { fro
 export function swapCandidates<M extends { id: string; date: string; slot: MealSlot }>(meals: M[], mealId: string): M[] {
   return meals.filter(m => m.id !== mealId).sort((a, b) => a.date.localeCompare(b.date) || MEAL_SLOTS.indexOf(a.slot) - MEAL_SLOTS.indexOf(b.slot))
 }
+/** Minutes after midnight a meal is at: its own time, else the family's usual time for its slot. */
+export const mealMinutes = (meal: { slot: MealSlot; plannedTime?: string | null }, mealTimes: Record<MealSlot, string>) => {
+  const t = meal.plannedTime ?? mealTimes[meal.slot]
+  return Number(t.slice(0, 2)) * 60 + Number(t.slice(3))
+}
+/** A day's meals in the order they happen (a 3:30 snack before a 6:00 dinner); slot order breaks ties. */
+export function byMealTime<M extends { slot: MealSlot; plannedTime?: string | null }>(meals: M[], mealTimes: Record<MealSlot, string>): M[] {
+  return [...meals].sort((a, b) => mealMinutes(a, mealTimes) - mealMinutes(b, mealTimes) || MEAL_SLOTS.indexOf(a.slot) - MEAL_SLOTS.indexOf(b.slot))
+}
 export function moveMealDate(date: string, days: number) { return dateKey(addDays(new Date(`${date}T12:00:00`), days)) }
 export function mealDayLabel(date: string, options: Intl.DateTimeFormatOptions = { weekday: 'short', month: 'short', day: 'numeric' }) {
   return new Intl.DateTimeFormat(undefined, options).format(new Date(`${date}T12:00:00`))
