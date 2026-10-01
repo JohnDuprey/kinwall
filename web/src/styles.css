@@ -1341,6 +1341,8 @@ button {
 .lists-shell-phone .list-checkout-bar { background: linear-gradient(to bottom, transparent, var(--bg) 35%); }
 .list-checkout-btn { width: 100%; min-height: 52px; font-size: 1rem; }
 .list-undo-toast { display: flex; align-items: center; gap: 14px; padding: 8px 8px 8px 22px; width: max-content; max-width: calc(100vw - 32px); }
+/* On a phone the checkout bar sits at the bottom, right where the toast goes: the toast rides above it. */
+.lists-content > .list-detail:has(.list-checkout-bar) .list-undo-toast { bottom: calc(var(--tab-h) + var(--safe-b) + 92px); }
 .list-undo-btn { flex-shrink: 0; }
 .list-undo-btn { background: none; border: none; color: inherit; font: inherit; font-weight: 900; text-decoration: underline; min-height: 44px; min-width: 44px; padding: 0 12px; cursor: pointer; }
 .value-picker-new { margin-top: 8px; }
