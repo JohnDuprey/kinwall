@@ -748,7 +748,8 @@ function SwipeRow({ title, onDelete, children }: { title: string; onDelete: () =
       s.axis = swipeAxis(dx, e.clientY - s.y)
       if (s.axis === 'y') { g.current = null; return }
       if (!s.axis) return
-      ref.current?.setPointerCapture(e.pointerId); setDragging(true)
+      try { ref.current?.setPointerCapture(e.pointerId) } catch { /* pointer already gone */ }
+      setDragging(true)
     }
     setOffset(swipeOffset(dx, open, s.w))
   }
@@ -837,7 +838,7 @@ function DragList<T extends { id: string; title: string }>({ items, renderRow, o
     const rows = [...(rowsRef.current?.children ?? [])] as HTMLElement[]
     const mids = rows.map(r => { const b = r.getBoundingClientRect(); return b.top + b.height / 2 })
     const from = items.findIndex(i => i.id === id)
-    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+    try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId) } catch { /* pointer already gone */ }
     scroller.current = scrollParent(rowsRef.current)
     pointerY.current = e.clientY
     setDrag({ id, startY: e.clientY, scroll0: scroller.current.scrollTop, dy: 0, mids, from, to: from })
