@@ -78,14 +78,14 @@ function RewardsPanel({ member }: { member: Member }) {
   useEffect(load, [member.id, refreshTick]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const goalId = member.rewardGoal?.rewardId ?? null
-  const setGoal = async (r: Reward) => {
-    const next = goalId === r.id ? null : r.id
+  const saveFor = async (next: string | null, title: string) => {
     try {
       await api.setRewardGoal(member.id, next)
-      announce(next ? `Saving for ${r.title}` : 'Goal cleared')
+      announce(next ? `Saving for ${title}` : 'Goal cleared')
       reloadCore()
     } catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't change the goal.", true) }
   }
+  const setGoal = (r: Reward) => saveFor(goalId === r.id ? null : r.id, r.title)
 
   const redeem = async (r: Reward) => {
     const waits = r.needsApproval && !parentDevice
@@ -184,6 +184,7 @@ function RewardsPanel({ member }: { member: Member }) {
             <span className="rewards-goal-title">Saving for {rewardLabel(goal)}</span>
             <Meter have={balance} need={goal.cost} color={member.color} />
             <span className="rewards-goal-left">{balance >= goal.cost ? 'Ready! Tap Get it below.' : `${balance} of ${goal.cost} · ${plural(goal.cost - balance, 'more point')}`}</span>
+            <button type="button" className="link-btn rewards-goal-stop" onClick={() => saveFor(null, '')}>Stop saving</button>
           </div>
         )}
       </section>

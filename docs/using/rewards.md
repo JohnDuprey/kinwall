@@ -73,7 +73,7 @@ Rewards that don't need an OK also show here as approved, so you can mark them g
 
 ## Saving for a goal
 
-Tap **Save for this** on a reward to make it that person's goal (tap again to clear it). Kids can set their own goal on their own device.
+Tap **Save for this** on a reward to make it that person's goal. To stop, tap **Stop saving** under the goal at the top of Rewards (or tap **Saving for this** on the reward again). Kids can set their own goal on their own device.
 
 The Rewards screen shows the goal at the top with a progress bar. The **Board**'s chores card shows it on that person's row, such as "🍿 Movie night pick 40 / 100", and **Ready!** once they have enough. Someone with a goal but no chores today gets a row of their own.
 

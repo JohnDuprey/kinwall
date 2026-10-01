@@ -2192,6 +2192,7 @@ button.notif-item:active { transform: scale(0.99); }
 .rewards-goal-title { font-weight: 800; }
 .rewards-goal-left { font-size: 0.875rem; font-weight: 700; color: var(--text-dim); }
 .rewards-goal .board-meter { height: 12px; border-radius: 6px; }
+.rewards-goal-stop { align-self: flex-start; min-height: 44px; padding: 0; font-size: 0.875rem; font-weight: 600; color: var(--text-dim); }
 .rewards-group { margin-top: 16px; }
 .reward-meter { align-self: stretch; margin: 2px 8px 0; }
 .rewards-stickers { display: flex; align-items: center; gap: 14px; margin-top: 20px; padding: 14px 16px; background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); color: var(--text); text-decoration: none; min-height: 64px; }
