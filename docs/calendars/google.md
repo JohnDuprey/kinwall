@@ -11,7 +11,8 @@ You can do this entirely in the UI, with no restart. On an admin device, open **
    1. In Google Cloud Console, create an OAuth client of type "Web application".
    2. Add the redirect URI to its Authorized redirect URIs.
    3. Enable the Google Calendar API for the project.
-   4. If the consent screen is in Testing, add yourself as a test user.
+   4. Under the consent screen's **Data access**, add the scopes `calendar.events` and `calendar.calendarlist.readonly` (plus `openid` and `email`). See [Scopes and tokens](#scopes-and-tokens).
+   5. If the consent screen is in Testing, add yourself as a test user.
 3. Paste the **Client ID** and **Client secret**, then **Save**. **Test sign-in** tries the flow.
 
 Or set `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` as environment variables. A client configured in the UI wins over the variables. When only the variables configure it, the card shows "Provided by your host" and is read-only.
@@ -26,7 +27,7 @@ If you cancel the Google sign-in, or it fails, you land back on **Settings → C
 
 ## Scopes and tokens
 
-Kinwall asks only for `calendar.events`, `calendar.readonly`, `openid` and `email`, not full calendar access. The flow uses PKCE and a single-use state. The refresh token is encrypted at rest. Removing the account revokes the Google token (best effort) and deletes its calendars from Kinwall. Nothing is deleted in Google.
+Kinwall asks only for `calendar.events` (read and write events), `calendar.calendarlist.readonly` (the list of your calendars, so you can pick which to show), `openid` and `email`, not full calendar access. In your OAuth consent screen's **Data access**, declare exactly these: `calendar.events` is a sensitive scope, so until Google verifies your app, people connecting see "Google hasn't verified this app" and choose **Advanced → Go to … (unsafe)** to continue. Accounts connected before this change keep working with their earlier grant. The flow uses PKCE and a single-use state. The refresh token is encrypted at rest. Removing the account revokes the Google token (best effort) and deletes its calendars from Kinwall. Nothing is deleted in Google.
 
 ## Reminders
 

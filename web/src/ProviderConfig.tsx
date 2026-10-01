@@ -90,6 +90,7 @@ export function ProviderForm({ kind, providers, toast, onChanged }: {
               <li>In Google Cloud Console, create an OAuth client of type "Web application".</li>
               <li>Add the redirect URI above to its Authorized redirect URIs.</li>
               <li>Enable the Google Calendar API for the project.</li>
+              <li>Under Data access, add the scopes <code>calendar.events</code> and <code>calendar.calendarlist.readonly</code> (and openid, email).</li>
               <li>If the consent screen is in Testing, add yourself as a test user.</li>
             </>
           ) : (

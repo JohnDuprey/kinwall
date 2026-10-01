@@ -8,7 +8,7 @@ import type {
   RemoteCalendar,
 } from './types.ts';
 
-const SCOPES = 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly openid email';
+const SCOPES = 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.calendarlist.readonly openid email';
 const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const REVOKE_URL = 'https://oauth2.googleapis.com/revoke';
