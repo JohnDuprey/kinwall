@@ -2341,6 +2341,21 @@ button.board-empty-tap { display: block; width: 100%; text-align: left; backgrou
   display: grid; gap: var(--gap); padding: 4px var(--pad) var(--pad); grid-template-columns: minmax(0, 1fr);
   grid-template-areas: var(--board-areas-1); /* each layout's areas come from boardAreas() in Board.tsx: only the cards shown */
 }
+/* Board, parent devices: what's still missing after setup (GetStarted.tsx) */
+.get-started { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow), inset 0 0 0 2px var(--accent); padding: 16px; margin: 4px var(--pad) var(--gap); }
+.get-started-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.get-started-head h2 { margin: 0; font-size: 1.125rem; font-weight: 800; }
+.get-started-count { flex: none; font-size: 0.8125rem; font-weight: 700; color: var(--text-dim); }
+.get-started-sub { margin: 4px 0 12px; color: var(--text-dim); font-size: 0.875rem; font-weight: 600; }
+.get-started-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+@container board (min-width: 640px) { .get-started-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.get-started-item { display: flex; align-items: center; gap: 12px; min-height: 60px; height: 100%; padding: 10px 12px; border-radius: var(--radius-sm); border: 2px solid transparent; background: var(--bg-alt); color: var(--text); text-decoration: none; }
+.get-started-emoji { flex: none; width: 32px; font-size: 1.5rem; text-align: center; }
+.get-started-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.get-started-title { font-weight: 800; font-size: 0.9375rem; }
+.get-started-why { color: var(--text-dim); font-size: 0.8125rem; font-weight: 600; line-height: 1.35; }
+.get-started-go { flex: none; color: var(--accent-text); font-size: 1.25rem; font-weight: 800; }
+.get-started-foot { display: flex; justify-content: flex-end; margin-top: 4px; }
 .board-card {
   background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: calc(var(--pad) * 0.7);
   min-width: 0; min-height: 0; display: flex; flex-direction: column;
@@ -2925,7 +2940,7 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
   :where(.sheet-link, .btn-secondary, button.chip, select, .emoji-swatch, .color-swatch, .date-chip, .member-avatar, .list-card,
     .list-item-check, .meal-card, .recipe-card, .meal-add, .contact-card, .contact-import-choice, .contact-action, .scheme-card,
     .meds-set-row, .snap-temp-face, .activity-card-more, .cook-timer-chip, .board-trivia-choices button,
-    .setup-choice, .setup-provider-card
+    .setup-choice, .setup-provider-card, .get-started-item
   ):not(:disabled, :focus-visible, .active, .selected, .done, [aria-pressed="true"], [aria-current]):hover { border-color: var(--accent); }
   /* Everything else: a faint wash of the text color over its own background (darker in light, lighter in dark). */
   :where(.btn-primary, .btn-danger, .swipe-delete, .icon-btn, .fab, .today-btn, .segmented button, .tab-btn, .nav-rail-btn, .who-btn,

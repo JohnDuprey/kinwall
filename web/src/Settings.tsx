@@ -1753,7 +1753,7 @@ function TroubleshootSection({ keyName }: { keyName?: string }) {
 function MembersSection({ members, onChanged, toast, canManage = true }: { members: Member[]; onChanged: () => void; toast: (m: string, persist?: boolean) => void; canManage?: boolean }) {
   const [edit, setEdit] = useState<Member | 'new' | null>(null)
   return (
-    <Section title="Members">
+    <Section id="members" title="Members">
       <div className="member-row-list">
         {members.map(m => (
           <div key={m.id} className="member-list-item" {...pressable(() => setEdit(m))} aria-label={`Edit ${m.name}`}>
@@ -2865,7 +2865,8 @@ function DisplaysSection({ toast }: { toast: (m: string, persist?: boolean) => v
   const [code, setCode] = useState('')
   const [name, setName] = useState('Wall screen')
   const [busy, setBusy] = useState(false)
-  const [adding, setAdding] = useState(false)
+  // The Board's "Put Kinwall on the wall" links to section=paired-devices, which opens the sheet.
+  const [adding, setAdding] = useState(() => new URLSearchParams(location.hash.split('?')[1] || '').get('section') === 'paired-devices')
   const load = () => { api.getKeys().then(setAll).catch(() => {}) }
   useEffect(load, [])
 
@@ -2894,7 +2895,7 @@ function DisplaysSection({ toast }: { toast: (m: string, persist?: boolean) => v
   }
 
   return (
-    <Section title="Paired devices" icon={<MonitorIcon width={16} height={16} />}>
+    <Section id="paired-devices" title="Paired devices" icon={<MonitorIcon width={16} height={16} />}>
       <p className="settings-row-sub">Paired with a code. They get the calendar, chores and lists, but not settings. A kid's device shows only their things. Grown-ups sign in on their own phone with a passkey instead.</p>
       {keys.length === 0 && <p className="settings-row-sub">None yet. Open Kinwall on the screen and choose "Set up a wall screen or kid's device" to get a code.</p>}
       {KIND_GROUPS.map(g => ({ ...g, keys: keys.filter(k => deviceKindOf(k, members) === g.kind) })).filter(g => g.keys.length > 0).map(g => (

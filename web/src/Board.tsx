@@ -18,6 +18,7 @@ import TodaysMeals from './TodaysMeals.tsx'
 import { boardGoals } from './tempCheck.ts'
 import { TakeNowTile, useDueDoses } from './TakeNow.tsx'
 import Sheet from './Sheet.tsx'
+import GetStarted from './GetStarted.tsx'
 import { BasketIcon, CartIcon } from './icons.tsx'
 import { boardAreas, boardChores, boardItems, moreLabel, rowsThatFit, tidbitCardsThatFit, tileColumns } from './boardFit.ts'
 import { layoutAreas, layoutFor, type BoardCardId, type CardDensity } from './boardLayout.ts'
@@ -207,6 +208,7 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
 
   return (
     <div className="board-scroll" ref={scrollRef}>
+      <GetStarted />
       <div className="board" style={custom ? custom.style : boardAreas(shown)}>
         {has('tiles') && (
           <nav className="board-tiles" aria-label="At a glance" style={{ '--tile-cols': tileColumns(boardW, tiles.length) } as React.CSSProperties}>

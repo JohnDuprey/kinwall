@@ -60,6 +60,17 @@ On a wall display or tablet the cards fill the screen in three columns without s
 
 <img src="../screenshots/phone-board.png" width="32%" alt="Board view on a phone" />
 
+### Finish setting up Kinwall
+
+On a parent's phone or computer, the top of the Board lists what's still missing after setup, each row opening the right spot in Settings:
+
+* **📆 Connect a calendar**: no calendars yet. Opens Settings → Calendars.
+* **🖼️ Put Kinwall on the wall**: no wall screen or kid's device paired yet. Opens the **Add a wall screen or kid's device** sheet.
+* **👪 Add your family**: only one person in the family. Opens Settings → Family → Members.
+* **🔑 Add a second way in**: one passkey and no unused recovery codes. Opens Settings → Access → Recovery codes.
+
+Each row goes once it's done, and the card goes when none are left. **Not now** hides it on that device for 30 days. Wall screens and kids' devices never show it.
+
 ### Board layouts
 
 Each screen can arrange its own Board. Under [Settings → This display → Board layout](../settings/this-display.md#this-display), pick a built-in layout (**Kids** with big text, **Kitchen** with meals up front, **Parents** with more on the screen, **Simple** with just the clock, a picture and today), one of the family's [presets](../settings/general.md#board-presets), or **Own layout** to make one just for this screen.
