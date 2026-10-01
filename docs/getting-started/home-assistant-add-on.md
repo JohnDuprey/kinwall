@@ -24,7 +24,7 @@ What this repository does for the add-on:
   * A passkey belongs to the address it was made on. Use Home Assistant at home and remotely at different addresses? Add a passkey from each, or set `public_url` and use only that address.
   * The optional direct port (8080) is plain http, so it has no passkeys unless you put an https proxy in front of it. If that proxy changes the `Host` header, set `public_url` to its address.
   * The Home Assistant phone app's built-in browser may not offer passkeys; open Home Assistant in Safari or Chrome to add one.
-  * Some browsers, Safari especially, won't add a passkey inside Home Assistant's panel (an error like "Invalid 'sameOriginWithAncestors' value"). Settings → Access shows an **Open Kinwall in its own tab** link there; add the passkey from that tab and it works in the panel afterward.
+  * Some browsers, Safari especially, won't add a passkey inside Home Assistant's panel (an error like "Invalid 'sameOriginWithAncestors' value"). Settings → Access shows an **Open Kinwall in its own tab** link there; add the passkey from that tab and it works in the panel afterward. The setup wizard's passkey step has the same link and carries on in the new tab.
 * **Data** lives in the add-on's `/data`. It contains the SQLite database and `encryption.key`, so include it in your Home Assistant backups.
 * **Setup code**: find it under **Settings → Apps → Kinwall → Log** (**Settings → Add-ons** in older Home Assistant versions).
 

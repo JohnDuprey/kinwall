@@ -12,7 +12,7 @@ import { readDeviceAppearance, setDeviceAppearance, useTheme } from './useTheme.
 import { AnyEmojiField } from './AnyEmojiField.tsx'
 import { isValidAvatar } from './emoji.ts'
 import { colorName, inkFor } from './color.ts'
-import { passkeysSupported, registerPasskey } from './webauthn.ts'
+import { inFrame, passkeysSupported, registerPasskey } from './webauthn.ts'
 import { ProviderForm } from './ProviderConfig.tsx'
 import type { Providers } from './types.ts'
 import { MemberPicker } from './MemberPicker.tsx'
@@ -30,12 +30,18 @@ const RESUME_KEY = 'kinwall.setupResume'
 const oops = (e: unknown, fallback: string) => setupErrorText(e instanceof ApiError ? e.status : undefined, fallback)
 /** Calendar forms keep the reason a feed or provider was refused (a bad link, a rejected login). */
 const calendarOops = (e: unknown, fallback: string) => e instanceof ApiError && (e.status === 400 || e.status === 502) ? e.message : oops(e, fallback)
+// A new tab doesn't share sessionStorage, so the passkey step's "open in its own tab" hands its
+// place over through localStorage once; the new tab picks it up and clears it. Never a key.
+const HANDOFF_KEY = 'kinwall.setupHandoff'
 export function readSetupResume(): SetupResume | null {
   try {
+    const handoff = localStorage.getItem(HANDOFF_KEY)
+    if (handoff) { localStorage.removeItem(HANDOFF_KEY); sessionStorage.setItem(RESUME_KEY, handoff) }
     const raw = sessionStorage.getItem(RESUME_KEY)
     return raw ? JSON.parse(raw) as SetupResume : null
   } catch { return null }
 }
+const handOffPasskeyStep = () => { try { localStorage.setItem(HANDOFF_KEY, JSON.stringify({ step: 'passkey', deviceRole: 'admin' })) } catch { /* ignore */ } }
 function saveResume(r: SetupResume | null) {
   try { r ? sessionStorage.setItem(RESUME_KEY, JSON.stringify(r)) : sessionStorage.removeItem(RESUME_KEY) } catch { /* ignore */ }
 }
@@ -213,6 +219,7 @@ function PasskeyStep({ adminKeyId, onDone, onSkip }: { adminKeyId: string | null
       <p className="setup-sub">{onSkip ? "Use Face ID, Touch ID, or your device's screen lock instead of saving a key."
         : "Kinwall signs you in with a passkey. Without one there's no way back into this family."}</p>
       <div className="field"><label>Name this passkey</label><input type="text" value={name} onChange={e => setName(e.target.value)} autoFocus /></div>
+      {inFrame() && <p className="setup-sub">Inside Home Assistant's panel, some browsers won't make a passkey. <a className="text-link" href={location.href} target="_blank" rel="noopener" onClick={handOffPasskeyStep}>Open Kinwall in its own tab</a> and finish setup there.</p>}
       {error && <p className="setup-error" role="alert">{error}</p>}
       <StepNav onNext={() => create()} nextDisabled={busy || !name.trim()} nextLabel={busy ? 'Creating…' : 'Create passkey'} onSkip={onSkip} />
       <button className="link-btn" style={{ minHeight: 44, display: 'block', marginLeft: 'auto' }} disabled={busy || !name.trim()} onClick={() => create('cross-platform')}>
