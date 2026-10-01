@@ -2,7 +2,7 @@
 // which events count for Now / Next and leave-by (leadTime.ts blocksTime).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { dedupeEvents, eventPeople, FREE_EDGE, layoutDay, newEventDay, newEventTimes } from '../src/dayLayout.ts'
+import { dedupeEvents, eventPeople, FREE_EDGE, hourPx, layoutDay, newEventDay, newEventTimes } from '../src/dayLayout.ts'
 import { blocksTime } from '../src/leadTime.ts'
 import type { EventInstance } from '../src/types.ts'
 
@@ -76,4 +76,11 @@ test('newEventDay / newEventTimes: + adds to the day on screen, at a sensible ti
   const other = newEventTimes(fri, now)
   assert.equal(new Date(other.start).toString(), new Date(2026, 9, 2, 9).toString(), 'another day: 9 AM')
   assert.equal(Date.parse(other.end) - Date.parse(other.start), 3600000, 'an hour long')
+})
+
+test('hourPx: matches the CSS hour rows, including a phone on its side', () => {
+  assert.equal(hourPx('comfortable'), 60)
+  assert.equal(hourPx('compact'), 40)
+  assert.equal(hourPx('comfortable', true), 44, 'styles.css sets --hour-h: 44px for short landscape')
+  assert.equal(hourPx('compact', true), 44)
 })

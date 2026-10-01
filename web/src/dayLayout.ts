@@ -3,6 +3,12 @@
 import { minutesSinceMidnight } from './date.ts'
 import type { EventInstance } from './types.ts'
 
+/** Matches --hour-h in styles.css (comfortable/compact, and 44px on a phone on its side) so pixel
+ * offsets in the time grid line up with the CSS hour rows. */
+export function hourPx(density: string, shortLandscape = false): number {
+  return shortLandscape ? 44 : density === 'compact' ? 40 : 60
+}
+
 /** Greedy column packing for overlapping timed events on one day. Simple, not cluster-optimal.
  * ponytail: good enough for a wall calendar's visual density; revisit with an interval-graph
  * algorithm if events routinely overlap 4+ ways. */

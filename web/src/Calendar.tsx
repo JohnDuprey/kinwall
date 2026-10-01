@@ -11,7 +11,7 @@ import Sheet from './Sheet.tsx'
 import { BoardViewIcon, CalendarIcon, CheckIcon, ChevronDown, ChevronLeft, ChevronRight, DayViewIcon, EyeIcon, ListIcon, ThreeDayViewIcon, EyeOffIcon, FilterIcon, LocationIcon, PlusIcon, RepeatIcon, TrashIcon, EditIcon } from './icons.tsx'
 import { hideLikeThis, NO_FILTER, type CalendarFilter } from './calendarFilter.ts'
 import { IDLE_RESET_EVENT } from './App.tsx'
-import { useIsPhone } from './useIsPhone.ts'
+import { SHORT_LANDSCAPE, useIsPhone, useMediaQuery } from './useIsPhone.ts'
 import { announce, pressable, Segmented, useRovingGrid } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
 import { effectiveDensity, useDeviceAppearance } from './useTheme.ts'
@@ -26,7 +26,7 @@ import { PriorityBadge } from './PriorityBadge.tsx'
 import { isSingleEmoji } from './emoji.ts'
 import { calendarGoal } from './tempCheck.ts'
 import { leadBy, leadIcon, leadOf, leadText } from './leadTime.ts'
-import { dedupeEvents, eventPeople, layoutDay, newEventDay, newEventTimes } from './dayLayout.ts'
+import { dedupeEvents, eventPeople, hourPx, layoutDay, newEventDay, newEventTimes } from './dayLayout.ts'
 import { CALENDAR_VIEWS, VIEW_TABS, dayOrigin, isCalendarView, lastCalendarView, monthDayLabel, rememberCalendarView, tabOf, viewForTab, viewHint, viewLabel, type CalendarView, type ViewMode } from './calendarViews.ts'
 import { onMinute } from './minuteTick.ts'
 
@@ -36,15 +36,10 @@ const CATEGORY_FILTER_KEY = 'kinwall.categoryFilter'
 const NO_CATEGORY = '__none'
 const TASK_LIST_KEY = 'kinwall.taskList' // list the event sheet's "Add task…" last used
 
-// Matches --hour-h in styles.css (comfortable/compact) so JS-computed pixel offsets in the time
-// grid line up with the CSS row heights.
-function hourPx(density: string): number {
-  return density === 'compact' ? 40 : 60
-}
 /** Row height for the density actually applied on this device (household, device override, low-stim). */
 function useHourPx() {
   const { settings } = useApp()
-  return hourPx(effectiveDensity(settings.density, useDeviceAppearance()))
+  return hourPx(effectiveDensity(settings.density, useDeviceAppearance()), useMediaQuery(SHORT_LANDSCAPE))
 }
 
 function isAllDayOnDate(ev: EventInstance, key: string) {
