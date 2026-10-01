@@ -96,11 +96,6 @@
 .setup-member-list { margin: 0 0 12px; }
 .setup-kind-select { flex: none; width: auto; } /* not the phone-width 100% of .settings-select */
 
-.setup-admin-unlock { background: var(--bg-alt); border-radius: var(--radius-sm); padding: 16px; margin: 10px 0; }
-.setup-admin-unlock p { margin: 0 0 10px; color: var(--text-dim); font-weight: 600; font-size: 0.875rem; }
-.setup-admin-unlock-row { display: flex; gap: 8px; }
-.setup-admin-unlock-row input { flex: 1; min-height: 52px; border-radius: var(--radius-sm); border: 2px solid var(--border); background: var(--card); padding: 0 14px; color: var(--text); font-size: max(1rem, 16px); }
-
 .setup-provider-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 6px 0 4px; }
 .setup-provider-card {
   min-height: 64px; border-radius: var(--radius-sm); border: 2px solid var(--border);
@@ -109,10 +104,7 @@
 }
 .setup-provider-form { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
 
-.setup-admin-reveal { background: var(--bg-alt); border-radius: var(--radius-sm); padding: 18px; margin-bottom: 6px; }
-.setup-warning { color: var(--danger); font-weight: 700; font-size: 0.875rem; margin: 0 0 14px; line-height: 1.4; }
 .setup-key-row { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
-.setup-key-value { font-family: ui-monospace, monospace; font-size: 0.8125rem; font-weight: 700; word-break: break-all; color: var(--text); flex: 1; }
 
 .setup-chore-grid { display: flex; flex-direction: column; gap: 10px; }
 .setup-chore-card { border: 2px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-alt); padding: 4px; }

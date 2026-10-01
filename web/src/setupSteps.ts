@@ -2,9 +2,9 @@
 // test/setupSteps.test.ts.
 import type { Member } from './types.ts'
 
-export type Step = 'welcome' | 'role' | 'passkey' | 'recovery' | 'household' | 'members' | 'owner' | 'calendars' | 'chores' | 'displayKind' | 'done'
-export type DeviceRole = 'admin' | 'display'
-export interface SetupResume { step: Step; deviceRole: DeviceRole; displayKeyId?: string }
+export type Step = 'welcome' | 'role' | 'passkey' | 'recovery' | 'household' | 'members' | 'owner' | 'calendars' | 'chores' | 'done'
+export type DeviceRole = 'admin'
+export interface SetupResume { step: Step; deviceRole: DeviceRole }
 
 /** The first person added is usually the parent doing setup; everyone after, a kid. */
 export const defaultGrownUp = (added: number) => added === 0
@@ -12,14 +12,11 @@ export const defaultGrownUp = (added: number) => added === 0
 /** "Whose device is this?": a full-access device only ever belongs to a grown-up. */
 export const ownerChoices = (members: Member[]) => members.filter(m => m.grownUp)
 
-/** "A kid's device": whose. */
-export const kidChoices = (members: Member[]) => members.filter(m => !m.grownUp)
-
 /** What a reload reopens. Once claimed (a role is set) setup always continues, at the household
  * step if it somehow sits on the role picker, since claiming again can't work. */
-export function resumeFor(step: Step, deviceRole: DeviceRole | null, displayKeyId?: string): SetupResume | null {
+export function resumeFor(step: Step, deviceRole: DeviceRole | null): SetupResume | null {
   if (!deviceRole || step === 'welcome' || step === 'done') return null
-  return { step: step === 'role' ? 'household' : step, deviceRole, displayKeyId }
+  return { step: step === 'role' ? 'household' : step, deviceRole }
 }
 
 /** Wizard error copy from an API error's status: never the server's raw words. */

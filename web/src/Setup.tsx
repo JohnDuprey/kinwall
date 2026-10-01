@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { HelpButton } from './Help.tsx'
-import { api, ApiError, getAdminKey, setAdminKey, clearAdminKey, setKey } from './api.ts'
+import { api, ApiError, setKey } from './api.ts'
 import { QrCode } from './App.tsx'
 import { CalendarCheckRow, initialPicks, RecoveryCodesView } from './Settings.tsx'
 import TimezoneField from './TimezoneField.tsx'
@@ -8,7 +8,7 @@ import { announce } from './a11y.tsx'
 import { MEMBER_EMOJI, MEMBER_PALETTE, nextPaletteColor } from './types.ts'
 import type { Member, Settings } from './types.ts'
 import { CheckIcon, PlusIcon, TrashIcon } from './icons.tsx'
-import { readDeviceAppearance, setDeviceAppearance, useTheme } from './useTheme.ts'
+import { useTheme } from './useTheme.ts'
 import { AnyEmojiField } from './AnyEmojiField.tsx'
 import { isValidAvatar } from './emoji.ts'
 import { colorName, inkFor } from './color.ts'
@@ -16,15 +16,14 @@ import { inFrame, passkeysSupported, registerPasskey } from './webauthn.ts'
 import { ProviderForm } from './ProviderConfig.tsx'
 import type { Providers } from './types.ts'
 import { MemberPicker } from './MemberPicker.tsx'
-import { defaultGrownUp, freshHandoff, kidChoices, ownerChoices, resumeFor, setupErrorText } from './setupSteps.ts'
-import type { DeviceRole, SetupResume, Step } from './setupSteps.ts'
+import { defaultGrownUp, freshHandoff, ownerChoices, resumeFor, setupErrorText } from './setupSteps.ts'
+import type { SetupResume, Step } from './setupSteps.ts'
 import './setup.css'
 
 const PROGRESS_STEPS: Step[] = ['household', 'members', 'calendars', 'chores', 'done']
 
 // Persisted across the OAuth start->callback round trip (Google/Outlook connect from the
-// Calendars step), which reloads the page. Only the step, role and the display key's id are
-// stored — never a key.
+// Calendars step), which reloads the page. Only the step and role are stored, never a key.
 const RESUME_KEY = 'kinwall.setupResume'
 /** Wizard error copy: friendly words for the status, never the server's own text. */
 const oops = (e: unknown, fallback: string) => setupErrorText(e instanceof ApiError ? e.status : undefined, fallback)
@@ -63,7 +62,7 @@ const CHORE_TEMPLATES = [
 ]
 
 function Progress({ step }: { step: Step }) {
-  const at = PROGRESS_STEPS.indexOf(step === 'owner' ? 'members' : step === 'displayKind' ? 'chores' : step)
+  const at = PROGRESS_STEPS.indexOf(step === 'owner' ? 'members' : step)
   if (at < 0) return null
   return (
     <div className="setup-progress" role="img" aria-label={`Step ${at + 1} of ${PROGRESS_STEPS.length}`}>
@@ -83,39 +82,6 @@ function StepNav({ onBack, onNext, nextLabel = 'Next', nextDisabled, onSkip, sti
         {onSkip && <button className="link-btn" onClick={onSkip}>Skip</button>}
         {onNext && <button className="btn btn-primary setup-btn" onClick={onNext} disabled={nextDisabled}>{nextLabel}</button>}
       </div>
-    </div>
-  )
-}
-
-/** Inline admin-key prompt for a display-scope device whose in-memory admin key (sessionStorage,
- * 5 min TTL — see api.ts) expired, e.g. after the wizard sat mid-flow. Only shown where it's
- * actually needed (calendar creation), same pattern as Settings.tsx's AdminGate. */
-function AdminUnlockInline({ onUnlocked }: { onUnlocked: () => void }) {
-  const [value, setValue] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
-  const unlock = async () => {
-    if (!value.trim()) return
-    setBusy(true); setError('')
-    setAdminKey(value.trim())
-    try {
-      const me = await api.checkAdminKey()
-      if (me.scope !== 'admin') throw new ApiError(403, 'That key is not admin-scoped')
-      onUnlocked()
-    } catch (e) {
-      setError(e instanceof ApiError && e.status !== 0 ? "That key didn't work. Check it and try again." : oops(e, "That key didn't work. Check it and try again."))
-    } finally { setBusy(false) }
-  }
-  return (
-    <div className="setup-admin-unlock">
-      <p>This step needs your admin key (it's only kept in memory during setup).</p>
-      <label htmlFor="setup-admin-unlock" className="setup-input-label">Admin API key</label>
-      <div className="setup-admin-unlock-row">
-        <input id="setup-admin-unlock" type="password" value={value} onChange={e => setValue(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && unlock()} />
-        <button className="btn btn-primary" onClick={unlock} disabled={busy}>Unlock</button>
-      </div>
-      {error && <p className="setup-error" role="alert">{error}</p>}
     </div>
   )
 }
@@ -174,7 +140,7 @@ function WelcomeStep({ code, setCode, error, onNext }: { code: string; setCode: 
  * the wall here sends you to your phone instead: a QR that opens setup there with this code filled
  * in (`#key=…`, see App.tsx captureKeyFromUrl). Once the phone claims, this screen reloads into the
  * pairing screen, and the phone adds it as a wall screen. */
-function RoleStep({ code, busy, error, onChoose }: { code: string; busy: boolean; error: string; onChoose: (role: DeviceRole) => void }) {
+function RoleStep({ code, busy, error, onClaim }: { code: string; busy: boolean; error: string; onClaim: () => void }) {
   const [wallFirst, setWallFirst] = useState(false)
   useEffect(() => {
     if (!wallFirst) return
@@ -205,7 +171,7 @@ function RoleStep({ code, busy, error, onChoose }: { code: string; busy: boolean
       <h1>What is this device?</h1>
       <p className="setup-sub">Start with the phone or computer you'll manage Kinwall from. You'll add the wall screen after.</p>
       <div className="setup-role-cards">
-        <button className="setup-role-card setup-role-card-primary" disabled={busy} onClick={() => onChoose('admin')}>
+        <button className="setup-role-card setup-role-card-primary" disabled={busy} onClick={onClaim}>
           <div className="setup-role-badge">Recommended first</div>
           <div className="setup-role-emoji">📱</div>
           <div className="setup-role-title">This is my phone or computer</div>
@@ -226,7 +192,10 @@ function RoleStep({ code, busy, error, onChoose }: { code: string; busy: boolean
 /** Admin device role, right after claim: swap the just-issued admin key for a passkey + session,
  * so no long-lived admin key is left stored on this device. Registers using the device's current
  * key (the raw admin key from claim), then on success deletes that claim key server-side. */
-function PasskeyStep({ adminKeyId, onDone, onSkip }: { adminKeyId: string | null; onDone: () => void; onSkip?: () => void }) {
+/** No Skip: without a passkey this device's admin key is the only way back in. A browser that
+ * can't make one gets `onNoPasskey` after a failed try (recovery codes instead), unless the host
+ * requires a passkey. */
+function PasskeyStep({ adminKeyId, onDone, onNoPasskey }: { adminKeyId: string | null; onDone: () => void; onNoPasskey?: () => void }) {
   const [name, setName] = useState('My phone')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -251,22 +220,28 @@ function PasskeyStep({ adminKeyId, onDone, onSkip }: { adminKeyId: string | null
   return (
     <div className="setup-step">
       <h1>Create a passkey for this device</h1>
-      <p className="setup-sub">{onSkip ? "Use Face ID, Touch ID, or your device's screen lock instead of saving a key."
-        : "Kinwall signs you in with a passkey. Without one there's no way back into this family."}</p>
+      <p className="setup-sub">Kinwall signs you in with Face ID, Touch ID or your device's screen lock. It's how you get back into your family.</p>
       <div className="field"><label>Name this passkey</label><input type="text" value={name} onChange={e => setName(e.target.value)} autoFocus /></div>
       {inFrame() && <p className="setup-sub">Inside Home Assistant's panel, some browsers won't make a passkey. <a className="text-link" href={location.href} target="_blank" rel="noopener" onClick={handOffPasskeyStep}>Open Kinwall in its own tab</a> and finish setup there.</p>}
       {error && <p className="setup-error" role="alert">{error}</p>}
-      <StepNav onNext={() => create()} nextDisabled={busy || !name.trim()} nextLabel={busy ? 'Creating…' : 'Create passkey'} onSkip={onSkip} />
+      <StepNav onNext={() => create()} nextDisabled={busy || !name.trim()} nextLabel={busy ? 'Creating…' : 'Create passkey'} />
       <button className="link-btn" style={{ minHeight: 44, display: 'block', marginLeft: 'auto' }} disabled={busy || !name.trim()} onClick={() => create('cross-platform')}>
         Use a security key or another device
       </button>
+      {error && onNoPasskey && (
+        <button className="link-btn" style={{ minHeight: 44, display: 'block', marginLeft: 'auto' }} disabled={busy} onClick={onNoPasskey}>
+          Can't make a passkey here? Use recovery codes instead
+        </button>
+      )}
     </div>
   )
 }
 
 /** Right after the passkey step: a set of one-time recovery codes, the way back in if that
  * device is lost. Skippable - Settings → Access nudges until there's a second way in. */
-function RecoveryStep({ onNext }: { onNext: () => void }) {
+/** `required`: this device has no passkey, so the codes are the only way back in: no Skip, unless
+ * they couldn't be made. */
+function RecoveryStep({ required, onNext }: { required?: boolean; onNext: () => void }) {
   const [codes, setCodes] = useState<string[] | null>(null)
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
@@ -289,15 +264,15 @@ function RecoveryStep({ onNext }: { onNext: () => void }) {
         </label>
       )}
       <StepNav onNext={onNext} nextDisabled={!saved} />
-      <button className="link-btn" style={{ minHeight: 44, display: 'block', marginLeft: 'auto' }} onClick={onNext}>Skip for now</button>
+      {(!required || error) && <button className="link-btn" style={{ minHeight: 44, display: 'block', marginLeft: 'auto' }} onClick={onNext}>Skip for now</button>}
     </div>
   )
 }
 
-function HouseholdStep({ useAdmin, onNext }: { useAdmin: boolean; onNext: () => void }) {
+function HouseholdStep({ onNext }: { onNext: () => void }) {
   const [familyName, setFamilyName] = useState('Our Family')
   // A host may have set the name before the wizard runs (hosted signup asks for it); keep it.
-  useEffect(() => { api.getSettings(useAdmin).then(s => { if (s.familyName && s.familyName !== 'Our Family') setFamilyName(s.familyName) }).catch(() => {}) }, [])
+  useEffect(() => { api.getSettings().then(s => { if (s.familyName && s.familyName !== 'Our Family') setFamilyName(s.familyName) }).catch(() => {}) }, [])
   const [timezone, setTimezone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone)
   const [weekStart, setWeekStart] = useState<0 | 1>(0)
   const [busy, setBusy] = useState(false)
@@ -306,7 +281,7 @@ function HouseholdStep({ useAdmin, onNext }: { useAdmin: boolean; onNext: () => 
   const save = async () => {
     setBusy(true); setError('')
     try {
-      await api.updateSettings({ familyName: familyName.trim() || 'Our Family', timezone, weekStart }, useAdmin)
+      await api.updateSettings({ familyName: familyName.trim() || 'Our Family', timezone, weekStart })
       onNext()
     } catch (e) { setError(oops(e, 'Could not save. Try again.')) } finally { setBusy(false) }
   }
@@ -333,7 +308,7 @@ function HouseholdStep({ useAdmin, onNext }: { useAdmin: boolean; onNext: () => 
   )
 }
 
-function MembersStep({ useAdmin, onNext, onBack }: { useAdmin: boolean; onNext: () => void; onBack: () => void }) {
+function MembersStep({ onNext, onBack }: { onNext: () => void; onBack: () => void }) {
   const [members, setMembers] = useState<Member[]>([])
   const [name, setName] = useState('')
   const [color, setColor] = useState(MEMBER_PALETTE[0])
@@ -351,14 +326,14 @@ function MembersStep({ useAdmin, onNext, onBack }: { useAdmin: boolean; onNext: 
   // so they aren't lost from view or added twice.
   useEffect(() => {
     let live = true
-    api.getMembers(useAdmin).then(list => {
+    api.getMembers().then(list => {
       if (!live || !list.length) return
       // Merge, in case someone was added while this loaded.
       setMembers(cur => [...list, ...cur.filter(m => !list.some(x => x.id === m.id))])
       if (!name.trim()) resetFor(list)
     }).catch(() => {})
     return () => { live = false }
-  }, [useAdmin]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Adds the typed member; resolves whether it was added. */
   const add = async (): Promise<boolean> => {
@@ -366,7 +341,7 @@ function MembersStep({ useAdmin, onNext, onBack }: { useAdmin: boolean; onNext: 
     if (!isValidAvatar(avatar)) { setError('Pick an avatar first.'); return false }
     setError('')
     try {
-      const m = await api.createMember({ name: name.trim(), color, avatar, grownUp }, useAdmin)
+      const m = await api.createMember({ name: name.trim(), color, avatar, grownUp })
       const list = [...members, m]
       setMembers(list)
       setName('')
@@ -378,11 +353,11 @@ function MembersStep({ useAdmin, onNext, onBack }: { useAdmin: boolean; onNext: 
   // A typed-but-not-added name is added on Next rather than dropped.
   const next = async () => { if (!name.trim() || await add()) onNext() }
   const remove = async (id: string) => {
-    try { await api.deleteMember(id, useAdmin); setMembers(ms => ms.filter(m => m.id !== id)) }
+    try { await api.deleteMember(id); setMembers(ms => ms.filter(m => m.id !== id)) }
     catch (e) { setError(oops(e, 'Could not remove them. Try again.')) }
   }
   const setKind = async (m: Member, grown: boolean) => {
-    try { const u = await api.updateMember(m.id, { grownUp: grown }, useAdmin); setMembers(ms => ms.map(x => x.id === m.id ? { ...x, grownUp: u.grownUp } : x)) }
+    try { const u = await api.updateMember(m.id, { grownUp: grown }); setMembers(ms => ms.map(x => x.id === m.id ? { ...x, grownUp: u.grownUp } : x)) }
     catch (e) { setError(oops(e, `Could not change ${m.name}. Try again.`)) }
   }
 
@@ -559,28 +534,17 @@ function CaldavForm({ onPending }: { onPending: (p: PendingAdd | null) => void }
   )
 }
 
-function CalendarsStep({ members, oauth, deviceRole, onNext, onBack, onOAuthStart }: {
-  members: Member[]; oauth: { google: boolean; microsoft: boolean }; deviceRole: DeviceRole
+function CalendarsStep({ members, oauth, onNext, onBack, onOAuthStart }: {
+  members: Member[]; oauth: { google: boolean; microsoft: boolean }
   onNext: () => void; onBack: () => void; onOAuthStart: (kind: 'google' | 'microsoft') => void
 }) {
   const [open, setOpen] = useState<'google' | 'microsoft' | 'icloud' | 'ics' | null>(null)
-  const [unlocked, setUnlocked] = useState(() => deviceRole === 'admin' || !!getAdminKey())
   const [providers, setProviders] = useState<Providers | null>(null)
   const [providerMsg, setProviderMsg] = useState<string | null>(null)
   const [pending, setPending] = useState<PendingAdd | null>(null)
   const next = async () => { if (!pending || await pending.commit()) onNext() }
   const loadProviders = () => { api.getProviders().then(setProviders).catch(() => {}) }
-  useEffect(() => { if (unlocked) loadProviders() }, [unlocked])
-
-  if (!unlocked) {
-    return (
-      <div className="setup-step">
-        <h1>Calendars</h1>
-        <AdminUnlockInline onUnlocked={() => setUnlocked(true)} />
-        <StepNav onBack={onBack} onNext={onNext} onSkip={onNext} nextLabel="Continue without calendars" />
-      </div>
-    )
-  }
+  useEffect(loadProviders, [])
 
   return (
     <div className="setup-step">
@@ -612,9 +576,7 @@ function CalendarsStep({ members, oauth, deviceRole, onNext, onBack, onOAuthStar
   )
 }
 
-/** `adminKey`: a wall display's in-memory claim key (chores aren't display-allowed), renewed on save
- * since its 5-minute copy may lapse while people pick. null on a parent's device. */
-function ChoresStep({ members, adminKey, onNext, onBack }: { members: Member[]; adminKey: string | null; onNext: () => void; onBack: () => void }) {
+function ChoresStep({ members, onNext, onBack }: { members: Member[]; onNext: () => void; onBack: () => void }) {
   const [selected, setSelected] = useState<Record<number, string | null>>({})
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -627,11 +589,10 @@ function ChoresStep({ members, adminKey, onNext, onBack }: { members: Member[]; 
 
   const create = async () => {
     setBusy(true); setError('')
-    if (adminKey) setAdminKey(adminKey)
     try {
       await Promise.all(Object.entries(selected).map(([i, memberId]) => {
         const t = CHORE_TEMPLATES[Number(i)]
-        return api.createChore({ title: t.title, emoji: t.emoji, points: t.points, rrule: t.rrule, memberId: memberId ?? undefined, active: true }, !!adminKey)
+        return api.createChore({ title: t.title, emoji: t.emoji, points: t.points, rrule: t.rrule, memberId: memberId ?? undefined, active: true })
       }))
       onNext()
     } catch (e) { setError(oops(e, 'Could not create the chores. Try again, or skip and add them later in Chores.')) } finally { setBusy(false) }
@@ -702,141 +663,7 @@ function OwnerStep({ members, onNext, onBack }: { members: Member[]; onNext: () 
   )
 }
 
-/** A wall display set up through the wizard, at the end (so the chores step still acts for the
- * whole family): the family's wall screen, or a kid's own device (PATCH /api/keys, with the
- * claim's admin key). */
-function DisplayKindStep({ members, displayKeyId, adminKey, onNext, onBack }: { members: Member[]; displayKeyId?: string; adminKey: string | null; onNext: () => void; onBack: () => void }) {
-  const kids = kidChoices(members)
-  const [kind, setKind] = useState<'wall' | 'kid'>('wall')
-  const [kid, setKid] = useState<string | null>(null)
-  const [unlocked, setUnlocked] = useState(() => !!adminKey || !!getAdminKey())
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
-  const save = async () => {
-    setBusy(true); setError('')
-    try {
-      if (kind === 'wall') setDeviceAppearance({ ...readDeviceAppearance(), wallScreen: true })
-      else {
-        if (!displayKeyId || !kid) return
-        if (adminKey) setAdminKey(adminKey) // the 5-minute admin key may have lapsed during the chores step
-        await api.setKeyKind(displayKeyId, { kind: 'kid', owner: kid })
-      }
-      onNext()
-    } catch (e) { setError(oops(e, 'Could not save. Try again, or pick Wall screen and change it later in Settings → Access.')) } finally { setBusy(false) }
-  }
-  const canKid = !!displayKeyId && kids.length > 0
-  return (
-    <div className="setup-step">
-      <h1>Wall screen or a kid's device?</h1>
-      <p className="setup-sub">A wall screen is the whole family's. A kid's device shows only their events, chores and lists. A parent can change this later under Settings → Access.</p>
-      <div className="setup-choice-row" role="group" aria-label="What this device is">
-        <button className={`setup-choice ${kind === 'wall' ? 'active' : ''}`} aria-pressed={kind === 'wall'} onClick={() => setKind('wall')}>🖼️ Wall screen</button>
-        {canKid && <button className={`setup-choice ${kind === 'kid' ? 'active' : ''}`} aria-pressed={kind === 'kid'} onClick={() => setKind('kid')}>🧒 A kid's device</button>}
-      </div>
-      {kind === 'kid' && (
-        <div className="field" style={{ marginTop: 16 }}>
-          <label id="setup-kid-label">Whose?</label>
-          <div className="setup-choice-row setup-choice-wrap" role="group" aria-labelledby="setup-kid-label">
-            {kids.map(m => <button key={m.id} className={`setup-choice ${kid === m.id ? 'active' : ''}`} aria-pressed={kid === m.id} onClick={() => setKid(m.id)}>{m.avatar} {m.name}</button>)}
-          </div>
-          {!unlocked && <AdminUnlockInline onUnlocked={() => setUnlocked(true)} />}
-        </div>
-      )}
-      {error && <p className="setup-error" role="alert">{error}</p>}
-      <StepNav onBack={onBack} onNext={save} nextDisabled={busy || (kind === 'kid' && (!kid || !unlocked))} nextLabel={busy ? 'Saving…' : 'Next'} />
-    </div>
-  )
-}
-
-/** Wall-display role's final screen: offers "finish on your phone" (a QR code carrying a
- * one-time register-token — see `#/admin-setup` in App.tsx) instead of showing the raw admin
- * key. Polls GET /api/setup for its `passkeys` flag to notice when the phone finishes, then
- * drops this display's temporary in-memory admin key and deletes the claim key server-side. The
- * "Show admin key instead" fallback keeps today's reveal-the-key screen verbatim. */
-function DisplayDoneStep({ adminKey, adminKeyId, onGoToCalendar }: { adminKey: string | null; adminKeyId: string | null; onGoToCalendar: () => void }) {
-  const [fallback, setFallback] = useState(!passkeysSupported())
-  const [reg, setReg] = useState<{ token: string; expiresAt: string } | null>(null)
-  const [phoneDone, setPhoneDone] = useState(false)
-  const [copied, setCopied] = useState(false)
-  const [error, setError] = useState('')
-
-  useEffect(() => {
-    if (fallback || reg) return
-    api.passkeyRegisterToken().then(setReg).catch(() => setError('Could not start "finish on your phone" — try the admin key instead.'))
-  }, [fallback, reg])
-
-  useEffect(() => {
-    if (fallback || !reg || phoneDone) return
-    let canceled = false
-    const tick = async () => {
-      try {
-        const s = await api.getSetup()
-        if (canceled || !s.passkeys) return
-        setPhoneDone(true)
-        if (adminKeyId) await api.deleteKey(adminKeyId).catch(() => {}) // temp admin key still valid (sessionStorage, 5 min TTL)
-        clearAdminKey()
-      } catch { /* offline / transient - next tick retries */ }
-    }
-    const id = setInterval(tick, SETUP_PASSKEY_POLL_MS)
-    return () => { canceled = true; clearInterval(id) }
-  }, [fallback, reg, phoneDone, adminKeyId])
-
-  const copy = async () => {
-    if (!adminKey) return
-    try { await navigator.clipboard.writeText(adminKey); setCopied(true) } catch { /* ignore */ }
-  }
-
-  if (phoneDone) {
-    return (
-      <div className="setup-step">
-        <h1>Passkey created on your phone! 🎉</h1>
-        <p className="setup-sub">This display no longer holds an admin key — manage Kinwall from your phone's Settings.</p>
-        <StepNav onNext={onGoToCalendar} nextLabel="Continue to calendar" />
-      </div>
-    )
-  }
-
-  if (!fallback) {
-    const qrValue = reg ? new URL(`#/admin-setup?token=${reg.token}`, document.baseURI).href : ''
-    return (
-      <div className="setup-step">
-        <h1>Finish on your phone</h1>
-        <p className="setup-sub">Scan this with your phone to create your admin passkey (Face ID / Touch ID).</p>
-        <div className="setup-key-row">
-          {reg ? <QrCode value={qrValue} size={168} /> : <p className="setup-sub">Preparing…</p>}
-        </div>
-        {error && <p className="setup-error" role="alert">{error}</p>}
-        <p className="settings-row-sub">Waiting for the passkey to be created…</p>
-        <button className="link-btn" onClick={() => setFallback(true)}>Show admin key instead</button>
-      </div>
-    )
-  }
-
-  return (
-    <div className="setup-step">
-      <h1>All set! 🎉</h1>
-      {adminKey ? (
-        <>
-          <div className="setup-admin-reveal">
-            <p className="setup-warning">Save this admin key now — it won't be shown again. You'll need it to manage Kinwall and add wall screens or kids' devices.</p>
-            <div className="setup-key-row">
-              <QrCode value={adminKey} size={140} />
-              <div className="setup-key-value">{adminKey}</div>
-            </div>
-            <button className="btn btn-secondary setup-btn" onClick={copy}>{copied ? 'Copied ✓' : 'Copy key'}</button>
-          </div>
-        </>
-      ) : <p className="setup-sub">Your admin key was shown earlier in this session — if you missed it, create a new admin key from Settings → Access → API Keys once you're in.</p>}
-      <StepNav onNext={onGoToCalendar} nextLabel="Continue to calendar" />
-    </div>
-  )
-}
-
-function DoneStep({ deviceRole, adminKey, adminKeyId, onGoToCalendar }: { deviceRole: DeviceRole; adminKey: string | null; adminKeyId: string | null; onGoToCalendar: () => void }) {
-  if (deviceRole === 'display') {
-    return <DisplayDoneStep adminKey={adminKey} adminKeyId={adminKeyId} onGoToCalendar={onGoToCalendar} />
-  }
-
+function DoneStep({ onGoToCalendar }: { onGoToCalendar: () => void }) {
   return (
     <div className="setup-step">
       <h1>All set! 🎉</h1>
@@ -856,10 +683,10 @@ function DoneStep({ deviceRole, adminKey, adminKeyId, onGoToCalendar }: { device
 export default function Setup({ oauth, setupCode, passkeyRequired, onDone }: { oauth: { google: boolean; microsoft: boolean }; setupCode?: string; passkeyRequired?: boolean; onDone: () => void }) {
   const resume = useMemo(readSetupResume, [])
   const [step, setStep] = useState<Step>(resume?.step ?? (setupCode ? 'role' : 'welcome'))
-  const [deviceRole, setDeviceRole] = useState<DeviceRole | null>(resume?.deviceRole ?? null)
-  const [adminKey, setAdminKeyMem] = useState<string | null>(() => (resume ? getAdminKey() : null))
+  const [claimed, setClaimed] = useState(!!resume)
   const [adminKeyId, setAdminKeyId] = useState<string | null>(null)
-  const [displayKeyId, setDisplayKeyId] = useState<string | undefined>(resume?.displayKeyId)
+  // No passkey on this device (none possible, or the browser couldn't make one): recovery codes required.
+  const [noPasskey, setNoPasskey] = useState(false)
   const [members, setMembers] = useState<Member[]>([])
   const [code, setCode] = useState(setupCode ?? '')
   const [claimBusy, setClaimBusy] = useState(false)
@@ -869,34 +696,23 @@ export default function Setup({ oauth, setupCode, passkeyRequired, onDone }: { o
   // so the rest of the wizard - and the app it hands off to - looks consistent from the start.
   const [themeSettings, setThemeSettings] = useState<Settings | null>(null)
   useTheme(themeSettings)
-  useEffect(() => { if (deviceRole) api.getSettings().then(setThemeSettings).catch(() => {}) }, [deviceRole, step])
+  useEffect(() => { if (claimed) api.getSettings().then(setThemeSettings).catch(() => {}) }, [claimed, step])
 
-  useEffect(() => { saveResume(resumeFor(step, deviceRole, displayKeyId)) }, [step, deviceRole, displayKeyId])
-  // A wall display works with its in-memory claim key, whose 5-minute stored copy is renewed at each step.
-  useEffect(() => { if (deviceRole === 'display' && adminKey) setAdminKey(adminKey) }, [step, deviceRole, adminKey])
+  useEffect(() => { saveResume(resumeFor(step, claimed ? 'admin' : null)) }, [step, claimed])
 
   // Resuming after an OAuth round trip: members created earlier this session are gone from local
   // state (page reloaded), so re-fetch them for the calendars/chores steps' member pickers.
   useEffect(() => { if (resume) api.getMembers().then(setMembers).catch(() => {}) }, [resume])
 
-  const claim = async (role: DeviceRole) => {
+  const claim = async () => {
     setClaimBusy(true); setClaimError('')
     try {
-      const deviceName = role === 'display' ? 'Wall display' : 'My device'
-      const res = await api.claimSetup(code, role, deviceName)
-      setDeviceRole(role)
+      const res = await api.claimSetup(code, 'admin', 'My device')
+      setClaimed(true)
       setAdminKeyId(res.adminKeyId)
-      if (role === 'display') {
-        setKey(res.displayKey!)
-        setDisplayKeyId(res.displayKeyId)
-        setAdminKey(res.adminKey)
-        setAdminKeyMem(res.adminKey)
-        setStep('household')
-      } else {
-        setKey(res.adminKey)
-        setAdminKeyMem(res.adminKey)
-        setStep(passkeysSupported() ? 'passkey' : 'household')
-      }
+      setKey(res.adminKey)
+      if (passkeysSupported()) setStep('passkey')
+      else { setNoPasskey(true); setStep('recovery') }
     } catch (e) {
       // A wrong code goes back to the code; anything else stays here with friendly words.
       if (e instanceof ApiError && e.status === 401) { setClaimError("That code didn't work. Check it and try again."); setStep('welcome') }
@@ -915,7 +731,7 @@ export default function Setup({ oauth, setupCode, passkeyRequired, onDone }: { o
   }, [step])
 
   const startOAuth = (kind: 'google' | 'microsoft') => {
-    saveResume({ step: 'calendars', deviceRole: deviceRole ?? 'admin', displayKeyId })
+    saveResume({ step: 'calendars', deviceRole: 'admin' })
     location.href = api.oauthStartUrl(kind)
   }
 
@@ -925,22 +741,19 @@ export default function Setup({ oauth, setupCode, passkeyRequired, onDone }: { o
         <HelpButton className="help-float" />
         <Progress step={step} />
         {step === 'welcome' && <WelcomeStep code={code} setCode={v => { setCode(v); setClaimError('') }} error={claimError} onNext={() => { setClaimError(''); setStep('role') }} />}
-        {step === 'role' && <RoleStep code={code} busy={claimBusy} error={claimError} onChoose={claim} />}
-        {step === 'passkey' && <PasskeyStep adminKeyId={adminKeyId} onDone={() => setStep('recovery')} onSkip={passkeyRequired ? undefined : () => setStep('household')} />}
-        {step === 'recovery' && <RecoveryStep onNext={() => setStep('household')} />}
-        {step === 'household' && <HouseholdStep useAdmin={deviceRole === 'display'} onNext={() => setStep('members')} />}
+        {step === 'role' && <RoleStep code={code} busy={claimBusy} error={claimError} onClaim={claim} />}
+        {step === 'passkey' && <PasskeyStep adminKeyId={adminKeyId} onDone={() => setStep('recovery')} onNoPasskey={passkeyRequired ? undefined : () => { setNoPasskey(true); setStep('recovery') }} />}
+        {step === 'recovery' && <RecoveryStep required={noPasskey} onNext={() => setStep('household')} />}
+        {step === 'household' && <HouseholdStep onNext={() => setStep('members')} />}
         {step === 'members' && (
-          <MembersStep useAdmin={deviceRole === 'display'} onBack={() => setStep('household')} onNext={async () => { setMembers(await api.getMembers().catch(() => members)); setStep(deviceRole === 'display' ? 'calendars' : 'owner') }} />
+          <MembersStep onBack={() => setStep('household')} onNext={async () => { setMembers(await api.getMembers().catch(() => members)); setStep('owner') }} />
         )}
         {step === 'owner' && <OwnerStep members={members} onBack={() => setStep('members')} onNext={async () => { setMembers(await api.getMembers().catch(() => members)); setStep('calendars') }} />}
         {step === 'calendars' && (
-          <CalendarsStep members={members} oauth={oauth} deviceRole={deviceRole ?? 'admin'}
-            onBack={() => setStep(deviceRole === 'display' ? 'members' : 'owner')} onNext={() => setStep('chores')}
-            onOAuthStart={startOAuth} />
+          <CalendarsStep members={members} oauth={oauth} onBack={() => setStep('owner')} onNext={() => setStep('chores')} onOAuthStart={startOAuth} />
         )}
-        {step === 'chores' && <ChoresStep members={members} adminKey={deviceRole === 'display' ? adminKey : null} onBack={() => setStep('calendars')} onNext={() => setStep(deviceRole === 'display' ? 'displayKind' : 'done')} />}
-        {step === 'displayKind' && <DisplayKindStep members={members} displayKeyId={displayKeyId} adminKey={adminKey} onBack={() => setStep('chores')} onNext={() => setStep('done')} />}
-        {step === 'done' && <DoneStep deviceRole={deviceRole ?? 'admin'} adminKey={adminKey} adminKeyId={adminKeyId} onGoToCalendar={() => { saveResume(null); onDone() }} />}
+        {step === 'chores' && <ChoresStep members={members} onBack={() => setStep('calendars')} onNext={() => setStep('done')} />}
+        {step === 'done' && <DoneStep onGoToCalendar={() => { saveResume(null); onDone() }} />}
       </div>
     </main>
   )

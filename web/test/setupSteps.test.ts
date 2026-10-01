@@ -1,7 +1,7 @@
 // node --test test/ (npm test). The setup wizard's choices, resume and error copy.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { defaultGrownUp, freshHandoff, HANDOFF_MS, kidChoices, ownerChoices, resumeFor, setupErrorText } from '../src/setupSteps.ts'
+import { defaultGrownUp, freshHandoff, HANDOFF_MS, ownerChoices, resumeFor, setupErrorText } from '../src/setupSteps.ts'
 import type { Member } from '../src/types.ts'
 
 const m = (name: string, grownUp: boolean) => ({ id: name, name, grownUp }) as Member
@@ -18,15 +18,11 @@ test('ownerChoices: only grown-ups can own a parent device', () => {
   assert.deepEqual(ownerChoices([m('Maya', false)]), [])
 })
 
-test("kidChoices: a kid's device lists only kids", () => {
-  assert.deepEqual(kidChoices(family).map(x => x.name), ['Maya', 'Leo'])
-})
-
 test('resumeFor: a claimed device always resumes setup, never lands in an empty app', () => {
   assert.equal(resumeFor('welcome', null), null)
   assert.equal(resumeFor('role', null), null) // not claimed yet: the wizard opens fresh anyway
-  assert.deepEqual(resumeFor('role', 'admin'), { step: 'household', deviceRole: 'admin', displayKeyId: undefined })
-  assert.deepEqual(resumeFor('members', 'display', 'k1'), { step: 'members', deviceRole: 'display', displayKeyId: 'k1' })
+  assert.deepEqual(resumeFor('role', 'admin'), { step: 'household', deviceRole: 'admin' })
+  assert.deepEqual(resumeFor('members', 'admin'), { step: 'members', deviceRole: 'admin' })
   assert.equal(resumeFor('done', 'admin'), null)
 })
 
