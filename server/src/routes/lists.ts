@@ -810,6 +810,9 @@ listsRoutes.openapi(
     }
     const adding = fresh.filter((i) => !matched.has(i));
     const reopened = [...matched.values()].filter((m) => m.done).map((m) => m.id);
+    // Reopening is a change: a kid's device only to items it may change (like unticking one).
+    const blocked = reopened.length ? await itemOwnerBlock(c, id, JSON.stringify(reopened)) : null;
+    if (blocked) return c.json({ error: blocked }, 403);
 
     const maxSort = await c.env.DB.prepare('SELECT COALESCE(MAX(sort), -1) AS m FROM list_items WHERE list_id = ?').bind(id).first<{ m: number }>();
     let nextSort = (maxSort?.m ?? -1) + 1;

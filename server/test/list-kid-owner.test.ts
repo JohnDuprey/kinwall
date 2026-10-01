@@ -105,6 +105,18 @@ test('kid device: no editing, deleting, moving or step ticks on someone else\'s 
   assert.equal(added.status, 201, 'adding, even for someone else, stays open');
 });
 
+test('kid device: a skipExisting add can\'t reopen someone else\'s ticked item', async () => {
+  const { raw, send, family, mine, hers, leoKey } = await setup();
+  for (const i of [mine.id, hers.id]) await send('PATCH', `/api/lists/${family.id}/items/${i}`, { done: true });
+  const res = await raw('POST', `/api/lists/${family.id}/items?skipExisting=1`, [{ title: 'practice piano' }], leoKey);
+  assert.equal(res.status, 403);
+  assert.deepEqual(await res.json(), NOT_YOURS);
+  const own = await raw('POST', `/api/lists/${family.id}/items?skipExisting=1`, [{ title: 'feed the cat' }], leoKey);
+  assert.equal(((await own.json()) as any)[0].existing, 'reopened', 'their own reopens as usual');
+  const items = (await send('GET', `/api/lists/${family.id}`)).items;
+  assert.equal(items.find((i: any) => i.id === hers.id).done, true);
+});
+
 test('kid device: Reset and Checkout sweep only what they may touch; picked items must all be theirs', async () => {
   const { raw, send, family, leos, mine, anyone, hers, hersOnLeos, leoKey } = await setup();
   for (const [l, i] of [[family.id, mine.id], [family.id, anyone.id], [family.id, hers.id], [leos.id, hersOnLeos.id]]) await send('PATCH', `/api/lists/${l}/items/${i}`, { done: true });
