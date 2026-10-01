@@ -8,7 +8,7 @@ Kinwall is configured with environment variables. On Docker and Node they're pro
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `PUBLIC_URL` | — | The base URL, e.g. `https://cal.home.example`. Used for OAuth redirect URIs and as the passkey domain. It can also be set in **Settings → Calendars → Calendar providers**; the variable always wins. |
+| `PUBLIC_URL` | — | The base URL, e.g. `https://cal.home.example`. Used for OAuth redirect URIs and as the passkey domain (without it, passkeys use the address the request came in on; in the Home Assistant app, the Home Assistant address the browser is on). It can also be set in **Settings → Calendars → Calendar providers**; the variable always wins. |
 | `WEBAUTHN_RP_ID` | host of `PUBLIC_URL` | Passkey rpID override, for multi-tenant hosts that serve families on subdomains (e.g. `example.com` for `smiths.example.com`). The instance's origin must be that host or one of its subdomains. |
 | `ADMIN_API_KEY` | — | A permanent admin key that also works as the first-run setup code. Without it, the setup code is printed to the log. |
 | `ENCRYPTION_KEY` | generated into `DATA_DIR/encryption.key` (Docker) | 32 random bytes, base64 (`openssl rand -base64 32`). Encrypts credentials, secrets and [health entries](../your-data/privacy.md#health-entries). **Required on Workers**: without it, saving a health entry fails instead of storing it unencrypted. Keep it with your backups: a lost key can't be recovered, and changing it isn't supported yet. |

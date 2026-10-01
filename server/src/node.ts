@@ -14,6 +14,7 @@ import { isClaimed, regenerateSetupCode } from './routes/setup.ts';
 import { syncDue } from './sync.ts';
 import { runNotifications } from './notify.ts';
 import { http2Send } from './apns-node.ts';
+import { isSupervisorPeer } from './webauthn.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -105,6 +106,10 @@ if (haTimezone) {
   }
 }
 
+// Requests Home Assistant's Supervisor proxied through ingress, told apart by the connecting
+// address (never a header, which anyone on the add-on's own port could send).
+const viaIngress = new WeakSet<Request>();
+
 const env: Env = {
   DB: db,
   PUBLIC_URL: process.env.PUBLIC_URL,
@@ -127,6 +132,7 @@ const env: Env = {
   ALLOW_PRIVATE_FEED_URLS: process.env.ALLOW_PRIVATE_FEED_URLS,
   ALLOW_PRIVATE_WEBHOOK_URLS: process.env.ALLOW_PRIVATE_WEBHOOK_URLS,
   WEBAUTHN_RP_ID: process.env.WEBAUTHN_RP_ID,
+  HA_INGRESS: haOptions ? (req) => viaIngress.has(req) : undefined,
   HOST_PORTAL_URL: process.env.HOST_PORTAL_URL,
   REQUIRE_PASSKEY_SETUP: process.env.REQUIRE_PASSKEY_SETUP,
   PLUGIN_CATALOG_URL: process.env.PLUGIN_CATALOG_URL,
@@ -166,7 +172,13 @@ app.get('*', (c) => {
   return c.html(readFileSync(indexPath, 'utf8'));
 });
 
-serve({ fetch: (req) => kinwall.fetch(req), port: PORT }, (info) => {
+serve({
+  fetch: (req, { incoming }) => {
+    if (haOptions && isSupervisorPeer(incoming.socket.remoteAddress)) viaIngress.add(req);
+    return kinwall.fetch(req);
+  },
+  port: PORT,
+}, (info) => {
   console.log(`Kinwall server listening on http://localhost:${info.port}`);
 });
 

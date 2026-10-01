@@ -19,7 +19,11 @@ What this repository does for the add-on:
 | `vapid_subject` | `VAPID_SUBJECT` |
 | `timezone` | Seeds the household timezone the first time. |
 
-* **Passkeys** work through ingress over https, including when Home Assistant serves https itself (for example on port 8443): Kinwall accepts the https address of the host the request came in on. Opening Home Assistant by more than one address? Set `public_url` to the one you add passkeys from.
+* **Passkeys** work through ingress with no `public_url`: Kinwall uses the Home Assistant address your browser is on (your local https name, your own domain, or Home Assistant Cloud's remote address), even when a proxy in front of Home Assistant rewrites the `Host` header. It trusts the browser's address only on requests from the Supervisor's ingress proxy (172.30.32.2), never on the app's own port. Some limits:
+  * Home Assistant has to be on https (or `localhost`) and opened by name: at `http://homeassistant.local:8123` or an IP address, browsers offer no passkeys.
+  * A passkey belongs to the address it was made on. Use Home Assistant at home and remotely at different addresses? Add a passkey from each, or set `public_url` and use only that address.
+  * The optional direct port (8080) is plain http, so it has no passkeys unless you put an https proxy in front of it. If that proxy changes the `Host` header, set `public_url` to its address.
+  * The Home Assistant phone app's built-in browser may not offer passkeys; open Home Assistant in Safari or Chrome to add one.
 * **Data** lives in the add-on's `/data`. It contains the SQLite database and `encryption.key`, so include it in your Home Assistant backups.
 * **Setup code**: find it under **Settings → Apps → Kinwall → Log** (**Settings → Add-ons** in older Home Assistant versions).
 

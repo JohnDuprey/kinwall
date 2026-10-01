@@ -2480,7 +2480,7 @@ function PasskeysSection({ me, toast, onChanged }: { me: Me; toast: (m: string, 
   if (!passkeysSupported()) {
     return (
       <Section id="passkeys" title="Passkeys" icon={<KeyIcon width={16} height={16} />}>
-        <p className="settings-row-sub">Passkeys need HTTPS — using an admin key instead.</p>
+        <p className="settings-row-sub">Passkeys need https or localhost — using an admin key instead. To add one, open Kinwall at an https address (in Home Assistant, open Home Assistant over https).</p>
       </Section>
     )
   }

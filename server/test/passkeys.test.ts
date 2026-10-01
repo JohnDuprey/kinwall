@@ -6,7 +6,7 @@ import { createApp } from '../src/app.ts';
 import { openDb, applyMigrations } from '../src/d1-sqlite.ts';
 import type { Env } from '../src/env.ts';
 import { createApiKey } from '../src/auth.ts';
-import { __resetVerifiers, __setVerifiers, resolveRpId } from '../src/webauthn.ts';
+import { __resetVerifiers, __setVerifiers, isSupervisorPeer, resolveRpId } from '../src/webauthn.ts';
 import { finishPasskeyLogin } from '../src/entry.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -184,15 +184,78 @@ test('REQUIRE_PASSKEY_SETUP=1 -> /api/setup reports passkeyRequired', async () =
 
 test('behind a TLS-terminating proxy (no PUBLIC_URL, http request) the https origin of the same host is accepted', async () => {
   const env = makeEnv('');
-  assert.deepEqual((await resolveRpId(env, 'http://ha.example.com:8443/api/passkeys/register')).expectedOrigins,
+  assert.deepEqual((await resolveRpId(env, new Request('http://ha.example.com:8443/api/passkeys/register'))).expectedOrigins,
     ['http://ha.example.com:8443', 'https://ha.example.com:8443']);
-  assert.deepEqual((await resolveRpId(makeEnv('http://kinwall.example.com'), 'http://x.test/')).expectedOrigins,
+  assert.deepEqual((await resolveRpId(makeEnv('http://kinwall.example.com'), new Request('http://x.test/'))).expectedOrigins,
     ['http://kinwall.example.com'], 'an explicit PUBLIC_URL is taken as is');
+});
+
+// What reaches the app through Home Assistant ingress: HA core and the Supervisor pass the
+// browser's headers on (Host included) and add X-Ingress-Path, X-Hass-Source and X-Forwarded-*
+// (home-assistant/core hassio/ingress.py, supervisor api/ingress.py). Here a proxy in front of
+// Home Assistant has swapped Host for its upstream name, as nginx does by default ($proxy_host).
+const ingressHeaders = (origin: string) => ({
+  Origin: origin,
+  'X-Ingress-Path': '/api/hassio_ingress/abc123',
+  'X-Hass-Source': 'core.ingress',
+  'X-Forwarded-Host': 'homeassistant:8123',
+  'X-Forwarded-Proto': 'http',
+  'X-Forwarded-For': '203.0.113.9, 172.30.32.1',
+});
+
+test('Home Assistant ingress: passkeys follow the page the browser is on, whatever Host says', async () => {
+  const env: Env = { ...makeEnv(''), HA_INGRESS: () => true };
+  const app = createApp();
+  const call = (path: string, origin: string, body: unknown = {}) =>
+    app.request(`http://homeassistant:8123${path}`, { method: 'POST', body: JSON.stringify(body), headers: { ...ingressHeaders(origin), Authorization: `Bearer ${ADMIN_KEY}`, 'Content-Type': 'application/json' } }, env);
+
+  const seen: any[] = [];
+  __setVerifiers({ registration: async (opts: any) => { seen.push(opts); return { verified: true, registrationInfo: { credential: { id: 'cred-ha', publicKey: new Uint8Array([1]), counter: 0, transports: [] } } } as any; } });
+  try {
+    const options = await (await call('/api/passkeys/register/options', 'https://ha.example.com')).json() as any;
+    assert.equal(options.rp.id, 'ha.example.com');
+    const verify = await call('/api/passkeys/register/verify', 'https://ha.example.com', { name: 'Phone', response: fakeAttestationResponse(options.challenge, 'https://ha.example.com', 'cred-ha') });
+    assert.equal(verify.status, 200);
+    assert.deepEqual(seen[0].expectedOrigin, ['https://ha.example.com']);
+    assert.equal(seen[0].expectedRPID, 'ha.example.com');
+  } finally {
+    __resetVerifiers();
+  }
+
+  // Remote access through Home Assistant's external address (Home Assistant Cloud here) gets its own rpID.
+  const remote = await (await call('/api/passkeys/login/options', 'https://abcd.ui.nabu.casa')).json() as any;
+  assert.equal(remote.rpId, 'abcd.ui.nabu.casa');
+
+  // Home Assistant opened by IP can't hold a passkey; say what to do instead.
+  const byIp = await call('/api/passkeys/login/options', 'https://192.168.1.5:8123');
+  assert.equal(byIp.status, 400);
+  assert.match(((await byIp.json()) as any).error, /IP address.*PUBLIC_URL/);
+});
+
+test('the browser Origin only picks the rpID for requests the Supervisor proxied', async () => {
+  const app = createApp();
+  const login = (env: Env) => app.request('http://homeassistant:8123/api/passkeys/login/options', { method: 'POST', headers: ingressHeaders('https://evil.example') }, env);
+
+  // Docker / any other deployment (no HA_INGRESS), and the add-on's own port (not from the Supervisor).
+  for (const env of [makeEnv(''), { ...makeEnv(''), HA_INGRESS: () => false }]) {
+    const res = await login(env);
+    assert.equal(res.status, 400);
+    assert.match(((await res.json()) as any).error, /open at https:\/\/evil\.example.*http:\/\/homeassistant:8123.*PUBLIC_URL/);
+  }
+
+  // PUBLIC_URL still wins over the ingress page.
+  const pinned = await login({ ...makeEnv('https://kinwall.example.com'), HA_INGRESS: () => true });
+  assert.equal(pinned.status, 400);
+  assert.match(((await pinned.json()) as any).error, /set up for https:\/\/kinwall\.example\.com/);
+
+  assert.equal(isSupervisorPeer('172.30.32.2'), true);
+  assert.equal(isSupervisorPeer('::ffff:172.30.32.2'), true);
+  for (const peer of ['172.30.32.1', '192.168.1.5', '::1', undefined]) assert.equal(isSupervisorPeer(peer), false);
 });
 
 test('WEBAUTHN_RP_ID: shared rpID for a subdomain origin, refused for an unrelated host', async () => {
   const env = { ...makeEnv('https://smiths.example.com'), WEBAUTHN_RP_ID: 'example.com' };
-  assert.deepEqual(await resolveRpId(env, 'https://ignored.test/'), { rpID: 'example.com', origin: 'https://smiths.example.com', expectedOrigins: ['https://smiths.example.com'] });
+  assert.deepEqual(await resolveRpId(env, new Request('https://ignored.test/')), { rpID: 'example.com', origin: 'https://smiths.example.com', expectedOrigins: ['https://smiths.example.com'] });
 
   const options = await (await makeApp(env)('/api/passkeys/register/options', { method: 'POST', body: '{}' })).json() as any;
   assert.equal(options.rp.id, 'example.com');
@@ -204,7 +267,7 @@ test('WEBAUTHN_RP_ID: shared rpID for a subdomain origin, refused for an unrelat
   assert.equal(res.status, 400);
   assert.match(((await res.json()) as any).error, /not example.com or a subdomain/);
   // Suffix match must be on a label boundary.
-  await assert.rejects(resolveRpId({ ...makeEnv('https://notexample.com'), WEBAUTHN_RP_ID: 'example.com' }, 'https://x/'));
+  await assert.rejects(resolveRpId({ ...makeEnv('https://notexample.com'), WEBAUTHN_RP_ID: 'example.com' }, new Request('https://x/')));
 });
 
 test('finishPasskeyLogin: passes the caller challenge/origin/rpID through and mints a working admin session', async () => {

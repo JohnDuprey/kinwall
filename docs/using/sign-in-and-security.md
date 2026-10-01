@@ -37,7 +37,9 @@ Passkey sign-in attempts are rate-limited to 20 per 10 minutes per address.
 * **Sign out** ends this device's passkey session.
 * A passkey can belong to a grown-up: set it from a device signed in with it (**Settings → Access → This device**). Every later sign-in with it then opens that person's [private journal](journal.md#private-journals).
 
-Passkeys are bound to your domain (the *rpID*). By default that's the host of `PUBLIC_URL`. Multi-family hosts can share one rpID across subdomains with `WEBAUTHN_RP_ID`. See [Configuration](../self-hosting/configuration.md).
+Passkeys are bound to your domain (the *rpID*). That's the host of `PUBLIC_URL` when it's set, otherwise the address you opened Kinwall at. Multi-family hosts can share one rpID across subdomains with `WEBAUTHN_RP_ID`. See [Configuration](../self-hosting/configuration.md).
+
+Passkeys need https (or `localhost`) and a name rather than an IP address: on `http://192.168.1.20:8080` the browser offers none, so sign in with a recovery code or an admin key there. A passkey made at one address doesn't work at another, so if you open Kinwall at more than one (say, at home and through a remote address), add a passkey from each, or set `PUBLIC_URL` and always use that one. When the address doesn't match, Kinwall says which one passkeys are set up for. In the [Home Assistant app](../getting-started/home-assistant-add-on.md), passkeys follow the Home Assistant address you're on.
 
 ## Recovery codes
 
