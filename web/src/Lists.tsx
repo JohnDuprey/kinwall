@@ -803,11 +803,11 @@ function ShopRow({ item, meta, onToggle, from, readOnly }: { item: ListItem; met
  * the pointer and a line marks where it will land; dropping reports the new order of these ids.
  * Holding it near the top or bottom edge scrolls. Keyboard: focus the grip, Alt+Up/Down moves the
  * item one place (announced). */
-function DragList<T extends { id: string; title: string }>({ items, renderRow, onReorder, locked }: {
+function DragList<T extends { id: string; title: string }>({ items, renderRow, onReorder, fixed }: {
   items: T[]
   renderRow: (item: T, handle: React.ReactNode) => React.ReactNode
   onReorder: (ids: string[]) => void
-  locked?: () => void // set when the order isn't hand-set: the grip only explains why it won't drag
+  fixed?: boolean // the order isn't hand-set (a sort other than Manual): no grip, nothing to drag
 }) {
   const rowsRef = useRef<HTMLDivElement>(null)
   const [drag, setDrag] = useState<{ id: string; startY: number; scroll0: number; dy: number; mids: number[]; from: number; to: number } | null>(null)
@@ -888,13 +888,7 @@ function DragList<T extends { id: string; title: string }>({ items, renderRow, o
     <div ref={rowsRef}>
       {items.map((item, i) => {
         const dragging = drag?.id === item.id
-        const handle = locked ? (
-          <button className="list-item-grip locked" aria-disabled="true" aria-label={`Reorder ${item.title}: switch to Manual to drag`} title="Switch to Manual to drag" onClick={locked}>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-              {[3, 8, 13].flatMap(y => [5, 11].map(x => <circle key={`${x}-${y}`} cx={x} cy={y} r="1.5" />))}
-            </svg>
-          </button>
-        ) : (
+        const handle = fixed ? null : (
           <button className="list-item-grip" data-grip={item.id} aria-label={`Reorder ${item.title}: drag, or Alt+Up and Alt+Down arrow`}
             aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown" onKeyDown={e => moveByKey(e, item)}
             onPointerDown={e => start(e, item.id)} onPointerMove={move} onPointerUp={end} onPointerCancel={end}>
@@ -1648,7 +1642,6 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   const groupNamesForOrder = groups.filter(g => g.kind === groupKind).sort((a, b) => a.sort - b.sort).map(g => g.name)
   const groupedOpen = groupItems(openItems, list.groupBy, groupNamesForOrder, list.sortBy, cmp, aisleOrder)
   const manual = list.sortBy === 'manual'
-  const locked = manual ? undefined : () => toast('Switch to Manual to drag')
   const reorderable = list.groupBy === 'store' || list.groupBy === 'category'
   const reorderableNames = reorderable ? [...new Set(items.map(i => (list.groupBy === 'store' ? i.store : i.category)).filter((v): v is string => !!v))] : []
   const checkoutLabel = CHECKOUT_LABEL[list.kind]
@@ -1860,7 +1853,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
           openItems.length === 0 ? (
             <div className="empty-card"><span className="emoji">✨</span>All done!</div>
           ) : (
-            <DragList items={openItems.slice().sort(cmp)} onReorder={reorderWithin} locked={locked}
+            <DragList items={openItems.slice().sort(cmp)} onReorder={reorderWithin} fixed={!manual}
               renderRow={(item, handle) => <ItemRow item={item} kind={list.kind} groupBy={list.groupBy} members={members} event={item.eventId ? byId.get(item.eventId) : undefined} onToggle={() => toggle(item)} onOpen={() => openItem(item)} handle={handle} readOnly={!mine(item)} onDelete={delFor(item)} />} />
           )
         ) : groupedOpen.length === 0 ? (
@@ -1869,7 +1862,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
           groupedOpen.map(g => (
             <div key={g.name} className="list-group">
               <h3 className="list-group-title" style={{ margin: 0 }}>{g.name}</h3>
-              <DragList items={g.items} onReorder={reorderWithin} locked={locked}
+              <DragList items={g.items} onReorder={reorderWithin} fixed={!manual}
                 renderRow={(item, handle) => <ItemRow item={item} kind={list.kind} groupBy={list.groupBy} members={members} event={item.eventId ? byId.get(item.eventId) : undefined} onToggle={() => toggle(item)} onOpen={() => openItem(item)} handle={handle} readOnly={!mine(item)} onDelete={delFor(item)} />} />
             </div>
           ))

@@ -248,7 +248,7 @@ When anything differs from a new list of that kind (grouped by aisle and sorted 
 | **A–Z** | Alphabetical, ignoring capital letters. |
 | **Aisle** (shopping lists; the default for new ones) | By store, then aisle in the store's walking order (natural order, "Aisle 2" before "Aisle 10", if you haven't set one), items with no aisle last, then A–Z. |
 
-Groups (store, category or aisle) still come first; the sort applies inside each group. With **Keep checked items in place** on, ticking an item never moves it. Dragging only works in **Manual**. In the other sorts, the grip is dimmed and tapping it says "Switch to Manual to drag".
+Groups (store, category or aisle) still come first; the sort applies inside each group. With **Keep checked items in place** on, ticking an item never moves it. Dragging only works in **Manual**, so only **Manual** shows the grip on each item; the other sorts leave it off and give the row the room.
 
 The server sorts the same way, so `GET /api/lists/{id}` and MCP's `get_list` return items in the list's order.
 

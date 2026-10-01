@@ -1686,7 +1686,6 @@ button {
 .key-item .inline-form { margin-top: 0; }
 .list-item-grip { flex-shrink: 0; width: 44px; height: 44px; margin-right: -4px; /* the row's 4px padding; more pokes into .list-items and lets it pan sideways */ display: flex; align-items: center; justify-content: center; border: none; background: none; color: var(--text-dim); cursor: grab; touch-action: none; }
 .list-item-grip:active { cursor: grabbing; }
-.list-item-grip.locked { opacity: 0.35; cursor: not-allowed; }
 .drag-row { position: relative; }
 .drag-row.dragging { z-index: 5; background: var(--card); box-shadow: var(--shadow-lg); border-radius: var(--radius-sm); opacity: 0.95; pointer-events: none; }
 .drag-row.dragging .list-item-grip { pointer-events: auto; }
