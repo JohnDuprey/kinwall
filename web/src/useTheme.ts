@@ -208,7 +208,7 @@ function applyAppearance(household: Appearance, device: DeviceAppearance) {
     const metas = [...document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')]
     if (!metas.length) { const m = document.createElement('meta'); m.name = 'theme-color'; document.head.appendChild(m); metas.push(m) }
     const bg = getComputedStyle(root).getPropertyValue('--bg').trim() || (dark ? '#1C1712' : '#FFFBF5')
-    for (const m of metas) m.content = bg
+    for (const m of metas) { m.dataset.day = bg; if (!document.documentElement.dataset.night) m.content = bg } // native.ts tellAppNight
     tellAppAppearance({ mode: a.themeMode, dark, colors: surfaces(skin, custom) })
   }
 

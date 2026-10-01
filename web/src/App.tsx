@@ -29,7 +29,7 @@ import { announce } from './a11y.tsx'
 import { DialogProvider } from './dialog.tsx'
 import NotificationBell from './Notifications.tsx'
 import { InstallNudge } from './Install.tsx'
-import { inNativeApp, tellAppLeaveDemo } from './native.ts'
+import { inNativeApp, tellAppLeaveDemo, tellAppNight } from './native.ts'
 import { HelpButton } from './Help.tsx'
 import Slideshow, { SAVER_PREVIEW_EVENT, SAVER_START_EVENT } from './Screensaver.tsx'
 import { TimerButton, TimerHost } from './Timers.tsx'
@@ -245,6 +245,7 @@ function QuietOverlay({ settings, wall, remote }: { settings: Settings; wall: bo
   const wake = useCallback(() => { lastActive.current = Date.now(); setNow(new Date()); setKeypad(false) }, [])
   const hideKeypad = useCallback(() => setKeypad(false), [])
   const asleep = !!manual || due
+  useEffect(() => { tellAppNight(asleep); return () => tellAppNight(false) }, [asleep])
   const overlay = useRef<HTMLDivElement>(null)
   useEffect(() => { showing.current = asleep; if (asleep) overlay.current?.focus({ preventScroll: true }) }, [asleep])
   const activate = () => { setManual(''); if (pinLocked.current) setKeypad(true); else wake() }

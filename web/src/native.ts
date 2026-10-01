@@ -57,10 +57,34 @@ export function surfaces(skin: Skin, custom: CustomColors): { light: Surface; da
 }
 
 let lastAppearance = ''
+let realLook: Parameters<typeof tellAppAppearance>[0] | null = null
+let nightOn = false
+const NIGHT_BG = '#050403' // .quiet-overlay's background
 /** The look in effect, so the app paints its frame (and the next launch) in the page's colors
  * instead of flashing its own. Both variants go, so in 'auto' the app can follow the system on
  * its own. Sent only when something changed. No-op in a browser. */
 export function tellAppAppearance(a: { mode: ThemeMode; dark: boolean; colors: { light: Surface; dark: Surface } }) {
+  realLook = a
+  if (!nightOn) postAppearance(a)
+}
+
+/** The Night screen covers the page, not the app's frame (the status bar strip): paint the frame
+ * the Night screen's black while it shows, and the page's look again after. In a browser, the
+ * theme-color does the same for the PWA's and Safari's bars. */
+export function tellAppNight(on: boolean) {
+  if (on === nightOn) return
+  nightOn = on
+  if (on) document.documentElement.dataset.night = '1'; else delete document.documentElement.dataset.night
+  const metas = [...document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')]
+  for (const m of metas) {
+    if (on) { m.dataset.day = m.content; m.content = NIGHT_BG } else if (m.dataset.day) m.content = m.dataset.day
+  }
+  const night = { bg: NIGHT_BG, card: NIGHT_BG }
+  if (on) postAppearance({ mode: 'dark', dark: true, colors: { light: night, dark: night } })
+  else if (realLook) postAppearance(realLook)
+}
+
+function postAppearance(a: { mode: ThemeMode; dark: boolean; colors: { light: Surface; dark: Surface } }) {
   const json = JSON.stringify(a)
   if (json === lastAppearance) return
   const w = window as Window & { webkit?: { messageHandlers?: { kinwall?: { postMessage: (m: unknown) => void } } } }
