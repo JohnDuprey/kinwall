@@ -34,6 +34,8 @@ export type BusEventType =
   | 'reward.given'
   | 'photo.changed'
   | 'tracker.changed'
+  | 'newscast.posted'
+  | 'newscast.changed'
   | 'display.paired'
   | 'display.night_screen';
 
@@ -41,7 +43,7 @@ type WebhookRow = { id: string; url: string; events: string; secret: string };
 
 type RevArea = 'events' | 'lists' | 'chores';
 // Changes that can't touch events, calendars, members, lists or chores bump no area.
-const NO_AREA = new Set<BusEventType>(['contact.changed', 'contact.category.changed', 'recipe.changed', 'journal.changed', 'tracker.changed', 'photo.changed']);
+const NO_AREA = new Set<BusEventType>(['contact.changed', 'contact.category.changed', 'recipe.changed', 'journal.changed', 'tracker.changed', 'photo.changed', 'newscast.posted', 'newscast.changed']);
 
 /** Which per-area rev (GET /api/rev `revs`) a change bumps, so a sync client refetches only that
  * part. 'events' is everything else that isn't lists or chores (calendars, members, settings, meals). */

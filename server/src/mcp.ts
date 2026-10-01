@@ -19,6 +19,7 @@ import { effectivePublicUrl } from './providers/config.ts';
 import { BoardSchema, CalendarSchema, CategorySchema, ContactCategoryInputSchema, ContactCategorySchema, ContactInputSchema, ContactPatchSchema, ContactSchema, ChoreDaySchema, ChoreSchema, EventInstanceSchema, LeaderboardEntrySchema, ListDetailSchema, ListItemSchema, ListSchema, MemberSchema, NoteSchema, RememberedItemSchema, StoreAislesSchema, TrackerEntrySchema, TRACKER_KINDS, NotificationSchema, PointsSchema, SettingsSchema, SnapshotSchema, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, TransitionRemindersSchema, RewardSchema, RewardInputSchema, RedemptionSchema, RewardLimitSchema, MemberStatsSchema, StatsPeriodSchema } from './schemas.ts';
 import type { Env } from './env.ts';
 import { RecipeSchema, RecipeInputSchema, RecipeKindSchema, RecipeImportSchema, RecipeImportResultSchema, RecipePreviewResultSchema, RecipeUrlImportSchema, MealSchema, MealInputSchema, MealPatchSchema, ProjectionSchema, ProjectionApplySchema, ProjectionQuerySchema, MealRangeSchema } from './meal-schemas.ts';
+import { NewscastSchema } from './routes/newscast.ts';
 import { VERSION } from './version.ts';
 import { resolveKey } from './auth.ts';
 import { itemKey } from './item-memory.ts';
@@ -258,6 +259,7 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
   send_notification: { result: z.object({ ok: z.boolean(), sent: z.number() }) },
   set_night_screen: NightScreenSchema.shape,
   list_notifications: { notifications: z.array(NotificationSchema) },
+  list_newscast: NewscastSchema.shape,
   list_notes: { notes: z.array(NoteSchema) },
   add_note: { note: NoteSchema },
   update_note: { note: NoteSchema },
@@ -282,7 +284,7 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
 
 const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boolean; idempotentHint: boolean; openWorldHint: boolean }> = {
   list_recipes: READ, get_recipe: READ, create_recipe: WRITE, update_recipe: SET, rate_recipe: SET, import_recipe: SET, import_recipe_from_url: { ...SET, openWorldHint: true }, list_meals: READ, create_meal: WRITE, update_meal: SET, get_meal_projection: READ, apply_meal_projection: SET,
-  get_household: READ, list_events: READ, get_event: READ, list_chores: READ, get_leaderboard: READ, get_points: READ, get_member_profile: READ, list_lists: READ, get_list: READ, list_categories: READ, get_event_items: READ, list_notifications: READ, list_notes: READ, get_snapshot: READ, get_board: READ, list_tracker_entries: READ, add_tracker_entry: WRITE, update_tracker_entry: SET, list_color_schemes: READ, set_color_scheme: SET, save_color_scheme: WRITE,
+  get_household: READ, list_events: READ, get_event: READ, list_chores: READ, get_leaderboard: READ, get_points: READ, get_member_profile: READ, list_lists: READ, get_list: READ, list_categories: READ, get_event_items: READ, list_notifications: READ, list_newscast: READ, list_notes: READ, get_snapshot: READ, get_board: READ, list_tracker_entries: READ, add_tracker_entry: WRITE, update_tracker_entry: SET, list_color_schemes: READ, set_color_scheme: SET, save_color_scheme: WRITE,
   list_contacts: READ, get_contact: READ, list_contact_categories: READ, preview_contact_import: READ,
   delete_color_scheme: { ...WRITE, destructiveHint: true, idempotentHint: true },
   create_event: { ...WRITE, openWorldHint: true }, update_event: { ...SET, openWorldHint: true }, set_event_category: SET,
@@ -1373,6 +1375,26 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       const state = res.json as { displays: { id: string; name: string }[] };
       const names = ids ? state.displays.filter((d) => ids.includes(d.id)).map((d) => d.name).join(', ') : 'every wall screen';
       return okResult(`Night screen ${on ? 'on' : 'off'} for ${names}.`, state as unknown as Record<string, unknown>);
+    },
+  );
+
+  tool(
+    'list_newscast',
+    {
+      title: 'List Newscast',
+      description: "Newscast: what the family did and shared, newest first, grouped per person per day (chores finished, rewards given, new photos and drawings, books finished, memories, birthdays, announcements) with their reactions. Never health, journals, check-ins or points. Good for reading the week back.",
+      inputSchema: {
+        days: z.number().int().min(1).max(30).optional().describe('How many days (default 7, ending today, or the day before `before`).'),
+        before: z.string().optional().describe('YYYY-MM-DD: only days before this one (for earlier days, up to 30 back).'),
+      },
+    },
+    async ({ days, before }) => {
+      const qs = new URLSearchParams({ ...(days ? { days: String(days) } : {}), ...(before ? { before } : {}) });
+      const res = await call(app, env, auth, 'GET', `/api/newscast?${qs}`);
+      if (res.status >= 400) return errorResult(res.json, 'failed to read Newscast');
+      const feed = res.json as { from: string; to: string; items: { title: string; date: string }[] };
+      const summary = feed.items.slice(0, 5).map((i) => `${i.title} (${i.date})`).join('; ') || 'nothing yet';
+      return okResult(`${feed.items.length} item(s) from ${feed.from} to ${feed.to}: ${summary}.`, res.json as Record<string, unknown>);
     },
   );
 

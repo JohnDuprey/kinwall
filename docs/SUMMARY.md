@@ -16,6 +16,7 @@
 
 * [Home & calendar](using/calendar.md)
 * [Daily & weekly snapshot](using/snapshot.md)
+* [Newscast](using/newscast.md)
 * [Events](using/events.md)
 * [Categories & auto-categorizing](using/categories.md)
 * [Chores](using/chores.md)

@@ -87,8 +87,15 @@ export async function readSettings(db: KinwallDb) {
     // Medication reminders (routes/medications.ts): off until a parent turns it on, and part of the Health tracker.
     medications: map.get('medications') === 'true' && parseFeatures(map.get('features')).trackersHealth,
     medicationNamesOnWalls: map.get('medicationNamesOnWalls') === 'true', // shared screens say "Meds" until the family turns names on
+    newscastNotFeatured: parseIds(map.get('newscastNotFeatured')),
+    newscastPostingPaused: parseIds(map.get('newscastPostingPaused')),
     googlePhotos: (map.get('googlePhotos:state') ?? 'off') as GooglePhotosState, // routes/google-photos.ts; left out of the export
   };
+}
+
+/** A stored JSON list of member ids (Newscast's per-person switches), or none. */
+export function parseIds(raw: string | undefined): string[] {
+  try { const v = JSON.parse(raw ?? '[]'); return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []; } catch { return []; }
 }
 
 // Fahrenheit where it's the everyday unit: by the location's country, else a US timezone.
@@ -137,7 +144,7 @@ function parseMealTimes(raw: string | undefined): z.infer<typeof MealTimesSchema
 }
 
 export type Features = z.infer<typeof FeaturesSchema>;
-export const DEFAULT_FEATURES: Features = { chores: true, lists: true, contacts: true, paint: true, photos: true, notes: true, messages: true, trackersReading: true, trackersMemories: true, trackersHealth: true, meals: true };
+export const DEFAULT_FEATURES: Features = { chores: true, lists: true, contacts: true, paint: true, photos: true, notes: true, messages: true, trackersReading: true, trackersMemories: true, trackersHealth: true, meals: true, newscast: true };
 // Saved over the defaults, so a switch added later starts on for families that saved before it existed.
 export function parseFeatures(raw: string | undefined): Features {
   try {

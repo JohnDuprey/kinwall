@@ -288,6 +288,12 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'POST', pattern: /^\/api\/trackers$/ },
   { method: 'PATCH', pattern: /^\/api\/trackers\/[^/]+$/ },
   { method: 'DELETE', pattern: /^\/api\/trackers\/[^/]+$/ },
+  // Newscast: read, post as the device's person (or a picked one on a wall), react; routes/newscast.ts
+  // keeps a person's own device to that person and deletion to the author's device or a parent's.
+  { method: 'GET', pattern: /^\/api\/newscast$/ },
+  { method: 'POST', pattern: /^\/api\/newscast\/posts$/ },
+  { method: 'DELETE', pattern: /^\/api\/newscast\/posts\/[^/]+$/ },
+  { method: 'PUT', pattern: /^\/api\/newscast\/reactions$/ },
   { method: 'GET', pattern: /^\/api\/weather$/ },
   { method: 'GET', pattern: /^\/api\/tidbits$/ },
   { method: 'GET', pattern: /^\/api\/plugins$/ },

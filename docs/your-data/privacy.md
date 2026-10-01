@@ -114,6 +114,15 @@ The [night PIN](../using/night.md#pin-to-wake) is stored as a salted PBKDF2-SHA2
 
 Your family's content: member names, events, chores, lists, settings, [trackers](../using/trackers.md) (reading and memories; health entries are encrypted, above) and [photos](../using/photos.md) (stored in the database itself, never sent anywhere else). On Docker that's in `kinwall.sqlite`, and on Workers it's in D1. Protect the host or account accordingly.
 
+### Newscast
+
+[Newscast](../using/newscast.md) is built from your family's content each time it's opened, so nothing in it is a second copy, and a change (a deleted photo, someone left out) shows at once. Only announcements and reactions are stored, in plain form, for 30 days.
+
+* **What it shows:** approved chores (one line per person per day, grown-ups too), rewards marked given, family photos and Paint drawings, finished books, memories' headlines (never their words), birthdays, and announcements, with who reacted.
+* **What it never shows:** the Health tracker, medications, journals (private or not), Temp check answers and goals, goal checks, the energy battery, check-ins, Insights, Security activity, notifications, chores waiting for an OK or sent back, reward requests and declines, points and balances. Newscast doesn't read any of them, and a test checks that none of them appear on any device.
+* **Who sees what:** grown-ups-only announcements only on parents' and grown-ups' own devices, never kids' devices or wall screens. A post a parent removed shows as a note only to its author and parents. A parent can leave a person out of Newscast entirely.
+* **Webhooks** get `newscast.posted` for announcements to everyone, never for grown-ups-only ones. Connected apps read it with `list_newscast` and can't post.
+
 ### Contacts
 
 [Contacts](../using/contacts.md) hold other people's details: babysitters, grandparents, the pediatrician, a neighbor's phone and address. They're stored in plain form like the rest of your family's content (not encrypted like health entries), so the same care for the host applies. Who sees them:

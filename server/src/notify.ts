@@ -12,6 +12,7 @@ import { priorityRankSql } from './routes/lists.ts';
 import { parseMemberIds } from './calendar-members.ts';
 import { sendWebPush } from './webpush.ts';
 import { readFeatures, type Features } from './routes/settings.ts';
+import { newscastPrunes } from './routes/newscast.ts';
 import { parseTempCheck, parseTransitions, todayInTz } from './routes/members.ts';
 import { addDays, dueAt, DUE_MS, LATE_MS, loadLogs, loadMedications, medicineLabel, scheduledOn, timeKey, WAKE, windowEnd, type Medication } from './routes/medications.ts';
 import { sha256Hex } from './auth.ts';
@@ -142,6 +143,7 @@ async function pruneSentNotifications(db: KinwallDb, now: Date): Promise<void> {
   await db.batch([
     db.prepare('DELETE FROM sent_notifications WHERE sent_at < ?').bind(cutoff),
     db.prepare('DELETE FROM notifications WHERE at < ?').bind(feedCutoff),
+    ...newscastPrunes(db, now), // announcements and reactions: 30 days
   ]);
 }
 

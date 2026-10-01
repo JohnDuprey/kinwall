@@ -98,6 +98,7 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 | `list_meals` | Planned meals from `from` through `to` (default: that day plus six). |
 | `get_meal_projection` | The shopping preview for a date range: each ingredient's scaled total, the meals it's for, and (with `listId` or `listName`) what's already on that list. Admin key only. |
 | `list_tracker_entries` | [Trackers](../using/trackers.md) entries, newest first: books, memories and health visits. Filters: `kind`, `member`, `from`, `to`, `q`. Health only with an admin key, and only once a parent turns on [health for connected apps](#health-entries). |
+| `list_newscast` | [Newscast](../using/newscast.md): what the family did and shared, newest first, grouped per person per day (chores, rewards, photos and drawings, books, memories, birthdays, announcements) with reactions. Takes `days` (default 7) and `before` (YYYY-MM-DD). Never health, journals, check-ins or points. Read only: there's no tool to post. |
 | `list_notifications` | Recent notifications Kinwall sent (reminders, summaries, chore nudges, list updates, messages), newest first. The same feed as the bell in the app. Takes `limit` and `before`. |
 
 ### Write

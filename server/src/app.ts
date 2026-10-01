@@ -49,6 +49,7 @@ import { trackersRoutes } from './routes/trackers.ts';
 import { pluginsRoutes, servePluginFile } from './routes/plugins.ts';
 import { liveActivitiesRoutes } from './routes/live-activities.ts';
 import { securityEventsRoutes } from './routes/security-events.ts';
+import { newscastRoutes } from './routes/newscast.ts';
 import { handleMcp } from './mcp.ts';
 
 // Keep in sync with web/public/_headers (Workers serves the UI with that file; Node/Docker with this).
@@ -126,6 +127,7 @@ export function createApp() {
   app.route('/', weatherRoutes);
   app.route('/', tidbitRoutes);
   app.route('/', trackersRoutes);
+  app.route('/', newscastRoutes);
   app.route('/', pluginsRoutes);
   app.get('/plugins/*', servePluginFile); // public: a sandboxed iframe can't send a key
   app.route('/', keysRoutes);

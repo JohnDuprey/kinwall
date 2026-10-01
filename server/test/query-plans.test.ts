@@ -8,6 +8,7 @@ import { openDb, applyMigrations } from '../src/d1-sqlite.ts';
 import { POINT_TOTALS_SQL } from '../src/stickers.ts';
 import { PENDING_SQL } from '../src/routes/chores.ts';
 import { PERIOD_POINTS_SQL } from '../src/routes/members.ts';
+import { NEWSCAST_SQL } from '../src/routes/newscast.ts';
 
 const db = openDb(':memory:');
 applyMigrations(db, path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'migrations'));
@@ -29,4 +30,16 @@ test('pending approvals (the parent badge) read only pending completions', () =>
 test("today's and this week's points read only this week's completions", () => {
   const p = plan(PERIOD_POINTS_SQL.replace(/\?/g, "'2026-09-30'"));
   assert.match(p, /SEARCH cc USING INDEX idx_chore_completions_date/, p);
+});
+
+test('Newscast reads each source through an index, only over its window', () => {
+  for (const [name, sql] of Object.entries(NEWSCAST_SQL)) {
+    const p = plan(sql.replace(/\?/g, "'2026-09-30'"));
+    assert.doesNotMatch(p, /SCAN (cc|chore_completions|reward_redemptions|photos|t|tracker_entries)\b/, `${name}: ${p}`);
+  }
+  const range = (sql: string) => plan(sql.replace(/\?/g, "'2026-09-30'"));
+  assert.match(range(NEWSCAST_SQL.chores), /idx_chore_completions_date \(date>\? AND date<\?\)/);
+  assert.match(range(NEWSCAST_SQL.rewards), /idx_reward_redemptions_given \(status=\? AND given_at>\? AND given_at<\?\)/);
+  assert.match(range(NEWSCAST_SQL.photos), /idx_photos_created \(created_at>\? AND created_at<\?\)/);
+  assert.match(range(NEWSCAST_SQL.memories), /idx_tracker_entries_kind_date \(kind=\? AND date>\? AND date<\?\)/);
 });

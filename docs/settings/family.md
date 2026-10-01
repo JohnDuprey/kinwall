@@ -15,6 +15,7 @@ Each member has:
 
 * **Transition reminders** (admin only, off by default): see [below](#transition-reminders).
 * **Temp check** (admin only, off by default): daily questions at the end of their day. See [below](#temp-check).
+* **Featured in Newscast** and **Can post in Newscast** (admin only, both on by default): see [below](#newscast).
 
 **Add member** and editing are admin only. On a display, the list is read-only. Deleting a member ("Their chores and tags are unassigned") removes them from calendars, chores and event tags. It doesn't delete those items.
 
@@ -65,6 +66,15 @@ API: `tempCheck` on `GET /api/members` and `PATCH /api/members/{id}` (admin key)
 Kids only (grown-ups' journals are private by default, and they decide for themselves on their own device). **Let Maya keep a private journal** (off by default) lets Maya turn **Private journal** on from her own device. Then her new entries' words, and that day's goal check notes, open only on her own devices: parent devices see the mood and **🔒 Private entry**. It saves right away, is logged in [Security activity](access.md#security-activity), and adds a 🔒 note to Maya's own [notifications](../using/notifications.md#notification-feed). Turning it off makes her new entries readable on parent devices again; entries she wrote while it was private stay private. See [Private journals](../using/journal.md#private-journals).
 
 API: `privateJournal` on `GET /api/members` as `{ "on": false, "allowed": true }`; change it with `PUT /api/members/{id}/journal/privacy` and `{ "allowed": true }` (a parent's device) or `{ "private": true }` (a device that belongs to them). It's not in [exports](../your-data/export-import.md).
+
+### Newscast
+
+Two switches per person, saved right away (not shown while [Newscast](../using/newscast.md) is turned off in Features):
+
+* **Featured in Newscast**: off leaves all of their chores, rewards, photos, drawings, books, memories and birthday out of Newscast, on every device. Their own announcements still show.
+* **Can post in Newscast**: off pauses their posting for now. Their share card says "Leo is taking a break from posting for now. A parent can turn it back on in Settings." They still see Newscast and react. A parent can also do this from one of their posts (**⋯ → Pause posting for Leo**, and **Let Leo post again**).
+
+API: `newscastNotFeatured` and `newscastPostingPaused`, lists of member ids, on `GET` / `PATCH /api/settings` (admin keys; a `PATCH` sends the whole list). Both are in [exports](../your-data/export-import.md).
 
 ## Categories
 

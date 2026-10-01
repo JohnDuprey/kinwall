@@ -7,6 +7,7 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import { emit } from '../bus.ts';
+import { actorOf, ownerBlock } from '../auth.ts';
 import { ErrorSchema } from '../schemas.ts';
 import type { KinwallDb } from '../db.ts';
 import { readZip, zipStream, type ZipFile } from '../zip.ts';
@@ -16,7 +17,9 @@ export const photosRoutes = createRouter();
 export const PHOTO_LIMITS = { maxCount: 200, maxBytes: 100 * 1024 * 1024, maxPhotoBytes: 600 * 1024 };
 const MIMES = ['image/webp', 'image/jpeg', 'image/png'];
 
-type PhotoRow = { id: string; caption: string | null; mime: string; width: number; height: number; bytes: number; member_id: string | null; created_at: string; family: number };
+// drawing / added_by (migration 0081): a Paint drawing and its artist, or who added a photo from
+// their own device. Only Newscast reads them ("Maya saved a drawing", "Alex added 3 photos").
+type PhotoRow = { id: string; caption: string | null; mime: string; width: number; height: number; bytes: number; member_id: string | null; created_at: string; family: number; drawing?: number; added_by?: string | null };
 const COLS = 'id, caption, mime, width, height, bytes, member_id, created_at, family';
 
 const PhotoSchema = z
@@ -58,10 +61,10 @@ async function quota(db: KinwallDb) {
 async function insertWithinQuota(db: KinwallDb, row: PhotoRow, data: Uint8Array): Promise<boolean> {
   const res = await db
     .prepare(
-      `INSERT INTO photos (${COLS}, data) SELECT ?,?,?,?,?,?,?,?,?,?
+      `INSERT INTO photos (${COLS}, drawing, added_by, data) SELECT ?,?,?,?,?,?,?,?,?,?,?,?
        WHERE (SELECT COUNT(*) FROM photos) < ? AND (SELECT COALESCE(SUM(bytes), 0) FROM photos) + ? <= ?`,
     )
-    .bind(row.id, row.caption, row.mime, row.width, row.height, row.bytes, row.member_id, row.created_at, row.family, data, PHOTO_LIMITS.maxCount, row.bytes, PHOTO_LIMITS.maxBytes)
+    .bind(row.id, row.caption, row.mime, row.width, row.height, row.bytes, row.member_id, row.created_at, row.family, row.drawing ?? 0, row.added_by ?? null, data, PHOTO_LIMITS.maxCount, row.bytes, PHOTO_LIMITS.maxBytes)
     .run();
   return res.meta.changes > 0;
 }
@@ -110,20 +113,26 @@ photosRoutes.openapi(
       query: z.object({
         caption: z.string().max(200).optional(),
         family: z.enum(['0', '1']).optional().openapi({ description: "0 = a memory's own photo: kept out of the family photos (attach it with POST /api/trackers)" }),
+        drawing: z.enum(['0', '1']).optional().openapi({ description: '1 = a Paint drawing (Newscast: "Maya saved a drawing").' }),
+        by: z.string().optional().openapi({ description: "Who made or added it, for Newscast (a member id; a person's own device only as them). Default: this device's person, if it's someone's." }),
       }),
       headers: z.object({ 'x-photo-width': z.coerce.number().int().min(1).max(10000), 'x-photo-height': z.coerce.number().int().min(1).max(10000) }),
       body: { required: true, content: Object.fromEntries(MIMES.map((m) => [m, { schema: z.string().openapi({ format: 'binary' }) }])) },
     },
     responses: {
       201: { description: 'created', content: json(PhotoSchema) },
-      400: { description: 'empty body or bad size headers', content: json(ErrorSchema) },
+      400: { description: 'empty body, bad size headers or unknown member', content: json(ErrorSchema) },
+      403: { description: "a person's own device crediting someone else", content: json(ErrorSchema) },
       409: { description: 'quota full', content: json(QuotaSchema.extend({ error: z.string() })) },
       413: { description: 'photo too large', content: json(ErrorSchema) },
       415: { description: 'not a supported image type', content: json(ErrorSchema) },
     },
   }),
   async (c) => {
-    const { caption, family } = c.req.valid('query');
+    const { caption, family, drawing, by } = c.req.valid('query');
+    const blocked = await ownerBlock(c, by);
+    if (blocked) return c.json({ error: blocked }, 403);
+    if (by && !(await memberExists(c.env.DB, by))) return c.json({ error: 'by: member not found' }, 400);
     const headers = c.req.valid('header');
     const mime = (c.req.header('Content-Type') ?? '').split(';')[0].trim().toLowerCase();
     if (!MIMES.includes(mime)) return c.json({ error: 'Photos must be WebP, JPEG or PNG' }, 415);
@@ -136,6 +145,7 @@ photosRoutes.openapi(
     const row: PhotoRow = {
       id: crypto.randomUUID(), caption: caption?.trim() || null, mime, width: headers['x-photo-width'], height: headers['x-photo-height'],
       bytes: data.byteLength, member_id: null, created_at: new Date().toISOString(), family: family === '0' ? 0 : 1,
+      drawing: drawing === '1' ? 1 : 0, added_by: by ?? (await actorOf(c)).memberId,
     };
     if (!(await insertWithinQuota(c.env.DB, row, data))) return c.json({ error: 'Photo storage is full — delete some photos first', ...(await quota(c.env.DB)) }, 409);
     emit(c, 'photo.changed', { id: row.id });

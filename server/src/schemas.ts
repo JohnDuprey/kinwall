@@ -275,6 +275,7 @@ export const FeaturesSchema = z
     trackersMemories: z.boolean().default(true),
     trackersHealth: z.boolean().default(true),
     meals: z.boolean().default(true), // Meals tab, the Board's meals card, meals in the daily summary
+    newscast: z.boolean().default(true), // Home's Newscast tab: GET /api/newscast and its routes answer 404 while off
   })
   .openapi('Features');
 
@@ -339,6 +340,8 @@ export const SettingsSchema = z
     aiHealthAccess: z.boolean(), // false (default): MCP and connected apps' OAuth tokens never see or change the Health tracker
     medications: z.boolean().openapi({ description: 'Medication reminders (off by default). Off: the medication routes answer 404; the data is kept.' }),
     medicationNamesOnWalls: z.boolean().openapi({ description: 'Show medicine names and doses on shared wall screens (off by default: "Meds").' }),
+    newscastNotFeatured: z.array(z.string()).openapi({ description: "Members whose chores, rewards, photos, books, memories and birthday stay out of Newscast (their own announcements still show)." }),
+    newscastPostingPaused: z.array(z.string()).openapi({ description: 'Members who can\'t post announcements for now (a parent turns it back on). They still react.' }),
     googlePhotos: z.enum(['off', 'signing-in', 'choosing', 'ready', 'reconnect', 'refused']).optional().openapi({ description: "Google Photos for the Night screen and the Board (GET /api/google-photos). Read-only; not in the export." }),
   })
   .openapi('Settings');
@@ -392,6 +395,8 @@ export const SettingsPatchSchema = z
     aiHealthAccess: z.boolean().optional(), // the family's own devices only: a connected app gets 403
     medications: z.boolean().optional(), // likewise
     medicationNamesOnWalls: z.boolean().optional(), // likewise
+    newscastNotFeatured: z.array(z.string()).max(100).optional(), // the whole list
+    newscastPostingPaused: z.array(z.string()).max(100).optional(), // the whole list
   })
   // Night hours are a pair: send both, and either both set or both cleared ('' / null).
   .refine((p) => (p.quietFrom === undefined) === (p.quietTo === undefined) && !p.quietFrom === !p.quietTo, {

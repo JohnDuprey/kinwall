@@ -131,6 +131,7 @@ test('mcp: tools/list returns the tools', async () => {
     'list_events',
     'list_lists',
     'list_meals',
+    'list_newscast',
     'list_notes',
     'list_notifications',
     'list_pending_approvals',
@@ -543,6 +544,7 @@ test('mcp: every tool declares an output schema, and real results pass it', asyn
   await call('send_notification', { title: 'Hi', body: 'Dinner' });
   await call('set_night_screen', { on: true });
   await call('list_notifications');
+  assert.ok(Array.isArray((await call('list_newscast', { days: 3 })).items));
   const note = (await call('add_note', { target: `event:${ev.id}`, body: 'Bring flowers', member: 'ava' })).note;
   assert.equal(note.body, 'Bring flowers');
   await call('add_note', { target: `list_item:${item.id}`, body: 'Oat, please' });

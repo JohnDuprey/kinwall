@@ -8,7 +8,7 @@
 
 | Included | Not included |
 |---|---|
-| Household settings | Passwords, OAuth tokens, CalDAV logins |
+| Household settings (including Newscast's per-person **Featured** and **Can post** switches) | Passwords, OAuth tokens, CalDAV logins |
 | Members, categories | API keys, sessions, recovery codes, the night PIN (set it again after a restore) |
 | Chores **with completion history** (points awarded, and whether each is approved or waiting for a parent's OK), and the parent-approval settings on chores and members, and who's a grown-up | Webhook secrets, and "Not yet" notes on chores |
 | Points spent, daily check-ins, sticker packs unlocked and sticker book pages | |
@@ -18,7 +18,7 @@
 | Local calendars **with their events** (reminders, travel time) | Synced events themselves (they're fetched again) |
 | Every calendar's name, color, members, default category, filter and hidden events | Per-device appearance (it lives in each browser) |
 | Per-event member, category and travel-time tags on synced events, and series-wide member and category tags on synced recurring events | |
-| Notes threads on local events and list items | Notes on synced events |
+| Notes threads on local events and list items | Notes on synced events, and [Newscast](../using/newscast.md) announcements and reactions (they last 30 days, like the bell's feed lasts 90; everything else in Newscast comes from what is exported) |
 | [Trackers](../using/trackers.md): books, memories and health visits. Health is encrypted on the server but **in plain form in this file** (it's your backup), so keep the file private | Photos (download them separately from Photos) |
 | [Meals](../using/meals.md): recipes (archived ones too, basics with their links), planned meals with their own ingredient copies, and which ingredients were already added to which shopping list | |
 | ICS feed URLs | |
