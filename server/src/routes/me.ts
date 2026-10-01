@@ -1,6 +1,7 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
+import type { KinwallDb } from '../db.ts';
 import { resolveKey, validOwner } from '../auth.ts';
 import { emit } from '../bus.ts';
 import { recordDeviceOwner } from '../notify.ts';
@@ -23,9 +24,17 @@ meRoutes.openapi(
     // requireAuth already validated the key; re-resolving here is cheap and avoids threading
     // Variables typing through every route file just for this one endpoint.
     const resolved = await resolveKey(c);
-    return c.json({ scope: resolved?.scope ?? 'admin', keyName: resolved?.name ?? '', kind: resolved?.kind ?? 'api', owner: resolved?.owner ?? null, deviceKind: resolved?.deviceKind ?? null, locked: resolved?.scope === 'display' && !!resolved.owner, version: VERSION, ...(c.env.HOST_PORTAL_URL ? { hostPortalUrl: c.env.HOST_PORTAL_URL } : {}) }, 200);
+    const householdId = await householdIdOf(c.env.DB);
+    return c.json({ householdId, scope: resolved?.scope ?? 'admin', keyName: resolved?.name ?? '', kind: resolved?.kind ?? 'api', owner: resolved?.owner ?? null, deviceKind: resolved?.deviceKind ?? null, locked: resolved?.scope === 'display' && !!resolved.owner, version: VERSION, ...(c.env.HOST_PORTAL_URL ? { hostPortalUrl: c.env.HOST_PORTAL_URL } : {}) }, 200);
   },
 );
+
+/** A random id made once per household and kept in settings: not a secret, never changes, and the
+ * same for every key, so a device can tell whether two keys open the same family. */
+async function householdIdOf(db: KinwallDb): Promise<string> {
+  await db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('householdId', ?)").bind(crypto.randomUUID()).run();
+  return (await db.prepare("SELECT value FROM settings WHERE key = 'householdId'").first<{ value: string }>())!.value;
+}
 
 // "This is my device": a parent's device (full access) says whose it is, so it reads their private
 // journal (routes/journal.ts). Saved where the sign-in lives: the API key itself, the passkey (its

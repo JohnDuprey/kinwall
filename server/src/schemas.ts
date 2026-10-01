@@ -928,6 +928,7 @@ export const ApiKeyCreatedSchema = z
 
 export const MeSchema = z
   .object({
+    householdId: z.string().openapi({ description: 'A stable, non-secret id for this household, the same for every key: tells a device whether two keys open the same family' }),
     scope: z.enum(['admin', 'display']),
     keyName: z.string(),
     kind: z.enum(['api', 'session', 'oauth']),
