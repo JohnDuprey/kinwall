@@ -953,7 +953,7 @@ button {
 .chore-title.done { text-decoration: line-through; }
 .chore-pts { font-size: 0.75rem; color: var(--text-dim); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .who-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; }
-.who-btn { display: flex; flex-direction: column; align-items: center; gap: 8px; min-height: 44px; padding: 14px 8px; border: none; border-radius: var(--radius-sm); background: var(--bg-alt); color: var(--text); font: inherit; font-weight: 800; cursor: pointer; }
+.who-btn { display: flex; flex-direction: column; align-items: center; gap: 8px; min-height: 44px; padding: 14px 8px; border: none; border-radius: var(--radius-sm); background: var(--bg-alt); color: var(--text); font: inherit; font-weight: 800; }
 .who-btn:active { transform: scale(0.96); }
 .who-btn.active { box-shadow: inset 0 0 0 3px var(--accent); }
 .who-avatar { width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.75rem; }
@@ -1255,6 +1255,14 @@ button {
 
 .list-item-row { display: flex; align-items: center; gap: 12px; padding: 10px 4px; border-top: 1px solid var(--border); }
 .list-item-row:first-child, .list-group .list-item-row:first-child { border-top: none; }
+/* Swipe to delete (parent devices, SwipeRow in Lists.tsx): the row slides left over a Delete button
+   that sits just past its right edge, clipped here so nothing pans sideways. */
+.swipe-row { position: relative; overflow: hidden; touch-action: pan-y; }
+.swipe-row:not(:first-child) > .swipe-track > .list-item-row { border-top: 1px solid var(--border); }
+.swipe-track { position: relative; }
+.swipe-delete { position: absolute; top: 0; bottom: 0; left: 100%; min-height: 44px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  border: none; background: var(--danger-fill); color: white; font: inherit; font-size: 0.8125rem; font-weight: 800; }
+@media (prefers-reduced-motion: no-preference) { .swipe-track:not(.dragging) { transition: transform 0.18s ease; } }
 .list-item-row.done .list-item-title { text-decoration: line-through; color: var(--text-dim); }
 .list-item-check {
   width: 44px; height: 44px; border-radius: 50%; border: 2.5px solid var(--border); background: none; flex-shrink: 0;
@@ -2900,7 +2908,7 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
     .setup-role-card, .setup-choice, .setup-provider-card
   ):not(:disabled, :focus-visible, .active, .selected, .done, [aria-pressed="true"], [aria-current]):hover { border-color: var(--accent); }
   /* Everything else: a faint wash of the text color over its own background (darker in light, lighter in dark). */
-  :where(.btn-primary, .btn-danger, .icon-btn, .fab, .today-btn, .segmented button, .tab-btn, .nav-rail-btn, .who-btn,
+  :where(.btn-primary, .btn-danger, .swipe-delete, .icon-btn, .fab, .today-btn, .segmented button, .tab-btn, .nav-rail-btn, .who-btn,
     .family-row, .family-pick, .board-tile, .snap-row, .board-empty-tap, .notif-item, .member-list-item, .cal-list-item,
     .schedule-item, .month-cell, .list-item-row, .lists-section-head, .add-row-btn, .trk-book-main, .trk-visit-main, .trk-memory,
     .activity-card, .recipe-step, .note, .more-row, .setup-chore-tap, .catalog-row-main):not(:disabled, .active):hover {

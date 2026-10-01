@@ -26,6 +26,7 @@ import { holdAwake } from './wakeLock.ts'
 import { shoppingActivity } from './liveActivity.ts'
 import { endAppActivity, tellAppActivity } from './native.ts'
 import { itemKey, matchItems } from './itemSuggest.ts'
+import { SWIPE_REVEAL, swipeAxis, swipeEnd, swipeOffset } from './swipe.ts'
 import { canChangeItem, listSections, listType, reorderWithin, TYPE_LABEL, typeFields, type ListType } from './listSections.ts'
 import { activeCatalogFilters, boughtLabel, CATALOG_GROUP_LABELS, CATALOG_SORT_LABELS, catalogDepartments, catalogFilterSummary, catalogStores, catalogTags, catalogView, filterCatalog, groupCatalog, placeLabel, placesFor, placesInput, setCatalogView, sortCatalog, STARTER_TAGS, tagsInput, type CatalogGroup, type CatalogSort } from './catalog.ts'
 
@@ -660,8 +661,9 @@ function ListViewSheet({ list, stores, store, onStore, onGroupBy, onSortBy, onRe
   )
 }
 
-function ItemRow({ item, kind, groupBy, members, event, onToggle, onOpen, handle, from, readOnly }: {
+function ItemRow({ item, kind, groupBy, members, event, onToggle, onOpen, handle, from, readOnly, onDelete }: {
   item: ListItem; kind: ListKind; groupBy: ListGroupBy; members: Member[]; event?: EventInstance; onToggle: () => void; onOpen: () => void
+  onDelete?: () => void // parent devices: swipe the row left to delete (SwipeRow)
   readOnly?: boolean // a kid's device, someone else's item: the tick shows but doesn't change
   handle?: React.ReactNode
   from?: React.ReactNode // a combined trip: the other list it's on (FromTag)
@@ -674,7 +676,7 @@ function ItemRow({ item, kind, groupBy, members, event, onToggle, onOpen, handle
   const due = dueLabel(item)
   const prio = item.priority !== 'normal' ? item.priority : null
   const notesOn = useApp().settings.features.notes // off: an item's own notes still show, its thread's count doesn't
-  return (
+  const row = (
     <div className={`list-item-row ${item.done ? 'done' : ''} ${prio === 'urgent' && !item.done ? 'urgent' : ''} ${item.pending ? 'pending' : ''}`} title={item.pending ? 'Not synced yet' : undefined}>
       <button className={`list-item-check ${item.done ? 'done' : ''} ${readOnly ? 'read-only' : ''}`} onClick={readOnly ? undefined : onToggle} role="checkbox" aria-checked={item.done} aria-disabled={readOnly || undefined}
         aria-label={item.pending ? `${item.title}, not synced yet` : readOnly && assignee ? `${item.title}, ${assignee.name}'s` : item.title}>
@@ -704,6 +706,71 @@ function ItemRow({ item, kind, groupBy, members, event, onToggle, onOpen, handle
       {item.quantity && <div className="list-item-chip">{item.quantity}</div>}
       {assignee && <div className="member-avatar-sm" role="img" aria-label={`For ${assignee.name}`} style={{ background: assignee.color, color: inkFor(assignee.color) }}>{assignee.avatar || assignee.name[0]}</div>}
       {handle}
+    </div>
+  )
+  return onDelete ? <SwipeRow title={item.title} onDelete={onDelete}>{row}</SwipeRow> : row
+}
+
+/** Swipe a row left (touch or pen; a mouse uses the item sheet) to show a Delete button; far enough
+ * deletes outright. Vertical drags stay scrolls (touch-action: pan-y, axis picked after 10px), the
+ * reorder grip keeps its own drag, and a tap elsewhere closes it, so one row is open at a time. */
+function SwipeRow({ title, onDelete, children }: { title: string; onDelete: () => void; children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [open, setOpen] = useState(false)
+  const [offset, setOffset] = useState(0)
+  const [dragging, setDragging] = useState(false)
+  const g = useRef<{ id: number; x: number; y: number; axis: 'x' | 'y' | null; w: number } | null>(null)
+  const swallow = useRef(false) // the click that ends a swipe (or closes the row) doesn't also tick or open it
+  const settle = (to: 'open' | 'closed') => { setOpen(to === 'open'); setOffset(to === 'open' ? -SWIPE_REVEAL : 0); setDragging(false); g.current = null }
+  useEffect(() => {
+    if (!open) return
+    // A tap elsewhere only closes it (that tap doesn't also tick or open another row).
+    const outside = (e: PointerEvent) => {
+      if (ref.current?.contains(e.target as Node)) return
+      settle('closed')
+      const stop = (c: MouseEvent) => { c.stopPropagation(); c.preventDefault() }
+      document.addEventListener('click', stop, { capture: true, once: true })
+      setTimeout(() => document.removeEventListener('click', stop, true), 600) // it was a scroll: no click came
+    }
+    document.addEventListener('pointerdown', outside, true)
+    return () => document.removeEventListener('pointerdown', outside, true)
+  }, [open])
+  const down = (e: React.PointerEvent) => {
+    swallow.current = false
+    if (e.pointerType === 'mouse' || (e.target as Element).closest('.list-item-grip, .swipe-delete')) return
+    g.current = { id: e.pointerId, x: e.clientX, y: e.clientY, axis: null, w: ref.current?.clientWidth ?? 0 }
+  }
+  const move = (e: React.PointerEvent) => {
+    const s = g.current
+    if (!s || s.id !== e.pointerId) return
+    const dx = e.clientX - s.x
+    if (!s.axis) {
+      s.axis = swipeAxis(dx, e.clientY - s.y)
+      if (s.axis === 'y') { g.current = null; return }
+      if (!s.axis) return
+      ref.current?.setPointerCapture(e.pointerId); setDragging(true)
+    }
+    setOffset(swipeOffset(dx, open, s.w))
+  }
+  const up = (e: React.PointerEvent) => {
+    const s = g.current
+    if (!s || s.id !== e.pointerId) return
+    if (!s.axis) { if (open) { swallow.current = true; settle('closed') } g.current = null; return } // a tap on an open row closes it
+    swallow.current = true
+    const end = swipeEnd(swipeOffset(e.clientX - s.x, open, s.w), s.w)
+    if (end === 'delete') { settle('closed'); onDelete() } else settle(end)
+  }
+  return (
+    <div ref={ref} className="swipe-row" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={() => settle(open ? 'open' : 'closed')}
+      onClickCapture={e => { if (swallow.current) { swallow.current = false; e.stopPropagation(); e.preventDefault() } }}>
+      <div className={`swipe-track ${dragging ? 'dragging' : ''}`} style={offset ? { transform: `translateX(${offset}px)` } : undefined}>
+        {children}
+        {offset < 0 && (
+          <button className="swipe-delete" style={{ width: Math.max(SWIPE_REVEAL, -offset) }} onClick={() => { settle('closed'); onDelete() }} aria-label={`Delete ${title}`}>
+            <TrashIcon width={20} height={20} /><span>Delete</span>
+          </button>
+        )}
+      </div>
     </div>
   )
 }
@@ -1438,7 +1505,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   useEffect(() => commitCheckout, [listId]) // eslint-disable-line react-hooks/exhaustive-deps
   const startCheckout = (checked: ListItem[], kind: ListKind, trip: string | null = null, left = 0) => {
     if (!checked.length) return
-    commitCheckout()
+    commitCheckout(); commitDelete()
     const ids = checked.map(i => i.id), reset = kind === 'reusable'
     setCheckout({ ids, reset, trip, shop: shopMode, left })
     if (trip) { setTripStore(listId, null); setTrip(null); shopScroll.current = 0 } // Checkout ends the trip
@@ -1452,6 +1519,23 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
     }
     checkoutTimer.current = setTimeout(commitCheckout, 5000)
   }
+  // Swipe-to-delete (parent devices): the item goes at once on screen and is deleted after a few
+  // seconds unless Undo is tapped, so Undo brings it back whole (steps, notes, added-by, places, place in the list).
+  const [deleting, setDeleting] = useState<ListItem | null>(null)
+  const pendingDelete = useRef<(() => void) | null>(null)
+  const deleteTimer = useRef<ReturnType<typeof setTimeout>>()
+  const commitDelete = () => { clearTimeout(deleteTimer.current); const run = pendingDelete.current; pendingDelete.current = null; run?.() }
+  useEffect(() => commitDelete, [listId]) // eslint-disable-line react-hooks/exhaustive-deps
+  const swipeDelete = (item: ListItem) => {
+    commitDelete(); commitCheckout() // one Undo at a time
+    setDeleting(item)
+    pendingDelete.current = () => {
+      setDetail(d => d && { ...d, items: d.items.filter(i => i.id !== item.id) }); setDeleting(null)
+      api.queueDeleteListItem(item.listId || listId, item.id).catch(e => { toast(e instanceof ApiError ? e.message : 'Could not delete item', true); load() })
+    }
+    deleteTimer.current = setTimeout(commitDelete, 5000)
+  }
+  const undoDelete = () => { clearTimeout(deleteTimer.current); pendingDelete.current = null; setDeleting(null); announce('Undone') }
   const undoCheckout = () => {
     clearTimeout(checkoutTimer.current); pendingCheckout.current = null
     if (checkout?.trip) { setTripStore(listId, checkout.trip); setTrip(checkout.trip) }
@@ -1540,9 +1624,10 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   const onList = new Set(detail.items.filter(i => !i.done).map(i => itemKey(i.title))) // not suggested again
   const aisleOrder = aisleOrderMap(detail)
   // A pending Checkout shows as done already: those items gone (or unchecked, for a Reset).
-  const pending = !checkout ? detail.items
-    : checkout.reset ? detail.items.map(i => (checkout.ids.includes(i.id) ? { ...i, done: false } : i))
-    : detail.items.filter(i => !checkout.ids.includes(i.id))
+  const shown = deleting ? detail.items.filter(i => i.id !== deleting.id) : detail.items // a swipe-delete waiting on Undo
+  const pending = !checkout ? shown
+    : checkout.reset ? shown.map(i => (checkout.ids.includes(i.id) ? { ...i, done: false } : i))
+    : shown.filter(i => !checkout.ids.includes(i.id))
   // Shopping: an item with no aisle sorts and groups in its store's aisle named like its department
   // (shown, never saved - the editor opens the item as stored).
   const items = list.kind !== 'shopping' ? pending
@@ -1550,6 +1635,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   const openItem = (item: ListItem) => setEditItem(detail.items.find(i => i.id === item.id) ?? item)
   // The other list's items on a combined trip: that list's owners aren't loaded here, so just the item's own.
   const mine = (i: ListItem) => canChangeItem(i, !i.listId || i.listId === listId ? list : { memberIds: [] }, kid)
+  const delFor = (i: ListItem) => (parentDevice && (!i.listId || i.listId === listId) ? () => swipeDelete(i) : undefined) // swipe to delete: parent devices, this list's items
   const stores = [...new Set(items.map(i => i.store).filter((v): v is string => !!v))].sort()
   const filtered = selectedStore ? items.filter(i => i.store === selectedStore || i.store === null) : items
   // Keep checked in place: ticked items stay put, crossed off, and the order doesn't move under you.
@@ -1582,7 +1668,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   const tripChecked = [...items, ...also].filter(i => i.done && mine(i))
   const tripRow = (item: ListItem, other = false) => (
     <ItemRow key={item.id} item={other || !tripAt ? item : { ...item, aisle: aisleAt(item, tripAt, tripAisles) }} kind={list.kind} groupBy={other ? 'none' : tripAt ? 'aisle' : 'store'} members={members}
-      event={item.eventId ? byId.get(item.eventId) : undefined} onToggle={() => toggle(item)} from={fromTag(item)} readOnly={!mine(item)}
+      event={item.eventId ? byId.get(item.eventId) : undefined} onToggle={() => toggle(item)} from={fromTag(item)} readOnly={!mine(item)} onDelete={delFor(item)}
       onOpen={() => (item.listId !== listId ? (location.hash = `#/lists?list=${encodeURIComponent(item.listId)}`) : openItem(item))} />
   )
   const tripStores = [...new Set([...suggestions.stores, ...(tripAt ? [tripAt] : [])])]
@@ -1775,7 +1861,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
             <div className="empty-card"><span className="emoji">✨</span>All done!</div>
           ) : (
             <DragList items={openItems.slice().sort(cmp)} onReorder={reorderWithin} locked={locked}
-              renderRow={(item, handle) => <ItemRow item={item} kind={list.kind} groupBy={list.groupBy} members={members} event={item.eventId ? byId.get(item.eventId) : undefined} onToggle={() => toggle(item)} onOpen={() => openItem(item)} handle={handle} readOnly={!mine(item)} />} />
+              renderRow={(item, handle) => <ItemRow item={item} kind={list.kind} groupBy={list.groupBy} members={members} event={item.eventId ? byId.get(item.eventId) : undefined} onToggle={() => toggle(item)} onOpen={() => openItem(item)} handle={handle} readOnly={!mine(item)} onDelete={delFor(item)} />} />
           )
         ) : groupedOpen.length === 0 ? (
           <div className="empty-card"><span className="emoji">✨</span>All done!</div>
@@ -1784,7 +1870,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
             <div key={g.name} className="list-group">
               <h3 className="list-group-title" style={{ margin: 0 }}>{g.name}</h3>
               <DragList items={g.items} onReorder={reorderWithin} locked={locked}
-                renderRow={(item, handle) => <ItemRow item={item} kind={list.kind} groupBy={list.groupBy} members={members} event={item.eventId ? byId.get(item.eventId) : undefined} onToggle={() => toggle(item)} onOpen={() => openItem(item)} handle={handle} readOnly={!mine(item)} />} />
+                renderRow={(item, handle) => <ItemRow item={item} kind={list.kind} groupBy={list.groupBy} members={members} event={item.eventId ? byId.get(item.eventId) : undefined} onToggle={() => toggle(item)} onOpen={() => openItem(item)} handle={handle} readOnly={!mine(item)} onDelete={delFor(item)} />} />
             </div>
           ))
         )}
@@ -1798,7 +1884,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
               <button className="link-btn" onClick={() => startCheckout(doneItems.filter(mine), list.kind)}>{list.kind === 'reusable' ? 'Reset list' : 'Clear checked'}</button>
             </div>
             {showDone && doneItems.slice().sort((a, b) => a.sort - b.sort).map(item => (
-              <ItemRow key={item.id} item={item} kind={list.kind} groupBy={list.groupBy} members={members} event={item.eventId ? byId.get(item.eventId) : undefined} onToggle={() => toggle(item)} onOpen={() => openItem(item)} readOnly={!mine(item)} />
+              <ItemRow key={item.id} item={item} kind={list.kind} groupBy={list.groupBy} members={members} event={item.eventId ? byId.get(item.eventId) : undefined} onToggle={() => toggle(item)} onOpen={() => openItem(item)} readOnly={!mine(item)} onDelete={delFor(item)} />
             ))}
           </div>
         )}
@@ -1825,6 +1911,12 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
         <div className="toast list-undo-toast" role="status">
           <span>{checkout.reset ? `Reset ${checkout.ids.length} item${checkout.ids.length === 1 ? '' : 's'}` : list.kind === 'shopping' ? `Checked out ${checkout.ids.length} item${checkout.ids.length === 1 ? '' : 's'}${checkout.left ? `. ${checkout.left} left for next time.` : ''}` : `Cleared ${checkout.ids.length} item${checkout.ids.length === 1 ? '' : 's'}`}</span>
           <button className="list-undo-btn" onClick={undoCheckout}>Undo</button>
+        </div>
+      )}
+      {deleting && (
+        <div className="toast list-undo-toast" role="status">
+          <span>Deleted {deleting.title}</span>
+          <button className="list-undo-btn" onClick={undoDelete}>Undo</button>
         </div>
       )}
 
