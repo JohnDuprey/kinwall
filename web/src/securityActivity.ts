@@ -8,7 +8,7 @@ export const SECURITY_PAGE = 20 // events per page (GET /api/security-events?lim
 
 const ICONS: [prefix: string, icon: string][] = [
   ['passkey.', '🔑'], ['signin.recovery', '🔐'], ['signin.', '👋'], ['signout', '🚪'], ['recovery.', '🔐'],
-  ['device.', '📱'], ['key.', '🗝️'], ['widgets.', '🧩'], ['app.', '🔌'], ['pin.', '🔢'], ['journal.', '📓'],
+  ['device.', '📱'], ['key.', '🗝️'], ['widgets.', '🧩'], ['app.', '🔌'], ['pin.', '🔢'], ['journal.', '📓'], ['support.', '🛟'],
 ]
 
 export function securityLine(e: Pick<SecurityEvent, 'kind' | 'summary' | 'by' | 'at'>, members: Pick<Member, 'id' | 'name' | 'avatar'>[], now = new Date()): { icon: string; text: string; when: string } {
@@ -28,7 +28,7 @@ export function securityHint(latest: Pick<SecurityEvent, 'summary' | 'at'> | und
 /** The sheet's filter chips; each sends its kinds (GET /api/security-events?kinds=). All sends none. */
 export const SECURITY_FILTERS = [
   { key: 'all', label: 'All', kinds: [] },
-  { key: 'signins', label: 'Sign-ins', kinds: ['signin.passkey', 'signin.recovery', 'signout', 'recovery.generated'] },
+  { key: 'signins', label: 'Sign-ins', kinds: ['signin.passkey', 'signin.recovery', 'signout', 'recovery.generated', 'support.link_issued', 'support.link_revoked', 'support.signin'] },
   { key: 'passkeys', label: 'Passkeys', kinds: ['passkey.added', 'passkey.renamed', 'passkey.removed'] },
   { key: 'devices', label: 'Devices', kinds: ['device.paired', 'device.owner', 'widgets.added', 'widgets.removed'] },
   { key: 'keys', label: 'Keys & apps', kinds: ['key.created', 'key.removed', 'app.connected', 'app.disconnected'] },

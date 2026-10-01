@@ -84,7 +84,8 @@ It records:
 * 📱 devices paired, and whose device something now is ("Alex's phone now belongs to Alex");
 * 🗝️ API keys made and removed (removing a paired device too), and 🧩 a phone's widgets keys added and signed out;
 * 🔌 connected apps approved and disconnected, including when Kinwall disconnected one because its sign-in was used twice;
-* 🔢 the [Night PIN](night.md) set, changed or removed, and 📓 [private journal](journal.md#private-journals) changes.
+* 🔢 the [Night PIN](night.md) set, changed or removed, and 📓 [private journal](journal.md#private-journals) changes;
+* 🛟 a support sign-in, if your host offers one: when a one-time sign-in link is issued (with the reason given), canceled, or used to sign in.
 
 Each line says who did it when that's known: the person whose device it was, or a device's or app's name. A recovery-code sign-in and the setup admin key belong to no one, so they show without a name.
 

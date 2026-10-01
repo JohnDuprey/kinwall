@@ -24,6 +24,9 @@ export const SECURITY_KINDS = [
   'app.connected', 'app.disconnected',
   'pin.set', 'pin.removed',
   'journal.privacy',
+  // Written only by an embedding host (entry.ts re-exports recordSecurityEvent): its support's
+  // one-time sign-in link issued, canceled, or used to sign in.
+  'support.link_issued', 'support.link_revoked', 'support.signin',
 ] as const;
 export type SecurityKind = (typeof SECURITY_KINDS)[number];
 export type SecurityEvent = { kind: SecurityKind; summary: string; by?: Actor | null; device?: string | null; detail?: Record<string, string | number | boolean | null> };

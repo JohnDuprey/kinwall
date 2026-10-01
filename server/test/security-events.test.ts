@@ -182,6 +182,8 @@ test('security activity: search and kind filters run on the server, across every
   const page = (await req('/api/security-events?kinds=signin.passkey&limit=2')).json as any[];
   assert.deepEqual(await summaries(`kinds=signin.passkey&limit=2&before=${page[1].id}`), ['Signed in 27', 'Signed in 26'], 'the cursor pages a filtered list');
   assert.equal((await req('/api/security-events?kinds=signin.passkey,drop.table')).status, 400, 'an unknown kind');
+  await recordSecurityEvent(db as any, { kind: 'support.signin', summary: 'Kinwall support signed in to help' });
+  assert.deepEqual(await summaries('kinds=support.link_issued,support.link_revoked,support.signin'), ['Kinwall support signed in to help'], "a host's support sign-in (written by the host, entry.ts)");
 });
 
 test('security activity: q is a bound parameter, and % and _ match only themselves', async () => {

@@ -25,6 +25,13 @@ test('securityLine: nobody to credit, or someone who left, reads as just what ha
   assert.equal(securityLine({ kind: 'something.new', summary: 'Something new', by: null, at }, members, now).icon, '🛡️', 'a kind this app version does not know')
 })
 
+test('securityLine: a support sign-in from the host gets its own icon', () => {
+  const at = new Date(2026, 8, 30, 9, 0).toISOString()
+  const line = securityLine({ kind: 'support.signin', summary: 'Kinwall support signed in to help, until 10:00 UTC', by: null, at }, members, now)
+  assert.deepEqual([line.icon, line.text], ['🛟', 'Kinwall support signed in to help, until 10:00 UTC'])
+  assert.equal(securityLine({ kind: 'support.link_issued', summary: 'x', by: null, at }, members, now).icon, '🛟')
+})
+
 test('securityHint: the latest event and when, or nothing yet', () => {
   setHour12(true)
   assert.equal(securityHint({ summary: 'Passkey "iPhone" added', at: new Date(2026, 8, 30, 9, 0).toISOString() }, now), 'Passkey "iPhone" added · 9:00 AM')
@@ -43,12 +50,12 @@ test('securityDay and groupByDay: today, yesterday, then the date, in runs', () 
 })
 
 test('SECURITY_FILTERS: every kind has exactly one chip, and All sends none', () => {
-  const kinds = ['passkey.added', 'passkey.renamed', 'passkey.removed', 'signin.passkey', 'signin.recovery', 'signout', 'recovery.generated', 'device.paired', 'device.owner', 'key.created', 'key.removed', 'widgets.added', 'widgets.removed', 'app.connected', 'app.disconnected', 'pin.set', 'pin.removed', 'journal.privacy']
+  const kinds = ['passkey.added', 'passkey.renamed', 'passkey.removed', 'signin.passkey', 'signin.recovery', 'signout', 'recovery.generated', 'device.paired', 'device.owner', 'key.created', 'key.removed', 'widgets.added', 'widgets.removed', 'app.connected', 'app.disconnected', 'pin.set', 'pin.removed', 'journal.privacy', 'support.link_issued', 'support.link_revoked', 'support.signin']
   const chipped = SECURITY_FILTERS.flatMap(f => [...f.kinds])
   assert.deepEqual([...chipped].sort(), [...kinds].sort())
   assert.equal(SECURITY_FILTERS[0].key, 'all')
   assert.equal(SECURITY_FILTERS[0].kinds.length, 0)
-  assert.deepEqual([...SECURITY_FILTERS.find(f => f.key === 'signins')!.kinds], ['signin.passkey', 'signin.recovery', 'signout', 'recovery.generated'])
+  assert.deepEqual([...SECURITY_FILTERS.find(f => f.key === 'signins')!.kinds], ['signin.passkey', 'signin.recovery', 'signout', 'recovery.generated', 'support.link_issued', 'support.link_revoked', 'support.signin'])
 })
 
 test('matchesSecurityQuery: summary, the thing it was about, or who did it, ignoring case', () => {

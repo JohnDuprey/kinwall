@@ -13,6 +13,7 @@ export { runMigrations, type Migration } from './migrate.ts';
 export { isClaimed } from './routes/setup.ts';
 export { finishPasskeyLogin, hasAnyPasskey as hasPasskey } from './routes/passkeys.ts';
 export { recordHostEvent } from './host-events.ts';
+export { recordSecurityEvent } from './routes/security-events.ts';
 
 export type KinwallOptions = {
   /** Applied lazily before the first fetch/scheduled (e.g. MIGRATIONS from worker-migrations.ts).
