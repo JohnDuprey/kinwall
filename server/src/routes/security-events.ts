@@ -98,12 +98,18 @@ securityEventsRoutes.openapi(
     method: 'get',
     path: '/api/security-events',
     tags: ['System'],
-    summary: "The family's security activity, newest first: sign-ins, passkeys, recovery codes, keys, devices, connected apps (parent devices only; kept a year, up to 500)",
+    summary: "The family's security activity, newest first: sign-ins, passkeys, recovery codes, keys, devices, connected apps (parent devices only; kept a year, up to 500). Search with q, filter with kinds.",
     security: [{ Bearer: [] }],
     request: {
       query: z.object({
         limit: z.coerce.number().int().min(1).max(100).optional().openapi({ description: 'Default 20.' }),
         before: z.string().optional().openapi({ description: "An event's id: only events older than it (paging: the last id of the page before)." }),
+        q: z.string().max(100).optional().openapi({ description: "Only events whose summary, passkey/key/device/app name, or who did it (a member's name or a device's or app's name) contains this, ignoring case." }),
+        kinds: z
+          .string()
+          .optional()
+          .refine((s) => !s || s.split(',').every((k) => (SECURITY_KINDS as readonly string[]).includes(k)), { message: 'unknown kind' })
+          .openapi({ description: 'Only these kinds, comma-separated (`signin.passkey,signin.recovery,signout`).', example: 'passkey.added,passkey.removed' }),
       }),
     },
     responses: {
@@ -114,9 +120,23 @@ securityEventsRoutes.openapi(
   async (c) => {
     // Display keys never get here (auth.ts DISPLAY_ALLOWED) and connected apps are refused there too.
     if ((await resolveKey(c))?.scope !== 'admin') return c.json({ error: 'Admin key required' }, 403);
-    const { limit = 20, before } = c.req.valid('query');
+    const { limit = 20, before, q, kinds } = c.req.valid('query');
+    const where = ['e.rowid < coalesce((SELECT rowid FROM security_events WHERE id = ?), 9e18)'];
+    const binds: unknown[] = [before ?? ''];
+    const list = kinds ? kinds.split(',') : [];
+    if (list.length) { where.push(`e.kind IN (${list.map(() => '?').join(',')})`); binds.push(...list); }
+    const needle = q?.trim();
+    if (needle) {
+      // Bound, never spliced in; % and _ match themselves. SQLite's LIKE ignores case for A-Z only.
+      where.push("(e.summary LIKE ? ESCAPE '\\' OR e.device LIKE ? ESCAPE '\\' OR e.actor_label LIKE ? ESCAPE '\\' OR m.name LIKE ? ESCAPE '\\')");
+      const like = `%${needle.replace(/[\\%_]/g, '\\$&')}%`;
+      binds.push(like, like, like, like);
+    }
     // Newest first in the order they were written (rowid), so events in the same millisecond page right.
-    const { results } = await c.env.DB.prepare('SELECT * FROM security_events WHERE rowid < coalesce((SELECT rowid FROM security_events WHERE id = ?), 9e18) ORDER BY rowid DESC LIMIT ?').bind(before ?? '', limit).all<Row>();
+    const { results } = await c.env.DB
+      .prepare(`SELECT e.* FROM security_events e LEFT JOIN members m ON m.id = e.actor_member_id WHERE ${where.join(' AND ')} ORDER BY e.rowid DESC LIMIT ?`)
+      .bind(...binds, limit)
+      .all<Row>();
     return c.json(
       results.map((r) => ({
         id: r.id, at: r.at, kind: r.kind, summary: r.summary,

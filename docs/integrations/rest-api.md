@@ -114,13 +114,14 @@ Feature switches on `PATCH /api/settings` are sent as the complete `features` ob
 | Google Photos | `GET /api/google-photos`, `POST /api/google-photos/connect`, `DELETE /api/google-photos`, `GET /api/google-photos/next?w=&h=`. See [Google Photos](#google-photos). |
 | Notes | `GET/POST /api/notes`, `PATCH/DELETE /api/notes/{id}`. A member's own device posts as them and changes only their notes; a shared wall changes only notes with no `memberId` (else `403`). See [Notes](../using/events.md#notes). |
 | Data | `GET /api/export`, `POST /api/import`, `GET /api/host-events` |
-| Security activity | `GET /api/security-events?limit=&before=` (admin only). See [Security activity](#security-activity). |
+| Security activity | `GET /api/security-events?limit=&before=&q=&kinds=` (admin only). See [Security activity](#security-activity). |
 
 ## Security activity
 
 `GET /api/security-events` lists the family's security log, newest first: `[{ id, at, kind, summary, by, device, detail }]`. Admin keys only: display keys (wall screens, kids' devices) and connected apps get 403.
 
 * `limit`: 1 to 100, 20 by default. `before`: an event's `id`, for the page after it.
+* `q`: only events whose `summary`, `device`, or who did it (a member's name, or a device's or app's name) contains it, ignoring case. `kinds`: only these kinds, comma-separated (`kinds=signin.passkey,signin.recovery,signout`); an unknown kind gets 400. Both work with `before`, so a search pages through the whole log.
 * `kind`: `passkey.added`, `passkey.renamed`, `passkey.removed`, `signin.passkey`, `signin.recovery`, `signout`, `recovery.generated`, `device.paired`, `device.owner`, `key.created`, `key.removed`, `widgets.added`, `widgets.removed`, `app.connected`, `app.disconnected`, `pin.set`, `pin.removed` or `journal.privacy`. New kinds may be added; show `summary` for any you don't know.
 * `summary`: what happened, in plain words (`Passkey "iPhone" added`). `by`: `{ memberId, label }` (a member, or a device's or app's name), or `null` when nobody is known (the setup key, a recovery code). `device`: the name of the passkey, key, device or app. `detail`: a few extras, like `{ remaining: 7 }` on a recovery-code sign-in.
 * Never holds keys, tokens, codes, PINs or credential IDs. Kept a year, up to the newest 500.

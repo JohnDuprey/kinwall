@@ -160,6 +160,48 @@ test('security activity: parent devices only; paged newest first', async () => {
   assert.deepEqual(more.map((e) => e.summary), ['PIN 1', 'PIN 0'], 'the rest, even within the same millisecond');
 });
 
+test('security activity: search and kind filters run on the server, across every page', async () => {
+  const { db, req } = setup();
+  const alex = (await req('/api/members', 'POST', { name: 'Alex', color: '#336699', grownUp: true })).json.id as string;
+  await recordSecurityEvent(db as any, { kind: 'passkey.added', summary: 'Passkey "iPhone" added', by: { memberId: alex, label: null }, device: 'iPhone' });
+  await recordSecurityEvent(db as any, { kind: 'key.created', summary: 'API key "Home Assistant" created', by: { memberId: null, label: 'Kitchen wall' }, device: 'Home Assistant' });
+  await recordSecurityEvent(db as any, { kind: 'signin.recovery', summary: 'Recovery code used to sign in (7 left)' });
+  await recordSecurityEvent(db as any, { kind: 'pin.set', summary: 'Night PIN set: 100% done_' });
+  for (let i = 0; i < 30; i++) await recordSecurityEvent(db as any, { kind: 'signin.passkey', summary: `Signed in ${i}` });
+  const summaries = async (query: string) => {
+    const res = await req(`/api/security-events?${query}`);
+    assert.equal(res.status, 200, JSON.stringify(res.json));
+    return (res.json as any[]).map((e) => e.summary);
+  };
+  assert.deepEqual(await summaries('q=IPHONE'), ['Passkey "iPhone" added'], 'the summary, ignoring case, past the first page');
+  assert.deepEqual(await summaries('q=home%20assistant'), ['API key "Home Assistant" created'], 'the key name');
+  assert.deepEqual(await summaries('q=kitchen'), ['API key "Home Assistant" created'], 'a device that did it');
+  assert.deepEqual(await summaries('q=alex'), ['Passkey "iPhone" added'], 'a member who did it, by name');
+  assert.deepEqual(await summaries('kinds=signin.recovery,pin.set'), ['Night PIN set: 100% done_', 'Recovery code used to sign in (7 left)']);
+  assert.deepEqual(await summaries('kinds=signin.passkey&q=signed%20in%202'), ['Signed in 29', 'Signed in 28', 'Signed in 27', 'Signed in 26', 'Signed in 25', 'Signed in 24', 'Signed in 23', 'Signed in 22', 'Signed in 21', 'Signed in 20', 'Signed in 2']);
+  const page = (await req('/api/security-events?kinds=signin.passkey&limit=2')).json as any[];
+  assert.deepEqual(await summaries(`kinds=signin.passkey&limit=2&before=${page[1].id}`), ['Signed in 27', 'Signed in 26'], 'the cursor pages a filtered list');
+  assert.equal((await req('/api/security-events?kinds=signin.passkey,drop.table')).status, 400, 'an unknown kind');
+});
+
+test('security activity: q is a bound parameter, and % and _ match only themselves', async () => {
+  const { db, req } = setup();
+  await recordSecurityEvent(db as any, { kind: 'pin.set', summary: 'Night PIN set' });
+  await recordSecurityEvent(db as any, { kind: 'pin.set', summary: 'Night PIN 100% set' });
+  const q = async (s: string) => ((await req(`/api/security-events?q=${encodeURIComponent(s)}`)).json as any[]).map((e) => e.summary);
+  assert.deepEqual(await q('%'), ['Night PIN 100% set']);
+  assert.deepEqual(await q('_'), []);
+  assert.deepEqual(await q("x' OR 1=1 --"), []);
+  assert.deepEqual(await q("'); DROP TABLE security_events; --"), []);
+  assert.equal((await req('/api/security-events')).json.length, 2, 'the table is still there');
+});
+
+test('security activity: display keys still get 403 with q and kinds', async () => {
+  const { db, req } = setup();
+  const display = await createApiKey(db as any, 'Kitchen', 'display');
+  assert.equal((await req('/api/security-events?q=pin&kinds=pin.set', 'GET', undefined, display.key)).status, 403);
+});
+
 test('security activity: a connected app (even with full access) gets 403', async () => {
   const { req, raw } = setup();
   const reg = (await req('/oauth/register', 'POST', { client_name: 'Claude', redirect_uris: [REDIRECT] }, null)).json;
