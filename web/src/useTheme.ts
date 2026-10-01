@@ -6,7 +6,7 @@ import { deviceTypeface, resolveTypeface } from './typeface.ts'
 import { deviceTimeFormat } from './timeFormat.ts'
 import { accentFill, readableOn } from './color.ts'
 import { api, getKey } from './api.ts'
-import { findSkin, seasonalSkinId, tokensFor } from './skins.ts'
+import { DEFAULT_SKIN_ID, findSkin, seasonalSkinId, tokensFor } from './skins.ts'
 import { surfaces, tellAppAppearance } from './native.ts'
 import { inTimeWindow } from './wallScreen.ts'
 export { inTimeWindow } // callers import it from here
@@ -64,7 +64,7 @@ export const DEFAULT_ACCENT = '#FF9E7A'
  * its own scheme starts from that scheme alone; a device that follows the household's scheme also
  * gets the household's custom colors, and its own custom colors go on top of those. */
 export function resolveColors(household: Pick<Appearance, 'colorScheme' | 'customColors' | 'customSchemes' | 'accent'>, device: DeviceAppearance) {
-  const scheme: ColorScheme = device.skin ?? household.colorScheme ?? 'meadow'
+  const scheme: ColorScheme = device.skin ?? household.colorScheme ?? DEFAULT_SKIN_ID
   const skinId = scheme === 'seasonal' ? seasonalSkinId() : scheme
   const householdCustom: CustomColors = {
     ...(household.customColors ?? {}),
@@ -178,7 +178,7 @@ function applyAppearance(household: Appearance, device: DeviceAppearance) {
     root.setAttribute('data-density', a.density)
 
     // Color scheme (skins.ts) and custom colors, household or this device's (resolveColors).
-    // Every scheme sets its tokens, Peach (the default) included, so a screen always looks like its chip. Custom
+    // Every scheme sets its tokens, the default included, so a screen always looks like its chip. Custom
     // surfaces are skipped in low-stim mode, which wants a calm, pre-vetted palette; a custom
     // accent still applies.
     const { skin, custom: picked } = resolveColors(household, device)
@@ -207,7 +207,7 @@ function applyAppearance(household: Appearance, device: DeviceAppearance) {
     // index.html has a light and a dark theme-color (by media) for before this runs; now both are the real background.
     const metas = [...document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')]
     if (!metas.length) { const m = document.createElement('meta'); m.name = 'theme-color'; document.head.appendChild(m); metas.push(m) }
-    const bg = getComputedStyle(root).getPropertyValue('--bg').trim() || (dark ? '#1C1712' : '#FFFBF5')
+    const bg = getComputedStyle(root).getPropertyValue('--bg').trim() || (dark ? '#0D1D15' : '#E9F6EF')
     for (const m of metas) { m.dataset.day = bg; if (!document.documentElement.dataset.night) m.content = bg } // native.ts tellAppNight
     tellAppAppearance({ mode: a.themeMode, dark, colors: surfaces(skin, custom) })
   }

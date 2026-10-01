@@ -27,7 +27,7 @@ import { familyNightFields, nightFieldsFor, ownsNight, toNightLook, type NightFi
 import { DEFAULT_ACCENT, resolveColors, setDeviceAppearance, useDeviceAppearance, type DeviceAppearance, type LockedView, type SaverSource } from './useTheme.ts'
 import { deviceKindOf, deviceKindValue, parseDeviceKind, wallDefaultsOn, widgetParent, type DeviceKind } from './wallScreen.ts'
 import { PIN_RE } from './quietPin.ts'
-import { baseFromPalette, findSkin, getSkin, OLD_BACKGROUNDS, paletteChecks, paletteOf, seasonalSkinId, tokensFor, type CustomScheme, type Palette } from './skins.ts'
+import { baseFromPalette, DEFAULT_SKIN_ID, findSkin, getSkin, OLD_BACKGROUNDS, paletteChecks, paletteOf, seasonalSkinId, tokensFor, type CustomScheme, type Palette } from './skins.ts'
 import { SAVER_PREVIEW_EVENT } from './Screensaver.tsx'
 import type { ClockPos } from './nightClock.ts'
 import { countDrawings } from './drawings-db.ts'
@@ -491,8 +491,8 @@ function AppearanceSection({ settings, onSaved, toast }: { settings: Settings; o
         legacy={{ ...(settings.customColors ?? {}), ...(settings.accent.toUpperCase() !== DEFAULT_ACCENT ? { accent: settings.accent } : {}) }}
         legacyBackgrounds={{ light: settings.backgroundLight, dark: settings.backgroundDark }}
         legacyClear={{ customColors: null, accent: DEFAULT_ACCENT, backgroundLight: 'warm', backgroundDark: 'cocoa' }}
-        resetLabel="Reset colors to Peach"
-        onReset={() => save({ colorScheme: 'meadow', customColors: null, accent: DEFAULT_ACCENT, backgroundLight: 'warm', backgroundDark: 'cocoa' })}
+        resetLabel="Reset colors to Sage"
+        onReset={() => save({ colorScheme: DEFAULT_SKIN_ID, customColors: null, accent: DEFAULT_ACCENT, backgroundLight: 'warm', backgroundDark: 'cocoa' })}
       />
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
         <TypefaceRow options={FONTS} value={settings.typeface ?? 'default'} onPick={key => { if (key) { save({ typeface: key }); announce(`${fontName(key)} typeface`) } }} />
@@ -928,7 +928,7 @@ function ColorControls({ scheme, householdScheme, onScheme, household, device, s
   const skinOf = (id: ColorScheme) => id === 'seasonal' ? getSkin(seasonalSkinId()) : findSkin(id, customs)
   const dotsFor = (id: ColorScheme) => { const k = tokensFor(skinOf(id), dark); return [k.bg, k.card, k.accent] }
   // The row: the scheme in effect here, with a light+dark swatch ringed in its accent.
-  const current = scheme ?? householdScheme ?? 'meadow'
+  const current = scheme ?? householdScheme ?? DEFAULT_SKIN_ID
   const [lightT, darkT] = [tokensFor(skinOf(current), false), tokensFor(skinOf(current), true)]
   const emojiOf = (id: ColorScheme) => id === 'seasonal' ? '🗓️' : skinOf(id).emoji
   const rowValue = scheme || !householdScheme ? `${emojiOf(current)} ${nameOf(current)}` : `🏠 Household (${nameOf(householdScheme)})`
@@ -963,8 +963,8 @@ function ColorControls({ scheme, householdScheme, onScheme, household, device, s
     setEditing(null)
   }
   const deleteScheme = async (c: CustomScheme) => {
-    await saveSettings({ customSchemes: customs.filter(x => x.id !== c.id), ...(household.colorScheme === c.id ? { colorScheme: 'meadow' } : {}) })
-    if (device.skin === c.id || scheme === c.id) onScheme(householdScheme ? undefined : 'meadow')
+    await saveSettings({ customSchemes: customs.filter(x => x.id !== c.id), ...(household.colorScheme === c.id ? { colorScheme: DEFAULT_SKIN_ID } : {}) })
+    if (device.skin === c.id || scheme === c.id) onScheme(householdScheme ? undefined : DEFAULT_SKIN_ID)
     announce(`${c.name} deleted`)
     setEditing(null)
   }
@@ -1006,7 +1006,7 @@ function ColorControls({ scheme, householdScheme, onScheme, household, device, s
                     {parentDevice && <>
                       <button className="btn btn-secondary" onClick={() => { setManage(false); setEditing({ draft: c, isNew: false }) }} aria-label={`Edit ${c.name}`}>Edit</button>
                       <button className="btn btn-danger" aria-label={`Delete ${c.name}`} onClick={async () => {
-                        if (await dialog.confirm({ title: `Delete ${c.name}?`, body: 'Screens using it go back to Peach.', confirmLabel: 'Delete', danger: true })) deleteScheme(c)
+                        if (await dialog.confirm({ title: `Delete ${c.name}?`, body: 'Screens using it go back to Sage.', confirmLabel: 'Delete', danger: true })) deleteScheme(c)
                       }}>Delete</button>
                     </>}
                   </li>
@@ -1064,7 +1064,7 @@ function SchemeSheet({ draft, isNew, onClose, onSave, onDelete }: {
     <Sheet title={isNew ? 'New color scheme' : `Edit ${draft.name}`} onClose={onClose}
       actions={<>
         {onDelete && <button className="btn btn-danger" disabled={busy} onClick={async () => {
-          if (await dialog.confirm({ title: `Delete ${draft.name}?`, body: 'Screens using it go back to Peach.', confirmLabel: 'Delete', danger: true })) run(onDelete)
+          if (await dialog.confirm({ title: `Delete ${draft.name}?`, body: 'Screens using it go back to Sage.', confirmLabel: 'Delete', danger: true })) run(onDelete)
         }}>Delete</button>}
         <button className="btn btn-primary" disabled={!canSave} onClick={() => run(() => onSave({ ...c, name: c.name.trim() }))}>{isNew ? 'Save and use' : 'Save'}</button>
       </>}>

@@ -17,7 +17,7 @@ const DEFAULTS: Record<string, string> = {
   darkFrom: '20:00',
   darkTo: '07:00',
   accent: '#FF9E7A',
-  colorScheme: 'meadow',
+  colorScheme: 'sage', // migrations/0079 keeps Peach ('meadow') for families from before
   backgroundLight: 'warm',
   backgroundDark: 'cocoa',
   textScale: 'm',
@@ -158,7 +158,7 @@ export async function readFeatures(db: KinwallDb): Promise<Features> {
 }
 
 function parseColorScheme(raw: string | undefined): string {
-  return (COLOR_SCHEMES as readonly string[]).includes(raw ?? '') || CUSTOM_SCHEME_ID_RE.test(raw ?? '') ? raw! : 'meadow';
+  return (COLOR_SCHEMES as readonly string[]).includes(raw ?? '') || CUSTOM_SCHEME_ID_RE.test(raw ?? '') ? raw! : DEFAULTS.colorScheme;
 }
 
 // Stored as JSON; anything that no longer validates is dropped rather than failing the read.

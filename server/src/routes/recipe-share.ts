@@ -108,8 +108,8 @@ const kinwallData = (r: Recipe, self: string) => ({ kinwall: 1, recipe: {
 } });
 
 const CSS = `
-:root{--bg:#FFFBF5;--bg-alt:#FFF4E8;--card:#fff;--text:#3A2E27;--dim:#7A6B60;--border:#F1E4D6;--accent:#FF9E7A;--ink:#3A2E27;color-scheme:light dark}
-@media (prefers-color-scheme:dark){:root{--bg:#1C1712;--bg-alt:#241D17;--card:#2A221B;--text:#F3EAE0;--dim:#B3A395;--border:#3A3028}}
+:root{--bg:#E9F6EF;--bg-alt:#D9EEE2;--card:#F9FEFB;--text:#14261D;--dim:#446353;--border:#C6DED1;--accent:#00774B;--ink:#fff;color-scheme:light dark}
+@media (prefers-color-scheme:dark){:root{--bg:#0D1D15;--bg-alt:#11251C;--card:#193025;--text:#E5F0EA;--dim:#A0BEAE;--border:#2B4739;--accent:#44C28D;--ink:#0D1D15}}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:17px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-text-size-adjust:100%}
 main{max-width:760px;margin:0 auto;padding:20px 16px 48px}
 h1{font-size:1.9rem;line-height:1.2;margin:8px 0 12px}h2{font-size:1.25rem;margin:32px 0 12px}h3{font-size:1rem;margin:0 0 4px}

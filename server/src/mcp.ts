@@ -1761,7 +1761,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       title: 'List color schemes',
       description:
         "The household's color scheme and every scheme it can use: Seasonal, the built-in schemes (by the name people see, " +
-        'e.g. Peach is the default and Meadow is the green one), and the family\'s own saved schemes with their light and dark palettes.',
+        'e.g. Sage is the default, Peach is the warm one and Meadow the green one), and the family\'s own saved schemes with their light and dark palettes.',
       inputSchema: {},
     },
     async () => {
@@ -1840,7 +1840,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'delete_color_scheme',
     {
       title: 'Delete a color scheme',
-      description: "Delete one of the family's own color schemes. Screens using it go back to Peach, the default.",
+      description: "Delete one of the family's own color schemes. Screens using it go back to Sage, the default.",
       inputSchema: { scheme: z.string().describe("Name or id of one of the family's own schemes.") },
     },
     async ({ scheme }) => {
@@ -1851,7 +1851,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       if (!target) return errorResult(null, `The family has no scheme called "${scheme}". Built-in schemes can't be deleted.`);
       const res = await call(app, env, auth, 'PATCH', '/api/settings', {
         customSchemes: customs.filter((c) => c.id !== target.id),
-        ...(settings.colorScheme === target.id ? { colorScheme: 'meadow' } : {}),
+        ...(settings.colorScheme === target.id ? { colorScheme: 'sage' } : {}),
       });
       if (res.status >= 400) return errorResult(res.json, 'failed to delete the color scheme');
       return okResult(`Deleted ${target.name}.`, { settings: res.json as Record<string, unknown> });

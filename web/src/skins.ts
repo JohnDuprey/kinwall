@@ -15,7 +15,7 @@ export type SkinTokens = SkinBase & { accentStrong: string; accentInk: string; a
 export type Skin = { id: string; name: string; emoji: string; light: SkinBase; dark: SkinBase }
 
 export const SKINS: Skin[] = [
-  { id: 'meadow', name: 'Peach', emoji: '🍑', // the default look (shown as Peach; the id stays 'meadow' so stored choices keep working) - must stay byte-for-byte the pre-skin colors
+  { id: 'meadow', name: 'Peach', emoji: '🍑', // the original look (shown as Peach; the id stays 'meadow' so stored choices keep working) - must stay byte-for-byte the pre-skin colors
     light: { bg: '#FFFBF5', bgAlt: '#FFF4E8', card: '#FFFFFF', border: '#F1E4D6', text: '#3A2E27', textDim: '#7A6B60', accent: '#FF9E7A' },
     dark: { bg: '#1C1712', bgAlt: '#241D17', card: '#2A221B', border: '#3A3028', text: '#F3EAE0', textDim: '#B3A395', accent: '#FF9E7A' } },
   { id: 'field', name: 'Meadow', emoji: '🌿', // soft greens (id 'field': 'meadow' is Peach's id from before the rename)
@@ -67,7 +67,8 @@ export const SKINS: Skin[] = [
     dark: { bg: '#181727', bgAlt: '#1F1E30', card: '#29273D', border: '#3E3C57', text: '#ECEBF7', textDim: '#B3B2D1', accent: '#A082FF' } },
 ]
 
-export const DEFAULT_SKIN_ID = 'meadow'
+/** New families start on Sage; families from before it was the default kept Peach (server migration 0079). */
+export const DEFAULT_SKIN_ID = 'sage'
 
 /** The household background presets from before color schemes (styles.css's old [data-bg] rules).
  * Warm and Cocoa are Peach's own colors; any other one is offered as "Save as a scheme". */
@@ -80,7 +81,7 @@ export const OLD_BACKGROUNDS: Record<string, { name: string; bg: string; card: s
   charcoal: { name: 'Charcoal', bg: '#191A1C', card: '#25272B', text: '#EDEEF0' },
   midnight: { name: 'Midnight', bg: '#0F1420', card: '#1B2333', text: '#E7ECF7' },
 }
-export const getSkin = (id?: string): Skin => SKINS.find(s => s.id === id) ?? SKINS[0]
+export const getSkin = (id?: string): Skin => SKINS.find(s => s.id === id) ?? SKINS.find(s => s.id === DEFAULT_SKIN_ID)!
 
 // ---- The family's own schemes (Settings -> Appearance -> Customize) ----
 // People pick four colors per mode; the softer background, border and dim text are derived from
@@ -106,7 +107,7 @@ export function baseFromPalette(p: Palette, dark: boolean): SkinBase {
 export const skinFromCustom = (c: CustomScheme): Skin =>
   ({ id: c.id, name: c.name, emoji: c.emoji || '🎨', light: baseFromPalette(c.light, false), dark: baseFromPalette(c.dark, true) })
 
-/** A built-in skin or one of the family's schemes; unknown ids (a deleted scheme) fall back to Peach (id 'meadow'). */
+/** A built-in skin or one of the family's schemes; unknown ids (a deleted scheme) fall back to the default, Sage. */
 export function findSkin(id: string | undefined, custom: CustomScheme[] = []): Skin {
   const c = custom.find(s => s.id === id)
   return c ? skinFromCustom(c) : getSkin(id)

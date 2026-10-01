@@ -79,6 +79,7 @@ import m0075 from '../migrations/0075_chore_completion_indexes.sql';
 import m0076 from '../migrations/0076_list_catalogs.sql';
 import m0077 from '../migrations/0077_google_photos_account.sql';
 import m0078 from '../migrations/0078_list_added_by.sql';
+import m0079 from '../migrations/0079_pin_peach_scheme.sql';
 
 export const MIGRATIONS: Migration[] = [
   { name: '0001_init.sql', sql: m0001 },
@@ -159,4 +160,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0076_list_catalogs.sql', sql: m0076 },
   { name: '0077_google_photos_account.sql', sql: m0077 },
   { name: '0078_list_added_by.sql', sql: m0078 },
+  { name: '0079_pin_peach_scheme.sql', sql: m0079 },
 ];

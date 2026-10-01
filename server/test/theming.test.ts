@@ -4,6 +4,8 @@ import { createApp } from '../src/app.ts';
 import { openDb, applyMigrations } from '../src/d1-sqlite.ts';
 import type { Env } from '../src/env.ts';
 import { isSingleEmoji } from '../src/emoji.ts';
+import { runMigrations } from '../src/migrate.ts';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -148,7 +150,7 @@ test('household color scheme and custom colors: defaults, round-trip, clearing a
   const env = makeEnv();
   const request = makeApp(env);
   let body = await json<any>(await request('/api/settings'));
-  assert.equal(body.colorScheme, 'meadow');
+  assert.equal(body.colorScheme, 'sage');
   assert.equal(body.customColors, null);
 
   body = await json<any>(await request('/api/settings', { method: 'PATCH', body: JSON.stringify({ colorScheme: 'autumn', customColors: { bg: '#112233', text: '#EEEEEE' } }) }));
@@ -224,4 +226,28 @@ test('family time format: defaults to auto, round-trips, is exported and rejects
   assert.equal((await json<any>(await request('/api/export'))).settings.timeFormat, '24');
   // The pairing screen shows no times, so the public appearance leaves it out.
   assert.equal((await json<any>(await request('/api/appearance'))).timeFormat, undefined);
+});
+
+test('migration 0079: a family from before keeps Peach; a new database gets Sage', async () => {
+  const files = readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith('.sql')).sort();
+  const load = (pick: (f: string) => boolean) => files.filter(pick).map((name) => ({ name, sql: readFileSync(path.join(MIGRATIONS_DIR, name), 'utf8') }));
+  const before = load((f) => f < '0079'), rest = load((f) => f >= '0079');
+  const scheme = async (db: D1Database) => (await db.prepare("SELECT value FROM settings WHERE key = 'colorScheme'").first<{ value: string }>())?.value;
+
+  const old = openDb(':memory:') as unknown as D1Database; // set up, never picked a scheme
+  await runMigrations(old, before);
+  await old.prepare("INSERT INTO members (id, name, color, sort, created_at) VALUES ('m1','Alex','#f00',0,'now')").run();
+  await runMigrations(old, rest);
+  assert.equal(await scheme(old), 'meadow');
+
+  const picked = openDb(':memory:') as unknown as D1Database; // picked one: kept
+  await runMigrations(picked, before);
+  await picked.prepare("INSERT INTO members (id, name, color, sort, created_at) VALUES ('m1','Alex','#f00',0,'now')").run();
+  await picked.prepare("INSERT INTO settings (key, value) VALUES ('colorScheme', 'ocean')").run();
+  await runMigrations(picked, rest);
+  assert.equal(await scheme(picked), 'ocean');
+
+  const fresh = openDb(':memory:') as unknown as D1Database;
+  await runMigrations(fresh, [...before, ...rest]);
+  assert.equal(await scheme(fresh), undefined); // nothing stored: reads as the default, Sage
 });
