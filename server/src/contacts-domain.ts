@@ -84,14 +84,59 @@ function decodeQuotedPrintable(value: string, charset: string): string {
   try { return new TextDecoder(charset).decode(new Uint8Array(bytes)); } catch { return new TextDecoder().decode(new Uint8Array(bytes)); }
 }
 
-/** Parse text vCards 2.1, 3.0 and 4.0. Binary PHOTO/LOGO/KEY properties are ignored. */
+// Type words that say nothing a person reads as a label ("pref" is the default number, "voice"
+// a phone, "internet" an email); the rest map to the words Contacts apps show.
+const NOISE = new Set(['pref', 'voice', 'internet', 'x400', 'msg', 'text', 'video', 'dom', 'intl', 'postal', 'parcel', 'bbs', 'modem', 'isdn', 'pcs', 'uri', 'textphone', 'charset', 'encoding']);
+const WORDS: Record<string, string> = { cell: 'Mobile', mobile: 'Mobile', iphone: 'iPhone', home: 'Home', work: 'Work', main: 'Main', pager: 'Pager', other: 'Other', school: 'School', car: 'Car', fax: 'Fax' };
+
+/** A readable label: Apple's X-ABLabel ("_$!<HomePage>!$_" → "Home page", or the person's own
+ * words), else the TYPE words ("work,fax" → "Work fax", "cell" → "Mobile"). */
+function readableLabel(types: string[], abLabel: string | undefined): string {
+  if (abLabel) {
+    const builtIn = /^_\$!<(.+)>!\$_$/.exec(abLabel)?.[1];
+    if (!builtIn) return abLabel.trim().slice(0, 50);
+    const words = builtIn.replace(/FAX$/i, ' fax').replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase();
+    return (words[0].toUpperCase() + words.slice(1)).slice(0, 50);
+  }
+  const t = types.map((x) => x.toLowerCase()).filter((x) => x && !NOISE.has(x));
+  if (t.includes('fax')) { const where = t.find((x) => x === 'home' || x === 'work'); return where ? `${WORDS[where]} fax` : 'Fax'; }
+  const word = t.includes('iphone') ? 'iphone' : t[0];
+  if (!word) return '';
+  const own = word.replace(/^x-/, '');
+  return (WORDS[word] ?? own[0].toUpperCase() + own.slice(1)).slice(0, 50);
+}
+
+/** A vCard date as Kinwall keeps it: YYYY-MM-DD, or --MM-DD without a year (vCard 4's --MMDD, or
+ * Apple's placeholder year 1604 with X-APPLE-OMIT-YEAR); null when it isn't a date. */
+function readDate(value: string, params: string[]): string | null {
+  const m = /^(\d{4}|--)-?(\d{2})-?(\d{2})(?:T.*)?$/.exec(value.trim());
+  if (!m) return null;
+  const noYear = m[1] === '--' || m[1] === '1604' || params.some((p) => /^X-APPLE-OMIT-YEAR=/i.test(p));
+  return `${noYear ? '-' : m[1]}-${m[2]}-${m[3]}`;
+}
+
+/** The colon that ends a property's name and parameters: not escaped, not inside a quoted parameter. */
+function valueStart(line: string): number {
+  let quoted = false;
+  for (let i = 0; i < line.length; i++) {
+    if (line[i] === '"') quoted = !quoted;
+    else if (line[i] === ':' && !quoted && line[i - 1] !== '\\') return i;
+  }
+  return -1;
+}
+
+const KEYS = new Set(['FN', 'N', 'NICKNAME', 'KIND', 'ORG', 'TITLE', 'TEL', 'EMAIL', 'ADR', 'URL', 'BDAY', 'ANNIVERSARY', 'X-ABDATE', 'CATEGORIES', 'NOTE', 'X-ABLABEL', 'X-ABSHOWAS']);
+type Prop = { key: string; group: string; params: string[]; types: string[]; value: string };
+
+/** Parse text vCards 2.1, 3.0 and 4.0 (Apple, Google and Android exports). Photos and other binary
+ * properties are skipped: Kinwall has no contact photos. */
 export function parseVCards(input: string): ContactInput[] {
   if (input.length > 2_000_000) throw new Error('vCard file is too large');
   // Folded lines begin with whitespace. Quoted-printable (2.1) also continues a line that ends
   // in a soft break '=', but only inside such a property: base64 PHOTO data and URLs end in '=' too.
   const physical = input.replace(/\r\n?/g, '\n').split('\n');
   const lines: string[] = [];
-  const quotedPrintable = (line: string) => /;(?:ENCODING=)?QUOTED-PRINTABLE[;:]/i.test(line.slice(0, line.search(/(?<!\\):/) + 1));
+  const quotedPrintable = (line: string) => /;(?:ENCODING=)?QUOTED-PRINTABLE[;:]/i.test(line.slice(0, valueStart(line) + 1));
   for (const part of physical) {
     const last = lines.at(-1);
     if (last !== undefined && /^[ \t]/.test(part)) lines[lines.length - 1] += part.slice(1);
@@ -99,38 +144,72 @@ export function parseVCards(input: string): ContactInput[] {
     else lines.push(part);
   }
   const out: ContactInput[] = [];
-  let fields: Record<string, { value: string; label: string }[]> | null = null;
+  let props: Prop[] | null = null;
   for (const line of lines) {
-    if (/^BEGIN:VCARD$/i.test(line)) { if (fields) throw new Error('nested vCard'); fields = {}; continue; }
-    if (/^END:VCARD$/i.test(line)) {
-      if (!fields) throw new Error('unexpected END:VCARD');
-      const first = (key: string) => fields?.[key]?.[0]?.value ?? '';
-      const n = splitEscaped(first('N'), ';');
-      const name = first('FN') || [n[3], n[1], n[2], n[0], n[4]].filter(Boolean).join(' ') || first('ORG');
-      if (!name) throw new Error('vCard is missing a name');
-      const vals = (key: string) => (fields?.[key] ?? []).map((v) => ({ label: v.label, value: v.value }));
-      const addresses = (fields.ADR ?? []).map((v) => { const p = splitEscaped(v.value, ';'); return { label: v.label, street: [p[1], p[2]].filter(Boolean).join('\n'), city: p[3] ?? '', region: p[4] ?? '', postalCode: p[5] ?? '', country: p[6] ?? '' }; });
-      const dates = [...(fields.BDAY ?? []).map((v) => ({ label: 'birthday', date: v.value })), ...(fields.ANNIVERSARY ?? []).map((v) => ({ label: 'anniversary', date: v.value }))].filter((v) => /^(?:\d{4}-\d{2}-\d{2}|--\d{2}-\d{2})$/.test(v.date));
-      const tags = (fields.CATEGORIES ?? []).flatMap((v) => splitEscaped(v.value, ',')).map((tag) => tag.trim()).filter(Boolean);
-      const parsed = ContactInputSchema.safeParse({ kind: first('KIND').toLowerCase() === 'org' || (!first('N') && !!first('ORG')) ? 'organization' : 'person', name, nickname: first('NICKNAME') || null, organization: splitEscaped(first('ORG'), ';')[0] || null, title: first('TITLE') || null, phones: vals('TEL'), emails: vals('EMAIL'), addresses, websites: vals('URL'), dates, tags, notes: first('NOTE') || null });
-      if (!parsed.success) throw new Error(`invalid vCard: ${parsed.error.issues[0]?.message}`);
-      out.push(parsed.data); fields = null; continue;
+    if (/^BEGIN:VCARD$/i.test(line.trim())) { if (props) throw new Error('nested vCard'); props = []; continue; }
+    if (/^END:VCARD$/i.test(line.trim())) {
+      if (!props) throw new Error('unexpected END:VCARD');
+      out.push(toContact(props)); props = null; continue;
     }
-    if (!fields) { if (line.trim()) throw new Error('text outside vCard'); continue; }
-    const colon = line.search(/(?<!\\):/);
+    if (!props) { if (line.trim()) throw new Error('text outside vCard'); continue; }
+    const colon = valueStart(line);
     if (colon < 0) continue;
     const header = line.slice(0, colon).split(';');
-    const key = header[0].split('.').at(-1)!.toUpperCase();
+    const name = header[0].split('.');
+    const key = name.at(-1)!.toUpperCase();
+    if (!KEYS.has(key)) continue;
     const params = header.slice(1);
-    if (!['FN', 'N', 'NICKNAME', 'KIND', 'ORG', 'TITLE', 'TEL', 'EMAIL', 'ADR', 'URL', 'BDAY', 'ANNIVERSARY', 'CATEGORIES', 'NOTE'].includes(key)) continue;
     const charset = params.find((p) => /^CHARSET=/i.test(p))?.split('=')[1] ?? 'utf-8';
     const encoded = params.some((p) => /^(?:ENCODING=)?QUOTED-PRINTABLE$/i.test(p));
-    const raw = encoded ? decodeQuotedPrintable(line.slice(colon + 1), charset) : line.slice(colon + 1);
-    const type = params.find((p) => /^TYPE=/i.test(p))?.slice(5) ?? params.find((p) => /^(HOME|WORK|CELL|FAX)$/i.test(p)) ?? '';
-    (fields[key] ??= []).push({ value: key === 'N' || key === 'ADR' || key === 'ORG' ? raw : unescapeValue(raw), label: type.replaceAll('"', '').split(',')[0].toLowerCase() });
+    const value = encoded ? decodeQuotedPrintable(line.slice(colon + 1), charset) : line.slice(colon + 1);
+    // TYPE=a,b (3.0/4.0, possibly quoted, possibly repeated), bare words (2.1), and Android's
+    // X-CUSTOM(CHARSET=…,ENCODING=…,Own label).
+    const types = params.flatMap((p) => {
+      const custom = /^X-CUSTOM\((?:.*,)?([^,]*)\)$/i.exec(p)?.[1];
+      if (custom) return [custom];
+      if (/^TYPE=/i.test(p)) return p.slice(5).replaceAll('"', '').split(',');
+      return p.includes('=') ? [] : [p];
+    });
+    props.push({ key, group: name.length > 1 ? name[0].toLowerCase() : '', params, types, value });
   }
-  if (fields) throw new Error('unterminated vCard');
+  if (props) throw new Error('unterminated vCard');
   if (!out.length) throw new Error('no vCards found');
   if (out.length > 1000) throw new Error('too many vCards');
   return out;
+}
+
+function toContact(props: Prop[]): ContactInput {
+  const all = (key: string) => props.filter((p) => p.key === key);
+  const first = (key: string) => unescapeValue(all(key)[0]?.value ?? '').trim();
+  const abLabels = new Map(all('X-ABLABEL').filter((p) => p.group).map((p) => [p.group, unescapeValue(p.value)]));
+  const label = (p: Prop) => readableLabel(p.types, p.group ? abLabels.get(p.group) : undefined);
+  const n = splitEscaped(all('N')[0]?.value ?? '', ';').map((x) => x.trim());
+  const org = splitEscaped(all('ORG')[0]?.value ?? '', ';').map((x) => x.trim()).filter(Boolean).join(', ');
+  const name = (first('FN') || [n[3], n[1], n[2], n[0], n[4]].filter(Boolean).join(' ') || org).slice(0, 200);
+  if (!name) throw new Error('vCard is missing a name');
+  const kind = first('KIND').toLowerCase();
+  const values = (key: string, clean: (v: string) => string = (v) => v) => all(key)
+    .map((p) => ({ label: label(p), value: clean(unescapeValue(p.value).trim()).slice(0, 500) }))
+    .filter((v) => v.value).slice(0, 30);
+  const addresses = all('ADR').map((p) => {
+    const a = splitEscaped(p.value, ';').map((x) => x.trim());
+    return { label: label(p), street: [a[1], a[2]].filter(Boolean).join('\n').slice(0, 500), city: (a[3] ?? '').slice(0, 200), region: (a[4] ?? '').slice(0, 200), postalCode: (a[5] ?? '').slice(0, 50), country: (a[6] ?? '').slice(0, 200) };
+  }).filter((a) => a.street || a.city || a.region || a.postalCode || a.country).slice(0, 20);
+  const dates = [
+    ...all('BDAY').map((p) => ({ label: 'birthday', p })),
+    ...all('ANNIVERSARY').map((p) => ({ label: 'anniversary', p })),
+    ...all('X-ABDATE').map((p) => { const l = label(p); return { label: /^anniversary$/i.test(l) ? 'anniversary' : l, p }; }),
+  ].flatMap(({ label, p }) => { const date = readDate(p.value, p.params); return date ? [{ label, date }] : []; }).slice(0, 30);
+  const tags = [...new Set(all('CATEGORIES').flatMap((p) => splitEscaped(p.value, ',')).map((tag) => tag.trim().slice(0, 50)).filter(Boolean))].slice(0, 50);
+  const parsed = ContactInputSchema.safeParse({
+    kind: kind === 'org' || kind === 'organization' || first('X-ABSHOWAS').toUpperCase() === 'COMPANY' || (!n.some(Boolean) && !!org) ? 'organization' : kind === 'location' ? 'place' : 'person',
+    name, givenName: n[1] || null, familyName: n[0] || null, nickname: first('NICKNAME').slice(0, 200) || null,
+    organization: org.slice(0, 200) || null, title: first('TITLE').slice(0, 200) || null,
+    phones: values('TEL', (v) => v.replace(/^tel:/i, '').replace(/;ext=/i, ' ext. ')),
+    emails: values('EMAIL', (v) => v.replace(/^mailto:/i, '')),
+    addresses, websites: values('URL'), dates, tags,
+    notes: first('NOTE').slice(0, 10_000) || null,
+  });
+  if (!parsed.success) throw new Error(`invalid vCard: ${parsed.error.issues[0]?.message}`);
+  return parsed.data;
 }

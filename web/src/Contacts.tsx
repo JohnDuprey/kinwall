@@ -10,7 +10,7 @@ import { CONTACTS_SHARED_EVENT, takeSharedContacts } from './native.ts'
 import PickField, { PickSwatch, type PickOption } from './PickField.tsx'
 import { inkFor } from './color.ts'
 import type { Member } from './types.ts'
-import { activeContactFilters, contactFilterSummary, CONTACT_KIND_LABELS, CONTACT_SHOW_LABELS, CONTACT_SORT_LABELS, DEFAULT_CONTACT_FILTERS, emptyContact, formatAddress, reviewCandidates,
+import { activeContactFilters, contactDate, contactFilterSummary, contactLabel, CONTACT_KIND_LABELS, CONTACT_SHOW_LABELS, CONTACT_SORT_LABELS, DEFAULT_CONTACT_FILTERS, emptyContact, formatAddress, reviewCandidates,
   type Contact, type ContactFilters, type ContactAddress, type ContactInput, type ContactMethod, type ImportCandidate, type ImportDecision } from './contact-types.ts'
 import type { ContactCategory } from './contact-types.ts'
 import './contacts.css'
@@ -64,7 +64,7 @@ const canMeet = typeof window !== 'undefined' && !!(window as Window & { kinwall
 const MEET = 'com.google.android.apps.tachyon'
 const meetHref = (value: string) => { const to = callHref(value)?.slice(4); return canMeet && to ? `intent:tel:${to}#Intent;action=${MEET}.action.CALL;package=${MEET};end` : null }
 const webHref = (value: string) => /^https?:\/\//i.test(value.trim()) ? value.trim() : null
-const initials = (name: string) => name.split(/\s+/).map(p => p[0]).slice(0, 2).join('').toLocaleUpperCase()
+const initials = (name: string) => name.split(/\s+/).filter(Boolean).map(p => Array.from(p)[0]).slice(0, 2).join('').toLocaleUpperCase()
 
 function ContactCard({ contact, categoryNames, onOpen }: { contact: Contact; categoryNames: Map<string, string>; onOpen: () => void }) {
   const subtitle = [contact.relationship, contact.organization].filter(Boolean).join(' · ')
@@ -178,10 +178,11 @@ function ContactDetail({ contact, categories, members, canEdit, onClose, onEdit,
       <div><h3>{contact.name}</h3><p>{[contact.relationship, contact.organization].filter(Boolean).join(' · ') || 'Household contact'}</p></div></div>
     <div className="contact-badges">{contact.favorite && <span>★ Favorite</span>}{contact.emergency && <span>✚ Emergency</span>}{contact.wallVisible && <span>▣ On wall</span>}</div>
     {(categoryNames.length > 0 || memberNames.length > 0 || contact.serviceHours || contact.serviceArea || contact.alwaysOpen) && <section className="contact-detail-section"><h4>Directory details</h4>{categoryNames.length > 0 && <p>Categories: {categoryNames.join(', ')}</p>}{memberNames.length > 0 && <p>For: {memberNames.join(', ')}</p>}{contact.serviceHours && <p>Hours: {contact.serviceHours}</p>}{contact.alwaysOpen && <p>Available 24/7</p>}{contact.serviceArea && <p>Service area: {contact.serviceArea}</p>}</section>}
-    {contact.phones.length > 0 && <section className="contact-detail-section"><h4>Phone</h4>{contact.phones.map((m, i) => <div className="contact-detail-line" key={i}><span>{m.label}</span><strong>{m.value}</strong>{callHref(m.value) && <a className="contact-action" href={callHref(m.value)!} aria-label={`Call ${contact.name}, ${m.label}`}>Call</a>}{callHref(m.value) && <a className="contact-action" href={`sms:${callHref(m.value)!.slice(4)}`} aria-label={`Text ${contact.name}, ${m.label}`}>Text</a>}{faceTimeHref(m.value) && <a className="contact-action" href={faceTimeHref(m.value)!} aria-label={`FaceTime ${contact.name}, ${m.label}`}>FaceTime</a>}{meetHref(m.value) && <a className="contact-action" href={meetHref(m.value)!} aria-label={`Video call ${contact.name}, ${m.label}, with Google Meet`}>Video call</a>}<button className="contact-action" onClick={() => navigator.clipboard?.writeText(m.value)}>Copy</button></div>)}</section>}
-    {contact.emails.length > 0 && <section className="contact-detail-section"><h4>Email</h4>{contact.emails.map((m, i) => <div className="contact-detail-line" key={i}><span>{m.label}</span><strong>{m.value}</strong>{mailHref(m.value) && <a className="contact-action" href={mailHref(m.value)!} aria-label={`Email ${contact.name}, ${m.label}`}>Email</a>}{faceTimeHref(m.value) && <a className="contact-action" href={faceTimeHref(m.value)!} aria-label={`FaceTime ${contact.name}, ${m.label}`}>FaceTime</a>}</div>)}</section>}
-    {contact.addresses?.length ? <section className="contact-detail-section"><h4>Address</h4>{contact.addresses.map((a, i) => <div className="contact-detail-line" key={i}>{a.label && <span>{a.label}</span>}<strong>{formatAddress(a)}</strong><a className="contact-action" target="_blank" rel="noreferrer" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(formatAddress(a))}`}>Map</a><button className="contact-action" onClick={() => navigator.clipboard?.writeText(formatAddress(a))}>Copy</button></div>)}</section> : null}
-    {contact.websites?.length ? <section className="contact-detail-section"><h4>Websites</h4>{contact.websites.map((site, i) => webHref(site.value) ? <p key={i}><a href={webHref(site.value)!} target="_blank" rel="noreferrer">{site.label || site.value}</a></p> : null)}</section> : null}
+    {contact.phones.length > 0 && <section className="contact-detail-section"><h4>Phone</h4>{contact.phones.map((m, i) => <div className="contact-detail-line" key={i}><span>{contactLabel(m.label)}</span><strong>{m.value}</strong>{callHref(m.value) && <a className="contact-action" href={callHref(m.value)!} aria-label={`Call ${contact.name}, ${m.label}`}>Call</a>}{callHref(m.value) && <a className="contact-action" href={`sms:${callHref(m.value)!.slice(4)}`} aria-label={`Text ${contact.name}, ${m.label}`}>Text</a>}{faceTimeHref(m.value) && <a className="contact-action" href={faceTimeHref(m.value)!} aria-label={`FaceTime ${contact.name}, ${m.label}`}>FaceTime</a>}{meetHref(m.value) && <a className="contact-action" href={meetHref(m.value)!} aria-label={`Video call ${contact.name}, ${m.label}, with Google Meet`}>Video call</a>}<button className="contact-action" onClick={() => navigator.clipboard?.writeText(m.value)}>Copy</button></div>)}</section>}
+    {contact.emails.length > 0 && <section className="contact-detail-section"><h4>Email</h4>{contact.emails.map((m, i) => <div className="contact-detail-line" key={i}><span>{contactLabel(m.label)}</span><strong>{m.value}</strong>{mailHref(m.value) && <a className="contact-action" href={mailHref(m.value)!} aria-label={`Email ${contact.name}, ${m.label}`}>Email</a>}{faceTimeHref(m.value) && <a className="contact-action" href={faceTimeHref(m.value)!} aria-label={`FaceTime ${contact.name}, ${m.label}`}>FaceTime</a>}</div>)}</section>}
+    {contact.addresses?.length ? <section className="contact-detail-section"><h4>Address</h4>{contact.addresses.map((a, i) => <div className="contact-detail-line" key={i}>{a.label && <span>{contactLabel(a.label)}</span>}<strong>{formatAddress(a)}</strong><a className="contact-action" target="_blank" rel="noreferrer" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(formatAddress(a))}`}>Map</a><button className="contact-action" onClick={() => navigator.clipboard?.writeText(formatAddress(a))}>Copy</button></div>)}</section> : null}
+    {contact.websites?.length ? <section className="contact-detail-section"><h4>Websites</h4>{contact.websites.map((site, i) => webHref(site.value) ? <p key={i}><a href={webHref(site.value)!} target="_blank" rel="noreferrer">{contactLabel(site.label) || site.value}</a></p> : null)}</section> : null}
+    {contact.dates?.length ? <section className="contact-detail-section"><h4>Dates</h4>{contact.dates.map((d, i) => <div className="contact-detail-line" key={i}><span>{contactLabel(d.label)}</span><strong>{contactDate(d.date)}</strong></div>)}</section> : null}
     {canEdit && contact.notes && <section className="contact-detail-section"><h4>Notes</h4><p>{contact.notes}</p></section>}
   </Sheet>
 }
@@ -248,16 +249,20 @@ function ImportSheet({ contacts, categories, members, shared, onClose, onImporte
       if (mergeRows.length) await api.importContacts({ contacts: mergeRows.map(row => row.input), strategy: 'merge', mergeTargets: mergeRows.map(row => row.matchId!), confirmMerge: true })
       onImported()
       const n = creates.length + mergeRows.length
-      toast(`${n} contact${n === 1 ? '' : 's'} imported.`)
+      toast(n === 1 ? `Saved: ${(creates[0] ?? mergeRows[0]).input.name}` : `Saved ${n} contacts`)
       onClose()
     } catch (error) {
       onImported()
       setMessage(`Import stopped: ${errorText(error, 'Could not save a contact.')}`)
     } finally { setBusy(false) }
   }
-  return <Sheet title={review ? 'Review contacts' : 'Import contacts'} onClose={onClose} dismissable={!busy}
-    actions={review ? <><button className="btn btn-secondary" disabled={busy} onClick={() => setReview(null)}>Back</button><button className="btn btn-primary" disabled={busy || !review.some(r => r.decision !== 'skip')} onClick={commit}>{busy ? 'Importing…' : `Import ${review.filter(r => r.decision !== 'skip').length}`}</button></> : undefined}>
-    {!review ? <div className="contact-import-options">
+  const importing = review?.filter(r => r.decision !== 'skip').length ?? 0
+  return <Sheet title={review ? (review.length === 1 ? 'Import contact' : 'Review contacts') : 'Import contacts'} onClose={onClose} dismissable={!busy}
+    actions={review ? <>
+      <button className="btn btn-secondary" disabled={busy} onClick={() => shared ? onClose() : setReview(null)}>{shared ? 'Cancel' : 'Back'}</button>
+      <button className="btn btn-primary" disabled={busy || !importing} onClick={commit}>{busy ? 'Saving…' : review.length === 1 ? (review[0].decision === 'merge' ? 'Update contact' : 'Save contact') : `Save ${importing}`}</button>
+    </> : undefined}>
+    {!review && shared && !message ? <p className="state-card" role="status">Reading the contact…</p> : !review ? <div className="contact-import-options">
       <p>Review every contact before it’s added. Imported contacts are for the whole family and stay off wall screens until you turn that on.</p>
       {pickerAvailable && <button className="contact-import-choice" onClick={pick}>Choose from this device’s contacts<span>Uses your browser’s contact picker</span></button>}
       <button className="contact-import-choice" onClick={() => fileInput.current?.click()}>Choose a vCard file<span>.vcf or .vcard, up to 2 MB</span></button>
@@ -265,30 +270,62 @@ function ImportSheet({ contacts, categories, members, shared, onClose, onImporte
       <div className="field"><label htmlFor={`${id}-paste`}>Or paste vCard text</label><textarea id={`${id}-paste`} value={text} onChange={e => setText(e.target.value)} placeholder="BEGIN:VCARD…" rows={5} /></div>
       <button className="btn btn-secondary" onClick={() => void stage({ vcard: text }, 'Could not read that vCard text.')} disabled={busy || !text.trim()}>Review pasted contacts</button>
       {!pickerAvailable && <p className="field-hint">To import from a phone, export or share contacts as a vCard (.vcf) file, then choose that file here.</p>}
-      <p className="field-hint">Names, phones, emails, organizations, addresses, URLs, categories and notes are read. Photo properties are ignored.</p>
+      <p className="field-hint">Names, phones, emails, addresses, websites, birthdays and other dates, organizations, job titles, categories and notes are read. Photos aren’t imported.</p>
     </div> : <div className="contact-review">
-      <p>{review.length} contact{review.length === 1 ? '' : 's'} to review. Contacts with the same phone, email or name as a saved one are marked possible duplicates.</p>
+      {review.length > 1 && <p>{review.length} contacts to review. A contact with the same phone, email or name as a saved one is marked as already in Kinwall.</p>}
       {review.map(row => {
         const matched = contacts.find(c => c.id === row.matchId)
-        return <div className="contact-review-row" key={row.key}>
-          <div className="contact-review-heading"><strong>{row.input.name}</strong><span className={`contact-status contact-status-${row.status}`}>{row.status === 'new' ? 'New' : 'Possible duplicate'}</span></div>
-          <div className="contact-review-edit"><label>Name<input value={row.input.name} onChange={e => edit(row.key, { name: e.target.value })} /></label><label>Kind<select value={row.input.kind ?? 'person'} onChange={e => edit(row.key, { kind: e.target.value as ContactInput['kind'] })}><option value="person">Person</option><option value="service">Service</option><option value="organization">Organization</option><option value="place">Place</option></select></label><label>Relationship<input value={row.input.relationship ?? ''} onChange={e => edit(row.key, { relationship: e.target.value || null })} /></label></div>
-          <div className="contact-review-toggles"><label><input type="checkbox" checked={!!row.input.favorite} onChange={e => edit(row.key, { favorite: e.target.checked })} /> Favorite</label><label><input type="checkbox" checked={!!row.input.emergency} onChange={e => edit(row.key, { emergency: e.target.checked })} /> Emergency</label><label><input type="checkbox" checked={!!row.input.wallVisible} onChange={e => edit(row.key, { wallVisible: e.target.checked })} /> Show on wall</label></div>
-          <div className="contact-review-picks">
-            <div className="contact-review-category"><label htmlFor={`${id}-${row.key}-categories`}>Categories</label><PickField id={`${id}-${row.key}-categories`} label={`Categories for ${row.input.name}`} title="Categories" multiple options={categoryOptions(categories)} value={row.input.categoryIds ?? []} onChange={v => edit(row.key, { categoryIds: v })} /></div>
-            <div className="contact-review-category"><label htmlFor={`${id}-${row.key}-members`}>Household members</label><PickField id={`${id}-${row.key}-members`} label={`Household members for ${row.input.name}`} title="Household members" multiple options={memberOptions(members)} value={row.input.memberIds ?? []} onChange={v => edit(row.key, { memberIds: v })} /></div>
+        const c = row.input
+        const f = `${id}-${row.key}`
+        const subtitle = [c.nickname && `“${c.nickname}”`, c.title, c.organization !== c.name && c.organization].filter(Boolean).join(' · ')
+        return <section className="contact-review-row" key={row.key} aria-label={c.name}>
+          <div className="contact-detail-head">
+            <span className="contact-avatar contact-avatar-large" aria-hidden="true">{initials(c.name)}</span>
+            <div><h3>{c.name}</h3>{subtitle && <p>{subtitle}</p>}
+              <span className={`contact-status contact-status-${row.status}`}>{row.status === 'new' ? '＋ New contact' : '⚠ Already in Kinwall?'}</span></div>
           </div>
-          <p>{[row.input.organization, row.input.phones[0]?.value, row.input.emails[0]?.value].filter(Boolean).join(' · ') || 'Name only'}</p>
-          {matched && <p className="contact-match">Matches {matched.name}{matched.phones[0] ? ` · ${matched.phones[0].value}` : ''}</p>}
-          <label className="contact-review-action">Action<select value={row.decision} onChange={e => decide(row.key, e.target.value as ImportDecision)}>
-            {(row.status === 'new' ? [{ value: 'add', label: 'Add' }, { value: 'skip', label: 'Skip' }] : [
-              ...(matched ? [{ value: 'merge', label: 'Merge missing details' }] : []), { value: 'skip', label: 'Skip' }, { value: 'keep', label: 'Keep both' }]).map(option =>
-              <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-        </div>
+          <ContactFacts contact={c} />
+          <div className="field contact-review-action"><label htmlFor={`${f}-action`}>{row.status === 'new' ? 'Add to Kinwall' : 'What to do'}</label><select id={`${f}-action`} value={row.decision} onChange={e => decide(row.key, e.target.value as ImportDecision)}>
+            {(row.status === 'new' ? [{ value: 'add', label: 'Add this contact' }, { value: 'skip', label: 'Skip it' }] : [
+              ...(matched ? [{ value: 'merge', label: `Update ${matched.name} with new details` }] : []), { value: 'skip', label: 'Skip it' }, { value: 'keep', label: 'Add as a separate contact' }]).map(option =>
+              <option key={option.value} value={option.value}>{option.label}</option>)}</select>
+            {matched && <p className="field-hint contact-match">Looks like {matched.name}{matched.phones[0] ? ` · ${matched.phones[0].value}` : ''}, already saved</p>}</div>
+          {(row.decision === 'add' || row.decision === 'keep') && <section className="contact-detail-section">
+            <h4>In Kinwall</h4>
+            <div className="field"><label htmlFor={`${f}-name`}>Name</label><input id={`${f}-name`} type="text" value={c.name} maxLength={160} onChange={e => edit(row.key, { name: e.target.value })} /></div>
+            <div className="row-2">
+              <div className="field"><label htmlFor={`${f}-kind`}>Contact kind</label><select id={`${f}-kind`} value={c.kind ?? 'person'} onChange={e => edit(row.key, { kind: e.target.value as ContactInput['kind'] })}><option value="person">Person</option><option value="service">Service</option><option value="organization">Organization</option><option value="place">Place</option></select></div>
+              <div className="field"><label htmlFor={`${f}-relationship`}>Relationship</label><input id={`${f}-relationship`} type="text" value={c.relationship ?? ''} placeholder="Grandparent, doctor…" maxLength={100} onChange={e => edit(row.key, { relationship: e.target.value || null })} /></div>
+            </div>
+            <div className="field"><label htmlFor={`${f}-categories`}>Categories</label><PickField id={`${f}-categories`} label={`Categories for ${c.name}`} title="Categories" multiple options={categoryOptions(categories)} value={c.categoryIds ?? []} onChange={v => edit(row.key, { categoryIds: v })} /></div>
+            <div className="field"><label htmlFor={`${f}-members`}>Associated household members</label><PickField id={`${f}-members`} label={`Household members for ${c.name}`} title="Household members" multiple options={memberOptions(members)} value={c.memberIds ?? []} onChange={v => edit(row.key, { memberIds: v })} /></div>
+            <div className="contact-options">
+              <label><input type="checkbox" checked={!!c.favorite} onChange={e => edit(row.key, { favorite: e.target.checked })} /> Favorite</label>
+              <label><input type="checkbox" checked={!!c.emergency} onChange={e => edit(row.key, { emergency: e.target.checked })} /> Emergency contact</label>
+              <label><input type="checkbox" checked={!!c.wallVisible} onChange={e => edit(row.key, { wallVisible: e.target.checked })} /> Show on wall and shared displays</label>
+            </div>
+          </section>}
+        </section>
       })}
     </div>}
     {message && <p className="field-error" role="alert">{message}</p>}
   </Sheet>
+}
+
+/** What a vCard brought in, read-only, grouped like a contact's own sheet: phones, emails,
+ * addresses and websites, then dates, tags and notes (name, nickname, title and company head the row). */
+function ContactFacts({ contact: c }: { contact: ContactInput }) {
+  const group = (title: string, lines: { label: string; value: string }[]) => lines.length > 0 && <section className="contact-detail-section"><h4>{title}</h4>
+    {lines.map((l, i) => <div className="contact-detail-line" key={i}>{contactLabel(l.label) && <span>{contactLabel(l.label)}</span>}<strong>{l.value}</strong></div>)}</section>
+  return <>
+    {group('Phone', c.phones)}
+    {group('Email', c.emails)}
+    {group('Address', (c.addresses ?? []).map(a => ({ label: a.label, value: formatAddress(a) })))}
+    {group('Websites', c.websites ?? [])}
+    {group('Dates', (c.dates ?? []).map(d => ({ label: d.label, value: contactDate(d.date) })))}
+    {c.tags?.length ? group('Tags', [{ label: '', value: c.tags.join(', ') }]) : null}
+    {c.notes && <section className="contact-detail-section"><h4>Notes</h4><p>{c.notes}</p></section>}
+  </>
 }
 
 function FiltersSheet({ filters, categories, onChange, onClose }: { filters: ContactFilters; categories: ContactCategory[]; onChange: (f: ContactFilters) => void; onClose: () => void }) {

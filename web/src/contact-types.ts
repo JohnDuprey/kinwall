@@ -73,3 +73,21 @@ export function contactFilterSummary(f: ContactFilters, categoryName: (id: strin
   return [f.show !== 'all' && CONTACT_SHOW_LABELS[f.show], f.kind !== 'all' && CONTACT_KIND_LABELS[f.kind],
     f.category !== 'all' && (categoryName(f.category) ?? 'Category'), CONTACT_SORT_LABELS[f.sort]].filter(Boolean).join(' · ')
 }
+
+/** A detail's label as people read it: "birthday" → "Birthday", and labels saved before imports
+ * read Apple's and Android's types ("cell", "internet") as words. */
+const OLD_LABELS: Record<string, string> = { cell: 'Mobile', internet: '', pref: '', voice: '' }
+export function contactLabel(label: string): string {
+  const l = label.trim()
+  const old = OLD_LABELS[l.toLowerCase()]
+  if (old !== undefined) return old
+  return l && l[0].toLocaleUpperCase() + l.slice(1)
+}
+
+/** A contact date: "1952-03-14" → "March 14, 1952"; "--11-02" (no year) → "November 2". */
+export function contactDate(date: string): string {
+  const m = /^(\d{4}|-)-(\d{2})-(\d{2})$/.exec(date)
+  if (!m) return date
+  const d = new Date(Date.UTC(m[1] === '-' ? 2000 : Number(m[1]), Number(m[2]) - 1, Number(m[3])))
+  return d.toLocaleDateString('en-US', { timeZone: 'UTC', month: 'long', day: 'numeric', ...(m[1] === '-' ? {} : { year: 'numeric' }) })
+}

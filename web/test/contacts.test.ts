@@ -1,7 +1,7 @@
 // node --test test/ (npm test). The contact import review built from the server's preview.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { activeContactFilters, contactFilterSummary, DEFAULT_CONTACT_FILTERS, emptyContact, reviewCandidates } from '../src/contact-types.ts'
+import { activeContactFilters, contactDate, contactFilterSummary, contactLabel, DEFAULT_CONTACT_FILTERS, emptyContact, reviewCandidates } from '../src/contact-types.ts'
 
 test('reviewCandidates: new drafts are added, matches are skipped until someone decides', () => {
   const maya = { ...emptyContact(), name: 'Coach Maya' }
@@ -31,4 +31,11 @@ test('contact filters: count what narrows the list; the summary adds the sort', 
   const sorted = { ...DEFAULT_CONTACT_FILTERS, sort: 'organization' as const }
   assert.equal(activeContactFilters(sorted), 0)
   assert.equal(contactFilterSummary(sorted, () => undefined), 'Organization')
+})
+
+test('contact labels and dates read as words', () => {
+  assert.deepEqual(['birthday', 'cell', 'internet', 'Home page', 'Garden shed'].map(contactLabel), ['Birthday', 'Mobile', '', 'Home page', 'Garden shed'])
+  assert.equal(contactDate('1952-03-14'), 'March 14, 1952')
+  assert.equal(contactDate('--11-02'), 'November 2')
+  assert.equal(contactDate('--02-29'), 'February 29')
 })
