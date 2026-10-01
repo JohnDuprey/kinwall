@@ -46,6 +46,7 @@ import { formatTime, resolveHour12, setHour12 } from './timeFormat.ts'
 import { dateKey } from './date.ts'
 import { nightFieldsFor, nightSources } from './saverSources.ts'
 import { onMinute } from './minuteTick.ts'
+import { shellIsNewer, shellUrl } from './appUpdate.ts'
 import { clockTimeZone } from './timezone.ts'
 
 const NAV_ITEMS = [
@@ -164,8 +165,8 @@ function useUpdateAvailable(enabled: boolean) {
     api.meStrict().then(me => setScope(me.scope)).catch(() => {})
     const mine = (document.querySelector('script[src*="/assets/"]') as HTMLScriptElement | null)?.src.split('/').pop()
     if (!mine) return
-    const check = () => fetch('/', { cache: 'no-store' }).then(r => r.ok ? r.text() : '')
-      .then(html => { if (html && !html.includes(mine)) setStale(true) })
+    const check = () => fetch(shellUrl(), { cache: 'no-store' }).then(r => r.ok ? r.text() : '')
+      .then(html => { if (shellIsNewer(html, mine)) setStale(true) })
       .catch(() => { /* offline: try again later */ })
     const onVis = () => { if (document.visibilityState === 'visible') check() }
     check()
