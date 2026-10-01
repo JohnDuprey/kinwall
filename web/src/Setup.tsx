@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { HelpButton } from './Help.tsx'
 import { api, ApiError, setKey } from './api.ts'
+import { clearOffline } from './outbox.ts'
 import { QrCode } from './App.tsx'
 import { CalendarCheckRow, initialPicks, RecoveryCodesView } from './Settings.tsx'
 import TimezoneField from './TimezoneField.tsx'
@@ -8,7 +9,7 @@ import { announce } from './a11y.tsx'
 import { MEMBER_EMOJI, MEMBER_PALETTE, nextPaletteColor } from './types.ts'
 import type { Member, Settings } from './types.ts'
 import { CheckIcon, PlusIcon, TrashIcon } from './icons.tsx'
-import { useTheme } from './useTheme.ts'
+import { setDeviceAppearance, useTheme } from './useTheme.ts'
 import { AnyEmojiField } from './AnyEmojiField.tsx'
 import { isValidAvatar } from './emoji.ts'
 import { colorName, inkFor } from './color.ts'
@@ -47,6 +48,17 @@ function saveResume(r: SetupResume | null) {
     if (r) sessionStorage.setItem(RESUME_KEY, JSON.stringify(r))
     else { sessionStorage.removeItem(RESUME_KEY); localStorage.removeItem(HANDOFF_KEY) } // setup done here: drop an unused handoff too
   } catch { /* ignore */ }
+}
+/** A new family claimed from this browser: drop everything it kept (all `kinwall.` keys) for an
+ * earlier family at the same address, e.g. a reinstalled server. Otherwise its board layout,
+ * "show only" member, locked view and filters carry over, some pointing at members that no longer
+ * exist. Its offline cache and queued changes go too: a rejected key keeps the queue for the same
+ * family, and the new key would otherwise send it to this one. Then tell open hooks the device's
+ * settings are back to defaults. */
+async function forgetEarlierFamily() {
+  try { for (const k of Object.keys(localStorage)) if (k.startsWith('kinwall.')) localStorage.removeItem(k) } catch { /* private mode */ }
+  await clearOffline().catch(() => {})
+  setDeviceAppearance({})
 }
 /** Claimed but no passkey yet on a host that requires one (see App.tsx): reopen at that step. */
 export const resumeAtPasskey = () => saveResume({ step: 'passkey', deviceRole: 'admin' })
@@ -682,6 +694,7 @@ export default function Setup({ oauth, setupCode, passkeyRequired, onDone }: { o
     setClaimBusy(true); setClaimError('')
     try {
       const res = await api.claimSetup(code, 'admin', 'My device')
+      await forgetEarlierFamily()
       setClaimed(true)
       setAdminKeyId(res.adminKeyId)
       setKey(res.adminKey)
