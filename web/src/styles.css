@@ -985,7 +985,9 @@ button {
 .approve-actions .btn { flex: none; min-height: 44px; padding: 8px 14px; }
 /* "To approve" count on the Chores nav item (parent devices). */
 .tab-btn, .nav-rail-btn, .more-row { position: relative; }
-.nav-badge { position: absolute; top: 4px; left: calc(50% + 6px); min-width: 20px; height: 20px; padding: 0 5px; border-radius: 999px; background: var(--accent-strong); color: #fff; font-size: 0.6875rem; font-weight: 800; line-height: 20px; text-align: center; box-shadow: 0 0 0 2px var(--card); }
+/* Just right of the icon, but never past the button's edge: a narrow rail (phone landscape, or a
+   desktop scrollbar) would otherwise scroll sideways by the badge's overhang. */
+.nav-badge { position: absolute; top: 4px; left: min(calc(50% + 6px), calc(100% - 20px)); min-width: 20px; height: 20px; padding: 0 5px; border-radius: 999px; background: var(--accent-strong); color: #fff; font-size: 0.6875rem; font-weight: 800; line-height: 20px; text-align: center; box-shadow: 0 0 0 2px var(--card); }
 .more-row .nav-badge { position: static; margin-left: auto; }
 /* An activity chore: the card plays it, the check is its own button. */
 .chore-play, .chore-check-btn { display: flex; align-items: center; gap: var(--gap); padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
