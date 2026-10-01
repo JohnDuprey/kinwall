@@ -4,7 +4,7 @@ Kinwall is API-first. The touch UI is just another client, so anything it does, 
 
 ## Docs
 
-* **Interactive docs (Swagger UI)**: `https://<your-kinwall>/docs`
+* **Interactive docs ([Swagger UI](https://github.com/swagger-api/swagger-ui))**: `https://<your-kinwall>/docs`
 * **OpenAPI spec**: `https://<your-kinwall>/openapi.json`. You can import it into n8n, Power Automate, Postman and similar tools.
 
 Every route has a summary and tags, so the Swagger page is the complete reference. This page covers the rules that apply to all of them.

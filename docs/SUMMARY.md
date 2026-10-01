@@ -88,3 +88,4 @@
 * [Building activity plugins](contributing/plugins.md)
 * [Accessibility](accessibility.md)
 * [License & Built with Claude](contributing/license.md)
+* [Credits](contributing/credits.md)

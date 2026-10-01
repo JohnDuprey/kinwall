@@ -134,8 +134,9 @@ Fonts aren't on this list: every typeface is bundled with Kinwall and served by 
 | ICS feed hosts | Fetching subscribed feeds. |
 | Browser push services (Apple, Google, Mozilla) | Notification payloads, encrypted end to end with the device's keys (RFC 8291). |
 | Your webhook URLs | Change events you subscribed to. |
-| Open-Meteo (`api.open-meteo.com`, `geocoding-api.open-meteo.com`) | Only if a weather location is set: the **server** fetches the forecast for its coordinates (at most hourly) and looks up place names you search for in Settings → General. Your device's address is not sent; no account or key is used. |
-| The Metropolitan Museum of Art / Lorem Picsum | Only if a display's [Night screen slideshow](../using/night.md#screensaver) is set to Art or Nature, or it shows the calendar's [Board view](../using/calendar.md#board-view) (nature photos when no screensaver sources are chosen and the family has no photos): that display fetches pictures directly (its IP address, nothing else). Off by default. |
+| [Open-Meteo](https://open-meteo.com) (`api.open-meteo.com`, `geocoding-api.open-meteo.com`) | Only if a weather location is set: the **server** fetches the forecast for its coordinates (at most hourly) and looks up place names you search for in Settings → General. Your device's address is not sent; no account or key is used. |
+| [Wikipedia](https://www.wikipedia.org) (`api.wikimedia.org`) / [Open Trivia DB](https://opentdb.com) | Only if the family turns on **On this day** or **Trivia question** under [Quotes & facts](../settings/general.md#quotes--facts): the **server** fetches each once a day. Nothing about your family is sent, and screens never contact them. |
+| [The Metropolitan Museum of Art](https://metmuseum.github.io/) / [Lorem Picsum](https://picsum.photos) | Only if a display's [Night screen slideshow](../using/night.md#screensaver) is set to Art or Nature, or it shows the calendar's [Board view](../using/calendar.md#board-view) (nature photos when no screensaver sources are chosen and the family has no photos): that display fetches pictures directly (its IP address, nothing else). Off by default. |
 
 ### Google Photos
 

@@ -6,6 +6,8 @@ Kinwall is licensed under the **GNU Affero General Public License v3.0 or later*
 
 In practice: you can use, modify and self-host it freely. If you run a modified version as a service for other people, you have to offer them the source of your modifications under the same license.
 
+Kinwall builds on many open-source projects, typefaces and open data sources; [Credits](credits.md) lists them with their authors and licenses.
+
 ## Built with Claude
 
 Kinwall is built by John Duprey with [Claude Code](https://claude.com/claude-code), with UI/UX design decisions by Ashley Duprey.

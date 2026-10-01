@@ -23,7 +23,7 @@ Nothing you do there is saved or shared. When you're ready for your own, come ba
 
 ## Way 1: Home Assistant add-on
 
-[Home Assistant](https://www.home-assistant.io) is a popular smart-home app. If you already use it, Kinwall can run inside it as an *app* (an extra program Home Assistant installs and looks after for you; older Home Assistant versions call these *add-ons*). This isn't HACS: HACS is where you'd get the Kinwall *integration* for automations, while the app runs Kinwall itself.
+[Home Assistant](https://www.home-assistant.io) is a popular smart-home app. If you already use it, Kinwall can run inside it as an *app* (an extra program Home Assistant installs and looks after for you; older Home Assistant versions call these *add-ons*). This isn't [HACS](https://hacs.xyz): HACS is where you'd get the Kinwall *integration* for automations, while the app runs Kinwall itself.
 
 **You'll need:**
 

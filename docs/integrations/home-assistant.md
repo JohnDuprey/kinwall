@@ -1,10 +1,10 @@
 # Home Assistant
 
-The Home Assistant integration and add-on live in their own repository: [JohnDuprey/kinwall-homeassistant](https://github.com/JohnDuprey/kinwall-homeassistant). Entities, services and install steps are documented there.
+The [Home Assistant](https://www.home-assistant.io) integration and add-on live in their own repository: [JohnDuprey/kinwall-homeassistant](https://github.com/JohnDuprey/kinwall-homeassistant). Entities, services and install steps are documented there.
 
 ## What the integration gives you
 
-Install it through HACS, then add it under **Settings → Devices & Services** with your Kinwall URL and an admin API key. You get a device for each family member plus a **Family** device:
+Install it through [HACS](https://hacs.xyz), then add it under **Settings → Devices & Services** with your Kinwall URL and an admin API key. You get a device for each family member plus a **Family** device:
 
 * **Calendars**: one per member, plus a read-only family calendar.
 * **To-do lists**: each member's chores for today (tick one off to complete it), the **Anyone** chores, and every Kinwall list, so voice assistants and the to-do card work with your lists.
@@ -43,4 +43,4 @@ Example ideas:
 
 The **Meal kit deliveries** blueprint keeps each HelloFresh delivery on a Kinwall calendar as "📦 HelloFresh delivery" through `kinwall.sync_events`. Deliveries go on as [free](../using/events.md#free-or-busy) by default (its **Show deliveries as free** input), so an all-day delivery window shows on the calendar without sitting in Now / Next as "Now" all day. `kinwall.sync_events` takes `busy: false` on any event for the same. Needs integration 1.7.0 or later.
 
-The integration repo has a **Weekly meal kit import** blueprint for HelloFresh, through the HelloFresh integration for Home Assistant. Once a week (Sunday 10:00 by default, or when you run it) it reads the next delivery, fetches each meal you picked with its ingredients scaled to your servings, and imports it with `kinwall.import_recipe`. The meals are planned as dinners from delivery day on, one a night, skipping nights that already have a dinner. Ingredients that come in the box stay off your grocery list; the pantry items you supply yourself go on it. Its **Add dinners to calendar** input takes a calendar ID (Settings → Calendars, tap the calendar) to put each planned meal on that calendar too; `kinwall.import_recipe` has the same as `plan_calendar_id`. See [Importing recipes](../using/meals.md#importing-recipes) and the blueprint's [README section](https://github.com/JohnDuprey/kinwall-homeassistant#blueprints).
+The integration repo has a **Weekly meal kit import** blueprint for HelloFresh, through the [HelloFresh integration](https://github.com/kedube/ha-hellofresh) for Home Assistant by Katherine Dubé. Once a week (Sunday 10:00 by default, or when you run it) it reads the next delivery, fetches each meal you picked with its ingredients scaled to your servings, and imports it with `kinwall.import_recipe`. The meals are planned as dinners from delivery day on, one a night, skipping nights that already have a dinner. Ingredients that come in the box stay off your grocery list; the pantry items you supply yourself go on it. Its **Add dinners to calendar** input takes a calendar ID (Settings → Calendars, tap the calendar) to put each planned meal on that calendar too; `kinwall.import_recipe` has the same as `plan_calendar_id`. See [Importing recipes](../using/meals.md#importing-recipes) and the blueprint's [README section](https://github.com/JohnDuprey/kinwall-homeassistant#blueprints).

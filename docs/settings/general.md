@@ -23,7 +23,7 @@ The Kinwall version ("Kinwall v…") shows at the bottom.
 
 | Setting | Notes |
 |---|---|
-| **Weather location** | A town or city for the forecast in [snapshots](../using/snapshot.md). **Set** / **Change** searches by name; **Remove** turns weather off. The Kinwall server does the lookup and the forecast fetch (Open-Meteo, cached for an hour), not this device. API: `location` `{ name, lat, lon, countryCode? }` or `null`. |
+| **Weather location** | A town or city for the forecast in [snapshots](../using/snapshot.md). **Set** / **Change** searches by name; **Remove** turns weather off. The Kinwall server does the lookup and the forecast fetch ([Open-Meteo](https://open-meteo.com), cached for an hour), not this device. API: `location` `{ name, lat, lon, countryCode? }` or `null`. |
 | **Temperature** | °F or °C, shown once a location is set. Defaults to °F for a US location (or a US timezone), °C elsewhere. API: `temperatureUnit` `fahrenheit` / `celsius`. |
 
 ### Quotes & facts
@@ -35,7 +35,7 @@ What the Board's quote card shows. The row shows what's on; **Change** opens a s
 | **Quotes** | Built in: authors, scientists and storytellers. On by default. |
 | **Fun facts** | Built in, for all ages. On by default. Pick categories: Animals, Space, Earth & science, Human body, Plants & food, Words, or **All**. |
 | **Neurodivergent-friendly tips** | Built in: small, practical ideas that help neurodivergent kids and grown-ups, and everyone else too. Off by default. Pick categories: Routines, Focus, Getting organized, Feelings, Sensory, Communication, or **All**. Shows as **🌱 Try this**. |
-| **On this day** | From Wikipedia: today's **holidays & observances**, **birthdays**, and **history**. Holidays and birthdays are on by default when you turn this on. History leaves out wars, disasters and crimes, but it's the least kid-proof of the three. Saints' feast days are left out. **Birthdays of people born** limits birthdays to people born since 1800, 1900 (the default), 1950, 1970 or 1990, or any time. Shows "From Wikipedia" on the card. |
+| **On this day** | From [Wikipedia](https://www.wikipedia.org)'s "On this day" (CC BY-SA): today's **holidays & observances**, **birthdays**, and **history**. Holidays and birthdays are on by default when you turn this on. History leaves out wars, disasters and crimes, but it's the least kid-proof of the three. Saints' feast days are left out. **Birthdays of people born** limits birthdays to people born since 1800, 1900 (the default), 1950, 1970 or 1990, or any time. Shows "From Wikipedia" on the card. |
 | **Trivia question** | From [Open Trivia DB](https://opentdb.com): a multiple-choice question in one of the categories you pick (Animals, Science & nature, Geography and General knowledge by default; one category a day, taking turns), at any mix of **Easy**, **Medium** and **Hard** (Easy by default). Tap a choice to guess: the card says whether it's right and highlights the answer, and **Try again** resets it for the next person. |
 
 On this day and trivia are off until you turn them on. Your Kinwall server fetches each once a day (they're kept with the weather cache) and screens never contact Wikipedia or Open Trivia DB themselves. Nothing about your family is sent. If they can't be reached, the built-in quotes and facts fill in.

@@ -55,11 +55,11 @@ The setup wizard, putting it on the wall, connecting calendars, every setting an
 
 ## Integrations
 
-- **REST API**: everything the UI does, with Swagger docs at `/docs` and the spec at `/openapi.json`. See [docs](docs/integrations/rest-api.md).
+- **REST API**: everything the UI does, with [Swagger UI](https://github.com/swagger-api/swagger-ui) docs at `/docs` and the spec at `/openapi.json`. See [docs](docs/integrations/rest-api.md).
 - **Webhooks**: HMAC-signed event types for automations. See [docs](docs/integrations/webhooks.md).
 - **MCP server**: connect Claude or any MCP client at `/mcp` with OAuth sign-in or a bearer key. See [docs](docs/integrations/mcp.md).
 - **Home Assistant**: calendars, to-do lists, points sensors and a binary sensor per chore, plus an add-on to run Kinwall itself, in [kinwall-homeassistant](https://github.com/JohnDuprey/kinwall-homeassistant). See [docs](docs/integrations/home-assistant.md).
-- **n8n**: example workflows with n8n's built-in HTTP Request and Webhook nodes. See [docs](docs/integrations/n8n.md).
+- **[n8n](https://n8n.io)**: example workflows with n8n's built-in HTTP Request and Webhook nodes. See [docs](docs/integrations/n8n.md).
 
 ## Your data
 
@@ -76,3 +76,5 @@ Kinwall is free and self-hostable. If it's on your wall, [sponsoring on GitHub](
 ## License
 
 AGPL-3.0-or-later. See [LICENSE](LICENSE). The bundled typefaces in `web/src/fonts/` are under the SIL Open Font License 1.1; each folder holds its `OFL.txt`.
+
+Kinwall stands on a lot of open-source work and open data. [Credits](docs/contributing/credits.md) lists the projects, typefaces and data sources it uses, with their authors and licenses.

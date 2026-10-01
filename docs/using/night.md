@@ -70,7 +70,7 @@ Instead of the bare clock, wall screens can show a slow, dim slideshow overnight
 * **Family photos**: your family's [photos](photos.md), shuffled, with their captions. They come from your own Kinwall server.
 * **Google Photos** (not available yet; see [Google Photos](photos.md#google-photos)): albums a parent picked in Google Photos, shuffled. Shown once a parent has [connected Google Photos](photos.md#google-photos) (in the Night sheet) and picked albums. The pictures come through your Kinwall server, sized for this screen.
 * **Art (The Met)**: public-domain highlight paintings from [The Metropolitan Museum of Art](https://metmuseum.github.io/) open-access collection (CC0), with the title, artist and date in the corner.
-* **Nature**: photos from [Lorem Picsum](https://picsum.photos), which serves free-to-use Unsplash photos.
+* **Nature**: photos from [Lorem Picsum](https://picsum.photos), which serves free-to-use [Unsplash](https://unsplash.com) photos.
 
 Options once any source is on:
 

@@ -1,6 +1,6 @@
 # n8n
 
-There's no dedicated Kinwall node for n8n yet. Everything here uses n8n's **built-in** HTTP Request and Webhook nodes. A native node may come later.
+There's no dedicated Kinwall node for [n8n](https://n8n.io) yet. Everything here uses n8n's **built-in** HTTP Request and Webhook nodes. A native node may come later.
 
 Since Kinwall is just a [REST API](rest-api.md) with [webhooks](webhooks.md), n8n can read and write anything the touch UI can.
 
