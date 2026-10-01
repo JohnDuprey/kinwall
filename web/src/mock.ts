@@ -10,6 +10,7 @@ import { itemKey } from './itemSuggest.ts'
 import { tagsInput } from './catalog.ts'
 import { byListOrder, reorderWithin } from './listSections.ts'
 import { dateKey } from './date.ts'
+import { DEMO_DRAWINGS, drawingPhoto } from './mock-drawings.ts'
 import { SECURITY_PAGE, matchesSecurityQuery } from './securityActivity.ts'
 import { FILTER_PRESETS, NO_FILTER, filterShows } from './calendarFilter.ts'
 import { MAYA_ANALYSIS, MAYA_BATTERY, MAYA_DAYS } from './mock-insights.ts'
@@ -220,7 +221,9 @@ const demoPhoto = (pic: number, caption: string | null, memberId: string | null,
 const photos: Photo[] = [
   demoPhoto(1015, 'River trip', null, 1), demoPhoto(1025, 'Our dog', 'm3', 3), demoPhoto(1043, null, null, 6),
   demoPhoto(1039, 'Waterfall hike', 'm4', 9), demoPhoto(1080, 'Strawberry picking', null, 14), demoPhoto(1062, null, 'm3', 20),
-]
+  // Paint drawings saved to family photos, credited to the artist (mock-drawings.ts).
+  ...DEMO_DRAWINGS.map(d => ({ id: d.id, caption: d.caption, mime: 'image/svg+xml', width: 1200, height: 900, bytes: d.url.length, memberId: d.memberId, createdAt: new Date(Date.now() - d.daysAgo * 86_400_000).toISOString(), url: d.url })),
+].sort((a, b) => b.createdAt.localeCompare(a.createdAt)) // newest first, like the server
 // Demo Google Photos: a pretend connection (nothing goes to Google) that steps through signing in
 // and picking albums on a timer, then shows Picsum pictures captioned as the demo.
 const DEMO_GOOGLE = [1018, 1036, 1044, 1050, 1069]
@@ -631,10 +634,7 @@ const trackerData = (kind: TrackerKind, data: Record<string, unknown>) => {
 // whatever is posted or reacted in the demo. Times are hours before now, so today always has some.
 type DemoPost = { id: string; memberId: string; text: string; emoji: string | null; photo: { id: string; url: string } | null; audience: 'everyone' | 'grownups'; removed: boolean; at: string }
 const pic = (n: number) => ({ id: `news${n}`, url: `https://picsum.photos/id/${n}/640/480` })
-// The demo's Paint drawings: simple crayon-style pictures, drawn here so they look like a kid's.
-const drawing = (id: string, body: string) => ({ id, url: `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 240">${body}</svg>`)}` })
-const NIGHT_GARDEN = drawing('newsDraw1', '<rect width="320" height="240" fill="#1d2a5b"/><circle cx="250" cy="55" r="28" fill="#fff4b0"/><circle cx="60" cy="40" r="3" fill="#fff"/><circle cx="120" cy="70" r="2" fill="#fff"/><circle cx="180" cy="30" r="3" fill="#fff"/><rect y="170" width="320" height="70" fill="#2e6b3a"/><g stroke="#5fbf5a" stroke-width="6" stroke-linecap="round"><path d="M60 200v-50M120 205v-60M190 200v-45M255 205v-55"/></g><g fill="#ff8fb1"><circle cx="60" cy="145" r="14"/><circle cx="190" cy="150" r="14"/></g><g fill="#ffd166"><circle cx="120" cy="140" r="15"/><circle cx="255" cy="145" r="14"/></g>')
-const ROCKET = drawing('newsDraw2', '<rect width="320" height="240" fill="#0f1b3d"/><circle cx="260" cy="60" r="34" fill="#e8e8e8"/><circle cx="250" cy="50" r="6" fill="#c9c9c9"/><g transform="rotate(35 140 140)"><rect x="120" y="70" width="40" height="110" rx="20" fill="#f4f4f4"/><path d="M120 95 140 50 160 95z" fill="#ef476f"/><circle cx="140" cy="115" r="10" fill="#118ab2"/><path d="M120 160 100 190h20zM160 160l20 30h-20z" fill="#ef476f"/><path d="M128 180h24l-12 36z" fill="#ffd166"/></g>')
+const NIGHT_GARDEN = drawingPhoto('drawing-garden'), ROCKET = drawingPhoto('drawing-rocket')
 const newsPosts: DemoPost[] = [
   { id: 'np1', memberId: 'm2', text: 'Pizza night is moving to Friday so we can all be home. Pick your toppings on the Groceries list!', emoji: '🍕', photo: null, audience: 'everyone', removed: false, at: hoursAgo(0.6) },
   { id: 'np2', memberId: 'm4', text: 'I lost my first tooth!!!', emoji: '🦷', photo: null, audience: 'everyone', removed: false, at: hoursAgo(22) },
