@@ -1993,6 +1993,12 @@ a.activity-card:active { transform: scale(0.98); }
 
 /* ---------- Notification bell + feed (Notifications.tsx) ---------- */
 .header-right { display: flex; align-items: center; gap: var(--gap); min-width: 0; }
+/* Narrow tablets (768px): the date wraps first (the left side gives way far sooner), then the
+   people row scrolls, so the buttons never run off the edge. */
+.header .header-left { flex-shrink: 100; min-width: min-content; }
+.header .clock { white-space: nowrap; }
+.header-right .member-filter-row { min-width: 0; flex-shrink: 1; }
+@media (min-width: 601px) and (max-width: 900px) { .header .header-right { gap: 8px; } .header-right .member-filter-row { --avatar: 48px; gap: 8px; } }
 .header-bell { position: relative; flex-shrink: 0; }
 .header-right .icon-btn.header-timer-on { width: auto; padding: 0 12px 0 10px; gap: 6px; border-radius: 999px; display: inline-flex; align-items: center; }
 .header-timer-clock { font-weight: 800; font-variant-numeric: tabular-nums; }
