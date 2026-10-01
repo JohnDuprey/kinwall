@@ -127,12 +127,12 @@ test('security activity: each kind is logged once, credited to who did it, never
   await raw('/oauth/token', form(exchange), null); // replayed
   assert.equal((await last('app.disconnected'))?.summary, 'Claude disconnected: its sign-in code was used twice');
 
-  // The quiet-hours PIN and a private journal.
+  // The Night PIN and a private journal.
   await req('/api/quiet-pin', 'PUT', { pin: '482915' }, alexPhone.key);
   await req('/api/quiet-pin', 'PUT', { pin: '482916' }, alexPhone.key);
   await req('/api/quiet-pin', 'DELETE', undefined, alexPhone.key);
   secrets.push('482915', '482916');
-  assert.deepEqual((await events()).filter((e) => e.kind.startsWith('pin.')).map((e) => e.summary), ['Quiet-hours PIN removed', 'Quiet-hours PIN changed', 'Quiet-hours PIN set']);
+  assert.deepEqual((await events()).filter((e) => e.kind.startsWith('pin.')).map((e) => e.summary), ['Night PIN removed', 'Night PIN changed', 'Night PIN set']);
   await req(`/api/members/${leo}/journal/privacy`, 'PUT', { allowed: true }, alexPhone.key);
   assert.deepEqual([(await last('journal.privacy'))?.summary, (await last('journal.privacy'))?.by?.memberId], ['Leo can keep a private journal', alex]);
 

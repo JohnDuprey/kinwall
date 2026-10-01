@@ -21,6 +21,6 @@ test('securityLine: nobody to credit, or someone who left, reads as just what ha
   const at = new Date(2026, 8, 30, 9, 0).toISOString()
   assert.equal(securityLine({ kind: 'signin.recovery', summary: 'Recovery code used to sign in (7 left)', by: null, at }, members, now).text, 'Recovery code used to sign in (7 left)')
   assert.equal(securityLine({ kind: 'signin.recovery', summary: 'x', by: null, at }, members, now).icon, '🔐', 'not the plain sign-in icon')
-  assert.equal(securityLine({ kind: 'pin.set', summary: 'Quiet-hours PIN set', by: { memberId: 'gone' }, at }, members, now).text, 'Quiet-hours PIN set')
+  assert.equal(securityLine({ kind: 'pin.set', summary: 'Night PIN set', by: { memberId: 'gone' }, at }, members, now).text, 'Night PIN set')
   assert.equal(securityLine({ kind: 'something.new', summary: 'Something new', by: null, at }, members, now).icon, '🛡️', 'a kind this app version does not know')
 })

@@ -569,7 +569,7 @@ const securityEvents: SecurityEvent[] = [
   { id: 's4', at: at(-1, 16, 12), kind: 'signin.recovery', summary: 'Recovery code used to sign in (7 left)', by: null, device: null, detail: { remaining: 7 } },
   { id: 's5', at: at(-2, 20, 5), kind: 'app.connected', summary: 'Claude connected with full access', by: { memberId: 'm1' }, device: 'Claude', detail: { scope: 'admin' } },
   { id: 's6', at: at(-2, 9, 30), kind: 'journal.privacy', summary: 'Maya can keep a private journal', by: { memberId: 'm2' }, device: null, detail: null },
-  { id: 's7', at: at(-3, 18, 0), kind: 'pin.set', summary: 'Quiet-hours PIN changed', by: { memberId: 'm1' }, device: null, detail: null },
+  { id: 's7', at: at(-3, 18, 0), kind: 'pin.set', summary: 'Night PIN changed', by: { memberId: 'm1' }, device: null, detail: null },
   { id: 's8', at: at(-4, 8, 15), kind: 'key.created', summary: 'Full-access API key "Home Assistant" created', by: { memberId: 'm1' }, device: 'Home Assistant', detail: { scope: 'admin' } },
   { id: 's9', at: at(-5, 21, 0), kind: 'passkey.removed', summary: 'Passkey "Old iPad" removed; its sign-ins ended', by: { memberId: 'm2' }, device: 'Old iPad', detail: null },
   { id: 's10', at: at(-6, 17, 45), kind: 'device.paired', summary: '"Leo\'s tablet" paired as Leo\'s device', by: { memberId: 'm2' }, device: "Leo's tablet", detail: { kind: 'kid' } },

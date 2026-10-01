@@ -1,5 +1,5 @@
 // The family's security log: sign-ins and sign-outs, passkeys, recovery codes, API and widget keys,
-// paired devices, connected apps, whose device something is, the quiet-hours PIN and private
+// paired devices, connected apps, whose device something is, the Night PIN and private
 // journal changes. Parent devices read it under Settings → Access → Security activity
 // (GET /api/security-events); wall screens, kids' devices and connected apps never do (auth.ts).
 // Never secrets: no keys, tokens, codes or credential IDs, only names a parent gave things. Not in

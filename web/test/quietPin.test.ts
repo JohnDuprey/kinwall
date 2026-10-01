@@ -1,4 +1,4 @@
-// node --test test/ (npm test). The quiet-hours PIN keypad: what a key press does, and how long a
+// node --test test/ (npm test). The Night PIN keypad: what a key press does, and how long a
 // screen waits after wrong tries.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'

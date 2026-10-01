@@ -62,7 +62,7 @@ Admin keys for scripts and automations. **New admin key** shows the key once, wi
 
 ## Security activity
 
-The family's security log, on parent devices only: passkeys added, renamed or removed, sign-ins and sign-outs, recovery codes made or used, devices paired, whose device something is, API and widgets keys, connected apps, the quiet-hours PIN and private journal changes. Each line says what happened, who did it and when ("Passkey "iPhone" added by 🦊 Alex · Tue 4:12 PM"); **Show more** loads older ones. Kept a year, up to 500, and it can't be cleared. A new passkey and a recovery-code sign-in also push to parents' phones. See [Sign-in & security](../using/sign-in-and-security.md#security-activity).
+The family's security log, on parent devices only: passkeys added, renamed or removed, sign-ins and sign-outs, recovery codes made or used, devices paired, whose device something is, API and widgets keys, connected apps, the Night PIN and private journal changes. Each line says what happened, who did it and when ("Passkey "iPhone" added by 🦊 Alex · Tue 4:12 PM"); **Show more** loads older ones. Kept a year, up to 500, and it can't be cleared. A new passkey and a recovery-code sign-in also push to parents' phones. See [Sign-in & security](../using/sign-in-and-security.md#security-activity).
 
 ## Your data
 

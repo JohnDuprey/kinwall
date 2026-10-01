@@ -64,7 +64,7 @@ quietPinRoutes.openapi(
     const db = c.env.DB;
     const had = !!(await db.prepare('SELECT 1 FROM settings WHERE key = ?').bind(KEY).first());
     await db.batch([
-      ...securityEventStmts(db, { kind: 'pin.set', summary: had ? 'Quiet-hours PIN changed' : 'Quiet-hours PIN set', by: await actorOf(c) }),
+      ...securityEventStmts(db, { kind: 'pin.set', summary: had ? 'Night PIN changed' : 'Night PIN set', by: await actorOf(c) }),
       db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').bind(KEY, await hashPin(pin)),
       db.prepare("DELETE FROM rate_limits WHERE key LIKE 'quiet-pin%'"), // a new PIN ends the wait
     ]);
@@ -75,7 +75,7 @@ quietPinRoutes.openapi(
 
 quietPinRoutes.openapi(
   createRoute({
-    method: 'delete', path: '/api/quiet-pin', tags: ['Settings'], summary: 'Remove the quiet-hours PIN (parent devices only; also the way out of a forgotten one)',
+    method: 'delete', path: '/api/quiet-pin', tags: ['Settings'], summary: 'Remove the Night PIN (parent devices only; also the way out of a forgotten one)',
     security: [{ Bearer: [] }],
     responses: {
       200: { description: 'removed', content: { 'application/json': { schema: OkSchema } } },
@@ -86,7 +86,7 @@ quietPinRoutes.openapi(
     if (await isConnectedApp(c)) return c.json({ error: parentOnly }, 403);
     const db = c.env.DB;
     const gone = await db.prepare('DELETE FROM settings WHERE key = ?').bind(KEY).run();
-    if (gone.meta.changes) await db.batch(securityEventStmts(db, { kind: 'pin.removed', summary: 'Quiet-hours PIN removed', by: await actorOf(c) }));
+    if (gone.meta.changes) await db.batch(securityEventStmts(db, { kind: 'pin.removed', summary: 'Night PIN removed', by: await actorOf(c) }));
     emit(c, 'settings.changed', {});
     return c.json({ ok: true }, 200);
   },
@@ -94,7 +94,7 @@ quietPinRoutes.openapi(
 
 quietPinRoutes.openapi(
   createRoute({
-    method: 'post', path: '/api/quiet-pin/verify', tags: ['Settings'], summary: 'Check the quiet-hours PIN (wall screens may call it; 5 wrong tries per device and 30 for the whole family per 15 minutes)',
+    method: 'post', path: '/api/quiet-pin/verify', tags: ['Settings'], summary: 'Check the Night PIN (wall screens may call it; 5 wrong tries per device and 30 for the whole family per 15 minutes)',
     security: [{ Bearer: [] }],
     request: { body: { content: { 'application/json': { schema: PinBody } } } },
     responses: {
