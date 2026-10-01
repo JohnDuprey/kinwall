@@ -33,9 +33,13 @@ function readPostAs(): string | null {
 }
 
 /** The notes thread on an event or list item: who said what, in their color. Tap a note to edit or
- * delete it; "+ Add note" (folded, like "+ Add task") posts a new one as the chosen member. */
+ * delete it; "+ Add note" (folded, like "+ Add task") posts a new one as the chosen member (on a
+ * kid's own device, always as the kid). */
 export default function NotesThread({ target, title = 'Notes' }: { target: NoteTarget; title?: string }) {
-  const { members, selectedMemberId, meMemberId, refreshTick, toast } = useApp()
+  const { members, selectedMemberId, meMemberId, refreshTick, toast, parentDevice, focusLocked } = useApp()
+  // A kid's own device posts as the kid and changes only their notes; a wall screen only Someone's (the server refuses the rest).
+  const kid = !parentDevice && focusLocked ? meMemberId : null
+  const canChange = (n: Note) => parentDevice || (n.memberId ?? null) === kid
   const dialog = useDialog()
   const [notes, setNotes] = useState<Note[]>([])
   const [editing, setEditing] = useState<string | null>(null)
@@ -62,10 +66,10 @@ export default function NotesThread({ target, title = 'Notes' }: { target: NoteT
     const body = draft.trim()
     if (!body) return
     try {
-      await api.addNote(target, body, postAs)
+      await api.addNote(target, body, kid ?? postAs)
       try { if (postAs) localStorage.setItem(POST_AS_KEY, postAs) } catch { /* private mode */ }
       collapse(); load()
-      announce(`Note posted${postAs ? ` as ${byId.get(postAs)?.name}` : ''}`)
+      announce(`Note posted${!kid && postAs ? ` as ${byId.get(postAs)?.name}` : ''}`)
     } catch (e) { fail(e, 'post note') }
   }
   const startEdit = (n: Note) => { setEditing(n.id); setEditDraft(n.body) }
@@ -100,12 +104,12 @@ export default function NotesThread({ target, title = 'Notes' }: { target: NoteT
             const edited = n.updatedAt > n.createdAt
             return (
               <li key={n.id} data-note={n.id} className="note" style={{ ['--note-color' as string]: m?.color ?? 'var(--border)' }}
-                onClick={e => { if (editing !== n.id && !(e.target as HTMLElement).closest('a, button')) startEdit(n) }}>
+                onClick={e => { if (canChange(n) && editing !== n.id && !(e.target as HTMLElement).closest('a, button')) startEdit(n) }}>
                 <div className="note-head">
                   <span className="note-avatar" aria-hidden="true" style={m ? { background: m.color, color: inkFor(m.color) } : undefined}>{m ? (m.avatar || m.name[0]) : '?'}</span>
                   <span className="note-name" style={{ color: nameInk(m) }}>{who(n)}</span>
                   <span className="note-time"><time dateTime={n.createdAt} title={new Date(n.createdAt).toLocaleString()}>{relTime(n.createdAt)}</time>{edited && ' · edited'}</span>
-                  {editing !== n.id && <button type="button" className="link-btn note-edit" onClick={() => startEdit(n)} aria-label={`Edit note by ${who(n)}`}>Edit</button>}
+                  {editing !== n.id && canChange(n) && <button type="button" className="link-btn note-edit" onClick={() => startEdit(n)} aria-label={`Edit note by ${who(n)}`}>Edit</button>}
                 </div>
                 {editing === n.id ? (
                   <div className="note-form" onKeyDownCapture={escape(() => stopEdit(n.id))}>
@@ -131,7 +135,7 @@ export default function NotesThread({ target, title = 'Notes' }: { target: NoteT
       ) : (
         <div id={formId} className="note-form" onKeyDownCapture={escape(collapse)}>
           <textarea value={draft} onChange={e => setDraft(e.target.value)} maxLength={MAX} autoFocus rows={3} placeholder="Add a note" aria-label="New note" />
-          {members.length > 0 && (
+          {members.length > 0 && !kid && (
             <div className="chip-row note-post-as" role="radiogroup" aria-label="Post as">
               <span className="note-post-as-label" aria-hidden="true">Post as</span>
               {members.map(m => (

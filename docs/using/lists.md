@@ -282,7 +282,7 @@ A recurring local event links by its series, so the task follows every occurrenc
 
 ## Discussion
 
-Below the item's **Notes** field, **Discussion** is a thread of notes from the family, each with the poster's avatar and name in their color ("Remote was under the cushion again"). It works exactly like [notes on events](events.md#notes): **+ Add note**, **Post as** a member (or **Someone**), tap a note to edit or delete it. The item's own **Notes** field stays a single description; the discussion is for separate back-and-forth.
+Below the item's **Notes** field, **Discussion** is a thread of notes from the family, each with the poster's avatar and name in their color ("Remote was under the cushion again"). It works exactly like [notes on events](events.md#notes): **+ Add note**, **Post as** a member (or **Someone**), tap a note to edit or delete it (on a kid's own device, only the kid's notes). The item's own **Notes** field stays a single description; the discussion is for separate back-and-forth.
 
 Deleting an item (or clearing checked items, or deleting the list) deletes its discussion. Export and import include it.
 

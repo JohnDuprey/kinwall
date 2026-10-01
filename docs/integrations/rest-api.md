@@ -112,7 +112,7 @@ Feature switches on `PATCH /api/settings` are sent as the complete `features` ob
 | Stickers | `GET /api/members/{id}/points`, `GET /api/stickers/packs`, `POST /api/stickers/packs/{packId}/buy`, `GET/POST /api/stickers/scrapbook/{memberId}`, `PATCH/DELETE /api/stickers/scrapbook/{memberId}/{id}` |
 | Photos | `GET/POST /api/photos` (POST body: the raw image), `GET /api/photos/quota`, `PATCH/DELETE /api/photos/{id}`, `GET /api/photos/{id}/image`, `GET /api/photos/export.zip`, `POST /api/photos/import` (body: the zip) |
 | Google Photos | `GET /api/google-photos`, `POST /api/google-photos/connect`, `DELETE /api/google-photos`, `GET /api/google-photos/next?w=&h=`. See [Google Photos](#google-photos). |
-| Notes | `GET/POST /api/notes`, `PATCH/DELETE /api/notes/{id}` |
+| Notes | `GET/POST /api/notes`, `PATCH/DELETE /api/notes/{id}`. A member's own device posts as them and changes only their notes; a shared wall changes only notes with no `memberId` (else `403`). See [Notes](../using/events.md#notes). |
 | Data | `GET /api/export`, `POST /api/import`, `GET /api/host-events` |
 
 ## Night screen

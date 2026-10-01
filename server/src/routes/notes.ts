@@ -6,6 +6,7 @@ import type { Context } from 'hono';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
 import { emit } from '../bus.ts';
+import { deviceOwner, ownerBlock, requestKey } from '../auth.ts';
 import { ErrorSchema, NoteInputSchema, NotePatchSchema, NoteSchema, NoteTargetSchema } from '../schemas.ts';
 
 export const notesRoutes = createRouter();
@@ -51,28 +52,32 @@ notesRoutes.openapi(
     method: 'post',
     path: '/api/notes',
     tags: ['Notes'],
-    summary: 'Add a note to an event or list item. memberId = who posted (omit/null for "Someone").',
+    summary: 'Add a note to an event or list item. memberId = who posted (omit/null for "Someone"); a member\'s own device always posts as them.',
     security: [{ Bearer: [] }],
     request: { body: { content: { 'application/json': { schema: NoteInputSchema } } } },
     responses: {
       201: { description: 'created', content: { 'application/json': { schema: NoteSchema } } },
       400: { description: 'invalid', content: { 'application/json': { schema: ErrorSchema } } },
+      403: { description: "this device can't post as, or change, someone else's note", content: { 'application/json': { schema: ErrorSchema } } },
       404: { description: 'target not found', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
     const body = c.req.valid('json');
+    const blocked = await ownerBlock(c, body.memberId);
+    if (blocked) return c.json({ error: blocked }, 403);
+    const memberId = body.memberId ?? (await deviceOwner(c)); // a member's own device posts as them
     const { type, id } = parseTarget(body.target);
     const db = c.env.DB;
     const [targetRes, memberRes] = await db.batch<unknown>([
       type === 'event' ? db.prepare('SELECT NULL AS list_id FROM events WHERE id = ?').bind(id) : db.prepare('SELECT list_id FROM list_items WHERE id = ?').bind(id),
-      db.prepare('SELECT id FROM members WHERE id = ?').bind(body.memberId ?? ''),
+      db.prepare('SELECT id FROM members WHERE id = ?').bind(memberId ?? ''),
     ]);
     const target = (targetRes.results as { list_id: string | null }[])[0];
     if (!target) return c.json({ error: `${type === 'event' ? 'event' : 'list item'} not found` }, 404);
-    if (body.memberId && memberRes.results.length === 0) return c.json({ error: 'member not found' }, 400);
+    if (memberId && memberRes.results.length === 0) return c.json({ error: 'member not found' }, 400);
     const now = new Date().toISOString();
-    const row: NoteRow = { id: crypto.randomUUID(), target_type: type, target_id: id, member_id: body.memberId ?? null, body: body.body.trim(), created_at: now, updated_at: now };
+    const row: NoteRow = { id: crypto.randomUUID(), target_type: type, target_id: id, member_id: memberId ?? null, body: body.body.trim(), created_at: now, updated_at: now };
     await db
       .prepare('INSERT INTO notes (id, target_type, target_id, member_id, body, created_at, updated_at) VALUES (?,?,?,?,?,?,?)')
       .bind(row.id, row.target_type, row.target_id, row.member_id, row.body, row.created_at, row.updated_at)
@@ -81,6 +86,13 @@ notesRoutes.openapi(
     return c.json(toNoteApi(row), 201);
   },
 );
+
+/** Display keys change only their own notes: a member's own device the notes posted as them, a wall
+ * screen (nobody's) the ones posted as "Someone". A parent's device changes any. */
+async function noteBlock(c: Context<{ Bindings: Env }>, note: NoteRow): Promise<string | null> {
+  if ((await requestKey(c))?.scope !== 'display') return null;
+  return (note.member_id ?? null) === (await deviceOwner(c)) ? null : "This device can't change someone else's note.";
+}
 
 // The note plus its list item's list (for the bus event), in one query.
 function loadNote(c: Context<{ Bindings: Env }>, id: string) {
@@ -100,6 +112,7 @@ notesRoutes.openapi(
     request: { params: idParam, body: { content: { 'application/json': { schema: NotePatchSchema } } } },
     responses: {
       200: { description: 'ok', content: { 'application/json': { schema: NoteSchema } } },
+      403: { description: "this device can't post as, or change, someone else's note", content: { 'application/json': { schema: ErrorSchema } } },
       404: { description: 'not found', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
@@ -107,6 +120,8 @@ notesRoutes.openapi(
     const { id } = c.req.valid('param');
     const existing = await loadNote(c, id);
     if (!existing) return c.json({ error: 'not found' }, 404);
+    const blocked = await noteBlock(c, existing);
+    if (blocked) return c.json({ error: blocked }, 403);
     const updated: NoteRow = { ...existing, body: c.req.valid('json').body.trim(), updated_at: new Date().toISOString() };
     await c.env.DB.prepare('UPDATE notes SET body = ?, updated_at = ? WHERE id = ?').bind(updated.body, updated.updated_at, id).run();
     emitFor(c, existing.target_type, existing.target_id, existing.list_id);
@@ -124,6 +139,7 @@ notesRoutes.openapi(
     request: { params: idParam },
     responses: {
       200: { description: 'ok', content: { 'application/json': { schema: z.object({ ok: z.boolean() }) } } },
+      403: { description: "this device can't post as, or change, someone else's note", content: { 'application/json': { schema: ErrorSchema } } },
       404: { description: 'not found', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
@@ -131,6 +147,8 @@ notesRoutes.openapi(
     const { id } = c.req.valid('param');
     const existing = await loadNote(c, id);
     if (!existing) return c.json({ error: 'not found' }, 404);
+    const blocked = await noteBlock(c, existing);
+    if (blocked) return c.json({ error: blocked }, 403);
     await c.env.DB.prepare('DELETE FROM notes WHERE id = ?').bind(id).run();
     emitFor(c, existing.target_type, existing.target_id, existing.list_id);
     return c.json({ ok: true }, 200);

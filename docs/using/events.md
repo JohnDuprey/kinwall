@@ -99,11 +99,12 @@ Anyone can leave a note on an event: "Bring shin guards", "I can drive", a link 
 
 * **+ Add note** opens a text box and **Post as** chips. The chip starts on the person selected in the header, else whoever you posted as last. **Someone** posts without a name. Separate thoughts are separate notes.
 * Tap a note (or its **Edit**) to change the text, then **Save**, **Cancel** or **Delete** (which asks first). Escape cancels.
+* A kid's own device posts as the kid (no **Post as**) and edits or deletes only the kid's notes. A wall screen posts as anyone but edits or deletes only notes posted as **Someone**. A parent's phone or computer changes any note.
 * In **Schedule**, an event with notes shows 💬 and the count.
 * A recurring local event keeps one thread for the whole series. A synced event's notes survive every sync, because synced events keep the same Kinwall id; if an event drops out of the feed, its notes wait and come back with it. Deleting an event in Kinwall deletes its notes.
 * An admin can turn notes off in **Settings → General** (tap **Change** under **Features**) (events and list items alike). They're hidden, not deleted. See [Features](../settings/general.md#features).
 * Notes are Kinwall-only and never go to Google or Outlook. Export includes notes on local events (and list items); notes on synced events are not exported.
-* API: `GET /api/notes?target=event:<id>`, `POST /api/notes` `{target, body, memberId?}` (1–2000 characters; no `memberId` = "Someone"), `PATCH /api/notes/{id}` `{body}`, `DELETE /api/notes/{id}`. Events from `GET /api/events` carry `noteCount`. Display keys can read and write notes. MCP: `list_notes`, `add_note`, `update_note`.
+* API: `GET /api/notes?target=event:<id>`, `POST /api/notes` `{target, body, memberId?}` (1–2000 characters; no `memberId` = "Someone"), `PATCH /api/notes/{id}` `{body}`, `DELETE /api/notes/{id}`. Events from `GET /api/events` carry `noteCount`. Display keys can read and write notes: a member's own device posts as that member (another `memberId` is `403`; none = them) and changes only their notes; a shared wall changes only notes with no `memberId`; anything else is `403`. MCP: `list_notes`, `add_note`, `update_note`.
 
 ## Free or busy
 
