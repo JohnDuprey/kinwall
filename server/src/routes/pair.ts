@@ -6,7 +6,8 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
-import { createApiKey, deviceKindOwner, timingSafeEqual } from '../auth.ts';
+import { actorOf, createApiKey, deviceKindOwner, timingSafeEqual } from '../auth.ts';
+import { ownerName, securityEventStmts } from './security-events.ts';
 import { encrypt, decrypt } from '../crypto.ts';
 import { emit } from '../bus.ts';
 import { recordDeviceOwner } from '../notify.ts';
@@ -156,9 +157,11 @@ pairRoutes.openapi(
     const { id: keyId, key } = await createApiKey(c.env.DB, name, 'display', { owner, deviceKind: kind });
     const encryptedKey = await encrypt(c.env, key, pairing.id);
 
-    await c.env.DB.prepare('UPDATE pairings SET approved = 1, key_id = ?, key_name = ?, encrypted_key = ? WHERE id = ?')
-      .bind(keyId, name, encryptedKey, pairing.id)
-      .run();
+    const db = c.env.DB;
+    await db.batch([
+      db.prepare('UPDATE pairings SET approved = 1, key_id = ?, key_name = ?, encrypted_key = ? WHERE id = ?').bind(keyId, name, encryptedKey, pairing.id),
+      ...securityEventStmts(db, { kind: 'device.paired', summary: `"${name}" paired as ${kind === 'kid' ? `${await ownerName(db, owner)}'s device` : 'a wall screen'}`, by: await actorOf(c), device: name, detail: { kind } }),
+    ]);
 
     await recordDeviceOwner(c.env.DB, name, owner, kind); // it opens their private journal: never silently
     emit(c, 'display.paired', { keyId, name });

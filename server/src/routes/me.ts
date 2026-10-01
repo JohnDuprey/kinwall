@@ -3,6 +3,7 @@ import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
 import type { KinwallDb } from '../db.ts';
 import { resolveKey, validOwner } from '../auth.ts';
+import { deviceOwnerEvent, recordSecurityEvent } from './security-events.ts';
 import { emit } from '../bus.ts';
 import { recordDeviceOwner } from '../notify.ts';
 import { isConnectedApp } from './mcp-oauth.ts';
@@ -71,7 +72,11 @@ meRoutes.openapi(
     } else {
       await db.prepare('UPDATE api_keys SET owner = ? WHERE id = ?').bind(owner, key.id).run();
     }
-    if (owner !== key.owner) await recordDeviceOwner(db, key.name, owner);
+    if (owner !== key.owner) {
+      // No "by": the device says this about itself, and crediting the new owner would vouch for it.
+      await recordSecurityEvent(db, await deviceOwnerEvent(db, key.name, owner, null, null));
+      await recordDeviceOwner(db, key.name, owner);
+    }
     emit(c, 'settings.changed', { keyId: key.id });
     return c.json({ owner }, 200);
   },

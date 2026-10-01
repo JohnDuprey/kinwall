@@ -12,7 +12,8 @@ import type { Context } from 'hono';
 import { cors } from 'hono/cors';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
-import { createApiKey, deviceAppGrant, DEVICE_APP_SCHEME, isDeviceAppLink, resolveKey, sha256Hex, GROWN_UP_PAIRING, validOwner, type KeyScope } from '../auth.ts';
+import { actorOf, createApiKey, deviceAppGrant, DEVICE_APP_SCHEME, isDeviceAppLink, resolveKey, sha256Hex, GROWN_UP_PAIRING, validOwner, type Actor, type KeyScope } from '../auth.ts';
+import { deviceOwnerEvent, recordSecurityEvent, securityEventStmts } from './security-events.ts';
 import { effectivePublicUrl } from '../providers/config.ts';
 import { emit } from '../bus.ts';
 import { recordDeviceOwner } from '../notify.ts';
@@ -88,11 +89,15 @@ function clientHasRedirect(client: ClientRow, redirectUri: string): boolean {
 // other apps' schemes) never do.
 export { isConnectedApp } from '../auth.ts';
 
-export async function revokeGrant(db: KinwallDb, grantId: string): Promise<void> {
+/** Ends a connection and everything it signed in, with a line in the security log: `why` when it
+ * wasn't a person's choice (a reused code or token), `by` who did it when it was. */
+export async function revokeGrant(db: KinwallDb, grantId: string, log: { by?: Actor | null; why?: string } = {}): Promise<void> {
+  const app = await db.prepare('SELECT cl.name FROM oauth_grants g JOIN oauth_clients cl ON cl.id = g.client_id WHERE g.id = ?').bind(grantId).first<{ name: string }>();
   await db.batch([
     db.prepare('DELETE FROM api_keys WHERE oauth_grant_id = ?').bind(grantId),
     db.prepare('DELETE FROM oauth_refresh_tokens WHERE grant_id = ?').bind(grantId),
     db.prepare('DELETE FROM oauth_grants WHERE id = ?').bind(grantId),
+    ...(app ? securityEventStmts(db, { kind: 'app.disconnected', summary: `${app.name} disconnected${log.why ? `: ${log.why}` : ''}`, by: log.by ?? null, device: app.name }) : []),
   ]);
 }
 
@@ -242,6 +247,9 @@ mcpOAuthRoutes.post('/api/authorizations/approve', async (c) => {
     if (!owner) return c.json({ error: scope === 'display' ? `Everyday access is for a kid or the whole family. ${GROWN_UP_PAIRING}` : 'unknown family member' }, 400);
   }
   const code = randomToken();
+  const by = await actorOf(c);
+  await recordSecurityEvent(c.env.DB, { kind: 'app.connected', summary: `${client.name} connected with ${scope === 'admin' ? 'full' : 'everyday'} access`, by, device: client.name, detail: { scope } });
+  if (owner) await recordSecurityEvent(c.env.DB, await deviceOwnerEvent(c.env.DB, client.name, owner, null, by));
   await recordDeviceOwner(c.env.DB, client.name, owner); // it may open their private journal: never silently
   await c.env.DB.prepare('INSERT INTO oauth_codes (hash, client_id, scope, redirect_uri, code_challenge, approved_by, expires_at, owner) VALUES (?,?,?,?,?,?,?,?)')
     .bind(await sha256Hex(code), client.id, scope, body.redirect_uri, body.code_challenge, approver.name, new Date(Date.now() + CODE_TTL_MS).toISOString(), owner)
@@ -267,7 +275,7 @@ mcpOAuthRoutes.post('/oauth/token', async (c) => {
     if (!row) return oauthError(c, 'invalid_grant', 'unknown or expired code');
     if (row.grant_id) {
       // Replayed code: someone else may hold it. Kill everything it produced (RFC 6749 4.1.2).
-      await revokeGrant(db, row.grant_id);
+      await revokeGrant(db, row.grant_id, { why: 'its sign-in code was used twice' });
       return oauthError(c, 'invalid_grant', 'code already used');
     }
     if (row.expires_at < now || row.client_id !== p.client_id || row.redirect_uri !== p.redirect_uri) return oauthError(c, 'invalid_grant', 'code does not match this request');
@@ -295,7 +303,7 @@ mcpOAuthRoutes.post('/oauth/token', async (c) => {
     if (!row) return oauthError(c, 'invalid_grant', 'unknown refresh token');
     if (row.used_at) {
       // Rotation reuse = likely theft. Revoke the whole connection; the user re-approves.
-      await revokeGrant(db, row.grant_id);
+      await revokeGrant(db, row.grant_id, { why: 'an old sign-in token was used again' });
       return oauthError(c, 'invalid_grant', 'refresh token already used');
     }
     if (row.expires_at < now || (p.client_id && p.client_id !== row.client_id)) return oauthError(c, 'invalid_grant', 'refresh token expired or not for this client');
@@ -316,7 +324,7 @@ mcpOAuthRoutes.post('/oauth/revoke', async (c) => {
     const viaRefresh = await c.env.DB.prepare('SELECT grant_id FROM oauth_refresh_tokens WHERE hash = ?').bind(hash).first<{ grant_id: string }>();
     const viaAccess = viaRefresh ? null : await c.env.DB.prepare("SELECT oauth_grant_id AS grant_id FROM api_keys WHERE hash = ? AND kind = 'oauth'").bind(hash).first<{ grant_id: string | null }>();
     const grantId = viaRefresh?.grant_id ?? viaAccess?.grant_id;
-    if (grantId) await revokeGrant(c.env.DB, grantId);
+    if (grantId) await revokeGrant(c.env.DB, grantId, { why: 'it signed out' });
   }
   return c.body(null, 200);
 });
@@ -362,6 +370,7 @@ mcpOAuthRoutes.patch('/api/authorizations/:id', async (c) => {
   await c.env.DB.batch([
     c.env.DB.prepare('UPDATE oauth_grants SET owner = ? WHERE id = ?').bind(owner, id),
     c.env.DB.prepare('UPDATE api_keys SET owner = ? WHERE oauth_grant_id = ?').bind(owner, id),
+    ...(grant.owner !== owner ? securityEventStmts(c.env.DB, await deviceOwnerEvent(c.env.DB, grant.name, owner, null, await actorOf(c))) : []),
   ]);
   emit(c, 'settings.changed', { grantId: id }); // the device's next poll picks up its new owner
   return c.json({ ok: true, owner });
@@ -371,6 +380,6 @@ mcpOAuthRoutes.delete('/api/authorizations/:id', async (c) => {
   const m = await managerGrant(c.env.DB, await resolveKey(c));
   // the app can't reassign or disconnect itself here (Sign out does that)
   if (!m.ok || m.ownGrant === c.req.param('id')) return c.json({ error: 'sign in as an admin to manage connected apps' }, 403);
-  await revokeGrant(c.env.DB, c.req.param('id'));
+  await revokeGrant(c.env.DB, c.req.param('id'), { by: await actorOf(c) });
   return c.json({ ok: true });
 });

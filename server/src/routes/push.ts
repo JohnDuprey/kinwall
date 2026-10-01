@@ -1,7 +1,7 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
-import { deviceOwner, requestKey, resolveKey } from '../auth.ts';
+import { deviceOwner, ownDevice, requestKey, resolveKey } from '../auth.ts';
 import { parseMemberIds, resolveMemberIds } from '../calendar-members.ts';
 import { getVapidPublicKey, sendWebPush } from '../webpush.ts';
 import { encrypt } from '../crypto.ts';
@@ -250,20 +250,25 @@ pushRoutes.openapi(
   },
 );
 
-// Who sees which feed rows, on top of medicationFeedFilter. Parents' devices and keys: everything.
-// A kid's own device (deviceOwner): rows for the whole family or for them, never the household
-// "Today" summary (it lists grown-ups' plans too; their own comes by push) and never a parent-facing
-// "hasn't been marked yet" medicine note, even about them. A wall screen (shared or legacy display):
-// the family feed, minus those medicine notes and messages and privacy notes meant only for grown-ups.
+// Who sees which feed rows, on top of medicationFeedFilter. Parents' devices and keys: everything
+// but other people's privacy notes. A kid's own device (deviceOwner): rows for the whole family or
+// for them, never the household "Today" summary (it lists grown-ups' plans too; their own comes by
+// push) and never a parent-facing "hasn't been marked yet" medicine note, even about them. A wall
+// screen (shared or legacy display): the family feed, minus those medicine notes and messages meant
+// only for grown-ups. Privacy notes (kind 'privacy': a device now belongs to someone, their private
+// journal changed) show only on that person's own devices (ownDevice): they're how that person
+// finds out. Everyone else's record of them is Settings → Access → Security activity.
 const LATE_NOTE = " AND NOT (kind = 'medication' AND title LIKE ?)";
+const PRIVACY_MINE = " AND (kind != 'privacy' OR EXISTS (SELECT 1 FROM json_each(member_ids) WHERE value = ?))";
 async function feedFilter(c: Parameters<typeof deviceOwner>[0]): Promise<{ sql: string; binds: string[] }> {
   const key = await requestKey(c);
-  if (key?.scope !== 'display') return { sql: '', binds: [] };
+  const mine = (await ownDevice(c)) ?? '';
+  if (key?.scope !== 'display') return { sql: PRIVACY_MINE, binds: [mine] };
   const late = `%${MED_LATE}`;
   const kid = await deviceOwner(c);
-  if (kid) return { sql: ` AND (json_array_length(member_ids) = 0 OR EXISTS (SELECT 1 FROM json_each(member_ids) WHERE value = ?)) AND kind != 'summary'${LATE_NOTE}`, binds: [kid, late] };
-  const grownUpsOnly = "kind IN ('message', 'privacy') AND json_array_length(member_ids) > 0 AND NOT EXISTS (SELECT 1 FROM json_each(member_ids) j JOIN members m ON m.id = j.value WHERE m.grown_up = 0)";
-  return { sql: `${LATE_NOTE} AND NOT (${grownUpsOnly})`, binds: [late] };
+  if (kid) return { sql: ` AND (json_array_length(member_ids) = 0 OR EXISTS (SELECT 1 FROM json_each(member_ids) WHERE value = ?)) AND kind != 'summary'${LATE_NOTE}${PRIVACY_MINE}`, binds: [kid, late, mine] };
+  const grownUpsOnly = "kind = 'message' AND json_array_length(member_ids) > 0 AND NOT EXISTS (SELECT 1 FROM json_each(member_ids) j JOIN members m ON m.id = j.value WHERE m.grown_up = 0)";
+  return { sql: `${LATE_NOTE} AND NOT (${grownUpsOnly})${PRIVACY_MINE}`, binds: [late, mine] };
 }
 
 type NotificationRow = { id: string; at: string; kind: string; title: string; body: string | null; url: string | null; member_ids: string; source: string | null };
@@ -300,7 +305,8 @@ pushRoutes.openapi(
 
 // Clearing the feed is household-wide (there's one copy), so admin-only; displays keep their
 // per-device read state and can't remove anything. Privacy lines (kind 'privacy': whose device
-// something is, private journal changes) stay their 90 days: they're how a change can't be quiet.
+// something is, private journal changes) stay their 90 days on that person's own devices: they're
+// how a change can't be quiet, so another parent can't clear them first.
 pushRoutes.openapi(
   createRoute({
     method: 'delete',

@@ -3,7 +3,8 @@
 // session key a passkey login does.
 import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
-import { createApiKey, sha256Hex } from '../auth.ts';
+import { actorOf, createApiKey, sha256Hex } from '../auth.ts';
+import { pushGrownUps, recordSecurityEvent, securityEventStmts } from './security-events.ts';
 import { ErrorSchema } from '../schemas.ts';
 import { checkRate, clientIp } from '../ratelimit.ts';
 import { SESSION_TTL_MS } from './passkeys.ts';
@@ -49,7 +50,12 @@ recoveryRoutes.openapi(
     const inserts = await Promise.all(
       codes.map(async (code) => db.prepare('INSERT INTO recovery_codes (hash, created_at) VALUES (?,?)').bind(await sha256Hex(code), now)),
     );
-    await db.batch([db.prepare('DELETE FROM recovery_codes'), ...inserts]);
+    const first = !(await db.prepare('SELECT 1 FROM recovery_codes LIMIT 1').first());
+    await db.batch([
+      db.prepare('DELETE FROM recovery_codes'),
+      ...inserts,
+      ...securityEventStmts(db, { kind: 'recovery.generated', summary: first ? 'Recovery codes made' : 'New recovery codes made; the old ones stopped working', by: await actorOf(c) }),
+    ]);
     return c.json({ codes }, 200);
   },
 );
@@ -108,6 +114,9 @@ recoveryRoutes.openapi(
     const session = await createApiKey(db, 'Recovery code', 'admin', { kind: 'session', expiresAt });
     const row = await db.prepare('SELECT COUNT(*) AS n FROM recovery_codes WHERE used_at IS NULL').first<{ n: number }>();
     console.log(`Kinwall: signed in with a recovery code (${row?.n ?? 0} left)`);
+    const left = row?.n ?? 0;
+    await recordSecurityEvent(db, { kind: 'signin.recovery', summary: `Recovery code used to sign in (${left} left)`, detail: { remaining: left } });
+    pushGrownUps(c, { title: '🔐 Recovery code used to sign in', body: `${left} of the codes are left. If that wasn't you, make new codes and check Settings → Access.` });
     return c.json({ key: session.key, expiresAt, remaining: row?.n ?? 0 }, 200);
   },
 );

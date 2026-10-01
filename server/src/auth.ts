@@ -328,6 +328,7 @@ const CONNECTED_APP_DENIED: { method: RegExp; pattern: RegExp }[] = [
   { method: /^(PUT)$/, pattern: /^\/api\/me\/owner$/ },
   { method: /^(PUT|DELETE)$/, pattern: /^\/api\/providers\/[^/]+$/ },
   { method: /./, pattern: /^\/api\/authorizations(\/.*)?$/ },
+  { method: /^(GET)$/, pattern: /^\/api\/security-events$/ }, // the security log: parent devices only
 ];
 
 /** The 403 message when a connected app (mcp-oauth isConnectedApp) asks to manage sign-ins, else null. */

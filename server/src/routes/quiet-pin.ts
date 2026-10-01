@@ -4,7 +4,8 @@
 // more, so it never reaches a client, a webhook or the export. Request bodies here are never logged.
 import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
-import { requestKey, timingSafeEqual } from '../auth.ts';
+import { actorOf, requestKey, timingSafeEqual } from '../auth.ts';
+import { securityEventStmts } from './security-events.ts';
 import { emit } from '../bus.ts';
 import { checkRate } from '../ratelimit.ts';
 import { ErrorSchema } from '../schemas.ts';
@@ -61,7 +62,9 @@ quietPinRoutes.openapi(
     if (await isConnectedApp(c)) return c.json({ error: parentOnly }, 403);
     const { pin } = c.req.valid('json');
     const db = c.env.DB;
+    const had = !!(await db.prepare('SELECT 1 FROM settings WHERE key = ?').bind(KEY).first());
     await db.batch([
+      ...securityEventStmts(db, { kind: 'pin.set', summary: had ? 'Quiet-hours PIN changed' : 'Quiet-hours PIN set', by: await actorOf(c) }),
       db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').bind(KEY, await hashPin(pin)),
       db.prepare("DELETE FROM rate_limits WHERE key LIKE 'quiet-pin%'"), // a new PIN ends the wait
     ]);
@@ -81,7 +84,9 @@ quietPinRoutes.openapi(
   }),
   async (c) => {
     if (await isConnectedApp(c)) return c.json({ error: parentOnly }, 403);
-    await c.env.DB.prepare('DELETE FROM settings WHERE key = ?').bind(KEY).run();
+    const db = c.env.DB;
+    const gone = await db.prepare('DELETE FROM settings WHERE key = ?').bind(KEY).run();
+    if (gone.meta.changes) await db.batch(securityEventStmts(db, { kind: 'pin.removed', summary: 'Quiet-hours PIN removed', by: await actorOf(c) }));
     emit(c, 'settings.changed', {});
     return c.json({ ok: true }, 200);
   },

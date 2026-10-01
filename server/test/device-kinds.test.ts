@@ -77,10 +77,12 @@ test('pairing: older clients that send only an owner still work; the kind follow
 test("pairing: the family's log says what kind of device it is", async () => {
   const { req, member, pair } = setup();
   const leo = await member('Leo', false);
-  await pair({ kind: 'kid', owner: leo });
-  const line = ((await req('/api/notifications')).json as any[]).find((n) => n.kind === 'privacy');
-  assert.match(line.title, /Tablet now belongs to Leo/);
+  const kid = await pair({ kind: 'kid', owner: leo });
+  const line = ((await req('/api/notifications', 'GET', undefined, kid.poll.json.key)).json as any[]).find((n) => n.kind === 'privacy');
+  assert.match(line.title, /Tablet now belongs to Leo/, "Leo's device tells him");
   assert.match(line.body, /kid's device/);
+  const events = (await req('/api/security-events')).json as any[];
+  assert.deepEqual(events.filter((e) => e.kind === 'device.paired').map((e) => e.summary), ['"Tablet" paired as Leo\'s device']);
 });
 
 test('PATCH /api/keys: an admin changes the kind, with the same rules', async () => {

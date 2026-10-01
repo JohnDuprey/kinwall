@@ -22,7 +22,7 @@
 | [Trackers](../using/trackers.md): books, memories and health visits. Health is encrypted on the server but **in plain form in this file** (it's your backup), so keep the file private | Photos (download them separately from Photos) |
 | [Meals](../using/meals.md): recipes (archived ones too, basics with their links), planned meals with their own ingredient copies, and which ingredients were already added to which shopping list | |
 | ICS feed URLs | |
-| Passkey and webhook *names/URLs*, for reference | |
+| Passkey and webhook *names/URLs*, for reference | [Security activity](../using/sign-in-and-security.md#security-activity) (it's about this server's sign-ins and devices, and an import shouldn't be able to write one) |
 
 Photos are never in this JSON export. They back up as a separate zip: **Activities → Photos → Download all (zip)**, and come back with **Import zip** on the same page. See [Photos](../using/photos.md#backing-up-and-moving-photos).
 

@@ -6,7 +6,8 @@ import type { KinwallDb } from '../db.ts';
 import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
-import { connectedAppBlock, createApiKey, resolveKey } from '../auth.ts';
+import { actorOf, connectedAppBlock, createApiKey, resolveKey } from '../auth.ts';
+import { pushGrownUps, recordSecurityEvent, securityEventStmts } from './security-events.ts';
 import { emit } from '../bus.ts';
 import { errorMessage } from '../redact.ts';
 import { ErrorSchema } from '../schemas.ts';
@@ -246,11 +247,14 @@ passkeysRoutes.openapi(
     const { credential } = verification.registrationInfo;
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
-    await c.env.DB.prepare(
-      'INSERT INTO passkeys (id, credential_id, public_key, counter, transports, name, created_at) VALUES (?,?,?,?,?,?,?)',
-    )
-      .bind(id, credential.id, bytesToBase64Url(credential.publicKey), credential.counter, JSON.stringify(credential.transports ?? []), name, now)
-      .run();
+    const db = c.env.DB;
+    await db.batch([
+      db.prepare('INSERT INTO passkeys (id, credential_id, public_key, counter, transports, name, created_at) VALUES (?,?,?,?,?,?,?)')
+        .bind(id, credential.id, bytesToBase64Url(credential.publicKey), credential.counter, JSON.stringify(credential.transports ?? []), name, now),
+      // From a QR code's one-time token the new device has no key yet: nobody to credit.
+      ...securityEventStmts(db, { kind: 'passkey.added', summary: `Passkey "${name}" added${usedToken ? ' from a QR code' : ''}`, by: usedToken ? null : await actorOf(c), device: name }),
+    ]);
+    pushGrownUps(c, { title: `🔑 New passkey: ${name}`, body: "It can sign in to Kinwall as a parent. If that wasn't you, remove it in Settings → Access." });
     emit(c, 'settings.changed', {});
 
     // Always mint a session for the new passkey (not just for the token flow) - it lets any
@@ -388,6 +392,7 @@ export async function finishPasskeyLogin(
   const keyName = `Passkey: ${passkey.name}`;
   // Whose passkey it is (PUT /api/me/owner saves it here): the session is theirs, so it reads their private journal.
   const session = await createApiKey(env.DB, keyName, 'admin', { kind: 'session', expiresAt, passkeyId: passkey.id, owner: passkey.owner ?? null });
+  await recordSecurityEvent(env.DB, { kind: 'signin.passkey', summary: `Signed in with passkey "${passkey.name}"`, by: passkey.owner ? { memberId: passkey.owner, label: null } : null, device: passkey.name });
   return { key: session.key, expiresAt, scope: 'admin', keyName };
 }
 
@@ -434,7 +439,13 @@ passkeysRoutes.openapi(
     const { name } = c.req.valid('json');
     const existing = await c.env.DB.prepare('SELECT * FROM passkeys WHERE id = ?').bind(id).first<PasskeyRow>();
     if (!existing) return c.json({ error: 'not found' }, 404);
-    await c.env.DB.prepare('UPDATE passkeys SET name = ? WHERE id = ?').bind(name, id).run();
+    const db = c.env.DB;
+    if (name !== existing.name) {
+      await db.batch([
+        db.prepare('UPDATE passkeys SET name = ? WHERE id = ?').bind(name, id),
+        ...securityEventStmts(db, { kind: 'passkey.renamed', summary: `Passkey "${existing.name}" renamed to "${name}"`, by: await actorOf(c), device: name }),
+      ]);
+    }
     emit(c, 'settings.changed', {});
     return c.json(toApi({ ...existing, name }), 200);
   },
@@ -455,9 +466,15 @@ passkeysRoutes.openapi(
   }),
   async (c) => {
     const { id } = c.req.valid('param');
-    const result = await c.env.DB.prepare('DELETE FROM passkeys WHERE id = ?').bind(id).run();
-    if (result.meta.changes === 0) return c.json({ error: 'not found' }, 404);
-    await c.env.DB.prepare("DELETE FROM api_keys WHERE kind = 'session' AND passkey_id = ?").bind(id).run();
+    const db = c.env.DB;
+    const existing = await db.prepare('SELECT name FROM passkeys WHERE id = ?').bind(id).first<{ name: string }>();
+    if (!existing) return c.json({ error: 'not found' }, 404);
+    const by = await actorOf(c); // before its sessions go: this one may be among them
+    await db.batch([
+      db.prepare('DELETE FROM passkeys WHERE id = ?').bind(id),
+      db.prepare("DELETE FROM api_keys WHERE kind = 'session' AND passkey_id = ?").bind(id),
+      ...securityEventStmts(db, { kind: 'passkey.removed', summary: `Passkey "${existing.name}" removed; its sign-ins ended`, by, device: existing.name }),
+    ]);
     emit(c, 'settings.changed', {});
     return c.json({ ok: true }, 200);
   },
@@ -474,7 +491,13 @@ passkeysRoutes.openapi(
   }),
   async (c) => {
     const resolved = await resolveKey(c);
-    if (resolved?.id) await c.env.DB.prepare('DELETE FROM api_keys WHERE id = ?').bind(resolved.id).run();
+    if (resolved?.id) {
+      const db = c.env.DB;
+      await db.batch([
+        db.prepare('DELETE FROM api_keys WHERE id = ?').bind(resolved.id),
+        ...securityEventStmts(db, { kind: 'signout', summary: resolved.name.startsWith('Passkey: ') ? `Signed out (passkey "${resolved.name.slice(9)}")` : `Signed out (${resolved.name})`, by: await actorOf(c), device: resolved.name }),
+      ]);
+    }
     return c.json({ ok: true }, 200);
   },
 );

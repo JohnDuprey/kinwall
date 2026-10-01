@@ -29,7 +29,8 @@ import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
 import { hostTimezone } from '../env.ts';
 import { emit } from '../bus.ts';
-import { deviceOwner, requestKey } from '../auth.ts';
+import { actorOf, deviceOwner, requestKey } from '../auth.ts';
+import { securityEventStmts } from './security-events.ts';
 import { isConnectedApp } from './mcp-oauth.ts';
 import { journalOwner, privacyOf, privateNow, type PrivacyRow } from '../journal-privacy.ts';
 import { recordNotification } from '../notify.ts';
@@ -304,7 +305,12 @@ journalRoutes.openapi(
       }
       next.journal_private = body.private ? 1 : 0;
     }
-    await c.env.DB.prepare('UPDATE members SET journal_private = ?, journal_private_allowed = ? WHERE id = ?').bind(next.journal_private, next.journal_private_allowed ?? 0, id).run();
+    const db = c.env.DB;
+    const by = await actorOf(c);
+    await db.batch([
+      db.prepare('UPDATE members SET journal_private = ?, journal_private_allowed = ? WHERE id = ?').bind(next.journal_private, next.journal_private_allowed ?? 0, id),
+      ...log.flatMap((l) => securityEventStmts(db, { kind: 'journal.privacy', summary: l.title, by })),
+    ]);
     for (const l of log) await recordNotification(c.env.DB, { kind: 'privacy', ...l, url: `/#/journal/${id}`, memberIds: [id], source: 'system' });
     emit(c, 'member.changed', { id });
     const p = privacyOf(next);

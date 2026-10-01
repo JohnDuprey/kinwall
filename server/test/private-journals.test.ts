@@ -49,8 +49,9 @@ async function setup() {
   const alexPhone = await adminFor(alex.id);
   const samPhone = await adminFor(sam.id);
   const leoDevice = await displayFor(leo.id);
-  const feed = async () => (await req('/api/notifications')).json as { kind: string; title: string; body: string | null }[];
-  return { env, db, req, alex, sam, leo, alexPhone, samPhone, leoDevice, adminFor, displayFor, feed };
+  const feed = async (key = ADMIN) => (await req('/api/notifications', 'GET', undefined, key)).json as { id: string; kind: string; title: string; body: string | null }[];
+  const security = async () => ((await req('/api/security-events?limit=100')).json as { kind: string; summary: string }[]);
+  return { env, db, req, alex, sam, leo, alexPhone, samPhone, leoDevice, adminFor, displayFor, feed, security };
 }
 
 const jr = (id: string, rest = '') => `/api/members/${id}/journal${rest}`;
@@ -95,14 +96,16 @@ test("a grown-up's journal is private by default: only their own device reads th
 
 test('turning privacy off never exposes what was written while it was on; only the owner can change it', async (t) => {
   t.after(() => mock.timers.reset());
-  const { req, alex, alexPhone, samPhone, feed } = await setup();
+  const { req, alex, alexPhone, samPhone, feed, security } = await setup();
   await req(jr(alex.id), 'POST', { text: SECRET }, alexPhone);
   assert.equal((await req(jr(alex.id, '/privacy'), 'PUT', { private: false }, samPhone)).status, 403, "the other parent can't");
   assert.equal((await req(jr(alex.id, '/privacy'), 'PUT', { private: false }, ADMIN)).status, 403, 'an unowned admin key can\'t');
   const off = await req(jr(alex.id, '/privacy'), 'PUT', { private: false }, alexPhone);
   assert.equal(off.status, 200, JSON.stringify(off.json));
   assert.equal(off.json.on, false);
-  assert.ok((await feed()).some((n) => n.kind === 'privacy' && n.title.includes('Alex')), 'the family log says so');
+  assert.ok((await feed(alexPhone)).some((n) => n.kind === 'privacy' && n.title.includes('Alex')), "Alex's own devices say so");
+  assert.ok(!(await feed(samPhone)).some((n) => n.kind === 'privacy' && n.title.includes('Alex')), "not in Sam's bell");
+  assert.ok((await security()).some((e) => e.kind === 'journal.privacy' && e.summary.includes('Alex')), 'the security log says so');
   await req(jr(alex.id), 'POST', { text: 'family can read this' }, alexPhone);
   const seen = entries((await req(jr(alex.id), 'GET', undefined, samPhone)).json).map((e: any) => e.text);
   assert.deepEqual(seen.sort(), [null, 'family can read this'].sort());
@@ -110,7 +113,7 @@ test('turning privacy off never exposes what was written while it was on; only t
 
 test("kids: a parent allows a private journal, the kid turns it on; disallowing keeps old entries private", async (t) => {
   t.after(() => mock.timers.reset());
-  const { req, leo, leoDevice, samPhone, feed } = await setup();
+  const { req, leo, leoDevice, samPhone, feed, security } = await setup();
   assert.deepEqual(leo.privateJournal, { on: false, allowed: false });
   assert.equal((await req(jr(leo.id, '/privacy'), 'PUT', { private: true }, leoDevice)).status, 403, 'not allowed yet');
   assert.equal((await req(jr(leo.id, '/privacy'), 'PUT', { allowed: true }, leoDevice)).status, 403, "a kid can't allow it");
@@ -132,8 +135,10 @@ test("kids: a parent allows a private journal, the kid turns it on; disallowing 
   const texts = entries((await req(jr(leo.id), 'GET', undefined, samPhone)).json).map((e: any) => e.text);
   assert.deepEqual(texts.sort(), [null, 'shared now'].sort());
   assert.equal(entries((await req(jr(leo.id), 'GET', undefined, leoDevice)).json).find((e: any) => e.private).text, SECRET, 'Leo still reads it');
-  const log = (await feed()).filter((n) => n.kind === 'privacy').map((n) => n.title);
-  assert.ok(log.some((l) => l.includes('Leo')) && log.length >= 3, JSON.stringify(log));
+  const log = (await feed(leoDevice)).filter((n) => n.kind === 'privacy').map((n) => n.title);
+  assert.ok(log.some((l) => l.includes('Leo')) && log.length >= 3, `Leo's device tells him: ${JSON.stringify(log)}`);
+  const seen = (await security()).filter((e) => e.kind === 'journal.privacy').map((e) => e.summary);
+  assert.ok(seen.length >= 3 && seen.every((l) => l.includes('Leo')), JSON.stringify(seen));
 });
 
 test("goal-check notes on a private day: the outcome shows, the notes don't", async (t) => {
@@ -180,7 +185,7 @@ test('export leaves private words out (mood kept); importing it never overwrites
 
 test('admin devices get an owner: only a grown-up; never the recovery session or a connected app; logged', async (t) => {
   t.after(() => mock.timers.reset());
-  const { db, req, alex, leo, feed } = await setup();
+  const { db, req, alex, leo, feed, security } = await setup();
   const k = (await req('/api/keys', 'POST', { name: 'Tablet', scope: 'admin' })).json;
   assert.equal((await req(`/api/keys/${k.id}`, 'PATCH', { owner: leo.id })).status, 400, 'a full-access device belongs to a grown-up');
 
@@ -191,11 +196,12 @@ test('admin devices get an owner: only a grown-up; never the recovery session or
   assert.equal(claimed.status, 200, JSON.stringify(claimed.json));
   assert.equal(db.prepare("SELECT owner FROM passkeys WHERE id = 'pk1'").first<{ owner: string }>()?.owner, alex.id);
   assert.equal((await req('/api/me', 'GET', undefined, session)).json.owner, alex.id);
-  const line = (await feed()).find((n: any) => n.kind === 'privacy' && n.title.includes('Alex')) as any;
-  assert.ok(line, 'logged for the family');
+  const line = (await feed(session)).find((n: any) => n.kind === 'privacy' && n.title.includes('Alex')) as any;
+  assert.ok(line, "on Alex's own devices");
+  assert.ok((await security()).some((e) => e.kind === 'device.owner' && e.summary.includes('now belongs to Alex')), 'in the security log');
   assert.equal((await req(`/api/notifications/${line.id}`, 'DELETE')).status, 403, 'and it stays');
   await req('/api/notifications', 'DELETE');
-  assert.ok((await feed()).some((n: any) => n.id === line.id), 'clearing the feed keeps it too');
+  assert.ok((await feed(session)).some((n: any) => n.id === line.id), 'clearing the feed keeps it too');
 
   const recovery = (await createApiKey(db as any, 'Recovery (support)', 'admin', { kind: 'session', expiresAt: '2030-01-01T00:00:00Z' })).key;
   assert.equal((await req('/api/me/owner', 'PUT', { owner: alex.id }, recovery)).status, 400);

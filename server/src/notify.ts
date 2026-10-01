@@ -162,8 +162,10 @@ export async function recordNotification(
   ]);
 }
 
-/** The family log line when a device (a wall, a kid's device, a parent's phone) now belongs to a
- * member: it can read their private journal (routes/journal.ts), so that never changes silently. */
+/** The privacy note to a member when a device (a kid's device, a parent's phone, the app) now
+ * belongs to them: it can read their private journal (routes/journal.ts), so that never changes
+ * silently. Shown only on their own devices (routes/push.ts feedFilter); callers also write the
+ * Security activity line (routes/security-events.ts), which is where parents see it. */
 export async function recordDeviceOwner(db: KinwallDb, device: string, owner: string | null | undefined, kind?: 'wall' | 'kid' | 'grownup' | null): Promise<void> {
   if (!owner || owner === 'shared') return;
   const m = await db.prepare('SELECT name FROM members WHERE id = ?').bind(owner).first<{ name: string }>();
@@ -213,7 +215,7 @@ function fireTime(startIso: string, allDay: boolean, minutes: number, tz: string
 
 const fmtTime = (iso: string, tz: string, h12: boolean): string => formatTime(iso, { tz, h12 });
 
-async function sendToSub(env: Env, db: KinwallDb, row: PushSubRow, payload: { title: string; body: string; url?: string; tag?: string }): Promise<void> {
+export async function sendToSub(env: Env, db: KinwallDb, row: PushSubRow, payload: { title: string; body: string; url?: string; tag?: string }): Promise<void> {
   const result = await sendWebPush(env, db, row, payload);
   if (result.ok) await db.prepare('UPDATE push_subscriptions SET last_success_at = ? WHERE id = ?').bind(new Date().toISOString(), row.id).run();
   else if (result.gone) await db.prepare('DELETE FROM push_subscriptions WHERE id = ?').bind(row.id).run();

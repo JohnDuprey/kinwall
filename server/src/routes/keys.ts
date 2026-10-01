@@ -1,7 +1,8 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
-import { createApiKey, DEVICE_KINDS, deviceKindOwner, resolveKey, type KeyDeviceKind } from '../auth.ts';
+import { actorOf, createApiKey, DEVICE_KINDS, deviceKindOwner, resolveKey, type KeyDeviceKind } from '../auth.ts';
+import { deviceOwnerEvent, recordSecurityEvent, securityEventStmts } from './security-events.ts';
 import { emit } from '../bus.ts';
 import { recordDeviceOwner } from '../notify.ts';
 import { ApiKeyCreatedSchema, ApiKeySchema, ErrorSchema } from '../schemas.ts';
@@ -52,6 +53,7 @@ keysRoutes.openapi(
     const { name, scope } = c.req.valid('json');
     const keyScope = scope ?? 'display'; // least privilege by default
     const { id, key } = await createApiKey(c.env.DB, name, keyScope);
+    await recordSecurityEvent(c.env.DB, { kind: 'key.created', summary: `${keyScope === 'admin' ? 'Full-access' : 'Everyday-access'} API key "${name}" created`, by: await actorOf(c), device: name, detail: { scope: keyScope } });
     emit(c, 'settings.changed', { keyId: id });
     return c.json({ id, name, scope: keyScope, key }, 201);
   },
@@ -89,9 +91,14 @@ keysRoutes.openapi(
     const checked = await deviceKindOwner(c.env.DB, before.scope === 'display' ? 'display' : 'admin', body.kind, body.owner);
     if ('error' in checked) return c.json({ error: checked.error }, 400);
     const { owner, kind } = checked;
-    await c.env.DB.prepare('UPDATE api_keys SET owner = ?, device_kind = ? WHERE id = ?').bind(owner, kind, id).run();
+    const db = c.env.DB;
+    const changed = owner !== before.owner || kind !== before.device_kind;
+    await db.batch([
+      db.prepare('UPDATE api_keys SET owner = ?, device_kind = ? WHERE id = ?').bind(owner, kind, id),
+      ...(changed ? securityEventStmts(db, await deviceOwnerEvent(db, before.name, owner, kind, await actorOf(c))) : []),
+    ]);
     const row = { ...before, owner, device_kind: kind };
-    if (owner !== before.owner) await recordDeviceOwner(c.env.DB, before.name, owner, kind);
+    if (owner !== before.owner) await recordDeviceOwner(db, before.name, owner, kind);
     emit(c, 'settings.changed', { keyId: id });
     return c.json(toApi(row!), 200);
   },
@@ -112,8 +119,14 @@ keysRoutes.openapi(
   }),
   async (c) => {
     const { id } = c.req.valid('param');
-    const result = await c.env.DB.prepare('DELETE FROM api_keys WHERE id = ?').bind(id).run();
-    if (result.meta.changes === 0) return c.json({ error: 'not found' }, 404);
+    const db = c.env.DB;
+    const gone = await db.prepare('SELECT name, scope, kind, device_kind FROM api_keys WHERE id = ?').bind(id).first<{ name: string; scope: string; kind: string; device_kind: KeyDeviceKind | null }>();
+    if (!gone) return c.json({ error: 'not found' }, 404);
+    const what = gone.device_kind === 'widgets' ? 'Widgets key' : gone.kind !== 'api' ? 'Sign-in' : gone.scope === 'display' ? 'Device' : 'API key';
+    await db.batch([
+      db.prepare('DELETE FROM api_keys WHERE id = ?').bind(id),
+      ...securityEventStmts(db, { kind: gone.device_kind === 'widgets' ? 'widgets.removed' : 'key.removed', summary: `${what} "${gone.name}" removed and signed out`, by: await actorOf(c), device: gone.name }),
+    ]);
     emit(c, 'settings.changed', { keyId: id });
     return c.json({ ok: true }, 200);
   },
@@ -153,6 +166,7 @@ keysRoutes.openapi(
       owner: me?.scope === 'display' ? me.owner ?? null : 'shared', deviceKind: 'widgets',
       ...(grant ? { parentGrantId: grant.oauth_grant_id } : { parentKeyId: me?.id ?? null }),
     });
+    await recordSecurityEvent(c.env.DB, { kind: 'widgets.added', summary: `Widgets key "${name}" added`, by: await actorOf(c), device: name });
     emit(c, 'settings.changed', { keyId: id });
     return c.json({ id, name, scope: 'display' as const, key }, 201);
   },
@@ -173,7 +187,11 @@ keysRoutes.openapi(
   async (c) => {
     const me = await resolveKey(c);
     if (!me?.id || me.kind !== 'api' || me.scope !== 'display') return c.json({ error: 'only an everyday-access key can revoke itself here' }, 400);
-    await c.env.DB.prepare('DELETE FROM api_keys WHERE id = ?').bind(me.id).run();
+    const db = c.env.DB;
+    await db.batch([
+      db.prepare('DELETE FROM api_keys WHERE id = ?').bind(me.id),
+      ...securityEventStmts(db, { kind: 'widgets.removed', summary: `Widgets key "${me.name}" signed out`, device: me.name }),
+    ]);
     emit(c, 'settings.changed', { keyId: me.id });
     return c.json({ ok: true }, 200);
   },

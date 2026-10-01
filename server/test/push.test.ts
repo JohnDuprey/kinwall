@@ -997,7 +997,7 @@ test('notify: a kid\'s device that still follows everyone (an older row) gets no
   assert.equal(to('alex-phone'), 4, 'the parent hears everything');
 });
 
-test('feed: a kid\'s device sees the family\'s rows and its own, not grown-ups\' or parent-facing ones; walls skip private notes', async () => {
+test('feed: a kid\'s device sees the family\'s rows and its own, not grown-ups\' or parent-facing ones; privacy notes only on that person\'s own devices', async () => {
   const { env, request, alex, leo, maya, kid, wall } = await kidSetup();
   await request('/api/settings', { method: 'PATCH', body: JSON.stringify({ medications: true }) });
   const add = (kind: Parameters<typeof recordNotification>[1]['kind'], title: string, memberIds: string[] = []) => recordNotification(env.DB, { kind, title, memberIds, source: 'system' });
@@ -1017,7 +1017,10 @@ test('feed: a kid\'s device sees the family\'s rows and its own, not grown-ups\'
   const titles = async (key: string) => (await feed(request, '', key)).map((n) => n.title).sort();
   assert.deepEqual(await titles(kid), ['Dinner at 6', 'Family dinner', 'For Leo', 'Leo soccer', "Leo's iPad now belongs to Leo", "Leo's journal: an entry is now private", 'List updated', "Time for Leo's medicine"].sort());
   const wallSees = await titles(wall);
-  for (const t of ['For Alex only', "Alex's phone now belongs to Alex", `Leo's 8:00 AM${MED_LATE}`, `Maya's 7:30 PM${MED_LATE}`]) assert.ok(!wallSees.includes(t), t);
-  for (const t of ['Today', 'Alex dentist', 'For Leo', "Leo's iPad now belongs to Leo"]) assert.ok(wallSees.includes(t), t);
-  assert.equal((await titles(ADMIN_KEY)).length, 14, 'a parent sees everything (and the pairing note)');
+  for (const t of ['For Alex only', "Alex's phone now belongs to Alex", "Leo's iPad now belongs to Leo", `Leo's 8:00 AM${MED_LATE}`, `Maya's 7:30 PM${MED_LATE}`]) assert.ok(!wallSees.includes(t), t);
+  for (const t of ['Today', 'Alex dentist', 'For Leo']) assert.ok(wallSees.includes(t), t);
+  // Privacy notes are for the person they're about; parents' record of them is the security log.
+  const parentSees = await titles(ADMIN_KEY);
+  assert.equal(parentSees.length, 11, 'a parent sees everything but privacy notes');
+  assert.ok(!parentSees.some((t) => t.includes('belongs to') || t.includes('journal')));
 });
