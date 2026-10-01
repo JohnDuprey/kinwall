@@ -24,6 +24,7 @@ import { BellIcon, ChevronRight, KeyIcon, LinkIcon, LockIcon, MonitorIcon, Palet
 import { CustomColorSwatch } from './ColorSwatch.tsx'
 import { ColorClashHint, ColorClashNote } from './ColorClash.tsx'
 import { useIsPhone } from './useIsPhone.ts'
+import { CALENDAR_VIEWS, viewLabel } from './calendarViews.ts'
 import { useNavMode, setNavPref, type NavPref } from './useNavMode.ts'
 import { familyNightFields, nightFieldsFor, ownsNight, toNightLook, type NightFields } from './saverSources.ts'
 import { DEFAULT_ACCENT, resolveColors, setDeviceAppearance, useDeviceAppearance, type DeviceAppearance, type LockedView, type SaverSource } from './useTheme.ts'
@@ -1195,7 +1196,7 @@ function DeviceAppearanceRows() {
 }
 
 /** Device-only behavior for this screen: member focus, locked calendar view, the Board's lists,
- * acting as a wall screen, keeping the screen on and going back to the calendar when idle. Stored
+ * acting as a wall screen, keeping the screen on and going back to Home when idle. Stored
  * alongside the device appearance. `display`: a paired wall screen or kid's device, always a wall screen (no switch). */
 function ScreenFocusRows({ display }: { display: boolean }) {
   const { members, focusMemberId, focusLocked, parentDevice } = useApp()
@@ -1205,9 +1206,6 @@ function ScreenFocusRows({ display }: { display: boolean }) {
   const focus = members.find(m => m.id === focusMemberId)
   const idleReset = device.idleReset ?? wallDefaultsOn(parentDevice, device)
   const keepOn = device.keepAwake ?? wallDefaultsOn(parentDevice, device)
-  const views: { key: LockedView | ''; label: string }[] = [
-    { key: '', label: 'Off' }, { key: 'week', label: isPhone ? '3 Day' : 'Week' }, { key: 'day', label: 'Day' }, { key: 'month', label: 'Month' }, { key: 'schedule', label: 'Schedule' }, { key: 'board', label: 'Board' },
-  ]
   return (
     <>
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
@@ -1231,8 +1229,14 @@ function ScreenFocusRows({ display }: { display: boolean }) {
         <div className="settings-row-sub">{focus ? `Only ${focus.name}'s events, chores and lists show here${device.focusHideShared ? '' : ', plus ones with nobody assigned'}.` : focusLocked ? 'This display is shared by the whole family. A parent can change who it belongs to under Settings → Access.' : 'Pin this screen to one person — handy for a display in a bedroom.'}</div>
         <div className="device-pref-row">
           <span>Lock view</span>
-          <select className="settings-select" aria-label="Lock calendar view" value={device.lockView ?? ''} onChange={e => set({ lockView: (e.target.value || undefined) as LockedView | undefined })}>
-            {views.map(v => <option key={v.key} value={v.key}>{v.label}</option>)}
+          {/* Home's views as its switcher shows them: Board, Calendar (Day, Week, Month), Schedule. */}
+          <select className="settings-select" aria-label="Lock Home's view" value={device.lockView ?? ''} onChange={e => set({ lockView: (e.target.value || undefined) as LockedView | undefined })}>
+            <option value="">Off</option>
+            <option value="board">Board</option>
+            <optgroup label="Calendar">
+              {CALENDAR_VIEWS.map(v => <option key={v} value={v}>{viewLabel(v, isPhone)}</option>)}
+            </optgroup>
+            <option value="schedule">Schedule</option>
           </select>
         </div>
         <DeviceBoardLayoutRows />
@@ -1253,7 +1257,7 @@ function ScreenFocusRows({ display }: { display: boolean }) {
             <button className={`switch ${device.wallScreen ? 'on' : ''}`} role="switch" aria-checked={!!device.wallScreen} aria-labelledby="wall-screen-label" aria-describedby="wall-screen-sub"
               onClick={() => { set({ wallScreen: !device.wallScreen || undefined }); announce(device.wallScreen ? 'Wall screen off' : 'Wall screen on') }}><span className="knob" /></button>
           </div>
-          <div className="settings-row-sub" id="wall-screen-sub">Acts like a wall screen: stays awake, returns to the calendar when idle, and rests on the Night screen at night. Your access doesn't change.</div>
+          <div className="settings-row-sub" id="wall-screen-sub">Acts like a wall screen: stays awake, goes back to Home when idle, and rests on the Night screen at night. Your access doesn't change.</div>
         </div>
       )}
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
@@ -1265,7 +1269,7 @@ function ScreenFocusRows({ display }: { display: boolean }) {
       </div>
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
         <div className="toggle-row">
-          <label id="idle-reset-label">Back to the calendar when idle</label>
+          <label id="idle-reset-label">Back to Home when idle</label>
           <button className={`switch ${idleReset ? 'on' : ''}`} role="switch" aria-checked={idleReset} aria-labelledby="idle-reset-label" onClick={() => set({ idleReset: !idleReset })}><span className="knob" /></button>
         </div>
         <div className="settings-row-sub">After 2 minutes without a tap, this screen closes what's open and shows today's calendar, but never while an activity is open. Handy on the wall; on by default there, off on parents' phones and computers.</div>

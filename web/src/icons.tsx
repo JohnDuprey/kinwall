@@ -8,6 +8,10 @@ const base = (p: P) => ({ 'aria-hidden': true, width: 26, height: 26, viewBox: '
 export const CalendarIcon = (p: P) => (
   <svg {...base(p)}><rect x="3" y="5" width="18" height="16" rx="3" /><path d="M3 10h18M8 3v4M16 3v4" /></svg>
 )
+// Home: the main screen (Board, Calendar and Schedule).
+export const HomeIcon = (p: P) => (
+  <svg {...base(p)}><path d="M3 10.5 12 3l9 7.5" /><path d="M5 9v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9" /><path d="M10 21v-6h4v6" /></svg>
+)
 export const ChoreIcon = (p: P) => (
   <svg {...base(p)}><path d="M9 11.5l2 2 4-4.5" /><rect x="3" y="3" width="18" height="18" rx="4" /></svg>
 )

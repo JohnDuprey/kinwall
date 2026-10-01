@@ -318,6 +318,26 @@ button {
   box-shadow: var(--shadow);
 }
 
+/* The calendar's view tabs: Board | Calendar | Schedule in one pill. Selected, Calendar opens out
+   into one bubble with Day | Week | Month beside it; the picked view is tinted and underlined. The
+   tab list is display: contents so its tabs and the calendar views share the pill (Calendar.tsx). */
+.segmented.view-tablist { display: contents; }
+.view-tablist > button:last-child { order: 2; }
+.segmented.view-sub { order: 1; margin-left: -2px; padding: 0 4px 0 0; gap: 2px; background: var(--card); box-shadow: var(--shadow); border-radius: 0 999px 999px 0; }
+.view-tabs.open .view-tablist > button.active { border-radius: 999px 0 0 999px; padding-right: calc(var(--pad) * 0.45); }
+.segmented.view-sub button { position: relative; padding-inline: calc(var(--pad) * 0.6); }
+.segmented.view-sub button:first-child::before { content: ''; position: absolute; left: -1px; top: 25%; bottom: 25%; border-left: 1px solid var(--border); }
+.segmented.view-sub button.active, .segmented.view-cal-seg button.active { background: color-mix(in srgb, var(--accent) 16%, var(--card)); color: var(--text); box-shadow: inset 0 -3px 0 var(--accent-text); }
+/* The phone's view sheet: Calendar is one row holding its three views. */
+.view-cal-group { display: flex; flex-direction: column; gap: 10px; padding: 10px 14px 12px; border: 2px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-alt); }
+.view-cal-group.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--bg-alt)); }
+.view-cal-head { display: flex; align-items: center; gap: 12px; font-weight: 800; }
+.view-cal-head svg { width: 20px; height: 20px; flex-shrink: 0; }
+.view-cal-head > span { display: flex; flex-direction: column; }
+.view-cal-head small { color: var(--text-dim); font-weight: 600; font-size: 0.8125rem; }
+.segmented.view-cal-seg { width: 100%; }
+.segmented.view-cal-seg button { flex: 1; min-height: 44px; }
+
 /* View tabs at the start; paging and the period (or the Board's layout) at the end, beside Show
    hidden and the filter. Nothing sits in the middle. */
 .calendar-toolbar {
@@ -339,6 +359,13 @@ button {
   .toolbar-end { grid-column: 2; grid-row: 1; }
   .toolbar-nav { grid-column: 1 / -1; grid-row: 2; justify-self: end; }
   .toolbar-nav:empty { display: none; }
+}
+/* Landscape tablets: with Calendar open the view tabs are wider, so paging and the period take the
+   second row there too (the Day view's "Wednesday, September 30" won't fit beside them at 1024). */
+@media (min-width: 961px) and (max-width: 1150px) {
+  .calendar-toolbar.cal-open { grid-template-columns: 1fr auto; }
+  .cal-open .toolbar-end { grid-column: 2; grid-row: 1; }
+  .cal-open .toolbar-nav { grid-column: 1 / -1; grid-row: 2; justify-self: end; }
 }
 .icon-btn {
   flex-shrink: 0; /* a round button in a tight row stays round */

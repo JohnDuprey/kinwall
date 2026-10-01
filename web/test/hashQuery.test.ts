@@ -1,7 +1,7 @@
 // node --test test/ (npm test). Links into the app: #/<path>?<query>.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { hashPath, hashQuery } from '../src/hashQuery.ts'
+import { hashPath, hashQuery, homeAlias } from '../src/hashQuery.ts'
 
 test('hashQuery: the query after the path, decoded; none is empty', () => {
   assert.equal(hashQuery('#/lists/abc/shop?store=Trader%20Joe%27s').get('store'), "Trader Joe's")
@@ -15,4 +15,12 @@ test('hashPath: the hash without its query, so a reload doesn\'t run a link twic
   assert.equal(hashPath('#/lists/abc/shop?store=Market'), '#/lists/abc/shop')
   assert.equal(hashPath('#/meals'), '#/meals')
   assert.equal(hashPath(''), '')
+})
+
+test('homeAlias: #/home opens the Home screen at #/calendar, query and all; nothing else changes', () => {
+  assert.equal(homeAlias('#/home'), '#/calendar')
+  assert.equal(homeAlias('#/home?event=e1&at=2026-09-30'), '#/calendar?event=e1&at=2026-09-30')
+  assert.equal(homeAlias('#/calendar'), null)
+  assert.equal(homeAlias('#/homework'), null)
+  assert.equal(homeAlias(''), null)
 })

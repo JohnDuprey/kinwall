@@ -79,7 +79,7 @@ Kinwall needs a connection to your server whether it's installed or not. It does
 
 ## How the wall display behaves
 
-* After 2 minutes without a touch it goes back to today's calendar and closes any open sheet.
+* After 2 minutes without a touch it goes back to Home (the Board, or its locked view) on today and closes any open sheet.
 * It checks for changes every 30 seconds (`GET /api/rev`), so edits from phones show up within about 30 seconds.
 * When a new version is deployed, a **Kinwall updated — tap to reload** banner appears.
 * **Settings** on a display shows **General** (the family cards and this device's cards) and **Family** (Members read-only, Categories). The **Calendars** and **Access** tabs are hidden. See [This display](../settings/this-display.md).

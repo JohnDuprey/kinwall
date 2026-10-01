@@ -6,7 +6,7 @@ import { dayStartDue } from './medications.ts'
 import { AppContext, useApp } from './AppContext.tsx'
 import type { Category, Member, Settings } from './types.ts'
 import { trackerKinds } from './types.ts'
-import { BookIcon, MoreIcon, BrushIcon, CalendarIcon, ChoreIcon, CloudOffIcon, GiftIcon, ListIcon, MealIcon, MoonIcon, PersonIcon, SettingsIcon } from './icons.tsx'
+import { BookIcon, MoreIcon, BrushIcon, HomeIcon, ChoreIcon, CloudOffIcon, GiftIcon, ListIcon, MealIcon, MoonIcon, PersonIcon, SettingsIcon } from './icons.tsx'
 import CalendarView from './Calendar.tsx'
 import Chores from './Chores.tsx'
 import Lists from './Lists.tsx'
@@ -50,7 +50,7 @@ import { shellIsNewer, shellUrl } from './appUpdate.ts'
 import { clockTimeZone } from './timezone.ts'
 
 const NAV_ITEMS = [
-  { key: 'calendar', href: '#/calendar', label: 'Calendar', Icon: CalendarIcon },
+  { key: 'calendar', href: '#/calendar', label: 'Home', Icon: HomeIcon }, // the route keeps its old name: pushes, widgets and Home Assistant link to it
   { key: 'chores', href: '#/chores', label: 'Chores', Icon: ChoreIcon },
   { key: 'lists', href: '#/lists', label: 'Lists', Icon: ListIcon },
   { key: 'contacts', href: '#/contacts', label: 'Contacts', Icon: PersonIcon },
@@ -1164,7 +1164,7 @@ function AppRoutes() {
   }, [parentDevice, choresOn, areaTicks.chores, manualTick])
   const redirect = settings && featureRedirect(settings, section, sub)
   useEffect(() => { if (redirect) location.replace(redirect) }, [redirect])
-  const tabLabel = section === 'profile' ? 'Profile' : section === 'journal' ? 'Journal' : section === 'insights' ? 'Insights' : section === 'medications' ? 'Medicines' : section === 'activities' && sub === 'paint' ? 'Paint' : section === 'activities' && sub === 'stickers' ? 'Sticker book' : section === 'activities' && sub === 'photos' ? 'Photos' : NAV_ITEMS.find(i => i.key === section)?.label ?? 'Calendar'
+  const tabLabel = section === 'profile' ? 'Profile' : section === 'journal' ? 'Journal' : section === 'insights' ? 'Insights' : section === 'medications' ? 'Medicines' : section === 'activities' && sub === 'paint' ? 'Paint' : section === 'activities' && sub === 'stickers' ? 'Sticker book' : section === 'activities' && sub === 'photos' ? 'Photos' : NAV_ITEMS.find(i => i.key === section)?.label ?? 'Home'
   const inApp = hasKey && !!settings && !wizardActive && (section === 'profile' || section === 'journal' || section === 'insights' || section === 'medications' || NAV_ITEMS.some(i => i.key === section))
   // "Chores · Duprey Family": the family, not the product, is what tells tabs and home-screen icons apart.
   const familyName = settings?.familyName?.trim()

@@ -10,6 +10,7 @@ Everything in the app can be reached and operated without a mouse or touch scree
 | --- | --- |
 | Anywhere | **Tab** / **Shift+Tab** move between controls. The first stop is **Skip to content**. |
 | View switchers and option groups (Week/Day/Month/Schedule, Settings sections, Mode, Text size, Repeat…) | One Tab stop. **←/→** (or **↑/↓**) move and select, **Home/End** jump to the ends. |
+| Home's view tabs (Board, Calendar, Schedule) | One Tab stop; **←/→** move and select. With Calendar selected, the next Tab stop is its Day / Week / Month group (read as "Calendar view: Week"), with the same arrow keys. |
 | Color and emoji pickers, chips, day toggles, the family avatars, the Chores date strip | **←/→** move along the row, **Enter** or **Space** picks. |
 | Calendar week and month | Tab to the day headers (week) or day numbers (month). **←/→** move a day, **↑/↓** a week (month view), **Home/End** jump to the ends, **Enter** opens that day. Events are buttons: **Enter** or **Space** opens one. |
 | Chores | **Space** or **Enter** ticks a chore off or back on. To edit it, press **Tab** once more to reach its **Edit** button, or use **Shift+F10** / the Menu key. |

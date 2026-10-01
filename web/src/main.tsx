@@ -5,6 +5,7 @@ import './fonts/fonts.css'
 import './styles.css'
 import { IMPORT_CONTACTS_EVENT, markNativeApp, receiveSharedContacts } from './native.ts'
 import { resumeShoppingHash } from './trip.ts'
+import { homeAlias } from './hashQuery.ts'
 markNativeApp()
 window.addEventListener(IMPORT_CONTACTS_EVENT, e => { receiveSharedContacts((e as CustomEvent).detail) })
 
@@ -69,6 +70,12 @@ try {
 } catch { /* storage blocked: styles.css follows the system */ }
 
 if (import.meta.env.DEV) import('./skins.ts').then(({ assertSkinsAA }) => assertSkinsAA())
+
+// #/home is Home's own name for #/calendar: swapped in place, before App (and its hashchange
+// listeners, registered later) reads the link.
+const toHome = () => { const h = homeAlias(location.hash); if (h) history.replaceState(null, '', h) }
+toHome()
+window.addEventListener('hashchange', toHome)
 
 // Relaunched mid-shop (the app or tab was closed in the store): straight back into shopping mode.
 const shopHash = resumeShoppingHash(location.hash)

@@ -14,7 +14,7 @@
 
 ## Using Kinwall
 
-* [Calendar](using/calendar.md)
+* [Home & calendar](using/calendar.md)
 * [Daily & weekly snapshot](using/snapshot.md)
 * [Events](using/events.md)
 * [Categories & auto-categorizing](using/categories.md)

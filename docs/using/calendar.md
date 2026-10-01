@@ -1,12 +1,14 @@
-# Calendar
+# Home & calendar
 
-The Calendar tab is the main screen. It merges every enabled calendar into one view. Each event is colored by its [category](categories.md), or by its family member if it has no category.
+**Home** is the main screen, first in the navigation (the 🏠 house). It holds the Board, the calendar and the schedule, and merges every enabled calendar into them. Each event is colored by its [category](categories.md), or by its family member if it has no category.
 
 ![Board view on the wall iPad](../screenshots/ipad-board.png)
 
 ## Views
 
-Use the tabs at the top to switch views. On a phone the tabs don't fit, so one button shows the current view (like **Board ⌄**): tap it, and a sheet lists the views with a line on what each shows and a ✓ on the current one. Tap a view to switch to it.
+Home has three tabs at the top: **Board**, **Calendar** and **Schedule**. Tap **Calendar** and it opens out, right beside it, into **Day**, **Week** and **Month**; the one you're on is tinted and underlined. Calendar opens the view you used last on that device (Week the first time), and tapping it again while it's open keeps that view. Board and Schedule fold it back up.
+
+On a phone the tabs don't fit, so one button shows the current view (like **Board ⌄**): tap it, and a sheet lists **Board**, **Calendar** with **Day**, **3 Day** and **Month** side by side in it, and **Schedule**, with a line on what each shows and the current one marked. Tap any of them to switch to it.
 
 | View | Shows | Paging (◀ ▶ or swipe) |
 |---|---|---|
@@ -17,7 +19,7 @@ Use the tabs at the top to switch views. On a phone the tabs don't fit, so one b
 | **Month** | A month grid with event chips. When a day is full, it shows "+N more". | ±1 month |
 | **Schedule** | An agenda of the next 30 days, grouped by day. Location lines link to maps. | ±30 days |
 
-Every device opens on **Board**; the view switcher runs Board, Day, Week (3 Day on phones), Month, Schedule. You can switch views any time, and a display can be locked to any view (Settings → General → This display → Lock view).
+Every device opens Home on **Board**. You can switch views any time, and a display can be locked to any view (Settings → General → This display → Lock view), which hides the tabs. Links to `#/calendar` (notifications, widgets, [Home Assistant](../integrations/home-assistant.md)) open Home, as does `#/home`.
 
 <p>
   <img src="../screenshots/phone-3day.png" width="32%" alt="3 Day view on a phone" />
@@ -121,7 +123,7 @@ You can turn it off per device under [Time cues](../settings/this-display.md#tim
 * Tap an **empty slot** in the time grid to add an event at that time, or tap the **+** button.
 * Tap an **event** to open its detail sheet. See [Events](events.md).
 * Keyboard: arrow keys move between day headers, and Enter opens the day.
-* After 2 minutes idle, a wall screen or kid's device goes back to the Board (or the locked view) on today and closes any open sheet, except while an activity is open. Parents' phones and computers don't, unless you turn on **Back to the calendar when idle** on that device ([Settings → General → This display](../settings/this-display.md#this-display)). It can be turned off on a wall screen the same way.
+* After 2 minutes idle, a wall screen or kid's device goes back to Home, on the Board (or the locked view) on today and closes any open sheet, except while an activity is open. Parents' phones and computers don't, unless you turn on **Back to Home when idle** on that device ([Settings → General → This display](../settings/this-display.md#this-display)). It can be turned off on a wall screen the same way.
 
 ## Filters
 

@@ -97,6 +97,6 @@ API: the night hours are `quietFrom` / `quietTo`, the two effects `nightRest` an
 
 ## Only on this device
 
-**This display**, **Appearance on this device**, **Time cues**, **Night screen on this device**, **Notifications** and **Troubleshooting**. Appearance on this device, Time cues and Night screen on this device show a one-line summary; tap **Change** under one to open its settings. **Keep the screen on** and **Back to the calendar when idle** are under **This display**. See [This device](this-display.md).
+**This display**, **Appearance on this device**, **Time cues**, **Night screen on this device**, **Notifications** and **Troubleshooting**. Appearance on this device, Time cues and Night screen on this device show a one-line summary; tap **Change** under one to open its settings. **Keep the screen on** and **Back to Home when idle** are under **This display**. See [This device](this-display.md).
 
 Chore settings (late completion credit, streak grace, daily check-in points, leaderboard, sticker shop and sticker prices) live on the **Family** tab, on parent devices, while **Chores & points** is on. See [Family](family.md) and [Chores](../using/chores.md).
