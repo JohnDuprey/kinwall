@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
-import { addDays, addMonths, endOfMonth, endOfWeek, format, isSameMonth, startOfDay, startOfMonth, startOfWeek } from 'date-fns'
+import { addDays, addMonths, eachDayOfInterval, endOfMonth, endOfWeek, format, isSameMonth, startOfDay, startOfMonth, startOfWeek } from 'date-fns'
 import { useApp } from './AppContext.tsx'
 import { api, ApiError, MOCK, stripHtmlToText } from './api.ts'
 import type { CalendarEntry, Category, EventInstance, List, ListItem } from './types.ts'
@@ -26,7 +26,7 @@ import { PriorityBadge } from './PriorityBadge.tsx'
 import { isSingleEmoji } from './emoji.ts'
 import { calendarGoal } from './tempCheck.ts'
 import { leadBy, leadIcon, leadOf, leadText } from './leadTime.ts'
-import { layoutDay } from './dayLayout.ts'
+import { dedupeEvents, eventPeople, layoutDay, newEventDay, newEventTimes } from './dayLayout.ts'
 import { CALENDAR_VIEWS, VIEW_TABS, dayOrigin, isCalendarView, lastCalendarView, monthDayLabel, rememberCalendarView, tabOf, viewForTab, viewHint, viewLabel, type CalendarView, type ViewMode } from './calendarViews.ts'
 import { onMinute } from './minuteTick.ts'
 
@@ -238,7 +238,8 @@ export default function CalendarView() {
   )
   // Notes turned off (Settings → Features): no note counts on event blocks either.
   const notesOn = settings.features.notes
-  const visibleEvents = useMemo(() => events.filter(shows).map(e => notesOn || !e.noteCount ? e : { ...e, noteCount: 0 }), [events, shows, notesOn])
+  // Each event once (dedupeEvents: the same event synced from two calendars merges), then filtered.
+  const visibleEvents = useMemo(() => dedupeEvents(events).filter(shows).map(e => notesOn || !e.noteCount ? e : { ...e, noteCount: 0 }), [events, shows, notesOn])
 
   const warnTimes = useMemo(() => warningTimes(device.warnings, device.warningRepeat), [device.warnings, device.warningRepeat])
   // Today's instances for Now / Next and transition warnings, taken from whatever range is loaded
@@ -275,6 +276,9 @@ export default function CalendarView() {
   }, [viewMode, anchor, settings.weekStart, weekDays, isPhone])
 
   const openAdd = (prefill?: Partial<EventInstance>) => { if (canAdd) setEditState({ event: null, prefill }) }
+  // + adds to the day on screen (newEventDay), not always today.
+  const shownDays = viewMode === 'week' ? weekDays : viewMode === 'month' ? eachDayOfInterval({ start: startOfMonth(anchor), end: endOfMonth(anchor) }) : [startOfDay(anchor)]
+  const addOnShownDay = () => openAdd({ ...newEventTimes(newEventDay(shownDays)), allDay: false })
   // Opening a day from the week/month grid replaces the focused cell; land focus on the new
   // period heading instead of dropping it to the top of the page.
   const periodRef = useRef<HTMLHeadingElement>(null)
@@ -449,7 +453,9 @@ export default function CalendarView() {
         ) : viewMode === 'week' ? (
           <WeekView days={weekDays} events={visibleEvents} tz={tz} members={members} categories={categories} onTap={setDetail} onSlotTap={openAdd} onDayTap={openDay} />
         ) : viewMode === 'day' ? (
-          <DayView anchor={anchor} events={visibleEvents} tz={tz} members={members} categories={categories} onlyMemberId={focusMemberId ?? selectedMemberId} onTap={setDetail} onSlotTap={openAdd} />
+          // One shared timeline (the Week grid with one day): concurrent events side by side, each once, with who it's for on it.
+          <WeekView days={[startOfDay(anchor)]} events={visibleEvents} tz={tz} members={members} categories={categories} onTap={setDetail} onDayTap={openDay}
+            onSlotTap={p => openAdd(selectedMemberId ? { ...p, memberIds: [selectedMemberId] } : p)} />
         ) : viewMode === 'month' ? (
           <MonthView anchor={anchor} events={visibleEvents} tz={tz} weekStart={settings.weekStart} members={members} categories={categories} onTap={setDetail} onDayTap={openDay} dayOnly={isPhone && !device.lockView} />
         ) : (
@@ -459,7 +465,7 @@ export default function CalendarView() {
       </div>
 
       {/* Not on the board: it would sit over the Due soon card, and the board is for reading. */}
-      {viewMode !== 'board' && (canAdd ? <button className="fab" onClick={() => openAdd()} aria-label="Add event"><PlusIcon /></button>
+      {viewMode !== 'board' && (canAdd ? <button className="fab" onClick={addOnShownDay} aria-label="Add event"><PlusIcon /></button>
         : kidDevice && calendars.length > 0 && <p className="fab-hint">{calendars.some(c => c.memberIds.includes(meMemberId!))
           ? 'Ask a parent to let this device change your calendar in Settings → Calendars.'
           : 'Ask a parent to give you a calendar in Settings → Calendars.'}</p>)}
@@ -520,7 +526,7 @@ function eventLabel(ev: EventInstance, tz: string, members: ChipMember[], catego
  * can be very light or very dark) - for stripes it's picked across all assigned colors, with the
  * title's translucent pill (see EventTitle) as an extra safety net. */
 function eventVisual(ev: EventInstance, members: ChipMember[], categories: ChipCategory[], stripeWidth: number): { background: string; avatars: string[]; ink: string; emoji: string | null; pill: boolean; solid: string } {
-  const assigned = members.filter(m => ev.memberIds.includes(m.id))
+  const assigned = eventPeople(ev, members)
   const category = ev.categoryId ? categories.find(c => c.id === ev.categoryId) : undefined
   if (category) {
     // Category color always wins, but member avatars stay visible - without stripes, a solid
@@ -585,8 +591,8 @@ function EventChip({ ev, tz, members, categories, small, onTap }: { ev: EventIns
 }
 
 /** Renders an N-day time grid (all-day row, now-line, auto-scroll, overlap columns). Used for
- * both the wall iPad's 7-day Week and the phone's 3-day view — `days` is the only thing that
- * changes between them, decided by the caller (CalendarView's `weekDays`). */
+ * the wall iPad's 7-day Week, the phone's 3-day view and Day view (one day) — `days` is the only
+ * thing that changes between them, decided by the caller. */
 function WeekView({ days, events, tz, members, categories, onTap, onSlotTap, onDayTap }: {
   days: Date[]; events: EventInstance[]; tz: string; members: ChipMember[]; categories: ChipCategory[]
   onTap: (e: EventInstance) => void; onSlotTap: (prefill: Partial<EventInstance>) => void; onDayTap: (d: Date) => void
@@ -609,7 +615,8 @@ function WeekView({ days, events, tz, members, categories, onTap, onSlotTap, onD
   return (
     <div className="grid-scroll" ref={scrollRef}>
       <div className="grid-head">
-        <div className="week-header" style={{ gridTemplateColumns: `50px repeat(${days.length}, minmax(0, 1fr))` }} onKeyDown={roving.onKeyDown}>
+        {/* Day view (one day): the toolbar already names the day. */}
+        {days.length > 1 && <div className="week-header" style={{ gridTemplateColumns: `50px repeat(${days.length}, minmax(0, 1fr))` }} onKeyDown={roving.onKeyDown}>
           <div />
           {days.map((d, i) => {
             const count = allDayByDay[i].length + timedByDay[i].length
@@ -622,7 +629,7 @@ function WeekView({ days, events, tz, members, categories, onTap, onSlotTap, onD
               </button>
             )
           })}
-        </div>
+        </div>}
         {maxAllDay > 0 && (
           <div className="allday-row" style={{ gridTemplateColumns: `50px repeat(${days.length}, minmax(0, 1fr))`, minHeight: maxAllDay * 26 + 6 }}>
             <div />
@@ -661,87 +668,6 @@ function WeekView({ days, events, tz, members, categories, onTap, onSlotTap, onD
                       style={{ top: (s / 60) * HOUR_PX, height: Math.max(((e - s) / 60) * HOUR_PX - 2, 24), left, width, ...evFill(background, ink, solid) }}
                       {...pressable(() => onTap(ev))} aria-label={eventLabel(ev, tz, members, categories)}>
                       <div className="event-title-row"><EventTitle title={ev.title} avatars={avatars} emoji={emoji} pill={pill} hidden={!!ev.hidden} free={ev.busy === false} /></div>
-                      <span style={{ opacity: 0.85 }}>{formatTime(ev.start, tz)}</span>
-                    </div>
-                  </Fragment>
-                )
-              })}
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-function DayView({ anchor, events, tz, members, categories, onlyMemberId, onTap, onSlotTap }: {
-  anchor: Date; events: EventInstance[]; tz: string; members: ChipMember[]; categories: ChipCategory[]; onlyMemberId: string | null
-  onTap: (e: EventInstance) => void; onSlotTap: (prefill: Partial<EventInstance>) => void
-}) {
-  const HOUR_PX = useHourPx()
-  const shown = onlyMemberId ? members.filter(m => m.id === onlyMemberId) : members
-  const cols = shown.length > 0 ? shown : [{ id: '__none', name: 'Everyone', color: '#888', avatar: '' }]
-  const key = dateKey(anchor)
-  const isToday = key === dateKey(new Date())
-  const allDay = events.filter(e => e.allDay && isAllDayOnDate(e, key))
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const nowMinutes = useNowMinutes(tz)
-  useGridAutoScroll(scrollRef, nowMinutes, isToday, key, HOUR_PX)
-
-  return (
-    <div className="grid-scroll" ref={scrollRef}>
-      <div className="grid-head">
-        <div className="week-header" style={{ gridTemplateColumns: `50px repeat(${cols.length}, minmax(0, 1fr))` }}>
-          <div />
-          {cols.map(m => (
-            <div key={m.id} className="week-header-cell">
-              <div aria-hidden="true" style={{ width: 28, height: 28, borderRadius: '50%', background: m.color, color: inkFor(m.color), margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.875rem' }}>{m.avatar}</div>
-              <div className="wd" style={{ marginTop: 4 }}>{m.name}</div>
-            </div>
-          ))}
-        </div>
-        {allDay.length > 0 && (
-          <div className="allday-row" style={{ gridTemplateColumns: `50px repeat(${cols.length}, minmax(0, 1fr))` }}>
-            <div />
-            {cols.map(m => (
-              <div className="allday-cell" key={m.id}>
-                {allDay.filter(e => m.id === '__none' || e.memberIds.includes(m.id) || e.memberIds.length === 0).map(ev => (
-                  <EventChip key={ev.id} ev={ev} tz={tz} members={members} categories={categories} small onTap={() => onTap(ev)} />
-                ))}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-      <div className="timegrid" style={{ gridTemplateColumns: `50px repeat(${cols.length}, minmax(0, 1fr))`, height: 24 * HOUR_PX }}>
-        <div className="time-gutter">
-          {Array.from({ length: 24 }, (_, h) => <div className="time-label" key={h}>{h === 0 ? '' : formatTime(`${h}:00`, undefined, { hourOnly: true })}</div>)}
-        </div>
-        {isToday && <div className="now-line" style={{ top: (nowMinutes / 60) * HOUR_PX, left: 50, right: 0 }}><span className="now-dot" /></div>}
-        {cols.map(m => {
-          const dayEvents = events.filter(e => !e.allDay && isTimedOnDate(e, key, tz) && (m.id === '__none' || e.memberIds.includes(m.id) || e.memberIds.length === 0))
-          const laidOut = layoutDay(dayEvents, tz, (24 / HOUR_PX) * 60)
-          return (
-            <div key={m.id} className="day-col today"
-              onClick={e => {
-                const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect()
-                const minutes = Math.max(0, Math.round(((e.clientY - rect.top) / HOUR_PX) * 60 / 15) * 15)
-                const hh = Math.floor(minutes / 60), mm = minutes % 60
-                const start = new Date(anchor); start.setHours(hh, mm, 0, 0)
-                const end = new Date(start.getTime() + 60 * 60000)
-                onSlotTap({ start: start.toISOString(), end: end.toISOString(), allDay: false, memberIds: m.id === '__none' ? [] : [m.id] })
-              }}>
-              {Array.from({ length: 24 }, (_, h) => <div className="hour-line" key={h} />)}
-              {laidOut.map(({ ev, s, e, left, width }) => {
-                const { background, avatars, ink, emoji, pill, solid } = eventVisual(ev, members, categories, 10)
-                return (
-                  <Fragment key={ev.id}>
-                    <LeaveMarker ev={ev} tz={tz} dayKey={key} hourPx={HOUR_PX} left={left} width={width} color={solid} />
-                    <div className={`timed-event${evClass(ev)}`}
-                      style={{ top: (s / 60) * HOUR_PX, height: Math.max(((e - s) / 60) * HOUR_PX - 2, 24), left, width, ...evFill(background, ink, solid) }}
-                      {...pressable(() => onTap(ev))} aria-label={eventLabel(ev, tz, members, categories)}>
-                      {/* The column already says whose it is; a lone avatar would only repeat it. */}
-                      <div className="event-title-row"><EventTitle title={ev.title} avatars={pill ? avatars : []} emoji={emoji} pill={pill} hidden={!!ev.hidden} free={ev.busy === false} /></div>
                       <span style={{ opacity: 0.85 }}>{formatTime(ev.start, tz)}</span>
                     </div>
                   </Fragment>

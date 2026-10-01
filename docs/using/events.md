@@ -20,7 +20,7 @@ Tap an event to open its sheet. It shows:
 
 ## Creating and editing
 
-Tap **+**, or tap an empty slot in the time grid (this pre-fills the time). The edit sheet has:
+Tap **+**, or tap an empty slot in the time grid (this pre-fills the time). **+** starts on the day you're looking at, at the next half hour today or 9 AM on another day; see [Navigating](calendar.md#navigating). The edit sheet has:
 
 | Field | Notes |
 |---|---|

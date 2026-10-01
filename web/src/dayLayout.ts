@@ -47,3 +47,52 @@ export function layoutDay(evs: EventInstance[], tz: string, minMinutes = 20) {
     ...busy.map(p => ({ ...p, free: false, ...place(p.col, p.totalCols, free.some(f => f.s < p.e && p.s < f.e) ? FREE_EDGE : 0) })),
   ]
 }
+
+/** One event shown once. Two instances are the same event when they share an id and start (a
+ * repeat in the feed), or when they come from different calendars with the same title (ignoring
+ * case and spacing), start, end and all-day flag: the same meeting synced from two connected
+ * calendars. Two same-titled events on one calendar stay apart (each can be opened and changed).
+ * The first copy (not hidden, if any is) is kept and opens on tap; memberIds become everyone's
+ * across the copies.
+ * ponytail: matches on title+time, not the provider's iCalUID (Kinwall doesn't store it); a copy
+ * renamed on one calendar shows twice. Store the UID at sync if that comes up. */
+export function dedupeEvents(evs: EventInstance[]): EventInstance[] {
+  const groups = new Map<string, { kept: EventInstance; ids: Set<string>; calendars: Set<string> }[]>()
+  const out: EventInstance[] = []
+  for (const ev of evs) {
+    const key = `${ev.allDay}|${ev.start}|${ev.end}|${ev.title.trim().replace(/\s+/g, ' ').toLowerCase()}`
+    const list = groups.get(key) ?? []
+    groups.set(key, list)
+    const same = list.find(g => g.ids.has(ev.id) || !g.calendars.has(ev.calendarId))
+    if (!same) { list.push({ kept: ev, ids: new Set([ev.id]), calendars: new Set([ev.calendarId]) }); out.push(ev); continue }
+    same.ids.add(ev.id); same.calendars.add(ev.calendarId)
+    const memberIds = [...new Set([...same.kept.memberIds, ...ev.memberIds])]
+    const kept = same.kept.hidden && !ev.hidden ? ev : same.kept
+    const merged = { ...kept, memberIds }
+    out[out.indexOf(same.kept)] = merged
+    same.kept = merged
+  }
+  return out
+}
+
+/** Who an event is for, in family order (memberIds already holds the calendar's members when the
+ * event has none of its own). */
+export function eventPeople<M extends { id: string }>(ev: Pick<EventInstance, 'memberIds'>, members: M[]): M[] {
+  return members.filter(m => ev.memberIds.includes(m.id))
+}
+
+/** Where + starts a new event: on the day being looked at (`day`), at the next half hour when that's
+ * today, else 9 AM; an hour long. Local time, like tapping a slot in the grid. */
+export function newEventTimes(day: Date, now = new Date()): { start: string; end: string } {
+  const start = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 9)
+  if (start.toDateString() === now.toDateString()) {
+    start.setHours(now.getHours(), now.getMinutes() < 30 ? 30 : 60)
+  }
+  return { start: start.toISOString(), end: new Date(start.getTime() + 3600000).toISOString() }
+}
+
+/** The day + adds to: Day view's day; Week / 3 Day and Month: today when it's on screen, else the
+ * first day shown; Schedule: its first day (today, unless paged ahead). */
+export function newEventDay(shown: Date[], now = new Date()): Date {
+  return shown.find(d => d.toDateString() === now.toDateString()) ?? shown[0] ?? now
+}

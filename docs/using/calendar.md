@@ -13,7 +13,7 @@ On a phone the tabs don't fit, so one button shows the current view (like **Boar
 | View | Shows | Paging (◀ ▶ or swipe) |
 |---|---|---|
 | **Board** | A family bulletin board for today and the week ahead. See [Board view](#board-view). | None: always today onward |
-| **Day** | A time grid for one day, one column per family member. [Free](events.md#free-or-busy) events sit behind the busy ones, striped and marked "Free". | ±1 day |
+| **Day** | One time grid for the whole family's day. Events at the same time sit side by side, each shows once with the avatars of who it's for, and [free](events.md#free-or-busy) events sit behind the busy ones, striped and marked "Free". See [One event, shown once](#one-event-shown-once). | ±1 day |
 | **Week** (iPad / desktop) | 7 day columns with an all-day row and a time grid. The week starts on Sunday or Monday, per [General](../settings/general.md). | ±1 week |
 | **3 Day** (phones) | The same grid, 3 days from the anchor date. | ±3 days |
 | **Month** | A month grid with event chips. When a day is full, it shows "+N more". | ±1 month |
@@ -25,6 +25,10 @@ Every device opens Home on **Board**. You can switch views any time, and a displ
   <img src="../screenshots/phone-3day.png" width="32%" alt="3 Day view on a phone" />
   <img src="../screenshots/phone-schedule.png" width="32%" alt="Schedule view on a phone" />
 </p>
+
+### One event, shown once
+
+In every view, an event shared by several people shows once, with each person's avatar on it. The same event can also come in from two connected calendars (say a meeting on both the family calendar and a work calendar). Kinwall treats two events as the same when they're on different calendars and have the same title (ignoring capitals and extra spaces), start, end and all-day setting. They show as one, with everyone from both, and tapping it opens the first one. Two events with the same title and time on one calendar stay separate, so each can still be opened and changed. If one copy was renamed, both show.
 
 ## Board view
 
@@ -122,7 +126,7 @@ You can turn it off per device under [Time cues](../settings/this-display.md#tim
 * Tap a **day header** (Week) or a **day cell** (Month) to open that day in Day view.
 * On a phone, a Month day is too small to aim at one event, so tapping anywhere in it (its events too) opens that day in Day view, where every event is big enough to tap. A **‹ Month** button next to the view button goes back to the month (**‹ 3 Day** when you came from 3 Day). On tablets and wall screens, tapping an event in Month still opens it, and the rest of the day (or "+N more") opens the day.
 * Tapping **Calendar** again on a day you opened from Week or Month goes back to that view. A day you open this way doesn't change which view **Calendar** opens next time.
-* Tap an **empty slot** in the time grid to add an event at that time, or tap the **+** button.
+* Tap an **empty slot** in the time grid to add an event at that time, or tap the **+** button. **+** adds to the day you're looking at: in Day view, that day; in Week, 3 Day and Month, today if it's on screen, else the first day shown. On today it starts at the next half hour, on another day at 9 AM.
 * Tap an **event** to open its detail sheet. See [Events](events.md).
 * Keyboard: arrow keys move between day headers, and Enter opens the day.
 * After 2 minutes idle, a wall screen or kid's device goes back to Home, on the Board (or the locked view) on today and closes any open sheet, except while an activity is open. Parents' phones and computers don't, unless you turn on **Back to Home when idle** on that device ([Settings → General → This display](../settings/this-display.md#this-display)). It can be turned off on a wall screen the same way.
@@ -133,7 +137,7 @@ You can turn it off per device under [Time cues](../settings/this-display.md#tim
 
 Tap a member's avatar in the header to open [their snapshot](snapshot.md). Its **Show only … on the calendar** switch shows only their events; the other avatars dim. Turn it off to clear the filter.
 
-While the filter is on, the Day view shows only that person's column, so an event they share with others doesn't repeat in other columns. The filter also applies to the Board and the Chores tab.
+While the filter is on, every view shows only that person's events, on the same grid. An event they share with others still shows everyone's avatars. The filter also applies to the Board and the Chores tab.
 
 #### On a phone
 
