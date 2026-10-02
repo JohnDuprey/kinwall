@@ -59,6 +59,9 @@ export const SKINS: Skin[] = [
   { id: 'sage', name: 'Sage', emoji: '🪴',
     light: { bg: '#E9F6EF', bgAlt: '#D9EEE2', card: '#F9FEFB', border: '#C6DED1', text: '#14261D', textDim: '#446353', accent: '#00774B' },
     dark: { bg: '#0D1D15', bgAlt: '#11251C', card: '#193025', border: '#2B4739', text: '#E5F0EA', textDim: '#A0BEAE', accent: '#44C28D' } },
+  { id: 'eucalyptus', name: 'Eucalyptus', emoji: '🍃', // the default look for new families (DEFAULT_SKIN_ID)
+    light: { bg: '#EAF2EF', bgAlt: '#DBE8E3', card: '#F9FCFB', border: '#C4D8D0', text: '#13262A', textDim: '#455F62', accent: '#1F6B63' },
+    dark: { bg: '#0E1A1A', bgAlt: '#132222', card: '#1A2D2C', border: '#2C4544', text: '#E3EEEC', textDim: '#9EB9B6', accent: '#5CC2B3' } },
   { id: 'graphite', name: 'Graphite', emoji: '✏️',
     light: { bg: '#EFF3F8', bgAlt: '#E3E8F0', card: '#FBFDFF', border: '#D1D8E1', text: '#1D2228', textDim: '#535C66', accent: '#D42F37' },
     dark: { bg: '#161A1F', bgAlt: '#1C2127', card: '#252B32', border: '#39404A', text: '#EAEDF1', textDim: '#AEB7C1', accent: '#FC6568' } },
@@ -67,8 +70,9 @@ export const SKINS: Skin[] = [
     dark: { bg: '#181727', bgAlt: '#1F1E30', card: '#29273D', border: '#3E3C57', text: '#ECEBF7', textDim: '#B3B2D1', accent: '#A082FF' } },
 ]
 
-/** New families start on Sage; families from before it was the default kept Peach (server migration 0079). */
-export const DEFAULT_SKIN_ID = 'sage'
+/** New families start on Eucalyptus; families from before kept the look they had: Peach (server
+ * migration 0079) or Sage (migration 0084). */
+export const DEFAULT_SKIN_ID = 'eucalyptus'
 
 /** The household background presets from before color schemes (styles.css's old [data-bg] rules).
  * Warm and Cocoa are Peach's own colors; any other one is offered as "Save as a scheme". */
@@ -107,7 +111,7 @@ export function baseFromPalette(p: Palette, dark: boolean): SkinBase {
 export const skinFromCustom = (c: CustomScheme): Skin =>
   ({ id: c.id, name: c.name, emoji: c.emoji || '🎨', light: baseFromPalette(c.light, false), dark: baseFromPalette(c.dark, true) })
 
-/** A built-in skin or one of the family's schemes; unknown ids (a deleted scheme) fall back to the default, Sage. */
+/** A built-in skin or one of the family's schemes; unknown ids (a deleted scheme) fall back to the default, Eucalyptus. */
 export function findSkin(id: string | undefined, custom: CustomScheme[] = []): Skin {
   const c = custom.find(s => s.id === id)
   return c ? skinFromCustom(c) : getSkin(id)
@@ -146,7 +150,7 @@ export function seasonalSkinId(d = new Date()): string {
 export const SCHEME_GROUPS: { label: string; ids: string[] }[] = [
   { label: 'Automatic', ids: ['seasonal'] },
   { label: 'Everyday', ids: ['meadow', 'field', 'ocean', 'lavender', 'midnight'] },
-  { label: 'Modern', ids: ['slate', 'ink', 'sage', 'graphite', 'berry'] },
+  { label: 'Modern', ids: ['eucalyptus', 'slate', 'ink', 'sage', 'graphite', 'berry'] },
   { label: 'Seasons', ids: ['spring', 'summer', 'autumn', 'winter'] },
   { label: 'Holidays', ids: ['harvest', 'festive'] },
 ]
@@ -161,6 +165,7 @@ export const SCHEME_BLURBS: Record<string, string> = {
   slate: 'Cool blue-gray with a clear blue accent',
   ink: 'Crisp navy ink with an orange accent',
   sage: 'Soft sage green with a leafy accent',
+  eucalyptus: 'Cool gray-teal with a deep blue-green accent',
   graphite: 'Crisp pencil gray with a red accent',
   berry: 'Soft blueberry tint with a violet accent',
   spring: 'Blossom pink with a fresh green accent',

@@ -79,7 +79,7 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 | Tool | Does |
 |---|---|
 | `get_household` | Settings (family name, timezone, week start, color scheme), members and a calendar summary, with each calendar's `filter`. |
-| `list_color_schemes` | The household's color scheme and every scheme it can use: Seasonal, the built-in schemes by the name people see (Sage is the default, Peach the warm one, Meadow the soft green one), and the family's own schemes with their light and dark palettes. |
+| `list_color_schemes` | The household's color scheme and every scheme it can use: Seasonal, the built-in schemes by the name people see (Eucalyptus is the default, Peach the warm one, Meadow the soft green one), and the family's own schemes with their light and dark palettes. |
 | `list_events` | Events across all calendars in a range (default: today plus 7 days). Can filter by member or calendar. [Hidden events](../using/calendar.md#hiding-events) and events a [calendar filter](../using/calendar.md#calendar-filters) leaves out aren't listed, here or in `get_board` and `get_snapshot`. |
 | `get_event` | One event by ID (the series row for a recurring local event). |
 | `get_event_items` | List items linked to an event, across all lists, open first, with list names. |
@@ -161,7 +161,7 @@ Deleting is permanent: nothing here can be undone. Events, lists, list items, st
 
 | Tool | Does |
 |---|---|
-| `delete_color_scheme` | Deletes one of the family's own schemes. If the household was using it, the household goes back to Sage, the default. |
+| `delete_color_scheme` | Deletes one of the family's own schemes. If the household was using it, the household goes back to Eucalyptus, the default. |
 | `delete_event` | Deletes an event (the whole series for recurring local events). This also deletes it at the provider. |
 | `delete_list` | Deletes a list (by ID or exact name) with all its items, their steps and notes, and its groups. Admin. |
 | `delete_list_item` | Deletes an item from a list, with its steps and notes. |

@@ -12,7 +12,7 @@ import type { ClockPos } from './nightClock.ts'
 export type ThemeMode = 'light' | 'dark' | 'auto' | 'scheduled'
 export type BackgroundLight = 'warm' | 'white' | 'gray' | 'sage'
 /** A skin id from skins.ts, or 'seasonal' (the scheme follows the date). */
-export type ColorScheme = 'meadow' | 'field' | 'autumn' | 'winter' | 'spring' | 'summer' | 'ocean' | 'midnight' | 'lavender' | 'harvest' | 'festive' | 'slate' | 'ink' | 'sage' | 'graphite' | 'berry' | 'seasonal' | `custom-${string}`
+export type ColorScheme = 'meadow' | 'field' | 'autumn' | 'winter' | 'spring' | 'summer' | 'ocean' | 'midnight' | 'lavender' | 'harvest' | 'festive' | 'slate' | 'ink' | 'sage' | 'eucalyptus' | 'graphite' | 'berry' | 'seasonal' | `custom-${string}`
 export type CustomColors = { accent?: string; bg?: string; card?: string; text?: string }
 export type BackgroundDark = 'cocoa' | 'charcoal' | 'midnight'
 export type TextScale = 's' | 'm' | 'l' | 'xl'

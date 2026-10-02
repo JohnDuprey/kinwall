@@ -495,7 +495,7 @@ function AppearanceSection({ settings, onSaved, toast }: { settings: Settings; o
         legacy={{ ...(settings.customColors ?? {}), ...(settings.accent.toUpperCase() !== DEFAULT_ACCENT ? { accent: settings.accent } : {}) }}
         legacyBackgrounds={{ light: settings.backgroundLight, dark: settings.backgroundDark }}
         legacyClear={{ customColors: null, accent: DEFAULT_ACCENT, backgroundLight: 'warm', backgroundDark: 'cocoa' }}
-        resetLabel="Reset colors to Sage"
+        resetLabel="Reset colors to Eucalyptus"
         onReset={() => save({ colorScheme: DEFAULT_SKIN_ID, customColors: null, accent: DEFAULT_ACCENT, backgroundLight: 'warm', backgroundDark: 'cocoa' })}
       />
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
@@ -1010,7 +1010,7 @@ function ColorControls({ scheme, householdScheme, onScheme, household, device, s
                     {parentDevice && <>
                       <button className="btn btn-secondary" onClick={() => { setManage(false); setEditing({ draft: c, isNew: false }) }} aria-label={`Edit ${c.name}`}>Edit</button>
                       <button className="btn btn-danger" aria-label={`Delete ${c.name}`} onClick={async () => {
-                        if (await dialog.confirm({ title: `Delete ${c.name}?`, body: 'Screens using it go back to Sage.', confirmLabel: 'Delete', danger: true })) deleteScheme(c)
+                        if (await dialog.confirm({ title: `Delete ${c.name}?`, body: 'Screens using it go back to Eucalyptus.', confirmLabel: 'Delete', danger: true })) deleteScheme(c)
                       }}>Delete</button>
                     </>}
                   </li>
@@ -1068,7 +1068,7 @@ function SchemeSheet({ draft, isNew, onClose, onSave, onDelete }: {
     <Sheet title={isNew ? 'New color scheme' : `Edit ${draft.name}`} onClose={onClose}
       actions={<>
         {onDelete && <button className="btn btn-danger" disabled={busy} onClick={async () => {
-          if (await dialog.confirm({ title: `Delete ${draft.name}?`, body: 'Screens using it go back to Sage.', confirmLabel: 'Delete', danger: true })) run(onDelete)
+          if (await dialog.confirm({ title: `Delete ${draft.name}?`, body: 'Screens using it go back to Eucalyptus.', confirmLabel: 'Delete', danger: true })) run(onDelete)
         }}>Delete</button>}
         <button className="btn btn-primary" disabled={!canSave} onClick={() => run(() => onSave({ ...c, name: c.name.trim() }))}>{isNew ? 'Save and use' : 'Save'}</button>
       </>}>

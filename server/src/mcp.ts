@@ -178,7 +178,7 @@ const BUILTIN_SCHEMES: { id: string; name: string; emoji: string }[] = [
   { id: 'summer', name: 'Summer', emoji: '☀️' }, { id: 'autumn', name: 'Autumn', emoji: '🍂' }, { id: 'winter', name: 'Winter', emoji: '❄️' },
   { id: 'harvest', name: 'Harvest', emoji: '🎃' }, { id: 'festive', name: 'Festive', emoji: '🎄' },
   { id: 'slate', name: 'Slate', emoji: '🩶' }, { id: 'ink', name: 'Ink', emoji: '🖋️' }, { id: 'sage', name: 'Sage', emoji: '🪴' },
-  { id: 'graphite', name: 'Graphite', emoji: '✏️' }, { id: 'berry', name: 'Berry', emoji: '🫐' },
+  { id: 'graphite', name: 'Graphite', emoji: '✏️' }, { id: 'berry', name: 'Berry', emoji: '🫐' }, { id: 'eucalyptus', name: 'Eucalyptus', emoji: '🍃' },
 ];
 
 const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
@@ -1831,7 +1831,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       title: 'List color schemes',
       description:
         "The household's color scheme and every scheme it can use: Seasonal, the built-in schemes (by the name people see, " +
-        'e.g. Sage is the default, Peach is the warm one and Meadow the green one), and the family\'s own saved schemes with their light and dark palettes.',
+        'e.g. Eucalyptus is the default, Peach is the warm one and Meadow the green one), and the family\'s own saved schemes with their light and dark palettes.',
       inputSchema: {},
     },
     async () => {
@@ -1910,7 +1910,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'delete_color_scheme',
     {
       title: 'Delete a color scheme',
-      description: "Delete one of the family's own color schemes. Screens using it go back to Sage, the default.",
+      description: "Delete one of the family's own color schemes. Screens using it go back to Eucalyptus, the default.",
       inputSchema: { scheme: z.string().describe("Name or id of one of the family's own schemes.") },
     },
     async ({ scheme }) => {
@@ -1921,7 +1921,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       if (!target) return errorResult(null, `The family has no scheme called "${scheme}". Built-in schemes can't be deleted.`);
       const res = await call(app, env, auth, 'PATCH', '/api/settings', {
         customSchemes: customs.filter((c) => c.id !== target.id),
-        ...(settings.colorScheme === target.id ? { colorScheme: 'sage' } : {}),
+        ...(settings.colorScheme === target.id ? { colorScheme: 'eucalyptus' } : {}),
       });
       if (res.status >= 400) return errorResult(res.json, 'failed to delete the color scheme');
       return okResult(`Deleted ${target.name}.`, { settings: res.json as Record<string, unknown> });

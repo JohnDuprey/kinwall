@@ -17,7 +17,7 @@ The night hours (walls resting, reminders held) are a separate card, right after
 |---|---|---|
 | **Mode** | Light, Dark, Auto (follows the device's system setting), Scheduled | Auto |
 | **Dark hours** (Scheduled) | **Same as night** (the family's [night hours](night.md)) or **Their own times**: **Dark from** and **Dark to**, a window that can cross midnight. | Their own times, 20:00 → 07:00 |
-| **Color scheme** | Seasonal, one of sixteen skins, or one of the family's own schemes. See [Color schemes](#color-schemes). | Sage (families set up before Sage was the default keep Peach) |
+| **Color scheme** | Seasonal, one of seventeen skins, or one of the family's own schemes. See [Color schemes](#color-schemes). | Eucalyptus (families set up before keep the look they had: Peach or Sage) |
 | **Typeface** | Default (Nunito), Hyperlegible, Dyslexia-friendly, Modern, Playful, Storybook or Handwritten. See [Typeface](#typeface). | Default (Nunito) |
 | **Text size** | Small, Medium, Large, Extra large | Medium |
 | **Density** | Comfortable, Compact (shorter hour rows in the time grid) | Comfortable |
@@ -57,16 +57,16 @@ A color scheme (a "skin") changes the whole palette: backgrounds, cards, text an
 
 Tap the **Color scheme** row (it shows the current scheme and a light and dark swatch) to open the **Color scheme** sheet. Each scheme is a card with a tiny preview of the Board in light mode and dark mode side by side, drawn from the scheme's real colors, plus a one-line description. Tap a card to use it right away. The sheet stays open so you can compare, and the current one has a check and an outline. Tap **Done** when you're happy. On a keyboard, Tab or the arrow keys move between cards.
 
-There are sixteen skins, each with its own light and dark palette:
+There are seventeen skins, each with its own light and dark palette:
 
 | Skin | Notes |
 |---|---|
-| 🍑 Peach | Warm cream with a coral accent, and cocoa brown in dark mode. The default before Sage. |
+| 🍑 Peach | Warm cream with a coral accent, and cocoa brown in dark mode. The first default look. |
 | 🌿 Meadow | Soft greens, with a grass-green accent. |
 | 🍂 Autumn, ❄️ Winter, 🌸 Spring, ☀️ Summer | The four seasons. |
 | 🌊 Ocean, 💜 Lavender | |
 | 🌌 Midnight | A deep navy that looks the same in light and dark mode. |
-| 🩶 Slate, 🖋️ Ink, 🪴 Sage, ✏️ Graphite, 🫐 Berry | **Modern**. Sage is the default look for a new family. All five are clean and calm, with backgrounds and cards softly tinted in the scheme's color (blue-gray, navy, sage green, pencil gray, blueberry) and one clear accent: blue, orange, green, red and violet. |
+| 🍃 Eucalyptus, 🩶 Slate, 🖋️ Ink, 🪴 Sage, ✏️ Graphite, 🫐 Berry | **Modern**. Eucalyptus is the default look for a new family (Sage was before it). All six are clean and calm, with backgrounds and cards softly tinted in the scheme's color (gray-teal, blue-gray, navy, sage green, pencil gray, blueberry) and one clear accent: deep blue-green, blue, orange, green, red and violet. |
 | 🎃 Harvest, 🎄 Festive | For the holidays. |
 
 Every skin meets WCAG AA contrast (4.5:1) for text on its backgrounds.
@@ -83,7 +83,7 @@ It checks once an hour, so it switches on the same day a season changes.
 
 **Seasonal**'s card says which skin it's using now, for example "Changes with the season. Now: Autumn".
 
-**Reset colors to Sage**, at the bottom of the household sheet, sets the family back to the default look. If the family still has custom colors from an earlier version, it asks first, since those go too.
+**Reset colors to Eucalyptus**, at the bottom of the household sheet, sets the family back to the default look. If the family still has custom colors from an earlier version, it asks first, since those go too.
 
 ## Your own color schemes
 
@@ -102,7 +102,7 @@ Give it a name and an emoji and save. The scheme is saved for the whole family a
 
 The same contrast rule applies to schemes saved through the [REST API](../integrations/rest-api.md) or the [MCP server](../integrations/mcp.md), so a family's schemes are always readable.
 
-**＋ New scheme** starts from the scheme you're on. Deleting a scheme (in the sheet) moves any screen using it back to Sage. A family can keep up to 10 schemes.
+**＋ New scheme** starts from the scheme you're on. Deleting a scheme (in the sheet) moves any screen using it back to Eucalyptus. A family can keep up to 10 schemes.
 
 ### Custom colors from an earlier version
 

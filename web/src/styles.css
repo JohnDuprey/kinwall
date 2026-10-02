@@ -1,16 +1,16 @@
 :root {
-  /* Sage, the default scheme (skins.ts), for the first paint; useTheme.ts sets the family's own. */
-  --bg: #E9F6EF;
-  --bg-alt: #D9EEE2;
-  --card: #F9FEFB;
-  --card-soft: #F7FDFA;
-  --text: #14261D;
-  --text-dim: #446353;
-  --border: #C6DED1;
+  /* Eucalyptus, the default scheme (skins.ts), for the first paint; useTheme.ts sets the family's own. */
+  --bg: #EAF2EF;
+  --bg-alt: #DBE8E3;
+  --card: #F9FCFB;
+  --card-soft: #F7FBF9;
+  --text: #13262A;
+  --text-dim: #455F62;
+  --border: #C4D8D0;
   /* --accent and --accent-ink are set inline on <html> by useTheme.ts from settings.accent (a
      JS-computed WCAG luminance pick between a dark ink and white) - the strong/soft/tint
      variants below are derived from --accent alone so any custom accent stays consistent. */
-  --accent: #00774B;
+  --accent: #1F6B63;
   --accent-ink: #ffffff;
   --accent-strong: color-mix(in srgb, var(--accent) 78%, black); /* overridden by useTheme via accentFill() */
   --accent-soft: color-mix(in srgb, var(--accent) 30%, var(--bg));
@@ -71,19 +71,19 @@ html { font-size: calc(16px * var(--text-scale)); }
 
 /* Before main.tsx sets data-theme (the first paint, no JS yet): the page background follows the
    system, since the default mode is Auto. */
-@media (prefers-color-scheme: dark) { :root:not([data-theme]) { color-scheme: dark; --bg: #0D1D15; --text: #E5F0EA; } }
+@media (prefers-color-scheme: dark) { :root:not([data-theme]) { color-scheme: dark; --bg: #0E1A1A; --text: #E3EEEC; } }
 /* Kinwall's light mode can be on while the system is dark (a forced or scheduled mode), so say so:
    otherwise scrollbars and form controls follow the system and draw a pale thumb on a light page. */
 :root[data-theme="light"] { color-scheme: light; }
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #0D1D15;
-  --bg-alt: #11251C;
-  --card: #193025;
-  --card-soft: #182E23;
-  --text: #E5F0EA;
-  --text-dim: #A0BEAE;
-  --border: #2B4739;
+  --bg: #0E1A1A;
+  --bg-alt: #132222;
+  --card: #1A2D2C;
+  --card-soft: #192B2A;
+  --text: #E3EEEC;
+  --text-dim: #9EB9B6;
+  --border: #2C4544;
   --danger: #FF8A8A;
   --prio-high: #F2A35E;
   --accent-text: var(--accent);
@@ -93,7 +93,7 @@ html { font-size: calc(16px * var(--text-scale)); }
 
 /* ---------- Background presets (settings.backgroundLight / .backgroundDark) ----------
    Applied via [data-bg] on <html> by useTheme.ts; the plain :root / [data-theme="dark"] blocks
-   above stay as the pre-JS-paint fallback (Sage, today's default). Placed after those
+   above stay as the pre-JS-paint fallback (Eucalyptus, today's default). Placed after those
    blocks so equal-specificity `[data-bg]` rules win once JS sets the attribute. Keep contrast
    >= 4.5:1 for --text / --text-dim on --bg / --card in every preset. */
 :root[data-bg="warm"] { --bg: #FFFBF5; --bg-alt: #FFF4E8; --card: #FFFFFF; --card-soft: #FFF8F0; --border: #F1E4D6; --text: #3A2E27; --text-dim: #7A6B60; }

@@ -96,7 +96,7 @@ const settings: Settings = {
   darkWithNight: false,
   quietPin: false,
   accent: '#FF9E7A',
-  colorScheme: 'sage',
+  colorScheme: 'eucalyptus',
   customColors: null,
   customSchemes: [],
   backgroundLight: 'warm',

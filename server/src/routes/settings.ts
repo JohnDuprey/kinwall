@@ -17,7 +17,7 @@ const DEFAULTS: Record<string, string> = {
   darkFrom: '20:00',
   darkTo: '07:00',
   accent: '#FF9E7A',
-  colorScheme: 'sage', // migrations/0079 keeps Peach ('meadow') for families from before
+  colorScheme: 'eucalyptus', // migrations 0079 and 0084 keep Peach ('meadow') or Sage for families from before
   backgroundLight: 'warm',
   backgroundDark: 'cocoa',
   textScale: 'm',

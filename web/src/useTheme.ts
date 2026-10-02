@@ -197,7 +197,7 @@ function applyAppearance(household: Appearance, device: DeviceAppearance) {
     // index.html has a light and a dark theme-color (by media) for before this runs; now both are the real background.
     const metas = [...document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')]
     if (!metas.length) { const m = document.createElement('meta'); m.name = 'theme-color'; document.head.appendChild(m); metas.push(m) }
-    const bg = getComputedStyle(root).getPropertyValue('--bg').trim() || (dark ? '#0D1D15' : '#E9F6EF')
+    const bg = getComputedStyle(root).getPropertyValue('--bg').trim() || (dark ? '#0E1A1A' : '#EAF2EF')
     for (const m of metas) { m.dataset.day = bg; if (!document.documentElement.dataset.night) m.content = bg } // native.ts tellAppNight
     tellAppAppearance({ mode: a.themeMode, dark, colors: surfaces(skin, custom) })
   }
