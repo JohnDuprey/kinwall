@@ -52,7 +52,7 @@ Designed with neurodivergent family members in mind, and aiming for WCAG 2.2 AA 
 
 - **Touch-first**: big targets, swipe between weeks, and it drifts back to today on its own. Pair a wall screen with a code or QR.
 - **Rests at night**: during the night hours, walls dim to a drifting clock or a slideshow of family photos and drawings, and reminders wait until morning. See [Night](docs/using/night.md).
-- **Your family's look**: seventeen color schemes checked for contrast (Eucalyptus is the default), a seasonal switch, or your own, in light and dark. The whole family can share one, or each screen picks its own.
+- **Your family's look**: eighteen color schemes checked for contrast (Peacock is the default), a seasonal switch, or your own, in light and dark. The whole family can share one, or each screen picks its own.
 
 ## Private by design
 
