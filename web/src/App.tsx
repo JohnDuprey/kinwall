@@ -49,6 +49,7 @@ import { nightFieldsFor, nightSources } from './saverSources.ts'
 import { onMinute } from './minuteTick.ts'
 import { shellIsNewer, shellUrl } from './appUpdate.ts'
 import { clockTimeZone } from './timezone.ts'
+import { Brand } from './Brand.tsx'
 
 const NAV_ITEMS = [
   { key: 'calendar', href: '#/calendar', label: 'Home', Icon: HomeIcon }, // the route keeps its old name: pushes, widgets and Home Assistant link to it
@@ -374,6 +375,7 @@ function ManualKeyGate({ onKey, onBack }: { onKey: () => void; onBack: () => voi
   return (
     <div className="gate-screen" role="main">
       <div className="gate-card">
+        <Brand />
         <HelpButton className="help-float" />
         <h1>Welcome home 👋</h1>
         <p>Paste the Kinwall API key for this display to unlock it.</p>
@@ -417,6 +419,7 @@ function RecoveryCodeGate({ onKey, onBack }: { onKey: (banner?: string) => void;
   return (
     <div className="gate-screen" role="main">
       <div className="gate-card">
+        <Brand />
         <h1>Use a recovery code</h1>
         <p>Enter one of the codes you saved when you set up Kinwall. Each code works once.</p>
         <div className="field" style={{ textAlign: 'left' }}>
@@ -495,6 +498,7 @@ function PairingGate({ onKey }: { onKey: (banner?: string) => void }) {
   return (
     <div className="gate-screen" role="main">
       <div className="gate-card">
+        <Brand />
         <h1>Welcome home 👋</h1>
         <p>Sign in to manage your family's calendar, chores and lists.</p>
         {error && <p role="alert" style={{ color: 'var(--danger)' }}>{error}</p>}
@@ -569,6 +573,7 @@ function DisplayPairing({ onKey, onManual, onBack, onRecovery }: { onKey: () => 
     return (
       <div className="gate-screen" role="main">
         <div className="gate-card">
+          <Brand />
           <h1>You're connected! 🎉</h1>
           <p>Loading your family calendar…</p>
         </div>
@@ -582,6 +587,7 @@ function DisplayPairing({ onKey, onManual, onBack, onRecovery }: { onKey: () => 
   return (
     <div className="gate-screen" role="main">
       <div className="gate-card pairing-card">
+        <Brand />
         <h1>Set up this screen</h1>
         <p>On a parent's phone or computer, open Kinwall → Settings → Access → Add a wall screen or kid's device, and enter this code:</p>
         <div className="pairing-body">
@@ -671,6 +677,7 @@ function PairPhoneScreen({ code }: { code: string }) {
     return (
       <div className="gate-screen" role="main">
         <div className="gate-card">
+          <Brand />
           <h1>Connected! 🎉</h1>
           <p>{name} is connected — you can close this page.</p>
         </div>
@@ -681,6 +688,7 @@ function PairPhoneScreen({ code }: { code: string }) {
   return (
     <div className="gate-screen" role="main">
       <div className="gate-card">
+        <Brand />
         <h1>Add a wall screen or kid's device</h1>
         <p>Approve it to join your family's Kinwall. It gets the calendar, chores and lists, but not settings.</p>
         <div className="field" style={{ textAlign: 'left' }}>
@@ -759,6 +767,7 @@ function AdminSetupScreen({ token }: { token: string }) {
     return (
       <div className="gate-screen" role="main">
         <div className="gate-card">
+          <Brand />
           <h1>You're the admin on this device 🎉</h1>
           <button className="btn btn-primary btn-block" onClick={() => { location.hash = '#/calendar' }}>Continue</button>
         </div>
@@ -769,6 +778,7 @@ function AdminSetupScreen({ token }: { token: string }) {
   return (
     <div className="gate-screen" role="main">
       <div className="gate-card">
+        <Brand />
         <h1>Create your Kinwall passkey</h1>
         <p>Use Face ID, Touch ID, or your device's screen lock to become the admin for this Kinwall.</p>
         <div className="field" style={{ textAlign: 'left' }}>
@@ -1219,6 +1229,7 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
   if (wizardActive === null) {
     return (
       <div className="gate-screen" role="main">
+        <Brand />
         <div className="state-card">Loading…</div>
       </div>
     )
@@ -1251,6 +1262,7 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
   if (!settings) {
     return (
       <div className="gate-screen" role="main">
+        <Brand />
         <div className="state-card">{loadError ? 'Could not reach the server. Retrying…' : 'Loading…'}</div>
       </div>
     )

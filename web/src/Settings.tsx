@@ -47,6 +47,7 @@ import { tzCity } from './timezone.ts'
 import { MedicationsToggle } from './MedicationSettings.tsx'
 import { announce, pressable, reducedMotion, Segmented } from './a11y.tsx'
 import { FEATURE_ROWS } from './featureConfig.ts'
+import { Brand } from './Brand.tsx'
 
 // Mirrors BusEventType in server/src/bus.ts.
 const BUS_EVENTS = ['member.changed', 'calendar.changed', 'calendar.synced', 'events.changed', 'chore.changed', 'chore.completed', 'chore.uncompleted', 'chore.pending', 'chore.rejected', 'checkin.completed', 'tempcheck.changed', 'list.changed', 'list.item.changed', 'category.changed', 'settings.changed', 'sticker.changed', 'reward.changed', 'reward.redeemed', 'reward.approved', 'reward.declined', 'reward.given', 'recipe.changed', 'meal.changed', 'photo.changed', 'tracker.changed', 'newscast.posted', 'newscast.changed', 'contact.changed', 'contact.category.changed', 'display.paired', 'display.night_screen']
@@ -180,8 +181,13 @@ export default function SettingsView() {
         </>}
         </div>
         <div className="settings-version">
-          <a className="text-link" href="https://docs.kinwall.family" target="_blank" rel="noopener">Help &amp; docs</a>
-          {me.version && <> · Kinwall v{me.version}</>}
+          <Brand />
+          {me.version && <div>Version {me.version}</div>}
+          <div className="settings-version-links">
+            <a className="text-link" href="https://docs.kinwall.family" target="_blank" rel="noopener">Help &amp; docs</a>
+            <a className="text-link" href="https://github.com/JohnDuprey/kinwall" target="_blank" rel="noopener">Source code</a>
+            <a className="text-link" href="https://docs.kinwall.family/contributing/credits" target="_blank" rel="noopener">Open-source credits</a>
+          </div>
         </div>
       </div>
     </div>

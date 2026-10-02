@@ -20,6 +20,7 @@ import { MemberPicker } from './MemberPicker.tsx'
 import { defaultGrownUp, freshHandoff, ownerChoices, resumeFor, setupErrorText } from './setupSteps.ts'
 import type { SetupResume, Step } from './setupSteps.ts'
 import './setup.css'
+import { Brand } from './Brand.tsx'
 
 const PROGRESS_STEPS: Step[] = ['household', 'members', 'calendars', 'chores', 'done']
 
@@ -726,6 +727,7 @@ export default function Setup({ oauth, setupCode, passkeyRequired, onDone }: { o
     <main className="setup-screen">
       <div className="setup-card" ref={cardRef}>
         <HelpButton className="help-float" />
+        <Brand />
         <Progress step={step} />
         {step === 'welcome' && <WelcomeStep code={code} setCode={v => { setCode(v); setClaimError('') }} busy={claimBusy} error={claimError} onNext={claim} />}
         {step === 'passkey' && <PasskeyStep adminKeyId={adminKeyId} onDone={() => setStep('recovery')} onNoPasskey={passkeyRequired ? undefined : () => { setNoPasskey(true); setStep('recovery') }} />}

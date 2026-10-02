@@ -3,6 +3,7 @@ import { api, ApiError, setAdminKey } from './api.ts'
 import { loginWithPasskey, passkeysSupported, registerPasskey } from './webauthn.ts'
 import Setup from './Setup.tsx'
 import type { Member } from './types.ts'
+import { Brand } from './Brand.tsx'
 
 /** OAuth consent for MCP clients and the Kinwall apps (#/authorize?..., reached via the server's
  * /oauth/authorize). Signs in with a passkey, a recovery code, or an admin key held for this
@@ -94,6 +95,7 @@ export default function AuthorizeScreen() {
   return (
     <div className="gate-screen">
       <div className="gate-card authorize-card">
+        <Brand />
         {needsSignIn ? (
           <>
             <h1>Sign in to continue</h1>
