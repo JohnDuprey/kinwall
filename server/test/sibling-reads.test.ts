@@ -42,7 +42,7 @@ async function setup() {
   return { db, req, maya, leo, mayaKey, leoKey, wallKey, today, earn };
 }
 
-test('rewards: a kid device reads only its own requests; a wall and a parent read everyone\'s', async () => {
+test('rewards: a kid device reads only its own requests; a wall reads everyone\'s but declines; a parent reads all', async () => {
   const t = await setup();
   await t.earn(t.leo.id, 100);
   await t.earn(t.maya.id, 100);
@@ -62,10 +62,12 @@ test('rewards: a kid device reads only its own requests; a wall and a parent rea
   // Leo's own device still reads his declined request and the note.
   const mine = (await t.req('/api/rewards/redemptions', 'GET', undefined, t.leoKey)).json;
   assert.deepEqual(mine.map((r: any) => [r.id, r.status, r.note]), [[leoReq.id, 'declined', 'Not before homework']]);
-  // The wall (the Rewards screen, a member picked) and a parent are unchanged.
-  assert.deepEqual(await ids('', t.wallKey), [leoReq.id, mayaReq.id].sort());
-  assert.deepEqual(await ids(`?memberId=${t.leo.id}`, t.wallKey), [leoReq.id]);
-  assert.equal((await t.req(`/api/rewards/redemptions?memberId=${t.leo.id}`, 'GET', undefined, t.wallKey)).json[0].note, 'Not before homework');
+  // A decline note is for that kid: a shared wall doesn't get declined requests at all (a "Not this
+  // time" on the family screen is no one else's business), only the ones still live.
+  assert.deepEqual(await ids('', t.wallKey), [mayaReq.id]);
+  assert.deepEqual(await ids(`?memberId=${t.leo.id}`, t.wallKey), []);
+  assert.deepEqual(await ids('?status=declined', t.wallKey), []);
+  assert.ok(!JSON.stringify((await t.req('/api/rewards/redemptions', 'GET', undefined, t.wallKey)).json).includes('homework'));
   assert.deepEqual(await ids('', ADMIN), [leoReq.id, mayaReq.id].sort());
 });
 

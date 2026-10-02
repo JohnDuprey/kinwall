@@ -145,7 +145,7 @@ function RewardsPanel({ member }: { member: Member }) {
   ].filter(g => g.items.length)
   // Parents see every request in the queue above, so theirs isn't repeated.
   const waiting = parentDevice ? [] : history.filter(h => h.status === 'pending' || h.status === 'approved')
-  const past = history.filter(h => h.status === 'given' || h.status === 'declined')
+  const past = history.filter(h => h.status === 'given' || (h.status === 'declined' && (parentDevice || ownDevice)))
 
   const card = (r: Reward) => {
     const short = r.cost - balance

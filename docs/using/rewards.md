@@ -56,6 +56,8 @@ Requests show under **Waiting for a grown-up** (**Waiting for OK**, or **Approve
 
 Changed your mind? On your own device, tap **Cancel request** on a request still **Waiting for OK**, then **Cancel request** again to confirm. The points come back at once, the request is gone (it doesn't count toward the reward's limit), and the grown-ups have nothing to decide. Once a parent has said yes, only a parent can call it off (**Not this time**). Wall screens and other people's devices can't cancel someone's request.
 
+A decline is private to the person it's about. **Not this time** and the parent's note show on that person's own device (their Rewards page, and the notification there) and to parents, never on a shared wall screen: declined requests don't appear there at all.
+
 ## Approving
 
 Parent devices get a notification and a feed entry: "Leo wants 🍦 Ice cream trip (50 points). Approve?" Tapping it opens Rewards.
@@ -82,7 +84,7 @@ The Rewards screen shows the goal at the top with a progress bar. The **Board**'
 * Rewards, every request with its status and note, and each person's goal are part of [export & import](../your-data/export-import.md). The points they took are in the points ledger.
 * REST: `GET /api/rewards` (`?memberId=` adds `used`, how much of each limit that person has used; `?archived=true` includes archived), `POST /api/rewards`, `PATCH/DELETE /api/rewards/{id}` (admin). A reward is `{ id, title, emoji, cost, memberIds, needsApproval, limit, active, sort, createdAt }`, where `limit` is `{ count, period: "day" | "week" }` or `null`.
 * `POST /api/rewards/{id}/redeem {memberId}` answers `201 { redemption, balance }`, `402 { error, balance, cost }` when short, `409` when the limit is used up, and `403` when chores are off, the reward isn't for that person, or the device belongs to someone else.
-* `GET /api/rewards/redemptions?memberId=&status=pending,approved&limit=` (a member's own device gets only that member's requests, with any decline note; asking for someone else's is `403`. Walls and parents see everyone's); `POST /api/rewards/redemptions/{id}/cancel` (a pending one, from the member's own device or a parent's; refunds and removes it, `{ ok, balance }`); parents only: `POST /api/rewards/redemptions/{id}/approve`, `/decline {note?}` (from waiting or approved, refunds) and `/given` (from approved).
+* `GET /api/rewards/redemptions?memberId=&status=pending,approved&limit=` (a member's own device gets only that member's requests, with any decline note; asking for someone else's is `403`. A shared wall sees everyone's except declined ones, which it never gets, note or not. Parents see everything); `POST /api/rewards/redemptions/{id}/cancel` (a pending one, from the member's own device or a parent's; refunds and removes it, `{ ok, balance }`); parents only: `POST /api/rewards/redemptions/{id}/approve`, `/decline {note?}` (from waiting or approved, refunds) and `/given` (from approved).
 * `PUT /api/members/{id}/reward-goal {rewardId}` (`null` clears it). `GET /api/members` includes `rewardGoal`.
 * Webhooks: `reward.redeemed` (with `status`), `reward.approved`, `reward.declined`, `reward.given` and `reward.changed`. See [Webhooks](../integrations/webhooks.md#events).
 * MCP: `list_rewards`, `create_reward`, `update_reward`, `redeem_reward`, `list_reward_requests`, `approve_reward`, `decline_reward`, `mark_reward_given`. See [MCP server](../integrations/mcp.md).

@@ -277,7 +277,7 @@ rewardsRoutes.openapi(
     method: 'get',
     path: '/api/rewards/redemptions',
     tags: ['Rewards'],
-    summary: "Redemptions, newest first. ?memberId= one member; ?status=pending,approved only those (oldest first when filtered by status, for the To approve queue). A member's own device gets only their requests (403 when it asks for someone else's).",
+    summary: "Redemptions, newest first. ?memberId= one member; ?status=pending,approved only those (oldest first when filtered by status, for the To approve queue). A member's own device gets only their requests (403 when it asks for someone else's). A shared wall screen never gets declined ones (a decline and its note are for that member's own device and parents).",
     security: [{ Bearer: [] }],
     request: {
       query: z.object({
@@ -301,6 +301,8 @@ rewardsRoutes.openapi(
       where.push('member_id = ?');
       binds.push(memberId);
     }
+    // A decline (and its note) is the kid's own business: a shared wall never gets declined requests.
+    if ((await requestKey(c))?.scope === 'display' && !(await deviceOwner(c))) where.push("status <> 'declined'");
     if (statuses.length) {
       where.push('status IN (SELECT value FROM json_each(?))');
       binds.push(JSON.stringify(statuses));
