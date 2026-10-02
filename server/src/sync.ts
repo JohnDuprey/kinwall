@@ -134,14 +134,17 @@ function sameAsStored(ev: NormalizedEvent, row: StoredEvent): boolean {
 // window and by id, since providers also return events that started before the window. Rows read are
 // billed too: the window half reads idx_events_calendar_start, the id half the primary key (`+` keeps
 // SQLite from walking the whole calendar for it instead).
+// An all-day row is a bare date, which sorts before every time that day, so one dated on the day the
+// window ends counts only once the window covers that whole day: providers start it at local midnight
+// (04:00Z in New York), and a slice ending earlier leaves it out without it being gone.
 async function diffEventStmts(env: Env, calendarId: string, events: NormalizedEvent[], window: { from: Date; to: Date } | null) {
   const ids = await deterministicEventIds(calendarId, events.map((ev) => ev.externalId));
   const cols = 'id, title, start, end, all_day, location, description, series_id, reminders, busy';
   const stored = window
     ? env.DB.prepare(
-        `SELECT ${cols} FROM events WHERE calendar_id = ? AND start >= ? AND start < ?
+        `SELECT ${cols} FROM events WHERE calendar_id = ? AND start >= ? AND start < ? AND (all_day = 0 OR start < ?)
          UNION SELECT ${cols} FROM events WHERE id IN (SELECT value FROM json_each(?)) AND +calendar_id = ?`,
-      ).bind(calendarId, window.from.toISOString(), window.to.toISOString(), JSON.stringify(ids), calendarId)
+      ).bind(calendarId, window.from.toISOString(), window.to.toISOString(), window.to.toISOString().slice(0, 10), JSON.stringify(ids), calendarId)
     : env.DB.prepare(`SELECT ${cols} FROM events WHERE calendar_id = ?`).bind(calendarId);
   const byId = new Map((await stored.all<StoredEvent>()).results.map((r) => [r.id, r]));
   const now = new Date();

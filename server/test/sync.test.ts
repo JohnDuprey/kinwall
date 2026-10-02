@@ -265,6 +265,26 @@ test('sync: a slice writes only new, changed and removed events', async () => {
   assert.ok(titles.includes('Moved dentist') && !titles.includes('Event 9'));
 });
 
+// Providers place an all-day event at local midnight (Google: the calendar's zone), but it's stored
+// as a bare date, which sorts before any time that day. A window ending at 03:12Z on the 2nd (10:12 PM
+// on the 1st in New York) holds the stored '2026-11-02' row while Google, whose Nov 2 starts at 04:00Z,
+// leaves it out: deleting it there would drop it for hours, then re-add it, each a rev bump and webhook.
+test('sync: a slice ending partway into a day keeps that day\'s all-day events', async () => {
+  const env = makeEnv();
+  await env.DB.prepare("INSERT INTO calendars (id, kind, name, config, writable, enabled) VALUES ('c1', 'google', 'G', '{}', 1, 1)").run();
+  const holiday = { externalId: 'holiday', title: 'Election Day', start: '2026-11-02', end: '2026-11-03', allDay: true };
+  const gone = { externalId: 'gone', title: 'Cancelled', start: '2026-11-01T20:00:00.000Z', end: '2026-11-01T21:00:00.000Z', allDay: false };
+  const cal = { id: 'c1' } as any;
+  const from = new Date('2026-10-01T03:12:00Z');
+  await replaceSlice(env, { listEvents: async () => [holiday, gone] } as any, cal, {} as any, from, new Date('2026-11-03T03:12:00Z'));
+  const near = await replaceSlice(env, { listEvents: async () => [] } as any, cal, {} as any, from, new Date('2026-11-02T03:12:00Z'));
+  const titles = (await env.DB.prepare("SELECT title FROM events WHERE calendar_id = 'c1'").all()).results.map((r: any) => r.title);
+  assert.deepEqual(titles, ['Election Day'], 'the timed event the provider dropped is deleted; the all-day one on the edge day is kept');
+  assert.equal(near.changed, true);
+  const again = await replaceSlice(env, { listEvents: async () => [] } as any, cal, {} as any, from, new Date('2026-11-02T03:22:00Z'));
+  assert.equal(again.changed, false, 'and the next tick has nothing to do');
+});
+
 test('sync: an event moving to another slice is kept whichever slice syncs first', async () => {
   const env = makeEnv();
   await env.DB.prepare("INSERT INTO calendars (id, kind, name, config, writable, enabled) VALUES ('c1', 'google', 'G', '{}', 1, 1)").run();
