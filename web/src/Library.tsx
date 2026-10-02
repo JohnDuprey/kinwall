@@ -9,6 +9,8 @@ import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import Sheet from './Sheet.tsx'
 import BookLookup from './BookLookup.tsx'
+import { useIsPhone } from './useIsPhone.ts'
+import { FilterIcon } from './icons.tsx'
 import { appBarcodeScanner, scanBarcode, wallCamera } from './native.ts'
 import { addDayKeys, bookDetails, dueLabel, isbnFromScan, isOverdue, lentLabel, LOAN_DAYS } from './library.ts'
 import { announce } from './a11y.tsx'
@@ -37,6 +39,8 @@ export default function Library({ adding, onAdded, onStarted }: {
   const [places, setPlaces] = useState<string[]>([]) // every place a book lives, for the filter and the picker
   const [open, setOpen] = useState<LibraryBook | null>(null)
   const [scanning, setScanning] = useState(false)
+  const isPhone = useIsPhone()
+  const [filtering, setFiltering] = useState(false) // a phone: the filters in a sheet, behind one button
   const load = () => api.getLibrary({ q, unread, lent, borrowed, returned, location: place || undefined }).then(b => {
     setBooks(b)
     const more = (old: string[], add: (string | null)[]) => [...new Set([...old, ...add.filter((l): l is string => !!l)])].sort((a, z) => a.localeCompare(z))
@@ -61,11 +65,9 @@ export default function Library({ adding, onAdded, onStarted }: {
     if (added) { announce(`${added} book${added === 1 ? '' : 's'} added`); load() }
   }
 
-  const people = members
-  return (
-    <div className="lib">
-      <div className="lib-bar">
-        <input type="search" className="lib-search" aria-label="Search the library" placeholder="Search titles, authors, series, genres" value={q} onChange={e => setQ(e.target.value)} />
+  // Not read yet, Lent out, Borrowed, Returned and a place: in the bar, or (a phone) the Filters sheet.
+  const on = [unread, lent, borrowed, returned, !!place].filter(Boolean).length
+  const filters = <>
         <button type="button" className={`chip ${unread ? 'active' : ''}`} aria-pressed={unread} onClick={() => setUnread(v => !v)}>Not read yet</button>
         <button type="button" className={`chip ${lent ? 'active' : ''}`} aria-pressed={lent} onClick={() => setLent(v => !v)}>Lent out</button>
         <button type="button" className={`chip ${borrowed ? 'active' : ''}`} aria-pressed={borrowed} onClick={() => setBorrowed(v => !v)}>Borrowed</button>
@@ -76,8 +78,29 @@ export default function Library({ adding, onAdded, onStarted }: {
             {places.map(p => <option key={p} value={p}>{p}</option>)}
           </select>
         )}
-        {appBarcodeScanner() && <button type="button" className="btn btn-secondary lib-scan" onClick={scanBooks} disabled={scanning}>📷 Scan books</button>}
+  </>
+  const people = members
+  return (
+    <div className="lib">
+      <div className="lib-bar">
+        <input type="search" className="lib-search" aria-label="Search the library" placeholder={isPhone ? 'Search the library' : 'Search titles, authors, series, genres'} value={q} onChange={e => setQ(e.target.value)} />
+        {isPhone && (
+          <button type="button" className={`icon-btn filter-btn lib-filter-btn ${on ? 'active' : ''}`} onClick={() => setFiltering(true)} aria-label={on ? `Filters, ${on} on` : 'Filters'}>
+            <FilterIcon width={20} height={20} />
+            {on > 0 && <span className="filter-badge" aria-hidden="true">{on}</span>}
+          </button>
+        )}
+        {!isPhone && filters}
+        {appBarcodeScanner() && <button type="button" className="btn btn-secondary lib-scan" onClick={scanBooks} disabled={scanning} aria-label={isPhone ? 'Scan books' : undefined}>📷{isPhone ? '' : ' Scan books'}</button>}
       </div>
+      {filtering && (
+        <Sheet title="Filters" onClose={() => setFiltering(false)} actions={<>
+          {on > 0 && <button className="btn btn-secondary" onClick={() => { setUnread(false); setLent(false); setBorrowed(false); setReturned(false); setPlace('') }}>Clear</button>}
+          <button className="btn btn-primary" onClick={() => setFiltering(false)}>Done</button>
+        </>}>
+          <div className="lib-bar lib-filter-sheet">{filters}</div>
+        </Sheet>
+      )}
       {books === null ? <div className="state-card">Loading…</div>
         : !books.length ? (
           <div className="empty-card"><span className="emoji">📚</span>{q || unread || lent || borrowed || returned || place ? 'No books match.' : 'No books in the library yet. Tap + to add the books you own or borrow, or scan them in.'}</div>
