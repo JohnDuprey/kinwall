@@ -132,13 +132,15 @@ export function placesInput(rows: { store: string; aisle: string }[]): { store: 
 /** Where a scanned product goes by default (Lists.tsx ScanSheet): food and pet food on a Groceries
  * list, household and beauty items on a Shopping list, by the database it was found in; the list it
  * was scanned on when that's already the right type, when nobody knew it, or when there's no list of
- * that type. Older servers' lists without a catalog are groceries. */
+ * that type. Of that type, the family's default list, else the first. Older servers' lists without a
+ * catalog are groceries. */
 export function scanTarget(lists: List[], currentId: string, source: BarcodeLookup['source'] | null): string {
   const want = source === 'openproductsfacts' || source === 'openbeautyfacts' ? 'shopping' : source === 'openfoodfacts' || source === 'openpetfoodfacts' ? 'groceries' : null
   const type = (l: List) => l.catalog ?? 'groceries'
   const current = lists.find(l => l.id === currentId)
   if (!want || (current && type(current) === want)) return currentId
-  return lists.find(l => l.kind === 'shopping' && !l.archived && type(l) === want)?.id ?? currentId
+  const ofType = lists.filter(l => l.kind === 'shopping' && !l.archived && type(l) === want)
+  return (ofType.find(l => l.isDefault) ?? ofType[0])?.id ?? currentId // the type's default list, else its first
 }
 
 /** Words in matching form (each like itemKey: case and simple plurals ignored). */

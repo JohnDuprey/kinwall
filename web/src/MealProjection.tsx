@@ -43,8 +43,8 @@ export default function MealProjection({ from: initialFrom, to: initialTo, admin
       if (canceled) return
       const grocery = data.filter(list => listType(list) === 'groceries' && !list.archived) // meals add to Groceries lists only
       setLists(grocery); setListError('')
-      // One grocery list: that one. Several: the one this device used last, if it's still there.
-      setListId(id => id || (grocery.length === 1 ? grocery[0].id : grocery.find(list => list.id === lastList())?.id ?? ''))
+      // One grocery list: that one. Several: the family's default Groceries list, else the one this device used last.
+      setListId(id => id || (grocery.length === 1 ? grocery[0].id : (grocery.find(list => list.isDefault) ?? grocery.find(list => list.id === lastList()))?.id ?? ''))
     }).catch(e => { if (!canceled) setListError(e instanceof Error ? e.message : 'Could not load grocery lists.') })
     return () => { canceled = true }
   }, [tick, refreshTick])

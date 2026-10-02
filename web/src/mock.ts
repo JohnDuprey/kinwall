@@ -1348,6 +1348,8 @@ export const mock = {
   },
   updateList: async (id: string, patch: Partial<List>) => {
     const l = lists.find(x => x.id === id); if (!l) throw new Error('not found')
+    // One default per shopping type, like the server.
+    if (patch.isDefault) for (const o of lists) if (o.id !== id && o.kind === 'shopping' && (o.catalog ?? 'groceries') === (l.catalog ?? 'groceries')) o.isDefault = false
     Object.assign(l, patch, patch.kind && patch.kind !== 'shopping' ? { catalog: null } : patch.kind === 'shopping' && !l.catalog ? { catalog: patch.catalog ?? 'groceries' } : {}); bump(); return l
   },
   deleteList: async (id: string) => {

@@ -2704,6 +2704,7 @@ a.btn { text-decoration: none; } /* a link that looks like a button (the Board's
 .trk-cover-field { display: flex; align-items: center; gap: 10px; }
 .trk-cover-field input { flex: 1; min-width: 0; }
 .list-scan-btn { flex: none; font-size: 1.25rem; }
+.list-card-default { white-space: nowrap; }
 .scan-source { margin: 0 0 12px; color: var(--text-dim); }
 .scan-code { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .scan-save { display: flex; align-items: center; justify-content: space-between; gap: 12px; }

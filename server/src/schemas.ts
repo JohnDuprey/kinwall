@@ -625,6 +625,7 @@ export const ListSchema = z
     sortBy: ListSortBySchema, // item order within each group
     keepChecked: z.boolean().openapi({ description: KeepCheckedDoc }),
     catalog: ListCatalogSchema.nullable(),
+    isDefault: z.boolean().openapi({ description: "The family's default list for its shopping type (catalog): what barcode scans, meal ingredients, widgets, Siri and tiles use. At most one per type; false on other lists." }),
     sort: z.number(),
     archived: z.boolean(),
     createdAt: z.string(),
@@ -664,6 +665,7 @@ export const ListPatchSchema = z
     catalog: ListCatalogSchema.optional(),
     sort: z.number().optional(),
     archived: z.boolean().optional(),
+    isDefault: z.boolean().optional().openapi({ description: "true makes this shopping list its type's default (the previous one stops being it); false clears it. Parent devices only." }),
   })
   .openapi('ListPatch');
 

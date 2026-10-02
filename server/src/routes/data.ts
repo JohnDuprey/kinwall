@@ -123,6 +123,7 @@ const ExportSchema = z
         sortBy: ListSchema.shape.sortBy.default('manual'), // older exports predate it
         keepChecked: z.boolean().optional(), // older exports: the kind's default (0040)
         catalog: z.enum(CATALOGS).nullable().optional(), // older exports predate list types (0076): see catalogsFor
+        isDefault: z.boolean().default(false), // older exports predate default lists (0088)
         overdueCount: z.number().optional(), // computed, and older exports predate it
         itemsRev: z.number().optional(), // computed, and older exports predate it
         lastDoneAt: z.string().nullable().default(null), // older exports predate who-did-what (0078)
@@ -236,7 +237,7 @@ dataRoutes.openapi(
       db.prepare('SELECT calendar_id, series_id, category_id FROM event_series_category_overrides ORDER BY calendar_id, series_id'),
       db.prepare('SELECT id, title, emoji, member_id, points, rrule, due_date, due_time, active, sort, created_at, list_id, plugin_id, plugin_minutes, needs_approval, approve_timed_play, archived, library_id FROM chores ORDER BY sort, created_at'),
       db.prepare('SELECT id, chore_id, date, member_id, completed_at, points_awarded, status FROM chore_completions ORDER BY date'),
-      db.prepare('SELECT id, name, emoji, color, kind, member_ids, group_by, sort_by, keep_checked, catalog, sort, archived, created_at, last_done_at, last_done_by, last_done_by_label FROM lists ORDER BY sort, created_at'),
+      db.prepare('SELECT id, name, emoji, color, kind, member_ids, group_by, sort_by, keep_checked, catalog, is_default, sort, archived, created_at, last_done_at, last_done_by, last_done_by_label FROM lists ORDER BY sort, created_at'),
       db.prepare(
         'SELECT id, list_id, title, notes, quantity, store, category, aisle, member_id, due_date, event_id, priority, done, done_at, done_by, done_by_label, added_by, added_by_label, sort, created_at, updated_at FROM list_items ORDER BY sort, created_at',
       ),
@@ -845,6 +846,7 @@ dataRoutes.openapi(
           sort_by: l.sortBy,
           keep_checked: (l.keepChecked ?? l.kind !== 'todo') ? 1 : 0,
           catalog: catalogs.list(l),
+          is_default: l.isDefault && l.kind === 'shopping' ? 1 : 0,
           sort: l.sort,
           archived: l.archived ? 1 : 0,
           created_at: l.createdAt,

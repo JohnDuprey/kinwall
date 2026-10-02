@@ -88,6 +88,7 @@ import m0084 from '../migrations/0084_pin_sage_scheme.sql';
 import m0085 from '../migrations/0085_item_barcodes.sql';
 import m0086 from '../migrations/0086_privacy_trail.sql';
 import m0087 from '../migrations/0087_connected_app_push.sql';
+import m0088 from '../migrations/0088_default_lists.sql';
 
 export const MIGRATIONS: Migration[] = [
   { name: '0001_init.sql', sql: m0001 },
@@ -177,4 +178,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0085_item_barcodes.sql', sql: m0085 },
   { name: '0086_privacy_trail.sql', sql: m0086 },
   { name: '0087_connected_app_push.sql', sql: m0087 },
+  { name: '0088_default_lists.sql', sql: m0088 },
 ];

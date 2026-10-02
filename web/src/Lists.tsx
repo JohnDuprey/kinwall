@@ -119,14 +119,14 @@ function ListCard({ list, active, members, onSelect, onEdit }: {
   return (
     <div className={`list-card ${active ? 'active' : ''}`} role={role} tabIndex={tabIndex} onKeyDown={onKeyDown}
       aria-current={active || undefined} onContextMenu={onEdit && (e => { e.preventDefault(); onEdit() })}
-      aria-label={[list.name, countLabel(list), owners.length ? `for ${owners.map(m => m.name).join(' and ')}` : ''].filter(Boolean).join(', ')}
+      aria-label={[list.name, countLabel(list), list.isDefault ? `default ${TYPE_LABEL[listType(list)]} list` : '', owners.length ? `for ${owners.map(m => m.name).join(' and ')}` : ''].filter(Boolean).join(', ')}
       style={{ ['--list-color' as string]: list.color || 'var(--accent)' }}
       onPointerDown={handleDown} onPointerUp={handleUp} onPointerLeave={() => clearTimeout(pressTimer.current)}>
       <div className="list-card-accent" />
       <div className="list-card-emoji">{list.emoji || '📝'}</div>
       <div className="list-card-body">
         <div className="list-card-name">{list.name}</div>
-        <div className="list-card-sub"><CountLine list={list} /></div>
+        <div className="list-card-sub"><CountLine list={list} />{list.isDefault && <span className="list-card-default"> · ⭐ Default</span>}</div>
       </div>
       {owners.length > 0 && (
         <div className="list-card-owners">
@@ -174,10 +174,12 @@ function ListEditSheet({ list, onClose, onSaved, onDeleted, onManage }: {
   // null = not touched: the kind's default (the server applies it on create and on a kind change).
   const [keepTouched, setKeep] = useState<boolean | null>(null)
   const keepChecked = keepTouched ?? (existing && kind === existing.kind ? existing.keepChecked : kind !== 'todo')
+  const [isDefault, setDefault] = useState(!!existing?.isDefault)
+  const defaultable = !!existing && (type === 'groceries' || type === 'shopping') && type === listType(existing) // a type change clears it on the server
 
   const submit = async () => {
     if (!name.trim() || !isSingleEmoji(emoji)) return
-    const body = { name: name.trim(), ...typeFields(type), emoji, color, memberIds, ...(keepTouched !== null ? { keepChecked } : {}) }
+    const body = { name: name.trim(), ...typeFields(type), emoji, color, memberIds, ...(keepTouched !== null ? { keepChecked } : {}), ...(defaultable && isDefault !== !!existing?.isDefault ? { isDefault } : {}) }
     try {
       if (existing) await api.updateList(existing.id, body)
       else await api.createList(body)
@@ -227,6 +229,18 @@ function ListEditSheet({ list, onClose, onSaved, onDeleted, onManage }: {
           ? `Checked items stay where they are, crossed off, until you tap ${CHECKOUT_LABEL[kind]}.`
           : 'Checked items move to a Done section at the bottom.'}</p>
       </div>
+      {defaultable && (
+        <div className="field">
+          <div className="steps-head">
+            <label id="list-default">Default {TYPE_LABEL[type]} list</label>
+            <button className={`switch ${isDefault ? 'on' : ''}`} role="switch" aria-checked={isDefault} aria-labelledby="list-default" aria-describedby="list-default-hint"
+              onClick={() => setDefault(!isDefault)}><span className="knob" /></button>
+          </div>
+          <p className="field-hint" id="list-default-hint">{type === 'groceries'
+            ? "Scanned food, meal ingredients, and the app's widgets, Siri and tiles use this list."
+            : 'Scanned household and beauty items go to this list.'} Turning it on here turns it off on your other {TYPE_LABEL[type]} lists.</p>
+        </div>
+      )}
       <div className="field">
         <label>Emoji</label>
         <div className="emoji-swatch-row">

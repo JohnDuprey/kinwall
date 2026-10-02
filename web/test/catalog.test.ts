@@ -116,6 +116,14 @@ test('scanTarget: food goes to a Groceries list, household and beauty to a Shopp
   assert.equal(scanTarget([l('hw', 'shopping')], 'hw', 'openfoodfacts'), 'hw', 'no Groceries list: stays')
 })
 
+test("scanTarget: the type's default list wins over the first one", () => {
+  const l = (id: string, catalog: 'groceries' | 'shopping', isDefault = false) => ({ id, kind: 'shopping', catalog, archived: false, isDefault }) as unknown as List
+  const lists = [l('g', 'groceries'), l('costco', 'groceries', true), l('hw', 'shopping'), l('target', 'shopping', true)]
+  assert.equal(scanTarget(lists, 'hw', 'openfoodfacts'), 'costco')
+  assert.equal(scanTarget(lists, 'g', 'openproductsfacts'), 'target')
+  assert.equal(scanTarget(lists, 'g', 'openfoodfacts'), 'g', 'already the right type: stays, default or not')
+})
+
 test('scanMatch: the open item a scanned product is, by name: exact first, else a whole-word name inside it, longest wins', () => {
   const items = [{ title: 'Milk', done: false }, { title: 'Cheerios', done: false }, { title: 'Oat milk', done: false }, { title: 'Bread', done: true }, { title: 'Eggs', done: false }]
   assert.equal(scanMatch(items, 'cheerios')?.title, 'Cheerios', 'the same name, any case')

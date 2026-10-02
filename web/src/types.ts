@@ -679,6 +679,7 @@ export interface List {
   sortBy: ListSortBy // item order within each group
   keepChecked: boolean // checked items stay in place, crossed off, until Checkout / Reset
   catalog?: ListCatalog | null // shopping lists: Groceries or Shopping, each with its own catalog (older servers leave it out: groceries)
+  isDefault?: boolean // the family's default list for its type: barcode scans, meal ingredients, widgets, Siri and tiles use it
   sort: number
   archived: boolean
   createdAt: string

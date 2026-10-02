@@ -52,6 +52,7 @@ export type ListRow = {
   sort_by: 'manual' | 'added' | 'due' | 'priority' | 'alpha' | 'aisle';
   keep_checked: number;
   catalog: Catalog | null; // shopping lists: groceries or shopping (0076); null on others
+  is_default?: number; // its type's default list (0088)
   sort: number;
   archived: number;
   created_at: string;
@@ -105,6 +106,7 @@ export function toApi(row: ListRow, itemCount: number, openCount: number, overdu
     sortBy: row.sort_by ?? 'manual',
     keepChecked: !!row.keep_checked,
     catalog: row.kind === 'shopping' ? (row.catalog ?? 'groceries') : null,
+    isDefault: row.kind === 'shopping' && !!row.is_default,
     sort: row.sort,
     archived: !!row.archived,
     createdAt: row.created_at,
@@ -688,6 +690,7 @@ listsRoutes.openapi(
     request: { params: z.object({ id: z.string() }), body: { content: { 'application/json': { schema: ListPatchSchema } } } },
     responses: {
       200: { description: 'ok', content: { 'application/json': { schema: ListSchema } } },
+      400: { description: 'isDefault on a list that is not a shopping list', content: { 'application/json': { schema: ErrorSchema } } },
       403: { description: 'a display key changing more than the view', content: { 'application/json': { schema: ErrorSchema } } },
       404: { description: 'not found', content: { 'application/json': { schema: ErrorSchema } } },
     },
@@ -701,6 +704,7 @@ listsRoutes.openapi(
     if (!existing) return c.json({ error: 'not found' }, 404);
     const memberIds = body.memberIds !== undefined ? await resolveMemberIds(c.env.DB, body.memberIds) : parseMemberIds(existing.member_ids);
     const kind = body.kind ?? existing.kind;
+    if (body.isDefault && kind !== 'shopping') return c.json({ error: 'Only a shopping list can be the default' }, 400);
     const updated: ListRow = {
       ...existing,
       name: body.name ?? existing.name,
@@ -717,9 +721,17 @@ listsRoutes.openapi(
       sort: body.sort ?? existing.sort,
       archived: body.archived !== undefined ? (body.archived ? 1 : 0) : existing.archived,
     };
-    await c.env.DB.prepare('UPDATE lists SET name=?, emoji=?, color=?, kind=?, member_ids=?, group_by=?, sort_by=?, keep_checked=?, catalog=?, sort=?, archived=? WHERE id=?')
-      .bind(updated.name, updated.emoji, updated.color, updated.kind, updated.member_ids, updated.group_by, updated.sort_by, updated.keep_checked, updated.catalog, updated.sort, updated.archived, id)
-      .run();
+    // The default for its type: one per catalog, so picking this one clears the other; a list that
+    // changes type (or stops being a shopping list) stops being the default.
+    const typeChanged = updated.kind !== existing.kind || updated.catalog !== existing.catalog;
+    updated.is_default = body.isDefault !== undefined ? (body.isDefault ? 1 : 0) : typeChanged ? 0 : existing.is_default ?? 0;
+    await c.env.DB.batch([
+      ...(updated.is_default && !existing.is_default
+        ? [c.env.DB.prepare("UPDATE lists SET is_default = 0 WHERE kind = 'shopping' AND coalesce(catalog, 'groceries') = ? AND id != ?").bind(updated.catalog ?? 'groceries', id)]
+        : []),
+      c.env.DB.prepare('UPDATE lists SET name=?, emoji=?, color=?, kind=?, member_ids=?, group_by=?, sort_by=?, keep_checked=?, catalog=?, sort=?, archived=?, is_default=? WHERE id=?')
+        .bind(updated.name, updated.emoji, updated.color, updated.kind, updated.member_ids, updated.group_by, updated.sort_by, updated.keep_checked, updated.catalog, updated.sort, updated.archived, updated.is_default, id),
+    ]);
     emit(c, 'list.changed', { id });
     const counts = await c.env.DB.prepare(
       `SELECT COUNT(*) AS n, COALESCE(SUM(CASE WHEN done = 0 THEN 1 ELSE 0 END), 0) AS open,

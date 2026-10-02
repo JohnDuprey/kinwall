@@ -40,6 +40,18 @@ A list can also be a chore's **checklist**, so a routine like "Bedtime" has to b
 
 **Edit** opens **Name**, **Type**, **Keep checked items in place** (see below), **Emoji**, **Color** and **Owners (nobody = whole family)**. On a shopping list it also opens [Stores & departments](#stores--departments). It also has **Archive** (next to delete) and delete, which removes all the list's items too. Archived lists are hidden from the main Lists view and collect in a collapsed **Archived (*N*)** section at the bottom of the list overview. Expand it to **Restore** a list or delete it for good. **Edit**, the list order and the **Archived** section are only on a parent's device; see [Wall screens and kids' devices](#wall-screens-and-kids-devices). The API returns them with `GET /api/lists?archived=true`; `PATCH /api/lists/{id} {archived}` archives or restores.
 
+### Default list for each type
+
+A Groceries list and a Shopping list can each be the family's **default**: turn on **Default Groceries list** (or **Default Shopping list**) in its **Edit** sheet. Its card shows **⭐ Default**. Turning it on for one list turns it off on the other list of that type, and a list that changes type stops being the default.
+
+The default is where things go when Kinwall picks a list for you:
+
+* **Barcode scans:** food scanned on a Shopping list starts out headed for the default Groceries list, and household items scanned on Groceries for the default Shopping list (see **Scan a barcode** below).
+* **Meal ingredients:** **Groceries for these meals** starts on the default Groceries list.
+* **The Kinwall app:** the widgets, the **Add to Groceries** shortcut and Quick Settings tile, Siri and the Control Center controls use the default Groceries list.
+
+With no default set, the first list of that type in your list order is used, as before.
+
 ## Adding and ticking items
 
 * Type in the add bar and press Enter. The keyboard stays open for the next item.
