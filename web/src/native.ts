@@ -165,13 +165,30 @@ export function setAppMedicineNames(on: boolean) {
   window.dispatchEvent(new Event(MED_NAMES_EVENT))
 }
 
-const nativeFlag = (key: 'notificationSettings' | 'quickSettingsTiles'): boolean =>
+const nativeFlag = (key: 'notificationSettings' | 'quickSettingsTiles' | 'barcodeScanner'): boolean =>
   typeof window !== 'undefined' && (window as Window & { kinwallNative?: Record<string, unknown> }).kinwallNative?.[key] === true
 
 /** The Android app can open one of its notification channels in Android Settings. */
 export const appNotificationSettings = () => nativeFlag('notificationSettings')
 /** The Android app can offer its Quick Settings tiles (Android 13 and later). */
 export const appQuickSettingsTiles = () => nativeFlag('quickSettingsTiles')
+/** The app has a camera barcode scanner (scanBarcode). */
+export const appBarcodeScanner = () => nativeFlag('barcodeScanner')
+
+/** Opens the app's barcode scanner: the barcode's digits (a book's ISBN), or null when closed. The
+ * app answers with a 'kinwall:barcode' event (kinwall-mobile src/barcode.ts). */
+export function scanBarcode(): Promise<string | null> {
+  const w = window as Window & { webkit?: { messageHandlers?: { kinwall?: { postMessage: (m: unknown) => void } } } }
+  return new Promise(resolve => {
+    const on = (e: Event) => {
+      w.removeEventListener('kinwall:barcode', on)
+      const code = (e as CustomEvent<unknown>).detail
+      resolve(typeof code === 'string' && /^\d{8,14}$/.test(code) ? code : null)
+    }
+    w.addEventListener('kinwall:barcode', on)
+    try { w.webkit?.messageHandlers?.kinwall?.postMessage({ type: 'scanBarcode' }) } catch { w.removeEventListener('kinwall:barcode', on); resolve(null) }
+  })
+}
 
 /** Opens a notification channel's page in Android Settings, e.g. 'medicine' for Override Do Not
  * Disturb. No-op in a browser. */

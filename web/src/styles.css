@@ -2661,7 +2661,8 @@ a.btn { text-decoration: none; } /* a link that looks like a button (the Board's
 .trk-cover-blank { display: flex; align-items: center; justify-content: center; font-size: 1.2rem; box-shadow: none; }
 .trk-cover-field { display: flex; align-items: center; gap: 10px; }
 .trk-cover-field input { flex: 1; min-width: 0; }
-.trk-lookup-btn { flex: none; align-self: flex-start; margin-bottom: 12px; }
+.trk-lookup-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.trk-lookup-btn { flex: none; align-self: flex-start; }
 .weather-results .trk-book-result { gap: 10px; padding-top: 6px; padding-bottom: 6px; border-radius: var(--radius-sm); }
 .trk-book-finished .trk-book-title { color: var(--text); }
 .trk-progress-row { display: flex; align-items: center; gap: 10px; margin-top: 4px; }

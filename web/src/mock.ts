@@ -1388,7 +1388,7 @@ export const mock = {
     recomputeListCounts(listId); bump(); return i
   },
   // Demo lookup: a few classics, no network. picsum stands in for the covers (the demo CSP allows it).
-  searchBooks: async (q: string): Promise<BookResult[]> => DEMO_BOOKS.filter(b => `${b.title} ${b.author}`.toLowerCase().includes(q.trim().toLowerCase())),
+  searchBooks: async (q: string): Promise<BookResult[]> => DEMO_BOOKS.filter(b => `${b.title} ${b.author} ${b.isbn ?? ''}`.toLowerCase().includes(q.trim().toLowerCase())).map(({ isbn: _isbn, ...b }) => b),
   getTrackers: async (kind: TrackerKind) => trackers.filter(t => t.kind === kind).sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)),
   addTracker: async (body: TrackerInput & { kind: TrackerKind }) => {
     const t = tracker(body.kind, body.memberId ?? null, body.date ?? todayISO(), body.title?.trim() || null, trackerData(body.kind, body.data ?? {}), body.photoId ?? null)
@@ -1533,8 +1533,8 @@ export const mock = {
   deleteWebhook: async (id: string) => { webhooks = webhooks.filter(h => h.id !== id) },
 }
 
-const DEMO_BOOKS: BookResult[] = [
-  { title: "Charlotte's Web", author: 'E. B. White', year: 1952, pages: 184, coverUrl: 'https://picsum.photos/seed/kinwall-charlotte/120/180' },
+const DEMO_BOOKS: (BookResult & { isbn?: string })[] = [
+  { title: "Charlotte's Web", author: 'E. B. White', year: 1952, pages: 184, isbn: '9780064400558', coverUrl: 'https://picsum.photos/seed/kinwall-charlotte/120/180' },
   { title: 'Matilda', author: 'Roald Dahl', year: 1988, pages: 240, coverUrl: 'https://picsum.photos/seed/kinwall-matilda/120/180' },
   { title: 'The Wild Robot', author: 'Peter Brown', year: 2016, pages: 288, coverUrl: 'https://picsum.photos/seed/kinwall-robot/120/180' },
   { title: 'Holes', author: 'Louis Sachar', year: 1998, pages: 233 },

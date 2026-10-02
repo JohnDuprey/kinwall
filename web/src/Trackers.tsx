@@ -7,6 +7,7 @@ import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { useDialog } from './dialog.tsx'
 import { announce, Segmented } from './a11y.tsx'
+import { appBarcodeScanner, scanBarcode } from './native.ts'
 import { inkFor } from './color.ts'
 import { todayKeyInTz } from './date.ts'
 import { formatTime } from './timeFormat.ts'
@@ -211,22 +212,34 @@ function BookLookup({ initial, onPick }: { initial: string; onPick: (b: BookResu
   const [q, setQ] = useState('')
   const [results, setResults] = useState<BookResult[] | null>(null)
   const [busy, setBusy] = useState(false)
-  const search = async () => {
-    if (q.trim().length < 2) return
+  const search = async (query = q) => {
+    if (query.trim().length < 2) return
     setBusy(true)
     try {
-      const r = await api.searchBooks(q.trim())
+      const r = await api.searchBooks(query.trim())
       setResults(r)
       announce(r.length ? `${r.length} book${r.length === 1 ? '' : 's'} found` : 'No books found')
     } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not search for books', true) } finally { setBusy(false) }
   }
-  if (!open) return <button type="button" className="btn btn-secondary trk-lookup-btn" onClick={() => { setQ(initial); setOpen(true) }}>🔍 Look up a book</button>
+  // In the iPhone/Android app: the camera reads the ISBN off the back of the book.
+  const scan = async () => {
+    const code = await scanBarcode()
+    if (!code) return
+    setQ(code); setOpen(true); search(code)
+  }
+  const scanBtn = appBarcodeScanner() && <button type="button" className="btn btn-secondary trk-lookup-btn" onClick={scan}>📷 Scan</button>
+  if (!open) return (
+    <div className="trk-lookup-row">
+      <button type="button" className="btn btn-secondary trk-lookup-btn" onClick={() => { setQ(initial); setOpen(true) }}>🔍 Look up a book</button>
+      {scanBtn}
+    </div>
+  )
   return (
     <div className="weather-search">
       <div className="weather-search-row">
         <input type="search" aria-label="Title, author or ISBN" placeholder="Title, author or ISBN" value={q} autoFocus
           onChange={e => setQ(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); search() } }} />
-        <button type="button" className="btn btn-primary" onClick={search} disabled={busy || q.trim().length < 2}>{busy ? 'Searching…' : 'Search'}</button>
+        <button type="button" className="btn btn-primary" onClick={() => search()} disabled={busy || q.trim().length < 2}>{busy ? 'Searching…' : 'Search'}</button>
       </div>
       {results && (results.length === 0
         ? <p className="settings-row-sub">No books match. Try fewer words, or type it in below.</p>
@@ -245,7 +258,10 @@ function BookLookup({ initial, onPick }: { initial: string; onPick: (b: BookResu
           )
         })}</ul>)}
       <p className="settings-row-sub">Looked up by your Kinwall server from Open Library; only what you type is sent.</p>
-      <button type="button" className="btn btn-secondary trk-lookup-btn" onClick={() => { setOpen(false); setResults(null) }}>Cancel</button>
+      <div className="trk-lookup-row">
+        <button type="button" className="btn btn-secondary trk-lookup-btn" onClick={() => { setOpen(false); setResults(null) }}>Cancel</button>
+        {scanBtn}
+      </div>
     </div>
   )
 }

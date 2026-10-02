@@ -131,3 +131,26 @@ test('shared contacts: a vCard from the app opens Contacts once; anything else i
   assert.equal(takeSharedContacts(), null)
   delete g.window; delete g.location
 })
+
+test('scanBarcode: asks the app for its camera and hears back the digits, or null when closed', async () => {
+  const { appBarcodeScanner, scanBarcode } = await import('../src/native.ts')
+  const g = globalThis as { window?: unknown }
+  g.window = {}
+  assert.equal(appBarcodeScanner(), false, 'a browser has no scanner')
+  const sent: unknown[] = []
+  const w = Object.assign(new EventTarget(), { kinwallNative: { barcodeScanner: true }, webkit: { messageHandlers: { kinwall: { postMessage: (m: unknown) => sent.push(m) } } } })
+  g.window = w
+  assert.equal(appBarcodeScanner(), true)
+  const answer = (detail: unknown) => w.dispatchEvent(new CustomEvent('kinwall:barcode', { detail }))
+
+  const scan = scanBarcode()
+  assert.deepEqual(sent, [{ type: 'scanBarcode' }])
+  answer('9780064400558')
+  assert.equal(await scan, '9780064400558')
+  const closed = scanBarcode()
+  answer(null)
+  assert.equal(await closed, null)
+  const junk = scanBarcode()
+  answer('<img onerror=alert(1)>')
+  assert.equal(await junk, null, 'only digits get through')
+})
