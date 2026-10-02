@@ -337,7 +337,7 @@ trackersRoutes.openapi(
 );
 
 // A book's cover, fetched by the server from the entry's own stored coverUrl (never a URL from the
-// request), so the browser and the CSP stay on this origin. An <img> can't send a header: ?key= works.
+// request), so the browser and the CSP stay on this origin. An <img> can't send a header: a media token as ?key= works (auth.ts MEDIA_PATH).
 trackersRoutes.openapi(
   createRoute({
     method: 'get',

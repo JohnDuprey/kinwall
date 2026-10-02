@@ -416,7 +416,7 @@ for (const kind of ['recipes', 'meals'] as const) {
 
 // A recipe's photo (a meal: its recipe's), fetched server-side because the CSP keeps <img> on this
 // origin. Only the record's own stored imageUrl - never a URL from the request. An <img> can't send
-// the Bearer header, so this path also takes ?key= (auth.ts QUERY_KEY_PATH).
+// the Bearer header, so this path also takes a media token as ?key= (auth.ts MEDIA_PATH).
 for (const kind of ['recipes', 'meals'] as const) {
   mealsRoutes.openapi(createRoute({ method: 'get', path: `/api/${kind}/{id}/image`, tags: ['Meals'], summary: `The photo at this ${kind === 'recipes' ? "recipe's" : "meal's recipe's"} imageUrl (public https, JPEG/PNG/WebP/GIF, at most 8 MB)`, security: [{ Bearer: [] }], request: { params },
     responses: { 200: { description: 'the image', content: { 'image/*': { schema: z.string().openapi({ format: 'binary' }) } } }, 400: errors[400], 404: errors[404], 502: { description: 'the image could not be fetched or is not an image', content: { 'application/json': { schema: ErrorSchema } } } } }), async (c) => {

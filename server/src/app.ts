@@ -182,7 +182,7 @@ export function createApp() {
     type: 'http',
     scheme: 'bearer',
     description:
-      "API key, e.g. kw_xxxxx. An <img src> can't send a header: the image routes (GET /api/photos/{id}/image, /api/recipes/{id}/image, /api/recipes/{id}/steps/{n}/image, /api/meals/{id}/image, /api/trackers/{id}/cover, /api/books/covers/{coverId}) take ?key= with a media token from GET /api/media-token, and GET /api/photos/export.zip takes ?ticket= from POST /api/photos/export-link. Deprecated, to be removed: the full key as ?key= on those routes.",
+      "API key, e.g. kw_xxxxx. An <img src> can't send a header: the image routes (GET /api/photos/{id}/image, /api/recipes/{id}/image, /api/recipes/{id}/steps/{n}/image, /api/meals/{id}/image, /api/trackers/{id}/cover, /api/books/covers/{coverId}) take ?key= with a media token from GET /api/media-token, and GET /api/photos/export.zip takes ?ticket= from POST /api/photos/export-link. A key is never accepted in a URL.",
   });
 
   app.doc('/openapi.json', {

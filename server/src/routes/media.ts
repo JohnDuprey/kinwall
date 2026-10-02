@@ -11,9 +11,9 @@ mediaRoutes.openapi(
     method: 'get',
     path: '/api/media-token',
     tags: ['System'],
-    summary: "A token for this sign-in's image links: pass it as ?key= on the image routes instead of the key.",
+    summary: "A token for this sign-in's image links: pass it as ?key= on the image routes, which never take the key itself there.",
     description:
-      "Works only as ?key= on GET of a photo's, recipe's, recipe step's or meal's image and on book covers (never as a Bearer header, never anywhere else), as the key it came from (a wall display's token keeps a wall display's limits). It stays the same for as long as that sign-in lasts (an app's sign-in survives its hourly key refreshing), so image links and the browser's cache keep working, and stops the moment the key, passkey or connected app is removed. `null` for the server's ADMIN_API_KEY and on a server without ENCRYPTION_KEY: keep using the key there. Any key may ask.",
+      "Works only as ?key= on GET of a photo's, recipe's, recipe step's or meal's image and on tracker and book covers (never as a Bearer header, never anywhere else), as the key it came from (a wall display's token keeps a wall display's limits). It stays the same for as long as that sign-in lasts (an app's sign-in survives its hourly key refreshing), so image links and the browser's cache keep working, and stops the moment the key, passkey or connected app is removed. The server's ADMIN_API_KEY gets one too, which stops working when ADMIN_API_KEY changes or is removed. Any key may ask.",
     security: [{ Bearer: [] }],
     responses: {
       200: { description: 'ok', content: { 'application/json': { schema: z.object({ token: z.string().nullable() }).openapi('MediaToken') } } },

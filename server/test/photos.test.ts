@@ -109,11 +109,14 @@ test('photos: a display key can list, view and upload (Paint on the wall), but n
   assert.equal((await send('DELETE', `/api/photos/${p.id}`, undefined, key)).status, 403);
 });
 
-test('photos: ?key= works on the image route (and the zip export) only', async () => {
-  const { raw, upload, displayKey } = makeApp();
+test('photos: ?key= takes a media token on the image route only, never a full key', async () => {
+  const { raw, send, upload, displayKey } = makeApp();
   const key = await displayKey();
   const p = (await upload(bytes(100))).body;
-  assert.equal((await raw('GET', `${p.url}?key=${key}`, { key: null })).status, 200);
+  const { token } = (await send('GET', '/api/media-token', undefined, key)).body;
+  assert.equal((await raw('GET', `${p.url}?key=${token}`, { key: null })).status, 200);
+  assert.equal((await raw('GET', `${p.url}?key=${key}`, { key: null })).status, 401, 'the full key');
+  assert.equal((await raw('GET', `/api/photos?key=${token}`, { key: null })).status, 401);
   assert.equal((await raw('GET', `${p.url}?key=wrong`, { key: null })).status, 401);
   assert.equal((await raw('GET', `/api/photos?key=${key}`, { key: null })).status, 401);
   assert.equal((await raw('GET', `/api/members?key=${ADMIN_KEY}`, { key: null })).status, 401);
@@ -230,8 +233,7 @@ test('photos zip: import respects the quota and the per-photo cap; bad input; ad
   const key = await a.displayKey();
   assert.equal((await a.raw('GET', '/api/photos/export.zip', { key })).status, 403);
   assert.equal((await importZip(a.raw, zip, key)).status, 403);
-  assert.equal((await a.raw('GET', `/api/photos/export.zip?key=${key}`, { key: null })).status, 403);
-  assert.equal((await a.raw('GET', `/api/photos/export.zip?key=${ADMIN_KEY}`, { key: null })).status, 200);
+  assert.equal((await a.raw('GET', `/api/photos/export.zip?key=${ADMIN_KEY}`, { key: null })).status, 401, 'never a full key in the URL');
 });
 
 // ---------- Coloring pages (Paint's coloring book): stored with the photos, kept out of them ----------

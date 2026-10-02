@@ -3,7 +3,7 @@ import type { Context, Next } from 'hono';
 import type { Env, WaitCtx } from './env.ts';
 import { waitUntil } from './env.ts';
 import { parseMemberIds } from './calendar-members.ts';
-import { derivedMac, EncryptionKeyMissingError } from './crypto.ts';
+import { derivedMac } from './crypto.ts';
 
 const LAST_USED_STALE_MS = 60 * 60 * 1000; // don't write last_used_at more than once an hour
 
@@ -391,33 +391,25 @@ function isDisplayAllowed(method: string, path: string): boolean {
   return DISPLAY_ALLOWED.some((rule) => rule.method === method && rule.pattern.test(path));
 }
 
-// Routes that can't send a header, so they take a credential as ?key=. A key in a URL ends up in
-// browser history and access logs, so nowhere else.
-// The images (an <img src>): a photo's, a recipe's, a recipe step's, a meal's, a book cover. These
-// take a media token (mediaTokenFor), which opens nothing but them.
+// The images (an <img src>, which can't send a header): a photo's, a recipe's, a recipe step's, a
+// meal's, a tracker's or book's cover. GET on these takes a media token (mediaTokenFor) as ?key=,
+// which opens nothing but them. A full key is never taken from a URL (it would land in browser
+// history and access logs): everything else, the photo zip included, takes the Bearer header (the
+// zip also a one-time ?ticket=, photoExportTicket).
 const MEDIA_PATH = /^\/api\/photos\/[^/]+\/image$|^\/api\/(recipes|meals)\/[^/]+\/image$|^\/api\/recipes\/[^/]+\/steps\/\d+\/image$|^\/api\/trackers\/[^/]+\/cover$|^\/api\/books\/covers\/[^/]+$/;
-// DEPRECATED, to be removed: a full key as ?key= on MEDIA_PATH and the photo zip
-// (browser navigations; the zip now takes a one-time ?ticket=, photoExportTicket). Still accepted
-// for older cached web bundles, the mobile app and scripts; the web app sends a media token or
-// ticket wherever it has one. Never the OAuth start: a link carrying a key would let whoever
-// sends it start a calendar sign-in in someone else's browser (routes/oauth.ts).
-const QUERY_KEY_PATH = /^\/api\/photos\/export\.zip$/;
-
-// Shared by requireAuth and GET /api/me: resolves the bearer key (or ?key= on QUERY_KEY_PATH and
-// MEDIA_PATH, where it may also be a media token) to its scope. Returns null if the key is missing/unknown.
+// Shared by requireAuth and GET /api/me: resolves the Bearer key (or a media token as ?key= on
+// GET MEDIA_PATH) to its scope. Returns null if the key is missing/unknown.
 export async function resolveKey(c: Context<{ Bindings: Env }>): Promise<ResolvedKey | null> {
   const header = c.req.header('Authorization') ?? '';
-  const bearer = header.startsWith('Bearer ') ? header.slice('Bearer '.length).trim() : '';
-  const media = c.req.method === 'GET' && MEDIA_PATH.test(c.req.path);
-  const query = !bearer && (media || QUERY_KEY_PATH.test(c.req.path)) ? c.req.query('key') ?? '' : '';
-  const key = bearer || query;
-  if (!key) return null;
-  if (key.startsWith(MEDIA_PREFIX)) return query && media ? resolveMediaToken(c.env, key) : null; // never a Bearer, never elsewhere
+  const key = header.startsWith('Bearer ') ? header.slice('Bearer '.length).trim() : '';
+  if (!key) {
+    const token = c.req.method === 'GET' && MEDIA_PATH.test(c.req.path) ? c.req.query('key') : undefined;
+    return token ? resolveMediaToken(c.env, token) : null; // a full key here matches no token: refused
+  }
+  if (key.startsWith(MEDIA_PREFIX)) return null; // a media token is never a Bearer
 
   const hash = await sha256Hex(key);
-  if (c.env.ADMIN_API_KEY && timingSafeEqual(hash, await sha256Hex(c.env.ADMIN_API_KEY))) {
-    return { scope: 'admin', name: 'ADMIN_API_KEY', kind: 'api' };
-  }
+  if (c.env.ADMIN_API_KEY && timingSafeEqual(hash, await sha256Hex(c.env.ADMIN_API_KEY))) return envAdmin();
 
   const row = await c.env.DB.prepare('SELECT id, name, scope, expires_at, kind, last_used_at, owner, device_kind FROM api_keys WHERE hash = ?')
     .bind(hash)
@@ -436,15 +428,24 @@ export async function resolveKey(c: Context<{ Bindings: Env }>): Promise<Resolve
 }
 
 // ---- Media tokens: what an <img src> carries instead of the full key ----
-// km_<k|g>.<id>.<MAC>: k = an api_keys row (an API key, a passkey or recovery sign-in, a paired
+// km_<k|g|e>.<id>.<MAC>: k = an api_keys row (an API key, a passkey or recovery sign-in, a paired
 // device), g = an OAuth grant (an app's sign-in, whose access key changes every hour, so the token
-// outlives refreshes). The MAC (derivedMac, under ENCRYPTION_KEY) is over "<k|g>.<id>"; nothing is
-// stored. The value never changes for a sign-in, so image URLs, and the browser's cache of them,
-// stay put. It opens only GET MEDIA_PATH, as the key behind it (scope, owner, device kind,
-// connected app), and only while that sign-in lives: deleting the key, passkey or connection ends it.
+// outlives refreshes), e = the server's ADMIN_API_KEY (id 'admin'). Nothing is stored per token:
+// the MAC (derivedMac) is over "<type>.<id>" (for e, also the current ADMIN_API_KEY) under this
+// server's media secret (mediaSecret). The value never changes for a sign-in, so image URLs, and
+// the browser's cache of them, stay put. It opens only GET MEDIA_PATH, as the key behind it (scope,
+// owner, device kind, connected app), and only while that sign-in lives: deleting the key, passkey
+// or connection ends it, and changing or removing ADMIN_API_KEY ends an e token.
+// Who can forge one: only someone holding the media secret, which is a random value in this
+// server's database (never returned by any route) combined with ENCRYPTION_KEY when the server has
+// one. So: nobody without the database, and, on a server with ENCRYPTION_KEY, nobody without both.
+// Someone who could forge one could already read the photos (they're in the database). An e token
+// also needs ADMIN_API_KEY itself. What a leaked token allows: GET of the images, as its sign-in,
+// until that sign-in ends.
 const MEDIA_PREFIX = 'km_';
-const MEDIA_PURPOSE = 'kinwall media token v1';
-const MEDIA_TOKEN = /^km_([kg])\.([^.]+)\.([\w-]{43})$/;
+const MEDIA_PURPOSE = 'kinwall media token v2';
+const MEDIA_TOKEN = /^km_([kge])\.([^.]+)\.([\w-]{43})$/;
+const MEDIA_SECRET = 'mediaTokenSecret'; // a settings row; readSettings never returns it
 type KeyRow = { id: string; name: string; scope: string | null; kind: string | null; owner: string | null; device_kind: KeyDeviceKind | null };
 const KEY_COLS = 'id, name, scope, kind, owner, device_kind';
 const toResolved = (row: KeyRow): ResolvedKey => ({
@@ -455,20 +456,35 @@ const toResolved = (row: KeyRow): ResolvedKey => ({
   owner: row.owner,
   deviceKind: row.device_kind,
 });
+const envAdmin = (): ResolvedKey => ({ scope: 'admin', name: 'ADMIN_API_KEY', kind: 'api' });
+const randomHex = (bytes: number) => [...crypto.getRandomValues(new Uint8Array(bytes))].map((b) => b.toString(16).padStart(2, '0')).join('');
 
-/** This sign-in's media token, or null: for the server's ADMIN_API_KEY (no row to revoke it by) and
- * on a server without ENCRYPTION_KEY. The web app then keeps sending the full key. */
-export async function mediaTokenFor(env: Env, key: ResolvedKey | null): Promise<string | null> {
-  if (!key?.id || key.media) return null;
-  const grant = key.kind === 'oauth' ? (await env.DB.prepare('SELECT oauth_grant_id FROM api_keys WHERE id = ?').bind(key.id).first<{ oauth_grant_id: string | null }>())?.oauth_grant_id : null;
-  const subject = key.kind === 'oauth' ? (grant ? `g.${grant}` : null) : `k.${key.id}`;
-  if (!subject) return null;
-  try {
-    return `${MEDIA_PREFIX}${subject}.${await derivedMac(env, MEDIA_PURPOSE, subject)}`;
-  } catch (e) {
-    if (e instanceof EncryptionKeyMissingError) return null;
-    throw e;
+// Made once per server (the first token asked for or checked) and never changed, so it's kept per database.
+const mediaSecrets = new WeakMap<object, string>();
+async function mediaSecret(env: Env): Promise<string> {
+  let secret = mediaSecrets.get(env.DB);
+  if (!secret) {
+    const read = () => env.DB.prepare('SELECT value FROM settings WHERE key = ?').bind(MEDIA_SECRET).first<{ value: string }>();
+    let row = await read();
+    if (!row) {
+      await env.DB.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').bind(MEDIA_SECRET, randomHex(32)).run();
+      row = await read(); // whichever request got there first
+    }
+    secret = row!.value;
+    mediaSecrets.set(env.DB, secret);
   }
+  return `${secret}.${env.ENCRYPTION_KEY ?? ''}`;
+}
+const mediaMac = async (env: Env, subject: string) =>
+  derivedMac(await mediaSecret(env), MEDIA_PURPOSE, subject === 'e.admin' ? `${subject}.${env.ADMIN_API_KEY}` : subject);
+
+/** This sign-in's media token. Null only for a credential that isn't a sign-in (a photo download
+ * link) or is itself a media token. */
+export async function mediaTokenFor(env: Env, key: ResolvedKey | null): Promise<string | null> {
+  if (!key || key.media) return null;
+  const grant = key.id && key.kind === 'oauth' ? (await env.DB.prepare('SELECT oauth_grant_id FROM api_keys WHERE id = ?').bind(key.id).first<{ oauth_grant_id: string | null }>())?.oauth_grant_id : null;
+  const subject = !key.id ? (key.name === 'ADMIN_API_KEY' && env.ADMIN_API_KEY ? 'e.admin' : null) : key.kind === 'oauth' ? (grant ? `g.${grant}` : null) : `k.${key.id}`;
+  return subject ? `${MEDIA_PREFIX}${subject}.${await mediaMac(env, subject)}` : null;
 }
 
 // A grant's sign-in lives while it has an unexpired access key, or a refresh token it can still
@@ -477,9 +493,11 @@ export async function mediaTokenFor(env: Env, key: ResolvedKey | null): Promise<
 // key stands in for it, so isConnectedApp and the owner are that key's.
 async function resolveMediaToken(env: Env, token: string): Promise<ResolvedKey | null> {
   const m = MEDIA_TOKEN.exec(token);
-  if (!m || !env.ENCRYPTION_KEY) return null;
+  if (!m) return null;
   const [, type, id, mac] = m;
-  if (!timingSafeEqual(mac, await derivedMac(env, MEDIA_PURPOSE, `${type}.${id}`))) return null;
+  if (type === 'e' && (id !== 'admin' || !env.ADMIN_API_KEY)) return null;
+  if (!timingSafeEqual(mac, await mediaMac(env, `${type}.${id}`))) return null;
+  if (type === 'e') return { ...envAdmin(), media: true };
   const now = new Date().toISOString();
   const row = type === 'k'
     ? await env.DB.prepare(`SELECT ${KEY_COLS} FROM api_keys WHERE id = ? AND kind != 'oauth' AND (expires_at IS NULL OR expires_at > ?)`).bind(id, now).first<KeyRow>()
@@ -499,7 +517,7 @@ const TICKET_TTL_MS = 60 * 1000;
 
 /** A fresh ticket for one photo zip download, and when it expires. */
 export async function photoExportTicket(db: KinwallDb): Promise<{ ticket: string; expiresAt: string }> {
-  const ticket = [...crypto.getRandomValues(new Uint8Array(24))].map((b) => b.toString(16).padStart(2, '0')).join('');
+  const ticket = randomHex(24);
   const now = new Date();
   const expiresAt = new Date(now.getTime() + TICKET_TTL_MS).toISOString();
   await db.batch([

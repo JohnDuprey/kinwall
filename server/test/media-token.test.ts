@@ -73,7 +73,7 @@ async function connectApp(t: T) {
   return { access: tok.access_token as string, refresh: tok.refresh_token as string, clientId: reg.client_id as string };
 }
 
-test('media token: works as ?key= on every image route and serves the same bytes as the full key', async () => {
+test('media token: works as ?key= on every image route and serves the same bytes as the header', async () => {
   const t = setup();
   mockImages();
   const paths = await images(t);
@@ -83,11 +83,28 @@ test('media token: works as ?key= on every image route and serves the same bytes
   assert.ok(!token!.includes(laptop.key), 'the full key is nowhere in it');
   assert.equal(await t.tokenFor(laptop.key), token, 'stable for the sign-in, so image URLs and the browser cache stay put');
   for (const p of paths) {
-    const viaKey = await t.img(p, laptop.key);
+    const viaKey = await t.req(p, { key: laptop.key });
     const viaToken = await t.img(p, token!);
     assert.equal(viaToken.status, 200, p);
     assert.deepEqual(new Uint8Array(await viaToken.arrayBuffer()), new Uint8Array(await viaKey.arrayBuffer()), p);
   }
+});
+
+test('a full key in the URL: refused on every image route and on the photo zip; the header still works', async () => {
+  const t = setup();
+  mockImages();
+  const paths = await images(t);
+  const laptop = await newKey(t, 'admin');
+  const wall = await newKey(t, 'display');
+  for (const p of paths) {
+    for (const key of [ADMIN_KEY, laptop.key, wall.key]) assert.equal((await t.img(p, key)).status, 401, `${p} with a full key`);
+    assert.equal((await t.req(p, { key: laptop.key })).status, 200, `${p} with the header`);
+  }
+  assert.equal((await t.img('/api/photos/export.zip', ADMIN_KEY)).status, 401);
+  assert.equal((await t.img('/api/photos/export.zip', laptop.key)).status, 401);
+  const zip = await t.req('/api/photos/export.zip', { key: laptop.key });
+  assert.equal(zip.status, 200);
+  await zip.arrayBuffer();
 });
 
 test('media token: refused as a Bearer header, on other routes and methods, on the OAuth start and on the photo zip', async () => {
@@ -116,15 +133,15 @@ test('media token: a wall display keeps its limits and a connected app stays a c
   const wallToken = (await t.tokenFor(wall.key))!;
   assert.ok(wallToken, 'display keys get one too');
   assert.equal((await t.img(photo, wallToken)).status, 200);
-  assert.equal((await t.img(cover, wall.key)).status, 403);
+  assert.equal((await t.req(cover, { key: wall.key })).status, 403);
   assert.equal((await t.img(cover, wallToken)).status, 403, 'a health entry stays off the wall');
 
   const app = await connectApp(t);
   const appToken = (await t.tokenFor(app.access))!;
   assert.ok(appToken);
-  assert.equal((await t.img(cover, app.access)).status, 403);
+  assert.equal((await t.req(cover, { key: app.access })).status, 403);
   assert.equal((await t.img(cover, appToken)).status, 403, 'health stays away from connected apps');
-  assert.equal((await t.img(cover, ADMIN_KEY)).status, 404, "the family's own device gets past the health check (and finds no cover)");
+  assert.equal((await t.img(cover, (await t.tokenFor(ADMIN_KEY))!)).status, 404, "the family's own device gets past the health check (and finds no cover)");
   assert.equal((await t.img(photo, appToken)).status, 200);
 });
 
@@ -174,7 +191,7 @@ test("media token: an app's hourly key refreshing keeps the same token working; 
 
   // The hour is up and the app hasn't refreshed yet (asleep): its sign-in is still alive.
   await t.db.prepare("UPDATE api_keys SET expires_at = ? WHERE kind = 'oauth'").bind(new Date(Date.now() - 1000).toISOString()).run();
-  assert.equal((await t.img(photo, app.access)).status, 401, 'the hourly key itself has lapsed');
+  assert.equal((await t.req(photo, { key: app.access })).status, 401, 'the hourly key itself has lapsed');
   assert.equal((await t.img(photo, token)).status, 200, 'images keep loading until the app refreshes');
 
   const next = (await t.req('/oauth/token', t.form({ grant_type: 'refresh_token', refresh_token: app.refresh })).then((r) => r.json())) as any;
@@ -202,19 +219,54 @@ test('media token: a tampered MAC, or a token for another key, fails', async () 
   assert.equal((await t.img(photo, `km_k.${other.id}.${mac}`)).status, 401);
   assert.equal((await t.img(photo, token.replace('km_k.', 'km_g.'))).status, 401, 'a key id passed off as a grant id');
   assert.equal((await t.img(photo, 'km_k.nope')).status, 401, 'malformed');
+  const elsewhere = setup();
+  await images(elsewhere);
+  assert.equal((await elsewhere.img(photo, token)).status, 401, "another server's token (its own secret)");
   t.env.ENCRYPTION_KEY = 'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=';
-  assert.equal((await t.img(photo, token)).status, 401, 'made under another server key');
+  assert.equal((await t.img(photo, token)).status, 401, 'made under another ENCRYPTION_KEY');
 });
 
-test('media token: none for the server ADMIN_API_KEY or without ENCRYPTION_KEY; the full key still works there', async () => {
+test("media token: the server's ADMIN_API_KEY gets one, and it dies when that key changes or is removed", async () => {
   const t = setup();
   mockImages();
   const [photo] = await images(t);
-  assert.deepEqual((await t.send('GET', '/api/media-token')).body, { token: null }, 'the environment admin key has no row to revoke against');
-  const bare = setup({ ENCRYPTION_KEY: undefined });
-  const laptop = await newKey(bare, 'admin');
-  assert.deepEqual((await bare.send('GET', '/api/media-token', undefined, laptop.key)).body, { token: null });
-  assert.equal((await t.img(photo, ADMIN_KEY)).status, 200, 'the deprecated full-key form still works');
+  const token = (await t.tokenFor(ADMIN_KEY))!;
+  assert.match(token, /^km_e\./);
+  assert.ok(!token.includes(ADMIN_KEY));
+  assert.equal(await t.tokenFor(ADMIN_KEY), token, 'stable');
+  assert.equal((await t.img(photo, token)).status, 200);
+  assert.equal((await t.img('/api/settings', token)).status, 401, 'images only');
+  assert.equal((await t.img(photo, token.replace('km_e.admin.', 'km_e.other.'))).status, 401);
+  t.env.ADMIN_API_KEY = 'fc_test_admin_key_rotated';
+  assert.equal((await t.img(photo, token)).status, 401, 'changed key');
+  const rotated = (await t.tokenFor('fc_test_admin_key_rotated'))!;
+  assert.notEqual(rotated, token);
+  assert.equal((await t.img(photo, rotated)).status, 200);
+  t.env.ADMIN_API_KEY = undefined; // hosted: the setup code is removed after its 24 hours
+  assert.equal((await t.img(photo, rotated)).status, 401, 'removed key');
+  assert.equal((await t.img(photo, 'km_e.admin.' + 'A'.repeat(43))).status, 401, 'forged with no ADMIN_API_KEY at all');
+});
+
+test('media token: a server without ENCRYPTION_KEY still issues working, revocable tokens', async () => {
+  const t = setup({ ENCRYPTION_KEY: undefined });
+  mockImages();
+  const [photo] = await images(t);
+  const laptop = await newKey(t, 'admin');
+  const token = (await t.tokenFor(laptop.key))!;
+  assert.match(token, /^km_k\./);
+  assert.equal(await t.tokenFor(laptop.key), token, 'stable');
+  assert.equal((await t.img(photo, token)).status, 200);
+  const admin = (await t.tokenFor(ADMIN_KEY))!;
+  assert.equal((await t.img(photo, admin)).status, 200);
+  const app = await connectApp(t);
+  const appToken = (await t.tokenFor(app.access))!;
+  assert.match(appToken, /^km_g\./);
+  assert.equal((await t.img(photo, appToken)).status, 200);
+  assert.equal((await t.send('DELETE', `/api/keys/${laptop.id}`)).status, 200);
+  assert.equal((await t.img(photo, token)).status, 401, 'deleted key');
+  const secret = await t.db.prepare("SELECT value FROM settings WHERE key = 'mediaTokenSecret'").first<{ value: string }>();
+  assert.ok(secret && secret.value.length >= 40, 'a random per-server secret, kept in the database');
+  assert.ok(!JSON.stringify((await t.send('GET', '/api/settings')).body).includes(secret.value), 'never in the settings API');
 });
 
 test('photo download link: admin only, single use, short-lived, and good for nothing else', async () => {

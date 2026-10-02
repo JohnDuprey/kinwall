@@ -210,7 +210,7 @@ photosRoutes.openapi(
     method: 'get',
     path: '/api/photos/{id}/image',
     tags: ['Photos'],
-    summary: "A photo's bytes. Takes the API key as the Bearer header, or a media token (GET /api/media-token) as ?key= so an <img src> can load it. The full key as ?key= is deprecated and will be removed.",
+    summary: "A photo's bytes. Takes the API key as the Bearer header, or a media token (GET /api/media-token) as ?key= so an <img src> can load it (never the full key).",
     security: [{ Bearer: [] }],
     request: { params: idParam, query: z.object({ key: z.string().optional() }) },
     responses: {
@@ -292,9 +292,9 @@ photosRoutes.openapi(
     path: '/api/photos/export.zip',
     tags: ['Photos'],
     summary:
-      'Download every photo as a zip: photos/<yyyy-mm-dd>-<id>.<ext> plus manifest.json (captions, owners, sizes; "family": false marks a memory\'s own photo). Admin only. Takes the key as the Bearer header, or ?ticket= from POST /api/photos/export-link (a plain download link). ?key= with the full key is deprecated and will be removed.',
+      'Download every photo as a zip: photos/<yyyy-mm-dd>-<id>.<ext> plus manifest.json (captions, owners, sizes; "family": false marks a memory\'s own photo). Admin only. Takes the key as the Bearer header, or ?ticket= from POST /api/photos/export-link (a plain download link); never a key in the URL.',
     security: [{ Bearer: [] }],
-    request: { query: z.object({ ticket: z.string().optional(), key: z.string().optional().openapi({ deprecated: true }) }) },
+    request: { query: z.object({ ticket: z.string().optional() }) },
     responses: { 200: { description: 'the zip, streamed', content: { 'application/zip': binary } } },
   }),
   async (c) => {

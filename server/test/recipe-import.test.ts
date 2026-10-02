@@ -156,7 +156,7 @@ test('recipe card PDF: proxies only the stored https sourceUrl, checks type and 
   }
 });
 
-test('recipe image: proxies only the stored https imageUrl, sniffs the bytes, caps the size, takes ?key=', async () => {
+test('recipe image: proxies only the stored https imageUrl, sniffs the bytes, caps the size, takes a media token as ?key=', async () => {
   const { json, request } = fixture();
   const realFetch = globalThis.fetch;
   const fetched: string[] = [];
@@ -166,9 +166,11 @@ test('recipe image: proxies only the stored https imageUrl, sniffs the bytes, ca
   try {
     const { recipeId, mealId } = await json('/api/recipes/import', 'POST', kit({ date: '2026-03-02', slot: 'dinner' }));
     const display = await json('/api/keys', 'POST', { name: 'wall', scope: 'display' });
+    const { token } = await json('/api/media-token', 'GET', undefined, display.key);
     for (const path of [`/api/recipes/${recipeId}/image`, `/api/meals/${mealId}/image`]) {
-      // An <img> sends no header: the key rides as ?key=.
-      const res = await request(`${path}?key=${display.key}&url=https://evil.example/x.jpg`, 'GET', undefined, '');
+      // An <img> sends no header: its media token rides as ?key=.
+      assert.equal((await request(`${path}?key=${display.key}`, 'GET', undefined, '')).status, 401, 'never the full key');
+      const res = await request(`${path}?key=${token}&url=https://evil.example/x.jpg`, 'GET', undefined, '');
       assert.equal(res.status, 200, path);
       assert.equal(res.headers.get('content-type'), 'image/jpeg');
       assert.equal(res.headers.get('cache-control'), 'private, max-age=604800');
@@ -321,7 +323,7 @@ test('recipe steps: title and structured timers import, round-trip and default f
   assert.equal((await request('/api/recipes/import', 'POST', { ...kit(), steps: [{ text: 'x', timers: [{ name: 'Oops', minutes: 0 }] }] })).status, 400);
 });
 
-test('recipe step image: proxies only that step\'s stored imageUrl, numbered from 1, takes ?key=', async () => {
+test('recipe step image: proxies only that step\'s stored imageUrl, numbered from 1, takes a media token as ?key=', async () => {
   const { json, request } = fixture();
   const realFetch = globalThis.fetch;
   const fetched: string[] = [];
@@ -331,7 +333,8 @@ test('recipe step image: proxies only that step\'s stored imageUrl, numbered fro
   try {
     const { recipeId } = await json('/api/recipes/import', 'POST', { ...kit(), steps: [{ text: 'One', imageUrl: 'https://example.com/1.jpg' }, 'Two', { text: 'Three', imageUrl: 'http://example.com/3.jpg' }] });
     const display = await json('/api/keys', 'POST', { name: 'wall', scope: 'display' });
-    const res = await request(`/api/recipes/${recipeId}/steps/1/image?key=${display.key}&url=https://evil.example/x.jpg`, 'GET', undefined, '');
+    const { token } = await json('/api/media-token', 'GET', undefined, display.key);
+    const res = await request(`/api/recipes/${recipeId}/steps/1/image?key=${token}&url=https://evil.example/x.jpg`, 'GET', undefined, '');
     assert.equal(res.status, 200);
     assert.equal(res.headers.get('content-type'), 'image/jpeg');
     assert.deepEqual(new Uint8Array(await res.arrayBuffer()), jpeg);

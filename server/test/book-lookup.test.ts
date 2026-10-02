@@ -63,9 +63,10 @@ test('book search: Open Library through the server, shaped for the reading form'
 });
 
 test('book search: a result thumbnail is fetched by its numeric cover id only', async () => {
-  const { app, env, req } = setup();
+  const { app, env, req, send } = setup();
   const calls = mockFetch(() => new Response(JPEG, { headers: { 'content-type': 'image/jpeg' } }));
-  const res = await app.request(`/api/books/covers/12345?key=${ADMIN_KEY}`, {}, env); // an <img> can't send a header
+  const { token } = (await send('GET', '/api/media-token')).body;
+  const res = await app.request(`/api/books/covers/12345?key=${token}`, {}, env); // an <img> can't send a header: a media token
   assert.equal(res.status, 200);
   assert.equal(res.headers.get('content-type'), 'image/jpeg');
   assert.equal(calls[0], 'https://covers.openlibrary.org/b/id/12345-M.jpg');
@@ -79,7 +80,8 @@ test('reading covers: a public https coverUrl is stored and served through the s
   assert.equal(book.body.data.coverUrl, 'https://covers.example.com/matilda.jpg');
 
   const calls = mockFetch(() => new Response(JPEG, { headers: { 'content-type': 'image/jpeg' } }));
-  const res = await app.request(`/api/trackers/${book.body.id}/cover?key=${ADMIN_KEY}`, {}, env);
+  const { token } = (await send('GET', '/api/media-token')).body;
+  const res = await app.request(`/api/trackers/${book.body.id}/cover?key=${token}`, {}, env);
   assert.equal(res.status, 200);
   assert.equal(res.headers.get('content-type'), 'image/jpeg');
   assert.deepEqual(calls, ['https://covers.example.com/matilda.jpg']);
@@ -114,7 +116,8 @@ test("book lookup and covers work from kids' own devices and wall screens (displ
   for (const [who, key] of Object.entries(keys)) {
     const get = (p: string) => app.request(p, { headers: { Authorization: `Bearer ${key}` } }, env);
     assert.equal((await get('/api/books/search?q=holes')).status, 200, `${who}: search`);
-    assert.equal((await app.request(`/api/books/covers/5?key=${key}`, {}, env)).status, 200, `${who}: thumbnail`);
-    assert.equal((await app.request(`/api/trackers/${book.id}/cover?key=${key}`, {}, env)).status, 200, `${who}: cover`);
+    const { token } = (await (await get('/api/media-token')).json()) as { token: string };
+    assert.equal((await app.request(`/api/books/covers/5?key=${token}`, {}, env)).status, 200, `${who}: thumbnail`);
+    assert.equal((await app.request(`/api/trackers/${book.id}/cover?key=${token}`, {}, env)).status, 200, `${who}: cover`);
   }
 });
