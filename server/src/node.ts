@@ -14,6 +14,7 @@ import { isClaimed, regenerateSetupCode } from './routes/setup.ts';
 import { syncDue } from './sync.ts';
 import { runNotifications } from './notify.ts';
 import { http2Send } from './apns-node.ts';
+import { nodeClientIp } from './ratelimit.ts';
 import { isSupervisorPeer } from './webauthn.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -109,6 +110,9 @@ if (haTimezone) {
 // Requests Home Assistant's Supervisor proxied through ingress, told apart by the connecting
 // address (never a header, which anyone on the add-on's own port could send).
 const viaIngress = new WeakSet<Request>();
+const peerOf = new WeakMap<Request, string | undefined>(); // the socket's remote address, per request
+// TRUST_PROXY=1: a reverse proxy in front sets X-Forwarded-For (see nodeClientIp). Off, headers are ignored.
+const TRUST_PROXY = process.env.TRUST_PROXY === '1';
 
 const env: Env = {
   DB: db,
@@ -132,6 +136,8 @@ const env: Env = {
   ALLOW_PRIVATE_FEED_URLS: process.env.ALLOW_PRIVATE_FEED_URLS,
   ALLOW_PRIVATE_WEBHOOK_URLS: process.env.ALLOW_PRIVATE_WEBHOOK_URLS,
   WEBAUTHN_RP_ID: process.env.WEBAUTHN_RP_ID,
+  SAME_REQUEST: (from, to) => { if (viaIngress.has(from)) viaIngress.add(to); peerOf.set(to, peerOf.get(from)); },
+  CLIENT_IP: (req) => nodeClientIp(peerOf.get(req), req.headers.get('x-forwarded-for'), TRUST_PROXY, viaIngress.has(req)),
   HA_INGRESS: haOptions ? (req) => viaIngress.has(req) : undefined,
   HOST_PORTAL_URL: process.env.HOST_PORTAL_URL,
   REQUIRE_PASSKEY_SETUP: process.env.REQUIRE_PASSKEY_SETUP,
@@ -174,6 +180,7 @@ app.get('*', (c) => {
 
 serve({
   fetch: (req, { incoming }) => {
+    peerOf.set(req, incoming.socket.remoteAddress);
     if (haOptions && isSupervisorPeer(incoming.socket.remoteAddress)) viaIngress.add(req);
     return kinwall.fetch(req);
   },

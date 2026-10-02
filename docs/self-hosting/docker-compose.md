@@ -17,6 +17,7 @@ services:
       # ADMIN_API_KEY: kw_change-me          # else a setup code is logged on first boot
       # GOOGLE_CLIENT_ID: / GOOGLE_CLIENT_SECRET:
       # MS_CLIENT_ID: / MS_CLIENT_SECRET:
+      # TRUST_PROXY: "1"                      # only behind a reverse proxy / Cloudflare Tunnel; see below
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
@@ -28,6 +29,7 @@ services:
 * Set `PUBLIC_URL` to the address people actually use. It matters for OAuth redirects and passkeys.
 * The server runs as the unprivileged `node` user (UID 1000). The container starts as root only to make `/data` writable by that user, then drops privileges; set `user: "1000:1000"` in Compose to skip the root step entirely (then `./data` must already be writable by UID 1000).
 * `/api/health` returns `{ok}` without authentication and is used by the healthcheck. It deliberately doesn't report a version.
+* `TRUST_PROXY: "1"` goes with a reverse proxy (Caddy, nginx, Traefik) or Cloudflare Tunnel in front: without it, per-address limits see only the proxy's address. Publish the port to the proxy only (`ports: ["127.0.0.1:8080:8080"]`); with the port open to clients, `TRUST_PROXY` lets them forge their address. The file as shipped has no proxy, so it leaves this off.
 * The image also has a built-in `HEALTHCHECK`.
 
 Add any other variable from [Configuration](configuration.md) under `environment:`.

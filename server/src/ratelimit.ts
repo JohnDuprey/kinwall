@@ -1,11 +1,33 @@
 // Workers-compatible. Fixed-window attempt counter in the rate_limits table (migration 0016).
 import type { KinwallDb } from './db.ts';
+import type { Env } from './env.ts';
 
 const PRUNE_AFTER_MS = 24 * 60 * 60 * 1000; // windows longer than this would be pruned early
 
-/** Client address as seen behind Cloudflare / a reverse proxy; null on a direct connection. */
-export function clientIp(c: { req: { header(name: string): string | undefined } }): string | null {
-  return c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for')?.split(',')[0].trim() ?? null;
+/**
+ * The caller's address, for per-address limits. The host decides how to find it (`Env.CLIENT_IP`);
+ * a header is only as honest as whoever set it, so nothing here reads X-Forwarded-For on its own.
+ * Without a host resolver (Cloudflare Workers / the hosted Durable Object) it is `cf-connecting-ip`,
+ * which Cloudflare always sets and overwrites. Null when unknown; callers share one bucket then.
+ */
+export function clientIp(c: { req: { raw: Request }; env: Pick<Env, 'CLIENT_IP'> }): string | null {
+  const resolve = c.env?.CLIENT_IP;
+  return resolve ? resolve(c.req.raw) : c.req.raw.headers.get('cf-connecting-ip');
+}
+
+/**
+ * Node's resolver. `remote` is the socket's peer. Ignores every header unless `trustProxy` (one
+ * reverse proxy that appends the peer it saw to X-Forwarded-For): then the right-most entry, the one
+ * our proxy added; anything to its left is whatever the client sent. HA ingress requests come from
+ * the Supervisor, whose headers describe the HA proxy chain, so they count as one address.
+ */
+export function nodeClientIp(remote: string | undefined, xff: string | null, trustProxy: boolean, ingress: boolean): string | null {
+  if (ingress) return 'ingress';
+  if (trustProxy) {
+    const last = xff?.split(',').pop()?.trim();
+    if (last) return last;
+  }
+  return remote?.replace(/^::ffff:/, '') || null;
 }
 
 /** Counts one attempt against `key`; false once more than `max` land within `windowMs`. */

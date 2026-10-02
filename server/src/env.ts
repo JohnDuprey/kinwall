@@ -23,6 +23,8 @@ export type Env = ApnsEnv & {
   VAPID_PRIVATE_KEY?: string;
   WEBAUTHN_RP_ID?: string; // passkey rpID shared by subdomains (multi-tenant hosts); see webauthn.ts
   HA_INGRESS?: (req: Request) => boolean; // Home Assistant app: did the Supervisor's ingress proxy send this request? (node.ts; webauthn.ts)
+  SAME_REQUEST?: (from: Request, to: Request) => void; // a middleware rebuilt a request (hono's bodyLimit reads a chunked body): carry what the host stashed per Request (node.ts: peer, ingress)
+  CLIENT_IP?: (req: Request) => string | null; // the caller's address for per-address rate limits (node.ts: socket peer, X-Forwarded-For only with TRUST_PROXY=1). Unset: cf-connecting-ip, which Cloudflare hosts always set; see ratelimit.ts
   ALLOW_PRIVATE_FEED_URLS?: string; // '1' lets ICS/CalDAV reach LAN hosts (see outbound.ts)
   ALLOW_PRIVATE_WEBHOOK_URLS?: string; // '1' lets webhooks target LAN receivers (Home Assistant add-on sets it)
   REQUIRE_PASSKEY_SETUP?: string; // '1': setup wizard can't skip the passkey (hosts with no other way back in); see routes/setup.ts

@@ -82,7 +82,10 @@ const bodyLimits: MiddlewareHandler = (c, next) => {
   if (c.req.path === '/api/import') return next(); // sets its own (10 MB, routes/data.ts)
   const check = c.req.path === '/api/photos/import' ? photoZipLimit : c.req.path === '/api/plugins' && c.req.method === 'POST' ? pluginZipLimit : defaultLimit;
   const asked = c.req.raw;
-  return check(c, () => { carryRequestKey(asked, c.req.raw); return next(); });
+  return check(c, () => {
+    if (c.req.raw !== asked) { carryRequestKey(asked, c.req.raw); c.env.SAME_REQUEST?.(asked, c.req.raw); }
+    return next();
+  });
 };
 
 export function createApp() {

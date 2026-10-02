@@ -33,6 +33,8 @@ Google sign-in only accepts HTTPS or `localhost` redirect URIs, and passkeys als
 * use Cloudflare Tunnel or Tailscale instead of port forwarding, or
 * finish Google sign-in from `http://localhost:8080` on the server itself.
 
+With a reverse proxy or Cloudflare Tunnel in front, set `TRUST_PROXY=1` (and publish the port only to the proxy, e.g. `127.0.0.1:8080:8080`) so the sign-in attempt limits count each visitor separately instead of lumping everyone behind the proxy together. Don't set it if the port is reachable directly. See [Configuration](../self-hosting/configuration.md).
+
 ## Next
 
 * [Docker Compose](../self-hosting/docker-compose.md) for a compose file with a healthcheck.

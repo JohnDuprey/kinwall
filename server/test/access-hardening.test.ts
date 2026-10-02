@@ -21,7 +21,7 @@ const KINWALL_APP = 'family.kinwall.app:/oauth';
 function setup(overrides: Partial<Env> = { ADMIN_API_KEY: ADMIN_KEY }) {
   const db = openDb(':memory:');
   applyMigrations(db, MIGRATIONS_DIR);
-  const env: Env = { DB: db as unknown as D1Database, PUBLIC_URL: 'https://kinwall.example', ENCRYPTION_KEY: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=', ...overrides };
+  const env: Env = { DB: db as unknown as D1Database, PUBLIC_URL: 'https://kinwall.example', ENCRYPTION_KEY: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=', CLIENT_IP: (req) => req.headers.get('x-forwarded-for'), ...overrides };
   const app = createApp();
   // key: a bearer key, or null for someone who isn't signed in. ip: the address a proxy reports.
   const send = async (method: string, p: string, body?: unknown, key: string | null = ADMIN_KEY, ip?: string) => {

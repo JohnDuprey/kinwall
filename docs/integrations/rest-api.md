@@ -55,7 +55,7 @@ Every error is JSON with a matching HTTP status:
 
 ## Rate limits
 
-General API calls aren't rate-limited. Only credential guessing is:
+General API calls aren't rate-limited. Only credential guessing is. "Per address" is the connection's address; behind a reverse proxy, set `TRUST_PROXY=1` so it's the visitor's address from `X-Forwarded-For` (see [Configuration](../self-hosting/configuration.md)):
 
 | Endpoint | Limit |
 |---|---|
