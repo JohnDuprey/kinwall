@@ -32,7 +32,7 @@ API: `POST /api/members/{id}/check-in` returns `{ date, points, awarded, balance
 
 ## Temp check
 
-A few quick questions at the end of someone's day, above the check-in. A parent turns it on per person in [Settings → Family](../settings/family.md#temp-check) (off by default) and picks which questions they get:
+A few quick questions at the end of someone's day, above the check-in. It's part of **Check-ins & journal** in [Features](../settings/general.md#features): turned off there, Temp check, goal checks and the energy battery are hidden for everyone and their notifications stop; answers are kept. A parent turns it on per person in [Settings → Family](../settings/family.md#temp-check) (off by default) and picks which questions they get:
 
 * **How did you sleep last night?** Five big buttons: 😄 Great, 🙂 Good, 😐 OK, 😕 Poorly, 😫 Terrible.
 * **How are you feeling today?** Pick any: great, good, fine, ok, bad, awful, tired, sore. **Other…** adds their own word; it becomes one of their choices from then on, so it's there next time.
@@ -93,11 +93,11 @@ A list item's **Assign to** field decides whose snapshot it appears in. Items wi
 
 ## Board (everyone)
 
-`GET /api/board?days=` (default 7, max 14) returns the same kind of feed for the whole household instead of one member: every member's events plus untagged ones, open list items due within the range (or overdue) or high/urgent priority regardless of due date, today's chores grouped per member (with an "anyone" group), birthdays and [meals](meals.md) in the range. It's the data behind the calendar's [Board view](calendar.md#board-view). The MCP tool [`get_board`](../integrations/mcp.md) returns the same data.
+`GET /api/board?days=` (default 7, max 14) returns the same kind of feed for the whole household instead of one member: every member's events plus untagged ones, open list items due within the range (or overdue) or high/urgent priority regardless of due date, today's chores grouped per member (with an "anyone" group), birthdays and [meals](meals.md) in the range. A feature that's off comes back empty in the same shape: `chores` while **Chores & points** is off, `items` while **Lists** is off (see [Features](../settings/general.md#features)). It's the data behind the calendar's [Board view](calendar.md#board-view). The MCP tool [`get_board`](../integrations/mcp.md) returns the same data.
 
 ## For assistants
 
-`GET /api/snapshot?member=<id>&range=day|week` (admin and display keys) and the MCP tool [`get_snapshot`](../integrations/mcp.md) return the same data.
+`GET /api/snapshot?member=<id>&range=day|week` (admin and display keys) and the MCP tool [`get_snapshot`](../integrations/mcp.md) return the same data. Here too, `chores` is empty while **Chores & points** is off, `items` (and tomorrow's) while **Lists** is off, and `checkInPoints` is 0 while **Chores & points** or **Check-ins & journal** is off.
 
 ## Not yet
 

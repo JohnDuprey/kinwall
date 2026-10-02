@@ -1107,7 +1107,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       description:
         "One family member's day (range=day) or next 7 days (range=week): greeting, weather (if a location is set), their events plus " +
         "everyone's, their chores, their list items that are due or high/urgent, family birthdays, and (day) tomorrow at a glance. " +
-        'Good for "what does Maya have today?" or "what\'s my week look like?".',
+        'A feature the family turned off (chores, lists, meals) comes back empty. Good for "what does Maya have today?" or "what\'s my week look like?".',
       inputSchema: {
         member: z.string().describe('Member name or id.'),
         range: z.enum(['day', 'week']).optional().describe('day (default) or week.'),
@@ -1134,7 +1134,8 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       title: 'Get the household board',
       description:
         "The household bulletin board: everyone's events plus untagged ones, open list items due soon (or overdue) or high/urgent, " +
-        "today's chores per member, and birthdays, for today through the next `days` days. Good for \"what's coming up for the family?\".",
+        "today's chores per member, and birthdays, for today through the next `days` days. A feature the family turned off (chores, lists, meals) " +
+        'comes back empty. Good for "what\'s coming up for the family?".',
       inputSchema: { days: z.number().int().min(1).max(14).optional().describe('How many days ahead, starting today (default 7).') },
     },
     async ({ days }) => {

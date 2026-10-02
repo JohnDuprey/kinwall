@@ -82,6 +82,32 @@ test('features: meals off drops meals from the Board, a member\'s day and the da
   assert.equal(((await (await request(`/api/meals?from=${today}&to=${today}`)).json()) as any[]).length, 1);
 });
 
+test('features: chores and lists off answer empty on the Board and a member\'s day, in the same shape', async () => {
+  const { request } = setup();
+  await request('/api/settings', 'PATCH', { timezone: 'UTC', checkInPoints: 5 });
+  const bo = (await (await request('/api/members', 'POST', { name: 'Bo', color: '#5ae' })).json()) as any;
+  const today = new Date().toISOString().slice(0, 10);
+  await request('/api/chores', 'POST', { title: 'Feed cat', memberId: bo.id, dueDate: today });
+  const list = (await (await request('/api/lists', 'POST', { name: 'Errands', kind: 'reusable' })).json()) as any;
+  assert.equal((await request(`/api/lists/${list.id}/items`, 'POST', { title: 'Post office', dueDate: today, memberId: bo.id })).status, 201);
+  const board = async () => (await (await request('/api/board')).json()) as any;
+  const snap = async () => (await (await request(`/api/snapshot?member=${bo.id}`)).json()) as any;
+  assert.equal((await board()).chores.length, 1);
+  assert.equal((await board()).items.length, 1);
+  assert.equal((await snap()).chores.length, 1);
+  assert.equal((await snap()).items.length, 1);
+  assert.equal((await snap()).checkInPoints, 5);
+
+  await request('/api/settings', 'PATCH', { features: { ...ALL_ON, chores: false, lists: false } });
+  const b = await board();
+  assert.deepEqual([b.chores, b.items], [[], []]);
+  assert.ok(Array.isArray(b.events) && Array.isArray(b.birthdays), 'the rest is unchanged');
+  const sn = await snap();
+  assert.deepEqual([sn.chores, sn.items, sn.tomorrow.items, sn.checkInPoints], [[], [], [], 0]);
+  // The chores and lists APIs keep answering.
+  assert.equal(((await (await request('/api/chores')).json()) as any[]).length, 1);
+});
+
 test('features: check-in points only while chores and check-ins are both on', async () => {
   const { request } = setup();
   await request('/api/settings', 'PATCH', { timezone: 'UTC', checkInPoints: 5 });
@@ -89,6 +115,7 @@ test('features: check-in points only while chores and check-ins are both on', as
   for (const off of ['chores', 'checkIns'] as const) {
     await request('/api/settings', 'PATCH', { features: { ...ALL_ON, [off]: false } });
     assert.equal((await request(`/api/members/${bo.id}/check-in`, 'POST')).status, 400, off);
+    assert.equal(((await (await request(`/api/snapshot?member=${bo.id}`)).json()) as any).checkInPoints, 0, off);
   }
   await request('/api/settings', 'PATCH', { features: ALL_ON });
   assert.equal(((await (await request(`/api/members/${bo.id}/check-in`, 'POST')).json()) as any).awarded, 5);

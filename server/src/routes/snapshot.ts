@@ -7,7 +7,7 @@ import { hostTimezone } from '../env.ts';
 import { zonedTimeToUtc } from '../recurrence.ts';
 import { BoardSchema, ErrorSchema, SnapshotSchema } from '../schemas.ts';
 import { readMeals } from '../meals.ts';
-import { readSettings } from './settings.ts';
+import { checkInPointsFor, readSettings } from './settings.ts';
 import { eventInstances } from './events.ts';
 import { dueOnDate, type ChoreRow } from './chores.ts';
 import { FLAGGED_OPEN, groupSteps, priorityRankSql, stepsQuery, toItemApi, type ListItemRow, type ListItemStepRow } from './lists.ts';
@@ -77,7 +77,7 @@ snapshotRoutes.openapi(
     method: 'get',
     path: '/api/snapshot',
     tags: ['Snapshot'],
-    summary: "One member's day (or next 7 days): greeting, weather, events, chores, due/important list items, birthdays, and tomorrow at a glance.",
+    summary: "One member's day (or next 7 days): greeting, weather, events, chores, due/important list items, birthdays, and tomorrow at a glance. A feature that's off answers empty in the same shape: no chores while features.chores is off, checkInPoints 0 while features.chores or features.checkIns is off, no items while features.lists is off, no meals while features.meals is off.",
     security: [{ Bearer: [] }],
     request: { query: z.object({ member: z.string(), range: z.enum(['day', 'week']).default('day') }) },
     responses: {
@@ -135,7 +135,8 @@ snapshotRoutes.openapi(
     const completions = new Map(
       ((await db.prepare('SELECT chore_id, date, member_id, status FROM chore_completions WHERE date >= ? AND date <= ?').bind(today, to).all<{ chore_id: string; date: string; member_id: string | null; status: string }>()).results).map((r) => [`${r.chore_id}:${r.date}`, r] as const),
     );
-    const chores = choreDays.flatMap((date) =>
+    // A feature that's off answers empty, in the same shape (settings.features).
+    const chores = !settings.features.chores ? [] : choreDays.flatMap((date) =>
       (choresRes.results as unknown as ChoreRow[])
         .filter((row) => dueOnDate(row, date, tz))
         .map((row) => {
@@ -146,7 +147,7 @@ snapshotRoutes.openapi(
     );
 
     const steps = groupSteps(stepsRes.results as unknown as ListItemStepRow[]);
-    const itemRows = itemsRes.results as unknown as (ListItemRow & { list_name: string; list_emoji: string | null })[];
+    const itemRows = settings.features.lists ? itemsRes.results as unknown as (ListItemRow & { list_name: string; list_emoji: string | null })[] : [];
     const toItem = (r: (typeof itemRows)[number]) => ({ ...toItemApi(r, steps.get(r.id)), listName: r.list_name, listEmoji: r.list_emoji, overdue: !!r.due_date && r.due_date < today });
     const items = itemRows.filter((r) => (r.due_date && r.due_date <= to) || r.priority === 'high' || r.priority === 'urgent').map(toItem);
 
@@ -179,7 +180,7 @@ snapshotRoutes.openapi(
             }
           : null,
       checkedIn: checkInRes.results.length > 0,
-      checkInPoints: settings.checkInPoints,
+      checkInPoints: checkInPointsFor(settings),
     };
     return c.json(body, 200);
   },
@@ -192,7 +193,7 @@ snapshotRoutes.openapi(
     method: 'get',
     path: '/api/board',
     tags: ['Snapshot'],
-    summary: 'Household bulletin board: everyone\'s events, due/important list items, chores, birthdays and borrowed library books due back for the next `days` days.',
+    summary: 'Household bulletin board: everyone\'s events, due/important list items, chores, birthdays and borrowed library books due back for the next `days` days. A feature that\'s off answers empty in the same shape: chores while features.chores is off, items while features.lists is off, meals while features.meals is off, booksDue while features.trackersReading is off.',
     security: [{ Bearer: [] }],
     request: { query: z.object({ days: z.coerce.number().int().min(1).max(14).default(7) }) },
     responses: { 200: { description: 'ok', content: { 'application/json': { schema: BoardSchema } } } },
@@ -241,7 +242,7 @@ snapshotRoutes.openapi(
     const byMember = new Map<string | null, ChoreRow[]>();
     for (const row of dueToday) byMember.set(row.member_id, [...(byMember.get(row.member_id) ?? []), row]);
     const memberById = new Map(members.map((m) => [m.id, m]));
-    const chores = [...byMember.entries()]
+    const chores = !settings.features.chores ? [] : [...byMember.entries()]
       .map(([memberId, rows]) => {
         const m = memberId ? memberById.get(memberId) : undefined;
         return { memberId, name: m?.name ?? null, avatar: m?.avatar ?? null, color: m?.color ?? null, remaining: rows.filter((r) => !completedToday.has(r.id)).length, total: rows.length, pending: rows.filter((r) => pendingToday.has(r.id)).length };
@@ -249,7 +250,7 @@ snapshotRoutes.openapi(
       .filter((c) => c.total > 0);
 
     const steps = groupSteps(stepsRes.results as unknown as ListItemStepRow[]);
-    const itemRows = itemsRes.results as unknown as (ListItemRow & { list_name: string; list_emoji: string | null })[];
+    const itemRows = settings.features.lists ? itemsRes.results as unknown as (ListItemRow & { list_name: string; list_emoji: string | null })[] : [];
     const items = itemRows
       .filter((r) => (r.due_date && r.due_date <= to) || (!r.due_date && (r.priority === 'high' || r.priority === 'urgent')))
       .map((r) => ({ ...toItemApi(r, steps.get(r.id)), listName: r.list_name, listEmoji: r.list_emoji, overdue: !!r.due_date && r.due_date < today }))
