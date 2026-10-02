@@ -364,6 +364,8 @@ export async function syncDue(env: Env, execCtx?: WaitCtx): Promise<void> {
   const deadline = Date.now() + SYNC_TICK_DEADLINE_MS;
   for (const row of results) {
     if (Date.now() > deadline) break;
-    await syncCalendarTick(env, row.id, execCtx);
+    // syncCalendarTick records a sync failure on the calendar; this catches the rest (e.g. a failed
+    // write), so the other calendars still sync. The error's name only: its message can carry data.
+    await syncCalendarTick(env, row.id, execCtx).catch((err) => console.error('calendar sync tick failed:', err instanceof Error ? err.name : 'error'));
   }
 }

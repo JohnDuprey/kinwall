@@ -53,9 +53,8 @@ export function hostTimezone(): string {
 export type WaitCtx = { waitUntil(promise: Promise<unknown>): void };
 
 export function waitUntil(ctx: WaitCtx | undefined, p: Promise<unknown>): void {
-  if (ctx?.waitUntil) {
-    ctx.waitUntil(p);
-  } else {
-    p.catch((err) => console.error('background task failed', err));
-  }
+  // Caught either way: an unhandled rejection under waitUntil fails the invocation that started it
+  // (a Durable Object alarm then reports scriptThrewException) for work that was best effort.
+  const caught = p.catch((err) => console.error('background task failed', err));
+  if (ctx?.waitUntil) ctx.waitUntil(caught);
 }

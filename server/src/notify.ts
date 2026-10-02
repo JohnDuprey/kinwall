@@ -849,23 +849,28 @@ export async function runNotifications(env: Env, now: Date, _execCtx?: WaitCtx):
 
   const windowStart = await getTickWindowStart(env.DB, now);
 
+  // Each part runs on its own: one that throws (a bad row, a sealed value that won't open) is logged
+  // by name, never its data, and the others still run. The window doesn't move past a failed
+  // time-of-day part (`windowed`), so the next tick retries it; each send is claimed once, so nothing repeats.
+  let retry = false;
+  const part = async (name: string, run: () => Promise<unknown>, windowed = false) => {
+    try { await run(); } catch (e) { retry ||= windowed; console.error(`${name} skipped:`, e instanceof Error ? e.name : 'error'); }
+  };
   // Hold reminders at night (on unless the family turned it off): transitions, Live Activities,
   // battery alerts and the morning check-in reminder wait; event and medicine reminders don't.
   const hold = prefs.get('nightHoldReminders') !== 'false' && isNight(prefs.get('quietFrom'), prefs.get('quietTo'), now, tz);
-  await runEventReminders(env, env.DB, now, tz, h12, defaultReminders, subs, hold);
+  await part('event reminders', () => runEventReminders(env, env.DB, now, tz, h12, defaultReminders, subs, hold));
   const features = await readFeatures(env.DB);
-  await runDailySummary(env, env.DB, now, tz, subs, windowStart, features);
-  if (features.chores) await runChoreNudge(env, env.DB, now, tz, subs, windowStart); // Chores turned off: no nudge
-  await runGoalFollowups(env, env.DB, now, tz, windowStart);
-  // Held at night; a sealed answer that won't open (no key) never stops the rest. The error's name only.
-  if (!hold) try { await runBatteryHeadsUp(env, env.DB, now, tz); } catch (e) { console.error('battery heads-up skipped:', e instanceof Error ? e.name : 'error'); }
-  if (!hold) await runLastNightReminders(env, env.DB, now, tz); // held at night
+  await part('daily summary', () => runDailySummary(env, env.DB, now, tz, subs, windowStart, features), true);
+  if (features.chores) await part('chore nudge', () => runChoreNudge(env, env.DB, now, tz, subs, windowStart), true); // Chores turned off: no nudge
+  await part('goal follow-ups', () => runGoalFollowups(env, env.DB, now, tz, windowStart), true);
+  if (!hold) await part('battery heads-up', () => runBatteryHeadsUp(env, env.DB, now, tz)); // held at night
+  if (!hold) await part('last night reminders', () => runLastNightReminders(env, env.DB, now, tz)); // held at night
   if (features.trackersHealth && (await env.DB.prepare("SELECT value FROM settings WHERE key = 'medications'").first<{ value: string }>())?.value === 'true') {
-    // Never let a sealed value that won't open (no key) stop the other reminders; the error's name only, never data.
-    try { await runMedicationReminders(env, env.DB, now, tz, h12); } catch (e) { console.error('medication reminders skipped:', e instanceof Error ? e.name : 'error'); }
+    await part('medication reminders', () => runMedicationReminders(env, env.DB, now, tz, h12));
   }
-  await pruneSentNotifications(env.DB, now);
-  await setTickWindowEnd(env.DB, now);
+  await part('prune', () => pruneSentNotifications(env.DB, now));
+  if (!retry) await setTickWindowEnd(env.DB, now);
 }
 
 // Chore approval (routes/chores.ts), sent right away rather than on the tick: "Leo finished Make
