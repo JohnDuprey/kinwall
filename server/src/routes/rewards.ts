@@ -12,7 +12,7 @@ import { deviceOwner, ownerBlock, requestKey } from '../auth.ts';
 import { notifyChoreApproval } from '../notify.ts';
 import { BALANCE_EXPR, pointTotalsStmt, type PointTotals } from '../stickers.ts';
 import { household, todayInTz, weekStartDate } from './members.ts';
-import { readFeatures } from './settings.ts';
+import { readSettings, rewardsOn } from './settings.ts';
 import { parseMemberIds } from '../calendar-members.ts';
 import { ErrorSchema, RedemptionSchema, RewardInputSchema, RewardSchema, REDEMPTION_STATUSES } from '../schemas.ts';
 
@@ -206,7 +206,7 @@ rewardsRoutes.openapi(
     responses: {
       201: json(z.object({ redemption: RedemptionSchema, balance: z.number() }), 'redeemed'),
       402: json(z.object({ error: z.string(), balance: z.number(), cost: z.number() }), 'not enough points'),
-      403: err("chores are turned off, the reward isn't for this member, or this device belongs to someone else"),
+      403: err("chores or rewards are turned off, the reward isn't for this member, or this device belongs to someone else"),
       404: err('reward or member not found'),
       409: err("the reward's limit for today / this week is used up"),
     },
@@ -217,7 +217,9 @@ rewardsRoutes.openapi(
     const db = c.env.DB;
     const blocked = await ownerBlock(c, memberId);
     if (blocked) return c.json({ error: blocked }, 403);
-    if (!(await readFeatures(db)).chores) return c.json({ error: 'Chores and points are turned off' }, 403);
+    const settings = await readSettings(db);
+    if (!settings.features.chores) return c.json({ error: 'Chores and points are turned off' }, 403);
+    if (!rewardsOn(settings)) return c.json({ error: 'Rewards are turned off' }, 403);
     const reward = await db.prepare('SELECT * FROM rewards WHERE id = ? AND active = 1').bind(id).first<RewardRow>();
     if (!reward) return c.json({ error: 'reward not found' }, 404);
     const totals = await pointTotalsStmt(db, memberId).first<PointTotals>();

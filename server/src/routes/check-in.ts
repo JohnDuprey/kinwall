@@ -8,7 +8,7 @@ import { hostTimezone } from '../env.ts';
 import { emit } from '../bus.ts';
 import { ownerBlock } from '../auth.ts';
 import { balanceOf } from '../stickers.ts';
-import { readSettings } from './settings.ts';
+import { checkInPointsFor, readSettings } from './settings.ts';
 import { startDayFrom } from './medications.ts';
 import { todayInTz } from './members.ts';
 import { ErrorSchema } from '../schemas.ts';
@@ -34,7 +34,7 @@ checkInRoutes.openapi(
     request: { params: z.object({ id: z.string() }) },
     responses: {
       200: { description: 'checked in (awarded is 0 if already done today)', content: { 'application/json': { schema: CheckInResultSchema } } },
-      400: { description: 'daily check-ins are off', content: { 'application/json': { schema: ErrorSchema } } },
+      400: { description: 'daily check-ins are off (no check-in points, or features.chores or features.checkIns off)', content: { 'application/json': { schema: ErrorSchema } } },
       403: { description: 'this device belongs to someone else', content: { 'application/json': { schema: ErrorSchema } } },
       404: { description: 'member not found', content: { 'application/json': { schema: ErrorSchema } } },
     },
@@ -43,7 +43,8 @@ checkInRoutes.openapi(
     const { id } = c.req.valid('param');
     const db = c.env.DB;
     const settings = await readSettings(db);
-    if (!settings.checkInPoints) return c.json({ error: 'Daily check-ins are turned off' }, 400);
+    const checkInPoints = checkInPointsFor(settings); // none while chores and points or check-ins are off
+    if (!checkInPoints) return c.json({ error: 'Daily check-ins are turned off' }, 400);
     const blocked = await ownerBlock(c, id);
     if (blocked) return c.json({ error: blocked }, 403);
     if (!(await db.prepare('SELECT 1 FROM members WHERE id = ?').bind(id).first())) return c.json({ error: 'member not found' }, 404);
@@ -53,7 +54,7 @@ checkInRoutes.openapi(
     // One batch: the check-in row is the once-a-day guard, and the ledger entry follows only a new one.
     // The entry id is fixed per member and day, so an import can't double it either.
     const [inserted] = await db.batch<{ points: number }>([
-      db.prepare('INSERT INTO check_ins (member_id, date, points, at) VALUES (?, ?, ?, ?) ON CONFLICT(member_id, date) DO NOTHING RETURNING points').bind(id, date, settings.checkInPoints, at),
+      db.prepare('INSERT INTO check_ins (member_id, date, points, at) VALUES (?, ?, ?, ?) ON CONFLICT(member_id, date) DO NOTHING RETURNING points').bind(id, date, checkInPoints, at),
       db
         .prepare("INSERT INTO point_entries (id, member_id, amount, reason, ref, at) SELECT ?, member_id, points, 'check_in', date, at FROM check_ins WHERE member_id = ? AND date = ? ON CONFLICT(id) DO NOTHING")
         .bind(`checkin:${id}:${date}`, id, date),

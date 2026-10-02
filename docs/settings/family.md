@@ -46,7 +46,7 @@ API: `transitionReminders` on `GET /api/members` and in `PATCH /api/members/{id}
 
 ### Temp check
 
-Daily questions at the end of the person's [day](../using/snapshot.md#temp-check). Turn on **Temp check**, then choose which questions they get (all on to start):
+Daily questions at the end of the person's [day](../using/snapshot.md#temp-check). Shown while **Check-ins & journal** is on in [Features](general.md#features). Turn on **Temp check**, then choose which questions they get (all on to start):
 
 * **How did you sleep?**
 * **How are you feeling?**
@@ -88,8 +88,9 @@ Also on this tab, admin only:
 |---|---|---|
 | **Late completion credit** | 0%, 25%, 50%, 75%, 100% | 50% |
 | **Streak grace** | 0–3 missed days per rolling week | 1 |
-| **Daily check-in points** | Off, 1, 2, 3, 5, 10 — what reading your day to the end earns, once a day ([daily check-in](../using/snapshot.md#daily-check-in)) | Off |
+| **Daily check-in points** | Off, 1, 2, 3, 5, 10 — what reading your day to the end earns, once a day ([daily check-in](../using/snapshot.md#daily-check-in)); hidden while **Check-ins & journal** is off | Off |
 | **Leaderboard** | on/off — hides the chore leaderboard and rank badges | On |
+| **Rewards** | on/off — kids spend points on rewards you set, with your OK; off hides [Rewards](../using/rewards.md) and refuses requests (`rewardsEnabled`) | On |
 | **Sticker shop** | on/off — hides the sticker book in Activities and refuses purchases when off | On |
 | **Sticker prices** | Free, 50%, 100%, 150% — scales every pack's price | 100% |
 

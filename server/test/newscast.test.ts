@@ -122,6 +122,14 @@ test('newscast: chores grouped per person per day (grown-ups too), rewards, phot
   assert.ok(items.every((i) => Array.isArray(i.reactions)));
 });
 
+test('newscast: rewards stay out while rewards are turned off (rewardsEnabled)', async () => {
+  const t = await setup();
+  await t.sql("INSERT INTO reward_redemptions (id, member_id, title, emoji, cost, status, date, requested_at, given_at) VALUES ('r1', ?, 'Ice cream trip', '🍦', 20, 'given', ?, ?, ?)", t.maya.id, day(-1), at(-2), at(-1, '19'));
+  assert.ok(byKey((await t.feed()).items).has('reward:r1'));
+  await t.send('PATCH', '/api/settings', { rewardsEnabled: false });
+  assert.ok(!byKey((await t.feed()).items).has('reward:r1'));
+});
+
 test('newscast: health, journals, check-ins, goals, medications, messages, rejections, declines and points never appear', async () => {
   const t = await setup();
   const { leo, maya } = t;

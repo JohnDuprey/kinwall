@@ -4,7 +4,7 @@ The **Activities** tab holds things to do on the wall that aren't the family sch
 
 Families can add more activities made by others: see [Activities from others](#activities-from-others).
 
-An admin can turn off **Paint** or **Photos** in **Settings → General** (tap **Change** under **Features**); the Sticker book goes with **Chores & points** or the sticker shop. When all of them are off, the Activities tab is hidden. See [Features](../settings/general.md#features).
+An admin can turn off **Paint** or **Photos** in **Settings → General** (tap **Change** under **Features**); the Sticker book goes with **Chores & points** or the sticker shop. When all of them are off and no [activity from others](#activities-from-others) is on, the Activities tab is hidden. A chore's **Play** link still opens its activity. See [Features](../settings/general.md#features).
 
 ## Paint
 

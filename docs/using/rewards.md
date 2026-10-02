@@ -2,7 +2,7 @@
 
 Rewards are things your family decides chore points can buy: pick the movie, an ice cream trip, 15 minutes of screen time. The short version: **earn points on Chores, spend them on Rewards.** A parent sets rewards up, and each person spends their own [points](chores.md#points-to-spend) on them, or on sticker packs for the [sticker book](activities.md#sticker-book).
 
-Rewards go with **Chores & points**. If an admin turns that off in **Settings → General** (under **Features**), rewards are hidden too and redeeming is refused. Nothing is deleted.
+Rewards go with **Chores & points**, and have their own **Rewards** switch in **Settings → Family → Chores** (`rewardsEnabled`, on by default). If an admin turns either off, Rewards is hidden (the menu item, the Board's reward goals and requests count, rewards in Newscast and reward-request notifications) and redeeming is refused (403). Nothing is deleted.
 
 ## Where to find them
 

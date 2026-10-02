@@ -2,7 +2,7 @@
 
 **Activities → Photos** keeps a small album of family pictures. They show up on the calendar's [Board view](calendar.md#board-view) picture card and, if you choose, in a display's [Night screen slideshow](night.md#screensaver).
 
-An admin can turn off **Photos** in **Settings → General** (tap **Change** under **Features**): Activities → Photos and the Board's picture card are hidden, the photos are kept, and a night screen set to **Family photos** shows nature pictures instead. See [Features](../settings/general.md#features).
+An admin can turn off **Photos** in **Settings → General** (tap **Change** under **Features**): Activities → Photos is hidden and the photos are kept. The Board's picture card shows Google Photos (if it's connected) or nature pictures instead, and a night screen set to **Family photos** shows nature pictures. See [Features](../settings/general.md#features).
 
 ![Photos on the wall iPad](../screenshots/ipad-photos.png)
 

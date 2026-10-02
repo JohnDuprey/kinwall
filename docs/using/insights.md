@@ -2,6 +2,8 @@
 
 Insights turn a person's check-ins into patterns they can see: how they've been sleeping, which feelings come up most, how their goals went, next to what Kinwall already knows (chores done, activity time, books finished, how busy their calendar was). Once there are a few weeks of check-ins, Insights point out connections like "Goals were met more often after good sleep (7 of 9 vs 2 of 8)".
 
+An admin can turn off **Check-ins & journal** in **Settings → General** (tap **Change** under **Features**). That hides Temp check, goal checks, the energy battery, journals and Insights everywhere and stops their notifications; nothing is deleted. See [Features](../settings/general.md#features).
+
 It's built on [Temp check](snapshot.md#temp-check) answers, the [evening goal check](snapshot.md#evening-goal-check) and [journal](journal.md) moods, so it's as private as the journal.
 
 ## Opening Insights

@@ -143,7 +143,7 @@ newscastRoutes.openapi(
     const { days = 7, before } = c.req.valid('query');
     const db = c.env.DB;
     const [setRes, memRes] = await db.batch<unknown>([
-      db.prepare("SELECT key, value FROM settings WHERE key IN ('timezone', 'features', 'newscastNotFeatured')"),
+      db.prepare("SELECT key, value FROM settings WHERE key IN ('timezone', 'features', 'newscastNotFeatured', 'rewardsEnabled')"),
       db.prepare('SELECT id, name, grown_up, birthday FROM members'),
     ]);
     const settings = new Map((setRes.results as { key: string; value: string }[]).map((r) => [r.key, r.value]));
@@ -173,7 +173,8 @@ newscastRoutes.openapi(
     const reads: [string, KinwallStatement][] = [
       ['posts', db.prepare(S.posts).bind(isoFrom, isoTo)],
       ['reactions', db.prepare(S.reactions)],
-      ...(features.chores ? ([['chores', db.prepare(S.chores).bind(from, to)], ['rewards', db.prepare(S.rewards).bind(isoFrom, isoTo)]] as [string, KinwallStatement][]) : []),
+      ...(features.chores ? ([['chores', db.prepare(S.chores).bind(from, to)]] as [string, KinwallStatement][]) : []),
+      ...(features.chores && settings.get('rewardsEnabled') !== 'false' ? ([['rewards', db.prepare(S.rewards).bind(isoFrom, isoTo)]] as [string, KinwallStatement][]) : []),
       ...(features.photos ? ([['photos', db.prepare(S.photos).bind(isoFrom, isoTo)]] as [string, KinwallStatement][]) : []),
       ...(features.trackersReading ? ([['books', db.prepare(S.books).bind(from, to)]] as [string, KinwallStatement][]) : []),
       ...(features.trackersMemories ? ([['memories', db.prepare(S.memories).bind(from, to)]] as [string, KinwallStatement][]) : []),

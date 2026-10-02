@@ -2,6 +2,8 @@
 
 Each person's own place for their days: their [Temp check](snapshot.md#temp-check) answers, how their goals went, and notes they write themselves. It's the start of bullet journaling in Kinwall.
 
+An admin can turn off **Check-ins & journal** in **Settings → General** (tap **Change** under **Features**). That hides Temp check, goal checks, the energy battery, journals and Insights everywhere and stops their notifications; nothing is deleted. See [Features](../settings/general.md#features).
+
 Open it with **Journal** in the menu on a person's own device (under **More** on a phone), **Open the journal** on their [profile](profiles.md), or by tapping the evening goal check push.
 
 ## What's in it

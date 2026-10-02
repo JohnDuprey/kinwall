@@ -941,9 +941,10 @@ export async function runNotifications(env: Env, now: Date, _execCtx?: WaitCtx):
   await part('daily summary', () => runDailySummary(env, env.DB, now, tz, subs, windowStart, features), true);
   if (features.chores) await part('chore nudge', () => runChoreNudge(env, env.DB, now, tz, subs, windowStart), true); // Chores turned off: no nudge
   if (features.trackersReading) await part('library due dates', () => runLibraryDue(env, env.DB, now, tz, windowStart), true);
-  await part('goal follow-ups', () => runGoalFollowups(env, env.DB, now, tz, windowStart), true);
-  if (!hold) await part('battery heads-up', () => runBatteryHeadsUp(env, env.DB, now, tz)); // held at night
-  if (!hold) await part('last night reminders', () => runLastNightReminders(env, env.DB, now, tz)); // held at night
+  // Check-ins turned off: no evening goal check, battery heads-up or morning check-in reminder.
+  if (features.checkIns) await part('goal follow-ups', () => runGoalFollowups(env, env.DB, now, tz, windowStart), true);
+  if (features.checkIns && !hold) await part('battery heads-up', () => runBatteryHeadsUp(env, env.DB, now, tz)); // held at night
+  if (features.checkIns && !hold) await part('last night reminders', () => runLastNightReminders(env, env.DB, now, tz)); // held at night
   if (features.trackersHealth && (await env.DB.prepare("SELECT value FROM settings WHERE key = 'medications'").first<{ value: string }>())?.value === 'true') {
     await part('medication reminders', () => runMedicationReminders(env, env.DB, now, tz, h12));
   }

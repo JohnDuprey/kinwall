@@ -143,6 +143,18 @@ test('evening prompt: once per person per day at their time, to their own device
   }
 });
 
+test('evening prompt: none while the family has check-ins turned off (features.checkIns)', async (t) => {
+  t.after(() => mock.timers.reset());
+  const { env, req, db, maya } = await setup({}, at('18:00'));
+  await req(tc(maya.id), 'PUT', { goal: 'Finish my book report' });
+  const features = (await req('/api/settings')).json.features;
+  assert.equal(features.checkIns, true, 'on by default');
+  await req('/api/settings', 'PATCH', { features: { ...features, checkIns: false } });
+  await runNotifications(env, at('21:02'));
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM notifications WHERE kind = 'goal'").first<{ n: number }>()!.n, 0);
+  assert.equal((await req(tc(maya.id))).json.goal, 'Finish my book report', 'the data and its API stay');
+});
+
 test('evening prompt: still pushed during quiet hours', async (t) => {
   t.after(() => mock.timers.reset());
   const s = await setup({}, at('18:00'));

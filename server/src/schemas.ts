@@ -264,7 +264,7 @@ export const BoardPresetSchema = z
 // on every screen and stops its notifications; its data is kept and its API keeps answering.
 export const FeaturesSchema = z
   .object({
-    chores: z.boolean(), // Chores tab, points, leaderboard, sticker book
+    chores: z.boolean(), // Chores tab, points, rewards, sticker book (the leaderboard, sticker shop and rewards also have their own switches)
     lists: z.boolean(), // Lists tab, "Due soon", an event's linked items
     contacts: z.boolean().default(true), // Contacts tab and household contacts directory; older clients omit it
     paint: z.boolean(), // Activities -> Paint
@@ -277,6 +277,7 @@ export const FeaturesSchema = z
     trackersHealth: z.boolean().default(true),
     meals: z.boolean().default(true), // Meals tab, the Board's meals card, meals in the daily summary
     newscast: z.boolean().default(true), // Home's Newscast tab: GET /api/newscast and its routes answer 404 while off
+    checkIns: z.boolean().default(true), // Temp check, goal checks, the energy battery, journals, Insights: no check-in, goal or battery notifications and no check-in points while off
   })
   .openapi('Features');
 
@@ -330,6 +331,7 @@ export const SettingsSchema = z
     checkInPoints: z.number(), // points for the daily check-in (reading your day to the end); 0 = off
     leaderboardEnabled: z.boolean(), // false: clients hide the leaderboard and rank badges (the API still answers)
     stickersEnabled: z.boolean(), // false: clients hide the sticker book and the shop refuses purchases
+    rewardsEnabled: z.boolean().openapi({ description: 'Kids spend points on rewards (on unless turned off; needs features.chores). Off: clients hide Rewards and reward goals, Newscast leaves rewards out, and a reward request answers 403. Rewards and past requests are kept.' }),
     stickerPriceScale: z.number(), // percent applied to every sticker pack's price; 0 = all free
     location: LocationSchema.nullable(), // for the snapshot's weather; null = no weather
     temperatureUnit: z.enum(['celsius', 'fahrenheit']), // default: fahrenheit for a US location (or US timezone), else celsius
@@ -381,6 +383,7 @@ export const SettingsPatchSchema = z
     checkInPoints: z.union([z.literal(0), z.literal(1), z.literal(2), z.literal(3), z.literal(5), z.literal(10)]).optional(),
     leaderboardEnabled: z.boolean().optional(),
     stickersEnabled: z.boolean().optional(),
+    rewardsEnabled: z.boolean().optional(),
     stickerPriceScale: z.number().int().min(0).max(200).optional(),
     location: LocationSchema.nullable().optional(),
     temperatureUnit: z.enum(['celsius', 'fahrenheit']).optional(),

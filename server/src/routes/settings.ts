@@ -29,6 +29,7 @@ const DEFAULTS: Record<string, string> = {
   checkInPoints: '0',
   leaderboardEnabled: 'true',
   stickersEnabled: 'true',
+  rewardsEnabled: 'true',
   stickerPriceScale: '100',
 };
 
@@ -76,6 +77,7 @@ export async function readSettings(db: KinwallDb) {
     checkInPoints: Number(map.get('checkInPoints') ?? DEFAULTS.checkInPoints),
     leaderboardEnabled: (map.get('leaderboardEnabled') ?? DEFAULTS.leaderboardEnabled) === 'true',
     stickersEnabled: (map.get('stickersEnabled') ?? DEFAULTS.stickersEnabled) === 'true',
+    rewardsEnabled: (map.get('rewardsEnabled') ?? DEFAULTS.rewardsEnabled) === 'true',
     stickerPriceScale: Number(map.get('stickerPriceScale') ?? DEFAULTS.stickerPriceScale),
     location,
     temperatureUnit: (map.get('temperatureUnit') || defaultUnit(location, map.get('timezone'))) as 'celsius' | 'fahrenheit',
@@ -145,7 +147,7 @@ function parseMealTimes(raw: string | undefined): z.infer<typeof MealTimesSchema
 }
 
 export type Features = z.infer<typeof FeaturesSchema>;
-export const DEFAULT_FEATURES: Features = { chores: true, lists: true, contacts: true, paint: true, photos: true, notes: true, messages: true, trackersReading: true, trackersMemories: true, trackersHealth: true, meals: true, newscast: true };
+export const DEFAULT_FEATURES: Features = { chores: true, lists: true, contacts: true, paint: true, photos: true, notes: true, messages: true, trackersReading: true, trackersMemories: true, trackersHealth: true, meals: true, newscast: true, checkIns: true };
 // Saved over the defaults, so a switch added later starts on for families that saved before it existed.
 export function parseFeatures(raw: string | undefined): Features {
   try {
@@ -159,6 +161,10 @@ export function parseFeatures(raw: string | undefined): Features {
     return parsed.success ? parsed.data : DEFAULT_FEATURES;
   } catch { return DEFAULT_FEATURES; }
 }
+/** The points a daily check-in earns: none while chores and points or check-ins are off. */
+export const checkInPointsFor = (s: { checkInPoints: number; features: Features }) => (s.features.chores && s.features.checkIns ? s.checkInPoints : 0);
+/** Rewards are on: their own switch, and chores and points. */
+export const rewardsOn = (s: { rewardsEnabled: boolean; features: Features }) => s.features.chores && s.rewardsEnabled;
 /** Just the feature switches, for the notification ticker and routes that respect them. */
 export async function readFeatures(db: KinwallDb): Promise<Features> {
   const row = await db.prepare("SELECT value FROM settings WHERE key = 'features'").first<{ value: string }>();

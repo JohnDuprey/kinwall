@@ -2,6 +2,8 @@
 
 Some people find a full day hard to keep up with: getting started, switching between things, having enough left for the evening. The energy battery is a rough daily guess at how much energy someone has, from how they slept and felt against what their day asks of them. When a day ahead looks likely to run them low, it gives a gentle heads-up while there's still time to plan a rest or move something.
 
+An admin can turn off **Check-ins & journal** in **Settings → General** (tap **Change** under **Features**). That hides Temp check, goal checks, the energy battery, journals and Insights everywhere and stops their notifications; nothing is deleted. See [Features](../settings/general.md#features).
+
 It's a guide, not a measurement. The numbers are simple weights picked by hand (below), and every number comes with what made it, so you can see when it's wrong and ignore it. The one real measure is the person: each evening it asks **How drained do you feel?**, and after a couple of weeks of answers it adjusts itself to how their days actually feel.
 
 ## Turning it on
