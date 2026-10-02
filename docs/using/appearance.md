@@ -51,7 +51,7 @@ The household picks one for every device under **Appearance**. A device follows 
 
 ## Color schemes
 
-<img src="../screenshots/ipad-schemes.png" width="420" alt="The Color scheme sheet: preview cards grouped as Automatic, Everyday, Modern, Seasons, Holidays and Your schemes" />
+<img src="../screenshots/ipad-schemes.png" width="420" alt="The Color scheme sheet, showing the Modern group with Peacock, the default, selected. Preview cards are grouped as Automatic, Everyday, Modern, Seasons, Holidays and Your schemes" />
 
 A color scheme (a "skin") changes the whole palette: backgrounds, cards, text and accent. The household picks one for every device under **Appearance**. Any device can follow it or pick its own under **Appearance on this device**, so the kitchen wall can use Midnight while phones keep the family's scheme.
 
