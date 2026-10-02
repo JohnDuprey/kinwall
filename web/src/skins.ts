@@ -62,6 +62,9 @@ export const SKINS: Skin[] = [
   { id: 'eucalyptus', name: 'Eucalyptus', emoji: '🍃', // the default look for new families (DEFAULT_SKIN_ID)
     light: { bg: '#EAF2EF', bgAlt: '#DBE8E3', card: '#F9FCFB', border: '#C4D8D0', text: '#13262A', textDim: '#455F62', accent: '#1F6B63' },
     dark: { bg: '#0E1A1A', bgAlt: '#132222', card: '#1A2D2C', border: '#2C4544', text: '#E3EEEC', textDim: '#9EB9B6', accent: '#5CC2B3' } },
+  { id: 'peacock', name: 'Peacock', emoji: '🦚', // the logo's peacock #123857 is the light fill; dark derives its fill from the sky blue
+    light: { bg: '#EEF3F8', bgAlt: '#DFE8F1', card: '#FAFCFE', border: '#C6D5E4', text: '#102A43', textDim: '#4A6078', accent: '#123857' },
+    dark: { bg: '#0B1622', bgAlt: '#101E2D', card: '#16273A', border: '#2A3F57', text: '#E4ECF5', textDim: '#9DB2C8', accent: '#6CB4EE' } },
   { id: 'graphite', name: 'Graphite', emoji: '✏️',
     light: { bg: '#EFF3F8', bgAlt: '#E3E8F0', card: '#FBFDFF', border: '#D1D8E1', text: '#1D2228', textDim: '#535C66', accent: '#D42F37' },
     dark: { bg: '#161A1F', bgAlt: '#1C2127', card: '#252B32', border: '#39404A', text: '#EAEDF1', textDim: '#AEB7C1', accent: '#FC6568' } },
@@ -150,7 +153,7 @@ export function seasonalSkinId(d = new Date()): string {
 export const SCHEME_GROUPS: { label: string; ids: string[] }[] = [
   { label: 'Automatic', ids: ['seasonal'] },
   { label: 'Everyday', ids: ['meadow', 'field', 'ocean', 'lavender', 'midnight'] },
-  { label: 'Modern', ids: ['eucalyptus', 'slate', 'ink', 'sage', 'graphite', 'berry'] },
+  { label: 'Modern', ids: ['eucalyptus', 'peacock', 'slate', 'ink', 'sage', 'graphite', 'berry'] },
   { label: 'Seasons', ids: ['spring', 'summer', 'autumn', 'winter'] },
   { label: 'Holidays', ids: ['harvest', 'festive'] },
 ]
@@ -166,6 +169,7 @@ export const SCHEME_BLURBS: Record<string, string> = {
   ink: 'Crisp navy ink with an orange accent',
   sage: 'Soft sage green with a leafy accent',
   eucalyptus: 'Cool gray-teal with a deep blue-green accent',
+  peacock: 'Deep peacock blue with a sky-blue accent',
   graphite: 'Crisp pencil gray with a red accent',
   berry: 'Soft blueberry tint with a violet accent',
   spring: 'Blossom pink with a fresh green accent',

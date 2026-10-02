@@ -34,3 +34,10 @@ test('Modern schemes are tinted with their color, not plain gray', () => {
     for (const k of ['bg', 'bgAlt', 'border'] as const) assert.ok(chroma(b[k]) >= 8, `${id} ${mode} ${k} ${b[k]} looks gray`)
   }
 })
+
+test('Peacock sits right after Eucalyptus in Modern, with the deep peacock as its light fill', () => {
+  const modern = SCHEME_GROUPS.find(g => g.label === 'Modern')!.ids
+  assert.equal(modern[modern.indexOf('eucalyptus') + 1], 'peacock')
+  const peacock = SKINS.find(s => s.id === 'peacock')!
+  assert.equal(tokensFor(peacock, false).accentStrong, '#123857')
+})

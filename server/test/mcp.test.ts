@@ -533,6 +533,7 @@ test('mcp: every tool declares an output schema, and real results pass it', asyn
   const listed = await call('list_color_schemes');
   assert.equal(listed.current, saved.scheme.id);
   assert.ok(listed.schemes.some((x: any) => x.name === 'Peach' && x.id === 'meadow'));
+  assert.ok(listed.schemes.some((x: any) => x.name === 'Peacock' && x.id === 'peacock'));
   assert.equal((await call('delete_color_scheme', { scheme: 'beach house' })).settings.colorScheme, 'eucalyptus');
   const list = (await call('create_list', { name: 'Groceries', kind: 'shopping', emoji: '🛒' })).list;
   const [item] = (await call('add_list_items', { listName: 'groceries', items: [{ title: 'Milk', store: 'Costco', category: 'Dairy', quantity: '2', eventId: ev.id }] })).items;

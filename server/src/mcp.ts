@@ -179,6 +179,7 @@ const BUILTIN_SCHEMES: { id: string; name: string; emoji: string }[] = [
   { id: 'harvest', name: 'Harvest', emoji: '🎃' }, { id: 'festive', name: 'Festive', emoji: '🎄' },
   { id: 'slate', name: 'Slate', emoji: '🩶' }, { id: 'ink', name: 'Ink', emoji: '🖋️' }, { id: 'sage', name: 'Sage', emoji: '🪴' },
   { id: 'graphite', name: 'Graphite', emoji: '✏️' }, { id: 'berry', name: 'Berry', emoji: '🫐' }, { id: 'eucalyptus', name: 'Eucalyptus', emoji: '🍃' },
+  { id: 'peacock', name: 'Peacock', emoji: '🦚' },
 ];
 
 const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
@@ -1932,7 +1933,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       title: 'List color schemes',
       description:
         "The household's color scheme and every scheme it can use: Seasonal, the built-in schemes (by the name people see, " +
-        'e.g. Eucalyptus is the default, Peach is the warm one and Meadow the green one), and the family\'s own saved schemes with their light and dark palettes.',
+        'e.g. Eucalyptus is the default, Peach is the warm one, Meadow the green one and Peacock the deep blue one), and the family\'s own saved schemes with their light and dark palettes.',
       inputSchema: {},
     },
     async () => {
