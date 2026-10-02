@@ -20,7 +20,7 @@ A shelf per person, with what they're reading first, then what they want to read
 
 ### Library
 
-**Library** (at the top of Reading, next to **Shelves**) is the books your family owns, apart from who's reading what. This device remembers which of the two you were looking at.
+**Library** (a view next to Reading, Memories and Health) is the books your family owns, apart from who's reading what. On a phone, the button at the top switches views, like the home page's.
 
 * Each book shows its cover, author, series and number ("Warriors #1"), the year it came out, its reading level (Lexile, like "660L"), page count and up to three genres (Fantasy, Animals, Mystery…, picked out of Open Library's subjects), and who has read it (✓ read, 📖 reading, ⭐ wants to read), or **Not read yet**. Books in a series sit together in order.
 * **Search** finds titles, authors, series, genres, places and borrowers. **Not read yet** shows the books nobody has started, **Lent out** the ones on loan, and **Anywhere** picks one place.

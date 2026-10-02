@@ -12,7 +12,8 @@ import Library from './Library.tsx'
 import { inkFor } from './color.ts'
 import { todayKeyInTz } from './date.ts'
 import { formatTime } from './timeFormat.ts'
-import { PlusIcon } from './icons.tsx'
+import { CheckIcon, ChevronDown, PlusIcon } from './icons.tsx'
+import { useIsPhone } from './useIsPhone.ts'
 import Sheet from './Sheet.tsx'
 import { preparePhoto, PhotoFormatError } from './photos.ts'
 import type { HealthData, HealthType, Member, MemoryData, Photo, ReadingData, ReadingFormat, ReadingStatus, TrackerEntry, TrackerInput, TrackerKind } from './types.ts'
@@ -23,13 +24,17 @@ import PickField from './PickField.tsx'
 import { forPerson, HEALTH_PERSON_KEY, personIn, startPerson } from './trackerPerson.ts'
 
 // ponytail: TABS, SUB_TO_KIND and trackerKinds() (types.ts, for App's nav) list the kinds in the same order.
-const TABS: { key: TrackerKind; label: string; emoji: string }[] = [
-  { key: 'reading', label: 'Reading', emoji: '📚' },
-  { key: 'memory', label: 'Memories', emoji: '📝' },
-  { key: 'health', label: 'Health', emoji: '🩺' },
+// The views, like the home page's: tabs where they fit, one button and a sheet on a phone (TrackerViewPicker).
+// The library comes with Reading: the family's books, apart from who's reading what (Library.tsx).
+type TrackerView = TrackerKind | 'library'
+const TABS: { key: TrackerView; label: string; emoji: string; hint: string }[] = [
+  { key: 'reading', label: 'Reading', emoji: '📚', hint: "Who's reading what, and how far along" },
+  { key: 'library', label: 'Library', emoji: '📖', hint: 'The books your family owns, and who has them' },
+  { key: 'memory', label: 'Memories', emoji: '📝', hint: 'A family journal, a moment a day' },
+  { key: 'health', label: 'Health', emoji: '🩺', hint: 'Checkups, visits and medicines' },
 ]
-const SUB_TO_KIND: Record<string, TrackerKind> = { reading: 'reading', memories: 'memory', health: 'health' }
-const KIND_TO_SUB: Record<TrackerKind, string> = { reading: 'reading', memory: 'memories', health: 'health' }
+const SUB_TO_VIEW: Record<string, TrackerView> = { reading: 'reading', library: 'library', memories: 'memory', health: 'health' }
+const VIEW_TO_SUB: Record<TrackerView, string> = { reading: 'reading', library: 'library', memory: 'memories', health: 'health' }
 const STATUS: { key: ReadingStatus; label: string }[] = [{ key: 'want', label: 'Want to read' }, { key: 'reading', label: 'Reading' }, { key: 'finished', label: 'Finished' }]
 const HEALTH_TYPES: { key: HealthType; label: string; emoji: string }[] = [
   { key: 'checkup', label: 'Checkup', emoji: '🩺' }, { key: 'dentist', label: 'Dentist', emoji: '🦷' }, { key: 'specialist', label: 'Specialist', emoji: '👩‍⚕️' },
@@ -46,6 +51,31 @@ const isFamily = (e: TrackerEntry) => e.memberId === null && !e.formerMember
 const niceDate = (d: string, withYear = false) => format(new Date(`${d}T12:00:00`), withYear ? 'EEE, MMM d, yyyy' : 'EEE, MMM d')
 const errMsg = (e: unknown, fallback: string) => e instanceof ApiError ? e.message : fallback
 
+/** Phones: the views don't fit as tabs, so one button shows the view and opens a sheet of them (the
+ * home page's ViewPicker, Calendar.tsx). */
+function TrackerViewPicker({ views, value, onChange }: { views: typeof TABS; value: TrackerView; onChange: (v: TrackerView) => void }) {
+  const [open, setOpen] = useState(false)
+  const current = views.find(v => v.key === value) ?? views[0]
+  return (
+    <>
+      <button type="button" className="btn btn-secondary view-pick" aria-haspopup="dialog" aria-label={`View: ${current?.label}`} onClick={() => setOpen(true)}>
+        <span aria-hidden="true">{current?.emoji}</span><span>{current?.label}</span><ChevronDown width={16} height={16} />
+      </button>
+      {open && (
+        <Sheet title="View" onClose={() => setOpen(false)}>
+          <div className="sheet-links">
+            {views.map(v => (
+              <button key={v.key} type="button" className="sheet-link" aria-pressed={v.key === value} onClick={() => { onChange(v.key); setOpen(false) }}>
+                <span className="lib-emoji" aria-hidden="true">{v.emoji}</span><span>{v.label}<small>{v.hint}</small></span>{v.key === value && <CheckIcon className="pick-check" />}
+              </button>
+            ))}
+          </div>
+        </Sheet>
+      )}
+    </>
+  )
+}
+
 export default function Trackers({ sub }: { sub?: string }) {
   const { settings, members, selectedMemberId, refreshTick, toast, parentDevice, focusLocked, meMemberId } = useApp()
   // A kid's own device changes only their entries and the family's (the server refuses the rest).
@@ -57,17 +87,17 @@ export default function Trackers({ sub }: { sub?: string }) {
   const [admin, setAdmin] = useState(false)
   useEffect(() => { api.meStrict().then(me => setAdmin(me.scope === 'admin')).catch(() => setAdmin(false)) }, [])
   const on = trackerKinds(settings)
-  const tabs = TABS.filter(t => on.includes(KIND_TO_SUB[t.key]) && (t.key !== 'health' || admin))
-  const kind = tabs.find(t => t.key === SUB_TO_KIND[sub ?? ''])?.key ?? tabs[0]?.key ?? 'reading'
+  const tabs = TABS.filter(t => on.includes(VIEW_TO_SUB[t.key === 'library' ? 'reading' : t.key]) && (t.key !== 'health' || admin))
+  const view = tabs.find(t => t.key === SUB_TO_VIEW[sub ?? ''])?.key ?? tabs[0]?.key ?? 'reading'
+  const library = view === 'library'
+  const go = (v: TrackerView) => { location.hash = `#/trackers/${VIEW_TO_SUB[v]}` }
+  const kind: TrackerKind = library ? 'reading' : view // the library's readers come from reading entries
+  const isPhone = useIsPhone()
 
   const [entries, setEntries] = useState<TrackerEntry[] | null>(null)
   const [photos, setPhotos] = useState<Photo[]>([])
   const [editing, setEditing] = useState<TrackerEntry | { new: true; date?: string } | null>(null)
-  // Reading: the shelves (who's reading what) or the family's library (books owned); kept on this device.
-  const [readingView, setReadingViewState] = useState<'shelves' | 'library'>(() => { try { return localStorage.getItem('kinwall.readingView') === 'library' ? 'library' : 'shelves' } catch { return 'shelves' } })
-  const setReadingView = (v: 'shelves' | 'library') => { setReadingViewState(v); try { localStorage.setItem('kinwall.readingView', v) } catch { /* not kept */ } }
   const [libAdding, setLibAdding] = useState(false)
-  const library = kind === 'reading' && readingView === 'library'
   const load = () => api.getTrackers(kind).then(setEntries).catch(e => { setEntries([]); toast(errMsg(e, "Couldn't load trackers."), true) })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { setEntries(null); load() }, [kind])
@@ -101,17 +131,15 @@ export default function Trackers({ sub }: { sub?: string }) {
   return (
     <div className="content trackers">
       <div className="trackers-head">
-        <Segmented tabs idBase="trk-tab" label="Tracker" value={kind} onChange={k => { location.hash = `#/trackers/${KIND_TO_SUB[k]}` }}
-          options={tabs.map(t => ({ key: t.key, label: <><span aria-hidden="true">{t.emoji}</span> {t.label}</> }))} />
+        {isPhone
+          ? <TrackerViewPicker views={tabs} value={view} onChange={go} />
+          : <Segmented tabs idBase="trk-tab" label="Tracker" value={view} onChange={go}
+            options={tabs.map(t => ({ key: t.key, label: <><span aria-hidden="true">{t.emoji}</span> {t.label}</> }))} />}
       </div>
-      <div className="trackers-body scroll-y" role="tabpanel" aria-labelledby={`trk-tab-${kind}`}>
+      <div className="trackers-body scroll-y" role="tabpanel" aria-labelledby={isPhone ? undefined : `trk-tab-${view}`} aria-label={isPhone ? tabs.find(t => t.key === view)?.label : undefined}>
         {entries === null ? <div className="state-card">Loading…</div>
-          : kind === 'reading' ? <>
-            <Segmented label="Reading view" className="trk-reading-view" value={readingView} onChange={setReadingView}
-              options={[{ key: 'shelves', label: 'Shelves' }, { key: 'library', label: 'Library' }]} />
-            {library ? <Library adding={libAdding} onAdded={() => setLibAdding(false)} onStarted={load} />
-              : <Reading entries={shown} people={people} canEdit={canEdit} onEdit={setEditing} onSave={save} />}
-          </>
+          : library ? <Library adding={libAdding} onAdded={() => setLibAdding(false)} onStarted={load} />
+          : kind === 'reading' ? <Reading entries={shown} people={people} canEdit={canEdit} onEdit={setEditing} onSave={save} />
           : kind === 'memory' ? <Memories entries={shown} today={today} onEdit={setEditing} onAdd={() => setEditing({ new: true, date: today })} />
           : <Health entries={shown} today={today} onEdit={setEditing} onSave={save} meds={settings.medications} memberId={healthPerson} switcher={
             <div className="field">
