@@ -335,6 +335,15 @@ export const api = {
   // "confirm" screen and Settings (which must fail closed to the display view, not assume admin).
   meStrict: (): Promise<Me> => MOCK ? Promise.resolve({ scope: 'admin', keyName: 'mock', kind: 'api', locked: false, owner: mock.myOwner() }) : get<Me>('api/me'),
 
+  /** The family a key signs in to, before it's stored (a sign-in link asks first, App.tsx
+   * KeyLinkGate): its name; null when this server refuses the key (a setup code, or a key that
+   * no longer works). Throws when the server can't be reached. Any key may read settings. */
+  familyNameFor: async (key: string): Promise<string | null> => {
+    const res = await fetch(apiUrl('api/settings'), { headers: { Authorization: `Bearer ${key}` } })
+    if (res.status === 401 || res.status === 403) return null
+    if (!res.ok) throw new ApiError(res.status, `HTTP ${res.status}`)
+    return ((await res.json()) as Settings).familyName?.trim() ?? ''
+  },
   getSettings: (useAdmin?: boolean) => MOCK ? mock.getSettings() : get<Settings>('api/settings', useAdmin),
   // useAdmin: the setup wizard saves household settings with the in-memory admin key when this
   // device only just claimed a display-scope key (settings PATCH isn't display-allowed).

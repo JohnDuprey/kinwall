@@ -26,7 +26,8 @@ import { PIN_RE, pinWaitMs, pressPinKey } from './quietPin.ts'
 import { inkFor } from './color.ts'
 import { loginWithPasskey, passkeysSupported, registerPasskey } from './webauthn.ts'
 import { announce } from './a11y.tsx'
-import { DialogProvider } from './dialog.tsx'
+import { DialogProvider, useDialog } from './dialog.tsx'
+import { expireSigninCookie, resolveKeyLink, takeKeyLink } from './keyLink.ts'
 import NotificationBell from './Notifications.tsx'
 import { InstallNudge } from './Install.tsx'
 import { inNativeApp, tellAppLeaveDemo, tellAppNight } from './native.ts'
@@ -921,20 +922,55 @@ function Header({ settings, members, selectedMemberId, isAdmin, wall }: {
   )
 }
 
-// Store a key handed over in the URL and strip it. `#key=…` is preferred: browsers never send the
-// fragment, so the key can't reach server/proxy logs; `?key=…` still works for older links. Must
-// run before any effect fires an API call (usePoll's first /api/rev would otherwise 401 without
-// the key and clear it again). Returns the captured key, if any.
-function captureKeyFromUrl(): string | null {
-  const url = new URL(location.href)
-  const fromHash = new URLSearchParams(url.hash.slice(1)).get('key')
-  const k = fromHash ?? url.searchParams.get('key')
-  if (!k) return null
-  setKey(k)
-  url.searchParams.delete('key')
-  if (fromHash) url.hash = ''
-  history.replaceState(null, '', url.pathname + url.search + url.hash)
-  return k
+// A key handed over in the URL (a sign-in or setup link, see keyLink.ts). `#key=…` is preferred:
+// browsers never send the fragment, so the key can't reach server/proxy logs; `?key=…` still works
+// for older links. Out of the address as the app loads, before anything renders or asks.
+const keyLink = MOCK ? null : takeKeyLink(location.href)
+if (keyLink) history.replaceState(null, '', keyLink.url)
+
+/** Asks before a link signs this browser in (keyLink.ts says when it doesn't), naming the family
+ * and the address. Renders the app only once that's settled, with the key it took (`urlKey`,
+ * possibly a setup code) stored before any of the app's API calls (usePoll's first /api/rev
+ * would otherwise 401 without it and clear it again). Cancel leaves the browser as it was. */
+function KeyLinkGate({ children }: { children: (urlKey: string | null) => ReactNode }) {
+  const dialog = useDialog()
+  const [urlKey, setUrlKey] = useState<string | null | undefined>(keyLink ? undefined : null) // undefined: still deciding
+  const started = useRef(false)
+  useEffect(() => {
+    if (!keyLink || started.current) return
+    started.current = true
+    const link = keyLink
+    const ask = async () => {
+      const host = location.host
+      // name: null when refused, undefined when unreachable. A setup code is refused, except a
+      // hosted one, which also works as a key until setup is done.
+      const [name, setup] = await Promise.all([api.familyNameFor(link.key).catch(() => undefined), api.getSetup().catch(() => null)])
+      const replaces = getKey() ? ' This replaces the sign-in this browser has now.' : ''
+      if (setup?.claimed === false) {
+        return dialog.confirm({
+          title: name ? `Set up ${name}?` : 'Set up a new family?',
+          body: <>This link starts setting up Kinwall at <strong>{host}</strong>. Continue only if you were expecting it.{replaces}</>,
+          confirmLabel: 'Continue',
+        })
+      }
+      if (name === null) {
+        await dialog.alert({ title: "This link doesn't work", body: 'It may have expired or already been used. Ask for a new one.' })
+        return false
+      }
+      return dialog.confirm({
+        title: name ? `Sign in to ${name}?` : 'Sign in to this family?',
+        body: <>This link signs this browser in to {name ? <strong>{name}</strong> : 'the family'} at <strong>{host}</strong>. Continue only if you were expecting it.{replaces}</>,
+        confirmLabel: 'Continue',
+      })
+    }
+    resolveKeyLink(link, { current: getKey(), cookies: document.cookie, ask }).then(take => {
+      if (link.from) document.cookie = expireSigninCookie(location.hostname) // used up either way
+      if (take) setKey(link.key)
+      setUrlKey(take ? link.key : null)
+    })
+  }, [dialog])
+  if (urlKey === undefined) return <div className="gate-screen" role="main" />
+  return children(urlKey)
 }
 
 /** Header icon on wall screens: the Night screen now, until a tap or key (QuietOverlay). */
@@ -980,11 +1016,10 @@ if (MOCK) document.documentElement.style.setProperty('--safe-t', 'calc(env(safe-
 // Dialogs (confirm/prompt/alert) are available everywhere, the setup wizard and gates included.
 // Timers ring wherever the app is (Timers.tsx).
 export default function App() {
-  return <DialogProvider><AppRoutes /><TimerHost /></DialogProvider>
+  return <DialogProvider><KeyLinkGate>{urlKey => <AppRoutes urlKey={urlKey} />}</KeyLinkGate><TimerHost /></DialogProvider>
 }
 
-function AppRoutes() {
-  const [urlKey] = useState(captureKeyFromUrl)
+function AppRoutes({ urlKey }: { urlKey: string | null }) {
   const [hasKey, setHasKey] = useState(() => MOCK || !!getKey()) // demo build: no sign-in
   // First-run setup wizard: checked once on mount (not re-checked as hasKey flips mid-wizard,
   // since the wizard itself sets a device key partway through display-role setup but still has

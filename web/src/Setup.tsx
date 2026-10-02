@@ -101,7 +101,7 @@ function StepNav({ onBack, onNext, nextLabel = 'Next', nextDisabled, onSkip, sti
 /** Continue claims the instance for this device, which then makes the passkey: the device you
  * manage Kinwall from. Someone starting on the wall screen gets "start on your phone" instead: a QR
  * that opens setup there (with this code filled in, once typed: `#key=…`, see App.tsx
- * captureKeyFromUrl). Once the phone claims, this screen reloads into the pairing screen. */
+ * KeyLinkGate, which asks on the phone first). Once the phone claims, this screen reloads into the pairing screen. */
 function WelcomeStep({ code, setCode, busy, error, onNext }: { code: string; setCode: (v: string) => void; busy: boolean; error: string; onNext: () => void }) {
   const [hint, setHint] = useState(false)
   const [wallFirst, setWallFirst] = useState(false)

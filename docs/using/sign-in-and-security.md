@@ -26,6 +26,15 @@ A device without a key shows **Welcome home 👋** with these options:
 
 Passkey sign-in attempts are rate-limited to 20 per 10 minutes per address.
 
+### Sign-in and setup links
+
+A link ending in `#key=…` (older links: `?key=…`) carries a key or a setup code. Kinwall takes the key out of the address as soon as the page opens, then asks before using it: **Sign in to Our Family?**, with the family's name and the address it signs in to, and **Continue** or **Cancel**. A setup code for a family nobody has set up yet asks **Set up a new family?** instead (**Set up Our Family?** when the host already named it), and a key that no longer works says so and is dropped.
+
+* **Cancel** leaves the browser as it was, still signed in to whatever it was signed in to before. **Continue** replaces that sign-in, and the question says so when there is one.
+* Anyone can make such a link for their own family, so only continue when you were expecting it. Otherwise what you add (events, a connected Google calendar) would go to their family, not yours.
+* A link with the key this browser already has changes nothing, so it doesn't ask (a kiosk browser that reopens its start address).
+* A hosted service's own sign-in page can mark the link it just made in the same browser. That link doesn't ask: the page sets a cookie, readable for 60 seconds by the family's address, whose SHA-256 the link carries as `&from=…`, and Kinwall continues without asking only when the two match, then deletes the cookie. A self-hosted server never sets it, so every link there asks once.
+
 ## Passkeys
 
 **Settings → Access → Passkeys**:

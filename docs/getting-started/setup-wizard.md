@@ -38,5 +38,5 @@ The last step lists how to put Kinwall on the wall: open the address in the brow
 * Claim attempts are rate-limited (10 per hour).
 * Errors are in plain words ("You're offline", "This Kinwall is already set up"), never the server's own messages. Connecting a calendar still says why a link or login was refused.
 * The wizard remembers its step across the Google/Outlook sign-in redirect, and across a reload once the device is claimed, so setup continues where it was instead of opening an empty app. It stores only the step, the device role and the wall display's key ID, never a key.
-* A host can pass the setup code in the URL as `#key=…` to skip the code-entry step.
+* A host can pass the setup code in the URL as `#key=…` to skip the code-entry step. Opening such a link asks **Set up a new family?** first (the same goes for the wall screen's **Start on your phone** code); see [Sign-in and setup links](../using/sign-in-and-security.md#sign-in-and-setup-links).
 * A host that sets `REQUIRE_PASSKEY_SETUP=1` can read `hasPasskey` from `GET /api/setup` to know when it's safe to retire the setup link.
