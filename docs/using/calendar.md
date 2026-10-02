@@ -4,6 +4,8 @@
 
 ![Board view on the wall iPad](../screenshots/ipad-board.png)
 
+**A calendar that stops syncing:** on a parent's device, Home shows a warning at the top ("⚠️ The Work calendar isn't syncing") when a connected calendar's last sync failed, or an imported one still needs reconnecting. **Repair the connection** opens Settings → Calendars, where the calendar shows what went wrong. The warning goes away once it syncs again. Wall screens and kids' devices don't show it.
+
 ## Views
 
 Home has four tabs at the top: **Board**, **Calendar**, **Schedule** and **Newscast**. Tap **Calendar** and it opens out, right beside it, into **Day**, **Week** and **Month**; the one you're on is tinted and underlined. Calendar opens the view you used last on that device (Week the first time), and tapping it again while it's open keeps that view. Board, Schedule and Newscast fold it back up. **Newscast** goes when the family turns it off in [Features](../settings/general.md#features).

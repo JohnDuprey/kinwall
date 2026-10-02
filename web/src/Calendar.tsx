@@ -117,7 +117,7 @@ export default function CalendarView() {
   const [detail, setDetail] = useState<EventInstance | null>(null)
   const [editState, setEditState] = useState<{ event: EventInstance | null; prefill?: Partial<EventInstance> } | null>(null)
 
-  useEffect(() => { api.getCalendars().then(setCalendars).catch(() => {}) }, [])
+  useEffect(() => { api.getCalendars().then(setCalendars).catch(() => {}) }, [refreshTick]) // refreshed, so a repaired calendar's warning goes away
   // Which calendars this device may add to / change (the server decides: canEditEvents). A kid's
   // device (pinned to a member) gets only calendars that are for them; with none, adding gives way
   // to a hint. Other devices can still start a Kinwall-only calendar when there's no local one.
@@ -379,6 +379,7 @@ export default function CalendarView() {
     <div className="content">
       {showNowNext && <NowNextCard events={todayEvents} tz={tz} placeholder={isPhone} warnMinutes={warnTimes} />}
       {warnTimes.length > 0 && <TransitionWarnings events={todayEvents} minutes={warnTimes} sound={!!device.warningSound} settings={settings} />}
+      {parentDevice && <SyncAlert calendars={calendars} />}
       {(!device.lockView || calendarish || (viewMode === 'board' && categories.length > 0)) && <div className={`calendar-toolbar ${!device.lockView && !isPhone && tabOf(viewMode) === 'calendar' ? 'cal-open' : ''}`}>
         {!device.lockView && (
           isPhone ? <ViewPicker value={viewMode} newscast={newscastOn} onChange={pickView} /> : <ViewTabs value={viewMode} origin={dayFrom} newscast={newscastOn} onChange={pickView} />
@@ -983,6 +984,20 @@ function EventDetailSheet({ event, members, categories, calendars, canEdit, tz, 
         {parent && <HideSection event={event} calendar={calendars.find(c => c.id === event.calendarId)} onHide={onHide} onUnhide={onUnhide} onHideLike={onHideLike} />}
       </div>
     </Sheet>
+  )
+}
+
+/** Parents' devices: calendars that stopped syncing (the last sync failed, or an imported one was
+ * never reconnected), so someone repairs the connection before the board quietly goes stale. */
+function SyncAlert({ calendars }: { calendars: CalendarEntry[] }) {
+  const broken = calendars.filter(c => c.enabled && c.kind !== 'local' && (c.lastError || c.needsReconnect))
+  if (!broken.length) return null
+  const names = broken.map(c => c.name)
+  return (
+    <div className="sync-alert" role="status">
+      <span aria-hidden="true">⚠️</span>
+      <span>{broken.length === 1 ? `The ${names[0]} calendar isn't syncing` : `${broken.length} calendars aren't syncing: ${names.join(', ')}`}. <a className="text-link" href="#/settings?tab=calendars">Repair the connection</a></span>
+    </div>
   )
 }
 
