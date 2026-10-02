@@ -1,3 +1,4 @@
+import type { Features } from './types.ts'
 // Board layouts (Board.tsx): which cards a screen shows, in which column, how much of the column's
 // height each takes and how big its text is. A screen shows the default arrangement (boardAreas in
 // boardFit.ts), a preset (built in, or one a parent saved for the family: settings.boardPresets),
@@ -145,4 +146,6 @@ export function setColumnCount(l: BoardLayout, n: number): BoardLayout {
   cols[n - 1] = [...cols[n - 1], ...l.columns.slice(n).flat()].slice(0, MAX_PER_COLUMN)
   return { ...l, columns: cols }
 }
+/** A card whose feature is on (Settings → Features): Meals, Due soon and Chores go with theirs. */
+export const cardOn = (id: BoardCardId, f: Pick<Features, 'meals' | 'lists' | 'chores'>) => id === 'meals' ? f.meals : id === 'due' ? f.lists : id === 'chores' ? f.chores : true
 export const unplaced = (l: BoardLayout) => BOARD_CARDS.filter(id => !l.columns.some(col => col.some(x => x.id === id)))

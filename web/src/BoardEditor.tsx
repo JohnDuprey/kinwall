@@ -9,7 +9,7 @@ import { useApp } from './AppContext.tsx'
 import { useDialog } from './dialog.tsx'
 import { setDeviceAppearance, useDeviceAppearance, type DeviceAppearance } from './useTheme.ts'
 import {
-  addCard, BUILT_IN_PRESETS, CARD_DENSITIES, CUSTOM, layoutFor, MAX_PRESETS, CARD_NAMES, CARD_SIZES, DEFAULT_LAYOUT, DENSITY_NAMES, MAX_COLUMNS, MAX_PER_COLUMN, moveCard,
+  addCard, BUILT_IN_PRESETS, cardOn, CARD_DENSITIES, CUSTOM, layoutFor, MAX_PRESETS, CARD_NAMES, CARD_SIZES, DEFAULT_LAYOUT, DENSITY_NAMES, MAX_COLUMNS, MAX_PER_COLUMN, moveCard,
   normalizeLayout, removeCard, setColumnCount, SIZE_NAMES, unplaced, updateCard, type BoardLayout, type BoardPreset, type CardDensity,
   type CardSize, type Spot,
 } from './boardLayout.ts'
@@ -36,6 +36,8 @@ export default function BoardEditor({ title, start, name: startName, presets, on
   onDelete?: () => void
 }) {
   const [layout, setLayout] = useState(start)
+  const { settings } = useApp()
+  const addable = unplaced(layout).filter(id => cardOn(id, settings.features)) // nothing for a feature that's off
   const [name, setName] = useState(startName ?? '')
   const [drag, setDrag] = useState<Drag | null>(null)
   const cols = useRef<HTMLDivElement>(null)
@@ -171,7 +173,7 @@ export default function BoardEditor({ title, start, name: startName, presets, on
         ))}
       </div>
 
-      {unplaced(layout).length > 0 && (
+      {addable.length > 0 && (
         <div className="device-pref-row board-editor-add">
           <span>Add a card</span>
           <select className="settings-select" aria-label="Add a card" value="" onChange={e => {
@@ -181,7 +183,7 @@ export default function BoardEditor({ title, start, name: startName, presets, on
             setLayout(next); announce(`${CARD_NAMES[id]} added`)
           }}>
             <option value="" disabled>Choose…</option>
-            {unplaced(layout).map(id => <option key={id} value={id}>{CARD_NAMES[id]}</option>)}
+            {addable.map(id => <option key={id} value={id}>{CARD_NAMES[id]}</option>)}
           </select>
         </div>
       )}

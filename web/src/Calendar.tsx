@@ -124,7 +124,7 @@ export default function CalendarView() {
   const kidDevice = focusLocked && !!meMemberId
   // Temp check: the goal of the one person this calendar is about (pinned, filtered, or their own device).
   const goalMember = focusMemberId ?? selectedMemberId ?? meMemberId
-  const goalText = calendarGoal(members, goalMember)
+  const goalText = settings.features.checkIns ? calendarGoal(members, goalMember) : null
   const goalLine = goalText ? { name: members.find(m => m.id === goalMember)?.name ?? '', goal: goalText } : null
   const editableCalendars = calendars.filter(c => c.writable && c.enabled && c.canEditEvents !== false)
   const offerNewLocal = !kidDevice && !calendars.some(c => c.kind === 'local' && c.writable)

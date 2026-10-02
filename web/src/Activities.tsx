@@ -17,9 +17,9 @@ const ACTIVITIES = [
   { key: 'photos', title: 'Photos', blurb: 'Family pictures for the board and the screensaver', Icon: ImagesIcon, color: '#7ED9A6' },
 ] as const
 
-/** The activities this family has on: Paint and Photos have their own feature switches; the sticker
- * book needs chore points and its own switch. None left = no Activities tab (App.tsx). Rewards
- * are their own screen (#/rewards), not an activity. */
+/** The built-in activities this family has on: Paint and Photos have their own feature switches;
+ * the sticker book needs chore points and its own switch. None left and no added activity on = no
+ * Activities tab (App.tsx). Rewards are their own screen (#/rewards), not an activity. */
 export function shownActivities(s: Settings) {
   return ACTIVITIES.filter(a => a.key === 'stickers' ? s.features.chores && s.stickersEnabled : s.features[a.key])
 }

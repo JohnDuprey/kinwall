@@ -17,6 +17,7 @@ import { useIsPhone } from './useIsPhone.ts'
 import { goalsThisWeek } from './journal.ts'
 import { birthdayText, chartLabels, compareText, duration, periodWord, WEEKDAYS } from './profile.ts'
 import type { ChoreDay, Member, MemberStats, StatsPeriod } from './types.ts'
+import { rewardsOn } from './types.ts'
 
 const PERIODS: { key: StatsPeriod; label: string }[] = [
   { key: 'today', label: 'Today' }, { key: 'week', label: 'Week' }, { key: 'month', label: 'Month' }, { key: 'year', label: 'Year' }, { key: 'all', label: 'All time' },
@@ -125,7 +126,7 @@ function ProfileBody({ member, s }: { member: Member; s: MemberStats }) {
         </>}
         {books && <Tile label="Books finished" value={String(s.books.finished)} note={[s.books.pages ? plural(s.books.pages, 'page') : '', s.books.minutesListened ? `${hoursMinutes(s.books.minutesListened)} listened` : ''].filter(Boolean).join(' · ') || word} />}
         {f.chores && <Tile label="Streak" value={<>🔥 {s.streak.current} <small>{s.streak.current === 1 ? 'day' : 'days'}</small></>} note={`Best ever: ${plural(s.streak.best, 'day')}`} />}
-        {(settings.checkInPoints > 0 || s.checkIns > 0) && <Tile label="Check-ins" value={<>☀️ {s.checkIns}</>} note={word} />}
+        {f.chores && f.checkIns && (settings.checkInPoints > 0 || s.checkIns > 0) && <Tile label="Check-ins" value={<>☀️ {s.checkIns}</>} note={word} />}
       </div>
       <div className="profile-grid">
         {f.chores && <ChoresCard member={member} s={s} />}
@@ -156,8 +157,8 @@ function ProfileBody({ member, s }: { member: Member; s: MemberStats }) {
           </section>
         )}
         {parentDevice && f.chores && <WaitingCard member={member} />}
-        {(parentDevice || meMemberId === member.id) && <JournalCard member={member} />}
-        {(parentDevice || meMemberId === member.id) && <InsightsCard member={member} />}
+        {f.checkIns && (parentDevice || meMemberId === member.id) && <JournalCard member={member} />}
+        {f.checkIns && (parentDevice || meMemberId === member.id) && <InsightsCard member={member} />}
         {settings.medications && (parentDevice || meMemberId === member.id) && <MedicationsCard member={member} />}
       </div>
     </>
@@ -245,14 +246,15 @@ function Chart({ values, labels, color, label }: { values: number[]; labels: str
 }
 
 function PointsCard({ member, s, word }: { member: Member; s: MemberStats; word: string }) {
+  const rewards = rewardsOn(useApp().settings)
   const max = Math.max(1, s.pointsEarned, s.pointsSpent.stickers, s.pointsSpent.rewards)
-  const goal = member.rewardGoal
+  const goal = rewards ? member.rewardGoal : null
   return (
     <section className="board-card profile-card" aria-labelledby="pf-points">
       <h3 id="pf-points" className="snap-heading">Points <span>{word}</span></h3>
       <Bar label="Earned" value={s.pointsEarned} max={max} text={s.pointsEarned.toLocaleString()} />
       <Bar label="Stickers" value={s.pointsSpent.stickers} max={max} text={s.pointsSpent.stickers.toLocaleString()} color="var(--accent)" />
-      <Bar label="Rewards" value={s.pointsSpent.rewards} max={max} text={s.pointsSpent.rewards.toLocaleString()} color="var(--prio-high)" />
+      {rewards && <Bar label="Rewards" value={s.pointsSpent.rewards} max={max} text={s.pointsSpent.rewards.toLocaleString()} color="var(--prio-high)" />}
       {goal ? (
         <a className="profile-goal" href={`#/rewards/${member.id}`}>
           <span className="profile-goal-emoji" aria-hidden="true">{goal.emoji ?? '🎁'}</span>
@@ -295,12 +297,13 @@ function BooksCard({ s }: { s: MemberStats }) {
 
 /** Parent devices only: this person's chores and rewards waiting for an OK. */
 function WaitingCard({ member }: { member: Member }) {
-  const { refreshTick } = useApp()
+  const { refreshTick, settings } = useApp()
+  const rewards = rewardsOn(settings)
   const [counts, setCounts] = useState<[number, number] | null>(null)
   useEffect(() => {
-    Promise.all([api.getPendingApprovals(), api.getRedemptions({ memberId: member.id, status: 'pending' })])
+    Promise.all([api.getPendingApprovals(), rewards ? api.getRedemptions({ memberId: member.id, status: 'pending' }) : []])
       .then(([c, r]) => setCounts([c.filter(x => x.memberId === member.id).length, r.length])).catch(() => setCounts(null))
-  }, [member.id, refreshTick])
+  }, [member.id, refreshTick, rewards])
   if (!counts || counts[0] + counts[1] === 0) return null
   return (
     <section className="board-card profile-card" aria-labelledby="pf-waiting">

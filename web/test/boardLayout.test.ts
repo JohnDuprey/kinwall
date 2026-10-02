@@ -2,7 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  addCard, BUILT_IN_PRESETS, CUSTOM, layoutAreas, layoutFor, MAX_PER_COLUMN, moveCard, normalizeLayout, removeCard, rowSpans,
+  addCard, BUILT_IN_PRESETS, cardOn, CUSTOM, layoutAreas, layoutFor, MAX_PER_COLUMN, moveCard, normalizeLayout, removeCard, rowSpans,
   setColumnCount, unplaced, updateCard, type BoardLayout,
 } from '../src/boardLayout.ts'
 
@@ -66,4 +66,11 @@ test('editing: move, add, remove, resize, column count', () => {
   assert.deepEqual(l.columns.map(col => col.map(x => x.id)), [['meals', 'coming', 'today']], 'fewer: the cards move over')
   const full = L(true, Array(MAX_PER_COLUMN).fill('x').map((_, i) => ['clock', 'today', 'meals', 'photo', 'coming', 'due'][i]), ['chores'])
   assert.equal(moveCard(full, { col: 1, i: 0 }, { col: 0, i: 0 }), full, 'a full column takes no more')
+})
+
+test('cardOn: Meals, Due soon and Chores go with their features; the picture card stays', () => {
+  const off = { meals: false, lists: false, chores: false }
+  assert.deepEqual(unplaced({ tiles: true, columns: [] }).filter(id => !cardOn(id, off)), ['meals', 'due', 'chores'])
+  assert.equal(cardOn('photo', off), true)
+  assert.equal(cardOn('meals', { ...off, meals: true }), true)
 })

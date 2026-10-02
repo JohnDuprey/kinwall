@@ -5,7 +5,7 @@ import { api, clearKey, getKey, onSynced, setAdminKey, setKey, useOffline, usePo
 import { dayStartDue } from './medications.ts'
 import { AppContext, useApp } from './AppContext.tsx'
 import type { Category, Member, Settings } from './types.ts'
-import { trackerKinds } from './types.ts'
+import { rewardsOn, trackerKinds } from './types.ts'
 import { BookIcon, MoreIcon, BrushIcon, HomeIcon, ChoreIcon, CloudOffIcon, GiftIcon, ListIcon, MealIcon, MoonIcon, PersonIcon, SettingsIcon } from './icons.tsx'
 import CalendarView from './Calendar.tsx'
 import Chores from './Chores.tsx'
@@ -66,23 +66,26 @@ const NAV_ITEMS = [
 type NavItem = { key: string; href: string; label: string; Icon: (p: object) => ReactNode }
 
 /** The nav items this family has on (Settings → Features); Activities goes when every activity is
- * off, and Rewards goes with chores and points. A member's own device gets "Me" (their profile)
- * after Chores, so it stays on a phone's bottom bar. */
-function navItems(s: Settings, me?: Member | null): NavItem[] {
-  const items: NavItem[] = NAV_ITEMS.filter(i => i.key === 'chores' || i.key === 'rewards' ? s.features.chores : i.key === 'lists' ? s.features.lists : i.key === 'contacts' ? s.features.contacts : i.key === 'meals' ? s.features.meals : i.key === 'trackers' ? trackerKinds(s).length > 0 : i.key === 'activities' ? shownActivities(s).length > 0 : true)
+ * off and no added activity (`plugins`) is on, and Rewards goes with its own switch or with chores
+ * and points. A member's own device gets "Me" (their profile) after Chores, so it stays on a
+ * phone's bottom bar, and "Journal" while check-ins are on. */
+function navItems(s: Settings, me?: Member | null, plugins = false): NavItem[] {
+  const items: NavItem[] = NAV_ITEMS.filter(i => i.key === 'chores' ? s.features.chores : i.key === 'rewards' ? rewardsOn(s) : i.key === 'lists' ? s.features.lists : i.key === 'contacts' ? s.features.contacts : i.key === 'meals' ? s.features.meals : i.key === 'trackers' ? trackerKinds(s).length > 0 : i.key === 'activities' ? shownActivities(s).length > 0 || plugins : true)
   if (me) items.splice((items.findIndex(i => i.key === 'chores') + 1) || 1, 0, { key: 'profile', href: `#/profile/${me.id}`, label: 'Me', Icon: () => <span className="nav-me" aria-hidden="true">{me.avatar || me.name[0]}</span> })
   // Their journal, just before Settings: on a phone it sits under More, so the everyday tabs keep their place.
-  if (me) items.splice(items.findIndex(i => i.key === 'settings'), 0, { key: 'journal', href: `#/journal/${me.id}`, label: 'Journal', Icon: () => <span className="nav-me" aria-hidden="true">📓</span> })
+  if (me && s.features.checkIns) items.splice(items.findIndex(i => i.key === 'settings'), 0, { key: 'journal', href: `#/journal/${me.id}`, label: 'Journal', Icon: () => <span className="nav-me" aria-hidden="true">📓</span> })
   return items
 }
 
 /** Where to send a link to a screen whose feature is off (a bookmark, a push, an old tab), or one
- * that moved, or null. */
-function featureRedirect(s: Settings, section: string, sub: string | undefined): string | null {
+ * that moved, or null. `plugins`: an added activity is on (null while that's not known yet). */
+function featureRedirect(s: Settings, section: string, sub: string | undefined, plugins: boolean | null = null): string | null {
   if (section === 'activities' && sub === 'rewards') return '#/rewards' // rewards used to be an activity
   if (section === 'medications' && !s.medications) return '#/calendar'
+  if ((section === 'journal' || section === 'insights') && !s.features.checkIns) return '#/calendar'
+  if (section === 'activities' && sub === 'plugin') return null // an activity chore's play link works whatever else is on
   if (section === 'chores' || section === 'rewards' || section === 'lists' || section === 'contacts' || section === 'meals' || section === 'trackers' || section === 'activities') {
-    if (!navItems(s).some(i => i.key === section)) return '#/calendar'
+    if (!navItems(s, null, plugins !== false).some(i => i.key === section)) return '#/calendar'
     if (section === 'trackers') { const on = trackerKinds(s); return sub && !on.includes(sub) && !(sub === 'library' && on.includes('reading')) ? `#/trackers/${on[0]}` : null } // the library comes with Reading
     if (sub && section === 'activities' && sub !== 'plugin' && !shownActivities(s).some(a => a.key === sub)) return '#/activities'
   }
@@ -253,7 +256,7 @@ function QuietOverlay({ settings, wall, remote }: { settings: Settings; wall: bo
   const activate = () => { setManual(''); if (pinLocked.current) setKeypad(true); else wake() }
   // Photos turned off (Settings → Features) or Google Photos not ready: the other picks, or nature pictures.
   const night = { ...device, ...nightFieldsFor(device, settings.nightLook) } // this screen's own, or the family's
-  const sources = nightSources(night.saverSources ?? [], { photos: settings.features.photos, googlePhotos: settings.googlePhotos })
+  const sources = nightSources(night.saverSources ?? [], { photos: settings.features.photos, paint: settings.features.paint, googlePhotos: settings.googlePhotos })
   const fixed = night.clockPos && CLOCK_SPOTS[night.clockPos]
   const corners = sources.length > 0 // over a slideshow the small clock keeps to the corners
   useEffect(() => {
@@ -1191,13 +1194,21 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
     api.dayStarted(dayOwner).then(() => { try { localStorage.setItem(DAY_STARTED_KEY, today) } catch { /* as above */ } }).catch(() => { /* next refresh tries again */ })
   }, [medsOn, parentDevice, dayOwner, dayOwnerGrownUp, pollTick, manualTick])
   const choresOn = !!settings?.features.chores
+  const rewardsShown = !!settings && rewardsOn(settings)
   useEffect(() => {
     if (!parentDevice || !choresOn) { setToApprove(0); setRewardRequests(0); return }
     // Chores and rewards waiting for an OK (approved rewards not given yet don't count: nothing to decide).
-    Promise.all([api.getPendingApprovals(), api.getRedemptions({ status: 'pending' })])
+    Promise.all([api.getPendingApprovals(), rewardsShown ? api.getRedemptions({ status: 'pending' }) : []])
       .then(([c, r]) => { setToApprove(c.length + r.length); setRewardRequests(r.length) }).catch(() => { /* keep the last count */ })
-  }, [parentDevice, choresOn, areaTicks.chores, manualTick])
-  const redirect = settings && featureRedirect(settings, section, sub)
+  }, [parentDevice, choresOn, rewardsShown, areaTicks.chores, manualTick])
+  // With Paint, Photos and the sticker book all off, Activities stays while an added activity is on.
+  const builtInActivities = !settings || shownActivities(settings).length > 0
+  const [pluginsOn, setPluginsOn] = useState<boolean | null>(null)
+  useEffect(() => {
+    if (!hasKey || builtInActivities) return
+    api.getPlugins().then(l => setPluginsOn(l.some(p => p.enabled))).catch(() => { /* keep what we knew */ })
+  }, [hasKey, builtInActivities, pollTick, manualTick])
+  const redirect = settings && featureRedirect(settings, section, sub, pluginsOn)
   useEffect(() => { if (redirect) location.replace(redirect) }, [redirect])
   const tabLabel = section === 'profile' ? 'Profile' : section === 'journal' ? 'Journal' : section === 'insights' ? 'Insights' : section === 'medications' ? 'Medicines' : section === 'activities' && sub === 'paint' ? 'Paint' : section === 'activities' && sub === 'stickers' ? 'Sticker book' : section === 'activities' && sub === 'photos' ? 'Photos' : NAV_ITEMS.find(i => i.key === section)?.label ?? 'Home'
   const inApp = hasKey && !!settings && !wizardActive && (section === 'profile' || section === 'journal' || section === 'insights' || section === 'medications' || NAV_ITEMS.some(i => i.key === section))
@@ -1245,7 +1256,7 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
     )
   }
 
-  const nav = navItems(settings, members.find(m => m.id === meMemberId))
+  const nav = navItems(settings, members.find(m => m.id === meMemberId), !!pluginsOn)
   // "Me" is lit on their own profile only, not while looking at someone else's.
   const navTab = (section === 'profile' || section === 'journal') && sub !== meMemberId ? '' : section === 'medications' || section === 'insights' ? '' : section
   return (

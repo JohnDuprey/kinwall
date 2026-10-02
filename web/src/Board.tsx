@@ -6,6 +6,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import type { Board as BoardData, EventInstance, List, Member, OnlineTidbits, Redemption, SnapshotEvent } from './types.ts'
+import { rewardsOn } from './types.ts'
 import { inkFor } from './color.ts'
 import { zonedParts } from './date.ts'
 import { formatTime } from './timeFormat.ts'
@@ -21,7 +22,7 @@ import Sheet from './Sheet.tsx'
 import GetStarted from './GetStarted.tsx'
 import { BasketIcon, CartIcon } from './icons.tsx'
 import { boardAreas, boardChores, boardItems, moreLabel, rowsThatFit, tidbitCardsThatFit, tileColumns } from './boardFit.ts'
-import { layoutAreas, layoutFor, type BoardCardId, type CardDensity } from './boardLayout.ts'
+import { cardOn, layoutAreas, layoutFor, type BoardCardId, type CardDensity } from './boardLayout.ts'
 import { leadOf, leadText } from './leadTime.ts'
 import { onMinute } from './minuteTick.ts'
 import { clockTimeZone } from './timezone.ts'
@@ -111,14 +112,15 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
   }, [refreshTick, tick])
   // For the tiles: grocery lists' open items and reward requests waiting for a parent.
   const f = settings.features
+  const rewards = rewardsOn(settings)
   const [lists, setLists] = useState<List[]>([])
   const [redemptions, setRedemptions] = useState<Redemption[]>([])
   useEffect(() => {
     let canceled = false
     if (f.lists) api.getLists().then(l => { if (!canceled) setLists(l) }).catch(() => { /* keep the last count */ })
-    if (f.chores) api.getRedemptions({ status: 'pending' }).then(r => { if (!canceled) setRedemptions(r) }).catch(() => { /* likewise */ })
+    if (rewards) api.getRedemptions({ status: 'pending' }).then(r => { if (!canceled) setRedemptions(r) }).catch(() => { /* likewise */ })
     return () => { canceled = true }
-  }, [refreshTick, tick, f.lists, f.chores])
+  }, [refreshTick, tick, f.lists, rewards])
   // Auto: measure the board to decide between full lists and counts.
   const scrollRef = useRef<HTMLDivElement>(null)
   const [big, setBig] = useState(false)
@@ -193,14 +195,15 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
   // Take now shows whenever doses are due, Full lists too: then it's the tiles row's only tile (after the clock on a phone).
   const tiles = [
     // In a layout, the Chores and Due soon tiles stand in for their cards when those aren't placed.
-    meds.doses.length > 0 && 'meds', f.chores && (layout ? !placed.has('chores') : !full) && 'chores', f.lists && (layout ? !placed.has('due') : !full) && 'due', ...(f.lists ? listTiles.map(t => t.type) : []), f.chores && rewardRequests > 0 && 'rewards',
+    meds.doses.length > 0 && 'meds', f.chores && (layout ? !placed.has('chores') : !full) && 'chores', f.lists && (layout ? !placed.has('due') : !full) && 'due', ...(f.lists ? listTiles.map(t => t.type) : []), rewards && rewardRequests > 0 && 'rewards',
   ].filter((t): t is string => !!t)
   // Whose chores count: a kid's device (or a picked person) sees only theirs, like the Chores tab.
   const chores = boardChores(data.chores, selectedMemberId, focusMemberId, focusShowsShared)
   // Saving for a reward: shown on the person's chores row, or a row of its own when they have no chores today.
-  const goalsOnly = members.filter(m => m.rewardGoal && (!selectedMemberId || m.id === selectedMemberId) && !chores.some(c => c.memberId === m.id))
+  const goalsOnly = !rewards ? [] : members.filter(m => m.rewardGoal && (!selectedMemberId || m.id === selectedMemberId) && !chores.some(c => c.memberId === m.id))
   // What can show at all: a feature that's off, or a quote card with nothing to say, takes its card away.
-  const can = (a: BoardCardId | 'tiles') => a === 'tiles' ? tiles.length > 0 : a === 'photo' ? f.photos : a === 'due' ? f.lists : a === 'chores' ? f.chores : a === 'meals' ? f.meals
+  // The picture card stays with family photos off: Google Photos or nature pictures (saverSources.ts).
+  const can = (a: BoardCardId | 'tiles') => a === 'tiles' ? tiles.length > 0 : !cardOn(a, f) ? false
     : tidbitAreas.includes(a) ? !!tidbits[tidbitAreas.indexOf(a)] : true
   const custom = layout && layoutAreas(layout, can)
   const shown = custom ? custom.shown : ['clock', 'tiles', 'today', 'meals', 'photo', 'coming', 'due', 'chores', ...tidbitAreas].filter(a =>
@@ -296,7 +299,7 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
             const bdays = data.birthdays.filter(b => b.date === today)
             const todays = events.filter(e => e.date === today)
             // Temp check goals, for the people who chose to show theirs.
-            const goals = boardGoals(members, focusMemberId, { selected: selectedMemberId, kidDevice }).map(m => (
+            const goals = !f.checkIns ? [] : boardGoals(members, focusMemberId, { selected: selectedMemberId, kidDevice }).map(m => (
               <li key={`goal:${m.id}`} className="board-goal-line"><Avatar m={m} /><span><span className="sr-only">{m.name}'s goal: </span>🎯 {m.todayGoal}</span></li>
             ))
             const books = bookRows(today)
@@ -345,14 +348,14 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
           )}
         </Card>}
 
-        {has('chores') && <Card title="Chores today" area="chores" density={dense('chores')} link={<a className="board-card-link" href="#/rewards">🎁 Rewards</a>}>
+        {has('chores') && <Card title="Chores today" area="chores" density={dense('chores')} link={rewards && <a className="board-card-link" href="#/rewards">🎁 Rewards</a>}>
           {chores.length === 0 && !goalsOnly.length ? <p className="snap-empty">No chores today.</p> : (
             <ul className="snap-list">
               {chores.map(c => {
                 const done = c.total - c.remaining
                 const name = c.name ?? 'Anyone'
                 const waiting = c.pending ? `${c.pending} waiting for OK` : '' // ticked, not counted until a parent approves
-                const goal = c.memberId ? goalText(byId.get(c.memberId)) : null
+                const goal = rewards && c.memberId ? goalText(byId.get(c.memberId)) : null
                 return (
                   <li key={c.memberId ?? 'anyone'}>
                     <button className="snap-row board-chore" onClick={() => { location.hash = '#/chores' }} aria-label={`${name}: ${c.remaining ? `${c.remaining} of ${c.total} chores left` : 'all chores done'}${waiting ? `, ${waiting}` : ''}${goal ? `, ${goal.label}` : ''}`}>
@@ -489,7 +492,7 @@ function PhotoCard({ density }: { density?: CardDensity }) {
   const nightPicks = nightFieldsFor(device, settings.nightLook).saverSources ?? [] // this screen's Night screen, or the family's
   const picked = nightPicks.length > 0
   useEffect(() => { if (!picked) api.getPhotoQuota().then(q => setHasPhotos(q.count - (q.memoryPhotos ?? 0) > 0)).catch(() => {}) }, [picked, refreshTick])
-  const { pics, failed } = useSlideshowPictures(boardSources(nightPicks, { photos: settings.features.photos, googlePhotos: settings.googlePhotos }, hasPhotos), 60)
+  const { pics, failed } = useSlideshowPictures(boardSources(nightPicks, { photos: settings.features.photos, paint: settings.features.paint, googlePhotos: settings.googlePhotos }, hasPhotos), 60)
   const current = pics[pics.length - 1]
   return (
     <section className={`board-card board-photo${densityClass(density)}`} aria-label="Picture">

@@ -59,3 +59,10 @@ test('toNightLook and familyNightFields convert both ways', () => {
   assert.deepEqual(toNightLook(familyNightFields(family)), family)
   assert.deepEqual(toNightLook({}), { sources: [], every: 5, brightness: 'low', clock: true, clockPosition: null })
 })
+
+test('nightSources: drawings with Paint turned off become nature, like family photos', () => {
+  assert.deepEqual(nightSources(['drawings', 'art'], { photos: true, paint: false }), ['nature', 'art'])
+  assert.deepEqual(nightSources(['drawings', 'photos'], { photos: false, paint: false }), ['nature'])
+  assert.deepEqual(nightSources(['drawings'], { photos: true }), ['drawings'], 'an older caller without paint keeps drawings')
+  assert.deepEqual(boardSources([], { photos: false, googlePhotos: 'ready' }, true), ['google'], 'photos off: the Board still has a picture')
+})

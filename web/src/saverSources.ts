@@ -4,14 +4,14 @@ import type { GooglePhotosState, NightLook } from './types.ts'
 import type { DeviceAppearance, SaverSource } from './useTheme.ts'
 export type { NightLook }
 
-type Family = { photos: boolean; googlePhotos?: GooglePhotosState }
+type Family = { photos: boolean; paint?: boolean; googlePhotos?: GooglePhotosState }
 
-/** This display's picks, minus what the family can't show: family photos turned off become nature
- * pictures; Google Photos not ready (connecting, or needing reconnecting) is left out, and if it was
+/** This display's picks, minus what the family can't show: family photos or drawings (Paint) turned
+ * off become nature pictures; Google Photos not ready (connecting, or needing reconnecting) is left out, and if it was
  * the only pick nature pictures stand in. Nothing picked stays nothing: the plain clock. */
 export function nightSources(picked: SaverSource[], family: Family): SaverSource[] {
   const out = picked
-    .map(s => (s === 'photos' && !family.photos ? 'nature' : s))
+    .map(s => ((s === 'photos' && !family.photos) || (s === 'drawings' && family.paint === false) ? 'nature' : s))
     .filter(s => s !== 'google' || family.googlePhotos === 'ready')
   return [...new Set(picked.length && !out.length ? ['nature' as const] : out)]
 }

@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from './AppContext.tsx'
 import { api, ApiError } from './api.ts'
 import type { Member, Newscast, NewscastItem, NewscastReaction } from './types.ts'
+import { rewardsOn } from './types.ts'
 import { asYou, daySections, newCount, pictureAlt, weekDigest } from './newscast.ts'
 import { formatTime } from './timeFormat.ts'
 import { inkFor } from './color.ts'
@@ -110,7 +111,7 @@ export default function NewscastView() {
         {settings.features.chores && <li><span>✅ Chores done</span><b>{digest.chores}</b></li>}
         {settings.features.trackersReading && <li><span>📚 Books finished</span><b>{digest.books}</b></li>}
         {settings.features.photos && <li><span>📸 Photos and drawings</span><b>{digest.pictures}</b></li>}
-        {settings.features.chores && <li><span>🎁 Rewards</span><b>{digest.rewards}</b></li>}
+        {rewardsOn(settings) && <li><span>🎁 Rewards</span><b>{digest.rewards}</b></li>}
       </ul>
       <p className="news-note">Family totals only. No one is ranked here.</p>
     </section>

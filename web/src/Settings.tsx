@@ -596,7 +596,7 @@ function ChoreSettingsSection({ settings, onSaved, toast }: { settings: Settings
           {[0, 1, 2, 3].map(n => <option key={n} value={n}>{n === 0 ? 'None' : `${n} day${n === 1 ? '' : 's'}`}</option>)}
         </select>
       </div>
-      <div className="settings-row">
+      {settings.features.checkIns && <div className="settings-row">
         <div>
           <div className="settings-row-label">Daily check-in points</div>
           <div className="settings-row-sub">Reading your day to the end and tapping "I'm all caught up" earns these, once a day.</div>
@@ -604,11 +604,19 @@ function ChoreSettingsSection({ settings, onSaved, toast }: { settings: Settings
         <select className="settings-select" aria-label="Daily check-in points" value={settings.checkInPoints} onChange={e => save({ checkInPoints: Number(e.target.value) })}>
           {[0, 1, 2, 3, 5, 10].map(n => <option key={n} value={n}>{n === 0 ? 'Off' : `${n} point${n === 1 ? '' : 's'}`}</option>)}
         </select>
-      </div>
+      </div>}
       <div className="toggle-row">
         <label id="leaderboard-label">Show leaderboard</label>
         <button className={`switch ${settings.leaderboardEnabled ? 'on' : ''}`} role="switch" aria-checked={settings.leaderboardEnabled} aria-labelledby="leaderboard-label"
           onClick={() => save({ leaderboardEnabled: !settings.leaderboardEnabled })}><span className="knob" /></button>
+      </div>
+      <div className="toggle-row">
+        <div>
+          <label id="rewards-label">Rewards</label>
+          <div className="settings-row-sub" id="rewards-sub">Kids spend points on rewards you set, with your OK.</div>
+        </div>
+        <button className={`switch ${settings.rewardsEnabled ? 'on' : ''}`} role="switch" aria-checked={settings.rewardsEnabled} aria-labelledby="rewards-label" aria-describedby="rewards-sub"
+          onClick={() => save({ rewardsEnabled: !settings.rewardsEnabled })}><span className="knob" /></button>
       </div>
       <div className="toggle-row">
         <label id="sticker-shop-label">Sticker shop</label>
@@ -1327,7 +1335,7 @@ function MinutesPicker({ idBase, label, presets, minutes, repeat, onChange: save
   idBase: string; label: string; presets: number[]; minutes: number[]; repeat: WarningRepeat | null; minEvery?: number; repeatDefault: WarningRepeat
   onChange: (minutes: number[], repeat: WarningRepeat | null) => void; onOff?: () => void
 }) {
-  // A picked time the repeat already reaches (10 with "every 5 in the last 30") does nothing: grey it out and drop it.
+  // A picked time the repeat already reaches (10 with "every 5 in the last 30") does nothing: gray it out and drop it.
   const covered = (m: number, r: WarningRepeat | null) => !!r && m <= r.within && m % r.every === 0
   const onChange = (ms: number[], r: WarningRepeat | null) => save(ms.filter(m => !covered(m, r)), r)
   const [adding, setAdding] = useState(false)
@@ -1396,8 +1404,8 @@ function MinutesPicker({ idBase, label, presets, minutes, repeat, onChange: save
 const SAVER_OPTIONS: { key: SaverSource; label: string }[] = [
   { key: 'drawings', label: 'Drawings' }, { key: 'photos', label: 'Family photos' }, { key: 'google', label: 'Google Photos' }, { key: 'art', label: 'Art (The Met)' }, { key: 'nature', label: 'Nature' },
 ]
-/** A source the family can show: family photos on, Google Photos connected with albums picked. */
-const saverOffered = (key: SaverSource, settings: Settings) => (key !== 'photos' || settings.features.photos) && (key !== 'google' || settings.googlePhotos === 'ready')
+/** A source the family can show: family photos on, drawings with Paint on, Google Photos connected with albums picked. */
+const saverOffered = (key: SaverSource, settings: Settings) => (key !== 'photos' || settings.features.photos) && (key !== 'drawings' || settings.features.paint) && (key !== 'google' || settings.googlePhotos === 'ready')
 const CLOCK_POSITIONS: { key: ClockPos | ''; label: string }[] = [
   { key: '', label: 'Moves around' }, { key: 'center', label: 'Center' }, { key: 'top-left', label: 'Top left' }, { key: 'top-right', label: 'Top right' }, { key: 'bottom-left', label: 'Bottom left' }, { key: 'bottom-right', label: 'Bottom right' },
 ]
@@ -1779,6 +1787,7 @@ function MembersSection({ members, onChanged, toast, canManage = true }: { membe
 
 function MemberEditSheet({ member, canDelete, onClose, onSaved, toast }: { member: Member | null; canDelete: boolean; onClose: () => void; onSaved: () => void; toast: (m: string, persist?: boolean) => void }) {
   const dialog = useDialog()
+  const checkIns = useApp().settings.features.checkIns // off: Temp check and the journal are hidden (their settings are kept)
   const [transitions, setTransitions] = useState<TransitionReminders>(member?.transitionReminders ?? { on: false, minutes: [], repeat: null, leaveBy: true })
   const [name, setName] = useState(member?.name ?? '')
   const [color, setColor] = useState(member?.color ?? MEMBER_PALETTE[0])
@@ -1850,8 +1859,8 @@ function MemberEditSheet({ member, canDelete, onClose, onSaved, toast }: { membe
       <p className="field-hint">Chores they tick on a wall screen or their own device wait for a parent to approve before the points count. A chore's own setting wins.</p>
       </>}
       {canDelete && <TransitionRemindersField name={name.trim() || 'this person'} value={transitions} onChange={setTransitions} />}
-      {canDelete && <TempCheckField member={member} name={name.trim() || 'this person'} value={tempCheck} onChange={setTempCheck} toast={toast} />}
-      {canDelete && member && !member.grownUp && <PrivateJournalField member={member} toast={toast} />}
+      {canDelete && checkIns && <TempCheckField member={member} name={name.trim() || 'this person'} value={tempCheck} onChange={setTempCheck} toast={toast} />}
+      {canDelete && checkIns && member && !member.grownUp && <PrivateJournalField member={member} toast={toast} />}
       {canDelete && member && <NewscastMemberField member={member} toast={toast} />}
     </Sheet>
   )

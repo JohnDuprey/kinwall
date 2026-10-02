@@ -11,6 +11,7 @@ import { inkFor } from './color.ts'
 import { dateKey } from './date.ts'
 import { ChevronLeft } from './icons.tsx'
 import type { StickerPack, StickerPatch, StickerPlacement } from './types.ts'
+import { rewardsOn } from './types.ts'
 
 const SAVE_DELAY_MS = 400
 const MIN_SCALE = 0.4, MAX_SCALE = 3.6, SCALE_STEP = 1.25, ROTATE_STEP = 15
@@ -264,7 +265,7 @@ export default function Stickers() {
         </div>
       ) : (
         <div className="stickers-shop scroll-y" role="tabpanel" aria-labelledby="stickers-tab-shop">
-          <p className="stickers-balance"><strong>{member.name}</strong> has <strong>{plural(balance, 'point')}</strong> to spend. <a className="text-link" href={`#/rewards/${member.id}`}>See {member.name}'s rewards</a></p>
+          <p className="stickers-balance"><strong>{member.name}</strong> has <strong>{plural(balance, 'point')}</strong> to spend.{rewardsOn(settings) && <> <a className="text-link" href={`#/rewards/${member.id}`}>See {member.name}'s rewards</a></>}</p>
           {unlocked && (
             <div className="sticker-unlocked" role="status">
               <span className="sticker-unlocked-cover" aria-hidden="true">{unlocked.cover}</span>

@@ -112,6 +112,7 @@ const settings: Settings = {
   checkInPoints: 3, // on in the demo so the daily check-in can be tried
   leaderboardEnabled: true,
   stickersEnabled: true,
+  rewardsEnabled: true,
   stickerPriceScale: 100,
   aiHealthAccess: false,
   medications: true, // on in the demo, with samples for Leo and Sam
@@ -121,7 +122,7 @@ const settings: Settings = {
   boardPresets: [],
   nightLook: { sources: [], every: 5, brightness: 'low', clock: true, clockPosition: null },
   tidbits: { sources: ['quotes', 'facts', 'onthisday', 'trivia'], factCategories: [], tipCategories: [], onThisDay: ['holidays', 'births'], birthsAfter: 1900, triviaCategories: [27, 17, 22, 9], triviaDifficulties: ['easy'] },
-  features: { chores: true, lists: true, contacts: true, paint: true, photos: true, notes: true, messages: true, trackersReading: true, trackersMemories: true, trackersHealth: true, meals: true, newscast: true },
+  features: { chores: true, lists: true, contacts: true, paint: true, photos: true, notes: true, messages: true, trackersReading: true, trackersMemories: true, trackersHealth: true, meals: true, newscast: true, checkIns: true },
   newscastNotFeatured: [],
   newscastPostingPaused: [],
 }
@@ -749,7 +750,7 @@ const newsReactions = new Map<string, Map<NewscastReaction, string[]>>([
 const NEWS_REACTIONS: NewscastReaction[] = ['👏', '❤️', '🎉']
 const newsReactionsOf = (key: string) => NEWS_REACTIONS.flatMap(emoji => newsReactions.get(key)?.get(emoji)?.length ? [{ emoji, memberIds: [...newsReactions.get(key)!.get(emoji)!] }] : [])
 const NEWS_FEATURE: Partial<Record<NewscastItem['kind'], () => boolean>> = {
-  chores: () => settings.features.chores, reward: () => settings.features.chores, photos: () => settings.features.photos,
+  chores: () => settings.features.chores, reward: () => settings.features.chores && settings.rewardsEnabled, photos: () => settings.features.photos,
   drawings: () => settings.features.photos && settings.features.paint, book: () => settings.features.trackersReading, memory: () => settings.features.trackersMemories,
 }
 function mockNewscast(q: { days?: number; before?: string }): Newscast {
@@ -1629,7 +1630,7 @@ function mockSnapshot(memberId: string, range: 'day' | 'week'): Snapshot {
   const birthdays = birthdaysOn(dates, all)
   const choreRows = (range === 'week' ? dates : [today]).flatMap(date => chores.filter(c => c.active && (c.memberId === memberId || !c.memberId) && dueOn(c, date, today))
     .map(c => ({ id: c.id, title: c.title, emoji: c.emoji, points: c.points, dueTime: c.dueTime, date, done: completions.has(`${c.id}:${date}`), doneBy: completions.get(`${c.id}:${date}`)?.memberId ?? null, shared: !c.memberId })))
-  const open = openItems(today, i => i.memberId === memberId)
+  const open = settings.features.lists ? openItems(today, i => i.memberId === memberId) : []
   const items = open.filter(i => (i.dueDate && i.dueDate <= to) || i.priority === 'high' || i.priority === 'urgent')
   const h = new Date().getHours()
   return {
@@ -1639,11 +1640,11 @@ function mockSnapshot(memberId: string, range: 'day' | 'week'): Snapshot {
     range, from: today, to, generatedAt: new Date().toISOString(),
     weather: mockWeather(dates),
     events: mine.filter(e => e.date <= to),
-    chores: choreRows, items,
+    chores: settings.features.chores ? choreRows : [], items,
     birthdays: birthdays.filter(b => b.date <= to),
     meals: [], // api.ts adds the demo menu (mock-meals.ts)
     tomorrow: range === 'day' ? { date: tomorrow, events: mine.filter(e => e.date === tomorrow), items: open.filter(i => i.dueDate === tomorrow), birthdays: birthdays.filter(b => b.date === tomorrow), meals: [] } : null,
-    checkedIn: checkIns.has(`${memberId}:${today}`), checkInPoints: settings.checkInPoints,
+    checkedIn: checkIns.has(`${memberId}:${today}`), checkInPoints: settings.features.chores && settings.features.checkIns ? settings.checkInPoints : 0,
   }
 }
 
@@ -1712,8 +1713,8 @@ function mockBoard(days: number): Board {
     today, to, generatedAt: new Date().toISOString(),
     weather: mockWeather(dates),
     events: all.filter(e => !isBday(e)),
-    items: openItems(today, () => true).filter(i => (i.dueDate && i.dueDate <= to) || i.priority === 'high' || i.priority === 'urgent'),
-    chores: owners.map(id => {
+    items: !settings.features.lists ? [] : openItems(today, () => true).filter(i => (i.dueDate && i.dueDate <= to) || i.priority === 'high' || i.priority === 'urgent'),
+    chores: !settings.features.chores ? [] : owners.map(id => {
       const mine = todays.filter(c => c.memberId === id)
       const m = members.find(x => x.id === id)
       return { memberId: id, name: m?.name ?? null, avatar: m?.avatar ?? null, color: m?.color ?? null, total: mine.length, remaining: mine.filter(c => !completions.has(`${c.id}:${today}`)).length }

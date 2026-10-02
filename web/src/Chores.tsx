@@ -4,7 +4,7 @@ import { useIsPhone } from './useIsPhone.ts'
 import { useApp } from './AppContext.tsx'
 import { api, ApiError } from './api.ts'
 import type { Chore, ChoreDay, LeaderboardEntry, LeaderboardPeriod, List, ListItem, PendingApproval, Plugin, Redemption } from './types.ts'
-import { MEMBER_EMOJI } from './types.ts'
+import { MEMBER_EMOJI, rewardsOn } from './types.ts'
 import { dateKey } from './date.ts'
 import Sheet from './Sheet.tsx'
 import { AnyEmojiField } from './AnyEmojiField.tsx'
@@ -275,7 +275,8 @@ function ChoreCard({ chore, onToggle, onEdit }: { chore: ChoreDay; onToggle: () 
  * redeemed there wait here too (Approve / Not this time), and approved ones until they're Given.
  * The Rewards screen shows the same queue with `only="rewards"`. */
 export function ApprovalQueue({ onChanged = () => {}, only }: { onChanged?: () => void; only?: 'rewards' }) {
-  const { members, toast, reloadCore, refreshTick } = useApp()
+  const { members, toast, reloadCore, refreshTick, settings } = useApp()
+  const rewardsShown = rewardsOn(settings)
   const [items, setItems] = useState<PendingApproval[]>([])
   const [rewards, setRewards] = useState<Redemption[]>([])
   const [notYet, setNotYet] = useState<PendingApproval | null>(null)
@@ -283,9 +284,10 @@ export function ApprovalQueue({ onChanged = () => {}, only }: { onChanged?: () =
   const [note, setNote] = useState('')
   const fetchItems = () => {
     if (!only) api.getPendingApprovals().then(setItems).catch(() => { /* the section just stays as it was */ })
-    api.getRedemptions({ status: 'pending,approved' }).then(setRewards).catch(() => { /* likewise */ })
+    if (rewardsShown) api.getRedemptions({ status: 'pending,approved' }).then(setRewards).catch(() => { /* likewise */ })
+    else setRewards([]) // Rewards turned off: requests wait, out of sight
   }
-  useEffect(fetchItems, [refreshTick]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(fetchItems, [refreshTick, rewardsShown]) // eslint-disable-line react-hooks/exhaustive-deps
   const name = (p: { memberId: string | null }) => members.find(m => m.id === p.memberId)?.name ?? 'Someone'
   const decide = async (r: Redemption, action: 'approve' | 'decline' | 'given', done: string, note?: string) => {
     setRewards(list => action === 'approve' ? list.map(x => x === r ? { ...x, status: 'approved' } : x) : list.filter(x => x !== r)) // optimistic
@@ -509,6 +511,7 @@ export default function Chores() {
   const active = visibleColumns.filter(m => !idle.includes(m))
   const columnsGridStyle = { gridTemplateColumns: `repeat(${Math.max(1, active.length)}, minmax(110px, 480px))` }
   const leaderboard = settings.leaderboardEnabled && <Leaderboard period={lbPeriod} />
+  const rewardsShown = rewardsOn(settings)
 
   return (
     <div className="content">
@@ -521,7 +524,7 @@ export default function Chores() {
         {settings.leaderboardEnabled && <PeriodControl className="chores-period" period={lbPeriod} onChange={setLbPeriod} />}
         {!isPhone && leaderboard}
         {parentDevice && <button type="button" className="btn btn-secondary chores-rewards-btn chores-library-btn" onClick={() => setLibraryOpen(true)}><span aria-hidden="true">🧰</span> <span className="chores-rewards-label">Library</span></button>}
-        <a className="btn btn-secondary chores-rewards-btn" href={selectedMemberId ? `#/rewards/${selectedMemberId}` : '#/rewards'}><span aria-hidden="true">🎁</span> <span className="chores-rewards-label">Rewards</span></a>
+        {rewardsShown && <a className="btn btn-secondary chores-rewards-btn" href={selectedMemberId ? `#/rewards/${selectedMemberId}` : '#/rewards'}><span aria-hidden="true">🎁</span> <span className="chores-rewards-label">Rewards</span></a>}
       </div>
       <div className="date-strip" role="group" aria-label="Day">
         {strip.map(d => (
@@ -552,7 +555,7 @@ export default function Chores() {
                   <ProgressRing pct={pct} color={col.color} avatar={col.avatar} label={`${col.name}: ${done} of ${list.length} done`} />
                   <h3 className="chore-col-name" style={{ margin: 0 }}>{col.name}</h3>
                   <div className="chore-col-pts">{list.reduce((s, c) => s + (c.completed ? c.points : 0), 0)} pts today</div>
-                  {col.id !== '__anyone' && 'balance' in col && (
+                  {rewardsShown && col.id !== '__anyone' && 'balance' in col && (
                     <a className="chore-col-spend" href={`#/rewards/${col.id}`} aria-label={`${col.name} has ${col.balance} points to spend. See rewards`}>⭐ {col.balance} to spend</a>
                   )}
                 </div>
@@ -568,7 +571,7 @@ export default function Chores() {
                 <li key={m.id} className="chores-idle-item">
                   <span className="chores-idle-avatar" aria-hidden="true" style={{ background: m.color, color: inkFor(m.color) }}>{m.avatar || m.name[0]}</span>
                   <span><span className="chores-idle-name">{m.name}</span> · nothing due</span>
-                  {m.id !== '__anyone' && 'balance' in m && (
+                  {rewardsShown && m.id !== '__anyone' && 'balance' in m && (
                     <a className="chore-col-spend" href={`#/rewards/${m.id}`} aria-label={`${m.name} has ${m.balance} points to spend. See rewards`}>⭐ {m.balance} to spend</a>
                   )}
                 </li>
@@ -801,14 +804,14 @@ function ChoreEditSheet({ chore, draft, onClose, onSaved }: { chore: Chore | nul
           ))}
         </div>
       </div>
-      <div className="field">
+      {settings.features.lists && <div className="field">
         <label htmlFor="chore-checklist">Checklist (optional)</label>
         <select id="chore-checklist" value={listId ?? ''} onChange={e => setListId(e.target.value || null)}>
           <option value="">None</option>
           {lists.filter(l => !l.archived || l.id === listId).map(l => <option key={l.id} value={l.id}>{l.emoji ? `${l.emoji} ` : ''}{l.name}{l.kind === 'reusable' ? '' : ` (${l.kind})`}</option>)}
         </select>
         <p className="field-hint">Every item on the list has to be ticked before this chore can be completed. A reusable list resets once it is.</p>
-      </div>
+      </div>}
       {(activities.length > 0 || pluginId) && (
         <div className="field">
           <label htmlFor="chore-activity">Do an activity (optional)</label>

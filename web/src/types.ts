@@ -53,6 +53,7 @@ export interface Settings {
   checkInPoints: number // daily check-in points (0 = off; 1, 2, 3, 5 or 10)
   leaderboardEnabled: boolean // false: hide the leaderboard, crowns and rank badges
   stickersEnabled: boolean // false: hide the sticker book (and the shop refuses purchases)
+  rewardsEnabled: boolean // false: hide Rewards and reward goals (requests answer 403); needs features.chores (rewardsOn)
   stickerPriceScale: number // percent applied to sticker pack prices; 0 = all free
   location: WeatherLocation | null // for the snapshot's weather; null = no weather
   temperatureUnit: 'celsius' | 'fahrenheit'
@@ -80,11 +81,11 @@ export interface NightLook {
 
 /** Household feature switches. Off hides the feature everywhere; its data is kept. */
 export interface Features {
-  chores: boolean // Chores tab, points, leaderboard, sticker book, chore nudges
+  chores: boolean // Chores tab, points, rewards, sticker book, chore nudges (the leaderboard, sticker shop and rewards have their own switches too)
   lists: boolean // Lists tab, "Due soon", an event's linked items, list-update notifications
   contacts: boolean // Contacts tab and household contacts directory
   paint: boolean // Activities → Paint
-  photos: boolean // Activities → Photos and the Board's picture card
+  photos: boolean // family photos (Activities → Photos, Newscast, memories, the Board and Night screen); Google Photos and nature still show
   notes: boolean // notes on events and list items
   messages: boolean // sending family messages (the bell's Send a message)
   // Trackers, one switch per kind; the Trackers tab goes when all three are off
@@ -93,6 +94,7 @@ export interface Features {
   trackersHealth: boolean
   meals: boolean // Meals tab, the Board's meals card, meals in the daily summary
   newscast: boolean // Home's Newscast tab (with its routes)
+  checkIns: boolean // Temp check, goal checks, the energy battery, journals and Insights; check-in points need it too
 }
 
 // Trackers (server: routes/trackers.ts). `data` holds the kind's fields; health never reaches a display key.
@@ -149,6 +151,8 @@ export interface TrackerEntry<D = ReadingData | MemoryData | HealthData> {
 export function trackerKinds(s: Settings): string[] {
   return ([['reading', s.features.trackersReading], ['memories', s.features.trackersMemories], ['health', s.features.trackersHealth]] as const).filter(([, on]) => on).map(([k]) => k)
 }
+/** Rewards are on: their own switch (Family → Chores), and chores and points. */
+export const rewardsOn = (s: Pick<Settings, 'features' | 'rewardsEnabled'>) => s.features.chores && s.rewardsEnabled
 /** Create/edit body: data fields set to null are cleared on edit. */
 export interface TrackerInput { kind?: TrackerKind; memberId?: string | null; date?: string; title?: string | null; photoId?: string | null; photoFamily?: boolean; data?: Record<string, unknown> }
 
@@ -886,7 +890,7 @@ export const MEMBER_EMOJI = ['🦊', '🐻', '🐱', '🐶', '🐰', '🦁', '�
 export const CATEGORY_EMOJI = ['🎂', '🏥', '⚽', '🏫', '✈️', '🎉', '🎵', '📅', '❤️', '⭐']
 
 /** First palette color not already in use (by members/calendars), so a new calendar with no
- * explicit color doesn't fall back to the server's grey #888. Cycles back to the first color
+ * explicit color doesn't fall back to the server's gray #888. Cycles back to the first color
  * once the palette is exhausted. */
 export function nextPaletteColor(usedColors: (string | null | undefined)[]): string {
   const taken = new Set(usedColors.filter(Boolean))

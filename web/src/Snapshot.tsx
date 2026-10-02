@@ -136,13 +136,13 @@ export default function SnapshotSheet({ member, onClose, toCheckIn }: { member: 
       {!shown && !error && <p className="snap-empty">Loading…</p>}
       {range === 'day' && <TakeNow memberId={member.id} className="meds-now-day" />}
       {/* Their battery: private, so only on their own device and parents' devices (never a shared wall). */}
-      {range === 'day' && batteryOn(member.tempCheck) && (parentDevice || meMemberId === member.id) && <BatteryCard member={member} />}
+      {range === 'day' && settings.features.checkIns && batteryOn(member.tempCheck) && (parentDevice || meMemberId === member.id) && <BatteryCard member={member} />}
       {shown && (range === 'day' ? <DayView snap={shown} tz={tz} close={onClose} onToggle={toggleChore} books={settings.features.trackersReading ? books : []} /> : <WeekView snap={shown} tz={tz} close={onClose} />)}
       {/* Last night's check-in, still open after midnight: before this morning's questions. */}
-      {shown?.range === 'day' && member.tempCheck?.on && (member.tempCheck.evening || member.tempCheck.battery) && <GoalFollowUp member={member} lastNight />}
-      {shown?.range === 'day' && member.tempCheck?.on && <TempCheck member={member} />}
+      {shown?.range === 'day' && settings.features.checkIns && member.tempCheck?.on && (member.tempCheck.evening || member.tempCheck.battery) && <GoalFollowUp member={member} lastNight />}
+      {shown?.range === 'day' && settings.features.checkIns && member.tempCheck?.on && <TempCheck member={member} />}
       {shown && <CheckIn snap={shown} onDone={() => setSnap(s => s && { ...s, checkedIn: true })} />}
-      {shown?.range === 'day' && member.tempCheck?.on && (member.tempCheck.evening || member.tempCheck.battery) && <GoalFollowUp member={member} />}
+      {shown?.range === 'day' && settings.features.checkIns && member.tempCheck?.on && (member.tempCheck.evening || member.tempCheck.battery) && <GoalFollowUp member={member} />}
       {!focusMemberId && (
         <div className="toggle-row snap-filter">
           <label id={`snap-filter-${member.id}`}>Show only {member.name} on the calendar</label>
@@ -271,7 +271,7 @@ function CheckIn({ snap, onDone }: { snap: Snapshot; onDone: () => void }) {
   const [reached, setReached] = useState(false)
   const [busy, setBusy] = useState(false)
   const [burst, setBurst] = useState(false)
-  const state = settings.features.chores ? checkInState(snap, reached) : 'hidden' // points are part of Chores & points
+  const state = settings.features.chores && settings.features.checkIns ? checkInState(snap, reached) : 'hidden' // points are part of Chores & points, and of Check-ins
   useEffect(() => {
     const el = end.current
     if (!el || reached || state === 'hidden') return
