@@ -19,6 +19,8 @@ docker stop kinwall && tar czf kinwall-$(date +%F).tgz data && docker start kinw
 
 If you pass `ENCRYPTION_KEY` or `ENCRYPTION_KEY_FILE`, keep that value in your password manager instead.
 
+A backup made this way holds the database and its key side by side, so anyone who gets the backup can read everything in it, health entries and journals included. Encryption at rest only protects a copy of the database that travels without the key. Store the backup as carefully as you would the data itself (an encrypted disk or archive). To keep the key out of the data directory and its backups, set `ENCRYPTION_KEY` or `ENCRYPTION_KEY_FILE` yourself before the first start. The same goes for the Home Assistant add-on: its backups include both.
+
 ## Home Assistant add-on
 
 The add-on's `/data` is included in normal Home Assistant backups.
