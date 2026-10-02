@@ -4,6 +4,8 @@
 // family = 0 (migration 0031): a memory's own photo (routes/trackers.ts). It isn't listed here, so it
 // stays off the Photos page, the Board and the screensaver; it's served by id, counts toward the
 // limits, and travels in the zip backup marked "family": false.
+// coloring = 1 (migration 0083): a Paint coloring page a parent added (line art, a PNG), stored with
+// family = 0 and listed only by /api/coloring-pages; "coloring": true in the zip backup.
 import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import { emit } from '../bus.ts';
@@ -19,7 +21,7 @@ const MIMES = ['image/webp', 'image/jpeg', 'image/png'];
 
 // drawing / added_by (migration 0081): a Paint drawing and its artist, or who added a photo from
 // their own device. Only Newscast reads them ("Maya saved a drawing", "Alex added 3 photos").
-type PhotoRow = { id: string; caption: string | null; mime: string; width: number; height: number; bytes: number; member_id: string | null; created_at: string; family: number; drawing?: number; added_by?: string | null };
+type PhotoRow = { id: string; caption: string | null; mime: string; width: number; height: number; bytes: number; member_id: string | null; created_at: string; family: number; drawing?: number; added_by?: string | null; coloring?: number };
 const COLS = 'id, caption, mime, width, height, bytes, member_id, created_at, family';
 
 const PhotoSchema = z
@@ -53,7 +55,7 @@ export function blobBytes(v: unknown): Uint8Array<ArrayBuffer> {
 }
 
 async function quota(db: KinwallDb) {
-  const row = await db.prepare('SELECT COUNT(*) AS count, COALESCE(SUM(bytes), 0) AS bytes, COALESCE(SUM(family = 0), 0) AS memory FROM photos').first<{ count: number; bytes: number; memory: number }>();
+  const row = await db.prepare('SELECT COUNT(*) AS count, COALESCE(SUM(bytes), 0) AS bytes, COALESCE(SUM(family = 0 AND coloring = 0), 0) AS memory FROM photos').first<{ count: number; bytes: number; memory: number }>();
   return { count: row?.count ?? 0, bytes: row?.bytes ?? 0, memoryPhotos: row?.memory ?? 0, ...PHOTO_LIMITS };
 }
 
@@ -61,10 +63,10 @@ async function quota(db: KinwallDb) {
 async function insertWithinQuota(db: KinwallDb, row: PhotoRow, data: Uint8Array): Promise<boolean> {
   const res = await db
     .prepare(
-      `INSERT INTO photos (${COLS}, drawing, added_by, data) SELECT ?,?,?,?,?,?,?,?,?,?,?,?
+      `INSERT INTO photos (${COLS}, drawing, added_by, coloring, data) SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?
        WHERE (SELECT COUNT(*) FROM photos) < ? AND (SELECT COALESCE(SUM(bytes), 0) FROM photos) + ? <= ?`,
     )
-    .bind(row.id, row.caption, row.mime, row.width, row.height, row.bytes, row.member_id, row.created_at, row.family, row.drawing ?? 0, row.added_by ?? null, data, PHOTO_LIMITS.maxCount, row.bytes, PHOTO_LIMITS.maxBytes)
+    .bind(row.id, row.caption, row.mime, row.width, row.height, row.bytes, row.member_id, row.created_at, row.family, row.drawing ?? 0, row.added_by ?? null, row.coloring ?? 0, data, PHOTO_LIMITS.maxCount, row.bytes, PHOTO_LIMITS.maxBytes)
     .run();
   return res.meta.changes > 0;
 }
@@ -236,7 +238,7 @@ const MIME_OF_EXT: Record<string, string> = { webp: 'image/webp', jpg: 'image/jp
 const MAX_ZIP_BYTES = PHOTO_LIMITS.maxBytes + 10 * 1024 * 1024; // a full album plus zip overhead and manifest
 const binary = { schema: z.string().openapi({ format: 'binary' }) };
 
-type ManifestEntry = { id: string; file: string; caption: string | null; memberId: string | null; memberName: string | null; mime: string; width: number; height: number; bytes: number; createdAt: string; family: boolean };
+type ManifestEntry = { id: string; file: string; caption: string | null; memberId: string | null; memberName: string | null; mime: string; width: number; height: number; bytes: number; createdAt: string; family: boolean; coloring?: boolean };
 
 /** Pixel size from the file header (PNG, JPEG, WebP), for zips without a manifest. */
 export function imageSize(b: Uint8Array): { width: number; height: number } | null {
@@ -280,12 +282,12 @@ photosRoutes.openapi(
   async (c) => {
     const db = c.env.DB;
     const { results } = await db
-      .prepare(`SELECT p.id, p.caption, p.mime, p.width, p.height, p.bytes, p.member_id, p.created_at, p.family, m.name AS member_name
+      .prepare(`SELECT p.id, p.caption, p.mime, p.width, p.height, p.bytes, p.member_id, p.created_at, p.family, p.coloring, m.name AS member_name
         FROM photos p LEFT JOIN members m ON m.id = p.member_id ORDER BY p.created_at, p.rowid`)
       .all<PhotoRow & { member_name: string | null }>();
     const fileOf = (r: PhotoRow) => `photos/${r.created_at.slice(0, 10)}-${r.id}.${EXT[r.mime] ?? 'bin'}`;
     const manifest: ManifestEntry[] = results.map((r) => ({
-      id: r.id, file: fileOf(r), caption: r.caption, memberId: r.member_id, memberName: r.member_name, mime: r.mime, width: r.width, height: r.height, bytes: r.bytes, createdAt: r.created_at, family: r.family !== 0,
+      id: r.id, file: fileOf(r), caption: r.caption, memberId: r.member_id, memberName: r.member_name, mime: r.mime, width: r.width, height: r.height, bytes: r.bytes, createdAt: r.created_at, family: r.family !== 0, ...(r.coloring ? { coloring: true } : {}),
     }));
     // The manifest first, then one photo's bytes fetched per pull: only one photo in memory at a time.
     let i = -1;
@@ -377,12 +379,97 @@ photosRoutes.openapi(
       const memberName = str(meta.memberName, 100)?.toLowerCase();
       const member = members.find((m) => m.id === meta.memberId) ?? (memberName ? members.find((m) => m.name.trim().toLowerCase() === memberName) : undefined);
       const created = typeof meta.createdAt === 'string' && !Number.isNaN(Date.parse(meta.createdAt)) ? new Date(meta.createdAt).toISOString() : new Date().toISOString();
-      const row: PhotoRow = { id, caption: str(meta.caption, 200), mime, width: size.width, height: size.height, bytes: data.byteLength, member_id: member?.id ?? null, created_at: created, family: meta.family === false ? 0 : 1 };
+      const row: PhotoRow = { id, caption: str(meta.caption, 200), mime, width: size.width, height: size.height, bytes: data.byteLength, member_id: member?.id ?? null, created_at: created, family: meta.family === false || meta.coloring === true ? 0 : 1, coloring: meta.coloring === true ? 1 : 0 };
       if (!(await insertWithinQuota(db, row, data))) { skipped++; continue; }
       existing.add(id);
       imported++;
     }
     if (imported) emit(c, 'photo.changed', { imported });
     return c.json({ imported, skipped }, 200);
+  },
+);
+
+// ---------- Coloring pages (Paint's coloring book) ----------
+// The built-in pages ship with the app (web/src/coloringPages.ts); these are the family's own, added
+// from a parent's device. Wall screens and kids' devices list and draw on them (DISPLAY_ALLOWED in
+// auth.ts lets them GET); adding and deleting stay with full access, like other family content.
+
+const ColoringPageSchema = z
+  .object({ id: z.string(), name: z.string(), width: z.number(), height: z.number(), createdAt: z.string(), url: z.string() })
+  .openapi('ColoringPage');
+const pageOf = (r: Pick<PhotoRow, 'id' | 'caption' | 'width' | 'height' | 'created_at'>): z.infer<typeof ColoringPageSchema> => ({
+  id: r.id, name: r.caption ?? 'Coloring page', width: r.width, height: r.height, createdAt: r.created_at, url: `/api/photos/${r.id}/image`,
+});
+
+photosRoutes.openapi(
+  createRoute({
+    method: 'get',
+    path: '/api/coloring-pages',
+    tags: ['Photos'],
+    summary: "The family's own coloring pages for Paint, newest first (fetch each one's line art from its url). They aren't family photos.",
+    security: [{ Bearer: [] }],
+    responses: { 200: { description: 'ok', content: json(z.array(ColoringPageSchema)) } },
+  }),
+  async (c) => {
+    const { results } = await c.env.DB.prepare('SELECT id, caption, width, height, created_at FROM photos WHERE coloring = 1 ORDER BY created_at DESC, rowid DESC').all<PhotoRow>();
+    return c.json(results.map(pageOf), 200);
+  },
+);
+
+photosRoutes.openapi(
+  createRoute({
+    method: 'post',
+    path: '/api/coloring-pages',
+    tags: ['Photos'],
+    summary: 'Add a coloring page: line art as a PNG body (dark lines on a transparent background, at most 600 KB), its size in X-Photo-Width / X-Photo-Height. Counts toward the photo limits. Admin only.',
+    security: [{ Bearer: [] }],
+    request: {
+      query: z.object({ name: z.string().max(60).optional() }),
+      headers: z.object({ 'x-photo-width': z.coerce.number().int().min(1).max(10000), 'x-photo-height': z.coerce.number().int().min(1).max(10000) }),
+      body: { required: true, content: { 'image/png': { schema: z.string().openapi({ format: 'binary' }) } } },
+    },
+    responses: {
+      201: { description: 'created', content: json(ColoringPageSchema) },
+      400: { description: 'empty body or bad size headers', content: json(ErrorSchema) },
+      409: { description: 'photo storage full', content: json(QuotaSchema.extend({ error: z.string() })) },
+      413: { description: 'too large', content: json(ErrorSchema) },
+      415: { description: 'not a PNG', content: json(ErrorSchema) },
+    },
+  }),
+  async (c) => {
+    const { name } = c.req.valid('query');
+    const size = c.req.valid('header');
+    if ((c.req.header('Content-Type') ?? '').split(';')[0].trim().toLowerCase() !== 'image/png') return c.json({ error: 'A coloring page must be a PNG' }, 415);
+    const tooBig = { error: `A coloring page can be at most ${PHOTO_LIMITS.maxPhotoBytes / 1024} KB` };
+    if (Number(c.req.header('Content-Length')) > PHOTO_LIMITS.maxPhotoBytes) return c.json(tooBig, 413);
+    const data = new Uint8Array(await c.req.arrayBuffer());
+    if (data.byteLength > PHOTO_LIMITS.maxPhotoBytes) return c.json(tooBig, 413);
+    if (data.byteLength === 0) return c.json({ error: 'body: empty image' }, 400);
+    const row: PhotoRow = {
+      id: crypto.randomUUID(), caption: name?.trim() || 'Coloring page', mime: 'image/png', width: size['x-photo-width'], height: size['x-photo-height'],
+      bytes: data.byteLength, member_id: null, created_at: new Date().toISOString(), family: 0, coloring: 1,
+    };
+    if (!(await insertWithinQuota(c.env.DB, row, data))) return c.json({ error: 'Photo storage is full — delete some photos first', ...(await quota(c.env.DB)) }, 409);
+    emit(c, 'photo.changed', { id: row.id });
+    return c.json(pageOf(row), 201);
+  },
+);
+
+photosRoutes.openapi(
+  createRoute({
+    method: 'delete',
+    path: '/api/coloring-pages/{id}',
+    tags: ['Photos'],
+    summary: "Delete one of the family's coloring pages (drawings already made on it keep their lines). Admin only.",
+    security: [{ Bearer: [] }],
+    request: { params: idParam },
+    responses: { 200: { description: 'ok', content: json(z.object({ ok: z.boolean() })) }, 404: notFound },
+  }),
+  async (c) => {
+    const { id } = c.req.valid('param');
+    const res = await c.env.DB.prepare('DELETE FROM photos WHERE id = ? AND coloring = 1').bind(id).run();
+    if (res.meta.changes === 0) return c.json({ error: 'not found' }, 404);
+    emit(c, 'photo.changed', { id, deleted: true });
+    return c.json({ ok: true }, 200);
   },
 );

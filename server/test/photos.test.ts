@@ -233,3 +233,62 @@ test('photos zip: import respects the quota and the per-photo cap; bad input; ad
   assert.equal((await a.raw('GET', `/api/photos/export.zip?key=${key}`, { key: null })).status, 403);
   assert.equal((await a.raw('GET', `/api/photos/export.zip?key=${ADMIN_KEY}`, { key: null })).status, 200);
 });
+
+// ---------- Coloring pages (Paint's coloring book): stored with the photos, kept out of them ----------
+
+const addPage = async (raw: ReturnType<typeof makeApp>['raw'], data: Uint8Array<ArrayBuffer>, opts: { name?: string; key?: string; mime?: string } = {}) => {
+  const res = await raw('POST', `/api/coloring-pages${opts.name ? `?name=${encodeURIComponent(opts.name)}` : ''}`, {
+    body: data, key: opts.key, headers: { 'Content-Type': opts.mime ?? 'image/png', 'X-Photo-Width': '800', 'X-Photo-Height': '600' },
+  });
+  return { status: res.status, body: (await res.json()) as any };
+};
+
+test('coloring pages: a parent adds one; it is listed as a page, never as a family photo', async () => {
+  const { raw, send, upload } = makeApp();
+  await upload(bytes(100)); // an ordinary family photo
+  const added = await addPage(raw, png(2000), { name: '  Our cat  ' });
+  assert.equal(added.status, 201);
+  assert.deepEqual([added.body.name, added.body.width, added.body.height], ['Our cat', 800, 600]);
+  assert.equal(added.body.url, `/api/photos/${added.body.id}/image`);
+
+  const pages = (await send('GET', '/api/coloring-pages')).body;
+  assert.deepEqual(pages.map((p: any) => p.id), [added.body.id]);
+  assert.equal((await send('GET', '/api/photos')).body.length, 1, 'not on the Photos page, the Board or the screensaver');
+  assert.deepEqual(new Uint8Array(await (await raw('GET', added.body.url)).arrayBuffer()), png(2000));
+  const quota = (await send('GET', '/api/photos/quota')).body;
+  assert.deepEqual([quota.count, quota.memoryPhotos], [2, 0], 'counts toward the limits, but is not a memory photo');
+
+  assert.equal((await addPage(raw, png(10))).body.name, 'Coloring page');
+  assert.equal((await addPage(raw, bytes(10), { mime: 'image/webp' })).status, 415, 'line art is a PNG');
+  assert.equal((await addPage(raw, png(PHOTO_LIMITS.maxPhotoBytes))).status, 413);
+});
+
+test("coloring pages: wall screens and kids' devices use them but can't add or delete; delete only takes pages", async () => {
+  const { raw, send, upload, displayKey } = makeApp();
+  const key = await displayKey();
+  const page = (await addPage(raw, png(500), { name: 'Rocket' })).body;
+  const photo = (await upload(bytes(100))).body;
+
+  assert.equal((await send('GET', '/api/coloring-pages', undefined, key)).body.length, 1);
+  assert.equal((await raw('GET', page.url, { key })).status, 200);
+  assert.equal((await addPage(raw, png(10), { key })).status, 403);
+  assert.equal((await send('DELETE', `/api/coloring-pages/${page.id}`, undefined, key)).status, 403);
+
+  assert.equal((await send('DELETE', `/api/coloring-pages/${photo.id}`)).status, 404, 'a family photo is not a page');
+  assert.equal((await send('DELETE', `/api/coloring-pages/${page.id}`)).status, 200);
+  assert.deepEqual((await send('GET', '/api/coloring-pages')).body, []);
+  assert.equal((await send('GET', '/api/photos')).body.length, 1);
+});
+
+test('coloring pages: travel in the photos zip and come back as pages', async () => {
+  const a = makeApp();
+  const page = (await addPage(a.raw, png(700), { name: 'Castle' })).body;
+  const zip = await zipOf(await a.raw('GET', '/api/photos/export.zip'));
+  const manifest = JSON.parse(new TextDecoder().decode((await readZip(zip, 1e6)[0].read())!));
+  assert.equal(manifest[0].coloring, true);
+
+  const b = makeApp();
+  assert.deepEqual((await importZip(b.raw, zip)).body, { imported: 1, skipped: 0 });
+  assert.deepEqual((await b.send('GET', '/api/coloring-pages')).body.map((p: any) => [p.id, p.name]), [[page.id, 'Castle']]);
+  assert.deepEqual((await b.send('GET', '/api/photos')).body, []);
+});

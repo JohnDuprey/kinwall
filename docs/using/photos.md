@@ -83,7 +83,7 @@ What Google sees and what's stored: see [Privacy](../your-data/privacy.md#google
 
 Photos aren't part of the JSON [export](../your-data/export-import.md). They back up as their own zip:
 
-* **Download all (zip)** saves `kinwall-photos-YYYY-MM-DD.zip`. It has a `photos/` folder, with each file named by the date it was added and its ID, plus `manifest.json` listing every photo's caption, owner, size and date.
+* **Download all (zip)** saves `kinwall-photos-YYYY-MM-DD.zip`. It has a `photos/` folder, with each file named by the date it was added and its ID, plus `manifest.json` listing every photo's caption, owner, size and date. Paint's [coloring pages](activities.md#adding-your-own-pages) are in it too (marked `"coloring": true`) and come back as coloring pages, not photos.
 * **Import zip** adds the photos from such a zip to this family. Captions and owners come back from `manifest.json`. An owner is matched by member ID, or else by name, so photos land on the right person in a new family too. Photos already here (same ID) are skipped, so importing the same zip twice doesn't double anything. The per-photo and storage limits still apply, and anything over them is skipped. A zip you unpacked and zipped again with another tool still imports.
 
 Both buttons are on the Photos page and need a parent (admin) sign-in.
