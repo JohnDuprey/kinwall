@@ -2380,12 +2380,30 @@ button.board-empty-tap { display: block; width: 100%; text-align: left; backgrou
 :root[data-density="icons"] .snap-avatar { width: 72px; height: 72px; font-size: 2.25rem; }
 @media (min-width: 900px) { .snap-greeting { font-size: 1.875rem; } }
 
-/* Phones with 4+ members and the bell: smaller avatars, and the family name gives way (hidden
-   rather than cut to a couple of letters) when the clock leaves it too little room. */
+/* Phones with 4+ members and the bell: smaller avatars. */
 @media (max-width: 600px) {
   .header-phone .member-filter-row.many .member-avatar { width: 32px; height: 32px; font-size: 0.875rem; }
 }
-@container (max-width: 150px) { .family-name-sm { display: none; } } /* ~6 characters left after the clock */
+/* The family name gives way (hidden, avatars stay) rather than being cut to a couple of letters:
+   it gets about 60px only on screens wider than 212px plus 50px per header icon (offline, timer,
+   bell, Night, help). */
+@media (max-width: 361px) {
+  .header-phone .family-name-sm { display: none; }
+  .header-phone .family-btn { padding-right: 4px; }
+}
+@media (max-width: 411px) {
+  .header-phone:has(.header-right > :nth-child(4)) .family-name-sm { display: none; }
+  .header-phone:has(.header-right > :nth-child(4)) .family-btn { padding-right: 4px; }
+}
+@media (max-width: 461px) {
+  .header-phone:has(.header-right > :nth-child(5)) .family-name-sm { display: none; }
+  .header-phone:has(.header-right > :nth-child(5)) .family-btn { padding-right: 4px; }
+}
+/* Narrowest phones, offline: tighter gaps keep all four faces inside the pill, icons stay 44px. */
+@media (max-width: 340px) {
+  .header-phone { gap: 4px; }
+  .header-phone .header-right { gap: 2px; }
+}
 
 /* ---------- Weather location (Settings -> Household) ---------- */
 .settings-inline-btns { display: flex; gap: 8px; flex-shrink: 0; }
