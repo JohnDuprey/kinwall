@@ -5,7 +5,7 @@
 // from a book (data.bookId links them, so the book lists its readers).
 import { useEffect, useState } from 'react'
 import { Segmented } from './a11y.tsx'
-import { api } from './api.ts'
+import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import Sheet from './Sheet.tsx'
 import BookLookup from './BookLookup.tsx'
@@ -261,12 +261,17 @@ function BorrowFields({ sources, today, onSave, onChange }: { sources: string[];
   )
 }
 
-/** Add a book you own or borrowed: look it up (fills everything, the description too), or type it in. */
-function AddBookSheet({ places, sources, today, onClose, onAdded }: { places: string[]; sources: string[]; today: string; onClose: () => void; onAdded: () => void }) {
+/** Add a book you own or borrowed: look it up (fills everything, the description too), or type it in.
+ * `from`: a book someone's reading (Trackers' Save to library), its details to start with; a book
+ * that's already in the library (same ISBN) comes back as that one, so the entry links to it. */
+export function AddBookSheet({ places, sources, today, from, onClose, onAdded }: {
+  places: string[]; sources: string[]; today: string; from?: { title: string; author: string; pages: number | null; coverUrl: string | null }
+  onClose: () => void; onAdded: (b: LibraryBook) => void
+}) {
   const { toast } = useApp()
   const [picked, setPicked] = useState<BookResult | null>(null)
-  const [title, setTitle] = useState('')
-  const [author, setAuthor] = useState('')
+  const [title, setTitle] = useState(from?.title ?? '')
+  const [author, setAuthor] = useState(from?.author ?? '')
   const [location, setLocation] = useState('')
   const [whose, setWhose] = useState<'ours' | 'borrowed'>('ours')
   const [loan, setLoan] = useState<{ from: string; due: string | null }>({ from: '', due: null })
@@ -277,9 +282,17 @@ function AddBookSheet({ places, sources, today, onClose, onAdded }: { places: st
     setBusy(true)
     try {
       const fromLookup = picked && picked.title === title.trim() ? { isbn: picked.isbn, pages: picked.pages, coverUrl: picked.coverUrl, year: picked.year, series: picked.series, seriesNumber: picked.seriesNumber, lexile: picked.lexile, genres: picked.genres, workKey: picked.workKey } : {}
-      const b = await api.addToLibrary({ title: title.trim(), author: author.trim() || null, ...(location ? { location } : {}), ...(borrowing ? { borrowedFrom: loan.from, dueOn: loan.due } : {}), ...Object.fromEntries(Object.entries(fromLookup).filter(([, v]) => v !== undefined)) })
-      toast(`Added: ${b.title}`); announce(`Added ${b.title} to the library`); onAdded()
-    } catch (e) { toast(msg(e, "Couldn't add it"), true) } finally { setBusy(false) }
+      const fromEntry = from ? { pages: from.pages, coverUrl: from.coverUrl } : {}
+      const b = await api.addToLibrary({ title: title.trim(), author: author.trim() || null, ...(location ? { location } : {}), ...(borrowing ? { borrowedFrom: loan.from, dueOn: loan.due } : {}), ...Object.fromEntries(Object.entries({ ...fromEntry, ...fromLookup }).filter(([, v]) => v !== undefined && v !== null)) })
+      toast(`Added: ${b.title}`); announce(`Added ${b.title} to the library`); onAdded(b)
+    } catch (e) {
+      // Already there (the looked-up ISBN): hand back that book, returned ones too.
+      const have = e instanceof ApiError && e.status === 409 && picked?.isbn
+        ? (await Promise.all([api.getLibrary({ q: title.trim() }), api.getLibrary({ q: title.trim(), returned: true })]).catch(() => [[]])).flat().find(b => b.isbn === picked.isbn)
+        : undefined
+      if (have) { toast(`Already in the library: ${have.title}`); onAdded(have) }
+      else toast(msg(e, "Couldn't add it"), true)
+    } finally { setBusy(false) }
   }
   return (
     <Sheet title="Add a book" onClose={onClose}

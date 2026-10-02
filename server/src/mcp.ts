@@ -360,7 +360,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'add_to_library',
     {
       title: 'Add to the library',
-      description: "Add a book the family owns, or has borrowed (borrowedFrom, dueOn), to its library. Give an isbn alone to look it up (Open Library: title, author, pages, cover, series, reading level, description), or a title (use search_books first for details; pass its workKey to fetch the description). A book already in the library (same ISBN) isn't added twice.",
+      description: "Add a book the family owns, or has borrowed (borrowedFrom, dueOn), to its library. Give an isbn alone to look it up (Open Library: title, author, pages, cover, series, reading level, description), or a title (use search_books first for details; pass its workKey to fetch the description). A book already in the library (same ISBN) isn't added twice. To save a book someone's reading to the library, add it, then set that reading entry's data.bookId to the new book's id with update_tracker_entry.",
       inputSchema: {
         title: z.string().optional(), author: z.string().optional(), isbn: z.string().optional().describe('ISBN-10 or ISBN-13, digits only.'),
         pages: z.number().int().optional(), coverUrl: z.string().optional(), year: z.number().int().optional(),

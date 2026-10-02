@@ -8,7 +8,7 @@ import { useApp } from './AppContext.tsx'
 import { useDialog } from './dialog.tsx'
 import { announce, Segmented } from './a11y.tsx'
 import BookLookup from './BookLookup.tsx'
-import Library from './Library.tsx'
+import Library, { AddBookSheet } from './Library.tsx'
 import { inkFor } from './color.ts'
 import { todayKeyInTz } from './date.ts'
 import { formatTime } from './timeFormat.ts'
@@ -463,6 +463,19 @@ function EntrySheet({ kind, entry, date, admin, kid, photos, memberId, onClose, 
   }))
   const set = (patch: Partial<Form>) => setF(x => ({ ...x, ...patch }))
   const [busy, setBusy] = useState(false)
+  // Save to library: the Add a book sheet, started from this book; the entry then links to it (data.bookId).
+  const [bookId, setBookId] = useState(d.bookId ?? null)
+  const [shelving, setShelving] = useState<{ places: string[]; sources: string[] } | null>(null)
+  const shelve = async () => {
+    const books = await api.getLibrary().catch(() => [])
+    const all = (k: 'location' | 'borrowedFrom') => [...new Set(books.map(b => b[k]).filter((v): v is string => !!v))].sort((a, z) => a.localeCompare(z))
+    setShelving({ places: all('location'), sources: all('borrowedFrom') })
+  }
+  const shelved = async (b: { id: string; title: string }) => {
+    setShelving(null)
+    try { await api.updateTracker(entry!.id, { data: { bookId: b.id } }); setBookId(b.id); announce(`${b.title} is in the library`) }
+    catch (e) { toast(errMsg(e, 'Could not link it'), true) }
+  }
 
   const n = (s: string) => s.trim() === '' ? null : Number(s)
   const measure = (v: string, unit: string) => n(v) === null ? null : { value: n(v), unit }
@@ -568,6 +581,11 @@ function EntrySheet({ kind, entry, date, admin, kid, photos, memberId, onClose, 
         </div>
         <div className="field"><label>Rating</label><Stars value={f.rating ?? undefined} label="Rating" onChange={v => set({ rating: v })} /></div>
         <div className="field"><label htmlFor="trk-notes">Notes</label><textarea id="trk-notes" value={f.notes} onChange={e => set({ notes: e.target.value })} placeholder="Favorite part, who recommended it…" /></div>
+        {entry && <div className="field">
+          <label>Library</label>
+          {bookId ? <p className="trk-sub">📖 In the family's library. <a href="#/trackers/library" onClick={onClose}>Open the library</a></p>
+            : <><button type="button" className="btn btn-secondary" onClick={shelve}>📖 Save to library</button><p className="field-hint">Keep it with the books your family owns or has borrowed.</p></>}
+        </div>}
       </>}
 
       {kind === 'memory' && <>
@@ -606,6 +624,8 @@ function EntrySheet({ kind, entry, date, admin, kid, photos, memberId, onClose, 
         <div className="field"><label htmlFor="trk-follow">Follow-up</label><input id="trk-follow" type="date" value={f.followUp} onChange={e => set({ followUp: e.target.value })} /></div>
       </>}
       </fieldset>
+      {shelving && entry && <AddBookSheet places={shelving.places} sources={shelving.sources} today={todayKeyInTz(settings.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone)}
+        from={{ title: f.title.trim(), author: f.author.trim(), pages: n(f.totalPages), coverUrl: f.coverUrl.trim() || null }} onClose={() => setShelving(null)} onAdded={shelved} />}
     </Sheet>
   )
 }
