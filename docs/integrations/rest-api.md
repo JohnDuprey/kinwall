@@ -44,12 +44,12 @@ Every error is JSON with a matching HTTP status:
 
 | Status | Typical cause |
 |---|---|
-| 400 | Validation failed (zod message), or an unsafe URL. |
+| 400 | Validation failed (zod message), or an unsafe URL. Lists bound their text (item titles 500 characters, notes 5,000, quantity, store and category 200, step titles 500, list names 200) and their arrays (1,000 items per request, 500 steps or groups); `POST /api/lists/{id}/clear-completed` and `/reset` with a body that isn't `{ itemIds, store }` are refused rather than treated as "every item". |
 | 401 | Missing, unknown or expired key. `/mcp` also sends `WWW-Authenticate` with OAuth metadata. |
 | 403 | Display key on an admin route. |
 | 404 | Unknown ID. |
 | 409 | Changing a provider or public URL that environment variables set. |
-| 413 | Import file over 10 MB. |
+| 413 | Request body over 2 MB (`/api/*`, `/mcp`, `/oauth/*`). Bigger uploads have their own limits: the import file 10 MB, a photo-album zip about 110 MB, a plugin zip 5 MB. |
 | 429 | Too many sign-in, recovery-code or setup-code attempts. |
 | 502 | Google, Outlook or CalDAV rejected a write. Nothing was stored. |
 

@@ -524,6 +524,11 @@ const resolvedKeys = new WeakMap<Request, ResolvedKey>();
 export async function requestKey(c: Context<{ Bindings: Env }>): Promise<ResolvedKey | null> {
   return resolvedKeys.get(c.req.raw) ?? resolveKey(c);
 }
+/** A middleware that swaps the request (hono's bodyLimit rebuilds one it had to read) keeps its resolved key. */
+export function carryRequestKey(from: Request, to: Request): void {
+  const key = resolvedKeys.get(from);
+  if (key && to !== from) resolvedKeys.set(to, key);
+}
 
 export async function requireAuth(c: Context<{ Bindings: Env }>, next: Next) {
   if (PUBLIC_PATH.test(c.req.path)) return next();

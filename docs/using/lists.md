@@ -75,7 +75,7 @@ Kinwall notes who adds each item and who ticks it off, so when "candy" shows up 
 
 ## Kids' own devices
 
-A kid's own device (a tablet set up as theirs under **Whose device is this?**) works on lists like it does on chores: it can tick, untick, edit, move and delete its own items, items assigned to nobody, and anything on a list that belongs to that kid. Someone else's item still shows, but its circle is dimmed and doesn't tick, and tapping it opens it to read ("This one is Maya's."). Its discussion stays open.
+A kid's own device (a tablet set up as theirs under **Whose device is this?**) works on lists like it does on chores: it can tick, untick, edit, move and delete its own items, items assigned to nobody, and anything on a list that belongs to that kid. Someone else's item still shows, but its circle is dimmed and doesn't tick, and tapping it opens it to read ("This one is Maya's."). Its discussion stays open. A kid's device can assign an item to itself or to nobody, but not to someone else, and it can't tick an item as someone else.
 
 * Anyone can add items, from any device. The item says who added it (see [Who added it](#who-added-it)).
 * **Reset** and **Checkout** on a kid's device sweep only the items it may change; a sibling's ticked items stay as they are.

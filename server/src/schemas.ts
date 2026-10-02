@@ -639,11 +639,11 @@ export const ListSchema = z
 
 export const ListInputSchema = z
   .object({
-    name: z.string().min(1),
+    name: z.string().min(1).max(200),
     kind: z.enum(['todo', 'shopping', 'reusable']),
     emoji: EmojiSchema.nullable().optional(),
-    color: z.string().nullable().optional(),
-    memberIds: z.array(z.string()).optional(),
+    color: z.string().max(50).nullable().optional(),
+    memberIds: z.array(z.string()).max(100).optional(),
     groupBy: ListGroupBySchema.optional(),
     sortBy: ListSortBySchema.optional(),
     keepChecked: z.boolean().optional().openapi({ description: KeepCheckedDoc }),
@@ -653,11 +653,11 @@ export const ListInputSchema = z
 
 export const ListPatchSchema = z
   .object({
-    name: z.string().min(1).optional(),
+    name: z.string().min(1).max(200).optional(),
     emoji: EmojiSchema.nullable().optional(),
-    color: z.string().nullable().optional(),
+    color: z.string().max(50).nullable().optional(),
     kind: z.enum(['todo', 'shopping', 'reusable']).optional(),
-    memberIds: z.array(z.string()).optional(),
+    memberIds: z.array(z.string()).max(100).optional(),
     groupBy: ListGroupBySchema.optional(),
     sortBy: ListSortBySchema.optional(),
     keepChecked: z.boolean().optional().openapi({ description: KeepCheckedDoc }),
@@ -676,7 +676,7 @@ export const ListItemStepSchema = z
   })
   .openapi('ListItemStep');
 
-const StepTitleSchema = z.string().min(1).refine((s) => s.trim().length > 0, 'must not be empty');
+const StepTitleSchema = z.string().min(1).max(500).refine((s) => s.trim().length > 0, 'must not be empty');
 
 export const ListItemStepInputSchema = z.object({ title: StepTitleSchema }).openapi('ListItemStepInput');
 
@@ -684,7 +684,7 @@ export const ListItemStepPatchSchema = z
   .object({ title: StepTitleSchema.optional(), done: z.boolean().optional(), sort: z.number().optional() })
   .openapi('ListItemStepPatch');
 
-export const ListItemStepReorderSchema = z.object({ stepIds: z.array(z.string()) }).openapi('ListItemStepReorder');
+export const ListItemStepReorderSchema = z.object({ stepIds: z.array(z.string()).max(500) }).openapi('ListItemStepReorder');
 
 export const ListItemSchema = z
   .object({
@@ -725,11 +725,11 @@ export const BarcodeSchema = z.string().regex(/^\d{8,14}$/, 'must be 8 to 14 dig
 const ListItemInputSchema = z.object({
   // Optional client-made id (a UUID): an app that adds items offline replays the add without duplicating it.
   id: z.string().uuid().optional(),
-  title: z.string().min(1).refine((s) => s.trim().length > 0, 'must not be empty'),
-  notes: z.string().nullable().optional(),
-  quantity: z.string().nullable().optional(),
-  store: z.string().nullable().optional(),
-  category: z.string().nullable().optional(),
+  title: z.string().min(1).max(500).refine((s) => s.trim().length > 0, 'must not be empty'),
+  notes: z.string().max(5000).nullable().optional(),
+  quantity: z.string().max(200).nullable().optional(),
+  store: z.string().max(200).nullable().optional(),
+  category: z.string().max(200).nullable().optional(),
   aisle: z.string().max(60).nullable().optional(),
   memberId: z.string().nullable().optional(),
   dueDate: z.string().nullable().optional(),
@@ -741,19 +741,20 @@ const ListItemInputSchema = z.object({
 });
 
 // POST /api/lists/:id/items accepts a single item or an array (always returns an array).
-export const ListItemInputBodySchema = z.union([ListItemInputSchema, z.array(ListItemInputSchema)]).openapi('ListItemInputBody');
+export const ListItemInputBodySchema = z.union([ListItemInputSchema, z.array(ListItemInputSchema).max(1000)]).openapi('ListItemInputBody');
 
 export const ListItemPatchSchema = z
   .object({
     title: z
       .string()
       .min(1)
+      .max(500)
       .refine((s) => s.trim().length > 0, 'must not be empty')
       .optional(),
-    notes: z.string().nullable().optional(),
-    quantity: z.string().nullable().optional(),
-    store: z.string().nullable().optional(),
-    category: z.string().nullable().optional(),
+    notes: z.string().max(5000).nullable().optional(),
+    quantity: z.string().max(200).nullable().optional(),
+    store: z.string().max(200).nullable().optional(),
+    category: z.string().max(200).nullable().optional(),
     aisle: z.string().max(60).nullable().optional(),
     aisleStore: z.string().min(1).optional().openapi({
       description: 'Shopping trip: the store `aisle` is at, when that is not (or not yet) the item\'s store. The aisle is remembered for that store; the item takes it only if its store is that one or empty (its store is left as is).',
@@ -896,14 +897,14 @@ export const ListItemMoveSchema = z
   .object({ itemIds: z.array(z.string()).min(1).max(1000), toListId: z.string().min(1).openapi({ description: 'Another list of the same type.' }) })
   .openapi('ListItemMove');
 
-export const ListReorderSchema = z.object({ itemIds: z.array(z.string()) }).openapi('ListReorder');
+export const ListReorderSchema = z.object({ itemIds: z.array(z.string()).max(1000) }).openapi('ListReorder');
 
 export const ListOrderSchema = z
   .object({ ids: z.array(z.string()).max(1000).openapi({ description: 'List ids in the order to show them. Lists left out keep their order, after these.' }) })
   .openapi('ListOrder');
 
 export const ListGroupsInputSchema = z
-  .object({ groups: z.array(z.object({ kind: z.enum(['store', 'category']), name: z.string() })) })
+  .object({ groups: z.array(z.object({ kind: z.enum(['store', 'category']), name: z.string().max(200) })).max(500) })
   .openapi('ListGroupsInput');
 
 export const LeaderboardEntrySchema = z
@@ -1046,8 +1047,8 @@ export const NotificationSchema = z
     url: z.string().nullable(),
     memberIds: z.array(z.string()),
     source: z.string().nullable(),
-  })
     removable: z.boolean().openapi({ description: "Whether the key making this request may remove the note (DELETE /api/notifications/{id}): admin keys for ordinary notes; for a privacy note only a device of the person it's about that was theirs before the note." }),
+  })
   .openapi('Notification');
 
 // Notes threads on an event or a list item. `target` is "event:<id>" or "list_item:<id>".

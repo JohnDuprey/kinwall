@@ -1005,9 +1005,10 @@ listsRoutes.openapi(
   }),
   async (c) => {
     const { id, itemId } = c.req.valid('param');
-    const blocked = await itemOwnerBlock(c, id, oneItem(itemId));
-    if (blocked) return c.json({ error: blocked }, 403);
     const body = c.req.valid('json');
+    // A member's own device may take an item or tick it for itself, never hand it to or tick it as someone else.
+    const blocked = (await itemOwnerBlock(c, id, oneItem(itemId))) ?? (await ownerBlock(c, body.memberId, body.doneBy));
+    if (blocked) return c.json({ error: blocked }, 403);
     const existing = await c.env.DB.prepare("SELECT li.*, l.kind = 'shopping' AS shopping, coalesce(l.catalog, 'groceries') AS catalog FROM list_items li JOIN lists l ON l.id = li.list_id WHERE li.id = ? AND li.list_id = ?")
       .bind(itemId, id)
       .first<ListItemRow & { shopping: number; catalog: Catalog }>();
@@ -1185,11 +1186,13 @@ listsRoutes.openapi(
     summary: 'Checkout: delete the checked items in a list - only those in itemIds (still checked) when given, else every checked item. Optional JSON body { itemIds, store }: store (the end of a shopping trip) is remembered as where they were last bought.',
     security: [{ Bearer: [] }],
     request: { params: z.object({ id: z.string() }) }, // optional JSON body { itemIds } (ListChecked), read by checkedIds
-    responses: { 200: { description: 'ok', content: { 'application/json': { schema: z.object({ deleted: z.number() }) } } }, 403: { description: "a kid's own device: someone else's item", content: { 'application/json': { schema: ErrorSchema } } }, },
+    responses: { 200: { description: 'ok', content: { 'application/json': { schema: z.object({ deleted: z.number() }) } } }, 400: { description: 'a body that is not { itemIds, store }', content: { 'application/json': { schema: ErrorSchema } } }, 403: { description: "a kid's own device: someone else's item", content: { 'application/json': { schema: ErrorSchema } } }, },
   }),
   async (c) => {
     const { id } = c.req.valid('param');
-    const { ids, store } = await checkedBody(c);
+    const body = await checkedBody(c);
+    if (!body) return c.json(BAD_CHECKED_BODY, 400);
+    const { ids, store } = body;
     const blocked = ids ? await itemOwnerBlock(c, id, ids) : null;
     if (blocked) return c.json({ error: blocked }, 403);
     const mine = ids ? null : await sweepFor(c, id);
@@ -1225,11 +1228,13 @@ listsRoutes.openapi(
     summary: 'Uncheck every item (and every step) in a list (for reusable lists) - only those in itemIds when given',
     security: [{ Bearer: [] }],
     request: { params: z.object({ id: z.string() }) }, // optional JSON body { itemIds } (ListChecked), read by checkedIds
-    responses: { 200: { description: 'ok', content: { 'application/json': { schema: z.object({ reset: z.number() }) } } }, 403: { description: "a kid's own device: someone else's item", content: { 'application/json': { schema: ErrorSchema } } }, },
+    responses: { 200: { description: 'ok', content: { 'application/json': { schema: z.object({ reset: z.number() }) } } }, 400: { description: 'a body that is not { itemIds }', content: { 'application/json': { schema: ErrorSchema } } }, 403: { description: "a kid's own device: someone else's item", content: { 'application/json': { schema: ErrorSchema } } }, },
   }),
   async (c) => {
     const { id } = c.req.valid('param');
-    const ids = (await checkedBody(c)).ids;
+    const body = await checkedBody(c);
+    if (!body) return c.json(BAD_CHECKED_BODY, 400);
+    const { ids } = body;
     const blocked = ids ? await itemOwnerBlock(c, id, ids) : null;
     if (blocked) return c.json({ error: blocked }, 403);
     const reset = await resetListItems(c.env.DB, id, ids ? null : await sweepFor(c, id), ids, ids ? null : await actorOf(c)); // all of it: the list was done
@@ -1239,11 +1244,18 @@ listsRoutes.openapi(
 );
 
 /** The optional { itemIds, store } body of Checkout / Reset: ids as a JSON array param (null = every
- * item). Read by hand, not declared on the route: callers post these with no body (or an empty one). */
-async function checkedBody(c: Context<{ Bindings: Env }>): Promise<{ ids: string | null; store: string | null }> {
-  const parsed = ListCheckedSchema.safeParse(await c.req.json().catch(() => ({})));
-  return { ids: parsed.success && parsed.data.itemIds ? JSON.stringify(parsed.data.itemIds) : null, store: parsed.success ? parsed.data.store ?? null : null };
+ * item). Read by hand, not declared on the route: callers post these with no body (or an empty one).
+ * A body that is there but invalid is `null` (a 400), never "every item". */
+async function checkedBody(c: Context<{ Bindings: Env }>): Promise<{ ids: string | null; store: string | null } | null> {
+  const text = await c.req.text();
+  let json: unknown = {};
+  if (text.trim()) {
+    try { json = JSON.parse(text); } catch { return null; }
+  }
+  const parsed = ListCheckedSchema.safeParse(json);
+  return parsed.success ? { ids: parsed.data.itemIds ? JSON.stringify(parsed.data.itemIds) : null, store: parsed.data.store ?? null } : null;
 }
+const BAD_CHECKED_BODY = { error: 'Send { itemIds: [ids], store? } or no body' };
 
 /** Uncheck items (and their steps) in a list; returns how many items were ticked. With `forMember`,
  * only that member's items and unassigned ones - what a chore's checklist covers (routes/chores.ts).

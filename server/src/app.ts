@@ -1,7 +1,9 @@
 import { swaggerUI } from '@hono/swagger-ui';
 import { cors } from 'hono/cors';
+import { bodyLimit } from 'hono/body-limit';
+import type { MiddlewareHandler } from 'hono';
 import { createRouter } from './router.ts';
-import { requireAuth } from './auth.ts';
+import { carryRequestKey, requireAuth } from './auth.ts';
 import { healthRoutes } from './routes/health.ts';
 import { meRoutes } from './routes/me.ts';
 import { settingsRoutes } from './routes/settings.ts';
@@ -41,14 +43,14 @@ import { journalRoutes } from './routes/journal.ts';
 import { insightsRoutes } from './routes/insights.ts';
 import { medicationsRoutes } from './routes/medications.ts';
 import { rewardsRoutes } from './routes/rewards.ts';
-import { photosRoutes } from './routes/photos.ts';
+import { photosRoutes, MAX_ZIP_BYTES as MAX_PHOTO_ZIP_BYTES } from './routes/photos.ts';
 import { googlePhotosRoutes } from './routes/google-photos.ts';
 import { snapshotRoutes } from './routes/snapshot.ts';
 import { weatherRoutes } from './routes/weather.ts';
 import { booksRoutes } from './routes/books.ts';
 import { tidbitRoutes } from './routes/tidbits.ts';
 import { trackersRoutes } from './routes/trackers.ts';
-import { pluginsRoutes, servePluginFile } from './routes/plugins.ts';
+import { pluginsRoutes, servePluginFile, PLUGIN_LIMITS } from './routes/plugins.ts';
 import { liveActivitiesRoutes } from './routes/live-activities.ts';
 import { securityEventsRoutes } from './routes/security-events.ts';
 import { newscastRoutes } from './routes/newscast.ts';
@@ -68,6 +70,20 @@ const CSP_DOCS =
 // The exact swagger-ui-dist release /docs loads. Without a version the CDN serves whatever is
 // newest; bump this by hand after reading the release notes.
 const SWAGGER_UI_VERSION = '5.33.1';
+
+// Request bodies: 2 MB by default (the biggest JSON the schemas allow is a recipe import, about 1.2 MB),
+// with the few uploads that are bigger given their own. Over the limit is a 413 { error } - with no
+// Content-Length (chunked) hono reads the stream and stops at the limit, on Node and Workers alike.
+const limit = (maxSize: number) => bodyLimit({ maxSize, onError: (c) => c.json({ error: `Request body is larger than ${Math.ceil(maxSize / 1048576)} MB` }, 413) });
+const defaultLimit = limit(2 * 1024 * 1024);
+const photoZipLimit = limit(MAX_PHOTO_ZIP_BYTES);
+const pluginZipLimit = limit(PLUGIN_LIMITS.maxZipBytes);
+const bodyLimits: MiddlewareHandler = (c, next) => {
+  if (c.req.path === '/api/import') return next(); // sets its own (10 MB, routes/data.ts)
+  const check = c.req.path === '/api/photos/import' ? photoZipLimit : c.req.path === '/api/plugins' && c.req.method === 'POST' ? pluginZipLimit : defaultLimit;
+  const asked = c.req.raw;
+  return check(c, () => { carryRequestKey(asked, c.req.raw); return next(); });
+};
 
 export function createApp() {
   const app = createRouter();
@@ -96,6 +112,9 @@ export function createApp() {
   });
 
   app.use('/api/*', requireAuth);
+  app.use('/api/*', bodyLimits); // after auth: nobody unauthenticated gets a big upload buffered
+  app.use('/mcp', defaultLimit);
+  app.use('/oauth/*', defaultLimit);
 
   app.route('/', healthRoutes);
   app.route('/', setupRoutes);
