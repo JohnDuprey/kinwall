@@ -90,8 +90,8 @@ export default function Photos() {
       </div>
       {isAdmin && (
         <div className="photos-backup">
-          <a className="btn btn-secondary" href={MOCK ? undefined : api.photoExportUrl()} download
-            onClick={e => { if (MOCK) { e.preventDefault(); toast('Downloads are off in the demo.') } }}>Download all (zip)</a>
+          <button className="btn btn-secondary" onClick={() => MOCK ? toast('Downloads are off in the demo.')
+            : api.downloadPhotos().catch(e => toast(e instanceof ApiError ? e.message : "Couldn't start the download.", true))}>Download all (zip)</button>
           <input ref={zipInput} type="file" accept=".zip,application/zip" hidden onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; importZip(f) }} />
           <button className="btn btn-secondary" disabled={importing || !!progress} onClick={() => zipInput.current?.click()}>{importing ? 'Importing…' : 'Import zip'}</button>
         </div>

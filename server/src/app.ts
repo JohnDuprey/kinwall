@@ -52,6 +52,7 @@ import { pluginsRoutes, servePluginFile } from './routes/plugins.ts';
 import { liveActivitiesRoutes } from './routes/live-activities.ts';
 import { securityEventsRoutes } from './routes/security-events.ts';
 import { newscastRoutes } from './routes/newscast.ts';
+import { mediaRoutes } from './routes/media.ts';
 import { handleMcp } from './mcp.ts';
 
 // Keep in sync with web/public/_headers (Workers serves the UI with that file; Node/Docker with this).
@@ -99,6 +100,7 @@ export function createApp() {
   app.route('/', healthRoutes);
   app.route('/', setupRoutes);
   app.route('/', meRoutes);
+  app.route('/', mediaRoutes);
   app.route('/', securityEventsRoutes);
   app.route('/', revRoutes);
   app.route('/', nightScreenRoutes);
@@ -156,7 +158,8 @@ export function createApp() {
   app.openAPIRegistry.registerComponent('securitySchemes', 'Bearer', {
     type: 'http',
     scheme: 'bearer',
-    description: 'API key, e.g. kw_xxxxx. Also accepted as ?key= on the OAuth start route, GET /api/photos/export.zip and GET /api/photos/{id}/image (browser navigations and <img src>).',
+    description:
+      "API key, e.g. kw_xxxxx. An <img src> can't send a header: the image routes (GET /api/photos/{id}/image, /api/recipes/{id}/image, /api/recipes/{id}/steps/{n}/image, /api/meals/{id}/image, /api/trackers/{id}/cover, /api/books/covers/{coverId}) take ?key= with a media token from GET /api/media-token, and GET /api/photos/export.zip takes ?ticket= from POST /api/photos/export-link. Deprecated, to be removed: the full key as ?key= on those routes.",
   });
 
   app.doc('/openapi.json', {

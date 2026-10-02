@@ -9,7 +9,7 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import { emit } from '../bus.ts';
-import { actorOf, ownerBlock } from '../auth.ts';
+import { actorOf, ownerBlock, photoExportTicket } from '../auth.ts';
 import { ErrorSchema } from '../schemas.ts';
 import type { KinwallDb } from '../db.ts';
 import { readZip, zipStream, type ZipFile } from '../zip.ts';
@@ -210,7 +210,7 @@ photosRoutes.openapi(
     method: 'get',
     path: '/api/photos/{id}/image',
     tags: ['Photos'],
-    summary: "A photo's bytes. Takes the API key as the Bearer header or as ?key= (this route only, so an <img src> can load it).",
+    summary: "A photo's bytes. Takes the API key as the Bearer header, or a media token (GET /api/media-token) as ?key= so an <img src> can load it. The full key as ?key= is deprecated and will be removed.",
     security: [{ Bearer: [] }],
     request: { params: idParam, query: z.object({ key: z.string().optional() }) },
     responses: {
@@ -268,15 +268,33 @@ export function imageSize(b: Uint8Array): { width: number; height: number } | nu
   return null;
 }
 
+// A browser download can't send a header, and a key in a link lands in history and logs: the web
+// app asks for a one-time link (auth.ts photoExportTicket) and opens that.
+photosRoutes.openapi(
+  createRoute({
+    method: 'post',
+    path: '/api/photos/export-link',
+    tags: ['Photos'],
+    summary: 'A link that downloads GET /api/photos/export.zip once, within a minute, with no key in it. Admin only.',
+    security: [{ Bearer: [] }],
+    responses: { 200: { description: 'ok', content: json(z.object({ url: z.string().openapi({ example: '/api/photos/export.zip?ticket=…' }), expiresAt: z.string() })) } },
+  }),
+  async (c) => {
+    const { ticket, expiresAt } = await photoExportTicket(c.env.DB);
+    c.header('Cache-Control', 'no-store');
+    return c.json({ url: `/api/photos/export.zip?ticket=${ticket}`, expiresAt }, 200);
+  },
+);
+
 photosRoutes.openapi(
   createRoute({
     method: 'get',
     path: '/api/photos/export.zip',
     tags: ['Photos'],
     summary:
-      'Download every photo as a zip: photos/<yyyy-mm-dd>-<id>.<ext> plus manifest.json (captions, owners, sizes; "family": false marks a memory\'s own photo). Admin only. Takes the key as the Bearer header or as ?key= (so a plain download link works).',
+      'Download every photo as a zip: photos/<yyyy-mm-dd>-<id>.<ext> plus manifest.json (captions, owners, sizes; "family": false marks a memory\'s own photo). Admin only. Takes the key as the Bearer header, or ?ticket= from POST /api/photos/export-link (a plain download link). ?key= with the full key is deprecated and will be removed.',
     security: [{ Bearer: [] }],
-    request: { query: z.object({ key: z.string().optional() }) },
+    request: { query: z.object({ ticket: z.string().optional(), key: z.string().optional().openapi({ deprecated: true }) }) },
     responses: { 200: { description: 'the zip, streamed', content: { 'application/zip': binary } } },
   }),
   async (c) => {

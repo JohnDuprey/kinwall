@@ -3,6 +3,7 @@ import type { Context, Next } from 'hono';
 import type { Env, WaitCtx } from './env.ts';
 import { waitUntil } from './env.ts';
 import { parseMemberIds } from './calendar-members.ts';
+import { derivedMac, EncryptionKeyMissingError } from './crypto.ts';
 
 const LAST_USED_STALE_MS = 60 * 60 * 1000; // don't write last_used_at more than once an hour
 
@@ -25,7 +26,8 @@ export function generateApiKey(): string {
 }
 
 export type KeyScope = 'admin' | 'display';
-export type ResolvedKey = { id?: string; scope: KeyScope; name: string; kind: 'api' | 'session' | 'oauth'; lastUsedAt?: string | null; owner?: string | null; deviceKind?: KeyDeviceKind | null };
+// media: resolved from a media token (mediaTokenFor), good only for GET on MEDIA_PATH.
+export type ResolvedKey = { id?: string; scope: KeyScope; name: string; kind: 'api' | 'session' | 'oauth'; lastUsedAt?: string | null; owner?: string | null; deviceKind?: KeyDeviceKind | null; media?: true };
 
 // Shared by POST /api/keys and the pairing-approval flow (routes/pair.ts) so key creation +
 // hashing lives in exactly one place. `kind` defaults to 'api' (permanent automation keys);
@@ -202,6 +204,7 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'PUT', pattern: /^\/api\/live-activities\/tokens$/ }, // the iPhone app's Live Activity tokens, for its own device
   { method: 'DELETE', pattern: /^\/api\/live-activities\/tokens$/ },
   { method: 'GET', pattern: /^\/api\/me$/ },
+  { method: 'GET', pattern: /^\/api\/media-token$/ }, // what this device's <img src>s carry instead of its key
   { method: 'GET', pattern: /^\/api\/members$/ },
   { method: 'GET', pattern: /^\/api\/calendars$/ },
   { method: 'GET', pattern: /^\/api\/events(\/[^/]+)?$/ },
@@ -346,14 +349,14 @@ const CONNECTED_APP_DENIED: { method: RegExp; pattern: RegExp; error?: string }[
   { method: /^(PUT|DELETE)$/, pattern: /^\/api\/providers\/[^/]+$/ },
   { method: /./, pattern: /^\/api\/authorizations(\/.*)?$/ },
   { method: /^(GET)$/, pattern: /^\/api\/security-events$/ }, // the security log: parent devices only
-];
-
-/** The 403 message when a connected app (mcp-oauth isConnectedApp) asks to manage sign-ins, else null. */
   { method: /^(POST)$/, pattern: /^\/api\/push\/subscriptions$/, error: NOT_A_DEVICE },
   { method: /^(PATCH|DELETE)$/, pattern: /^\/api\/push\/subscriptions\/[^/]+$/, error: NOT_A_DEVICE },
   { method: /^(POST)$/, pattern: /^\/api\/push\/test\/[^/]+$/, error: NOT_A_DEVICE },
   { method: /^(POST)$/, pattern: /^\/api\/webhooks(\/[^/]+\/rotate)?$/, error: NO_WEBHOOKS },
   { method: /^(PATCH|DELETE)$/, pattern: /^\/api\/webhooks\/[^/]+$/, error: NO_WEBHOOKS },
+];
+
+/** The 403 message when a connected app (mcp-oauth isConnectedApp) asks to manage sign-ins, else null. */
 export async function connectedAppBlock(c: Context<{ Bindings: Env }>): Promise<string | null> {
   return (await isConnectedApp(c)) ? "Connected apps can't create or change sign-ins. Do this from a parent's own device." : null;
 }
@@ -387,16 +390,27 @@ function isDisplayAllowed(method: string, path: string): boolean {
   return DISPLAY_ALLOWED.some((rule) => rule.method === method && rule.pattern.test(path));
 }
 
-// Routes that can't send a header, so they take the key as ?key=: the OAuth start and the photo zip
-// (browser navigations) and a photo's or recipe photo's bytes (an <img src>). Nowhere else - a key in a URL ends up in logs.
-const QUERY_KEY_PATH = /^\/api\/oauth\/[^/]+\/start$|^\/api\/photos\/[^/]+\/image$|^\/api\/(recipes|meals)\/[^/]+\/image$|^\/api\/recipes\/[^/]+\/steps\/\d+\/image$|^\/api\/photos\/export\.zip$|^\/api\/trackers\/[^/]+\/cover$|^\/api\/books\/covers\/[^/]+$/;
+// Routes that can't send a header, so they take a credential as ?key=. A key in a URL ends up in
+// browser history and access logs, so nowhere else.
+// The images (an <img src>): a photo's, a recipe's, a recipe step's, a meal's, a book cover. These
+// take a media token (mediaTokenFor), which opens nothing but them.
+const MEDIA_PATH = /^\/api\/photos\/[^/]+\/image$|^\/api\/(recipes|meals)\/[^/]+\/image$|^\/api\/recipes\/[^/]+\/steps\/\d+\/image$|^\/api\/trackers\/[^/]+\/cover$|^\/api\/books\/covers\/[^/]+$/;
+// DEPRECATED, to be removed: a full key as ?key= on MEDIA_PATH and the photo zip
+// (browser navigations; the zip now takes a one-time ?ticket=, photoExportTicket). Still accepted
+// for older cached web bundles, the mobile app and scripts; the web app sends a media token or
+// ticket wherever it has one. The OAuth start (a browser navigation) still takes the key this way.
+const QUERY_KEY_PATH = /^\/api\/oauth\/[^/]+\/start$|^\/api\/photos\/export\.zip$/;
 
-// Shared by requireAuth and GET /api/me: resolves the bearer key (or ?key= on QUERY_KEY_PATH)
-// to its scope. Returns null if the key is missing/unknown.
+// Shared by requireAuth and GET /api/me: resolves the bearer key (or ?key= on QUERY_KEY_PATH and
+// MEDIA_PATH, where it may also be a media token) to its scope. Returns null if the key is missing/unknown.
 export async function resolveKey(c: Context<{ Bindings: Env }>): Promise<ResolvedKey | null> {
   const header = c.req.header('Authorization') ?? '';
-  const key = header.startsWith('Bearer ') ? header.slice('Bearer '.length).trim() : QUERY_KEY_PATH.test(c.req.path) ? c.req.query('key') ?? '' : '';
+  const bearer = header.startsWith('Bearer ') ? header.slice('Bearer '.length).trim() : '';
+  const media = c.req.method === 'GET' && MEDIA_PATH.test(c.req.path);
+  const query = !bearer && (media || QUERY_KEY_PATH.test(c.req.path)) ? c.req.query('key') ?? '' : '';
+  const key = bearer || query;
   if (!key) return null;
+  if (key.startsWith(MEDIA_PREFIX)) return query && media ? resolveMediaToken(c.env, key) : null; // never a Bearer, never elsewhere
 
   const hash = await sha256Hex(key);
   if (c.env.ADMIN_API_KEY && timingSafeEqual(hash, await sha256Hex(c.env.ADMIN_API_KEY))) {
@@ -419,6 +433,91 @@ export async function resolveKey(c: Context<{ Bindings: Env }>): Promise<Resolve
   };
 }
 
+// ---- Media tokens: what an <img src> carries instead of the full key ----
+// km_<k|g>.<id>.<MAC>: k = an api_keys row (an API key, a passkey or recovery sign-in, a paired
+// device), g = an OAuth grant (an app's sign-in, whose access key changes every hour, so the token
+// outlives refreshes). The MAC (derivedMac, under ENCRYPTION_KEY) is over "<k|g>.<id>"; nothing is
+// stored. The value never changes for a sign-in, so image URLs, and the browser's cache of them,
+// stay put. It opens only GET MEDIA_PATH, as the key behind it (scope, owner, device kind,
+// connected app), and only while that sign-in lives: deleting the key, passkey or connection ends it.
+const MEDIA_PREFIX = 'km_';
+const MEDIA_PURPOSE = 'kinwall media token v1';
+const MEDIA_TOKEN = /^km_([kg])\.([^.]+)\.([\w-]{43})$/;
+type KeyRow = { id: string; name: string; scope: string | null; kind: string | null; owner: string | null; device_kind: KeyDeviceKind | null };
+const KEY_COLS = 'id, name, scope, kind, owner, device_kind';
+const toResolved = (row: KeyRow): ResolvedKey => ({
+  id: row.id,
+  name: row.name,
+  scope: row.scope === 'display' ? 'display' : 'admin',
+  kind: row.kind === 'session' ? 'session' : row.kind === 'oauth' ? 'oauth' : 'api',
+  owner: row.owner,
+  deviceKind: row.device_kind,
+});
+
+/** This sign-in's media token, or null: for the server's ADMIN_API_KEY (no row to revoke it by) and
+ * on a server without ENCRYPTION_KEY. The web app then keeps sending the full key. */
+export async function mediaTokenFor(env: Env, key: ResolvedKey | null): Promise<string | null> {
+  if (!key?.id || key.media) return null;
+  const grant = key.kind === 'oauth' ? (await env.DB.prepare('SELECT oauth_grant_id FROM api_keys WHERE id = ?').bind(key.id).first<{ oauth_grant_id: string | null }>())?.oauth_grant_id : null;
+  const subject = key.kind === 'oauth' ? (grant ? `g.${grant}` : null) : `k.${key.id}`;
+  if (!subject) return null;
+  try {
+    return `${MEDIA_PREFIX}${subject}.${await derivedMac(env, MEDIA_PURPOSE, subject)}`;
+  } catch (e) {
+    if (e instanceof EncryptionKeyMissingError) return null;
+    throw e;
+  }
+}
+
+// A grant's sign-in lives while it has an unexpired access key, or a refresh token it can still
+// use: an app asleep past its hourly key keeps its images until it refreshes, but a revoked
+// connection (its keys, refresh tokens and grant deleted) or a lapsed one shows nothing. Its newest
+// key stands in for it, so isConnectedApp and the owner are that key's.
+async function resolveMediaToken(env: Env, token: string): Promise<ResolvedKey | null> {
+  const m = MEDIA_TOKEN.exec(token);
+  if (!m || !env.ENCRYPTION_KEY) return null;
+  const [, type, id, mac] = m;
+  if (!timingSafeEqual(mac, await derivedMac(env, MEDIA_PURPOSE, `${type}.${id}`))) return null;
+  const now = new Date().toISOString();
+  const row = type === 'k'
+    ? await env.DB.prepare(`SELECT ${KEY_COLS} FROM api_keys WHERE id = ? AND kind != 'oauth' AND (expires_at IS NULL OR expires_at > ?)`).bind(id, now).first<KeyRow>()
+    : await env.DB.prepare(
+        `SELECT ${KEY_COLS} FROM api_keys k WHERE oauth_grant_id = ? AND kind = 'oauth'
+           AND (expires_at > ? OR EXISTS (SELECT 1 FROM oauth_refresh_tokens r WHERE r.grant_id = k.oauth_grant_id AND r.used_at IS NULL AND r.expires_at > ?))
+         ORDER BY expires_at DESC LIMIT 1`,
+      ).bind(id, now, now).first<KeyRow>();
+  return row ? { ...toResolved(row), media: true } : null;
+}
+
+// ---- Photo download links: a one-time ticket for GET /api/photos/export.zip ----
+// A row in webauthn_challenges (the passkey ceremony's disposable single-use rows) with kind
+// 'photo_export' and the ticket's hash as its subject; gone once used or after a minute.
+const TICKET_KIND = 'photo_export';
+const TICKET_TTL_MS = 60 * 1000;
+
+/** A fresh ticket for one photo zip download, and when it expires. */
+export async function photoExportTicket(db: KinwallDb): Promise<{ ticket: string; expiresAt: string }> {
+  const ticket = [...crypto.getRandomValues(new Uint8Array(24))].map((b) => b.toString(16).padStart(2, '0')).join('');
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + TICKET_TTL_MS).toISOString();
+  await db.batch([
+    db.prepare('DELETE FROM webauthn_challenges WHERE expires_at < ?').bind(now.toISOString()),
+    db.prepare('INSERT INTO webauthn_challenges (id, kind, subject, data, created_at, expires_at) VALUES (?,?,?,?,?,?)')
+      .bind(crypto.randomUUID(), TICKET_KIND, await sha256Hex(ticket), null, now.toISOString(), expiresAt),
+  ]);
+  return { ticket, expiresAt };
+}
+
+/** GET /api/photos/export.zip?ticket=: uses the ticket up (one statement, so two racing requests
+ * can't both get in). Null when there's none, it's spent or expired, or this isn't that route. */
+async function takePhotoExportTicket(c: Context<{ Bindings: Env }>): Promise<ResolvedKey | null> {
+  const ticket = c.req.method === 'GET' && c.req.path === '/api/photos/export.zip' ? c.req.query('ticket') : undefined;
+  if (!ticket) return null;
+  const res = await c.env.DB.prepare('DELETE FROM webauthn_challenges WHERE kind = ? AND subject = ? AND expires_at > ?')
+    .bind(TICKET_KIND, await sha256Hex(ticket), new Date().toISOString()).run();
+  return res.meta.changes > 0 ? { scope: 'admin', name: 'Photo download link', kind: 'api' } : null;
+}
+
 // requireAuth's resolved key, per request, so routes that need it (eventWriteBlock, GET /api/calendars)
 // don't look the key up again.
 const resolvedKeys = new WeakMap<Request, ResolvedKey>();
@@ -429,8 +528,10 @@ export async function requestKey(c: Context<{ Bindings: Env }>): Promise<Resolve
 export async function requireAuth(c: Context<{ Bindings: Env }>, next: Next) {
   if (PUBLIC_PATH.test(c.req.path)) return next();
 
-  const resolved = await resolveKey(c);
+  const resolved = (await takePhotoExportTicket(c)) ?? (await resolveKey(c));
   if (!resolved) return c.json({ error: 'unauthorized' }, 401);
+  // resolveKey only answers a media token on GET MEDIA_PATH; this keeps it there whatever changes.
+  if (resolved.media && !(c.req.method === 'GET' && MEDIA_PATH.test(c.req.path))) return c.json({ error: 'unauthorized' }, 401);
   resolvedKeys.set(c.req.raw, resolved);
 
   if (resolved.scope === 'display' && !isDisplayAllowed(c.req.method, c.req.path)) {
@@ -445,7 +546,8 @@ export async function requireAuth(c: Context<{ Bindings: Env }>, next: Next) {
   // Tracking last_used_at is best-effort telemetry, not something any request should wait on:
   // skip the write entirely when it was already refreshed within the last hour, and otherwise
   // fire it in the background instead of blocking the response on it.
-  if (resolved.id && (!resolved.lastUsedAt || Date.parse(resolved.lastUsedAt) < Date.now() - LAST_USED_STALE_MS)) {
+  // A media token's image loads don't count (one write per image is too many, and its key's own requests do).
+  if (resolved.id && !resolved.media && (!resolved.lastUsedAt || Date.parse(resolved.lastUsedAt) < Date.now() - LAST_USED_STALE_MS)) {
     let ctx: WaitCtx | undefined;
     try {
       ctx = c.executionCtx;

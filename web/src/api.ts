@@ -24,12 +24,15 @@ export const PUSH_SUB_ID_KEY = 'kinwall.pushSubId'
 const KEY_STORAGE = 'kinwall.apiKey'
 const ADMIN_KEY_STORAGE = 'kinwall.adminKey' // sessionStorage: { key, expiresAt } — cleared after 5 min
 const ADMIN_TTL_MS = 5 * 60 * 1000
+const MEDIA_STORAGE = 'kinwall.mediaToken' // { of: the key's last 12 characters, token } from GET /api/media-token
 
 export function getKey(): string | null {
   return localStorage.getItem(KEY_STORAGE)
 }
 export function setKey(key: string) {
   localStorage.setItem(KEY_STORAGE, key)
+  forgetMediaToken()
+  refreshMediaToken()
   tellAppSignedIn()
   syncNow() // changes queued before a rejected key was replaced
 }
@@ -37,6 +40,7 @@ export function setKey(key: string) {
  * `signOut`: the person chose to sign out or unpair. */
 export function clearKey(reason: 'signOut' | 'rejected' = 'signOut'): Promise<void> {
   localStorage.removeItem(KEY_STORAGE)
+  forgetMediaToken()
   tellAppSignedOut(reason)
   // Offline copies go with the key (and at start-up with no key: see below). A rejected key
   // (revoked, or the app's sign-in lapsed) keeps its queued changes: the same household signs in
@@ -63,6 +67,48 @@ export function setAdminKey(key: string) {
 }
 export function clearAdminKey() {
   try { sessionStorage.removeItem(ADMIN_KEY_STORAGE) } catch { /* ignore */ }
+}
+
+// An <img src> can't send a header, so its credential rides in the URL, where it lands in history
+// and access logs. The media token (server: auth.ts mediaTokenFor) opens only the images, as this
+// key, and stays the same for this sign-in, so image URLs and the browser's cache stay put. Kept
+// next to the key, for whichever key it came from: the Kinwall app swaps its hourly key in
+// localStorage behind our back, and that's noticed here and the token asked for again.
+let mediaAskedAt = 0
+let mediaAsking = false
+function forgetMediaToken() {
+  try { localStorage.removeItem(MEDIA_STORAGE) } catch { /* nothing kept */ }
+  mediaAskedAt = 0
+}
+/** The token for this key: a string, null when the server has none for it, undefined when not known yet. */
+function savedMediaToken(key: string): string | null | undefined {
+  try {
+    const saved = JSON.parse(localStorage.getItem(MEDIA_STORAGE) ?? 'null') as { of: string; token: string | null } | null
+    return saved?.of === key.slice(-12) ? saved.token : undefined
+  } catch { return undefined }
+}
+function refreshMediaToken() {
+  const key = getKey()
+  // At most once a minute, so a wall that starts offline doesn't ask on every image.
+  if (MOCK || !key || mediaAsking || savedMediaToken(key) !== undefined || Date.now() - mediaAskedAt < 60_000) return
+  mediaAsking = true
+  mediaAskedAt = Date.now()
+  fetch(apiUrl('api/media-token'), { headers: { Authorization: `Bearer ${key}` } })
+    .then(r => (r.ok ? r.json() as Promise<{ token: string | null }> : null))
+    .then(r => { if (r && getKey() === key) localStorage.setItem(MEDIA_STORAGE, JSON.stringify({ of: key.slice(-12), token: r.token })) })
+    .catch(() => { /* offline: try again later */ })
+    .finally(() => { mediaAsking = false })
+}
+/** What an <img src> carries as ?key=: the media token, or the full key until it's known (a first
+ * start, a wall that boots offline) or when the server has none (its ADMIN_API_KEY, no
+ * ENCRYPTION_KEY), so images always show. A src built before the token arrived keeps the key until
+ * it's built again. */
+function mediaKey(): string {
+  const key = getKey()
+  if (!key) return ''
+  const token = savedMediaToken(key)
+  if (token === undefined) refreshMediaToken()
+  return token ?? key
 }
 
 export class ApiError extends Error {
@@ -180,11 +226,11 @@ function queue(method: Op['method'], path: string, body?: unknown): Op {
 }
 
 if (!MOCK && typeof window !== 'undefined') {
-  window.addEventListener('online', () => { setOffline(false); syncNow() })
+  window.addEventListener('online', () => { setOffline(false); syncNow(); refreshMediaToken() })
   window.addEventListener('offline', () => setOffline(true))
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') syncNow() })
   setInterval(() => { if (pendingOps(outboxTag()).length) syncNow() }, 15000)
-  if (getKey()) outboxReady().then(syncNow)
+  if (getKey()) { outboxReady().then(syncNow); refreshMediaToken() }
   else clearOffline().catch(() => {}) // signed out (however it happened): nothing kept for the next person
 }
 
@@ -492,10 +538,14 @@ export const api = {
       headers: { 'Content-Type': 'image/png', 'X-Photo-Width': String(width), 'X-Photo-Height': String(height) },
     }),
   deleteColoringPage: (id: string) => MOCK ? mock.deleteColoringPage(id) : del(`api/coloring-pages/${id}`, true),
-  /** An <img src> for a photo: it can't send the Bearer header, so the key rides as ?key= (the server
-   * accepts that on this one route). The demo's photos are plain public URLs. */
-  // Zip backup of every photo (admin). A plain download link, so the key rides as ?key= like the OAuth start.
-  photoExportUrl: () => apiUrl(`api/photos/export.zip?key=${encodeURIComponent(getAdminKey() ?? getKey() ?? '')}`),
+  /** Zip backup of every photo (admin): a link that works once, within a minute, so no key is in the URL. */
+  downloadPhotos: async () => {
+    const { url } = await req<{ url: string }>('api/photos/export-link', { method: 'POST', useAdmin: true, quiet: true })
+    const a = document.createElement('a')
+    a.href = apiUrl(url.replace(/^\//, ''))
+    a.download = ''
+    a.click()
+  },
   importPhotos: (zip: File) => MOCK ? mock.importPhotos() : req<{ imported: number; skipped: number }>('api/photos/import', {
     method: 'POST', body: zip, useAdmin: true, headers: { 'Content-Type': 'application/zip' },
   }),
@@ -514,15 +564,17 @@ export const api = {
     if (!res.ok) throw new ApiError(res.status, res.statusText)
     return { src: URL.createObjectURL(await res.blob()), revoke: true }
   },
-  photoImageUrl: (p: Pick<Photo, 'id' | 'url'>) => MOCK ? p.url : apiUrl(`api/photos/${p.id}/image?key=${encodeURIComponent(getKey() ?? '')}`),
+  /** An <img src> for a photo: it can't send the Bearer header, so the media token rides as ?key=
+   * (mediaKey). The demo's photos are plain public URLs. */
+  photoImageUrl: (p: Pick<Photo, 'id' | 'url'>) => MOCK ? p.url : apiUrl(`api/photos/${p.id}/image?key=${encodeURIComponent(mediaKey())}`),
   /** The same by id alone, for a memory's photo (its own photo isn't in getPhotos). */
-  photoImageUrlById: (id: string) => MOCK ? mock.photoUrl(id) : apiUrl(`api/photos/${id}/image?key=${encodeURIComponent(getKey() ?? '')}`),
-  /** A recipe's photo as an <img src> (?key= like photos; the server fetches the recipe's own imageUrl).
+  photoImageUrlById: (id: string) => MOCK ? mock.photoUrl(id) : apiUrl(`api/photos/${id}/image?key=${encodeURIComponent(mediaKey())}`),
+  /** A recipe's photo as an <img src> (the media token as ?key=, like photos; the server fetches the recipe's own imageUrl).
    * null in the demo, which has no server to fetch through, so it shows no photos. */
   // Step n (from 1); v (the recipe's updatedAt) keeps a cached photo from outliving an edit that moved steps.
   // The demo's step photos are stock Picsum images (allowed by the CSP, like the demo's family photos).
-  recipeStepImageUrl: (id: string, n: number, v: string) => MOCK ? `https://picsum.photos/seed/kinwall-${id}-${n}/800/600` : apiUrl(`api/recipes/${encodeURIComponent(id)}/steps/${n}/image?key=${encodeURIComponent(getKey() ?? '')}&v=${encodeURIComponent(v)}`),
-  recipeImageUrl: (kind: 'recipes' | 'meals', id: string) => MOCK ? null : apiUrl(`api/${kind}/${encodeURIComponent(id)}/image?key=${encodeURIComponent(getKey() ?? '')}`),
+  recipeStepImageUrl: (id: string, n: number, v: string) => MOCK ? `https://picsum.photos/seed/kinwall-${id}-${n}/800/600` : apiUrl(`api/recipes/${encodeURIComponent(id)}/steps/${n}/image?key=${encodeURIComponent(mediaKey())}&v=${encodeURIComponent(v)}`),
+  recipeImageUrl: (kind: 'recipes' | 'meals', id: string) => MOCK ? null : apiUrl(`api/${kind}/${encodeURIComponent(id)}/image?key=${encodeURIComponent(mediaKey())}`),
   removeSticker: (memberId: string, id: string) => MOCK ? mock.removeSticker(memberId, id) : del(`api/stickers/scrapbook/${memberId}/${id}`),
 
   getLists: (archived?: boolean) => MOCK ? mock.getLists(archived) : get<List[]>(`api/lists${archived ? '?archived=true' : ''}`),
@@ -546,10 +598,10 @@ export const api = {
   deleteTracker: (id: string) => MOCK ? mock.deleteTracker(id) : del(`api/trackers/${id}`),
   // Book lookup and covers go through the server (Open Library), so the browser never talks to a third party.
   searchBooks: (q: string) => MOCK ? mock.searchBooks(q) : get<BookResult[]>(`api/books/search?q=${encodeURIComponent(q)}`),
-  bookThumbUrl: (r: BookResult) => MOCK ? r.coverUrl ?? null : r.coverId ? apiUrl(`api/books/covers/${r.coverId}?key=${encodeURIComponent(getKey() ?? '')}`) : null,
+  bookThumbUrl: (r: BookResult) => MOCK ? r.coverUrl ?? null : r.coverId ? apiUrl(`api/books/covers/${r.coverId}?key=${encodeURIComponent(mediaKey())}`) : null,
   // v (the entry's updatedAt) refetches the cover after its link changes.
   trackerCoverUrl: (e: TrackerEntry) => MOCK ? (e.data as { coverUrl?: string }).coverUrl ?? null
-    : apiUrl(`api/trackers/${encodeURIComponent(e.id)}/cover?key=${encodeURIComponent(getKey() ?? '')}&v=${encodeURIComponent(e.updatedAt)}`),
+    : apiUrl(`api/trackers/${encodeURIComponent(e.id)}/cover?key=${encodeURIComponent(mediaKey())}&v=${encodeURIComponent(e.updatedAt)}`),
   // Newscast (server: routes/newscast.ts). Not cached offline: it's for now, not for later.
   getNewscast: (q: { days?: number; before?: string } = {}) => MOCK ? mock.getNewscast(q)
     : req<Newscast>(`api/newscast?${new URLSearchParams({ ...(q.days ? { days: String(q.days) } : {}), ...(q.before ? { before: q.before } : {}) })}`),

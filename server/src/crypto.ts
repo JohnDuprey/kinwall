@@ -31,6 +31,17 @@ async function importKey(env: EncryptionEnv): Promise<CryptoKey> {
   return crypto.subtle.importKey('raw', raw as BufferSource, 'AES-GCM', false, ['encrypt', 'decrypt']);
 }
 
+/** HMAC-SHA256 of `message` (base64url) under a key derived from ENCRYPTION_KEY (HKDF) for one
+ * `purpose`, so a MAC made for one thing never verifies as another and never touches the AES key. */
+export async function derivedMac(env: EncryptionEnv, purpose: string, message: string): Promise<string> {
+  if (!env.ENCRYPTION_KEY) throw new EncryptionKeyMissingError();
+  const enc = new TextEncoder();
+  const base = await crypto.subtle.importKey('raw', base64ToBytes(env.ENCRYPTION_KEY) as BufferSource, 'HKDF', false, ['deriveKey']);
+  const key = await crypto.subtle.deriveKey({ name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(), info: enc.encode(purpose) }, base, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const mac = bytesToBase64(new Uint8Array(await crypto.subtle.sign('HMAC', key, enc.encode(message))));
+  return mac.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
 export async function encrypt(env: EncryptionEnv, plaintext: string, aad: string): Promise<string> {
   const key = await importKey(env);
   const iv = crypto.getRandomValues(new Uint8Array(12));

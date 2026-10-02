@@ -88,7 +88,7 @@ Photos aren't part of the JSON [export](../your-data/export-import.md). They bac
 
 Both buttons are on the Photos page and need a parent (admin) sign-in.
 
-API: `GET /api/photos/export.zip`, `POST /api/photos/import` with the zip as the body (`Content-Type: application/zip`).
+API: `GET /api/photos/export.zip` (a download link from `POST /api/photos/export-link` works once, within a minute), `POST /api/photos/import` with the zip as the body (`Content-Type: application/zip`).
 
 ## Privacy
 
