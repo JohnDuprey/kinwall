@@ -8,6 +8,9 @@ import { runMigrations } from '../src/migrate.ts';
 import { readdirSync, readFileSync } from 'node:fs';
 import type { Env } from '../src/env.ts';
 
+// GET /api/events reads at most 400 days: a window around today, where these feeds put their events.
+const NEAR = `from=${new Date(Date.now() - 30 * 86400e3).toISOString()}&to=${new Date(Date.now() + 300 * 86400e3).toISOString()}`;
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MIGRATIONS_DIR = path.join(__dirname, '..', 'migrations');
 const ADMIN_KEY = 'fc_test_admin_key';
@@ -63,7 +66,7 @@ test('calendars: memberIds multi -> a synced event with no overrides returns all
     assert.equal(cal.memberId, m1.id); // first element, for compat
 
     await request(`/api/calendars/${cal.id}/sync`, { method: 'POST' });
-    const events = await (await request(`/api/events?from=2020-01-01&to=2035-01-01&calendarId=${cal.id}`)).json() as any[];
+    const events = await (await request(`/api/events?${NEAR}&calendarId=${cal.id}`)).json() as any[];
     assert.equal(events.length, 1);
     assert.deepEqual([...events[0].memberIds].sort(), [m1.id, m2.id].sort());
     assert.equal(events[0].memberScope, 'calendar');
@@ -86,7 +89,7 @@ test('calendars: occurrence and series overrides still win over calendar members
       await request('/api/calendars', { method: 'POST', body: JSON.stringify({ kind: 'ics', name: 'Feed', url: 'https://example.test/feed.ics', memberIds: [m1.id, m2.id] }) })
     ).json() as any;
     await request(`/api/calendars/${cal.id}/sync`, { method: 'POST' });
-    const before = (await (await request(`/api/events?from=2020-01-01&to=2035-01-01&calendarId=${cal.id}`)).json() as any[])[0];
+    const before = (await (await request(`/api/events?${NEAR}&calendarId=${cal.id}`)).json() as any[])[0];
     assert.deepEqual([...before.memberIds].sort(), [m1.id, m2.id].sort());
 
     const occOverridden = await (await request(`/api/events/${before.id}`, { method: 'PATCH', body: JSON.stringify({ memberIds: [m3.id] }) })).json() as any;
@@ -117,7 +120,7 @@ test('events: ?memberId filter matches the second calendar member too', async ()
     body: JSON.stringify({ calendarId: cal.id, title: 'Dinner', start: `${today}T18:00:00.000Z`, end: `${today}T19:00:00.000Z`, allDay: false }),
   });
 
-  const matches = await (await request(`/api/events?from=2020-01-01&to=2035-01-01&memberId=${m2.id}`)).json() as any[];
+  const matches = await (await request(`/api/events?${NEAR}&memberId=${m2.id}`)).json() as any[];
   assert.equal(matches.length, 1);
   assert.deepEqual([...matches[0].memberIds].sort(), [m1.id, m2.id].sort());
 });

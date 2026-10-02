@@ -79,7 +79,7 @@ test('series: a series tag applies to every occurrence, including one added by a
   try {
     const first = await syncCalendar(env, calendarId);
     assert.equal(first.ok, true);
-    let events = (await (await request(`/api/events?from=2025-01-01&to=2027-01-01&calendarId=${calendarId}`)).json()) as any[];
+    let events = (await (await request(`/api/events?from=2026-01-01&to=2027-01-01&calendarId=${calendarId}`)).json()) as any[];
     assert.equal(events.length, 3);
     assert.ok(events.every((e) => e.seriesId === 'series-master-1'));
     assert.ok(events.every((e) => e.memberScope === 'none'));
@@ -93,7 +93,7 @@ test('series: a series tag applies to every occurrence, including one added by a
     assert.deepEqual([...patched.memberIds].sort(), [m1.id, m2.id].sort());
     assert.equal(patched.memberScope, 'series');
 
-    events = (await (await request(`/api/events?from=2025-01-01&to=2027-01-01&calendarId=${calendarId}`)).json()) as any[];
+    events = (await (await request(`/api/events?from=2026-01-01&to=2027-01-01&calendarId=${calendarId}`)).json()) as any[];
     assert.equal(events.length, 3);
     for (const e of events) {
       assert.deepEqual([...e.memberIds].sort(), [m1.id, m2.id].sort());
@@ -104,7 +104,7 @@ test('series: a series tag applies to every occurrence, including one added by a
     n = 4;
     const second = await syncCalendar(env, calendarId);
     assert.equal(second.ok, true);
-    events = (await (await request(`/api/events?from=2025-01-01&to=2027-01-01&calendarId=${calendarId}`)).json()) as any[];
+    events = (await (await request(`/api/events?from=2026-01-01&to=2027-01-01&calendarId=${calendarId}`)).json()) as any[];
     assert.equal(events.length, 4);
     for (const e of events) assert.deepEqual([...e.memberIds].sort(), [m1.id, m2.id].sort());
   } finally {
@@ -118,7 +118,7 @@ test('series: an occurrence tag overrides the series tag for that occurrence onl
   const { calendarId, restore } = await makeGoogleCalendar(env, () => 3);
   try {
     await syncCalendar(env, calendarId);
-    let events = (await (await request(`/api/events?from=2025-01-01&to=2027-01-01&calendarId=${calendarId}`)).json()) as any[];
+    let events = (await (await request(`/api/events?from=2026-01-01&to=2027-01-01&calendarId=${calendarId}`)).json()) as any[];
 
     const m1 = (await (await request('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Mom', color: '#f00', avatar: 'M' }) })).json()) as any;
     const m2 = (await (await request('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Dad', color: '#00f', avatar: 'D' }) })).json()) as any;
@@ -130,7 +130,7 @@ test('series: an occurrence tag overrides the series tag for that occurrence onl
     assert.deepEqual(occPatched.memberIds, [m2.id]);
     assert.equal(occPatched.memberScope, 'occurrence');
 
-    events = (await (await request(`/api/events?from=2025-01-01&to=2027-01-01&calendarId=${calendarId}`)).json()) as any[];
+    events = (await (await request(`/api/events?from=2026-01-01&to=2027-01-01&calendarId=${calendarId}`)).json()) as any[];
     const byExternalOrder = [...events].sort((a, b) => a.start.localeCompare(b.start));
     assert.deepEqual(byExternalOrder[0].memberIds, [m1.id]); // series tag
     assert.deepEqual(byExternalOrder[1].memberIds, [m2.id]); // occurrence override wins
@@ -147,7 +147,7 @@ test('series: scope "series" clears prior occurrence tags in that series ("All e
   const { calendarId, restore } = await makeGoogleCalendar(env, () => 3);
   try {
     await syncCalendar(env, calendarId);
-    let events = (await (await request(`/api/events?from=2025-01-01&to=2027-01-01&calendarId=${calendarId}`)).json()) as any[];
+    let events = (await (await request(`/api/events?from=2026-01-01&to=2027-01-01&calendarId=${calendarId}`)).json()) as any[];
 
     const m1 = (await (await request('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Mom', color: '#f00', avatar: 'M' }) })).json()) as any;
     const m2 = (await (await request('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Dad', color: '#00f', avatar: 'D' }) })).json()) as any;
@@ -159,7 +159,7 @@ test('series: scope "series" clears prior occurrence tags in that series ("All e
     // the occurrence that had its own tag.
     await request(`/api/events/${events[0].id}`, { method: 'PATCH', body: JSON.stringify({ memberIds: [m1.id], scope: 'series' }) });
 
-    events = (await (await request(`/api/events?from=2025-01-01&to=2027-01-01&calendarId=${calendarId}`)).json()) as any[];
+    events = (await (await request(`/api/events?from=2026-01-01&to=2027-01-01&calendarId=${calendarId}`)).json()) as any[];
     assert.equal(events.length, 3);
     for (const e of events) {
       assert.deepEqual(e.memberIds, [m1.id]);
@@ -178,19 +178,19 @@ test('series: [] on scope "series" clears the series tag back to the calendar me
     const owner = (await (await request('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Owner', color: '#0f0', avatar: 'O' }) })).json()) as any;
     await request(`/api/calendars/${calendarId}`, { method: 'PATCH', body: JSON.stringify({ memberId: owner.id }) });
     await syncCalendar(env, calendarId);
-    let events = (await (await request(`/api/events?from=2025-01-01&to=2027-01-01&calendarId=${calendarId}`)).json()) as any[];
+    let events = (await (await request(`/api/events?from=2026-01-01&to=2027-01-01&calendarId=${calendarId}`)).json()) as any[];
     assert.ok(events.every((e) => e.memberScope === 'calendar' && e.memberIds[0] === owner.id));
 
     const m1 = (await (await request('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Mom', color: '#f00', avatar: 'M' }) })).json()) as any;
     await request(`/api/events/${events[0].id}`, { method: 'PATCH', body: JSON.stringify({ memberIds: [m1.id], scope: 'series' }) });
-    events = (await (await request(`/api/events?from=2025-01-01&to=2027-01-01&calendarId=${calendarId}`)).json()) as any[];
+    events = (await (await request(`/api/events?from=2026-01-01&to=2027-01-01&calendarId=${calendarId}`)).json()) as any[];
     assert.ok(events.every((e) => e.memberScope === 'series'));
 
     const cleared = (await (await request(`/api/events/${events[0].id}`, { method: 'PATCH', body: JSON.stringify({ memberIds: [], scope: 'series' }) })).json()) as any;
     assert.deepEqual(cleared.memberIds, [owner.id]);
     assert.equal(cleared.memberScope, 'calendar');
 
-    events = (await (await request(`/api/events?from=2025-01-01&to=2027-01-01&calendarId=${calendarId}`)).json()) as any[];
+    events = (await (await request(`/api/events?from=2026-01-01&to=2027-01-01&calendarId=${calendarId}`)).json()) as any[];
     assert.ok(events.every((e) => e.memberScope === 'calendar' && e.memberIds[0] === owner.id));
   } finally {
     restore();
@@ -217,7 +217,7 @@ test('series: 400 when scope "series" is used on an event with no series (non-re
       .bind(calendarId, 'google', accountId, 'primary', 'Work', calendarConfig, 1, 1)
       .run();
     await syncCalendar(env, calendarId);
-    const events = (await (await request(`/api/events?from=2025-01-01&to=2027-01-01&calendarId=${calendarId}`)).json()) as any[];
+    const events = (await (await request(`/api/events?from=2026-01-01&to=2027-01-01&calendarId=${calendarId}`)).json()) as any[];
     assert.equal(events.length, 1);
     assert.equal(events[0].seriesId, null);
 

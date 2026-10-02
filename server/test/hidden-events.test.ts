@@ -15,7 +15,7 @@ import type { Env } from '../src/env.ts';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MIGRATIONS_DIR = path.join(__dirname, '..', 'migrations');
 const ADMIN_KEY = 'fc_test_admin_key';
-const RANGE = '/api/events?from=2025-01-01T00:00:00Z&to=2031-01-01T00:00:00Z';
+const RANGE = '/api/events?from=2026-01-01T00:00:00Z&to=2027-01-01T00:00:00Z';
 
 async function setup() {
   const db = openDb(':memory:');

@@ -25,6 +25,9 @@ import { createApp } from '../src/app.ts';
 import { openDb, applyMigrations, type RoundTripCounter } from '../src/d1-sqlite.ts';
 import type { Env } from '../src/env.ts';
 
+// GET /api/events reads at most 400 days: a window around today, where these feeds put their events.
+const NEAR = `from=${new Date(Date.now() - 30 * 86400e3).toISOString()}&to=${new Date(Date.now() + 300 * 86400e3).toISOString()}`;
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MIGRATIONS_DIR = path.join(__dirname, '..', 'migrations');
 const ADMIN_KEY = 'fc_test_admin_key';
@@ -86,7 +89,7 @@ async function seedHousehold(request: ReturnType<typeof makeApp>) {
   } finally {
     globalThis.fetch = realFetch;
   }
-  const synced = await (await request(`/api/events?from=2020-01-01&to=2035-01-01&calendarId=${syncedCal.id}`)).json() as any[];
+  const synced = await (await request(`/api/events?${NEAR}&calendarId=${syncedCal.id}`)).json() as any[];
   await request(`/api/events/${synced[0].id}`, { method: 'PATCH', body: JSON.stringify({ memberIds: [members[2].id] }) });
 
   const chores = [];
@@ -96,7 +99,7 @@ async function seedHousehold(request: ReturnType<typeof makeApp>) {
   await request(`/api/chores/${chores[0].id}/complete`, { method: 'POST', body: JSON.stringify({ date: today }) });
   await request(`/api/chores/${chores[1].id}/complete`, { method: 'POST', body: JSON.stringify({ date: today, memberId: members[1].id }) });
 
-  return { members, localCal, syncedCal, localEventId: (await (await request(`/api/events?from=2020-01-01&to=2035-01-01&calendarId=${localCal.id}`)).json() as any[])[1].id, choreId: chores[2].id, today };
+  return { members, localCal, syncedCal, localEventId: (await (await request(`/api/events?${NEAR}&calendarId=${localCal.id}`)).json() as any[])[1].id, choreId: chores[2].id, today };
 }
 
 test('round trips: hot GET/write paths stay within budget', async () => {
@@ -123,8 +126,8 @@ test('round trips: hot GET/write paths stay within budget', async () => {
     assert.ok(n <= max, `${label}: expected <= ${max} round trips, got ${n}`);
   };
 
-  const from = '2020-01-01';
-  const to = '2035-01-01';
+  const from = seed.today;
+  const to = new Date(Date.parse(seed.today) + 7 * 86400e3).toISOString().slice(0, 10);
 
   // Ceilings are the measured AFTER counts, including the auth SELECT (the last_used_at write
   // itself never counts here: it's fired via waitUntil and, once written, skipped again for an

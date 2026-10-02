@@ -9,6 +9,9 @@ import { createApp } from '../src/app.ts';
 import { openDb, applyMigrations } from '../src/d1-sqlite.ts';
 import type { Env } from '../src/env.ts';
 
+// GET /api/events reads at most 400 days: a window around today, where these feeds put their events.
+const NEAR = `from=${new Date(Date.now() - 30 * 86400e3).toISOString()}&to=${new Date(Date.now() + 300 * 86400e3).toISOString()}`;
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MIGRATIONS_DIR = path.join(__dirname, '..', 'migrations');
 
@@ -161,7 +164,7 @@ test('categories: an occurrence-level override on a synced (ICS) event survives 
     globalThis.fetch = realFetch;
   }
 
-  let events = await json<any[]>(await request(`/api/events?from=2020-01-01&to=2035-01-01&calendarId=${cal.id}`));
+  let events = await json<any[]>(await request(`/api/events?${NEAR}&calendarId=${cal.id}`));
   assert.equal(events.length, 1);
   assert.equal(events[0].categoryId, null);
 
@@ -175,7 +178,7 @@ test('categories: an occurrence-level override on a synced (ICS) event survives 
   } finally {
     globalThis.fetch = realFetch;
   }
-  events = await json<any[]>(await request(`/api/events?from=2020-01-01&to=2035-01-01&calendarId=${cal.id}`));
+  events = await json<any[]>(await request(`/api/events?${NEAR}&calendarId=${cal.id}`));
   assert.equal(events.length, 1);
   assert.deepEqual([events[0].categoryId, events[0].categorySource], [cat.id, 'event']);
 });
@@ -216,18 +219,18 @@ test('categories: series vs occurrence scope on a recurring synced event', async
   try {
     const { syncCalendar } = await import('../src/sync.ts');
     await syncCalendar(env, calendarId);
-    let events = await json<any[]>(await request(`/api/events?from=2025-01-01&to=2027-01-01&calendarId=${calendarId}`));
+    let events = await json<any[]>(await request(`/api/events?from=2026-01-01&to=2027-01-01&calendarId=${calendarId}`));
     assert.equal(events.length, 3);
 
     // Series scope applies to all occurrences.
     await request(`/api/events/${events[0].id}`, { method: 'PATCH', body: JSON.stringify({ categoryId: cat1.id, scope: 'series' }) });
-    events = await json<any[]>(await request(`/api/events?from=2025-01-01&to=2027-01-01&calendarId=${calendarId}`));
+    events = await json<any[]>(await request(`/api/events?from=2026-01-01&to=2027-01-01&calendarId=${calendarId}`));
     for (const e of events) assert.deepEqual([e.categoryId, e.categorySource], [cat1.id, 'series']);
 
     // An occurrence override wins for that one occurrence only.
     const occPatched = await json<any>(await request(`/api/events/${events[1].id}`, { method: 'PATCH', body: JSON.stringify({ categoryId: cat2.id, scope: 'occurrence' }) }));
     assert.deepEqual([occPatched.categoryId, occPatched.categorySource], [cat2.id, 'event']);
-    events = await json<any[]>(await request(`/api/events?from=2025-01-01&to=2027-01-01&calendarId=${calendarId}`));
+    events = await json<any[]>(await request(`/api/events?from=2026-01-01&to=2027-01-01&calendarId=${calendarId}`));
     const byStart = [...events].sort((a, b) => a.start.localeCompare(b.start));
     assert.deepEqual([byStart[0].categoryId, byStart[0].categorySource], [cat1.id, 'series']);
     assert.deepEqual([byStart[1].categoryId, byStart[1].categorySource], [cat2.id, 'event']);

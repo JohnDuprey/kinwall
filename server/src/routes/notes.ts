@@ -7,6 +7,7 @@ import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
 import { emit } from '../bus.ts';
 import { deviceOwner, ownerBlock, requestKey } from '../auth.ts';
+import { hiddenFromDisplay } from './events.ts';
 import { ErrorSchema, NoteInputSchema, NotePatchSchema, NoteSchema, NoteTargetSchema } from '../schemas.ts';
 
 export const notesRoutes = createRouter();
@@ -42,6 +43,7 @@ notesRoutes.openapi(
   }),
   async (c) => {
     const { type, id } = parseTarget(c.req.valid('query').target);
+    if (type === 'event' && (await hiddenFromDisplay(c, id))) return c.json([], 200); // a hidden event isn't there for a wall screen or kid's device
     const { results } = await c.env.DB.prepare('SELECT * FROM notes WHERE target_type = ? AND target_id = ? ORDER BY created_at, rowid').bind(type, id).all<NoteRow>();
     return c.json(results.map(toNoteApi), 200);
   },

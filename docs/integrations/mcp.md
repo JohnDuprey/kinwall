@@ -80,7 +80,7 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 |---|---|
 | `get_household` | Settings (family name, timezone, week start, color scheme), members and a calendar summary, with each calendar's `filter`. |
 | `list_color_schemes` | The household's color scheme and every scheme it can use: Seasonal, the built-in schemes by the name people see (Eucalyptus is the default, Peach the warm one, Meadow the soft green one), and the family's own schemes with their light and dark palettes. |
-| `list_events` | Events across all calendars in a range (default: today plus 7 days). Can filter by member or calendar. [Hidden events](../using/calendar.md#hiding-events) and events a [calendar filter](../using/calendar.md#calendar-filters) leaves out aren't listed, here or in `get_board` and `get_snapshot`. |
+| `list_events` | Events across all calendars in a range (default: today plus 7 days, at most 400 days). Can filter by member or calendar. [Hidden events](../using/calendar.md#hiding-events) and events a [calendar filter](../using/calendar.md#calendar-filters) leaves out aren't listed, here or in `get_board` and `get_snapshot`. |
 | `get_event` | One event by ID (the series row for a recurring local event). |
 | `get_event_items` | List items linked to an event, across all lists, open first, with list names. |
 | `list_chores` | Chores due on a date (default today), with completion state. |
@@ -105,8 +105,8 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 
 | Tool | Does |
 |---|---|
-| `create_event` | Creates an event. Writes to Google, Outlook or CalDAV for those calendars. Accepts `description` (the event's [notes](../using/events.md#event-notes), plain text), `travelMinutes`, `remindBeforeLeave` and `busy` (`false` = [free](../using/events.md#free-or-busy), like a delivery window). |
-| `update_event` | Changes only the fields you give it (the whole series for recurring local events). `description` replaces the event's notes; `""` clears them. |
+| `create_event` | Creates an event. `start` and `end` are ISO date-times with `Z` or a UTC offset (`2026-09-24T14:00:00Z`), or `YYYY-MM-DD` dates for an all-day event; `rrule` repeats daily or slower (`FREQ=DAILY`, `WEEKLY`, `MONTHLY` or `YEARLY`). Writes to Google, Outlook or CalDAV for those calendars. Accepts `description` (the event's [notes](../using/events.md#event-notes), plain text), `travelMinutes`, `remindBeforeLeave` and `busy` (`false` = [free](../using/events.md#free-or-busy), like a delivery window). |
+| `update_event` | Changes only the fields you give it (the whole series for recurring local events), with the same rules for `start`, `end` and `rrule` as `create_event`. `description` replaces the event's notes; `""` clears them. |
 | `set_event_category` | Sets or clears an event's category (by name). Clearing falls back to keyword or calendar default. |
 | `create_chore` | Creates a recurring or one-off chore. `list` links a checklist (a list by name or ID) that has to be ticked off before the chore completes. `needsApproval` and `approveTimedPlay` set [parent approval](../using/chores.md#parent-approval). |
 | `update_chore` | Changes title, emoji, assignee, points, recurrence (`RRULE`, optional `UNTIL`), due date or time, checklist (`list`, or `null` to unlink), parent approval (`needsApproval`, `approveTimedPlay`), or active state. |

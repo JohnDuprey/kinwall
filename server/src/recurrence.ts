@@ -69,19 +69,24 @@ function partsFromFloating(d: Date): DateParts {
 
 export type Instance = { start: string; end: string };
 
+/** The most instances one series gives per expansion: a stored rule can't make a read unbounded. */
+export const MAX_SERIES_INSTANCES = 1000;
+
 /**
  * Expand an RRULE string between [from, to) for a series, in household timezone `tz`.
  * `start`/`end` are the series' first occurrence, in stored format (UTC ISO for timed, YYYY-MM-DD for all-day).
+ * A stored series that can't be expanded (a rule isValidRrule refuses, a start or end that isn't a
+ * date) has no instances, rather than failing the read of everything around it.
  */
 export function expand(rruleString: string, start: string, end: string, allDay: boolean, tz: string, from: Date, to: Date): Instance[] {
+  // Looser than isEventTime: whatever an older server stored and Date can read still expands.
+  const readable = (s: string) => !Number.isNaN(Date.parse(s)) && (!allDay || /^\d{4}-\d{2}-\d{2}$/.test(s));
+  if (!isValidRrule(rruleString) || !readable(start) || !readable(end)) return [];
   const startParts = allDay ? dateOnlyParts(start) : zonedParts(new Date(start), tz);
   const dtstart = floatingDate(startParts);
   const durationMs = allDay
     ? (dateOnlyToUtcMs(dateOnlyParts(end)) - dateOnlyToUtcMs(startParts)) || 24 * 60 * 60 * 1000
     : new Date(end).getTime() - new Date(start).getTime();
-
-  const opts = RRule.parseString(rruleString);
-  const rule = new RRule({ ...opts, dtstart });
 
   // Widen the floating window by a day on each side to be safe across offset shifts, then filter precisely after conversion.
   const floatFrom = allDay ? floatingDate(dateOnlyParts(toDateOnlyString(from))) : floatingDate(zonedParts(from, tz));
@@ -89,7 +94,10 @@ export function expand(rruleString: string, start: string, end: string, allDay: 
   floatFrom.setUTCDate(floatFrom.getUTCDate() - 1);
   floatTo.setUTCDate(floatTo.getUTCDate() + 1);
 
-  const occurrences = rule.between(floatFrom, floatTo, true);
+  const opts = RRule.parseString(rruleString);
+  const rule = new RRule({ ...opts, dtstart });
+
+  const occurrences = rule.between(floatFrom, floatTo, true, (_, n) => n < MAX_SERIES_INSTANCES);
 
   const out: Instance[] = [];
   for (const occ of occurrences) {
@@ -133,13 +141,31 @@ function toDateOnlyString(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** True if rrule's parser accepts the string with a valid FREQ (it throws on garbage). */
+/** True if rrule's parser accepts the string with a valid FREQ (it throws on garbage), daily or
+ * slower: nothing in Kinwall repeats within a day, and FREQ=SECONDLY is 86,400 instances a day. */
 export function isValidRrule(s: string): boolean {
   try {
     const opts = RRule.parseString(s);
     new RRule(opts);
-    return opts.freq != null; // rrule silently defaults a missing FREQ to YEARLY
+    if (opts.freq == null) return false; // rrule silently defaults a missing FREQ to YEARLY
+    if (opts.freq > RRule.DAILY || opts.byhour != null || opts.byminute != null || opts.bysecond != null) return false;
+    const list = (v: unknown) => (v == null ? [] : Array.isArray(v) ? v : [v]);
+    if (list(opts.bymonth).some((m) => !(Number(m) >= 1 && Number(m) <= 12))) return false;
+    // A daily or weekly rule narrowed to days that may never come (the 30th of February, the 3rd
+    // Monday of a day) is scanned day by day to the year 9999 on every read; weekdays and months
+    // are all such a rule needs. Monthly and yearly rules scan in far bigger steps.
+    const byNth = list(opts.byweekday).some((d) => typeof d === 'object' && !!(d as { n?: number }).n);
+    if (opts.freq >= RRule.WEEKLY && (opts.bymonthday != null || opts.byyearday != null || opts.byweekno != null || opts.bysetpos != null || opts.byeaster != null || byNth)) return false;
+    return true;
   } catch {
     return false;
   }
+}
+
+/** True for a time in the stored format (providers/types.ts): a real YYYY-MM-DD for all-day, else an
+ * ISO date-time with a UTC offset ('2026-09-24T14:00:00.000Z', seconds optional, 'Z' or '+02:00'). */
+export function isEventTime(s: string, allDay: boolean): boolean {
+  const m = (allDay ? /^(\d{4}-\d{2}-\d{2})$/ : /^(\d{4}-\d{2}-\d{2})T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/).exec(s);
+  if (!m || Number.isNaN(Date.parse(s))) return false;
+  return new Date(`${m[1]}T00:00:00Z`).toISOString().slice(0, 10) === m[1]; // Date.parse rolls February 30 over to March
 }

@@ -18,7 +18,7 @@ import { LibraryChoreSchema, type LibraryRow } from './chore-library.ts';
 import { toApi as listToApi, toItemApi, toGroupApi, groupSteps, type ListRow, type ListItemRow, type ListItemStepRow, type ListGroupRow } from './lists.ts';
 import { toApi as webhookToApi, type WebhookRow } from './webhooks.ts';
 import { toNoteApi, type NoteRow } from './notes.ts';
-import { healthBlock, openRow, sealHealthEntries, sealRow, toTrackerApi, type TrackerRow } from './trackers.ts';
+import { healthBlock, openRow, sealHealthEntries, sealRow, sealedTitle, SEALED_TITLE, toTrackerApi, type TrackerRow } from './trackers.ts';
 import { toEntryApi, toPlacementApi, type PointEntryRow, type PlacementRow } from './stickers.ts';
 import { toRewardApi, toRedemptionApi, type RewardRow, type RedemptionRow } from './rewards.ts';
 import { parseMemberIds } from '../calendar-members.ts';
@@ -612,6 +612,7 @@ dataRoutes.openapi(
     const trackers = body.trackers.filter((t) => (t.memberId === null || fileMembers.has(t.memberId)) && !(healthHidden && (t.kind === 'health' || healthIds.has(t.id))));
     if (healthHidden) for (const k of ['aiHealthAccess', 'medications', 'medicationNamesOnWalls'] as const) delete settings.data[k];
     // Temp checks likewise (sleep and feelings are health): none from a connected app without aiHealthAccess.
+    if (trackers.some((t) => sealedTitle(t.title))) return c.json({ error: `trackers: ${SEALED_TITLE.error}` }, 400);
     const tempChecks = healthHidden ? [] : body.tempChecks.filter((t) => fileMembers.has(t.memberId));
     const journalEntries = healthHidden ? [] : body.journalEntries.filter((e) => fileMembers.has(e.memberId));
     const medications = healthHidden ? [] : body.medications.filter((m) => fileMembers.has(m.memberId));

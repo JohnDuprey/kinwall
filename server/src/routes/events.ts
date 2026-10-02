@@ -4,7 +4,7 @@ import type { Context } from 'hono';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
 import { emit } from '../bus.ts';
-import { expand } from '../recurrence.ts';
+import { expand, isEventTime, isValidRrule } from '../recurrence.ts';
 import { getProvider } from '../providers/index.ts';
 import type { ProviderCtx } from '../providers/types.ts';
 import { decryptConfig, encryptConfig } from '../crypto.ts';
@@ -15,7 +15,7 @@ import { deterministicEventId } from '../event-id.ts';
 import { parseMemberIds } from '../calendar-members.ts';
 import { matchCategoryByKeyword, type CategoryRow } from '../calendar-categories.ts';
 import { eventWriteBlock, requestKey } from '../auth.ts';
-import { filterShows, parseFilter } from '../calendar-filter.ts';
+import { filterActive, filterShows, parseFilter } from '../calendar-filter.ts';
 import { mealLinksQuery, parseMealLinks, prepAt } from '../prepBy.ts';
 
 export const eventsRoutes = createRouter();
@@ -419,7 +419,7 @@ function instanceFrom(
     reminderSource: reminders && reminders.length > 0 ? reminderSource : null,
     travelMinutes: row.travel_minutes,
     // A free event never asks anyone to leave: no leave-by (its travel time is kept for when it's busy again).
-    leaveAt: row.travel_minutes != null && !row.all_day && row.busy !== 0 ? new Date(Date.parse(start) - row.travel_minutes * 60000).toISOString() : null,
+    leaveAt: row.travel_minutes != null && !row.all_day && row.busy !== 0 && !Number.isNaN(Date.parse(start)) ? new Date(Date.parse(start) - row.travel_minutes * 60000).toISOString() : null,
     remindBeforeLeave: !!row.remind_before_leave,
     busy: row.busy !== 0,
   };
@@ -568,6 +568,7 @@ export async function eventInstances(db: KinwallDb, fromDate: Date, toDate: Date
     // Non-recurring local event, or an already-expanded remote instance: filter by overlap.
     const startMs = row.all_day ? Date.parse(`${row.start}T00:00:00Z`) : Date.parse(row.start);
     const endMs = row.all_day ? Date.parse(`${row.end}T00:00:00Z`) : Date.parse(row.end);
+    if (Number.isNaN(startMs) || Number.isNaN(endMs)) continue; // a stored row whose times aren't dates is left out, not a failed read
     if (endMs <= fromDate.getTime() || startMs >= toDate.getTime()) continue;
     push(row, cal, instanceFrom(row, cal, memberColors, null, row.start, row.end, override, seriesOverride, categories, categoryOverride, categorySeriesOverride, defaultReminderMinutes));
   }
@@ -589,6 +590,10 @@ export async function hiddenInstanceKeys(db: KinwallDb, fromDate: Date, toDate: 
 }
 export const instanceKey = (id: string, start: string) => `${id}\u0000${start}`;
 
+// The widest range one GET /api/events reads: a year at a glance with room to spare (the app asks
+// for six weeks, three months at most). Every repeat is expanded across it, so it has to end somewhere.
+const MAX_RANGE_DAYS = 400;
+
 eventsRoutes.openapi(
   createRoute({
     method: 'get',
@@ -598,8 +603,8 @@ eventsRoutes.openapi(
     security: [{ Bearer: [] }],
     request: {
       query: z.object({
-        from: z.string(),
-        to: z.string(),
+        from: z.string().openapi({ description: `ISO date or date-time, inclusive. With \`to\`, at most ${MAX_RANGE_DAYS} days` }),
+        to: z.string().openapi({ description: 'ISO date or date-time, exclusive' }),
         memberId: z.string().optional(),
         calendarId: z.string().optional(),
         includeHidden: z.enum(['true', 'false']).optional().openapi({ description: "Parents' devices only: also the events the family doesn't see, each with `hidden` saying why" }),
@@ -607,13 +612,17 @@ eventsRoutes.openapi(
     },
     responses: {
       200: { description: 'ok', content: { 'application/json': { schema: z.array(EventInstanceSchema) } } },
+      400: { description: `from or to isn't a date, or they are more than ${MAX_RANGE_DAYS} days apart`, content: { 'application/json': { schema: ErrorSchema } } },
       403: { description: "includeHidden from a wall screen or kid's device", content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
     const { from, to, memberId, calendarId, includeHidden } = c.req.valid('query');
+    const [fromDate, toDate] = [new Date(from), new Date(to)];
+    if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) return c.json({ error: 'from and to must be ISO dates or date-times' }, 400);
+    if (toDate.getTime() - fromDate.getTime() > MAX_RANGE_DAYS * 86400000) return c.json({ error: `from and to can be at most ${MAX_RANGE_DAYS} days apart` }, 400);
     if (includeHidden === 'true' && (await requestKey(c))?.scope !== 'admin') return c.json({ error: "Only parents' devices can see hidden events." }, 403);
-    let filtered = await eventInstances(c.env.DB, new Date(from), new Date(to), calendarId, { includeHidden: includeHidden === 'true' });
+    let filtered = await eventInstances(c.env.DB, fromDate, toDate, calendarId, { includeHidden: includeHidden === 'true' });
     if (memberId) filtered = filtered.filter((ev) => ev.memberIds.includes(memberId));
     return c.json(filtered, 200);
   },
@@ -647,6 +656,17 @@ eventsRoutes.openapi(
 type Ctx = Context<{ Bindings: Env }>;
 type Fail<S extends number> = { error: string; status: S };
 
+/** Why these times and repeat can't be saved, or null: what's stored is read back by everyone, so
+ * it has to be something every read can expand (recurrence.ts isEventTime, isValidRrule). */
+function eventInputError(start: string, end: string, allDay: boolean, rrule: string | null | undefined): string | null {
+  const want = allDay ? 'a date (YYYY-MM-DD) for an all-day event' : 'an ISO date-time with a UTC offset, like 2026-09-24T14:00:00Z';
+  if (!isEventTime(start, allDay)) return `start must be ${want}`;
+  if (!isEventTime(end, allDay)) return `end must be ${want}`;
+  if (Date.parse(end) < Date.parse(start)) return 'end is before start';
+  return rruleError(rrule);
+}
+const rruleError = (rrule: string | null | undefined) => (rrule && !isValidRrule(rrule) ? 'invalid rrule: a repeat needs a FREQ of DAILY, WEEKLY, MONTHLY or YEARLY' : null);
+
 /** POST /api/events: write-through to the provider for a synced calendar, then the Kinwall row.
  * Meals create their calendar events through here too, so every calendar kind behaves the same. */
 export async function createEvent(c: Ctx, body: z.infer<typeof EventInputSchema>): Promise<Fail<400 | 403 | 502> | { row: EventRow; cal: CalendarRow }> {
@@ -655,6 +675,8 @@ export async function createEvent(c: Ctx, body: z.infer<typeof EventInputSchema>
   const block = await eventWriteBlock(c, [cal]);
   if (block) return { error: block, status: 403 };
   if (!cal.writable) return { error: 'calendar is not writable', status: 400 };
+  const invalid = eventInputError(body.start, body.end, body.allDay, body.rrule);
+  if (invalid) return { error: invalid, status: 400 };
 
   let externalId: string | null = null;
   let title = body.title;
@@ -743,6 +765,7 @@ type EventCalRow = EventRow & {
   cal_writable: number;
   cal_enabled: number;
   cal_display_edit: number;
+  cal_filter: string | null;
 };
 
 // Event + its calendar in one round trip (join) instead of two sequential lookups.
@@ -750,7 +773,7 @@ async function loadEventAndCalendar(db: KinwallDb, id: string): Promise<{ row: E
   const joined = await db
     .prepare(
       `SELECT e.*, c.kind AS cal_kind, c.account_id AS cal_account_id, c.remote_id AS cal_remote_id, c.name AS cal_name,
-              c.color AS cal_color, c.member_ids AS cal_member_ids, c.category_id AS cal_category_id, c.config AS cal_config, c.writable AS cal_writable, c.enabled AS cal_enabled, c.display_edit AS cal_display_edit
+              c.color AS cal_color, c.member_ids AS cal_member_ids, c.category_id AS cal_category_id, c.config AS cal_config, c.writable AS cal_writable, c.enabled AS cal_enabled, c.display_edit AS cal_display_edit, c.filter AS cal_filter
        FROM events e JOIN calendars c ON c.id = e.calendar_id WHERE e.id = ?`,
     )
     .bind(id)
@@ -769,8 +792,35 @@ async function loadEventAndCalendar(db: KinwallDb, id: string): Promise<{ row: E
     writable: joined.cal_writable,
     enabled: joined.cal_enabled,
     display_edit: joined.cal_display_edit,
+    filter: joined.cal_filter,
   };
   return { row: joined, cal };
+}
+
+/** Whether the family doesn't see this event at all: hidden on its own or with its series
+ * (event_hidden), or left out by its calendar's filter - what eventInstances drops from every list.
+ * One hidden occurrence of a repeating Kinwall event leaves the event itself (its other days) in view. */
+async function hiddenFromFamily(db: KinwallDb, row: EventRow, cal: CalendarRow): Promise<boolean> {
+  const keys = hideKeys(row, cal, row.start);
+  const oneOfMany = cal.kind === 'local' && !!row.rrule;
+  const hidden = await db
+    .prepare("SELECT 1 FROM event_hidden WHERE calendar_id = ? AND ((scope = 'series' AND key = ?) OR (scope = 'occurrence' AND key = ?))")
+    .bind(cal.id, keys.series, oneOfMany ? null : keys.occurrence)
+    .first();
+  if (hidden) return true;
+  const filter = parseFilter(cal.filter);
+  if (!filterActive(filter)) return false;
+  const [{ memberColors, categories }, { categoryOverride, categorySeriesOverride }] = await Promise.all([colorsAndCategories(db), remoteOverrides(db, cal, row.external_id, row.series_id)]);
+  return !filterShows(filter, instanceFrom(row, cal, memberColors, null, row.start, row.end, undefined, undefined, categories, categoryOverride, categorySeriesOverride));
+}
+
+/** An event by id, for the routes that read or change one: a hidden event isn't there for a wall
+ * screen or kid's device (a display key), like in every list. Parents' devices reach it as before.
+ * Also what the notes thread and linked tasks of an event ask (routes/notes.ts, routes/lists.ts). */
+export async function hiddenFromDisplay(c: Ctx, id: string, found?: { row: EventRow; cal: CalendarRow } | null): Promise<boolean> {
+  if ((await requestKey(c))?.scope !== 'display') return false;
+  found ??= await loadEventAndCalendar(c.env.DB, id);
+  return !!found && hiddenFromFamily(c.env.DB, found.row, found.cal);
 }
 
 eventsRoutes.openapi(
@@ -789,7 +839,7 @@ eventsRoutes.openapi(
   async (c) => {
     const { id } = c.req.valid('param');
     const found = await loadEventAndCalendar(c.env.DB, id);
-    if (!found) return c.json({ error: 'not found' }, 404);
+    if (!found || (await hiddenFromDisplay(c, id, found))) return c.json({ error: 'not found' }, 404);
     const { memberColors, categories, defaultReminderMinutes } = await colorsAndCategories(c.env.DB);
     const { override, seriesOverride, categoryOverride, categorySeriesOverride, travel } = await remoteOverrides(c.env.DB, found.cal, found.row.external_id, found.row.series_id);
     return c.json(
@@ -821,6 +871,7 @@ eventsRoutes.openapi(
     },
   }),
   async (c) => {
+    if (await hiddenFromDisplay(c, c.req.valid('param').id)) return c.json({ error: 'not found' }, 404);
     const updated = await updateEvent(c, c.req.valid('param').id, c.req.valid('json'));
     if ('error' in updated) return c.json({ error: updated.error }, updated.status);
     const { row: updatedRow, cal } = updated;
@@ -865,6 +916,10 @@ export async function updateEvent(c: Ctx, id: string, body: z.infer<typeof Event
   let title = body.title ?? row.title;
   let start = body.start ?? row.start;
   let end = body.end ?? row.end;
+  // Only what this patch changes is checked, so an event that already holds something odd can still be retitled (or fixed).
+  const timesChange = body.start !== undefined || body.end !== undefined || body.allDay !== undefined;
+  const invalid = timesChange ? eventInputError(start, end, body.allDay ?? !!row.all_day, body.rrule) : rruleError(body.rrule);
+  if (invalid) return { error: invalid, status: 400 };
   let location = body.location !== undefined ? body.location : row.location;
   let description = body.description !== undefined ? body.description || null : row.description;
 
@@ -1009,6 +1064,7 @@ eventsRoutes.openapi(
     },
   }),
   async (c) => {
+    if (await hiddenFromDisplay(c, c.req.valid('param').id)) return c.json({ error: 'not found' }, 404);
     const deleted = await deleteEvent(c, c.req.valid('param').id);
     return 'error' in deleted ? c.json({ error: deleted.error }, deleted.status) : c.json({ ok: true }, 200);
   },

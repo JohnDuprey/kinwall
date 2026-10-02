@@ -8,6 +8,7 @@ import { notifyListUpdate } from '../notify.ts';
 import { parseMemberIds, resolveMemberIds } from '../calendar-members.ts';
 import { actorOf, deviceOwner, eventWriteBlock, ownerBlock, requestKey, type Actor } from '../auth.ts';
 import type { Context } from 'hono';
+import { hiddenFromDisplay } from './events.ts';
 import { checkRate } from '../ratelimit.ts';
 import { SUGGESTION_CAP, catalog, catalogWrites, filterCatalog, fillPlace, itemKey, listCatalog, nameSuggestions, recall, barcodeWrites, recallBarcode, rememberBarcode, rememberName, rememberPlace, tagsInput, type Catalog, type CatalogEdit, type CatalogItem } from '../item-memory.ts';
 import {
@@ -1453,6 +1454,7 @@ listsRoutes.openapi(
   }),
   async (c) => {
     const { id } = c.req.valid('param');
+    if (await hiddenFromDisplay(c, id)) return c.json([], 200); // a hidden event isn't there for a wall screen or kid's device
     const [itemsRes, stepsRes] = await c.env.DB.batch<unknown>([
       c.env.DB.prepare(`SELECT li.*, l.name AS list_name FROM list_items li JOIN lists l ON l.id = li.list_id WHERE li.event_id = ? ORDER BY li.done, ${priorityRankSql('li.priority')}, li.sort, li.created_at`).bind(id),
       stepsQuery(c.env.DB, 'event_id = ?', id),

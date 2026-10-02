@@ -70,8 +70,11 @@ export async function sealRow<T extends Stored>(env: EncryptionEnv, r: T): Promi
   };
 }
 
-/** The row as read: sealed values opened (by prefix, whatever the kind). A value that won't open throws: never read as empty and saved over. */
+/** The row as read: a health entry's sealed values opened. One that won't open throws: never read as
+ * empty and saved over. Only health is ever sealed, so any other kind is read as the text it holds:
+ * a book title that merely looks sealed must not fail the whole list. */
 export async function openRow<T extends Stored>(env: EncryptionEnv, r: T): Promise<T> {
+  if (r.kind !== 'health') return r;
   return { ...r, title: r.title && (await unseal(env, r.title, aad(r, 'title'))), data: await unseal(env, r.data, aad(r, 'data')) };
 }
 
@@ -100,6 +103,11 @@ export async function sealHealthEntries(env: EncryptionEnv & { DB: Env['DB'] }):
     after = results[results.length - 1].id;
   }
 }
+
+/** A title can't start with the marker of a sealed value (crypto.ts): on a health entry it would be
+ * stored as if already sealed, and never open again. Checked on create, edit and import. */
+export const SEALED_TITLE = { error: 'title: can\'t start with "enc:v1:"' };
+export const sealedTitle = (title: string | null | undefined) => !!title && isSealed(title.trim());
 
 const HEALTH_OFF_WALL = { error: 'Health entries stay on phones and computers, never on a wall display' };
 export const HEALTH_PRIVATE = { error: "Health entries are private to the family's own devices. A parent can allow connected apps to see them in Settings → Connected apps." };
@@ -273,6 +281,7 @@ trackersRoutes.openapi(
     if (blocked) return c.json(blocked, 403);
     const notYours = await ownerBlock(c, body.memberId);
     if (notYours) return c.json({ error: notYours }, 403);
+    if (sealedTitle(body.title)) return c.json(SEALED_TITLE, 400);
     const today = await householdToday(c);
     const parsed = parseData(body.kind, body.data);
     if ('error' in parsed) return c.json({ error: parsed.error }, 400);
@@ -375,6 +384,7 @@ trackersRoutes.openapi(
     if ('res' in got) return got.res as never;
     const { row } = got;
     const body = c.req.valid('json');
+    if (sealedTitle(body.title)) return c.json(SEALED_TITLE, 400);
     const old = toTrackerApi(row);
     const parsed = parseData(row.kind, { ...old.data, ...body.data });
     if ('error' in parsed) return c.json({ error: parsed.error }, 400);

@@ -193,7 +193,7 @@ A parent can hide one event from the whole family, even one that comes from a re
 * **Hide this event**, or for a recurring event **Just this one** or **Every one in the series**. Occurrences a synced series adds later are hidden too.
 * **Hide events like this**: adds the event's title to the calendar's [filter](#calendar-filters) as an exception ("All except events that match"), after asking. Every event with those words in its title stays hidden, including new ones. When the calendar shows **Only events that match**, a word can't hide more, so the sheet says to change the filter in Settings instead.
 
-Hidden events are gone everywhere a filtered-out event is (see above), and they stay hidden after every sync: Kinwall remembers them by the provider's own ids, like the members and categories you set on synced events.
+Hidden events are gone everywhere a filtered-out event is (see above), a wall screen or kid's device can't open one from a task linked to it or read its discussion either, and they stay hidden after every sync: Kinwall remembers them by the provider's own ids, like the members and categories you set on synced events.
 
 To bring one back:
 

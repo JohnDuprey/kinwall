@@ -9,6 +9,9 @@ import type { Env } from '../src/env.ts';
 import { encryptConfig } from '../src/crypto.ts';
 import { expandICS } from '../src/providers/ics.ts';
 
+// GET /api/events reads at most 400 days: a window around today, where these feeds put their events.
+const NEAR = `from=${new Date(Date.now() - 30 * 86400e3).toISOString()}&to=${new Date(Date.now() + 300 * 86400e3).toISOString()}`;
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MIGRATIONS_DIR = path.join(__dirname, '..', 'migrations');
 
@@ -67,12 +70,12 @@ test('sync: full sync keeps the same event id across two syncs', async () => {
 
     const first = await (await request(`/api/calendars/${cal.id}/sync`, { method: 'POST' })).json() as any;
     assert.equal(first.count, 1);
-    const firstEvents = await (await request(`/api/events?from=2020-01-01&to=2035-01-01&calendarId=${cal.id}`)).json() as any[];
+    const firstEvents = await (await request(`/api/events?${NEAR}&calendarId=${cal.id}`)).json() as any[];
     assert.equal(firstEvents.length, 1);
 
     const second = await (await request(`/api/calendars/${cal.id}/sync`, { method: 'POST' })).json() as any;
     assert.equal(second.count, 1);
-    const secondEvents = await (await request(`/api/events?from=2020-01-01&to=2035-01-01&calendarId=${cal.id}`)).json() as any[];
+    const secondEvents = await (await request(`/api/events?${NEAR}&calendarId=${cal.id}`)).json() as any[];
     assert.equal(secondEvents.length, 1);
 
     assert.equal(secondEvents[0].id, firstEvents[0].id);
@@ -92,12 +95,12 @@ test('sync: chunked tick keeps the same event id across two ticks', async () => 
 
     const r1 = await syncCalendarTick(env, cal.id);
     assert.equal(r1.ok, true);
-    const first = await (await request(`/api/events?from=2020-01-01&to=2035-01-01&calendarId=${cal.id}`)).json() as any[];
+    const first = await (await request(`/api/events?${NEAR}&calendarId=${cal.id}`)).json() as any[];
     assert.equal(first.length, 1);
 
     const r2 = await syncCalendarTick(env, cal.id);
     assert.equal(r2.ok, true);
-    const second = await (await request(`/api/events?from=2020-01-01&to=2035-01-01&calendarId=${cal.id}`)).json() as any[];
+    const second = await (await request(`/api/events?${NEAR}&calendarId=${cal.id}`)).json() as any[];
     assert.equal(second.length, 1);
 
     assert.equal(second[0].id, first[0].id);
@@ -117,7 +120,7 @@ test('sync: a member override survives re-sync; [] clears it back to the calenda
     const cal = await (await request('/api/calendars', { method: 'POST', body: JSON.stringify({ kind: 'ics', name: 'Feed', url: 'https://example.test/feed.ics', memberId: m1.id }) })).json() as any;
 
     await request(`/api/calendars/${cal.id}/sync`, { method: 'POST' });
-    const before = (await (await request(`/api/events?from=2020-01-01&to=2035-01-01&calendarId=${cal.id}`)).json() as any[])[0];
+    const before = (await (await request(`/api/events?${NEAR}&calendarId=${cal.id}`)).json() as any[])[0];
     // No override yet: falls back to the calendar's member.
     assert.deepEqual(before.memberIds, [m1.id]);
 
@@ -128,7 +131,7 @@ test('sync: a member override survives re-sync; [] clears it back to the calenda
     // Re-sync (wholesale delete + reinsert) - the override must survive because the id/rows are
     // keyed by the stable externalId, not by the transient row.
     await request(`/api/calendars/${cal.id}/sync`, { method: 'POST' });
-    const afterSync = (await (await request(`/api/events?from=2020-01-01&to=2035-01-01&calendarId=${cal.id}`)).json() as any[])[0];
+    const afterSync = (await (await request(`/api/events?${NEAR}&calendarId=${cal.id}`)).json() as any[])[0];
     assert.equal(afterSync.id, before.id);
     assert.deepEqual([...afterSync.memberIds].sort(), [m1.id, m2.id].sort());
 
@@ -149,7 +152,7 @@ test('sync: ICS read-only event accepts a memberIds-only patch but rejects a tit
     const member = await (await request('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Mom', color: '#f00', avatar: 'M' }) })).json() as any;
     const cal = await (await request('/api/calendars', { method: 'POST', body: JSON.stringify({ kind: 'ics', name: 'Feed', url: 'https://example.test/feed.ics' }) })).json() as any;
     await request(`/api/calendars/${cal.id}/sync`, { method: 'POST' });
-    const event = (await (await request(`/api/events?from=2020-01-01&to=2035-01-01&calendarId=${cal.id}`)).json() as any[])[0];
+    const event = (await (await request(`/api/events?${NEAR}&calendarId=${cal.id}`)).json() as any[])[0];
 
     const memberRes = await request(`/api/events/${event.id}`, { method: 'PATCH', body: JSON.stringify({ memberIds: [member.id] }) });
     assert.equal(memberRes.status, 200);
@@ -172,7 +175,7 @@ test('sync: a display key can set memberIds on a synced event', async () => {
     const member = await (await admin('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Mom', color: '#f00', avatar: 'M' }) })).json() as any;
     const cal = await (await admin('/api/calendars', { method: 'POST', body: JSON.stringify({ kind: 'ics', name: 'Feed', url: 'https://example.test/feed.ics' }) })).json() as any;
     await admin(`/api/calendars/${cal.id}/sync`, { method: 'POST' });
-    const event = (await (await admin(`/api/events?from=2020-01-01&to=2035-01-01&calendarId=${cal.id}`)).json() as any[])[0];
+    const event = (await (await admin(`/api/events?${NEAR}&calendarId=${cal.id}`)).json() as any[])[0];
 
     const keyBody = await (await admin('/api/keys', { method: 'POST', body: JSON.stringify({ name: 'Wall display' }) })).json() as any;
     assert.equal(keyBody.scope, 'display');
@@ -361,7 +364,7 @@ test('sync: a changed ICS feed and a full sync write only the difference, and re
     w = await writes(env);
     await request(`/api/calendars/${cal.id}/sync`, { method: 'POST' });
     assert.equal((await writes(env)) - w, 1 + 1 + 2); // delete, bookkeeping, rev + area rev
-    const left = await (await request(`/api/events?from=2020-01-01&to=2035-01-01&calendarId=${cal.id}`)).json() as any[];
+    const left = await (await request(`/api/events?${NEAR}&calendarId=${cal.id}`)).json() as any[];
     assert.deepEqual(left.map((e) => e.title).sort(), ['A', 'B2']);
   } finally {
     globalThis.fetch = realFetch;
