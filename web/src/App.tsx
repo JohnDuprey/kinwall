@@ -1228,9 +1228,9 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
 
   if (wizardActive === null) {
     return (
-      <div className="gate-screen" role="main">
+      <div className={`gate-screen boot-screen${inNativeApp() ? ' native' : ''}`} role="main">
         <Brand />
-        <div className="gate-loading" role="status"><span className="spinner" aria-hidden="true" /><span className="sr-only">Loading…</span></div>
+        <div className="boot-below"><div className="gate-loading" role="status"><span className="spinner" aria-hidden="true" /><span className="sr-only">Loading…</span></div></div>
       </div>
     )
   }
@@ -1261,9 +1261,9 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
   if (!hasKey) return <PairingGate onKey={banner => { if (banner) setBannerMsg(banner); setHasKey(true) }} />
   if (!settings) {
     return (
-      <div className="gate-screen" role="main">
+      <div className={`gate-screen boot-screen${inNativeApp() ? ' native' : ''}`} role="main">
         <Brand />
-        {loadError ? <div className="state-card">Could not reach the server. Retrying…</div> : <div className="gate-loading" role="status"><span className="spinner" aria-hidden="true" /><span className="sr-only">Loading…</span></div>}
+        <div className="boot-below">{loadError ? <div className="state-card">Could not reach the server. Retrying…</div> : <div className="gate-loading" role="status"><span className="spinner" aria-hidden="true" /><span className="sr-only">Loading…</span></div>}</div>
       </div>
     )
   }
