@@ -89,6 +89,17 @@ export function rememberBarcode(db: KinwallDb, catalog: Catalog, barcode: string
     .bind(catalog, barcode, title.trim(), now);
 }
 
+/** A catalog item's saved barcodes follow it: renamed to `title`, or forgotten with it (null).
+ * ponytail: matched by key over the catalog's barcodes (a family's handful); add a name_key column if that grows. */
+export async function barcodeWrites(db: KinwallDb, catalog: Catalog, key: string, title: string | null): Promise<KinwallStatement[]> {
+  const { results } = await db.prepare('SELECT barcode, title FROM item_barcodes WHERE catalog = ?').bind(catalog).all<{ barcode: string; title: string }>();
+  const codes = JSON.stringify(results.filter((r) => itemKey(r.title) === key).map((r) => r.barcode));
+  if (codes === '[]') return [];
+  return [title === null
+    ? db.prepare('DELETE FROM item_barcodes WHERE catalog = ? AND barcode IN (SELECT value FROM json_each(?))').bind(catalog, codes)
+    : db.prepare('UPDATE item_barcodes SET title = ? WHERE catalog = ? AND barcode IN (SELECT value FROM json_each(?))').bind(title.trim(), catalog, codes)];
+}
+
 export function rememberName(db: KinwallDb, catalog: Catalog, title: string, now: string, uses = 1): KinwallStatement {
   return db
     .prepare(

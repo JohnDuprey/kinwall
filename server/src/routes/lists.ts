@@ -9,7 +9,7 @@ import { parseMemberIds, resolveMemberIds } from '../calendar-members.ts';
 import { actorOf, deviceOwner, eventWriteBlock, ownerBlock, requestKey, type Actor } from '../auth.ts';
 import type { Context } from 'hono';
 import { checkRate } from '../ratelimit.ts';
-import { SUGGESTION_CAP, catalog, catalogWrites, filterCatalog, fillPlace, itemKey, listCatalog, nameSuggestions, recall, recallBarcode, rememberBarcode, rememberName, rememberPlace, tagsInput, type Catalog, type CatalogEdit, type CatalogItem } from '../item-memory.ts';
+import { SUGGESTION_CAP, catalog, catalogWrites, filterCatalog, fillPlace, itemKey, listCatalog, nameSuggestions, recall, barcodeWrites, recallBarcode, rememberBarcode, rememberName, rememberPlace, tagsInput, type Catalog, type CatalogEdit, type CatalogItem } from '../item-memory.ts';
 import {
   BarcodeSchema,
   ErrorSchema,
@@ -463,7 +463,7 @@ listsRoutes.openapi(
     method: 'put',
     path: '/api/lists/remembered/{key}',
     tags: ['Lists'],
-    summary: 'Edit a catalog item (catalog=groceries, the default, or shopping): title (a respelling; a different name moves it, categories too), category (its department), tags (its categories) and places (replaces the stores it is found at, each with its aisle). Only given fields change. A new aisle is offered in that store\'s aisle picker.',
+    summary: 'Edit a catalog item (catalog=groceries, the default, or shopping): title (a respelling; a different name moves it, categories and saved barcodes too), category (its department), tags (its categories) and places (replaces the stores it is found at, each with its aisle). Only given fields change. A new aisle is offered in that store\'s aisle picker.',
     security: [{ Bearer: [] }],
     request: { params: z.object({ key: z.string() }), query: CatalogQuery, body: { content: { 'application/json': { schema: RememberedItemPatchSchema } } } },
     responses: {
@@ -520,7 +520,7 @@ async function saveCatalogItem(c: Context<{ Bindings: Env }>, cat: Catalog, from
     edit = { ...edit, tags: tagsInput(edit.tags, results.map((r) => r.tag)) };
   }
   const { key, writes } = catalogWrites(c.env.DB, cat, from, existing, edit, new Date().toISOString());
-  await c.env.DB.batch(writes);
+  await c.env.DB.batch([...writes, ...(edit.title !== undefined ? await barcodeWrites(c.env.DB, cat, from, edit.title) : [])]);
   emit(c, 'list.changed', { remembered: key });
   return (await catalog(c.env.DB, cat, key))[0]!;
 }
@@ -1347,7 +1347,7 @@ listsRoutes.openapi(
     method: 'delete',
     path: '/api/lists/remembered/{key}',
     tags: ['Lists'],
-    summary: 'Forget a remembered item name in a catalog (catalog=groceries, the default, or shopping; key: its matching key from suggestions.items): it stops being suggested there, and where it goes and its categories are forgotten. Items on lists keep it.',
+    summary: 'Forget a remembered item name in a catalog (catalog=groceries, the default, or shopping; key: its matching key from suggestions.items): it stops being suggested there, and where it goes, its categories and its saved barcodes are forgotten. Items on lists keep it.',
     security: [{ Bearer: [] }],
     request: { params: z.object({ key: z.string() }), query: CatalogQuery },
     responses: { 200: { description: 'ok', content: { 'application/json': { schema: z.object({ ok: z.boolean() }) } } } },
@@ -1359,6 +1359,7 @@ listsRoutes.openapi(
       c.env.DB.prepare('DELETE FROM item_names WHERE catalog = ? AND name_key = ?').bind(cat, key),
       c.env.DB.prepare('DELETE FROM item_memory WHERE catalog = ? AND name_key = ?').bind(cat, key),
       c.env.DB.prepare('DELETE FROM item_tags WHERE catalog = ? AND name_key = ?').bind(cat, key),
+      ...(await barcodeWrites(c.env.DB, cat, key, null)),
     ]);
     emit(c, 'list.changed', { forgot: key });
     return c.json({ ok: true }, 200);

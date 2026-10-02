@@ -110,3 +110,17 @@ test('barcodes: kept in the family export and brought back by import', async () 
   assert.ok(imported.status < 300, JSON.stringify(imported.body));
   assert.deepEqual((await send('GET', `/api/lists/${list.id}/barcodes/${CHEERIOS}`)).body, { title: 'Cheerios', source: 'family' });
 });
+
+test('barcodes: renaming a catalog item carries its barcodes; forgetting it forgets them', async () => {
+  const { send } = setup();
+  const list = (await send('POST', '/api/lists', { name: 'Groceries', kind: 'shopping' })).body;
+  mockFetch(offMissing);
+  // Saved under the wrong name (Open Food Facts had it as mayo): fixed from the Catalog by renaming.
+  await send('POST', `/api/lists/${list.id}/items`, { title: 'Light mayo', barcode: '012000001291' });
+  const renamed = await send('PUT', '/api/lists/remembered/light mayo', { title: 'Water' });
+  assert.equal(renamed.status, 200, JSON.stringify(renamed.body));
+  assert.deepEqual((await send('GET', `/api/lists/${list.id}/barcodes/012000001291`)).body, { title: 'Water', source: 'family' });
+
+  assert.equal((await send('DELETE', '/api/lists/remembered/water')).status, 200);
+  assert.equal((await send('GET', `/api/lists/${list.id}/barcodes/012000001291`)).status, 404, 'forgotten with its item');
+});
