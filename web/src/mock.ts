@@ -1356,7 +1356,7 @@ export const mock = {
   },
   // Demo scanning: the family's names learned from adds, else a few products standing in for Open Food Facts.
   lookupBarcode: async (_listId: string, code: string): Promise<BarcodeLookup | null> =>
-    demoBarcodes.has(code) ? { title: demoBarcodes.get(code)!, source: 'family' } : DEMO_PRODUCTS[code] ? { title: DEMO_PRODUCTS[code], source: 'openfoodfacts' } : null,
+    demoBarcodes.has(code) ? { title: demoBarcodes.get(code)!, source: 'family' } : DEMO_PRODUCTS[code] ? { title: DEMO_PRODUCTS[code][0], source: DEMO_PRODUCTS[code][1] } : null,
   addListItems: async (listId: string, body: ListItemInput | ListItemInput[]): Promise<ListItem[]> => {
     const inputs = Array.isArray(body) ? body : [body]
     for (const input of inputs) if (input.barcode) demoBarcodes.set(input.barcode, input.title.trim())
@@ -1546,7 +1546,7 @@ export const mock = {
   deleteWebhook: async (id: string) => { webhooks = webhooks.filter(h => h.id !== id) },
 }
 
-const DEMO_PRODUCTS: Record<string, string> = { '0016000275287': 'Honey Nut Cheerios', '0041196910759': 'Organic Whole Milk' }
+const DEMO_PRODUCTS: Record<string, [string, BarcodeLookup['source']]> = { '0016000275287': ['Honey Nut Cheerios', 'openfoodfacts'], '0041196910759': ['Organic Whole Milk', 'openfoodfacts'], '0037000862246': ['Bounty Paper Towels', 'openproductsfacts'] }
 const demoBarcodes = new Map<string, string>()
 
 const DEMO_BOOKS: (BookResult & { isbn?: string })[] = [

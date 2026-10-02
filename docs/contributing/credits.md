@@ -51,7 +51,7 @@ Each is used only when a family turns it on or uses the feature that needs it, a
 | [Open Trivia DB](https://opentdb.com) | **Trivia question** on the quote card | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) |
 | [The Metropolitan Museum of Art Open Access](https://metmuseum.github.io/) | **Art** on the Night screen | Public-domain images, [CC0](https://creativecommons.org/publicdomain/zero/1.0/) |
 | [Open Library](https://openlibrary.org) by the [Internet Archive](https://archive.org) | **Look up a book** in the Reading tracker: titles, authors, page counts and covers | Open data; see [Open Library licensing](https://openlibrary.org/developers/licensing) |
-| [Open Food Facts](https://world.openfoodfacts.org) | Product names when a barcode is scanned into a shopping list | Database under the [Open Database License](https://opendatacommons.org/licenses/odbl/1-0/), entries under the [Database Contents License](https://opendatacommons.org/licenses/dbcl/1-0/) |
+| [Open Food Facts](https://world.openfoodfacts.org), with [Open Products Facts](https://world.openproductsfacts.org), [Open Beauty Facts](https://world.openbeautyfacts.org) and [Open Pet Food Facts](https://world.openpetfoodfacts.org) | Product names when a barcode is scanned into a shopping list | Database under the [Open Database License](https://opendatacommons.org/licenses/odbl/1-0/), entries under the [Database Contents License](https://opendatacommons.org/licenses/dbcl/1-0/) |
 | [Lorem Picsum](https://picsum.photos) by David Marby and Nijiko Yonskai | **Nature** on the Night screen, and photos in the demo | Photos from [Unsplash](https://unsplash.com), under the [Unsplash License](https://unsplash.com/license) |
 
 ## Server

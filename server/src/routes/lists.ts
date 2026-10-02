@@ -921,8 +921,9 @@ listsRoutes.openapi(
 );
 
 // Scanning a product (the app's camera, web/src/native.ts scanBarcode): the family's own name for it
-// in this list's catalog, else Open Food Facts (free and keyless; only the barcode is sent). Adding
-// the item with `barcode` teaches the family's name for next time.
+// in this list's catalog, else the Open Food Facts databases (free and keyless; only the barcode is
+// sent): food first (by far the largest), then household products, beauty and pet food together.
+// Adding the item with `barcode` teaches the family's name for next time.
 /** "JJ Nissen Canadian White Bread": the first brand leads the name unless the name already has one
  * of its brands ("Honey Nut Cheerios" from General Mills, Cheerios); the brand alone without a name. */
 function productTitle(p: { product_name?: string; product_name_en?: string; generic_name?: string; brands?: string }): string | undefined {
@@ -933,16 +934,28 @@ function productTitle(p: { product_name?: string; product_name_en?: string; gene
 }
 
 const OFF_USER_AGENT = 'Kinwall/1.0 (https://kinwall.family; self-hosted family calendar)'; // Open Food Facts asks apps to name themselves
+const OPEN_FACTS = { openfoodfacts: 'world.openfoodfacts.org', openproductsfacts: 'world.openproductsfacts.org', openbeautyfacts: 'world.openbeautyfacts.org', openpetfoodfacts: 'world.openpetfoodfacts.org' } as const;
+type OpenFacts = keyof typeof OPEN_FACTS;
+const OPEN_FACTS_FALLBACKS: OpenFacts[] = ['openproductsfacts', 'openbeautyfacts', 'openpetfoodfacts']; // in this order of preference
+
+/** One Open Facts database's name for a barcode, or null when it doesn't know it; throws when it's unreachable. */
+async function openFactsTitle(db: OpenFacts, code: string): Promise<string | null> {
+  const res = await fetch(`https://${OPEN_FACTS[db]}/api/v2/product/${code}.json?fields=product_name,product_name_en,generic_name,brands`, { headers: { 'User-Agent': OFF_USER_AGENT, Accept: 'application/json' }, signal: AbortSignal.timeout(8000) });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`${OPEN_FACTS[db]} answered ${res.status}`);
+  const { status, product } = (await res.json()) as { status?: number; product?: Parameters<typeof productTitle>[0] };
+  return (status === 1 && product && productTitle(product)?.slice(0, 200)) || null;
+}
 listsRoutes.openapi(
   createRoute({
     method: 'get',
     path: '/api/lists/{id}/barcodes/{code}',
     tags: ['Lists'],
-    summary: "A scanned product's item name for this shopping list: what the family called it last time (source family), else Open Food Facts (source openfoodfacts). Add it with `barcode` to remember the name.",
+    summary: "A scanned product's item name for this shopping list: what the family saved for it (source family), else Open Food Facts (openfoodfacts), else its household, beauty and pet food databases (openproductsfacts, openbeautyfacts, openpetfoodfacts, preferred in that order). Add it with `barcode` to save the name.",
     security: [{ Bearer: [] }],
     request: { params: z.object({ id: z.string(), code: BarcodeSchema }) },
     responses: {
-      200: { description: 'found', content: { 'application/json': { schema: z.object({ title: z.string(), source: z.enum(['family', 'openfoodfacts']) }).openapi('BarcodeLookup') } } },
+      200: { description: 'found', content: { 'application/json': { schema: z.object({ title: z.string(), source: z.enum(['family', 'openfoodfacts', 'openproductsfacts', 'openbeautyfacts', 'openpetfoodfacts']) }).openapi('BarcodeLookup') } } },
       400: { description: 'not a shopping list, or not a barcode', content: { 'application/json': { schema: ErrorSchema } } },
       404: { description: 'no such list, or nobody knows this product', content: { 'application/json': { schema: ErrorSchema } } },
       429: { description: 'too many lookups', content: { 'application/json': { schema: ErrorSchema } } },
@@ -958,12 +971,12 @@ listsRoutes.openapi(
     if (known) return c.json({ title: known, source: 'family' as const }, 200);
     if (!(await checkRate(c.env.DB, 'barcodes', 30, 60_000))) return c.json({ error: 'Too many scans - try again in a minute' }, 429);
     try {
-      const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${code}.json?fields=product_name,product_name_en,generic_name,brands`, { headers: { 'User-Agent': OFF_USER_AGENT, Accept: 'application/json' }, signal: AbortSignal.timeout(8000) });
-      if (res.status === 404) return c.json({ error: 'Product not found' }, 404);
-      if (!res.ok) throw new Error(`Open Food Facts answered ${res.status}`);
-      const { status, product } = (await res.json()) as { status?: number; product?: { product_name?: string; product_name_en?: string; generic_name?: string; brands?: string } };
-      const title = status === 1 && product ? productTitle(product) : undefined;
-      return title ? c.json({ title: title.slice(0, 200), source: 'openfoodfacts' as const }, 200) : c.json({ error: 'Product not found' }, 404);
+      const food = await openFactsTitle('openfoodfacts', code);
+      if (food) return c.json({ title: food, source: 'openfoodfacts' as const }, 200);
+      // Not food: the smaller databases at once; one that's down is just no match.
+      const others = await Promise.all(OPEN_FACTS_FALLBACKS.map((db) => openFactsTitle(db, code).catch(() => null)));
+      const at = others.findIndex(Boolean);
+      return at >= 0 ? c.json({ title: others[at]!, source: OPEN_FACTS_FALLBACKS[at] }, 200) : c.json({ error: 'Product not found' }, 404);
     } catch (err) {
       console.error('barcode lookup failed', err instanceof Error ? err.message : err);
       return c.json({ error: 'Product lookup is unavailable right now' }, 502);

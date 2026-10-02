@@ -144,3 +144,28 @@ test('barcodes: the brand leads the name unless the name already has one of its 
     assert.deepEqual((await send('GET', `/api/lists/${list.id}/barcodes/012345678905`)).body, { title, source: 'openfoodfacts' }, JSON.stringify(product));
   }
 });
+
+test("barcodes: Open Food Facts first, then its household, beauty and pet databases, first match in that order", async () => {
+  const { send } = setup();
+  const list = (await send('POST', '/api/lists', { name: 'Groceries', kind: 'shopping' })).body;
+  const answers: Record<string, () => Response> = {};
+  const calls = mockFetch((url) => (answers[new URL(url).host] ?? offMissing)());
+
+  answers['world.openproductsfacts.org'] = offProduct({ product_name: 'Paper Towels', brands: 'Bounty' });
+  answers['world.openbeautyfacts.org'] = offProduct({ product_name: 'Shampoo' });
+  assert.deepEqual((await send('GET', `/api/lists/${list.id}/barcodes/037000862246`)).body, { title: 'Bounty Paper Towels', source: 'openproductsfacts' });
+  assert.equal(new URL(calls[0]).host, 'world.openfoodfacts.org', 'food first');
+  assert.deepEqual(calls.slice(1).map((u) => new URL(u).host).sort(), ['world.openbeautyfacts.org', 'world.openpetfoodfacts.org', 'world.openproductsfacts.org']);
+
+  delete answers['world.openproductsfacts.org'];
+  answers['world.openpetfoodfacts.org'] = offProduct({ product_name: 'Cat Food' });
+  assert.deepEqual((await send('GET', `/api/lists/${list.id}/barcodes/037000862246`)).body, { title: 'Shampoo', source: 'openbeautyfacts' }, 'beauty before pets');
+
+  answers['world.openbeautyfacts.org'] = () => new Response('down', { status: 503 });
+  assert.deepEqual((await send('GET', `/api/lists/${list.id}/barcodes/037000862246`)).body, { title: 'Cat Food', source: 'openpetfoodfacts' }, 'one being down is just no match');
+
+  calls.length = 0;
+  answers['world.openfoodfacts.org'] = offProduct({ product_name: 'Milk' });
+  assert.deepEqual((await send('GET', `/api/lists/${list.id}/barcodes/037000862246`)).body, { title: 'Milk', source: 'openfoodfacts' });
+  assert.equal(calls.length, 1, 'found in food: the others are not asked');
+});

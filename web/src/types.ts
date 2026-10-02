@@ -851,7 +851,7 @@ export interface ListItemInput {
   barcode?: string // scanned: remembered as this item's name for the barcode (shopping lists)
 }
 /** GET /api/lists/{id}/barcodes/{code}: what the family called it last time, else Open Food Facts. */
-export interface BarcodeLookup { title: string; source: 'family' | 'openfoodfacts' }
+export interface BarcodeLookup { title: string; source: 'family' | 'openfoodfacts' | 'openproductsfacts' | 'openbeautyfacts' | 'openpetfoodfacts' }
 
 /** PATCH /api/lists/{id}/items/{itemId}. aisleStore: on a shopping trip, the store `aisle` is at
  * (remembered there; the item takes it only if planned for that store or for anywhere). */

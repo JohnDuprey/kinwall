@@ -587,6 +587,10 @@ function StepsEditor({ listId, item, onChange }: { listId: string; item: ListIte
   )
 }
 
+const OPEN_FACTS_NAMES: Partial<Record<BarcodeLookup['source'], string>> = {
+  openfoodfacts: 'Open Food Facts', openproductsfacts: 'Open Products Facts', openbeautyfacts: 'Open Beauty Facts', openpetfoodfacts: 'Open Pet Food Facts',
+}
+
 /** After scanning a product the catalog doesn't know: where its name came from, the name to add,
  * and whether to save the barcode to the catalog (off unless chosen; the next scan then adds it at
  * once). Kids' own devices don't change the catalog, so they don't see the switch. */
@@ -604,7 +608,7 @@ function ScanSheet({ code, found, canSave, onAdd, onClose }: {
         <button className="btn btn-primary" onClick={add} disabled={!name}>Add to list</button>
       </>}>
       <p className="scan-source">
-        {found ? 'Name from Open Food Facts. Check it before adding.' : "Open Food Facts doesn't know this one. Type its name."}
+        {found ? `Name from ${OPEN_FACTS_NAMES[found.source] ?? 'Open Food Facts'}. Check it before adding.` : "The Open Food Facts databases don't know this one. Type its name."}
         {' '}<span className="scan-code">Barcode {code}</span>
       </p>
       <div className="field">
