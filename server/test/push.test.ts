@@ -1045,7 +1045,7 @@ test('notify: a kid\'s device that still follows everyone (an older row) gets no
 test('feed: a kid\'s device sees the family\'s rows and its own, not grown-ups\' or parent-facing ones; privacy notes only on that person\'s own devices', async () => {
   const { env, request, alex, leo, maya, kid, wall } = await kidSetup();
   await request('/api/settings', { method: 'PATCH', body: JSON.stringify({ medications: true }) });
-  const add = (kind: Parameters<typeof recordNotification>[1]['kind'], title: string, memberIds: string[] = []) => recordNotification(env.DB, { kind, title, memberIds, source: 'system' });
+  const add = (kind: Parameters<typeof recordNotification>[1]['kind'], title: string, memberIds: string[] = []) => recordNotification(env.DB, { kind, title, memberIds, source: 'system' }, env); // a medicine note is sealed with the key
   await add('message', 'Dinner at 6');
   await add('message', 'For Alex only', [alex.id]);
   await add('message', 'For Leo', [leo.id]);

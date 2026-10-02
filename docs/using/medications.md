@@ -91,7 +91,7 @@ It opens on the person's own device and on parents' devices, and both can catch 
 | Another person's device | Nothing about others' medicines | Nothing |
 | Claude and other connected apps | Nothing, unless a parent turns on **Let connected apps see health entries** | Nothing (no MCP tool) |
 
-Everything is encrypted on the server. See [Privacy](../your-data/privacy.md#medications).
+Everything is encrypted on the server, including the medicine notes in the bell's feed. See [Privacy](../your-data/privacy.md#medications).
 
 ## Not in this version
 

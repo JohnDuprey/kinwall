@@ -8,6 +8,8 @@
 //   taken / skipped / snoozed log, and when their day started for a "When I start my day" dose (startDay),
 //   is one sealed JSON per medicine per day (medication_log.log, aad '<medication_id>:<date>:log').
 //   Only who (member_id) and which day (date, and updated_at holds the day too) stay plain. No key: 500, nothing stored.
+// - The bell's medicine notes (notifications, kind 'medication') are sealed too, text and exact time
+//   (notify.ts recordNotification / openNote); only kind, day and member stay plain. No key: no note.
 // - Never logged, no webhook events at all, no MCP tool, not in snapshots, profiles or share links.
 //
 // Who sees what (see `caller`):

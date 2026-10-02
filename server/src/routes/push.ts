@@ -6,7 +6,7 @@ import { parseMemberIds, resolveMemberIds } from '../calendar-members.ts';
 import { getVapidPublicKey, sendWebPush } from '../webpush.ts';
 import { encrypt } from '../crypto.ts';
 import { readFeatures } from './settings.ts';
-import { DEFAULT_PUSH_PREFS, loadSubs, MED_LATE, memberMatch, recordNotification } from '../notify.ts';
+import { DEFAULT_PUSH_PREFS, loadSubs, MED_LATE, memberMatch, openNote, recordNotification } from '../notify.ts';
 import { medicationFeedFilter } from './medications.ts';
 import { ErrorSchema, NotificationSchema, NotifyInputSchema, PushSubscriptionInputSchema, PushSubscriptionPatchSchema, PushSubscriptionSchema } from '../schemas.ts';
 
@@ -258,17 +258,17 @@ pushRoutes.openapi(
 // only for grown-ups. Privacy notes (kind 'privacy': a device now belongs to someone, their private
 // journal changed) show only on that person's own devices (ownDevice): they're how that person
 // finds out. Everyone else's record of them is Settings → Access → Security activity.
-const LATE_NOTE = " AND NOT (kind = 'medication' AND title LIKE ?)";
+// The medicine notes' text is sealed (notify.ts openNote), so "hasn't been marked yet" is told apart
+// after opening (hideLate), not in SQL.
 const PRIVACY_MINE = " AND (kind != 'privacy' OR EXISTS (SELECT 1 FROM json_each(member_ids) WHERE value = ?))";
-async function feedFilter(c: Parameters<typeof deviceOwner>[0]): Promise<{ sql: string; binds: string[] }> {
+async function feedFilter(c: Parameters<typeof deviceOwner>[0]): Promise<{ sql: string; binds: string[]; hideLate: boolean }> {
   const key = await requestKey(c);
   const mine = (await ownDevice(c)) ?? '';
-  if (key?.scope !== 'display') return { sql: PRIVACY_MINE, binds: [mine] };
-  const late = `%${MED_LATE}`;
+  if (key?.scope !== 'display') return { sql: PRIVACY_MINE, binds: [mine], hideLate: false };
   const kid = await deviceOwner(c);
-  if (kid) return { sql: ` AND (json_array_length(member_ids) = 0 OR EXISTS (SELECT 1 FROM json_each(member_ids) WHERE value = ?)) AND kind != 'summary'${LATE_NOTE}${PRIVACY_MINE}`, binds: [kid, late, mine] };
+  if (kid) return { sql: ` AND (json_array_length(member_ids) = 0 OR EXISTS (SELECT 1 FROM json_each(member_ids) WHERE value = ?)) AND kind != 'summary'${PRIVACY_MINE}`, binds: [kid, mine], hideLate: true };
   const grownUpsOnly = "kind = 'message' AND json_array_length(member_ids) > 0 AND NOT EXISTS (SELECT 1 FROM json_each(member_ids) j JOIN members m ON m.id = j.value WHERE m.grown_up = 0)";
-  return { sql: `${LATE_NOTE} AND NOT (${grownUpsOnly})${PRIVACY_MINE}`, binds: [late, mine] };
+  return { sql: ` AND NOT (${grownUpsOnly})${PRIVACY_MINE}`, binds: [mine], hideLate: true };
 }
 
 type NotificationRow = { id: string; at: string; kind: string; title: string; body: string | null; url: string | null; member_ids: string; source: string | null };
@@ -293,9 +293,21 @@ pushRoutes.openapi(
     // Medicine rows only for parents, shared walls and that person's own devices (routes/medications.ts).
     const meds = await medicationFeedFilter(c);
     const who = await feedFilter(c);
-    const { results } = await c.env.DB.prepare(`SELECT * FROM notifications WHERE at < ?${meds.sql}${who.sql} ORDER BY at DESC, id DESC LIMIT ?`)
-      .bind(before ?? '9999', ...meds.binds, ...who.binds, limit)
-      .all<NotificationRow>();
+    // Newest first by day, then by insertion order: a medicine note's stored `at` is only its day.
+    // Rows hidden after opening (hideLate) are made up from the next batch, so a page stays full.
+    // ponytail: `before` compares stored times, so paging can repeat a medicine note at a day's edge; cursor by rowid if that matters.
+    const results: NotificationRow[] = [];
+    for (let offset = 0; results.length < limit; offset += limit) {
+      const batch = (await c.env.DB.prepare(`SELECT * FROM notifications WHERE at < ?${meds.sql}${who.sql} ORDER BY substr(at, 1, 10) DESC, rowid DESC LIMIT ? OFFSET ?`)
+        .bind(before ?? '9999', ...meds.binds, ...who.binds, limit, offset)
+        .all<NotificationRow>()).results;
+      for (const r of batch) {
+        const n = await openNote(c.env, r);
+        if (!(who.hideLate && n.kind === 'medication' && n.title.endsWith(MED_LATE))) results.push(n);
+      }
+      if (batch.length < limit) break;
+    }
+    results.splice(limit);
     const rm = await remover(c);
     return c.json(
       results.map((r) => ({ id: r.id, at: r.at, kind: r.kind as z.infer<typeof NotificationSchema>['kind'], title: r.title, body: r.body, url: r.url, memberIds: parseMemberIds(r.member_ids), source: r.source, removable: mayRemove(rm, r.kind, parseMemberIds(r.member_ids), r.at) })),

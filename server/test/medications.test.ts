@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { createApp } from '../src/app.ts';
 import { openDb, applyMigrations } from '../src/d1-sqlite.ts';
-import { runNotifications } from '../src/notify.ts';
+import { openNote, runNotifications } from '../src/notify.ts';
 import { seal, unseal } from '../src/crypto.ts';
 import type { Env } from '../src/env.ts';
 import { createApiKey } from '../src/auth.ts';
@@ -97,8 +97,10 @@ async function devices(s: Awaited<ReturnType<typeof setup>>, list: [name: string
     return out;
   };
 }
-const feed = (db: Awaited<ReturnType<typeof setup>>['db']) =>
-  db.prepare("SELECT title, body, member_ids FROM notifications WHERE kind = 'medication' ORDER BY at, rowid").all<{ title: string; body: string | null; member_ids: string }>().results.map((r) => ({ ...r }));
+/** The medicine notes in the feed table, opened (they're sealed at rest: medication-notes.test.ts). */
+const feed = async (s: Awaited<ReturnType<typeof setup>>) =>
+  Promise.all(s.db.prepare("SELECT id, kind, at, title, body, member_ids FROM notifications WHERE kind = 'medication' ORDER BY at, rowid").all<{ id: string; kind: string; at: string; title: string; body: string | null; member_ids: string }>().results
+    .map(async (r) => { const { title, body, member_ids } = await openNote(s.env, { ...r }); return { title, body, member_ids }; }));
 
 test('medications: off by default; every route is 404 until a parent turns it on, and off keeps the data', async (t) => {
   t.after(() => mock.timers.reset());
@@ -406,11 +408,11 @@ test('reminders: once per dose at its household time, to their own devices; week
   assert.deepEqual(Object.keys(sent).sort(), ['leo-phone', 'leo-tablet']);
   assert.deepEqual(sent['leo-tablet'], [{ title: "Time for Leo's medicine", body: 'Tap to mark it taken.' }]);
   assert.deepEqual(sent['leo-phone'], [{ title: "Time for Leo's medicine", body: `${NAME} · ${DOSE}` }]);
-  assert.deepEqual(feed(s.db), [{ title: "Time for Leo's medicine", body: null, member_ids: JSON.stringify([s.leo.id]) }]);
+  assert.deepEqual((await feed(s)), [{ title: "Time for Leo's medicine", body: null, member_ids: JSON.stringify([s.leo.id]) }]);
   assert.deepEqual(await tick(at('08:05')), {}, 'once');
   await s.db.prepare("DELETE FROM settings WHERE key = 'notifyLastTick'").run(); // a restart
   assert.deepEqual(await tick(at('08:06')), {}, 'still once');
-  assert.equal(feed(s.db).length, 1);
+  assert.equal((await feed(s)).length, 1);
 });
 
 test('reminders: snooze 10 minutes re-sends once per snooze; taken stops them', async (t) => {
@@ -449,7 +451,7 @@ test("reminders: a kid's dose not marked in 30 minutes tells parents' devices on
     'parent-names': [{ title: "Leo's 8:00 AM medicine hasn't been marked yet", body: `${NAME} · ${DOSE}` }],
   });
   assert.deepEqual(await tick(at('08:35')), {}, 'once');
-  assert.deepEqual(feed(s.db).map((f) => f.title).filter((x) => x.includes('marked')), ["Leo's 8:00 AM medicine hasn't been marked yet"]);
+  assert.deepEqual((await feed(s)).map((f) => f.title).filter((x) => x.includes('marked')), ["Leo's 8:00 AM medicine hasn't been marked yet"]);
 });
 
 test('reminders: a late window longer than 3 hours gets one kind follow-up halfway through, once, never for a marked dose', async (t) => {
@@ -475,7 +477,7 @@ test('reminders: a late window longer than 3 hours gets one kind follow-up halfw
   mock.timers.setTime(at('15:00').getTime());
   await s.mark(allDay.id, 'taken', ADMIN);
   assert.deepEqual(await tick(at('16:02')), {}, 'taken: no follow-up');
-  assert.equal(feed(s.db).filter((f) => /until/.test(f.title)).length, 0, 'a nudge, not a feed row');
+  assert.equal((await feed(s)).filter((f) => /until/.test(f.title)).length, 0, 'a nudge, not a feed row');
 });
 
 test("reminders: with a late window past 3 hours, a kid's parent note waits until about an hour is left", async (t) => {
@@ -502,7 +504,7 @@ test('reminders: medicine pushes still go out during quiet hours', async (t) => 
   const tick = await devices(s, [['leo-tablet', await s.key(s.leo.id)], ['parent', await s.key(undefined, 'admin')]]);
   assert.deepEqual(Object.keys(await tick(at('08:02'))), ['leo-tablet']);
   assert.deepEqual(Object.keys(await tick(at('08:31'))), ['parent']);
-  assert.equal(feed(s.db).length, 2);
+  assert.equal((await feed(s)).length, 2);
   mock.timers.setTime(at('08:40').getTime());
   assert.equal((await s.req('/api/medications/due', 'GET', undefined, await s.key())).json.doses.length, 1);
 });
@@ -532,7 +534,7 @@ test('delete all medication data: parents only; medicines, their log and their f
   await s.req('/api/settings', 'PATCH', { medications: false }); // works while off too
   const res = await s.req('/api/medications', 'DELETE');
   assert.deepEqual([res.status, res.json], [200, { deleted: 1 }]);
-  assert.deepEqual([s.raw('medications'), s.raw('medication_log'), feed(s.db)], [[], [], []]);
+  assert.deepEqual([s.raw('medications'), s.raw('medication_log'), (await feed(s))], [[], [], []]);
 });
 
 test('medications: no webhooks at all, and the logs never see names or doses', async (t) => {

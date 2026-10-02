@@ -3,7 +3,7 @@
 import { createApp } from './app.ts';
 import type { Env, WaitCtx } from './env.ts';
 import { syncDue } from './sync.ts';
-import { runNotifications } from './notify.ts';
+import { runNotifications, sealMedicationNotes } from './notify.ts';
 import { runMigrations, type Migration } from './migrate.ts';
 import { sealHealthEntries } from './routes/trackers.ts';
 
@@ -36,13 +36,13 @@ export function createKinwall(env: Env, opts: KinwallOptions = {}) {
     });
     return migrated;
   }
-  // Then, once per instance (process, isolate or Durable Object), seal health entries still in
-  // plaintext (routes/trackers.ts). A failure is logged and retried on the next call, never
+  // Then, once per instance (process, isolate or Durable Object), seal health entries and medicine
+  // notes still in plaintext (routes/trackers.ts, notify.ts). A failure is logged and retried on the next call, never
   // served as an error: those entries still read fine, and writes are sealed regardless.
   let sealed: Promise<void> | undefined;
   async function ready(): Promise<void> {
     await migrate();
-    sealed ??= sealHealthEntries(env).then(
+    sealed ??= Promise.all([sealHealthEntries(env), sealMedicationNotes(env)]).then(
       () => undefined,
       (err) => {
         sealed = undefined;

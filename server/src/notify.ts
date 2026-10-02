@@ -21,7 +21,7 @@ import { eveningPending, LAST_NIGHT_UNTIL, lastNightSkipKey, morningAnswered } f
 import { mealLinksQuery, parseMealLinks, prepAt, prepFor } from './prepBy.ts';
 import { medFollowup, nudge, pickNudge, rememberNudge, stepHint, type NudgeSeen } from './nudges.ts';
 import { apnsConfigured, sendLiveActivity, swiftDate, unixSeconds } from './apns.ts';
-import { unseal } from './crypto.ts';
+import { isSealed, seal, unseal, type EncryptionEnv } from './crypto.ts';
 import { formatTime, hour12For } from './timeFormat.ts';
 import { eventRowsFrom, eventRowsStmts, hiddenInstanceKeys, instanceKey } from './routes/events.ts';
 
@@ -114,7 +114,8 @@ export async function loadSubs(db: KinwallDb): Promise<PushSubRow[]> {
 }
 
 /** The end of a parent-facing medicine note's title ("Leo's 8:00 AM medicine hasn't been marked
- * yet"): the feed leaves these off kids' devices and walls (routes/push.ts). */
+ * yet"): the feed leaves these off kids' devices and walls (routes/push.ts), after opening the note:
+ * it's sealed, so SQL can't see which medicine notes are late. */
 export const MED_LATE = " medicine hasn't been marked yet";
 
 // A device with no member_ids follows everyone. An event/target with no member_ids applies to
@@ -150,16 +151,61 @@ async function pruneSentNotifications(db: KinwallDb, now: Date): Promise<void> {
 export type NotificationKind = 'reminder' | 'summary' | 'chore' | 'list' | 'message' | 'goal' | 'medication' | 'privacy';
 export type NotificationSource = 'system' | 'api' | 'mcp';
 
+// Medicine notes (kind 'medication') are health data (AGENTS.md "Health data"): the title (whose
+// medicine, which dose time, that it's late), the body and the exact time are one sealed JSON in
+// `title` (aad '<id>:title'); body is null and `at` keeps only the day (UTC midnight), so the
+// database and its backups don't show the dose schedule. Plain: id, kind, day, url (the member's
+// medicines page), member_ids, source. The feed orders by day, then by rowid (insertion order).
+type NoteText = { title: string; body: string | null; at: string };
+async function sealNote(env: EncryptionEnv, id: string, n: NoteText): Promise<NoteText> {
+  return { title: await seal(env, JSON.stringify({ title: n.title, body: n.body, at: n.at }), `${id}:title`), body: null, at: `${n.at.slice(0, 10)}T00:00:00.000Z` };
+}
+/** A feed row as read: a medicine note opened. One that won't open throws, never reads as empty.
+ * Other kinds, and medicine notes saved before sealing, are read as stored. */
+export async function openNote<T extends { id: string; kind: string } & NoteText>(env: EncryptionEnv, r: T): Promise<T> {
+  if (r.kind !== 'medication' || !isSealed(r.title)) return r;
+  const n = JSON.parse(await unseal(env, r.title, `${r.id}:title`)) as NoteText;
+  return { ...r, title: n.title, body: n.body, at: n.at };
+}
+
+/** Seals medicine notes still in plaintext (written before sealing, or by an older server mid-deploy),
+ * like sealHealthEntries: a compare-and-swap UPDATE per row, a batch per 50, safe to run twice at
+ * once; without a key it waits. createKinwall runs it once per server instance. */
+export async function sealMedicationNotes(env: EncryptionEnv & { DB: KinwallDb }): Promise<number> {
+  if (!env.ENCRYPTION_KEY) return 0;
+  let after = '';
+  let sealed = 0;
+  for (;;) {
+    const { results } = await env.DB.prepare(
+      "SELECT id, kind, title, body, at FROM notifications WHERE kind = 'medication' AND id > ? AND substr(title, 1, 7) != 'enc:v1:' ORDER BY id LIMIT 50",
+    ).bind(after).all<{ id: string; kind: string } & NoteText>();
+    if (!results.length) return sealed;
+    const updates = await Promise.all(results.map(async (r) => {
+      const s = await sealNote(env, r.id, r);
+      return env.DB.prepare("UPDATE notifications SET title = ?, body = NULL, at = ? WHERE id = ? AND kind = 'medication' AND title = ? AND body IS ? AND at = ?")
+        .bind(s.title, s.at, r.id, r.title, r.body, r.at);
+    }));
+    await env.DB.batch(updates);
+    sealed += results.length;
+    after = results[results.length - 1].id;
+  }
+}
+
 // The in-app feed (GET /api/notifications): every send site records one row here, push or no
-// push. Bumps rev in the same batch so open walls/phones refetch and the bell updates.
+// push. Bumps rev in the same batch so open walls/phones refetch and the bell updates. A medicine
+// note needs the key (`keys`): without it this throws before anything is written, never plaintext.
 export async function recordNotification(
   db: KinwallDb,
   n: { kind: NotificationKind; title: string; body?: string | null; url?: string | null; memberIds?: string[]; source: NotificationSource; at?: Date },
+  keys: EncryptionEnv = {},
 ): Promise<void> {
+  const id = crypto.randomUUID();
+  const text = { title: n.title, body: n.body ?? null, at: (n.at ?? new Date()).toISOString() };
+  const row = n.kind === 'medication' ? await sealNote(keys, id, text) : text;
   await db.batch([
     db
       .prepare('INSERT INTO notifications (id, at, kind, title, body, url, member_ids, source) VALUES (?,?,?,?,?,?,?,?)')
-      .bind(crypto.randomUUID(), (n.at ?? new Date()).toISOString(), n.kind, n.title, n.body ?? null, n.url ?? null, JSON.stringify(n.memberIds ?? []), n.source),
+      .bind(id, row.at, n.kind, row.title, row.body, n.url ?? null, JSON.stringify(n.memberIds ?? []), n.source),
     db.prepare("INSERT INTO settings (key, value) VALUES ('rev', '1') ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + 1"),
   ]);
 }
@@ -776,7 +822,7 @@ async function runMedicationReminders(env: Env, db: KinwallDb, now: Date, tz: st
   for (const [memberId, d] of due) {
     const title = `Time for ${byId.get(memberId)!.name}'s medicine`;
     const url = `/#/medications/${memberId}`;
-    if (d.feed) await recordNotification(db, { kind: 'medication', title, url, memberIds: [memberId], source: 'system', at: now });
+    if (d.feed) await recordNotification(db, { kind: 'medication', title, url, memberIds: [memberId], source: 'system', at: now }, env);
     const { results: subs } = await db.prepare('SELECT s.* FROM push_subscriptions s JOIN api_keys k ON k.id = s.api_key_id WHERE k.owner = ?').bind(memberId).all<PushSubRow>();
     await send(subs, title, 'Tap to mark it taken.', d.meds, url, `med:${memberId}`);
   }
@@ -791,7 +837,7 @@ async function runMedicationReminders(env: Env, db: KinwallDb, now: Date, tz: st
   for (const l of late.values()) {
     const title = `${byId.get(l.memberId)!.name}'s ${l.time === WAKE ? 'start-of-day' : formatTime(l.time, { h12 })}${MED_LATE}`;
     const url = `/#/medications/${l.memberId}`;
-    await recordNotification(db, { kind: 'medication', title, url, memberIds: [l.memberId], source: 'system', at: now });
+    await recordNotification(db, { kind: 'medication', title, url, memberIds: [l.memberId], source: 'system', at: now }, env);
     await send(parents, title, 'Tap to check.', l.meds, url, `med-late:${l.memberId}`);
   }
 }
