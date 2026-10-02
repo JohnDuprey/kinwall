@@ -28,7 +28,7 @@ import { appBarcodeScanner, endAppActivity, scanBarcode, tellAppActivity, wallCa
 import { itemKey, matchItems } from './itemSuggest.ts'
 import { SWIPE_REVEAL, swipeAxis, swipeEnd, swipeOffset } from './swipe.ts'
 import { canChangeItem, listSections, listType, reorderWithin, TYPE_LABEL, typeFields, type ListType } from './listSections.ts'
-import { activeCatalogFilters, boughtLabel, CATALOG_GROUP_LABELS, CATALOG_SORT_LABELS, catalogDepartments, catalogFilterSummary, catalogStores, catalogTags, catalogView, filterCatalog, groupCatalog, placeLabel, placesFor, placesInput, setCatalogView, sortCatalog, STARTER_TAGS, tagsInput, type CatalogGroup, type CatalogSort } from './catalog.ts'
+import { activeCatalogFilters, boughtLabel, CATALOG_GROUP_LABELS, CATALOG_SORT_LABELS, catalogDepartments, catalogFilterSummary, catalogStores, catalogTags, catalogView, filterCatalog, groupCatalog, placeLabel, placesFor, placesInput, scanTarget, setCatalogView, sortCatalog, STARTER_TAGS, tagsInput, type CatalogGroup, type CatalogSort } from './catalog.ts'
 
 // The list types in the edit sheet, each with its icon (Groceries first among the shopping ones).
 const TYPE_ICON: Record<ListType, typeof CartIcon> = { todo: CheckIcon, groceries: BasketIcon, shopping: CartIcon, reusable: RepeatIcon }
@@ -594,13 +594,15 @@ const OPEN_FACTS_NAMES: Partial<Record<BarcodeLookup['source'], string>> = {
 /** After scanning a product the catalog doesn't know: where its name came from, the name to add,
  * and whether to save the barcode to the catalog (off unless chosen; the next scan then adds it at
  * once). Kids' own devices don't change the catalog, so they don't see the switch. */
-function ScanSheet({ code, found, canSave, onAdd, onClose }: {
-  code: string; found: BarcodeLookup | null; canSave: boolean; onAdd: (title: string, save: boolean) => void; onClose: () => void
+function ScanSheet({ code, found, canSave, lists, target: suggested, onAdd, onClose }: {
+  code: string; found: BarcodeLookup | null; canSave: boolean; lists: List[]; target: string
+  onAdd: (title: string, save: boolean, target: string) => void; onClose: () => void
 }) {
   const [title, setTitle] = useState(found?.title ?? '')
   const [save, setSave] = useState(false)
+  const [target, setTarget] = useState(suggested)
   const name = title.trim()
-  const add = () => { if (name) onAdd(name, canSave && save) }
+  const add = () => { if (name) onAdd(name, canSave && save, target) }
   return (
     <Sheet variant="dialog" title="Scanned product" onClose={onClose}
       actions={<>
@@ -615,6 +617,14 @@ function ScanSheet({ code, found, canSave, onAdd, onClose }: {
         <label htmlFor="scan-title">Name</label>
         <input id="scan-title" type="text" value={title} onChange={e => setTitle(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') add() }} autoComplete="off" enterKeyHint="done" data-autofocus />
       </div>
+      {lists.length > 1 && (
+        <div className="field">
+          <label htmlFor="scan-list">Add to</label>
+          <select id="scan-list" className="settings-select" value={target} onChange={e => setTarget(e.target.value)}>
+            {lists.map(l => <option key={l.id} value={l.id}>{l.emoji ? `${l.emoji} ` : ''}{l.name}</option>)}
+          </select>
+        </div>
+      )}
       {canSave && (
         <div className="scan-save">
           <div>
@@ -1627,9 +1637,21 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
     }
     setScanned({ code, found })
   }
+  const shoppingLists = lists.filter(l => l.kind === 'shopping' && !l.archived)
+  // A product found in another list type's database goes there by default (scanTarget): paper towels
+  // scanned on Groceries start out headed for the Shopping list.
+  const addScanned = async (title: string, save: boolean, target: string) => {
+    if (!scanned) return
+    const barcode = save ? scanned.code : undefined
+    setScanned(null)
+    if (target === listId) { await addItem(title, barcode); toast(`Added: ${title}`); announce(`Added ${title}`); return }
+    const name = shoppingLists.find(l => l.id === target)?.name ?? 'the other list'
+    try { await api.queueAddListItem(target, { title, ...(barcode ? { barcode } : {}) }); toast(`Added to ${name}: ${title}`); announce(`Added ${title} to ${name}`) }
+    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not add item', true) }
+  }
   const scanSheet = scanned && (
     <ScanSheet code={scanned.code} found={scanned.found} canSave={!kid} onClose={() => setScanned(null)}
-      onAdd={(title, save) => { setScanned(null); addItem(title, save ? scanned.code : undefined); toast(`Added: ${title}`); announce(`Added ${title}`) }} />
+      lists={shoppingLists} target={scanTarget(shoppingLists, listId, scanned.found?.source ?? null)} onAdd={addScanned} />
   )
   const scanBtn = detail?.list.kind === 'shopping' && appBarcodeScanner() && (
     <button className="icon-btn list-scan-btn" onClick={scan} aria-label="Scan a barcode"><span aria-hidden="true">📷</span></button>

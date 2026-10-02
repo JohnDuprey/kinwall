@@ -1,9 +1,9 @@
 // node --test test/ (npm test). The grocery catalog's search, store filter and labels.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { activeCatalogFilters, boughtLabel, catalogDepartments, catalogFilterSummary, catalogStores, catalogTags, filterCatalog, groupCatalog, placeLabel, placesFor, placesInput, sortCatalog, tagsInput } from '../src/catalog.ts'
+import { activeCatalogFilters, boughtLabel, catalogDepartments, catalogFilterSummary, catalogStores, catalogTags, filterCatalog, groupCatalog, placeLabel, placesFor, placesInput, scanTarget, sortCatalog, tagsInput } from '../src/catalog.ts'
 import { itemKey } from '../src/itemSuggest.ts'
-import type { RememberedItem } from '../src/types.ts'
+import type { List, RememberedItem } from '../src/types.ts'
 
 const item = (title: string, places: [string, string | null][], uses = 1, more: Partial<RememberedItem> = {}): RememberedItem => ({
   key: itemKey(title), title, uses, lastUsed: null, category: null, lastStore: places[0]?.[0] ?? null,
@@ -102,4 +102,16 @@ test('activeCatalogFilters and catalogFilterSummary: the badge count and the lin
   assert.equal(catalogFilterSummary(f, { sort: 'bought', group: 'none' }), 'Market · Breakfast · Most bought')
   assert.equal(catalogFilterSummary(f, { sort: 'aisle', group: 'category' }), 'Market · Breakfast · Aisle at Market · By category')
   assert.equal(catalogFilterSummary({ ...none, department: 'Dairy' }, { sort: 'recent', group: 'department' }), 'Dairy · Recently used · By department')
+})
+
+test('scanTarget: food goes to a Groceries list, household and beauty to a Shopping list; else the list scanned on', () => {
+  const l = (id: string, catalog: 'groceries' | 'shopping', archived = false) => ({ id, kind: 'shopping', catalog, archived }) as unknown as List
+  const lists = [l('g', 'groceries'), l('old', 'shopping', true), l('hw', 'shopping'), l('target', 'shopping')]
+  assert.equal(scanTarget(lists, 'g', 'openproductsfacts'), 'hw', 'household scanned on Groceries: the first Shopping list')
+  assert.equal(scanTarget(lists, 'g', 'openbeautyfacts'), 'hw')
+  assert.equal(scanTarget(lists, 'target', 'openbeautyfacts'), 'target', 'already a Shopping list: stays')
+  assert.equal(scanTarget(lists, 'hw', 'openfoodfacts'), 'g', 'food scanned on a Shopping list: Groceries')
+  assert.equal(scanTarget(lists, 'hw', 'openpetfoodfacts'), 'g', 'pet food is groceries')
+  assert.equal(scanTarget(lists, 'hw', null), 'hw', 'not found anywhere: stays')
+  assert.equal(scanTarget([l('hw', 'shopping')], 'hw', 'openfoodfacts'), 'hw', 'no Groceries list: stays')
 })

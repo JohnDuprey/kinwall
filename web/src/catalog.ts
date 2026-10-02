@@ -1,6 +1,6 @@
 // The grocery catalog (GET /api/lists/remembered): pure helpers for its search, filters, sort, groups and labels.
 import { itemKey } from './itemSuggest.ts'
-import { compareAisles, type AisleOrder, type RememberedItem } from './types.ts'
+import { compareAisles, type AisleOrder, type BarcodeLookup, type List, type RememberedItem } from './types.ts'
 
 const byName = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: 'base' })
 
@@ -127,4 +127,16 @@ export function placesInput(rows: { store: string; aisle: string }[]): { store: 
     if (store) out.set(store, r.aisle.trim() || null)
   }
   return [...out].map(([store, aisle]) => ({ store, aisle }))
+}
+
+/** Where a scanned product goes by default (Lists.tsx ScanSheet): food and pet food on a Groceries
+ * list, household and beauty items on a Shopping list, by the database it was found in; the list it
+ * was scanned on when that's already the right type, when nobody knew it, or when there's no list of
+ * that type. Older servers' lists without a catalog are groceries. */
+export function scanTarget(lists: List[], currentId: string, source: BarcodeLookup['source'] | null): string {
+  const want = source === 'openproductsfacts' || source === 'openbeautyfacts' ? 'shopping' : source === 'openfoodfacts' || source === 'openpetfoodfacts' ? 'groceries' : null
+  const type = (l: List) => l.catalog ?? 'groceries'
+  const current = lists.find(l => l.id === currentId)
+  if (!want || (current && type(current) === want)) return currentId
+  return lists.find(l => l.kind === 'shopping' && !l.archived && type(l) === want)?.id ?? currentId
 }
