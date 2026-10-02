@@ -1,6 +1,7 @@
 // Workers-compatible. Env shape shared by worker.ts and node.ts (Node passes process.env + adapted DB).
 import type { KinwallDb } from './db.ts';
 import type { ApnsEnv } from './apns.ts';
+import type { Fetch } from './outbound.ts';
 // APNS_*: Apple push for the iPhone app's Live Activities (apns.ts); off unless all are set.
 export type Env = ApnsEnv & {
   DB: KinwallDb;
@@ -27,6 +28,7 @@ export type Env = ApnsEnv & {
   CLIENT_IP?: (req: Request) => string | null; // the caller's address for per-address rate limits (node.ts: socket peer, X-Forwarded-For only with TRUST_PROXY=1). Unset: cf-connecting-ip, which Cloudflare hosts always set; see ratelimit.ts
   ALLOW_PRIVATE_FEED_URLS?: string; // '1' lets ICS/CalDAV reach LAN hosts (see outbound.ts)
   ALLOW_PRIVATE_WEBHOOK_URLS?: string; // '1' lets webhooks target LAN receivers (Home Assistant add-on sets it)
+  OUTBOUND_FETCH?: Fetch; // a fetch that refuses private addresses at connect time, for person-supplied URLs (node.ts: outbound-node.ts). Unset (Workers): the literal-host check only; see outbound.ts
   REQUIRE_PASSKEY_SETUP?: string; // '1': setup wizard can't skip the passkey (hosts with no other way back in); see routes/setup.ts
   HOST_PORTAL_URL?: string;
   PLUGIN_CATALOG_URL?: string; // the list of trusted activity plugins (default: the one kinwall.family's admins keep); see routes/plugins.ts

@@ -139,6 +139,7 @@ export async function providerEnv(env: Env, db: KinwallDb): Promise<ProviderEnv>
     MS_CLIENT_SECRET: msId ? msSecret : env.MS_CLIENT_SECRET,
     MS_TENANT: (msId ? map.get(SETTING_KEYS.microsoft.tenant) : env.MS_TENANT) || 'common',
     ALLOW_PRIVATE_FEED_URLS: env.ALLOW_PRIVATE_FEED_URLS,
+    OUTBOUND_FETCH: env.OUTBOUND_FETCH, // ICS/CalDAV fetches check the connected address on Node (outbound.ts)
   };
 }
 

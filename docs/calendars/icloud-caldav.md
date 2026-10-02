@@ -21,4 +21,4 @@ After **Connect**, the calendar picker opens: tick the calendars you want, assig
 * Apple app-specific passwords can't be limited to calendars. If you only need to read, a public iCloud calendar link as an [ICS feed](ics-feeds.md) exposes less.
 * Reminders on CalDAV events are read from the server and can't be edited in Kinwall.
 * Free/busy comes from each event's `TRANSP` (`TRANSPARENT` = [free](../using/events.md#free-or-busy)), and changing **Show as** in Kinwall writes it back.
-* A CalDAV server on your LAN (`192.168.x.x`) is blocked unless you set `ALLOW_PRIVATE_FEED_URLS=1`. See [Private / LAN feeds](private-feeds.md).
+* A CalDAV server on your LAN (`192.168.x.x`, or a name that resolves to one) is blocked unless you set `ALLOW_PRIVATE_FEED_URLS=1`. See [Private / LAN feeds](private-feeds.md).

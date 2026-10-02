@@ -3,7 +3,7 @@ import type { Context } from 'hono';
 import type { Env, WaitCtx } from './env.ts';
 import { waitUntil } from './env.ts';
 import { decrypt } from './crypto.ts';
-import { isSafeWebhookUrl } from './outbound.ts';
+import { isSafeWebhookUrl, outboundFetch } from './outbound.ts';
 
 export type BusEventType =
   | 'contact.changed'
@@ -105,7 +105,8 @@ async function deliverWebhooks(env: Env, type: BusEventType, data: unknown, webh
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
     try {
-      await fetch(hook.url, {
+      // On Node, OUTBOUND_FETCH also refuses a name that resolves to a private address (outbound.ts).
+      await outboundFetch(env, env.ALLOW_PRIVATE_WEBHOOK_URLS === '1')(hook.url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Kinwall-Signature': signature },
         body: payload,

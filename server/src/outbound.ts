@@ -1,8 +1,56 @@
-// SSRF guards for server-side fetches of user-supplied URLs (webhooks, ICS feeds, CalDAV).
+// SSRF guards for server-side fetches of person-supplied URLs (webhooks, ICS feeds, CalDAV,
+// recipe pages, PDFs and images, book covers).
+//
+// Two layers. isSafeOutboundUrl checks the URL as written, everywhere. On Node the host also hands
+// over OUTBOUND_FETCH (outbound-node.ts), a fetch that checks the address it actually connects to,
+// so a public name that resolves to a private address (10.0.0.1.nip.io, DNS rebinding) is refused
+// too. Workers leave it unset and keep the literal check only: they have no DNS API, and a Worker's
+// fetch can't reach a family's private network anyway. The ALLOW_PRIVATE_* opt-outs skip both
+// layers, each for its own fetches only.
 
-// Checks the literal host only: Workers can't resolve DNS, so a public name that resolves to a
-// private address is not caught here. URL() already normalizes IPv4 shorthand (http://2130706433,
-// 0x7f.1) into dotted quads.
+// 0/8 this-net, 10/8, 127/8 loopback, 169.254/16 link-local, 172.16/12, 192.168/16, 100.64/10 CGNAT,
+// 224/4 multicast and 240/4 reserved (incl. broadcast).
+function privateV4(a: number, b: number): boolean {
+  return a === 0 || a === 10 || a === 127 || a >= 224 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127);
+}
+
+// An IPv6 address as its 8 groups (a dotted v4 tail counts as two), or null if it isn't one.
+function v6Groups(s: string): number[] | null {
+  const tail = s.match(/^(.*:)(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (tail) {
+    const [w, x, y, z] = tail.slice(2).map(Number);
+    s = `${tail[1]}${((w << 8) | x).toString(16)}:${((y << 8) | z).toString(16)}`;
+  }
+  const halves = s.split('::');
+  if (halves.length > 2) return null;
+  const [head, rest = []] = halves.map((h) => (h ? h.split(':') : []));
+  const n = head.length + rest.length;
+  if ([...head, ...rest].some((g) => !/^[0-9a-f]{1,4}$/i.test(g)) || (halves.length === 1 ? n !== 8 : n > 7)) return null;
+  return [...head, ...Array(8 - n).fill('0'), ...rest].map((g) => parseInt(g, 16));
+}
+
+// Is this IP address (v4, or v6 with or without brackets or a %zone) one a person-supplied URL must
+// not reach? Covers v4 inside v6: mapped (::ffff:a.b.c.d), compatible (::a.b.c.d), NAT64
+// (64:ff9b::/96; 64:ff9b:1::/48 is local-use) and 6to4 (2002::/16), plus fc00::/7 unique-local,
+// fe80::/10 link-local, fec0::/10 site-local and ff00::/8 multicast. Anything unparsable counts as private.
+export function isPrivateAddress(ip: string): boolean {
+  const s = ip.replace(/^\[|\]$/g, '').replace(/%.*$/, '');
+  const v4 = s.match(/^(\d{1,3})\.(\d{1,3})\.\d{1,3}\.\d{1,3}$/);
+  if (v4) return privateV4(Number(v4[1]), Number(v4[2]));
+  const g = v6Groups(s);
+  if (!g) return true;
+  const embedded = (hi: number) => privateV4(hi >> 8, hi & 255);
+  const zero = (from: number, to: number) => g.slice(from, to).every((x) => x === 0);
+  if (zero(0, 6)) return embedded(g[6]); // ::, ::1, ::a.b.c.d
+  if (zero(0, 5) && g[5] === 0xffff) return embedded(g[6]);
+  if (g[0] === 0x64 && g[1] === 0xff9b) return !zero(2, 6) || embedded(g[6]);
+  if (g[0] === 0x2002) return embedded(g[1]);
+  return (g[0] & 0xfe00) === 0xfc00 || (g[0] & 0xffc0) === 0xfe80 || (g[0] & 0xffc0) === 0xfec0 || (g[0] & 0xff00) === 0xff00;
+}
+
+// The URL as written: http(s) only, no localhost/.local/.internal names, no private IP literals.
+// URL() already normalizes IPv4 shorthand (http://2130706433, 0x7f.1, 0) into dotted quads and
+// IPv6 into its short form; trailing dots are dropped here (localhost. is localhost).
 export function isSafeOutboundUrl(raw: string): boolean {
   let url: URL;
   try {
@@ -11,28 +59,25 @@ export function isSafeOutboundUrl(raw: string): boolean {
     return false;
   }
   if (url.protocol !== 'https:' && url.protocol !== 'http:') return false;
-  const host = url.hostname.toLowerCase().replace(/\.$/, '');
+  const host = url.hostname.toLowerCase().replace(/\.+$/, '');
   if (host === 'localhost' || /\.(localhost|local|internal)$/.test(host)) return false;
-  const v4 = host.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
-  if (v4) {
-    const [a, b] = [Number(v4[1]), Number(v4[2])];
-    return !(
-      a === 0 || a === 10 || a === 127 || a >= 224 || // this-net, private, loopback, multicast + reserved
-      (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127)
-    );
-  }
-  if (host.startsWith('[')) {
-    const v6 = host.slice(1, -1);
-    // unspecified, loopback, v4-mapped, fc00::/7 unique-local, fe80::/10 link-local
-    return !(v6 === '::' || v6 === '::1' || v6.startsWith('::ffff:') || /^f[cd][0-9a-f]{2}:/.test(v6) || /^fe[89ab][0-9a-f]:/.test(v6));
-  }
+  if (/^[\d.]+$/.test(host) || host.startsWith('[')) return !isPrivateAddress(host);
   return true;
+}
+
+export type Fetch = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
+export type OutboundEnv = { OUTBOUND_FETCH?: Fetch };
+
+// The fetch for a person-supplied URL: the host's address-checking one, unless this kind of fetch
+// is opted out (then plain fetch, as before). Looked up per call so tests can stub globalThis.fetch.
+export function outboundFetch(env: OutboundEnv, allowPrivate: boolean): Fetch {
+  return (!allowPrivate && env.OUTBOUND_FETCH) || ((input, init) => fetch(input, init));
 }
 
 export const isPublicHttpsUrl = (raw: string) => /^https:\/\//i.test(raw) && isSafeOutboundUrl(raw);
 
-export type FeedEnv = { ALLOW_PRIVATE_FEED_URLS?: string };
-export type WebhookEnv = { ALLOW_PRIVATE_WEBHOOK_URLS?: string };
+export type FeedEnv = OutboundEnv & { ALLOW_PRIVATE_FEED_URLS?: string };
+export type WebhookEnv = OutboundEnv & { ALLOW_PRIVATE_WEBHOOK_URLS?: string };
 
 export const WEBHOOK_URL_ERROR = 'Webhook URL must be a public https/http address (self-hosted: set ALLOW_PRIVATE_WEBHOOK_URLS=1 to reach a LAN receiver such as Home Assistant)';
 
@@ -45,9 +90,8 @@ export function isSafeWebhookUrl(env: WebhookEnv, raw: string): boolean {
 
 export const FEED_URL_ERROR = 'Calendar URL must be a public http(s) address (self-hosted: set ALLOW_PRIVATE_FEED_URLS=1 to reach a LAN server)';
 
-// Calendar feeds (ICS, CalDAV). Same literal-host check as webhooks (on Workers DNS can't be
-// resolved, so a public name pointing at a private address isn't caught), run on the http(s)
-// form of a webcal:// URL. ALLOW_PRIVATE_FEED_URLS=1 lets a self-hoster reach a LAN
+// Calendar feeds (ICS, CalDAV). Same literal-host check as webhooks, run on the http(s) form of a
+// webcal:// URL (feedFetch adds the connect-time address check on Node). ALLOW_PRIVATE_FEED_URLS=1 lets a self-hoster reach a LAN
 // Radicale/Baikal - feeds only, never webhooks. Redirects are checked per hop by feedFetch below.
 export function isSafeFeedUrl(env: FeedEnv, raw: string): boolean {
   if (env.ALLOW_PRIVATE_FEED_URLS === '1') return true;
@@ -61,15 +105,16 @@ export function assertSafeFeedUrl(env: FeedEnv, raw: string): void {
 const MAX_FEED_REDIRECTS = 3;
 
 // fetch() for calendar feeds (ICS directly, CalDAV via tsdav's `fetch` option): checks the URL,
-// then follows up to 3 redirects itself, re-checking each Location so a public URL can't 30x
-// into private space. A caller that asks for redirect: 'manual' (tsdav's service discovery)
+// connects through OUTBOUND_FETCH (unless ALLOW_PRIVATE_FEED_URLS=1), then follows up to 3
+// redirects itself, re-checking each Location (and its address, on Node) so a public URL can't
+// 30x into private space. A caller that asks for redirect: 'manual' (tsdav's service discovery)
 // gets the 3xx back and its next request is checked on the way in.
 export async function feedFetch(env: FeedEnv, input: string | URL | Request, init: RequestInit = {}): Promise<Response> {
   let url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
   let req: RequestInit = { ...init, redirect: 'manual' };
   for (let hop = 0; ; hop++) {
     assertSafeFeedUrl(env, url);
-    const res = await fetch(url, req);
+    const res = await outboundFetch(env, env.ALLOW_PRIVATE_FEED_URLS === '1')(url, req);
     const location = res.headers.get('location');
     if (init.redirect === 'manual' || res.status < 300 || res.status > 399 || res.status === 304 || !location) return res;
     if (hop === MAX_FEED_REDIRECTS) throw new Error(`Calendar URL redirected more than ${MAX_FEED_REDIRECTS} times`);
@@ -98,8 +143,8 @@ type Fetched = { bytes: Uint8Array<ArrayBuffer>; type: string; etag: string | nu
 
 // A record's own stored URL (a recipe's sourceUrl or imageUrl), or a recipe page an admin asked to import. https
 // only and public hosts only (ALLOW_PRIVATE_FEED_URLS=1 also lets a self-hoster or a local test reach
-// a LAN or http address), each redirect re-checked, 15 s, capped at `max` bytes, and the answer's
-// content type must pass `typeOk`. Returns the bytes, or an error message for the client.
+// a LAN or http address), connected through OUTBOUND_FETCH, each redirect re-checked, 15 s,
+// capped at `max` bytes, and the answer's content type must pass `typeOk`. Returns the bytes, or an error message for the client.
 async function fetchRecordUrl(env: FeedEnv, raw: string, what: string, headers: Record<string, string>, max: number, typeOk: (type: string) => boolean): Promise<Fetched> {
   const allowed = (u: string) => env.ALLOW_PRIVATE_FEED_URLS === '1' ? /^https?:\/\//i.test(u) : /^https:\/\//i.test(u) && isSafeOutboundUrl(u);
   const signal = AbortSignal.timeout(15000);
@@ -107,7 +152,7 @@ async function fetchRecordUrl(env: FeedEnv, raw: string, what: string, headers: 
   try {
     for (let hop = 0; ; hop++) {
       if (!allowed(url)) return { error: `${what} must be a public https address`, status: 400 };
-      const res = await fetch(url, { redirect: 'manual', signal, headers });
+      const res = await outboundFetch(env, env.ALLOW_PRIVATE_FEED_URLS === '1')(url, { redirect: 'manual', signal, headers });
       const location = res.headers.get('location');
       if (res.status >= 300 && res.status <= 399 && location) {
         await res.body?.cancel();

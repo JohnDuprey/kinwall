@@ -1,3 +1,4 @@
+import type { Fetch } from '../outbound.ts';
 // Contract between the core API (sync.ts, routes/events.ts) and calendar providers.
 // Stored time format: timed = UTC ISO ('2026-09-24T14:00:00.000Z'); all-day = 'YYYY-MM-DD', end exclusive.
 
@@ -36,6 +37,7 @@ export type ProviderEnv = {
   MS_TENANT?: string;
   TIMEZONE?: string;
   ALLOW_PRIVATE_FEED_URLS?: string;
+  OUTBOUND_FETCH?: Fetch;
 };
 
 export type ProviderCtx = {
