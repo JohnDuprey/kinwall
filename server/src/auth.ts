@@ -375,7 +375,7 @@ function isDisplayAllowed(method: string, path: string): boolean {
 
 // Routes that can't send a header, so they take the key as ?key=: the OAuth start and the photo zip
 // (browser navigations) and a photo's or recipe photo's bytes (an <img src>). Nowhere else - a key in a URL ends up in logs.
-const QUERY_KEY_PATH = /^\/api\/oauth\/[^/]+\/start$|^\/api\/photos\/[^/]+\/image$|^\/api\/(recipes|meals)\/[^/]+\/image$|^\/api\/recipes\/[^/]+\/steps\/\d+\/image$|^\/api\/photos\/export\.zip$/;
+const QUERY_KEY_PATH = /^\/api\/oauth\/[^/]+\/start$|^\/api\/photos\/[^/]+\/image$|^\/api\/(recipes|meals)\/[^/]+\/image$|^\/api\/recipes\/[^/]+\/steps\/\d+\/image$|^\/api\/photos\/export\.zip$|^\/api\/trackers\/[^/]+\/cover$|^\/api\/books\/covers\/[^/]+$/;
 
 // Shared by requireAuth and GET /api/me: resolves the bearer key (or ?key= on QUERY_KEY_PATH)
 // to its scope. Returns null if the key is missing/unknown.

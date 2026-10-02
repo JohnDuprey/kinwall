@@ -29,6 +29,8 @@ export function isSafeOutboundUrl(raw: string): boolean {
   return true;
 }
 
+export const isPublicHttpsUrl = (raw: string) => /^https:\/\//i.test(raw) && isSafeOutboundUrl(raw);
+
 export type FeedEnv = { ALLOW_PRIVATE_FEED_URLS?: string };
 export type WebhookEnv = { ALLOW_PRIVATE_WEBHOOK_URLS?: string };
 
@@ -155,12 +157,12 @@ export function sniffImage(b: Uint8Array): string | null {
   return null;
 }
 
-// A recipe's photo (its imageUrl): 8 MB, JPEG/PNG/WebP/GIF by header and by magic bytes.
-export async function fetchRecipeImage(env: FeedEnv, raw: string): Promise<{ image: Uint8Array<ArrayBuffer>; type: string; etag: string | null } | { error: string; status: 400 | 502 }> {
-  const r = await fetchRecordUrl(env, raw, 'recipe image', { Accept: 'image/webp,image/jpeg,image/png,image/gif' }, MAX_RECIPE_IMAGE_BYTES, (t) => /^image\/(jpeg|png|webp|gif)$/.test(t) || t === 'application/octet-stream');
+// A recipe's photo (its imageUrl), or a book cover: 8 MB, JPEG/PNG/WebP/GIF by header and by magic bytes.
+export async function fetchRecipeImage(env: FeedEnv, raw: string, what = 'recipe image'): Promise<{ image: Uint8Array<ArrayBuffer>; type: string; etag: string | null } | { error: string; status: 400 | 502 }> {
+  const r = await fetchRecordUrl(env, raw, what, { Accept: 'image/webp,image/jpeg,image/png,image/gif' }, MAX_RECIPE_IMAGE_BYTES, (t) => /^image\/(jpeg|png|webp|gif)$/.test(t) || t === 'application/octet-stream');
   if ('error' in r) return r;
   const type = sniffImage(r.bytes);
-  if (!type) return { error: 'recipe image is not a JPEG, PNG, WebP or GIF', status: 502 };
+  if (!type) return { error: `${what} is not a JPEG, PNG, WebP or GIF`, status: 502 };
   return { image: r.bytes, type, etag: r.etag };
 }
 

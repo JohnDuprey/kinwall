@@ -12,7 +12,7 @@ import type { Contact, ContactCategory, ContactInput, ImportPreviewEntry } from 
 import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginCatalogEntry,
   StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota, FamilyColoringPage, GooglePhotos, Reward, Redemption, MemberStats, StatsPeriod,
   Account, ApiKey, AppNotification, Appearance, CalendarEntry, Category, Chore, ChoreDay, LibraryChore, LibraryChoreInput, PendingApproval, EventInstance, LeaderboardEntry, LeaderboardPeriod, List,
-  GeocodeResult, HiddenEvent, HostEvent, ImportResult, SecurityEvent, ListDetail, ListGroup, ListItem, ListItemInput, ListItemPatch, Member, Me, Note, NoteTarget, Passkey, TrackerEntry, TrackerInput, TrackerKind, Providers, PushSubscription, PushSubscriptionPrefs, RemoteCalendar, Settings, Snapshot, Board, Webhook, WebhookWithSecret,
+  BookResult, GeocodeResult, HiddenEvent, HostEvent, ImportResult, SecurityEvent, ListDetail, ListGroup, ListItem, ListItemInput, ListItemPatch, Member, Me, Note, NoteTarget, Passkey, TrackerEntry, TrackerInput, TrackerKind, Providers, PushSubscription, PushSubscriptionPrefs, RemoteCalendar, Settings, Snapshot, Board, Webhook, WebhookWithSecret,
   Newscast, NewscastItem, NewscastPostInput, NewscastReaction,
   TempCheck, TempCheckInput, Journal, JournalEntry, JournalPrivacy, Insights, InsightRange, Battery, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory, RememberedItem, RememberedItemInput, ListCatalog,
 } from './types.ts'
@@ -544,6 +544,12 @@ export const api = {
   addTracker: (body: TrackerInput & { kind: TrackerKind }) => MOCK ? mock.addTracker(body) : post<TrackerEntry>('api/trackers', body),
   updateTracker: (id: string, body: TrackerInput) => MOCK ? mock.updateTracker(id, body) : patch<TrackerEntry>(`api/trackers/${id}`, body),
   deleteTracker: (id: string) => MOCK ? mock.deleteTracker(id) : del(`api/trackers/${id}`),
+  // Book lookup and covers go through the server (Open Library), so the browser never talks to a third party.
+  searchBooks: (q: string) => MOCK ? mock.searchBooks(q) : get<BookResult[]>(`api/books/search?q=${encodeURIComponent(q)}`),
+  bookThumbUrl: (r: BookResult) => MOCK ? r.coverUrl ?? null : r.coverId ? apiUrl(`api/books/covers/${r.coverId}?key=${encodeURIComponent(getKey() ?? '')}`) : null,
+  // v (the entry's updatedAt) refetches the cover after its link changes.
+  trackerCoverUrl: (e: TrackerEntry) => MOCK ? (e.data as { coverUrl?: string }).coverUrl ?? null
+    : apiUrl(`api/trackers/${encodeURIComponent(e.id)}/cover?key=${encodeURIComponent(getKey() ?? '')}&v=${encodeURIComponent(e.updatedAt)}`),
   // Newscast (server: routes/newscast.ts). Not cached offline: it's for now, not for later.
   getNewscast: (q: { days?: number; before?: string } = {}) => MOCK ? mock.getNewscast(q)
     : req<Newscast>(`api/newscast?${new URLSearchParams({ ...(q.days ? { days: String(q.days) } : {}), ...(q.before ? { before: q.before } : {}) })}`),

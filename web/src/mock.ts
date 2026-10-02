@@ -2,7 +2,7 @@
 import type { Actor, OnlineTidbits, Plugin, PluginCatalogEntry,
   Account, ApiKey, AppNotification, SecurityEvent, CalendarEntry, Category, Chore, ChoreDay, LibraryChore, LibraryChoreInput, EventInstance, HiddenEvent, LeaderboardEntry, LeaderboardPeriod, List, ListGroup,
   Newscast, NewscastItem, NewscastPostInput, NewscastReaction,
-  Photo, PhotoQuota, FamilyColoringPage, GooglePhotos, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, ListItem, ListItemInput, ListItemPatch, ListItemStep, ListCatalog, Member, RememberedItem, RememberedItemInput, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption, TempCheck, TempCheckInput, Journal, JournalEntry, Insights, InsightDay, InsightRange, Battery, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory, DoseStatus, MedTime,
+  Photo, PhotoQuota, FamilyColoringPage, GooglePhotos, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, BookResult, ListItem, ListItemInput, ListItemPatch, ListItemStep, ListCatalog, Member, RememberedItem, RememberedItemInput, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption, TempCheck, TempCheckInput, Journal, JournalEntry, Insights, InsightDay, InsightRange, Battery, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory, DoseStatus, MedTime,
 } from './types.ts'
 import { eveningPending, FEELINGS, lastNightDate, TEMP_CHECK_OFF } from './tempCheck.ts'
 import { aisleOrderMap, compareItems } from './types.ts'
@@ -640,8 +640,8 @@ const daysAgo = (n: number) => dateKey(new Date(Date.now() - n * 86_400_000))
 const tracker = (kind: TrackerKind, memberId: string | null, date: string, title: string | null, data: Record<string, unknown>, photoId: string | null = null): TrackerEntry =>
   ({ id: uid(), kind, memberId, formerMember: null, date, title, photoId, photoOwned: false, photoFamily: photoId ? true : null, data: data as never, createdAt: `${date}T18:00:00.000Z`, updatedAt: `${date}T18:00:00.000Z` })
 const trackers: TrackerEntry[] = [
-  tracker('reading', 'm3', daysAgo(12), "Charlotte's Web", { author: 'E. B. White', status: 'reading', pagesRead: 83, totalPages: 184 }),
-  tracker('reading', 'm3', daysAgo(40), 'Matilda', { author: 'Roald Dahl', status: 'finished', pagesRead: 240, totalPages: 240, finishedOn: daysAgo(20), rating: 5, notes: 'Loved Miss Honey.' }),
+  tracker('reading', 'm3', daysAgo(12), "Charlotte's Web", { author: 'E. B. White', status: 'reading', pagesRead: 83, totalPages: 184, coverUrl: 'https://picsum.photos/seed/kinwall-charlotte/120/180' }),
+  tracker('reading', 'm3', daysAgo(40), 'Matilda', { author: 'Roald Dahl', status: 'finished', pagesRead: 240, totalPages: 240, finishedOn: daysAgo(20), rating: 5, notes: 'Loved Miss Honey.', coverUrl: 'https://picsum.photos/seed/kinwall-matilda/120/180' }),
   tracker('reading', 'm3', daysAgo(70), 'The Wild Robot', { author: 'Peter Brown', status: 'finished', pagesRead: 288, totalPages: 288, finishedOn: daysAgo(45), rating: 4 }),
   tracker('reading', 'm3', daysAgo(6), 'The Mouse and the Motorcycle', { format: 'audiobook', author: 'Beverly Cleary', narrator: 'Nora Bell', status: 'reading', minutesListened: 95, totalMinutes: 225 }),
   tracker('reading', 'm3', daysAgo(35), 'Ramona the Pest', { format: 'audiobook', author: 'Beverly Cleary', narrator: 'Nora Bell', status: 'finished', minutesListened: 250, totalMinutes: 250, finishedOn: daysAgo(28), rating: 5 }),
@@ -1387,6 +1387,8 @@ export const mock = {
     if (patch.done !== undefined) { i.steps.forEach(st => { st.done = !!patch.done }); withStepCounts(i) }
     recomputeListCounts(listId); bump(); return i
   },
+  // Demo lookup: a few classics, no network. picsum stands in for the covers (the demo CSP allows it).
+  searchBooks: async (q: string): Promise<BookResult[]> => DEMO_BOOKS.filter(b => `${b.title} ${b.author}`.toLowerCase().includes(q.trim().toLowerCase())),
   getTrackers: async (kind: TrackerKind) => trackers.filter(t => t.kind === kind).sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)),
   addTracker: async (body: TrackerInput & { kind: TrackerKind }) => {
     const t = tracker(body.kind, body.memberId ?? null, body.date ?? todayISO(), body.title?.trim() || null, trackerData(body.kind, body.data ?? {}), body.photoId ?? null)
@@ -1530,6 +1532,13 @@ export const mock = {
   updateWebhook: async (id: string, patch: Partial<Webhook>) => ({ id, url: patch.url ?? '', events: patch.events ?? [], enabled: patch.enabled ?? true, createdAt: new Date().toISOString() }),
   deleteWebhook: async (id: string) => { webhooks = webhooks.filter(h => h.id !== id) },
 }
+
+const DEMO_BOOKS: BookResult[] = [
+  { title: "Charlotte's Web", author: 'E. B. White', year: 1952, pages: 184, coverUrl: 'https://picsum.photos/seed/kinwall-charlotte/120/180' },
+  { title: 'Matilda', author: 'Roald Dahl', year: 1988, pages: 240, coverUrl: 'https://picsum.photos/seed/kinwall-matilda/120/180' },
+  { title: 'The Wild Robot', author: 'Peter Brown', year: 2016, pages: 288, coverUrl: 'https://picsum.photos/seed/kinwall-robot/120/180' },
+  { title: 'Holes', author: 'Louis Sachar', year: 1998, pages: 233 },
+]
 
 const DEMO_PLACES: GeocodeResult[] = [
   { name: 'Portland', label: 'Portland, Oregon, United States', lat: 45.5152, lon: -122.6784, countryCode: 'US' },

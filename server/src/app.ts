@@ -45,6 +45,7 @@ import { photosRoutes } from './routes/photos.ts';
 import { googlePhotosRoutes } from './routes/google-photos.ts';
 import { snapshotRoutes } from './routes/snapshot.ts';
 import { weatherRoutes } from './routes/weather.ts';
+import { booksRoutes } from './routes/books.ts';
 import { tidbitRoutes } from './routes/tidbits.ts';
 import { trackersRoutes } from './routes/trackers.ts';
 import { pluginsRoutes, servePluginFile } from './routes/plugins.ts';
@@ -127,6 +128,7 @@ export function createApp() {
   app.route('/', googlePhotosRoutes);
   app.route('/', snapshotRoutes);
   app.route('/', weatherRoutes);
+  app.route('/', booksRoutes);
   app.route('/', tidbitRoutes);
   app.route('/', trackersRoutes);
   app.route('/', newscastRoutes);

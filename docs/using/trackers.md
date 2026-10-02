@@ -9,6 +9,8 @@ In Reading and Memories, the header's member filter works too: pick a person and
 A shelf per person, with what they're reading first, then what they want to read, then what they've finished.
 
 * **Add a book** with **+**: the format (**Book** or **Audiobook**), title (required), author, status (**Want to read**, **Reading**, **Finished**), pages read and total pages, the day they started, the day they finished, a rating and notes.
+* **Look up** a book instead of typing it: search by title, author or ISBN and pick the right one to fill in the title, author, total pages and cover. Results come from [Open Library](https://openlibrary.org), and the search goes through your Kinwall server. Listening length isn't in Open Library, so fill that in for an audiobook.
+* **Cover link** takes the address of a cover picture (public `https`, JPEG, PNG, WebP or GIF). The cover shows next to the book on the shelf. Your Kinwall server fetches it, so screens never connect to the cover's site themselves.
 * An **audiobook** has a narrator, and **Listened** and **Length** in hours and minutes instead of pages. It shows 🎧 on the shelf, with the time left ("2h 10m left").
 * **Log pages** on a book they're reading: type the page they're on or tap **+5**, **+10**, **+20**, **+50**. For an audiobook it's **Log listening**: type how long they've listened or tap **+15m**, **+30m**, **+1h**. Reaching the last page (or the end of the audiobook), or tapping **Finished it!**, marks it finished today.
 * **Rate** a finished book by tapping a star. Tap the same star again to clear it.

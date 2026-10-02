@@ -3,6 +3,7 @@ import { z } from '@hono/zod-openapi';
 import { MealSchema } from './meal-schemas.ts';
 import { isSingleEmoji, isValidAvatar } from './emoji.ts';
 import { pushEndpointAllowed } from './webpush.ts';
+import { isPublicHttpsUrl } from './outbound.ts';
 
 export const ErrorSchema = z.object({ error: z.string() }).openapi('Error');
 
@@ -1087,6 +1088,8 @@ export const ReadingDataSchema = z
     finishedOn: DateOnly.nullable().optional(),
     rating: z.number().int().min(1).max(5).nullable().optional(), // stars
     notes: Text(4000).nullable().optional(),
+    // A cover photo's address (public https), served through GET /api/trackers/{id}/cover
+    coverUrl: z.string().max(2000).refine(isPublicHttpsUrl, 'must be a public https address').nullable().optional(),
   })
   .strict()
   .openapi('ReadingData');
@@ -1288,6 +1291,14 @@ export const WeatherSchema = z
     days: z.array(WeatherDaySchema),
   })
   .openapi('Weather');
+
+export const BookResultSchema = z
+  .object({
+    title: z.string(), author: z.string().optional(), year: z.number().optional(), pages: z.number().optional(),
+    coverId: z.number().optional(), // the thumbnail: GET /api/books/covers/{coverId}
+    coverUrl: z.string().optional(), // what to save as the entry's coverUrl
+  })
+  .openapi('BookResult');
 
 export const GeocodeResultSchema = z
   .object({ name: z.string(), label: z.string(), lat: z.number(), lon: z.number(), countryCode: z.string().optional() })

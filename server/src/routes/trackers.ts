@@ -29,6 +29,7 @@ import { deviceOwner, ownerBlock, resolveKey } from '../auth.ts';
 import { isConnectedApp } from './mcp-oauth.ts';
 import { todayIn } from './lists.ts';
 import { isSealed, seal, unseal, type EncryptionEnv } from '../crypto.ts';
+import { fetchRecipeImage } from '../outbound.ts';
 import { isAudiobook, minutesOf, pagesOf, readingPercent, type ReadingProgress } from '../reading.ts';
 import {
   ErrorSchema, ReadingSummarySchema, TRACKER_DATA, TrackerEntrySchema, TrackerInputSchema, TrackerKindSchema, TrackerPatchSchema,
@@ -316,6 +317,34 @@ trackersRoutes.openapi(
     const got = await load(c, c.req.valid('param').id);
     if ('res' in got) return got.res as never;
     return c.json(toTrackerApi(got.row), 200);
+  },
+);
+
+// A book's cover, fetched by the server from the entry's own stored coverUrl (never a URL from the
+// request), so the browser and the CSP stay on this origin. An <img> can't send a header: ?key= works.
+trackersRoutes.openapi(
+  createRoute({
+    method: 'get',
+    path: '/api/trackers/{id}/cover',
+    tags: ['Trackers'],
+    summary: "The photo at a reading entry's coverUrl (public https, JPEG/PNG/WebP/GIF, at most 8 MB)",
+    security: [{ Bearer: [] }],
+    request: { params: idParam },
+    responses: {
+      200: { description: 'the image', content: { 'image/*': { schema: z.string().openapi({ format: 'binary' }) } } },
+      400: { description: 'the stored address is not allowed', content: json(ErrorSchema) },
+      404: { description: 'not found, or no cover', content: json(ErrorSchema) },
+      502: { description: 'the image could not be fetched or is not an image', content: json(ErrorSchema) },
+    },
+  }),
+  async (c) => {
+    const got = await load(c, c.req.valid('param').id);
+    if ('res' in got) return got.res as never;
+    const coverUrl = got.row.kind === 'reading' ? toTrackerApi(got.row).data.coverUrl : null;
+    if (typeof coverUrl !== 'string') return c.json({ error: 'no cover' }, 404);
+    const result = await fetchRecipeImage(c.env, coverUrl, 'book cover');
+    if ('error' in result) return c.json({ error: result.error }, result.status);
+    return c.body(result.image, 200, { 'Content-Type': result.type, 'Cache-Control': 'private, max-age=604800', ...(result.etag && { ETag: result.etag }) });
   },
 );
 

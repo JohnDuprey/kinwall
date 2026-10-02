@@ -104,7 +104,10 @@ export interface ReadingData {
   format?: ReadingFormat; author?: string; narrator?: string; status: ReadingStatus
   pagesRead?: number; totalPages?: number; minutesListened?: number; totalMinutes?: number
   finishedOn?: string; rating?: number; notes?: string
+  coverUrl?: string // public https; shown through GET /api/trackers/{id}/cover
 }
+/** A book lookup result (GET /api/books/search, from Open Library). */
+export interface BookResult { title: string; author?: string; year?: number; pages?: number; coverId?: number; coverUrl?: string }
 export interface MemoryData { text: string; mood?: string }
 export type HealthType = 'checkup' | 'dentist' | 'specialist' | 'vaccine' | 'sick' | 'other'
 export interface Measure<U extends string> { value: number; unit: U }

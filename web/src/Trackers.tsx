@@ -13,7 +13,7 @@ import { formatTime } from './timeFormat.ts'
 import { PlusIcon } from './icons.tsx'
 import Sheet from './Sheet.tsx'
 import { preparePhoto, PhotoFormatError } from './photos.ts'
-import type { HealthData, HealthType, Member, MemoryData, Photo, ReadingData, ReadingFormat, ReadingStatus, TrackerEntry, TrackerInput, TrackerKind } from './types.ts'
+import type { BookResult, HealthData, HealthType, Member, MemoryData, Photo, ReadingData, ReadingFormat, ReadingStatus, TrackerEntry, TrackerInput, TrackerKind } from './types.ts'
 import { hoursMinutes, isAudiobook, left, logReachesEnd, readingPercent, shelfLine, shelfTotals, splitMinutes, toMinutes } from './reading.ts'
 import { trackerKinds } from './types.ts'
 import { MedicineList } from './MedicationSettings.tsx'
@@ -174,11 +174,14 @@ function Reading({ entries, people, canEdit, onEdit, onSave }: {
               const progress = left(d)
               return (
                 <li key={b.id} className={`trk-book trk-book-${d.status}`}>
-                  <button className="trk-book-main" onClick={() => onEdit(b)} aria-label={`${b.title}${audio ? ', audiobook' : ''}, ${STATUS.find(s => s.key === d.status)?.label}${progress && d.status === 'reading' ? `, ${progress}` : ''}. Edit`}>
-                    <span className="trk-book-title">{audio && <span aria-hidden="true">🎧 </span>}{b.title}</span>
-                    {(d.author || (audio && d.narrator)) && <span className="trk-sub">{[d.author, audio && d.narrator ? `read by ${d.narrator}` : ''].filter(Boolean).join(' · ')}</span>}
-                    {d.status === 'want' && <span className="trk-tag">Want to read</span>}
-                    {d.status === 'finished' && <span className="trk-sub">Finished {d.finishedOn ? niceDate(d.finishedOn) : ''}</span>}
+                  <button className={`trk-book-main${d.coverUrl ? ' trk-book-with-cover' : ''}`} onClick={() => onEdit(b)} aria-label={`${b.title}${audio ? ', audiobook' : ''}, ${STATUS.find(s => s.key === d.status)?.label}${progress && d.status === 'reading' ? `, ${progress}` : ''}. Edit`}>
+                    {d.coverUrl && <img className="trk-cover" src={api.trackerCoverUrl(b) ?? undefined} alt="" loading="lazy" onError={e => { e.currentTarget.hidden = true }} />}
+                    <span className="trk-book-text">
+                      <span className="trk-book-title">{audio && <span aria-hidden="true">🎧 </span>}{b.title}</span>
+                      {(d.author || (audio && d.narrator)) && <span className="trk-sub">{[d.author, audio && d.narrator ? `read by ${d.narrator}` : ''].filter(Boolean).join(' · ')}</span>}
+                      {d.status === 'want' && <span className="trk-tag">Want to read</span>}
+                      {d.status === 'finished' && <span className="trk-sub">Finished {d.finishedOn ? niceDate(d.finishedOn) : ''}</span>}
+                    </span>
                   </button>
                   {d.status === 'reading' && canEdit(b) && (
                     <div className="trk-progress-row">
@@ -197,6 +200,52 @@ function Reading({ entries, people, canEdit, onEdit, onSave }: {
         </section>
       ))}
       {logFor && <LogSheet book={logFor} onClose={() => setLogFor(null)} onSave={(body, msg) => { onSave(logFor, body, msg); setLogFor(null) }} />}
+    </div>
+  )
+}
+
+/** Look up a book (GET /api/books/search: Open Library, through the server) to fill the form. */
+function BookLookup({ initial, onPick }: { initial: string; onPick: (b: BookResult) => void }) {
+  const { toast } = useApp()
+  const [open, setOpen] = useState(false)
+  const [q, setQ] = useState('')
+  const [results, setResults] = useState<BookResult[] | null>(null)
+  const [busy, setBusy] = useState(false)
+  const search = async () => {
+    if (q.trim().length < 2) return
+    setBusy(true)
+    try {
+      const r = await api.searchBooks(q.trim())
+      setResults(r)
+      announce(r.length ? `${r.length} book${r.length === 1 ? '' : 's'} found` : 'No books found')
+    } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not search for books', true) } finally { setBusy(false) }
+  }
+  if (!open) return <button type="button" className="btn btn-secondary trk-lookup-btn" onClick={() => { setQ(initial); setOpen(true) }}>🔍 Look up a book</button>
+  return (
+    <div className="weather-search">
+      <div className="weather-search-row">
+        <input type="search" aria-label="Title, author or ISBN" placeholder="Title, author or ISBN" value={q} autoFocus
+          onChange={e => setQ(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); search() } }} />
+        <button type="button" className="btn btn-primary" onClick={search} disabled={busy || q.trim().length < 2}>{busy ? 'Searching…' : 'Search'}</button>
+      </div>
+      {results && (results.length === 0
+        ? <p className="settings-row-sub">No books match. Try fewer words, or type it in below.</p>
+        : <ul className="weather-results">{results.map((r, i) => {
+          const thumb = api.bookThumbUrl(r)
+          return (
+            <li key={i}>
+              <button type="button" className="btn btn-secondary btn-block trk-book-result" onClick={() => { onPick(r); setOpen(false); setResults(null); announce(`Filled in ${r.title}`) }}>
+                {thumb ? <img className="trk-cover" src={thumb} alt="" loading="lazy" onError={e => { e.currentTarget.hidden = true }} /> : <span className="trk-cover trk-cover-blank" aria-hidden="true">📖</span>}
+                <span className="trk-book-text">
+                  <span className="trk-book-title">{r.title}</span>
+                  <span className="trk-sub">{[r.author, r.year, r.pages ? `${r.pages} pages` : ''].filter(Boolean).join(' · ')}</span>
+                </span>
+              </button>
+            </li>
+          )
+        })}</ul>)}
+      <p className="settings-row-sub">Looked up by your Kinwall server from Open Library; only what you type is sent.</p>
+      <button type="button" className="btn btn-secondary trk-lookup-btn" onClick={() => { setOpen(false); setResults(null) }}>Cancel</button>
     </div>
   )
 }
@@ -365,6 +414,7 @@ type Form = {
   photoId: string | null; photoOwned: boolean; photoFamily: boolean; pending: Pending | null
   format: ReadingFormat; author: string; narrator: string; status: ReadingStatus; pagesRead: string; totalPages: string
   listened: [string, string]; length: [string, string]; finishedOn: string; rating: number | null; notes: string
+  coverUrl: string; coverThumb: string | null // the picked result's thumbnail (a typed link can't be previewed until saved)
   text: string; mood: string | null
   type: HealthType; time: string; provider: string; followUp: string
   height: string; heightUnit: 'in' | 'cm'; weight: string; weightUnit: 'lb' | 'kg'; temperature: string; temperatureUnit: 'F' | 'C'
@@ -386,6 +436,7 @@ function EntrySheet({ kind, entry, date, admin, kid, photos, memberId, onClose, 
     photoId: entry?.photoId ?? null, photoOwned: !!entry?.photoOwned, photoFamily: !!entry?.photoFamily, pending: null,
     format: d.format ?? 'book', author: d.author ?? '', narrator: d.narrator ?? '', status: d.status ?? 'reading', pagesRead: num(d.pagesRead), totalPages: num(d.totalPages),
     listened: splitMinutes(d.minutesListened), length: splitMinutes(d.totalMinutes), finishedOn: d.finishedOn ?? '', rating: d.rating ?? null, notes: d.notes ?? '',
+    coverUrl: d.coverUrl ?? '', coverThumb: entry && d.coverUrl ? api.trackerCoverUrl(entry) : null,
     text: d.text ?? '', mood: d.mood ?? null,
     type: d.type ?? 'checkup', time: d.time ?? '', provider: d.provider ?? '', followUp: d.followUp ?? '',
     height: num(d.height?.value), heightUnit: d.height?.unit ?? (imperial ? 'in' : 'cm'),
@@ -403,7 +454,7 @@ function EntrySheet({ kind, entry, date, admin, kid, photos, memberId, onClose, 
       ...(f.format === 'audiobook'
         ? { narrator: f.narrator.trim() || null, minutesListened: toMinutes(...f.listened), totalMinutes: toMinutes(...f.length) || null, pagesRead: null, totalPages: null }
         : { narrator: null, minutesListened: null, totalMinutes: null, pagesRead: n(f.pagesRead), totalPages: n(f.totalPages) || null }),
-      finishedOn: f.status === 'finished' ? f.finishedOn || null : null, rating: f.rating, notes: f.notes.trim() || null }
+      finishedOn: f.status === 'finished' ? f.finishedOn || null : null, rating: f.rating, notes: f.notes.trim() || null, coverUrl: f.coverUrl.trim() || null }
     : kind === 'memory'
       ? { text: f.text.trim(), mood: f.mood }
       : { type: f.type, time: f.time || null, provider: f.provider.trim() || null, notes: f.notes.trim() || null, followUp: f.followUp || null,
@@ -463,8 +514,19 @@ function EntrySheet({ kind, entry, date, admin, kid, photos, memberId, onClose, 
             <option value="audiobook">🎧 Audiobook</option>
           </select>
         </div>
+        <BookLookup initial={f.title} onPick={b => set({
+          title: b.title, author: b.author ?? f.author, coverUrl: b.coverUrl ?? f.coverUrl, coverThumb: b.coverUrl ? api.bookThumbUrl(b) : f.coverThumb,
+          ...(f.format === 'book' && b.pages ? { totalPages: String(b.pages) } : {}),
+        })} />
         <div className="field"><label htmlFor="trk-title">Title</label><input id="trk-title" type="text" value={f.title} onChange={e => set({ title: e.target.value })} placeholder="Charlotte's Web" autoComplete="off" autoFocus={!entry} /></div>
         <div className="field"><label htmlFor="trk-author">Author</label><input id="trk-author" type="text" value={f.author} onChange={e => set({ author: e.target.value })} autoComplete="off" /></div>
+        <div className="field">
+          <label htmlFor="trk-cover">Cover link</label>
+          <div className="trk-cover-field">
+            {f.coverThumb && <img className="trk-cover" src={f.coverThumb} alt="" onError={e => { e.currentTarget.hidden = true }} />}
+            <input id="trk-cover" type="url" inputMode="url" value={f.coverUrl} onChange={e => set({ coverUrl: e.target.value, coverThumb: null })} placeholder="https://…/cover.jpg" autoComplete="off" />
+          </div>
+        </div>
         <div className="field">
           <label>Status</label>
           <Segmented label="Status" value={f.status} onChange={s => set({ status: s })} options={STATUS} className="trk-status" />
