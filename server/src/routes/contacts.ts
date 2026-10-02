@@ -169,11 +169,11 @@ contactsRoutes.openapi(createRoute({ method: 'get', path: '/api/contacts', tags:
   const categoryId = query.category;
   const v = await viewer(c);
   const rows = (await all(c.env.DB)).map(fromRow);
-  return c.json(rows.filter((c) => {
-    const allowed = canSee(c, v);
+  // Filters run on what this viewer is shown (forViewer first), so a search can't probe hidden fields.
+  return c.json(rows.filter((c) => canSee(c, v)).map((c) => forViewer(c, v)).filter((c) => {
     const haystack = [c.name, c.givenName, c.familyName, c.nickname, c.organization, c.relationship, c.title, ...c.tags, ...c.categoryIds].filter(Boolean).join(' ').toLocaleLowerCase();
-    return allowed && (!query.visibility || c.visibility === query.visibility) && (!query.kind || c.kind === query.kind) && (!q || haystack.includes(q.toLocaleLowerCase())) && (!categoryId || c.categoryIds.includes(categoryId)) && (query.favorite === undefined || c.favorite === query.favorite) && (query.emergency === undefined || c.emergency === query.emergency) && (query.emergencyVisible === undefined || c.emergencyVisible === query.emergencyVisible) && (query.wallVisible === undefined || c.wallVisible === query.wallVisible) && (!query.memberId || c.memberIds.includes(query.memberId));
-  }).map((c) => forViewer(c, v)), 200);
+    return (!query.visibility || c.visibility === query.visibility) && (!query.kind || c.kind === query.kind) && (!q || haystack.includes(q.toLocaleLowerCase())) && (!categoryId || c.categoryIds.includes(categoryId)) && (query.favorite === undefined || c.favorite === query.favorite) && (query.emergency === undefined || c.emergency === query.emergency) && (query.emergencyVisible === undefined || c.emergencyVisible === query.emergencyVisible) && (query.wallVisible === undefined || c.wallVisible === query.wallVisible) && (!query.memberId || c.memberIds.includes(query.memberId));
+  }), 200);
 });
 
 contactsRoutes.openapi(createRoute({ method: 'get', path: '/api/contacts/{id}', tags: tag, security, summary: 'Get a contact', request: { params: idParam }, responses: { 200: answer(ContactSchema), 404: error('not found') } }), async (c) => {

@@ -14,14 +14,18 @@ import { effectivePublicUrl, providerSources } from '../providers/config.ts';
 import { ErrorSchema } from '../schemas.ts';
 import { hasAnyPasskey } from './passkeys.ts';
 import { seedChoreLibrary } from './chore-library.ts';
-import { checkRate, resetRate } from '../ratelimit.ts';
+import { checkRate, clientIp } from '../ratelimit.ts';
 
 export const setupRoutes = createRouter();
 
 const CODE_DIGITS = 6;
-const MAX_ATTEMPTS = 10;
+// Wrong guesses per hour: 10 from one address, so someone guessing can't lock the owner (at another
+// address) out, and 30 from everywhere, so spreading guesses across addresses buys no more than that.
+const IP_MAX_ATTEMPTS = 10;
+const GLOBAL_MAX_ATTEMPTS = 30;
 const WINDOW_MS = 60 * 60 * 1000;
-const RATE_KEY = 'setup-code';
+const RATE_KEY = 'setup-code'; // everyone's; each address's is setup-code:<address>
+const resetAttempts = (db: KinwallDb) => db.prepare("DELETE FROM rate_limits WHERE key LIKE 'setup-code%'").run();
 
 // Uniform digit via rejection sampling (no modulo bias) - same approach as routes/pair.ts.
 function randomDigit(): number {
@@ -60,7 +64,7 @@ export async function isClaimed(db: KinwallDb): Promise<boolean> {
 export async function regenerateSetupCode(db: KinwallDb, url: string): Promise<string> {
   const code = randomCode();
   await upsertSetting(db, 'setupCodeHash', await sha256Hex(code));
-  await resetRate(db, RATE_KEY);
+  await resetAttempts(db);
   console.log(`\nKinwall setup code: ${formatCode(code)} — open ${url} to finish setup\n`);
   return code;
 }
@@ -72,18 +76,18 @@ async function ensureSetupCode(env: Env): Promise<void> {
   await regenerateSetupCode(env.DB, publicUrl.value || '(this server)');
 }
 
-async function verifyCode(env: Env, code: string): Promise<boolean> {
-  const inputHash = await sha256Hex(code);
-  const candidates: string[] = [];
+async function isAdminKey(env: Env, code: string): Promise<boolean> {
+  return !!env.ADMIN_API_KEY && timingSafeEqual(await sha256Hex(code), await sha256Hex(env.ADMIN_API_KEY));
+}
+
+async function isSetupCode(env: Env, code: string): Promise<boolean> {
   const row = await env.DB.prepare("SELECT value FROM settings WHERE key = 'setupCodeHash'").first<{ value: string }>();
-  if (row) candidates.push(row.value);
-  if (env.ADMIN_API_KEY) candidates.push(await sha256Hex(env.ADMIN_API_KEY));
-  return candidates.some((h) => timingSafeEqual(inputHash, h));
+  return !!row && timingSafeEqual(await sha256Hex(code), row.value);
 }
 
 async function clearSetupCode(db: KinwallDb): Promise<void> {
   await db.prepare("DELETE FROM settings WHERE key = 'setupCodeHash'").run();
-  await resetRate(db, RATE_KEY);
+  await resetAttempts(db);
 }
 
 const SetupStatusSchema = z
@@ -154,10 +158,18 @@ setupRoutes.openapi(
   async (c) => {
     const { code, deviceRole, deviceName } = c.req.valid('json');
     if (await isClaimed(c.env.DB)) return c.json({ error: 'already claimed' }, 409);
-    // One global window (not per IP): the code is the secret, so spreading guesses across
-    // addresses mustn't buy more tries. Counts every attempt; a right one ends setup anyway.
-    if (!(await checkRate(c.env.DB, RATE_KEY, MAX_ATTEMPTS, WINDOW_MS))) return c.json({ error: 'too many attempts — try again later' }, 429);
-    if (!(await verifyCode(c.env, code))) return c.json({ error: 'invalid setup code' }, 401);
+    // ADMIN_API_KEY is as hard to guess here as on any other route, so it's never locked out. The
+    // 6-digit code is guessable: each try counts against its address, then against everyone
+    // (an address over its own limit doesn't use up everyone's), and once either is spent even
+    // the right code is refused, or the limit would stop nobody. A right code clears the counts
+    // (clearSetupCode), so only wrong guesses are ever held against anyone.
+    if (!(await isAdminKey(c.env, code))) {
+      const allowed =
+        (await checkRate(c.env.DB, `${RATE_KEY}:${clientIp(c) ?? 'unknown'}`, IP_MAX_ATTEMPTS, WINDOW_MS)) &&
+        (await checkRate(c.env.DB, RATE_KEY, GLOBAL_MAX_ATTEMPTS, WINDOW_MS));
+      if (!allowed) return c.json({ error: 'too many attempts — try again later' }, 429);
+      if (!(await isSetupCode(c.env, code))) return c.json({ error: 'invalid setup code' }, 401);
+    }
 
     await clearSetupCode(c.env.DB);
     await seedChoreLibrary(c.env.DB); // a new family starts with a few occasional chores to hand out

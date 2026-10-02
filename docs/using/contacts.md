@@ -54,7 +54,7 @@ Direct full address-book access requires platform-specific native permissions. K
 
 ## REST and MCP
 
-The REST API exposes `GET/POST /api/contacts`, `GET/PATCH/DELETE /api/contacts/:id`, contact category CRUD at `/api/contact-categories`, import preview/import, and explicit merge. List queries support search, kind, category, favorite, emergency, wall, member, and privacy filters. Import preview saves nothing and takes vCard text (`vcard`) or normalized drafts (`contacts`); the MCP tool takes drafts only.
+The REST API exposes `GET/POST /api/contacts`, `GET/PATCH/DELETE /api/contacts/:id`, contact category CRUD at `/api/contact-categories`, import preview/import, and explicit merge. List queries support search, kind, category, favorite, emergency, wall, member, and privacy filters. Search and filters match only what the asking device is shown, so a wall screen or a kid's device can't find a contact by a field that's hidden from it. Import preview saves nothing and takes vCard text (`vcard`) or normalized drafts (`contacts`); the MCP tool takes drafts only.
 
 MCP provides `list_contacts` (with an optional search), `get_contact`, `create_contact`, `update_contact`, `delete_contact`, `preview_contact_import`, `import_contacts`, `merge_contacts`, and contact-category tools. Read results follow the caller's key scope. Import, merge, delete, and category management require administrative authorization.
 

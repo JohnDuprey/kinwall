@@ -17,6 +17,7 @@ import { deviceOwnerEvent, recordSecurityEvent, securityEventStmts } from './sec
 import { effectivePublicUrl } from '../providers/config.ts';
 import { emit } from '../bus.ts';
 import { recordDeviceOwner } from '../notify.ts';
+import { checkRate, clientIp } from '../ratelimit.ts';
 
 export const mcpOAuthRoutes = createRouter();
 
@@ -24,6 +25,12 @@ const CODE_TTL_MS = 5 * 60 * 1000;
 const ACCESS_TTL_S = 60 * 60;
 const REFRESH_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 const SCOPES = { admin: 'kinwall:admin', display: 'kinwall:display' } as const;
+// Registering needs no sign-in, so it's limited per address, and only the newest never-approved
+// registrations are kept. An approval follows its registration within minutes; dropping the oldest
+// (rather than refusing new ones) means a flood can't stop the family connecting an app.
+const REGISTER_MAX = 20;
+const REGISTER_WINDOW_MS = 60 * 60 * 1000;
+const MAX_PENDING_CLIENTS = 100;
 
 type ClientRow = { id: string; name: string; redirect_uris: string; created_at: string };
 
@@ -70,7 +77,7 @@ function scopeFrom(requested: string | undefined | null): KeyScope | null {
   return null;
 }
 
-function oauthError(c: Context, error: string, description: string, status: 400 | 401 = 400) {
+function oauthError(c: Context, error: string, description: string, status: 400 | 401 | 429 = 400) {
   c.header('Cache-Control', 'no-store');
   return c.json({ error, error_description: description }, status);
 }
@@ -155,6 +162,10 @@ mcpOAuthRoutes.get('/.well-known/openid-configuration', authServerMetadata); // 
 // RFC 7591 dynamic registration. Open by design (the spec expects it) - a registered client can do
 // nothing until a signed-in admin approves it on the consent screen.
 mcpOAuthRoutes.post('/oauth/register', async (c) => {
+  // Direct connections with no proxy header share one 'unknown' bucket rather than going unlimited.
+  if (!(await checkRate(c.env.DB, `oauth-register:${clientIp(c) ?? 'unknown'}`, REGISTER_MAX, REGISTER_WINDOW_MS))) {
+    return oauthError(c, 'temporarily_unavailable', 'too many registrations from this address, try again in an hour', 429);
+  }
   let body: { redirect_uris?: unknown; client_name?: unknown };
   try {
     body = await c.req.json();
@@ -177,6 +188,9 @@ mcpOAuthRoutes.post('/oauth/register', async (c) => {
     // Registration is unauthenticated, so never-approved registrations are pruned after a day.
     c.env.DB.prepare('DELETE FROM oauth_clients WHERE created_at < ? AND id NOT IN (SELECT client_id FROM oauth_grants) AND id NOT IN (SELECT client_id FROM oauth_codes)')
       .bind(new Date(Date.now() - 24 * 3600e3).toISOString()),
+    // ...and only the newest MAX_PENDING_CLIENTS of them are kept.
+    c.env.DB.prepare('DELETE FROM oauth_clients WHERE id IN (SELECT id FROM oauth_clients WHERE id NOT IN (SELECT client_id FROM oauth_grants) AND id NOT IN (SELECT client_id FROM oauth_codes) ORDER BY created_at DESC, id LIMIT -1 OFFSET ?)')
+      .bind(MAX_PENDING_CLIENTS),
   ]);
   return c.json(
     {

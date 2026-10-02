@@ -327,7 +327,13 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
 // providers and the public address, and other connected apps. Otherwise an app could mint itself a
 // permanent key that outlives revoking it. The passkey ceremony routes are public, so
 // routes/passkeys.ts asks connectedAppBlock itself.
-const CONNECTED_APP_DENIED: { method: RegExp; pattern: RegExp }[] = [
+// Nor may it set up what would send it the family's data on its own (those entries carry their own
+// `error`): a push subscription is a person's device (notify.ts sends medicine names to a parent's
+// device that asks for them), and a webhook hears when health, journal and Temp check entries
+// change. Both would get around aiHealthAccess.
+const NOT_A_DEVICE = "Connected apps can't get push notifications. Turn them on from a family member's own device.";
+const NO_WEBHOOKS = "Connected apps can't set up webhooks. Do this from a parent's own device.";
+const CONNECTED_APP_DENIED: { method: RegExp; pattern: RegExp; error?: string }[] = [
   { method: /^(POST)$/, pattern: /^\/api\/keys$/ },
   { method: /^(PATCH|DELETE)$/, pattern: /^\/api\/keys\/[^/]+$/ },
   { method: /^(POST)$/, pattern: /^\/api\/device-keys$/ },
@@ -343,6 +349,11 @@ const CONNECTED_APP_DENIED: { method: RegExp; pattern: RegExp }[] = [
 ];
 
 /** The 403 message when a connected app (mcp-oauth isConnectedApp) asks to manage sign-ins, else null. */
+  { method: /^(POST)$/, pattern: /^\/api\/push\/subscriptions$/, error: NOT_A_DEVICE },
+  { method: /^(PATCH|DELETE)$/, pattern: /^\/api\/push\/subscriptions\/[^/]+$/, error: NOT_A_DEVICE },
+  { method: /^(POST)$/, pattern: /^\/api\/push\/test\/[^/]+$/, error: NOT_A_DEVICE },
+  { method: /^(POST)$/, pattern: /^\/api\/webhooks(\/[^/]+\/rotate)?$/, error: NO_WEBHOOKS },
+  { method: /^(PATCH|DELETE)$/, pattern: /^\/api\/webhooks\/[^/]+$/, error: NO_WEBHOOKS },
 export async function connectedAppBlock(c: Context<{ Bindings: Env }>): Promise<string | null> {
   return (await isConnectedApp(c)) ? "Connected apps can't create or change sign-ins. Do this from a parent's own device." : null;
 }
@@ -425,9 +436,10 @@ export async function requireAuth(c: Context<{ Bindings: Env }>, next: Next) {
   if (resolved.scope === 'display' && !isDisplayAllowed(c.req.method, c.req.path)) {
     return c.json({ error: 'display key cannot access this route' }, 403);
   }
-  if (CONNECTED_APP_DENIED.some((r) => r.method.test(c.req.method) && r.pattern.test(c.req.path))) {
+  const denied = CONNECTED_APP_DENIED.find((r) => r.method.test(c.req.method) && r.pattern.test(c.req.path));
+  if (denied) {
     const blocked = await connectedAppBlock(c);
-    if (blocked) return c.json({ error: blocked }, 403);
+    if (blocked) return c.json({ error: denied.error ?? blocked }, 403);
   }
 
   // Tracking last_used_at is best-effort telemetry, not something any request should wait on:

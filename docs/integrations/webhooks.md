@@ -5,7 +5,7 @@ Kinwall can POST to your URL whenever something changes. Every change also bumps
 ## Create one
 
 * **UI**: **Settings → Access → Webhooks → New webhook**, then pick a URL and events.
-* **API**: `POST /api/webhooks {url, events, secret?, enabled?}`. An empty `events` array means **all events**.
+* **API**: `POST /api/webhooks {url, events, secret?, enabled?}`. An empty `events` array means **all events**. Use an admin API key: a [connected app](mcp.md#what-connected-apps-cant-do)'s sign-in can't create, change, rotate or delete webhooks (403).
 
 If you don't pass a `secret`, Kinwall generates a random one. Either way, the create response includes the plain `secret` **once**; the UI shows it in a copyable field with the note "Shown once. Use it to verify the X-Kinwall-Signature header." Copy it then: secrets are encrypted at rest and never returned by `GET /api/webhooks` or anything else.
 

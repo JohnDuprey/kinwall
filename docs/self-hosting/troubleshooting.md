@@ -15,8 +15,8 @@ Kinwall's service worker deliberately caches nothing, and the server sends `no-c
 ## Setup code not accepted
 
 * The code changes on every restart (Docker) until the instance is claimed. Use the latest one from the log.
-* After 10 wrong attempts in an hour you'll see "too many attempts — try again later".
-* You can always use `ADMIN_API_KEY` instead, via **Use your ADMIN_API_KEY instead**.
+* After 10 wrong attempts in an hour from one address (30 from everywhere) you'll see "too many attempts — try again later", even for the right code. Restarting makes a new code and starts the count over.
+* You can always use `ADMIN_API_KEY` instead, via **Use your ADMIN_API_KEY instead**. It works even after too many wrong codes.
 
 ## Google/Outlook buttons are grayed out
 

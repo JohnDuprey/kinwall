@@ -72,6 +72,9 @@ function decodeClientDataChallenge(clientDataJSONB64url: string): string | null 
 
 async function storeChallenge(db: KinwallDb, kind: 'reg_challenge' | 'auth_challenge', challenge: string, data: unknown, ttlMs: number): Promise<void> {
   const now = new Date();
+  // Beginning a sign-in needs no key, so expired rows (challenges and register tokens) go here
+  // rather than piling up.
+  await db.prepare('DELETE FROM webauthn_challenges WHERE expires_at < ?').bind(now.toISOString()).run();
   await db
     .prepare('INSERT INTO webauthn_challenges (id, kind, subject, data, created_at, expires_at) VALUES (?,?,?,?,?,?)')
     .bind(crypto.randomUUID(), kind, challenge, JSON.stringify(data ?? null), now.toISOString(), new Date(now.getTime() + ttlMs).toISOString())

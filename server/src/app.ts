@@ -60,9 +60,13 @@ import { handleMcp } from './mcp.ts';
 // Safari; web/vite.config.ts fails the build (printing the new list) if they ever change.
 export const CSP_DEFAULT =
   "default-src 'self'; script-src 'self' 'sha256-hVuWKiiLwHwswXAaru00Ouusz3CAwXF9FKoMwru+9ts=' 'sha256-+5XkZFazzJo8n0iOP4ti/cLCMUudTf//Mzkb7xNPXIc=' 'sha256-MS6/3FCg4WjP9gwgaBGwLpRCY6fZBgwmhVCdrPrNf3E=' 'sha256-tQjf8gvb2ROOMapIxFvFAYBeUJ0v1HCbOcSmDNXGtDo='; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob: https://images.metmuseum.org https://picsum.photos https://fastly.picsum.photos; connect-src 'self' https://collectionapi.metmuseum.org; frame-ancestors 'self'";
-// /docs (Swagger UI) loads its JS/CSS from a CDN - loosen only for that path, not globally.
+// /docs (Swagger UI) loads its JS/CSS from a CDN - loosen only for that path, and only for that
+// host: the page shares an origin with the web app, which keeps its key in localStorage.
 const CSP_DOCS =
-  "default-src 'self'; style-src 'self' 'unsafe-inline' https:; script-src 'self' 'unsafe-inline' https:; img-src 'self' data: https:; font-src 'self' https: data:; connect-src 'self' https:; frame-ancestors 'self'";
+  "default-src 'self'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'self'";
+// The exact swagger-ui-dist release /docs loads. Without a version the CDN serves whatever is
+// newest; bump this by hand after reading the release notes.
+const SWAGGER_UI_VERSION = '5.33.1';
 
 export function createApp() {
   const app = createRouter();
@@ -160,7 +164,7 @@ export function createApp() {
     info: { title: 'Kinwall API', version: '1' }, // API contract version, not the build (docs are public)
   });
 
-  app.get('/docs', swaggerUI({ url: '/openapi.json' }));
+  app.get('/docs', swaggerUI({ url: '/openapi.json', version: SWAGGER_UI_VERSION, validatorUrl: 'none' })); // no badge from swagger.io's validator
 
   return app;
 }
