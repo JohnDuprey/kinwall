@@ -124,3 +124,19 @@ test('barcodes: renaming a catalog item carries its barcodes; forgetting it forg
   assert.equal((await send('DELETE', '/api/lists/remembered/water')).status, 200);
   assert.equal((await send('GET', `/api/lists/${list.id}/barcodes/012000001291`)).status, 404, 'forgotten with its item');
 });
+
+test('barcodes: the brand leads the name unless the name already has one of its brands', async () => {
+  const { send } = setup();
+  const list = (await send('POST', '/api/lists', { name: 'Groceries', kind: 'shopping' })).body;
+  const cases: [Record<string, unknown>, string][] = [
+    [{ product_name: 'Canadian White Bread', brands: 'JJ Nissen' }, 'JJ Nissen Canadian White Bread'],
+    [{ product_name: 'Honey Nut Cheerios', brands: 'General Mills,Cheerios' }, 'Honey Nut Cheerios'],
+    [{ product_name: 'Oreo Cookies', brands: 'oreo' }, 'Oreo Cookies'],
+    [{ product_name: 'Spring Water' }, 'Spring Water'],
+    [{ brands: 'Store Brand' }, 'Store Brand'],
+  ];
+  for (const [product, title] of cases) {
+    mockFetch(offProduct(product));
+    assert.deepEqual((await send('GET', `/api/lists/${list.id}/barcodes/012345678905`)).body, { title, source: 'openfoodfacts' }, JSON.stringify(product));
+  }
+});

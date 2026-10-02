@@ -923,6 +923,15 @@ listsRoutes.openapi(
 // Scanning a product (the app's camera, web/src/native.ts scanBarcode): the family's own name for it
 // in this list's catalog, else Open Food Facts (free and keyless; only the barcode is sent). Adding
 // the item with `barcode` teaches the family's name for next time.
+/** "JJ Nissen Canadian White Bread": the first brand leads the name unless the name already has one
+ * of its brands ("Honey Nut Cheerios" from General Mills, Cheerios); the brand alone without a name. */
+function productTitle(p: { product_name?: string; product_name_en?: string; generic_name?: string; brands?: string }): string | undefined {
+  const name = [p.product_name, p.product_name_en, p.generic_name].map((s) => s?.trim()).find(Boolean);
+  const brands = (p.brands ?? '').split(',').map((b) => b.trim()).filter(Boolean);
+  if (!name) return brands[0];
+  return brands.length && !brands.some((b) => name.toLowerCase().includes(b.toLowerCase())) ? `${brands[0]} ${name}` : name;
+}
+
 const OFF_USER_AGENT = 'Kinwall/1.0 (https://kinwall.family; self-hosted family calendar)'; // Open Food Facts asks apps to name themselves
 listsRoutes.openapi(
   createRoute({
@@ -953,7 +962,7 @@ listsRoutes.openapi(
       if (res.status === 404) return c.json({ error: 'Product not found' }, 404);
       if (!res.ok) throw new Error(`Open Food Facts answered ${res.status}`);
       const { status, product } = (await res.json()) as { status?: number; product?: { product_name?: string; product_name_en?: string; generic_name?: string; brands?: string } };
-      const title = status === 1 && product ? [product.product_name, product.product_name_en, product.generic_name, product.brands?.split(',')[0]].map((s) => s?.trim()).find(Boolean) : undefined;
+      const title = status === 1 && product ? productTitle(product) : undefined;
       return title ? c.json({ title: title.slice(0, 200), source: 'openfoodfacts' as const }, 200) : c.json({ error: 'Product not found' }, 404);
     } catch (err) {
       console.error('barcode lookup failed', err instanceof Error ? err.message : err);
