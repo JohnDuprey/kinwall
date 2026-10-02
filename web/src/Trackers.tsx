@@ -17,7 +17,7 @@ import { useIsPhone } from './useIsPhone.ts'
 import Sheet from './Sheet.tsx'
 import { preparePhoto, PhotoFormatError } from './photos.ts'
 import type { HealthData, HealthType, Member, MemoryData, Photo, ReadingData, ReadingFormat, ReadingStatus, TrackerEntry, TrackerInput, TrackerKind } from './types.ts'
-import { dayAmount, hoursMinutes, isAudiobook, left, recentDays, logReachesEnd, readingPercent, shelfLine, shelfTotals, splitMinutes, toMinutes } from './reading.ts'
+import { dayAmount, FINISHED_SHOWN, hoursMinutes, shelfBooks, isAudiobook, left, recentDays, logReachesEnd, readingPercent, shelfLine, shelfTotals, splitMinutes, toMinutes } from './reading.ts'
 import { trackerKinds } from './types.ts'
 import { MedicineList } from './MedicationSettings.tsx'
 import PickField from './PickField.tsx'
@@ -186,19 +186,22 @@ function Reading({ entries, people, canEdit, onEdit, onSave }: {
   onEdit: (e: TrackerEntry) => void; onSave: (e: TrackerEntry, body: TrackerInput, msg?: string) => void
 }) {
   const [logFor, setLogFor] = useState<TrackerEntry | null>(null)
+  const [allFinished, setAllFinished] = useState<Set<string>>(new Set()) // shelves showing every finished book
   const year = String(new Date().getFullYear())
   const shelves = people.map(p => {
     const books = entries.filter(e => belongs(e, p))
     const d = (e: TrackerEntry) => e.data as ReadingData
-    const order: ReadingStatus[] = ['reading', 'want', 'finished']
-    return { p, books: [...books].sort((a, b) => order.indexOf(d(a).status) - order.indexOf(d(b).status)), totals: shelfTotals(books.map(d), year) }
+    const key = p.id ?? p.former ?? 'family'
+    const all = allFinished.has(key)
+    const { shown, more } = shelfBooks(books, e => ({ ...d(e), updatedAt: e.updatedAt }), all)
+    return { p, key, books: shown, more, all, finished: books.filter(e => d(e).status === 'finished').length, totals: shelfTotals(books.map(d), year) }
   }).filter(s => s.books.length > 0)
 
   if (!shelves.length) return <div className="empty-card"><span className="emoji">📚</span>No books yet. Tap + to add what someone is reading.</div>
   return (
     <div className="trk-grid">
-      {shelves.map(({ p, books, totals }) => (
-        <section key={p.id ?? p.former ?? 'family'} className="trk-card" aria-label={`${p.name}'s books`}>
+      {shelves.map(({ p, key, books, more, all, finished, totals }) => (
+        <section key={key} className="trk-card" aria-label={`${p.name}'s books`}>
           <header className="trk-card-head">
             <Avatar m={p} size={40} />
             <div>
@@ -237,6 +240,12 @@ function Reading({ entries, people, canEdit, onEdit, onSave }: {
               )
             })}
           </ul>
+          {(more > 0 || (all && finished > FINISHED_SHOWN)) && (
+            <button type="button" className="link-btn trk-more" aria-expanded={all}
+              onClick={() => setAllFinished(s => { const n = new Set(s); if (all) n.delete(key); else n.add(key); return n })}>
+              {all ? 'Show fewer' : `Show all ${finished} finished`}
+            </button>
+          )}
         </section>
       ))}
       {logFor && <LogSheet book={logFor} onClose={() => setLogFor(null)} onSave={(body, msg) => { onSave(logFor, body, msg); setLogFor(null) }} />}

@@ -1,7 +1,7 @@
 // node --test test/ (npm test). Books and audiobooks: progress, finishing, the shelf line, hours and minutes.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { dayAmount, isAudiobook, left, recentDays, logReachesEnd, readingPercent, shelfLine, shelfTotals, splitMinutes, toMinutes } from '../src/reading.ts'
+import { dayAmount, isAudiobook, left, recentDays, logReachesEnd, readingPercent, shelfBooks, shelfLine, shelfTotals, splitMinutes, toMinutes } from '../src/reading.ts'
 import type { ReadingData } from '../src/types.ts'
 
 const book = (d: Partial<ReadingData>): ReadingData => ({ status: 'reading', ...d })
@@ -69,4 +69,16 @@ test('recentDays: the last n days up to today, zero on days with no reading', ()
   assert.equal(dayAmount({ format: 'book', status: 'reading' }, 12), '12 pages')
   assert.equal(dayAmount({ format: 'book', status: 'reading' }, 1), '1 page')
   assert.equal(dayAmount({ format: 'audiobook', status: 'reading' }, 75), '1h 15m')
+})
+
+test('shelfBooks: reading and want first, then the 3 newest finished; the rest behind Show all', () => {
+  const b = (id: string, status: string, finishedOn?: string) => ({ id, status, finishedOn })
+  const books = [b('f1', 'finished', '2026-01-05'), b('r', 'reading'), b('f2', 'finished', '2026-09-01'), b('w', 'want'), b('f3', 'finished', '2026-05-20'), b('f4', 'finished', '2026-08-02'), b('f5', 'finished', '2025-12-30')]
+  const few = shelfBooks(books, x => x, false)
+  assert.deepEqual(few.shown.map(x => x.id), ['r', 'w', 'f2', 'f4', 'f3'])
+  assert.equal(few.more, 2)
+  const all = shelfBooks(books, x => x, true)
+  assert.deepEqual(all.shown.map(x => x.id), ['r', 'w', 'f2', 'f4', 'f3', 'f1', 'f5'])
+  assert.equal(all.more, 0)
+  assert.equal(shelfBooks(books.slice(0, 4), x => x, false).more, 0, 'three or fewer: nothing held back')
 })

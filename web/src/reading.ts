@@ -74,3 +74,17 @@ export function recentDays(log: ReadingDay[] | undefined, today: string, n = 14)
 /** One day's reading in words: "12 pages", "1 page", or "1h 15m" for an audiobook. */
 export const dayAmount = (d: Pick<ReadingData, 'format'>, amount: number) =>
   isAudiobook(d) ? hoursMinutes(amount) : `${amount} page${amount === 1 ? '' : 's'}`
+
+/** Finished books a shelf shows before "Show all". */
+export const FINISHED_SHOWN = 3
+/** A shelf's books in order: reading, want to read, then finished, newest finished first (finishedOn,
+ * else when it was last changed). Past FINISHED_SHOWN finished ones are held back unless `all`;
+ * `more` is how many. */
+export function shelfBooks<T>(books: T[], d: (b: T) => { status: string; finishedOn?: string; updatedAt?: string }, all: boolean): { shown: T[]; more: number } {
+  const order = ['reading', 'want', 'finished']
+  const when = (b: T) => d(b).finishedOn ?? d(b).updatedAt?.slice(0, 10) ?? ''
+  const sorted = [...books].sort((a, b) => order.indexOf(d(a).status) - order.indexOf(d(b).status) || (d(a).status === 'finished' ? when(b).localeCompare(when(a)) : 0))
+  const finished = sorted.filter(b => d(b).status === 'finished')
+  const more = all ? 0 : Math.max(0, finished.length - FINISHED_SHOWN)
+  return { shown: more ? sorted.slice(0, sorted.length - more) : sorted, more }
+}
