@@ -150,6 +150,7 @@ test('mcp: tools/list returns the tools', async () => {
     'redeem_reward',
     'reject_chore',
     'save_color_scheme',
+    'search_books',
     'send_notification',
     'set_color_scheme',
     'set_event_category',
@@ -854,4 +855,34 @@ test('mcp: create_event and update_event take busy (Show as free or busy)', asyn
   assert.equal(upd.result.structuredContent.event.busy, true);
   const plain = await (await mcp('tools/call', { name: 'create_event', arguments: { calendarId: cal.id, title: 'Soccer', start: '2030-01-01T15:00:00Z', end: '2030-01-01T16:00:00Z' } })).json() as any;
   assert.equal(plain.result.structuredContent.event.busy, true, 'busy by default');
+});
+
+test('mcp: the default list per type: update_list sets it, list_lists shows it, add_list_items uses it when no list is named', async () => {
+  const env = makeEnv();
+  const { rest, mcp } = makeApp(env);
+  const call = async (name: string, args: Record<string, unknown>) => (await (await mcp('tools/call', { name, arguments: args })).json() as any).result;
+  await rest('/api/lists', { method: 'POST', body: JSON.stringify({ name: 'Market', kind: 'shopping', catalog: 'groceries' }) });
+  const costco = await (await rest('/api/lists', { method: 'POST', body: JSON.stringify({ name: 'Costco', kind: 'shopping', catalog: 'groceries' }) })).json() as any;
+
+  assert.equal((await call('add_list_items', { items: ['Bananas'] })).structuredContent.items?.length ?? 0, 1, 'no default yet: the first Groceries list');
+  const set = await call('update_list', { list: 'Costco', isDefault: true });
+  assert.equal(set.structuredContent.list.isDefault, true);
+  assert.match((await call('list_lists', {})).content[0].text, /Costco \(default Groceries\)/);
+  await call('add_list_items', { items: ['Milk'] });
+  const detail = await (await rest(`/api/lists/${costco.id}`)).json() as any;
+  assert.deepEqual(detail.items.map((i: any) => i.title), ['Milk'], 'no list named: the default Groceries list');
+});
+
+test('mcp: search_books looks a book up (Open Library, through the server)', async () => {
+  const env = makeEnv();
+  const { mcp } = makeApp(env);
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async () => Response.json({ docs: [{ title: 'Holes', author_name: ['Louis Sachar'], number_of_pages_median: 233, cover_i: 7 }] })) as typeof fetch;
+  try {
+    const res = (await (await mcp('tools/call', { name: 'search_books', arguments: { q: 'holes' } })).json() as any).result;
+    assert.deepEqual(res.structuredContent.books[0], { title: 'Holes', author: 'Louis Sachar', pages: 233, coverId: 7, coverUrl: 'https://covers.openlibrary.org/b/id/7-M.jpg' });
+    assert.match(res.content[0].text, /Holes by Louis Sachar/);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
 });

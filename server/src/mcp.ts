@@ -16,7 +16,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { hostTimezone } from './env.ts';
 import { effectivePublicUrl } from './providers/config.ts';
-import { BoardSchema, CalendarSchema, CategorySchema, ContactCategoryInputSchema, ContactCategorySchema, ContactInputSchema, ContactPatchSchema, ContactSchema, ChoreDaySchema, ChoreSchema, EventInstanceSchema, LeaderboardEntrySchema, ListDetailSchema, ListItemSchema, ListSchema, MemberSchema, NoteSchema, RememberedItemSchema, StoreAislesSchema, TrackerEntrySchema, TRACKER_KINDS, NotificationSchema, PointsSchema, SettingsSchema, SnapshotSchema, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, TransitionRemindersSchema, RewardSchema, RewardInputSchema, RedemptionSchema, RewardLimitSchema, MemberStatsSchema, StatsPeriodSchema } from './schemas.ts';
+import { BoardSchema, BookResultSchema, CalendarSchema, CategorySchema, ContactCategoryInputSchema, ContactCategorySchema, ContactInputSchema, ContactPatchSchema, ContactSchema, ChoreDaySchema, ChoreSchema, EventInstanceSchema, LeaderboardEntrySchema, ListDetailSchema, ListItemSchema, ListSchema, MemberSchema, NoteSchema, RememberedItemSchema, StoreAislesSchema, TrackerEntrySchema, TRACKER_KINDS, NotificationSchema, PointsSchema, SettingsSchema, SnapshotSchema, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, TransitionRemindersSchema, RewardSchema, RewardInputSchema, RedemptionSchema, RewardLimitSchema, MemberStatsSchema, StatsPeriodSchema } from './schemas.ts';
 import type { Env } from './env.ts';
 import { RecipeSchema, RecipeInputSchema, RecipeKindSchema, RecipeImportSchema, RecipeImportResultSchema, RecipePreviewResultSchema, RecipeUrlImportSchema, MealSchema, MealInputSchema, MealPatchSchema, ProjectionSchema, ProjectionApplySchema, ProjectionQuerySchema, MealRangeSchema } from './meal-schemas.ts';
 import { NewscastSchema } from './routes/newscast.ts';
@@ -238,6 +238,7 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
   add_member: { member: MemberSchema },
   update_member: { member: MemberSchema },
   list_lists: { lists: z.array(ListSchema) },
+  search_books: { books: z.array(BookResultSchema) },
   create_list: { list: ListSchema },
   update_list: { list: ListSchema },
   get_list: ListDetailSchema.shape,
@@ -287,7 +288,7 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
 
 const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boolean; idempotentHint: boolean; openWorldHint: boolean }> = {
   list_recipes: READ, get_recipe: READ, create_recipe: WRITE, update_recipe: SET, rate_recipe: SET, import_recipe: SET, import_recipe_from_url: { ...SET, openWorldHint: true }, list_meals: READ, create_meal: WRITE, update_meal: SET, get_meal_projection: READ, apply_meal_projection: SET,
-  get_household: READ, list_events: READ, get_event: READ, list_chores: READ, get_leaderboard: READ, get_points: READ, get_member_profile: READ, list_lists: READ, get_list: READ, list_categories: READ, get_event_items: READ, list_notifications: READ, list_newscast: READ, list_notes: READ, get_snapshot: READ, get_board: READ, list_tracker_entries: READ, add_tracker_entry: WRITE, update_tracker_entry: SET, list_color_schemes: READ, set_color_scheme: SET, save_color_scheme: WRITE,
+  get_household: READ, list_events: READ, get_event: READ, list_chores: READ, get_leaderboard: READ, get_points: READ, get_member_profile: READ, list_lists: READ, get_list: READ, search_books: { ...READ, openWorldHint: true }, list_categories: READ, get_event_items: READ, list_notifications: READ, list_newscast: READ, list_notes: READ, get_snapshot: READ, get_board: READ, list_tracker_entries: READ, add_tracker_entry: WRITE, update_tracker_entry: SET, list_color_schemes: READ, set_color_scheme: SET, save_color_scheme: WRITE,
   list_contacts: READ, get_contact: READ, list_contact_categories: READ, preview_contact_import: READ,
   delete_color_scheme: { ...WRITE, destructiveHint: true, idempotentHint: true },
   create_event: { ...WRITE, openWorldHint: true }, update_event: { ...SET, openWorldHint: true }, set_event_category: SET,
@@ -333,6 +334,22 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     const result = await call(app, env, auth, 'POST', '/api/recipes/import', input);
     return result.status >= 400 ? errorResult(result.json, 'failed to import recipe') : okResult((result.json as { planned?: boolean }).planned ? 'Recipe imported and planned' : 'Recipe imported', result.json as Record<string, unknown>);
   });
+  tool(
+    'search_books',
+    {
+      title: 'Search books',
+      description: 'Look up a book by title, author or ISBN (Open Library, through the family\'s server). Results give title, author, year, pages and coverUrl: use them with add_tracker_entry (kind reading: data.author, data.totalPages, data.coverUrl).',
+      inputSchema: { q: z.string().min(2).max(200).describe('Title, author or ISBN, e.g. "Charlotte\'s Web" or 9780064400558.') },
+    },
+    async ({ q }) => {
+      const res = await call(app, env, auth, 'GET', `/api/books/search?q=${encodeURIComponent(q)}`);
+      if (res.status >= 400) return errorResult(res.json, 'book search failed');
+      const books = res.json as { title: string; author?: string; year?: number; pages?: number }[];
+      const top = books.slice(0, 5).map((b) => `${b.title}${b.author ? ` by ${b.author}` : ''}${b.year ? ` (${b.year})` : ''}${b.pages ? `, ${b.pages} pages` : ''}`).join('; ');
+      return okResult(books.length ? `${books.length} book(s): ${top}.` : 'No books found.', { books: books as Record<string, unknown>[] });
+    },
+  );
+
   tool('import_recipe_from_url', { title: 'Import recipe from a link', description: 'Admin: read a recipe from a web page (its schema.org Recipe data: name, photo, servings, times, ingredients, steps). Without save it only previews; save: true also saves it, keyed by the page address so importing the same page again updates that recipe. A page without recipe data fails: then ask for the recipe text and use create_recipe.', inputSchema: RecipeUrlImportSchema.shape }, async (input) => {
     const result = await call(app, env, auth, 'POST', '/api/recipes/import-url', input);
     return result.status >= 400 ? errorResult(result.json, 'failed to read the recipe page') : okResult(input.save ? 'Recipe imported' : 'Recipe preview (not saved)', result.json as Record<string, unknown>);
@@ -1109,14 +1126,14 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'list_lists',
     {
       title: 'List lists',
-      description: 'List all lists with item and open counts. kind is todo, shopping or reusable; a shopping list\'s catalog is its type: groceries (Groceries) or shopping (other shopping, e.g. a hardware store).',
+      description: 'List all lists with item and open counts. kind is todo, shopping or reusable; a shopping list\'s catalog is its type: groceries (Groceries) or shopping (other shopping, e.g. a hardware store). isDefault marks the family\'s default list for its type.',
       inputSchema: { archived: z.boolean().optional().describe('Include archived lists. Default: false.') },
     },
     async ({ archived }) => {
       const res = await call(app, env, auth, 'GET', `/api/lists${archived ? '?archived=true' : ''}`);
       if (res.status >= 400) return errorResult(res.json, 'failed to list lists');
-      const lists = res.json as { name: string; itemCount: number; openCount: number }[];
-      const summary = lists.map((l) => `${l.name} (${l.openCount}/${l.itemCount} open)`).join(', ') || 'no lists';
+      const lists = res.json as { name: string; itemCount: number; openCount: number; isDefault?: boolean; catalog?: string | null }[];
+      const summary = lists.map((l) => `${l.name}${l.isDefault ? ` (default ${l.catalog === 'shopping' ? 'Shopping' : 'Groceries'})` : ''} (${l.openCount}/${l.itemCount} open)`).join(', ') || 'no lists';
       return okResult(`${lists.length} list(s): ${summary}.`, { lists: res.json as Record<string, unknown>[] });
     },
   );
@@ -1176,7 +1193,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       description: `Add one or more items to a list. Provide plain titles, or objects for more detail (notes, quantity, store, category, aisle, member, dueDate, eventId, priority, steps). ${REMEMBER_DOC}`,
       inputSchema: {
         listId: z.string().optional().describe('List id (use this or listName).'),
-        listName: z.string().optional().describe('List name, case-insensitive (use this or listId).'),
+        listName: z.string().optional().describe("List name, case-insensitive (use this or listId). Neither: the family's default Groceries list (else the first Groceries list)."),
         items: jsonList(z.array(
           z.union([
             z.string().describe('Plain item title.'),
@@ -1205,7 +1222,12 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         } else if (listName) {
           resolvedListId = (await resolveList(app, env, auth, listName)).id;
         } else {
-          return errorResult(null, 'listId or listName is required');
+          // No list named ("add milk"): the default Groceries list, else the first Groceries list.
+          const all = (await call(app, env, auth, 'GET', '/api/lists')).json as { id: string; kind: string; catalog: string | null; isDefault?: boolean; archived: boolean }[];
+          const groceries = all.filter((l) => l.kind === 'shopping' && l.catalog === 'groceries' && !l.archived);
+          const pick = groceries.find((l) => l.isDefault) ?? groceries[0];
+          if (!pick) return errorResult(null, 'listId or listName is required (there is no Groceries list)');
+          resolvedListId = pick.id;
         }
       } catch (err) {
         return errorResult(null, err instanceof Error ? err.message : 'list lookup failed');
@@ -1541,7 +1563,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'update_list',
     {
       title: 'Update list',
-      description: `Change a list: rename it, switch its kind (${KIND_DOC}), emoji, owners, item sort order, grouping, whether checked items stay in place, or archive it. Only provided fields change.`,
+      description: `Change a list: rename it, switch its kind (${KIND_DOC}), emoji, owners, item sort order, grouping, whether checked items stay in place, make it its type's default list, or archive it. Only provided fields change.`,
       inputSchema: {
         list: z.string().describe('List id or name.'),
         name: z.string().optional(),
@@ -1552,6 +1574,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         groupBy: z.enum(['store', 'category', 'aisle', 'none']).optional().describe('Group items under store, category or aisle headings, or none. Shopping lists group by aisle, store or none (category reads as aisle there); category is for to-do and reusable lists.'),
         keepChecked: z.boolean().optional().describe('Checked items stay in place, crossed off, until Checkout (or Reset). Default on for shopping and reusable lists, off for to-do lists.'),
         archived: z.boolean().optional(),
+        isDefault: z.boolean().optional().describe("Shopping lists: true makes it the family's default list for its type (Groceries or Shopping), which add_list_items, barcode scans, meal ingredients and the app's widgets and Siri use; the type's previous default stops being it. false clears it. Admin only."),
       },
     },
     async ({ list, members, kind, ...input }) => {
