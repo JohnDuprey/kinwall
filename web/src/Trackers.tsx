@@ -7,7 +7,7 @@ import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { useDialog } from './dialog.tsx'
 import { announce, Segmented } from './a11y.tsx'
-import { appBarcodeScanner, scanBarcode } from './native.ts'
+import { appBarcodeScanner, scanBarcode, wallCamera } from './native.ts'
 import { inkFor } from './color.ts'
 import { todayKeyInTz } from './date.ts'
 import { formatTime } from './timeFormat.ts'
@@ -231,7 +231,7 @@ function ReadingDays({ d, tz }: { d: ReadingData; tz?: string }) {
 
 /** Look up a book (GET /api/books/search: Open Library, through the server) to fill the form. */
 function BookLookup({ initial, onPick }: { initial: string; onPick: (b: BookResult) => void }) {
-  const { toast } = useApp()
+  const { toast, parentDevice, focusLocked, meMemberId } = useApp()
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
   const [results, setResults] = useState<BookResult[] | null>(null)
@@ -247,7 +247,7 @@ function BookLookup({ initial, onPick }: { initial: string; onPick: (b: BookResu
   }
   // In the iPhone/Android app: the camera reads the ISBN off the back of the book.
   const scan = async () => {
-    const code = await scanBarcode()
+    const code = await scanBarcode(wallCamera({ parentDevice, focusLocked, meMemberId }))
     if (!code) return
     setQ(code); setOpen(true); search(code)
   }

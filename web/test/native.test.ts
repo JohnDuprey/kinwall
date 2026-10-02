@@ -133,7 +133,7 @@ test('shared contacts: a vCard from the app opens Contacts once; anything else i
 })
 
 test('scanBarcode: asks the app for its camera and hears back the digits, or null when closed', async () => {
-  const { appBarcodeScanner, scanBarcode } = await import('../src/native.ts')
+  const { appBarcodeScanner, scanBarcode, wallCamera } = await import('../src/native.ts')
   const g = globalThis as { window?: unknown }
   g.window = {}
   assert.equal(appBarcodeScanner(), false, 'a browser has no scanner')
@@ -153,4 +153,11 @@ test('scanBarcode: asks the app for its camera and hears back the digits, or nul
   const junk = scanBarcode()
   answer('<img onerror=alert(1)>')
   assert.equal(await junk, null, 'only digits get through')
+  sent.length = 0
+  const front = scanBarcode(true) // a wall screen: its front camera faces the room
+  assert.deepEqual(sent, [{ type: 'scanBarcode', facing: 'front' }])
+  answer(null); await front
+  assert.equal(wallCamera({ parentDevice: false, focusLocked: false, meMemberId: null }), true, 'a wall screen')
+  assert.equal(wallCamera({ parentDevice: false, focusLocked: true, meMemberId: 'leo' }), false, "a kid's own device")
+  assert.equal(wallCamera({ parentDevice: true, focusLocked: false, meMemberId: 'alex' }), false, "a grown-up's phone")
 })

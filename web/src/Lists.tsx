@@ -24,7 +24,7 @@ import { aisleAt, ANY_STORE, anyStoreView, departmentAisle, setShoppingModeList,
 import { hashPath, hashQuery } from './hashQuery.ts'
 import { holdAwake } from './wakeLock.ts'
 import { shoppingActivity } from './liveActivity.ts'
-import { appBarcodeScanner, endAppActivity, scanBarcode, tellAppActivity } from './native.ts'
+import { appBarcodeScanner, endAppActivity, scanBarcode, tellAppActivity, wallCamera } from './native.ts'
 import { itemKey, matchItems } from './itemSuggest.ts'
 import { SWIPE_REVEAL, swipeAxis, swipeEnd, swipeOffset } from './swipe.ts'
 import { canChangeItem, listSections, listType, reorderWithin, TYPE_LABEL, typeFields, type ListType } from './listSections.ts'
@@ -1611,7 +1611,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   // under the family's name; anything else opens the scan sheet to check the name, and saving its
   // barcode to the catalog is a choice made there.
   const scan = async () => {
-    const code = await scanBarcode()
+    const code = await scanBarcode(wallCamera({ parentDevice, focusLocked, meMemberId }))
     if (!code) return
     let found = null
     try { found = await api.lookupBarcode(listId, code) }

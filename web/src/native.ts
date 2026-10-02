@@ -175,9 +175,13 @@ export const appQuickSettingsTiles = () => nativeFlag('quickSettingsTiles')
 /** The app has a camera barcode scanner (scanBarcode). */
 export const appBarcodeScanner = () => nativeFlag('barcodeScanner')
 
-/** Opens the app's barcode scanner: the barcode's digits (a book's ISBN), or null when closed. The
- * app answers with a 'kinwall:barcode' event (kinwall-mobile src/barcode.ts). */
-export function scanBarcode(): Promise<string | null> {
+/** A wall screen (not a grown-up's device, not a kid's own): its front camera faces the room. */
+export const wallCamera = (a: { parentDevice: boolean; focusLocked: boolean; meMemberId: string | null }) => !a.parentDevice && !(a.focusLocked && a.meMemberId)
+
+/** Opens the app's barcode scanner (the front camera when `front`, e.g. a wall tablet): the barcode's
+ * digits (a book's ISBN), or null when closed. The app answers with a 'kinwall:barcode' event
+ * (kinwall-mobile src/barcode.ts). */
+export function scanBarcode(front = false): Promise<string | null> {
   const w = window as Window & { webkit?: { messageHandlers?: { kinwall?: { postMessage: (m: unknown) => void } } } }
   return new Promise(resolve => {
     const on = (e: Event) => {
@@ -186,7 +190,7 @@ export function scanBarcode(): Promise<string | null> {
       resolve(typeof code === 'string' && /^\d{8,14}$/.test(code) ? code : null)
     }
     w.addEventListener('kinwall:barcode', on)
-    try { w.webkit?.messageHandlers?.kinwall?.postMessage({ type: 'scanBarcode' }) } catch { w.removeEventListener('kinwall:barcode', on); resolve(null) }
+    try { w.webkit?.messageHandlers?.kinwall?.postMessage({ type: 'scanBarcode', ...(front ? { facing: 'front' } : {}) }) } catch { w.removeEventListener('kinwall:barcode', on); resolve(null) }
   })
 }
 
