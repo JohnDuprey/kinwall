@@ -261,6 +261,7 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'GET', pattern: /^\/api\/lists\/(?!(?:remembered-tags|values|aisles|order)$)[^/]+$/ }, // a list id, never a fixed route like remembered-tags (parents only)
   { method: 'PATCH', pattern: /^\/api\/lists\/(?!(?:remembered-tags|values|aisles|order)$)[^/]+$/ }, // a list id, never a fixed route like remembered-tags (parents only); routes/lists.ts keeps displays to view fields; deleting lists and their order are for parent devices
   { method: 'POST', pattern: /^\/api\/lists\/[^/]+\/items$/ },
+  { method: 'GET', pattern: /^\/api\/lists\/[^/]+\/barcodes\/\d+$/ }, // scanning a product into a shopping list (saving it to the catalog: routes/lists.ts teaches)
   { method: 'POST', pattern: /^\/api\/lists\/[^/]+\/items\/move$/ }, // moving between lists, like editing items on both
   { method: 'PATCH', pattern: /^\/api\/lists\/[^/]+\/items\/[^/]+$/ },
   { method: 'DELETE', pattern: /^\/api\/lists\/[^/]+\/items\/[^/]+$/ },
@@ -286,6 +287,8 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   // health, so routes/trackers.ts refuses health to display keys itself. DELETE: the route allows
   // only a member's own device, on their own entries.
   { method: 'GET', pattern: /^\/api\/trackers(\/[^/]+)?$/ },
+  { method: 'GET', pattern: /^\/api\/trackers\/[^/]+\/cover$/ }, // a book's cover on the shelf
+  { method: 'GET', pattern: /^\/api\/books\/(search|covers\/\d+)$/ }, // Look up a book, and its results' covers
   { method: 'POST', pattern: /^\/api\/trackers$/ },
   { method: 'PATCH', pattern: /^\/api\/trackers\/[^/]+$/ },
   { method: 'DELETE', pattern: /^\/api\/trackers\/[^/]+$/ },

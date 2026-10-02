@@ -97,6 +97,10 @@ test("barcodes: a kid's own device uses what's remembered but teaches nothing", 
   mockFetch(offMissing);
   assert.equal((await send('POST', `/api/lists/${list.id}/items`, { title: 'Gummy worms', barcode: '12345670' }, key.key)).status, 201);
   assert.equal((await send('GET', `/api/lists/${list.id}/barcodes/12345670`)).status, 404);
+  // It can still look products up: scanning works on a kid's own device, the switch just isn't there.
+  assert.equal((await send('GET', `/api/lists/${list.id}/barcodes/12345670`, undefined, key.key)).status, 404, 'reaches the lookup (nobody knows it)');
+  await send('POST', `/api/lists/${list.id}/items`, { title: 'Gummy worms', barcode: '12345670' });
+  assert.deepEqual((await send('GET', `/api/lists/${list.id}/barcodes/12345670`, undefined, key.key)).body, { title: 'Gummy worms', source: 'family' });
 });
 
 test('barcodes: kept in the family export and brought back by import', async () => {

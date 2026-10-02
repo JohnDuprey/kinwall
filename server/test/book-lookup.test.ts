@@ -98,3 +98,23 @@ test('reading covers: a public https coverUrl is stored and served through the s
   const cleared = await send('PATCH', `/api/trackers/${book.body.id}`, { data: { coverUrl: null } });
   assert.equal(cleared.body.data.coverUrl, undefined);
 });
+
+test("book lookup and covers work from kids' own devices and wall screens (display keys)", async () => {
+  const { app, env, send } = setup();
+  await send('POST', '/api/members', { name: 'Alex', color: '#336699', grownUp: true });
+  const leo = (await send('POST', '/api/members', { name: 'Leo', color: '#993366' })).body;
+  const device = async (name: string, kind: string, owner: string) => {
+    const k = (await send('POST', '/api/keys', { name, scope: 'display' })).body;
+    assert.equal((await send('PATCH', `/api/keys/${k.id}`, { kind, owner })).status, 200);
+    return k.key as string;
+  };
+  const keys = { kid: await device("Leo's tablet", 'kid', leo.id), wall: await device('Kitchen wall', 'wall', 'shared') };
+  mockFetch((url) => url.includes('search.json') ? Response.json({ docs: [{ title: 'Holes', cover_i: 5 }] }) : new Response(JPEG, { headers: { 'content-type': 'image/jpeg' } }));
+  const book = (await send('POST', '/api/trackers', { kind: 'reading', memberId: leo.id, title: 'Holes', data: { coverUrl: 'https://covers.example.com/holes.jpg' } })).body;
+  for (const [who, key] of Object.entries(keys)) {
+    const get = (p: string) => app.request(p, { headers: { Authorization: `Bearer ${key}` } }, env);
+    assert.equal((await get('/api/books/search?q=holes')).status, 200, `${who}: search`);
+    assert.equal((await app.request(`/api/books/covers/5?key=${key}`, {}, env)).status, 200, `${who}: thumbnail`);
+    assert.equal((await app.request(`/api/trackers/${book.id}/cover?key=${key}`, {}, env)).status, 200, `${who}: cover`);
+  }
+});
