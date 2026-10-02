@@ -1504,6 +1504,13 @@ button.month-cell .month-daynum { flex: none; }
 .brand-mark { width: 64px; height: auto; aspect-ratio: 840 / 494; }
 /* Phones: the mark is the screen's one picture while there's nothing else to show, so give it room. */
 @media (max-width: 600px) { .brand-lockup { font-size: 1.5rem; gap: 6px; } .brand-mark { width: 120px; } }
+/* Tablets and wall screens: bigger still. The loading screens have only the mark, so it leads; in a
+   sign-in or setup card it stays smaller than the card's heading block. */
+@media (min-width: 601px) {
+  .gate-screen > .brand-lockup { font-size: 1.75rem; gap: 8px; } .gate-screen > .brand-lockup .brand-mark { width: 180px; }
+  .gate-card .brand-lockup { font-size: 1.375rem; gap: 6px; } .gate-card .brand-mark { width: 104px; }
+  .gate-loading .spinner { width: 36px; height: 36px; }
+}
 /* The loading screens: a quiet spinner under the mark instead of a card (the words stay for screen readers). */
 .gate-loading { display: flex; justify-content: center; padding: 8px; }
 .gate-loading .spinner { width: 28px; height: 28px; border-width: 3px; border-top-color: var(--accent-text); }
