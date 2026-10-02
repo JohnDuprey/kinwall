@@ -48,6 +48,12 @@ export function readableOn(color: string, bg: string, min = 4.5): string {
  * Mid/dark accents stay as-is; pastels deepen (orange -> terracotta, amber -> ochre). */
 export const accentFill = (accent: string) => readableOn(accent, LIGHT_INK)
 
+/** The logo's four heads (Brand.tsx, set as --logo-heads by useTheme). Peacock keeps the logo's own
+ * blue; any other scheme uses its dark-mode accent (the brighter of its pair) or the family's custom
+ * accent, brought to 3:1 on the background so the heads stay visible against it. */
+export const logoHeads = (skinId: string, accent: string, bg: string) =>
+  skinId === 'peacock' ? '#4C9FE1' : readableOn(accent, bg, 3)
+
 // Spoken names for the preset swatches (MEMBER_PALETTE in types.ts): a screen
 // reader saying "#FF9E7A" helps nobody. Custom colors fall back to their hex.
 const COLOR_NAMES: Record<string, string> = {

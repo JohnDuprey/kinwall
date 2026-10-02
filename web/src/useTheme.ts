@@ -4,7 +4,7 @@ import type { ClockPos } from './nightClock.ts'
 import type { Appearance, ColorScheme, CustomColors, DeviceDensity, Settings, TextScale, TidbitSettings, Typeface } from './types.ts'
 import { deviceTypeface, resolveTypeface } from './typeface.ts'
 import { deviceTimeFormat } from './timeFormat.ts'
-import { accentFill, readableOn } from './color.ts'
+import { accentFill, logoHeads, readableOn } from './color.ts'
 import { api, getKey } from './api.ts'
 import { DEFAULT_SKIN_ID, findSkin, seasonalSkinId, tokensFor } from './skins.ts'
 import { surfaces, tellAppAppearance } from './native.ts'
@@ -182,6 +182,7 @@ function applyAppearance(household: Appearance, device: DeviceAppearance) {
     setOrClear('--border', t?.border)
     setOrClear('--text', custom.text || t?.text)
     setOrClear('--text-dim', t?.textDim)
+    setOrClear('--logo-heads', /^#[0-9a-f]{6}$/i.test(custom.bg || t.bg) ? logoHeads(skin.id, custom.accent || skin.dark.accent, custom.bg || t.bg) : undefined)
 
     const accent = custom.accent || t?.accent || DEFAULT_ACCENT
     root.style.setProperty('--accent', accent)

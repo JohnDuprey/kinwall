@@ -9,13 +9,14 @@ const BRACES = [
 const HEADS = [[488.7, 651.8], [725.9, 651.8], [547.5, 752.8], [670.7, 752.8]]
 
 /** The mark, then the name as real text. Decorative (aria-hidden); the ink follows the scheme's
- * accent in light and its text color in dark (styles.css); the heads stay Kinwall's teal in every theme. */
+ * accent in light and its text color in dark (styles.css); the heads follow the scheme too
+ * (--logo-heads, color.ts logoHeads: Peacock's own #4C9FE1), falling back to the readable accent. */
 export function Brand() {
   return (
     <div className="brand-lockup">
       <svg className="brand-mark" viewBox="190 540 840 494" aria-hidden="true" focusable="false">
         <g transform="translate(0 1600) scale(0.1 -0.1)" className="brand-ink">{BRACES.map((d, i) => <path key={i} d={d} />)}</g>
-        <g className="brand-heads">{HEADS.map(([cx, cy]) => <circle key={cx * 1000 + cy} cx={cx} cy={cy} r="41.6" />)}</g>
+        <g className="brand-heads" style={{ fill: 'var(--logo-heads, var(--accent-text))' }}>{HEADS.map(([cx, cy]) => <circle key={cx * 1000 + cy} cx={cx} cy={cy} r="41.6" />)}</g>
       </svg>
       <span className="brand-name">Kinwall</span>
     </div>
