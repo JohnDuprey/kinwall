@@ -51,7 +51,7 @@ import { DRAINED_ANSWERS } from '../battery.ts';
 import { parseTempCheck, todayInTz } from './members.ts';
 import { readSettings } from './settings.ts';
 import { addDays, startDayFrom } from './medications.ts';
-import { journalOwner, privateNow } from '../journal-privacy.ts';
+import { journalAccess, privateLevel } from '../journal-privacy.ts';
 
 export const tempCheckRoutes = createRouter();
 type C = Context<{ Bindings: Env }>;
@@ -185,7 +185,7 @@ async function respond(c: C, memberId: string, date: string, found: NonNullable<
   const settings = parseTempCheck(found.member.temp_check);
   const empty = { sleep: null, feelings: null, goal: null, goalSkipped: false, followup: null, followupHidden: false };
   // The answers are opened only for a caller who may see them (private notes only for their own device).
-  const v = found.row ? (who === 'full' ? await openTempCheck(c.env, found.row, (await journalOwner(c)) === memberId) : { ...empty, goal: found.row.goal, goalSkipped: !!found.row.goal_skipped }) : empty;
+  const v = found.row ? (who === 'full' ? await openTempCheck(c.env, found.row, (await journalAccess(c, memberId)) >= (found.row.private ?? 0)) : { ...empty, goal: found.row.goal, goalSkipped: !!found.row.goal_skipped }) : empty;
   const answered = { sleep: !!found.row?.sleep, feelings: !!found.row?.feelings, goal: !!found.row?.goal || !!found.row?.goal_skipped, followup: !!found.row?.followup, drained: !!found.row?.drained };
   const tz = await householdTz(c);
   const today = todayInTz(tz);
@@ -285,7 +285,7 @@ tempCheckRoutes.openapi(
     }
     if (body.custom !== undefined && who !== 'full') return c.json({ error: "Feelings can be removed from their own device or a parent's" }, 403);
     // Private goal-check notes: only their own device changes them (anyone else can't see what they'd overwrite).
-    const own = (await journalOwner(c)) === id;
+    const own = (await journalAccess(c, id)) >= (found.row?.private ?? 0);
     if (body.followup !== undefined && found.row?.private && found.row.followup && !own) return c.json({ error: 'Their goal check is private: only their own devices can change it.' }, 403);
 
     // Only the fields sent change; the rest stay as stored (still sealed), so a wall never opens them.
@@ -305,7 +305,7 @@ tempCheckRoutes.openapi(
     const feelingsStored = feelings !== undefined ? fresh.feelings : (found.row?.feelings ?? null);
     const followupStored = followup ? fresh.followup : (found.row?.followup ?? null);
     const drainedStored = body.drained ? fresh.drained : (found.row?.drained ?? null);
-    const priv = found.row?.private || (followup && privateNow(found.member)) ? 1 : 0; // never cleared
+    const priv = Math.max(found.row?.private ?? 0, followup ? privateLevel(found.member) : 0); // never cleared or lowered (the level: journal-privacy.ts)
 
     // Their own feelings list: "Other" answers join it; `custom` replaces it.
     const custom = body.custom ?? (await readCustom(c.env, id, found.member.temp_check_feelings));

@@ -33,13 +33,14 @@ A private journal is for writing only you can read. The page says so: **Private:
 
 * **What others see.** On anyone else's device, parents' devices included, each private entry shows its day, its mood and **🔒 Private entry**, never the words. The same goes for that day's goal check notes (what helped, what got in the way, next time): the outcome shows, the notes say **🔒 Notes are private**. [Insights](insights.md) and the [energy battery](battery.md) keep working, because they only use moods and answers, never the words.
 * **Marked on the entry.** An entry written while the journal is private stays private for good. Turning privacy off later only affects new entries; nothing written before is shown.
-* **Only you change it.** While it's private, only your own devices can add, change or delete entries, or change that day's goal check.
+* **Only you change it.** While it's private, only your own devices can add, change or delete entries, or change that day's goal check. [Importing a backup](../your-data/export-import.md) from someone else's device doesn't add to it or change it either.
+* **It stays yours if you're marked a kid.** What a grown-up wrote in private opens only on their own phone or computer (full access), never on a paired device, even if someone later turns **Grown-up** off for them in Settings → Family. That change is logged in Security activity, leaves them a 🔒 note and is pushed to parents' phones; their journal stays private, and connected apps can't make the change at all.
 
 ### Who decides
 
 * **Grown-ups** (anyone marked a grown-up in [Settings → Family](../settings/family.md)): private by default. Turn **Private journal** off or on at the top of your journal, on your own device.
 * **Kids**: off until a parent turns on **Let Maya keep a private journal** in [Settings → Family](../settings/family.md#private-journal) (Maya's settings). Then Maya turns **Private journal** on or off from her own device. If a parent turns the permission off later, Maya's new entries can be read on parent devices again, and the ones she wrote while it was private stay private.
-* Every change is logged in [Security activity](sign-in-and-security.md#security-activity) ("Maya's journal is private") and leaves a 🔒 note in Maya's own [notifications](notifications.md), so nothing changes quietly. Only Maya can remove that note, from her own device; the Security activity line stays.
+* Every change is logged in [Security activity](sign-in-and-security.md#security-activity) ("Maya's journal is private") and leaves a 🔒 note in Maya's own [notifications](notifications.md), so nothing changes quietly. Only Maya can remove that note, from a device that was already hers; the Security activity line stays.
 
 ### Your own devices
 
@@ -49,7 +50,7 @@ A private journal is for writing only you can read. The page says so: **Private:
 * the first parent phone or computer, when you pick yourself at **Whose device is this?** in the [setup wizard](../getting-started/setup-wizard.md#steps). It opens your journal, private entries too, from the start;
 * a parent's phone or computer that says it's yours: **Settings → Access → This device → Whose device is this?**, or **This is Alex's device** on Alex's journal. A full-access device can only belong to a grown-up. Signed in with a passkey, the passkey remembers it, so the next sign-in with it is yours too. Kinwall's app asks "Whose device is this?" when it signs in.
 
-When a device is set to belong to someone, that person's own devices get a 🔒 note ("Alex's phone now belongs to Alex"), and parents see it in [Security activity](sign-in-and-security.md#security-activity). Devices that belong to no one, the setup admin key, a sign-in with a recovery code, the hosted service's support sign-in and connected apps can never read private entries.
+When a device is set to belong to someone, that person's own devices get a 🔒 note ("Alex's phone now belongs to Alex"), and parents see it in [Security activity](sign-in-and-security.md#security-activity). The device that was just set can't remove that note; only a device that was already theirs can. Devices that belong to no one, the setup admin key, a sign-in with a recovery code, the hosted service's support sign-in and connected apps can never read private entries.
 
 ### Updating from an earlier version
 
@@ -60,7 +61,7 @@ What private can't protect against is on the [Privacy](../your-data/privacy.md#w
 ## API
 
 * `GET /api/members/{id}/journal?to=&days=`: days (`to` is today by default, `days` 60, up to 366), newest first: `{ memberId, from, to, privacy, days: [{ date, tempCheck, entries }] }`. `tempCheck` is `{ sleep, feelings, goal, goalSkipped, followup, followupHidden }` or `null`. Each entry has `private`; its `text` is `null` when it's private and the caller's key doesn't belong to them (`followupHidden: true` likewise means the goal check notes are `null`). `privacy` is `{ on, allowed, mine, canChange }`: new entries are private; they may keep a private journal; this key belongs to them; this key may turn it on or off.
-* `POST /api/members/{id}/journal` with `{ date?, text, mood? }`, `PATCH /api/members/{id}/journal/{entryId}` (only what's sent), `DELETE /api/members/{id}/journal/{entryId}`. While the journal is private, adding needs a key that belongs to them, and so does changing or deleting a private entry (403 otherwise).
+* `POST /api/members/{id}/journal` with `{ date?, text, mood? }`, `PATCH /api/members/{id}/journal/{entryId}` (only what's sent), `DELETE /api/members/{id}/journal/{entryId}`. While the journal is private, adding needs a key that belongs to them, and so does changing or deleting a private entry (403 otherwise). An entry a grown-up wrote in private needs their full-access key, whatever `grownUp` says later.
 * `PUT /api/members/{id}/journal/privacy` with `{ private?, allowed? }` returns `privacy`. `private`: only a key that belongs to them (a kid's only once allowed). `allowed`: a kid's, from a parent's device (full access, not a connected app); 400 for a grown-up.
 * A key belongs to a member when its `owner` is their ID: see `PATCH /api/keys/{id}` and `PUT /api/me/owner` in the [REST API](../integrations/rest-api.md). A full-access key's owner must be a grown-up. Connected apps never read private entries.
 * 403 for a shared wall screen, another member's device, and a connected app without `aiHealthAccess`.

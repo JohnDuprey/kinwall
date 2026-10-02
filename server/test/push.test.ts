@@ -642,7 +642,7 @@ test('feed: DELETE /api/notifications/:id and DELETE /api/notifications clear en
   assert.equal((await feed(request)).length, 0);
 });
 
-test("feed: a privacy note is removed only by the person it's about, from their own device; the security log keeps it", async () => {
+test("feed: a privacy note is removed only by the person it's about, from a device that was already theirs; the security log keeps it", async () => {
   const { env, request, alex, leo, kid, wall } = await kidSetup();
   const sam = (await (await request('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Sam', color: '#5ae', grownUp: true }) })).json()) as any;
   const phone = async (name: string, owner: string) => {
@@ -661,6 +661,13 @@ test("feed: a privacy note is removed only by the person it's about, from their 
   // One at a time: nobody else, not even a parent or the household admin key.
   const alexNote = await id("Alex's journal is private");
   for (const key of [ADMIN_KEY, samPhone, wall, kid]) assert.equal((await del(alexNote, key)).status, 403, key);
+  // Nor a device that only just became Alex's (any parent's device can say it is: that's what the note is for).
+  assert.equal((await del(alexNote, alexPhone)).status, 403);
+  await request('/api/notifications', { method: 'DELETE' }, alexPhone);
+  assert.ok((await rows()).some((r) => r.id === alexNote), 'or by clearing the feed');
+  await recordNotification(env.DB, { kind: 'message', title: 'Dinner at 6', source: 'api' });
+  // These devices have been theirs since last year.
+  await env.DB.prepare("UPDATE api_keys SET created_at = '2025-01-01T00:00:00.000Z', owner_since = '2025-01-01T00:00:00.000Z'").run();
   assert.equal((await del(alexNote, alexPhone)).status, 200);
   assert.ok(!(await rows()).some((r) => r.id === alexNote));
   // A kid's own device removes its own note, and still nothing else.

@@ -26,7 +26,9 @@ import { RECONNECT_MESSAGE } from '../sync.ts';
 import { decryptConfig, encryptConfig } from '../crypto.ts';
 import { isSafeFeedUrl } from '../outbound.ts';
 import type { CategoryRow } from '../calendar-categories.ts';
-import { isAdultBirthday, parseTempCheck, parseTransitions } from './members.ts';
+import { grownUpChangeStmts, isAdultBirthday, noteGrownUpChange, parseTempCheck, parseTransitions } from './members.ts';
+import { journalOwner, privateNow, type PrivacyRow } from '../journal-privacy.ts';
+import { isConnectedApp } from '../auth.ts';
 import { DrainedSchema, FollowupSchema, openDrained, openTempCheck, readCustom, sealCustom, sealTempCheck, type TempCheckRow } from './temp-check.ts';
 import { openEntry, sealEntry, type JournalRow } from './journal.ts';
 import { DoseTimesSchema, LateWindowSchema, loadLogs, loadMedications, sealLog, sealMedication, type DoseLog } from './medications.ts';
@@ -610,11 +612,16 @@ dataRoutes.openapi(
     const healthHidden = !!(await healthBlock(c));
     const healthIds = healthHidden ? new Set((await db.prepare("SELECT id FROM tracker_entries WHERE kind = 'health'").all<{ id: string }>()).results.map((r) => r.id)) : new Set<string>();
     const trackers = body.trackers.filter((t) => (t.memberId === null || fileMembers.has(t.memberId)) && !(healthHidden && (t.kind === 'health' || healthIds.has(t.id))));
+    if (trackers.some((t) => sealedTitle(t.title))) return c.json({ error: `trackers: ${SEALED_TITLE.error}` }, 400);
     if (healthHidden) for (const k of ['aiHealthAccess', 'medications', 'medicationNamesOnWalls'] as const) delete settings.data[k];
     // Temp checks likewise (sleep and feelings are health): none from a connected app without aiHealthAccess.
-    if (trackers.some((t) => sealedTitle(t.title))) return c.json({ error: `trackers: ${SEALED_TITLE.error}` }, 400);
     const tempChecks = healthHidden ? [] : body.tempChecks.filter((t) => fileMembers.has(t.memberId));
-    const journalEntries = healthHidden ? [] : body.journalEntries.filter((e) => fileMembers.has(e.memberId));
+    // Who is here already. A journal that's private now takes entries only from its owner's device,
+    // as POST /api/members/{id}/journal does: an import can't add to it or change what's in it.
+    const here = new Map((await db.prepare('SELECT id, name, grown_up, journal_private, journal_private_allowed FROM members').all<PrivacyRow & { id: string }>()).results.map((m) => [m.id, m]));
+    const mine = await journalOwner(c);
+    const closed = new Set([...here.values()].filter((m) => privateNow(m) && m.id !== mine).map((m) => m.id));
+    const journalEntries = healthHidden ? [] : body.journalEntries.filter((e) => fileMembers.has(e.memberId) && !closed.has(e.memberId));
     const medications = healthHidden ? [] : body.medications.filter((m) => fileMembers.has(m.memberId));
     const medIds = new Set(medications.map((m) => m.id));
     const medicationLog = body.medicationLog.filter((d) => medIds.has(d.medicationId));
@@ -629,22 +636,27 @@ dataRoutes.openapi(
     const keepCreated = { keep: ['created_at'] };
     // Files from before grown-ups: 18+ by a birthday with a year counts as one (as migration 0051).
     const today = new Date().toISOString().slice(0, 10);
-    const grownUp = (m: (typeof body.members)[number]) => m.grownUp ?? isAdultBirthday(m.birthday, today);
+    // Who is a grown-up changes who reads a journal: a connected app's import leaves it as it is for
+    // members already here, and anyone else's change is logged and noted (routes/members.ts).
+    const app = await isConnectedApp(c);
+    const grownUp = (m: (typeof body.members)[number]) => (app && here.has(m.id) ? !!here.get(m.id)!.grown_up : (m.grownUp ?? isAdultBirthday(m.birthday, today)));
+    const flips = body.members.filter((m) => here.has(m.id) && grownUp(m) !== !!here.get(m.id)!.grown_up);
+    const privateAs = new Map(body.members.map((m) => [m.id, grownUp(m) ? 2 : 1])); // journal-privacy.ts privateLevel
     // Health entries are sealed again before anything is written (no key: the import fails, nothing stored).
     // Private journal days and entries already here are never overwritten (the file can't have their words).
     const [privateDays, privateEntries] = (await db.batch<unknown>([
-      db.prepare('SELECT member_id, date, followup FROM temp_checks WHERE private = 1'),
-      db.prepare('SELECT id FROM journal_entries WHERE private = 1'),
+      db.prepare('SELECT member_id, date, followup, private FROM temp_checks WHERE private != 0'),
+      db.prepare('SELECT id FROM journal_entries WHERE private != 0 OR member_id IN (SELECT value FROM json_each(?))').bind(JSON.stringify([...closed])),
     ])).map((r) => r.results);
-    const keptNotes = new Map((privateDays as { member_id: string; date: string; followup: string | null }[]).map((r) => [`${r.member_id}:${r.date}`, r.followup]));
+    const keptNotes = new Map((privateDays as { member_id: string; date: string; followup: string | null; private: number }[]).map((r) => [`${r.member_id}:${r.date}`, r]));
     const keptEntries = new Set((privateEntries as { id: string }[]).map((r) => r.id));
     const sealedTempChecks = await Promise.all(tempChecks.map(async (t) => {
       const kept = keptNotes.get(`${t.memberId}:${t.date}`);
       const sealed = await sealTempCheck(c.env, t.memberId, t.date, t);
-      return { member_id: t.memberId, date: t.date, ...sealed, followup: kept !== undefined ? kept : sealed.followup, private: kept !== undefined || t.private ? 1 : 0, goal: t.goal, goal_skipped: t.goalSkipped ? 1 : 0, created_at: t.createdAt, updated_at: t.updatedAt };
+      return { member_id: t.memberId, date: t.date, ...sealed, followup: kept ? kept.followup : sealed.followup, private: kept ? kept.private : t.private ? privateAs.get(t.memberId)! : 0, goal: t.goal, goal_skipped: t.goalSkipped ? 1 : 0, created_at: t.createdAt, updated_at: t.updatedAt };
     }));
     const sealedJournal = await Promise.all(journalEntries.filter((e) => !keptEntries.has(e.id)).map((e) =>
-      sealEntry(c.env, { id: e.id, member_id: e.memberId, date: e.date, text: e.text ?? '', mood: e.mood, private: e.private || e.text === null ? 1 : 0, created_at: e.createdAt, updated_at: e.updatedAt })));
+      sealEntry(c.env, { id: e.id, member_id: e.memberId, date: e.date, text: e.text ?? '', mood: e.mood, private: e.private || e.text === null ? privateAs.get(e.memberId)! : 0, created_at: e.createdAt, updated_at: e.updatedAt })));
     const logDays = new Map<string, { medicationId: string; date: string; log: DoseLog }>();
     for (const d of medicationLog) {
       const day = logDays.get(`${d.medicationId}:${d.date}`) ?? logDays.set(`${d.medicationId}:${d.date}`, { medicationId: d.medicationId, date: d.date, log: {} }).get(`${d.medicationId}:${d.date}`)!;
@@ -657,6 +669,7 @@ dataRoutes.openapi(
     const writes = [
       ...settingsWrites(db, settings.data),
       ...upserts(db, 'members', 'id', body.members.map((m, i) => ({ id: m.id, name: m.name, color: m.color, avatar: m.avatar, birthday: m.birthday, sort: m.sort, grown_up: grownUp(m) ? 1 : 0, needs_approval: m.needsApproval && !grownUp(m) ? 1 : 0, transitions: m.transitionReminders ? JSON.stringify(m.transitionReminders) : null, reward_goal: m.rewardGoalId, temp_check: m.tempCheck ? JSON.stringify(m.tempCheck) : null, ...(healthHidden ? {} : { temp_check_feelings: memberFeelings.get(m.id) }), created_at: stamp(i) })), keepCreated),
+      ...(await Promise.all(flips.map((m) => grownUpChangeStmts(c, here.get(m.id)!, grownUp(m), m.name)))).flat(),
       ...upserts(
         db,
         'categories',
@@ -947,6 +960,7 @@ dataRoutes.openapi(
       ...upserts(db, 'item_tags', 'catalog, name_key, tag', catalogs.rows(body.itemTags).map((t, n) => ({ catalog: t.catalog, name_key: t.nameKey, tag: t.tag, sort: 1000 + n }))),
     ];
     if (writes.length) await db.batch(writes);
+    for (const m of flips) await noteGrownUpChange(c, m.id, m.name, grownUp(m));
     // An entry already here as health keeps its kind (kind is kept on conflict), so sweep up anything the file brought in as another kind.
     if (trackers.length) await sealHealthEntries(c.env);
 

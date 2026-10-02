@@ -160,7 +160,7 @@ pairRoutes.openapi(
     const db = c.env.DB;
     await db.batch([
       db.prepare('UPDATE pairings SET approved = 1, key_id = ?, key_name = ?, encrypted_key = ? WHERE id = ?').bind(keyId, name, encryptedKey, pairing.id),
-      ...securityEventStmts(db, { kind: 'device.paired', summary: `"${name}" paired as ${kind === 'kid' ? `${await ownerName(db, owner)}'s device` : 'a wall screen'}`, by: await actorOf(c), device: name, detail: { kind } }),
+      ...securityEventStmts(db, { kind: 'device.paired', summary: `"${name}" paired as ${kind === 'kid' ? `${await ownerName(db, owner)}'s device` : 'a wall screen'}`, by: await actorOf(c), device: name, detail: { kind }, about: kind === 'kid' ? owner : null }),
     ]);
 
     await recordDeviceOwner(c.env.DB, name, owner, kind); // it opens their private journal: never silently

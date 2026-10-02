@@ -33,7 +33,7 @@ export const SECURITY_FILTERS = [
   { key: 'devices', label: 'Devices', kinds: ['device.paired', 'device.owner', 'widgets.added', 'widgets.removed'] },
   { key: 'keys', label: 'Keys & apps', kinds: ['key.created', 'key.removed', 'app.connected', 'app.disconnected'] },
   { key: 'pin', label: 'PIN', kinds: ['pin.set', 'pin.removed'] },
-  { key: 'journal', label: 'Journal', kinds: ['journal.privacy'] },
+  { key: 'journal', label: 'Journal', kinds: ['journal.privacy', 'member.grown_up'] },
 ] as const satisfies readonly { key: string; label: string; kinds: readonly string[] }[]
 export type SecurityFilter = (typeof SECURITY_FILTERS)[number]['key']
 

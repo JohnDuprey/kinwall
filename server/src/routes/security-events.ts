@@ -1,6 +1,6 @@
 // The family's security log: sign-ins and sign-outs, passkeys, recovery codes, API and widget keys,
-// paired devices, connected apps, whose device something is, the Night PIN and private
-// journal changes. Parent devices read it under Settings → Access → Security activity
+// paired devices, connected apps, whose device something is, who is a grown-up, the Night PIN and
+// private journal changes. Parent devices read it under Settings → Access → Security activity
 // (GET /api/security-events); wall screens, kids' devices and connected apps never do (auth.ts).
 // Never secrets: no keys, tokens, codes or credential IDs, only names a parent gave things. Not in
 // webhooks (nothing here emits) or the export (routes/data.ts): it's about this server's sign-ins.
@@ -23,26 +23,32 @@ export const SECURITY_KINDS = [
   'key.created', 'key.removed', 'widgets.added', 'widgets.removed',
   'app.connected', 'app.disconnected',
   'pin.set', 'pin.removed',
-  'journal.privacy',
+  'journal.privacy', 'member.grown_up',
   // Written only by an embedding host (entry.ts re-exports recordSecurityEvent): its support's
   // one-time sign-in link issued, canceled, or used to sign in.
   'support.link_issued', 'support.link_revoked', 'support.signin',
 ] as const;
 export type SecurityKind = (typeof SECURITY_KINDS)[number];
-export type SecurityEvent = { kind: SecurityKind; summary: string; by?: Actor | null; device?: string | null; detail?: Record<string, string | number | boolean | null> };
+/** `about`: the member it's about (whose device, whose journal, who is a grown-up), for the prune. */
+export type SecurityEvent = { kind: SecurityKind; summary: string; by?: Actor | null; device?: string | null; detail?: Record<string, string | number | boolean | null>; about?: string | null };
 
 export const SECURITY_KEEP = 500;
 const SECURITY_MAX_AGE_MS = 365 * 24 * 60 * 60 * 1000;
 
-/** The insert plus the prune (a year, then the newest 500), for a caller's own batch. */
+/** The insert plus the prune, for a caller's own batch: a year, then the newest 500 of this kind
+ * about this person. Counted apart so that nothing a device can do in bulk (making and removing
+ * keys, re-assigning itself to someone else) pushes out the line that says a device became
+ * someone's; only events about that same person do, and each of those leaves them a privacy note
+ * the device can't remove (routes/push.ts). */
 export function securityEventStmts(db: KinwallDb, e: SecurityEvent, now = new Date()): KinwallStatement[] {
+  const about = e.about ?? '';
   return [
     db
-      .prepare('INSERT INTO security_events (id, at, kind, summary, actor_member_id, actor_label, device, detail) VALUES (?,?,?,?,?,?,?,?)')
-      .bind(crypto.randomUUID(), now.toISOString(), e.kind, e.summary, e.by?.memberId ?? null, e.by?.label ?? null, e.device ?? null, e.detail ? JSON.stringify(e.detail) : null),
+      .prepare('INSERT INTO security_events (id, at, kind, summary, actor_member_id, actor_label, device, detail, about) VALUES (?,?,?,?,?,?,?,?,?)')
+      .bind(crypto.randomUUID(), now.toISOString(), e.kind, e.summary, e.by?.memberId ?? null, e.by?.label ?? null, e.device ?? null, e.detail ? JSON.stringify(e.detail) : null, about),
     db
-      .prepare('DELETE FROM security_events WHERE at < ? OR id NOT IN (SELECT id FROM security_events ORDER BY rowid DESC LIMIT ?)')
-      .bind(new Date(now.getTime() - SECURITY_MAX_AGE_MS).toISOString(), SECURITY_KEEP),
+      .prepare('DELETE FROM security_events WHERE at < ? OR (kind = ? AND about = ? AND rowid NOT IN (SELECT rowid FROM security_events WHERE kind = ? AND about = ? ORDER BY rowid DESC LIMIT ?))')
+      .bind(new Date(now.getTime() - SECURITY_MAX_AGE_MS).toISOString(), e.kind, about, e.kind, about, SECURITY_KEEP),
   ];
 }
 
@@ -61,7 +67,7 @@ export async function deviceOwnerEvent(db: KinwallDb, device: string, owner: str
   const who = await ownerName(db, owner);
   const what = kind === 'wall' ? ' (a wall screen)' : kind === 'kid' ? " (a kid's device)" : kind === 'grownup' ? " (a grown-up's device)" : '';
   const summary = !owner || owner === 'shared' ? `"${device}" is now the whole family's${what}` : `"${device}" now belongs to ${who}${what}`;
-  return { kind: 'device.owner', summary, by, device };
+  return { kind: 'device.owner', summary, by, device, about: owner && owner !== 'shared' ? owner : null };
 }
 
 // A push to every parent device (full access) that has notifications on, in the background so a
@@ -101,7 +107,7 @@ securityEventsRoutes.openapi(
     method: 'get',
     path: '/api/security-events',
     tags: ['System'],
-    summary: "The family's security activity, newest first: sign-ins, passkeys, recovery codes, keys, devices, connected apps (parent devices only; kept a year, up to 500). Search with q, filter with kinds.",
+    summary: "The family's security activity, newest first: sign-ins, passkeys, recovery codes, keys, devices, connected apps, who is a grown-up (parent devices only; kept a year, up to the newest 500 of each kind about each person). Search with q, filter with kinds.",
     security: [{ Bearer: [] }],
     request: {
       query: z.object({

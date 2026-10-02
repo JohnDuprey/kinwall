@@ -50,7 +50,7 @@ test('securityDay and groupByDay: today, yesterday, then the date, in runs', () 
 })
 
 test('SECURITY_FILTERS: every kind has exactly one chip, and All sends none', () => {
-  const kinds = ['passkey.added', 'passkey.renamed', 'passkey.removed', 'signin.passkey', 'signin.recovery', 'signout', 'recovery.generated', 'device.paired', 'device.owner', 'key.created', 'key.removed', 'widgets.added', 'widgets.removed', 'app.connected', 'app.disconnected', 'pin.set', 'pin.removed', 'journal.privacy', 'support.link_issued', 'support.link_revoked', 'support.signin']
+  const kinds = ['passkey.added', 'passkey.renamed', 'passkey.removed', 'signin.passkey', 'signin.recovery', 'signout', 'recovery.generated', 'device.paired', 'device.owner', 'key.created', 'key.removed', 'widgets.added', 'widgets.removed', 'app.connected', 'app.disconnected', 'pin.set', 'pin.removed', 'journal.privacy', 'member.grown_up', 'support.link_issued', 'support.link_revoked', 'support.signin']
   const chipped = SECURITY_FILTERS.flatMap(f => [...f.kinds])
   assert.deepEqual([...chipped].sort(), [...kinds].sort())
   assert.equal(SECURITY_FILTERS[0].key, 'all')

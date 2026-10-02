@@ -14,7 +14,8 @@
 // (journal_entries.private, and temp_checks.private for that day's goal-check notes) and stays so,
 // even if privacy is turned off later. Its words open only for a key that belongs to the person
 // (`journalOwner`: their own display key, or a full-access key, passkey or Kinwall app sign-in they
-// own); everyone else, parents included, gets text null (the mood, day and "private" still show, so
+// own), and what a grown-up wrote only for their full-access key, whatever they're marked as later
+// (the mark is a level: journal-privacy.ts privateLevel, journalAccess); everyone else, parents included, gets text null (the mood, day and "private" still show, so
 // Insights and the battery keep working). Unowned keys (ADMIN_API_KEY, recovery sessions, hosted
 // support's recovery session) and connected apps, even with aiHealthAccess, never read them. Only the
 // owner adds, changes or deletes entries while it's private. Who decides (PUT .../journal/privacy):
@@ -32,7 +33,7 @@ import { emit } from '../bus.ts';
 import { actorOf, deviceOwner, requestKey } from '../auth.ts';
 import { securityEventStmts } from './security-events.ts';
 import { isConnectedApp } from './mcp-oauth.ts';
-import { journalOwner, privacyOf, privateNow, type PrivacyRow } from '../journal-privacy.ts';
+import { journalAccess, journalOwner, privacyOf, privateLevel, privateNow, type PrivacyRow } from '../journal-privacy.ts';
 import { recordNotification } from '../notify.ts';
 import { seal, unseal, type EncryptionEnv } from '../crypto.ts';
 import { ErrorSchema } from '../schemas.ts';
@@ -154,7 +155,8 @@ journalRoutes.openapi(
     if (blocked) return c.json(blocked, 403);
     const m = await privacyRow(c, id);
     if (!m) return c.json({ error: 'member not found' }, 404);
-    const own = (await journalOwner(c)) === id;
+    const access = await journalAccess(c, id);
+    const own = access > 0;
     const q = c.req.valid('query');
     const to = q.to ?? (await householdToday(c));
     const from = addDays(to, 1 - q.days);
@@ -166,9 +168,9 @@ journalRoutes.openapi(
     const day = (date: string) => days.get(date) ?? days.set(date, { date, tempCheck: null, entries: [] }).get(date)!;
     for (const r of checks.results as TempCheckRow[]) {
       if (!r.sleep && !r.feelings && !r.goal && !r.goal_skipped && !r.followup) continue;
-      day(r.date).tempCheck = await openTempCheck(c.env, r, own);
+      day(r.date).tempCheck = await openTempCheck(c.env, r, access >= (r.private ?? 0));
     }
-    for (const r of entries.results as JournalRow[]) day(r.date).entries.push(await openEntry(c.env, r, own));
+    for (const r of entries.results as JournalRow[]) day(r.date).entries.push(await openEntry(c.env, r, access >= (r.private ?? 0)));
     const p = privacyOf(m);
     const privacy = { ...p, mine: own, canChange: own && p.allowed };
     return c.json({ memberId: id, from, to, privacy, days: [...days.values()].sort((a, b) => b.date.localeCompare(a.date)) }, 200);
@@ -191,11 +193,11 @@ journalRoutes.openapi(
     if (blocked) return c.json(blocked, 403);
     const m = await privacyRow(c, id);
     if (!m) return c.json({ error: 'member not found' }, 404);
-    const priv = privateNow(m);
-    if (priv && (await journalOwner(c)) !== id) return c.json(ownOnly(m.name), 403);
+    const priv = privateLevel(m);
+    if ((await journalAccess(c, id)) < priv) return c.json(ownOnly(m.name), 403);
     const body = c.req.valid('json');
     const now = new Date().toISOString();
-    const row: JournalRow = { id: crypto.randomUUID(), member_id: id, date: body.date ?? (await householdToday(c)), text: body.text, mood: body.mood, private: priv ? 1 : 0, created_at: now, updated_at: now };
+    const row: JournalRow = { id: crypto.randomUUID(), member_id: id, date: body.date ?? (await householdToday(c)), text: body.text, mood: body.mood, private: priv, created_at: now, updated_at: now };
     const s = await sealEntry(c.env, row);
     await c.env.DB.prepare('INSERT INTO journal_entries (id, member_id, date, text, mood, private, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)')
       .bind(s.id, s.member_id, s.date, s.text, s.mood, s.private, s.created_at, s.updated_at).run();
@@ -224,7 +226,7 @@ journalRoutes.openapi(
     if (blocked) return c.json(blocked, 403);
     const found = await findEntry(c, id, entryId);
     if (!found) return c.json({ error: 'entry not found' }, 404);
-    if (found.private && (await journalOwner(c)) !== id) return c.json(ownOnly((await privacyRow(c, id))!.name), 403);
+    if ((await journalAccess(c, id)) < (found.private ?? 0)) return c.json(ownOnly((await privacyRow(c, id))!.name), 403);
     const body = c.req.valid('json');
     const old = await openEntry(c.env, found);
     const s = await sealEntry(c.env, {
@@ -252,7 +254,7 @@ journalRoutes.openapi(
     if (blocked) return c.json(blocked, 403);
     const found = await findEntry(c, id, entryId);
     if (!found) return c.json({ error: 'entry not found' }, 404);
-    if (found.private && (await journalOwner(c)) !== id) return c.json(ownOnly((await privacyRow(c, id))!.name), 403);
+    if ((await journalAccess(c, id)) < (found.private ?? 0)) return c.json(ownOnly((await privacyRow(c, id))!.name), 403);
     await c.env.DB.prepare('DELETE FROM journal_entries WHERE id = ?').bind(entryId).run();
     emit(c, 'journal.changed', { memberId: id, date: found.date, id: entryId });
     return c.body(null, 204);
@@ -309,7 +311,7 @@ journalRoutes.openapi(
     const by = await actorOf(c);
     await db.batch([
       db.prepare('UPDATE members SET journal_private = ?, journal_private_allowed = ? WHERE id = ?').bind(next.journal_private, next.journal_private_allowed ?? 0, id),
-      ...log.flatMap((l) => securityEventStmts(db, { kind: 'journal.privacy', summary: l.title, by })),
+      ...log.flatMap((l) => securityEventStmts(db, { kind: 'journal.privacy', summary: l.title, by, about: id })),
     ]);
     for (const l of log) await recordNotification(c.env.DB, { kind: 'privacy', ...l, url: `/#/journal/${id}`, memberIds: [id], source: 'system' });
     emit(c, 'member.changed', { id });

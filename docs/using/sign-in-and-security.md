@@ -82,6 +82,7 @@ It records:
 * 🔑 passkeys added, renamed and removed, 👋 sign-ins with a passkey and 🚪 sign-outs;
 * 🔐 recovery codes made, and a recovery code used to sign in (with how many are left);
 * 📱 devices paired, and whose device something now is ("Alex's phone now belongs to Alex");
+* 🛡️ who is marked a grown-up, when that changes ("Alex is no longer marked as a grown-up"), since it decides who reads their journal;
 * 🗝️ API keys made and removed (removing a paired device too), and 🧩 a phone's widgets keys added and signed out;
 * 🔌 connected apps approved and disconnected, including when Kinwall disconnected one because its sign-in was used twice;
 * 🔢 the [Night PIN](night.md) set, changed or removed, and 📓 [private journal](journal.md#private-journals) changes;
@@ -89,14 +90,14 @@ It records:
 
 Each line says who did it when that's known: the person whose device it was, or a device's or app's name. A recovery-code sign-in and the setup admin key belong to no one, so they show without a name.
 
-Keys, tokens, codes, PINs and passkey IDs are never stored in it, only the names you gave things. Events are kept for a year, up to the newest 500, and can't be cleared. They're not in the [export](../your-data/export-import.md), webhooks or MCP. API: `GET /api/security-events` (see [REST API](../integrations/rest-api.md#security-activity)).
+Keys, tokens, codes, PINs and passkey IDs are never stored in it, only the names you gave things. Events are kept for a year, up to the newest 500 of each kind (for events about a person, such as whose device something is, the newest 500 about each person), and can't be cleared. So making and removing keys over and over, or re-assigning a device to someone else, can't push out the line that says a device became yours. They're not in the [export](../your-data/export-import.md), webhooks or MCP. API: `GET /api/security-events` (see [REST API](../integrations/rest-api.md#security-activity)).
 
 Security events don't go into the family's [notifications](notifications.md#notification-feed), with two exceptions that go to parents' phones as a push, since you'd want to know right away:
 
 * **🔑 New passkey**: a new way to sign in as a parent. If it wasn't you, remove it.
 * **🔐 Recovery code used to sign in**: the usual sign of someone getting in without a passkey.
 
-And when a device now belongs to someone, or their private journal changes, that person's own devices still get a 🔒 note in their bell, since it's about who can read their journal (a kid can't see Security activity). Only they can remove it, from their own device; Security activity keeps the record.
+And when a device now belongs to someone, their private journal changes, or they're marked a grown-up or no longer one, that person's own devices still get a 🔒 note in their bell, since it's about who can read their journal (a kid can't see Security activity). A grown-up change is also pushed to parents' phones. Only they can remove the note, from a device that was already theirs before it was written: a device that has just been set as theirs can't remove the note about that. Security activity keeps the record.
 
 ## Exposing Kinwall to the internet
 

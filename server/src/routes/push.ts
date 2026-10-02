@@ -304,23 +304,38 @@ pushRoutes.openapi(
 );
 
 // Clearing the feed is household-wide (there's one copy), so admin-only; displays keep their
-// per-device read state. Privacy notes (kind 'privacy': whose device something is, private journal
-// changes) are removed only by the person they're about, from their own device (ownDevice, as in
-// PRIVACY_MINE), so another parent can't clear one before it's seen. Dismissing loses nothing:
-// the same change is in Security activity (routes/security-events.ts), which can't be cleared.
+// per-device read state. Privacy notes (kind 'privacy': whose device something is, who is a
+// grown-up, private journal changes) are removed only by the person they're about, from a device
+// that was already theirs before the note was written (ownDevice, and theirsSince), so another
+// parent can't clear one before it's seen: not from their own device, and not by saying a device
+// is that person's (any full-access device may: PUT /api/me/owner), which is what the note is
+// about. Dismissing loses nothing: the same change is in Security activity
+// (routes/security-events.ts), which can't be cleared.
+const OWNER_SETTLED_MS = 60_000;
+/** The time from which a privacy note may be removed with this request's key: a minute after the
+ * sign-in became its owner's (a passkey's sessions and an app sign-in's keys go by the passkey and
+ * the grant; without owner_since, since it was made). A claim and its note are written together,
+ * whichever comes first, so the minute keeps every note about the claim itself out of reach. */
+async function theirsSince(c: Parameters<typeof ownDevice>[0]): Promise<string> {
+  const row = await c.env.DB.prepare(
+    `SELECT coalesce(p.owner_since, p.created_at, g.owner_since, g.created_at, k.owner_since, k.created_at) AS since
+       FROM api_keys k LEFT JOIN passkeys p ON p.id = k.passkey_id LEFT JOIN oauth_grants g ON g.id = k.oauth_grant_id WHERE k.id = ?`,
+  ).bind((await requestKey(c))?.id ?? '').first<{ since: string }>();
+  return row ? new Date(Date.parse(row.since) + OWNER_SETTLED_MS).toISOString() : '9999';
+}
 pushRoutes.openapi(
   createRoute({
     method: 'delete',
     path: '/api/notifications',
     tags: ['Push'],
-    summary: "Clear the in-app notification feed (admin only); privacy notes only when they're about this device's owner",
+    summary: "Clear the in-app notification feed (admin only); privacy notes only when they're about this device's owner and it was already theirs before the note",
     security: [{ Bearer: [] }],
     responses: { 200: { description: 'ok', content: { 'application/json': { schema: z.object({ ok: z.literal(true), deleted: z.number() }) } } }, 403: { description: 'not admin', content: { 'application/json': { schema: ErrorSchema } } } },
   }),
   async (c) => {
     const resolved = await resolveKey(c);
     if (resolved?.scope !== 'admin') return c.json({ error: 'Admin key required' }, 403);
-    const r = await c.env.DB.prepare(`DELETE FROM notifications WHERE 1${PRIVACY_MINE}`).bind((await ownDevice(c)) ?? '').run();
+    const r = await c.env.DB.prepare(`DELETE FROM notifications WHERE (kind != 'privacy' OR at >= ?)${PRIVACY_MINE}`).bind(await theirsSince(c), (await ownDevice(c)) ?? '').run();
     return c.json({ ok: true as const, deleted: r.meta?.changes ?? 0 }, 200);
   },
 );
@@ -330,7 +345,7 @@ pushRoutes.openapi(
     method: 'delete',
     path: '/api/notifications/{id}',
     tags: ['Push'],
-    summary: "Remove one notification from the feed (admin only; a privacy note only from the device of the person it's about)",
+    summary: "Remove one notification from the feed (admin only; a privacy note only from a device of the person it's about that was already theirs before the note)",
     security: [{ Bearer: [] }],
     request: { params: z.object({ id: z.string() }) },
     responses: { 200: { description: 'ok', content: { 'application/json': { schema: z.object({ ok: z.literal(true) }) } } }, 403: { description: 'not admin', content: { 'application/json': { schema: ErrorSchema } } }, 404: { description: 'no such notification', content: { 'application/json': { schema: ErrorSchema } } } },
@@ -340,10 +355,10 @@ pushRoutes.openapi(
     const mine = await ownDevice(c);
     if (!admin && !mine) return c.json({ error: 'Admin key required' }, 403);
     const id = c.req.valid('param').id;
-    const row = await c.env.DB.prepare('SELECT kind, member_ids FROM notifications WHERE id = ?').bind(id).first<{ kind: string; member_ids: string }>();
+    const row = await c.env.DB.prepare('SELECT kind, member_ids, at FROM notifications WHERE id = ?').bind(id).first<{ kind: string; member_ids: string; at: string }>();
     if (!row) return c.json({ error: 'Not found' }, 404);
-    if (row.kind === 'privacy' ? !mine || !parseMemberIds(row.member_ids).includes(mine) : !admin) {
-      return c.json({ error: row.kind === 'privacy' ? 'Only the person this note is about can remove it, from their own device.' : 'Admin key required' }, 403);
+    if (row.kind === 'privacy' ? !mine || !parseMemberIds(row.member_ids).includes(mine) || row.at < (await theirsSince(c)) : !admin) {
+      return c.json({ error: row.kind === 'privacy' ? 'Only the person this note is about can remove it, from a device that was already theirs.' : 'Admin key required' }, 403);
     }
     await c.env.DB.prepare('DELETE FROM notifications WHERE id = ?').bind(id).run();
     return c.json({ ok: true as const }, 200);

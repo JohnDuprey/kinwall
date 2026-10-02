@@ -125,9 +125,9 @@ Feature switches on `PATCH /api/settings` are sent as the complete `features` ob
 
 * `limit`: 1 to 100, 20 by default. `before`: an event's `id`, for the page after it.
 * `q`: only events whose `summary`, `device`, or who did it (a member's name, or a device's or app's name) contains it, ignoring case. `kinds`: only these kinds, comma-separated (`kinds=signin.passkey,signin.recovery,signout`); an unknown kind gets 400. Both work with `before`, so a search pages through the whole log.
-* `kind`: `passkey.added`, `passkey.renamed`, `passkey.removed`, `signin.passkey`, `signin.recovery`, `signout`, `recovery.generated`, `device.paired`, `device.owner`, `key.created`, `key.removed`, `widgets.added`, `widgets.removed`, `app.connected`, `app.disconnected`, `pin.set`, `pin.removed`, `journal.privacy`, or `support.link_issued`, `support.link_revoked` and `support.signin` (written by a host whose support can sign in to help). New kinds may be added; show `summary` for any you don't know.
+* `kind`: `passkey.added`, `passkey.renamed`, `passkey.removed`, `signin.passkey`, `signin.recovery`, `signout`, `recovery.generated`, `device.paired`, `device.owner`, `key.created`, `key.removed`, `widgets.added`, `widgets.removed`, `app.connected`, `app.disconnected`, `pin.set`, `pin.removed`, `journal.privacy`, `member.grown_up`, or `support.link_issued`, `support.link_revoked` and `support.signin` (written by a host whose support can sign in to help). New kinds may be added; show `summary` for any you don't know.
 * `summary`: what happened, in plain words (`Passkey "iPhone" added`). `by`: `{ memberId, label }` (a member, or a device's or app's name), or `null` when nobody is known (the setup key, a recovery code). `device`: the name of the passkey, key, device or app. `detail`: a few extras, like `{ remaining: 7 }` on a recovery-code sign-in.
-* Never holds keys, tokens, codes, PINs or credential IDs. Kept a year, up to the newest 500.
+* Never holds keys, tokens, codes, PINs or credential IDs. Kept a year, up to the newest 500 of each kind (for events about a member, the newest 500 about each member), so a flood of one kind can't push out another.
 * Not sent to webhooks, not in MCP, and not in the [export](../your-data/export-import.md).
 
 ## Night screen

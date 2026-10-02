@@ -63,7 +63,8 @@ keysRoutes.openapi(
 // can never re-assign itself; the device reads both from GET /api/me. The kind and owner must fit
 // (auth.ts deviceKindOwner); older clients send only an owner and the kind follows it. A
 // full-access key (a parent's phone or browser) belongs only to a grown-up: it then reads their
-// private journal. A device that now belongs to someone leaves a line in the family's feed.
+// private journal. A device that now belongs to someone leaves a line in Security activity and a
+// privacy note for them, which that device can't remove (owner_since, routes/push.ts).
 keysRoutes.openapi(
   createRoute({
     method: 'patch',
@@ -94,7 +95,7 @@ keysRoutes.openapi(
     const db = c.env.DB;
     const changed = owner !== before.owner || kind !== before.device_kind;
     await db.batch([
-      db.prepare('UPDATE api_keys SET owner = ?, device_kind = ? WHERE id = ?').bind(owner, kind, id),
+      db.prepare('UPDATE api_keys SET owner = ?, device_kind = ?, owner_since = coalesce(?, owner_since) WHERE id = ?').bind(owner, kind, owner !== before.owner ? new Date().toISOString() : null, id),
       ...(changed ? securityEventStmts(db, await deviceOwnerEvent(db, before.name, owner, kind, await actorOf(c))) : []),
     ]);
     const row = { ...before, owner, device_kind: kind };

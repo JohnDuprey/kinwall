@@ -185,7 +185,8 @@ test('export leaves private words out (mood kept); importing it never overwrites
 
 test('admin devices get an owner: only a grown-up; never the recovery session or a connected app; logged', async (t) => {
   t.after(() => mock.timers.reset());
-  const { db, req, alex, leo, feed, security } = await setup();
+  const { db, req, alex, leo, alexPhone: alexOld, feed, security } = await setup();
+  mock.timers.tick(5 * 60_000); // Alex's phone has been Alex's for a while
   const k = (await req('/api/keys', 'POST', { name: 'Tablet', scope: 'admin' })).json;
   assert.equal((await req(`/api/keys/${k.id}`, 'PATCH', { owner: leo.id })).status, 400, 'a full-access device belongs to a grown-up');
 
@@ -202,7 +203,10 @@ test('admin devices get an owner: only a grown-up; never the recovery session or
   assert.equal((await req(`/api/notifications/${line.id}`, 'DELETE')).status, 403, 'an admin key with no owner can\'t remove it');
   await req('/api/notifications', 'DELETE');
   assert.ok((await feed(session)).some((n: any) => n.id === line.id), 'or clear it');
-  assert.equal((await req(`/api/notifications/${line.id}`, 'DELETE', undefined, session)).status, 200, 'Alex can, from Alex\'s own device');
+  assert.equal((await req(`/api/notifications/${line.id}`, 'DELETE', undefined, session)).status, 403, "not the sign-in the note is about: it wasn't Alex's before");
+  await req('/api/notifications', 'DELETE', undefined, session);
+  assert.ok((await feed(session)).some((n: any) => n.id === line.id), 'or clear it');
+  assert.equal((await req(`/api/notifications/${line.id}`, 'DELETE', undefined, alexOld)).status, 200, 'Alex can, from a device that was already Alex\'s');
   assert.ok(!(await feed(session)).some((n: any) => n.id === line.id));
   assert.ok((await security()).some((e) => e.kind === 'device.owner' && e.summary.includes('now belongs to Alex')), 'the security log keeps it');
 
@@ -219,7 +223,7 @@ test('admin devices get an owner: only a grown-up; never the recovery session or
   assert.equal(entries((await req(jr(alex.id), 'GET', undefined, sneaky)).json)[0].text, null);
 });
 
-test("migration 0063: grown-ups' existing entries become private, kids' stay as they were", async () => {
+test("migrations 0063 and 0086: grown-ups' existing entries become private to their full-access devices, kids' stay as they were", async () => {
   const dir = mkdtempSync(path.join(tmpdir(), 'kw-mig-'));
   for (const f of readdirSync(MIGRATIONS).filter((f) => f < '0063')) copyFileSync(path.join(MIGRATIONS, f), path.join(dir, f));
   const db = openDb(':memory:');
@@ -229,7 +233,7 @@ test("migration 0063: grown-ups' existing entries become private, kids' stay as 
   db.prepare("INSERT INTO journal_entries (id, member_id, date, text, mood, created_at, updated_at) VALUES ('ea', 'a', '2026-09-01', 'x', NULL, ?, ?), ('el', 'l', '2026-09-01', 'x', NULL, ?, ?)").bind(now, now, now, now).run();
   applyMigrations(db, MIGRATIONS);
   const rows = db.prepare('SELECT id, private FROM journal_entries ORDER BY id').all<{ id: string; private: number }>().results;
-  assert.deepEqual(rows.map((r) => [r.id, r.private]), [['ea', 1], ['el', 0]]);
+  assert.deepEqual(rows.map((r) => [r.id, r.private]), [['ea', 2], ['el', 0]]);
 });
 
 test("a paired device (everyday access) never opens a grown-up's private journal, even one paired as theirs before", async (t) => {

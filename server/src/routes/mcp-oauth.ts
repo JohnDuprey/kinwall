@@ -368,7 +368,8 @@ mcpOAuthRoutes.patch('/api/authorizations/:id', async (c) => {
   if (!owner) return c.json({ error: everyday ? `Everyday access is for a kid or the whole family. ${GROWN_UP_PAIRING}` : 'unknown family member' }, 400);
   if (grant.owner !== owner) await recordDeviceOwner(c.env.DB, grant.name, owner); // it may open their private journal
   await c.env.DB.batch([
-    c.env.DB.prepare('UPDATE oauth_grants SET owner = ? WHERE id = ?').bind(owner, id),
+    // owner_since: theirs from now, so it can't remove the note about that (routes/push.ts)
+    c.env.DB.prepare('UPDATE oauth_grants SET owner = ?, owner_since = coalesce(?, owner_since) WHERE id = ?').bind(owner, grant.owner !== owner ? new Date().toISOString() : null, id),
     c.env.DB.prepare('UPDATE api_keys SET owner = ? WHERE oauth_grant_id = ?').bind(owner, id),
     ...(grant.owner !== owner ? securityEventStmts(c.env.DB, await deviceOwnerEvent(c.env.DB, grant.name, owner, null, await actorOf(c))) : []),
   ]);

@@ -215,7 +215,7 @@ test('security activity: a connected app (even with full access) gets 403', asyn
   assert.equal((await req('/api/security-events', 'GET', undefined, tok.access_token)).status, 403);
 });
 
-test('security activity: kept a year, and the newest 500', async () => {
+test('security activity: kept a year, and the newest 500 of each kind', async () => {
   const { db } = setup();
   await db.prepare("INSERT INTO security_events (id, at, kind, summary) VALUES ('old', '2020-01-01T00:00:00.000Z', 'pin.set', 'old')").run();
   for (let i = 0; i < SECURITY_KEEP + 5; i++) await recordSecurityEvent(db as any, { kind: 'pin.set', summary: `n${i}` });
@@ -223,6 +223,8 @@ test('security activity: kept a year, and the newest 500', async () => {
   assert.equal(rows.length, SECURITY_KEEP);
   assert.ok(!rows.includes('old'), 'older than a year');
   assert.ok(rows.includes(`n${SECURITY_KEEP + 4}`) && !rows.includes('n0'), 'the newest stay');
+  for (let i = 0; i < 5; i++) await recordSecurityEvent(db as any, { kind: 'pin.removed', summary: `r${i}` });
+  assert.equal((db.prepare('SELECT COUNT(*) AS n FROM security_events').first() as { n: number }).n, SECURITY_KEEP + 5, "another kind doesn't push them out");
 });
 
 test('a new passkey and a recovery-code sign-in push to parent devices only, not the feed', async () => {
