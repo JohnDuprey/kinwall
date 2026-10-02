@@ -2,7 +2,7 @@
 import type { Actor, OnlineTidbits, Plugin, PluginCatalogEntry,
   Account, ApiKey, AppNotification, SecurityEvent, CalendarEntry, Category, Chore, ChoreDay, LibraryChore, LibraryChoreInput, EventInstance, HiddenEvent, LeaderboardEntry, LeaderboardPeriod, List, ListGroup,
   Newscast, NewscastItem, NewscastPostInput, NewscastReaction,
-  Photo, PhotoQuota, FamilyColoringPage, GooglePhotos, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, BookResult, ListItem, ListItemInput, ListItemPatch, ListItemStep, ListCatalog, Member, RememberedItem, RememberedItemInput, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption, TempCheck, TempCheckInput, Journal, JournalEntry, Insights, InsightDay, InsightRange, Battery, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory, DoseStatus, MedTime,
+  Photo, PhotoQuota, FamilyColoringPage, GooglePhotos, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, BookResult, BarcodeLookup, ListItem, ListItemInput, ListItemPatch, ListItemStep, ListCatalog, Member, RememberedItem, RememberedItemInput, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption, TempCheck, TempCheckInput, Journal, JournalEntry, Insights, InsightDay, InsightRange, Battery, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory, DoseStatus, MedTime,
 } from './types.ts'
 import { eveningPending, FEELINGS, lastNightDate, TEMP_CHECK_OFF } from './tempCheck.ts'
 import { aisleOrderMap, compareItems } from './types.ts'
@@ -1345,8 +1345,12 @@ export const mock = {
     const i = lists.findIndex(x => x.id === id); if (i >= 0) lists.splice(i, 1)
     listItems = listItems.filter(x => x.listId !== id); bump()
   },
+  // Demo scanning: the family's names learned from adds, else a few products standing in for Open Food Facts.
+  lookupBarcode: async (_listId: string, code: string): Promise<BarcodeLookup | null> =>
+    demoBarcodes.has(code) ? { title: demoBarcodes.get(code)!, source: 'family' } : DEMO_PRODUCTS[code] ? { title: DEMO_PRODUCTS[code], source: 'openfoodfacts' } : null,
   addListItems: async (listId: string, body: ListItemInput | ListItemInput[]): Promise<ListItem[]> => {
     const inputs = Array.isArray(body) ? body : [body]
+    for (const input of inputs) if (input.barcode) demoBarcodes.set(input.barcode, input.title.trim())
     const maxSort = Math.max(-1, ...listItems.filter(i => i.listId === listId).map(i => i.sort))
     const created = inputs.map((input, idx) => {
       // "remembers where things go" (shopping lists): omitted store/category/aisle (undefined) come
@@ -1532,6 +1536,9 @@ export const mock = {
   updateWebhook: async (id: string, patch: Partial<Webhook>) => ({ id, url: patch.url ?? '', events: patch.events ?? [], enabled: patch.enabled ?? true, createdAt: new Date().toISOString() }),
   deleteWebhook: async (id: string) => { webhooks = webhooks.filter(h => h.id !== id) },
 }
+
+const DEMO_PRODUCTS: Record<string, string> = { '0016000275287': 'Honey Nut Cheerios', '0041196910759': 'Organic Whole Milk' }
+const demoBarcodes = new Map<string, string>()
 
 const DEMO_BOOKS: (BookResult & { isbn?: string })[] = [
   { title: "Charlotte's Web", author: 'E. B. White', year: 1952, pages: 184, isbn: '9780064400558', coverUrl: 'https://picsum.photos/seed/kinwall-charlotte/120/180' },

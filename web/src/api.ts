@@ -12,7 +12,7 @@ import type { Contact, ContactCategory, ContactInput, ImportPreviewEntry } from 
 import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginCatalogEntry,
   StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota, FamilyColoringPage, GooglePhotos, Reward, Redemption, MemberStats, StatsPeriod,
   Account, ApiKey, AppNotification, Appearance, CalendarEntry, Category, Chore, ChoreDay, LibraryChore, LibraryChoreInput, PendingApproval, EventInstance, LeaderboardEntry, LeaderboardPeriod, List,
-  BookResult, GeocodeResult, HiddenEvent, HostEvent, ImportResult, SecurityEvent, ListDetail, ListGroup, ListItem, ListItemInput, ListItemPatch, Member, Me, Note, NoteTarget, Passkey, TrackerEntry, TrackerInput, TrackerKind, Providers, PushSubscription, PushSubscriptionPrefs, RemoteCalendar, Settings, Snapshot, Board, Webhook, WebhookWithSecret,
+  BarcodeLookup, BookResult, GeocodeResult, HiddenEvent, HostEvent, ImportResult, SecurityEvent, ListDetail, ListGroup, ListItem, ListItemInput, ListItemPatch, Member, Me, Note, NoteTarget, Passkey, TrackerEntry, TrackerInput, TrackerKind, Providers, PushSubscription, PushSubscriptionPrefs, RemoteCalendar, Settings, Snapshot, Board, Webhook, WebhookWithSecret,
   Newscast, NewscastItem, NewscastPostInput, NewscastReaction,
   TempCheck, TempCheckInput, Journal, JournalEntry, JournalPrivacy, Insights, InsightRange, Battery, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory, RememberedItem, RememberedItemInput, ListCatalog,
 } from './types.ts'
@@ -570,6 +570,9 @@ export const api = {
   // Offline-capable versions for the Lists and Chores tabs: each resolves at once with the queued
   // change (apply it with applyListOps for an instant UI); the demo runs its mock and gets null.
   // Idempotent on replay: a client-made id for a new item, "done: true/false" rather than a toggle.
+  // A scanned product's name for a shopping list; null when nobody knows it. Not cached: the family's names change.
+  lookupBarcode: (listId: string, code: string): Promise<BarcodeLookup | null> => MOCK ? mock.lookupBarcode(listId, code)
+    : req<BarcodeLookup>(`api/lists/${listId}/barcodes/${code}`).catch((e: unknown) => { if (e instanceof ApiError && e.status === 404) return null; throw e }),
   queueAddListItem: async (listId: string, input: ListItemInput): Promise<Op | null> =>
     MOCK ? (await mock.addListItems(listId, input), null) : queue('POST', `api/lists/${listId}/items`, { ...input, id: crypto.randomUUID() }),
   queueUpdateListItem: async (listId: string, itemId: string, body: ListItemPatch): Promise<Op | null> =>

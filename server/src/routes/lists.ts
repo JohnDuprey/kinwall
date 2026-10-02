@@ -8,8 +8,10 @@ import { notifyListUpdate } from '../notify.ts';
 import { parseMemberIds, resolveMemberIds } from '../calendar-members.ts';
 import { actorOf, deviceOwner, eventWriteBlock, ownerBlock, requestKey, type Actor } from '../auth.ts';
 import type { Context } from 'hono';
-import { SUGGESTION_CAP, catalog, catalogWrites, filterCatalog, fillPlace, itemKey, listCatalog, nameSuggestions, recall, rememberName, rememberPlace, tagsInput, type Catalog, type CatalogEdit, type CatalogItem } from '../item-memory.ts';
+import { checkRate } from '../ratelimit.ts';
+import { SUGGESTION_CAP, catalog, catalogWrites, filterCatalog, fillPlace, itemKey, listCatalog, nameSuggestions, recall, recallBarcode, rememberBarcode, rememberName, rememberPlace, tagsInput, type Catalog, type CatalogEdit, type CatalogItem } from '../item-memory.ts';
 import {
+  BarcodeSchema,
   ErrorSchema,
   ListDetailSchema,
   ListGroupSchema,
@@ -895,6 +897,7 @@ listsRoutes.openapi(
         ),
         ...(teach ? rows.map((r) => rememberPlace(c.env.DB, list.catalog, r.title, r, now)).filter((st) => st !== null) : []),
         ...(teach ? rows.map((r) => rememberName(c.env.DB, list.catalog, r.title, now)) : []),
+        ...(teach ? rows.flatMap((r, i) => (adding[i].barcode ? [rememberBarcode(c.env.DB, list.catalog, adding[i].barcode!, r.title, now)] : [])) : []),
       ]);
       emit(c, 'list.item.changed', { listId: id, ids: [...rows.map((r) => r.id), ...reopened] });
       let execCtx: Parameters<typeof notifyListUpdate>[1];
@@ -914,6 +917,48 @@ listsRoutes.openapi(
       return toItemApi(r, stepsByItem.get(r.id));
     }));
     return c.json(out, 201);
+  },
+);
+
+// Scanning a product (the app's camera, web/src/native.ts scanBarcode): the family's own name for it
+// in this list's catalog, else Open Food Facts (free and keyless; only the barcode is sent). Adding
+// the item with `barcode` teaches the family's name for next time.
+const OFF_USER_AGENT = 'Kinwall/1.0 (https://kinwall.family; self-hosted family calendar)'; // Open Food Facts asks apps to name themselves
+listsRoutes.openapi(
+  createRoute({
+    method: 'get',
+    path: '/api/lists/{id}/barcodes/{code}',
+    tags: ['Lists'],
+    summary: "A scanned product's item name for this shopping list: what the family called it last time (source family), else Open Food Facts (source openfoodfacts). Add it with `barcode` to remember the name.",
+    security: [{ Bearer: [] }],
+    request: { params: z.object({ id: z.string(), code: BarcodeSchema }) },
+    responses: {
+      200: { description: 'found', content: { 'application/json': { schema: z.object({ title: z.string(), source: z.enum(['family', 'openfoodfacts']) }).openapi('BarcodeLookup') } } },
+      400: { description: 'not a shopping list, or not a barcode', content: { 'application/json': { schema: ErrorSchema } } },
+      404: { description: 'no such list, or nobody knows this product', content: { 'application/json': { schema: ErrorSchema } } },
+      429: { description: 'too many lookups', content: { 'application/json': { schema: ErrorSchema } } },
+      502: { description: 'Open Food Facts is unavailable', content: { 'application/json': { schema: ErrorSchema } } },
+    },
+  }),
+  async (c) => {
+    const { id, code } = c.req.valid('param');
+    const list = await c.env.DB.prepare("SELECT kind, coalesce(catalog, 'groceries') AS catalog FROM lists WHERE id = ?").bind(id).first<{ kind: ListRow['kind']; catalog: Catalog }>();
+    if (!list) return c.json({ error: 'not found' }, 404);
+    if (list.kind !== 'shopping') return c.json({ error: 'Only shopping lists scan products' }, 400);
+    const known = await recallBarcode(c.env.DB, list.catalog, code);
+    if (known) return c.json({ title: known, source: 'family' as const }, 200);
+    if (!(await checkRate(c.env.DB, 'barcodes', 30, 60_000))) return c.json({ error: 'Too many scans - try again in a minute' }, 429);
+    try {
+      const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${code}.json?fields=product_name,product_name_en,generic_name,brands`, { headers: { 'User-Agent': OFF_USER_AGENT, Accept: 'application/json' }, signal: AbortSignal.timeout(8000) });
+      if (res.status === 404) return c.json({ error: 'Product not found' }, 404);
+      if (!res.ok) throw new Error(`Open Food Facts answered ${res.status}`);
+      const { status, product } = (await res.json()) as { status?: number; product?: { product_name?: string; product_name_en?: string; generic_name?: string; brands?: string } };
+      const title = status === 1 && product ? [product.product_name, product.product_name_en, product.generic_name, product.brands?.split(',')[0]].map((s) => s?.trim()).find(Boolean) : undefined;
+      return title ? c.json({ title: title.slice(0, 200), source: 'openfoodfacts' as const }, 200) : c.json({ error: 'Product not found' }, 404);
+    } catch (err) {
+      console.error('barcode lookup failed', err instanceof Error ? err.message : err);
+      return c.json({ error: 'Product lookup is unavailable right now' }, 502);
+    }
   },
 );
 

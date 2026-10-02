@@ -721,6 +721,7 @@ export const ListItemSchema = z
   })
   .openapi('ListItem');
 
+export const BarcodeSchema = z.string().regex(/^\d{8,14}$/, 'must be 8 to 14 digits (EAN or UPC)');
 const ListItemInputSchema = z.object({
   // Optional client-made id (a UUID): an app that adds items offline replays the add without duplicating it.
   id: z.string().uuid().optional(),
@@ -735,6 +736,8 @@ const ListItemInputSchema = z.object({
   eventId: z.string().nullable().optional(),
   priority: ListItemPrioritySchema.optional(),
   steps: z.array(StepTitleSchema).max(100).optional(), // step titles, in order
+  // Scanned (shopping lists): remembered as this item's name for the barcode, not stored on the item.
+  barcode: BarcodeSchema.optional(),
 });
 
 // POST /api/lists/:id/items accepts a single item or an array (always returns an array).

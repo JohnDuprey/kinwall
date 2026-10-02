@@ -85,6 +85,7 @@ import m0081 from '../migrations/0081_newscast.sql';
 import m0082 from '../migrations/0082_chore_library.sql';
 import m0083 from '../migrations/0083_coloring_pages.sql';
 import m0084 from '../migrations/0084_pin_sage_scheme.sql';
+import m0085 from '../migrations/0085_item_barcodes.sql';
 
 export const MIGRATIONS: Migration[] = [
   { name: '0001_init.sql', sql: m0001 },
@@ -171,4 +172,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0082_chore_library.sql', sql: m0082 },
   { name: '0083_coloring_pages.sql', sql: m0083 },
   { name: '0084_pin_sage_scheme.sql', sql: m0084 },
+  { name: '0085_item_barcodes.sql', sql: m0085 },
 ];

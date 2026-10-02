@@ -24,7 +24,7 @@ import { aisleAt, ANY_STORE, anyStoreView, departmentAisle, setShoppingModeList,
 import { hashPath, hashQuery } from './hashQuery.ts'
 import { holdAwake } from './wakeLock.ts'
 import { shoppingActivity } from './liveActivity.ts'
-import { endAppActivity, tellAppActivity } from './native.ts'
+import { appBarcodeScanner, endAppActivity, scanBarcode, tellAppActivity } from './native.ts'
 import { itemKey, matchItems } from './itemSuggest.ts'
 import { SWIPE_REVEAL, swipeAxis, swipeEnd, swipeOffset } from './swipe.ts'
 import { canChangeItem, listSections, listType, reorderWithin, TYPE_LABEL, typeFields, type ListType } from './listSections.ts'
@@ -1423,6 +1423,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   const [showDone, setShowDone] = useState(false)
   const [selectedStore, setSelectedStore] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
+  const [scanned, setScanned] = useState<string | null>(null) // a barcode waiting for its name in the add field
   const inputRef = useRef<HTMLInputElement>(null)
   const { upcoming, byId } = useEventWindow(refreshTick)
 
@@ -1555,14 +1556,42 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   // offline. A refresh after they sync clears their pending mark (App bumps refreshTick).
   const showQueued = (op: Op | null) => { if (op) setDetail(d => d && applyListOps(d, [op])); else load() }
 
-  const addItem = async (text = draft) => {
+  const addItem = async (text = draft, barcode = scanned) => {
     const title = text.trim()
     if (!title) return
-    setDraft('')
-    try { showQueued(await api.queueAddListItem(listId, { title })) }
+    setDraft(''); setScanned(null)
+    try { showQueued(await api.queueAddListItem(listId, { title, ...(barcode ? { barcode } : {}) })) }
     catch (e) { toast(e instanceof ApiError ? e.message : 'Could not add item', true) }
     inputRef.current?.focus() // keep the keyboard open for the next item
   }
+  const editDraft = (v: string) => { setDraft(v); if (!v.trim()) setScanned(null) }
+
+  // The app's camera (shopping lists): a product the family has added before goes straight on the
+  // list under their name; anything else lands in the add field to check (or type), and adding it
+  // teaches the name for the next scan.
+  const scan = async () => {
+    const code = await scanBarcode()
+    if (!code) return
+    let found = null
+    try { found = await api.lookupBarcode(listId, code) }
+    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not look that up', true) }
+    if (found?.source === 'family') {
+      if (detail?.items.some(i => !i.done && itemKey(i.title) === itemKey(found.title))) {
+        toast(`${found.title} is already on the list`); announce(`${found.title} is already on the list`)
+        return
+      }
+      await addItem(found.title, code)
+      toast(`Added: ${found.title}`); announce(`Added ${found.title}`)
+      return
+    }
+    setAdding(true); setScanned(code); setDraft(found?.title ?? '')
+    const say = found ? `Found ${found.title}. Check the name, then add it.` : "Not found. Type its name and it'll be remembered next time."
+    toast(say); announce(say)
+    setTimeout(() => inputRef.current?.focus())
+  }
+  const scanBtn = detail?.list.kind === 'shopping' && appBarcodeScanner() && (
+    <button className="icon-btn list-scan-btn" onClick={scan} aria-label="Scan a barcode"><span aria-hidden="true">📷</span></button>
+  )
 
   // A drag reorders one group's rows; slot them back into the positions that group held in the whole
   // list, so other groups (and done items) keep their places. Shown immediately, then saved.
@@ -1743,9 +1772,10 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
         <div className="shop-dock">
           {adding && (
             <div className="list-add-bar shop-add">
-              <ItemAddField id={`shop-add-${listId}`} value={draft} onChange={setDraft} onAdd={addItem} suggestions={suggestions.items} onList={onList} inputRef={inputRef}
+              <ItemAddField id={`shop-add-${listId}`} value={draft} onChange={editDraft} onAdd={addItem} suggestions={suggestions.items} onList={onList} inputRef={inputRef}
                 above buyAgain autoFocus label={`Add to ${list.name}`} placeholder="Add an item…" onEscape={e => { e.stopPropagation(); setAdding(false) }} />
               <button className="icon-btn" onClick={() => addItem()} disabled={!draft.trim()} aria-label="Add item"><PlusIcon width={20} height={20} /></button>
+              {scanBtn}
             </div>
           )}
           <div className="shop-dock-row">
@@ -1799,9 +1829,10 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
       </div>
 
       <div className="list-add-bar">
-        <ItemAddField id={`list-add-${listId}`} value={draft} onChange={setDraft} onAdd={addItem} suggestions={suggestions.items} onList={onList} inputRef={inputRef}
+        <ItemAddField id={`list-add-${listId}`} value={draft} onChange={editDraft} onAdd={addItem} suggestions={suggestions.items} onList={onList} inputRef={inputRef}
           label={`Add to ${list.name}`} placeholder={list.kind === 'shopping' ? 'Add an item…' : 'Add something…'} />
         <button className="icon-btn" onClick={() => addItem()} disabled={!draft.trim()} aria-label="Add item"><PlusIcon width={20} height={20} /></button>
+        {scanBtn}
         {list.kind !== 'shopping' && items.length > 0 && viewButton /* no Shop button to share a row with */}
       </div>
 

@@ -77,6 +77,18 @@ export function rememberPlace(db: KinwallDb, catalog: Catalog, title: string, pl
 
 /** Remember an item's name for autocomplete (migration 0041): its spelling, and one more use when
  * added (uses 0 for a rename). Goes in the same batch as the add. */
+/** The family's own name for a product barcode in this catalog (migration 0085), else null. */
+export async function recallBarcode(db: KinwallDb, catalog: Catalog, barcode: string): Promise<string | null> {
+  return (await db.prepare('SELECT title FROM item_barcodes WHERE catalog = ? AND barcode = ?').bind(catalog, barcode).first<{ title: string }>())?.title ?? null;
+}
+
+/** A scanned item was added as `title`: the next scan of that barcode suggests it. */
+export function rememberBarcode(db: KinwallDb, catalog: Catalog, barcode: string, title: string, now: string): KinwallStatement {
+  return db
+    .prepare('INSERT INTO item_barcodes (catalog, barcode, title, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(catalog, barcode) DO UPDATE SET title = excluded.title, updated_at = excluded.updated_at')
+    .bind(catalog, barcode, title.trim(), now);
+}
+
 export function rememberName(db: KinwallDb, catalog: Catalog, title: string, now: string, uses = 1): KinwallStatement {
   return db
     .prepare(

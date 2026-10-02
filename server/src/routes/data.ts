@@ -175,6 +175,8 @@ const ExportSchema = z
     storeAisles: z.array(z.object({ store: z.string(), aisles: z.array(z.string()) })),
     // Names to autocomplete on shopping lists (0041): the spelling last used and how often.
     itemNames: z.array(z.object({ catalog: z.enum(CATALOGS).optional(), nameKey: z.string(), title: z.string(), uses: z.number(), lastUsed: z.string() })),
+    // A scanned product's name, per catalog (migration 0085).
+    itemBarcodes: z.array(z.object({ catalog: z.enum(CATALOGS), barcode: z.string().regex(/^\d{8,14}$/), title: z.string().min(1), updatedAt: z.string() })),
     // Grocery catalog categories (0070): the family's own groupings per item name, in order.
     itemTags: z.array(z.object({ catalog: z.enum(CATALOGS).optional(), nameKey: z.string(), tag: z.string() })),
     passkeys: z.array(z.object({ name: z.string(), createdAt: z.string() })),
@@ -372,6 +374,8 @@ dataRoutes.openapi(
           .map((r) => ({ catalog: r.catalog, nameKey: r.name_key, store: r.store, category: r.category, aisle: r.aisle, updatedAt: r.updated_at })),
         itemNames: (await db.prepare('SELECT catalog, name_key, title, uses, last_used FROM item_names ORDER BY catalog, name_key').all<{ catalog: Catalog; name_key: string; title: string; uses: number; last_used: string }>()).results
           .map((r) => ({ catalog: r.catalog, nameKey: r.name_key, title: r.title, uses: r.uses, lastUsed: r.last_used })),
+        itemBarcodes: (await db.prepare('SELECT catalog, barcode, title, updated_at FROM item_barcodes ORDER BY catalog, barcode').all<{ catalog: Catalog; barcode: string; title: string; updated_at: string }>()).results
+          .map((r) => ({ catalog: r.catalog, barcode: r.barcode, title: r.title, updatedAt: r.updated_at })),
         itemTags: (await db.prepare('SELECT catalog, name_key, tag FROM item_tags ORDER BY catalog, name_key, sort').all<{ catalog: Catalog; name_key: string; tag: string }>()).results
           .map((r) => ({ catalog: r.catalog, nameKey: r.name_key, tag: r.tag })),
         storeAisles: (await db.prepare('SELECT store, aisle FROM store_aisles ORDER BY store, sort').all<{ store: string; aisle: string }>()).results
@@ -424,6 +428,7 @@ const ImportSchema = ExportSchema.extend({
   itemMemory: ExportSchema.shape.itemMemory.default([]),
   storeAisles: ExportSchema.shape.storeAisles.default([]),
   itemNames: ExportSchema.shape.itemNames.default([]),
+  itemBarcodes: ExportSchema.shape.itemBarcodes.default([]),
   itemTags: ExportSchema.shape.itemTags.default([]),
 }).openapi('Import');
 
@@ -466,6 +471,7 @@ const ImportResultSchema = z
       itemMemory: z.number(),
       storeAisles: z.number(),
       itemNames: z.number(),
+      itemBarcodes: z.number(),
       itemTags: z.number(),
     }),
     // Synced calendars waiting to be reconnected (imported placeholders, from this or an earlier import).
@@ -934,6 +940,7 @@ dataRoutes.openapi(
       // A store's aisle order in the file replaces this instance's order for that store.
       db.prepare('DELETE FROM store_aisles WHERE store IN (SELECT value FROM json_each(?))').bind(JSON.stringify(body.storeAisles.map((a) => a.store))),
       ...upserts(db, 'store_aisles', 'store, aisle', body.storeAisles.flatMap((a) => [...new Set(a.aisles)].map((aisle, sort) => ({ store: a.store, aisle, sort })))),
+      ...upserts(db, 'item_barcodes', 'catalog, barcode', body.itemBarcodes.map((b) => ({ catalog: b.catalog, barcode: b.barcode, title: b.title, updated_at: b.updatedAt })), { where: 'excluded.updated_at > item_barcodes.updated_at' }),
       ...upserts(db, 'item_names', 'catalog, name_key', catalogs.rows(body.itemNames).map((n) => ({ catalog: n.catalog, name_key: n.nameKey, title: n.title, uses: n.uses, last_used: n.lastUsed })), { where: 'excluded.last_used > item_names.last_used' }),
       // An item's categories in the file are added to the ones it has here, in the file's order after them.
       ...upserts(db, 'item_tags', 'catalog, name_key, tag', catalogs.rows(body.itemTags).map((t, n) => ({ catalog: t.catalog, name_key: t.nameKey, tag: t.tag, sort: 1000 + n }))),
@@ -1002,6 +1009,7 @@ dataRoutes.openapi(
           itemMemory: body.itemMemory.length,
           storeAisles: body.storeAisles.length,
           itemNames: body.itemNames.length,
+          itemBarcodes: body.itemBarcodes.length,
           itemTags: body.itemTags.length,
         },
         needsReconnect: (await db.prepare("SELECT id, kind, name FROM calendars WHERE kind != 'local' AND config = '' ORDER BY name").all<{ id: string; kind: string; name: string }>()).results,
