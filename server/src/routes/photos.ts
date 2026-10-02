@@ -354,8 +354,8 @@ photosRoutes.openapi(
     let entries;
     try {
       entries = readZip(zip, PHOTO_LIMITS.maxPhotoBytes);
-    } catch (e) {
-      return c.json({ error: e instanceof Error ? e.message : 'not a zip file' }, 400);
+    } catch {
+      return c.json({ error: "That file isn't a zip Kinwall can read." }, 400);
     }
 
     const base = (name: string) => name.split('/').pop() ?? name;

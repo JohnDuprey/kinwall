@@ -726,7 +726,7 @@ export async function createEvent(c: Ctx, body: z.infer<typeof EventInputSchema>
       seriesId = created.seriesId ?? null;
       if (created.busy !== undefined) busy = created.busy;
     } catch (err) {
-      return { error: errorMessage(err, 'provider write failed'), status: 502 };
+      return providerFail(c, err);
     }
   }
 
@@ -968,7 +968,7 @@ export async function updateEvent(c: Ctx, id: string, body: z.infer<typeof Event
       location = updated.location ?? null;
       description = updated.description || null;
     } catch (err) {
-      return { error: errorMessage(err, 'provider write failed'), status: 502 };
+      return providerFail(c, err);
     }
   }
 
@@ -1102,7 +1102,7 @@ export async function deleteEvent(c: Ctx, id: string): Promise<Fail<400 | 403 | 
     try {
       await provider.deleteEvent(ctx, row.external_id);
     } catch (err) {
-      return { error: errorMessage(err, 'provider write failed'), status: 502 };
+      return providerFail(c, err);
     }
   }
 

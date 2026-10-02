@@ -16,3 +16,14 @@ export function redact(input: string): string {
 export function errorMessage(err: unknown, fallback = 'unexpected error'): string {
   return redact(err instanceof Error ? err.message : fallback);
 }
+
+/** What a client sees for any unexpected failure: nothing from the database, crypto or a library. */
+export const GENERIC_ERROR = 'Something went wrong. Please try again.';
+
+/** For a handler that catches a setup failure (encryption) to answer a parent: the missing-key
+ * guidance is deliberate, anything else is logged and kept off the wire. */
+export function setupMessage(err: unknown): string {
+  if (err instanceof Error && err.name === 'EncryptionKeyMissingError') return err.message;
+  console.error(err);
+  return GENERIC_ERROR;
+}

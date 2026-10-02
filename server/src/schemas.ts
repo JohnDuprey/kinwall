@@ -5,7 +5,7 @@ import { isSingleEmoji, isValidAvatar } from './emoji.ts';
 import { pushEndpointAllowed } from './webpush.ts';
 import { isPublicHttpsUrl } from './outbound.ts';
 
-export const ErrorSchema = z.object({ error: z.string() }).openapi('Error');
+export const ErrorSchema = z.object({ error: z.string(), ref: z.string().optional().describe('For unexpected 500s: a short code that matches a line in the server log') }).openapi('Error');
 
 // Contacts keep repeatable details as typed JSON arrays. A display key can read household
 // contacts, with fields named in privateFields removed from its response.

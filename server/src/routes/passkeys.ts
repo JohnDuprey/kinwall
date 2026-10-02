@@ -243,7 +243,8 @@ passkeysRoutes.openapi(
     try {
       verification = await verifyRegistrationResponse({ response: response as any, expectedChallenge: challenge, expectedOrigin: expectedOrigins, expectedRPID: rpID });
     } catch (err) {
-      return c.json({ error: errorMessage(err, 'registration verification failed') }, 400);
+      console.error('passkey registration failed', err);
+      return c.json({ error: "That passkey couldn't be added. Please try again." }, 400);
     }
     if (!verification.verified || !verification.registrationInfo) return c.json({ error: 'registration could not be verified' }, 400);
 
@@ -359,7 +360,8 @@ passkeysRoutes.openapi(
       const { key, expiresAt } = await finishPasskeyLogin(c.env, { response, expectedChallenge: challenge, expectedOrigin: expectedOrigins, expectedRpId: rpID });
       return c.json({ key, expiresAt }, 200);
     } catch (err) {
-      return c.json({ error: errorMessage(err, 'authentication verification failed') }, 401);
+      console.error('passkey sign-in failed', err);
+      return c.json({ error: "That passkey didn't work. Please try again." }, 401);
     }
   },
 );

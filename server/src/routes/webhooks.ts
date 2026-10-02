@@ -2,7 +2,7 @@ import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
 import { encrypt } from '../crypto.ts';
-import { errorMessage } from '../redact.ts';
+import { setupMessage } from '../redact.ts';
 import { ErrorSchema, WebhookCreatedSchema, WebhookInputSchema, WebhookSchema } from '../schemas.ts';
 import { isSafeWebhookUrl, WEBHOOK_URL_ERROR } from '../outbound.ts';
 
@@ -58,7 +58,7 @@ webhooksRoutes.openapi(
     try {
       secret = await encrypt(c.env, plainSecret, id);
     } catch (err) {
-      return c.json({ error: errorMessage(err, 'encryption not configured') }, 500);
+      return c.json({ error: setupMessage(err) }, 500);
     }
     const row: WebhookRow = {
       id,
@@ -98,7 +98,7 @@ webhooksRoutes.openapi(
     try {
       secret = await encrypt(c.env, plainSecret, id);
     } catch (err) {
-      return c.json({ error: errorMessage(err, 'encryption not configured') }, 500);
+      return c.json({ error: setupMessage(err) }, 500);
     }
     await c.env.DB.prepare('UPDATE webhooks SET secret = ? WHERE id = ?').bind(secret, id).run();
     console.log(`Kinwall: webhook ${id} secret rotated`);
@@ -132,7 +132,7 @@ webhooksRoutes.openapi(
       try {
         secret = await encrypt(c.env, body.secret, id);
       } catch (err) {
-        return c.json({ error: errorMessage(err, 'encryption not configured') }, 500);
+        return c.json({ error: setupMessage(err) }, 500);
       }
     }
     const updated: WebhookRow = {

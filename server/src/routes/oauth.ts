@@ -1,3 +1,4 @@
+import { errorMessage, setupMessage } from '../redact.ts';
 import type { KinwallDb } from '../db.ts';
 import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
@@ -197,14 +198,14 @@ oauthRoutes.openapi(
     try {
       exchanged = await impl.exchangeCode(penv, code, stored.redirectUri ?? redirectUri(penv.PUBLIC_URL, kind), stored.verifier);
     } catch (err) {
-      return back(err instanceof Error ? err.message : 'oauth exchange failed');
+      return back(errorMessage(err, 'oauth exchange failed'));
     }
 
     let id: string;
     try {
       id = await saveOAuthAccount(c.env, kind, exchanged.name, exchanged.config);
     } catch (err) {
-      return back(err instanceof Error ? err.message : 'encryption not configured', 500);
+      return back(setupMessage(err), 500);
     }
     emit(c, 'calendar.changed', { accountId: id });
     return c.redirect(`${penv.PUBLIC_URL ?? ''}/#/settings?account=${id}`, 302);

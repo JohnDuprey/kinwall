@@ -49,6 +49,7 @@ Every error is JSON with a matching HTTP status:
 | 403 | Display key on an admin route. |
 | 404 | Unknown ID. |
 | 409 | Changing a provider or public URL that environment variables set. |
+| 500 | Something unexpected. The body is always `{ "error": "Something went wrong. Please try again.", "ref": "a1b2c3d4" }`: no database, crypto or library text reaches a client. The real error is in the server log next to the same `ref`. A missing `ENCRYPTION_KEY` is the one exception: its setup message is shown, so a parent knows what to fix. |
 | 413 | Request body over 2 MB (`/api/*`, `/mcp`, `/oauth/*`). Bigger uploads have their own limits: the import file 10 MB, a photo-album zip about 110 MB, a plugin zip 5 MB. |
 | 429 | Too many sign-in, recovery-code or setup-code attempts. |
 | 502 | Google, Outlook or CalDAV rejected a write. Nothing was stored. |

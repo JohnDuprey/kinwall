@@ -7,7 +7,7 @@ import { syncCalendar } from '../sync.ts';
 import type { Context } from 'hono';
 import { encryptConfig } from '../crypto.ts';
 import { FEED_URL_ERROR, isSafeFeedUrl } from '../outbound.ts';
-import { errorMessage } from '../redact.ts';
+import { setupMessage } from '../redact.ts';
 import { CalendarFilterSchema, CalendarInputSchema, CalendarSchema, ErrorSchema } from '../schemas.ts';
 import { parseFilter } from '../calendar-filter.ts';
 import { parseMemberIds, resolveMemberIds } from '../calendar-members.ts';
@@ -139,7 +139,7 @@ calendarsRoutes.openapi(
         try {
           config = await encryptConfig(c.env, placeholder.id, {});
         } catch (err) {
-          return c.json({ error: errorMessage(err, 'encryption not configured') }, 500);
+          return c.json({ error: setupMessage(err) }, 500);
         }
         await c.env.DB.prepare(
           'UPDATE calendars SET account_id = ?, config = ?, writable = ?, last_error = NULL, last_synced_at = NULL, sync_cursor = NULL WHERE id = ?',
@@ -158,7 +158,7 @@ calendarsRoutes.openapi(
     try {
       config = await encryptConfig(c.env, id, rawConfig);
     } catch (err) {
-      return c.json({ error: errorMessage(err, 'encryption not configured') }, 500);
+      return c.json({ error: setupMessage(err) }, 500);
     }
     const memberIds = await memberIdsFromInput(c.env.DB, body);
     const row: CalendarRow = {
@@ -236,7 +236,7 @@ calendarsRoutes.openapi(
       try {
         existing.config = await encryptConfig(c.env, id, { url: body.url });
       } catch (err) {
-        return c.json({ error: errorMessage(err, 'encryption not configured') }, 500);
+        return c.json({ error: setupMessage(err) }, 500);
       }
       existing.last_error = null;
       existing.last_synced_at = null;

@@ -32,6 +32,10 @@ When a sign-in goes wrong, Kinwall sends you back to **Settings → Calendars** 
 
 "This sign-in was started in a different browser or at a different address" means Google or Microsoft sent you back to a browser, or an address, other than the one where you tapped **Connect**. Kinwall only finishes a sign-in in the browser that started it. Open Kinwall at its **Public URL** (not a LAN address, another hostname or the Home Assistant sidebar when the Public URL is something else), and connect again from there, in one browser. Browsers that block cookies for the site also cause this. In the Kinwall phone app, Google's or Microsoft's page opens in the app's own browser: when it says to finish in the Kinwall app, tap **Open in the Kinwall app**. If nothing happens, update the app, or connect from a web browser instead.
 
+## "Something went wrong. Please try again."
+
+Kinwall shows this for anything it didn't expect, on purpose: the details can be technical, and kids use the app. The real error is in the server log (Home Assistant: the add-on's **Log** tab; Docker: `docker logs`; Cloudflare: `wrangler tail`). The API's response carries a short `ref` (for example `a1b2c3d4`), and the log line starts with the same code in square brackets, so you can find the matching entry.
+
 ## Sync errors
 
 The calendar's row in **Settings → Calendars** shows the last error.

@@ -192,3 +192,32 @@ test('meal swap: two meals trade day and slot; a Kinwall event follows, a linked
     assert.equal((await json(`/api/meals/${tacos.id}`)).date, '2026-10-08', 'unchanged');
   } finally { g.restore(); }
 });
+
+test("a synced calendar's refusal: a parent's device gets what the provider said, a wall screen a plain line", async () => {
+  const { env, request, json } = fixture();
+  const g = await google(env);
+  try {
+    const wall = (await createApiKey(env.DB, 'Kitchen wall', 'display', { owner: 'shared', deviceKind: 'wall' })).key;
+    const event = { calendarId: g.calendarId, title: 'Dentist', start: '2026-10-05T15:00:00.000Z', end: '2026-10-05T16:00:00.000Z', allDay: false };
+    const made = await json('/api/events', 'POST', event);
+    g.failNext(true);
+    const real = console.error;
+    const logged: string[] = [];
+    console.error = (...a: unknown[]) => { logged.push(a.map(String).join(' ')); };
+    try {
+      for (const [method, path, body] of [['POST', '/api/events', event], ['PATCH', `/api/events/${made.id}`, { title: 'Dentist, 3 PM' }], ['DELETE', `/api/events/${made.id}`, undefined]] as const) {
+        const parent = await request(path, method, body);
+        assert.equal(parent.status, 502);
+        assert.match(((await parent.json()) as any).error, /500/, `${method}: a parent sees the provider's answer`);
+        const kid = await request(path, method, body, wall);
+        assert.equal(kid.status, 502);
+        assert.equal(((await kid.json()) as any).error, "That couldn't be saved to the calendar. Ask a parent to check it under Settings → Calendars.", method);
+      }
+      assert.ok(logged.some((l) => /500/.test(l)), "the provider's answer is in the log for the wall's attempts");
+    } finally {
+      console.error = real;
+    }
+  } finally {
+    g.restore();
+  }
+});

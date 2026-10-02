@@ -2,6 +2,9 @@ import { swaggerUI } from '@hono/swagger-ui';
 import { cors } from 'hono/cors';
 import { bodyLimit } from 'hono/body-limit';
 import type { MiddlewareHandler } from 'hono';
+import { HTTPException } from 'hono/http-exception';
+import { EncryptionKeyMissingError } from './crypto.ts';
+import { GENERIC_ERROR } from './redact.ts';
 import { createRouter } from './router.ts';
 import { carryRequestKey, requireAuth } from './auth.ts';
 import { healthRoutes } from './routes/health.ts';
@@ -93,9 +96,16 @@ export function createApp() {
 
   // Safety net for anything thrown rather than returned as a c.json(...) error - SPEC says
   // every error is `{ error: string }`, never a stack trace or framework-shaped object.
+  // Deliberate HTTPExceptions (and a body that isn't JSON) keep their status and words; anything else
+  // is a calm fixed message plus a short ref the family can quote. The real error goes to the log,
+  // with that ref, never to the client (it can hold table names, SQL or library text).
   app.onError((err, c) => {
-    console.error(err);
-    return c.json({ error: err instanceof Error ? err.message : 'internal error' }, 500);
+    if (err instanceof HTTPException && err.status < 500) return c.json({ error: err.message }, err.status);
+    if (err instanceof SyntaxError && c.req.method !== 'GET' && c.req.method !== 'HEAD') return c.json({ error: "That request isn't valid JSON" }, 400);
+    if (err instanceof EncryptionKeyMissingError) { console.error(err); return c.json({ error: err.message }, 500); } // setup guidance for the parent, no internals
+    const ref = crypto.randomUUID().replace(/-/g, '').slice(0, 8);
+    console.error(`[${ref}] ${c.req.method} ${c.req.path}`, err);
+    return c.json({ error: GENERIC_ERROR, ref }, 500);
   });
 
   app.use('*', async (c, next) => {

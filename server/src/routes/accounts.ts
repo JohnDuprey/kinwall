@@ -8,7 +8,7 @@ import { FEED_URL_ERROR, isSafeFeedUrl } from '../outbound.ts';
 import { revokeToken } from '../providers/google.ts';
 import { decryptConfig, encryptConfig } from '../crypto.ts';
 import { providerEnv } from '../providers/config.ts';
-import { errorMessage } from '../redact.ts';
+import { errorMessage, setupMessage } from '../redact.ts';
 import { AccountSchema, ErrorSchema } from '../schemas.ts';
 
 export const accountsRoutes = createRouter();
@@ -95,7 +95,7 @@ accountsRoutes.openapi(
     try {
       config = await encryptConfig(c.env, id, verified.config);
     } catch (err) {
-      return c.json({ error: errorMessage(err, 'encryption not configured') }, 500);
+      return c.json({ error: setupMessage(err) }, 500);
     }
     const row: AccountRow = {
       id,

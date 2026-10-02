@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { remoteNightKey, type DeviceKind, type RemoteNight } from './wallScreen.ts'
 import { tellAppSignedIn, tellAppSignedOut } from './native.ts'
 import { changedAreas, type RevAnswer } from './revs.ts'
+import { failureMessage } from './failureMessage.ts'
 import { mock, mockPlugins } from './mock.ts'
 import { SECURITY_PAGE } from './securityActivity.ts'
 import { applyChoreOps, applyListOps, cacheGet, cachePut, clearOffline, enqueue, flush, onOutboxChange, outboxReady, pendingOps, type Dropped, type Op } from './outbox.ts'
@@ -77,9 +78,9 @@ export function clearAdminKey() {
 // token asked for again (an app's token is per sign-in, so the one kept still works meanwhile).
 let mediaAskedAt = 0
 let mediaAsking = false
-function forgetMediaToken() {
 let mediaRetry: ReturnType<typeof setTimeout> | undefined
 const mediaListeners = new Set<() => void>()
+function forgetMediaToken() {
   try { localStorage.removeItem(MEDIA_STORAGE) } catch { /* nothing kept */ }
   mediaAskedAt = 0
 }
@@ -276,7 +277,7 @@ async function send<T>(path: string, opts: RequestInit & { useAdmin?: boolean })
       const err = (await res.json()).error
       msg = typeof err === 'string' ? err : err?.message ?? msg
     } catch { /* ignore */ }
-    throw new ApiError(res.status, msg)
+    throw new ApiError(res.status, failureMessage(res.status, msg))
   }
   if (res.status === 204) return undefined as T
   return res.json() as Promise<T>
@@ -345,7 +346,7 @@ export const api = {
   familyNameFor: async (key: string): Promise<string | null> => {
     const res = await fetch(apiUrl('api/settings'), { headers: { Authorization: `Bearer ${key}` } })
     if (res.status === 401 || res.status === 403) return null
-    if (!res.ok) throw new ApiError(res.status, `HTTP ${res.status}`)
+    if (!res.ok) throw new ApiError(res.status, failureMessage(res.status, ''))
     return ((await res.json()) as Settings).familyName?.trim() ?? ''
   },
   getSettings: (useAdmin?: boolean) => MOCK ? mock.getSettings() : get<Settings>('api/settings', useAdmin),
@@ -575,7 +576,7 @@ export const api = {
     try {
       res = await fetch(apiUrl(`api/google-photos/next?w=${w}&h=${h}`), { headers: { Authorization: `Bearer ${getKey() ?? ''}` } })
     } catch { throw new ApiError(0, OFFLINE_MESSAGE) }
-    if (!res.ok) throw new ApiError(res.status, res.statusText)
+    if (!res.ok) throw new ApiError(res.status, failureMessage(res.status, res.statusText))
     return { src: URL.createObjectURL(await res.blob()), revoke: true }
   },
   /** An <img src> for a photo: it can't send the Bearer header, so the media token rides as ?key=
@@ -713,7 +714,7 @@ export const api = {
   exportData: async (): Promise<Blob> => {
     const key = getAdminKey() ?? getKey()
     const res = await fetch(apiUrl('api/export'), { headers: key ? { Authorization: `Bearer ${key}` } : {} })
-    if (!res.ok) throw new ApiError(res.status, res.statusText || 'Export failed')
+    if (!res.ok) throw new ApiError(res.status, failureMessage(res.status, res.statusText || 'Export failed'))
     return res.blob()
   },
   // A recipe card PDF the server fetched from that recipe's or meal's own sourceUrl.
@@ -723,7 +724,7 @@ export const api = {
     if (!res.ok) {
       let msg = res.statusText
       try { msg = (await res.json()).error ?? msg } catch { /* not JSON */ }
-      throw new ApiError(res.status, msg)
+      throw new ApiError(res.status, failureMessage(res.status, msg))
     }
     return res.arrayBuffer()
   },
@@ -830,9 +831,9 @@ export function usePoll(intervalMs = 30000, nightIntervalMs = intervalMs, live =
     }
     check()
     const id = setInterval(check, every)
-    const onVis = () => { if (document.visibilityState === 'visible') check() }
     const onMedia = () => setTick(t => t + 1) // image URLs drawn before the media token arrived (mediaUrl)
     mediaListeners.add(onMedia)
+    const onVis = () => { if (document.visibilityState === 'visible') check() }
     document.addEventListener('visibilitychange', onVis)
     return () => { canceled = true; clearInterval(id); mediaListeners.delete(onMedia); document.removeEventListener('visibilitychange', onVis) }
   }, [every, live])
