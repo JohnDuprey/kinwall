@@ -296,8 +296,9 @@ pushRoutes.openapi(
     const { results } = await c.env.DB.prepare(`SELECT * FROM notifications WHERE at < ?${meds.sql}${who.sql} ORDER BY at DESC, id DESC LIMIT ?`)
       .bind(before ?? '9999', ...meds.binds, ...who.binds, limit)
       .all<NotificationRow>();
+    const rm = await remover(c);
     return c.json(
-      results.map((r) => ({ id: r.id, at: r.at, kind: r.kind as z.infer<typeof NotificationSchema>['kind'], title: r.title, body: r.body, url: r.url, memberIds: parseMemberIds(r.member_ids), source: r.source })),
+      results.map((r) => ({ id: r.id, at: r.at, kind: r.kind as z.infer<typeof NotificationSchema>['kind'], title: r.title, body: r.body, url: r.url, memberIds: parseMemberIds(r.member_ids), source: r.source, removable: mayRemove(rm, r.kind, parseMemberIds(r.member_ids), r.at) })),
       200,
     );
   },
@@ -323,6 +324,17 @@ async function theirsSince(c: Parameters<typeof ownDevice>[0]): Promise<string> 
   ).bind((await requestKey(c))?.id ?? '').first<{ since: string }>();
   return row ? new Date(Date.parse(row.since) + OWNER_SETTLED_MS).toISOString() : '9999';
 }
+/** What this request's key may remove, worked out once (the feed can have many rows). */
+type Remover = { admin: boolean; mine: string | null; since: string };
+async function remover(c: Parameters<typeof ownDevice>[0]): Promise<Remover> {
+  const mine = await ownDevice(c);
+  return { admin: (await resolveKey(c))?.scope === 'admin', mine, since: mine ? await theirsSince(c) : '9999' };
+}
+/** The one rule for removing a note, shared by the feed's `removable` flag and DELETE /api/notifications/{id}. */
+function mayRemove(r: Remover, kind: string, memberIds: string[], at: string): boolean {
+  return kind === 'privacy' ? !!r.mine && memberIds.includes(r.mine) && at >= r.since : r.admin;
+}
+
 pushRoutes.openapi(
   createRoute({
     method: 'delete',
@@ -351,13 +363,12 @@ pushRoutes.openapi(
     responses: { 200: { description: 'ok', content: { 'application/json': { schema: z.object({ ok: z.literal(true) }) } } }, 403: { description: 'not admin', content: { 'application/json': { schema: ErrorSchema } } }, 404: { description: 'no such notification', content: { 'application/json': { schema: ErrorSchema } } } },
   }),
   async (c) => {
-    const admin = (await resolveKey(c))?.scope === 'admin';
-    const mine = await ownDevice(c);
-    if (!admin && !mine) return c.json({ error: 'Admin key required' }, 403);
+    const rm = await remover(c);
+    if (!rm.admin && !rm.mine) return c.json({ error: 'Admin key required' }, 403);
     const id = c.req.valid('param').id;
     const row = await c.env.DB.prepare('SELECT kind, member_ids, at FROM notifications WHERE id = ?').bind(id).first<{ kind: string; member_ids: string; at: string }>();
     if (!row) return c.json({ error: 'Not found' }, 404);
-    if (row.kind === 'privacy' ? !mine || !parseMemberIds(row.member_ids).includes(mine) || row.at < (await theirsSince(c)) : !admin) {
+    if (!mayRemove(rm, row.kind, parseMemberIds(row.member_ids), row.at)) {
       return c.json({ error: row.kind === 'privacy' ? 'Only the person this note is about can remove it, from a device that was already theirs.' : 'Admin key required' }, 403);
     }
     await c.env.DB.prepare('DELETE FROM notifications WHERE id = ?').bind(id).run();

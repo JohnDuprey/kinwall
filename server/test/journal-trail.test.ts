@@ -92,6 +92,33 @@ test("a device that says it's Alex's can't remove the note about that; a device 
   assert.ok(!notes().some((n) => n.id === claim.id));
 });
 
+test("GET /api/notifications says per note whether this key may remove it", async (t) => {
+  t.after(() => mock.timers.reset());
+  const { req, alex, leo, alexPhone, samPhone, keyFor, notes } = await setup();
+  mock.timers.tick(5 * MINUTES);
+  const before = new Set(notes().map((n) => n.id));
+  await req('/api/notify', 'POST', { title: 'Dinner at 6', body: 'Tacos' });
+  await req('/api/me/owner', 'PUT', { owner: alex.id }, samPhone); // Sam's phone says it's Alex's: a privacy note for Alex
+  const claim = notes().find((n) => !before.has(n.id))!;
+  const flags = async (key: string) => {
+    const r = await req('/api/notifications', 'GET', undefined, key);
+    assert.equal(r.status, 200);
+    return Object.fromEntries(r.json.map((n: any) => [n.id, n.removable])) as Record<string, boolean>;
+  };
+  const dinner = (await req('/api/notifications')).json.find((n: any) => n.title === 'Dinner at 6').id;
+
+  // The phone that just claimed to be Alex's sees the claim note, but can't remove it; Alex's older phone can.
+  assert.equal((await flags(samPhone))[claim.id], false);
+  assert.equal((await flags(alexPhone))[claim.id], true);
+  // Ordinary notes: any admin key (Alex's, the plain admin key, a phone owned by someone else) may.
+  assert.equal((await flags(alexPhone))[dinner], true);
+  assert.equal((await flags(ADMIN))[dinner], true);
+  // A kid's device isn't admin: nothing is removable there.
+  const leoTablet = await keyFor(leo.id, 'display', "Leo's tablet");
+  const kid = await flags(leoTablet);
+  assert.ok(Object.keys(kid).length > 0 && Object.values(kid).every((v) => v === false), JSON.stringify(kid));
+});
+
 test("the Kinwall app's sign-in made Alex's from Settings can't remove the note about it either", async (t) => {
   t.after(() => mock.timers.reset());
   const { db, req, alex, notes } = await setup();

@@ -1047,6 +1047,7 @@ export const NotificationSchema = z
     memberIds: z.array(z.string()),
     source: z.string().nullable(),
   })
+    removable: z.boolean().openapi({ description: "Whether the key making this request may remove the note (DELETE /api/notifications/{id}): admin keys for ordinary notes; for a privacy note only a device of the person it's about that was theirs before the note." }),
   .openapi('Notification');
 
 // Notes threads on an event or a list item. `target` is "event:<id>" or "list_item:<id>".

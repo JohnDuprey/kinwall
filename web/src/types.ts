@@ -896,6 +896,7 @@ export interface AppNotification {
   url: string | null // '/#/calendar?event=…', '/chores', '/lists', '/' - same deep link a push opens
   memberIds: string[]
   source: string | null
+  removable?: boolean // may this device remove it (older servers don't say)
 }
 
 export interface PushSubscription {

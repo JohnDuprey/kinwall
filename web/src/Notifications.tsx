@@ -29,6 +29,9 @@ function writeSeen(iso: string) {
 
 const KIND_ICON: Record<AppNotification['kind'], string> = { reminder: '🔔', summary: '☀️', chore: '✅', list: '🛒', message: '💬', goal: '🎯', medication: '💊', privacy: '🔒' }
 
+// The server says per note whether this key may remove it; an older server doesn't, so then fall back to the old guess.
+const canRemove = (n: AppNotification, isAdmin: boolean) => n.removable ?? (isAdmin || n.kind === 'privacy')
+
 const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto', style: 'short' })
 function relTime(iso: string, tz: string): string {
   const min = Math.round((Date.now() - Date.parse(iso)) / 60000)
@@ -82,7 +85,7 @@ export default function NotificationBell({ isAdmin }: { isAdmin: boolean }) {
   }
   const clearAll = async () => {
     if (!await dialog.confirm({ title: 'Clear all notifications?', body: 'Removes them for the whole family, on every device.', confirmLabel: 'Clear all', danger: true })) return
-    setItems([]) // privacy notes only reach the feed of the person they're about, who may clear them
+    setItems(list => list.filter(n => !canRemove(n, isAdmin))) // the server leaves privacy notes this device can't remove
     try { await api.clearNotifications(); announce('Notifications cleared') } catch { load() }
   }
 
@@ -104,11 +107,11 @@ export default function NotificationBell({ isAdmin }: { isAdmin: boolean }) {
       </button>
       {open && (
         <Sheet title="Notifications" onClose={closeSheet}>
-          {(canMessage || sheetUnread || (isAdmin && items.length > 0)) && (
+          {(canMessage || sheetUnread || (isAdmin && items.some(n => canRemove(n, isAdmin)))) && (
             <div className="notif-toolbar">
               {canMessage && !composing && <button className="btn btn-secondary notif-compose-btn" onClick={() => setComposing(true)}>💬 Send a message</button>}
               {sheetUnread && <button className="btn btn-secondary" onClick={markAllRead}>Mark all read</button>}
-              {isAdmin && items.length > 0 && <button className="btn btn-secondary" onClick={clearAll}>Clear all</button>}
+              {isAdmin && items.some(n => canRemove(n, isAdmin)) && <button className="btn btn-secondary" onClick={clearAll}>Clear all</button>}
             </div>
           )}
           {canMessage && composing && <SendMessageForm onSent={() => { setComposing(false); load() }} />}
@@ -126,7 +129,7 @@ export default function NotificationBell({ isAdmin }: { isAdmin: boolean }) {
                       <span className="notif-main">
                         <span className="notif-title">{isUnread && <><span className="notif-dot" /><span className="sr-only">Unread: </span></>}{n.title}</span>
                         {n.body && <span className="notif-body">{n.body}</span>}
-                        {n.kind === 'privacy' && isAdmin && <span className="notif-meta">Kept in Settings → Access → Security activity</span>}
+                        {n.kind === 'privacy' && (isAdmin || n.removable === false) && <span className="notif-meta">Kept in Settings → Access → Security activity</span>}
                         <span className="notif-meta">
                           <time dateTime={n.at}>{relTime(n.at, tz)}</time>
                           {who.length > 0 && (
@@ -144,7 +147,7 @@ export default function NotificationBell({ isAdmin }: { isAdmin: boolean }) {
                       {n.url
                         ? <button className={`notif-item ${isUnread ? 'unread' : ''}`} onClick={() => go(n)}>{content}</button>
                         : <div className={`notif-item ${isUnread ? 'unread' : ''}`}>{content}</div>}
-                      {(isAdmin || n.kind === 'privacy') && <button className="icon-btn notif-remove" onClick={() => remove(n)} aria-label={`Remove: ${n.title}`}>×</button>}
+                      {canRemove(n, isAdmin) && <button className="icon-btn notif-remove" onClick={() => remove(n)} aria-label={`Remove: ${n.title}`}>×</button>}
                     </li>
                   )
                 })}
