@@ -412,7 +412,8 @@ export const api = {
   createCaldavAccount: (body: { name: string; serverUrl: string; username: string; password: string }) =>
     MOCK ? mock.createCaldavAccount(body) : post<Account>('api/accounts/caldav', body, true),
   getRemoteCalendars: (accountId: string) => MOCK ? mock.getRemoteCalendars(accountId) : get<RemoteCalendar[]>(`api/accounts/${accountId}/remote-calendars`, true),
-  oauthStartUrl: (kind: 'google' | 'microsoft') => apiUrl(`api/oauth/${kind}/start?key=${encodeURIComponent(getAdminKey() ?? getKey() ?? '')}`),
+  // The provider's consent URL; the response also sets this browser's cookie for the callback (routes/oauth.ts), so open the URL here.
+  oauthStart: (kind: 'google' | 'microsoft') => MOCK ? Promise.reject(new Error("The demo doesn't connect to Google or Microsoft.")) : post<{ url: string }>(`api/oauth/${kind}/start`, undefined, true),
 
   // includeHidden (parents' devices): also the events the family doesn't see, each with `hidden` saying why.
   getEvents: (from: string, to: string, memberId?: string, calendarId?: string, includeHidden?: boolean) => {

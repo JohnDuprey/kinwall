@@ -165,7 +165,7 @@ export function setAppMedicineNames(on: boolean) {
   window.dispatchEvent(new Event(MED_NAMES_EVENT))
 }
 
-const nativeFlag = (key: 'notificationSettings' | 'quickSettingsTiles' | 'barcodeScanner'): boolean =>
+const nativeFlag = (key: 'notificationSettings' | 'quickSettingsTiles' | 'barcodeScanner' | 'providerReturn'): boolean =>
   typeof window !== 'undefined' && (window as Window & { kinwallNative?: Record<string, unknown> }).kinwallNative?.[key] === true
 
 /** The Android app can open one of its notification channels in Android Settings. */
@@ -193,6 +193,11 @@ export function scanBarcode(front = false): Promise<string | null> {
     try { w.webkit?.messageHandlers?.kinwall?.postMessage({ type: 'scanBarcode', ...(front ? { facing: 'front' } : {}) }) } catch { w.removeEventListener('kinwall:barcode', on); resolve(null) }
   })
 }
+
+/** The app takes a Google/Microsoft sign-in back from its in-app browser (family.kinwall.app:/provider-return,
+ * server/src/routes/oauth.ts handBack). An older app can't: that sign-in lands where the flow's
+ * cookie isn't, so connecting there can't finish. */
+export const appProviderReturn = () => nativeFlag('providerReturn')
 
 /** Opens a notification channel's page in Android Settings, e.g. 'medicine' for Override Do Not
  * Disturb. No-op in a browser. */

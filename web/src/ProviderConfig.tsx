@@ -5,8 +5,24 @@ import { useState } from 'react'
 import { api, ApiError } from './api.ts'
 import type { Providers } from './types.ts'
 import { useDialog } from './dialog.tsx'
+import { appProviderReturn, inNativeApp } from './native.ts'
 
 const LABEL = { google: 'Google', microsoft: 'Microsoft' } as const
+
+/** Connect Google or Outlook: the server answers this browser with the consent URL and a cookie
+ * the callback needs (server/src/routes/oauth.ts), so the sign-in has to happen here. An older
+ * Kinwall app can't bring the sign-in back from its in-app browser, so it says so instead. */
+export async function connectCalendar(kind: 'google' | 'microsoft', say: (m: string) => void) {
+  if (inNativeApp() && !appProviderReturn()) {
+    say(`Update the Kinwall app to connect ${LABEL[kind]}, or connect from a web browser.`)
+    return
+  }
+  try {
+    location.href = (await api.oauthStart(kind)).url
+  } catch (e) {
+    say(e instanceof Error ? e.message : `Couldn't start the ${LABEL[kind]} sign-in`)
+  }
+}
 
 // Always saves/deletes with the admin key (getAdminKey() ?? the stored key — see api.ts) since
 // these routes are admin-only regardless of caller: the setup wizard's temporary session admin
@@ -105,7 +121,7 @@ export function ProviderForm({ kind, providers, toast, onChanged }: {
       )}
       </>}
 
-      {status.configured && <button className="btn btn-block" onClick={() => location.href = api.oauthStartUrl(kind)}>Test sign-in</button>}
+      {status.configured && <button className="btn btn-block" onClick={() => connectCalendar(kind, m => toast(m, true))}>Test sign-in</button>}
     </div>
   )
 }

@@ -347,6 +347,7 @@ const CONNECTED_APP_DENIED: { method: RegExp; pattern: RegExp; error?: string }[
   { method: /^(POST)$/, pattern: /^\/api\/pair\/approve$/ },
   { method: /^(PUT)$/, pattern: /^\/api\/me\/owner$/ },
   { method: /^(PUT|DELETE)$/, pattern: /^\/api\/providers\/[^/]+$/ },
+  { method: /^(POST)$/, pattern: /^\/api\/oauth\/[^/]+\/start$/ }, // connecting a calendar account: a parent, in their own browser
   { method: /./, pattern: /^\/api\/authorizations(\/.*)?$/ },
   { method: /^(GET)$/, pattern: /^\/api\/security-events$/ }, // the security log: parent devices only
   { method: /^(POST)$/, pattern: /^\/api\/push\/subscriptions$/, error: NOT_A_DEVICE },
@@ -398,8 +399,9 @@ const MEDIA_PATH = /^\/api\/photos\/[^/]+\/image$|^\/api\/(recipes|meals)\/[^/]+
 // DEPRECATED, to be removed: a full key as ?key= on MEDIA_PATH and the photo zip
 // (browser navigations; the zip now takes a one-time ?ticket=, photoExportTicket). Still accepted
 // for older cached web bundles, the mobile app and scripts; the web app sends a media token or
-// ticket wherever it has one. The OAuth start (a browser navigation) still takes the key this way.
-const QUERY_KEY_PATH = /^\/api\/oauth\/[^/]+\/start$|^\/api\/photos\/export\.zip$/;
+// ticket wherever it has one. Never the OAuth start: a link carrying a key would let whoever
+// sends it start a calendar sign-in in someone else's browser (routes/oauth.ts).
+const QUERY_KEY_PATH = /^\/api\/photos\/export\.zip$/;
 
 // Shared by requireAuth and GET /api/me: resolves the bearer key (or ?key= on QUERY_KEY_PATH and
 // MEDIA_PATH, where it may also be a media token) to its scope. Returns null if the key is missing/unknown.

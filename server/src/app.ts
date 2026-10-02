@@ -104,6 +104,7 @@ export function createApp() {
     c.header('Referrer-Policy', 'no-referrer');
     if (c.req.path.startsWith('/plugins/')) return; // plugin files carry their own, stricter policy (routes/plugins.ts)
     if (c.req.path.startsWith('/r/')) return; // shared recipe pages set their own, stricter one (routes/recipe-share.ts)
+    if (/^\/api\/oauth\/[^/]+\/callback$/.test(c.req.path)) return; // its hand-back page sets its own, stricter one (routes/oauth.ts)
     const isDocs = c.req.path === '/docs' || c.req.path.startsWith('/docs/') || c.req.path === '/openapi.json';
     c.header('Content-Security-Policy', isDocs ? CSP_DOCS : CSP_DEFAULT);
   });

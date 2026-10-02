@@ -101,11 +101,21 @@ await kinwall.scheduled(now?, ctx?); // one cron tick: syncDue + runNotification
   then sends that `redirect_uri` and a `state` of `<hostLabel>.<kind>.<random>` (hostLabel = first
   DNS label of the request's Host, i.e. the family slug on `slug.host.example`; random is a UUID,
   no dots). The host's callback splits `state` on its first two dots to pick the family and kind,
-  then forwards the full query string (`code`, `state`, or `error`) unchanged to that family's
-  `GET /api/oauth/{kind}/callback` and returns its response as-is (a 302 to
-  `PUBLIC_URL/#/settings?account=…`, or a 400 JSON error). The instance validates the full
-  `state` against its single-use stored row and repeats the same `redirect_uri` in the token
-  exchange. A household that configured its own app keeps its per-instance redirect URI.
+  then redirects the browser (302) to that family's `GET /api/oauth/{kind}/callback` on the
+  family's own host, with the full query string (`code`, `state`, or `error`) unchanged. It must be
+  a redirect, never a server-side forward: start gave the browser a cookie on the family's host
+  (see "Security") and the callback refuses a request without it, so the browser has to
+  make that request itself. `state` is anyone's to write, so the host builds the redirect's host
+  only from a label it knows as a family. The instance validates the full `state` against its
+  single-use stored row and repeats the same `redirect_uri` in the token exchange; it answers with
+  a 302 to `PUBLIC_URL/#/settings?…`. A household that configured its own app keeps its
+  per-instance redirect URI.
+  Rolling this out on a host (the browser binding came in three parts): first the host's callback
+  redirects instead of forwarding, then the Kinwall app with the provider hand-back
+  (`family.kinwall.app:/provider-return`, below) ships, then the instances that enforce the cookie
+  and the POST start. In that order nothing breaks for people on a current app: a host redirect
+  works with or without the cookie check, and the app's hand-back is unused until the server
+  answers with it. An older app is told to update (the web app reads `window.kinwallNative.providerReturn`).
 
 `KinwallDb` (`server/src/db.ts`) is all the app calls on `env.DB`. Results may be sync or async.
 
@@ -232,7 +242,7 @@ PUT    /api/providers/public-url {value}   (absolute http(s), trailing slash str
          warns on a bare-IP host or plain http on a non-localhost host)
 
 GET    /api/accounts            DELETE /api/accounts/:id          (config stripped)
-GET    /api/oauth/:kind/start?key=  -> 302 to Google/Microsoft consent (kind google|microsoft; key via query since it's a browser nav; state = signed/random value stored in settings with 10-min expiry)
+POST   /api/oauth/:kind/start       -> { url } of Google/Microsoft consent (admin, Bearer only, not connected apps; kind google|microsoft; state = random value stored in settings with 10-min expiry; sets the flow's cookie, see Security). The web app then navigates to url.
 GET    /api/oauth/:kind/callback -> creates account, 302 to /#/settings?account=<id>
 POST   /api/accounts/caldav     {name, serverUrl, username, password} -> account
 GET    /api/accounts/:id/remote-calendars   -> [{remoteId, name, color, writable}]
@@ -398,6 +408,7 @@ For a phone in a store with poor or no signal. Design note; user docs in `docs/u
 - Every `/api/*` route except `/api/health` and `/api/oauth/:kind/callback` requires a valid key; compare hashes, never plaintext.
 - Account/calendar `config` (tokens, passwords, ICS URLs with secrets) is never returned by the API.
 - OAuth `state` is single-use and expires; redirect URI is `PUBLIC_URL` + fixed path, or `OAUTH_REDIRECT_URI` for env (host-shared) credentials.
+- An OAuth flow finishes only in the browser that started it, and starting one needs the family's key in the Authorization header, which a link or another site can't supply: `POST /api/oauth/{kind}/start` (no `?key=`, no GET; CORS never allows credentials, so a cross-origin response can't set the cookie). Start (`POST /api/oauth/{kind}/start`, and `POST /api/google-photos/connect` for the web sign-in) sets a cookie `kinwall_oauth_<first 16 hex of the hash>` = SHA-256 hex of `state`: `HttpOnly; SameSite=Lax; Max-Age=600` (the state's lifetime), `Path` = the callback's path as the browser sees it (the path of `PUBLIC_URL` + `/api/oauth/{kind}/callback`; on a shared-app host `/api/oauth/{kind}/callback`), and `Secure` with a `__Secure-` name prefix when that callback URL is https (decided from the callback URL, not the request, which a TLS-terminating proxy delivers as http). One cookie per flow, so two tabs don't clash. The callback compares it in constant time before consuming the state; on a match it clears the cookie. Without a match it leaves the state alone and, given a `code`, answers 200 with a small page (its own CSP: `default-src 'none'`, a nonce for its style, no script; `Cache-Control: no-store`; everything from the query escaped) offering **Open in the Kinwall app**, a link to `family.kinwall.app:/provider-return?kind=<google|microsoft>&state=<state>&code=<code>`, plus the wrong-browser advice and a link to Settings; without a `code` (a declined consent) it redirects to Settings with `oauthError`. The phone app starts a flow in its web view but shows the provider in the system's in-app browser, whose cookies are separate: the app takes the link, checks it, and loads `<its own server>/api/oauth/<kind>/callback?code&state` in its web view, where the cookie is (kinwall-mobile `src/providerReturn.ts`). The link is only a tap, never automatic, so a browser without the app is never left on a failed navigation. The code alone is useless: finishing needs the cookie only the starting browser holds, and the exchange needs the PKCE verifier only this server holds. Start and callback must therefore be reached at the same address: a flow started at a LAN address or through Home Assistant ingress while `PUBLIC_URL` is another host is refused with that message, and works when started from `PUBLIC_URL`.
 - CORS: off by default (same origin); `CORS_ORIGINS` env to allow automation from browsers.
 - README recommends Cloudflare Access (free ≤ 50 users) in front of the UI as a second layer, with a service-token bypass for `/api/*`.
 

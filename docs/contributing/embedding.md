@@ -46,8 +46,16 @@ A host can register **one** Google and **one** Microsoft app for all families:
 
 1. Set `GOOGLE_*` / `MS_*` plus `OAUTH_REDIRECT_URI`, a single URI on the host's domain.
 2. For environment credentials, `/api/oauth/{kind}/start` sends that `redirect_uri` and a `state` of `<hostLabel>.<kind>.<random>`. `hostLabel` is the first DNS label of the request's Host (the family slug), and `random` is a UUID with no dots.
-3. The host's callback splits `state` on its first two dots to pick the family and kind. It forwards the full query string unchanged to that family's `GET /api/oauth/{kind}/callback` and returns the response as-is (a 302 to `PUBLIC_URL/#/settings?account=…`, or a 400 JSON error).
+3. The host's callback splits `state` on its first two dots to pick the family and kind. It redirects the browser (302) to that family's `GET /api/oauth/{kind}/callback` on the family's own host, with the full query string unchanged. It must be a redirect, not a server-side forward: Kinwall gives the browser that starts a sign-in a short-lived cookie on the family's host and finishes only for a request that carries it, so the browser has to make that request itself. Anyone can write `state`, so build the redirect's host only from a label you know as a family.
 4. The instance validates the full `state` against its single-use stored row and repeats the same `redirect_uri` in the token exchange.
+
+Starting a sign-in is `POST /api/oauth/{kind}/start` with the family's key in the `Authorization` header (it returns `{ url }`), so a link can't start one in someone else's browser. A callback without the flow's cookie answers with a page whose **Open in the Kinwall app** link (`family.kinwall.app:/provider-return?kind&state&code`) lets the phone app finish the sign-in in its own web view, on its own family's address.
+
+Rolling this out on an existing host, in this order:
+
+1. The host's callback redirects the browser (step 3) instead of forwarding. This works with Kinwall versions before and after the cookie check.
+2. The Kinwall phone app with the provider hand-back (`family.kinwall.app:/provider-return`) ships to the stores and most people update.
+3. The instances move to the Kinwall version that checks the cookie and starts with `POST`. An older app's web view then says to update the app or connect from a web browser, instead of failing at the end.
 
 A household that configures its own app in the UI keeps its per-instance redirect URI.
 

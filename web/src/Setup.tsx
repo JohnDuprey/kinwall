@@ -14,7 +14,7 @@ import { AnyEmojiField } from './AnyEmojiField.tsx'
 import { isValidAvatar } from './emoji.ts'
 import { colorName, inkFor } from './color.ts'
 import { inFrame, passkeysSupported, registerPasskey } from './webauthn.ts'
-import { ProviderForm } from './ProviderConfig.tsx'
+import { connectCalendar, ProviderForm } from './ProviderConfig.tsx'
 import type { Providers } from './types.ts'
 import { MemberPicker } from './MemberPicker.tsx'
 import { defaultGrownUp, freshHandoff, ownerChoices, resumeFor, setupErrorText } from './setupSteps.ts'
@@ -522,7 +522,7 @@ function CaldavForm({ onPending }: { onPending: (p: PendingAdd | null) => void }
 
 function CalendarsStep({ members, oauth, onNext, onBack, onOAuthStart }: {
   members: Member[]; oauth: { google: boolean; microsoft: boolean }
-  onNext: () => void; onBack: () => void; onOAuthStart: (kind: 'google' | 'microsoft') => void
+  onNext: () => void; onBack: () => void; onOAuthStart: (kind: 'google' | 'microsoft', say: (m: string) => void) => void
 }) {
   const [open, setOpen] = useState<'google' | 'microsoft' | 'icloud' | 'ics' | null>(null)
   const [providers, setProviders] = useState<Providers | null>(null)
@@ -546,11 +546,11 @@ function CalendarsStep({ members, oauth, onNext, onBack, onOAuthStart }: {
       {providerMsg && <p className="setup-note">{providerMsg}</p>}
 
       {open === 'google' && (oauth.google ? (
-        <div className="setup-provider-form"><button className="btn btn-primary setup-btn" onClick={() => onOAuthStart('google')}>Connect Google</button></div>
+        <div className="setup-provider-form"><button className="btn btn-primary setup-btn" onClick={() => onOAuthStart('google', setProviderMsg)}>Connect Google</button></div>
       ) : providers && <ProviderForm kind="google" providers={providers} toast={setProviderMsg} onChanged={loadProviders} />)}
 
       {open === 'microsoft' && (oauth.microsoft ? (
-        <div className="setup-provider-form"><button className="btn btn-primary setup-btn" onClick={() => onOAuthStart('microsoft')}>Connect Outlook</button></div>
+        <div className="setup-provider-form"><button className="btn btn-primary setup-btn" onClick={() => onOAuthStart('microsoft', setProviderMsg)}>Connect Outlook</button></div>
       ) : providers && <ProviderForm kind="microsoft" providers={providers} toast={setProviderMsg} onChanged={loadProviders} />)}
 
       {open === 'icloud' && <CaldavForm onPending={setPending} />}
@@ -717,9 +717,9 @@ export default function Setup({ oauth, setupCode, passkeyRequired, onDone }: { o
     if (h1) { h1.tabIndex = -1; h1.focus({ preventScroll: true }) }
   }, [step])
 
-  const startOAuth = (kind: 'google' | 'microsoft') => {
+  const startOAuth = (kind: 'google' | 'microsoft', say: (m: string) => void) => {
     saveResume({ step: 'calendars', deviceRole: 'admin' })
-    location.href = api.oauthStartUrl(kind)
+    connectCalendar(kind, say)
   }
 
   return (

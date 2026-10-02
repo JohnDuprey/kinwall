@@ -98,8 +98,8 @@ function makeApp(opts: { configured?: boolean; web?: boolean; enabled?: boolean 
     ...(opts.web ? { GOOGLE_CLIENT_ID: 'web-client.apps.googleusercontent.com', GOOGLE_CLIENT_SECRET: 'FAKE-WEB-SECRET', PUBLIC_URL: 'https://kinwall.example' } : {}),
   };
   const app = createApp();
-  const raw = (method: string, p: string, key = ADMIN_KEY, body?: unknown) =>
-    app.request(p, { method, body: body === undefined ? undefined : JSON.stringify(body), headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' } }, env);
+  const raw = (method: string, p: string, key = ADMIN_KEY, body?: unknown, cookie?: string) =>
+    app.request(p, { method, body: body === undefined ? undefined : JSON.stringify(body), headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', ...(cookie ? { Cookie: cookie } : {}) } }, env);
   const send = async (method: string, p: string, key = ADMIN_KEY, body?: unknown) => {
     const res = await raw(method, p, key, body);
     return { status: res.status, body: (await res.json()) as any };
@@ -454,13 +454,16 @@ test('google photos: tokens and codes never reach the logs or error bodies', asy
 
 /** Starts the web sign-in and returns Google's consent URL. */
 async function startWeb(t: ReturnType<typeof makeApp>) {
-  const c = await t.send('POST', '/api/google-photos/connect');
-  assert.equal(c.status, 200);
-  return new URL(c.body.authUrl);
+  const res = await t.raw('POST', '/api/google-photos/connect');
+  assert.equal(res.status, 200);
+  browser.set(t, res.headers.getSetCookie().map((s) => s.split(';')[0]).join('; '));
+  return new URL(((await res.json()) as any).authUrl);
 }
+/** The cookies of the browser that started the web sign-in (routes/oauth.ts binds the callback to it). */
+const browser = new WeakMap<object, string>();
 /** Google sending the browser back, as the existing OAuth callback route receives it. */
-async function callback(t: ReturnType<typeof makeApp>, query: Record<string, string>) {
-  const res = await t.raw('GET', `/api/oauth/google/callback?${new URLSearchParams(query)}`, 'no-key');
+async function callback(t: ReturnType<typeof makeApp>, query: Record<string, string>, cookie = browser.get(t) ?? '') {
+  const res = await t.raw('GET', `/api/oauth/google/callback?${new URLSearchParams(query)}`, 'no-key', undefined, cookie);
   assert.equal(res.status, 302);
   return res.headers.get('location')!;
 }
@@ -545,6 +548,39 @@ test('google photos web: the callback stores sealed tokens apart from Calendar, 
   });
 });
 
+test('google photos web: only the browser that started the sign-in can finish it', async () => {
+  const t = makeApp({ web: true });
+  const fake = fakeGoogle();
+  await withGoogle(fake, async () => {
+    const res = await t.raw('POST', '/api/google-photos/connect');
+    const [setCookie] = res.headers.getSetCookie();
+    assert.match(setCookie, /^__Secure-kinwall_oauth_[0-9a-f]{16}=[0-9a-f]{64}; /);
+    assert.deepEqual(setCookie.split('; ').slice(1).sort(), ['HttpOnly', 'Max-Age=600', 'Path=/api/oauth/google/callback', 'SameSite=Lax', 'Secure']);
+    const state = new URL(((await res.json()) as any).authUrl).searchParams.get('state')!;
+
+    // Another browser (the link was passed on, or the QR code scanned): refused, a decline included,
+    // and nothing is used up. With a code, the page offering it to the Kinwall app, which replays it
+    // in its web view where the cookie is (oauth-binding.test.ts).
+    for (const jar of ['', `${setCookie.split('=')[0]}=${'0'.repeat(64)}`]) {
+      assert.match(await callback(t, { error: 'access_denied', state }, jar), /#\/settings\?tab=calendars&oauthError=google%3A.*different%20browser/);
+      const page = await t.raw('GET', `/api/oauth/google/callback?${new URLSearchParams({ code: 'FAKE-CODE', state })}`, 'no-key', undefined, jar);
+      assert.equal(page.status, 200);
+      const html = await page.text();
+      assert.match(html, /href="family\.kinwall\.app:\/provider-return\?kind=google&amp;state=[^"]+&amp;code=FAKE-CODE"/);
+      assert.match(html, /Google Photos/);
+      assert.match(html, /href="https:\/\/kinwall\.example\/#\/settings"/);
+    }
+    assert.equal(fake.g.calls.length, 0, 'nothing sent to Google');
+    assert.equal((await t.send('GET', '/api/google-photos')).body.state, 'signing-in', 'the sign-in is still open');
+
+    const cookie = setCookie.split(';')[0];
+    const ok = await t.raw('GET', `/api/oauth/google/callback?${new URLSearchParams({ code: 'FAKE-CODE', state })}`, 'no-key', undefined, cookie);
+    assert.equal(ok.headers.get('location'), 'https://kinwall.example/#/settings?googlePhotos=connected');
+    assert.ok(ok.headers.getSetCookie()[0].startsWith(`${cookie.split('=')[0]}=;`), 'cookie cleared');
+    assert.equal((await t.send('GET', '/api/google-photos')).body.state, 'choosing');
+  });
+});
+
 test('google photos web: tokens refresh with the web client that made them', async () => {
   const t = makeApp({ web: true });
   const fake = fakeGoogle();
@@ -596,9 +632,9 @@ test('google photos web: a Calendar sign-in through the same callback still make
   const t = makeApp({ web: true });
   const fake = fakeGoogle();
   await withGoogle(fake, async () => {
-    const start = await t.raw('GET', '/api/oauth/google/start?key=x');
-    const state = new URL(start.headers.get('location')!).searchParams.get('state')!;
-    const location = await callback(t, { code: 'FAKE-CODE', state });
+    const start = await t.raw('POST', '/api/oauth/google/start');
+    const state = new URL(((await start.json()) as { url: string }).url).searchParams.get('state')!;
+    const location = await callback(t, { code: 'FAKE-CODE', state }, start.headers.getSetCookie().map((s) => s.split(';')[0]).join('; '));
     assert.match(location, /#\/settings\?account=/);
     assert.equal(await t.count('accounts'), 1);
     assert.equal(await t.row(), undefined, 'Photos untouched');

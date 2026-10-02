@@ -5,7 +5,7 @@ import { api, ApiError, clearKey, MOCK, PUSH_SUB_ID_KEY } from './api.ts'
 import { securityHint } from './securityActivity.ts'
 import SecurityActivitySheet from './SecurityActivitySheet.tsx'
 import type { Account, ApiKey, CalendarEntry, Category, HiddenEvent, ColorScheme, CustomColors, Density, DeviceDensity, Features, GeocodeResult, GooglePhotos, HostEvent, Me, Member, SecurityEvent, Passkey, Providers, PushSubscription, RemoteCalendar, Settings, TempCheckSettings, TextScale, ThemeMode, TimeFormat, Typeface, Webhook } from './types.ts'
-import { ProviderForm, PublicUrlRow } from './ProviderConfig.tsx'
+import { connectCalendar, ProviderForm, PublicUrlRow } from './ProviderConfig.tsx'
 import { CATEGORY_EMOJI, CATEGORY_PRESETS, MEMBER_EMOJI, MEMBER_PALETTE, nextPaletteColor, REMINDER_OPTIONS } from './types.ts'
 import Sheet from './Sheet.tsx'
 import { SchemePickerSheet, TypefaceRow } from './SchemePicker.tsx'
@@ -1601,7 +1601,7 @@ function GooglePhotosRows() {
     try { setGp(await f()) } catch (e) { toast(e instanceof Error ? e.message : "Couldn't reach Google Photos", true) } finally { setBusy(false) }
   }
   // The web sign-in goes to Google's page in this tab, like Connect Google for Calendar. A wall screen
-  // stays on the sheet instead, with a QR code to finish on a phone (or Continue to Google).
+  // stays on the sheet instead, with Continue to Google (it finishes only in this browser).
   const wall = !!device.wallScreen
   const connect = () => run(async () => {
     const g = await api.connectGooglePhotos()
@@ -1651,8 +1651,8 @@ function GooglePhotosRows() {
         {/* Like Connect Google for Calendar: Google's page in this tab, back to this sheet after. */}
         <div className="settings-row-sub">Sign in with the Google account that has your photos, then choose albums for Kinwall.</div>
         <a className="btn btn-primary" href={gp.authUrl} onClick={e => { if (!MOCK) return; e.preventDefault() }}>Continue to Google</a>
-        {!isPhone && <div className="settings-row-sub">Or connect from a phone or computer:</div>}
-        {qr(gp.authUrl)}
+        {/* No QR code: the sign-in finishes only in the browser that started it (routes/oauth.ts). */}
+        <div className="settings-row-sub">Sign-in finishes only on the device where you started it. To use a phone or computer instead, cancel here and connect from Settings there.</div>
         <div className="settings-row-sub" role="status">Waiting for you to sign in…</div>
       </>}
       {state === 'signing-in' && gp.userCode && gp.verificationUrl && <>
@@ -2192,8 +2192,8 @@ function CalendarsSection({ openAccountId, onOpenedAccount, toast }: { openAccou
         <button className="connect-btn" onClick={() => setLocalSheet(true)}>+ Local calendar</button>
         <button className="connect-btn" onClick={() => setIcsSheet(true)}>+ ICS URL</button>
         <button className="connect-btn" onClick={() => setCaldavSheet(true)}>+ CalDAV</button>
-        <button className="connect-btn" disabled={!oauth.google} onClick={() => location.href = api.oauthStartUrl('google')}>Connect Google</button>
-        <button className="connect-btn" disabled={!oauth.microsoft} onClick={() => location.href = api.oauthStartUrl('microsoft')}>Connect Outlook</button>
+        <button className="connect-btn" disabled={!oauth.google} onClick={() => connectCalendar('google', m => toast(m, true))}>Connect Google</button>
+        <button className="connect-btn" disabled={!oauth.microsoft} onClick={() => connectCalendar('microsoft', m => toast(m, true))}>Connect Outlook</button>
       </div>
       {(!oauth.google || !oauth.microsoft) && (
         <p className="settings-row-sub" style={{ marginTop: 8 }}>Google/Outlook grayed out? Set them up in Calendar providers below.</p>

@@ -23,6 +23,8 @@ If the card already says **Provided by your host**, someone else set up the Micr
 
 If you cancel the Microsoft sign-in, or it fails, you land back on **Settings → Calendars** with a message saying what happened (for example "Microsoft sign-in canceled — nothing was connected"). Nothing is connected, so you can just try again.
 
+The sign-in has to finish in the browser that started it, at the same address (your **Public URL**): a sign-in link passed to another browser or device is refused. In the Kinwall phone app, Microsoft's page opens in the app's own browser and ends with **Open in the Kinwall app**, which finishes the sign-in back in the app.
+
 ## Reminders
 
 Outlook events hold one reminder. Kinwall writes the reminder you choose to the event. Outlook has no "use default" setting to write back, so the **Reminder** menu doesn't offer one for Outlook events.

@@ -118,9 +118,9 @@ test('providers: authUrl uses the stored client id and redirect URI', async () =
   await request('/api/providers/public-url', { method: 'PUT', body: JSON.stringify({ value: 'https://kinwall.example.com/' }) });
   await request('/api/providers/google', { method: 'PUT', body: JSON.stringify({ clientId: 'stored-id.apps.googleusercontent.com', clientSecret: 'sekret' }) });
 
-  const start = await request(`/api/oauth/google/start?key=${ADMIN_KEY}`, { redirect: 'manual' });
-  assert.equal(start.status, 302);
-  const location = start.headers.get('Location')!;
+  const start = await request('/api/oauth/google/start', { method: 'POST' });
+  assert.equal(start.status, 200);
+  const location = ((await start.json()) as { url: string }).url;
   assert.match(location, /^https:\/\/accounts\.google\.com/);
   assert.match(location, /client_id=stored-id\.apps\.googleusercontent\.com/);
   assert.match(location, /redirect_uri=https%3A%2F%2Fkinwall\.example\.com%2Fapi%2Foauth%2Fgoogle%2Fcallback/);
@@ -203,7 +203,7 @@ test('providers: household settings override env credentials (start + token exch
   assert.equal(status.google.clientId, 'own-id.apps.googleusercontent.com');
 
   // Own app: own client id, per-instance redirect URI and a plain state even with OAUTH_REDIRECT_URI set.
-  const loc = new URL((await request(`/api/oauth/google/start?key=${ADMIN_KEY}`, { redirect: 'manual' })).headers.get('Location')!);
+  const loc = new URL(((await (await request('/api/oauth/google/start', { method: 'POST' })).json()) as { url: string }).url);
   assert.equal(loc.searchParams.get('client_id'), 'own-id.apps.googleusercontent.com');
   assert.equal(loc.searchParams.get('redirect_uri'), 'https://smiths.host.example/api/oauth/google/callback');
   assert.ok(!loc.searchParams.get('state')!.includes('.'));
@@ -213,15 +213,17 @@ test('providers: household settings override env credentials (start + token exch
   assert.equal(penv.GOOGLE_CLIENT_SECRET, 'own-secret'); // token refresh reads providerEnv too
 });
 
-test('oauth: OAUTH_REDIRECT_URI -> shared redirect + "<hostLabel>.<kind>.<random>" state; forwarded callback accepts it', async () => {
+test('oauth: OAUTH_REDIRECT_URI -> shared redirect + "<hostLabel>.<kind>.<random>" state; the callback the host redirects the browser to accepts it', async () => {
   const env = makeEnv({ ...HOST_ENV, OAUTH_REDIRECT_URI: 'https://app.host.example/oauth/callback' });
   const request = makeApp(env);
-  const start = await app().request(`https://smiths.host.example/api/oauth/google/start?key=${ADMIN_KEY}`, { headers: { Authorization: `Bearer ${ADMIN_KEY}` }, redirect: 'manual' }, env);
-  const loc = new URL(start.headers.get('Location')!);
+  const start = await app().request('https://smiths.host.example/api/oauth/google/start', { method: 'POST', headers: { Authorization: `Bearer ${ADMIN_KEY}` } }, env);
+  const loc = new URL(((await start.json()) as { url: string }).url);
   assert.equal(loc.searchParams.get('redirect_uri'), 'https://app.host.example/oauth/callback');
   assert.equal(loc.searchParams.get('client_id'), HOST_ENV.GOOGLE_CLIENT_ID);
   const state = loc.searchParams.get('state')!;
   assert.match(state, /^smiths\.google\.[0-9a-f-]{36}$/);
+  // The browser that started the flow carries its cookie back (oauth-binding.test.ts).
+  const headers = { Cookie: start.headers.getSetCookie().map((s) => s.split(';')[0]).join('; ') };
 
   const realFetch = globalThis.fetch;
   let tokenBody = '';
@@ -235,15 +237,18 @@ test('oauth: OAUTH_REDIRECT_URI -> shared redirect + "<hostLabel>.<kind>.<random
   try {
     // A tampered random part is rejected; the exact state is accepted once.
     // A bad state (or a declined consent) sends the browser back to Settings with the reason, not a JSON page.
-    const bad = await request(`/api/oauth/google/callback?code=c&state=${encodeURIComponent(state + 'x')}`, { redirect: 'manual' });
-    assert.equal(bad.status, 302);
-    assert.match(bad.headers.get('Location')!, /#\/settings\?tab=calendars&oauthError=google%3Ainvalid/);
-    const declined = await request(`/api/oauth/google/callback?error=access_denied&state=${encodeURIComponent(state)}`, { redirect: 'manual' });
+    // (Its cookie doesn't match: the page that hands the code to the Kinwall app, oauth-binding.test.ts.)
+    const bad = await request(`/api/oauth/google/callback?code=c&state=${encodeURIComponent(state + 'x')}`, { redirect: 'manual', headers });
+    assert.equal(bad.status, 200);
+    assert.match(await bad.text(), /different browser/);
+    const declined = await request(`/api/oauth/google/callback?error=access_denied&state=${encodeURIComponent(state)}`, { redirect: 'manual', headers });
     assert.equal(declined.status, 302);
     assert.match(declined.headers.get('Location')!, /oauthError=google%3Acanceled$/);
-    const ok = await request(`/api/oauth/google/callback?code=c&state=${encodeURIComponent(state)}`, { redirect: 'manual' });
+    const ok = await request(`/api/oauth/google/callback?code=c&state=${encodeURIComponent(state)}`, { redirect: 'manual', headers });
     assert.equal(ok.status, 302);
     assert.match(ok.headers.get('Location')!, /^https:\/\/smiths\.host\.example\/#\/settings\?account=/);
+    const again = await request(`/api/oauth/google/callback?code=c&state=${encodeURIComponent(state)}`, { redirect: 'manual', headers });
+    assert.match(again.headers.get('Location')!, /oauthError=google%3Ainvalid/);
     assert.equal(new URLSearchParams(tokenBody).get('redirect_uri'), 'https://app.host.example/oauth/callback');
     assert.equal(new URLSearchParams(tokenBody).get('client_secret'), 'host-secret-value');
   } finally {
@@ -253,7 +258,7 @@ test('oauth: OAUTH_REDIRECT_URI -> shared redirect + "<hostLabel>.<kind>.<random
 
 test('oauth: without OAUTH_REDIRECT_URI the state stays a bare UUID', async () => {
   const request = makeApp(makeEnv(HOST_ENV));
-  const loc = new URL((await request(`/api/oauth/google/start?key=${ADMIN_KEY}`, { redirect: 'manual' })).headers.get('Location')!);
+  const loc = new URL(((await (await request('/api/oauth/google/start', { method: 'POST' })).json()) as { url: string }).url);
   assert.match(loc.searchParams.get('state')!, /^[0-9a-f-]{36}$/);
   assert.equal(loc.searchParams.get('redirect_uri'), 'https://smiths.host.example/api/oauth/google/callback');
 });

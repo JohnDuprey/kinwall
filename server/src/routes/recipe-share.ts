@@ -72,7 +72,7 @@ async function sharedRecipe(c: Ctx, token: string): Promise<Recipe | null> {
 const limited = async (c: Ctx) => !await checkRate(c.env.DB, `share:${clientIp(c) ?? 'direct'}`, 120, 60_000);
 
 const ENT: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (ch) => ENT[ch]);
+export const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (ch) => ENT[ch]);
 // JSON inside <script>: nothing in it may close the tag or start a comment.
 const jsonScript = (v: unknown) => JSON.stringify(v).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
 const qty = (n: number) => String(Number(n.toFixed(3)));

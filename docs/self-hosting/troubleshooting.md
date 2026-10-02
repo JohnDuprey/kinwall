@@ -30,6 +30,8 @@ The redirect URI registered with Google must match the one on the provider card 
 
 When a sign-in goes wrong, Kinwall sends you back to **Settings → Calendars** with the reason in a message. "Sign-in canceled" means consent was declined, and nothing was connected. A reason starting with `server:` points to the server side: check the client secret and **Public URL** on the provider card, then try again.
 
+"This sign-in was started in a different browser or at a different address" means Google or Microsoft sent you back to a browser, or an address, other than the one where you tapped **Connect**. Kinwall only finishes a sign-in in the browser that started it. Open Kinwall at its **Public URL** (not a LAN address, another hostname or the Home Assistant sidebar when the Public URL is something else), and connect again from there, in one browser. Browsers that block cookies for the site also cause this. In the Kinwall phone app, Google's or Microsoft's page opens in the app's own browser: when it says to finish in the Kinwall app, tap **Open in the Kinwall app**. If nothing happens, update the app, or connect from a web browser instead.
+
 ## Sync errors
 
 The calendar's row in **Settings → Calendars** shows the last error.
