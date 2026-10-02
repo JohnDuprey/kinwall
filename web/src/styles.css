@@ -1502,6 +1502,11 @@ button.month-cell .month-daynum { flex: none; }
    Light: the ink is the scheme's readable accent. The heads take --logo-heads (useTheme.ts). */
 .brand-lockup { display: flex; flex-direction: column; align-items: center; gap: 2px; margin: 0 auto 16px; color: var(--text); font-weight: 900; font-size: 1.125rem; letter-spacing: -0.01em; line-height: 1.2; }
 .brand-mark { width: 64px; height: auto; aspect-ratio: 840 / 494; }
+/* Phones: the mark is the screen's one picture while there's nothing else to show, so give it room. */
+@media (max-width: 600px) { .brand-lockup { font-size: 1.5rem; gap: 6px; } .brand-mark { width: 120px; } }
+/* The loading screens: a quiet spinner under the mark instead of a card (the words stay for screen readers). */
+.gate-loading { display: flex; justify-content: center; padding: 8px; }
+.gate-loading .spinner { width: 28px; height: 28px; border-width: 3px; border-top-color: var(--accent-text); }
 .brand-ink { fill: var(--accent-text); }
 /* Dark: the light ink of the dark logo (Peacock #E4ECF5), which every dark scheme's --text keeps legible. */
 :root[data-theme="dark"] .brand-ink { fill: var(--text); }

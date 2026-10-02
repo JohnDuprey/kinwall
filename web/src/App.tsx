@@ -1230,7 +1230,7 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
     return (
       <div className="gate-screen" role="main">
         <Brand />
-        <div className="state-card">Loading…</div>
+        <div className="gate-loading" role="status"><span className="spinner" aria-hidden="true" /><span className="sr-only">Loading…</span></div>
       </div>
     )
   }
@@ -1263,7 +1263,7 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
     return (
       <div className="gate-screen" role="main">
         <Brand />
-        <div className="state-card">{loadError ? 'Could not reach the server. Retrying…' : 'Loading…'}</div>
+        {loadError ? <div className="state-card">Could not reach the server. Retrying…</div> : <div className="gate-loading" role="status"><span className="spinner" aria-hidden="true" /><span className="sr-only">Loading…</span></div>}
       </div>
     )
   }
