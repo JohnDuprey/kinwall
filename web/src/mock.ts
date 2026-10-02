@@ -2,7 +2,7 @@
 import type { Actor, OnlineTidbits, Plugin, PluginCatalogEntry,
   Account, ApiKey, AppNotification, SecurityEvent, CalendarEntry, Category, Chore, ChoreDay, LibraryChore, LibraryChoreInput, EventInstance, HiddenEvent, LeaderboardEntry, LeaderboardPeriod, List, ListGroup,
   Newscast, NewscastItem, NewscastPostInput, NewscastReaction,
-  Photo, PhotoQuota, FamilyColoringPage, GooglePhotos, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, BookResult, BarcodeLookup, ListItem, ListItemInput, ListItemPatch, ListItemStep, ListCatalog, Member, RememberedItem, RememberedItemInput, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption, TempCheck, TempCheckInput, Journal, JournalEntry, Insights, InsightDay, InsightRange, Battery, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory, DoseStatus, MedTime,
+  Photo, PhotoQuota, FamilyColoringPage, GooglePhotos, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, BookResult, BarcodeLookup, ReadingDay, ListItem, ListItemInput, ListItemPatch, ListItemStep, ListCatalog, Member, RememberedItem, RememberedItemInput, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption, TempCheck, TempCheckInput, Journal, JournalEntry, Insights, InsightDay, InsightRange, Battery, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory, DoseStatus, MedTime,
 } from './types.ts'
 import { eveningPending, FEELINGS, lastNightDate, TEMP_CHECK_OFF } from './tempCheck.ts'
 import { aisleOrderMap, compareItems } from './types.ts'
@@ -640,7 +640,7 @@ const daysAgo = (n: number) => dateKey(new Date(Date.now() - n * 86_400_000))
 const tracker = (kind: TrackerKind, memberId: string | null, date: string, title: string | null, data: Record<string, unknown>, photoId: string | null = null): TrackerEntry =>
   ({ id: uid(), kind, memberId, formerMember: null, date, title, photoId, photoOwned: false, photoFamily: photoId ? true : null, data: data as never, createdAt: `${date}T18:00:00.000Z`, updatedAt: `${date}T18:00:00.000Z` })
 const trackers: TrackerEntry[] = [
-  tracker('reading', 'm3', daysAgo(12), "Charlotte's Web", { author: 'E. B. White', status: 'reading', pagesRead: 83, totalPages: 184, coverUrl: 'https://picsum.photos/seed/kinwall-charlotte/120/180' }),
+  tracker('reading', 'm3', daysAgo(12), "Charlotte's Web", { author: 'E. B. White', status: 'reading', pagesRead: 83, totalPages: 184, log: [{ date: daysAgo(9), amount: 12 }, { date: daysAgo(8), amount: 9 }, { date: daysAgo(6), amount: 15 }, { date: daysAgo(4), amount: 11 }, { date: daysAgo(3), amount: 14 }, { date: daysAgo(1), amount: 10 }, { date: daysAgo(0), amount: 12 }], coverUrl: 'https://picsum.photos/seed/kinwall-charlotte/120/180' }),
   tracker('reading', 'm3', daysAgo(40), 'Matilda', { author: 'Roald Dahl', status: 'finished', pagesRead: 240, totalPages: 240, finishedOn: daysAgo(20), rating: 5, notes: 'Loved Miss Honey.', coverUrl: 'https://picsum.photos/seed/kinwall-matilda/120/180' }),
   tracker('reading', 'm3', daysAgo(70), 'The Wild Robot', { author: 'Peter Brown', status: 'finished', pagesRead: 288, totalPages: 288, finishedOn: daysAgo(45), rating: 4 }),
   tracker('reading', 'm3', daysAgo(6), 'The Mouse and the Motorcycle', { format: 'audiobook', author: 'Beverly Cleary', narrator: 'Nora Bell', status: 'reading', minutesListened: 95, totalMinutes: 225 }),
@@ -665,6 +665,15 @@ const settleMockPhoto = (t: TrackerEntry, family?: boolean) => {
   t.photoFamily = p.family !== false
 }
 // Mirrors the server: a finished book gets today's date and its last page (or minute); null clears a field.
+// The server's daily reading log (server/src/reading.ts logReading), simplified: forward progress adds to today.
+const demoLog = (kind: TrackerKind, old: Record<string, unknown>, next: Record<string, unknown>) => {
+  if (kind !== 'reading') return next
+  const field = next.format === 'audiobook' ? 'minutesListened' : 'pagesRead'
+  const delta = Number(next[field] ?? 0) - Number(old[field] ?? 0)
+  const log = [...((old.log as ReadingDay[] | undefined) ?? [])]
+  if (delta > 0) { const today = todayISO(); if (log.at(-1)?.date === today) log[log.length - 1] = { date: today, amount: log.at(-1)!.amount + delta }; else log.push({ date: today, amount: delta }) }
+  return { ...next, ...(log.length ? { log } : {}) }
+}
 const trackerData = (kind: TrackerKind, data: Record<string, unknown>) => {
   const d = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== null && v !== undefined))
   return kind === 'reading' && d.status === 'finished' ? { ...d, finishedOn: d.finishedOn ?? todayISO(), ...(d.totalPages ? { pagesRead: d.totalPages } : {}), ...(d.totalMinutes ? { minutesListened: d.totalMinutes } : {}) } : d
@@ -1406,7 +1415,7 @@ export const mock = {
       ...(body.memberId !== undefined && { memberId: body.memberId }), ...(body.date && { date: body.date }),
       ...(body.title !== undefined && { title: body.title?.trim() || null }), ...(body.photoId !== undefined && { photoId: body.photoId }),
       ...(body.memberId !== undefined && { formerMember: null }),
-      data: trackerData(t.kind, { ...t.data, ...body.data }), updatedAt: new Date().toISOString(),
+      data: demoLog(t.kind, t.data as unknown as Record<string, unknown>, trackerData(t.kind, { ...t.data, ...body.data })), updatedAt: new Date().toISOString(),
     })
     settleMockPhoto(t, body.photoFamily); bump(); return { ...t }
   },

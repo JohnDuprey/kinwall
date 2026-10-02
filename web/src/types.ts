@@ -105,7 +105,9 @@ export interface ReadingData {
   pagesRead?: number; totalPages?: number; minutesListened?: number; totalMinutes?: number
   finishedOn?: string; rating?: number; notes?: string
   coverUrl?: string // public https; shown through GET /api/trackers/{id}/cover
+  log?: ReadingDay[] // read each day (the server keeps it as progress changes)
 }
+export interface ReadingDay { date: string; amount: number } // pages for a book, minutes for an audiobook
 /** A book lookup result (GET /api/books/search, from Open Library). */
 export interface BookResult { title: string; author?: string; year?: number; pages?: number; coverId?: number; coverUrl?: string }
 export interface MemoryData { text: string; mood?: string }

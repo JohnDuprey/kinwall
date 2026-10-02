@@ -15,7 +15,7 @@ import { PlusIcon } from './icons.tsx'
 import Sheet from './Sheet.tsx'
 import { preparePhoto, PhotoFormatError } from './photos.ts'
 import type { BookResult, HealthData, HealthType, Member, MemoryData, Photo, ReadingData, ReadingFormat, ReadingStatus, TrackerEntry, TrackerInput, TrackerKind } from './types.ts'
-import { hoursMinutes, isAudiobook, left, logReachesEnd, readingPercent, shelfLine, shelfTotals, splitMinutes, toMinutes } from './reading.ts'
+import { dayAmount, hoursMinutes, isAudiobook, left, recentDays, logReachesEnd, readingPercent, shelfLine, shelfTotals, splitMinutes, toMinutes } from './reading.ts'
 import { trackerKinds } from './types.ts'
 import { MedicineList } from './MedicationSettings.tsx'
 import PickField from './PickField.tsx'
@@ -201,6 +201,30 @@ function Reading({ entries, people, canEdit, onEdit, onSave }: {
         </section>
       ))}
       {logFor && <LogSheet book={logFor} onClose={() => setLogFor(null)} onSave={(body, msg) => { onSave(logFor, body, msg); setLogFor(null) }} />}
+    </div>
+  )
+}
+
+/** A book's reading by day (ReadingData.log, kept by the server): the last 14 days as bars, then the
+ * latest days read. Pages for a book, minutes for an audiobook. */
+function ReadingDays({ d, tz }: { d: ReadingData; tz?: string }) {
+  const today = todayKeyInTz(tz || Intl.DateTimeFormat().resolvedOptions().timeZone)
+  const days = recentDays(d.log, today)
+  const max = Math.max(1, ...days.map(x => x.amount))
+  const total = days.reduce((n, x) => n + x.amount, 0)
+  const read = days.filter(x => x.amount).length
+  const latest = [...(d.log ?? [])].reverse().slice(0, 7)
+  const label = (date: string) => date === today ? 'Today' : niceDate(date)
+  return (
+    <div className="field">
+      <label id="trk-days">{isAudiobook(d) ? 'Listening by day' : 'Reading by day'}</label>
+      <div className="trk-days-chart" role="img" aria-label={`Last 14 days: ${dayAmount(d, total)} on ${read} day${read === 1 ? '' : 's'}`}>
+        {days.map(x => <div key={x.date} className="trk-days-bar" style={{ height: `${Math.max(x.amount ? 8 : 2, (x.amount / max) * 100)}%` }} title={`${label(x.date)}: ${dayAmount(d, x.amount)}`} />)}
+      </div>
+      <div className="trk-days-axis" aria-hidden="true"><span>{niceDate(days[0].date)}</span><span>Today</span></div>
+      <ul className="trk-days-list" aria-labelledby="trk-days">
+        {latest.map(x => <li key={x.date}><span>{label(x.date)}</span><span>{dayAmount(d, x.amount)}</span></li>)}
+      </ul>
     </div>
   )
 }
@@ -559,6 +583,7 @@ function EntrySheet({ kind, entry, date, admin, kid, photos, memberId, onClose, 
             <div className="field"><label htmlFor="trk-total">Total pages</label><input id="trk-total" type="text" inputMode="numeric" value={f.totalPages} onChange={e => set({ totalPages: e.target.value.replace(/\D/g, '') })} /></div>
           </div>
         )}
+        {entry && !!d.log?.length && <ReadingDays d={d as ReadingData} tz={settings.timezone ?? undefined} />}
         <div className="trk-field-pair">
           <div className="field"><label htmlFor="trk-date">Started</label><input id="trk-date" type="date" value={f.date} onChange={e => set({ date: e.target.value })} /></div>
           {f.status === 'finished' && <div className="field"><label htmlFor="trk-fin">Finished</label><input id="trk-fin" type="date" value={f.finishedOn} onChange={e => set({ finishedOn: e.target.value })} /></div>}

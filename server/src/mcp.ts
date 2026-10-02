@@ -1728,7 +1728,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
   const HEALTH_DOC = 'Health entries are hidden, and can\'t be added or changed here, unless a parent turned on "Let connected apps see health entries" (Settings → Connected apps).';
   const TRACKER_DATA_DOC =
     'The kind\'s fields. reading: {format: book|audiobook (default book), author, status: want|reading|finished, pagesRead, totalPages (books), ' +
-    'narrator, minutesListened, totalMinutes (audiobooks, whole minutes: 4h 30m = 270), finishedOn (YYYY-MM-DD), rating 1-5, notes, coverUrl (public https image)}. ' +
+    'narrator, minutesListened, totalMinutes (audiobooks, whole minutes: 4h 30m = 270), finishedOn (YYYY-MM-DD), rating 1-5, notes, coverUrl (public https image), log (read-only: [{date, amount}] pages or minutes read each day)}. ' +
     'memory: {text, mood (one emoji)}. health: {type: checkup|dentist|specialist|vaccine|sick|other, time (HH:MM), provider, notes, ' +
     'height {value, unit: in|cm}, weight {value, unit: lb|kg}, temperature {value, unit: F|C}, followUp (YYYY-MM-DD)}.';
   const trackerMember = async (member: string | undefined) => (member ? await resolveMember(app, env, auth, member) : undefined);

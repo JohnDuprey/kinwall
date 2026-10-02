@@ -2659,6 +2659,11 @@ a.btn { text-decoration: none; } /* a link that looks like a button (the Board's
 .trk-book-main.trk-book-with-cover { flex-direction: row; align-items: center; gap: 10px; }
 .trk-cover { flex: none; width: 40px; height: 60px; object-fit: cover; border-radius: 4px; background: var(--bg-alt); box-shadow: var(--shadow); }
 .trk-cover-blank { display: flex; align-items: center; justify-content: center; font-size: 1.2rem; box-shadow: none; }
+.trk-days-chart { display: flex; align-items: flex-end; gap: 3px; height: 64px; padding: 4px 0; border-bottom: 1px solid var(--border); }
+.trk-days-bar { flex: 1; min-width: 0; border-radius: 3px 3px 0 0; background: var(--accent); }
+.trk-days-axis { display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-dim); margin-top: 2px; }
+.trk-days-list { list-style: none; margin: 8px 0 0; padding: 0; }
+.trk-days-list li { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-top: 1px solid var(--border); }
 .trk-cover-field { display: flex; align-items: center; gap: 10px; }
 .trk-cover-field input { flex: 1; min-width: 0; }
 .list-scan-btn { flex: none; font-size: 1.25rem; }

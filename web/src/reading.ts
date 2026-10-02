@@ -1,7 +1,7 @@
 // Books and audiobooks (Trackers.tsx, Snapshot.tsx): progress is pages for a book, minutes for an
 // audiobook; an entry without a format is a book. Pure, so web/test/reading.test.ts covers it.
 // server/src/reading.ts is the server's copy - keep in step.
-import type { ReadingData } from './types.ts'
+import type { ReadingData, ReadingDay } from './types.ts'
 
 export const isAudiobook = (d: Pick<ReadingData, 'format'>) => d.format === 'audiobook'
 
@@ -60,3 +60,17 @@ export function shelfTotals(books: ReadingData[], year: string) {
 export const shelfLine = (year: string, t: { finished: number; pages: number; minutes: number }) =>
   [`${t.finished} book${t.finished === 1 ? '' : 's'} finished in ${year}`, t.pages ? `${t.pages.toLocaleString('en-US')} pages` : '', t.minutes ? `${hoursMinutes(t.minutes)} listened` : '']
     .filter(Boolean).join(' · ')
+
+/** The last `n` days up to `today` (YYYY-MM-DD), each with what was read then (0 when nothing). */
+export function recentDays(log: ReadingDay[] | undefined, today: string, n = 14): ReadingDay[] {
+  const by = new Map((log ?? []).map(d => [d.date, d.amount]))
+  const t = Date.parse(`${today}T12:00:00Z`)
+  return Array.from({ length: n }, (_, i) => {
+    const date = new Date(t - (n - 1 - i) * 86_400_000).toISOString().slice(0, 10)
+    return { date, amount: by.get(date) ?? 0 }
+  })
+}
+
+/** One day's reading in words: "12 pages", "1 page", or "1h 15m" for an audiobook. */
+export const dayAmount = (d: Pick<ReadingData, 'format'>, amount: number) =>
+  isAudiobook(d) ? hoursMinutes(amount) : `${amount} page${amount === 1 ? '' : 's'}`

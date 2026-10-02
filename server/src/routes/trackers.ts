@@ -30,7 +30,7 @@ import { isConnectedApp } from './mcp-oauth.ts';
 import { todayIn } from './lists.ts';
 import { isSealed, seal, unseal, type EncryptionEnv } from '../crypto.ts';
 import { fetchRecipeImage } from '../outbound.ts';
-import { isAudiobook, minutesOf, pagesOf, readingPercent, type ReadingProgress } from '../reading.ts';
+import { isAudiobook, logReading, minutesOf, pagesOf, readingPercent, type ReadingProgress } from '../reading.ts';
 import {
   ErrorSchema, ReadingSummarySchema, TRACKER_DATA, TrackerEntrySchema, TrackerInputSchema, TrackerKindSchema, TrackerPatchSchema,
 } from '../schemas.ts';
@@ -162,6 +162,13 @@ function finishBook(data: Record<string, unknown>, today: string) {
   return { ...data, finishedOn: data.finishedOn ?? today, ...(data.totalPages ? { pagesRead: data.totalPages } : {}), ...(data.totalMinutes ? { minutesListened: data.totalMinutes } : {}) };
 }
 
+/** The book's daily log, from what's stored (never the client's copy): today grows by what was read. */
+function withLog(old: Record<string, unknown>, next: Record<string, unknown>, today: string) {
+  const { log: _ignored, ...data } = next;
+  const log = logReading(old as Parameters<typeof logReading>[0], data, today);
+  return log ? { ...data, log } : data;
+}
+
 const idParam = z.object({ id: z.string() });
 const json = <T extends z.ZodTypeAny>(schema: T) => ({ 'application/json': { schema } });
 
@@ -271,7 +278,7 @@ trackersRoutes.openapi(
     if ('error' in parsed) return c.json({ error: parsed.error }, 400);
     const entry = {
       id: crypto.randomUUID(), kind: body.kind, memberId: body.memberId ?? null, title: body.title?.trim() || null, photoId: body.photoId ?? null,
-      data: body.kind === 'reading' ? finishBook(parsed.data, today) : parsed.data,
+      data: body.kind === 'reading' ? { ...finishBook(parsed.data, today), log: undefined } : parsed.data, // a new book's starting page wasn't read today
     };
     const ok = await check(c, entry);
     if ('error' in ok) return c.json(ok, 400);
@@ -378,7 +385,7 @@ trackersRoutes.openapi(
       memberId: body.memberId !== undefined ? body.memberId : row.member_id,
       title: body.title !== undefined ? body.title?.trim() || null : row.title,
       photoId: body.photoId !== undefined ? body.photoId : row.photo_id,
-      data: row.kind === 'reading' ? finishBook(parsed.data, today) : parsed.data,
+      data: row.kind === 'reading' ? withLog(old.data, finishBook(parsed.data, today), today) : parsed.data,
     };
     const notYours = await ownerBlock(c, row.member_id, entry.memberId); // a kid's device: their own entries, and only to themselves
     if (notYours) return c.json({ error: notYours }, 403);

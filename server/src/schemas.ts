@@ -1091,6 +1091,8 @@ export const ReadingDataSchema = z
     finishedOn: DateOnly.nullable().optional(),
     rating: z.number().int().min(1).max(5).nullable().optional(), // stars
     notes: Text(4000).nullable().optional(),
+    // Read each day, kept by the server as progress changes (server/src/reading.ts logReading); a client's copy is ignored.
+    log: z.array(z.object({ date: DateOnly, amount: z.number().int().min(0).max(100000) })).max(400).optional(),
     // A cover photo's address (public https), served through GET /api/trackers/{id}/cover
     coverUrl: z.string().max(2000).refine(isPublicHttpsUrl, 'must be a public https address').nullable().optional(),
   })

@@ -1,7 +1,7 @@
 // node --test test/ (npm test). Books and audiobooks: progress, finishing, the shelf line, hours and minutes.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { isAudiobook, left, logReachesEnd, readingPercent, shelfLine, shelfTotals, splitMinutes, toMinutes } from '../src/reading.ts'
+import { dayAmount, isAudiobook, left, recentDays, logReachesEnd, readingPercent, shelfLine, shelfTotals, splitMinutes, toMinutes } from '../src/reading.ts'
 import type { ReadingData } from '../src/types.ts'
 
 const book = (d: Partial<ReadingData>): ReadingData => ({ status: 'reading', ...d })
@@ -58,4 +58,15 @@ test('shelf totals and line: pages and time listened, zero parts left out', () =
   assert.equal(shelfLine('2026', { finished: 2, pages: 1250, minutes: 690 }), '2 books finished in 2026 · 1,250 pages · 11h 30m listened')
   assert.equal(shelfLine('2026', { finished: 1, pages: 0, minutes: 60 }), '1 book finished in 2026 · 1h listened')
   assert.equal(shelfLine('2026', { finished: 0, pages: 12, minutes: 0 }), '0 books finished in 2026 · 12 pages')
+})
+
+test('recentDays: the last n days up to today, zero on days with no reading', () => {
+  const log = [{ date: '2026-09-20', amount: 30 }, { date: '2026-09-29', amount: 12 }, { date: '2026-10-01', amount: 8 }]
+  assert.deepEqual(recentDays(log, '2026-10-01', 4), [
+    { date: '2026-09-28', amount: 0 }, { date: '2026-09-29', amount: 12 }, { date: '2026-09-30', amount: 0 }, { date: '2026-10-01', amount: 8 },
+  ])
+  assert.equal(recentDays(undefined, '2026-03-02', 3)[0].date, '2026-02-28', 'across a month end')
+  assert.equal(dayAmount({ format: 'book', status: 'reading' }, 12), '12 pages')
+  assert.equal(dayAmount({ format: 'book', status: 'reading' }, 1), '1 page')
+  assert.equal(dayAmount({ format: 'audiobook', status: 'reading' }, 75), '1h 15m')
 })
