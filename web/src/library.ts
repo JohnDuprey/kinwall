@@ -1,6 +1,6 @@
 // The family's library (Library.tsx): labels, and which scanned barcodes are books. Pure, so
 // web/test/library.test.ts covers it.
-import type { LibraryBook } from './types.ts'
+import type { LibraryBook, ReadingData, TrackerEntry } from './types.ts'
 
 /** A scanned barcode as an ISBN when it's a book's: an EAN-13 starting 978/979 (Bookland), or an
  * ISBN-10. Anything else (a cereal box's UPC) is null. */
@@ -45,4 +45,15 @@ export function dueLabel(b: Pick<LibraryBook, 'borrowedFrom' | 'dueOn' | 'return
   if (!b.dueOn) return null
   if (b.dueOn < today) return `Overdue since ${day(b.dueOn, today)}`
   return `Due back ${b.dueOn === today ? 'today' : b.dueOn === addDayKeys(today, 1) ? 'tomorrow' : day(b.dueOn, today)}`
+}
+
+const sameTitle = (a: string | null | undefined, b: string) => (a ?? '').trim().toLowerCase() === b.trim().toLowerCase()
+/** "Read it" for someone who may already be tracking this book: their unfinished reading entry for it,
+ * linked (data.bookId) or tracked on its own under the same title, so it's linked rather than doubled.
+ * A finished one doesn't count: reading it again is a new entry. */
+export function existingRead(entries: TrackerEntry[], memberId: string, book: Pick<LibraryBook, 'id' | 'title'>): TrackerEntry | null {
+  return entries.find(e => {
+    const d = e.data as ReadingData
+    return e.kind === 'reading' && e.memberId === memberId && d.status !== 'finished' && (d.bookId === book.id || (!d.bookId && sameTitle(e.title, book.title)))
+  }) ?? null
 }

@@ -1,7 +1,7 @@
 // node --test test/ (npm test). The family library's labels and the bulk scanner's book check.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { addDayKeys, bookDetails, dueLabel, isbnFromScan, isOverdue, lentLabel } from '../src/library.ts'
+import { addDayKeys, bookDetails, dueLabel, existingRead, isbnFromScan, isOverdue, lentLabel } from '../src/library.ts'
 
 test('isbnFromScan: book barcodes (978/979, or ISBN-10) only', () => {
   assert.equal(isbnFromScan('9780440414803'), '9780440414803')
@@ -40,4 +40,15 @@ test('dueLabel: borrowed books say when they go back', () => {
   assert.equal(isOverdue(b('2026-09-30'), t), true)
   assert.equal(isOverdue(b('2026-09-30', '2026-09-29'), t), false)
   assert.equal(addDayKeys('2026-12-25', 21), '2027-01-15')
+})
+
+test("existingRead: Read it links what they're already reading instead of adding another", () => {
+  const book = { id: 'b1', title: 'Outcast' }
+  const entry = (id: string, memberId: string, title: string, data: Record<string, unknown>) => ({ id, kind: 'reading', memberId, title, data } as any)
+  const solo = entry('e1', 'june', ' outcast ', { status: 'reading' }) // tracked before the book was in the library
+  assert.equal(existingRead([solo], 'june', book)?.id, 'e1', 'same title, unlinked')
+  assert.equal(existingRead([solo], 'maya', book), null, "someone else's")
+  assert.equal(existingRead([entry('e2', 'june', 'Outcast', { status: 'finished' })], 'june', book), null, 'finished: reading it again is new')
+  assert.equal(existingRead([entry('e3', 'june', 'Outcast', { status: 'reading', bookId: 'b9' })], 'june', book), null, 'linked to another copy')
+  assert.equal(existingRead([entry('e4', 'june', 'Renamed', { status: 'want', bookId: 'b1' })], 'june', book)?.id, 'e4', 'already linked')
 })

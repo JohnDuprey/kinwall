@@ -12,10 +12,10 @@ import BookLookup from './BookLookup.tsx'
 import { useIsPhone } from './useIsPhone.ts'
 import { FilterIcon } from './icons.tsx'
 import { appBarcodeScanner, scanBarcode, wallCamera } from './native.ts'
-import { addDayKeys, bookDetails, dueLabel, isbnFromScan, isOverdue, lentLabel, LOAN_DAYS } from './library.ts'
+import { addDayKeys, bookDetails, existingRead, dueLabel, isbnFromScan, isOverdue, lentLabel, LOAN_DAYS } from './library.ts'
 import { announce } from './a11y.tsx'
 import { todayKeyInTz } from './date.ts'
-import type { BookResult, LibraryBook, Member, ReadingStatus } from './types.ts'
+import type { BookResult, LibraryBook, Member, ReadingData, ReadingStatus } from './types.ts'
 
 const STATUS_WORD: Record<ReadingStatus, string> = { want: 'wants to read', reading: 'reading', finished: 'read' }
 /** Between book scans: long enough to see what was added and pick up the next book. */
@@ -185,6 +185,14 @@ function BookSheet({ book, members, canRemove, places, sources, today, onClose, 
   const details = bookDetails(book)
   const readIt = async (m: Member) => {
     try {
+      // Already reading it (maybe tracked before the book was in the library): link that entry, don't add another.
+      const have = existingRead(await api.getTrackers('reading'), m.id, book)
+      if (have) {
+        const d = have.data as ReadingData
+        if (d.bookId === book.id && d.status === 'reading') { toast(`${m.name} is already reading ${book.title}`); return }
+        await api.updateTracker(have.id, { data: { bookId: book.id, status: 'reading', ...(!d.coverUrl && book.coverUrl && { coverUrl: book.coverUrl }), ...(!d.totalPages && book.pages && { totalPages: book.pages }) } })
+        toast(`${m.name} is reading ${book.title}`); announce(`${m.name} is reading ${book.title}`); onStarted(); return
+      }
       await api.addTracker({ kind: 'reading', memberId: m.id, title: book.title, data: {
         format: 'book', status: 'reading', bookId: book.id, ...(book.author && { author: book.author }), ...(book.pages && { totalPages: book.pages }), ...(book.coverUrl && { coverUrl: book.coverUrl }),
       } })

@@ -33,7 +33,7 @@ A shelf per person, with what they're reading first, then what they want to read
 * **Save to library:** a book someone's reading (on the Reading shelves) can join the library. Open it and tap **📖 Save to library**; the title, author, pages and cover come along, and it's linked, so the library shows them reading it.
 * **+** adds one, yours or borrowed: **Look up a book** fills in the details, or type the title and author.
 * Details come from [Open Library](https://openlibrary.org) once, when a book is added, including its description (as plain text; long ones open with **Show more**), which shows when you tap the book. Your Kinwall server does the lookup.
-* Tap a book for its description and who has read it. **Read it** with someone's name puts it on their Reading shelf, linked to the book, so the library shows them as reading it. A parent's device can **Remove from library**; their reading entries stay.
+* Tap a book for its description and who has read it. **Read it** with someone's name puts it on their Reading shelf, linked to the book, so the library shows them as reading it. If they were already tracking that book on its own, that entry is linked instead of a second one being added. A parent's device can **Remove from library**; their reading entries stay.
 * Wall screens and kids' devices can browse, scan and add books; only parents remove them.
 
 A person's day (tap their avatar) lists what they're reading, like "Charlotte's Web — 45%" (for an audiobook, how much of its length they've listened to). See [Daily & weekly snapshot](snapshot.md).
