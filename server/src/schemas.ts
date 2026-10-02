@@ -73,7 +73,7 @@ export const ContactCategorySchema = ContactCategoryInputSchema.extend({ id: z.s
 
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 // The web app's color schemes (web/src/skins.ts), plus 'seasonal' (the scheme follows the date).
-// 'eucalyptus' is the default; 'meadow' is shown as Peach (the first default) and 'field' as Meadow.
+// 'peacock' is the default; 'meadow' is shown as Peach (the first default) and 'field' as Meadow.
 export const COLOR_SCHEMES = ['meadow', 'field', 'autumn', 'winter', 'spring', 'summer', 'ocean', 'midnight', 'lavender', 'harvest', 'festive', 'slate', 'ink', 'sage', 'graphite', 'berry', 'eucalyptus', 'peacock', 'seasonal'] as const;
 const hex = () => z.string().regex(HEX_COLOR_RE, 'must be a hex color like #RRGGBB');
 // Household custom colors layered on the scheme. The accent lives in `accent` (its default means

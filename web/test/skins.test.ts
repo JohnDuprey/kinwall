@@ -1,7 +1,7 @@
 // node --test test/ (npm test). The Color scheme sheet's groups, descriptions and Seasonal line.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { SCHEME_BLURBS, SCHEME_GROUPS, SKINS, seasonalNote, tokensFor } from '../src/skins.ts'
+import { DEFAULT_SKIN_ID, SCHEME_BLURBS, SCHEME_GROUPS, SKINS, seasonalNote, tokensFor } from '../src/skins.ts'
 import { contrastRatio } from '../src/color.ts'
 
 test('every built-in skin is in exactly one group and has a short description', () => {
@@ -35,9 +35,10 @@ test('Modern schemes are tinted with their color, not plain gray', () => {
   }
 })
 
-test('Peacock sits right after Eucalyptus in Modern, with the deep peacock as its light fill', () => {
+test('Peacock is the default and leads Modern, then Eucalyptus, with the deep peacock as its light fill', () => {
   const modern = SCHEME_GROUPS.find(g => g.label === 'Modern')!.ids
-  assert.equal(modern[modern.indexOf('eucalyptus') + 1], 'peacock')
+  assert.deepEqual(modern.slice(0, 2), ['peacock', 'eucalyptus'])
+  assert.equal(DEFAULT_SKIN_ID, 'peacock')
   const peacock = SKINS.find(s => s.id === 'peacock')!
   assert.equal(tokensFor(peacock, false).accentStrong, '#123857')
 })

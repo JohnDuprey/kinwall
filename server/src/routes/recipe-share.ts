@@ -108,8 +108,8 @@ const kinwallData = (r: Recipe, self: string) => ({ kinwall: 1, recipe: {
 } });
 
 const CSS = `
-:root{--bg:#EAF2EF;--bg-alt:#DBE8E3;--card:#F9FCFB;--text:#13262A;--dim:#455F62;--border:#C4D8D0;--accent:#1F6B63;--ink:#fff;color-scheme:light dark}
-@media (prefers-color-scheme:dark){:root{--bg:#0E1A1A;--bg-alt:#132222;--card:#1A2D2C;--text:#E3EEEC;--dim:#9EB9B6;--border:#2C4544;--accent:#5CC2B3;--ink:#0E1A1A}}
+:root{--bg:#EEF3F8;--bg-alt:#DFE8F1;--card:#FAFCFE;--text:#102A43;--dim:#4A6078;--border:#C6D5E4;--accent:#123857;--ink:#fff;color-scheme:light dark}
+@media (prefers-color-scheme:dark){:root{--bg:#0B1622;--bg-alt:#101E2D;--card:#16273A;--text:#E4ECF5;--dim:#9DB2C8;--border:#2A3F57;--accent:#6CB4EE;--ink:#0B1622}}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:17px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-text-size-adjust:100%}
 main{max-width:760px;margin:0 auto;padding:20px 16px 48px}
 h1{font-size:1.9rem;line-height:1.2;margin:8px 0 12px}h2{font-size:1.25rem;margin:32px 0 12px}h3{font-size:1rem;margin:0 0 4px}

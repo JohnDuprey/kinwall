@@ -94,6 +94,7 @@ import m0090 from '../migrations/0090_library_lending.sql';
 import m0091 from '../migrations/0091_library_borrowing.sql';
 import m0092 from '../migrations/0092_calendar_sync_failures.sql';
 import m0093 from '../migrations/0093_library_wishlist.sql';
+import m0094 from '../migrations/0094_pin_eucalyptus_scheme.sql';
 
 export const MIGRATIONS: Migration[] = [
   { name: '0001_init.sql', sql: m0001 },
@@ -189,4 +190,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0091_library_borrowing.sql', sql: m0091 },
   { name: '0092_calendar_sync_failures.sql', sql: m0092 },
   { name: '0093_library_wishlist.sql', sql: m0093 },
+  { name: '0094_pin_eucalyptus_scheme.sql', sql: m0094 },
 ];

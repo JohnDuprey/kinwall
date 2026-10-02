@@ -150,7 +150,7 @@ test('household color scheme and custom colors: defaults, round-trip, clearing a
   const env = makeEnv();
   const request = makeApp(env);
   let body = await json<any>(await request('/api/settings'));
-  assert.equal(body.colorScheme, 'eucalyptus');
+  assert.equal(body.colorScheme, 'peacock');
   assert.equal(body.customColors, null);
 
   body = await json<any>(await request('/api/settings', { method: 'PATCH', body: JSON.stringify({ colorScheme: 'autumn', customColors: { bg: '#112233', text: '#EEEEEE' } }) }));
@@ -255,7 +255,7 @@ test('migration 0079: a family from before keeps Peach; a new database gets the 
 test('migration 0084: a family on implied Sage keeps it; a picked scheme stays; a new database gets Eucalyptus', async () => {
   const files = readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith('.sql')).sort();
   const load = (pick: (f: string) => boolean) => files.filter(pick).map((name) => ({ name, sql: readFileSync(path.join(MIGRATIONS_DIR, name), 'utf8') }));
-  const before = load((f) => f < '0084'), rest = load((f) => f >= '0084');
+  const before = load((f) => f < '0084'), rest = load((f) => f >= '0084' && f < '0094');
   const scheme = async (db: D1Database) => (await db.prepare("SELECT value FROM settings WHERE key = 'colorScheme'").first<{ value: string }>())?.value;
   const family = async (db: D1Database) => { await db.prepare("INSERT INTO members (id, name, color, sort, created_at) VALUES ('m1','Alex','#f00',0,'now')").run(); };
 
@@ -276,5 +276,31 @@ test('migration 0084: a family on implied Sage keeps it; a picked scheme stays; 
   await runMigrations(fresh, [...before, ...rest]);
   assert.equal(await scheme(fresh), undefined);
   const env = makeEnv();
-  assert.equal((await json<any>(await makeApp(env)('/api/settings'))).colorScheme, 'eucalyptus');
+  assert.equal((await json<any>(await makeApp(env)('/api/settings'))).colorScheme, 'peacock');
+});
+
+test('migration 0094: a family on implied Eucalyptus keeps it; a picked scheme stays; a new database gets Peacock', async () => {
+  const files = readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith('.sql')).sort();
+  const load = (pick: (f: string) => boolean) => files.filter(pick).map((name) => ({ name, sql: readFileSync(path.join(MIGRATIONS_DIR, name), 'utf8') }));
+  const before = load((f) => f < '0094'), rest = load((f) => f >= '0094');
+  const scheme = async (db: D1Database) => (await db.prepare("SELECT value FROM settings WHERE key = 'colorScheme'").first<{ value: string }>())?.value;
+  const family = async (db: D1Database) => { await db.prepare("INSERT INTO members (id, name, color, sort, created_at) VALUES ('m1','Alex','#f00',0,'now')").run(); };
+
+  const implied = openDb(':memory:') as unknown as D1Database; // set up after 0084, never picked a scheme
+  await runMigrations(implied, before);
+  await family(implied);
+  await runMigrations(implied, rest);
+  assert.equal(await scheme(implied), 'eucalyptus');
+
+  const picked = openDb(':memory:') as unknown as D1Database; // picked one: kept
+  await runMigrations(picked, before);
+  await family(picked);
+  await picked.prepare("INSERT INTO settings (key, value) VALUES ('colorScheme', 'ocean')").run();
+  await runMigrations(picked, rest);
+  assert.equal(await scheme(picked), 'ocean');
+
+  const fresh = openDb(':memory:') as unknown as D1Database;
+  await runMigrations(fresh, [...before, ...rest]);
+  assert.equal(await scheme(fresh), undefined);
+  assert.equal((await json<any>(await makeApp(makeEnv())('/api/settings'))).colorScheme, 'peacock');
 });
