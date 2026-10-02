@@ -339,15 +339,15 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'list_library',
     {
       title: 'List the library',
-      description: "The family's library: books they own (apart from who's reading what), A-Z, each with author, series, reading level (lexile), genres, where it lives (location), who has it on loan (lentTo, lentOn), borrowed books (borrowedFrom, dueOn; returned ones are left out unless returned: true) and readers (reading entries started from it: memberId and status). q searches titles, authors, series, genres, locations, borrowers and lenders; unread: only books nobody has started; lent: only books on loan; borrowed: only borrowed books still out, soonest due first; returned: only borrowed books that went back; location: one place. Start reading one with add_tracker_entry (kind reading, data.bookId = the book's id).",
+      description: "The family's library: books they own (apart from who's reading what), A-Z, each with author, series, reading level (lexile), genres, where it lives (location), who has it on loan (lentTo, lentOn), borrowed books (borrowedFrom, dueOn; returned ones are left out unless returned: true), the wishlist (wanted; left out unless wanted: true) and readers (reading entries started from it: memberId and status). q searches titles, authors, series, genres, locations, borrowers and lenders; unread: only books nobody has started; lent: only books on loan; borrowed: only borrowed books still out, soonest due first; returned: only borrowed books that went back; wanted: only the wishlist; location: one place. Start reading one with add_tracker_entry (kind reading, data.bookId = the book's id).",
       inputSchema: {
         q: z.string().max(100).optional(), unread: z.boolean().optional().describe('Only books nobody has started reading.'),
         lent: z.boolean().optional().describe('Only books lent out.'),
-        borrowed: z.boolean().optional().describe('Only borrowed books not yet returned (soonest due first).'), returned: z.boolean().optional().describe('Only borrowed books that went back.'), location: z.string().max(80).optional().describe('Only books that live here, e.g. "Living room shelf".'),
+        borrowed: z.boolean().optional().describe('Only borrowed books not yet returned (soonest due first).'), returned: z.boolean().optional().describe('Only borrowed books that went back.'), wanted: z.boolean().optional().describe('Only the wishlist: books wanted, not had yet.'), location: z.string().max(80).optional().describe('Only books that live here, e.g. "Living room shelf".'),
       },
     },
-    async ({ q, unread, lent, borrowed, returned, location }) => {
-      const params = new URLSearchParams({ ...(q ? { q } : {}), ...(unread ? { unread: '1' } : {}), ...(lent ? { lent: '1' } : {}), ...(borrowed ? { borrowed: '1' } : {}), ...(returned ? { returned: '1' } : {}), ...(location ? { location } : {}) });
+    async ({ q, unread, lent, borrowed, returned, wanted, location }) => {
+      const params = new URLSearchParams({ ...(q ? { q } : {}), ...(unread ? { unread: '1' } : {}), ...(lent ? { lent: '1' } : {}), ...(borrowed ? { borrowed: '1' } : {}), ...(returned ? { returned: '1' } : {}), ...(wanted ? { wanted: '1' } : {}), ...(location ? { location } : {}) });
       const res = await call(app, env, auth, 'GET', `/api/library${params.size ? `?${params}` : ''}`);
       if (res.status >= 400) return errorResult(res.json, 'failed to list the library');
       const books = res.json as { title: string; author: string | null; readers: unknown[] }[];
@@ -360,7 +360,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'add_to_library',
     {
       title: 'Add to the library',
-      description: "Add a book the family owns, or has borrowed (borrowedFrom, dueOn), to its library. Give an isbn alone to look it up (Open Library: title, author, pages, cover, series, reading level, description), or a title (use search_books first for details; pass its workKey to fetch the description). A book already in the library (same ISBN) isn't added twice. To save a book someone's reading to the library, add it, then set that reading entry's data.bookId to the new book's id with update_tracker_entry.",
+      description: "Add a book the family owns, has borrowed (borrowedFrom, dueOn) or wants (wanted: true, the wishlist) to its library. Give an isbn alone to look it up (Open Library: title, author, pages, cover, series, reading level, description), or a title (use search_books first for details; pass its workKey to fetch the description). A book already in the library (same ISBN) isn't added twice. To save a book someone's reading to the library, add it, then set that reading entry's data.bookId to the new book's id with update_tracker_entry.",
       inputSchema: {
         title: z.string().optional(), author: z.string().optional(), isbn: z.string().optional().describe('ISBN-10 or ISBN-13, digits only.'),
         pages: z.number().int().optional(), coverUrl: z.string().optional(), year: z.number().int().optional(),
@@ -368,6 +368,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         location: z.string().max(80).optional().describe('Where it lives, e.g. "Maya\'s room".'),
         borrowedFrom: z.string().max(80).optional().describe('Borrowed, not owned: who from, e.g. "Town library".'),
         dueOn: z.string().optional().describe('YYYY-MM-DD a borrowed book is due back.'),
+        wanted: z.boolean().optional().describe("On the wishlist: wanted, not had yet."),
       },
     },
     async (input) => {
@@ -383,7 +384,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'update_library_book',
     {
       title: 'Update a library book',
-      description: "Lend a library book out (lentTo: who has it; dated today), bring it back (lentTo: null), say where it lives (location), or fix its details. For a borrowed book: change its due date (dueOn), return it (returnedOn: today's date; it stays as history), or borrow it again (returnedOn: null with a new dueOn). book is its id or title (case-insensitive). Only given fields change.",
+      description: "Lend a library book out (lentTo: who has it; dated today), bring it back (lentTo: null), say where it lives (location), or fix its details. For a borrowed book: change its due date (dueOn), return it (returnedOn: today's date; it stays as history), or borrow it again (returnedOn: null with a new dueOn). A wishlist book: got it (wanted: false), or put a book on the wishlist (wanted: true). book is its id or title (case-insensitive). Only given fields change.",
       inputSchema: {
         book: z.string().describe('Library book id or title.'),
         lentTo: z.string().max(80).nullable().optional().describe('Who has it on loan, e.g. "Grandma"; null when it comes back.'),
@@ -392,12 +393,13 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         borrowedFrom: z.string().max(80).nullable().optional().describe('Borrowed from; null makes it the family\'s own.'),
         dueOn: z.string().nullable().optional().describe('YYYY-MM-DD a borrowed book is due back.'),
         returnedOn: z.string().nullable().optional().describe('YYYY-MM-DD it went back; null to borrow it again.'),
+        wanted: z.boolean().optional().describe('On the wishlist; false once you have it.'),
         title: z.string().optional(), author: z.string().nullable().optional(), pages: z.number().int().nullable().optional(),
         series: z.string().nullable().optional(), seriesNumber: z.string().nullable().optional(),
       },
     },
     async ({ book, ...changes }) => {
-      const found = await Promise.all(['', '&returned=1'].map((more) => call(app, env, auth, 'GET', `/api/library?q=${encodeURIComponent(book)}${more}`))); // returned books too
+      const found = await Promise.all(['', '&returned=1', '&wanted=1'].map((more) => call(app, env, auth, 'GET', `/api/library?q=${encodeURIComponent(book)}${more}`))); // returned books too
       const books = found.flatMap((list) => (list.status < 400 ? list.json : []) as { id: string; title: string }[]);
       const match = books.find((b) => b.id === book) ?? books.find((b) => b.title.toLowerCase() === book.trim().toLowerCase()) ?? (books.length === 1 ? books[0] : undefined);
       const id = match?.id ?? book;

@@ -652,6 +652,7 @@ const bookLibrary: LibraryBook[] = [
   libraryBook('book-warriors-2', 'Fire and Ice', 'Erin Hunter', { pages: 320, year: 2003, series: 'Warriors', seriesNumber: '2', lexile: 1010, genres: ['Fantasy', 'Animals'] }),
   libraryBook('book-frog', 'Frog and Toad Are Friends', 'Arnold Lobel', { pages: 64, year: 1970, lexile: 400 }),
   libraryBook('book-wonder', 'Wonder', 'R. J. Palacio', { pages: 310, year: 2012, lexile: 790, genres: ['Realistic fiction'], borrowedFrom: 'Town library', dueOn: inDays(3), location: "Maya's room" }),
+  libraryBook('book-wild-robot', 'The Wild Robot', 'Peter Brown', { pages: 279, year: 2016, lexile: 740, genres: ['Science fiction', 'Animals'], wanted: true }),
   libraryBook('book-hatchet', 'Hatchet', 'Gary Paulsen', { pages: 195, year: 1987, lexile: 1020, genres: ['Adventure'], borrowedFrom: 'Town library', dueOn: daysAgo(12), returnedOn: daysAgo(14) }),
 ]
 const withReaders = (b: LibraryBook): LibraryBook => ({
@@ -1441,10 +1442,10 @@ export const mock = {
     })
     settleMockPhoto(t, body.photoFamily); bump(); return { ...t }
   },
-  getLibrary: async (q?: { q?: string; unread?: boolean; lent?: boolean; borrowed?: boolean; returned?: boolean; location?: string }): Promise<LibraryBook[]> => {
+  getLibrary: async (q?: { q?: string; unread?: boolean; lent?: boolean; borrowed?: boolean; returned?: boolean; wanted?: boolean; location?: string }): Promise<LibraryBook[]> => {
     const needle = q?.q?.trim().toLowerCase()
     const books = bookLibrary.map(withReaders)
-      .filter(b => (q?.returned ? !!b.returnedOn : !b.returnedOn) && (!q?.borrowed || !!b.borrowedFrom))
+      .filter(b => (q?.returned ? !!b.returnedOn : !b.returnedOn) && (q?.wanted ? !!b.wanted : !b.wanted) && (!q?.borrowed || !!b.borrowedFrom))
       .filter(b => !needle || [b.title, b.author, b.series, b.location, b.lentTo, b.borrowedFrom, ...b.genres].some(v => v?.toLowerCase().includes(needle)))
       .filter(b => (!q?.unread || !b.readers.length) && (!q?.lent || b.lentTo) && (!q?.location || b.location === q.location))
       .sort((a, b) => (a.series ?? a.title).localeCompare(b.series ?? b.title, undefined, { sensitivity: 'base' }) || Number(a.seriesNumber ?? 0) - Number(b.seriesNumber ?? 0) || a.title.localeCompare(b.title))
@@ -1467,6 +1468,7 @@ export const mock = {
     const lentOn = changes.lentTo === null || changes.lentTo === '' ? null : changes.lentOn ?? (changes.lentTo && changes.lentTo !== b.lentTo ? todayISO() : b.lentOn)
     Object.assign(b, fields, { lentTo: changes.lentTo !== undefined ? changes.lentTo || null : b.lentTo, lentOn, updatedAt: new Date().toISOString() })
     if (changes.borrowedFrom === null || changes.borrowedFrom === '') Object.assign(b, { borrowedFrom: null, dueOn: null, returnedOn: null }) // made our own
+    if (changes.borrowedFrom) b.wanted = false // borrowing it: had, for now
     bump(); return withReaders(b)
   },
   deleteLibraryBook: async (id: string) => { const i = bookLibrary.findIndex(x => x.id === id); if (i >= 0) bookLibrary.splice(i, 1); bump() },

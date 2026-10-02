@@ -2718,6 +2718,8 @@ a.btn { text-decoration: none; } /* a link that looks like a button (the Board's
 .lib-more { margin-bottom: 14px; }
 .lib-lent { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .lib-back { flex: none; }
+.lib-borrow-actions { display: flex; gap: 8px; justify-content: flex-end; margin: -4px 0 16px; }
+.lib-borrow-actions .btn { flex: none; }
 .lib-overdue { color: var(--danger); font-weight: 700; }
 .board-book-due a { color: inherit; text-decoration: none; display: block; padding: 4px 0; }
 .lib-place-filter { flex: none; width: auto; min-height: 44px; }

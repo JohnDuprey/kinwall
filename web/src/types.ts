@@ -113,6 +113,7 @@ export interface LibraryBook {
   id: string; title: string; author: string | null; isbn: string | null; pages: number | null; coverUrl: string | null
   year: number | null; series: string | null; seriesNumber: string | null; lexile: number | null; description: string | null; genres: string[]
   location: string | null; lentTo: string | null; lentOn: string | null // where it lives; who has it on loan, since when
+  wanted?: boolean // on the wishlist: wanted, not had yet
   borrowedFrom: string | null; dueOn: string | null; returnedOn: string | null // borrowed, not owned: who from, due back when; returned ones stay as history
   addedBy: Actor | null; readers: { entryId: string; memberId: string | null; status: ReadingStatus }[]; createdAt: string; updatedAt: string
 }

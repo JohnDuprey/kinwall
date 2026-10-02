@@ -34,6 +34,7 @@ export default function Library({ adding, onAdded, onStarted }: {
   const [lent, setLent] = useState(false)
   const [borrowed, setBorrowed] = useState(false)
   const [returned, setReturned] = useState(false)
+  const [wanted, setWanted] = useState(false) // the wishlist (off the shelf otherwise)
   const [sources, setSources] = useState<string[]>([]) // every place a book was borrowed from, for the pickers
   const [place, setPlace] = useState('') // '' = anywhere
   const [places, setPlaces] = useState<string[]>([]) // every place a book lives, for the filter and the picker
@@ -41,13 +42,13 @@ export default function Library({ adding, onAdded, onStarted }: {
   const [scanning, setScanning] = useState(false)
   const isPhone = useIsPhone()
   const [filtering, setFiltering] = useState(false) // a phone: the filters in a sheet, behind one button
-  const load = () => api.getLibrary({ q, unread, lent, borrowed, returned, location: place || undefined }).then(b => {
+  const load = () => api.getLibrary({ q, unread, lent, borrowed, returned, wanted, location: place || undefined }).then(b => {
     setBooks(b)
     const more = (old: string[], add: (string | null)[]) => [...new Set([...old, ...add.filter((l): l is string => !!l)])].sort((a, z) => a.localeCompare(z))
     setPlaces(p => more(p, b.map(x => x.location)))
     setSources(s => more(s, b.map(x => x.borrowedFrom)))
   }).catch(e => { setBooks([]); toast(msg(e, "Couldn't load the library"), true) })
-  useEffect(() => { const t = setTimeout(load, q ? 250 : 0); return () => clearTimeout(t) }, [q, unread, lent, borrowed, returned, place, refreshTick]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { const t = setTimeout(load, q ? 250 : 0); return () => clearTimeout(t) }, [q, unread, lent, borrowed, returned, wanted, place, refreshTick]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Scan books in one after another: each barcode adds its book (looked up by ISBN); Cancel stops.
   const scanBooks = async () => {
@@ -66,12 +67,13 @@ export default function Library({ adding, onAdded, onStarted }: {
   }
 
   // Not read yet, Lent out, Borrowed, Returned and a place: in the bar, or (a phone) the Filters sheet.
-  const on = [unread, lent, borrowed, returned, !!place].filter(Boolean).length
+  const on = [unread, lent, borrowed, returned, wanted, !!place].filter(Boolean).length
   const filters = <>
         <button type="button" className={`chip ${unread ? 'active' : ''}`} aria-pressed={unread} onClick={() => setUnread(v => !v)}>Not read yet</button>
         <button type="button" className={`chip ${lent ? 'active' : ''}`} aria-pressed={lent} onClick={() => setLent(v => !v)}>Lent out</button>
         <button type="button" className={`chip ${borrowed ? 'active' : ''}`} aria-pressed={borrowed} onClick={() => setBorrowed(v => !v)}>Borrowed</button>
         <button type="button" className={`chip ${returned ? 'active' : ''}`} aria-pressed={returned} onClick={() => setReturned(v => !v)}>Returned</button>
+        <button type="button" className={`chip ${wanted ? 'active' : ''}`} aria-pressed={wanted} onClick={() => setWanted(v => !v)}>⭐ Wishlist</button>
         {places.length > 0 && (
           <select className="settings-select lib-place-filter" aria-label="Where it lives" value={place} onChange={e => setPlace(e.target.value)}>
             <option value="">Anywhere</option>
@@ -95,7 +97,7 @@ export default function Library({ adding, onAdded, onStarted }: {
       </div>
       {filtering && (
         <Sheet title="Filters" onClose={() => setFiltering(false)} actions={<>
-          {on > 0 && <button className="btn btn-secondary" onClick={() => { setUnread(false); setLent(false); setBorrowed(false); setReturned(false); setPlace('') }}>Clear</button>}
+          {on > 0 && <button className="btn btn-secondary" onClick={() => { setUnread(false); setLent(false); setBorrowed(false); setReturned(false); setWanted(false); setPlace('') }}>Clear</button>}
           <button className="btn btn-primary" onClick={() => setFiltering(false)}>Done</button>
         </>}>
           <div className="lib-bar lib-filter-sheet">{filters}</div>
@@ -103,7 +105,7 @@ export default function Library({ adding, onAdded, onStarted }: {
       )}
       {books === null ? <div className="state-card">Loading…</div>
         : !books.length ? (
-          <div className="empty-card"><span className="emoji">📚</span>{q || unread || lent || borrowed || returned || place ? 'No books match.' : 'No books in the library yet. Tap + to add the books you own or borrow, or scan them in.'}</div>
+          <div className="empty-card"><span className="emoji">📚</span>{wanted && !q ? 'Nothing on the wishlist. Tap + and pick Wishlist to add a book you want.' : q || unread || lent || borrowed || returned || wanted || place ? 'No books match.' : 'No books in the library yet. Tap + to add the books you own or borrow, or scan them in.'}</div>
         ) : (
           <ul className="lib-grid">
             {books.map(b => {
@@ -123,7 +125,7 @@ export default function Library({ adding, onAdded, onStarted }: {
                       {(b.location || b.lentTo) && <span className="trk-sub lib-where">{[b.lentTo ? `🤝 ${lentLabel(b, today)}` : '', b.location ? `📍 ${b.location}` : ''].filter(Boolean).join(' · ')}</span>}
                       <span className="lib-readers">{b.readers.length
                         ? [...new Map(b.readers.map(r => [r.memberId, r])).values()].slice(0, 4).map(r => { const m = people.find(x => x.id === r.memberId); return <span key={r.entryId} className="chip-static" title={`${m?.name ?? 'Family'} ${STATUS_WORD[r.status]}`}>{m?.avatar ?? '🏠'} {r.status === 'finished' ? '✓' : r.status === 'reading' ? '📖' : '⭐'}</span> })
-                        : <span className="trk-tag">Not read yet</span>}</span>
+                        : <span className="trk-tag">{b.wanted ? '⭐ Wishlist' : 'Not read yet'}</span>}</span>
                     </span>
                   </button>
                 </li>
@@ -146,7 +148,16 @@ function BookSheet({ book, members, canRemove, places, sources, today, onClose, 
   const { toast, members: everyone } = useApp()
   const [more, setMore] = useState(false)
   const [borrower, setBorrower] = useState('')
-  const [markBorrowed, setMarkBorrowed] = useState(false) // an owned book that's really borrowed (scanned in from the town library)
+  // Whose book: ours, borrowed or on the wishlist. Picking Borrowed asks where from and when it's due first.
+  const [picking, setPicking] = useState<'borrowed' | null>(null)
+  const whose = picking ?? (book.borrowedFrom ? 'borrowed' : book.wanted ? 'wanted' : 'ours')
+  const pickWhose = (v: string) => {
+    setPicking(null)
+    if (v === 'borrowed') { if (!book.borrowedFrom) setPicking('borrowed') }
+    else if (v === 'wanted') save({ wanted: true, ...(book.borrowedFrom && { borrowedFrom: null }) }, `On the wishlist: ${book.title}`)
+    else if (book.borrowedFrom) save({ borrowedFrom: null }, `${book.title} is ours now`)
+    else if (book.wanted) save({ wanted: false }, `Got it: ${book.title}`)
+  }
   const save = async (changes: Parameters<typeof api.updateLibraryBook>[1], said: string) => {
     try { const b = await api.updateLibraryBook(book.id, changes); toast(said); announce(said); onSaved(b) }
     catch (e) { toast(msg(e, "Couldn't save it"), true) }
@@ -180,10 +191,21 @@ function BookSheet({ book, members, canRemove, places, sources, today, onClose, 
         <p className={`lib-description ${long && !more ? 'lib-description-clamp' : ''}`}>{book.description}</p>
         {long && <button type="button" className="link-btn lib-more" onClick={() => setMore(v => !v)} aria-expanded={more}>{more ? 'Show less' : 'Show more'}</button>}
       </>}
-      <PlacePicker value={book.location ?? ''} places={places} onChange={v => save({ location: v || null }, v ? `Where it lives: ${v}` : `Place cleared: ${book.title}`)} />
-      {book.borrowedFrom ? (
+      <div className="field">
+        <label htmlFor="lib-whose">Whose book</label>
+        <select id="lib-whose" value={whose} onChange={e => pickWhose(e.target.value)}>
+          <option value="ours">Ours</option>
+          <option value="borrowed">Borrowed</option>
+          <option value="wanted">Wishlist (don't have it yet)</option>
+        </select>
+        {book.wanted && !picking && <p className="field-hint">Got it? Pick Ours.</p>}
+      </div>
+      {picking === 'borrowed' && <BorrowFields sources={sources} today={today} onCancel={() => setPicking(null)}
+        onSave={(from, due) => { setPicking(null); save({ borrowedFrom: from, dueOn: due }, `Borrowed from ${from}`) }} />}
+      {!book.wanted && <PlacePicker value={book.location ?? ''} places={places} onChange={v => save({ location: v || null }, v ? `Where it lives: ${v}` : `Place cleared: ${book.title}`)} />}
+      {book.wanted || picking ? null : book.borrowedFrom ? (
         <div className="field">
-          <label htmlFor="lib-due">Borrowed from {book.borrowedFrom}</label>
+          <label htmlFor="lib-due">Due back to {book.borrowedFrom}</label>
           {book.returnedOn ? (
             <div className="lib-lent">
               <span>↩️ {dueLabel(book, today)}</span>
@@ -211,9 +233,6 @@ function BookSheet({ book, members, canRemove, places, sources, today, onClose, 
             <button type="button" className="btn btn-secondary" disabled={!borrower.trim()} onClick={() => save({ lentTo: borrower.trim() }, `Lent ${book.title} to ${borrower.trim()}`)}>Lend</button>
           </div>
         )}
-        {!book.lentTo && (markBorrowed
-          ? <BorrowFields sources={sources} today={today} onSave={(from, due) => save({ borrowedFrom: from, dueOn: due }, `Borrowed from ${from}`)} />
-          : <button type="button" className="link-btn lib-more" onClick={() => setMarkBorrowed(true)}>Borrowed, not ours?</button>)}
       </div>}
       <div className="field">
         <label id="lib-readers">Read by</label>
@@ -262,7 +281,7 @@ function PlacePicker({ value, places, onChange }: { value: string; places: strin
 
 /** Where a borrowed book came from (one from before, or typed) and when it's due back. With onSave:
  * its own Save button; without, it reports each change (onChange), for the Add sheet. */
-function BorrowFields({ sources, today, onSave, onChange }: { sources: string[]; today: string; onSave?: (from: string, due: string | null) => void; onChange?: (from: string, due: string | null) => void }) {
+function BorrowFields({ sources, today, onSave, onCancel, onChange }: { sources: string[]; today: string; onSave?: (from: string, due: string | null) => void; onCancel?: () => void; onChange?: (from: string, due: string | null) => void }) {
   const [from, setFrom] = useState(sources[0] ?? '')
   const [due, setDue] = useState(addDayKeys(today, LOAN_DAYS))
   useEffect(() => { onChange?.(from.trim(), due || null) }, [from, due]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -277,9 +296,12 @@ function BorrowFields({ sources, today, onSave, onChange }: { sources: string[];
         <label htmlFor="lib-due-new">Due back</label>
         <div className="weather-search-row">
           <input id="lib-due-new" type="date" value={due} onChange={e => setDue(e.target.value)} />
-          {onSave && <button type="button" className="btn btn-secondary" disabled={!from.trim()} onClick={() => onSave(from.trim(), due || null)}>Save</button>}
         </div>
       </div>
+      {onSave && <div className="lib-borrow-actions">
+        {onCancel && <button type="button" className="btn btn-secondary" onClick={onCancel}>Cancel</button>}
+        <button type="button" className="btn btn-primary" disabled={!from.trim()} onClick={() => onSave(from.trim(), due || null)}>Save</button>
+      </div>}
     </>
   )
 }
@@ -296,7 +318,7 @@ export function AddBookSheet({ places, sources, today, from, onClose, onAdded }:
   const [title, setTitle] = useState(from?.title ?? '')
   const [author, setAuthor] = useState(from?.author ?? '')
   const [location, setLocation] = useState('')
-  const [whose, setWhose] = useState<'ours' | 'borrowed'>('ours')
+  const [whose, setWhose] = useState<'ours' | 'borrowed' | 'wanted'>('ours')
   const [loan, setLoan] = useState<{ from: string; due: string | null }>({ from: '', due: null })
   const [busy, setBusy] = useState(false)
   const borrowing = whose === 'borrowed'
@@ -306,8 +328,8 @@ export function AddBookSheet({ places, sources, today, from, onClose, onAdded }:
     try {
       const fromLookup = picked && picked.title === title.trim() ? { isbn: picked.isbn, pages: picked.pages, coverUrl: picked.coverUrl, year: picked.year, series: picked.series, seriesNumber: picked.seriesNumber, lexile: picked.lexile, genres: picked.genres, workKey: picked.workKey } : {}
       const fromEntry = from ? { pages: from.pages, coverUrl: from.coverUrl } : {}
-      const b = await api.addToLibrary({ title: title.trim(), author: author.trim() || null, ...(location ? { location } : {}), ...(borrowing ? { borrowedFrom: loan.from, dueOn: loan.due } : {}), ...Object.fromEntries(Object.entries({ ...fromEntry, ...fromLookup }).filter(([, v]) => v !== undefined && v !== null)) })
-      toast(`Added: ${b.title}`); announce(`Added ${b.title} to the library`); onAdded(b)
+      const b = await api.addToLibrary({ title: title.trim(), author: author.trim() || null, ...(location ? { location } : {}), ...(borrowing ? { borrowedFrom: loan.from, dueOn: loan.due } : {}), ...(whose === 'wanted' ? { wanted: true } : {}), ...Object.fromEntries(Object.entries({ ...fromEntry, ...fromLookup }).filter(([, v]) => v !== undefined && v !== null)) })
+      const said = b.wanted ? `On the wishlist: ${b.title}` : `Added: ${b.title}`; toast(said); announce(said); onAdded(b)
     } catch (e) {
       // Already there (the looked-up ISBN): hand back that book, returned ones too.
       const have = e instanceof ApiError && e.status === 409 && picked?.isbn
@@ -320,12 +342,12 @@ export function AddBookSheet({ places, sources, today, from, onClose, onAdded }:
   return (
     <Sheet title="Add a book" onClose={onClose}
       actions={<button className="btn btn-primary" onClick={add} disabled={!title.trim() || busy || (borrowing && !loan.from)}>Add to library</button>}>
-      <Segmented label="Whose book" value={whose} onChange={setWhose} options={[{ key: 'ours', label: 'Ours' }, { key: 'borrowed', label: 'Borrowed' }]} />
+      <Segmented label="Whose book" value={whose} onChange={setWhose} options={[{ key: 'ours', label: 'Ours' }, { key: 'borrowed', label: 'Borrowed' }, { key: 'wanted', label: 'Wishlist' }]} />
       <BookLookup initial={title} onPick={b => { setPicked(b); setTitle(b.title); setAuthor(b.author ?? '') }} />
       <div className="field"><label htmlFor="lib-title">Title</label><input id="lib-title" type="text" value={title} onChange={e => setTitle(e.target.value)} autoComplete="off" /></div>
       <div className="field"><label htmlFor="lib-author">Author</label><input id="lib-author" type="text" value={author} onChange={e => setAuthor(e.target.value)} autoComplete="off" /></div>
       {borrowing && <BorrowFields sources={sources} today={today} onChange={(from, due) => setLoan({ from, due })} />}
-      <PlacePicker value={location} places={places} onChange={setLocation} />
+      {whose !== 'wanted' && <PlacePicker value={location} places={places} onChange={setLocation} />}
       {picked && picked.title === title.trim() && bookDetails({ series: picked.series ?? null, seriesNumber: picked.seriesNumber ?? null, year: picked.year ?? null, lexile: picked.lexile ?? null, pages: picked.pages ?? null }) && (
         <p className="field-hint">{bookDetails({ series: picked.series ?? null, seriesNumber: picked.seriesNumber ?? null, year: picked.year ?? null, lexile: picked.lexile ?? null, pages: picked.pages ?? null })}{picked.workKey ? '. Its description comes too.' : ''}</p>
       )}

@@ -1332,6 +1332,7 @@ export const LibraryBookSchema = z
     borrowedFrom: z.string().nullable().openapi({ description: 'Borrowed, not owned: who from (e.g. "Town library"); null for the family\'s own books.' }),
     dueOn: z.string().nullable().openapi({ description: 'YYYY-MM-DD a borrowed book is due back.' }),
     returnedOn: z.string().nullable().openapi({ description: 'YYYY-MM-DD a borrowed book went back; kept as history.' }),
+    wanted: z.boolean().openapi({ description: "On the wishlist: wanted, not had yet. Left out of the library unless asked for (wanted=1)." }),
     addedBy: ActorSchema.nullable(),
     readers: z.array(z.object({ entryId: z.string(), memberId: z.string().nullable(), status: z.enum(['want', 'reading', 'finished']) })).openapi({ description: 'Reading entries started from this book (data.bookId), newest first.' }),
     createdAt: z.string(), updatedAt: z.string(),
@@ -1351,6 +1352,7 @@ export const LibraryBookInputSchema = z
     borrowedFrom: z.string().trim().max(80).nullable().optional().openapi({ description: 'Borrowed from (e.g. "Town library"); null makes it the family\'s own.' }),
     dueOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional().openapi({ description: 'When a borrowed book is due back.' }),
     returnedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional().openapi({ description: 'Returned (a borrowed book), kept as history; null to borrow it again.' }),
+    wanted: z.boolean().optional().openapi({ description: 'On the wishlist (not had yet); false when you get it. Borrowing it (borrowedFrom) takes it off.' }),
     workKey: z.string().regex(/^\/works\/OL\d+W$/).optional().openapi({ description: "A search result's workKey: its description is fetched (once)." }),
   })
   .openapi('LibraryBookInput');
