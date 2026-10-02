@@ -1,7 +1,7 @@
 // node --test test/ (npm test). The grocery catalog's search, store filter and labels.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { activeCatalogFilters, boughtLabel, catalogDepartments, catalogFilterSummary, catalogStores, catalogTags, filterCatalog, groupCatalog, placeLabel, placesFor, placesInput, scanTarget, sortCatalog, tagsInput } from '../src/catalog.ts'
+import { activeCatalogFilters, boughtLabel, catalogDepartments, catalogFilterSummary, catalogStores, catalogTags, filterCatalog, groupCatalog, placeLabel, placesFor, placesInput, scanMatch, scanTarget, sortCatalog, tagsInput } from '../src/catalog.ts'
 import { itemKey } from '../src/itemSuggest.ts'
 import type { List, RememberedItem } from '../src/types.ts'
 
@@ -114,4 +114,15 @@ test('scanTarget: food goes to a Groceries list, household and beauty to a Shopp
   assert.equal(scanTarget(lists, 'hw', 'openpetfoodfacts'), 'g', 'pet food is groceries')
   assert.equal(scanTarget(lists, 'hw', null), 'hw', 'not found anywhere: stays')
   assert.equal(scanTarget([l('hw', 'shopping')], 'hw', 'openfoodfacts'), 'hw', 'no Groceries list: stays')
+})
+
+test('scanMatch: the open item a scanned product is, by name: exact first, else a whole-word name inside it, longest wins', () => {
+  const items = [{ title: 'Milk', done: false }, { title: 'Cheerios', done: false }, { title: 'Oat milk', done: false }, { title: 'Bread', done: true }, { title: 'Eggs', done: false }]
+  assert.equal(scanMatch(items, 'cheerios')?.title, 'Cheerios', 'the same name, any case')
+  assert.equal(scanMatch(items, 'Honey Nut Cheerios')?.title, 'Cheerios', 'the list name inside the product name')
+  assert.equal(scanMatch(items, 'Organic Oat Milk 64oz')?.title, 'Oat milk', 'the longest name that fits')
+  assert.equal(scanMatch(items, 'Egg')?.title, 'Eggs', 'simple plurals')
+  assert.equal(scanMatch(items, 'Sourdough Bread'), undefined, 'checked-off items are not matched again')
+  assert.equal(scanMatch(items, 'Buttermilk'), undefined, 'only whole words')
+  assert.equal(scanMatch(items, 'Paper Towels'), undefined)
 })

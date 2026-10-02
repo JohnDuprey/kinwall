@@ -28,7 +28,7 @@ import { appBarcodeScanner, endAppActivity, scanBarcode, tellAppActivity, wallCa
 import { itemKey, matchItems } from './itemSuggest.ts'
 import { SWIPE_REVEAL, swipeAxis, swipeEnd, swipeOffset } from './swipe.ts'
 import { canChangeItem, listSections, listType, reorderWithin, TYPE_LABEL, typeFields, type ListType } from './listSections.ts'
-import { activeCatalogFilters, boughtLabel, CATALOG_GROUP_LABELS, CATALOG_SORT_LABELS, catalogDepartments, catalogFilterSummary, catalogStores, catalogTags, catalogView, filterCatalog, groupCatalog, placeLabel, placesFor, placesInput, scanTarget, setCatalogView, sortCatalog, STARTER_TAGS, tagsInput, type CatalogGroup, type CatalogSort } from './catalog.ts'
+import { activeCatalogFilters, boughtLabel, CATALOG_GROUP_LABELS, CATALOG_SORT_LABELS, catalogDepartments, catalogFilterSummary, catalogStores, catalogTags, catalogView, filterCatalog, groupCatalog, placeLabel, placesFor, placesInput, scanMatch, scanTarget, setCatalogView, sortCatalog, STARTER_TAGS, tagsInput, type CatalogGroup, type CatalogSort } from './catalog.ts'
 
 // The list types in the edit sheet, each with its icon (Groceries first among the shopping ones).
 const TYPE_ICON: Record<ListType, typeof CartIcon> = { todo: CheckIcon, groceries: BasketIcon, shopping: CartIcon, reusable: RepeatIcon }
@@ -594,8 +594,8 @@ const OPEN_FACTS_NAMES: Partial<Record<BarcodeLookup['source'], string>> = {
 /** After scanning a product the catalog doesn't know: where its name came from, the name to add,
  * and whether to save the barcode to the catalog (off unless chosen; the next scan then adds it at
  * once). Kids' own devices don't change the catalog, so they don't see the switch. */
-function ScanSheet({ code, found, canSave, lists, target: suggested, onAdd, onClose }: {
-  code: string; found: BarcodeLookup | null; canSave: boolean; lists: List[]; target: string
+function ScanSheet({ code, found, canSave, lists, target: suggested, checkOff, onAdd, onClose }: {
+  code: string; found: BarcodeLookup | null; canSave: boolean; lists: List[]; target: string; checkOff: boolean // shopping: it's in the cart
   onAdd: (title: string, save: boolean, target: string) => void; onClose: () => void
 }) {
   const [title, setTitle] = useState(found?.title ?? '')
@@ -607,7 +607,7 @@ function ScanSheet({ code, found, canSave, lists, target: suggested, onAdd, onCl
     <Sheet variant="dialog" title="Scanned product" onClose={onClose}
       actions={<>
         <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
-        <button className="btn btn-primary" onClick={add} disabled={!name}>Add to list</button>
+        <button className="btn btn-primary" onClick={add} disabled={!name}>{checkOff ? 'Add and check off' : 'Add to list'}</button>
       </>}>
       <p className="scan-source">
         {found ? `Name from ${OPEN_FACTS_NAMES[found.source] ?? 'Open Food Facts'}. Check it before adding.` : "The Open Food Facts databases don't know this one. Type its name."}
@@ -1608,24 +1608,35 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   const showQueued = (op: Op | null) => { if (op) setDetail(d => d && applyListOps(d, [op])); else load() }
 
   // barcode: a scan saved to the catalog, so the next scan of it adds this name at once.
-  const addItem = async (text = draft, barcode?: string) => {
+  // checkOff (a scan while shopping): it's already in the cart, so it's added ticked. to: another list.
+  const addItem = async (text = draft, barcode?: string, { checkOff = false, to = listId } = {}) => {
     const title = text.trim()
     if (!title) return
     if (text === draft) setDraft('') // from the add bar, not a scan
-    try { showQueued(await api.queueAddListItem(listId, { title, ...(barcode ? { barcode } : {}) })) }
-    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not add item', true) }
-    inputRef.current?.focus() // keep the keyboard open for the next item
+    const id = crypto.randomUUID() // ours, so the tick can follow the add (both queued, in order)
+    try {
+      const added = await api.queueAddListItem(to, { id, title, ...(barcode ? { barcode } : {}) })
+      const ticked = checkOff ? await api.queueUpdateListItem(to, id, { done: true }) : null
+      if (to === listId) { showQueued(added); if (checkOff) showQueued(ticked) }
+    } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not add item', true) }
+    if (!checkOff) inputRef.current?.focus() // keep the keyboard open for the next item
   }
 
   // The app's camera (shopping lists): a product saved in the catalog goes straight on the list
   // under the family's name; anything else opens the scan sheet to check the name, and saving its
-  // barcode to the catalog is a choice made there.
+  // barcode to the catalog is a choice made there. While shopping, a scan checks the product off
+  // (scanMatch finds it on the trip, both lists on a combined one), or adds it already checked off.
   const scan = async () => {
     const code = await scanBarcode(wallCamera({ parentDevice, focusLocked, meMemberId }))
     if (!code) return
     let found = null
     try { found = await api.lookupBarcode(listId, code) }
     catch (e) { toast(e instanceof ApiError ? e.message : 'Could not look that up', true) }
+    if (shopMode && found) {
+      const hit = scanMatch([...(detail?.items ?? []), ...(detail?.alsoAtStore ?? [])], found.title)
+      if (hit) { await toggle(hit); toast(`Checked off: ${hit.title}`); announce(`Checked off ${hit.title}`); return }
+      if (found.source === 'family') { await addItem(found.title, code, { checkOff: true }); toast(`Added and checked off: ${found.title}`); announce(`Added and checked off ${found.title}`); return }
+    }
     if (found?.source === 'family') {
       if (detail?.items.some(i => !i.done && itemKey(i.title) === itemKey(found.title))) {
         toast(`${found.title} is already on the list`); announce(`${found.title} is already on the list`)
@@ -1644,14 +1655,14 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
     if (!scanned) return
     const barcode = save ? scanned.code : undefined
     setScanned(null)
-    if (target === listId) { await addItem(title, barcode); toast(`Added: ${title}`); announce(`Added ${title}`); return }
-    const name = shoppingLists.find(l => l.id === target)?.name ?? 'the other list'
-    try { await api.queueAddListItem(target, { title, ...(barcode ? { barcode } : {}) }); toast(`Added to ${name}: ${title}`); announce(`Added ${title} to ${name}`) }
-    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not add item', true) }
+    await addItem(title, barcode, { checkOff: shopMode, to: target })
+    const where = target === listId ? '' : ` to ${shoppingLists.find(l => l.id === target)?.name ?? 'the other list'}`
+    const said = `${shopMode ? 'Added and checked off' : 'Added'}${where}: ${title}`
+    toast(said); announce(said)
   }
   const scanSheet = scanned && (
     <ScanSheet code={scanned.code} found={scanned.found} canSave={!kid} onClose={() => setScanned(null)}
-      lists={shoppingLists} target={scanTarget(shoppingLists, listId, scanned.found?.source ?? null)} onAdd={addScanned} />
+      lists={shoppingLists} target={scanTarget(shoppingLists, listId, scanned.found?.source ?? null)} checkOff={shopMode} onAdd={addScanned} />
   )
   const scanBtn = detail?.list.kind === 'shopping' && appBarcodeScanner() && (
     <button className="icon-btn list-scan-btn" onClick={scan} aria-label="Scan a barcode"><span aria-hidden="true">📷</span></button>
@@ -1839,10 +1850,10 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
               <ItemAddField id={`shop-add-${listId}`} value={draft} onChange={setDraft} onAdd={addItem} suggestions={suggestions.items} onList={onList} inputRef={inputRef}
                 above buyAgain autoFocus label={`Add to ${list.name}`} placeholder="Add an item…" onEscape={e => { e.stopPropagation(); setAdding(false) }} />
               <button className="icon-btn" onClick={() => addItem()} disabled={!draft.trim()} aria-label="Add item"><PlusIcon width={20} height={20} /></button>
-              {scanBtn}
             </div>
           )}
           <div className="shop-dock-row">
+            {scanBtn /* scan to check off (or add) without opening Add an item */}
             <button className="btn btn-secondary shop-add-btn" onClick={() => setAdding(a => !a)} aria-expanded={adding} aria-label={adding ? 'Close Add an item' : 'Add an item'}>
               {adding ? <XIcon width={18} height={18} /> : <PlusIcon width={18} height={18} />}{!tripChecked.length && <span aria-hidden="true">{adding ? 'Close' : 'Add an item'}</span>}
             </button>

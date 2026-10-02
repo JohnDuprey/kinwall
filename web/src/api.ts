@@ -636,7 +636,7 @@ export const api = {
   lookupBarcode: (listId: string, code: string): Promise<BarcodeLookup | null> => MOCK ? mock.lookupBarcode(listId, code)
     : req<BarcodeLookup>(`api/lists/${listId}/barcodes/${code}`).catch((e: unknown) => { if (e instanceof ApiError && e.status === 404) return null; throw e }),
   queueAddListItem: async (listId: string, input: ListItemInput): Promise<Op | null> =>
-    MOCK ? (await mock.addListItems(listId, input), null) : queue('POST', `api/lists/${listId}/items`, { ...input, id: crypto.randomUUID() }),
+    MOCK ? (await mock.addListItems(listId, input), null) : queue('POST', `api/lists/${listId}/items`, { id: crypto.randomUUID(), ...input }),
   queueUpdateListItem: async (listId: string, itemId: string, body: ListItemPatch): Promise<Op | null> =>
     MOCK ? (await mock.updateListItem(listId, itemId, body), null) : queue('PATCH', `api/lists/${listId}/items/${itemId}`, body),
   queueDeleteListItem: async (listId: string, itemId: string): Promise<Op | null> =>

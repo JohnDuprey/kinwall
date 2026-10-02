@@ -140,3 +140,14 @@ export function scanTarget(lists: List[], currentId: string, source: BarcodeLook
   if (!want || (current && type(current) === want)) return currentId
   return lists.find(l => l.kind === 'shopping' && !l.archived && type(l) === want)?.id ?? currentId
 }
+
+/** Words in matching form (each like itemKey: case and simple plurals ignored). */
+const matchWords = (s: string) => s.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean).map(itemKey).join(' ')
+
+/** The open item a scanned product is, on a shopping trip (Lists.tsx): the same name, else the
+ * longest item name found as whole words inside the product's ("Cheerios" in "Honey Nut Cheerios"). */
+export function scanMatch<T extends { title: string; done: boolean }>(items: T[], title: string): T | undefined {
+  const product = matchWords(title)
+  const open = items.filter(i => !i.done).map(i => ({ i, key: matchWords(i.title) })).filter(x => x.key)
+  return (open.find(x => x.key === product) ?? open.filter(x => ` ${product} `.includes(` ${x.key} `)).sort((a, b) => b.key.length - a.key.length)[0])?.i
+}

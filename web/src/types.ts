@@ -837,6 +837,7 @@ export interface ListDetail {
 /** POST /api/lists/{id}/items body shape - store/category are OMITTED (not sent) unless the
  * user explicitly set them, so the server can fill them in from a remembered matching title. */
 export interface ListItemInput {
+  id?: string // client-made (a UUID): a retried add doesn't duplicate; also lets a tick follow the add
   title: string
   notes?: string | null
   quantity?: string | null

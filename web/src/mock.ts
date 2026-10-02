@@ -1368,7 +1368,7 @@ export const mock = {
       const known = shopping ? [...listItems, ...remembered].filter(inCatalog(catalogOf(listId))).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).filter(i => sameName(i.title, input.title)) : []
       const store = input.store !== undefined ? input.store : (known[0]?.store ?? null)
       const item: ListItem = {
-        id: uid(), listId, title: input.title.trim(), notes: input.notes ?? null,
+        id: input.id ?? uid(), listId, title: input.title.trim(), notes: input.notes ?? null,
         quantity: input.quantity ?? null,
         store,
         category: input.category !== undefined ? input.category : (known[0]?.category ?? null),
