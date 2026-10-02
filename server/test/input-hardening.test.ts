@@ -8,7 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createApp } from '../src/app.ts';
 import { openDb, applyMigrations } from '../src/d1-sqlite.ts';
-import { expand, isValidRrule } from '../src/recurrence.ts';
+import { expand, isValidRrule, rruleOccurs } from '../src/recurrence.ts';
 import type { Env } from '../src/env.ts';
 
 const MIGRATIONS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'migrations');
@@ -219,4 +219,83 @@ test('events: a repeat that can never occur is refused, and costs nothing to rea
   // The range's end doesn't change what a rule with its own COUNT or UNTIL gives.
   assert.equal(expand('FREQ=DAILY;COUNT=3', '2026-10-06', '2026-10-07', true, 'UTC', ...week).length, 2);
   assert.equal(expand('FREQ=DAILY;UNTIL=20261003T000000Z', '2026-10-01', '2026-10-02', true, 'UTC', ...week).length, 3);
+});
+
+test('events and chores: a monthly or yearly repeat that never happens is refused, and one already stored costs one scan', async () => {
+  const { json, event, stored } = await setup();
+  const NEVER = 'That repeat never happens. Check the day and month.';
+  const refused = async (res: ReturnType<typeof event>) => {
+    const r = await res;
+    assert.equal(r.status, 400);
+    assert.equal(r.body.error, NEVER);
+  };
+  // Never-occurring shapes: on their own, and ones that depend on the day the event starts.
+  for (const [rrule, start] of [
+    ['FREQ=MONTHLY;BYMONTH=2;BYMONTHDAY=30', '2026-10-02T16:00:00Z'],
+    ['FREQ=MONTHLY;BYDAY=MO;BYSETPOS=6', '2026-10-02T16:00:00Z'],
+    ['FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=30', '2026-10-02T16:00:00Z'],
+    ['FREQ=YEARLY;BYMONTH=4;BYMONTHDAY=31', '2026-10-02T16:00:00Z'],
+    ['FREQ=MONTHLY;BYMONTH=2', '2026-10-30T16:00:00Z'], // the 30th of February
+  ] as const) {
+    const began = performance.now();
+    await refused(event({ rrule, start, end: start }));
+    console.log(`  write check: ${rrule} on ${start.slice(0, 10)} refused in ${Math.round(performance.now() - began)} ms`);
+  }
+  // Moving an event with a fine repeat onto a day the repeat can't use is refused too.
+  const made = await event({ rrule: 'FREQ=MONTHLY;BYMONTH=2', start: '2026-10-02T16:00:00Z', end: '2026-10-02T17:00:00Z' });
+  assert.equal(made.status, 201, JSON.stringify(made.body));
+  const moved = await json(`/api/events/${made.body.id}`, 'PATCH', { start: '2026-10-30T16:00:00Z', end: '2026-10-30T17:00:00Z' }, ADMIN_KEY);
+  assert.equal(moved.status, 400);
+  assert.equal(moved.body.error, NEVER);
+  assert.equal((await json(`/api/events/${made.body.id}`, 'PATCH', { rrule: 'FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=30' }, ADMIN_KEY)).body.error, NEVER);
+  assert.equal((await json(`/api/events/${made.body.id}`, 'PATCH', { title: 'Retitled' }, ADMIN_KEY)).status, 200);
+
+  // Chores anchor on the due date.
+  for (const body of [
+    { rrule: 'FREQ=MONTHLY;BYMONTH=2;BYMONTHDAY=30', dueDate: '2026-10-02' },
+    { rrule: 'FREQ=YEARLY;BYMONTH=4;BYMONTHDAY=31', dueDate: '2026-10-02' },
+    { rrule: 'FREQ=MONTHLY;BYMONTH=2', dueDate: '2026-10-30' },
+  ]) {
+    const r = await json('/api/chores', 'POST', { title: 'Water plants', points: 1, ...body });
+    assert.equal(r.status, 400, JSON.stringify(body));
+    assert.equal(r.body.error, NEVER);
+  }
+  const chore = await json('/api/chores', 'POST', { title: 'Water plants', points: 1, rrule: 'FREQ=MONTHLY;BYMONTH=2', dueDate: '2026-10-02' });
+  assert.equal(chore.status, 201);
+  assert.equal((await json(`/api/chores/${chore.body.id}`, 'PATCH', { dueDate: '2026-10-30' })).body.error, NEVER);
+  const lib = await json('/api/chore-library', 'POST', { title: 'Wash windows', points: 3 });
+  assert.equal((await json(`/api/chore-library/${lib.body.id}/assign`, 'POST', { date: '2026-10-30', rrule: 'FREQ=MONTHLY;BYMONTH=2' })).body.error, NEVER);
+
+  // Sparse but real repeats are fine, as is one whose repeats are all in the past (judged against its own start).
+  for (const [rule, start] of [
+    ['FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=29', '2026-10-02T16:00:00Z'],
+    ['FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=29', '2096-10-02T16:00:00Z'], // 8 years between, around 2100
+    ['FREQ=YEARLY;INTERVAL=10', '2026-10-02T16:00:00Z'],
+    ['FREQ=YEARLY;INTERVAL=10;BYMONTH=2', '2026-10-02T16:00:00Z'],
+    ['FREQ=MONTHLY;COUNT=1', '2026-10-02T16:00:00Z'],
+    ['FREQ=MONTHLY;BYMONTH=2;BYMONTHDAY=29;COUNT=1', '2026-10-02T16:00:00Z'],
+    ['FREQ=MONTHLY;UNTIL=20200101', '2019-10-02T16:00:00Z'],
+    ['FREQ=MONTHLY;BYMONTHDAY=31', '2026-10-31T16:00:00Z'],
+  ] as const) {
+    assert.equal(rruleOccurs(rule, start, false, 'UTC'), true, `${rule} ${start}`);
+    const r = await event({ rrule: rule, start, end: start });
+    assert.equal(r.status, 201, `${rule} ${start}: ${JSON.stringify(r.body)}`);
+  }
+  assert.equal(rruleOccurs('FREQ=MONTHLY;UNTIL=20190101', '2019-10-02T16:00:00Z', false, 'UTC'), false); // ends before it starts
+
+  // Already stored (an older server, import or sync): expanded slowly at most once, then cheap.
+  stored('bad1', { start: '2026-10-02', end: '2026-10-03', all_day: 1, rrule: 'FREQ=MONTHLY;BYMONTH=2;BYMONTHDAY=30' });
+  stored('bad2', { start: '2026-10-02', end: '2026-10-03', all_day: 1, rrule: 'FREQ=YEARLY;BYMONTH=4;BYMONTHDAY=31' });
+  stored('bad3', { start: '2026-10-30T10:00:00.000Z', end: '2026-10-30T11:00:00.000Z', rrule: 'FREQ=MONTHLY;BYMONTH=2' });
+  stored('ok1', { start: '2026-10-02', end: '2026-10-03', all_day: 1, rrule: 'FREQ=MONTHLY;BYMONTHDAY=2' });
+  const timings: number[] = [];
+  for (let i = 0; i < 3; i++) {
+    const began = performance.now();
+    const res = await json(OCTOBER);
+    timings.push(Math.round(performance.now() - began));
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.body.filter((e: any) => e.title.startsWith('Stored')).map((e: any) => e.title), ['Stored ok1']);
+  }
+  console.log(`  stored bad rules, calendar read ms (1st, 2nd, 3rd): ${timings.join(', ')}`);
+  assert.ok(timings[1] < 20 && timings[2] < 20, `later reads took ${timings.join(', ')} ms`);
 });

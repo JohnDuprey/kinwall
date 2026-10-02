@@ -3,9 +3,10 @@ import type { Context } from 'hono';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
 import { hostTimezone } from '../env.ts';
+import type { KinwallDb } from '../db.ts';
 import { todayInTz } from './members.ts';
 import { emit } from '../bus.ts';
-import { expand, isValidRrule } from '../recurrence.ts';
+import { expand, isValidRrule, rruleOccurs } from '../recurrence.ts';
 import { ChoreDaySchema, ChoreInputSchema, ChoreSchema, ErrorSchema } from '../schemas.ts';
 import { resetListItems } from './lists.ts';
 import { actorOf, deviceOwner, ownDevice, ownerBlock, requestKey } from '../auth.ts';
@@ -119,6 +120,8 @@ choresRoutes.openapi(
   async (c) => {
     const body = c.req.valid('json');
     if (body.rrule && !isValidRrule(body.rrule)) return c.json({ error: 'invalid rrule' }, 400);
+    const neverError = await choreRepeatError(c.env.DB, body.rrule, body.dueDate);
+    if (neverError) return c.json({ error: neverError }, 400);
     const listError = (await checkList(c, body.listId)) ?? (await checkPlugin(c, body.pluginId)) ?? (await checkLibrary(c, body.libraryId));
     if (listError) return c.json({ error: listError }, 400);
     const row: ChoreRow = {
@@ -168,6 +171,11 @@ choresRoutes.openapi(
     if (listError) return c.json({ error: listError }, 400);
     const existing = await c.env.DB.prepare('SELECT * FROM chores WHERE id = ? AND archived = 0').bind(id).first<ChoreRow>();
     if (!existing) return c.json({ error: 'not found' }, 404);
+    // A new start day can turn a repeat that happened into one that never does.
+    const neverError = body.rrule !== undefined || body.dueDate !== undefined
+      ? await choreRepeatError(c.env.DB, body.rrule !== undefined ? body.rrule : existing.rrule, body.dueDate !== undefined ? body.dueDate : existing.due_date, existing.created_at)
+      : null;
+    if (neverError) return c.json({ error: neverError }, 400);
     const updated: ChoreRow = {
       ...existing,
       title: body.title ?? existing.title,
@@ -245,6 +253,15 @@ export function activityProgress(row: ChoreRow, plugins: Map<string, PluginInfo>
 // for "which chores are due on date X".
 export function dueOnDate(row: ChoreRow, date: string, tz: string): boolean {
   return dueDates(row, date, date, tz).has(date);
+}
+
+/** Why a chore's repeat can't be saved, or null: one that never happens (the 30th of February) would be
+ * scanned to the year 9999 on every read. Anchored like dueDates: on the due date, else the creation day. */
+export async function choreRepeatError(db: KinwallDb, rrule: string | null | undefined, dueDate: string | null | undefined, createdAt?: string): Promise<string | null> {
+  if (!rrule || !isValidRrule(rrule) || (dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(dueDate))) return null;
+  const tz = (await db.prepare("SELECT value FROM settings WHERE key = 'timezone'").first<{ value: string }>())?.value ?? hostTimezone();
+  const anchor = dueDate ?? todayInTz(tz, createdAt ? new Date(createdAt) : new Date());
+  return rruleOccurs(rrule, anchor, true, tz) ? null : 'That repeat never happens. Check the day and month.';
 }
 
 /** The days from `from` to `to` (inclusive, YYYY-MM-DD) a chore is due, in one expansion - what

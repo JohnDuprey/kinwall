@@ -9,7 +9,7 @@ import type { KinwallDb } from '../db.ts';
 import { emit } from '../bus.ts';
 import { isValidRrule } from '../recurrence.ts';
 import { ChoreSchema, EmojiSchema, ErrorSchema } from '../schemas.ts';
-import { insertChore, toApi as choreToApi, type ChoreRow } from './chores.ts';
+import { choreRepeatError, insertChore, toApi as choreToApi, type ChoreRow } from './chores.ts';
 
 export const choreLibraryRoutes = createRouter();
 
@@ -288,6 +288,8 @@ choreLibraryRoutes.openapi(
     const item = await c.env.DB.prepare('SELECT * FROM chore_library WHERE id = ?').bind(id).first<LibraryRow>();
     if (!item) return c.json({ error: 'not found' }, 404);
     if (b.rrule && !isValidRrule(b.rrule)) return c.json({ error: 'invalid rrule' }, 400);
+    const neverError = await choreRepeatError(c.env.DB, b.rrule, b.date);
+    if (neverError) return c.json({ error: neverError }, 400);
     const memberId = b.memberId !== undefined ? b.memberId : item.member_id;
     const error = await checkRefs(c.env.DB, { memberId });
     if (error) return c.json({ error }, 400);

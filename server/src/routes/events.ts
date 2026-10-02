@@ -4,7 +4,7 @@ import type { Context } from 'hono';
 import { createRouter } from '../router.ts';
 import type { Env } from '../env.ts';
 import { emit } from '../bus.ts';
-import { expand, isEventTime, isValidRrule } from '../recurrence.ts';
+import { expand, isEventTime, isValidRrule, rruleOccurs } from '../recurrence.ts';
 import { getProvider } from '../providers/index.ts';
 import type { ProviderCtx } from '../providers/types.ts';
 import { decryptConfig, encryptConfig } from '../crypto.ts';
@@ -658,24 +658,39 @@ type Fail<S extends number> = { error: string; status: S };
 
 /** Why these times and repeat can't be saved, or null: what's stored is read back by everyone, so
  * it has to be something every read can expand (recurrence.ts isEventTime, isValidRrule). */
-function eventInputError(start: string, end: string, allDay: boolean, rrule: string | null | undefined): string | null {
+function eventInputError(start: string, end: string, allDay: boolean, rrule: string | null | undefined, tz: string, keepStored = false): string | null {
   const want = allDay ? 'a date (YYYY-MM-DD) for an all-day event' : 'an ISO date-time with a UTC offset, like 2026-09-24T14:00:00Z';
   if (!isEventTime(start, allDay)) return `start must be ${want}`;
   if (!isEventTime(end, allDay)) return `end must be ${want}`;
   if (Date.parse(end) < Date.parse(start)) return 'end is before start';
-  return rruleError(rrule);
+  return rruleError(rrule, start, allDay, tz, keepStored);
 }
-const rruleError = (rrule: string | null | undefined) => (rrule && !isValidRrule(rrule) ? 'invalid rrule: a repeat needs a FREQ of DAILY, WEEKLY, MONTHLY or YEARLY' : null);
+/** `keepStored`: the rule is the event's own, unchanged (only its start moved), so one that was
+ * already odd is left alone, but it still has to happen from the new start. */
+function rruleError(rrule: string | null | undefined, start: string, allDay: boolean, tz: string, keepStored = false): string | null {
+  if (!rrule) return null;
+  if (!isValidRrule(rrule)) return keepStored ? null : 'invalid rrule: a repeat needs a FREQ of DAILY, WEEKLY, MONTHLY or YEARLY';
+  return rruleOccurs(rrule, start, allDay, tz) ? null : 'That repeat never happens. Check the day and month.';
+}
 
 /** POST /api/events: write-through to the provider for a synced calendar, then the Kinwall row.
  * Meals create their calendar events through here too, so every calendar kind behaves the same. */
+/** A synced calendar refused a write. A parent's device gets what the provider said (redacted), to
+ * act on in Settings; a wall screen or kid's device gets a plain line, and the detail goes to the log. */
+async function providerFail(c: Ctx, err: unknown): Promise<Fail<502>> {
+  const said = errorMessage(err, 'provider write failed');
+  if ((await requestKey(c))?.scope !== 'display') return { error: said, status: 502 };
+  console.error('calendar write refused', said);
+  return { error: "That couldn't be saved to the calendar. Ask a parent to check it under Settings → Calendars.", status: 502 };
+}
+
 export async function createEvent(c: Ctx, body: z.infer<typeof EventInputSchema>): Promise<Fail<400 | 403 | 502> | { row: EventRow; cal: CalendarRow }> {
   const cal = await c.env.DB.prepare('SELECT * FROM calendars WHERE id = ?').bind(body.calendarId).first<CalendarRow>();
   if (!cal) return { error: 'calendar not found', status: 400 };
   const block = await eventWriteBlock(c, [cal]);
   if (block) return { error: block, status: 403 };
   if (!cal.writable) return { error: 'calendar is not writable', status: 400 };
-  const invalid = eventInputError(body.start, body.end, body.allDay, body.rrule);
+  const invalid = eventInputError(body.start, body.end, body.allDay, body.rrule, body.rrule ? await householdTz(c.env.DB) : 'UTC');
   if (invalid) return { error: invalid, status: 400 };
 
   let externalId: string | null = null;
@@ -918,7 +933,9 @@ export async function updateEvent(c: Ctx, id: string, body: z.infer<typeof Event
   let end = body.end ?? row.end;
   // Only what this patch changes is checked, so an event that already holds something odd can still be retitled (or fixed).
   const timesChange = body.start !== undefined || body.end !== undefined || body.allDay !== undefined;
-  const invalid = timesChange ? eventInputError(start, end, body.allDay ?? !!row.all_day, body.rrule) : rruleError(body.rrule);
+  const rule = body.rrule !== undefined ? body.rrule : cal.kind === 'local' ? row.rrule : null;
+  const invalidTz = timesChange || body.rrule ? await householdTz(c.env.DB) : 'UTC';
+  const invalid = timesChange ? eventInputError(start, end, body.allDay ?? !!row.all_day, rule, invalidTz, body.rrule === undefined) : rruleError(body.rrule, start, !!row.all_day, invalidTz);
   if (invalid) return { error: invalid, status: 400 };
   let location = body.location !== undefined ? body.location : row.location;
   let description = body.description !== undefined ? body.description || null : row.description;

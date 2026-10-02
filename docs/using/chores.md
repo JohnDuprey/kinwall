@@ -38,7 +38,7 @@ Tap **+** (Add chore). The sheet has:
 | **Do an activity (optional)** | One of the family's [activities](activities.md) and **Minutes** (1–60, default 5). Playing it completes the chore. See [Activity chores](#activity-chores). Shown once an activity is installed. |
 | **Needs a parent's OK** | **Default**, **Yes** or **No**. See [Parent approval](#parent-approval). With an activity, also **Needs a parent's OK even for timed play**. |
 
-Chores created through the API or MCP can use any RRULE (for example `FREQ=MONTHLY` or `INTERVAL=2`). The sheet shows those as "Custom schedule (…)" and leaves them alone unless you pick another option. A recurring chore without a due date starts on the day it was created, in the household timezone.
+Chores created through the API or MCP can use any RRULE (for example `FREQ=MONTHLY` or `INTERVAL=2`). The sheet shows those as "Custom schedule (…)" and leaves them alone unless you pick another option. A recurring chore without a due date starts on the day it was created, in the household timezone. A chore repeats daily or slower: a repeat within a day (hourly, say) is refused, and so is one that never happens, like the 30th of February.
 
 **More… → Delete chore…** (in the chore's edit sheet) removes the chore from every list. If it was ever done, its history stays: points already earned from it are kept, it still counts on [profiles](profiles.md), and it stays in the data export. A chore that was never done is removed completely.
 

@@ -84,6 +84,7 @@ export function expand(rruleString: string, start: string, end: string, allDay: 
   if (!isValidRrule(rruleString) || !readable(start) || !readable(end)) return [];
   const startParts = allDay ? dateOnlyParts(start) : zonedParts(new Date(start), tz);
   const dtstart = floatingDate(startParts);
+  if (!occursFrom(rruleString, dtstart)) return [];
   const durationMs = allDay
     ? (dateOnlyToUtcMs(dateOnlyParts(end)) - dateOnlyToUtcMs(startParts)) || 24 * 60 * 60 * 1000
     : new Date(end).getTime() - new Date(start).getTime();
@@ -117,6 +118,39 @@ export function expand(rruleString: string, start: string, end: string, allDay: 
     }
   }
   return out;
+}
+
+const verdicts = new Map<string, boolean>();
+const MAX_VERDICTS = 2000;
+
+/** True if the rule has an occurrence from this start on (the wall-clock `dtstart`). rrule can't stop
+ * a scan early (its `until`, `between` window and iterator callback only act on days that match),
+ * so a rule that never matches scans to year 9999: ~110 ms monthly, ~30 ms yearly. The calendar
+ * repeats exactly every 400 years (146,097 days, a whole number of weeks), so the anchor is moved
+ * forward by whole 400-year steps to the year 9000-9399 and only the 600+ years left are scanned
+ * (about 8 ms). A rule that occurs at all occurs within one 400-year cycle of its anchor, except a
+ * yearly/monthly INTERVAL of more than that, which is refused. Verdicts are kept per (rule, anchor)
+ * in a map bounded at MAX_VERDICTS, so a stored rule that never occurs costs one scan per process. */
+function occursFrom(rule: string, dtstart: Date): boolean {
+  const key = `${dtstart.getTime()}|${rule}`;
+  const known = verdicts.get(key);
+  if (known !== undefined) return known;
+  const opts = RRule.parseString(rule);
+  const shift = Math.max(0, Math.floor((9400 - dtstart.getUTCFullYear()) / 400)) * 400;
+  const move = (d: Date) => new Date(Date.UTC(d.getUTCFullYear() + shift, d.getUTCMonth(), d.getUTCDate(), d.getUTCHours(), d.getUTCMinutes(), d.getUTCSeconds()));
+  const anchor = move(dtstart);
+  const found = new RRule({ ...opts, dtstart: anchor, until: opts.until ? move(opts.until) : null }).after(anchor, true) !== null;
+  if (verdicts.size >= MAX_VERDICTS) verdicts.clear();
+  verdicts.set(key, found);
+  return found;
+}
+
+/** Whether a repeat rule that isValidRrule accepts ever happens when it starts at `start` (stored
+ * format, household timezone `tz`): "the 30th of February" never does. Judged against its own start,
+ * so a rule whose COUNT or UNTIL has long passed still counts as having happened. */
+export function rruleOccurs(rule: string, start: string, allDay: boolean, tz: string): boolean {
+  if (Number.isNaN(Date.parse(start))) return false;
+  return occursFrom(rule, floatingDate(allDay ? dateOnlyParts(start) : zonedParts(new Date(start), tz)));
 }
 
 function dateOnlyParts(s: string): DateParts {
