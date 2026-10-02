@@ -1,13 +1,20 @@
-// node --test test/ (npm test). The demo's Paint drawings look like a kid drew them, and the same
-// pictures show in Newscast, Photos and the Night screen slideshow (which reads family photos).
+// node --test test/ (npm test). The demo's Paint drawings are real Paint pictures (WebP files made
+// by scripts/demo-drawings.ts with Paint's brushes), and the same pictures show in Newscast, Photos
+// and the Night screen slideshow (which reads family photos).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { mock } from '../src/mock.ts'
 import { DEMO_DRAWINGS } from '../src/mock-drawings.ts'
+import { readFileSync } from 'node:fs'
 
-const isKidDrawing = (url: string) => url.startsWith('data:image/svg+xml,') && decodeURIComponent(url).includes('feDisplacementMap')
+/** A WebP picture in web/demo-drawings/ (not an SVG drawn with filters Paint can't make). */
+const isKidDrawing = (url: string) => {
+  if (!/^demo-drawings\/[\w-]+\.webp$/.test(url)) return false
+  const b = readFileSync(new URL(`../${url}`, import.meta.url))
+  return b.subarray(0, 4).toString() === 'RIFF' && b.subarray(8, 12).toString() === 'WEBP'
+}
 
-test('every demo drawing is a crayon-style SVG', () => {
+test('every demo drawing is a Paint picture', () => {
   assert.ok(DEMO_DRAWINGS.length >= 4)
   for (const d of DEMO_DRAWINGS) assert.ok(isKidDrawing(d.url), d.caption)
 })

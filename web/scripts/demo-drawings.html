@@ -1,0 +1,13 @@
+<!doctype html>
+<!-- The demo's Paint drawings, made with Paint's own brushes, Fill and coloring pages
+     (src/paintTools.ts, src/coloringPages.ts) from scripted strokes, like a kid drawing with a finger.
+     Dev server only (never built): `node scripts/demo-drawings.mjs` opens this in headless Chrome and
+     saves the pictures to demo-drawings/ (demo build only). Open it in a browser to look at them. -->
+<html lang="en">
+<head><meta charset="utf-8"><title>Demo drawings</title></head>
+<body style="margin:0;background:#ddd">
+  <div id="pics" style="display:flex;flex-wrap:wrap;gap:8px;padding:8px"></div>
+  <pre id="out" hidden></pre>
+  <script type="module" src="./demo-drawings.ts"></script>
+</body>
+</html>
