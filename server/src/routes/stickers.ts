@@ -3,7 +3,7 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import { emit } from '../bus.ts';
-import { ownerBlock } from '../auth.ts';
+import { deviceOwner, ownerBlock } from '../auth.ts';
 import type { KinwallDb } from '../db.ts';
 import { readSettings } from './settings.ts';
 import { BALANCE_EXPR, STICKER_PACKS, scaledPrice, pointTotalsStmt, type PointTotals, type StickerPack } from '../stickers.ts';
@@ -48,7 +48,7 @@ stickersRoutes.openapi(
     method: 'get',
     path: '/api/members/{id}/points',
     tags: ['Members'],
-    summary: "A member's points: balance to spend, all-time earned and spent, and the last 50 ledger entries",
+    summary: "A member's points: balance to spend, all-time earned and spent, and the last 50 ledger entries (a member's own device gets another member's totals but no entries: the ledger is private to them and parents)",
     security: [{ Bearer: [] }],
     request: { params: z.object({ id: z.string() }) },
     responses: { 200: { description: 'ok', content: { 'application/json': { schema: PointsSchema } } }, 404: notFound },
@@ -62,7 +62,10 @@ stickersRoutes.openapi(
     ]);
     const totals = totalsRes.results[0] as PointTotals | undefined;
     if (!totals) return c.json({ error: 'member not found' }, 404);
-    return c.json({ balance: totals.earned - totals.spent, earnedTotal: totals.earned, spentTotal: totals.spent, entries: (entriesRes.results as PointEntryRow[]).map(toEntryApi) }, 200);
+    // The totals are public (the leaderboard shows them); the itemized history of a sibling isn't.
+    const owner = await deviceOwner(c);
+    const entries = owner && owner !== id ? [] : (entriesRes.results as PointEntryRow[]).map(toEntryApi);
+    return c.json({ balance: totals.earned - totals.spent, earnedTotal: totals.earned, spentTotal: totals.spent, entries }, 200);
   },
 );
 

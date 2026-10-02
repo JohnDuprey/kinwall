@@ -6,6 +6,7 @@ import { emit } from '../bus.ts';
 import { isConnectedApp } from './mcp-oauth.ts';
 import { schemeContrastFailures } from '../colors.ts';
 import { GOOGLE_PHOTOS_STATE_SQL, type GooglePhotosState } from './google-photos.ts';
+import { isSingleEmoji } from '../emoji.ts';
 import { BoardPresetSchema, TIME_FORMATS, TYPEFACES, COLOR_SCHEMES, CUSTOM_SCHEME_ID_RE, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, ErrorSchema, FeaturesSchema, LocationSchema, MealTimesSchema, NightLookSchema, SettingsPatchSchema, SettingsSchema, TidbitSettingsSchema } from '../schemas.ts';
 
 export const settingsRoutes = createRouter();
@@ -296,10 +297,18 @@ settingsRoutes.openapi(
     const scheme = c.req.valid('json');
     const failures = schemeContrastFailures(scheme);
     if (failures.length) return c.json({ error: `Not enough contrast. ${failures.join('. ')}.` }, 400);
-    const current = (await readSettings(c.env.DB)).customSchemes ?? [];
-    if (current.some((x) => x.id === scheme.id)) return c.json({ error: 'That scheme already exists' }, 409);
-    if (current.length >= MAX_CUSTOM_SCHEMES) return c.json({ error: `The family has ${MAX_CUSTOM_SCHEMES} saved schemes, the most it can keep` }, 400);
-    await c.env.DB.batch(settingsWrites(c.env.DB, { customSchemes: [...current, scheme] }));
+    if (scheme.emoji && !isSingleEmoji(scheme.emoji)) return c.json({ error: 'The emoji must be a single emoji' }, 400);
+    // One conditional statement, so parallel posts can't both slip under the cap or repeat an id.
+    const list = "CASE WHEN json_valid(settings.value) AND json_type(settings.value) = 'array' THEN settings.value ELSE '[]' END";
+    const res = await c.env.DB.prepare(
+      `INSERT INTO settings (key, value) VALUES ('customSchemes', json_array(json(?))) ON CONFLICT(key) DO UPDATE SET value = json_insert(${list}, '$[#]', json(?)) ` +
+        `WHERE json_array_length(${list}) < ? AND NOT EXISTS (SELECT 1 FROM json_each(${list}) WHERE json_extract(json_each.value, '$.id') = ?)`,
+    ).bind(JSON.stringify(scheme), JSON.stringify(scheme), MAX_CUSTOM_SCHEMES, scheme.id).run();
+    if (res.meta.changes === 0) {
+      const current = (await readSettings(c.env.DB)).customSchemes ?? [];
+      if (current.some((x) => x.id === scheme.id)) return c.json({ error: 'That scheme already exists' }, 409);
+      return c.json({ error: `The family has ${MAX_CUSTOM_SCHEMES} saved schemes, the most it can keep` }, 400);
+    }
     emit(c, 'settings.changed', {});
     return c.json(await readSettings(c.env.DB), 201);
   },

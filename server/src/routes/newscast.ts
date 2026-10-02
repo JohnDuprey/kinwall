@@ -365,6 +365,28 @@ newscastRoutes.openapi(
   },
 );
 
+/** Whether `key` names something the feed could show in its 30 days, so reactions can't pile up on
+ * made-up keys (the feed reads them all). Keys with an id are looked up; a person's day of chores,
+ * photos or drawings is bounded by who exists and the window, and chores by an approved one that
+ * day. A reaction row per member and emoji per item is the primary key, so that's the per-item cap. */
+async function itemInWindow(env: Env, key: string): Promise<boolean> {
+  const db = env.DB;
+  const [kind, id, date] = key.split(':');
+  const has = async (sql: string, ...binds: unknown[]) => !!(await db.prepare(sql).bind(...binds).first());
+  if (date === undefined) {
+    if (kind === 'post') return has('SELECT 1 FROM newscast_posts WHERE id = ?', id);
+    if (kind === 'reward') return has("SELECT 1 FROM reward_redemptions WHERE id = ? AND status = 'given'", id);
+    return has('SELECT 1 FROM tracker_entries WHERE id = ? AND kind = ?', id, kind === 'book' ? 'reading' : 'memory');
+  }
+  const tz = (await db.prepare("SELECT value FROM settings WHERE key = 'timezone'").first<{ value: string }>())?.value ?? hostTimezone();
+  const today = todayInTz(tz);
+  if (date > today || date < addDays(today, -(NEWSCAST_DAYS - 1))) return false;
+  if (kind === 'photos' || kind === 'drawings') return id === 'family' || has('SELECT 1 FROM members WHERE id = ?', id);
+  if (kind === 'chores') return has("SELECT 1 FROM chore_completions WHERE member_id = ? AND date = ? AND status = 'approved'", id, date);
+  const birthday = (await db.prepare('SELECT birthday FROM members WHERE id = ?').bind(id).first<{ birthday: string | null }>())?.birthday;
+  return !!birthday && birthday.slice(-5) === date.slice(5);
+}
+
 newscastRoutes.openapi(
   createRoute({
     method: 'put',
@@ -390,7 +412,7 @@ newscastRoutes.openapi(
       200: { description: "the item's reactions now", content: { 'application/json': { schema: z.object({ reactions: z.array(ReactionSchema) }) } } },
       400: { description: 'invalid, or no one picked', content: { 'application/json': { schema: ErrorSchema } } },
       403: { description: "reacting as someone else from a person's own device", content: { 'application/json': { schema: ErrorSchema } } },
-      404: { description: 'Newscast is turned off', content: { 'application/json': { schema: ErrorSchema } } },
+      404: { description: "Newscast is turned off, or the item isn't in the last 30 days of it", content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
@@ -399,6 +421,7 @@ newscastRoutes.openapi(
     const { itemKey, emoji, on, memberId } = c.req.valid('json');
     const who = await actingMember(c, memberId, 'reacts');
     if ('error' in who) return c.json({ error: who.error }, who.status);
+    if (on && !(await itemInWindow(c.env, itemKey))) return c.json({ error: "That isn't in the Newscast" }, 404);
     const write = on
       ? db.prepare('INSERT INTO newscast_reactions (item_key, member_id, emoji, created_at) VALUES (?,?,?,?) ON CONFLICT DO NOTHING').bind(itemKey, who.id, emoji, new Date().toISOString())
       : db.prepare('DELETE FROM newscast_reactions WHERE item_key = ? AND member_id = ? AND emoji = ?').bind(itemKey, who.id, emoji);

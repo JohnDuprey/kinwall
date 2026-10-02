@@ -277,7 +277,7 @@ rewardsRoutes.openapi(
     method: 'get',
     path: '/api/rewards/redemptions',
     tags: ['Rewards'],
-    summary: 'Redemptions, newest first. ?memberId= one member; ?status=pending,approved only those (oldest first when filtered by status, for the To approve queue).',
+    summary: "Redemptions, newest first. ?memberId= one member; ?status=pending,approved only those (oldest first when filtered by status, for the To approve queue). A member's own device gets only their requests (403 when it asks for someone else's).",
     security: [{ Bearer: [] }],
     request: {
       query: z.object({
@@ -286,10 +286,14 @@ rewardsRoutes.openapi(
         limit: z.coerce.number().int().min(1).max(200).default(50),
       }),
     },
-    responses: { 200: json(z.array(RedemptionSchema)) },
+    responses: { 200: json(z.array(RedemptionSchema)), 403: err("a member's own device asked for someone else's requests") },
   }),
   async (c) => {
-    const { memberId, status, limit } = c.req.valid('query');
+    const { memberId: asked, status, limit } = c.req.valid('query');
+    // A member's own device sees its own requests (and their decline notes), never a sibling's.
+    const blocked = await ownerBlock(c, asked);
+    if (blocked) return c.json({ error: blocked }, 403);
+    const memberId = asked ?? (await deviceOwner(c)) ?? undefined;
     const statuses = status ? status.split(',').map((s) => s.trim()).filter(Boolean) : [];
     const where: string[] = [];
     const binds: unknown[] = [];

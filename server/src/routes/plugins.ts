@@ -395,11 +395,13 @@ const DataQuery = z.object({ member: z.string().default('') });
 pluginsRoutes.openapi(
   createRoute({
     method: 'get', path: '/api/plugins/{id}/data', tags: ['Plugins'], security: [{ Bearer: [] }],
-    summary: "Everything a plugin saved for one person (member='' = shared), as { key: value }.",
+    summary: "Everything a plugin saved for one person (member='' = shared), as { key: value }. A member's own device reads only its own and the shared data.",
     request: { params: IdParam, query: DataQuery },
-    responses: { 200: { description: 'ok', content: json(z.record(z.string(), z.unknown())) } },
+    responses: { 200: { description: 'ok', content: json(z.record(z.string(), z.unknown())) }, 403: { description: 'this device belongs to someone else', content: json(ErrorSchema) } },
   }),
   async (c) => {
+    const blocked = await ownerBlock(c, c.req.valid('query').member);
+    if (blocked) return c.json({ error: blocked }, 403);
     const { results } = await c.env.DB.prepare('SELECT key, value FROM plugin_data WHERE plugin_id = ? AND member_id = ?')
       .bind(c.req.valid('param').id, c.req.valid('query').member)
       .all<{ key: string; value: string }>();

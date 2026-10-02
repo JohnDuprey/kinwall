@@ -24,6 +24,10 @@ const TokenSchema = z
   .strict()
   .openapi('LiveActivityToken');
 
+// A device legitimately has one push-to-start token and a few running activities (iOS allows about
+// five at once); more than this is a client making up activity names, so the oldest are dropped.
+const MAX_TOKENS_PER_DEVICE = 8;
+
 const aad = (id: string) => `live-activity-token:${id}`;
 
 /** The device a request speaks for: its key, or its OAuth grant. Null for ADMIN_API_KEY. */
@@ -42,7 +46,7 @@ liveActivitiesRoutes.openapi(
     method: 'put',
     path: '/api/live-activities/tokens',
     tags: ['Push'],
-    summary: "Register the iPhone app's Live Activity push token for this device (replaces the last one of that kind and activity)",
+    summary: "Register the iPhone app's Live Activity push token for this device (replaces the last one of that kind and activity; a device keeps its 8 newest)",
     security: [{ Bearer: [] }],
     request: { body: { content: { 'application/json': { schema: TokenSchema } } } },
     responses: {
@@ -61,6 +65,9 @@ liveActivitiesRoutes.openapi(
         'ON CONFLICT(device, kind, activity) DO UPDATE SET id = excluded.id, token = excluded.token, ends_at = excluded.ends_at, created_at = excluded.created_at',
     )
       .bind(id, d.device, d.keyId, d.grantId, body.kind, body.activity ?? '', await seal(c.env, body.token.toLowerCase(), aad(id)), body.endsAt ?? null, new Date().toISOString())
+      .run();
+    await c.env.DB.prepare('DELETE FROM live_activity_tokens WHERE device = ? AND id NOT IN (SELECT id FROM live_activity_tokens WHERE device = ? ORDER BY created_at DESC, rowid DESC LIMIT ?)')
+      .bind(d.device, d.device, MAX_TOKENS_PER_DEVICE)
       .run();
     return c.json({ push: apnsConfigured(c.env) }, 200);
   },
