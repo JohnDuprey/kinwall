@@ -2712,6 +2712,11 @@ a.btn { text-decoration: none; } /* a link that looks like a button (the Board's
 .lib-detail-cover { flex: none; width: 90px; height: 135px; object-fit: cover; border-radius: 6px; background: var(--bg-alt); box-shadow: var(--shadow); }
 .lib-detail-author { font-weight: 700; font-size: 1.05rem; }
 .lib-description { margin: 0 0 14px; line-height: 1.45; }
+.lib-description-clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6; line-clamp: 6; overflow: hidden; margin-bottom: 4px; }
+.lib-more { margin-bottom: 14px; }
+.lib-lent { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.lib-back { flex: none; }
+.lib-place-filter { flex: none; width: auto; min-height: 44px; }
 .lib-reader-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .lib-remove { flex: none; align-self: flex-start; margin-top: 8px; }
 .trk-days-chart { display: flex; align-items: flex-end; gap: 3px; height: 64px; padding: 4px 0; border-bottom: 1px solid var(--border); }

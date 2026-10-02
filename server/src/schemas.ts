@@ -1325,6 +1325,9 @@ export const LibraryBookSchema = z
     coverUrl: z.string().nullable(), year: z.number().nullable(), series: z.string().nullable(), seriesNumber: z.string().nullable(),
     lexile: z.number().nullable().openapi({ description: 'Reading level (Lexile), e.g. 660 for 660L.' }), description: z.string().nullable(),
     genres: z.array(z.string()).openapi({ description: 'Up to three, e.g. Fantasy, Animals.' }),
+    location: z.string().nullable().openapi({ description: 'Where it lives, e.g. "Maya\'s room".' }),
+    lentTo: z.string().nullable().openapi({ description: 'Who has it on loan (free text); null when it\'s home.' }),
+    lentOn: z.string().nullable().openapi({ description: 'YYYY-MM-DD it was lent; null when home.' }),
     addedBy: ActorSchema.nullable(),
     readers: z.array(z.object({ entryId: z.string(), memberId: z.string().nullable(), status: z.enum(['want', 'reading', 'finished']) })).openapi({ description: 'Reading entries started from this book (data.bookId), newest first.' }),
     createdAt: z.string(), updatedAt: z.string(),
@@ -1338,6 +1341,9 @@ export const LibraryBookInputSchema = z
     series: z.string().max(200).nullable().optional(), seriesNumber: z.string().max(20).nullable().optional(),
     lexile: z.number().int().min(-500).max(2500).nullable().optional(), description: z.string().max(4000).nullable().optional(),
     genres: z.array(z.string().trim().min(1).max(40)).max(5).optional(),
+    location: z.string().trim().max(80).nullable().optional(),
+    lentTo: z.string().trim().max(80).nullable().optional().openapi({ description: 'Lend it (who has it); null when it comes back.' }),
+    lentOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional().openapi({ description: 'When it was lent; today (household timezone) when left out.' }),
     workKey: z.string().regex(/^\/works\/OL\d+W$/).optional().openapi({ description: "A search result's workKey: its description is fetched (once)." }),
   })
   .openapi('LibraryBookInput');

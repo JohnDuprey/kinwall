@@ -641,14 +641,14 @@ const tracker = (kind: TrackerKind, memberId: string | null, date: string, title
   ({ id: uid(), kind, memberId, formerMember: null, date, title, photoId, photoOwned: false, photoFamily: photoId ? true : null, data: data as never, createdAt: `${date}T18:00:00.000Z`, updatedAt: `${date}T18:00:00.000Z` })
 // The family's library: Maya's Charlotte's Web and Matilda were started from it (bookId).
 const libraryBook = (id: string, title: string, author: string, d: Partial<LibraryBook> = {}): LibraryBook => ({
-  id, title, author, isbn: null, pages: null, coverUrl: null, year: null, series: null, seriesNumber: null, lexile: null, description: null, genres: [],
+  id, title, author, isbn: null, pages: null, coverUrl: null, year: null, series: null, seriesNumber: null, lexile: null, description: null, genres: [], location: null, lentTo: null, lentOn: null,
   addedBy: { memberId: 'm1' }, readers: [], createdAt: new Date(Date.now() - 30 * 86_400_000).toISOString(), updatedAt: new Date(Date.now() - 30 * 86_400_000).toISOString(), ...d,
 })
 const bookLibrary: LibraryBook[] = [
-  libraryBook('book-charlotte', "Charlotte's Web", 'E. B. White', { isbn: '9780064400558', pages: 184, year: 1952, lexile: 680, genres: ['Fantasy', 'Animals'], coverUrl: 'https://picsum.photos/seed/kinwall-charlotte/120/180', description: 'Some pig! A runt piglet, a clever spider and a promise to save his life.' }),
-  libraryBook('book-matilda', 'Matilda', 'Roald Dahl', { isbn: '9780142410370', pages: 240, year: 1988, lexile: 840, genres: ['Fantasy', 'Humor'], coverUrl: 'https://picsum.photos/seed/kinwall-matilda/120/180' }),
-  libraryBook('book-holes', 'Holes', 'Louis Sachar', { isbn: '9780440414803', pages: 233, year: 1998, lexile: 660, genres: ['Adventure', 'Mystery'], description: 'There is no lake at Camp Green Lake.' }),
-  libraryBook('book-warriors-1', 'Into the Wild', 'Erin Hunter', { pages: 272, year: 2003, series: 'Warriors', seriesNumber: '1', lexile: 970, genres: ['Fantasy', 'Animals'] }),
+  libraryBook('book-charlotte', "Charlotte's Web", 'E. B. White', { isbn: '9780064400558', pages: 184, year: 1952, lexile: 680, genres: ['Fantasy', 'Animals'], location: "Maya's room", coverUrl: 'https://picsum.photos/seed/kinwall-charlotte/120/180', description: 'Some pig! A runt piglet, a clever spider and a promise to save his life.' }),
+  libraryBook('book-matilda', 'Matilda', 'Roald Dahl', { isbn: '9780142410370', pages: 240, year: 1988, lexile: 840, genres: ['Fantasy', 'Humor'], location: 'Living room shelf', lentTo: 'Grandma', lentOn: daysAgo(9), coverUrl: 'https://picsum.photos/seed/kinwall-matilda/120/180' }),
+  libraryBook('book-holes', 'Holes', 'Louis Sachar', { isbn: '9780440414803', pages: 233, year: 1998, lexile: 660, genres: ['Adventure', 'Mystery'], location: 'Living room shelf', description: 'There is no lake at Camp Green Lake.' }),
+  libraryBook('book-warriors-1', 'Into the Wild', 'Erin Hunter', { pages: 272, year: 2003, series: 'Warriors', seriesNumber: '1', lexile: 970, genres: ['Fantasy', 'Animals'], description: 'Fire alone can save our Clan. For generations, four Clans of wild cats have shared the forest according to the laws laid down by their ancestors. But the warrior code is threatened, and the ThunderClan cats are in grave danger. When an ordinary housecat named Rusty wanders into the woods, he is invited to join the Clan as an apprentice and given a new name. Under the eye of his mentor, he learns to hunt, to fight and to keep the code, and he finds friends, rivals and a mystery that reaches back to the death of a deputy. Is he brave enough to become a true warrior, and can he find out who among the Clan cannot be trusted before it is too late?' }),
   libraryBook('book-warriors-2', 'Fire and Ice', 'Erin Hunter', { pages: 320, year: 2003, series: 'Warriors', seriesNumber: '2', lexile: 1010, genres: ['Fantasy', 'Animals'] }),
   libraryBook('book-frog', 'Frog and Toad Are Friends', 'Arnold Lobel', { pages: 64, year: 1970, lexile: 400 }),
 ]
@@ -1439,11 +1439,11 @@ export const mock = {
     })
     settleMockPhoto(t, body.photoFamily); bump(); return { ...t }
   },
-  getLibrary: async (q?: { q?: string; unread?: boolean }): Promise<LibraryBook[]> => {
+  getLibrary: async (q?: { q?: string; unread?: boolean; lent?: boolean; location?: string }): Promise<LibraryBook[]> => {
     const needle = q?.q?.trim().toLowerCase()
     return bookLibrary.map(withReaders)
-      .filter(b => !needle || [b.title, b.author, b.series, ...b.genres].some(v => v?.toLowerCase().includes(needle)))
-      .filter(b => !q?.unread || !b.readers.length)
+      .filter(b => !needle || [b.title, b.author, b.series, b.location, b.lentTo, ...b.genres].some(v => v?.toLowerCase().includes(needle)))
+      .filter(b => (!q?.unread || !b.readers.length) && (!q?.lent || b.lentTo) && (!q?.location || b.location === q.location))
       .sort((a, b) => (a.series ?? a.title).localeCompare(b.series ?? b.title, undefined, { sensitivity: 'base' }) || Number(a.seriesNumber ?? 0) - Number(b.seriesNumber ?? 0) || a.title.localeCompare(b.title))
   },
   // Demo lookups by ISBN come from the demo book search's ISBNs.
@@ -1459,7 +1459,9 @@ export const mock = {
   updateLibraryBook: async (id: string, changes: LibraryBookInput): Promise<LibraryBook> => {
     const b = bookLibrary.find(x => x.id === id); if (!b) throw new Error('not found')
     const { workKey: _w, ...fields } = changes
-    Object.assign(b, fields, { updatedAt: new Date().toISOString() }); bump(); return withReaders(b)
+    // Lent: dated today unless given; back home clears the date, like the server.
+    const lentOn = changes.lentTo === null || changes.lentTo === '' ? null : changes.lentOn ?? (changes.lentTo && changes.lentTo !== b.lentTo ? todayISO() : b.lentOn)
+    Object.assign(b, fields, { lentTo: changes.lentTo !== undefined ? changes.lentTo || null : b.lentTo, lentOn, updatedAt: new Date().toISOString() }); bump(); return withReaders(b)
   },
   deleteLibraryBook: async (id: string) => { const i = bookLibrary.findIndex(x => x.id === id); if (i >= 0) bookLibrary.splice(i, 1); bump() },
   deleteTracker: async (id: string) => { const i = trackers.findIndex(x => x.id === id); if (i >= 0) trackers.splice(i, 1); bump() },

@@ -90,6 +90,7 @@ import m0086 from '../migrations/0086_privacy_trail.sql';
 import m0087 from '../migrations/0087_connected_app_push.sql';
 import m0088 from '../migrations/0088_default_lists.sql';
 import m0089 from '../migrations/0089_library.sql';
+import m0090 from '../migrations/0090_library_lending.sql';
 
 export const MIGRATIONS: Migration[] = [
   { name: '0001_init.sql', sql: m0001 },
@@ -181,4 +182,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0087_connected_app_push.sql', sql: m0087 },
   { name: '0088_default_lists.sql', sql: m0088 },
   { name: '0089_library.sql', sql: m0089 },
+  { name: '0090_library_lending.sql', sql: m0090 },
 ];

@@ -112,6 +112,7 @@ export interface ReadingData {
 export interface LibraryBook {
   id: string; title: string; author: string | null; isbn: string | null; pages: number | null; coverUrl: string | null
   year: number | null; series: string | null; seriesNumber: string | null; lexile: number | null; description: string | null; genres: string[]
+  location: string | null; lentTo: string | null; lentOn: string | null // where it lives; who has it on loan, since when
   addedBy: Actor | null; readers: { entryId: string; memberId: string | null; status: ReadingStatus }[]; createdAt: string; updatedAt: string
 }
 export type LibraryBookInput = Partial<Omit<LibraryBook, 'id' | 'addedBy' | 'readers' | 'createdAt' | 'updatedAt'>> & { workKey?: string }

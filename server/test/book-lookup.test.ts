@@ -130,3 +130,11 @@ test('genresFrom: a few clean genres out of Open Library\'s mixed subjects', asy
   assert.deepEqual(genresFrom(['Fiction', 'Juvenile fiction', 'Open Library Staff Picks']), []);
   assert.deepEqual(genresFrom(undefined), []);
 });
+
+test("cleanDescription: Open Library's Markdown as plain text (links, their footnotes, rules, bold)", async () => {
+  const { cleanDescription } = await import('../src/routes/books.ts');
+  const raw = '[The Dark Tower][1] I The Gunslinger is a dark-fantasy by **Stephen King** ([source][2]).\r\n\r\n----------\r\n**Contains:**\r\n\r\n - [The Gunslinger](https://openlibrary.org/works/OL1W)\r\n - _The Way Station_\r\n\r\n\r\n\r\n  [1]: https://openlibrary.org/works/OL81600W/The_Dark_Tower_1-7\r\n  [2]: https://en.wikipedia.org/wiki/The_Gunslinger';
+  assert.equal(cleanDescription(raw), 'The Dark Tower I The Gunslinger is a dark-fantasy by Stephen King.\n\nContains:\n\n - The Gunslinger\n - The Way Station');
+  assert.equal(cleanDescription('Plain text, nothing to do.'), 'Plain text, nothing to do.');
+  assert.equal(cleanDescription('[1]: https://only.a/footnote'), null);
+});

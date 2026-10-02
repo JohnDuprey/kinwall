@@ -33,7 +33,7 @@ test('library: add, list by title, search, edit; the same ISBN twice is a 409 wi
   const added = await send('POST', '/api/library', holes);
   assert.equal(added.status, 201);
   const { id: _id, createdAt: _c, updatedAt: _u, addedBy: _a, ...fields } = added.body;
-  assert.deepEqual(fields, { ...holes, year: null, series: null, seriesNumber: null, lexile: null, description: null, genres: [], readers: [] });
+  assert.deepEqual(fields, { ...holes, year: null, series: null, seriesNumber: null, lexile: null, description: null, genres: [], location: null, lentTo: null, lentOn: null, readers: [] });
   await send('POST', '/api/library', { title: "Charlotte's Web", author: 'E. B. White' });
   await send('POST', '/api/library', { title: 'Matilda', author: 'Roald Dahl' });
 
@@ -113,11 +113,36 @@ test('library: adding by ISBN alone looks the book up, details and description i
   const { id: _i, createdAt: _c, updatedAt: _u, addedBy: _a, ...fields } = book.body;
   assert.deepEqual(fields, {
     title: 'Into the Wild', author: 'Erin Hunter', isbn: '9780060000028', pages: 272, coverUrl: 'https://covers.openlibrary.org/b/id/9-M.jpg',
-    year: 2003, series: 'Warriors', seriesNumber: '1', lexile: 970, description: 'Fire alone can save our Clan.', genres: ['Fantasy', 'Animals'], readers: [],
+    year: 2003, series: 'Warriors', seriesNumber: '1', lexile: 970, description: 'Fire alone can save our Clan.', genres: ['Fantasy', 'Animals'], location: null, lentTo: null, lentOn: null, readers: [],
   });
   assert.ok(new URL(calls[0]).searchParams.get('q') === '9780060000028');
 
   globalThis.fetch = (async () => Response.json({ docs: [] })) as typeof fetch;
   assert.equal((await send('POST', '/api/library', { isbn: '9780000000002' })).status, 404, 'not found anywhere');
   assert.equal((await send('POST', '/api/library', {})).status, 400, 'a title or an ISBN');
+});
+
+test('library: where a book lives, lending it out and getting it back', async () => {
+  const { send } = setup();
+  const book = (await send('POST', '/api/library', { ...holes, location: "Maya's room" })).body;
+  assert.equal(book.location, "Maya's room");
+  await send('POST', '/api/library', { title: 'Matilda', location: 'Living room shelf' });
+
+  const lent = (await send('PATCH', `/api/library/${book.id}`, { lentTo: 'Grandma' })).body;
+  assert.equal(lent.lentTo, 'Grandma');
+  assert.match(lent.lentOn, /^\d{4}-\d{2}-\d{2}$/, 'dated today when lent');
+  assert.deepEqual((await send('GET', '/api/library?lent=1')).body.map((b: any) => b.title), ['Holes']);
+  assert.deepEqual((await send('GET', '/api/library?location=Living room shelf')).body.map((b: any) => b.title), ['Matilda']);
+  assert.deepEqual((await send('GET', '/api/library?q=grandma')).body.map((b: any) => b.title), ['Holes'], 'search finds who has it');
+
+  const back = (await send('PATCH', `/api/library/${book.id}`, { lentTo: null })).body;
+  assert.deepEqual([back.lentTo, back.lentOn, back.location], [null, null, "Maya's room"], 'returned: back where it lives');
+  assert.equal((await send('PATCH', `/api/library/${book.id}`, { lentTo: 'Sam', lentOn: '2026-09-01' })).body.lentOn, '2026-09-01');
+});
+
+test('library: descriptions saved before the Markdown cleanup show clean', async () => {
+  const { send, db } = setup();
+  const book = (await send('POST', '/api/library', { title: 'The Gunslinger' })).body;
+  db.prepare('UPDATE library_books SET description = ? WHERE id = ?').bind('[The Dark Tower][1] begins.\n\n  [1]: https://openlibrary.org/works/OL1W', book.id).run();
+  assert.equal((await send('GET', `/api/library/${book.id}`)).body.description, 'The Dark Tower begins.');
 });

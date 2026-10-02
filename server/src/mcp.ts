@@ -239,7 +239,7 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
   update_member: { member: MemberSchema },
   list_lists: { lists: z.array(ListSchema) },
   search_books: { books: z.array(BookResultSchema) },
-  list_library: { books: z.array(LibraryBookSchema) }, add_to_library: { book: LibraryBookSchema },
+  list_library: { books: z.array(LibraryBookSchema) }, add_to_library: { book: LibraryBookSchema }, update_library_book: { book: LibraryBookSchema },
   create_list: { list: ListSchema },
   update_list: { list: ListSchema },
   get_list: ListDetailSchema.shape,
@@ -289,7 +289,7 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
 
 const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boolean; idempotentHint: boolean; openWorldHint: boolean }> = {
   list_recipes: READ, get_recipe: READ, create_recipe: WRITE, update_recipe: SET, rate_recipe: SET, import_recipe: SET, import_recipe_from_url: { ...SET, openWorldHint: true }, list_meals: READ, create_meal: WRITE, update_meal: SET, get_meal_projection: READ, apply_meal_projection: SET,
-  get_household: READ, list_events: READ, get_event: READ, list_chores: READ, get_leaderboard: READ, get_points: READ, get_member_profile: READ, list_lists: READ, get_list: READ, search_books: { ...READ, openWorldHint: true }, list_library: READ, add_to_library: { ...WRITE, openWorldHint: true }, list_categories: READ, get_event_items: READ, list_notifications: READ, list_newscast: READ, list_notes: READ, get_snapshot: READ, get_board: READ, list_tracker_entries: READ, add_tracker_entry: WRITE, update_tracker_entry: SET, list_color_schemes: READ, set_color_scheme: SET, save_color_scheme: WRITE,
+  get_household: READ, list_events: READ, get_event: READ, list_chores: READ, get_leaderboard: READ, get_points: READ, get_member_profile: READ, list_lists: READ, get_list: READ, search_books: { ...READ, openWorldHint: true }, list_library: READ, add_to_library: { ...WRITE, openWorldHint: true }, update_library_book: SET, list_categories: READ, get_event_items: READ, list_notifications: READ, list_newscast: READ, list_notes: READ, get_snapshot: READ, get_board: READ, list_tracker_entries: READ, add_tracker_entry: WRITE, update_tracker_entry: SET, list_color_schemes: READ, set_color_scheme: SET, save_color_scheme: WRITE,
   list_contacts: READ, get_contact: READ, list_contact_categories: READ, preview_contact_import: READ,
   delete_color_scheme: { ...WRITE, destructiveHint: true, idempotentHint: true },
   create_event: { ...WRITE, openWorldHint: true }, update_event: { ...SET, openWorldHint: true }, set_event_category: SET,
@@ -339,11 +339,14 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'list_library',
     {
       title: 'List the library',
-      description: "The family's library: books they own (apart from who's reading what), A-Z, each with author, series, reading level (lexile) and readers (reading entries started from it: memberId and status). q searches titles, authors and series; unread: only books nobody has started. Start reading one with add_tracker_entry (kind reading, data.bookId = the book's id).",
-      inputSchema: { q: z.string().max(100).optional(), unread: z.boolean().optional().describe('Only books nobody has started reading.') },
+      description: "The family's library: books they own (apart from who's reading what), A-Z, each with author, series, reading level (lexile), genres, where it lives (location), who has it on loan (lentTo, lentOn) and readers (reading entries started from it: memberId and status). q searches titles, authors, series, genres, locations and borrowers; unread: only books nobody has started; lent: only books on loan; location: one place. Start reading one with add_tracker_entry (kind reading, data.bookId = the book's id).",
+      inputSchema: {
+        q: z.string().max(100).optional(), unread: z.boolean().optional().describe('Only books nobody has started reading.'),
+        lent: z.boolean().optional().describe('Only books lent out.'), location: z.string().max(80).optional().describe('Only books that live here, e.g. "Living room shelf".'),
+      },
     },
-    async ({ q, unread }) => {
-      const params = new URLSearchParams({ ...(q ? { q } : {}), ...(unread ? { unread: '1' } : {}) });
+    async ({ q, unread, lent, location }) => {
+      const params = new URLSearchParams({ ...(q ? { q } : {}), ...(unread ? { unread: '1' } : {}), ...(lent ? { lent: '1' } : {}), ...(location ? { location } : {}) });
       const res = await call(app, env, auth, 'GET', `/api/library${params.size ? `?${params}` : ''}`);
       if (res.status >= 400) return errorResult(res.json, 'failed to list the library');
       const books = res.json as { title: string; author: string | null; readers: unknown[] }[];
@@ -361,6 +364,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         title: z.string().optional(), author: z.string().optional(), isbn: z.string().optional().describe('ISBN-10 or ISBN-13, digits only.'),
         pages: z.number().int().optional(), coverUrl: z.string().optional(), year: z.number().int().optional(),
         series: z.string().optional(), seriesNumber: z.string().optional(), lexile: z.number().int().optional(), workKey: z.string().optional().describe("From search_books."),
+        location: z.string().max(80).optional().describe('Where it lives, e.g. "Maya\'s room".'),
       },
     },
     async (input) => {
@@ -369,6 +373,33 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       if (res.status >= 400) return errorResult(res.json, 'failed to add the book');
       const book = res.json as { title: string; author: string | null };
       return okResult(`Added "${book.title}"${book.author ? ` by ${book.author}` : ''} to the library.`, { book: book as unknown as Record<string, unknown> });
+    },
+  );
+
+  tool(
+    'update_library_book',
+    {
+      title: 'Update a library book',
+      description: "Lend a library book out (lentTo: who has it; dated today), bring it back (lentTo: null), say where it lives (location), or fix its details. book is its id or title (case-insensitive). Only given fields change.",
+      inputSchema: {
+        book: z.string().describe('Library book id or title.'),
+        lentTo: z.string().max(80).nullable().optional().describe('Who has it on loan, e.g. "Grandma"; null when it comes back.'),
+        lentOn: z.string().optional().describe('YYYY-MM-DD it was lent; default today.'),
+        location: z.string().max(80).nullable().optional().describe('Where it lives; null to clear.'),
+        title: z.string().optional(), author: z.string().nullable().optional(), pages: z.number().int().nullable().optional(),
+        series: z.string().nullable().optional(), seriesNumber: z.string().nullable().optional(),
+      },
+    },
+    async ({ book, ...changes }) => {
+      const list = await call(app, env, auth, 'GET', `/api/library?q=${encodeURIComponent(book)}`);
+      const books = (list.status < 400 ? list.json : []) as { id: string; title: string }[];
+      const match = books.find((b) => b.id === book) ?? books.find((b) => b.title.toLowerCase() === book.trim().toLowerCase()) ?? (books.length === 1 ? books[0] : undefined);
+      const id = match?.id ?? book;
+      const res = await call(app, env, auth, 'PATCH', `/api/library/${encodeURIComponent(id)}`, changes);
+      if (res.status >= 400) return errorResult(res.json, books.length > 1 ? `"${book}" matches several books: ${books.map((b) => b.title).join(', ')}` : 'book not found in the library');
+      const b = res.json as { title: string; lentTo: string | null; location: string | null };
+      const said = changes.lentTo ? `lent to ${b.lentTo}` : changes.lentTo === null ? 'back home' : 'updated';
+      return okResult(`"${b.title}" ${said}${b.location ? ` (it lives at: ${b.location})` : ''}.`, { book: b as unknown as Record<string, unknown> });
     },
   );
 

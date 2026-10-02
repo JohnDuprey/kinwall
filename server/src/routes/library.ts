@@ -14,7 +14,8 @@ import { checkRate } from '../ratelimit.ts';
 import { fetchRecipeImage } from '../outbound.ts';
 import { ErrorSchema, LibraryBookInputSchema, LibraryBookPatchSchema, LibraryBookSchema } from '../schemas.ts';
 import { actorApi } from './lists.ts';
-import { searchOpenLibrary, workDescription } from './books.ts';
+import { cleanDescription, searchOpenLibrary, workDescription } from './books.ts';
+import { todayIn } from './lists.ts';
 
 export const libraryRoutes = createRouter();
 type C = Context<{ Bindings: Env }>;
@@ -22,6 +23,7 @@ type C = Context<{ Bindings: Env }>;
 export type LibraryRow = {
   id: string; title: string; author: string | null; isbn: string | null; pages: number | null; cover_url: string | null
   year: number | null; series: string | null; series_number: string | null; lexile: number | null; description: string | null; genres: string | null
+  location: string | null; lent_to: string | null; lent_on: string | null
   added_by: string | null; added_by_label: string | null; created_at: string; updated_at: string;
 };
 const parseGenres = (v: string | null): string[] => { try { const g = JSON.parse(v ?? '[]'); return Array.isArray(g) ? g.filter((x) => typeof x === 'string') : []; } catch { return []; } };
@@ -30,7 +32,8 @@ type Reader = { entryId: string; memberId: string | null; status: 'want' | 'read
 export function toLibraryApi(r: LibraryRow, readers: Reader[] = []) {
   return {
     id: r.id, title: r.title, author: r.author, isbn: r.isbn, pages: r.pages, coverUrl: r.cover_url, year: r.year,
-    series: r.series, seriesNumber: r.series_number, lexile: r.lexile, description: r.description, genres: parseGenres(r.genres),
+    series: r.series, seriesNumber: r.series_number, lexile: r.lexile, description: r.description && cleanDescription(r.description), genres: parseGenres(r.genres),
+    location: r.location ?? null, lentTo: r.lent_to ?? null, lentOn: r.lent_on ?? null,
     addedBy: actorApi(r.added_by, r.added_by_label), readers, createdAt: r.created_at, updatedAt: r.updated_at,
   };
 }
@@ -45,6 +48,8 @@ async function readersByBook(c: C): Promise<Map<string, Reader[]>> {
   return out;
 }
 
+const householdDay = async (c: C) => todayIn((await c.env.DB.prepare("SELECT value FROM settings WHERE key = 'timezone'").first<{ value: string }>())?.value);
+
 const one = async (c: C, id: string) => {
   const row = await c.env.DB.prepare('SELECT * FROM library_books WHERE id = ?').bind(id).first<LibraryRow>();
   return row ? toLibraryApi(row, (await readersByBook(c)).get(id)) : null;
@@ -57,19 +62,20 @@ libraryRoutes.openapi(
     method: 'get',
     path: '/api/library',
     tags: ['Trackers'],
-    summary: "The family's library, A-Z (a series under its name, in order), each book with its readers. q searches titles, authors, series and genres; unread=1 keeps books nobody has started.",
+    summary: "The family's library, A-Z (a series under its name, in order), each book with its readers. q searches titles, authors, series, genres, where it lives and who has it; unread=1 keeps books nobody has started, lent=1 books on loan, location one place.",
     security: [{ Bearer: [] }],
-    request: { query: z.object({ q: z.string().max(100).optional(), unread: z.enum(['1', 'true']).optional() }) },
+    request: { query: z.object({ q: z.string().max(100).optional(), unread: z.enum(['1', 'true']).optional(), lent: z.enum(['1', 'true']).optional(), location: z.string().max(80).optional() }) },
     responses: { 200: { description: 'ok', content: json(z.array(LibraryBookSchema)) } },
   }),
   async (c) => {
-    const { q, unread } = c.req.valid('query');
+    const { q, unread, lent, location } = c.req.valid('query');
     const like = q?.trim() ? `%${q.trim().replace(/[\\%_]/g, (m) => `\\${m}`)}%` : null;
     const { results } = await c.env.DB.prepare(
-      `SELECT * FROM library_books ${like ? "WHERE title LIKE ?1 ESCAPE '\\' OR author LIKE ?1 ESCAPE '\\' OR series LIKE ?1 ESCAPE '\\' OR genres LIKE ?1 ESCAPE '\\'" : ''} ORDER BY coalesce(series, title) COLLATE NOCASE, CAST(series_number AS REAL), title COLLATE NOCASE, created_at`, // a series together, in order
+      `SELECT * FROM library_books ${like ? "WHERE title LIKE ?1 ESCAPE '\\' OR author LIKE ?1 ESCAPE '\\' OR series LIKE ?1 ESCAPE '\\' OR genres LIKE ?1 ESCAPE '\\' OR location LIKE ?1 ESCAPE '\\' OR lent_to LIKE ?1 ESCAPE '\\'" : ''} ORDER BY coalesce(series, title) COLLATE NOCASE, CAST(series_number AS REAL), title COLLATE NOCASE, created_at`, // a series together, in order
     ).bind(...(like ? [like] : [])).all<LibraryRow>();
     const readers = await readersByBook(c);
-    return c.json(results.map((r) => toLibraryApi(r, readers.get(r.id))).filter((b) => !unread || !b.readers.length), 200);
+    return c.json(results.map((r) => toLibraryApi(r, readers.get(r.id)))
+      .filter((b) => (!unread || !b.readers.length) && (!lent || b.lentTo) && (!location || b.location === location)), 200);
   },
 );
 
@@ -125,11 +131,12 @@ libraryRoutes.openapi(
     const row: LibraryRow = {
       id: crypto.randomUUID(), title: input.title!.trim(), author: input.author?.trim() || null, isbn: input.isbn ?? null, pages: input.pages ?? null,
       cover_url: input.coverUrl ?? null, year: input.year ?? null, series: input.series?.trim() || null, series_number: input.seriesNumber?.trim() || null,
-      lexile: input.lexile ?? null, description, genres: input.genres?.length ? JSON.stringify(input.genres) : null, added_by: by.memberId, added_by_label: by.label, created_at: now, updated_at: now,
+      lexile: input.lexile ?? null, description, genres: input.genres?.length ? JSON.stringify(input.genres) : null,
+      location: input.location || null, lent_to: input.lentTo || null, lent_on: input.lentTo ? input.lentOn ?? (await householdDay(c)) : null, added_by: by.memberId, added_by_label: by.label, created_at: now, updated_at: now,
     };
     await c.env.DB.prepare(
-      'INSERT INTO library_books (id, title, author, isbn, pages, cover_url, year, series, series_number, lexile, description, genres, added_by, added_by_label, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-    ).bind(row.id, row.title, row.author, row.isbn, row.pages, row.cover_url, row.year, row.series, row.series_number, row.lexile, row.description, row.genres, row.added_by, row.added_by_label, row.created_at, row.updated_at).run();
+      'INSERT INTO library_books (id, title, author, isbn, pages, cover_url, year, series, series_number, lexile, description, genres, location, lent_to, lent_on, added_by, added_by_label, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    ).bind(row.id, row.title, row.author, row.isbn, row.pages, row.cover_url, row.year, row.series, row.series_number, row.lexile, row.description, row.genres, row.location, row.lent_to, row.lent_on, row.added_by, row.added_by_label, row.created_at, row.updated_at).run();
     emit(c, 'tracker.changed', { library: row.id });
     return c.json(toLibraryApi(row), 201);
   },
@@ -156,10 +163,15 @@ libraryRoutes.openapi(
       pages: v('pages', r.pages) as number | null, cover_url: v('coverUrl', r.cover_url) as string | null, year: v('year', r.year) as number | null,
       series: v('series', r.series) as string | null, series_number: v('seriesNumber', r.series_number) as string | null,
       lexile: v('lexile', r.lexile) as number | null, description: v('description', r.description) as string | null,
-      genres: p.genres !== undefined ? (p.genres.length ? JSON.stringify(p.genres) : null) : r.genres, updated_at: new Date().toISOString(),
+      genres: p.genres !== undefined ? (p.genres.length ? JSON.stringify(p.genres) : null) : r.genres,
+      location: p.location !== undefined ? p.location || null : r.location,
+      // Lent: dated today unless told otherwise (a new borrower is a new loan); back home clears both.
+      lent_to: p.lentTo !== undefined ? p.lentTo || null : r.lent_to,
+      lent_on: p.lentTo === null || p.lentTo === '' ? null : p.lentOn !== undefined ? p.lentOn : p.lentTo && p.lentTo !== r.lent_to ? await householdDay(c) : r.lent_on,
+      updated_at: new Date().toISOString(),
     };
-    await c.env.DB.prepare('UPDATE library_books SET title=?, author=?, isbn=?, pages=?, cover_url=?, year=?, series=?, series_number=?, lexile=?, description=?, genres=?, updated_at=? WHERE id=?')
-      .bind(next.title, next.author, next.isbn, next.pages, next.cover_url, next.year, next.series, next.series_number, next.lexile, next.description, next.genres, next.updated_at, id).run();
+    await c.env.DB.prepare('UPDATE library_books SET title=?, author=?, isbn=?, pages=?, cover_url=?, year=?, series=?, series_number=?, lexile=?, description=?, genres=?, location=?, lent_to=?, lent_on=?, updated_at=? WHERE id=?')
+      .bind(next.title, next.author, next.isbn, next.pages, next.cover_url, next.year, next.series, next.series_number, next.lexile, next.description, next.genres, next.location, next.lent_to, next.lent_on, next.updated_at, id).run();
     emit(c, 'tracker.changed', { library: id });
     return c.json((await one(c, id))!, 200);
   },

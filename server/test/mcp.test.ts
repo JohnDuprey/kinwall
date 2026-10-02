@@ -166,6 +166,7 @@ test('mcp: tools/list returns the tools', async () => {
     'update_contact',
     'update_contact_category',
     'update_event',
+    'update_library_book',
     'update_list',
     'update_list_item',
     'update_meal',
@@ -903,4 +904,18 @@ test('mcp: the library: add_to_library by title or ISBN, list_library searches a
   assert.deepEqual(listed.structuredContent.books.map((b: any) => b.title), ['Matilda']);
   assert.match((await call('list_library', {})).content[0].text, /2 book\(s\)/);
   assert.match((await call('add_to_library', { title: 'Holes', isbn: '9780142410370' })).content[0].text, /already/i);
+});
+
+test('mcp: update_library_book lends a book out (by title), moves it and brings it back; list_library finds loans', async () => {
+  const env = makeEnv();
+  const { mcp } = makeApp(env);
+  const call = async (name: string, args: Record<string, unknown>) => (await (await mcp('tools/call', { name, arguments: args })).json() as any).result;
+  await call('add_to_library', { title: 'Holes', location: 'Living room shelf' });
+  const lent = await call('update_library_book', { book: 'holes', lentTo: 'Grandma' });
+  assert.equal(lent.structuredContent.book.lentTo, 'Grandma');
+  assert.match(lent.content[0].text, /lent to Grandma/i);
+  assert.deepEqual((await call('list_library', { lent: true })).structuredContent.books.map((b: any) => b.title), ['Holes']);
+  const back = await call('update_library_book', { book: 'Holes', lentTo: null, location: "Maya's room" });
+  assert.deepEqual([back.structuredContent.book.lentTo, back.structuredContent.book.location], [null, "Maya's room"]);
+  assert.equal((await call('update_library_book', { book: 'Nope' })).isError, true);
 });

@@ -67,13 +67,31 @@ export async function searchOpenLibrary(q: string, limit = 8): Promise<BookResul
   });
 }
 
+/** Open Library writes descriptions in Markdown: links as [text][1] or [text](url) with "[1]: url"
+ * footnotes, "([source][2])" credits, ---- rules, **bold** and _italics_. Plain text out, or null. */
+export function cleanDescription(raw: string): string | null {
+  const t = raw.replace(/\r\n?/g, '\n')
+    .replace(/^[ \t]*\[[^\]]+\]:[ \t]*\S.*$/gm, '') // [1]: https://… footnotes
+    .replace(/\(\s*\[source\]\[[^\]]*\]\s*\)/gi, '') // ([source][2])
+    .replace(/\[([^\]]+)\]\[[^\]]*\]/g, '$1') // [text][1]
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1') // [text](url)
+    .replace(/^[ \t]*[-_*]{3,}[ \t]*$/gm, '') // ---- rules
+    .replace(/(\*\*|__)(.+?)\1/g, '$2') // **bold**
+    .replace(/(^|[^\w*])[*_](\S(?:.*?\S)?)[*_](?=[^\w*]|$)/gm, '$1$2') // *italics*, _italics_
+    .replace(/[ \t]+([.,;:!?])/g, '$1') // "King ." where a credit came out
+    .replace(/[ \t]+$/gm, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  return t || null;
+}
+
 /** A work's description (its blurb), or null; never throws. */
 export async function workDescription(workKey: string): Promise<string | null> {
   try {
     const res = await fetch(`https://openlibrary.org${workKey}.json`, { headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' }, signal: AbortSignal.timeout(TIMEOUT_MS) });
     if (!res.ok) return null;
     const { description } = (await res.json()) as { description?: string | { value?: string } };
-    const text = (typeof description === 'string' ? description : description?.value)?.trim();
+    const text = cleanDescription((typeof description === 'string' ? description : description?.value) ?? '');
     return text ? text.slice(0, 4000) : null;
   } catch {
     return null;

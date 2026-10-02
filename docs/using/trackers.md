@@ -23,10 +23,12 @@ A shelf per person, with what they're reading first, then what they want to read
 **Library** (at the top of Reading, next to **Shelves**) is the books your family owns, apart from who's reading what. This device remembers which of the two you were looking at.
 
 * Each book shows its cover, author, series and number ("Warriors #1"), the year it came out, its reading level (Lexile, like "660L"), page count and up to three genres (Fantasy, Animals, Mystery…, picked out of Open Library's subjects), and who has read it (✓ read, 📖 reading, ⭐ wants to read), or **Not read yet**. Books in a series sit together in order.
-* **Search** finds titles, authors, series and genres; **Not read yet** shows the books nobody has started.
+* **Search** finds titles, authors, series, genres, places and borrowers. **Not read yet** shows the books nobody has started, **Lent out** the ones on loan, and **Anywhere** picks one place.
+* **Where it lives:** pick a place in a book's sheet ("Maya's room", "Living room shelf"), or **New place…**. Cards show 📍 the place.
+* **Lending:** type who you're lending it to ("Grandma", a friend) and tap **Lend**; the card shows 🤝 "Lent to Grandma since Sep 23". Tap **It's back** when it's returned; it keeps its place.
 * **📷 Scan books** (in the iPhone and Android app): scan the barcodes on the back of your books one after another. Each one is looked up and added ("Added: Holes"); a book that's already there says so, and a barcode that isn't a book's is skipped. **Cancel** stops.
 * **+** adds one: **Look up a book** fills in the details, or type the title and author.
-* Details come from [Open Library](https://openlibrary.org) once, when a book is added, including its description, which shows when you tap the book. Your Kinwall server does the lookup.
+* Details come from [Open Library](https://openlibrary.org) once, when a book is added, including its description (as plain text; long ones open with **Show more**), which shows when you tap the book. Your Kinwall server does the lookup.
 * Tap a book for its description and who has read it. **Read it** with someone's name puts it on their Reading shelf, linked to the book, so the library shows them as reading it. A parent's device can **Remove from library**; their reading entries stay.
 * Wall screens and kids' devices can browse, scan and add books; only parents remove them.
 
