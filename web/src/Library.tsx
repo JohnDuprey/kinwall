@@ -18,6 +18,8 @@ import { todayKeyInTz } from './date.ts'
 import type { BookResult, LibraryBook, Member, ReadingStatus } from './types.ts'
 
 const STATUS_WORD: Record<ReadingStatus, string> = { want: 'wants to read', reading: 'reading', finished: 'read' }
+/** Between book scans: long enough to see what was added and pick up the next book. */
+const SCAN_PAUSE_MS = 2000
 const msg = (e: unknown, fallback: string) => (e instanceof Error && e.message ? e.message : fallback)
 
 export default function Library({ adding, onAdded, onStarted }: {
@@ -50,24 +52,36 @@ export default function Library({ adding, onAdded, onStarted }: {
   }).catch(e => { setBooks([]); toast(msg(e, "Couldn't load the library"), true) })
   useEffect(() => { const t = setTimeout(load, q ? 250 : 0); return () => clearTimeout(t) }, [q, unread, lent, borrowed, returned, wanted, place, refreshTick]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Scan a book: its barcode adds it (looked up by ISBN) and opens its sheet, to say where it lives or
-  // whose it is; one already in the library just opens. One scan per tap.
-  const scanBook = async () => {
+  // Scan books one after another: each barcode adds its book (looked up by ISBN), then a pause
+  // (SCAN_PAUSE_MS) to see what was added and reach for the next book before the camera opens again;
+  // Cancel stops. The same barcode twice in a row (the book still in view) is skipped. Scanning just
+  // one opens its sheet, to say where it lives or whose it is.
+  const scanBooks = async () => {
     setScanning(true)
+    const seen: LibraryBook[] = []
+    let last = ''
     try {
-      const code = await scanBarcode(wallCamera({ parentDevice, focusLocked, meMemberId }))
-      if (!code) return
-      const isbn = isbnFromScan(code)
-      if (!isbn) { toast("That's not a book's barcode"); return }
-      try { const b = await api.addToLibrary({ isbn }); toast(`Added: ${b.title}`); announce(`Added ${b.title}`); load(); setOpen(b) }
-      catch (e) {
-        const have = e instanceof ApiError && e.status === 409
-          ? (await Promise.all([{}, { returned: true }, { wanted: true }].map(f => api.getLibrary(f))).catch(() => [[]])).flat().find(b => b.isbn === isbn)
-          : undefined
-        if (have) { toast(`Already in the library: ${have.title}`); setOpen(have) }
-        else toast(msg(e, "Couldn't add that book"))
+      for (;;) {
+        const code = await scanBarcode(wallCamera({ parentDevice, focusLocked, meMemberId }))
+        if (!code) break
+        if (code !== last) {
+          last = code
+          const isbn = isbnFromScan(code)
+          if (!isbn) toast("That's not a book's barcode")
+          else try { const b = await api.addToLibrary({ isbn }); seen.push(b); toast(`Added: ${b.title}`); announce(`Added ${b.title}`) }
+          catch (e) {
+            const have = e instanceof ApiError && e.status === 409
+              ? (await Promise.all([{}, { returned: true }, { wanted: true }].map(f => api.getLibrary(f))).catch(() => [[]])).flat().find(b => b.isbn === isbn)
+              : undefined
+            if (have) { seen.push(have); toast(`Already in the library: ${have.title}`) }
+            else toast(msg(e, "Couldn't add that book"))
+          }
+        }
+        await new Promise(r => setTimeout(r, SCAN_PAUSE_MS))
       }
     } finally { setScanning(false) }
+    if (seen.length) load()
+    if (seen.length === 1) setOpen(seen[0])
   }
 
   // Not read yet, Lent out, Borrowed, Returned and a place: in the bar, or (a phone) the Filters sheet.
@@ -97,7 +111,7 @@ export default function Library({ adding, onAdded, onStarted }: {
           </button>
         )}
         {!isPhone && filters}
-        {appBarcodeScanner() && <button type="button" className="btn btn-secondary lib-scan" onClick={scanBook} disabled={scanning} aria-label={isPhone ? 'Scan a book' : undefined}>📷{isPhone ? '' : ' Scan a book'}</button>}
+        {appBarcodeScanner() && <button type="button" className="btn btn-secondary lib-scan" onClick={scanBooks} disabled={scanning} aria-label={isPhone ? 'Scan books' : undefined}>📷{isPhone ? '' : ' Scan books'}</button>}
       </div>
       {filtering && (
         <Sheet title="Filters" onClose={() => setFiltering(false)} actions={<>
@@ -109,7 +123,7 @@ export default function Library({ adding, onAdded, onStarted }: {
       )}
       {books === null ? <div className="state-card">Loading…</div>
         : !books.length ? (
-          <div className="empty-card"><span className="emoji">📚</span>{wanted && !q ? 'Nothing on the wishlist. Tap + and pick Wishlist to add a book you want.' : q || unread || lent || borrowed || returned || wanted || place ? 'No books match.' : 'No books in the library yet. Tap + to add the books you own or borrow, or scan one in.'}</div>
+          <div className="empty-card"><span className="emoji">📚</span>{wanted && !q ? 'Nothing on the wishlist. Tap + and pick Wishlist to add a book you want.' : q || unread || lent || borrowed || returned || wanted || place ? 'No books match.' : 'No books in the library yet. Tap + to add the books you own or borrow, or scan them in.'}</div>
         ) : (
           <ul className="lib-grid">
             {books.map(b => {
