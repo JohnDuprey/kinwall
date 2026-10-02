@@ -2553,16 +2553,35 @@ a.btn { text-decoration: none; } /* a link that looks like a button (the Board's
 }
 .board-wx-big { font-size: 1.75rem; line-height: 1; margin-right: 6px; vertical-align: middle; }
 .board-wx-temp { font-size: 1.5rem; }
-.board-weather { margin-top: 4px; display: flex; flex-direction: column; gap: 4px; font-weight: 700; }
-.board-weather-now { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.board-weather { font-weight: 700; }
+.board-weather-now { margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .board-weather-now strong { font-size: 1.25rem; }
 .board-wx-text { color: var(--text-dim); font-weight: 600; }
+.board-wx-unit { white-space: nowrap; } /* high / low and rain wrap between, never inside */
 @container board-clock (max-width: 300px) { .board-wx-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); } } /* too narrow: screen readers only */
 .board-wx-emoji { font-size: 1.25rem; line-height: 1; margin-right: 4px; }
-.board-forecast { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.board-forecast { list-style: none; margin: 4px 0 0; padding: 0; font-weight: 700; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 .board-forecast li { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 4px 2px; border-radius: 10px; background: var(--bg-alt); font-size: 0.75rem; line-height: 1.15; text-align: center; }
 .board-forecast li .board-wx-emoji { font-size: 1rem; margin: 0; }
 .board-forecast-day { font-size: 0.75rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; }
+/* A phone with room for it: today's weather sits right of the time (emoji + temp, then condition,
+   high/low and rain, then the place), so the card is shorter. Too narrow for that (a small phone
+   or big text) and it stays stacked as everywhere else. */
+@container board (max-width: 619.98px) {
+  @container board-clock (min-width: 15.5rem) {
+    .board-clock-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .board-clock-when { flex: none; }
+    .board-weather { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-end; text-align: right; }
+    .board-weather-now { margin-top: 0; max-width: 100%; white-space: normal; display: flex; flex-direction: column; align-items: flex-end; font-size: 0.875rem; line-height: 1.25; }
+    .board-wx-now { white-space: nowrap; margin-bottom: 2px; }
+    .board-wx-big { margin-right: 4px; }
+    .board-wx-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
+    .board-wx-sep { display: none; }
+    .board-wx-where { order: 1; margin-top: 2px; font-size: 0.75rem; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .board-clock-top:has(.board-weather) .board-time { font-size: min(3.25rem, 13cqi); }
+    .board-forecast { margin-top: 10px; }
+  }
+}
 
 .board-avatars { display: flex; gap: 2px; flex-shrink: 0; align-self: center; }
 .board-avatar { width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 0.9375rem; flex-shrink: 0; }

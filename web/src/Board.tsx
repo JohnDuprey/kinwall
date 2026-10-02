@@ -255,28 +255,34 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
             )}
           </nav>
         )}
-        {/* The header already shows the clock and date, so this card is the forecast alone. */}
         {has('clock') && <section className={`board-card board-clock${densityClass(dense('clock'))}`} aria-label="Time and weather">
-          <div className="board-time">{formatTime(now, clockTimeZone(tz, device))}</div>
-          <div className="board-date">{new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric', timeZone: clockTimeZone(tz, device) }).format(now)}</div>
-          {w && <div className="board-wx-where snap-dim">{w.location}</div>}
-          {w && (
-            <div className="board-weather" role="group" aria-label={`Weather in ${w.location}`}>
-              <div className="board-weather-now">
-                {w.now && <><span className="board-wx-emoji board-wx-big" aria-hidden="true">{w.now.emoji}</span><strong className="board-wx-temp">{w.now.temp}°</strong> <span className="board-wx-text">{w.now.text}</span></>}
-                {wToday && <span className="snap-dim"> · <span className="sr-only">high </span>{wToday.high}° / <span className="sr-only">low </span>{wToday.low}°{wToday.rainChance ? ` · 💧${wToday.rainChance}%` : ''}</span>}
-              </div>
-              <ul className="board-forecast">
-                {w.days.filter(d => d.date > today).slice(0, 4).map(d => (
-                  <li key={d.date}>
-                    <span className="board-forecast-day">{dayName(d.date, { weekday: 'short' })}</span>
-                    <span className="board-wx-emoji" aria-hidden="true">{d.emoji}</span>
-                    <span className="sr-only">{d.text}, </span>
-                    <span>{d.high}° <span className="snap-dim">{d.low}°</span></span>
-                  </li>
-                ))}
-              </ul>
+          {/* A phone puts today's weather beside the time (styles.css); everywhere else it stacks below. */}
+          <div className="board-clock-top">
+            <div className="board-clock-when">
+              <div className="board-time">{formatTime(now, clockTimeZone(tz, device))}</div>
+              <div className="board-date">{new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric', timeZone: clockTimeZone(tz, device) }).format(now)}</div>
             </div>
+            {w && (
+              <div className="board-weather" role="group" aria-label={`Weather in ${w.location}`}>
+                <div className="board-wx-where snap-dim">{w.location}</div>
+                <div className="board-weather-now">
+                  {w.now && <><span className="board-wx-now"><span className="board-wx-emoji board-wx-big" aria-hidden="true">{w.now.emoji}</span><strong className="board-wx-temp">{w.now.temp}°</strong></span> <span className="board-wx-text">{w.now.text}</span></>}
+                  {wToday && <span className="snap-dim board-wx-range"><span className="board-wx-sep" aria-hidden="true"> · </span><span className="board-wx-unit"><span className="sr-only">high </span>{wToday.high}° / <span className="sr-only">low </span>{wToday.low}°</span>{wToday.rainChance ? <><span className="board-wx-sep" aria-hidden="true"> ·</span> <span className="board-wx-unit">💧{wToday.rainChance}%</span></> : ''}</span>}
+                </div>
+              </div>
+            )}
+          </div>
+          {w && (
+            <ul className="board-forecast" aria-label="Forecast">
+              {w.days.filter(d => d.date > today).slice(0, 4).map(d => (
+                <li key={d.date}>
+                  <span className="board-forecast-day">{dayName(d.date, { weekday: 'short' })}</span>
+                  <span className="board-wx-emoji" aria-hidden="true">{d.emoji}</span>
+                  <span className="sr-only">{d.text}, </span>
+                  <span>{d.high}° <span className="snap-dim">{d.low}°</span></span>
+                </li>
+              ))}
+            </ul>
           )}
         </section>}
 
