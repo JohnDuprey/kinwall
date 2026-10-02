@@ -20,14 +20,16 @@ A shelf per person, with what they're reading first, then what they want to read
 
 ### Library
 
-**Library** (a view next to Reading, Memories and Health) is the books your family owns, apart from who's reading what. On a phone, the button at the top switches views, like the home page's.
+**Library** (a view next to Reading, Memories and Health) is the books your family owns or has borrowed, apart from who's reading what. On a phone, the button at the top switches views, like the home page's.
 
 * Each book shows its cover, author, series and number ("Warriors #1"), the year it came out, its reading level (Lexile, like "660L"), page count and up to three genres (Fantasy, Animals, Mystery…, picked out of Open Library's subjects), and who has read it (✓ read, 📖 reading, ⭐ wants to read), or **Not read yet**. Books in a series sit together in order.
-* **Search** finds titles, authors, series, genres, places and borrowers. **Not read yet** shows the books nobody has started, **Lent out** the ones on loan, and **Anywhere** picks one place.
+* **Search** finds titles, authors, series, genres, places, who has a book and where a borrowed one came from. **Not read yet** shows the books nobody has started, **Lent out** the ones on loan, **Borrowed** the borrowed ones still out (soonest due first), **Returned** the ones that went back, and **Anywhere** picks one place.
 * **Where it lives:** pick a place in a book's sheet ("Maya's room", "Living room shelf"), or **New place…**. Cards show 📍 the place.
 * **Lending:** type who you're lending it to ("Grandma", a friend) and tap **Lend**; the card shows 🤝 "Lent to Grandma since Sep 23". Tap **It's back** when it's returned; it keeps its place.
+* **Borrowing** (a library book, a friend's): when you add a book, pick **Borrowed**, then say who from ("Town library") and when it's due back (three weeks out to start). For a book that's already there, tap **Borrowed, not ours?** in its sheet. Cards show 📅 "Due back Oct 23 · from Town library", in red once it's overdue. Change the date in the book's sheet; tap **Returned it** when it goes back. Returned books leave the shelf but stay under **Returned**, with who read them, and **Borrow again** brings one back with a new due date.
+* **Due dates:** a borrowed book shows on the home board on its due day ("📚 Return Wonder to Town library"), and an overdue one stays on today. At 9 AM, two days before and on the day it's due, parents' devices and the family feed get a heads-up.
 * **📷 Scan books** (in the iPhone and Android app): scan the barcodes on the back of your books one after another. Each one is looked up and added ("Added: Holes"); a book that's already there says so, and a barcode that isn't a book's is skipped. **Cancel** stops.
-* **+** adds one: **Look up a book** fills in the details, or type the title and author.
+* **+** adds one, yours or borrowed: **Look up a book** fills in the details, or type the title and author.
 * Details come from [Open Library](https://openlibrary.org) once, when a book is added, including its description (as plain text; long ones open with **Show more**), which shows when you tap the book. Your Kinwall server does the lookup.
 * Tap a book for its description and who has read it. **Read it** with someone's name puts it on their Reading shelf, linked to the book, so the library shows them as reading it. A parent's device can **Remove from library**; their reading entries stay.
 * Wall screens and kids' devices can browse, scan and add books; only parents remove them.

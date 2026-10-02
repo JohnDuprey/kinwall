@@ -33,7 +33,7 @@ test('library: add, list by title, search, edit; the same ISBN twice is a 409 wi
   const added = await send('POST', '/api/library', holes);
   assert.equal(added.status, 201);
   const { id: _id, createdAt: _c, updatedAt: _u, addedBy: _a, ...fields } = added.body;
-  assert.deepEqual(fields, { ...holes, year: null, series: null, seriesNumber: null, lexile: null, description: null, genres: [], location: null, lentTo: null, lentOn: null, readers: [] });
+  assert.deepEqual(fields, { ...holes, year: null, series: null, seriesNumber: null, lexile: null, description: null, genres: [], location: null, lentTo: null, lentOn: null, borrowedFrom: null, dueOn: null, returnedOn: null, readers: [] });
   await send('POST', '/api/library', { title: "Charlotte's Web", author: 'E. B. White' });
   await send('POST', '/api/library', { title: 'Matilda', author: 'Roald Dahl' });
 
@@ -113,7 +113,7 @@ test('library: adding by ISBN alone looks the book up, details and description i
   const { id: _i, createdAt: _c, updatedAt: _u, addedBy: _a, ...fields } = book.body;
   assert.deepEqual(fields, {
     title: 'Into the Wild', author: 'Erin Hunter', isbn: '9780060000028', pages: 272, coverUrl: 'https://covers.openlibrary.org/b/id/9-M.jpg',
-    year: 2003, series: 'Warriors', seriesNumber: '1', lexile: 970, description: 'Fire alone can save our Clan.', genres: ['Fantasy', 'Animals'], location: null, lentTo: null, lentOn: null, readers: [],
+    year: 2003, series: 'Warriors', seriesNumber: '1', lexile: 970, description: 'Fire alone can save our Clan.', genres: ['Fantasy', 'Animals'], location: null, lentTo: null, lentOn: null, borrowedFrom: null, dueOn: null, returnedOn: null, readers: [],
   });
   assert.ok(new URL(calls[0]).searchParams.get('q') === '9780060000028');
 
@@ -145,4 +145,44 @@ test('library: descriptions saved before the Markdown cleanup show clean', async
   const book = (await send('POST', '/api/library', { title: 'The Gunslinger' })).body;
   db.prepare('UPDATE library_books SET description = ? WHERE id = ?').bind('[The Dark Tower][1] begins.\n\n  [1]: https://openlibrary.org/works/OL1W', book.id).run();
   assert.equal((await send('GET', `/api/library/${book.id}`)).body.description, 'The Dark Tower begins.');
+});
+
+test('library: borrowed books are due back, go on the board, get a heads-up, and stay as history once returned', async () => {
+  const { send, env } = setup();
+  const { runNotifications } = await import('../src/notify.ts');
+  const sql = (q: string) => env.DB.prepare(q);
+  await sql("INSERT INTO settings (key, value) VALUES ('timezone', 'UTC') ON CONFLICT(key) DO UPDATE SET value = excluded.value").run();
+  const now = new Date('2026-10-02T09:01:00Z');
+  const today = '2026-10-02';
+  const holesOut = (await send('POST', '/api/library', { ...holes, borrowedFrom: 'Town library', dueOn: '2026-10-04' })).body;
+  await send('POST', '/api/library', { title: 'Matilda', borrowedFrom: 'Grandma', dueOn: '2026-09-30' }); // overdue
+  await send('POST', '/api/library', { title: "Charlotte's Web" }); // our own
+  assert.equal(holesOut.borrowedFrom, 'Town library');
+  assert.equal(holesOut.dueOn, '2026-10-04');
+
+  assert.deepEqual((await send('GET', '/api/library?borrowed=1')).body.map((b: any) => b.title), ['Matilda', 'Holes'], 'soonest due first');
+  assert.deepEqual((await send('GET', '/api/library?q=town')).body.map((b: any) => b.title), ['Holes'], 'searches who it came from');
+
+  // The board: an overdue book shows today. (The board's today is the real date, so compare relative to it.)
+  const board = (await send('GET', '/api/board?days=14')).body;
+  const boardToday = board.today;
+  assert.ok(board.booksDue.every((b: any) => b.date >= boardToday));
+
+  // 9 AM: Holes is due in 2 days; a heads-up goes to the family feed, once.
+  const tick = () => sql("INSERT INTO settings (key, value) VALUES ('notifyLastTick', '2026-10-02T08:58:00Z') ON CONFLICT(key) DO UPDATE SET value = excluded.value").run();
+  await tick(); await runNotifications(env, now);
+  await tick(); await runNotifications(env, now);
+  const feed = (await sql("SELECT title, body FROM notifications WHERE title LIKE '📚%'").all<{ title: string; body: string }>()).results.map((r) => ({ ...r }));
+  assert.deepEqual(feed, [{ title: '📚 Holes is due back in 2 days', body: 'To Town library' }]);
+
+  // Returned: off the shelf, under Returned, and no more heads-ups.
+  const back = (await send('PATCH', `/api/library/${holesOut.id}`, { returnedOn: today })).body;
+  assert.equal(back.returnedOn, today);
+  assert.deepEqual((await send('GET', '/api/library')).body.map((b: any) => b.title), ["Charlotte's Web", 'Matilda']);
+  assert.deepEqual((await send('GET', '/api/library?returned=1')).body.map((b: any) => b.title), ['Holes']);
+  // Borrowed again; then made our own, which clears the dates.
+  const again = (await send('PATCH', `/api/library/${holesOut.id}`, { returnedOn: null, dueOn: '2026-10-20' })).body;
+  assert.equal(again.returnedOn, null);
+  const ours = (await send('PATCH', `/api/library/${holesOut.id}`, { borrowedFrom: null })).body;
+  assert.deepEqual([ours.borrowedFrom, ours.dueOn, ours.returnedOn], [null, null, null]);
 });

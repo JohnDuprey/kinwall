@@ -1328,6 +1328,9 @@ export const LibraryBookSchema = z
     location: z.string().nullable().openapi({ description: 'Where it lives, e.g. "Maya\'s room".' }),
     lentTo: z.string().nullable().openapi({ description: 'Who has it on loan (free text); null when it\'s home.' }),
     lentOn: z.string().nullable().openapi({ description: 'YYYY-MM-DD it was lent; null when home.' }),
+    borrowedFrom: z.string().nullable().openapi({ description: 'Borrowed, not owned: who from (e.g. "Town library"); null for the family\'s own books.' }),
+    dueOn: z.string().nullable().openapi({ description: 'YYYY-MM-DD a borrowed book is due back.' }),
+    returnedOn: z.string().nullable().openapi({ description: 'YYYY-MM-DD a borrowed book went back; kept as history.' }),
     addedBy: ActorSchema.nullable(),
     readers: z.array(z.object({ entryId: z.string(), memberId: z.string().nullable(), status: z.enum(['want', 'reading', 'finished']) })).openapi({ description: 'Reading entries started from this book (data.bookId), newest first.' }),
     createdAt: z.string(), updatedAt: z.string(),
@@ -1344,6 +1347,9 @@ export const LibraryBookInputSchema = z
     location: z.string().trim().max(80).nullable().optional(),
     lentTo: z.string().trim().max(80).nullable().optional().openapi({ description: 'Lend it (who has it); null when it comes back.' }),
     lentOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional().openapi({ description: 'When it was lent; today (household timezone) when left out.' }),
+    borrowedFrom: z.string().trim().max(80).nullable().optional().openapi({ description: 'Borrowed from (e.g. "Town library"); null makes it the family\'s own.' }),
+    dueOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional().openapi({ description: 'When a borrowed book is due back.' }),
+    returnedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional().openapi({ description: 'Returned (a borrowed book), kept as history; null to borrow it again.' }),
     workKey: z.string().regex(/^\/works\/OL\d+W$/).optional().openapi({ description: "A search result's workKey: its description is fetched (once)." }),
   })
   .openapi('LibraryBookInput');
@@ -1401,6 +1407,7 @@ export const BoardSchema = z
     ),
     birthdays: z.array(SnapshotBirthdaySchema),
     meals: z.array(MealSchema),
+    booksDue: z.array(z.object({ id: z.string(), title: z.string(), borrowedFrom: z.string(), dueOn: z.string(), date: z.string(), overdue: z.boolean() })), // borrowed library books due by `to`; date: the board day (an overdue one shows today)
   })
   .openapi('Board');
 

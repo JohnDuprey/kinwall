@@ -613,7 +613,7 @@ export const api = {
   deleteTracker: (id: string) => MOCK ? mock.deleteTracker(id) : del(`api/trackers/${id}`),
   // Book lookup and covers go through the server (Open Library), so the browser never talks to a third party.
   // The family's library (server: routes/library.ts). Adding by ISBN alone looks the book up there.
-  getLibrary: (q?: { q?: string; unread?: boolean; lent?: boolean; location?: string }) => MOCK ? mock.getLibrary(q)
+  getLibrary: (q?: { q?: string; unread?: boolean; lent?: boolean; borrowed?: boolean; returned?: boolean; location?: string }) => MOCK ? mock.getLibrary(q)
     : req<LibraryBook[]>(`api/library?${new URLSearchParams({ ...(q?.q ? { q: q.q } : {}), ...(q?.unread ? { unread: '1' } : {}), ...(q?.lent ? { lent: '1' } : {}), ...(q?.location ? { location: q.location } : {}) })}`),
   addToLibrary: (input: LibraryBookInput) => MOCK ? mock.addToLibrary(input) : post<LibraryBook>('api/library', input),
   updateLibraryBook: (id: string, changes: LibraryBookInput) => MOCK ? mock.updateLibraryBook(id, changes) : patch<LibraryBook>(`api/library/${encodeURIComponent(id)}`, changes),

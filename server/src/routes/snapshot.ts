@@ -192,7 +192,7 @@ snapshotRoutes.openapi(
     method: 'get',
     path: '/api/board',
     tags: ['Snapshot'],
-    summary: 'Household bulletin board: everyone\'s events, due/important list items, chores and birthdays for the next `days` days.',
+    summary: 'Household bulletin board: everyone\'s events, due/important list items, chores, birthdays and borrowed library books due back for the next `days` days.',
     security: [{ Bearer: [] }],
     request: { query: z.object({ days: z.coerce.number().int().min(1).max(14).default(7) }) },
     responses: { 200: { description: 'ok', content: { 'application/json': { schema: BoardSchema } } } },
@@ -258,6 +258,11 @@ snapshotRoutes.openapi(
     const weather = await getWeather(db, now);
 
     const meals = settings.features.meals ? await readMeals(db, today, to) : [];
+    // Borrowed library books due back (routes/library.ts), on their day; an overdue one stays on today.
+    const booksDue = settings.features.trackersReading
+      ? (await db.prepare('SELECT id, title, borrowed_from, due_on FROM library_books WHERE borrowed_from IS NOT NULL AND returned_on IS NULL AND due_on <= ? ORDER BY due_on, title').bind(to).all<{ id: string; title: string; borrowed_from: string; due_on: string }>()).results
+        .map((b) => ({ id: b.id, title: b.title, borrowedFrom: b.borrowed_from, dueOn: b.due_on, date: b.due_on < today ? today : b.due_on, overdue: b.due_on < today }))
+      : [];
     const body: Board = {
       today,
       to,
@@ -268,6 +273,7 @@ snapshotRoutes.openapi(
       chores,
       birthdays: birthdays.filter((b) => b.date <= to),
       meals: meals.filter((m) => m.date <= to),
+      booksDue,
     };
     return c.json(body, 200);
   },

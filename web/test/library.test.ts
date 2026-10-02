@@ -1,7 +1,7 @@
 // node --test test/ (npm test). The family library's labels and the bulk scanner's book check.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { bookDetails, isbnFromScan, lentLabel } from '../src/library.ts'
+import { addDayKeys, bookDetails, dueLabel, isbnFromScan, isOverdue, lentLabel } from '../src/library.ts'
 
 test('isbnFromScan: book barcodes (978/979, or ISBN-10) only', () => {
   assert.equal(isbnFromScan('9780440414803'), '9780440414803')
@@ -24,4 +24,20 @@ test('lentLabel: who has it and since when', () => {
   assert.equal(lentLabel({ lentTo: 'Sam', lentOn: '2025-12-30' }, '2026-10-02'), 'Lent to Sam since Dec 30, 2025')
   assert.equal(lentLabel({ lentTo: 'Sam', lentOn: null }, '2026-10-02'), 'Lent to Sam')
   assert.equal(lentLabel({ lentTo: null, lentOn: null }, '2026-10-02'), null)
+})
+
+test('dueLabel: borrowed books say when they go back', () => {
+  const t = '2026-10-02'
+  const b = (dueOn: string | null, returnedOn: string | null = null, borrowedFrom: string | null = 'Town library') => ({ borrowedFrom, dueOn, returnedOn })
+  assert.equal(dueLabel(b('2026-10-02'), t), 'Due back today')
+  assert.equal(dueLabel(b('2026-10-03'), t), 'Due back tomorrow')
+  assert.equal(dueLabel(b('2026-10-23'), t), 'Due back Oct 23')
+  assert.equal(dueLabel(b('2027-01-04'), t), 'Due back Jan 4, 2027')
+  assert.equal(dueLabel(b('2026-09-30'), t), 'Overdue since Sep 30')
+  assert.equal(dueLabel(b('2026-09-30', '2026-09-29'), t), 'Returned Sep 29')
+  assert.equal(dueLabel(b(null), t), null)
+  assert.equal(dueLabel(b('2026-10-04', null, null), t), null, 'our own book')
+  assert.equal(isOverdue(b('2026-09-30'), t), true)
+  assert.equal(isOverdue(b('2026-09-30', '2026-09-29'), t), false)
+  assert.equal(addDayKeys('2026-12-25', 21), '2027-01-15')
 })

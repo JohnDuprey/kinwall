@@ -869,6 +869,37 @@ async function runBatteryHeadsUp(env: Env, db: KinwallDb, now: Date, tz: string)
   }
 }
 
+// Borrowed library books (routes/library.ts): at LIBRARY_DUE_AT (household), books due back in
+// LIBRARY_DUE_DAYS days and books due today, one push to parent devices and a row in the family feed.
+// Once per book per due date per heads-up; returning it (or moving the date) stops it.
+export const LIBRARY_DUE_AT = '09:00';
+export const LIBRARY_DUE_DAYS = 2;
+async function runLibraryDue(env: Env, db: KinwallDb, now: Date, tz: string, windowStart: Date): Promise<void> {
+  if (!timeInWindow(LIBRARY_DUE_AT, tz, windowStart, now)) return;
+  const today = todayInTz(tz, now);
+  const soon = addDays(today, LIBRARY_DUE_DAYS);
+  const { results } = await db.prepare('SELECT id, title, borrowed_from, due_on FROM library_books WHERE borrowed_from IS NOT NULL AND returned_on IS NULL AND due_on IN (?, ?) ORDER BY title')
+    .bind(today, soon).all<{ id: string; title: string; borrowed_from: string; due_on: string }>();
+  const fresh: typeof results = [];
+  for (const b of results) {
+    const key = `librarydue:${b.id}:${b.due_on}:${b.due_on === today ? 'today' : 'soon'}`;
+    if (await alreadySent(db, key)) continue;
+    await markSent(db, key, now);
+    fresh.push(b);
+  }
+  if (!fresh.length) return;
+  const { results: parents } = await db.prepare("SELECT s.* FROM push_subscriptions s JOIN api_keys k ON k.id = s.api_key_id WHERE k.scope = 'admin'").all<PushSubRow>();
+  for (const when of [today, soon]) {
+    const books = fresh.filter((b) => b.due_on === when);
+    if (!books.length) continue;
+    const title = `📚 ${books.length === 1 ? `${books[0].title} is` : `${books.length} borrowed books are`} due back ${when === today ? 'today' : `in ${LIBRARY_DUE_DAYS} days`}`;
+    const body = books.map((b) => `${books.length === 1 ? 'To' : `${b.title} to`} ${b.borrowed_from}`).join(', ');
+    const payload = { title, body, url: '/#/trackers/library', tag: `librarydue:${when}` };
+    await recordNotification(db, { kind: 'reminder', ...payload, source: 'system', at: now });
+    for (const sub of parents) await sendToSub(env, db, sub, payload);
+  }
+}
+
 // Entry point for the cron (Workers) and setInterval (Node) tickers.
 export async function runNotifications(env: Env, now: Date, _execCtx?: WaitCtx): Promise<void> {
   // No early bail on zero subscriptions: the in-app feed records reminders/summaries regardless.
@@ -909,6 +940,7 @@ export async function runNotifications(env: Env, now: Date, _execCtx?: WaitCtx):
   const features = await readFeatures(env.DB);
   await part('daily summary', () => runDailySummary(env, env.DB, now, tz, subs, windowStart, features), true);
   if (features.chores) await part('chore nudge', () => runChoreNudge(env, env.DB, now, tz, subs, windowStart), true); // Chores turned off: no nudge
+  if (features.trackersReading) await part('library due dates', () => runLibraryDue(env, env.DB, now, tz, windowStart), true);
   await part('goal follow-ups', () => runGoalFollowups(env, env.DB, now, tz, windowStart), true);
   if (!hold) await part('battery heads-up', () => runBatteryHeadsUp(env, env.DB, now, tz)); // held at night
   if (!hold) await part('last night reminders', () => runLastNightReminders(env, env.DB, now, tz)); // held at night

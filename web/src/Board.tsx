@@ -178,7 +178,12 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
   const events = data.events.filter(show)
   const w = data.weather
   const wToday = w?.days.find(d => d.date === today)
-  const later = [...new Set([...events.map(e => e.date), ...data.birthdays.map(b => b.date)])].filter(d => d > today).sort()
+  const booksDue = data.booksDue ?? [] // an older server sends none
+  const later = [...new Set([...events.map(e => e.date), ...data.birthdays.map(b => b.date), ...booksDue.map(b => b.date)])].filter(d => d > today).sort()
+  // A borrowed library book due back that day (overdue ones stay on today); opens the library.
+  const bookRows = (d: string) => booksDue.filter(b => b.date === d).map(b => (
+    <li key={`book:${b.id}`} className={`board-book-due ${b.overdue ? 'lib-overdue' : ''}`}><a href="#/trackers/library"><span aria-hidden="true">📚</span> Return {b.title} to {b.borrowedFrom}{b.overdue ? ' (overdue)' : ''}</a></li>
+  ))
 
   // Due soon and reward requests follow who's shown, like the chores below (a kid's device: only theirs).
   const items = boardItems(data.items, lists, selectedMemberId, focusMemberId, focusShowsShared)
@@ -294,11 +299,13 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
             const goals = boardGoals(members, focusMemberId, { selected: selectedMemberId, kidDevice }).map(m => (
               <li key={`goal:${m.id}`} className="board-goal-line"><Avatar m={m} /><span><span className="sr-only">{m.name}'s goal: </span>🎯 {m.todayGoal}</span></li>
             ))
-            if (!bdays.length && !todays.length) return <>{goals.length > 0 && <ul className="snap-list">{goals}</ul>}<p className="snap-empty">Nothing on the calendar today.</p></>
+            const books = bookRows(today)
+            if (!bdays.length && !todays.length && !books.length) return <>{goals.length > 0 && <ul className="snap-list">{goals}</ul>}<p className="snap-empty">Nothing on the calendar today.</p></>
             return (
               <ul className="snap-list">
                 {goals}
                 {bdays.map(b => <BirthdayRow key={`${b.memberId ?? b.eventId}`} b={b} you="" close={noop} />)}
+                {books}
                 {todays.map(e => <EventLine key={`${e.id}:${e.start}`} e={e} tz={tz} byId={byId} onTap={onTap} past={!e.allDay && Date.parse(e.end) < now.getTime()} />)}
               </ul>
             )
@@ -319,6 +326,7 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
                 </h4>
                 <ul className="snap-list">
                   {data.birthdays.filter(b => b.date === d).map(b => <BirthdayRow key={`${b.memberId ?? b.eventId}`} b={b} you="" close={noop} />)}
+                  {bookRows(d)}
                   {events.filter(e => e.date === d).map(e => <EventLine key={`${e.id}:${e.start}`} e={e} tz={tz} byId={byId} onTap={onTap} />)}
                 </ul>
               </section>
