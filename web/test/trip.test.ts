@@ -1,7 +1,7 @@
 // node --test test/ (npm test). "Shopping at" ordering and per-store aisle lookup.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { aisleAt, anyStoreView, departmentAisle, resumeShoppingHash, setShoppingModeList, setTripReverse, setTripStore, shoppingModeList, tripLeftovers, tripReverse, tripStoreFor, tripView, ANY_STORE } from '../src/trip.ts'
+import { aisleAt, anyStoreView, placeNeeds, departmentAisle, resumeShoppingHash, setShoppingModeList, setTripReverse, setTripStore, shoppingModeList, tripLeftovers, tripReverse, tripStoreFor, tripView, ANY_STORE } from '../src/trip.ts'
 
 type P = { store: string | null; aisle: string | null }
 const item = (title: string, store: string | null, aisle: string | null = null, places: P[] = []) => ({ title, store, aisle, places })
@@ -151,4 +151,14 @@ test('tripStoreFor: a linked store matches the list\'s stores in any case; "any"
   assert.equal(tripStoreFor('Corner shop', stores), null) // not one of theirs: ask as usual
   assert.equal(tripStoreFor('', stores), null)
   assert.equal(tripStoreFor(null, stores), null)
+})
+
+test('placeNeeds: after a scan while shopping, ask only for what is missing at this store', () => {
+  const item = (d: Partial<{ store: string | null; aisle: string | null; category: string | null; places: P[] }>) => ({ title: 'Cereal', store: null, aisle: null, category: null, places: [], ...d })
+  assert.deepEqual(placeNeeds(item({}), 'Market', []), { aisle: true, department: true }, 'new item: both')
+  assert.deepEqual(placeNeeds(item({ category: 'Pantry', places: [{ store: 'Market', aisle: 'Aisle 4' }] }), 'Market', []), { aisle: false, department: false }, 'known here: nothing')
+  assert.deepEqual(placeNeeds(item({ category: 'Pantry', places: [{ store: 'Club', aisle: 'Aisle 9' }] }), 'Market', []), { aisle: true, department: false }, 'known at another store only')
+  assert.deepEqual(placeNeeds(item({ category: 'Produce' }), 'Market', ['Produce', 'Aisle 1']), { aisle: false, department: false }, 'its department is an aisle here')
+  assert.deepEqual(placeNeeds(item({}), ANY_STORE, []), { aisle: false, department: true }, 'any store: no aisle to ask for')
+  assert.deepEqual(placeNeeds(item({}), null, []), { aisle: false, department: true })
 })

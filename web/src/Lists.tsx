@@ -20,7 +20,7 @@ import { CustomColorSwatch } from './ColorSwatch.tsx'
 import { PRIORITY_LABEL, PRIORITY_MARK, PriorityBadge } from './PriorityBadge.tsx'
 import NotesThread from './NotesThread.tsx'
 import { actorName, byLine, nowrap, whenLabel } from './addedBy.ts'
-import { aisleAt, ANY_STORE, anyStoreView, departmentAisle, setShoppingModeList, setTripReverse, setTripStore, tripLeftovers, tripReverse, tripStore, tripStoreFor, tripView } from './trip.ts'
+import { aisleAt, ANY_STORE, anyStoreView, departmentAisle, placeNeeds, setShoppingModeList, setTripReverse, setTripStore, tripLeftovers, tripReverse, tripStore, tripStoreFor, tripView } from './trip.ts'
 import { hashPath, hashQuery } from './hashQuery.ts'
 import { holdAwake } from './wakeLock.ts'
 import { shoppingActivity } from './liveActivity.ts'
@@ -634,6 +634,27 @@ function ScanSheet({ code, found, canSave, lists, target: suggested, checkOff, o
           <button className={`switch ${save ? 'on' : ''}`} role="switch" aria-checked={save} aria-labelledby="scan-save-label" onClick={() => setSave(v => !v)}><span className="knob" /></button>
         </div>
       )}
+    </Sheet>
+  )
+}
+
+/** "Where did you find it?" after a scan while shopping: the item's aisle at this store and its
+ * department, whichever it's missing. Skip leaves it as it is. */
+function PlaceSheet({ title, store, need, category: initialCategory, aisles, departments, onSave, onClose }: {
+  title: string; store: string | null; need: { aisle: boolean; department: boolean }; category: string
+  aisles: string[]; departments: string[]; onSave: (aisle: string, category: string) => void; onClose: () => void
+}) {
+  const [aisle, setAisle] = useState('')
+  const [category, setCategory] = useState(initialCategory)
+  return (
+    <Sheet variant="dialog" title="Where did you find it?" onClose={onClose}
+      actions={<>
+        <button className="btn btn-secondary" onClick={onClose}>Skip</button>
+        <button className="btn btn-primary" onClick={() => onSave(aisle.trim(), category.trim())} disabled={!aisle.trim() && !category.trim()}>Save</button>
+      </>}>
+      <p className="scan-source">{title}: so it's in the right place next time.</p>
+      {need.aisle && store && <ValuePicker id="place-aisle" label={`Aisle at ${store}`} value={aisle} options={aisles} newLabel="New aisle…" placeholder="e.g. Aisle 4, Produce, Back wall" onChange={setAisle} noneLabel="Pick an aisle" />}
+      {need.department && <ValuePicker id="place-dept" label="Department" value={category} options={departments} newLabel="New department…" placeholder="e.g. Dairy, Pantry" onChange={setCategory} noneLabel="Pick a department" />}
     </Sheet>
   )
 }
@@ -1618,9 +1639,35 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
       const added = await api.queueAddListItem(to, { id, title, ...(barcode ? { barcode } : {}) })
       const ticked = checkOff ? await api.queueUpdateListItem(to, id, { done: true }) : null
       if (to === listId) { showQueued(added); if (checkOff) showQueued(ticked) }
-    } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not add item', true) }
+    } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not add item', true); return null }
     if (!checkOff) inputRef.current?.focus() // keep the keyboard open for the next item
+    return id
   }
+
+  // After a scan while shopping: "Where did you find it?" for what the item is missing, its aisle at
+  // this store and its department (placeNeeds). Saving teaches them, so the next one walks right.
+  const [placing, setPlacing] = useState<{ listId: string; id: string; title: string; category: string; need: { aisle: boolean; department: boolean } } | null>(null)
+  const askPlace = (item: { id: string; listId?: string; title: string; store?: string | null; aisle?: string | null; category?: string | null; places?: ListItem['places'] }) => {
+    if (!detail) return
+    // A brand-new add: what the catalog remembers for the name (the server fills it in from there too).
+    const known = detail.suggestions.items?.find(s => s.key === itemKey(item.title))
+    const full = { store: null, aisle: null, places: known?.place ? [known.place] : [], ...item, category: item.category ?? known?.category ?? null }
+    const need = placeNeeds(full, trip, trip && trip !== ANY_STORE ? storeAisles(detail.suggestions, trip, aisleOrderMap(detail)) : [])
+    if (need.aisle || need.department) setPlacing({ listId: item.listId ?? listId, id: item.id, title: item.title, category: full.category ?? '', need })
+  }
+  const savePlace = async (aisle: string, category: string) => {
+    if (!placing) return
+    const body = { ...(placing.need.aisle && aisle && trip ? { aisle, aisleStore: trip } : {}), ...(placing.need.department && category ? { category } : {}) }
+    setPlacing(null)
+    if (!Object.keys(body).length) return
+    try { const op = await api.queueUpdateListItem(placing.listId, placing.id, body); if (placing.listId === listId) showQueued(op); announce(`Saved where ${placing.title} goes`) }
+    catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save it', true) }
+  }
+  const placeSheet = placing && detail && (
+    <PlaceSheet title={placing.title} store={trip && trip !== ANY_STORE ? trip : null} need={placing.need} category={placing.category}
+      aisles={trip && trip !== ANY_STORE ? storeAisles(detail.suggestions, trip, aisleOrderMap(detail)) : []} departments={detail.suggestions.categories}
+      onSave={savePlace} onClose={() => setPlacing(null)} />
+  )
 
   // The app's camera (shopping lists): a product saved in the catalog goes straight on the list
   // under the family's name; anything else opens the scan sheet to check the name, and saving its
@@ -1634,8 +1681,13 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
     catch (e) { toast(e instanceof ApiError ? e.message : 'Could not look that up', true) }
     if (shopMode && found) {
       const hit = scanMatch([...(detail?.items ?? []), ...(detail?.alsoAtStore ?? [])], found.title)
-      if (hit) { await toggle(hit); toast(`Checked off: ${hit.title}`); announce(`Checked off ${hit.title}`); return }
-      if (found.source === 'family') { await addItem(found.title, code, { checkOff: true }); toast(`Added and checked off: ${found.title}`); announce(`Added and checked off ${found.title}`); return }
+      if (hit) { await toggle(hit); toast(`Checked off: ${hit.title}`); announce(`Checked off ${hit.title}`); askPlace(hit); return }
+      if (found.source === 'family') {
+        const id = await addItem(found.title, code, { checkOff: true })
+        toast(`Added and checked off: ${found.title}`); announce(`Added and checked off ${found.title}`)
+        if (id) askPlace({ id, title: found.title })
+        return
+      }
     }
     if (found?.source === 'family') {
       if (detail?.items.some(i => !i.done && itemKey(i.title) === itemKey(found.title))) {
@@ -1655,7 +1707,8 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
     if (!scanned) return
     const barcode = save ? scanned.code : undefined
     setScanned(null)
-    await addItem(title, barcode, { checkOff: shopMode, to: target })
+    const id = await addItem(title, barcode, { checkOff: shopMode, to: target })
+    if (id && shopMode && target === listId) askPlace({ id, title })
     const where = target === listId ? '' : ` to ${shoppingLists.find(l => l.id === target)?.name ?? 'the other list'}`
     const said = `${shopMode ? 'Added and checked off' : 'Added'}${where}: ${title}`
     toast(said); announce(said)
@@ -1867,6 +1920,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
         {storeSheet}
         {leftoversSheet}
         {scanSheet}
+        {placeSheet}
       </div>,
       document.body)
   }

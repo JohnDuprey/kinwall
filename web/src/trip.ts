@@ -18,6 +18,12 @@ export function aisleAt(item: TripItem, store: string, storeAisles: string[] = [
   return (item.store === store && item.aisle) || item.places?.find(p => p.store === store)?.aisle || departmentAisle(item.category, storeAisles)
 }
 
+/** After a scan while shopping (Lists.tsx): what to ask about the item, only what's missing. Its aisle
+ * at the trip's store (none to ask at Any store), and its department. */
+export function placeNeeds(item: TripItem, trip: string | null, storeAisles: string[]): { aisle: boolean; department: boolean } {
+  return { aisle: !!trip && trip !== ANY_STORE && !aisleAt(item, trip, storeAisles), department: !item.category?.trim() }
+}
+
 /** Items planned for this store or for anywhere, grouped by their aisle there (see aisleAt) in walking order
  * (the store's custom order, else natural), A-Z within an aisle; then those with no aisle known
  * there; then those planned for other stores (by store). Checked items keep their place.
