@@ -149,8 +149,9 @@ test('added by: a chore\'s reusable checklist resets as done by whoever did the 
   const list = await send('POST', '/api/lists', { name: 'Clean room', kind: 'reusable' });
   const [bed] = await send('POST', `/api/lists/${list.id}/items`, { title: 'Make bed' });
   await send('PATCH', `/api/lists/${list.id}/items/${bed.id}`, { done: true }, wallKey);
-  const chore = await send('POST', '/api/chores', { title: 'Clean room', dueDate: '2026-06-01', points: 5, memberId: leo.id, listId: list.id });
-  const res = await send('POST', `/api/chores/${chore.id}/complete`, { date: '2026-06-01' }, wallKey);
+  const today = new Date().toISOString().slice(0, 10);
+  const chore = await send('POST', '/api/chores', { title: 'Clean room', dueDate: today, points: 5, memberId: leo.id, listId: list.id });
+  const res = await send('POST', `/api/chores/${chore.id}/complete`, { date: today }, wallKey);
   assert.ok(!res.error, JSON.stringify(res));
   const detail = await send('GET', `/api/lists/${list.id}`);
   assert.deepEqual([detail.items[0].done, detail.items[0].checkedBy, detail.list.lastDoneBy], [false, null, { memberId: leo.id }]);

@@ -70,9 +70,9 @@ test('key scopes: display key is 403 on admin-only routes, 200 on display-allowe
   });
   assert.equal(eventRes.status, 201);
 
-  const completeRes = await display(`/api/chores/${chore.id}/complete`, { method: 'POST', body: JSON.stringify({ date: '2026-05-01' }) });
+  const completeRes = await display(`/api/chores/${chore.id}/complete`, { method: 'POST', body: JSON.stringify({ date: new Date().toISOString().slice(0, 10) }) });
   assert.equal(completeRes.status, 200);
-  const undoRes = await display(`/api/chores/${chore.id}/complete?date=2026-05-01`, { method: 'DELETE' });
+  const undoRes = await display(`/api/chores/${chore.id}/complete?date=${new Date().toISOString().slice(0, 10)}`, { method: 'DELETE' });
   assert.ok(undoRes.status < 300, 'a display can undo a completion');
 
   // Chores are ticked off on devices, but only parents add, edit or delete them.

@@ -121,7 +121,7 @@ async function seed(request: ReturnType<typeof makeApp>) {
   ]);
   const dentist = await request.post('/api/events', { calendarId: cal.id, title: 'Dentist', start: '2026-10-01T15:00:00.000Z', end: '2026-10-01T16:00:00.000Z', allDay: false, memberIds: [ada.id, bob.id], reminders: [15], categoryId: school.id, travelMinutes: 20, remindBeforeLeave: true });
   await request.post('/api/events', { calendarId: cal.id, title: 'Swim', start: '2026-10-02', end: '2026-10-03', allDay: true, rrule: 'FREQ=WEEKLY', memberIds: [] });
-  const dishes = await request.post('/api/chores', { title: 'Dishes', memberId: ada.id, points: 2, rrule: 'FREQ=DAILY' });
+  const dishes = await request.post('/api/chores', { title: 'Dishes', memberId: ada.id, points: 2, rrule: 'FREQ=DAILY', dueDate: '2026-09-25' });
   await request.post('/api/chores', { title: 'Bins', points: 1 });
   await request.post(`/api/chores/${dishes.id}/complete`, { date: '2026-09-25', memberId: ada.id });
   const list = await request.post('/api/lists', { name: 'Groceries', kind: 'shopping', memberIds: [bob.id], sortBy: 'alpha' });

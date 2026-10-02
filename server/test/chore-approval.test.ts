@@ -226,3 +226,70 @@ test('approval: settings and completion status survive export -> import', async 
     await t.restore();
   }
 });
+
+test('completing: only a real day the chore is due on, and from a wall or kid device only a recent one', async () => {
+  const t = await setup();
+  try {
+    const points = async () => (await t.req(`/api/members/${t.leo.id}/points`)).json.balance;
+    const c = await t.chore({ title: 'Make bed' });
+    const day = (offset: number) => new Date(Date.now() + offset * 86400000).toISOString().slice(0, 10);
+
+    // Not dates: nothing is written, whoever asks.
+    for (const date of ['zzz', `${t.today} `, '2026-13-45', '']) {
+      assert.equal((await t.tick(c.id, t.leoKey, date)).status, 400, `leo ${JSON.stringify(date)}`);
+      assert.equal((await t.tick(c.id, ADMIN, date)).status, 400, `admin ${JSON.stringify(date)}`);
+    }
+    // Far ahead or long ago from a kid's device: refused (a parent's device may still fix up an old day).
+    assert.equal((await t.tick(c.id, t.leoKey, '2099-01-01')).status, 400);
+    assert.equal((await t.tick(c.id, t.leoKey, day(30))).status, 400);
+    assert.equal((await t.tick(c.id, t.leoKey, day(-30))).status, 400);
+    assert.equal(await points(), 0);
+    // A day the chore isn't due on (before it started): refused for everyone.
+    assert.equal((await t.tick(c.id, ADMIN, day(-30))).status, 400);
+    const once = await t.chore({ title: 'Wash car', rrule: null, dueDate: t.today });
+    assert.equal((await t.tick(once.id, t.leoKey, t.yesterday)).status, 400);
+    assert.equal((await t.tick(once.id, ADMIN, t.yesterday)).status, 400);
+    // A paused chore: refused.
+    const paused = await t.chore({ title: 'Rake leaves', active: false });
+    assert.equal((await t.tick(paused.id, t.leoKey)).status, 400);
+    assert.equal(await points(), 0);
+
+    // Today and yesterday (late credit) still work.
+    assert.equal((await t.tick(c.id, t.leoKey)).status, 200);
+    assert.equal((await t.tick(c.id, t.leoKey, t.yesterday)).status, 200);
+    assert.equal(await points(), 15);
+    // Undo takes a real date too.
+    assert.equal((await t.req(`/api/chores/${c.id}/complete?date=zzz`, 'DELETE', undefined, t.leoKey)).status, 400);
+  } finally {
+    await t.restore();
+  }
+});
+
+test('approval: a wall screen can\'t get a kid an approved completion by ticking first as nobody or as someone else', async () => {
+  const t = await setup();
+  try {
+    await t.req(`/api/members/${t.leo.id}`, 'PATCH', { needsApproval: true });
+    const wall = (await t.req('/api/keys', 'POST', { name: 'Kitchen wall', scope: 'display' })).json.key as string;
+    const points = async () => (await t.req(`/api/members/${t.leo.id}/points`)).json.balance;
+    const tickAs = (id: string, memberId?: string) => t.req(`/api/chores/${id}/complete`, 'POST', { date: t.today, memberId }, wall);
+
+    // An Anyone chore: ticked as nobody (approved, nobody's points), then re-ticked as Leo.
+    const anyone = await t.chore({ title: 'Take out trash', memberId: null });
+    assert.equal((await tickAs(anyone.id)).json.pending, false);
+    assert.equal((await tickAs(anyone.id, t.leo.id)).json.pending, true);
+    assert.deepEqual([(await t.day(anyone.id)).completed, (await t.day(anyone.id)).pending], [false, true]);
+    // Ticked as Maya (no approval needed), then re-ticked as Leo.
+    const swap = await t.chore({ title: 'Set table', memberId: null });
+    assert.equal((await tickAs(swap.id, t.maya.id)).json.pending, false);
+    assert.equal((await tickAs(swap.id, t.leo.id)).json.pending, true);
+    assert.equal(await points(), 0);
+
+    // What a parent approved stays approved when the same kid's tick comes in again.
+    const done = await t.chore({ title: 'Make bed' });
+    assert.equal((await t.tick(done.id, ADMIN)).json.pending, false);
+    assert.equal((await tickAs(done.id, t.leo.id)).json.pending, false);
+    assert.equal(await points(), 10);
+  } finally {
+    await t.restore();
+  }
+});

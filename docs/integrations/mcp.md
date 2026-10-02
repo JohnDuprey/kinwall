@@ -110,7 +110,7 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 | `set_event_category` | Sets or clears an event's category (by name). Clearing falls back to keyword or calendar default. |
 | `create_chore` | Creates a recurring or one-off chore. `list` links a checklist (a list by name or ID) that has to be ticked off before the chore completes. `needsApproval` and `approveTimedPlay` set [parent approval](../using/chores.md#parent-approval). |
 | `update_chore` | Changes title, emoji, assignee, points, recurrence (`RRULE`, optional `UNTIL`), due date or time, checklist (`list`, or `null` to unlink), parent approval (`needsApproval`, `approveTimedPlay`), or active state. |
-| `complete_chore` | Marks a chore done for a date (default today). Refused while the chore's checklist has open items. From a display key, a chore that needs a parent's OK waits for approval instead. |
+| `complete_chore` | Marks a chore done for a date (default today). The date has to be a day the chore is due on; a display key can use the last 7 days, today, or one day ahead. Refused while the chore's checklist has open items. From a display key, a chore that needs a parent's OK waits for approval instead. |
 | `uncomplete_chore` | Undoes a completion. |
 | `list_pending_approvals` | Chores waiting for a [parent's OK](../using/chores.md#parent-approval), oldest first, with the points approving would award (admin). |
 | `approve_chore` | Approves a waiting chore for a date (default today) and awards its points (admin). |

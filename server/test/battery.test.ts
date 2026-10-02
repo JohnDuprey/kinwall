@@ -236,9 +236,9 @@ async function busyTomorrow(s: S) {
   await add(family.id, 'Fair', '2026-09-27', '2026-09-28', true); // all day: not a busy hour
   // Shown as free (a delivery window): not a busy hour either.
   assert.equal((await s.req('/api/events', 'POST', { calendarId: family.id, title: 'Delivery window', start: '2026-09-27T15:00:00.000Z', end: '2026-09-28T03:00:00.000Z', allDay: false, busy: false, reminders: [] })).status, 201);
-  assert.equal((await s.req('/api/chores', 'POST', { title: 'Feed the cat', points: 5, memberId: s.maya.id, rrule: 'FREQ=DAILY' })).status, 201);
-  assert.equal((await s.req('/api/chores', 'POST', { title: 'Walk the dog', points: 5, memberId: s.leo.id, rrule: 'FREQ=DAILY' })).status, 201);
-  assert.equal((await s.req('/api/chores', 'POST', { title: 'Anyone: dishes', points: 5, rrule: 'FREQ=DAILY' })).status, 201);
+  assert.equal((await s.req('/api/chores', 'POST', { title: 'Feed the cat', points: 5, memberId: s.maya.id, rrule: 'FREQ=DAILY', dueDate: '2026-09-01' })).status, 201);
+  assert.equal((await s.req('/api/chores', 'POST', { title: 'Walk the dog', points: 5, memberId: s.leo.id, rrule: 'FREQ=DAILY', dueDate: '2026-09-01' })).status, 201);
+  assert.equal((await s.req('/api/chores', 'POST', { title: 'Anyone: dishes', points: 5, rrule: 'FREQ=DAILY', dueDate: '2026-09-01' })).status, 201);
 }
 const TOMORROW_TEXT = 'Tomorrow looks full: 5 events, 1 chore and a late evening. Maybe plan a rest or move something?';
 const bat = (id: string) => `/api/members/${id}/battery`;

@@ -10,6 +10,7 @@ import { ChoreDaySchema, ChoreInputSchema, ChoreSchema, ErrorSchema } from '../s
 import { resetListItems } from './lists.ts';
 import { actorOf, deviceOwner, ownDevice, ownerBlock, requestKey } from '../auth.ts';
 import { notifyChoreApproval } from '../notify.ts';
+import { MealDateSchema } from '../meal-schemas.ts';
 
 export const choresRoutes = createRouter();
 
@@ -323,6 +324,10 @@ choresRoutes.openapi(
   },
 );
 
+/** How far back a wall screen or a kid's device can tick a chore (it may also be a day ahead of the household's today). */
+const DISPLAY_DAYS_BACK = 7;
+const shiftDay = (date: string, days: number) => new Date(Date.parse(`${date}T00:00:00Z`) + days * 86400000).toISOString().slice(0, 10);
+
 // Points a completion earns: full on the day (or ahead of it), `creditPercent` of them when it's
 // ticked off for a past day (never below 0).
 export function lateCompletionPoints(points: number, late: boolean, creditPercent: number): number {
@@ -340,21 +345,29 @@ export function lateCompletionPoints(points: number, late: boolean, creditPercen
  * when that gates it, 'not found', or { blocked } when a member's own device tries it for
  * someone else (their chore, crediting them, or taking over their completion).
  */
-export async function completeChore(c: Context<{ Bindings: Env }>, id: string, date: string, memberId: string | undefined, timedPlay = false): Promise<boolean | 'pending' | number | 'not found' | { blocked: string }> {
+export async function completeChore(c: Context<{ Bindings: Env }>, id: string, date: string, memberId: string | undefined, timedPlay = false): Promise<boolean | 'pending' | number | 'not found' | { blocked: string } | { notDue: string }> {
   // A member's own device credits them when no one is named (an Anyone chore, like the app does).
   memberId ??= (await deviceOwner(c)) ?? undefined;
   const [choreRes, settingsRes] = await c.env.DB.batch<unknown>([
     c.env.DB.prepare(
-      'SELECT c.id, c.title, c.member_id, c.points, c.list_id, c.needs_approval, c.approve_timed_play, (SELECT needs_approval FROM members WHERE id = COALESCE(?, c.member_id)) AS member_needs_approval, (SELECT member_id FROM chore_completions WHERE chore_id = c.id AND date = ?) AS done_by FROM chores c WHERE c.id = ? AND c.archived = 0',
-    ).bind(memberId ?? null, date, id),
+      'SELECT c.*, (SELECT needs_approval FROM members WHERE id = COALESCE(?, c.member_id)) AS member_needs_approval, (SELECT member_id FROM chore_completions WHERE chore_id = c.id AND date = ?) AS done_by, (SELECT COUNT(*) FROM chore_completions WHERE chore_id = c.id AND date != ?) AS other_days FROM chores c WHERE c.id = ? AND c.archived = 0',
+    ).bind(memberId ?? null, date, date, id),
     c.env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('timezone', 'lateCompletionCredit')"),
   ]);
-  const chore = choreRes.results[0] as
-    | { id: string; title: string; member_id: string | null; points: number; list_id: string | null; needs_approval: number | null; approve_timed_play: number; member_needs_approval: number | null; done_by: string | null }
-    | undefined;
+  const chore = choreRes.results[0] as (ChoreRow & { approve_timed_play: number; member_needs_approval: number | null; done_by: string | null; other_days: number }) | undefined;
   if (!chore) return 'not found';
   const blocked = await ownerBlock(c, memberId, chore.member_id, chore.done_by);
   if (blocked) return { blocked };
+  const settings = new Map((settingsRes.results as { key: string; value: string }[]).map((r) => [r.key, r.value]));
+  const tz = settings.get('timezone') ?? hostTimezone();
+  const today = todayInTz(tz);
+  const display = (await requestKey(c))?.scope === 'display';
+  // Points are counted per day ticked, so a day has to be one the chore is really due on; and a
+  // wall screen or kid's device only ticks around today (a parent's device can fix up older days).
+  // A one-off with no day set (made through the API) is done once, on whichever day.
+  const due = chore.rrule || chore.due_date ? dueOnDate(chore, date, tz) : !Number(chore.other_days);
+  if (!chore.active || !due) return { notDue: "This chore isn't due on that day." };
+  if (display && (date < shiftDay(today, -DISPLAY_DAYS_BACK) || date > shiftDay(today, 1))) return { notDue: `From this device a chore can be ticked for the last ${DISPLAY_DAYS_BACK} days. Older days are for a parent's device.` };
   // So does a grown-up's own full-access device (their phone), which otherwise acts for anyone.
   if (!memberId && !chore.member_id) memberId = (await ownDevice(c)) ?? undefined;
   // The checklist gates completion: the list's items for this chore's member (or whoever is
@@ -373,15 +386,15 @@ export async function completeChore(c: Context<{ Bindings: Env }>, id: string, d
   // Parent devices (admin keys) are approved straight away. Timed play follows the chore's own
   // "even for timed play" switch; a tick follows the chore, else the person's default.
   const needsOk = timedPlay ? !!chore.approve_timed_play : !!(chore.needs_approval ?? chore.member_needs_approval);
-  const pending = needsOk && (await requestKey(c))?.scope === 'display';
-  const settings = new Map((settingsRes.results as { key: string; value: string }[]).map((r) => [r.key, r.value]));
-  const today = todayInTz(settings.get('timezone') ?? hostTimezone());
+  const pending = needsOk && display;
   const pointsAwarded = pending ? 0 : lateCompletionPoints(chore.points, date < today, Number(settings.get('lateCompletionCredit') ?? 50));
   const who = memberId ?? chore.member_id;
-  // Re-ticking an existing completion (e.g. to change who did it) keeps the points and status it already has.
+  // Re-ticking an existing completion (e.g. to change who did it) keeps the points and status it
+  // already has, unless it now names someone else whose tick needs a parent's OK: that one waits.
+  const waits = "excluded.status = 'pending' AND chore_completions.member_id IS NOT excluded.member_id";
   const [writtenRes] = await c.env.DB.batch<unknown>([
     c.env.DB.prepare(
-      `INSERT INTO chore_completions (id, chore_id, date, member_id, completed_at, points_awarded, status) VALUES (?,?,?,?,?,?,?) ON CONFLICT(chore_id, date) DO ${timedPlay ? 'NOTHING' : 'UPDATE SET member_id = excluded.member_id, completed_at = excluded.completed_at'} RETURNING status, points_awarded`,
+      `INSERT INTO chore_completions (id, chore_id, date, member_id, completed_at, points_awarded, status) VALUES (?,?,?,?,?,?,?) ON CONFLICT(chore_id, date) DO ${timedPlay ? 'NOTHING' : `UPDATE SET status = CASE WHEN ${waits} THEN 'pending' ELSE status END, points_awarded = CASE WHEN ${waits} THEN 0 ELSE points_awarded END, member_id = excluded.member_id, completed_at = excluded.completed_at`} RETURNING status, points_awarded`,
     ).bind(crypto.randomUUID(), id, date, who, new Date().toISOString(), pointsAwarded, pending ? 'pending' : 'approved'),
     c.env.DB.prepare('DELETE FROM chore_rejections WHERE chore_id = ? AND date = ?').bind(id, date), // ticked again: the "Not yet" note goes
   ]);
@@ -426,10 +439,11 @@ choresRoutes.openapi(
     security: [{ Bearer: [] }],
     request: {
       params: z.object({ id: z.string() }),
-      body: { content: { 'application/json': { schema: z.object({ date: z.string(), memberId: z.string().optional() }) } } },
+      body: { content: { 'application/json': { schema: z.object({ date: MealDateSchema, memberId: z.string().optional() }) } } },
     },
     responses: {
       200: { description: 'ok; pending: true when it waits for a parent\'s OK', content: { 'application/json': { schema: z.object({ ok: z.boolean(), pending: z.boolean() }) } } },
+      400: { description: "not a date, a day the chore isn't due on (or it's paused), or from a wall screen or kid's device a day more than a week back or more than a day ahead", content: { 'application/json': { schema: ErrorSchema } } },
       403: { description: "this device belongs to someone else", content: { 'application/json': { schema: ErrorSchema } } },
       404: { description: 'not found', content: { 'application/json': { schema: ErrorSchema } } },
       409: { description: 'checklist not finished', content: { 'application/json': { schema: ErrorSchema.extend({ remaining: z.number() }) } } },
@@ -440,7 +454,7 @@ choresRoutes.openapi(
     const { date, memberId } = c.req.valid('json');
     const r = await completeChore(c, id, date, memberId);
     if (r === 'not found') return c.json({ error: 'not found' }, 404);
-    if (typeof r === 'object') return c.json({ error: r.blocked }, 403);
+    if (typeof r === 'object') return 'blocked' in r ? c.json({ error: r.blocked }, 403) : c.json({ error: r.notDue }, 400);
     if (typeof r === 'number') return c.json({ error: `Checklist not finished (${r} left)`, remaining: r }, 409);
     return c.json({ ok: true, pending: r === 'pending' }, 200);
   },
@@ -453,7 +467,7 @@ choresRoutes.openapi(
     tags: ['Chores'],
     summary: 'Undo a chore completion for a date',
     security: [{ Bearer: [] }],
-    request: { params: z.object({ id: z.string() }), query: z.object({ date: z.string() }) },
+    request: { params: z.object({ id: z.string() }), query: z.object({ date: MealDateSchema }) },
     responses: {
       200: { description: 'ok', content: { 'application/json': { schema: z.object({ ok: z.boolean() }) } } },
       403: { description: 'this device belongs to someone else', content: { 'application/json': { schema: ErrorSchema } } },

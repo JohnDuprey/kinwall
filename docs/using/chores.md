@@ -128,7 +128,9 @@ Points are fixed at the moment you tick a chore off. Changing a chore's points l
 
 * Completed **on its day, or early**: full points.
 * Completed **for a past day**: `lateCompletionCredit` percent of the points, rounded. The default is **50%** (0–100).
-* Re-ticking an existing completion (for example, to change who did it) keeps the points it already earned.
+* Re-ticking an existing completion (for example, to change who did it) keeps the points it already earned. If the re-tick comes from a wall screen or kid's device and names someone else whose ticks need a [parent's OK](#parent-approval), it waits for that OK and earns nothing until then.
+* A chore can only be ticked for a day it's due on, and not while it's paused. A one-off chore with no day set (made through the API) can be ticked once, for any day.
+* Wall screens and kids' devices can tick a chore for the last 7 days, today, and one day ahead. Older days are for a parent's device.
 * A chore waiting for a [parent's OK](#parent-approval) earns its points when it's approved, judged by when it was ticked.
 
 ## Streaks and grace days
