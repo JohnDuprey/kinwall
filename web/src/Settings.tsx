@@ -1799,7 +1799,11 @@ function MemberEditSheet({ member, canDelete, onClose, onSaved, toast }: { membe
       if (member) await api.updateMember(member.id, { name: name.trim(), color, avatar, birthday, ...extra })
       else await api.createMember({ name: name.trim(), color, avatar, birthday, ...extra })
       onSaved()
-    } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not save member', true) }
+    } catch (e) {
+      // Refused (e.g. only Alex can mark Alex as a kid): nothing was saved, so the switch shows what's true again.
+      if (member && e instanceof ApiError && e.status === 403) setGrownUp(!!member.grownUp)
+      toast(e instanceof ApiError ? e.message : 'Could not save member', true)
+    }
   }
   const del = async () => {
     if (!member) return

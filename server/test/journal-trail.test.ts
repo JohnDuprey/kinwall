@@ -1,7 +1,8 @@
 // The trail around private journals can't be erased or sidestepped by another parent's device:
 // - a device that says it's someone's can't remove the privacy note about that (routes/push.ts);
 // - a flood of other security events can't push out the ones about a person (routes/security-events.ts);
-// - marking a grown-up as a kid is logged, told to them, not open to connected apps, and never hands
+// - only a grown-up themselves can be marked as a kid once there is something of theirs to protect;
+//   the change is logged, told to them, not open to connected apps, and never hands
 //   what they wrote in private to an everyday-access device (routes/members.ts, journal-privacy.ts);
 // - an import can't write into a journal that's private to someone else (routes/data.ts).
 import { test, mock } from 'node:test';
@@ -151,13 +152,12 @@ test("security activity: a flood of other events, or of events about someone els
   assert.ok(count('1') <= 5 * SECURITY_KEEP, 'still bounded');
 });
 
-test('marking a grown-up as a kid: logged, told to them, kept from connected apps, and their private entries stay shut', async (t) => {
+test("marking a grown-up as a kid: only they can once there's something of theirs to protect, and what they wrote stays shut", async (t) => {
   t.after(() => mock.timers.reset());
   const { db, req, alex, leo, alexPhone, samPhone, keyFor, notes, security } = await setup();
-  const made = (await req(jr(alex.id), 'POST', { text: SECRET, mood: '😊' }, alexPhone)).json;
+  const member = async (id: string) => (await req('/api/members')).json.find((m: any) => m.id === id);
+  const flips = async () => (await security()).filter((e) => e.kind === 'member.grown_up').map((e) => e.summary).reverse();
   const tc = `/api/members/${alex.id}/temp-check`;
-  await req(tc, 'PUT', { goal: 'Run 5k' }, alexPhone);
-  assert.equal((await req(tc, 'PUT', { followup: { outcome: 'partly', helped: SECRET, hindered: null, next: null } }, alexPhone)).status, 200);
 
   // A connected app can't change who is a grown-up (REST with its token, or through an import).
   const claude = (await createApiKey(db as any, 'Claude', 'admin', { kind: 'oauth' })).key;
@@ -165,49 +165,87 @@ test('marking a grown-up as a kid: logged, told to them, kept from connected app
   assert.equal((await req(`/api/members/${alex.id}`, 'PATCH', { grownUp: false }, claude)).status, 403);
   assert.equal((await req(`/api/members/${alex.id}`, 'PATCH', { grownUp: true, color: '#5B8DEE' }, claude)).status, 200, 'unchanged is fine');
   const file = (await req('/api/export')).json;
-  const flipped = { ...file, members: file.members.map((m: any) => (m.id === alex.id ? { ...m, grownUp: false } : m)) };
+  const flipped = { ...file, members: file.members.map((m: any) => (m.id === alex.id ? { ...m, grownUp: false } : m.id === leo.id ? { ...m, name: 'Leo B' } : m)) };
   assert.equal((await req('/api/import', 'POST', flipped, claude)).status, 200);
-  assert.equal((await req('/api/members')).json.find((m: any) => m.id === alex.id).grownUp, true, "an app's import leaves it");
-  assert.ok(!(await security()).some((e) => e.kind === 'member.grown_up'));
+  assert.equal((await member(alex.id)).grownUp, true, "an app's import leaves it");
 
-  // Sam's phone does it: one line in Security activity, one note for Alex.
+  // Alex has a phone of their own (full access): Sam's phone can't mark Alex as a kid, nor change anything else in that request.
+  const mine = await req(`/api/members/${alex.id}`, 'PATCH', { grownUp: false, color: '#000000' }, samPhone);
+  assert.equal(mine.status, 403);
+  assert.match(mine.json.error, /Alex .*only Alex can change this, from their own phone or computer/);
+  assert.deepEqual([(await member(alex.id)).grownUp, (await member(alex.id)).color], [true, '#5B8DEE'], 'nothing changed');
+
+  // Nor once Alex's phone is handed back, because now there's a private journal.
+  await req(jr(alex.id), 'POST', { text: SECRET, mood: '😊' }, alexPhone);
+  await req(tc, 'PUT', { goal: 'Run 5k' }, alexPhone);
+  assert.equal((await req(tc, 'PUT', { followup: { outcome: 'partly', helped: SECRET, hindered: null, next: null } }, alexPhone)).status, 200);
+  assert.equal((await req('/api/me/owner', 'PUT', { owner: 'shared' }, alexPhone)).status, 200);
+  const journal = await req(`/api/members/${alex.id}`, 'PATCH', { grownUp: false }, samPhone);
+  assert.equal(journal.status, 403);
+  assert.equal(journal.json.error, 'Alex has a private journal, so only Alex can change this, from their own phone or computer.');
+  assert.equal((await req(`/api/members/${alex.id}`, 'PATCH', { grownUp: false }, ADMIN)).status, 403, 'nor an unowned admin key');
+  assert.equal((await req('/api/me/owner', 'PUT', { owner: alex.id }, alexPhone)).status, 200);
+
+  // An import from Sam's phone can't do it either; everything else in the file still comes in.
+  const back = await req('/api/import', 'POST', flipped, samPhone);
+  assert.equal(back.status, 200, JSON.stringify(back.json));
+  assert.deepEqual(back.json.skipped.grownUp, [{ id: alex.id, name: 'Alex' }]);
+  assert.deepEqual([(await member(alex.id)).grownUp, (await member(leo.id)).name], [true, 'Leo B']);
+  assert.deepEqual(await flips(), [], 'refused attempts change nothing, so nothing is logged');
+  assert.ok(!notes().some((n) => n.title.includes('grown-up')));
+
+  // Alex's own phone can: it's logged, told to Alex, and Alex's journal follows a kid's defaults (not private).
   mock.timers.tick(5 * MINUTES);
-  const down = await req(`/api/members/${alex.id}`, 'PATCH', { grownUp: false }, samPhone);
+  const down = await req(`/api/members/${alex.id}`, 'PATCH', { grownUp: false }, alexPhone);
   assert.equal(down.status, 200, JSON.stringify(down.json));
-  assert.deepEqual((await security()).filter((e) => e.kind === 'member.grown_up').map((e) => e.summary), ['Alex is no longer marked as a grown-up']);
+  assert.deepEqual(await flips(), ['Alex is no longer marked as a grown-up']);
   assert.ok(notes().some((n) => n.title === 'Alex is no longer marked as a grown-up'));
-  assert.deepEqual(down.json.privateJournal, { on: true, allowed: true }, 'the journal stays private');
+  assert.deepEqual(down.json.privateJournal, { on: false, allowed: false });
 
-  // An everyday-access device made "Alex's" now opens nothing Alex wrote as a grown-up.
+  // What Alex wrote as a grown-up opens nowhere now: not on Alex's phone, Sam's or an everyday-access device made Alex's.
   const tablet = await keyFor(alex.id, 'display', 'Tablet');
-  const seen = await req(jr(alex.id), 'GET', undefined, tablet);
-  assert.equal(seen.status, 200);
-  assert.ok(!JSON.stringify(seen.json).includes(SECRET));
-  assert.deepEqual([entries(seen.json)[0].text, entries(seen.json)[0].private, seen.json.days[0].tempCheck.followupHidden], [null, true, true]);
-  assert.ok(!JSON.stringify((await req(tc, 'GET', undefined, tablet)).json).includes(SECRET));
+  for (const key of [alexPhone, samPhone, tablet]) {
+    const seen = await req(jr(alex.id), 'GET', undefined, key);
+    assert.equal(seen.status, 200);
+    assert.ok(!JSON.stringify(seen.json).includes(SECRET));
+    assert.deepEqual([entries(seen.json)[0].text, entries(seen.json)[0].private], [null, true]);
+    assert.ok(!JSON.stringify((await req(tc, 'GET', undefined, key)).json).includes(SECRET));
+  }
+  const made = entries((await req(jr(alex.id), 'GET', undefined, tablet)).json)[0];
   assert.equal((await req(jr(alex.id, `/${made.id}`), 'PATCH', { text: 'overwritten' }, tablet)).status, 403);
   assert.equal((await req(jr(alex.id, `/${made.id}`), 'DELETE', undefined, tablet)).status, 403);
-  assert.equal((await req(tc, 'PUT', { followup: { outcome: 'no' } }, tablet)).status, 403);
-  // Nor do parents' devices read what's written meanwhile: the tablet's entries are private too.
-  assert.equal((await req(jr(alex.id), 'POST', { text: 'from the tablet' }, tablet)).json.private, true);
-  assert.equal((await req(jr(alex.id), 'POST', { text: 'from Sam' }, samPhone)).status, 403);
+  // New entries are a kid's: not private unless a parent allows it.
+  assert.equal((await req(jr(alex.id), 'POST', { text: 'from the tablet' }, tablet)).json.private, false);
 
-  // The same through an import from a parent's device: logged and noted, never silent.
+  // Back to a grown-up (any parent may do that): Alex's phone reads everything again.
   await req(`/api/members/${alex.id}`, 'PATCH', { grownUp: true }, samPhone);
-  assert.equal((await req('/api/import', 'POST', flipped, samPhone)).status, 200);
-  assert.equal((await req('/api/members')).json.find((m: any) => m.id === alex.id).grownUp, false);
-  assert.deepEqual((await security()).filter((e) => e.kind === 'member.grown_up').map((e) => e.summary).reverse(),
-    ['Alex is no longer marked as a grown-up', 'Alex is now marked as a grown-up', 'Alex is no longer marked as a grown-up']);
-  assert.equal((await req(`/api/members/${leo.id}`, 'PATCH', { name: 'Leo', grownUp: false }, samPhone)).status, 200);
-  assert.equal((await security()).filter((e) => e.kind === 'member.grown_up').length, 3, 'nothing when it did not change');
-
-  // Back to a grown-up: Alex's phone reads everything again and sees every note; the tablet can't remove them.
-  await req(`/api/members/${alex.id}`, 'PATCH', { grownUp: true }, samPhone);
-  const mine = (await req(jr(alex.id), 'GET', undefined, alexPhone)).json;
-  assert.equal(entries(mine).find((e: any) => e.id === made.id).text, SECRET);
+  assert.equal(entries((await req(jr(alex.id), 'GET', undefined, alexPhone)).json).find((e: any) => e.id === made.id).text, SECRET);
   assert.equal((await req(tc, 'GET', undefined, alexPhone)).json.followup.helped, SECRET);
   const bell = ((await req('/api/notifications', 'GET', undefined, alexPhone)).json as { title: string }[]).map((n) => n.title);
   assert.ok(bell.includes('Alex is no longer marked as a grown-up') && bell.includes('Alex is now marked as a grown-up') && bell.includes('Tablet now belongs to Alex'), JSON.stringify(bell));
+  assert.equal((await req(`/api/members/${leo.id}`, 'PATCH', { name: 'Leo', grownUp: false }, samPhone)).status, 200);
+  assert.equal((await flips()).length, 2, 'nothing when it did not change');
+});
+
+test('ticked the wrong box: a grown-up with nothing private and no sign-in of their own can be marked a kid by any parent', async (t) => {
+  t.after(() => mock.timers.reset());
+  const { req, samPhone, security } = await setup();
+  const flips = async () => (await security()).filter((e) => e.kind === 'member.grown_up').map((e) => e.summary).reverse();
+  const maya = (await req('/api/members', 'POST', { name: 'Maya', color: '#C77DFF', grownUp: true }, samPhone)).json;
+  const down = await req(`/api/members/${maya.id}`, 'PATCH', { grownUp: false, needsApproval: true }, samPhone);
+  assert.equal(down.status, 200, JSON.stringify(down.json));
+  assert.deepEqual([down.json.grownUp, down.json.needsApproval, down.json.privateJournal], [false, true, { on: false, allowed: false }]);
+  assert.deepEqual(await flips(), ['Maya is no longer marked as a grown-up']);
+
+  // The same through an import from a parent's device: logged, never silent.
+  await req(`/api/members/${maya.id}`, 'PATCH', { grownUp: true }, samPhone);
+  const file = (await req('/api/export')).json;
+  const flipped = { ...file, members: file.members.map((m: any) => (m.id === maya.id ? { ...m, grownUp: false } : m)) };
+  const back = await req('/api/import', 'POST', flipped, samPhone);
+  assert.equal(back.status, 200, JSON.stringify(back.json));
+  assert.deepEqual(back.json.skipped.grownUp, []);
+  assert.equal((await req('/api/members')).json.find((m: any) => m.id === maya.id).grownUp, false);
+  assert.deepEqual(await flips(), ['Maya is no longer marked as a grown-up', 'Maya is now marked as a grown-up', 'Maya is no longer marked as a grown-up']);
 });
 
 test("an import can't add to or overwrite a journal that's private to someone else", async (t) => {

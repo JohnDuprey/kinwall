@@ -67,7 +67,7 @@ It keeps your words from:
 It doesn't keep your words from:
 
 * **whoever runs the server.** On a self-hosted Kinwall, anyone with `ENCRYPTION_KEY` and the database can decrypt every entry. On hosted Kinwall, the operator holds the key the family's key is made from.
-* **a parent who sets things up to read it.** Full access can say a phone is yours. Kinwall doesn't prevent that, but every change of whose device something is, or of who is a grown-up, goes into [Security activity](../using/sign-in-and-security.md#security-activity), which can't be cleared or flooded out, and a 🔒 note on your own devices that the device in question can't remove, so it can't happen quietly.
+* **a parent who sets things up to read it.** Full access can say a phone is yours. Kinwall doesn't prevent that, but once you have a private entry or a full-access device of your own, only you can mark yourself as a kid. Every change of whose device something is, or of who is a grown-up, goes into [Security activity](../using/sign-in-and-security.md#security-activity), which can't be cleared or flooded out, and a 🔒 note on your own devices that the device in question can't remove, so it can't happen quietly.
 * **someone holding your unlocked device.**
 
 Moods, sleep, feelings, whether you answered and goal check outcomes are still seen by parents: that's what keeps Insights and the energy battery working.

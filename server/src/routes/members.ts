@@ -7,8 +7,8 @@ import { hostTimezone } from '../env.ts';
 import { AvatarSchema, ErrorSchema, MemberInputSchema, MemberSchema, TEMP_CHECK_OFF, TRANSITIONS_OFF } from '../schemas.ts';
 import { parseMemberIds } from '../calendar-members.ts';
 import { balanceOf, pointTotalsStmt, type PointTotals } from '../stickers.ts';
-import { privacyOf, privateNow, type PrivacyRow } from '../journal-privacy.ts';
-import { actorOf, deviceOwner, isConnectedApp, requestKey } from '../auth.ts';
+import { privacyOf } from '../journal-privacy.ts';
+import { actorOf, deviceOwner, isConnectedApp, ownDevice, requestKey } from '../auth.ts';
 import type { Context } from 'hono';
 import type { KinwallStatement } from '../db.ts';
 import { recordNotification } from '../notify.ts';
@@ -216,18 +216,32 @@ membersRoutes.openapi(
 // theirs (auth.ts validOwner), so changing it is never silent and never a connected app's to do
 // (PATCH below and POST /api/import, routes/data.ts). It leaves a line in Security activity, a
 // privacy note for that person and a push to parent devices (while they're marked a kid, their own
-// phone isn't "theirs", so the note alone would wait). A private journal stays private when a
-// grown-up is marked a kid: new entries don't open on parents' devices until a parent turns that off
-// (PUT .../journal/privacy, which says so too), and what they wrote before stays theirs alone
-// (journal-privacy.ts privateLevel).
+// phone isn't "theirs", so the note alone would wait). Marking a grown-up as a kid is theirs alone
+// (their own full-access device) once there's something of theirs to protect (kidRefusal); before
+// that ("I ticked the wrong box") any parent may. Afterwards their journal follows a kid's defaults
+// (not private until a parent allows it), and what they wrote in private as a grown-up opens nowhere
+// until they're a grown-up again, on their own full-access device (journal-privacy.ts privateLevel).
 export const APP_GROWN_UP = { error: "Connected apps can't change who is a grown-up. Do this from a parent's own device." };
+/** Why `m` (a grown-up) can't be marked as a kid by this request, or null when it can: it's their
+ * own full-access device, or they have no private journal entries or goal-check days written as a
+ * grown-up and no full-access sign-in (API key, passkey, app sign-in) of their own. A refusal
+ * changes nothing, so it isn't logged. */
+export async function kidRefusal(c: Context<{ Bindings: Env }>, m: { id: string; name: string }): Promise<string | null> {
+  if ((await requestKey(c))?.scope === 'admin' && (await ownDevice(c)) === m.id) return null;
+  const has = await c.env.DB.prepare(`SELECT
+      EXISTS (SELECT 1 FROM journal_entries WHERE member_id = ? AND private = 2) OR EXISTS (SELECT 1 FROM temp_checks WHERE member_id = ? AND private = 2) AS journal,
+      EXISTS (SELECT 1 FROM api_keys WHERE owner = ? AND scope = 'admin') OR EXISTS (SELECT 1 FROM passkeys WHERE owner = ?) OR EXISTS (SELECT 1 FROM oauth_grants WHERE owner = ? AND scope = 'admin') AS signin`)
+    .bind(m.id, m.id, m.id, m.id, m.id).first<{ journal: number; signin: number }>();
+  const only = `so only ${m.name} can change this, from their own phone or computer.`;
+  return has?.journal ? `${m.name} has a private journal, ${only}` : has?.signin ? `${m.name} signs in with full access, ${only}` : null;
+}
 const grownUpTitle = (name: string, grownUp: boolean) => (grownUp ? `${name} is now marked as a grown-up` : `${name} is no longer marked as a grown-up`);
-/** For the batch that changes `m` (as it was) to `grownUp`. */
-export async function grownUpChangeStmts(c: Context<{ Bindings: Env }>, m: PrivacyRow & { id: string }, grownUp: boolean, name = m.name): Promise<KinwallStatement[]> {
+/** For the batch that changes member `id` to `grownUp`. A kid's journal starts at a kid's defaults. */
+export async function grownUpChangeStmts(c: Context<{ Bindings: Env }>, id: string, grownUp: boolean, name: string): Promise<KinwallStatement[]> {
   const db = c.env.DB;
   return [
-    ...(!grownUp && privateNow(m) ? [db.prepare('UPDATE members SET journal_private = 1, journal_private_allowed = 1 WHERE id = ?').bind(m.id)] : []),
-    ...securityEventStmts(db, { kind: 'member.grown_up', summary: grownUpTitle(name, grownUp), by: await actorOf(c), about: m.id }),
+    ...(grownUp ? [] : [db.prepare('UPDATE members SET journal_private = NULL, journal_private_allowed = 0 WHERE id = ?').bind(id)]),
+    ...securityEventStmts(db, { kind: 'member.grown_up', summary: grownUpTitle(name, grownUp), by: await actorOf(c), about: id }),
   ];
 }
 /** After that batch: tell them, and parent devices. */
@@ -236,7 +250,7 @@ export async function noteGrownUpChange(c: Context<{ Bindings: Env }>, id: strin
     title: grownUpTitle(name, grownUp),
     body: grownUp
       ? `Changed on a parent's device. ${name}'s private journal entries open only on ${name}'s own phone or computer.`
-      : `Changed on a parent's device. What ${name} wrote in private stays private. A kid's device can now be ${name}'s, and parents decide whether new entries can be private.`,
+      : `What ${name} wrote in private as a grown-up stays private. It opens again only on ${name}'s own phone or computer, once ${name} is a grown-up again. New entries aren't private unless a parent allows it.`,
   };
   await recordNotification(c.env.DB, { kind: 'privacy', ...note, url: `/#/journal/${id}`, memberIds: [id], source: 'system' });
   pushGrownUps(c, note);
@@ -247,7 +261,7 @@ membersRoutes.openapi(
     method: 'patch',
     path: '/api/members/{id}',
     tags: ['Members'],
-    summary: "Update a family member. Changing grownUp is for the family's own devices (not connected apps); it's logged in Security activity and that person gets a privacy note.",
+    summary: "Update a family member. Changing grownUp is for the family's own devices (not connected apps); it's logged in Security activity and that person gets a privacy note. A grown-up with a private journal or a full-access sign-in of their own can be marked as a kid only from their own device.",
     security: [{ Bearer: [] }],
     request: {
       params: z.object({ id: z.string() }),
@@ -255,7 +269,7 @@ membersRoutes.openapi(
     },
     responses: {
       200: { description: 'ok', content: { 'application/json': { schema: MemberSchema } } },
-      403: { description: 'a connected app changing grownUp', content: { 'application/json': { schema: ErrorSchema } } },
+      403: { description: "a connected app changing grownUp, or marking a grown-up as a kid from a device that isn't theirs once they have a private journal or a full-access sign-in", content: { 'application/json': { schema: ErrorSchema } } },
       404: { description: 'not found', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
@@ -266,6 +280,8 @@ membersRoutes.openapi(
     if (!existing) return c.json({ error: 'not found' }, 404);
     const flipped = body.grownUp !== undefined && body.grownUp !== !!existing.grown_up;
     if (flipped && (await isConnectedApp(c))) return c.json(APP_GROWN_UP, 403);
+    const refused = flipped && !body.grownUp && (await kidRefusal(c, existing));
+    if (refused) return c.json({ error: refused }, 403);
     const updated: MemberRow = {
       ...existing,
       name: body.name ?? existing.name,
@@ -279,15 +295,14 @@ membersRoutes.openapi(
       temp_check: body.tempCheck ? JSON.stringify(body.tempCheck) : existing.temp_check,
     };
     if (updated.grown_up) updated.needs_approval = 0; // a grown-up's chores never wait for an OK
-    const privacy = { name: existing.name, grown_up: existing.grown_up ?? 0, journal_private: existing.journal_private ?? null, journal_private_allowed: existing.journal_private_allowed ?? 0 };
-    const trail = flipped ? await grownUpChangeStmts(c, { id, ...privacy }, !!updated.grown_up, updated.name) : [];
+    const trail = flipped ? await grownUpChangeStmts(c, id, !!updated.grown_up, updated.name) : [];
     await c.env.DB.batch([
       c.env.DB.prepare('UPDATE members SET name = ?, color = ?, avatar = ?, birthday = ?, sort = ?, grown_up = ?, needs_approval = ?, transitions = ?, temp_check = ? WHERE id = ?')
         .bind(updated.name, updated.color, updated.avatar, updated.birthday, updated.sort, updated.grown_up ?? 0, updated.needs_approval ?? 0, updated.transitions, updated.temp_check ?? null, id),
       ...trail,
     ]);
     if (flipped) {
-      if (!updated.grown_up && privateNow(privacy)) Object.assign(updated, { journal_private: 1, journal_private_allowed: 1 });
+      if (!updated.grown_up) Object.assign(updated, { journal_private: null, journal_private_allowed: 0 });
       await noteGrownUpChange(c, id, updated.name, !!updated.grown_up);
     }
     emit(c, 'member.changed', { id });

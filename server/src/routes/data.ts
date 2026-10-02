@@ -26,7 +26,7 @@ import { RECONNECT_MESSAGE } from '../sync.ts';
 import { decryptConfig, encryptConfig } from '../crypto.ts';
 import { isSafeFeedUrl } from '../outbound.ts';
 import type { CategoryRow } from '../calendar-categories.ts';
-import { grownUpChangeStmts, isAdultBirthday, noteGrownUpChange, parseTempCheck, parseTransitions } from './members.ts';
+import { grownUpChangeStmts, isAdultBirthday, kidRefusal, noteGrownUpChange, parseTempCheck, parseTransitions } from './members.ts';
 import { journalOwner, privateNow, type PrivacyRow } from '../journal-privacy.ts';
 import { isConnectedApp } from '../auth.ts';
 import { DrainedSchema, FollowupSchema, openDrained, openTempCheck, readCustom, sealCustom, sealTempCheck, type TempCheckRow } from './temp-check.ts';
@@ -479,7 +479,8 @@ const ImportResultSchema = z
     }),
     // Synced calendars waiting to be reconnected (imported placeholders, from this or an earlier import).
     needsReconnect: z.array(z.object({ id: z.string(), kind: z.string(), name: z.string() })),
-    skipped: z.object({ passkeys: z.number(), webhooks: z.number() }),
+    // grownUp: members the file marks as kids who stay grown-ups (PATCH /api/members/{id} would refuse it).
+    skipped: z.object({ passkeys: z.number(), webhooks: z.number(), grownUp: z.array(z.object({ id: z.string(), name: z.string() })) }),
   })
   .openapi('ImportResult');
 
@@ -639,8 +640,17 @@ dataRoutes.openapi(
     const today = new Date().toISOString().slice(0, 10);
     // Who is a grown-up changes who reads a journal: a connected app's import leaves it as it is for
     // members already here, and anyone else's change is logged and noted (routes/members.ts).
+    // Marking a grown-up as a kid follows PATCH's rule (kidRefusal): when refused they stay a grown-up
+    // and the rest of the file still comes in (skipped.grownUp).
     const app = await isConnectedApp(c);
-    const grownUp = (m: (typeof body.members)[number]) => (app && here.has(m.id) ? !!here.get(m.id)!.grown_up : (m.grownUp ?? isAdultBirthday(m.birthday, today)));
+    const asFiled = (m: (typeof body.members)[number]) => m.grownUp ?? isAdultBirthday(m.birthday, today);
+    const keptGrownUp: { id: string; name: string }[] = [];
+    for (const m of body.members) {
+      const was = here.get(m.id);
+      if (!app && was?.grown_up && !asFiled(m) && (await kidRefusal(c, was))) keptGrownUp.push({ id: m.id, name: was.name });
+    }
+    const kept = new Set(keptGrownUp.map((m) => m.id));
+    const grownUp = (m: (typeof body.members)[number]) => ((app || kept.has(m.id)) && here.has(m.id) ? !!here.get(m.id)!.grown_up : asFiled(m));
     const flips = body.members.filter((m) => here.has(m.id) && grownUp(m) !== !!here.get(m.id)!.grown_up);
     const privateAs = new Map(body.members.map((m) => [m.id, grownUp(m) ? 2 : 1])); // journal-privacy.ts privateLevel
     // Health entries are sealed again before anything is written (no key: the import fails, nothing stored).
@@ -670,7 +680,7 @@ dataRoutes.openapi(
     const writes = [
       ...settingsWrites(db, settings.data),
       ...upserts(db, 'members', 'id', body.members.map((m, i) => ({ id: m.id, name: m.name, color: m.color, avatar: m.avatar, birthday: m.birthday, sort: m.sort, grown_up: grownUp(m) ? 1 : 0, needs_approval: m.needsApproval && !grownUp(m) ? 1 : 0, transitions: m.transitionReminders ? JSON.stringify(m.transitionReminders) : null, reward_goal: m.rewardGoalId, temp_check: m.tempCheck ? JSON.stringify(m.tempCheck) : null, ...(healthHidden ? {} : { temp_check_feelings: memberFeelings.get(m.id) }), created_at: stamp(i) })), keepCreated),
-      ...(await Promise.all(flips.map((m) => grownUpChangeStmts(c, here.get(m.id)!, grownUp(m), m.name)))).flat(),
+      ...(await Promise.all(flips.map((m) => grownUpChangeStmts(c, m.id, grownUp(m), m.name)))).flat(),
       ...upserts(
         db,
         'categories',
@@ -1033,6 +1043,7 @@ dataRoutes.openapi(
         skipped: {
           passkeys: body.passkeys.length,
           webhooks: body.webhooks.length,
+          grownUp: keptGrownUp,
         },
       },
       200,

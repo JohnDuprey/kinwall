@@ -183,7 +183,7 @@ test('import: export -> fresh instance -> import -> export round-trips; a second
   assert.deepEqual(await res.json(), {
     imported: { members: 2, categories: 1, contactCategories: 13, contacts: 0, calendars: 3, events: 2, eventMemberOverrides: 1, eventCategoryOverrides: 1, eventTravelOverrides: 1, eventSeriesMemberOverrides: 1, eventSeriesCategoryOverrides: 1, hiddenEvents: 0, chores: 2, choreCompletions: 1, choreLibrary: 0, lists: 1, listItems: 2, listItemSteps: 2, notes: 2, pointEntries: 2, stickerPacks: 1, checkIns: 0, tempChecks: 0, journalEntries: 0, medications: 0, medicationLog: 0, scrapbook: 2, rewards: 0, rewardRedemptions: 0, trackers: 0, recipes: 0, meals: 0, mealShoppingSources: 0, itemMemory: 1, storeAisles: 1, itemNames: 2, itemBarcodes: 0, itemTags: 2 },
     needsReconnect: [{ id: byName('Work').id, kind: 'google', name: 'Work' }], // the ICS feed came back with its url
-    skipped: { passkeys: 1, webhooks: 1 },
+    skipped: { passkeys: 1, webhooks: 1, grownUp: [] },
   });
   const after = await exported(target);
   const { exportedAt, ...expected } = file;

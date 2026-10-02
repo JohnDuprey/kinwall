@@ -630,7 +630,7 @@ export interface ImportResult {
     chores: number; choreCompletions: number; lists: number; listItems: number; listItemSteps?: number
   }
   needsReconnect: { id: string; kind: string; name: string }[]
-  skipped: { passkeys: number; webhooks: number }
+  skipped: { passkeys: number; webhooks: number; grownUp?: { id: string; name: string }[] } // grownUp: kept as grown-ups (only they can mark themselves a kid)
 }
 
 /** One line of Settings → Access → Security activity (GET /api/security-events). */
