@@ -537,7 +537,33 @@ test('sync: a tick that keeps failing the same way announces the error once', as
     assert.equal((await syncCalendarTick(env, cal.id)).ok, false);
     await settle();
     assert.deepEqual(hooks, ['calendar.synced'], 'the same error again is not news');
-    assert.equal(await rev(env), r);
+    assert.equal(await rev(env), r + 1, "the second in a row refreshes screens: parents' Home warns now");
+    assert.equal((await syncCalendarTick(env, cal.id)).ok, false);
+    await settle();
+    assert.deepEqual(hooks, ['calendar.synced']);
+    assert.equal(await rev(env), r + 1, 'the third is quiet');
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+test('sync: failed syncs in a row are counted, and a good one resets the count', async () => {
+  const env = makeEnv();
+  const request = makeApp(env);
+  const realFetch = globalThis.fetch;
+  const good = makeIcsFetch();
+  let down = true;
+  globalThis.fetch = (async (...a: Parameters<typeof fetch>) => (down ? new Response('nope', { status: 503 }) : good())) as typeof fetch;
+  try {
+    const cal = await (await request('/api/calendars', { method: 'POST', body: JSON.stringify({ kind: 'ics', name: 'Feed', url: 'https://example.test/feed.ics' }) })).json() as any;
+    const failures = async () => ((await (await request('/api/calendars')).json()) as any[]).find((c) => c.id === cal.id).syncFailures;
+    assert.equal((await syncCalendarTick(env, cal.id)).ok, false);
+    assert.equal(await failures(), 1, 'one blip');
+    assert.equal((await syncCalendarTick(env, cal.id)).ok, false);
+    assert.equal(await failures(), 2, 'twice in a row: Home warns');
+    down = false;
+    assert.equal((await syncCalendarTick(env, cal.id)).ok, true);
+    assert.equal(await failures(), 0);
   } finally {
     globalThis.fetch = realFetch;
   }

@@ -301,6 +301,7 @@ export interface CalendarEntry {
   canEditEvents?: boolean // this device may change its events (server-decided; absent = yes)
   lastSyncedAt: string | null
   lastError: string | null
+  syncFailures?: number // failed syncs in a row; 0 after a good one
   needsReconnect?: boolean // imported placeholder: settings kept, not syncing until reconnected
   filter?: CalendarFilter // which events the family sees (calendarFilter.ts); absent = all
 }

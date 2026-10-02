@@ -987,10 +987,11 @@ function EventDetailSheet({ event, members, categories, calendars, canEdit, tz, 
   )
 }
 
-/** Parents' devices: calendars that stopped syncing (the last sync failed, or an imported one was
- * never reconnected), so someone repairs the connection before the board quietly goes stale. */
+/** Parents' devices: calendars that stopped syncing (two failed syncs in a row, so one network blip
+ * doesn't count, or an imported one never reconnected), so someone repairs the connection before
+ * the board quietly goes stale. Several make one warning. */
 function SyncAlert({ calendars }: { calendars: CalendarEntry[] }) {
-  const broken = calendars.filter(c => c.enabled && c.kind !== 'local' && (c.lastError || c.needsReconnect))
+  const broken = calendars.filter(c => c.enabled && c.kind !== 'local' && ((c.lastError && (c.syncFailures ?? 0) >= 2) || c.needsReconnect))
   if (!broken.length) return null
   const names = broken.map(c => c.name)
   return (

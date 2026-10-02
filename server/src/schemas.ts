@@ -458,6 +458,7 @@ export const CalendarSchema = z
     canEditEvents: z.boolean(), // whether the key asking may change its events (see auth.ts canChangeEvents)
     lastSyncedAt: z.string().nullable(),
     lastError: z.string().nullable(),
+    syncFailures: z.number().int().openapi({ description: 'Failed syncs in a row; 0 after a good one.' }),
     needsReconnect: z.boolean(), // imported placeholder: settings kept, not syncing until reconnected
     filter: CalendarFilterSchema,
   })

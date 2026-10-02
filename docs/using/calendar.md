@@ -4,7 +4,7 @@
 
 ![Board view on the wall iPad](../screenshots/ipad-board.png)
 
-**A calendar that stops syncing:** on a parent's device, Home shows a warning at the top ("⚠️ The Work calendar isn't syncing") when a connected calendar's last sync failed, or an imported one still needs reconnecting. **Repair the connection** opens Settings → Calendars, where the calendar shows what went wrong. The warning goes away once it syncs again. Wall screens and kids' devices don't show it.
+**A calendar that stops syncing:** on a parent's device, Home shows a warning at the top ("⚠️ The Work calendar isn't syncing") when a connected calendar has failed to sync twice in a row (one blip doesn't count), or an imported one still needs reconnecting. **Repair the connection** opens Settings → Calendars, where the calendar shows what went wrong. The warning goes away once it syncs again. Wall screens and kids' devices don't show it.
 
 ## Views
 
