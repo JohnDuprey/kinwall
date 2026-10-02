@@ -3032,7 +3032,11 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
 .news-face-sm { width: 22px; height: 22px; font-size: 0.75rem; box-shadow: 0 0 0 2px var(--card); }
 .news-face-sm + .news-face-sm { margin-left: -6px; }
 .news-photos { display: flex; gap: 6px; margin-top: 10px; }
-.news-photos img { flex: 1; min-width: 0; max-width: 220px; aspect-ratio: 4 / 3; object-fit: cover; border-radius: var(--radius-sm); background: var(--bg-alt); }
+/* Each picture is a button that opens it full size (a "full" Sheet); tap the picture or X to close. */
+.news-photo { flex: 1; min-width: 0; max-width: 220px; padding: 0; border: 0; background: none; border-radius: var(--radius-sm); }
+.news-photos img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: var(--radius-sm); background: var(--bg-alt); }
+.news-photo-full { display: block; width: 100%; height: 100%; padding: 8px; border: 0; background: none; }
+.news-photo-full img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .news-foot { display: flex; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 .news-reacts { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; min-width: 0; }
 .news-react { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; min-width: 44px; justify-content: center; padding: 2px 12px; border-radius: 999px; border: 2px solid var(--border); background: var(--bg-alt); color: var(--text); font: inherit; font-size: 1rem; }
@@ -3094,6 +3098,7 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
   /* Switches: a soft accent ring (the dark "off" track keeps its own inset ring). */
   .switch:not(:disabled):hover { box-shadow: 0 0 0 3px var(--accent-soft); }
   .profile-avatar-btn:hover .profile-avatar-edit { box-shadow: 0 0 0 2px var(--accent); }
+  .news-photo:hover img { box-shadow: 0 0 0 2px var(--accent); }
   :root[data-theme="dark"] .switch:not(.on, :disabled):hover { box-shadow: inset 0 0 0 2px var(--text-dim), 0 0 0 3px var(--accent-soft); }
   /* Events carry an inline background, so the wash is an inset shadow over it instead. */
   :where(.timed-event, .event-chip, .allday-chip, .month-chip):hover { box-shadow: inset 0 0 0 100vmax color-mix(in srgb, var(--text) 12%, transparent); }

@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from './AppContext.tsx'
 import { api, ApiError } from './api.ts'
 import type { Member, Newscast, NewscastItem, NewscastReaction } from './types.ts'
-import { asYou, daySections, newCount, weekDigest } from './newscast.ts'
+import { asYou, daySections, newCount, pictureAlt, weekDigest } from './newscast.ts'
 import { formatTime } from './timeFormat.ts'
 import { inkFor } from './color.ts'
 import { useMediaQuery } from './useIsPhone.ts'
@@ -171,6 +171,7 @@ function NewsItem({ item, byId, me, parent, calm, tz, paused, onReact, onModerat
   const post = item.post
   const mine = !!me && item.memberId === me
   const [menu, setMenu] = useState(false)
+  const [big, setBig] = useState<NewscastItem['photos'][number] | null>(null) // a picture open full size
   if (post?.removed) {
     return (
       <article className="news-item news-removed">
@@ -180,6 +181,7 @@ function NewsItem({ item, byId, me, parent, calm, tz, paused, onReact, onModerat
     )
   }
   const title = asYou(item, me, m?.name)
+  const alt = pictureAlt(item)
   // "More…": the author deletes their own post; a parent removes any, pauses posting, or leaves someone out.
   const actions: [string, string][] = [
     ...(post && mine ? [['delete', 'Delete my post']] as [string, string][] : []),
@@ -204,7 +206,11 @@ function NewsItem({ item, byId, me, parent, calm, tz, paused, onReact, onModerat
       </div>
       {!calm && item.photos.length > 0 && (
         <div className="news-photos">
-          {item.photos.slice(0, 3).map(p => <img key={p.id} src={api.photoImageUrl(p)} alt={item.detail?.replace(/[“”]/g, '') || 'Family photo'} loading="lazy" />)}
+          {item.photos.slice(0, 3).map(p => (
+            <button key={p.id} type="button" className="news-photo" aria-haspopup="dialog" aria-label={`Show full size: ${alt}`} onClick={() => setBig(p)}>
+              <img src={api.photoImageUrl(p)} alt="" loading="lazy" />
+            </button>
+          ))}
         </div>
       )}
       <div className="news-foot">
@@ -228,6 +234,13 @@ function NewsItem({ item, byId, me, parent, calm, tz, paused, onReact, onModerat
           </button>
         )}
       </div>
+      {big && (
+        <Sheet title={alt} variant="full" onClose={() => setBig(null)}>
+          <button type="button" className="news-photo-full" aria-label="Close" onClick={() => setBig(null)}>
+            <img src={api.photoImageUrl(big)} alt={alt} />
+          </button>
+        </Sheet>
+      )}
       {menu && (
         <Sheet title={post ? `${mine ? 'Your' : `${m?.name ?? 'Someone'}'s`} post` : title} variant="dialog" onClose={() => setMenu(false)}>
           <div className="news-menu">

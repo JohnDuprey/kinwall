@@ -47,3 +47,8 @@ export const newCount = (shown: NewscastItem[], fresh: NewscastItem[]) => {
 /** On a person's own device, things about them read "You finished 4 chores". Posts keep their words. */
 export const asYou = (i: NewscastItem, me: string | null, name: string | undefined) =>
   i.kind !== 'post' && me && i.memberId === me && name && i.title.startsWith(`${name} `) ? `You ${i.title.slice(name.length + 1)}` : i.title
+
+/** What a feed picture shows, for its alt text and full-size view. A single drawing has no detail,
+ * so its title ("Maya saved a drawing: “Rocket”") says it. */
+export const pictureAlt = (i: NewscastItem) =>
+  (i.detail || (i.kind === 'drawings' ? i.title : '')).replace(/[“”]/g, '') || 'Family photo'

@@ -33,6 +33,8 @@ Each day is its own section: **Today**, **Yesterday**, then the weekday, then th
 
 Times show beside each item. On someone's own device, things about them read "You finished 4 chores".
 
+Tap a photo or drawing to see it full size; tap it again, tap **X** or press Escape to close it.
+
 **No jumping.** Newscast checks for changes only while it's on screen. When something new arrives, a quiet **New: 2 · Show** line appears at the top; the feed changes when you tap it. Reactions and removals update in place.
 
 **This week, together** (beside the feed on wide screens, below it on phones) shows family totals for the last 7 days: chores done, books finished, photos and drawings, rewards. Totals only; no one is ranked here.

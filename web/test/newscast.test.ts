@@ -1,7 +1,7 @@
 // node --test test/ (npm test). Newscast's day sections, family totals, "New: N" and "You".
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { PER_DAY, asYou, daySections, newCount, weekDigest } from '../src/newscast.ts'
+import { PER_DAY, asYou, daySections, newCount, pictureAlt, weekDigest } from '../src/newscast.ts'
 import type { NewscastItem } from '../src/types.ts'
 
 const item = (key: string, date: string, kind: NewscastItem['kind'] = 'chores', extra: Partial<NewscastItem> = {}): NewscastItem => ({
@@ -45,4 +45,10 @@ test('asYou: on their own device, a person reads "You"', () => {
   assert.equal(asYou(item('a', today, 'chores', { title: 'Leo finished 4 chores' }), 'm3', 'Leo'), 'Leo finished 4 chores')
   assert.equal(asYou(item('a', today, 'birthday', { title: 'Happy birthday, Leo!' }), 'm4', 'Leo'), 'Happy birthday, Leo!')
   assert.equal(asYou(item('a', today, 'post', { title: 'Leo is the best' }), 'm4', 'Leo'), 'Leo is the best', "a post's words stay as written")
+})
+
+test('pictureAlt: names the picture for its full-size view, a drawing by its title', () => {
+  assert.equal(pictureAlt(item('d', today, 'drawings', { title: 'Maya saved a drawing: “Our garden at night”' })), 'Maya saved a drawing: Our garden at night')
+  assert.equal(pictureAlt(item('p', today, 'photos', { detail: '“Beach day”' })), 'Beach day')
+  assert.equal(pictureAlt(item('x', today, 'post')), 'Family photo')
 })
