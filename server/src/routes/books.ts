@@ -13,7 +13,72 @@ const USER_AGENT = 'Kinwall/1.0 (https://kinwall.family; self-hosted family cale
 const coverUrl = (id: number) => `https://covers.openlibrary.org/b/id/${id}-M.jpg`;
 const json = <T extends z.ZodType>(schema: T) => ({ 'application/json': { schema } });
 
-type Doc = { title?: string; author_name?: string[]; first_publish_year?: number; number_of_pages_median?: number; cover_i?: number };
+type Doc = {
+  key?: string; title?: string; author_name?: string[]; first_publish_year?: number; number_of_pages_median?: number; cover_i?: number
+  isbn?: string[]; series_name?: string[]; series_position?: string[]; lexile?: number[]; subject?: string[]
+};
+export type BookResult = z.infer<typeof BookResultSchema>;
+const FIELDS = 'key,title,author_name,first_publish_year,number_of_pages_median,cover_i,isbn,series_name,series_position,lexile,subject';
+
+// Open Library has no genre, only free-form subjects in many languages ("Katzen", "Fantasy Fiction",
+// "nyt:hardcover-fiction=2021-05-23"). These pick a few clean genres out, in this order of priority.
+const GENRES: [string, RegExp][] = [
+  ['Fantasy', /\bfantasy\b|\bmagic\b|\bdragons?\b|\bwizards?\b/i],
+  ['Science fiction', /science[ -]?fiction|\bsci-?fi\b/i],
+  ['Mystery', /\bmyster(y|ies)\b|\bdetective\b/i],
+  ['Adventure', /\badventure/i],
+  ['Animals', /\banimals?\b|\bcats?\b|\bdogs?\b|\bhorses?\b/i],
+  ['Historical fiction', /historical fiction/i],
+  ['Humor', /\bhumou?r|\bfunny\b/i],
+  ['Graphic novel', /graphic novels?|\bcomics?\b/i],
+  ['Picture book', /picture books?/i],
+  ['Poetry', /\bpoetry\b|\bpoems\b/i],
+  ['Biography', /\b(auto)?biograph|\bmemoir/i],
+  ['Romance', /\bromance\b|love stories/i],
+  ['Horror', /\bhorror\b|\bghost stories\b/i],
+  ['Sports', /\bsports?\b|\bsoccer\b|\bbaseball\b|\bfootball\b|\bbasketball\b/i],
+];
+/** Up to three genres from a book's subjects, in GENRES order. */
+export function genresFrom(subjects: string[] | undefined): string[] {
+  const text = (subjects ?? []).slice(0, 60).join(' | ');
+  return GENRES.filter(([, re]) => re.test(text)).map(([g]) => g).slice(0, 3);
+}
+
+/** Open Library's books for a search (title, author or ISBN), shaped for Kinwall; throws when unreachable. */
+export async function searchOpenLibrary(q: string, limit = 8): Promise<BookResult[]> {
+  const params = new URLSearchParams({ q, limit: String(limit), fields: FIELDS });
+  const res = await fetch(`https://openlibrary.org/search.json?${params}`, { headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' }, signal: AbortSignal.timeout(TIMEOUT_MS) });
+  if (!res.ok) throw new Error(`Open Library answered ${res.status}`);
+  const { docs = [] } = (await res.json()) as { docs?: Doc[] };
+  return docs.filter((d) => d.title).map((d) => {
+    const isbn = d.isbn?.find((i) => i.length === 13) ?? d.isbn?.[0];
+    return {
+      title: d.title!,
+      ...(d.author_name?.[0] && { author: d.author_name[0] }),
+      ...(d.first_publish_year && { year: d.first_publish_year }),
+      ...(d.number_of_pages_median && { pages: d.number_of_pages_median }),
+      ...(d.cover_i && { coverId: d.cover_i, coverUrl: coverUrl(d.cover_i) }),
+      ...(isbn && { isbn }),
+      ...(d.series_name?.[0] && { series: d.series_name[0], ...(d.series_position?.[0] && { seriesNumber: d.series_position[0] }) }),
+      ...(d.lexile?.[0] !== undefined && { lexile: d.lexile[0] }),
+      ...(genresFrom(d.subject).length && { genres: genresFrom(d.subject) }),
+      ...(d.key?.startsWith('/works/') && { workKey: d.key }),
+    };
+  });
+}
+
+/** A work's description (its blurb), or null; never throws. */
+export async function workDescription(workKey: string): Promise<string | null> {
+  try {
+    const res = await fetch(`https://openlibrary.org${workKey}.json`, { headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' }, signal: AbortSignal.timeout(TIMEOUT_MS) });
+    if (!res.ok) return null;
+    const { description } = (await res.json()) as { description?: string | { value?: string } };
+    const text = (typeof description === 'string' ? description : description?.value)?.trim();
+    return text ? text.slice(0, 4000) : null;
+  } catch {
+    return null;
+  }
+}
 
 booksRoutes.openapi(
   createRoute({
@@ -33,20 +98,7 @@ booksRoutes.openapi(
     const { q } = c.req.valid('query');
     if (!(await checkRate(c.env.DB, 'books', 30, 60_000))) return c.json({ error: 'Too many searches - try again in a minute' }, 429);
     try {
-      const params = new URLSearchParams({ q, limit: '8', fields: 'title,author_name,first_publish_year,number_of_pages_median,cover_i' });
-      const res = await fetch(`https://openlibrary.org/search.json?${params}`, { headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' }, signal: AbortSignal.timeout(TIMEOUT_MS) });
-      if (!res.ok) throw new Error(`Open Library answered ${res.status}`);
-      const { docs = [] } = (await res.json()) as { docs?: Doc[] };
-      return c.json(
-        docs.filter((d) => d.title).map((d) => ({
-          title: d.title!,
-          ...(d.author_name?.[0] && { author: d.author_name[0] }),
-          ...(d.first_publish_year && { year: d.first_publish_year }),
-          ...(d.number_of_pages_median && { pages: d.number_of_pages_median }),
-          ...(d.cover_i && { coverId: d.cover_i, coverUrl: coverUrl(d.cover_i) }),
-        })),
-        200,
-      );
+      return c.json(await searchOpenLibrary(q), 200);
     } catch (err) {
       console.error('book search failed', err instanceof Error ? err.message : err);
       return c.json({ error: 'Book search is unavailable right now' }, 502);

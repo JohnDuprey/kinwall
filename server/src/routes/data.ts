@@ -15,6 +15,7 @@ import { readSettings, settingsWrites } from './settings.ts';
 import { toApi as categoryToApi } from './categories.ts';
 import { toApi as choreToApi, type ChoreRow } from './chores.ts';
 import { LibraryChoreSchema, type LibraryRow } from './chore-library.ts';
+import { toLibraryApi, type LibraryRow as LibraryBookRow } from './library.ts';
 import { toApi as listToApi, toItemApi, toGroupApi, groupSteps, type ListRow, type ListItemRow, type ListItemStepRow, type ListGroupRow } from './lists.ts';
 import { toApi as webhookToApi, type WebhookRow } from './webhooks.ts';
 import { toNoteApi, type NoteRow } from './notes.ts';
@@ -59,6 +60,7 @@ import {
   SettingsPatchSchema,
   SettingsSchema,
   WebhookSchema,
+  LibraryBookSchema,
 } from '../schemas.ts';
 
 export const dataRoutes = createRouter();
@@ -178,6 +180,8 @@ const ExportSchema = z
     storeAisles: z.array(z.object({ store: z.string(), aisles: z.array(z.string()) })),
     // Names to autocomplete on shopping lists (0041): the spelling last used and how often.
     itemNames: z.array(z.object({ catalog: z.enum(CATALOGS).optional(), nameKey: z.string(), title: z.string(), uses: z.number(), lastUsed: z.string() })),
+    // The family's library (migration 0089); readers come from the trackers' bookId.
+    libraryBooks: z.array(LibraryBookSchema.omit({ readers: true })),
     // A scanned product's name, per catalog (migration 0085).
     itemBarcodes: z.array(z.object({ catalog: z.enum(CATALOGS), barcode: z.string().regex(/^\d{8,14}$/), title: z.string().min(1), updatedAt: z.string() })),
     // Grocery catalog categories (0070): the family's own groupings per item name, in order.
@@ -377,6 +381,7 @@ dataRoutes.openapi(
           .map((r) => ({ catalog: r.catalog, nameKey: r.name_key, store: r.store, category: r.category, aisle: r.aisle, updatedAt: r.updated_at })),
         itemNames: (await db.prepare('SELECT catalog, name_key, title, uses, last_used FROM item_names ORDER BY catalog, name_key').all<{ catalog: Catalog; name_key: string; title: string; uses: number; last_used: string }>()).results
           .map((r) => ({ catalog: r.catalog, nameKey: r.name_key, title: r.title, uses: r.uses, lastUsed: r.last_used })),
+        libraryBooks: (await db.prepare('SELECT * FROM library_books ORDER BY title COLLATE NOCASE, created_at').all<LibraryBookRow>()).results.map((r) => { const { readers: _, ...b } = toLibraryApi(r); return b; }),
         itemBarcodes: (await db.prepare('SELECT catalog, barcode, title, updated_at FROM item_barcodes ORDER BY catalog, barcode').all<{ catalog: Catalog; barcode: string; title: string; updated_at: string }>()).results
           .map((r) => ({ catalog: r.catalog, barcode: r.barcode, title: r.title, updatedAt: r.updated_at })),
         itemTags: (await db.prepare('SELECT catalog, name_key, tag FROM item_tags ORDER BY catalog, name_key, sort').all<{ catalog: Catalog; name_key: string; tag: string }>()).results
@@ -432,6 +437,7 @@ const ImportSchema = ExportSchema.extend({
   storeAisles: ExportSchema.shape.storeAisles.default([]),
   itemNames: ExportSchema.shape.itemNames.default([]),
   itemBarcodes: ExportSchema.shape.itemBarcodes.default([]),
+  libraryBooks: ExportSchema.shape.libraryBooks.default([]),
   itemTags: ExportSchema.shape.itemTags.default([]),
 }).openapi('Import');
 
@@ -475,6 +481,7 @@ const ImportResultSchema = z
       storeAisles: z.number(),
       itemNames: z.number(),
       itemBarcodes: z.number(),
+      libraryBooks: z.number(),
       itemTags: z.number(),
     }),
     // Synced calendars waiting to be reconnected (imported placeholders, from this or an earlier import).
@@ -966,6 +973,7 @@ dataRoutes.openapi(
       // A store's aisle order in the file replaces this instance's order for that store.
       db.prepare('DELETE FROM store_aisles WHERE store IN (SELECT value FROM json_each(?))').bind(JSON.stringify(body.storeAisles.map((a) => a.store))),
       ...upserts(db, 'store_aisles', 'store, aisle', body.storeAisles.flatMap((a) => [...new Set(a.aisles)].map((aisle, sort) => ({ store: a.store, aisle, sort })))),
+      ...upserts(db, 'library_books', 'id', body.libraryBooks.map((b) => ({ id: b.id, title: b.title, author: b.author, isbn: b.isbn, pages: b.pages, cover_url: b.coverUrl, year: b.year, series: b.series, series_number: b.seriesNumber, lexile: b.lexile, description: b.description, genres: b.genres.length ? JSON.stringify(b.genres) : null, added_by: b.addedBy?.memberId ?? null, added_by_label: b.addedBy?.label ?? null, created_at: b.createdAt, updated_at: b.updatedAt })), { keep: ['created_at'], expr: { added_by: "(SELECT id FROM members WHERE id = j.value->>'added_by')" } }),
       ...upserts(db, 'item_barcodes', 'catalog, barcode', body.itemBarcodes.map((b) => ({ catalog: b.catalog, barcode: b.barcode, title: b.title, updated_at: b.updatedAt })), { where: 'excluded.updated_at > item_barcodes.updated_at' }),
       ...upserts(db, 'item_names', 'catalog, name_key', catalogs.rows(body.itemNames).map((n) => ({ catalog: n.catalog, name_key: n.nameKey, title: n.title, uses: n.uses, last_used: n.lastUsed })), { where: 'excluded.last_used > item_names.last_used' }),
       // An item's categories in the file are added to the ones it has here, in the file's order after them.
@@ -1037,6 +1045,7 @@ dataRoutes.openapi(
           storeAisles: body.storeAisles.length,
           itemNames: body.itemNames.length,
           itemBarcodes: body.itemBarcodes.length,
+          libraryBooks: body.libraryBooks.length,
           itemTags: body.itemTags.length,
         },
         needsReconnect: (await db.prepare("SELECT id, kind, name FROM calendars WHERE kind != 'local' AND config = '' ORDER BY name").all<{ id: string; kind: string; name: string }>()).results,

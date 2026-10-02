@@ -81,6 +81,7 @@ test('mcp: tools/list returns the tools', async () => {
     'add_list_items',
     'add_member',
     'add_note',
+    'add_to_library',
     'add_tracker_entry',
     'apply_meal_projection',
     'approve_chore',
@@ -131,6 +132,7 @@ test('mcp: tools/list returns the tools', async () => {
     'list_contact_categories',
     'list_contacts',
     'list_events',
+    'list_library',
     'list_lists',
     'list_meals',
     'list_newscast',
@@ -885,4 +887,20 @@ test('mcp: search_books looks a book up (Open Library, through the server)', asy
   } finally {
     globalThis.fetch = realFetch;
   }
+});
+
+test('mcp: the library: add_to_library by title or ISBN, list_library searches and shows readers', async () => {
+  const env = makeEnv();
+  const { mcp } = makeApp(env);
+  const call = async (name: string, args: Record<string, unknown>) => (await (await mcp('tools/call', { name, arguments: args })).json() as any).result;
+  const added = await call('add_to_library', { title: 'Holes', author: 'Louis Sachar' });
+  assert.equal(added.structuredContent.book.title, 'Holes');
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async () => Response.json({ docs: [{ title: 'Matilda', author_name: ['Roald Dahl'] }] })) as typeof fetch;
+  try { assert.equal((await call('add_to_library', { isbn: '9780142410370' })).structuredContent.book.author, 'Roald Dahl'); }
+  finally { globalThis.fetch = realFetch; }
+  const listed = await call('list_library', { q: 'dahl' });
+  assert.deepEqual(listed.structuredContent.books.map((b: any) => b.title), ['Matilda']);
+  assert.match((await call('list_library', {})).content[0].text, /2 book\(s\)/);
+  assert.match((await call('add_to_library', { title: 'Holes', isbn: '9780142410370' })).content[0].text, /already/i);
 });

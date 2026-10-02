@@ -49,8 +49,8 @@ test('book search: Open Library through the server, shaped for the reading form'
   const res = await send('GET', "/api/books/search?q=charlotte's web");
   assert.equal(res.status, 200);
   assert.deepEqual(res.body, [
-    { title: "Charlotte's Web", author: 'E. B. White', year: 1952, pages: 184, coverId: 12345, coverUrl: 'https://covers.openlibrary.org/b/id/12345-M.jpg' },
-    { title: 'Bare' },
+    { title: "Charlotte's Web", author: 'E. B. White', year: 1952, pages: 184, coverId: 12345, coverUrl: 'https://covers.openlibrary.org/b/id/12345-M.jpg', workKey: '/works/OL1W' },
+    { title: 'Bare', workKey: '/works/OL2W' },
   ]);
   const url = new URL(calls[0]);
   assert.equal(url.host, 'openlibrary.org');
@@ -120,4 +120,13 @@ test("book lookup and covers work from kids' own devices and wall screens (displ
     assert.equal((await app.request(`/api/books/covers/5?key=${token}`, {}, env)).status, 200, `${who}: thumbnail`);
     assert.equal((await app.request(`/api/trackers/${book.id}/cover?key=${token}`, {}, env)).status, 200, `${who}: cover`);
   }
+});
+
+test('genresFrom: a few clean genres out of Open Library\'s mixed subjects', async () => {
+  const { genresFrom } = await import('../src/routes/books.ts');
+  assert.deepEqual(genresFrom(['Kinderbuch ab 10 Jahren', 'Fantasy', 'Katzen', 'Cats', 'Fantasy Fiction', 'Feral Cats', 'Fiction']), ['Fantasy', 'Animals']);
+  assert.deepEqual(genresFrom(['hard science-fiction', 'sci-fi', 'Fiction, science fiction, action & adventure', 'Astronauts']), ['Science fiction', 'Adventure']);
+  assert.deepEqual(genresFrom(['Detective and mystery stories', 'Humorous stories', 'Graphic novels', 'Fantasy']), ['Fantasy', 'Mystery', 'Humor'], 'priority order, three at most');
+  assert.deepEqual(genresFrom(['Fiction', 'Juvenile fiction', 'Open Library Staff Picks']), []);
+  assert.deepEqual(genresFrom(undefined), []);
 });

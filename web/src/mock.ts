@@ -2,7 +2,7 @@
 import type { Actor, OnlineTidbits, Plugin, PluginCatalogEntry,
   Account, ApiKey, AppNotification, SecurityEvent, CalendarEntry, Category, Chore, ChoreDay, LibraryChore, LibraryChoreInput, EventInstance, HiddenEvent, LeaderboardEntry, LeaderboardPeriod, List, ListGroup,
   Newscast, NewscastItem, NewscastPostInput, NewscastReaction,
-  Photo, PhotoQuota, FamilyColoringPage, GooglePhotos, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, BookResult, BarcodeLookup, ReadingDay, ListItem, ListItemInput, ListItemPatch, ListItemStep, ListCatalog, Member, RememberedItem, RememberedItemInput, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption, TempCheck, TempCheckInput, Journal, JournalEntry, Insights, InsightDay, InsightRange, Battery, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory, DoseStatus, MedTime,
+  Photo, PhotoQuota, FamilyColoringPage, GooglePhotos, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, BookResult, BarcodeLookup, ReadingDay, LibraryBook, LibraryBookInput, ReadingData, ListItem, ListItemInput, ListItemPatch, ListItemStep, ListCatalog, Member, RememberedItem, RememberedItemInput, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption, TempCheck, TempCheckInput, Journal, JournalEntry, Insights, InsightDay, InsightRange, Battery, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory, DoseStatus, MedTime,
 } from './types.ts'
 import { eveningPending, FEELINGS, lastNightDate, TEMP_CHECK_OFF } from './tempCheck.ts'
 import { aisleOrderMap, compareItems } from './types.ts'
@@ -639,9 +639,27 @@ const securityEvents: SecurityEvent[] = [
 const daysAgo = (n: number) => dateKey(new Date(Date.now() - n * 86_400_000))
 const tracker = (kind: TrackerKind, memberId: string | null, date: string, title: string | null, data: Record<string, unknown>, photoId: string | null = null): TrackerEntry =>
   ({ id: uid(), kind, memberId, formerMember: null, date, title, photoId, photoOwned: false, photoFamily: photoId ? true : null, data: data as never, createdAt: `${date}T18:00:00.000Z`, updatedAt: `${date}T18:00:00.000Z` })
+// The family's library: Maya's Charlotte's Web and Matilda were started from it (bookId).
+const libraryBook = (id: string, title: string, author: string, d: Partial<LibraryBook> = {}): LibraryBook => ({
+  id, title, author, isbn: null, pages: null, coverUrl: null, year: null, series: null, seriesNumber: null, lexile: null, description: null, genres: [],
+  addedBy: { memberId: 'm1' }, readers: [], createdAt: new Date(Date.now() - 30 * 86_400_000).toISOString(), updatedAt: new Date(Date.now() - 30 * 86_400_000).toISOString(), ...d,
+})
+const bookLibrary: LibraryBook[] = [
+  libraryBook('book-charlotte', "Charlotte's Web", 'E. B. White', { isbn: '9780064400558', pages: 184, year: 1952, lexile: 680, genres: ['Fantasy', 'Animals'], coverUrl: 'https://picsum.photos/seed/kinwall-charlotte/120/180', description: 'Some pig! A runt piglet, a clever spider and a promise to save his life.' }),
+  libraryBook('book-matilda', 'Matilda', 'Roald Dahl', { isbn: '9780142410370', pages: 240, year: 1988, lexile: 840, genres: ['Fantasy', 'Humor'], coverUrl: 'https://picsum.photos/seed/kinwall-matilda/120/180' }),
+  libraryBook('book-holes', 'Holes', 'Louis Sachar', { isbn: '9780440414803', pages: 233, year: 1998, lexile: 660, genres: ['Adventure', 'Mystery'], description: 'There is no lake at Camp Green Lake.' }),
+  libraryBook('book-warriors-1', 'Into the Wild', 'Erin Hunter', { pages: 272, year: 2003, series: 'Warriors', seriesNumber: '1', lexile: 970, genres: ['Fantasy', 'Animals'] }),
+  libraryBook('book-warriors-2', 'Fire and Ice', 'Erin Hunter', { pages: 320, year: 2003, series: 'Warriors', seriesNumber: '2', lexile: 1010, genres: ['Fantasy', 'Animals'] }),
+  libraryBook('book-frog', 'Frog and Toad Are Friends', 'Arnold Lobel', { pages: 64, year: 1970, lexile: 400 }),
+]
+const withReaders = (b: LibraryBook): LibraryBook => ({
+  ...b, readers: trackers.filter(t => t.kind === 'reading' && (t.data as ReadingData).bookId === b.id)
+    .map(t => ({ entryId: t.id, memberId: t.memberId, status: (t.data as ReadingData).status })),
+})
+
 const trackers: TrackerEntry[] = [
-  tracker('reading', 'm3', daysAgo(12), "Charlotte's Web", { author: 'E. B. White', status: 'reading', pagesRead: 83, totalPages: 184, log: [{ date: daysAgo(9), amount: 12 }, { date: daysAgo(8), amount: 9 }, { date: daysAgo(6), amount: 15 }, { date: daysAgo(4), amount: 11 }, { date: daysAgo(3), amount: 14 }, { date: daysAgo(1), amount: 10 }, { date: daysAgo(0), amount: 12 }], coverUrl: 'https://picsum.photos/seed/kinwall-charlotte/120/180' }),
-  tracker('reading', 'm3', daysAgo(40), 'Matilda', { author: 'Roald Dahl', status: 'finished', pagesRead: 240, totalPages: 240, finishedOn: daysAgo(20), rating: 5, notes: 'Loved Miss Honey.', coverUrl: 'https://picsum.photos/seed/kinwall-matilda/120/180' }),
+  tracker('reading', 'm3', daysAgo(12), "Charlotte's Web", { author: 'E. B. White', status: 'reading', bookId: 'book-charlotte', pagesRead: 83, totalPages: 184, log: [{ date: daysAgo(9), amount: 12 }, { date: daysAgo(8), amount: 9 }, { date: daysAgo(6), amount: 15 }, { date: daysAgo(4), amount: 11 }, { date: daysAgo(3), amount: 14 }, { date: daysAgo(1), amount: 10 }, { date: daysAgo(0), amount: 12 }], coverUrl: 'https://picsum.photos/seed/kinwall-charlotte/120/180' }),
+  tracker('reading', 'm3', daysAgo(40), 'Matilda', { author: 'Roald Dahl', status: 'finished', pagesRead: 240, totalPages: 240, finishedOn: daysAgo(20), rating: 5, notes: 'Loved Miss Honey.', bookId: 'book-matilda', coverUrl: 'https://picsum.photos/seed/kinwall-matilda/120/180' }),
   tracker('reading', 'm3', daysAgo(70), 'The Wild Robot', { author: 'Peter Brown', status: 'finished', pagesRead: 288, totalPages: 288, finishedOn: daysAgo(45), rating: 4 }),
   tracker('reading', 'm3', daysAgo(6), 'The Mouse and the Motorcycle', { format: 'audiobook', author: 'Beverly Cleary', narrator: 'Nora Bell', status: 'reading', minutesListened: 95, totalMinutes: 225 }),
   tracker('reading', 'm3', daysAgo(35), 'Ramona the Pest', { format: 'audiobook', author: 'Beverly Cleary', narrator: 'Nora Bell', status: 'finished', minutesListened: 250, totalMinutes: 250, finishedOn: daysAgo(28), rating: 5 }),
@@ -1421,6 +1439,29 @@ export const mock = {
     })
     settleMockPhoto(t, body.photoFamily); bump(); return { ...t }
   },
+  getLibrary: async (q?: { q?: string; unread?: boolean }): Promise<LibraryBook[]> => {
+    const needle = q?.q?.trim().toLowerCase()
+    return bookLibrary.map(withReaders)
+      .filter(b => !needle || [b.title, b.author, b.series, ...b.genres].some(v => v?.toLowerCase().includes(needle)))
+      .filter(b => !q?.unread || !b.readers.length)
+      .sort((a, b) => (a.series ?? a.title).localeCompare(b.series ?? b.title, undefined, { sensitivity: 'base' }) || Number(a.seriesNumber ?? 0) - Number(b.seriesNumber ?? 0) || a.title.localeCompare(b.title))
+  },
+  // Demo lookups by ISBN come from the demo book search's ISBNs.
+  addToLibrary: async (input: LibraryBookInput): Promise<LibraryBook> => {
+    const have = input.isbn ? bookLibrary.find(b => b.isbn === input.isbn) : undefined
+    if (have) throw new Error(`Already in the library: ${have.title}`)
+    const found = !input.title && input.isbn ? DEMO_BOOKS.find(b => b.isbn === input.isbn) : undefined
+    if (!input.title && !found) throw new Error("Couldn't find that book")
+    const { workKey: _w, ...fields } = input
+    const book = libraryBook(uid(), (input.title ?? found!.title).trim(), input.author ?? found?.author ?? '', { ...(found && { pages: found.pages ?? null, coverUrl: found.coverUrl ?? null, year: found.year ?? null }), ...fields, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() })
+    bookLibrary.push(book); bump(); return book
+  },
+  updateLibraryBook: async (id: string, changes: LibraryBookInput): Promise<LibraryBook> => {
+    const b = bookLibrary.find(x => x.id === id); if (!b) throw new Error('not found')
+    const { workKey: _w, ...fields } = changes
+    Object.assign(b, fields, { updatedAt: new Date().toISOString() }); bump(); return withReaders(b)
+  },
+  deleteLibraryBook: async (id: string) => { const i = bookLibrary.findIndex(x => x.id === id); if (i >= 0) bookLibrary.splice(i, 1); bump() },
   deleteTracker: async (id: string) => { const i = trackers.findIndex(x => x.id === id); if (i >= 0) trackers.splice(i, 1); bump() },
   getNotes: async (target: NoteTarget) => notes.filter(n => `${n.targetType}:${n.targetId}` === target),
   addNote: async (target: NoteTarget, body: string, memberId: string | null): Promise<Note> => {
@@ -1554,7 +1595,7 @@ const demoBarcodes = new Map<string, string>()
 const DEMO_BOOKS: (BookResult & { isbn?: string })[] = [
   { title: "Charlotte's Web", author: 'E. B. White', year: 1952, pages: 184, isbn: '9780064400558', coverUrl: 'https://picsum.photos/seed/kinwall-charlotte/120/180' },
   { title: 'Matilda', author: 'Roald Dahl', year: 1988, pages: 240, coverUrl: 'https://picsum.photos/seed/kinwall-matilda/120/180' },
-  { title: 'The Wild Robot', author: 'Peter Brown', year: 2016, pages: 288, coverUrl: 'https://picsum.photos/seed/kinwall-robot/120/180' },
+  { title: 'The Wild Robot', author: 'Peter Brown', year: 2016, pages: 288, isbn: '9780316381994', coverUrl: 'https://picsum.photos/seed/kinwall-robot/120/180' },
   { title: 'Holes', author: 'Louis Sachar', year: 1998, pages: 233 },
 ]
 

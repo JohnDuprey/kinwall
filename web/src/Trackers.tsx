@@ -7,14 +7,15 @@ import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { useDialog } from './dialog.tsx'
 import { announce, Segmented } from './a11y.tsx'
-import { appBarcodeScanner, scanBarcode, wallCamera } from './native.ts'
+import BookLookup from './BookLookup.tsx'
+import Library from './Library.tsx'
 import { inkFor } from './color.ts'
 import { todayKeyInTz } from './date.ts'
 import { formatTime } from './timeFormat.ts'
 import { PlusIcon } from './icons.tsx'
 import Sheet from './Sheet.tsx'
 import { preparePhoto, PhotoFormatError } from './photos.ts'
-import type { BookResult, HealthData, HealthType, Member, MemoryData, Photo, ReadingData, ReadingFormat, ReadingStatus, TrackerEntry, TrackerInput, TrackerKind } from './types.ts'
+import type { HealthData, HealthType, Member, MemoryData, Photo, ReadingData, ReadingFormat, ReadingStatus, TrackerEntry, TrackerInput, TrackerKind } from './types.ts'
 import { dayAmount, hoursMinutes, isAudiobook, left, recentDays, logReachesEnd, readingPercent, shelfLine, shelfTotals, splitMinutes, toMinutes } from './reading.ts'
 import { trackerKinds } from './types.ts'
 import { MedicineList } from './MedicationSettings.tsx'
@@ -62,6 +63,11 @@ export default function Trackers({ sub }: { sub?: string }) {
   const [entries, setEntries] = useState<TrackerEntry[] | null>(null)
   const [photos, setPhotos] = useState<Photo[]>([])
   const [editing, setEditing] = useState<TrackerEntry | { new: true; date?: string } | null>(null)
+  // Reading: the shelves (who's reading what) or the family's library (books owned); kept on this device.
+  const [readingView, setReadingViewState] = useState<'shelves' | 'library'>(() => { try { return localStorage.getItem('kinwall.readingView') === 'library' ? 'library' : 'shelves' } catch { return 'shelves' } })
+  const setReadingView = (v: 'shelves' | 'library') => { setReadingViewState(v); try { localStorage.setItem('kinwall.readingView', v) } catch { /* not kept */ } }
+  const [libAdding, setLibAdding] = useState(false)
+  const library = kind === 'reading' && readingView === 'library'
   const load = () => api.getTrackers(kind).then(setEntries).catch(e => { setEntries([]); toast(errMsg(e, "Couldn't load trackers."), true) })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { setEntries(null); load() }, [kind])
@@ -100,7 +106,12 @@ export default function Trackers({ sub }: { sub?: string }) {
       </div>
       <div className="trackers-body scroll-y" role="tabpanel" aria-labelledby={`trk-tab-${kind}`}>
         {entries === null ? <div className="state-card">Loading…</div>
-          : kind === 'reading' ? <Reading entries={shown} people={people} canEdit={canEdit} onEdit={setEditing} onSave={save} />
+          : kind === 'reading' ? <>
+            <Segmented label="Reading view" className="trk-reading-view" value={readingView} onChange={setReadingView}
+              options={[{ key: 'shelves', label: 'Shelves' }, { key: 'library', label: 'Library' }]} />
+            {library ? <Library adding={libAdding} onAdded={() => setLibAdding(false)} onStarted={load} />
+              : <Reading entries={shown} people={people} canEdit={canEdit} onEdit={setEditing} onSave={save} />}
+          </>
           : kind === 'memory' ? <Memories entries={shown} today={today} onEdit={setEditing} onAdd={() => setEditing({ new: true, date: today })} />
           : <Health entries={shown} today={today} onEdit={setEditing} onSave={save} meds={settings.medications} memberId={healthPerson} switcher={
             <div className="field">
@@ -109,7 +120,7 @@ export default function Trackers({ sub }: { sub?: string }) {
                 options={[{ value: '', label: 'Everyone', lead: <Avatar m={FAMILY} size={26} /> }, ...members.map(m => ({ value: m.id, label: m.name, lead: <Avatar m={m} size={26} /> }))]} />
             </div>} />}
       </div>
-      <button className="fab" onClick={() => setEditing({ new: true })} aria-label={kind === 'reading' ? 'Add a book' : kind === 'memory' ? 'Add a memory' : 'Add a health visit'}><PlusIcon /></button>
+      <button className="fab" onClick={() => (library ? setLibAdding(true) : setEditing({ new: true }))} aria-label={library ? 'Add a book to the library' : kind === 'reading' ? 'Add a book' : kind === 'memory' ? 'Add a memory' : 'Add a health visit'}><PlusIcon /></button>
       {editing && (
         <EntrySheet kind={kind} entry={'new' in editing ? null : editing} date={'new' in editing ? editing.date ?? today : undefined}
           admin={admin} kid={kid} photos={photos} memberId={personId}
@@ -225,67 +236,6 @@ function ReadingDays({ d, tz }: { d: ReadingData; tz?: string }) {
       <ul className="trk-days-list" aria-labelledby="trk-days">
         {latest.map(x => <li key={x.date}><span>{label(x.date)}</span><span>{dayAmount(d, x.amount)}</span></li>)}
       </ul>
-    </div>
-  )
-}
-
-/** Look up a book (GET /api/books/search: Open Library, through the server) to fill the form. */
-function BookLookup({ initial, onPick }: { initial: string; onPick: (b: BookResult) => void }) {
-  const { toast, parentDevice, focusLocked, meMemberId } = useApp()
-  const [open, setOpen] = useState(false)
-  const [q, setQ] = useState('')
-  const [results, setResults] = useState<BookResult[] | null>(null)
-  const [busy, setBusy] = useState(false)
-  const search = async (query = q) => {
-    if (query.trim().length < 2) return
-    setBusy(true)
-    try {
-      const r = await api.searchBooks(query.trim())
-      setResults(r)
-      announce(r.length ? `${r.length} book${r.length === 1 ? '' : 's'} found` : 'No books found')
-    } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not search for books', true) } finally { setBusy(false) }
-  }
-  // In the iPhone/Android app: the camera reads the ISBN off the back of the book.
-  const scan = async () => {
-    const code = await scanBarcode(wallCamera({ parentDevice, focusLocked, meMemberId }))
-    if (!code) return
-    setQ(code); setOpen(true); search(code)
-  }
-  const scanBtn = appBarcodeScanner() && <button type="button" className="btn btn-secondary trk-lookup-btn" onClick={scan}>📷 Scan</button>
-  if (!open) return (
-    <div className="trk-lookup-row">
-      <button type="button" className="btn btn-secondary trk-lookup-btn" onClick={() => { setQ(initial); setOpen(true) }}>🔍 Look up a book</button>
-      {scanBtn}
-    </div>
-  )
-  return (
-    <div className="weather-search">
-      <div className="weather-search-row">
-        <input type="search" aria-label="Title, author or ISBN" placeholder="Title, author or ISBN" value={q} autoFocus
-          onChange={e => setQ(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); search() } }} />
-        <button type="button" className="btn btn-primary" onClick={() => search()} disabled={busy || q.trim().length < 2}>{busy ? 'Searching…' : 'Search'}</button>
-      </div>
-      {results && (results.length === 0
-        ? <p className="settings-row-sub">No books match. Try fewer words, or type it in below.</p>
-        : <ul className="weather-results">{results.map((r, i) => {
-          const thumb = api.bookThumbUrl(r)
-          return (
-            <li key={i}>
-              <button type="button" className="btn btn-secondary btn-block trk-book-result" onClick={() => { onPick(r); setOpen(false); setResults(null); announce(`Filled in ${r.title}`) }}>
-                {thumb ? <img className="trk-cover" src={thumb} alt="" loading="lazy" onError={e => { e.currentTarget.hidden = true }} /> : <span className="trk-cover trk-cover-blank" aria-hidden="true">📖</span>}
-                <span className="trk-book-text">
-                  <span className="trk-book-title">{r.title}</span>
-                  <span className="trk-sub">{[r.author, r.year, r.pages ? `${r.pages} pages` : ''].filter(Boolean).join(' · ')}</span>
-                </span>
-              </button>
-            </li>
-          )
-        })}</ul>)}
-      <p className="settings-row-sub">Looked up by your Kinwall server from Open Library; only what you type is sent.</p>
-      <div className="trk-lookup-row">
-        <button type="button" className="btn btn-secondary trk-lookup-btn" onClick={() => { setOpen(false); setResults(null) }}>Cancel</button>
-        {scanBtn}
-      </div>
     </div>
   )
 }

@@ -13,7 +13,7 @@ import type { Contact, ContactCategory, ContactInput, ImportPreviewEntry } from 
 import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginCatalogEntry,
   StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota, FamilyColoringPage, GooglePhotos, Reward, Redemption, MemberStats, StatsPeriod,
   Account, ApiKey, AppNotification, Appearance, CalendarEntry, Category, Chore, ChoreDay, LibraryChore, LibraryChoreInput, PendingApproval, EventInstance, LeaderboardEntry, LeaderboardPeriod, List,
-  BarcodeLookup, BookResult, GeocodeResult, HiddenEvent, HostEvent, ImportResult, SecurityEvent, ListDetail, ListGroup, ListItem, ListItemInput, ListItemPatch, Member, Me, Note, NoteTarget, Passkey, TrackerEntry, TrackerInput, TrackerKind, Providers, PushSubscription, PushSubscriptionPrefs, RemoteCalendar, Settings, Snapshot, Board, Webhook, WebhookWithSecret,
+  BarcodeLookup, BookResult, GeocodeResult, LibraryBook, LibraryBookInput, HiddenEvent, HostEvent, ImportResult, SecurityEvent, ListDetail, ListGroup, ListItem, ListItemInput, ListItemPatch, Member, Me, Note, NoteTarget, Passkey, TrackerEntry, TrackerInput, TrackerKind, Providers, PushSubscription, PushSubscriptionPrefs, RemoteCalendar, Settings, Snapshot, Board, Webhook, WebhookWithSecret,
   Newscast, NewscastItem, NewscastPostInput, NewscastReaction,
   TempCheck, TempCheckInput, Journal, JournalEntry, JournalPrivacy, Insights, InsightRange, Battery, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory, RememberedItem, RememberedItemInput, ListCatalog,
 } from './types.ts'
@@ -612,6 +612,13 @@ export const api = {
   updateTracker: (id: string, body: TrackerInput) => MOCK ? mock.updateTracker(id, body) : patch<TrackerEntry>(`api/trackers/${id}`, body),
   deleteTracker: (id: string) => MOCK ? mock.deleteTracker(id) : del(`api/trackers/${id}`),
   // Book lookup and covers go through the server (Open Library), so the browser never talks to a third party.
+  // The family's library (server: routes/library.ts). Adding by ISBN alone looks the book up there.
+  getLibrary: (q?: { q?: string; unread?: boolean }) => MOCK ? mock.getLibrary(q) : req<LibraryBook[]>(`api/library?${new URLSearchParams({ ...(q?.q ? { q: q.q } : {}), ...(q?.unread ? { unread: '1' } : {}) })}`),
+  addToLibrary: (input: LibraryBookInput) => MOCK ? mock.addToLibrary(input) : post<LibraryBook>('api/library', input),
+  updateLibraryBook: (id: string, changes: LibraryBookInput) => MOCK ? mock.updateLibraryBook(id, changes) : patch<LibraryBook>(`api/library/${encodeURIComponent(id)}`, changes),
+  deleteLibraryBook: (id: string) => MOCK ? mock.deleteLibraryBook(id) : del(`api/library/${encodeURIComponent(id)}`),
+  libraryCoverUrl: (b: LibraryBook) => !b.coverUrl ? null : MOCK ? b.coverUrl
+    : mediaUrl(`api/library/${encodeURIComponent(b.id)}/cover`, `&v=${encodeURIComponent(b.updatedAt)}`) || null,
   searchBooks: (q: string) => MOCK ? mock.searchBooks(q) : get<BookResult[]>(`api/books/search?q=${encodeURIComponent(q)}`),
   bookThumbUrl: (r: BookResult) => MOCK ? r.coverUrl ?? null : r.coverId ? mediaUrl(`api/books/covers/${r.coverId}`) || null : null,
   // v (the entry's updatedAt) refetches the cover after its link changes.

@@ -18,6 +18,18 @@ A shelf per person, with what they're reading first, then what they want to read
 * **Rate** a finished book by tapping a star. Tap the same star again to clear it.
 * Each shelf shows the books finished this year (audiobooks count), the pages read and the time listened, like "3 books finished in 2026 · 812 pages · 4h 10m listened". Pages and time are the finished ones this year plus the progress so far on the ones in progress; a part that's zero is left out.
 
+### Library
+
+**Library** (at the top of Reading, next to **Shelves**) is the books your family owns, apart from who's reading what. This device remembers which of the two you were looking at.
+
+* Each book shows its cover, author, series and number ("Warriors #1"), the year it came out, its reading level (Lexile, like "660L"), page count and up to three genres (Fantasy, Animals, Mystery…, picked out of Open Library's subjects), and who has read it (✓ read, 📖 reading, ⭐ wants to read), or **Not read yet**. Books in a series sit together in order.
+* **Search** finds titles, authors, series and genres; **Not read yet** shows the books nobody has started.
+* **📷 Scan books** (in the iPhone and Android app): scan the barcodes on the back of your books one after another. Each one is looked up and added ("Added: Holes"); a book that's already there says so, and a barcode that isn't a book's is skipped. **Cancel** stops.
+* **+** adds one: **Look up a book** fills in the details, or type the title and author.
+* Details come from [Open Library](https://openlibrary.org) once, when a book is added, including its description, which shows when you tap the book. Your Kinwall server does the lookup.
+* Tap a book for its description and who has read it. **Read it** with someone's name puts it on their Reading shelf, linked to the book, so the library shows them as reading it. A parent's device can **Remove from library**; their reading entries stay.
+* Wall screens and kids' devices can browse, scan and add books; only parents remove them.
+
 A person's day (tap their avatar) lists what they're reading, like "Charlotte's Web — 45%" (for an audiobook, how much of its length they've listened to). See [Daily & weekly snapshot](snapshot.md).
 
 ## Memories 📝

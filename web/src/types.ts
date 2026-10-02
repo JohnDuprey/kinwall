@@ -106,10 +106,21 @@ export interface ReadingData {
   finishedOn?: string; rating?: number; notes?: string
   coverUrl?: string // public https; shown through GET /api/trackers/{id}/cover
   log?: ReadingDay[] // read each day (the server keeps it as progress changes)
+  bookId?: string // started from a library book (LibraryBook)
 }
+/** The family's library (GET /api/library): books owned, apart from who's reading what. */
+export interface LibraryBook {
+  id: string; title: string; author: string | null; isbn: string | null; pages: number | null; coverUrl: string | null
+  year: number | null; series: string | null; seriesNumber: string | null; lexile: number | null; description: string | null; genres: string[]
+  addedBy: Actor | null; readers: { entryId: string; memberId: string | null; status: ReadingStatus }[]; createdAt: string; updatedAt: string
+}
+export type LibraryBookInput = Partial<Omit<LibraryBook, 'id' | 'addedBy' | 'readers' | 'createdAt' | 'updatedAt'>> & { workKey?: string }
 export interface ReadingDay { date: string; amount: number } // pages for a book, minutes for an audiobook
 /** A book lookup result (GET /api/books/search, from Open Library). */
-export interface BookResult { title: string; author?: string; year?: number; pages?: number; coverId?: number; coverUrl?: string }
+export interface BookResult {
+  title: string; author?: string; year?: number; pages?: number; coverId?: number; coverUrl?: string
+  isbn?: string; series?: string; seriesNumber?: string; lexile?: number; genres?: string[]; workKey?: string
+}
 export interface MemoryData { text: string; mood?: string }
 export type HealthType = 'checkup' | 'dentist' | 'specialist' | 'vaccine' | 'sick' | 'other'
 export interface Measure<U extends string> { value: number; unit: U }

@@ -292,6 +292,10 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'GET', pattern: /^\/api\/trackers(\/[^/]+)?$/ },
   { method: 'GET', pattern: /^\/api\/trackers\/[^/]+\/cover$/ }, // a book's cover on the shelf
   { method: 'GET', pattern: /^\/api\/books\/(search|covers\/\d+)$/ }, // Look up a book, and its results' covers
+  // The family's library: browse, add (kids scan their books in) and edit; removing is for parent devices.
+  { method: 'GET', pattern: /^\/api\/library(\/[^/]+(\/cover)?)?$/ },
+  { method: 'POST', pattern: /^\/api\/library$/ },
+  { method: 'PATCH', pattern: /^\/api\/library\/[^/]+$/ },
   { method: 'POST', pattern: /^\/api\/trackers$/ },
   { method: 'PATCH', pattern: /^\/api\/trackers\/[^/]+$/ },
   { method: 'DELETE', pattern: /^\/api\/trackers\/[^/]+$/ },
@@ -392,11 +396,11 @@ function isDisplayAllowed(method: string, path: string): boolean {
 }
 
 // The images (an <img src>, which can't send a header): a photo's, a recipe's, a recipe step's, a
-// meal's, a tracker's or book's cover. GET on these takes a media token (mediaTokenFor) as ?key=,
+// meal's, a tracker's, library book's or book's cover. GET on these takes a media token (mediaTokenFor) as ?key=,
 // which opens nothing but them. A full key is never taken from a URL (it would land in browser
 // history and access logs): everything else, the photo zip included, takes the Bearer header (the
 // zip also a one-time ?ticket=, photoExportTicket).
-const MEDIA_PATH = /^\/api\/photos\/[^/]+\/image$|^\/api\/(recipes|meals)\/[^/]+\/image$|^\/api\/recipes\/[^/]+\/steps\/\d+\/image$|^\/api\/trackers\/[^/]+\/cover$|^\/api\/books\/covers\/[^/]+$/;
+const MEDIA_PATH = /^\/api\/photos\/[^/]+\/image$|^\/api\/(recipes|meals)\/[^/]+\/image$|^\/api\/recipes\/[^/]+\/steps\/\d+\/image$|^\/api\/trackers\/[^/]+\/cover$|^\/api\/library\/[^/]+\/cover$|^\/api\/books\/covers\/[^/]+$/;
 // Shared by requireAuth and GET /api/me: resolves the Bearer key (or a media token as ?key= on
 // GET MEDIA_PATH) to its scope. Returns null if the key is missing/unknown.
 export async function resolveKey(c: Context<{ Bindings: Env }>): Promise<ResolvedKey | null> {

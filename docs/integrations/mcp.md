@@ -99,6 +99,8 @@ Every tool carries MCP annotations (read-only / destructive / idempotent / open-
 | `get_meal_projection` | The shopping preview for a date range: each ingredient's scaled total, the meals it's for, and (with `listId` or `listName`) what's already on that list. Admin key only. |
 | `list_tracker_entries` | [Trackers](../using/trackers.md) entries, newest first: books, memories and health visits. Filters: `kind`, `member`, `from`, `to`, `q`. Health only with an admin key, and only once a parent turns on [health for connected apps](#health-entries). |
 | `search_books` | Looks a book up by title, author or ISBN through [Open Library](https://openlibrary.org) (the server asks; only the search is sent): title, author, year, pages and `coverUrl`, to fill `add_tracker_entry`. |
+| `list_library` | The family's [library](../using/trackers.md#library): books they own, with series, reading level and readers. `q` searches; `unread` keeps books nobody has started. |
+| `add_to_library` | Adds a book the family owns: an `isbn` alone looks it up (details and description); or a title, with details from `search_books`. A book already there (same ISBN) isn't added twice. |
 | `list_newscast` | [Newscast](../using/newscast.md): what the family did and shared, newest first, grouped per person per day (chores, rewards, photos and drawings, books, memories, birthdays, announcements) with reactions. Takes `days` (default 7) and `before` (YYYY-MM-DD). Never health, journals, check-ins or points. Read only: there's no tool to post. |
 | `list_notifications` | Recent notifications Kinwall sent (reminders, summaries, chore nudges, list updates, messages), newest first. The same feed as the bell in the app. Takes `limit` and `before`. |
 

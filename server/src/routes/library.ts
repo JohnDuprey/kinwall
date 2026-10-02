@@ -1,0 +1,201 @@
+// The family's library (migration 0089): books the family owns, apart from who is reading what. A
+// reading entry started from a book carries data.bookId, so each book lists its readers (newest
+// first). Adding a book by ISBN alone looks it up in Open Library (books.ts); details are copied in
+// then, so browsing never calls out. Covers come through the server (GET .../cover), like reading
+// entries' covers. Wall screens and kids' devices browse, add and edit (auth.ts display allow-list);
+// removing a book is for parent devices.
+import { createRoute, z } from '@hono/zod-openapi';
+import type { Context } from 'hono';
+import { createRouter } from '../router.ts';
+import type { Env } from '../env.ts';
+import { emit } from '../bus.ts';
+import { actorOf } from '../auth.ts';
+import { checkRate } from '../ratelimit.ts';
+import { fetchRecipeImage } from '../outbound.ts';
+import { ErrorSchema, LibraryBookInputSchema, LibraryBookPatchSchema, LibraryBookSchema } from '../schemas.ts';
+import { actorApi } from './lists.ts';
+import { searchOpenLibrary, workDescription } from './books.ts';
+
+export const libraryRoutes = createRouter();
+type C = Context<{ Bindings: Env }>;
+
+export type LibraryRow = {
+  id: string; title: string; author: string | null; isbn: string | null; pages: number | null; cover_url: string | null
+  year: number | null; series: string | null; series_number: string | null; lexile: number | null; description: string | null; genres: string | null
+  added_by: string | null; added_by_label: string | null; created_at: string; updated_at: string;
+};
+const parseGenres = (v: string | null): string[] => { try { const g = JSON.parse(v ?? '[]'); return Array.isArray(g) ? g.filter((x) => typeof x === 'string') : []; } catch { return []; } };
+type Reader = { entryId: string; memberId: string | null; status: 'want' | 'reading' | 'finished' };
+
+export function toLibraryApi(r: LibraryRow, readers: Reader[] = []) {
+  return {
+    id: r.id, title: r.title, author: r.author, isbn: r.isbn, pages: r.pages, coverUrl: r.cover_url, year: r.year,
+    series: r.series, seriesNumber: r.series_number, lexile: r.lexile, description: r.description, genres: parseGenres(r.genres),
+    addedBy: actorApi(r.added_by, r.added_by_label), readers, createdAt: r.created_at, updatedAt: r.updated_at,
+  };
+}
+
+/** Reading entries started from library books, by book id (reading data is plain JSON; health is sealed and never matches). */
+async function readersByBook(c: C): Promise<Map<string, Reader[]>> {
+  const { results } = await c.env.DB.prepare(
+    "SELECT id, member_id, json_extract(data, '$.bookId') AS book_id, coalesce(json_extract(data, '$.status'), 'reading') AS status FROM tracker_entries WHERE kind = 'reading' AND json_extract(data, '$.bookId') IS NOT NULL ORDER BY created_at DESC",
+  ).all<{ id: string; member_id: string | null; book_id: string; status: Reader['status'] }>();
+  const out = new Map<string, Reader[]>();
+  for (const r of results) out.set(r.book_id, [...(out.get(r.book_id) ?? []), { entryId: r.id, memberId: r.member_id, status: r.status }]);
+  return out;
+}
+
+const one = async (c: C, id: string) => {
+  const row = await c.env.DB.prepare('SELECT * FROM library_books WHERE id = ?').bind(id).first<LibraryRow>();
+  return row ? toLibraryApi(row, (await readersByBook(c)).get(id)) : null;
+};
+const json = <T extends z.ZodType>(schema: T) => ({ 'application/json': { schema } });
+const idParam = z.object({ id: z.string() });
+
+libraryRoutes.openapi(
+  createRoute({
+    method: 'get',
+    path: '/api/library',
+    tags: ['Trackers'],
+    summary: "The family's library, A-Z (a series under its name, in order), each book with its readers. q searches titles, authors, series and genres; unread=1 keeps books nobody has started.",
+    security: [{ Bearer: [] }],
+    request: { query: z.object({ q: z.string().max(100).optional(), unread: z.enum(['1', 'true']).optional() }) },
+    responses: { 200: { description: 'ok', content: json(z.array(LibraryBookSchema)) } },
+  }),
+  async (c) => {
+    const { q, unread } = c.req.valid('query');
+    const like = q?.trim() ? `%${q.trim().replace(/[\\%_]/g, (m) => `\\${m}`)}%` : null;
+    const { results } = await c.env.DB.prepare(
+      `SELECT * FROM library_books ${like ? "WHERE title LIKE ?1 ESCAPE '\\' OR author LIKE ?1 ESCAPE '\\' OR series LIKE ?1 ESCAPE '\\' OR genres LIKE ?1 ESCAPE '\\'" : ''} ORDER BY coalesce(series, title) COLLATE NOCASE, CAST(series_number AS REAL), title COLLATE NOCASE, created_at`, // a series together, in order
+    ).bind(...(like ? [like] : [])).all<LibraryRow>();
+    const readers = await readersByBook(c);
+    return c.json(results.map((r) => toLibraryApi(r, readers.get(r.id))).filter((b) => !unread || !b.readers.length), 200);
+  },
+);
+
+libraryRoutes.openapi(
+  createRoute({
+    method: 'get', path: '/api/library/{id}', tags: ['Trackers'], summary: 'One library book, with its readers', security: [{ Bearer: [] }],
+    request: { params: idParam },
+    responses: { 200: { description: 'ok', content: json(LibraryBookSchema) }, 404: { description: 'not found', content: json(ErrorSchema) } },
+  }),
+  async (c) => {
+    const book = await one(c, c.req.valid('param').id);
+    return book ? c.json(book, 200) : c.json({ error: 'not found' }, 404);
+  },
+);
+
+libraryRoutes.openapi(
+  createRoute({
+    method: 'post',
+    path: '/api/library',
+    tags: ['Trackers'],
+    summary: "Add a book to the family's library. With only an isbn it's looked up (Open Library, through the server): title, author, pages, cover, year, series, reading level and description. A workKey (from GET /api/books/search) fetches the description. An ISBN already in the library is a 409 with that book.",
+    security: [{ Bearer: [] }],
+    request: { body: { content: json(LibraryBookInputSchema) } },
+    responses: {
+      201: { description: 'added', content: json(LibraryBookSchema) },
+      400: { description: 'neither a title nor an isbn', content: json(ErrorSchema) },
+      404: { description: 'nobody knows that ISBN', content: json(ErrorSchema) },
+      409: { description: 'already in the library', content: json(z.object({ error: z.string(), book: LibraryBookSchema })) },
+      429: { description: 'too many lookups', content: json(ErrorSchema) },
+      502: { description: 'Open Library is unavailable', content: json(ErrorSchema) },
+    },
+  }),
+  async (c) => {
+    let input = c.req.valid('json');
+    if (!input.title && !input.isbn) return c.json({ error: 'A title or an ISBN' }, 400);
+    if (input.isbn) {
+      const have = await c.env.DB.prepare('SELECT id FROM library_books WHERE isbn = ?').bind(input.isbn).first<{ id: string }>();
+      if (have) { const book = (await one(c, have.id))!; return c.json({ error: `Already in the library: ${book.title}`, book }, 409); }
+    }
+    if (!input.title || input.workKey) {
+      if (!(await checkRate(c.env.DB, 'books', 30, 60_000))) return c.json({ error: 'Too many lookups - try again in a minute' }, 429);
+    }
+    if (!input.title) {
+      let found;
+      try { found = (await searchOpenLibrary(input.isbn!, 1))[0]; }
+      catch (err) { console.error('library lookup failed', err instanceof Error ? err.message : err); return c.json({ error: 'Book lookup is unavailable right now' }, 502); }
+      if (!found) return c.json({ error: "Couldn't find that book" }, 404);
+      input = { title: found.title, author: found.author, pages: found.pages, coverUrl: found.coverUrl, year: found.year, series: found.series, seriesNumber: found.seriesNumber, lexile: found.lexile, genres: found.genres, workKey: found.workKey, ...input };
+    }
+    const description = input.description ?? (input.workKey ? await workDescription(input.workKey) : null);
+    const by = await actorOf(c);
+    const now = new Date().toISOString();
+    const row: LibraryRow = {
+      id: crypto.randomUUID(), title: input.title!.trim(), author: input.author?.trim() || null, isbn: input.isbn ?? null, pages: input.pages ?? null,
+      cover_url: input.coverUrl ?? null, year: input.year ?? null, series: input.series?.trim() || null, series_number: input.seriesNumber?.trim() || null,
+      lexile: input.lexile ?? null, description, genres: input.genres?.length ? JSON.stringify(input.genres) : null, added_by: by.memberId, added_by_label: by.label, created_at: now, updated_at: now,
+    };
+    await c.env.DB.prepare(
+      'INSERT INTO library_books (id, title, author, isbn, pages, cover_url, year, series, series_number, lexile, description, genres, added_by, added_by_label, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    ).bind(row.id, row.title, row.author, row.isbn, row.pages, row.cover_url, row.year, row.series, row.series_number, row.lexile, row.description, row.genres, row.added_by, row.added_by_label, row.created_at, row.updated_at).run();
+    emit(c, 'tracker.changed', { library: row.id });
+    return c.json(toLibraryApi(row), 201);
+  },
+);
+
+libraryRoutes.openapi(
+  createRoute({
+    method: 'patch', path: '/api/library/{id}', tags: ['Trackers'], summary: 'Edit a library book. Only given fields change; null clears one.', security: [{ Bearer: [] }],
+    request: { params: idParam, body: { content: json(LibraryBookPatchSchema) } },
+    responses: {
+      200: { description: 'ok', content: json(LibraryBookSchema) }, 404: { description: 'not found', content: json(ErrorSchema) },
+      409: { description: 'another book has that ISBN', content: json(ErrorSchema) },
+    },
+  }),
+  async (c) => {
+    const { id } = c.req.valid('param');
+    const p = c.req.valid('json');
+    const r = await c.env.DB.prepare('SELECT * FROM library_books WHERE id = ?').bind(id).first<LibraryRow>();
+    if (!r) return c.json({ error: 'not found' }, 404);
+    if (p.isbn && p.isbn !== r.isbn && (await c.env.DB.prepare('SELECT 1 FROM library_books WHERE isbn = ? AND id != ?').bind(p.isbn, id).first())) return c.json({ error: 'Another book in the library has that ISBN' }, 409);
+    const v = <K extends keyof typeof p>(k: K, old: unknown) => (p[k] !== undefined ? p[k] : old);
+    const next: LibraryRow = {
+      ...r, title: p.title?.trim() || r.title, author: v('author', r.author) as string | null, isbn: v('isbn', r.isbn) as string | null,
+      pages: v('pages', r.pages) as number | null, cover_url: v('coverUrl', r.cover_url) as string | null, year: v('year', r.year) as number | null,
+      series: v('series', r.series) as string | null, series_number: v('seriesNumber', r.series_number) as string | null,
+      lexile: v('lexile', r.lexile) as number | null, description: v('description', r.description) as string | null,
+      genres: p.genres !== undefined ? (p.genres.length ? JSON.stringify(p.genres) : null) : r.genres, updated_at: new Date().toISOString(),
+    };
+    await c.env.DB.prepare('UPDATE library_books SET title=?, author=?, isbn=?, pages=?, cover_url=?, year=?, series=?, series_number=?, lexile=?, description=?, genres=?, updated_at=? WHERE id=?')
+      .bind(next.title, next.author, next.isbn, next.pages, next.cover_url, next.year, next.series, next.series_number, next.lexile, next.description, next.genres, next.updated_at, id).run();
+    emit(c, 'tracker.changed', { library: id });
+    return c.json((await one(c, id))!, 200);
+  },
+);
+
+libraryRoutes.openapi(
+  createRoute({
+    method: 'delete', path: '/api/library/{id}', tags: ['Trackers'], summary: 'Remove a book from the library (parent devices). Reading entries started from it stay.', security: [{ Bearer: [] }],
+    request: { params: idParam },
+    responses: { 200: { description: 'ok', content: json(z.object({ ok: z.boolean() })) } },
+  }),
+  async (c) => {
+    const { id } = c.req.valid('param');
+    await c.env.DB.prepare('DELETE FROM library_books WHERE id = ?').bind(id).run();
+    emit(c, 'tracker.changed', { library: id });
+    return c.json({ ok: true }, 200);
+  },
+);
+
+// The book's cover, fetched by the server from its own coverUrl (never a URL from the request); ?key= for <img>.
+libraryRoutes.openapi(
+  createRoute({
+    method: 'get', path: '/api/library/{id}/cover', tags: ['Trackers'], summary: "A library book's cover (its coverUrl, fetched by the server)", security: [{ Bearer: [] }],
+    request: { params: idParam },
+    responses: {
+      200: { description: 'the image', content: { 'image/*': { schema: z.string().openapi({ format: 'binary' }) } } },
+      400: { description: 'the stored address is not allowed', content: json(ErrorSchema) },
+      404: { description: 'not found, or no cover', content: json(ErrorSchema) },
+      502: { description: 'the image could not be fetched', content: json(ErrorSchema) },
+    },
+  }),
+  async (c) => {
+    const row = await c.env.DB.prepare('SELECT cover_url FROM library_books WHERE id = ?').bind(c.req.valid('param').id).first<{ cover_url: string | null }>();
+    if (!row?.cover_url) return c.json({ error: 'no cover' }, 404);
+    const result = await fetchRecipeImage(c.env, row.cover_url, 'book cover');
+    if ('error' in result) return c.json({ error: result.error }, result.status);
+    return c.body(result.image, 200, { 'Content-Type': result.type, 'Cache-Control': 'private, max-age=604800', ...(result.etag && { ETag: result.etag }) });
+  },
+);

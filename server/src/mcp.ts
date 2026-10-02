@@ -16,7 +16,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { hostTimezone } from './env.ts';
 import { effectivePublicUrl } from './providers/config.ts';
-import { BoardSchema, BookResultSchema, CalendarSchema, CategorySchema, ContactCategoryInputSchema, ContactCategorySchema, ContactInputSchema, ContactPatchSchema, ContactSchema, ChoreDaySchema, ChoreSchema, EventInstanceSchema, LeaderboardEntrySchema, ListDetailSchema, ListItemSchema, ListSchema, MemberSchema, NoteSchema, RememberedItemSchema, StoreAislesSchema, TrackerEntrySchema, TRACKER_KINDS, NotificationSchema, PointsSchema, SettingsSchema, SnapshotSchema, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, TransitionRemindersSchema, RewardSchema, RewardInputSchema, RedemptionSchema, RewardLimitSchema, MemberStatsSchema, StatsPeriodSchema } from './schemas.ts';
+import { BoardSchema, BookResultSchema, CalendarSchema, LibraryBookSchema, CategorySchema, ContactCategoryInputSchema, ContactCategorySchema, ContactInputSchema, ContactPatchSchema, ContactSchema, ChoreDaySchema, ChoreSchema, EventInstanceSchema, LeaderboardEntrySchema, ListDetailSchema, ListItemSchema, ListSchema, MemberSchema, NoteSchema, RememberedItemSchema, StoreAislesSchema, TrackerEntrySchema, TRACKER_KINDS, NotificationSchema, PointsSchema, SettingsSchema, SnapshotSchema, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, TransitionRemindersSchema, RewardSchema, RewardInputSchema, RedemptionSchema, RewardLimitSchema, MemberStatsSchema, StatsPeriodSchema } from './schemas.ts';
 import type { Env } from './env.ts';
 import { RecipeSchema, RecipeInputSchema, RecipeKindSchema, RecipeImportSchema, RecipeImportResultSchema, RecipePreviewResultSchema, RecipeUrlImportSchema, MealSchema, MealInputSchema, MealPatchSchema, ProjectionSchema, ProjectionApplySchema, ProjectionQuerySchema, MealRangeSchema } from './meal-schemas.ts';
 import { NewscastSchema } from './routes/newscast.ts';
@@ -239,6 +239,7 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
   update_member: { member: MemberSchema },
   list_lists: { lists: z.array(ListSchema) },
   search_books: { books: z.array(BookResultSchema) },
+  list_library: { books: z.array(LibraryBookSchema) }, add_to_library: { book: LibraryBookSchema },
   create_list: { list: ListSchema },
   update_list: { list: ListSchema },
   get_list: ListDetailSchema.shape,
@@ -288,7 +289,7 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
 
 const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boolean; idempotentHint: boolean; openWorldHint: boolean }> = {
   list_recipes: READ, get_recipe: READ, create_recipe: WRITE, update_recipe: SET, rate_recipe: SET, import_recipe: SET, import_recipe_from_url: { ...SET, openWorldHint: true }, list_meals: READ, create_meal: WRITE, update_meal: SET, get_meal_projection: READ, apply_meal_projection: SET,
-  get_household: READ, list_events: READ, get_event: READ, list_chores: READ, get_leaderboard: READ, get_points: READ, get_member_profile: READ, list_lists: READ, get_list: READ, search_books: { ...READ, openWorldHint: true }, list_categories: READ, get_event_items: READ, list_notifications: READ, list_newscast: READ, list_notes: READ, get_snapshot: READ, get_board: READ, list_tracker_entries: READ, add_tracker_entry: WRITE, update_tracker_entry: SET, list_color_schemes: READ, set_color_scheme: SET, save_color_scheme: WRITE,
+  get_household: READ, list_events: READ, get_event: READ, list_chores: READ, get_leaderboard: READ, get_points: READ, get_member_profile: READ, list_lists: READ, get_list: READ, search_books: { ...READ, openWorldHint: true }, list_library: READ, add_to_library: { ...WRITE, openWorldHint: true }, list_categories: READ, get_event_items: READ, list_notifications: READ, list_newscast: READ, list_notes: READ, get_snapshot: READ, get_board: READ, list_tracker_entries: READ, add_tracker_entry: WRITE, update_tracker_entry: SET, list_color_schemes: READ, set_color_scheme: SET, save_color_scheme: WRITE,
   list_contacts: READ, get_contact: READ, list_contact_categories: READ, preview_contact_import: READ,
   delete_color_scheme: { ...WRITE, destructiveHint: true, idempotentHint: true },
   create_event: { ...WRITE, openWorldHint: true }, update_event: { ...SET, openWorldHint: true }, set_event_category: SET,
@@ -334,6 +335,43 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     const result = await call(app, env, auth, 'POST', '/api/recipes/import', input);
     return result.status >= 400 ? errorResult(result.json, 'failed to import recipe') : okResult((result.json as { planned?: boolean }).planned ? 'Recipe imported and planned' : 'Recipe imported', result.json as Record<string, unknown>);
   });
+  tool(
+    'list_library',
+    {
+      title: 'List the library',
+      description: "The family's library: books they own (apart from who's reading what), A-Z, each with author, series, reading level (lexile) and readers (reading entries started from it: memberId and status). q searches titles, authors and series; unread: only books nobody has started. Start reading one with add_tracker_entry (kind reading, data.bookId = the book's id).",
+      inputSchema: { q: z.string().max(100).optional(), unread: z.boolean().optional().describe('Only books nobody has started reading.') },
+    },
+    async ({ q, unread }) => {
+      const params = new URLSearchParams({ ...(q ? { q } : {}), ...(unread ? { unread: '1' } : {}) });
+      const res = await call(app, env, auth, 'GET', `/api/library${params.size ? `?${params}` : ''}`);
+      if (res.status >= 400) return errorResult(res.json, 'failed to list the library');
+      const books = res.json as { title: string; author: string | null; readers: unknown[] }[];
+      const top = books.slice(0, 15).map((b) => `${b.title}${b.author ? ` by ${b.author}` : ''}${b.readers.length ? '' : ' (unread)'}`).join('; ');
+      return okResult(books.length ? `${books.length} book(s): ${top}${books.length > 15 ? '…' : ''}.` : 'No books in the library.', { books: books as unknown as Record<string, unknown>[] });
+    },
+  );
+
+  tool(
+    'add_to_library',
+    {
+      title: 'Add to the library',
+      description: "Add a book the family owns to its library. Give an isbn alone to look it up (Open Library: title, author, pages, cover, series, reading level, description), or a title (use search_books first for details; pass its workKey to fetch the description). A book already in the library (same ISBN) isn't added twice.",
+      inputSchema: {
+        title: z.string().optional(), author: z.string().optional(), isbn: z.string().optional().describe('ISBN-10 or ISBN-13, digits only.'),
+        pages: z.number().int().optional(), coverUrl: z.string().optional(), year: z.number().int().optional(),
+        series: z.string().optional(), seriesNumber: z.string().optional(), lexile: z.number().int().optional(), workKey: z.string().optional().describe("From search_books."),
+      },
+    },
+    async (input) => {
+      const res = await call(app, env, auth, 'POST', '/api/library', input);
+      if (res.status === 409) { const book = (res.json as { book: { title: string } }).book; return okResult(`"${book.title}" is already in the library.`, { book: book as unknown as Record<string, unknown> }); }
+      if (res.status >= 400) return errorResult(res.json, 'failed to add the book');
+      const book = res.json as { title: string; author: string | null };
+      return okResult(`Added "${book.title}"${book.author ? ` by ${book.author}` : ''} to the library.`, { book: book as unknown as Record<string, unknown> });
+    },
+  );
+
   tool(
     'search_books',
     {

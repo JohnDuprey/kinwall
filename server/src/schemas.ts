@@ -1095,6 +1095,7 @@ export const ReadingDataSchema = z
     finishedOn: DateOnly.nullable().optional(),
     rating: z.number().int().min(1).max(5).nullable().optional(), // stars
     notes: Text(4000).nullable().optional(),
+    bookId: z.string().max(100).nullable().optional(), // started from a library book (routes/library.ts)
     // Read each day, kept by the server as progress changes (server/src/reading.ts logReading); a client's copy is ignored.
     log: z.array(z.object({ date: DateOnly, amount: z.number().int().min(0).max(100000) })).max(400).optional(),
     // A cover photo's address (public https), served through GET /api/trackers/{id}/cover
@@ -1306,8 +1307,41 @@ export const BookResultSchema = z
     title: z.string(), author: z.string().optional(), year: z.number().optional(), pages: z.number().optional(),
     coverId: z.number().optional(), // the thumbnail: GET /api/books/covers/{coverId}
     coverUrl: z.string().optional(), // what to save as the entry's coverUrl
+    isbn: z.string().optional(), // an ISBN-13 when there is one (else ISBN-10)
+    series: z.string().optional(), seriesNumber: z.string().optional(), // "Warriors", "1"
+    lexile: z.number().optional(), // reading level, e.g. 660 (660L)
+    genres: z.array(z.string()).optional(), // up to three, picked out of Open Library's subjects (books.ts genresFrom)
+    workKey: z.string().optional(), // Open Library's work, e.g. /works/OL116250W: adding it to the library fetches its description
   })
   .openapi('BookResult');
+
+// The family's library (routes/library.ts): books owned, with who has read them (reading entries
+// started from the book carry data.bookId).
+const LibraryIsbn = z.string().regex(/^(\d{9}[\dXx]|\d{13})$/, 'an ISBN-10 or ISBN-13, digits only');
+const LibraryCover = z.string().max(2000).refine(isPublicHttpsUrl, 'must be a public https address');
+export const LibraryBookSchema = z
+  .object({
+    id: z.string(), title: z.string(), author: z.string().nullable(), isbn: z.string().nullable(), pages: z.number().nullable(),
+    coverUrl: z.string().nullable(), year: z.number().nullable(), series: z.string().nullable(), seriesNumber: z.string().nullable(),
+    lexile: z.number().nullable().openapi({ description: 'Reading level (Lexile), e.g. 660 for 660L.' }), description: z.string().nullable(),
+    genres: z.array(z.string()).openapi({ description: 'Up to three, e.g. Fantasy, Animals.' }),
+    addedBy: ActorSchema.nullable(),
+    readers: z.array(z.object({ entryId: z.string(), memberId: z.string().nullable(), status: z.enum(['want', 'reading', 'finished']) })).openapi({ description: 'Reading entries started from this book (data.bookId), newest first.' }),
+    createdAt: z.string(), updatedAt: z.string(),
+  })
+  .openapi('LibraryBook');
+export const LibraryBookInputSchema = z
+  .object({
+    title: z.string().trim().min(1).max(300).optional().openapi({ description: 'Leave out with an isbn to look the book up (Open Library).' }),
+    author: z.string().max(200).nullable().optional(), isbn: LibraryIsbn.nullable().optional(), pages: z.number().int().min(1).max(100000).nullable().optional(),
+    coverUrl: LibraryCover.nullable().optional(), year: z.number().int().min(0).max(3000).nullable().optional(),
+    series: z.string().max(200).nullable().optional(), seriesNumber: z.string().max(20).nullable().optional(),
+    lexile: z.number().int().min(-500).max(2500).nullable().optional(), description: z.string().max(4000).nullable().optional(),
+    genres: z.array(z.string().trim().min(1).max(40)).max(5).optional(),
+    workKey: z.string().regex(/^\/works\/OL\d+W$/).optional().openapi({ description: "A search result's workKey: its description is fetched (once)." }),
+  })
+  .openapi('LibraryBookInput');
+export const LibraryBookPatchSchema = LibraryBookInputSchema.omit({ workKey: true }).extend({ title: z.string().trim().min(1).max(300).optional() }).openapi('LibraryBookPatch');
 
 export const GeocodeResultSchema = z
   .object({ name: z.string(), label: z.string(), lat: z.number(), lon: z.number(), countryCode: z.string().optional() })
