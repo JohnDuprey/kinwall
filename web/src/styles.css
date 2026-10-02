@@ -2983,8 +2983,12 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
 .meds-grid-name { display: block; font-weight: 800; overflow-wrap: anywhere; }
 .meds-grid-sub { display: block; font-size: 0.75rem; font-weight: 700; color: var(--text-dim); }
 .meds-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 8px 0 0; font-size: 0.8125rem; font-weight: 700; color: var(--text-dim); }
-.meds-person { padding: 12px 2px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
-.meds-person-head { display: flex; align-items: center; gap: 10px; }
+.meds-person { padding: 12px 2px; border-top: 1px solid var(--border); }
+.meds-person-head { display: flex; align-items: center; gap: 10px; min-height: 44px; cursor: pointer; list-style: none; }
+.meds-person-head::-webkit-details-marker { display: none; }
+.meds-person-head::after { content: '▸'; margin-left: auto; color: var(--text-dim); transition: transform 0.15s; }
+.meds-person[open] > .meds-person-head::after { transform: rotate(90deg); }
+.meds-person-body { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
 .meds-set-row { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-height: 44px; padding: 8px 12px; border-radius: 12px; border: 2px solid var(--border); background: var(--bg-alt); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
 .meds-times { border: none; padding: 0; margin: 0 0 14px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
 .meds-times legend { padding: 0; margin-bottom: 6px; font-size: 0.8125rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.02em; }

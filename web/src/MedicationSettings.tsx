@@ -61,22 +61,26 @@ export function MedicineList({ memberId }: { memberId?: string | null }) {
       {members.filter(m => !memberId || m.id === memberId).map(m => {
           const mine = meds.filter(x => x.memberId === m.id)
           return (
-            <div key={m.id} className="meds-person">
-              <div className="meds-person-head">
+            // Collapsed by default so a glance at Health doesn't show anyone's medicines.
+            <details key={m.id} className="meds-person">
+              <summary className="meds-person-head">
                 <span className="board-avatar" style={{ background: m.color, color: inkFor(m.color) }} aria-hidden="true">{m.avatar || m.name[0]}</span>
                 <span className="settings-row-label">{m.name}</span>
+                <span className="settings-row-sub">{mine.length === 0 ? 'None' : mine.length === 1 ? '1 medicine' : `${mine.length} medicines`}</span>
+              </summary>
+              <div className="meds-person-body">
+                {mine.map(x => (
+                  <button key={x.id} className="meds-set-row" onClick={() => setEditing({ med: x, member: m })} aria-label={`Edit ${x.name} for ${m.name}`}>
+                    <span className="settings-row-label">{x.dose ? `${x.name} · ${x.dose}` : x.name}</span>
+                    <span className="settings-row-sub">{scheduleLabel(x)}</span>
+                  </button>
+                ))}
+                <div className="settings-inline-btns">
+                  <button className="btn btn-secondary" onClick={() => setEditing({ med: null, member: m })}>+ Add medicine</button>
+                  {mine.length > 0 && <a className="btn btn-secondary meds-link" href={`#/medications/${m.id}`}>History</a>}
+                </div>
               </div>
-              {mine.map(x => (
-                <button key={x.id} className="meds-set-row" onClick={() => setEditing({ med: x, member: m })} aria-label={`Edit ${x.name} for ${m.name}`}>
-                  <span className="settings-row-label">{x.dose ? `${x.name} · ${x.dose}` : x.name}</span>
-                  <span className="settings-row-sub">{scheduleLabel(x)}</span>
-                </button>
-              ))}
-              <div className="settings-inline-btns">
-                <button className="btn btn-secondary" onClick={() => setEditing({ med: null, member: m })}>+ Add medicine</button>
-                {mine.length > 0 && <a className="btn btn-secondary meds-link" href={`#/medications/${m.id}`}>History</a>}
-              </div>
-            </div>
+            </details>
           )
         })}
       <div className="toggle-row">
