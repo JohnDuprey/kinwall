@@ -189,9 +189,11 @@ function applyAppearance(household: Appearance, device: DeviceAppearance) {
     root.style.setProperty('--accent-strong', accentFill(accent))
     root.style.setProperty('--accent-ink', '#ffffff')
     // Accent as text/focus ring: 4.5:1 on the theme's lowest-contrast surface (bg-alt in light,
-    // card-soft in dark), so links, active tabs and focus outlines read in either mode.
-    const surface = getComputedStyle(root).getPropertyValue(dark ? '--card-soft' : '--bg-alt').trim()
-    if (/^#[0-9a-f]{6}$/i.test(surface)) root.style.setProperty('--accent-text', readableOn(accent, surface))
+    // card-soft in dark), so links, active tabs and focus outlines read in either mode. card-soft is a
+    // color-mix() string, not a hex, so dark checks against --card: card-soft sits between card and
+    // the darker bg, so a light accent that reads on the card reads on it too. (Reading card-soft
+    // here used to skip dark entirely, leaving the light accent behind after a switch to dark.)
+    root.style.setProperty('--accent-text', readableOn(accent, dark ? custom.card || t.card : t.bgAlt))
     root.style.setProperty('--text-scale', SCALE[a.textScale])
 
     try { saveIfChanged(LAST_THEME_KEY, dark ? 'dark' : 'light'); saveIfChanged(LAST_LOOK_KEY, root.style.cssText) } catch { /* private mode */ }
