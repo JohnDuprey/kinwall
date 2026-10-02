@@ -2,7 +2,7 @@
 import type { Actor, OnlineTidbits, Plugin, PluginCatalogEntry,
   Account, ApiKey, AppNotification, SecurityEvent, CalendarEntry, Category, Chore, ChoreDay, LibraryChore, LibraryChoreInput, EventInstance, HiddenEvent, LeaderboardEntry, LeaderboardPeriod, List, ListGroup,
   Newscast, NewscastItem, NewscastPostInput, NewscastReaction,
-  Photo, PhotoQuota, GooglePhotos, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, ListItem, ListItemInput, ListItemPatch, ListItemStep, ListCatalog, Member, RememberedItem, RememberedItemInput, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption, TempCheck, TempCheckInput, Journal, JournalEntry, Insights, InsightDay, InsightRange, Battery, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory, DoseStatus, MedTime,
+  Photo, PhotoQuota, FamilyColoringPage, GooglePhotos, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, ListItem, ListItemInput, ListItemPatch, ListItemStep, ListCatalog, Member, RememberedItem, RememberedItemInput, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption, TempCheck, TempCheckInput, Journal, JournalEntry, Insights, InsightDay, InsightRange, Battery, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory, DoseStatus, MedTime,
 } from './types.ts'
 import { eveningPending, FEELINGS, lastNightDate, TEMP_CHECK_OFF } from './tempCheck.ts'
 import { aisleOrderMap, compareItems } from './types.ts'
@@ -248,6 +248,8 @@ const googleStatus = (): GooglePhotos => {
     ...((state === 'choosing' || state === 'ready') && demoGoogle() !== 'legacy' ? { account: { name: 'Alex', email: 'alex@example.com' } } : {}),
   }
 }
+
+const coloringPages: FamilyColoringPage[] = [] // a parent adds one from a picture (Paint → Coloring pages → Add a page)
 
 const PHOTO_LIMITS = { maxCount: 200, maxBytes: 104_857_600, maxPhotoBytes: 614_400 }
 
@@ -1263,6 +1265,12 @@ export const mock = {
     bump(); return { ...p }
   },
   importPhotos: async () => ({ imported: 0, skipped: 0 }),
+  getColoringPages: async () => [...coloringPages],
+  addColoringPage: async (png: Blob, width: number, height: number, name: string) => {
+    const p: FamilyColoringPage = { id: uid(), name: name.trim() || 'Coloring page', width, height, createdAt: new Date().toISOString(), url: URL.createObjectURL(png) }
+    coloringPages.unshift(p); bump(); return p
+  },
+  deleteColoringPage: async (id: string) => { const i = coloringPages.findIndex(x => x.id === id); if (i >= 0) coloringPages.splice(i, 1); bump(); return { ok: true } },
   deletePhoto: async (id: string) => { const i = photos.findIndex(x => x.id === id); if (i >= 0) photos.splice(i, 1); bump(); return { ok: true } },
   removeSticker: async (_memberId: string, id: string) => { const i = scrapbook.findIndex(x => x.id === id); if (i >= 0) scrapbook.splice(i, 1); bump() },
 

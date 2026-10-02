@@ -1,7 +1,10 @@
-// Paint: a kids' drawing app, entirely on this device (no API calls, works on display keys and in
-// the demo build). One visible canvas sized to its box × devicePixelRatio (capped at MAX_PX), plus
-// an offscreen `base` canvas holding the drawing at the size it was made, so a resize/rotation
-// rescales from the original instead of shrinking the picture a little more every turn.
+// Paint: a kids' drawing app, kept on this device (works on display keys and in the demo build; the
+// only API calls are the family's coloring pages and "Save to family photos"). One visible canvas
+// sized to its box × devicePixelRatio (capped at MAX_PX), plus an offscreen `base` canvas holding the
+// drawing at the size it was made, so a resize/rotation rescales from the original instead of
+// shrinking the picture a little more every turn. Above it: a `wet` canvas showing a Highlighter
+// stroke until it's finished, and a coloring page's lines on their own locked layer (`linesBase`
+// keeps them at their own size, like `base`). Brushes, Fill and line art are in paintTools.ts.
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { useApp } from './AppContext.tsx'
@@ -12,9 +15,11 @@ import { inkFor } from './color.ts'
 import { CustomColorSwatch } from './ColorSwatch.tsx'
 import { IDLE_RESET_EVENT } from './App.tsx'
 import { countDrawings, deleteDrawing, getDrawing, listDrawings, putDrawing, type Drawing, type Meta } from './drawings-db.ts'
-import { BrushIcon, BucketIcon, ChevronLeft, DownloadIcon, EditIcon, EraserIcon, HeartIcon, ImagesIcon, PlusIcon, PrinterIcon, RedoIcon, TrashIcon, UndoIcon } from './icons.tsx'
+import { BookIcon, BucketIcon, ChevronLeft, DownloadIcon, EditIcon, EraserIcon, HeartIcon, ImagesIcon, PlusIcon, PrinterIcon, RedoIcon, TrashIcon, UndoIcon } from './icons.tsx'
 import { preparePhoto } from './photos.ts'
 import { api, ApiError } from './api.ts'
+import { beginStroke, endStroke, floodFill, packRGBA, PAPER, STAMPS, strokeTo, drawStroke, type Brush, type Stroke } from './paintTools.ts'
+import ColoringBook from './ColoringBook.tsx'
 
 // The Colors sheet, one row each: bright, pastel (the member palette), dark, skin tones and browns,
 // grays and extras. Names are what screen readers say.
@@ -35,15 +40,22 @@ const MAX_PX = 2048 // longest canvas side: keeps flood fill and PNG encoding qu
 const MAX_DRAWINGS = 50
 const UNDO_DEPTH = 20
 const AUTOSAVE_EVERY = 3 // strokes
-const PAPER = '#FFFFFF'
 
-type Tool = 'brush' | 'rainbow' | 'eraser' | 'fill'
-const TOOLS: { key: Tool; label: string; Icon?: typeof BrushIcon }[] = [
-  { key: 'brush', label: 'Brush', Icon: BrushIcon },
-  { key: 'rainbow', label: 'Rainbow brush' },
-  { key: 'eraser', label: 'Eraser', Icon: EraserIcon },
-  { key: 'fill', label: 'Fill bucket', Icon: BucketIcon },
+type Tool = Brush | 'fill'
+// The Brushes sheet. Eraser and Fill have their own toolbar buttons.
+const BRUSHES: { key: Brush; name: string; emoji: string }[] = [
+  { key: 'marker', name: 'Marker', emoji: '🖊️' },
+  { key: 'crayon', name: 'Crayon', emoji: '🖍️' },
+  { key: 'soft', name: 'Highlighter', emoji: '🖌️' },
+  { key: 'spray', name: 'Spray', emoji: '💨' },
+  { key: 'rainbow', name: 'Rainbow', emoji: '🌈' },
+  { key: 'stamp', name: 'Stamps', emoji: '⭐' },
 ]
+const toolName = (t: Tool, stamp: string) => t === 'fill' ? 'Fill bucket' : t === 'eraser' ? 'Eraser'
+  : t === 'stamp' ? `${STAMPS.find(([s]) => s === stamp)?.[1] ?? 'Star'} stamp` : BRUSHES.find(b => b.key === t)!.name
+/** One undo step: the paint, and the coloring page's lines at the same size (or none). */
+type Step = { paint: Blob; lines: Blob | null }
+const ownColor = (t: Tool) => t !== 'eraser' && t !== 'rainbow' // tools that use the chosen color
 
 const ls = {
   get: (k: string) => { try { return localStorage.getItem(k) } catch { return null } },
@@ -60,11 +72,11 @@ function newMeta(): Meta {
 // ---------- Canvas helpers ----------
 const toBlob = (c: HTMLCanvasElement) => new Promise<Blob>((resolve, reject) => c.toBlob(b => b ? resolve(b) : reject(new Error('toBlob failed')), 'image/png'))
 
-/** Paper, then `src` scaled to fit and centered. */
-function drawContained(c: HTMLCanvasElement, src?: HTMLCanvasElement | ImageBitmap) {
+/** Paper (or nothing, for the lines layer), then `src` scaled to fit and centered. */
+function drawContained(c: HTMLCanvasElement, src?: HTMLCanvasElement | ImageBitmap | HTMLImageElement, paper = true) {
   const ctx = c.getContext('2d')!
-  ctx.fillStyle = PAPER
-  ctx.fillRect(0, 0, c.width, c.height)
+  ctx.clearRect(0, 0, c.width, c.height)
+  if (paper) { ctx.fillStyle = PAPER; ctx.fillRect(0, 0, c.width, c.height) }
   if (!src?.width) return
   const s = Math.min(c.width / src.width, c.height / src.height)
   const w = src.width * s, h = src.height * s
@@ -90,40 +102,6 @@ async function makeThumb(png: Blob) {
   return toBlob(c)
 }
 
-const packRGBA = (hex: string) => {
-  const n = parseInt(hex.slice(1), 16)
-  return ((255 << 24) | ((n & 255) << 16) | (n & 0xff00) | (n >> 16)) >>> 0 // little-endian ABGR
-}
-
-/** Scanline flood fill in place. `tol`: largest per-channel difference from the start pixel that
- * still counts as the same area (soaks up anti-aliased stroke edges). Returns false if nothing changed. */
-function floodFill(img: ImageData, x0: number, y0: number, rgba: number, tol = 64): boolean {
-  const { width: w, height: h } = img
-  const px = new Uint32Array(img.data.buffer)
-  const start = px[y0 * w + x0]
-  if (start === rgba) return false
-  const sr = start & 255, sg = (start >>> 8) & 255, sb = (start >>> 16) & 255
-  const same = (v: number) => Math.abs((v & 255) - sr) <= tol && Math.abs(((v >>> 8) & 255) - sg) <= tol && Math.abs(((v >>> 16) & 255) - sb) <= tol
-  const done = new Uint8Array(w * h)
-  const stack = [x0, y0]
-  while (stack.length) {
-    const y = stack.pop()!, x = stack.pop()!
-    const row = y * w
-    if (done[row + x] || !same(px[row + x])) continue
-    let l = x, r = x
-    while (l > 0 && !done[row + l - 1] && same(px[row + l - 1])) l--
-    while (r < w - 1 && !done[row + r + 1] && same(px[row + r + 1])) r++
-    let up = false, down = false // push one seed per run above/below, not one per pixel
-    for (let i = l; i <= r; i++) {
-      done[row + i] = 1
-      px[row + i] = rgba
-      if (y > 0) { const ok = !done[row - w + i] && same(px[row - w + i]); if (ok && !up) stack.push(i, y - 1); up = ok }
-      if (y < h - 1) { const ok = !done[row + w + i] && same(px[row + w + i]); if (ok && !down) stack.push(i, y + 1); down = ok }
-    }
-  }
-  return true
-}
-
 const isIOS = () => /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
 const fmtDate = (t: number, long = false) => new Date(t).toLocaleDateString(undefined, long ? { year: 'numeric', month: 'long', day: 'numeric' } : { month: 'short', day: 'numeric' })
 
@@ -133,7 +111,13 @@ export default function Paint() {
   const wrapRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [base] = useState(() => { const c = document.createElement('canvas'); c.width = 0; return c })
-  const [tool, setTool] = useState<Tool>('brush')
+  const wetRef = useRef<HTMLCanvasElement>(null)
+  const linesRef = useRef<HTMLCanvasElement>(null)
+  const [linesBase] = useState(() => { const c = document.createElement('canvas'); c.width = 0; return c })
+  const [tool, setTool] = useState<Tool>('marker')
+  const [stamp, setStamp] = useState(STAMPS[0][0])
+  const [brushes, setBrushes] = useState(false)
+  const [book, setBook] = useState(false)
   const [color, setColor] = useState('#4DA3FF')
   const [size, setSize] = useState(2)
   const [meta, setMetaState] = useState<Meta | null>(null)
@@ -151,21 +135,33 @@ export default function Paint() {
     fullWarned: false,
     dirty: false,
     sinceSave: 0,
-    hist: [] as Blob[], idx: -1,
+    hist: [] as Step[], idx: -1, // undo steps
     queue: Promise.resolve() as Promise<unknown>, // snapshot encodes, in order
     ratio: 1,          // canvas px per CSS px
-    stroke: null as null | { id: number; last: [number, number]; mid: [number, number]; hue: number },
+    stroke: null as null | { id: number; s: Stroke },
+    lastBrush: 'marker' as Brush, // what picking a color goes back to from the eraser or rainbow
+    lines: null as Blob | null,   // this drawing's coloring page (linesBase as a PNG, the same size as the paint), or none
+    wall: null as Uint8Array | null, // the lines' alpha per canvas pixel, for Fill (rebuilt after a resize)
   }).current
   const setMeta = (m: Meta) => { r.meta = m; setMetaState(m); ls.set(CURRENT_KEY, m.id) }
 
-  /** Canvas → base, then an undo snapshot. toBlob copies the bitmap at call time; only the push waits. */
+  /** Canvas → base, then an undo snapshot. toBlob copies the bitmap at call time; only the push waits.
+   * A coloring page's lines follow the paint to a new canvas size (after a rotation), so each step's
+   * paint and lines are always the same size and line up wherever the drawing is opened next. */
   const snapshot = (edit = true) => {
     const cv = canvasRef.current!
     base.width = cv.width; base.height = cv.height
     base.getContext('2d')!.drawImage(cv, 0, 0)
+    let lines: Blob | null | Promise<Blob> = r.lines
+    if (r.lines && (linesBase.width !== cv.width || linesBase.height !== cv.height)) {
+      linesBase.width = cv.width; linesBase.height = cv.height
+      linesBase.getContext('2d')!.drawImage(linesRef.current!, 0, 0)
+      lines = toBlob(linesBase)
+    }
     const blob = toBlob(cv)
-    r.queue = r.queue.then(() => blob).then(b => {
-      r.hist = [...r.hist.slice(0, r.idx + 1), b].slice(-(UNDO_DEPTH + 1))
+    r.queue = r.queue.then(() => Promise.all([blob, lines])).then(([paint, l]) => {
+      r.lines = l
+      r.hist = [...r.hist.slice(0, r.idx + 1), { paint, lines: l }].slice(-(UNDO_DEPTH + 1))
       r.idx = r.hist.length - 1
       setHistTick(t => t + 1)
     }).catch(() => {})
@@ -183,6 +179,44 @@ export default function Paint() {
     if (canvasRef.current) drawContained(canvasRef.current, base)
   }
 
+  /** The coloring page's lines over the paint, or none (`linesBase` holds them at their own size). */
+  const showLines = async (lines: Blob | null) => {
+    r.lines = lines; r.wall = null
+    linesBase.width = 0
+    if (lines) {
+      const bm = await loadImage(lines)
+      linesBase.width = bm.width; linesBase.height = bm.height
+      linesBase.getContext('2d')!.drawImage(bm, 0, 0)
+      bm.close?.()
+    }
+    if (linesRef.current) drawContained(linesRef.current, linesBase, false)
+  }
+
+  /** A new page's line art (any size), fitted onto the canvas with a little margin. */
+  const setPage = async (img: CanvasImageSource & { width: number; height: number }) => {
+    const cv = canvasRef.current!
+    linesBase.width = cv.width; linesBase.height = cv.height
+    const m = Math.min(cv.width, cv.height) * 0.04
+    const k = Math.min((cv.width - 2 * m) / img.width, (cv.height - 2 * m) / img.height)
+    const w = img.width * k, h = img.height * k
+    linesBase.getContext('2d')!.drawImage(img, (cv.width - w) / 2, (cv.height - h) / 2, w, h)
+    await showLines(await toBlob(linesBase))
+  }
+
+  /** The whole picture: the paint, with the page's lines on top when there are any. */
+  const flatten = async ({ paint, lines }: Step) => {
+    if (!lines) return paint
+    const c = document.createElement('canvas')
+    const ctx = c.getContext('2d')!
+    for (const blob of [paint, lines]) {
+      const bm = await loadImage(blob)
+      if (blob === paint) { c.width = bm.width; c.height = bm.height }
+      ctx.drawImage(bm, 0, 0, c.width, c.height)
+      bm.close?.()
+    }
+    return toBlob(c)
+  }
+
   const save = async (): Promise<boolean> => {
     const m = r.meta
     if (!m || !r.dirty) return true
@@ -195,9 +229,10 @@ export default function Paint() {
         r.fullWarned = true
         return false
       }
-      const png = r.hist[r.idx]
+      const step = r.hist[r.idx]
+      const png = await flatten(step)
       const updated = { ...m, updated: Date.now() }
-      await putDrawing({ ...updated, png, thumb: await makeThumb(png) })
+      await putDrawing({ ...updated, png, thumb: await makeThumb(png), ...(step.lines ? { paint: step.paint, lines: step.lines } : {}) })
       if (!r.stored) ls.set(COUNT_KEY, String(Number(ls.get(COUNT_KEY) ?? 0) + 1))
       r.stored = true
       if (r.meta?.id === m.id) r.meta = { ...r.meta, updated: updated.updated }
@@ -214,8 +249,9 @@ export default function Paint() {
 
   // A new drawing asks who's drawing, unless the family is filtered (or the display pinned) to one
   // person, who then becomes the artist.
-  const startNew = () => {
+  const startNew = (name?: string) => {
     const m = newMeta()
+    if (name) m.name = name
     if (selectedMemberId) m.memberId = selectedMemberId
     else if (members.length > 0) setWho(true)
     setMeta(m)
@@ -223,14 +259,16 @@ export default function Paint() {
     r.hist = []; r.idx = -1
     base.width = 0
     drawContained(canvasRef.current!)
+    void showLines(null)
     snapshot(false)
   }
 
   const open = async (d: Drawing) => {
-    await show(d.png)
+    await show(d.paint ?? d.png)
+    await showLines(d.lines ?? null)
     setMeta({ id: d.id, name: d.name, memberId: d.memberId, created: d.created, updated: d.updated })
     r.stored = true; r.fullWarned = false; r.dirty = false; r.sinceSave = 0
-    r.hist = [d.png]; r.idx = 0
+    r.hist = [{ paint: d.paint ?? d.png, lines: d.lines ?? null }]; r.idx = 0
     setHistTick(t => t + 1)
   }
 
@@ -247,6 +285,9 @@ export default function Paint() {
       if (cv.width === w && cv.height === h) return
       cv.width = w; cv.height = h
       drawContained(cv, base)
+      for (const layer of [wetRef.current!, linesRef.current!]) { layer.width = w; layer.height = h }
+      drawContained(linesRef.current!, linesBase, false)
+      r.wall = null
     }
     fit()
     const ro = new ResizeObserver(fit)
@@ -271,17 +312,18 @@ export default function Paint() {
     }
   }, [])
 
+  const showStep = async (st: Step) => { await show(st.paint); if (st.lines !== r.lines) await showLines(st.lines) }
   const undo = async () => {
     await r.queue
     if (r.idx <= 0) return
     r.idx--; r.dirty = true
-    await show(r.hist[r.idx]); setHistTick(t => t + 1); announce('Undone')
+    await showStep(r.hist[r.idx]); setHistTick(t => t + 1); announce('Undone')
   }
   const redo = async () => {
     await r.queue
     if (r.idx >= r.hist.length - 1) return
     r.idx++; r.dirty = true
-    await show(r.hist[r.idx]); setHistTick(t => t + 1); announce('Redone')
+    await showStep(r.hist[r.idx]); setHistTick(t => t + 1); announce('Redone')
   }
   const undoRef = useRef({ undo, redo })
   undoRef.current = { undo, redo }
@@ -308,57 +350,47 @@ export default function Paint() {
     const box = canvasRef.current!.getBoundingClientRect()
     return [(e.clientX - box.left) * r.ratio, (e.clientY - box.top) * r.ratio]
   }
-  const ink = (hue: number) => tool === 'eraser' ? PAPER : tool === 'rainbow' ? `hsl(${hue} 90% 55%)` : color
+
+  /** Fill, held in by the coloring page's lines (their own layer) when there is one. */
+  const fill = (cv: HTMLCanvasElement, [x, y]: number[]) => {
+    if (x < 0 || y < 0 || x >= cv.width || y >= cv.height) return
+    const ctx = cv.getContext('2d')!
+    if (r.lines && !r.wall) {
+      const a = linesRef.current!.getContext('2d')!.getImageData(0, 0, cv.width, cv.height).data
+      r.wall = new Uint8Array(cv.width * cv.height)
+      for (let i = 0; i < r.wall.length; i++) r.wall[i] = a[i * 4 + 3]
+    }
+    const img = ctx.getImageData(0, 0, cv.width, cv.height)
+    if (floodFill(img, x, y, packRGBA(color), 64, r.lines ? r.wall! : undefined)) { ctx.putImageData(img, 0, 0); snapshot() }
+  }
+  const wet = () => wetRef.current!.getContext('2d')!
 
   const onDown = (e: ReactPointerEvent<HTMLCanvasElement>) => {
     if ((e.pointerType === 'mouse' && e.button !== 0) || r.stroke) return // one pointer at a time: a resting palm won't scribble
     const cv = e.currentTarget
     const p = point(e)
-    if (tool === 'fill') {
-      const ctx = cv.getContext('2d')!
-      const [x, y] = p.map(Math.floor)
-      if (x < 0 || y < 0 || x >= cv.width || y >= cv.height) return
-      const img = ctx.getImageData(0, 0, cv.width, cv.height)
-      if (floodFill(img, x, y, packRGBA(color))) { ctx.putImageData(img, 0, 0); snapshot() }
-      return
-    }
+    if (tool === 'fill') { fill(cv, p.map(Math.floor)); return }
     try { cv.setPointerCapture(e.pointerId) } catch { /* pointer already gone */ }
-    const hue = Math.random() * 360
-    r.stroke = { id: e.pointerId, last: p, mid: p, hue }
-    const ctx = cv.getContext('2d')!
-    ctx.fillStyle = ink(hue)
-    ctx.beginPath(); ctx.arc(p[0], p[1], SIZES[size] * r.ratio / 2, 0, Math.PI * 2); ctx.fill() // a tap makes a dot
+    r.stroke = { id: e.pointerId, s: beginStroke(cv.getContext('2d')!, wet(), { brush: tool, color, width: SIZES[size] * r.ratio, ratio: r.ratio, stamp }, p) }
   }
   const onMove = (e: ReactPointerEvent<HTMLCanvasElement>) => {
-    const s = r.stroke
-    if (!s || s.id !== e.pointerId) return
+    const st = r.stroke
+    if (!st || st.id !== e.pointerId) return
     const ctx = e.currentTarget.getContext('2d')!
-    ctx.lineWidth = SIZES[size] * r.ratio
-    ctx.lineCap = ctx.lineJoin = 'round'
     // Coalesced events: an Apple Pencil reports ~240 Hz, far more than one per frame.
     const coalesced = e.nativeEvent.getCoalescedEvents?.()
-    for (const ev of coalesced?.length ? coalesced : [e.nativeEvent]) {
-      const p = point(ev)
-      const mid: [number, number] = [(s.last[0] + p[0]) / 2, (s.last[1] + p[1]) / 2]
-      // Smooth: a quadratic from the previous midpoint, through the last point, to the new midpoint.
-      ctx.strokeStyle = ink(s.hue)
-      ctx.beginPath(); ctx.moveTo(s.mid[0], s.mid[1]); ctx.quadraticCurveTo(s.last[0], s.last[1], mid[0], mid[1]); ctx.stroke()
-      s.hue = (s.hue + Math.hypot(p[0] - s.last[0], p[1] - s.last[1]) / r.ratio / 3) % 360
-      s.last = p; s.mid = mid
-    }
+    for (const ev of coalesced?.length ? coalesced : [e.nativeEvent]) strokeTo(ctx, wet(), st.s, point(ev))
   }
   const onUp = (e: ReactPointerEvent<HTMLCanvasElement>) => {
-    const s = r.stroke
-    if (!s || s.id !== e.pointerId) return
-    const ctx = e.currentTarget.getContext('2d')!
-    ctx.strokeStyle = ink(s.hue)
-    ctx.beginPath(); ctx.moveTo(s.mid[0], s.mid[1]); ctx.lineTo(s.last[0], s.last[1]); ctx.stroke()
+    const st = r.stroke
+    if (!st || st.id !== e.pointerId) return
+    endStroke(e.currentTarget.getContext('2d')!, wet(), st.s)
     r.stroke = null
     snapshot()
   }
 
   // ---------- Save / share / print ----------
-  const current = async () => { await r.queue; return r.hist[r.idx] }
+  const current = async () => { await r.queue; return r.hist[r.idx] && flatten(r.hist[r.idx]) }
   const exportPng = async () => {
     const png = await current()
     if (!png || !r.meta) return
@@ -422,34 +454,50 @@ export default function Paint() {
 
   const member = members.find(m => m.id === meta?.memberId)
   const canUndo = r.idx > 0, canRedo = r.idx < r.hist.length - 1
-  const pickColor = (c: string) => { setColor(c); if (tool !== 'fill') setTool('brush'); setColors(false); announce(nameOf(c)) }
+  const pickColor = (c: string) => { setColor(c); if (!ownColor(tool)) setTool(r.lastBrush); setColors(false); announce(nameOf(c)) }
   const pickCustom = (c: string) => {
-    setColor(c); if (tool !== 'fill') setTool('brush')
+    setColor(c); if (!ownColor(tool)) setTool(r.lastBrush)
     const next = [c, ...recent.filter(x => x !== c)].slice(0, 7)
     setRecent(next)
     try { localStorage.setItem(RECENT_KEY, JSON.stringify(next)) } catch { /* private mode: just not remembered */ }
   }
-  const painting = tool !== 'eraser' && tool !== 'rainbow'
+  const painting = ownColor(tool)
+  const pickTool = (t: Tool, s = stamp) => {
+    setTool(t); setStamp(s); setBrushes(false); announce(toolName(t, s))
+    if (t !== 'fill' && ownColor(t)) r.lastBrush = t
+  }
+  const brush = BRUSHES.find(b => b.key === tool)
+  const pickPage = async (name: string, img: CanvasImageSource & { width: number; height: number }) => {
+    await save()
+    startNew(name)
+    await setPage(img)
+    r.hist = []; r.idx = -1
+    snapshot(false) // the first step has the page, so undo never takes it away
+    setBook(false)
+    if (tool === 'eraser') setTool('fill')
+    announce(`Coloring page: ${name}`)
+  }
 
   return (
     <div className="paint">
       <div className="paint-toolbar" role="toolbar" aria-label="Paint tools">
         <div className="paint-group">
           <a className="paint-btn" href="#/activities" aria-label="Back to activities"><ChevronLeft /></a>
-          {TOOLS.map(t => (
-            <button key={t.key} className={`paint-btn ${tool === t.key ? 'active' : ''}`} aria-pressed={tool === t.key} aria-label={t.label} title={t.label}
-              onClick={() => { setTool(t.key); announce(t.label) }}>
-              {t.Icon ? <t.Icon /> : <span className="paint-rainbow-dot" aria-hidden="true" />}
-            </button>
-          ))}
+          <button className={`paint-btn ${brush ? 'active' : ''}`} aria-haspopup="dialog" aria-label={`Brushes: ${brush ? toolName(tool, stamp) : 'pick one'}`} title="Brushes"
+            onClick={() => setBrushes(true)}>
+            <span className="paint-brush-emoji" aria-hidden="true">{tool === 'stamp' ? <span style={{ color }}>{stamp}</span> : (brush ?? BRUSHES.find(b => b.key === r.lastBrush)!).emoji}</span>
+          </button>
+          <button className={`paint-btn ${tool === 'eraser' ? 'active' : ''}`} aria-pressed={tool === 'eraser'} aria-label="Eraser" title="Eraser" onClick={() => pickTool('eraser')}><EraserIcon /></button>
+          <button className={`paint-btn ${tool === 'fill' ? 'active' : ''}`} aria-pressed={tool === 'fill'} aria-label="Fill bucket" title="Fill bucket" onClick={() => pickTool('fill')}><BucketIcon /></button>
           <button className="paint-btn paint-color-btn" aria-label={`Colors: ${nameOf(color)}`} title="Colors" aria-haspopup="dialog" onClick={() => setColors(true)}>
             <span className="paint-color-dot" style={{ background: color }} aria-hidden="true" />
           </button>
+          <button className="paint-btn" aria-haspopup="dialog" aria-label="Coloring pages" title="Coloring pages" onClick={() => setBook(true)}><BookIcon /></button>
         </div>
         <div className="paint-group" role="group" aria-label="Brush size">
           {SIZES.map((s, i) => (
             <button key={s} className={`paint-btn ${size === i ? 'active' : ''}`} aria-pressed={size === i} aria-label={`${SIZE_NAMES[i]} brush`} title={SIZE_NAMES[i]} onClick={() => setSize(i)}>
-              <span className="paint-size-dot" style={{ width: Math.min(s, 34), height: Math.min(s, 34), background: tool === 'eraser' || tool === 'rainbow' ? 'var(--text)' : color }} aria-hidden="true" />
+              <span className="paint-size-dot" style={{ width: Math.min(s, 34), height: Math.min(s, 34), background: painting ? color : 'var(--text)' }} aria-hidden="true" />
             </button>
           ))}
         </div>
@@ -475,11 +523,37 @@ export default function Paint() {
       <div className="paint-canvas-wrap" ref={wrapRef}>
         <canvas ref={canvasRef} className={`paint-canvas paint-tool-${tool}`} role="img" aria-label={`Drawing canvas: ${meta?.name ?? ''}`}
           onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} />
+        <canvas ref={wetRef} className="paint-layer paint-wet" aria-hidden="true" />
+        <canvas ref={linesRef} className="paint-layer" aria-hidden="true" />
       </div>
+
+      {brushes && (
+        <Sheet title="Brushes" onClose={() => setBrushes(false)}>
+          <div className="paint-brushes">
+            {BRUSHES.filter(b => b.key !== 'stamp').map(b => (
+              <button key={b.key} className={`paint-brush-tile ${tool === b.key ? 'active' : ''}`} aria-pressed={tool === b.key} onClick={() => pickTool(b.key)}>
+                <BrushSample brush={b.key} color={color} />
+                <span><span aria-hidden="true">{b.emoji}</span> {b.name}</span>
+              </button>
+            ))}
+          </div>
+          <h3 className="paint-palette-title">Stamps</h3>
+          <div className="paint-stamps">
+            {STAMPS.map(([s, name], i) => (
+              <button key={s} className={`paint-stamp ${tool === 'stamp' && stamp === s ? 'active' : ''}`} aria-pressed={tool === 'stamp' && stamp === s}
+                aria-label={`${name} stamp`} title={name} style={i < 4 ? { color } : undefined} onClick={() => pickTool('stamp', s)}>{s}</button>
+            ))}
+          </div>
+          <p className="paint-gallery-note" style={{ marginTop: 12 }}>Tap the picture to stamp. Star, heart, dot and diamond use your color.</p>
+        </Sheet>
+      )}
+
+      {book && <ColoringBook onClose={() => setBook(false)} onPick={pickPage} />}
 
       {gallery && <Gallery currentId={meta?.id} onClose={() => setGallery(false)}
         onOpen={async d => { await save(); await open(d); setGallery(false); announce(`Opened ${d.name}`) }}
         onNew={async () => { await save(); startNew(); setGallery(false); announce('New drawing') }}
+        onColoring={async () => { await save(); setGallery(false); setBook(true) }}
         onDeleted={id => { if (id === r.meta?.id) startNew() }} />}
 
       {colors && (
@@ -528,8 +602,23 @@ export default function Paint() {
   )
 }
 
-function Gallery({ currentId, onClose, onOpen, onNew, onDeleted }: {
-  currentId?: string; onClose: () => void; onOpen: (d: Drawing) => void; onNew: () => void; onDeleted: (id: string) => void
+/** A little stroke drawn by the brush itself, in the current color: the brush's picture in the sheet. */
+function BrushSample({ brush, color }: { brush: Brush; color: string }) {
+  const ref = useRef<HTMLCanvasElement>(null)
+  useEffect(() => {
+    const c = ref.current!
+    const k = window.devicePixelRatio || 1
+    c.width = 120 * k; c.height = 48 * k
+    const ctx = c.getContext('2d')!
+    ctx.fillStyle = PAPER; ctx.fillRect(0, 0, c.width, c.height)
+    const pts = Array.from({ length: 25 }, (_, i): [number, number] => [(12 + i * 4) * k, (24 + Math.sin(i / 3.8) * 12) * k])
+    drawStroke(ctx, null, { brush, color, width: 8 * k, ratio: k, seed: 3 }, pts)
+  }, [brush, color])
+  return <canvas ref={ref} className="paint-brush-sample" aria-hidden="true" />
+}
+
+function Gallery({ currentId, onClose, onOpen, onNew, onColoring, onDeleted }: {
+  currentId?: string; onClose: () => void; onOpen: (d: Drawing) => void; onNew: () => void; onColoring: () => void; onDeleted: (id: string) => void
 }) {
   const { members, toast } = useApp()
   const dialog = useDialog()
@@ -560,7 +649,10 @@ function Gallery({ currentId, onClose, onOpen, onNew, onDeleted }: {
   return (
     <Sheet title="My drawings" onClose={onClose}>
       <p className="paint-gallery-note">Saved on this device only{items ? ` · ${items.length} of ${MAX_DRAWINGS}` : ''}.</p>
-      <button className="btn btn-primary btn-block" onClick={onNew}><PlusIcon width={20} height={20} /> New drawing</button>
+      <div className="paint-gallery-new">
+        <button className="btn btn-primary" onClick={onNew}><PlusIcon width={20} height={20} /> New drawing</button>
+        <button className="btn btn-secondary" onClick={onColoring}><BookIcon width={20} height={20} /> Coloring page</button>
+      </div>
       {items?.length === 0 && <div className="empty-card"><span className="emoji" aria-hidden="true">🎨</span>No drawings yet</div>}
       <ul className="paint-gallery">
         {items?.map(d => {

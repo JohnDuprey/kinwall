@@ -12,18 +12,40 @@ A drawing app for kids. Tap **Activities → Paint**. The canvas fills the scree
 
 ### Tools
 
-* **Brush**: a round, smooth brush in the chosen color.
-* **Rainbow brush**: the color changes as you draw.
-* **Eraser**: paints white paper back.
-* **Fill bucket**: tap an area to fill it with the chosen color. It also covers most of the soft edge along a line, so outlines don't leave a white ring.
+* **Brushes**: the first tool button shows the brush in use. Tap it to pick one. Each brush shows a little stroke it drew in your color:
+  * **Marker**: round and smooth.
+  * **Crayon**: waxy, with paper showing through the grain. Going over the same spot again makes it darker.
+  * **Highlighter**: wide and see-through. It tints what's under it instead of covering it.
+  * **Spray**: a cloud of dots, like an airbrush.
+  * **Rainbow**: the color changes as you draw.
+  * **Stamps**: tap the picture to place one. Star, heart, dot and diamond use your color; the flower, butterfly, dog, cat, fish, rocket, rainbow and apple bring their own. The size dots set how big a stamp is.
+* **Eraser**: paints white paper back. On a coloring page it never erases the page's lines.
+* **Fill bucket**: tap an area to fill it with the chosen color. It also covers most of the soft edge along a line, so outlines don't leave a white ring. On a coloring page the page's lines hold the fill in.
+* **Coloring pages**: the book button. See [Coloring pages](#coloring-pages).
 * **Sizes**: seven dots, from Tiny to Giant.
-* **Colors**: the round button after the tools shows the current color. Tap it for forty colors in rows: bright, pastel, dark, skin tones and browns, and grays. **Any color** opens the device's color picker (a color wheel on most devices), and the last seven picked that way are kept on that device. Picking a color while the eraser or rainbow brush is on switches back to the brush.
+* **Colors**: the round button after the tools shows the current color. Tap it for forty colors in rows: bright, pastel, dark, skin tones and browns, and grays. **Any color** opens the device's color picker (a color wheel on most devices), and the last seven picked that way are kept on that device. Picking a color while the eraser or rainbow brush is on switches back to the last brush that uses your color.
 * **Undo / Redo**: up to 20 steps. With a keyboard, use Ctrl/⌘+Z and Ctrl/⌘+Shift+Z (or Ctrl+Y).
 * **Clear**: wipes the picture after you confirm. You can undo a clear.
 * **Who's drawing?**: a new drawing asks who's making it (tap a face, or **Skip**). When the family is filtered to one person, or the display is pinned to one, that person is the artist without asking. The face button in the toolbar changes it later. The artist shows in **My drawings** and in the caption when the picture is saved to family photos.
 * **Name**: tap the drawing's name (e.g. "Drawing 3") to rename it.
 
 Rotating the device or resizing the window rescales the picture to fit instead of clearing it.
+
+### Coloring pages
+
+Tap the book button (or **Coloring page** in **My drawings**) to pick a page: a cat, a house, a garden, a rocket, a dinosaur, a castle, a fish, a car, a butterfly or an ice cream cone. Picking one starts a new drawing named after the page.
+
+The page's lines sit on their own layer on top of the picture, so coloring never covers them, **Fill** stays inside them, and **Clear** wipes only the coloring. The drawing keeps its page when it's saved, opened again or copied, and **Save to family photos**, **Save** and **Print** use the whole picture, lines and all.
+
+#### Adding your own pages
+
+On a parent's device, **Add a page from a picture** (at the bottom of the coloring pages) turns a picture into a page for the whole family:
+
+1. **Choose a picture**: a PNG, JPEG or SVG, or a PDF (its first page). A printed coloring page, a photo of one or a drawing with clear dark outlines works best.
+2. Check the preview. Only the dark lines are kept. **Lines** keeps lighter lines when you slide it right, or only the darkest when you slide it left. **Clean up** removes specks and smudges (a photo's paper texture, dust); too strong can drop small details.
+3. Give it a name and tap **Add page**.
+
+The family's pages show under **Our pages** on every device, including wall displays and kids' devices, but only a parent's device can add or delete them. Deleting a page doesn't change pictures already colored on it. Pages are stored with the family's [photos](photos.md) and count toward the same limits (600 KB each), but they never show up as photos. They're in the photos zip backup.
 
 ### My drawings
 
@@ -32,7 +54,7 @@ Rotating the device or resizing the window rescales the picture to fit instead o
 * **Open** a drawing to keep working on it.
 * **Copy** it to start a variation.
 * **Delete** it after you confirm.
-* Start a **New drawing**.
+* Start a **New drawing**, or pick a **Coloring page**.
 
 Drawings save automatically every few strokes, when you switch tabs, when the app goes to the background, and before the wall's idle reset. Paint reopens the last drawing you worked on.
 

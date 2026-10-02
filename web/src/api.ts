@@ -10,7 +10,7 @@ import type { PasskeyAuthenticator } from './webauthn.ts'
 import type { BasicChoices, Meal, MealInput, Recipe, RecipeImport, RecipeInput, RecipePreviewResult, RecipeShare, ShoppingProjection } from './meal-types.ts'
 import type { Contact, ContactCategory, ContactInput, ImportPreviewEntry } from './contact-types.ts'
 import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginCatalogEntry,
-  StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota, GooglePhotos, Reward, Redemption, MemberStats, StatsPeriod,
+  StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota, FamilyColoringPage, GooglePhotos, Reward, Redemption, MemberStats, StatsPeriod,
   Account, ApiKey, AppNotification, Appearance, CalendarEntry, Category, Chore, ChoreDay, LibraryChore, LibraryChoreInput, PendingApproval, EventInstance, LeaderboardEntry, LeaderboardPeriod, List,
   GeocodeResult, HiddenEvent, HostEvent, ImportResult, SecurityEvent, ListDetail, ListGroup, ListItem, ListItemInput, ListItemPatch, Member, Me, Note, NoteTarget, Passkey, TrackerEntry, TrackerInput, TrackerKind, Providers, PushSubscription, PushSubscriptionPrefs, RemoteCalendar, Settings, Snapshot, Board, Webhook, WebhookWithSecret,
   Newscast, NewscastItem, NewscastPostInput, NewscastReaction,
@@ -484,6 +484,14 @@ export const api = {
     }),
   updatePhoto: (id: string, body: { caption?: string | null; memberId?: string | null }) => MOCK ? mock.updatePhoto(id, body) : patch<Photo>(`api/photos/${id}`, body, true),
   deletePhoto: (id: string) => MOCK ? mock.deletePhoto(id) : del(`api/photos/${id}`, true),
+  // Paint's coloring book: every device draws on the family's pages, a parent's device adds and deletes them.
+  getColoringPages: () => MOCK ? mock.getColoringPages() : get<FamilyColoringPage[]>('api/coloring-pages'),
+  addColoringPage: (png: Blob, width: number, height: number, name: string) => MOCK ? mock.addColoringPage(png, width, height, name)
+    : req<FamilyColoringPage>(`api/coloring-pages?${new URLSearchParams({ name })}`, {
+      method: 'POST', body: png, useAdmin: true,
+      headers: { 'Content-Type': 'image/png', 'X-Photo-Width': String(width), 'X-Photo-Height': String(height) },
+    }),
+  deleteColoringPage: (id: string) => MOCK ? mock.deleteColoringPage(id) : del(`api/coloring-pages/${id}`, true),
   /** An <img src> for a photo: it can't send the Bearer header, so the key rides as ?key= (the server
    * accepts that on this one route). The demo's photos are plain public URLs. */
   // Zip backup of every photo (admin). A plain download link, so the key rides as ?key= like the OAuth start.

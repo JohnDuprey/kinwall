@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { PDFDocumentLoadingTask, PDFDocumentProxy } from 'pdfjs-dist'
+import { openPdf } from './pdf.ts'
 import { api } from './api.ts'
 import Sheet from './Sheet.tsx'
 import { ExternalIcon, MinusIcon, PlusIcon } from './icons.tsx'
@@ -7,13 +8,6 @@ import { ExternalIcon, MinusIcon, PlusIcon } from './icons.tsx'
 const ZOOMS = [1, 1.5, 2, 3]
 const MAX_CANVAS_PIXELS = 16_000_000 // iOS refuses to draw a bigger canvas
 
-// pdf.js is loaded only when a card is opened, so the app bundle doesn't carry it. Its canvases
-// show every page: iOS web views show only the first page of a PDF in an iframe.
-async function openPdf(data: ArrayBuffer): Promise<PDFDocumentLoadingTask> {
-  const [pdfjs, worker] = await Promise.all([import('pdfjs-dist/legacy/build/pdf.mjs'), import('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url')])
-  pdfjs.GlobalWorkerOptions.workerSrc = worker.default
-  return pdfjs.getDocument({ data })
-}
 
 /** A meal kit's PDF recipe card, fetched through the server (`path`, e.g. api/recipes/{id}/source.pdf). */
 export default function RecipeCardSheet({ path, url, title, onClose }: { path: string; url: string; title: string; onClose: () => void }) {

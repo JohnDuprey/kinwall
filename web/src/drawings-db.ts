@@ -1,7 +1,9 @@
 // Paint's drawings, stored only on this device (IndexedDB 'kinwall-paint'). Shared by Paint and the
 // Night screen slideshow.
 export interface Meta { id: string; name: string; memberId: string | null; created: number; updated: number }
-export interface Drawing extends Meta { png: Blob; thumb: Blob }
+/** png: the whole picture (what the gallery, the slideshow and sharing show). A coloring page keeps
+ * its layers too: `paint` (what was colored) and `lines` (the page, drawn above the paint). */
+export interface Drawing extends Meta { png: Blob; thumb: Blob; paint?: Blob; lines?: Blob }
 
 // IndexedDB, not localStorage: a drawing is a 100-500 KB PNG, and localStorage's ~5 MB cap (strings
 // only, so base64 on top) would hold just a handful.

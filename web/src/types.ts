@@ -502,6 +502,15 @@ export interface Photo {
   url: string
   family?: boolean // false = a memory's own photo (never in GET /api/photos)
 }
+/** One of the family's own coloring pages for Paint (server: routes/photos.ts): line art, a PNG at `url`. */
+export interface FamilyColoringPage {
+  id: string
+  name: string
+  width: number
+  height: number
+  createdAt: string
+  url: string
+}
 /** Newscast (server: routes/newscast.ts): what the family did and shared, one item per person per kind per day. */
 export type NewscastKind = 'post' | 'chores' | 'reward' | 'photos' | 'drawings' | 'book' | 'memory' | 'birthday'
 export type NewscastReaction = '👏' | '❤️' | '🎉'
