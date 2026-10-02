@@ -3,6 +3,7 @@ import { remoteNightKey, type DeviceKind, type RemoteNight } from './wallScreen.
 import { tellAppSignedIn, tellAppSignedOut } from './native.ts'
 import { changedAreas, type RevAnswer } from './revs.ts'
 import { failureMessage } from './failureMessage.ts'
+import { mediaTokenStale } from './mediaToken.ts'
 import { mock, mockPlugins } from './mock.ts'
 import { SECURITY_PAGE } from './securityActivity.ts'
 import { applyChoreOps, applyListOps, cacheGet, cachePut, clearOffline, enqueue, flush, onOutboxChange, outboxReady, pendingOps, type Dropped, type Op } from './outbox.ts'
@@ -78,6 +79,7 @@ export function clearAdminKey() {
 // token asked for again (an app's token is per sign-in, so the one kept still works meanwhile).
 let mediaAskedAt = 0
 let mediaAsking = false
+let mediaChecked = false // asked the server this load (mediaToken.ts); a different answer replaces the kept one, and images draw again
 let mediaRetry: ReturnType<typeof setTimeout> | undefined
 const mediaListeners = new Set<() => void>()
 function forgetMediaToken() {
@@ -89,7 +91,7 @@ function savedMediaToken(): { of: string; token: string | null } | null {
 }
 function refreshMediaToken() {
   const key = getKey()
-  if (MOCK || !key || mediaAsking || savedMediaToken()?.of === key.slice(-12)) return
+  if (MOCK || !key || mediaAsking || !mediaTokenStale(savedMediaToken(), key, mediaChecked)) return
   // At most once a minute, so a wall that starts offline doesn't ask on every image; and again then.
   const wait = mediaAskedAt + 60_000 - Date.now()
   if (wait > 0) { mediaRetry ??= setTimeout(() => { mediaRetry = undefined; refreshMediaToken() }, wait); return }
@@ -99,6 +101,7 @@ function refreshMediaToken() {
     .then(r => (r.ok ? r.json() as Promise<{ token: string | null }> : null))
     .then(r => {
       if (!r || getKey() !== key) return
+      mediaChecked = true
       const before = savedMediaToken()?.token
       localStorage.setItem(MEDIA_STORAGE, JSON.stringify({ of: key.slice(-12), token: r.token }))
       if (r.token !== before) mediaListeners.forEach(l => l()) // images drawn without it draw again (usePoll)
@@ -112,7 +115,7 @@ function mediaUrl(path: string, more = ''): string {
   const key = getKey()
   if (!key) return ''
   const saved = savedMediaToken()
-  if (saved?.of !== key.slice(-12)) refreshMediaToken()
+  if (mediaTokenStale(saved, key, mediaChecked)) refreshMediaToken()
   return saved?.token ? apiUrl(`${path}?key=${encodeURIComponent(saved.token)}${more}`) : ''
 }
 
