@@ -39,6 +39,7 @@ CI (`.github/workflows/ci.yml`) runs the server typecheck and tests, plus the we
 | `docker.yml` | push to `main`, `v*` tags, a release | Multi-arch image to `ghcr.io/<owner>/kinwall`. |
 | `cloudflare.yml` | `v*` tags, a release, manual | Workers deploy (when `CLOUDFLARE_DEPLOY=true`). |
 | `demo.yml` | `v*` tags, a release, manual | Demo build to Cloudflare Pages (when `DEMO_PAGES_PROJECT` is set). |
+| `discord.yml` | a release, manual | Posts the release's highlights from What's new to Discord (when the `DISCORD_RELEASE_WEBHOOK` secret is set). |
 
 ## Releases
 
@@ -46,6 +47,7 @@ Releases are for self-hosters and for [What's new](../whats-new.md); the hosted 
 
 * [release-please](https://github.com/googleapis/release-please) (`release-please-config.json`, `.release-please-manifest.json`) reads the Conventional Commits on `main` since the last release and keeps one pull request open, **chore: release x.y.z**, with the next version and a new `CHANGELOG.md` section: `feat` goes under New, `fix` under Fixed, `perf` under Faster, and breaking changes on top. `docs`, `chore`, `ci`, `test`, `refactor`, `build` and `style` don't appear and don't make a release on their own.
 * The version follows the commits: a breaking change bumps the major version, a `feat` the minor, a `fix` or `perf` the patch. It's bumped in `server/package.json`, `web/package.json`, both lockfiles and the bug report form.
+* What's new (`docs/whats-new.md`) needs a `## X.Y.Z` section, ideally with `### Highlights`, before the release PR is merged: once the image is built, `discord.yml` posts that section's intro and Highlights to the Kinwall Discord with a link to the full notes. Preview it with `node scripts/release-discord.mjs vX.Y.Z --dry-run`; for a release made another way, run the Discord workflow by hand with the tag.
 * Before merging, reword the generated notes for families if they need it: edit the release PR's `CHANGELOG.md` right before merging (release-please rewrites the PR on the next push to `main`), or edit the GitHub Release afterwards.
 * Merging the release PR (squash) tags `vX.Y.Z` and creates the GitHub Release. A tag pushed by the workflow's token starts no other workflows, so `release-please.yml` calls `docker.yml` (the image, tagged `X.Y.Z`, `X.Y` and `latest`), `cloudflare.yml` and `demo.yml` itself, on the release commit.
 * A `v*` tag you push yourself runs those three workflows directly, as before.

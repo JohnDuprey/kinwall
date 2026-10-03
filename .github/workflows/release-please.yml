@@ -44,3 +44,12 @@ jobs:
       contents: read
     uses: ./.github/workflows/demo.yml
     secrets: inherit
+  discord:
+    needs: [release-please, docker]
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    permissions:
+      contents: read
+    uses: ./.github/workflows/discord.yml
+    with:
+      tag: ${{ needs.release-please.outputs.tag_name }}
+    secrets: inherit

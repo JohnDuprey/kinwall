@@ -1,0 +1,27 @@
+# Posts a release's highlights (docs/whats-new.md) to Discord via scripts/release-discord.mjs.
+# Called from release-please.yml when it makes a release; run it by hand for a release made another way.
+# Needs the repo secret DISCORD_RELEASE_WEBHOOK (the channel's webhook URL); without it the job skips.
+name: Discord
+on:
+  workflow_call:
+    inputs:
+      tag: { type: string, required: true }
+    secrets:
+      DISCORD_RELEASE_WEBHOOK: { required: false }
+  workflow_dispatch:
+    inputs:
+      tag: { description: 'Release tag, e.g. v1.2.0', type: string, required: true }
+permissions:
+  contents: read
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with: { ref: '${{ inputs.tag }}' }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - run: node scripts/release-discord.mjs "$TAG"
+        env:
+          TAG: ${{ inputs.tag }}
+          DISCORD_RELEASE_WEBHOOK: ${{ secrets.DISCORD_RELEASE_WEBHOOK }}
