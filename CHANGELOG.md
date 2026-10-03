@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.2.0](https://github.com/JohnDuprey/kinwall/compare/v1.1.0...v1.2.0) (2026-10-03)
+
+
+### New
+
+* **board:** add a Get stuff done card showing a checklist's progress ([07f7745](https://github.com/JohnDuprey/kinwall/commit/07f77457aae19c48ff94e48e8e1302e3e9795c03))
+* **chores:** let parents give bonus points outside a chore ([796bbc9](https://github.com/JohnDuprey/kinwall/commit/796bbc943db367364e578e561206d98ae307802c))
+* **chores:** open a chore's checklist in Get stuff done ([ed9a54e](https://github.com/JohnDuprey/kinwall/commit/ed9a54e7a9ccd1b01235f0b1f07285cf91a70904))
+* **lists:** add Get stuff done mode for working through a checklist ([7d3f9e4](https://github.com/JohnDuprey/kinwall/commit/7d3f9e4ffa0292b986f38aeef6e2746e21ce1bab))
+* **settings:** fold general's cards and add settings search ([e294890](https://github.com/JohnDuprey/kinwall/commit/e2948907ad593fe63c1a410e67c33471497c2777))
+* **settings:** pin a checklist to a screen in Get stuff done ([3b2e102](https://github.com/JohnDuprey/kinwall/commit/3b2e102c000df7dcec519cc3704c5ba856d6676e))
+* **trackers:** log or fix reading for an earlier day ([d431a1c](https://github.com/JohnDuprey/kinwall/commit/d431a1caa4f73df582fcb203f3a0c47e4ee81e19))
+
+
+### Fixed
+
+* **lists:** spell check and autocorrect list items again ([772e36d](https://github.com/JohnDuprey/kinwall/commit/772e36d2f47802da2e1398dcf3e2b516edc8665f))
+* **settings:** only fold general's cards that hold more than one control ([d05b4d0](https://github.com/JohnDuprey/kinwall/commit/d05b4d08775e7854dde1da08e7b442d7164eac21))
+* **web:** never leave the page blank when the app fails to start ([3d2fd9a](https://github.com/JohnDuprey/kinwall/commit/3d2fd9ade7c76ab5a93eb2e238a726cbb39c09f0))
+
 ## [1.1.0](https://github.com/JohnDuprey/kinwall/compare/v1.0.3...v1.1.0) (2026-10-02)
 
 A big one: a Board view for the wall, meal planning and recipes, groceries that follow the store,
