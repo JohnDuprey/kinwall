@@ -986,6 +986,18 @@ function KeyLinkGate({ children }: { children: (urlKey: string | null) => ReactN
   return children(urlKey)
 }
 
+/** Blank while the app sorts out a rejected key, but never for good: if it hasn't taken over
+ * after a while (offline, a lost message), offer a retry. Reloading gets the app's key again. */
+function WaitForApp() {
+  const [late, setLate] = useState(false)
+  useEffect(() => { const t = setTimeout(() => setLate(true), 10_000); return () => clearTimeout(t) }, [])
+  return (
+    <div className="gate-screen" role="main">
+      {late && <div className="state-card">Couldn't reach Kinwall. <button type="button" className="btn" onClick={() => location.reload()}>Retry</button></div>}
+    </div>
+  )
+}
+
 /** Header icon on wall screens: the Night screen now, until a tap or key (QuietOverlay). */
 function NightScreenButton() {
   return (
@@ -1256,8 +1268,9 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
     return <AdminSetupScreen token={token} />
   }
 
-  // Blank, not the pairing screen, so a signed-in phone never flashes "Pair this app".
-  if (!hasKey && rejected && inNativeApp()) return <div className="gate-screen" role="main" />
+  // The app takes it from here (it refreshes and reloads, or shows its own sign-in): blank, not
+  // the pairing screen, so a signed-in phone never flashes "Pair this app".
+  if (!hasKey && rejected && inNativeApp()) return <WaitForApp />
   if (!hasKey) return <PairingGate onKey={banner => { if (banner) setBannerMsg(banner); setHasKey(true) }} />
   if (!settings) {
     return (

@@ -1,11 +1,12 @@
 import './compat.ts' // first: shims for old Safari
-import { StrictMode } from 'react'
+import { Component, StrictMode, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './fonts/fonts.css'
 import './styles.css'
 import { IMPORT_CONTACTS_EVENT, markNativeApp, receiveSharedContacts } from './native.ts'
 import { resumeShoppingHash } from './trip.ts'
 import { homeAlias } from './hashQuery.ts'
+import { retryBoot } from './appUpdate.ts'
 markNativeApp()
 window.addEventListener(IMPORT_CONTACTS_EVENT, e => { receiveSharedContacts((e as CustomEvent).detail) })
 
@@ -97,10 +98,28 @@ if ('serviceWorker' in navigator) {
   }, 3000))
 }
 
+// Never a blank page: if the app's script doesn't load (a dropped connection at launch, a build
+// replaced mid-load) or it crashes, reload once for a fresh copy, then offer a Reload button.
+const canRetry = () => { try { return retryBoot(sessionStorage) } catch { return false } }
+const BootFailed = () => (
+  <div className="gate-screen" role="main">
+    <div className="state-card">Kinwall didn't load. <button type="button" className="btn" onClick={() => location.reload()}>Reload</button></div>
+  </div>
+)
+class BootBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false }
+  static getDerivedStateFromError() { return { failed: true } }
+  componentDidCatch(e: unknown) { console.error(e); if (canRetry()) location.reload() }
+  render() { return this.state.failed ? <BootFailed /> : this.props.children }
+}
+const root = createRoot(document.getElementById('root')!)
+
 // Imported after the demo presets above so the mock's relative sample data sees the shifted clock.
 // .then(), not top-level await: the legacy (SystemJS) build for old Safari can't do top-level await.
-import('./App.tsx').then(({ default: App }) => createRoot(document.getElementById('root')!).render(
+import('./App.tsx').then(({ default: App }) => root.render(
   <StrictMode>
-    <App />
+    <BootBoundary>
+      <App />
+    </BootBoundary>
   </StrictMode>,
-))
+), (e: unknown) => { console.error(e); if (canRetry()) location.reload(); else root.render(<BootFailed />) })
