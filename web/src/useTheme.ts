@@ -47,6 +47,9 @@ export type DeviceAppearance = Partial<Pick<Appearance, 'themeMode' | 'textScale
   boardLists?: 'counts' | 'full' // the Board's Chores and Due soon: count tiles or full cards; absent = auto (full on a big screen)
   boardLayout?: string // the Board's layout (boardLayout.ts): a preset's id or 'custom' (boardCustom); absent = the default arrangement
   boardCustom?: BoardLayout // this screen's own layout
+  pinList?: string // Get stuff done opens straight into this checklist (getStuffDone.ts pinnedNow)
+  pinFrom?: string // ...only between these HH:MM times, on this device's clock; absent = all day
+  pinTo?: string
   nightOwn?: true // this screen's own Night screen (the saver fields below); absent = the family's (saverSources.ts ownsNight)
   saverSources?: SaverSource[] // Night screen slideshow, round-robin; absent/empty = the plain clock
   saverEvery?: number // minutes between pictures; absent = 5

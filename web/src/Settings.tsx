@@ -4,7 +4,7 @@ import { DOCS_URL } from './Help.tsx'
 import { api, ApiError, clearKey, MOCK, PUSH_SUB_ID_KEY } from './api.ts'
 import { securityHint } from './securityActivity.ts'
 import SecurityActivitySheet from './SecurityActivitySheet.tsx'
-import type { Account, ApiKey, CalendarEntry, Category, HiddenEvent, ColorScheme, CustomColors, Density, DeviceDensity, Features, GeocodeResult, GooglePhotos, HostEvent, Me, Member, SecurityEvent, Passkey, Providers, PushSubscription, RemoteCalendar, Settings, TempCheckSettings, TextScale, ThemeMode, TimeFormat, Typeface, Webhook } from './types.ts'
+import type { Account, ApiKey, CalendarEntry, List, Category, HiddenEvent, ColorScheme, CustomColors, Density, DeviceDensity, Features, GeocodeResult, GooglePhotos, HostEvent, Me, Member, SecurityEvent, Passkey, Providers, PushSubscription, RemoteCalendar, Settings, TempCheckSettings, TextScale, ThemeMode, TimeFormat, Typeface, Webhook } from './types.ts'
 import { connectCalendar, ProviderForm, PublicUrlRow } from './ProviderConfig.tsx'
 import { CATEGORY_EMOJI, CATEGORY_PRESETS, MEMBER_EMOJI, MEMBER_PALETTE, nextPaletteColor, REMINDER_OPTIONS } from './types.ts'
 import Sheet from './Sheet.tsx'
@@ -1305,6 +1305,56 @@ function DeviceAppearanceRows() {
   )
 }
 
+/** This display → Pin a checklist: Get stuff done opens straight into it on this screen (App.tsx
+ * PinnedChecklist), all day or between two times. Kept on the device with its other preferences. */
+function DevicePinRows() {
+  const { settings } = useApp()
+  const device = useDeviceAppearance()
+  const [lists, setLists] = useState<List[]>([])
+  const on = settings.features.lists
+  useEffect(() => { if (on) api.getLists().then(setLists).catch(() => { /* the pick stays as it was */ }) }, [on])
+  if (!on) return null
+  const set = (patch: DeviceAppearance) => setDeviceAppearance({ ...device, ...patch })
+  const choices = lists.filter(l => l.kind !== 'shopping' && !l.archived) // shopping lists have Shopping mode
+  const pinned = choices.find(l => l.id === device.pinList)
+  const timed = !!(device.pinList && device.pinFrom && device.pinTo)
+  return (
+    <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
+      <div className="device-pref-row" id="pin-checklist">
+        <span>Pin a checklist</span>
+        <select className="settings-select" aria-label="Pin a checklist" value={device.pinList ?? ''} onChange={e => {
+          const id = e.target.value
+          set(id ? { pinList: id } : { pinList: undefined, pinFrom: undefined, pinTo: undefined })
+          announce(id ? `Pinned: ${choices.find(l => l.id === id)?.name}` : 'No checklist pinned')
+        }}>
+          <option value="">Off</option>
+          {device.pinList && !pinned && lists.length > 0 && <option value={device.pinList}>A list that's gone</option>}
+          {choices.map(l => <option key={l.id} value={l.id}>{l.emoji ? `${l.emoji} ` : ''}{l.name}</option>)}
+        </select>
+      </div>
+      {device.pinList && (
+        <div className="device-pref-row">
+          <span>When</span>
+          <select className="settings-select" aria-label="When the checklist is pinned" value={timed ? 'window' : ''}
+            onChange={e => set(e.target.value ? { pinFrom: '19:00', pinTo: '20:30' } : { pinFrom: undefined, pinTo: undefined })}>
+            <option value="">All day</option>
+            <option value="window">Between set times</option>
+          </select>
+        </div>
+      )}
+      {timed && (
+        <div className="row-2">
+          <div className="field" style={{ margin: 0 }}><label htmlFor="pin-from">From</label><input id="pin-from" type="time" value={device.pinFrom} onChange={e => e.target.value && set({ pinFrom: e.target.value })} /></div>
+          <div className="field" style={{ margin: 0 }}><label htmlFor="pin-to">To</label><input id="pin-to" type="time" value={device.pinTo} onChange={e => e.target.value && set({ pinTo: e.target.value })} /></div>
+        </div>
+      )}
+      <div className="settings-row-sub">{device.pinList
+        ? `This screen opens straight into Get stuff done for ${pinned?.name ?? 'the list'}${timed ? `, ${formatTime(device.pinFrom!)}–${formatTime(device.pinTo!)}` : ''}. Board leaves it; it comes back when the screen goes idle.`
+        : 'Open a routine like Bedtime on this screen by itself, full screen.'}</div>
+    </div>
+  )
+}
+
 /** Device-only behavior for this screen: member focus, locked calendar view, the Board's lists,
  * acting as a wall screen, keeping the screen on and going back to Home when idle. Stored
  * alongside the device appearance. `display`: a paired wall screen or kid's device, always a wall screen (no switch). */
@@ -1361,6 +1411,7 @@ function ScreenFocusRows({ display }: { display: boolean }) {
         </div>}
       </div>
       <DeviceTidbitRows />
+      <DevicePinRows />
       {!display && (
         <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
           <div className="toggle-row">

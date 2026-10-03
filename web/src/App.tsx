@@ -12,6 +12,8 @@ import Chores from './Chores.tsx'
 import Lists from './Lists.tsx'
 import Contacts from './Contacts.tsx'
 import Meals from './Meals.tsx'
+import GetStuffDone from './GetStuffDone.tsx'
+import { pinnedNow } from './getStuffDone.ts'
 import Trackers from './Trackers.tsx'
 import Activities, { shownActivities } from './Activities.tsx'
 import Rewards from './Rewards.tsx'
@@ -285,6 +287,25 @@ function QuietOverlay({ settings, wall, remote }: { settings: Settings; wall: bo
         : sources.length ? <Slideshow sources={sources} device={night} clock={clock} spot={spot} /> : clock(false)}
     </div>
   )
+}
+
+/** This screen's pinned checklist (Settings → This display → Pin a checklist): Get stuff done opens
+ * straight into it, all day or inside its window. Its way out goes to the Board, and an idle reset
+ * (two minutes untouched, App's idle timer) opens it again, as other screens go back Home. The
+ * Night screen still rests over it at night (.quiet-overlay sits above). */
+function PinnedChecklist() {
+  const device = useDeviceAppearance()
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => onMinute(() => setNow(new Date())), [])
+  const id = pinnedNow(device, now)
+  const [open, setOpen] = useState(true)
+  useEffect(() => { if (id) setOpen(true) }, [id]) // its window starting, or a newly pinned list
+  useEffect(() => {
+    const reopen = () => setOpen(true)
+    window.addEventListener(IDLE_RESET_EVENT, reopen)
+    return () => window.removeEventListener(IDLE_RESET_EVENT, reopen)
+  }, [])
+  return id && open ? <GetStuffDone key={id} listId={id} pinned onClose={() => setOpen(false)} /> : null
 }
 
 // Wrong tries in a row, and when the keypad may be used again (quietPin.ts). Per page load: the
@@ -1315,6 +1336,7 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
         {bannerMsg && <button className="toast update-banner" onClick={() => setBannerMsg(null)}>{bannerMsg}</button>}
         {updateAvailable && <button className="toast update-banner" onClick={() => location.reload()}>Kinwall updated — tap to reload</button>}
         {isPhone && <InstallNudge />}
+        {settings.features.lists && <PinnedChecklist />}
         <QuietOverlay settings={settings} wall={wall} remote={nightScreen} />
         {inNativeApp() && <LeaveByLiveActivity />}
         {inNativeApp() && <MedicationLiveActivity />}
