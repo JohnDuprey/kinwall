@@ -87,6 +87,7 @@ test('mcp: tools/list returns the tools', async () => {
     'approve_chore',
     'approve_reward',
     'assign_chore_from_library',
+    'award_points',
     'complete_chore',
     'create_chore',
     'create_contact',
@@ -107,6 +108,7 @@ test('mcp: tools/list returns the tools', async () => {
     'delete_list_step',
     'delete_meal',
     'delete_note',
+    'delete_point_award',
     'delete_recipe',
     'delete_reward',
     'delete_tracker_entry',
@@ -508,6 +510,9 @@ test('mcp: every tool declares an output schema, and real results pass it', asyn
   await call('complete_chore', { choreId: chore.id, date: today });
   const points = await call('get_points', { member: 'ava' });
   assert.deepEqual([points.balance, points.earnedTotal, points.spentTotal, points.entries], [3, 3, 0, []]);
+  const bonus = await call('award_points', { member: 'ava', points: 5, note: 'Helped carry groceries' });
+  assert.deepEqual([bonus.award.points, bonus.award.note, bonus.balance], [5, 'Helped carry groceries', 8]);
+  assert.equal((await call('delete_point_award', { id: bonus.award.id })).balance, 3);
   const profile = await call('get_member_profile', { member: 'ava', period: 'all' });
   assert.deepEqual([profile.member, profile.stats.choresDone, profile.stats.badges[0].earned], [points.member, 1, true]);
   await call('add_member', { name: 'Bo', color: '#00aa00', avatar: '🦖' });
@@ -824,6 +829,13 @@ test('mcp: delete_recipe needs full access and an id or exact name', async () =>
   assert.equal((await call('delete_recipe', { recipe: recipe.id }, displayKey)).isError, true);
   await ok('delete_recipe', { recipe: 'FISH TACOS' });
   assert.deepEqual((await ok('list_recipes', { archived: true })).recipes, []);
+});
+
+test('mcp: award_points needs full access', async () => {
+  const { rest, call, ok, displayKey } = await deleteSetup();
+  await rest('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Ava', color: '#ff0000' }) });
+  assert.equal((await call('award_points', { member: 'Ava', points: 5 }, displayKey)).isError, true);
+  assert.equal((await ok('award_points', { member: 'Ava', points: 5 })).balance, 5);
 });
 
 test('mcp: delete_reward needs full access', async () => {

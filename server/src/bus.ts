@@ -33,6 +33,8 @@ export type BusEventType =
   | 'reward.approved'
   | 'reward.declined'
   | 'reward.given'
+  | 'points.awarded'
+  | 'points.removed'
   | 'photo.changed'
   | 'tracker.changed'
   | 'newscast.posted'
@@ -50,7 +52,7 @@ const NO_AREA = new Set<BusEventType>(['contact.changed', 'contact.category.chan
  * part. 'events' is everything else that isn't lists or chores (calendars, members, settings, meals). */
 export function revArea(type: BusEventType): RevArea | null {
   if (type.startsWith('list.')) return 'lists';
-  if (type.startsWith('chore.') || type.startsWith('reward.')) return 'chores'; // points change with both
+  if (type.startsWith('chore.') || type.startsWith('reward.') || type.startsWith('points.')) return 'chores'; // points change with all three
   return NO_AREA.has(type) ? null : 'events';
 }
 

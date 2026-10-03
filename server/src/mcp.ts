@@ -16,7 +16,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { hostTimezone } from './env.ts';
 import { effectivePublicUrl } from './providers/config.ts';
-import { BoardSchema, BookResultSchema, CalendarSchema, LibraryBookSchema, CategorySchema, ContactCategoryInputSchema, ContactCategorySchema, ContactInputSchema, ContactPatchSchema, ContactSchema, ChoreDaySchema, ChoreSchema, EventInstanceSchema, LeaderboardEntrySchema, ListDetailSchema, ListItemSchema, ListSchema, MemberSchema, NoteSchema, RememberedItemSchema, StoreAislesSchema, TrackerEntrySchema, TRACKER_KINDS, NotificationSchema, PointsSchema, SettingsSchema, SnapshotSchema, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, TransitionRemindersSchema, RewardSchema, RewardInputSchema, RedemptionSchema, RewardLimitSchema, MemberStatsSchema, StatsPeriodSchema } from './schemas.ts';
+import { BoardSchema, BookResultSchema, CalendarSchema, LibraryBookSchema, CategorySchema, ContactCategoryInputSchema, ContactCategorySchema, ContactInputSchema, ContactPatchSchema, ContactSchema, ChoreDaySchema, ChoreSchema, EventInstanceSchema, LeaderboardEntrySchema, ListDetailSchema, ListItemSchema, ListSchema, MemberSchema, NoteSchema, RememberedItemSchema, StoreAislesSchema, TrackerEntrySchema, TRACKER_KINDS, NotificationSchema, PointsSchema, SettingsSchema, SnapshotSchema, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, TransitionRemindersSchema, RewardSchema, RewardInputSchema, RedemptionSchema, RewardLimitSchema, MemberStatsSchema, StatsPeriodSchema, PointAwardSchema, BONUS_MAX, BONUS_NOTE_MAX } from './schemas.ts';
 import type { Env } from './env.ts';
 import { RecipeSchema, RecipeInputSchema, RecipeKindSchema, RecipeImportSchema, RecipeImportResultSchema, RecipePreviewResultSchema, RecipeUrlImportSchema, MealSchema, MealInputSchema, MealPatchSchema, ProjectionSchema, ProjectionApplySchema, ProjectionQuerySchema, MealRangeSchema } from './meal-schemas.ts';
 import { NewscastSchema } from './routes/newscast.ts';
@@ -235,6 +235,8 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
   mark_reward_given: { redemption: RedemptionSchema },
   get_leaderboard: { period: z.string(), leaderboard: z.array(LeaderboardEntrySchema) },
   get_points: { member: z.string(), ...PointsSchema.shape },
+  award_points: { award: PointAwardSchema, balance: z.number() },
+  delete_point_award: { ok: z.boolean(), balance: z.number() },
   get_member_profile: { member: z.string(), stats: MemberStatsSchema },
   add_member: { member: MemberSchema },
   update_member: { member: MemberSchema },
@@ -290,7 +292,7 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
 
 const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boolean; idempotentHint: boolean; openWorldHint: boolean }> = {
   list_recipes: READ, get_recipe: READ, create_recipe: WRITE, update_recipe: SET, rate_recipe: SET, import_recipe: SET, import_recipe_from_url: { ...SET, openWorldHint: true }, list_meals: READ, create_meal: WRITE, update_meal: SET, get_meal_projection: READ, apply_meal_projection: SET,
-  get_household: READ, list_events: READ, get_event: READ, list_chores: READ, get_leaderboard: READ, get_points: READ, get_member_profile: READ, list_lists: READ, get_list: READ, search_books: { ...READ, openWorldHint: true }, list_library: READ, add_to_library: { ...WRITE, openWorldHint: true }, update_library_book: SET, list_categories: READ, get_event_items: READ, list_notifications: READ, list_newscast: READ, list_notes: READ, get_snapshot: READ, get_board: READ, list_tracker_entries: READ, add_tracker_entry: WRITE, update_tracker_entry: SET, list_color_schemes: READ, set_color_scheme: SET, save_color_scheme: WRITE,
+  get_household: READ, list_events: READ, get_event: READ, list_chores: READ, get_leaderboard: READ, get_points: READ, award_points: WRITE, delete_point_award: DELETE, get_member_profile: READ, list_lists: READ, get_list: READ, search_books: { ...READ, openWorldHint: true }, list_library: READ, add_to_library: { ...WRITE, openWorldHint: true }, update_library_book: SET, list_categories: READ, get_event_items: READ, list_notifications: READ, list_newscast: READ, list_notes: READ, get_snapshot: READ, get_board: READ, list_tracker_entries: READ, add_tracker_entry: WRITE, update_tracker_entry: SET, list_color_schemes: READ, set_color_scheme: SET, save_color_scheme: WRITE,
   list_contacts: READ, get_contact: READ, list_contact_categories: READ, preview_contact_import: READ,
   delete_color_scheme: { ...WRITE, destructiveHint: true, idempotentHint: true },
   create_event: { ...WRITE, openWorldHint: true }, update_event: { ...SET, openWorldHint: true }, set_event_category: SET,
@@ -1063,7 +1065,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'get_points',
     {
       title: "Get a member's points",
-      description: "A member's chore points: balance left to spend on sticker packs, all-time earned and spent, and recent ledger entries (purchases). Read-only - buying happens on the wall.",
+      description: "A member's chore points: balance left to spend on sticker packs, all-time earned and spent, and recent ledger entries (purchases, check-ins, and bonus points with their notes). Read-only - buying happens on the wall.",
       inputSchema: { member: z.string().describe('Member name or id.') },
     },
     async ({ member }) => {
@@ -1081,10 +1083,51 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
   );
 
   tool(
+    'award_points',
+    {
+      title: 'Give bonus points',
+      description: `Admin: give a member bonus points outside a chore (1-${BONUS_MAX}), with an optional short note like "Helped carry groceries". They count like chore points (balance, today, week, leaderboard, profile) but not as a chore, so streaks don't change. Their own devices get a notification. Defaults to today. Undo with delete_point_award (the id is in the result, and in get_points entries with reason "bonus").`,
+      inputSchema: {
+        member: z.string().describe('Member name or id.'),
+        points: z.number().int().min(1).max(BONUS_MAX),
+        note: z.string().max(BONUS_NOTE_MAX).optional(),
+        date: z.string().optional().describe('YYYY-MM-DD, today or earlier. Default: today.'),
+      },
+    },
+    async ({ member, points, note, date }) => {
+      let memberId: string;
+      try {
+        memberId = await resolveMember(app, env, auth, member);
+      } catch (err) {
+        return errorResult(null, err instanceof Error ? err.message : 'member lookup failed');
+      }
+      const res = await call(app, env, auth, 'POST', '/api/points/awards', { memberId, points, note, date });
+      if (res.status >= 400) return errorResult(res.json, 'failed to give points');
+      const out = res.json as { balance: number };
+      return okResult(`Gave ${member} ${points} point${points === 1 ? '' : 's'} (${out.balance} to spend).`, res.json as Record<string, unknown>);
+    },
+  );
+
+  tool(
+    'delete_point_award',
+    {
+      title: 'Take back bonus points',
+      description: 'Admin: take back bonus points given by mistake (award_points). The points come off their balance and totals.',
+      inputSchema: { id: z.string().describe('The award id (award_points result, or a get_points entry with reason "bonus").') },
+    },
+    async ({ id }) => {
+      const res = await call(app, env, auth, 'DELETE', `/api/points/awards/${encodeURIComponent(id)}`);
+      if (res.status >= 400) return errorResult(res.json, 'failed to take back points');
+      const out = res.json as { ok: boolean; balance: number };
+      return okResult(`Taken back (${out.balance} to spend).`, out);
+    },
+  );
+
+  tool(
     'get_member_profile',
     {
       title: "Get a member's profile",
-      description: "A member's profile stats for a period (household days): chores done and points earned (chores plus daily check-ins, with the same stretch before), daily check-ins, points spent, streak and best streak, books, sticker book, activity time, milestone badges and birthday countdown. Read-only.",
+      description: "A member's profile stats for a period (household days): chores done and points earned (chores plus daily check-ins and bonus points, with the same stretch before), daily check-ins, points spent, streak and best streak, books, sticker book, activity time, milestone badges and birthday countdown. Read-only.",
       inputSchema: { member: z.string().describe('Member name or id.'), period: StatsPeriodSchema.optional().describe('today, week (default), month, year or all.') },
     },
     async ({ member, period }) => {

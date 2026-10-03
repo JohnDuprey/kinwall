@@ -253,7 +253,7 @@ dataRoutes.openapi(
             OR (n.target_type = 'event' AND n.target_id IN (SELECT e.id FROM events e JOIN calendars c ON c.id = e.calendar_id WHERE c.kind = 'local'))
          ORDER BY n.target_type, n.target_id, n.created_at, n.id`,
       ),
-      db.prepare('SELECT id, member_id, amount, reason, ref, at FROM point_entries ORDER BY at, id'),
+      db.prepare('SELECT id, member_id, amount, reason, ref, at, note FROM point_entries ORDER BY at, id'),
       db.prepare('SELECT member_id, pack_id, unlocked_at FROM member_sticker_packs ORDER BY member_id, pack_id'),
       db.prepare('SELECT member_id, date, points, at FROM check_ins ORDER BY date, member_id'),
       db.prepare('SELECT member_id, date, sleep, feelings, goal, goal_skipped, followup, drained, private, created_at, updated_at FROM temp_checks ORDER BY date, member_id'),
@@ -922,7 +922,7 @@ dataRoutes.openapi(
         notes.map((n) => ({ id: n.id, target_type: n.targetType, target_id: n.targetId, member_id: n.memberId, body: n.body, created_at: n.createdAt, updated_at: n.updatedAt })),
         { keep: ['created_at', 'target_type', 'target_id'], expr: { member_id: memberRef('member_id') } },
       ),
-      ...upserts(db, 'point_entries', 'id', pointEntries.map((e) => ({ id: e.id, member_id: e.memberId, amount: e.amount, reason: e.reason, ref: e.ref, at: e.at })), { keep: ['member_id'] }),
+      ...upserts(db, 'point_entries', 'id', pointEntries.map((e) => ({ id: e.id, member_id: e.memberId, amount: e.amount, reason: e.reason, ref: e.ref, at: e.at, note: e.note ?? null })), { keep: ['member_id'] }),
       ...upserts(db, 'member_sticker_packs', 'member_id, pack_id', stickerPacks.map((p) => ({ member_id: p.memberId, pack_id: p.packId, unlocked_at: p.unlockedAt }))),
       ...upserts(db, 'temp_checks', 'member_id, date', sealedTempChecks, keepCreated),
       ...upserts(db, 'journal_entries', 'id', sealedJournal, { keep: ['member_id', 'created_at'] }),

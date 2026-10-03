@@ -1188,7 +1188,10 @@ export const ReadingSummarySchema = z
   .openapi('ReadingSummary');
 
 export const PointEntrySchema = z
-  .object({ id: z.string(), memberId: z.string(), amount: z.number(), reason: z.string(), ref: z.string().nullable(), at: z.string() })
+  .object({
+    id: z.string(), memberId: z.string(), amount: z.number(), reason: z.string(), ref: z.string().nullable(), at: z.string(),
+    note: z.string().max(80).nullable().optional().openapi({ description: "A bonus's note (reason 'bonus', ref = the day it counts on)." }),
+  })
   .openapi('PointEntry');
 
 export const PointsSchema = z
@@ -1199,6 +1202,20 @@ export const PointsSchema = z
     entries: z.array(PointEntrySchema), // newest first, last 50
   })
   .openapi('Points');
+
+export const BONUS_MAX = 500;
+export const BONUS_NOTE_MAX = 80;
+export const PointAwardInputSchema = z
+  .object({
+    memberId: z.string(),
+    points: z.number().int().min(1).max(BONUS_MAX),
+    note: z.string().max(BONUS_NOTE_MAX).optional().openapi({ description: 'e.g. "Helped carry groceries". Blank is none.' }),
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().openapi({ description: 'The household day it counts on (YYYY-MM-DD, not in the future). Default: today.' }),
+  })
+  .openapi('PointAwardInput');
+export const PointAwardSchema = z
+  .object({ id: z.string(), memberId: z.string(), points: z.number(), note: z.string().nullable(), date: z.string(), at: z.string() })
+  .openapi('PointAward');
 
 export const REWARD_PERIODS = ['day', 'week'] as const;
 export const RewardLimitSchema = z
@@ -1437,7 +1454,7 @@ export const MemberStatsSchema = z
     to: z.string(), // today
     joined: z.string(), // the day the member was added
     choresDone: z.number(), // approved completions, including chores deleted since
-    pointsEarned: z.number(), // chores plus daily check-ins
+    pointsEarned: z.number(), // chores plus daily check-ins and bonus points
     checkIns: z.number(), // daily check-ins in the period
     previous: z.object({ from: z.string(), to: z.string(), choresDone: z.number(), pointsEarned: z.number() }).nullable(), // null for all
     pointsSpent: z.object({ stickers: z.number(), rewards: z.number() }), // rewards net of refunds

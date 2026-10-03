@@ -87,33 +87,27 @@ export async function household(db: KinwallDb): Promise<{ tz: string; weekStart:
 }
 
 async function pointsFor(db: KinwallDb, memberId: string, tz: string, weekStart: 0 | 1) {
-  const today = todayInTz(tz);
-  const weekFrom = weekStartDate(tz, weekStart);
-  const todayRow = await db
-    .prepare(
-      `SELECT COALESCE(SUM(cc.points_awarded), 0) AS total FROM chore_completions cc JOIN chores c ON c.id = cc.chore_id WHERE cc.member_id = ? AND cc.date = ?`,
-    )
-    .bind(memberId, today)
-    .first<{ total: number }>();
-  const weekRow = await db
-    .prepare(
-      `SELECT COALESCE(SUM(cc.points_awarded), 0) AS total FROM chore_completions cc JOIN chores c ON c.id = cc.chore_id WHERE cc.member_id = ? AND cc.date >= ? AND cc.date <= ?`,
-    )
-    .bind(memberId, weekFrom, today)
-    .first<{ total: number }>();
-  return { pointsToday: todayRow?.total ?? 0, pointsWeek: weekRow?.total ?? 0 };
+  const row = await db
+    .prepare(`SELECT today, week FROM (${PERIOD_POINTS_SQL}) WHERE member_id = ?3`)
+    .bind(todayInTz(tz), weekStartDate(tz, weekStart), memberId)
+    .first<{ today: number; week: number }>();
+  return { pointsToday: row?.today ?? 0, pointsWeek: row?.week ?? 0 };
 }
 
 // All members' today/week points in one query (grouped + conditional SUM) instead of two
 // queries per member - what GET /api/members uses instead of pointsFor() in a loop. Balances ride
-// the same batch, so it stays one round trip. Binds today, week start, today, week start, today:
-// only this week's rows are read (through the date index); older ones add nothing to either sum.
-export const PERIOD_POINTS_SQL = `SELECT cc.member_id AS member_id,
-                COALESCE(SUM(CASE WHEN cc.date = ? THEN cc.points_awarded ELSE 0 END), 0) AS today,
-                COALESCE(SUM(CASE WHEN cc.date >= ? AND cc.date <= ? THEN cc.points_awarded ELSE 0 END), 0) AS week
-         FROM chore_completions cc JOIN chores c ON c.id = cc.chore_id
-         WHERE cc.member_id IS NOT NULL AND cc.date >= ? AND cc.date <= ?
-         GROUP BY cc.member_id`;
+// the same batch, so it stays one round trip. Binds ?1 today, ?2 week start: only this week's rows
+// are read (through the date indexes). Chore points plus bonus points (routes/bonus-points.ts) by
+// the day they count on; check-ins and spending aren't period points.
+export const PERIOD_POINTS_SQL = `SELECT member_id,
+                COALESCE(SUM(CASE WHEN date = ?1 THEN points ELSE 0 END), 0) AS today,
+                COALESCE(SUM(points), 0) AS week
+         FROM (SELECT cc.member_id AS member_id, cc.date AS date, cc.points_awarded AS points
+                 FROM chore_completions cc JOIN chores c ON c.id = cc.chore_id
+                 WHERE cc.member_id IS NOT NULL AND cc.date >= ?2 AND cc.date <= ?1
+               UNION ALL
+               SELECT member_id, ref, amount FROM point_entries WHERE reason = 'bonus' AND ref >= ?2 AND ref <= ?1)
+         GROUP BY member_id`;
 
 async function pointsByMember(db: KinwallDb, tz: string, weekStart: 0 | 1): Promise<Map<string, Points>> {
   const today = todayInTz(tz);
@@ -121,7 +115,7 @@ async function pointsByMember(db: KinwallDb, tz: string, weekStart: 0 | 1): Prom
   const [periodRes, totalsRes] = await db.batch<unknown>([
     db
       .prepare(PERIOD_POINTS_SQL)
-      .bind(today, weekFrom, today, weekFrom, today),
+      .bind(today, weekFrom),
     pointTotalsStmt(db),
   ]);
   const period = new Map((periodRes.results as { member_id: string; today: number; week: number }[]).map((r) => [r.member_id, r]));

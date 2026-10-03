@@ -2317,7 +2317,7 @@ button.notif-item:active { transform: scale(0.99); }
 .rewards-empty p { margin: 0 0 10px; }
 .rewards-suggestions { justify-content: center; margin-bottom: 14px; }
 .rewards-suggestions .chip { min-height: 44px; }
-.chores-library-btn + .chores-rewards-btn { margin-left: 0; } /* Library and Rewards sit together at the end */
+.chores-library-btn + :is(.chores-library-btn, .chores-rewards-btn) { margin-left: 0; } /* Give points, Library and Rewards sit together at the end */
 .chores-rewards-btn { flex: none; margin-left: auto; min-height: 44px; padding: 8px 16px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
 /* Chore library (ChoreLibrary.tsx): a row per saved chore, with "Again" beside it. */
 .lib-intro { margin: 0 0 12px; }
@@ -2970,6 +2970,11 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
 .profile-link { align-self: flex-start; flex: none; min-height: 44px; padding: 8px 18px; text-decoration: none; }
 .profile-goal { display: flex; align-items: center; gap: 10px; padding-top: 10px; border-top: 1px solid var(--border); color: var(--text); text-decoration: none; font-weight: 800; font-size: 0.875rem; min-height: 44px; }
 .profile-goal-emoji { font-size: 1.75rem; }
+/* Bonus points a parent gave, under the points card; on a parent's device each row takes it back. */
+.profile-bonus { display: flex; flex-direction: column; gap: 8px; padding-top: 10px; border-top: 1px solid var(--border); }
+.profile-bonus-head { margin: 0; font-size: 0.8125rem; font-weight: 800; color: var(--text-dim); }
+.profile-bonus-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.profile-bonus-row { display: flex; align-items: center; width: 100%; min-height: 44px; padding: 6px 10px; border: none; border-radius: var(--radius-sm); background: var(--bg-alt); color: var(--text); font: inherit; font-size: 0.875rem; font-weight: 700; text-align: left; overflow-wrap: anywhere; }
 .profile-goal-text { flex: 1; min-width: 0; }
 .profile-goal .board-meter { height: 10px; border-radius: 5px; }
 .profile-shelf { list-style: none; margin: 0; padding: 0 4px; display: flex; align-items: flex-end; gap: 3px; min-height: 90px; border-bottom: 6px solid var(--border); overflow-x: auto; }
@@ -3221,7 +3226,7 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
   :where(.btn-primary, .btn-danger, .swipe-delete, .icon-btn, .fab, .today-btn, .segmented button, .tab-btn, .nav-rail-btn, .who-btn,
     .family-row, .family-pick, .board-tile, .snap-row, .board-empty-tap, .notif-item, .member-list-item, .cal-list-item,
     .schedule-item, .month-cell, .list-item-row, .lists-section-head, .add-row-btn, .trk-book-main, .trk-visit-main, .trk-memory, .lib-book,
-    .activity-card, .recipe-step, .note, .more-row, .setup-chore-tap, .catalog-row-main, .paint-brush-tile, .paint-stamp, .settings-acc-btn):not(:disabled, .active):hover {
+    .activity-card, .recipe-step, .note, .more-row, .setup-chore-tap, .catalog-row-main, .paint-brush-tile, .paint-stamp, .settings-acc-btn, button.profile-bonus-row):not(:disabled, .active):hover {
     background-image: linear-gradient(color-mix(in srgb, var(--text) 8%, transparent) 0 0);
   }
   /* Switches: a soft accent ring (the dark "off" track keeps its own inset ring). */

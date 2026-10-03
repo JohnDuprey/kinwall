@@ -12,7 +12,7 @@ import type { PasskeyAuthenticator } from './webauthn.ts'
 import type { BasicChoices, Meal, MealInput, Recipe, RecipeImport, RecipeInput, RecipePreviewResult, RecipeShare, ShoppingProjection } from './meal-types.ts'
 import type { Contact, ContactCategory, ContactInput, ImportPreviewEntry } from './contact-types.ts'
 import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginCatalogEntry,
-  StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota, FamilyColoringPage, GooglePhotos, Reward, Redemption, MemberStats, StatsPeriod,
+  StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota, FamilyColoringPage, GooglePhotos, Reward, Redemption, PointAward, PointEntry, MemberStats, StatsPeriod,
   Account, ApiKey, AppNotification, Appearance, CalendarEntry, Category, Chore, ChoreDay, LibraryChore, LibraryChoreInput, PendingApproval, EventInstance, LeaderboardEntry, LeaderboardPeriod, List,
   BarcodeLookup, BookResult, GeocodeResult, LibraryBook, LibraryBookInput, HiddenEvent, HostEvent, ImportResult, SecurityEvent, ListDetail, ListGroup, ListItem, ListItemInput, ListItemPatch, Member, Me, Note, NoteTarget, Passkey, TrackerEntry, TrackerInput, TrackerKind, Providers, PushSubscription, PushSubscriptionPrefs, RemoteCalendar, Settings, Snapshot, Board, Webhook, WebhookWithSecret,
   Newscast, NewscastItem, NewscastPostInput, NewscastReaction,
@@ -515,6 +515,13 @@ export const api = {
   getStickerPacks: (memberId: string) => MOCK ? mock.getStickerPacks(memberId) : get<StickerPack[]>(`api/stickers/packs?memberId=${encodeURIComponent(memberId)}`),
   buyStickerPack: (packId: string, memberId: string) =>
     MOCK ? mock.buyStickerPack(packId, memberId) : post<{ pack: StickerPack; balance: number }>(`api/stickers/packs/${packId}/buy`, { memberId }),
+  // Points ledger (balance and the last 50 entries; a sibling's device gets no entries) and bonus
+  // points a parent gives (parent devices only).
+  getMemberPoints: (memberId: string) => MOCK ? mock.getMemberPoints(memberId)
+    : get<{ balance: number; earnedTotal: number; spentTotal: number; entries: PointEntry[] }>(`api/members/${encodeURIComponent(memberId)}/points`),
+  givePoints: (body: { memberId: string; points: number; note?: string; date?: string }) =>
+    MOCK ? mock.givePoints(body) : post<{ award: PointAward; balance: number }>('api/points/awards', body),
+  deletePointAward: (id: string) => MOCK ? mock.deletePointAward(id) : del<{ ok: boolean; balance: number }>(`api/points/awards/${encodeURIComponent(id)}`),
   // Rewards: anyone lists and redeems (a member's own device only for them); parents manage and decide.
   getRewards: (opts: { memberId?: string; archived?: boolean } = {}) => MOCK ? mock.getRewards(opts)
     : get<Reward[]>(`api/rewards?${new URLSearchParams({ ...(opts.memberId ? { memberId: opts.memberId } : {}), ...(opts.archived ? { archived: 'true' } : {}) })}`),

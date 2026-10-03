@@ -19,10 +19,10 @@ import {
 
 export const stickersRoutes = createRouter();
 
-export type PointEntryRow = { id: string; member_id: string; amount: number; reason: string; ref: string | null; at: string };
+export type PointEntryRow = { id: string; member_id: string; amount: number; reason: string; ref: string | null; at: string; note?: string | null };
 export type PlacementRow = { id: string; member_id: string; sticker: string; x: number; y: number; scale: number; rotation: number; z: number; placed_at: string };
 
-export const toEntryApi = (r: PointEntryRow): z.infer<typeof PointEntrySchema> => ({ id: r.id, memberId: r.member_id, amount: r.amount, reason: r.reason, ref: r.ref, at: r.at });
+export const toEntryApi = (r: PointEntryRow): z.infer<typeof PointEntrySchema> => ({ id: r.id, memberId: r.member_id, amount: r.amount, reason: r.reason, ref: r.ref, at: r.at, note: r.note ?? null });
 export const toPlacementApi = (r: PlacementRow) => ({
   id: r.id, memberId: r.member_id, sticker: r.sticker, x: r.x, y: r.y, scale: r.scale, rotation: r.rotation, z: r.z, placedAt: r.placed_at,
 });

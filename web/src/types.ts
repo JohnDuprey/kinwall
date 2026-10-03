@@ -475,6 +475,11 @@ export interface Reward {
   createdAt: string
   used?: number // with ?memberId=: how much of the limit they've used this day/week
 }
+/** Bonus points a parent gave outside a chore (reason 'bonus' in the points ledger). */
+export interface PointAward { id: string; memberId: string; points: number; note: string | null; date: string; at: string }
+/** One points-ledger row (GET /api/members/{id}/points): a bonus, a check-in, a sticker pack or reward (negative). */
+export interface PointEntry { id: string; memberId: string; amount: number; reason: string; ref: string | null; at: string; note?: string | null }
+
 export type RedemptionStatus = 'pending' | 'approved' | 'declined' | 'given'
 export interface Redemption {
   id: string

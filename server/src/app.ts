@@ -46,6 +46,7 @@ import { journalRoutes } from './routes/journal.ts';
 import { insightsRoutes } from './routes/insights.ts';
 import { medicationsRoutes } from './routes/medications.ts';
 import { rewardsRoutes } from './routes/rewards.ts';
+import { bonusPointsRoutes } from './routes/bonus-points.ts';
 import { photosRoutes, MAX_ZIP_BYTES as MAX_PHOTO_ZIP_BYTES } from './routes/photos.ts';
 import { googlePhotosRoutes } from './routes/google-photos.ts';
 import { snapshotRoutes } from './routes/snapshot.ts';
@@ -164,6 +165,7 @@ export function createApp() {
   app.route('/', insightsRoutes);
   app.route('/', medicationsRoutes);
   app.route('/', rewardsRoutes);
+  app.route('/', bonusPointsRoutes);
   app.route('/', photosRoutes);
   app.route('/', googlePhotosRoutes);
   app.route('/', snapshotRoutes);

@@ -152,7 +152,7 @@ Above the columns, a leaderboard ranks members by points for **Today**, **Week**
 
 ## Points to spend
 
-Points are also a currency. A member's **balance** is every point they've ever earned from chores, minus what they've spent in the [sticker shop](activities.md#sticker-book) and on [rewards](rewards.md). A reward a parent says no to gives its points back.
+Points are also a currency. A member's **balance** is every point they've ever earned from chores, check-ins and [bonus points](#bonus-points), minus what they've spent in the [sticker shop](activities.md#sticker-book) and on [rewards](rewards.md). A reward a parent says no to gives its points back.
 
 * The leaderboard and the member's today/week points always count what was **earned**. Spending never lowers a rank.
 * Each leaderboard pill also shows the balance, such as "22 to spend", and so does each person's column ("⭐ 22 to spend"). Tap the column's balance, or **🎁 Rewards** next to the date, to open [Rewards](rewards.md) for that person.
@@ -160,6 +160,17 @@ Points are also a currency. A member's **balance** is every point they've ever e
 * Unticking a completed chore takes its points back out of the balance (deleting a chore doesn't: its history stays). A balance can end up below zero that way. New purchases then wait until it's back up.
 * **Settings → Family → Chores** has **Rewards** (on/off), **Sticker shop** (on/off) and **Sticker prices** (Free, 50%, 100% or 150%).
 * `rewardsEnabled` (default on): turn it off and kids spend points only in the sticker shop. Apps hide [Rewards](rewards.md), reward goals and the balance links to them. Rewards and past requests are kept.
+
+## Bonus points
+
+Sometimes a kid earns points for something that isn't a chore: carrying the groceries, helping a sibling. A parent can give them directly.
+
+* On a parent's device, tap **⭐ Give points** next to the date on the Chores tab, or **Give points** under someone's points on their [profile](profiles.md). Pick who, how many (+5, +10, +25 or any whole number up to 500), an optional note ("Helped carry groceries", up to 80 characters) and the day it counts on (today or earlier).
+* Bonus points count like chore points: the balance to spend, today's and this week's points, the [leaderboard](#leaderboard) and the profile's points earned. They aren't a chore, so they don't change [streaks](#streaks-and-grace-days) or the number of chores done.
+* The kid's own devices get a notification ("🎉 You got 10 bonus points") with the note.
+* Gave it by mistake? Tap **Undo** on the "Gave Maya 10 points" message, or tap the bonus under **Bonus points** on their profile to take it back.
+* Only parents' devices can give or take back bonus points. Wall screens and kids' devices see them on the profile but can't add any. With **Chores & points** turned off, there are no bonus points either.
+* Bonus points only add. To take points away, take back a bonus or untick a chore.
 
 ## Setting these options
 
@@ -182,5 +193,6 @@ A per-device **Chore reminder** at a set time lists chores still open today for 
 * `GET /api/chores/pending`, `POST /api/chores/{id}/approve {date}`, `POST /api/chores/{id}/reject {date, note?}` (parent devices)
 * `GET /api/leaderboard?period=today|week|month`
 * `GET /api/members/{id}/points`
+* `POST /api/points/awards {memberId, points, note?, date?}`, `GET /api/points/awards?memberId=`, `DELETE /api/points/awards/{id}` ([bonus points](#bonus-points), parent devices)
 * `GET/POST /api/chore-library`, `PATCH/DELETE /api/chore-library/{id}`, `POST /api/chore-library/{id}/assign {date, memberId?, rrule?}` (parent devices)
-* MCP: `list_chores`, `create_chore`, `update_chore`, `complete_chore`, `uncomplete_chore`, `list_pending_approvals`, `approve_chore`, `reject_chore`, `list_chore_library`, `assign_chore_from_library`, `get_leaderboard`, `get_points`
+* MCP: `list_chores`, `create_chore`, `update_chore`, `complete_chore`, `uncomplete_chore`, `list_pending_approvals`, `approve_chore`, `reject_chore`, `list_chore_library`, `assign_chore_from_library`, `get_leaderboard`, `get_points`, `award_points`, `delete_point_award`

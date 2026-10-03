@@ -43,6 +43,8 @@ URLs must be public `http(s)` addresses. Private and LAN addresses are refused, 
 | `reward.approved` | A parent approved a waiting reward. `data`: `{ id, rewardId, memberId, title, emoji, cost }`. |
 | `reward.declined` | A parent said **Not this time**, or canceled an approved one; the points went back. `data`: the same plus `note` (may be `null`). |
 | `reward.given` | A parent marked an approved reward as given. `data`: `{ id, rewardId, memberId, title, emoji, cost }`. |
+| `points.awarded` | A parent gave someone [bonus points](../using/chores.md#bonus-points). `data`: `{ id, memberId, points, note, date }` (`note` may be `null`; `date` is the day they count on). |
+| `points.removed` | A parent took back bonus points. `data`: `{ id, memberId, points }`. |
 | `photo.changed` | A photo is added, captioned, reassigned or deleted. `data`: `{ id }` (plus `deleted: true` on delete), or `{ imported }` after a zip import. |
 | `newscast.posted` | Someone shared a [Newscast](../using/newscast.md) announcement for everyone. `data`: `{ id, memberId, text, emoji, photoId, audience }`. Grown-ups-only posts never send it. Enough for "announce it on the kitchen speaker". |
 | `newscast.changed` | A Newscast post was removed or deleted, a grown-ups-only post was shared, or someone reacted. `data`: `{}`. |

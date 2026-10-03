@@ -95,6 +95,11 @@ leaderboardRoutes.openapi(
     const { results: completions } = await c.env.DB.prepare("SELECT chore_id, date, member_id, points_awarded FROM chore_completions WHERE date >= ? AND date <= ? AND status = 'approved'")
       .bind(windowFrom, today)
       .all<CompletionRow>();
+    // Bonus points a parent gave (routes/bonus-points.ts) count toward points, never completions or streaks.
+    const { results: bonus } = await c.env.DB.prepare("SELECT member_id, SUM(amount) AS points FROM point_entries WHERE reason = 'bonus' AND ref >= ? AND ref <= ? GROUP BY member_id")
+      .bind(periodFrom, today)
+      .all<{ member_id: string; points: number }>();
+    const bonusBy = new Map(bonus.map((r) => [r.member_id, Number(r.points)]));
 
     const choresById = new Map(chores.map((row) => [row.id, row]));
     const completedKeys = new Set(completions.map((row) => `${row.chore_id}:${row.date}`)); // any completion of that chore that day
@@ -107,7 +112,7 @@ leaderboardRoutes.openapi(
     }
 
     const entries = members.map((m) => {
-      let points = 0;
+      let points = bonusBy.get(m.id) ?? 0;
       let completed = 0;
       for (const row of completions) {
         if (row.member_id !== m.id || row.date < periodFrom || row.date > today) continue;

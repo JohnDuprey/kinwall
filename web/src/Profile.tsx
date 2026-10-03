@@ -18,6 +18,10 @@ import { goalsThisWeek } from './journal.ts'
 import { birthdayText, chartLabels, compareText, duration, periodWord, WEEKDAYS } from './profile.ts'
 import type { ChoreDay, Member, MemberStats, StatsPeriod } from './types.ts'
 import { rewardsOn } from './types.ts'
+import type { PointEntry } from './types.ts'
+import { GivePoints } from './GivePoints.tsx'
+import { useDialog } from './dialog.tsx'
+import { bonusLine } from './bonus.ts'
 
 const PERIODS: { key: StatsPeriod; label: string }[] = [
   { key: 'today', label: 'Today' }, { key: 'week', label: 'Week' }, { key: 'month', label: 'Month' }, { key: 'year', label: 'Year' }, { key: 'all', label: 'All time' },
@@ -264,7 +268,49 @@ function PointsCard({ member, s, word }: { member: Member; s: MemberStats; word:
           </span>
         </a>
       ) : <p className="profile-note">{plural(member.balance, 'point')} to spend.</p>}
+      <BonusList member={member} />
     </section>
+  )
+}
+
+/** Bonus points a parent gave (their own device, parents' devices and wall screens see them; a
+ * sibling's device gets none from the server). A parent can give more, or tap one to take it back. */
+function BonusList({ member }: { member: Member }) {
+  const { parentDevice, refreshTick, reloadCore, toast } = useApp()
+  const dialog = useDialog()
+  const [bonus, setBonus] = useState<PointEntry[]>([])
+  useEffect(() => {
+    let canceled = false
+    api.getMemberPoints(member.id).then(p => { if (!canceled) setBonus(p.entries.filter(e => e.reason === 'bonus').slice(0, 5)) }).catch(() => { if (!canceled) setBonus([]) })
+    return () => { canceled = true }
+  }, [member.id, refreshTick])
+  const takeBack = async (e: PointEntry) => {
+    if (!await dialog.confirm({ title: `Take back ${plural(e.amount, 'point')} from ${member.name}?`, body: e.note ?? undefined, confirmLabel: 'Take back', danger: true })) return
+    try {
+      await api.deletePointAward(e.id)
+      setBonus(list => list.filter(x => x.id !== e.id))
+      reloadCore()
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : "Couldn't take those points back.", true)
+    }
+  }
+  if (!parentDevice && bonus.length === 0) return null
+  return (
+    <div className="profile-bonus">
+      {bonus.length > 0 && <h4 className="profile-bonus-head">Bonus points</h4>}
+      {bonus.length > 0 && (
+        <ul className="profile-bonus-list">
+          {bonus.map(e => (
+            <li key={e.id}>
+              {parentDevice
+                ? <button type="button" className="profile-bonus-row" onClick={() => takeBack(e)} aria-label={`${bonusLine({ points: e.amount, note: e.note ?? null })}. Take back`}>🎉 {bonusLine({ points: e.amount, note: e.note ?? null })}</button>
+                : <span className="profile-bonus-row">🎉 {bonusLine({ points: e.amount, note: e.note ?? null })}</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+      {parentDevice && <GivePoints memberId={member.id} className="btn btn-secondary profile-link" label={`Give ${member.name} points`}>⭐ Give points</GivePoints>}
+    </div>
   )
 }
 

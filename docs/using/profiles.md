@@ -20,12 +20,12 @@ Everyone in the family can see everyone's profile, on every device. An idle wall
 Pick **Today**, **Week**, **Month**, **Year** or **All time** at the top. Days follow the family's time zone and the week starts on the day set in [Settings → General](../settings/general.md).
 
 * **Chores done**, compared with the same stretch before: yesterday, last week up to the same weekday, last month or last year up to the same date. All time says when they joined.
-* **Points earned** in the period, from chores and [daily check-ins](snapshot.md#daily-check-in).
+* **Points earned** in the period, from chores, [daily check-ins](snapshot.md#daily-check-in) and [bonus points](chores.md#bonus-points).
 * **Check-ins** ☀️: how many days they checked in during the period. Shown while daily check-ins are on (or once they have some).
 * **Books finished** in the period (audiobooks count), with their pages and time listened.
 * **Streak** 🔥 and **best ever**. It's the same streak as the [leaderboard](chores.md), grace days included, so the two numbers always match. The best streak looks back over all their history.
 * **Chores done** chart: per day for a week or month, per month for a year or all time, with their busiest weekday and favorite chore. **Today** lists today's chores instead.
-* **Points**: earned, spent on stickers, spent on rewards (refunds taken off), and the [reward](rewards.md) they're saving for. Tap the goal to open their rewards.
+* **Points**: earned, spent on stickers, spent on rewards (refunds taken off), and the [reward](rewards.md) they're saving for. Tap the goal to open their rewards. Below that, their last few **bonus points** ("+10 · Helped carry groceries · from a parent"). On a parent's device, **Give points** gives more, and tapping a bonus takes it back.
 * **Bookshelf**: the books they finished this year as colored spines (every book on **All time**), with pages, time listened for audiobooks, average stars, a five-star favorite and the books they're reading now. From [Trackers](trackers.md) (reading).
 * **Activities**: time played in each [activity](activities.md) in the period.
 * **Badges**: see below.

@@ -2,7 +2,7 @@
 import type { Actor, OnlineTidbits, Plugin, PluginCatalogEntry,
   Account, ApiKey, AppNotification, SecurityEvent, CalendarEntry, Category, Chore, ChoreDay, LibraryChore, LibraryChoreInput, EventInstance, HiddenEvent, LeaderboardEntry, LeaderboardPeriod, List, ListGroup,
   Newscast, NewscastItem, NewscastPostInput, NewscastReaction,
-  Photo, PhotoQuota, FamilyColoringPage, GooglePhotos, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, BookResult, BarcodeLookup, ReadingDay, LibraryBook, LibraryBookInput, ReadingData, ListItem, ListItemInput, ListItemPatch, ListItemStep, ListCatalog, Member, RememberedItem, RememberedItemInput, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption, TempCheck, TempCheckInput, Journal, JournalEntry, Insights, InsightDay, InsightRange, Battery, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory, DoseStatus, MedTime,
+  Photo, PhotoQuota, FamilyColoringPage, GooglePhotos, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, BookResult, BarcodeLookup, ReadingDay, LibraryBook, LibraryBookInput, ReadingData, ListItem, ListItemInput, ListItemPatch, ListItemStep, ListCatalog, Member, RememberedItem, RememberedItemInput, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption, PointAward, PointEntry, TempCheck, TempCheckInput, Journal, JournalEntry, Insights, InsightDay, InsightRange, Battery, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory, DoseStatus, MedTime,
 } from './types.ts'
 import { eveningPending, FEELINGS, lastNightDate, TEMP_CHECK_OFF } from './tempCheck.ts'
 import { aisleOrderMap, compareItems } from './types.ts'
@@ -181,6 +181,10 @@ const redemptions: Redemption[] = [
   redemption(rewards[2], 'm4', 'pending', 0),
   redemption(rewards[2], 'm3', 'given', 1),
   redemption(rewards[1], 'm3', 'given', 6),
+]
+// Bonus points (demo only): one a parent gave Maya yesterday (already in her balance above).
+const pointAwards: PointAward[] = [
+  (at => ({ id: 'pa1', memberId: 'm3', points: 10, note: 'Helped carry groceries', date: dateKey(at), at: at.toISOString() }))(new Date(Date.now() - 86_400_000)),
 ]
 const goals = new Map<string, string | null>([['m3', 'rw1'], ['m4', 'rw2']])
 const goalOf = (memberId: string) => {
@@ -1191,6 +1195,7 @@ export const mock = {
         if (!chore) continue
         points += chore.points; completed++
       }
+      for (const a of pointAwards) if (a.memberId === m.id && new Date(`${a.date}T00:00:00`) >= cutoff) points += a.points // bonus points: points, not chores
       for (let i = 0; i < 30; i++) {
         const d = new Date(); d.setDate(d.getDate() - i)
         const key = d.toISOString().slice(0, 10)
@@ -1246,6 +1251,30 @@ export const mock = {
   },
   setRewardGoal: async (memberId: string, rewardId: string | null) => { goals.set(memberId, rewardId); bump(); return { rewardId } },
 
+  // The demo's ledger holds only bonus points; balances are the members' own numbers.
+  getMemberPoints: async (memberId: string) => {
+    const m = members.find(x => x.id === memberId); if (!m) throw new Error('not found')
+    const entries: PointEntry[] = pointAwards.filter(a => a.memberId === memberId).map(a => ({ id: a.id, memberId, amount: a.points, reason: 'bonus', ref: a.date, at: a.at, note: a.note }))
+    return { balance: m.balance, earnedTotal: m.balance, spentTotal: 0, entries }
+  },
+  givePoints: async (body: { memberId: string; points: number; note?: string; date?: string }) => {
+    const m = members.find(x => x.id === body.memberId); if (!m) throw new Error('member not found')
+    const today = dateKey(new Date()), date = body.date ?? today
+    const award: PointAward = { id: uid(), memberId: m.id, points: body.points, note: body.note?.trim() || null, date, at: new Date().toISOString() }
+    pointAwards.unshift(award)
+    m.balance += award.points
+    if (date === today) m.pointsToday += award.points
+    m.pointsWeek += award.points // ponytail: the demo doesn't check the week's start
+    bump(); return { award, balance: m.balance }
+  },
+  deletePointAward: async (id: string) => {
+    const i = pointAwards.findIndex(a => a.id === id); if (i < 0) throw new Error('no such bonus')
+    const [a] = pointAwards.splice(i, 1), m = members.find(x => x.id === a.memberId)!
+    m.balance -= a.points
+    if (a.date === dateKey(new Date())) m.pointsToday -= a.points
+    m.pointsWeek -= a.points
+    bump(); return { ok: true, balance: m.balance }
+  },
   getStickerPacks: async (memberId: string) => STICKER_PACKS.map(packFor(memberId)),
   checkIn: async (memberId: string) => {
     const m = members.find(x => x.id === memberId); if (!m) throw new Error('not found')
