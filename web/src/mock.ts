@@ -10,6 +10,7 @@ import { itemKey } from './itemSuggest.ts'
 import { tagsInput } from './catalog.ts'
 import { byListOrder, reorderWithin } from './listSections.ts'
 import { dateKey } from './date.ts'
+import { setLogDay } from './reading.ts'
 import { DEMO_DRAWINGS, drawingPhoto } from './mock-drawings.ts'
 import { SECURITY_PAGE, matchesSecurityQuery } from './securityActivity.ts'
 import { FILTER_PRESETS, NO_FILTER, filterShows } from './calendarFilter.ts'
@@ -1470,7 +1471,9 @@ export const mock = {
       ...(body.memberId !== undefined && { memberId: body.memberId }), ...(body.date && { date: body.date }),
       ...(body.title !== undefined && { title: body.title?.trim() || null }), ...(body.photoId !== undefined && { photoId: body.photoId }),
       ...(body.memberId !== undefined && { formerMember: null }),
-      data: demoLog(t.kind, t.data as unknown as Record<string, unknown>, trackerData(t.kind, { ...t.data, ...body.data })), updatedAt: new Date().toISOString(),
+      data: body.logDay && t.kind === 'reading'
+        ? (() => { const d = t.data as ReadingData; const r = setLogDay(d, body.logDay.date, body.logDay.amount); return { ...d, ...body.data, [d.format === 'audiobook' ? 'minutesListened' : 'pagesRead']: r.at, log: r.log } })()
+        : demoLog(t.kind, t.data as unknown as Record<string, unknown>, trackerData(t.kind, { ...t.data, ...body.data })), updatedAt: new Date().toISOString(),
     })
     settleMockPhoto(t, body.photoFamily); bump(); return { ...t }
   },

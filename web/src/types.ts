@@ -154,7 +154,8 @@ export function trackerKinds(s: Settings): string[] {
 /** Rewards are on: their own switch (Family → Chores), and chores and points. */
 export const rewardsOn = (s: Pick<Settings, 'features' | 'rewardsEnabled'>) => s.features.chores && s.rewardsEnabled
 /** Create/edit body: data fields set to null are cleared on edit. */
-export interface TrackerInput { kind?: TrackerKind; memberId?: string | null; date?: string; title?: string | null; photoId?: string | null; photoFamily?: boolean; data?: Record<string, unknown> }
+export interface TrackerInput { kind?: TrackerKind; memberId?: string | null; date?: string; title?: string | null; photoId?: string | null; photoFamily?: boolean; data?: Record<string, unknown>
+  logDay?: { date: string; amount: number } } // a book's reading on an earlier day (replaces that day; the page moves by the difference)
 
 export type TidbitSource = 'quotes' | 'facts' | 'tips' | 'onthisday' | 'trivia'
 export type TipCategory = 'routines' | 'focus' | 'organizing' | 'feelings' | 'sensory' | 'communication'

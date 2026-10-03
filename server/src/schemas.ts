@@ -1168,6 +1168,9 @@ export const TrackerPatchSchema = z
     photoId: z.string().nullable().optional(),
     photoFamily: z.boolean().optional(),
     data: z.record(z.string(), z.unknown()).optional(), // merged over the entry's data; null clears a field
+    logDay: z.object({ date: DateOnly, amount: z.number().int().min(0).max(100000) }).optional().openapi({
+      description: "A book's reading on an earlier day (today back to about a year): pages, or minutes for an audiobook. It replaces that day's amount (0 takes the day out) and moves the place in the book by the difference; progress sent in data alongside it is ignored.",
+    }),
   })
   .openapi('TrackerPatch');
 

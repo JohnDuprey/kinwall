@@ -1928,19 +1928,21 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'update_tracker_entry',
     {
       title: 'Update tracker entry',
-      description: `Edit an entry (ids from list_tracker_entries), e.g. log pages read or rate a book. data is merged over the entry's fields; null clears one. ${HEALTH_DOC}`,
+      description: `Edit an entry (ids from list_tracker_entries), e.g. log pages read or rate a book. data is merged over the entry's fields; null clears one. A book's reading on an earlier day goes in logDay (it replaces that day's amount and moves the page by the difference). ${HEALTH_DOC}`,
       inputSchema: {
         entryId: z.string(),
         member: z.string().nullable().optional().describe('Member name or id; null = the whole family.'),
         date: z.string().optional(),
         title: z.string().optional(),
         data: z.record(z.string(), z.unknown()).optional().describe(TRACKER_DATA_DOC),
+        logDay: z.object({ date: z.string().describe('YYYY-MM-DD, today back to about a year.'), amount: z.number().int().min(0).describe('Pages read that day (minutes for an audiobook); 0 takes the day out.') }).optional()
+          .describe("A book's reading on an earlier day, e.g. pages someone forgot to log yesterday."),
       },
     },
-    async ({ entryId, member, date, title, data }) => {
+    async ({ entryId, member, date, title, data, logDay }) => {
       let memberId: string | null | undefined = member === null ? null : undefined;
       try { if (member) memberId = await trackerMember(member); } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'member lookup failed'); }
-      const res = await call(app, env, auth, 'PATCH', `/api/trackers/${encodeURIComponent(entryId)}`, { memberId, date, title, data });
+      const res = await call(app, env, auth, 'PATCH', `/api/trackers/${encodeURIComponent(entryId)}`, { memberId, date, title, data, logDay });
       if (res.status >= 400) return errorResult(res.json, 'failed to update tracker entry');
       return okResult('Entry updated.', { entry: res.json as Record<string, unknown> });
     },

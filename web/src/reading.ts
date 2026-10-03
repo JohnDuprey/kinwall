@@ -88,3 +88,14 @@ export function shelfBooks<T>(books: T[], d: (b: T) => { status: string; finishe
   const more = all ? 0 : Math.max(0, finished.length - FINISHED_SHOWN)
   return { shown: more ? sorted.slice(0, sorted.length - more) : sorted, more }
 }
+
+/** An earlier day's reading set by hand (server/src/reading.ts setLogDay, the same rule): that day's
+ * amount (0 takes it out), and the place in the book moved by the difference, within the book. */
+export function setLogDay(old: Pick<ReadingData, 'format' | 'pagesRead' | 'totalPages' | 'minutesListened' | 'totalMinutes' | 'log'>, date: string, amount: number): { log: ReadingDay[]; at: number } {
+  const audio = old.format === 'audiobook'
+  const now = (audio ? old.minutesListened : old.pagesRead) ?? 0
+  const total = audio ? old.totalMinutes : old.totalPages
+  const was = old.log?.find(d => d.date === date)?.amount ?? 0
+  const log = [...(old.log ?? []).filter(d => d.date !== date), ...(amount ? [{ date, amount }] : [])].sort((a, b) => a.date.localeCompare(b.date)).slice(-366)
+  return { log, at: Math.max(0, Math.min(total ?? Infinity, now + amount - was)) }
+}

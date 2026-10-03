@@ -34,3 +34,15 @@ export function logReading(old: ReadingProgress & { log?: ReadingDay[] }, next: 
   const out = [...(isToday ? log.slice(0, -1) : log), ...(amount ? [{ date: today, amount }] : [])].slice(-KEEP_DAYS);
   return out.length ? out : undefined;
 }
+
+/** An earlier day's reading set by hand (`amount` on `date`; 0 takes the day out of the log), and
+ * where the book is now: moved on (or back) by the difference from what that day had, never below
+ * the start or past the end. */
+export function setLogDay(old: ReadingProgress & { log?: ReadingDay[] }, date: string, amount: number): { log: ReadingDay[]; at: number } {
+  const audio = isAudiobook(old);
+  const now = (audio ? old.minutesListened : old.pagesRead) ?? 0;
+  const total = audio ? old.totalMinutes : old.totalPages;
+  const was = old.log?.find((d) => d.date === date)?.amount ?? 0;
+  const log = [...(old.log ?? []).filter((d) => d.date !== date), ...(amount ? [{ date, amount }] : [])].sort((a, b) => a.date.localeCompare(b.date)).slice(-KEEP_DAYS);
+  return { log, at: Math.max(0, Math.min(total ?? Infinity, now + amount - was)) };
+}

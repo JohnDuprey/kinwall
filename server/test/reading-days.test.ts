@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { createApp } from '../src/app.ts';
 import { openDb, applyMigrations } from '../src/d1-sqlite.ts';
 import type { Env } from '../src/env.ts';
-import { logReading } from '../src/reading.ts';
+import { logReading, setLogDay } from '../src/reading.ts';
 
 test('logReading: each day gets what was read that day; corrections never go below zero', () => {
   let log = logReading({ pagesRead: 66 }, { pagesRead: 80 }, '2026-10-01');
@@ -49,4 +49,41 @@ test('trackers: logging pages records today; adding a book or editing other fiel
   assert.deepEqual(rated.data.log, logged.data.log, 'the server keeps the log; a client cannot rewrite it');
   const done = await send('PATCH', `/api/trackers/${book.id}`, { data: { status: 'finished' } });
   assert.equal(done.data.log[0].amount, 14 + (233 - 80), 'finishing counts the pages left as read today');
+});
+
+test('setLogDay: an earlier day gets what was read then, and the place in the book moves by the difference', () => {
+  const log = [{ date: '2026-10-01', amount: 14 }, { date: '2026-10-03', amount: 10 }];
+  // Forgot to log yesterday: 20 pages on Oct 2, so the page moves on 20 too
+  assert.deepEqual(setLogDay({ pagesRead: 90, totalPages: 233, log }, '2026-10-02', 20),
+    { log: [{ date: '2026-10-01', amount: 14 }, { date: '2026-10-02', amount: 20 }, { date: '2026-10-03', amount: 10 }], at: 110 });
+  // Fix a day: 14 was really 4, so 10 come off the page; 0 takes the day out
+  assert.deepEqual(setLogDay({ pagesRead: 90, log }, '2026-10-01', 4), { log: [{ date: '2026-10-01', amount: 4 }, { date: '2026-10-03', amount: 10 }], at: 80 });
+  assert.deepEqual(setLogDay({ pagesRead: 90, log }, '2026-10-03', 0), { log: [{ date: '2026-10-01', amount: 14 }], at: 80 });
+  // Never past the end or below the start; audiobooks count minutes
+  assert.equal(setLogDay({ pagesRead: 230, totalPages: 233, log }, '2026-10-02', 50).at, 233);
+  assert.equal(setLogDay({ pagesRead: 5, log }, '2026-10-01', 0).at, 0);
+  assert.deepEqual(setLogDay({ format: 'audiobook', minutesListened: 60 }, '2026-10-02', 45), { log: [{ date: '2026-10-02', amount: 45 }], at: 105 });
+});
+
+test('trackers: logDay logs or fixes an earlier day; not the future, not health', async () => {
+  const db = openDb(':memory:');
+  applyMigrations(db, path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'migrations'));
+  const env = { DB: db as unknown as D1Database, ADMIN_API_KEY: 'fc_test_admin_key', ENCRYPTION_KEY: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=' } as Env;
+  const app = createApp();
+  const send = async (method: string, p: string, body?: unknown) => {
+    const res = await app.request(p, { method, body: body === undefined ? undefined : JSON.stringify(body), headers: { Authorization: 'Bearer fc_test_admin_key', 'Content-Type': 'application/json' } }, env);
+    return { status: res.status, body: (await res.json()) as any };
+  };
+  const day = (n: number) => { const d = new Date(); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+  const book = (await send('POST', '/api/trackers', { kind: 'reading', title: 'Holes', data: { pagesRead: 66, totalPages: 233 } })).body;
+  const back = await send('PATCH', `/api/trackers/${book.id}`, { logDay: { date: day(-3), amount: 20 } });
+  assert.equal(back.status, 200);
+  assert.deepEqual(back.body.data.log, [{ date: day(-3), amount: 20 }]);
+  assert.equal(back.body.data.pagesRead, 86, 'the page moves on with it, and today logs nothing');
+  const fixed = await send('PATCH', `/api/trackers/${book.id}`, { logDay: { date: day(-3), amount: 12 } });
+  assert.deepEqual([fixed.body.data.log, fixed.body.data.pagesRead], [[{ date: day(-3), amount: 12 }], 78]);
+  assert.equal((await send('PATCH', `/api/trackers/${book.id}`, { logDay: { date: day(2), amount: 5 } })).status, 400, 'not a future day');
+  assert.equal((await send('PATCH', `/api/trackers/${book.id}`, { logDay: { date: day(-400), amount: 5 } })).status, 400, 'about a year back at most');
+  const memory = (await send('POST', '/api/trackers', { kind: 'memory', data: { text: 'Beach day' } })).body;
+  assert.equal((await send('PATCH', `/api/trackers/${memory.id}`, { logDay: { date: day(-1), amount: 5 } })).status, 400, 'books only');
 });

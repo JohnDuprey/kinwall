@@ -9,6 +9,7 @@ import { useDialog } from './dialog.tsx'
 import { announce, Segmented } from './a11y.tsx'
 import BookLookup from './BookLookup.tsx'
 import Library, { AddBookSheet } from './Library.tsx'
+import { addDayKeys } from './library.ts'
 import { inkFor } from './color.ts'
 import { todayKeyInTz } from './date.ts'
 import { formatTime } from './timeFormat.ts'
@@ -279,33 +280,54 @@ function ReadingDays({ d, tz }: { d: ReadingData; tz?: string }) {
 
 /** Log pages for a book, or listening time for an audiobook. Reaching the end marks it finished. */
 function LogSheet({ book, onClose, onSave }: { book: TrackerEntry; onClose: () => void; onSave: (body: TrackerInput, msg: string) => void }) {
+  const { settings } = useApp()
   const d = book.data as ReadingData
   const audio = isAudiobook(d)
+  const today = todayKeyInTz(settings.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone)
+  // Today: where you are now (the server logs the difference). An earlier day: how much was read
+  // that day (logDay), to catch up on a day you forgot or fix one.
+  const [day, setDay] = useState(today)
+  const past = day < today
+  const loggedOn = (k: string) => d.log?.find(x => x.date === k)?.amount ?? 0
   const [page, setPage] = useState(String(d.pagesRead ?? 0))
   const [hm, setHm] = useState(() => splitMinutes(d.minutesListened ?? 0))
+  const pickDay = (k: string) => {
+    if (!k || k > today) return
+    setDay(k)
+    const was = k < today ? loggedOn(k) : null
+    setPage(String(was ?? d.pagesRead ?? 0)); setHm(splitMinutes(was ?? d.minutesListened ?? 0))
+  }
   const n = audio ? toMinutes(...hm) ?? 0 : Math.max(0, Number(page) || 0)
-  const done = logReachesEnd(d, n)
+  const done = !past && logReachesEnd(d, n)
   const field = audio ? 'minutesListened' : 'pagesRead'
+  const save = () => past
+    ? onSave({ logDay: { date: day, amount: n } }, n ? `${audio ? hoursMinutes(n) : `${n} page${n === 1 ? '' : 's'}`} on ${niceDate(day)}` : `${niceDate(day)} cleared`)
+    : onSave({ data: done ? { [field]: n, status: 'finished' } : { [field]: n } }, done ? `${book.title} finished` : audio ? `${hoursMinutes(n)} listened` : `On page ${n}`)
   return (
     <Sheet variant="dialog" title={`${audio ? 'Log listening' : 'Log pages'} · ${book.title}`} onClose={onClose}
       actions={<>
-        <button className="btn btn-secondary" onClick={() => onSave({ data: { status: 'finished' } }, `${book.title} finished`)}>Finished it! 🎉</button>
-        <button className="btn btn-primary" data-autofocus onClick={() => onSave({ data: done ? { [field]: n, status: 'finished' } : { [field]: n } }, done ? `${book.title} finished` : audio ? `${hoursMinutes(n)} listened` : `On page ${n}`)}>Save</button>
+        {!past && <button className="btn btn-secondary" onClick={() => onSave({ data: { status: 'finished' } }, `${book.title} finished`)}>Finished it! 🎉</button>}
+        <button className="btn btn-primary" data-autofocus onClick={save}>Save</button>
       </>}>
+      <div className="field">
+        <label htmlFor="trk-log-day">Day</label>
+        <input id="trk-log-day" type="date" value={day} max={today} min={addDayKeys(today, -365)} onChange={e => pickDay(e.target.value)} />
+      </div>
       {audio ? <>
-        <HoursMinutes id="trk-listened" label={`Listened so far${d.totalMinutes ? ` (of ${hoursMinutes(d.totalMinutes)})` : ''}`} value={hm} onChange={setHm} />
+        <HoursMinutes id="trk-listened" label={past ? 'Listened that day' : `Listened so far${d.totalMinutes ? ` (of ${hoursMinutes(d.totalMinutes)})` : ''}`} value={hm} onChange={setHm} />
         <div className="chip-row" role="group" aria-label="Add listening time">
           {([[15, '+15m'], [30, '+30m'], [60, '+1h']] as const).map(([k, l]) => <button key={k} type="button" className="chip" onClick={() => setHm(splitMinutes(n + k))}>{l}</button>)}
         </div>
       </> : <>
         <div className="field">
-          <label htmlFor="trk-page">Page you're on{d.totalPages ? ` (of ${d.totalPages})` : ''}</label>
+          <label htmlFor="trk-page">{past ? 'Pages read that day' : `Page you're on${d.totalPages ? ` (of ${d.totalPages})` : ''}`}</label>
           <input id="trk-page" type="text" inputMode="numeric" value={page} onChange={e => setPage(e.target.value.replace(/\D/g, ''))} />
         </div>
         <div className="chip-row" role="group" aria-label="Add pages">
           {[5, 10, 20, 50].map(k => <button key={k} type="button" className="chip" onClick={() => setPage(String(n + k))}>+{k}</button>)}
         </div>
       </>}
+      {past && <p className="field-hint">{loggedOn(day) ? `Logged ${audio ? hoursMinutes(loggedOn(day)) : `${loggedOn(day)} pages`} that day. Save replaces it, and your place in the book moves by the difference; 0 clears the day.` : 'Your place in the book moves on by the same amount.'}</p>}
       {done && <p className="field-hint">{audio ? "That's the end" : "That's the last page"}, so Save marks it finished.</p>}
     </Sheet>
   )

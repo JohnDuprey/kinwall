@@ -1,7 +1,7 @@
 // node --test test/ (npm test). Books and audiobooks: progress, finishing, the shelf line, hours and minutes.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { dayAmount, isAudiobook, left, recentDays, logReachesEnd, readingPercent, shelfBooks, shelfLine, shelfTotals, splitMinutes, toMinutes } from '../src/reading.ts'
+import { dayAmount, isAudiobook, left, recentDays, logReachesEnd, readingPercent, setLogDay, shelfBooks, shelfLine, shelfTotals, splitMinutes, toMinutes } from '../src/reading.ts'
 import type { ReadingData } from '../src/types.ts'
 
 const book = (d: Partial<ReadingData>): ReadingData => ({ status: 'reading', ...d })
@@ -81,4 +81,10 @@ test('shelfBooks: reading and want first, then the 3 newest finished; the rest b
   assert.deepEqual(all.shown.map(x => x.id), ['r', 'w', 'f2', 'f4', 'f3', 'f1', 'f5'])
   assert.equal(all.more, 0)
   assert.equal(shelfBooks(books.slice(0, 4), x => x, false).more, 0, 'three or fewer: nothing held back')
+})
+
+test('setLogDay (web copy): same rule as the server', () => {
+  assert.deepEqual(setLogDay({ pagesRead: 90, totalPages: 233, log: [{ date: '2026-10-03', amount: 10 }] }, '2026-10-02', 20),
+    { log: [{ date: '2026-10-02', amount: 20 }, { date: '2026-10-03', amount: 10 }], at: 110 })
+  assert.deepEqual(setLogDay({ pagesRead: 90, log: [{ date: '2026-10-03', amount: 10 }] }, '2026-10-03', 0), { log: [], at: 80 })
 })

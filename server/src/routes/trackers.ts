@@ -30,7 +30,8 @@ import { isConnectedApp } from './mcp-oauth.ts';
 import { todayIn } from './lists.ts';
 import { isSealed, seal, unseal, type EncryptionEnv } from '../crypto.ts';
 import { fetchRecipeImage } from '../outbound.ts';
-import { isAudiobook, logReading, minutesOf, pagesOf, readingPercent, type ReadingProgress } from '../reading.ts';
+import { isAudiobook, logReading, minutesOf, pagesOf, readingPercent, setLogDay, type ReadingProgress } from '../reading.ts';
+import { addDays } from './snapshot.ts';
 import {
   ErrorSchema, ReadingSummarySchema, TRACKER_DATA, TrackerEntrySchema, TrackerInputSchema, TrackerKindSchema, TrackerPatchSchema,
 } from '../schemas.ts';
@@ -389,13 +390,22 @@ trackersRoutes.openapi(
     const parsed = parseData(row.kind, { ...old.data, ...body.data });
     if ('error' in parsed) return c.json({ error: parsed.error }, 400);
     const today = await householdToday(c);
+    // An earlier day logged or fixed by hand: that day's amount, and the place in the book with it.
+    let day: ReturnType<typeof setLogDay> | null = null;
+    if (body.logDay) {
+      if (row.kind !== 'reading') return c.json({ error: 'logDay is for books' }, 400);
+      if (body.logDay.date > today || body.logDay.date < addDays(today, -365)) return c.json({ error: 'logDay: today or a day in the last year' }, 400);
+      day = setLogDay(old.data as Parameters<typeof setLogDay>[0], body.logDay.date, body.logDay.amount);
+    }
     const entry = {
       id: row.id,
       kind: row.kind,
       memberId: body.memberId !== undefined ? body.memberId : row.member_id,
       title: body.title !== undefined ? body.title?.trim() || null : row.title,
       photoId: body.photoId !== undefined ? body.photoId : row.photo_id,
-      data: row.kind === 'reading' ? withLog(old.data, finishBook(parsed.data, today), today) : parsed.data,
+      data: row.kind !== 'reading' ? parsed.data
+        : day ? { ...finishBook({ ...parsed.data, [isAudiobook(parsed.data) ? 'minutesListened' : 'pagesRead']: day.at }, today), log: day.log.length ? day.log : undefined }
+        : withLog(old.data, finishBook(parsed.data, today), today),
     };
     const notYours = await ownerBlock(c, row.member_id, entry.memberId); // a kid's device: their own entries, and only to themselves
     if (notYours) return c.json({ error: notYours }, 403);
