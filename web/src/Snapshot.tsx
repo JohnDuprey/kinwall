@@ -3,7 +3,8 @@ import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { isAudiobook, readingPercent } from './reading.ts'
 import type { ChoreDay, Member, ReadingData, TempCheck as TempCheckData, TempCheckInput, TrackerEntry, Snapshot, SnapshotBirthday, SnapshotChore, SnapshotEvent, SnapshotItem, WeatherDay } from './types.ts'
-import { ChecklistSheet, Confetti } from './Chores.tsx'
+import { Confetti } from './Chores.tsx'
+import GetStuffDone from './GetStuffDone.tsx'
 import { checkInFocus, checkInLabel, checkInState } from './checkIn.ts'
 import { feelingOptions, GOAL_MAX, SLEEP, tempCheckDone, toggleFeeling } from './tempCheck.ts'
 import { CheckIcon } from './icons.tsx'
@@ -150,11 +151,11 @@ export default function SnapshotSheet({ member, onClose, toCheckIn }: { member: 
         </div>
       )}
       {checklistFor?.checklist && (
-        <ChecklistSheet chore={checklistFor} onClose={() => setChecklistFor(null)}
-          onComplete={async () => {
-            const c = checklistFor; setChecklistFor(null)
-            await toggleChore({ id: c.id, title: c.title, emoji: c.emoji, points: c.points, dueTime: c.dueTime, date: today, done: false, doneBy: null, shared: !c.memberId })
-          }} />
+        <GetStuffDone listId={checklistFor.checklist.listId} onClose={() => setChecklistFor(null)}
+          chore={{ memberId: checklistFor.memberId, title: checklistFor.title, onComplete: () => {
+            const c = checklistFor
+            void toggleChore({ id: c.id, title: c.title, emoji: c.emoji, points: c.points, dueTime: c.dueTime, date: today, done: false, doneBy: null, shared: !c.memberId })
+          } }} />
       )}
     </Sheet>
   )

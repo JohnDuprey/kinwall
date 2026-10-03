@@ -1272,9 +1272,6 @@ button.month-cell .month-daynum { flex: none; }
 .lists-shell-phone .list-detail { background: none; box-shadow: none; padding: 0 var(--pad) calc(60px + var(--safe-b) + 16px); border-radius: 0; }
 .list-detail-empty { align-items: center; justify-content: center; }
 .list-detail-header { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
-.checklist-hint { margin: 0 0 10px; }
-.checklist-rows { display: flex; flex-direction: column; }
-.checklist-edit { display: block; margin-top: 12px; text-align: center; }
 .list-detail-header .btn { flex: none; min-height: 44px; padding: 8px 18px; }
 .list-detail-emoji { font-size: 1.375rem; flex-shrink: 0; }
 .list-detail-title { flex: 1; min-width: 0; }
@@ -2966,11 +2963,6 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
   :root:not([data-view="board"]) .now-next { display: none; }
 }
 
-/* A chore checklist item's own steps, nested under it (Chores.tsx ChecklistSheet). */
-.checklist-steps { display: flex; flex-direction: column; gap: 2px; margin: 2px 0 6px 44px; }
-.checklist-step { min-height: 40px; }
-.checklist-step .list-item-check { width: 28px; height: 28px; min-width: 28px; }
-.checklist-step .list-item-title { font-size: .9375rem; }
 
 /* ---------- Member profiles (Profile.tsx) ---------- */
 .profile { padding: var(--pad); display: flex; flex-direction: column; gap: var(--gap); max-width: 1400px; margin: 0 auto; width: 100%; box-sizing: border-box; }

@@ -383,6 +383,7 @@ const chores: Chore[] = [
   { id: 'ch4', title: 'Water plants', emoji: '🪴', memberId: null, points: 5, rrule: null, dueDate: todayISO(), dueTime: null, active: true, sort: 3, listId: null, pluginId: null, pluginMinutes: null },
   { id: 'ch5', title: 'Vacuum living room', emoji: '🧹', memberId: 'm2', points: 15, rrule: 'FREQ=WEEKLY', dueDate: null, dueTime: null, active: true, sort: 4, listId: null, pluginId: null, pluginMinutes: null },
   { id: 'ch6', title: 'Tidy toys', emoji: '🧸', memberId: 'm4', points: 5, rrule: 'FREQ=DAILY', dueDate: null, dueTime: null, active: true, sort: 5, listId: 'l4', pluginId: null, pluginMinutes: null },
+  { id: 'ch7', title: 'Bedtime routine', emoji: '🌙', memberId: 'm4', points: 5, rrule: 'FREQ=DAILY', dueDate: null, dueTime: '20:00', active: true, sort: 7, listId: 'l6', pluginId: null, pluginMinutes: null },
 ]
 const completions = new Map<string, { completedAt: string; memberId: string | null }>() // key `${choreId}:${date}`
 
