@@ -47,6 +47,14 @@ test('a stored layout is made safe', () => {
   assert.deepEqual(normalizeLayout('x'), { tiles: true, columns: [[]] })
 })
 
+test('the Checklist card keeps the list it shows; other cards and junk ids carry none', () => {
+  const raw = { columns: [[{ id: 'checklist', size: 's', density: 'big', listId: 'l6' }, { id: 'today', listId: 'l6' }], [{ id: 'clock', listId: 7 }]] }
+  assert.deepEqual(normalizeLayout(raw).columns, [[{ id: 'checklist', size: 's', density: 'big', listId: 'l6' }, { id: 'today', size: 'm', density: 'normal' }], [{ id: 'clock', size: 'm', density: 'normal' }]])
+  assert.deepEqual(normalizeLayout({ columns: [[{ id: 'checklist', listId: 5 }]] }).columns, [[{ id: 'checklist', size: 'm', density: 'normal' }]])
+  const l = updateCard(normalizeLayout(raw), { col: 0, i: 0 }, { listId: 'l4' })
+  assert.equal(l.columns[0][0].listId, 'l4')
+})
+
 test('editing: move, add, remove, resize, column count', () => {
   let l = L(true, ['clock', 'today'], ['coming'])
   l = moveCard(l, { col: 0, i: 1 }, { col: 1, i: 0 })
@@ -68,9 +76,9 @@ test('editing: move, add, remove, resize, column count', () => {
   assert.equal(moveCard(full, { col: 1, i: 0 }, { col: 0, i: 0 }), full, 'a full column takes no more')
 })
 
-test('cardOn: Meals, Due soon and Chores go with their features; the picture card stays', () => {
+test('cardOn: Meals, Due soon, Chores and Checklist go with their features; the picture card stays', () => {
   const off = { meals: false, lists: false, chores: false }
-  assert.deepEqual(unplaced({ tiles: true, columns: [] }).filter(id => !cardOn(id, off)), ['meals', 'due', 'chores'])
+  assert.deepEqual(unplaced({ tiles: true, columns: [] }).filter(id => !cardOn(id, off)), ['meals', 'due', 'chores', 'checklist'])
   assert.equal(cardOn('photo', off), true)
   assert.equal(cardOn('meals', { ...off, meals: true }), true)
 })

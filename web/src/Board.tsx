@@ -20,6 +20,7 @@ import { boardGoals } from './tempCheck.ts'
 import { TakeNowTile, useDueDoses } from './TakeNow.tsx'
 import Sheet from './Sheet.tsx'
 import GetStarted from './GetStarted.tsx'
+import GetStuffDone from './GetStuffDone.tsx'
 import { BasketIcon, CartIcon } from './icons.tsx'
 import { boardAreas, boardChores, boardItems, moreLabel, rowsThatFit, tidbitCardsThatFit, tileColumns } from './boardFit.ts'
 import { cardOn, layoutAreas, layoutFor, type BoardCardId, type CardDensity } from './boardLayout.ts'
@@ -114,6 +115,7 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
   const f = settings.features
   const rewards = rewardsOn(settings)
   const [lists, setLists] = useState<List[]>([])
+  const [doing, setDoing] = useState<string | null>(null) // the Checklist card's list, in Get stuff done
   const [redemptions, setRedemptions] = useState<Redemption[]>([])
   useEffect(() => {
     let canceled = false
@@ -203,8 +205,11 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
   const goalsOnly = !rewards ? [] : members.filter(m => m.rewardGoal && (!selectedMemberId || m.id === selectedMemberId) && !chores.some(c => c.memberId === m.id))
   // What can show at all: a feature that's off, or a quote card with nothing to say, takes its card away.
   // The picture card stays with family photos off: Google Photos or nature pictures (saverSources.ts).
+  // The Checklist card: its list, else the first reusable one; gone (or none), the card goes too.
+  const checklistId = layout?.columns.flat().find(c => c.id === 'checklist')?.listId
+  const checklist = lists.find(l => l.id === checklistId) ?? (checklistId ? undefined : lists.find(l => l.kind === 'reusable'))
   const can = (a: BoardCardId | 'tiles') => a === 'tiles' ? tiles.length > 0 : !cardOn(a, f) ? false
-    : tidbitAreas.includes(a) ? !!tidbits[tidbitAreas.indexOf(a)] : true
+    : a === 'checklist' ? !!checklist : tidbitAreas.includes(a) ? !!tidbits[tidbitAreas.indexOf(a)] : true
   const custom = layout && layoutAreas(layout, can)
   const shown = custom ? custom.shown : ['clock', 'tiles', 'today', 'meals', 'photo', 'coming', 'due', 'chores', ...tidbitAreas].filter(a =>
     a === 'due' ? f.lists && full : a === 'chores' ? f.chores && full : can(a as BoardCardId | 'tiles'))
@@ -387,6 +392,25 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
             </ul>
           )}
         </Card>}
+
+        {has('checklist') && checklist && (() => {
+          const done = checklist.itemCount - checklist.openCount, total = checklist.itemCount
+          return <Card title="Get stuff done" area="checklist" density={dense('checklist')}>
+            <ul className="snap-list">
+              <li>
+                <button className="snap-row board-chore" onClick={() => setDoing(checklist.id)} aria-haspopup="dialog" aria-label={`Get stuff done: ${checklist.name}, ${done} of ${total} done`}>
+                  <span className="board-avatar board-checklist-emoji" aria-hidden="true">{checklist.emoji || '📝'}</span>
+                  <span className="snap-main" aria-hidden="true">
+                    <span className="snap-title">{checklist.name} · {done} of {total}</span>
+                    <span className="board-meter"><span style={{ width: `${total ? done / total * 100 : 0}%`, background: checklist.color ?? 'var(--accent)' }} /></span>
+                  </span>
+                  <span className="board-chore-count" aria-hidden="true">{total && done === total ? '🎉' : 'Start ›'}</span>
+                </button>
+              </li>
+            </ul>
+          </Card>
+        })()}
+        {doing && <GetStuffDone listId={doing} onClose={() => { setDoing(null); setTick(t => t + 1) }} />}
 
         {has('photo') && <PhotoCard density={dense('photo')} />}
 

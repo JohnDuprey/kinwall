@@ -5,11 +5,12 @@ import type { Features } from './types.ts'
 // or its own layout kept on the device. Pure, so web/test/boardLayout.test.ts covers it. The server
 // checks family presets against the same shape (server/src/schemas.ts BoardLayoutSchema).
 
-export const BOARD_CARDS = ['clock', 'today', 'meals', 'photo', 'coming', 'due', 'chores', 'tidbit', 'tidbit2', 'tidbit3'] as const
+export const BOARD_CARDS = ['clock', 'today', 'meals', 'photo', 'coming', 'due', 'chores', 'tidbit', 'tidbit2', 'tidbit3', 'checklist'] as const
 export type BoardCardId = typeof BOARD_CARDS[number]
 export const CARD_NAMES: Record<BoardCardId, string> = {
   clock: 'Clock & weather', today: 'Today', meals: 'Today’s meals', photo: 'Picture', coming: 'Coming up',
   due: 'Due soon', chores: 'Chores today', tidbit: 'Quote or fact', tidbit2: 'Quote or fact 2', tidbit3: 'Quote or fact 3',
+  checklist: 'Get stuff done',
 }
 export const CARD_SIZES = ['s', 'm', 'l'] as const
 export type CardSize = typeof CARD_SIZES[number]
@@ -18,7 +19,8 @@ export const CARD_DENSITIES = ['big', 'normal', 'small'] as const
 export type CardDensity = typeof CARD_DENSITIES[number]
 export const DENSITY_NAMES: Record<CardDensity, string> = { big: 'Big text', normal: 'Normal', small: 'Small text' }
 
-export interface BoardCardSpec { id: BoardCardId; size: CardSize; density: CardDensity }
+/** `listId`: the Checklist card's list (absent: the first reusable list). */
+export interface BoardCardSpec { id: BoardCardId; size: CardSize; density: CardDensity; listId?: string }
 /** `tiles`: the row of count tiles across the top (medicines, chores, due soon, groceries, rewards). */
 export interface BoardLayout { tiles: boolean; columns: BoardCardSpec[][] }
 export interface BoardPreset { id: string; name: string; layout: BoardLayout }
@@ -51,7 +53,8 @@ export function normalizeLayout(raw: unknown): BoardLayout {
   const cols = (Array.isArray(r.columns) ? r.columns : []).slice(0, MAX_COLUMNS).map(col => (Array.isArray(col) ? col : []).flatMap((x: Partial<BoardCardSpec>) => {
     if (!BOARD_CARDS.includes(x?.id as BoardCardId) || seen.has(x.id!)) return []
     seen.add(x.id!)
-    return [{ id: x.id!, size: CARD_SIZES.includes(x.size!) ? x.size! : 'm', density: CARD_DENSITIES.includes(x.density!) ? x.density! : 'normal' }]
+    const listId = x.id === 'checklist' && typeof x.listId === 'string' && x.listId ? { listId: x.listId } : {}
+    return [{ id: x.id!, size: CARD_SIZES.includes(x.size!) ? x.size! : 'm', density: CARD_DENSITIES.includes(x.density!) ? x.density! : 'normal', ...listId }]
   }).slice(0, MAX_PER_COLUMN))
   return { tiles: r.tiles !== false, columns: cols.length ? cols : [[]] }
 }
@@ -146,6 +149,6 @@ export function setColumnCount(l: BoardLayout, n: number): BoardLayout {
   cols[n - 1] = [...cols[n - 1], ...l.columns.slice(n).flat()].slice(0, MAX_PER_COLUMN)
   return { ...l, columns: cols }
 }
-/** A card whose feature is on (Settings → Features): Meals, Due soon and Chores go with theirs. */
-export const cardOn = (id: BoardCardId, f: Pick<Features, 'meals' | 'lists' | 'chores'>) => id === 'meals' ? f.meals : id === 'due' ? f.lists : id === 'chores' ? f.chores : true
+/** A card whose feature is on (Settings → Features): Meals, Due soon, Chores and Checklist go with theirs. */
+export const cardOn = (id: BoardCardId, f: Pick<Features, 'meals' | 'lists' | 'chores'>) => id === 'meals' ? f.meals : id === 'due' || id === 'checklist' ? f.lists : id === 'chores' ? f.chores : true
 export const unplaced = (l: BoardLayout) => BOARD_CARDS.filter(id => !l.columns.some(col => col.some(x => x.id === id)))

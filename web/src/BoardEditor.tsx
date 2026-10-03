@@ -14,6 +14,7 @@ import {
   type CardSize, type Spot,
 } from './boardLayout.ts'
 import { CheckIcon, LayoutIcon, XIcon } from './icons.tsx'
+import type { List } from './types.ts'
 import Sheet from './Sheet.tsx'
 
 const grip = (
@@ -37,6 +38,9 @@ export default function BoardEditor({ title, start, name: startName, presets, on
 }) {
   const [layout, setLayout] = useState(start)
   const { settings } = useApp()
+  // The Checklist card's list picker: to-do and reusable lists (shopping lists have Shopping mode).
+  const [lists, setLists] = useState<List[]>([])
+  useEffect(() => { if (settings.features.lists) api.getLists().then(l => setLists(l.filter(x => x.kind !== 'shopping'))).catch(() => { /* first reusable list it is */ }) }, [settings.features.lists])
   const addable = unplaced(layout).filter(id => cardOn(id, settings.features)) // nothing for a feature that's off
   const [name, setName] = useState(startName ?? '')
   const [drag, setDrag] = useState<Drag | null>(null)
@@ -157,6 +161,12 @@ export default function BoardEditor({ title, start, name: startName, presets, on
                     <select className="settings-select" aria-label={`${CARD_NAMES[card.id]} text size`} value={card.density} onChange={e => setLayout(updateCard(layout, at, { density: e.target.value as CardDensity }))}>
                       {CARD_DENSITIES.map(d => <option key={d} value={d}>{DENSITY_NAMES[d]}</option>)}
                     </select>
+                    {card.id === 'checklist' && (
+                      <select className="settings-select" aria-label="Get stuff done card's list" value={card.listId ?? ''} onChange={e => setLayout(updateCard(layout, at, { listId: e.target.value || undefined }))}>
+                        <option value="">First reusable list</option>
+                        {lists.map(l => <option key={l.id} value={l.id}>{l.emoji ? `${l.emoji} ` : ''}{l.name}</option>)}
+                      </select>
+                    )}
                   </div>
                   <div className="board-editor-moves" role="group" aria-label={`Move ${CARD_NAMES[card.id]}, now ${where(at)}`}>
                     <button type="button" className="icon-btn" aria-label="Up" disabled={i === 0} onClick={() => move(at, { col: ci, i: i - 1 })}>↑</button>

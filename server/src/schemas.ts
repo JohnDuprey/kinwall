@@ -244,13 +244,16 @@ export const TidbitSettingsSchema = z
 // The Board's layouts (web/src/boardLayout.ts): columns of cards, each with how much of its column's
 // height it takes (s/m/l) and how big its text is. A family preset is one a parent saved for every
 // screen to pick; a screen's own layout stays on the device.
-export const BOARD_CARDS = ['clock', 'today', 'meals', 'photo', 'coming', 'due', 'chores', 'tidbit', 'tidbit2', 'tidbit3'] as const;
+export const BOARD_CARDS = ['clock', 'today', 'meals', 'photo', 'coming', 'due', 'chores', 'tidbit', 'tidbit2', 'tidbit3', 'checklist'] as const;
 export const MAX_BOARD_PRESETS = 10;
 export const BoardLayoutSchema = z
   .object({
     tiles: z.boolean().openapi({ description: 'The row of count tiles across the top' }),
     columns: z
-      .array(z.array(z.object({ id: z.enum(BOARD_CARDS), size: z.enum(['s', 'm', 'l']), density: z.enum(['big', 'normal', 'small']) })).max(6))
+      .array(z.array(z.object({
+        id: z.enum(BOARD_CARDS), size: z.enum(['s', 'm', 'l']), density: z.enum(['big', 'normal', 'small']),
+        listId: z.string().min(1).max(100).optional().openapi({ description: 'The Checklist card: the list it shows (absent: the first reusable list)' }),
+      })).max(6))
       .min(1)
       .max(4),
   })

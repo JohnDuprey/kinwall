@@ -2561,6 +2561,8 @@ button.board-empty-tap { display: block; width: 100%; text-align: left; backgrou
 .board-chores { grid-area: chores; }
 .board-meals { grid-area: meals; }
 .board-photo { grid-area: photo; }
+.board-checklist { grid-area: checklist; }
+.board-checklist-emoji { background: var(--bg-alt); }
 .board-tidbit { grid-area: tidbit; min-height: auto; } /* a second and third card set their own area inline */
 .board-tidbit > .snap-heading { margin-bottom: 4px; }
 /* Board layout editor (BoardEditor.tsx): the columns side by side on a wide screen, each card as tall as its share. */

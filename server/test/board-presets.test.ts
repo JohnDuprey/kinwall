@@ -39,9 +39,18 @@ test('board presets: none by default, a PATCH round-trips, bad ones are refused,
   assert.equal((await bad({ ...hallway, layout: { tiles: true, columns: [[], [], [], [], []] } })).status, 400, 'five columns');
   assert.equal((await bad({ ...hallway, layout: { tiles: true, columns: [[hallway.layout.columns[0][0]], [hallway.layout.columns[0][0]]] } })).status, 400, 'a card twice');
   assert.equal((await bad({ ...hallway, name: '' })).status, 400, 'no name');
+  assert.equal((await bad({ ...hallway, layout: { tiles: true, columns: [[{ id: 'checklist', size: 's', density: 'big', listId: '' }]] } })).status, 400, 'an empty list id');
   assert.equal((await request('/api/settings', 'PATCH', { boardPresets: [hallway, hallway] })).status, 400, 'the same id twice');
 
   const wall = ((await (await request('/api/keys', 'POST', { name: 'Kitchen', scope: 'display' })).json()) as any).key;
   assert.equal((await request('/api/settings', 'PATCH', { boardPresets: [] }, wall)).status, 403);
   assert.deepEqual(((await (await request('/api/settings', 'GET', undefined, wall)).json()) as any).boardPresets, [hallway], 'a wall screen reads them to pick one');
+});
+
+test('board presets: the Checklist card keeps the list it shows', async () => {
+  const { request } = setup();
+  const bedtime = { id: 'p_bedtime', name: 'Bedtime', layout: { tiles: false, columns: [[{ id: 'checklist', size: 'l', density: 'big', listId: 'l6' }, { id: 'clock', size: 's', density: 'normal' }]] } };
+  const res = await request('/api/settings', 'PATCH', { boardPresets: [bedtime] });
+  assert.equal(res.status, 200);
+  assert.deepEqual(((await (await request('/api/settings')).json()) as any).boardPresets, [bedtime]);
 });
