@@ -119,3 +119,5 @@ changes, `docs/self-hosting/` for config. New routes are documented by their zod
 
 `main` must stay green. The hosted service deploys from `kinwall-cloud`'s deploy workflow, which
 takes the latest commit whose CI passed; self-hosted releases come from `v*` tags.
+Releases are cut by merging release-please's **chore: release x.y.z** PR, which tags `vX.Y.Z`
+and builds the image (see [Releases](docs/contributing/development.md#releases)); don't tag by hand.
