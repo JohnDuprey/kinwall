@@ -1118,6 +1118,25 @@ button.month-cell .month-daynum { flex: none; }
 .settings-subhead { margin: 20px 0 0; font-size: 0.8125rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.03em; }
 .settings-section-title + .field, .settings-section-title + p { margin-top: 14px; }
 .settings-section-title + .member-row-list { margin-top: 6px; }
+/* Settings → General: each card folds under its title button; a folded card keeps its summary. */
+.settings-acc-btn { flex: 1; display: flex; align-items: center; gap: 8px; min-height: 44px; margin: -6px -8px; padding: 0 8px; border: 0; border-radius: var(--radius-sm);
+  background: none; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; text-align: left; }
+.settings-acc-name { flex: 1; min-width: 0; }
+.settings-acc-chevron { flex: none; color: var(--text-dim); }
+.settings-acc.open .settings-acc-chevron { transform: rotate(180deg); }
+.settings-acc:not(.open) { padding-bottom: calc(var(--gap) * 1.5); }
+.settings-acc:not(.open) > .settings-section-title { border-bottom: none; padding-bottom: 0; }
+.settings-acc-summary { padding: 10px 2px 0; }
+.settings-acc-summary .settings-row-label { font-size: 0.875rem; }
+.settings-acc-body > p:first-child { margin-top: 14px; }
+.settings-acc-inside { margin: 12px 2px 0; }
+[data-search-hide] { display: none !important; }
+.settings-search { position: relative; margin: 0; }
+.settings-search input[type="search"] { padding-left: 44px; padding-right: 52px; -webkit-appearance: none; appearance: none; }
+.settings-search input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+.settings-search-icon { position: absolute; left: 14px; top: 50%; translate: 0 -50%; color: var(--text-dim); pointer-events: none; }
+.settings-search-clear { position: absolute; right: 4px; top: 50%; translate: 0 -50%; background: none; box-shadow: none; color: var(--text-dim); }
+.settings-search-none { margin: 0; padding: 12px 4px; font-weight: 700; color: var(--text-dim); }
 .settings-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 2px; border-top: 1px solid var(--border); gap: 12px; }
 .settings-row:first-of-type { border-top: none; }
 .settings-row-label { font-weight: 800; font-size: 0.9375rem; }
@@ -1739,6 +1758,7 @@ button.month-cell .month-daynum { flex: none; }
   /* .content only fades: a transform, even mid-animation, would re-anchor its fixed children (FAB). */
   .content { animation: kw-fade 0.2s ease; }
   .settings-section { animation: kw-page-in 0.22s ease both; }
+  .settings-acc-chevron { transition: transform 0.18s ease; }
   .view-anim { animation: kw-fade 0.2s ease; }
   .view-anim.from-right { animation: kw-from-right 0.26s cubic-bezier(0.2, 0.9, 0.25, 1); }
   .view-anim.from-left { animation: kw-from-left 0.26s cubic-bezier(0.2, 0.9, 0.25, 1); }
@@ -3201,7 +3221,7 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
   :where(.btn-primary, .btn-danger, .swipe-delete, .icon-btn, .fab, .today-btn, .segmented button, .tab-btn, .nav-rail-btn, .who-btn,
     .family-row, .family-pick, .board-tile, .snap-row, .board-empty-tap, .notif-item, .member-list-item, .cal-list-item,
     .schedule-item, .month-cell, .list-item-row, .lists-section-head, .add-row-btn, .trk-book-main, .trk-visit-main, .trk-memory, .lib-book,
-    .activity-card, .recipe-step, .note, .more-row, .setup-chore-tap, .catalog-row-main, .paint-brush-tile, .paint-stamp):not(:disabled, .active):hover {
+    .activity-card, .recipe-step, .note, .more-row, .setup-chore-tap, .catalog-row-main, .paint-brush-tile, .paint-stamp, .settings-acc-btn):not(:disabled, .active):hover {
     background-image: linear-gradient(color-mix(in srgb, var(--text) 8%, transparent) 0 0);
   }
   /* Switches: a soft accent ring (the dark "off" track keeps its own inset ring). */

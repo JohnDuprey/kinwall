@@ -1,4 +1,4 @@
-import { createContext, Fragment, useContext, useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { createContext, Fragment, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { AppContext, useApp } from './AppContext.tsx'
 import { DOCS_URL } from './Help.tsx'
 import { api, ApiError, clearKey, MOCK, PUSH_SUB_ID_KEY } from './api.ts'
@@ -10,7 +10,7 @@ import { CATEGORY_EMOJI, CATEGORY_PRESETS, MEMBER_EMOJI, MEMBER_PALETTE, nextPal
 import Sheet from './Sheet.tsx'
 import { SchemePickerSheet, TypefaceRow } from './SchemePicker.tsx'
 import TidbitsSheet, { DeviceTidbitRows } from './TidbitsSheet.tsx'
-import { tidbitSummary } from './tidbits.ts'
+import { SOURCE_TITLES, tidbitSummary } from './tidbits.ts'
 import { appearanceChips, featuresSummary, nightHoursChips, nightSummary, timeCuesSummary, transitionRemindersSummary, type Chip } from './settingsSummary.ts'
 import { MAX_WARNING_TIMES, REPEAT_EVERY, REPEAT_WITHIN, warningTimes, type TransitionReminders, type WarningRepeat } from './transitions.ts'
 import { MemberPicker } from './MemberPicker.tsx'
@@ -20,7 +20,7 @@ import TimezoneField from './TimezoneField.tsx'
 import { AnyEmojiField, AvatarPicker } from './AnyEmojiField.tsx'
 import { isValidAvatar } from './emoji.ts'
 import { accentFill, colorName, inkFor } from './color.ts'
-import { BellIcon, ChevronRight, KeyIcon, LinkIcon, LockIcon, MonitorIcon, PaletteIcon, PlusIcon, TrashIcon, WebhookIcon } from './icons.tsx'
+import { BellIcon, ChevronDown, ChevronRight, KeyIcon, LinkIcon, LockIcon, MonitorIcon, PaletteIcon, PlusIcon, SearchIcon, TrashIcon, WebhookIcon, XIcon } from './icons.tsx'
 import { CustomColorSwatch } from './ColorSwatch.tsx'
 import { ColorClashHint, ColorClashNote } from './ColorClash.tsx'
 import { useIsPhone } from './useIsPhone.ts'
@@ -48,6 +48,7 @@ import { MedicationsToggle } from './MedicationSettings.tsx'
 import { announce, pressable, reducedMotion, Segmented } from './a11y.tsx'
 import { FEATURE_ROWS } from './featureConfig.ts'
 import { Brand } from './Brand.tsx'
+import { filterSettings, matchesAll, queryWords, readOpen, writeOpen } from './settingsSearch.ts'
 
 // Mirrors BusEventType in server/src/bus.ts.
 const BUS_EVENTS = ['member.changed', 'calendar.changed', 'calendar.synced', 'events.changed', 'chore.changed', 'chore.completed', 'chore.uncompleted', 'chore.pending', 'chore.rejected', 'checkin.completed', 'tempcheck.changed', 'list.changed', 'list.item.changed', 'category.changed', 'settings.changed', 'sticker.changed', 'reward.changed', 'reward.redeemed', 'reward.approved', 'reward.declined', 'reward.given', 'recipe.changed', 'meal.changed', 'photo.changed', 'tracker.changed', 'newscast.posted', 'newscast.changed', 'contact.changed', 'contact.category.changed', 'display.paired', 'display.night_screen']
@@ -72,8 +73,11 @@ export default function SettingsView() {
     return SETTINGS_TABS.some(x => x.key === t) ? (t as SettingsTab) : 'general'
   }
   const [tab, setTab] = useState<SettingsTab>(tabFromHash)
+  // The spot a link points at (section=…), or the family's Night card when back from Google Photos.
+  const jumpFromHash = () => { const q = new URLSearchParams(location.hash.split('?')[1] || ''); return q.get('section') ?? (q.get('googlePhotos') ? 'night' : null) }
+  const [jumpTo, setJumpTo] = useState(jumpFromHash)
   useEffect(() => {
-    const onHash = () => { if (location.hash.startsWith('#/settings')) setTab(tabFromHash()) }
+    const onHash = () => { if (location.hash.startsWith('#/settings')) { setTab(tabFromHash()); setJumpTo(jumpFromHash()) } }
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
@@ -104,18 +108,34 @@ export default function SettingsView() {
 
   const [meReady, setMeReady] = useState(false)
   useEffect(() => { api.meStrict().then(setMe).catch(() => setMe({ scope: 'display', keyName: '', kind: 'api' })).finally(() => setMeReady(true)) }, [])
+  // General's cards fold up. Each device keeps the ones it opened; a search opens every match
+  // (and a header tapped during a search folds just for that search).
+  const [open, setOpen] = useState(readOpen)
+  const [query, setQuery] = useState('')
+  const [searchShut, setSearchShut] = useState<Set<string>>(new Set())
+  const words = queryWords(query)
+  const flip = (set: Set<string>, key: string, on = !set.has(key)) => { const n = new Set(set); if (on) n.add(key); else n.delete(key); return n }
+  const toggle = (key: string, on?: boolean) => {
+    if (words.length) { setSearchShut(s => flip(s, key, on === undefined ? undefined : !on)); return }
+    setOpen(s => { const n = flip(s, key, on); writeOpen(n); return n })
+  }
+  const search = (q: string) => { setQuery(q); if (!q.trim()) setSearchShut(new Set()) }
+
   // A link to one spot in a tab (#/settings?tab=general&section=board-layout, from the Board's
-  // Manage layouts): scroll to it once /api/me has answered, so the parent-only sections above it
-  // are already in place and don't push it back down.
+  // Manage layouts): once /api/me has answered (so the parent-only sections above it are in place
+  // and don't push it back down), open the card it's in and scroll to it.
   useEffect(() => {
-    if (!meReady) return
-    const q = new URLSearchParams(location.hash.split('?')[1] || '')
-    const el = document.getElementById(q.get('section') ?? '')
-    if (!el) return
+    if (!meReady || !jumpTo) return
+    const el = document.getElementById(jumpTo)
+    if (!el) { setJumpTo(null); return }
+    if (query) { search(''); return } // runs again without the search
+    const key = el.closest<HTMLElement>('[data-acc]')?.dataset.acc
+    if (key && !open.has(key)) { toggle(key, true); return } // runs again once it's open
     el.scrollIntoView({ block: 'start', behavior: reducedMotion() ? 'auto' : 'smooth' })
-    q.delete('section')
-    history.replaceState(null, '', `#/settings?${q}`)
-  }, [meReady])
+    const q = new URLSearchParams(location.hash.split('?')[1] || '')
+    if (q.has('section')) { q.delete('section'); history.replaceState(null, '', `#/settings?${q}`) }
+    setJumpTo(null)
+  }, [meReady, jumpTo, open, query]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Display keys get the everyday settings; admin-only sections (calendar accounts, displays,
   // passkeys, API keys, webhooks) aren't rendered at all.
@@ -125,14 +145,30 @@ export default function SettingsView() {
   const tabs = SETTINGS_TABS.filter(t => !t.admin || !isDisplay)
   const current = tabs.some(t => t.key === tab) ? tab : 'general'
 
+  // Search hides what doesn't match, straight in the page, and again whenever the page changes.
+  const panelRef = useRef<HTMLDivElement>(null)
+  const [hits, setHits] = useState(0)
+  useLayoutEffect(() => {
+    const panel = panelRef.current
+    if (!panel || current !== 'general') return
+    const apply = () => setHits(filterSettings(panel, query))
+    apply()
+    if (!words.length) return
+    const watch = new MutationObserver(apply)
+    watch.observe(panel, { childList: true, subtree: true, characterData: true })
+    return () => watch.disconnect()
+  }, [query, current]) // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <div className="content scroll-y">
       <div className="settings-scroll">
         <div className="settings-tabs">
           <Segmented tabs idBase="settings-tab" label="Settings sections" value={current} onChange={pickTab} options={tabs} />
         </div>
-        <div className="settings-panel" role="tabpanel" aria-labelledby={`settings-tab-${current}`}>
-        {current === 'general' && <>
+        <div className="settings-panel" role="tabpanel" aria-labelledby={`settings-tab-${current}`} ref={panelRef}>
+        {current === 'general' && <AccordionCtx.Provider value={{ open, toggle, words, shut: searchShut }}>
+          <SettingsSearch query={query} onChange={search} />
+          {words.length > 0 && hits === 0 && <p className="settings-search-none" role="status">No settings match “{query.trim()}”</p>}
           {/* Family settings are for parent devices; a wall screen or kid's device only has its own. */}
           {!isDisplay && (
             <SettingsGroup title="For the whole family" sub="Every screen and phone in the household uses these.">
@@ -153,7 +189,7 @@ export default function SettingsView() {
             <NotificationsSection toast={toast} />
             <TroubleshootSection keyName={isDisplay ? me.keyName : undefined} />
           </SettingsGroup>
-        </>}
+        </AccordionCtx.Provider>}
         {current === 'family' && <>
           <MembersSection members={members} onChanged={reloadCore} toast={toast} canManage={!isDisplay} />
           <CategoriesSection categories={categories} onChanged={reloadCore} toast={toast} canManage={!isDisplay} />
@@ -205,9 +241,50 @@ function SettingsGroup({ title, sub: note, children }: { title: string; sub: str
   )
 }
 
-function Section({ id, title, icon, children }: { id?: string; title: string; icon?: React.ReactNode; children: React.ReactNode }) {
+/** General's folding cards: which are open on this device, the search words, and the cards folded
+ * during the current search. Other tabs have none, so their cards stay plain. */
+const AccordionCtx = createContext<{ open: Set<string>; toggle: (key: string) => void; words: string[]; shut: Set<string> } | null>(null)
+
+/** Settings → General's search field. Escape (or ✕) clears it; focus stays in the field. */
+function SettingsSearch({ query, onChange }: { query: string; onChange: (q: string) => void }) {
+  const input = useRef<HTMLInputElement>(null)
+  return (
+    <div className="field settings-search">
+      <SearchIcon className="settings-search-icon" width={18} height={18} aria-hidden="true" />
+      <input ref={input} type="search" aria-label="Search settings" placeholder="Search settings" autoComplete="off" value={query}
+        onChange={e => onChange(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Escape' && query) { e.preventDefault(); e.stopPropagation(); onChange('') } }} />
+      {query && <button type="button" className="icon-btn settings-search-clear" aria-label="Clear search" onClick={() => { onChange(''); input.current?.focus() }}><XIcon width={18} height={18} /></button>}
+    </div>
+  )
+}
+
+/** A settings card. On General it folds: the title is a button, and `summary` (chips or a line)
+ * stays in view while it's folded. `keywords` name settings kept in a sheet, so search finds them. */
+function Section({ id, title, icon, summary, keywords, children }: { id?: string; title: string; icon?: React.ReactNode; summary?: ReactNode; keywords?: string[]; children: React.ReactNode }) {
   const headingId = (id ?? title).toLowerCase().replace(/[^a-z0-9]+/g, '-') // an IDREF can't contain spaces
   const H = useContext(HeadingLevel) === 3 ? 'h3' : 'h2'
+  const acc = useContext(AccordionCtx)
+  if (acc) {
+    const searching = acc.words.length > 0
+    const open = searching ? !acc.shut.has(headingId) : acc.open.has(headingId)
+    const inside = searching ? (keywords ?? []).filter(k => matchesAll(acc.words, k)) : []
+    return (
+      <section className={`settings-section settings-acc${open ? ' open' : ''}`} id={id} aria-labelledby={`${headingId}-title`}
+        data-acc={headingId} data-title={title} data-keywords={keywords?.join(' · ')}>
+        <H className="settings-section-title" id={`${headingId}-title`} tabIndex={-1}>
+          <button type="button" className="settings-acc-btn" aria-expanded={open} aria-controls={`${headingId}-body`} onClick={() => acc.toggle(headingId)}>
+            {icon}<span className="settings-acc-name">{title}</span><ChevronDown className="settings-acc-chevron" width={18} height={18} aria-hidden="true" />
+          </button>
+        </H>
+        {!open && summary && <div className="settings-acc-summary">{summary}</div>}
+        <div className="settings-acc-body" id={`${headingId}-body`} hidden={!open}>
+          {inside.length > 0 && <p className="settings-row-sub settings-acc-inside">Inside: {inside.join(', ')}</p>}
+          {children}
+        </div>
+      </section>
+    )
+  }
   return (
     <section className="settings-section" id={id} aria-labelledby={`${headingId}-title`}>
       <H className="settings-section-title" id={`${headingId}-title`} tabIndex={-1}>{icon}{title}</H>
@@ -271,7 +348,7 @@ function FeaturesSection({ settings, onSaved, toast }: { settings: Settings; onS
   }
   const { summary, detail } = featuresSummary(FEATURE_ROWS.map(f => ({ label: f.group ? `${f.label} tracker` : f.label, on: settings.features[f.key] })))
   return (
-    <SummarySection title="Features" summary={summary} detail={detail ?? 'Turn off what your family doesn\'t use.'}>
+    <SummarySection title="Features" summary={summary} detail={detail ?? 'Turn off what your family doesn\'t use.'} keywords={FEATURE_ROWS.map(f => f.group ? `${f.label} tracker` : f.label)}>
       <p className="settings-row-sub">Turn off what your family doesn't use. It's hidden on every screen; nothing is deleted.</p>
       {FEATURE_ROWS.map((f, i) => (<Fragment key={f.key}>
         {f.group && FEATURE_ROWS[i - 1]?.group !== f.group && <h3 className="features-group">{f.group}</h3>}
@@ -306,13 +383,14 @@ function SummaryChips({ chips }: { chips: Chip[] }) {
   )
 }
 
-function SummarySection({ id, title, icon, summary, detail, children, startOpen = false }: { id?: string; title: string; icon?: ReactNode; summary: string | Chip[]; detail?: string; children: ReactNode | ((close: () => void) => ReactNode); startOpen?: boolean }) {
+function SummarySection({ id, title, icon, summary, detail, keywords, children, startOpen = false }: { id?: string; title: string; icon?: ReactNode; summary: string | Chip[]; detail?: string; keywords?: string[]; children: ReactNode | ((close: () => void) => ReactNode); startOpen?: boolean }) {
   const [open, setOpen] = useState(startOpen)
+  const brief = typeof summary === 'string' ? <div className="settings-row-label">{summary}</div> : <SummaryChips chips={summary} />
   return (
-    <Section id={id} title={title} icon={icon}>
+    <Section id={id} title={title} icon={icon} summary={brief} keywords={keywords}>
       <div className="settings-row">
         <div className="summary-body">
-          {typeof summary === 'string' ? <div className="settings-row-label">{summary}</div> : <SummaryChips chips={summary} />}
+          {brief}
           {detail && <div className="settings-row-sub">{detail}</div>}
         </div>
         <div className="settings-inline-btns">
@@ -332,7 +410,7 @@ function SummarySection({ id, title, icon, summary, detail, children, startOpen 
 function TidbitsSection({ settings, onSaved, toast }: { settings: Settings; onSaved: () => void; toast: (m: string, persist?: boolean) => void }) {
   const [open, setOpen] = useState(false)
   return (
-    <Section title="Quotes & facts">
+    <Section title="Quotes & facts" summary={<div className="settings-row-sub">{tidbitSummary(settings.tidbits)}</div>} keywords={Object.values(SOURCE_TITLES)}>
       <div className="settings-row">
         <div>
           <div className="settings-row-label">On the Board</div>
@@ -751,7 +829,7 @@ function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean)
   if (inNativeApp()) {
     const liveLine = liveActivitiesLine(liveActivities, appPlatform() ?? 'ios')
     return (
-      <Section title="Notifications" icon={<BellIcon width={16} height={16} />}>
+      <Section id="notifications" title="Notifications" icon={<BellIcon width={16} height={16} />}>
         {nightHoldNote(settings) && <p className="settings-row-sub">{nightHoldNote(settings)}</p>}
         <p className="settings-row-sub">The Kinwall app reminds you about events on this device, at each event's reminder times. To turn them off, go to the device's Settings → Notifications → Kinwall. Daily summaries, chore nudges and list updates aren't sent to the app yet; they still arrive in the bell at the top.</p>
         {liveLine && <p className="settings-row-sub">{liveLine}</p>}
@@ -771,7 +849,7 @@ function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean)
   }
   if (!pushSupported()) {
     return (
-      <Section title="Notifications" icon={<BellIcon width={16} height={16} />}>
+      <Section id="notifications" title="Notifications" icon={<BellIcon width={16} height={16} />}>
         <p className="settings-row-sub">
           {iosNeedsHomeScreen()
             ? 'Add Kinwall to your Home Screen first (Share → Add to Home Screen) — iPhone only supports notifications for installed apps, on iOS 16.4 or later.'
@@ -784,7 +862,7 @@ function NotificationsSection({ toast }: { toast: (m: string, persist?: boolean)
   const prefs = sub?.prefs ?? DEFAULT_PUSH_PREFS
 
   return (
-    <Section title="Notifications" icon={<BellIcon width={16} height={16} />}>
+    <Section id="notifications" title="Notifications" icon={<BellIcon width={16} height={16} />}>
       {sub && nightHoldNote(settings) && <p className="settings-row-sub" style={{ margin: '10px 2px 0' }}>{nightHoldNote(settings)}</p>}
       {sub === undefined ? (
         <div className="settings-row-sub">Checking…</div>
@@ -852,7 +930,7 @@ function NotificationDevicesSection({ toast }: { toast: (m: string, persist?: bo
   return (
     <Section title="Notifications" icon={<BellIcon width={16} height={16} />}>
       {subs.length === 0 ? (
-        <p className="settings-row-sub">No devices have turned on notifications yet. Each phone turns them on in <a className="text-link" href="#/settings?tab=general">Settings → General</a>.</p>
+        <p className="settings-row-sub">No devices have turned on notifications yet. Each phone turns them on in <a className="text-link" href="#/settings?tab=general&section=notifications">Settings → General</a>.</p>
       ) : subs.map(s => (
         <div key={s.id} className="key-item">
           <div>
@@ -1127,7 +1205,8 @@ function DeviceAppearanceSection() {
   const { settings } = useApp()
   const summary = deviceChips(settings, useDeviceAppearance())
   return (
-    <SummarySection title="Appearance on this device" icon={<PaletteIcon width={16} height={16} />} summary={summary}>
+    <SummarySection title="Appearance on this device" icon={<PaletteIcon width={16} height={16} />} summary={summary}
+      keywords={['Mode', 'Color scheme', 'Typeface', 'Text size', 'Density', 'Time format', 'Clock time zone', 'Low-stimulation mode']}>
       <DeviceAppearanceRows />
     </SummarySection>
   )
@@ -1296,7 +1375,7 @@ function ScreenFocusRows({ display }: { display: boolean }) {
 function TimeCuesSection() {
   const d = useDeviceAppearance()
   const summary = timeCuesSummary({ nowNext: d.nowNext ?? true, warnings: d.warnings ?? [], repeat: d.warningRepeat, sound: !!d.warningSound })
-  return <SummarySection title="Time cues" summary={summary}><TimeCueRows /></SummarySection>
+  return <SummarySection title="Time cues" summary={summary} keywords={['Now / Next', 'Transition warnings', 'Sound']}><TimeCueRows /></SummarySection>
 }
 
 /** Now / Next and transition warnings on this device. */
@@ -1449,7 +1528,8 @@ function NightSection({ settings, onSaved, toast }: { settings: Settings; onSave
   const hold = settings.nightHoldReminders !== false
   const summary = nightHoursChips(on ? { hours: nightHoursLabel(settings), rest, hold, pin: settings.quietPin } : null)
   return (
-    <SummarySection id="night" title="Night" summary={summary} startOpen={!!returned}>
+    <SummarySection id="night" title="Night" summary={summary} startOpen={!!returned}
+      keywords={['Night hours', ...(on ? ['Rest at night'] : []), ...NIGHT_SCREEN_WORDS, ...(on && rest ? ['PIN to wake at night'] : []), ...(on ? ['Hold reminders at night'] : [])]}>
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
         <div className="settings-row-label" aria-hidden="true">Night hours</div>
         <Segmented label="Night hours" value={on ? 'on' : 'off'}
@@ -1494,6 +1574,9 @@ function NightSection({ settings, onSaved, toast }: { settings: Settings; onSave
   )
 }
 
+// ponytail: hand-kept list of NightRows' settings, so search finds them inside the sheet; add a row there, add it here.
+const NIGHT_SCREEN_WORDS = ['What they show', 'Show clock', 'Clock position', 'Brightness', 'Change picture every', 'Google Photos']
+
 /** "10:00 PM–6:00 AM" in this device's time format. */
 const nightHoursLabel = (s: Settings) => `${formatTime(s.quietFrom!)}–${formatTime(s.quietTo!)}`
 
@@ -1510,7 +1593,7 @@ function NightScreenSection() {
   const summary = own ? nightChips(nightFieldsFor(device, settings.nightLook), settings) : nightChips(familyNightFields(settings.nightLook), settings, true)
   const clear = { nightOwn: undefined, saverSources: undefined, saverEvery: undefined, saverBright: undefined, saverClock: undefined, clockPos: undefined }
   return (
-    <SummarySection title="Night screen on this device" summary={summary}>
+    <SummarySection title="Night screen on this device" summary={summary} keywords={['Night screen', ...NIGHT_SCREEN_WORDS, 'Preview Night screen']}>
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
         <div className="device-pref-row">
           <span>Night screen</span>

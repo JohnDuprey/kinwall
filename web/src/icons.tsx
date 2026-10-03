@@ -202,3 +202,6 @@ export const ThreeDayViewIcon = (p: P) => (
 export const ChevronDown = (p: P) => (
   <svg {...base(p)}><path d="M6 9l6 6 6-6" /></svg>
 )
+export const SearchIcon = (p: P) => (
+  <svg {...base(p)}><circle cx="11" cy="11" r="7" /><path d="M20 20l-4-4" /></svg>
+)

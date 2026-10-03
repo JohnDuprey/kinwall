@@ -5,6 +5,8 @@ Parent devices see both groups of cards below. Wall screens and kids' devices se
 * **For the whole family**: saved on the server, so every screen and phone in the household uses them.
 * **Only on this device**: saved in this browser, so other devices aren't affected. See [This device](this-display.md).
 
+Each card is folded to its title (and its summary, when it has one); tap the title to open it. A card you open stays open on that device. **Search settings** at the top finds settings by name, description or card, ignoring case and accents, and opens the cards that match; Escape or ✕ clears it. It searches only what that device can see. Links into Settings (such as **Manage layouts** on the Board) open the card they point to.
+
 The Kinwall version ("Kinwall v…") shows at the bottom.
 
 ## For the whole family
