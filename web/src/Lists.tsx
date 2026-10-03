@@ -1463,7 +1463,9 @@ function ItemAddField({ id, value, onChange, onAdd, suggestions, onList, inputRe
   return (
     <div className={`item-add${above ? ' above' : ''}`}>
       <input ref={inputRef} id={id} type="text" value={value} placeholder={placeholder} aria-label={label} enterKeyHint="done" autoFocus={autoFocus}
-        autoComplete="off" autoCorrect="off" autoCapitalize="sentences" spellCheck={false}
+        // The browser's autofill stays off (the item suggestions below replace it); the keyboard's
+        // spell check and autocorrect stay on, so a new item doesn't go in with a typo.
+        autoComplete="off" autoCorrect="on" autoCapitalize="sentences" spellCheck
         onChange={e => { onChange(e.target.value); setOpen(true); setActive(-1) }} onKeyDown={onKeyDown}
         onFocus={() => setFocused(true)} onBlur={() => { setFocused(false); setOpen(false); setActive(-1) }}
         {...(suggestions ? {
