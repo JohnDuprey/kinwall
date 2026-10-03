@@ -265,20 +265,37 @@ function Section({ id, title, icon, summary, keywords, children }: { id?: string
   const headingId = (id ?? title).toLowerCase().replace(/[^a-z0-9]+/g, '-') // an IDREF can't contain spaces
   const H = useContext(HeadingLevel) === 3 ? 'h3' : 'h2'
   const acc = useContext(AccordionCtx)
+  // A card with one control (a lone Change or Add button) isn't worth folding: show it plain, and
+  // fold it once it holds more (a preset added, say). Counted from the DOM, so it follows the
+  // rows the device actually shows.
+  const body = useRef<HTMLDivElement>(null)
+  const [busy, setBusy] = useState(true)
+  useLayoutEffect(() => {
+    const el = body.current
+    if (!acc || !el) return
+    const count = () => setBusy(el.querySelectorAll('button, input, select, textarea, a[href]').length > 1)
+    count()
+    const watch = new MutationObserver(count)
+    watch.observe(el, { childList: true, subtree: true })
+    return () => watch.disconnect()
+  }, [acc])
   if (acc) {
     const searching = acc.words.length > 0
-    const open = searching ? !acc.shut.has(headingId) : acc.open.has(headingId)
+    const folds = busy
+    const open = !folds || (searching ? !acc.shut.has(headingId) : acc.open.has(headingId))
     const inside = searching ? (keywords ?? []).filter(k => matchesAll(acc.words, k)) : []
     return (
-      <section className={`settings-section settings-acc${open ? ' open' : ''}`} id={id} aria-labelledby={`${headingId}-title`}
+      <section className={folds ? `settings-section settings-acc${open ? ' open' : ''}` : 'settings-section'} id={id} aria-labelledby={`${headingId}-title`}
         data-acc={headingId} data-title={title} data-keywords={keywords?.join(' · ')}>
         <H className="settings-section-title" id={`${headingId}-title`} tabIndex={-1}>
-          <button type="button" className="settings-acc-btn" aria-expanded={open} aria-controls={`${headingId}-body`} onClick={() => acc.toggle(headingId)}>
-            {icon}<span className="settings-acc-name">{title}</span><ChevronDown className="settings-acc-chevron" width={18} height={18} aria-hidden="true" />
-          </button>
+          {folds
+            ? <button type="button" className="settings-acc-btn" aria-expanded={open} aria-controls={`${headingId}-body`} onClick={() => acc.toggle(headingId)}>
+                {icon}<span className="settings-acc-name">{title}</span><ChevronDown className="settings-acc-chevron" width={18} height={18} aria-hidden="true" />
+              </button>
+            : <>{icon}{title}</>}
         </H>
         {!open && summary && <div className="settings-acc-summary">{summary}</div>}
-        <div className="settings-acc-body" id={`${headingId}-body`} hidden={!open}>
+        <div ref={body} className="settings-acc-body" id={`${headingId}-body`} hidden={!open}>
           {inside.length > 0 && <p className="settings-row-sub settings-acc-inside">Inside: {inside.join(', ')}</p>}
           {children}
         </div>
