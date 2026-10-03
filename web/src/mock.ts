@@ -431,6 +431,7 @@ const lists: List[] = [
   { id: 'l3', name: 'Camping Packing List', emoji: '🎒', color: '#FFD166', kind: 'reusable', memberIds: [], groupBy: 'none', sortBy: 'manual', keepChecked: true, sort: 2, archived: false, createdAt: new Date().toISOString(), itemCount: 4, openCount: 4,
     lastDoneAt: new Date(Date.now() - 4 * 86_400_000 - 2 * 3_600_000).toISOString(), lastDoneBy: { memberId: 'm3' } },
   { id: 'l4', name: 'Living room reset', emoji: '🛋️', color: '#C9A7FF', kind: 'reusable', memberIds: [], groupBy: 'none', sortBy: 'manual', keepChecked: true, sort: 3, archived: false, createdAt: new Date().toISOString(), itemCount: 3, openCount: 3 },
+  { id: 'l6', name: 'Bedtime', emoji: '🌙', color: '#7AB8FF', kind: 'reusable', memberIds: [], groupBy: 'none', sortBy: 'manual', keepChecked: true, sort: 5, archived: false, createdAt: new Date().toISOString(), itemCount: 6, openCount: 4 },
 ]
 type SeedItem = Omit<ListItem, 'priority' | 'steps' | 'stepsDone' | 'stepsTotal' | 'aisle'> & { priority?: ListItem['priority']; steps?: string[] | ListItemStep[]; aisle?: string | null }
 const seedItem = (i: SeedItem): ListItem => withStepCounts({
@@ -468,6 +469,12 @@ let listItems: ListItem[] = ([
   { id: 'li22', listId: 'l1', title: 'Sparkling water', notes: null, quantity: '12 pack', store: 'Supercenter', aisle: 'Aisle 12', category: 'Drinks', memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 31, createdAt: iso(), updatedAt: iso() },
   { id: 'li23', listId: 'l5', title: 'Extension cord', notes: null, quantity: null, store: 'Supercenter', aisle: 'Aisle 21', category: 'Electrical', memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 3, createdAt: iso(), updatedAt: iso() },
   { id: 'li24', listId: 'l5', title: 'Storage bins', notes: null, quantity: '3', store: 'Supercenter', aisle: 'Aisle 9', category: 'Storage', memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 4, createdAt: iso(), updatedAt: iso() },
+  { id: 'li-bed0', listId: 'l6', title: 'Bath or shower', notes: null, quantity: null, store: null, category: null, memberId: null, dueDate: null, eventId: null, done: true, doneAt: iso(), doneBy: 'm4', sort: 0, createdAt: iso(), updatedAt: iso() },
+  { id: 'li-bed1', listId: 'l6', title: 'Pajamas on', notes: null, quantity: null, store: null, category: null, memberId: null, dueDate: null, eventId: null, done: true, doneAt: iso(), doneBy: 'm4', sort: 1, createdAt: iso(), updatedAt: iso() },
+  { id: 'li-bed2', listId: 'l6', title: 'Brush teeth', notes: null, quantity: null, store: null, category: null, memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 2, createdAt: iso(), updatedAt: iso(), steps: ['Top teeth', 'Bottom teeth', 'Rinse and spit'] },
+  { id: 'li-bed3', listId: 'l6', title: 'Pack backpack for tomorrow', notes: null, quantity: null, store: null, category: null, memberId: 'm3', dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 3, createdAt: iso(), updatedAt: iso() },
+  { id: 'li-bed4', listId: 'l6', title: 'Pick a bedtime story', notes: null, quantity: null, store: null, category: null, memberId: 'm4', dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 4, createdAt: iso(), updatedAt: iso() },
+  { id: 'li-bed5', listId: 'l6', title: 'Lights out', notes: null, quantity: null, store: null, category: null, memberId: null, dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 5, createdAt: iso(), updatedAt: iso() },
   { id: 'li17', listId: 'l4', title: 'Clear the coffee table', notes: null, quantity: null, store: null, category: null, memberId: 'm2', dueDate: null, eventId: null, done: false, doneAt: null, doneBy: null, sort: 2, createdAt: iso(), priority: 'low', updatedAt: iso() },
 ] as SeedItem[]).map(seedItem)
 // Who added and checked off what (the item sheet's "Added by" line): kids add snacks, the wall adds

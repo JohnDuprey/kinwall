@@ -220,6 +220,21 @@ Shopping mode is the list and nothing else, for your phone in the store: no head
 * Add `?store=<store name>` (`#/lists/<list id>/shop?store=Market`) to start the trip at that store without asking **Where are you shopping?**. The name matches one of the list's stores in any case; `any` means **Any store**. A store that isn't one of the list's asks as usual.
 * In the Kinwall app for iPhone, a trip is also a Live Activity on the Lock Screen and in the Dynamic Island: "Shaws · 5 left · next: Dairy" and the next item, in the store's walking order. **Got it** ticks that item right there, and **Open** opens shopping mode. It follows along as you tick items in the app, and ends at **Checkout** or **End**.
 
+## Get stuff done
+
+Get stuff done is one checklist, full screen, for working through a routine like **Bedtime**, **After school** or **Morning**: big type, big buttons, nothing else on the screen. It works on to-do and reusable lists (shopping lists have [Shopping mode](#shopping-mode) instead), on any device.
+
+* Tap **Get stuff done** on the list. It also opens from a [chore with a checklist](chores.md#checklists), from the Board's [Get stuff done card](calendar.md#board-layouts), and by itself on a screen with a [pinned checklist](../settings/this-display.md#this-display).
+* The top bar shows **Get stuff done: *list***, how many are done ("3 of 8 done") and a bar filling up.
+* **One at a time** (where it starts) shows the next open item big and centered, with the avatar of the person it's for and its [steps](#steps) to tick one by one. Dots show where you are (filled for done, a ring for to do, a bigger ring for this one) with "3 of 8" under them. **Done** ticks it and moves to the next open one; **Skip** leaves it for later (Skip comes back round to it); **Back** goes to the one before. A done item says **✓ Done** and has **Not done** instead.
+* **Whole list** shows every item large; tap anywhere on a row to tick or untick it. Ticked ones move to the bottom.
+* Switch between them with the toggle at the top. Each device remembers which one you used last.
+* When everything's ticked: **All done! 🎉**. On a reusable list, **Reset for next time** unticks it (the same as **Reset list**) and closes; **Finish** just closes, back where you started. **Look over the list** shows the list again.
+* Ticks made on other screens show up within a few seconds, and each screen stays on its own item, so two kids on two screens don't move each other along.
+* What you can tick is the same as on the list: a kid's own device works through their items and nobody's; a wall screen can tick anything (but not rename or delete). A screen set to **Show only** one person shows that person's items and nobody's.
+* The screen stays on, and a wall screen doesn't go back to Home after two idle minutes while it's open (two minutes of brushing teeth isn't idle). The [Night screen](night.md) still comes on over it during night hours.
+* **✕** (or Escape on a keyboard) closes it. Each move is announced to screen readers, and with reduced motion or low-stimulation mode on nothing animates.
+
 ## Offline shopping
 
 Kinwall keeps working in a store with one bar of signal or none:
@@ -278,7 +293,7 @@ Break a bigger job into steps ("Tidy the living room": fold blankets, fluff cush
 * Tick steps in the sheet. Ticking the last open step ticks the item itself. Unticking a step on a done item opens the item again.
 * Ticking the item ticks all its steps; unticking it unticks them all.
 * Reorder steps by dragging the grip, or focus the grip and press Alt+Up / Alt+Down. The trash button deletes a step.
-* **One at a time** shows only the next open step, big, with a **Done → next** button. Handy for kids working through a routine on the wall. Each step is announced to screen readers as it's done.
+* **One at a time** shows only the next open step, big, with a **Done → next** button. For a whole routine, try [Get stuff done](#get-stuff-done). Each step is announced to screen readers as it's done.
 * **Reset list** on a reusable list unticks every step as well.
 
 ## Groups and order

@@ -1181,8 +1181,9 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
         if (document.activeElement?.matches('input:not([type="checkbox"]), textarea, select, [contenteditable]')) { reset(); return }
         // Never out of an open activity (Paint, the sticker book, an added game): a kid mid-picture
         // pauses, and taps inside an added activity's frame never reach this window anyway.
-        // Nor out of shopping mode: the list is on screen in a store aisle, not on the wall.
-        if (location.hash.startsWith('#/activities/') || /^#\/lists\/[^/]+\/shop/.test(location.hash)) { reset(); return }
+        // Nor out of shopping mode (the list is on screen in a store aisle, not on the wall) or Get
+        // stuff done (a routine takes a while: two minutes of brushing teeth isn't idle).
+        if (location.hash.startsWith('#/activities/') || /^#\/lists\/[^/]+\/shop/.test(location.hash) || document.querySelector('.gsd-mode')) { reset(); return }
         window.dispatchEvent(new CustomEvent(IDLE_RESET_EVENT))
         // Idle wall display drifts back to the calendar - but never away from an OAuth consent screen.
         if (location.hash !== '#/calendar' && location.hash !== '' && !location.hash.startsWith('#/authorize')) location.hash = '#/calendar'

@@ -23,6 +23,7 @@ import { actorName, byLine, nowrap, whenLabel } from './addedBy.ts'
 import { aisleAt, ANY_STORE, anyStoreView, departmentAisle, placeNeeds, setShoppingModeList, setTripReverse, setTripStore, tripLeftovers, tripReverse, tripStore, tripStoreFor, tripView } from './trip.ts'
 import { hashPath, hashQuery } from './hashQuery.ts'
 import { holdAwake } from './wakeLock.ts'
+import GetStuffDone from './GetStuffDone.tsx'
 import { shoppingActivity } from './liveActivity.ts'
 import { appBarcodeScanner, endAppActivity, scanBarcode, tellAppActivity, wallCamera } from './native.ts'
 import { itemKey, matchItems } from './itemSuggest.ts'
@@ -1512,6 +1513,7 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   const [selectedStore, setSelectedStore] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
   const [scanned, setScanned] = useState<{ code: string; found: BarcodeLookup | null } | null>(null) // a new product's scan sheet
+  const [doing, setDoing] = useState(false) // Get stuff done (GetStuffDone.tsx), over the list
   const inputRef = useRef<HTMLInputElement>(null)
   const { upcoming, byId } = useEventWindow(refreshTick)
 
@@ -1999,6 +2001,13 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
           {!activeTrip && items.length > 0 && viewButton}
         </div>
       )}
+      {/* To-do and reusable lists: Get stuff done, the list full screen (shopping lists have Shop). */}
+      {list.kind !== 'shopping' && items.length > 0 && (
+        <div className="list-actions">
+          <button className="btn btn-secondary list-do-btn" onClick={() => setDoing(true)} aria-haspopup="dialog"><CheckIcon width={18} height={18} />Get stuff done</button>
+        </div>
+      )}
+      {doing && <GetStuffDone listId={listId} onClose={() => { setDoing(false); load() }} />}
       {!activeTrip && viewSummary && items.length > 0 && (
         <button className="filter-summary list-view-summary" onClick={() => setViewing(true)} aria-label={`View: ${viewSummary}. Change view`}>{viewSummary}</button>
       )}
