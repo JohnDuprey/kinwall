@@ -1666,13 +1666,13 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   // After a scan while shopping: "Where did you find it?" for what the item is missing, its aisle at
   // this store and its department (placeNeeds). Saving teaches them, so the next one walks right.
   const [placing, setPlacing] = useState<{ listId: string; id: string; title: string; category: string; need: { aisle: boolean; department: boolean } } | null>(null)
-  const askPlace = (item: { id: string; listId?: string; title: string; store?: string | null; aisle?: string | null; category?: string | null; places?: ListItem['places'] }) => {
+  const askPlace = (item: { id: string; listId?: string; title: string; store?: string | null; aisle?: string | null; category?: string | null; places?: ListItem['places'] }, onlyAisle = false) => {
     if (!detail) return
     // A brand-new add: what the catalog remembers for the name (the server fills it in from there too).
     const known = detail.suggestions.items?.find(s => s.key === itemKey(item.title))
     const full = { store: null, aisle: null, places: known?.place ? [known.place] : [], ...item, category: item.category ?? known?.category ?? null }
     const need = placeNeeds(full, trip, trip && trip !== ANY_STORE ? storeAisles(detail.suggestions, trip, aisleOrderMap(detail)) : [])
-    if (need.aisle || need.department) setPlacing({ listId: item.listId ?? listId, id: item.id, title: item.title, category: full.category ?? '', need })
+    if (onlyAisle ? need.aisle : need.aisle || need.department) setPlacing({ listId: item.listId ?? listId, id: item.id, title: item.title, category: full.category ?? '', need })
   }
   const savePlace = async (aisle: string, category: string) => {
     if (!placing) return
@@ -1757,13 +1757,17 @@ function ListDetailPane({ listId, lists, isPhone, shopMode, onBack, onArchivedOr
   const toggle = async (item: ListItem) => {
     if (item.listId && item.listId !== listId) { // the other list's, on a combined trip: ticked there
       setDetail(d => d && { ...d, alsoAtStore: d.alsoAtStore?.map(i => (i.id === item.id ? { ...i, done: !item.done } : i)) })
-      try { await api.queueUpdateListItem(item.listId, item.id, { done: !item.done }) }
+      try { await api.queueUpdateListItem(item.listId, item.id, { done: !item.done }); askAisle(item) }
       catch (e) { toast(e instanceof ApiError ? e.message : 'Could not update item', true); load() }
       return
     }
-    try { showQueued(await api.queueUpdateListItem(listId, item.id, { done: !item.done })) }
+    try { showQueued(await api.queueUpdateListItem(listId, item.id, { done: !item.done })); askAisle(item) }
     catch (e) { toast(e instanceof ApiError ? e.message : 'Could not update item', true) }
   }
+  // Ticking something off while shopping at a store that doesn't know its aisle yet asks where it
+  // was found (only the aisle: a tap shouldn't also quiz for the department), so the next trip
+  // walks right. Unticking never asks.
+  const askAisle = (item: ListItem) => { if (shopMode && !item.done) askPlace(item, true) }
 
   const setSortBy = async (sortBy: ListSortBy) => {
     try { await api.updateList(listId, { sortBy }); announce(`Sorted by ${SORT_LABEL[sortBy]}`); load() }
