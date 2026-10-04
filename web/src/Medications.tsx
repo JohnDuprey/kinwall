@@ -4,13 +4,13 @@
 import { useEffect, useState } from 'react'
 import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
-import { inkFor } from './color.ts'
 import { formatTime } from './timeFormat.ts'
 import { dayName } from './Snapshot.tsx'
 import { announce } from './a11y.tsx'
 import { askWhenTaken, catchUpLabel, doseTimeLabel, scheduleLabel, STATUS, statusLabel, weekCells } from './medications.ts'
 import TakeNow, { WhenTakenSheet } from './TakeNow.tsx'
 import type { Medication, MedicationHistory } from './types.ts'
+import { Face } from './Face'
 
 type Day = MedicationHistory['days'][number]
 
@@ -75,7 +75,7 @@ export default function Medications({ memberId }: { memberId?: string }) {
     <div className="profile profile-narrow meds-page scroll-y" style={{ ['--m' as string]: member.color }}>
       <section className="profile-top">
         <div className="profile-hero">
-          <span className="profile-avatar" style={{ background: member.color, color: inkFor(member.color) }} aria-hidden="true">{member.avatar || member.name[0]}</span>
+          <Face m={member} className="profile-avatar" aria-hidden="true" />
           <div>
             <h2 className="profile-name">{member.name}'s medicines</h2>
             <p className="profile-meta">🔒 {member.grownUp ? `Private to ${member.name}'s own devices and parent devices.` : `For ${member.name} and parents.`}</p>

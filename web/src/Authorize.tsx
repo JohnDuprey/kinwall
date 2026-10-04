@@ -4,6 +4,7 @@ import { loginWithPasskey, passkeysSupported, registerPasskey } from './webauthn
 import Setup from './Setup.tsx'
 import type { Member } from './types.ts'
 import { Brand } from './Brand.tsx'
+import { ChipFace } from './Face'
 
 /** OAuth consent for MCP clients and the Kinwall apps (#/authorize?..., reached via the server's
  * /oauth/authorize). Signs in with a passkey, a recovery code, or an admin key held for this
@@ -148,7 +149,7 @@ export default function AuthorizeScreen() {
                   {/* Everyday access is a kid's or shared, never a grown-up's (it would open their journal). */}
                   {members.filter(m => scope === 'admin' || !m.grownUp).map(m => (
                     <button key={m.id} type="button" className={`chip ${owner === m.id ? 'active' : ''}`} aria-pressed={owner === m.id}
-                      style={{ ['--chip-color' as string]: m.color }} onClick={() => setOwner(m.id)}>{m.avatar} {m.name}</button>
+                      style={{ ['--chip-color' as string]: m.color }} onClick={() => setOwner(m.id)}><ChipFace m={m} /> {m.name}</button>
                   ))}
                 </div>
                 <p className="settings-row-sub">{scope === 'admin'

@@ -188,6 +188,7 @@ export interface Member {
   name: string
   color: string
   avatar: string
+  picture?: string | null // their profile picture's image path (api.pictureUrl); avatar + color are the fallback and ring
   birthday: string | null // YYYY-MM-DD, or --MM-DD when the year isn't known
   sort: number
   pointsToday: number
@@ -531,6 +532,7 @@ export interface Photo {
   createdAt: string
   url: string
   family?: boolean // false = a memory's own photo (never in GET /api/photos)
+  drawing?: boolean // a Paint drawing saved to the family photos
 }
 /** One of the family's own coloring pages for Paint (server: routes/photos.ts): line art, a PNG at `url`. */
 export interface FamilyColoringPage {

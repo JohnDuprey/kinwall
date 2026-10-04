@@ -8,17 +8,17 @@ import Sheet from './Sheet.tsx'
 import { hashPath, hashQuery } from './hashQuery.ts'
 import { CONTACTS_SHARED_EVENT, takeSharedContacts } from './native.ts'
 import PickField, { PickSwatch, type PickOption } from './PickField.tsx'
-import { inkFor } from './color.ts'
 import type { Member } from './types.ts'
 import { activeContactFilters, contactDate, contactFilterSummary, contactLabel, CONTACT_KIND_LABELS, CONTACT_SHOW_LABELS, CONTACT_SORT_LABELS, DEFAULT_CONTACT_FILTERS, emptyContact, formatAddress, reviewCandidates,
   type Contact, type ContactFilters, type ContactAddress, type ContactInput, type ContactMethod, type ImportCandidate, type ImportDecision } from './contact-types.ts'
 import type { ContactCategory } from './contact-types.ts'
 import './contacts.css'
+import { Face } from './Face'
 
 // Choices for the category and member pickers: a category's color, a member's avatar.
 const categoryOptions = (categories: ContactCategory[]): PickOption[] => categories.map(c => ({ value: c.id, label: c.name, lead: c.color ? <PickSwatch color={c.color} /> : undefined }))
 const memberOptions = (members: Member[]): PickOption[] => members.map(m => ({ value: m.id, label: m.name,
-  lead: <span className="member-avatar-sm" aria-hidden="true" style={{ background: m.color, color: inkFor(m.color) }}>{m.avatar || m.name[0]}</span> }))
+  lead: <Face m={m} className="member-avatar-sm" aria-hidden="true" /> }))
 
 type PickerContact = { name?: string[]; tel?: string[]; email?: string[]; address?: { toString(): string }[] }
 type ContactPicker = { select: (properties: string[], options: { multiple: boolean }) => Promise<PickerContact[]>; getProperties?: () => Promise<string[]> }

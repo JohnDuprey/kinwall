@@ -208,6 +208,24 @@ button {
 .member-avatar.dim { opacity: 0.5; }
 .member-avatar.selected { border-color: var(--text); }
 .member-avatar-sm { width: 30px; height: 30px; font-size: 0.9375rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+/* A profile picture (Face.tsx) over the emoji, inside a ring of the member's color (the avatar's own
+   background shows through the padding): color-coding stays, and never by color alone. :where keeps
+   an avatar's own position (absolute badges) winning. */
+:where(.face-has-pic) { position: relative; }
+.face-pic { position: absolute; inset: 0; width: 100%; height: 100%; box-sizing: border-box; padding: max(2px, 8%); border-radius: 50%; object-fit: cover; background: inherit; }
+.inline-face { display: inline-flex; align-items: center; justify-content: center; width: 1.6em; height: 1.6em; border-radius: 50%; font-size: 0.8em; line-height: 1; vertical-align: -0.35em; letter-spacing: 0; }
+/* The crop sheet (MemberPicture.tsx): drag and pinch inside the square; the circle is what's kept. */
+.picture-crop { position: relative; width: min(100%, 320px); aspect-ratio: 1; margin: 4px auto 12px; overflow: hidden; border-radius: var(--radius); background: var(--bg-alt); touch-action: none; cursor: grab; user-select: none; }
+.picture-crop:active { cursor: grabbing; }
+.picture-crop img { position: absolute; max-width: none; pointer-events: none; }
+.picture-crop-ring { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(circle closest-side, transparent calc(100% - 6px), var(--m) calc(100% - 6px), var(--m) 100%, rgb(0 0 0 / 0.55) 100%); }
+.picture-zoom input { width: 100%; }
+.picture-upload { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
+.picture-upload .btn { flex: none; }
+.picture-album { margin: 0 0 12px; }
+.picture-remove { margin-top: 12px; }
+.picture-row { display: flex; align-items: center; gap: 14px; }
+.picture-row .btn { flex: none; }
 
 /* ---------- Tab bar ---------- */
 .tab-bar {
@@ -3037,6 +3055,7 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
 .profile-check { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; font-weight: 900; flex-shrink: 0; }
 .profile-check.done { background: var(--success); border-color: var(--success); color: #fff; }
 .nav-me { font-size: 1.375rem; line-height: 1; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; }
+.nav-me-pic { border-radius: 50%; font-size: 0.875rem; }
 @media (max-width: 600px) {
   .profile { padding: 12px 14px; }
   .profile-top { flex-direction: column; align-items: stretch; }

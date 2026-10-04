@@ -7,7 +7,6 @@ import { BookIcon, CheckIcon, ChevronLeft, ChevronRight, EditIcon, ExternalIcon,
 import { ingredientAmount, isPdfUrl, recipeTime, servingsLabel, urlHost } from './meal-date.ts'
 import { KIT_QUALIFIER, type IngredientInput, type Recipe, type RecipeInput, type RecipeKind, type RecipeRating, type RecipeSnapshot, type RecipeStep } from './meal-types.ts'
 import { matchBasic } from './recipe-search.ts'
-import { inkFor } from './color.ts'
 import CookingMode from './CookingMode.tsx'
 import { cookingSteps, savedStep } from './cooking.ts'
 import RecipeCardSheet from './RecipeCardSheet.tsx'
@@ -15,6 +14,7 @@ import RecipePhoto from './RecipePhoto.tsx'
 import PickField, { type PickOption } from './PickField.tsx'
 import RecipeShare from './RecipeShare.tsx'
 import { holdAwake } from './wakeLock.ts'
+import { Face } from './Face'
 
 const emptyIngredient = (): IngredientInput => ({ name: '', quantity: null, unit: null, preparation: null, qualifier: null, category: null, sort: 0 })
 
@@ -114,7 +114,7 @@ function Ratings({ recipe, owner, onRated }: { recipe: Recipe; owner?: string | 
       const mine = rating.byMember[m.id] ?? 0
       const locked = !!owner && owner !== 'shared' && owner !== m.id
       return <li key={m.id}>
-        <span className="recipe-rating-who"><span className="member-avatar-sm" style={{ background: m.color, color: inkFor(m.color) }} aria-hidden="true">{m.avatar || m.name[0]}</span>{m.name}</span>
+        <span className="recipe-rating-who"><Face m={m} className="member-avatar-sm" aria-hidden="true" />{m.name}</span>
         <span className="recipe-rating-stars" role="group" aria-label={`${m.name}'s rating`}>{[1, 2, 3, 4, 5].map(n =>
           <button key={n} type="button" className={n <= mine ? 'on' : ''} aria-pressed={n === mine} aria-label={`${n} star${n === 1 ? '' : 's'}`} disabled={locked || busy === m.id} onClick={() => void rate(m.id, n === mine ? null : n)}>★</button>)}
         </span>

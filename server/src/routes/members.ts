@@ -13,10 +13,11 @@ import type { Context } from 'hono';
 import type { KinwallStatement } from '../db.ts';
 import { recordNotification } from '../notify.ts';
 import { pushGrownUps, securityEventStmts } from './security-events.ts';
+import { pictureUrl } from './photos.ts';
 
 export const membersRoutes = createRouter();
 
-type MemberRow = { id: string; name: string; color: string; avatar: string | null; birthday: string | null; sort: number; created_at: string; needs_approval?: number; grown_up?: number; transitions: string | null; reward_goal?: string | null; temp_check?: string | null; journal_private?: number | null; journal_private_allowed?: number | null };
+type MemberRow = { id: string; name: string; color: string; avatar: string | null; birthday: string | null; sort: number; created_at: string; needs_approval?: number; grown_up?: number; transitions: string | null; reward_goal?: string | null; temp_check?: string | null; journal_private?: number | null; journal_private_allowed?: number | null; picture_id?: string | null };
 
 // The stored JSON, or off. Shared with notify.ts (which only acts on `on`).
 export function parseTransitions(raw: string | null): typeof TRANSITIONS_OFF {
@@ -139,7 +140,7 @@ const toGoals = (rows: { id: string; title: string; emoji: string | null; cost: 
 const goalRewards = async (db: KinwallDb) => toGoals((await db.prepare(GOALS_SQL).all<{ id: string; title: string; emoji: string | null; cost: number }>()).results);
 
 function toApi(row: MemberRow, points: Points, goals: Map<string, Goal> = new Map(), todays: Map<string, string> = new Map()) {
-  return { id: row.id, name: row.name, color: row.color, avatar: row.avatar, birthday: row.birthday ?? null, sort: row.sort, grownUp: !!row.grown_up, needsApproval: !!row.needs_approval, ...points, transitionReminders: parseTransitions(row.transitions), rewardGoal: (row.reward_goal && goals.get(row.reward_goal)) || null, tempCheck: parseTempCheck(row.temp_check), todayGoal: todays.get(row.id) ?? null, privateJournal: privacyOf({ grown_up: row.grown_up ?? 0, journal_private: row.journal_private ?? null, journal_private_allowed: row.journal_private_allowed ?? 0 }) };
+  return { id: row.id, name: row.name, color: row.color, avatar: row.avatar, picture: row.picture_id ? pictureUrl(row.picture_id) : null, birthday: row.birthday ?? null, sort: row.sort, grownUp: !!row.grown_up, needsApproval: !!row.needs_approval, ...points, transitionReminders: parseTransitions(row.transitions), rewardGoal: (row.reward_goal && goals.get(row.reward_goal)) || null, tempCheck: parseTempCheck(row.temp_check), todayGoal: todays.get(row.id) ?? null, privateJournal: privacyOf({ grown_up: row.grown_up ?? 0, journal_private: row.journal_private ?? null, journal_private_allowed: row.journal_private_allowed ?? 0 }) };
 }
 
 membersRoutes.openapi(
@@ -371,6 +372,7 @@ membersRoutes.openapi(
     // Their tracker entries stay, under their name ("Leo (removed)"); the FK then clears member_id.
     await c.env.DB.batch<unknown>([
       c.env.DB.prepare('UPDATE tracker_entries SET former_member = (SELECT name FROM members WHERE id = ?) WHERE member_id = ?').bind(id, id),
+      c.env.DB.prepare('DELETE FROM photos WHERE avatar = 1 AND member_id = ?').bind(id), // their profile picture
       c.env.DB.prepare('DELETE FROM members WHERE id = ?').bind(id), ...updates,
       c.env.DB.prepare('UPDATE meals SET eater_ids = (SELECT json_group_array(value) FROM json_each(meals.eater_ids) WHERE value != ?) WHERE eater_ids LIKE ?').bind(id, `%${id}%`), c.env.DB.prepare("UPDATE api_keys SET owner = 'shared' WHERE owner = ?").bind(id),
       c.env.DB.prepare("UPDATE oauth_grants SET owner = 'shared' WHERE owner = ?").bind(id), c.env.DB.prepare('UPDATE passkeys SET owner = NULL WHERE owner = ?').bind(id),

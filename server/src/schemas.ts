@@ -157,6 +157,7 @@ export const MemberSchema = z
     name: z.string(),
     color: z.string(),
     avatar: z.string().nullable(),
+    picture: z.string().nullable().openapi({ description: "Their profile picture's image url (GET it like a photo), or null. The avatar and color stay as the fallback and ring. Set with PUT /api/members/{id}/picture." }),
     birthday: z.string().nullable(), // YYYY-MM-DD, or --MM-DD when the year isn't known
     sort: z.number(),
     pointsToday: z.number(),

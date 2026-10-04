@@ -12,12 +12,12 @@ import { useEffect, useRef, useState } from 'react'
 import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import Sheet from './Sheet.tsx'
-import { inkFor } from './color.ts'
 import { announce, reducedMotion } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
 import { Confetti } from './Chores.tsx'
 import { frameLive, frameLoaded } from './pluginFrame.ts'
 import type { ActivityChoreProgress, Member, Plugin, PluginCatalogEntry } from './types.ts'
+import { Face } from './Face'
 
 type Msg = { kinwall: 1; id?: number; type: string; key?: string; value?: unknown; shared?: boolean }
 
@@ -158,7 +158,7 @@ export function PluginPlayer({ id }: { id: string }) {
         <div className="who-grid">
           {members.map(m => (
             <button key={m.id} className="who-btn" onClick={() => setPlayer(m)}>
-              <span className="who-avatar" aria-hidden="true" style={{ background: m.color, color: inkFor(m.color) }}>{m.avatar || m.name[0]}</span>
+              <Face m={m} className="who-avatar" aria-hidden="true" />
               {m.name}
             </button>
           ))}

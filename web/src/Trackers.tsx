@@ -10,7 +10,6 @@ import { announce, Segmented } from './a11y.tsx'
 import BookLookup from './BookLookup.tsx'
 import Library, { AddBookSheet } from './Library.tsx'
 import { addDayKeys } from './library.ts'
-import { inkFor } from './color.ts'
 import { todayKeyInTz } from './date.ts'
 import { formatTime } from './timeFormat.ts'
 import { CheckIcon, ChevronDown, PlusIcon } from './icons.tsx'
@@ -23,6 +22,7 @@ import { trackerKinds } from './types.ts'
 import { MedicineList } from './MedicationSettings.tsx'
 import PickField from './PickField.tsx'
 import { forPerson, HEALTH_PERSON_KEY, personIn, startPerson } from './trackerPerson.ts'
+import { Face, ChipFace } from './Face'
 
 // ponytail: TABS, SUB_TO_KIND and trackerKinds() (types.ts, for App's nav) list the kinds in the same order.
 // The views, like the home page's: tabs where they fit, one button and a sheet on a phone (TrackerViewPicker).
@@ -160,7 +160,7 @@ export default function Trackers({ sub }: { sub?: string }) {
 }
 
 function Avatar({ m, size = 30 }: { m: Pick<Member, 'name' | 'color' | 'avatar'>; size?: number }) {
-  return <span className="member-avatar-sm" aria-hidden="true" style={{ background: m.color, color: inkFor(m.color), width: size, height: size }}>{m.avatar || m.name[0]}</span>
+  return <Face m={m} className="member-avatar-sm" aria-hidden="true" style={{width: size, height: size }} />
 }
 function useWho() {
   const { members } = useApp()
@@ -563,7 +563,7 @@ function EntrySheet({ kind, entry, date, admin, kid, photos, memberId, onClose, 
           )}
           <button type="button" className={`chip ${f.memberId === null ? 'active' : ''}`} aria-pressed={f.memberId === null} onClick={() => set({ memberId: null })}>🏠 Family</button>
           {members.map(m => (
-            <button key={m.id} type="button" className={`chip ${f.memberId === m.id ? 'active' : ''}`} aria-pressed={f.memberId === m.id} style={{ ['--chip-color' as string]: m.color }} onClick={() => set({ memberId: m.id })}>{m.avatar} {m.name}</button>
+            <button key={m.id} type="button" className={`chip ${f.memberId === m.id ? 'active' : ''}`} aria-pressed={f.memberId === m.id} style={{ ['--chip-color' as string]: m.color }} onClick={() => set({ memberId: m.id })}><ChipFace m={m} /> {m.name}</button>
           ))}
         </div>
       </div>

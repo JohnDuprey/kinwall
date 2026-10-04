@@ -21,6 +21,7 @@ import { defaultGrownUp, freshHandoff, ownerChoices, resumeFor, setupErrorText }
 import type { SetupResume, Step } from './setupSteps.ts'
 import './setup.css'
 import { Brand } from './Brand.tsx'
+import { ChipFace } from './Face'
 
 const PROGRESS_STEPS: Step[] = ['household', 'members', 'calendars', 'chores', 'done']
 
@@ -601,7 +602,7 @@ function ChoresStep({ members, onNext, onBack }: { members: Member[]; onNext: ()
               <div className="chip-row setup-chore-assign" role="group" aria-label={`Who does ${t.title}?`}>
                 <button className={`chip ${selected[i] === null ? 'active' : ''}`} aria-pressed={selected[i] === null} onClick={() => setSelected(s => ({ ...s, [i]: null }))}>Anyone</button>
                 {members.map(m => (
-                  <button key={m.id} className={`chip ${selected[i] === m.id ? 'active' : ''}`} aria-pressed={selected[i] === m.id} onClick={() => setSelected(s => ({ ...s, [i]: m.id }))}>{m.avatar} {m.name}</button>
+                  <button key={m.id} className={`chip ${selected[i] === m.id ? 'active' : ''}`} aria-pressed={selected[i] === m.id} onClick={() => setSelected(s => ({ ...s, [i]: m.id }))}><ChipFace m={m} /> {m.name}</button>
                 ))}
               </div>
             )}
@@ -641,7 +642,7 @@ function OwnerStep({ members, onNext, onBack }: { members: Member[]; onNext: () 
         : 'Only a grown-up can own this device, and no one is marked a grown-up yet. Go Back to mark yourself, or skip.'}</p>
       <div className="setup-choice-row setup-choice-wrap" role="group" aria-label="Whose device this is">
         {grownUps.map(m => (
-          <button key={m.id} className={`setup-choice ${pick === m.id ? 'active' : ''}`} aria-pressed={pick === m.id} onClick={() => setPick(m.id)}>{m.avatar} {m.name}</button>
+          <button key={m.id} className={`setup-choice ${pick === m.id ? 'active' : ''}`} aria-pressed={pick === m.id} onClick={() => setPick(m.id)}><ChipFace m={m} /> {m.name}</button>
         ))}
       </div>
       {error && <p className="setup-error" role="alert">{error}</p>}

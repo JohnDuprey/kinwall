@@ -10,7 +10,6 @@ import { dateKey } from './date.ts'
 import Sheet from './Sheet.tsx'
 import { AnyEmojiField } from './AnyEmojiField.tsx'
 import { isSingleEmoji } from './emoji.ts'
-import { inkFor } from './color.ts'
 import { CheckIcon, PlusIcon } from './icons.tsx'
 import { IDLE_RESET_EVENT } from './App.tsx'
 import { announce, Segmented } from './a11y.tsx'
@@ -18,6 +17,7 @@ import { useDialog } from './dialog.tsx'
 import { ChoreLibrarySheet, type RepeatDraft } from './ChoreLibrary.tsx'
 import GetStuffDone from './GetStuffDone.tsx'
 import { intervalRrule, repeatText } from './choreLibrary.ts'
+import { Face, type FaceMember, ChipFace } from './Face'
 
 const CONFETTI_COLORS = ['#FF9E7A', '#FFD166', '#7ED9A6', '#7AB8FF', '#B39DFF', '#FF8FA3']
 
@@ -71,10 +71,11 @@ function Leaderboard({ period }: { period: LeaderboardPeriod }) {
           <a className="leaderboard-pill" href={`#/profile/${e.memberId}`}
             aria-label={[e.points > 0 ? `${e.name}, rank ${e.rank}, ${e.points} points` : `${e.name}, no points yet`, e.rank === 1 && e.points > 0 && 'leader', e.streak >= 2 && `${e.streak} day streak`, spendable(e.memberId) !== null && `${spendable(e.memberId)} to spend`].filter(Boolean).join(', ')}>
             <div className="lb-rank">{e.points > 0 && `#${e.rank}`}</div>{/* no rank until they have points, not everyone "#1" at 0 */}
-            <div
+            <Face
+              m={{ ...e, picture: members.find(m => m.id === e.memberId)?.picture }}
               className={`lb-avatar ${bounceId === e.memberId ? 'crown-bounce' : ''}`}
-              style={{ background: e.color, color: inkFor(e.color), ['--lb-color' as string]: e.color }}
-            >{e.avatar}</div>
+              style={{ ['--lb-color' as string]: e.color }}
+            />
             <div className="lb-info">
               <div className="lb-name-row">
                 <span className="lb-name">{e.name}</span>
@@ -113,7 +114,8 @@ export function Confetti() {
   )
 }
 
-function ProgressRing({ pct, color, avatar, label }: { pct: number; color: string; avatar: string; label: string }) {
+function ProgressRing({ pct, m, label }: { pct: number; m: FaceMember; label: string }) {
+  const color = m.color
   const r = 27, c = 2 * Math.PI * r
   return (
     <div className="progress-ring-wrap" role="img" aria-label={label}>
@@ -122,7 +124,7 @@ function ProgressRing({ pct, color, avatar, label }: { pct: number; color: strin
         <circle cx="32" cy="32" r={r} fill="none" stroke={color} strokeWidth="5" strokeLinecap="round"
           strokeDasharray={c} strokeDashoffset={c * (1 - pct)} style={{ transition: 'stroke-dashoffset 0.4s ease' }} />
       </svg>
-      <div className="avatar" style={{ background: color, color: inkFor(color), width: '69%', height: '69%', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{avatar}</div>
+      <Face m={m} className="avatar" style={{ width: '69%', height: '69%', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }} />
     </div>
   )
 }
@@ -555,7 +557,7 @@ export default function Chores() {
             return (
               <div key={col.id} className="chore-column">
                 <div className="chore-col-head">
-                  <ProgressRing pct={pct} color={col.color} avatar={col.avatar} label={`${col.name}: ${done} of ${list.length} done`} />
+                  <ProgressRing pct={pct} m={col} label={`${col.name}: ${done} of ${list.length} done`} />
                   <h3 className="chore-col-name" style={{ margin: 0 }}>{col.name}</h3>
                   <div className="chore-col-pts">{list.reduce((s, c) => s + (c.completed ? c.points : 0), 0)} pts today</div>
                   {rewardsShown && col.id !== '__anyone' && 'balance' in col && (
@@ -572,7 +574,7 @@ export default function Chores() {
             <ul className="chores-idle" aria-label="Nothing due">
               {idle.map(m => (
                 <li key={m.id} className="chores-idle-item">
-                  <span className="chores-idle-avatar" aria-hidden="true" style={{ background: m.color, color: inkFor(m.color) }}>{m.avatar || m.name[0]}</span>
+                  <Face m={m} className="chores-idle-avatar" aria-hidden="true" />
                   <span><span className="chores-idle-name">{m.name}</span> · nothing due</span>
                   {rewardsShown && m.id !== '__anyone' && 'balance' in m && (
                     <a className="chore-col-spend" href={`#/rewards/${m.id}`} aria-label={`${m.name} has ${m.balance} points to spend. See rewards`}>⭐ {m.balance} to spend</a>
@@ -596,7 +598,7 @@ export default function Chores() {
           <div className="who-grid">
             {members.map(m => (
               <button key={m.id} className="who-btn" onClick={() => { const c = whoFor; setWhoFor(null); toggle(c, m.id) }}>
-                <span className="who-avatar" aria-hidden="true" style={{ background: m.color, color: inkFor(m.color) }}>{m.avatar || m.name[0]}</span>
+                <Face m={m} className="who-avatar" aria-hidden="true" />
                 {m.name}
               </button>
             ))}
@@ -724,7 +726,7 @@ function ChoreEditSheet({ chore, draft, onClose, onSaved }: { chore: Chore | nul
         <div className="chip-row">
           <button className={`chip ${memberId === null ? 'active' : ''}`} aria-pressed={memberId === null} onClick={() => setMemberId(null)}>🌟 Anyone</button>
           {members.map(m => (
-            <button key={m.id} className={`chip ${memberId === m.id ? 'active' : ''}`} aria-pressed={memberId === m.id} style={{ ['--chip-color' as string]: m.color }} onClick={() => setMemberId(m.id)}>{m.avatar} {m.name}</button>
+            <button key={m.id} className={`chip ${memberId === m.id ? 'active' : ''}`} aria-pressed={memberId === m.id} style={{ ['--chip-color' as string]: m.color }} onClick={() => setMemberId(m.id)}><ChipFace m={m} /> {m.name}</button>
           ))}
         </div>
       </div>

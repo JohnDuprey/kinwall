@@ -7,6 +7,7 @@ import Sheet from './Sheet.tsx'
 import { announce } from './a11y.tsx'
 import { todayKeyInTz } from './date.ts'
 import { BONUS_MAX, BONUS_NOTE_MAX, BONUS_QUICK, bonusPoints, gaveText } from './bonus.ts'
+import { ChipFace } from './Face'
 
 const UNDO_MS = 6000
 
@@ -86,7 +87,7 @@ function GiveSheet({ memberId, onClose, onGiven }: { memberId: string | null; on
         <div className="chip-row">
           {members.map(m => (
             <button key={m.id} type="button" className={`chip ${who === m.id ? 'active' : ''}`} aria-pressed={who === m.id}
-              style={{ ['--chip-color' as string]: m.color }} onClick={() => setWho(m.id)}>{m.avatar} {m.name}</button>
+              style={{ ['--chip-color' as string]: m.color }} onClick={() => setWho(m.id)}><ChipFace m={m} /> {m.name}</button>
           ))}
         </div>
       </div>

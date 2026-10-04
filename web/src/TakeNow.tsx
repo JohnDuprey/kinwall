@@ -6,7 +6,6 @@ import { useEffect, useState } from 'react'
 import { api, ApiError, PUSH_SUB_ID_KEY } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { announce } from './a11y.tsx'
-import { inkFor } from './color.ts'
 import { askWhenTaken, cardLabel, cheerLine, doseTimeLabel, earlierInput, pickedTime } from './medications.ts'
 import { formatTime } from './timeFormat.ts'
 import { todayKeyInTz } from './date.ts'
@@ -16,6 +15,7 @@ import { Confetti } from './Chores.tsx'
 import Sheet from './Sheet.tsx'
 import { PillIcon } from './icons.tsx'
 import type { DueDose, MedicationsDue } from './types.ts'
+import { Face } from './Face'
 
 const RECHECK_MS = 60_000 // a dose shows up at its time without waiting for the next refresh
 
@@ -109,7 +109,7 @@ export function TakeNowTile({ doses, drop }: Due) {
       <span className="board-tile-people">
         {who.map(m => (
           <span key={m.id} className="board-tile-person">
-            <span className="board-avatar" style={{ background: m.color, color: inkFor(m.color) }} aria-hidden="true">{m.avatar || m.name[0]}</span>{m.name}
+            <Face m={m} className="board-avatar" aria-hidden="true" />{m.name}
           </span>
         ))}
       </span>
@@ -171,7 +171,7 @@ function DoseList({ doses, drop }: Due) {
         const label = cardLabel(d)
         return (
           <li key={key(d)} className="meds-now-item">
-            {m && <span className="board-avatar meds-now-avatar" style={{ background: m.color, color: inkFor(m.color) }} aria-hidden="true">{m.avatar || m.name[0]}</span>}
+            {m && <Face m={m} className="board-avatar meds-now-avatar" aria-hidden="true" />}
             <p className="meds-now-what">
               <strong>{m?.name ?? 'Someone'}</strong>
               <span>{label} · {doseTimeLabel(d)}</span>

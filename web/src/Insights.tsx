@@ -6,7 +6,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
-import { inkFor } from './color.ts'
 import { SLEEP } from './tempCheck.ts'
 import { duration } from './profile.ts'
 import { Bar } from './Profile.tsx'
@@ -15,6 +14,7 @@ import { batteryOn } from './battery.ts'
 import { chartMax, confidenceLabel, keepCheckingIn, RANGES, shortDate, sleepPath, weekly, type Week } from './insights.ts'
 import { formatTime } from './timeFormat.ts'
 import type { InsightDay, InsightRange, Insights as InsightsData, Member } from './types.ts'
+import { Face } from './Face'
 
 export default function Insights({ memberId }: { memberId?: string }) {
   const { members, meMemberId, refreshTick } = useApp()
@@ -38,7 +38,7 @@ export default function Insights({ memberId }: { memberId?: string }) {
     <div className="profile insights scroll-y" style={{ ['--m' as string]: member.color }}>
       <section className="profile-top">
         <div className="profile-hero">
-          <span className="profile-avatar" style={{ background: member.color, color: inkFor(member.color) }} aria-hidden="true">{member.avatar || member.name[0]}</span>
+          <Face m={member} className="profile-avatar" aria-hidden="true" />
           <div>
             <h2 className="profile-name">{member.name}'s insights</h2>
             <p className="profile-meta">🔒 {member.grownUp ? `Private to ${member.name}'s own devices and parent devices.` : `Just for ${member.name}, and parents can see it too.`}</p>

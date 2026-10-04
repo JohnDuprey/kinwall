@@ -9,12 +9,12 @@ import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { useDialog } from './dialog.tsx'
 import { announce, Segmented } from './a11y.tsx'
-import { inkFor } from './color.ts'
 import Sheet from './Sheet.tsx'
 import { AnyEmojiField } from './AnyEmojiField.tsx'
 import { isSingleEmoji } from './emoji.ts'
 import { ApprovalQueue } from './Chores.tsx'
 import type { Member, Redemption, RedemptionStatus, Reward, RewardLimit } from './types.ts'
+import { Face, ChipFace } from './Face'
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 const rewardLabel = (r: { emoji: string | null; title: string }) => (r.emoji ? `${r.emoji} ${r.title}` : r.title)
@@ -46,7 +46,7 @@ export default function Rewards({ memberId: fromUrl }: { memberId?: string }) {
             {choices.map(m => (
               <button key={m.id} className={`chip ${m.id === memberId ? 'active' : ''}`} aria-pressed={m.id === memberId}
                 style={{ ['--chip-color' as string]: m.color }} onClick={() => { location.replace(`#/rewards/${m.id}`); announce(`${m.name}'s rewards`) }}>
-                <span className="stickers-avatar" style={{ background: m.color, color: inkFor(m.color) }} aria-hidden="true">{m.avatar || m.name[0]}</span>{m.name}
+                <Face m={m} className="stickers-avatar" aria-hidden="true" />{m.name}
               </button>
             ))}
           </div>
@@ -174,7 +174,7 @@ function RewardsPanel({ member }: { member: Member }) {
   return (
     <div className="stickers-shop scroll-y rewards">
       <section className="rewards-hero" aria-label={`${member.name}'s points`}>
-        <span className="rewards-avatar" style={{ background: member.color, color: inkFor(member.color) }} aria-hidden="true">{member.avatar || member.name[0]}</span>
+        <Face m={member} className="rewards-avatar" aria-hidden="true" />
         <div className="rewards-hero-text">
           <p className="rewards-balance"><strong>{member.name}</strong> has <strong className="rewards-points">{plural(balance, 'point')}</strong></p>
           <p className="rewards-how">Earn points by doing <a href="#/chores">chores</a>. Spend them on rewards{settings.stickersEnabled ? ' and sticker packs' : ''}.</p>
@@ -353,7 +353,7 @@ function RewardEditSheet({ reward, onClose, onSaved }: { reward: Reward | null; 
         <div className="chip-row" role="group" aria-labelledby="reward-for-label">
           <button className={`chip ${memberIds.length === 0 ? 'active' : ''}`} aria-pressed={memberIds.length === 0} onClick={() => setMemberIds([])}>🌟 Everyone</button>
           {members.map(m => (
-            <button key={m.id} className={`chip ${memberIds.includes(m.id) ? 'active' : ''}`} aria-pressed={memberIds.includes(m.id)} style={{ ['--chip-color' as string]: m.color }} onClick={() => toggleMember(m.id)}>{m.avatar} {m.name}</button>
+            <button key={m.id} className={`chip ${memberIds.includes(m.id) ? 'active' : ''}`} aria-pressed={memberIds.includes(m.id)} style={{ ['--chip-color' as string]: m.color }} onClick={() => toggleMember(m.id)}><ChipFace m={m} /> {m.name}</button>
           ))}
         </div>
       </div>

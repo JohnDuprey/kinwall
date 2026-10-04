@@ -374,6 +374,17 @@ export const api = {
   deleteMember: (id: string, useAdmin?: boolean) => MOCK ? mock.deleteMember(id) : del(`api/members/${id}`, useAdmin),
   /** A kid's own device sets its own avatar; parents use updateMember. */
   setMemberAvatar: (id: string, avatar: string) => MOCK ? mock.updateMember(id, { avatar }).then(() => ({ avatar })) : put<{ avatar: string | null }>(`api/members/${id}/avatar`, { avatar }),
+  /** A profile picture (a square crop, picture.ts): parents for anyone, a kid's own device for them.
+   * from: the family photo it was cropped from (a reference; the original isn't uploaded again). */
+  setMemberPicture: (id: string, blob: Blob, size: number, from?: string) => MOCK ? mock.setMemberPicture(id, blob)
+    : req<{ picture: string }>(`api/members/${id}/picture${from ? `?${new URLSearchParams({ from })}` : ''}`, {
+      method: 'PUT', body: blob, useAdmin: true,
+      headers: { 'Content-Type': blob.type, 'X-Photo-Width': String(size), 'X-Photo-Height': String(size) },
+    }),
+  clearMemberPicture: (id: string) => MOCK ? mock.updateMember(id, { picture: null }).then(() => ({ picture: null })) : del<{ picture: null }>(`api/members/${id}/picture`, true),
+  /** A member's picture (Member.picture, a server path) as an <img src>: the media token as ?key=
+   * like photos; '' until it's known. The demo's are plain URLs. */
+  pictureUrl: (path: string) => MOCK ? path : mediaUrl(path.replace(/^\//, '')),
 
   getSnapshot: (memberId: string, range: 'day' | 'week') =>
     MOCK ? Promise.all([mock.getSnapshot(memberId, range), import('./mock-meals.ts')]).then(([s, { mockMeals }]) =>

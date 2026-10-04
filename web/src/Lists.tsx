@@ -11,7 +11,7 @@ import Sheet from './Sheet.tsx'
 import { AnyEmojiField } from './AnyEmojiField.tsx'
 import { MemberPicker } from './MemberPicker.tsx'
 import { isSingleEmoji } from './emoji.ts'
-import { colorName, inkFor } from './color.ts'
+import { colorName } from './color.ts'
 import { useIsPhone } from './useIsPhone.ts'
 import { BasketIcon, CalendarIcon, CartIcon, CheckIcon, ChevronLeft, ChevronRight, FilterIcon, NoteIcon, PlusIcon, RepeatIcon, TrashIcon, XIcon } from './icons.tsx'
 import { announce, pressable, Segmented } from './a11y.tsx'
@@ -30,6 +30,7 @@ import { itemKey, matchItems } from './itemSuggest.ts'
 import { SWIPE_REVEAL, swipeAxis, swipeEnd, swipeOffset } from './swipe.ts'
 import { canChangeItem, listSections, listType, reorderWithin, TYPE_LABEL, typeFields, type ListType } from './listSections.ts'
 import { activeCatalogFilters, boughtLabel, CATALOG_GROUP_LABELS, CATALOG_SORT_LABELS, catalogDepartments, catalogFilterSummary, catalogStores, catalogTags, catalogView, filterCatalog, groupCatalog, placeLabel, placesFor, placesInput, scanMatch, scanTarget, setCatalogView, sortCatalog, STARTER_TAGS, tagsInput, type CatalogGroup, type CatalogSort } from './catalog.ts'
+import { Face, ChipFace } from './Face'
 
 // The list types in the edit sheet, each with its icon (Groceries first among the shopping ones).
 const TYPE_ICON: Record<ListType, typeof CartIcon> = { todo: CheckIcon, groceries: BasketIcon, shopping: CartIcon, reusable: RepeatIcon }
@@ -132,7 +133,7 @@ function ListCard({ list, active, members, onSelect, onEdit }: {
       {owners.length > 0 && (
         <div className="list-card-owners">
           {owners.map(m => (
-            <div key={m.id} className="member-avatar-sm" style={{ background: m.color, color: inkFor(m.color) }}>{m.avatar || m.name[0]}</div>
+            <Face key={m.id} m={m} />
           ))}
         </div>
       )}
@@ -465,7 +466,7 @@ function ItemEditSheet({ listId, item, kind, manual, members, suggestions, aisle
             <div className="chip-row">
               <button className={`chip ${memberId === null ? 'active' : ''}`} aria-pressed={memberId === null} onClick={() => setMemberId(null)}>Nobody</button>
               {members.map(m => (
-                <button key={m.id} className={`chip ${memberId === m.id ? 'active' : ''}`} aria-pressed={memberId === m.id} style={{ ['--chip-color' as string]: m.color }} onClick={() => setMemberId(m.id)}>{m.avatar} {m.name}</button>
+                <button key={m.id} className={`chip ${memberId === m.id ? 'active' : ''}`} aria-pressed={memberId === m.id} style={{ ['--chip-color' as string]: m.color }} onClick={() => setMemberId(m.id)}><ChipFace m={m} /> {m.name}</button>
               ))}
             </div>
           </div>
@@ -791,7 +792,7 @@ function ItemRow({ item, kind, groupBy, members, event, onToggle, onOpen, handle
         {event && <div className="list-item-meta" style={{ display: 'flex', alignItems: 'center', gap: 4 }}><CalendarIcon width={12} height={12} style={{ flexShrink: 0 }} />{eventLabel(event)}</div>}
       </div>
       {item.quantity && <div className="list-item-chip">{item.quantity}</div>}
-      {assignee && <div className="member-avatar-sm" role="img" aria-label={`For ${assignee.name}`} style={{ background: assignee.color, color: inkFor(assignee.color) }}>{assignee.avatar || assignee.name[0]}</div>}
+      {assignee && <Face m={assignee} className="member-avatar-sm" role="img" aria-label={`For ${assignee.name}`} />}
       {handle}
     </div>
   )

@@ -131,7 +131,7 @@ const settings: Settings = {
 const members: Member[] = [
   { id: 'm1', name: 'Alex', color: '#7AB8FF', avatar: '🦊', birthday: '1988-03-14', grownUp: true, sort: 0, pointsToday: 10, pointsWeek: 40, balance: 12 },
   { id: 'm2', name: 'Sam', color: '#FF8FA3', avatar: '🐰', birthday: null, grownUp: true, sort: 1, pointsToday: 5, pointsWeek: 25, balance: 30 },
-  { id: 'm3', name: 'Maya', color: '#7ED9A6', avatar: '🦄', birthday: '2018-11-02', grownUp: false, sort: 2, pointsToday: 0, pointsWeek: 15, balance: 42, tempCheck: { on: true, sleep: true, feelings: true, goal: true, showGoal: true, evening: true, eveningTime: '21:00', journal: true, battery: true } },
+  { id: 'm3', name: 'Maya', color: '#7ED9A6', avatar: '🦄', picture: 'demo-drawings/maya-picture.webp', birthday: '2018-11-02', grownUp: false, sort: 2, pointsToday: 0, pointsWeek: 15, balance: 42, tempCheck: { on: true, sleep: true, feelings: true, goal: true, showGoal: true, evening: true, eveningTime: '21:00', journal: true, battery: true } },
   // Leo turns 6 tomorrow, so the snapshot's 🎂 always has something to show.
   { id: 'm4', name: 'Leo', color: '#F5A65B', avatar: '🦖', birthday: (t => `${t.getFullYear() - 6}${dateKey(t).slice(4)}`)(new Date(Date.now() + 86_400_000)), grownUp: false, sort: 3, pointsToday: 5, pointsWeek: 20, balance: 18 },
 ]
@@ -228,7 +228,7 @@ const photos: Photo[] = [
   demoPhoto(1015, 'River trip', null, 1), demoPhoto(1025, 'Our dog', 'm3', 3), demoPhoto(1043, null, null, 6),
   demoPhoto(1039, 'Waterfall hike', 'm4', 9), demoPhoto(1080, 'Strawberry picking', null, 14), demoPhoto(1062, null, 'm3', 20),
   // Paint drawings saved to family photos, credited to the artist (mock-drawings.ts).
-  ...DEMO_DRAWINGS.map(d => ({ id: d.id, caption: d.caption, mime: 'image/webp', width: 800, height: 600, bytes: 60_000, memberId: d.memberId, createdAt: new Date(Date.now() - d.daysAgo * 86_400_000).toISOString(), url: d.url })),
+  ...DEMO_DRAWINGS.map(d => ({ id: d.id, caption: d.caption, mime: 'image/webp', width: 800, height: 600, bytes: 60_000, memberId: d.memberId, createdAt: new Date(Date.now() - d.daysAgo * 86_400_000).toISOString(), url: d.url, drawing: true })),
 ].sort((a, b) => b.createdAt.localeCompare(a.createdAt)) // newest first, like the server
 // Demo Google Photos: a pretend connection (nothing goes to Google) that steps through signing in
 // and picking albums on a timer, then shows Picsum pictures captioned as the demo.
@@ -1328,6 +1328,10 @@ export const mock = {
   uploadPhoto: async (blob: Blob, width: number, height: number, caption?: string, family = true) => {
     const p: Photo = { id: uid(), caption: caption?.trim() || null, mime: blob.type, width, height, bytes: blob.size, memberId: null, createdAt: new Date().toISOString(), url: URL.createObjectURL(blob), family }
     photos.unshift(p); bump(); return p
+  },
+  setMemberPicture: async (id: string, blob: Blob) => {
+    const m = members.find(x => x.id === id); if (!m) throw new Error('not found')
+    m.picture = URL.createObjectURL(blob); bump(); return { picture: m.picture }
   },
   updatePhoto: async (id: string, body: { caption?: string | null; memberId?: string | null }) => {
     const p = photos.find(x => x.id === id); if (!p) throw new Error('not found')

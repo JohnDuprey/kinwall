@@ -52,6 +52,7 @@ import { onMinute } from './minuteTick.ts'
 import { shellIsNewer, shellUrl } from './appUpdate.ts'
 import { clockTimeZone } from './timezone.ts'
 import { Brand } from './Brand.tsx'
+import { Face, FacePic } from './Face'
 
 const NAV_ITEMS = [
   { key: 'calendar', href: '#/calendar', label: 'Home', Icon: HomeIcon }, // the route keeps its old name: pushes, widgets and Home Assistant link to it
@@ -74,7 +75,7 @@ type NavItem = { key: string; href: string; label: string; Icon: (p: object) => 
  * phone's bottom bar, and "Journal" while check-ins are on. */
 function navItems(s: Settings, me?: Member | null, plugins = false): NavItem[] {
   const items: NavItem[] = NAV_ITEMS.filter(i => i.key === 'chores' ? s.features.chores : i.key === 'rewards' ? rewardsOn(s) : i.key === 'lists' ? s.features.lists : i.key === 'contacts' ? s.features.contacts : i.key === 'meals' ? s.features.meals : i.key === 'trackers' ? trackerKinds(s).length > 0 : i.key === 'activities' ? shownActivities(s).length > 0 || plugins : true)
-  if (me) items.splice((items.findIndex(i => i.key === 'chores') + 1) || 1, 0, { key: 'profile', href: `#/profile/${me.id}`, label: 'Me', Icon: () => <span className="nav-me" aria-hidden="true">{me.avatar || me.name[0]}</span> })
+  if (me) items.splice((items.findIndex(i => i.key === 'chores') + 1) || 1, 0, { key: 'profile', href: `#/profile/${me.id}`, label: 'Me', Icon: () => me.picture ? <Face m={me} className="nav-me nav-me-pic" aria-hidden="true" /> : <span className="nav-me" aria-hidden="true">{me.avatar || me.name[0]}</span> })
   // Their journal, just before Settings: on a phone it sits under More, so the everyday tabs keep their place.
   if (me && s.features.checkIns) items.splice(items.findIndex(i => i.key === 'settings'), 0, { key: 'journal', href: `#/journal/${me.id}`, label: 'Journal', Icon: () => <span className="nav-me" aria-hidden="true">📓</span> })
   return items
@@ -830,12 +831,13 @@ function MemberAvatars({ members, selectedMemberId }: { members: Member[]; selec
         <button
           key={m.id}
           aria-haspopup="dialog"
-          className={`member-avatar ${selectedMemberId && selectedMemberId !== m.id ? 'dim' : ''} ${selectedMemberId === m.id ? 'selected' : ''}`}
+          className={`member-avatar ${selectedMemberId && selectedMemberId !== m.id ? 'dim' : ''} ${selectedMemberId === m.id ? 'selected' : ''}${m.picture ? ' face-has-pic' : ''}`}
           style={{ background: m.color, color: inkFor(m.color) }}
           onClick={() => setOpen(m)}
           aria-label={`${m.name}'s day${selectedMemberId === m.id ? ' (calendar shows only them)' : ''}`}
         >
           {m.avatar || m.name[0]}
+          <FacePic m={m} />
         </button>
       ))}
       {open && <SnapshotSheet member={members.find(m => m.id === open.id) ?? open} onClose={() => setOpen(null)} />}
@@ -865,7 +867,7 @@ function FamilyButton({ name, members, selectedMemberId }: { name: string; membe
       <button className="family-btn" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}
         aria-label={`${name}: ${members.length} people${selected ? `, calendar shows only ${selected.name}` : ''}`}>
         <span className="family-pile" aria-hidden="true">
-          {shown.map(m => <span key={m.id} className={`member-avatar-sm ${m.id === selectedMemberId ? 'selected' : ''}`} style={{ background: m.color, color: inkFor(m.color) }}>{m.avatar || m.name[0]}</span>)}
+          {shown.map(m => <Face key={m.id} m={m} className={`member-avatar-sm ${m.id === selectedMemberId ? 'selected' : ''}`} />)}
           {more > 0 && <span className="member-avatar-sm family-more">+{more}</span>}
         </span>
         <span className="family-name-sm">{name}</span>
@@ -888,7 +890,7 @@ function FamilySheet({ name, members, selectedMemberId, onClose, onFilter, onSna
         {members.map(m => (
           <div key={m.id} className="family-row-wrap">
             <button className={`family-row ${m.id === selectedMemberId ? 'on' : ''}`} aria-haspopup="dialog" onClick={() => onSnapshot(m)}>
-              <span className={`member-avatar-sm ${m.id === selectedMemberId ? 'selected' : ''}`} style={{ background: m.color, color: inkFor(m.color) }} aria-hidden="true">{m.avatar || m.name[0]}</span>
+              <Face m={m} className={`member-avatar-sm ${m.id === selectedMemberId ? 'selected' : ''}`} aria-hidden="true" />
               <span className="family-row-name">{m.name}</span>
               {(m.id === selectedMemberId || settings.features.chores) && <span className="family-row-sub">{m.id === selectedMemberId ? 'Calendar shows only them' : `${m.pointsToday} pts today`}</span>}
             </button>

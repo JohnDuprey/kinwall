@@ -16,6 +16,7 @@ import { addDayKeys, bookDetails, existingRead, dueLabel, isbnFromScan, isOverdu
 import { announce } from './a11y.tsx'
 import { todayKeyInTz } from './date.ts'
 import type { BookResult, LibraryBook, Member, ReadingData, ReadingStatus } from './types.ts'
+import { ChipFace } from './Face'
 
 const STATUS_WORD: Record<ReadingStatus, string> = { want: 'wants to read', reading: 'reading', finished: 'read' }
 /** Between book scans: long enough to see what was added and pick up the next book. */
@@ -271,7 +272,7 @@ function BookSheet({ book, members, canRemove, places, sources, today, onClose, 
       <div className="field">
         <label id="lib-read-it">Read it</label>
         <div className="chip-row" role="group" aria-labelledby="lib-read-it">
-          {members.map(m => <button key={m.id} type="button" className="chip" style={{ ['--chip-color' as string]: m.color }} onClick={() => readIt(m)}>{m.avatar} {m.name}</button>)}
+          {members.map(m => <button key={m.id} type="button" className="chip" style={{ ['--chip-color' as string]: m.color }} onClick={() => readIt(m)}><ChipFace m={m} /> {m.name}</button>)}
         </div>
         <p className="field-hint">Puts it on their Reading shelf, linked to this book.</p>
       </div>

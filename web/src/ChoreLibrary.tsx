@@ -11,9 +11,9 @@ import { dateKey } from './date.ts'
 import Sheet from './Sheet.tsx'
 import { AnyEmojiField } from './AnyEmojiField.tsx'
 import { isSingleEmoji } from './emoji.ts'
-import { inkFor } from './color.ts'
 import { useDialog } from './dialog.tsx'
 import { libraryStatus, sortLibrary, whenDate, type WhenPick } from './choreLibrary.ts'
+import { Face } from './Face'
 
 /** What "Make it repeat" hands the chore editor. */
 export type RepeatDraft = { item: LibraryChore; memberId: string | null; date: string }
@@ -114,7 +114,7 @@ function AssignSheet({ item, onBack, onEdit, onAssigned, onRepeat }: { item: Lib
         <div className="who-grid" role="group" aria-labelledby="lib-who">
           {members.map(m => (
             <button key={m.id} type="button" className={`who-btn ${memberId === m.id ? 'active' : ''}`} aria-pressed={memberId === m.id} onClick={() => setMemberId(m.id)}>
-              <span className="who-avatar" aria-hidden="true" style={{ background: m.color, color: inkFor(m.color) }}>{m.avatar || m.name[0]}</span>
+              <Face m={m} className="who-avatar" aria-hidden="true" />
               {m.name}
             </button>
           ))}

@@ -7,7 +7,6 @@
 import { useEffect, useState } from 'react'
 import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
-import { inkFor } from './color.ts'
 import { todayKeyInTz } from './date.ts'
 import { dayName } from './Snapshot.tsx'
 import { SLEEP } from './tempCheck.ts'
@@ -15,6 +14,7 @@ import { JOURNAL_TEXT_MAX, MOODS, outcomeOf, privacyLine } from './journal.ts'
 import GoalFollowUp from './GoalFollowUp.tsx'
 import Sheet from './Sheet.tsx'
 import type { Journal as JournalData, JournalDay, JournalEntry, Member } from './types.ts'
+import { Face } from './Face'
 
 const PAGE_DAYS = 60
 const dayBefore = (d: string) => new Date(Date.parse(`${d}T12:00:00Z`) - 86_400_000).toISOString().slice(0, 10)
@@ -62,7 +62,7 @@ export default function Journal({ memberId }: { memberId?: string }) {
     <div className="profile profile-narrow journal scroll-y" style={{ ['--m' as string]: member.color }}>
       <section className="profile-top">
         <div className="profile-hero">
-          <span className="profile-avatar" style={{ background: member.color, color: inkFor(member.color) }} aria-hidden="true">{member.avatar || member.name[0]}</span>
+          <Face m={member} className="profile-avatar" aria-hidden="true" />
           <div>
             <h2 className="profile-name">{member.name}'s journal</h2>
             <p className="profile-meta">{privacyLine(member, privacy)}</p>

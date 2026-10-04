@@ -24,7 +24,7 @@
 | ICS feed URLs | |
 | Passkey and webhook *names/URLs*, for reference | [Security activity](../using/sign-in-and-security.md#security-activity) (it's about this server's sign-ins and devices, and an import shouldn't be able to write one) |
 
-Photos are never in this JSON export. They back up as a separate zip: **Activities → Photos → Download all (zip)**, and come back with **Import zip** on the same page. The family's own Paint [coloring pages](../using/activities.md#adding-your-own-pages) travel in that zip too. See [Photos](../using/photos.md#backing-up-and-moving-photos).
+Photos are never in this JSON export. They back up as a separate zip: **Activities → Photos → Download all (zip)**, and come back with **Import zip** on the same page. The family's own Paint [coloring pages](../using/activities.md#adding-your-own-pages) and everyone's [profile pictures](../using/profiles.md#profile-pictures) travel in that zip too (a picture comes back to the person with the same name). See [Photos](../using/photos.md#backing-up-and-moving-photos).
 
 API: `GET /api/export`.
 

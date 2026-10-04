@@ -3,9 +3,10 @@ import { format } from 'date-fns'
 import { useApp } from './AppContext.tsx'
 import { api, ApiError } from './api.ts'
 import type { Member, Note, NoteTarget } from './types.ts'
-import { inkFor, readableOn } from './color.ts'
+import { readableOn } from './color.ts'
 import { announce } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
+import { Face, ChipFace } from './Face'
 
 const POST_AS_KEY = 'kinwall.notePostAs' // member the last note was posted as
 const MAX = 2000
@@ -106,7 +107,7 @@ export default function NotesThread({ target, title = 'Notes' }: { target: NoteT
               <li key={n.id} data-note={n.id} className="note" style={{ ['--note-color' as string]: m?.color ?? 'var(--border)' }}
                 onClick={e => { if (canChange(n) && editing !== n.id && !(e.target as HTMLElement).closest('a, button')) startEdit(n) }}>
                 <div className="note-head">
-                  <span className="note-avatar" aria-hidden="true" style={m ? { background: m.color, color: inkFor(m.color) } : undefined}>{m ? (m.avatar || m.name[0]) : '?'}</span>
+                  {m ? <Face m={m} className="note-avatar" aria-hidden="true" /> : <span className="note-avatar" aria-hidden="true">?</span>}
                   <span className="note-name" style={{ color: nameInk(m) }}>{who(n)}</span>
                   <span className="note-time"><time dateTime={n.createdAt} title={new Date(n.createdAt).toLocaleString()}>{relTime(n.createdAt)}</time>{edited && ' · edited'}</span>
                   {editing !== n.id && canChange(n) && <button type="button" className="link-btn note-edit" onClick={() => startEdit(n)} aria-label={`Edit note by ${who(n)}`}>Edit</button>}
@@ -140,7 +141,7 @@ export default function NotesThread({ target, title = 'Notes' }: { target: NoteT
               <span className="note-post-as-label" aria-hidden="true">Post as</span>
               {members.map(m => (
                 <button key={m.id} type="button" role="radio" aria-checked={postAs === m.id} className={`chip ${postAs === m.id ? 'active' : ''}`}
-                  style={{ ['--chip-color' as string]: m.color }} onClick={() => setPostAs(m.id)}>{m.avatar} {m.name}</button>
+                  style={{ ['--chip-color' as string]: m.color }} onClick={() => setPostAs(m.id)}><ChipFace m={m} /> {m.name}</button>
               ))}
               <button type="button" role="radio" aria-checked={postAs === null} className={`chip ${postAs === null ? 'active' : ''}`} onClick={() => setPostAs(null)}>Someone</button>
             </div>

@@ -7,9 +7,9 @@ import Sheet from './Sheet.tsx'
 import { SendMessageForm } from './Settings.tsx'
 import { announce } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
-import { inkFor } from './color.ts'
 import { todayKeyInTz, zonedDayKey } from './date.ts'
 import { formatTime } from './timeFormat.ts'
+import { Face } from './Face'
 
 // Read state is per device, like the other device prefs: everything newer than this is unread.
 const SEEN_KEY = 'kinwall.notificationsSeenAt'
@@ -135,7 +135,7 @@ export default function NotificationBell({ isAdmin }: { isAdmin: boolean }) {
                           {who.length > 0 && (
                             <span className="notif-who">
                               <span className="sr-only">For {who.map(m => m.name).join(', ')}</span>
-                              {who.map(m => <span key={m.id} className="member-avatar-sm notif-avatar" aria-hidden="true" style={{ background: m.color, color: inkFor(m.color) }}>{m.avatar || m.name[0]}</span>)}
+                              {who.map(m => <Face key={m.id} m={m} className="member-avatar-sm notif-avatar" aria-hidden="true" />)}
                             </span>
                           )}
                         </span>

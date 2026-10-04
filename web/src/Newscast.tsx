@@ -9,7 +9,6 @@ import type { Member, Newscast, NewscastItem, NewscastReaction } from './types.t
 import { rewardsOn } from './types.ts'
 import { asYou, daySections, newCount, pictureAlt, weekDigest } from './newscast.ts'
 import { formatTime } from './timeFormat.ts'
-import { inkFor } from './color.ts'
 import { useMediaQuery } from './useIsPhone.ts'
 import { useDeviceAppearance } from './useTheme.ts'
 import { preparePhoto } from './photos.ts'
@@ -17,17 +16,15 @@ import { announce } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
 import Sheet from './Sheet.tsx'
 import { MoreIcon } from './icons.tsx'
+import { Face as MemberFace } from './Face'
 
 const REACTIONS: { emoji: NewscastReaction; label: string }[] = [{ emoji: '👏', label: 'Clap' }, { emoji: '❤️', label: 'Love' }, { emoji: '🎉', label: 'Celebrate' }]
 const EMOJI = ['📣', '🎉', '❤️', '🍕', '⚽', '🎂', '✈️', '🏠', '🐶', '📚', '🎨', '🦷']
 const MAX = 280
 
-function Face({ m, size = 'md' }: { m: Pick<Member, 'color' | 'avatar' | 'name'> | undefined; size?: 'sm' | 'md' }) {
-  return (
-    <span className={`news-face news-face-${size}`} aria-hidden="true" style={m ? { background: m.color, color: inkFor(m.color) } : undefined}>
-      {m ? m.avatar || m.name[0] : '🏠'}
-    </span>
-  )
+function Face({ m, size = 'md' }: { m: Pick<Member, 'color' | 'avatar' | 'name' | 'picture'> | undefined; size?: 'sm' | 'md' }) {
+  if (m) return <MemberFace m={m} className={`news-face news-face-${size}`} aria-hidden="true" />
+  return <span className={`news-face news-face-${size}`} aria-hidden="true">🏠</span>
 }
 
 export default function NewscastView() {

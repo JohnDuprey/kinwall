@@ -7,7 +7,6 @@ import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import type { Board as BoardData, EventInstance, List, Member, OnlineTidbits, Redemption, SnapshotEvent } from './types.ts'
 import { rewardsOn } from './types.ts'
-import { inkFor } from './color.ts'
 import { zonedParts } from './date.ts'
 import { formatTime } from './timeFormat.ts'
 import { useDeviceAppearance } from './useTheme.ts'
@@ -27,14 +26,15 @@ import { cardOn, layoutAreas, layoutFor, type BoardCardId, type CardDensity } fr
 import { leadOf, leadText } from './leadTime.ts'
 import { onMinute } from './minuteTick.ts'
 import { clockTimeZone } from './timezone.ts'
+import { Face } from './Face'
 
 const REFRESH_MS = 10 * 60_000
 // Auto shows the full Chores and Due soon cards only on a board this big (CSS px); smaller boards get the count tiles.
 const FULL_W = 1600, FULL_H = 900
 const noop = () => {}
 
-function Avatar({ m }: { m: Pick<Member, 'name' | 'color' | 'avatar'> }) {
-  return <span className="board-avatar" style={{ background: m.color, color: inkFor(m.color) }}>{m.avatar || m.name[0]}</span>
+function Avatar({ m }: { m: Pick<Member, 'name' | 'color' | 'avatar' | 'picture'> }) {
+  return <Face m={m} className="board-avatar" />
 }
 
 /** A card's text size in a layout (boardLayout.ts), as a class. */
@@ -234,7 +234,7 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
                   <span className="board-tile-people">
                     {chores.map(c => (
                       <span key={c.memberId ?? 'anyone'} className={`board-tile-person ${c.remaining ? '' : 'done'}`} aria-label={`${c.name ?? 'Anyone'}: ${c.remaining ? `${c.remaining} left` : 'done'}`}>
-                        <Avatar m={{ name: c.name ?? 'Anyone', color: c.color ?? 'var(--bg)', avatar: c.avatar ?? '⭐' }} />
+                        <Avatar m={{ name: c.name ?? 'Anyone', color: c.color ?? 'var(--bg)', avatar: c.avatar ?? '⭐', picture: c.memberId ? byId.get(c.memberId)?.picture : null }} />
                         <span aria-hidden="true">{c.remaining || '✓'}</span>
                       </span>
                     ))}
@@ -364,7 +364,7 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
                 return (
                   <li key={c.memberId ?? 'anyone'}>
                     <button className="snap-row board-chore" onClick={() => { location.hash = '#/chores' }} aria-label={`${name}: ${c.remaining ? `${c.remaining} of ${c.total} chores left` : 'all chores done'}${waiting ? `, ${waiting}` : ''}${goal ? `, ${goal.label}` : ''}`}>
-                      <Avatar m={{ name, color: c.color ?? 'var(--bg)', avatar: c.avatar ?? '⭐' }} />
+                      <Avatar m={{ name, color: c.color ?? 'var(--bg)', avatar: c.avatar ?? '⭐', picture: c.memberId ? byId.get(c.memberId)?.picture : null }} />
                       <span className="snap-main">
                         <span className="snap-title">{name}</span>
                         <span className="board-meter" aria-hidden="true"><span style={{ width: `${(done / c.total) * 100}%`, background: c.color ?? 'var(--accent)' }} /></span>

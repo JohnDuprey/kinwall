@@ -15,13 +15,13 @@ import { batteryOn } from './battery.ts'
 import Sheet from './Sheet.tsx'
 import { PriorityBadge } from './PriorityBadge.tsx'
 import { Segmented, announce } from './a11y.tsx'
-import { inkFor } from './color.ts'
 import { minutesSinceMidnight, todayKeyInTz } from './date.ts'
 import { formatTime } from './timeFormat.ts'
 import { MEAL_SLOTS, SLOT_LABEL } from './meal-date.ts'
 import MealQuickSheet from './MealQuickSheet.tsx'
 import type { Meal } from './meal-types.ts'
 import { leadOf, leadText } from './leadTime.ts'
+import { Face } from './Face'
 
 type Range = 'day' | 'week'
 
@@ -124,7 +124,7 @@ export default function SnapshotSheet({ member, onClose, toCheckIn }: { member: 
   return (
     <Sheet title={range === 'day' ? `${member.name}'s day` : `${member.name}'s week`} onClose={onClose}>
       <div className="snap-hero">
-        <span className="snap-avatar" aria-hidden="true" style={{ background: member.color, color: inkFor(member.color) }}>{member.avatar || member.name[0]}</span>
+        <Face m={member} className="snap-avatar" aria-hidden="true" />
         <div>
           <p className="snap-greeting">{shown?.greeting ?? ' '}</p>
           {hello && range === 'day' && <p className="snap-sub">☀️ Here's your day</p>}

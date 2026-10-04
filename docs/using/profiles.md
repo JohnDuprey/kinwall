@@ -13,7 +13,28 @@ A profile is about one person. It never ranks brothers and sisters or puts their
 
 Everyone in the family can see everyone's profile, on every device. An idle wall screen goes back to the calendar as usual.
 
-**Your own avatar**: on a kid's own device, tap the avatar (it has a ✏️) on their own profile to pick a new emoji or initial, then **Save**. That's the only thing a kid can change about themselves; the name, color and everything else stay under [Settings → Family](../settings/family.md) on a parent's device. Wall screens can't change avatars.
+## Profile pictures
+
+Instead of an emoji, a person can have a picture: a family photo, one of their Paint drawings, or a photo taken just now. Tap the avatar at the top of their profile (it has a ✏️) and pick from **Picture**:
+
+* **Emoji**: an emoji or a 1–2 letter initial, as before. Saving it takes the picture away.
+* **From family photos**: any picture in [Photos](photos.md).
+* **From drawings**: drawings made in [Paint](activities.md) on this device, and drawings saved to the family photos.
+* **Take or upload a photo**: **Take a photo** (on phones and tablets) or **Choose a photo**.
+
+Then drag the picture to move it and pinch (or use **Zoom**) to fit it in the circle, and tap **Save**. **Remove picture** at the bottom goes back to the emoji.
+
+The picture shows everywhere their avatar does: the header, the Board, Chores and the leaderboard, calendar events, Newscast, their snapshot and profile, and the people pickers. It sits in a ring of their color, so color-coding still works and the picture tells people apart without the color. If it can't load (offline, say), their emoji shows instead. The Kinwall phone app's widgets and Live Activities keep showing the emoji.
+
+Who can change it:
+
+* **Parents**, for anyone, from the profile or **Settings → Family** (tap the person, then **Add a picture** or **Change picture**).
+* **A kid**, for themselves only, on their own device. Their picture and their emoji are the only things a kid can change about themselves; the name, color and everything else stay under [Settings → Family](../settings/family.md) on a parent's device.
+* Not wall screens, the phone app's widgets, or connected apps such as AI assistants.
+
+Kinwall keeps only the small circle (256 pixels), stored with the family photos on your own server, and never the original twice: a picture cropped from the album just remembers which photo it came from. It counts toward the [photo limits](photos.md#limits) but doesn't show in the album, on the Board's picture card or in the slideshow. It's deleted when it's replaced or removed and when the person is removed, and it travels in the photo zip (see [Backing up](photos.md#backing-up-and-moving-photos)). Webhooks never carry it; connected apps see only its address on the member, like any photo.
+
+With **Photos** turned off in [Features](../settings/general.md#features), **From family photos** (and drawings in the album) aren't offered, but taking or uploading a photo still works and pictures keep showing: a picture belongs to the person, not the album.
 
 ## What's on it
 

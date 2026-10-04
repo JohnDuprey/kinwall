@@ -10,6 +10,7 @@ import { ChevronLeft } from './icons.tsx'
 import Sheet from './Sheet.tsx'
 import { preparePhoto, PhotoFormatError } from './photos.ts'
 import type { Photo, PhotoQuota } from './types.ts'
+import { ChipFace } from './Face'
 
 const mb = (b: number) => { const v = b / 1048576; return `${v < 10 && v > 0 ? v.toFixed(1).replace(/\.0$/, '') : Math.round(v)} MB` }
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`
@@ -191,7 +192,7 @@ function PhotoSheet({ photo, isAdmin, members, onClose, onChanged, index, count,
             <button className={`chip ${memberId === null ? 'active' : ''}`} aria-pressed={memberId === null} onClick={() => setMemberId(null)}>Everyone</button>
             {members.map(m => (
               <button key={m.id} className={`chip ${memberId === m.id ? 'active' : ''}`} aria-pressed={memberId === m.id}
-                style={{ ['--chip-color' as string]: m.color }} onClick={() => setMemberId(m.id)}>{m.avatar} {m.name}</button>
+                style={{ ['--chip-color' as string]: m.color }} onClick={() => setMemberId(m.id)}><ChipFace m={m} /> {m.name}</button>
             ))}
           </div>
         </div>

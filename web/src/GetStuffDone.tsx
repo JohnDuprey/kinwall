@@ -3,12 +3,12 @@ import { createPortal } from 'react-dom'
 import { announce, Segmented } from './a11y.tsx'
 import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
-import { inkFor } from './color.ts'
 import { allDone, choreItems, doOrder, listOrder, nextOpen, progress, savedView, saveView, startAt, stayOn, type DoView } from './getStuffDone.ts'
 import { CheckIcon, ChevronLeft, ChevronRight, HomeIcon, XIcon } from './icons.tsx'
 import { canChangeItem } from './listSections.ts'
 import type { ListDetail, ListItem } from './types.ts'
 import { holdAwake } from './wakeLock.ts'
+import { Face } from './Face'
 
 /** Opened from a chore with this checklist: only its person's items (and nobody's), and once
  * they're all ticked the chore completes the usual way (`onComplete`: approval, points, reset). */
@@ -108,7 +108,7 @@ export default function GetStuffDone({ listId, chore, pinned, onClose }: { listI
 
   const avatar = (memberId: string | null, size: 'big' | 'small') => {
     const m = memberId ? members.find(x => x.id === memberId) : undefined
-    return m && <span className={`gsd-avatar gsd-avatar-${size}`} role="img" aria-label={`For ${m.name}`} style={{ background: m.color, color: inkFor(m.color) }}>{m.avatar || m.name[0]}</span>
+    return m && <Face m={m} className={`gsd-avatar gsd-avatar-${size}`} role="img" aria-label={`For ${m.name}`} />
   }
   const stepRows = (it: ListItem) => it.steps.length > 0 && (
     <div className="gsd-steps" role="group" aria-label={`${it.title} steps`}>

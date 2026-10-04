@@ -30,6 +30,7 @@ import { dedupeEvents, eventPeople, hourPx, layoutDay, newEventDay, newEventTime
 import NewscastView from './Newscast.tsx'
 import { CALENDAR_VIEWS, dayOrigin, isCalendarView, lastCalendarView, monthDayLabel, rememberCalendarView, tabOf, viewForTab, viewHint, viewLabel, viewTabs, type CalendarView, type ViewMode } from './calendarViews.ts'
 import { onMinute } from './minuteTick.ts'
+import { InlineFaces, ChipFace } from './Face'
 
 const PHONE_WEEK_DAYS = 3
 const NEW_LOCAL_CALENDAR = '__new_local'
@@ -510,7 +511,7 @@ export default function CalendarView() {
   )
 }
 
-type ChipMember = { id: string; name: string; color: string; avatar: string }
+type ChipMember = { id: string; name: string; color: string; avatar: string; picture?: string | null }
 type ChipCategory = { id: string; name: string; color: string; emoji: string | null }
 
 /** What a screen reader hears for an event block: "4:00 PM Soccer Practice, Sam, Park field". */
@@ -528,22 +529,22 @@ function eventLabel(ev: EventInstance, tz: string, members: ChipMember[], catego
  * `ink` is the best-contrast text color for that background (any member/category/custom color
  * can be very light or very dark) - for stripes it's picked across all assigned colors, with the
  * title's translucent pill (see EventTitle) as an extra safety net. */
-function eventVisual(ev: EventInstance, members: ChipMember[], categories: ChipCategory[], stripeWidth: number): { background: string; avatars: string[]; ink: string; emoji: string | null; pill: boolean; solid: string } {
+function eventVisual(ev: EventInstance, members: ChipMember[], categories: ChipCategory[], stripeWidth: number): { background: string; avatars: ChipMember[]; ink: string; emoji: string | null; pill: boolean; solid: string } {
   const assigned = eventPeople(ev, members)
   const category = ev.categoryId ? categories.find(c => c.id === ev.categoryId) : undefined
   if (category) {
     // Category color always wins, but member avatars stay visible - without stripes, a solid
     // category color alone wouldn't say who's assigned.
     // Its emoji, or its name when it has none: the category must not be told by its color alone.
-    return { background: category.color, avatars: assigned.map(m => m.avatar || m.name[0]), ink: inkFor(category.color), emoji: category.emoji || category.name, pill: true, solid: category.color }
+    return { background: category.color, avatars: assigned, ink: inkFor(category.color), emoji: category.emoji || category.name, pill: true, solid: category.color }
   }
   if (assigned.length <= 1) {
     const color = assigned[0]?.color ?? ev.color
     // The avatar too, not just the color: who it's for must not depend on telling colors apart.
-    return { background: color, avatars: assigned.map(m => m.avatar || m.name[0]), ink: inkFor(color), emoji: null, pill: false, solid: color }
+    return { background: color, avatars: assigned, ink: inkFor(color), emoji: null, pill: false, solid: color }
   }
   const stops = assigned.map((m, i) => `${m.color} ${i * stripeWidth}px ${(i + 1) * stripeWidth}px`).join(', ')
-  return { background: `repeating-linear-gradient(135deg, ${stops})`, avatars: assigned.map(m => m.avatar || m.name[0]), ink: inkFor(assigned.map(m => m.color)), emoji: null, pill: true, solid: assigned[0].color }
+  return { background: `repeating-linear-gradient(135deg, ${stops})`, avatars: assigned, ink: inkFor(assigned.map(m => m.color)), emoji: null, pill: true, solid: assigned[0].color }
 }
 
 /** Inline fill for an event block. `--ev-bg` lets low-stimulation mode (styles.css) swap the filled
@@ -567,13 +568,13 @@ function CategoryMark({ mark }: { mark: string }) {
 /** Title text (truncating), optionally prefixed with a category emoji, plus - for striped
  * multi-member or categorized events - an inline avatar row and a translucent backing pill so
  * text stays readable over the stripes/category color. */
-function EventTitle({ title, avatars, emoji, pill, hidden, free }: { title: string; avatars: string[]; emoji?: string | null; pill?: boolean; hidden?: boolean; free?: boolean }) {
+function EventTitle({ title, avatars, emoji, pill, hidden, free }: { title: string; avatars: ChipMember[]; emoji?: string | null; pill?: boolean; hidden?: boolean; free?: boolean }) {
   const text = <>{hidden && <HiddenMark />}{free && <FreeMark />}{emoji ? <><CategoryMark mark={emoji} /> {title}</> : title}</>
   if (avatars.length === 0) return <span className="event-title-text">{text}</span>
   return (
     <>
       <span className={`event-title-text ${pill ? 'event-title-pill' : ''}`}>{text}</span>
-      <span className="event-avatars">{avatars.join(' ')}</span>
+      <InlineFaces who={avatars} />
     </>
   )
 }
@@ -812,7 +813,7 @@ function ScheduleView({ anchor, events, tz, members, categories, onTap }: { anch
                 <div className="schedule-time" aria-hidden="true">{ev.allDay ? 'All day' : formatTime(ev.start, tz)}</div>
                 <div>
                   <button type="button" className="plain-btn schedule-title" aria-label={eventLabel(ev, tz, members, categories)}
-                    onClick={e => { e.stopPropagation(); onTap(ev) }}>{ev.hidden && <HiddenMark />}{ev.busy === false && <FreeMark />}{emoji && <><CategoryMark mark={emoji} /> </>}{ev.title}{avatars.length > 0 && <span className="event-avatars schedule-avatars">{avatars.join(' ')}</span>}{!!ev.noteCount && <span className="schedule-notes" aria-hidden="true">💬 {ev.noteCount}</span>}</button>
+                    onClick={e => { e.stopPropagation(); onTap(ev) }}>{ev.hidden && <HiddenMark />}{ev.busy === false && <FreeMark />}{emoji && <><CategoryMark mark={emoji} /> </>}{ev.title}{avatars.length > 0 && <InlineFaces who={avatars} className="event-avatars schedule-avatars" />}{!!ev.noteCount && <span className="schedule-notes" aria-hidden="true">💬 {ev.noteCount}</span>}</button>
                   {leadOf(ev) && <div className="leave-by" aria-hidden="true">{leadText(ev, t => formatTime(t, tz))}</div>}
                   {ev.location && (() => {
                     const href = locationHref(ev.location)
@@ -935,7 +936,7 @@ function EventDetailSheet({ event, members, categories, calendars, canEdit, tz, 
             <div className="chip-row">
               {members.map(m => (
                 <button key={m.id} className={`chip ${chipMemberIds.includes(m.id) ? 'active' : ''}`} aria-pressed={chipMemberIds.includes(m.id)} style={{ ['--chip-color' as string]: m.color }} onClick={() => toggleChip(m.id)} disabled={!canEdit}>
-                  {m.avatar} {m.name}
+                  <ChipFace m={m} /> {m.name}
                 </button>
               ))}
             </div>
@@ -1315,7 +1316,7 @@ function EventEditSheet({ event, prefill, calendars, offerNewLocal, members, cat
         <div className="chip-row">
           {members.map(m => (
             <button key={m.id} className={`chip ${memberIds.includes(m.id) ? 'active' : ''}`} aria-pressed={memberIds.includes(m.id)} style={{ ['--chip-color' as string]: m.color }} onClick={() => toggleMember(m.id)}>
-              {m.avatar} {m.name}
+              <ChipFace m={m} /> {m.name}
             </button>
           ))}
         </div>

@@ -72,7 +72,7 @@ const ExportSchema = z
     version: z.number(),
     exportedAt: z.string(),
     settings: SettingsSchema,
-    members: z.array(MemberSchema.omit({ pointsToday: true, pointsWeek: true, balance: true, rewardGoal: true, todayGoal: true, tempCheck: true, privateJournal: true }).extend({ tempCheck: TempCheckSettingsSchema.optional(), tempCheckFeelings: z.array(z.string()).default([]),  birthday: BirthdaySchema.nullable().default(null), grownUp: z.boolean().optional(), needsApproval: z.boolean().default(false), transitionReminders: TransitionRemindersSchema.optional(), rewardGoalId: z.string().nullable().default(null) })),
+    members: z.array(MemberSchema.omit({ picture: true, pointsToday: true, pointsWeek: true, balance: true, rewardGoal: true, todayGoal: true, tempCheck: true, privateJournal: true }).extend({ tempCheck: TempCheckSettingsSchema.optional(), tempCheckFeelings: z.array(z.string()).default([]),  birthday: BirthdaySchema.nullable().default(null), grownUp: z.boolean().optional(), needsApproval: z.boolean().default(false), transitionReminders: TransitionRemindersSchema.optional(), rewardGoalId: z.string().nullable().default(null) })),
     categories: z.array(CategorySchema),
     contactCategories: z.array(ContactCategorySchema),
     contacts: z.array(ContactSchema),

@@ -7,10 +7,10 @@ import { useEffect, useState } from 'react'
 import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { useDialog } from './dialog.tsx'
-import { inkFor } from './color.ts'
 import Sheet from './Sheet.tsx'
 import { daysLabel, EVERY_DAY, scheduleLabel, WEEKDAYS } from './medications.ts'
 import type { LateWindow, Medication, Member, MedTime } from './types.ts'
+import { Face } from './Face'
 
 const NOTICE = 'Kinwall keeps each medicine’s name, dose and times, and when a dose was marked taken or skipped. It’s encrypted on the server. Parent devices see everyone’s; each person’s own device sees theirs. Wall screens show “Meds” when a dose is due, without names. Reminders say “Time for Leo’s medicine” unless a device turns names on. Nothing goes to connected apps, webhooks or Home Assistant.'
 
@@ -64,7 +64,7 @@ export function MedicineList({ memberId }: { memberId?: string | null }) {
             // Collapsed by default so a glance at Health doesn't show anyone's medicines.
             <details key={m.id} className="meds-person">
               <summary className="meds-person-head">
-                <span className="board-avatar" style={{ background: m.color, color: inkFor(m.color) }} aria-hidden="true">{m.avatar || m.name[0]}</span>
+                <Face m={m} className="board-avatar" aria-hidden="true" />
                 <span className="settings-row-label">{m.name}</span>
                 <span className="settings-row-sub">{mine.length === 0 ? 'None' : mine.length === 1 ? '1 medicine' : `${mine.length} medicines`}</span>
               </summary>

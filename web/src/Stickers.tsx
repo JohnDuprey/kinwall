@@ -7,11 +7,11 @@ import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { useDialog } from './dialog.tsx'
 import { announce, Segmented } from './a11y.tsx'
-import { inkFor } from './color.ts'
 import { dateKey } from './date.ts'
 import { ChevronLeft } from './icons.tsx'
 import type { StickerPack, StickerPatch, StickerPlacement } from './types.ts'
 import { rewardsOn } from './types.ts'
+import { Face } from './Face'
 
 const SAVE_DELAY_MS = 400
 const MIN_SCALE = 0.4, MAX_SCALE = 3.6, SCALE_STEP = 1.25, ROTATE_STEP = 15
@@ -210,7 +210,7 @@ export default function Stickers() {
           {members.map(m => (
             <button key={m.id} className={`chip ${m.id === memberId ? 'active' : ''}`} aria-pressed={m.id === memberId}
               style={{ ['--chip-color' as string]: m.color }} onClick={() => pickMember(m.id)}>
-              <span className="stickers-avatar" style={{ background: m.color, color: inkFor(m.color) }} aria-hidden="true">{m.avatar || m.name[0]}</span>{m.name}
+              <Face m={m} className="stickers-avatar" aria-hidden="true" />{m.name}
             </button>
           ))}
         </div>

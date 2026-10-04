@@ -6,10 +6,14 @@
 // limits, and travels in the zip backup marked "family": false.
 // coloring = 1 (migration 0083): a Paint coloring page a parent added (line art, a PNG), stored with
 // family = 0 and listed only by /api/coloring-pages; "coloring": true in the zip backup.
+// avatar = 1 (migration 0096): a member's profile picture (members.picture_id), family = 0, set and
+// cleared by PUT / DELETE /api/members/{id}/picture below; "picture": true in the zip backup.
 import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import { emit } from '../bus.ts';
-import { actorOf, ownerBlock, photoExportTicket } from '../auth.ts';
+import { actorOf, deviceOwner, isConnectedApp, ownerBlock, photoExportTicket, requestKey } from '../auth.ts';
+import type { Context } from 'hono';
+import type { Env } from '../env.ts';
 import { ErrorSchema } from '../schemas.ts';
 import type { KinwallDb } from '../db.ts';
 import { readZip, zipStream, type ZipFile } from '../zip.ts';
@@ -17,12 +21,15 @@ import { readZip, zipStream, type ZipFile } from '../zip.ts';
 export const photosRoutes = createRouter();
 
 export const PHOTO_LIMITS = { maxCount: 200, maxBytes: 100 * 1024 * 1024, maxPhotoBytes: 600 * 1024 };
+/** A profile picture: a 256 px crop is about 10-30 KB (a PNG fallback more). */
+export const MAX_PICTURE_BYTES = 200 * 1024;
 const MIMES = ['image/webp', 'image/jpeg', 'image/png'];
 
 // drawing / added_by (migration 0081): a Paint drawing and its artist, or who added a photo from
-// their own device. Only Newscast reads them ("Maya saved a drawing", "Alex added 3 photos").
-type PhotoRow = { id: string; caption: string | null; mime: string; width: number; height: number; bytes: number; member_id: string | null; created_at: string; family: number; drawing?: number; added_by?: string | null; coloring?: number };
-const COLS = 'id, caption, mime, width, height, bytes, member_id, created_at, family';
+// their own device. Newscast reads them ("Maya saved a drawing", "Alex added 3 photos"); GET /api/photos
+// marks drawings for the profile picture picker.
+type PhotoRow = { id: string; caption: string | null; mime: string; width: number; height: number; bytes: number; member_id: string | null; created_at: string; family: number; drawing?: number; added_by?: string | null; coloring?: number; avatar?: number; source_id?: string | null };
+const COLS = 'id, caption, mime, width, height, bytes, member_id, created_at, family, drawing';
 
 const PhotoSchema = z
   .object({
@@ -36,6 +43,7 @@ const PhotoSchema = z
     createdAt: z.string(),
     url: z.string(),
     family: z.boolean(), // false = a memory's own photo (not in the family photos)
+    drawing: z.boolean().openapi({ description: 'A Paint drawing saved to the family photos.' }),
   })
   .openapi('Photo');
 const QuotaSchema = z
@@ -43,7 +51,7 @@ const QuotaSchema = z
   .openapi('PhotoQuota');
 
 const toApi = (r: PhotoRow): z.infer<typeof PhotoSchema> => ({
-  id: r.id, caption: r.caption, mime: r.mime, width: r.width, height: r.height, bytes: r.bytes, memberId: r.member_id, createdAt: r.created_at, url: `/api/photos/${r.id}/image`, family: r.family !== 0,
+  id: r.id, caption: r.caption, mime: r.mime, width: r.width, height: r.height, bytes: r.bytes, memberId: r.member_id, createdAt: r.created_at, url: `/api/photos/${r.id}/image`, family: r.family !== 0, drawing: r.drawing === 1,
 });
 
 // D1 hands BLOBs back as number[], node:sqlite as Uint8Array, a Durable Object as ArrayBuffer.
@@ -55,7 +63,7 @@ export function blobBytes(v: unknown): Uint8Array<ArrayBuffer> {
 }
 
 async function quota(db: KinwallDb) {
-  const row = await db.prepare('SELECT COUNT(*) AS count, COALESCE(SUM(bytes), 0) AS bytes, COALESCE(SUM(family = 0 AND coloring = 0), 0) AS memory FROM photos').first<{ count: number; bytes: number; memory: number }>();
+  const row = await db.prepare('SELECT COUNT(*) AS count, COALESCE(SUM(bytes), 0) AS bytes, COALESCE(SUM(family = 0 AND coloring = 0 AND avatar = 0), 0) AS memory FROM photos').first<{ count: number; bytes: number; memory: number }>();
   return { count: row?.count ?? 0, bytes: row?.bytes ?? 0, memoryPhotos: row?.memory ?? 0, ...PHOTO_LIMITS };
 }
 
@@ -63,10 +71,10 @@ async function quota(db: KinwallDb) {
 async function insertWithinQuota(db: KinwallDb, row: PhotoRow, data: Uint8Array): Promise<boolean> {
   const res = await db
     .prepare(
-      `INSERT INTO photos (${COLS}, drawing, added_by, coloring, data) SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?
+      `INSERT INTO photos (${COLS}, added_by, coloring, avatar, source_id, data) SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
        WHERE (SELECT COUNT(*) FROM photos) < ? AND (SELECT COALESCE(SUM(bytes), 0) FROM photos) + ? <= ?`,
     )
-    .bind(row.id, row.caption, row.mime, row.width, row.height, row.bytes, row.member_id, row.created_at, row.family, row.drawing ?? 0, row.added_by ?? null, row.coloring ?? 0, data, PHOTO_LIMITS.maxCount, row.bytes, PHOTO_LIMITS.maxBytes)
+    .bind(row.id, row.caption, row.mime, row.width, row.height, row.bytes, row.member_id, row.created_at, row.family, row.drawing ?? 0, row.added_by ?? null, row.coloring ?? 0, row.avatar ?? 0, row.source_id ?? null, data, PHOTO_LIMITS.maxCount, row.bytes, PHOTO_LIMITS.maxBytes)
     .run();
   return res.meta.changes > 0;
 }
@@ -238,7 +246,7 @@ const MIME_OF_EXT: Record<string, string> = { webp: 'image/webp', jpg: 'image/jp
 export const MAX_ZIP_BYTES = PHOTO_LIMITS.maxBytes + 10 * 1024 * 1024; // a full album plus zip overhead and manifest
 const binary = { schema: z.string().openapi({ format: 'binary' }) };
 
-type ManifestEntry = { id: string; file: string; caption: string | null; memberId: string | null; memberName: string | null; mime: string; width: number; height: number; bytes: number; createdAt: string; family: boolean; coloring?: boolean };
+type ManifestEntry = { id: string; file: string; caption: string | null; memberId: string | null; memberName: string | null; mime: string; width: number; height: number; bytes: number; createdAt: string; family: boolean; coloring?: boolean; picture?: boolean };
 
 /** Pixel size from the file header (PNG, JPEG, WebP), for zips without a manifest. */
 export function imageSize(b: Uint8Array): { width: number; height: number } | null {
@@ -300,12 +308,12 @@ photosRoutes.openapi(
   async (c) => {
     const db = c.env.DB;
     const { results } = await db
-      .prepare(`SELECT p.id, p.caption, p.mime, p.width, p.height, p.bytes, p.member_id, p.created_at, p.family, p.coloring, m.name AS member_name
+      .prepare(`SELECT p.id, p.caption, p.mime, p.width, p.height, p.bytes, p.member_id, p.created_at, p.family, p.coloring, p.avatar, m.name AS member_name
         FROM photos p LEFT JOIN members m ON m.id = p.member_id ORDER BY p.created_at, p.rowid`)
       .all<PhotoRow & { member_name: string | null }>();
     const fileOf = (r: PhotoRow) => `photos/${r.created_at.slice(0, 10)}-${r.id}.${EXT[r.mime] ?? 'bin'}`;
     const manifest: ManifestEntry[] = results.map((r) => ({
-      id: r.id, file: fileOf(r), caption: r.caption, memberId: r.member_id, memberName: r.member_name, mime: r.mime, width: r.width, height: r.height, bytes: r.bytes, createdAt: r.created_at, family: r.family !== 0, ...(r.coloring ? { coloring: true } : {}),
+      id: r.id, file: fileOf(r), caption: r.caption, memberId: r.member_id, memberName: r.member_name, mime: r.mime, width: r.width, height: r.height, bytes: r.bytes, createdAt: r.created_at, family: r.family !== 0, ...(r.coloring ? { coloring: true } : {}), ...(r.avatar ? { picture: true } : {}),
     }));
     // The manifest first, then one photo's bytes fetched per pull: only one photo in memory at a time.
     let i = -1;
@@ -397,12 +405,15 @@ photosRoutes.openapi(
       const memberName = str(meta.memberName, 100)?.toLowerCase();
       const member = members.find((m) => m.id === meta.memberId) ?? (memberName ? members.find((m) => m.name.trim().toLowerCase() === memberName) : undefined);
       const created = typeof meta.createdAt === 'string' && !Number.isNaN(Date.parse(meta.createdAt)) ? new Date(meta.createdAt).toISOString() : new Date().toISOString();
-      const row: PhotoRow = { id, caption: str(meta.caption, 200), mime, width: size.width, height: size.height, bytes: data.byteLength, member_id: member?.id ?? null, created_at: created, family: meta.family === false || meta.coloring === true ? 0 : 1, coloring: meta.coloring === true ? 1 : 0 };
+      const picture = meta.picture === true;
+      if (picture && (!member || data.byteLength > MAX_PICTURE_BYTES)) { skipped++; continue; } // nobody's picture here
+      const row: PhotoRow = { id, caption: str(meta.caption, 200), mime, width: size.width, height: size.height, bytes: data.byteLength, member_id: member?.id ?? null, created_at: created, family: meta.family === false || meta.coloring === true || picture ? 0 : 1, coloring: meta.coloring === true ? 1 : 0, avatar: picture ? 1 : 0 };
       if (!(await insertWithinQuota(db, row, data))) { skipped++; continue; }
+      if (picture) await db.batch(setPictureStmts(db, member!.id, id));
       existing.add(id);
       imported++;
     }
-    if (imported) emit(c, 'photo.changed', { imported });
+    if (imported) { emit(c, 'photo.changed', { imported }); emit(c, 'member.changed', {}); }
     return c.json({ imported, skipped }, 200);
   },
 );
@@ -491,3 +502,104 @@ photosRoutes.openapi(
     return c.json({ ok: true }, 200);
   },
 );
+
+// ---------- Profile pictures (migration 0096) ----------
+// A member's picture: a small square crop the web app makes (web/src/avatarCrop.ts), stored like a
+// family photo but off the album. The same people as the emoji avatar (routes/members.ts): parents
+// for anyone, a kid's own device for them only. Never a wall screen, the app's widgets or a
+// connected app: kids' photos are personal data.
+
+export const pictureUrl = (id: string) => `/api/photos/${id}/image`;
+
+async function pictureRefusal(c: Context<{ Bindings: Env }>, id: string): Promise<string | null> {
+  if (await isConnectedApp(c)) return "Connected apps can't change profile pictures. Do this from the family's own devices.";
+  const key = await requestKey(c);
+  if (key?.scope === 'display' && (key.deviceKind === 'widgets' || (await deviceOwner(c)) !== id)) return "Only a parent's device or their own device can change this picture.";
+  return null;
+}
+
+/** Make photo `photoId` member `memberId`'s picture, deleting the one it replaces. */
+function setPictureStmts(db: KinwallDb, memberId: string, photoId: string | null) {
+  return [
+    db.prepare('DELETE FROM photos WHERE avatar = 1 AND member_id = ? AND id IS NOT ?').bind(memberId, photoId),
+    db.prepare('UPDATE members SET picture_id = ? WHERE id = ?').bind(photoId, memberId),
+  ];
+}
+
+const PictureSchema = z.object({ picture: z.string().nullable().openapi({ example: '/api/photos/…/image' }) }).openapi('MemberPicture');
+const pictureResponses = {
+  403: { description: "not a parent's device or this member's own; a wall screen, the app's widgets or a connected app", content: json(ErrorSchema) },
+  404: notFound,
+};
+
+photosRoutes.openapi(
+  createRoute({
+    method: 'put',
+    path: '/api/members/{id}/picture',
+    tags: ['Members'],
+    summary:
+      "Set a member's profile picture: a small square image as the body (image/webp, image/jpeg or image/png, at most 200 KB; the web app sends a 256 px WebP), its size in X-Photo-Width / X-Photo-Height. Replaces their old one. Their emoji avatar and color stay (the fallback and the ring). Parents for anyone; a member's own device (not its widgets) only for them; never a connected app.",
+    security: [{ Bearer: [] }],
+    request: {
+      params: idParam,
+      query: z.object({ from: z.string().optional().openapi({ description: 'The family photo it was cropped from (kept as a reference; the original is not copied).' }) }),
+      headers: z.object({ 'x-photo-width': z.coerce.number().int().min(1).max(4096), 'x-photo-height': z.coerce.number().int().min(1).max(4096) }),
+      body: { required: true, content: Object.fromEntries(MIMES.map((m) => [m, { schema: z.string().openapi({ format: 'binary' }) }])) },
+    },
+    responses: {
+      200: { description: 'ok', content: json(PictureSchema) },
+      400: { description: 'empty body, bad size headers or an unknown album photo', content: json(ErrorSchema) },
+      ...pictureResponses,
+      409: { description: 'photo storage full', content: json(QuotaSchema.extend({ error: z.string() })) },
+      413: { description: 'picture too large', content: json(ErrorSchema) },
+      415: { description: 'not a supported image type', content: json(ErrorSchema) },
+    },
+  }),
+  async (c) => {
+    const { id } = c.req.valid('param');
+    const { from } = c.req.valid('query');
+    const size = c.req.valid('header');
+    const refused = await pictureRefusal(c, id);
+    if (refused) return c.json({ error: refused }, 403);
+    const db = c.env.DB;
+    if (!(await memberExists(db, id))) return c.json({ error: 'not found' }, 404);
+    const mime = (c.req.header('Content-Type') ?? '').split(';')[0].trim().toLowerCase();
+    if (!MIMES.includes(mime)) return c.json({ error: 'Pictures must be WebP, JPEG or PNG' }, 415);
+    const tooBig = { error: `A picture can be at most ${MAX_PICTURE_BYTES / 1024} KB` };
+    if (Number(c.req.header('Content-Length')) > MAX_PICTURE_BYTES) return c.json(tooBig, 413);
+    const data = new Uint8Array(await c.req.arrayBuffer());
+    if (data.byteLength > MAX_PICTURE_BYTES) return c.json(tooBig, 413);
+    if (data.byteLength === 0) return c.json({ error: 'body: empty image' }, 400);
+    if (from && !(await db.prepare('SELECT id FROM photos WHERE id = ? AND family = 1').bind(from).first())) return c.json({ error: 'from: photo not found' }, 400);
+    const row: PhotoRow = {
+      id: crypto.randomUUID(), caption: null, mime, width: size['x-photo-width'], height: size['x-photo-height'], bytes: data.byteLength,
+      member_id: id, created_at: new Date().toISOString(), family: 0, avatar: 1, source_id: from ?? null,
+    };
+    if (!(await insertWithinQuota(db, row, data))) return c.json({ error: 'Photo storage is full — delete some photos first', ...(await quota(db)) }, 409);
+    await db.batch(setPictureStmts(db, id, row.id));
+    emit(c, 'member.changed', { id });
+    return c.json({ picture: pictureUrl(row.id) }, 200);
+  },
+);
+
+photosRoutes.openapi(
+  createRoute({
+    method: 'delete',
+    path: '/api/members/{id}/picture',
+    tags: ['Members'],
+    summary: "Remove a member's profile picture (deleted, not kept); their emoji avatar shows again. Same access as setting it.",
+    security: [{ Bearer: [] }],
+    request: { params: idParam },
+    responses: { 200: { description: 'ok', content: json(PictureSchema) }, ...pictureResponses },
+  }),
+  async (c) => {
+    const { id } = c.req.valid('param');
+    const refused = await pictureRefusal(c, id);
+    if (refused) return c.json({ error: refused }, 403);
+    if (!(await memberExists(c.env.DB, id))) return c.json({ error: 'not found' }, 404);
+    await c.env.DB.batch(setPictureStmts(c.env.DB, id, null));
+    emit(c, 'member.changed', { id });
+    return c.json({ picture: null }, 200);
+  },
+);
+

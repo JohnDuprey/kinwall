@@ -10,11 +10,11 @@ import { todayKeyInTz } from './date.ts'
 import { formatTime } from './timeFormat.ts'
 import MealCalendarSheet from './MealCalendarSheet.tsx'
 import { MemberPicker } from './MemberPicker.tsx'
-import { inkFor } from './color.ts'
 import type { Member } from './types.ts'
 import { MEAL_SLOTS, SLOT_LABEL, mealDayLabel, minutesLabel, recipeTime, servingsLabel, startBy, swapCandidates, swapWindow } from './meal-date.ts'
 import { pickerRecipes } from './recipe-search.ts'
 import type { Meal, MealInput, MealKind, MealSlot, MealStatus, Recipe } from './meal-types.ts'
+import { Face } from './Face'
 
 export type MealDraft = { date: string; slot: MealSlot; recipe?: Recipe }
 
@@ -23,7 +23,7 @@ export function EaterAvatars({ ids, members }: { ids: string[]; members: Member[
   const eaters = members.filter(m => ids.includes(m.id))
   if (!eaters.length) return null
   return <span className="meal-eaters" role="img" aria-label={`Eating: ${eaters.map(m => m.name).join(', ')}`}>
-    {eaters.map(m => <span key={m.id} className="member-avatar-sm" style={{ background: m.color, color: inkFor(m.color) }}>{m.avatar || m.name[0]}</span>)}
+    {eaters.map(m => <Face key={m.id} m={m} />)}
   </span>
 }
 

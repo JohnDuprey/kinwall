@@ -49,6 +49,8 @@ import { announce, pressable, reducedMotion, Segmented } from './a11y.tsx'
 import { FEATURE_ROWS } from './featureConfig.ts'
 import { Brand } from './Brand.tsx'
 import { filterSettings, matchesAll, queryWords, readOpen, writeOpen } from './settingsSearch.ts'
+import { Face } from './Face'
+import { PictureSheet } from './MemberPicture.tsx'
 
 // Mirrors BusEventType in server/src/bus.ts.
 const BUS_EVENTS = ['member.changed', 'calendar.changed', 'calendar.synced', 'events.changed', 'chore.changed', 'chore.completed', 'chore.uncompleted', 'chore.pending', 'chore.rejected', 'checkin.completed', 'tempcheck.changed', 'list.changed', 'list.item.changed', 'category.changed', 'settings.changed', 'sticker.changed', 'reward.changed', 'reward.redeemed', 'reward.approved', 'reward.declined', 'reward.given', 'points.awarded', 'points.removed', 'recipe.changed', 'meal.changed', 'photo.changed', 'tracker.changed', 'newscast.posted', 'newscast.changed', 'contact.changed', 'contact.category.changed', 'display.paired', 'display.night_screen']
@@ -1927,7 +1929,7 @@ function MembersSection({ members, onChanged, toast, canManage = true }: { membe
       <div className="member-row-list">
         {members.map(m => (
           <div key={m.id} className="member-list-item" {...pressable(() => setEdit(m))} aria-label={`Edit ${m.name}`}>
-            <div className="member-avatar-sm" aria-hidden="true" style={{ background: m.color, color: inkFor(m.color) }}>{m.avatar}</div>
+            <Face m={m} aria-hidden="true" />
             <div className="name">{m.name}</div>
           </div>
         ))}
@@ -1944,7 +1946,9 @@ function MembersSection({ members, onChanged, toast, canManage = true }: { membe
 
 function MemberEditSheet({ member, canDelete, onClose, onSaved, toast }: { member: Member | null; canDelete: boolean; onClose: () => void; onSaved: () => void; toast: (m: string, persist?: boolean) => void }) {
   const dialog = useDialog()
-  const checkIns = useApp().settings.features.checkIns // off: Temp check and the journal are hidden (their settings are kept)
+  const { settings: { features: { checkIns } }, members } = useApp() // checkIns off: Temp check and the journal are hidden (their settings are kept)
+  const live = member && (members.find(m => m.id === member.id) ?? member) // its picture changes on its own sheet, saved at once
+  const [picking, setPicking] = useState(false)
   const [transitions, setTransitions] = useState<TransitionReminders>(member?.transitionReminders ?? { on: false, minutes: [], repeat: null, leaveBy: true })
   const [name, setName] = useState(member?.name ?? '')
   const [color, setColor] = useState(member?.color ?? MEMBER_PALETTE[0])
@@ -1989,6 +1993,17 @@ function MemberEditSheet({ member, canDelete, onClose, onSaved, toast }: { membe
         <ColorClashHint color={color} memberId={member?.id ?? null} onPick={setColor} />
       </div>
       <AvatarPicker value={avatar} onChange={setAvatar} />
+      {live && (
+        <div className="field">
+          <label>Picture</label>
+          <div className="picture-row">
+            <Face m={{ ...live, color, avatar }} className="snap-avatar" aria-hidden="true" />
+            <button type="button" className="btn btn-secondary" onClick={() => setPicking(true)}>{live.picture ? 'Change picture' : 'Add a picture'}</button>
+          </div>
+          <p className="field-hint">A family photo, a drawing or a new photo, instead of the emoji. The emoji stays as the backup.</p>
+          {picking && <PictureSheet member={live} onClose={() => setPicking(false)} />}
+        </div>
+      )}
       {canDelete && (
         <div className="field">
           <div className="toggle-row">
