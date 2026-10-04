@@ -1,7 +1,7 @@
 // node --test test/ (npm test). Paint's fill, coloring-page line art and brush helpers.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { beginStroke, endStroke, floodFill, grainAlpha, lineArt, nextHue, packRGBA, rng, sprayDots, strokeTo, type StrokeOpts } from '../src/paintTools.ts'
+import { beginStroke, endStroke, floodFill, grainAlpha, GRAIN, lineArt, nextHue, packRGBA, parseSizes, pencilParams, rng, sizeFor, SIZES, SIZE_NAMES, sprayDots, strokeTo, type StrokeOpts } from '../src/paintTools.ts'
 
 const WHITE = packRGBA('#FFFFFF'), BLACK = packRGBA('#000000'), RED = packRGBA('#FF0000')
 /** A w×h image from rows of characters: '.' white, '#' black, 'g' light gray (anti-aliased edge). */
@@ -87,13 +87,56 @@ test('seeded randomness: same seed, same strokes', () => {
   assert.deepEqual([a(), a(), a()], [b(), b(), b()])
   assert.notEqual(rng(1)(), rng(2)())
   assert.deepEqual(grainAlpha(8, 3), grainAlpha(8, 3))
+  assert.notDeepEqual(grainAlpha(64, 3, 0.1), grainAlpha(64, 3, 0.4))
 })
 
-test('crayon grain: some paper shows through, the wax is slightly see-through', () => {
-  const g = grainAlpha(64, 7)
-  const holes = g.filter(v => v === 0).length / g.length
-  assert.ok(holes > 0.15 && holes < 0.35, String(holes))
-  assert.ok(g.every(v => v === 0 || (v >= 190 && v <= 255)))
+const grainOf = (b: 'crayon' | 'pencil') => { const g = GRAIN[b]; return grainAlpha(64, g.seed, g.holes, g.min) }
+const holesIn = (g: Uint8ClampedArray) => g.filter(v => v === 0).length / g.length
+const mean = (g: Uint8ClampedArray) => g.reduce((a, v) => a + v, 0) / g.length
+
+test('crayon grain: a little paper shows through, the wax is slightly see-through', () => {
+  const g = grainOf('crayon')
+  assert.ok(holesIn(g) > 0.08 && holesIn(g) < 0.22, String(holesIn(g))) // lighter than it was (a quarter holes)
+  assert.ok(g.every(v => v === 0 || (v >= GRAIN.crayon.min && v <= 255)))
+})
+
+test('pencil grain: finer and lighter than crayon, so it builds up over a few passes', () => {
+  const pencil = grainOf('pencil'), crayon = grainOf('crayon')
+  assert.ok(holesIn(pencil) > holesIn(crayon), 'more paper tooth shows')
+  assert.ok(mean(pencil) < mean(crayon), 'less graphite per pass')
+  assert.ok(holesIn(pencil) < 0.45, 'still reads as a line')
+  assert.equal(GRAIN.pencil.up, 1, 'full-size grain: fine, not clumpy')
+})
+
+test('pencil: pressure makes it wider and darker; a finger or mouse gets a medium line', () => {
+  const none = pencilParams(), light = pencilParams(0.1), hard = pencilParams(1)
+  assert.deepEqual(none, pencilParams(0.5))
+  assert.equal(none.width, 1)
+  assert.ok(light.width < none.width && none.width < hard.width)
+  assert.ok(light.alpha < none.alpha && none.alpha < hard.alpha)
+  assert.ok(light.alpha > 0.15 && hard.alpha <= 1, 'a light touch still shows; a hard one never goes past solid')
+  assert.deepEqual(pencilParams(7), hard, 'out of range is clamped')
+  assert.ok(none.alpha < 0.75, 'see-through: strokes build up')
+})
+
+test('sizes: more of them, tiny to huge, each with a name', () => {
+  assert.ok(SIZES.length >= 10)
+  assert.equal(SIZE_NAMES.length, SIZES.length)
+  assert.ok(SIZES.every((s, i) => i === 0 || s > SIZES[i - 1]))
+  assert.ok(SIZES[0] <= 2 && SIZES.at(-1)! >= 90)
+})
+
+test('sizes: each brush remembers its own, with a sensible default', () => {
+  assert.ok(SIZES[sizeFor({}, 'pencil')] < SIZES[sizeFor({}, 'marker')], 'a pencil starts thin')
+  assert.ok(SIZES[sizeFor({}, 'eraser')] > SIZES[sizeFor({}, 'marker')], 'an eraser starts wide')
+  const mem = { ...parseSizes(null), pencil: 7 }
+  assert.equal(sizeFor(mem, 'pencil'), 7)
+  assert.equal(sizeFor(mem, 'marker'), sizeFor({}, 'marker'), 'other brushes keep theirs')
+  assert.deepEqual(parseSizes(JSON.stringify(mem)), mem)
+  assert.deepEqual(parseSizes('not json'), {})
+  assert.deepEqual(parseSizes('[3]'), {})
+  assert.equal(sizeFor({ marker: 99 }, 'marker'), sizeFor({}, 'marker'), 'an old or broken value falls back')
+  assert.equal(sizeFor({ marker: 1.5 }, 'marker'), sizeFor({}, 'marker'))
 })
 
 test('spray: dots land inside the nozzle circle', () => {

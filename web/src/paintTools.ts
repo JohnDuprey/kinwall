@@ -4,7 +4,7 @@
 // scripted drawing comes out the same every time. Per-pixel work happens only for Fill and for
 // importing a page, never on a pointer move.
 
-export type Brush = 'marker' | 'crayon' | 'soft' | 'spray' | 'rainbow' | 'stamp' | 'eraser'
+export type Brush = 'pencil' | 'marker' | 'crayon' | 'soft' | 'spray' | 'rainbow' | 'stamp' | 'eraser'
 export const PAPER = '#FFFFFF'
 
 /** Shapes take the chosen color; emoji stamps bring their own. U+FE0E keeps the heart a shape. */
@@ -35,13 +35,40 @@ export function sprayDots(rand: () => number, cx: number, cy: number, r: number,
   return out
 }
 
-/** Crayon grain: a size×size tile of alpha values, holes (0) where the paper shows through and
- * slightly see-through wax (190-255) elsewhere. Fixed to the paper, like real paper tooth. */
-export function grainAlpha(size: number, seed: number, holes = 0.24): Uint8ClampedArray {
+/** Paper grain: a size×size tile of alpha values, holes (0) where the paper shows through and
+ * slightly see-through color (min-255) elsewhere. Fixed to the paper, like real paper tooth. */
+export function grainAlpha(size: number, seed: number, holes = 0.16, min = 205): Uint8ClampedArray {
   const rand = rng(seed)
   const a = new Uint8ClampedArray(size * size)
-  for (let i = 0; i < a.length; i++) a[i] = rand() < holes ? 0 : 190 + Math.floor(rand() * 66)
+  for (let i = 0; i < a.length; i++) a[i] = rand() < holes ? 0 : min + Math.floor(rand() * (256 - min))
   return a
+}
+/** The grain each textured brush draws through. Crayon: soft clumps of wax (drawn at half size and
+ * smoothed up). Pencil: fine, light graphite that builds up over a few passes. */
+export const GRAIN = {
+  crayon: { seed: 7, holes: 0.16, min: 205, up: 2 },
+  pencil: { seed: 11, holes: 0.3, min: 120, up: 1 },
+}
+
+/** Pencil: a stylus's pressure (0-1; none from a finger or mouse) → line width (× the brush size)
+ * and opacity. Light is thin and faint, hard is wide and dark; no pressure is the middle. */
+export function pencilParams(pressure?: number) {
+  const p = pressure === undefined ? 0.5 : Math.min(1, Math.max(0, pressure))
+  return { width: 0.6 + 0.8 * p, alpha: 0.25 + 0.7 * p }
+}
+
+/** Brush sizes in CSS px, smallest to biggest, and what a screen reader calls them. */
+export const SIZES = [2, 4, 7, 11, 16, 24, 34, 48, 68, 96]
+export const SIZE_NAMES = ['Teeny', 'Tiny', 'Small', 'Medium', 'Big', 'Bigger', 'Huge', 'Giant', 'Enormous', 'Gigantic']
+const DEFAULT_SIZE: Record<Brush, number> = { pencil: 1, marker: 3, crayon: 4, soft: 4, spray: 5, rainbow: 4, stamp: 5, eraser: 5 }
+/** The size (an index into SIZES) each brush was last used at on this device. */
+export type SizeMemory = Partial<Record<Brush, number>>
+export const sizeFor = (mem: SizeMemory, b: Brush) => {
+  const i = mem[b]
+  return Number.isInteger(i) && i! >= 0 && i! < SIZES.length ? i! : DEFAULT_SIZE[b]
+}
+export const parseSizes = (json: string | null): SizeMemory => {
+  try { const v = JSON.parse(json ?? '{}'); return v && typeof v === 'object' && !Array.isArray(v) ? v : {} } catch { return {} }
 }
 
 /** Rainbow brush: the hue moves a third of a degree per CSS pixel drawn. */
@@ -135,19 +162,19 @@ export interface StrokeOpts {
   stamp?: string
   seed?: number
 }
-export interface Stroke extends StrokeOpts { rand: () => number; last: Pt; mid: Pt; hue: number; carry: number; pts: Pt[] }
+export interface Stroke extends StrokeOpts { rand: () => number; last: Pt; mid: Pt; hue: number; carry: number; pts: Pt[]; pressure?: number }
 
 const patterns = new Map<string, CanvasPattern>()
-/** The crayon's paint: the color through the paper's grain, one tile per color (cached). */
-function crayonPaint(ctx: Ctx, color: string): CanvasPattern | string {
-  let p = patterns.get(color)
+/** A crayon's or pencil's paint: the color through the paper's grain, one tile per color (cached). */
+function grainPaint(ctx: Ctx, color: string, brush: keyof typeof GRAIN): CanvasPattern | string {
+  const key = brush + color
+  let p = patterns.get(key)
   if (p) return p
-  // The grain at half size, smoothed up: soft clumps of wax rather than single-pixel salt.
-  const N = 128, n = N / 2
+  const g = GRAIN[brush], n = 64, N = n * g.up
   const small = document.createElement('canvas')
   small.width = small.height = n
   const img = small.getContext('2d')!.createImageData(n, n)
-  const grain = grainAlpha(n, 7)
+  const grain = grainAlpha(n, g.seed, g.holes, g.min)
   for (let i = 0; i < grain.length; i++) img.data[i * 4 + 3] = grain[i]
   small.getContext('2d')!.putImageData(img, 0, 0)
   const tile = document.createElement('canvas')
@@ -160,7 +187,7 @@ function crayonPaint(ctx: Ctx, color: string): CanvasPattern | string {
   p = ctx.createPattern(tile, 'repeat') ?? undefined
   if (!p) return color
   if (patterns.size > 64) patterns.clear()
-  patterns.set(color, p)
+  patterns.set(key, p)
   return p
 }
 
@@ -168,8 +195,29 @@ const inkOf = (s: Stroke) => s.brush === 'eraser' ? PAPER : s.brush === 'rainbow
 const SOFT_ALPHA = 0.4
 
 function dot(ctx: Ctx, s: Stroke, p: Pt) {
-  ctx.fillStyle = s.brush === 'crayon' ? crayonPaint(ctx, s.color) : inkOf(s)
-  ctx.beginPath(); ctx.arc(p[0], p[1], s.width / 2, 0, Math.PI * 2); ctx.fill()
+  const pencil = s.brush === 'pencil' ? pencilParams(s.pressure) : null
+  ctx.fillStyle = s.brush === 'crayon' || s.brush === 'pencil' ? grainPaint(ctx, s.color, s.brush) : inkOf(s)
+  ctx.globalAlpha = pencil?.alpha ?? 1
+  ctx.beginPath(); ctx.arc(p[0], p[1], s.width * (pencil?.width ?? 1) / 2, 0, Math.PI * 2); ctx.fill()
+  ctx.globalAlpha = 1
+}
+/** The pen for a line brush's next bit of stroke. A pencil is see-through, so its pieces meet end
+ * to end (butt caps) instead of overlapping in darker beads; the midpoint curves join smoothly. */
+function pen(ctx: Ctx, s: Stroke) {
+  ctx.lineJoin = 'round'
+  ctx.lineCap = s.brush === 'pencil' ? 'butt' : 'round'
+  if (s.brush === 'crayon') {
+    ctx.strokeStyle = grainPaint(ctx, s.color, 'crayon')
+    ctx.lineWidth = s.width * (0.82 + s.rand() * 0.3) // a wax stick's uneven edge
+  } else if (s.brush === 'pencil') {
+    const k = pencilParams(s.pressure)
+    ctx.strokeStyle = grainPaint(ctx, s.color, 'pencil')
+    ctx.lineWidth = s.width * k.width
+    ctx.globalAlpha = k.alpha
+  } else {
+    ctx.strokeStyle = inkOf(s)
+    ctx.lineWidth = s.width
+  }
 }
 function spray(ctx: Ctx, s: Stroke, p: Pt) {
   const r = Math.max(s.width * 1.2, 6 * s.ratio), d = Math.max(1, s.ratio * 1.2)
@@ -193,9 +241,9 @@ function softPath(wet: Ctx, s: Stroke) {
 
 /** Start a stroke at `p` (a tap leaves a dot, a spray puff or a stamp). `wet` is a same-size
  * canvas above the drawing that shows the Soft brush's stroke until it's finished. */
-export function beginStroke(ctx: Ctx, wet: Ctx | null, o: StrokeOpts, p: Pt): Stroke {
+export function beginStroke(ctx: Ctx, wet: Ctx | null, o: StrokeOpts, p: Pt, pressure?: number): Stroke {
   const rand = rng(o.seed ?? (Math.random() * 2 ** 32))
-  const s: Stroke = { ...o, rand, last: p, mid: p, hue: rand() * 360, carry: 0, pts: [p] }
+  const s: Stroke = { ...o, rand, last: p, mid: p, hue: rand() * 360, carry: 0, pts: [p], pressure }
   if (o.brush === 'stamp') {
     const px = Math.max(o.width * 2.5, 28 * o.ratio)
     ctx.font = `${px}px system-ui, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`
@@ -208,9 +256,11 @@ export function beginStroke(ctx: Ctx, wet: Ctx | null, o: StrokeOpts, p: Pt): St
   return s
 }
 
-export function strokeTo(ctx: Ctx, wet: Ctx | null, s: Stroke, p: Pt) {
+/** `pressure`: a stylus's, smoothed a little so the line doesn't jump in width. */
+export function strokeTo(ctx: Ctx, wet: Ctx | null, s: Stroke, p: Pt, pressure?: number) {
   const dist = Math.hypot(p[0] - s.last[0], p[1] - s.last[1])
   if (s.brush === 'stamp' || dist === 0) return
+  if (pressure !== undefined) s.pressure = s.pressure === undefined ? pressure : s.pressure * 0.6 + pressure * 0.4
   if (s.brush === 'soft') { s.pts.push(p); s.last = p; if (wet) softPath(wet, s); return }
   if (s.brush === 'spray') {
     // A puff every few pixels along the way; `carry` keeps the spacing even across pointer events.
@@ -223,15 +273,9 @@ export function strokeTo(ctx: Ctx, wet: Ctx | null, s: Stroke, p: Pt) {
   }
   // Smooth: a quadratic from the previous midpoint, through the last point, to the new midpoint.
   const mid: Pt = [(s.last[0] + p[0]) / 2, (s.last[1] + p[1]) / 2]
-  ctx.lineCap = ctx.lineJoin = 'round'
-  if (s.brush === 'crayon') {
-    ctx.strokeStyle = crayonPaint(ctx, s.color)
-    ctx.lineWidth = s.width * (0.82 + s.rand() * 0.3) // a wax stick's uneven edge
-  } else {
-    ctx.strokeStyle = inkOf(s)
-    ctx.lineWidth = s.width
-  }
+  pen(ctx, s)
   ctx.beginPath(); ctx.moveTo(s.mid[0], s.mid[1]); ctx.quadraticCurveTo(s.last[0], s.last[1], mid[0], mid[1]); ctx.stroke()
+  ctx.globalAlpha = 1
   if (s.brush === 'rainbow') s.hue = nextHue(s.hue, dist / s.ratio)
   s.last = p; s.mid = mid
 }
@@ -253,8 +297,9 @@ export function endStroke(ctx: Ctx, wet: Ctx | null, s: Stroke) {
   }
   if (s.brush === 'stamp' || s.brush === 'spray') return
   if (s.last[0] === s.mid[0] && s.last[1] === s.mid[1]) return
-  ctx.strokeStyle = s.brush === 'crayon' ? crayonPaint(ctx, s.color) : inkOf(s)
+  pen(ctx, s)
   ctx.beginPath(); ctx.moveTo(s.mid[0], s.mid[1]); ctx.lineTo(s.last[0], s.last[1]); ctx.stroke()
+  ctx.globalAlpha = 1
 }
 
 /** Scripted strokes (the demo drawings): each one a list of points, drawn as if by a finger. */

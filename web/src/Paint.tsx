@@ -18,7 +18,7 @@ import { countDrawings, deleteDrawing, getDrawing, listDrawings, putDrawing, typ
 import { BookIcon, BucketIcon, ChevronLeft, DownloadIcon, EditIcon, EraserIcon, HeartIcon, ImagesIcon, PlusIcon, PrinterIcon, RedoIcon, TrashIcon, UndoIcon } from './icons.tsx'
 import { preparePhoto } from './photos.ts'
 import { api, ApiError } from './api.ts'
-import { beginStroke, endStroke, floodFill, packRGBA, PAPER, STAMPS, strokeTo, drawStroke, type Brush, type Stroke } from './paintTools.ts'
+import { beginStroke, endStroke, floodFill, packRGBA, PAPER, parseSizes, SIZE_NAMES, SIZES, sizeFor, STAMPS, strokeTo, drawStroke, type Brush, type Stroke } from './paintTools.ts'
 import ColoringBook from './ColoringBook.tsx'
 
 // The Colors sheet, one row each: bright, pastel (the member palette), dark, skin tones and browns,
@@ -34,8 +34,6 @@ const PRESETS = PALETTE.flat().map(([hex]) => hex)
 const nameOf = (hex: string) => PALETTE.flat().find(([h]) => h.toLowerCase() === hex.toLowerCase())?.[1] ?? 'Your color'
 const RECENT_KEY = 'kinwall.paint.recentColors' // this device's last few "any color" picks
 const loadRecent = (): string[] => { try { return JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]') } catch { return [] } }
-const SIZES = [3, 6, 10, 16, 24, 36, 52] // CSS px
-const SIZE_NAMES = ['Tiny', 'Small', 'Medium', 'Big', 'Bigger', 'Huge', 'Giant']
 const MAX_PX = 2048 // longest canvas side: keeps flood fill and PNG encoding quick on an iPad
 const MAX_DRAWINGS = 50
 const UNDO_DEPTH = 20
@@ -44,6 +42,7 @@ const AUTOSAVE_EVERY = 3 // strokes
 type Tool = Brush | 'fill'
 // The Brushes sheet. Eraser and Fill have their own toolbar buttons.
 const BRUSHES: { key: Brush; name: string; emoji: string }[] = [
+  { key: 'pencil', name: 'Pencil', emoji: '✏️' },
   { key: 'marker', name: 'Marker', emoji: '🖊️' },
   { key: 'crayon', name: 'Crayon', emoji: '🖍️' },
   { key: 'soft', name: 'Highlighter', emoji: '🖌️' },
@@ -53,6 +52,8 @@ const BRUSHES: { key: Brush; name: string; emoji: string }[] = [
 ]
 const toolName = (t: Tool, stamp: string) => t === 'fill' ? 'Fill bucket' : t === 'eraser' ? 'Eraser'
   : t === 'stamp' ? `${STAMPS.find(([s]) => s === stamp)?.[1] ?? 'Star'} stamp` : BRUSHES.find(b => b.key === t)!.name
+/** A stylus's pressure; a finger or mouse has none worth using (they report a flat 0.5 or 0/1). */
+const pressureOf = (e: PointerEvent) => e.pointerType === 'pen' && e.pressure > 0 ? e.pressure : undefined
 /** One undo step: the paint, and the coloring page's lines at the same size (or none). */
 type Step = { paint: Blob; lines: Blob | null }
 const ownColor = (t: Tool) => t !== 'eraser' && t !== 'rainbow' // tools that use the chosen color
@@ -62,6 +63,7 @@ const ls = {
   set: (k: string, v: string) => { try { localStorage.setItem(k, v) } catch { /* private mode */ } },
 }
 const CURRENT_KEY = 'kinwall:paint:current'
+const SIZES_KEY = 'kinwall:paint:sizes' // each brush's last size on this device
 const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8) // randomUUID needs https; LAN installs may be http
 const COUNT_KEY = 'kinwall:paint:n' // numbers "Drawing 3"; bumped when a drawing is first stored, so blank pages don't use one up
 function newMeta(): Meta {
@@ -119,7 +121,8 @@ export default function Paint() {
   const [brushes, setBrushes] = useState(false)
   const [book, setBook] = useState(false)
   const [color, setColor] = useState('#4DA3FF')
-  const [size, setSize] = useState(2)
+  const [sizes, setSizes] = useState(() => parseSizes(ls.get(SIZES_KEY)))
+  const [sizing, setSizing] = useState(false)
   const [meta, setMetaState] = useState<Meta | null>(null)
   const [, setHistTick] = useState(0)
   const [gallery, setGallery] = useState(false)
@@ -371,7 +374,7 @@ export default function Paint() {
     const p = point(e)
     if (tool === 'fill') { fill(cv, p.map(Math.floor)); return }
     try { cv.setPointerCapture(e.pointerId) } catch { /* pointer already gone */ }
-    r.stroke = { id: e.pointerId, s: beginStroke(cv.getContext('2d')!, wet(), { brush: tool, color, width: SIZES[size] * r.ratio, ratio: r.ratio, stamp }, p) }
+    r.stroke = { id: e.pointerId, s: beginStroke(cv.getContext('2d')!, wet(), { brush: tool, color, width: SIZES[sizeFor(sizes, tool)] * r.ratio, ratio: r.ratio, stamp }, p, pressureOf(e.nativeEvent)) }
   }
   const onMove = (e: ReactPointerEvent<HTMLCanvasElement>) => {
     const st = r.stroke
@@ -379,7 +382,7 @@ export default function Paint() {
     const ctx = e.currentTarget.getContext('2d')!
     // Coalesced events: an Apple Pencil reports ~240 Hz, far more than one per frame.
     const coalesced = e.nativeEvent.getCoalescedEvents?.()
-    for (const ev of coalesced?.length ? coalesced : [e.nativeEvent]) strokeTo(ctx, wet(), st.s, point(ev))
+    for (const ev of coalesced?.length ? coalesced : [e.nativeEvent]) strokeTo(ctx, wet(), st.s, point(ev), pressureOf(ev))
   }
   const onUp = (e: ReactPointerEvent<HTMLCanvasElement>) => {
     const st = r.stroke
@@ -467,6 +470,18 @@ export default function Paint() {
     if (t !== 'fill' && ownColor(t)) r.lastBrush = t
   }
   const brush = BRUSHES.find(b => b.key === tool)
+  // Sizes belong to a brush (the eraser too); Fill has none, so the size button shows the last brush's.
+  const sized: Brush = tool === 'fill' ? r.lastBrush : tool
+  const size = sizeFor(sizes, sized)
+  const pickSize = (i: number) => {
+    const next = { ...sizes, [sized]: i }
+    setSizes(next); ls.set(SIZES_KEY, JSON.stringify(next))
+    setSizing(false); announce(`${SIZE_NAMES[i]} ${toolName(sized, stamp).toLowerCase()}`)
+  }
+  // How wide each brush really draws at a size (the highlighter, spray and stamps go wider than the
+  // marker), so the dots match the picture; capped so the biggest still fit the sheet.
+  const drawn = (px: number) => Math.min(140, sized === 'soft' ? px * 2.5 : sized === 'spray' ? px * 2.4 : sized === 'stamp' ? Math.max(px * 2.5, 28) : px)
+  const dotColor = sized === 'eraser' ? PAPER : sized === 'rainbow' ? 'conic-gradient(red, yellow, lime, cyan, blue, magenta, red)' : color
   const pickPage = async (name: string, img: CanvasImageSource & { width: number; height: number }) => {
     await save()
     startNew(name)
@@ -492,14 +507,11 @@ export default function Paint() {
           <button className="paint-btn paint-color-btn" aria-label={`Colors: ${nameOf(color)}`} title="Colors" aria-haspopup="dialog" onClick={() => setColors(true)}>
             <span className="paint-color-dot" style={{ background: color }} aria-hidden="true" />
           </button>
+          <button className="paint-btn" aria-haspopup="dialog" aria-label={tool === 'fill' ? 'Size (Fill has no size)' : `Size: ${SIZE_NAMES[size]}`} title="Size"
+            disabled={tool === 'fill'} onClick={() => setSizing(true)}>
+            <span className="paint-size-dot" style={{ width: Math.max(4, Math.min(SIZES[size], 34)), height: Math.max(4, Math.min(SIZES[size], 34)), background: dotColor }} aria-hidden="true" />
+          </button>
           <button className="paint-btn" aria-haspopup="dialog" aria-label="Coloring pages" title="Coloring pages" onClick={() => setBook(true)}><BookIcon /></button>
-        </div>
-        <div className="paint-group" role="group" aria-label="Brush size">
-          {SIZES.map((s, i) => (
-            <button key={s} className={`paint-btn ${size === i ? 'active' : ''}`} aria-pressed={size === i} aria-label={`${SIZE_NAMES[i]} brush`} title={SIZE_NAMES[i]} onClick={() => setSize(i)}>
-              <span className="paint-size-dot" style={{ width: Math.min(s, 34), height: Math.min(s, 34), background: painting ? color : 'var(--text)' }} aria-hidden="true" />
-            </button>
-          ))}
         </div>
         <div className="paint-group">
           <button className="paint-btn" aria-label="Undo" title="Undo" disabled={!canUndo} onClick={undo}><UndoIcon /></button>
@@ -545,6 +557,19 @@ export default function Paint() {
             ))}
           </div>
           <p className="paint-gallery-note" style={{ marginTop: 12 }}>Tap the picture to stamp. Star, heart, dot and diamond use your color.</p>
+        </Sheet>
+      )}
+
+      {sizing && (
+        <Sheet title={`${toolName(sized, stamp)} size`} onClose={() => setSizing(false)}>
+          <div className="paint-sizes" role="group" aria-label="Sizes">
+            {SIZES.map((px, i) => (
+              <button key={px} className={`paint-size ${size === i ? 'active' : ''}`} aria-pressed={size === i} aria-label={SIZE_NAMES[i]} title={SIZE_NAMES[i]} onClick={() => pickSize(i)}>
+                <span className="paint-size-dot" style={{ width: drawn(px), height: drawn(px), background: dotColor }} aria-hidden="true" />
+              </button>
+            ))}
+          </div>
+          <p className="paint-gallery-note" style={{ marginTop: 12 }}>Each dot shows how big it draws. Every brush, and the eraser, keeps its own size on this device.</p>
         </Sheet>
       )}
 

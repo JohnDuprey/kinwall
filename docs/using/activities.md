@@ -13,16 +13,17 @@ A drawing app for kids. Tap **Activities → Paint**. The canvas fills the scree
 ### Tools
 
 * **Brushes**: the first tool button shows the brush in use. Tap it to pick one. Each brush shows a little stroke it drew in your color:
+  * **Pencil**: thin and lightly grainy, for sketching and outlines. It's see-through, so going over a line again makes it darker. With an Apple Pencil or another stylus, pressing harder draws a wider, darker line.
   * **Marker**: round and smooth.
-  * **Crayon**: waxy, with paper showing through the grain. Going over the same spot again makes it darker.
+  * **Crayon**: waxy, with a little paper showing through the grain. Going over the same spot again makes it darker.
   * **Highlighter**: wide and see-through. It tints what's under it instead of covering it.
   * **Spray**: a cloud of dots, like an airbrush.
   * **Rainbow**: the color changes as you draw.
-  * **Stamps**: tap the picture to place one. Star, heart, dot and diamond use your color; the flower, butterfly, dog, cat, fish, rocket, rainbow and apple bring their own. The size dots set how big a stamp is.
+  * **Stamps**: tap the picture to place one. Star, heart, dot and diamond use your color; the flower, butterfly, dog, cat, fish, rocket, rainbow and apple bring their own. The size sets how big a stamp is.
 * **Eraser**: paints white paper back. On a coloring page it never erases the page's lines.
 * **Fill bucket**: tap an area to fill it with the chosen color. It also covers most of the soft edge along a line, so outlines don't leave a white ring. On a coloring page the page's lines hold the fill in.
 * **Coloring pages**: the book button. See [Coloring pages](#coloring-pages).
-* **Sizes**: seven dots, from Tiny to Giant.
+* **Size**: the dot after the Colors button shows the size in use. Tap it for ten sizes, from Teeny to Gigantic, each drawn as big as it paints. Each brush, and the eraser, keeps its own size on that device, so the pencil stays thin while the eraser stays wide. Fill has no size.
 * **Colors**: the round button after the tools shows the current color. Tap it for forty colors in rows: bright, pastel, dark, skin tones and browns, and grays. **Any color** opens the device's color picker (a color wheel on most devices), and the last seven picked that way are kept on that device. Picking a color while the eraser or rainbow brush is on switches back to the last brush that uses your color.
 * **Undo / Redo**: up to 20 steps. With a keyboard, use Ctrl/⌘+Z and Ctrl/⌘+Shift+Z (or Ctrl+Y).
 * **Clear**: wipes the picture after you confirm. You can undo a clear.

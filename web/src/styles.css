@@ -2105,6 +2105,9 @@ a.activity-card:active { transform: scale(0.98); }
 .paint-btn:disabled { opacity: 0.35; }
 .paint-btn:active:not(:disabled) { transform: scale(0.94); }
 .paint-size-dot { border-radius: 50%; display: block; min-width: 3px; min-height: 3px; box-shadow: 0 0 0 1px var(--border); }
+.paint-sizes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.paint-size { min-width: 56px; min-height: 56px; padding: 8px; display: grid; place-items: center; border: 3px solid transparent; border-radius: var(--radius-sm); background: #fff; color: var(--text); }
+.paint-size.active { border-color: var(--accent-strong); outline: 3px solid var(--text); outline-offset: 2px; }
 .paint-brush-emoji { font-size: 1.5rem; line-height: 1; }
 /* Brushes sheet: each brush as a sample stroke it drew itself, plus its name; then the stamps. */
 .paint-brushes { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: var(--gap); }
@@ -3291,7 +3294,7 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
   :where(.btn-primary, .btn-danger, .swipe-delete, .icon-btn, .fab, .today-btn, .segmented button, .tab-btn, .nav-rail-btn, .who-btn,
     .family-row, .family-pick, .board-tile, .snap-row, .shop-row, .board-empty-tap, .notif-item, .member-list-item, .cal-list-item,
     .schedule-item, .month-cell, .list-item-row, .lists-section-head, .add-row-btn, .trk-book-main, .trk-visit-main, .trk-memory, .lib-book,
-    .activity-card, .recipe-step, .note, .more-row, .setup-chore-tap, .catalog-row-main, .paint-brush-tile, .paint-stamp, .settings-acc-btn, button.profile-bonus-row):not(:disabled, .active):hover {
+    .activity-card, .recipe-step, .note, .more-row, .setup-chore-tap, .catalog-row-main, .paint-brush-tile, .paint-stamp, .paint-size, .settings-acc-btn, button.profile-bonus-row):not(:disabled, .active):hover {
     background-image: linear-gradient(color-mix(in srgb, var(--text) 8%, transparent) 0 0);
   }
   /* Switches: a soft accent ring (the dark "off" track keeps its own inset ring). */
