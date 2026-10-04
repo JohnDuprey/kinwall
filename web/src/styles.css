@@ -1260,14 +1260,14 @@ button.month-cell .month-daynum { flex: none; }
 .lists-shell-phone { flex-direction: column; overflow-y: auto; padding-bottom: calc(60px + 22px + var(--safe-b) + 16px); }
 /* Beside the side rail the panes run to the bottom edge, clear of the home indicator. */
 .app-shell-rail .lists-shell:not(.lists-shell-phone) { padding-bottom: calc(var(--gap) + var(--safe-b)); }
-/* A short screen beside the rail (a 10" tablet on its side): the selected list scrolls as one with its
-   add bar sticky, like phone landscape below, rather than a fixed header over a sliver of rows. */
-@media (orientation: landscape) and (min-height: 501px) and (max-height: 760px) {
+/* A short screen beside the rail (a phone or a 10" tablet on its side): the selected list scrolls as one
+   with its add bar sticky, rather than a fixed header over a sliver of rows. */
+@media (orientation: landscape) and (max-height: 760px) {
   .app-shell-rail .list-detail { overflow-y: auto; padding-bottom: 76px; } /* last row clears the FAB */
   .app-shell-rail .list-detail:has(.list-checkout-bar) { padding-bottom: 0; } /* the sticky Checkout bar sits on the bottom edge and clears it */
   .app-shell-rail .list-detail .list-items { flex: none; overflow: visible; }
   .app-shell-rail .list-detail .list-add-bar { top: calc(var(--gap) * -1.2); margin-top: calc(var(--gap) * -1.2); padding-top: calc(var(--gap) * 1.2 + 2px); }
-  /* Chores too: the header, leaderboard, days and approvals scroll away with the columns, as on a phone on its side. */
+  /* Chores too: the header, leaderboard, days and approvals scroll away with the columns. */
   .app-shell-rail .chores-scroll { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain; }
   .app-shell-rail .chores-scroll > .chore-columns { flex: none; }
 }
@@ -2221,7 +2221,7 @@ a.activity-card:active { transform: scale(0.98); }
 .header .header-left { flex-shrink: 100; min-width: min-content; }
 .header .clock { white-space: nowrap; }
 .header-right .member-filter-row { min-width: 0; flex-shrink: 1; }
-@media (min-width: 601px) and (max-width: 900px) { .header .header-right { gap: 8px; } .header-right .member-filter-row { --avatar: 48px; gap: 8px; } }
+@media (min-width: 601px) and (max-width: 900px) and (min-height: 501px) { .header .header-right { gap: 8px; } .header-right .member-filter-row { --avatar: 48px; gap: 8px; } }
 .header-bell { position: relative; flex-shrink: 0; }
 .header-right .icon-btn.header-timer-on { width: auto; padding: 0 12px 0 10px; gap: 6px; border-radius: 999px; display: inline-flex; align-items: center; }
 .header-timer-clock { font-weight: 800; font-variant-numeric: tabular-nums; }
@@ -2985,24 +2985,33 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
   .header-right .icon-btn { width: 44px; height: 44px; }
   :root[data-view="board"] .header .header-left { min-height: 36px; }
 
-  .nav-rail { gap: 2px; padding-top: calc(var(--safe-t) + 6px); padding-bottom: max(6px, var(--safe-b)); }
-  .nav-rail-btn { gap: 2px; padding: 4px 2px; font-size: 0.625rem; min-height: 44px; }
+  /* Up to ten screens can't stack as 44px targets in ~370px, so the rail has two columns sized to their
+     labels (larger text widens it rather than spilling), with Settings across the foot; it still scrolls
+     if something doesn't fit. */
+  .nav-rail { display: grid; grid-template-columns: repeat(2, minmax(44px, auto)); align-content: start; gap: 2px; padding-top: calc(var(--safe-t) + 6px); padding-bottom: max(6px, var(--safe-b)); overscroll-behavior-y: contain; }
+  .nav-rail-left, .nav-rail-right { width: auto; }
+  .nav-rail-btn { gap: 2px; padding: 4px 3px; font-size: 0.625rem; min-height: 44px; white-space: nowrap; }
+  .nav-rail-btn:last-child { grid-column: 1 / -1; margin-top: 4px; }
   .nav-rail-btn svg { width: 22px; height: 22px; }
   .nav-badge { top: 0; }
   .app-shell-rail .content { padding-bottom: 0; }
   .app-shell-rail .fab { width: 52px; height: 52px; bottom: max(10px, var(--safe-b)); }
 
-  /* Lists: the selected list scrolls as one (its add bar is sticky), not a fixed header over a sliver of items. */
+  /* Lists: the selected list scrolls as one (the short-landscape block under Lists), and slimmer cards
+     and a slimmer Checkout bar leave rows in view. */
   .lists-shell { padding-bottom: 0; }
   .lists-col { padding-bottom: calc(var(--safe-b) + 12px); }
-  .list-detail { overflow-y: auto; margin-bottom: 8px; padding-bottom: 76px; } /* last row clears the FAB */
-  .list-detail .list-items { flex: none; overflow: visible; }
-  /* Stuck, the add bar covers the pane's top padding too, so rows don't peek out above it. */
-  .list-detail .list-add-bar { top: calc(var(--gap) * -1.2); margin-top: calc(var(--gap) * -1.2); padding-top: calc(var(--gap) * 1.2 + 2px); }
+  .list-detail { gap: 6px; }
+  .app-shell-rail .list-detail .list-add-bar { margin-top: -6px; } /* the tighter gap, so it doesn't ride over Edit */
+  .list-card { min-height: 0; padding-top: 6px; padding-bottom: 6px; }
+  .lists-section-head { padding-top: 2px; }
+  .list-checkout-bar { padding: 6px 0 2px; }
+  .list-checkout-btn { min-height: 44px; padding-top: 6px; padding-bottom: 6px; }
 
   /* Calendar: a tighter toolbar, and month rows keep a readable height and scroll instead of squashing. */
   .calendar-toolbar { padding: 4px var(--pad); gap: 6px; }
   .calendar-toolbar .segmented { padding: 3px; }
+  .calendar-toolbar > .segmented { min-width: 0; max-width: 100%; overflow-x: auto; } /* at large text the views scroll sideways rather than push paging off screen */
   .calendar-toolbar .segmented button { padding: 6px 10px; font-size: 0.8125rem; min-height: 38px; }
   .calendar-toolbar .icon-btn { width: 40px; height: 40px; }
   .today-btn { padding: 7px 12px; font-size: 0.8125rem; min-height: 38px; }
@@ -3012,9 +3021,6 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
   .week-header-cell, button.week-header-cell { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 4px; }
   .week-header-cell .dn { margin: 0; font-size: 1.0625rem; }
   .week-header-cell.today .dn { width: 28px; height: 28px; margin: 0; }
-
-  .chores-scroll { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain; }
-  .chores-scroll > .chore-columns { flex: none; }
 
   /* Sheets: nearly full height, header and close button always in view, the body scrolls. */
   .sheet-backdrop { padding: 0 var(--safe-r) 0 var(--safe-l); }
