@@ -96,6 +96,7 @@ async function house() {
   const { lines, at } = await p.page('house')
   p.fill('#7AB8FF', at(400, 40)) // sky
   p.stroke('crayon', '#4DA3FF', 'huge', scribble(...at(200, 20), ...at(540, 110), 40), 4) // scribbled more sky on top
+  p.fill('#7ED9A6', at(600, 560)) // grass, then crayon over it
   p.stroke('crayon', '#34C759', 'huge', scribble(...at(-20, 528), ...at(820, 600), 24), 3) // grass
   p.fill('#FFD166', at(110, 100)) // sun
   p.fill('#FF9E7A', at(240, 450)) // walls

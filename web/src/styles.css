@@ -2132,6 +2132,7 @@ a.activity-card:active { transform: scale(0.98); }
 .paint-tool-fill { cursor: cell; }
 .paint-gallery-note { margin: 0 0 12px; color: var(--text-dim); font-weight: 600; font-size: 0.875rem; }
 .paint-gallery { list-style: none; margin: 14px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--gap); }
+.paint-palette-title + .paint-gallery { margin-top: 0; }
 .paint-gallery-item { background: var(--bg-alt); border-radius: var(--radius-sm); padding: 8px; display: flex; flex-direction: column; gap: 6px; border: 3px solid transparent; }
 .paint-gallery-item.current { border-color: var(--accent-strong); }
 .paint-gallery-open { display: flex; flex-direction: column; gap: 2px; padding: 0; border: none; background: none; color: var(--text); text-align: left; }

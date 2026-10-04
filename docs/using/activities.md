@@ -34,7 +34,15 @@ Rotating the device or resizing the window rescales the picture to fit instead o
 
 ### Coloring pages
 
-Tap the book button (or **Coloring page** in **My drawings**) to pick a page: a cat, a house, a garden, a rocket, a dinosaur, a castle, a fish, a car, a butterfly or an ice cream cone. Picking one starts a new drawing named after the page.
+Tap the book button (or **Coloring page** in **My drawings**) to pick a page. There are sixteen, in groups:
+
+* **Animals**: a cat, a dog, a dinosaur, a unicorn, a fish and a butterfly.
+* **Things that go**: a car, a train and a rocket in space.
+* **Places and nature**: a house, a castle and a rainbow garden.
+* **Treats**: a cupcake and an ice cream cone.
+* **Seasons**: a pumpkin and a snowman.
+
+Each page has a frame and bold, closed outlines, so **Fill** colors one area at a time (the sky, the grass, a window) without spilling into the next. Picking a page starts a new drawing named after it.
 
 The page's lines sit on their own layer on top of the picture, so coloring never covers them, **Fill** stays inside them, and **Clear** wipes only the coloring. The drawing keeps its page when it's saved, opened again or copied, and **Save to family photos**, **Save** and **Print** use the whole picture, lines and all.
 

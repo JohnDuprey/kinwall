@@ -7,7 +7,7 @@ import { useDialog } from './dialog.tsx'
 import { announce } from './a11y.tsx'
 import Sheet from './Sheet.tsx'
 import { api, ApiError } from './api.ts'
-import { COLORING_PAGES, pageUrl } from './coloringPages.ts'
+import { COLORING_PAGES, PAGE_CATEGORIES, pageUrl } from './coloringPages.ts'
 import { lineArt } from './paintTools.ts'
 import { MAX_PHOTO_BYTES } from './photos.ts'
 import { openPdf } from './pdf.ts'
@@ -49,16 +49,19 @@ export default function ColoringBook({ onClose, onPick }: { onClose: () => void;
   return (
     <Sheet title="Coloring pages" onClose={onClose}>
       <p className="paint-gallery-note">Pick a page to color. Its lines stay on top, and Fill stays inside them.</p>
-      <ul className="paint-gallery paint-pages">
-        {COLORING_PAGES.map(p => (
-          <li key={p.id} className="paint-gallery-item">
-            <button className="paint-gallery-open" disabled={busy} onClick={() => choose(p.name, pageUrl(p.svg))} aria-label={`Color the ${p.name} page`}>
-              <img src={pageUrl(p.svg)} alt="" />
-              <span className="paint-gallery-name"><span aria-hidden="true">{p.emoji}</span> {p.name}</span>
-            </button>
-          </li>
-        ))}
-      </ul>
+      {PAGE_CATEGORIES.map(cat => <section key={cat} aria-label={cat}>
+        <h3 className="paint-palette-title">{cat}</h3>
+        <ul className="paint-gallery paint-pages">
+          {COLORING_PAGES.filter(p => p.category === cat).map(p => (
+            <li key={p.id} className="paint-gallery-item">
+              <button className="paint-gallery-open" disabled={busy} onClick={() => choose(p.name, pageUrl(p.svg))} aria-label={`Color the ${p.name} page`}>
+                <img src={pageUrl(p.svg)} alt="" loading="lazy" />
+                <span className="paint-gallery-name"><span aria-hidden="true">{p.emoji}</span> {p.name}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </section>)}
       {!!pages?.length && <>
         <h3 className="paint-palette-title">Our pages</h3>
         <ul className="paint-gallery paint-pages">
