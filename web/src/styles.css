@@ -57,6 +57,26 @@
 /* rem is relative to this, so every text/spacing value expressed in rem scales with it. */
 html { font-size: calc(16px * var(--text-scale)); }
 
+/* A tablet on its side that's short of a wall iPad (an Android tablet's 960×552 web view, a small
+   laptop window): compact sizes whatever the density, so the rail's items and a useful slice of the
+   board fit instead of sitting below the fold. Phones on their side (<= 500px) have their own block. */
+@media (orientation: landscape) and (min-width: 601px) and (min-height: 501px) and (max-height: 640px) {
+  :root, :root[data-density] {
+    --pad: 12px;
+    --gap: 8px;
+    --ctl-h: 44px;
+    --hour-h: 40px;
+    --avatar: 40px;
+    --header-clock: 28px;
+    --header-h: 64px;
+    --tab-h: 52px;
+    --rail-w: 64px;
+  }
+  .nav-rail { gap: 2px; padding-top: calc(var(--safe-t) + 6px); padding-bottom: max(6px, var(--safe-b)); }
+  .nav-rail-btn { gap: 2px; padding: 4px 2px; font-size: 0.6875rem; }
+  .nav-rail-btn svg { width: 22px; height: 22px; }
+}
+
 :root[data-density="compact"] {
   --pad: 12px;
   --gap: 8px;
@@ -2645,17 +2665,21 @@ a.btn { text-decoration: none; } /* a link that looks like a button (the Board's
 @container board (min-width: 620px) {
   .board { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: var(--board-areas-2); }
 }
-@container board (min-width: 880px) {
-  .board {
-    height: 100%; grid-template-columns: var(--board-cols-3, repeat(3, minmax(0, 1fr))); /* a layout sets its own count (boardLayout.ts) */
-    grid-template-rows: var(--board-rows-3); /* from boardAreas(): fits the screen; a card shows the rows that fit */
-    grid-template-areas: var(--board-areas-3);
+/* The full-height three-column board needs a screen with height to share out; shorter than that
+   (an Android tablet on its side) it stays two columns that scroll, rather than squeezing every card. */
+@media (min-height: 641px) {
+  @container board (min-width: 880px) {
+    .board {
+      height: 100%; grid-template-columns: var(--board-cols-3, repeat(3, minmax(0, 1fr))); /* a layout sets its own count (boardLayout.ts) */
+      grid-template-rows: var(--board-rows-3); /* from boardAreas(): fits the screen; a card shows the rows that fit */
+      grid-template-areas: var(--board-areas-3);
+    }
+    .board-tidbit blockquote p, .board-tidbit-body > p { font-size: 0.875rem; }
+    .board-clock, .board-tidbit { padding: 8px 12px; }
+    /* Several tidbit cards share the capped bottom row: each shows what fits, "+2 more" opens the rest. */
+    .board:has(.board-tidbit-extra) .board-tidbit { min-height: 0; }
+    .board-clock .board-card-title { font-size: 0.9375rem; margin-bottom: 2px; }
   }
-  .board-tidbit blockquote p, .board-tidbit-body > p { font-size: 0.875rem; }
-  .board-clock, .board-tidbit { padding: 8px 12px; }
-  /* Several tidbit cards share the capped bottom row: each shows what fits, "+2 more" opens the rest. */
-  .board:has(.board-tidbit-extra) .board-tidbit { min-height: 0; }
-  .board-clock .board-card-title { font-size: 0.9375rem; margin-bottom: 2px; }
 }
 
 .board-time { font-size: 2.5rem; font-size: min(3.25rem, 17cqi); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
