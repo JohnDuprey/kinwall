@@ -399,8 +399,9 @@ button {
   .toolbar-nav:empty { display: none; }
 }
 /* Landscape tablets: with Calendar open the view tabs are wider, so paging and the period take the
-   second row there too (the Day view's "Wednesday, September 30" won't fit beside them at 1024). */
-@media (min-width: 961px) and (max-width: 1150px) {
+   second row there too. Beside the side rail, the Day view's "Wednesday, September 30" needs a
+   1280px-wide screen to fit in one row (an iPad Air's 1180 or a 10" tablet's 1152 at Auto scale don't). */
+@media (min-width: 961px) and (max-width: 1279px) {
   .calendar-toolbar.cal-open { grid-template-columns: 1fr auto; }
   .cal-open .toolbar-end { grid-column: 2; grid-row: 1; }
   .cal-open .toolbar-nav { grid-column: 1 / -1; grid-row: 2; justify-self: end; }
@@ -2668,8 +2669,9 @@ a.btn { text-decoration: none; } /* a link that looks like a button (the Board's
   .board { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: var(--board-areas-2); }
 }
 /* The full-height three-column board needs a screen with height to share out; shorter than that
-   (an Android tablet on its side) it stays two columns that scroll, rather than squeezing every card. */
-@media (min-height: 641px) {
+   (an Android tablet on its side: 552px, or about 662px at its Auto screen scale) it stays two
+   columns that scroll, rather than squeezing every card. iPads on their side (768px and up) keep it. */
+@media (min-height: 700px) {
   @container board (min-width: 880px) {
     .board {
       height: 100%; grid-template-columns: var(--board-cols-3, repeat(3, minmax(0, 1fr))); /* a layout sets its own count (boardLayout.ts) */

@@ -11,7 +11,7 @@
 .meals-search { flex: 1; min-width: 200px; }
 .meal-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .meal-grid-scroll { overflow-x: auto; border-radius: var(--radius); background: var(--card); box-shadow: var(--shadow); }
-.meal-grid { width: 100%; min-width: 720px; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
+.meal-grid { width: 100%; min-width: 640px; border-collapse: separate; border-spacing: 0; table-layout: fixed; } /* fits a 720px-wide portrait tablet (an iPad mini, a 10" tablet at Auto scale) without scrolling sideways */
 .meal-grid th, .meal-grid td { padding: 10px; text-align: left; border-bottom: 1px solid var(--border); vertical-align: top; }
 .meal-grid thead th { font-size: 0.875rem; color: var(--text-dim); }
 .meal-grid th:first-child { width: 130px; }
