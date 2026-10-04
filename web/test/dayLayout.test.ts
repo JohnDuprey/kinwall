@@ -83,4 +83,6 @@ test('hourPx: matches the CSS hour rows, including a phone on its side', () => {
   assert.equal(hourPx('compact'), 40)
   assert.equal(hourPx('comfortable', true), 44, 'styles.css sets --hour-h: 44px for short landscape')
   assert.equal(hourPx('compact', true), 44)
+  assert.equal(hourPx('comfortable', false, true), 40, 'styles.css compacts a short landscape tablet to --hour-h: 40px')
+  assert.equal(hourPx('compact', false, true), 40)
 })

@@ -20,7 +20,7 @@ The night hours (walls resting, reminders held) are a separate card, right after
 | **Color scheme** | Seasonal, one of eighteen skins, or one of the family's own schemes. See [Color schemes](#color-schemes). | Peacock (families set up before keep the look they had: Peach, Sage or Eucalyptus) |
 | **Typeface** | Default (Nunito), Hyperlegible, Dyslexia-friendly, Modern, Playful, Storybook or Handwritten. See [Typeface](#typeface). | Default (Nunito) |
 | **Text size** | Small, Medium, Large, Extra large | Medium |
-| **Density** | Comfortable, Compact (shorter hour rows in the time grid) | Comfortable |
+| **Density** | Comfortable, Compact (shorter hour rows in the time grid). A tablet on its side that's shorter than an iPad (under about 760 pixels tall, like a 10" Android tablet) and a phone on its side always use compact sizes, so the header leaves the screen to the calendar, chores and lists. | Comfortable |
 
 Changes save as you make them, and other devices pick them up within about 30 seconds.
 

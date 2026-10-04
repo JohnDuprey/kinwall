@@ -121,6 +121,7 @@ A strip above the calendar shows what's on now and what's next today, with a cou
 
 * On a wall display it hides when nothing is left today.
 * On a phone it's always two lines, so the screen never jumps. When the day is done it reads "Nothing more today".
+* On a phone on its side it shows on the Board only, leaving the calendar and schedule the height.
 
 You can turn it off per device under [Time cues](../settings/this-display.md#time-cues).
 

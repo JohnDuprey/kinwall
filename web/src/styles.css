@@ -57,10 +57,11 @@
 /* rem is relative to this, so every text/spacing value expressed in rem scales with it. */
 html { font-size: calc(16px * var(--text-scale)); }
 
-/* A tablet on its side that's short of a wall iPad (an Android tablet's 960×552 web view, a small
-   laptop window): compact sizes whatever the density, so the rail's items and a useful slice of the
-   board fit instead of sitting below the fold. Phones on their side (<= 500px) have their own block. */
-@media (orientation: landscape) and (min-width: 601px) and (min-height: 501px) and (max-height: 640px) {
+/* A tablet on its side that's short of a wall iPad (an Android tablet's 960×552 web view, or about
+   1152×662 at its Auto screen scale; a small laptop window): compact sizes whatever the density, so
+   the header leaves the calendar, chores and lists most of the height. iPads on their side (768px
+   and up) keep the full sizes. Phones on their side (<= 500px) have their own block. */
+@media (orientation: landscape) and (min-width: 601px) and (min-height: 501px) and (max-height: 760px) {
   :root, :root[data-density] {
     --pad: 12px;
     --gap: 8px;
@@ -1255,9 +1256,9 @@ button.month-cell .month-daynum { flex: none; }
 
 /* ---------- Lists ---------- */
 .lists-content { padding: 0; display: flex; flex-direction: column; overflow: hidden; }
-.lists-shell { display: flex; gap: var(--gap); padding: var(--gap) var(--pad) calc(60px + 22px + var(--safe-b) + 16px); flex: 1; min-height: 0; }
-.lists-shell-phone { flex-direction: column; overflow-y: auto; }
-/* Beside the side rail there's no bottom tab bar to clear, so the panes run to the bottom edge. */
+.lists-shell { display: flex; gap: var(--gap); padding: var(--gap) var(--pad); flex: 1; min-height: 0; } /* the tab bar sits below .content, so the panes run down to it */
+.lists-shell-phone { flex-direction: column; overflow-y: auto; padding-bottom: calc(60px + 22px + var(--safe-b) + 16px); }
+/* Beside the side rail the panes run to the bottom edge, clear of the home indicator. */
 .app-shell-rail .lists-shell:not(.lists-shell-phone) { padding-bottom: calc(var(--gap) + var(--safe-b)); }
 /* A short screen beside the rail (a 10" tablet on its side): the selected list scrolls as one with its
    add bar sticky, like phone landscape below, rather than a fixed header over a sliver of rows. */
@@ -1266,6 +1267,9 @@ button.month-cell .month-daynum { flex: none; }
   .app-shell-rail .list-detail:has(.list-checkout-bar) { padding-bottom: 0; } /* the sticky Checkout bar sits on the bottom edge and clears it */
   .app-shell-rail .list-detail .list-items { flex: none; overflow: visible; }
   .app-shell-rail .list-detail .list-add-bar { top: calc(var(--gap) * -1.2); margin-top: calc(var(--gap) * -1.2); padding-top: calc(var(--gap) * 1.2 + 2px); }
+  /* Chores too: the header, leaderboard, days and approvals scroll away with the columns, as on a phone on its side. */
+  .app-shell-rail .chores-scroll { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain; }
+  .app-shell-rail .chores-scroll > .chore-columns { flex: none; }
 }
 .lists-col { width: min(320px, 40%); flex-shrink: 0; /* 40%: 200% zoom / XL text on a narrow tablet */ display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
 .lists-shell-phone .lists-col { width: 100%; }
@@ -3019,9 +3023,10 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
   .sheet-header { padding-top: 2px; padding-bottom: 6px; }
   .sheet-body { flex: 1 1 auto; min-height: 0; }
 }
-/* SE-class width: the view switcher and paging wrap to two rows, so the Now/Next ticker stays on
-   the Board (where it fits) rather than leaving the day/week grid a sliver. */
-@media (max-height: 500px) and (orientation: landscape) and (max-width: 759px) {
+/* The view switcher and paging wrap to two rows on a phone on its side (any width up to the rail's
+   900px; past it they share one), so the Now/Next ticker stays on the Board (where it fits) rather
+   than leaving the day/week grid and the schedule a sliver. */
+@media (max-height: 500px) and (orientation: landscape) and (max-width: 959px) {
   :root:not([data-view="board"]) .now-next { display: none; }
 }
 

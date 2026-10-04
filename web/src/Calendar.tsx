@@ -11,7 +11,7 @@ import Sheet from './Sheet.tsx'
 import { BoardViewIcon, NewscastIcon, CalendarIcon, CheckIcon, ChevronDown, ChevronLeft, ChevronRight, DayViewIcon, EyeIcon, ListIcon, ThreeDayViewIcon, EyeOffIcon, FilterIcon, LocationIcon, PlusIcon, RepeatIcon, TrashIcon, EditIcon } from './icons.tsx'
 import { hideLikeThis, NO_FILTER, type CalendarFilter } from './calendarFilter.ts'
 import { IDLE_RESET_EVENT } from './App.tsx'
-import { SHORT_LANDSCAPE, useIsPhone, useMediaQuery } from './useIsPhone.ts'
+import { SHORT_LANDSCAPE, SHORT_TABLET, useIsPhone, useMediaQuery } from './useIsPhone.ts'
 import { announce, pressable, Segmented, useRovingGrid } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
 import { effectiveDensity, useDeviceAppearance } from './useTheme.ts'
@@ -41,7 +41,7 @@ const TASK_LIST_KEY = 'kinwall.taskList' // list the event sheet's "Add task…"
 /** Row height for the density actually applied on this device (household, device override, low-stim). */
 function useHourPx() {
   const { settings } = useApp()
-  return hourPx(effectiveDensity(settings.density, useDeviceAppearance()), useMediaQuery(SHORT_LANDSCAPE))
+  return hourPx(effectiveDensity(settings.density, useDeviceAppearance()), useMediaQuery(SHORT_LANDSCAPE), useMediaQuery(SHORT_TABLET))
 }
 
 function isAllDayOnDate(ev: EventInstance, key: string) {
