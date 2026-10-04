@@ -12,6 +12,7 @@ import { useDialog } from './dialog.tsx'
 import { announce } from './a11y.tsx'
 import Sheet from './Sheet.tsx'
 import { inkFor } from './color.ts'
+import { Face, FacePic } from './Face.tsx'
 import { CustomColorSwatch } from './ColorSwatch.tsx'
 import { IDLE_RESET_EVENT } from './App.tsx'
 import { countDrawings, deleteDrawing, getDrawing, listDrawings, putDrawing, type Drawing, type Meta } from './drawings-db.ts'
@@ -522,9 +523,9 @@ export default function Paint() {
           <button className="paint-btn" aria-label="Save to family photos" title="Save to family photos" disabled={savingPhoto} onClick={saveToPhotos}><HeartIcon /></button>
           <button className="paint-btn" aria-label="Print picture" title="Print" onClick={print}><PrinterIcon /></button>
           {members.length > 0 && (
-            <button className="paint-btn paint-who" aria-label={member ? `Drawing by ${member.name} (change)` : "Who's drawing?"} title="Who's drawing?" onClick={() => setWho(true)}
+            <button className={`paint-btn paint-who${member?.picture ? ' face-has-pic' : ''}`} aria-label={member ? `Drawing by ${member.name} (change)` : "Who's drawing?"} title="Who's drawing?" onClick={() => setWho(true)}
               style={member ? { background: member.color, color: inkFor(member.color) } : undefined}>
-              {member ? (member.avatar || member.name[0]) : <span aria-hidden="true">🙂</span>}
+              {member ? <>{member.avatar || member.name[0]}<FacePic m={member} /></> : <span aria-hidden="true">🙂</span>}
             </button>
           )}
           <button className="paint-name" onClick={rename} aria-label={`Rename ${meta?.name ?? 'drawing'}`}>
@@ -609,7 +610,7 @@ export default function Paint() {
           <div className="who-grid">
             {members.map(m => (
               <button key={m.id} className={`who-btn ${meta?.memberId === m.id ? 'active' : ''}`} aria-pressed={meta?.memberId === m.id} onClick={() => setMember(m.id)}>
-                <span className="who-avatar" aria-hidden="true" style={{ background: m.color, color: inkFor(m.color) }}>{m.avatar || m.name[0]}</span>
+                <Face m={m} className="who-avatar" aria-hidden="true" />
                 {m.name}
               </button>
             ))}
