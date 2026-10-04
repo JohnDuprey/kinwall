@@ -28,6 +28,7 @@ import { CALENDAR_VIEWS, viewLabel } from './calendarViews.ts'
 import { useNavMode, setNavPref, type NavPref } from './useNavMode.ts'
 import { familyNightFields, nightFieldsFor, ownsNight, toNightLook, type NightFields } from './saverSources.ts'
 import { DEFAULT_ACCENT, resolveColors, setDeviceAppearance, useDeviceAppearance, type DeviceAppearance, type LockedView, type SaverSource } from './useTheme.ts'
+import { autoScale, SCREEN_SCALES } from './screenScale.ts'
 import { deviceKindOf, deviceKindValue, parseDeviceKind, wallDefaultsOn, widgetParent, type DeviceKind } from './wallScreen.ts'
 import { PIN_RE } from './quietPin.ts'
 import { baseFromPalette, DEFAULT_SKIN_ID, findSkin, getSkin, OLD_BACKGROUNDS, paletteChecks, paletteOf, seasonalSkinId, tokensFor, type CustomScheme, type Palette } from './skins.ts'
@@ -1858,6 +1859,7 @@ function ThisDisplaySection({ keyName }: { keyName?: string }) {
       )}
       <ScreenFocusRows display={keyName !== undefined} />
       <InstallRow />
+      <ScreenScaleRow />
       <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
         <div className="settings-row-label" aria-hidden="true">Navigation position</div>
         <Segmented label="Navigation position" value={pref} onChange={setNavPref} options={NAV_PREF_OPTIONS} disabled={isPhone} style={isPhone ? { opacity: 0.5 } : undefined} />
@@ -1870,6 +1872,25 @@ function ThisDisplaySection({ keyName }: { keyName?: string }) {
         <button className="btn btn-secondary" onClick={() => addAppTile('night')}>Night screen</button>
       </div>}
     </Section>
+  )
+}
+
+/** How big the whole app is drawn here (screenScale.ts): Auto fits a 10" tablet to the tablet layout. */
+function ScreenScaleRow() {
+  const device = useDeviceAppearance()
+  const auto = Math.round(autoScale(Math.min(screen.width, screen.height)) * 100)
+  return (
+    <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+      <div className="device-pref-row">
+        <span>Screen scale</span>
+        <select className="settings-select" aria-label="Screen scale" value={device.screenScale ?? ''}
+          onChange={e => setDeviceAppearance({ ...device, screenScale: Number(e.target.value) || undefined })}>
+          <option value="">Auto ({auto}%)</option>
+          {SCREEN_SCALES.map(p => <option key={p} value={p}>{p}%</option>)}
+        </select>
+      </div>
+      <div className="settings-row-sub">Makes everything on this screen smaller or bigger. Auto draws a 10" tablet a little smaller so it gets the tablet layout; other screens stay at 100%.</div>
+    </div>
   )
 }
 

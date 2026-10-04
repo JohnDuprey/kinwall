@@ -44,6 +44,7 @@ export type DeviceAppearance = Partial<Pick<Appearance, 'themeMode' | 'textScale
   focusHideShared?: boolean // ...and hides the ones assigned to nobody
   lockView?: LockedView // calendar stays on this view, no switcher
   tidbitCards?: TidbitSettings[] // the Board's quote / fact cards, 1-3 with their own sources (tidbits.ts); absent = the family's one card
+  screenScale?: number // the whole app's size on this device, percent (screenScale.ts SCREEN_SCALES); absent = Auto
   boardLists?: 'counts' | 'full' // the Board's Chores and Due soon: count tiles or full cards; absent = auto (full on a big screen)
   boardLayout?: string // the Board's layout (boardLayout.ts): a preset's id or 'custom' (boardCustom); absent = the default arrangement
   boardCustom?: BoardLayout // this screen's own layout

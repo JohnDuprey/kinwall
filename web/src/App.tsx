@@ -1,5 +1,5 @@
 import { holdAwake } from './wakeLock.ts'
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { encode } from 'uqr'
 import { api, clearKey, getKey, onSynced, setAdminKey, setKey, useOffline, usePoll, useSaveState, ApiError, MOCK } from './api.ts'
 import { dayStartDue } from './medications.ts'
@@ -52,6 +52,7 @@ import { onMinute } from './minuteTick.ts'
 import { shellIsNewer, shellUrl } from './appUpdate.ts'
 import { clockTimeZone } from './timezone.ts'
 import { Brand } from './Brand.tsx'
+import { applyScreenScale, appliedScale } from './screenScale.ts'
 import { Face, FacePic } from './Face'
 
 const NAV_ITEMS = [
@@ -1009,6 +1010,10 @@ function KeyLinkGate({ children }: { children: (urlKey: string | null) => ReactN
   return children(urlKey)
 }
 
+/** In the app the boot mark matches the launch splash's 120dp (styles.css .boot-screen), so under a
+ * Screen scale it's drawn at 120 / scale CSS px to stay that size and not move at the handover. */
+const bootMarkStyle = () => (inNativeApp() && appliedScale() !== 1 ? { '--boot-mark': `${120 / appliedScale()}px` } as CSSProperties : undefined)
+
 /** Blank while the app sorts out a rejected key, but never for good: if it hasn't taken over
  * after a while (offline, a lost message), offer a retry. Reloading gets the app's key again. */
 function WaitForApp() {
@@ -1123,14 +1128,9 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
   const { tick: pollTick, areaTicks, unauthorized, nightScreen } = usePoll(30000, wall ? NIGHT_POLL_MS : 30000, wall)
   const [manualTick, setManualTick] = useState(0)
   // Wall displays can't be zoomed: a pinch from a small hand leaves the wall stuck zoomed in, and
-  // the text-size setting covers legibility there. Phones keep pinch-zoom for accessibility.
-  useEffect(() => {
-    const meta = document.querySelector<HTMLMetaElement>('meta[name="viewport"]')
-    if (!meta) return
-    meta.content = scope === 'display'
-      ? 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover'
-      : 'width=device-width, initial-scale=1.0, viewport-fit=cover'
-  }, [scope])
+  // the text-size setting covers legibility there. Phones keep pinch-zoom for accessibility. The
+  // viewport also carries this device's Screen scale (screenScale.ts).
+  useEffect(() => { applyScreenScale(device.screenScale, scope === 'display') }, [scope, device.screenScale])
 
   const loadCore = useCallback(async () => {
     if (!hasKey) return
@@ -1264,7 +1264,7 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
 
   if (wizardActive === null) {
     return (
-      <div className={`gate-screen boot-screen${inNativeApp() ? ' native' : ''}`} role="main">
+      <div className={`gate-screen boot-screen${inNativeApp() ? ' native' : ''}`} style={bootMarkStyle()} role="main">
         <Brand />
         <div className="boot-below"><div className="gate-loading" role="status"><span className="spinner" aria-hidden="true" /><span className="sr-only">Loading…</span></div></div>
       </div>
@@ -1298,7 +1298,7 @@ function AppRoutes({ urlKey }: { urlKey: string | null }) {
   if (!hasKey) return <PairingGate onKey={banner => { if (banner) setBannerMsg(banner); setHasKey(true) }} />
   if (!settings) {
     return (
-      <div className={`gate-screen boot-screen${inNativeApp() ? ' native' : ''}`} role="main">
+      <div className={`gate-screen boot-screen${inNativeApp() ? ' native' : ''}`} style={bootMarkStyle()} role="main">
         <Brand />
         <div className="boot-below">{loadError ? <div className="state-card">Could not reach the server. Retrying…</div> : <div className="gate-loading" role="status"><span className="spinner" aria-hidden="true" /><span className="sr-only">Loading…</span></div>}</div>
       </div>

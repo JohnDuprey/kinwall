@@ -7,6 +7,7 @@ import { IMPORT_CONTACTS_EVENT, markNativeApp, receiveSharedContacts } from './n
 import { resumeShoppingHash } from './trip.ts'
 import { homeAlias } from './hashQuery.ts'
 import { retryBoot } from './appUpdate.ts'
+import { applyScreenScale } from './screenScale.ts'
 markNativeApp()
 window.addEventListener(IMPORT_CONTACTS_EVENT, e => { receiveSharedContacts((e as CustomEvent).detail) })
 
@@ -70,6 +71,10 @@ try {
   const look = localStorage.getItem('kinwall.lastLook')
   if (look) document.documentElement.style.cssText = look
 } catch { /* storage blocked: styles.css follows the system */ }
+
+// This device's Screen scale (screenScale.ts) before the first render, so a scaled tablet doesn't
+// lay out at 100% first. App re-applies it with the wall-display lock once the key's scope is known.
+try { applyScreenScale(JSON.parse(localStorage.getItem('kinwall.deviceAppearance') || '{}').screenScale, false) } catch { applyScreenScale(undefined, false) }
 
 if (import.meta.env.DEV) import('./skins.ts').then(({ assertSkinsAA }) => assertSkinsAA())
 
