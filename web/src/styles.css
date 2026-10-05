@@ -1820,6 +1820,11 @@ button.month-cell .month-daynum { flex: none; }
 @media (max-width: 600px) { .save-indicator { top: calc(var(--safe-t) + 76px); } }
 /* Inside the iPhone/iPad app the status bar is hidden: no gap under it, just clear of the notch or island. */
 :root[data-native="ios"] .header-phone { padding-top: calc(var(--safe-t) + 4px); }
+/* The full-screen modes' top bars (Shopping, Cooking, Get stuff done) sit under the same status-bar fade
+   as the phone header, so on a phone they get its clearance too; in the app, where the status bar is
+   hidden, they only clear the notch. */
+@media (max-width: 600px) { :root :is(.shop-bar, .cook-bar) { padding-top: calc(var(--safe-t) + 18px); } } /* :root: outranks meals.css, which loads later */
+:root[data-native="ios"] :is(.shop-bar, .cook-bar) { padding-top: calc(var(--safe-t) + 8px); }
 :root[data-native="ios"] .toast.update-banner { top: calc(var(--safe-t) + 8px); }
 @media (max-width: 600px) { :root[data-native="ios"] .save-indicator { top: calc(var(--safe-t) + 62px); } } /* below the phone header row, clear of the family button */
 .authorize-more { margin-top: 14px; text-align: left; }
