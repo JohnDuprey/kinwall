@@ -91,6 +91,9 @@ export function PluginPlayer({ id }: { id: string }) {
           context: {
             member: player ? { id: player.id, name: player.name, avatar: player.avatar, color: player.color } : null,
             theme: themeForPlugin(), textScale: settings.textScale, reducedMotion: reducedMotion(), locale: navigator.language,
+            // A parent's device (full access), whoever is playing: lets a plugin offer grown-up
+            // settings, like a kid's spelling list. Wall screens and kids' devices say false.
+            parent: parentDevice,
           },
         })
       } else if (msg.type === 'load') {
@@ -109,7 +112,7 @@ export function PluginPlayer({ id }: { id: string }) {
     }
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
-  }, [plugin, player, settings.textScale])
+  }, [plugin, player, settings.textScale, parentDevice])
 
   // Playtime for activity chores: only for a named person, only while visible and active.
   const playerId = player?.id
