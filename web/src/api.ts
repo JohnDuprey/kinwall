@@ -407,7 +407,7 @@ export const api = {
   savePluginData: (id: string, member: string, key: string, value: unknown) => MOCK ? mockPlugins.save(id, member, key, value) : put<void>(`api/plugins/${id}/data`, { member, key, value }),
   // Not a tracked save: a background heartbeat shouldn't flash "Saving…". keepalive lets the last one
   // go out as the page closes.
-  sendPlaytime: (id: string, member: string, seconds: number) => MOCK ? Promise.resolve([] as ActivityChoreProgress[])
+  sendPlaytime: (id: string, member: string, seconds: number) => MOCK ? mockPlugins.playtime(id, member, seconds)
     : send<ActivityChoreProgress[]>(`api/plugins/${id}/playtime`, { method: 'POST', body: JSON.stringify({ member, seconds }), keepalive: true }),
   pluginUrl: (p: Pick<Plugin, 'url'>) => apiUrl(p.url.replace(/^\//, '')),
 

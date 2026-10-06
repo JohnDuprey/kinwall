@@ -284,6 +284,7 @@ test('activity chores: link a plugin, heartbeats add up (capped), and complete o
   assert.equal(mine.pluginId, 'sight-words');
 
   // A display key (the wall, a kid's tablet) can send playtime; unknown plugin or member is a 404.
+  // No save comes first: play counts from launch, whether or not the activity saves.
   assert.equal((await play('nobody', 30)).status, 404);
   assert.equal((await json('/api/plugins/nope/playtime', 'POST', { member: alex.id, seconds: 30 })).status, 404);
   let progress = await body(await play(alex.id, 30, display.key));

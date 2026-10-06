@@ -11,6 +11,7 @@ import Sheet from './Sheet.tsx'
 import { AnyEmojiField } from './AnyEmojiField.tsx'
 import { isSingleEmoji } from './emoji.ts'
 import { CheckIcon, PlusIcon } from './icons.tsx'
+import { ActivityRing } from './ActivityRing.tsx'
 import { IDLE_RESET_EVENT } from './App.tsx'
 import { announce, Segmented } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
@@ -225,10 +226,7 @@ function ChoreCard({ chore, onToggle, onEdit }: { chore: ChoreDay; onToggle: () 
         {pending && <div className="chore-waiting">Waiting for OK</div>}
         {notYet && <div className="chore-notyet">{notYet}</div>}
         {actLabel && <div className="chore-pts chore-activity">{actLabel}</div>}
-        {actProgress && <>
-          <div className="chore-activity-bar" aria-hidden="true"><div style={{ width: `${Math.min(1, act!.doneSeconds / act!.needSeconds) * 100}%` }} /></div>
-          <div className="chore-pts">{actProgress}</div>
-        </>}
+        {actProgress && <div className="chore-pts chore-activity-progress"><ActivityRing done={act!.doneSeconds} need={act!.needSeconds} />{actProgress}</div>}
       </div>
     </>
   )

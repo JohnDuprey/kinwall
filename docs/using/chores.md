@@ -69,11 +69,11 @@ Ticks are saved on the list itself. A shared item ticked by one child is ticked 
 
 A chore can be "*N* minutes of an activity", such as **🔤 5 min of Sight words**. Pick the activity and the minutes under **Do an activity (optional)**. Assignment, repeat and points work as for any chore.
 
-* The card shows the activity and the day's progress, for example `🔤 5 min of Sight words · 2 of 5 min` with a small bar.
+* The card shows the activity and the day's progress, for example `🔤 5 min of Sight words` and `2 of 5 min` with a small ring that fills as the minutes add up.
 * **Tap the card** to play. It opens the activity as the chore's person, so there's no **Who's playing?** For an **Anyone** chore, it asks unless the family is filtered to one person.
 * **Tap the check** to tick it off by hand, as with any chore.
-* While playing, the bar at the top shows the chore's progress ("Sight words: 3 of 5 min"). When the time is reached, the chore completes itself with a toast and confetti. There's no sound, because the activity may be speaking.
-* Kinwall does the timing, not the activity. Time counts only while the activity is on screen and being played: it has to have saved progress (for example, an answer) in the last two minutes. Leaving it idle doesn't count, and neither does **Just playing**.
+* While playing, the bar at the top shows the chore's progress ("Sight words: 3 of 5 min") with the same ring, filling second by second. When the time is reached, the ring turns into a check and the chore completes itself with a toast and confetti. There's no sound, because the activity may be speaking.
+* Kinwall does the timing, not the activity. Time counts from the moment the activity opens, while it's on screen, whether or not the activity saves anything. It stops counting after 5 minutes with nothing Kinwall can see happening: no tap or key press on the screen around the activity, no tapping into it, and nothing from the activity itself (an answer saved, a word spoken). Five minutes leaves room to read or think, and a tablet left open earns at most 5 minutes. Any of those starts it counting again. A hidden page doesn't count, and neither does **Just playing**.
 * Play adds up across the day, per person and activity, in the household timezone, up to 4 hours a day. The chore completes once, on a day it's due, and earns its points, events and notifications like a tick. An **Anyone** chore goes to whoever reaches the time first.
 * If the activity is removed or turned off, the card says **Activity not available** and the chore works like a plain one.
 

@@ -1,5 +1,5 @@
 // Dev-only in-memory fixture, used when VITE_MOCK=1. Excluded from prod by the env check in api.ts.
-import type { Actor, OnlineTidbits, Plugin, PluginCatalogEntry,
+import type { ActivityChoreProgress, Actor, OnlineTidbits, Plugin, PluginCatalogEntry,
   Account, ApiKey, AppNotification, SecurityEvent, CalendarEntry, Category, Chore, ChoreDay, LibraryChore, LibraryChoreInput, EventInstance, HiddenEvent, LeaderboardEntry, LeaderboardPeriod, List, ListGroup,
   Newscast, NewscastItem, NewscastPostInput, NewscastReaction,
   Photo, PhotoQuota, FamilyColoringPage, GooglePhotos, TrackerEntry, TrackerInput, TrackerKind, GeocodeResult, BookResult, BarcodeLookup, ReadingDay, LibraryBook, LibraryBookInput, ReadingData, ListItem, ListItemInput, ListItemPatch, ListItemStep, ListCatalog, Member, RememberedItem, RememberedItemInput, Note, NoteTarget, Providers, RemoteCalendar, Settings, Snapshot, SnapshotBirthday, Board, StickerPack, StickerPatch, StickerPlacement, Webhook, Reward, Redemption, PointAward, PointEntry, TempCheck, TempCheckInput, Journal, JournalEntry, Insights, InsightDay, InsightRange, Battery, Medication, MedicationInput, MedicationsDue, MedicationDose, MedicationHistory, DoseStatus, MedTime,
@@ -384,8 +384,12 @@ const chores: Chore[] = [
   { id: 'ch5', title: 'Vacuum living room', emoji: '🧹', memberId: 'm2', points: 15, rrule: 'FREQ=WEEKLY', dueDate: null, dueTime: null, active: true, sort: 4, listId: null, pluginId: null, pluginMinutes: null },
   { id: 'ch6', title: 'Tidy toys', emoji: '🧸', memberId: 'm4', points: 5, rrule: 'FREQ=DAILY', dueDate: null, dueTime: null, active: true, sort: 5, listId: 'l4', pluginId: null, pluginMinutes: null },
   { id: 'ch7', title: 'Bedtime routine', emoji: '🌙', memberId: 'm4', points: 5, rrule: 'FREQ=DAILY', dueDate: null, dueTime: '20:00', active: true, sort: 7, listId: 'l6', pluginId: null, pluginMinutes: null },
+  // An activity chore: tapping the card plays Spelling practice as Maya, and 10 minutes of it ticks it.
+  { id: 'ch8', title: 'Spelling practice', emoji: '🐝', memberId: 'm3', points: 5, rrule: 'FREQ=DAILY', dueDate: null, dueTime: null, active: true, sort: 8, listId: null, pluginId: 'spelling', pluginMinutes: 10 },
 ]
 const completions = new Map<string, { completedAt: string; memberId: string | null }>() // key `${choreId}:${date}`
+// Activity chores' play today, like the server's plugin_playtime: `${date}:${member}:${plugin}` -> seconds.
+const playtime = new Map<string, number>([[`${dateKey(new Date())}:m3:spelling`, 3 * 60]])
 
 // The chore library: occasional jobs, a few due-ish, one already handed out (the dog's bath, Saturday).
 const dayOffset = (n: number) => dateKey(new Date(Date.now() + n * 86_400_000))
@@ -1140,12 +1144,17 @@ export const mock = {
   getHiddenEvents: async (calendarId: string): Promise<HiddenEvent[]> => hiddenEvents.filter(h => h.calendarId === calendarId).sort((a, b) => a.start.localeCompare(b.start)).map(({ key: _, ...h }) => h),
   showHiddenEvent: async (_calendarId: string, hiddenId: string) => { const i = hiddenEvents.findIndex(h => h.id === hiddenId); if (i >= 0) hiddenEvents.splice(i, 1); bump(); return { ok: true } },
 
-  getChoresDay: async (date: string): Promise<ChoreDay[]> => chores.filter(c => c.active && (c.rrule || !c.dueDate || c.dueDate === date)).map(c => {
-    const comp = completions.get(`${c.id}:${date}`)
-    const list = c.listId ? lists.find(l => l.id === c.listId) : undefined
-    const its = list ? listItems.filter(i => i.listId === list.id && (!c.memberId || !i.memberId || i.memberId === c.memberId)) : []
-    return { ...c, completed: !!comp, completedAt: comp?.completedAt ?? null, completedBy: comp?.memberId ?? null, checklist: list ? { listId: list.id, name: list.name, total: its.length, done: its.filter(i => i.done).length } : null, activity: null }
-  }),
+  getChoresDay: async (date: string): Promise<ChoreDay[]> => {
+    const plugins = await installedPlugins()
+    return chores.filter(c => c.active && (c.rrule || !c.dueDate || c.dueDate === date)).map(c => {
+      const comp = completions.get(`${c.id}:${date}`)
+      const list = c.listId ? lists.find(l => l.id === c.listId) : undefined
+      const its = list ? listItems.filter(i => i.listId === list.id && (!c.memberId || !i.memberId || i.memberId === c.memberId)) : []
+      const p = c.pluginId ? plugins.find(x => x.id === c.pluginId) : undefined
+      const activity = c.pluginId ? { pluginId: c.pluginId, name: p?.name ?? null, emoji: p?.emoji ?? null, available: !!p?.enabled, needSeconds: (c.pluginMinutes ?? 5) * 60, doneSeconds: playtime.get(`${date}:${c.memberId}:${c.pluginId}`) ?? 0 } : null
+      return { ...c, completed: !!comp, completedAt: comp?.completedAt ?? null, completedBy: comp?.memberId ?? null, checklist: list ? { listId: list.id, name: list.name, total: its.length, done: its.filter(i => i.done).length } : null, activity }
+    })
+  },
   createChore: async (body: Partial<Chore>) => {
     const nc: Chore = { id: uid(), title: body.title ?? 'New chore', emoji: body.emoji ?? '⭐', memberId: body.memberId ?? null, points: body.points ?? 5, rrule: body.rrule ?? null, dueDate: body.dueDate ?? null, dueTime: body.dueTime ?? null, active: true, sort: chores.length, listId: body.listId ?? null, pluginId: body.pluginId ?? null, pluginMinutes: body.pluginId ? body.pluginMinutes ?? 5 : null, needsApproval: body.needsApproval ?? null, libraryId: body.libraryId ?? null }
     chores.push(nc); bump(); return nc
@@ -1800,6 +1809,18 @@ export const mockPlugins = {
   setEnabled: async (id: string, on: boolean) => { await installedPlugins(); installed!.set(id, on); rev++; return (await installedPlugins()).find(p => p.id === id)! },
   remove: async (id: string) => { await installedPlugins(); installed!.delete(id); for (const k of pluginData.keys()) if (k.startsWith(`${id}:`)) pluginData.delete(k); rev++ },
   load: async (id: string, member: string) => ({ ...pluginData.get(`${id}:${member}`) }),
+  // POST /api/plugins/{id}/playtime: add the seconds, tick the person's chores for it once they're reached.
+  playtime: async (id: string, member: string, seconds: number): Promise<ActivityChoreProgress[]> => {
+    const date = dateKey(new Date()), key = `${date}:${member}:${id}`
+    const total = Math.min((playtime.get(key) ?? 0) + Math.min(Math.floor(seconds), 60), 4 * 3600)
+    playtime.set(key, total)
+    return chores.filter(c => c.active && c.pluginId === id && (c.memberId === member || !c.memberId)).map(c => {
+      const needSeconds = (c.pluginMinutes ?? 5) * 60
+      let completed = completions.has(`${c.id}:${date}`), justCompleted = false
+      if (!completed && total >= needSeconds) { completions.set(`${c.id}:${date}`, { completedAt: new Date().toISOString(), memberId: member }); bump(); completed = justCompleted = true }
+      return { choreId: c.id, title: c.title, emoji: c.emoji, needSeconds, doneSeconds: Math.min(total, needSeconds), completed, justCompleted }
+    })
+  },
   save: async (id: string, member: string, key: string, value: unknown) => {
     const d = pluginData.get(`${id}:${member}`) ?? {}
     if (value === null || value === undefined) delete d[key]; else d[key] = value

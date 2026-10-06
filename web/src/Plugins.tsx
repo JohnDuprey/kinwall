@@ -17,6 +17,8 @@ import { useDialog } from './dialog.tsx'
 import { Confetti } from './Chores.tsx'
 import { frameLive, frameLoaded } from './pluginFrame.ts'
 import { canSpeak, speak, stopSpeaking } from './pluginSpeech.ts'
+import { countsNow } from './playtime.ts'
+import { ActivityRing } from './ActivityRing.tsx'
 import type { ActivityChoreProgress, Member, Plugin, PluginCatalogEntry } from './types.ts'
 import { Face } from './Face'
 
@@ -38,10 +40,9 @@ function themeForPlugin() {
   return theme
 }
 
-// Activity chores: Kinwall times play, not the plugin. A second counts while the page is visible and
-// the plugin saved progress within ACTIVE_MS (idle play doesn't count); the count goes to the server
-// every HEARTBEAT_MS, and when the page hides or the player closes.
-const ACTIVE_MS = 2 * 60_000
+// Activity chores: Kinwall times play, not the plugin, from launch (playtime.ts says which seconds
+// count); the count goes to the server every HEARTBEAT_MS, when the chore's time is reached, and
+// when the page hides or the player closes.
 const HEARTBEAT_MS = 30_000
 const MAX_HEARTBEAT_SECONDS = 45
 
@@ -60,8 +61,10 @@ export function PluginPlayer({ id }: { id: string }) {
   const player = picked !== undefined ? picked : preset ?? (members.length ? undefined : null)
   const frame = useRef<HTMLIFrameElement>(null)
   const [keyboard, setKeyboard] = useState<number | null>(null) // px the on-screen keyboard covers; null while it's down
-  const lastSave = useRef(0) // when the plugin last saved: it's "active" for ACTIVE_MS after
+  const lastActive = useRef(0) // the launch, or the last thing the player saw happen (playtime.ts)
   const [chores, setChores] = useState<ActivityChoreProgress[]>([])
+  const [unsent, setUnsent] = useState(0) // seconds counted but not yet in `chores`, so the chip moves every second
+  const toGo = useRef(Infinity) // seconds left on the chip's chore, to send the moment it's reached
   const [burst, setBurst] = useState(0) // a completed chore's confetti (keyed, so each one replays)
   // A plugin page that navigates its frame somewhere else has left its package: stop it. Only
   // reopening it from Activities starts it again.
@@ -87,6 +90,7 @@ export function PluginPlayer({ id }: { id: string }) {
       if (!frame.current || e.source !== frame.current.contentWindow || !frameLive(frame.current)) return
       const msg = e.data as Msg
       if (!msg || msg.kinwall !== 1) return
+      lastActive.current = Date.now() // any word from the activity means it's in use
       if (msg.type === 'ready') {
         send({
           kinwall: 1, type: 'context',
@@ -108,7 +112,6 @@ export function PluginPlayer({ id }: { id: string }) {
         while (saves.length && now - saves[0] > 10_000) saves.shift()
         if (saves.length >= 30) return reply(msg, false, undefined, 'Saving too often; try again in a moment')
         saves.push(now)
-        lastSave.current = now
         api.savePluginData(plugin.id, msg.shared ? '' : member, msg.key, msg.value).then(() => reply(msg, true), err => reply(msg, false, undefined, err instanceof ApiError ? err.message : String(err)))
       } else if (msg.type === 'speak' && typeof msg.text === 'string') {
         // Answered once it's said (or stopped), so a plugin can wait for the word before praise.
@@ -146,28 +149,36 @@ export function PluginPlayer({ id }: { id: string }) {
     return () => document.documentElement.removeAttribute('data-activity-typing')
   }, [keyboard])
 
-  // Playtime for activity chores: only for a named person, only while visible and active.
+  // Playtime for activity chores: only for a named person, from launch, while visible and in use.
   const playerId = player?.id
   useEffect(() => {
     if (!plugin || !playerId) return
-    lastSave.current = 0
+    lastActive.current = Date.now()
+    // What the player can see of someone playing: a tap or key on the page, or focus moving into
+    // the activity's frame (taps inside the frame itself never reach Kinwall).
+    const touch = () => { lastActive.current = Date.now() }
+    addEventListener('pointerdown', touch, true); addEventListener('keydown', touch, true); addEventListener('blur', touch)
     let counted = 0
     let closed = false
     const flush = () => {
       const seconds = Math.min(counted, MAX_HEARTBEAT_SECONDS)
       counted = 0
+      const sent = () => setUnsent(u => Math.max(0, u - seconds))
       api.sendPlaytime(plugin.id, playerId, seconds).then(list => {
         if (closed) return
-        setChores(list)
+        setChores(list); sent()
         const done = list.filter(c => c.justCompleted)
         if (!done.length) return
         const msg = `🎉 ${done.map(c => c.title).join(' and ')} done!`
         toast(msg); announce(msg); setBurst(b => b + 1); reloadCore()
-      }).catch(() => { /* the next heartbeat carries on; a lost one only costs those seconds */ })
+      }).catch(sent) // the next heartbeat carries on; a lost one only costs those seconds
     }
     flush() // seconds 0: just today's progress, for the chip
     const tick = setInterval(() => {
-      if (document.visibilityState === 'visible' && Date.now() - lastSave.current < ACTIVE_MS) counted++
+      if (!countsNow(document.visibilityState === 'visible', lastActive.current, Date.now())) return
+      counted++
+      setUnsent(u => u + 1)
+      if (toGo.current > 0 && counted >= toGo.current) flush() // done now, not at the next heartbeat
     }, 1000)
     const beat = setInterval(() => { if (counted) flush() }, HEARTBEAT_MS)
     const onVisibility = () => { if (document.visibilityState === 'hidden' && counted) flush() }
@@ -175,13 +186,17 @@ export function PluginPlayer({ id }: { id: string }) {
     return () => {
       if (counted) flush()
       closed = true
-      setChores([])
+      setChores([]); setUnsent(0)
       clearInterval(tick); clearInterval(beat)
       document.removeEventListener('visibilitychange', onVisibility)
+      removeEventListener('pointerdown', touch, true); removeEventListener('keydown', touch, true); removeEventListener('blur', touch)
     }
   }, [plugin, playerId]) // eslint-disable-line react-hooks/exhaustive-deps
   // The chip shows the first chore still to do, else the last one done.
   const chip = chores.find(c => !c.completed) ?? chores[chores.length - 1]
+  const chipDone = chip ? Math.min(chip.needSeconds, chip.doneSeconds + (chip.completed ? 0 : unsent)) : 0
+  const chipToGo = chip && !chip.completed ? chip.needSeconds - chip.doneSeconds : Infinity
+  useEffect(() => { toGo.current = chipToGo }, [chipToGo])
 
   if (plugin === undefined) return null
   if (left) return <div className="state-card">{plugin?.name ?? 'This activity'} tried to leave Kinwall, so it was stopped. <a href="#/activities">Back to Activities</a></div>
@@ -209,8 +224,11 @@ export function PluginPlayer({ id }: { id: string }) {
         <span className="plugin-bar-title"><span aria-hidden="true">{plugin.emoji}</span> {plugin.name}</span>
         {chip && (
           <span className={`plugin-chore-chip ${chip.completed ? 'done' : ''}`} role="status">
-            {chip.emoji && <span aria-hidden="true">{chip.emoji} </span>}
-            {chip.completed ? `${chip.title}: done ✓` : `${chip.title}: ${Math.floor(chip.doneSeconds / 60)} of ${chip.needSeconds / 60} min`}
+            <ActivityRing done={chipDone} need={chip.needSeconds} complete={chip.completed} />
+            <span>
+              {chip.emoji && <span aria-hidden="true">{chip.emoji} </span>}
+              {chip.completed ? `${chip.title}: done ✓` : `${chip.title}: ${Math.floor(chipDone / 60)} of ${chip.needSeconds / 60} min`}
+            </span>
             {burst > 0 && <Confetti key={burst} />}
           </span>
         )}

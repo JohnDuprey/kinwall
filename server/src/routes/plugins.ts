@@ -443,8 +443,9 @@ pluginsRoutes.openapi(
 );
 
 // Activity chores ("5 min of Sight words"). Kinwall times play, not the plugin: the player counts
-// seconds while its page is visible and the plugin saved progress in the last two minutes, and sends
-// them here every ~30 s. The day's total (household timezone) completes that person's linked chores
+// seconds from launch while its page is visible and in use (web/src/playtime.ts: nothing seen for 5
+// minutes stops it), whether or not the plugin saves, and sends them here every ~30 s. Nothing here
+// depends on saves; the per-call and per-day caps and ownerBlock are the server's guards. The day's total (household timezone) completes that person's linked chores
 // due today, through the same path as a tick, once each.
 const ActivityChoreProgressSchema = z.object({
   choreId: z.string(),
