@@ -239,21 +239,19 @@ export function githubRepo(url: string): string | null {
   return m ? `${m[1]}/${m[2]}` : null;
 }
 
-/** The kinwall-plugin.zip of a repo's latest release, or of the release tagged `tag`. */
+/** The kinwall-plugin.zip of a repo's latest release, or of the release tagged `tag`. Straight from
+ * GitHub's download links, not its API: the API allows few requests an hour without a sign-in, and a
+ * hosted server shares that allowance with everyone on its network (GitHub answered 403 there), while
+ * downloads have no such limit. "latest/download" follows the newest release. */
 export async function fetchPackage(repo: string, tag?: string): Promise<Uint8Array> {
-  const headers = { 'User-Agent': USER_AGENT, Accept: 'application/vnd.github+json' };
-  const rel = await fetch(`https://api.github.com/repos/${repo}/releases/${tag ? `tags/${encodeURIComponent(tag)}` : 'latest'}`, { headers, signal: AbortSignal.timeout(10000) });
-  if (rel.status === 404) throw new PackageError(tag ? `${repo} has no ${tag} release.` : `${repo} has no releases yet. Its GitHub release needs a ${PACKAGE_ASSET} attached.`);
-  if (!rel.ok) throw new PackageError(`GitHub answered ${rel.status} for ${repo}`);
-  const body = (await rel.json()) as { assets?: { name: string; size: number; browser_download_url: string }[] };
-  const asset = body.assets?.find((a) => a.name === PACKAGE_ASSET);
-  if (!asset) throw new PackageError(`The latest release of ${repo} has no ${PACKAGE_ASSET}. Plugins are installed from a built package, not source.`);
-  if (asset.size > PLUGIN_LIMITS.maxZipBytes) throw new PackageError(`The package can be at most ${PLUGIN_LIMITS.maxZipBytes / 1048576} MB`);
-  // Only GitHub's own download link (it redirects to GitHub's file storage), never another host.
-  if (!asset.browser_download_url.toLowerCase().startsWith(`https://github.com/${repo}/releases/download/`.toLowerCase())) throw new PackageError(`Unexpected download link for ${PACKAGE_ASSET}`);
-  const res = await fetch(asset.browser_download_url, { headers: { 'User-Agent': USER_AGENT }, signal: AbortSignal.timeout(30000) });
-  if (!res.ok || !res.body) throw new PackageError(`Downloading ${PACKAGE_ASSET} failed (${res.status})`);
-  // Stop at the limit while downloading, whatever size the release listed.
+  const url = `https://github.com/${repo}/releases/${tag ? `download/${encodeURIComponent(tag)}` : 'latest/download'}/${PACKAGE_ASSET}`;
+  const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT }, signal: AbortSignal.timeout(30000) });
+  if (res.status === 404) {
+    await res.body?.cancel();
+    throw new PackageError(tag ? `${repo} has no ${tag} release with a ${PACKAGE_ASSET}.` : `${repo} has no release with a ${PACKAGE_ASSET} yet. Plugins are installed from a built package attached to a GitHub release, not source.`);
+  }
+  if (!res.ok || !res.body) { await res.body?.cancel(); throw new PackageError(`Downloading ${PACKAGE_ASSET} from ${repo} failed (GitHub answered ${res.status})`); }
+  // Stop at the limit while downloading.
   const parts: Uint8Array[] = [];
   let size = 0;
   for await (const part of res.body) {

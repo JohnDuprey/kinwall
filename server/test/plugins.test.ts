@@ -183,13 +183,12 @@ test('plugins: install from a GitHub release package', async () => {
   const { json } = setup();
   const pkg = await zip({ 'kinwall-plugin.json': JSON.stringify(MANIFEST), 'index.html': '<h1>Hi</h1>' });
   const realFetch = globalThis.fetch;
+  const calls: string[] = [];
   globalThis.fetch = (async (url: unknown) => {
     const u = String(url);
-    if (u === 'https://api.github.com/repos/ourfamily/kinwall-plugin-words/releases/latest') {
-      return Response.json({ assets: [{ name: 'kinwall-plugin.zip', size: pkg.byteLength, browser_download_url: 'https://github.com/OurFamily/kinwall-plugin-words/releases/download/v1.0.0/kinwall-plugin.zip' }] });
-    }
-    if (u === 'https://github.com/OurFamily/kinwall-plugin-words/releases/download/v1.0.0/kinwall-plugin.zip') return new Response(pkg);
-    if (u === 'https://api.github.com/repos/ourfamily/no-package/releases/latest') return Response.json({ assets: [{ name: 'source.tar.gz', size: 1, browser_download_url: 'x' }] });
+    calls.push(u);
+    // GitHub's download link for the newest release (no API call: its anonymous allowance is tiny).
+    if (u === 'https://github.com/ourfamily/kinwall-plugin-words/releases/latest/download/kinwall-plugin.zip') return new Response(pkg);
     return new Response('not found', { status: 404 });
   }) as typeof fetch;
   try {
@@ -198,9 +197,8 @@ test('plugins: install from a GitHub release package', async () => {
     assert.equal(((await res.json()) as any).source, 'ourfamily/kinwall-plugin-words');
     assert.equal((await json('/api/plugins/sight-words/update', 'POST', {})).status, 200);
     const none = await json('/api/plugins', 'POST', { url: 'https://github.com/ourfamily/no-package' });
-    assert.match(((await none.json()) as any).error, /has no kinwall-plugin\.zip/);
-    const noRel = await json('/api/plugins', 'POST', { url: 'https://github.com/ourfamily/nothing' });
-    assert.match(((await noRel.json()) as any).error, /has no releases yet/);
+    assert.match(((await none.json()) as any).error, /has no release with a kinwall-plugin\.zip/);
+    assert.ok(!calls.some((u) => u.includes('api.github.com')), 'never the rate-limited API');
   } finally {
     globalThis.fetch = realFetch;
   }
@@ -214,10 +212,9 @@ test('plugins: the catalog pins reviewed versions, and catalog-only hosts allow 
   const realFetch = globalThis.fetch;
   globalThis.fetch = (async (url: unknown) => {
     const u = String(url);
-    const rel = /^https:\/\/api\.github\.com\/repos\/([^/]+\/[^/]+)\/releases\/(?:tags\/)?(.+)$/.exec(u);
-    if (rel && releases[rel[2]]) return Response.json({ assets: [{ name: 'kinwall-plugin.zip', size: 1, browser_download_url: `https://github.com/${rel[1]}/releases/download/${rel[2]}/kinwall-plugin.zip` }] });
-    const dl = /releases\/download\/(.+)\/kinwall-plugin\.zip$/.exec(u);
-    if (dl && releases[dl[1]]) return new Response(releases[dl[1]]);
+    const dl = /releases\/(?:download\/(.+)|(latest)\/download)\/kinwall-plugin\.zip$/.exec(u);
+    if (dl && releases[dl[2] ?? '']) return new Response(releases[dl[2]!]);
+    if (dl && dl[1] && releases[dl[1]]) return new Response(releases[dl[1]]);
     return new Response('not found', { status: 404 });
   }) as typeof fetch;
   let catalog: unknown[] = [{ id: 'sight-words', repo: 'OurFamily/kinwall-plugin-words', version: '1.0.0', sha256: await sha256(v1), name: 'Sight words', emoji: '🔤' }, { bad: 'entry' }];
