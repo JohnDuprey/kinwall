@@ -8,6 +8,20 @@ import { appSpeech, tellAppSpeak, tellAppStopSpeaking } from './native.ts'
 const MAX_TEXT = 500
 const webSpeech = () => (typeof window !== 'undefined' && 'speechSynthesis' in window ? window.speechSynthesis : undefined)
 
+// Safari speaks only after speech has started inside a tap on this page, and a plugin's request comes
+// in a message, not a tap (taps inside the plugin's frame don't count for this page). So the first tap
+// or key on Kinwall (opening Activities, picking who's playing) starts a silent utterance to unlock it.
+if (typeof window !== 'undefined' && webSpeech() && typeof SpeechSynthesisUtterance !== 'undefined') {
+  const unlock = () => {
+    removeEventListener('pointerdown', unlock, true); removeEventListener('keydown', unlock, true)
+    if (appSpeech()) return
+    const u = new SpeechSynthesisUtterance(' ')
+    u.volume = 0
+    webSpeech()?.speak(u)
+  }
+  addEventListener('pointerdown', unlock, true); addEventListener('keydown', unlock, true)
+}
+
 /** Whether Kinwall can speak for a plugin here: the app's voice, or this browser's. */
 export const canSpeak = () => appSpeech() || !!webSpeech()
 
