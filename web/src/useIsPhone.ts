@@ -1,15 +1,20 @@
 import { useEffect, useState } from 'react'
+import { useKeyboard } from './keyboard.ts'
 
-/** Live matchMedia: updates on rotation/resize. */
+/** Live matchMedia: updates on rotation/resize, but holds still while the on-screen keyboard is up.
+ * Android shrinks the page for the keyboard, and a tablet on its side would otherwise turn into a
+ * "phone on its side" mid-word (the rail jumping sides, the calendar's hours shrinking). */
 export function useMediaQuery(query: string) {
   const [matches, setMatches] = useState(() => matchMedia(query).matches)
+  const typing = useKeyboard().up
   useEffect(() => {
+    if (typing) return
     const mql = matchMedia(query)
     const onChange = () => setMatches(mql.matches)
     onChange()
     mql.addEventListener('change', onChange)
     return () => mql.removeEventListener('change', onChange)
-  }, [query])
+  }, [query, typing])
   return matches
 }
 

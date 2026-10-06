@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEv
 import { createPortal } from 'react-dom'
 import { XIcon } from './icons.tsx'
 import { reducedMotion } from './a11y.tsx'
+import { useKeyboard } from './keyboard.ts'
 
 export default function Sheet({ title, onClose, children, actions, variant, role = 'dialog', describedBy, dismissable = true, onCancel }: {
   title: string
@@ -46,9 +47,9 @@ export default function Sheet({ title, onClose, children, actions, variant, role
     return () => { sheet.removeEventListener('keydown', onKey); opener?.focus?.({ preventScroll: true }) }
   }, [opener])
 
-  // Keyboard up: the visible viewport is much shorter than the window. The sheet then drops its
-  // home-indicator padding (the keyboard covers that area) and may use the whole visible height.
-  const [keyboard, setKeyboard] = useState(false)
+  // Keyboard up (keyboard.ts): the sheet drops its home-indicator padding (the keyboard covers that
+  // area) and may use the whole visible height.
+  const keyboard = useKeyboard().up
 
   // iOS Safari keeps position:fixed tied to the full layout viewport when the keyboard opens, so a
   // bottom sheet's action buttons end up under the keyboard. Pin the backdrop to the *visible*
@@ -61,7 +62,6 @@ export default function Sheet({ title, onClose, children, actions, variant, role
       el.style.top = `${vv.offsetTop}px`
       el.style.height = `${vv.height}px`
       el.style.bottom = 'auto'
-      setKeyboard(document.documentElement.clientHeight - vv.height > 120) // layout height; iOS shrinks innerHeight too
     }
     fit()
     vv.addEventListener('resize', fit)

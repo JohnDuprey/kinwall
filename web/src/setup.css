@@ -24,6 +24,12 @@
   max-height: calc(100dvh - 40px);
   overflow-y: auto;
 }
+/* A phone on its side, or any screen with the keyboard up (Android shrinks the page to ~170-330px):
+   the card's padding and margins would leave the pairing code or name field a sliver. */
+@media (max-height: 500px) {
+  .setup-screen { padding: 8px; }
+  .setup-card { padding: 14px 20px; max-height: calc(100vh - 16px); max-height: calc(100dvh - 16px); }
+}
 
 .setup-step h1 { font-size: 1.5rem; margin: 0 0 8px; }
 .setup-sub { color: var(--text-dim); font-weight: 600; font-size: 0.90625rem; margin: 0 0 18px; line-height: 1.4; }

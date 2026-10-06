@@ -8,6 +8,7 @@ import { resumeShoppingHash } from './trip.ts'
 import { homeAlias } from './hashQuery.ts'
 import { retryBoot } from './appUpdate.ts'
 import { applyScreenScale } from './screenScale.ts'
+import { watchKeyboard } from './keyboard.ts'
 markNativeApp()
 window.addEventListener(IMPORT_CONTACTS_EVENT, e => { receiveSharedContacts((e as CustomEvent).detail) })
 
@@ -117,6 +118,7 @@ class BootBoundary extends Component<{ children: ReactNode }, { failed: boolean 
   componentDidCatch(e: unknown) { console.error(e); if (canRetry()) location.reload() }
   render() { return this.state.failed ? <BootFailed /> : this.props.children }
 }
+watchKeyboard() // data-keyboard and --kbd on <html> while the on-screen keyboard is up (keyboard.ts)
 const root = createRoot(document.getElementById('root')!)
 
 // Imported after the demo presets above so the mock's relative sample data sees the shifted clock.

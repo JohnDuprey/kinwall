@@ -734,6 +734,25 @@ button.month-cell .month-daynum { flex: none; }
 .sheet-body { padding: 4px 20px 20px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .sheet-actions { display: flex; gap: 10px; padding: 10px 20px 4px; flex-shrink: 0; }
 .sheet-actions .actions-select { flex: 1; min-width: 0; min-height: 48px; border-radius: 999px; font-weight: 800; }
+/* A sheet with little height left (the keyboard up on a phone on its side leaves ~170px): a fixed
+   header and footer would squeeze the fields to nothing. The whole sheet scrolls as one instead, the
+   title scrolling away and Save staying on the bottom edge, and the field you're typing in lands
+   between them with its label (scroll-padding). The backdrop is the visible viewport (Sheet.tsx),
+   so this follows an iPad's keyboard too. */
+.sheet-backdrop { container: sheet / size; }
+@container sheet (max-height: 300px) {
+  .sheet-backdrop .sheet { overflow-y: auto; overscroll-behavior-y: contain; max-height: 100%; padding-bottom: 0 !important; scroll-padding: 32px 0 72px; } /* .sheet-backdrop: over the phone-on-its-side block below; !important: over Sheet.tsx's keyboard padding */
+  .sheet .sheet-actions { position: sticky; bottom: 0; z-index: 1; background: var(--card); padding-top: 6px; padding-bottom: calc(var(--safe-b) + 6px); }
+  .sheet .sheet-body { flex: none; overflow: visible; }
+  .sheet .sheet-grabber { display: none; }
+  .sheet .sheet-header { padding-top: 8px; padding-bottom: 4px; }
+}
+
+/* ---------- On-screen keyboard up (keyboard.ts) ----------
+   The app's own header, tabs, rail and add button give way, so the field and its Add/Save get the
+   ~170-380px a phone or tablet on its side has left. They come back when the keyboard goes down. */
+:root[data-keyboard] :is(.header, .tab-bar, .nav-rail, .now-next, .fab, .fab-hint) { display: none; }
+
 /* Links and choices in sheets: full-width rows like the sheet's other controls, not web links. */
 .sheet-links { display: flex; flex-direction: column; gap: 8px; margin: 16px 0; }
 .sheet-link { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px; padding: 10px 14px; border: 2px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-alt); color: var(--text); font: inherit; font-weight: 800; text-align: left; text-decoration: none; cursor: pointer; }
@@ -1531,6 +1550,7 @@ button.month-cell .month-daynum { flex: none; }
   position: fixed; inset: 0; z-index: 45; /* over the whole app, under sheets (50) and toasts (100) */
   display: flex; flex-direction: column; background: var(--bg); color: var(--text);
   padding-left: var(--safe-l); padding-right: var(--safe-r);
+  top: var(--kbd-top, 0px); bottom: var(--kbd, 0px); /* an iPad's keyboard: Add an item stays above it (keyboard.ts) */
 }
 .shop-bar { display: flex; align-items: center; gap: 12px; flex-shrink: 0; padding: calc(var(--safe-t) + 8px) 16px 8px; background: var(--card); border-bottom: 1px solid var(--border); }
 .shop-bar-title { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; }
@@ -2846,7 +2866,7 @@ a.btn { text-decoration: none; } /* a link that looks like a button (the Board's
 .plugin-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 /* The title keeps at least ~12rem before the chip and Switch wrap below it, so on a phone it never gets squeezed. */
 .plugin-bar-title { flex: 1 1 12rem; font-weight: 800; font-size: 1.0625rem; min-width: 0; }
-:root[data-activity-typing] :is(.header, .tab-bar, .nav-rail, .now-next, .plugin-bar) { display: none; } /* Plugins.tsx: keyboard up in an activity */
+:root[data-keyboard] .plugin-bar { display: none; } /* keyboard up in an activity: the frame gets the room (keyboard.ts) */
 .plugin-frame { flex: 1; width: 100%; min-height: 0; border: 0; border-radius: var(--radius-sm, 14px); background: var(--card); }
 .plugin-chore-chip { position: relative; flex: 0 1 auto; max-width: 100%; display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px 6px 8px; border-radius: 999px; background: var(--bg-alt); color: var(--text); font-size: 0.875rem; font-weight: 700; }
 .plugin-chore-chip.done { background: color-mix(in srgb, var(--accent-strong) 18%, var(--card)); }

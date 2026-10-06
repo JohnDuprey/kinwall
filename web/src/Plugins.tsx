@@ -19,6 +19,7 @@ import { frameLive, frameLoaded } from './pluginFrame.ts'
 import { canSpeak, speak, stopSpeaking } from './pluginSpeech.ts'
 import { countsNow } from './playtime.ts'
 import { ActivityRing } from './ActivityRing.tsx'
+import { useKeyboard } from './keyboard.ts'
 import type { ActivityChoreProgress, Member, Plugin, PluginCatalogEntry } from './types.ts'
 import { Face } from './Face'
 
@@ -60,7 +61,7 @@ export function PluginPlayer({ id }: { id: string }) {
   const preset = members.find(m => m.id === presetId) ?? (selectedMemberId ? members.find(m => m.id === selectedMemberId) : undefined)
   const player = picked !== undefined ? picked : preset ?? (members.length ? undefined : null)
   const frame = useRef<HTMLIFrameElement>(null)
-  const [keyboard, setKeyboard] = useState<number | null>(null) // px the on-screen keyboard covers; null while it's down
+  const keyboard = useKeyboard().covered // px an iPad's on-screen keyboard covers (keyboard.ts): the frame ends above it
   const lastActive = useRef(0) // the launch, or the last thing the player saw happen (playtime.ts)
   const [chores, setChores] = useState<ActivityChoreProgress[]>([])
   const [unsent, setUnsent] = useState(0) // seconds counted but not yet in `chores`, so the chip moves every second
@@ -125,29 +126,6 @@ export function PluginPlayer({ id }: { id: string }) {
     window.addEventListener('message', onMessage)
     return () => { window.removeEventListener('message', onMessage); stopSpeaking() }
   }, [plugin, player, settings.textScale, parentDevice])
-
-  // The on-screen keyboard is up for the activity: its frame has focus and the visible height fell
-  // well below the tallest seen at this width (a rotation changes the width). The app's header, tabs
-  // and the bar above give way, and the frame ends above the keyboard (an iPad's covers the page
-  // instead of shrinking it), so the activity's short-screen layout keeps the question in view.
-  useEffect(() => {
-    const vv = window.visualViewport
-    if (!vv) return
-    const tallest = new Map<number, number>()
-    const check = () => {
-      const w = Math.round(innerWidth), top = Math.max(tallest.get(w) ?? 0, innerHeight, vv.height)
-      tallest.set(w, top)
-      const up = document.activeElement === frame.current && vv.height < top * 0.75
-      setKeyboard(up ? Math.max(0, Math.round(innerHeight - vv.height)) : null)
-    }
-    check()
-    vv.addEventListener('resize', check); addEventListener('blur', check); addEventListener('focus', check)
-    return () => { vv.removeEventListener('resize', check); removeEventListener('blur', check); removeEventListener('focus', check) }
-  }, [])
-  useEffect(() => {
-    document.documentElement.toggleAttribute('data-activity-typing', keyboard !== null)
-    return () => document.documentElement.removeAttribute('data-activity-typing')
-  }, [keyboard])
 
   // Playtime for activity chores: only for a named person, from launch, while visible and in use.
   const playerId = player?.id
