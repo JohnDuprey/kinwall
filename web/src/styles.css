@@ -1705,6 +1705,47 @@ button.month-cell .month-daynum { flex: none; }
 /* Keyboard/remote focus ring, in the household accent (mouse/touch clicks don't show it). */
 :focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
 
+/* ---------- Phone header (App.tsx: phones, and tablets standing up) ----------
+   Only the phone header renders these classes, so they need no media query. */
+.header-phone {
+  flex-direction: row; align-items: center; gap: 8px;
+  min-height: 0;
+  padding: calc(var(--safe-t) + 18px) 14px 4px; /* the PWA status bar fades into the top edge; keep the family button clear of it */
+}
+.family-btn {
+  display: flex; align-items: center; gap: 8px; min-width: 0; flex: 0 1 auto; min-height: 44px;
+  padding: 4px 12px 4px 4px; border: none; border-radius: 999px; background: var(--card); box-shadow: var(--shadow); color: var(--text);
+}
+.family-btn:active { transform: scale(0.97); }
+.family-pile { display: flex; align-items: center; flex-shrink: 0; }
+.family-pile .member-avatar-sm { width: 32px; height: 32px; font-size: 1rem; border: 2px solid var(--card); }
+.family-pile .member-avatar-sm + .member-avatar-sm { margin-left: -10px; }
+.family-pile .member-avatar-sm.selected { border-color: var(--text); z-index: 1; }
+.family-more { background: var(--bg-alt); color: var(--text-dim); font-size: 0.6875rem; font-weight: 900; }
+.family-name-sm {
+  font-size: 0.75rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.02em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+}
+.family-list { display: flex; flex-direction: column; }
+.family-row-wrap { display: flex; align-items: center; gap: 6px; border-top: 1px solid var(--border); }
+.family-list > .family-row-wrap:first-child { border-top: none; }
+.family-row {
+  display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 12px; align-items: center; text-align: left;
+  padding: 10px 2px; min-height: 56px; border: none; background: none; color: var(--text); flex: 1; min-width: 0; border-radius: var(--radius-sm);
+}
+.family-row.on { background: var(--bg-alt); padding-left: 8px; }
+.family-row:active:not(.static) { transform: scale(0.98); }
+/* Show only them: a radio-style circle, filled for the person the calendar is showing. */
+.family-pick { flex-shrink: 0; width: 44px; height: 44px; display: grid; place-items: center; border: none; background: none; padding: 0; }
+.family-pick > span { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--text-dim); box-sizing: border-box; display: grid; place-items: center; }
+.family-pick.on > span { border-color: var(--accent-strong); }
+.family-pick.on > span::after { content: ''; width: 12px; height: 12px; border-radius: 50%; background: var(--accent-strong); }
+.family-row .member-avatar-sm { grid-row: 1 / span 2; width: 40px; height: 40px; font-size: 1.25rem; }
+.family-row .member-avatar-sm.selected { box-shadow: 0 0 0 2px var(--text); }
+.family-row-name { font-weight: 800; font-size: 1rem; }
+.family-row-sub { font-size: 0.75rem; font-weight: 700; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+
 /* ==========================================================================
    Phone (<=600px). Everything above this line is unchanged from the iPad
    layout — the wall display never matches this query. See SPEC.md "Touch UI"
@@ -1712,45 +1753,6 @@ button.month-cell .month-daynum { flex: none; }
    layout differs structurally rather than just visually).
    ========================================================================== */
 @media (max-width: 600px) {
-  /* ---------- Header ---------- */
-  .header-phone {
-    flex-direction: row; align-items: center; gap: 8px;
-    min-height: 0;
-    padding: calc(var(--safe-t) + 18px) 14px 4px; /* the PWA status bar fades into the top edge; keep the family button clear of it */
-  }
-  .family-btn {
-    display: flex; align-items: center; gap: 8px; min-width: 0; flex: 0 1 auto; min-height: 44px;
-    padding: 4px 12px 4px 4px; border: none; border-radius: 999px; background: var(--card); box-shadow: var(--shadow); color: var(--text);
-  }
-  .family-btn:active { transform: scale(0.97); }
-  .family-pile { display: flex; align-items: center; flex-shrink: 0; }
-  .family-pile .member-avatar-sm { width: 32px; height: 32px; font-size: 1rem; border: 2px solid var(--card); }
-  .family-pile .member-avatar-sm + .member-avatar-sm { margin-left: -10px; }
-  .family-pile .member-avatar-sm.selected { border-color: var(--text); z-index: 1; }
-  .family-more { background: var(--bg-alt); color: var(--text-dim); font-size: 0.6875rem; font-weight: 900; }
-  .family-name-sm {
-    font-size: 0.75rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.02em;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
-  }
-  .family-list { display: flex; flex-direction: column; }
-  .family-row-wrap { display: flex; align-items: center; gap: 6px; border-top: 1px solid var(--border); }
-  .family-list > .family-row-wrap:first-child { border-top: none; }
-  .family-row {
-    display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 12px; align-items: center; text-align: left;
-    padding: 10px 2px; min-height: 56px; border: none; background: none; color: var(--text); flex: 1; min-width: 0; border-radius: var(--radius-sm);
-  }
-  .family-row.on { background: var(--bg-alt); padding-left: 8px; }
-  .family-row:active:not(.static) { transform: scale(0.98); }
-  /* Show only them: a radio-style circle, filled for the person the calendar is showing. */
-  .family-pick { flex-shrink: 0; width: 44px; height: 44px; display: grid; place-items: center; border: none; background: none; padding: 0; }
-  .family-pick > span { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--text-dim); box-sizing: border-box; display: grid; place-items: center; }
-  .family-pick.on > span { border-color: var(--accent-strong); }
-  .family-pick.on > span::after { content: ''; width: 12px; height: 12px; border-radius: 50%; background: var(--accent-strong); }
-  .family-row .member-avatar-sm { grid-row: 1 / span 2; width: 40px; height: 40px; font-size: 1.25rem; }
-  .family-row .member-avatar-sm.selected { box-shadow: 0 0 0 2px var(--text); }
-  .family-row-name { font-weight: 800; font-size: 1rem; }
-  .family-row-sub { font-size: 0.75rem; font-weight: 700; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
   /* ---------- Calendar toolbar ---------- */
   .calendar-toolbar { padding: 6px 14px 4px; gap: 6px; }
   .toolbar-nav { gap: 4px; flex-wrap: nowrap; min-width: 0; width: 100%; }
@@ -2026,8 +2028,6 @@ button.month-daynum:not(.today) { background: none; }
   /* 44px targets on phones */
   .segmented button, .today-btn { min-height: 44px; }
   .list-done-toggle { min-height: 44px; }
-  .header-phone .member-avatar { position: relative; }
-  .header-phone .member-avatar::after { content: ''; position: absolute; inset: -6px -3px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2254,18 +2254,6 @@ a.activity-card:active { transform: scale(0.98); }
 .header .clock { white-space: nowrap; }
 .header-right .member-filter-row { min-width: 0; flex-shrink: 1; }
 @media (min-width: 601px) and (max-width: 900px) and (min-height: 501px) { .header .header-right { gap: 8px; } .header-right .member-filter-row { --avatar: 48px; gap: 8px; } }
-/* Tablets standing up (a 10" Android tablet at its Auto screen scale, an iPad in portrait): too
-   narrow for clock, date, people and buttons side by side, but tall. The people get their own row
-   under the clock and buttons, so every face is in reach; the date stays on one line, next to the
-   clock or under it. The row still scrolls for a very big family. */
-@media (min-width: 601px) and (max-width: 900px) and (orientation: portrait) {
-  .header { flex-wrap: wrap; row-gap: 8px; }
-  .header .header-right { display: contents; }
-  .header .header-left { flex: 1; }
-  .header .clock-row { flex-wrap: wrap; row-gap: 2px; }
-  .header .date-text { white-space: nowrap; }
-  .header .member-filter-row { order: 1; flex-basis: 100%; margin: 0 -4px; }
-}
 .header-bell { position: relative; flex-shrink: 0; }
 .header-right .icon-btn.header-timer-on { width: auto; padding: 0 12px 0 10px; gap: 6px; border-radius: 999px; display: inline-flex; align-items: center; }
 .header-timer-clock { font-weight: 800; font-variant-numeric: tabular-nums; }
@@ -2338,13 +2326,24 @@ button.notif-item:active { transform: scale(0.99); }
   font-size: 0.875rem; color: var(--text-dim); font-weight: 600; white-space: pre-line;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
+.header-phone .header-right { gap: 6px; flex-shrink: 0; }
+.header-phone .header-bell, .header-phone .help-btn { width: 44px; height: 44px; box-shadow: none; background: transparent; }
+/* Tablets standing up get the phone header a size up: bigger faces and name, the usual side padding. */
+@media (min-width: 601px) {
+  .header-phone { padding: calc(var(--safe-t) + 14px) var(--pad) 6px; gap: 12px; }
+  .family-btn { min-height: 52px; gap: 10px; padding-right: 16px; }
+  .family-pile .member-avatar-sm { width: 40px; height: 40px; font-size: 1.25rem; }
+  .family-pile .member-avatar-sm + .member-avatar-sm { margin-left: -12px; }
+  .family-name-sm { font-size: 0.875rem; }
+  .header-phone .header-right { gap: 10px; }
+  .header-phone .header-right .icon-btn { height: 52px; }
+  .header-phone .header-right .icon-btn:not(.header-timer-on) { width: 52px; }
+}
 .notif-meta { display: flex; align-items: center; gap: 8px; font-size: 0.75rem; color: var(--text-dim); font-weight: 700; margin-top: 2px; }
 .notif-who { display: flex; }
 .notif-avatar { width: 22px; height: 22px; font-size: 0.75rem; }
 .notif-avatar:not(:first-child) { margin-left: -6px; box-shadow: 0 0 0 2px var(--bg-alt); }
 @media (max-width: 600px) {
-  .header-phone .header-right { gap: 6px; flex-shrink: 0; }
-  .header-phone .header-bell, .header-phone .help-btn { width: 44px; height: 44px; box-shadow: none; background: transparent; }
   .bell-badge { top: 0; right: -2px; }
 }
 

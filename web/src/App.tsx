@@ -20,7 +20,7 @@ import Rewards from './Rewards.tsx'
 import SettingsView, { DeviceKindSelect } from './Settings.tsx'
 import AuthorizeScreen from './Authorize.tsx'
 import Setup, { readSetupResume, resumeAtPasskey } from './Setup.tsx'
-import { useIsPhone } from './useIsPhone.ts'
+import { useIsPhone, usePhoneHeader } from './useIsPhone.ts'
 import { useNavMode, type NavMode } from './useNavMode.ts'
 import { readDeviceAppearance, setDeviceAppearance, useDeviceAppearance, useTheme } from './useTheme.ts'
 import { isWallScreen, nightScreenDue, parseDeviceKind, remoteNightAction, remoteNightKey, wallDefaultsOn, type RemoteNight } from './wallScreen.ts'
@@ -911,15 +911,15 @@ function Header({ settings, members, selectedMemberId, isAdmin, wall }: {
   isAdmin: boolean
   wall: boolean
 }) {
-  const isPhone = useIsPhone()
+  const isPhone = usePhoneHeader()
   const [now, setNow] = useState(new Date())
   useEffect(() => onMinute(() => setNow(new Date())), [])
   const device = useDeviceAppearance()
   const clockTz = clockTimeZone(settings.timezone, device)
   const { time: timeStr, date: dateStr } = useMemo(() => clockStrings(now, clockTz), [now, clockTz])
 
-  // Phones get one row: family name, people, bell, help. No clock or date: the phone's status bar
-  // shows the time and every view names its date. Kept as a separate render path so the
+  // Phones and tablets standing up get one row: family name, people, bell, help. No clock or date:
+  // the status bar shows the time and every view names its date. Kept as a separate render path so the
   // ≥768px wall-iPad markup below is untouched.
   if (isPhone) {
     return (

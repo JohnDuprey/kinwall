@@ -22,6 +22,12 @@ export function useMediaQuery(query: string) {
  * throughout styles.css. */
 export const useIsPhone = () => useMediaQuery('(max-width: 600px)')
 
+/** The phone's one-row header (family button, buttons, no clock): phones, and tablets standing up
+ * (a 10" tablet at its Auto screen scale, an iPad in portrait), which are too narrow for the wall
+ * header's clock, date, faces and buttons side by side. Landscape tablets and walls keep that one. */
+export const PHONE_HEADER = '(max-width: 600px), (orientation: portrait) and (max-width: 900px)'
+export const usePhoneHeader = () => useMediaQuery(PHONE_HEADER)
+
 /** A phone on its side: too short for the bottom bar and the tall header. Mirrors the
  * `@media (max-height: 500px) and (orientation: landscape)` block in styles.css. */
 export const SHORT_LANDSCAPE = '(max-height: 500px) and (orientation: landscape)'

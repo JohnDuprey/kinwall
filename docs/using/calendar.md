@@ -102,16 +102,14 @@ To keep a display on the board, set **Lock view** to **Board** in [This display]
 
 ## The header
 
-On a wall display or tablet, the header shows the family name, the time and date, everyone's avatars, the [notification bell](notifications.md#notification-feed) and **Help**.
+On a wall display or a tablet on its side, the header shows the family name, the time and date, everyone's avatars, the [notification bell](notifications.md#notification-feed) and **Help**.
 
-On a tablet standing up (portrait), everyone's avatars get their own row under the time and the buttons, so every person stays in reach however big the family.
-
-On a phone, the header is one row:
+On a phone, or a tablet standing up (portrait), the header is one row:
 
 * The **family button** on the left: a pile of faces and the family name. Tap it to open the family sheet. See [On a phone](#on-a-phone).
 * The **bell** and **Help** on the right.
 
-There's no clock on a phone, since the phone already shows the time.
+There's no clock in this header, since the phone or tablet already shows the time.
 
 **Help** (the **?** button) is in the same spot on every screen. It opens a short sheet with links to these docs, accessibility notes, **Report a problem** and **Suggest a feature** (short GitHub forms; a problem report arrives with the Kinwall version filled in), plus the Kinwall version.
 
