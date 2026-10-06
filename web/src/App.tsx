@@ -32,7 +32,7 @@ import { DialogProvider, useDialog } from './dialog.tsx'
 import { expireSigninCookie, resolveKeyLink, takeKeyLink } from './keyLink.ts'
 import NotificationBell from './Notifications.tsx'
 import { InstallNudge } from './Install.tsx'
-import { inNativeApp, tellAppLeaveDemo, tellAppNight } from './native.ts'
+import { appPlatform, inNativeApp, tellAppLeaveDemo, tellAppNight } from './native.ts'
 import { HelpButton } from './Help.tsx'
 import Slideshow, { SAVER_PREVIEW_EVENT, SAVER_START_EVENT } from './Screensaver.tsx'
 import { TimerButton, TimerHost } from './Timers.tsx'
@@ -1064,7 +1064,7 @@ function SaveIndicator() {
 }
 
 // Demo build: a slim strip across the very top; everything that pads against --safe-t moves down.
-if (MOCK) document.documentElement.style.setProperty('--safe-t', 'calc(env(safe-area-inset-top, 0px) + 28px)')
+if (MOCK) document.documentElement.style.setProperty('--safe-t', appPlatform() === 'android' ? '28px' : 'calc(env(safe-area-inset-top, 0px) + 28px)') // the Android app has no insets (styles.css)
 
 // Dialogs (confirm/prompt/alert) are available everywhere, the setup wizard and gates included.
 // Timers ring wherever the app is (Timers.tsx).

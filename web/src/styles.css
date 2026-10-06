@@ -3395,3 +3395,10 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
   :where(.timed-event, .event-chip, .allday-chip, .month-chip):hover { box-shadow: inset 0 0 0 100vmax color-mix(in srgb, var(--text) 12%, transparent); }
   :where(.link-btn, .text-link, .shop-store-btn, .reward-goal-btn, .filter-summary, .list-done-toggle, summary):hover { text-decoration: underline; text-underline-offset: 3px; }
 }
+
+/* The Android app already lays the page out between the status and navigation bars (its SafeAreaView),
+   but the WebView still reports those bars as safe-area insets, so the page padded for them twice
+   (about 20px lost above the header and below the tabs on a tablet). Inside it, there are none. */
+:root[data-native="android"] { --safe-t: 0px; --safe-b: 0px; --safe-l: 0px; --safe-r: 0px; }
+:root[data-native="android"] .demo-bar { height: 28px; padding-top: 0; }
+:root[data-native="android"] .timer-alarm { padding-top: 12px; }
