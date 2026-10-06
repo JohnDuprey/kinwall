@@ -2833,6 +2833,7 @@ a.btn { text-decoration: none; } /* a link that looks like a button (the Board's
 .plugin-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 /* The title keeps at least ~12rem before the chip and Switch wrap below it, so on a phone it never gets squeezed. */
 .plugin-bar-title { flex: 1 1 12rem; font-weight: 800; font-size: 1.0625rem; min-width: 0; }
+:root[data-activity-typing] :is(.header, .tab-bar, .now-next, .plugin-bar) { display: none; } /* Plugins.tsx: keyboard up in an activity */
 .plugin-frame { flex: 1; width: 100%; min-height: 0; border: 0; border-radius: var(--radius-sm, 14px); background: var(--card); }
 .plugin-chore-chip { position: relative; flex: 0 1 auto; max-width: 100%; padding: 6px 12px; border-radius: 999px; background: var(--bg-alt); color: var(--text); font-size: 0.875rem; font-weight: 700; }
 .plugin-chore-chip.done { background: color-mix(in srgb, var(--accent-strong) 18%, var(--card)); }
