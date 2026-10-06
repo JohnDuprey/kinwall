@@ -475,6 +475,14 @@ test('mcp: every tool declares permission hints, and the server advertises its i
   assert.equal(init.result.serverInfo.title, 'Kinwall');
 });
 
+test('mcp: output schemas allow fields added later, so clients holding an old copy keep working', async () => {
+  const env = makeEnv();
+  const { mcp } = makeApp(env);
+  const tools = (await (await mcp('tools/list', {})).json() as any).result.tools as any[];
+  const strict = tools.filter((t) => JSON.stringify(t.outputSchema).includes('"additionalProperties":false')).map((t) => t.name);
+  assert.deepEqual(strict, []);
+});
+
 test('mcp: every tool declares an output schema, and real results pass it', async () => {
   const env = makeEnv();
   const { rest, mcp } = makeApp(env);

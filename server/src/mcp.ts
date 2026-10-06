@@ -2372,5 +2372,17 @@ export async function handleMcp(c: Context<{ Bindings: Env }>, app: App): Promis
   // for server-initiated messages mid-request, this only affects the final response framing.
   const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
   await server.connect(transport);
-  return transport.handleRequest(c.req.raw);
+  const res = await transport.handleRequest(c.req.raw);
+  if (!res.headers.get('Content-Type')?.includes('application/json')) return res;
+  const body = await res.text();
+  return new Response(body.includes('"outputSchema"') ? JSON.stringify(looseToolList(JSON.parse(body))) : body, res);
+}
+
+// The SDK publishes output schemas with additionalProperties: false, so a client that cached
+// tools/list (OpenClaw does) rejects every result once a field is added. Dropping it makes new
+// fields safe for older copies; the server still validates results against the full schema.
+function looseToolList(msg: any): any {
+  if (Array.isArray(msg)) return msg.map(looseToolList);
+  for (const t of msg?.result?.tools ?? []) if (t.outputSchema) t.outputSchema = JSON.parse(JSON.stringify(t.outputSchema, (k, v) => (k === 'additionalProperties' && v === false ? undefined : v)));
+  return msg;
 }
