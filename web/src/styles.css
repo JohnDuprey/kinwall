@@ -752,6 +752,10 @@ button.month-cell .month-daynum { flex: none; }
    The app's own header, tabs, rail and add button give way, so the field and its Add/Save get the
    ~170-380px a phone or tablet on its side has left. They come back when the keyboard goes down. */
 :root[data-keyboard] :is(.header, .tab-bar, .nav-rail, .now-next, .fab, .fab-hint) { display: none; }
+/* An activity open (Plugins.tsx): the same chrome gives way for everyone, so a child can't tap out by
+   accident; the activity's own bar keeps the way back. Pinch zoom is off on this page meanwhile. */
+:root[data-activity-open] :is(.header, .tab-bar, .nav-rail, .now-next, .fab, .fab-hint, .install-card) { display: none; }
+:root[data-activity-open] .plugin-player { touch-action: pan-x pan-y; padding-top: calc(var(--safe-t, 0px) + 8px); padding-bottom: calc(var(--safe-b, 0px) + 12px); }
 
 /* Links and choices in sheets: full-width rows like the sheet's other controls, not web links. */
 .sheet-links { display: flex; flex-direction: column; gap: 8px; margin: 16px 0; }

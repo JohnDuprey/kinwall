@@ -22,7 +22,7 @@ import { useDialog } from './dialog.tsx'
 import { Confetti } from './Chores.tsx'
 import { frameLive, frameLoaded } from './pluginFrame.ts'
 import { canSpeak, speak, stopSpeaking } from './pluginSpeech.ts'
-import { countsNow } from './playtime.ts'
+import { playClock } from './playtime.ts'
 import { ActivityRing } from './ActivityRing.tsx'
 import { useKeyboard } from './keyboard.ts'
 import type { ActivityChoreProgress, Member, Plugin, PluginCatalogEntry } from './types.ts'
@@ -46,9 +46,9 @@ function themeForPlugin() {
   return theme
 }
 
-// Activity chores: Kinwall times play, not the plugin, from launch (playtime.ts says which seconds
-// count); the count goes to the server every HEARTBEAT_MS, when the chore's time is reached, and
-// when the page hides or the player closes.
+// Activity chores: Kinwall times play, not the plugin, in 15-second steps that count only with an
+// interaction in them (playtime.ts); the count goes to the server every HEARTBEAT_MS, when the
+// chore's time is reached, and when the page hides or the player closes.
 const HEARTBEAT_MS = 30_000
 const MAX_HEARTBEAT_SECONDS = 45
 
@@ -67,9 +67,10 @@ export function PluginPlayer({ id }: { id: string }) {
   const player = picked !== undefined ? picked : preset ?? (members.length ? undefined : null)
   const frame = useRef<HTMLIFrameElement>(null)
   const keyboard = useKeyboard().covered // px an iPad's on-screen keyboard covers (keyboard.ts): the frame ends above it
-  const lastActive = useRef(0) // the launch, or the last thing the player saw happen (playtime.ts)
+  const clock = useRef<ReturnType<typeof playClock> | null>(null) // play time while someone named plays (playtime.ts)
   const [chores, setChores] = useState<ActivityChoreProgress[]>([])
-  const [unsent, setUnsent] = useState(0) // seconds counted but not yet in `chores`, so the chip moves every second
+  const [unsent, setUnsent] = useState(0) // seconds counted but not yet in `chores`
+  const [stepShown, setStepShown] = useState(0) // the current step's seconds, once it has an interaction: the chip moves every second
   const toGo = useRef(Infinity) // seconds left on the chip's chore, to send the moment it's reached
   const [burst, setBurst] = useState(0) // a completed chore's confetti (keyed, so each one replays)
   // A plugin page that navigates its frame somewhere else has left its package: stop it. Only
@@ -77,6 +78,8 @@ export function PluginPlayer({ id }: { id: string }) {
   const [left, setLeft] = useState(false)
   const dialog = useDialog()
   const zeroed = useRef(false) // a parent reset today's time: drop seconds counted but not yet sent
+  const leaveRef = useRef(() => {}) // leave without asking (the latest render's)
+  const askLeaveRef = useRef(() => {}) // "Leave …?" first (the latest render's, with the chip's time)
 
   useEffect(() => {
     api.getPlugins().then(list => setPlugin(list.find(p => p.id === id && p.enabled) ?? null)).catch(() => setPlugin(null))
@@ -99,7 +102,10 @@ export function PluginPlayer({ id }: { id: string }) {
       if (!frame.current || e.source !== frame.current.contentWindow || !frameLive(frame.current)) return
       const msg = e.data as Msg
       if (!msg || msg.kinwall !== 1) return
-      lastActive.current = Date.now() // any word from the activity means it's in use
+      // Playing: a real tap or key inside the activity (kinwall.js), an answer saved or a word
+      // spoken. Starting up, loading and actions aren't.
+      if (msg.type === 'active' || msg.type === 'save' || msg.type === 'speak') clock.current?.interact(Date.now())
+      if (msg.type === 'active') return
       if (msg.type === 'ready') {
         send({
           kinwall: 1, type: 'context',
@@ -136,7 +142,7 @@ export function PluginPlayer({ id }: { id: string }) {
       } else if (msg.type === 'stopSpeaking') {
         stopSpeaking()
       } else if (msg.type === 'close') {
-        location.hash = '#/activities'
+        leaveRef.current() // the activity chose to end: no "Leave?"
       }
     }
     window.addEventListener('message', onMessage)
@@ -151,20 +157,20 @@ export function PluginPlayer({ id }: { id: string }) {
     if (refreshTick !== firstTick.current && f && frameLive(f)) f.contentWindow?.postMessage({ kinwall: 1, type: 'actions' }, '*')
   }, [refreshTick])
 
-  // Playtime for activity chores: only for a named person, from launch, while visible and in use.
+  // Playtime for activity chores: only for a named person, in steps with play in them (playtime.ts).
   const playerId = player?.id
   useEffect(() => {
     if (!plugin || !playerId) return
-    lastActive.current = Date.now()
-    // What the player can see of someone playing: a tap or key on the page, or focus moving into
-    // the activity's frame (taps inside the frame itself never reach Kinwall).
-    const touch = () => { lastActive.current = Date.now() }
-    addEventListener('pointerdown', touch, true); addEventListener('keydown', touch, true); addEventListener('blur', touch)
-    let counted = 0
+    const c = playClock(Date.now())
+    clock.current = c
+    let counted = 0 // seconds counted, not yet sent
     let closed = false
-    const take = () => { if (zeroed.current) { counted = 0; zeroed.current = false } }
+    const take = () => { if (zeroed.current) { counted = 0; c.settle(); zeroed.current = false } }
+    const count = (n: number) => { if (n) { counted += n; setUnsent(u => u + n) } }
     const flush = () => {
       take()
+      count(c.settle()) // the step so far, if it had play in it
+      setStepShown(0)
       const seconds = Math.min(counted, MAX_HEARTBEAT_SECONDS)
       counted = 0
       const sent = () => setUnsent(u => Math.max(0, u - seconds))
@@ -177,29 +183,30 @@ export function PluginPlayer({ id }: { id: string }) {
         toast(msg); announce(msg); setBurst(b => b + 1); reloadCore()
       }).catch(sent) // the next heartbeat carries on; a lost one only costs those seconds
     }
+    const anything = () => counted > 0 || c.pending() > 0
     flush() // seconds 0: just today's progress, for the chip
     const tick = setInterval(() => {
       take()
-      if (!countsNow(document.visibilityState === 'visible', lastActive.current, Date.now())) return
-      counted++
-      setUnsent(u => u + 1)
-      if (toGo.current > 0 && counted >= toGo.current) flush() // done now, not at the next heartbeat
+      count(c.tick(Date.now(), document.visibilityState === 'visible'))
+      const step = c.pending()
+      setStepShown(step)
+      if (toGo.current > 0 && counted + step >= toGo.current) flush() // done now, not at the next heartbeat
     }, 1000)
-    const beat = setInterval(() => { if (counted) flush() }, HEARTBEAT_MS)
-    const onVisibility = () => { if (document.visibilityState === 'hidden' && counted) flush() }
+    const beat = setInterval(() => { if (anything()) flush() }, HEARTBEAT_MS)
+    const onVisibility = () => { if (document.visibilityState === 'hidden' && anything()) flush() }
     document.addEventListener('visibilitychange', onVisibility)
     return () => {
-      if (counted) flush()
+      if (anything()) flush()
       closed = true
-      setChores([]); setUnsent(0)
+      clock.current = null
+      setChores([]); setUnsent(0); setStepShown(0)
       clearInterval(tick); clearInterval(beat)
       document.removeEventListener('visibilitychange', onVisibility)
-      removeEventListener('pointerdown', touch, true); removeEventListener('keydown', touch, true); removeEventListener('blur', touch)
     }
   }, [plugin, playerId]) // eslint-disable-line react-hooks/exhaustive-deps
   // The chip shows the first chore still to do, else the last one done.
   const chip = chores.find(c => !c.completed) ?? chores[chores.length - 1]
-  const chipDone = chip ? Math.min(chip.needSeconds, chip.doneSeconds + (chip.completed ? 0 : unsent)) : 0
+  const chipDone = chip ? Math.min(chip.needSeconds, chip.doneSeconds + (chip.completed ? 0 : unsent + stepShown)) : 0
   const chipToGo = chip && !chip.completed ? chip.needSeconds - chip.doneSeconds : Infinity
   useEffect(() => { toGo.current = chipToGo }, [chipToGo])
   // Parent devices: tapping the chip resets the player's time for today (they opened it as a kid to
@@ -213,10 +220,68 @@ export function PluginPlayer({ id }: { id: string }) {
     })) return
     try {
       zeroed.current = true
-      setChores(await api.resetPlaytime(plugin.id, player.id)); setUnsent(0)
+      setChores(await api.resetPlaytime(plugin.id, player.id)); setUnsent(0); setStepShown(0)
       toast(`Time reset: ${chip.title}`); announce(`Time reset: ${chip.title}`)
     } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not reset the time', true) }
   }
+
+  // Focus mode: while an activity is open, Kinwall's header, tabs, rail and now/next are hidden
+  // (styles.css, data-activity-open), pinch zoom is off, and leaving asks first. Back (browser,
+  // Android's hardware button: the app goes back in web history) pops a history entry pushed on
+  // open, which is put back while asking. Kinwall.close() and Leave go through leave().
+  const playing = !!plugin && player !== undefined && !left
+  const asking = useRef(false)
+  const leaving = useRef(false)
+  useEffect(() => {
+    if (!playing) return
+    const root = document.documentElement
+    const hash = location.hash
+    root.setAttribute('data-activity-open', '')
+    const viewport = document.querySelector<HTMLMetaElement>('meta[name=viewport]')
+    const zoomable = viewport?.content
+    if (viewport) viewport.content = `${zoomable}, maximum-scale=1, user-scalable=no`
+    const noPinch = (e: Event) => e.preventDefault() // iOS Safari ignores user-scalable=no
+    document.addEventListener('gesturestart', noPinch)
+    const mark = () => history.pushState({ ...history.state, kinwallActivity: id }, '', location.href)
+    if (history.state?.kinwallActivity !== id) mark() // not again after a reload or a re-render
+    const onPop = () => {
+      if (leaving.current) { location.replace('#/activities'); return }
+      if (location.hash !== hash || history.state?.kinwallActivity === id) return // gone elsewhere, or forward
+      mark() // still here while asking
+      askLeaveRef.current()
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !e.defaultPrevented && !document.querySelector('.sheet')) askLeaveRef.current()
+    }
+    addEventListener('popstate', onPop)
+    addEventListener('keydown', onKey)
+    leaving.current = false
+    return () => {
+      root.removeAttribute('data-activity-open')
+      if (viewport && zoomable !== undefined) viewport.content = zoomable
+      document.removeEventListener('gesturestart', noPinch)
+      removeEventListener('popstate', onPop)
+      removeEventListener('keydown', onKey)
+    }
+  }, [playing, id])
+  const leave = () => {
+    leaving.current = true
+    if (history.state?.kinwallActivity === id) history.back() // drop the entry pushed on open; onPop goes on to Activities
+    else location.replace('#/activities')
+  }
+  const askLeave = async () => {
+    if (asking.current || !plugin) return
+    asking.current = true
+    const n = chip && !chip.completed ? chip.needSeconds / 60 : 0
+    const ok = await dialog.confirm({
+      title: `Leave ${plugin.name}?`,
+      body: n ? `Your ${n} minute${n === 1 ? '' : 's'} of ${chip!.title} will stop counting.` : undefined,
+      confirmLabel: 'Leave', cancelLabel: 'Stay',
+    })
+    asking.current = false
+    if (ok) leave()
+  }
+  useEffect(() => { leaveRef.current = leave; askLeaveRef.current = () => void askLeave() })
 
   if (plugin === undefined) return null
   if (left) return <div className="state-card">{plugin?.name ?? 'This activity'} tried to leave Kinwall, so it was stopped. <a href="#/activities">Back to Activities</a></div>
@@ -240,7 +305,7 @@ export function PluginPlayer({ id }: { id: string }) {
   return (
     <div className="plugin-player" style={keyboard ? { paddingBottom: keyboard } : undefined}>
       <div className="plugin-bar">
-        <a className="btn btn-secondary" href="#/activities">‹ Activities</a>
+        <button type="button" className="btn btn-secondary" onClick={() => askLeaveRef.current()}>‹ Activities</button>
         <span className="plugin-bar-title"><span aria-hidden="true">{plugin.emoji}</span> {plugin.name}</span>
         {chip && (() => {
           const inner = <>
