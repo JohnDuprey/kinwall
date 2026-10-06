@@ -2254,6 +2254,18 @@ a.activity-card:active { transform: scale(0.98); }
 .header .clock { white-space: nowrap; }
 .header-right .member-filter-row { min-width: 0; flex-shrink: 1; }
 @media (min-width: 601px) and (max-width: 900px) and (min-height: 501px) { .header .header-right { gap: 8px; } .header-right .member-filter-row { --avatar: 48px; gap: 8px; } }
+/* Tablets standing up (a 10" Android tablet at its Auto screen scale, an iPad in portrait): too
+   narrow for clock, date, people and buttons side by side, but tall. The people get their own row
+   under the clock and buttons, so every face is in reach; the date stays on one line, next to the
+   clock or under it. The row still scrolls for a very big family. */
+@media (min-width: 601px) and (max-width: 900px) and (orientation: portrait) {
+  .header { flex-wrap: wrap; row-gap: 8px; }
+  .header .header-right { display: contents; }
+  .header .header-left { flex: 1; }
+  .header .clock-row { flex-wrap: wrap; row-gap: 2px; }
+  .header .date-text { white-space: nowrap; }
+  .header .member-filter-row { order: 1; flex-basis: 100%; margin: 0 -4px; }
+}
 .header-bell { position: relative; flex-shrink: 0; }
 .header-right .icon-btn.header-timer-on { width: auto; padding: 0 12px 0 10px; gap: 6px; border-radius: 999px; display: inline-flex; align-items: center; }
 .header-timer-clock { font-weight: 800; font-variant-numeric: tabular-nums; }

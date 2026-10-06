@@ -104,6 +104,8 @@ To keep a display on the board, set **Lock view** to **Board** in [This display]
 
 On a wall display or tablet, the header shows the family name, the time and date, everyone's avatars, the [notification bell](notifications.md#notification-feed) and **Help**.
 
+On a tablet standing up (portrait), everyone's avatars get their own row under the time and the buttons, so every person stays in reach however big the family.
+
 On a phone, the header is one row:
 
 * The **family button** on the left: a pile of faces and the family name. Tap it to open the family sheet. See [On a phone](#on-a-phone).
