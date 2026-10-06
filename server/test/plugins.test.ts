@@ -330,3 +330,100 @@ test('activity chores: link a plugin, heartbeats add up (capped), and complete o
   assert.equal((await req(`/api/chores/${mine.id}/complete?date=${today}`, { method: 'DELETE' })).status, 200);
   assert.equal((await json(`/api/chores/${mine.id}/complete`, 'POST', { date: today })).status, 200); // a plain tick still works
 });
+
+const SPELLING = {
+  id: 'spelling', name: 'Spelling practice', version: '1.2.0',
+  actions: {
+    addList: {
+      description: 'Add a spelling list.',
+      input: {
+        properties: {
+          title: { type: 'string', maxLength: 40 },
+          words: { type: 'array', items: { type: 'string' }, maxItems: 60 },
+          sentences: { type: 'object' },
+          testDate: { type: 'string' },
+        },
+        required: ['title', 'words'],
+      },
+    },
+    archiveList: { description: 'Archive a list.', input: { properties: { title: { type: 'string' } }, required: ['title'] } },
+  },
+};
+
+test('plugin actions: manifests declare them, checked at install', async () => {
+  const { req } = setup();
+  const bad = async (actions: unknown, why: RegExp) => {
+    const res = await upload(req, await zip({ 'kinwall-plugin.json': JSON.stringify({ ...SPELLING, actions }), 'index.html': '<h1>x</h1>' }));
+    assert.equal(res.status, 400);
+    assert.match(((await res.json()) as any).error, why);
+  };
+  await bad({ 'Add-List': { description: 'x' } }, /action names/);
+  await bad(Object.fromEntries(Array.from({ length: 11 }, (_, i) => [`a${i}`, { description: 'x' }])), /at most 10 actions/);
+  await bad({ add: { description: 'x', input: { properties: { a: { type: 'date' } } } } }, /actions/);
+  await bad({ add: { description: 'x', input: { properties: {}, required: ['a'] } } }, /required names a field/);
+  await bad({ add: {} }, /description/);
+  assert.equal((await upload(req, await zip({ 'kinwall-plugin.json': JSON.stringify(SPELLING), 'index.html': '<h1>x</h1>' }))).status, 201);
+  const [p] = (await (await req('/api/plugins')).json()) as any[];
+  assert.deepEqual(Object.keys(p.actions), ['addList', 'archiveList']);
+  assert.deepEqual(p.actions.archiveList.input, { type: 'object', properties: { title: { type: 'string' } }, required: ['title'] });
+});
+
+test('plugin actions: queue (full access only, checked), read and acknowledge on the player', async () => {
+  const { req, json } = setup();
+  await upload(req, await zip({ 'kinwall-plugin.json': JSON.stringify(SPELLING), 'index.html': '<h1>x</h1>' }));
+  const maya = (await (await json('/api/members', 'POST', { name: 'Maya', color: '#7ED9A6' })).json()) as any;
+  const leo = (await (await json('/api/members', 'POST', { name: 'Leo', color: '#7EA6D9' })).json()) as any;
+  const wall = (await (await json('/api/keys', 'POST', { name: 'Wall', scope: 'display' })).json()) as any;
+  const mayas = (await (await json('/api/keys', 'POST', { name: "Maya's tablet", scope: 'display' })).json()) as any;
+  assert.equal((await json(`/api/keys/${mayas.id}`, 'PATCH', { owner: maya.id })).status, 200);
+  const send = (input: unknown, opts: { member?: string; key?: string; name?: string } = {}) =>
+    json(`/api/plugins/spelling/actions/${opts.name ?? 'addList'}`, 'POST', { member: opts.member ?? maya.id, input }, opts.key);
+  const list = { title: 'Adding -ing', words: ['swimming', 'giving'], testDate: '2026-10-09' };
+
+  // Checked against the declared shape.
+  const refused = async (res: Response, status: number, why: RegExp) => { assert.equal(res.status, status); assert.match(((await res.json()) as any).error, why); };
+  await refused(await send({ words: ['a'] }), 400, /title is required/);
+  await refused(await send({ title: 'x', words: 'swimming' }), 400, /words must be an array/);
+  await refused(await send({ title: 'x', words: [1] }), 400, /every item of words must be a string/);
+  await refused(await send({ title: 'x'.repeat(41), words: ['a'] }), 400, /at most 40 characters/);
+  await refused(await send({ title: 'x', words: ['a'], colour: 'red' }), 400, /colour isn't an input/);
+  await refused(await send({ title: 'x', words: Array(61).fill('a') }), 400, /at most 60 items/);
+  await refused(await send({ title: 'x', words: ['a'], sentences: { a: 'y'.repeat(17000) } }), 400, /at most 16 KB/);
+  await refused(await send(list, { name: 'deleteEverything' }), 404, /no deleteEverything action \(it has addList, archiveList\)/);
+  await refused(await send(list, { name: 'toString' }), 404, /no toString action/);
+  await refused(await send(list, { member: 'nobody' }), 404, /member not found/);
+  assert.equal((await json('/api/plugins/nope/actions/addList', 'POST', { member: maya.id, input: list })).status, 404);
+  // Wall screens and kids' devices can't queue (not even for themselves).
+  assert.equal((await send(list, { key: wall.key })).status, 403);
+  assert.equal((await send(list, { key: mayas.key })).status, 403);
+
+  const res = await send(list);
+  assert.equal(res.status, 201);
+  const item = (await res.json()) as any;
+  assert.deepEqual({ ...item, id: 'x', createdAt: 'x' }, { id: 'x', action: 'addList', input: list, member: maya.id, createdAt: 'x' });
+  await send({ title: 'Shared list', words: ['cat'] }, { member: '' });
+
+  // The player reads them for whoever is playing (shared separately), on any device that may play as them.
+  const pending = (member: string, key?: string) => req(`/api/plugins/spelling/actions/pending?member=${member}`, { key });
+  assert.deepEqual(((await (await pending(maya.id, wall.key)).json()) as any[]).map((i) => i.id), [item.id]);
+  assert.deepEqual(((await (await pending('')).json()) as any[]).map((i) => i.input.title), ['Shared list']);
+  assert.deepEqual(await (await pending(leo.id)).json(), []);
+  assert.equal((await pending(leo.id, mayas.key)).status, 403);
+  assert.equal(((await (await pending(maya.id, mayas.key)).json()) as any[]).length, 1);
+
+  // Acknowledging deletes it; only on a device that may play as that person, only under its plugin.
+  const leos = ((await (await send({ title: 'Leo list', words: ['dog'] }, { member: leo.id })).json()) as any).id;
+  assert.equal((await req(`/api/plugins/spelling/actions/${leos}`, { method: 'DELETE', key: mayas.key })).status, 403);
+  assert.equal((await req(`/api/plugins/other/actions/${item.id}`, { method: 'DELETE', key: mayas.key })).status, 404);
+  assert.equal((await req(`/api/plugins/spelling/actions/${item.id}`, { method: 'DELETE', key: mayas.key })).status, 204);
+  assert.equal((await req(`/api/plugins/spelling/actions/${item.id}`, { method: 'DELETE' })).status, 404);
+  assert.deepEqual(await (await pending(maya.id)).json(), []);
+
+  // At most 50 wait per person and plugin; removing the plugin clears them.
+  for (let i = 0; i < 49; i++) assert.equal((await send(list, { member: leo.id })).status, 201);
+  await refused(await send(list, { member: leo.id }), 409, /50 actions are already waiting/);
+  assert.equal((await send(list)).status, 201); // someone else's queue is separate
+  assert.equal((await req('/api/plugins/spelling', { method: 'DELETE' })).status, 204);
+  await upload(req, await zip({ 'kinwall-plugin.json': JSON.stringify(SPELLING), 'index.html': '<h1>x</h1>' }));
+  assert.deepEqual(await (await pending(leo.id)).json(), []);
+});

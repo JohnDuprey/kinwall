@@ -8,6 +8,11 @@
 // site, and taking what it was told (who's playing, its saved progress) along in the address. So the
 // bridge stops for good once the frame loads a second page (pluginFrame.ts), and only reviewed
 // plugins can be installed on hosted Kinwall (PLUGINS_CATALOG_ONLY).
+//
+// Actions: other apps (the REST API, MCP, Home Assistant) can queue requests a plugin declares, like
+// "add this spelling list" (POST /api/plugins/{id}/actions/{name}). The bridge hands the player's
+// waiting ones to the plugin (Kinwall.actions()), deletes one when the plugin says it's done with it
+// (only ones it was given), and nudges it ('actions') when something changed while it's open.
 import { useEffect, useRef, useState } from 'react'
 import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
@@ -23,7 +28,7 @@ import { useKeyboard } from './keyboard.ts'
 import type { ActivityChoreProgress, Member, Plugin, PluginCatalogEntry } from './types.ts'
 import { Face } from './Face'
 
-type Msg = { kinwall: 1; id?: number; type: string; key?: string; value?: unknown; shared?: boolean; text?: unknown; rate?: unknown; lang?: unknown }
+type Msg = { kinwall: 1; id?: number; type: string; key?: string; value?: unknown; shared?: boolean; text?: unknown; rate?: unknown; lang?: unknown; item?: unknown }
 
 function themeForPlugin() {
   // Resolve each token to a real color: some are expressions (color-mix, var()) a plugin can't use.
@@ -49,7 +54,7 @@ const MAX_HEARTBEAT_SECONDS = 45
 
 /** #/activities/plugin/<id>[?member=<id>]: asks who's playing (unless the link names them or the family is filtered to one person), then runs it. */
 export function PluginPlayer({ id }: { id: string }) {
-  const { members: everyone, selectedMemberId, settings, toast, reloadCore, parentDevice, focusLocked, meMemberId } = useApp()
+  const { members: everyone, selectedMemberId, settings, toast, reloadCore, parentDevice, focusLocked, meMemberId, refreshTick } = useApp()
   // A kid's own device plays only as the kid (the server refuses saving or timing anyone else).
   const members = !parentDevice && focusLocked && meMemberId ? everyone.filter(m => m.id === meMemberId) : everyone
   const [plugin, setPlugin] = useState<Plugin | null | undefined>(undefined)
@@ -79,6 +84,7 @@ export function PluginPlayer({ id }: { id: string }) {
     if (!plugin || player === undefined) return
     const member = player?.id ?? ''
     const saves: number[] = [] // times of recent saves, for the rate limit below
+    const given = new Set<string>() // action ids handed to this frame: the only ones it may mark done
     // '*': the frame's origin is opaque, so no target origin matches it. Checked at send time (an
     // answer can arrive after the page left), never to a frame that has loaded a second page.
     const send = (data: unknown) => {
@@ -114,6 +120,14 @@ export function PluginPlayer({ id }: { id: string }) {
         if (saves.length >= 30) return reply(msg, false, undefined, 'Saving too often; try again in a moment')
         saves.push(now)
         api.savePluginData(plugin.id, msg.shared ? '' : member, msg.key, msg.value).then(() => reply(msg, true), err => reply(msg, false, undefined, err instanceof ApiError ? err.message : String(err)))
+      } else if (msg.type === 'actions') {
+        api.getPluginActions(plugin.id, msg.shared ? '' : member).then(list => {
+          list.forEach(a => given.add(a.id))
+          reply(msg, true, list.map(({ id, action, input, createdAt }) => ({ id, action, input, createdAt, shared: !!msg.shared })))
+        }, err => reply(msg, false, undefined, String(err)))
+      } else if (msg.type === 'done' && typeof msg.item === 'string') {
+        if (!given.has(msg.item)) return reply(msg, false, undefined, 'Not an action this activity was given')
+        api.donePluginAction(plugin.id, msg.item).then(() => { given.delete(msg.item as string); reply(msg, true) }, err => reply(msg, false, undefined, err instanceof ApiError ? err.message : String(err)))
       } else if (msg.type === 'speak' && typeof msg.text === 'string') {
         // Answered once it's said (or stopped), so a plugin can wait for the word before praise.
         speak(msg.text, typeof msg.rate === 'number' ? msg.rate : 1, typeof msg.lang === 'string' ? msg.lang : 'en-US').then(() => reply(msg, true))
@@ -126,6 +140,14 @@ export function PluginPlayer({ id }: { id: string }) {
     window.addEventListener('message', onMessage)
     return () => { window.removeEventListener('message', onMessage); stopSpeaking() }
   }, [plugin, player, settings.textScale, parentDevice])
+
+  // Something changed on the server (a queued action among others): tell the open plugin, which can
+  // look again with Kinwall.actions(). Not on the first render: the plugin asks on its own at start.
+  const firstTick = useRef(refreshTick)
+  useEffect(() => {
+    const f = frame.current
+    if (refreshTick !== firstTick.current && f && frameLive(f)) f.contentWindow?.postMessage({ kinwall: 1, type: 'actions' }, '*')
+  }, [refreshTick])
 
   // Playtime for activity chores: only for a named person, from launch, while visible and in use.
   const playerId = player?.id

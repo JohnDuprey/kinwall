@@ -11,7 +11,7 @@ import type { CustomScheme } from './skins.ts'
 import type { PasskeyAuthenticator } from './webauthn.ts'
 import type { BasicChoices, Meal, MealInput, Recipe, RecipeImport, RecipeInput, RecipePreviewResult, RecipeShare, ShoppingProjection } from './meal-types.ts'
 import type { Contact, ContactCategory, ContactInput, ImportPreviewEntry } from './contact-types.ts'
-import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginCatalogEntry,
+import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginActionItem, PluginCatalogEntry,
   StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota, FamilyColoringPage, GooglePhotos, Reward, Redemption, PointAward, PointEntry, MemberStats, StatsPeriod,
   Account, ApiKey, AppNotification, Appearance, CalendarEntry, Category, Chore, ChoreDay, LibraryChore, LibraryChoreInput, PendingApproval, EventInstance, LeaderboardEntry, LeaderboardPeriod, List,
   BarcodeLookup, BookResult, GeocodeResult, LibraryBook, LibraryBookInput, HiddenEvent, HostEvent, ImportResult, SecurityEvent, ListDetail, ListGroup, ListItem, ListItemInput, ListItemPatch, Member, Me, Note, NoteTarget, Passkey, TrackerEntry, TrackerInput, TrackerKind, Providers, PushSubscription, PushSubscriptionPrefs, RemoteCalendar, Settings, Snapshot, Board, Webhook, WebhookWithSecret,
@@ -405,6 +405,8 @@ export const api = {
   deletePlugin: (id: string) => MOCK ? mockPlugins.remove(id) : del(`api/plugins/${id}`, true),
   getPluginData: (id: string, member: string) => MOCK ? mockPlugins.load(id, member) : get<Record<string, unknown>>(`api/plugins/${id}/data?member=${encodeURIComponent(member)}`),
   savePluginData: (id: string, member: string, key: string, value: unknown) => MOCK ? mockPlugins.save(id, member, key, value) : put<void>(`api/plugins/${id}/data`, { member, key, value }),
+  getPluginActions: (id: string, member: string) => MOCK ? Promise.resolve([]) : get<PluginActionItem[]>(`api/plugins/${id}/actions/pending?member=${encodeURIComponent(member)}`),
+  donePluginAction: (id: string, item: string) => MOCK ? Promise.resolve() : del<void>(`api/plugins/${id}/actions/${encodeURIComponent(item)}`),
   // Not a tracked save: a background heartbeat shouldn't flash "Saving…". keepalive lets the last one
   // go out as the page closes.
   sendPlaytime: (id: string, member: string, seconds: number) => MOCK ? mockPlugins.playtime(id, member, seconds)

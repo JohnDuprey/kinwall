@@ -97,6 +97,7 @@ import m0093 from '../migrations/0093_library_wishlist.sql';
 import m0094 from '../migrations/0094_pin_eucalyptus_scheme.sql';
 import m0095 from '../migrations/0095_bonus_points.sql';
 import m0096 from '../migrations/0096_member_pictures.sql';
+import m0097 from '../migrations/0097_plugin_inbox.sql';
 
 export const MIGRATIONS: Migration[] = [
   { name: '0001_init.sql', sql: m0001 },
@@ -195,4 +196,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0094_pin_eucalyptus_scheme.sql', sql: m0094 },
   { name: '0095_bonus_points.sql', sql: m0095 },
   { name: '0096_member_pictures.sql', sql: m0096 },
+  { name: '0097_plugin_inbox.sql', sql: m0097 },
 ];

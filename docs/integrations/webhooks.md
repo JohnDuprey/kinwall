@@ -48,6 +48,7 @@ URLs must be public `http(s)` addresses. Private and LAN addresses are refused, 
 | `photo.changed` | A photo is added, captioned, reassigned or deleted. `data`: `{ id }` (plus `deleted: true` on delete), or `{ imported }` after a zip import. |
 | `newscast.posted` | Someone shared a [Newscast](../using/newscast.md) announcement for everyone. `data`: `{ id, memberId, text, emoji, photoId, audience }`. Grown-ups-only posts never send it. Enough for "announce it on the kitchen speaker". |
 | `newscast.changed` | A Newscast post was removed or deleted, a grown-ups-only post was shared, or someone reacted. `data`: `{}`. |
+| `plugin.action` | An [activity action](../contributing/plugins.md#actions) was queued, like a spelling list for Spelling practice. `data`: `{ id, pluginId, memberId, action }` (`memberId` is `null` for the family's shared data), never the input. |
 | `tracker.changed` | A [tracker](../using/trackers.md) entry is added, edited or deleted. `data`: `{ id, kind }` (plus `deleted: true`), never the entry's fields. |
 | `recipe.changed` | A [recipe](../using/meals.md) is added, edited, archived or deleted. `data`: `{ id }`. |
 | `meal.changed` | A meal is planned, edited or deleted. `data`: `{ id }`. |

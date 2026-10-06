@@ -25,6 +25,7 @@ import { VERSION } from './version.ts';
 import { resolveKey } from './auth.ts';
 import { itemKey } from './item-memory.ts';
 import { NightScreenSchema } from './routes/night-screen.ts';
+import { PluginActionSchema, PluginActionItemSchema } from './routes/plugins.ts';
 
 type App = OpenAPIHono<{ Bindings: Env }>;
 
@@ -103,11 +104,14 @@ async function resolveList(app: App, env: Env, auth: string, ref: string): Promi
 
 // An activity (installed plugin) by id or name, case-insensitive.
 async function resolvePlugin(app: App, env: Env, auth: string, ref: string): Promise<string> {
+  return (await findPlugin(app, env, auth, ref)).id;
+}
+async function findPlugin(app: App, env: Env, auth: string, ref: string): Promise<{ id: string; name: string }> {
   const { status, json } = await call(app, env, auth, 'GET', '/api/plugins');
   if (status >= 400) throw new MemberResolutionError('failed to list activities');
   const found = (json as { id: string; name: string }[]).find((p) => p.id === ref || p.name.toLowerCase() === ref.toLowerCase());
   if (!found) throw new MemberResolutionError(`no installed activity matching "${ref}"`);
-  return found.id;
+  return found;
 }
 
 // Categories may be referenced by name (case-insensitive) instead of id, same convention as
@@ -241,6 +245,9 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
   add_member: { member: MemberSchema },
   update_member: { member: MemberSchema },
   list_lists: { lists: z.array(ListSchema) },
+  list_activity_actions: { activities: z.array(z.object({ id: z.string(), name: z.string(), emoji: z.string(), enabled: z.boolean(), actions: z.record(z.string(), PluginActionSchema) })) },
+  run_activity_action: { item: PluginActionItemSchema },
+  get_activity_data: { data: z.record(z.string(), z.unknown()) },
   search_books: { books: z.array(BookResultSchema) },
   list_library: { books: z.array(LibraryBookSchema) }, add_to_library: { book: LibraryBookSchema }, update_library_book: { book: LibraryBookSchema },
   create_list: { list: ListSchema },
@@ -306,6 +313,7 @@ const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boole
   delete_event: { ...WRITE, destructiveHint: true, idempotentHint: true, openWorldHint: true },
   delete_list: DELETE, delete_list_item: DELETE, delete_list_step: DELETE, delete_note: DELETE, delete_chore: DELETE,
   delete_tracker_entry: DELETE, delete_meal: DELETE, delete_recipe: DELETE, delete_reward: DELETE, delete_contact: DELETE, delete_contact_category: DELETE, import_contacts: WRITE, merge_contacts: WRITE,
+  list_activity_actions: READ, run_activity_action: WRITE, get_activity_data: READ,
 };
 
 function registerTools(server: McpServer, app: App, env: Env, auth: string) {
@@ -2215,6 +2223,79 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         return lookupError(err);
       }
       return remove(`/api/rewards/${encodeURIComponent(target.id)}`, 'failed to delete reward', `Deleted reward "${target.name}".`);
+    },
+  );
+  // ---- Activity actions: what an activity plugin lets other apps ask of it (its manifest's
+  // "actions"), like adding a spelling list. Queued; the activity applies it when that person opens it.
+  tool(
+    'list_activity_actions',
+    {
+      title: 'List activity actions',
+      description: 'Installed activities (plugins) that take actions, with each action\'s description and the input it takes (properties with their types, and which are required). Queue one with run_activity_action.',
+      inputSchema: {},
+    },
+    async () => {
+      const res = await call(app, env, auth, 'GET', '/api/plugins');
+      if (res.status >= 400) return errorResult(res.json, 'failed to list activities');
+      const activities = (res.json as { id: string; name: string; emoji: string; enabled: boolean; actions?: Record<string, unknown> }[])
+        .filter((p) => p.actions && Object.keys(p.actions).length)
+        .map(({ id, name, emoji, enabled, actions }) => ({ id, name, emoji, enabled, actions }));
+      return okResult(activities.length ? `Activities with actions: ${activities.map((a) => a.name).join(', ')}.` : 'No installed activity takes actions.', { activities });
+    },
+  );
+
+  tool(
+    'run_activity_action',
+    {
+      title: 'Run activity action',
+      description:
+        "Full access: ask an activity (plugin) to do one of its actions for a person, e.g. add this week's spelling list to Spelling practice. See list_activity_actions for each action's input. " +
+        "It's queued and applies the next time that person opens the activity in Kinwall; the input is checked against the action's declared shape first.",
+      inputSchema: {
+        activity: z.string().describe('The activity, by name or id.'),
+        member: z.string().optional().describe("Whose data, by name or id. Omit for the family's shared data (someone \"just playing\")."),
+        action: z.string().describe('The action name, e.g. addList.'),
+        input: z.record(z.string(), z.unknown()).optional().describe("The action's input, as list_activity_actions describes it."),
+      },
+    },
+    async ({ activity, member, action, input }) => {
+      let plugin: { id: string; name: string };
+      let memberId = '';
+      try {
+        plugin = await findPlugin(app, env, auth, activity);
+        if (member) memberId = await resolveMember(app, env, auth, member);
+      } catch (err) {
+        return errorResult(null, err instanceof Error ? err.message : 'lookup failed');
+      }
+      const res = await call(app, env, auth, 'POST', `/api/plugins/${encodeURIComponent(plugin.id)}/actions/${encodeURIComponent(action)}`, { member: memberId, input: input ?? {} });
+      if (res.status >= 400) return errorResult(res.json, 'failed to queue the action');
+      const who = member ?? 'the family';
+      return okResult(`Queued ${action} in ${plugin.name} for ${who}. It applies the next time ${member ? `${member} opens` : 'someone opens'} ${plugin.name} in Kinwall.`, { item: res.json as Record<string, unknown> });
+    },
+  );
+
+  tool(
+    'get_activity_data',
+    {
+      title: 'Get activity data',
+      description: "What an activity (plugin) saved for one person, as { key: value }: progress, scores, lists. The format is the activity's own. Omit member for the family's shared data. Read-only.",
+      inputSchema: {
+        activity: z.string().describe('The activity, by name or id.'),
+        member: z.string().optional().describe('Whose data, by name or id; omit for shared.'),
+      },
+    },
+    async ({ activity, member }) => {
+      let pluginId: string;
+      let memberId = '';
+      try {
+        pluginId = await resolvePlugin(app, env, auth, activity);
+        if (member) memberId = await resolveMember(app, env, auth, member);
+      } catch (err) {
+        return errorResult(null, err instanceof Error ? err.message : 'lookup failed');
+      }
+      const res = await call(app, env, auth, 'GET', `/api/plugins/${encodeURIComponent(pluginId)}/data?member=${encodeURIComponent(memberId)}`);
+      if (res.status >= 400) return errorResult(res.json, 'failed to read activity data');
+      return okResult(`Saved data for ${member ?? 'the family'}.`, { data: res.json as Record<string, unknown> });
     },
   );
 }

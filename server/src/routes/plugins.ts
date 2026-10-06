@@ -49,6 +49,11 @@ export const PLUGIN_LIMITS = {
   maxDataBytes: 1024 * 1024, // everything one plugin saves, for everyone together
   maxPlaytimeCall: 60, // seconds one playtime heartbeat can add (the player sends ~30)
   maxPlaytimeDay: 4 * 60 * 60, // seconds counted per person, plugin and day
+  maxActions: 10, // actions one manifest declares
+  maxActionFields: 20, // input fields one action declares
+  maxActionInputBytes: 16 * 1024, // one queued action's input, as JSON
+  maxActionString: 1000, // one string in an action's input, unless the field says maxLength
+  maxPendingActions: 50, // queued actions per person, per plugin, until the plugin applies them
 };
 const MANIFEST = 'kinwall-plugin.json';
 const PACKAGE_ASSET = 'kinwall-plugin.zip';
@@ -62,6 +67,34 @@ const MIME: Record<string, string> = {
   gif: 'image/gif', webp: 'image/webp', mp3: 'audio/mpeg', ogg: 'audio/ogg', wav: 'audio/wav', m4a: 'audio/mp4', woff2: 'font/woff2', woff: 'font/woff',
 };
 
+// Actions: what a plugin lets other apps (the REST API, MCP, Home Assistant, n8n) ask of it, like
+// "add a spelling list". The plugin keeps its data format to itself: Kinwall queues the request
+// (POST /api/plugins/{id}/actions/{name}) after a light check of its input against the shape declared
+// here, and the plugin applies it the next time that person opens it (Kinwall.actions(), then
+// Kinwall.done(id) deletes it). Plugins check the input themselves too, and apply it idempotently.
+const FIELD_TYPES = ['string', 'number', 'boolean', 'array', 'object'] as const;
+const ActionFieldSchema = z.object({
+  type: z.enum(FIELD_TYPES),
+  description: z.string().trim().max(300).optional(),
+  items: z.object({ type: z.enum(FIELD_TYPES) }).optional().openapi({ description: "An array's item type." }),
+  maxLength: z.number().int().min(1).max(PLUGIN_LIMITS.maxActionInputBytes).optional(),
+  maxItems: z.number().int().min(1).max(1000).optional(),
+});
+const ACTION_NAME = /^[a-z][a-zA-Z0-9]{0,31}$/;
+const FIELD_NAME = /^[A-Za-z][A-Za-z0-9_]{0,31}$/;
+export const PluginActionSchema = z.object({
+  description: z.string().trim().min(1).max(300),
+  input: z.object({
+    type: z.literal('object').default('object'),
+    properties: z.record(z.string(), ActionFieldSchema)
+      .refine((p) => Object.keys(p).every((k) => FIELD_NAME.test(k)), 'field names start with a letter, then letters, digits and _, at most 32')
+      .refine((p) => Object.keys(p).length <= PLUGIN_LIMITS.maxActionFields, `at most ${PLUGIN_LIMITS.maxActionFields} fields`).default({}),
+    required: z.array(z.string()).max(PLUGIN_LIMITS.maxActionFields).default([]),
+  }).refine((i) => i.required.every((k) => k in i.properties), 'required names a field that isn\'t in properties')
+    .default({ type: 'object', properties: {}, required: [] }),
+}).openapi('PluginAction');
+type PluginAction = z.infer<typeof PluginActionSchema>;
+
 export const PluginManifestSchema = z.object({
   id: z.string().regex(/^[a-z0-9][a-z0-9-]{1,39}$/, 'id: 2-40 lowercase letters, digits and dashes'),
   name: z.string().trim().min(1).max(40),
@@ -74,6 +107,10 @@ export const PluginManifestSchema = z.object({
   ages: z.object({ min: z.number().int().min(0).max(18), max: z.number().int().min(0).max(18).optional() }).optional(),
   author: z.string().trim().max(60).optional(),
   homepage: z.string().url().max(200).regex(/^https:\/\//, 'homepage must be an https:// link').optional(),
+  actions: z.record(z.string(), PluginActionSchema)
+    .refine((a) => Object.keys(a).every((k) => ACTION_NAME.test(k)), 'action names start with a lowercase letter, then letters and digits, at most 32 (like addList)')
+    .refine((a) => Object.keys(a).length <= PLUGIN_LIMITS.maxActions, `at most ${PLUGIN_LIMITS.maxActions} actions`).optional()
+    .openapi({ description: 'What other apps can ask this plugin to do for a person (POST /api/plugins/{id}/actions/{name}).' }),
 });
 type Manifest = z.infer<typeof PluginManifestSchema>;
 
@@ -368,7 +405,7 @@ pluginsRoutes.openapi(
 pluginsRoutes.openapi(
   createRoute({
     method: 'delete', path: '/api/plugins/{id}', tags: ['Plugins'], security: [{ Bearer: [] }],
-    summary: 'Remove a plugin, its files and everything it saved. Admin only.',
+    summary: 'Remove a plugin, its files, everything it saved and its waiting actions. Admin only.',
     request: { params: IdParam },
     responses: { 204: { description: 'removed' }, 404: errors[404] },
   }),
@@ -378,6 +415,7 @@ pluginsRoutes.openapi(
     if (!(await db.prepare('SELECT 1 FROM plugins WHERE id = ?').bind(id).first())) return c.json({ error: 'plugin not found' }, 404);
     await db.batch([
       db.prepare('DELETE FROM plugin_data WHERE plugin_id = ?').bind(id),
+      db.prepare('DELETE FROM plugin_inbox WHERE plugin_id = ?').bind(id),
       db.prepare('DELETE FROM plugin_playtime WHERE plugin_id = ?').bind(id),
       db.prepare('DELETE FROM plugin_files WHERE plugin_id = ?').bind(id),
       db.prepare('DELETE FROM plugins WHERE id = ?').bind(id),
@@ -436,6 +474,111 @@ pluginsRoutes.openapi(
       .prepare('INSERT INTO plugin_data (plugin_id, member_id, key, value, updated_at) VALUES (?,?,?,?,?) ON CONFLICT(plugin_id, member_id, key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at')
       .bind(id, member, key, text, new Date().toISOString())
       .run();
+    return c.body(null, 204);
+  },
+);
+
+/** A light check of an action's input against the shape its manifest declares: an object with the
+ * required fields, no others, each of its declared type, and strings within their caps. The plugin
+ * still checks what it gets; this catches typos and wrong types before anything is queued. */
+export function checkActionInput(action: PluginAction, input: unknown): string | null {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return 'input must be an object';
+  const { properties, required } = action.input;
+  const typeOf = (v: unknown) => (Array.isArray(v) ? 'array' : v === null ? 'null' : typeof v);
+  const stringOk = (v: unknown, max = PLUGIN_LIMITS.maxActionString) => typeof v !== 'string' || v.length <= max;
+  for (const k of required) if ((input as Record<string, unknown>)[k] == null) return `${k} is required`;
+  for (const [k, v] of Object.entries(input)) {
+    const field = properties[k];
+    if (!field) return `${k} isn't an input of this action (it takes ${Object.keys(properties).join(', ') || 'nothing'})`;
+    if (v == null) continue; // an optional field left out
+    if (typeOf(v) !== field.type) return `${k} must be a${field.type === 'array' || field.type === 'object' ? 'n' : ''} ${field.type}`;
+    if (!stringOk(v, field.maxLength)) return `${k} can be at most ${field.maxLength ?? PLUGIN_LIMITS.maxActionString} characters`;
+    if (Array.isArray(v)) {
+      if (field.maxItems && v.length > field.maxItems) return `${k} can have at most ${field.maxItems} items`;
+      if (field.items && v.some((x) => typeOf(x) !== field.items!.type)) return `every item of ${k} must be a ${field.items.type}`;
+      if (!v.every((x) => stringOk(x, field.maxLength))) return `the items of ${k} can be at most ${field.maxLength ?? PLUGIN_LIMITS.maxActionString} characters`;
+    }
+  }
+  return null;
+}
+
+export const PluginActionItemSchema = z.object({
+  id: z.string(),
+  action: z.string(),
+  input: z.record(z.string(), z.unknown()),
+  member: z.string().openapi({ description: "Whose data it's for; '' = the family's shared data." }),
+  createdAt: z.string(),
+}).openapi('PluginActionItem');
+type InboxRow = { id: string; action: string; input: string; member_id: string; created_at: string };
+const inboxItem = (r: InboxRow): z.infer<typeof PluginActionItemSchema> => ({ id: r.id, action: r.action, input: JSON.parse(r.input), member: r.member_id, createdAt: r.created_at });
+
+pluginsRoutes.openapi(
+  createRoute({
+    method: 'post', path: '/api/plugins/{id}/actions/{name}', tags: ['Plugins'], security: [{ Bearer: [] }],
+    summary: `Ask a plugin to do one of the actions its manifest declares (GET /api/plugins lists them with their input) for one person (member '' = the family's shared data). It's queued, and the plugin applies it the next time that person opens it. The input is checked against the declared shape and can be at most ${PLUGIN_LIMITS.maxActionInputBytes / 1024} KB; at most ${PLUGIN_LIMITS.maxPendingActions} wait per person and plugin. Full access only.`,
+    request: {
+      params: z.object({ id: z.string(), name: z.string() }),
+      body: { required: true, content: { 'application/json': { schema: z.object({ member: z.string().default(''), input: z.record(z.string(), z.unknown()).default({}) }) } } },
+    },
+    responses: { 201: { description: 'queued', content: json(PluginActionItemSchema) }, 400: errors[400], 404: errors[404], 409: { description: 'too many waiting for this person', content: json(ErrorSchema) } },
+  }),
+  async (c) => {
+    const { id, name } = c.req.valid('param');
+    const { member, input } = c.req.valid('json');
+    const db = c.env.DB;
+    const row = await db.prepare('SELECT manifest FROM plugins WHERE id = ?').bind(id).first<{ manifest: string }>();
+    if (!row) return c.json({ error: 'plugin not found' }, 404);
+    const actions = (JSON.parse(row.manifest) as Manifest).actions ?? {};
+    const action = Object.hasOwn(actions, name) ? actions[name] : undefined;
+    if (!action) return c.json({ error: `This activity has no ${name} action${Object.keys(actions).length ? ` (it has ${Object.keys(actions).join(', ')})` : ''}` }, 404);
+    if (member && !(await db.prepare('SELECT 1 FROM members WHERE id = ?').bind(member).first())) return c.json({ error: 'member not found' }, 404);
+    const text = JSON.stringify(input);
+    if (text.length > PLUGIN_LIMITS.maxActionInputBytes) return c.json({ error: `An action's input can be at most ${PLUGIN_LIMITS.maxActionInputBytes / 1024} KB` }, 400);
+    const bad = checkActionInput(action, input);
+    if (bad) return c.json({ error: bad }, 400);
+    const waiting = (await db.prepare('SELECT COUNT(*) AS n FROM plugin_inbox WHERE plugin_id = ? AND member_id = ?').bind(id, member).first<{ n: number }>())?.n ?? 0;
+    if (waiting >= PLUGIN_LIMITS.maxPendingActions) return c.json({ error: `${PLUGIN_LIMITS.maxPendingActions} actions are already waiting for this activity to open; try again after it has applied them` }, 409);
+    const item: InboxRow = { id: crypto.randomUUID(), action: name, input: text, member_id: member, created_at: new Date().toISOString() };
+    await db.prepare('INSERT INTO plugin_inbox (id, plugin_id, member_id, action, input, created_at) VALUES (?,?,?,?,?,?)').bind(item.id, id, member, name, text, item.created_at).run();
+    // No input in the event: webhooks may get every event, and the input is the plugin's business.
+    emit(c, 'plugin.action', { id: item.id, pluginId: id, memberId: member || null, action: name });
+    return c.json(inboxItem(item), 201);
+  },
+);
+
+pluginsRoutes.openapi(
+  createRoute({
+    method: 'get', path: '/api/plugins/{id}/actions/pending', tags: ['Plugins'], security: [{ Bearer: [] }],
+    summary: "Actions waiting for a plugin to apply for one person (member '' = shared), oldest first. The web app reads these for the plugin (Kinwall.actions()); a member's own device reads only its own and the shared ones.",
+    request: { params: IdParam, query: DataQuery },
+    responses: { 200: { description: 'ok', content: json(z.array(PluginActionItemSchema)) }, 403: { description: 'this device belongs to someone else', content: json(ErrorSchema) } },
+  }),
+  async (c) => {
+    const { member } = c.req.valid('query');
+    const blocked = await ownerBlock(c, member);
+    if (blocked) return c.json({ error: blocked }, 403);
+    const { results } = await c.env.DB.prepare('SELECT * FROM plugin_inbox WHERE plugin_id = ? AND member_id = ? ORDER BY created_at, rowid')
+      .bind(c.req.valid('param').id, member)
+      .all<InboxRow>();
+    return c.json(results.map(inboxItem), 200);
+  },
+);
+
+pluginsRoutes.openapi(
+  createRoute({
+    method: 'delete', path: '/api/plugins/{id}/actions/{itemId}', tags: ['Plugins'], security: [{ Bearer: [] }],
+    summary: "Mark a queued action done (the plugin applied it, or chose to drop it): it's deleted. A member's own device can do this only for its own and the shared ones.",
+    request: { params: z.object({ id: z.string(), itemId: z.string() }) },
+    responses: { 204: { description: 'done' }, 403: { description: 'this device belongs to someone else', content: json(ErrorSchema) }, 404: errors[404] },
+  }),
+  async (c) => {
+    const { id, itemId } = c.req.valid('param');
+    const db = c.env.DB;
+    const row = await db.prepare('SELECT member_id FROM plugin_inbox WHERE id = ? AND plugin_id = ?').bind(itemId, id).first<{ member_id: string }>();
+    if (!row) return c.json({ error: 'action not found' }, 404);
+    const blocked = await ownerBlock(c, row.member_id);
+    if (blocked) return c.json({ error: blocked }, 403);
+    await db.prepare('DELETE FROM plugin_inbox WHERE id = ?').bind(itemId).run();
     return c.body(null, 204);
   },
 );

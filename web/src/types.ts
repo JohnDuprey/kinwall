@@ -1006,12 +1006,16 @@ export interface Plugin {
   ages?: { min: number; max?: number }
   author?: string
   homepage?: string
+  actions?: Record<string, { description: string; input: { type: 'object'; properties: Record<string, { type: string; description?: string }>; required: string[] } }>
   source: string | null // 'owner/repo' on GitHub, or null for an uploaded package
   enabled: boolean
   installedAt: string
   updatedAt: string
   url: string // /plugins/<id>/<entry>
 }
+
+/** A queued plugin action (GET /api/plugins/{id}/actions/pending): what another app asked the plugin to do. */
+export interface PluginActionItem { id: string; action: string; input: Record<string, unknown>; member: string; createdAt: string }
 
 /** GET /api/members/{id}/stats: a member profile's numbers (server/src/schemas.ts MemberStatsSchema). */
 export type StatsPeriod = 'today' | 'week' | 'month' | 'year' | 'all'

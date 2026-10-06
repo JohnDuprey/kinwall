@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { createApp } from '../src/app.ts';
 import { openDb, applyMigrations } from '../src/d1-sqlite.ts';
 import type { Env } from '../src/env.ts';
+import { zipStream, type ZipFile } from '../src/zip.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MIGRATIONS_DIR = path.join(__dirname, '..', 'migrations');
@@ -112,6 +113,7 @@ test('mcp: tools/list returns the tools', async () => {
     'delete_recipe',
     'delete_reward',
     'delete_tracker_entry',
+    'get_activity_data',
     'get_board',
     'get_contact',
     'get_event',
@@ -127,6 +129,7 @@ test('mcp: tools/list returns the tools', async () => {
     'import_contacts',
     'import_recipe',
     'import_recipe_from_url',
+    'list_activity_actions',
     'list_categories',
     'list_chore_library',
     'list_chores',
@@ -153,6 +156,7 @@ test('mcp: tools/list returns the tools', async () => {
     'rate_recipe',
     'redeem_reward',
     'reject_chore',
+    'run_activity_action',
     'save_color_scheme',
     'search_books',
     'send_notification',
@@ -931,4 +935,45 @@ test('mcp: update_library_book lends a book out (by title), moves it and brings 
   const back = await call('update_library_book', { book: 'Holes', lentTo: null, location: "Maya's room" });
   assert.deepEqual([back.structuredContent.book.lentTo, back.structuredContent.book.location], [null, "Maya's room"]);
   assert.equal((await call('update_library_book', { book: 'Nope' })).isError, true);
+});
+
+test('mcp: activity actions are listed, queued for a person by name, and their saved data read', async () => {
+  const env = makeEnv();
+  const { rest, mcp } = makeApp(env);
+  const files: ZipFile[] = Object.entries({
+    'kinwall-plugin.json': JSON.stringify({
+      id: 'spelling', name: 'Spelling practice', version: '1.2.0',
+      actions: { addList: { description: 'Add a spelling list.', input: { properties: { title: { type: 'string' }, words: { type: 'array', items: { type: 'string' } }, testDate: { type: 'string' } }, required: ['title', 'words'] } } },
+    }),
+    'index.html': '<h1>Spelling</h1>',
+  }).map(([name, text]) => ({ name, data: new TextEncoder().encode(text), modified: new Date() }));
+  const pkg = new Uint8Array(await new Response(zipStream(async () => files.shift() ?? null)).arrayBuffer());
+  assert.equal((await rest('/api/plugins', { method: 'POST', headers: { 'Content-Type': 'application/zip' }, body: pkg })).status, 201);
+  const maya = await (await rest('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Maya', color: '#7ED9A6' }) })).json() as any;
+  const call = async (name: string, args: Record<string, unknown>, key = ADMIN_KEY) => (await (await mcp('tools/call', { name, arguments: args }, key)).json() as any).result;
+
+  const listed = await call('list_activity_actions', {});
+  assert.deepEqual(listed.structuredContent.activities.map((a: any) => [a.name, Object.keys(a.actions)]), [['Spelling practice', ['addList']]]);
+
+  const input = { title: 'Adding -ing', words: ['swimming', 'giving'], testDate: '2026-10-09' };
+  const run = await call('run_activity_action', { activity: 'spelling practice', member: 'maya', action: 'addList', input });
+  assert.notEqual(run.isError, true, JSON.stringify(run));
+  assert.match(run.content[0].text, /applies the next time maya opens Spelling practice/);
+  assert.deepEqual(run.structuredContent.item.input, input);
+  assert.equal(run.structuredContent.item.member, maya.id);
+  const pending = await (await rest(`/api/plugins/spelling/actions/pending?member=${maya.id}`)).json() as any[];
+  assert.equal(pending.length, 1);
+
+  // The route's checks come back as readable errors.
+  const bad = await call('run_activity_action', { activity: 'spelling', member: 'Maya', action: 'addList', input: { words: ['x'] } });
+  assert.equal(bad.isError, true);
+  assert.match(bad.content[0].text, /title is required/);
+  assert.match((await call('run_activity_action', { activity: 'chess', action: 'addList' })).content[0].text, /no installed activity matching "chess"/);
+  // Wall screens and kids' devices can't queue.
+  const display = await (await rest('/api/keys', { method: 'POST', body: JSON.stringify({ name: 'Wall', scope: 'display' }) })).json() as any;
+  assert.equal((await call('run_activity_action', { activity: 'spelling', member: 'Maya', action: 'addList', input }, display.key)).isError, true);
+
+  await rest('/api/plugins/spelling/data', { method: 'PUT', body: JSON.stringify({ member: maya.id, key: 'list-1', value: { title: 'Adding -ing' } }) });
+  assert.deepEqual((await call('get_activity_data', { activity: 'spelling', member: 'Maya' })).structuredContent.data, { 'list-1': { title: 'Adding -ing' } });
+  assert.deepEqual((await call('get_activity_data', { activity: 'spelling' })).structuredContent.data, {});
 });

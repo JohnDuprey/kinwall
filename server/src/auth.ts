@@ -313,6 +313,9 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'GET', pattern: /^\/api\/plugins\/[a-z0-9-]+\/data$/ },
   { method: 'PUT', pattern: /^\/api\/plugins\/[a-z0-9-]+\/data$/ },
   { method: 'POST', pattern: /^\/api\/plugins\/[a-z0-9-]+\/playtime$/ }, // activity chores: the player's heartbeat
+  // Plugin actions: the player reads and acknowledges what's waiting; queueing one needs full access.
+  { method: 'GET', pattern: /^\/api\/plugins\/[a-z0-9-]+\/actions\/pending$/ },
+  { method: 'DELETE', pattern: /^\/api\/plugins\/[a-z0-9-]+\/actions\/[^/]+$/ },
   { method: 'GET', pattern: /^\/api\/geocode$/ },
   { method: 'GET', pattern: /^\/api\/settings$/ },
   // Family settings (name, timezone, weather, quote sources, appearance, night, features)

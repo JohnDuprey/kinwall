@@ -11,7 +11,35 @@ An activity plugin is a small web page that shows up under **Activities** on a f
 - **It talks to Kinwall through the SDK only.** `Kinwall.ready()` says who's playing (first name, emoji, color), whether it's a parent's device (`parent`: true on a parent's phone or computer, false on wall screens and kids' devices, missing on older Kinwall versions), the theme, text size, motion preference and locale. Use `parent` to show grown-up settings, like editing a kid's word list, only to parents. `Kinwall.load()` and `Kinwall.save()` keep progress per person or for the whole family. `Kinwall.close()` goes back to Activities.
 - **Speech everywhere.** Android's WebView has no `speechSynthesis`, so Kinwall can speak for a plugin: `await Kinwall.speak(text, { rate, lang })` resolves when it's said (or stopped; it never rejects), and `Kinwall.stopSpeaking()` stops it. `ready()` says whether it works there (`canSpeak`). Use the page's own `speechSynthesis` when it has one (it gives more control over voices), else `Kinwall.speak` when `ctx.canSpeak`, else say the activity needs a device that can talk. Text is cut at 500 characters.
 - **Play counts from launch.** A family can make a chore of your activity, like "5 min of Sight words". Kinwall times it, not your plugin: time counts from launch while your page is on screen, whether or not you save. Kinwall can't see taps inside your page, so it stops counting after 5 minutes with no sign of play: no save, no `Kinwall.speak()`, no SDK call at all, and no tap or key press around the frame. So call `Kinwall.save()` on each answer or step, not just at the end, and a long stretch of reading or thinking still counts.
+- **Other apps can ask it to do things.** A plugin can declare **actions** in its manifest, like Spelling practice's `addList`, so a parent can say "add Maya's spelling list for this week" to an AI assistant, or a Home Assistant or n8n automation can send one. See [Actions](#actions).
 - **It's one page.** If the page loads another page (a link, `location`, a reload), Kinwall stops the plugin. Switch screens in JavaScript.
+
+## Actions
+
+Your plugin's saved data is yours: its format is private to the plugin, and nothing else writes it. Actions are how other apps ask the plugin to change it. The plugin declares what it accepts, Kinwall queues each request for one person, and the plugin applies it the next time that person opens it.
+
+Declare them in `kinwall-plugin.json` (at most 10). Names start with a lowercase letter, then letters and digits (`addList`). The input is a small JSON-Schema-like shape: `properties` with a `type` of `string`, `number`, `boolean`, `array` or `object`, an optional `description`, `items: { type }` for arrays, `maxLength` and `maxItems`, plus a `required` list.
+
+```json
+"actions": {
+  "addList": {
+    "description": "Add a spelling list for this person, or add words to their list with the same title.",
+    "input": {
+      "properties": {
+        "title": { "type": "string", "maxLength": 40, "description": "The list's name" },
+        "words": { "type": "array", "items": { "type": "string" }, "maxItems": 60 },
+        "testDate": { "type": "string", "description": "YYYY-MM-DD" }
+      },
+      "required": ["title", "words"]
+    }
+  }
+}
+```
+
+- **Sending one:** `POST /api/plugins/{id}/actions/{name}` with `{ "member": "<member id>", "input": { … } }` (`member: ""` for the family's shared data), or the MCP tool `run_activity_action`. Only full access can: a parent's device, a full-access API key or connected app; never wall screens or kids' devices. Kinwall checks the input against the declared shape (required fields present, no unknown fields, types match, strings at most 1,000 characters unless `maxLength` says otherwise), caps it at 16 KB, and keeps at most 50 waiting per person and plugin.
+- **Applying them:** `await Kinwall.actions()` returns the current person's waiting actions, oldest first, as `[{ id, action, input, createdAt }]` (`Kinwall.actions({ shared: true })` for the family's). Apply each and then call `await Kinwall.done(id)`, which deletes it. Call `actions()` after `ready()` and `load()`; Kinwall also sends an `actions` event (`Kinwall.onActions(callback)`) when something changed while the plugin is open, so it can look again. On older Kinwall, `actions()` resolves to `[]`.
+- **Check the input yourself,** even though Kinwall checked its shape: it came from outside. Drop what you can't use with `done(id)` so it doesn't come back.
+- **Be idempotent.** If saving works but `done` doesn't (the network dropped), the action comes back next time. Applying it twice should change nothing more: merge rather than append.
 
 ## Limits
 
@@ -21,6 +49,7 @@ An activity plugin is a small web page that shows up under **Activities** on a f
 | Per family | 20 plugins, 50 MB of plugin files in all |
 | Saved data | 16 KB per value, 100 values per person, 1 MB per plugin for the whole family |
 | Saving | 30 saves in 10 seconds |
+| Actions | 10 per plugin; input 16 KB; 50 waiting per person and plugin |
 
 The example's README lists everything else a plugin can't do (no module scripts, no workers, no dialogs, no device access) and why.
 

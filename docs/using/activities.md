@@ -149,4 +149,6 @@ When you open one, Kinwall asks **Who's playing?** unless the header is set to o
 
 While an activity has the on-screen keyboard up (typing a spelling word, say), Kinwall's header, tabs, side menu and the activity's bar step aside and the activity fits above the keyboard. They come back when the keyboard goes away.
 
+Some activities take requests from other apps, like Spelling practice adding a kid's list for the week from an AI assistant ("add Maya's spelling words for Friday"), [Home Assistant](../integrations/home-assistant.md) or [n8n](../integrations/n8n.md). Only grown-ups' devices, full-access keys and connected apps can send them. The activity applies it the next time that person opens it. See [Actions](../contributing/plugins.md#actions).
+
 Want to build one? See [Building activity plugins](../contributing/plugins.md).
