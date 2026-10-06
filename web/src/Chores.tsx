@@ -437,6 +437,26 @@ export default function Chores() {
 
   const strip = useMemo(() => Array.from({ length: 14 }, (_, i) => addDays(new Date(), i - 4)), [])
 
+  // Parent devices: clear a person's counted play for an activity chore's day (someone opened it as
+  // a kid to check something). A chore the play already completed stays done; unticking is separate.
+  const editDay = editChore && editChore !== 'new' ? chores.find(c => c.id === editChore.id) : undefined
+  const resetMember = parentDevice && editDay?.activity && editDay.activity.doneSeconds > 0 ? editDay.memberId ?? selectedMemberId : null
+  const isToday = key === dateKey(new Date())
+  const resetTime = async (c: ChoreDay, member: string) => {
+    const act = c.activity!
+    const who = members.find(m => m.id === member)?.name ?? 'Someone'
+    if (!await dialog.confirm({
+      title: `Reset ${who}'s ${act.name ?? 'activity'} time ${isToday ? 'for today' : `for ${format(selectedDate, 'EEE, MMM d')}`}?`,
+      body: c.completed ? `"${c.title}" stays done. Untick it if it shouldn't count.` : `${Math.floor(act.doneSeconds / 60)} of ${act.needSeconds / 60} min goes back to 0.`,
+      confirmLabel: 'Reset time',
+    })) return
+    try {
+      await api.resetPlaytime(act.pluginId, member, key)
+      setEditChore(null); load()
+      toast(`Time reset: ${c.title}`); announce(`Time reset: ${c.title}`)
+    } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not reset the time', true) }
+  }
+
   // "Who did it?" for an Anyone chore when the tab isn't filtered or pinned to one person.
   const [whoFor, setWhoFor] = useState<ChoreDay | null>(null)
   const toggle = async (c: ChoreDay, doneBy?: string | null) => {
@@ -618,6 +638,7 @@ export default function Chores() {
         <ChoreEditSheet
           chore={editChore && editChore !== 'new' ? editChore : null}
           draft={repeatDraft}
+          resetTime={resetMember && editDay ? { label: `Reset ${isToday ? "today's" : "this day's"} time…`, run: () => void resetTime(editDay, resetMember) } : undefined}
           onClose={() => { setEditChore(null); setRepeatDraft(null) }}
           onSaved={first => {
             setEditChore(null); setRepeatDraft(null)
@@ -633,7 +654,7 @@ export default function Chores() {
 
 /** Add or edit a chore. `draft` (the library's "Make it repeat") fills a new chore from a library
  * item, repeating at its "about every" interval from the picked day. */
-function ChoreEditSheet({ chore, draft, onClose, onSaved }: { chore: Chore | null; draft?: RepeatDraft | null; onClose: () => void; onSaved: (firstDate?: Date) => void }) {
+function ChoreEditSheet({ chore, draft, resetTime, onClose, onSaved }: { chore: Chore | null; draft?: RepeatDraft | null; resetTime?: { label: string; run: () => void }; onClose: () => void; onSaved: (firstDate?: Date) => void }) {
   const dialog = useDialog()
   const { members, toast, settings } = useApp()
   const from = draft?.item
@@ -694,9 +715,10 @@ function ChoreEditSheet({ chore, draft, onClose, onSaved }: { chore: Chore | nul
     <Sheet title={chore ? 'Edit chore' : draft ? 'Make it repeat' : 'New chore'} onClose={onClose}
       actions={
         <>
-          {chore && <select className="settings-select actions-select" aria-label="Chore actions" value="" onChange={e => { if (e.target.value === 'delete') void del(); if (e.target.value === 'library') void saveToLibrary() }}>
+          {chore && <select className="settings-select actions-select" aria-label="Chore actions" value="" onChange={e => { if (e.target.value === 'delete') void del(); if (e.target.value === 'library') void saveToLibrary(); if (e.target.value === 'reset') resetTime?.run() }}>
             <option value="" disabled hidden>More…</option>
             {!chore.libraryId && <option value="library">Save to library</option>}
+            {resetTime && <option value="reset">{resetTime.label}</option>}
             <option value="delete">Delete chore…</option>
           </select>}
           <button className="btn btn-primary" onClick={submit} disabled={!title.trim() || !isSingleEmoji(emoji)}>{chore ? 'Save' : 'Add chore'}</button>

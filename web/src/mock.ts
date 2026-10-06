@@ -1821,6 +1821,10 @@ export const mockPlugins = {
       return { choreId: c.id, title: c.title, emoji: c.emoji, needSeconds, doneSeconds: Math.min(total, needSeconds), completed, justCompleted }
     })
   },
+  resetPlaytime: async (id: string, member: string): Promise<ActivityChoreProgress[]> => {
+    playtime.delete(`${dateKey(new Date())}:${member}:${id}`); bump()
+    return mockPlugins.playtime(id, member, 0)
+  },
   save: async (id: string, member: string, key: string, value: unknown) => {
     const d = pluginData.get(`${id}:${member}`) ?? {}
     if (value === null || value === undefined) delete d[key]; else d[key] = value

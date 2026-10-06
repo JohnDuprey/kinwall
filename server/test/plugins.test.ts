@@ -20,7 +20,7 @@ function setup(extra: Partial<Env> = {}) {
   const req = (p: string, init: RequestInit & { key?: string } = {}) =>
     app.request(p, { ...init, headers: { Authorization: `Bearer ${init.key ?? ADMIN_KEY}`, ...(init.headers ?? {}) } }, env);
   const json = (p: string, method: string, body: unknown, key?: string) => req(p, { method, key, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-  return { req, json };
+  return { req, json, db };
 }
 
 async function zip(files: Record<string, string>): Promise<Uint8Array<ArrayBuffer>> {
@@ -329,6 +329,51 @@ test('activity chores: link a plugin, heartbeats add up (capped), and complete o
   assert.deepEqual([after.activity.available, after.activity.name, after.activity.doneSeconds], [false, null, 0]);
   assert.equal((await req(`/api/chores/${mine.id}/complete?date=${today}`, { method: 'DELETE' })).status, 200);
   assert.equal((await json(`/api/chores/${mine.id}/complete`, 'POST', { date: today })).status, 200); // a plain tick still works
+});
+
+test("activity chores: a parent resets one person's play time for a day; walls and kids' devices can't", async () => {
+  const { req, json, db } = setup();
+  const { todayInTz } = await import('../src/routes/members.ts');
+  const { hostTimezone } = await import('../src/env.ts');
+  const today = todayInTz(hostTimezone());
+  assert.equal((await upload(req, await zip({ 'kinwall-plugin.json': JSON.stringify(MANIFEST), 'index.html': '<h1>Hi</h1>' }))).status, 201);
+  const alex = (await (await json('/api/members', 'POST', { name: 'Alex', color: '#7AB8FF' })).json()) as any;
+  const sam = (await (await json('/api/members', 'POST', { name: 'Sam', color: '#FF9E7A' })).json()) as any;
+  const display = (await (await json('/api/keys', 'POST', { name: 'Wall', scope: 'display' })).json()) as any;
+  const body = async (r: Response) => (await r.json()) as any;
+  const play = (member: string, seconds: number) => json('/api/plugins/sight-words/playtime', 'POST', { member, seconds });
+  const reset = (q: string, key?: string) => req(`/api/plugins/sight-words/playtime?${q}`, { method: 'DELETE', key });
+  const seconds = async (date: string, member: string, plugin = 'sight-words') =>
+    (await db.prepare('SELECT seconds FROM plugin_playtime WHERE date = ? AND member_id = ? AND plugin_id = ?').bind(date, member, plugin).first<{ seconds: number }>())?.seconds ?? 0;
+  const chore = await body(await json('/api/chores', 'POST', { title: 'Sight words', rrule: 'FREQ=DAILY', points: 10, memberId: alex.id, pluginId: 'sight-words', pluginMinutes: 5 }));
+
+  await play(alex.id, 60);
+  await play(sam.id, 60);
+  await db.prepare("INSERT INTO plugin_playtime (date, member_id, plugin_id, seconds) VALUES ('2020-01-01', ?, 'sight-words', 90), (?, ?, 'other', 120)").bind(alex.id, today, alex.id).run();
+
+  // Full access only: a wall screen (and so a kid's device, also display-scoped) is refused.
+  assert.equal((await reset(`member=${alex.id}`, display.key)).status, 403);
+  assert.equal(await seconds(today, alex.id), 60);
+  assert.equal((await reset('member=nobody')).status, 404);
+  assert.equal((await req(`/api/plugins/nope/playtime?member=${alex.id}`, { method: 'DELETE' })).status, 404);
+  assert.equal((await reset(`member=${alex.id}&date=today`)).status, 400);
+
+  // Today by default: only Alex's, only this activity, only today. Returns the fresh progress.
+  const progress = await body(await reset(`member=${alex.id}`));
+  assert.deepEqual(progress.map((p: any) => [p.choreId, p.doneSeconds, p.completed]), [[chore.id, 0, false]]);
+  assert.deepEqual([await seconds(today, alex.id), await seconds(today, sam.id), await seconds('2020-01-01', alex.id), await seconds(today, alex.id, 'other')], [0, 60, 90, 120]);
+  assert.equal((await body(await req(`/api/chores/day?date=${today}`))).find((c: any) => c.id === chore.id).activity.doneSeconds, 0);
+  // Another day by date; the caps start over with the time (a call still adds at most 60).
+  assert.equal((await reset(`member=${alex.id}&date=2020-01-01`)).status, 200);
+  assert.equal(await seconds('2020-01-01', alex.id), 0);
+  assert.equal((await body(await play(alex.id, 500)))[0].doneSeconds, 60);
+
+  // Already completed by play: resetting the time leaves the chore (and its points) done.
+  for (let i = 0; i < 4; i++) await play(alex.id, 60);
+  const done = await body(await reset(`member=${alex.id}`));
+  assert.deepEqual([done[0].completed, done[0].doneSeconds], [true, 0]);
+  assert.equal((await body(await req(`/api/chores/day?date=${today}`))).find((c: any) => c.id === chore.id).completed, true);
+  assert.equal((await body(await req('/api/members'))).find((m: any) => m.id === alex.id).pointsToday, 10);
 });
 
 const SPELLING = {

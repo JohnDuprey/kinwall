@@ -75,6 +75,8 @@ export function PluginPlayer({ id }: { id: string }) {
   // A plugin page that navigates its frame somewhere else has left its package: stop it. Only
   // reopening it from Activities starts it again.
   const [left, setLeft] = useState(false)
+  const dialog = useDialog()
+  const zeroed = useRef(false) // a parent reset today's time: drop seconds counted but not yet sent
 
   useEffect(() => {
     api.getPlugins().then(list => setPlugin(list.find(p => p.id === id && p.enabled) ?? null)).catch(() => setPlugin(null))
@@ -160,7 +162,9 @@ export function PluginPlayer({ id }: { id: string }) {
     addEventListener('pointerdown', touch, true); addEventListener('keydown', touch, true); addEventListener('blur', touch)
     let counted = 0
     let closed = false
+    const take = () => { if (zeroed.current) { counted = 0; zeroed.current = false } }
     const flush = () => {
+      take()
       const seconds = Math.min(counted, MAX_HEARTBEAT_SECONDS)
       counted = 0
       const sent = () => setUnsent(u => Math.max(0, u - seconds))
@@ -175,6 +179,7 @@ export function PluginPlayer({ id }: { id: string }) {
     }
     flush() // seconds 0: just today's progress, for the chip
     const tick = setInterval(() => {
+      take()
       if (!countsNow(document.visibilityState === 'visible', lastActive.current, Date.now())) return
       counted++
       setUnsent(u => u + 1)
@@ -197,6 +202,21 @@ export function PluginPlayer({ id }: { id: string }) {
   const chipDone = chip ? Math.min(chip.needSeconds, chip.doneSeconds + (chip.completed ? 0 : unsent)) : 0
   const chipToGo = chip && !chip.completed ? chip.needSeconds - chip.doneSeconds : Infinity
   useEffect(() => { toGo.current = chipToGo }, [chipToGo])
+  // Parent devices: tapping the chip resets the player's time for today (they opened it as a kid to
+  // check something). A chore the play already completed stays done; unticking it is separate.
+  const resetChip = async () => {
+    if (!plugin || !player || !chip) return
+    if (!await dialog.confirm({
+      title: `Reset ${player.name}'s ${plugin.name} time for today?`,
+      body: chip.completed ? `"${chip.title}" stays done. Untick it on Chores if it shouldn't count.` : `${Math.floor(chipDone / 60)} of ${chip.needSeconds / 60} min goes back to 0. Time counts again while ${plugin.name} is open.`,
+      confirmLabel: 'Reset time',
+    })) return
+    try {
+      zeroed.current = true
+      setChores(await api.resetPlaytime(plugin.id, player.id)); setUnsent(0)
+      toast(`Time reset: ${chip.title}`); announce(`Time reset: ${chip.title}`)
+    } catch (e) { toast(e instanceof ApiError ? e.message : 'Could not reset the time', true) }
+  }
 
   if (plugin === undefined) return null
   if (left) return <div className="state-card">{plugin?.name ?? 'This activity'} tried to leave Kinwall, so it was stopped. <a href="#/activities">Back to Activities</a></div>
@@ -222,16 +242,20 @@ export function PluginPlayer({ id }: { id: string }) {
       <div className="plugin-bar">
         <a className="btn btn-secondary" href="#/activities">‹ Activities</a>
         <span className="plugin-bar-title"><span aria-hidden="true">{plugin.emoji}</span> {plugin.name}</span>
-        {chip && (
-          <span className={`plugin-chore-chip ${chip.completed ? 'done' : ''}`} role="status">
+        {chip && (() => {
+          const inner = <>
             <ActivityRing done={chipDone} need={chip.needSeconds} complete={chip.completed} />
             <span>
               {chip.emoji && <span aria-hidden="true">{chip.emoji} </span>}
               {chip.completed ? `${chip.title}: done ✓` : `${chip.title}: ${Math.floor(chipDone / 60)} of ${chip.needSeconds / 60} min`}
             </span>
             {burst > 0 && <Confetti key={burst} />}
-          </span>
-        )}
+          </>
+          const cls = `plugin-chore-chip ${chip.completed ? 'done' : ''}`
+          return parentDevice
+            ? <button type="button" className={cls} onClick={() => void resetChip()} aria-label={`${chip.title}: ${chip.completed ? 'done' : `${Math.floor(chipDone / 60)} of ${chip.needSeconds / 60} min`}. Reset today's time`}>{inner}</button>
+            : <span className={cls} role="status">{inner}</span>
+        })()}
         {player && members.length > 1 && <button className="btn btn-secondary" onClick={() => { setPresetId(null); setPlayer(undefined) }}>{player.avatar || ''} {player.name} · Switch</button>}
       </div>
       {/* key: switching players restarts the plugin with the new person's progress */}

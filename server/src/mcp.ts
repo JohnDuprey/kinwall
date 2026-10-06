@@ -25,7 +25,7 @@ import { VERSION } from './version.ts';
 import { resolveKey } from './auth.ts';
 import { itemKey } from './item-memory.ts';
 import { NightScreenSchema } from './routes/night-screen.ts';
-import { PluginActionSchema, PluginActionItemSchema } from './routes/plugins.ts';
+import { ActivityChoreProgressSchema, PluginActionSchema, PluginActionItemSchema } from './routes/plugins.ts';
 
 type App = OpenAPIHono<{ Bindings: Env }>;
 
@@ -247,6 +247,7 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
   list_lists: { lists: z.array(ListSchema) },
   list_activity_actions: { activities: z.array(z.object({ id: z.string(), name: z.string(), emoji: z.string(), enabled: z.boolean(), actions: z.record(z.string(), PluginActionSchema) })) },
   run_activity_action: { item: PluginActionItemSchema },
+  reset_activity_time: { chores: z.array(ActivityChoreProgressSchema) },
   get_activity_data: { data: z.record(z.string(), z.unknown()) },
   search_books: { books: z.array(BookResultSchema) },
   list_library: { books: z.array(LibraryBookSchema) }, add_to_library: { book: LibraryBookSchema }, update_library_book: { book: LibraryBookSchema },
@@ -313,7 +314,7 @@ const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boole
   delete_event: { ...WRITE, destructiveHint: true, idempotentHint: true, openWorldHint: true },
   delete_list: DELETE, delete_list_item: DELETE, delete_list_step: DELETE, delete_note: DELETE, delete_chore: DELETE,
   delete_tracker_entry: DELETE, delete_meal: DELETE, delete_recipe: DELETE, delete_reward: DELETE, delete_contact: DELETE, delete_contact_category: DELETE, import_contacts: WRITE, merge_contacts: WRITE,
-  list_activity_actions: READ, run_activity_action: WRITE, get_activity_data: READ,
+  list_activity_actions: READ, run_activity_action: WRITE, reset_activity_time: { ...SET, destructiveHint: true }, get_activity_data: READ,
 };
 
 function registerTools(server: McpServer, app: App, env: Env, auth: string) {
@@ -2271,6 +2272,37 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       if (res.status >= 400) return errorResult(res.json, 'failed to queue the action');
       const who = member ?? 'the family';
       return okResult(`Queued ${action} in ${plugin.name} for ${who}. It applies the next time ${member ? `${member} opens` : 'someone opens'} ${plugin.name} in Kinwall.`, { item: res.json as Record<string, unknown> });
+    },
+  );
+
+  tool(
+    'reset_activity_time',
+    {
+      title: 'Reset activity time',
+      description:
+        "Full access: clear one person's counted play time for an activity on a day (default today), e.g. after a parent opened it as their kid to check something. " +
+        'Activity chores linked to it start counting from zero; one the play already completed stays done (use uncomplete_chore to undo that). Returns their linked chores due that day.',
+      inputSchema: {
+        activity: z.string().describe('The activity, by name or id.'),
+        member: z.string().describe('Whose time, by name or id.'),
+        date: z.string().optional().describe('YYYY-MM-DD. Default: today.'),
+      },
+    },
+    async ({ activity, member, date }) => {
+      let plugin: { id: string; name: string };
+      let memberId: string;
+      try {
+        plugin = await findPlugin(app, env, auth, activity);
+        memberId = await resolveMember(app, env, auth, member);
+      } catch (err) {
+        return errorResult(null, err instanceof Error ? err.message : 'lookup failed');
+      }
+      const day = date ?? await todayInHousehold(env);
+      const res = await call(app, env, auth, 'DELETE', `/api/plugins/${encodeURIComponent(plugin.id)}/playtime?member=${encodeURIComponent(memberId)}&date=${encodeURIComponent(day)}`);
+      if (res.status >= 400) return errorResult(res.json, 'failed to reset the time');
+      const chores = res.json as { title: string; completed: boolean }[];
+      const kept = chores.filter((c) => c.completed).map((c) => c.title);
+      return okResult(`Reset ${member}'s ${plugin.name} time for ${day}.${kept.length ? ` Still done: ${kept.join(', ')} (uncomplete_chore undoes that).` : ''}`, { chores });
     },
   );
 

@@ -120,4 +120,6 @@ test("plugins: a kid's device saves data and play time only for its owner (or th
   assert.equal((await play(leo.id, leoKey)).status, 404);
   assert.equal((await put(maya.id, wallKey)).status, 404);
   assert.equal((await play(maya.id, wallKey)).status, 404);
+  // Resetting a day's play time is for parent devices, even the kid's own.
+  assert.equal((await raw('DELETE', `/api/plugins/sight-words/playtime?member=${leo.id}`, undefined, leoKey)).status, 403);
 });

@@ -156,6 +156,7 @@ test('mcp: tools/list returns the tools', async () => {
     'rate_recipe',
     'redeem_reward',
     'reject_chore',
+    'reset_activity_time',
     'run_activity_action',
     'save_color_scheme',
     'search_books',
@@ -976,4 +977,14 @@ test('mcp: activity actions are listed, queued for a person by name, and their s
   await rest('/api/plugins/spelling/data', { method: 'PUT', body: JSON.stringify({ member: maya.id, key: 'list-1', value: { title: 'Adding -ing' } }) });
   assert.deepEqual((await call('get_activity_data', { activity: 'spelling', member: 'Maya' })).structuredContent.data, { 'list-1': { title: 'Adding -ing' } });
   assert.deepEqual((await call('get_activity_data', { activity: 'spelling' })).structuredContent.data, {});
+
+  // reset_activity_time: clears today's counted play for one person; full access only.
+  const chore = await (await rest('/api/chores', { method: 'POST', body: JSON.stringify({ title: 'Spelling', rrule: 'FREQ=DAILY', memberId: maya.id, pluginId: 'spelling', pluginMinutes: 5 }) })).json() as any;
+  await rest('/api/plugins/spelling/playtime', { method: 'POST', body: JSON.stringify({ member: maya.id, seconds: 60 }) });
+  assert.equal((await call('reset_activity_time', { activity: 'spelling', member: 'Maya' }, display.key)).isError, true);
+  const reset = await call('reset_activity_time', { activity: 'Spelling practice', member: 'maya' });
+  assert.notEqual(reset.isError, true, JSON.stringify(reset));
+  assert.match(reset.content[0].text, /Reset maya's Spelling practice time for \d{4}-\d{2}-\d{2}/);
+  assert.deepEqual(reset.structuredContent.chores.map((c: any) => [c.choreId, c.doneSeconds]), [[chore.id, 0]]);
+  assert.equal((await call('reset_activity_time', { activity: 'spelling', member: 'Maya', date: 'soon' })).isError, true);
 });

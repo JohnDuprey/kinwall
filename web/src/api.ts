@@ -411,6 +411,9 @@ export const api = {
   // go out as the page closes.
   sendPlaytime: (id: string, member: string, seconds: number) => MOCK ? mockPlugins.playtime(id, member, seconds)
     : send<ActivityChoreProgress[]>(`api/plugins/${id}/playtime`, { method: 'POST', body: JSON.stringify({ member, seconds }), keepalive: true }),
+  // A parent clears a day's counted play (default today); chores it already completed stay done.
+  resetPlaytime: (id: string, member: string, date?: string) => MOCK ? mockPlugins.resetPlaytime(id, member)
+    : del<ActivityChoreProgress[]>(`api/plugins/${id}/playtime?member=${encodeURIComponent(member)}${date ? `&date=${date}` : ''}`),
   pluginUrl: (p: Pick<Plugin, 'url'>) => apiUrl(p.url.replace(/^\//, '')),
 
   geocode: (q: string) => MOCK ? mock.geocode(q) : get<GeocodeResult[]>(`api/geocode?q=${encodeURIComponent(q)}`),

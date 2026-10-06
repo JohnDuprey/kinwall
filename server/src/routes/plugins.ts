@@ -588,7 +588,7 @@ pluginsRoutes.openapi(
 // minutes stops it), whether or not the plugin saves, and sends them here every ~30 s. Nothing here
 // depends on saves; the per-call and per-day caps and ownerBlock are the server's guards. The day's total (household timezone) completes that person's linked chores
 // due today, through the same path as a tick, once each.
-const ActivityChoreProgressSchema = z.object({
+export const ActivityChoreProgressSchema = z.object({
   choreId: z.string(),
   title: z.string(),
   emoji: z.string().nullable(),
@@ -626,33 +626,70 @@ pluginsRoutes.openapi(
         .bind(today, member, id, add, PLUGIN_LIMITS.maxPlaytimeDay)
         .run();
     }
-    const [playRes, choresRes, doneRes, notYetRes] = await db.batch<unknown>([
-      db.prepare('SELECT seconds FROM plugin_playtime WHERE date = ? AND member_id = ? AND plugin_id = ?').bind(today, member, id),
-      // Theirs, and Anyone chores (whoever gets there first earns those).
-      db.prepare('SELECT * FROM chores WHERE active = 1 AND plugin_id = ? AND (member_id = ? OR member_id IS NULL) ORDER BY sort, created_at').bind(id, member),
-      db.prepare('SELECT chore_id FROM chore_completions WHERE date = ?').bind(today),
-      // A parent said "Not yet": play time alone doesn't send it back, the kid ticks it again.
-      db.prepare('SELECT chore_id FROM chore_rejections WHERE date = ?').bind(today),
+    return c.json(await choreProgress(c, id, member, today, tz), 200);
+  },
+);
+
+// A parent clears a day's counted play (someone opened the activity as a kid to check something).
+// Full access only: auth.ts doesn't allow it to display keys (wall screens, kids' devices). A chore
+// the play already completed stays done, points and all: unticking it is a separate, deliberate step.
+pluginsRoutes.openapi(
+  createRoute({
+    method: 'delete', path: '/api/plugins/{id}/playtime', tags: ['Plugins'], security: [{ Bearer: [] }],
+    summary: "Reset one person's play time for this activity on a day (default today, household timezone). Chores it already completed stay done. Returns that person's linked chores due that day. Full access only.",
+    request: { params: IdParam, query: z.object({ member: z.string().min(1), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() }) },
+    responses: { 200: { description: 'ok', content: json(z.array(ActivityChoreProgressSchema)) }, 404: errors[404] },
+  }),
+  async (c) => {
+    const { id } = c.req.valid('param');
+    const { member, date } = c.req.valid('query');
+    const db = c.env.DB;
+    const [pluginRes, memberRes, tzRes] = await db.batch<unknown>([
+      db.prepare('SELECT 1 FROM plugins WHERE id = ?').bind(id),
+      db.prepare('SELECT 1 FROM members WHERE id = ?').bind(member),
+      db.prepare("SELECT value FROM settings WHERE key = 'timezone'"),
     ]);
-    const notYet = new Set((notYetRes.results as { chore_id: string }[]).map((r) => r.chore_id));
-    const total = Number((playRes.results[0] as { seconds: number } | undefined)?.seconds ?? 0);
-    const done = new Set((doneRes.results as { chore_id: string }[]).map((r) => r.chore_id));
-    const out: z.infer<typeof ActivityChoreProgressSchema>[] = [];
-    for (const ch of (choresRes.results as unknown as ChoreRow[]).filter((r) => dueOnDate(r, today, tz))) {
-      const needSeconds = (ch.plugin_minutes ?? DEFAULT_ACTIVITY_MINUTES) * 60;
-      let completed = done.has(ch.id);
-      let justCompleted = false;
-      if (!completed && !notYet.has(ch.id) && total >= needSeconds) {
-        // onlyIfNew: a completion that landed meanwhile (a tick, another heartbeat) stays as it is.
-        const r = await completeChore(c, ch.id, today, member, true);
-        justCompleted = r === true || r === 'pending';
-        completed = justCompleted || r === false; // a number = its checklist isn't finished yet
-      }
-      out.push({ choreId: ch.id, title: ch.title, emoji: ch.emoji, needSeconds, doneSeconds: Math.min(total, needSeconds), completed, justCompleted });
-    }
+    if (!pluginRes.results.length) return c.json({ error: 'plugin not found' }, 404);
+    if (!memberRes.results.length) return c.json({ error: 'member not found' }, 404);
+    const tz = (tzRes.results[0] as { value: string } | undefined)?.value ?? hostTimezone();
+    const day = date ?? todayInTz(tz);
+    await db.prepare('DELETE FROM plugin_playtime WHERE date = ? AND member_id = ? AND plugin_id = ?').bind(day, member, id).run();
+    const out = await choreProgress(c, id, member, day, tz);
+    for (const ch of out) emit(c, 'chore.changed', { id: ch.choreId }); // walls refetch the ring
     return c.json(out, 200);
   },
 );
+
+/** A person's chores linked to plugin `id` that are due on `date`, with that day's play, completing
+ * any the play has reached, once each. */
+async function choreProgress(c: Context<{ Bindings: Env }>, id: string, member: string, date: string, tz: string) {
+  const db = c.env.DB;
+  const [playRes, choresRes, doneRes, notYetRes] = await db.batch<unknown>([
+    db.prepare('SELECT seconds FROM plugin_playtime WHERE date = ? AND member_id = ? AND plugin_id = ?').bind(date, member, id),
+    // Theirs, and Anyone chores (whoever gets there first earns those).
+    db.prepare('SELECT * FROM chores WHERE active = 1 AND plugin_id = ? AND (member_id = ? OR member_id IS NULL) ORDER BY sort, created_at').bind(id, member),
+    db.prepare('SELECT chore_id FROM chore_completions WHERE date = ?').bind(date),
+    // A parent said "Not yet": play time alone doesn't send it back, the kid ticks it again.
+    db.prepare('SELECT chore_id FROM chore_rejections WHERE date = ?').bind(date),
+  ]);
+  const notYet = new Set((notYetRes.results as { chore_id: string }[]).map((r) => r.chore_id));
+  const total = Number((playRes.results[0] as { seconds: number } | undefined)?.seconds ?? 0);
+  const done = new Set((doneRes.results as { chore_id: string }[]).map((r) => r.chore_id));
+  const out: z.infer<typeof ActivityChoreProgressSchema>[] = [];
+  for (const ch of (choresRes.results as unknown as ChoreRow[]).filter((r) => dueOnDate(r, date, tz))) {
+    const needSeconds = (ch.plugin_minutes ?? DEFAULT_ACTIVITY_MINUTES) * 60;
+    let completed = done.has(ch.id);
+    let justCompleted = false;
+    if (!completed && !notYet.has(ch.id) && total >= needSeconds) {
+      // onlyIfNew: a completion that landed meanwhile (a tick, another heartbeat) stays as it is.
+      const r = await completeChore(c, ch.id, date, member, true);
+      justCompleted = r === true || r === 'pending';
+      completed = justCompleted || r === false; // a number = its checklist isn't finished yet
+    }
+    out.push({ choreId: ch.id, title: ch.title, emoji: ch.emoji, needSeconds, doneSeconds: Math.min(total, needSeconds), completed, justCompleted });
+  }
+  return out;
+}
 
 /** The CSP a plugin's files are served with (see the top of this file). */
 export function pluginCsp(origin: string, id: string): string {
