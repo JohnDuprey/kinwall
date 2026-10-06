@@ -147,6 +147,6 @@ Every added activity runs in a sandbox: it can't load anything from the internet
 
 When you open one, Kinwall asks **Who's playing?** unless the header is set to one person. **Just playing** plays without saving to anyone. A kid's own device always plays as the kid: the server saves progress and play time from it only for them (or the family's shared progress), and reads back only theirs and the shared progress, never a sibling's. A chore can ask for minutes of an activity: opening it for that person counts the time from launch, and a ring at the top fills as it goes; see [Activity chores](chores.md#activity-chores).
 
-While an activity has the on-screen keyboard up (typing a spelling word, say), Kinwall's header, tabs and the activity's bar step aside and the activity fits above the keyboard. They come back when the keyboard goes away.
+While an activity has the on-screen keyboard up (typing a spelling word, say), Kinwall's header, tabs, side menu and the activity's bar step aside and the activity fits above the keyboard. They come back when the keyboard goes away.
 
 Want to build one? See [Building activity plugins](../contributing/plugins.md).
