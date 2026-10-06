@@ -16,10 +16,11 @@ import { announce, reducedMotion } from './a11y.tsx'
 import { useDialog } from './dialog.tsx'
 import { Confetti } from './Chores.tsx'
 import { frameLive, frameLoaded } from './pluginFrame.ts'
+import { canSpeak, speak, stopSpeaking } from './pluginSpeech.ts'
 import type { ActivityChoreProgress, Member, Plugin, PluginCatalogEntry } from './types.ts'
 import { Face } from './Face'
 
-type Msg = { kinwall: 1; id?: number; type: string; key?: string; value?: unknown; shared?: boolean }
+type Msg = { kinwall: 1; id?: number; type: string; key?: string; value?: unknown; shared?: boolean; text?: unknown; rate?: unknown; lang?: unknown }
 
 function themeForPlugin() {
   // Resolve each token to a real color: some are expressions (color-mix, var()) a plugin can't use.
@@ -94,6 +95,8 @@ export function PluginPlayer({ id }: { id: string }) {
             // A parent's device (full access), whoever is playing: lets a plugin offer grown-up
             // settings, like a kid's spelling list. Wall screens and kids' devices say false.
             parent: parentDevice,
+            // Kinwall.speak works: for a WebView with no speechSynthesis of its own (Android's).
+            canSpeak: canSpeak(),
           },
         })
       } else if (msg.type === 'load') {
@@ -106,12 +109,17 @@ export function PluginPlayer({ id }: { id: string }) {
         saves.push(now)
         lastSave.current = now
         api.savePluginData(plugin.id, msg.shared ? '' : member, msg.key, msg.value).then(() => reply(msg, true), err => reply(msg, false, undefined, err instanceof ApiError ? err.message : String(err)))
+      } else if (msg.type === 'speak' && typeof msg.text === 'string') {
+        // Answered once it's said (or stopped), so a plugin can wait for the word before praise.
+        speak(msg.text, typeof msg.rate === 'number' ? msg.rate : 1, typeof msg.lang === 'string' ? msg.lang : 'en-US').then(() => reply(msg, true))
+      } else if (msg.type === 'stopSpeaking') {
+        stopSpeaking()
       } else if (msg.type === 'close') {
         location.hash = '#/activities'
       }
     }
     window.addEventListener('message', onMessage)
-    return () => window.removeEventListener('message', onMessage)
+    return () => { window.removeEventListener('message', onMessage); stopSpeaking() }
   }, [plugin, player, settings.textScale, parentDevice])
 
   // Playtime for activity chores: only for a named person, only while visible and active.

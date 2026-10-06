@@ -165,7 +165,7 @@ export function setAppMedicineNames(on: boolean) {
   window.dispatchEvent(new Event(MED_NAMES_EVENT))
 }
 
-const nativeFlag = (key: 'notificationSettings' | 'quickSettingsTiles' | 'barcodeScanner' | 'providerReturn'): boolean =>
+const nativeFlag = (key: 'notificationSettings' | 'quickSettingsTiles' | 'barcodeScanner' | 'providerReturn' | 'speech'): boolean =>
   typeof window !== 'undefined' && (window as Window & { kinwallNative?: Record<string, unknown> }).kinwallNative?.[key] === true
 
 /** The Android app can open one of its notification channels in Android Settings. */
@@ -231,4 +231,16 @@ export function takeSharedContacts(): string | null {
   const v = sharedVcard
   sharedVcard = null
   return v
+}
+
+/** The app speaks for activity plugins (Android's WebView has no speechSynthesis): web/src/pluginSpeech.ts.
+ * It says each one is done with a 'kinwall-native' { type: 'spoken', id } event on window. */
+export const appSpeech = () => nativeFlag('speech')
+export function tellAppSpeak(m: { id: number; text: string; rate: number; lang: string }): boolean {
+  const w = window as Window & { webkit?: { messageHandlers?: { kinwall?: { postMessage: (m: unknown) => void } } } }
+  try { w.webkit?.messageHandlers?.kinwall?.postMessage({ type: 'speak', ...m }); return true } catch { return false }
+}
+export function tellAppStopSpeaking() {
+  const w = window as Window & { webkit?: { messageHandlers?: { kinwall?: { postMessage: (m: unknown) => void } } } }
+  try { w.webkit?.messageHandlers?.kinwall?.postMessage({ type: 'stopSpeaking' }) } catch { /* not in the app */ }
 }
