@@ -225,8 +225,8 @@ const demoPhoto = (pic: number, caption: string | null, memberId: string | null,
   createdAt: new Date(Date.now() - daysAgo * 86_400_000).toISOString(), url: `https://picsum.photos/id/${pic}/1280/853`,
 })
 const photos: Photo[] = [
-  demoPhoto(1015, 'River trip', null, 1), demoPhoto(1025, 'Our dog', 'm3', 3), demoPhoto(1043, null, null, 6),
-  demoPhoto(1039, 'Waterfall hike', 'm4', 9), demoPhoto(1080, 'Strawberry picking', null, 14), demoPhoto(1062, null, 'm3', 20),
+  demoPhoto(1015, 'River trip', null, 1), demoPhoto(1025, 'Our dog', 'm3', 3), demoPhoto(1043, 'Fall leaves', null, 6),
+  demoPhoto(1039, 'Waterfall hike', 'm4', 9), demoPhoto(1080, 'Strawberry picking', null, 14), demoPhoto(1062, 'Rainy Sunday in the blanket fort, where nobody comes out until the storm is over and dinner is on the table', 'm3', 20),
   // Paint drawings saved to family photos, credited to the artist (mock-drawings.ts).
   ...DEMO_DRAWINGS.map(d => ({ id: d.id, caption: d.caption, mime: 'image/webp', width: 800, height: 600, bytes: 60_000, memberId: d.memberId, createdAt: new Date(Date.now() - d.daysAgo * 86_400_000).toISOString(), url: d.url, drawing: true })),
 ].sort((a, b) => b.createdAt.localeCompare(a.createdAt)) // newest first, like the server

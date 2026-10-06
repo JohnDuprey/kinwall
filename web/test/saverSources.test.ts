@@ -1,7 +1,7 @@
 // node --test test/ (npm test). Which picture sources the Night screen and the Board's picture use.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { boardSources, familyNightFields, nightFieldsFor, nightSources, ownsNight, toNightLook, type NightLook } from '../src/saverSources.ts'
+import { boardSources, familyNightFields, nextPhoto, nightFieldsFor, nightSources, ownsNight, toNightLook, type NightLook } from '../src/saverSources.ts'
 
 const ready = { photos: true, googlePhotos: 'ready' as const }
 
@@ -65,4 +65,16 @@ test('nightSources: drawings with Paint turned off become nature, like family ph
   assert.deepEqual(nightSources(['drawings', 'photos'], { photos: false, paint: false }), ['nature'])
   assert.deepEqual(nightSources(['drawings'], { photos: true }), ['drawings'], 'an older caller without paint keeps drawings')
   assert.deepEqual(boardSources([], { photos: false, googlePhotos: 'ready' }, true), ['google'], 'photos off: the Board still has a picture')
+})
+
+test('nextPhoto: reads the caption from the latest list, so an edited caption shows', () => {
+  const queue = ['a', 'b']
+  assert.deepEqual(nextPhoto(queue, [{ id: 'a', caption: null }, { id: 'b', caption: 'Beach day' }]), { id: 'b', caption: 'Beach day' })
+  assert.deepEqual(queue, ['a'])
+})
+
+test('nextPhoto: skips photos deleted since the pass began; null when the pass is over', () => {
+  const queue = ['a', 'gone']
+  assert.deepEqual(nextPhoto(queue, [{ id: 'a', caption: 'River trip' }]), { id: 'a', caption: 'River trip' })
+  assert.equal(nextPhoto(queue, [{ id: 'a', caption: 'River trip' }]), null)
 })

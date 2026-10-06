@@ -530,7 +530,8 @@ function PhotoCard({ density }: { density?: CardDensity }) {
               <img className="board-photo-img" src={p.src} alt={p.caption ?? ''} />
             </div>
           ))}
-          {current.caption && <div className="board-caption">{current.caption}</div>}
+          {/* The same caption the Night screen shows under its clock; the image's alt already reads it. */}
+          {current.caption && <div key={current.key} className="board-caption" aria-hidden="true"><span>{current.caption}</span></div>}
         </>
       ) : <div className="board-photo-empty" aria-hidden="true">🖼️</div>}
     </section>

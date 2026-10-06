@@ -24,7 +24,7 @@ The one exception is [Paint](activities.md): its **♥ Save to family photos** b
 
 Tap a photo to see it full size. Swipe, tap **‹** and **›**, or use the arrow keys to move to the previous or next photo. A parent can also:
 
-* add or edit a **caption** (shown under the picture on the Board and the screensaver),
+* add or edit a **caption** (shown along the bottom of the Board's picture card, up to two lines, and under the screensaver's clock; a display picks up an edit with its next picture),
 * mark who it's **for**, or leave it for **Everyone**,
 * **Delete** it after you confirm.
 
@@ -46,7 +46,7 @@ JPEG, PNG, WebP and anything else your browser can open. HEIC photos straight fr
 
 ## Where photos show up
 
-* **Board view**: the picture card rotates through this display's screensaver sources (its own, or the family's). If none are chosen, it shows your family photos and [Google Photos](#google-photos) when it's connected (or nature photos until there are some).
+* **Board view**: the picture card rotates through this display's screensaver sources (its own, or the family's). If none are chosen, it shows your family photos and [Google Photos](#google-photos) when it's connected (or nature photos until there are some). A photo's caption shows along the bottom of the card; photos without one show just the picture.
 * **Screensaver**: turn on **Family photos** under **What they show** (**Settings → General**, tap **Change** under **Night**, for the whole family or under **Night screen on this device** for one screen).
 
 ## Google Photos

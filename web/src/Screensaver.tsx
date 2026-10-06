@@ -6,6 +6,7 @@ import { drawingIds, getDrawing } from './drawings-db.ts'
 import { api, ApiError } from './api.ts'
 import type { DeviceAppearance, SaverSource } from './useTheme.ts'
 import { spotStyle, type Spot } from './nightClock.ts'
+import { nextPhoto } from './saverSources.ts'
 
 interface Pic { key: number; src: string; caption?: string; revoke?: boolean }
 type Source = () => Promise<Omit<Pic, 'key'> | null> // null = nothing to show (no drawings)
@@ -18,17 +19,19 @@ function drawingsSource(): Source {
   return async () => {
     if (!queue.length) queue = shuffle(await drawingIds())
     const d = await getDrawing(queue.pop()!).catch(() => undefined)
-    return d ? { src: URL.createObjectURL(d.png), revoke: true } : null
+    return d ? { src: URL.createObjectURL(d.png), caption: d.name, revoke: true } : null
   }
 }
 
-// Family photos (Activities → Photos): one shuffled pass over the list, then fetch it again so new
-// uploads join the next pass. Served by this Kinwall, never a third party.
+// Family photos (Activities → Photos): one shuffled pass over the list, which is fetched again for
+// each picture so a caption edited on the Photos page shows, deleted photos drop out and new uploads
+// join the next pass. Served by this Kinwall, never a third party.
 function photosSource(): Source {
-  let queue: { src: string; caption?: string }[] = []
+  let queue: string[] = []
   return async () => {
-    if (!queue.length) queue = shuffle((await api.getPhotos()).map(p => ({ src: api.photoImageUrl(p), caption: p.caption ?? undefined })))
-    return queue.pop() ?? null
+    const list = await api.getPhotos()
+    const p = nextPhoto(queue, list) ?? nextPhoto(queue = shuffle(list.map(p => p.id)), list)
+    return p && { src: api.photoImageUrl(p), caption: p.caption ?? undefined }
   }
 }
 

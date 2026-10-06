@@ -66,7 +66,7 @@ API: `POST /api/displays/night-screen` and `GET /api/displays/night-screen`, see
 
 Instead of the bare clock, wall screens can show a slow, dim slideshow overnight. A parent sets it for the whole family: **Settings → General → For the whole family**, tap **Change** under **Night**, then **What they show**. A screen can pick its own instead under **Only on this device → Night screen on this device** (**Night screen: This screen's own**); otherwise every screen follows the family's choice. Turn on one or more sources. With more than one on, the pictures take turns (drawing, then family photo, then art, then nature, and so on). **Clock only** (the default) turns them all off.
 
-* **Drawings**: pictures from this display's own [Paint gallery](activities.md#my-drawings), shuffled. If there are none yet, the display skips drawings (or shows the clock if drawings is the only source).
+* **Drawings**: pictures from this display's own [Paint gallery](activities.md#my-drawings), shuffled, with their names. If there are none yet, the display skips drawings (or shows the clock if drawings is the only source).
 * **Family photos**: your family's [photos](photos.md), shuffled, with their captions. They come from your own Kinwall server.
 * **Google Photos** (not available yet; see [Google Photos](photos.md#google-photos)): albums a parent picked in Google Photos, shuffled. Shown once a parent has [connected Google Photos](photos.md#google-photos) (in the Night sheet) and picked albums. The pictures come through your Kinwall server, sized for this screen.
 * **Art (The Met)**: public-domain highlight paintings from [The Metropolitan Museum of Art](https://metmuseum.github.io/) open-access collection (CC0), with the title, artist and date in the corner.

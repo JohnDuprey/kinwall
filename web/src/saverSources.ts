@@ -26,6 +26,15 @@ export function boardSources(picked: SaverSource[], family: Family, hasPhotos: b
   return own.length ? own : ['nature']
 }
 
+/** The next family photo of a shuffled pass (`queue`, ids; taken from the end), looked up in the
+ * latest list so an edited caption shows and a photo deleted since the pass began is skipped.
+ * null = the pass is over. */
+export function nextPhoto<P extends { id: string }>(queue: string[], list: P[]): P | null {
+  const byId = new Map(list.map(p => [p.id, p]))
+  while (queue.length) { const p = byId.get(queue.pop()!); if (p) return p }
+  return null
+}
+
 /** A Night screen's choices, in this device's own shape (useTheme.ts). */
 export type NightFields = Pick<DeviceAppearance, 'saverSources' | 'saverEvery' | 'saverBright' | 'saverClock' | 'clockPos'>
 
