@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { leaders, planDraft, suggestedWinner, votedLabel, voteOf } from '../src/polls.ts'
 
-const opt = (id: string, votes: string[], recipeId: string | null = null) => ({ id, label: id, recipeId, sort: 0, votes })
+const opt = (id: string, votes: string[], recipeId: string | null = null) => ({ id, label: id, recipeId, restaurantId: null, sort: 0, votes })
 
 test('polls: leaders, ties, and the winner a parent starts on', () => {
   assert.deepEqual(leaders({ options: [opt('a', []), opt('b', [])] }), [])
@@ -25,7 +25,10 @@ test('polls: who voted, in words', () => {
 
 test('polls: Plan it uses the poll\'s meal and the winner\'s recipe, else its name', () => {
   const recipes = [{ id: 'r1', name: 'Tacos' }]
-  assert.deepEqual(planDraft({ date: '2026-10-09', slot: 'lunch' }, { label: 'Tacos', recipeId: 'r1' }, recipes, '2026-10-07'), { date: '2026-10-09', slot: 'lunch', recipe: recipes[0] })
-  assert.deepEqual(planDraft({ date: null, slot: null }, { label: 'Pizza night', recipeId: null }, recipes, '2026-10-07'), { date: '2026-10-07', slot: 'dinner', title: 'Pizza night' })
-  assert.deepEqual(planDraft({ date: null, slot: null }, { label: 'Old recipe', recipeId: 'gone' }, recipes, '2026-10-07'), { date: '2026-10-07', slot: 'dinner', title: 'Old recipe' })
+  assert.deepEqual(planDraft({ date: '2026-10-09', slot: 'lunch' }, { label: 'Tacos', recipeId: 'r1', restaurantId: null }, recipes, '2026-10-07'), { date: '2026-10-09', slot: 'lunch', recipe: recipes[0] })
+  assert.deepEqual(planDraft({ date: null, slot: null }, { label: 'Pizza night', recipeId: null, restaurantId: null }, recipes, '2026-10-07'), { date: '2026-10-07', slot: 'dinner', title: 'Pizza night' })
+  assert.deepEqual(planDraft({ date: null, slot: null }, { label: 'Old recipe', recipeId: 'gone', restaurantId: null }, recipes, '2026-10-07'), { date: '2026-10-07', slot: 'dinner', title: 'Old recipe' })
+  const places = [{ id: 'x1', name: 'Corner Slice' }]
+  assert.deepEqual(planDraft({ date: '2026-10-09', slot: 'dinner' }, { label: 'Corner Slice', recipeId: null, restaurantId: 'x1' }, recipes, '2026-10-07', places), { date: '2026-10-09', slot: 'dinner', restaurant: places[0] }, 'a restaurant is dining out there')
+  assert.deepEqual(planDraft({ date: null, slot: null }, { label: 'Gone Grill', recipeId: null, restaurantId: 'x2' }, recipes, '2026-10-07', places), { date: '2026-10-07', slot: 'dinner', title: 'Gone Grill' })
 })

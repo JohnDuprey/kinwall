@@ -1,7 +1,7 @@
 -- Family polls (routes/polls.ts): a parent asks ("Where are we eating Friday?"), everyone votes once
 -- and can change it while the poll is open. A poll can be about a meal (date and slot); closing it
--- picks the winner, and planning it links the meal. Options are typed ideas or recipes; a recipe
--- option keeps its label if the recipe goes. Additive only: new tables, nothing else changes.
+-- picks the winner, and planning it links the meal. Options are typed ideas, recipes or restaurants
+-- from the binder; such an option keeps its label if the recipe or restaurant goes. Additive only: new tables, nothing else changes.
 CREATE TABLE IF NOT EXISTS polls (
   id TEXT PRIMARY KEY,
   question TEXT NOT NULL,
@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS poll_options (
   poll_id TEXT NOT NULL REFERENCES polls(id) ON DELETE CASCADE,
   label TEXT NOT NULL,            -- the idea, or the recipe's name when it was added
   recipe_id TEXT REFERENCES recipes(id) ON DELETE SET NULL,
+  restaurant_id TEXT REFERENCES restaurants(id) ON DELETE SET NULL,
   sort INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_poll_options_poll ON poll_options(poll_id, sort);

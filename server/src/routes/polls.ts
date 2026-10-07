@@ -1,5 +1,6 @@
 // Family polls (docs/using/polls.md, migration 0102): a parent asks a question ("Where are we eating
-// Friday?") with two or more choices: typed ideas, or recipes from the recipe book while Meals is on.
+// Friday?") with two or more choices: typed ideas, or recipes and restaurants from the binder while
+// Meals is on.
 // Everyone votes once, kids included, and can change it while the poll is open. Votes aren't secret:
 // each choice lists who picked it (the app shows their avatars).
 //
@@ -30,6 +31,7 @@ export const PollOptionSchema = z
     id: z.string(),
     label: z.string(),
     recipeId: z.string().nullable().openapi({ description: 'A recipe from the recipe book; null for a typed idea (or a recipe since deleted).' }),
+    restaurantId: z.string().nullable().openapi({ description: 'A restaurant from the binder (Meals → Restaurants); null otherwise (or one since deleted).' }),
     sort: z.number().int(),
     votes: z.array(z.string()).openapi({ description: 'Member ids who picked this choice.' }),
   })
@@ -57,7 +59,9 @@ export const PollInputSchema = z
     date: MealDateSchema.nullable().optional(),
     slot: MealSlotSchema.nullable().optional(),
     options: z
-      .array(z.object({ label: z.string().trim().min(1).max(120).optional(), recipeId: z.string().optional() }).refine((o) => o.label || o.recipeId, 'a choice needs a label or a recipeId'))
+      .array(z.object({ label: z.string().trim().min(1).max(120).optional(), recipeId: z.string().optional(), restaurantId: z.string().optional() })
+        .refine((o) => o.label || o.recipeId || o.restaurantId, 'a choice needs a label, a recipeId or a restaurantId')
+        .refine((o) => !(o.recipeId && o.restaurantId), 'a choice is a recipe or a restaurant, not both'))
       .min(2)
       .max(12),
   })
@@ -75,7 +79,7 @@ const body = <T extends z.ZodType>(schema: T) => ({ content: { 'application/json
 const pollResponse = { description: 'poll', content: { 'application/json': { schema: PollSchema } } };
 
 type PollRow = { id: string; question: string; date: string | null; slot: Poll['slot']; status: Poll['status']; winner_option_id: string | null; meal_id: string | null; created_by: string | null; created_at: string; closed_at: string | null };
-type OptionRow = { id: string; poll_id: string; label: string; recipe_id: string | null; sort: number };
+type OptionRow = { id: string; poll_id: string; label: string; recipe_id: string | null; restaurant_id: string | null; sort: number };
 
 /** Polls with their choices and votes: open ones first, then newest. */
 export async function readPolls(db: KinwallDb, opts: { id?: string; status?: Poll['status']; limit?: number } = {}): Promise<Poll[]> {
@@ -84,7 +88,7 @@ export async function readPolls(db: KinwallDb, opts: { id?: string; status?: Pol
   if (!polls.length) return [];
   const ids = JSON.stringify(polls.map((p) => p.id));
   const [options, votes] = await db.batch<unknown>([
-    db.prepare('SELECT id, poll_id, label, recipe_id, sort FROM poll_options WHERE poll_id IN (SELECT value FROM json_each(?)) ORDER BY sort, id').bind(ids),
+    db.prepare('SELECT id, poll_id, label, recipe_id, restaurant_id, sort FROM poll_options WHERE poll_id IN (SELECT value FROM json_each(?)) ORDER BY sort, id').bind(ids),
     db.prepare('SELECT v.option_id, v.member_id FROM poll_votes v JOIN members m ON m.id = v.member_id WHERE v.poll_id IN (SELECT value FROM json_each(?)) ORDER BY m.sort, m.created_at').bind(ids),
   ]);
   const byOption = new Map<string, string[]>();
@@ -92,7 +96,7 @@ export async function readPolls(db: KinwallDb, opts: { id?: string; status?: Pol
   return polls.map((p) => ({
     id: p.id, question: p.question, date: p.date, slot: p.slot, status: p.status, winnerOptionId: p.winner_option_id, mealId: p.meal_id,
     createdBy: p.created_by, createdAt: p.created_at, closedAt: p.closed_at,
-    options: (options.results as OptionRow[]).filter((o) => o.poll_id === p.id).map((o) => ({ id: o.id, label: o.label, recipeId: o.recipe_id, sort: o.sort, votes: byOption.get(o.id) ?? [] })),
+    options: (options.results as OptionRow[]).filter((o) => o.poll_id === p.id).map((o) => ({ id: o.id, label: o.label, recipeId: o.recipe_id, restaurantId: o.restaurant_id, sort: o.sort, votes: byOption.get(o.id) ?? [] })),
   }));
 }
 
@@ -142,7 +146,7 @@ pollsRoutes.openapi(
 
 pollsRoutes.openapi(
   createRoute({
-    method: 'post', path: '/api/polls', tags: ['Polls'], summary: 'Start a poll (parents); everyone gets a notification. Recipe choices need Meals on; a recipe choice without a label takes the recipe\'s name', security: [{ Bearer: [] }],
+    method: 'post', path: '/api/polls', tags: ['Polls'], summary: 'Start a poll (parents); everyone gets a notification. Recipe and restaurant choices need Meals on; one without a label takes the recipe\'s or restaurant\'s name', security: [{ Bearer: [] }],
     request: { body: body(PollInputSchema) }, responses: { 201: pollResponse, ...errors },
   }),
   async (c) => {
@@ -151,16 +155,21 @@ pollsRoutes.openapi(
     if (!features.polls) return c.json(OFF, 404);
     const input = c.req.valid('json');
     const recipeIds = input.options.flatMap((o) => (o.recipeId ? [o.recipeId] : []));
-    if (recipeIds.length && !features.meals) return c.json({ error: 'Recipe choices need Meals on in Settings → Features' }, 400);
-    const names = new Map((await db.prepare('SELECT id, name FROM recipes WHERE id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(recipeIds)).all<{ id: string; name: string }>()).results.map((r) => [r.id, r.name]));
-    const missing = recipeIds.find((id) => !names.has(id));
-    if (missing) return c.json({ error: `recipe not found: ${missing}` }, 400);
+    const restaurantIds = input.options.flatMap((o) => (o.restaurantId ? [o.restaurantId] : []));
+    if ((recipeIds.length || restaurantIds.length) && !features.meals) return c.json({ error: 'Recipe and restaurant choices need Meals on in Settings → Features' }, 400);
+    const [recipes, places] = await db.batch<{ id: string; name: string }>([
+      db.prepare('SELECT id, name FROM recipes WHERE id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(recipeIds)),
+      db.prepare('SELECT id, name FROM restaurants WHERE id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(restaurantIds)),
+    ]);
+    const names = new Map([...recipes.results, ...places.results].map((r) => [r.id, r.name]));
+    const missing = [...recipeIds, ...restaurantIds].find((id) => !names.has(id));
+    if (missing) return c.json({ error: `${recipeIds.includes(missing) ? 'recipe' : 'restaurant'} not found: ${missing}` }, 400);
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
     const by = (await actorOf(c)).memberId;
     await db.batch([
       db.prepare('INSERT INTO polls (id, question, date, slot, status, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(id, input.question, input.date ?? null, input.date ? input.slot ?? null : null, 'open', by, now),
-      ...input.options.map((o, sort) => db.prepare('INSERT INTO poll_options (id, poll_id, label, recipe_id, sort) VALUES (?, ?, ?, ?, ?)').bind(crypto.randomUUID(), id, o.label ?? names.get(o.recipeId!)!, o.recipeId ?? null, sort)),
+      ...input.options.map((o, sort) => db.prepare('INSERT INTO poll_options (id, poll_id, label, recipe_id, restaurant_id, sort) VALUES (?, ?, ?, ?, ?, ?)').bind(crypto.randomUUID(), id, o.label ?? names.get((o.recipeId ?? o.restaurantId)!)!, o.recipeId ?? null, o.restaurantId ?? null, sort)),
     ]);
     const poll = (await onePoll(db, id))!;
     emit(c, 'poll.changed', { id, status: 'open' });

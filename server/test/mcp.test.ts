@@ -767,6 +767,8 @@ test('mcp: restaurant binder tools find places by name and keep menu items', asy
   const ordered = (await call('set_meal_order', { mealId: meal.id, member: 'max', items: JSON.stringify([{ menuItemId: got.menu[0].id, name: 'Lo mein', qty: 2 }]), note: 'Extra sauce' })).meal;
   assert.deepEqual(ordered.orders[0].items, [{ menuItemId: got.menu[0].id, name: 'Lo mein', qty: 2, note: null }]);
   assert.equal((await call('ask_for_orders', { mealId: meal.id })).ok, true);
+  assert.equal((await call('create_poll', { question: 'Dinner out?', ideas: ['Home'], restaurants: ['golden bowl'] })).poll.options[1].restaurantId, restaurant.id);
+  await call('close_poll', { poll: 'Dinner out?' });
 });
 
 test('mcp: meal planning tools use REST permissions, snapshots, and idempotent projection application', async () => {

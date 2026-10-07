@@ -1,20 +1,19 @@
 // In-memory family polls for VITE_MOCK only (the server: routes/polls.ts). The demo family: one open
-// poll about Friday's dinner (an idea and two recipes from mock-meals.ts) with Maya, Leo and Sam's
+// poll about Friday's dinner (a restaurant and two recipes from mock-meals.ts) with Maya, Leo and Sam's
 // votes, and last week's movie night, closed.
 import { dateKey } from './date.ts'
 import { suggestedWinner } from './polls.ts'
 import type { Poll, PollInput } from './types.ts'
 
-const NAMES: Record<string, string> = { 'demo-tacos': 'Tuesday Tacos', 'demo-pasta': 'Spaghetti Bolognese', 'demo-pizza': 'Garden vegetable pizza' }
 const day = (n: number) => dateKey(new Date(Date.now() + n * 86_400_000))
 const friday = day((5 - new Date().getDay() + 7) % 7) // this Friday (today, on a Friday)
-const opt = (id: string, label: string, votes: string[], recipeId: string | null = null, sort = 0) => ({ id, label, recipeId, sort, votes })
+const opt = (id: string, label: string, votes: string[], recipeId: string | null = null, sort = 0, restaurantId: string | null = null) => ({ id, label, recipeId, restaurantId, sort, votes })
 
 let polls: Poll[] = [
   {
     id: 'poll-friday', question: 'Where are we eating Friday?', date: friday, slot: 'dinner', status: 'open', winnerOptionId: null, mealId: null,
     createdBy: 'm1', createdAt: `${day(-1)}T18:00:00.000Z`, closedAt: null,
-    options: [opt('pf-1', 'Corner Slice pizza', ['m3', 'm4'], null, 0), opt('pf-2', 'Tuesday Tacos', ['m2'], 'demo-tacos', 1), opt('pf-3', 'Spaghetti Bolognese', [], 'demo-pasta', 2)],
+    options: [opt('pf-1', 'Corner Slice', ['m3', 'm4'], null, 0, 'demo-corner-slice'), opt('pf-2', 'Tuesday Tacos', ['m2'], 'demo-tacos', 1), opt('pf-3', 'Spaghetti Bolognese', [], 'demo-pasta', 2)],
   },
   {
     id: 'poll-movie', question: 'Which movie on Saturday?', date: null, slot: null, status: 'closed', winnerOptionId: 'pm-2', mealId: null,
@@ -38,7 +37,7 @@ export async function mockPollRequest(path: string, options: RequestInit): Promi
     const poll: Poll = {
       id: crypto.randomUUID(), question: input.question, date: input.date ?? null, slot: input.date ? input.slot ?? null : null, status: 'open', winnerOptionId: null, mealId: null,
       createdBy: 'm1', createdAt: new Date().toISOString(), closedAt: null,
-      options: input.options.map((o, sort) => opt(crypto.randomUUID(), o.label ?? NAMES[o.recipeId!] ?? 'Recipe', [], o.recipeId ?? null, sort)),
+      options: input.options.map((o, sort) => opt(crypto.randomUUID(), o.label ?? 'Choice', [], o.recipeId ?? null, sort, o.restaurantId ?? null)), // the app sends each choice's name
     }
     polls.push(poll); return copy(poll)
   }

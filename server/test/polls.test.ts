@@ -31,16 +31,17 @@ async function setup() {
   const maya = (await send('POST', '/api/members', { name: 'Maya', color: '#339966' })).body;
   const leo = (await send('POST', '/api/members', { name: 'Leo', color: '#996633' })).body;
   const tacos = (await send('POST', '/api/recipes', { name: 'Tacos', defaultServings: 4, ingredients: [] })).body;
-  return { env, send, alex, maya, leo, tacos, leoKey: await device("Leo's tablet", 'kid', leo.id), wallKey: await device('Kitchen wall', 'wall') };
+  const slice = (await send('POST', '/api/restaurants', { name: 'Corner Slice', menu: [] })).body;
+  return { env, send, alex, maya, leo, tacos, slice, leoKey: await device("Leo's tablet", 'kid', leo.id), wallKey: await device('Kitchen wall', 'wall') };
 }
 
 test('polls: a parent starts one with ideas and recipes; the bell says so; walls and kids can\'t start one', async () => {
   const t = await setup();
-  const created = await t.send('POST', '/api/polls', { question: 'Where are we eating Friday?', date: '2026-10-09', slot: 'dinner', options: [{ label: 'Pizza night' }, { recipeId: t.tacos.id }] });
+  const created = await t.send('POST', '/api/polls', { question: 'Where are we eating Friday?', date: '2026-10-09', slot: 'dinner', options: [{ label: 'Pizza night' }, { recipeId: t.tacos.id }, { restaurantId: t.slice.id }] });
   assert.equal(created.status, 201, JSON.stringify(created.body));
   const poll = created.body;
   assert.equal(poll.status, 'open');
-  assert.deepEqual(poll.options.map((o: any) => [o.label, o.recipeId, o.votes]), [['Pizza night', null, []], ['Tacos', t.tacos.id, []]]);
+  assert.deepEqual(poll.options.map((o: any) => [o.label, o.recipeId, o.restaurantId, o.votes]), [['Pizza night', null, null, []], ['Tacos', t.tacos.id, null, []], ['Corner Slice', null, t.slice.id, []]]);
   assert.equal((await t.send('GET', `/api/polls/${poll.id}`, undefined, t.leoKey)).body.question, 'Where are we eating Friday?');
   assert.equal((await t.send('GET', '/api/polls?status=open', undefined, t.wallKey)).body.length, 1);
   // Everyone hears about it, kids too.
@@ -54,6 +55,8 @@ test('polls: a parent starts one with ideas and recipes; the bell says so; walls
   assert.equal((await t.send('DELETE', `/api/polls/${poll.id}`, undefined, t.leoKey)).status, 403);
   assert.equal((await t.send('POST', '/api/polls', { question: 'x', options: [{ label: 'only one' }] })).status, 400);
   assert.equal((await t.send('POST', '/api/polls', { question: 'x', options: [{ label: 'a' }, { recipeId: 'nope' }] })).status, 400);
+  assert.equal((await t.send('POST', '/api/polls', { question: 'x', options: [{ label: 'a' }, { restaurantId: 'nope' }] })).status, 400);
+  assert.equal((await t.send('POST', '/api/polls', { question: 'x', options: [{ label: 'a' }, { recipeId: t.tacos.id, restaurantId: t.slice.id }] })).status, 400);
 });
 
 test('polls: one vote each, changeable while open; a kid\'s device votes only for them, a wall for anyone; closed polls refuse votes', async () => {
@@ -109,11 +112,12 @@ test('polls: off in Settings → Features means gone: routes answer 404, no note
   const res = await t.send('POST', '/api/polls', { question: 'Dinner?', options: [{ label: 'Pizza' }, { recipeId: t.tacos.id }] });
   assert.equal(res.status, 400);
   assert.match(res.body.error, /Meals/);
+  assert.equal((await t.send('POST', '/api/polls', { question: 'Dinner?', options: [{ label: 'Pizza' }, { restaurantId: t.slice.id }] })).status, 400);
 });
 
 test('polls: export and import carry polls, choices and votes', async () => {
   const t = await setup();
-  const poll = (await t.send('POST', '/api/polls', { question: 'Which game?', options: [{ label: 'Uno' }, { label: 'Chess' }] })).body;
+  const poll = (await t.send('POST', '/api/polls', { question: 'Which game?', options: [{ label: 'Uno' }, { label: 'Chess' }, { restaurantId: t.slice.id }] })).body;
   await t.send('PUT', `/api/polls/${poll.id}/vote`, { memberId: t.maya.id, optionId: poll.options[1].id });
   const file = (await t.send('GET', '/api/export')).body;
   assert.equal(file.polls[0].options[1].votes[0], t.maya.id);
@@ -122,5 +126,5 @@ test('polls: export and import carry polls, choices and votes', async () => {
   assert.equal(imported.status, 200, JSON.stringify(imported.body));
   assert.equal(imported.body.imported.polls, 1);
   const back = (await t.send('GET', `/api/polls/${poll.id}`)).body;
-  assert.deepEqual(back.options.map((o: any) => [o.label, o.votes]), [['Uno', []], ['Chess', [t.maya.id]]]);
+  assert.deepEqual(back.options.map((o: any) => [o.label, o.restaurantId, o.votes]), [['Uno', null, []], ['Chess', null, [t.maya.id]], ['Corner Slice', t.slice.id, []]]);
 });

@@ -20,6 +20,7 @@ Parents start polls: **Home → Board → 🗳 Polls → New poll**.
 3. Add the choices, at least two and up to twelve:
    * **Add an idea**: anything typed, like "Pizza night" or "Moana".
    * **Add a recipe**: a recipe from the recipe book (with Meals on).
+   * **Add a restaurant**: a place from the [restaurant binder](meals.md#restaurants) (with Meals on).
 4. Tap **Start poll**. Everyone gets the notification.
 
 ## Voting
@@ -34,13 +35,13 @@ Open the poll from the Board card, the Polls list, the Meals planner or the noti
 
 On a parent's device, open the poll and tap **Close poll**. The choice with the most votes is picked; on a tie, pick the winner from the list. Tap **Close poll** again to finish. Nobody can vote after that, and the Board card goes away. A parent can open a closed poll and close it again to pick a different winner.
 
-With Meals on, a closed poll has **Plan it**. It opens the meal the poll was about with the winner filled in: the meal already planned in that slot if there is one, else a new meal on that day (today's dinner for a poll without a date). A recipe choice plans that recipe; an idea becomes the meal's name. Save it and the poll links to that meal (**Open the meal** next time).
+With Meals on, a closed poll has **Plan it**. It opens the meal the poll was about with the winner filled in: the meal already planned in that slot if there is one, else a new meal on that day (today's dinner for a poll without a date). A recipe choice plans that recipe, a restaurant plans dining out there, and an idea becomes the meal's name. Save it and the poll links to that meal (**Open the meal** next time).
 
 To delete a poll and its votes: open it, then **More… → Delete poll**.
 
 ## Turning polls off
 
-**Settings → General → Features → Family polls**. Off, polls are gone everywhere: no Board card, no Polls button, nothing in the Meals planner, no notifications (and earlier poll notifications leave the bell), and the API and AI tools answer that polls are off. Polls already made are kept and come back when it's turned on. With Meals off, polls still work with typed ideas only, and there's no **Plan it**.
+**Settings → General → Features → Family polls**. Off, polls are gone everywhere: no Board card, no Polls button, nothing in the Meals planner, no notifications (and earlier poll notifications leave the bell), and the API and AI tools answer that polls are off. Polls already made are kept and come back when it's turned on. With Meals off, polls still work with typed ideas only (recipes and restaurants need Meals), and there's no **Plan it**.
 
 ## API
 

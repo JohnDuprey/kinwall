@@ -26,9 +26,10 @@ export const votedLabel = (poll: Pick<Poll, 'options'>, members: number) => {
 export const voteOf = (poll: Pick<Poll, 'options'>, memberId: string | null | undefined) =>
   memberId ? poll.options.find(o => o.votes.includes(memberId))?.id ?? null : null
 
-/** The new meal "Plan it" opens: the poll's date and slot (else today's dinner), the winner's recipe
- * when it's one from the book that's still there, else the winner as the meal's name. */
-export function planDraft<R extends { id: string }>(poll: Pick<Poll, 'date' | 'slot'>, winner: Pick<PollOption, 'label' | 'recipeId'>, recipes: R[], today: string) {
+/** The meal "Plan it" opens: the poll's date and slot (else today's dinner), the winner's recipe or
+ * restaurant (dining out there) when it's still in the book or binder, else the winner as the meal's name. */
+export function planDraft<R extends { id: string }, P extends { id: string }>(poll: Pick<Poll, 'date' | 'slot'>, winner: Pick<PollOption, 'label' | 'recipeId' | 'restaurantId'>, recipes: R[], today: string, places: P[] = []) {
   const recipe = recipes.find(r => r.id === winner.recipeId)
-  return { date: poll.date ?? today, slot: poll.slot ?? 'dinner' as const, ...(recipe ? { recipe } : { title: winner.label }) }
+  const restaurant = places.find(r => r.id === winner.restaurantId)
+  return { date: poll.date ?? today, slot: poll.slot ?? 'dinner' as const, ...(recipe ? { recipe } : restaurant ? { restaurant } : { title: winner.label }) }
 }

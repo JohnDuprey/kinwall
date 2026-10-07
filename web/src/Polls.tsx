@@ -3,6 +3,8 @@
 // poll tied to a meal shows in that Meals week cell, and the bell's "New poll" opens it
 // (#/calendar?poll=<id>, handled in Calendar.tsx). Votes show who picked what, with avatars.
 //
+// Choices are typed ideas, or (with Meals on) recipes and restaurants from the binder.
+//
 // Who votes: a kid's own device only for that kid (the server checks too); a shared wall or a
 // parent's device for anyone, after picking who. Parents start, close and delete polls; closing
 // with Meals on offers "Plan it", which opens that meal (or a new one) with the winner filled in.
@@ -12,13 +14,13 @@ import { useApp } from './AppContext.tsx'
 import { useDialog } from './dialog.tsx'
 import Sheet from './Sheet.tsx'
 import { Face } from './Face'
-import { BookIcon, ChevronRight, PlusIcon, XIcon } from './icons.tsx'
+import { BookIcon, ChevronRight, MealIcon, PlusIcon, XIcon } from './icons.tsx'
 import MealSheet, { RecipePicker, type MealDraft } from './MealSheet.tsx'
 import { MEAL_SLOTS, SLOT_LABEL } from './meal-date.ts'
 import { todayKeyInTz } from './date.ts'
 import { leaders, planDraft, pollWhen, suggestedWinner, votedLabel, voteOf } from './polls.ts'
 import type { Member, Poll, PollInput, PollOption } from './types.ts'
-import type { Meal, MealSlot, Recipe } from './meal-types.ts'
+import type { Meal, MealSlot, Recipe, Restaurant } from './meal-types.ts'
 
 const CHANGED = 'kinwall:polls'
 /** Tells every poll card and sheet on this screen to read again (the rev poll catches other screens). */
@@ -161,9 +163,9 @@ export function PollSheet({ id, onClose }: { id: string; onClose: () => void }) 
     setBusy(true)
     try {
       const today = todayKeyInTz(settings.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone)
-      const [recipes, dayMeals] = await Promise.all([api.getRecipes(true), poll.date ? api.getMeals(poll.date, poll.date) : Promise.resolve([] as Meal[])])
+      const [recipes, places, dayMeals] = await Promise.all([api.getRecipes(true), winner.restaurantId ? api.getRestaurants() : Promise.resolve([]), poll.date ? api.getMeals(poll.date, poll.date) : Promise.resolve([] as Meal[])])
       const meal = dayMeals.find(m => m.id === poll.mealId) ?? dayMeals.find(m => m.slot === poll.slot) ?? null
-      setPlanning({ meal, initial: planDraft(poll, winner, recipes, today), recipes })
+      setPlanning({ meal, initial: planDraft(poll, winner, recipes, today, places), recipes })
     } catch (e) { fail(e, 'open the meal') } finally { setBusy(false) }
   }
   const planned = async (saved?: Meal) => {
@@ -197,7 +199,7 @@ export function PollSheet({ id, onClose }: { id: string; onClose: () => void }) 
         const picked = mine === o.id
         const body = <>
           <span className="poll-option-main">
-            <span className="poll-option-label">{o.id === poll.winnerOptionId && <span aria-hidden="true">🏆 </span>}{o.recipeId && <BookIcon width={16} height={16} aria-label="Recipe" />} {o.label}</span>
+            <span className="poll-option-label">{o.id === poll.winnerOptionId && <span aria-hidden="true">🏆 </span>}<ChoiceIcon c={o} /> {o.label}</span>
             <span className="poll-option-n">{o.votes.length} vote{o.votes.length === 1 ? '' : 's'}{picked && ' · Your vote ✓'}</span>
           </span>
           <Voters ids={o.votes} members={members} />
@@ -225,8 +227,11 @@ export function PollSheet({ id, onClose }: { id: string; onClose: () => void }) 
   </Sheet>
 }
 
-type Choice = { key: string; label: string; recipe?: Recipe }
+// A typed idea, or a recipe or restaurant (its id, with its name as the label).
+type Choice = { key: string; label: string; recipeId?: string; restaurantId?: string }
 const blank = (): Choice => ({ key: crypto.randomUUID(), label: '' })
+const ChoiceIcon = ({ c }: { c: { recipeId?: string | null; restaurantId?: string | null } }) =>
+  c.recipeId ? <BookIcon width={16} height={16} aria-label="Recipe" /> : c.restaurantId ? <MealIcon width={16} height={16} aria-label="Restaurant" /> : null
 
 /** Starting a poll (parents): the question, the meal it decides (with Meals on), and the choices. */
 export function NewPollSheet({ onClose, onCreated }: { onClose: () => void; onCreated: (poll: Poll) => void }) {
@@ -238,22 +243,27 @@ export function NewPollSheet({ onClose, onCreated }: { onClose: () => void; onCr
   const [slot, setSlot] = useState<MealSlot>('dinner')
   const [choices, setChoices] = useState<Choice[]>(() => [blank(), blank()])
   const [recipes, setRecipes] = useState<Recipe[] | null>(null)
-  const [picking, setPicking] = useState(false)
+  const [places, setPlaces] = useState<Restaurant[] | null>(null)
+  const [picking, setPicking] = useState<'recipe' | 'restaurant' | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const pickRecipe = useCallback(() => {
-    setPicking(true)
-    if (!recipes) api.getRecipes().then(setRecipes, e => setError(e instanceof Error ? e.message : 'Could not load recipes.'))
-  }, [recipes])
-  const filled = choices.filter(c => c.recipe || c.label.trim())
+  const loadError = (e: unknown) => setError(e instanceof Error ? e.message : 'Could not load the choices.')
+  const pick = useCallback((what: 'recipe' | 'restaurant') => {
+    setPicking(what)
+    if (what === 'recipe' && !recipes) api.getRecipes().then(setRecipes, loadError)
+    if (what === 'restaurant' && !places) api.getRestaurants().then(setPlaces, loadError)
+  }, [recipes, places])
+  const add = (c: Omit<Choice, 'key'>) => { setPicking(null); setChoices(cs => [...cs.filter(x => x.recipeId || x.restaurantId || x.label.trim()), { key: crypto.randomUUID(), ...c }]) }
+  const filled = choices.filter(c => c.recipeId || c.restaurantId || c.label.trim())
   const save = async () => {
     if (!question.trim()) { setError('Ask a question.'); return }
     if (filled.length < 2) { setError('Add at least two choices.'); return }
     setBusy(true); setError('')
-    const body: PollInput = { question: question.trim(), date: meals && date ? date : null, slot: meals && date ? slot : null, options: filled.map(c => c.recipe ? { recipeId: c.recipe.id } : { label: c.label.trim() }) }
+    const body: PollInput = { question: question.trim(), date: meals && date ? date : null, slot: meals && date ? slot : null, options: filled.map(c => ({ label: c.label.trim(), ...(c.recipeId ? { recipeId: c.recipeId } : {}), ...(c.restaurantId ? { restaurantId: c.restaurantId } : {}) })) }
     try { const p = await api.createPoll(body); changed(); toast('Poll started: everyone gets a notification'); onCreated(p) }
     catch (e) { setError(e instanceof Error ? e.message : 'Could not start the poll.') } finally { setBusy(false) }
   }
+  const full = choices.length >= 12
   return <Sheet title="New poll" onClose={() => { if (!busy) onClose() }} dismissable={!busy} actions={<>
     <button className="btn btn-secondary" disabled={busy} onClick={onClose}>Cancel</button>
     <button type="submit" form={formId} className="btn btn-primary" disabled={busy}>{busy ? 'Starting…' : 'Start poll'}</button>
@@ -267,20 +277,26 @@ export function NewPollSheet({ onClose, onCreated }: { onClose: () => void; onCr
         </div>}
         <fieldset className="poll-choices"><legend>Choices</legend>
           {choices.map((c, i) => <div key={c.key} className="poll-choice">
-            {c.recipe ? <span className="poll-choice-recipe"><BookIcon width={18} height={18} aria-hidden="true" /> {c.recipe.name}</span>
+            {c.recipeId || c.restaurantId ? <span className="poll-choice-recipe"><ChoiceIcon c={c} /> {c.label}</span>
               : <input type="text" maxLength={120} aria-label={`Choice ${i + 1}`} placeholder={i === 0 ? 'Pizza night' : i === 1 ? 'Tacos' : 'Another idea'} value={c.label} onChange={e => setChoices(cs => cs.map(x => x.key === c.key ? { ...x, label: e.target.value } : x))} />}
-            <button type="button" className="icon-btn" aria-label={`Remove ${c.recipe?.name ?? c.label ?? `choice ${i + 1}`}`} disabled={choices.length <= 1} onClick={() => setChoices(cs => cs.filter(x => x.key !== c.key))}><XIcon /></button>
+            <button type="button" className="icon-btn" aria-label={`Remove ${c.label || `choice ${i + 1}`}`} disabled={choices.length <= 1} onClick={() => setChoices(cs => cs.filter(x => x.key !== c.key))}><XIcon /></button>
           </div>)}
           <div className="meal-actions poll-add">
-            <button type="button" className="btn btn-secondary" disabled={choices.length >= 12} onClick={() => setChoices(cs => [...cs, blank()])}><PlusIcon /> Add an idea</button>
-            {meals && <button type="button" className="btn btn-secondary" aria-haspopup="dialog" disabled={choices.length >= 12} onClick={pickRecipe}><BookIcon /> Add a recipe</button>}
+            <button type="button" className="btn btn-secondary" disabled={full} onClick={() => setChoices(cs => [...cs, blank()])}><PlusIcon /> Add an idea</button>
+            {meals && <button type="button" className="btn btn-secondary" aria-haspopup="dialog" disabled={full} onClick={() => pick('recipe')}><BookIcon /> Add a recipe</button>}
+            {meals && <button type="button" className="btn btn-secondary" aria-haspopup="dialog" disabled={full} onClick={() => pick('restaurant')}><MealIcon /> Add a restaurant</button>}
           </div>
         </fieldset>
         {error && <p className="field-error" role="alert">{error}</p>}
       </fieldset>
     </form>
-    {picking && (recipes ? <RecipePicker recipes={recipes} currentId={null} saved={null} onClose={() => setPicking(false)}
-      onPick={r => { setPicking(false); if (r) setChoices(cs => [...cs.filter(c => c.recipe || c.label.trim()), { key: crypto.randomUUID(), label: r.name, recipe: r }]) }} />
-      : <Sheet title="Choose a recipe" onClose={() => setPicking(false)}><p role="status">Loading recipes…</p></Sheet>)}
+    {picking === 'recipe' && (recipes ? <RecipePicker recipes={recipes} currentId={null} saved={null} onClose={() => setPicking(null)} onPick={r => r && add({ label: r.name, recipeId: r.id })} />
+      : <Sheet title="Choose a recipe" onClose={() => setPicking(null)}><p role="status">Loading recipes…</p></Sheet>)}
+    {picking === 'restaurant' && <Sheet title="Choose a restaurant" onClose={() => setPicking(null)}>
+      {!places ? <p role="status">Loading restaurants…</p> : !places.length ? <p className="state-card">No restaurants yet. Add the places you order from in Meals → Restaurants.</p>
+        : <div className="sheet-links">{places.map(r => <button key={r.id} type="button" className="sheet-link" onClick={() => add({ label: r.name, restaurantId: r.id })}>
+          <MealIcon /><span>{r.name}{r.cuisine && <small>{r.cuisine}</small>}</span>
+        </button>)}</div>}
+    </Sheet>}
   </Sheet>
 }

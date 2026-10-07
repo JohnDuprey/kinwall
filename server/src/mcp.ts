@@ -1674,11 +1674,14 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
   );
   tool(
     'create_poll',
-    { title: 'Start a family poll', description: 'Admin: ask the family a question everyone votes on, kids too (one vote each), and notify every device. Choices: ideas (typed text) and/or recipes from the recipe book (ids or exact names; needs Meals on), at least two in all. date and slot tie it to a meal; when it closes, a parent can plan the winner from the app.', inputSchema: { question: z.string().min(1).max(200), ideas: jsonList(z.array(z.string().min(1).max(120))).optional(), recipes: jsonList(z.array(z.string())).optional().describe('Recipe ids or exact names.'), date: z.string().optional().describe('YYYY-MM-DD of the meal it decides.'), slot: MealSlotSchema.optional() } },
-    async ({ question, ideas = [], recipes = [], date, slot }) => {
-      let recipeIds: string[];
-      try { recipeIds = await Promise.all(recipes.map(async (r) => (await resolveExact(app, env, auth, '/api/recipes', r, 'recipe')).id)); } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'recipe lookup failed'); }
-      const res = await call(app, env, auth, 'POST', '/api/polls', { question, date, slot: date ? slot ?? 'dinner' : undefined, options: [...ideas.map((label) => ({ label })), ...recipeIds.map((recipeId) => ({ recipeId }))] });
+    { title: 'Start a family poll', description: 'Admin: ask the family a question everyone votes on, kids too (one vote each), and notify every device. Choices: ideas (typed text), recipes from the recipe book and/or restaurants from the binder (ids or exact names; both need Meals on), at least two in all. date and slot tie it to a meal; when it closes, a parent can plan the winner from the app.', inputSchema: { question: z.string().min(1).max(200), ideas: jsonList(z.array(z.string().min(1).max(120))).optional(), recipes: jsonList(z.array(z.string())).optional().describe('Recipe ids or exact names.'), restaurants: jsonList(z.array(z.string())).optional().describe('Restaurant ids or exact names (see list_restaurants).'), date: z.string().optional().describe('YYYY-MM-DD of the meal it decides.'), slot: MealSlotSchema.optional() } },
+    async ({ question, ideas = [], recipes = [], restaurants = [], date, slot }) => {
+      let recipeIds: string[], restaurantIds: string[];
+      try {
+        recipeIds = await Promise.all(recipes.map(async (r) => (await resolveExact(app, env, auth, '/api/recipes', r, 'recipe')).id));
+        restaurantIds = await Promise.all(restaurants.map(async (r) => (await resolveExact(app, env, auth, '/api/restaurants', r, 'restaurant')).id));
+      } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'lookup failed'); }
+      const res = await call(app, env, auth, 'POST', '/api/polls', { question, date, slot: date ? slot ?? 'dinner' : undefined, options: [...ideas.map((label) => ({ label })), ...recipeIds.map((recipeId) => ({ recipeId })), ...restaurantIds.map((restaurantId) => ({ restaurantId }))] });
       return res.status >= 400 ? errorResult(res.json, 'failed to start the poll') : okResult(`Poll started: ${tally(res.json as Parameters<typeof tally>[0])}`, { poll: res.json });
     },
   );

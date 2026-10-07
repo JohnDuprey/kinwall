@@ -1052,11 +1052,12 @@ export interface MemberStats {
   birthday: { date: string; daysUntil: number; turning: number | null } | null
 }
 
-// Family polls (server: routes/polls.ts). votes: the member ids who picked that choice.
-export interface PollOption { id: string; label: string; recipeId: string | null; sort: number; votes: string[] }
+// Family polls (server: routes/polls.ts). A choice is a typed idea, a recipe or a restaurant from the
+// binder; votes: the member ids who picked it.
+export interface PollOption { id: string; label: string; recipeId: string | null; restaurantId: string | null; sort: number; votes: string[] }
 export interface Poll {
   id: string; question: string; date: string | null; slot: 'breakfast' | 'lunch' | 'dinner' | 'snack' | null
   status: 'open' | 'closed'; winnerOptionId: string | null; mealId: string | null
   createdBy: string | null; createdAt: string; closedAt: string | null; options: PollOption[]
 }
-export interface PollInput { question: string; date?: string | null; slot?: Poll['slot']; options: { label?: string; recipeId?: string }[] }
+export interface PollInput { question: string; date?: string | null; slot?: Poll['slot']; options: { label?: string; recipeId?: string; restaurantId?: string }[] }
