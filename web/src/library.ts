@@ -57,3 +57,40 @@ export function existingRead(entries: TrackerEntry[], memberId: string, book: Pi
     return e.kind === 'reading' && e.memberId === memberId && d.status !== 'finished' && (d.bookId === book.id || (!d.bookId && sameTitle(e.title, book.title)))
   }) ?? null
 }
+
+/** A steady number from a string (FNV-1a), for looks that stay put between renders. */
+function hash(s: string) {
+  let h = 2166136261
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619)
+  return h >>> 0
+}
+/** The cloth color of a book with no cover (the cover view), the same every time for its title. */
+export const clothColor = (title: string) => {
+  const h = hash(title.trim().toLowerCase())
+  return `hsl(${h % 360} ${40 + (h >>> 9) % 20}% ${30 + (h >>> 17) % 12}%)`
+}
+/** How a book stands on the shelf: a slight lean (degrees, most stand straight) and its height (% of the tallest). */
+export function bookLean(id: string): { tilt: number; height: number } {
+  const h = hash(id)
+  const lean = h % 7 // 0–6: about a third lean a little either way
+  return { tilt: lean === 0 ? -2.5 : lean === 1 ? 2 : lean === 2 ? -1 : 0, height: 88 + (h >>> 8) % 13 }
+}
+
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+/** The library-card tag on a borrowed book still out: "Due Fri" this week, "Due Oct 13" later,
+ * "Overdue", or "Borrowed" without a date; null for the family's own books and returned ones. */
+export function dueTag(b: Pick<LibraryBook, 'borrowedFrom' | 'dueOn' | 'returnedOn'>, today: string): string | null {
+  if (!b.borrowedFrom || b.returnedOn) return null
+  if (!b.dueOn) return 'Borrowed'
+  if (b.dueOn < today) return 'Overdue'
+  if (b.dueOn === today) return 'Due today'
+  if (b.dueOn === addDayKeys(today, 1)) return 'Due tomorrow'
+  if (b.dueOn <= addDayKeys(today, 6)) return `Due ${WEEKDAYS[new Date(`${b.dueOn}T12:00:00Z`).getUTCDay()]}`
+  return `Due ${day(b.dueOn, today)}`
+}
+
+/** "Pick a book for me": any book on the shelf (not the wishlist, not one that went back), or null. */
+export function pickBook<B extends Pick<LibraryBook, 'wanted' | 'returnedOn'>>(books: B[], random = Math.random): B | null {
+  const shelf = books.filter(b => !b.wanted && !b.returnedOn)
+  return shelf.length ? shelf[Math.floor(random() * shelf.length)] : null
+}

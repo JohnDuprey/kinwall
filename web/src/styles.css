@@ -2949,6 +2949,62 @@ button.plugin-chore-chip { border: 0; font-family: inherit; min-height: 44px; } 
 .lib-place-filter { flex: none; width: auto; min-height: 44px; }
 .lib-reader-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .lib-remove { flex: none; align-self: flex-start; margin-top: 8px; }
+
+/* The library's head row: the count, List | Covers, and (covers) Show wishlist and Pick a book. */
+.lib-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 12px; }
+.lib-head > * { flex: none; }
+.lib-count { font-weight: 800; margin-right: auto; }
+.lib-head .segmented button { min-height: 44px; }
+
+/* Covers (LibraryShelf.tsx): books on wooden shelves. Every row is one shelf, --row tall, with its
+   ledge drawn by the list's background (so shelves run wall to wall, even past a short last row).
+   A book is --cw wide at its tallest; --h (88–100%) and --tilt vary it a little, the cover stays 2:3. */
+.lib-shelves { --cw: 84px; --ledge: 14px; --row: calc(var(--cw) * 1.5 + 30px + var(--ledge));
+  --wood: #A8703F; --wood-top: #C8925C; --wood-edge: #7A4B25; --wall: color-mix(in srgb, var(--wood) 10%, var(--bg-alt)); }
+:root[data-theme="dark"] .lib-shelves { --wood: #5E3F26; --wood-top: #7A5535; --wood-edge: #3B2616; --wall: color-mix(in srgb, var(--wood) 18%, var(--bg-alt)); }
+@media (min-width: 700px) { .lib-shelves { --cw: 104px; } }
+@media (min-width: 1300px) { .lib-shelves { --cw: 128px; --ledge: 16px; } }
+.lib-shelf { list-style: none; margin: 0 0 18px; padding: 0 8px; display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(var(--cw) + 18px), 1fr));
+  grid-auto-rows: var(--row); border-radius: var(--radius);
+  background:
+    linear-gradient(to bottom, transparent calc(100% - var(--ledge)), var(--wood-top) calc(100% - var(--ledge)), var(--wood-top) calc(100% - var(--ledge) + 4px), var(--wood) calc(100% - var(--ledge) + 4px), var(--wood) calc(100% - 3px), var(--wood-edge) calc(100% - 3px)) 0 0 / 100% var(--row) repeat-y,
+    var(--wall); }
+.lib-shelf-name { margin: 6px 0 8px; font-size: 1rem; }
+.lib-slot { display: flex; align-items: flex-end; justify-content: center; padding-bottom: calc(var(--ledge) - 4px); }
+.lib-spine { position: relative; width: calc(var(--cw) * var(--h)); aspect-ratio: 2 / 3; padding: 0; border: 0; border-radius: 3px 5px 5px 3px;
+  background: var(--bg-alt); color: inherit; transform: rotate(var(--tilt)); transform-origin: 50% 100%;
+  box-shadow: 3px 2px 6px rgb(0 0 0 / 0.35), inset 0 0 0 1px rgb(0 0 0 / 0.08); }
+.lib-spine::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; /* the spine's crease and a soft sheen */
+  background: linear-gradient(to right, rgb(0 0 0 / 0.28) 0, rgb(255 255 255 / 0.18) 4px, transparent 9px); }
+.lib-spine-cover { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
+.lib-cloth { display: flex; flex-direction: column; justify-content: center; gap: 6px; padding: 14% 10% 14% 14%; text-align: center; color: #FFF8E7; overflow: hidden;
+  font-family: Georgia, 'Times New Roman', serif; box-shadow: inset 0 9px 0 -6px rgb(255 232 170 / 0.75), inset 0 -9px 0 -6px rgb(255 232 170 / 0.75); }
+.lib-cloth-title { font-weight: 700; font-size: calc(var(--cw) * 0.13); line-height: 1.15; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; line-clamp: 4; overflow: hidden; }
+.lib-cloth-author { font-size: calc(var(--cw) * 0.095); opacity: 0.9; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+/* Someone reading it: a ribbon bookmark poking out of the top with their face on it. */
+.lib-marks { position: absolute; top: -22px; right: 12%; display: flex; gap: 3px; z-index: 1; }
+.lib-mark { display: flex; justify-content: center; width: 24px; height: 40px; padding-top: 2px; clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 86%, 0 100%); box-shadow: 0 1px 2px rgb(0 0 0 / 0.3); }
+.lib-mark-face { width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; border: 1.5px solid #fff; }
+/* Wishlist: a ⭐ ribbon hanging off the top left corner. */
+.lib-ribbon { position: absolute; top: -4px; left: 8px; width: 26px; height: 34px; padding-top: 4px; font-size: 0.875rem; line-height: 1; text-align: center;
+  background: var(--accent); clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 80%, 0 100%); z-index: 1; }
+/* Borrowed: a library due-date card tucked in the bottom. Its own paper colors, so it reads the same in both themes. */
+.lib-card-tag { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%) rotate(-3deg); padding: 3px 7px 2px; white-space: nowrap; z-index: 1;
+  font-size: 0.75rem; font-weight: 800; color: #3A2E27; background: #FFF8E7; border-top: 3px solid #C0392B; border-radius: 2px; box-shadow: 0 1px 3px rgb(0 0 0 / 0.35); }
+.lib-card-tag.lib-overdue { color: #B83232; }
+.lib-spine.lit, .lib-spine.picked { outline: 3px solid var(--accent); outline-offset: 3px; }
+.lib-spine.picked { box-shadow: 0 0 0 6px var(--accent-soft), 0 10px 24px rgb(0 0 0 / 0.35); z-index: 2; }
+@media (prefers-reduced-motion: no-preference) {
+  .lib-spine { transition: transform 0.18s ease, box-shadow 0.18s ease; }
+  .lib-spine:active { transform: translateY(-6px) rotate(0deg); }
+  .lib-spine.lit { transform: translateY(-4px) rotate(var(--tilt)); }
+  .lib-spine.picked { animation: lib-pick 0.6s ease 2; }
+  @keyframes lib-pick { 0%, 100% { transform: translateY(-8px) rotate(0); } 50% { transform: translateY(-14px) rotate(0) scale(1.06); } }
+}
+@media (hover: hover) and (pointer: fine) { .lib-spine:hover { outline: 2px solid var(--accent); outline-offset: 2px; } }
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .lib-spine:hover { transform: translateY(-6px) rotate(0deg); box-shadow: 4px 8px 12px rgb(0 0 0 / 0.35); }
+}
 .trk-days-chart { display: flex; align-items: flex-end; gap: 3px; height: 64px; padding: 4px 0; border-bottom: 1px solid var(--border); }
 .trk-days-bar { flex: 1; min-width: 0; border-radius: 3px 3px 0 0; background: var(--accent); }
 .trk-days-axis { display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-dim); margin-top: 2px; }

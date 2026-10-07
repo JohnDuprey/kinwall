@@ -1,7 +1,7 @@
 // node --test test/ (npm test). The family library's labels and the bulk scanner's book check.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { addDayKeys, bookDetails, dueLabel, existingRead, isbnFromScan, isOverdue, lentLabel } from '../src/library.ts'
+import { addDayKeys, bookDetails, bookLean, clothColor, dueLabel, dueTag, existingRead, isbnFromScan, isOverdue, lentLabel, pickBook } from '../src/library.ts'
 
 test('isbnFromScan: book barcodes (978/979, or ISBN-10) only', () => {
   assert.equal(isbnFromScan('9780440414803'), '9780440414803')
@@ -51,4 +51,43 @@ test("existingRead: Read it links what they're already reading instead of adding
   assert.equal(existingRead([entry('e2', 'june', 'Outcast', { status: 'finished' })], 'june', book), null, 'finished: reading it again is new')
   assert.equal(existingRead([entry('e3', 'june', 'Outcast', { status: 'reading', bookId: 'b9' })], 'june', book), null, 'linked to another copy')
   assert.equal(existingRead([entry('e4', 'june', 'Renamed', { status: 'want', bookId: 'b1' })], 'june', book)?.id, 'e4', 'already linked')
+})
+
+test('clothColor: a no-cover book gets the same cloth color every time, picked from its title', () => {
+  assert.equal(clothColor('Holes'), clothColor('Holes'))
+  assert.match(clothColor('Holes'), /^hsl\(\d+ \d+% \d+%\)$/)
+  const colors = new Set(['Holes', 'Wonder', 'Hatchet', 'Matilda', 'Fire and Ice', 'Into the Wild'].map(clothColor))
+  assert.ok(colors.size >= 4, 'different titles mostly differ')
+})
+
+test('bookLean: a small, steady tilt and height per book', () => {
+  for (const id of ['a', 'book-holes', 'book-wonder', 'x'.repeat(40)]) {
+    const { tilt, height } = bookLean(id)
+    assert.ok(Math.abs(tilt) <= 3, `tilt ${tilt}`)
+    assert.ok(height >= 88 && height <= 100, `height ${height}`)
+    assert.deepEqual(bookLean(id), { tilt, height })
+  }
+})
+
+test('dueTag: a short tag for a borrowed book still out', () => {
+  const t = '2026-10-06' // a Tuesday
+  const b = (dueOn: string | null, returnedOn: string | null = null, borrowedFrom: string | null = 'Town library') => ({ borrowedFrom, dueOn, returnedOn })
+  assert.equal(dueTag(b('2026-10-06'), t), 'Due today')
+  assert.equal(dueTag(b('2026-10-07'), t), 'Due tomorrow')
+  assert.equal(dueTag(b('2026-10-09'), t), 'Due Fri')
+  assert.equal(dueTag(b('2026-10-12'), t), 'Due Mon')
+  assert.equal(dueTag(b('2026-10-13'), t), 'Due Oct 13')
+  assert.equal(dueTag(b('2026-10-01'), t), 'Overdue')
+  assert.equal(dueTag(b('2026-10-01', '2026-09-30'), t), null, 'returned')
+  assert.equal(dueTag(b(null), t), 'Borrowed', 'no due date')
+  assert.equal(dueTag(b('2026-10-09', null, null), t), null, 'ours')
+})
+
+test('pickBook: a random book from the shelf, never a wishlist or returned one', () => {
+  const bk = (id: string, d: { wanted?: boolean; returnedOn?: string | null } = {}) => ({ id, wanted: false, returnedOn: null, ...d })
+  const shelf = [bk('wish', { wanted: true }), bk('a'), bk('gone', { returnedOn: '2026-09-01' }), bk('b')]
+  assert.equal(pickBook(shelf, () => 0)?.id, 'a')
+  assert.equal(pickBook(shelf, () => 0.99)?.id, 'b')
+  assert.equal(pickBook([bk('wish', { wanted: true })], () => 0), null)
+  assert.equal(pickBook([], () => 0), null)
 })
