@@ -105,3 +105,44 @@ test('libraryQuery sends every filter (the wishlist, borrowed and returned were 
   assert.equal(libraryQuery({ q: 'owl', unread: true, lent: true, borrowed: true, returned: true, wanted: true, location: 'Den' }), 'q=owl&unread=1&lent=1&borrowed=1&returned=1&wanted=1&location=Den')
   assert.equal(libraryQuery(), '')
 })
+
+test('filterLibrary: OR within a group, AND across groups, and the default shelf', async () => {
+  const { filterLibrary, NO_FILTERS } = await import('../src/library.ts')
+  const r = (memberId: string, status: string) => ({ entryId: memberId + status, memberId, status: status as never })
+  const bk = (id: string, d: Record<string, unknown> = {}) => ({ id, readers: [], wanted: false, returnedOn: null, borrowedFrom: null, dueOn: null, lentTo: null, location: null, ...d }) as never
+  const books = [
+    bk('fresh', { location: 'Den' }), // ours, nobody started
+    bk('reading', { readers: [r('maya', 'reading')], location: 'Maya\'s room' }),
+    bk('want', { readers: [r('leo', 'want')] }), // want to read only
+    bk('done', { readers: [r('maya', 'finished'), r('leo', 'want')], location: 'Den' }),
+    bk('lent', { lentTo: 'Grandma', readers: [r('sam', 'finished')] }),
+    bk('borrowed', { borrowedFrom: 'Town library', dueOn: '2026-10-09', readers: [r('leo', 'reading')] }),
+    bk('back', { borrowedFrom: 'Town library', returnedOn: '2026-09-01', readers: [r('maya', 'finished')] }),
+    bk('wish', { wanted: true, readers: [r('maya', 'want')] }),
+  ]
+  const ids = (f: Partial<typeof NO_FILTERS>) => filterLibrary(books, { ...NO_FILTERS, ...f }).map((b: { id: string }) => b.id)
+  // Nothing on: the books we have, not returned, not wishlist, not want-to-read-only.
+  assert.deepEqual(ids({}), ['fresh', 'reading', 'done', 'lent', 'borrowed'])
+  assert.deepEqual(ids({ show: ['unread'] }), ['fresh'])
+  assert.deepEqual(ids({ show: ['want'] }), ['want'], 'want to read is a filter now, only books nobody started')
+  assert.deepEqual(ids({ show: ['reading'] }), ['reading', 'borrowed'])
+  assert.deepEqual(ids({ show: ['finished'] }), ['done', 'lent'], 'a returned book only shows under Returned')
+  assert.deepEqual(ids({ show: ['lent'] }), ['lent'])
+  assert.deepEqual(ids({ show: ['borrowed'] }), ['borrowed'])
+  assert.deepEqual(ids({ show: ['returned'] }), ['back'])
+  assert.deepEqual(ids({ show: ['wishlist'] }), ['wish'])
+  assert.deepEqual(ids({ show: ['unread', 'want', 'wishlist'] }), ['fresh', 'want', 'wish'], 'OR within Show')
+  assert.deepEqual(ids({ places: ['Den'] }), ['fresh', 'done'])
+  assert.deepEqual(ids({ places: ['Den', 'Maya\'s room'] }), ['fresh', 'reading', 'done'], 'OR within Where')
+  assert.deepEqual(ids({ who: ['leo'] }), ['done', 'borrowed'], 'whose shelf, on the default view')
+  assert.deepEqual(ids({ who: ['leo', 'sam'] }), ['done', 'lent', 'borrowed'], 'OR within Who')
+  assert.deepEqual(ids({ show: ['want', 'wishlist'], who: ['leo'] }), ['want'], 'AND across groups')
+  assert.deepEqual(ids({ show: ['finished'], places: ['Den'], who: ['maya'] }), ['done'])
+})
+
+test('libraryNeeds: the extra lists the chosen filters reach', async () => {
+  const { libraryNeeds, NO_FILTERS } = await import('../src/library.ts')
+  assert.deepEqual(libraryNeeds(NO_FILTERS), { returned: false, wanted: false })
+  assert.deepEqual(libraryNeeds({ ...NO_FILTERS, show: ['returned', 'unread'] }), { returned: true, wanted: false })
+  assert.deepEqual(libraryNeeds({ ...NO_FILTERS, show: ['wishlist'] }), { returned: false, wanted: true })
+})

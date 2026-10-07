@@ -89,10 +89,43 @@ export function dueTag(b: Pick<LibraryBook, 'borrowedFrom' | 'dueOn' | 'returned
   return `Due ${day(b.dueOn, today)}`
 }
 
-/** "Pick a book for me": any book on the shelf (not the wishlist, not one that went back), or null. */
 /** Only "want to read" so far: someone has it on their shelf, nobody has started it. */
 export const wantOnly = (b: Pick<LibraryBook, 'readers'>): boolean => b.readers.length > 0 && b.readers.every(r => r.status === 'want')
 
+/** The library's Filters sheet. Show: which books (any of them; none = the default shelf). Where: the
+ * places it lives. Who: whose reading shelf it's on. Any one in a group, every group that has one. */
+export type LibraryStatus = 'unread' | 'reading' | 'want' | 'finished' | 'lent' | 'borrowed' | 'returned' | 'wishlist'
+export interface LibraryFilters { show: LibraryStatus[]; places: string[]; who: string[] }
+export const NO_FILTERS: LibraryFilters = { show: [], places: [], who: [] }
+export const STATUS_LABEL: Record<LibraryStatus, string> = {
+  unread: 'Not read yet', reading: '📖 Reading now', want: '🔖 Want to read', finished: '📗 Finished',
+  lent: '🤝 Lent out', borrowed: '📅 Borrowed', returned: '↩️ Returned', wishlist: '⭐ Wishlist',
+}
+type Filterable = Pick<LibraryBook, 'readers' | 'wanted' | 'returnedOn' | 'borrowedFrom' | 'dueOn' | 'lentTo' | 'location'>
+const has = (b: Filterable) => !b.wanted && !b.returnedOn // on our shelves: not the wishlist, not gone back
+const reads = (b: Filterable, s: string) => b.readers.some(r => r.status === s)
+const SHOWS: Record<LibraryStatus, (b: Filterable) => boolean> = {
+  unread: b => has(b) && !b.readers.length,
+  reading: b => has(b) && reads(b, 'reading'),
+  want: b => has(b) && wantOnly(b),
+  finished: b => has(b) && reads(b, 'finished'),
+  lent: b => has(b) && !!b.lentTo,
+  borrowed: b => has(b) && !!b.borrowedFrom,
+  returned: b => !!b.borrowedFrom && !!b.returnedOn,
+  wishlist: b => !!b.wanted,
+}
+/** The books the filters pick, in the order given (Borrowed alone: soonest due first). With nothing
+ * in Show: the books we have, minus the ones only on someone's want-to-read shelf. */
+export function filterLibrary<B extends Filterable>(books: B[], f: LibraryFilters): B[] {
+  const out = books.filter(b => (f.show.length ? f.show.some(s => SHOWS[s](b)) : has(b) && !wantOnly(b))
+    && (!f.places.length || (!!b.location && f.places.includes(b.location)))
+    && (!f.who.length || b.readers.some(r => !!r.memberId && f.who.includes(r.memberId))))
+  return f.show.length === 1 && f.show[0] === 'borrowed' ? out.sort((a, z) => (a.dueOn ?? '9999').localeCompare(z.dueOn ?? '9999')) : out
+}
+/** Which lists beyond the books we have the filters reach (GET /api/library leaves both out otherwise). */
+export const libraryNeeds = (f: LibraryFilters) => ({ returned: f.show.includes('returned'), wanted: f.show.includes('wishlist') })
+
+/** "Pick a book for me": any book on the shelf (not the wishlist, not one that went back), or null. */
 export function pickBook<B extends Pick<LibraryBook, 'wanted' | 'returnedOn'>>(books: B[], random = Math.random): B | null {
   const shelf = books.filter(b => !b.wanted && !b.returnedOn)
   return shelf.length ? shelf[Math.floor(random() * shelf.length)] : null

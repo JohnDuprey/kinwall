@@ -2925,7 +2925,9 @@ button.plugin-chore-chip { border: 0; font-family: inherit; min-height: 44px; } 
 .lib-search { flex: 1 1 220px; min-width: 0; min-height: 44px; }
 .lib-bar .chip, .lib-scan { flex: none; }
 .lib-filter-btn { margin-left: 0; }
-.lib-filter-sheet .lib-place-filter { flex: 1 1 100%; }
+/* The filters that are on, under the search: tap one to drop it. */
+.lib-active { margin: -4px 0 12px; }
+.lib-active .chip.lib-active-chip { flex: none; padding: 6px 12px; border-width: 1px; font-size: 0.8125rem; } /* small, still 44px tall */
 .lib-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
 .lib-book { display: flex; gap: 12px; width: 100%; height: 100%; /* every card in a row as tall as the row */ min-height: 44px; padding: 10px; text-align: left; border: 0; border-radius: var(--radius); background: var(--card); color: var(--text); box-shadow: var(--shadow); }
 .lib-cover { flex: none; width: 52px; height: 78px; object-fit: cover; border-radius: 4px; background: var(--bg-alt); }
@@ -2946,11 +2948,10 @@ button.plugin-chore-chip { border: 0; font-family: inherit; min-height: 44px; } 
 .lib-borrow-actions .btn { flex: none; }
 .lib-overdue { color: var(--danger); font-weight: 700; }
 .board-book-due a { color: inherit; text-decoration: none; display: block; padding: 4px 0; }
-.lib-place-filter { flex: none; width: auto; min-height: 44px; }
 .lib-reader-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .lib-remove { flex: none; align-self: flex-start; margin-top: 8px; }
 
-/* The library's head row: the count, List | Covers, and (covers) Show wishlist and Pick a book. */
+/* The library's head row: the count, List | Covers, and (covers) Pick a book. */
 .lib-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 12px; }
 .lib-head > * { flex: none; }
 .lib-count { font-weight: 800; margin-right: auto; }
@@ -2969,7 +2970,6 @@ button.plugin-chore-chip { border: 0; font-family: inherit; min-height: 44px; } 
   background:
     linear-gradient(to bottom, transparent calc(100% - var(--ledge)), var(--wood-top) calc(100% - var(--ledge)), var(--wood-top) calc(100% - var(--ledge) + 4px), var(--wood) calc(100% - var(--ledge) + 4px), var(--wood) calc(100% - 3px), var(--wood-edge) calc(100% - 3px)) 0 0 / 100% var(--row) repeat-y,
     var(--wall); }
-.lib-shelf-name { margin: 6px 0 8px; font-size: 1rem; }
 .lib-slot { display: flex; align-items: flex-end; justify-content: center; padding-bottom: calc(var(--ledge) - 4px); }
 .lib-spine { position: relative; width: calc(var(--cw) * var(--h)); aspect-ratio: 2 / 3; padding: 0; border: 0; border-radius: 3px 5px 5px 3px;
   background: var(--bg-alt); color: inherit; transform: rotate(var(--tilt)); transform-origin: 50% 100%;

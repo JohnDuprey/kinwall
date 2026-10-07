@@ -1,7 +1,8 @@
 // The library's cover view (Library.tsx): the books standing on wooden shelves, covers only. A book
 // with no cover (or one that won't load) gets a cloth cover with its title. Borrowed books carry a
-// library-card due tag, wishlist books a ⭐ ribbon (on their own shelf at the end), and a book someone
-// is reading has a bookmark with their face. "Pick a book for me" scans the shelf and lands on one.
+// library-card due tag, wishlist books a ⭐ ribbon, and a book someone is reading has a bookmark with
+// their face. The shelf is whatever the Filters pick. "Pick a book for me" scans it and lands on one
+// (never a wishlist or returned book).
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { api } from './api.ts'
 import { announce, reducedMotion } from './a11y.tsx'
@@ -13,9 +14,9 @@ const SCAN_STEPS = 12
 const SCAN_STEP_MS = 90
 const LAND_MS = 900 // the picked book glows this long before its sheet opens
 
-export default function LibraryShelf({ head, books, wish, members, today, onOpen }: {
+export default function LibraryShelf({ head, books, members, today, onOpen }: {
   head: ReactNode // the count and view toggles; Pick a book joins them
-  books: LibraryBook[]; wish: LibraryBook[]; members: Member[]; today: string; onOpen: (b: LibraryBook) => void
+  books: LibraryBook[]; members: Member[]; today: string; onOpen: (b: LibraryBook) => void
 }) {
   const [lit, setLit] = useState<string | null>(null) // the book the scan is on
   const [picked, setPicked] = useState<string | null>(null)
@@ -49,10 +50,6 @@ export default function LibraryShelf({ head, books, wish, members, today, onOpen
         )}
       </div>
       {!!books.length && <ul className="lib-shelf" aria-label="Books">{books.map(book)}</ul>}
-      {!!wish.length && <>
-        <h3 className="lib-shelf-name">📖 Want to read</h3>
-        <ul className="lib-shelf" aria-label="Want to read">{wish.map(book)}</ul>
-      </>}
     </div>
   )
 }
