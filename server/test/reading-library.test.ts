@@ -1,7 +1,7 @@
 // Every book on someone's Reading shelf is in the family's library (shelve.ts): a new or edited
 // reading entry without a bookId is linked to the library book with the same title and author, or
-// a new one is made from it; "want to read" makes a wishlist book, reading it takes it off the
-// wishlist. shelveReadingEntries does the same once for entries from before.
+// a new one is made from it (one the family has, even if only "want to read"); reading a wishlist
+// book takes it off the wishlist. shelveReadingEntries does the same once for entries from before.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -60,18 +60,19 @@ test('a new reading entry joins the library: linked to the same book, or a new o
   assert.equal((await library()).length, 3);
 });
 
-test('want to read makes a wishlist book; reading it takes it off the wishlist; an owned book stays owned', async () => {
+test("want to read is a book the family has, not the wishlist; reading a wishlist book takes it off; an owned book stays owned", async () => {
   const { send, library, read } = setup();
   const want = await read('The Wild Robot', { author: 'Peter Brown', status: 'want' });
-  let robot = (await library()).find((b: any) => b.id === want.body.data.bookId);
-  assert.equal(robot.wanted, true);
+  const robot = (await library()).find((b: any) => b.id === want.body.data.bookId);
+  assert.equal(robot.wanted, false, 'an audiobook bought but not started is ours');
 
-  // A PATCH that leaves it wanted (the hourly sync) changes nothing; starting it flips it.
-  await send('PATCH', `/api/trackers/${want.body.id}`, { data: { notes: 'soon' } });
-  assert.equal((await library()).find((b: any) => b.id === robot.id).wanted, true);
-  await send('PATCH', `/api/trackers/${want.body.id}`, { data: { status: 'reading' } });
-  robot = (await library()).find((b: any) => b.id === robot.id);
-  assert.equal(robot.wanted, false);
+  // A wishlist book someone starts: off the wishlist.
+  const wish = (await send('POST', '/api/library', { title: 'Wings of Fire', author: 'Tui T. Sutherland', wanted: true })).body;
+  const r = await read('Wings of Fire', { author: 'Tui T. Sutherland', status: 'want' });
+  assert.equal(r.body.data.bookId, wish.id);
+  assert.equal((await library()).find((b: any) => b.id === wish.id).wanted, true, 'wanting it keeps it on the wishlist');
+  await send('PATCH', `/api/trackers/${r.body.id}`, { data: { status: 'reading' } });
+  assert.equal((await library()).find((b: any) => b.id === wish.id).wanted, false);
 
   const owned = (await send('POST', '/api/library', { title: 'Holes', author: 'Louis Sachar' })).body;
   const w = await read('Holes', { status: 'want' });
@@ -110,7 +111,7 @@ test('shelveReadingEntries: entries from before join the library once, deduped, 
   assert.equal(await shelveReadingEntries(env), 4);
   const books = await library();
   assert.deepEqual(books.map((b: any) => b.title).sort(), ["Charlotte's Web", 'Dog Man', 'Holes']);
-  assert.equal(books.find((b: any) => b.title === 'Dog Man').wanted, true);
+  assert.equal(books.find((b: any) => b.title === 'Dog Man').wanted, false);
   const data = (id: string) => JSON.parse((db.prepare('SELECT data FROM tracker_entries WHERE id = ?').bind(id).first() as any).data);
   assert.equal(data('a').bookId, owned.id);
   assert.equal(data('bb').bookId, data('ccc').bookId);

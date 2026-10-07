@@ -1,8 +1,9 @@
 // Every book on someone's Reading shelf is in the family's library (routes/library.ts). A reading
 // entry saved without data.bookId (the web, REST, MCP add_tracker_entry, a sync like Libro.fm) is
-// linked to the library book with the same title and author, or a new library book is made from it:
-// a wishlist one (wanted) while it's only "want to read". Reading or finishing a book takes it off
-// the wishlist. Removing an entry never removes its book, and an entry whose book was removed keeps
+// linked to the library book with the same title and author, or a new library book is made from it.
+// A book on a shelf is one the family has, even if it's only "want to read" (an audiobook bought but
+// not started): the wishlist is for books they don't have yet. Reading or finishing a wishlist book
+// takes it off the wishlist. Removing an entry never removes its book, and an entry whose book was removed keeps
 // its (dangling) bookId, so the book isn't made again. shelveReadingEntries does this once for
 // entries from before (createKinwall runs it per server instance; done entries have a bookId, so
 // it's a no-op after). Reading entries are plain JSON (only health is sealed).
@@ -43,7 +44,7 @@ export async function shelveReading<D extends ReadingLike>(db: Db, title: string
       const pages = data.format === 'audiobook' ? null : data.totalPages ?? null; // an audiobook's length is minutes
       await db.prepare(
         'INSERT INTO library_books (id, title, author, pages, cover_url, genres, wanted, added_by, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)',
-      ).bind(bookId, title.trim(), data.author?.trim() || null, pages, data.coverUrl ?? null, null, wanting ? 1 : 0, memberId, now, now).run();
+      ).bind(bookId, title.trim(), data.author?.trim() || null, pages, data.coverUrl ?? null, null, 0, memberId, now, now).run(); // had, not wished for
       return { ...data, bookId };
     }
   }

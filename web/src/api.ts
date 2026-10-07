@@ -6,6 +6,7 @@ import { failureMessage } from './failureMessage.ts'
 import { mediaTokenStale } from './mediaToken.ts'
 import { mock, mockPlugins } from './mock.ts'
 import { SECURITY_PAGE } from './securityActivity.ts'
+import { libraryQuery } from './library.ts'
 import { applyChoreOps, applyListOps, cacheGet, cachePut, clearOffline, enqueue, flush, onOutboxChange, outboxReady, pendingOps, type Dropped, type Op } from './outbox.ts'
 import type { CustomScheme } from './skins.ts'
 import type { PasskeyAuthenticator } from './webauthn.ts'
@@ -640,7 +641,7 @@ export const api = {
   // Book lookup and covers go through the server (Open Library), so the browser never talks to a third party.
   // The family's library (server: routes/library.ts). Adding by ISBN alone looks the book up there.
   getLibrary: (q?: { q?: string; unread?: boolean; lent?: boolean; borrowed?: boolean; returned?: boolean; wanted?: boolean; location?: string }) => MOCK ? mock.getLibrary(q)
-    : req<LibraryBook[]>(`api/library?${new URLSearchParams({ ...(q?.q ? { q: q.q } : {}), ...(q?.unread ? { unread: '1' } : {}), ...(q?.lent ? { lent: '1' } : {}), ...(q?.location ? { location: q.location } : {}) })}`),
+    : req<LibraryBook[]>(`api/library?${libraryQuery(q)}`),
   addToLibrary: (input: LibraryBookInput) => MOCK ? mock.addToLibrary(input) : post<LibraryBook>('api/library', input),
   updateLibraryBook: (id: string, changes: LibraryBookInput) => MOCK ? mock.updateLibraryBook(id, changes) : patch<LibraryBook>(`api/library/${encodeURIComponent(id)}`, changes),
   deleteLibraryBook: (id: string) => MOCK ? mock.deleteLibraryBook(id) : del(`api/library/${encodeURIComponent(id)}`),

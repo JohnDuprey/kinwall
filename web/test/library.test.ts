@@ -1,7 +1,7 @@
 // node --test test/ (npm test). The family library's labels and the bulk scanner's book check.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { addDayKeys, bookDetails, bookLean, clothColor, dueLabel, dueTag, existingRead, isbnFromScan, isOverdue, lentLabel, pickBook } from '../src/library.ts'
+import { wantOnly, addDayKeys, bookDetails, bookLean, clothColor, dueLabel, dueTag, existingRead, isbnFromScan, isOverdue, lentLabel, pickBook } from '../src/library.ts'
 
 test('isbnFromScan: book barcodes (978/979, or ISBN-10) only', () => {
   assert.equal(isbnFromScan('9780440414803'), '9780440414803')
@@ -90,4 +90,18 @@ test('pickBook: a random book from the shelf, never a wishlist or returned one',
   assert.equal(pickBook(shelf, () => 0.99)?.id, 'b')
   assert.equal(pickBook([bk('wish', { wanted: true })], () => 0), null)
   assert.equal(pickBook([], () => 0), null)
+})
+
+test('wantOnly: on a shelf as want to read, nobody started', () => {
+  const r = (...st: string[]) => ({ readers: st.map((status, i) => ({ entryId: String(i), memberId: null, status: status as never })) })
+  assert.equal(wantOnly(r('want')), true)
+  assert.equal(wantOnly(r('want', 'want')), true)
+  assert.equal(wantOnly(r('want', 'reading')), false, 'someone started it')
+  assert.equal(wantOnly(r()), false, 'on nobody\'s shelf: just a book we have')
+})
+
+test('libraryQuery sends every filter (the wishlist, borrowed and returned were dropped once)', async () => {
+  const { libraryQuery } = await import('../src/library.ts')
+  assert.equal(libraryQuery({ q: 'owl', unread: true, lent: true, borrowed: true, returned: true, wanted: true, location: 'Den' }), 'q=owl&unread=1&lent=1&borrowed=1&returned=1&wanted=1&location=Den')
+  assert.equal(libraryQuery(), '')
 })

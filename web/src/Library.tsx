@@ -12,7 +12,7 @@ import BookLookup from './BookLookup.tsx'
 import { useIsPhone } from './useIsPhone.ts'
 import { FilterIcon } from './icons.tsx'
 import { appBarcodeScanner, scanBarcode, wallCamera } from './native.ts'
-import { addDayKeys, bookDetails, existingRead, dueLabel, isbnFromScan, isOverdue, lentLabel, LOAN_DAYS } from './library.ts'
+import { addDayKeys, bookDetails, existingRead, dueLabel, isbnFromScan, isOverdue, lentLabel, LOAN_DAYS, wantOnly } from './library.ts'
 import { announce } from './a11y.tsx'
 import { todayKeyInTz } from './date.ts'
 import type { BookResult, LibraryBook, Member, ReadingData, ReadingStatus } from './types.ts'
@@ -24,7 +24,7 @@ const STATUS_WORD: Record<ReadingStatus, string> = { want: 'wants to read', read
 const SCAN_PAUSE_MS = 2000
 // This device's choices: list or covers, and whether the cover shelf shows the wishlist.
 const VIEW_KEY = 'kinwall.libraryView'
-const WISH_KEY = 'kinwall.libraryShelfWishlist'
+const WANT_KEY = 'kinwall.libraryShelfWant'
 const stored = (key: string) => { try { return localStorage.getItem(key) } catch { return null } }
 const store = (key: string, v: string) => { try { localStorage.setItem(key, v) } catch { /* storage blocked: just this visit */ } }
 const msg = (e: unknown, fallback: string) => (e instanceof Error && e.message ? e.message : fallback)
@@ -52,20 +52,14 @@ export default function Library({ adding, onAdded, onStarted }: {
   const isPhone = useIsPhone()
   const [filtering, setFiltering] = useState(false) // a phone: the filters in a sheet, behind one button
   const [view, setView] = useState<'list' | 'covers'>(() => stored(VIEW_KEY) === 'covers' ? 'covers' : 'list')
-  const [showWish, setShowWish] = useState(() => stored(WISH_KEY) === '1')
-  const [wish, setWish] = useState<LibraryBook[]>([]) // the cover view's Wishlist shelf, when it's on
-  // The Wishlist shelf joins the plain shelf only: a filter that picks the wishlist (or lent, borrowed, returned) shows just that.
-  const wishShelf = view === 'covers' && showWish && !wanted && !lent && !borrowed && !returned
-  const load = () => Promise.all([
-    api.getLibrary({ q, unread, lent, borrowed, returned, wanted, location: place || undefined }),
-    wishShelf ? api.getLibrary({ q, unread, wanted: true }) : Promise.resolve([]),
-  ]).then(([b, w]) => {
-    setBooks(b); setWish(w)
+  const [showWant, setShowWant] = useState(() => stored(WANT_KEY) === '1')
+  const load = () => api.getLibrary({ q, unread, lent, borrowed, returned, wanted, location: place || undefined }).then(b => {
+    setBooks(b)
     const more = (old: string[], add: (string | null)[]) => [...new Set([...old, ...add.filter((l): l is string => !!l)])].sort((a, z) => a.localeCompare(z))
     setPlaces(p => more(p, b.map(x => x.location)))
     setSources(s => more(s, b.map(x => x.borrowedFrom)))
-  }).catch(e => { setBooks([]); setWish([]); toast(msg(e, "Couldn't load the library"), true) })
-  useEffect(() => { const t = setTimeout(load, q ? 250 : 0); return () => clearTimeout(t) }, [q, unread, lent, borrowed, returned, wanted, place, refreshTick, wishShelf]) // eslint-disable-line react-hooks/exhaustive-deps
+  }).catch(e => { setBooks([]); toast(msg(e, "Couldn't load the library"), true) })
+  useEffect(() => { const t = setTimeout(load, q ? 250 : 0); return () => clearTimeout(t) }, [q, unread, lent, borrowed, returned, wanted, place, refreshTick]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Scan books one after another: each barcode adds its book (looked up by ISBN), then a pause
   // (SCAN_PAUSE_MS) to see what was added and reach for the next book before the camera opens again;
@@ -115,13 +109,18 @@ export default function Library({ adding, onAdded, onStarted }: {
         )}
   </>
   const people = members
-  const shown = (books?.length ?? 0) + wish.length
+  // The cover view keeps "want to read" books (on a shelf, nobody started) off the shelves unless asked;
+  // then they get their own shelf at the end. The list shows every book.
+  const covers = view === 'covers'
+  const want = covers && showWant ? (books ?? []).filter(wantOnly) : []
+  const shelved = covers ? (books ?? []).filter(b => !wantOnly(b)) : books ?? []
+  const shown = shelved.length + want.length
   const head = <>
     <span className="lib-count">📚 {shown} {shown === 1 ? 'book' : 'books'}</span>
     <Segmented label="Library view" value={view} onChange={v => { setView(v); store(VIEW_KEY, v) }}
       options={[{ key: 'list', label: '☰ List' }, { key: 'covers', label: '📚 Covers' }]} />
-    {view === 'covers' && !wanted && (
-      <button type="button" className={`chip ${showWish ? 'active' : ''}`} aria-pressed={showWish} onClick={() => { setShowWish(!showWish); store(WISH_KEY, showWish ? '0' : '1') }}>⭐ Show wishlist</button>
+    {covers && (books ?? []).some(wantOnly) && (
+      <button type="button" className={`chip ${showWant ? 'active' : ''}`} aria-pressed={showWant} onClick={() => { setShowWant(!showWant); store(WANT_KEY, showWant ? '0' : '1') }}>📖 Show want to read</button>
     )}
   </>
   return (
@@ -147,7 +146,7 @@ export default function Library({ adding, onAdded, onStarted }: {
       )}
       {(view === 'list' || !shown) && <div className="lib-head">{head}</div>}
       {books === null ? <div className="state-card">Loading…</div>
-        : view === 'covers' && shown ? <LibraryShelf head={head} books={books} wish={wish} members={people} today={today} onOpen={setOpen} />
+        : view === 'covers' && shown ? <LibraryShelf head={head} books={shelved} wish={want} members={people} today={today} onOpen={setOpen} />
         : !books.length ? (
           <div className="empty-card"><span className="emoji">📚</span>{wanted && !q ? 'Nothing on the wishlist. Tap + and pick Wishlist to add a book you want.' : q || unread || lent || borrowed || returned || wanted || place ? 'No books match.' : 'No books in the library yet. Tap + to add the books you own or borrow, or scan them in.'}</div>
         ) : (

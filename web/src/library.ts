@@ -90,7 +90,19 @@ export function dueTag(b: Pick<LibraryBook, 'borrowedFrom' | 'dueOn' | 'returned
 }
 
 /** "Pick a book for me": any book on the shelf (not the wishlist, not one that went back), or null. */
+/** Only "want to read" so far: someone has it on their shelf, nobody has started it. */
+export const wantOnly = (b: Pick<LibraryBook, 'readers'>): boolean => b.readers.length > 0 && b.readers.every(r => r.status === 'want')
+
 export function pickBook<B extends Pick<LibraryBook, 'wanted' | 'returnedOn'>>(books: B[], random = Math.random): B | null {
   const shelf = books.filter(b => !b.wanted && !b.returnedOn)
   return shelf.length ? shelf[Math.floor(random() * shelf.length)] : null
+}
+
+/** GET /api/library's query: every filter the server takes (each one left out means "not that"). */
+export function libraryQuery(q?: { q?: string; unread?: boolean; lent?: boolean; borrowed?: boolean; returned?: boolean; wanted?: boolean; location?: string }): string {
+  const p = new URLSearchParams()
+  if (q?.q) p.set('q', q.q)
+  for (const k of ['unread', 'lent', 'borrowed', 'returned', 'wanted'] as const) if (q?.[k]) p.set(k, '1')
+  if (q?.location) p.set('location', q.location)
+  return p.toString()
 }

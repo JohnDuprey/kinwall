@@ -50,8 +50,8 @@ export default function LibraryShelf({ head, books, wish, members, today, onOpen
       </div>
       {!!books.length && <ul className="lib-shelf" aria-label="Books">{books.map(book)}</ul>}
       {!!wish.length && <>
-        <h3 className="lib-shelf-name">⭐ Wishlist</h3>
-        <ul className="lib-shelf" aria-label="Wishlist">{wish.map(book)}</ul>
+        <h3 className="lib-shelf-name">📖 Want to read</h3>
+        <ul className="lib-shelf" aria-label="Want to read">{wish.map(book)}</ul>
       </>}
     </div>
   )
