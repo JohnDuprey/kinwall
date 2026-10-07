@@ -51,7 +51,7 @@ export default function LibraryShelf({ books, members, today, onOpen }: {
   return (
     <div className="lib-shelves">
       {!!paper.length && (
-        <section aria-labelledby="lib-shelf-title">
+        <section className="lib-case" aria-labelledby="lib-shelf-title">
           <div className="lib-sec-head">
             <h3 id="lib-shelf-title" className="lib-sec-title">📚 Books</h3>
             {can(paper) && pickBtn(paper, 'Pick one book for me')}
