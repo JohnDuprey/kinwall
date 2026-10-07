@@ -96,6 +96,8 @@ export default function CalendarView() {
   const { settings, members, categories, selectedMemberId, focusMemberId, focusShowsShared, focusLocked, meMemberId, parentDevice, toast, reloadCore, refreshTick } = useApp()
   const device = useDeviceAppearance()
   const isPhone = useIsPhone()
+  // Where the Board puts one or two count tiles as chips (boardFit.ts tileChips); a phone's toolbar has no room.
+  const [chipHost, setChipHost] = useState<HTMLElement | null>(null)
   const tz = settings.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone
   // Phones default to the agenda view (a 7-day grid is unreadable that narrow); the wall iPad
   // keeps Week. Only the initial default differs — switching views afterward still works either way.
@@ -431,6 +433,7 @@ export default function CalendarView() {
           <h2 className="period-label" aria-live="polite" ref={periodRef} tabIndex={-1}>{periodLabel}</h2>
           </>}
         </div>
+        {viewMode === 'board' && !isPhone && <div className="board-chips" ref={setChipHost} />}
         {/* Show hidden and the filter sit together at the end, same size and gap. */}
         <div className="toolbar-end">
           {/* The Board's layout, off to the side like the filter; not on a screen whose view is locked. */}
@@ -485,7 +488,7 @@ export default function CalendarView() {
         {/* Keyed by view + period so each change re-mounts and plays the slide/fade in. */}
         <div key={calendarish ? `${viewMode}:${dateKey(range.from)}` : viewMode} className={`view-anim ${slideDir === 1 ? 'from-right' : slideDir === -1 ? 'from-left' : ''}`}>
         {viewMode === 'board' ? (
-          <Board show={shows} onTap={setDetail} />
+          <Board show={shows} onTap={setDetail} chipHost={chipHost} />
         ) : viewMode === 'newscast' ? (
           <NewscastView />
         ) : error ? (

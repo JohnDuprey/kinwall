@@ -3578,6 +3578,21 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
 .poll-voters .member-avatar-sm { width: 22px; height: 22px; font-size: 0.75rem; box-shadow: 0 0 0 2px var(--card); }
 .poll-voters .member-avatar-sm + .member-avatar-sm { margin-left: -6px; }
 .polls-btn.btn { flex: none; min-height: 44px; min-width: 44px; padding: 6px 16px; }
+/* The Board's one or two count tiles as toolbar chips (boardFit.ts tileChips), in the toolbar's
+   empty middle (the Board has no paging): the view tabs and the end buttons keep their size, and a
+   toolbar too tight for their names shows each chip's icon and count. Narrow screens give them the second row. */
+.board-chips { grid-column: 2; grid-row: 1; display: flex; justify-content: flex-end; gap: 8px; min-width: 0; }
+.board-chips:empty { display: none; }
+.calendar-toolbar:has(.board-chip) { grid-template-columns: auto minmax(0, 1fr) auto; }
+.calendar-toolbar:has(.board-chip) .toolbar-end { grid-column: 3; grid-row: 1; }
+.calendar-toolbar:has(.board-chip) .toolbar-nav:empty { display: none; }
+@media (max-width: 900px) { .board-chips { grid-column: 1 / -1; grid-row: 2; } }
+.board-chip.btn { flex: 0 1 auto; min-width: 0; min-height: 44px; padding: 6px 12px; gap: 6px; text-decoration: none; }
+.board-chip-icon { flex: none; display: inline-flex; }
+.board-chip-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.board-chip-count { flex: none; font-weight: 800; font-variant-numeric: tabular-nums; }
+.board-chip-short.btn { gap: 3px; }
+.board-chip-short .board-chip-name { max-width: 0; }
 @media (max-width: 600px) { .calendar-toolbar .polls-btn.btn { grid-column: 3; grid-row: 1; padding: 6px 10px; } .polls-btn-label { display: none; } } /* a phone's toolbar is full: the 🗳 alone */
 .sheet-link > .poll-row-emoji { flex: none; font-size: 1.25rem; }
 .poll-meta { margin: 0 0 12px; color: var(--text-dim); font-weight: 700; }

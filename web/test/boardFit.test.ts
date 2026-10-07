@@ -1,7 +1,7 @@
 // node --test test/ (npm test). Fitting a Board card's rows to its space.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { boardChores, boardItems, moreLabel, pollHost, slotLayout, rowsThatFit, tileColumns } from '../src/boardFit.ts'
+import { boardChores, boardItems, moreLabel, pollHost, slotLayout, rowsThatFit, chipNamesFit, tileChips, tileColumns } from '../src/boardFit.ts'
 
 const rows = (...bottoms: number[]) => bottoms.map(bottom => ({ bottom }))
 
@@ -99,4 +99,21 @@ test("slotLayout: Today keeps one of its own rows, two when it can, beside the i
   assert.equal(slotLayout({ fixed: true, rows: 400, space: 100, items: [items[0]], chips: 52, keep }).need, 160, '...one event + More + the row')
   assert.equal(slotLayout({ fixed: false, rows: 400, space: 100, items, chips: 52, keep }).need, 0, 'a scrolling board grows by itself')
   assert.equal(slotLayout({ fixed: true, rows: 20, space: 175, items, chips: 52, keep: [20, 20] }).chips, false, "a short day's one row fits beside the rows")
+})
+
+test('tileChips: one or two list or Rewards tiles go on the toolbar, three or more keep the row', () => {
+  assert.equal(tileChips(['groceries'], true), true, 'one tile')
+  assert.equal(tileChips(['shopping', 'rewards'], true), true, 'two tiles')
+  assert.equal(tileChips(['groceries', 'shopping', 'rewards'], true), false, 'three keep the row')
+  assert.equal(tileChips([], true), false, 'nothing to show')
+  assert.equal(tileChips(['groceries'], false), false, 'no toolbar (a phone, or a locked view)')
+  assert.equal(tileChips(['chores', 'groceries'], true), false, 'Chores, Due soon and Take now stay tiles')
+  assert.equal(tileChips(['meds'], true), false)
+})
+
+test('chipNamesFit: names only when every chip fits whole, else icon and count', () => {
+  assert.equal(chipNamesFit([153, 188], 349), true, 'both whole, with the gap between them')
+  assert.equal(chipNamesFit([153, 188], 340), false, 'not both: no names, rather than "G… 14"')
+  assert.equal(chipNamesFit([153], 153), true)
+  assert.equal(chipNamesFit([153], 100), false)
 })

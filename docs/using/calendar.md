@@ -47,9 +47,11 @@ Across the top, count tiles sum things up; tap one to open its screen (on a phon
 
 * **Groceries**: how many items are still on your [Groceries lists](lists.md#list-types). Hidden if you have none.
 * **Shopping**: the same for your Shopping lists (the hardware store and the like). Only while one of them has something on it.
+* **Rewards**: reward requests waiting for a parent's OK. Hidden when there are none.
 
 With one list of a type, its tile shows the list's emoji and name and opens it; with several, it opens the Lists page.
-* **Rewards**: reward requests waiting for a parent's OK. Hidden when there are none.
+
+With only one or two of these tiles, they don't take a whole row: they sit on the Board's toolbar as buttons beside **Family wall**, **Polls** and the filter (**🛒 Groceries 1**, **🔨 Hardware store 4**), and the cards move up. When the toolbar is too tight for their names, each shows just its emoji and count; on a tablet standing up they get a row under the toolbar. Three or more stay a row of tiles, and so do they on a phone, whose toolbar has no room.
 
 Things about today sit at the bottom of the **Today** card, below today's events, in this order:
 

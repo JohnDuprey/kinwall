@@ -107,3 +107,15 @@ export function slotLayout({ fixed, rows, space, items, chips = 0, keep = [0, 0]
     }),
   }
 }
+
+/** Whether the Board's tile row becomes chips on its toolbar (Board.tsx): one or two tiles that are
+ *  just a count (a list, Rewards) would each stretch across a whole row, so they go on the toolbar
+ *  when there's room for them (`toolbar`: not a phone's, nor a locked view without one). Three or
+ *  more, or Chores, Due soon and Take now (which show who and what), keep the row. */
+export const tileChips = (tiles: string[], toolbar: boolean) =>
+  toolbar && tiles.length > 0 && tiles.length <= 2 && tiles.every(t => !['meds', 'chores', 'due'].includes(t))
+
+/** Whether the toolbar chips show their names: only when every chip fits whole (`widths`: each with
+ *  its whole name) in `room`, else each is just its icon and count (never "G… 14"). */
+export const chipNamesFit = (widths: number[], room: number, gap = 8) =>
+  widths.reduce((n, w) => n + w, 0) + gap * (widths.length - 1) <= room + 0.5

@@ -3,6 +3,7 @@
 // things they do elsewhere (an event's detail sheet, the list, the chores tab).
 import { boardListTiles } from './listSections.ts'
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import type { Board as BoardData, EventInstance, List, Member, OnlineTidbits, Redemption, SnapshotEvent } from './types.ts'
@@ -22,7 +23,7 @@ import GetStarted from './GetStarted.tsx'
 import GetStuffDone from './GetStuffDone.tsx'
 import { usePollSlot } from './Polls.tsx'
 import { BasketIcon, CartIcon } from './icons.tsx'
-import { boardAreas, boardChores, boardItems, moreLabel, pollHost, rowsThatFit, slotLayout, tidbitCardsThatFit, tileColumns } from './boardFit.ts'
+import { boardAreas, boardChores, boardItems, moreLabel, pollHost, rowsThatFit, slotLayout, tidbitCardsThatFit, chipNamesFit, tileChips, tileColumns } from './boardFit.ts'
 import { cardOn, layoutAreas, layoutFor, type BoardCardId, type CardDensity } from './boardLayout.ts'
 import { leadOf, leadText } from './leadTime.ts'
 import { onMinute } from './minuteTick.ts'
@@ -155,8 +156,35 @@ function TodaySlot({ fixed, items }: { fixed: boolean; items: SlotItem[] }) {
   )
 }
 
-/** `show`: the calendar's member/category filter, so a focused display's board matches its calendar. */
-export default function Board({ show, onTap }: { show: (e: EventInstance) => boolean; onTap: (e: EventInstance) => void }) {
+type CountTile = { key: string; href: string; icon: React.ReactNode; name: string; value: string; count: string }
+
+/** The Board's one or two count tiles as chips on the toolbar (`host`, boardFit.ts tileChips): with
+ *  their names when they all fit whole, else each its icon and count (boardFit.ts chipNamesFit). */
+function ToolbarChips({ host, tiles }: { host: HTMLElement | null | undefined; tiles: CountTile[] }) {
+  const [names, setNames] = useState(true)
+  const text = tiles.map(t => t.name + t.count).join()
+  useLayoutEffect(() => {
+    if (!host) return
+    // A chip's whole width: a hidden name still measures its text as scrollWidth.
+    const check = () => setNames(chipNamesFit([...host.querySelectorAll<HTMLElement>('.board-chip')].map(c => {
+      const n = c.querySelector<HTMLElement>('.board-chip-name')
+      return c.offsetWidth + (n ? n.scrollWidth - n.clientWidth : 0)
+    }), host.clientWidth))
+    check()
+    const ro = new ResizeObserver(check)
+    ro.observe(host)
+    return () => ro.disconnect()
+  }, [host, text])
+  return host && createPortal(tiles.map(t => (
+    <a key={t.key} className={`btn btn-secondary board-chip ${names ? '' : 'board-chip-short'}`} href={t.href} aria-label={`${t.name}: ${t.value}`}>
+      <span aria-hidden="true" className="board-chip-icon">{t.icon}</span><span aria-hidden="true" className="board-chip-name">{t.name}</span><span aria-hidden="true" className="board-chip-count">{t.count}</span>
+    </a>
+  )), host)
+}
+
+/** `show`: the calendar's member/category filter, so a focused display's board matches its calendar.
+ *  `chipHost`: a spot on the toolbar for one or two count tiles as chips (boardFit.ts tileChips). */
+export default function Board({ show, onTap, chipHost }: { show: (e: EventInstance) => boolean; onTap: (e: EventInstance) => void; chipHost?: HTMLElement | null }) {
   const { settings, members, refreshTick, selectedMemberId, focusMemberId, focusShowsShared, parentDevice, meMemberId } = useApp()
   const kidDevice = !parentDevice && !!meMemberId && members.find(m => m.id === meMemberId)?.grownUp === false
   const device = useDeviceAppearance()
@@ -291,6 +319,8 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
   const tiles = [
     !todayTiles && meds.doses.length > 0 && 'meds', !todayTiles && choresTile && 'chores', !todayTiles && dueTile && 'due', ...(f.lists ? listTiles.map(t => t.type) : []), rewards && rewardRequests > 0 && 'rewards',
   ].filter((t): t is string => !!t)
+  // One or two of them (Groceries, Rewards) go on the toolbar as chips rather than stretch across a row.
+  const chips = tileChips(tiles, !!chipHost)
   // Whose chores count: a kid's device (or a picked person) sees only theirs, like the Chores tab.
   const chores = boardChores(data.chores, selectedMemberId, focusMemberId, focusShowsShared)
   // Saving for a reward: shown on the person's chores row, or a row of its own when they have no chores today.
@@ -300,7 +330,7 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
   // The Checklist card: its list, else the first reusable one; gone (or none), the card goes too.
   const checklistId = layout?.columns.flat().find(c => c.id === 'checklist')?.listId
   const checklist = lists.find(l => l.id === checklistId) ?? (checklistId ? undefined : lists.find(l => l.kind === 'reusable'))
-  const can = (a: BoardCardId | 'tiles') => a === 'tiles' ? tiles.length > 0 : !cardOn(a, f) ? false
+  const can = (a: BoardCardId | 'tiles') => a === 'tiles' ? tiles.length > 0 && !chips : !cardOn(a, f) ? false
     : a === 'checklist' ? !!checklist : tidbitAreas.includes(a) ? !!tidbits[tidbitAreas.indexOf(a)] : true
   const custom = layout && layoutAreas(layout, can)
   const shown = custom ? custom.shown : ['clock', 'tiles', 'today', 'meals', 'photo', 'coming', 'due', 'chores', ...tidbitAreas].filter(a =>
@@ -347,8 +377,24 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
   // other tiles stay in the tile row.
   const pollAlone = pollHost(shown) !== 'today' && pollSlot.item ? [pollSlot.item] : []
 
+  // Groceries, and Shopping while a Shopping list has something on it (one list opens it, several the
+  // Lists page), and reward requests: a tile each, or a chip on the toolbar.
+  const countTiles: CountTile[] = [
+    ...listTiles.filter(t => tiles.includes(t.type)).map(({ type, lists: ls, open }) => {
+      const Icon = type === 'groceries' ? BasketIcon : CartIcon
+      return {
+        key: type, href: ls.length === 1 ? `#/lists?list=${encodeURIComponent(ls[0].id)}` : '#/lists',
+        icon: ls.length === 1 && ls[0].emoji ? <span className="emoji-plate" aria-hidden="true">{ls[0].emoji}</span> : <Icon width={16} height={16} aria-hidden="true" />,
+        name: ls.length === 1 ? ls[0].name : type === 'groceries' ? 'Groceries' : 'Shopping',
+        value: open ? `${open} on the list` : 'Nothing needed', count: open ? `${open}` : '✓',
+      }
+    }),
+    ...(tiles.includes('rewards') ? [{ key: 'rewards', href: '#/rewards', icon: <span aria-hidden="true">🎁 </span>, name: 'Rewards', value: `${rewardRequests} waiting`, count: `${rewardRequests}` }] : []),
+  ]
+
   return (
     <div className="board-scroll" ref={scrollRef}>
+      <ToolbarChips host={chips ? chipHost : null} tiles={countTiles} />
       <GetStarted />
       {pollHost(shown) === 'strip' && pollAlone.length > 0 && <div className="board-polls"><TodaySlot fixed={false} items={pollAlone} /></div>}
       {medsSlot.sheets}{pollSlot.sheets}
@@ -380,22 +426,12 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
                 </span>
               </a>
             )}
-            {/* Groceries, and Shopping while a Shopping list has something on it: one list opens it, several the Lists page. */}
-            {listTiles.filter(t => tiles.includes(t.type)).map(({ type, lists: ls, open }) => {
-              const Icon = type === 'groceries' ? BasketIcon : CartIcon
-              return (
-                <a key={type} className="board-tile" href={ls.length === 1 ? `#/lists?list=${encodeURIComponent(ls[0].id)}` : '#/lists'}>
-                  <span className="board-tile-label">{ls.length === 1 && ls[0].emoji ? <span className="emoji-plate" aria-hidden="true">{ls[0].emoji}</span> : <Icon width={16} height={16} />}{ls.length === 1 ? ls[0].name : type === 'groceries' ? 'Groceries' : 'Shopping'}</span>
-                  <span className="board-tile-value">{open ? `${open} on the list` : 'Nothing needed'}</span>
-                </a>
-              )
-            })}
-            {tiles.includes('rewards') && (
-              <a className="board-tile" href="#/rewards">
-                <span className="board-tile-label">🎁 Rewards</span>
-                <span className="board-tile-value">{rewardRequests} waiting</span>
+            {countTiles.map(t => (
+              <a key={t.key} className="board-tile" href={t.href}>
+                <span className="board-tile-label">{t.icon}{t.name}</span>
+                <span className="board-tile-value">{t.value}</span>
               </a>
-            )}
+            ))}
           </nav>
         )}
         {has('clock') && <section ref={clockRef} className={`board-card board-clock${densityClass(dense('clock'))}`} aria-label="Time and weather">
