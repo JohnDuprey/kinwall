@@ -2907,6 +2907,19 @@ button.plugin-chore-chip { border: 0; font-family: inherit; min-height: 44px; } 
 .trackers-head .segmented button { white-space: nowrap; }
 .trackers-body { flex: 1; min-height: 0; padding: 6px var(--pad) 100px; }
 .trk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: var(--gap); align-items: start; }
+/* Phones: one row of the view picker (compact in the library) and the view's tools, the library's
+   search and Filters (Library.tsx portals them into .trackers-tools), with even --gap spacing below. */
+@media (max-width: 600px) {
+  .trackers-head { display: flex; align-items: center; gap: var(--gap); padding: var(--gap) var(--pad) 0; }
+  .trackers-body { padding-top: var(--gap); }
+  .trackers-tools { flex: 1; min-width: 0; }
+  .trackers-tools .lib-bar { flex-wrap: nowrap; gap: var(--gap); margin: 0; }
+  .trackers-tools .lib-search { flex: 1 1 0; }
+  .lib-head { margin-bottom: var(--gap); }
+  .lib-head .lib-scan { min-height: 44px; min-width: 44px; padding: 0 10px; }
+  .lib-count { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lib-count-emoji { display: none; } /* the 📚 Books and 🎧 Audiobooks headings just below have them */
+}
 .trk-card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px 16px; }
 .trk-card h3 { margin: 0; font-size: 1.0625rem; font-weight: 800; }
 .trk-card-head { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }

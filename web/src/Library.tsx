@@ -4,6 +4,7 @@
 // (the app's camera), add one by lookup or by hand, and "Read it" to start a reading entry for someone
 // from a book (data.bookId links them, so the book lists its readers).
 import { useEffect, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { Segmented } from './a11y.tsx'
 import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
@@ -36,7 +37,8 @@ const stored = (key: string) => { try { return localStorage.getItem(key) } catch
 const store = (key: string, v: string) => { try { localStorage.setItem(key, v) } catch { /* storage blocked: just this visit */ } }
 const msg = (e: unknown, fallback: string) => (e instanceof Error && e.message ? e.message : fallback)
 
-export default function Library({ adding, onAdded, onStarted }: {
+export default function Library({ bar, adding, onAdded, onStarted }: {
+  bar?: HTMLElement | null // phones: where the search and Filters go (the row with the view picker); null until it's there
   adding: boolean // the + button: Add a book sheet
   onAdded: () => void // closes it
   onStarted: () => void // a reading entry was started: the shelves reload
@@ -131,25 +133,34 @@ export default function Library({ adding, onAdded, onStarted }: {
     return <button key={v} type="button" className={`chip ${pressed ? 'active' : ''}`} aria-pressed={pressed} style={color ? { ['--chip-color' as string]: color } : undefined} onClick={() => toggle(k, v)}>{label}</button>
   }
   const shown = books?.length ?? 0
-  // One row: the count, small, and the view switch, icons only on a phone (Library view words from 700px).
+  const scan = appBarcodeScanner() && <button type="button" className="btn btn-secondary lib-scan" onClick={scanBooks} disabled={scanning} aria-label={isPhone ? 'Scan books' : undefined}>📷{isPhone ? '' : ' Scan books'}</button>
+  // One row: the count, small, and the view switch, icons only on a phone (Library view words from 700px);
+  // on a phone 📷 Scan joins it (the search row is full).
   const head = <div className="lib-head">
-    <span className="lib-count">{(() => { const a = books?.filter(isAudio).length ?? 0, p = shown - a; return [p || !a ? `📚 ${p} ${p === 1 ? 'book' : 'books'}` : '', a ? `🎧 ${a} ${a === 1 ? 'audiobook' : 'audiobooks'}` : ''].filter(Boolean).join(' · ') })()}</span>
+    <span className="lib-count">{(() => {
+      const a = books?.filter(isAudio).length ?? 0, p = shown - a
+      const part = (emoji: string, text: string) => <><span className="lib-count-emoji" aria-hidden="true">{emoji} </span>{text}</>
+      return <>{(p || !a) && part('📚', `${p} ${p === 1 ? 'book' : 'books'}`)}{p > 0 && a > 0 && ' · '}{a > 0 && part('🎧', `${a} ${a === 1 ? 'audiobook' : 'audiobooks'}`)}</>
+    })()}</span>
+    {isPhone && scan}
     <Segmented className="lib-view" label="Library view" value={view} onChange={v => { setView(v); store(VIEW_KEY, v) }}
       options={[
         { key: 'covers', label: <><span aria-hidden="true">📚</span><span className="lib-view-word"> Covers</span></>, ariaLabel: 'Covers', title: 'Covers' },
         { key: 'list', label: <><span aria-hidden="true">☰</span><span className="lib-view-word"> List</span></>, ariaLabel: 'List', title: 'List' },
       ]} />
   </div>
+  // The search row; on a phone it goes up beside the view picker (Trackers' bar slot).
+  const searchBar = <div className="lib-bar">
+    <input type="search" className="lib-search" aria-label="Search the library" placeholder={isPhone ? 'Search the library' : 'Search titles, authors, series, genres'} value={q} onChange={e => setQ(e.target.value)} />
+    <button type="button" className={`icon-btn filter-btn lib-filter-btn ${on ? 'active' : ''}`} onClick={() => setFiltering(true)} aria-label={on ? `Filters, ${on} on` : 'Filters'}>
+      <FilterIcon width={20} height={20} />
+      {on > 0 && <span className="filter-badge" aria-hidden="true">{on}</span>}
+    </button>
+    {!isPhone && scan}
+  </div>
   return (
     <div className="lib">
-      <div className="lib-bar">
-        <input type="search" className="lib-search" aria-label="Search the library" placeholder={isPhone ? 'Search the library' : 'Search titles, authors, series, genres'} value={q} onChange={e => setQ(e.target.value)} />
-        <button type="button" className={`icon-btn filter-btn lib-filter-btn ${on ? 'active' : ''}`} onClick={() => setFiltering(true)} aria-label={on ? `Filters, ${on} on` : 'Filters'}>
-          <FilterIcon width={20} height={20} />
-          {on > 0 && <span className="filter-badge" aria-hidden="true">{on}</span>}
-        </button>
-        {appBarcodeScanner() && <button type="button" className="btn btn-secondary lib-scan" onClick={scanBooks} disabled={scanning} aria-label={isPhone ? 'Scan books' : undefined}>📷{isPhone ? '' : ' Scan books'}</button>}
-      </div>
+      {bar === undefined ? searchBar : bar && createPortal(searchBar, bar)}
       {on > 0 && (
         <div className="chip-row lib-active" role="group" aria-label="Filters on">
           {active.map(a => <button key={a.k + a.v} type="button" className="chip lib-active-chip" aria-label={`Remove filter: ${a.label}`} onClick={() => toggle(a.k, a.v)}>{a.face && <ChipFace m={a.face} />}{a.label} <span aria-hidden="true">✕</span></button>)}
