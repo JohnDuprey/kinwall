@@ -1,6 +1,7 @@
 // Every book on someone's Reading shelf is in the family's library (routes/library.ts). A reading
 // entry saved without data.bookId (the web, REST, MCP add_tracker_entry, a sync like Libro.fm) is
-// linked to the library book with the same title and author, or a new library book is made from it.
+// linked to the library item with the same title and author and the same format (an audiobook entry
+// to an audiobook, anything else to a book), or a new library item is made from it.
 // A book on a shelf is one the family has, even if it's only "want to read" (an audiobook bought but
 // not started): the wishlist is for books they don't have yet. Reading or finishing a wishlist book
 // takes it off the wishlist. Removing an entry never removes its book, and an entry whose book was removed keeps
@@ -11,6 +12,9 @@ import type { Env } from './env.ts';
 
 type Db = Env['DB'];
 type Book = { title: string; author: string | null };
+export type LibraryFormat = 'book' | 'audiobook';
+/** A reading entry's library format: an audiobook, or a book (paper, or anything else for now). */
+export const libraryFormat = (format: string | null | undefined): LibraryFormat => (format === 'audiobook' ? 'audiobook' : 'book');
 type ReadingLike = { status?: string; format?: string; author?: string | null; totalPages?: number | null; coverUrl?: string | null; bookId?: string | null };
 
 const words = (s: string) => s.normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/['’]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
@@ -36,15 +40,16 @@ export async function shelveReading<D extends ReadingLike>(db: Db, title: string
   let bookId = data.bookId ?? null;
   if (!bookId) {
     // ponytail: every book's title and author per unlinked save; a title index if libraries get big.
-    const { results } = await db.prepare('SELECT id, title, author FROM library_books ORDER BY created_at').all<Book & { id: string }>();
+    const format = libraryFormat(data.format);
+    const { results } = await db.prepare('SELECT id, title, author FROM library_books WHERE format = ? ORDER BY created_at').bind(format).all<Book & { id: string }>();
     bookId = results.find((b) => sameBook(b, { title, author: data.author ?? null }))?.id ?? null;
     if (!bookId) {
       bookId = crypto.randomUUID();
       const now = new Date().toISOString();
-      const pages = data.format === 'audiobook' ? null : data.totalPages ?? null; // an audiobook's length is minutes
+      const pages = format === 'audiobook' ? null : data.totalPages ?? null; // an audiobook's length is minutes
       await db.prepare(
-        'INSERT INTO library_books (id, title, author, pages, cover_url, genres, wanted, added_by, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)',
-      ).bind(bookId, title.trim(), data.author?.trim() || null, pages, data.coverUrl ?? null, null, 0, memberId, now, now).run(); // had, not wished for
+        'INSERT INTO library_books (id, title, author, pages, cover_url, genres, wanted, format, added_by, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+      ).bind(bookId, title.trim(), data.author?.trim() || null, pages, data.coverUrl ?? null, null, 0, format, memberId, now, now).run(); // had, not wished for
       return { ...data, bookId };
     }
   }

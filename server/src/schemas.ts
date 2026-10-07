@@ -1346,10 +1346,12 @@ export const BookResultSchema = z
 // The family's library (routes/library.ts): books owned, with who has read them (reading entries
 // started from the book carry data.bookId).
 const LibraryIsbn = z.string().regex(/^(\d{9}[\dXx]|\d{13})$/, 'an ISBN-10 or ISBN-13, digits only');
+const LibraryFormat = z.enum(['book', 'audiobook']);
 const LibraryCover = z.string().max(2000).refine(isPublicHttpsUrl, 'must be a public https address');
 export const LibraryBookSchema = z
   .object({
     id: z.string(), title: z.string(), author: z.string().nullable(), isbn: z.string().nullable(), pages: z.number().nullable(),
+    format: LibraryFormat.default('book').openapi({ description: 'A book or an audiobook: each its own item, so a paper copy and an audiobook of one title are two.' }),
     coverUrl: z.string().nullable(), year: z.number().nullable(), series: z.string().nullable(), seriesNumber: z.string().nullable(),
     lexile: z.number().nullable().openapi({ description: 'Reading level (Lexile), e.g. 660 for 660L.' }), description: z.string().nullable(),
     genres: z.array(z.string()).openapi({ description: 'Up to three, e.g. Fantasy, Animals.' }),
@@ -1361,13 +1363,17 @@ export const LibraryBookSchema = z
     returnedOn: z.string().nullable().openapi({ description: 'YYYY-MM-DD a borrowed book went back; kept as history.' }),
     wanted: z.boolean().openapi({ description: "On the wishlist: wanted, not had yet. Left out of the library unless asked for (wanted=1)." }),
     addedBy: ActorSchema.nullable(),
-    readers: z.array(z.object({ entryId: z.string(), memberId: z.string().nullable(), status: z.enum(['want', 'reading', 'finished']) })).openapi({ description: 'Reading entries started from this book (data.bookId), newest first.' }),
+    readers: z.array(z.object({
+      entryId: z.string(), memberId: z.string().nullable(), status: z.enum(['want', 'reading', 'finished']),
+      narrator: z.string().nullable().optional(), minutesListened: z.number().nullable().optional(), totalMinutes: z.number().nullable().optional(),
+    })).openapi({ description: "Reading entries started from this book (data.bookId), newest first. An audiobook entry's narrator, minutesListened and totalMinutes come along." }),
     createdAt: z.string(), updatedAt: z.string(),
   })
   .openapi('LibraryBook');
 export const LibraryBookInputSchema = z
   .object({
     title: z.string().trim().min(1).max(300).optional().openapi({ description: 'Leave out with an isbn to look the book up (Open Library).' }),
+    format: LibraryFormat.optional().openapi({ description: 'book (the default) or audiobook.' }),
     author: z.string().max(200).nullable().optional(), isbn: LibraryIsbn.nullable().optional(), pages: z.number().int().min(1).max(100000).nullable().optional(),
     coverUrl: LibraryCover.nullable().optional(), year: z.number().int().min(0).max(3000).nullable().optional(),
     series: z.string().max(200).nullable().optional(), seriesNumber: z.string().max(20).nullable().optional(),

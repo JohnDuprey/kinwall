@@ -933,6 +933,19 @@ test('mcp: the library: add_to_library by title or ISBN, list_library searches a
   assert.match((await call('add_to_library', { title: 'Holes', isbn: '9780142410370' })).content[0].text, /already/i);
 });
 
+test('mcp: audiobooks are their own library items: add_to_library and update_library_book take format, list_library filters by it', async () => {
+  const env = makeEnv();
+  const { mcp } = makeApp(env);
+  const call = async (name: string, args: Record<string, unknown>) => (await (await mcp('tools/call', { name, arguments: args })).json() as any).result;
+  await call('add_to_library', { title: 'Holes', author: 'Louis Sachar' });
+  const audio = await call('add_to_library', { title: 'Wonder', format: 'audiobook' });
+  assert.equal(audio.structuredContent.book.format, 'audiobook');
+  const listed = await call('list_library', { format: 'audiobook' });
+  assert.deepEqual(listed.structuredContent.books.map((b: any) => [b.title, b.format]), [['Wonder', 'audiobook']]);
+  assert.match(listed.content[0].text, /Wonder \(audiobook\)/);
+  assert.equal((await call('update_library_book', { book: 'Wonder', format: 'book' })).structuredContent.book.format, 'book');
+});
+
 test('mcp: update_library_book lends a book out (by title), moves it and brings it back; list_library finds loans', async () => {
   const env = makeEnv();
   const { mcp } = makeApp(env);

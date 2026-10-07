@@ -4,7 +4,7 @@
 // then, so browsing never calls out. Covers come through the server (GET .../cover), like reading
 // entries' covers. Wall screens and kids' devices browse, add and edit (auth.ts display allow-list);
 // removing a book is for parent devices.
-import { sameBook } from '../shelve.ts';
+import { libraryFormat, sameBook } from '../shelve.ts';
 import { createRoute, z } from '@hono/zod-openapi';
 import type { Context } from 'hono';
 import { createRouter } from '../router.ts';
@@ -25,15 +25,15 @@ export type LibraryRow = {
   id: string; title: string; author: string | null; isbn: string | null; pages: number | null; cover_url: string | null
   year: number | null; series: string | null; series_number: string | null; lexile: number | null; description: string | null; genres: string | null
   location: string | null; lent_to: string | null; lent_on: string | null
-  borrowed_from: string | null; due_on: string | null; returned_on: string | null; wanted?: number
+  borrowed_from: string | null; due_on: string | null; returned_on: string | null; wanted?: number; format?: string
   added_by: string | null; added_by_label: string | null; created_at: string; updated_at: string;
 };
 const parseGenres = (v: string | null): string[] => { try { const g = JSON.parse(v ?? '[]'); return Array.isArray(g) ? g.filter((x) => typeof x === 'string') : []; } catch { return []; } };
-type Reader = { entryId: string; memberId: string | null; status: 'want' | 'reading' | 'finished' };
+type Reader = { entryId: string; memberId: string | null; status: 'want' | 'reading' | 'finished'; narrator?: string | null; minutesListened?: number | null; totalMinutes?: number | null };
 
 export function toLibraryApi(r: LibraryRow, readers: Reader[] = []) {
   return {
-    id: r.id, title: r.title, author: r.author, isbn: r.isbn, pages: r.pages, coverUrl: r.cover_url, year: r.year,
+    id: r.id, format: libraryFormat(r.format), title: r.title, author: r.author, isbn: r.isbn, pages: r.pages, coverUrl: r.cover_url, year: r.year,
     series: r.series, seriesNumber: r.series_number, lexile: r.lexile, description: r.description && cleanDescription(r.description), genres: parseGenres(r.genres),
     location: r.location ?? null, lentTo: r.lent_to ?? null, lentOn: r.lent_on ?? null,
     borrowedFrom: r.borrowed_from ?? null, dueOn: r.due_on ?? null, returnedOn: r.returned_on ?? null, wanted: !!r.wanted,
@@ -44,10 +44,17 @@ export function toLibraryApi(r: LibraryRow, readers: Reader[] = []) {
 /** Reading entries started from library books, by book id (reading data is plain JSON; health is sealed and never matches). */
 async function readersByBook(c: C): Promise<Map<string, Reader[]>> {
   const { results } = await c.env.DB.prepare(
-    "SELECT id, member_id, json_extract(data, '$.bookId') AS book_id, coalesce(json_extract(data, '$.status'), 'reading') AS status FROM tracker_entries WHERE kind = 'reading' AND json_extract(data, '$.bookId') IS NOT NULL ORDER BY created_at DESC",
-  ).all<{ id: string; member_id: string | null; book_id: string; status: Reader['status'] }>();
+    `SELECT id, member_id, json_extract(data, '$.bookId') AS book_id, coalesce(json_extract(data, '$.status'), 'reading') AS status, json_extract(data, '$.format') AS format,
+       json_extract(data, '$.narrator') AS narrator, json_extract(data, '$.minutesListened') AS listened, json_extract(data, '$.totalMinutes') AS total
+       FROM tracker_entries WHERE kind = 'reading' AND json_extract(data, '$.bookId') IS NOT NULL ORDER BY created_at DESC`,
+  ).all<{ id: string; member_id: string | null; book_id: string; status: Reader['status']; format: string | null; narrator: unknown; listened: unknown; total: unknown }>();
   const out = new Map<string, Reader[]>();
-  for (const r of results) out.set(r.book_id, [...(out.get(r.book_id) ?? []), { entryId: r.id, memberId: r.member_id, status: r.status }]);
+  const num = (v: unknown) => (typeof v === 'number' ? v : null);
+  for (const r of results) {
+    // An audiobook's listening, for the sheet and the spinning record (minutes; narrator).
+    const audio = r.format === 'audiobook' ? { narrator: typeof r.narrator === 'string' ? r.narrator : null, minutesListened: num(r.listened), totalMinutes: num(r.total) } : {};
+    out.set(r.book_id, [...(out.get(r.book_id) ?? []), { entryId: r.id, memberId: r.member_id, status: r.status, ...audio }]);
+  }
   return out;
 }
 
@@ -65,20 +72,20 @@ libraryRoutes.openapi(
     method: 'get',
     path: '/api/library',
     tags: ['Trackers'],
-    summary: "The family's library, A-Z (a series under its name, in order), each book with its readers. q searches titles, authors, series, genres, where it lives and who has it; unread=1 keeps books nobody has started, lent=1 books on loan, borrowed=1 borrowed books still out (soonest due first), returned=1 borrowed books that went back, wanted=1 the wishlist (both are left out otherwise), location one place.",
+    summary: "The family's library, A-Z (a series under its name, in order), each book with its readers. q searches titles, authors, series, genres, where it lives and who has it; format=book or audiobook keeps that format, unread=1 keeps books nobody has started, lent=1 books on loan, borrowed=1 borrowed books still out (soonest due first), returned=1 borrowed books that went back, wanted=1 the wishlist (both are left out otherwise), location one place.",
     security: [{ Bearer: [] }],
-    request: { query: z.object({ q: z.string().max(100).optional(), unread: z.enum(['1', 'true']).optional(), lent: z.enum(['1', 'true']).optional(), borrowed: z.enum(['1', 'true']).optional(), returned: z.enum(['1', 'true']).optional(), wanted: z.enum(['1', 'true']).optional(), location: z.string().max(80).optional() }) },
+    request: { query: z.object({ q: z.string().max(100).optional(), format: z.enum(['book', 'audiobook']).optional(), unread: z.enum(['1', 'true']).optional(), lent: z.enum(['1', 'true']).optional(), borrowed: z.enum(['1', 'true']).optional(), returned: z.enum(['1', 'true']).optional(), wanted: z.enum(['1', 'true']).optional(), location: z.string().max(80).optional() }) },
     responses: { 200: { description: 'ok', content: json(z.array(LibraryBookSchema)) } },
   }),
   async (c) => {
-    const { q, unread, lent, borrowed, returned, wanted, location } = c.req.valid('query');
+    const { q, format, unread, lent, borrowed, returned, wanted, location } = c.req.valid('query');
     const like = q?.trim() ? `%${q.trim().replace(/[\\%_]/g, (m) => `\\${m}`)}%` : null;
     const { results } = await c.env.DB.prepare(
       `SELECT * FROM library_books ${like ? "WHERE title LIKE ?1 ESCAPE '\\' OR author LIKE ?1 ESCAPE '\\' OR series LIKE ?1 ESCAPE '\\' OR genres LIKE ?1 ESCAPE '\\' OR location LIKE ?1 ESCAPE '\\' OR lent_to LIKE ?1 ESCAPE '\\' OR borrowed_from LIKE ?1 ESCAPE '\\'" : ''} ORDER BY coalesce(series, title) COLLATE NOCASE, CAST(series_number AS REAL), title COLLATE NOCASE, created_at`, // a series together, in order
     ).bind(...(like ? [like] : [])).all<LibraryRow>();
     const readers = await readersByBook(c);
     const books = results.map((r) => toLibraryApi(r, readers.get(r.id)))
-      .filter((b) => (!unread || !b.readers.length) && (!lent || b.lentTo) && (!location || b.location === location)
+      .filter((b) => (!format || b.format === format) && (!unread || !b.readers.length) && (!lent || b.lentTo) && (!location || b.location === location)
         && (returned ? !!b.returnedOn : !b.returnedOn) && (wanted ? b.wanted : !b.wanted) && (!borrowed || !!b.borrowedFrom));
     if (borrowed) books.sort((a, b) => (a.dueOn ?? '9999').localeCompare(b.dueOn ?? '9999'));
     return c.json(books, 200);
@@ -102,7 +109,7 @@ libraryRoutes.openapi(
     method: 'post',
     path: '/api/library',
     tags: ['Trackers'],
-    summary: "Add a book to the family's library. With only an isbn it's looked up (Open Library, through the server): title, author, pages, cover, year, series, reading level and description. A workKey (from GET /api/books/search) fetches the description. An ISBN already in the library is a 409 with that book.",
+    summary: "Add a book to the family's library. With only an isbn it's looked up (Open Library, through the server): title, author, pages, cover, year, series, reading level and description. A workKey (from GET /api/books/search) fetches the description. format: book (the default) or audiobook, each its own item. An ISBN already in the library is a 409 with that book.",
     security: [{ Bearer: [] }],
     request: { body: { content: json(LibraryBookInputSchema) } },
     responses: {
@@ -122,8 +129,9 @@ libraryRoutes.openapi(
       if (have) { const book = (await one(c, have.id))!; return c.json({ error: `Already in the library: ${book.title}`, book }, 409); }
       // The same book saved without its ISBN (made from a reading entry, which has none): it's this one,
       // so it gets the ISBN rather than a twin. A sync that adds books by ISBN (Libro.fm) relies on it.
+      // Only the same format: a paper copy's ISBN isn't the audiobook's.
       if (input.title) {
-        const { results } = await c.env.DB.prepare('SELECT id, title, author FROM library_books WHERE isbn IS NULL').all<{ id: string; title: string; author: string | null }>();
+        const { results } = await c.env.DB.prepare('SELECT id, title, author FROM library_books WHERE isbn IS NULL AND format = ?').bind(input.format ?? 'book').all<{ id: string; title: string; author: string | null }>();
         const twin = results.find((b) => sameBook(b, { title: input.title!, author: input.author ?? null }));
         if (twin) {
           await c.env.DB.prepare('UPDATE library_books SET isbn = ?, updated_at = ? WHERE id = ?').bind(input.isbn, new Date().toISOString(), twin.id).run();
@@ -151,11 +159,11 @@ libraryRoutes.openapi(
       lexile: input.lexile ?? null, description, genres: input.genres?.length ? JSON.stringify(input.genres) : null,
       location: input.location || null, lent_to: input.lentTo || null, lent_on: input.lentTo ? input.lentOn ?? (await householdDay(c)) : null,
       borrowed_from: input.borrowedFrom || null, due_on: input.borrowedFrom ? input.dueOn ?? null : null, returned_on: input.borrowedFrom ? input.returnedOn ?? null : null,
-      wanted: input.wanted && !input.borrowedFrom ? 1 : 0, added_by: by.memberId, added_by_label: by.label, created_at: now, updated_at: now,
+      wanted: input.wanted && !input.borrowedFrom ? 1 : 0, format: input.format ?? 'book', added_by: by.memberId, added_by_label: by.label, created_at: now, updated_at: now,
     };
     await c.env.DB.prepare(
-      'INSERT INTO library_books (id, title, author, isbn, pages, cover_url, year, series, series_number, lexile, description, genres, location, lent_to, lent_on, borrowed_from, due_on, returned_on, wanted, added_by, added_by_label, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-    ).bind(row.id, row.title, row.author, row.isbn, row.pages, row.cover_url, row.year, row.series, row.series_number, row.lexile, row.description, row.genres, row.location, row.lent_to, row.lent_on, row.borrowed_from, row.due_on, row.returned_on, row.wanted, row.added_by, row.added_by_label, row.created_at, row.updated_at).run();
+      'INSERT INTO library_books (id, title, author, isbn, pages, cover_url, year, series, series_number, lexile, description, genres, location, lent_to, lent_on, borrowed_from, due_on, returned_on, wanted, format, added_by, added_by_label, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    ).bind(row.id, row.title, row.author, row.isbn, row.pages, row.cover_url, row.year, row.series, row.series_number, row.lexile, row.description, row.genres, row.location, row.lent_to, row.lent_on, row.borrowed_from, row.due_on, row.returned_on, row.wanted, row.format, row.added_by, row.added_by_label, row.created_at, row.updated_at).run();
     emit(c, 'tracker.changed', { library: row.id });
     return c.json(toLibraryApi(row), 201);
   },
@@ -191,11 +199,12 @@ libraryRoutes.openapi(
       borrowed_from: p.borrowedFrom !== undefined ? p.borrowedFrom || null : r.borrowed_from,
       due_on: p.borrowedFrom === null || p.borrowedFrom === '' ? null : v('dueOn', r.due_on) as string | null,
       returned_on: p.borrowedFrom === null || p.borrowedFrom === '' ? null : v('returnedOn', r.returned_on) as string | null,
+      format: p.format ?? r.format,
       wanted: p.borrowedFrom ? 0 : p.wanted !== undefined ? (p.wanted ? 1 : 0) : r.wanted ?? 0, // borrowing it: had, for now
       updated_at: new Date().toISOString(),
     };
-    await c.env.DB.prepare('UPDATE library_books SET title=?, author=?, isbn=?, pages=?, cover_url=?, year=?, series=?, series_number=?, lexile=?, description=?, genres=?, location=?, lent_to=?, lent_on=?, borrowed_from=?, due_on=?, returned_on=?, wanted=?, updated_at=? WHERE id=?')
-      .bind(next.title, next.author, next.isbn, next.pages, next.cover_url, next.year, next.series, next.series_number, next.lexile, next.description, next.genres, next.location, next.lent_to, next.lent_on, next.borrowed_from, next.due_on, next.returned_on, next.wanted, next.updated_at, id).run();
+    await c.env.DB.prepare('UPDATE library_books SET title=?, author=?, isbn=?, pages=?, cover_url=?, year=?, series=?, series_number=?, lexile=?, description=?, genres=?, location=?, lent_to=?, lent_on=?, borrowed_from=?, due_on=?, returned_on=?, wanted=?, format=?, updated_at=? WHERE id=?')
+      .bind(next.title, next.author, next.isbn, next.pages, next.cover_url, next.year, next.series, next.series_number, next.lexile, next.description, next.genres, next.location, next.lent_to, next.lent_on, next.borrowed_from, next.due_on, next.returned_on, next.wanted, next.format, next.updated_at, id).run();
     emit(c, 'tracker.changed', { library: id });
     return c.json((await one(c, id))!, 200);
   },

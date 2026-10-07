@@ -33,7 +33,7 @@ test('library: add, list by title, search, edit; the same ISBN twice is a 409 wi
   const added = await send('POST', '/api/library', holes);
   assert.equal(added.status, 201);
   const { id: _id, createdAt: _c, updatedAt: _u, addedBy: _a, ...fields } = added.body;
-  assert.deepEqual(fields, { ...holes, year: null, series: null, seriesNumber: null, lexile: null, description: null, genres: [], location: null, lentTo: null, lentOn: null, borrowedFrom: null, dueOn: null, returnedOn: null, wanted: false, readers: [] });
+  assert.deepEqual(fields, { ...holes, format: 'book', year: null, series: null, seriesNumber: null, lexile: null, description: null, genres: [], location: null, lentTo: null, lentOn: null, borrowedFrom: null, dueOn: null, returnedOn: null, wanted: false, readers: [] });
   await send('POST', '/api/library', { title: "Charlotte's Web", author: 'E. B. White' });
   await send('POST', '/api/library', { title: 'Matilda', author: 'Roald Dahl' });
 
@@ -112,7 +112,7 @@ test('library: adding by ISBN alone looks the book up, details and description i
   assert.equal(book.status, 201, JSON.stringify(book.body));
   const { id: _i, createdAt: _c, updatedAt: _u, addedBy: _a, ...fields } = book.body;
   assert.deepEqual(fields, {
-    title: 'Into the Wild', author: 'Erin Hunter', isbn: '9780060000028', pages: 272, coverUrl: 'https://covers.openlibrary.org/b/id/9-M.jpg',
+    title: 'Into the Wild', format: 'book', author: 'Erin Hunter', isbn: '9780060000028', pages: 272, coverUrl: 'https://covers.openlibrary.org/b/id/9-M.jpg',
     year: 2003, series: 'Warriors', seriesNumber: '1', lexile: 970, description: 'Fire alone can save our Clan.', genres: ['Fantasy', 'Animals'], location: null, lentTo: null, lentOn: null, borrowedFrom: null, dueOn: null, returnedOn: null, wanted: false, readers: [],
   });
   assert.ok(new URL(calls[0]).searchParams.get('q') === '9780060000028');

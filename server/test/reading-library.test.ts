@@ -55,8 +55,8 @@ test('a new reading entry joins the library: linked to the same book, or a new o
   const book = await read('Wonder', { author: 'R. J. Palacio', totalPages: 310 });
   assert.equal((await library()).find((b: any) => b.id === book.body.data.bookId).pages, 310);
 
-  // Retried, or someone else reading it: the same book, never a second one.
-  await read('Project Hail Mary', { author: 'Andy Weir' });
+  // Retried, or someone else listening: the same audiobook, never a second one.
+  await read('Project Hail Mary', { author: 'Andy Weir', format: 'audiobook' });
   assert.equal((await library()).length, 3);
 });
 
@@ -126,10 +126,15 @@ test('adding by ISBN finds the same book saved without one (from a reading entry
   const r = await read('Animal Farm', { author: 'George Orwell', status: 'want', format: 'audiobook' });
   const made = (await library()).find((b: any) => b.id === r.body.data.bookId);
   assert.equal(made.isbn, null);
-  const again = await send('POST', '/api/library', { title: 'Animal Farm', author: 'George Orwell', isbn: '9781481540551' });
+  const again = await send('POST', '/api/library', { title: 'Animal Farm', author: 'George Orwell', isbn: '9781481540551', format: 'audiobook' });
   assert.equal(again.status, 409);
   assert.equal(again.body.book.id, made.id);
   assert.equal(again.body.book.isbn, '9781481540551');
   assert.equal((await library()).filter((b: any) => b.title === 'Animal Farm').length, 1);
   assert.equal((await send('POST', '/api/library', { title: 'Animal Farm', author: 'George Orwell', isbn: '9781481540551' })).status, 409, 'and by ISBN after that');
+  // The paper copy's ISBN doesn't fill the audiobook: it's its own item.
+  const paper = await send('POST', '/api/library', { title: 'Animal Farm', author: 'George Orwell', isbn: '9780451526342' });
+  assert.equal(paper.status, 201);
+  assert.equal(paper.body.format, 'book');
+  assert.equal((await library()).filter((b: any) => b.title === 'Animal Farm').length, 2);
 });

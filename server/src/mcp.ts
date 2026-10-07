@@ -351,19 +351,19 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'list_library',
     {
       title: 'List the library',
-      description: "The family's library: books they own (apart from who's reading what), A-Z, each with author, series, reading level (lexile), genres, where it lives (location), who has it on loan (lentTo, lentOn), borrowed books (borrowedFrom, dueOn; returned ones are left out unless returned: true), the wishlist (wanted; left out unless wanted: true) and readers (reading entries started from it: memberId and status). q searches titles, authors, series, genres, locations, borrowers and lenders; unread: only books nobody has started; lent: only books on loan; borrowed: only borrowed books still out, soonest due first; returned: only borrowed books that went back; wanted: only the wishlist; location: one place. Start reading one with add_tracker_entry (kind reading, data.bookId = the book's id); if they're already tracking it (an unfinished reading entry with that title), set data.bookId on that entry with update_tracker_entry instead of adding another.",
+      description: "The family's library: books they own (apart from who's reading what), A-Z, each with author, series, reading level (lexile), genres, where it lives (location), who has it on loan (lentTo, lentOn), borrowed books (borrowedFrom, dueOn; returned ones are left out unless returned: true), the wishlist (wanted; left out unless wanted: true) , format (book or audiobook: each its own item, so a paper copy and an audiobook of one title are two) and readers (reading entries started from it: memberId and status; an audiobook's narrator, minutesListened and totalMinutes). q searches titles, authors, series, genres, locations, borrowers and lenders; unread: only books nobody has started; lent: only books on loan; borrowed: only borrowed books still out, soonest due first; returned: only borrowed books that went back; wanted: only the wishlist; location: one place; format: only books or only audiobooks. Start reading one with add_tracker_entry (kind reading, data.bookId = the book's id); if they're already tracking it (an unfinished reading entry with that title), set data.bookId on that entry with update_tracker_entry instead of adding another.",
       inputSchema: {
-        q: z.string().max(100).optional(), unread: z.boolean().optional().describe('Only books nobody has started reading.'),
+        q: z.string().max(100).optional(), format: z.enum(['book', 'audiobook']).optional().describe('Only books, or only audiobooks.'), unread: z.boolean().optional().describe('Only books nobody has started reading.'),
         lent: z.boolean().optional().describe('Only books lent out.'),
         borrowed: z.boolean().optional().describe('Only borrowed books not yet returned (soonest due first).'), returned: z.boolean().optional().describe('Only borrowed books that went back.'), wanted: z.boolean().optional().describe('Only the wishlist: books wanted, not had yet.'), location: z.string().max(80).optional().describe('Only books that live here, e.g. "Living room shelf".'),
       },
     },
-    async ({ q, unread, lent, borrowed, returned, wanted, location }) => {
-      const params = new URLSearchParams({ ...(q ? { q } : {}), ...(unread ? { unread: '1' } : {}), ...(lent ? { lent: '1' } : {}), ...(borrowed ? { borrowed: '1' } : {}), ...(returned ? { returned: '1' } : {}), ...(wanted ? { wanted: '1' } : {}), ...(location ? { location } : {}) });
+    async ({ q, format, unread, lent, borrowed, returned, wanted, location }) => {
+      const params = new URLSearchParams({ ...(q ? { q } : {}), ...(format ? { format } : {}), ...(unread ? { unread: '1' } : {}), ...(lent ? { lent: '1' } : {}), ...(borrowed ? { borrowed: '1' } : {}), ...(returned ? { returned: '1' } : {}), ...(wanted ? { wanted: '1' } : {}), ...(location ? { location } : {}) });
       const res = await call(app, env, auth, 'GET', `/api/library${params.size ? `?${params}` : ''}`);
       if (res.status >= 400) return errorResult(res.json, 'failed to list the library');
-      const books = res.json as { title: string; author: string | null; readers: unknown[] }[];
-      const top = books.slice(0, 15).map((b) => `${b.title}${b.author ? ` by ${b.author}` : ''}${b.readers.length ? '' : ' (unread)'}`).join('; ');
+      const books = res.json as { title: string; author: string | null; format: string; readers: unknown[] }[];
+      const top = books.slice(0, 15).map((b) => `${b.title}${b.format === 'audiobook' ? ' (audiobook)' : ''}${b.author ? ` by ${b.author}` : ''}${b.readers.length ? '' : ' (unread)'}`).join('; ');
       return okResult(books.length ? `${books.length} book(s): ${top}${books.length > 15 ? '…' : ''}.` : 'No books in the library.', { books: books as unknown as Record<string, unknown>[] });
     },
   );
@@ -372,9 +372,10 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'add_to_library',
     {
       title: 'Add to the library',
-      description: "Add a book the family owns, has borrowed (borrowedFrom, dueOn) or wants (wanted: true, the wishlist) to its library. Give an isbn alone to look it up (Open Library: title, author, pages, cover, series, reading level, description), or a title (use search_books first for details; pass its workKey to fetch the description). A book already in the library (same ISBN) isn't added twice. To save a book someone's reading to the library, add it, then set that reading entry's data.bookId to the new book's id with update_tracker_entry.",
+      description: "Add a book the family owns, has borrowed (borrowedFrom, dueOn) or wants (wanted: true, the wishlist) to its library; an audiobook is format: audiobook (its own item, apart from a paper copy). Give an isbn alone to look it up (Open Library: title, author, pages, cover, series, reading level, description), or a title (use search_books first for details; pass its workKey to fetch the description). A book already in the library (same ISBN) isn't added twice. To save a book someone's reading to the library, add it, then set that reading entry's data.bookId to the new book's id with update_tracker_entry.",
       inputSchema: {
         title: z.string().optional(), author: z.string().optional(), isbn: z.string().optional().describe('ISBN-10 or ISBN-13, digits only.'),
+        format: z.enum(['book', 'audiobook']).optional().describe('book (default) or audiobook.'),
         pages: z.number().int().optional(), coverUrl: z.string().optional(), year: z.number().int().optional(),
         series: z.string().optional(), seriesNumber: z.string().optional(), lexile: z.number().int().optional(), workKey: z.string().optional().describe("From search_books."),
         location: z.string().max(80).optional().describe('Where it lives, e.g. "Maya\'s room".'),
@@ -406,6 +407,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
         dueOn: z.string().nullable().optional().describe('YYYY-MM-DD a borrowed book is due back.'),
         returnedOn: z.string().nullable().optional().describe('YYYY-MM-DD it went back; null to borrow it again.'),
         wanted: z.boolean().optional().describe('On the wishlist; false once you have it.'),
+        format: z.enum(['book', 'audiobook']).optional().describe('A book or an audiobook.'),
         title: z.string().optional(), author: z.string().nullable().optional(), pages: z.number().int().nullable().optional(),
         series: z.string().nullable().optional(), seriesNumber: z.string().nullable().optional(),
       },
