@@ -120,3 +120,16 @@ test('shelveReadingEntries: entries from before join the library once, deduped, 
   assert.equal(await shelveReadingEntries(env), 0, 'idempotent');
   assert.equal((await library()).length, 3);
 });
+
+test('adding by ISBN finds the same book saved without one (from a reading entry) and gives it the ISBN', async () => {
+  const { send, library, read } = setup();
+  const r = await read('Animal Farm', { author: 'George Orwell', status: 'want', format: 'audiobook' });
+  const made = (await library()).find((b: any) => b.id === r.body.data.bookId);
+  assert.equal(made.isbn, null);
+  const again = await send('POST', '/api/library', { title: 'Animal Farm', author: 'George Orwell', isbn: '9781481540551' });
+  assert.equal(again.status, 409);
+  assert.equal(again.body.book.id, made.id);
+  assert.equal(again.body.book.isbn, '9781481540551');
+  assert.equal((await library()).filter((b: any) => b.title === 'Animal Farm').length, 1);
+  assert.equal((await send('POST', '/api/library', { title: 'Animal Farm', author: 'George Orwell', isbn: '9781481540551' })).status, 409, 'and by ISBN after that');
+});

@@ -4,6 +4,7 @@
 // then, so browsing never calls out. Covers come through the server (GET .../cover), like reading
 // entries' covers. Wall screens and kids' devices browse, add and edit (auth.ts display allow-list);
 // removing a book is for parent devices.
+import { sameBook } from '../shelve.ts';
 import { createRoute, z } from '@hono/zod-openapi';
 import type { Context } from 'hono';
 import { createRouter } from '../router.ts';
@@ -119,6 +120,17 @@ libraryRoutes.openapi(
     if (input.isbn) {
       const have = await c.env.DB.prepare('SELECT id FROM library_books WHERE isbn = ?').bind(input.isbn).first<{ id: string }>();
       if (have) { const book = (await one(c, have.id))!; return c.json({ error: `Already in the library: ${book.title}`, book }, 409); }
+      // The same book saved without its ISBN (made from a reading entry, which has none): it's this one,
+      // so it gets the ISBN rather than a twin. A sync that adds books by ISBN (Libro.fm) relies on it.
+      if (input.title) {
+        const { results } = await c.env.DB.prepare('SELECT id, title, author FROM library_books WHERE isbn IS NULL').all<{ id: string; title: string; author: string | null }>();
+        const twin = results.find((b) => sameBook(b, { title: input.title!, author: input.author ?? null }));
+        if (twin) {
+          await c.env.DB.prepare('UPDATE library_books SET isbn = ?, updated_at = ? WHERE id = ?').bind(input.isbn, new Date().toISOString(), twin.id).run();
+          const book = (await one(c, twin.id))!;
+          return c.json({ error: `Already in the library: ${book.title}`, book }, 409);
+        }
+      }
     }
     if (!input.title || input.workKey) {
       if (!(await checkRate(c.env.DB, 'books', 30, 60_000))) return c.json({ error: 'Too many lookups - try again in a minute' }, 429);
