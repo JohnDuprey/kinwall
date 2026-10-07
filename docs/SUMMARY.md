@@ -30,7 +30,7 @@
 * [Medications](using/medications.md)
 * [Lists](using/lists.md)
 * [Meals](using/meals.md)
-* [Add to Kinwall from your iPhone](using/share-to-kinwall.md)
+* [Add to Kinwall from your phone](using/share-to-kinwall.md)
 * [Timers](using/timers.md)
 * [Activities (Paint)](using/activities.md)
 * [Photos](using/photos.md)
