@@ -677,6 +677,7 @@ const bookLibrary: LibraryBook[] = [
   libraryBook('book-owl-moon', 'Owl Moon', 'Jane Yolen', { pages: 32, year: 1987, genres: ['Picture book', 'Animals'], borrowedFrom: 'Town library', dueOn: inDays(9), coverUrl: 'https://picsum.photos/seed/kinwall-owlmoon/120/180' }),
   libraryBook('book-magic-tree', 'Dinosaurs Before Dark', 'Mary Pope Osborne', { pages: 80, year: 1992, series: 'Magic Tree House', seriesNumber: '1', lexile: 510, genres: ['Adventure', 'Fantasy'], location: "Leo's room", coverUrl: 'https://picsum.photos/seed/kinwall-treehouse/120/180' }),
   libraryBook('book-dog-man', 'Dog Man', 'Dav Pilkey', { pages: 240, year: 2016, genres: ['Graphic novel', 'Humor'], wanted: true, coverUrl: 'https://picsum.photos/seed/kinwall-dogman/120/180' }),
+  libraryBook('book-wings-of-fire', 'The Dragonet Prophecy', 'Tui T. Sutherland', { pages: 336, year: 2012, series: 'Wings of Fire', seriesNumber: '1', genres: ['Fantasy'], wanted: true }),
   libraryBook('book-hatchet', 'Hatchet', 'Gary Paulsen', { pages: 195, year: 1987, lexile: 1020, genres: ['Adventure'], borrowedFrom: 'Town library', dueOn: daysAgo(12), returnedOn: daysAgo(14) }),
 ]
 const withReaders = (b: LibraryBook): LibraryBook => ({
@@ -703,6 +704,20 @@ const trackers: TrackerEntry[] = [
   tracker('health', 'm4', daysAgo(14), 'Six-year checkup', { type: 'checkup', provider: 'Dr. Patel', time: '09:30', height: { value: 45.5, unit: 'in' }, weight: { value: 46, unit: 'lb' }, notes: 'All good. Next checkup in a year.', followUp: daysAgo(-351) }),
   tracker('health', 'm3', daysAgo(-9), 'Cleaning', { type: 'dentist', provider: 'Bright Smiles Dental', time: '15:40' }),
 ]
+// Mirrors the server (shelve.ts, roughly: same title, any case): every book on a Reading shelf is in the library.
+function shelveMock(t: TrackerEntry) {
+  if (t.kind !== 'reading' || !t.title) return
+  const d = t.data as ReadingData
+  const key = t.title.split(':')[0].trim().toLowerCase()
+  let b = d.bookId ? bookLibrary.find(x => x.id === d.bookId) : bookLibrary.find(x => x.title.split(':')[0].trim().toLowerCase() === key)
+  if (!d.bookId && !b) {
+    b = libraryBook(`book-${uid()}`, t.title, d.author ?? '', { author: d.author ?? null, pages: d.format === 'audiobook' ? null : d.totalPages ?? null, coverUrl: d.coverUrl ?? null, wanted: d.status === 'want', addedBy: t.memberId ? { memberId: t.memberId } : null })
+    bookLibrary.push(b)
+  }
+  if (b && d.status !== 'want') b.wanted = false
+  if (b) t.data = { ...d, bookId: b.id }
+}
+trackers.forEach(shelveMock)
 // Mirrors the server: a memory owns a photo uploaded for it (family false), which the toggle shares.
 const settleMockPhoto = (t: TrackerEntry, family?: boolean) => {
   const p = photos.find(x => x.id === t.photoId)
@@ -1489,7 +1504,7 @@ export const mock = {
   addTracker: async (body: TrackerInput & { kind: TrackerKind }) => {
     const t = tracker(body.kind, body.memberId ?? null, body.date ?? todayISO(), body.title?.trim() || null, trackerData(body.kind, body.data ?? {}), body.photoId ?? null)
     t.createdAt = t.updatedAt = new Date().toISOString()
-    trackers.push(t); settleMockPhoto(t, body.photoFamily); bump(); return t
+    shelveMock(t); trackers.push(t); settleMockPhoto(t, body.photoFamily); bump(); return t
   },
   updateTracker: async (id: string, body: TrackerInput) => {
     const t = trackers.find(x => x.id === id)
@@ -1502,7 +1517,7 @@ export const mock = {
         ? (() => { const d = t.data as ReadingData; const r = setLogDay(d, body.logDay.date, body.logDay.amount); return { ...d, ...body.data, [d.format === 'audiobook' ? 'minutesListened' : 'pagesRead']: r.at, log: r.log } })()
         : demoLog(t.kind, t.data as unknown as Record<string, unknown>, trackerData(t.kind, { ...t.data, ...body.data })), updatedAt: new Date().toISOString(),
     })
-    settleMockPhoto(t, body.photoFamily); bump(); return { ...t }
+    shelveMock(t); settleMockPhoto(t, body.photoFamily); bump(); return { ...t }
   },
   getLibrary: async (q?: { q?: string; unread?: boolean; lent?: boolean; borrowed?: boolean; returned?: boolean; wanted?: boolean; location?: string }): Promise<LibraryBook[]> => {
     const needle = q?.q?.trim().toLowerCase()

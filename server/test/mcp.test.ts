@@ -585,8 +585,9 @@ test('mcp: every tool declares an output schema, and real results pass it', asyn
   const book = (await call('add_tracker_entry', { kind: 'reading', member: 'ava', title: 'Matilda', data: { totalPages: 240 } })).entry;
   assert.equal((await call('update_tracker_entry', { entryId: book.id, data: { pagesRead: 60, rating: 4 } })).entry.data.pagesRead, 60);
   const audio = (await call('add_tracker_entry', { kind: 'reading', member: 'ava', title: 'Holes', data: { format: 'audiobook', totalMinutes: 460 } })).entry;
-  const { log, ...listened } = (await call('update_tracker_entry', { entryId: audio.id, data: { minutesListened: 90 } })).entry.data;
+  const { log, bookId, ...listened } = (await call('update_tracker_entry', { entryId: audio.id, data: { minutesListened: 90 } })).entry.data;
   assert.deepEqual(listened, { format: 'audiobook', status: 'reading', totalMinutes: 460, minutesListened: 90 });
+  assert.ok(bookId, 'an audiobook joins the library too (shelve.ts)');
   assert.deepEqual(log.map((d: any) => d.amount), [90], "today's listening is logged");
   await rest('/api/settings', { method: 'PATCH', body: JSON.stringify({ aiHealthAccess: true }) }); // health over MCP is off until a parent allows it
   await call('add_tracker_entry', { kind: 'health', member: 'ava', title: 'Checkup', data: { type: 'checkup', weight: { value: 50, unit: 'lb' } } });
