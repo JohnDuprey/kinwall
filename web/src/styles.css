@@ -2762,10 +2762,15 @@ a.btn { text-decoration: none; } /* a link that looks like a button (the Board's
     }
     .board-tidbit blockquote p, .board-tidbit-body > p { font-size: 0.875rem; }
     .board-clock, .board-tidbit { padding: 8px 12px; }
-    /* Several tidbit cards share the capped bottom row: each shows what fits, "+2 more" opens the rest. */
-    .board:has(.board-tidbit-extra) .board-tidbit { min-height: 0; }
+    /* The clock is never squeezed (Board.tsx sets its min-height to what it shows); the other cards
+       give up the space: a quote card shows what fits and "+2 more", trivia scrolls its answers. */
+    .board-tidbit { min-height: 0; }
     .board-clock .board-card-title { font-size: 0.9375rem; margin-bottom: 2px; }
   }
+}
+/* A shorter screen (a tablet on its side) has no room for the forecast: the time, date and today's weather stay. */
+@media (min-height: 700px) and (max-height: 899.98px) {
+  @container board (min-width: 880px) { .board-clock .board-forecast { display: none; } }
 }
 
 .board-time { font-size: 2.5rem; font-size: min(3.25rem, 17cqi); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }

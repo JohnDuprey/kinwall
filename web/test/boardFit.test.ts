@@ -79,15 +79,24 @@ test("slotLayout: the card's rows first, then each item whole in order while it 
   // a later, smaller item can still fit after a big one didn't
   assert.deepEqual(whole({ fixed: true, rows: 200, space: 380, items: [{ full: 200, row: 40 }, { full: 60, row: 40 }] }), [false, true])
   // a busy day: rows only, the card's rows go behind More
-  assert.deepEqual(slotLayout({ fixed: true, rows: 500, space: 300, items, chips: 50 }), { chips: false, whole: [false, false, false] })
+  assert.deepEqual(slotLayout({ fixed: true, rows: 500, space: 300, items, chips: 50 }), { chips: false, whole: [false, false, false], need: 130 })
   // a phone or a scrolling board: rows
-  assert.deepEqual(slotLayout({ fixed: false, rows: 0, space: 9999, items, chips: 50 }), { chips: false, whole: [false, false, false] })
+  assert.deepEqual(slotLayout({ fixed: false, rows: 0, space: 9999, items, chips: 50 }), { chips: false, whole: [false, false, false], need: 0 })
 })
 
-test('slotLayout: one line of chips when the rows would leave the card no room of its own', () => {
-  const items = [{ full: 100, row: 50 }, { full: 80, row: 50 }, { full: 150, row: 50 }]
-  assert.equal(slotLayout({ fixed: true, rows: 300, space: 180, items, chips: 52 }).chips, true) // 150 of rows, 30 left: not even More
-  assert.equal(slotLayout({ fixed: true, rows: 300, space: 200, items, chips: 52 }).chips, false) // 50 left: More fits
-  assert.equal(slotLayout({ fixed: true, rows: 20, space: 175, items, chips: 52 }).chips, false) // a short day's one row fits
-  assert.equal(slotLayout({ fixed: true, rows: 300, space: 100, items: [items[0]], chips: 52 }).chips, false) // one item stays a row
+test("slotLayout: Today keeps one of its own rows, two when it can, beside the items (chips when rows would crowd them out)", () => {
+  const items = [{ full: 100, row: 50 }, { full: 80, row: 50 }, { full: 150, row: 50 }] // 150 as rows
+  const keep: [number, number] = [110, 170] // one event + More, two events + More
+  const chips = (space: number, its = items) => slotLayout({ fixed: true, rows: 400, space, items: its, chips: 52, keep }).chips
+  assert.equal(chips(330), false, 'rows leave 180: two events fit beside them')
+  assert.equal(chips(300), true, 'rows leave 150 (one event), chips leave 248: two events')
+  assert.equal(chips(250), true, 'rows leave 100, room for More but not one event: chips, never a bare "Show 8"')
+  assert.equal(chips(200), true, 'rows leave nothing: chips (148: one event)')
+  assert.equal(chips(270, [items[0], items[1]]), false, 'rows leave 170: two events beside the rows')
+  assert.equal(chips(180), true, 'too tight for even one event beside chips: still the smallest slot')
+  assert.equal(slotLayout({ fixed: true, rows: 400, space: 180, items, chips: 52, keep }).need, 162, '...and the card grows to one event + More + chips')
+  assert.equal(chips(100, [items[0]]), false, 'one item stays a row')
+  assert.equal(slotLayout({ fixed: true, rows: 400, space: 100, items: [items[0]], chips: 52, keep }).need, 160, '...one event + More + the row')
+  assert.equal(slotLayout({ fixed: false, rows: 400, space: 100, items, chips: 52, keep }).need, 0, 'a scrolling board grows by itself')
+  assert.equal(slotLayout({ fixed: true, rows: 20, space: 175, items, chips: 52, keep: [20, 20] }).chips, false, "a short day's one row fits beside the rows")
 })

@@ -25,7 +25,7 @@ test('areas: columns of cards, an empty or unavailable one closes up, tiles acro
   const rows = a.style['--board-areas-3'].split('" "').length
   assert.equal(rows, 13, 'the tiles row and 12 rows of cards')
   assert.ok(a.style['--board-areas-3'].startsWith('"tiles tiles" "clock today" "clock today" "clock today" "photo today"'))
-  assert.equal(a.style['--board-rows-3'], 'auto repeat(12, minmax(0, 1fr))')
+  assert.equal(a.style['--board-rows-3'], 'auto repeat(12, 1fr)', "rows grow to the clock's minimum (styles.css), the others share the rest")
   assert.equal(a.style['--board-areas-1'], '"tiles" "clock" "photo" "today"')
   assert.equal(a.style['--board-areas-2'], '"tiles tiles" "clock photo" "today today"')
   assert.equal(a.density.get('clock'), 'big')

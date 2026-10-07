@@ -105,26 +105,34 @@ type SlotItem = { key: string; full: React.ReactNode; row: React.ReactNode; chip
  *  `fixed`: the Board shares out the screen's height (the three-column wall or tablet board). */
 function TodaySlot({ fixed, items }: { fixed: boolean; items: SlotItem[] }) {
   const ref = useRef<HTMLDivElement>(null)
+  const card = useRef<HTMLElement | null>(null)
   const [whole, setWhole] = useState('') // '1' per item shown whole, or 'chips'
   const measure = useCallback(() => {
     const el = ref.current, fit = el?.parentElement?.querySelector<HTMLElement>(':scope > .board-fit')
     const unseen = el?.querySelector<HTMLElement>(':scope > .board-slot-measure')
-    if (!el || !fit || !unseen || !fixed) { setWhole(''); return }
+    card.current = el?.parentElement ?? card.current
+    if (!el || !fit || !unseen || !fixed) { setWhole(''); if (card.current) card.current.style.minHeight = ''; return }
     // The card's rows at full length: FitBody may have hidden some, shown just to measure and hidden
     // again before anything paints. All measured as drawn, since a card with bigger text is zoomed.
     const body = fit.firstElementChild as HTMLElement
     const cut = [...body.querySelectorAll<HTMLElement>('[hidden]')]
     for (const e of cut) e.hidden = false
     const top = body.getBoundingClientRect().top
+    const scale = fit.clientHeight ? fit.getBoundingClientRect().height / fit.clientHeight : 1
     const rows = Math.max(0, ...[...body.children].map(c => c.getBoundingClientRect().bottom - top))
+    // What the card needs to show its first one and two rows (and More, when more are left).
+    const own = [...body.querySelectorAll<HTMLElement>(ROWS)].filter(e => !e.matches('.snap-day-heading')).map(e => e.getBoundingClientRect().bottom - top)
+    const keep = (k: number) => own.length <= k ? rows : own[k - 1] + MORE_SPACE * scale
     for (const e of cut) e.hidden = true
     const hs = [...unseen.children].map(c => c.getBoundingClientRect().height)
     const chips = hs.pop() ?? 0
     const sizes = Array.from({ length: hs.length / 2 }, (_, i) => ({ full: hs[2 * i], row: hs[2 * i + 1] }))
     const space = fit.getBoundingClientRect().height + el.getBoundingClientRect().height
-    const scale = fit.clientHeight ? fit.getBoundingClientRect().height / fit.clientHeight : 1
-    const how = slotLayout({ fixed, rows, space, items: sizes, chips, minRows: MORE_SPACE * scale })
+    const how = slotLayout({ fixed, rows, space, items: sizes, chips, keep: [keep(1), keep(2)] })
     setWhole(how.chips ? 'chips' : how.whole.map(b => b ? '1' : '0').join(''))
+    // Never too short for that: the card's rows grow (a grid row grows to a minimum only as a length).
+    const c = el.parentElement!, box = c.getBoundingClientRect()
+    c.style.minHeight = `${Math.ceil((top - box.top + how.need) / scale + parseFloat(getComputedStyle(c).paddingBottom))}px`
   }, [fixed])
   useLayoutEffect(measure) // every render: the items or the card's rows may have changed
   useEffect(() => {
@@ -203,6 +211,23 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
     ro.observe(el)
     return () => ro.disconnect()
   }, [loaded])
+  // The clock is never squeezed on the fixed board: it's as tall as the time, date and weather it
+  // shows (the forecast only where styles.css has room for it), and the other cards give up the space.
+  // A grid row grows to an item's minimum only when it's a length, so it's measured.
+  const clockRef = useRef<HTMLElement>(null)
+  useLayoutEffect(() => {
+    const c = clockRef.current
+    if (!c) return
+    const set = () => {
+      const box = c.getBoundingClientRect(), scale = c.offsetHeight ? box.height / c.offsetHeight : 1
+      const bottom = Math.max(0, ...[...c.children].map(e => e.getBoundingClientRect().bottom - box.top))
+      c.style.minHeight = fixed && bottom ? `${Math.ceil(bottom / scale + parseFloat(getComputedStyle(c).paddingBottom))}px` : ''
+    }
+    set()
+    const ro = new ResizeObserver(set)
+    for (const e of c.children) ro.observe(e)
+    return () => ro.disconnect()
+  }, [fixed, loaded, data?.weather, device.boardLayout, device.boardCustom])
 
   const p = zonedParts(now.toISOString(), tz)
   // Tidbit cards: the family's one (Settings → Quotes & facts) or this device's own (Settings →
@@ -373,7 +398,7 @@ export default function Board({ show, onTap }: { show: (e: EventInstance) => boo
             )}
           </nav>
         )}
-        {has('clock') && <section className={`board-card board-clock${densityClass(dense('clock'))}`} aria-label="Time and weather">
+        {has('clock') && <section ref={clockRef} className={`board-card board-clock${densityClass(dense('clock'))}`} aria-label="Time and weather">
           {/* A phone puts today's weather beside the time (styles.css); everywhere else it stacks below. */}
           <div className="board-clock-top">
             <div className="board-clock-when">

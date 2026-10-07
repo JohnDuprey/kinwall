@@ -101,7 +101,8 @@ export function layoutAreas(layout: BoardLayout, can: (id: BoardCardId | 'tiles'
     density: new Map(cols.flat().map(x => [x.id, x.density])),
     style: {
       '--board-cols-3': `repeat(${n}, minmax(0, 1fr))`,
-      '--board-rows-3': `${tiles ? 'auto ' : ''}${cols.length ? `repeat(${ROWS}, minmax(0, 1fr))` : ''}`,
+      // 1fr, not minmax(0, 1fr): a row is never smaller than the clock in it (styles.css), the rest share what's left.
+      '--board-rows-3': `${tiles ? 'auto ' : ''}${cols.length ? `repeat(${ROWS}, 1fr)` : ''}`,
       '--board-areas-1': shown.map(a => `"${a}"`).join(' '),
       '--board-areas-2': two.map(([a, b = a]) => `"${a} ${b}"`).join(' '),
       '--board-areas-3': [...(tiles ? [`"${Array(n).fill('tiles').join(' ')}"`] : []), ...(cols.length ? Array.from({ length: ROWS }, (_, r) => `"${cols.map((_, ci) => at(ci, r)).join(' ')}"`) : [])].join(' '),

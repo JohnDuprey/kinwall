@@ -83,17 +83,23 @@ export const pollHost = (shown: string[]): 'today' | 'coming' | 'strip' =>
 
 /** How a card's "in Today" slot (Board.tsx TodaySlot) shows its items. Each gets at least its one
  *  row; the card's own rows (`rows`: their height) come first, and what's left of `space` (what the
- *  rows and the slot share) goes to items in order, each whole only if that still fits. When even the
- *  rows would leave the card's own rows no room (not a single one, or the More button: `minRows`), the
- *  items become one line of small chips (`chips`: its height) instead. Whole items only on a
- *  fixed-height board: a phone or a scrolling board would just grow, so it gets rows. */
-export function slotLayout({ fixed, rows, space, items, chips = 0, minRows = 50 }: { fixed: boolean; rows: number; space: number; items: { full: number; row: number }[]; chips?: number; minRows?: number }): { chips: boolean; whole: boolean[] } {
-  const none = { chips: false, whole: items.map(() => false) }
+ *  rows and the slot share) goes to items in order, each whole only if that still fits. The card
+ *  always keeps room for one of its own rows, two when it can (`keep`: what one and two need, with
+ *  the More button when more are left): when the items' rows would take that, they become one line
+ *  of small chips (`chips`: its height), the smallest the slot gets. `need`: the least space for
+ *  that (one row of the card's own and the slot), which the card grows to when it has less. Whole
+ *  items only on a fixed-height board: a phone or a scrolling board would just grow, so it gets rows. */
+export function slotLayout({ fixed, rows, space, items, chips = 0, keep = [0, 0] }: { fixed: boolean; rows: number; space: number; items: { full: number; row: number }[]; chips?: number; keep?: [number, number] }): { chips: boolean; whole: boolean[]; need: number } {
+  const asRows = items.reduce((n, i) => n + i.row, 0)
+  const none = { chips: false, whole: items.map(() => false), need: 0 }
   if (!fixed) return none
-  let left = space - rows - items.reduce((n, i) => n + i.row, 0)
-  if (items.length > 1 && space - items.reduce((n, i) => n + i.row, 0) < Math.min(rows, minRows) - 0.5 && chips) return { chips: true, whole: none.whole }
+  const leaves = (slot: number, k: 0 | 1) => space - slot >= keep[k] - 0.5
+  // Two of the card's rows beside the items' rows, else beside chips, else one beside rows, else chips.
+  if (items.length > 1 && chips && !leaves(asRows, 1) && (leaves(chips, 1) || !leaves(asRows, 0))) return { chips: true, whole: none.whole, need: keep[0] + chips }
+  let left = space - rows - asRows
   return {
     chips: false,
+    need: keep[0] + asRows,
     whole: items.map(i => {
       const fits = i.full - i.row <= left + 0.5
       if (fits) left -= i.full - i.row
