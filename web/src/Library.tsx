@@ -118,11 +118,15 @@ export default function Library({ adding, onAdded, onStarted }: {
     return <button key={v} type="button" className={`chip ${pressed ? 'active' : ''}`} aria-pressed={pressed} style={color ? { ['--chip-color' as string]: color } : undefined} onClick={() => toggle(k, v)}>{label}</button>
   }
   const shown = books?.length ?? 0
-  const head = <>
+  // One row: the count, small, and the view switch, icons only on a phone (Library view words from 700px).
+  const head = <div className="lib-head">
     <span className="lib-count">{(() => { const a = books?.filter(isAudio).length ?? 0, p = shown - a; return [p || !a ? `📚 ${p} ${p === 1 ? 'book' : 'books'}` : '', a ? `🎧 ${a} ${a === 1 ? 'audiobook' : 'audiobooks'}` : ''].filter(Boolean).join(' · ') })()}</span>
-    <Segmented label="Library view" value={view} onChange={v => { setView(v); store(VIEW_KEY, v) }}
-      options={[{ key: 'covers', label: '📚 Covers' }, { key: 'list', label: '☰ List' }]} />
-  </>
+    <Segmented className="lib-view" label="Library view" value={view} onChange={v => { setView(v); store(VIEW_KEY, v) }}
+      options={[
+        { key: 'covers', label: <><span aria-hidden="true">📚</span><span className="lib-view-word"> Covers</span></>, ariaLabel: 'Covers', title: 'Covers' },
+        { key: 'list', label: <><span aria-hidden="true">☰</span><span className="lib-view-word"> List</span></>, ariaLabel: 'List', title: 'List' },
+      ]} />
+  </div>
   return (
     <div className="lib">
       <div className="lib-bar">
@@ -150,9 +154,9 @@ export default function Library({ adding, onAdded, onStarted }: {
           {people.length > 0 && group('lib-f-who', 'Who', people.map(m => chip('who', m.id, <><ChipFace m={m} /> {m.name}</>, m.color)), 'On their reading shelf: reading, finished or want to read.')}
         </Sheet>
       )}
-      {(view === 'list' || !shown) && <div className="lib-head">{head}</div>}
+      {head}
       {books === null ? <div className="state-card">Loading…</div>
-        : view === 'covers' && shown ? <LibraryShelf head={head} books={books} members={people} today={today} onOpen={setOpen} />
+        : view === 'covers' && shown ? <LibraryShelf books={books} members={people} today={today} onOpen={setOpen} />
         : !books.length ? (
           <div className="empty-card"><span className="emoji">📚</span>{filters.show.length === 1 && filters.show[0] === 'wishlist' && !q && !on ? 'Nothing on the wishlist. Tap + and pick Wishlist to add a book you want.' : q || on ? 'No books match.' : all?.length ? 'Nothing here yet. Open Filters for the wishlist, returned books or want to read.' : 'No books in the library yet. Tap + to add the books you own or borrow, or scan them in.'}</div>
         ) : (

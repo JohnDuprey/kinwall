@@ -1,11 +1,11 @@
 // The library's cover view (Library.tsx): the books standing on wooden shelves, covers only. A book
 // with no cover (or one that won't load) gets a cloth cover with its title. Borrowed books carry a
 // library-card due tag, wishlist books a ⭐ ribbon, and a book someone is reading has a bookmark with
-// their face. The shelf is whatever the Filters pick. "Pick a book for me" scans it and lands on one
-// (never a wishlist or returned book). Audiobooks stand apart, as records in a crate below: square
+// their face. The shelf is whatever the Filters pick. "🎲 Pick one" on the Books heading scans it and lands
+// on one (never a wishlist or returned book). Audiobooks stand apart, as records in a crate below: square
 // sleeves with the record peeking out of the top, spinning with the listener's face as its label
-// (and a ring for how far along) while someone listens. "Pick a listen" does the same for the crate.
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+// (and a ring for how far along) while someone listens. The crate's heading has its own "Pick one".
+import { useEffect, useRef, useState } from 'react'
 import { api } from './api.ts'
 import { announce, reducedMotion } from './a11y.tsx'
 import { Face } from './Face'
@@ -16,8 +16,7 @@ const SCAN_STEPS = 12
 const SCAN_STEP_MS = 90
 const LAND_MS = 900 // the picked book glows this long before its sheet opens
 
-export default function LibraryShelf({ head, books, members, today, onOpen }: {
-  head: ReactNode // the count and view toggles; Pick a book joins them
+export default function LibraryShelf({ books, members, today, onOpen }: {
   books: LibraryBook[]; members: Member[]; today: string; onOpen: (b: LibraryBook) => void
 }) {
   const [lit, setLit] = useState<string | null>(null) // the book the scan is on
@@ -47,17 +46,25 @@ export default function LibraryShelf({ head, books, members, today, onOpen }: {
   const book = (b: LibraryBook) => <ShelfBook key={b.id} b={b} members={members} today={today} lit={lit === b.id} picked={picked === b.id} onOpen={onOpen} />
   const record = (b: LibraryBook) => <CrateRecord key={b.id} b={b} members={members} today={today} lit={lit === b.id} picked={picked === b.id} onOpen={onOpen} />
   const can = (list: LibraryBook[]) => list.some(b => !b.wanted && !b.returnedOn)
+  const pickBtn = (from: LibraryBook[], name: string) =>
+    <button type="button" className="btn btn-secondary lib-pick-btn" aria-label={name} title={name} onClick={() => pick(from)} disabled={!!lit}>🎲 Pick one</button>
   return (
     <div className="lib-shelves">
-      <div className="lib-head">
-        {head}
-        {can(paper) && <button type="button" className="btn btn-secondary lib-pick-btn" onClick={() => pick(paper)} disabled={!!lit}>🎲 Pick a book for me</button>}
-        {can(audio) && <button type="button" className="btn btn-secondary lib-pick-btn" onClick={() => pick(audio)} disabled={!!lit}>🎧 Pick a listen</button>}
-      </div>
-      {!!paper.length && <ul className="lib-shelf" aria-label="Books">{paper.map(book)}</ul>}
+      {!!paper.length && (
+        <section aria-labelledby="lib-shelf-title">
+          <div className="lib-sec-head">
+            <h3 id="lib-shelf-title" className="lib-sec-title">📚 Books</h3>
+            {can(paper) && pickBtn(paper, 'Pick a book for me')}
+          </div>
+          <ul className="lib-shelf" aria-label="Books">{paper.map(book)}</ul>
+        </section>
+      )}
       {!!audio.length && (
         <section className="lib-crate" aria-labelledby="lib-crate-title">
-          <h3 id="lib-crate-title" className="lib-crate-title">🎧 Audiobooks</h3>
+          <div className="lib-sec-head">
+            <h3 id="lib-crate-title" className="lib-sec-title">🎧 Audiobooks</h3>
+            {can(audio) && pickBtn(audio, 'Pick a listen for me')}
+          </div>
           <ul className="lib-crate-rows" aria-label="Audiobooks">{audio.map(record)}</ul>
         </section>
       )}

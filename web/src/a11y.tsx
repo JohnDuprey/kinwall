@@ -52,7 +52,7 @@ function stepFocus(e: { key: string; target: EventTarget | null; preventDefault(
 export function Segmented<T extends string | number>({ label, value, options, onChange, tabs, idBase, className = '', style, disabled }: {
   label: string
   value: T | null
-  options: readonly { key: T; label: ReactNode; ariaLabel?: string }[]
+  options: readonly { key: T; label: ReactNode; ariaLabel?: string; title?: string }[]
   onChange: (v: T) => void
   tabs?: boolean
   idBase?: string // tabs: each tab gets id `${idBase}-${key}`, for a panel's aria-labelledby
@@ -67,7 +67,7 @@ export function Segmented<T extends string | number>({ label, value, options, on
       {options.map((o, i) => (
         <button key={String(o.key)} type="button" id={idBase ? `${idBase}-${o.key}` : undefined}
           role={tabs ? 'tab' : 'radio'} aria-selected={tabs ? i === on : undefined} aria-checked={tabs ? undefined : i === on}
-          tabIndex={i === (on < 0 ? 0 : on) ? 0 : -1} className={i === on ? 'active' : ''} disabled={disabled} aria-label={o.ariaLabel}
+          tabIndex={i === (on < 0 ? 0 : on) ? 0 : -1} className={i === on ? 'active' : ''} disabled={disabled} aria-label={o.ariaLabel} title={o.title}
           onClick={() => onChange(o.key)}>{o.label}</button>
       ))}
     </div>
