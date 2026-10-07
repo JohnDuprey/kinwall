@@ -112,8 +112,9 @@ const LIMIT = { name: 200, cuisine: 200, phone: 50, address: 500 } as const;
 const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`;
 const andList = (xs: string[]) => xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`;
 
-/** The import, or an error message for a 400. */
-async function importRestaurant(c: Context<{ Bindings: Env }>, input: z.infer<typeof RestaurantImportSchema>) {
+/** The import, or an error message for a 400. `page`: what url's page says, when the caller has
+ * already read it (POST /api/share), so it isn't fetched twice. */
+export async function importRestaurant(c: Context<{ Bindings: Env }>, input: z.infer<typeof RestaurantImportSchema>, page?: PlaceDetails | null) {
   const db = c.env.DB;
   const header = input.menuText ? splitMenuHeader(input.menuText) : { fields: {}, menuText: '' };
   const text = (k: 'name' | 'cuisine' | 'phone' | 'address') => (input[k]?.trim() || header.fields[k]?.trim() || null)?.slice(0, LIMIT[k]) ?? null;
@@ -123,7 +124,7 @@ async function importRestaurant(c: Context<{ Bindings: Env }>, input: z.infer<ty
   const maps = links.find((l) => l && mapsPlace(l));
   const target = url ?? site;
   const found: PlaceDetails | null = maps ? await linkDetails(c.env, maps) : null;
-  const page = target ? await linkDetails(c.env, target) : null;
+  if (page === undefined) page = target ? await linkDetails(c.env, target) : null;
   const pick = (k: keyof PlaceDetails) => page?.[k] ?? found?.[k] ?? null;
   const fields = {
     name: text('name') ?? pick('name'), cuisine: text('cuisine') ?? pick('cuisine'), phone: text('phone') ?? pick('phone'), address: text('address') ?? pick('address'),

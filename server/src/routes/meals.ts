@@ -14,7 +14,7 @@ import { createEvent, deleteEvent, updateEvent } from './events.ts';
 import { readFeatures, readSettings } from './settings.ts';
 import { pushToMembers, recordNotification } from '../notify.ts';
 import { fetchRecipeImage, fetchRecipePage, fetchRecipePdf } from '../outbound.ts';
-import { parseRecipeHtml, parseRecipeText, previewWarnings } from '../recipe-web.ts';
+import { parseRecipeHtml, parseRecipeText, previewWarnings, type RecipePreview } from '../recipe-web.ts';
 import { withShares } from './recipe-share.ts';
 
 export const mealsRoutes = createRouter();
@@ -127,6 +127,15 @@ mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/recipes/import', t
   await mealWrite(db, meal).run(); emit(c, 'meal.changed', { id: meal.id });
   return c.json({ ...result, planned: true, mealId: meal.id, ...await onCalendar(meal.id) }, 200);
 });
+/** Saves a recipe read off a web page (source 'web', keyed by its address, so importing it again
+ * updates it). Used by import-url with save and by POST /api/share. */
+export function saveWebRecipe(c: Ctx, recipe: RecipePreview & { name: string }) {
+  return upsertImport(c, {
+    source: 'web', externalId: recipe.sourceUrl!, name: recipe.name, description: recipe.description, sourceUrl: recipe.sourceUrl, imageUrl: recipe.imageUrl ?? undefined,
+    ...(recipe.servings !== null && { servings: recipe.servings }), prepMinutes: recipe.prepMinutes, totalMinutes: recipe.totalMinutes, kind: recipe.kind, makes: recipe.makes,
+    ingredients: recipe.ingredients.map((i) => (i.qualifier !== undefined ? i : i.text)), steps: recipe.steps,
+  });
+}
 const unprocessable = { 422: { description: 'no recipe found', content: { 'application/json': { schema: ErrorSchema } } } };
 const previewResponse = { description: 'what was read (and, with save, the saved recipe)', content: { 'application/json': { schema: RecipePreviewResultSchema } } };
 const upper = (s: string) => s[0].toUpperCase() + s.slice(1);
@@ -144,11 +153,7 @@ mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/recipes/import-url
     return c.json({ recipe, warnings, ...(updates && { updates: { id: updates.id, name: updates.name } }) }, 200);
   }
   if (!recipe.name) return c.json({ error: 'This recipe has no name. Preview it, name it, then save.' }, 422);
-  const saved = await upsertImport(c, {
-    source: 'web', externalId: recipe.sourceUrl!, name: recipe.name, description: recipe.description, sourceUrl: recipe.sourceUrl, imageUrl: recipe.imageUrl ?? undefined,
-    ...(recipe.servings !== null && { servings: recipe.servings }), prepMinutes: recipe.prepMinutes, totalMinutes: recipe.totalMinutes, kind: recipe.kind, makes: recipe.makes,
-    ingredients: recipe.ingredients.map((i) => (i.qualifier !== undefined ? i : i.text)), steps: recipe.steps,
-  });
+  const saved = await saveWebRecipe(c, recipe);
   return c.json({ recipe, warnings, recipeId: saved.recipe.id, created: saved.created }, 200);
 });
 mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/recipes/parse-text', tags: ['Meals'], summary: 'Read a pasted recipe (Ingredients and Directions headings) into the same preview as import-url, without saving (admin)', security: [{ Bearer: [] }], request: { body: body(RecipeTextParseSchema) }, responses: { 200: previewResponse, ...errors, ...unprocessable } }), async (c) => {

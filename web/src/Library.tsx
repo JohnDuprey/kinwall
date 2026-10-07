@@ -75,6 +75,16 @@ export default function Library({ bar, adding, onAdded, onStarted }: {
   const books = all && (sort ? sortLibrary(filterLibrary(all, filters), sort) : filterLibrary(all, filters))
   // #/trackers/library?book=<id> (a Reading entry's "Open in the library"): that book's sheet once the
   // library is in, looking among returned and wishlist books too; an unknown id just shows the library.
+  // #/trackers/library?add=<title>&author=<author> (the Add to Kinwall Shortcut, when Open Library had no
+  // one clear match): the Add a book sheet with what was shared, to look it up and pick.
+  const [linkedAdd, setLinkedAdd] = useState<{ title: string; author: string; pages: null; coverUrl: null } | null>(null)
+  useEffect(() => {
+    const q = hashQuery(location.hash)
+    const title = q.get('add')
+    if (!title) return
+    history.replaceState(null, '', hashPath(location.hash))
+    setLinkedAdd({ title, author: q.get('author') ?? '', pages: null, coverUrl: null })
+  }, [])
   useEffect(() => {
     const id = hashQuery(location.hash).get('book')
     if (!all || !id) return
@@ -231,6 +241,7 @@ export default function Library({ bar, adding, onAdded, onStarted }: {
       {open && <BookSheet book={open} members={kid ? members.filter(m => m.id === kid) : members} canRemove={parentDevice} places={places} sources={sources} today={today} onClose={() => setOpen(null)}
         onSaved={b => { setOpen(b); load() }} onChanged={() => { setOpen(null); load() }} onStarted={() => { setOpen(null); load(); onStarted() }} />}
       {adding && <AddBookSheet places={places} sources={sources} today={today} onClose={onAdded} onAdded={() => { onAdded(); load() }} />}
+      {linkedAdd && <AddBookSheet places={places} sources={sources} today={today} from={linkedAdd} onClose={() => setLinkedAdd(null)} onAdded={() => { setLinkedAdd(null); load() }} />}
     </div>
   )
 }

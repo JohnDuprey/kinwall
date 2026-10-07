@@ -62,6 +62,7 @@ import { securityEventsRoutes } from './routes/security-events.ts';
 import { newscastRoutes } from './routes/newscast.ts';
 import { pollsRoutes } from './routes/polls.ts';
 import { mediaRoutes } from './routes/media.ts';
+import { shareRoutes } from './routes/share.ts';
 import { handleMcp } from './mcp.ts';
 
 // Keep in sync with web/public/_headers (Workers serves the UI with that file; Node/Docker with this).
@@ -189,6 +190,7 @@ export function createApp() {
   app.route('/', liveActivitiesRoutes);
   app.route('/', pushRoutes);
   app.route('/', dataRoutes);
+  app.route('/', shareRoutes(app)); // the "Add to Kinwall" Shortcut; adds books through POST /api/library
 
   // MCP endpoint: stateless Streamable HTTP (see src/mcp.ts). Not under /api/* - it does its
   // own auth (same bearer keys) and every tool re-enters the REST routes via app.request().

@@ -144,6 +144,8 @@ The first line is the name. A line that says **Ingredients** starts the ingredie
 
 ### Sharing from your phone
 
+To save a recipe straight from the share sheet without checking it first, use the [Add to Kinwall](share-to-kinwall.md) shortcut.
+
 In the Kinwall app for iPhone and Android, share a recipe page to Kinwall: in Safari or Chrome (or any app with a Share button), tap **Share** and pick **Kinwall**. The app opens the import sheet with the link filled in and reads it straight away. On the iPhone, if Kinwall isn't in the share sheet's row of apps, tap **More** and turn it on.
 
 Any browser can do the same with a link to `#/recipes/import?url=<the page address, URL-encoded>` on your Kinwall address. Importing is for parents' devices: on a wall screen or a child's device the sheet says **Ask a grown-up to import this recipe**.
@@ -194,6 +196,8 @@ The items are added below the ones you have, so you can check and fix them befor
 Type or paste the restaurant's address in **Website** and tap **Fill in from website**. Kinwall reads the details the site publishes for search engines (its name, cuisine, phone, address and menu link) and fills in whichever of those are still empty, for you to check. Nothing is saved until you tap **Save restaurant**, and nothing you typed is changed. Not every site publishes these details; when one doesn't, Kinwall says so and you fill them in by hand. An Apple Maps link works too: Kinwall takes the place's name and address from the link.
 
 ### Add restaurants from your iPhone
+
+The [Add to Kinwall](share-to-kinwall.md) shortcut does all of this and more (recipes, books and events) in one shortcut. The restaurant-only shortcut below still works.
 
 An **Add to Kinwall** shortcut in the Shortcuts app adds a place from the share sheet: a photo of a paper menu, a place in Apple Maps, or the restaurant's website. It sends whatever it has to Kinwall, which:
 

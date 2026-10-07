@@ -23,6 +23,7 @@ import Board from './Board.tsx'
 import { BoardLayoutPicker } from './BoardEditor.tsx'
 import SnapshotSheet from './Snapshot.tsx'
 import { hashQuery } from './hashQuery.ts'
+import { eventDraft } from './eventDraft.ts'
 import { PollSheet, PollsButton } from './Polls.tsx'
 import { PriorityBadge } from './PriorityBadge.tsx'
 import { isSingleEmoji } from './emoji.ts'
@@ -120,7 +121,8 @@ export default function CalendarView() {
   const [detail, setDetail] = useState<EventInstance | null>(null)
   const [editState, setEditState] = useState<{ event: EventInstance | null; prefill?: Partial<EventInstance> } | null>(null)
 
-  useEffect(() => { api.getCalendars().then(setCalendars).catch(() => {}) }, [refreshTick]) // refreshed, so a repaired calendar's warning goes away
+  const [calendarsLoaded, setCalendarsLoaded] = useState(false)
+  useEffect(() => { api.getCalendars().then(setCalendars).catch(() => {}).finally(() => setCalendarsLoaded(true)) }, [refreshTick]) // refreshed, so a repaired calendar's warning goes away
   // Which calendars this device may add to / change (the server decides: canEditEvents). A kid's
   // device (pinned to a member) gets only calendars that are for them; with none, adding gives way
   // to a hint. Other devices can still start a Kinwall-only calendar when there's no local one.
@@ -201,6 +203,26 @@ export default function CalendarView() {
     window.addEventListener('hashchange', read)
     return () => window.removeEventListener('hashchange', read)
   }, [])
+  // #/calendar?draft=event&… (the "Add to Kinwall" Shortcut, eventDraft.ts): the new event sheet, filled
+  // in for a parent to check and save, once the calendars are in (the sheet picks one as it opens).
+  const [draft, setDraft] = useState<Partial<EventInstance> | null>(null)
+  useEffect(() => {
+    const read = () => {
+      const found = location.hash.startsWith('#/calendar') ? eventDraft(hashQuery(location.hash), format(new Date(), 'yyyy-MM-dd')) : null
+      if (!found) return
+      setDraft(found)
+      history.replaceState(null, '', '#/calendar')
+    }
+    read()
+    window.addEventListener('hashchange', read)
+    return () => window.removeEventListener('hashchange', read)
+  }, [])
+  useEffect(() => {
+    if (!draft || !calendarsLoaded) return
+    setDraft(null)
+    if (parentDevice && canAdd) setEditState({ event: null, prefill: draft })
+    else toast("Open this link on a parent's phone to add the event", true)
+  }, [draft, calendarsLoaded, parentDevice, canAdd, toast])
   // #/calendar?checkin=<member> (the check-in widget): their day, at the check-in. Only for someone this
   // device could tap in the header (a display pinned to one person: just them); anyone else, just the calendar.
   const [checkIn, setCheckIn] = useState<string | null>(null)

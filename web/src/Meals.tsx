@@ -59,6 +59,7 @@ export default function Meals() {
   const [pendingMeal, setPendingMeal] = useState<string | null>(null)
   const [pendingOrders, setPendingOrders] = useState(false) // #/meals?meal=<id>&orders=1: "Ask for orders" opens the order sheet
   const [pendingRecipe, setPendingRecipe] = useState<string | null>(null) // #/meals?recipe=<id> (Spotlight, Siri)
+  const [pendingPlace, setPendingPlace] = useState<string | null>(null) // #/meals?restaurant=<id> (the Add to Kinwall Shortcut)
   const admin = me?.scope === 'admin'
   // An open family poll about a meal shows in its cell (polls off: none come back).
   const polls = usePolls('open')
@@ -73,6 +74,7 @@ export default function Meals() {
       if (date && /^\d{4}-\d{2}-\d{2}$/.test(date) && !Number.isNaN(Date.parse(date))) setAnchor(date)
       if (query.get('meal')) { setPendingMeal(query.get('meal')); setPendingOrders(query.get('orders') === '1'); setView('week') }
       if (query.get('recipe')) setPendingRecipe(query.get('recipe'))
+      if (query.get('restaurant')) setPendingPlace(query.get('restaurant'))
       if (query.toString()) history.replaceState(null, '', '#/meals')
     }
     read(); window.addEventListener('hashchange', read)
@@ -105,6 +107,12 @@ export default function Meals() {
     if (recipe) { setView('recipes'); setRecipeSheet({ recipe }) }
     setPendingRecipe(null)
   }, [pendingRecipe, recipesLoaded, recipes])
+  useEffect(() => {
+    if (!pendingPlace || !restaurantsLoaded) return
+    const restaurant = restaurants.find(r => r.id === pendingPlace)
+    if (restaurant) { setView('restaurants'); setPlace({ restaurant, editing: false }) }
+    setPendingPlace(null)
+  }, [pendingPlace, restaurantsLoaded, restaurants])
   const saved = () => { setEditing(null); setOpenMeal(null); setPendingMeal(null); setRecipeSheet(null); setTick(t => t + 1); reloadCore() }
   const meals = data?.from === from && data.to === to ? data.meals : null
   const mealError = data?.from === from && data.to === to ? data.error : undefined
