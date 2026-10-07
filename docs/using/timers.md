@@ -16,6 +16,7 @@ A red banner flashes across the top of the screen, over whatever is showing (the
 
 * If you've switched to another tab or app and the browser already has permission to show Kinwall's notifications, you also get a "Time's up" notification.
 * Browsers only play sound after a tap. After Kinwall reloads (an update, say), the first tap anywhere turns the sound back on. Until then, a timer that's up shows its banner without the beep.
+* Kinwall holds the device's audio only while it beeps, so having timers doesn't pause music on your other devices or pull your AirPods over.
 * In the Kinwall app for iPhone, the soonest timer is also a Live Activity on the Lock Screen and in the Dynamic Island, and it rings with the phone locked.
 
 ## Good to know

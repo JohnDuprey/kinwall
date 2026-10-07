@@ -1,7 +1,7 @@
 // node --test test/ (npm test). Kinwall.speak for plugins: the app's voice (Android) or the browser's.
 import { test, mock } from 'node:test'
 import assert from 'node:assert/strict'
-import { canSpeak, speak, stopSpeaking } from '../src/pluginSpeech.ts'
+import { canSpeak, inActivity, speak, stopSpeaking } from '../src/pluginSpeech.ts'
 
 const g = globalThis as { window?: unknown; SpeechSynthesisUtterance?: unknown }
 const settled = (p: Promise<unknown>) => Promise.race([p.then(() => true), new Promise(r => setImmediate(() => r(false)))])
@@ -84,4 +84,14 @@ test('in a browser: its speechSynthesis, newest wins', async () => {
   said[1].onend!()
   assert.equal(await settled(second), true)
   assert.equal(cancels, 2)
+})
+
+test('inActivity: only taps that open or are inside an activity plugin unlock speech', () => {
+  const at = (href: string | null) => ({ closest: () => (href === null ? null : { getAttribute: () => href }) })
+  assert.equal(inActivity('#/board', at(null)), false)
+  assert.equal(inActivity('#/board', at('#/calendar')), false)
+  assert.equal(inActivity('#/activities', at(null)), false) // the Activities tab itself
+  assert.equal(inActivity('#/activities', at('#/activities/plugin/spelling')), true) // its card
+  assert.equal(inActivity('#/activities/plugin/spelling?member=a', at(null)), true) // a chore's Play, the picker
+  assert.equal(inActivity('#/board', null), false)
 })

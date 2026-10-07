@@ -25,10 +25,13 @@ export function useNow(on: boolean) {
 }
 
 // Browsers only allow sound after a tap: a timer's Start opens it, or (after a reload with timers
-// running) the first tap anywhere.
+// running) the first tap anywhere. It's started inside the tap (that's what allows it) and suspended as
+// soon as it has: a running AudioContext holds the iPhone's audio (AirPods switch to it, music
+// elsewhere pauses), so it runs only while a beep plays.
 let audio: AudioContext | null = null
+let quiet: ReturnType<typeof setTimeout> | undefined
 function unlockSound() {
-  try { audio ??= new AudioContext(); void audio.resume() } catch { /* no Web Audio: banner and vibration only */ }
+  try { audio ??= new AudioContext(); void audio.resume().then(() => { if (!quiet) return audio?.suspend() }).catch(() => {}) } catch { /* no Web Audio: banner and vibration only */ }
 }
 function beep() {
   if (!audio) return
@@ -39,6 +42,8 @@ function beep() {
     gain.gain.setValueAtTime(0.0001, t); gain.gain.exponentialRampToValueAtTime(0.3, t + 0.02); gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.25)
     osc.connect(gain).connect(audio.destination); osc.start(t); osc.stop(t + 0.3)
   }
+  clearTimeout(quiet)
+  quiet = setTimeout(() => { quiet = undefined; void audio?.suspend() }, 1500)
 }
 
 /** Starts a timer from a tap (so it can beep) and says so. */

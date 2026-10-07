@@ -9,17 +9,25 @@ const MAX_TEXT = 500
 const webSpeech = () => (typeof window !== 'undefined' && 'speechSynthesis' in window ? window.speechSynthesis : undefined)
 
 // Safari speaks only after speech has started inside a tap on this page, and a plugin's request comes
-// in a message, not a tap (taps inside the plugin's frame don't count for this page). So the first tap
-// or key on Kinwall (opening Activities, picking who's playing) starts a silent utterance to unlock it.
+// in a message, not a tap (taps inside the plugin's frame don't count for this page). So a tap that
+// opens an activity (its card, a chore's Play) or picks who's playing starts a silent utterance to
+// unlock it. Only then: speech claims the iPhone's audio (AirPods switch over, music elsewhere pauses),
+// so ordinary taps around Kinwall never do.
+/** Whether this tap starts or is inside an activity plugin: `hash` is read after the tap's own handlers ran. */
+export function inActivity(hash: string, target: unknown): boolean {
+  const link = (target as Element | null)?.closest?.('a[href]')?.getAttribute('href') ?? ''
+  return [hash, link].some(h => h.startsWith('#/activities/plugin/'))
+}
 if (typeof window !== 'undefined' && webSpeech() && typeof SpeechSynthesisUtterance !== 'undefined') {
-  const unlock = () => {
-    removeEventListener('pointerdown', unlock, true); removeEventListener('keydown', unlock, true)
-    if (appSpeech()) return
+  const unlock = (e: Event) => {
+    if (appSpeech() || !inActivity(location.hash, e.target)) return
+    removeEventListener('click', unlock); removeEventListener('keydown', unlock)
     const u = new SpeechSynthesisUtterance(' ')
     u.volume = 0
     webSpeech()?.speak(u)
   }
-  addEventListener('pointerdown', unlock, true); addEventListener('keydown', unlock, true)
+  // Bubbling click: after a handler like a chore's Play has set the hash.
+  addEventListener('click', unlock); addEventListener('keydown', unlock)
 }
 
 /** Whether Kinwall can speak for a plugin here: the app's voice, or this browser's. */
