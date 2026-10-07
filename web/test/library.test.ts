@@ -1,7 +1,8 @@
 // node --test test/ (npm test). The family library's labels and the bulk scanner's book check.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { listenLabel, openLibraryUrl, ratingLabel, readingLevel, seriesLabel, wantOnly, addDayKeys, bookDetails, bookLean, clothColor, dueLabel, dueTag, existingRead, isbnFromScan, isOverdue, lentLabel, pickBook } from '../src/library.ts'
+import { listenLabel, openLibraryUrl, ratingLabel, readingLevel, seriesLabel, wantOnly, addDayKeys, bookDetails, bookLean, clothColor, dueLabel, dueTag, existingRead, isbnFromScan, isOverdue, lentLabel, pickBook, STATUS_LABEL } from '../src/library.ts'
+import { STATUS_EMOJI, STATUS_WORDS } from '../src/reading.ts'
 
 test('isbnFromScan: book barcodes (978/979, or ISBN-10) only', () => {
   assert.equal(isbnFromScan('9780440414803'), '9780440414803')
@@ -157,7 +158,7 @@ test('book sheet details: reading level band, series, audiobook, ratings, Open L
   assert.equal(seriesLabel({ series: 'Warriors: Power of Three', seriesNumber: '2' }), 'Warriors: Power of Three #2')
   assert.equal(seriesLabel({ series: null, seriesNumber: '2' }), null)
   const reader = { entryId: 'e1', memberId: 'm3', status: 'reading' as const }
-  assert.equal(listenLabel({ format: 'audiobook', readers: [reader, { ...reader, narrator: 'Nora Bell', totalMinutes: 629 }] }), '🎧 Audiobook · read by Nora Bell · 10 hr 29 min')
+  assert.equal(listenLabel({ format: 'audiobook', readers: [reader, { ...reader, narrator: 'Nora Bell', totalMinutes: 629 }] }), '🎧 Audiobook · read by Nora Bell · 10h 29m')
   assert.equal(listenLabel({ format: 'audiobook', readers: [] }), '🎧 Audiobook')
   assert.equal(listenLabel({ format: 'book', readers: [{ ...reader, narrator: 'Nora Bell' }] }), null)
   assert.equal(ratingLabel({ ratingsAverage: 4.18, ratingsCount: 1210 }), '★ 4.2 · 1,210 ratings')
@@ -187,4 +188,10 @@ test('audiobooks: the Format filter, Libro.fm link and listening progress', asyn
   assert.deepEqual(listening({ readers: [r('sam', 'finished'), r('maya', 'reading', { minutesListened: 90, totalMinutes: 360, narrator: 'Nora Bell' })] }), { memberId: 'maya', progress: 0.25 })
   assert.deepEqual(listening({ readers: [r('leo', 'reading')] }), { memberId: 'leo', progress: null })
   assert.equal(listening({ readers: [r('sam', 'want')] }), null)
+})
+
+test("the library's status filters use the Reading shelves' words and marks", () => {
+  for (const s of ['want', 'reading', 'finished'] as const) assert.equal(STATUS_LABEL[s], `${STATUS_EMOJI[s]} ${STATUS_WORDS[s]}`)
+  assert.equal(STATUS_LABEL.reading, '📖 Reading now')
+  assert.equal(STATUS_WORDS.want, 'Want to read')
 })

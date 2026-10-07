@@ -1,7 +1,7 @@
 // The family's library (Library.tsx): labels, and which scanned barcodes are books. Pure, so
 // web/test/library.test.ts covers it.
 import type { LibraryBook, LibraryFormat, ReadingData, TrackerEntry } from './types.ts'
-import { minutesLabel } from './meal-date.ts'
+import { hoursMinutes, STATUS_EMOJI, STATUS_WORDS } from './reading.ts'
 
 /** A scanned barcode as an ISBN when it's a book's: an EAN-13 starting 978/979 (Bookland), or an
  * ISBN-10. Anything else (a cereal box's UPC) is null. */
@@ -29,12 +29,12 @@ export function readingLevel(lexile: number | null | undefined): string | null {
 /** "Warriors #2", or null. */
 export const seriesLabel = (b: Pick<LibraryBook, 'series' | 'seriesNumber'>) => b.series ? `${b.series}${b.seriesNumber ? ` #${b.seriesNumber}` : ''}` : null
 
-/** An audiobook's "🎧 Audiobook · read by Nora Bell · 3 hr 45 min", from what its listeners' reading entries know; null for a book. */
+/** An audiobook's "🎧 Audiobook · read by Nora Bell · 3h 45m", from what its listeners' reading entries know; null for a book. */
 export function listenLabel(b: Pick<LibraryBook, 'format' | 'readers'>): string | null {
   if (b.format !== 'audiobook') return null
   const narrator = b.readers.find(r => r.narrator)?.narrator
   const minutes = b.readers.find(r => r.totalMinutes)?.totalMinutes
-  return ['🎧 Audiobook', narrator ? `read by ${narrator}` : '', minutes ? minutesLabel(minutes) : ''].filter(Boolean).join(' · ')
+  return ['🎧 Audiobook', narrator ? `read by ${narrator}` : '', minutes ? hoursMinutes(minutes) : ''].filter(Boolean).join(' · ')
 }
 
 /** "★ 4.2 · 210 ratings": Open Library readers', once enough have rated it to mean something. */
@@ -131,7 +131,7 @@ export interface LibraryFilters { show: LibraryStatus[]; places: string[]; who: 
 export const NO_FILTERS: LibraryFilters = { show: [], places: [], who: [], formats: [] }
 export const FORMAT_LABEL: Record<LibraryFormat, string> = { book: '📚 Books', audiobook: '🎧 Audiobooks' }
 export const STATUS_LABEL: Record<LibraryStatus, string> = {
-  unread: 'Not read yet', reading: '📖 Reading now', want: '🔖 Want to read', finished: '📗 Finished',
+  unread: 'Not read yet', reading: `${STATUS_EMOJI.reading} ${STATUS_WORDS.reading}`, want: `${STATUS_EMOJI.want} ${STATUS_WORDS.want}`, finished: `${STATUS_EMOJI.finished} ${STATUS_WORDS.finished}`,
   lent: '🤝 Lent out', borrowed: '📅 Borrowed', returned: '↩️ Returned', wishlist: '⭐ Wishlist',
 }
 type Filterable = Pick<LibraryBook, 'format' | 'readers' | 'wanted' | 'returnedOn' | 'borrowedFrom' | 'dueOn' | 'lentTo' | 'location'>

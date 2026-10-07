@@ -19,6 +19,9 @@ import { todayKeyInTz } from './date.ts'
 import type { BookResult, LibraryBook, Member, ReadingData, ReadingStatus } from './types.ts'
 import { ChipFace } from './Face'
 import LibraryShelf from './LibraryShelf.tsx'
+import BookCover from './BookCover.tsx'
+import { hashPath, hashQuery } from './hashQuery.ts'
+import { STATUS_EMOJI } from './reading.ts'
 
 const STATUS_WORD: Record<ReadingStatus, string> = { want: 'wants to read', reading: 'reading', finished: 'read' }
 const LISTEN_WORD: Record<ReadingStatus, string> = { want: 'wants to listen', reading: 'listening', finished: 'listened' }
@@ -63,6 +66,16 @@ export default function Library({ adding, onAdded, onStarted }: {
   }).catch(e => { setAll([]); toast(msg(e, "Couldn't load the library"), true) })
   useEffect(() => { const t = setTimeout(load, q ? 250 : 0); return () => clearTimeout(t) }, [q, need.returned, need.wanted, refreshTick]) // eslint-disable-line react-hooks/exhaustive-deps
   const books = all && filterLibrary(all, filters)
+  // #/trackers/library?book=<id> (a Reading entry's "Open in the library"): that book's sheet once the
+  // library is in, looking among returned and wishlist books too; an unknown id just shows the library.
+  useEffect(() => {
+    const id = hashQuery(location.hash).get('book')
+    if (!all || !id) return
+    history.replaceState(null, '', hashPath(location.hash))
+    const b = all.find(x => x.id === id)
+    if (b) setOpen(b)
+    else Promise.all([{ returned: true }, { wanted: true }].map(f => api.getLibrary(f))).then(l => { const f = l.flat().find(x => x.id === id); if (f) setOpen(f) }).catch(() => {})
+  }, [all])
 
   // Scan books one after another: each barcode adds its book (looked up by ISBN), then a pause
   // (SCAN_PAUSE_MS) to see what was added and reach for the next book before the camera opens again;
@@ -165,20 +178,22 @@ export default function Library({ adding, onAdded, onStarted }: {
               const cover = api.libraryCoverUrl(b)
               const details = bookDetails(b)
               const due = dueLabel(b, today)
+              const audio = isAudio(b)
+              const narrator = audio ? b.readers.find(r => r.narrator)?.narrator : null
               return (
                 <li key={b.id}>
-                  <button type="button" className="lib-book" onClick={() => setOpen(b)} aria-label={`${b.title}${b.author ? ` by ${b.author}` : ''}${b.readers.length ? '' : ', not read yet'}. Details`}>
-                    {cover ? <img className={`lib-cover ${isAudio(b) ? 'lib-cover-square' : ''}`} src={cover} alt="" loading="lazy" onError={e => { e.currentTarget.hidden = true }} /> : <span className={`lib-cover lib-cover-blank ${isAudio(b) ? 'lib-cover-square' : ''}`} aria-hidden="true">{isAudio(b) ? '🎧' : '📖'}</span>}
+                  <button type="button" className="lib-book" onClick={() => setOpen(b)} aria-label={`${b.title}${audio ? ', audiobook' : ''}${b.author ? ` by ${b.author}` : ''}${b.readers.length ? '' : ', not read yet'}. Details`}>
+                    <BookCover className="lib-cover" src={cover} title={b.title} audio={audio} />
                     <span className="lib-book-text">
-                      <span className="lib-book-title">{b.title}</span>
-                      {b.author && <span className="trk-sub">{b.author}</span>}
-                      {isAudio(b) && <span className="trk-sub lib-format">🎧 Audiobook</span>}
+                      {/* An audiobook as on the Reading shelves: 🎧 before the title, then who reads it. */}
+                      <span className="lib-book-title">{audio && <span aria-hidden="true">🎧 </span>}{b.title}</span>
+                      {(b.author || narrator) && <span className="trk-sub">{[b.author, narrator ? `read by ${narrator}` : ''].filter(Boolean).join(' · ')}</span>}
                       {details && <span className="trk-sub">{details}</span>}
                       {!!b.genres.length && <span className="trk-sub lib-genres">{b.genres.join(' · ')}</span>}
                       {b.borrowedFrom && <span className={`trk-sub lib-where ${isOverdue(b, today) ? 'lib-overdue' : ''}`}>{[`📅 ${due ?? 'Borrowed'}`, `from ${b.borrowedFrom}`].join(' · ')}</span>}
                       {(b.location || b.lentTo) && <span className="trk-sub lib-where">{[b.lentTo ? `🤝 ${lentLabel(b, today)}` : '', b.location ? `📍 ${b.location}` : ''].filter(Boolean).join(' · ')}</span>}
                       <span className="lib-readers">{b.readers.length
-                        ? [...new Map(b.readers.map(r => [r.memberId, r])).values()].slice(0, 4).map(r => { const m = people.find(x => x.id === r.memberId); return <span key={r.entryId} className="chip-static" title={`${m?.name ?? 'Family'} ${STATUS_WORD[r.status]}`}>{m?.avatar ?? '🏠'} {r.status === 'finished' ? '✓' : r.status === 'reading' ? '📖' : '⭐'}</span> })
+                        ? [...new Map(b.readers.map(r => [r.memberId, r])).values()].slice(0, 4).map(r => { const m = people.find(x => x.id === r.memberId); return <span key={r.entryId} className="chip-static" title={`${m?.name ?? 'Family'} ${STATUS_WORD[r.status]}`}>{m?.avatar ?? '🏠'} {STATUS_EMOJI[r.status]}</span> })
                         : <span className="trk-tag">{b.wanted ? '⭐ Wishlist' : 'Not read yet'}</span>}</span>
                     </span>
                   </button>
@@ -257,7 +272,7 @@ function BookSheet({ book, members, canRemove, places, sources, today, onClose, 
   return (
     <Sheet title={book.title} onClose={onClose} actions={<button className="btn btn-primary" onClick={onClose}>Done</button>}>
       <div className="lib-detail">
-        {cover && <img className={`lib-detail-cover ${audio ? 'lib-cover-square' : ''}`} src={cover} alt="" onError={e => { e.currentTarget.hidden = true }} />}
+        <BookCover className="lib-detail-cover" src={cover} title={book.title} audio={audio} />
         <div className="lib-detail-text">
           {book.author && <div className="lib-detail-author">{book.author}</div>}
           {series && <div className="lib-detail-series">📚 {series}</div>}
@@ -327,7 +342,7 @@ function BookSheet({ book, members, canRemove, places, sources, today, onClose, 
         <label id="lib-readers">{audio ? 'Listened to by' : 'Read by'}</label>
         {book.readers.length ? (
           <ul className="lib-reader-list" aria-labelledby="lib-readers">
-            {book.readers.map(r => { const m = everyone.find(x => x.id === r.memberId); return <li key={r.entryId}>{m?.avatar ?? '🏠'} {m?.name ?? 'Family'} <span className="trk-sub">{(audio ? LISTEN_WORD : STATUS_WORD)[r.status]}</span></li> })}
+            {book.readers.map(r => { const m = everyone.find(x => x.id === r.memberId); return <li key={r.entryId}>{m?.avatar ?? '🏠'} {m?.name ?? 'Family'} <span className="trk-sub">{STATUS_EMOJI[r.status]} {(audio ? LISTEN_WORD : STATUS_WORD)[r.status]}</span></li> })}
           </ul>
         ) : <p className="trk-sub">Nobody yet.</p>}
       </div>

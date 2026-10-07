@@ -17,26 +17,27 @@ import { useIsPhone } from './useIsPhone.ts'
 import Sheet from './Sheet.tsx'
 import { preparePhoto, PhotoFormatError } from './photos.ts'
 import type { HealthData, HealthType, Member, MemoryData, Photo, ReadingData, ReadingFormat, ReadingStatus, TrackerEntry, TrackerInput, TrackerKind } from './types.ts'
-import { dayAmount, FINISHED_SHOWN, hoursMinutes, shelfBooks, isAudiobook, left, recentDays, logReachesEnd, readingPercent, shelfLine, shelfTotals, splitMinutes, toMinutes } from './reading.ts'
+import { dayAmount, FINISHED_SHOWN, STATUS_EMOJI, STATUS_WORDS, hoursMinutes, shelfBooks, isAudiobook, left, recentDays, logReachesEnd, readingPercent, shelfLine, shelfTotals, splitMinutes, toMinutes } from './reading.ts'
 import { trackerKinds } from './types.ts'
 import { MedicineList } from './MedicationSettings.tsx'
 import PickField from './PickField.tsx'
 import { forPerson, HEALTH_PERSON_KEY, personIn, startPerson } from './trackerPerson.ts'
 import { Face, ChipFace } from './Face'
+import BookCover from './BookCover.tsx'
 
 // ponytail: TABS, SUB_TO_KIND and trackerKinds() (types.ts, for App's nav) list the kinds in the same order.
 // The views, like the home page's: tabs where they fit, one button and a sheet on a phone (TrackerViewPicker).
 // The library comes with Reading: the family's books, apart from who's reading what (Library.tsx).
 type TrackerView = TrackerKind | 'library'
 const TABS: { key: TrackerView; label: string; emoji: string; hint: string }[] = [
-  { key: 'reading', label: 'Reading', emoji: '📚', hint: "Who's reading what, and how far along" },
-  { key: 'library', label: 'Library', emoji: '📖', hint: 'The books your family owns, and who has them' },
+  { key: 'reading', label: 'Reading', emoji: '📖', hint: "Who's reading what, and how far along" },
+  { key: 'library', label: 'Library', emoji: '📚', hint: 'The books your family owns, and who has them' },
   { key: 'memory', label: 'Memories', emoji: '📝', hint: 'A family journal, a moment a day' },
   { key: 'health', label: 'Health', emoji: '🩺', hint: 'Checkups, visits and medicines' },
 ]
 const SUB_TO_VIEW: Record<string, TrackerView> = { reading: 'reading', library: 'library', memories: 'memory', health: 'health' }
 const VIEW_TO_SUB: Record<TrackerView, string> = { reading: 'reading', library: 'library', memory: 'memories', health: 'health' }
-const STATUS: { key: ReadingStatus; label: string }[] = [{ key: 'want', label: 'Want to read' }, { key: 'reading', label: 'Reading' }, { key: 'finished', label: 'Finished' }]
+const STATUS = (['want', 'reading', 'finished'] as ReadingStatus[]).map(key => ({ key, label: STATUS_WORDS[key] }))
 const HEALTH_TYPES: { key: HealthType; label: string; emoji: string }[] = [
   { key: 'checkup', label: 'Checkup', emoji: '🩺' }, { key: 'dentist', label: 'Dentist', emoji: '🦷' }, { key: 'specialist', label: 'Specialist', emoji: '👩‍⚕️' },
   { key: 'vaccine', label: 'Vaccine', emoji: '💉' }, { key: 'sick', label: 'Sick visit', emoji: '🤒' }, { key: 'other', label: 'Other', emoji: '📋' },
@@ -218,13 +219,13 @@ function Reading({ entries, people, canEdit, onEdit, onSave }: {
               const progress = left(d)
               return (
                 <li key={b.id} className={`trk-book trk-book-${d.status}`}>
-                  <button className={`trk-book-main${d.coverUrl ? ' trk-book-with-cover' : ''}`} onClick={() => onEdit(b)} aria-label={`${b.title}${audio ? ', audiobook' : ''}, ${STATUS.find(s => s.key === d.status)?.label}${progress && d.status === 'reading' ? `, ${progress}` : ''}. Edit`}>
-                    {d.coverUrl && <img className="trk-cover" src={api.trackerCoverUrl(b) ?? undefined} alt="" loading="lazy" onError={e => { e.currentTarget.hidden = true }} />}
+                  <button className="trk-book-main trk-book-row" onClick={() => onEdit(b)} aria-label={`${b.title}${audio ? ', audiobook' : ''}, ${STATUS_WORDS[d.status]}${progress && d.status === 'reading' ? `, ${progress}` : ''}. Edit`}>
+                    <BookCover className="trk-cover" src={d.coverUrl ? api.trackerCoverUrl(b) : null} title={b.title ?? ''} audio={audio} />
                     <span className="trk-book-text">
                       <span className="trk-book-title">{audio && <span aria-hidden="true">🎧 </span>}{b.title}</span>
                       {(d.author || (audio && d.narrator)) && <span className="trk-sub">{[d.author, audio && d.narrator ? `read by ${d.narrator}` : ''].filter(Boolean).join(' · ')}</span>}
-                      {d.status === 'want' && <span className="trk-tag">Want to read</span>}
-                      {d.status === 'finished' && <span className="trk-sub">Finished {d.finishedOn ? niceDate(d.finishedOn) : ''}</span>}
+                      {d.status === 'want' && <span className="trk-tag">{STATUS_EMOJI.want} {STATUS_WORDS.want}</span>}
+                      {d.status === 'finished' && <span className="trk-sub">{STATUS_EMOJI.finished} {STATUS_WORDS.finished} {d.finishedOn ? niceDate(d.finishedOn) : ''}</span>}
                     </span>
                   </button>
                   {d.status === 'reading' && canEdit(b) && (
@@ -585,7 +586,7 @@ function EntrySheet({ kind, entry, date, admin, kid, photos, memberId, onClose, 
         <div className="field">
           <label htmlFor="trk-cover">Cover link</label>
           <div className="trk-cover-field">
-            {f.coverThumb && <img className="trk-cover" src={f.coverThumb} alt="" onError={e => { e.currentTarget.hidden = true }} />}
+            <BookCover className="trk-cover" src={f.coverThumb} title={f.title} audio={f.format === 'audiobook'} />
             <input id="trk-cover" type="url" inputMode="url" value={f.coverUrl} onChange={e => set({ coverUrl: e.target.value, coverThumb: null })} placeholder="https://…/cover.jpg" autoComplete="off" />
           </div>
         </div>
@@ -614,8 +615,8 @@ function EntrySheet({ kind, entry, date, admin, kid, photos, memberId, onClose, 
         <div className="field"><label htmlFor="trk-notes">Notes</label><textarea id="trk-notes" value={f.notes} onChange={e => set({ notes: e.target.value })} placeholder="Favorite part, who recommended it…" /></div>
         {entry && <div className="field">
           <label>Library</label>
-          {bookId ? <p className="trk-sub">📖 In the family's library. <a href="#/trackers/library" onClick={onClose}>Open the library</a></p>
-            : <><button type="button" className="btn btn-secondary" onClick={shelve}>📖 Save to library</button><p className="field-hint">Keep it with the books your family owns or has borrowed.</p></>}
+          {bookId ? <><a className="btn btn-secondary" href={`#/trackers/library?book=${encodeURIComponent(bookId)}`} onClick={onClose}>📚 Open in the library</a><p className="field-hint">It's in the family's library: where it lives, lending, who else read it.</p></>
+            : <><button type="button" className="btn btn-secondary" onClick={shelve}>📚 Save to library</button><p className="field-hint">Keep it with the books your family owns or has borrowed.</p></>}
         </div>}
       </>}
 

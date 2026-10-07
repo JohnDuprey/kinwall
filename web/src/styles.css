@@ -2918,9 +2918,14 @@ button.plugin-chore-chip { border: 0; font-family: inherit; min-height: 44px; } 
 .trk-book-main, .trk-memory, .trk-visit-main { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; min-height: 44px; padding: 4px 0; border: 0; background: none; color: var(--text); text-align: left; }
 .trk-book-title { font-weight: 800; font-size: 1rem; }
 .trk-book-text { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; }
-.trk-book-main.trk-book-with-cover { flex-direction: row; align-items: center; gap: 10px; }
-.trk-cover { flex: none; width: 40px; height: 60px; object-fit: cover; border-radius: 4px; background: var(--bg-alt); box-shadow: var(--shadow); }
-.trk-cover-blank { display: flex; align-items: center; justify-content: center; font-size: 1.2rem; box-shadow: none; }
+/* A book's cover (BookCover.tsx), the same in every list and sheet: 2:3, square for an audiobook; no
+   picture gets its cloth color (the one on the library's Covers shelf) and 📖 or 🎧. Sized by width. */
+.book-cover { flex: none; align-self: flex-start; height: auto; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 4px; background: var(--bg-alt); box-shadow: var(--shadow); }
+.book-cover-square { aspect-ratio: 1; }
+.book-cover-cloth { display: flex; align-items: center; justify-content: center; font-size: 1.1rem; }
+.trk-book-main.trk-book-row { flex-direction: row; align-items: center; gap: 10px; }
+.trk-book-row .book-cover, .trk-book-result .book-cover { align-self: center; }
+.trk-cover { width: 40px; }
 .lib-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
 .lib-search { flex: 1 1 220px; min-width: 0; min-height: 44px; }
 .lib-bar .chip, .lib-scan { flex: none; }
@@ -2930,16 +2935,14 @@ button.plugin-chore-chip { border: 0; font-family: inherit; min-height: 44px; } 
 .lib-active .chip.lib-active-chip { flex: none; padding: 6px 12px; border-width: 1px; font-size: 0.8125rem; } /* small, still 44px tall */
 .lib-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
 .lib-book { display: flex; gap: 12px; width: 100%; height: 100%; /* every card in a row as tall as the row */ min-height: 44px; padding: 10px; text-align: left; border: 0; border-radius: var(--radius); background: var(--card); color: var(--text); box-shadow: var(--shadow); }
-.lib-cover { flex: none; width: 52px; height: 78px; object-fit: cover; border-radius: 4px; background: var(--bg-alt); }
-.lib-cover.lib-cover-square { height: 52px; } /* an audiobook's square sleeve */
-.lib-cover-blank { display: flex; align-items: center; justify-content: center; font-size: 1.5rem; }
+.lib-cover { width: 52px; }
 .lib-book-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .lib-book-title { font-weight: 800; }
 .lib-genre-chips { margin-top: 6px; }
 .lib-readers { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
 .lib-detail { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 12px; }
-.lib-detail-cover { flex: none; width: 90px; height: 135px; object-fit: cover; border-radius: 6px; background: var(--bg-alt); box-shadow: var(--shadow); }
-.lib-detail-cover.lib-cover-square { width: 120px; height: 120px; }
+.lib-detail-cover { width: 90px; border-radius: 6px; font-size: 2rem; }
+.lib-detail-cover.book-cover-square { width: 120px; }
 .lib-detail-author { font-weight: 700; font-size: 1.05rem; }
 .lib-description { margin: 0 0 14px; line-height: 1.45; }
 .lib-description-clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; line-clamp: 4; overflow: hidden; margin-bottom: 4px; }

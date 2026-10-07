@@ -1,3 +1,4 @@
+import BookCover from './BookCover.tsx'
 import { useState } from 'react'
 import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
@@ -48,7 +49,7 @@ export default function BookLookup({ initial, onPick }: { initial: string; onPic
           return (
             <li key={i}>
               <button type="button" className="btn btn-secondary btn-block trk-book-result" onClick={() => { onPick(r); setOpen(false); setResults(null); announce(`Filled in ${r.title}`) }}>
-                {thumb ? <img className="trk-cover" src={thumb} alt="" loading="lazy" onError={e => { e.currentTarget.hidden = true }} /> : <span className="trk-cover trk-cover-blank" aria-hidden="true">📖</span>}
+                <BookCover className="trk-cover" src={thumb} title={r.title} />
                 <span className="trk-book-text">
                   <span className="trk-book-title">{r.title}</span>
                   <span className="trk-sub">{[r.author, r.year, r.pages ? `${r.pages} pages` : ''].filter(Boolean).join(' · ')}</span>

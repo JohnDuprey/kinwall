@@ -1,7 +1,11 @@
 // Books and audiobooks (Trackers.tsx, Snapshot.tsx): progress is pages for a book, minutes for an
 // audiobook; an entry without a format is a book. Pure, so web/test/reading.test.ts covers it.
 // server/src/reading.ts is the server's copy - keep in step.
-import type { ReadingData, ReadingDay } from './types.ts'
+import type { ReadingData, ReadingDay, ReadingStatus } from './types.ts'
+
+/** A reading status in words and its emoji, the same on the Reading shelves and in the library. */
+export const STATUS_WORDS: Record<ReadingStatus, string> = { want: 'Want to read', reading: 'Reading now', finished: 'Finished' }
+export const STATUS_EMOJI: Record<ReadingStatus, string> = { want: '🔖', reading: '📖', finished: '📗' }
 
 export const isAudiobook = (d: Pick<ReadingData, 'format'>) => d.format === 'audiobook'
 
