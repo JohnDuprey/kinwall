@@ -250,7 +250,7 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
   reset_activity_time: { chores: z.array(ActivityChoreProgressSchema) },
   get_activity_data: { data: z.record(z.string(), z.unknown()) },
   search_books: { books: z.array(BookResultSchema) },
-  list_library: { books: z.array(LibraryBookSchema) }, add_to_library: { book: LibraryBookSchema }, update_library_book: { book: LibraryBookSchema },
+  list_library: { books: z.array(LibraryBookSchema) }, add_to_library: { book: LibraryBookSchema }, update_library_book: { book: LibraryBookSchema }, refresh_library_book_details: { book: LibraryBookSchema },
   create_list: { list: ListSchema },
   update_list: { list: ListSchema },
   get_list: ListDetailSchema.shape,
@@ -300,7 +300,7 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
 
 const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boolean; idempotentHint: boolean; openWorldHint: boolean }> = {
   list_recipes: READ, get_recipe: READ, create_recipe: WRITE, update_recipe: SET, rate_recipe: SET, import_recipe: SET, import_recipe_from_url: { ...SET, openWorldHint: true }, list_meals: READ, create_meal: WRITE, update_meal: SET, get_meal_projection: READ, apply_meal_projection: SET,
-  get_household: READ, list_events: READ, get_event: READ, list_chores: READ, get_leaderboard: READ, get_points: READ, award_points: WRITE, delete_point_award: DELETE, get_member_profile: READ, list_lists: READ, get_list: READ, search_books: { ...READ, openWorldHint: true }, list_library: READ, add_to_library: { ...WRITE, openWorldHint: true }, update_library_book: SET, list_categories: READ, get_event_items: READ, list_notifications: READ, list_newscast: READ, list_notes: READ, get_snapshot: READ, get_board: READ, list_tracker_entries: READ, add_tracker_entry: WRITE, update_tracker_entry: SET, list_color_schemes: READ, set_color_scheme: SET, save_color_scheme: WRITE,
+  get_household: READ, list_events: READ, get_event: READ, list_chores: READ, get_leaderboard: READ, get_points: READ, award_points: WRITE, delete_point_award: DELETE, get_member_profile: READ, list_lists: READ, get_list: READ, search_books: { ...READ, openWorldHint: true }, list_library: READ, add_to_library: { ...WRITE, openWorldHint: true }, update_library_book: SET, refresh_library_book_details: { ...SET, openWorldHint: true }, list_categories: READ, get_event_items: READ, list_notifications: READ, list_newscast: READ, list_notes: READ, get_snapshot: READ, get_board: READ, list_tracker_entries: READ, add_tracker_entry: WRITE, update_tracker_entry: SET, list_color_schemes: READ, set_color_scheme: SET, save_color_scheme: WRITE,
   list_contacts: READ, get_contact: READ, list_contact_categories: READ, preview_contact_import: READ,
   delete_color_scheme: { ...WRITE, destructiveHint: true, idempotentHint: true },
   create_event: { ...WRITE, openWorldHint: true }, update_event: { ...SET, openWorldHint: true }, set_event_category: SET,
@@ -351,7 +351,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     'list_library',
     {
       title: 'List the library',
-      description: "The family's library: books they own (apart from who's reading what), A-Z, each with author, series, reading level (lexile), genres, where it lives (location), who has it on loan (lentTo, lentOn), borrowed books (borrowedFrom, dueOn; returned ones are left out unless returned: true), the wishlist (wanted; left out unless wanted: true) , format (book or audiobook: each its own item, so a paper copy and an audiobook of one title are two) and readers (reading entries started from it: memberId and status; an audiobook's narrator, minutesListened and totalMinutes). q searches titles, authors, series, genres, locations, borrowers and lenders; unread: only books nobody has started; lent: only books on loan; borrowed: only borrowed books still out, soonest due first; returned: only borrowed books that went back; wanted: only the wishlist; location: one place; format: only books or only audiobooks. Start reading one with add_tracker_entry (kind reading, data.bookId = the book's id); if they're already tracking it (an unfinished reading entry with that title), set data.bookId on that entry with update_tracker_entry instead of adding another.",
+      description: "The family's library: books they own (apart from who's reading what), A-Z, each with author, series, reading level (lexile), genres, description, year, ISBN, Open Library's ratings and work (workKey), where it lives (location), who has it on loan (lentTo, lentOn), borrowed books (borrowedFrom, dueOn; returned ones are left out unless returned: true), the wishlist (wanted; left out unless wanted: true), format (book or audiobook: each its own item, so a paper copy and an audiobook of one title are two) and readers (reading entries started from it: memberId and status; an audiobook's narrator, minutesListened and totalMinutes). q searches titles, authors, series, genres, locations, borrowers and lenders; unread: only books nobody has started; lent: only books on loan; borrowed: only borrowed books still out, soonest due first; returned: only borrowed books that went back; wanted: only the wishlist; location: one place; format: only books or only audiobooks. Start reading one with add_tracker_entry (kind reading, data.bookId = the book's id); if they're already tracking it (an unfinished reading entry with that title), set data.bookId on that entry with update_tracker_entry instead of adding another.",
       inputSchema: {
         q: z.string().max(100).optional(), format: z.enum(['book', 'audiobook']).optional().describe('Only books, or only audiobooks.'), unread: z.boolean().optional().describe('Only books nobody has started reading.'),
         lent: z.boolean().optional().describe('Only books lent out.'),
@@ -393,6 +393,28 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     },
   );
 
+  // A library book by id or title (returned and wishlist books too): its id (the given one when nothing matches) and the candidates.
+  const libraryBook = async (book: string) => {
+    const found = await Promise.all(['', '&returned=1', '&wanted=1'].map((more) => call(app, env, auth, 'GET', `/api/library?q=${encodeURIComponent(book)}${more}`)));
+    const books = found.flatMap((list) => (list.status < 400 ? list.json : []) as { id: string; title: string }[]);
+    const match = books.find((b) => b.id === book) ?? books.find((b) => b.title.toLowerCase() === book.trim().toLowerCase()) ?? (books.length === 1 ? books[0] : undefined);
+    return { id: match?.id ?? book, books };
+  };
+  tool(
+    'refresh_library_book_details',
+    {
+      title: "Look up a library book's details",
+      description: "Look a library book up on Open Library now, by its ISBN or else its title and author, and fill in what it's missing (description, year, series, genres, reading level, pages, cover, ISBN) plus Open Library's ratings. Never changes details a person set. Books are looked up on their own after they're added; use this when one still shows little. book is its id or title.",
+      inputSchema: { book: z.string().describe('Library book id or title.') },
+    },
+    async ({ book }) => {
+      const { id, books } = await libraryBook(book);
+      const res = await call(app, env, auth, 'POST', `/api/library/${encodeURIComponent(id)}/details`);
+      if (res.status >= 400) return errorResult(res.json, books.length > 1 ? `"${book}" matches several books: ${books.map((b) => b.title).join(', ')}` : 'book not found in the library');
+      const b = res.json as { title: string };
+      return okResult(`Looked up "${b.title}" on Open Library.`, { book: b as unknown as Record<string, unknown> });
+    },
+  );
   tool(
     'update_library_book',
     {
@@ -413,10 +435,7 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
       },
     },
     async ({ book, ...changes }) => {
-      const found = await Promise.all(['', '&returned=1', '&wanted=1'].map((more) => call(app, env, auth, 'GET', `/api/library?q=${encodeURIComponent(book)}${more}`))); // returned books too
-      const books = found.flatMap((list) => (list.status < 400 ? list.json : []) as { id: string; title: string }[]);
-      const match = books.find((b) => b.id === book) ?? books.find((b) => b.title.toLowerCase() === book.trim().toLowerCase()) ?? (books.length === 1 ? books[0] : undefined);
-      const id = match?.id ?? book;
+      const { id, books } = await libraryBook(book);
       const res = await call(app, env, auth, 'PATCH', `/api/library/${encodeURIComponent(id)}`, changes);
       if (res.status >= 400) return errorResult(res.json, books.length > 1 ? `"${book}" matches several books: ${books.map((b) => b.title).join(', ')}` : 'book not found in the library');
       const b = res.json as { title: string; lentTo: string | null; location: string | null; borrowedFrom: string | null; dueOn: string | null };

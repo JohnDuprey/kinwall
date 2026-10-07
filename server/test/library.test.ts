@@ -33,7 +33,7 @@ test('library: add, list by title, search, edit; the same ISBN twice is a 409 wi
   const added = await send('POST', '/api/library', holes);
   assert.equal(added.status, 201);
   const { id: _id, createdAt: _c, updatedAt: _u, addedBy: _a, ...fields } = added.body;
-  assert.deepEqual(fields, { ...holes, format: 'book', year: null, series: null, seriesNumber: null, lexile: null, description: null, genres: [], location: null, lentTo: null, lentOn: null, borrowedFrom: null, dueOn: null, returnedOn: null, wanted: false, readers: [] });
+  assert.deepEqual(fields, { ...holes, format: 'book', year: null, series: null, seriesNumber: null, lexile: null, description: null, genres: [], workKey: null, ratingsAverage: null, ratingsCount: null, lookedUpAt: null, location: null, lentTo: null, lentOn: null, borrowedFrom: null, dueOn: null, returnedOn: null, wanted: false, readers: [] });
   await send('POST', '/api/library', { title: "Charlotte's Web", author: 'E. B. White' });
   await send('POST', '/api/library', { title: 'Matilda', author: 'Roald Dahl' });
 
@@ -104,14 +104,16 @@ test('library: adding by ISBN alone looks the book up, details and description i
   const calls: string[] = [];
   globalThis.fetch = (async (input: string | URL | Request) => {
     const url = String(input instanceof Request ? input.url : input); calls.push(url);
-    if (url.includes('search.json')) return Response.json({ docs: [{ key: '/works/OL1W', title: 'Into the Wild', author_name: ['Erin Hunter'], number_of_pages_median: 272, cover_i: 9, first_publish_year: 2003, series_name: ['Warriors'], series_position: ['1'], lexile: [970], subject: ['Fantasy', 'Cats', 'Fiction'] }] });
+    if (url.includes('search.json')) return Response.json({ docs: [{ key: '/works/OL1W', title: 'Into the Wild', author_name: ['Erin Hunter'], number_of_pages_median: 272, cover_i: 9, first_publish_year: 2003, series_name: ['Warriors'], series_position: ['1'], lexile: [970], subject: ['Fantasy', 'Cats', 'Fiction'], ratings_average: 4.2345, ratings_count: 120 }] });
     if (url.includes('/works/OL1W.json')) return Response.json({ description: { value: 'Fire alone can save our Clan.' } });
     return new Response('?', { status: 404 });
   }) as typeof fetch;
   const book = await send('POST', '/api/library', { isbn: '9780060000028' });
   assert.equal(book.status, 201, JSON.stringify(book.body));
-  const { id: _i, createdAt: _c, updatedAt: _u, addedBy: _a, ...fields } = book.body;
+  const { id: _i, createdAt: _c, updatedAt: _u, addedBy: _a, lookedUpAt, ...fields } = book.body;
+  assert.ok(lookedUpAt, "looked up: the background lookup leaves it be");
   assert.deepEqual(fields, {
+    workKey: '/works/OL1W', ratingsAverage: 4.2, ratingsCount: 120,
     title: 'Into the Wild', format: 'book', author: 'Erin Hunter', isbn: '9780060000028', pages: 272, coverUrl: 'https://covers.openlibrary.org/b/id/9-M.jpg',
     year: 2003, series: 'Warriors', seriesNumber: '1', lexile: 970, description: 'Fire alone can save our Clan.', genres: ['Fantasy', 'Animals'], location: null, lentTo: null, lentOn: null, borrowedFrom: null, dueOn: null, returnedOn: null, wanted: false, readers: [],
   });

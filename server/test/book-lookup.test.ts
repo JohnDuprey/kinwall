@@ -126,7 +126,7 @@ test('genresFrom: a few clean genres out of Open Library\'s mixed subjects', asy
   const { genresFrom } = await import('../src/routes/books.ts');
   assert.deepEqual(genresFrom(['Kinderbuch ab 10 Jahren', 'Fantasy', 'Katzen', 'Cats', 'Fantasy Fiction', 'Feral Cats', 'Fiction']), ['Fantasy', 'Animals']);
   assert.deepEqual(genresFrom(['hard science-fiction', 'sci-fi', 'Fiction, science fiction, action & adventure', 'Astronauts']), ['Science fiction', 'Adventure']);
-  assert.deepEqual(genresFrom(['Detective and mystery stories', 'Humorous stories', 'Graphic novels', 'Fantasy']), ['Fantasy', 'Mystery', 'Humor'], 'priority order, three at most');
+  assert.deepEqual(genresFrom(['Detective and mystery stories', 'Humorous stories', 'Graphic novels', 'Fantasy', 'Poetry', 'Horror', 'Biography']), ['Fantasy', 'Mystery', 'Humor', 'Graphic novel', 'Poetry'], 'priority order, five at most');
   assert.deepEqual(genresFrom(['Fiction', 'Juvenile fiction', 'Open Library Staff Picks']), []);
   assert.deepEqual(genresFrom(undefined), []);
 });

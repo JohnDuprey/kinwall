@@ -33,6 +33,7 @@ import { fetchRecipeImage } from '../outbound.ts';
 import { isAudiobook, logReading, minutesOf, pagesOf, readingPercent, setLogDay, type ReadingProgress } from '../reading.ts';
 import { addDays } from './snapshot.ts';
 import { shelveReading } from '../shelve.ts';
+import { lookUpInBackground } from '../book-details.ts';
 import {
   ErrorSchema, ReadingSummarySchema, TRACKER_DATA, TrackerEntrySchema, TrackerInputSchema, TrackerKindSchema, TrackerPatchSchema,
 } from '../schemas.ts';
@@ -293,7 +294,7 @@ trackersRoutes.openapi(
     };
     const ok = await check(c, entry);
     if ('error' in ok) return c.json(ok, 400);
-    if (entry.kind === 'reading') entry.data = await shelveReading(c.env.DB, entry.title!, entry.memberId, entry.data as ReadingProgress); // every book is in the library
+    if (entry.kind === 'reading') entry.data = await shelveReading(c.env.DB, entry.title!, entry.memberId, entry.data as ReadingProgress, (id) => lookUpInBackground(c, id)); // every book is in the library
     const now = new Date().toISOString();
     const row: Row = {
       id: entry.id, kind: entry.kind, member_id: entry.memberId, former_member: null, date: body.date ?? today, title: entry.title,
@@ -413,7 +414,7 @@ trackersRoutes.openapi(
     if (notYours) return c.json({ error: notYours }, 403);
     const ok = await check(c, entry, row);
     if ('error' in ok) return c.json(ok, 400);
-    if (entry.kind === 'reading') entry.data = await shelveReading(c.env.DB, entry.title!, entry.memberId, entry.data as ReadingProgress);
+    if (entry.kind === 'reading') entry.data = await shelveReading(c.env.DB, entry.title!, entry.memberId, entry.data as ReadingProgress, (id) => lookUpInBackground(c, id));
     const updated: Row = {
       ...row, member_id: entry.memberId, former_member: body.memberId !== undefined ? null : row.former_member, // picking someone (or the family) settles a removed member's entry
       date: body.date ?? row.date, title: entry.title, photo_id: entry.photoId, photo_own: ok.own, data: JSON.stringify(entry.data), updated_at: new Date().toISOString(),

@@ -2940,7 +2940,7 @@ button.plugin-chore-chip { border: 0; font-family: inherit; min-height: 44px; } 
 .lib-detail-cover { flex: none; width: 90px; height: 135px; object-fit: cover; border-radius: 6px; background: var(--bg-alt); box-shadow: var(--shadow); }
 .lib-detail-author { font-weight: 700; font-size: 1.05rem; }
 .lib-description { margin: 0 0 14px; line-height: 1.45; }
-.lib-description-clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6; line-clamp: 6; overflow: hidden; margin-bottom: 4px; }
+.lib-description-clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; line-clamp: 4; overflow: hidden; margin-bottom: 4px; }
 .lib-more { margin-bottom: 14px; }
 .lib-lent { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .lib-back { flex: none; }
@@ -2949,7 +2949,12 @@ button.plugin-chore-chip { border: 0; font-family: inherit; min-height: 44px; } 
 .lib-overdue { color: var(--danger); font-weight: 700; }
 .board-book-due a { color: inherit; text-decoration: none; display: block; padding: 4px 0; }
 .lib-reader-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.lib-remove { flex: none; align-self: flex-start; margin-top: 8px; }
+.lib-detail-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.lib-detail-series { font-weight: 600; }
+.lib-detail-links { display: flex; flex-wrap: wrap; align-items: center; gap: 0 16px; margin: 0 0 8px; }
+.lib-detail-links a { display: inline-flex; align-items: center; min-height: 44px; }
+.lib-detail-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.lib-detail-actions .btn { flex: none; }
 
 /* The library's head row: the count, List | Covers, and (covers) Pick a book. */
 .lib-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 12px; }

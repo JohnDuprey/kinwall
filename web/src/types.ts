@@ -114,12 +114,15 @@ export interface ReadingData {
 export interface LibraryBook {
   id: string; title: string; author: string | null; isbn: string | null; pages: number | null; coverUrl: string | null
   year: number | null; series: string | null; seriesNumber: string | null; lexile: number | null; description: string | null; genres: string[]
+  workKey?: string | null; ratingsAverage?: number | null; ratingsCount?: number | null // from Open Library (looked up after it's added)
+  lookedUpAt?: string | null // when its details were last looked up, found or not
+  format?: 'book' | 'audiobook' // each its own item: a paper copy and an audiobook of one title are two
   location: string | null; lentTo: string | null; lentOn: string | null // where it lives; who has it on loan, since when
   wanted?: boolean // on the wishlist: wanted, not had yet
   borrowedFrom: string | null; dueOn: string | null; returnedOn: string | null // borrowed, not owned: who from, due back when; returned ones stay as history
-  addedBy: Actor | null; readers: { entryId: string; memberId: string | null; status: ReadingStatus }[]; createdAt: string; updatedAt: string
+  addedBy: Actor | null; readers: { entryId: string; memberId: string | null; status: ReadingStatus; narrator?: string | null; minutesListened?: number | null; totalMinutes?: number | null }[]; createdAt: string; updatedAt: string
 }
-export type LibraryBookInput = Partial<Omit<LibraryBook, 'id' | 'addedBy' | 'readers' | 'createdAt' | 'updatedAt'>> & { workKey?: string }
+export type LibraryBookInput = Partial<Omit<LibraryBook, 'id' | 'addedBy' | 'readers' | 'createdAt' | 'updatedAt' | 'workKey' | 'ratingsAverage' | 'ratingsCount' | 'lookedUpAt'>> & { workKey?: string }
 export interface ReadingDay { date: string; amount: number } // pages for a book, minutes for an audiobook
 /** A book lookup result (GET /api/books/search, from Open Library). */
 export interface BookResult {

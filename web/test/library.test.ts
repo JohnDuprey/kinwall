@@ -1,7 +1,7 @@
 // node --test test/ (npm test). The family library's labels and the bulk scanner's book check.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { wantOnly, addDayKeys, bookDetails, bookLean, clothColor, dueLabel, dueTag, existingRead, isbnFromScan, isOverdue, lentLabel, pickBook } from '../src/library.ts'
+import { listenLabel, openLibraryUrl, ratingLabel, readingLevel, seriesLabel, wantOnly, addDayKeys, bookDetails, bookLean, clothColor, dueLabel, dueTag, existingRead, isbnFromScan, isOverdue, lentLabel, pickBook } from '../src/library.ts'
 
 test('isbnFromScan: book barcodes (978/979, or ISBN-10) only', () => {
   assert.equal(isbnFromScan('9780440414803'), '9780440414803')
@@ -145,4 +145,24 @@ test('libraryNeeds: the extra lists the chosen filters reach', async () => {
   assert.deepEqual(libraryNeeds(NO_FILTERS), { returned: false, wanted: false })
   assert.deepEqual(libraryNeeds({ ...NO_FILTERS, show: ['returned', 'unread'] }), { returned: true, wanted: false })
   assert.deepEqual(libraryNeeds({ ...NO_FILTERS, show: ['wishlist'] }), { returned: false, wanted: true })
+})
+
+test('book sheet details: reading level band, series, audiobook, ratings, Open Library link', () => {
+  assert.equal(readingLevel(660), '660L · about grade 3')
+  assert.equal(readingLevel(840), '840L · about grades 4–5')
+  assert.equal(readingLevel(100), '100L · early reader')
+  assert.equal(readingLevel(-50), 'BR50L · early reader')
+  assert.equal(readingLevel(1500), '1500L · high school and up')
+  assert.equal(readingLevel(null), null)
+  assert.equal(seriesLabel({ series: 'Warriors: Power of Three', seriesNumber: '2' }), 'Warriors: Power of Three #2')
+  assert.equal(seriesLabel({ series: null, seriesNumber: '2' }), null)
+  const reader = { entryId: 'e1', memberId: 'm3', status: 'reading' as const }
+  assert.equal(listenLabel({ format: 'audiobook', readers: [reader, { ...reader, narrator: 'Nora Bell', totalMinutes: 629 }] }), '🎧 Audiobook · read by Nora Bell · 10 hr 29 min')
+  assert.equal(listenLabel({ format: 'audiobook', readers: [] }), '🎧 Audiobook')
+  assert.equal(listenLabel({ format: 'book', readers: [{ ...reader, narrator: 'Nora Bell' }] }), null)
+  assert.equal(ratingLabel({ ratingsAverage: 4.18, ratingsCount: 1210 }), '★ 4.2 · 1,210 ratings')
+  assert.equal(ratingLabel({ ratingsAverage: 5, ratingsCount: 2 }), null, 'too few to mean much')
+  assert.equal(openLibraryUrl({ workKey: '/works/OL5W', isbn: '9780440414803' }), 'https://openlibrary.org/works/OL5W')
+  assert.equal(openLibraryUrl({ workKey: null, isbn: '9780440414803' }), 'https://openlibrary.org/isbn/9780440414803')
+  assert.equal(openLibraryUrl({ workKey: null, isbn: null }), null)
 })

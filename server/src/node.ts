@@ -13,6 +13,7 @@ import { openDb, applyMigrations } from './d1-sqlite.ts';
 import { isClaimed, regenerateSetupCode } from './routes/setup.ts';
 import { syncDue } from './sync.ts';
 import { runNotifications } from './notify.ts';
+import { lookUpSome } from './book-details.ts';
 import { http2Send } from './apns-node.ts';
 import { guardedLookup, nodeFetch } from './outbound-node.ts';
 import { nodeClientIp } from './ratelimit.ts';
@@ -202,3 +203,8 @@ const NOTIFY_INTERVAL_MS = 2 * 60 * 1000;
 setInterval(() => {
   runNotifications(env, new Date()).catch((err) => console.error('notification loop failed', err));
 }, NOTIFY_INTERVAL_MS);
+
+// Library books' missing details from Open Library, a few at a time (book-details.ts).
+setInterval(() => {
+  lookUpSome(env).catch((err) => console.error('book details loop failed', err instanceof Error ? err.name : 'error'));
+}, 5 * 60 * 1000);

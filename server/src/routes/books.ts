@@ -15,10 +15,10 @@ const json = <T extends z.ZodType>(schema: T) => ({ 'application/json': { schema
 
 type Doc = {
   key?: string; title?: string; author_name?: string[]; first_publish_year?: number; number_of_pages_median?: number; cover_i?: number
-  isbn?: string[]; series_name?: string[]; series_position?: string[]; lexile?: number[]; subject?: string[]
+  isbn?: string[]; series_name?: string[]; series_position?: string[]; lexile?: number[]; subject?: string[]; ratings_average?: number; ratings_count?: number
 };
 export type BookResult = z.infer<typeof BookResultSchema>;
-const FIELDS = 'key,title,author_name,first_publish_year,number_of_pages_median,cover_i,isbn,series_name,series_position,lexile,subject';
+const FIELDS = 'key,title,author_name,first_publish_year,number_of_pages_median,cover_i,isbn,series_name,series_position,lexile,subject,ratings_average,ratings_count';
 
 // Open Library has no genre, only free-form subjects in many languages ("Katzen", "Fantasy Fiction",
 // "nyt:hardcover-fiction=2021-05-23"). These pick a few clean genres out, in this order of priority.
@@ -38,10 +38,10 @@ const GENRES: [string, RegExp][] = [
   ['Horror', /\bhorror\b|\bghost stories\b/i],
   ['Sports', /\bsports?\b|\bsoccer\b|\bbaseball\b|\bfootball\b|\bbasketball\b/i],
 ];
-/** Up to three genres from a book's subjects, in GENRES order. */
+/** Up to five genres from a book's subjects, in GENRES order. */
 export function genresFrom(subjects: string[] | undefined): string[] {
   const text = (subjects ?? []).slice(0, 60).join(' | ');
-  return GENRES.filter(([, re]) => re.test(text)).map(([g]) => g).slice(0, 3);
+  return GENRES.filter(([, re]) => re.test(text)).map(([g]) => g).slice(0, 5);
 }
 
 /** Open Library's books for a search (title, author or ISBN), shaped for Kinwall; throws when unreachable. */
@@ -63,6 +63,7 @@ export async function searchOpenLibrary(q: string, limit = 8): Promise<BookResul
       ...(d.lexile?.[0] !== undefined && { lexile: d.lexile[0] }),
       ...(genresFrom(d.subject).length && { genres: genresFrom(d.subject) }),
       ...(d.key?.startsWith('/works/') && { workKey: d.key }),
+      ...(d.ratings_count && d.ratings_average && { ratingsAverage: Math.round(d.ratings_average * 10) / 10, ratingsCount: d.ratings_count }),
     };
   });
 }

@@ -99,6 +99,7 @@ import m0095 from '../migrations/0095_bonus_points.sql';
 import m0096 from '../migrations/0096_member_pictures.sql';
 import m0097 from '../migrations/0097_plugin_inbox.sql';
 import m0098 from '../migrations/0098_library_format.sql';
+import m0099 from '../migrations/0099_library_details.sql';
 
 export const MIGRATIONS: Migration[] = [
   { name: '0001_init.sql', sql: m0001 },
@@ -199,4 +200,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0096_member_pictures.sql', sql: m0096 },
   { name: '0097_plugin_inbox.sql', sql: m0097 },
   { name: '0098_library_format.sql', sql: m0098 },
+  { name: '0099_library_details.sql', sql: m0099 },
 ];

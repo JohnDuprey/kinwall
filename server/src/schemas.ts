@@ -1338,8 +1338,9 @@ export const BookResultSchema = z
     isbn: z.string().optional(), // an ISBN-13 when there is one (else ISBN-10)
     series: z.string().optional(), seriesNumber: z.string().optional(), // "Warriors", "1"
     lexile: z.number().optional(), // reading level, e.g. 660 (660L)
-    genres: z.array(z.string()).optional(), // up to three, picked out of Open Library's subjects (books.ts genresFrom)
+    genres: z.array(z.string()).optional(), // up to five, picked out of Open Library's subjects (books.ts genresFrom)
     workKey: z.string().optional(), // Open Library's work, e.g. /works/OL116250W: adding it to the library fetches its description
+    ratingsAverage: z.number().optional(), ratingsCount: z.number().optional(), // Open Library readers' ratings: 4.2 of 5, from 120
   })
   .openapi('BookResult');
 
@@ -1354,7 +1355,10 @@ export const LibraryBookSchema = z
     format: LibraryFormat.default('book').openapi({ description: 'A book or an audiobook: each its own item, so a paper copy and an audiobook of one title are two.' }),
     coverUrl: z.string().nullable(), year: z.number().nullable(), series: z.string().nullable(), seriesNumber: z.string().nullable(),
     lexile: z.number().nullable().openapi({ description: 'Reading level (Lexile), e.g. 660 for 660L.' }), description: z.string().nullable(),
-    genres: z.array(z.string()).openapi({ description: 'Up to three, e.g. Fantasy, Animals.' }),
+    genres: z.array(z.string()).openapi({ description: 'Up to five, e.g. Fantasy, Animals.' }),
+    workKey: z.string().nullable().openapi({ description: 'The Open Library work its details came from, e.g. /works/OL116250W (https://openlibrary.org + workKey).' }),
+    ratingsAverage: z.number().nullable().openapi({ description: "Open Library readers' average rating, of 5." }), ratingsCount: z.number().nullable(),
+    lookedUpAt: z.string().nullable().openapi({ description: 'When its details were last looked up on Open Library (found or not); null when never.' }),
     location: z.string().nullable().openapi({ description: 'Where it lives, e.g. "Maya\'s room".' }),
     lentTo: z.string().nullable().openapi({ description: 'Who has it on loan (free text); null when it\'s home.' }),
     lentOn: z.string().nullable().openapi({ description: 'YYYY-MM-DD it was lent; null when home.' }),

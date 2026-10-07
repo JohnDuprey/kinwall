@@ -645,6 +645,8 @@ export const api = {
   addToLibrary: (input: LibraryBookInput) => MOCK ? mock.addToLibrary(input) : post<LibraryBook>('api/library', input),
   updateLibraryBook: (id: string, changes: LibraryBookInput) => MOCK ? mock.updateLibraryBook(id, changes) : patch<LibraryBook>(`api/library/${encodeURIComponent(id)}`, changes),
   deleteLibraryBook: (id: string) => MOCK ? mock.deleteLibraryBook(id) : del(`api/library/${encodeURIComponent(id)}`),
+  // Look its details up on Open Library now (parent devices): fills only what's empty; a 404 when nothing matches.
+  lookUpLibraryBook: (id: string) => MOCK ? mock.lookUpLibraryBook(id) : post<LibraryBook>(`api/library/${encodeURIComponent(id)}/details`, {}),
   libraryCoverUrl: (b: LibraryBook) => !b.coverUrl ? null : MOCK ? b.coverUrl
     : mediaUrl(`api/library/${encodeURIComponent(b.id)}/cover`, `&v=${encodeURIComponent(b.updatedAt)}`) || null,
   searchBooks: (q: string) => MOCK ? mock.searchBooks(q) : get<BookResult[]>(`api/books/search?q=${encodeURIComponent(q)}`),

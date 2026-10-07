@@ -155,6 +155,7 @@ test('mcp: tools/list returns the tools', async () => {
     'preview_contact_import',
     'rate_recipe',
     'redeem_reward',
+    'refresh_library_book_details',
     'reject_chore',
     'reset_activity_time',
     'run_activity_action',
@@ -958,6 +959,25 @@ test('mcp: update_library_book lends a book out (by title), moves it and brings 
   const back = await call('update_library_book', { book: 'Holes', lentTo: null, location: "Maya's room" });
   assert.deepEqual([back.structuredContent.book.lentTo, back.structuredContent.book.location], [null, "Maya's room"]);
   assert.equal((await call('update_library_book', { book: 'Nope' })).isError, true);
+});
+
+test('mcp: refresh_library_book_details looks a book up on Open Library by title', async () => {
+  const env = makeEnv();
+  const { mcp } = makeApp(env);
+  const call = async (name: string, args: Record<string, unknown>) => (await (await mcp('tools/call', { name, arguments: args })).json() as any).result;
+  await call('add_to_library', { title: 'Holes', author: 'Louis Sachar' });
+  await new Promise((r) => setTimeout(r, 20)); // its background lookup (offline in tests) is done
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: string | URL | Request) => {
+    const url = String(input instanceof Request ? input.url : input);
+    if (url.includes('search.json')) return Response.json({ docs: [{ key: '/works/OL5W', title: 'Holes', author_name: ['Louis Sachar'], first_publish_year: 1998 }] });
+    return Response.json({ description: 'Stanley Yelnats digs holes.' });
+  }) as typeof fetch;
+  try {
+    const r = await call('refresh_library_book_details', { book: 'holes' });
+    assert.deepEqual([r.structuredContent.book.year, r.structuredContent.book.description, r.structuredContent.book.workKey], [1998, 'Stanley Yelnats digs holes.', '/works/OL5W']);
+    assert.equal((await call('refresh_library_book_details', { book: 'Nope' })).isError, true);
+  } finally { globalThis.fetch = realFetch; }
 });
 
 test('mcp: activity actions are listed, queued for a person by name, and their saved data read', async () => {

@@ -34,8 +34,9 @@ export function sameBook(a: Book, b: Book): boolean {
 }
 
 /** A reading entry's data with its library book: linked (or made) when it has none; reading or
- * finishing a wishlist book takes it off the wishlist. Returns the data to store. */
-export async function shelveReading<D extends ReadingLike>(db: Db, title: string, memberId: string | null, data: D): Promise<D> {
+ * finishing a wishlist book takes it off the wishlist. Returns the data to store. onMade: a new book's
+ * id (routes look its details up, book-details.ts). */
+export async function shelveReading<D extends ReadingLike>(db: Db, title: string, memberId: string | null, data: D, onMade?: (id: string) => void): Promise<D> {
   const wanting = (data.status ?? 'reading') === 'want';
   let bookId = data.bookId ?? null;
   if (!bookId) {
@@ -50,6 +51,7 @@ export async function shelveReading<D extends ReadingLike>(db: Db, title: string
       await db.prepare(
         'INSERT INTO library_books (id, title, author, pages, cover_url, genres, wanted, format, added_by, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
       ).bind(bookId, title.trim(), data.author?.trim() || null, pages, data.coverUrl ?? null, null, 0, format, memberId, now, now).run(); // had, not wished for
+      onMade?.(bookId);
       return { ...data, bookId };
     }
   }

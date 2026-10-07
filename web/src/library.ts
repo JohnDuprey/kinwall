@@ -1,6 +1,7 @@
 // The family's library (Library.tsx): labels, and which scanned barcodes are books. Pure, so
 // web/test/library.test.ts covers it.
 import type { LibraryBook, ReadingData, TrackerEntry } from './types.ts'
+import { minutesLabel } from './meal-date.ts'
 
 /** A scanned barcode as an ISBN when it's a book's: an EAN-13 starting 978/979 (Bookland), or an
  * ISBN-10. Anything else (a cereal box's UPC) is null. */
@@ -12,6 +13,37 @@ export function isbnFromScan(code: string): string | null {
 export const bookDetails = (b: Pick<LibraryBook, 'series' | 'seriesNumber' | 'year' | 'lexile' | 'pages'>) =>
   [b.series ? `${b.series}${b.seriesNumber ? ` #${b.seriesNumber}` : ''}` : '', b.year ? String(b.year) : '', b.lexile !== null && b.lexile !== undefined ? `${b.lexile}L` : '', b.pages ? `${b.pages} pages` : '']
     .filter(Boolean).join(' · ')
+
+// Typical Lexile measures by grade (MetaMetrics' middle half of readers, rounded), for a rough band.
+const GRADES: [string, number, number][] = [['1', 190, 530], ['2', 420, 650], ['3', 520, 820], ['4', 740, 940], ['5', 830, 1010], ['6', 925, 1070], ['7', 970, 1120], ['8', 1010, 1185], ['9', 1050, 1260], ['10', 1080, 1335], ['11', 1185, 1385], ['12', 1185, 1385]]
+/** "660L · about grade 3", "840L · about grades 4–5"; an early reader under 190L (BR when below 0). */
+export function readingLevel(lexile: number | null | undefined): string | null {
+  if (lexile === null || lexile === undefined) return null
+  const label = lexile < 0 ? `BR${-lexile}L` : `${lexile}L`
+  if (lexile < 190) return `${label} · early reader`
+  const fit = GRADES.filter(([, lo, hi]) => lexile >= lo && lexile <= hi).map(([g]) => g)
+  if (!fit.length) return `${label} · high school and up`
+  return `${label} · about ${fit.length === 1 ? `grade ${fit[0]}` : `grades ${fit[0]}–${fit[fit.length - 1]}`}`
+}
+
+/** "Warriors #2", or null. */
+export const seriesLabel = (b: Pick<LibraryBook, 'series' | 'seriesNumber'>) => b.series ? `${b.series}${b.seriesNumber ? ` #${b.seriesNumber}` : ''}` : null
+
+/** An audiobook's "🎧 Audiobook · read by Nora Bell · 3 hr 45 min", from what its listeners' reading entries know; null for a book. */
+export function listenLabel(b: Pick<LibraryBook, 'format' | 'readers'>): string | null {
+  if (b.format !== 'audiobook') return null
+  const narrator = b.readers.find(r => r.narrator)?.narrator
+  const minutes = b.readers.find(r => r.totalMinutes)?.totalMinutes
+  return ['🎧 Audiobook', narrator ? `read by ${narrator}` : '', minutes ? minutesLabel(minutes) : ''].filter(Boolean).join(' · ')
+}
+
+/** "★ 4.2 · 210 ratings": Open Library readers', once enough have rated it to mean something. */
+export const ratingLabel = (b: Pick<LibraryBook, 'ratingsAverage' | 'ratingsCount'>) =>
+  b.ratingsAverage && b.ratingsCount && b.ratingsCount >= 5 ? `★ ${b.ratingsAverage.toFixed(1)} · ${b.ratingsCount.toLocaleString('en-US')} ratings` : null
+
+/** The book on Open Library: its work, else its ISBN; null when neither is known. */
+export const openLibraryUrl = (b: Pick<LibraryBook, 'workKey' | 'isbn'>) =>
+  b.workKey ? `https://openlibrary.org${b.workKey}` : b.isbn ? `https://openlibrary.org/isbn/${b.isbn}` : null
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 /** "Sep 23", with the year when it isn't this one. */

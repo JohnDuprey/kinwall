@@ -7,6 +7,7 @@ import { runNotifications, sealMedicationNotes } from './notify.ts';
 import { runMigrations, type Migration } from './migrate.ts';
 import { sealHealthEntries } from './routes/trackers.ts';
 import { shelveReadingEntries } from './shelve.ts';
+import { lookUpSome } from './book-details.ts';
 
 const errorName = (err: unknown) => (err instanceof Error ? err.name : 'error'); // never the message: it can carry data
 
@@ -67,14 +68,15 @@ export function createKinwall(env: Env, opts: KinwallOptions = {}) {
       await ready();
       return app.fetch(request, env, ctx);
     },
-    /** One cron tick: sync calendars that are due (self-throttled) + send due notifications. Each
+    /** One cron tick: sync calendars that are due (self-throttled) + send due notifications + look up a few library books' details. Each
      * runs to the end whatever the other does, and a failure is logged rather than thrown: the next
      * tick retries, and a host's alarm (a Durable Object per family) isn't failed and re-run for it. */
     async scheduled(now?: Date, ctx?: WaitCtx): Promise<void> {
       await ready();
-      const results = await Promise.allSettled([syncDue(env, ctx), runNotifications(env, now ?? new Date(), ctx)]);
+      // And a few library books' details from Open Library (book-details.ts), gently.
+      const results = await Promise.allSettled([syncDue(env, ctx), runNotifications(env, now ?? new Date(), ctx), lookUpSome(env)]);
       results.forEach((r, i) => {
-        if (r.status === 'rejected') console.error(`${i ? 'notifications' : 'calendar sync'} tick failed:`, errorName(r.reason));
+        if (r.status === 'rejected') console.error(`${['calendar sync', 'notifications', 'book details'][i]} tick failed:`, errorName(r.reason));
       });
     },
   };

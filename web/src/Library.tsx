@@ -12,7 +12,7 @@ import BookLookup from './BookLookup.tsx'
 import { useIsPhone } from './useIsPhone.ts'
 import { FilterIcon } from './icons.tsx'
 import { appBarcodeScanner, scanBarcode, wallCamera } from './native.ts'
-import { addDayKeys, bookDetails, existingRead, dueLabel, filterLibrary, isbnFromScan, isOverdue, lentLabel, libraryNeeds, LOAN_DAYS, NO_FILTERS, STATUS_LABEL, type LibraryFilters, type LibraryStatus } from './library.ts'
+import { addDayKeys, bookDetails, existingRead, dueLabel, filterLibrary, isbnFromScan, isOverdue, lentLabel, libraryNeeds, listenLabel, LOAN_DAYS, openLibraryUrl, ratingLabel, readingLevel, seriesLabel, NO_FILTERS, STATUS_LABEL, type LibraryFilters, type LibraryStatus } from './library.ts'
 import { announce } from './a11y.tsx'
 import { todayKeyInTz } from './date.ts'
 import type { BookResult, LibraryBook, Member, ReadingData, ReadingStatus } from './types.ts'
@@ -206,9 +206,22 @@ function BookSheet({ book, members, canRemove, places, sources, today, onClose, 
     try { const b = await api.updateLibraryBook(book.id, changes); toast(said); announce(said); onSaved(b) }
     catch (e) { toast(msg(e, "Couldn't save it"), true) }
   }
-  const long = (book.description?.length ?? 0) > 320
+  const long = (book.description?.length ?? 0) > 220 // about four lines
   const cover = api.libraryCoverUrl(book)
-  const details = bookDetails(book)
+  const series = seriesLabel(book)
+  const facts = [book.year ? `First published ${book.year}` : '', book.pages ? `${book.pages} pages` : ''].filter(Boolean).join(' · ')
+  const level = readingLevel(book.lexile)
+  const listen = listenLabel(book)
+  const rating = ratingLabel(book)
+  const olUrl = openLibraryUrl(book)
+  const [looking, setLooking] = useState(false)
+  // A parent's "Look up details": Open Library now, filling only what's empty.
+  const lookUp = async () => {
+    setLooking(true)
+    try { const b = await api.lookUpLibraryBook(book.id); toast(`Looked up: ${b.title}`); announce(`Looked up ${b.title}`); onSaved(b) }
+    catch (e) { toast(msg(e, "Couldn't look it up"), true) }
+    finally { setLooking(false) }
+  }
   const readIt = async (m: Member) => {
     try {
       // Already reading it (maybe tracked before the book was in the library): link that entry, don't add another.
@@ -233,16 +246,26 @@ function BookSheet({ book, members, canRemove, places, sources, today, onClose, 
     <Sheet title={book.title} onClose={onClose} actions={<button className="btn btn-primary" onClick={onClose}>Done</button>}>
       <div className="lib-detail">
         {cover && <img className="lib-detail-cover" src={cover} alt="" onError={e => { e.currentTarget.hidden = true }} />}
-        <div>
+        <div className="lib-detail-text">
           {book.author && <div className="lib-detail-author">{book.author}</div>}
-          {details && <div className="trk-sub">{details}</div>}
-          {!!book.genres.length && <div className="chip-row lib-genre-chips">{book.genres.map(g => <span key={g} className="chip-static">{g}</span>)}</div>}
+          {series && <div className="lib-detail-series">📚 {series}</div>}
+          {facts && <div className="trk-sub">{facts}</div>}
+          {level && <div className="trk-sub">Reading level {level}</div>}
+          {listen && <div className="trk-sub">{listen}</div>}
+          {rating && <div className="trk-sub" aria-label={`Rated ${rating.slice(2)} on Open Library`}>{rating}</div>}
+          {!!book.genres.length && <div className="chip-row lib-genre-chips">{book.genres.slice(0, 5).map(g => <span key={g} className="chip chip-static">{g}</span>)}</div>}
         </div>
       </div>
       {book.description && <>
         <p className={`lib-description ${long && !more ? 'lib-description-clamp' : ''}`}>{book.description}</p>
-        {long && <button type="button" className="link-btn lib-more" onClick={() => setMore(v => !v)} aria-expanded={more}>{more ? 'Show less' : 'Show more'}</button>}
+        {long && <button type="button" className="link-btn lib-more" onClick={() => setMore(v => !v)} aria-expanded={more}>{more ? 'Less' : 'More'}</button>}
       </>}
+      {(book.isbn || (olUrl && canRemove)) && (
+        <p className="trk-sub lib-detail-links">
+          {book.isbn && <span>ISBN {book.isbn}</span>}
+          {olUrl && canRemove && <a className="text-link" href={olUrl} target="_blank" rel="noopener noreferrer">View on Open Library ↗</a>}{/* parent devices: walls and kids stay in the app */}
+        </p>
+      )}
       <div className="field">
         <label htmlFor="lib-whose">Whose book</label>
         <select id="lib-whose" value={whose} onChange={e => pickWhose(e.target.value)}>
@@ -301,7 +324,10 @@ function BookSheet({ book, members, canRemove, places, sources, today, onClose, 
         </div>
         <p className="field-hint">Puts it on their Reading shelf, linked to this book.</p>
       </div>
-      {canRemove && <button type="button" className="btn btn-danger lib-remove" onClick={remove}>Remove from library</button>}
+      {canRemove && <div className="lib-detail-actions">
+        <button type="button" className="btn btn-secondary" onClick={lookUp} disabled={looking}>{looking ? 'Looking up…' : '🔎 Look up details'}</button>
+        <button type="button" className="btn btn-danger" onClick={remove}>Remove from library</button>
+      </div>}
     </Sheet>
   )
 }

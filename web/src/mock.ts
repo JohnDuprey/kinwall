@@ -660,13 +660,14 @@ const tracker = (kind: TrackerKind, memberId: string | null, date: string, title
 // The family's library: Maya's Charlotte's Web and Matilda were started from it (bookId).
 const libraryBook = (id: string, title: string, author: string, d: Partial<LibraryBook> = {}): LibraryBook => ({
   id, title, author, isbn: null, pages: null, coverUrl: null, year: null, series: null, seriesNumber: null, lexile: null, description: null, genres: [], location: null, lentTo: null, lentOn: null, borrowedFrom: null, dueOn: null, returnedOn: null,
+  format: 'book', workKey: null, ratingsAverage: null, ratingsCount: null, lookedUpAt: null,
   addedBy: { memberId: 'm1' }, readers: [], createdAt: new Date(Date.now() - 30 * 86_400_000).toISOString(), updatedAt: new Date(Date.now() - 30 * 86_400_000).toISOString(), ...d,
 })
 const bookLibrary: LibraryBook[] = [
-  libraryBook('book-charlotte', "Charlotte's Web", 'E. B. White', { isbn: '9780064400558', pages: 184, year: 1952, lexile: 680, genres: ['Fantasy', 'Animals'], location: "Maya's room", coverUrl: 'https://picsum.photos/seed/kinwall-charlotte/120/180', description: 'Some pig! A runt piglet, a clever spider and a promise to save his life.' }),
+  libraryBook('book-charlotte', "Charlotte's Web", 'E. B. White', { isbn: '9780064400558', workKey: '/works/OL45804W', ratingsAverage: 4.1, ratingsCount: 860, pages: 184, year: 1952, lexile: 680, genres: ['Fantasy', 'Animals'], location: "Maya's room", coverUrl: 'https://picsum.photos/seed/kinwall-charlotte/120/180', description: 'Some pig! A runt piglet, a clever spider and a promise to save his life.' }),
   libraryBook('book-matilda', 'Matilda', 'Roald Dahl', { isbn: '9780142410370', pages: 240, year: 1988, lexile: 840, genres: ['Fantasy', 'Humor'], location: 'Living room shelf', lentTo: 'Grandma', lentOn: daysAgo(9), coverUrl: 'https://picsum.photos/seed/kinwall-matilda/120/180' }),
   libraryBook('book-holes', 'Holes', 'Louis Sachar', { isbn: '9780440414803', pages: 233, year: 1998, lexile: 660, genres: ['Adventure', 'Mystery'], location: 'Living room shelf', description: 'There is no lake at Camp Green Lake.' }),
-  libraryBook('book-warriors-1', 'Into the Wild', 'Erin Hunter', { pages: 272, year: 2003, series: 'Warriors', seriesNumber: '1', lexile: 970, genres: ['Fantasy', 'Animals'], description: 'Fire alone can save our Clan. For generations, four Clans of wild cats have shared the forest according to the laws laid down by their ancestors. But the warrior code is threatened, and the ThunderClan cats are in grave danger. When an ordinary housecat named Rusty wanders into the woods, he is invited to join the Clan as an apprentice and given a new name. Under the eye of his mentor, he learns to hunt, to fight and to keep the code, and he finds friends, rivals and a mystery that reaches back to the death of a deputy. Is he brave enough to become a true warrior, and can he find out who among the Clan cannot be trusted before it is too late?' }),
+  libraryBook('book-warriors-1', 'Into the Wild', 'Erin Hunter', { isbn: '9780060000028', workKey: '/works/OL5720023W', ratingsAverage: 4.3, ratingsCount: 1240, lookedUpAt: daysAgo(20), pages: 272, year: 2003, series: 'Warriors', seriesNumber: '1', lexile: 970, genres: ['Fantasy', 'Animals'], description: 'Fire alone can save our Clan. For generations, four Clans of wild cats have shared the forest according to the laws laid down by their ancestors. But the warrior code is threatened, and the ThunderClan cats are in grave danger. When an ordinary housecat named Rusty wanders into the woods, he is invited to join the Clan as an apprentice and given a new name. Under the eye of his mentor, he learns to hunt, to fight and to keep the code, and he finds friends, rivals and a mystery that reaches back to the death of a deputy. Is he brave enough to become a true warrior, and can he find out who among the Clan cannot be trusted before it is too late?' }),
   libraryBook('book-warriors-2', 'Fire and Ice', 'Erin Hunter', { pages: 320, year: 2003, series: 'Warriors', seriesNumber: '2', lexile: 1010, genres: ['Fantasy', 'Animals'] }),
   libraryBook('book-frog', 'Frog and Toad Are Friends', 'Arnold Lobel', { pages: 64, year: 1970, lexile: 400 }),
   libraryBook('book-wonder', 'Wonder', 'R. J. Palacio', { pages: 310, year: 2012, lexile: 790, genres: ['Realistic fiction'], borrowedFrom: 'Town library', dueOn: inDays(3), location: "Maya's room" }),
@@ -678,12 +679,15 @@ const bookLibrary: LibraryBook[] = [
   libraryBook('book-magic-tree', 'Dinosaurs Before Dark', 'Mary Pope Osborne', { pages: 80, year: 1992, series: 'Magic Tree House', seriesNumber: '1', lexile: 510, genres: ['Adventure', 'Fantasy'], location: "Leo's room", coverUrl: 'https://picsum.photos/seed/kinwall-treehouse/120/180' }),
   libraryBook('book-dog-man', 'Dog Man', 'Dav Pilkey', { pages: 240, year: 2016, genres: ['Graphic novel', 'Humor'], wanted: true, coverUrl: 'https://picsum.photos/seed/kinwall-dogman/120/180' }),
   libraryBook('book-wings-of-fire', 'The Dragonet Prophecy', 'Tui T. Sutherland', { pages: 336, year: 2012, series: 'Wings of Fire', seriesNumber: '1', genres: ['Fantasy'], wanted: true }),
+  // Made from Maya's audiobook, then looked up on Open Library (book-details.ts).
+  libraryBook('book-mouse', 'The Mouse and the Motorcycle', 'Beverly Cleary', { format: 'audiobook', year: 1965, series: 'Ralph S. Mouse', seriesNumber: '1', lexile: 860, genres: ['Adventure', 'Animals', 'Fantasy', 'Humor'], workKey: '/works/OL2649765W', ratingsAverage: 4.0, ratingsCount: 312, lookedUpAt: daysAgo(6), coverUrl: 'https://picsum.photos/seed/kinwall-mouse/120/180', location: "Maya's room",
+    description: 'Ralph is a mouse who lives in a knothole in Room 215 of the Mountain View Inn. When a boy named Keith checks in with a shiny toy motorcycle, Ralph can hardly believe his luck: if he makes the right noise, it really goes. Soon Ralph is racing down the hallway, and a friendship begins that takes both of them on a wild, sometimes dangerous adventure, from a scary trip into the laundry basket to a midnight search for an aspirin when Keith runs a fever.' }),
   libraryBook('book-hatchet', 'Hatchet', 'Gary Paulsen', { pages: 195, year: 1987, lexile: 1020, genres: ['Adventure'], borrowedFrom: 'Town library', dueOn: daysAgo(12), returnedOn: daysAgo(14) }),
 ]
-const withReaders = (b: LibraryBook): LibraryBook => ({
-  ...b, readers: trackers.filter(t => t.kind === 'reading' && (t.data as ReadingData).bookId === b.id)
-    .map(t => ({ entryId: t.id, memberId: t.memberId, status: (t.data as ReadingData).status })),
-})
+const withReaders = (b: LibraryBook): LibraryBook => {
+  const reads = trackers.filter(t => t.kind === 'reading' && (t.data as ReadingData).bookId === b.id)
+  return { ...b, readers: reads.map(t => { const d = t.data as ReadingData; return { entryId: t.id, memberId: t.memberId, status: d.status, ...(d.format === 'audiobook' && { narrator: d.narrator ?? null, minutesListened: d.minutesListened ?? null, totalMinutes: d.totalMinutes ?? null }) } }) }
+}
 
 const trackers: TrackerEntry[] = [
   tracker('reading', 'm3', daysAgo(12), "Charlotte's Web", { author: 'E. B. White', status: 'reading', bookId: 'book-charlotte', pagesRead: 83, totalPages: 184, log: [{ date: daysAgo(9), amount: 12 }, { date: daysAgo(8), amount: 9 }, { date: daysAgo(6), amount: 15 }, { date: daysAgo(4), amount: 11 }, { date: daysAgo(3), amount: 14 }, { date: daysAgo(1), amount: 10 }, { date: daysAgo(0), amount: 12 }], coverUrl: 'https://picsum.photos/seed/kinwall-charlotte/120/180' }),
@@ -711,7 +715,7 @@ function shelveMock(t: TrackerEntry) {
   const key = t.title.split(':')[0].trim().toLowerCase()
   let b = d.bookId ? bookLibrary.find(x => x.id === d.bookId) : bookLibrary.find(x => x.title.split(':')[0].trim().toLowerCase() === key)
   if (!d.bookId && !b) {
-    b = libraryBook(`book-${uid()}`, t.title, d.author ?? '', { author: d.author ?? null, pages: d.format === 'audiobook' ? null : d.totalPages ?? null, coverUrl: d.coverUrl ?? null, wanted: d.status === 'want', addedBy: t.memberId ? { memberId: t.memberId } : null })
+    b = libraryBook(`book-${uid()}`, t.title, d.author ?? '', { author: d.author ?? null, format: d.format === 'audiobook' ? 'audiobook' : 'book', pages: d.format === 'audiobook' ? null : d.totalPages ?? null, coverUrl: d.coverUrl ?? null, wanted: d.status === 'want', addedBy: t.memberId ? { memberId: t.memberId } : null })
     bookLibrary.push(b)
   }
   if (b && d.status !== 'want') b.wanted = false
@@ -1546,6 +1550,15 @@ export const mock = {
     Object.assign(b, fields, { lentTo: changes.lentTo !== undefined ? changes.lentTo || null : b.lentTo, lentOn, updatedAt: new Date().toISOString() })
     if (changes.borrowedFrom === null || changes.borrowedFrom === '') Object.assign(b, { borrowedFrom: null, dueOn: null, returnedOn: null }) // made our own
     if (changes.borrowedFrom) b.wanted = false // borrowing it: had, for now
+    bump(); return withReaders(b)
+  },
+  // Demo lookups fill empty details from the demo book search, like the server (book-details.ts).
+  lookUpLibraryBook: async (id: string): Promise<LibraryBook> => {
+    const b = bookLibrary.find(x => x.id === id); if (!b) throw new Error('not found')
+    const found = DEMO_BOOKS.find(d => d.title.toLowerCase() === b.title.toLowerCase())
+    b.lookedUpAt = new Date().toISOString()
+    if (!found) throw new Error("Open Library doesn't know this book")
+    Object.assign(b, { isbn: b.isbn ?? found.isbn ?? null, pages: b.pages ?? found.pages ?? null, year: b.year ?? found.year ?? null, coverUrl: b.coverUrl ?? found.coverUrl ?? null, lexile: b.lexile ?? found.lexile ?? null, genres: b.genres.length ? b.genres : found.genres ?? [], workKey: found.workKey ?? null, updatedAt: new Date().toISOString() })
     bump(); return withReaders(b)
   },
   deleteLibraryBook: async (id: string) => { const i = bookLibrary.findIndex(x => x.id === id); if (i >= 0) bookLibrary.splice(i, 1); bump() },
