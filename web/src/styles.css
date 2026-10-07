@@ -317,6 +317,7 @@ button {
   min-height: var(--ctl-h);
   text-decoration: none;
 }
+button.nav-rail-btn { font-family: inherit; border: 0; cursor: pointer; } /* More */
 .nav-rail-btn.active { color: var(--accent-text); background: var(--card-soft); }
 /* Settings (last item) sits at the bottom of the rail, apart from the everyday views */
 .nav-rail-btn:last-child { margin-top: auto; }
@@ -3191,13 +3192,10 @@ button.tab-btn { font: inherit; font-size: 0.8125rem; font-weight: 700; cursor: 
   .header-right .icon-btn { width: 44px; height: 44px; }
   :root[data-view="board"] .header .header-left { min-height: 36px; }
 
-  /* Up to ten screens can't stack as 44px targets in ~370px, so the rail has two columns sized to their
-     labels (larger text widens it rather than spilling), with Settings across the foot; it still scrolls
-     if something doesn't fit. */
-  .nav-rail { display: grid; grid-template-columns: repeat(2, minmax(44px, auto)); align-content: start; gap: 2px; padding-top: calc(var(--safe-t) + 6px); padding-bottom: max(6px, var(--safe-b)); overscroll-behavior-y: contain; }
-  .nav-rail-left, .nav-rail-right { width: auto; }
+  /* Seven 44px buttons fit in ~370px, so past seven screens the rail shows six and More, which opens the
+     rest in a sheet (Nav in App.tsx), like the phone's bottom bar; it still scrolls at larger text. */
+  .nav-rail { gap: 2px; padding-top: calc(var(--safe-t) + 6px); padding-bottom: max(6px, var(--safe-b)); overscroll-behavior-y: contain; }
   .nav-rail-btn { gap: 2px; padding: 4px 3px; font-size: 0.625rem; min-height: 44px; white-space: nowrap; }
-  .nav-rail-btn:last-child { grid-column: 1 / -1; margin-top: 4px; }
   .nav-rail-btn svg { width: 22px; height: 22px; }
   .nav-badge { top: 0; }
   .app-shell-rail .content { padding-bottom: 0; }

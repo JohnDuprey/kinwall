@@ -20,7 +20,7 @@ import Rewards from './Rewards.tsx'
 import SettingsView, { DeviceKindSelect } from './Settings.tsx'
 import AuthorizeScreen from './Authorize.tsx'
 import Setup, { readSetupResume, resumeAtPasskey } from './Setup.tsx'
-import { useIsPhone, usePhoneHeader } from './useIsPhone.ts'
+import { useIsPhone, useMediaQuery, usePhoneHeader } from './useIsPhone.ts'
 import { useNavMode, type NavMode } from './useNavMode.ts'
 import { readDeviceAppearance, setDeviceAppearance, useDeviceAppearance, useTheme } from './useTheme.ts'
 import { isWallScreen, nightScreenDue, parseDeviceKind, remoteNightAction, remoteNightKey, wallDefaultsOn, type RemoteNight } from './wallScreen.ts'
@@ -97,11 +97,14 @@ function featureRedirect(s: Settings, section: string, sub: string | undefined, 
   return null
 }
 
-/** A phone's bottom bar fits five tabs: past that, the first four plus More, which lists the rest. */
+/** A phone's bottom bar fits five tabs: past that, the first four plus More, which lists the rest. A
+ * phone on its side has room for seven 44px rail buttons, so its rail does the same at seven. */
 const MAX_TABS = 5
+const MAX_SHORT_RAIL = 7
 
 function Nav({ tab, mode, items, toApprove = 0, rewardRequests = 0 }: { tab: string; mode: NavMode; items: NavItem[]; toApprove?: number; rewardRequests?: number }) {
   const [more, setMore] = useState(false)
+  const shortRail = useMediaQuery('(max-height: 500px) and (orientation: landscape)')
   // Parent devices: everything waiting for an OK on Chores (its To approve holds reward requests
   // too), and the reward requests alone on Rewards.
   const count = (key: string) => key === 'chores' ? toApprove : key === 'rewards' ? rewardRequests : 0
@@ -109,42 +112,36 @@ function Nav({ tab, mode, items, toApprove = 0, rewardRequests = 0 }: { tab: str
     ? <><span className="nav-badge" aria-hidden="true">{n > 9 ? '9+' : n}</span><span className="sr-only">, {n} to approve</span></>
     : null
   const badge = (key: string) => badgeFor(count(key))
-  if (mode === 'bottom') {
-    const overflow = items.length > MAX_TABS
-    const shown = overflow ? items.slice(0, MAX_TABS - 1) : items
-    const rest = overflow ? items.slice(MAX_TABS - 1) : []
-    const inRest = rest.some(i => i.key === tab)
-    return (
-      <nav className="tab-bar" aria-label="Main">
-        {shown.map(item => (
-          <a key={item.key} href={item.href} className={`tab-btn ${tab === item.key ? 'active' : ''}`} aria-current={tab === item.key ? 'page' : undefined}><item.Icon /> {item.label}{badge(item.key)}</a>
-        ))}
-        {overflow && (
-          <button className={`tab-btn ${inRest ? 'active' : ''}`} aria-haspopup="dialog" aria-expanded={more} onClick={() => setMore(true)}
-            aria-label={inRest ? `More, showing ${rest.find(i => i.key === tab)!.label}` : 'More'}>
-            <MoreIcon /> More{badgeFor(Math.max(0, ...rest.map(i => count(i.key))))}
-          </button>
-        )}
-        {more && (
-          <Sheet title="More" onClose={() => setMore(false)}>
-            <div className="more-list">
-              {rest.map(item => (
-                <a key={item.key} href={item.href} className={`more-row ${tab === item.key ? 'active' : ''}`} aria-current={tab === item.key ? 'page' : undefined}
-                  onClick={() => setMore(false)}>
-                  <item.Icon /> <span>{item.label}</span>{badge(item.key)}
-                </a>
-              ))}
-            </div>
-          </Sheet>
-        )}
-      </nav>
-    )
-  }
+  const bottom = mode === 'bottom'
+  const max = bottom ? MAX_TABS : shortRail ? MAX_SHORT_RAIL : Infinity
+  const overflow = items.length > max
+  const shown = overflow ? items.slice(0, max - 1) : items
+  const rest = overflow ? items.slice(max - 1) : []
+  const inRest = rest.some(i => i.key === tab)
+  const btn = bottom ? 'tab-btn' : 'nav-rail-btn'
   return (
-    <nav className={`nav-rail nav-rail-${mode}`} aria-label="Main">
-      {items.map(item => (
-        <a key={item.key} href={item.href} className={`nav-rail-btn ${tab === item.key ? 'active' : ''}`} aria-current={tab === item.key ? 'page' : undefined}><item.Icon /><span>{item.label}</span>{badge(item.key)}</a>
+    <nav className={bottom ? 'tab-bar' : `nav-rail nav-rail-${mode}`} aria-label="Main">
+      {shown.map(item => (
+        <a key={item.key} href={item.href} className={`${btn} ${tab === item.key ? 'active' : ''}`} aria-current={tab === item.key ? 'page' : undefined}><item.Icon />{bottom ? ` ${item.label}` : <span>{item.label}</span>}{badge(item.key)}</a>
       ))}
+      {overflow && (
+        <button className={`${btn} ${inRest ? 'active' : ''}`} aria-haspopup="dialog" aria-expanded={more} onClick={() => setMore(true)}
+          aria-label={inRest ? `More, showing ${rest.find(i => i.key === tab)!.label}` : 'More'}>
+          <MoreIcon />{bottom ? ' More' : <span>More</span>}{badgeFor(Math.max(0, ...rest.map(i => count(i.key))))}
+        </button>
+      )}
+      {more && (
+        <Sheet title="More" onClose={() => setMore(false)}>
+          <div className="more-list">
+            {rest.map(item => (
+              <a key={item.key} href={item.href} className={`more-row ${tab === item.key ? 'active' : ''}`} aria-current={tab === item.key ? 'page' : undefined}
+                onClick={() => setMore(false)}>
+                <item.Icon /> <span>{item.label}</span>{badge(item.key)}
+              </a>
+            ))}
+          </div>
+        </Sheet>
+      )}
     </nav>
   )
 }
