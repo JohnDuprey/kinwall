@@ -120,7 +120,7 @@ export interface LibraryBook {
   location: string | null; lentTo: string | null; lentOn: string | null // where it lives; who has it on loan, since when
   wanted?: boolean // on the wishlist: wanted, not had yet
   borrowedFrom: string | null; dueOn: string | null; returnedOn: string | null // borrowed, not owned: who from, due back when; returned ones stay as history
-  addedBy: Actor | null; readers: { entryId: string; memberId: string | null; status: ReadingStatus; narrator?: string | null; minutesListened?: number | null; totalMinutes?: number | null }[]; createdAt: string; updatedAt: string
+  addedBy: Actor | null; readers: { entryId: string; memberId: string | null; status: ReadingStatus; readAt?: string | null; narrator?: string | null; minutesListened?: number | null; totalMinutes?: number | null }[]; createdAt: string; updatedAt: string
 }
 export type LibraryBookInput = Partial<Omit<LibraryBook, 'id' | 'addedBy' | 'readers' | 'createdAt' | 'updatedAt' | 'workKey' | 'ratingsAverage' | 'ratingsCount' | 'lookedUpAt'>> & { workKey?: string }
 export interface ReadingDay { date: string; amount: number } // pages for a book, minutes for an audiobook

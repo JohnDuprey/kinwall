@@ -690,7 +690,7 @@ const bookLibrary: LibraryBook[] = [
 ]
 const withReaders = (b: LibraryBook): LibraryBook => {
   const reads = trackers.filter(t => t.kind === 'reading' && (t.data as ReadingData).bookId === b.id)
-  return { ...b, readers: reads.map(t => { const d = t.data as ReadingData; return { entryId: t.id, memberId: t.memberId, status: d.status, ...(d.format === 'audiobook' && { narrator: d.narrator ?? null, minutesListened: d.minutesListened ?? null, totalMinutes: d.totalMinutes ?? null }) } }) }
+  return { ...b, readers: reads.map(t => { const d = t.data as ReadingData; return { entryId: t.id, memberId: t.memberId, status: d.status, readAt: (d.status === 'finished' && d.finishedOn) || d.log?.at(-1)?.date || (d.status !== 'want' ? t.updatedAt.slice(0, 10) : null), ...(d.format === 'audiobook' && { narrator: d.narrator ?? null, minutesListened: d.minutesListened ?? null, totalMinutes: d.totalMinutes ?? null }) } }) }
 }
 
 const trackers: TrackerEntry[] = [

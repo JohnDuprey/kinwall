@@ -2916,6 +2916,7 @@ button.plugin-chore-chip { border: 0; font-family: inherit; min-height: 44px; } 
   .trackers-tools .lib-bar { flex-wrap: nowrap; gap: var(--gap); margin: 0; }
   .trackers-tools .lib-search { flex: 1 1 0; }
   .lib-head { margin-bottom: var(--gap); }
+  .lib-active { margin: 0 0 var(--gap); }
   .lib-head .lib-scan { min-height: 44px; min-width: 44px; padding: 0 10px; }
   .lib-count { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .lib-count-emoji { display: none; } /* the 📚 Books and 🎧 Audiobooks headings just below have them */

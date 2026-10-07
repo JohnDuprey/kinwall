@@ -156,6 +156,34 @@ export function filterLibrary<B extends Filterable>(books: B[], f: LibraryFilter
     && (!f.formats.length || f.formats.includes(b.format ?? 'book')))
   return f.show.length === 1 && f.show[0] === 'borrowed' ? out.sort((a, z) => (a.dueOn ?? '9999').localeCompare(z.dueOn ?? '9999')) : out
 }
+/** The library's Sort by (the Filters sheet), remembered per device. Title is GET /api/library's own
+ * order: A-Z, a series together under its name, in order. */
+export type LibrarySort = 'title' | 'author' | 'added' | 'read' | 'series' | 'year' | 'rating'
+export const SORT_LABEL: Record<LibrarySort, string> = {
+  title: 'Title', author: 'Author', added: 'Recently added', read: 'Recently read', series: 'Series', year: 'Year published', rating: 'Rating',
+}
+type Sortable = Pick<LibraryBook, 'title' | 'author' | 'series' | 'seriesNumber' | 'year' | 'ratingsAverage' | 'ratingsCount' | 'createdAt'> & { readers: { readAt?: string | null }[] }
+const words = (a: string, z: string) => a.localeCompare(z, undefined, { sensitivity: 'base', numeric: true })
+const seriesNo = (b: Sortable) => { const n = parseFloat(b.seriesNumber ?? ''); return Number.isNaN(n) ? Infinity : n }
+const byTitle = (a: Sortable, z: Sortable) => words(a.series ?? a.title, z.series ?? z.title) || seriesNo(a) - seriesNo(z) || words(a.title, z.title)
+const lastName = (b: Sortable) => b.author?.trim().split(/\s+/).pop() ?? null
+const lastRead = (b: Sortable) => b.readers.reduce<string | null>((m, r) => (r.readAt && (!m || r.readAt > m) ? r.readAt : m), null)
+/** Missing values (null) last, whichever way the rest go. */
+const nullsLast = <T>(get: (b: Sortable) => T | null, cmp: (a: T, z: T) => number) => (a: Sortable, z: Sortable) => {
+  const x = get(a), y = get(z)
+  return x === null ? (y === null ? 0 : 1) : y === null ? -1 : cmp(x, y)
+}
+const SORTS: Record<LibrarySort, (a: Sortable, z: Sortable) => number> = {
+  title: () => 0,
+  author: nullsLast(lastName, words),
+  added: (a, z) => z.createdAt.localeCompare(a.createdAt),
+  read: nullsLast(lastRead, (x, y) => y.localeCompare(x)),
+  series: (a, z) => nullsLast(b => b.series, words)(a, z) || seriesNo(a) - seriesNo(z),
+  year: nullsLast(b => b.year, (x, y) => x - y),
+  rating: (a, z) => nullsLast(b => b.ratingsAverage ?? null, (x, y) => y - x)(a, z) || (z.ratingsCount ?? 0) - (a.ratingsCount ?? 0),
+}
+/** A sorted copy; ties (and every sort's books without that value) fall back to the Title order. */
+export const sortLibrary = <B extends Sortable>(books: B[], by: LibrarySort): B[] => [...books].sort((a, z) => SORTS[by](a, z) || byTitle(a, z))
 /** Which lists beyond the books we have the filters reach (GET /api/library leaves both out otherwise). */
 export const libraryNeeds = (f: LibraryFilters) => ({ returned: f.show.includes('returned'), wanted: f.show.includes('wishlist') })
 

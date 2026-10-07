@@ -1369,6 +1369,7 @@ export const LibraryBookSchema = z
     addedBy: ActorSchema.nullable(),
     readers: z.array(z.object({
       entryId: z.string(), memberId: z.string().nullable(), status: z.enum(['want', 'reading', 'finished']),
+      readAt: z.string().nullable().openapi({ description: 'YYYY-MM-DD of their latest reading: the day they finished, else the last day logged, else when the entry last changed; null for want to read with nothing logged.' }),
       narrator: z.string().nullable().optional(), minutesListened: z.number().nullable().optional(), totalMinutes: z.number().nullable().optional(),
     })).openapi({ description: "Reading entries started from this book (data.bookId), newest first. An audiobook entry's narrator, minutesListened and totalMinutes come along." }),
     createdAt: z.string(), updatedAt: z.string(),

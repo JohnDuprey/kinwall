@@ -61,11 +61,17 @@ test('library: a reading entry started from a book makes its reader show on the 
   const book = (await send('POST', '/api/library', holes)).body;
   const entry = (await send('POST', '/api/trackers', { kind: 'reading', memberId: maya.id, title: 'Holes', data: { bookId: book.id, totalPages: 233 } })).body;
   assert.equal(entry.data.bookId, book.id);
-  assert.deepEqual((await send('GET', '/api/library')).body[0].readers, [{ entryId: entry.id, memberId: maya.id, status: 'reading' }]);
+  const [reader] = (await send('GET', '/api/library')).body[0].readers;
+  assert.deepEqual({ ...reader, readAt: undefined }, { entryId: entry.id, memberId: maya.id, status: 'reading', readAt: undefined });
+  assert.equal(reader.readAt, entry.updatedAt.slice(0, 10), 'started, nothing logged: when the entry last changed');
   assert.equal((await send('GET', '/api/library?unread=1')).body.length, 0, 'someone has started it');
 
   await send('PATCH', `/api/trackers/${entry.id}`, { data: { status: 'finished' } });
   assert.equal((await send('GET', `/api/library/${book.id}`)).body.readers[0].status, 'finished');
+  await send('PATCH', `/api/trackers/${entry.id}`, { data: { finishedOn: '2026-05-01' } });
+  assert.equal((await send('GET', `/api/library/${book.id}`)).body.readers[0].readAt, '2026-05-01', 'finished: the day it was finished');
+  const want = (await send('POST', '/api/trackers', { kind: 'reading', memberId: maya.id, title: 'Holes', data: { bookId: book.id, status: 'want' } })).body;
+  assert.equal((await send('GET', `/api/library/${book.id}`)).body.readers.find((r: any) => r.entryId === want.id).readAt, null, 'want to read: no reading yet');
 
   assert.equal((await send('DELETE', `/api/library/${book.id}`)).status, 200);
   assert.equal((await send('GET', `/api/trackers/${entry.id}`)).body.title, 'Holes', 'the reading entry stays');

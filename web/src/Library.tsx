@@ -13,7 +13,7 @@ import BookLookup from './BookLookup.tsx'
 import { useIsPhone } from './useIsPhone.ts'
 import { FilterIcon } from './icons.tsx'
 import { appBarcodeScanner, scanBarcode, wallCamera } from './native.ts'
-import { addDayKeys, bookDetails, existingRead, dueLabel, filterLibrary, isbnFromScan, isOverdue, lentLabel, libraryNeeds, listenLabel, LOAN_DAYS, openLibraryUrl, isAudio, libroUrl, FORMAT_LABEL, ratingLabel, readingLevel, seriesLabel, NO_FILTERS, STATUS_LABEL, type LibraryFilters, type LibraryStatus } from './library.ts'
+import { addDayKeys, bookDetails, existingRead, dueLabel, filterLibrary, isbnFromScan, isOverdue, lentLabel, libraryNeeds, listenLabel, LOAN_DAYS, openLibraryUrl, isAudio, libroUrl, FORMAT_LABEL, ratingLabel, readingLevel, seriesLabel, NO_FILTERS, SORT_LABEL, sortLibrary, STATUS_LABEL, type LibraryFilters, type LibrarySort, type LibraryStatus } from './library.ts'
 import type { LibraryFormat } from './types.ts'
 import { announce } from './a11y.tsx'
 import { todayKeyInTz } from './date.ts'
@@ -31,8 +31,10 @@ const SCAN_PAUSE_MS = 2000
 // This device's choice of list or covers (covers until it picks list). The filters aren't kept: a wall that opens on a filtered
 // shelf looks like books went missing.
 const VIEW_KEY = 'kinwall.libraryView'
+const SORT_KEY = 'kinwall.librarySort' // the sort is kept too: it never hides a book
 const STATUSES = Object.keys(STATUS_LABEL) as LibraryStatus[]
 const FORMATS = Object.keys(FORMAT_LABEL) as LibraryFormat[]
+const SORTS = Object.keys(SORT_LABEL) as LibrarySort[]
 const stored = (key: string) => { try { return localStorage.getItem(key) } catch { return null } }
 const store = (key: string, v: string) => { try { localStorage.setItem(key, v) } catch { /* storage blocked: just this visit */ } }
 const msg = (e: unknown, fallback: string) => (e instanceof Error && e.message ? e.message : fallback)
@@ -56,6 +58,9 @@ export default function Library({ bar, adding, onAdded, onStarted }: {
   const isPhone = useIsPhone()
   const [filtering, setFiltering] = useState(false) // the Filters sheet
   const [view, setView] = useState<'list' | 'covers'>(() => stored(VIEW_KEY) === 'list' ? 'list' : 'covers')
+  // null until one is picked: the server's A-Z (Title), or Borrowed alone's soonest due first.
+  const [sort, setSort] = useState<LibrarySort | null>(() => { const v = stored(SORT_KEY); return SORTS.includes(v as LibrarySort) ? v as LibrarySort : null })
+  const pickSort = (v: LibrarySort) => { setSort(v); store(SORT_KEY, v) }
   // The books we have (search on the server), plus returned ones and the wishlist when a filter asks
   // for them (the server leaves both out otherwise); filterLibrary does the rest.
   const need = libraryNeeds(filters)
@@ -67,7 +72,7 @@ export default function Library({ bar, adding, onAdded, onStarted }: {
     setSources(s => more(s, b.map(x => x.borrowedFrom)))
   }).catch(e => { setAll([]); toast(msg(e, "Couldn't load the library"), true) })
   useEffect(() => { const t = setTimeout(load, q ? 250 : 0); return () => clearTimeout(t) }, [q, need.returned, need.wanted, refreshTick]) // eslint-disable-line react-hooks/exhaustive-deps
-  const books = all && filterLibrary(all, filters)
+  const books = all && (sort ? sortLibrary(filterLibrary(all, filters), sort) : filterLibrary(all, filters))
   // #/trackers/library?book=<id> (a Reading entry's "Open in the library"): that book's sheet once the
   // library is in, looking among returned and wishlist books too; an unknown id just shows the library.
   useEffect(() => {
@@ -161,8 +166,9 @@ export default function Library({ bar, adding, onAdded, onStarted }: {
   return (
     <div className="lib">
       {bar === undefined ? searchBar : bar && createPortal(searchBar, bar)}
-      {on > 0 && (
-        <div className="chip-row lib-active" role="group" aria-label="Filters on">
+      {(on > 0 || (sort && sort !== 'title')) && (
+        <div className="chip-row lib-active" role="group" aria-label="Sort and filters on">
+          {sort && sort !== 'title' && <button type="button" className="chip lib-active-chip" aria-label={`Sorted by ${SORT_LABEL[sort]}. Change`} onClick={() => setFiltering(true)}><span aria-hidden="true">↕</span> {SORT_LABEL[sort]}</button>}
           {active.map(a => <button key={a.k + a.v} type="button" className="chip lib-active-chip" aria-label={`Remove filter: ${a.label}`} onClick={() => toggle(a.k, a.v)}>{a.face && <ChipFace m={a.face} />}{a.label} <span aria-hidden="true">✕</span></button>)}
         </div>
       )}
@@ -171,6 +177,10 @@ export default function Library({ bar, adding, onAdded, onStarted }: {
           {on > 0 && <button className="btn btn-secondary" onClick={() => setFilters(NO_FILTERS)}>Clear</button>}
           <button className="btn btn-primary" onClick={() => setFiltering(false)}>Done</button>
         </>}>
+          {group('lib-f-sort', 'Sort by', SORTS.map(k => {
+            const pressed = (sort ?? 'title') === k
+            return <button key={k} type="button" className={`chip ${pressed ? 'active' : ''}`} aria-pressed={pressed} onClick={() => pickSort(k)}>{SORT_LABEL[k]}</button>
+          }), 'Title keeps a series together, in order. This device remembers the sort.')}
           {group('lib-f-show', 'Show', STATUSES.map(s => chip('show', s, STATUS_LABEL[s])),
             filters.show.length ? 'Books that match any of these.' : 'None picked: the books you have, without returned, wishlist or want-to-read-only ones.')}
           {group('lib-f-format', 'Format', FORMATS.map(f => chip('formats', f, FORMAT_LABEL[f])), 'Paper books, audiobooks, or both.')}

@@ -1,7 +1,7 @@
 // node --test test/ (npm test). The family library's labels and the bulk scanner's book check.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { listenLabel, openLibraryUrl, ratingLabel, readingLevel, seriesLabel, wantOnly, addDayKeys, bookDetails, bookLean, clothColor, dueLabel, dueTag, existingRead, isbnFromScan, isOverdue, lentLabel, pickBook, STATUS_LABEL } from '../src/library.ts'
+import { listenLabel, openLibraryUrl, ratingLabel, readingLevel, seriesLabel, wantOnly, addDayKeys, bookDetails, bookLean, clothColor, dueLabel, dueTag, existingRead, isbnFromScan, isOverdue, lentLabel, pickBook, sortLibrary, STATUS_LABEL } from '../src/library.ts'
 import { STATUS_EMOJI, STATUS_WORDS } from '../src/reading.ts'
 
 test('isbnFromScan: book barcodes (978/979, or ISBN-10) only', () => {
@@ -194,4 +194,35 @@ test("the library's status filters use the Reading shelves' words and marks", ()
   for (const s of ['want', 'reading', 'finished'] as const) assert.equal(STATUS_LABEL[s], `${STATUS_EMOJI[s]} ${STATUS_WORDS[s]}`)
   assert.equal(STATUS_LABEL.reading, '📖 Reading now')
   assert.equal(STATUS_WORDS.want, 'Want to read')
+})
+
+test('sortLibrary: each sort, ties by title, missing values last', () => {
+  const b = (id: string, d: Partial<Parameters<typeof sortLibrary>[0][number]> = {}) => ({
+    id, title: id, author: null, series: null, seriesNumber: null, year: null, ratingsAverage: null, ratingsCount: null,
+    createdAt: '2026-01-01T00:00:00Z', readers: [], ...d,
+  })
+  const ids = (list: { id: string }[]) => list.map(x => x.id).join(' ')
+  const books = [
+    b('Holes', { author: 'Louis Sachar', year: 1998, ratingsAverage: 4.1, createdAt: '2026-03-01T00:00:00Z', readers: [{ status: 'finished', readAt: '2026-09-01' }] }),
+    b('Fire and Ice', { author: 'Erin Hunter', series: 'Warriors', seriesNumber: '2', year: 2003, createdAt: '2026-02-01T00:00:00Z' }),
+    b('Into the Wild', { author: 'Erin Hunter', series: 'Warriors', seriesNumber: '1', year: 2003, ratingsAverage: 4.1, ratingsCount: 900, readers: [{ status: 'reading', readAt: '2026-10-01' }] }),
+    b("charlotte's Web", { author: 'E. B. White', year: 1952, ratingsAverage: 4.5, createdAt: '2026-04-01T00:00:00Z', readers: [{ status: 'want', readAt: null }] }),
+    b('Zebra'),
+  ]
+  // Title: A-Z ignoring case, a series together in order under its name.
+  assert.equal(ids(sortLibrary(books, 'title')), "charlotte's Web Holes Into the Wild Fire and Ice Zebra")
+  // Author: by last name (Hunter, Sachar, White), then the title order; no author last.
+  assert.equal(ids(sortLibrary(books, 'author')), "Into the Wild Fire and Ice Holes charlotte's Web Zebra")
+  // Recently added: newest first; same day → title order.
+  assert.equal(ids(sortLibrary(books, 'added')), "charlotte's Web Holes Fire and Ice Into the Wild Zebra")
+  // Recently read: latest activity of any reader; never read (or only want to) last, in title order.
+  assert.equal(ids(sortLibrary(books, 'read')), "Into the Wild Holes charlotte's Web Fire and Ice Zebra")
+  // Series: series first, by name and number; the rest by title.
+  assert.equal(ids(sortLibrary(books, 'series')), "Into the Wild Fire and Ice charlotte's Web Holes Zebra")
+  // Year published: oldest first, unknown last.
+  assert.equal(ids(sortLibrary(books, 'year')), "charlotte's Web Holes Into the Wild Fire and Ice Zebra")
+  // Rating: highest first; a tie goes to more ratings, then title; unrated last.
+  assert.equal(ids(sortLibrary(books, 'rating')), "charlotte's Web Into the Wild Holes Fire and Ice Zebra")
+  // Doesn't change the list it's given.
+  assert.equal(books[0].id, 'Holes')
 })

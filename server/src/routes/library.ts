@@ -31,7 +31,7 @@ export type LibraryRow = {
   added_by: string | null; added_by_label: string | null; created_at: string; updated_at: string;
 };
 const parseGenres = (v: string | null): string[] => { try { const g = JSON.parse(v ?? '[]'); return Array.isArray(g) ? g.filter((x) => typeof x === 'string') : []; } catch { return []; } };
-type Reader = { entryId: string; memberId: string | null; status: 'want' | 'reading' | 'finished'; narrator?: string | null; minutesListened?: number | null; totalMinutes?: number | null };
+type Reader = { entryId: string; memberId: string | null; status: 'want' | 'reading' | 'finished'; readAt: string | null; narrator?: string | null; minutesListened?: number | null; totalMinutes?: number | null };
 
 export function toLibraryApi(r: LibraryRow, readers: Reader[] = []) {
   return {
@@ -48,15 +48,20 @@ export function toLibraryApi(r: LibraryRow, readers: Reader[] = []) {
 async function readersByBook(c: C): Promise<Map<string, Reader[]>> {
   const { results } = await c.env.DB.prepare(
     `SELECT id, member_id, json_extract(data, '$.bookId') AS book_id, coalesce(json_extract(data, '$.status'), 'reading') AS status, json_extract(data, '$.format') AS format,
-       json_extract(data, '$.narrator') AS narrator, json_extract(data, '$.minutesListened') AS listened, json_extract(data, '$.totalMinutes') AS total
+       json_extract(data, '$.narrator') AS narrator, json_extract(data, '$.minutesListened') AS listened, json_extract(data, '$.totalMinutes') AS total,
+       json_extract(data, '$.finishedOn') AS finished_on, json_extract(data, '$.log[#-1].date') AS last_log, updated_at
        FROM tracker_entries WHERE kind = 'reading' AND json_extract(data, '$.bookId') IS NOT NULL ORDER BY created_at DESC`,
-  ).all<{ id: string; member_id: string | null; book_id: string; status: Reader['status']; format: string | null; narrator: unknown; listened: unknown; total: unknown }>();
+  ).all<{ id: string; member_id: string | null; book_id: string; status: Reader['status']; format: string | null; narrator: unknown; listened: unknown; total: unknown; finished_on: unknown; last_log: unknown; updated_at: string }>();
   const out = new Map<string, Reader[]>();
   const num = (v: unknown) => (typeof v === 'number' ? v : null);
   for (const r of results) {
     // An audiobook's listening, for the sheet and the spinning record (minutes; narrator).
     const audio = r.format === 'audiobook' ? { narrator: typeof r.narrator === 'string' ? r.narrator : null, minutesListened: num(r.listened), totalMinutes: num(r.total) } : {};
-    out.set(r.book_id, [...(out.get(r.book_id) ?? []), { entryId: r.id, memberId: r.member_id, status: r.status, ...audio }]);
+    // The latest reading (the library's Recently read sort): the day it was finished, else the last
+    // day logged, else when a started entry last changed; want to read with nothing logged is none.
+    const day = (v: unknown) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : null);
+    const readAt = (r.status === 'finished' && day(r.finished_on)) || day(r.last_log) || (r.status !== 'want' ? day(r.updated_at) : null);
+    out.set(r.book_id, [...(out.get(r.book_id) ?? []), { entryId: r.id, memberId: r.member_id, status: r.status, readAt, ...audio }]);
   }
   return out;
 }
