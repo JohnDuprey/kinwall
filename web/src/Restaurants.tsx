@@ -127,6 +127,7 @@ export function RestaurantEditSheet({ restaurant, onClose, onSaved }: { restaura
   const [rows, setRows] = useState<Row[]>(() => restaurant?.menu.map(toRow) ?? [])
   const [paste, setPaste] = useState('')
   const [reading, setReading] = useState(false)
+  const [filling, setFilling] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const set = <K extends keyof typeof draft>(key: K, value: string) => setDraft(d => ({ ...d, [key]: value.trim() ? value : null }))
@@ -140,6 +141,18 @@ export function RestaurantEditSheet({ restaurant, onClose, onSaved }: { restaura
       setRows(rs => [...rs, ...items.map(i => toRow({ ...i, description: null, favorite: false }))]); setPaste('')
       toast(`Added ${items.length} item${items.length === 1 ? '' : 's'}: check them, then save`)
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not read the menu.') } finally { setReading(false) }
+  }
+  const fillIn = async () => {
+    setFilling(true); setError('')
+    try {
+      const { details } = await api.restaurantDetails(draft.website!)
+      const found = (['name', 'cuisine', 'phone', 'address', 'menuUrl'] as const).filter(k => details[k])
+      const keys = found.filter(k => !draft[k]?.trim())
+      if (!keys.length) { setError(found.length ? 'Everything that page has is already filled in.' : 'No restaurant details found on that page. Fill them in by hand.'); return }
+      setDraft(d => ({ ...d, ...Object.fromEntries(keys.map(k => [k, details[k]])) }))
+      const names = keys.map(k => k === 'menuUrl' ? 'menu link' : k)
+      toast(`Filled in ${names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : names[0]}: check, then save`)
+    } catch (e) { setError(e instanceof Error ? e.message : 'Could not read that page.') } finally { setFilling(false) }
   }
   const save = async () => {
     const menu = rows.map(r => ({ id: r.id, section: r.section.trim() || null, name: r.name.trim(), description: r.description.trim() || null, priceCents: parsePrice(r.price), favorite: r.favorite }))
@@ -167,6 +180,10 @@ export function RestaurantEditSheet({ restaurant, onClose, onSaved }: { restaura
         {field('address', 'Address', 'text', { placeholder: 'For the Map button' })}
         {field('orderUrl', 'Online ordering link', 'url')}
         <div className="meal-form-row">{field('website', 'Website', 'url')}{field('menuUrl', 'Menu link', 'url')}</div>
+        <div className="field">
+          <button type="button" className="btn btn-secondary" disabled={!draft.website?.trim() || filling} onClick={() => void fillIn()}><LinkIcon /> {filling ? 'Reading…' : 'Fill in from website'}</button>
+          <p className="field-hint">Fills empty details from the website for you to check. Nothing is saved until you save.</p>
+        </div>
         <div className="field"><label htmlFor={`${formId}-notes`}>Notes</label><textarea id={`${formId}-notes`} maxLength={10000} placeholder="Cash only, ask for extra sauce…" value={draft.notes ?? ''} onChange={e => set('notes', e.target.value)} /></div>
         <h3>Menu</h3>
         {rows.map((r, index) => <fieldset key={r.key} className="recipe-ingredient">

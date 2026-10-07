@@ -247,7 +247,7 @@ if (!MOCK && typeof window !== 'undefined') {
 async function req<T>(path: string, { quiet, ...opts }: RequestInit & { useAdmin?: boolean; quiet?: boolean } = {}): Promise<T> {
   // Reading a recipe page into a preview changes nothing, so it doesn't flash "Saved"; nor does a
   // write the app makes on its own (`quiet`), since the person didn't save anything.
-  const isChange = !quiet && !!opts.method && opts.method !== 'GET' && !/^api\/(pair\/poll|recipes\/(import-url|parse-text)|restaurants\/parse-menu)$/.test(path)
+  const isChange = !quiet && !!opts.method && opts.method !== 'GET' && !/^api\/(pair\/poll|recipes\/(import-url|parse-text)|restaurants\/(parse-menu|details))$/.test(path)
   return isChange ? trackSave(send<T>(path, opts)) : send<T>(path, opts)
 }
 
@@ -329,6 +329,7 @@ export const api = {
   deleteRestaurant: (id: string) => del(`api/restaurants/${encodeURIComponent(id)}`),
   // Pasted menu text read into items to review; nothing is saved.
   parseMenuText: (text: string) => post<{ items: ParsedMenuItem[] }>('api/restaurants/parse-menu', { text }),
+  restaurantDetails: (url: string) => post<{ details: Pick<RestaurantInput, 'name' | 'cuisine' | 'phone' | 'address' | 'website' | 'menuUrl'> }>('api/restaurants/details', { url }),
   // Order nights: a member's order (no items and no note clears it), asking who's eating, and the meal behind a calendar event.
   setMealOrder: (mealId: string, memberId: string, body: { items: OrderItem[]; note: string | null }) => put<Meal>(`api/meals/${encodeURIComponent(mealId)}/orders/${encodeURIComponent(memberId)}`, body),
   askForOrders: (mealId: string) => post<{ ok: boolean; sent: number }>(`api/meals/${encodeURIComponent(mealId)}/ask-orders`),

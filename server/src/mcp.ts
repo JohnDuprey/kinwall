@@ -21,6 +21,7 @@ import type { Env } from './env.ts';
 import { RecipeSchema, RecipeInputSchema, RecipeKindSchema, RecipeImportSchema, RecipeImportResultSchema, RecipePreviewResultSchema, RecipeUrlImportSchema, MealSchema, MealInputSchema, MealPatchSchema, ProjectionSchema, ProjectionApplySchema, ProjectionQuerySchema, MealRangeSchema, RestaurantSchema, RestaurantInputSchema, MealOrderInputSchema } from './meal-schemas.ts';
 import { NewscastSchema } from './routes/newscast.ts';
 import { PollSchema } from './routes/polls.ts';
+import { RestaurantImportResultSchema, RestaurantImportSchema } from './routes/restaurants.ts';
 import { MealSlotSchema } from './meal-schemas.ts';
 import { LibraryChoreSchema } from './routes/chore-library.ts';
 import { VERSION } from './version.ts';
@@ -212,7 +213,7 @@ function listKind(kind: 'groceries' | 'shopping' | 'todo' | 'reusable', explicit
 }
 const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
   list_recipes: { recipes: z.array(RecipeSchema) }, get_recipe: { recipe: RecipeSchema }, create_recipe: { recipe: RecipeSchema }, update_recipe: { recipe: RecipeSchema }, rate_recipe: { recipe: RecipeSchema }, import_recipe: RecipeImportResultSchema.shape, import_recipe_from_url: RecipePreviewResultSchema.shape,
-  list_restaurants: { restaurants: z.array(RestaurantSchema) }, get_restaurant: { restaurant: RestaurantSchema }, create_restaurant: { restaurant: RestaurantSchema }, update_restaurant: { restaurant: RestaurantSchema }, set_meal_order: { meal: MealSchema }, ask_for_orders: { ok: z.boolean(), sent: z.number() },
+  list_restaurants: { restaurants: z.array(RestaurantSchema) }, get_restaurant: { restaurant: RestaurantSchema }, create_restaurant: { restaurant: RestaurantSchema }, update_restaurant: { restaurant: RestaurantSchema }, import_restaurant: RestaurantImportResultSchema.shape, set_meal_order: { meal: MealSchema }, ask_for_orders: { ok: z.boolean(), sent: z.number() },
   list_meals: { meals: z.array(MealSchema) }, create_meal: { meal: MealSchema }, update_meal: { meal: MealSchema },
   get_meal_projection: ProjectionSchema.shape, apply_meal_projection: { added: z.number(), itemIds: z.array(z.string()), projection: ProjectionSchema },
   get_household: { settings: SettingsSchema, members: z.array(MemberSchema), calendars: z.array(CalendarSchema) },
@@ -303,7 +304,7 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
 };
 
 const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boolean; idempotentHint: boolean; openWorldHint: boolean }> = {
-  list_recipes: READ, get_recipe: READ, create_recipe: WRITE, update_recipe: SET, rate_recipe: SET, import_recipe: SET, import_recipe_from_url: { ...SET, openWorldHint: true }, list_restaurants: READ, get_restaurant: READ, create_restaurant: WRITE, update_restaurant: SET, set_meal_order: SET, ask_for_orders: { ...WRITE, openWorldHint: true }, list_meals: READ, create_meal: WRITE, update_meal: SET, get_meal_projection: READ, apply_meal_projection: SET,
+  list_recipes: READ, get_recipe: READ, create_recipe: WRITE, update_recipe: SET, rate_recipe: SET, import_recipe: SET, import_recipe_from_url: { ...SET, openWorldHint: true }, list_restaurants: READ, get_restaurant: READ, create_restaurant: WRITE, update_restaurant: SET, import_restaurant: { ...SET, openWorldHint: true }, set_meal_order: SET, ask_for_orders: { ...WRITE, openWorldHint: true }, list_meals: READ, create_meal: WRITE, update_meal: SET, get_meal_projection: READ, apply_meal_projection: SET,
   get_household: READ, list_events: READ, get_event: READ, list_chores: READ, get_leaderboard: READ, get_points: READ, award_points: WRITE, delete_point_award: DELETE, get_member_profile: READ, list_lists: READ, get_list: READ, search_books: { ...READ, openWorldHint: true }, list_library: READ, add_to_library: { ...WRITE, openWorldHint: true }, update_library_book: SET, refresh_library_book_details: { ...SET, openWorldHint: true }, list_categories: READ, get_event_items: READ, list_notifications: READ, list_newscast: READ, list_polls: READ, create_poll: { ...WRITE, openWorldHint: true }, vote_poll: SET, close_poll: SET, list_notes: READ, get_snapshot: READ, get_board: READ, list_tracker_entries: READ, add_tracker_entry: WRITE, update_tracker_entry: SET, list_color_schemes: READ, set_color_scheme: SET, save_color_scheme: WRITE,
   list_contacts: READ, get_contact: READ, list_contact_categories: READ, preview_contact_import: READ,
   delete_color_scheme: { ...WRITE, destructiveHint: true, idempotentHint: true },
@@ -507,6 +508,10 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     if (!found) return errorResult(null, 'restaurant not found');
     const result = await call(app, env, auth, 'PATCH', `/api/restaurants/${encodeURIComponent(found.id)}`, input);
     return result.status >= 400 ? errorResult(result.json, 'failed to edit restaurant') : okResult('Restaurant updated', { restaurant: result.json });
+  });
+  tool('import_restaurant', { title: 'Add restaurant from a photo or link', description: "Admin: add a restaurant, or add to one already in the binder (matched by name, case and punctuation ignored). Only empty fields are filled, so nothing a parent typed is changed. Menu items (menu, and/or menuText: one item per line with its price at the end) are added to the end of the menu, skipping items already there by name in the same section, so a menu can come in page by page; existing items and stars are never changed. url: the restaurant's web page (its details are read) or an Apple Maps link (its name is read). From a photo of a paper menu: read the name, cuisine, phone, address and items off it and send them here. Returns a one-line summary.", inputSchema: { ...RestaurantImportSchema.shape, menu: jsonList(RestaurantImportSchema.shape.menu.unwrap()).optional() } }, async (input) => {
+    const result = await call(app, env, auth, 'POST', '/api/restaurants/import', input);
+    return result.status >= 400 ? errorResult(result.json, 'failed to add restaurant') : okResult((result.json as { summary: string }).summary, result.json as Record<string, unknown>);
   });
   tool('set_meal_order', { title: "Set someone's order", description: "Set a family member's order for a dining-out meal (meal ids from list_meals; menu item ids from get_restaurant on the meal's restaurantId). Items replace their order; no items and no note clears it. Once a parent marks the meal ordered (status prepared), only full access can change it. Meals carry orders: [{ memberId, items, note }].", inputSchema: {
     mealId: z.string(), member: z.string().describe('Member name (case-insensitive) or id.'), items: jsonList(MealOrderInputSchema.shape.items), note: MealOrderInputSchema.shape.note,

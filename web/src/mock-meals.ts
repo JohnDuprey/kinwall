@@ -246,6 +246,7 @@ export async function mockMealRequest(path: string, options: RequestInit): Promi
   const method = options.method ?? 'GET'
   const body = options.body ? JSON.parse(String(options.body)) : {}
   if (resource === 'restaurants') {
+    if (id === 'details') throw new Error('The demo can’t read websites. Try it on your own Kinwall.')
     if (id === 'parse-menu') throw new Error('The demo can’t read pasted menus. Try it on your own Kinwall, or add items one at a time.')
     const old = restaurants.find(r => r.id === id)
     if (id && !old) throw new Error('Restaurant not found')

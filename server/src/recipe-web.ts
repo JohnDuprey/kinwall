@@ -31,7 +31,7 @@ export function decodeEntities(s: string): string {
 }
 /** Text from a value that may hold HTML: tags gone, entities decoded, whitespace collapsed
  * (line breaks kept when `keepLines`). */
-function clean(value: unknown, keepLines = false): string {
+export function clean(value: unknown, keepLines = false): string {
   if (typeof value !== 'string' && typeof value !== 'number') return '';
   const tags = (t: string) => t.replace(/<br\s*\/?>|<\/(p|li|div|h\d|tr)>/gi, '\n').replace(/<[^>]*>/g, '');
   const s = tags(decodeEntities(tags(String(value)))); // twice: markup that was itself entity-encoded
@@ -57,10 +57,10 @@ export function yieldServings(value: unknown): number | null {
 type Node = Record<string, unknown>;
 const isObj = (v: unknown): v is Node => !!v && typeof v === 'object' && !Array.isArray(v);
 const types = (n: Node) => (Array.isArray(n['@type']) ? n['@type'] : [n['@type']]).map(String);
-const isType = (n: Node, t: string) => types(n).some((x) => x === t || x.endsWith(`/${t}`) || x.endsWith(`:${t}`));
+export const isType = (n: Node, t: string) => types(n).some((x) => x === t || x.endsWith(`/${t}`) || x.endsWith(`:${t}`));
 
 /** Every object in the page's JSON-LD blocks: arrays, @graph and nested values (mainEntity) flattened. */
-function jsonLdNodes(html: string): Node[] {
+export function jsonLdNodes(html: string): Node[] {
   const out: Node[] = [];
   const walk = (v: unknown, depth: number) => {
     if (depth > 8) return;
@@ -78,7 +78,7 @@ function jsonLdNodes(html: string): Node[] {
   return out;
 }
 
-const httpUrl = (value: unknown, base: string): string | null => {
+export const httpUrl = (value: unknown, base: string): string | null => {
   if (typeof value !== 'string' || !value.trim()) return null;
   try { const u = new URL(decodeEntities(value.trim()), base); return /^https?:$/.test(u.protocol) && u.href.length <= 2000 ? u.href : null; } catch { return null; }
 };

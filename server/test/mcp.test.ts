@@ -134,6 +134,7 @@ test('mcp: tools/list returns the tools', async () => {
     'import_contacts',
     'import_recipe',
     'import_recipe_from_url',
+    'import_restaurant',
     'list_activity_actions',
     'list_categories',
     'list_chore_library',
@@ -769,6 +770,10 @@ test('mcp: restaurant binder tools find places by name and keep menu items', asy
   assert.equal((await call('ask_for_orders', { mealId: meal.id })).ok, true);
   assert.equal((await call('create_poll', { question: 'Dinner out?', ideas: ['Home'], restaurants: ['golden bowl'] })).poll.options[1].restaurantId, restaurant.id);
   await call('close_poll', { poll: 'Dinner out?' });
+  // From a menu photo: the existing place gets only the new item.
+  const imported = await call('import_restaurant', { name: 'GOLDEN BOWL', cuisine: 'Thai', menu: JSON.stringify([{ section: 'Noodles', name: 'lo mein', price: '$9' }, { name: 'Wonton soup', price: 6 }]) });
+  assert.equal(imported.summary, 'Added 1 item to Golden Bowl (1 already there)');
+  assert.equal(imported.restaurant.cuisine, 'Chinese');
 });
 
 test('mcp: meal planning tools use REST permissions, snapshots, and idempotent projection application', async () => {

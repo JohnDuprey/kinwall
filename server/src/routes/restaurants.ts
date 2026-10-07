@@ -6,7 +6,10 @@ import { emit } from '../bus.ts';
 import { ErrorSchema } from '../schemas.ts';
 import { MenuItemSchema, MenuTextParseSchema, RestaurantInputSchema, RestaurantSchema, type Meal, type Restaurant } from '../meal-schemas.ts';
 import { parseMenuText } from '../menu-text.ts';
+import { linkDetails, mapsPlace, nameKey, normalizeLink, parsePrice, splitMenuHeader, type PlaceDetails } from '../restaurant-import.ts';
+import type { Context } from 'hono';
 import type { KinwallDb } from '../db.ts';
+import type { Env } from '../env.ts';
 import { hostTimezone } from '../env.ts';
 import { todayInTz } from './members.ts';
 
@@ -88,6 +91,89 @@ restaurantRoutes.openapi(createRoute({ method: 'get', path: '/api/restaurants', 
 restaurantRoutes.openapi(createRoute({ method: 'post', path: '/api/restaurants/parse-menu', tags: ['Meals'], summary: 'Read pasted menu text into menu items to review, without saving (admin)', security: [{ Bearer: [] }], request: { body: body(MenuTextParseSchema) },
   responses: { 200: { description: 'items read', content: { 'application/json': { schema: z.object({ items: z.array(MenuItemSchema.pick({ section: true, name: true, priceCents: true })) }) } } }, ...errors } }), async (c) => {
   return c.json({ items: parseMenuText(c.req.valid('json').text) }, 200);
+});
+// Adding from a phone (the "Add to Kinwall" Shortcut, import_restaurant): lenient on purpose, since
+// what arrives is whatever Shortcuts or an AI step produced. Strings are cut to size, not refused.
+const loose = z.string().max(5000).nullable().optional();
+export const RestaurantImportSchema = z.object({
+  name: loose, cuisine: loose, phone: loose, address: loose, website: loose.describe('The restaurant\'s site; read for details like url.'), orderUrl: loose, menuUrl: loose,
+  url: loose.describe('A link the phone shared: the restaurant\'s web page (read for its schema.org Restaurant details) or an Apple Maps place (its name and address are read off the link).'),
+  menuText: z.string().max(100000).nullable().optional().describe('Menu text (from a photo): one item per line with its price at the end. "Name:", "Cuisine:", "Phone:", "Address:" and "Website:" lines at the top fill those fields; a "Menu:" line may separate them from the menu.'),
+  menu: z.array(z.object({ section: loose, name: z.string().max(1000), description: loose, price: z.union([z.string().max(50), z.number()]).nullable().optional().describe('"$12.99", "12.99", "12" or 12.99.') })).max(500).optional(),
+}).openapi('RestaurantImport');
+const PlaceDetailsSchema = z.object({ name: z.string().nullable(), cuisine: z.string().nullable(), phone: z.string().nullable(), address: z.string().nullable(), website: z.string().nullable(), menuUrl: z.string().nullable() });
+export const RestaurantImportResultSchema = z.object({
+  restaurant: RestaurantSchema, created: z.boolean(), filled: z.array(z.string()).describe('Fields that were empty and are now filled.'),
+  added: z.number().int(), skipped: z.number().int().describe('Menu items already on the menu (same name in the same section).'), summary: z.string().describe('One line for a notification, e.g. "Added 23 items to Corner Slice".'),
+}).openapi('RestaurantImportResult');
+const FILLABLE = ['cuisine', 'phone', 'address', 'website', 'orderUrl', 'menuUrl'] as const;
+const LABEL: Record<(typeof FILLABLE)[number], string> = { cuisine: 'cuisine', phone: 'phone', address: 'address', website: 'website', orderUrl: 'ordering link', menuUrl: 'menu link' };
+const LIMIT = { name: 200, cuisine: 200, phone: 50, address: 500 } as const;
+const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`;
+const andList = (xs: string[]) => xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`;
+
+/** The import, or an error message for a 400. */
+async function importRestaurant(c: Context<{ Bindings: Env }>, input: z.infer<typeof RestaurantImportSchema>) {
+  const db = c.env.DB;
+  const header = input.menuText ? splitMenuHeader(input.menuText) : { fields: {}, menuText: '' };
+  const text = (k: 'name' | 'cuisine' | 'phone' | 'address') => (input[k]?.trim() || header.fields[k]?.trim() || null)?.slice(0, LIMIT[k]) ?? null;
+  // A Maps link in website (what Shortcuts calls a place's URL can be one) is read like url, never kept as the site.
+  const links = [input.url, input.website ?? header.fields.website].map(normalizeLink);
+  const [url, site] = links.map((l) => (l && mapsPlace(l) ? null : l));
+  const maps = links.find((l) => l && mapsPlace(l));
+  const target = url ?? site;
+  const found: PlaceDetails | null = maps ? await linkDetails(c.env, maps) : null;
+  const page = target ? await linkDetails(c.env, target) : null;
+  const pick = (k: keyof PlaceDetails) => page?.[k] ?? found?.[k] ?? null;
+  const fields = {
+    name: text('name') ?? pick('name'), cuisine: text('cuisine') ?? pick('cuisine'), phone: text('phone') ?? pick('phone'), address: text('address') ?? pick('address'),
+    website: site ?? pick('website') ?? url, orderUrl: normalizeLink(input.orderUrl), menuUrl: normalizeLink(input.menuUrl) ?? pick('menuUrl'),
+  };
+  if (!fields.name) return "Kinwall needs the restaurant's name. Add a name, or share the restaurant's website or Maps place.";
+
+  const candidates = await db.prepare('SELECT id, name FROM restaurants WHERE archived = 0').all<{ id: string; name: string }>();
+  const match = candidates.results.find((r) => nameKey(r.name) && nameKey(r.name) === nameKey(fields.name));
+  const old = match ? (await readRestaurants(db, { id: match.id }))[0] : undefined;
+  const filled = FILLABLE.filter((k) => fields[k] && !old?.[k]);
+
+  const key = (section: string | null | undefined, name: string) => `${nameKey(section)}|${nameKey(name)}`;
+  const seen = new Set(old?.menu.map((i) => key(i.section, i.name)));
+  const incoming = [
+    ...parseMenuText(header.menuText).map((i) => ({ ...i, description: null })),
+    ...(input.menu ?? []).map((i) => ({ section: i.section?.trim().slice(0, 200) || null, name: i.name.trim().slice(0, 200), description: i.description?.trim().slice(0, 1000) || null, priceCents: parsePrice(i.price) })),
+  ].filter((i) => i.name);
+  const added: typeof incoming = [];
+  let skipped = 0;
+  for (const item of incoming) {
+    // ponytail: past 500 items the rest count as skipped; a menu that big is rare.
+    if (seen.has(key(item.section, item.name)) || (old?.menu.length ?? 0) + added.length >= 500) { skipped++; continue }
+    seen.add(key(item.section, item.name)); added.push(item);
+  }
+
+  let restaurant = old;
+  if (!old || filled.length || added.length) {
+    const changes = Object.fromEntries(filled.map((k) => [k, fields[k]]));
+    restaurant = await saveRestaurant(db, { name: old?.name ?? fields.name, ...changes, ...(added.length && { menu: [...(old?.menu ?? []), ...added] }) }, old);
+    emit(c, 'restaurant.changed', { id: restaurant.id });
+  }
+  const name = restaurant!.name, extra = skipped ? ` (${skipped} already there)` : '';
+  const fill = andList(filled.map((k) => LABEL[k]));
+  const summary = !old ? (added.length ? `Added ${name} with ${plural(added.length, 'menu item')}${extra}` : `Added ${name} to the binder`)
+    : added.length ? `Added ${plural(added.length, 'item')} to ${name}${extra}${fill ? ` and filled in ${fill}` : ''}`
+    : fill ? `Filled in ${fill} for ${name}${extra}` : `${name} is already up to date${extra}`;
+  return { restaurant: restaurant!, created: !old, filled, added: added.length, skipped, summary };
+}
+
+restaurantRoutes.openapi(createRoute({ method: 'post', path: '/api/restaurants/import', tags: ['Meals'], summary: 'Add a restaurant from a phone (the Apple Shortcut): matches one by name (case and punctuation ignored) or adds it, fills only empty fields, and adds menu items not already there (admin)', security: [{ Bearer: [] }], request: { body: body(RestaurantImportSchema) },
+  responses: { 200: { description: 'updated', content: { 'application/json': { schema: RestaurantImportResultSchema } } }, 201: { description: 'added', content: { 'application/json': { schema: RestaurantImportResultSchema } } }, ...errors } }), async (c) => {
+  const result = await importRestaurant(c, c.req.valid('json'));
+  if (typeof result === 'string') return c.json({ error: result }, 400);
+  return c.json(result, result.created ? 201 : 200);
+});
+restaurantRoutes.openapi(createRoute({ method: 'post', path: '/api/restaurants/details', tags: ['Meals'], summary: "Read a restaurant's details from its web page (schema.org Restaurant data) or an Apple Maps link, to review, without saving; nothing found gives all nulls (admin)", security: [{ Bearer: [] }],
+  request: { body: body(z.object({ url: z.string().min(1).max(2000) })) }, responses: { 200: { description: 'what was found', content: { 'application/json': { schema: z.object({ details: PlaceDetailsSchema }) } } }, ...errors } }), async (c) => {
+  const details = await linkDetails(c.env, c.req.valid('json').url);
+  return c.json({ details: details ?? { name: null, cuisine: null, phone: null, address: null, website: null, menuUrl: null } }, 200);
 });
 restaurantRoutes.openapi(createRoute({ method: 'get', path: '/api/restaurants/{id}', tags: ['Meals'], summary: 'A restaurant with its menu', security: [{ Bearer: [] }], request: { params }, responses: { 200: one, ...errors } }), async (c) => {
   const found = (await readRestaurants(c.env.DB, { id: c.req.valid('param').id, archived: true }))[0];
