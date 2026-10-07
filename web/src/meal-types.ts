@@ -126,3 +126,13 @@ export type BasicChoices = Record<string, 'made' | 'ingredients'>
 /** Qualifier the server gives imported meal-kit ingredients that ship in the box (server/src/meal-schemas.ts). */
 export const KIT_QUALIFIER = 'in the kit'
 export interface ShoppingProjection { from: string; to: string; listId: string | null; items: ProjectionItem[] }
+/** The restaurant binder (Meals → Restaurants). Prices are in cents, shown but never totaled. */
+export interface MenuItem { id: string; section: string | null; name: string; description: string | null; priceCents: number | null; favorite: boolean /* the family's star */; sort: number }
+export type MenuItemInput = Omit<MenuItem, 'id' | 'sort'> & { id?: string } // an id keeps the item (its star and past orders)
+export interface RestaurantInput {
+  name: string; cuisine: string | null; phone: string | null; address: string | null
+  website: string | null; orderUrl: string | null; menuUrl: string | null; notes: string | null; archived: boolean
+  menu: MenuItemInput[] // sending it replaces the menu
+}
+export interface Restaurant extends Omit<RestaurantInput, 'menu'> { id: string; menu: MenuItem[]; createdAt: string; updatedAt: string }
+export type ParsedMenuItem = Pick<MenuItem, 'section' | 'name' | 'priceCents'>

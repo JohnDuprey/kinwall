@@ -18,7 +18,7 @@ import { hostTimezone } from './env.ts';
 import { effectivePublicUrl } from './providers/config.ts';
 import { BoardSchema, BookResultSchema, CalendarSchema, LibraryBookSchema, CategorySchema, ContactCategoryInputSchema, ContactCategorySchema, ContactInputSchema, ContactPatchSchema, ContactSchema, ChoreDaySchema, ChoreSchema, EventInstanceSchema, LeaderboardEntrySchema, ListDetailSchema, ListItemSchema, ListSchema, MemberSchema, NoteSchema, RememberedItemSchema, StoreAislesSchema, TrackerEntrySchema, TRACKER_KINDS, NotificationSchema, PointsSchema, SettingsSchema, SnapshotSchema, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, TransitionRemindersSchema, RewardSchema, RewardInputSchema, RedemptionSchema, RewardLimitSchema, MemberStatsSchema, StatsPeriodSchema, PointAwardSchema, BONUS_MAX, BONUS_NOTE_MAX } from './schemas.ts';
 import type { Env } from './env.ts';
-import { RecipeSchema, RecipeInputSchema, RecipeKindSchema, RecipeImportSchema, RecipeImportResultSchema, RecipePreviewResultSchema, RecipeUrlImportSchema, MealSchema, MealInputSchema, MealPatchSchema, ProjectionSchema, ProjectionApplySchema, ProjectionQuerySchema, MealRangeSchema } from './meal-schemas.ts';
+import { RecipeSchema, RecipeInputSchema, RecipeKindSchema, RecipeImportSchema, RecipeImportResultSchema, RecipePreviewResultSchema, RecipeUrlImportSchema, MealSchema, MealInputSchema, MealPatchSchema, ProjectionSchema, ProjectionApplySchema, ProjectionQuerySchema, MealRangeSchema, RestaurantSchema, RestaurantInputSchema } from './meal-schemas.ts';
 import { NewscastSchema } from './routes/newscast.ts';
 import { LibraryChoreSchema } from './routes/chore-library.ts';
 import { VERSION } from './version.ts';
@@ -210,6 +210,7 @@ function listKind(kind: 'groceries' | 'shopping' | 'todo' | 'reusable', explicit
 }
 const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
   list_recipes: { recipes: z.array(RecipeSchema) }, get_recipe: { recipe: RecipeSchema }, create_recipe: { recipe: RecipeSchema }, update_recipe: { recipe: RecipeSchema }, rate_recipe: { recipe: RecipeSchema }, import_recipe: RecipeImportResultSchema.shape, import_recipe_from_url: RecipePreviewResultSchema.shape,
+  list_restaurants: { restaurants: z.array(RestaurantSchema) }, get_restaurant: { restaurant: RestaurantSchema }, create_restaurant: { restaurant: RestaurantSchema }, update_restaurant: { restaurant: RestaurantSchema },
   list_meals: { meals: z.array(MealSchema) }, create_meal: { meal: MealSchema }, update_meal: { meal: MealSchema },
   get_meal_projection: ProjectionSchema.shape, apply_meal_projection: { added: z.number(), itemIds: z.array(z.string()), projection: ProjectionSchema },
   get_household: { settings: SettingsSchema, members: z.array(MemberSchema), calendars: z.array(CalendarSchema) },
@@ -299,7 +300,7 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
 };
 
 const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boolean; idempotentHint: boolean; openWorldHint: boolean }> = {
-  list_recipes: READ, get_recipe: READ, create_recipe: WRITE, update_recipe: SET, rate_recipe: SET, import_recipe: SET, import_recipe_from_url: { ...SET, openWorldHint: true }, list_meals: READ, create_meal: WRITE, update_meal: SET, get_meal_projection: READ, apply_meal_projection: SET,
+  list_recipes: READ, get_recipe: READ, create_recipe: WRITE, update_recipe: SET, rate_recipe: SET, import_recipe: SET, import_recipe_from_url: { ...SET, openWorldHint: true }, list_restaurants: READ, get_restaurant: READ, create_restaurant: WRITE, update_restaurant: SET, list_meals: READ, create_meal: WRITE, update_meal: SET, get_meal_projection: READ, apply_meal_projection: SET,
   get_household: READ, list_events: READ, get_event: READ, list_chores: READ, get_leaderboard: READ, get_points: READ, award_points: WRITE, delete_point_award: DELETE, get_member_profile: READ, list_lists: READ, get_list: READ, search_books: { ...READ, openWorldHint: true }, list_library: READ, add_to_library: { ...WRITE, openWorldHint: true }, update_library_book: SET, refresh_library_book_details: { ...SET, openWorldHint: true }, list_categories: READ, get_event_items: READ, list_notifications: READ, list_newscast: READ, list_notes: READ, get_snapshot: READ, get_board: READ, list_tracker_entries: READ, add_tracker_entry: WRITE, update_tracker_entry: SET, list_color_schemes: READ, set_color_scheme: SET, save_color_scheme: WRITE,
   list_contacts: READ, get_contact: READ, list_contact_categories: READ, preview_contact_import: READ,
   delete_color_scheme: { ...WRITE, destructiveHint: true, idempotentHint: true },
@@ -473,6 +474,36 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     try { member = await resolveMember(app, env, auth, memberId); } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'member lookup failed'); }
     const result = await call(app, env, auth, 'PUT', `/api/recipes/${encodeURIComponent(recipeId)}/rating`, { memberId: member, stars });
     return result.status >= 400 ? errorResult(result.json, 'failed to rate recipe') : okResult(stars ? `Rated ${stars} star${stars === 1 ? '' : 's'}` : 'Rating cleared', { recipe: result.json });
+  });
+  // The restaurant binder: a restaurant by id or exact name (case-insensitive), archived ones included.
+  const findRestaurant = async (ref: string) => {
+    const res = await call(app, env, auth, 'GET', '/api/restaurants?archived=true');
+    if (res.status >= 400) return null;
+    const all = res.json as { id: string; name: string }[];
+    return all.find((r) => r.id === ref) ?? all.find((r) => r.name.toLowerCase() === ref.trim().toLowerCase()) ?? null;
+  };
+  const MENU_DOC = 'The whole menu in order, replacing the one it has: { section, name, description, priceCents, favorite }. Keep an item\'s id (from get_restaurant) to keep it, its star and its past orders. From a photo of a paper menu: read the items off it and send them here.';
+  tool('list_restaurants', { title: 'Find restaurants', description: "The family's restaurant binder (Meals → Restaurants), A-Z, each with phone, address, website, online ordering link, notes and menu (favorite: the family's star). search matches name, cuisine or a menu item; archived=true includes archived places.", inputSchema: { search: z.string().optional(), archived: z.boolean().optional() } }, async ({ search, archived }) => {
+    const query = new URLSearchParams();
+    if (search) query.set('search', search); if (archived) query.set('archived', 'true');
+    const result = await call(app, env, auth, 'GET', `/api/restaurants?${query}`);
+    return result.status >= 400 ? errorResult(result.json, 'failed to read restaurants') : okResult('Restaurants', { restaurants: result.json });
+  });
+  tool('get_restaurant', { title: 'Get restaurant', description: 'One restaurant with its menu by section, favorites marked.', inputSchema: { restaurant: z.string().describe('Restaurant id or exact name.') } }, async ({ restaurant }) => {
+    const found = await findRestaurant(restaurant);
+    if (!found) return errorResult(null, 'restaurant not found');
+    const result = await call(app, env, auth, 'GET', `/api/restaurants/${encodeURIComponent(found.id)}`);
+    return result.status >= 400 ? errorResult(result.json, 'restaurant not found') : okResult('Restaurant', { restaurant: result.json });
+  });
+  tool('create_restaurant', { title: 'Add restaurant', description: 'Admin: add a restaurant to the binder, optionally with its menu.', inputSchema: { ...RestaurantInputSchema.shape, menu: jsonList(RestaurantInputSchema.shape.menu).describe(MENU_DOC) } }, async (input) => {
+    const result = await call(app, env, auth, 'POST', '/api/restaurants', input);
+    return result.status >= 400 ? errorResult(result.json, 'failed to add restaurant') : okResult('Restaurant added', { restaurant: result.json });
+  });
+  tool('update_restaurant', { title: 'Edit restaurant', description: 'Admin: edit a restaurant; archived=true archives it, false restores it. Sending menu replaces the menu.', inputSchema: { restaurant: z.string().describe('Restaurant id or exact name.'), ...RestaurantInputSchema.partial().shape, menu: jsonList(RestaurantInputSchema.shape.menu).describe(MENU_DOC) } }, async ({ restaurant, ...input }) => {
+    const found = await findRestaurant(restaurant);
+    if (!found) return errorResult(null, 'restaurant not found');
+    const result = await call(app, env, auth, 'PATCH', `/api/restaurants/${encodeURIComponent(found.id)}`, input);
+    return result.status >= 400 ? errorResult(result.json, 'failed to edit restaurant') : okResult('Restaurant updated', { restaurant: result.json });
   });
   tool('list_meals', { title: 'Get meal plan', description: 'Read dated meals in an inclusive range. Start from on the household week start (weekStart from get_household: 0 Sunday, 1 Monday); omit to for that seven-day week.', inputSchema: { from: MealRangeSchema.shape.from, to: MealRangeSchema.shape.to.optional().describe('Inclusive end date; defaults to six days after from.') } }, async ({ from, to }) => {
     const end = to ?? new Date(Date.parse(`${from}T00:00:00Z`) + 6 * 86400000).toISOString().slice(0, 10);

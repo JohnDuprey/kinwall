@@ -198,6 +198,7 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'GET', pattern: /^\/api\/recipes\/[^/]+\/steps\/\d+\/image$/ }, // recipe step photos
   { method: 'GET', pattern: /^\/api\/meals(\/(?!projection$)[^/]+)?$/ }, // not the shopping projection (admin)
   { method: 'PATCH', pattern: /^\/api\/meals\/[^/]+$/ }, // route restricts assigned devices to notes/status
+  { method: 'GET', pattern: /^\/api\/restaurants(\/[^/]+)?$/ }, // the restaurant binder, read-only (parents edit it)
 
   { method: 'POST', pattern: /^\/api\/device-keys$/ }, // an app's widgets / watch key (everyday access only)
   { method: 'DELETE', pattern: /^\/api\/device-keys\/self$/ },

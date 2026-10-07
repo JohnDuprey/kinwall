@@ -52,6 +52,7 @@ URLs must be public `http(s)` addresses. Private and LAN addresses are refused, 
 | `tracker.changed` | A [tracker](../using/trackers.md) entry is added, edited or deleted. `data`: `{ id, kind }` (plus `deleted: true`), never the entry's fields. |
 | `recipe.changed` | A [recipe](../using/meals.md) is added, edited, archived or deleted. `data`: `{ id }`. |
 | `meal.changed` | A meal is planned, edited or deleted. `data`: `{ id }`. |
+| `restaurant.changed` | A [restaurant](../using/meals.md#restaurants) is added, edited (its menu or favorites too), archived or deleted. `data`: `{ id }`. |
 | `display.paired` | A wall display was paired. |
 | `display.night_screen` | The [Night screen](../using/night.md#start-it-from-home-assistant) was started or ended remotely. `data`: `{ on, displays, until }`, where `displays` is the display key IDs or `null` for every wall screen, and `until` is when "on" runs out (`null` for off). |
 | `contact.changed` | A [contact](../using/contacts.md) is added, edited, deleted, imported or merged. `data`: `{ id, action }`, where `action` is `created`, `updated`, `deleted`, `imported` or `merged`. |

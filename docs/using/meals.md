@@ -1,6 +1,6 @@
 # Meals
 
-The **Meals** tab answers two questions: what are we eating this week, and what do we need to buy? It has a **Week planner** and a **Recipe library**. Admins plan and edit; everyone can look.
+The **Meals** tab answers two questions: what are we eating this week, and what do we need to buy? It has a **Week planner**, a **Recipe library** and **Restaurants**, the family's binder of takeout menus. Admins plan and edit; everyone can look.
 
 ## Planning the week
 
@@ -159,6 +159,31 @@ Recipes can come in from a website (above) or from another app instead of being 
 * The recipe card link is the recipe's source link (a PDF card opens in the app), and `prepMinutes` / `totalMinutes` are its times.
 * With a date and slot it's also planned, unless that slot already has a meal. Then nothing is planned and the answer says why (`planned: false`), so an automation can try the next night. Importing again finds the meal it planned before for that slot in the same week, even if you moved it to another night, and doesn't plan it twice.
 
+## Restaurants
+
+**Restaurants** is the family's binder of the places you order from or eat at. Each card shows the name, the cuisine, how many items are on its menu and how many are family favorites. Search finds a place by name, cuisine or anything on its menu ("lo mein"); **Show** lists archived places too.
+
+Tap a restaurant to open it:
+
+* Buttons for what it has: **Call** (dials its phone), **Order online** (its ordering page), **Website** and **Map** (a Google Maps search for its address).
+* **★ Favorites**: the menu items the family starred, pinned above the menu. Parents tap the ☆ next to any item to star it (or ★ to unstar it); it's one star for the whole family.
+* The full menu by section, in the order the sections come, with prices and short descriptions. Prices are only shown, never added up.
+* Notes ("Cash only", "Ask for the crust well done").
+
+Parents add a place with **New restaurant** and change it with **Edit**; **More…** archives (or restores) or deletes it. Wall screens and kids' devices can look but not change the binder.
+
+### Adding the menu
+
+In the editor, **Add item** adds one item at a time: its name, section ("Pizza", "Sides"; a new item starts in the section above it), price, a short description and **★ Family favorite**.
+
+Or paste the whole menu in **Paste a menu** and tap **Add these items**:
+
+* One item per line, with the price at the end: `Large cheese 14.99`, `Pepperoni $16`, `Fries ... 3.25`.
+* A line without a price that's followed by priced lines starts a section (`Pizza`), and so does any line ending in a colon (`Sides:`).
+* A price alone on the next line belongs to the item above it, which is how text copied off a photo often comes out.
+
+The items are added below the ones you have, so you can check and fix them before **Save restaurant**. For a paper menu, take a photo and copy its text (Live Text on an iPhone or iPad, Google Lens on Android), then paste it. Or send the photo to your family assistant: through [MCP](../integrations/mcp.md) it can read the menu off the photo and save it with `update_restaurant`.
+
 ## Scaling servings
 
 Change a meal's servings and its ingredients scale with it: a recipe for 4 with 2 cups of flour needs 1 cup for 2 servings. Counts ("12 tortillas") and measures (cups, tbsp, lb, g and so on) scale; "1 dozen" counts as 12.
@@ -206,11 +231,11 @@ An event Kinwall made follows the meal, on whichever calendar it's on. Saving th
 * A person's day (tap their avatar) lists today's meals, which open the same way over their day, and tomorrow's in **Tomorrow at a glance**. See [Daily & weekly snapshot](snapshot.md).
 * The morning summary includes the day's meals. See [Notifications](notifications.md).
 
-A wall display (a display key) can see the week and the recipes, but not plan, edit recipes or use the shopping projection. A device that belongs to someone can update the **Notes** and **Status** of meals assigned to that person, for example marking dinner **Prepared**.
+A wall display (a display key) can see the week, the recipes and the restaurant binder, but not plan, edit restaurants, edit recipes or use the shopping projection. A device that belongs to someone can update the **Notes** and **Status** of meals assigned to that person, for example marking dinner **Prepared**.
 
 ## Turning it off
 
-An admin can turn off **Meals** in **Settings → General** (tap **Change** under **Features**). The tab, the Board card, meals in a person's day and the summary's meals line go away; a link to Meals opens the calendar. The recipes and meals are kept and the API keeps answering. See [Features](../settings/general.md#features).
+An admin can turn off **Meals** in **Settings → General** (tap **Change** under **Features**). The tab (with the restaurant binder), the Board card, meals in a person's day and the summary's meals line go away; a link to Meals opens the calendar. The recipes and meals are kept and the API keeps answering. See [Features](../settings/general.md#features).
 
 ## API and MCP
 
@@ -225,6 +250,10 @@ An admin can turn off **Meals** in **Settings → General** (tap **Change** unde
 | `GET` | `/api/recipes/{id}/image`, `/api/meals/{id}/image` | The photo at that recipe's own `imageUrl` (a meal: its recipe's), fetched by the server (any signed-in key, display keys too; also `?key=` with a [media token](../integrations/rest-api.md) for an `<img src>`). Public `https` only, redirects re-checked (at most 3), JPEG, PNG, WebP or GIF checked by the file's own bytes (served as what the bytes are, never SVG), at most 8 MB, 15-second timeout, `Cache-Control: private, max-age=604800`, the source's `ETag` passed through. 404 when there's no image, 400 when it isn't a public `https` address, 502 when the fetch fails or isn't an image. Clear a recipe's photo with `PATCH /api/recipes/{id}` `{"imageUrl": null}`. |
 | `GET` | `/api/recipes/{id}/steps/{n}/image` | Step `n`'s photo (steps count from 1), from that step's own `imageUrl`, fetched and checked exactly like the recipe photo above (also a media token as `?key=`; display keys too). 404 when the step doesn't exist or has no photo. |
 | `GET` | `/api/recipes/{id}/source.pdf`, `/api/meals/{id}/source.pdf` | The PDF recipe card at that recipe's or meal's own `sourceUrl`, fetched by the server (any signed-in key, display keys too). Public `https` only, redirects re-checked (at most 3), `application/pdf` (or `application/octet-stream` starting `%PDF`), at most 15 MB, 15-second timeout, `Cache-Control: private, max-age=86400`. 404 when there's no `sourceUrl`, 400 when it isn't a public `https` address, 502 when the fetch fails or isn't a PDF. |
+| `GET` | `/api/restaurants?search=&archived=` | The restaurant binder A to Z, each with its `menu` (`[{ id, section, name, description, priceCents, favorite, sort }]`). Display keys too. |
+| `GET` | `/api/restaurants/{id}` | One restaurant with its menu. Display keys too. |
+| `POST` / `PATCH` / `DELETE` | `/api/restaurants`, `/api/restaurants/{id}` | Add, edit (`archived: true` archives) or delete a restaurant (admin): `{ name, cuisine, phone, address, website, orderUrl, menuUrl, notes, menu }`. Sending `menu` replaces the whole menu; an item that keeps its `id` keeps its star. |
+| `POST` | `/api/restaurants/parse-menu` | Read pasted menu text `{ text }` into `{ items: [{ section, name, priceCents }] }` to review, without saving (admin). |
 | `GET` | `/api/meals?from=&to=` | Meals in a date range (at most 367 days). |
 | `POST` / `PATCH` / `DELETE` | `/api/meals`, `/api/meals/{id}` | Plan, edit or delete a meal (admin; an assigned device may `PATCH` `notes` and `status`). `refreshRecipe: true` replaces the meal's ingredients with the recipe's. |
 | `GET` | `/api/meals/projection?from=&to=&listId=` | The shopping preview (admin). |

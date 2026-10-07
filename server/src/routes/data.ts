@@ -7,7 +7,8 @@ import { createRouter } from '../router.ts';
 import { emit, type BusEventType } from '../bus.ts';
 import type { KinwallDb, KinwallStatement } from '../db.ts';
 import type { Env } from '../env.ts';
-import { RecipeSchema, MealSchema } from '../meal-schemas.ts';
+import { RecipeSchema, MealSchema, RestaurantSchema } from '../meal-schemas.ts';
+import { readRestaurants } from './restaurants.ts';
 import { parseFilter } from '../calendar-filter.ts';
 import { readRecipes, readMeals, normalizeIngredient } from '../meals.ts';
 import { CATALOGS, itemKey, looksLikeGroceries, type Catalog } from '../item-memory.ts';
@@ -172,6 +173,8 @@ const ExportSchema = z
     trackers: z.array(TrackerEntrySchema), // reading log, memories, health visits (0031)
     recipes: z.array(RecipeSchema),
     meals: z.array(MealSchema),
+    // The restaurant binder (0100), each with its menu.
+    restaurants: z.array(RestaurantSchema),
     mealShoppingSources: z.array(z.object({ listId: z.string(), sourceRef: z.string(), itemId: z.string(), fingerprint: z.string() })),
     // Where the household keeps things (0040): the store/category/aisle last used per item name
     // (nameKey is the matching key, store '' = none), and stores' aisle walking orders.
@@ -376,6 +379,7 @@ dataRoutes.openapi(
         trackers: (await Promise.all((trackers as TrackerRow[]).filter((r) => r.kind !== 'health' || !healthHidden).map((r) => openRow(c.env, r)))).map(toTrackerApi),
         recipes: await readRecipes(db, { archived: true }),
         meals: await readMeals(db, '0000-01-01', '9999-12-31'),
+        restaurants: await readRestaurants(db, { archived: true }),
         mealShoppingSources: (await db.prepare('SELECT list_id, source_ref, item_id, fingerprint FROM meal_shopping_sources ORDER BY list_id, source_ref').all<{ list_id: string; source_ref: string; item_id: string; fingerprint: string }>()).results.map((r) => ({ listId: r.list_id, sourceRef: r.source_ref, itemId: r.item_id, fingerprint: r.fingerprint })),
         itemMemory: (await db.prepare('SELECT catalog, name_key, store, category, aisle, updated_at FROM item_memory ORDER BY catalog, name_key, store').all<{ catalog: Catalog; name_key: string; store: string; category: string | null; aisle: string | null; updated_at: string }>()).results
           .map((r) => ({ catalog: r.catalog, nameKey: r.name_key, store: r.store, category: r.category, aisle: r.aisle, updatedAt: r.updated_at })),
@@ -432,6 +436,7 @@ const ImportSchema = ExportSchema.extend({
   trackers: ExportSchema.shape.trackers.default([]),
   recipes: ExportSchema.shape.recipes.default([]),
   meals: ExportSchema.shape.meals.default([]),
+  restaurants: ExportSchema.shape.restaurants.default([]),
   mealShoppingSources: ExportSchema.shape.mealShoppingSources.default([]),
   itemMemory: ExportSchema.shape.itemMemory.default([]),
   storeAisles: ExportSchema.shape.storeAisles.default([]),
@@ -476,6 +481,7 @@ const ImportResultSchema = z
       trackers: z.number(),
       recipes: z.number(),
       meals: z.number(),
+      restaurants: z.number(),
       mealShoppingSources: z.number(),
       itemMemory: z.number(),
       storeAisles: z.number(),
@@ -967,6 +973,10 @@ dataRoutes.openapi(
       db.prepare("INSERT INTO recipe_ratings (recipe_id, member_id, stars) SELECT j.value->>'recipe_id', j.value->>'member_id', j.value->>'stars' FROM json_each(?) j WHERE j.value->>'member_id' IN (SELECT id FROM members) ON CONFLICT(recipe_id, member_id) DO UPDATE SET stars = excluded.stars")
         .bind(JSON.stringify(body.recipes.flatMap((r) => Object.entries(r.rating?.byMember ?? {}).map(([member_id, stars]) => ({ recipe_id: r.id, member_id, stars }))))),
       ...upserts(db, 'meals', 'id', body.meals.map((m) => ({ id: m.id, date: m.date, slot: m.slot, title: m.title, meal_kind: m.mealKind, recipe_id: m.recipeId, recipe_snapshot: m.recipeSnapshot ? JSON.stringify(m.recipeSnapshot) : null, servings: m.servings, assignee_member_id: m.assigneeMemberId, eater_ids: JSON.stringify(m.eaterIds ?? []), notes: m.notes, planned_time: m.plannedTime, calendar_event_id: m.calendarEventId, calendar_event_start: m.calendarEventId ? m.calendarEventStart ?? null : null, status: m.status, source_url: m.sourceUrl, created_at: m.createdAt, updated_at: m.updatedAt })), { ...keepCreated, expr: { recipe_id: "(SELECT id FROM recipes WHERE id = j.value->>'recipe_id')", assignee_member_id: memberRef('assignee_member_id') } }),
+      ...upserts(db, 'restaurants', 'id', body.restaurants.map((r) => ({ id: r.id, name: r.name, cuisine: r.cuisine, phone: r.phone, address: r.address, website: r.website, order_url: r.orderUrl, menu_url: r.menuUrl, notes: r.notes, archived: r.archived ? 1 : 0, created_at: r.createdAt, updated_at: r.updatedAt })), keepCreated),
+      // Each imported restaurant's menu is replaced by the file's, like a recipe's ingredients.
+      db.prepare('DELETE FROM restaurant_menu_items WHERE restaurant_id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(body.restaurants.map((r) => r.id))),
+      ...upserts(db, 'restaurant_menu_items', 'id', body.restaurants.flatMap((r) => r.menu.map((i) => ({ id: i.id, restaurant_id: r.id, section: i.section, name: i.name, description: i.description, price_cents: i.priceCents, favorite: i.favorite ? 1 : 0, sort: i.sort })))),
       ...upserts(db, 'meal_shopping_sources', 'list_id, source_ref', mealSources.map((s) => ({ list_id: s.listId, source_ref: s.sourceRef, item_id: s.itemId, fingerprint: s.fingerprint }))),
       // Newer knowledge wins: a remembered place only replaces one that is older.
       ...upserts(db, 'item_memory', 'catalog, name_key, store', catalogs.rows(body.itemMemory).map((m) => ({ catalog: m.catalog, name_key: m.nameKey, store: m.store, category: m.category, aisle: m.aisle, updated_at: m.updatedAt })), { where: 'excluded.updated_at > item_memory.updated_at' }),
@@ -1002,6 +1012,7 @@ dataRoutes.openapi(
       ['journal.changed', journalEntries.length],
       ['recipe.changed', body.recipes.length],
       ['meal.changed', body.meals.length],
+      ['restaurant.changed', body.restaurants.length],
     ];
     for (const [type, n] of changed) if (n > 0) emit(c, type, { imported: n });
 
@@ -1040,6 +1051,7 @@ dataRoutes.openapi(
           trackers: trackers.length,
           recipes: body.recipes.length,
           meals: body.meals.length,
+          restaurants: body.restaurants.length,
           mealShoppingSources: mealSources.length,
           itemMemory: body.itemMemory.length,
           storeAisles: body.storeAisles.length,

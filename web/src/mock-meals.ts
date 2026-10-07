@@ -3,7 +3,7 @@ import { mock } from './mock.ts'
 import { dateKey } from './date.ts'
 import { ingredientAmount, mealWeek, MEAL_SLOTS } from './meal-date.ts'
 import { matchBasic } from './recipe-search.ts'
-import { KIT_QUALIFIER, type BasicChoices, type Meal, type MealInput, type Recipe, type RecipeInput, type ShoppingProjection } from './meal-types.ts'
+import { KIT_QUALIFIER, type BasicChoices, type Meal, type MealInput, type MenuItem, type Recipe, type RecipeInput, type Restaurant, type RestaurantInput, type ShoppingProjection } from './meal-types.ts'
 
 // Keep the same Sunday–Saturday menu on the current local week, including across DST changes.
 const dates = mealWeek(dateKey(new Date()), 0)
@@ -149,6 +149,30 @@ let meals: Meal[] = menu.flatMap((day, dayIndex) => day.map((key, slotIndex) => 
     sourceUrl: null, calendarEventId: null, createdAt: stamp, updatedAt: stamp,
   }
 }))
+// The restaurant binder: made-up places only (never real restaurants in the demo).
+type SeedItem = [section: string, name: string, price: number, favorite?: boolean, description?: string]
+const seedPlace = (id: string, name: string, cuisine: string, phone: string, address: string, notes: string | null, items: SeedItem[]): Restaurant => ({
+  id: `demo-${id}`, name, cuisine, phone, address, website: `https://example.com/${id}`, orderUrl: `https://example.com/${id}/order`, menuUrl: null, notes, archived: false,
+  menu: items.map(([section, name, price, favorite, description], sort): MenuItem => ({ id: `demo-${id}-${sort}`, section, name, description: description ?? null, priceCents: Math.round(price * 100), favorite: !!favorite, sort })),
+  createdAt: stamp, updatedAt: stamp,
+})
+let restaurants: Restaurant[] = [
+  seedPlace('corner-slice', 'Corner Slice', 'Pizza', '555-0142', '12 Elm Street, Springfield', 'Ask for the crust well done. Pickup is around the back.', [
+    ['Pizza', 'Large cheese pizza', 14.99, true, '16 inch, hand-tossed'], ['Pizza', 'Large pepperoni pizza', 16.99, true], ['Pizza', 'Veggie pizza', 17.49, false, 'Peppers, onions, olives, mushrooms'], ['Pizza', 'Personal cheese pizza', 7.99],
+    ['Sides', 'Garlic knots (6)', 5.5, true], ['Sides', 'Caesar salad', 8.25], ['Sides', 'Chicken tenders', 9.99, false, 'With honey mustard'],
+    ['Drinks', 'Lemonade', 2.75], ['Drinks', '2-liter soda', 3.5],
+  ]),
+  seedPlace('golden-bowl', 'Golden Bowl', 'Chinese', '555-0178', '480 Market Avenue, Springfield', 'Cash or card. Mild unless you ask.', [
+    ['Starters', 'Egg rolls (2)', 4.5, true], ['Starters', 'Crab rangoon (6)', 6.95], ['Starters', 'Wonton soup', 4.25],
+    ['Noodles & rice', 'Chicken lo mein', 11.95, true], ['Noodles & rice', 'Vegetable fried rice', 9.95], ['Noodles & rice', 'Beef chow fun', 13.5],
+    ['Entrées', 'Orange chicken', 13.25, true, 'With white rice'], ['Entrées', 'Broccoli beef', 13.95], ['Entrées', 'Sweet and sour tofu', 12.5],
+  ]),
+  seedPlace('maple-diner', 'Maple Street Diner', 'Breakfast & burgers', '555-0115', '7 Maple Street, Springfield', null, [
+    ['Breakfast', 'Short stack pancakes', 7.5, true], ['Breakfast', 'Two eggs any style', 8.25],
+    ['Burgers', 'Classic cheeseburger', 11.5, true], ['Burgers', 'Veggie burger', 11.0], ['Sides', 'Fries', 3.95], ['Sides', 'Onion rings', 4.75],
+  ]),
+]
+
 const claims = new Map<string, string>()
 const normalize = (value: string) => value.trim().toLowerCase().replace(/\s+/g, ' ')
 const fingerprint = (key: string, quantity: number | null, servings: number, date: string) => JSON.stringify([key, quantity, servings, date])
@@ -201,6 +225,18 @@ export async function mockMealRequest(path: string, options: RequestInit): Promi
   const id = rawId ? decodeURIComponent(rawId) : undefined
   const method = options.method ?? 'GET'
   const body = options.body ? JSON.parse(String(options.body)) : {}
+  if (resource === 'restaurants') {
+    if (id === 'parse-menu') throw new Error('The demo can’t read pasted menus. Try it on your own Kinwall, or add items one at a time.')
+    const old = restaurants.find(r => r.id === id)
+    if (id && !old) throw new Error('Restaurant not found')
+    if (method === 'GET') return id ? old : restaurants.filter(r => url.searchParams.get('archived') === 'true' || !r.archived).sort((a, b) => a.name.localeCompare(b.name))
+    if (method === 'DELETE') { restaurants = restaurants.filter(r => r.id !== id); return { ok: true } }
+    const input = body as Partial<RestaurantInput>
+    const now = new Date().toISOString()
+    const saved: Restaurant = { cuisine: null, phone: null, address: null, website: null, orderUrl: null, menuUrl: null, notes: null, archived: false, ...old, ...input, name: input.name ?? old!.name, id: old?.id ?? crypto.randomUUID(),
+      menu: input.menu ? input.menu.map((i, sort) => ({ ...i, id: i.id && old?.menu.some(o => o.id === i.id) ? i.id : crypto.randomUUID(), sort })) : old?.menu ?? [], createdAt: old?.createdAt ?? now, updatedAt: now }
+    restaurants = [...restaurants.filter(r => r.id !== saved.id), saved]; return saved
+  }
   if (resource === 'recipes') {
     if (id === 'import-url' || id === 'parse-text' || id === 'import') throw new Error('The demo can’t read recipe pages. Try it on your own Kinwall.')
     if (method === 'GET') return recipes.filter(r => url.searchParams.get('archived') === 'true' || !r.archived).map(r => ({ kind: 'meal' as const, makes: null, ...r }))

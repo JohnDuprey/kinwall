@@ -10,7 +10,7 @@ import { libraryQuery } from './library.ts'
 import { applyChoreOps, applyListOps, cacheGet, cachePut, clearOffline, enqueue, flush, onOutboxChange, outboxReady, pendingOps, type Dropped, type Op } from './outbox.ts'
 import type { CustomScheme } from './skins.ts'
 import type { PasskeyAuthenticator } from './webauthn.ts'
-import type { BasicChoices, Meal, MealInput, Recipe, RecipeImport, RecipeInput, RecipePreviewResult, RecipeShare, ShoppingProjection } from './meal-types.ts'
+import type { BasicChoices, Meal, MealInput, ParsedMenuItem, Recipe, RecipeImport, RecipeInput, RecipePreviewResult, RecipeShare, Restaurant, RestaurantInput, ShoppingProjection } from './meal-types.ts'
 import type { Contact, ContactCategory, ContactInput, ImportPreviewEntry } from './contact-types.ts'
 import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginActionItem, PluginCatalogEntry,
   StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota, FamilyColoringPage, GooglePhotos, Reward, Redemption, PointAward, PointEntry, MemberStats, StatsPeriod,
@@ -175,7 +175,7 @@ export function useSaveState(): 'idle' | 'saving' | 'saved' {
 export const OFFLINE_MESSAGE = "You're offline. This will work when you're back online."
 // What an ordinary view reads. Not admin-only data (trackers, keys, accounts, webhooks) and never
 // with the temporary admin key.
-const CACHEABLE = /^api\/(me|settings|appearance|members|categories|lists|board|snapshot|events|chores|meals|recipes|notes|notifications|leaderboard)([/?]|$)/
+const CACHEABLE = /^api\/(me|settings|appearance|members|categories|lists|board|snapshot|events|chores|meals|recipes|restaurants|notes|notifications|leaderboard)([/?]|$)/
 const SLOW_MS = 4000 // one bar in a grocery store: show the last copy rather than a spinner
 
 let offline = typeof navigator !== 'undefined' && navigator.onLine === false
@@ -246,12 +246,12 @@ if (!MOCK && typeof window !== 'undefined') {
 async function req<T>(path: string, { quiet, ...opts }: RequestInit & { useAdmin?: boolean; quiet?: boolean } = {}): Promise<T> {
   // Reading a recipe page into a preview changes nothing, so it doesn't flash "Saved"; nor does a
   // write the app makes on its own (`quiet`), since the person didn't save anything.
-  const isChange = !quiet && !!opts.method && opts.method !== 'GET' && !/^api\/(pair\/poll|recipes\/(import-url|parse-text))$/.test(path)
+  const isChange = !quiet && !!opts.method && opts.method !== 'GET' && !/^api\/(pair\/poll|recipes\/(import-url|parse-text)|restaurants\/parse-menu)$/.test(path)
   return isChange ? trackSave(send<T>(path, opts)) : send<T>(path, opts)
 }
 
 async function send<T>(path: string, opts: RequestInit & { useAdmin?: boolean }): Promise<T> {
-  if (MOCK && /^api\/(meals|recipes)([/?]|$)/.test(path)) {
+  if (MOCK && /^api\/(meals|recipes|restaurants)([/?]|$)/.test(path)) {
     const { mockMealRequest } = await import('./mock-meals.ts')
     return mockMealRequest(path, opts) as Promise<T>
   }
@@ -318,6 +318,12 @@ export const api = {
   unshareRecipe: (id: string) => del(`api/recipes/${encodeURIComponent(id)}/share`),
   // null clears the member's rating.
   rateRecipe: (id: string, memberId: string, stars: number | null) => put<Recipe>(`api/recipes/${encodeURIComponent(id)}/rating`, { memberId, stars }),
+  getRestaurants: (archived = false) => get<Restaurant[]>(`api/restaurants?archived=${archived}`),
+  createRestaurant: (body: RestaurantInput) => post<Restaurant>('api/restaurants', body),
+  updateRestaurant: (id: string, body: Partial<RestaurantInput>) => patch<Restaurant>(`api/restaurants/${encodeURIComponent(id)}`, body),
+  deleteRestaurant: (id: string) => del(`api/restaurants/${encodeURIComponent(id)}`),
+  // Pasted menu text read into items to review; nothing is saved.
+  parseMenuText: (text: string) => post<{ items: ParsedMenuItem[] }>('api/restaurants/parse-menu', { text }),
   getMeals: (from: string, to: string) => get<Meal[]>(`api/meals?${new URLSearchParams({ from, to })}`),
   createMeal: (body: MealInput) => post<Meal>('api/meals', body),
   updateMeal: (id: string, body: Partial<MealInput> & { refreshRecipe?: boolean }) => patch<Meal>(`api/meals/${encodeURIComponent(id)}`, body),

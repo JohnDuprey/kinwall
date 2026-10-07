@@ -97,6 +97,7 @@ test('mcp: tools/list returns the tools', async () => {
     'create_list',
     'create_meal',
     'create_recipe',
+    'create_restaurant',
     'create_reward',
     'decline_reward',
     'delete_chore',
@@ -125,6 +126,7 @@ test('mcp: tools/list returns the tools', async () => {
     'get_member_profile',
     'get_points',
     'get_recipe',
+    'get_restaurant',
     'get_snapshot',
     'import_contacts',
     'import_recipe',
@@ -146,6 +148,7 @@ test('mcp: tools/list returns the tools', async () => {
     'list_pending_approvals',
     'list_recipes',
     'list_remembered_items',
+    'list_restaurants',
     'list_reward_requests',
     'list_rewards',
     'list_tracker_entries',
@@ -182,6 +185,7 @@ test('mcp: tools/list returns the tools', async () => {
     'update_note',
     'update_recipe',
     'update_remembered_item',
+    'update_restaurant',
     'update_reward',
     'update_tracker_entry',
   ]);
@@ -731,6 +735,22 @@ test('mcp: meal planning preserves route authorization and returns resolution/va
   ] as const) assert.notEqual((await call(name, args, display.key)).isError, true, name);
   assert.equal((await call('get_recipe', { id: recipe.id })).structuredContent.recipe.archived, false);
   assert.equal((await call('get_list', { list: list.id })).structuredContent.items.length, 0);
+});
+
+test('mcp: restaurant binder tools find places by name and keep menu items', async () => {
+  const { mcp } = makeApp(makeEnv());
+  const call = async (name: string, args: unknown) => {
+    const body = await (await mcp('tools/call', { name, arguments: args })).json() as any;
+    assert.equal(body.result.isError, undefined, JSON.stringify(body));
+    return body.result.structuredContent;
+  };
+  const { restaurant } = await call('create_restaurant', { name: 'Golden Bowl', cuisine: 'Chinese', menu: JSON.stringify([{ section: 'Noodles', name: 'Lo mein', priceCents: 1095 }]) });
+  const got = (await call('get_restaurant', { restaurant: 'golden bowl' })).restaurant;
+  assert.equal(got.id, restaurant.id);
+  const { restaurant: edited } = await call('update_restaurant', { restaurant: 'Golden Bowl', menu: [{ ...got.menu[0], favorite: true }, { name: 'Egg rolls', priceCents: 450 }] });
+  assert.equal(edited.menu[0].id, got.menu[0].id);
+  assert.equal(edited.menu[0].favorite, true);
+  assert.equal((await call('list_restaurants', { search: 'egg' })).restaurants.length, 1);
 });
 
 test('mcp: meal planning tools use REST permissions, snapshots, and idempotent projection application', async () => {

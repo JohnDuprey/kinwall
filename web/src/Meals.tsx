@@ -14,7 +14,8 @@ import MealProjection from './MealProjection.tsx'
 import { PlannedMealSheet } from './MealQuickSheet.tsx'
 import { useIsPhone } from './useIsPhone.ts'
 import { recipeMatches } from './recipe-search.ts'
-import type { Meal, Recipe, RecipeKind } from './meal-types.ts'
+import type { Meal, Recipe, RecipeKind, Restaurant } from './meal-types.ts'
+import { RestaurantBinder, RestaurantEditSheet, RestaurantSheet } from './Restaurants.tsx'
 import type { Me } from './types.ts'
 import './meals.css'
 
@@ -31,13 +32,17 @@ export default function Meals() {
   const dayView = isPhone && span === 'day'
   const step = dayView ? 1 : 7
   const shown = dayView ? [anchor] : days
-  const [view, setView] = useState<'week' | 'recipes'>('week')
+  const [view, setView] = useState<'week' | 'recipes' | 'restaurants'>('week')
   const [me, setMe] = useState<Me | null>(null)
   const [authError, setAuthError] = useState('')
   const [data, setData] = useState<{ from: string; to: string; meals: Meal[]; error?: string } | null>(null)
   const [recipes, setRecipes] = useState<Recipe[]>([])
   const [recipesLoaded, setRecipesLoaded] = useState(false)
   const [recipeError, setRecipeError] = useState('')
+  const [restaurants, setRestaurants] = useState<Restaurant[]>([])
+  const [restaurantsLoaded, setRestaurantsLoaded] = useState(false)
+  const [restaurantError, setRestaurantError] = useState('')
+  const [place, setPlace] = useState<{ restaurant: Restaurant | null; editing: boolean } | null>(null)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('active')
   const [category, setCategory] = useState('')
@@ -82,6 +87,11 @@ export default function Meals() {
     api.getRecipes(true).then(values => { if (!canceled) { setRecipes(values); setRecipesLoaded(true); setRecipeError('') } }).catch(e => { if (!canceled) setRecipeError(e instanceof Error ? e.message : 'Could not load recipes.') })
     return () => { canceled = true }
   }, [tick, refreshTick])
+  useEffect(() => {
+    let canceled = false
+    api.getRestaurants(true).then(values => { if (!canceled) { setRestaurants(values); setRestaurantsLoaded(true); setRestaurantError('') } }).catch(e => { if (!canceled) setRestaurantError(e instanceof Error ? e.message : 'Could not load restaurants.') })
+    return () => { canceled = true }
+  }, [tick, refreshTick])
   // A linked recipe opens like a tap in the recipe library, once the library has loaded; an unknown id just shows Meals.
   useEffect(() => {
     if (!pendingRecipe || !recipesLoaded) return
@@ -103,11 +113,11 @@ export default function Meals() {
   if (sort === 'rating') shownRecipes.sort((a, b) => (b.rating?.average ?? 0) - (a.rating?.average ?? 0) || (b.rating?.count ?? 0) - (a.rating?.count ?? 0))
   return <div className="meals-view scroll-y">
     <div className="meals-heading"><div><h1>Meals</h1><p className="field-hint">What are we eating, and what do we need to buy?</p></div>
-      <div className="meal-actions">{admin && <button className="btn btn-secondary" onClick={() => setProjection(true)}><ListIcon /> Groceries</button>}{admin && view === 'recipes' && <button className="btn btn-secondary" onClick={() => setImporting({ url: '' })}><LinkIcon /> Import from a link</button>}{admin && <button className="btn btn-primary" onClick={() => view === 'week' ? setEditing({ meal: null, initial: { date: today, slot: 'dinner' } }) : setRecipeSheet({ recipe: null })}><PlusIcon /> {view === 'week' ? 'Plan meal' : 'New recipe'}</button>}</div>
+      <div className="meal-actions">{admin && <button className="btn btn-secondary" onClick={() => setProjection(true)}><ListIcon /> Groceries</button>}{admin && view === 'recipes' && <button className="btn btn-secondary" onClick={() => setImporting({ url: '' })}><LinkIcon /> Import from a link</button>}{admin && <button className="btn btn-primary" onClick={() => view === 'week' ? setEditing({ meal: null, initial: { date: today, slot: 'dinner' } }) : view === 'recipes' ? setRecipeSheet({ recipe: null }) : setPlace({ restaurant: null, editing: true })}><PlusIcon /> {view === 'week' ? 'Plan meal' : view === 'recipes' ? 'New recipe' : 'New restaurant'}</button>}</div>
     </div>
-    <Segmented tabs idBase="meals-tab" label="Meals sections" value={view} onChange={setView} options={[{ key: 'week', label: 'Week planner' }, { key: 'recipes', label: 'Recipe library' }]} />
+    <Segmented tabs idBase="meals-tab" label="Meals sections" value={view} onChange={setView} options={[{ key: 'week', label: 'Week planner' }, { key: 'recipes', label: 'Recipe library' }, { key: 'restaurants', label: 'Restaurants' }]} />
     {authError && <p role="alert" className="field-error">{authError} <button className="link-btn" onClick={() => setTick(t => t + 1)}>Retry</button></p>}
-    {me && !admin && <p className="field-hint">Admins manage recipes and plans. Your assigned meals allow notes and status updates.</p>}
+    {me && !admin && <p className="field-hint">Admins manage recipes, restaurants and plans. Your assigned meals allow notes and status updates.</p>}
     {view === 'week' ? <section role="tabpanel" aria-labelledby="meals-tab-week">
       <div className="meals-toolbar">
         {isPhone && <Segmented label="Show" value={span} onChange={setSpan} options={[{ key: 'day', label: 'Day' }, { key: 'week', label: 'Week' }]} />}
@@ -134,7 +144,7 @@ export default function Meals() {
           })}{admin ? <button className="meal-add" aria-label={`Plan ${SLOT_LABEL[slot].toLowerCase()} for ${mealDayLabel(date)}`} onClick={() => setEditing({ meal: null, initial: { date, slot } })}><PlusIcon width={16} height={16} /><span className="sr-only">Plan meal</span></button> : !bySlot.has(`${date}:${slot}`) && <span className="meal-empty" aria-label="No meal planned">—</span>}</td>)}
         </tr>)}</tbody></table>
       </div>}
-    </section> : <section role="tabpanel" aria-labelledby="meals-tab-recipes">
+    </section> : view === 'restaurants' ? <RestaurantBinder restaurants={restaurants} loaded={restaurantsLoaded} error={restaurantError} onRetry={() => setTick(t => t + 1)} onOpen={restaurant => setPlace({ restaurant, editing: false })} /> : <section role="tabpanel" aria-labelledby="meals-tab-recipes">
       <div className="meals-toolbar">
         <div className="field meals-search"><label htmlFor="recipe-search">Find a recipe</label><input id="recipe-search" type="search" placeholder="Tacos, rice…" value={search} onChange={e => setSearch(e.target.value)} /></div>
         <div className="field"><label htmlFor="recipe-kind">Type</label><select id="recipe-kind" value={kind} onChange={e => setKind(e.target.value as '' | RecipeKind)}><option value="">All</option><option value="meal">Meals</option><option value="basic">Basics</option></select></div>
@@ -156,6 +166,9 @@ export default function Meals() {
     {editing && <MealSheet meal={editing.meal} initial={editing.initial} recipes={recipes} admin={admin} owner={me?.owner} onClose={() => setEditing(null)} onSaved={saved} onRecipe={recipe => setRecipeSheet({ recipe, readOnly: true })} />}
     {recipeSheet && <RecipeSheet key={recipeSheet.recipe?.id ?? 'new'} recipe={recipeSheet.recipe} library={recipes} admin={admin && !recipeSheet.readOnly} owner={me?.owner} onRated={() => setTick(t => t + 1)} onClose={() => setRecipeSheet(null)} onSaved={saved} onPlan={recipeSheet.readOnly ? undefined : recipe => { setRecipeSheet(null); setEditing({ meal: null, initial: { date: today, slot: 'dinner', recipe } }) }} />}
     {importing && me && <RecipeImportSheet url={importing.url} admin={admin} onClose={() => setImporting(null)} onSaved={recipe => { setImporting(null); setTick(t => t + 1); setRecipeSheet({ recipe }) }} />}
+    {place && !place.editing && place.restaurant && <RestaurantSheet key={place.restaurant.id} restaurant={place.restaurant} admin={admin} onClose={() => setPlace(null)} onEdit={() => setPlace({ ...place, editing: true })}
+      onSaved={saved => { setTick(t => t + 1); setPlace(saved && !saved.archived ? { restaurant: saved, editing: false } : null) }} />}
+    {place?.editing && <RestaurantEditSheet restaurant={place.restaurant} onClose={() => setPlace(place.restaurant ? { ...place, editing: false } : null)} onSaved={saved => { setTick(t => t + 1); setPlace({ restaurant: saved, editing: false }) }} />}
     {projection && <MealProjection from={from} to={to} admin={admin} onClose={() => setProjection(false)} />}
   </div>
 }

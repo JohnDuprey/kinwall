@@ -1,0 +1,94 @@
+// The restaurant binder (Meals → Restaurants): places the family orders from, their menus and the
+// family's favorites. Parents edit (admin); walls and kids' devices read (DISPLAY_ALLOWED).
+import { createRoute, z } from '@hono/zod-openapi';
+import { createRouter } from '../router.ts';
+import { emit } from '../bus.ts';
+import { ErrorSchema } from '../schemas.ts';
+import { MenuItemSchema, MenuTextParseSchema, RestaurantInputSchema, RestaurantSchema, type Restaurant } from '../meal-schemas.ts';
+import { parseMenuText } from '../menu-text.ts';
+import type { KinwallDb } from '../db.ts';
+
+export const restaurantRoutes = createRouter();
+const params = z.object({ id: z.string() });
+const errors = {
+  400: { description: 'invalid request', content: { 'application/json': { schema: ErrorSchema } } },
+  403: { description: 'admin required', content: { 'application/json': { schema: ErrorSchema } } },
+  404: { description: 'not found', content: { 'application/json': { schema: ErrorSchema } } },
+};
+const one = { description: 'restaurant', content: { 'application/json': { schema: RestaurantSchema } } };
+const body = <T extends z.ZodType>(schema: T) => ({ content: { 'application/json': { schema } } });
+
+type Row = { id: string; name: string; cuisine: string | null; phone: string | null; address: string | null; website: string | null; order_url: string | null; menu_url: string | null; notes: string | null; archived: number; created_at: string; updated_at: string };
+type ItemRow = { id: string; restaurant_id: string; section: string | null; name: string; description: string | null; price_cents: number | null; favorite: number; sort: number };
+
+export async function readRestaurants(db: KinwallDb, opts: { id?: string; search?: string; archived?: boolean } = {}): Promise<Restaurant[]> {
+  const where: string[] = [], binds: unknown[] = [];
+  if (opts.id) { where.push('r.id = ?'); binds.push(opts.id) }
+  if (!opts.archived) where.push('r.archived = 0');
+  if (opts.search) {
+    const like = `%${opts.search.replace(/[\\%_]/g, (m) => `\\${m}`)}%`;
+    where.push("(r.name LIKE ? ESCAPE '\\' OR r.cuisine LIKE ? ESCAPE '\\' OR EXISTS (SELECT 1 FROM restaurant_menu_items i WHERE i.restaurant_id = r.id AND i.name LIKE ? ESCAPE '\\'))");
+    binds.push(like, like, like);
+  }
+  const filter = where.length ? `WHERE ${where.join(' AND ')}` : '';
+  const [rows, items] = await db.batch<Row | ItemRow>([
+    db.prepare(`SELECT r.* FROM restaurants r ${filter} ORDER BY r.name COLLATE NOCASE`).bind(...binds),
+    db.prepare(`SELECT i.* FROM restaurant_menu_items i JOIN restaurants r ON r.id = i.restaurant_id ${filter} ORDER BY i.sort`).bind(...binds),
+  ]);
+  const menus = new Map<string, Restaurant['menu']>();
+  for (const i of items.results as ItemRow[]) menus.set(i.restaurant_id, [...(menus.get(i.restaurant_id) ?? []), { id: i.id, section: i.section, name: i.name, description: i.description, priceCents: i.price_cents, favorite: !!i.favorite, sort: i.sort }]);
+  return (rows.results as Row[]).map((r) => ({ id: r.id, name: r.name, cuisine: r.cuisine, phone: r.phone, address: r.address, website: r.website, orderUrl: r.order_url, menuUrl: r.menu_url, notes: r.notes, archived: !!r.archived, menu: menus.get(r.id) ?? [], createdAt: r.created_at, updatedAt: r.updated_at }));
+}
+
+async function saveRestaurant(db: KinwallDb, input: z.infer<typeof RestaurantInputSchema>, old?: Restaurant): Promise<Restaurant> {
+  const id = old?.id ?? crypto.randomUUID();
+  const now = new Date().toISOString();
+  const r = { cuisine: null, phone: null, address: null, website: null, orderUrl: null, menuUrl: null, notes: null, archived: false, ...old, ...input };
+  const writes = [db.prepare(`INSERT INTO restaurants (id,name,cuisine,phone,address,website,order_url,menu_url,notes,archived,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+    ON CONFLICT(id) DO UPDATE SET name=excluded.name,cuisine=excluded.cuisine,phone=excluded.phone,address=excluded.address,website=excluded.website,order_url=excluded.order_url,menu_url=excluded.menu_url,notes=excluded.notes,archived=excluded.archived,updated_at=excluded.updated_at`)
+    .bind(id, r.name, r.cuisine || null, r.phone || null, r.address || null, r.website || null, r.orderUrl || null, r.menuUrl || null, r.notes || null, r.archived ? 1 : 0, old?.createdAt ?? now, now)];
+  if (input.menu) {
+    // An item keeps its id only if it was on this restaurant's menu; anything else is a new item.
+    const mine = new Set(old?.menu.map((i) => i.id));
+    const rows = input.menu.map((i, sort) => ({ id: i.id && mine.has(i.id) ? i.id : crypto.randomUUID(), section: i.section || null, name: i.name, description: i.description || null, price_cents: i.priceCents ?? null, favorite: i.favorite ? 1 : 0, sort }));
+    writes.push(db.prepare('DELETE FROM restaurant_menu_items WHERE restaurant_id = ?').bind(id));
+    writes.push(db.prepare(`INSERT INTO restaurant_menu_items (id,restaurant_id,section,name,description,price_cents,favorite,sort)
+      SELECT value->>'id',?,value->>'section',value->>'name',value->>'description',value->>'price_cents',value->>'favorite',value->>'sort' FROM json_each(?)`).bind(id, JSON.stringify(rows)));
+  }
+  await db.batch(writes);
+  return (await readRestaurants(db, { id, archived: true }))[0];
+}
+
+restaurantRoutes.openapi(createRoute({ method: 'get', path: '/api/restaurants', tags: ['Meals'], summary: 'The restaurant binder, A-Z with menus (search matches name, cuisine or a menu item; archived=true includes archived places)', security: [{ Bearer: [] }],
+  request: { query: z.object({ search: z.string().max(200).optional(), archived: z.enum(['true', 'false']).optional() }) }, responses: { 200: { description: 'restaurants', content: { 'application/json': { schema: z.array(RestaurantSchema) } } } } }), async (c) => {
+  const { search, archived } = c.req.valid('query');
+  return c.json(await readRestaurants(c.env.DB, { search, archived: archived === 'true' }), 200);
+});
+// Static routes before /{id}.
+restaurantRoutes.openapi(createRoute({ method: 'post', path: '/api/restaurants/parse-menu', tags: ['Meals'], summary: 'Read pasted menu text into menu items to review, without saving (admin)', security: [{ Bearer: [] }], request: { body: body(MenuTextParseSchema) },
+  responses: { 200: { description: 'items read', content: { 'application/json': { schema: z.object({ items: z.array(MenuItemSchema.pick({ section: true, name: true, priceCents: true })) }) } } }, ...errors } }), async (c) => {
+  return c.json({ items: parseMenuText(c.req.valid('json').text) }, 200);
+});
+restaurantRoutes.openapi(createRoute({ method: 'get', path: '/api/restaurants/{id}', tags: ['Meals'], summary: 'A restaurant with its menu', security: [{ Bearer: [] }], request: { params }, responses: { 200: one, ...errors } }), async (c) => {
+  const found = (await readRestaurants(c.env.DB, { id: c.req.valid('param').id, archived: true }))[0];
+  return found ? c.json(found, 200) : c.json({ error: 'restaurant not found' }, 404);
+});
+restaurantRoutes.openapi(createRoute({ method: 'post', path: '/api/restaurants', tags: ['Meals'], summary: 'Add a restaurant (admin)', security: [{ Bearer: [] }], request: { body: body(RestaurantInputSchema) }, responses: { 201: one, ...errors } }), async (c) => {
+  const saved = await saveRestaurant(c.env.DB, c.req.valid('json'));
+  emit(c, 'restaurant.changed', { id: saved.id });
+  return c.json(saved, 201);
+});
+restaurantRoutes.openapi(createRoute({ method: 'patch', path: '/api/restaurants/{id}', tags: ['Meals'], summary: 'Edit or archive a restaurant; menu replaces the menu (admin)', security: [{ Bearer: [] }], request: { params, body: body(RestaurantInputSchema.partial()) }, responses: { 200: one, ...errors } }), async (c) => {
+  const old = (await readRestaurants(c.env.DB, { id: c.req.valid('param').id, archived: true }))[0];
+  if (!old) return c.json({ error: 'restaurant not found' }, 404);
+  const saved = await saveRestaurant(c.env.DB, { name: old.name, ...c.req.valid('json') }, old);
+  emit(c, 'restaurant.changed', { id: saved.id });
+  return c.json(saved, 200);
+});
+restaurantRoutes.openapi(createRoute({ method: 'delete', path: '/api/restaurants/{id}', tags: ['Meals'], summary: 'Delete a restaurant and its menu (admin)', security: [{ Bearer: [] }], request: { params }, responses: { 200: { description: 'ok', content: { 'application/json': { schema: z.object({ ok: z.boolean() }) } } }, ...errors } }), async (c) => {
+  const { id } = c.req.valid('param');
+  const result = await c.env.DB.prepare('DELETE FROM restaurants WHERE id = ?').bind(id).run();
+  if (!result.meta.changes) return c.json({ error: 'restaurant not found' }, 404);
+  emit(c, 'restaurant.changed', { id });
+  return c.json({ ok: true }, 200);
+});

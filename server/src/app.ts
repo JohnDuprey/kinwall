@@ -22,6 +22,7 @@ import { eventsRoutes } from './routes/events.ts';
 import { choresRoutes } from './routes/chores.ts';
 import { choreLibraryRoutes } from './routes/chore-library.ts';
 import { mealsRoutes } from './routes/meals.ts';
+import { restaurantRoutes } from './routes/restaurants.ts';
 import { recipeShareRoutes } from './routes/recipe-share.ts';
 import { leaderboardRoutes } from './routes/leaderboard.ts';
 import { listsRoutes } from './routes/lists.ts';
@@ -153,6 +154,7 @@ export function createApp() {
   app.route('/', choreLibraryRoutes);
   app.route('/', recipeShareRoutes); // before mealsRoutes; /r/* is public (the token is the credential)
   app.route('/', mealsRoutes);
+  app.route('/', restaurantRoutes);
   app.route('/', leaderboardRoutes);
   app.route('/', listsRoutes);
   app.route('/', notesRoutes);

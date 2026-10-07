@@ -161,6 +161,34 @@ export const ProjectionItemSchema = z.object({
   basicId: z.string().nullable().optional().describe('The line is made from this basic: ask whether it is made already (apply basics).'), basicName: z.string().nullable().optional(),
 });
 export const ProjectionSchema = z.object({ from: MealDateSchema, to: MealDateSchema, listId: z.string().nullable(), items: z.array(ProjectionItemSchema) }).openapi('MealShoppingProjection');
+// The restaurant binder (Meals → Restaurants).
+const short = z.string().trim().max(200).nullable();
+export const MenuItemInputSchema = z.object({
+  id: z.string().min(1).max(100).optional().describe('An item already on the menu keeps its id (its star and past orders follow it); left out, a new item.'),
+  section: short.optional().describe('Its section, e.g. "Pizza" or "Sides"; sections show in the order they first appear.'),
+  name: z.string().trim().min(1).max(200), description: z.string().trim().max(1000).nullable().optional(),
+  priceCents: z.number().int().min(0).max(1000000).nullable().optional().describe('Price in cents (shown, never totaled).'),
+  favorite: z.boolean().optional().describe("The family's star: pinned to the top."),
+  sort: z.number().int().optional().describe('Ignored (the order sent is the order kept), so items read back can be sent as they are.'),
+}).strict().openapi('RestaurantMenuItemInput');
+export const MenuItemSchema = z.object({
+  id: z.string(), section: z.string().nullable(), name: z.string(), description: z.string().nullable(),
+  priceCents: z.number().int().nullable(), favorite: z.boolean(), sort: z.number().int(),
+}).openapi('RestaurantMenuItem');
+export const RestaurantInputSchema = z.object({
+  name: z.string().trim().min(1).max(200), cuisine: short.optional().describe('Free text, e.g. "Pizza" or "Thai".'),
+  phone: z.string().trim().max(50).nullable().optional(), address: z.string().trim().max(500).nullable().optional().describe('One line; the Map button searches for it.'),
+  website: url.optional(), orderUrl: url.optional().describe('Their online ordering page.'), menuUrl: url.optional().describe('Their own menu page or PDF.'),
+  notes: text.optional(), archived: z.boolean().optional(),
+  menu: z.array(MenuItemInputSchema).max(500).optional().describe('The whole menu, in order: sending it replaces the menu.'),
+}).strict().openapi('RestaurantInput');
+export const RestaurantSchema = z.object({
+  id: z.string(), name: z.string(), cuisine: z.string().nullable(), phone: z.string().nullable(), address: z.string().nullable(),
+  website: url, orderUrl: url, menuUrl: url, notes: text, archived: z.boolean(), menu: z.array(MenuItemSchema),
+  createdAt: z.string(), updatedAt: z.string(),
+}).openapi('Restaurant');
+export const MenuTextParseSchema = z.object({ text: z.string().min(1).max(100000).describe('Pasted menu text: one item per line with its price at the end; a line without a price over priced lines starts a section.') }).strict().openapi('MenuTextParse');
+export type Restaurant = z.infer<typeof RestaurantSchema>;
 export type Recipe = z.infer<typeof RecipeSchema>;
 export type RecipeStep = z.infer<typeof RecipeStepSchema>;
 export type Ingredient = z.infer<typeof IngredientSchema>;
