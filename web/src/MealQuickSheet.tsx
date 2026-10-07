@@ -9,8 +9,8 @@ import type { Me } from './types.ts'
 
 /** A tapped planned meal: its recipe read-only with "Edit meal" (admins) or "Meal details" (an
  * assignee's notes and status), or the meal's own sheet for dining out and simple meals. */
-export function PlannedMealSheet({ meal, recipes, me, onClose, onSaved, onRated }: {
-  meal: Meal; recipes: Recipe[]; me: Me | null; onClose: () => void; onSaved: () => void; onRated?: () => void
+export function PlannedMealSheet({ meal, recipes, me, startOrders, onClose, onSaved, onRated }: {
+  meal: Meal; recipes: Recipe[]; me: Me | null; startOrders?: boolean; onClose: () => void; onSaved: () => void; onRated?: () => void
 }) {
   const admin = me?.scope === 'admin'
   const recipe = mealRecipe(meal, recipes)
@@ -19,7 +19,7 @@ export function PlannedMealSheet({ meal, recipes, me, onClose, onSaved, onRated 
   const [viewing, setViewing] = useState<Recipe | null>(null)
   return <>
     {details || !recipe
-      ? <MealSheet meal={meal} initial={{ date: meal.date, slot: meal.slot }} recipes={recipes} admin={admin} owner={me?.owner} onClose={onClose} onSaved={onSaved} onRecipe={setViewing} />
+      ? <MealSheet meal={meal} initial={{ date: meal.date, slot: meal.slot }} recipes={recipes} admin={admin} owner={me?.owner} me={me} startOrders={startOrders} onClose={onClose} onSaved={onSaved} onRecipe={setViewing} onChanged={onRated} />
       : <RecipeSheet key={recipe.id} recipe={recipe} library={recipes} admin={false} owner={me?.owner} onRated={onRated} onClose={onClose} onSaved={onSaved}
         onEditMeal={{ label: admin ? 'Edit meal' : 'Meal details', open: () => setDetails(true) }} />}
     {viewing && <RecipeSheet key={viewing.id} recipe={viewing} library={recipes} admin={false} owner={me?.owner} onRated={onRated} onClose={() => setViewing(null)} onSaved={onSaved} />}
@@ -39,5 +39,5 @@ export default function MealQuickSheet({ meal, onClose }: { meal: Meal; onClose:
     return () => { canceled = true }
   }, [])
   if (!loaded) return null
-  return <PlannedMealSheet meal={meal} recipes={loaded.recipes} me={loaded.me} onClose={onClose} onSaved={() => { onClose(); reloadCore() }} />
+  return <PlannedMealSheet meal={meal} recipes={loaded.recipes} me={loaded.me} onClose={onClose} onSaved={() => { onClose(); reloadCore() }} onRated={reloadCore} />
 }

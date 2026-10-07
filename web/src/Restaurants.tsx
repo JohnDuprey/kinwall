@@ -3,7 +3,11 @@ import { api } from './api.ts'
 import { useApp } from './AppContext.tsx'
 import { useDialog } from './dialog.tsx'
 import Sheet from './Sheet.tsx'
-import { CartIcon, LinkIcon, LocationIcon, PhoneIcon, PlusIcon } from './icons.tsx'
+import { CalendarIcon, CartIcon, ChevronRight, LinkIcon, LocationIcon, PhoneIcon, PlusIcon } from './icons.tsx'
+import { EaterAvatars } from './MealSheet.tsx'
+import { SLOT_LABEL, mealDayLabel } from './meal-date.ts'
+import { formatTime } from './timeFormat.ts'
+import { ORDER_TYPE_LABEL } from './orders.ts'
 import { mapHref, menuSections, parsePrice, priceLabel, telHref } from './restaurants.ts'
 import type { MenuItem, MenuItemInput, Restaurant, RestaurantInput } from './meal-types.ts'
 
@@ -38,10 +42,14 @@ export function RestaurantBinder({ restaurants, loaded, error, onRetry, onOpen }
 }
 
 /** One place: one-tap Call / Order online / Website / Map, favorites pinned over the menu, notes. */
-export function RestaurantSheet({ restaurant, admin, onClose, onEdit, onSaved }: {
+export function RestaurantSheet({ restaurant, admin, onClose, onEdit, onSaved, onPlan, onOpenMeal }: {
   restaurant: Restaurant; admin: boolean; onClose: () => void; onEdit: () => void; onSaved: (r: Restaurant | null) => void
+  onPlan?: (r: Restaurant) => void; onOpenMeal?: (mealId: string, date: string) => void
 }) {
-  const { toast } = useApp()
+  const { toast, members } = useApp()
+  // Who had each item last time (their latest order here): avatars beside it, a second signal next to the star.
+  const lastBy = new Map<string, string[]>()
+  for (const o of restaurant.lastOrders ?? []) for (const i of o.items) if (i.menuItemId) lastBy.set(i.menuItemId, [...(lastBy.get(i.menuItemId) ?? []), o.memberId])
   const dialog = useDialog()
   const [busy, setBusy] = useState(false)
   const tel = telHref(restaurant.phone)
@@ -74,18 +82,31 @@ export function RestaurantSheet({ restaurant, admin, onClose, onEdit, onSaved }:
     </div>
     {(restaurant.phone || restaurant.address) && <p className="field-hint">{[restaurant.phone, restaurant.address].filter(Boolean).join(' · ')}</p>}
     {restaurant.menuUrl && <p><a href={restaurant.menuUrl} target="_blank" rel="noopener noreferrer">Their menu</a></p>}
-    <MenuList menu={restaurant.menu} onStar={admin && !busy ? item => void star(item) : undefined} />
+    {(!!restaurant.upcoming?.length || (admin && onPlan && !restaurant.archived)) && <section className="restaurant-section" aria-label="Coming up">
+      {!!restaurant.upcoming?.length && <h3>Coming up</h3>}
+      <div className="sheet-links">
+        {restaurant.upcoming?.map(u => <button key={u.mealId} type="button" className="sheet-link" onClick={() => onOpenMeal?.(u.mealId, u.date)}>
+          <CalendarIcon /><span>{mealDayLabel(u.date, { weekday: 'long' })} {SLOT_LABEL[u.slot].toLowerCase()}{u.plannedTime ? ` · ${formatTime(u.plannedTime)}` : ''}
+            <small>{[u.orderType && ORDER_TYPE_LABEL[u.orderType], u.status === 'planned' ? u.eaterIds.length ? `${u.orderCount} of ${u.eaterIds.length} orders in` : `${u.orderCount} order${u.orderCount === 1 ? '' : 's'} in` : '✓ Ordered'].filter(Boolean).join(' · ')}</small></span>
+          <EaterAvatars ids={u.eaterIds} members={members} /><ChevronRight />
+        </button>)}
+        {admin && onPlan && !restaurant.archived && <button type="button" className="sheet-link" onClick={() => onPlan(restaurant)}><PlusIcon /><span>Plan a night here</span><ChevronRight /></button>}
+      </div>
+    </section>}
+    <MenuList menu={restaurant.menu} onStar={admin && !busy ? item => void star(item) : undefined} lastBy={lastBy} />
     {!restaurant.menu.length && <p className="state-card">{admin ? 'No menu yet. Edit to add items or paste the menu.' : 'No menu yet.'}</p>}
     {restaurant.notes && <section className="restaurant-section"><h3>Notes</h3><p className="meal-prose">{restaurant.notes}</p></section>}
   </Sheet>
 }
 
 /** The menu by section, favorites first. With onStar (parents) each item's star is a button. */
-export function MenuList({ menu, onStar, onPick }: { menu: MenuItem[]; onStar?: (item: MenuItem) => void; onPick?: (item: MenuItem) => void }) {
+export function MenuList({ menu, onStar, onPick, lastBy }: { menu: MenuItem[]; onStar?: (item: MenuItem) => void; onPick?: (item: MenuItem) => void; lastBy?: Map<string, string[]> }) {
+  const { members } = useApp()
   return <>{menuSections(menu).map(section => <section key={section.favorites ? '★' : section.title ?? ''} className="restaurant-section">
     {(section.title || menuSections(menu).length > 1) && <h3>{section.favorites ? '★ Favorites' : section.title ?? 'More'}</h3>}
     <ul className="menu-list">{section.items.map(item => <li key={item.id} className="menu-item">
       {onPick ? <button type="button" className="menu-pick" onClick={() => onPick(item)}><MenuText item={item} /></button> : <MenuText item={item} />}
+      {section.favorites && !!lastBy?.get(item.id)?.length && <span className="menu-who"><EaterAvatars ids={lastBy.get(item.id)!} members={members} label="Had it last time" /></span>}
       {onStar ? <button type="button" className="icon-btn menu-star" aria-pressed={item.favorite} aria-label={`Favorite: ${item.name}`} onClick={() => onStar(item)}>{item.favorite ? '★' : '☆'}</button>
         : item.favorite && !section.favorites && <span className="menu-star" role="img" aria-label="Favorite">★</span>}
     </li>)}</ul>

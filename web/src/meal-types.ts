@@ -77,12 +77,19 @@ export interface MealInput {
   plannedTime: string | null
   status: MealStatus
   sourceUrl: string | null
+  restaurantId?: string | null // dining out: the restaurant from the binder
+  orderType?: OrderType | null
 }
+/** Order nights: how, and each person's order (the name travels with it, so menu edits never change it). */
+export type OrderType = 'dine_in' | 'pickup' | 'delivery'
+export interface OrderItem { menuItemId: string | null; name: string; qty: number; note: string | null }
+export interface MealOrder { memberId: string; items: OrderItem[]; note: string | null; updatedAt: string }
 export interface Meal extends MealInput {
   id: string
   recipeSnapshot: RecipeSnapshot | null
   calendarEventId: string | null
   calendarEventStart?: 'meal' | 'cooking' | null // set when Kinwall created the event (it follows the meal); null = an event you linked
+  orders?: MealOrder[] // dining out (older servers leave it out)
   createdAt: string
   updatedAt: string
 }
@@ -134,5 +141,9 @@ export interface RestaurantInput {
   website: string | null; orderUrl: string | null; menuUrl: string | null; notes: string | null; archived: boolean
   menu: MenuItemInput[] // sending it replaces the menu
 }
-export interface Restaurant extends Omit<RestaurantInput, 'menu'> { id: string; menu: MenuItem[]; createdAt: string; updatedAt: string }
+export interface Restaurant extends Omit<RestaurantInput, 'menu'> {
+  id: string; menu: MenuItem[]; createdAt: string; updatedAt: string
+  lastOrders?: { memberId: string; mealId: string; date: string; items: OrderItem[] }[] // each person's latest, from a night already ordered: their usual
+  upcoming?: { mealId: string; date: string; slot: MealSlot; plannedTime: string | null; orderType: OrderType | null; status: MealStatus; eaterIds: string[]; orderCount: number }[]
+}
 export type ParsedMenuItem = Pick<MenuItem, 'section' | 'name' | 'priceCents'>

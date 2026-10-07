@@ -62,7 +62,7 @@ API: `boardPresets` in `GET` / `PATCH /api/settings`, the whole list, each `{ id
 | **Paint** | No **Paint** in Activities. A display whose night screen shows **Drawings** shows nature pictures instead. |
 | **Photos** | No **Photos** in Activities, and no family photos in Newscast or on memories. The Board's picture card stays, with Google Photos (if it's connected) or nature pictures, and a display whose night screen shows **Family photos** shows nature pictures instead. |
 | **Notes** | No notes on events and no **Discussion** on list items, and no note counts (💬) on events or list items. A list item's own **Notes** field still shows. |
-| **Meals** | No **Meals** tab (so no recipes or restaurant binder) and no **Today's meals** card on the Board, no meals in a member's day, and the daily summary leaves meals out. |
+| **Meals** | No **Meals** tab (so no recipes, restaurant binder or order nights) and no **Today's meals** card on the Board, no meals in a member's day, and the daily summary leaves meals out. |
 | **Trackers: Reading** | No **Reading** in Trackers and no reading line in a member's day. |
 | **Trackers: Memories** | No **Memories** in Trackers. |
 | **Trackers: Health** | No **Health** in Trackers, and no [medication reminders](../using/medications.md) (they're part of it). (Health is never on a wall display anyway.) |

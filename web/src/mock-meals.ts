@@ -3,7 +3,7 @@ import { mock } from './mock.ts'
 import { dateKey } from './date.ts'
 import { ingredientAmount, mealWeek, MEAL_SLOTS } from './meal-date.ts'
 import { matchBasic } from './recipe-search.ts'
-import { KIT_QUALIFIER, type BasicChoices, type Meal, type MealInput, type MenuItem, type Recipe, type RecipeInput, type Restaurant, type RestaurantInput, type ShoppingProjection } from './meal-types.ts'
+import { KIT_QUALIFIER, type BasicChoices, type Meal, type MealInput, type MenuItem, type OrderItem, type Recipe, type RecipeInput, type Restaurant, type RestaurantInput, type ShoppingProjection } from './meal-types.ts'
 
 // Keep the same Sunday–Saturday menu on the current local week, including across DST changes.
 const dates = mealWeek(dateKey(new Date()), 0)
@@ -133,18 +133,19 @@ const menu = [
   ['parfaits', 'wraps', 'tacos', 'snack'],
   ['oats', 'leftovers', 'stir-fry', 'parfaits'],
   ['pancakes', 'wraps', 'salmon', 'snack'],
-  ['oats', 'wraps', 'pizza', 'parfaits'],
+  ['oats', 'wraps', 'takeout', 'parfaits'],
   ['pancakes', 'cafe', 'chicken', 'snack'],
 ]
 let meals: Meal[] = menu.flatMap((day, dayIndex) => day.map((key, slotIndex) => {
   const chosen = recipes.find(r => r.id === `demo-${key}`)
   return {
     id: `demo-meal-${dayIndex}-${MEAL_SLOTS[slotIndex]}`, date: dates[dayIndex], slot: MEAL_SLOTS[slotIndex],
-    title: chosen?.name ?? (key === 'leftovers' ? 'Leftover taco bowls' : 'Lunch at the neighborhood cafe'),
+    title: chosen?.name ?? (key === 'leftovers' ? 'Leftover taco bowls' : key === 'takeout' ? 'Corner Slice' : 'Lunch at the neighborhood cafe'),
     mealKind: chosen ? 'recipe' : key === 'leftovers' ? 'freeform' : 'dining_out', recipeId: chosen?.id ?? null,
+    restaurantId: key === 'takeout' ? 'demo-corner-slice' : null, orderType: key === 'takeout' ? 'pickup' : null, orders: [],
     recipeSnapshot: chosen ? { name: chosen.name, defaultServings: chosen.defaultServings, ingredients: chosen.ingredients.map(i => ({ ...i })) } : null,
     servings: key === 'tacos' ? 6 : 4, assigneeMemberId: dayIndex % 2 === 0 ? 'm1' : 'm2', eaterIds: slotIndex === 2 && key !== 'tacos' ? ['m1', 'm2', 'm3', 'm4'] : [],
-    notes: key === 'leftovers' ? 'Use the reserved taco filling and toppings from Tuesday.' : key === 'cafe' ? 'Meet after the morning activities; no groceries needed.' : key === 'tacos' ? 'Taco Tuesday! Six servings so there is filling for Wednesday lunch.' : chosen!.preparationNotes,
+    notes: key === 'leftovers' ? 'Use the reserved taco filling and toppings from Tuesday.' : key === 'takeout' ? 'Pizza night! Pick up on the way home from practice.' : key === 'cafe' ? 'Meet after the morning activities; no groceries needed.' : key === 'tacos' ? 'Taco Tuesday! Six servings so there is filling for Wednesday lunch.' : chosen!.preparationNotes,
     plannedTime: ['07:30', '12:00', '18:00', '15:30'][slotIndex], status: dayIndex === 0 ? 'prepared' : key === 'leftovers' ? 'handled' : 'planned',
     sourceUrl: null, calendarEventId: null, createdAt: stamp, updatedAt: stamp,
   }
@@ -172,6 +173,25 @@ let restaurants: Restaurant[] = [
     ['Burgers', 'Classic cheeseburger', 11.5, true], ['Burgers', 'Veggie burger', 11.0], ['Sides', 'Fries', 3.95], ['Sides', 'Onion rings', 4.75],
   ]),
 ]
+
+// Friday's pizza night: three orders in, Maya's still to come. Last Friday's (already ordered) is everyone's usual.
+const pick = (placeId: string, n: number, qty = 1, note: string | null = null) => { const i = restaurants.find(r => r.id === placeId)!.menu[n]; return { menuItemId: i.id, name: i.name, qty, note } }
+const placed = (memberId: string, items: ReturnType<typeof pick>[], note: string | null = null) => ({ memberId, items, note, updatedAt: stamp })
+const friday = meals.find(m => m.restaurantId === 'demo-corner-slice')!
+friday.orders = [placed('m1', [pick('demo-corner-slice', 1)]), placed('m2', [pick('demo-corner-slice', 5), pick('demo-corner-slice', 4)], 'Extra ranch, please'), placed('m4', [pick('demo-corner-slice', 6, 1, 'Honey mustard on the side')])]
+meals.push({ ...friday, id: 'demo-meal-last-friday', date: dateKey(new Date(Date.parse(`${friday.date}T12:00:00`) - 7 * 86400000)), status: 'handled', notes: null,
+  orders: [placed('m1', [pick('demo-corner-slice', 1)]), placed('m2', [pick('demo-corner-slice', 5)]), placed('m3', [pick('demo-corner-slice', 3, 1, 'Extra cheese')]), placed('m4', [pick('demo-corner-slice', 6)])] })
+/** The server's read-only lastOrders / upcoming on a restaurant (server/src/routes/restaurants.ts). */
+function withNights(r: Restaurant): Restaurant {
+  const today = dateKey(new Date())
+  const mine = meals.filter(m => m.restaurantId === r.id)
+  const lastOrders = mine.filter(m => m.status !== 'planned').sort((a, b) => b.date.localeCompare(a.date)).flatMap(m => (m.orders ?? []).filter(o => o.items.length).map(o => ({ memberId: o.memberId, mealId: m.id, date: m.date, items: o.items })))
+    .filter((o, i, all) => all.findIndex(x => x.memberId === o.memberId) === i)
+  const upcoming = mine.filter(m => m.date >= today).sort((a, b) => a.date.localeCompare(b.date)).map(m => ({ mealId: m.id, date: m.date, slot: m.slot, plannedTime: m.plannedTime, orderType: m.orderType ?? null, status: m.status, eaterIds: m.eaterIds, orderCount: m.orders?.length ?? 0 }))
+  return { ...r, lastOrders, upcoming }
+}
+/** GET /api/events/{id}/meal. */
+export const mockEventMeal = async (eventId: string) => ({ meal: meals.find(m => m.calendarEventId === eventId) ?? null })
 
 const claims = new Map<string, string>()
 const normalize = (value: string) => value.trim().toLowerCase().replace(/\s+/g, ' ')
@@ -221,7 +241,7 @@ export const mockMeals = (from: string, to: string) => meals.filter(m => m.date 
 
 export async function mockMealRequest(path: string, options: RequestInit): Promise<unknown> {
   const url = new URL(path, 'https://demo.invalid/')
-  const [, resource, rawId, action] = url.pathname.slice(1).split('/')
+  const [, resource, rawId, action, sub] = url.pathname.slice(1).split('/')
   const id = rawId ? decodeURIComponent(rawId) : undefined
   const method = options.method ?? 'GET'
   const body = options.body ? JSON.parse(String(options.body)) : {}
@@ -229,7 +249,7 @@ export async function mockMealRequest(path: string, options: RequestInit): Promi
     if (id === 'parse-menu') throw new Error('The demo can’t read pasted menus. Try it on your own Kinwall, or add items one at a time.')
     const old = restaurants.find(r => r.id === id)
     if (id && !old) throw new Error('Restaurant not found')
-    if (method === 'GET') return id ? old : restaurants.filter(r => url.searchParams.get('archived') === 'true' || !r.archived).sort((a, b) => a.name.localeCompare(b.name))
+    if (method === 'GET') return id ? withNights(old!) : restaurants.filter(r => url.searchParams.get('archived') === 'true' || !r.archived).sort((a, b) => a.name.localeCompare(b.name)).map(withNights)
     if (method === 'DELETE') { restaurants = restaurants.filter(r => r.id !== id); return { ok: true } }
     const input = body as Partial<RestaurantInput>
     const now = new Date().toISOString()
@@ -284,6 +304,15 @@ export async function mockMealRequest(path: string, options: RequestInit): Promi
   const old = meals.find(m => m.id === id)
   if (method === 'GET') return meals.filter(m => m.date >= url.searchParams.get('from')! && m.date <= url.searchParams.get('to')!)
   if (id && !old) throw new Error('Meal not found')
+  const demoKid = mock.demoKid
+  if (action === 'orders' && sub) {
+    if (old!.status !== 'planned' && demoKid()) throw new Error('This order is in already. Ask a grown-up to change it.')
+    if (demoKid() && demoKid() !== sub) throw new Error('This device can only do that for its owner.')
+    const others = (old!.orders ?? []).filter(o => o.memberId !== sub)
+    old!.orders = method === 'DELETE' || (!body.items?.length && !body.note) ? others : [...others, { memberId: sub, items: body.items.map((i: Partial<OrderItem> & { name: string }) => ({ ...i, menuItemId: i.menuItemId ?? null, qty: i.qty ?? 1, note: i.note ?? null })), note: body.note ?? null, updatedAt: new Date().toISOString() }]
+    return { ...old }
+  }
+  if (action === 'ask-orders') return { ok: true, sent: 0 }
   if (action) {
     if (action === 'swap') {
       const other = meals.find(m => m.id === body.otherId && m.id !== id)
@@ -313,5 +342,8 @@ export async function mockMealRequest(path: string, options: RequestInit): Promi
     saved.recipeSnapshot = { name: chosen.name, defaultServings: chosen.defaultServings, ingredients: chosen.ingredients.map(i => ({ ...i })) }
   }
   if (saved.mealKind !== 'recipe') { saved.recipeId = null; saved.recipeSnapshot = null }
+  if (saved.mealKind !== 'dining_out') { saved.restaurantId = null; saved.orderType = null }
+  else if (saved.restaurantId && saved.restaurantId !== old?.restaurantId && !input.title) saved.title = restaurants.find(r => r.id === saved.restaurantId)?.name ?? saved.title
+  saved.orders ??= []
   meals = [...meals.filter(m => m.id !== saved.id), saved]; return saved
 }

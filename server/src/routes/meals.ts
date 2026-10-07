@@ -6,12 +6,13 @@ import { emit } from '../bus.ts';
 import { hostTimezone } from '../env.ts';
 import { zonedTimeToUtc } from '../recurrence.ts';
 import { ErrorSchema } from '../schemas.ts';
-import { IngredientInputSchema, MealEventStartSchema, MealInputSchema, MealPatchSchema, MealRangeSchema, MealSchema, ProjectionApplySchema, ProjectionQuerySchema, ProjectionSchema, RecipeImportResultSchema, RecipeImportSchema, RecipeInputSchema, RecipeKindSchema, RecipePreviewResultSchema, RecipeRatingInputSchema, RecipeSchema, RecipeTextParseSchema, RecipeUrlImportSchema, type Meal, type Recipe } from '../meal-schemas.ts';
+import { IngredientInputSchema, MealEventStartSchema, MealOrderInputSchema, MealInputSchema, MealPatchSchema, MealRangeSchema, MealSchema, ProjectionApplySchema, ProjectionQuerySchema, ProjectionSchema, RecipeImportResultSchema, RecipeImportSchema, RecipeInputSchema, RecipeKindSchema, RecipePreviewResultSchema, RecipeRatingInputSchema, RecipeSchema, RecipeTextParseSchema, RecipeUrlImportSchema, type Meal, type Recipe } from '../meal-schemas.ts';
 import { applyProjection, importIngredient, matchBasic, mealWrite, normalizeIngredient, normalizeSteps, readMeal, readMeals, readRecipes, shoppingProjection, stepsText } from '../meals.ts';
 import type { KinwallDb } from '../db.ts';
 import type { Env } from '../env.ts';
 import { createEvent, deleteEvent, updateEvent } from './events.ts';
-import { readSettings } from './settings.ts';
+import { readFeatures, readSettings } from './settings.ts';
+import { pushToMembers, recordNotification } from '../notify.ts';
 import { fetchRecipeImage, fetchRecipePage, fetchRecipePdf } from '../outbound.ts';
 import { parseRecipeHtml, parseRecipeText, previewWarnings } from '../recipe-web.ts';
 import { withShares } from './recipe-share.ts';
@@ -226,7 +227,7 @@ mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/meals/projection/a
 
 async function buildMeal(db: KinwallDb, input: z.infer<typeof MealPatchSchema>, old?: Meal): Promise<Meal | string> {
   const now = new Date().toISOString();
-  const meal: Meal = { id: crypto.randomUUID(), date: input.date!, slot: input.slot!, title: '', mealKind: input.recipeId ? 'recipe' : 'freeform', recipeId: null, recipeSnapshot: null, servings: 1, assigneeMemberId: null, eaterIds: [], notes: null, plannedTime: null, calendarEventId: null, calendarEventStart: null, status: 'planned', sourceUrl: null, createdAt: now, ...old, ...input, updatedAt: now };
+  const meal: Meal = { id: crypto.randomUUID(), date: input.date!, slot: input.slot!, title: '', mealKind: input.recipeId ? 'recipe' : 'freeform', recipeId: null, recipeSnapshot: null, servings: 1, assigneeMemberId: null, eaterIds: [], notes: null, plannedTime: null, calendarEventId: null, calendarEventStart: null, status: 'planned', sourceUrl: null, restaurantId: null, orderType: null, orders: [], createdAt: now, ...old, ...input, updatedAt: now };
   if (input.recipeId && input.mealKind === undefined) meal.mealKind = 'recipe';
   if (meal.assigneeMemberId && !await db.prepare('SELECT id FROM members WHERE id = ?').bind(meal.assigneeMemberId).first()) return 'assignee not found';
   if (input.eaterIds) {
@@ -247,8 +248,15 @@ async function buildMeal(db: KinwallDb, input: z.infer<typeof MealPatchSchema>, 
     if (!meal.title) meal.title = meal.recipeSnapshot!.name;
   } else {
     meal.recipeId = null; meal.recipeSnapshot = null;
+    // A restaurant from the binder names the night, unless a title was given.
+    if (meal.mealKind === 'dining_out' && meal.restaurantId && meal.restaurantId !== old?.restaurantId) {
+      const place = await db.prepare('SELECT name FROM restaurants WHERE id = ?').bind(meal.restaurantId).first<{ name: string }>();
+      if (!place) return 'restaurant not found';
+      if (input.title === undefined) meal.title = place.name;
+    }
     if (!meal.title && meal.mealKind === 'dining_out') meal.title = 'Eating out';
   }
+  if (meal.mealKind !== 'dining_out') { meal.restaurantId = null; meal.orderType = null; }
   // Picking who's eating sets servings to how many, unless servings were given too.
   if (input.eaterIds?.length && input.servings === undefined) meal.servings = meal.eaterIds.length;
   if (!meal.title) return 'a meal title is required';
@@ -335,6 +343,67 @@ mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/meals/{id}/swap', 
   await db.batch([mealWrite(db, a2), mealWrite(db, b2)]);
   emit(c, 'meal.changed', { id: a.id }); emit(c, 'meal.changed', { id: b.id });
   return c.json([await readMeal(db, a.id) as Meal, await readMeal(db, b.id) as Meal], 200);
+});
+
+// Order nights: each person's order for a dining_out meal. Like rating dinner, wall screens and kids'
+// devices may add orders (a kid's own device only theirs); once a parent marks it ordered (status
+// prepared, shown "Ordered") only parents can change it.
+const orderParams = params.extend({ memberId: z.string() });
+async function orderBlock(c: Ctx, mealId: string, memberId: string): Promise<{ error: string; status: 400 | 403 | 404 } | { meal: Meal }> {
+  const blocked = await ownerBlock(c, memberId);
+  if (blocked) return { error: blocked, status: 403 };
+  const meal = await readMeal(c.env.DB, mealId);
+  if (!meal) return { error: 'meal not found', status: 404 };
+  if (meal.mealKind !== 'dining_out') return { error: 'orders are for dining-out meals', status: 400 };
+  if (meal.status !== 'planned' && (await resolveKey(c))?.scope !== 'admin') return { error: 'This order is in already. Ask a grown-up to change it.', status: 403 };
+  if (!await c.env.DB.prepare('SELECT id FROM members WHERE id = ?').bind(memberId).first()) return { error: 'member not found', status: 404 };
+  return { meal };
+}
+mealsRoutes.openapi(createRoute({ method: 'put', path: '/api/meals/{id}/orders/{memberId}', tags: ['Meals'], summary: "Set a family member's order for a dining-out meal (wall and member devices too; a member's own device only for them; parents only once it's marked ordered). No items and no note clears it", security: [{ Bearer: [] }],
+  request: { params: orderParams, body: body(MealOrderInputSchema) }, responses: { 200: mealResponse, ...errors } }), async (c) => {
+  const { id, memberId } = c.req.valid('param');
+  const found = await orderBlock(c, id, memberId);
+  if ('error' in found) return c.json({ error: found.error }, found.status);
+  const { items, note } = c.req.valid('json');
+  const db = c.env.DB;
+  if (!items.length && !note) await db.prepare('DELETE FROM meal_orders WHERE meal_id = ? AND member_id = ?').bind(id, memberId).run();
+  else {
+    // A menu item id stays only when it's on this restaurant's menu; the name always travels with it.
+    const menu = new Set(found.meal.restaurantId ? (await db.prepare('SELECT id FROM restaurant_menu_items WHERE restaurant_id = ?').bind(found.meal.restaurantId).all<{ id: string }>()).results.map((r) => r.id) : []);
+    const clean = items.map((i) => ({ ...i, menuItemId: i.menuItemId && menu.has(i.menuItemId) ? i.menuItemId : null }));
+    await db.prepare('INSERT INTO meal_orders (meal_id, member_id, items, note, updated_at) VALUES (?,?,?,?,?) ON CONFLICT(meal_id, member_id) DO UPDATE SET items = excluded.items, note = excluded.note, updated_at = excluded.updated_at')
+      .bind(id, memberId, JSON.stringify(clean), note || null, new Date().toISOString()).run();
+  }
+  emit(c, 'meal.changed', { id });
+  return c.json(await readMeal(db, id) as Meal, 200);
+});
+mealsRoutes.openapi(createRoute({ method: 'delete', path: '/api/meals/{id}/orders/{memberId}', tags: ['Meals'], summary: "Clear a family member's order (same rules as setting it)", security: [{ Bearer: [] }], request: { params: orderParams }, responses: { 200: mealResponse, ...errors } }), async (c) => {
+  const { id, memberId } = c.req.valid('param');
+  const found = await orderBlock(c, id, memberId);
+  if ('error' in found) return c.json({ error: found.error }, found.status);
+  await c.env.DB.prepare('DELETE FROM meal_orders WHERE meal_id = ? AND member_id = ?').bind(id, memberId).run();
+  emit(c, 'meal.changed', { id });
+  return c.json(await readMeal(c.env.DB, id) as Meal, 200);
+});
+const ORDER_HOW = { dine_in: 'Eating there', pickup: 'Pickup', delivery: 'Delivery' } as const;
+mealsRoutes.openapi(createRoute({ method: 'post', path: '/api/meals/{id}/ask-orders', tags: ['Meals'], summary: "Ask who's eating (everyone when nobody is picked) what they want: a bell notification and a push to their devices, opening the order sheet (admin)", security: [{ Bearer: [] }], request: { params },
+  responses: { 200: { description: 'how many devices got the push', content: { 'application/json': { schema: z.object({ ok: z.boolean(), sent: z.number() }) } } }, ...errors } }), async (c) => {
+  const meal = await readMeal(c.env.DB, c.req.valid('param').id);
+  if (!meal) return c.json({ error: 'meal not found' }, 404);
+  if (meal.mealKind !== 'dining_out') return c.json({ error: 'orders are for dining-out meals' }, 400);
+  if (!(await readFeatures(c.env.DB)).meals) return c.json({ error: 'Meals is turned off in Settings → Features' }, 403);
+  const day = new Date(`${meal.date}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
+  const title = `${meal.title}, ${day} ${meal.slot}: what do you want?`;
+  const text = `${meal.orderType ? `${ORDER_HOW[meal.orderType]}. ` : ''}Tap to add your order.`;
+  const url = `/#/meals?meal=${encodeURIComponent(meal.id)}&orders=1`;
+  await recordNotification(c.env.DB, { kind: 'meal', title, body: text, url, memberIds: meal.eaterIds, source: c.req.header('X-Kinwall-Source') === 'mcp' ? 'mcp' : 'api' });
+  const sent = await pushToMembers(c.env, meal.eaterIds, { title, body: text, url, tag: `orders:${meal.id}` });
+  return c.json({ ok: true, sent }, 200);
+});
+mealsRoutes.openapi(createRoute({ method: 'get', path: '/api/events/{id}/meal', tags: ['Meals'], summary: "The planned meal linked to this calendar event, with its orders (null when there's none)", security: [{ Bearer: [] }], request: { params },
+  responses: { 200: { description: 'the meal, or null', content: { 'application/json': { schema: z.object({ meal: MealSchema.nullable() }) } } } } }), async (c) => {
+  const row = await c.env.DB.prepare('SELECT id FROM meals WHERE calendar_event_id = ? ORDER BY date LIMIT 1').bind(c.req.valid('param').id).first<{ id: string }>();
+  return c.json({ meal: row ? await readMeal(c.env.DB, row.id) : null }, 200);
 });
 
 type Ctx = Context<{ Bindings: Env }>;

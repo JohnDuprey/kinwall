@@ -16,6 +16,7 @@ import { useIsPhone } from './useIsPhone.ts'
 import { recipeMatches } from './recipe-search.ts'
 import type { Meal, Recipe, RecipeKind, Restaurant } from './meal-types.ts'
 import { RestaurantBinder, RestaurantEditSheet, RestaurantSheet } from './Restaurants.tsx'
+import { ORDER_TYPE_LABEL, ordersLabel } from './orders.ts'
 import type { Me } from './types.ts'
 import './meals.css'
 
@@ -55,6 +56,7 @@ export default function Meals() {
   const [importing, setImporting] = useState<{ url: string } | null>(null)
   const [tick, setTick] = useState(0)
   const [pendingMeal, setPendingMeal] = useState<string | null>(null)
+  const [pendingOrders, setPendingOrders] = useState(false) // #/meals?meal=<id>&orders=1: "Ask for orders" opens the order sheet
   const [pendingRecipe, setPendingRecipe] = useState<string | null>(null) // #/meals?recipe=<id> (Spotlight, Siri)
   const admin = me?.scope === 'admin'
   useEffect(() => {
@@ -65,7 +67,7 @@ export default function Meals() {
       if (!location.hash.startsWith('#/meals')) return
       const date = query.get('date')
       if (date && /^\d{4}-\d{2}-\d{2}$/.test(date) && !Number.isNaN(Date.parse(date))) setAnchor(date)
-      if (query.get('meal')) { setPendingMeal(query.get('meal')); setView('week') }
+      if (query.get('meal')) { setPendingMeal(query.get('meal')); setPendingOrders(query.get('orders') === '1'); setView('week') }
       if (query.get('recipe')) setPendingRecipe(query.get('recipe'))
       if (query.toString()) history.replaceState(null, '', '#/meals')
     }
@@ -138,7 +140,8 @@ export default function Meals() {
               <span>{meal.plannedTime ? `${formatTime(meal.plannedTime)} · ` : ''}{servingsLabel(meal.servings)}{total ? ` · ${minutesLabel(total)}` : ''}</span>
               {assignee && <span>Cooking: {assignee.avatar} {assignee.name}</span>}
               <EaterAvatars ids={meal.eaterIds ?? []} members={members} />
-              {meal.status !== 'planned' && <span>✓ {meal.status === 'prepared' ? 'Prepared' : 'Handled'}</span>}
+              {meal.mealKind === 'dining_out' && !!(meal.orderType || meal.orders?.length) && <span>{[meal.orderType && ORDER_TYPE_LABEL[meal.orderType], meal.status === 'planned' && ordersLabel(meal)].filter(Boolean).join(' · ')}</span>}
+              {meal.status !== 'planned' && <span>✓ {meal.status === 'prepared' ? meal.mealKind === 'dining_out' ? 'Ordered' : 'Prepared' : 'Handled'}</span>}
               {meal.notes && <span className="meal-note-preview">{meal.notes}</span>}
             </button>
           })}{admin ? <button className="meal-add" aria-label={`Plan ${SLOT_LABEL[slot].toLowerCase()} for ${mealDayLabel(date)}`} onClick={() => setEditing({ meal: null, initial: { date, slot } })}><PlusIcon width={16} height={16} /><span className="sr-only">Plan meal</span></button> : !bySlot.has(`${date}:${slot}`) && <span className="meal-empty" aria-label="No meal planned">—</span>}</td>)}
@@ -162,11 +165,13 @@ export default function Meals() {
         </button>)}</div>
       </>}
     </section>}
-    {shownMeal && <PlannedMealSheet key={shownMeal.id} meal={shownMeal} recipes={recipes} me={me} onRated={() => setTick(t => t + 1)} onClose={() => { setOpenMeal(null); setPendingMeal(null) }} onSaved={saved} />}
-    {editing && <MealSheet meal={editing.meal} initial={editing.initial} recipes={recipes} admin={admin} owner={me?.owner} onClose={() => setEditing(null)} onSaved={saved} onRecipe={recipe => setRecipeSheet({ recipe, readOnly: true })} />}
+    {shownMeal && <PlannedMealSheet key={shownMeal.id} meal={shownMeal} recipes={recipes} me={me} startOrders={pendingOrders && shownMeal.id === pendingMeal} onRated={() => setTick(t => t + 1)} onClose={() => { setOpenMeal(null); setPendingMeal(null); setPendingOrders(false) }} onSaved={saved} />}
+    {editing && <MealSheet meal={editing.meal} initial={editing.initial} recipes={recipes} admin={admin} owner={me?.owner} me={me} onChanged={() => setTick(t => t + 1)} onClose={() => setEditing(null)} onSaved={saved} onRecipe={recipe => setRecipeSheet({ recipe, readOnly: true })} />}
     {recipeSheet && <RecipeSheet key={recipeSheet.recipe?.id ?? 'new'} recipe={recipeSheet.recipe} library={recipes} admin={admin && !recipeSheet.readOnly} owner={me?.owner} onRated={() => setTick(t => t + 1)} onClose={() => setRecipeSheet(null)} onSaved={saved} onPlan={recipeSheet.readOnly ? undefined : recipe => { setRecipeSheet(null); setEditing({ meal: null, initial: { date: today, slot: 'dinner', recipe } }) }} />}
     {importing && me && <RecipeImportSheet url={importing.url} admin={admin} onClose={() => setImporting(null)} onSaved={recipe => { setImporting(null); setTick(t => t + 1); setRecipeSheet({ recipe }) }} />}
     {place && !place.editing && place.restaurant && <RestaurantSheet key={place.restaurant.id} restaurant={place.restaurant} admin={admin} onClose={() => setPlace(null)} onEdit={() => setPlace({ ...place, editing: true })}
+      onPlan={restaurant => { setPlace(null); setEditing({ meal: null, initial: { date: today, slot: 'dinner', restaurant } }) }}
+      onOpenMeal={(id, date) => { setPlace(null); location.hash = `#/meals?date=${date}&meal=${encodeURIComponent(id)}` }}
       onSaved={saved => { setTick(t => t + 1); setPlace(saved && !saved.archived ? { restaurant: saved, editing: false } : null) }} />}
     {place?.editing && <RestaurantEditSheet restaurant={place.restaurant} onClose={() => setPlace(place.restaurant ? { ...place, editing: false } : null)} onSaved={saved => { setTick(t => t + 1); setPlace({ restaurant: saved, editing: false }) }} />}
     {projection && <MealProjection from={from} to={to} admin={admin} onClose={() => setProjection(false)} />}

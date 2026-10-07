@@ -973,6 +973,8 @@ export const mock = {
     return { ...p, mine, canChange: mine && p.allowed }
   },
   myOwner: () => demoOwner,
+  // Screenshots of a kid's own device: sessionStorage 'kinwall.demoKid' = a member id makes the demo that device (api.meStrict).
+  demoKid: (): string | null => { try { return sessionStorage.getItem('kinwall.demoKid') } catch { return null } },
   setMyOwner: async (owner: string) => { demoOwner = owner === 'shared' ? null : owner; bump(); return { owner } },
   // Insights: Maya's made-up history with the server's own analysis of it (mock-insights.ts); nothing yet for everyone else.
   getInsights: async (memberId: string, range: InsightRange): Promise<Insights> => {

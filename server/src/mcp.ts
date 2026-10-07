@@ -18,7 +18,7 @@ import { hostTimezone } from './env.ts';
 import { effectivePublicUrl } from './providers/config.ts';
 import { BoardSchema, BookResultSchema, CalendarSchema, LibraryBookSchema, CategorySchema, ContactCategoryInputSchema, ContactCategorySchema, ContactInputSchema, ContactPatchSchema, ContactSchema, ChoreDaySchema, ChoreSchema, EventInstanceSchema, LeaderboardEntrySchema, ListDetailSchema, ListItemSchema, ListSchema, MemberSchema, NoteSchema, RememberedItemSchema, StoreAislesSchema, TrackerEntrySchema, TRACKER_KINDS, NotificationSchema, PointsSchema, SettingsSchema, SnapshotSchema, CustomSchemeSchema, MAX_CUSTOM_SCHEMES, TransitionRemindersSchema, RewardSchema, RewardInputSchema, RedemptionSchema, RewardLimitSchema, MemberStatsSchema, StatsPeriodSchema, PointAwardSchema, BONUS_MAX, BONUS_NOTE_MAX } from './schemas.ts';
 import type { Env } from './env.ts';
-import { RecipeSchema, RecipeInputSchema, RecipeKindSchema, RecipeImportSchema, RecipeImportResultSchema, RecipePreviewResultSchema, RecipeUrlImportSchema, MealSchema, MealInputSchema, MealPatchSchema, ProjectionSchema, ProjectionApplySchema, ProjectionQuerySchema, MealRangeSchema, RestaurantSchema, RestaurantInputSchema } from './meal-schemas.ts';
+import { RecipeSchema, RecipeInputSchema, RecipeKindSchema, RecipeImportSchema, RecipeImportResultSchema, RecipePreviewResultSchema, RecipeUrlImportSchema, MealSchema, MealInputSchema, MealPatchSchema, ProjectionSchema, ProjectionApplySchema, ProjectionQuerySchema, MealRangeSchema, RestaurantSchema, RestaurantInputSchema, MealOrderInputSchema } from './meal-schemas.ts';
 import { NewscastSchema } from './routes/newscast.ts';
 import { LibraryChoreSchema } from './routes/chore-library.ts';
 import { VERSION } from './version.ts';
@@ -210,7 +210,7 @@ function listKind(kind: 'groceries' | 'shopping' | 'todo' | 'reusable', explicit
 }
 const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
   list_recipes: { recipes: z.array(RecipeSchema) }, get_recipe: { recipe: RecipeSchema }, create_recipe: { recipe: RecipeSchema }, update_recipe: { recipe: RecipeSchema }, rate_recipe: { recipe: RecipeSchema }, import_recipe: RecipeImportResultSchema.shape, import_recipe_from_url: RecipePreviewResultSchema.shape,
-  list_restaurants: { restaurants: z.array(RestaurantSchema) }, get_restaurant: { restaurant: RestaurantSchema }, create_restaurant: { restaurant: RestaurantSchema }, update_restaurant: { restaurant: RestaurantSchema },
+  list_restaurants: { restaurants: z.array(RestaurantSchema) }, get_restaurant: { restaurant: RestaurantSchema }, create_restaurant: { restaurant: RestaurantSchema }, update_restaurant: { restaurant: RestaurantSchema }, set_meal_order: { meal: MealSchema }, ask_for_orders: { ok: z.boolean(), sent: z.number() },
   list_meals: { meals: z.array(MealSchema) }, create_meal: { meal: MealSchema }, update_meal: { meal: MealSchema },
   get_meal_projection: ProjectionSchema.shape, apply_meal_projection: { added: z.number(), itemIds: z.array(z.string()), projection: ProjectionSchema },
   get_household: { settings: SettingsSchema, members: z.array(MemberSchema), calendars: z.array(CalendarSchema) },
@@ -300,7 +300,7 @@ const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
 };
 
 const TOOL_HINTS: Record<string, { readOnlyHint: boolean; destructiveHint: boolean; idempotentHint: boolean; openWorldHint: boolean }> = {
-  list_recipes: READ, get_recipe: READ, create_recipe: WRITE, update_recipe: SET, rate_recipe: SET, import_recipe: SET, import_recipe_from_url: { ...SET, openWorldHint: true }, list_restaurants: READ, get_restaurant: READ, create_restaurant: WRITE, update_restaurant: SET, list_meals: READ, create_meal: WRITE, update_meal: SET, get_meal_projection: READ, apply_meal_projection: SET,
+  list_recipes: READ, get_recipe: READ, create_recipe: WRITE, update_recipe: SET, rate_recipe: SET, import_recipe: SET, import_recipe_from_url: { ...SET, openWorldHint: true }, list_restaurants: READ, get_restaurant: READ, create_restaurant: WRITE, update_restaurant: SET, set_meal_order: SET, ask_for_orders: { ...WRITE, openWorldHint: true }, list_meals: READ, create_meal: WRITE, update_meal: SET, get_meal_projection: READ, apply_meal_projection: SET,
   get_household: READ, list_events: READ, get_event: READ, list_chores: READ, get_leaderboard: READ, get_points: READ, award_points: WRITE, delete_point_award: DELETE, get_member_profile: READ, list_lists: READ, get_list: READ, search_books: { ...READ, openWorldHint: true }, list_library: READ, add_to_library: { ...WRITE, openWorldHint: true }, update_library_book: SET, refresh_library_book_details: { ...SET, openWorldHint: true }, list_categories: READ, get_event_items: READ, list_notifications: READ, list_newscast: READ, list_notes: READ, get_snapshot: READ, get_board: READ, list_tracker_entries: READ, add_tracker_entry: WRITE, update_tracker_entry: SET, list_color_schemes: READ, set_color_scheme: SET, save_color_scheme: WRITE,
   list_contacts: READ, get_contact: READ, list_contact_categories: READ, preview_contact_import: READ,
   delete_color_scheme: { ...WRITE, destructiveHint: true, idempotentHint: true },
@@ -504,6 +504,18 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     if (!found) return errorResult(null, 'restaurant not found');
     const result = await call(app, env, auth, 'PATCH', `/api/restaurants/${encodeURIComponent(found.id)}`, input);
     return result.status >= 400 ? errorResult(result.json, 'failed to edit restaurant') : okResult('Restaurant updated', { restaurant: result.json });
+  });
+  tool('set_meal_order', { title: "Set someone's order", description: "Set a family member's order for a dining-out meal (meal ids from list_meals; menu item ids from get_restaurant on the meal's restaurantId). Items replace their order; no items and no note clears it. Once a parent marks the meal ordered (status prepared), only full access can change it. Meals carry orders: [{ memberId, items, note }].", inputSchema: {
+    mealId: z.string(), member: z.string().describe('Member name (case-insensitive) or id.'), items: jsonList(MealOrderInputSchema.shape.items), note: MealOrderInputSchema.shape.note,
+  } }, async ({ mealId, member, items, note }) => {
+    let memberId: string;
+    try { memberId = await resolveMember(app, env, auth, member); } catch (err) { return errorResult(null, err instanceof Error ? err.message : 'member lookup failed'); }
+    const result = await call(app, env, auth, 'PUT', `/api/meals/${encodeURIComponent(mealId)}/orders/${encodeURIComponent(memberId)}`, { items, ...(note !== undefined && { note }) });
+    return result.status >= 400 ? errorResult(result.json, 'failed to set the order') : okResult(items.length || note ? 'Order saved' : 'Order cleared', { meal: result.json });
+  });
+  tool('ask_for_orders', { title: 'Ask for orders', description: "Admin: ask who's eating a dining-out meal (everyone when nobody is picked) what they want: a notification in the bell and on their phones that opens the order sheet.", inputSchema: { mealId: z.string() } }, async ({ mealId }) => {
+    const result = await call(app, env, auth, 'POST', `/api/meals/${encodeURIComponent(mealId)}/ask-orders`);
+    return result.status >= 400 ? errorResult(result.json, 'failed to ask for orders') : okResult('Asked for orders', result.json as Record<string, unknown>);
   });
   tool('list_meals', { title: 'Get meal plan', description: 'Read dated meals in an inclusive range. Start from on the household week start (weekStart from get_household: 0 Sunday, 1 Monday); omit to for that seven-day week.', inputSchema: { from: MealRangeSchema.shape.from, to: MealRangeSchema.shape.to.optional().describe('Inclusive end date; defaults to six days after from.') } }, async ({ from, to }) => {
     const end = to ?? new Date(Date.parse(`${from}T00:00:00Z`) + 6 * 86400000).toISOString().slice(0, 10);

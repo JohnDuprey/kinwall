@@ -1051,7 +1051,7 @@ export const NotificationSchema = z
   .object({
     id: z.string(),
     at: z.string(),
-    kind: z.enum(['reminder', 'summary', 'chore', 'list', 'message', 'goal', 'medication', 'privacy']),
+    kind: z.enum(['reminder', 'summary', 'chore', 'list', 'message', 'goal', 'medication', 'privacy', 'meal']),
     title: z.string(),
     body: z.string().nullable(),
     url: z.string().nullable(),

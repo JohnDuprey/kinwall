@@ -126,6 +126,23 @@ export function memberMatch(deviceMemberIds: string[], targetMemberIds: string[]
   return deviceMemberIds.some((id) => targetMemberIds.includes(id));
 }
 
+/** Pushes one message to every device following any of `memberIds` (none: every device), dropping
+ * subscriptions the push service says are gone. How many devices got it. */
+export async function pushToMembers(env: Env, memberIds: string[] | undefined, payload: { title: string; body: string; url?: string; tag?: string }): Promise<number> {
+  let sent = 0;
+  for (const row of await loadSubs(env.DB)) {
+    if (!memberMatch(parseMemberIds(row.member_ids), memberIds)) continue;
+    const result = await sendWebPush(env, env.DB, row, payload);
+    if (result.ok) {
+      sent++;
+      await env.DB.prepare('UPDATE push_subscriptions SET last_success_at = ? WHERE id = ?').bind(new Date().toISOString(), row.id).run();
+    } else if (result.gone) {
+      await env.DB.prepare('DELETE FROM push_subscriptions WHERE id = ?').bind(row.id).run();
+    }
+  }
+  return sent;
+}
+
 async function alreadySent(db: KinwallDb, key: string): Promise<boolean> {
   const row = await db.prepare('SELECT 1 FROM sent_notifications WHERE key = ?').bind(key).first();
   return !!row;
@@ -148,7 +165,7 @@ async function pruneSentNotifications(db: KinwallDb, now: Date): Promise<void> {
   ]);
 }
 
-export type NotificationKind = 'reminder' | 'summary' | 'chore' | 'list' | 'message' | 'goal' | 'medication' | 'privacy';
+export type NotificationKind = 'reminder' | 'summary' | 'chore' | 'list' | 'message' | 'goal' | 'medication' | 'privacy' | 'meal';
 export type NotificationSource = 'system' | 'api' | 'mcp';
 
 // Medicine notes (kind 'medication') are health data (AGENTS.md "Health data"): the title (whose

@@ -9,11 +9,12 @@ The week planner shows the household week (it starts on Sunday or Monday, per [G
 Tap **+** in a slot (or **Plan meal**) to add a meal. The sheet starts with what you're eating, then when, then the rest:
 
 * **Meal type**: **Recipe** (from the library), **Free-form meal** (just a name, like "Leftover soup") or **Dining out** (like "Pizza place").
+* For dining out, **Restaurant** picks a place from the [binder](#restaurants) (its name becomes the meal's name) or **Somewhere else**, and **How** is **Eating there**, **Pickup** or **Delivery**. A night from the binder gets everyone's [orders](#ordering-together).
 * **Recipe**: tap it to choose one. The picker opens with a search box (recipe name or ingredient; arrow keys and Enter work too) and lists recipes A to Z with their photo, time and family rating ("★ 4.5"). Archived recipes stay out unless the meal already uses one. Choosing a recipe fills in the meal's name and servings. The meal's sheet doesn't list the ingredients: **Open recipe** shows them, scaled to any number of servings.
 * **Meal name**, then **Date** and **Meal slot** (filled in from the slot you tapped).
 * **Servings**, an optional **Time** ("7:30 PM"; left empty, the meal is at the family's usual time for that meal, shown under the field), **Cooking** (who's making it) and, for dining out, an optional website.
 * **Who's eating**: tap family members. Picking people sets **Servings** to how many (you can still change servings). With nobody picked, a note says how many people the servings are for ("2 servings: pick 2 people"); it's only a hint and never stops you saving.
-* **Status** (**Planned**, **Prepared** or **Handled**; a meal that's done shows dashed) and **Notes**.
+* **Status** (**Planned**, **Prepared** or **Handled**; for dining out, **Prepared** reads **Ordered**; a meal that's done shows dashed) and **Notes**.
 
 To trade two meals around, open a planned meal's sheet and tap **Swap with…**, right under the meal's name: it lists the other meals from today through the end of that meal's week, and picking one swaps their days and slots (Tuesday's dinner and Thursday's dinner change places). A calendar event Kinwall made for either meal moves with it; an event you linked yourself stays put.
 
@@ -168,6 +169,8 @@ Tap a restaurant to open it:
 * Buttons for what it has: **Call** (dials its phone), **Order online** (its ordering page), **Website** and **Map** (a Google Maps search for its address).
 * **★ Favorites**: the menu items the family starred, pinned above the menu. Parents tap the ☆ next to any item to star it (or ★ to unstar it); it's one star for the whole family.
 * The full menu by section, in the order the sections come, with prices and short descriptions. Prices are only shown, never added up.
+* **Coming up**: nights planned from here, today on ("Friday dinner · 6:00 PM, Pickup · 3 of 4 orders in"), each opening its meal. Parents also get **Plan a night here**, a new dining-out meal from this place.
+* Avatars beside a favorite show who had it last time.
 * Notes ("Cash only", "Ask for the crust well done").
 
 Parents add a place with **New restaurant** and change it with **Edit**; **More…** archives (or restores) or deletes it. Wall screens and kids' devices can look but not change the binder.
@@ -183,6 +186,18 @@ Or paste the whole menu in **Paste a menu** and tap **Add these items**:
 * A price alone on the next line belongs to the item above it, which is how text copied off a photo often comes out.
 
 The items are added below the ones you have, so you can check and fix them before **Save restaurant**. For a paper menu, take a photo and copy its text (Live Text on an iPhone or iPad, Google Lens on Android), then paste it. Or send the photo to your family assistant: through [MCP](../integrations/mcp.md) it can read the menu off the photo and save it with `update_restaurant`.
+
+## Ordering together
+
+A dining-out night from the binder collects everyone's order before someone calls it in.
+
+* **Orders** on the meal's sheet (and on its calendar event's page, when it has one) shows how many are in ("3 of 4 orders in"), how (Pickup) and the order as the caller reads it: the same item added up with who it's for ("2 × Large cheese pizza: Sam, Leo"), each with a box to tick while you read it out (ticks are only on that screen and clear when it closes), then everyone's notes. **Call** dials the restaurant, **Order online** opens its ordering page and **Copy order** copies the whole order as text, for an ordering page's notes field or a message. The sheet stays open while you're on the phone, so switching back from the call lands on it.
+* **Add orders** (or **Change orders**) lists who's eating (everyone, when nobody is picked), each with their order. Tap a person to fill in theirs: tap menu items to add them (favorites first, or search), **−** and **+** for how many, a note on an item ("No onions"), **Something else** for what isn't on the menu, and a note for the whole order. **↺ Usual** fills in the person's last order from this place in one tap.
+* On a shared wall anyone can enter anyone's order, by tapping that person. A kid's own device goes straight to their own order and can't change anyone else's.
+* **Ask for orders** (parents) sends who's eating a notification in the bell and on their phones, "Corner Slice, Friday dinner: what do you want?", that opens the order sheet. Nothing is sent until a parent taps it.
+* **Mark ordered** (parents) sets the meal to **Ordered**: from then on only parents' devices can change an order. **Open orders again** undoes it.
+
+The week planner and the Board's **Today's meals** show how and how many orders are in ("Pickup · 3 of 4 orders in"), then **✓ Ordered**.
 
 ## Scaling servings
 
@@ -231,7 +246,7 @@ An event Kinwall made follows the meal, on whichever calendar it's on. Saving th
 * A person's day (tap their avatar) lists today's meals, which open the same way over their day, and tomorrow's in **Tomorrow at a glance**. See [Daily & weekly snapshot](snapshot.md).
 * The morning summary includes the day's meals. See [Notifications](notifications.md).
 
-A wall display (a display key) can see the week, the recipes and the restaurant binder, but not plan, edit restaurants, edit recipes or use the shopping projection. A device that belongs to someone can update the **Notes** and **Status** of meals assigned to that person, for example marking dinner **Prepared**.
+A wall display (a display key) can see the week, the recipes and the restaurant binder, but not plan, edit restaurants, edit recipes or use the shopping projection. A device that belongs to someone can update the **Notes** and **Status** of meals assigned to that person, for example marking dinner **Prepared**. Walls and everyone's own devices can add orders on a dining-out night (a kid's device only their own), until a parent marks it ordered.
 
 ## Turning it off
 
@@ -254,7 +269,10 @@ An admin can turn off **Meals** in **Settings → General** (tap **Change** unde
 | `GET` | `/api/restaurants/{id}` | One restaurant with its menu. Display keys too. |
 | `POST` / `PATCH` / `DELETE` | `/api/restaurants`, `/api/restaurants/{id}` | Add, edit (`archived: true` archives) or delete a restaurant (admin): `{ name, cuisine, phone, address, website, orderUrl, menuUrl, notes, menu }`. Sending `menu` replaces the whole menu; an item that keeps its `id` keeps its star. |
 | `POST` | `/api/restaurants/parse-menu` | Read pasted menu text `{ text }` into `{ items: [{ section, name, priceCents }] }` to review, without saving (admin). |
-| `GET` | `/api/meals?from=&to=` | Meals in a date range (at most 367 days). |
+| `GET` | `/api/meals?from=&to=` | Meals in a date range (at most 367 days). A dining-out meal has `restaurantId`, `orderType` (`dine_in`, `pickup` or `delivery`) and `orders: [{ memberId, items: [{ menuItemId, name, qty, note }], note, updatedAt }]`. A restaurant read also has `upcoming` (its nights from today on) and `lastOrders` (each person's latest order there from a night already ordered). |
+| `PUT` / `DELETE` | `/api/meals/{id}/orders/{memberId}` | Set `{ items, note }` or clear a member's order on a dining-out meal (no items and no note clears it too). Wall and member devices too, a member's own device only for them; once the meal's `status` is `prepared` (Ordered), parents only. |
+| `POST` | `/api/meals/{id}/ask-orders` | Ask who's eating (everyone when nobody is picked) for their order: a `meal` notification and a push opening `#/meals?meal=<id>&orders=1` (admin). 403 while Meals is off. |
+| `GET` | `/api/events/{id}/meal` | `{ meal }`: the meal linked to that calendar event, or `null`. Display keys too. |
 | `POST` / `PATCH` / `DELETE` | `/api/meals`, `/api/meals/{id}` | Plan, edit or delete a meal (admin; an assigned device may `PATCH` `notes` and `status`). `refreshRecipe: true` replaces the meal's ingredients with the recipe's. |
 | `GET` | `/api/meals/projection?from=&to=&listId=` | The shopping preview (admin). |
 | `POST` | `/api/meals/projection/apply` | Add `{ from, to, listId, omitKeys?, includeNotes?, includeKitItems?, basics? }` to a list (admin). Meal-kit ingredients that ship in the box are skipped unless `includeKitItems: true`. A preview item with `basicId` is made from a basic: `basics: { "<basicId>": "made" }` skips it, `"ingredients"` adds the basic's own ingredients once, as written, instead (a basic left out is added as its line). Safe to repeat. |

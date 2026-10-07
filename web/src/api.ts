@@ -10,7 +10,7 @@ import { libraryQuery } from './library.ts'
 import { applyChoreOps, applyListOps, cacheGet, cachePut, clearOffline, enqueue, flush, onOutboxChange, outboxReady, pendingOps, type Dropped, type Op } from './outbox.ts'
 import type { CustomScheme } from './skins.ts'
 import type { PasskeyAuthenticator } from './webauthn.ts'
-import type { BasicChoices, Meal, MealInput, ParsedMenuItem, Recipe, RecipeImport, RecipeInput, RecipePreviewResult, RecipeShare, Restaurant, RestaurantInput, ShoppingProjection } from './meal-types.ts'
+import type { BasicChoices, Meal, MealInput, OrderItem, ParsedMenuItem, Recipe, RecipeImport, RecipeInput, RecipePreviewResult, RecipeShare, Restaurant, RestaurantInput, ShoppingProjection } from './meal-types.ts'
 import type { Contact, ContactCategory, ContactInput, ImportPreviewEntry } from './contact-types.ts'
 import type { ActivityChoreProgress, OnlineTidbits, Plugin, PluginActionItem, PluginCatalogEntry,
   StickerPack, StickerPatch, StickerPlacement, Photo, PhotoQuota, FamilyColoringPage, GooglePhotos, Reward, Redemption, PointAward, PointEntry, MemberStats, StatsPeriod,
@@ -324,6 +324,10 @@ export const api = {
   deleteRestaurant: (id: string) => del(`api/restaurants/${encodeURIComponent(id)}`),
   // Pasted menu text read into items to review; nothing is saved.
   parseMenuText: (text: string) => post<{ items: ParsedMenuItem[] }>('api/restaurants/parse-menu', { text }),
+  // Order nights: a member's order (no items and no note clears it), asking who's eating, and the meal behind a calendar event.
+  setMealOrder: (mealId: string, memberId: string, body: { items: OrderItem[]; note: string | null }) => put<Meal>(`api/meals/${encodeURIComponent(mealId)}/orders/${encodeURIComponent(memberId)}`, body),
+  askForOrders: (mealId: string) => post<{ ok: boolean; sent: number }>(`api/meals/${encodeURIComponent(mealId)}/ask-orders`),
+  getEventMeal: async (eventId: string): Promise<{ meal: Meal | null }> => MOCK ? (await import('./mock-meals.ts')).mockEventMeal(eventId) : get(`api/events/${encodeURIComponent(eventId)}/meal`),
   getMeals: (from: string, to: string) => get<Meal[]>(`api/meals?${new URLSearchParams({ from, to })}`),
   createMeal: (body: MealInput) => post<Meal>('api/meals', body),
   updateMeal: (id: string, body: Partial<MealInput> & { refreshRecipe?: boolean }) => patch<Meal>(`api/meals/${encodeURIComponent(id)}`, body),
@@ -348,7 +352,7 @@ export const api = {
   checkAdminKey: (): Promise<Me> => MOCK ? Promise.resolve({ scope: 'admin', keyName: 'mock', kind: 'api' }) : get<Me>('api/me', true),
   // Strict check (no fail-open) against whatever key is currently stored — used by the QR-pairing
   // "confirm" screen and Settings (which must fail closed to the display view, not assume admin).
-  meStrict: (): Promise<Me> => MOCK ? Promise.resolve({ scope: 'admin', keyName: 'mock', kind: 'api', locked: false, owner: mock.myOwner() }) : get<Me>('api/me'),
+  meStrict: (): Promise<Me> => MOCK ? Promise.resolve(mock.demoKid() ? { scope: 'display', keyName: 'Kid’s tablet', kind: 'api', locked: true, owner: mock.demoKid() } : { scope: 'admin', keyName: 'mock', kind: 'api', locked: false, owner: mock.myOwner() }) : get<Me>('api/me'),
 
   /** The family a key signs in to, before it's stored (a sign-in link asks first, App.tsx
    * KeyLinkGate): its name; null when this server refuses the key (a setup code, or a key that

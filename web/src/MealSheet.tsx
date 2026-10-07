@@ -13,30 +13,36 @@ import { MemberPicker } from './MemberPicker.tsx'
 import type { Member } from './types.ts'
 import { MEAL_SLOTS, SLOT_LABEL, mealDayLabel, minutesLabel, recipeTime, servingsLabel, startBy, swapCandidates, swapWindow } from './meal-date.ts'
 import { pickerRecipes } from './recipe-search.ts'
-import type { Meal, MealInput, MealKind, MealSlot, MealStatus, Recipe } from './meal-types.ts'
+import type { Meal, MealInput, MealKind, MealSlot, MealStatus, OrderType, Recipe, Restaurant } from './meal-types.ts'
+import type { Me } from './types.ts'
+import PickField from './PickField.tsx'
+import { OrderSheet, OrderSummary, useMealRestaurant } from './Orders.tsx'
+import { ORDER_TYPE_LABEL } from './orders.ts'
 import { Face } from './Face'
 
-export type MealDraft = { date: string; slot: MealSlot; recipe?: Recipe }
+export type MealDraft = { date: string; slot: MealSlot; recipe?: Recipe; restaurant?: Restaurant }
 
 /** Small overlapping avatars of who's eating (planner card, Board, meal sheet). */
-export function EaterAvatars({ ids, members }: { ids: string[]; members: Member[] }) {
+export function EaterAvatars({ ids, members, label = 'Eating' }: { ids: string[]; members: Member[]; label?: string }) {
   const eaters = members.filter(m => ids.includes(m.id))
   if (!eaters.length) return null
-  return <span className="meal-eaters" role="img" aria-label={`Eating: ${eaters.map(m => m.name).join(', ')}`}>
+  return <span className="meal-eaters" role="img" aria-label={`${label}: ${eaters.map(m => m.name).join(', ')}`}>
     {eaters.map(m => <Face key={m.id} m={m} />)}
   </span>
 }
 
-export default function MealSheet({ meal, initial, recipes, admin, owner, onClose, onSaved, onRecipe }: {
+export default function MealSheet({ meal, initial, recipes, admin, owner, me = null, startOrders = false, onClose, onSaved, onRecipe, onChanged }: {
   meal: Meal | null; initial: MealDraft; recipes: Recipe[]; admin: boolean; owner?: string | null
-  onClose: () => void; onSaved: () => void; onRecipe: (recipe: Recipe) => void
+  me?: Me | null; startOrders?: boolean // a link from "Ask for orders" opens the order sheet over it
+  onClose: () => void; onSaved: () => void; onRecipe: (recipe: Recipe) => void; onChanged?: () => void // onChanged: orders changed (the sheet stays open)
 }) {
   const { members, settings, toast } = useApp()
   const dialog = useDialog()
   const formId = useId()
   const [draft, setDraft] = useState<MealInput>(() => ({
-    date: meal?.date ?? initial.date, slot: meal?.slot ?? initial.slot, title: meal?.title ?? initial.recipe?.name ?? '',
-    mealKind: meal?.mealKind ?? (initial.recipe ? 'recipe' : 'freeform'), recipeId: meal?.recipeId ?? initial.recipe?.id ?? null,
+    date: meal?.date ?? initial.date, slot: meal?.slot ?? initial.slot, title: meal?.title ?? initial.recipe?.name ?? initial.restaurant?.name ?? '',
+    mealKind: meal?.mealKind ?? (initial.recipe ? 'recipe' : initial.restaurant ? 'dining_out' : 'freeform'), recipeId: meal?.recipeId ?? initial.recipe?.id ?? null,
+    restaurantId: meal?.restaurantId ?? initial.restaurant?.id ?? null, orderType: meal?.orderType ?? (initial.restaurant ? 'pickup' : null),
     servings: meal?.servings ?? initial.recipe?.defaultServings ?? 4, assigneeMemberId: meal?.assigneeMemberId ?? null, eaterIds: meal?.eaterIds ?? [],
     notes: meal?.notes ?? null, plannedTime: meal?.plannedTime ?? null, status: meal?.status ?? 'planned', sourceUrl: meal?.sourceUrl ?? null,
   }))
@@ -47,6 +53,18 @@ export default function MealSheet({ meal, initial, recipes, admin, owner, onClos
   const [picking, setPicking] = useState(false)
   const [swapping, setSwapping] = useState(false)
   const [linkedMeal, setLinkedMeal] = useState(meal)
+  const [ordering, setOrdering] = useState(false)
+  // After the meal's own sheet is up, so the order sheet opens over it (portals stack in mount order).
+  useEffect(() => { if (startOrders && meal?.mealKind === 'dining_out') setOrdering(true) }, [startOrders, meal?.mealKind])
+  // The binder, for a dining-out night's Restaurant row (parents), and this night's restaurant.
+  const [binder, setBinder] = useState<Restaurant[]>(initial.restaurant ? [initial.restaurant] : [])
+  useEffect(() => {
+    let canceled = false
+    if (admin) api.getRestaurants(true).then(all => { if (!canceled) setBinder(all) }).catch(() => {})
+    return () => { canceled = true }
+  }, [admin])
+  const restaurant = useMealRestaurant(linkedMeal)
+  const ordersChanged = (saved: Meal) => { setLinkedMeal(saved); setDraft(d => ({ ...d, status: saved.status })); onChanged?.() }
   const assigned = !!meal?.assigneeMemberId && owner === meal.assigneeMemberId
   const canUpdate = admin || assigned
   const selectedRecipe = recipes.find(r => r.id === draft.recipeId)
@@ -109,6 +127,13 @@ export default function MealSheet({ meal, initial, recipes, admin, owner, onClos
           </button>
           {!recipes.some(r => !r.archived) && !snapshot && <p className="field-hint">Create a recipe in the Recipe library first.</p>}
         </div>}
+        {draft.mealKind === 'dining_out' && <>
+          <div className="field"><label htmlFor={`${formId}-restaurant`}>Restaurant</label>
+            <PickField id={`${formId}-restaurant`} label="Restaurant" title="Choose a restaurant" placeholder="Restaurant name"
+              options={[{ value: '', label: 'Somewhere else', detail: 'Not in the binder' }, ...binder.filter(r => !r.archived || r.id === draft.restaurantId).map(r => ({ value: r.id, label: r.name, detail: r.cuisine ?? undefined }))]}
+              value={[draft.restaurantId ?? '']} onChange={v => { const r = binder.find(x => x.id === v[0]); setDraft(d => ({ ...d, restaurantId: r?.id ?? null, title: r ? r.name : d.title, orderType: r ? d.orderType ?? 'pickup' : d.orderType })) }} /></div>
+          <div className="field"><label htmlFor={`${formId}-how`}>How</label><select id={`${formId}-how`} value={draft.orderType ?? ''} onChange={e => update('orderType', (e.target.value || null) as OrderType | null)}><option value="">Not set</option>{Object.entries(ORDER_TYPE_LABEL).map(([k, label]) => <option key={k} value={k}>{label}</option>)}</select></div>
+        </>}
         <div className="field"><label htmlFor={`${formId}-title`}>{draft.mealKind === 'dining_out' ? 'Place or meal name' : 'Meal name'}</label><input id={`${formId}-title`} type="text" required maxLength={200} placeholder={draft.mealKind === 'dining_out' ? 'Eating out, school cafeteria…' : 'What are we eating?'} value={draft.title} onChange={e => update('title', e.target.value)} /></div>
         {/* Swapping is the usual edit, so it sits right under what the meal is. */}
         {swapRange && <div className="sheet-links"><button className="sheet-link" type="button" aria-haspopup="dialog" onClick={() => setSwapping(true)}><CalendarIcon /><span>Swap with…<small>Trade days with another meal this week</small></span><ChevronRight /></button></div>}
@@ -127,8 +152,8 @@ export default function MealSheet({ meal, initial, recipes, admin, owner, onClos
         {members.length > 0 && draft.servings > 0 && <p className="field-hint meal-eaters-hint">{!draft.eaterIds.length ? `${servingsLabel(draft.servings)}: pick ${draft.servings === 1 ? 'who’s eating' : `${draft.servings} people`}` : draft.eaterIds.length === draft.servings ? `${draft.eaterIds.length} of ${servingsLabel(draft.servings)}` : `${draft.eaterIds.length} selected for ${servingsLabel(draft.servings)}`}</p>}
         {draft.mealKind === 'dining_out' && <div className="field"><label htmlFor={`${formId}-url`}>Website (optional)</label><input id={`${formId}-url`} type="url" pattern="https?://.*" maxLength={2000} value={draft.sourceUrl ?? ''} onChange={e => update('sourceUrl', e.target.value || null)} /></div>}
       </fieldset> : <>
-        <p>{mealDayLabel(draft.date)} · {SLOT_LABEL[draft.slot]}{draft.plannedTime ? ` · ${draft.plannedTime}` : ''}</p>
-        <p>{draft.mealKind === 'dining_out' ? 'Dining out · ' : ''}{servingsLabel(draft.servings)} · Cooking: {members.find(m => m.id === draft.assigneeMemberId)?.name ?? 'nobody yet'}</p>
+        <p>{mealDayLabel(draft.date)} · {SLOT_LABEL[draft.slot]}{draft.plannedTime ? ` · ${formatTime(draft.plannedTime)}` : ''}</p>
+        <p>{draft.mealKind === 'dining_out' ? `Dining out · ${draft.orderType ? `${ORDER_TYPE_LABEL[draft.orderType]} · ` : ''}` : ''}{servingsLabel(draft.servings)}{draft.mealKind !== 'dining_out' && ` · Cooking: ${members.find(m => m.id === draft.assigneeMemberId)?.name ?? 'nobody yet'}`}</p>
         {draft.eaterIds.length > 0 && <p className="meal-eaters-row">Eating <EaterAvatars ids={draft.eaterIds} members={members} /></p>}
       </>}
       {snapshot && (time || meal?.recipeSnapshot) && <section aria-label="Recipe">
@@ -136,11 +161,12 @@ export default function MealSheet({ meal, initial, recipes, admin, owner, onClos
         {meal?.recipeSnapshot && <p className="field-hint">The recipe is saved with this meal, so later recipe edits don’t change it.</p>}
         {admin && meal?.recipeSnapshot && selectedRecipe && !selectedRecipe.archived && draft.recipeId === meal.recipeId && <label className="meal-check"><input type="checkbox" checked={refreshRecipe} disabled={busy} onChange={e => setRefreshRecipe(e.target.checked)} /> Refresh from the current recipe when saving</label>}
       </section>}
+      {linkedMeal?.mealKind === 'dining_out' && <OrderSummary meal={linkedMeal} restaurant={restaurant} me={me} onChanged={ordersChanged} onOrder={() => setOrdering(true)} />}
       {draft.mealKind !== 'recipe' && <p className="field-hint">{draft.mealKind === 'dining_out' ? 'Dining out' : 'Free-form meals'} do not add ingredients to the shopping projection.</p>}
       {canUpdate ? <fieldset className="meal-fieldset meal-spaced" disabled={busy}>
-        <div className="field"><label htmlFor={`${formId}-status`}>Status</label><select id={`${formId}-status`} value={draft.status} onChange={e => update('status', e.target.value as MealStatus)}><option value="planned">Planned</option><option value="prepared">Prepared</option><option value="handled">Handled</option></select></div>
+        <div className="field"><label htmlFor={`${formId}-status`}>Status</label><select id={`${formId}-status`} value={draft.status} onChange={e => update('status', e.target.value as MealStatus)}><option value="planned">Planned</option><option value="prepared">{draft.mealKind === 'dining_out' ? 'Ordered' : 'Prepared'}</option><option value="handled">Handled</option></select></div>
         <div className="field"><label htmlFor={`${formId}-notes`}>Notes</label><textarea id={`${formId}-notes`} maxLength={10000} value={draft.notes ?? ''} onChange={e => update('notes', e.target.value || null)} /></div>
-      </fieldset> : <><p>Status: {draft.status}</p>{draft.notes && <p className="meal-prose">{draft.notes}</p>}</>}
+      </fieldset> : <><p>Status: {draft.status === 'prepared' && draft.mealKind === 'dining_out' ? 'ordered' : draft.status}</p>{draft.notes && <p className="meal-prose">{draft.notes}</p>}</>}
       {((snapshot && selectedRecipe) || meal?.sourceUrl || linkedMeal?.calendarEventId) && <div className="sheet-links">
         {snapshot && selectedRecipe && <button className="sheet-link" type="button" onClick={() => onRecipe(selectedRecipe)}><BookIcon /><span>Open recipe</span><ChevronRight /></button>}
         {meal?.sourceUrl && <SourceLink url={meal.sourceUrl} pdfPath={`api/meals/${encodeURIComponent(meal.id)}/source.pdf`} title={meal.title} label={meal.mealKind === 'dining_out' ? 'Website' : 'Recipe website'} />}
@@ -154,6 +180,7 @@ export default function MealSheet({ meal, initial, recipes, admin, owner, onClos
     </form>
     {swapping && meal && swapRange && <SwapPicker meal={meal} range={swapRange} recipes={recipes} onPick={other => void swap(other)} onClose={() => setSwapping(false)} />}
     {picking && <RecipePicker recipes={recipes} currentId={draft.recipeId} saved={savedRecipe} onPick={pick} onClose={() => setPicking(false)} />}
+    {ordering && linkedMeal && <OrderSheet meal={linkedMeal} restaurant={restaurant} me={me} onClose={() => setOrdering(false)} onSaved={ordersChanged} />}
     {calendarOpen && linkedMeal && <MealCalendarSheet meal={linkedMeal} onClose={() => setCalendarOpen(false)} onLinked={setLinkedMeal} />}
   </Sheet>
 }

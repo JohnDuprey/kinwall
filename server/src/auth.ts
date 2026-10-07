@@ -199,6 +199,11 @@ const DISPLAY_ALLOWED: { method: string; pattern: RegExp }[] = [
   { method: 'GET', pattern: /^\/api\/meals(\/(?!projection$)[^/]+)?$/ }, // not the shopping projection (admin)
   { method: 'PATCH', pattern: /^\/api\/meals\/[^/]+$/ }, // route restricts assigned devices to notes/status
   { method: 'GET', pattern: /^\/api\/restaurants(\/[^/]+)?$/ }, // the restaurant binder, read-only (parents edit it)
+  // Order nights: everyone adds their order like rating dinner (routes/meals.ts: a member's own device only
+  // theirs, and only parents once it's marked ordered). Asking for orders and marking ordered: parents.
+  { method: 'PUT', pattern: /^\/api\/meals\/[^/]+\/orders\/[^/]+$/ },
+  { method: 'DELETE', pattern: /^\/api\/meals\/[^/]+\/orders\/[^/]+$/ },
+  { method: 'GET', pattern: /^\/api\/events\/[^/]+\/meal$/ }, // the order summary on the event page
 
   { method: 'POST', pattern: /^\/api\/device-keys$/ }, // an app's widgets / watch key (everyday access only)
   { method: 'DELETE', pattern: /^\/api\/device-keys\/self$/ },

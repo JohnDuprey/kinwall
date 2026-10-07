@@ -18,6 +18,7 @@ import { effectiveDensity, useDeviceAppearance } from './useTheme.ts'
 import { NowNextCard, TransitionWarnings } from './NowNext.tsx'
 import { warningTimes } from './transitions.ts'
 import NotesThread, { Linkified } from './NotesThread.tsx'
+import { EventOrders } from './Orders.tsx'
 import Board from './Board.tsx'
 import { BoardLayoutPicker } from './BoardEditor.tsx'
 import SnapshotSheet from './Snapshot.tsx'
@@ -969,6 +970,7 @@ function EventDetailSheet({ event, members, categories, calendars, canEdit, tz, 
             <div className="event-notes"><Linkified text={stripHtmlToText(event.description)} /></div>
           </section>
         )}
+        {settings.features.meals !== false && <EventOrders eventId={event.id} />}
         {settings.features.lists && <EventTasks eventId={event.id} canAdd={canEdit} />}
         {/* The family's back-and-forth, kept apart from the event's own Notes above. */}
         {settings.features.notes && <NotesThread target={`event:${event.id}`} title="Discussion" />}

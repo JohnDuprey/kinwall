@@ -101,6 +101,7 @@ import m0097 from '../migrations/0097_plugin_inbox.sql';
 import m0098 from '../migrations/0098_library_format.sql';
 import m0099 from '../migrations/0099_library_details.sql';
 import m0100 from '../migrations/0100_restaurants.sql';
+import m0101 from '../migrations/0101_meal_orders.sql';
 
 export const MIGRATIONS: Migration[] = [
   { name: '0001_init.sql', sql: m0001 },
@@ -203,4 +204,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0098_library_format.sql', sql: m0098 },
   { name: '0099_library_details.sql', sql: m0099 },
   { name: '0100_restaurants.sql', sql: m0100 },
+  { name: '0101_meal_orders.sql', sql: m0101 },
 ];

@@ -4,9 +4,11 @@ import { createRoute, z } from '@hono/zod-openapi';
 import { createRouter } from '../router.ts';
 import { emit } from '../bus.ts';
 import { ErrorSchema } from '../schemas.ts';
-import { MenuItemSchema, MenuTextParseSchema, RestaurantInputSchema, RestaurantSchema, type Restaurant } from '../meal-schemas.ts';
+import { MenuItemSchema, MenuTextParseSchema, RestaurantInputSchema, RestaurantSchema, type Meal, type Restaurant } from '../meal-schemas.ts';
 import { parseMenuText } from '../menu-text.ts';
 import type { KinwallDb } from '../db.ts';
+import { hostTimezone } from '../env.ts';
+import { todayInTz } from './members.ts';
 
 export const restaurantRoutes = createRouter();
 const params = z.object({ id: z.string() });
@@ -31,13 +33,31 @@ export async function readRestaurants(db: KinwallDb, opts: { id?: string; search
     binds.push(like, like, like);
   }
   const filter = where.length ? `WHERE ${where.join(' AND ')}` : '';
-  const [rows, items] = await db.batch<Row | ItemRow>([
+  // Nights from here: from yesterday in UTC, trimmed to the household's today below (one round trip).
+  const since = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  const [rows, items, tz, nights, past] = await db.batch<unknown>([
     db.prepare(`SELECT r.* FROM restaurants r ${filter} ORDER BY r.name COLLATE NOCASE`).bind(...binds),
     db.prepare(`SELECT i.* FROM restaurant_menu_items i JOIN restaurants r ON r.id = i.restaurant_id ${filter} ORDER BY i.sort`).bind(...binds),
+    db.prepare("SELECT value FROM settings WHERE key = 'timezone'"),
+    db.prepare(`SELECT m.id, m.restaurant_id, m.date, m.slot, m.planned_time, m.order_type, m.status, m.eater_ids, (SELECT count(*) FROM meal_orders o WHERE o.meal_id = m.id) AS orders
+      FROM meals m JOIN restaurants r ON r.id = m.restaurant_id ${filter ? `${filter} AND` : 'WHERE'} m.date >= ? ORDER BY m.date, m.planned_time`).bind(...binds, since),
+    // ponytail: every past order at these places, newest first, to find each person's latest; fine for a family's years of takeout.
+    db.prepare(`SELECT m.restaurant_id, m.id AS meal_id, m.date, o.member_id, o.items FROM meal_orders o JOIN meals m ON m.id = o.meal_id JOIN restaurants r ON r.id = m.restaurant_id
+      ${filter ? `${filter} AND` : 'WHERE'} m.status != 'planned' AND o.items != '[]' ORDER BY m.date DESC, m.updated_at DESC`).bind(...binds),
   ]);
+  const today = todayInTz((tz.results[0] as { value: string } | undefined)?.value || hostTimezone());
+  const upcoming = new Map<string, NonNullable<Restaurant['upcoming']>>();
+  for (const m of nights.results as { id: string; restaurant_id: string; date: string; slot: Meal['slot']; planned_time: string | null; order_type: Meal['orderType']; status: Meal['status']; eater_ids: string | null; orders: number }[]) {
+    if (m.date >= today) upcoming.set(m.restaurant_id, [...(upcoming.get(m.restaurant_id) ?? []), { mealId: m.id, date: m.date, slot: m.slot, plannedTime: m.planned_time, orderType: m.order_type, status: m.status, eaterIds: m.eater_ids ? JSON.parse(m.eater_ids) : [], orderCount: m.orders }]);
+  }
+  const last = new Map<string, NonNullable<Restaurant['lastOrders']>>();
+  for (const o of past.results as { restaurant_id: string; meal_id: string; date: string; member_id: string; items: string }[]) {
+    const mine = last.get(o.restaurant_id) ?? [];
+    if (!mine.some((x) => x.memberId === o.member_id)) last.set(o.restaurant_id, [...mine, { memberId: o.member_id, mealId: o.meal_id, date: o.date, items: JSON.parse(o.items) }]);
+  }
   const menus = new Map<string, Restaurant['menu']>();
   for (const i of items.results as ItemRow[]) menus.set(i.restaurant_id, [...(menus.get(i.restaurant_id) ?? []), { id: i.id, section: i.section, name: i.name, description: i.description, priceCents: i.price_cents, favorite: !!i.favorite, sort: i.sort }]);
-  return (rows.results as Row[]).map((r) => ({ id: r.id, name: r.name, cuisine: r.cuisine, phone: r.phone, address: r.address, website: r.website, orderUrl: r.order_url, menuUrl: r.menu_url, notes: r.notes, archived: !!r.archived, menu: menus.get(r.id) ?? [], createdAt: r.created_at, updatedAt: r.updated_at }));
+  return (rows.results as Row[]).map((r) => ({ id: r.id, name: r.name, cuisine: r.cuisine, phone: r.phone, address: r.address, website: r.website, orderUrl: r.order_url, menuUrl: r.menu_url, notes: r.notes, archived: !!r.archived, menu: menus.get(r.id) ?? [], lastOrders: last.get(r.id) ?? [], upcoming: upcoming.get(r.id) ?? [], createdAt: r.created_at, updatedAt: r.updated_at }));
 }
 
 async function saveRestaurant(db: KinwallDb, input: z.infer<typeof RestaurantInputSchema>, old?: Restaurant): Promise<Restaurant> {

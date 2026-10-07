@@ -51,7 +51,7 @@ URLs must be public `http(s)` addresses. Private and LAN addresses are refused, 
 | `plugin.action` | An [activity action](../contributing/plugins.md#actions) was queued, like a spelling list for Spelling practice. `data`: `{ id, pluginId, memberId, action }` (`memberId` is `null` for the family's shared data), never the input. |
 | `tracker.changed` | A [tracker](../using/trackers.md) entry is added, edited or deleted. `data`: `{ id, kind }` (plus `deleted: true`), never the entry's fields. |
 | `recipe.changed` | A [recipe](../using/meals.md) is added, edited, archived or deleted. `data`: `{ id }`. |
-| `meal.changed` | A meal is planned, edited or deleted. `data`: `{ id }`. |
+| `meal.changed` | A meal is planned, edited or deleted, or someone's order for it changed. `data`: `{ id }`. |
 | `restaurant.changed` | A [restaurant](../using/meals.md#restaurants) is added, edited (its menu or favorites too), archived or deleted. `data`: `{ id }`. |
 | `display.paired` | A wall display was paired. |
 | `display.night_screen` | The [Night screen](../using/night.md#start-it-from-home-assistant) was started or ended remotely. `data`: `{ on, displays, until }`, where `displays` is the display key IDs or `null` for every wall screen, and `until` is when "on" runs out (`null` for off). |

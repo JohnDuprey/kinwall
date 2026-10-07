@@ -7,6 +7,7 @@ import type { Meal } from './meal-types.ts'
 import { EaterAvatars } from './MealSheet.tsx'
 import RecipePhoto from './RecipePhoto.tsx'
 import MealQuickSheet from './MealQuickSheet.tsx'
+import { ORDER_TYPE_LABEL, ordersLabel } from './orders.ts'
 
 /** The Board's Today's meals card (its rows; Board.tsx wraps them in the card), from the Board's own data. A tapped meal opens its sheet over the Board; planning stays in the Meals section. */
 export default function TodaysMeals({ now, meals: all }: { now: Date; meals: Meal[] }) {
@@ -26,7 +27,7 @@ export default function TodaysMeals({ now, meals: all }: { now: Date; meals: Mea
             <span className="snap-main"><span className="board-when">{SLOT_LABEL[meal.slot]}{meal.plannedTime ? ` · ${formatTime(meal.plannedTime)}` : ''}{meal.id === next?.id ? at(meal) >= minute ? ' · Next' : ' · Planned' : ''}</span>
               <span className="snap-title">{meal.mealKind === 'dining_out' ? '↗ ' : ''}{meal.title}</span>
               <EaterAvatars ids={meal.eaterIds ?? []} members={members} />
-              <span className="snap-meta">{[meal.mealKind === 'dining_out' ? 'Dining out' : null, meal.recipeSnapshot?.totalMinutes ? minutesLabel(meal.recipeSnapshot.totalMinutes) : null, assignee ? `Cooking: ${assignee.avatar ?? ''} ${assignee.name}` : null, meal.status !== 'planned' ? meal.status === 'prepared' ? 'Prepared' : 'Handled' : null].filter(Boolean).join(' · ')}</span>
+              <span className="snap-meta">{[meal.mealKind === 'dining_out' ? meal.orderType ? ORDER_TYPE_LABEL[meal.orderType] : 'Dining out' : null, meal.mealKind === 'dining_out' && meal.status === 'planned' && meal.orders?.length ? ordersLabel(meal) : null, meal.recipeSnapshot?.totalMinutes ? minutesLabel(meal.recipeSnapshot.totalMinutes) : null, assignee ? `Cooking: ${assignee.avatar ?? ''} ${assignee.name}` : null, meal.status !== 'planned' ? meal.status === 'prepared' ? meal.mealKind === 'dining_out' ? 'Ordered' : 'Prepared' : 'Handled' : null].filter(Boolean).join(' · ')}</span>
             </span>
             {meal.mealKind === 'recipe' && meal.recipeId && <RecipePhoto id={meal.recipeId} className="meal-thumb-board" />}
           </button></li>

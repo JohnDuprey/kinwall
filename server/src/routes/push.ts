@@ -6,7 +6,7 @@ import { parseMemberIds, resolveMemberIds } from '../calendar-members.ts';
 import { getVapidPublicKey, sendWebPush } from '../webpush.ts';
 import { encrypt } from '../crypto.ts';
 import { readFeatures } from './settings.ts';
-import { DEFAULT_PUSH_PREFS, loadSubs, MED_LATE, memberMatch, openNote, recordNotification } from '../notify.ts';
+import { DEFAULT_PUSH_PREFS, MED_LATE, openNote, pushToMembers, recordNotification } from '../notify.ts';
 import { medicationFeedFilter } from './medications.ts';
 import { ErrorSchema, NotificationSchema, NotifyInputSchema, PushSubscriptionInputSchema, PushSubscriptionPatchSchema, PushSubscriptionSchema } from '../schemas.ts';
 
@@ -235,17 +235,7 @@ pushRoutes.openapi(
     // The MCP server calls this route in-process and tags itself; anything else is the REST API.
     const source = c.req.header('X-Kinwall-Source') === 'mcp' ? 'mcp' : 'api';
     await recordNotification(c.env.DB, { kind: 'message', title: body.title, body: body.body, url: body.url, memberIds: body.memberIds, source });
-    let sent = 0;
-    for (const row of await loadSubs(c.env.DB)) {
-      if (!memberMatch(parseMemberIds(row.member_ids), body.memberIds)) continue;
-      const result = await sendWebPush(c.env, c.env.DB, row, { title: body.title, body: body.body, url: body.url });
-      if (result.ok) {
-        sent++;
-        await c.env.DB.prepare('UPDATE push_subscriptions SET last_success_at = ? WHERE id = ?').bind(new Date().toISOString(), row.id).run();
-      } else if (result.gone) {
-        await c.env.DB.prepare('DELETE FROM push_subscriptions WHERE id = ?').bind(row.id).run();
-      }
-    }
+    const sent = await pushToMembers(c.env, body.memberIds, { title: body.title, body: body.body, url: body.url });
     return c.json({ ok: true, sent }, 200);
   },
 );

@@ -125,12 +125,25 @@ export const RecipePreviewResultSchema = z.object({
   updates: z.object({ id: z.string(), name: z.string() }).optional().describe('Preview only: the recipe already imported from this address, which saving replaces.'),
 }).openapi('RecipePreviewResult');
 export const RecipeSnapshotSchema = z.object({ name: z.string(), defaultServings: servings, prepMinutes: minutes.optional(), totalMinutes: minutes.optional(), ingredients: z.array(IngredientSchema) }).openapi('RecipeSnapshot');
+// Order nights: a dining_out meal from a restaurant in the binder, and each person's order.
+export const OrderTypeSchema = z.enum(['dine_in', 'pickup', 'delivery']).describe('How: eat there, pickup or delivery.');
+export const OrderItemSchema = z.object({
+  menuItemId: z.string().max(100).nullable().default(null).describe("The menu item (from the restaurant's menu); null for something not on it."),
+  name: z.string().trim().min(1).max(200).describe('What it is, kept with the order so menu edits never change it.'),
+  qty: z.number().int().min(1).max(99).default(1), note: z.string().trim().max(200).nullable().default(null).describe('"No onions".'),
+}).strict().openapi('MealOrderItem');
+export const MealOrderInputSchema = z.object({
+  items: z.array(OrderItemSchema).max(50), note: z.string().trim().max(1000).nullable().optional().describe('"I\'ll share with Leo".'),
+}).strict().openapi('MealOrderInput');
+export const MealOrderSchema = z.object({ memberId: z.string(), items: z.array(OrderItemSchema), note: z.string().nullable(), updatedAt: z.string() }).openapi('MealOrder');
 export const MealInputSchema = z.object({
   date: MealDateSchema, slot: MealSlotSchema, title: z.string().trim().min(1).max(200).optional(),
   mealKind: z.enum(['recipe', 'freeform', 'dining_out']).optional(), recipeId: z.string().nullable().optional(),
   servings: servings.optional(), assigneeMemberId: z.string().nullable().optional().describe("Who's cooking."), eaterIds: eaterIds.optional(), notes: text.optional(),
   plannedTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable().optional(),
-  status: z.enum(['planned', 'prepared', 'handled']).optional(), sourceUrl: url.optional(),
+  status: z.enum(['planned', 'prepared', 'handled']).optional().describe('For dining out, prepared reads "Ordered": it locks the orders for everyone but parents.'), sourceUrl: url.optional(),
+  restaurantId: z.string().nullable().optional().describe('Dining out: the restaurant (from the binder). Without a title, the meal takes its name.'),
+  orderType: OrderTypeSchema.nullable().optional(),
 }).strict().openapi('MealInput');
 export const MealPatchSchema = MealInputSchema.partial().extend({ refreshRecipe: z.boolean().optional() }).strict().openapi('MealPatch');
 export const MealSchema = z.object({
@@ -140,6 +153,9 @@ export const MealSchema = z.object({
   calendarEventId: z.string().nullable(),
   calendarEventStart: MealEventStartSchema.nullable().default(null).describe('Set when Kinwall created the event (it then follows the meal): when it starts. null for an event you linked yourself, which is never changed.'),
   status: z.enum(['planned', 'prepared', 'handled']), sourceUrl: url,
+  // Defaults so older exports still import.
+  restaurantId: z.string().nullable().default(null), orderType: OrderTypeSchema.nullable().default(null),
+  orders: z.array(MealOrderSchema).default([]).describe("Each person's order (dining out)."),
   createdAt: z.string(), updatedAt: z.string(),
 }).openapi('Meal');
 export const MealRangeSchema = z.object({ from: MealDateSchema, to: MealDateSchema }).refine((r) => r.from <= r.to && (Date.parse(r.to) - Date.parse(r.from)) / 86400000 <= 366, 'range must be ordered and at most 367 days');
@@ -185,6 +201,11 @@ export const RestaurantInputSchema = z.object({
 export const RestaurantSchema = z.object({
   id: z.string(), name: z.string(), cuisine: z.string().nullable(), phone: z.string().nullable(), address: z.string().nullable(),
   website: url, orderUrl: url, menuUrl: url, notes: text, archived: z.boolean(), menu: z.array(MenuItemSchema),
+  // Read only (optional so exports without them import).
+  lastOrders: z.array(z.object({ memberId: z.string(), mealId: z.string(), date: z.string(), items: z.array(OrderItemSchema) })).optional()
+    .describe("Each person's latest order here, from a night already ordered: their usual."),
+  upcoming: z.array(z.object({ mealId: z.string(), date: z.string(), slot: MealSlotSchema, plannedTime: z.string().nullable(), orderType: OrderTypeSchema.nullable(), status: z.enum(['planned', 'prepared', 'handled']), eaterIds: z.array(z.string()), orderCount: z.number().int() })).optional()
+    .describe('Planned meals from here, today on.'),
   createdAt: z.string(), updatedAt: z.string(),
 }).openapi('Restaurant');
 export const MenuTextParseSchema = z.object({ text: z.string().min(1).max(100000).describe('Pasted menu text: one item per line with its price at the end; a line without a price over priced lines starts a section.') }).strict().openapi('MenuTextParse');

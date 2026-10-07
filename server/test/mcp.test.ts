@@ -87,6 +87,7 @@ test('mcp: tools/list returns the tools', async () => {
     'apply_meal_projection',
     'approve_chore',
     'approve_reward',
+    'ask_for_orders',
     'assign_chore_from_library',
     'award_points',
     'complete_chore',
@@ -168,6 +169,7 @@ test('mcp: tools/list returns the tools', async () => {
     'set_color_scheme',
     'set_event_category',
     'set_list_item_done',
+    'set_meal_order',
     'set_night_screen',
     'set_step_done',
     'set_store_aisle_order',
@@ -738,7 +740,8 @@ test('mcp: meal planning preserves route authorization and returns resolution/va
 });
 
 test('mcp: restaurant binder tools find places by name and keep menu items', async () => {
-  const { mcp } = makeApp(makeEnv());
+  const { rest, mcp } = makeApp(makeEnv());
+  await rest('/api/members', { method: 'POST', body: JSON.stringify({ name: 'Max', color: '#ff0000' }) });
   const call = async (name: string, args: unknown) => {
     const body = await (await mcp('tools/call', { name, arguments: args })).json() as any;
     assert.equal(body.result.isError, undefined, JSON.stringify(body));
@@ -751,6 +754,11 @@ test('mcp: restaurant binder tools find places by name and keep menu items', asy
   assert.equal(edited.menu[0].id, got.menu[0].id);
   assert.equal(edited.menu[0].favorite, true);
   assert.equal((await call('list_restaurants', { search: 'egg' })).restaurants.length, 1);
+  const { meal } = await call('create_meal', { date: '2099-10-09', slot: 'dinner', mealKind: 'dining_out', restaurantId: restaurant.id, orderType: 'delivery' });
+  assert.equal(meal.title, 'Golden Bowl');
+  const ordered = (await call('set_meal_order', { mealId: meal.id, member: 'max', items: JSON.stringify([{ menuItemId: got.menu[0].id, name: 'Lo mein', qty: 2 }]), note: 'Extra sauce' })).meal;
+  assert.deepEqual(ordered.orders[0].items, [{ menuItemId: got.menu[0].id, name: 'Lo mein', qty: 2, note: null }]);
+  assert.equal((await call('ask_for_orders', { mealId: meal.id })).ok, true);
 });
 
 test('mcp: meal planning tools use REST permissions, snapshots, and idempotent projection application', async () => {

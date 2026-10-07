@@ -234,3 +234,34 @@
 .menu-star { flex: none; font-size: 1.375rem; color: var(--text); }
 span.menu-star { width: 44px; text-align: center; }
 .menu-star.icon-btn { background: none; box-shadow: none; }
+.menu-who { flex: none; }
+
+/* Order nights (Orders.tsx): the summary the caller reads from, and everyone's orders. */
+.order-summary { margin: 20px 0; padding: 16px; border-radius: var(--radius-sm); background: var(--bg-alt); border: 1px solid var(--border); }
+.order-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.order-head h3 { margin: 0 8px 0 0; font-size: 1.125rem; }
+.order-lines, .order-notes, .order-people, .order-items { list-style: none; margin: 8px 0; padding: 0; }
+.order-tick { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 8px 6px; border: 0; border-bottom: 1px solid var(--border); background: none; color: var(--text); font: inherit; font-size: 1.125rem; text-align: left; }
+.order-tick > span:last-child { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; }
+.order-tick small { color: var(--text-dim); font-size: 0.875rem; font-weight: 600; }
+.order-box { flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; border: 2px solid var(--text-dim); }
+.order-tick[aria-pressed="true"] .order-box { background: var(--accent-strong); border-color: var(--accent-strong); color: var(--accent-ink); }
+.order-tick[aria-pressed="true"] strong { text-decoration: line-through; text-decoration-thickness: 2px; }
+.order-notes li { padding: 4px 0; font-size: 1rem; }
+.order-person { display: flex; flex-direction: column; gap: 6px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+.order-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 6px 8px; border: 0; border-radius: var(--radius-sm); background: none; color: var(--text); font: inherit; text-align: left; }
+.order-row > span:nth-child(2) { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.order-row small { color: var(--text-dim); font-weight: 600; overflow-wrap: anywhere; }
+.order-add { flex: none; font-weight: 800; color: var(--accent-text); }
+.order-usual { align-self: flex-start; margin-left: 52px; max-width: calc(100% - 52px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.order-items li { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+.order-item-name { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.order-item-name input { min-height: 40px; padding: 6px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--card); color: var(--text); font: inherit; font-size: 0.875rem; }
+.order-qty { flex: none; display: flex; align-items: center; gap: 4px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.order-qty > span { min-width: 2ch; text-align: center; }
+.order-other { display: flex; align-items: flex-end; gap: 8px; margin-top: 16px; }
+.order-other .field { flex: 1; margin: 0; }
+.order-other .btn { flex: none; }
+.order-line-note { font-size: 1rem; font-weight: 700; }
+.order-usual-pick { margin-bottom: 12px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sheet-link > span.meal-eaters { flex: none; flex-direction: row; }
